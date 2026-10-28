@@ -33,7 +33,7 @@ export function bypassFilterHint(show: AdminBypassFilter, rules: { rewardAmount:
     case 'new':
       return `Look into each one, then Confirm or Dismiss. Confirming adds a strike to the garage and ${reward} of Detlio credit to the customer (once per garage${rules && !rules.creditOn ? ', owed until credit is on' : ''}).`
     case 'confirmed':
-      return `A confirmed report is a strike against its garage for ${rules?.strikeWindowDays ?? 180} days, and makes it ineligible for Detlio Certified.`
+      return `A confirmed report is a strike against its garage for ${rules?.strikeWindowDays ?? 180} days, and makes it ineligible for Gold.`
     case 'dismissed':
       return 'Dismissed reports count for nothing. The reason is only for the team.'
   }

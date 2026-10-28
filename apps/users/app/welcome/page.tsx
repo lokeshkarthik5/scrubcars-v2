@@ -11,7 +11,7 @@ import { cn } from '@repo/core/utils'
 const SLIDES = [
   {
     title: 'Pristine Care for\nYour Machine',
-    body: "Access the region's top rated, certified auto spas. On-demand reservations, real-time queues, and premium detailing.",
+    body: "Access the region's top rated auto spas. On-demand reservations, real-time queues, and premium detailing.",
   },
   {
     title: 'Book a Slot in\nSeconds',
@@ -19,7 +19,7 @@ const SLIDES = [
   },
   {
     title: 'At the Garage or\nAt Your Door',
-    body: 'Drop in to a detailing bay or have a certified detailer come to you. Track every booking end to end.',
+    body: 'Drop in to a detailing bay or have a detailer come to you. Track every booking end to end.',
   },
 ]
 

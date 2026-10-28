@@ -8,6 +8,7 @@ import { useAdminDocumentsConfig } from '@repo/core/api/hooks/use-admin-document
 import { cn } from '@repo/core/utils'
 import { GarageDocumentsSection } from '@/components/garage-documents-section'
 import { GarageCertificationSection } from '@/components/garage-certification-section'
+import { GarageTierSection } from '@/components/garage-tier-section'
 import { GarageStrikesCard } from '@/components/garage-strikes-card'
 import { SaveBar } from '@/components/save-bar'
 import { RestoreDialog } from '@/components/vendor-bin-dialogs'
@@ -312,13 +313,17 @@ export default function EditVendorPage({
             )}
             {/* Outside the read-only fieldset too: in the Bin it still shows,
               and the section itself hides every change. */}
-            <TabsContent value="certification">
+            <TabsContent value="certification" className="flex flex-col gap-3">
+              {/* The tier (0063): what it holds, what customers see, the
+                  steps, the agreement and the hide switch; then Gold's own
+                  checks, Award Gold and Revoke. */}
+              <GarageTierSection vendorId={id} readOnly={readOnly} />
               <GarageCertificationSection vendorId={id} readOnly={readOnly} />
             </TabsContent>
           </Tabs>
 
           {/* Amber, as errors are: red on this page is Save changes. The
-            server's own words, e.g. why it would not verify the garage. */}
+            server's own words, e.g. why it would not show the garage to customers. */}
           {error && (
             <p role="alert" className="text-[13px] text-error">
               {error}

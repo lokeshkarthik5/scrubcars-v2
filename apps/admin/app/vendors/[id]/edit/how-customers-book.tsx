@@ -52,7 +52,7 @@ export function HowCustomersBook({
   /** As saved: a pin dragged but not saved is not one yet. */
   pinned: boolean
   paused: boolean
-  /** Active and verified, as saved. */
+  /** Active and shown to customers, as saved. */
   live: boolean
   onAuthError: () => void
   onSaved: () => void
@@ -268,7 +268,7 @@ export function HowCustomersBook({
         </p>
         {!live && (
           <p className="text-error">
-            Not live yet: Active and verified first (Go live).
+            Not live yet: Active and shown to customers first (Go live).
           </p>
         )}
         {paused && (

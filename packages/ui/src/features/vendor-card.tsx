@@ -13,8 +13,7 @@ import {
   useHydratedLocation,
 } from '@repo/core/stores/location-store'
 import type { BookingType, Vendor } from '@repo/core/types'
-import { CertifiedMark } from '@repo/ui/features/detlio-certified'
-import { DocumentsVerifiedMark } from '@repo/ui/features/documents-verified'
+import { TierMark } from '@repo/ui/features/tier-medal'
 import { OutsideCityChip } from '@repo/ui/features/outside-city'
 import { GarageCover, GarageMonogram } from '@repo/ui/features/garage-cover'
 
@@ -150,13 +149,13 @@ export function VendorCard({
 
           <div className="flex flex-col gap-1.5 px-3.5 py-3">
             <div className="flex items-start justify-between gap-2">
-              {/* One sign right after the name, and the name gives way
-                  first (truncates), so it never pushes the booking badges
-                  off a 360px card. Detlio Certified needs the documents,
-                  so a certified garage shows the seal alone. */}
+              {/* One sign right after the name, the tier medal (0063: the
+                  highest tier Detlio shows, never more than one), and the
+                  name gives way first (truncates), so it never pushes the
+                  booking badges off a 360px card. */}
               <h3 className="flex min-w-0 flex-1 items-center gap-1 text-[15px] font-semibold text-text-primary">
                 <span className="truncate">{vendor.name}</span>
-                {vendor.certified ? <CertifiedMark /> : vendor.documentsVerified && <DocumentsVerifiedMark />}
+                {vendor.tier && <TierMark tier={vendor.tier} />}
               </h3>
               <div className="flex shrink-0 gap-1.5">
                 {vendor.dropinEnabled && (

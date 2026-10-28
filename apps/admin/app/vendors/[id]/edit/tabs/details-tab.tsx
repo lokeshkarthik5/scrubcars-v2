@@ -107,7 +107,7 @@ export function DetailsTab({
             rows={4}
           />
           <p className="text-[12px] text-text-muted">
-            Only the team sees these. Stage and Verified are under Go live.
+            Only the team sees these. Stage and Show to customers are under Go live.
           </p>
         </ScSection>
       </div>

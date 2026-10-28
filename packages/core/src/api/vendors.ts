@@ -52,8 +52,11 @@ export interface VendorListParams {
    * with no coordinates.
    */
   includeUnlocated?: boolean
-  /** "Certified only" (0048): only Detlio Certified garages. Filtered on the server, so paging holds. */
-  certified?: boolean
+  /**
+   * "Silver & above" (0063): only garages showing a Silver or Gold medal (as
+   * admin switched the tiers on). Filtered on the server, so paging holds.
+   */
+  silverAndAbove?: boolean
   limit?: number
   cursor?: string
 }
@@ -101,7 +104,7 @@ export async function getVendors(
       sort: params?.sort,
       includeUnlocated: params?.includeUnlocated,
       // Sent only when on: left out, the list is every garage.
-      certified: params?.certified ? true : undefined,
+      tier: params?.silverAndAbove ? 'silver' : undefined,
       limit: params?.limit,
       cursor: params?.cursor,
     },

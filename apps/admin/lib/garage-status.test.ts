@@ -123,7 +123,7 @@ describe('statusHeadline', () => {
     ).toEqual({
       live: false,
       title: 'Customers can’t book it yet',
-      summary: '2 things block it · 2 to fix soon · Pending · not verified',
+      summary: '2 things block it · 2 to fix soon · Pending · not shown to customers',
     })
     expect(
       statusHeadline(live, [item('no_services', 'blocking', 'services')])
@@ -147,7 +147,7 @@ describe('statusHeadline', () => {
     expect(statusHeadline({ ...live, isVerified: false }, undefined)).toEqual({
       live: false,
       title: 'Customers can’t book it yet',
-      summary: 'not verified',
+      summary: 'not shown to customers',
     })
   })
 })

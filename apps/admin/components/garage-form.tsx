@@ -81,9 +81,9 @@ interface GarageFormProps {
   /** A line under the services (the import's "no times given"). */
   servicesHelp?: string | null
   /**
-   * An import: always saved as Pending and not verified. The data came from
-   * a photo or a form someone else filled in, so going live is a separate,
-   * deliberate step (Verify on Vendors). The stage controls give way to a
+   * An import: always saved as Pending and not shown to customers. The data
+   * came from a photo or a form someone else filled in, so going live is a
+   * separate, deliberate step (Show to customers on Vendors). The stage controls give way to a
    * note saying so.
    */
   pendingOnly?: boolean
@@ -113,7 +113,7 @@ export function GarageForm({
   const [pickupAgreed, setPickupAgreed] = useState(false)
   // Optional here, unlike the vendor's own onboarding: staff often create a
   // garage from a phone call and pin it later. The consequence lands at
-  // verification, which the server refuses without coordinates.
+  // "Show to customers", which the server refuses without coordinates.
   const [pin, setPin] = useState<PickedLocation | null>(null)
   // How customers book: the same card as the edit page, held here and sent
   // with Create rather than saved on tap — there is no garage to save to yet.
@@ -416,13 +416,13 @@ export function GarageForm({
         </div>
       </div>
       <ScCheckbox
-        label="Mark as verified"
+        label="Show to customers"
         checked={isVerified}
         onChange={setIsVerified}
       />
       <p className="text-[12px] text-text-muted">
-        A vendor is visible to customers only when stage is <b>Active</b> and it
-        is <b>verified</b>.
+        A garage is visible to customers only when its stage is <b>Active</b>{' '}
+        and <b>Show to customers</b> is on.
       </p>
       <ScTextarea
         label="Notes (optional)"
@@ -452,7 +452,7 @@ export function GarageForm({
           Garage location
         </span>
         <p className="text-[12px] text-text-muted">
-          Optional now, required before this garage can be verified.
+          Optional now, required before this garage can be shown to customers.
         </p>
         <LocationPicker
           value={pin ? { lat: pin.lat, lng: pin.lng } : null}
@@ -635,10 +635,10 @@ export function GarageForm({
       {pendingOnly && (
         <Notice
           tone="neutral"
-          title="Saved as Pending — nothing goes live until you verify"
+          title="Saved as Pending — nothing goes live until you show it to customers"
         >
-          Customers can’t see or book it yet. Verify it from Vendors once it’s
-          right.
+          Customers can’t see or book it yet. Show it to customers from Vendors
+          once it’s right.
         </Notice>
       )}
 

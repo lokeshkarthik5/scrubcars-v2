@@ -20,7 +20,8 @@ import { useAuthStore } from '@repo/core/stores/auth-store'
 import type { Review } from '@repo/core/types'
 import { formatRating, reviewCountLabel } from '@repo/core/vendor-stats'
 import { GARAGE_NON_SOLICITATION_LINE } from '@repo/core/bypass-reports'
-import { CertifiedCard } from '@/components/certified-card'
+import { AgreementBanner } from '@/components/agreement-banner'
+import { TierCard } from '@/components/tier-card'
 import { GarageStatus } from '@/components/garage-status'
 import { GuaranteeHomeCard } from '@/components/guarantee-home-card'
 import { NewBookingCard } from '@/components/new-booking-card'
@@ -122,20 +123,23 @@ export default function VendorHomePage() {
       <h1 className="sr-only">Home</h1>
 
       {/* Ordered by what actually blocks the garage. An unpinned garage cannot
-          be verified at all, so telling them "under review" first would be
-          misleading — there is nothing to review until they act. */}
+          be shown to customers at all, so telling them "under review" first
+          would be misleading — there is nothing to review until they act. */}
       {needsLocation ? (
         <Notice href="/settings?tab=location" title="Set your garage location">
           Customers can&apos;t find you until your garage is on the map, and we
-          can&apos;t verify you without it. Tap to pin it.
+          can&apos;t show you to customers without it. Tap to pin it.
         </Notice>
       ) : (
         !isVerified && (
-          <Notice tone="neutral" title="Your profile is under review">
-            You&apos;ll be notified once verified.
+          <Notice tone="neutral" title="Not shown to customers yet">
+            Detlio is checking your garage. You&apos;ll be told once customers can find you.
           </Notice>
         )
       )}
+
+      {/* The garage agreement (0063): a version to accept, owner seat only. */}
+      {isVendorAdmin && <AgreementBanner vendorId={vendor?.id} />}
 
       {/* A paused garage is invisible to customers, which is easy to forget a
           week later. Only an admin can resume (Settings is theirs). */}
@@ -291,8 +295,9 @@ export default function VendorHomePage() {
       {/* Free redo claims (0051): what waits for an answer, owner seat only. */}
       {isVendorAdmin && <GuaranteeHomeCard key={`guarantee-${vendor?.id}`} />}
 
-      {/* Detlio Certified (0048): something to work towards, not to act on now. */}
-      {isVendorAdmin && <CertifiedCard key={vendor?.id} />}
+      {/* Your tier (0063): Bronze, Silver or Gold and the next tier's steps,
+          something to work towards; owner seat only. */}
+      {isVendorAdmin && <TierCard vendorId={vendor?.id} />}
 
       {/* The agreement's non-solicitation term (0052): a reminder for every seat. */}
       <p className="px-1 text-[13px] text-text-secondary">

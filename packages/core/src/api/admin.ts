@@ -1,3 +1,4 @@
+import type { Tier } from '@repo/core/tiers'
 import { apiClient } from './client'
 import { stripImageMetadata } from '@repo/core/image-upload'
 import type { ApiMember } from './members'
@@ -107,6 +108,13 @@ export interface AdminVendor {
    * or certified; absent from older servers.
    */
   certification?: AdminVendorCertification | null
+  /**
+   * The tier the garage holds (0063): Bronze, Silver or Gold, whatever
+   * customers are shown; null for none. Absent from older servers.
+   */
+  tier?: Tier | null
+  /** Admin hid this garage's medal from customers (0063). Absent from older servers. */
+  tierHidden?: boolean
   owner: {
     id: string
     name: string

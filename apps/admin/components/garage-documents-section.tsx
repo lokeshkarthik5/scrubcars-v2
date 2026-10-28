@@ -47,8 +47,10 @@ const STATUS_VARIANT = {
 /**
  * The garage's documents, on its edit page's Documents tab: open each file
  * (a five-minute link, made per press), approve or reject it with a reason
- * the garage reads, and upload on the garage's behalf (the signed agreement,
- * mostly). Saved on its own, like Payout details: never part of "Save
+ * the garage reads, and upload on the garage's behalf (a photo the owner
+ * sent on WhatsApp, say). The signed paper agreement is retired (0063,
+ * click to agree replaced it): an old one is listed, readable, and nothing
+ * new is uploaded for it. Saved on its own, like Payout details: never part of "Save
  * changes". While the garage is in the Bin the files still open, and
  * nothing can be changed.
  */
@@ -115,7 +117,7 @@ export function GarageDocumentsSection({
                 aria-hidden="true"
                 className="mr-1"
               />
-              Documents verified
+              Documents checked
             </ScBadge>
           )}
         </div>
@@ -133,9 +135,10 @@ export function GarageDocumentsSection({
         )}
       </p>
       <p className="text-[12px] text-text-muted">
-        When the four required ones are approved, customers see a Documents
-        verified badge. It does not decide whether the garage is listed (that is
-        Verify). Files open in a new tab on a link that works for 5 minutes;
+        When the three required ones are approved, the documents count as
+        checked, one of the steps to Silver. It does not decide whether the
+        garage is listed (that is Show to customers). Files open in a new tab on
+        a link that works for 5 minutes;
         don’t download or forward them. Saved immediately — not part of “Save
         changes”.
       </p>
@@ -273,7 +276,7 @@ function DocumentRow({
             {doc.label}
           </p>
           <p className="text-[12px] text-text-muted">
-            {doc.required ? 'Required' : 'Optional'} ·{' '}
+            {doc.retired ? 'No longer used' : doc.required ? 'Required' : 'Optional'} ·{' '}
             {DOCUMENT_HINTS[doc.type]}
             {doc.type === 'owner_id' && ` ${AADHAAR_MASK_NOTE}.`}
           </p>
@@ -398,7 +401,9 @@ function DocumentRow({
         </div>
       )}
 
-      {!readOnly && (
+      {/* The paper agreement is retired (0063): an old one stays readable
+          and reviewable, but nothing new is uploaded for it. */}
+      {!readOnly && !doc.retired && (
         <>
           <input
             ref={inputRef}

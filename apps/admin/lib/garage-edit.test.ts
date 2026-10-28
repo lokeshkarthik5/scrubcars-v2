@@ -51,7 +51,7 @@ describe('parsePageTab', () => {
       'Services',
       'Team & payout',
       'Documents',
-      'Certified',
+      'Tier',
     ])
     expect(parsePageTab('operations')).toBe('operations')
     expect(parsePageTab('certification')).toBe('certification')

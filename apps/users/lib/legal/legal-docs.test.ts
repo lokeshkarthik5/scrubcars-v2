@@ -84,6 +84,27 @@ describe('the five pages', () => {
   }
 })
 
+describe('medals (0063)', () => {
+  const terms = LEGAL_DOCS.find((doc) => doc.path === LEGAL_PATHS.terms)!
+
+  test('the Terms say what Bronze, Silver and Gold mean, and that garages cannot pay for one', () => {
+    const text = markdownOf(terms)
+    expect(text).toContain('Bronze, Silver or Gold medal')
+    expect(text).toContain('accepted Detlio\'s garage agreement')
+    expect(text).toContain('garages cannot pay for one')
+    expect(text).toContain('"Silver & above" filter only narrows the list')
+  })
+
+  test('no public text names the badges the medals replaced', () => {
+    for (const doc of LEGAL_DOCS) {
+      const text = markdownOf(doc).toLowerCase()
+      expect(text).not.toContain('documents verified')
+      expect(text).not.toContain('detlio certified')
+      expect(text).not.toContain('certified only')
+    }
+  })
+})
+
 describe('business details', () => {
   const contact = LEGAL_DOCS.find((doc) => doc.path === LEGAL_PATHS.contact)!
 
