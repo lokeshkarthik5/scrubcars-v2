@@ -39,6 +39,7 @@ import {
   refundRecords,
   reviews,
   servicePackageItems,
+  serviceImages,
   services,
   userAddresses,
   zones,
@@ -100,6 +101,7 @@ import {
   CONTACT_DOORSTEP,
   CONTACT_GARAGE,
   ADMIN_LOGINS,
+  TRUST_LOOK,
 } from './e2e-ids.js'
 import { hashPassword } from '../../lib/passwords.js'
 
@@ -2994,6 +2996,78 @@ async function seedBehaviourRows() {
   await db.insert(analyticsEvents).values(rows)
 }
 
+/**
+ * Trust & look (0063): the no-photo look and "What's included"
+ * (specs/users/no-photo-look.spec.ts); see TRUST_LOOK for what each row is
+ * for. Self-contained: its own owners, two garages far south-west beside
+ * VENDORS.media, their services, one garage photo and two service pictures
+ * (one AI, which customers must never get).
+ */
+async function seedTrustLookRows() {
+  const pin = { lat: ORIGIN.lat - 0.66, lng: ORIGIN.lng - 0.16 }
+  await db.insert(users).values(
+    [TRUST_LOOK.plainOwner, TRUST_LOOK.photoOwner].map((owner) => ({
+      id: owner.id, name: owner.name, phone: owner.phone,
+      isCustomer: false, isVendorOwner: true, phoneVerified: true, status: 'active' as const,
+    }))
+  )
+  await db.insert(vendors).values([
+    {
+      id: TRUST_LOOK.plain.id, ownerId: TRUST_LOOK.plainOwner.id, businessName: TRUST_LOOK.plain.name,
+      phone: TRUST_LOOK.plain.phone, address: '4, Polish Street, Porur', city: 'Chennai', pincode: '600116',
+      lat: pin.lat, lng: pin.lng, geoSource: 'map_pin', geoConfirmedAt: now,
+      vehicleTypes: ['hatchback', 'sedan', 'suv'],
+      isVerified: true, doorstepEnabled: true, dropinEnabled: true,
+      slotIntervalMins: 30, status: 'active',
+    },
+    {
+      id: TRUST_LOOK.photo.id, ownerId: TRUST_LOOK.photoOwner.id, businessName: TRUST_LOOK.photo.name,
+      phone: TRUST_LOOK.photo.phone, address: '5, Photo Street, Porur', city: 'Chennai', pincode: '600116',
+      lat: pin.lat + 0.01, lng: pin.lng, geoSource: 'map_pin', geoConfirmedAt: now,
+      vehicleTypes: ['hatchback', 'sedan', 'suv'],
+      isVerified: true, doorstepEnabled: false, dropinEnabled: true,
+      slotIntervalMins: 30, status: 'active',
+    },
+  ])
+  await db.insert(userMemberMapping).values([
+    { vendorId: TRUST_LOOK.plain.id, userId: TRUST_LOOK.plainOwner.id, role: 'vendor_admin', status: 'active' },
+    { vendorId: TRUST_LOOK.photo.id, userId: TRUST_LOOK.photoOwner.id, role: 'vendor_admin', status: 'active' },
+  ])
+  await db.insert(vendorWorkingHours).values([
+    ...hoursFor(TRUST_LOOK.plain.id, '09:00:00', '18:00:00'),
+    ...hoursFor(TRUST_LOOK.photo.id, '09:00:00', '18:00:00'),
+  ])
+  await db.insert(vendorPhotos).values({
+    vendorId: TRUST_LOOK.photo.id, url: TRUST_LOOK.garagePhotoUrl, sortOrder: 0,
+  })
+
+  const s = TRUST_LOOK.services
+  await db.insert(services).values(
+    ([
+      [s.points, TRUST_LOOK.plain.id, 'detailing',
+        [s.points.intro, ...s.points.points.map((point) => `- ${point}`)].join('\n')],
+      [s.bike, TRUST_LOOK.plain.id, 'others', s.bike.description],
+      [s.aiOnly, TRUST_LOOK.plain.id, 'coating', null],
+      [s.photo, TRUST_LOOK.plain.id, 'car_wash', null],
+      [s.photoGarageWash, TRUST_LOOK.photo.id, 'car_wash', null],
+    ] as const).map(([service, vendorId, category, description]) => ({
+      id: service.id, vendorId, name: service.name, description, category,
+      pricingType: 'flat' as const, price: service.price,
+      durationMins: service.durationMins, isActive: true,
+    }))
+  )
+  await db.insert(serviceImages).values([
+    {
+      id: TRUST_LOOK.media.ai.id, serviceId: s.aiOnly.id, url: TRUST_LOOK.media.ai.url,
+      sortOrder: 0, kind: 'image', source: 'ai', uploadedBy: 'E2E Admin', consentConfirmedAt: now,
+    },
+    {
+      id: TRUST_LOOK.media.photo.id, serviceId: s.photo.id, url: TRUST_LOOK.media.photo.url,
+      sortOrder: 0, kind: 'image', source: 'upload', uploadedBy: 'garage', consentConfirmedAt: now,
+    },
+  ])
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set')
 
@@ -3062,6 +3136,7 @@ async function main() {
   await seedAdminLoginRows()
   console.log('[e2e-seed] behaviour visits…')
   await seedBehaviourRows()
+  await seedTrustLookRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }

@@ -111,6 +111,7 @@ import {
   serviceMediaService,
 } from '../service-media/service-media.service.js'
 import {
+  isCustomerVisible,
   toManagedMedia,
   toPublicMedia,
   type ManagedServiceMedia,
@@ -577,8 +578,10 @@ function toServiceResponse(
   images: ServiceImageRecord[] = service.images ?? [],
   view: ServiceView = 'manage'
 ): ServiceResponse {
+  // A customer never gets an AI picture, in `media` or the older `images`.
+  const shown = view === 'public' ? images.filter(isCustomerVisible) : images
   return {
-    images: images.filter((image) => image.kind === 'image').map(toServiceImageResponse),
+    images: shown.filter((image) => image.kind === 'image').map(toServiceImageResponse),
     media: view === 'public' ? toPublicMedia(images) : toManagedMedia(images),
     id: service.id,
     name: service.name,

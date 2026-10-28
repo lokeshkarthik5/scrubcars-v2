@@ -49,6 +49,26 @@ export class GaragePage {
   openDetails = (serviceName: string) =>
     this.page.getByRole('button', { name: `View details for ${serviceName}` }).first().click()
 
+  /** A service card's details trigger: its name, price, picture or icon and line. */
+  detailsTrigger = (serviceName: string) =>
+    this.page.getByRole('button', { name: `View details for ${serviceName}` }).first()
+
+  /** The details sheet, a dialog named "<service> details". */
+  detailsSheet = (serviceName: string) =>
+    this.page.getByRole('dialog', { name: `${serviceName} details` })
+
+  /** The sheet's "What's included" list (a section labelled by its heading). */
+  whatsIncluded = (serviceName: string) =>
+    this.detailsSheet(serviceName).getByRole('region', { name: "What's included" })
+
+  /**
+   * The designed cover of a garage with no photo, and the monogram tile of
+   * one with no logo. Both are decorative (aria-hidden), hence test ids.
+   */
+  cover = () => this.page.getByTestId('garage-cover')
+
+  monogram = () => this.page.getByTestId('garage-monogram')
+
   detailsCta = () =>
     this.page.getByRole('button', { name: /(Add to|Remove from) booking/ })
 

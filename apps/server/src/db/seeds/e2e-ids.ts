@@ -1002,7 +1002,7 @@ export const SERVICES = {
   mediaAi: { id: id(428), name: 'Media Ceramic Coat', price: '2999.00', durationMins: 120 },
   /** On MEDIA: the refusals (no privacy tick, a clip over 60 seconds). Never gets media. */
   mediaRefused: { id: id(429), name: 'Media Polish', price: '899.00', durationMins: 60 },
-  /** On MEDIA, filed under others: the drawn bike sample, "No photos from this garage yet". */
+  /** On MEDIA, filed under others: the bike icon tile, never a sample (no-photo look). */
   mediaBike: { id: id(430), name: 'Media Bike Wash', price: '200.00', durationMins: 45 },
   /** One ₹499 wash on each Bin garage; binHardPackage bundles binHardWash. */
   binTeamWash: { id: id(431), name: 'Bin Team Wash', price: '499.00', durationMins: 30 },
@@ -1640,5 +1640,56 @@ export const BEHAVIOUR = {
       steps: ['app_open', 'landing_view', 'garage_view', 'booking_start', 'pay_success'] },
     test: { visits: 1, daysAgo: 8, channel: 'direct', device: 'phone', user: 'stats',
       steps: ['app_open', 'landing_view', 'garage_view', 'booking_start', 'pay_success'] },
+  },
+} as const
+
+// Trust & look: no-photo look and What's included (0063)
+/**
+ * specs/users/no-photo-look.spec.ts, ids 4550–4599, phones 90000045[5-9]x.
+ * Two garages far south-west like VENDORS.media (past 50 km, so "Outside
+ * Chennai", and at the very end of any located list), each with its own
+ * owner, so nothing here moves another spec's numbers:
+ *
+ * - plain: no photo and no logo, At garage and Doorstep: its card and page
+ *   show the designed cover ("NP", "CHENNAI • AT GARAGE • DOORSTEP") and
+ *   the monogram tile. Its services:
+ *   - points: seven "- " points under an intro: the sheet shows five and
+ *     "+2 more"; its card "Deep vacuum · Seat shampoo · Dashboard polish +4".
+ *   - bike: a plain description, no points, no media: the bike icon tile,
+ *     and a sheet with no picture area, the description as written.
+ *   - aiOnly: only an AI picture: customers get no media at all (the API
+ *     leaves it out), so the coating icon tile and no picture area.
+ *   - photo: one garage photo: its thumbnail, and the sheet's media area
+ *     "From Nila Polish Works".
+ * - photo: one garage photo and no logo: the photo, with the monogram ("VP").
+ */
+export const TRUST_LOOK = {
+  plainOwner: { id: id(4550), name: 'Nila Owner E2E', phone: '9000004550' },
+  photoOwner: { id: id(4551), name: 'Vel Owner E2E', phone: '9000004551' },
+  plain: { id: id(4552), name: 'Nila Polish Works', phone: '9000004552', initials: 'NP' },
+  photo: { id: id(4553), name: 'Vel Photo Garage', phone: '9000004553', initials: 'VP' },
+  /** VENDORS.photo's one photo. */
+  garagePhotoUrl: 'https://placehold.co/600x400/png?text=Vel+Photo+Garage',
+  services: {
+    points: {
+      id: id(4560), name: 'Nila Cabin Deep Clean', price: '1999.00', durationMins: 180,
+      intro: 'A deep clean of the whole cabin.',
+      points: [
+        'Deep vacuum', 'Seat shampoo', 'Dashboard polish', 'Door pads wiped',
+        'Glass cleaned', 'Odour removal', 'Mats washed',
+      ],
+    },
+    bike: {
+      id: id(4561), name: 'Nila Two-Wheeler Wash', price: '200.00', durationMins: 45,
+      description: 'Body, wheels and chain area',
+    },
+    aiOnly: { id: id(4562), name: 'Nila Ceramic Guard', price: '4999.00', durationMins: 240 },
+    photo: { id: id(4563), name: 'Nila Foam Shine', price: '599.00', durationMins: 60 },
+    /** On TRUST_LOOK.photo, so it is listed like any garage with a service. */
+    photoGarageWash: { id: id(4564), name: 'Vel Quick Wash', price: '399.00', durationMins: 30 },
+  },
+  media: {
+    ai: { id: id(4570), url: 'https://placehold.co/600x400/png?text=AI+sample' },
+    photo: { id: id(4571), url: 'https://placehold.co/600x400/png?text=Nila+Foam+Shine' },
   },
 } as const

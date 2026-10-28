@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { IconBuildingStore, IconStarFilled } from '@tabler/icons-react'
+import { IconStarFilled } from '@tabler/icons-react'
 import { BOOKING_TYPE_LABELS, bookingTypeParam } from '@repo/core/booking-types'
 import { distanceAndDrive } from '@repo/core/drive-time'
 import { straightLineKm } from '@repo/core/map'
@@ -16,6 +16,7 @@ import type { BookingType, Vendor } from '@repo/core/types'
 import { CertifiedMark } from '@repo/ui/features/detlio-certified'
 import { DocumentsVerifiedMark } from '@repo/ui/features/documents-verified'
 import { OutsideCityChip } from '@repo/ui/features/outside-city'
+import { GarageCover, GarageMonogram } from '@repo/ui/features/garage-cover'
 
 function ModeBadge({ label, tone }: { label: string; tone: 'garage' | 'doorstep' }) {
   return (
@@ -121,14 +122,13 @@ export function VendorCard({
                 className="object-cover"
               />
             ) : (
-              // No vendor photo on file — a neutral placeholder rather than stock
-              // imagery, so the card never implies a photo we don't have.
-              <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-surface-elevated to-surface">
-                <IconBuildingStore size={30} aria-hidden="true" className="text-text-muted" />
-              </div>
+              // No photo on file: the garage's own designed cover (its
+              // initials, area and modes on its colour), never stock imagery
+              // that could pass for the garage, nor a grey box.
+              <GarageCover vendor={vendor} />
             )}
 
-            {vendor.logoUrl && (
+            {vendor.logoUrl ? (
               <div className="absolute bottom-2 left-2 h-10 w-10 overflow-hidden rounded-[10px] border border-white/70 bg-surface shadow-sm">
                 <Image
                   src={vendor.logoUrl}
@@ -138,6 +138,13 @@ export function VendorCard({
                   className="object-cover"
                 />
               </div>
+            ) : (
+              // No logo: a monogram tile in the cover's colour, over a photo
+              // or the designed cover alike.
+              <GarageMonogram
+                vendor={vendor}
+                className="absolute bottom-2 left-2 h-10 w-10 rounded-[10px] text-[14px] shadow-sm"
+              />
             )}
           </div>
 

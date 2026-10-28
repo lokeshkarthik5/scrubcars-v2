@@ -829,8 +829,8 @@ export const services = pgTable(
 // without a migration. Cascade-deleted with the service; the R2 objects and
 // Stream videos behind the rows are removed best-effort alongside.
 //
-// `source = 'ai'` is a picture made with AI by admin: customers see it tagged
-// "Sample image". `consent_confirmed_at` is when the privacy tick ("no number
+// `source = 'ai'` is a picture made with AI by admin: shown in the editors
+// only, never to customers (toPublicMedia). `consent_confirmed_at` is when the privacy tick ("no number
 // plates or faces can be read, or the owner agreed") was given, and
 // `uploaded_by` who added it (an admin's name, or 'garage'). Neither is ever
 // in a customer-facing response.
