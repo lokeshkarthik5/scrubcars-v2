@@ -14,10 +14,11 @@ import type { BookingType } from '@repo/core/types'
  * Pickup & drop): part 2's "Request a visit" / "Request a pickup" button.
  * `mode` is the tab ('doorstep' or 'pickup').
  */
-export function RequestActionSlot(_props: {
+export function RequestActionSlot(props: {
   garage: JustOutsideVendor
   mode: Extract<BookingType, 'doorstep' | 'pickup'>
 }) {
+  void props
   return null
 }
 

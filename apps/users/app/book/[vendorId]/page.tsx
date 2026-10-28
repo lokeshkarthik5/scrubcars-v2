@@ -36,6 +36,7 @@ import {
 } from '@repo/ui/features/location-picker'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScButton } from '@repo/ui/sc/button'
+import { ScInput } from '@repo/ui/sc/input'
 import { ErrorState } from '@repo/ui/sc/empty-state'
 import { ScSheet } from '@repo/ui/sc/modal'
 import { Notice } from '@repo/ui/sc/notice'
@@ -68,7 +69,26 @@ import {
   intentPollResult,
   realClock,
 } from '@repo/core/payment-confirmation'
-import { getAddresses, updateAddress } from '@repo/core/api/users'
+import {
+  createAddress,
+  createVehicle,
+  getAddresses,
+  updateAddress,
+  updateProfile,
+} from '@repo/core/api/users'
+import {
+  clearBookingDraft,
+  draftSlotStillAhead,
+  readBookingDraft,
+  writeBookingDraft,
+  type DraftAddress,
+  type DraftCar,
+} from '@repo/core/booking-draft'
+import {
+  CheckoutSignInCard,
+  useCheckoutSignIn,
+} from '@/components/checkout/checkout-sign-in'
+import { GuestCarForm, draftCarReady } from '@/components/checkout/guest-car'
 import { ApiError } from '@repo/core/api/client'
 import { amountBucket } from '@repo/core/analytics-events'
 import { track } from '@repo/core/analytics'
@@ -122,11 +142,16 @@ import {
   insidePickupReach,
   pickupFeeLabel,
 } from '@repo/core/pickup'
-import type { BookingType, Service, Vendor } from '@repo/core/types'
+import type { Address, BookingType, Service, Vendor } from '@repo/core/types'
 import { resolveServiceAmount } from '@repo/core/pricing'
 import { Figures } from '@repo/ui/sc/figures'
 import { VEHICLE_TIERS } from '@repo/core/vehicles'
-import { cn, formatDuration, formatServiceSummary } from '@repo/core/utils'
+import {
+  APP_TIMEZONE,
+  cn,
+  formatDuration,
+  formatServiceSummary,
+} from '@repo/core/utils'
 
 // Sheets closed on arrival are loaded after the page, not with it: they are
 // out of the first load's JavaScript, and on the page well before anyone can
@@ -147,7 +172,28 @@ const AddAddressSheet = dynamic(
  * the garage has not priced for the chosen car, which only shows once a car
  * is picked.
  */
-type CheckoutStep = 'slot' | 'car' | 'address' | 'pin' | 'outside' | 'unpriced'
+type CheckoutStep =
+  | 'slot'
+  | 'car'
+  | 'address'
+  | 'pin'
+  | 'outside'
+  | 'unpriced'
+  | 'signin'
+  | 'name'
+
+/**
+ * A guest's car and address (0062), kept on the phone until they sign in,
+ * stand in the selection under these ids until they are saved to the account
+ * at Pay. Never sent to the API as ids.
+ */
+const DRAFT_CAR = 'draft-car'
+const DRAFT_ADDRESS = 'draft-address'
+
+/** The IST day (YYYY-MM-DD) of an ISO time, for opening the picker on it. */
+function istDay(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-CA', { timeZone: APP_TIMEZONE })
+}
 
 /** "a doorstep visit", as the mode-withdrawn notice ends its sentence. */
 const BOOKED_AS: Record<BookingType, string> = {
@@ -174,6 +220,28 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // The day to open the picker on: a slot alert's notification (0047) links
   // here with the day a time opened.
   const dateParam = searchParams.get('date')
+  // Signed in, or a guest (customer reach, 0062): a guest chooses everything
+  // here and signs in inside the page at "Confirm". AppProvider renders this
+  // page only once the session is known, so this is settled on first render.
+  const authUser = useAuthStore((s) => s.user)
+  const isGuest = !authUser
+  // A booking started here before on this phone (this garage, the last day):
+  // its time, car and address come back (@repo/core/booking-draft). Read
+  // once, on arrival.
+  const [restored] = useState(() => {
+    const draft = readBookingDraft()
+    return draft && draft.vendorId === vendorId ? draft : null
+  })
+  // The guest's car and address, until they are saved to the account at Pay.
+  const [draftCar, setDraftCar] = useState<DraftCar | null>(
+    () => restored?.car ?? null
+  )
+  const [draftAddress, setDraftAddress] = useState<DraftAddress | null>(
+    () => restored?.address ?? null
+  )
+  // Whether this checkout keeps a draft on the phone: it began signed out,
+  // or continues one. A signed-in customer's ordinary checkout does not.
+  const [keepsDraft] = useState(() => isGuest || restored !== null)
   const vehicles = useUserStore((s) => s.vehicles)
   const addresses = useUserStore((s) => s.addresses)
   const profile = useUserStore((s) => s.profile)
@@ -198,7 +266,13 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const [loadProblem, setLoadProblem] = useState<'gone' | 'failed' | null>(null)
   // Bumped by Retry to load the garage again.
   const [loadAttempt, setLoadAttempt] = useState(0)
-  const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
+  const [selectedSlot, setSelectedSlot] = useState<string | null>(() =>
+    draftSlotStillAhead(restored?.slot ?? null, Date.now())
+  )
+  // The picker opens on a continued booking's day, so its time shows chosen.
+  const [restoredDay] = useState(() =>
+    selectedSlot ? istDay(selectedSlot) : null
+  )
   const queryClient = useQueryClient()
   const [pickedVehicle, setPickedVehicle] = useState<string | null>(null)
   const [pickedAddress, setPickedAddress] = useState<string | null>(null)
@@ -232,6 +306,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const addressStepRef = useRef<HTMLHeadingElement>(null)
   const pinStepRef = useRef<HTMLParagraphElement>(null)
   const summaryStepRef = useRef<HTMLHeadingElement>(null)
+  const signInStepRef = useRef<HTMLHeadingElement>(null)
 
   // What is typed vs what is actually applied. Kept apart so a keystroke never
   // re-queries — only pressing Apply does.
@@ -256,6 +331,21 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // Detlio credit (0049): on by default whenever there is some to use. The
   // row only exists while gifts are on and the balance is above zero.
   const [creditSwitchOn, setCreditSwitchOn] = useState(true)
+
+  // Sign-in inside checkout (0062): the number, the code and, for a new
+  // number, a name. Opened early by "Have an account? Sign in", or shown at
+  // "Confirm" once everything else is chosen.
+  const signIn = useCheckoutSignIn()
+  const [signInOpen, setSignInOpen] = useState(false)
+  // Saving the guest's car and address to the account, before paying.
+  const [savingDraft, setSavingDraft] = useState(false)
+  // Signed in on this page: the card then says so, and offers "Use saved".
+  const [signedInHere, setSignedInHere] = useState(false)
+  // The name an account without one gives here (needsName).
+  const [profileName, setProfileName] = useState('')
+  // Saved once each, so a second Pay after a failed one never makes a second car.
+  const savedDraftCarId = useRef<string | null>(null)
+  const savedDraftAddressId = useRef<string | null>(null)
 
   // What Home handed over (@repo/core/stores/pending-checkout-store): only
   // this account's, only while the offer still runs, and only a code that can
@@ -365,23 +455,21 @@ function BookContent({ vendorId }: { vendorId: string }) {
         )
       }
     )
-    void fetchVehicles()
-    void fetchAddresses().catch(() => undefined)
-    void fetchProfile()
     return () => {
       cancelled = true
     }
-  }, [
-    vendorId,
-    serviceIdsParam,
-    modeParam,
-    router,
-    loadAttempt,
-    queryClient,
-    fetchVehicles,
-    fetchAddresses,
-    fetchProfile,
-  ])
+  }, [vendorId, serviceIdsParam, modeParam, router, loadAttempt, queryClient])
+
+  // The account's cars, addresses and name, once there is an account: on
+  // arrival when signed in, or as soon as a guest signs in here. A guest has
+  // none to read, and asking would sign them out (a 401 ends the session).
+  const signedIn = !isGuest
+  useEffect(() => {
+    if (!signedIn) return
+    void fetchVehicles().catch(() => undefined)
+    void fetchAddresses().catch(() => undefined)
+    void fetchProfile().catch(() => undefined)
+  }, [signedIn, fetchVehicles, fetchAddresses, fetchProfile])
 
   // The car is picked for the customer (F1): the one they had on screen on
   // Home when they tapped Book a wash or an offer (if it is still saved),
@@ -393,8 +481,21 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // still empty, and nothing has to re-fire when the car list arrives.
   // The shared rule (lib/booking-car.ts), the same one the garage page
   // priced with, so the price quoted there is the price charged here.
-  const selectedVehicle =
-    pickedVehicle ?? bookingCarId(vehicles, livePending?.vehicleId)
+  //
+  // A guest's car (0062), once it has its names, is the selection
+  // (DRAFT_CAR); after sign-in it stays chosen until they tap a saved one
+  // ("Use saved"), and is saved to the account at Pay.
+  const carDraftReady = draftCarReady(draftCar)
+  const selectedVehicle = isGuest
+    ? carDraftReady
+      ? DRAFT_CAR
+      : null
+    : (pickedVehicle ??
+      (carDraftReady
+        ? DRAFT_CAR
+        : bookingCarId(vehicles, livePending?.vehicleId)))
+  /** The selected car as the API knows it: null while it is the guest's draft. */
+  const savedVehicleId = selectedVehicle === DRAFT_CAR ? null : selectedVehicle
 
   // Derived rather than set when the garage loads, for the same reason the car
   // is: the choice carried in from the garage page stands unless this garage
@@ -445,14 +546,39 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const linkedAddress = addresses.some((a) => a.id === addressParam)
     ? addressParam
     : null
-  const selectedAddress = usesAddress
-    ? (pickedAddress ??
-      linkedAddress ??
-      addresses.find((a) => a.isDefault)?.id ??
-      (addresses.length === 1 ? addresses[0].id : null))
+  // A guest's address (0062) stands in as DRAFT_ADDRESS, as their car does.
+  const draftAddressRecord: Address | null = draftAddress
+    ? {
+        id: DRAFT_ADDRESS,
+        label: draftAddress.label,
+        address: draftAddress.address,
+        pincode: '',
+        lat: draftAddress.lat,
+        lng: draftAddress.lng,
+        isDefault: false,
+      }
     : null
+  const selectedAddress = !usesAddress
+    ? null
+    : isGuest
+      ? draftAddress
+        ? DRAFT_ADDRESS
+        : null
+      : (pickedAddress ??
+        (draftAddress ? DRAFT_ADDRESS : null) ??
+        linkedAddress ??
+        addresses.find((a) => a.isDefault)?.id ??
+        (addresses.length === 1 ? addresses[0].id : null))
   const selectedAddressRecord =
-    addresses.find((a) => a.id === selectedAddress) ?? null
+    selectedAddress === DRAFT_ADDRESS
+      ? draftAddressRecord
+      : (addresses.find((a) => a.id === selectedAddress) ?? null)
+  // What the address step lists: the guest's own (0062), then, signed in,
+  // the account's saved ones.
+  const addressOptions: Address[] = [
+    ...(draftAddressRecord ? [draftAddressRecord] : []),
+    ...(isGuest ? [] : addresses),
+  ]
   // The server refuses a doorstep booking against an address with no
   // coordinates (ADDRESS_LOCATION_REQUIRED) — it cannot check the garage's
   // travel radius without them — so the pin is asked for here rather than
@@ -538,9 +664,12 @@ function BookContent({ vendorId }: { vendorId: string }) {
       )
     : undefined
 
-  const selectedVehicleType = vehicles.find(
-    (v) => v.id === selectedVehicle
-  )?.vehicleType
+  // The guest's body type prices the booking as soon as it is chosen,
+  // before the car has its names.
+  const selectedVehicleType =
+    isGuest || selectedVehicle === DRAFT_CAR
+      ? draftCar?.vehicleType
+      : vehicles.find((v) => v.id === selectedVehicle)?.vehicleType
   // The tier drives the price for per-vehicle services, so the summary names
   // it — using the same labels the vendor priced against ("SUV / MUV", not "suv").
   const vehicleTierLabel = VEHICLE_TIERS.find(
@@ -570,21 +699,38 @@ function BookContent({ vendorId }: { vendorId: string }) {
    * tapping it scrolls there. It used to read "Pay Now" from the first second,
    * disabled and faded, with nothing to say what it was waiting for.
    */
+  // A guest's last step is signing in, inside the page (0062); an account
+  // with no name yet (signed up, setup left half done) gives one here.
+  const needsName = !isGuest && authUser?.name === 'User'
   const nextStep: CheckoutStep | null = !selectedSlot
     ? 'slot'
     : !selectedVehicle
       ? 'car'
-      : (addressBlocker ?? (unpricedForVehicle ? 'unpriced' : null))
+      : (addressBlocker ??
+        (unpricedForVehicle
+          ? 'unpriced'
+          : isGuest
+            ? 'signin'
+            : needsName && profileName.trim().length === 0
+              ? 'name'
+              : null))
 
   const stepLabels: Record<CheckoutStep, string> = {
     slot: 'Pick a time',
     // "Choose" only when there is something to choose between; the step
     // itself says "Add a car" when the customer has none.
     car: vehicles.length === 0 ? 'Add your car' : 'Choose your car',
-    address: addresses.length === 0 ? 'Add your address' : 'Choose an address',
+    address: addressOptions.length === 0 ? 'Add your address' : 'Choose an address',
     pin: 'Pin your address on the map',
     outside: 'Choose another address',
     unpriced: 'Remove the unpriced service',
+    signin:
+      signIn.phase === 'phone'
+        ? 'Enter your number to pay'
+        : signIn.readyToVerify
+          ? 'Tap Verify and pay above'
+          : 'Enter the code we sent',
+    name: 'Add your name',
   }
 
   // Scrolls to the step and puts focus on it, so a keyboard or screen-reader
@@ -599,6 +745,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
       pin: pinStepRef,
       outside: addressStepRef,
       unpriced: summaryStepRef,
+      signin: signInStepRef,
+      name: signInStepRef,
     }[step].current
     if (!target) return
 
@@ -658,19 +806,19 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const canApplyPromo =
     promoInput.trim().length >= 3 &&
     selectedServices.length > 0 &&
-    selectedVehicle != null &&
+    savedVehicleId != null &&
     !unpricedForVehicle
 
   /** One tap on a reward voucher: applied exactly like a typed code. */
   const handleApplyReward = (code: string) => {
     if (
       selectedServices.length === 0 ||
-      selectedVehicle == null ||
+      savedVehicleId == null ||
       unpricedForVehicle ||
       applyPromo.isPending
     )
       return
-    const vehicleId = selectedVehicle
+    const vehicleId = savedVehicleId
     applyPromo.mutate(
       { code, vendorId, serviceIds, vehicleId },
       {
@@ -693,7 +841,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const handleApplyPromo = () => {
     if (!canApplyPromo || applyPromo.isPending) return
 
-    const vehicleId = selectedVehicle!
+    const vehicleId = savedVehicleId!
 
     applyPromo.mutate(
       { code: promoInput.trim(), vendorId, serviceIds, vehicleId },
@@ -718,15 +866,15 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const offerCheckKey =
     offerCode &&
     selectedServices.length > 0 &&
-    selectedVehicle &&
+    savedVehicleId &&
     !unpricedForVehicle
-      ? `${offerCode}|${serviceKey}|${selectedVehicle}`
+      ? `${offerCode}|${serviceKey}|${savedVehicleId}`
       : null
   useEffect(() => {
-    if (!offerCode || !offerCheckKey || !selectedVehicle) return
+    if (!offerCode || !offerCheckKey || !savedVehicleId) return
     if (offerCheckedFor.current === offerCheckKey) return
     offerCheckedFor.current = offerCheckKey
-    const vehicleId = selectedVehicle
+    const vehicleId = savedVehicleId
     const key = serviceIds.join(',')
     const code = offerCode
     applyPromo.mutate(
@@ -746,7 +894,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
     // `serviceIds` and `applyPromo` change identity every render; the key
     // already says everything that matters about them.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [offerCheckKey, offerCode, selectedVehicle, vendorId])
+  }, [offerCheckKey, offerCode, savedVehicleId, vendorId])
 
   // "Best for you" (F1): the customer's biggest reward voucher, applied for
   // them once there is a cart and a car to price it against, and checked
@@ -769,21 +917,21 @@ function BookContent({ vendorId }: { vendorId: string }) {
     !suggestionDropped &&
     !appliedDiscount &&
     selectedServices.length > 0 &&
-    selectedVehicle &&
+    savedVehicleId &&
     !unpricedForVehicle
-      ? `${bestVoucher.code}|${serviceKey}|${selectedVehicle}`
+      ? `${bestVoucher.code}|${serviceKey}|${savedVehicleId}`
       : null
   useEffect(() => {
     if (
       !suggestionKey ||
       !bestVoucher?.code ||
-      !selectedVehicle ||
+      !savedVehicleId ||
       applyPromo.isPending
     )
       return
     if (suggestionCheckedFor.current === suggestionKey) return
     suggestionCheckedFor.current = suggestionKey
-    const vehicleId = selectedVehicle
+    const vehicleId = savedVehicleId
     const key = serviceIds.join(',')
     const code = bestVoucher.code
     applyPromo.mutate(
@@ -891,12 +1039,25 @@ function BookContent({ vendorId }: { vendorId: string }) {
     }
   }
 
-  const handleConfirm = async () => {
+  /**
+   * Opens the payment. `chosen` is what Pay settled on when a guest's car or
+   * address was just saved to the account (or a code checked against it):
+   * this render's state still names the drafts, so the saved ids are passed
+   * in rather than read from it.
+   */
+  const handleConfirm = async (chosen?: {
+    vehicleId: string
+    addressId: string | null
+    discountCode?: string
+    customer?: { name?: string; phone?: string }
+  }) => {
     if (paidRef.current || bookingLockRef.current || loading) return
     // A code still being checked would otherwise be left off a fast Pay.
     if (applyPromo.isPending) return
-    if (selectedServices.length === 0 || !selectedSlot || !selectedVehicle)
-      return
+    const vehicleId = chosen?.vehicleId ?? savedVehicleId
+    const addressId = chosen ? chosen.addressId : selectedAddress
+    const discountCode = chosen ? chosen.discountCode : appliedDiscount?.code
+    if (selectedServices.length === 0 || !selectedSlot || !vehicleId) return
     if (!addressReady) return
     bookingLockRef.current = true
     setLoading(true)
@@ -918,12 +1079,12 @@ function BookContent({ vendorId }: { vendorId: string }) {
         serviceIds,
         scheduledAt: selectedSlot,
         bookingType,
-        vehicleId: selectedVehicle,
+        vehicleId,
         paymentMethod: 'online',
         // Only ever sent for doorstep and pickup & drop; drop-in has nowhere
         // to travel to.
-        addressId: selectedAddress ?? undefined,
-        discountCode: appliedDiscount?.code,
+        addressId: addressId ?? undefined,
+        discountCode,
         // Only said while gifts are on; the server ignores it otherwise.
         useCredit: giftsOn ? creditApplied : undefined,
       })
@@ -942,6 +1103,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
         void invalidateRewards(queryClient)
         void invalidateCoupons(queryClient)
         clearPending()
+        clearBookingDraft()
         router.push(`/bookings/${order.bookingId}?celebrate=1`)
         return
       }
@@ -960,7 +1122,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
         description: `${formatServiceSummary(
           selectedServices.map((service) => service.name)
         )} at ${vendor?.name ?? 'the garage'}`,
-        customer: {
+        customer: chosen?.customer ?? {
           name: profile?.name,
           phone: profile?.phone,
         },
@@ -1011,8 +1173,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
               rupeesPaid: order.amount / 100,
               numItems: selectedServices.length,
             })
-            // The offer and car Home handed over have done their job.
+            // The offer and car Home handed over have done their job, and
+            // so has a booking kept on the phone (0062).
             clearPending()
+            clearBookingDraft()
             // ?celebrate=1 triggers the success burst on arrival; the booking
             // page strips it once played.
             router.push(`/bookings/${outcome.bookingId}?celebrate=1`)
@@ -1052,13 +1216,16 @@ function BookContent({ vendorId }: { vendorId: string }) {
         // The chosen time ran out of notice, was booked up by someone else, or
         // the garage marked the day a holiday, all before Pay (nothing was
         // charged: the server refuses before any payment order exists). Clear
-        // it, fetch fresh times, and take the customer back to choose again.
+        // it, fetch fresh times, and take the customer back to choose again;
+        // everything else they chose stays.
         setSelectedSlot(null)
         void queryClient.invalidateQueries({ queryKey: slotKeys.all })
         toast.error(
           error.code === 'SLOT_TOO_SOON' && isPickup
             ? `That time is too soon now. ${noticeSentence('pickup')} Pick a later time.`
-            : error.message
+            : error.code === 'SLOT_FULL'
+              ? 'That time was just taken; pick another.'
+              : error.message
         )
         goToStep('slot')
       } else if (
@@ -1080,9 +1247,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
         error instanceof ApiError &&
         error.code === 'OUTSIDE_PICKUP_RADIUS'
       ) {
-        if (selectedAddress) {
+        if (addressId) {
           setRefusedAddressIds((current) => [
-            ...new Set([...current, selectedAddress]),
+            ...new Set([...current, addressId]),
           ])
         }
         toast.error(outsideAdvice)
@@ -1137,6 +1304,200 @@ function BookContent({ vendorId }: { vendorId: string }) {
     }
   }
 
+  /**
+   * Saves what a guest entered to the account they just signed in to (0062),
+   * through the ordinary vehicle and address APIs, before any booking is
+   * made: the car when it is still the one chosen, the address likewise, and
+   * the name an account without one gave here. Each is saved once (a second
+   * Pay after a failed one reuses it). Null when something could not be
+   * saved: the reason is shown, and nothing is paid.
+   */
+  const saveDraftItems = async (): Promise<{
+    vehicleId: string
+    addressId: string | null
+    carSaved: boolean
+  } | null> => {
+    setSavingDraft(true)
+    try {
+      if (needsName && profileName.trim()) {
+        const profileNow = await updateProfile({ name: profileName.trim() })
+        useAuthStore.setState((st) => ({
+          user: st.user ? { ...st.user, name: profileNow.name } : st.user,
+        }))
+        useUserStore.setState((st) => ({
+          profile: st.profile ? { ...st.profile, name: profileNow.name } : st.profile,
+        }))
+      }
+
+      let vehicleId = savedVehicleId
+      let carSaved = false
+      if (selectedVehicle === DRAFT_CAR && draftCar) {
+        if (!savedDraftCarId.current) {
+          const created = await createVehicle({
+            make: draftCar.make.trim(),
+            model: draftCar.model.trim(),
+            vehicleType: draftCar.vehicleType,
+            // Their first car is their default, as in the add-car sheet.
+            isDefault: useUserStore.getState().vehicles.length === 0,
+          })
+          useUserStore.setState((st) => ({ vehicles: [...st.vehicles, created] }))
+          savedDraftCarId.current = created.id
+        }
+        vehicleId = savedDraftCarId.current
+        carSaved = true
+      }
+
+      let addressId = usesAddress ? selectedAddress : null
+      if (usesAddress && selectedAddress === DRAFT_ADDRESS && draftAddress) {
+        if (!savedDraftAddressId.current) {
+          const created = await createAddress({
+            label: draftAddress.label,
+            address: draftAddress.address,
+            city: draftAddress.city,
+            lat: draftAddress.lat,
+            lng: draftAddress.lng,
+            geoSource: draftAddress.geoSource,
+            isDefault: useUserStore.getState().addresses.length === 0,
+          })
+          useUserStore.setState((st) => ({ addresses: [...st.addresses, created] }))
+          savedDraftAddressId.current = created.id
+        }
+        addressId = savedDraftAddressId.current
+      }
+
+      if (!vehicleId) return null
+      // From here the page shows the saved car and address as chosen, and
+      // the drafts are gone from the phone (the rest of the draft stays
+      // until the booking is paid).
+      if (carSaved) {
+        setPickedVehicle(vehicleId)
+        setDraftCar(null)
+      }
+      if (addressId && addressId === savedDraftAddressId.current) {
+        setPickedAddress(addressId)
+        setDraftAddress(null)
+      }
+      return { vehicleId, addressId, carSaved }
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Couldn't save your car and address. Try again."
+      )
+      return null
+    } finally {
+      setSavingDraft(false)
+    }
+  }
+
+  /**
+   * A code from a link or Home (`?code=`) checked against a car that was
+   * only just saved: the code is applied when it still works for this
+   * booking, and left off (with its reason on the coupon row) when not.
+   */
+  const checkOfferFor = async (vehicleId: string): Promise<string | undefined> => {
+    if (!offerCode) return undefined
+    try {
+      const applied = await applyPromo.mutateAsync({
+        code: offerCode,
+        vendorId,
+        serviceIds,
+        vehicleId,
+      })
+      setAppliedPromo({ discount: applied, serviceKey, vehicleId })
+      offerCheckedFor.current = `${offerCode}|${serviceKey}|${vehicleId}`
+      return applied.code
+    } catch {
+      return undefined
+    }
+  }
+
+  /**
+   * Pay, signed in: a guest's car and address are saved first (and a link's
+   * code checked against the saved car), then the payment opens as it always
+   * did.
+   */
+  const handlePay = async (customer?: { name?: string; phone?: string }) => {
+    if (paidRef.current || bookingLockRef.current || loading || savingDraft) return
+    if (applyPromo.isPending) return
+    const pendingDrafts =
+      selectedVehicle === DRAFT_CAR ||
+      selectedAddress === DRAFT_ADDRESS ||
+      (needsName && profileName.trim().length > 0)
+    if (!pendingDrafts) {
+      await handleConfirm()
+      return
+    }
+    const saved = await saveDraftItems()
+    if (!saved) return
+    const discountCode =
+      appliedDiscount?.code ?? (saved.carSaved ? await checkOfferFor(saved.vehicleId) : undefined)
+    await handleConfirm({
+      vehicleId: saved.vehicleId,
+      addressId: saved.addressId,
+      discountCode,
+      customer,
+    })
+  }
+
+  /**
+   * The card's Verify: the sign-in (the same session /verify-otp sets), then
+   * the account's own cars and addresses. A new account, or one with nothing
+   * saved to choose from, goes straight on to pay when this was "Confirm"
+   * (everything else chosen). An account with saved cars or addresses stops
+   * here, signed in, so they can keep what they entered or "Use saved".
+   */
+  const handleVerify = async () => {
+    const payAfter = nextStep === 'signin'
+    const ok = await signIn.verify()
+    if (!ok) return
+    setSignedInHere(true)
+    setSignInOpen(false)
+    const [cars, places] = await Promise.all([
+      fetchVehicles().catch(() => [] as typeof vehicles),
+      fetchAddresses().catch(() => [] as typeof addresses),
+    ])
+    const user = useAuthStore.getState().user
+    const hasSavedChoice =
+      (carDraftReady && cars.length > 0) ||
+      (usesAddress && draftAddress !== null && places.length > 0)
+    if (!payAfter || hasSavedChoice || user?.name === 'User') {
+      requestAnimationFrame(() => goToStep('signin'))
+      return
+    }
+    // Razorpay's sheet is filled with the number just verified, and the
+    // name a new account gave.
+    await handlePay({
+      name: signIn.isNew ? signIn.name.trim() : user?.name,
+      phone: signIn.phone,
+    })
+  }
+
+  // A guest's booking is kept on the phone as it is chosen (0062), for
+  // "Continue your booking" on the landing page and Home. Removed once paid.
+  useEffect(() => {
+    if (!keepsDraft || !vendor || selectedServices.length === 0) return
+    writeBookingDraft({
+      vendorId,
+      vendorName: vendor.name,
+      serviceIds: selectedServices.map((service) => service.id),
+      mode: bookingType,
+      slot: selectedSlot,
+      car: draftCar,
+      address: draftAddress,
+      savedAt: Date.now(),
+    })
+  }, [
+    keepsDraft,
+    vendor,
+    vendorId,
+    selectedServices,
+    bookingType,
+    selectedSlot,
+    draftCar,
+    draftAddress,
+  ])
+
   // The bottom bar grows with what it has to say (the total, the promises
   // above Pay, a town line); the page leaves exactly that much room under
   // the last section, plus a little air.
@@ -1182,7 +1543,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
     )
   }
 
-  const selectedCar = vehicles.find((v) => v.id === selectedVehicle) ?? null
+  const selectedCar =
+    selectedVehicle === DRAFT_CAR && draftCar
+      ? { model: draftCar.model.trim() }
+      : (vehicles.find((v) => v.id === selectedVehicle) ?? null)
   // The server's rule (lib/guarantee-cover.ts): only when every line is a
   // wash or detailing, or a package made only of those.
   const guaranteeApplies =
@@ -1201,6 +1565,24 @@ function BookContent({ vendorId }: { vendorId: string }) {
         title="Book your wash"
         className="sticky top-(--consent-bar) z-30 -mx-4 bg-brand-black px-4"
       />
+
+      {/* A returning customer can sign in first and use their saved car and
+          addresses (0062); everyone else signs in at the end, at Pay. */}
+      {isGuest && !signInOpen && nextStep !== 'signin' && (
+        <p className="-mt-3 text-[13px] text-text-secondary">
+          Have an account?{' '}
+          <button
+            type="button"
+            onClick={() => {
+              setSignInOpen(true)
+              requestAnimationFrame(() => goToStep('signin'))
+            }}
+            className="min-h-11 font-medium text-text-primary underline underline-offset-2"
+          >
+            Sign in
+          </button>
+        </p>
+      )}
 
       {/* The garage page says this where Book Now would be; a customer can
           still land here from Book again or an old link. Neutral: there is
@@ -1388,7 +1770,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
           onChange={pickSlot}
           bookingType={bookingType}
           onLapse={handleSlotLapse}
-          initialDate={dateParam}
+          initialDate={dateParam ?? restoredDay}
           // A day with nothing left: "Notify me if a slot opens" (0047).
           renderDayExtra={(state) => (
             <SlotAlertAsk
@@ -1410,7 +1792,17 @@ function BookContent({ vendorId }: { vendorId: string }) {
         >
           Car
         </h2>
-        {vehicles.length === 0 ? (
+        {isGuest ? (
+          // A guest (0062): the body type sets the price; the names follow.
+          // Kept on the phone until they sign in at Pay.
+          <GuestCarForm
+            car={draftCar}
+            onChange={(car) => {
+              setDraftCar(car)
+              setPickedVehicle(null)
+            }}
+          />
+        ) : vehicles.length === 0 && !carDraftReady ? (
           <div className="flex flex-col items-start gap-2 rounded-[22px] border border-warning/40 bg-warning-muted/20 p-4">
             <p className="text-[15px] text-text-primary">
               Add a car to continue
@@ -1429,6 +1821,33 @@ function BookContent({ vendorId }: { vendorId: string }) {
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-2">
+            {/* The car entered before signing in (0062), saved at Pay while
+                it stays chosen; tapping a saved car instead is "Use saved". */}
+            {carDraftReady && draftCar && (
+              <button
+                type="button"
+                aria-pressed={selectedVehicle === DRAFT_CAR}
+                onClick={() => setPickedVehicle(DRAFT_CAR)}
+                className={cn(
+                  'press flex min-h-[64px] min-w-0 flex-col justify-center rounded-[18px] border px-4 py-2.5 text-left transition-colors',
+                  selectedVehicle === DRAFT_CAR
+                    ? 'border-text-primary bg-white/[0.04]'
+                    : 'border-line bg-white/[0.02]'
+                )}
+              >
+                <span className="flex min-w-0 items-center gap-1.5 text-[15px] text-text-primary">
+                  <span className="truncate">
+                    {draftCar.make.trim()} {draftCar.model.trim()}
+                  </span>
+                  {selectedVehicle === DRAFT_CAR && (
+                    <IconCheck size={15} stroke={2} aria-hidden className="shrink-0" />
+                  )}
+                </span>
+                <span className="truncate text-[13px] text-dim">
+                  {VEHICLE_TIERS.find((t) => t.value === draftCar.vehicleType)?.label} · new
+                </span>
+              </button>
+            )}
             {vehicles.map((v) => {
               const on = selectedVehicle === v.id
               return (
@@ -1494,12 +1913,12 @@ function BookContent({ vendorId }: { vendorId: string }) {
               ? 'Where should we collect your car?'
               : 'Where should we come?'}
           </h2>
-          {isPickup && addresses.length > 0 && (
+          {isPickup && addressOptions.length > 0 && (
             <p className="-mt-1 mb-3 text-[13px] text-text-secondary">
               The garage brings your car back to the same address.
             </p>
           )}
-          {addresses.length === 0 ? (
+          {addressOptions.length === 0 ? (
             <div className="flex flex-col items-start gap-2 rounded-[22px] border border-warning/40 bg-warning-muted/20 p-4">
               <p className="text-[15px] text-text-primary">
                 Add an address to continue
@@ -1521,7 +1940,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
             </div>
           ) : (
             <div className="flex flex-col gap-2">
-              {addresses.map((a) => (
+              {addressOptions.map((a) => (
                 <button
                   key={a.id}
                   type="button"
@@ -1545,6 +1964,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
                   <span className="min-w-0 flex-1">
                     <span className="block text-[15px] text-text-primary">
                       {a.label}
+                      {a.id === DRAFT_ADDRESS && !isGuest && (
+                        <span className="text-text-muted"> · new</span>
+                      )}
                     </span>
                     <span
                       className="block truncate text-[13px] text-text-secondary"
@@ -1614,7 +2036,13 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 onClick={() => setAddAddressOpen(true)}
                 className="press flex min-h-12 items-center justify-center gap-1.5 rounded-[18px] border border-dashed border-stroke text-[13px] text-text-secondary transition-colors hover:text-text-primary"
               >
-                <IconPlus size={15} aria-hidden /> Add another address
+                {isGuest ? (
+                  'Change address'
+                ) : (
+                  <>
+                    <IconPlus size={15} aria-hidden /> Add another address
+                  </>
+                )}
               </button>
             </div>
           )}
@@ -1625,7 +2053,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
           credit. Shown once there is a car to price against. Quiet chips:
           red on checkout is Pay's alone. */}
       {selectedServices.length > 0 &&
-        selectedVehicle &&
+        savedVehicleId &&
         !unpricedForVehicle && (
           <section aria-labelledby="checkout-savings">
             <h2
@@ -1882,6 +2310,112 @@ function BookContent({ vendorId }: { vendorId: string }) {
             {isPickup &&
               ' Once the garage has collected your car, the booking can’t be cancelled or moved in the app.'}
           </p>
+
+          {/* Coupons, rewards and credit belong to an account, so they show
+              once the car is saved to one (0062). A code from a link is
+              checked then, before paying. */}
+          {selectedVehicle && !savedVehicleId && (
+            <p className="text-[13px] leading-relaxed text-text-secondary">
+              {offerCode
+                ? `Code ${offerCode} is checked when you pay.`
+                : 'Have a coupon? You can apply it once you’re signed in.'}
+            </p>
+          )}
+        </section>
+      )}
+
+      {/* Sign in inside checkout (0062): at "Confirm", once everything else
+          is chosen, or early from "Have an account? Sign in". */}
+      {isGuest && (signInOpen || nextStep === 'signin') && (
+        <CheckoutSignInCard
+          signIn={signIn}
+          headingRef={signInStepRef}
+          busy={savingDraft || loading}
+          onVerify={() => void handleVerify()}
+          verifyLabel={
+            nextStep === 'signin' && toPay != null && toPay > 0 ? (
+              <>
+                Verify and pay <span className="font-numeric">{money(toPay)}</span>
+              </>
+            ) : nextStep === 'signin' ? (
+              'Verify and continue'
+            ) : (
+              'Verify'
+            )
+          }
+        />
+      )}
+
+      {/* Signed in: the account's name when it has none yet, and "Use
+          saved" while what was entered before signing in is still chosen. */}
+      {!isGuest && (needsName || signedInHere) && (
+        <section aria-labelledby="checkout-signed-in" className="hub-card flex flex-col gap-3 p-5">
+          <h2
+            id="checkout-signed-in"
+            ref={signInStepRef}
+            tabIndex={-1}
+            className="scroll-mt-20 text-[17px] font-medium tracking-[-0.01em] text-text-primary outline-none"
+          >
+            {needsName
+              ? 'Your name'
+              : `Signed in${authUser?.name && authUser.name !== 'User' ? ` as ${authUser.name}` : ''}`}
+          </h2>
+          {needsName && (
+            <ScInput
+              data-clarity-mask="true"
+              id="checkout-profile-name"
+              label="Your name (for the garage)"
+              placeholder="Your name"
+              autoComplete="name"
+              autoCapitalize="words"
+              maxLength={255}
+              value={profileName}
+              onChange={(event) => setProfileName(event.target.value)}
+            />
+          )}
+          {selectedVehicle === DRAFT_CAR && vehicles.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <p className="text-[13px] text-text-secondary">
+                We&apos;ll save the car you entered. Or use a saved one:
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {vehicles.map((v) => (
+                  <button
+                    key={v.id}
+                    type="button"
+                    onClick={() => setPickedVehicle(v.id)}
+                    className="flex min-h-11 items-center rounded-full border border-stroke px-3.5 text-[13px] text-text-primary"
+                  >
+                    Use saved: {v.make} {v.model}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {selectedAddress === DRAFT_ADDRESS && addresses.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <p className="text-[13px] text-text-secondary">
+                We&apos;ll save the address you entered. Or use a saved one:
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {addresses.map((a) => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => pickAddress(a.id)}
+                    className="flex min-h-11 items-center rounded-full border border-stroke px-3.5 text-[13px] text-text-primary"
+                  >
+                    Use saved: {a.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {!needsName && selectedVehicle !== DRAFT_CAR && selectedAddress !== DRAFT_ADDRESS && (
+            <p className="text-[13px] text-text-secondary">
+              You&apos;re signed in. Pay below to send your booking to the garage.
+            </p>
+          )}
         </section>
       )}
 
@@ -1904,6 +2438,16 @@ function BookContent({ vendorId }: { vendorId: string }) {
         onClose={() => setAddAddressOpen(false)}
         onAdded={(address) => pickAddress(address.id)}
         pickup={isPickup}
+        // A guest's address stays on the phone until they sign in (0062).
+        onSaveLocal={
+          isGuest
+            ? (address) => {
+                setDraftAddress(address)
+                setRefusedAddressIds((ids) => ids.filter((id) => id !== DRAFT_ADDRESS))
+                track('address_select', { vendorId, mode: bookingType })
+              }
+            : undefined
+        }
       />
 
       {/* Coupon entry as a sheet: the summary never reflows under the
@@ -2070,13 +2614,15 @@ function BookContent({ vendorId }: { vendorId: string }) {
             <MainAction
               // Disabled only while a payment is opening. Before that it is
               // never a dead end: it names what is missing and goes there.
-              disabled={loading}
+              disabled={loading || savingDraft}
               aria-describedby={
                 vendor?.outsideServiceCity
                   ? 'checkout-outside-city checkout-cta-hint'
                   : 'checkout-cta-hint'
               }
-              onClick={nextStep ? () => goToStep(nextStep) : handleConfirm}
+              onClick={
+                nextStep ? () => goToStep(nextStep) : () => void handlePay()
+              }
               className={cn(
                 'h-[52px] rounded-full py-0 text-[15px] font-medium',
                 // Grey until the booking is ready, so red only ever means
@@ -2097,6 +2643,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
             >
               {loading ? (
                 'Processing payment...'
+              ) : savingDraft ? (
+                'Saving your car…'
               ) : !nextStep && applyPromo.isPending ? (
                 // Pay waits for the code being checked (see handleConfirm).
                 'Checking…'
@@ -2117,7 +2665,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
               className="mt-2 text-center text-[12px] leading-snug text-text-muted"
             >
               {nextStep === 'address' ? (
-                addresses.length === 0 ? (
+                addressOptions.length === 0 ? (
                   isPickup ? (
                     'Add the address we should collect your car from.'
                   ) : (
@@ -2136,6 +2684,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 )
               ) : nextStep === 'outside' ? (
                 outsideAdvice
+              ) : nextStep === 'signin' ? (
+                'Sign in with your number to pay. No password: we text you a code.'
+              ) : nextStep === 'name' ? (
+                'The garage sees your name on your booking.'
               ) : nextStep === 'unpriced' ? (
                 `${unpricedLines.map((line) => line.service.name).join(', ')} ${
                   unpricedLines.length === 1 ? 'is' : 'are'

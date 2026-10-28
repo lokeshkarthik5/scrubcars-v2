@@ -21,6 +21,7 @@ import { customerRefundLine } from '@repo/core/refunds'
 import { SUPPORT_PHONE_DISPLAY } from '@repo/core/support'
 import { PENDING_CHECKOUT_STORAGE_KEY } from '@repo/core/stores/pending-checkout-store'
 import { TIP_HIDDEN_KEY } from '../home-hub'
+import { BOOKING_DRAFT_KEY } from '@repo/core/booking-draft'
 import { CLIENT_EVENTS } from '@repo/core/analytics-events'
 import { META_EVENT_NAMES, metaEventFor, pixelExcluded } from '../meta-pixel'
 import { RULES } from './common'
@@ -131,6 +132,7 @@ describe('what the Home hub keeps', () => {
     const text = privacy()
     expect(text).toContain(PENDING_CHECKOUT_STORAGE_KEY)
     expect(text).toContain(TIP_HIDDEN_KEY)
+    expect(text).toContain(BOOKING_DRAFT_KEY)
   })
 
   // Matching is declared ahead of the switch: the policy says what it would
@@ -361,6 +363,7 @@ describe('Microsoft Clarity', () => {
       '../../app/profile/page.tsx',
       '../../components/add-address-sheet.tsx',
       '../../app/book/[vendorId]/page.tsx',
+      '../../components/checkout/checkout-sign-in.tsx',
       '../../components/coupons/coupon-code-box.tsx',
       '../../components/gifts/redeem-code-box.tsx',
       '../../app/profile/gifts/new/page.tsx',

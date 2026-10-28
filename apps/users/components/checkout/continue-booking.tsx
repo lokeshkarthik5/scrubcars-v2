@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { IconArrowRight, IconX } from '@tabler/icons-react'
+import { useHydrated } from '@repo/core/hooks/use-hydrated'
 import {
   clearBookingDraft,
   draftResumePath,
@@ -18,12 +19,11 @@ import {
  * holds it. × forgets it.
  */
 export function ContinueBookingCard() {
-  const [draft, setDraft] = useState<BookingDraft | null>(null)
-
-  // localStorage is only there in the browser, after hydration.
-  useEffect(() => {
-    setDraft(readBookingDraft())
-  }, [])
+  // localStorage is only there in the browser, after hydration: the server
+  // and the first client render show nothing.
+  const hydrated = useHydrated()
+  const [forgotten, setForgotten] = useState(false)
+  const draft: BookingDraft | null = hydrated && !forgotten ? readBookingDraft() : null
 
   if (!draft) return null
 
@@ -50,7 +50,7 @@ export function ContinueBookingCard() {
         aria-label="Forget this booking"
         onClick={() => {
           clearBookingDraft()
-          setDraft(null)
+          setForgotten(true)
         }}
         className="grid size-11 shrink-0 place-items-center text-text-muted"
       >

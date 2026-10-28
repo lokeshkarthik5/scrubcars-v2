@@ -69,6 +69,7 @@ import {
   PICKUP_HOME,
   PICKUP_PIN,
   PROPOSALS_PIN,
+  REACH_PINS,
   DOCUMENTS_PIN,
   RESPONSE_OTHER_PIN,
   SLOT_ALERTS_PIN,
@@ -1976,6 +1977,74 @@ async function seedPayoutRows() {
  * (ADDRESSES.pickupHome, ~1.7 km away) are what a pickup booking needs.
  * After the people it names, like every garage seeded on its own.
  */
+/**
+ * Customer reach (0062): five live garages around REACH_HERE for the garage
+ * list's "never empty" pieces (REACH_PINS says where each is and what it
+ * shows), and CUSTOMERS.guestExisting's one saved car, for the guest
+ * checkout's "Use saved". Ids 4300–4399, phones 90000043xx. Nothing books
+ * at these garages but the specs that read them never pay, so they stay as
+ * seeded.
+ */
+async function seedReachRows() {
+  const owner = STAFF.reachOwner.id
+  const garages = [
+    {
+      vendor: VENDORS.reachFar, pin: REACH_PINS.far, phone: '9000004311', service: SERVICES.reachFarWash,
+      dropin: true, doorstep: false, doorstepRadiusKm: null, pickupRadiusKm: 10,
+    },
+    {
+      vendor: VENDORS.reachDoorstep, pin: REACH_PINS.doorstep, phone: '9000004312', service: SERVICES.reachDoorstepWash,
+      dropin: false, doorstep: true, doorstepRadiusKm: 8, pickupRadiusKm: null,
+    },
+    {
+      vendor: VENDORS.reachPickup, pin: REACH_PINS.pickup, phone: '9000004313', service: SERVICES.reachPickupWash,
+      dropin: false, doorstep: false, doorstepRadiusKm: null, pickupRadiusKm: 8,
+    },
+    {
+      vendor: VENDORS.reachOutsideDoorstep, pin: REACH_PINS.outsideDoorstep, phone: '9000004314',
+      service: SERVICES.reachOutsideDoorstepWash,
+      dropin: false, doorstep: true, doorstepRadiusKm: 5, pickupRadiusKm: null,
+    },
+    {
+      vendor: VENDORS.reachOutsidePickup, pin: REACH_PINS.outsidePickup, phone: '9000004315',
+      service: SERVICES.reachOutsidePickupWash,
+      dropin: false, doorstep: false, doorstepRadiusKm: null, pickupRadiusKm: 8,
+    },
+  ]
+  for (const g of garages) {
+    const collects = g.pickupRadiusKm !== null
+    await db.insert(vendors).values({
+      id: g.vendor.id, ownerId: owner, businessName: g.vendor.name,
+      phone: g.phone, address: '3, Reach Road', city: 'Pudukkottai', pincode: '622001',
+      lat: g.pin.lat, lng: g.pin.lng, geoSource: 'map_pin', geoConfirmedAt: now,
+      vehicleTypes: ['hatchback', 'sedan', 'suv'],
+      isVerified: true, dropinEnabled: g.dropin, doorstepEnabled: g.doorstep,
+      doorstepRadiusKm: g.doorstepRadiusKm,
+      ...(collects
+        ? {
+            pickup: 'yes' as const, pickupRadiusKm: g.pickupRadiusKm,
+            pickupTermsAcceptedAt: daysAgo(1), pickupTermsAcceptedBy: 'admin: E2E seed',
+          }
+        : {}),
+      slotIntervalMins: 30, status: 'active', bays: 2,
+    })
+    await db.insert(userMemberMapping).values({
+      vendorId: g.vendor.id, userId: owner, role: 'vendor_admin', status: 'active',
+    })
+    await db.insert(vendorWorkingHours).values(hoursFor(g.vendor.id, '06:00:00', '22:00:00'))
+    await db.insert(services).values({
+      id: g.service.id, vendorId: g.vendor.id, name: g.service.name,
+      description: 'An exterior foam wash and dry.', category: 'car_wash', pricingType: 'flat',
+      price: g.service.price, durationMins: g.service.durationMins, isActive: true,
+    })
+  }
+
+  await db.insert(userVehicles).values({
+    id: CUSTOMERS.guestExisting.vehicleId, userId: CUSTOMERS.guestExisting.id, make: 'Tata', model: 'Nexon',
+    color: 'Blue', licensePlate: 'TN43GE0001', vehicleType: 'suv', isDefault: true,
+  })
+}
+
 async function seedPickupRows() {
   const garage = VENDORS.pickup.id
   await db.insert(vendors).values({
@@ -2836,6 +2905,7 @@ async function main() {
   await seedPayoutRows()
   console.log('[e2e-seed] pickup & drop…')
   await seedPickupRows()
+  await seedReachRows()
   console.log('[e2e-seed] suggested times & extra work…')
   await seedProposalRows()
   console.log('[e2e-seed] garage response deadline…')
