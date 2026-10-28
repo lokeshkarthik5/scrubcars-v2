@@ -27,7 +27,12 @@ import { ScInput } from '@repo/ui/sc/input'
 import type { MarkItemInput } from '@repo/core/api/admin-marks'
 import { readChecklist } from '@repo/core/mark-checklist'
 import { AutoGrowTextarea } from '@/components/auto-grow-textarea'
-import { openPresetLabels, type MarkVendor } from '@/lib/onboarding-marks'
+import {
+  checklistPayload,
+  openPresetLabels,
+  withCarriedItems,
+  type MarkVendor,
+} from '@/lib/onboarding-marks'
 import { AnchoredPopover } from './anchored-popover'
 import { ChecklistEditor, newDraftItem, type DraftItem } from './mark-checklist'
 
@@ -163,14 +168,9 @@ export function MarkForm({
           label,
           note: note.trim(),
           status,
-          items: items
-            .filter((item) => item.text.trim())
-            .map(({ id, text, done, answer }) => ({
-              ...(id ? { id } : {}),
-              text: text.trim(),
-              ...(done !== undefined ? { done } : {}),
-              ...(answer !== undefined ? { answer } : {}),
-            })),
+          // Ids and words only: ticks and answers are saved where they are
+          // made, and one loaded here may be out of date by now.
+          items: checklistPayload(items),
         })
       }}
     >
@@ -488,7 +488,12 @@ export function MarkPopover({
                     label: editing.kind === 'custom' ? editing.label : '',
                     note: carried?.note ?? note,
                     status: carried?.status ?? editing.status,
-                    items: carried?.items ?? checklist?.items ?? [],
+                    // The mark's own list, then anything typed for the
+                    // new one: Save sends the whole list, so the mark's
+                    // items (and their answers) must be on it.
+                    items: carried
+                      ? withCarriedItems(checklist?.items ?? [], carried.items)
+                      : (checklist?.items ?? []),
                   }
                 : undefined
             }

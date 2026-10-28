@@ -6,6 +6,7 @@ import {
   askMessage,
   askPhone,
   askedUndoSteps,
+  checklistPayload,
   daysAgo,
   displayPhone,
   filterByMissing,
@@ -21,6 +22,7 @@ import {
   openPresetLabels,
   openPresetLabelsForAll,
   thingsCount,
+  withCarriedItems,
 } from './onboarding-marks'
 
 /** 26 Oct 2026, 15:00 IST. */
@@ -343,5 +345,44 @@ describe('a mark with a checklist (0061)', () => {
       done: 0,
       total: 0,
     })
+  })
+})
+
+describe('the edit dialog’s checklist (0061)', () => {
+  test('sends ids and words only, so a tick or answer saved meanwhile stays', () => {
+    expect(
+      checklistPayload([
+        { id: 'a', text: ' Doorstep radius ', done: false, answer: null },
+        { id: 'b', text: 'Payout details', done: true, answer: 'UPI' },
+        { text: 'New item' },
+        { text: '   ' },
+      ] as Parameters<typeof checklistPayload>[0])
+    ).toEqual([
+      { id: 'a', text: 'Doorstep radius' },
+      { id: 'b', text: 'Payout details' },
+      { text: 'New item' },
+    ])
+  })
+
+  test('Edit that mark keeps the mark’s own items and adds the typed ones it lacks', () => {
+    const existing = [
+      { id: 'a', text: 'Doorstep radius', done: true, answer: '8 km' },
+      { id: 'b', text: 'Payout details', done: false, answer: null },
+    ]
+    expect(
+      withCarriedItems(existing, [
+        { text: 'payout details' },
+        { text: 'Logo' },
+        { text: ' ' },
+      ])
+    ).toEqual([...existing, { text: 'Logo' }])
+    // Nothing typed: the mark's list, not an empty one that Save would clear.
+    expect(withCarriedItems(existing, [])).toEqual(existing)
+    expect(
+      withCarriedItems(
+        existing,
+        Array.from({ length: 40 }, (_, i) => ({ text: `Item ${i}` }))
+      )
+    ).toHaveLength(30)
   })
 })

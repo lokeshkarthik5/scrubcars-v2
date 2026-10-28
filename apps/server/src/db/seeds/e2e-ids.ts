@@ -278,7 +278,7 @@ export const CUSTOMERS = {
    * The admin round's bookings (0061; ids 4200–4249): BOOKINGS.round*, at
    * VENDORS.roundA, for the Slot column and Delete test booking.
    */
-  adminRound: { id: id(4200), phone: '9000004200', name: 'Round Ravi', vehicleId: id(4201) },
+  adminRound: { id: id(4200), phone: '9000004204', name: 'Round Ravi', vehicleId: id(4201) },
   /**
    * The garage Bin's customers (specs/admin/garage-bin.spec.ts), one per
    * garage it moves or deletes, so nothing another spec reads goes with it.

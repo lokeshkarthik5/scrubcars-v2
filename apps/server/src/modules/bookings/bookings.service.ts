@@ -666,7 +666,9 @@ export function toBookingResponse(
           name: booking.service.name,
           category: booking.service.category,
           pricingType: booking.service.pricingType,
-          durationMins: booking.service.durationMins,
+          // Never null on the wire, as older clients read it (0061): a
+          // service with no duration holds the default, as at checkout.
+          durationMins: effectiveDurationMins(booking.service),
         }
       : null,
     vehicle: booking.vehicle

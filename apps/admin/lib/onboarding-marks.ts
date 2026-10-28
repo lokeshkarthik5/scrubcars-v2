@@ -8,10 +8,12 @@
  */
 import type { AdminVendor } from '@repo/core/api/admin'
 import type {
+  MarkItemInput,
   OnboardingMark,
   OnboardingMarkBrief,
 } from '@repo/core/api/admin-marks'
 import { whatsAppHref } from '@repo/core/contact-links'
+import { CHECKLIST_LIMITS } from '@repo/core/mark-checklist'
 import {
   MARK_CHASE_AFTER_DAYS,
   MARK_PRESETS,
@@ -201,6 +203,39 @@ type MarkTiming = Pick<OnboardingMark, 'status' | 'askedAt'> & {
   /** …or a brief's counts of it. */
   itemsDone?: number
   itemsTotal?: number
+}
+
+/**
+ * The checklist as the edit dialog sends it: each item's id (when it has
+ * one) and its words, never its tick or answer. The dialog does not change
+ * those (the list and the call sheet save them at once, under the mark's
+ * lock), so sending the ones it loaded would undo a tick or an answer saved
+ * while it was open, and sign it with this person's name. Left out, the
+ * server keeps what is stored.
+ */
+export function checklistPayload(
+  items: ReadonlyArray<Pick<MarkItemInput, 'id' | 'text'>>
+): MarkItemInput[] {
+  return items
+    .filter((item) => item.text.trim())
+    .map(({ id, text }) => ({ ...(id ? { id } : {}), text: text.trim() }))
+}
+
+/**
+ * "Edit that mark" after a 409: the open mark's own checklist first, so
+ * nothing on it (or its answers) is lost on Save, then the items typed for
+ * the new mark that it does not have yet (same words), at most 30.
+ */
+export function withCarriedItems(
+  existing: readonly MarkItemInput[],
+  carried: readonly MarkItemInput[]
+): MarkItemInput[] {
+  const have = new Set(existing.map((item) => item.text.trim().toLowerCase()))
+  const added = carried
+    .filter((item) => item.text.trim())
+    .filter((item) => !have.has(item.text.trim().toLowerCase()))
+    .map(({ text }) => ({ text: text.trim() }))
+  return [...existing, ...added].slice(0, CHECKLIST_LIMITS.items)
 }
 
 /** A mark's checklist progress, from its items or its brief's counts. */
