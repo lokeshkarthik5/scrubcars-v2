@@ -48,7 +48,10 @@ export function isAlmostReady(v: Garage): boolean {
 export function onlyNeedsPhotosOrLogo(v: Garage): boolean {
   if (!isNotLiveYet(v) || !onlyOptionalLeft(v)) return false
   const missing = v.missing ?? []
-  return missing.length > 0 && missing.every((key) => key === 'photos' || key === 'logo')
+  return (
+    missing.length > 0 &&
+    missing.every((key) => key === 'photos' || key === 'logo')
+  )
 }
 
 export interface TargetFigures {
@@ -65,9 +68,14 @@ export interface TargetFigures {
   toGo: number
 }
 
-export function targetFigures(vendors: readonly Garage[], target: GarageTarget): TargetFigures {
+export function targetFigures(
+  vendors: readonly Garage[],
+  target: GarageTarget
+): TargetFigures {
   const live = target.counts === 'live'
-  const count = vendors.filter((v) => (live ? !isInBin(v) && isLive(v) : isOnboarded(v))).length
+  const count = vendors.filter((v) =>
+    live ? !isInBin(v) && isLive(v) : isOnboarded(v)
+  ).length
   const almostReady = live ? vendors.filter(isAlmostReady).length : 0
   const of = Math.max(1, target.target)
   const doneWidth = Math.min(100, (count / of) * 100)
@@ -88,13 +96,20 @@ const IST_MS = 5.5 * 60 * 60 * 1000
 /** The instant this IST week began: Monday, 00:00 in Chennai. */
 export function istWeekStart(now: number): number {
   const ist = new Date(now + IST_MS)
-  const midnight = Date.UTC(ist.getUTCFullYear(), ist.getUTCMonth(), ist.getUTCDate())
+  const midnight = Date.UTC(
+    ist.getUTCFullYear(),
+    ist.getUTCMonth(),
+    ist.getUTCDate()
+  )
   const sinceMonday = (ist.getUTCDay() + 6) % 7
   return midnight - sinceMonday * DAY_MS - IST_MS
 }
 
 /** Garages added this IST week (Monday on), and the week before. The Bin is left out. */
-export function addedByWeek(vendors: readonly Garage[], now: number): { thisWeek: number; lastWeek: number } {
+export function addedByWeek(
+  vendors: readonly Garage[],
+  now: number
+): { thisWeek: number; lastWeek: number } {
   const start = istWeekStart(now)
   const before = start - 7 * DAY_MS
   let thisWeek = 0
@@ -110,14 +125,23 @@ export function addedByWeek(vendors: readonly Garage[], now: number): { thisWeek
 }
 
 /** "1 more than last week", "2 fewer than last week", "Same as last week". */
-export function weekCompareText({ thisWeek, lastWeek }: { thisWeek: number; lastWeek: number }): string {
+export function weekCompareText({
+  thisWeek,
+  lastWeek,
+}: {
+  thisWeek: number
+  lastWeek: number
+}): string {
   const diff = thisWeek - lastWeek
   if (diff === 0) return 'Same as last week'
   return `${Math.abs(diff)} ${diff > 0 ? 'more' : 'fewer'} than last week`
 }
 
 /** Garages not live yet, and how many of them only need photos or a logo. */
-export function notLiveFigures(vendors: readonly Garage[]): { count: number; onlyPhotosOrLogo: number } {
+export function notLiveFigures(vendors: readonly Garage[]): {
+  count: number
+  onlyPhotosOrLogo: number
+} {
   return {
     count: vendors.filter(isNotLiveYet).length,
     onlyPhotosOrLogo: vendors.filter(onlyNeedsPhotosOrLogo).length,
@@ -125,7 +149,10 @@ export function notLiveFigures(vendors: readonly Garage[]): { count: number; onl
 }
 
 /** Live garages by area (the neighbourhood their pin is near), most first. */
-export function liveByArea(vendors: readonly Garage[], top = 4): Array<{ area: string; count: number }> {
+export function liveByArea(
+  vendors: readonly Garage[],
+  top = 4
+): Array<{ area: string; count: number }> {
   const counts = new Map<string, number>()
   for (const v of vendors) {
     if (isInBin(v) || !isLive(v)) continue
@@ -139,15 +166,35 @@ export function liveByArea(vendors: readonly Garage[], top = 4): Array<{ area: s
 }
 
 /** "28% there · 9 almost ready · 36 to go by 31 Dec". */
-export function targetLine(figures: TargetFigures, endsOn: string | null, now: number = Date.now()): string {
+export function targetLine(
+  figures: TargetFigures,
+  endsOn: string | null,
+  now: number = Date.now()
+): string {
   const parts = [`${figures.percent}% there`]
   if (figures.almostReady > 0) parts.push(`${figures.almostReady} almost ready`)
   if (figures.toGo === 0) parts.push('target reached')
-  else parts.push(`${figures.toGo} to go${endsOn ? ` by ${dayText(endsOn, now)}` : ''}`)
+  else
+    parts.push(
+      `${figures.toGo} to go${endsOn ? ` by ${dayText(endsOn, now)}` : ''}`
+    )
   return parts.join(' · ')
 }
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const MONTHS = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+]
 
 /** "31 Dec", with the year when it is not this one ("31 Mar 2027"). */
 export function dayText(day: string, now: number = Date.now()): string {

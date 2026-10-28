@@ -31,15 +31,26 @@ export function colourOf(v: Coloured): ColourTag | null {
   return isColourTag(v.colourTag) ? v.colourTag : null
 }
 
-export function matchesColour(v: Coloured, filter: ColourFilter | null): boolean {
+export function matchesColour(
+  v: Coloured,
+  filter: ColourFilter | null
+): boolean {
   if (!filter) return true
   const tag = colourOf(v)
   return filter === 'none' ? tag === null : tag === filter
 }
 
 /** How many garages wear each colour, and how many none. */
-export function colourCounts(vendors: readonly Coloured[]): Record<ColourFilter, number> {
-  const counts: Record<ColourFilter, number> = { green: 0, amber: 0, red: 0, blue: 0, none: 0 }
+export function colourCounts(
+  vendors: readonly Coloured[]
+): Record<ColourFilter, number> {
+  const counts: Record<ColourFilter, number> = {
+    green: 0,
+    amber: 0,
+    red: 0,
+    blue: 0,
+    none: 0,
+  }
   for (const v of vendors) counts[colourOf(v) ?? 'none'] += 1
   return counts
 }
@@ -51,7 +62,20 @@ export function colourSortValue(v: Coloured): number | null {
 }
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const MONTHS = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+]
 const DAY_MS = 24 * 60 * 60 * 1000
 
 /** Today in Chennai, "YYYY-MM-DD". */
@@ -86,7 +110,10 @@ export function colourText(
 ): string | null {
   const tag = colourOf(v)
   if (!tag) return null
-  const day = tag === 'blue' && v.colourTagCallOn ? callDayText(v.colourTagCallOn, now) : ''
+  const day =
+    tag === 'blue' && v.colourTagCallOn
+      ? callDayText(v.colourTagCallOn, now)
+      : ''
   return day ? `${names[tag]} ${day}` : names[tag]
 }
 
@@ -105,7 +132,10 @@ export function colourSetLine(
 }
 
 /** The row's tint and 3px edge, and the dot, per colour (the app's tones). */
-export const COLOUR_STYLES: Record<ColourTag, { row: string; dot: string; chip: string }> = {
+export const COLOUR_STYLES: Record<
+  ColourTag,
+  { row: string; dot: string; chip: string }
+> = {
   green: {
     row: 'bg-tone-done-tint/50 shadow-[inset_3px_0_0_var(--color-tone-done-dot)]',
     dot: 'bg-tone-done-dot',

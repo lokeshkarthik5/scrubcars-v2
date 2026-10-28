@@ -275,6 +275,11 @@ export const CUSTOMERS = {
    */
   dataResetUi: { id: id(151), phone: '9000000051', name: 'Reset Usha', vehicleId: id(761) },
   /**
+   * The admin round's bookings (0061; ids 4200–4249): BOOKINGS.round*, at
+   * VENDORS.roundA, for the Slot column and Delete test booking.
+   */
+  adminRound: { id: id(4200), phone: '9000004200', name: 'Round Ravi', vehicleId: id(4201) },
+  /**
    * The garage Bin's customers (specs/admin/garage-bin.spec.ts), one per
    * garage it moves or deletes, so nothing another spec reads goes with it.
    * binPaid owns an upcoming paid booking (and an unpaid one) at
@@ -511,6 +516,9 @@ export const STAFF = {
   marksBOwner: { id: id(4156), phone: '9000004155', name: 'Marks Owner Bala' },
   /** Owns VENDORS.marksC only (the garage editor layout spec, 0059). */
   marksCOwner: { id: id(4166), phone: '9000004165', name: 'Marks Owner Chitra' },
+  /** Own VENDORS.roundA and roundDoorstep (the admin round, 0061; 4200–4249). */
+  roundAOwner: { id: id(4202), phone: '9000004202', name: 'Round Owner Arul' },
+  roundDoorstepOwner: { id: id(4203), phone: '9000004203', name: 'Round Owner Devi' },
 } as const
 
 export const VENDORS = {
@@ -757,6 +765,18 @@ export const VENDORS = {
    * apart so the marks and team specs can rely on marksB never changing.
    */
   marksC: { id: id(4165), name: 'Marks Test Garage C', onboardedByName: 'E2E Admin' },
+  /**
+   * The admin round (0061; ids 4200–4249), only its specs touch these:
+   * - roundA: live, at the garage and doorstep, far from every other pin.
+   *   Its wash has no duration and its detailing its own 6% commission; it
+   *   has a checklist mark (1 of 3 ticked) and an old mark whose note holds
+   *   "- " lines. specs/admin/admin-round-*.spec.ts.
+   * - roundDoorstep: doorstep only, pending, with no address or pincode.
+   * - roundB: a second live garage for the colour tags' bulk set.
+   */
+  roundA: { id: id(4210), name: 'Round Test Garage A' },
+  roundDoorstep: { id: id(4211), name: 'Round Doorstep Garage' },
+  roundB: { id: id(4212), name: 'Round Test Garage B' },
 } as const
 
 /** VENDORS.contact's own numbers (contact windows), different on purpose. */
@@ -922,6 +942,12 @@ export const SERVICES = {
   marksAWash: { id: id(4153), name: 'Marks A Foam Wash', price: '500.00', durationMins: 30 },
   marksBWash: { id: id(4157), name: 'Marks B Foam Wash', price: '500.00', durationMins: 30 },
   marksCWash: { id: id(4167), name: 'Marks C Foam Wash', price: '500.00', durationMins: 30 },
+  /** VENDORS.roundA's (0061): a wash with no duration, detailing at its own 6%. */
+  roundWash: { id: id(4213), name: 'Round Foam Wash', price: '450.00', durationMins: null },
+  roundDetail: { id: id(4214), name: 'Round Interior Detail', price: '1500.00', durationMins: 120 },
+  /** VENDORS.roundDoorstep's and roundB's one wash each. */
+  roundDoorstepWash: { id: id(4215), name: 'Round Doorstep Wash', price: '400.00', durationMins: 45 },
+  roundBWash: { id: id(4216), name: 'Round B Foam Wash', price: '400.00', durationMins: 45 },
 } as const
 
 export const DISCOUNTS = {
@@ -1155,6 +1181,18 @@ export const BOOKINGS = {
   resetUiMarked: refId('da7a0009'),
   resetUiKeep: refId('da7a000b'),
   /**
+   * The admin round (0061), CUSTOMERS.adminRound's at VENDORS.roundA:
+   * - roundSlot: in two days, booked yesterday: the Slot column and
+   *   "Booked yesterday, …".
+   * - roundDelete: marked Test, paid with E2E money, with a team note and a
+   *   complaint about it: deleted from its page with both.
+   * - roundLive: marked Test but paid with live money: Delete test booking
+   *   says why it is kept, and deletes nothing.
+   */
+  roundSlot: refId('ad200003'),
+  roundDelete: refId('ad200001'),
+  roundLive: refId('ad200002'),
+  /**
    * The garage Bin's (CUSTOMERS.bin*). binPaidUpcoming is confirmed and paid
    * (E2E money) in three days at VENDORS.binPaid, and binUnpaidUpcoming
    * pending and unpaid: moving the garage to the Bin cancels both, and only
@@ -1334,6 +1372,18 @@ export const BOOKING_INTENTS = {
  * at: the void a restart of 22-23 clears.
  */
 export const DATA_RESET = { earlierAudit: id(1301) } as const
+
+/**
+ * The admin round's other rows (0061; ids 4200–4249): the complaint about
+ * BOOKINGS.roundDelete, and VENDORS.roundA's two marks.
+ */
+export const ROUND = {
+  complaint: id(4230),
+  /** "New garage call": three items, the first ticked with an answer. */
+  checklistMark: id(4231),
+  /** From before 0061: its note's "- " lines read as items. */
+  oldNoteMark: id(4232),
+} as const
 
 /**
  * Team notices. `homeRain` is about bookings at HOME_PROMO around

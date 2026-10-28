@@ -16,7 +16,10 @@ import {
 // Wed 28 Oct 2026, 3:00 pm in Chennai. The week began Mon 26 Oct.
 const NOW = Date.parse('2026-10-28T09:30:00.000Z')
 
-const item = (severity: ReadinessItem['severity'], key = severity): ReadinessItem => ({
+const item = (
+  severity: ReadinessItem['severity'],
+  key = severity
+): ReadinessItem => ({
   key,
   severity,
   label: key,
@@ -57,21 +60,47 @@ describe('the target', () => {
   ]
 
   test('live garages against the target, with the almost ready after them', () => {
-    const figures = targetFigures(list, { target: 10, endsOn: null, counts: 'live' })
-    expect(figures).toMatchObject({ count: 2, target: 10, almostReady: 1, percent: 20, toGo: 8 })
+    const figures = targetFigures(list, {
+      target: 10,
+      endsOn: null,
+      counts: 'live',
+    })
+    expect(figures).toMatchObject({
+      count: 2,
+      target: 10,
+      almostReady: 1,
+      percent: 20,
+      toGo: 8,
+    })
     expect(figures.doneWidth).toBe(20)
     expect(figures.almostWidth).toBe(10)
-    expect(targetLine(figures, '2026-12-31', NOW)).toBe('20% there · 1 almost ready · 8 to go by 31 Dec')
+    expect(targetLine(figures, '2026-12-31', NOW)).toBe(
+      '20% there · 1 almost ready · 8 to go by 31 Dec'
+    )
   })
 
   test('all onboarded counts every garage not archived or in the Bin, with no amber part', () => {
-    const figures = targetFigures(list, { target: 4, endsOn: null, counts: 'onboarded' })
-    expect(figures).toMatchObject({ count: 4, almostReady: 0, percent: 100, toGo: 0, almostWidth: 0 })
+    const figures = targetFigures(list, {
+      target: 4,
+      endsOn: null,
+      counts: 'onboarded',
+    })
+    expect(figures).toMatchObject({
+      count: 4,
+      almostReady: 0,
+      percent: 100,
+      toGo: 0,
+      almostWidth: 0,
+    })
     expect(targetLine(figures, null, NOW)).toBe('100% there · target reached')
   })
 
   test('over the target, the bar stops at full', () => {
-    const figures = targetFigures([garage(), garage(), garage()], { target: 2, endsOn: null, counts: 'live' })
+    const figures = targetFigures([garage(), garage(), garage()], {
+      target: 2,
+      endsOn: null,
+      counts: 'live',
+    })
     expect(figures.doneWidth).toBe(100)
     expect(figures.percent).toBe(100)
   })
@@ -84,7 +113,9 @@ describe('the target', () => {
 
 describe('added this week', () => {
   test('the IST week starts on Monday at midnight in Chennai', () => {
-    expect(new Date(istWeekStart(NOW)).toISOString()).toBe('2026-10-25T18:30:00.000Z')
+    expect(new Date(istWeekStart(NOW)).toISOString()).toBe(
+      '2026-10-25T18:30:00.000Z'
+    )
   })
 
   test('this week against last; the Bin is left out', () => {
@@ -92,23 +123,42 @@ describe('added this week', () => {
       garage({ createdAt: '2026-10-26T00:00:00.000Z' }), // Mon 5:30 am IST: this week
       garage({ createdAt: '2026-10-28T08:00:00.000Z' }),
       garage({ createdAt: '2026-10-25T18:00:00.000Z' }), // Sun 11:30 pm IST: last week
-      garage({ createdAt: '2026-10-28T08:00:00.000Z', deletedAt: '2026-10-28T09:00:00.000Z' }),
+      garage({
+        createdAt: '2026-10-28T08:00:00.000Z',
+        deletedAt: '2026-10-28T09:00:00.000Z',
+      }),
       garage({ createdAt: '2026-10-10T08:00:00.000Z' }),
     ]
     const weeks = addedByWeek(list, NOW)
     expect(weeks).toEqual({ thisWeek: 2, lastWeek: 1 })
     expect(weekCompareText(weeks)).toBe('1 more than last week')
-    expect(weekCompareText({ thisWeek: 1, lastWeek: 3 })).toBe('2 fewer than last week')
-    expect(weekCompareText({ thisWeek: 0, lastWeek: 0 })).toBe('Same as last week')
+    expect(weekCompareText({ thisWeek: 1, lastWeek: 3 })).toBe(
+      '2 fewer than last week'
+    )
+    expect(weekCompareText({ thisWeek: 0, lastWeek: 0 })).toBe(
+      'Same as last week'
+    )
   })
 })
 
 describe('not live yet', () => {
   test('counts those not live, and the ones that only need photos or a logo', () => {
-    const photosOnly = pending({ readiness: [item('optional')], missing: ['photos', 'logo'] })
-    const needsMore = pending({ readiness: [item('optional')], missing: ['photos', 'payout'] })
+    const photosOnly = pending({
+      readiness: [item('optional')],
+      missing: ['photos', 'logo'],
+    })
+    const needsMore = pending({
+      readiness: [item('optional')],
+      missing: ['photos', 'payout'],
+    })
     const blocked = pending({ readiness: [item('fix')], missing: ['logo'] })
-    const list = [garage(), photosOnly, needsMore, blocked, garage({ status: 'archived', live: false })]
+    const list = [
+      garage(),
+      photosOnly,
+      needsMore,
+      blocked,
+      garage({ status: 'archived', live: false }),
+    ]
     expect(notLiveFigures(list)).toEqual({ count: 3, onlyPhotosOrLogo: 1 })
     expect(onlyNeedsPhotosOrLogo(photosOnly)).toBe(true)
     expect(onlyNeedsPhotosOrLogo(blocked)).toBe(false)

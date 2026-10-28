@@ -27,6 +27,7 @@ import {
   bookingNotes,
   bookingReschedules,
   bookings,
+  complaints,
   discountRedemptions,
   discounts,
   jobPhotos,
@@ -50,6 +51,7 @@ import {
   vendorServiceAreas,
   vendorWorkingHours,
   vendors,
+  vendorOnboardingMarks,
   vehicleServiceReminders,
 } from '../schema.js'
 import {
@@ -73,6 +75,7 @@ import {
   SLOT_ALERTS_PIN,
   RESPONSE_PIN,
   REVIEWS,
+  ROUND,
   SERVICES,
   STAFF,
   STATS,
@@ -208,7 +211,7 @@ async function seedPeople() {
         CUSTOMERS.receipts, CUSTOMERS.receiptsStranger, CUSTOMERS.myBookings,
         CUSTOMERS.bookAgain, CUSTOMERS.dataReset, CUSTOMERS.dataResetUi,
         CUSTOMERS.binPaid, CUSTOMERS.binHard, CUSTOMERS.binTomb, CUSTOMERS.binBrowse,
-        CUSTOMERS.complaints, CUSTOMERS.payouts].map((c, i) => ({
+        CUSTOMERS.complaints, CUSTOMERS.payouts, CUSTOMERS.adminRound].map((c, i) => ({
       id: c.vehicleId as string,
       userId: c.id, make: 'Hyundai', model: 'i20', color: 'Blue',
       licensePlate: `TN02BB${String(i).padStart(4, '0')}`,
@@ -2729,6 +2732,126 @@ async function seedMarksRows() {
   ])
 }
 
+/**
+ * The admin round (0061; ids 4200–4249, specs/admin/admin-round-*.spec.ts):
+ * see VENDORS.roundA/roundB/roundDoorstep, SERVICES.round*, BOOKINGS.round*
+ * and ROUND. Pinned far from every other garage, so no customer list or
+ * other spec meets them.
+ */
+async function seedAdminRoundRows() {
+  const pin = (n: number) => ({
+    lat: ORIGIN.lat - 1.2 - n * 0.01, lng: ORIGIN.lng - 0.35,
+    geoSource: 'map_pin' as const, geoConfirmedAt: now,
+  })
+  const garage = {
+    city: 'Chennai', vehicleTypes: ['hatchback', 'sedan', 'suv'], bays: 2,
+    slotIntervalMins: 30, whatsapp: null,
+  }
+  await db.insert(vendors).values([
+    {
+      ...garage, ...pin(0), id: VENDORS.roundA.id, ownerId: STAFF.roundAOwner.id,
+      businessName: VENDORS.roundA.name, phone: STAFF.roundAOwner.phone,
+      address: '1, Round Road, Kovalam', pincode: '603112',
+      status: 'active', isVerified: true, doorstepEnabled: true, dropinEnabled: true,
+      doorstepRadiusKm: 8, createdAt: daysAgo(3),
+    },
+    {
+      ...garage, ...pin(1), id: VENDORS.roundB.id, ownerId: STAFF.roundAOwner.id,
+      businessName: VENDORS.roundB.name, phone: STAFF.roundAOwner.phone,
+      address: '2, Round Road, Kovalam', pincode: '603112',
+      status: 'active', isVerified: true, doorstepEnabled: false, dropinEnabled: true,
+      createdAt: daysAgo(4),
+    },
+    {
+      // Doorstep only: no street address and no pincode, which it no longer
+      // needs (0061).
+      ...garage, ...pin(2), id: VENDORS.roundDoorstep.id, ownerId: STAFF.roundDoorstepOwner.id,
+      businessName: VENDORS.roundDoorstep.name, phone: STAFF.roundDoorstepOwner.phone,
+      address: '', pincode: '',
+      status: 'pending', isVerified: false, doorstepEnabled: true, dropinEnabled: false,
+      doorstepRadiusKm: 8, createdAt: daysAgo(5),
+    },
+  ])
+  await db.insert(userMemberMapping).values([
+    { vendorId: VENDORS.roundA.id, userId: STAFF.roundAOwner.id, role: 'vendor_admin', status: 'active' },
+    { vendorId: VENDORS.roundB.id, userId: STAFF.roundAOwner.id, role: 'vendor_admin', status: 'active' },
+    { vendorId: VENDORS.roundDoorstep.id, userId: STAFF.roundDoorstepOwner.id, role: 'vendor_admin', status: 'active' },
+  ])
+  await db.insert(vendorWorkingHours).values([
+    ...hoursFor(VENDORS.roundA.id, '06:00:00', '22:00:00'),
+    ...hoursFor(VENDORS.roundB.id, '06:00:00', '22:00:00'),
+    ...hoursFor(VENDORS.roundDoorstep.id, '06:00:00', '22:00:00'),
+  ])
+  await db.insert(services).values([
+    {
+      id: SERVICES.roundWash.id, vendorId: VENDORS.roundA.id, name: SERVICES.roundWash.name,
+      description: 'An exterior foam wash and dry.', category: 'car_wash', pricingType: 'flat',
+      price: SERVICES.roundWash.price, durationMins: null, isActive: true,
+    },
+    {
+      id: SERVICES.roundDetail.id, vendorId: VENDORS.roundA.id, name: SERVICES.roundDetail.name,
+      description: 'Seats, mats and dashboard cleaned.', category: 'detailing', pricingType: 'flat',
+      price: SERVICES.roundDetail.price, durationMins: SERVICES.roundDetail.durationMins,
+      commissionRate: '6.00', isActive: true,
+    },
+    {
+      id: SERVICES.roundDoorstepWash.id, vendorId: VENDORS.roundDoorstep.id,
+      name: SERVICES.roundDoorstepWash.name, description: 'A foam wash at your home.',
+      category: 'car_wash', pricingType: 'flat', price: SERVICES.roundDoorstepWash.price,
+      durationMins: SERVICES.roundDoorstepWash.durationMins, isActive: true,
+    },
+    {
+      id: SERVICES.roundBWash.id, vendorId: VENDORS.roundB.id, name: SERVICES.roundBWash.name,
+      description: 'An exterior foam wash and dry.', category: 'car_wash', pricingType: 'flat',
+      price: SERVICES.roundBWash.price, durationMins: SERVICES.roundBWash.durationMins, isActive: true,
+    },
+  ])
+
+  // The bookings: a wash at its booking's own snapshot of 60 minutes (the
+  // default its service now holds).
+  const wash = { id: SERVICES.roundWash.id, name: SERVICES.roundWash.name, amount: SERVICES.roundWash.price, durationMins: 60 }
+  const who = { userId: CUSTOMERS.adminRound.id, vehicleId: CUSTOMERS.adminRound.vehicleId, vendorId: VENDORS.roundA.id }
+  await insertBooking({ id: BOOKINGS.roundSlot, ...who, scheduledAt: new Date(now.getTime() + 2 * 24 * HOUR),
+    createdAt: daysAgo(1), status: 'confirmed', acceptedAt: daysAgo(1), items: [wash],
+    payment: { status: 'paid', txnId: 'pay_e2e_round_slot', paidAt: daysAgo(1), gatewayMode: 'fake' } })
+  await insertBooking({ id: BOOKINGS.roundDelete, ...who, scheduledAt: daysAgo(6), createdAt: daysAgo(7),
+    status: 'completed', items: [wash], markedTestAt: daysAgo(6),
+    payment: { status: 'paid', txnId: 'pay_e2e_round_delete', paidAt: daysAgo(7), gatewayMode: 'fake' } })
+  await insertBooking({ id: BOOKINGS.roundLive, ...who, scheduledAt: daysAgo(8), createdAt: daysAgo(9),
+    status: 'completed', items: [wash], markedTestAt: daysAgo(8),
+    payment: { status: 'paid', txnId: 'pay_LiveRoundL1', paidAt: daysAgo(9), gatewayMode: 'live' } })
+  await db.insert(bookingNotes).values({
+    bookingId: BOOKINGS.roundDelete, author: 'E2E seed', body: 'Team test for the admin round.',
+  })
+  await db.insert(complaints).values({
+    id: ROUND.complaint, userId: CUSTOMERS.adminRound.id,
+    customerName: CUSTOMERS.adminRound.name, customerPhone: CUSTOMERS.adminRound.phone,
+    bookingId: BOOKINGS.roundDelete, bookingRef: BOOKINGS.roundDelete.slice(0, 8).toUpperCase(),
+    vendorId: VENDORS.roundA.id, garageName: VENDORS.roundA.name,
+    category: 'other', message: 'Seeded: about a test booking.', source: 'phone', loggedBy: 'E2E seed',
+  })
+
+  // Marks: a checklist with one item answered, and one from before 0061
+  // whose note holds the list.
+  await db.insert(vendorOnboardingMarks).values([
+    {
+      id: ROUND.checklistMark, vendorId: VENDORS.roundA.id, kind: 'custom', label: 'New garage call',
+      status: 'asked', askedAt: daysAgo(1), askedByName: 'E2E seed', createdByName: 'E2E seed',
+      items: [
+        { id: 'round-item-1', text: 'At-garage services?', done: true, answer: 'Yes: wash and polish',
+          answeredBy: 'E2E seed', answeredAt: daysAgo(1).toISOString() },
+        { id: 'round-item-2', text: 'Doorstep radius', done: false, answer: null, answeredBy: null, answeredAt: null },
+        { id: 'round-item-3', text: 'Payout details', done: false, answer: null, answeredBy: null, answeredAt: null },
+      ],
+    },
+    {
+      id: ROUND.oldNoteMark, vendorId: VENDORS.roundA.id, kind: 'custom', label: 'Old call notes',
+      note: 'Owner busy till 5\n- Check if they do doorstep\n- Ask about pickup', status: 'to_ask',
+      createdByName: 'E2E seed',
+    },
+  ])
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set')
 
@@ -2791,6 +2914,8 @@ async function main() {
   await seedMarksRows()
   console.log('[e2e-seed] admin logins…')
   await seedAdminLoginRows()
+  console.log('[e2e-seed] admin round…')
+  await seedAdminRoundRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }

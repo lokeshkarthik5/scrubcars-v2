@@ -164,8 +164,14 @@ export function ColourPicker({
     ? `Colour for ${one.businessName}`
     : `Colour for ${vendors.length} garages`
 
-  if (renaming)
-    return <RenameColoursDialog onClose={() => setRenaming(false)} />
+  // Renaming takes the picker's place, and gives it back when done.
+  if (renaming) {
+    return (
+      <MarksOverlay>
+        <RenameColoursDialog onClose={() => setRenaming(false)} />
+      </MarksOverlay>
+    )
+  }
 
   return (
     <MarksOverlay>
