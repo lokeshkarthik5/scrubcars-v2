@@ -34,6 +34,10 @@ test.describe('the landing page is the app (0062) @p0', () => {
     await expect(cards(page).first()).toBeVisible()
     await expect(cards(page).first().getByText(/From ₹\d/)).toBeVisible()
     await expect(page.locator('main .reveal')).toHaveCount(0)
+    // Nor the route's own fade-in (app/template.tsx), on this page only.
+    expect(
+      await page.evaluate(() => getComputedStyle(document.querySelector('.page-enter')!).animationName)
+    ).toBe('none')
     await expect(page.locator('[data-marketing-home]')).toHaveCount(0)
 
     // Where's your car: Near me, the seven priority areas, More.

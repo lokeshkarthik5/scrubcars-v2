@@ -2001,3 +2001,10 @@ html:has(.legal-doc) {
     animation: none;
   }
 }
+
+/* The landing page (0062) is the app's first screen and must paint at once:
+   no route fade-in (app/template.tsx's .page-enter) over its server-rendered
+   garages. Other routes keep theirs. */
+.page-enter:has([data-app-landing]) {
+  animation: none;
+}
