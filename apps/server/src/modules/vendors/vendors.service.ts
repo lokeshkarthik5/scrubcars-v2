@@ -709,17 +709,6 @@ async function readServiceOrPackage(
   return pkg ? toPackageResponse(pkg) : toServiceResponse(service)
 }
 
-// Worded after the button the owner has next to Delete ("Disable"), so the
-// way out is the control they can see. Packages are services underneath but
-// not to the owner, so they get their own noun.
-function serviceInUse(kind: 'service' | 'package' = 'service') {
-  return new AppError(
-    409,
-    `This ${kind} has bookings. Disable it instead.`,
-    'SERVICE_IN_USE'
-  )
-}
-
 /**
  * Loads the company the caller is acting as. The vendorId always comes from
  * `resolveTenant`, which has already checked the caller has an active seat in
@@ -1702,9 +1691,15 @@ export const vendorsService = {
     }
 
     // Bookings name the service they were for, and that history must stay
-    // whole, so a service anyone has booked is switched off, never deleted.
+    // whole, so a service anyone has booked is marked deleted instead: off,
+    // listed nowhere again, and still there for those bookings to read. Its
+    // photos stay with it, for the same reason.
     if (await vendorsRepository.isServiceReferenced(serviceId)) {
-      throw serviceInUse()
+      const [marked] = await vendorsRepository.markServiceDeleted(
+        vendor.id,
+        serviceId
+      )
+      return toServiceResponse(marked, existing.images)
     }
 
     const [deleted] = await vendorsRepository.deleteService(
@@ -1855,10 +1850,14 @@ export const vendorsService = {
     }
 
     // Items cascade with the package row. Bookings hold a restrict FK on
-    // services, so a package that has ever been booked can't be hard-deleted —
-    // the vendor deactivates it instead, exactly like a plain service.
+    // services, so a package that has ever been booked is marked deleted
+    // instead, exactly like a plain service, items and photos kept.
     if (await vendorsRepository.isServiceReferenced(packageId)) {
-      throw serviceInUse('package')
+      const [marked] = await vendorsRepository.markServiceDeleted(
+        vendor.id,
+        packageId
+      )
+      return toServiceResponse(marked)
     }
 
     const [deleted] = await vendorsRepository.deleteService(

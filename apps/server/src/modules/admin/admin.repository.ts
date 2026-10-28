@@ -533,23 +533,27 @@ export const adminRepository = {
     return db.insert(services).values(rows).returning()
   },
 
-  // Active service ids for a vendor, used to reconcile the admin edit payload.
-  // Packages MUST stay out: the admin editor never sends them, so including
-  // them here would make every save deactivate all of the vendor's packages.
-  async listActiveServiceIds(vendorId: string): Promise<string[]> {
+  // Every plain service of a vendor with its state, to reconcile the admin
+  // edit payload (lib/service-reconcile.ts). Packages MUST stay out: the admin
+  // editor never sends them, so including them here would make every save
+  // deactivate all of the vendor's packages.
+  async listServiceStates(
+    vendorId: string
+  ): Promise<Array<{ id: string; isActive: boolean; deleted: boolean }>> {
     const rows = await db.query.services.findMany({
-      columns: { id: true },
-      where: and(
-        eq(services.vendorId, vendorId),
-        eq(services.isActive, true),
-        ne(services.category, 'package')
-      ),
+      columns: { id: true, isActive: true, deletedAt: true },
+      where: and(eq(services.vendorId, vendorId), ne(services.category, 'package')),
     })
-    return rows.map((r) => r.id)
+    return rows.map((r) => ({ id: r.id, isActive: r.isActive, deleted: r.deletedAt !== null }))
   },
 
+  // Never touches a deleted service, so no save can bring one back.
   updateService(id: string, data: Partial<ServiceInsert>) {
-    return db.update(services).set(data).where(eq(services.id, id)).returning()
+    return db
+      .update(services)
+      .set(data)
+      .where(and(eq(services.id, id), isNull(services.deletedAt)))
+      .returning()
   },
 
   // Soft-delete: hide from customers and block new bookings, but keep the row
