@@ -8,6 +8,7 @@ import {
   marketingContext,
   META_EVENT_NAMES,
   metaEventFor,
+  metaPageAddress,
   MIRRORED_EVENTS,
   mirrorToMeta,
   PIXEL_ID,
@@ -215,6 +216,30 @@ describe('where the Pixel stays off', () => {
     expect(pixelExcluded('/bookings', null)).toBe(false)
     expect(pixelExcluded('/profile/cars', null)).toBe(false)
     expect(pixelExcluded(`/garage/${GARAGE}`, null)).toBe(false)
+  })
+})
+
+describe('a page address in a Pixel request (dl, rl)', () => {
+  test('origin and path, the path cut before a code or a booking\'s id', () => {
+    expect(metaPageAddress(`https://detlio.com/book/${GARAGE}?code=DIWALI50&address=${BOOKING}`)).toBe(
+      `https://detlio.com/book/${GARAGE}`
+    )
+    expect(metaPageAddress(`https://detlio.com/login?next=%2Fgift%2FABCDEFGH`)).toBe('https://detlio.com/login')
+    // A referrer from a page the Pixel stays off: never its code or id.
+    expect(metaPageAddress('https://detlio.com/gift/ABCDEFGH')).toBe('https://detlio.com/gift')
+    expect(metaPageAddress('https://detlio.com/c/ABCD1234?src=print')).toBe('https://detlio.com/c')
+    expect(metaPageAddress('https://detlio.com/invite/RAVI2026')).toBe('https://detlio.com/invite')
+    expect(metaPageAddress('https://detlio.com/verify/AbCdEf')).toBe('https://detlio.com/')
+    expect(metaPageAddress(`https://detlio.com/bookings/${BOOKING}?celebrate=1`)).toBe('https://detlio.com/bookings')
+    expect(metaPageAddress(`https://detlio.com/bookings/${BOOKING}/receipt`)).toBe('https://detlio.com/bookings')
+    expect(metaPageAddress(`https://detlio.com/profile/cars/${BOOKING}/certificate`)).toBe(
+      'https://detlio.com/profile/cars'
+    )
+    // Pages the Pixel runs on keep their path.
+    expect(metaPageAddress(`https://detlio.com/garage/${GARAGE}`)).toBe(`https://detlio.com/garage/${GARAGE}`)
+    expect(metaPageAddress('https://www.instagram.com/p/abc/?igsh=xyz')).toBe('https://www.instagram.com/p/abc/')
+    expect(metaPageAddress('')).toBe('')
+    expect(metaPageAddress('javascript:alert(1)')).toBe('')
   })
 })
 

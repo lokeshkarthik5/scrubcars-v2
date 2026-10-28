@@ -443,19 +443,19 @@ export const PRIVACY: LegalDoc = {
             {
               kind: 'list',
               items: [
-                'the web address (URL) of the page. On checkout (and on sign-in, when you sign in on the way to checkout) it names the garage, the services you picked (by reference number) and whether the visit is at your door, and can include a promo code and the reference number of the saved address you picked (not the address itself);',
-                'the address of the page you came from;',
+                'the web address (URL) of the page, without anything after "?" or "#": on checkout it names the garage (by reference number), but not the services you picked, a promo code or your address;',
+                'the address of the page you came from, likewise without anything after "?" or "#";',
                 'your IP address, and details of your browser and device, such as its type and screen size;',
                 'the IDs in Meta\'s cookies on detlio.com (_fbp, and _fbc if it is set; section 5), and, if you use Facebook or Instagram in the same browser and it allows it, Meta\'s own cookies, which let Meta link the visit to your Facebook or Instagram account.',
               ],
             },
             {
               kind: 'p',
-              text: '**A paid booking is also sent from our server.** When you pay for a booking with marketing cookies allowed, our server tells Meta about it too, through Meta\'s Conversions API, in case your browser\'s message does not arrive: the amount, how many services, the same event ID, the page address without anything after "?" and without a booking\'s reference number, your IP address, details of your browser, and the _fbp and _fbc cookies. Never your name, mobile number or address.',
+              text: '**A paid booking is also sent from our server.** When you pay for a booking with marketing cookies allowed, our server tells Meta about it too, through Meta\'s Conversions API, in case your browser\'s message does not arrive: the amount, how many services, the same event ID, the page address without anything after "?" or "#" and without a booking\'s reference number, your IP address, details of your browser, and the _fbp and _fbc cookies. Never your name, mobile number or address.',
             },
             {
               kind: 'p',
-              text: 'Apart from what the page address shows, we have not set it up to send your name, mobile number, address or car, a booking\'s receipt, a gift or coupon code, or what you type in a search. Meta receives this on its servers outside India, and also uses it for its own purposes under [Meta\'s Privacy Policy](https://www.facebook.com/privacy/policy/), for example to choose which ads to show you.',
+              text: 'We have not set it up to send your name, mobile number, address or car, a booking\'s receipt, a gift or coupon code, or what you type in a search. Meta receives this on its servers outside India, and also uses it for its own purposes under [Meta\'s Privacy Policy](https://www.facebook.com/privacy/policy/), for example to choose which ads to show you.',
             },
             {
               kind: 'p',
@@ -467,7 +467,7 @@ export const PRIVACY: LegalDoc = {
             },
             {
               kind: 'note',
-              text: '**Which pages the pixel runs on.** Done in 0061: the pixel (and Clarity) no longer run on a booking\'s pages (/bookings/<id>, its receipt and Guarantee claim), a car\'s pages (/profile/cars/<id>), a friend\'s invite (/invite/<code>) or sign-in on the way to one, so the booking id and the booking page\'s ?celebrate=1 (just paid), ?then=pay (a final bill to pay) and ?rate=N (the star tapped on Home\'s "Rate your wash") no longer reach Meta; the Purchase event\'s ID is now "purchase_" and a SHA-256 hash of the booking\'s ID (the browser and the Conversions API work out the same one), so it no longer contains the booking\'s reference number; and the Conversions API\'s page address is cut before any id that is not a garage\'s. Still open, recommendation: checkout\'s address (/book/<garage>?service=…&mode=doorstep&code=…&address=<saved address id>, also inside /login?next=… on the way there) still goes to Meta with each page view; either keep the pixel off checkout (losing the browser\'s checkout events, not the server\'s Purchase) or move those choices out of the address. The list above describes what is sent today.',
+              text: '**Which pages the pixel runs on.** Done in 0061: the pixel (and Clarity) no longer run on a booking\'s pages (/bookings/<id>, its receipt and Guarantee claim), a car\'s pages (/profile/cars/<id>), a friend\'s invite (/invite/<code>) or sign-in on the way to one, so the booking id and the booking page\'s ?celebrate=1 (just paid), ?then=pay (a final bill to pay) and ?rate=N (the star tapped on Home\'s "Rate your wash") no longer reach Meta; the Purchase event\'s ID is now "purchase_" and a SHA-256 hash of the booking\'s ID (the browser and the Conversions API work out the same one), so it no longer contains the booking\'s reference number; and the Conversions API\'s page address is cut before any id that is not a garage\'s. Also done in 0061: Meta never gets a query string. fbevents.js puts the page\'s full address (dl) and the page before it (rl) in every request it sends, and there is no Pixel setting to stop it, so the app stands in front of every way a page can send a request to facebook.com (the pixel\'s /tr, and in Chrome the attribution trigger that repeats dl and rl: image, any attribute holding an address, beacon, fetch, XMLHttpRequest, form post) and cuts both, and any other parameter holding a web address, to origin + path, and a path that holds a code or a booking\'s or car\'s id further, before it (/gift/<code> is sent as /gift, /bookings/<id> as /bookings; lib/meta-request-shield.ts, lib/meta-pixel.ts metaPageAddress); a request it cannot check is not sent. So checkout\'s ?service=…&mode=…&code=…&address=… and sign-in\'s ?next=… no longer reach Meta. This relies on fbevents.js sending through those standard browser calls; please have the team confirm in Events Manager → Test events that a checkout event\'s URL shows no "?". The list above describes what is sent today.',
             },
             {
               kind: 'note',

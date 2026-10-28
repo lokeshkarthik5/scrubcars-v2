@@ -79,7 +79,6 @@ describe('verifyPaymentSchema: marketing consent', () => {
 
   test('drops a bad event source URL, keeping the payment confirmation', () => {
     for (const eventSourceUrl of [
-      'https://detlio.com/checkout?utm_source=ig',
       'http://detlio.com/checkout',
       'https://evil.example/checkout',
       'https://vendor.detlio.com/x',
@@ -94,6 +93,20 @@ describe('verifyPaymentSchema: marketing consent', () => {
       expect(result.data?.marketing?.eventSourceUrl).toBeUndefined()
       expect(result.data?.marketing?.fbp).toBe(marketing.fbp)
     }
+  })
+
+  test('cuts a query string off the event source URL, never sending it', () => {
+    const result = parse({
+      ...base,
+      marketing: {
+        ...marketing,
+        eventSourceUrl:
+          'https://detlio.com/book/2b7f6f0e-5d1c-4c11-9b55-2f0b6a1c9d10?code=DIWALI50&address=6f1d2c3b-4a59-4e1f-8d2c-0b9a8e7f6d5c',
+      },
+    })
+    expect(result.data?.marketing?.eventSourceUrl).toBe(
+      'https://detlio.com/book/2b7f6f0e-5d1c-4c11-9b55-2f0b6a1c9d10'
+    )
   })
 
   test('drops a cookie that is not Meta’s, or over 200 characters', () => {

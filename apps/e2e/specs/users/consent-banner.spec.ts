@@ -17,8 +17,10 @@
  */
 import AxeBuilder from '@axe-core/playwright'
 import type { BrowserContext, Page } from '@playwright/test'
-import { test, expect } from '../../support/fixtures'
+import { test, expect, asRole } from '../../support/fixtures'
 import { CONSENT_COOKIE_NAME } from '../../support/consent'
+import { GaragePage } from '../../pages/garage.page'
+import { SERVICES, VENDORS } from '../../support/seed-ids'
 
 test.use({ answerCookies: false, storageState: { cookies: [], origins: [] } })
 
@@ -245,5 +247,34 @@ test.describe('cookie question @p0', () => {
     await pageSettled(page)
     await expect(banner(page)).toHaveCount(0)
     await expect(page.locator(CLARITY)).toHaveCount(0)
+  })
+})
+
+test.describe('cookie question and sheets @p0', () => {
+  // A browsing customer whose saved state carries no answer yet.
+  test.use({ storageState: asRole('customer-browse') })
+
+  test('steps out of sight while a sheet is open, keeping its place', async ({
+    page,
+    context,
+  }) => {
+    await context.clearCookies({ name: CONSENT_COOKIE_NAME })
+    const garage = new GaragePage(page)
+    await garage.goto(VENDORS.main.id)
+    await expect(banner(page)).toBeVisible()
+
+    // The page sits in its own stacking context (the route's fade-in), so
+    // the bar would otherwise draw over the top of the sheet.
+    await garage.openDetails(SERVICES.wash.name)
+    const sheet = page.getByRole('dialog', {
+      name: `${SERVICES.wash.name} details`,
+    })
+    await expect(sheet).toBeVisible()
+    await expect(banner(page)).toBeHidden()
+
+    await page.keyboard.press('Escape')
+    await expect(sheet).toBeHidden()
+    await expect(banner(page)).toBeVisible()
+    expect(await consentCookie(context)).toBeUndefined()
   })
 })

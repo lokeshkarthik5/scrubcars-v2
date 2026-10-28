@@ -57,14 +57,16 @@ export function cleanMetaCookie(value: unknown): string | undefined {
 }
 
 /**
- * The page a payment was made on, or undefined: an https URL on detlio.com
- * or www.detlio.com, at most 300 characters, with no query string, fragment,
- * port or credentials. Anything else is dropped, never repaired.
+ * The page a payment was made on, as origin + path only, or undefined: an
+ * https URL on detlio.com or www.detlio.com, with no port, credentials or id
+ * in its path but a garage's, at most 300 characters once cut. A query
+ * string or fragment (checkout's promo code and saved address id) is cut
+ * off, never sent: Meta never gets a query string (0061). Anything else is
+ * dropped, never repaired.
  */
 export function cleanEventSourceUrl(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined
-  if (value.length > EVENT_SOURCE_URL_MAX_LENGTH) return undefined
-  if (value.includes('?') || value.includes('#')) return undefined
+  if (value.length > 2048) return undefined
   let url: URL
   try {
     url = new URL(value)
@@ -78,7 +80,8 @@ export function cleanEventSourceUrl(value: unknown): string | undefined {
   // app sends the path cut before it, so one here is refused. A garage's id
   // (checkout, /book/<garage>) is on its public page anyway.
   if (carriesPrivateId(url.pathname)) return undefined
-  return `${url.origin}${url.pathname}`
+  const cut = `${url.origin}${url.pathname}`
+  return cut.length > EVENT_SOURCE_URL_MAX_LENGTH ? undefined : cut
 }
 
 const UUID_SEGMENT =

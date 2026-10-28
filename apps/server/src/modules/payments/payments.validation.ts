@@ -23,7 +23,8 @@ export const marketingConsentSchema = z
       .optional()
       .catch(undefined)
       .transform((value) => cleanMetaCookie(value)),
-    // https on detlio.com or www.detlio.com, ≤ 300 characters, no query.
+    // https on detlio.com or www.detlio.com, ≤ 300 characters, cut to
+    // origin + path (a query string is never sent; 0061).
     eventSourceUrl: z
       .string()
       .optional()
