@@ -122,7 +122,7 @@ export function ZoneList({
           value={filter}
           onChange={onFilter}
           options={[
-            { value: 'priority', label: 'Priority' },
+            { value: 'priority', label: 'Priority & Hot' },
             { value: 'all', label: 'All zones' },
           ]}
         />
@@ -170,7 +170,7 @@ export function ZoneList({
                     Target {s.zone.target} · {s.rows.length} known
                   </span>
                   {line && (
-                    <span className="block truncate text-[11.5px] text-text-primary">
+                    <span className="block text-[11.5px] text-text-primary">
                       {line}
                     </span>
                   )}

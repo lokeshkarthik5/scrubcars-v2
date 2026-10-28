@@ -151,7 +151,7 @@ function Coverage() {
         title="Coverage"
         subtitle={
           view === 'zones'
-            ? 'Priority zones first. Zone colour is progress against its target; each dot is a garage or a lead.'
+            ? 'Most demand first. Zone colour is progress against its target; each dot is a garage or a lead.'
             : 'Where doorstep bookings outrun garages.'
         }
         actions={
@@ -267,7 +267,11 @@ function Coverage() {
             ) : (
               <div className="flex min-w-0 flex-col gap-3">
                 <ZoneList
-                  stats={listedZones(sortByDemand(stats, demand), filter)}
+                  stats={listedZones(
+                    sortByDemand(stats, demand),
+                    filter,
+                    demand
+                  )}
                   demand={demand}
                   filter={filter}
                   onFilter={setFilter}

@@ -2,7 +2,7 @@
  * Coverage in zones (0064, mockup coverage-zones A and D7): the totals, the
  * zone list (Priority / All zones), a zone's call list, the doorstep demand
  * toggle, and Edit zones (add, rename, priority, target, move the centre,
- * remove; a zone with leads is kept). The map is a picture of the same
+ * remove; a zone customers or leads use is kept). The map is a picture of the same
  * thing; every action here goes through the list, which is what keyboards
  * use too.
  *
@@ -59,7 +59,9 @@ test.describe.serial('Coverage in zones @p0', () => {
     await expect(totals.getByText('To target')).toBeVisible()
     await expect(totals.getByText('Not interested')).toBeVisible()
 
-    // Priority first: the seven, and Perambur (not a priority zone) only under All zones.
+    // Priority & Hot: the seven, and Perambur (not a priority zone, but Hot:
+    // DEMAND's 12 waiting and 2 failed requests); Egmore (neither) only
+    // under All zones.
     for (const name of [
       'Adyar',
       'Anna Nagar',
@@ -68,22 +70,24 @@ test.describe.serial('Coverage in zones @p0', () => {
       'Nungambakkam',
       'Sholinganallur',
       'T Nagar',
+      LEADS.zoneName,
     ]) {
       await expect(zoneButton(page, name)).toBeVisible()
     }
-    await expect(zoneButton(page, LEADS.zoneName)).toHaveCount(0)
+    await expect(zoneButton(page, 'Egmore')).toHaveCount(0)
     await page.getByRole('radio', { name: 'All zones' }).click()
-    await expect(zoneButton(page, LEADS.zoneName)).toBeVisible()
+    await expect(zoneButton(page, 'Egmore')).toBeVisible()
     await expect(zoneButton(page, LEADS.zoneName)).toHaveAccessibleName(
       /Perambur: \d+ of 5 live, \d+ known/
     )
-    await page.getByRole('radio', { name: 'Priority' }).click()
-    await expect(zoneButton(page, LEADS.zoneName)).toHaveCount(0)
+    await page.getByRole('radio', { name: 'Priority & Hot' }).click()
+    await expect(zoneButton(page, 'Egmore')).toHaveCount(0)
     await page.getByRole('radio', { name: 'All zones' }).click()
 
-    // The demand section keeps its place for customer reach part 2.
+    // What the demand figures and Hot mean (coverage-demand.spec.ts has
+    // the figures).
     await expect(page.getByRole('region', { name: 'Demand' })).toContainText(
-      'customer reach part 2'
+      'Hot: the top 3 zones'
     )
 
     // Perambur's call list: its seeded leads, filtered by status.
@@ -271,7 +275,7 @@ test.describe.serial('Coverage in zones @p0', () => {
       priority: true,
     })
 
-    // A zone with leads is kept.
+    // A zone with leads and customers' rows is kept, saying what is in it.
     await editor
       .getByRole('button', { name: `Edit zone ${LEADS.zoneName}` })
       .click()
@@ -285,7 +289,10 @@ test.describe.serial('Coverage in zones @p0', () => {
       .getByRole('button', { name: `Remove ${LEADS.zoneName}` })
       .click()
     await expect(perambur.getByRole('alert')).toContainText(
-      `in ${LEADS.zoneName}. Move`
+      `${LEADS.zoneName} is kept: it has 12 free-wash sign-ups`
+    )
+    await expect(perambur.getByRole('alert')).toContainText(
+      "A zone customers have used can't be removed; rename it instead."
     )
     expect(
       (await sql`select 1 from zones where slug = ${LEADS.zoneSlug}`).length

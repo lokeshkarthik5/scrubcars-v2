@@ -4840,8 +4840,9 @@ export const zoneSignups = pgTable(
 
 /**
  * "Know a good garage here?" (customer reach, part 2, 0062): a lead for the
- * team (admin's zone list, PR 5), `status` new → contacted → joined /
- * declined, `vendor_id` linked by admin. Once that garage is live and the
+ * team (Coverage, 0064: lib/recommendations.ts), `status` new → contacted
+ * (made into, or linked to, `lead_id`) → joined (that lead's garage is
+ * `vendor_id`) / declined (dismissed). Once that garage is live and the
  * customer completes a paid booking there, `credit_*` records the referral
  * credit (lib/area-signups.ts REFERRAL_CREDIT; a `referral_reward` lot, or
  * owed while credit is off). About a business, so it stays as a lead when

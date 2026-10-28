@@ -17,7 +17,7 @@ import { LEADS } from '../../support/seed-ids'
 test.use({ storageState: asRole('admin') })
 
 const ADDED = 'Leads Added Car Spa'
-const ADDED_PHONE = '9000004442'
+const ADDED_PHONE = LEADS.added.phone
 /** A full Maps link a few hundred metres from Perambur's centre: read without any request. */
 const LINK = 'https://www.google.com/maps/place/Car+Spa/@13.1222,80.2335,17z'
 
@@ -290,7 +290,7 @@ test.describe.serial('Coverage leads @p0', () => {
       .fill(
         [
           'Name, Phone',
-          `${LEADS.pasted.name}, 90000 04441`,
+          `${LEADS.pasted.name}, 90000 05006`,
           `Lookalike Wash, ${LEADS.toTarget.phone}`,
           '9840000000',
         ].join('\n')

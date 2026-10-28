@@ -1505,33 +1505,102 @@ export const BOOKING_INTENTS = {
 export const DATA_RESET = { earlierAudit: id(1301) } as const
 
 /**
- * The admin round's other rows (0064; ids 4200–4249): the complaint about
- * BOOKINGS.roundDelete, and VENDORS.roundA's two marks.
- */
-/**
- * Coverage & leads (0064; ids 4400–4449), only specs/admin/coverage-*.spec.ts
- * touch these. The leads are in Perambur (seeded by 0062, no other fixture
- * there): `toTarget` and `notInterested` for the call list, `onboard` for
- * Onboard → Add garage, and `knownAqua`, whose phone is PLACES_FAKE's
- * "Aqua Foam Car Wash" (lib/places/fake.ts), so the finder marks that one
- * as known. `pasted` is the number Paste a list's spec writes; `dupPhone`
- * is toTarget's, for the duplicate warning. The zone specs add and remove
- * their own zone, "E2E Test Zone" (slug e2e-test-zone), far from every
- * fixture.
+ * Coverage & leads (0064; ids 5000–5019, phones 90000050xx), only
+ * specs/admin/coverage-*.spec.ts touch these. The leads are in Perambur
+ * (seeded by 0062): `toTarget` and `notInterested` for the call list,
+ * `onboard` for Onboard → Add garage, and `knownAqua`, whose phone is
+ * PLACES_FAKE's "Aqua Foam Car Wash" (lib/places/fake.ts), so the finder
+ * marks that one as known. `pasted` is the number Paste a list's spec
+ * writes, `added` the one Add lead's spec types. The zone specs add and
+ * remove their own zone, "E2E Test Zone" (slug e2e-test-zone), far from
+ * every fixture. (Customer reach part 2 holds 4400–4599 and its garages
+ * 9000004441–43, so these moved here.)
  */
 export const LEADS = {
   zoneSlug: 'perambur',
   zoneName: 'Perambur',
-  toTarget: { id: id(4401), name: 'Leads Test Wash', phone: '9000004401' },
-  notInterested: { id: id(4402), name: 'Leads Nope Detailers', phone: '9000004402', reason: 'Has their own app' },
-  onboard: { id: id(4403), name: 'Leads Onboard Garage', phone: '9000004403' },
-  knownAqua: { id: id(4404), name: 'Aqua Foam (known)', phone: '9790060193' },
+  toTarget: { id: id(5001), name: 'Leads Test Wash', phone: '9000005001' },
+  notInterested: { id: id(5002), name: 'Leads Nope Detailers', phone: '9000005002', reason: 'Has their own app' },
+  onboard: { id: id(5003), name: 'Leads Onboard Garage', phone: '9000005003' },
+  knownAqua: { id: id(5004), name: 'Aqua Foam (known)', phone: '9790060193' },
   /** The garage Onboard creates, and its owner. */
-  onboardOwner: { name: 'Leads Owner Uma', phone: '9000004440' },
-  pasted: { name: 'Leads Pasted Wash', phone: '9000004441' },
+  onboardOwner: { name: 'Leads Owner Uma', phone: '9000005005' },
+  pasted: { name: 'Leads Pasted Wash', phone: '9000005006' },
+  added: { phone: '9000005007' },
   testZone: { name: 'E2E Test Zone', slug: 'e2e-test-zone', lat: 12.8, lng: 80.02 },
 } as const
 
+/**
+ * Coverage part 3 (0064; ids 5020–5099, phones 90000050xx): demand in
+ * Perambur (specs/admin/coverage-demand.spec.ts, requests.spec.ts).
+ *
+ * - `waiting`: twelve customers on Perambur's free-wash list, positions
+ *   1–12, so each holds a free wash (Perambur is not live).
+ * - `requester` sent five requests from Perambur to two garages of their
+ *   own (`garages`, pinned far outside every zone, not shown to
+ *   customers): `open` waiting for its first garage (Call garage, Cancel),
+ *   `accepted` (a yes with a ₹100 travel fee), `failed` (passed on from the
+ *   first garage, which couldn't, to the second, which never answered) and
+ *   `expired` (nobody answered). Perambur: 12 waiting + 2 failed = 14, Hot.
+ * - `recommender`'s recommendations in Perambur: `make` (Make lead),
+ *   `dup` and `anyway` (both share `dupLead`'s phone: Link to it, and Make
+ *   lead anyway), `dismiss`, `onboard` (already made into `onboardLead`,
+ *   for Onboard → its garage), and `noZone` (in no zone).
+ * - `googleLead`: a lead from Google (its name and phone Google's only),
+ *   for Edit lead's "Confirmed by phone".
+ *
+ * Names share no word with each other, LEADS or PLACES_FAKE, so the
+ * duplicate rule and the finder's "known" only match what they mean to.
+ */
+export const DEMAND = {
+  waiting: Array.from({ length: 12 }, (_, i) => ({
+    id: id(5020 + i),
+    phone: `90000050${String(20 + i)}`,
+    name: `Waiting Perambur ${i + 1}`,
+  })),
+  requester: { id: id(5040), phone: '9000005040', name: 'Request Raghav' },
+  recommender: { id: id(5042), phone: '9000005042', name: 'Recommend Revathi' },
+  garages: {
+    one: { id: id(5050), name: 'Demand Doorstep One', phone: '9000005050', ownerId: id(5051), ownerPhone: '9000005051' },
+    two: { id: id(5052), name: 'Demand Doorstep Two', phone: '9000005052', ownerId: id(5053), ownerPhone: '9000005053' },
+  },
+  /** Where the request garages are: outside every zone, clear of every other fixture. */
+  garagePin: { lat: 11.75, lng: 79.25 },
+  requests: {
+    open: id(5060),
+    accepted: id(5061),
+    failedFirst: id(5062),
+    failedSecond: id(5063),
+    expired: id(5064),
+  },
+  /** The services a request asked for (names only: a request keeps its lines). */
+  service: { name: 'Demand Foam Wash', amount: '650.00' },
+  recommendations: {
+    make: { id: id(5070), name: 'Kolathur Velvet Motors', phone: '9000005070', why: 'Did a careful job on my old car' },
+    dup: { id: id(5071), name: 'Thiruvika Polish Bay', phone: '9000005080', why: 'Quick and fair' },
+    anyway: { id: id(5072), name: 'Anyway Kavya Autocare', phone: '9000005080', why: 'Near my office' },
+    dismiss: { id: id(5073), name: 'Dismissable Ravi Garage', phone: '9000005073', why: null },
+    onboard: { id: id(5074), name: 'Perambur Onyx Studio', phone: '9000005081', why: 'Best ceramic work nearby' },
+    noZone: { id: id(5075), name: 'Nowhere Nila Works', phone: '9000005075', why: 'Opens early' },
+  },
+  /** The Maps link Make lead reads `make`'s pin from: in Perambur. */
+  makeLink: 'https://www.google.com/maps/@13.1180,80.2340,17z',
+  dupLead: { id: id(5080), name: 'Thiruvika Polish Bay', phone: '9000005080' },
+  onboardLead: { id: id(5081), name: 'Perambur Onyx Studio', phone: '9000005081' },
+  /** The garage Onboard creates from `onboardLead`, and its owner. */
+  onboardOwner: { name: 'Demand Owner Devi', phone: '9000005082' },
+  googleLead: {
+    id: id(5083),
+    placeId: 'e2e-demand-google-5083',
+    googleName: 'Gem Jewel Autobay',
+    googlePhone: '9000005083',
+  },
+} as const
+
+/**
+ * The admin round's other rows (0064; ids 4200–4249): the complaint about
+ * BOOKINGS.roundDelete, and VENDORS.roundA's two marks.
+ */
 export const ROUND = {
   complaint: id(4230),
   /** "New garage call": three items, the first ticked with an answer. */

@@ -267,9 +267,12 @@ function LeadRow({
 function GarageRow({
   garage,
   lead,
+  recommended,
 }: {
   garage: CoverageGarage
   lead: Lead | null
+  /** Customers' recommendations made into the lead it came from. */
+  recommended: CoverageRecommendation[]
 }) {
   const status = garage.live ? 'onboarded' : 'to_target'
   return (
@@ -300,6 +303,11 @@ function GarageRow({
             {LEAD_STATUS_LABELS[status]}
           </span>
         </div>
+        {recommendedLine(recommended) && (
+          <p className="truncate text-[11.5px] text-tone-progress-text">
+            {recommendedLine(recommended)}
+          </p>
+        )}
         {lead && (lead.lastNote || lead.assignedName) && (
           <p className="w-fit max-w-full truncate rounded-md bg-white/[0.05] px-2 py-1 text-[11.5px] text-text-secondary">
             {leadNoteLine(lead)}
@@ -448,7 +456,14 @@ export function ZoneDrawer({
           <ul aria-label={`Call list for ${title}`} className="flex flex-col">
             {shown.map((row) =>
               row.kind === 'garage' ? (
-                <GarageRow key={row.id} garage={row.garage} lead={row.lead} />
+                <GarageRow
+                  key={row.id}
+                  garage={row.garage}
+                  lead={row.lead}
+                  recommended={
+                    row.lead ? (recommendedByLead.get(row.lead.id) ?? []) : []
+                  }
+                />
               ) : (
                 <LeadRow
                   key={row.id}

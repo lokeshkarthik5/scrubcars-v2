@@ -161,12 +161,19 @@ export function outsideRows(
   return sortRows(rowsByZone(overview).get(null) ?? [])
 }
 
-/** The list's filter: the priority zones only, or every zone (priority first, as the API orders them). */
+/**
+ * The list's filter: the priority zones and the Hot ones (a Hot zone is
+ * worth a look whether or not it is a priority), or every zone; in the
+ * order given.
+ */
 export function listedZones(
   stats: ZoneStats[],
-  filter: 'priority' | 'all'
+  filter: 'priority' | 'all',
+  demand: Map<string, ZoneDemand> = new Map()
 ): ZoneStats[] {
-  return filter === 'priority' ? stats.filter((s) => s.zone.priority) : stats
+  return filter === 'priority'
+    ? stats.filter((s) => s.zone.priority || demand.get(s.zone.id)?.hot)
+    : stats
 }
 
 /** The figures across the top. Every garage and lead, in a zone or not. */

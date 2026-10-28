@@ -39,6 +39,26 @@ reconstructing every change in them.
   production. The pending-digest cron refreshes or clears Google's details
   on leads after 30 days (01:00–04:59 IST runs).
 
+- **Demand, requests and recommendations** (admin round part 3, migration
+  `0064_admin_round`, additive: `garage_recommendations.lead_id`,
+  `handled_by`, `handled_at`; `booking_requests.cancelled_by_name`,
+  `cancel_reason`). `GET /admin/coverage` adds each zone's `demand`
+  (customers waiting on the free-wash list and how many hold an unused free
+  wash, requests sent from it in 30 days, open and failed, customer
+  recommendations; `lib/zone-demand.ts`), `hot` (top 3 by waiting + failed,
+  at least 10; `hotRule`) and the recommendations.
+  `POST /admin/coverage/recommendations/:id/duplicates|lead|dismiss`: Make
+  lead (source `customer`) or link to a lead; when that lead becomes a
+  garage (Onboard or the garage link) the recommendation's `vendor_id` is
+  set in the same transaction, until its referral credit is decided.
+  `GET /admin/requests?filter=open|accepted|failed|all&zone=` and
+  `POST /admin/requests/:id/cancel { reason }` (signed, audited
+  `booking_request_cancelled`; the customer is told; 409
+  `REQUEST_CHECKOUT_OPEN` while they are paying). A zone is removed only
+  while no lead, sign-up, request or recommendation points at it (409
+  `ZONE_IN_USE`, saying what is in it; `ZONE_HAS_LEADS` is gone). Requests
+  read a service's duration through `effectiveDurationMins`.
+
 - **Trust & look** (migration `0063_trust_look`, additive): Bronze / Silver
   / Gold (`lib/tiers.ts`; Silver given and taken nightly in
   `vendor_tier_standings`, Gold is Detlio Certified renamed and now needs the

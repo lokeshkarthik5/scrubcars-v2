@@ -1,12 +1,21 @@
 import { describe, expect, test } from 'bun:test'
 import type {
   CoverageGarage,
+  CoverageRecommendation,
   CoverageZone,
   Lead,
+  ZoneDemand,
 } from '@repo/core/api/admin-coverage'
 import {
   barParts,
   coverageDots,
+  demandByZone,
+  demandLine,
+  hotRuleText,
+  newRecommendations,
+  recommendationsByLead,
+  recommendedLine,
+  sortByDemand,
   coverageTotals,
   filterCounts,
   filterRows,
@@ -215,6 +224,16 @@ describe('zoneStats', () => {
       'Anna Nagar',
     ])
     expect(listedZones(stats, 'all')).toHaveLength(4)
+    // A Hot zone shows under Priority too.
+    const hot = new Map([
+      [
+        stats.find((s) => !s.zone.priority)!.zone.id,
+        { hot: true } as ZoneDemand,
+      ],
+    ])
+    expect(listedZones(stats, 'priority', hot)).toHaveLength(
+      listedZones(stats, 'priority').length + 1
+    )
   })
 })
 
@@ -269,5 +288,109 @@ describe('zoneArea', () => {
     // The cut is halfway between the two centres.
     const eastmost = Math.max(...ring.map((point) => point[0]))
     expect(eastmost).toBeCloseTo((ANNA.lng + KILPAUK.lng) / 2, 4)
+  })
+})
+
+describe('demand (part 3): the API’s figures, ordered and worded', () => {
+  const d = (zoneId: string, patch: Partial<ZoneDemand> = {}): ZoneDemand => ({
+    zoneId,
+    waiting: 0,
+    signups: 0,
+    unusedFreeWashes: 0,
+    requests: 0,
+    openRequests: 0,
+    failedRequests: 0,
+    recommendations: 0,
+    newRecommendations: 0,
+    score: 0,
+    hot: false,
+    ...patch,
+  })
+  const ZONES = [
+    zone('a', 'Adyar', true, 5),
+    zone('b', 'Anna Nagar', true, 5),
+    zone('c', 'Perambur', false, 5),
+  ]
+  const stats = zoneStats({ zones: ZONES, garages: [], leads: [] })
+
+  test('most demand first; equal scores keep the API’s order; none from an older API', () => {
+    const demand = demandByZone({
+      demand: [d('a'), d('b', { score: 3 }), d('c', { score: 14, hot: true })],
+    })
+    expect(sortByDemand(stats, demand).map((s) => s.zone.id)).toEqual([
+      'c',
+      'b',
+      'a',
+    ])
+    expect(sortByDemand(stats, demandByZone({})).map((s) => s.zone.id)).toEqual(
+      ['a', 'b', 'c']
+    )
+  })
+
+  test('the zone’s line, and nothing for no demand', () => {
+    expect(
+      demandLine(
+        d('c', {
+          waiting: 12,
+          failedRequests: 2,
+          openRequests: 1,
+          newRecommendations: 4,
+        })
+      )
+    ).toBe('12 waiting · 2 failed requests · 1 open request · 4 recommended')
+    expect(demandLine(d('c', { failedRequests: 1 }))).toBe('1 failed request')
+    expect(demandLine(d('a'))).toBeNull()
+    expect(demandLine(undefined)).toBeNull()
+  })
+
+  test('Hot in the API’s own numbers', () => {
+    expect(hotRuleText({ top: 3, minScore: 10, requestDays: 30 })).toBe(
+      'Hot: the top 3 zones by people waiting plus requests nobody accepted in the last 30 days, each with at least 10.'
+    )
+  })
+
+  const rec = (
+    id: string,
+    patch: Partial<CoverageRecommendation> = {}
+  ): CoverageRecommendation => ({
+    id,
+    zoneId: 'c',
+    name: `Garage ${id}`,
+    phone: null,
+    mapsLink: null,
+    why: null,
+    status: 'new',
+    leadId: null,
+    vendorId: null,
+    handledBy: null,
+    handledAt: null,
+    createdAt: '2026-10-28T00:00:00Z',
+    ...patch,
+  })
+
+  test('a zone’s new recommendations, and the ones in no zone', () => {
+    const recs = [
+      rec('1'),
+      rec('2', { status: 'contacted', leadId: 'l1' }),
+      rec('3', { zoneId: null }),
+      rec('4', { zoneId: 'a' }),
+    ]
+    expect(newRecommendations(recs, 'c').map((r) => r.id)).toEqual(['1'])
+    expect(newRecommendations(recs, null).map((r) => r.id)).toEqual(['3'])
+  })
+
+  test('the recommendations made into each lead, and its line', () => {
+    const byLead = recommendationsByLead([
+      rec('1', { status: 'contacted', leadId: 'l1', why: 'Careful' }),
+      rec('2', { status: 'joined', leadId: 'l1' }),
+      rec('3', { status: 'new', leadId: null }),
+      rec('4', { status: 'declined', leadId: 'l2' }),
+    ])
+    expect([...byLead.keys()]).toEqual(['l1'])
+    expect(recommendedLine(byLead.get('l1')!)).toBe(
+      'Recommended by 2 customers · “Careful”'
+    )
+    expect(recommendedLine([{ why: null }])).toBe('Recommended by a customer')
+    expect(recommendedLine([])).toBeNull()
   })
 })

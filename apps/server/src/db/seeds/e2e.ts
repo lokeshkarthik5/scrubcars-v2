@@ -28,6 +28,7 @@ import {
   bookingCharges,
   bookingIntentItems,
   bookingIntents,
+  bookingRequests,
   bookingItems,
   bookingNotes,
   bookingReschedules,
@@ -110,6 +111,7 @@ import {
   CONTACT_GARAGE,
   ADMIN_LOGINS,
   LEADS,
+  DEMAND,
   TRUST_LOOK,
   TIERS,
 } from './e2e-ids.js'
@@ -3130,7 +3132,7 @@ async function seedBehaviourRows() {
 }
 
 /**
- * Coverage & leads (0064; ids 4400–4449, specs/admin/coverage-*.spec.ts):
+ * Coverage & leads (0064; ids 5000–5019, specs/admin/coverage-*.spec.ts):
  * see LEADS. In Perambur, the zone 0062 seeded, a few hundred metres from
  * its centre so the zone rule puts them there.
  */
@@ -3153,6 +3155,127 @@ async function seedLeadRows() {
       mapsUrl: 'https://www.google.com/maps/@13.1217,80.2305,17z', status: 'to_target' },
     { ...base, id: LEADS.knownAqua.id, name: LEADS.knownAqua.name, phone: LEADS.knownAqua.phone, source: 'paste',
       status: 'to_target' },
+  ])
+}
+
+/**
+ * Coverage part 3 (0064; ids 5020–5099, specs/admin/coverage-demand.spec.ts
+ * and requests.spec.ts): demand in Perambur. See DEMAND for what each row
+ * is for.
+ */
+async function seedDemandRows() {
+  const [perambur] = await db.select().from(zones).where(eq(zones.slug, LEADS.zoneSlug))
+  if (!perambur) throw new Error('e2e seed: zone perambur missing (migration 0062)')
+  const near = (north: number, east: number) => ({
+    lat: perambur.lat + north / 111_320,
+    lng: perambur.lng + east / (111_320 * Math.cos((perambur.lat * Math.PI) / 180)),
+  })
+
+  // Twelve customers waiting, each holding the free wash (Perambur is not live).
+  await db.insert(users).values([
+    ...DEMAND.waiting.map((w) => ({
+      id: w.id, name: w.name, phone: w.phone, isCustomer: true, isVendorOwner: false,
+      phoneVerified: true, status: 'active' as const,
+    })),
+    ...[DEMAND.requester, DEMAND.recommender].map((c) => ({
+      id: c.id, name: c.name, phone: c.phone, isCustomer: true, isVendorOwner: false,
+      phoneVerified: true, status: 'active' as const,
+    })),
+    ...[DEMAND.garages.one, DEMAND.garages.two].map((g) => ({
+      id: g.ownerId, name: `${g.name} Owner`, phone: g.ownerPhone, isCustomer: false, isVendorOwner: true,
+      phoneVerified: true, status: 'active' as const,
+    })),
+  ])
+  await db.insert(zoneSignups).values(
+    DEMAND.waiting.map((w, i) => ({
+      userId: w.id, zoneId: perambur.id, position: i + 1, freeWash: true, createdAt: daysAgo(5 - i / 10),
+    }))
+  )
+
+  // The request garages: far outside every zone, not shown to customers.
+  await db.insert(vendors).values(
+    [DEMAND.garages.one, DEMAND.garages.two].map((g, i) => ({
+      id: g.id, ownerId: g.ownerId, businessName: g.name, phone: g.phone,
+      address: `${i + 1}, Demand Road`, city: 'Villupuram', pincode: '605602',
+      lat: DEMAND.garagePin.lat + i * 0.01, lng: DEMAND.garagePin.lng, geoSource: 'map_pin' as const, geoConfirmedAt: now,
+      vehicleTypes: ['hatchback', 'sedan', 'suv'],
+      isVerified: false, dropinEnabled: false, doorstepEnabled: true, doorstepRadiusKm: 5,
+      slotIntervalMins: 30, status: 'active' as const, bays: 2,
+    }))
+  )
+  await db.insert(userMemberMapping).values(
+    [DEMAND.garages.one, DEMAND.garages.two].map((g) => ({
+      vendorId: g.id, userId: g.ownerId, role: 'vendor_admin' as const, status: 'active' as const,
+    }))
+  )
+
+  // Five requests from Perambur (its centre), tomorrow morning.
+  const home = near(100, 100)
+  const tomorrow = new Date(now.getTime() + 24 * HOUR)
+  const windowDate = tomorrow.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+  const windowStart = new Date(`${windowDate}T09:00:00+05:30`)
+  const windowEnd = new Date(`${windowDate}T12:00:00+05:30`)
+  const line = { serviceId: DEMAND.garages.one.id, name: DEMAND.service.name, category: 'car_wash', amount: DEMAND.service.amount, durationMins: 60 }
+  const base = {
+    userId: DEMAND.requester.id, bookingType: 'doorstep' as const, vehicleType: 'sedan' as const,
+    lat: home.lat, lng: home.lng, zoneSlug: LEADS.zoneSlug,
+    distanceKm: '160.0', coverKm: '5.0', outsideKm: '155.0',
+    items: [line], subtotalAmount: DEMAND.service.amount, durationMins: 60,
+    windowDate, windowPart: 'morning' as const, windowStart, windowEnd,
+  }
+  const r = DEMAND.requests
+  await db.insert(bookingRequests).values([
+    // Waiting 40 minutes for its first garage, 80 minutes left.
+    { ...base, id: r.open, vendorId: DEMAND.garages.one.id, status: 'pending',
+      respondBy: new Date(now.getTime() + 80 * MINUTE), createdAt: new Date(now.getTime() - 40 * MINUTE),
+      updatedAt: new Date(now.getTime() - 40 * MINUTE) },
+    // A yes with a ₹100 travel fee, waiting for the customer.
+    { ...base, id: r.accepted, vendorId: DEMAND.garages.two.id, status: 'accepted', reply: 'accepted',
+      repliedAt: new Date(now.getTime() - 20 * MINUTE), travelFee: '100.00',
+      acceptedStartAt: new Date(windowStart.getTime() + HOUR), confirmBy: new Date(now.getTime() + 3 * HOUR),
+      respondBy: new Date(now.getTime() + HOUR), createdAt: new Date(now.getTime() - 60 * MINUTE),
+      updatedAt: new Date(now.getTime() - 20 * MINUTE) },
+    // Passed on: the first garage couldn't...
+    { ...base, id: r.failedFirst, vendorId: DEMAND.garages.one.id, status: 'forwarded', reply: 'declined',
+      repliedAt: daysAgo(2), respondBy: daysAgo(2), closedAt: daysAgo(2), createdAt: daysAgo(2.1), updatedAt: daysAgo(2) },
+    // ...and the second never answered.
+    { ...base, id: r.failedSecond, vendorId: DEMAND.garages.two.id, rootRequestId: r.failedFirst,
+      forwardedFromId: r.failedFirst, chainNo: 2, status: 'expired', respondBy: daysAgo(1.9), closedAt: daysAgo(1.9),
+      customerToldAt: daysAgo(1.9), createdAt: daysAgo(2), updatedAt: daysAgo(1.9) },
+    // Nobody answered.
+    { ...base, id: r.expired, vendorId: DEMAND.garages.one.id, status: 'expired', respondBy: daysAgo(0.9),
+      closedAt: daysAgo(0.9), customerToldAt: daysAgo(0.9), createdAt: daysAgo(1), updatedAt: daysAgo(0.9) },
+  ])
+
+  // The leads the recommendations meet.
+  const leadBase = { zoneId: perambur.id, createdByName: 'E2E seed', status: 'to_target' as const }
+  await db.insert(leads).values([
+    { ...leadBase, id: DEMAND.dupLead.id, name: DEMAND.dupLead.name, phone: DEMAND.dupLead.phone, source: 'manual' },
+    { ...leadBase, id: DEMAND.onboardLead.id, name: DEMAND.onboardLead.name, phone: DEMAND.onboardLead.phone,
+      source: 'customer', mapsUrl: 'https://www.google.com/maps/@13.1150,80.2320,17z',
+      ...near(-180, -120), pinSource: 'maps_link' },
+    { ...leadBase, id: DEMAND.googleLead.id, name: null, phone: null, source: 'google',
+      ...near(220, -200), pinSource: 'google', googlePlaceId: DEMAND.googleLead.placeId,
+      googleName: DEMAND.googleLead.googleName, googlePhone: DEMAND.googleLead.googlePhone,
+      googleRating: '4.4', googleReviewCount: 31, googleFetchedAt: now },
+  ])
+
+  const rec = DEMAND.recommendations
+  const recBase = { userId: DEMAND.recommender.id, zoneId: perambur.id, status: 'new' as const }
+  await db.insert(garageRecommendations).values([
+    { ...recBase, id: rec.make.id, name: rec.make.name, phone: rec.make.phone, why: rec.make.why,
+      mapsLink: DEMAND.makeLink, createdAt: daysAgo(1), updatedAt: daysAgo(1) },
+    { ...recBase, id: rec.dup.id, name: rec.dup.name, phone: rec.dup.phone, why: rec.dup.why,
+      createdAt: daysAgo(2), updatedAt: daysAgo(2) },
+    { ...recBase, id: rec.anyway.id, name: rec.anyway.name, phone: rec.anyway.phone, why: rec.anyway.why,
+      createdAt: daysAgo(3), updatedAt: daysAgo(3) },
+    { ...recBase, id: rec.dismiss.id, name: rec.dismiss.name, phone: rec.dismiss.phone, why: rec.dismiss.why,
+      createdAt: daysAgo(4), updatedAt: daysAgo(4) },
+    { ...recBase, id: rec.onboard.id, name: rec.onboard.name, phone: rec.onboard.phone, why: rec.onboard.why,
+      status: 'contacted', leadId: DEMAND.onboardLead.id, handledBy: 'E2E seed', handledAt: daysAgo(4),
+      createdAt: daysAgo(5), updatedAt: daysAgo(4) },
+    { ...recBase, id: rec.noZone.id, zoneId: null, name: rec.noZone.name, phone: rec.noZone.phone,
+      why: rec.noZone.why, createdAt: daysAgo(1), updatedAt: daysAgo(1) },
   ])
 }
 
@@ -3407,6 +3530,8 @@ async function main() {
   await seedTierRows()
   console.log('[e2e-seed] coverage leads…')
   await seedLeadRows()
+  console.log('[e2e-seed] coverage demand…')
+  await seedDemandRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }
