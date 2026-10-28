@@ -110,6 +110,8 @@ test.describe.serial('the admin round: garage editor @p0', () => {
             .city
       )
       .toBe('Kanchipuram')
+    // Saved before the next edit (the editor reloads the garage after a save).
+    await expect(save).toHaveCount(0)
 
     // At the garage needs the address customers drive to: refused, said, and
     // the tile goes back.
@@ -189,6 +191,8 @@ test.describe.serial('the admin round: garage editor @p0', () => {
         async () => (await service(SERVICES.roundDetail.id)).commission_rate
       )
       .toBe('6.50')
+    // Saved before the next edit (the editor reloads the garage after a save).
+    await expect(save).toHaveCount(0)
 
     await box.fill('')
     await page.getByRole('button', { name: 'Save changes' }).click()
@@ -197,6 +201,7 @@ test.describe.serial('the admin round: garage editor @p0', () => {
         async () => (await service(SERVICES.roundDetail.id)).commission_rate
       )
       .toBeNull()
+    await expect(page.getByRole('button', { name: 'Save changes' })).toHaveCount(0)
   })
 
   test('a description in points: Enter, Backspace, a pasted list and the arrows, saved as "- " lines', async ({
