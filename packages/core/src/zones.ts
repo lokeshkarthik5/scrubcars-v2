@@ -24,6 +24,13 @@ export interface Zone {
    * says null (unknown).
    */
   hasGarage?: boolean | null
+  /**
+   * The free-wash list (part 2): "N waiting here" from 10 sign-ups, null
+   * below ("Be the first"). Only the API knows.
+   */
+  waiting?: number | null
+  /** Free washes still to give to this area's list (of the first 50). Only the API knows. */
+  freeWashesLeft?: number
 }
 
 export const CHENNAI_ZONES: readonly Zone[] = [

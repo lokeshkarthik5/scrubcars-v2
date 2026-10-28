@@ -324,6 +324,7 @@ export function mapBooking(booking: ApiBooking): Booking {
       fallbackItems.reduce((total, item) => total + item.durationMins, 0),
     servicePrice: Number(booking.amount),
     subtotalPrice: Number(booking.subtotalAmount ?? booking.amount),
+    travelFee: Number(booking.travelFee ?? 0),
     discountAmount: Number(booking.discountAmount ?? 0),
     discountCode: booking.discountCode ?? undefined,
     discountFundedBy: booking.discountFundedBy ?? undefined,

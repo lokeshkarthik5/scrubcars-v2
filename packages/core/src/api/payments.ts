@@ -49,6 +49,12 @@ export interface CreateBookingIntentPayload {
    * The server decides how much; ignored while gifts are off.
    */
   useCredit?: boolean
+  /**
+   * Customer reach (0062): the accepted request this checkout confirms. The
+   * booking must be exactly what the garage accepted; the server then adds
+   * its travel fee as its own line.
+   */
+  requestId?: string
 }
 
 interface RazorpayResult {

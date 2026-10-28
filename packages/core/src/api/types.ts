@@ -462,6 +462,8 @@ export interface ApiBooking {
   // vendor_admin check. `amount` and `paymentMethod` are always present —
   // whoever finishes a cash job has to know what to collect.
   subtotalAmount?: string
+  /** An accepted request's travel fee (0062), inside subtotalAmount; '0.00' otherwise. Absent on older APIs. */
+  travelFee?: string
   discountAmount?: string
   discountCode: string | null
   discountFundedBy?: 'platform' | 'vendor' | null
