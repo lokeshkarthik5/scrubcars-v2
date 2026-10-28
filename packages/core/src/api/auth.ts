@@ -1,3 +1,4 @@
+import { currentVisitId } from '@repo/core/analytics'
 import { ApiError, apiClient } from './client'
 import type {
   ApiAuthVendor,
@@ -83,6 +84,11 @@ export async function sendOtp(options: SendOtpOptions): Promise<SentOtp> {
 
 /** POST /auth/otp/verify */
 export async function verifyOtp(options: VerifyOtpOptions): Promise<AuthResult> {
+  // The customer app's visit id (usage events, analytics.ts), so the API can
+  // put the new session's account on this visit's earlier events. Null, and
+  // left out, when nothing is recorded (analytics off, DNT/GPC, a team
+  // device, or the garage portal, which records nothing).
+  const visitId = options.audience === 'customer' ? currentVisitId() : null
   const data = await apiClient<ApiSessionData>('/auth/otp/verify', {
     method: 'POST',
     auth: false,
@@ -92,6 +98,7 @@ export async function verifyOtp(options: VerifyOtpOptions): Promise<AuthResult> 
       purpose: options.purpose,
       audience: options.audience,
       name: options.name,
+      ...(visitId ? { visitId } : {}),
     }),
   })
 

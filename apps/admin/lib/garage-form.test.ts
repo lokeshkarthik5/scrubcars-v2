@@ -64,7 +64,7 @@ describe('missingForCreate', () => {
   })
 })
 
-describe('a doorstep-only garage (0061)', () => {
+describe('a doorstep-only garage (0064)', () => {
   const doorstep = { ...READY, address: '', pincode: '' }
 
   test('needs no address, and its pincode may be empty', () => {

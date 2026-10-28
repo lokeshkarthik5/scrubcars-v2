@@ -17,7 +17,7 @@ export interface OnboardingMark {
   label: string
   note: string | null
   /**
-   * Its checklist (0061), in order, each with its answer and who answered
+   * Its checklist (0064), in order, each with its answer and who answered
    * it when. An older mark whose note had "- " lines lists them here (ids
    * "note-1"…) and the note without them. Absent from an older API.
    */
@@ -34,7 +34,7 @@ export interface OnboardingMark {
 
 /**
  * A garage's open marks on the Garages list (AdminVendor.openMarks), with
- * its checklist's progress (0061; absent from an older API).
+ * its checklist's progress (0064; absent from an older API).
  */
 export type OnboardingMarkBrief = Pick<OnboardingMark, 'id' | 'kind' | 'label' | 'status' | 'askedAt'> & {
   itemsDone?: number
@@ -62,7 +62,7 @@ export interface CreateMarkInput {
   label?: string
   note?: string | null
   status?: MarkStatus
-  /** With a checklist, the status follows its ticks (0061). */
+  /** With a checklist, the status follows its ticks (0064). */
   items?: MarkItemInput[]
 }
 
@@ -117,7 +117,7 @@ export async function updateVendorMark(vendorId: string, markId: string, input: 
 }
 
 /**
- * PATCH /admin/vendors/:id/marks/:markId/items/:itemId (0061) — the mark,
+ * PATCH /admin/vendors/:id/marks/:markId/items/:itemId (0064) — the mark,
  * with the item stamped. 404 MARK_ITEM_NOT_FOUND when it is off the list.
  */
 export async function updateVendorMarkItem(

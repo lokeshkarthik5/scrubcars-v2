@@ -52,7 +52,7 @@ export function GarageMarksPanel({
   // The editor has already loaded the garage: this reads the same cache.
   const { data: detail } = useAdminVendor(vendorId)
   const [open, setOpen] = useState<OnboardingMark | 'new' | null>(null)
-  // The mark whose call sheet is open (0061).
+  // The mark whose call sheet is open (0064).
   const [calling, setCalling] = useState<string | null>(null)
 
   const all = useMemo(() => marksQuery.data ?? [], [marksQuery.data])
@@ -253,7 +253,7 @@ export function GarageMarksPanel({
 }
 
 /**
- * A mark with a checklist (0061, mockup marks-checklist A): its name and
+ * A mark with a checklist (0064, mockup marks-checklist A): its name and
  * where it stands ("1 of 4 checked · Ravi, today"), a bar, its note in full,
  * each item with its tick and answer, and "Start call".
  */

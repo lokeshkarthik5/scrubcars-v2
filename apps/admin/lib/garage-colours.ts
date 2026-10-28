@@ -1,5 +1,5 @@
 /**
- * The Garages list's colour tags (0061, mockup garages-list): the team's own
+ * The Garages list's colour tags (0064, mockup garages-list): the team's own
  * colour for a garage — green "All confirmed", amber "A few to confirm", red
  * "Needs details", blue "Call back" (with a day), or none — shown as a soft
  * row tint with a coloured edge, filtered by chips with counts, and sorted
@@ -26,7 +26,7 @@ export function parseColourFilter(value: string | null): ColourFilter | null {
 
 type Coloured = Pick<AdminVendor, 'colourTag'>
 
-/** The garage's colour, or null (none, or an API older than 0061). */
+/** The garage's colour, or null (none, or an API older than 0064). */
 export function colourOf(v: Coloured): ColourTag | null {
   return isColourTag(v.colourTag) ? v.colourTag : null
 }

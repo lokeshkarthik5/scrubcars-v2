@@ -99,7 +99,7 @@ export function useExecuteDataReset() {
 }
 
 /**
- * The dry run for deleting one test booking (0061), checking old payments
+ * The dry run for deleting one test booking (0064), checking old payments
  * with Razorpay to the end like previewDataResetFully. Works with the reset
  * switched off.
  */
@@ -130,7 +130,7 @@ export async function previewTestBookingDeleteFully(
 }
 
 /**
- * Deletes one test booking with its chain (0061). The lists, refunds,
+ * Deletes one test booking with its chain (0064). The lists, refunds,
  * complaints, pilot numbers and Statistics are marked out of date; the
  * booking's own page is left alone (it is gone, and its dialog is still
  * showing the result), and is left by the caller.

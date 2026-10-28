@@ -3,7 +3,7 @@ import type { ColourNames, ColourTag, GarageTarget } from '@repo/core/garage-tar
 import { signedBody } from './admin-signer'
 
 /**
- * The Garages page's target counter and colour tags (0061): team-wide
+ * The Garages page's target counter and colour tags (0064): team-wide
  * settings and each garage's colour. Super-admin only. New with this
  * release, so the panel reads a 404 as "not there yet" and shows the
  * defaults.

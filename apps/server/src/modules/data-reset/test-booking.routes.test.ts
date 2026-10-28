@@ -1,5 +1,5 @@
 /**
- * "Delete test booking" (0061) through the real admin routes and auth: the
+ * "Delete test booking" (0064) through the real admin routes and auth: the
  * per-booking routes work with the reset switched off (unlike the rest of
  * /data-reset), are super-admin only, and sign the delete with the session.
  * The service is stood in for; its rules are lib/data-reset.test.ts's.

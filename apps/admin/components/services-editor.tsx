@@ -270,7 +270,7 @@ export function ServicesEditor({
 
   /**
    * One description from the API, into the row's field. Throws its error.
-   * In Points mode it asks for points, which come back as "- " lines (0061);
+   * In Points mode it asks for points, which come back as "- " lines (0064);
    * the field is only sent then, as an older API refuses it.
    */
   const describe = async (row: ServiceRow, format: DescriptionMode = 'paragraph') => {
@@ -776,7 +776,7 @@ function ServiceRowItem({
         </div>
       )}
 
-      {/* No duration (0061): it books, holding the default in the slot
+      {/* No duration (0064): it books, holding the default in the slot
           calendar, but the admin should know. */}
       {mins == null && row.name.trim() && (
         <p className="mt-2 flex flex-wrap items-center gap-x-1.5 text-[12.5px] text-tone-attention-text">
@@ -834,7 +834,7 @@ function ServiceRowItem({
                     >
                       <IconSparkles size={15} stroke={1.5} aria-hidden="true" />
                       {/* Says it will replace what is there; Undo puts it back.
-                          In Points mode the AI keeps the points (0061). */}
+                          In Points mode the AI keeps the points (0064). */}
                       {writing
                         ? 'Writing…'
                         : row.description.trim()
@@ -885,7 +885,7 @@ function ServiceRowItem({
             </ScSelect>
           </div>
 
-          {/* Statistics only (0061, owner: "percent only"): payouts keep the
+          {/* Statistics only (0064, owner: "percent only"): payouts keep the
               category's rate. */}
           <div className="flex flex-col gap-1.5">
             <label htmlFor={commissionId} className="text-[12px] font-medium text-text-secondary">

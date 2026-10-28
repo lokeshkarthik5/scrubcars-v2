@@ -164,7 +164,7 @@ async function assertPhotoCapacity(vendorId: string) {
 }
 
 /**
- * A service's own commission percent as the column takes it (0061): a
+ * A service's own commission percent as the column takes it (0064): a
  * number is stored as written, null clears it, and left out (an older
  * panel) leaves what is stored.
  */
@@ -586,7 +586,7 @@ async function loadBookingDetail(id: string, now: number) {
       : null,
     lat: booking.lat,
     lng: booking.lng,
-    // A doorstep-only garage may have no street address (0061): the city.
+    // A doorstep-only garage may have no street address (0064): the city.
     garageAddress: booking.vendor ? garageAddressLine(booking.vendor) : null,
     // Who at the garage moved the job on. Null on bookings from before the
     // team model, and on any the garage never touched.
@@ -878,7 +878,7 @@ export const adminService = {
     }
 
     // Customers drive in to an at-garage garage, so it keeps its address
-    // and pincode; a doorstep-only one needs only its pin (0061).
+    // and pincode; a doorstep-only one needs only its pin (0064).
     // Before any write, like the hours above.
     if (atGarageAddressRefused(vendor, input)) {
       throw new AppError(400, AT_GARAGE_ADDRESS_MESSAGE, 'ADDRESS_REQUIRED')
@@ -1029,7 +1029,7 @@ export const adminService = {
           description: s.description ?? null,
           category: s.category,
           ...resolveServicePricing(s),
-          // Left blank: no duration (0061). The slot calendar holds the
+          // Left blank: no duration (0064). The slot calendar holds the
           // default 60 minutes for it; admin flags "Duration not set".
           durationMins: s.durationMins ?? null,
           ...commissionColumn(s.commissionRate),
@@ -1341,7 +1341,7 @@ export const adminService = {
           category: s.category,
           // Resolve pricing type + tiers into the columns to persist.
           ...resolveServicePricing(s),
-          // No duration given: none is stored (0061), never guessed.
+          // No duration given: none is stored (0064), never guessed.
           durationMins: s.durationMins ?? null,
           ...commissionColumn(s.commissionRate),
         }))

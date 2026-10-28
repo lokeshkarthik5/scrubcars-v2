@@ -1,5 +1,8 @@
 import type { ServiceCategory } from '@repo/core/types'
 import type {
+  StatsBehaviourDevice,
+  StatsBehaviourReport,
+  StatsBehaviourSource,
   StatsBreakdown,
   StatsFunnelMode,
   StatsFunnelReport,
@@ -453,4 +456,104 @@ export function breakdownCsv(breakdown: StatsBreakdown): string {
   ]
   // CRLF is what RFC 4180 and Excel expect.
   return `${rows.map((row) => row.map(csvCell).join(',')).join('\r\n')}\r\n`
+}
+
+// ─── Behaviour (0061) ────────────────────────────────────────────────────────
+
+/** Behaviour goes by the last 7 or 30 days. */
+export const BEHAVIOUR_PERIODS = PERIODS.filter(
+  (period) => period.value === 'last7' || period.value === 'last30'
+)
+
+export type BehaviourPeriod = (typeof BEHAVIOUR_PERIODS)[number]['value']
+
+/**
+ * The page's ?period= as Behaviour reads it: the last 7 days unless 30 (or
+ * longer, on another tab) was picked. Opened fresh, it is the last 7 days.
+ */
+export function behaviourPeriod(param: string | null): BehaviourPeriod {
+  return param === null || param === 'last7' ? 'last7' : 'last30'
+}
+
+export const BEHAVIOUR_SOURCES: ReadonlyArray<{
+  value: StatsBehaviourSource
+  label: string
+}> = [
+  { value: 'all', label: 'All sources' },
+  { value: 'instagram', label: 'Instagram' },
+  { value: 'google', label: 'Google' },
+  { value: 'direct', label: 'Direct' },
+  { value: 'other', label: 'Other' },
+]
+
+export function isBehaviourSource(
+  value: string | null
+): value is StatsBehaviourSource {
+  return BEHAVIOUR_SOURCES.some((source) => source.value === value)
+}
+
+export const BEHAVIOUR_DEVICES: ReadonlyArray<{
+  value: StatsBehaviourDevice
+  label: string
+}> = [
+  { value: 'all', label: 'All devices' },
+  { value: 'phone', label: 'Phone' },
+  { value: 'desktop', label: 'Desktop' },
+]
+
+export function isBehaviourDevice(
+  value: string | null
+): value is StatsBehaviourDevice {
+  return BEHAVIOUR_DEVICES.some((device) => device.value === value)
+}
+
+/** A Clarity project id as the build gives it, or null (no link then). */
+export function clarityProjectId(raw: string | undefined): string | null {
+  const id = raw?.trim()
+  return id && /^[a-z0-9]{6,20}$/i.test(id) ? id : null
+}
+
+/** Clarity's recordings for our project, in its own dashboard. */
+export function clarityRecordingsUrl(projectId: string): string {
+  return `https://clarity.microsoft.com/projects/view/${encodeURIComponent(projectId)}/impressions`
+}
+
+/** "Biggest leak: Landed → Saw a garage, 521 left": or null when nobody left. */
+export function biggestLeakLine(
+  funnel: StatsBehaviourReport['funnel']
+): string | null {
+  const leak = funnel.biggestLeak
+  if (!leak) return null
+  const name = (key: string) =>
+    funnel.steps.find((step) => step.key === key)?.label ?? key
+  return `Biggest leak: ${name(leak.from)} → ${name(leak.key)}, ${plural(leak.lost, 'visit', 'visits')} left`
+}
+
+/** What the page says about who is left out of its figures. */
+export function behaviourLeftOutLine(
+  leftOut: StatsBehaviourReport['leftOut']
+): string {
+  const parts = [
+    leftOut.team > 0
+      ? `${plural(leftOut.team, 'team visit', 'team visits')}`
+      : null,
+    leftOut.test > 0
+      ? `${plural(leftOut.test, 'visit', 'visits')} with a Test booking`
+      : null,
+  ].filter(Boolean)
+  return parts.length > 0
+    ? `Left out here: ${parts.join(' and ')}.`
+    : 'Nothing left out in this period.'
+}
+
+/** When the Behaviour steps begin, while the period reaches back past it. */
+export function behaviourStartNote(
+  stepsSince: string | null,
+  range: DateRange
+): string | null {
+  if (stepsSince === null) {
+    return 'No visits recorded yet. These steps are recorded from the release that added them, so this tab fills in from then on.'
+  }
+  if (stepsSince <= range.from) return null
+  return `These steps start on ${dayLabel(stepsSince)}, when recording began. Days before that have none, so this period reads low.`
 }

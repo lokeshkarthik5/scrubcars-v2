@@ -240,7 +240,7 @@ export function bookingEarning(chain: EarningChain, position: number | undefined
           amount: chain.amount,
           subtotalAmount: chain.subtotalAmount,
           discountFundedBy: chain.discountFundedBy,
-          // Payouts charge the category rates: a service's own rate (0061)
+          // Payouts charge the category rates: a service's own rate (0064)
           // is for Statistics only (owner, 28 Oct 2026), so it is dropped.
           items: chain.items.map((item) => ({ ...item, overrideRate: null })),
           billsPaid: chain.billsPaid,

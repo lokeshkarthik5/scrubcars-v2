@@ -211,7 +211,7 @@ describe('visibleMark', () => {
     expect(visibleMark('businessName', POSTER.fields.businessName, text)).toBeNull()
   })
 
-  test('a doorstep-only garage is not asked for the address, and an empty pincode is fine (0061)', () => {
+  test('a doorstep-only garage is not asked for the address, and an empty pincode is fine (0064)', () => {
     const missing = { confidence: 'missing' as const }
     expect(visibleMark('address', missing, text)).toEqual({ kind: 'missing', reason: undefined })
     expect(visibleMark('address', missing, text, false)).toBeNull()

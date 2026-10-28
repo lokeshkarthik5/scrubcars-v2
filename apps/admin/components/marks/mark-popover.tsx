@@ -58,7 +58,7 @@ export interface MarkDraft {
   label: string
   note: string
   status: MarkStatus
-  /** Its checklist (0061), as the dialog left it. */
+  /** Its checklist (0064), as the dialog left it. */
   items: MarkItemInput[]
 }
 
@@ -146,7 +146,7 @@ export function MarkForm({
       ...item,
     }))
   )
-  // With a checklist the ticks decide the status (0061).
+  // With a checklist the ticks decide the status (0064).
   const listed = items.some((item) => item.text.trim())
   const kind: MarkKind = editing
     ? (initial?.kind ?? 'custom')
@@ -391,7 +391,7 @@ export function MarkPopover({
   const submit = (draft: MarkDraft) => {
     setError(null)
     if (editing) {
-      // The list is sent when there is one, or was: an API older than 0061
+      // The list is sent when there is one, or was: an API older than 0064
       // refuses the field, and a mark that never had one has nothing to say.
       const hadItems = (full?.items ?? editing.items ?? []).length > 0
       update.mutate(
@@ -438,7 +438,7 @@ export function MarkPopover({
 
   // The server already reads an old note's "- " lines as items; reading
   // them here too only matters for a mark it sent without its list. An API
-  // older than 0061 sends no `items` at all, and takes none back, so its
+  // older than 0064 sends no `items` at all, and takes none back, so its
   // note is left as it is.
   const storedItems = full?.items ?? editing?.items
   const checklist = editing

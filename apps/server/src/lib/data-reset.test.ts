@@ -947,7 +947,7 @@ describe('Detlio credit (0049)', () => {
   })
 })
 
-describe('one test booking with its complaints (0061)', () => {
+describe('one test booking with its complaints (0064)', () => {
   const marked = (n: number, overrides: Partial<ResetBooking> = {}) =>
     booking(n, { markedTestAt: before(1), ...overrides })
   const about = (n: number, bookingId: string, number: number) => ({

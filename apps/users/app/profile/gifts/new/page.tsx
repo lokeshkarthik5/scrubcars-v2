@@ -358,6 +358,7 @@ export default function NewGiftPage() {
         {preset === 'other' && (
           <div className="flex flex-col gap-1">
             <ScInput
+              data-clarity-mask="true"
               label={`Amount (${giftRupees(limits.min)} to ${giftRupees(limits.max)})`}
               inputMode="numeric"
               placeholder={String(limits.min)}
@@ -379,6 +380,7 @@ export default function NewGiftPage() {
           Who it&apos;s for
         </h2>
         <ScInput
+          data-clarity-mask="true"
           label="Their name"
           autoComplete="off"
           maxLength={NAME_MAX}
@@ -387,6 +389,7 @@ export default function NewGiftPage() {
         />
         <div className="flex flex-col gap-1">
           <ScTextarea
+            data-clarity-mask="true"
             label="Message (optional)"
             rows={3}
             maxLength={MESSAGE_MAX}

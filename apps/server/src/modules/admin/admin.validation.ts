@@ -40,12 +40,12 @@ const serviceBaseSchema = z.object({
   priceHatchback: z.number().positive().optional(),
   priceSedan: z.number().positive().optional(),
   priceSuv: z.number().positive().optional(),
-  // Optional (0061): left out or null, the service has no duration, shows
+  // Optional (0064): left out or null, the service has no duration, shows
   // "Duration not set" in admin and holds the default 60 minutes in the slot
   // calendar (lib/service-duration.ts). Stored in minutes (the UI offers
   // minute/hour/day units and converts before sending).
   durationMins: z.number().int().positive().max(10_080).nullable().optional(),
-  // The service's own commission percent for Statistics (0061), 0 to 50 with
+  // The service's own commission percent for Statistics (0064), 0 to 50 with
   // at most two decimals; null is the category's rate. Left out leaves it as
   // it is, so an older panel never clears it.
   commissionRate: z
@@ -109,7 +109,7 @@ export const loginSchema = z.object({
   password: z.string().min(1),
 })
 
-// A pincode, or empty (0061): only an at-garage garage needs one
+// A pincode, or empty (0064): only an at-garage garage needs one
 // (lib/garage-address.ts).
 const optionalPincodeSchema = z
   .string()
@@ -122,7 +122,7 @@ export const createVendorSchema = z.object({
   ownerPhone: phoneSchema,
   businessName: z.string().trim().min(1).max(255),
   phone: phoneSchema,
-  // Empty for a doorstep-only garage, which needs only its pin (0061); one
+  // Empty for a doorstep-only garage, which needs only its pin (0064); one
   // with at-garage on needs both (the refine below).
   address: z.string().trim().default(''),
   city: z.string().trim().min(1).max(100),
@@ -208,7 +208,7 @@ export const updateVendorSchema = z.object({
   businessName: z.string().trim().min(1).max(255).optional(),
   phone: phoneSchema.optional(),
   // May be emptied for a doorstep-only garage; adminService refuses leaving
-  // an at-garage one without them (0061).
+  // an at-garage one without them (0064).
   address: z.string().trim().optional(),
   city: z.string().trim().min(1).max(100).optional(),
   pincode: optionalPincodeSchema.optional(),

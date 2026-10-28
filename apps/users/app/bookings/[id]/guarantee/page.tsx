@@ -235,6 +235,7 @@ function ClaimForm({
         ))}
         {issues.includes('other') && (
           <ScTextarea
+            data-clarity-mask="true"
             label="Tell us what's wrong"
             rows={3}
             maxLength={GUARANTEE_RULES.otherTextMax}

@@ -66,7 +66,7 @@ export const executeSchema = previewSchema.extend({
 export type PreviewInput = z.infer<typeof previewSchema>
 export type ExecuteInput = z.infer<typeof executeSchema>
 
-// ─── Delete one test booking, from its page (0061) ───────────────────────────
+// ─── Delete one test booking, from its page (0064) ───────────────────────────
 //
 // Not behind ADMIN_DATA_RESET (owner, 28 Oct 2026: "a per-booking delete for
 // bookings marked Test"): the booking's chain only, and only when it is

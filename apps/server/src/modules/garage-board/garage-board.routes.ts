@@ -13,7 +13,7 @@ import {
 } from './garage-board.validation.js'
 
 /**
- * The Garages page's target counter and colour tags (0061). Mounted at
+ * The Garages page's target counter and colour tags (0064). Mounted at
  * /api/v1/admin/garage-board. Super-admin only, as the rest of admin; every
  * write is signed with the session's name.
  *

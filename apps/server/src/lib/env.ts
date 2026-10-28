@@ -134,6 +134,21 @@ export const env = {
   // service (lib/web-push.ts), so the suite can switch the feature on with a
   // public key alone. Refused in production.
   pushFake: readTestFake('PUSH_FAKE', 'records browser notifications instead of sending them'),
+  // ─── Meta Conversions API (lib/meta-capi.ts) ──────────────────────────────
+  // A paid booking is reported to Meta as one Purchase event from the
+  // server, beside the customer app's Pixel and under the same event id, but
+  // only when the customer accepted marketing cookies (the verify call's
+  // `marketing` block). No name, phone, email or address is ever sent. The
+  // token is a system user's Conversions API access token: unset — as in
+  // development, E2E and previews — and nothing is sent. Even with it set,
+  // only the Production deployment sends (VERCEL_ENV=production, never with
+  // an E2E fake on), so set it in the Vercel PRODUCTION environment only.
+  metaCapiToken: process.env.META_CAPI_TOKEN?.trim() || undefined,
+  // The Pixel (dataset) the events go to: the customer app's own.
+  metaPixelId: process.env.META_PIXEL_ID?.trim() || '891710590692874',
+  // Events Manager → Test events code (TEST12345). While set, every event
+  // shows there as a test and counts for nothing. Remove it after testing.
+  metaCapiTestCode: process.env.META_CAPI_TEST_CODE?.trim() || undefined,
   // ─── Crash reporting ───────────────────────────────────────────────────────
   // Sentry's project key for this API. Unset — as in development, E2E and
   // previews — and nothing is reported or even loaded (see lib/monitoring.ts).

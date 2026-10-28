@@ -12,7 +12,7 @@ export const describeServiceSchema = z
     pricingType: z.enum(['flat', 'per_vehicle', 'on_inspection']),
     durationMins: z.number().int().positive().max(10_080).optional(),
     garageName: z.string().trim().max(255).optional(),
-    // The editor's Points mode (0061) asks for an intro line and "- "
+    // The editor's Points mode (0064) asks for an intro line and "- "
     // points, which keep their shape; left out is a paragraph.
     format: z.enum(['paragraph', 'points']).optional(),
   })

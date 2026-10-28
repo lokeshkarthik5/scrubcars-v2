@@ -619,7 +619,7 @@ describe('marks', () => {
   })
 })
 
-describe('marks as a checklist (0061)', () => {
+describe('marks as a checklist (0064)', () => {
   test('a mark made with items: each answered one is stamped; status follows the ticks', async () => {
     const token = await raga()
     const made = await call('POST', `/admin/vendors/${GARAGE_B}/marks`, token, {
@@ -770,7 +770,7 @@ describe('marks as a checklist (0061)', () => {
       label: 'Old call',
       note: 'Owner busy till 5\n- Check if they do doorstep\n- Ask the radius',
     })
-    // A mark from before 0061: the note holds the list.
+    // A mark from before 0064: the note holds the list.
     expect(made.body.data.items.map((i: any) => i.id)).toEqual([
       'note-1',
       'note-2',
@@ -797,7 +797,7 @@ describe('marks as a checklist (0061)', () => {
     expect(stored.items).toHaveLength(2)
   })
 
-  test('a panel from before 0061 saving the note it was shown keeps the note’s list as items', async () => {
+  test('a panel from before 0064 saving the note it was shown keeps the note’s list as items', async () => {
     const token = await raga()
     const made = await call('POST', `/admin/vendors/${GARAGE_A}/marks`, token, {
       kind: 'custom',

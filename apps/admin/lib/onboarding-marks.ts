@@ -198,7 +198,7 @@ export function markDate(at: string | Date, now: number = Date.now()): string {
 
 type MarkTiming = Pick<OnboardingMark, 'status' | 'askedAt'> & {
   receivedAt?: string | null
-  /** A full mark's checklist (0061)… */
+  /** A full mark's checklist (0064)… */
   items?: ReadonlyArray<{ done: boolean }>
   /** …or a brief's counts of it. */
   itemsDone?: number
@@ -254,7 +254,7 @@ export function markProgress(mark: MarkTiming): {
 
 /**
  * "To ask", "Asked 24 Oct", "Asked today", "Received 25 Oct"; an open mark
- * with a checklist says how far it is instead: "1 of 4 checked" (0061).
+ * with a checklist says how far it is instead: "1 of 4 checked" (0064).
  */
 export function markStatusText(
   mark: MarkTiming,

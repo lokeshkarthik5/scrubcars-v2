@@ -26,7 +26,7 @@ export async function execute(c: DataResetContext, input: ExecuteInput) {
   return c.json({ success: true, data })
 }
 
-// One test booking, from its page (0061): not behind the reset's switch.
+// One test booking, from its page (0064): not behind the reset's switch.
 export async function previewTestBooking(
   c: DataResetContext,
   bookingId: string,

@@ -1,5 +1,5 @@
 /**
- * The admin round's bookings (0061): the list's Slot column with when the
+ * The admin round's bookings (0064): the list's Slot column with when the
  * booking was made under it (in the side panel and on the page too), and
  * Delete test booking, which takes the booking's whole chain with its note
  * and the complaint about it after the typed phrase, and refuses a booking

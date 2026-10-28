@@ -323,7 +323,7 @@ export function DryRunSummary({
   onDownloaded: () => void
   /**
    * The list to download, for a run over many rows. One test booking
-   * (0061) has no list to keep: its audit record names everything.
+   * (0064) has no list to keep: its audit record names everything.
    */
   download?: boolean
 }) {
@@ -417,7 +417,7 @@ export function DryRunSummary({
  * The last step: who is doing it, that there is a backup, and the phrase.
  * The one red button on the screen, and only live once all three are given.
  *
- * With `bookingId` it deletes that one test booking (0061) through its own
+ * With `bookingId` it deletes that one test booking (0064) through its own
  * route, which needs no backup tick: only the typed phrase.
  */
 export function ConfirmDelete({
@@ -456,7 +456,7 @@ export function ConfirmDelete({
     onPendingChange?.(true)
     return () => onPendingChange?.(false)
   }, [pending, onPendingChange])
-  // One test booking needs no backup tick (0061).
+  // One test booking needs no backup tick (0064).
   const [backup, setBackup] = useState(Boolean(bookingId))
   const [phrase, setPhrase] = useState('')
   const [error, setError] = useState<{

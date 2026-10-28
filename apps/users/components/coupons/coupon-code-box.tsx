@@ -93,6 +93,7 @@ export function CouponCodeBox({
         }}
       >
         <ScInput
+          data-clarity-mask="true"
           label="Have a coupon?"
           placeholder="DTL-7K4QM-92MXA"
           autoComplete="off"

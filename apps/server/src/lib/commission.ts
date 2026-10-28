@@ -22,7 +22,7 @@
  * Reporting only. Nothing here changes a payout, the earnings screen, a
  * receipt or anything a garage sees; it is a figure for the owner.
  *
- * A service may carry its own percent (0061, `services.commission_rate`,
+ * A service may carry its own percent (0064, `services.commission_rate`,
  * 0–50%; owner decision 28 Oct 2026: "percent only"), which replaces its
  * category's rate for that service's lines and, as the main service, for a
  * final bill. Statistics pass it (`overrideRate`); the garage payouts never
@@ -153,7 +153,7 @@ export interface CommissionItem {
   sortOrder: number
   /**
    * The service's own rate as a fraction (0.06 for 6%), when it has one
-   * (0061). Statistics only: payouts leave it out. Absent or null is the
+   * (0064). Statistics only: payouts leave it out. Absent or null is the
    * category's rate.
    */
   overrideRate?: number | null

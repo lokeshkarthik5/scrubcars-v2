@@ -376,7 +376,7 @@ export function dataResetReads(conn: Conn) {
     },
 
     /**
-     * The complaints about these bookings (0061): deleting one test booking
+     * The complaints about these bookings (0064): deleting one test booking
      * takes them with it.
      */
     async complaintsOfBookings(bookingIds: string[]): Promise<ResetComplaint[]> {

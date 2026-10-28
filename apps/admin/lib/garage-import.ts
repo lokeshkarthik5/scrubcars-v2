@@ -117,7 +117,7 @@ export function visibleMark(
   key: string,
   note: ImportFieldNote | undefined,
   text: GarageFormText,
-  /** Customers come to the garage: the address is needed (0061). */
+  /** Customers come to the garage: the address is needed (0064). */
   atGarage = true
 ): ImportMark | null {
   if (!note) return null

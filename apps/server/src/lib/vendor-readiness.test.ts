@@ -276,7 +276,7 @@ describe('vendorReadiness', () => {
   })
 })
 
-describe('the admin round (0061)', () => {
+describe('the admin round (0064)', () => {
   test('at-garage with no address or no 6-digit pincode is blocking; doorstep-only needs neither', () => {
     expect(keys(ready({ address: '', pincode: '600020' }))).toContain('no_address')
     expect(keys(ready({ address: '1, Main Rd', pincode: '' }))).toContain('no_address')

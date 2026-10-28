@@ -77,7 +77,7 @@ export async function updateService(
       description: data.description?.trim() ? data.description.trim() : null,
       category: data.category,
       // Left out when empty, so a service admin left without a duration
-      // (0061) can still be changed; the API keeps what is stored.
+      // (0064) can still be changed; the API keeps what is stored.
       ...(data.durationMins > 0 && { durationMins: data.durationMins }),
       ...pricingPayload(data),
     }),

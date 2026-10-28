@@ -28,7 +28,7 @@ export const DEFAULT_BOARD_SETTINGS: GarageBoardSettings = {
 }
 
 /**
- * The target and the colours' names. A 404 (an API older than 0061) reads
+ * The target and the colours' names. A 404 (an API older than 0064) reads
  * as the defaults, not an error, so the page still shows its counter.
  */
 export function useGarageBoardSettings() {

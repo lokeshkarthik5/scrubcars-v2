@@ -403,7 +403,7 @@ type BookingWithRelations = {
     name: string
     category: string
     pricingType: string
-    // The service's own, which may be unset (0061); the booking's
+    // The service's own, which may be unset (0064); the booking's
     // `durationMins` is what it holds.
     durationMins: number | null
   } | null
@@ -666,7 +666,7 @@ export function toBookingResponse(
           name: booking.service.name,
           category: booking.service.category,
           pricingType: booking.service.pricingType,
-          // Never null on the wire, as older clients read it (0061): a
+          // Never null on the wire, as older clients read it (0064): a
           // service with no duration holds the default, as at checkout.
           durationMins: effectiveDurationMins(booking.service),
         }
@@ -1299,7 +1299,7 @@ export async function resolveBookingDraft(
       name: row.name,
       amount: lineAmount,
       // The snapshot is never null: a service with no duration holds the
-      // default 60 minutes (0061, lib/service-duration.ts).
+      // default 60 minutes (0064, lib/service-duration.ts).
       durationMins: effectiveDurationMins(row),
     }
   })

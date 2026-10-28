@@ -39,7 +39,7 @@ const newItemId = () => randomUUID()
 
 /**
  * OnboardingMark (packages/core/src/api/admin-marks.ts). A mark from before
- * 0061 whose note has "- " lines reads them as its items, and its note
+ * 0064 whose note has "- " lines reads them as its items, and its note
  * without them (lib/mark-checklist.ts).
  */
 export function toMark(row: MarkRecord) {
@@ -189,7 +189,7 @@ export const onboardingMarksService = {
         // The list as the dialog left it, merged with what is stored so each
         // item keeps who answered it. Items read from an old note are saved
         // as items now, and the note keeps only its other lines.
-        // A panel from before 0061 sends the note as it was shown, without
+        // A panel from before 0064 sends the note as it was shown, without
         // its "- " lines: those are saved as items then, not lost.
         const items =
           input.items !== undefined

@@ -354,7 +354,7 @@ describe('garageCommissionStatus', () => {
   })
 })
 
-describe('a service’s own rate (0061, Statistics only)', () => {
+describe('a service’s own rate (0064, Statistics only)', () => {
   test('replaces its category’s rate; empty or out of range is the category’s', () => {
     expect(itemRate({ category: 'car_wash', overrideRate: 0.06 })).toBe(0.06)
     expect(itemRate({ category: 'car_wash', overrideRate: 0 })).toBe(0)

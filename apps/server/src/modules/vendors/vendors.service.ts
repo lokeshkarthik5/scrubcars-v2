@@ -200,6 +200,12 @@ export type VendorListItemResponse = {
   dropinEnabled: boolean
   /** Offers pickup & drop (isPickupOffered). */
   pickupEnabled: boolean
+  /**
+   * How far it collects cars from, from its pin; null is the default
+   * (DEFAULT_PICKUP_RADIUS_KM). The garage page already shows it; on the card
+   * it is for "Can collect your car" (0062). Null too when it does not collect.
+   */
+  pickupRadiusKm: number | null
   startingPrice: number | null
   // null when the vendor has no reviews yet — distinct from a rating of 0.
   rating: number | null
@@ -331,7 +337,7 @@ export type ServiceResponse = {
   priceSedan: string | null
   priceSuv: string | null
   /**
-   * The garage's own duration, or null when it set none (0061): a slot then
+   * The garage's own duration, or null when it set none (0064): a slot then
    * holds DEFAULT_SERVICE_DURATION_MINS, but screens show no duration.
    */
   durationMins: number | null
@@ -463,7 +469,7 @@ function isWithinMonths(date: Date, months: number) {
   return date >= cutoff
 }
 
-/** 400 ADDRESS_REQUIRED: an at-garage garage would be left without its address (0061). */
+/** 400 ADDRESS_REQUIRED: an at-garage garage would be left without its address (0064). */
 function addressRequired() {
   return new AppError(400, AT_GARAGE_ADDRESS_MESSAGE, 'ADDRESS_REQUIRED')
 }
@@ -828,6 +834,7 @@ export async function vendorCardsFor(
       doorstepEnabled: vendor.doorstepEnabled,
       dropinEnabled: vendor.dropinEnabled,
       pickupEnabled: isPickupOffered(vendor),
+      pickupRadiusKm: isPickupOffered(vendor) ? vendor.pickupRadiusKm : null,
       startingPrice: computeStartingPrice(vendor.services),
       rating: rating ? Number(rating.average.toFixed(2)) : null,
       reviewCount: rating?.count ?? 0,
@@ -1132,7 +1139,7 @@ export const vendorsService = {
 
   async updateVendor(vendorId: string, input: UpdateVendorInput) {
     const vendor = await getTenantVendor(vendorId)
-    // Customers drive in to an at-garage garage: it keeps its address (0061).
+    // Customers drive in to an at-garage garage: it keeps its address (0064).
     if (atGarageAddressRefused(vendor, input)) throw addressRequired()
     const [updated] = await vendorsRepository.updateVendor(vendor.id, {
       ...input,
@@ -1188,7 +1195,7 @@ export const vendorsService = {
   ) {
     const vendor = await getTenantVendor(vendorId)
 
-    // At the garage needs the address customers drive to (0061).
+    // At the garage needs the address customers drive to (0064).
     if (atGarageAddressRefused(vendor, { dropinEnabled: input.dropinEnabled })) {
       throw addressRequired()
     }
@@ -1918,7 +1925,7 @@ export const vendorsService = {
     }
 
     // Services run one after another, so the block to fit is their sum.
-    // An unset duration holds the default 60 minutes (0061).
+    // An unset duration holds the default 60 minutes (0064).
     const durationMins = requested.reduce(
       (total, service) => total + effectiveDurationMins(service),
       0

@@ -250,7 +250,7 @@ describe('showAgainWarning', () => {
   })
 })
 
-describe('a service’s own commission (0061)', () => {
+describe('a service’s own commission (0064)', () => {
   test('empty is the category rate; 0 to 50 with two decimals is taken; % is forgiven', () => {
     expect(commissionRateValue('')).toBeNull()
     expect(commissionRateValue('  ')).toBeNull()

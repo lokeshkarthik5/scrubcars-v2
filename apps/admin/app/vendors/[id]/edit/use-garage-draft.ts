@@ -259,7 +259,7 @@ export function useGarageDraft(id: string) {
   // How customers book and Pickup & drop, as loaded: the tiles on Location
   // save them on their own (HowCustomersBook) and read these once.
   // Whether customers come to the garage, as last saved: the address and
-  // pincode are needed only then (0061). "How customers book" saves on its
+  // pincode are needed only then (0064). "How customers book" saves on its
   // own, so this follows the garage as read on load and after each such save.
   const [atGarage, setAtGarage] = useState(true)
   const [bookingMode, setBookingMode] = useState<

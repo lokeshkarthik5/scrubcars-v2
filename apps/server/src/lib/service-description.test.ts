@@ -151,7 +151,7 @@ describe('the ready-made service templates', () => {
   })
 })
 
-describe('points (0061: the editor’s Points mode)', () => {
+describe('points (0064: the editor’s Points mode)', () => {
   test('the answer is kept as an intro line and "- " points, full stops and labels dropped', () => {
     expect(cleanPoints('Description: "Full clean.\n\n• Foam wash.\n- Vacuum\n3. Tyre polish."')).toBe(
       'Full clean.\n- Foam wash\n- Vacuum\n- Tyre polish'

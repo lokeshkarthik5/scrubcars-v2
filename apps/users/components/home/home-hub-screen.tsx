@@ -26,6 +26,7 @@ import {
 import { usePendingCheckoutStore } from '@repo/core/stores/pending-checkout-store'
 import { useUserStore } from '@repo/core/stores/user-store'
 import { CustomerShell } from '@/components/customer-shell'
+import { ContinueBookingCard } from '@/components/checkout/continue-booking'
 import {
   BillDueCard,
   ComplaintAnswerCard,
@@ -176,6 +177,9 @@ function HomeHubContent() {
           hasUnread={data?.header.hasUnread ?? false}
           now={now}
         />
+
+        {/* A booking started before signing in and left half way (0062). */}
+        <ContinueBookingCard />
 
         {home.isPending ? (
           <>

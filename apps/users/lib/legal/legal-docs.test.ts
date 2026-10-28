@@ -21,6 +21,9 @@ import { customerRefundLine } from '@repo/core/refunds'
 import { SUPPORT_PHONE_DISPLAY } from '@repo/core/support'
 import { PENDING_CHECKOUT_STORAGE_KEY } from '@repo/core/stores/pending-checkout-store'
 import { TIP_HIDDEN_KEY } from '../home-hub'
+import { BOOKING_DRAFT_KEY } from '@repo/core/booking-draft'
+import { CLIENT_EVENTS } from '@repo/core/analytics-events'
+import { META_EVENT_NAMES, metaEventFor, pixelExcluded } from '../meta-pixel'
 import { RULES } from './common'
 import { BUSINESS, LEGAL_DRAFT } from './details'
 import { LEGAL_DOCS } from './index'
@@ -129,6 +132,7 @@ describe('what the Home hub keeps', () => {
     const text = privacy()
     expect(text).toContain(PENDING_CHECKOUT_STORAGE_KEY)
     expect(text).toContain(TIP_HIDDEN_KEY)
+    expect(text).toContain(BOOKING_DRAFT_KEY)
   })
 
   // Matching is declared ahead of the switch: the policy says what it would
@@ -170,26 +174,91 @@ describe('what the Home hub keeps', () => {
 })
 
 describe('the Meta Pixel', () => {
-  const layout = readFileSync(join(import.meta.dir, '../../app/layout.tsx'), 'utf8')
-  const pixel = readFileSync(join(import.meta.dir, '../../components/meta-pixel.tsx'), 'utf8')
+  const read = (path: string) => readFileSync(join(import.meta.dir, path), 'utf8')
+  const layout = read('../../app/layout.tsx')
+  const component = read('../../components/meta-pixel.tsx')
+  const lib = read('../meta-pixel.ts')
   const privacy = () => markdownOf(LEGAL_DOCS.find((doc) => doc.path === LEGAL_PATHS.privacy)!)
+  const metaSection = () => {
+    const sharing = LEGAL_DOCS.find((doc) => doc.path === LEGAL_PATHS.privacy)!.sections.find(
+      (section) => section.id === 'sharing'
+    )!
+    return sharing.subsections!.find((sub) => sub.id === 'meta')!
+  }
 
-  // If the pixel is ever moved off some pages, or removed, the policy's
-  // section 4 has to change with it: this fails until it does.
-  test('is mounted on every customer page and sends only page views, as the policy says', () => {
-    expect(layout).toContain('<MetaPixel />')
-    const events = [...pixel.matchAll(/fbq\??\.?\(\s*'track',\s*'(\w+)'/g)].map((match) => match[1])
-    expect(new Set(events)).toEqual(new Set(['PageView']))
-    const text = privacy()
-    expect(text).toContain('### Meta (Facebook and Instagram), for our ads')
-    expect(text).toContain('Every page of detlio.com loads the **Meta Pixel**')
-    expect(text).toContain('including moving from screen to screen inside the app')
-    expect(text).toContain('on its servers outside India')
+  /** The Meta event names section 4 lists: "**Name**: …" items. */
+  const listedEvents = () =>
+    metaSection()
+      .blocks.flatMap((block) => (block.kind === 'list' ? block.items : []))
+      .flatMap((item) => {
+        const match = /^\*\*([A-Za-z]+)\*\*:/.exec(item)
+        return match ? [match[1]] : []
+      })
+
+  /** Every event name the code can send: the mapping, and each direct call. */
+  const sentEvents = () => {
+    const mapped = CLIENT_EVENTS.flatMap((name) => {
+      const meta = metaEventFor({
+        name,
+        props: { vendorId: 'v', category: 'detailing', serviceCount: 1, source: 'typed' },
+      })
+      return meta ? [meta.name] : []
+    })
+    const direct = [...`${component}\n${lib}`.matchAll(/sendToMeta\(\s*'track(?:Custom)?',\s*'(\w+)'/g)].map(
+      (match) => match[1]
+    )
+    return new Set([...mapped, ...direct])
+  }
+
+  // If the code starts (or stops) sending an event, section 4 has to change
+  // with it: this fails until it does.
+  test('the events the code can send are exactly the ones the policy lists', () => {
+    const listed = listedEvents()
+    expect(listed.length).toBeGreaterThan(5)
+    expect(new Set(listed).size).toBe(listed.length)
+    expect(sentEvents()).toEqual(new Set(listed))
+    expect(new Set<string>(META_EVENT_NAMES)).toEqual(new Set(listed))
   })
 
-  test('the pages it sends and the cookies it sets are declared', () => {
+  test('every event goes through the one consent-gated sender', () => {
+    // No fbq call outside lib/meta-pixel.ts's installPixel and sendToMeta.
+    expect(component).not.toMatch(/fbq\??\.?\(/)
+    expect(component).not.toMatch(/<noscript[ >]/)
+    const sends = [...lib.matchAll(/fbq\(\s*(method|'(?:track|trackCustom|init|set)')/g)].map((m) => m[1])
+    expect(new Set(sends)).toEqual(new Set(['method', "'set'", "'init'"]))
+    const sender = lib.slice(lib.indexOf('export function sendToMeta('))
+    expect(sender.replace(/\s+/g, ' ')).toContain(
+      "{ try { if ( typeof window === 'undefined' || !marketingAllowed() || currentPageExcluded() ) return"
+    )
+    // The Pixel only starts once consent allows marketing (Allow, or the
+    // first banner's marketing yes).
+    expect(component).toContain('allowsMarketing(')
+    expect(layout).toContain('<MetaPixel />')
+    expect(layout).toContain('<ConsentBanner />')
+  })
+
+  test('the policy says it is consent-gated and how to change the choice', () => {
     const text = privacy()
-    expect(text).toContain('The pages you open on detlio.com, with your IP address')
+    expect(text).toContain('### Meta (Facebook and Instagram), for our ads')
+    expect(text).toContain('**The pixel runs only if you allow marketing cookies.**')
+    expect(text).toContain('Until you choose Allow, Meta\'s code is not loaded and nothing is sent to Meta.')
+    expect(text).toContain('Global Privacy Control turned on, we treat that as "Only essential"')
+    expect(text).toContain('**Changing your choice.** Tap **Cookie settings**')
+    expect(text).toContain('| detlio_consent (cookie) |')
+    expect(text).toContain('including moving from screen to screen inside the app')
+    expect(text).toContain('on its servers outside India')
+    expect(text).not.toContain('Every page of detlio.com loads the **Meta Pixel**')
+  })
+
+  test('the Conversions API report of a paid booking is declared', () => {
+    const text = privacy()
+    expect(text).toContain('**A paid booking is also sent from our server.**')
+    expect(text).toContain('through Meta\'s Conversions API')
+    expect(text).toContain('your IP address, details of your browser, and the _fbp and _fbc cookies. Never your name, mobile number or address.')
+  })
+
+  test('the cookies it sets are declared', () => {
+    const text = privacy()
     expect(text).toContain('| _fbp (cookie, set by Meta\'s pixel) |')
     expect(text).toContain('| _fbc (cookie, set by Meta\'s pixel) |')
     // Meta adds its click ID to most links out of Facebook and Instagram,
@@ -202,21 +271,47 @@ describe('the Meta Pixel', () => {
   // The address Meta gets is the whole URL, query included. These are the
   // parameters the app itself puts there (garage page and book-again for
   // checkout; the booking page reads then, rate and celebrate).
-  test('what the page address carries is spelled out, and nothing says booking details stay out', () => {
+  // lib/meta-request-shield.ts cuts every address Meta gets to origin +
+  // path (0061); the policy must say the query string is not sent.
+  test('what the page address carries is spelled out: never what comes after "?"', () => {
     const text = privacy()
-    expect(text).toContain('the services you picked (by reference number) and whether the visit is at your door')
-    expect(text).toContain('that you have just paid for it, that you have a bill to pay, or the star rating you tapped on Home')
-    expect(text).toContain('Apart from what the page address shows, we have not set it up to send your name, mobile number or car.')
+    expect(text).toContain('the web address (URL) of the page, without anything after "?" or "#"')
+    expect(text).toContain('but not the services you picked, a promo code or your address')
+    expect(text).toContain('the address of the page you came from, likewise without anything after "?" or "#"')
+    expect(text).toContain('We have not set it up to send your name, mobile number, address or car')
+    expect(text).not.toContain('can include a promo code')
+    expect(lib).toContain('shieldMetaRequests(window')
     expect(text).not.toContain('or what you booked')
+    // The booking page's parameters no longer reach Meta (0061), and the
+    // note says so.
     expect(text).toContain('?celebrate=1')
     expect(text).toContain('?rate=N')
+    expect(text).not.toContain('On a booking\'s pages it carries the booking\'s reference number')
+  })
+
+  // pixelExcluded keeps the Pixel off pages whose address holds a booking's
+  // or a car's id or an invite code (0061); the policy must say so.
+  test('the pages it stays off are named, booking and car pages included', () => {
+    const text = privacy()
+    expect(text).toContain('nor on a booking\'s pages or a car\'s pages in your account')
+    expect(text).toContain('a friend\'s invite')
+    expect(pixelExcluded('/bookings/2b7f6f0e-5d1c-4c11-9b55-2f0b6a1c9d10', null)).toBe(true)
+    expect(pixelExcluded('/invite/RAVI2026', null)).toBe(true)
+  })
+
+  test('the Purchase event id is said to be hashed, and the code hashes it', () => {
+    const text = privacy()
+    expect(text).toContain('an event ID made from a scrambled (hashed) form of the booking\'s ID, which does not reveal it')
+    expect(text).not.toContain('an event ID made from the booking\'s ID, so that')
+    expect(lib).toContain('eventID = await purchaseEventId(input.bookingId)')
   })
 
   test("the lawyer's questions are on the page while it is a draft", () => {
     const text = privacy()
-    expect(text).toContain('**Consent before the pixel loads (DPDP).**')
+    expect(text).toContain('**Consent (DPDP).**')
     expect(text).toContain('**Which pages the pixel runs on.**')
     expect(text).toContain('**Meta requires this notice.**')
+    expect(text).toContain('**Settings in Meta\'s Events Manager.**')
   })
 
   test('nothing says Detlio does no tracking, advertising or analytics', () => {
@@ -226,6 +321,61 @@ describe('the Meta Pixel', () => {
       expect(text).not.toMatch(/\b(do|does) not (use )?(advertising|analytics|track)/)
       expect(text).not.toMatch(/track you across/)
       expect(text).not.toMatch(/nothing is used for marketing/)
+    }
+  })
+})
+
+describe('Microsoft Clarity', () => {
+  const read = (path: string) => readFileSync(join(import.meta.dir, path), 'utf8')
+  const layout = read('../../app/layout.tsx')
+  const component = read('../../components/clarity.tsx')
+  const banner = read('../../components/consent/consent-banner.tsx')
+  const privacy = () => markdownOf(LEGAL_DOCS.find((doc) => doc.path === LEGAL_PATHS.privacy)!)
+
+  test('it loads only with a project id and Allow, and is mounted', () => {
+    expect(layout).toContain('<Clarity />')
+    expect(component).toContain('const active = projectId !== null && allowed && !hidden')
+    expect(component).toContain('allowsAnalytics(')
+    expect(component).toContain('pixelExcluded(')
+  })
+
+  test('the banner asks one question for analytics and marketing, and its Allow says so', () => {
+    expect(banner).toContain('Allow analytics and')
+    expect(banner).toContain("saveConsent('all')")
+    expect(banner).not.toContain("saveConsent('marketing')")
+  })
+
+  test('the policy has a Clarity section: consent, what is hidden, cookies, where', () => {
+    const text = privacy()
+    expect(text).toContain('### Microsoft Clarity, to see how our website is used')
+    expect(text).toContain('**Clarity runs only if you allow analytics and marketing cookies**')
+    expect(text).toContain('Clarity does not record what you type into any box')
+    expect(text).toContain('your mobile number and sign-in code, your name, your saved addresses, your car\'s number plate')
+    expect(text).toContain('| _clck (cookie, set by Microsoft Clarity) |')
+    expect(text).toContain('| _clsk (cookie, set by Microsoft Clarity) |')
+    expect(text).toContain('Microsoft and Meta receive what Clarity and the pixel send (section 4) on their servers outside India')
+    expect(text).toContain('**Microsoft Clarity (new, 0061).**')
+  })
+
+  // The policy promises these are hidden; each place that shows or takes
+  // one carries Clarity's mask attribute.
+  test('the fields and areas the policy says are hidden carry data-clarity-mask', () => {
+    const MASK = 'data-clarity-mask="true"'
+    for (const path of [
+      '../../../../packages/ui/src/sc/phone-input.tsx',
+      '../../../../packages/ui/src/sc/otp-input.tsx',
+      '../../app/profile-setup/page.tsx',
+      '../../app/profile/page.tsx',
+      '../../components/add-address-sheet.tsx',
+      '../../app/book/[vendorId]/page.tsx',
+      '../../components/checkout/checkout-sign-in.tsx',
+      '../../components/coupons/coupon-code-box.tsx',
+      '../../components/gifts/redeem-code-box.tsx',
+      '../../app/profile/gifts/new/page.tsx',
+      '../../components/complaints/raise-complaint-sheet.tsx',
+      '../../components/bypass/report-bypass-sheet.tsx',
+    ]) {
+      expect(`${path}: ${read(path).includes(MASK)}`).toBe(`${path}: true`)
     }
   })
 })

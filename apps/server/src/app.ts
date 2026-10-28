@@ -31,6 +31,7 @@ import { publicCertificateRoutes } from './modules/certificates/certificates.rou
 import { publicGuaranteeRoutes } from './modules/guarantee/guarantee.routes.js'
 import { publicRewardRoutes } from './modules/rewards/rewards.routes.js'
 import { geoRoutes } from './modules/geo/geo.routes.js'
+import { zonesRoutes } from './modules/reach/reach.routes.js'
 import { healthRoutes } from './modules/health/health.routes.js'
 import { fakeStreamRoutes, webhookRoutes } from './modules/service-media/service-media.routes.js'
 
@@ -159,6 +160,8 @@ app.route('/api/v1/guarantee', publicGuaranteeRoutes)
 // Detlio Rewards (0050): /config, and the invite page's lookup by code.
 app.route('/api/v1/rewards', publicRewardRoutes)
 app.route('/api/v1/geo', geoRoutes)
+// Chennai's zones (0062): the landing page's "Where's your car?" chips.
+app.route('/api/v1/zones', zonesRoutes)
 app.route('/api/v1/admin', adminRoutes)
 app.route('/api/v1/ops', opsRoutes)
 app.route('/api/v1/health', healthRoutes)

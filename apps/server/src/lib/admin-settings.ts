@@ -1,5 +1,5 @@
 /**
- * Team-wide admin settings (0061, `admin_settings`): the Garages list's
+ * Team-wide admin settings (0064, `admin_settings`): the Garages list's
  * onboarding target and the colour tags' names. One row per key, set from
  * the Garages page by anyone signed in to admin, with who and when.
  *

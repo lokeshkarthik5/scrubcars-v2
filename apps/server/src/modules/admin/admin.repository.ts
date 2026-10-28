@@ -267,7 +267,7 @@ export const adminRepository = {
           columns: {
             id: true,
             description: true,
-            // "Duration not set" on the checklist (0061).
+            // "Duration not set" on the checklist (0064).
             durationMins: true,
             pricingType: true,
             price: true,

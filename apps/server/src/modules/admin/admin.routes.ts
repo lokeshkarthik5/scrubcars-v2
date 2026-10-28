@@ -29,6 +29,7 @@ import { adminOnboardingMarkRoutes } from '../onboarding-marks/onboarding-marks.
 import { adminCollectionListRoutes } from '../collection-lists/collection-lists.routes.js'
 import { adminMediaRoutes } from '../service-media/service-media.routes.js'
 import { addPhotoSchema } from '../service-media/service-media.validation.js'
+import { adminBehaviourRoutes } from '../behaviour/behaviour.routes.js'
 import { adminStatsRoutes } from '../stats/stats.routes.js'
 import { adminPayoutRoutes } from '../payouts/payouts.routes.js'
 import { adminDocumentRoutes } from '../vendor-documents/vendor-documents.routes.js'
@@ -119,6 +120,8 @@ adminRoutes.get(
 // Service History certificates shared and viewed (0053): totals only, on
 // Statistics' Overview.
 adminRoutes.route('/stats/certificates', adminCertificateRoutes)
+// Statistics → Behaviour (0061): the landing → paid funnel by visits.
+adminRoutes.route('/stats/behaviour', adminBehaviourRoutes)
 // Statistics: overview, breakdown and commission over a range of days.
 // Nested here for the same cookie reason as discounts (below).
 adminRoutes.route('/stats', adminStatsRoutes)
@@ -468,7 +471,7 @@ adminRoutes.route('/guarantee', adminGuaranteeRoutes)
 // pages' own services. Nested here for the same cookie reason as discounts.
 adminRoutes.route('/today', adminTodayRoutes)
 
-// The Garages page's target counter and colour tags (0061).
+// The Garages page's target counter and colour tags (0064).
 adminRoutes.route('/garage-board', adminGarageBoardRoutes)
 
 // Add garage's import from a poster, photo, PDF or Tally file, and the
@@ -484,7 +487,7 @@ adminRoutes.route('/', adminAiRoutes)
 // "Start pilot clean": the test-data reset. Nested here for the same cookie
 // reason; every route is a 404 unless ADMIN_DATA_RESET is on.
 adminRoutes.route('/data-reset', adminDataResetRoutes)
-// "Delete test booking" on one booking marked Test (0061): the reset's
+// "Delete test booking" on one booking marked Test (0064): the reset's
 // rules for that chain alone, whether or not the reset is switched on.
 adminRoutes.route('/', adminTestBookingRoutes)
 

@@ -25,7 +25,7 @@ import {
  * "Delete test booking": the same dry run and rules as Start pilot clean,
  * for the one booking (its whole reschedule chain) whose page this is, with
  * its refunds, complaints and notes. For tests the team runs during the
- * pilot. Its own routes (0061), so it works whether or not Start pilot clean
+ * pilot. Its own routes (0064), so it works whether or not Start pilot clean
  * is switched on, and the typed phrase confirms it (no backup tick). The
  * booking must be marked Test, and real money is kept whatever: the server
  * decides both, and the dry run says so before anything can be confirmed.

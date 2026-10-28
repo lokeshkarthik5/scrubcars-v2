@@ -3,6 +3,7 @@ import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 import { env } from '../../lib/env.js'
 import { AppError } from '../../lib/errors.js'
 import type { TenantVariables } from '../../middleware/tenant.middleware.js'
+import { analyticsService } from '../analytics/analytics.service.js'
 import { authService } from './auth.service.js'
 import type { SendOtpInput, VerifyOtpInput } from './auth.validation.js'
 
@@ -82,6 +83,11 @@ export async function sendOtp(c: AuthContext, input: SendOtpInput) {
 
 export async function verifyOtp(c: AuthContext, input: VerifyOtpInput) {
   const session = await authService.verifyOtp(input)
+  // The visit's steps before sign-in join the account (customers only;
+  // after the response, never failing the sign-in).
+  if (input.audience === 'customer') {
+    analyticsService.joinVisit(input.visitId, session.user.id)
+  }
 
   return sessionResponse(c, session)
 }

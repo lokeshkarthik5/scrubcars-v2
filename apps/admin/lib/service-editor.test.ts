@@ -187,7 +187,7 @@ describe('toServicePayload', () => {
     })
   })
 
-  test('an empty duration is left out; a commission percent is sent, empty as null (0061)', () => {
+  test('an empty duration is left out; a commission percent is sent, empty as null (0064)', () => {
     const blank = toServicePayload(
       row({ durationValue: '', commissionRate: '6.5' })
     )

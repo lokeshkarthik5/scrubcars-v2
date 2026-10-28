@@ -599,7 +599,7 @@ export const vendors = pgTable(
     // never filled in automatically: whoever adds the garage may not be the
     // one who onboarded it. Usually a team login's name, or free text.
     onboardedByName: varchar('onboarded_by_name', { length: 100 }),
-    // The team's own colour for the garage on the Garages list (0061):
+    // The team's own colour for the garage on the Garages list (0064):
     // green "All confirmed", amber "A few to confirm", red "Needs details",
     // blue "Call back" (with an optional day), or none. Set by hand only;
     // the names are team-wide (admin_settings 'colour_names').
@@ -822,11 +822,11 @@ export const services = pgTable(
     priceHatchback: decimal('price_hatchback', { precision: 10, scale: 2 }),
     priceSedan: decimal('price_sedan', { precision: 10, scale: 2 }),
     priceSuv: decimal('price_suv', { precision: 10, scale: 2 }),
-    // Optional since 0061: null blocks the default 60 minutes in the slot
+    // Optional since 0064: null blocks the default 60 minutes in the slot
     // calendar. Read it only through effectiveDurationMins
     // (lib/service-duration.ts); a booking's own snapshot is never null.
     durationMins: integer('duration_mins'),
-    // An optional commission percent (0–50) for this service (0061), used by
+    // An optional commission percent (0–50) for this service (0064), used by
     // Statistics instead of its category's rate. Null is the category rate.
     // Reporting only: payouts keep the category rates (lib/commission.ts).
     commissionRate: decimal('commission_rate', { precision: 5, scale: 2 }),
@@ -1984,7 +1984,7 @@ export const vendorOnboardingMarks = pgTable(
     kind: text('kind').notNull(),
     label: varchar('label', { length: 60 }),
     note: text('note'),
-    // The mark's checklist (0061): what to find out, each with its answer and
+    // The mark's checklist (0064): what to find out, each with its answer and
     // who answered it when. See lib/mark-checklist.ts.
     items: jsonb('items').$type<MarkChecklistItem[]>().default([]).notNull(),
     status: text('status').$type<'to_ask' | 'asked' | 'received'>().default('to_ask').notNull(),
@@ -2017,7 +2017,7 @@ export const vendorOnboardingMarks = pgTable(
   ]
 )
 
-// Team-wide admin settings (0061), one row per key: the Garages list's
+// Team-wide admin settings (0064), one row per key: the Garages list's
 // onboarding target ('garage_target') and the colour tags' names
 // ('colour_names'). Shapes and defaults in lib/admin-settings.ts.
 export const adminSettings = pgTable(
@@ -3995,9 +3995,13 @@ export const analyticsEvents = pgTable(
     index('analytics_events_user_id_idx')
       .on(table.userId)
       .where(sql`${table.userId} is not null`),
+    // 0061: a visit's events (Behaviour, and attaching an account on sign-in).
+    index('analytics_events_visit_id_idx')
+      .on(table.visitId)
+      .where(sql`${table.visitId} is not null`),
     check(
       'analytics_events_name_check',
-      sql`${table.name} in ('app_open', 'home_view', 'garage_list_view', 'search', 'map_view', 'garage_view', 'service_add', 'checkout_start', 'slot_select', 'address_select', 'pay_click', 'booking_paid', 'booking_cancelled', 'review_submit', 'complaint_submit', 'help_view', 'favourite_add', 'favourite_remove', 'coupon_scan', 'coupon_redeem')`
+      sql`${table.name} in ('app_open', 'home_view', 'garage_list_view', 'search', 'map_view', 'garage_view', 'service_add', 'checkout_start', 'slot_select', 'address_select', 'pay_click', 'booking_paid', 'booking_cancelled', 'review_submit', 'complaint_submit', 'help_view', 'favourite_add', 'favourite_remove', 'coupon_scan', 'coupon_redeem', 'landing_view', 'garage_card_seen', 'area_pick', 'mode_switch', 'service_sheet_open', 'booking_start', 'otp_sent', 'pay_success', 'pay_failed', 'request_sent', 'free_wash_claim', 'banner_view', 'banner_close')`
     ),
     check(
       'analytics_events_device_check',
@@ -4005,7 +4009,7 @@ export const analyticsEvents = pgTable(
     ),
     check(
       'analytics_events_props_check',
-      sql`jsonb_typeof(${table.props}) = 'object' and ${table.props} - array['vendorId', 'mode', 'category', 'serviceCount', 'amountBucket', 'source', 'step', 'queryLength', 'cancelledBy']::text[] = '{}'::jsonb`
+      sql`jsonb_typeof(${table.props}) = 'object' and ${table.props} - array['vendorId', 'mode', 'category', 'serviceCount', 'amountBucket', 'source', 'step', 'queryLength', 'cancelledBy', 'medium', 'campaign', 'referrer', 'channel', 'area', 'banner']::text[] = '{}'::jsonb`
     ),
     check(
       'analytics_events_visit_check',
@@ -4520,3 +4524,37 @@ export const guaranteeClaimsRelations = relations(guaranteeClaims, ({ one, many 
 export const guaranteeClaimPhotosRelations = relations(guaranteeClaimPhotos, ({ one }) => ({
   claim: one(guaranteeClaims, { fields: [guaranteeClaimPhotos.claimId], references: [guaranteeClaims.id] }),
 }))
+
+/**
+ * Chennai's zones (0062): an area as a centre and a name, for the landing
+ * page's "Where's your car?" chips and, later, coverage. A point belongs to
+ * the nearest centre within 6 km (`zoneFor`, lib/zones.ts); nothing stores a
+ * garage's zone, it is worked out from the pin. `priority` marks the owner's
+ * seven chips; `target` is the team's goal for listed garages; `live_at` is
+ * when the zone first had a live garage (set by the launch-day step, null
+ * until then). Seeded with CHENNAI_ZONES.
+ */
+export const zones = pgTable(
+  'zones',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    slug: varchar('slug', { length: 60 }).notNull(),
+    name: varchar('name', { length: 60 }).notNull(),
+    lat: doublePrecision('lat').notNull(),
+    lng: doublePrecision('lng').notNull(),
+    priority: boolean('priority').default(false).notNull(),
+    target: integer('target').default(5).notNull(),
+    liveAt: timestamp('live_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('zones_slug_key').on(table.slug),
+    uniqueIndex('zones_name_key').on(sql`lower(${table.name})`),
+    check('zones_slug_check', sql`${table.slug} ~ '^[a-z0-9]+(-[a-z0-9]+)*$'`),
+    check('zones_name_check', sql`length(btrim(${table.name})) between 2 and 60`),
+    check('zones_lat_check', sql`${table.lat} between -90 and 90`),
+    check('zones_lng_check', sql`${table.lng} between -180 and 180`),
+    check('zones_target_check', sql`${table.target} between 1 and 1000`),
+  ]
+)

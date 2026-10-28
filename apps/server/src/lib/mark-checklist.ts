@@ -6,9 +6,9 @@
  * sees what is settled and what is still open. Each tick keeps who answered
  * and when.
  *
- * - Stored as `vendor_onboarding_marks.items` (0061), a JSON array, at most
+ * - Stored as `vendor_onboarding_marks.items` (0064), a JSON array, at most
  *   30 items.
- * - A mark from before 0061 whose note has "- " lines reads those lines as
+ * - A mark from before 0064 whose note has "- " lines reads those lines as
  *   its items (the rest of the note stays the note) until it is next changed,
  *   when they are saved as items: nothing is migrated in SQL.
  * - Status follows the ticks, on the marks' own three steps: nothing ticked

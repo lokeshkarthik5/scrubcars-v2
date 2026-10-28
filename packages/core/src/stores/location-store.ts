@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { useHydrated } from '@repo/core/hooks/use-hydrated'
 import { ASSUMED_ORIGIN } from '@repo/core/map'
 
 /**
@@ -17,7 +18,13 @@ import { ASSUMED_ORIGIN } from '@repo/core/map'
  *    server-side geocode cache work — see `coarse()`.
  */
 
-export type LocationSource = 'gps' | 'address' | 'manual'
+/**
+ * Where the location came from. `area` (0062) is a Chennai zone the customer
+ * picked from the "Where's your car?" chips: its centre, with no permission
+ * asked, so distances from it are shown with "~". `manual` is "All of
+ * Chennai", which is no place at all (see isCitywide).
+ */
+export type LocationSource = 'gps' | 'address' | 'manual' | 'area'
 
 export interface ActiveLocation {
   lat: number
@@ -27,6 +34,8 @@ export interface ActiveLocation {
   source: LocationSource
   /** Epoch ms. A stale fix is still better than none. */
   updatedAt: number
+  /** The zone's slug, for an `area` location (which chip is chosen). */
+  zone?: string
 }
 
 export type PermissionState = 'unknown' | 'prompt' | 'granted' | 'denied'
@@ -45,6 +54,11 @@ interface LocationState {
   promptDismissedAt: number | null
   dismissPrompt: () => void
   setLocation: (location: ActiveLocation) => void
+  /**
+   * The customer picked an area: its centre and name, at once, with no
+   * permission prompt (0062). Persisted like any other location.
+   */
+  setArea: (zone: { slug: string; name: string; lat: number; lng: number }) => void
   /** Browse the whole city. Not a pin, so lists are not sorted from downtown. */
   selectChennai: () => void
   clearLocation: () => void
@@ -71,6 +85,17 @@ export const useLocationStore = create<LocationState>()(
       dismissPrompt: () => set({ promptDismissedAt: Date.now() }),
 
       setLocation: (location) => set({ location }),
+      setArea: (zone) =>
+        set({
+          location: {
+            lat: zone.lat,
+            lng: zone.lng,
+            label: zone.name,
+            source: 'area',
+            zone: zone.slug,
+            updatedAt: Date.now(),
+          },
+        }),
       selectChennai: () =>
         set({
           location: {
@@ -160,6 +185,14 @@ export function isCitywide(location: ActiveLocation | null): boolean {
   return location === null || location.source === 'manual'
 }
 
+/**
+ * Distances from here are approximate: an area's centre, not where the
+ * customer stands. Cards then say "~6.2 km" (0062).
+ */
+export function isApproximate(location: ActiveLocation | null): boolean {
+  return location?.source === 'area'
+}
+
 export function isStale(location: ActiveLocation | null): boolean {
   return location !== null && Date.now() - location.updatedAt > STALE_AFTER_MS
 }
@@ -200,4 +233,17 @@ export function coarse(location: Pick<ActiveLocation, 'lat' | 'lng'>): { lat: nu
     lat: Number(location.lat.toFixed(3)),
     lng: Number(location.lng.toFixed(3)),
   }
+}
+
+/**
+ * The stored location, but null until the page has hydrated: the server
+ * renders with no location (it has no localStorage), so a server-rendered
+ * screen (the landing, 0062) must render its first pass the same way. On
+ * screens that only render in the browser it is the stored location from
+ * the second render on.
+ */
+export function useHydratedLocation(): ActiveLocation | null {
+  const hydrated = useHydrated()
+  const location = useLocationStore((s) => s.location)
+  return hydrated ? location : null
 }

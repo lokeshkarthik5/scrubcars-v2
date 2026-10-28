@@ -6,6 +6,8 @@ import {
   IconCalendar,
   IconCar,
   IconChevronDown,
+  IconDeviceMobile,
+  IconWorld,
 } from '@tabler/icons-react'
 import { ScSwitch } from '@repo/ui/sc/switch'
 import { useAdminVendors } from '@repo/core/api/hooks/use-admin-vendors'
@@ -132,6 +134,58 @@ export function ModeSelect({
     <IconSelect
       icon={<IconCar size={16} stroke={1.5} />}
       label="Booking type"
+      value={value}
+      onChange={onChange}
+    >
+      {options.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </IconSelect>
+  )
+}
+
+/** Behaviour's Source: where visits came from (0061). */
+export function SourceSelect({
+  value,
+  options,
+  onChange,
+}: {
+  value: string
+  options: ReadonlyArray<{ value: string; label: string }>
+  onChange: (value: string) => void
+}) {
+  return (
+    <IconSelect
+      icon={<IconWorld size={16} stroke={1.5} />}
+      label="Source"
+      value={value}
+      onChange={onChange}
+    >
+      {options.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </IconSelect>
+  )
+}
+
+/** Behaviour's Device: phone, desktop, or both (0061). */
+export function DeviceSelect({
+  value,
+  options,
+  onChange,
+}: {
+  value: string
+  options: ReadonlyArray<{ value: string; label: string }>
+  onChange: (value: string) => void
+}) {
+  return (
+    <IconSelect
+      icon={<IconDeviceMobile size={16} stroke={1.5} />}
+      label="Device"
       value={value}
       onChange={onChange}
     >

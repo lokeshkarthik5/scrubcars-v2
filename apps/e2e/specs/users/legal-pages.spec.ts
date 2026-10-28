@@ -13,6 +13,7 @@
  * and the routes and links work.
  */
 import { devices, type Page } from '@playwright/test'
+import { answerCookieQuestion } from '../../support/consent'
 import { test, expect, asRole } from '../../support/fixtures'
 import { blockThirdParties, dismissLocationPrompt } from '../../support/network'
 import { SERVICES, VENDORS } from '../../support/seed-ids'
@@ -118,8 +119,10 @@ test.describe('legal pages @p0', () => {
     ).toBeInViewport()
   })
 
-  test('the homepage footer links to all five', async ({ page }) => {
-    await page.goto('/')
+  // The marketing page's footer, kept at /about (0062); the app landing's
+  // compact footer links Terms and Privacy (homepage.spec.ts).
+  test('the marketing page footer links to all five', async ({ page }) => {
+    await page.goto('/about')
     const legal = footer(page).getByRole('navigation', { name: 'Legal' })
 
     for (const { label, href } of PAGES) {
@@ -222,6 +225,7 @@ test.describe('legal pages on a phone @p0', () => {
       ...devices['Pixel 7'],
       viewport: { width: 390, height: 800 },
     })
+    await answerCookieQuestion(context)
     await blockThirdParties(context)
     await dismissLocationPrompt(context)
     const page = await context.newPage()

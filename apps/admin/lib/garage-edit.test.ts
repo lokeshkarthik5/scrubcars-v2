@@ -243,7 +243,7 @@ describe('garageFieldsProblem', () => {
     )
   })
 
-  test('the address and pincode only while customers come to the garage (0061)', () => {
+  test('the address and pincode only while customers come to the garage (0064)', () => {
     const doorstep = { ...ok, address: '', pincode: '' }
     expect(garageFieldsProblem(doorstep)).toBe('Add the address: customers come to the garage (Location)')
     expect(garageFieldsProblem({ ...ok, pincode: '' })).toBe('Pincode must be 6 digits (Location)')

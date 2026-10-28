@@ -58,7 +58,7 @@ export class AiUnavailableError extends Error {
 export const FAKE_AI_TEXT =
   'Exterior washed by hand and dried with microfibre, with the wheels and glass cleaned.'
 
-/** The fake's answer when asked for points (the editor's Points mode, 0061). */
+/** The fake's answer when asked for points (the editor's Points mode, 0064). */
 export const FAKE_AI_POINTS =
   'Full exterior clean by hand.\n- Foam wash and rinse\n- Wheels and tyres cleaned\n- Glass wiped inside and out'
 

@@ -262,7 +262,7 @@ function Timeline({ booking }: { booking: AdminBookingDetail }) {
 }
 
 /**
- * The "Test" mark, and deleting a marked booking (0061: whether or not
+ * The "Test" mark, and deleting a marked booking (0064: whether or not
  * Start pilot clean is switched on). The mark only takes the booking out of
  * the pilot numbers; slots, refunds and receipts never read it.
  */

@@ -281,7 +281,7 @@ describe('Add mark presets already open', () => {
   })
 })
 
-describe('a mark with a checklist (0061)', () => {
+describe('a mark with a checklist (0064)', () => {
   test('an open one says how far it is; a received one says when', () => {
     expect(
       markStatusText(
@@ -348,7 +348,7 @@ describe('a mark with a checklist (0061)', () => {
   })
 })
 
-describe('the edit dialog’s checklist (0061)', () => {
+describe('the edit dialog’s checklist (0064)', () => {
   test('sends ids and words only, so a tick or answer saved meanwhile stays', () => {
     expect(
       checklistPayload([

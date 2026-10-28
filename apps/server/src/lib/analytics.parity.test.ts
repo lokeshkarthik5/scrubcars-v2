@@ -11,6 +11,10 @@ import {
   EVENT_STEPS,
   MAX_EVENTS_PER_BATCH,
   MAX_PATH_LENGTH,
+  CAMPAIGN_PATTERN,
+  CHANNELS,
+  REFERRER_PATTERN,
+  SLUG_PATTERN,
   SOURCE_PATTERN,
 } from './analytics.js'
 
@@ -36,6 +40,10 @@ describe('usage events: the app sends only what the API takes', () => {
     expect(core.MAX_EVENTS_PER_BATCH).toBe(MAX_EVENTS_PER_BATCH)
     expect(core.MAX_PATH_LENGTH).toBe(MAX_PATH_LENGTH)
     expect(String(core.SOURCE_PATTERN)).toBe(String(SOURCE_PATTERN))
+    expect(String(core.CAMPAIGN_PATTERN)).toBe(String(CAMPAIGN_PATTERN))
+    expect(String(core.REFERRER_PATTERN)).toBe(String(REFERRER_PATTERN))
+    expect(String(core.SLUG_PATTERN)).toBe(String(SLUG_PATTERN))
+    expect(core.CHANNELS).toEqual([...CHANNELS])
 
     for (const rupees of [0, 1, 499.99, 500, 999, 1000, 1999.5, 2000, 4999, 5000, 25000, Number.NaN]) {
       expect(core.amountBucket(rupees)).toBe(amountBucket(rupees))

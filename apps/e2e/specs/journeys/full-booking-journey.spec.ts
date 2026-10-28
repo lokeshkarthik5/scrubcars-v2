@@ -8,6 +8,7 @@
  * are on the database, because that is the only place all three agree.
  */
 import { test, expect, statePath } from '../../support/fixtures'
+import { answerCookieQuestion } from '../../support/consent'
 import {
   blockThirdParties,
   dismissLocationPrompt,
@@ -39,10 +40,12 @@ test('a booking is made, worked, completed and reviewed @p0', async ({
     storageState: statePath('customer-journey'),
     baseURL: USERS,
   })
+  await answerCookieQuestion(customerCtx)
   const vendorCtx = await browser.newContext({
     storageState: statePath('vendor-owner'),
     baseURL: VENDORS_APP,
   })
+  await answerCookieQuestion(vendorCtx)
 
   for (const ctx of [customerCtx, vendorCtx]) {
     await stubRazorpay(ctx)

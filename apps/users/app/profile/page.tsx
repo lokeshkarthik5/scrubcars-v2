@@ -65,6 +65,7 @@ import {
   type PinText,
 } from '@/components/pin-autofill'
 import { LEGAL_LINKS } from '@/lib/legal/routes'
+import { CookieSettingsButton } from '@/components/consent/cookie-settings-button'
 
 type VehicleType = 'sedan' | 'suv' | 'hatchback'
 
@@ -392,7 +393,7 @@ export default function ProfilePage() {
             <IconCamera size={11} />
           </span>
         </button>
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0" data-clarity-mask="true">
           <p className="text-[15px] font-semibold text-text-primary">
             {user?.name}
           </p>
@@ -539,6 +540,7 @@ export default function ProfilePage() {
           <ScCard className="mb-2 flex flex-col gap-3">
             <div className="grid grid-cols-2 gap-2">
               <ScInput
+                data-clarity-mask="true"
                 label="Make"
                 placeholder="e.g. Maruti"
                 value={vehicleForm.make}
@@ -547,6 +549,7 @@ export default function ProfilePage() {
                 }
               />
               <ScInput
+                data-clarity-mask="true"
                 label="Model"
                 placeholder="e.g. Swift"
                 value={vehicleForm.model}
@@ -556,6 +559,7 @@ export default function ProfilePage() {
               />
             </div>
             <ScInput
+              data-clarity-mask="true"
               label="License plate (optional)"
               placeholder="e.g. TN 01 AB 1234"
               value={vehicleForm.licensePlate}
@@ -640,7 +644,10 @@ export default function ProfilePage() {
                         aria-hidden="true"
                       />
                     </span>
-                    <span className="block text-[11px] text-text-secondary">
+                    <span
+                      className="block text-[11px] text-text-secondary"
+                      data-clarity-mask="true"
+                    >
                       {v.plate ? `${v.plate} · History` : 'History'}
                     </span>
                   </span>
@@ -692,6 +699,7 @@ export default function ProfilePage() {
         {showAddressForm && (
           <ScCard className="mb-2 flex flex-col gap-3">
             <ScInput
+              data-clarity-mask="true"
               label="Label"
               placeholder="e.g. Home, Work"
               value={addressForm.label}
@@ -737,6 +745,7 @@ export default function ProfilePage() {
               />
             </div>
             <ScInput
+              data-clarity-mask="true"
               label="Address"
               placeholder="Street, area"
               value={addressForm.address}
@@ -746,6 +755,7 @@ export default function ProfilePage() {
             />
             <div className="grid grid-cols-2 gap-2">
               <ScInput
+                data-clarity-mask="true"
                 label="City"
                 placeholder="e.g. Chennai"
                 value={addressForm.city}
@@ -754,6 +764,7 @@ export default function ProfilePage() {
                 }
               />
               <ScInput
+                data-clarity-mask="true"
                 label="Pincode"
                 inputMode="numeric"
                 maxLength={6}
@@ -804,7 +815,7 @@ export default function ProfilePage() {
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-surface-elevated">
                   <IconMapPin size={18} className="text-text-primary" />
                 </div>
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0" data-clarity-mask="true">
                   <p className="text-[13px] font-medium text-text-primary">
                     {a.label}
                   </p>
@@ -890,6 +901,17 @@ export default function ProfilePage() {
                 </Link>
               </li>
             ))}
+            <li>
+              {/* Changes the choice the cookie bar asked for. */}
+              <CookieSettingsButton className="flex w-full items-center justify-between px-3.5 py-2.5 text-left text-[13px] text-text-primary transition-colors hover:text-brand-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-white">
+                Cookie settings
+                <IconChevronRight
+                  size={16}
+                  className="text-text-muted"
+                  aria-hidden="true"
+                />
+              </CookieSettingsButton>
+            </li>
           </ul>
         </ScCard>
       </section>

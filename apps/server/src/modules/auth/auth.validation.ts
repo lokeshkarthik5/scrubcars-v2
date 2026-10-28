@@ -39,6 +39,10 @@ export const verifyOtpSchema = z
     purpose: otpPurposeSchema,
     audience: authAudienceSchema,
     name: z.string().trim().min(1).max(255).optional(),
+    // 0061: the customer app's random visit id (sessionStorage), so the
+    // visit's usage events before sign-in get the account. Optional; an
+    // older app, analytics off or Do Not Track sends none.
+    visitId: z.string().uuid().optional(),
   })
   .superRefine((data, ctx) => {
     if (data.audience === 'customer' && data.purpose === 'vendor_onboard') {

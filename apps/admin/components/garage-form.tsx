@@ -167,7 +167,7 @@ export function GarageForm({
       : !pickupAgreed
         ? 'Tick that the garage signed the pickup & drop agreement, or turn pickup off.'
         : null
-  // A doorstep-only garage needs no address or pincode (0061).
+  // A doorstep-only garage needs no address or pincode (0064).
   const atGarage = bookingMode !== 'doorstep'
   const fieldsProblem = garageFieldsProblem(form, atGarage)
   const missing = missingForCreate(form, services, atGarage)

@@ -18,6 +18,7 @@
  * unticked, so this one survives it.
  */
 import type { Browser } from '@playwright/test'
+import { answerCookieQuestion } from '../../support/consent'
 import { test, expect } from '../../support/fixtures'
 import { API, statePath } from '../../support/auth'
 import { sql } from '../../support/db'
@@ -44,6 +45,7 @@ async function openCustomer(browser: Browser) {
     viewport: { width: 412, height: 915 },
     isMobile: true,
   })
+  await answerCookieQuestion(ctx)
   await dismissLocationPrompt(ctx)
   await blockThirdParties(ctx)
   return { ctx, page: await ctx.newPage() }
@@ -56,6 +58,7 @@ async function openAdmin(browser: Browser) {
     baseURL: ADMIN_ORIGIN,
     viewport: { width: 1280, height: 900 },
   })
+  await answerCookieQuestion(ctx)
   await blockThirdParties(ctx)
   return { ctx, page: await ctx.newPage() }
 }

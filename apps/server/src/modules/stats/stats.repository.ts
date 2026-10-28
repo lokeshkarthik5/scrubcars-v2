@@ -160,7 +160,7 @@ export function statsReads(tx: Tx) {
      * The services sold on each chain booked in [start, end), from its latest
      * row, with each service's category as the catalogue has it now (an item
      * keeps its name and price, not its category), and likewise the
-     * service's own commission percent (0061), when it has one.
+     * service's own commission percent (0064), when it has one.
      */
     async chainItems(start: Date, end: Date, vendorId?: string): Promise<StatsItemRow[]> {
       const rows = await tx.execute<{

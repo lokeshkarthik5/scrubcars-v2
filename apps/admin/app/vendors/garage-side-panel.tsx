@@ -180,7 +180,7 @@ export function GarageSidePanel({
         </SidePanelSection>
       )}
 
-      {/* The team's colour for it (0061): set here too, on a phone. */}
+      {/* The team's colour for it (0064): set here too, on a phone. */}
       {v.colourTag !== undefined && (
         <SidePanelSection title="Colour">
           <div className="flex flex-col items-start gap-0.5">

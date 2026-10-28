@@ -51,7 +51,7 @@ export interface GarageColumnsContext {
   showMissing: boolean
   showMarks: boolean
   showOnboardedBy: boolean
-  /** The team's colour tags (0061): absent from an older API. */
+  /** The team's colour tags (0064): absent from an older API. */
   showColour?: boolean
   /**
    * Onboarded by is on screen: Garage, Area and Modes take less room, so the table
@@ -166,7 +166,7 @@ export function garageColumns(
         </div>
       ),
     },
-    // The team's own colour (0061): sorts in the chips' order, none last;
+    // The team's own colour (0064): sorts in the chips' order, none last;
     // a press opens the picker. On a phone the row's tint says it.
     ctx.showColour === true && {
       id: 'colour',

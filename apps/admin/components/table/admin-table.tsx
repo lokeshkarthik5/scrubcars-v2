@@ -77,7 +77,7 @@ export interface AdminTableProps<T> {
   /** A coloured edge: red-orange for late, amber for today. */
   toneOf?: (r: T) => 'urgent' | 'attention' | null
   /**
-   * The row's own tint and edge (the Garages list's colour tags, 0061).
+   * The row's own tint and edge (the Garages list's colour tags, 0064).
    * Ticked and open rows keep their own background over it.
    */
   rowClassOf?: (r: T) => string | null

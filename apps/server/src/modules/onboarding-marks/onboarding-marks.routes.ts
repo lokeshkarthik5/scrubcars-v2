@@ -47,7 +47,7 @@ adminOnboardingMarkRoutes.post(
   (c) => controller.create(c, c.req.valid('param').id, c.req.valid('json'))
 )
 
-// One checklist item ticked or answered (0061); the mark's status follows.
+// One checklist item ticked or answered (0064); the mark's status follows.
 // 404 MARK_ITEM_NOT_FOUND for an item no longer on the list.
 adminOnboardingMarkRoutes.patch(
   '/vendors/:id/marks/:markId/items/:itemId',

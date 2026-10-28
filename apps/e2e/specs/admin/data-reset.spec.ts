@@ -74,7 +74,7 @@ test.describe('start pilot clean, screens @p0', () => {
     await expect(dialog.getByText('1 booking', { exact: true })).toBeVisible()
 
     // The red button waits for the phrase. No name to type: the session
-    // signs it. One test booking needs no backup tick (0061).
+    // signs it. One test booking needs no backup tick (0064).
     const confirm = dialog.getByRole('button', { name: 'Delete 1 booking' })
     await expect(confirm).toBeDisabled()
     await expect(dialog.getByLabel('Your name')).toHaveCount(0)

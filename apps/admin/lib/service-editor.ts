@@ -65,7 +65,7 @@ export function durationToMins(
 
 /**
  * Stored minutes in the largest clean unit (120 → 2 hours), for editing.
- * None set (null, 0061) is an empty box.
+ * None set (null, 0064) is an empty box.
  */
 export function minsToDuration(
   stored: number | null
@@ -81,7 +81,7 @@ export function minsToDuration(
 /**
  * The row's duration in minutes, or undefined when none is set: the slot
  * calendar then holds the default 60 minutes and the row says "Duration not
- * set" (0061).
+ * set" (0064).
  */
 export const rowDurationMins = (
   row: Pick<ServiceRow, 'durationValue' | 'durationUnit'>
@@ -233,7 +233,7 @@ export function toServiceRow(
  */
 export function toServicePayload(row: ServiceRow): UpdateVendorServiceInput {
   const pos = (v: string) => (Number(v) > 0 ? Number(v) : undefined)
-  // Left out when empty: an API from before 0061 would refuse null, and the
+  // Left out when empty: an API from before 0064 would refuse null, and the
   // new one stores no duration for a service sent without one.
   const durationMins = rowDurationMins(row)
   return {

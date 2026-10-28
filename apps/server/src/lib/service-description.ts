@@ -19,7 +19,7 @@ import { joinListText, splitListText } from './list-text.js'
 
 /**
  * The shape asked for: `paragraph` (one or two sentences, as before) or
- * `points` (0061: the admin editor's Points mode): an optional one-line
+ * `points` (0064: the admin editor's Points mode): an optional one-line
  * intro, then 3 to 6 short "- " points, stored as plain text the way the
  * editor writes it (lib/list-text.ts), so the points survive the AI.
  */

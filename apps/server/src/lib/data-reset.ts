@@ -150,7 +150,7 @@ export interface ResetReceipt {
  * (ON DELETE SET NULL), so they are not part of any chain: a cutoff run
  * takes the ones made before the cutoff as a group of their own, with one
  * tick for all of them. Deleting one test booking (scope `chains`) takes
- * the complaints about it with it (0061): they are about a booking that
+ * the complaints about it with it (0064): they are about a booking that
  * never was.
  */
 export interface ResetComplaint {

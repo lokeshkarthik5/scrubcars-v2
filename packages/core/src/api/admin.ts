@@ -132,7 +132,7 @@ export interface AdminVendor {
   /** Its open items on a collection list ("With Raga · due 29 Oct · 3/11"). */
   openCollection?: AdminVendorCollection | null
   /**
-   * The team's colour for it on the Garages list (0061), or null; the
+   * The team's colour for it on the Garages list (0064), or null; the
    * Call back day ("YYYY-MM-DD", blue only), and who set it when. Absent
    * from an older API.
    */
@@ -270,11 +270,11 @@ export interface AdminVendorDetail {
     priceHatchback: string | null
     priceSedan: string | null
     priceSuv: string | null
-    /** Null: not set (0061), and 60 min is held in the calendar. */
+    /** Null: not set (0064), and 60 min is held in the calendar. */
     durationMins: number | null
     /**
      * Its own commission percent for Statistics ("6.50"), or null for its
-     * category's rate (0061). Absent from an older server.
+     * category's rate (0064). Absent from an older server.
      */
     commissionRate?: string | null
     images: AdminPhoto[]
@@ -310,11 +310,11 @@ export interface UpdateVendorServiceInput {
   priceHatchback?: number
   priceSedan?: number
   priceSuv?: number
-  /** Left out or null: no duration (0061). */
+  /** Left out or null: no duration (0064). */
   durationMins?: number | null
   /**
    * Its own commission percent (0–50) for Statistics, or null for the
-   * category's rate (0061). Left out leaves it as it is.
+   * category's rate (0064). Left out leaves it as it is.
    */
   commissionRate?: number | null
 }
@@ -757,9 +757,9 @@ export interface CreateVendorInput {
     priceHatchback?: number
     priceSedan?: number
     priceSuv?: number
-    /** Left out or null: no duration (0061). */
+    /** Left out or null: no duration (0064). */
     durationMins?: number | null
-    /** Its own commission percent for Statistics (0061); null: the category's. */
+    /** Its own commission percent for Statistics (0064); null: the category's. */
     commissionRate?: number | null
   }>
 }
@@ -1146,6 +1146,66 @@ export interface StatsFunnelReport {
   weeks: Array<{ start: string; end: string; full: boolean; new: number; repeat: number }>
 }
 
+/** Statistics → Behaviour's Source filter (0061). */
+export type StatsBehaviourSource = 'all' | 'instagram' | 'google' | 'direct' | 'other'
+
+/** Statistics → Behaviour's Device filter. Desktop is 640px wide or more (tablets too). */
+export type StatsBehaviourDevice = 'all' | 'phone' | 'desktop'
+
+export type StatsBehaviourStepKey =
+  | 'landed'
+  | 'garageSeen'
+  | 'area'
+  | 'garage'
+  | 'service'
+  | 'booking'
+  | 'number'
+  | 'paid'
+
+/**
+ * GET /admin/stats/behaviour — see apps/server/src/lib/behaviour.ts.
+ * Visits (one browser tab each) are the unit; rates are 0–1, or null.
+ */
+export interface StatsBehaviourReport {
+  range: StatsRange
+  source: StatsBehaviourSource
+  device: StatsBehaviourDevice
+  /** The IST day the first Behaviour step was recorded; null before any. */
+  stepsSince: string | null
+  /** Visits in the period and filters, the team's and Test ones left out. */
+  visits: number
+  leftOut: { team: number; test: number }
+  funnel: {
+    steps: Array<{
+      key: StatsBehaviourStepKey
+      label: string
+      /** Null for a step nothing records yet. */
+      count: number | null
+      lost: number | null
+      ofPrevious: number | null
+      ofLanded: number | null
+    }>
+    biggestLeak: { key: StatsBehaviourStepKey; from: StatsBehaviourStepKey; lost: number } | null
+  }
+  lastSteps: {
+    /** Visits that landed and did not pay. */
+    leavers: number
+    rows: Array<{ event: string; label: string; sessions: number; share: number | null }>
+  }
+}
+
+export interface StatsBehaviourFilters {
+  from: string
+  to: string
+  source: StatsBehaviourSource
+  device: StatsBehaviourDevice
+}
+
+/** GET /admin/stats/behaviour?from&to&source&device */
+export async function getStatsBehaviour(filters: StatsBehaviourFilters) {
+  return apiClient<StatsBehaviourReport>('/admin/stats/behaviour', { params: { ...filters } })
+}
+
 /** GET /admin/stats/funnel?from&to&mode */
 export async function getStatsFunnel(filters: { from: string; to: string; mode: StatsFunnelMode }) {
   return apiClient<StatsFunnelReport>('/admin/stats/funnel', { params: { ...filters } })
@@ -1444,7 +1504,7 @@ export interface DescribeServiceInput {
   durationMins?: number
   garageName?: string
   /**
-   * 'points' (0061, the editor's Points mode): an intro line and "- "
+   * 'points' (0064, the editor's Points mode): an intro line and "- "
    * points, kept in that shape. Left out is a paragraph; an API older than
    * this refuses the field (400).
    */
@@ -1990,7 +2050,7 @@ export async function executeDataReset(input: DataResetExecuteInput) {
 
 /**
  * POST /admin/bookings/:id/test-delete/preview — the dry run for deleting
- * one test booking with its whole chain (0061). Works with the reset
+ * one test booking with its whole chain (0064). Works with the reset
  * switched off. 404 when there is no such booking.
  */
 export async function previewTestBookingDelete(bookingId: string, input: { unknownIds?: string[] }) {

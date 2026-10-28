@@ -20,6 +20,7 @@ import { db } from '../index.js'
 import {
   adminAuditLog,
   adminLogins,
+  analyticsEvents,
   bookingCharges,
   bookingIntentItems,
   bookingIntents,
@@ -70,6 +71,7 @@ import {
   PICKUP_HOME,
   PICKUP_PIN,
   PROPOSALS_PIN,
+  REACH_PINS,
   DOCUMENTS_PIN,
   RESPONSE_OTHER_PIN,
   SLOT_ALERTS_PIN,
@@ -79,6 +81,7 @@ import {
   SERVICES,
   STAFF,
   STATS,
+  BEHAVIOUR,
   UNSET_RADIUS_COVERED,
   UNSET_RADIUS_OUTSIDE,
   UNSET_RADIUS_PIN,
@@ -1977,6 +1980,74 @@ async function seedPayoutRows() {
  * (ADDRESSES.pickupHome, ~1.7 km away) are what a pickup booking needs.
  * After the people it names, like every garage seeded on its own.
  */
+/**
+ * Customer reach (0062): five live garages around REACH_HERE for the garage
+ * list's "never empty" pieces (REACH_PINS says where each is and what it
+ * shows), and CUSTOMERS.guestExisting's one saved car, for the guest
+ * checkout's "Use saved". Ids 4300–4399, phones 90000043xx. Nothing books
+ * at these garages but the specs that read them never pay, so they stay as
+ * seeded.
+ */
+async function seedReachRows() {
+  const owner = STAFF.reachOwner.id
+  const garages = [
+    {
+      vendor: VENDORS.reachFar, pin: REACH_PINS.far, phone: '9000004311', service: SERVICES.reachFarWash,
+      dropin: true, doorstep: false, doorstepRadiusKm: null, pickupRadiusKm: 10,
+    },
+    {
+      vendor: VENDORS.reachDoorstep, pin: REACH_PINS.doorstep, phone: '9000004312', service: SERVICES.reachDoorstepWash,
+      dropin: false, doorstep: true, doorstepRadiusKm: 8, pickupRadiusKm: null,
+    },
+    {
+      vendor: VENDORS.reachPickup, pin: REACH_PINS.pickup, phone: '9000004313', service: SERVICES.reachPickupWash,
+      dropin: false, doorstep: false, doorstepRadiusKm: null, pickupRadiusKm: 8,
+    },
+    {
+      vendor: VENDORS.reachOutsideDoorstep, pin: REACH_PINS.outsideDoorstep, phone: '9000004314',
+      service: SERVICES.reachOutsideDoorstepWash,
+      dropin: false, doorstep: true, doorstepRadiusKm: 5, pickupRadiusKm: null,
+    },
+    {
+      vendor: VENDORS.reachOutsidePickup, pin: REACH_PINS.outsidePickup, phone: '9000004315',
+      service: SERVICES.reachOutsidePickupWash,
+      dropin: false, doorstep: false, doorstepRadiusKm: null, pickupRadiusKm: 8,
+    },
+  ]
+  for (const g of garages) {
+    const collects = g.pickupRadiusKm !== null
+    await db.insert(vendors).values({
+      id: g.vendor.id, ownerId: owner, businessName: g.vendor.name,
+      phone: g.phone, address: '3, Reach Road', city: 'Pudukkottai', pincode: '622001',
+      lat: g.pin.lat, lng: g.pin.lng, geoSource: 'map_pin', geoConfirmedAt: now,
+      vehicleTypes: ['hatchback', 'sedan', 'suv'],
+      isVerified: true, dropinEnabled: g.dropin, doorstepEnabled: g.doorstep,
+      doorstepRadiusKm: g.doorstepRadiusKm,
+      ...(collects
+        ? {
+            pickup: 'yes' as const, pickupRadiusKm: g.pickupRadiusKm,
+            pickupTermsAcceptedAt: daysAgo(1), pickupTermsAcceptedBy: 'admin: E2E seed',
+          }
+        : {}),
+      slotIntervalMins: 30, status: 'active', bays: 2,
+    })
+    await db.insert(userMemberMapping).values({
+      vendorId: g.vendor.id, userId: owner, role: 'vendor_admin', status: 'active',
+    })
+    await db.insert(vendorWorkingHours).values(hoursFor(g.vendor.id, '06:00:00', '22:00:00'))
+    await db.insert(services).values({
+      id: g.service.id, vendorId: g.vendor.id, name: g.service.name,
+      description: 'An exterior foam wash and dry.', category: 'car_wash', pricingType: 'flat',
+      price: g.service.price, durationMins: g.service.durationMins, isActive: true,
+    })
+  }
+
+  await db.insert(userVehicles).values({
+    id: CUSTOMERS.guestExisting.vehicleId, userId: CUSTOMERS.guestExisting.id, make: 'Tata', model: 'Nexon',
+    color: 'Blue', licensePlate: 'TN43GE0001', vehicleType: 'suv', isDefault: true,
+  })
+}
+
 async function seedPickupRows() {
   const garage = VENDORS.pickup.id
   await db.insert(vendors).values({
@@ -2733,7 +2804,7 @@ async function seedMarksRows() {
 }
 
 /**
- * The admin round (0061; ids 4200–4249, specs/admin/admin-round-*.spec.ts):
+ * The admin round (0064; ids 4200–4249, specs/admin/admin-round-*.spec.ts):
  * see VENDORS.roundA/roundB/roundDoorstep, SERVICES.round*, BOOKINGS.round*
  * and ROUND. Pinned far from every other garage, so no customer list or
  * other spec meets them.
@@ -2764,7 +2835,7 @@ async function seedAdminRoundRows() {
     },
     {
       // Doorstep only: no street address and no pincode, which it no longer
-      // needs (0061).
+      // needs (0064).
       ...garage, ...pin(2), id: VENDORS.roundDoorstep.id, ownerId: STAFF.roundDoorstepOwner.id,
       businessName: VENDORS.roundDoorstep.name, phone: STAFF.roundDoorstepOwner.phone,
       address: '', pincode: '',
@@ -2831,7 +2902,7 @@ async function seedAdminRoundRows() {
     category: 'other', message: 'Seeded: about a test booking.', source: 'phone', loggedBy: 'E2E seed',
   })
 
-  // Marks: a checklist with one item answered, and one from before 0061
+  // Marks: a checklist with one item answered, and one from before 0064
   // whose note holds the list.
   await db.insert(vendorOnboardingMarks).values([
     {
@@ -2850,6 +2921,74 @@ async function seedAdminRoundRows() {
       createdByName: 'E2E seed',
     },
   ])
+}
+
+/**
+ * Statistics → Behaviour's visits (0061): see BEHAVIOUR in e2e-ids.ts for
+ * each group and the figures they add up to. Usage events only, plus the
+ * team's customer, whose number is a team login's phone. The Test visit
+ * leans on STATS.testInRange (CUSTOMERS.stats, made eight days ago at 11:00
+ * IST), so it is timed around that.
+ */
+async function seedBehaviourRows() {
+  await db.insert(users).values({
+    id: BEHAVIOUR.teamCustomer.id,
+    name: BEHAVIOUR.teamCustomer.name,
+    phone: BEHAVIOUR.teamCustomer.phone,
+    isCustomer: true,
+    isVendorOwner: false,
+    phoneVerified: true,
+    status: 'active',
+  })
+  const props = (
+    name: string,
+    group: { channel: string },
+    vendorId: string
+  ): Record<string, string> => {
+    switch (name) {
+      case 'app_open':
+        return { channel: group.channel }
+      case 'garage_view':
+      case 'service_sheet_open':
+      case 'booking_start':
+      case 'checkout_start':
+      case 'pay_click':
+      case 'pay_success':
+        return { vendorId, mode: 'dropin' }
+      default:
+        return {}
+    }
+  }
+  const rows: Array<typeof analyticsEvents.$inferInsert> = []
+  let n = 0
+  for (const group of Object.values(BEHAVIOUR.groups)) {
+    const userId =
+      'user' in group
+        ? group.user === 'team'
+          ? BEHAVIOUR.teamCustomer.id
+          : CUSTOMERS.stats.id
+        : null
+    for (let v = 0; v < group.visits; v++) {
+      n += 1
+      const visitId = BEHAVIOUR.visit(n)
+      // From 10:55 IST, a minute a step: the Test visit's booking (11:00)
+      // falls inside it.
+      const startAt = new Date(daysAheadAt(-group.daysAgo, 11).getTime() - 5 * 60_000 + v * 1000)
+      group.steps.forEach((name, i) => {
+        rows.push({
+          name,
+          visitId,
+          userId,
+          props: props(name, group, VENDORS.main.id),
+          path: name === 'garage_view' ? '/garage/:id' : name === 'landing_view' || name === 'app_open' ? '/' : '/book/:id',
+          device: group.device,
+          appVersion: '0.3.0',
+          occurredAt: new Date(startAt.getTime() + i * 60_000),
+        })
+      })
+    }
+  }
+  await db.insert(analyticsEvents).values(rows)
 }
 
 async function main() {
@@ -2889,6 +3028,7 @@ async function main() {
   await seedPayoutRows()
   console.log('[e2e-seed] pickup & drop…')
   await seedPickupRows()
+  await seedReachRows()
   console.log('[e2e-seed] suggested times & extra work…')
   await seedProposalRows()
   console.log('[e2e-seed] garage response deadline…')
@@ -2916,6 +3056,8 @@ async function main() {
   await seedAdminLoginRows()
   console.log('[e2e-seed] admin round…')
   await seedAdminRoundRows()
+  console.log('[e2e-seed] behaviour visits…')
+  await seedBehaviourRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }

@@ -27,7 +27,7 @@ export interface ServiceRowFields {
   priceSuv: string
   durationValue: string
   /**
-   * The service's own commission percent for Statistics (0061), as typed;
+   * The service's own commission percent for Statistics (0064), as typed;
    * empty is its category's rate. Optional: a row from the add page's import
    * may have none.
    */

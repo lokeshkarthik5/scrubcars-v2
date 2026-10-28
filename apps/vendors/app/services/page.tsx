@@ -166,7 +166,7 @@ export default function VendorServicesPage() {
         svc.priceHatchback != null ? String(svc.priceHatchback) : '',
       priceSedan: svc.priceSedan != null ? String(svc.priceSedan) : '',
       priceSuv: svc.priceSuv != null ? String(svc.priceSuv) : '',
-      // Admin may leave a duration unset (0061): the box starts empty.
+      // Admin may leave a duration unset (0064): the box starts empty.
       durationMins: svc.durationMins != null ? String(svc.durationMins) : '',
     })
   }

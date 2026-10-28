@@ -22,7 +22,7 @@
  * document approved yet, so no "Documents verified" badge. Never blocking:
  * listing is the Verify button's, not the documents'.
  *
- * The admin round (0061) adds two. Blocking: at-garage on with no address
+ * The admin round (0064) adds two. Blocking: at-garage on with no address
  * or no 6-digit pincode (a doorstep-only garage needs only its pin; owner,
  * 28 Oct 2026). Optional: services with no duration, counted, which hold the
  * default 60 minutes in the slot calendar.
@@ -77,7 +77,7 @@ export interface ReadinessInput {
   vehicleTypes: string[]
   photoCount: number
   /**
-   * Its address and pincode. Absent (a caller from before 0061) skips the
+   * Its address and pincode. Absent (a caller from before 0064) skips the
    * at-garage address rule.
    */
   address?: string | null

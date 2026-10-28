@@ -11,7 +11,7 @@ import type {
 const log = logger.child({ module: 'garage-board' })
 
 /**
- * The Garages page's own settings and colours (0061, mockup garages-list):
+ * The Garages page's own settings and colours (0064, mockup garages-list):
  * the onboarding target and the colour tags' names, kept team-wide in
  * `admin_settings`, and the colour the team gives each garage.
  */

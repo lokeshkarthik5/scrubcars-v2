@@ -10,6 +10,7 @@ import { safeNextPath } from '@repo/core/redirect'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { useUserStore } from '@repo/core/stores/user-store'
 import { toast } from 'react-toastify'
+import { trackRegistration } from '@/lib/meta-pixel'
 
 /**
  * The last step of signing up: a name, and nothing else.
@@ -55,6 +56,9 @@ function ProfileSetupForm() {
       useUserStore.setState((s) => ({
         profile: s.profile ? { ...s.profile, name: profile.name } : s.profile,
       }))
+      // A new customer's account is set up: Meta's CompleteRegistration
+      // (marketing consent only; nothing about them, not even the name).
+      trackRegistration()
       // Replace, not push: Back from the booking should not land on a form
       // that has already been filled in.
       router.replace(next ?? '/home?welcome=1')
@@ -89,6 +93,7 @@ function ProfileSetupForm() {
 
         <div className="mt-8">
           <ScInput
+            data-clarity-mask="true"
             id="profile-name"
             label="Full name"
             placeholder="Your name"

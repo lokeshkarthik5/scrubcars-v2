@@ -275,7 +275,7 @@ export const CUSTOMERS = {
    */
   dataResetUi: { id: id(151), phone: '9000000051', name: 'Reset Usha', vehicleId: id(761) },
   /**
-   * The admin round's bookings (0061; ids 4200–4249): BOOKINGS.round*, at
+   * The admin round's bookings (0064; ids 4200–4249): BOOKINGS.round*, at
    * VENDORS.roundA, for the Slot column and Delete test booking.
    */
   adminRound: { id: id(4200), phone: '9000004204', name: 'Round Ravi', vehicleId: id(4201) },
@@ -411,6 +411,14 @@ export const CUSTOMERS = {
    */
   today: { id: id(3901), phone: '9000003901', name: 'Today Tharun', vehicleId: id(3902) },
   /**
+   * Customer reach (0062): a returning customer who books as a guest and
+   * signs in at Pay with their number (specs/users/guest-checkout.spec.ts),
+   * so checkout offers "Use saved" for their one car (a Tata Nexon). Ids
+   * 4300–4399 and phones 90000043xx are this feature's own range. Nothing
+   * else signs in as them.
+   */
+  guestExisting: { id: id(4301), phone: '9000004301', name: 'Returning Rekha', vehicleId: id(4302) },
+  /**
    * Customers whose *session* is the thing under test.
    *
    * Logging out and revoking refresh tokens are destructive to the session
@@ -516,9 +524,11 @@ export const STAFF = {
   marksBOwner: { id: id(4156), phone: '9000004155', name: 'Marks Owner Bala' },
   /** Owns VENDORS.marksC only (the garage editor layout spec, 0059). */
   marksCOwner: { id: id(4166), phone: '9000004165', name: 'Marks Owner Chitra' },
-  /** Own VENDORS.roundA and roundDoorstep (the admin round, 0061; 4200–4249). */
+  /** Own VENDORS.roundA and roundDoorstep (the admin round, 0064; 4200–4249). */
   roundAOwner: { id: id(4202), phone: '9000004202', name: 'Round Owner Arul' },
   roundDoorstepOwner: { id: id(4203), phone: '9000004203', name: 'Round Owner Devi' },
+  /** Owns the five customer-reach garages (VENDORS.reach*, 0062; the 4300–4399 range). */
+  reachOwner: { id: id(4305), phone: '9000004305', name: 'Reach Owner Ravi' },
 } as const
 
 export const VENDORS = {
@@ -766,7 +776,7 @@ export const VENDORS = {
    */
   marksC: { id: id(4165), name: 'Marks Test Garage C', onboardedByName: 'E2E Admin' },
   /**
-   * The admin round (0061; ids 4200–4249), only its specs touch these:
+   * The admin round (0064; ids 4200–4249), only its specs touch these:
    * - roundA: live, at the garage and doorstep, far from every other pin.
    *   Its wash has no duration and its detailing its own 6% commission; it
    *   has a checklist mark (1 of 3 ticked) and an old mark whose note holds
@@ -777,12 +787,58 @@ export const VENDORS = {
   roundA: { id: id(4210), name: 'Round Test Garage A' },
   roundDoorstep: { id: id(4211), name: 'Round Doorstep Garage' },
   roundB: { id: id(4212), name: 'Round Test Garage B' },
+  /**
+   * Customer reach (0062; ids 4300–4399): five live garages around REACH_HERE,
+   * far south-west of every other test garage, for the garage list's "never
+   * empty" pieces (specs/users/customer-reach.spec.ts). See REACH_PINS for
+   * where each is and why. All owned by STAFF.reachOwner, open every day.
+   */
+  reachFar: { id: id(4310), name: 'Reach Far Garage' },
+  reachDoorstep: { id: id(4311), name: 'Reach Doorstep Garage' },
+  reachPickup: { id: id(4312), name: 'Reach Pickup Garage' },
+  reachOutsideDoorstep: { id: id(4313), name: 'Reach Outside Doorstep' },
+  reachOutsidePickup: { id: id(4314), name: 'Reach Outside Pickup' },
 } as const
 
 /** VENDORS.contact's own numbers (contact windows), different on purpose. */
 export const CONTACT_GARAGE = { phone: '9000003410', whatsapp: '9000003411' } as const
 
 /** Where VENDORS.documents is: south-west, clear of every other test garage. */
+/**
+ * Customer reach (0062): where a customer stands for the "never empty" list
+ * pieces, ~150 km from every other test garage, so nothing else is near.
+ * Exact in binary (multiples of 1/64), like the other pins.
+ *
+ * From REACH_HERE: the nearest at-garage garage (reachFar) is ~13.9 km away,
+ * so At garage shows "Skip the drive" with 1 doorstep garage (reachDoorstep,
+ * 3.5 km, covers 8 km, from ₹349) and 1 pickup garage (reachPickup, 3.5 km
+ * south, collects within 8 km). Doorstep's "Just outside their area" holds
+ * reachOutsideDoorstep (8.7 km, covers 5 km: "covers 5 km · 3.7 km outside");
+ * Pickup & drop's holds reachFar (13.9 km, collects within 10 km: 3.9 km
+ * outside) and reachOutsidePickup (13.7 km east, collects within 8 km).
+ *
+ * From REACH_MID (between HERE and reachFar): reachFar is ~6.9 km away, so
+ * At garage shows the small "or have it done at home" line (reachDoorstep,
+ * 3.5 km, covers them), and reachFar's card says "Can collect your car"
+ * (its 10 km pickup reaches MID).
+ */
+export const REACH_HERE = { lat: 10.5, lng: 79.5 } as const
+export const REACH_MID = { lat: 10.5625, lng: 79.5 } as const
+export const REACH_PINS = {
+  far: { lat: 10.625, lng: 79.5 },
+  doorstep: { lat: 10.53125, lng: 79.5 },
+  pickup: { lat: 10.46875, lng: 79.5 },
+  outsideDoorstep: { lat: 10.421875, lng: 79.5 },
+  outsidePickup: { lat: 10.5, lng: 79.625 },
+} as const
+
+/**
+ * Numbers no account has, for a guest who signs up at checkout
+ * (specs/users/guest-checkout.spec.ts picks the first unused one, so a retry
+ * in the same run still starts as a new customer).
+ */
+export const GUEST_NEW_PHONES = Array.from({ length: 10 }, (_, i) => `900000439${i}`)
+
 export const DOCUMENTS_PIN = { lat: 12.625, lng: 79.625 } as const
 
 /** Where VENDORS.proposals is: south-west, clear of every other test garage. */
@@ -942,12 +998,18 @@ export const SERVICES = {
   marksAWash: { id: id(4153), name: 'Marks A Foam Wash', price: '500.00', durationMins: 30 },
   marksBWash: { id: id(4157), name: 'Marks B Foam Wash', price: '500.00', durationMins: 30 },
   marksCWash: { id: id(4167), name: 'Marks C Foam Wash', price: '500.00', durationMins: 30 },
-  /** VENDORS.roundA's (0061): a wash with no duration, detailing at its own 6%. */
+  /** VENDORS.roundA's (0064): a wash with no duration, detailing at its own 6%. */
   roundWash: { id: id(4213), name: 'Round Foam Wash', price: '450.00', durationMins: null },
   roundDetail: { id: id(4214), name: 'Round Interior Detail', price: '1500.00', durationMins: 120 },
   /** VENDORS.roundDoorstep's and roundB's one wash each. */
   roundDoorstepWash: { id: id(4215), name: 'Round Doorstep Wash', price: '400.00', durationMins: 45 },
   roundBWash: { id: id(4216), name: 'Round B Foam Wash', price: '400.00', durationMins: 45 },
+  /** The customer-reach garages' one wash each (0062). */
+  reachFarWash: { id: id(4320), name: 'Reach Far Wash', price: '299.00', durationMins: 30 },
+  reachDoorstepWash: { id: id(4321), name: 'Reach Doorstep Wash', price: '349.00', durationMins: 30 },
+  reachPickupWash: { id: id(4322), name: 'Reach Pickup Wash', price: '499.00', durationMins: 30 },
+  reachOutsideDoorstepWash: { id: id(4323), name: 'Reach Outside Doorstep Wash', price: '399.00', durationMins: 30 },
+  reachOutsidePickupWash: { id: id(4324), name: 'Reach Outside Pickup Wash', price: '599.00', durationMins: 30 },
 } as const
 
 export const DISCOUNTS = {
@@ -1181,7 +1243,7 @@ export const BOOKINGS = {
   resetUiMarked: refId('da7a0009'),
   resetUiKeep: refId('da7a000b'),
   /**
-   * The admin round (0061), CUSTOMERS.adminRound's at VENDORS.roundA:
+   * The admin round (0064), CUSTOMERS.adminRound's at VENDORS.roundA:
    * - roundSlot: in two days, booked yesterday: the Slot column and
    *   "Booked yesterday, …".
    * - roundDelete: marked Test, paid with E2E money, with a team note and a
@@ -1374,14 +1436,14 @@ export const BOOKING_INTENTS = {
 export const DATA_RESET = { earlierAudit: id(1301) } as const
 
 /**
- * The admin round's other rows (0061; ids 4200–4249): the complaint about
+ * The admin round's other rows (0064; ids 4200–4249): the complaint about
  * BOOKINGS.roundDelete, and VENDORS.roundA's two marks.
  */
 export const ROUND = {
   complaint: id(4230),
   /** "New garage call": three items, the first ticked with an answer. */
   checklistMark: id(4231),
-  /** From before 0061: its note's "- " lines read as items. */
+  /** From before 0064: its note's "- " lines read as items. */
   oldNoteMark: id(4232),
 } as const
 
@@ -1505,4 +1567,59 @@ export const STATS = {
   /** Ended codes at VENDORS.stats, so nobody can use them at checkout. */
   promo: { id: id(511), code: 'STATSPROMO' },
   garageDiscount: { id: id(512), code: 'STATSGARAGE' },
+} as const
+
+/**
+ * Statistics → Behaviour (0061; specs/admin/behaviour-api.spec.ts and
+ * behaviour.spec.ts), ids 4200–4299. Seeded usage events only: E2E builds
+ * record none of their own (NEXT_PUBLIC_ANALYTICS is off), so these are the
+ * only visits there are. Each `visits` row is that many visits doing those
+ * steps in order, two days ago at 11:00 IST, a minute apart:
+ *
+ * - landedOnly: 5 from Instagram, on a phone: landed and left.
+ * - sawGarage: 3 from Instagram, on a phone: landed, saw a garage card,
+ *   opened the garage, left.
+ * - gaveNumber: 1 from Google, on a desktop: on to a service, Book Now and a
+ *   code sent, then left.
+ * - paid: 1 direct, on a phone: all the way to paid.
+ * - fromLink: 4 from Instagram, on a phone, straight to a garage's page:
+ *   never landed, so in no step, but counted in visits.
+ * - team: 2 by `teamCustomer`, whose number is ADMIN_LOGINS.collector's
+ *   phone: landed and paid, left out as the team's.
+ * - test: 1 by CUSTOMERS.stats, eight days ago around 11:00 IST, when that
+ *   customer made STATS.testInRange (marked Test): landed and paid, left
+ *   out as a Test booking's (only in the last 30 days).
+ *
+ * Nobody picks an area (the landing page's chips come later), so that step
+ * reads "Not recorded yet".
+ *
+ * Last 7 days, every source and device: 14 visits; landed 10, saw a garage
+ * 5, opened a garage 5, opened a service 2, started booking 2, gave a
+ * number 2, paid 1; the biggest leak is Landed → Saw a garage (5). Last
+ * step before leaving, of 9: Landing page 5, A garage's page 3, Sign-in code
+ * sent 1. 2 team visits left out. Instagram: landed 8. Phone: landed 9.
+ * Last 30 days: the same, and 1 visit with a Test booking left out.
+ */
+export const BEHAVIOUR = {
+  /** The n-th seeded visit's random id, 1-based. */
+  visit: (n: number): string => id(4200 + n),
+  teamCustomer: { id: id(4290), name: 'Team Tester E2E', phone: '9000004160' },
+  groups: {
+    landedOnly: { visits: 5, daysAgo: 2, channel: 'instagram', device: 'phone',
+      steps: ['app_open', 'landing_view'] },
+    sawGarage: { visits: 3, daysAgo: 2, channel: 'instagram', device: 'phone',
+      steps: ['app_open', 'landing_view', 'garage_card_seen', 'garage_view'] },
+    gaveNumber: { visits: 1, daysAgo: 2, channel: 'google', device: 'desktop',
+      steps: ['app_open', 'landing_view', 'garage_card_seen', 'garage_view', 'service_sheet_open',
+        'booking_start', 'otp_sent'] },
+    paid: { visits: 1, daysAgo: 2, channel: 'direct', device: 'phone',
+      steps: ['app_open', 'landing_view', 'garage_card_seen', 'garage_view', 'service_sheet_open',
+        'booking_start', 'otp_sent', 'checkout_start', 'pay_click', 'pay_success'] },
+    fromLink: { visits: 4, daysAgo: 2, channel: 'instagram', device: 'phone',
+      steps: ['app_open', 'garage_view'] },
+    team: { visits: 2, daysAgo: 2, channel: 'direct', device: 'phone', user: 'team',
+      steps: ['app_open', 'landing_view', 'garage_view', 'booking_start', 'pay_success'] },
+    test: { visits: 1, daysAgo: 8, channel: 'direct', device: 'phone', user: 'stats',
+      steps: ['app_open', 'landing_view', 'garage_view', 'booking_start', 'pay_success'] },
+  },
 } as const

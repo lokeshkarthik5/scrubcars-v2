@@ -56,7 +56,14 @@ export function OtpInput({ length = 6, onComplete, tone = 'solid', errorId }: Ot
   }
 
   return (
-    <div role="group" aria-label="Verification code" className="flex justify-center gap-2">
+    // data-clarity-mask: never recorded by Microsoft Clarity (customer app,
+    // with consent).
+    <div
+      role="group"
+      aria-label="Verification code"
+      className="flex justify-center gap-2"
+      data-clarity-mask="true"
+    >
       {values.map((val, i) => (
         <input
           key={i}

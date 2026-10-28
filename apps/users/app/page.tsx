@@ -1,46 +1,37 @@
-import type { Metadata, Viewport } from 'next'
-import {
-  META,
-  RESULTS,
-  TESTIMONIALS,
-  VIDEOS,
-} from '@/components/marketing/content'
-import { getLiveGarages } from '@/components/marketing/live-garages'
-import { ScrollMotion } from '@/components/marketing/scroll-motion'
+import type { Metadata } from 'next'
+import Link from 'next/link'
+import { AppShell } from '@repo/ui/sc/app-shell'
+import { LandingView } from '@/components/behaviour-marks'
+import { LandingApp } from '@/components/landing/landing-app'
+import { LandingFooter } from '@/components/landing/landing-footer'
+import { getLandingList } from '@/components/landing/landing-list'
 import { SkipLink } from '@/components/skip-link'
-import {
-  AppShowcase,
-  Faq,
-  FinalCta,
-  Garages,
-  Hero,
-  HowItWorks,
-  Instagram,
-  Perks,
-  Promises,
-  Results,
-  Services,
-  SiteFooter,
-  SiteHeader,
-  Testimonials,
-  Videos,
-} from '@/components/marketing/sections'
 
 /**
- * The marketing homepage — what detlio.com shows a visitor who is not signed
- * in. Signed-in customers are sent on to the app: before paint by the script in
- * the root layout (see signed-in-landing.ts), or by AppProvider once the
- * session resolves.
+ * detlio.com for a visitor who is not signed in: the app itself (customer
+ * reach, 0062). About 600 visitors left the old homepage without tapping
+ * anything; its headline faded in word by word and there were no garages,
+ * prices or "near me" on the first screen. Now the first screen is the
+ * headline, "Where's your car?" and real garages with prices, with no
+ * animation before any of it. The old page is kept whole at /about.
  *
- * Server-rendered, so it is indexable and paints without waiting on the API.
+ * Server-rendered and static (revalidated every five minutes with its first
+ * page of garages), so it is indexable and paints without waiting on the
+ * API. It reads no URL query: anything that would must use useSearchParams
+ * inside a Suspense boundary, never the `searchParams` prop, which a static
+ * page gets empty. Signed-in customers are sent on to /home: before paint by
+ * the script in the root layout (signed-in-landing.ts), or by AppProvider
+ * once the session resolves.
  */
 
-const { title: TITLE, description: DESCRIPTION } = META
+const TITLE = 'Detlio — Car wash & detailing near you in Chennai'
+const DESCRIPTION =
+  'Real prices from Chennai garages. Book a car wash, detailing, coating or scratch removal in 1 minute: at the garage, at your door, or with pickup & drop.'
 
 // The share image is the site's own (app/opengraph-image.png and
-// twitter-image.png, 1200×630). Next ranks those files above any `images`
-// set here, so naming one here would be a setting that does nothing.
-// `metadataBase` comes from the root layout.
+// twitter-image.png, 1200×630), which Next adds to this segment by itself
+// and ranks above any `images` set here. `metadataBase` comes from the root
+// layout.
 export const metadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
@@ -59,73 +50,44 @@ export const metadata: Metadata = {
   },
 }
 
-/**
- * Zoom to 5x, said outright. The rest of the app leaves zoom alone and caps it
- * on iOS only, to stop Safari zooming into form fields (IosZoomGuard, which
- * leaves a page that names its own maximum as it is). This page has no
- * fields, and blocking pinch-zoom on a page meant for reading fails WCAG
- * 1.4.4.
- */
-export const viewport: Viewport = {
-  width: 'device-width',
-  initialScale: 1,
-  maximumScale: 5,
-}
-
-/**
- * Placeholder results, videos and reviews are for reviewing the layout: shown locally
- * and on Vercel preview deployments, never in production — where a section
- * with nothing real in it is left out. See content.ts.
- */
-const SHOW_SAMPLES =
-  process.env.NODE_ENV === 'development' || process.env.VERCEL_ENV === 'preview'
-
-export default async function HomePage() {
-  const garages = await getLiveGarages()
-
-  const results = RESULTS.filter((result) => SHOW_SAMPLES || !result.sample)
-  const reels = VIDEOS.filter((reel) => SHOW_SAMPLES || !reel.sample)
-  const testimonials = TESTIMONIALS.filter(
-    (testimonial) => SHOW_SAMPLES || !testimonial.sample
-  )
-  // A row of one or two looks like an empty shop window; wait for a fuller one.
-  const showGarages = garages.featured.length >= 3
-
-  const navLinks = [
-    { label: 'Services', href: '#services' },
-    { label: 'Why Detlio', href: '#why' },
-    { label: 'How it works', href: '#how-it-works' },
-    { label: 'Rewards', href: '#perks' },
-    { label: 'FAQ', href: '#faq' },
-  ]
+export default async function LandingPage() {
+  const initialPage = await getLandingList()
 
   return (
     <>
       <SkipLink />
-      <SiteHeader links={navLinks} />
-      {/* tabIndex -1 so the skip link moves focus here, not just the view. */}
-      <main id="main" tabIndex={-1} data-marketing-home className="outline-none">
-        <Hero
-          city={garages.cities.length === 1 ? garages.cities[0] : null}
-          startingPrice={garages.startingPrice}
-        />
-        <AppShowcase />
-        <Services />
-        <Promises />
-        <HowItWorks />
-        {reels.length > 0 && <Videos reels={reels} />}
-        {results.length > 0 && <Results results={results} />}
-        {showGarages && <Garages garages={garages.featured} />}
-        <Perks />
-        <Instagram />
-        {testimonials.length > 0 && (
-          <Testimonials testimonials={testimonials} />
-        )}
-        <Faq />
-        <FinalCta />
-      </main>
-      <SiteFooter />
-      <ScrollMotion />
+      <AppShell
+        showBrand
+        className="gap-4 py-4"
+        brandRight={
+          <Link
+            href="/login"
+            className="inline-flex min-h-11 items-center px-1 text-[15px] text-text-primary"
+          >
+            Sign in
+          </Link>
+        }
+      >
+        {/* tabIndex -1 so the skip link moves focus here, not just the view. */}
+        <div id="main" tabIndex={-1} className="flex flex-col gap-4 outline-none" data-app-landing="">
+          <div className="pt-2">
+            <h1 className="text-[30px] font-medium leading-[1.12] tracking-[-0.025em] text-text-primary">
+              Car wash &amp; detailing near you,{' '}
+              <span className="text-brand-red">today.</span>
+            </h1>
+            <p className="mt-2 text-[15px] leading-snug text-text-secondary">
+              Real prices from Chennai garages. Book in 1 minute.
+            </p>
+          </div>
+
+          <LandingApp initialPage={initialPage} />
+
+          <LandingFooter />
+        </div>
+      </AppShell>
+      {/* Statistics → Behaviour: "Landed". "Saw a garage" is the list's own
+          watcher (GarageList), which reports it with the tab. */}
+      <LandingView />
     </>
   )
 }

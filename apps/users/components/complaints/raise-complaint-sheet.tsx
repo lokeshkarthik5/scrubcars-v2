@@ -192,6 +192,7 @@ export function RaiseComplaintSheet({ open, onClose, booking }: RaiseComplaintSh
 
             <div className="flex flex-col gap-1">
               <ScTextarea
+                data-clarity-mask="true"
                 id="complaint-message"
                 label="What happened?"
                 rows={5}

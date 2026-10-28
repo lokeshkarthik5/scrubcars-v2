@@ -1,5 +1,5 @@
 /**
- * The target counter above the Garages table (0061, mockup garages-list A):
+ * The target counter above the Garages table (0064, mockup garages-list A):
  * live garages against the team's target, with the part "almost ready";
  * garages added this week against last week; those not live yet, and how
  * many only need photos or a logo; and live garages by area. Worked out

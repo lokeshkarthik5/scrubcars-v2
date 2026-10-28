@@ -14,6 +14,7 @@ import { ScSheet } from '@repo/ui/sc/modal'
 import { createAddress } from '@repo/core/api/users'
 import { useUserStore } from '@repo/core/stores/user-store'
 import type { Address } from '@repo/core/types'
+import type { DraftAddress } from '@repo/core/booking-draft'
 import { MainAction } from './main-action'
 import { NO_PIN_TEXT, refillFromPin, type PinText } from './pin-autofill'
 
@@ -33,6 +34,12 @@ interface AddAddressSheetProps {
   onAdded?: (address: Address) => void
   /** Pickup & drop: the garage collects the car from here, not visits it. */
   pickup?: boolean
+  /**
+   * A guest's checkout (0062): the address is kept on the phone and handed
+   * back here instead of being saved, since there is no account yet. It is
+   * saved to the account (createAddress) once they sign in at "Confirm".
+   */
+  onSaveLocal?: (address: DraftAddress) => void
 }
 
 /**
@@ -48,7 +55,13 @@ interface AddAddressSheetProps {
  * coordinates (ADDRESS_LOCATION_REQUIRED); taking it here spares the customer
  * a separate "Pin the exact spot" step straight after saving.
  */
-export function AddAddressSheet({ open, onClose, onAdded, pickup = false }: AddAddressSheetProps) {
+export function AddAddressSheet({
+  open,
+  onClose,
+  onAdded,
+  pickup = false,
+  onSaveLocal,
+}: AddAddressSheetProps) {
   const [form, setForm] = useState(EMPTY)
   // What the last pin wrote into the text fields — see refillFromPin.
   const pinText = useRef<PinText>(NO_PIN_TEXT)
@@ -137,6 +150,7 @@ export function AddAddressSheet({ open, onClose, onAdded, pickup = false }: AddA
         />
 
         <ScInput
+          data-clarity-mask="true"
           id="address-text"
           label="Address"
           placeholder="Flat, building, street"
@@ -145,6 +159,7 @@ export function AddAddressSheet({ open, onClose, onAdded, pickup = false }: AddA
           onChange={(e) => setForm({ ...form, address: e.target.value })}
         />
         <ScInput
+          data-clarity-mask="true"
           id="address-city"
           label="City"
           placeholder="e.g. Chennai"
@@ -160,7 +175,24 @@ export function AddAddressSheet({ open, onClose, onAdded, pickup = false }: AddA
               the form first becomes complete. */}
           <MainAction
             disabled={!isValid || save.isPending}
-            onClick={() => form.pin && save.mutate(form.pin)}
+            onClick={() => {
+              if (!form.pin) return
+              if (onSaveLocal) {
+                onSaveLocal({
+                  label: form.label,
+                  address: form.address.trim(),
+                  city: form.city.trim(),
+                  lat: form.pin.lat,
+                  lng: form.pin.lng,
+                  geoSource: form.pin.source,
+                })
+                setForm(EMPTY)
+                pinText.current = NO_PIN_TEXT
+                onClose()
+                return
+              }
+              save.mutate(form.pin)
+            }}
           >
             {save.isPending ? 'Saving…' : 'Save address'}
           </MainAction>

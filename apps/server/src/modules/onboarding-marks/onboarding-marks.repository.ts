@@ -259,7 +259,7 @@ export const onboardingMarksRepository = {
         label: vendorOnboardingMarks.label,
         status: vendorOnboardingMarks.status,
         askedAt: vendorOnboardingMarks.askedAt,
-        // The checklist's progress (0061), read as the mark is.
+        // The checklist's progress (0064), read as the mark is.
         items: vendorOnboardingMarks.items,
         note: vendorOnboardingMarks.note,
       })

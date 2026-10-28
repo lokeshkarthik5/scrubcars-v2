@@ -1,5 +1,5 @@
 /**
- * The admin round on the Garages page (0061, mockup garages-list): the
+ * The admin round on the Garages page (0064, mockup garages-list): the
  * target counter (live garages against the team's target, its edit dialog,
  * added this week, not live yet, live by area) and the colour tags (set on
  * one garage from its Colour cell, on several from the bulk bar, with a

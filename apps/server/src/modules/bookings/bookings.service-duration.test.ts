@@ -1,5 +1,5 @@
 /**
- * A service's duration may be unset (0061), but the booking payload's
+ * A service's duration may be unset (0064), but the booking payload's
  * deprecated `service.durationMins` stays a number: clients older than
  * `items` read it, and the core type says number. It is what the calendar
  * holds for such a service (lib/service-duration.ts), as at checkout.
@@ -36,7 +36,7 @@ function booking(serviceDuration: number | null): Row {
   } as unknown as Row
 }
 
-describe('the deprecated service on a booking (0061)', () => {
+describe('the deprecated service on a booking (0064)', () => {
   test('a service with no duration says the default, never null', () => {
     expect(toBookingResponse(booking(null)).service?.durationMins).toBe(DEFAULT_SERVICE_DURATION_MINS)
   })

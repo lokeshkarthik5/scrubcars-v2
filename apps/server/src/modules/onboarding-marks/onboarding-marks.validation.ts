@@ -29,7 +29,7 @@ const note = z
   .transform((value) => (value === '' ? null : value))
 
 /**
- * One checklist item as the edit dialog sends it (0061): its id when it was
+ * One checklist item as the edit dialog sends it (0064): its id when it was
  * already there (a stored one, or "note-1" read from an old note), its words,
  * and optionally its tick and answer. Who answered is the server's to stamp.
  */

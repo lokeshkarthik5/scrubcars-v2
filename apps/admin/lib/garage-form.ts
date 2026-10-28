@@ -80,7 +80,7 @@ export const REQUIRED_GARAGE_FIELDS: ReadonlyArray<{ key: GarageTextField; fille
 
 /**
  * The fields Create needs for this garage: a doorstep-only one (`atGarage`
- * false, 0061) needs no address, and its pincode may be empty.
+ * false, 0064) needs no address, and its pincode may be empty.
  */
 export function requiredGarageFields(atGarage = true): ReadonlyArray<{
   key: GarageTextField

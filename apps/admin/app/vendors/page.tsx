@@ -161,7 +161,7 @@ function VendorsList() {
   )
   const hasOnboarded = vendors.some((v) => v.onboardedByName !== undefined)
   const hasTeam = vendors.some((v) => v.openCollection !== undefined)
-  // The team's colour tags (0061): an older API sends no `colourTag`.
+  // The team's colour tags (0064): an older API sends no `colourTag`.
   const hasColour = vendors.some((v) => v.colourTag !== undefined)
 
   // Team logins, for the Onboarded by choices.
@@ -533,7 +533,7 @@ function VendorsList() {
         />
       ) : (
         <div className="flex flex-col gap-3">
-          {/* The team's target and how close it is (0061). */}
+          {/* The team's target and how close it is (0064). */}
           {!inBin && <TargetCounter vendors={vendors} now={now} />}
           <div>
             <SavedViews
@@ -707,7 +707,7 @@ function VendorsList() {
             </div>
           )}
 
-          {/* The team's colours (0061), counted over what the other
+          {/* The team's colours (0064), counted over what the other
               filters leave. */}
           {hasColour && !inBin && (
             <div className="-mx-4 min-w-0 overflow-x-auto px-4 [scrollbar-width:none] md:mx-0 md:overflow-visible md:px-0 [&::-webkit-scrollbar]:hidden">

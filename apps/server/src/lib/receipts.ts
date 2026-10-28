@@ -604,7 +604,7 @@ export function buildReceipt(
 
   const vendor = booking.vendor
   // A garage's address usually names its city already; only add it when
-  // not. A doorstep-only garage may have none (0061): the city alone.
+  // not. A doorstep-only garage may have none (0064): the city alone.
   const garageAddress = garageAddressLine({ address: vendor?.address, city: vendor?.city })
 
   return {

@@ -116,7 +116,7 @@ export function PackagesPanel({
     Number.isFinite(previewPrice) && previewPrice > 0
       ? itemsTotal - previewPrice
       : 0
-  // A member with no duration set holds the default 60 min (0061).
+  // A member with no duration set holds the default 60 min (0064).
   const suggestedDuration = selected.reduce(
     (sum, s) => sum + effectiveDurationMins(s),
     0

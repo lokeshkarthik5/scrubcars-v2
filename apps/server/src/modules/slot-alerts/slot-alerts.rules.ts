@@ -216,7 +216,7 @@ export function slotAlertsWith(deps: {
       if (services.length !== input.serviceIds.length) {
         throw new AppError(404, 'Service not found', 'SERVICE_NOT_FOUND')
       }
-      // An unset duration holds the default 60 minutes, as at checkout (0061).
+      // An unset duration holds the default 60 minutes, as at checkout (0064).
       const durationMins = services.reduce((total, service) => total + effectiveDurationMins(service), 0)
 
       const day = alertDay(

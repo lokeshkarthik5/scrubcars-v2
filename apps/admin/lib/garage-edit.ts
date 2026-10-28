@@ -235,7 +235,7 @@ export interface GarageRequiredFields {
  * are all fine. The first problem only: one thing to fix at a time.
  *
  * The address and pincode are needed only when customers come to the
- * garage (`atGarage`, owner 28 Oct 2026, 0061): a doorstep-only garage needs
+ * garage (`atGarage`, owner 28 Oct 2026, 0064): a doorstep-only garage needs
  * just its map pin, and a pincode it has is still 6 digits. The API holds
  * the same rule (apps/server/src/lib/garage-address.ts).
  */

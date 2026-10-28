@@ -24,25 +24,29 @@ import { SIGNED_IN_HINT_KEY } from './signed-in-landing'
 type RouteAccess = 'marketing' | 'document' | 'public' | 'guest' | 'customer'
 
 /**
- * The marketing homepage. Unlike every other route it renders before the
+ * The landing page: the app itself for a visitor who is not signed in
+ * (customer reach, 0062). Unlike every other route it renders before the
  * session resolves: it is the page search engines index and first-time
  * visitors land on, so it has to arrive as server-rendered HTML rather than
  * waiting on a round trip to the API. Signed-in customers are still sent on
- * to the app — before paint by a localStorage hint, or here once the session
+ * to /home — before paint by a localStorage hint, or here once the session
  * resolves if the hint was missing (see signed-in-landing.ts).
  */
 const MARKETING_ROUTES = ['/']
 /**
- * The legal pages (Terms, Privacy Policy…). Like the homepage they render
- * before the session resolves — they are static documents that must load for
- * anyone, signed in or not, from a link at login, checkout or in the footer —
- * but unlike it they never redirect: a signed-in customer who opens the Terms
- * reads the Terms.
+ * The legal pages (Terms, Privacy Policy…) and /about, the marketing page
+ * the landing used to be. Like the landing they render before the session
+ * resolves — static documents that must load for anyone, signed in or not,
+ * from a link at login, checkout or in the footer — but unlike it they never
+ * redirect: a signed-in customer who opens the Terms reads the Terms.
  */
-const DOCUMENT_ROUTES = LEGAL_ROUTES
+const DOCUMENT_ROUTES = [...LEGAL_ROUTES, '/about']
 const GUEST_ROUTES = ['/login', '/verify-otp']
 // /updates is one customer's own feed; signed out, there is nothing to show.
-const CUSTOMER_ROUTES = ['/book', '/profile-setup', '/updates']
+// Checkout (/book) is not here: a guest books and signs in inside it, at
+// "Confirm" (0062), and a signed-in customer whose profile has no name yet
+// is asked for it there too.
+const CUSTOMER_ROUTES = ['/profile-setup', '/updates']
 
 function matchesRoute(pathname: string, routes: string[]) {
   return routes.some(
@@ -127,10 +131,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!redirectPath || redirectPath === pathname) return
     // Bounced into profile setup on the way to a page — a customer who signed
-    // up, left setup half done, and later tapped Book Now — so the page they
-    // asked for rides along and setup hands them back to it. Read from
+    // up, left setup half done, and later opened a guarded page — so the page
+    // they asked for rides along and setup hands them back to it. Read from
     // `window` rather than useSearchParams, which would need a Suspense
-    // boundary around the whole app; the booking's services live in the query.
+    // boundary around the whole app.
     if (redirectPath === '/profile-setup' && routeAccess === 'customer') {
       const next = `${window.location.pathname}${window.location.search}`
       router.replace(`/profile-setup?next=${encodeURIComponent(next)}`)

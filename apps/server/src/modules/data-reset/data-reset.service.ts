@@ -62,7 +62,7 @@ const AUDIT_ACTION = 'test_data_reset'
 /** Why a voided receipt number was voided, as receipt_number_voids records it. */
 const VOID_REASON = 'Test data deleted by the admin test-data reset'
 
-/** The same, for one test booking deleted from its page (0061). */
+/** The same, for one test booking deleted from its page (0064). */
 const TEST_BOOKING_AUDIT_ACTION = 'test_booking_deleted'
 const TEST_BOOKING_VOID_REASON = 'Test booking deleted from its page in admin'
 
@@ -71,7 +71,7 @@ interface RunLabels {
   auditAction: string
   voidReason: string
   /**
-   * One booking from its page (0061): a chain the rules keep is refused
+   * One booking from its page (0064): a chain the rules keep is refused
    * with the reason, rather than read as "nothing ticked".
    */
   refuseKept?: boolean
@@ -174,7 +174,7 @@ export async function loadPlanInput(
   const reschedulesByChain = await repo.reschedulesByChain(keys)
   const intentChildCounts = await repo.intentChildCounts(intents.map((intent) => intent.id))
   // A cutoff run takes complaints made before it, ticked as one; deleting
-  // one test booking (chains) takes the complaints about it (0061).
+  // one test booking (chains) takes the complaints about it (0064).
   const complaints =
     scope.kind === 'before_cutoff'
       ? await repo.complaintsMadeBefore(scope.cutoff)
@@ -583,7 +583,7 @@ export const dataResetService = {
           await loadPlanInput(repo, scope, input.only, lookups, lookupsUnavailable, now)
         )
         // A booking deleted on its own says why it is kept, before anything
-        // else: that is what the person needs to hear (0061).
+        // else: that is what the person needs to hear (0064).
         if (labels.refuseKept) {
           const kept = plan.chains.find((chain) => chain.kept)?.kept
           if (kept) throw chainKept(kept)
@@ -720,7 +720,7 @@ export const dataResetService = {
   },
 
   /**
-   * The dry run for one booking's chain, from its page (0061). Works with
+   * The dry run for one booking's chain, from its page (0064). Works with
    * the reset switched off. 404 when there is no such booking.
    */
   async previewTestBooking(bookingId: string, input: TestBookingPreviewInput, now = new Date()) {

@@ -118,6 +118,8 @@ export function mapVendorListItem(item: ApiVendorListItem): Vendor {
     dropinEnabled: item.dropinEnabled,
     doorstepEnabled: item.doorstepEnabled,
     pickupEnabled: item.pickupEnabled ?? false,
+    // Absent from an API before 0062: then nobody "can collect" (unknown).
+    ...(item.pickupRadiusKm !== undefined ? { pickupRadiusKm: item.pickupRadiusKm } : {}),
     serviceTags: item.serviceTags,
     isVerified: item.isVerified,
     photos: item.photos,

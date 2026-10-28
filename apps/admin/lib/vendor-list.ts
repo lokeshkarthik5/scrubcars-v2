@@ -591,7 +591,7 @@ export interface GarageListState {
   missing?: MissingKey | null
   onboardedBy?: string | null
   team?: TeamFilter | null
-  /** The colour chip (0061): a colour, or 'none'. */
+  /** The colour chip (0064): a colour, or 'none'. */
   colour?: ColourFilter | null
 }
 
