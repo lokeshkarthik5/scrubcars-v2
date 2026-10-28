@@ -200,8 +200,13 @@ export function ImportStartCard({
   )
 }
 
-/** The quiet way in for a garage with nothing to import. */
-export function FillByHandLink() {
+/**
+ * The quiet way in for a garage with nothing to import. Still a real link
+ * (a new tab, a copied address), but a plain click is handed to `onOpen`,
+ * which switches the page itself: router navigation between ?by=hand and
+ * the bare page did not reliably re-render this prerendered page.
+ */
+export function FillByHandLink({ onOpen }: { onOpen?: () => void }) {
   return (
     <>
       <div
@@ -212,6 +217,20 @@ export function FillByHandLink() {
       </div>
       <Link
         href="/vendors/new?by=hand"
+        onClick={(event) => {
+          if (
+            !onOpen ||
+            event.button !== 0 ||
+            event.metaKey ||
+            event.ctrlKey ||
+            event.shiftKey ||
+            event.altKey
+          ) {
+            return
+          }
+          event.preventDefault()
+          onOpen()
+        }}
         className="press flex min-h-16 items-center gap-3 rounded-[14px] border border-border pl-3.5 pr-1.5 transition-colors hover:bg-surface"
       >
         <IconPencil

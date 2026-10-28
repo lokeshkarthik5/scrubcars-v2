@@ -127,7 +127,7 @@ export const TERMS: LegalDoc = {
             `**Minimum notice.** An At garage booking must start at least **${RULES.noticeAtGarage}** after you book, and a Doorstep visit at least **${RULES.noticeDoorstep}** after. The app shows times up to ${RULES.daysAhead} days ahead, and only times when the garage is open, has room, and can finish all the services you picked before it closes.`,
             '**Doorstep area.** Each garage chooses the area it travels to. You must pin your exact address on the map, and we check the garage covers it before you pay.',
             '**Your booking is a request until the garage accepts it.** After you pay, the booking shows as "Requested". It is confirmed when the garage accepts. If the garage declines, you get a full refund. Check the booking page in the app: that is where acceptance, a decline and every later change are shown. We do not send texts about bookings.',
-            '**Promo codes.** One code per booking. Codes are issued by Detlio and may have conditions (dates, a minimum amount, particular garages, a limit on uses). The discount is shown before you pay. A promo code can never bring a booking below ₹1.',
+            '**Promo codes.** One code per booking. Codes are issued by Detlio and may have conditions (dates, a minimum amount, particular garages, a limit on uses). The discount is shown before you pay. A promo code can never bring a booking below ₹1, except a free wash from Detlio: when it covers the whole price the booking is free, nothing is paid, and cancelling it gives the free wash back while it is still valid.',
             `**Durations** shown for a service are the garage's estimate.`,
           ],
         },

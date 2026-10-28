@@ -200,10 +200,13 @@ async function zoneNames(): Promise<Map<string, string>> {
   return new Map(zones.map((zone) => [zone.slug, zone.name]))
 }
 
-/** What the garage earns on these lines, by the payout rules (free 25, then commission). */
-async function earnFor(vendorId: string, lines: readonly RequestLine[]): Promise<number> {
+/**
+ * What the garage earns on these lines, by the payout rules (free 25, then
+ * commission). `received` is its received bookings so far
+ * (countReceivedChains), read once per inbox rather than once per card.
+ */
+function earnFor(received: number, lines: readonly RequestLine[]): number {
   const subtotal = linesSubtotal(lines)
-  const received = await bookingRequestsRepository.countReceivedChains(vendorId)
   if (received + 1 <= FREE_BOOKINGS) return Number(subtotal)
   const commission = bookingCommission({
     status: 'completed',
@@ -227,7 +230,8 @@ function toNumber(value: string | null): number | null {
   return value === null ? null : Number(value)
 }
 
-async function toGarageView(row: BookingRequestRecord, isOwner: boolean, names: Map<string, string>, now: Date): Promise<GarageRequestView> {
+/** `received`: the garage's received bookings so far, for the owner's `earn`; null for an operator (not read). */
+function toGarageView(row: BookingRequestRecord, received: number | null, names: Map<string, string>, now: Date): GarageRequestView {
   const outsideKm = Number(row.outsideKm)
   const coverKm = toNumber(row.coverKm)
   return {
@@ -245,7 +249,7 @@ async function toGarageView(row: BookingRequestRecord, isOwner: boolean, names: 
     outsideKm,
     beyond: beyondLine(outsideKm, coverKm),
     respondBy: row.respondBy.toISOString(),
-    earn: isOwner ? await earnFor(row.vendorId, row.items) : null,
+    earn: received === null ? null : earnFor(received, row.items),
     durationMins: row.durationMins,
     reply: row.reply,
     travelFee: toNumber(row.travelFee),
@@ -464,8 +468,9 @@ export const bookingRequestsService = {
   async listForGarage(vendorId: string, isOwner: boolean, scope: 'open' | 'closed', now = new Date()) {
     const rows = await bookingRequestsRepository.listForGarage(vendorId, scope, new Date(now.getTime() - 30 * DAY_MS))
     const names = await zoneNames()
-    const items: GarageRequestView[] = []
-    for (const row of rows) items.push(await toGarageView(row, isOwner, names, now))
+    // One read for every card's `earn` (owner seat only), not one per card.
+    const received = isOwner && rows.length > 0 ? await bookingRequestsRepository.countReceivedChains(vendorId) : null
+    const items = rows.map((row) => toGarageView(row, received, names, now))
     return {
       items,
       waiting: await bookingRequestsRepository.countWaitingForGarage(vendorId, now),
@@ -486,7 +491,7 @@ export const bookingRequestsService = {
   },
 
   /** The garage's yes, with a start time from its list and a travel fee. */
-  async accept(vendorId: string, actorUserId: string, id: string, input: AcceptRequestInput, now = new Date()) {
+  async accept(vendorId: string, actorUserId: string, id: string, input: AcceptRequestInput, isOwner = false, now = new Date()) {
     const row = await bookingRequestsRepository.findById(id)
     if (!row || row.vendorId !== vendorId) notFound()
     const startAt = new Date(input.startAt)
@@ -527,7 +532,9 @@ export const bookingRequestsService = {
       accepted.userId,
       customerRequestAccepted(toPushRequest(accepted, now), garage, startAt, accepted.confirmBy!, now)
     )
-    return toGarageView(accepted, true, await zoneNames(), now)
+    // `earn` is money: the owner seat's alone (an operator's answer has none).
+    const received = isOwner ? await bookingRequestsRepository.countReceivedChains(vendorId) : null
+    return toGarageView(accepted, received, await zoneNames(), now)
   },
 
   /** The garage's "Can't": passed on to the next nearest garage, or ended. */

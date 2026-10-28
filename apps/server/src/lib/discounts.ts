@@ -41,7 +41,7 @@ export interface DiscountRule {
 export interface DiscountComputation {
   /** Rupees taken off, as a numeric(10,2) string. */
   discountAmount: string
-  /** What the customer pays, as a numeric(10,2) string. Always >= ₹1. */
+  /** What the customer pays, as a numeric(10,2) string. At least ₹1, except a free wash's ₹0. */
   finalAmount: string
 }
 
@@ -83,7 +83,13 @@ export function computeDiscount(
    * service type (a printed coupon's voucher, 0056): a percentage is taken
    * of it and nothing more than it comes off. Omitted, the whole subtotal.
    */
-  eligibleSubtotal?: string
+  eligibleSubtotal?: string,
+  /**
+   * A zone's free wash (customer reach, 0062) only: it may take the price
+   * all the way to ₹0, which is then booked with no payment at all
+   * (booking-intents.service). Every other code keeps the ₹1 floor.
+   */
+  options: { allowFree?: boolean } = {}
 ): DiscountComputation {
   const subtotalPaise = rupeesToPaise(subtotal)
   const basePaise = eligibleSubtotal === undefined ? subtotalPaise : Math.min(rupeesToPaise(eligibleSubtotal), subtotalPaise)
@@ -101,7 +107,8 @@ export function computeDiscount(
     raw = rupeesToPaise(discount.amountOff ?? '0')
   }
 
-  const maxAllowed = Math.max(0, Math.min(basePaise, subtotalPaise - MIN_PAYABLE_PAISE))
+  const floorPaise = options.allowFree ? 0 : MIN_PAYABLE_PAISE
+  const maxAllowed = Math.max(0, Math.min(basePaise, subtotalPaise - floorPaise))
   const discountPaise = Math.min(Math.max(raw, 0), maxAllowed)
 
   return {

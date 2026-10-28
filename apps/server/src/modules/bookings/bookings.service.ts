@@ -318,7 +318,7 @@ const CANCELLATION_CUTOFF_MS = 2 * 60 * 60 * 1000
 // Mirrored in packages/core/src/booking-types.ts (the legal pages print it).
 const MAX_RESCHEDULES = 2
 import { paise, rupees } from '../../lib/gift-credit.js'
-import { checkoutMatchRefusal } from '../../lib/booking-requests.js'
+import { checkoutMatchRefusal, requestPlaceMatches } from '../../lib/booking-requests.js'
 import type { PaymentRecord } from './bookings.repository.js'
 import type {
   CreateBookingInput,
@@ -1373,6 +1373,7 @@ export async function resolveBookingDraft(
       fundedBy: resolved.fundedBy,
       perUserLimit: resolved.perUserLimit,
       totalUsageLimit: resolved.totalUsageLimit,
+      source: resolved.source,
     }
     chargeAmount = sumAmounts([resolved.finalAmount, travelFee])
 
@@ -1453,6 +1454,14 @@ export async function resolveBookingDraft(
           : 'Confirm exactly where we should come on the map',
         'ADDRESS_LOCATION_REQUIRED'
       )
+    }
+
+    // An accepted request's yes is for the place the garage was shown: an
+    // address whose pin moved since (same id, new spot) is not what it
+    // agreed to, so it gets no pass on the reach check (0062).
+    if (request && !requestPlaceMatches(request, { lat: savedAddress.lat, lng: savedAddress.lng })) {
+      log.warn({ userId, requestId: request.id, addressId: input.addressId }, 'booking:request_address_moved')
+      throw requestRefusalError('REQUEST_MISMATCH')
     }
 
     // Doorstep: the garage's drawn area or travel radius. Pickup: its pickup
@@ -1752,7 +1761,9 @@ export const bookingsService = {
     }
 
     const refundRecords = await bookingsRepository.listRefundRecordsForBooking(booking.id)
-    return buildReceipt(booking, refundRecords, receiptNumber)
+    // A zone's free wash is named on the receipt (0062).
+    const discountSource = booking.discountId ? await bookingsRepository.findDiscountSource(booking.discountId) : null
+    return buildReceipt({ ...booking, discountSource }, refundRecords, receiptNumber)
   },
 
   /**
@@ -1796,6 +1807,12 @@ export const bookingsService = {
         lng,
         address,
       } = await resolveBookingDraft(userId, input)
+
+      // A free wash that covers the whole price (0062) is booked by checkout
+      // with no payment at all; this pay-later path would open a ₹0 order.
+      if (Number(chargeAmount) <= 0) {
+        throw new AppError(400, 'Book your free wash through checkout.', 'FREE_BOOKING_NEEDS_CHECKOUT')
+      }
 
       const bookingDate = getDateKeyFromScheduledAt(scheduledAt)
       log.info({ userId, vendorId: vendor.id, bookingDate, scheduledAt: scheduledAt.toISOString() }, 'booking:db_insert_start')

@@ -4,6 +4,7 @@ import { logger } from '../../lib/logger.js'
 import { runInBackground } from '../../lib/background.js'
 import {
   coveragePushWords,
+  FREE_WASH_RULES,
   freeWashEndsAt,
   isReachPushHour,
   launchPushWords,
@@ -17,6 +18,7 @@ import {
   signupRefusal,
   signupsToIssue,
   waitingCount,
+  zoneIsLive,
   zonesToLaunch,
 } from '../../lib/area-signups.js'
 import { customerAreaNews } from '../../lib/push-messages.js'
@@ -85,7 +87,7 @@ export const areaSignupsService = {
     if (!zone) throw new AppError(404, 'Area not found', 'AREA_NOT_FOUND')
     const zones = await areaSignupsRepository.listZones()
     const hasGarage = zonesWithGarages(zones, await listedPins()).has(zone.slug)
-    const live = zone.liveAt !== null || hasGarage
+    const live = zoneIsLive(zone, hasGarage)
     const refused = signupRefusal({ zoneLive: live, alreadySignedUp: false })
     if (refused) throw new AppError(409, `Detlio is already in ${zone.name}. Book a garage there now.`, 'AREA_LIVE')
 
@@ -97,6 +99,7 @@ export const areaSignupsService = {
       now,
       freeWashFor: (position) => signupOffer(position).freeWash,
     })
+    if (row === 'live') throw new AppError(409, `Detlio is already in ${zone.name}. Book a garage there now.`, 'AREA_LIVE')
     if (!row) throw new AppError(409, `You're already on the list for ${zone.name}.`, 'ALREADY_SIGNED_UP')
     log.info({ userId, zone: zone.slug, position: row.position, freeWash: row.freeWash }, 'area_signup:created')
 
@@ -165,9 +168,8 @@ export const areaSignupsService = {
       await areaSignupsRepository.countsByZone(),
     ]
     const withGarages = garagesByZone(zones, pins)
-    const discounts = await areaSignupsRepository.unusedDiscounts(
-      rows.map((r) => r.signup.discountId).filter((id): id is string => id !== null)
-    )
+    const discountIds = rows.map((r) => r.signup.discountId).filter((id): id is string => id !== null)
+    const discounts = discountIds.length > 0 ? await areaSignupsRepository.unusedDiscounts(discountIds) : []
     const byId = new Map(discounts.map((d) => [d.id, d]))
 
     const signups = rows.map(({ signup, zone }): SignupView => {
@@ -233,22 +235,35 @@ export const areaSignupsService = {
   async sweep(options: { dryRun: boolean }, now = new Date()) {
     if (options.dryRun) return { dryRun: true as const }
     const launch = await areaSignupsService.launchDueZones(now)
-    const messages = { launch: 0, coverage: 0, reminder: 0 }
+    const messages = { launch: 0, coverage: 0, reminder: 0, skipped: 0 }
 
     if (isReachPushHour(now)) {
       const [zones, pins] = [await areaSignupsRepository.listZones(), await listedPins()]
       const garages = garagesByZone(zones, pins)
+      // Measured once per zone that still has someone to tell, before the
+      // batch is read, so the batch holds only sign-ups due a message.
       const reaching = new Map<string, Awaited<ReturnType<typeof areaSignupsRepository.garageReaching>>>()
-      const candidates = await areaSignupsRepository.listMessageCandidates(MESSAGE_BATCH)
+      for (const zone of await areaSignupsRepository.listZonesAwaitingCoverage()) {
+        const reacher = await areaSignupsRepository.garageReaching({ lat: zone.lat, lng: zone.lng })
+        if (reacher) reaching.set(zone.id, reacher)
+      }
+      const candidates = await areaSignupsRepository.listMessageCandidates({
+        limit: MESSAGE_BATCH,
+        reachedZoneIds: [...reaching.keys()],
+        remindBefore: new Date(now.getTime() - FREE_WASH_RULES.reminderAfterDays * DAY_MS),
+      })
       for (const { signup, zone } of candidates) {
         try {
           const live = zone.liveAt !== null
-          if (!live && !reaching.has(zone.id)) {
-            reaching.set(zone.id, await areaSignupsRepository.garageReaching({ lat: zone.lat, lng: zone.lng }))
-          }
           const reacher = live ? null : (reaching.get(zone.id) ?? null)
           const due = signupPushDue(signup, { zoneLive: live, coveredNow: reacher !== null }, now)
           if (!due || !(await areaSignupsRepository.claimMessage(signup.id, due, now))) continue
+          // Claimed either way, so it is settled; sent only to a customer who
+          // asked for app notifications on the sign-up sheet.
+          if (!signup.pushOptIn) {
+            messages.skipped++
+            continue
+          }
           const count = Math.max(1, garages.get(zone.slug) ?? 0)
           const words =
             due === 'launch'
@@ -279,7 +294,7 @@ export const areaSignupsService = {
    */
   async sweepReferrals(now = new Date()) {
     const out = { granted: 0, owed: 0 }
-    const candidates = await areaSignupsRepository.listCreditCandidates(REFERRAL_BATCH)
+    const candidates = await areaSignupsRepository.listCreditCandidates(REFERRAL_BATCH, env.giftsEnabled)
     for (const rec of candidates) {
       if (!rec.userId || !rec.vendorId) continue
       if (rec.creditStatus === 'owed' && !env.giftsEnabled) continue

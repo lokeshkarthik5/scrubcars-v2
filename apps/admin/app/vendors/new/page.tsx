@@ -76,8 +76,8 @@ function NewVendor() {
   // Which view shows is the page's own state, seeded from ?by=hand and kept
   // in step with it. A link from ?by=hand back to the bare /vendors/new on
   // this prerendered page changed nothing in the production build (CI E2E,
-  // 29 Oct): the form stayed up. So Back sets the state itself, and the
-  // browser's own back and forward re-read the address.
+  // 29 Oct): the form stayed up. So Back sets the state itself and rewrites
+  // the address, and the browser's own back and forward re-read it.
   const byHandParam = useSearchParams().get('by') === 'hand'
   const [byHand, setByHand] = useState(byHandParam)
   // Follows the address whenever it does change (adjusted during render,
@@ -93,9 +93,18 @@ function NewVendor() {
     window.addEventListener('popstate', sync)
     return () => window.removeEventListener('popstate', sync)
   }, [])
+  // The browser's own history call, not the router: on this prerendered
+  // page router.replace('/vendors/new') from ?by=hand left the address as it
+  // was (CI E2E). Next.js keeps useSearchParams in step with replaceState.
   const leaveByHand = () => {
     setByHand(false)
-    router.replace('/vendors/new')
+    window.history.replaceState(null, '', '/vendors/new')
+  }
+  // Into the form the same way, as its own history entry, so the browser's
+  // Back returns to the import.
+  const openByHand = () => {
+    setByHand(true)
+    window.history.pushState(null, '', '/vendors/new?by=hand')
   }
   const [step, setStep] = useState<Step>({ kind: 'start' })
   const [reading, setReading] = useState<string | null>(null)
@@ -300,7 +309,7 @@ function NewVendor() {
         onPickFiles={(files) => void readFiles(files)}
         onPickCsv={(file) => void readCsv(file)}
       />
-      <FillByHandLink />
+      <FillByHandLink onOpen={openByHand} />
     </div>
   )
 }

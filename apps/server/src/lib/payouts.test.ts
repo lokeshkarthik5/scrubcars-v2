@@ -125,6 +125,25 @@ describe('bookingEarning — a travel fee (0062)', () => {
   })
 })
 
+describe('bookingEarning — a free wash that covered it all (0062)', () => {
+  test('the customer paid ₹0; the garage earns the full price, Detlio pays the promo', () => {
+    const free = chain({
+      amount: '0.00',
+      subtotalAmount: '399.00',
+      discountFundedBy: 'platform',
+      items: [{ category: 'car_wash', amount: '399.00', pricingType: 'flat', sortOrder: 0 }],
+    })
+    const e = bookingEarning(free, PAYING)
+    expect(e.kind).toBe('job')
+    expect(e.pricePaise).toBe(39_900)
+    expect(e.detlioPromoPaise).toBe(39_900)
+    expect(e.garagePromoPaise).toBe(0)
+    // Commission on the price, as on any Detlio-funded promo; the rest is the garage's.
+    expect(e.commissionPaise).toBe(Math.round(39_900 * 0.08))
+    expect(e.sharePaise).toBe(39_900 - Math.round(39_900 * 0.08))
+  })
+})
+
 describe('bookingEarning — the free 25', () => {
   test('the first 25 received bookings carry no commission, and say which one they were', () => {
     const e = bookingEarning(chain(), 12)

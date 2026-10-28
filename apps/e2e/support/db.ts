@@ -24,7 +24,8 @@ if (!url) {
 }
 
 export const sql = postgres(url, {
-  max: 2,
+  // Three: a spec may hold one for withCronLock while it queries with another.
+  max: 3,
   // The E2E database is local and has no TLS; the app's own client reads the
   // same `?sslmode=disable` switch.
   ssl: /[?&]sslmode=disable(&|$)/.test(url) ? false : 'require',
@@ -387,3 +388,24 @@ export const getCharges = async (bookingId: string) =>
     select id, kind, status, amount_due, lines, gateway_order_id, gateway_payment_id, cancel_reason
       from booking_charges where booking_id = ${bookingId} order by created_at desc
   `
+
+/**
+ * Runs `fn` holding one session-wide lock that every spec calling the real
+ * cron (POST /ops/pending-digest, not a dry run) takes around its call.
+ *
+ * The cron works on the whole database: one spec's run cancels another
+ * spec's overdue booking, passes on its request or launches its area. A spec
+ * whose fixture must be found by *its own* run makes it due inside this lock
+ * (response-deadline-journey), and the others run the cron inside it, so no
+ * run lands in between. On its own connection, released after.
+ */
+export async function withCronLock<T>(fn: () => Promise<T>): Promise<T> {
+  const conn = await sql.reserve()
+  try {
+    await conn`select pg_advisory_lock(hashtext('e2e:pending-digest'))`
+    return await fn()
+  } finally {
+    await conn`select pg_advisory_unlock(hashtext('e2e:pending-digest'))`.catch(() => undefined)
+    conn.release()
+  }
+}

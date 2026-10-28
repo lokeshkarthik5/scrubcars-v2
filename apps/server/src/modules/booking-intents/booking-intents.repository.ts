@@ -209,8 +209,11 @@ export const bookingIntentsRepository = {
       if ((params.razorpayPaymentId === null) !== (cashPaise === 0)) {
         return { kind: 'order_mismatch' }
       }
-      // Never a booking that nothing paid for.
-      if (params.razorpayPaymentId === null && creditPaise === 0) {
+      // Never a booking that nothing paid for, except one a zone's free
+      // wash covered whole (0062): it must name a code, which is checked to
+      // be a free wash under the discount lock below.
+      const freeWash = params.razorpayPaymentId === null && creditPaise === 0
+      if (freeWash && !intent.discountId) {
         return { kind: 'order_mismatch' }
       }
 
@@ -262,12 +265,15 @@ export const bookingIntentsRepository = {
           .select({
             totalUsageLimit: discounts.totalUsageLimit,
             perUserLimit: discounts.perUserLimit,
+            source: discounts.source,
           })
           .from(discounts)
           .where(eq(discounts.id, intent.discountId))
           .limit(1)
 
         if (!discount) return { kind: 'discount_exhausted' }
+        // Only a free wash may leave nothing to pay (lib/discounts.ts).
+        if (freeWash && discount.source !== 'free_wash') return { kind: 'order_mismatch' }
 
         if (discount.totalUsageLimit !== null) {
           const used = await countHeldRedemptions(tx, intent.discountId)
@@ -373,7 +379,11 @@ export const bookingIntentsRepository = {
       // `amount` is only what Razorpay took, so every refund rule only ever
       // sends back money Razorpay holds; the credit part is `credit_amount`
       // and goes back as credit (0049). Paid wholly with credit: 0.00 and no
-      // gateway ids (the test-data reset then keeps it as real money).
+      // gateway ids (the test-data reset then keeps it as real money). A
+      // free wash that covered it all (0062) is the same row with no credit
+      // either: 'paid' with 0.00, nothing for any refund to send back, and
+      // the garage paid the full subtotal by Detlio (discount_funded_by
+      // 'platform', lib/discounts.ts computeVendorPayout).
       await tx.insert(payments).values({
         bookingId: booking.id,
         gateway: 'razorpay',

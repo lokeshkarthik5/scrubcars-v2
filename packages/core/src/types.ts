@@ -592,7 +592,8 @@ export interface BookingReceipt {
   /** An accepted request's travel fee (0062): its own line, inside the subtotal. Absent on older APIs. */
   travelFee?: string | null
   subtotal: string
-  discount: { code: string | null; amount: string } | null
+  /** `label`: "Free wash" for a zone's free wash (0062); absent or null otherwise. */
+  discount: { code: string | null; amount: string; label?: string | null } | null
   bookingPayment: {
     /** Everything paid at checkout: Razorpay's part and Detlio credit's. */
     amount: string

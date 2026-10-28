@@ -46,6 +46,11 @@ export interface ResolvedDiscount {
   discountAmount: string
   finalAmount: string
   fundedBy: DiscountFundedBy
+  /**
+   * The code's kind (discounts.source): 'free_wash' is the one that may
+   * bring a booking to ₹0, booked with no payment (0062).
+   */
+  source: string
   // Carried back so the booking transaction can re-check them under a lock
   // without a second read.
   perUserLimit: number | null
@@ -212,10 +217,12 @@ export async function resolveDiscount(input: {
     }
   }
 
+  // A free wash is free: it alone may bring the price to ₹0 (0062).
   const { discountAmount, finalAmount } = computeDiscount(
     discount,
     input.subtotal,
-    eligibleSubtotal
+    eligibleSubtotal,
+    { allowFree: discount.source === 'free_wash' }
   )
 
   return {
@@ -224,6 +231,7 @@ export async function resolveDiscount(input: {
     discountAmount,
     finalAmount,
     fundedBy: discount.fundedBy,
+    source: discount.source,
     perUserLimit: discount.perUserLimit,
     totalUsageLimit: discount.totalUsageLimit,
   }

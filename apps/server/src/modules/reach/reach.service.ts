@@ -6,7 +6,7 @@ import {
   outsideByKm,
 } from '../../lib/reach.js'
 import { zonesWithGarages } from '../../lib/zones.js'
-import { freeWashesLeft, waitingCount } from '../../lib/area-signups.js'
+import { freeWashesLeft, waitingCount, zoneIsLive } from '../../lib/area-signups.js'
 import type { ListPublicVendorsQuery } from '../vendors/vendors.validation.js'
 import {
   vendorCardsFor,
@@ -24,7 +24,12 @@ export interface PublicZone {
   lat: number
   lng: number
   priority: boolean
-  /** At least one live listed garage's pin is in this zone (lib/zones.ts). */
+  /**
+   * At least one live listed garage's pin is in this zone (lib/zones.ts), or
+   * the zone has launched (`live_at`) and lost its garage since: either way
+   * there is no free-wash list to join (the sign-up refuses a launched zone
+   * with AREA_LIVE), so the app must not offer one.
+   */
   hasGarage: boolean
   /**
    * The free-wash list (part 2): "N waiting here" from 10 sign-ups, null
@@ -110,7 +115,7 @@ export const reachService = {
       lat: zone.lat,
       lng: zone.lng,
       priority: zone.priority,
-      hasGarage: withGarage.has(zone.slug),
+      hasGarage: zoneIsLive(zone, withGarage.has(zone.slug)),
       waiting: waitingCount(signups.get(zone.id) ?? 0),
       freeWashesLeft: freeWashesLeft(signups.get(zone.id) ?? 0),
     }))

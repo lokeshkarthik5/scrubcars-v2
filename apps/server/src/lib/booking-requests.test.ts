@@ -3,6 +3,8 @@ import {
   acceptRefusal,
   beyondLine,
   checkoutMatchRefusal,
+  requestPlaceMatches,
+  REQUEST_PLACE_TOLERANCE_KM,
   clockStep,
   confirmByFor,
   firstGarageRefusal,
@@ -304,5 +306,21 @@ describe('the customer’s limits and the checkout', () => {
     expect(checkoutMatchRefusal(request, { ...booking, addressId: 'office' }, NOW)).toBe('REQUEST_MISMATCH')
     expect(checkoutMatchRefusal(request, { ...booking, vendorId: 'w' }, NOW)).toBe('REQUEST_MISMATCH')
     expect(checkoutMatchRefusal(request, { ...booking, bookingType: 'pickup' }, NOW)).toBe('REQUEST_MISMATCH')
+    expect(checkoutMatchRefusal(request, { ...booking, vehicleId: 'other-car' }, NOW)).toBe('REQUEST_MISMATCH')
+    expect(checkoutMatchRefusal(request, { ...booking, serviceIds: ['a', 'a'] }, NOW)).toBe('REQUEST_MISMATCH')
+    // Used once: a converted (or lapsed, cancelled) request gives no second pass.
+    expect(checkoutMatchRefusal({ ...request, status: 'converted' }, booking, NOW)).toBe('REQUEST_NOT_ACCEPTED')
+    expect(checkoutMatchRefusal({ ...request, status: 'expired' }, booking, NOW)).toBe('REQUEST_NOT_ACCEPTED')
+    expect(checkoutMatchRefusal({ ...request, confirmBy: null }, booking, NOW)).toBe('REQUEST_EXPIRED')
+  })
+
+  test('the same saved address moved elsewhere is not where the garage agreed to come', () => {
+    const asked = { lat: 13.0067, lng: 80.2206 }
+    expect(requestPlaceMatches(asked, asked)).toBe(true)
+    // ~50 m: the same place (a pin nudged).
+    expect(requestPlaceMatches(asked, { lat: 13.0071, lng: 80.2206 })).toBe(true)
+    // ~1 km away: a different place, no pass on the reach check.
+    expect(requestPlaceMatches(asked, { lat: 13.0157, lng: 80.2206 })).toBe(false)
+    expect(REQUEST_PLACE_TOLERANCE_KM).toBe(0.1)
   })
 })

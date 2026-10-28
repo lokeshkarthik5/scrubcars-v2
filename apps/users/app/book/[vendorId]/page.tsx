@@ -839,6 +839,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const creditOffered = creditSplit !== null && creditSplit.credit > 0
   const creditApplied = creditOffered && creditSwitchOn
   const toPay = creditApplied ? creditSplit.toPay : payableAmount
+  // A zone's free wash that covers the whole price (0062): free means free.
+  // The server books it with no payment at all; nothing opens Razorpay.
+  const freeBooking = toPay === 0 && !creditApplied
 
   const totalDuration = selectedServices.reduce(
     (total, service) => total + service.durationMins,
@@ -1135,7 +1138,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
 
       // Detlio credit covered all of it (0049): there is no payment sheet,
       // and the booking already exists. Same way out as a paid checkout.
-      if (order.paidWithCredit && order.bookingId) {
+      // A free wash that covered it all (0062) is booked the same way, with
+      // nothing paid.
+      if ((order.paidWithCredit || order.free) && order.bookingId) {
         paidRef.current = true
         track('pay_success', {
           vendorId,
@@ -2805,6 +2810,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 stepLabels[nextStep]
               ) : toPay == null ? (
                 'Confirm booking'
+              ) : freeBooking ? (
+                'Book your free wash'
               ) : toPay === 0 ? (
                 'Book with credit'
               ) : (
@@ -2849,6 +2856,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 }, pick another car, or contact the garage.`
               ) : nextStep ? (
                 'You pay now. Your booking is confirmed once the garage accepts it.'
+              ) : freeBooking ? (
+                'Your free wash covers it: nothing to pay. Your booking is confirmed once the garage accepts it.'
               ) : toPay === 0 ? (
                 'Paid with your Detlio credit. Your booking is confirmed once the garage accepts it.'
               ) : (

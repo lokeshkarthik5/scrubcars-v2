@@ -143,6 +143,7 @@ const ALL: Array<[string, PushMessage]> = [
   ['customer complaint ack', customerComplaint({ id: 'c1', number: 123 }, 'acknowledged')],
   ['customer complaint resolved', customerComplaint({ id: 'c1', number: 123 }, 'resolved')],
   ['customer not accepted', customerNotAcceptedInTime(booking)],
+  ['customer not accepted, free wash', customerNotAcceptedInTime(booking, { nothingPaid: true })],
   ['customer day before', customerDayBefore({ ...booking, status: 'confirmed' }, NOW)],
   ['customer hour before', customerHourBefore({ ...booking, status: 'confirmed' }, IST('2026-10-17T09:00:00'))],
   ['customer service reminder', customerServiceReminder({
@@ -376,5 +377,13 @@ describe('free redo claims (0051)', () => {
       url: `/bookings/${booking.id}`,
     })
     expect(customerClaimDecided(booking, 'reject').body).toBe('See why on your booking.')
+  })
+})
+
+describe('a free wash that was not accepted in time (0062)', () => {
+  test('promises no refund: nothing was charged, the free wash is back', () => {
+    const body = customerNotAcceptedInTime(booking, { nothingPaid: true }).body
+    expect(body).toContain('Nothing was charged')
+    expect(body).not.toContain('refund')
   })
 })
