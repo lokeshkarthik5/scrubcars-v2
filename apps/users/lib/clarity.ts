@@ -46,6 +46,17 @@ type ClarityFn = ((...args: unknown[]) => void) & { q?: unknown[][] }
 type ClarityWindow = Window & { clarity?: ClarityFn }
 
 /**
+ * Clarity's function, or undefined. Checked as a function, never as "is
+ * there something called clarity": a page element with id="clarity" (the
+ * Privacy Policy's Clarity section) is also `window.clarity`, through the
+ * browser's named access, and calling it crashed the page (CI E2E, 29 Oct).
+ */
+function clarityFn(win: ClarityWindow): ClarityFn | undefined {
+  const value = (win as unknown as { clarity?: unknown }).clarity
+  return typeof value === 'function' ? (value as ClarityFn) : undefined
+}
+
+/**
  * Puts Clarity's `clarity` queue on the page (Microsoft's snippet, without
  * its script tag: loadClarityScript adds that once the page is idle), so
  * calls made before the script arrives wait. Returns false when it was
@@ -54,20 +65,27 @@ type ClarityWindow = Window & { clarity?: ClarityFn }
 export function installClarity(
   win: ClarityWindow = window as ClarityWindow
 ): boolean {
-  const fresh = !win.clarity
-  if (fresh) {
-    const clarity: ClarityFn = function (...args: unknown[]) {
-      ;(clarity.q = clarity.q || []).push(args)
+  let clarity = clarityFn(win)
+  const fresh = !clarity
+  if (!clarity) {
+    const queue: ClarityFn = function (...args: unknown[]) {
+      ;(queue.q = queue.q || []).push(args)
     }
-    win.clarity = clarity
+    // An own property, so it shadows an element named "clarity".
+    win.clarity = queue
+    clarity = queue
   }
   // Consent given (the banner's Allow), again after a withdrawal: analytics
   // storage only. Clarity's ad storage stays denied; we use it for nothing
   // but our own site.
-  win.clarity!('consentv2', {
-    ad_Storage: 'denied',
-    analytics_Storage: 'granted',
-  })
+  try {
+    clarity('consentv2', {
+      ad_Storage: 'denied',
+      analytics_Storage: 'granted',
+    })
+  } catch {
+    // Never let a measurement break the page.
+  }
   return fresh
 }
 
@@ -88,7 +106,7 @@ export function loadClarityScript(projectId: string, doc: Document = document) {
  */
 export function withdrawClarity(win: ClarityWindow = window as ClarityWindow) {
   try {
-    win.clarity?.('consent', false)
+    clarityFn(win)?.('consent', false)
   } catch {
     // Never let a measurement break the page.
   }
@@ -103,7 +121,7 @@ export function pauseClarity(
   win: ClarityWindow = window as ClarityWindow
 ) {
   try {
-    win.clarity?.(paused ? 'pause' : 'resume')
+    clarityFn(win)?.(paused ? 'pause' : 'resume')
   } catch {
     // Never let a measurement break the page.
   }
@@ -130,7 +148,7 @@ export function clarityCallsFor(event: TrackedEvent): unknown[][] {
 export function mirrorToClarity(event: TrackedEvent) {
   try {
     if (typeof window === 'undefined') return
-    const clarity = (window as ClarityWindow).clarity
+    const clarity = clarityFn(window as ClarityWindow)
     // Only once Clarity is on the page, which needs consent; checked again
     // here in case the answer changed since.
     if (!clarity || !analyticsAllowed() || currentPageExcluded()) return
