@@ -33,6 +33,12 @@ import {
   garageClaimDecided,
   garageRedoBooked,
   customerClaimDecided,
+  customerAreaNews,
+  customerRequestAccepted,
+  customerRequestForwarded,
+  customerRequestLapsed,
+  customerRequestNoGarage,
+  garageNewRequest,
   testMessage,
 } from './push-messages.js'
 import type { PushMessage } from './push.js'
@@ -91,7 +97,27 @@ const slotAlert = {
   serviceIds: ['s0000000-0000-4000-8000-000000002720', 's0000000-0000-4000-8000-000000002721'],
 }
 
+// A request row as the service loads it (0062): the customer's address and
+// car are on it and never reach a notification.
+const request = {
+  id: 'q0000000-0000-4000-8000-000000004401',
+  rootRequestId: null,
+  userId: booking.userId,
+  bookingType: 'doorstep',
+  items: [{ name: 'Premium Car Wash' }],
+  windowLabel: 'Tomorrow 9–12',
+  address: booking.address,
+  vehicle: booking.vehicle,
+}
+
 const ALL: Array<[string, PushMessage]> = [
+  ['garage new request', garageNewRequest(request, '3.9 km beyond your 5 km', IST('2026-10-16T20:00:00'), NOW)],
+  ['customer request accepted', customerRequestAccepted(request, 'Marina Auto Spa', IST('2026-10-17T10:00:00'), IST('2026-10-16T20:00:00'), NOW)],
+  ['customer request pickup accepted', customerRequestAccepted({ ...request, bookingType: 'pickup' }, 'Marina Auto Spa', IST('2026-10-17T10:00:00'), IST('2026-10-16T20:00:00'), NOW)],
+  ['customer request forwarded', customerRequestForwarded(request, 'Marina Auto Spa', 'Point to Point')],
+  ['customer request no garage', customerRequestNoGarage(request)],
+  ['customer request lapsed', customerRequestLapsed(request, 'Marina Auto Spa')],
+  ['customer area launch', customerAreaNews('launch', 's1', { title: 'Detlio is now in Velachery', body: '3 garages near you. Your free wash is ready.' })],
   ['garage new booking', garageNewBooking(booking, NOW, 30)],
   ['garage respond soon', garageRespondSoon(booking, IST('2026-10-16T18:20:00'))],
   ['garage proposal chosen', garageProposalChosen({ ...booking, status: 'confirmed' })],
@@ -258,8 +284,24 @@ describe('customer: the same words as Updates', () => {
       if (name.includes('service reminder')) continue
       // Detlio Rewards (0050) only; a bypass report's ₹100 credit (0052) is booking news.
       if (name.startsWith('customer reward ')) continue
+      // An area's news (0062) is a reminder; requests are booking news.
+      if (name.startsWith('customer area ')) continue
       expect(message.category).toBe('booking_update')
     }
+  })
+
+  test('an area’s news (0062) is a reminder; a request’s yes is urgent and opens the requests page', () => {
+    for (const [name, message] of ALL) {
+      if (name.startsWith('customer area ')) expect(message.category).toBe('reminder')
+    }
+    const yes = customerRequestAccepted(request, 'Marina Auto Spa', IST('2026-10-17T10:00:00'), IST('2026-10-16T20:00:00'), NOW)
+    expect(yes.title).toBe('Marina Auto Spa can come!')
+    expect(yes.body).toBe('Sat 17 Oct, 10 AM. Confirm and pay by 8 PM to keep it.')
+    expect(yes.urgency).toBe('high')
+    expect(yes.url).toBe('/requests')
+    expect(garageNewRequest(request, '3.9 km beyond your 5 km', IST('2026-10-16T20:00:00'), NOW).body).toBe(
+      'Tomorrow 9–12 · 3.9 km beyond your 5 km — answer by 8 PM'
+    )
   })
 
   test('rewards (0050) are reminders, for the Reminders switch, and open the app', () => {

@@ -146,6 +146,25 @@ describe('receiptIssuedAt', () => {
   })
 })
 
+describe('buildReceipt: a travel fee (0062)', () => {
+  test('its own line, inside the subtotal; none on any other booking', () => {
+    const r = receiptOf(
+      booking({
+        bookingType: 'doorstep',
+        amount: '599.00',
+        subtotalAmount: '599.00',
+        travelFee: '100.00',
+        payment: { ...booking().payment!, amount: '599.00' },
+      }),
+      []
+    )
+    expect(r.travelFee).toBe('100.00')
+    expect(r.subtotal).toBe('599.00')
+    expect(r.items).toEqual([{ name: 'Express Wash', amount: '499.00' }])
+    expect(receiptOf(booking(), []).travelFee).toBeNull()
+  })
+})
+
 describe('buildReceipt: the number', () => {
   test('prints the number it is given', () => {
     expect(receiptOf(booking(), []).receiptNumber).toBe(NUMBER)

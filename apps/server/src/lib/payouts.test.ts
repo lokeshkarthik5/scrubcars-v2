@@ -103,6 +103,28 @@ describe('bookingEarning — commission rates', () => {
   })
 })
 
+describe('bookingEarning — a travel fee (0062)', () => {
+  test('earned in full, inside the price, with no commission on it', () => {
+    const e = bookingEarning(
+      chain({
+        amount: '1900.00',
+        subtotalAmount: '1900.00',
+        travelFee: '100.00',
+        items: [{ category: 'car_wash', amount: '1800.00', pricingType: 'flat', sortOrder: 0 }],
+      }),
+      PAYING
+    )
+    expect(e.pricePaise).toBe(190_000)
+    expect(e.travelFeePaise).toBe(10_000)
+    expect(e.commissionPaise).toBe(14_400)
+    expect(e.sharePaise).toBe(190_000 - 14_400)
+  })
+
+  test('no travel fee: 0', () => {
+    expect(bookingEarning(chain(), PAYING).travelFeePaise).toBe(0)
+  })
+})
+
 describe('bookingEarning — the free 25', () => {
   test('the first 25 received bookings carry no commission, and say which one they were', () => {
     const e = bookingEarning(chain(), 12)
