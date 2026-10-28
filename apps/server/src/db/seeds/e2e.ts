@@ -41,6 +41,9 @@ import {
   servicePackageItems,
   services,
   userAddresses,
+  zones,
+  zoneSignups,
+  garageRecommendations,
   userMemberMapping,
   userVehicles,
   users,
@@ -70,6 +73,13 @@ import {
   PICKUP_PIN,
   PROPOSALS_PIN,
   REACH_PINS,
+  REQ_HOME,
+  REQ_PINS,
+  FREE_WASH_AREAS,
+  AREA_LAUNCH_PIN,
+  AREA_WAITLIST,
+  REFERRAL_RECOMMENDATION,
+  REFERRAL_BOOKING,
   DOCUMENTS_PIN,
   RESPONSE_OTHER_PIN,
   SLOT_ALERTS_PIN,
@@ -1968,6 +1978,122 @@ async function seedPayoutRows() {
     payment: { status: 'paid', txnId: 'pay_e2e_payout_upcoming', paidAt: daysAgo(2), gatewayMode: 'fake' } })
 }
 
+// ─── customer reach, part 2 ─────────────────────────────────────────────────
+
+/**
+ * Requests (0062): two doorstep garages that cover 5 km and stop short of
+ * REQ_HOME (VENDORS.reqFirst, reqSecond), open every day, and the request
+ * customers, each with a sedan and a pinned home at REQ_HOME. Ids 4400–4499.
+ */
+async function seedRequestRows() {
+  const owner = STAFF.requestOwner.id
+  const garages = [
+    { vendor: VENDORS.reqFirst, pin: REQ_PINS.first, phone: '9000004441', service: SERVICES.reqFirstWash },
+    { vendor: VENDORS.reqSecond, pin: REQ_PINS.second, phone: '9000004442', service: SERVICES.reqSecondWash },
+  ]
+  for (const g of garages) {
+    await db.insert(vendors).values({
+      id: g.vendor.id, ownerId: owner, businessName: g.vendor.name,
+      phone: g.phone, address: '5, Request Road', city: 'Salem', pincode: '636001',
+      lat: g.pin.lat, lng: g.pin.lng, geoSource: 'map_pin', geoConfirmedAt: now,
+      vehicleTypes: ['hatchback', 'sedan', 'suv'],
+      isVerified: true, dropinEnabled: false, doorstepEnabled: true, doorstepRadiusKm: 5,
+      slotIntervalMins: 30, status: 'active', bays: 2,
+    })
+    await db.insert(userMemberMapping).values({
+      vendorId: g.vendor.id, userId: owner, role: 'vendor_admin', status: 'active',
+    })
+    await db.insert(vendorWorkingHours).values(hoursFor(g.vendor.id, '06:00:00', '22:00:00'))
+    await db.insert(services).values({
+      id: g.service.id, vendorId: g.vendor.id, name: g.service.name,
+      description: 'A full foam wash at your door.', category: 'car_wash', pricingType: 'flat',
+      price: g.service.price, durationMins: g.service.durationMins, isActive: true,
+    })
+  }
+
+  const people = [CUSTOMERS.request, CUSTOMERS.requestForward, CUSTOMERS.requestLapse, CUSTOMERS.requestLimit]
+  for (const [i, c] of people.entries()) {
+    await db.insert(userVehicles).values({
+      id: c.vehicleId, userId: c.id, make: 'Honda', model: 'City', color: 'White',
+      licensePlate: `TN30RQ000${i + 1}`, vehicleType: 'sedan', isDefault: true,
+    })
+    await db.insert(userAddresses).values({
+      id: c.addressId, userId: c.id, label: 'Home', address: `${i + 1}, Request Street`, city: 'Salem',
+      lat: REQ_HOME.lat, lng: REQ_HOME.lng, geoSource: 'map_pin', isDefault: true,
+    })
+  }
+}
+
+/**
+ * The free wash (0062): Chromepet's list already full (AREA_WAITLIST, 50
+ * accounts, positions 1–50 with the free wash); Ambattur's launch garage
+ * (VENDORS.areaLaunch, pinned there, active but not verified, so not
+ * listed) with CUSTOMERS.freeWashLaunch first on Ambattur's list; and
+ * CUSTOMERS.referral's recommendation, linked to VENDORS.reqSecond, where
+ * they completed a paid booking after it. Ids 4440–4599.
+ */
+async function seedAreaRows() {
+  await db.insert(users).values(
+    AREA_WAITLIST.map((w) => ({
+      id: w.id, name: w.name, phone: w.phone, isCustomer: true, isVendorOwner: false,
+      phoneVerified: true, status: 'active' as const,
+    }))
+  )
+  const [full] = await db.select().from(zones).where(eq(zones.slug, FREE_WASH_AREAS.full.slug))
+  const [launch] = await db.select().from(zones).where(eq(zones.slug, FREE_WASH_AREAS.launch.slug))
+  if (!full || !launch) throw new Error('0062 zones missing: run the migrations first')
+  await db.insert(zoneSignups).values(
+    AREA_WAITLIST.map((w, i) => ({
+      userId: w.id, zoneId: full.id, position: i + 1, freeWash: true, createdAt: daysAgo(3),
+    }))
+  )
+  await db.insert(zoneSignups).values({
+    userId: CUSTOMERS.freeWashLaunch.id, zoneId: launch.id, position: 1, freeWash: true, createdAt: daysAgo(2),
+  })
+
+  await db.insert(vendors).values({
+    id: VENDORS.areaLaunch.id, ownerId: STAFF.requestOwner.id, businessName: VENDORS.areaLaunch.name,
+    phone: '9000004443', address: '9, Launch Street, Ambattur', city: 'Chennai', pincode: '600053',
+    lat: AREA_LAUNCH_PIN.lat, lng: AREA_LAUNCH_PIN.lng, geoSource: 'map_pin', geoConfirmedAt: now,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'],
+    isVerified: false, dropinEnabled: true, doorstepEnabled: false,
+    slotIntervalMins: 30, status: 'active', bays: 2,
+  })
+  await db.insert(userMemberMapping).values({
+    vendorId: VENDORS.areaLaunch.id, userId: STAFF.requestOwner.id, role: 'vendor_admin', status: 'active',
+  })
+  await db.insert(vendorWorkingHours).values(hoursFor(VENDORS.areaLaunch.id, '06:00:00', '22:00:00'))
+  await db.insert(services).values({
+    id: SERVICES.areaLaunchWash.id, vendorId: VENDORS.areaLaunch.id, name: SERVICES.areaLaunchWash.name,
+    description: 'An exterior foam wash and dry.', category: 'car_wash', pricingType: 'flat',
+    price: SERVICES.areaLaunchWash.price, durationMins: SERVICES.areaLaunchWash.durationMins, isActive: true,
+  })
+
+  for (const [i, c] of [CUSTOMERS.freeWashSign, CUSTOMERS.freeWashLate, CUSTOMERS.freeWashLaunch, CUSTOMERS.referral].entries()) {
+    await db.insert(userVehicles).values({
+      id: c.vehicleId, userId: c.id, make: 'Maruti', model: 'Swift', color: 'Red',
+      licensePlate: `TN22FW000${i + 1}`, vehicleType: 'hatchback', isDefault: true,
+    })
+  }
+
+  // At reqSecond, not MAIN: MAIN's figures are other specs' to assert.
+  await db.insert(garageRecommendations).values({
+    id: REFERRAL_RECOMMENDATION, userId: CUSTOMERS.referral.id, name: VENDORS.reqSecond.name,
+    phone: '9840000001', status: 'joined', vendorId: VENDORS.reqSecond.id,
+    createdAt: daysAgo(10), updatedAt: daysAgo(10),
+  })
+  const reqSecondItem = {
+    id: SERVICES.reqSecondWash.id, name: SERVICES.reqSecondWash.name,
+    amount: SERVICES.reqSecondWash.price, durationMins: SERVICES.reqSecondWash.durationMins,
+  }
+  await insertBooking({
+    id: REFERRAL_BOOKING, userId: CUSTOMERS.referral.id, vehicleId: CUSTOMERS.referral.vehicleId,
+    vendorId: VENDORS.reqSecond.id, items: [reqSecondItem], status: 'completed',
+    scheduledAt: daysAgo(2), createdAt: daysAgo(3), acceptedAt: daysAgo(3), startedAt: daysAgo(2), completedAt: daysAgo(2),
+    payment: { status: 'paid', txnId: 'pay_e2e_referral', paidAt: daysAgo(3) },
+  })
+}
+
 // ─── pickup & drop ──────────────────────────────────────────────────────────
 
 /**
@@ -2906,6 +3032,9 @@ async function main() {
   console.log('[e2e-seed] pickup & drop…')
   await seedPickupRows()
   await seedReachRows()
+  console.log('[e2e-seed] customer reach, part 2…')
+  await seedRequestRows()
+  await seedAreaRows()
   console.log('[e2e-seed] suggested times & extra work…')
   await seedProposalRows()
   console.log('[e2e-seed] garage response deadline…')

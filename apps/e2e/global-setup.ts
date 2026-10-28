@@ -54,6 +54,8 @@ async function globalSetup() {
   await saveState('vendor-proposals', STAFF.proposalsOwner.phone, 'vendor')
   await saveState('vendor-photos', STAFF.photosOwner.phone, 'vendor')
   await saveState('vendor-contact', STAFF.contactOwner.phone, 'vendor')
+  // Customer reach, part 2: the request garages' owner (VENDORS.reqFirst, reqSecond).
+  await saveState('vendor-requests', STAFF.requestOwner.phone, 'vendor')
   await saveState('vendor-today', STAFF.todayOwner.phone, 'vendor')
   await saveState('vendor-operator', STAFF.operator.phone, 'vendor')
   await saveState('super-admin', STAFF.superAdmin.phone, 'vendor')

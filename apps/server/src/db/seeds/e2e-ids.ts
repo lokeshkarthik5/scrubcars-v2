@@ -414,6 +414,21 @@ export const CUSTOMERS = {
    */
   guestExisting: { id: id(4301), phone: '9000004301', name: 'Returning Rekha', vehicleId: id(4302) },
   /**
+   * Customer reach, part 2 (0062; ids 4400–4599, phones 90000044xx and
+   * 90000045xx): requests to garages just outside their reach, around
+   * REQ_HOME (specs/journeys/booking-requests-journey.spec.ts), each with a
+   * sedan and a pinned home at REQ_HOME; and the free-wash sign-ups
+   * (specs/users/free-wash.spec.ts). Each belongs to one test.
+   */
+  request: { id: id(4401), phone: '9000004401', name: 'Request Rani', vehicleId: id(4421), addressId: id(4431) },
+  requestForward: { id: id(4402), phone: '9000004402', name: 'Forward Faisal', vehicleId: id(4422), addressId: id(4432) },
+  requestLapse: { id: id(4403), phone: '9000004403', name: 'Lapse Lakshmi', vehicleId: id(4423), addressId: id(4433) },
+  requestLimit: { id: id(4404), phone: '9000004404', name: 'Limit Leela', vehicleId: id(4424), addressId: id(4434) },
+  freeWashSign: { id: id(4405), phone: '9000004405', name: 'Signup Sundar', vehicleId: id(4425) },
+  freeWashLate: { id: id(4406), phone: '9000004406', name: 'Late Latha', vehicleId: id(4426) },
+  freeWashLaunch: { id: id(4407), phone: '9000004407', name: 'Launch Logan', vehicleId: id(4427) },
+  referral: { id: id(4408), phone: '9000004408', name: 'Referral Reena', vehicleId: id(4428) },
+  /**
    * Customers whose *session* is the thing under test.
    *
    * Logging out and revoking refresh tokens are destructive to the session
@@ -521,6 +536,8 @@ export const STAFF = {
   marksCOwner: { id: id(4166), phone: '9000004165', name: 'Marks Owner Chitra' },
   /** Owns the five customer-reach garages (VENDORS.reach*, 0062; the 4300–4399 range). */
   reachOwner: { id: id(4305), phone: '9000004305', name: 'Reach Owner Ravi' },
+  /** Owns the two request garages and the area-launch garage (customer reach, part 2). */
+  requestOwner: { id: id(4410), phone: '9000004410', name: 'Request Owner Ramesh' },
 } as const
 
 export const VENDORS = {
@@ -778,6 +795,16 @@ export const VENDORS = {
   reachPickup: { id: id(4312), name: 'Reach Pickup Garage' },
   reachOutsideDoorstep: { id: id(4313), name: 'Reach Outside Doorstep' },
   reachOutsidePickup: { id: id(4314), name: 'Reach Outside Pickup' },
+  /**
+   * Customer reach, part 2: two doorstep garages that cover 5 km and stop
+   * short of REQ_HOME (reqFirst ~8.7 km north, reqSecond ~12.2 km south: both
+   * "just outside"), so a request to the first passes to the second; and
+   * areaLaunch, pinned in Ambattur and not verified until
+   * specs/users/free-wash.spec.ts verifies it to launch the area.
+   */
+  reqFirst: { id: id(4441), name: 'Req First Garage' },
+  reqSecond: { id: id(4442), name: 'Req Second Garage' },
+  areaLaunch: { id: id(4443), name: 'Area Launch Garage' },
 } as const
 
 /** VENDORS.contact's own numbers (contact windows), different on purpose. */
@@ -817,6 +844,44 @@ export const REACH_PINS = {
  * in the same run still starts as a new customer).
  */
 export const GUEST_NEW_PHONES = Array.from({ length: 10 }, (_, i) => `900000439${i}`)
+
+/**
+ * Customer reach, part 2: where the request customers live, ~80 km from
+ * every other test garage, and the two request garages' pins (see
+ * VENDORS.reqFirst). Exact in binary, like the other pins.
+ */
+export const REQ_HOME = { lat: 11.25, lng: 78.75 } as const
+export const REQ_PINS = {
+  first: { lat: 11.328125, lng: 78.75 },
+  second: { lat: 11.140625, lng: 78.75 },
+} as const
+
+/**
+ * The free-wash areas (zones seeded by 0062, far from every listed test
+ * garage): Tambaram for signing up (empty list), Chromepet with its 50 free
+ * washes taken (AREA_WAITLIST), Ambattur for launch day (VENDORS.areaLaunch,
+ * CUSTOMERS.freeWashLaunch first on its list).
+ */
+export const FREE_WASH_AREAS = {
+  signUp: { slug: 'tambaram', name: 'Tambaram', lat: 12.9249, lng: 80.1 },
+  full: { slug: 'chromepet', name: 'Chromepet', lat: 12.9516, lng: 80.1462 },
+  launch: { slug: 'ambattur', name: 'Ambattur', lat: 13.1143, lng: 80.1548 },
+} as const
+/** VENDORS.areaLaunch's pin, ~0.6 km from Ambattur's centre. */
+export const AREA_LAUNCH_PIN = { lat: 13.109375, lng: 80.15625 } as const
+/** Fifty accounts already on Chromepet's list (positions 1–50: every free wash given). */
+export const AREA_WAITLIST = Array.from({ length: 50 }, (_, i) => ({
+  id: id(4500 + i),
+  phone: `90000045${String(i).padStart(2, '0')}`,
+  name: `Waitlist ${i + 1}`,
+}))
+/**
+ * CUSTOMERS.referral's recommendation, linked by the team to VENDORS.reqSecond,
+ * where they then completed a paid booking (REFERRAL_BOOKING): the cron gives
+ * the referral credit (owed while GIFTS_ENABLED is off).
+ */
+export const REFERRAL_RECOMMENDATION = id(4461)
+export const REFERRAL_BOOKING = id(4462)
 
 /** Where VENDORS.documents is: south-west, clear of every other test garage. */
 export const DOCUMENTS_PIN = { lat: 12.625, lng: 79.625 } as const
@@ -984,6 +1049,10 @@ export const SERVICES = {
   reachPickupWash: { id: id(4322), name: 'Reach Pickup Wash', price: '499.00', durationMins: 30 },
   reachOutsideDoorstepWash: { id: id(4323), name: 'Reach Outside Doorstep Wash', price: '399.00', durationMins: 30 },
   reachOutsidePickupWash: { id: id(4324), name: 'Reach Outside Pickup Wash', price: '599.00', durationMins: 30 },
+  /** Customer reach, part 2: the request garages' and the launch garage's one wash each. */
+  reqFirstWash: { id: id(4451), name: 'Req First Wash', price: '1800.00', durationMins: 60 },
+  reqSecondWash: { id: id(4452), name: 'Req Second Wash', price: '599.00', durationMins: 60 },
+  areaLaunchWash: { id: id(4453), name: 'Area Launch Wash', price: '399.00', durationMins: 30 },
 } as const
 
 export const DISCOUNTS = {
