@@ -376,7 +376,10 @@ export const certificationService = {
   async certify(vendorId: string, actorSub: string, input: CertifyInput) {
     const garage = await findOpenGarage(vendorId)
     const now = new Date()
-    const eligibility = await evaluateGarage(vendorId, now)
+    // Measured before the transaction: inside it every query must go through
+    // its own connection (the pool may hold one), so nothing reads `db` there.
+    const measured = await measureWithAgreements([vendorId], now)
+    const eligibility = evaluateEligibility(measured.metrics.get(vendorId)!)
     const standing = qualityCheckStanding(await certificationRepository.listChecks(vendorId), istDateKey(now))
 
     await certificationRepository.transaction(vendorId, async (repo) => {
@@ -399,12 +402,11 @@ export const certificationService = {
       // Silver goes only by its own 14 days).
       const silver = await repo.findTierStanding(vendorId)
       if (!silver?.silverAt) {
-        const { metrics, agreements } = await measureWithAgreements([vendorId], now)
         await repo.saveTierStanding(vendorId, {
           silverAt: now,
           silverShortSince: null,
           silverEligible: true,
-          evaluation: toTierSnapshot(agreements.get(vendorId)!, metrics.get(vendorId)!, now),
+          evaluation: toTierSnapshot(measured.agreements.get(vendorId)!, measured.metrics.get(vendorId)!, now),
           lastEvaluatedAt: now,
         })
       }

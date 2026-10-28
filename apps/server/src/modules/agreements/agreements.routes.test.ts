@@ -102,7 +102,7 @@ beforeAll(() => {
       acceptances.filter((a) => a.vendorId === vendorId).sort((a, b) => b.version - a.version),
     findAcceptance: async (vendorId: string, versionId: string) =>
       acceptances.find((a) => a.vendorId === vendorId && a.versionId === versionId),
-    findUser: async (userId: string) => (userId === PEOPLE.owner ? { name: 'Owner Oviya', phone: '9000004501' } : undefined),
+    findUser: async (userId: string) => (userId === PEOPLE.owner ? { name: 'Owner Oviya', phone: '9000004701' } : undefined),
   }
   for (const [key, value] of Object.entries(reads)) patch(agreementsRepository, key, value)
   patch(agreementsRepository, 'transaction', async (work: (repo: unknown) => Promise<unknown>) =>
