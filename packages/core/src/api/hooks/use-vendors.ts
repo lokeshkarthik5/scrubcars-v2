@@ -5,7 +5,14 @@ import { ApiError } from '@repo/core/api/client'
 import { getVendorPackages } from '@repo/core/api/packages'
 import { getVendorReviews } from '@repo/core/api/reviews'
 import { getVendorServices } from '@repo/core/api/services'
-import { getPublicVendor, getVendors, type VendorListParams } from '@repo/core/api/vendors'
+import {
+  getPublicVendor,
+  getVendors,
+  type JustOutsideVendor,
+  type VendorListParams,
+  type VendorListResult,
+} from '@repo/core/api/vendors'
+import type { ApiReachFigures } from '@repo/core/api/types'
 import { mapPublicVendor } from '@repo/core/api/mappers'
 import type { Service, ServicePackage, Vendor } from '@repo/core/types'
 
@@ -32,6 +39,10 @@ export interface VendorSearchResult {
    * the map's viewport, or a typed search.
    */
   radiusKm: number | null
+  /** What each tab offers the customer (the first page's; null when unknown). */
+  reach: ApiReachFigures | null
+  /** Doorstep and Pickup & drop's "Just outside their area" group (the first page's). */
+  outside: JustOutsideVendor[] | null
   hasMore: boolean
   /** True only on a first load, when there is nothing to show yet. */
   isLoading: boolean
@@ -66,6 +77,12 @@ export function useVendorSearch(
      * left over from the previous area would sit in the wrong place.
      */
     keepPrevious?: boolean
+    /**
+     * The first page as the server already rendered it (the landing page,
+     * 0062), so the list is on screen in the HTML. Used only for the exact
+     * params it was fetched with.
+     */
+    initialPage?: VendorListResult
   }
 ): VendorSearchResult {
   const query = useInfiniteQuery({
@@ -79,6 +96,9 @@ export function useVendorSearch(
     // refetching every page on focus would multiply the query cost for nothing.
     staleTime: 60_000,
     placeholderData: options?.keepPrevious ? keepPreviousData : undefined,
+    initialData: options?.initialPage
+      ? { pages: [options.initialPage], pageParams: [undefined] }
+      : undefined,
   })
 
   const pages = query.data?.pages ?? []
@@ -92,6 +112,8 @@ export function useVendorSearch(
     // From the first page: every page of one list is searched with the same
     // radius, so a later page's value would say nothing new.
     radiusKm: pages[0]?.radiusKm ?? null,
+    reach: pages[0]?.reach ?? null,
+    outside: pages[0]?.outside ?? null,
     hasMore,
     // Placeholder data counts as success, so this stays false through a
     // refresh and the full loading state is kept for the very first load. A

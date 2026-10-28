@@ -198,6 +198,12 @@ export type VendorListItemResponse = {
   dropinEnabled: boolean
   /** Offers pickup & drop (isPickupOffered). */
   pickupEnabled: boolean
+  /**
+   * How far it collects cars from, from its pin; null is the default
+   * (DEFAULT_PICKUP_RADIUS_KM). The garage page already shows it; on the card
+   * it is for "Can collect your car" (0062). Null too when it does not collect.
+   */
+  pickupRadiusKm: number | null
   startingPrice: number | null
   // null when the vendor has no reviews yet — distinct from a rating of 0.
   rating: number | null
@@ -828,6 +834,7 @@ export async function vendorCardsFor(
       doorstepEnabled: vendor.doorstepEnabled,
       dropinEnabled: vendor.dropinEnabled,
       pickupEnabled: isPickupOffered(vendor),
+      pickupRadiusKm: isPickupOffered(vendor) ? vendor.pickupRadiusKm : null,
       startingPrice: computeStartingPrice(vendor.services),
       rating: rating ? Number(rating.average.toFixed(2)) : null,
       reviewCount: rating?.count ?? 0,

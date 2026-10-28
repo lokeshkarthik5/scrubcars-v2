@@ -3,6 +3,7 @@ import {
   getTenant,
   type TenantVariables,
 } from '../../middleware/tenant.middleware.js'
+import { reachService } from '../reach/reach.service.js'
 import { vendorsService } from './vendors.service.js'
 import type {
   CreateClosureInput,
@@ -51,7 +52,9 @@ export async function listPublicVendors(
   c: VendorsContext,
   query: ListPublicVendorsQuery
 ) {
-  const vendors = await vendorsService.listPublicVendors(query)
+  // With the reach figures and the "Just outside their area" group (0062),
+  // in the same answer: modules/reach.
+  const vendors = await reachService.withReach(await vendorsService.listPublicVendors(query), query)
 
   return c.json({
     success: true,

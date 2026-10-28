@@ -1,22 +1,25 @@
 /**
- * Which garages a customer's list reaches: the radius and the unpinned tail.
+ * Which garages a customer's list reaches: any radius asked for and the
+ * unpinned tail.
  *
  * Pure, so the rules are unit-tested without a database. The SQL that applies
  * them is vendorsRepository.listPublicVendorPage.
  */
 
 /**
- * How far the garage list reaches from the customer: every garage within this
- * distance, nearest first (owner decision, 2026-10-16). One bound, the same on
- * every page, rather than the old 10 → 25 → 50 km ladder. The ladder stopped
- * at the first ring with anything in it, so one garage within 10 km hid every
- * garage 11–50 km away; and page 2 restarted it at 10 km, so a widened list
- * skipped from page 1 straight to the unpinned tail.
+ * The city's reach from its centre and Home's "Nearby" count, in km: 50
+ * (owner decision, 2026-10-16). The service city's sign (lib/service-city.ts)
+ * calls a garage further than this from the centre "Outside Chennai", Home's
+ * Nearby card counts the at-garage garages within this distance of the
+ * customer (home.service.ts), and "Book another garage" (0042) looks this far
+ * for drop-in.
  *
- * Home's Nearby card counts within the same distance (home.service.ts), so
- * its number matches the pinned part of the list it leads to.
+ * The garage list itself no longer stops here (customer reach, 0062: "the
+ * list is never empty"): with a location it is every listed garage, nearest
+ * first, paginated, unless the caller asks for a radius (the map's Nearby
+ * mode does, with this one).
  */
-export const LIST_RADIUS_KM = 50
+export const CITY_REACH_KM = 50
 
 export interface ListScopeQuery {
   /** Whether the customer sent a location. */
@@ -33,9 +36,9 @@ export interface ListScopeQuery {
 
 export interface ListScope {
   /**
-   * How far from the customer to look, in km, or null for no bound. The same
-   * on every page of one list, so the offset in its cursor always counts into
-   * the same set of garages.
+   * How far from the customer to look, in km, or null for no bound: only
+   * when the caller asked for one. The same on every page of one list, so
+   * the offset in its cursor always counts into the same set of garages.
    */
   radiusKm: number | null
   /** Whether garages with no pin follow the located ones. */
@@ -60,8 +63,9 @@ export function listScope(query: ListScopeQuery): ListScope {
     query.q === undefined
 
   return {
-    // An explicit radius is taken as a real constraint, not a suggestion.
-    radiusKm: usesRadius ? (query.radiusKm ?? LIST_RADIUS_KM) : null,
+    // No default bound (0062): a located customer sees every garage, nearest
+    // first. An explicit radius is taken as a real constraint.
+    radiusKm: usesRadius ? (query.radiusKm ?? null) : null,
     // On by default, because hiding unpinned garages is the worse failure:
     // many are still unpinned, and a geo filter they cannot satisfy would
     // show "no garages" for a city full of them. Two places cannot use them.

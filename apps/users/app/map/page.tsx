@@ -23,6 +23,7 @@ import { useVendorSearch } from '@repo/core/api/hooks/use-vendors'
 import { track } from '@repo/core/analytics'
 import {
   coarse,
+  isApproximate,
   isCitywide,
   useLocationStore,
 } from '@repo/core/stores/location-store'
@@ -36,9 +37,9 @@ import {
   DEFAULT_CENTER,
   MAP_STYLES,
   MAP_THEME,
-  formatDistance,
   straightLineKm,
 } from '@repo/core/map'
+import { distanceAndDrive } from '@repo/core/drive-time'
 import { SERVICE_CITY } from '@repo/core/service-city'
 import { categoryLabel } from '@repo/core/categories'
 import { cn } from '@repo/core/utils'
@@ -95,8 +96,8 @@ const GaragePins = dynamic(
 const PAGE_LIMIT = 50
 
 /**
- * City mode's reach from the centre: the same 50 km as the list's radius
- * from a customer (LIST_RADIUS_KM in the server's lib/discovery.ts), so a
+ * City mode's reach from the centre, and Nearby mode's from the customer:
+ * the city's 50 km (CITY_REACH_KM in the server's lib/discovery.ts), so a
  * customer with no location sees what one standing in the centre would. The
  * service city's own numbers, so a garage this leaves off is exactly one
  * that carries the "Outside Chennai" sign.
@@ -218,13 +219,15 @@ function MapBrowseContent() {
     {
       bookingType,
       category,
-      // Nearby sends no viewport, so the server applies the list's 50 km
-      // (doorstep: each garage's own reach) from the customer.
+      // Nearby sends no viewport but the city's 50 km, so the map stays a
+      // neighbourhood (the list itself has no bound since 0062; doorstep and
+      // pickup: each garage's own reach, the server ignores the radius).
       // City mode sends neither: every pinned garage comes back, and the ones
       // within reach of the centre are picked below.
       bbox: areaBounds ? boundsToParam(areaBounds) : undefined,
       lat: origin?.lat,
       lng: origin?.lng,
+      radiusKm: nearby ? CITY_RADIUS_KM : undefined,
       sort: origin ? 'distance' : 'relevance',
       // A garage with no coordinates cannot be drawn on a map, so the tail of
       // still-unpinned garages is the one place it makes no sense to include.
@@ -651,6 +654,10 @@ function MapVendorCard({
   onChoose: () => void
 }) {
   const modeParam = bookingTypeParam(mode)
+  // "6.2 km · ~20 min" (0062), "~" before the km when measured from an area.
+  const approx = useLocationStore((s) => isApproximate(s.location))
+  const distance =
+    vendor.distanceKm !== null ? distanceAndDrive(vendor.distanceKm, approx) : null
   // Whether it comes to you: on a Pickup & drop map every garage collects,
   // so that is the badge; otherwise Doorstep, as before.
   const badge =
@@ -758,21 +765,14 @@ function MapVendorCard({
               outside={vendor.outsideServiceCity}
               className="min-w-0 bg-surface"
             />
-            {vendor.distanceKm !== null && (
-              <span className="shrink-0 font-numeric">
-                {formatDistance(vendor.distanceKm)}
-              </span>
+            {distance && (
+              <span className="shrink-0 font-numeric">{distance}</span>
             )}
           </p>
         ) : (
           <p className="truncate text-[12px] text-text-secondary">
             <Figures
-              text={[
-                vendor.area,
-                vendor.distanceKm !== null
-                  ? formatDistance(vendor.distanceKm)
-                  : null,
-              ]
+              text={[vendor.area, distance]
                 .filter(Boolean)
                 .join(' · ')}
             />

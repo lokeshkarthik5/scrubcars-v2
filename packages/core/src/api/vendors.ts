@@ -8,7 +8,9 @@ import {
 } from './mappers'
 import type {
   ApiBooking,
+  ApiJustOutsideItem,
   ApiPublicVendor,
+  ApiReachFigures,
   ApiServiceArea,
   ApiVendorClosure,
   ApiVendorList,
@@ -32,9 +34,10 @@ export interface VendorListParams {
   lat?: number
   lng?: number
   /**
-   * Drop-in only, and at most 50. Left out, the server reaches 50 km. Doorstep
-   * is bounded by each garage's own travel radius, since the question there is
-   * "who will come to me", and a typed search (`q`) has no radius at all.
+   * Drop-in only, and at most 50. Left out, there is no bound (0062): every
+   * garage, nearest first. Doorstep is bounded by each garage's own travel
+   * radius, since the question there is "who will come to me", and a typed
+   * search (`q`) has no radius at all.
    */
   radiusKm?: number
   /** Viewport for the map view's "search as I move the map". */
@@ -64,6 +67,21 @@ export interface VendorListResult {
    * "No garages within 50 km of you yet." rather than a bare "none".
    */
   radiusKm: number | null
+  /** What each tab offers (first page; null otherwise, or from an API before 0062). */
+  reach: ApiReachFigures | null
+  /** Doorstep and Pickup & drop's "Just outside their area" group (first page, with a location). */
+  outside: JustOutsideVendor[] | null
+}
+
+/** A garage just outside its own reach: its card, the radius it covers and how far out the customer is. */
+export interface JustOutsideVendor {
+  vendor: Vendor
+  coverKm: number | null
+  outsideKm: number
+}
+
+function mapJustOutside(item: ApiJustOutsideItem): JustOutsideVendor {
+  return { vendor: mapVendorListItem(item), coverKm: item.coverKm, outsideKm: item.outsideKm }
 }
 
 /** GET /vendors */
@@ -95,6 +113,8 @@ export async function getVendors(
     // An API from before `radiusKm` sends only the ladder's ring, which was
     // null whenever nothing was found; close enough for the rare deploy gap.
     radiusKm: result.radiusKm !== undefined ? result.radiusKm : (result.appliedRadiusKm ?? null),
+    reach: result.reach ?? null,
+    outside: result.outside ? result.outside.map(mapJustOutside) : null,
   }
 }
 

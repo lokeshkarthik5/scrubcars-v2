@@ -4468,3 +4468,37 @@ export const guaranteeClaimsRelations = relations(guaranteeClaims, ({ one, many 
 export const guaranteeClaimPhotosRelations = relations(guaranteeClaimPhotos, ({ one }) => ({
   claim: one(guaranteeClaims, { fields: [guaranteeClaimPhotos.claimId], references: [guaranteeClaims.id] }),
 }))
+
+/**
+ * Chennai's zones (0062): an area as a centre and a name, for the landing
+ * page's "Where's your car?" chips and, later, coverage. A point belongs to
+ * the nearest centre within 6 km (`zoneFor`, lib/zones.ts); nothing stores a
+ * garage's zone, it is worked out from the pin. `priority` marks the owner's
+ * seven chips; `target` is the team's goal for listed garages; `live_at` is
+ * when the zone first had a live garage (set by the launch-day step, null
+ * until then). Seeded with CHENNAI_ZONES.
+ */
+export const zones = pgTable(
+  'zones',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    slug: varchar('slug', { length: 60 }).notNull(),
+    name: varchar('name', { length: 60 }).notNull(),
+    lat: doublePrecision('lat').notNull(),
+    lng: doublePrecision('lng').notNull(),
+    priority: boolean('priority').default(false).notNull(),
+    target: integer('target').default(5).notNull(),
+    liveAt: timestamp('live_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('zones_slug_key').on(table.slug),
+    uniqueIndex('zones_name_key').on(sql`lower(${table.name})`),
+    check('zones_slug_check', sql`${table.slug} ~ '^[a-z0-9]+(-[a-z0-9]+)*$'`),
+    check('zones_name_check', sql`length(btrim(${table.name})) between 2 and 60`),
+    check('zones_lat_check', sql`${table.lat} between -90 and 90`),
+    check('zones_lng_check', sql`${table.lng} between -180 and 180`),
+    check('zones_target_check', sql`${table.target} between 1 and 1000`),
+  ]
+)

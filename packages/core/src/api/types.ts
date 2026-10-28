@@ -114,6 +114,8 @@ export interface ApiVendorListItem {
   dropinEnabled: boolean
   /** Offers pickup & drop. Absent from older servers. */
   pickupEnabled?: boolean
+  /** How far it collects from (null: the 10 km default). Absent from an API before 0062. */
+  pickupRadiusKm?: number | null
   startingPrice: number | null
   rating: number | null
   reviewCount: number
@@ -165,6 +167,30 @@ export interface ApiVendorList {
    * that sends `radiusKm`. Read only as the fallback for an older API.
    */
   appliedRadiusKm?: number | null
+  /**
+   * What each tab offers the customer, on a list's first page (0062; absent
+   * from an older API, null on later pages or when it could not be read).
+   */
+  reach?: ApiReachFigures | null
+  /**
+   * Doorstep and Pickup & drop with a location, first page: garages just
+   * outside their own reach (0062). Absent from an older API.
+   */
+  outside?: ApiJustOutsideItem[] | null
+}
+
+/** `reach` on GET /vendors (modules/reach on the server). */
+export interface ApiReachFigures {
+  dropin: { count: number; nearestKm: number | null }
+  doorstep: { count: number; fromPrice: number | null }
+  pickup: { count: number; fromPrice: number | null }
+}
+
+/** A "Just outside their area" card: the list's card, its reach and how far out the customer is. */
+export interface ApiJustOutsideItem extends ApiVendorListItem {
+  /** The radius it covers, in km; null for a doorstep garage with a drawn area. */
+  coverKm: number | null
+  outsideKm: number
 }
 
 /**

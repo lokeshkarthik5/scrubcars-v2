@@ -1,12 +1,12 @@
 import { describe, expect, test } from 'bun:test'
-import { LIST_RADIUS_KM, listScope } from './discovery.js'
+import { CITY_REACH_KM, listScope } from './discovery.js'
 
 describe('listScope', () => {
-  test('a located customer gets every garage within 50 km, then the unpinned', () => {
-    expect(LIST_RADIUS_KM).toBe(50)
-    expect(listScope({ hasOrigin: true })).toEqual({ radiusKm: 50, includeUnlocated: true })
+  test('a located customer gets every garage, nearest first, with no cut-off, then the unpinned (0062)', () => {
+    expect(CITY_REACH_KM).toBe(50)
+    expect(listScope({ hasOrigin: true })).toEqual({ radiusKm: null, includeUnlocated: true })
     expect(listScope({ hasOrigin: true, bookingType: 'dropin' })).toEqual({
-      radiusKm: 50,
+      radiusKm: null,
       includeUnlocated: true,
     })
   })
@@ -57,8 +57,8 @@ describe('listScope', () => {
     expect(listScope({ hasOrigin: false, bookingType: 'pickup' }).includeUnlocated).toBe(false)
   })
 
-  test('the map view can ask for nearby mode: a radius, no unpinned garages', () => {
-    expect(listScope({ hasOrigin: true, includeUnlocated: false })).toEqual({
+  test('the map view can ask for nearby mode: the radius it sends, no unpinned garages', () => {
+    expect(listScope({ hasOrigin: true, includeUnlocated: false, radiusKm: CITY_REACH_KM })).toEqual({
       radiusKm: 50,
       includeUnlocated: false,
     })

@@ -43,7 +43,14 @@ import {
   resolveBookingType,
 } from '@repo/core/booking-types'
 import { useAuthStore } from '@repo/core/stores/auth-store'
-import { coarse, useLocationStore } from '@repo/core/stores/location-store'
+import {
+  coarse,
+  isApproximate,
+  isCitywide,
+  useLocationStore,
+} from '@repo/core/stores/location-store'
+import { distanceAndDrive, distanceLabel } from '@repo/core/drive-time'
+import { straightLineKm } from '@repo/core/map'
 import { toMinutes, useTravelTime } from '@repo/core/api/hooks/use-travel-time'
 import {
   useVendorClosures,
@@ -381,7 +388,9 @@ export default function GaragePage({
     const bookPath = `/book/${id}?service=${selected.join(',')}${
       modeQuery ? `&mode=${modeQuery}` : ''
     }${offerCode ? `&code=${encodeURIComponent(offerCode)}` : ''}`
-    router.push(user ? bookPath : `/login?next=${encodeURIComponent(bookPath)}`)
+    // Signed in or not (0062): a guest chooses everything at checkout and
+    // signs in there, at "Confirm".
+    router.push(bookPath)
   }
 
   // Routing is the one geo call whose volume tracks browsing rather than saves,
@@ -440,7 +449,15 @@ export default function GaragePage({
   // Gallery-only hero — the logo gets its own badge below, so using it as the
   // hero too would repeat the same image.
   const hero = vendor.photos[0] ?? null
-  const hasDistance = /\d/.test(vendor.distance)
+  // How far, from the customer's location (an area's centre reads "~"):
+  // the straight line to the garage's pin, as every card measures it, with
+  // the estimated drive (0062). A GPS customer gets the real road time below
+  // instead of the estimate, when routing answers (useTravelTime).
+  const fromHere =
+    activeLocation && !isCitywide(activeLocation) && vendor.lat != null && vendor.lng != null
+      ? straightLineKm(coarse(activeLocation), { lat: vendor.lat, lng: vendor.lng })
+      : null
+  const approximate = isApproximate(activeLocation)
   // The switch only when there is a choice to make: two or three modes.
   const modes = offeredBookingTypes(vendor)
   // A paused garage's page still loads — someone may have it saved, or be
@@ -527,18 +544,19 @@ export default function GaragePage({
           ) : (
             <span className="font-medium text-text-primary">New on Detlio</span>
           )}
-          {hasDistance && (
+          {fromHere !== null && (
             <>
               <span>·</span>
-              <span className="font-numeric font-medium">
-                {vendor.distance}
+              <span className="font-numeric font-medium" data-distance="">
+                {travel.data
+                  ? distanceLabel(fromHere, approximate)
+                  : distanceAndDrive(fromHere, approximate)}
               </span>
             </>
           )}
-          {/* Straight-line distance above, driving time here — kept as two
-              separate facts on purpose. "2.1 km away" across a river is honest;
-              calling it an 8-minute drive would not be. */}
-          {travel.data && (
+          {/* A GPS customer's real road time, when routing answers, in place
+              of the estimate. */}
+          {fromHere !== null && travel.data && (
             <>
               <span>·</span>
               <span>
