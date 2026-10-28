@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import {
-  isMetaPixelRequest,
+  isMetaRequest,
   originAndPath,
   scrubMetaBody,
   scrubMetaUrl,
@@ -39,19 +39,29 @@ describe('an address as Meta may have it', () => {
     expect(originAndPath('')).toBe('')
   })
 
-  test('only requests to the Pixel endpoint are touched', () => {
-    expect(isMetaPixelRequest('https://www.facebook.com/tr/?id=1')).toBe(true)
-    expect(isMetaPixelRequest('https://www.facebook.com/tr?id=1')).toBe(true)
-    expect(isMetaPixelRequest('https://facebook.com/tr/')).toBe(true)
-    expect(isMetaPixelRequest('https://api.detlio.com/api/v1/events')).toBe(
-      false
-    )
-    expect(isMetaPixelRequest('https://notfacebook.com/tr/')).toBe(false)
-    expect(isMetaPixelRequest('https://www.facebook.com/privacy/policy/')).toBe(
-      false
-    )
+  test('only requests to facebook.com are touched', () => {
+    expect(isMetaRequest('https://www.facebook.com/tr/?id=1')).toBe(true)
+    expect(isMetaRequest('https://www.facebook.com/tr?id=1')).toBe(true)
+    expect(isMetaRequest('https://facebook.com/tr/')).toBe(true)
+    // Chrome's Attribution Reporting trigger carries the same dl and rl.
+    expect(
+      isMetaRequest(
+        'https://www.facebook.com/privacy_sandbox/pixel/register/trigger/?id=1'
+      )
+    ).toBe(true)
+    expect(isMetaRequest('https://api.detlio.com/api/v1/events')).toBe(false)
+    expect(isMetaRequest('https://notfacebook.com/tr/')).toBe(false)
+    expect(isMetaRequest('https://facebook.com.evil.example/tr/')).toBe(false)
+    expect(isMetaRequest('/tr/?id=1', 'https://detlio.com/')).toBe(false)
     const other = `https://api.detlio.com/api/v1/x?dl=${encodeURIComponent(CHECKOUT)}`
     expect(scrubMetaUrl(other)).toBe(other)
+  })
+
+  test('a Meta address with nothing to cut comes back exactly as it was', () => {
+    const policy = 'https://www.facebook.com/privacy/policy/'
+    expect(scrubMetaUrl(policy)).toBe(policy)
+    const plain = 'https://www.facebook.com/tr/?id=1&ev=PageView&cd[a]=b%20c'
+    expect(scrubMetaUrl(plain)).toBe(plain)
   })
 })
 
@@ -95,6 +105,35 @@ describe('what goes to Meta', () => {
   test('a body it cannot read is not sent', () => {
     expect(scrubMetaBody(new Blob([CHECKOUT])).ok).toBe(false)
     expect(scrubMetaBody(new ArrayBuffer(8)).ok).toBe(false)
+    expect(scrubMetaBody(JSON.stringify({ dl: CHECKOUT })).ok).toBe(false)
+  })
+
+  test('the Attribution Reporting trigger, and any parameter holding an address', () => {
+    const trigger = `https://www.facebook.com/privacy_sandbox/pixel/register/trigger/?id=1&ev=InitiateCheckout&dl=${encodeURIComponent(CHECKOUT)}&rl=${encodeURIComponent(SIGN_IN)}&ref=${encodeURIComponent(CHECKOUT)}&ts=1`
+    const sent = new URL(scrubMetaUrl(trigger))
+    expect(sent.searchParams.get('dl')).toBe(
+      `https://detlio.com/book/${GARAGE}`
+    )
+    expect(sent.searchParams.get('rl')).toBe('https://detlio.com/login')
+    expect(sent.searchParams.get('ref')).toBe(
+      `https://detlio.com/book/${GARAGE}`
+    )
+    expect(sent.searchParams.get('ts')).toBe('1')
+    expectNoQueryLeft(sent.toString())
+  })
+
+  test('a cut of the caller’s own, for paths that hold a code', () => {
+    const gift = 'https://detlio.com/gift/GIFTCODE123?x=1'
+    const toRoot = (value: string) => {
+      const plain = originAndPath(value)
+      return plain ? new URL(plain).origin + '/' : ''
+    }
+    const sent = new URL(
+      scrubMetaUrl(pixelUrl(CHECKOUT, gift), undefined, toRoot)
+    )
+    expect(sent.searchParams.get('dl')).toBe('https://detlio.com/')
+    expect(sent.searchParams.get('rl')).toBe('https://detlio.com/')
+    expect(sent.toString()).not.toContain('GIFTCODE123')
   })
 })
 
@@ -105,6 +144,7 @@ describe('in front of the page', () => {
     const xhrs: Array<{ url: unknown; body: unknown }> = []
     const images: string[] = []
     const attributes: string[] = []
+    const attributeCalls: unknown[][] = []
     const forms: Array<{ action: string; values: Record<string, string> }> = []
 
     class FakeXhr {
@@ -128,8 +168,9 @@ describe('in front of the page', () => {
     }
     class FakeElement {
       tagName = 'IMG'
-      setAttribute(_name: string, value: string) {
-        attributes.push(value)
+      setAttribute(...args: unknown[]) {
+        attributeCalls.push(args)
+        attributes.push(String(args[1]))
       }
     }
     class FakeForm {
@@ -171,6 +212,7 @@ describe('in front of the page', () => {
       xhrs,
       images,
       attributes,
+      attributeCalls,
       forms,
       FakeXhr,
       FakeImage,
@@ -243,6 +285,41 @@ describe('in front of the page', () => {
       body: '{"x":1}',
     })
     expect(page.images[0]).toBe('https://cdn.detlio.com/garage.jpg?w=600')
+
+    // setAttribute, which React calls for every attribute on the page, gets
+    // exactly the arguments it was given.
+    const element = new page.FakeElement()
+    element.setAttribute('href', `/book/${GARAGE}?code=DIWALI50`)
+    element.setAttribute('data-n', 3 as unknown as string)
+    expect(page.attributeCalls).toEqual([
+      ['href', `/book/${GARAGE}?code=DIWALI50`],
+      ['data-n', 3],
+    ])
+  })
+
+  test('an attributionsrc attribute naming Meta is cut too', () => {
+    const page = fakeWindow()
+    shieldMetaRequests(page.win as unknown as ShieldWindow)
+    const trigger = `https://www.facebook.com/privacy_sandbox/pixel/register/trigger/?id=1&dl=${encodeURIComponent(CHECKOUT)}`
+    new page.FakeElement().setAttribute('attributionsrc', trigger)
+    expect(page.attributeCalls[0][0]).toBe('attributionsrc')
+    expect(
+      new URL(String(page.attributeCalls[0][1])).searchParams.get('dl')
+    ).toBe(`https://detlio.com/book/${GARAGE}`)
+    expectNoQueryLeft(String(page.attributeCalls[0][1]))
+  })
+
+  test('the cut it is given is the one it uses', () => {
+    const page = fakeWindow()
+    shieldMetaRequests(
+      page.win as unknown as ShieldWindow,
+      () => 'https://detlio.com/'
+    )
+    const image = new page.FakeImage()
+    image.src = pixelUrl(CHECKOUT, SIGN_IN)
+    expect(new URL(page.images[0]).searchParams.get('dl')).toBe(
+      'https://detlio.com/'
+    )
   })
 
   test('a Pixel request it cannot check is not sent', async () => {

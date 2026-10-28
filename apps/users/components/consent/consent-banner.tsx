@@ -14,6 +14,27 @@ import {
 import { pixelExcluded } from '@/lib/meta-pixel'
 import { LEGAL_PATHS } from '@/lib/legal/routes'
 
+/**
+ * A sheet or dialog is open over the page: the shared overlays lock the
+ * page's scroll while they are (packages/ui sc/modal.tsx). The page sits in
+ * its own stacking context (app/template.tsx's fade-in), so the bar, which
+ * is outside it, would otherwise draw over the top of every sheet and
+ * dialog, whatever their z-index, until the question is answered.
+ */
+function subscribeOverlay(listener: () => void): () => void {
+  if (typeof MutationObserver !== 'function') return () => {}
+  const observer = new MutationObserver(listener)
+  observer.observe(document.body, {
+    attributes: true,
+    attributeFilter: ['style'],
+  })
+  return () => observer.disconnect()
+}
+
+const overlayOpen = () => document.body.style.overflow === 'hidden'
+
+const noOverlay = () => false
+
 const BUTTON =
   'inline-flex h-11 min-w-[7.5rem] flex-1 items-center justify-center rounded-full px-4 text-[14px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-white sm:flex-none'
 
@@ -45,6 +66,7 @@ export function ConsentBanner() {
     getConsentSnapshot,
     getServerConsentSnapshot
   )
+  const covered = useSyncExternalStore(subscribeOverlay, overlayOpen, noOverlay)
   const hidden = pixelExcluded(pathname, params.get('next'))
   const show = consent.ready && !hidden && shouldAsk(consent)
   const bar = useRef<HTMLElement>(null)
@@ -86,7 +108,8 @@ export function ConsentBanner() {
       aria-label="Cookie choice"
       tabIndex={-1}
       data-consent-banner
-      className="sticky top-0 z-50 border-b border-border bg-surface outline-none print:hidden"
+      // Out of sight, keeping its room, while a sheet or dialog is open.
+      className={`sticky top-0 z-50 border-b border-border bg-surface outline-none print:hidden${covered ? ' invisible' : ''}`}
     >
       <div className="mx-auto flex w-full max-w-[428px] flex-col gap-3 px-4 py-3 sm:max-w-3xl sm:flex-row sm:items-center sm:justify-between">
         {consent.teamDevice ? (

@@ -252,12 +252,14 @@ export function installPixel(
 /**
  * Adds the fbevents.js script tag, once. First puts the shield in front of
  * the page's requests (lib/meta-request-shield.ts), so whatever fbevents.js
- * sends Meta carries page addresses as origin + path only, never a query
- * string (checkout's promo code and saved address id).
+ * sends Meta carries page addresses as metaPageAddress cuts them: never a
+ * query string (checkout's promo code and saved address id), never a code
+ * or a booking's id in the path.
  */
 export function loadPixelScript(doc: Document = document) {
   if (doc.getElementById(PIXEL_SCRIPT_ID)) return
-  if (typeof window !== 'undefined') shieldMetaRequests(window as never)
+  if (typeof window !== 'undefined')
+    shieldMetaRequests(window as never, metaPageAddress)
   const script = doc.createElement('script')
   script.id = PIXEL_SCRIPT_ID
   script.async = true
@@ -387,6 +389,33 @@ export function eventSourceUrl(href: string): string | undefined {
   } catch {
     return undefined
   }
+}
+
+/**
+ * A page address as Meta may have it in a Pixel request (`dl`, the page;
+ * `rl`, the one before): eventSourceUrl's origin + path, cut before an id
+ * that isn't a garage's, and then before the part of the path that makes it
+ * a page the Pixel stays off (pixelExcluded): https://detlio.com/gift/<code>
+ * is sent as https://detlio.com/gift, /bookings/<id>/receipt as /bookings,
+ * /verify/<token> as the site's root. fbevents.js reads the address when it
+ * sends, and the referrer is whatever page the tab was opened from (a new
+ * tab off a gift's page; sign-in after a session ran out on a booking's
+ * page), so neither is only ever a page the Pixel runs on. '' when the
+ * value isn't an http(s) address.
+ */
+export function metaPageAddress(value: string): string {
+  const cut = eventSourceUrl(value)
+  if (!cut) return ''
+  const url = new URL(cut)
+  if (!pixelExcluded(url.pathname, null)) return cut
+  const segments = url.pathname.split('/')
+  let kept = ''
+  for (let i = 1; i < segments.length; i++) {
+    const longer = segments.slice(0, i + 1).join('/')
+    if (pixelExcluded(longer, null)) break
+    kept = longer
+  }
+  return `${url.origin}${kept || '/'}`
 }
 
 /**
