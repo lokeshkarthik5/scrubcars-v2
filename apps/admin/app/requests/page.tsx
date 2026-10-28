@@ -1,7 +1,6 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react'
-import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { IconSend } from '@tabler/icons-react'
 import { EmptyState, ErrorState } from '@repo/ui/sc/empty-state'
@@ -25,6 +24,7 @@ import {
   REQUEST_FILTERS,
   requestsHref,
 } from '@/lib/requests'
+import { replaceAddress } from '@/lib/replace-address'
 
 const EMPTY: Record<string, { title: string; subtitle: string }> = {
   open: {
@@ -98,9 +98,7 @@ function RequestsList() {
                   count={data?.counts[option.value]}
                   active={filter === option.value}
                   onClick={() =>
-                    router.replace(requestsHref(option.value, zone), {
-                      scroll: false,
-                    })
+                    replaceAddress(requestsHref(option.value, zone))
                   }
                 />
               ))}
@@ -108,12 +106,13 @@ function RequestsList() {
             {zone && (
               <p className="flex flex-wrap items-center gap-2 text-[12.5px] text-text-secondary">
                 Only requests sent from {data?.zone?.name ?? zone}.
-                <Link
-                  href={requestsHref(filter, null)}
+                <button
+                  type="button"
+                  onClick={() => replaceAddress(requestsHref(filter, null))}
                   className="inline-flex min-h-9 items-center font-medium text-text-primary underline underline-offset-4"
                 >
                   Show every zone
-                </Link>
+                </button>
               </p>
             )}
           </div>

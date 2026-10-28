@@ -146,6 +146,8 @@ test.describe.serial('the admin round: garage editor @p0', () => {
     await expect
       .poll(async () => (await service(SERVICES.roundWash.id)).duration_mins)
       .toBe(45)
+    // Saved: the save bar goes (an edit made while it saves is not kept).
+    await expect(page.getByRole('button', { name: 'Save changes' })).toHaveCount(0)
 
     await wash.getByLabel(/duration$/).selectOption('')
     await expect(wash.getByText('Duration not set')).toBeVisible()
@@ -153,6 +155,7 @@ test.describe.serial('the admin round: garage editor @p0', () => {
     await expect
       .poll(async () => (await service(SERVICES.roundWash.id)).duration_mins)
       .toBeNull()
+    await expect(page.getByRole('button', { name: 'Save changes' })).toHaveCount(0)
   })
 
   test('a service’s own commission percent: shown, refused past 50, set and cleared', async ({
@@ -270,6 +273,9 @@ test.describe.serial('the admin round: garage editor @p0', () => {
       .toBe(
         'An exterior foam wash and dry.\n- Foam wash and rinse\n- Tyre polish\n- Dashboard polish\n- Glass cleaned'
       )
+    // Saved on screen too, before leaving: while it saves, the editor holds
+    // the page (a reload then waits on its "Leave site?").
+    await expect(page.getByRole('button', { name: 'Save changes' })).toHaveCount(0)
 
     // Opened again, a description with "- " lines is in Points mode.
     await page.reload()

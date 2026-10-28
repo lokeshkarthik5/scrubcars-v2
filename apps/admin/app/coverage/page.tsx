@@ -1,7 +1,7 @@
 'use client'
 
 import { Suspense, useCallback, useMemo, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { IconAlertCircle } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
 import { Notice } from '@repo/ui/sc/notice'
@@ -39,6 +39,7 @@ import {
   sortByDemand,
   zoneStats,
 } from '@/lib/coverage'
+import { replaceAddress } from '@/lib/replace-address'
 
 /** `?zone=` for the places in no zone. */
 const OUTSIDE = 'none'
@@ -69,7 +70,6 @@ export default function CoveragePage() {
 
 function Coverage() {
   const params = useSearchParams()
-  const router = useRouter()
   const view = params.get('view') === 'demand' ? 'demand' : 'zones'
   const zoneParam = params.get('zone')
 
@@ -81,11 +81,9 @@ function Coverage() {
         else query.set(key, value)
       }
       const text = query.toString()
-      router.replace(text ? `/coverage?${text}` : '/coverage', {
-        scroll: false,
-      })
+      replaceAddress(text ? `/coverage?${text}` : '/coverage')
     },
-    [params, router]
+    [params]
   )
 
   const { data, isLoading, error } = useCoverage()

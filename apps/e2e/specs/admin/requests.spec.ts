@@ -31,8 +31,6 @@ const putBack = async () => {
     created_at = now() - interval '40 minutes', updated_at = now() - interval '40 minutes'
     where id = ${R.open}`
   await sql`update booking_requests set confirm_by = now() + interval '3 hours' where id = ${R.accepted}`
-  await sql`delete from admin_audit_log where action = 'booking_request_cancelled'
-    and summary->>'requestId' = ${R.open}`
 }
 
 /** A request's card, by its customer and the garage asked now. */
@@ -134,14 +132,27 @@ test.describe.serial('Requests @p0', () => {
       'aria-pressed',
       'true'
     )
-    await page.getByRole('link', { name: 'Show every zone' }).click()
+    await page.getByRole('button', { name: 'Show every zone' }).click()
     await expect(page).toHaveURL(/\/requests\?filter=all$/)
     await expect(page.getByText('Only requests sent from')).toHaveCount(0)
+
+    // Back to Open: the bare address (a prerendered page's router.replace
+    // there did nothing once).
+    await page.getByRole('button', { name: /^Open \d+$/ }).click()
+    await expect(page).toHaveURL(/\/requests$/)
+    await expect(
+      page.getByRole('button', { name: /^Open \d+$/ })
+    ).toHaveAttribute('aria-pressed', 'true')
+    await expect(card(page, ONE.name)).toContainText('Waiting for the garage')
   })
 
   test('Cancel with a reason: Keep it first; the customer is told; it shows as Detlio’s', async ({
     page,
   }) => {
+    // The audit log is append-only: this run's row is the one after this.
+    const [{ started }] = await sql<
+      { started: Date }[]
+    >`select now() as started`
     await page.goto('/requests')
     await card(page, ONE.name)
       .getByRole('button', { name: 'Cancel request' })
@@ -188,7 +199,8 @@ test.describe.serial('Requests @p0', () => {
     const [audit] = await sql<
       { actor_name: string }[]
     >`select actor_name from admin_audit_log where action = 'booking_request_cancelled'
-      and summary->>'requestId' = ${R.open}`
+      and summary->>'requestId' = ${R.open} and created_at >= ${started}
+      order by created_at desc limit 1`
     expect(audit).toEqual({ actor_name: 'E2E Admin' })
 
     await page.getByRole('button', { name: /^All \d+$/ }).click()
