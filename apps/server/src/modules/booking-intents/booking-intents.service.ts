@@ -4,7 +4,7 @@ import { logger } from '../../lib/logger.js'
 import { alertOps } from '../../lib/ops-alerts.js'
 import { newHandoverCodes } from '../../lib/pickup.js'
 import { createRazorpayOrder } from '../../lib/razorpay.js'
-import { garageNewBooking } from '../../lib/push-messages.js'
+import { garageNewBooking, garageRequestBooked } from '../../lib/push-messages.js'
 import { analyticsService } from '../analytics/analytics.service.js'
 import { bookingsRepository } from '../bookings/bookings.repository.js'
 import {
@@ -325,6 +325,13 @@ async function handleConsumeResult(
           recipient: { audience: 'garage', vendorId: booking.vendorId },
           message: garageNewBooking(booking, new Date(), env.garageResponseMinutes),
         }]
+      })
+      // A confirmed request (0062) is booked accepted: the garage hears it
+      // is paid (the new-booking push above is only for pending ones).
+      pushService.notifyLater(async () => {
+        const booking = await bookingsRepository.findBookingById(result.bookingId)
+        if (!booking || booking.status !== 'confirmed') return []
+        return [{ recipient: { audience: 'garage', vendorId: booking.vendorId }, message: garageRequestBooked(booking) }]
       })
       // The funnel's last step, recorded here rather than by the app, whose
       // tab may be gone by now. After the response; never fails this.

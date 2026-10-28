@@ -97,7 +97,7 @@ export function FreeWashPiece({ placement }: { placement: 'top' | 'bottom' }) {
   useEffect(() => {
     if (showCard && zone && shown.current !== zone.slug) {
       shown.current = zone.slug
-      track('banner_view', { banner: 'free_wash' })
+      track('banner_view', { banner: 'free-wash' })
     }
   }, [showCard, zone])
 
@@ -120,7 +120,7 @@ export function FreeWashPiece({ placement }: { placement: 'top' | 'bottom' }) {
       // Storage off: closed for this visit only.
     }
     setCloses((n) => n + 1)
-    track('banner_close', { banner: 'free_wash' })
+    track('banner_close', { banner: 'free-wash' })
   }
 
   return (

@@ -39,6 +39,7 @@ import {
   customerRequestLapsed,
   customerRequestNoGarage,
   garageNewRequest,
+  garageRequestBooked,
   testMessage,
 } from './push-messages.js'
 import type { PushMessage } from './push.js'
@@ -111,6 +112,7 @@ const request = {
 }
 
 const ALL: Array<[string, PushMessage]> = [
+  ['garage request booked', garageRequestBooked({ ...booking, status: 'confirmed' })],
   ['garage new request', garageNewRequest(request, '3.9 km beyond your 5 km', IST('2026-10-16T20:00:00'), NOW)],
   ['customer request accepted', customerRequestAccepted(request, 'Marina Auto Spa', IST('2026-10-17T10:00:00'), IST('2026-10-16T20:00:00'), NOW)],
   ['customer request pickup accepted', customerRequestAccepted({ ...request, bookingType: 'pickup' }, 'Marina Auto Spa', IST('2026-10-17T10:00:00'), IST('2026-10-16T20:00:00'), NOW)],

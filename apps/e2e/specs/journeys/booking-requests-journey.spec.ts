@@ -168,10 +168,11 @@ test.describe('requests to a garage just outside its area @p0', () => {
       select status, booking_id from booking_requests where id = ${sent.id}
     `
     expect(converted.status).toBe('converted')
-    const [booking] = await sql<{ amount: string; subtotal_amount: string; travel_fee: string; scheduled_at: Date; booking_type: string; vendor_id: string }[]>`
-      select amount, subtotal_amount, travel_fee, scheduled_at, booking_type, vendor_id from bookings where id = ${converted.booking_id}
+    const [booking] = await sql<{ amount: string; subtotal_amount: string; travel_fee: string; scheduled_at: Date; booking_type: string; vendor_id: string; status: string; respond_by: Date | null }[]>`
+      select amount, subtotal_amount, travel_fee, scheduled_at, booking_type, vendor_id, status, respond_by from bookings where id = ${converted.booking_id}
     `
-    expect(booking).toMatchObject({ amount: '1900.00', subtotal_amount: '1900.00', travel_fee: '100.00', booking_type: 'doorstep', vendor_id: VENDORS.reqFirst.id })
+    // Booked accepted: the garage already said yes to this job and time.
+    expect(booking).toMatchObject({ amount: '1900.00', subtotal_amount: '1900.00', travel_fee: '100.00', booking_type: 'doorstep', vendor_id: VENDORS.reqFirst.id, status: 'confirmed', respond_by: null })
     expect(booking.scheduled_at.getTime()).toBe(accepted.accepted_start_at.getTime())
 
     // The booking page and the receipt show the travel fee as its own line.

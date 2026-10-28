@@ -607,6 +607,16 @@ export function garageNewRequest(request: PushRequest, beyond: string, respondBy
   })
 }
 
+/** The customer confirmed and paid a request the garage said yes to: it is on its job list, accepted. */
+export function garageRequestBooked(booking: PushBooking): PushMessage {
+  return message({
+    title: `Request booked · ${pushServiceLabel(booking)}`,
+    body: `${istSlotShortLabel(booking.scheduledAt)} · ${bookingTypeLabel(booking.bookingType)} — paid and accepted`,
+    url: garageJobPath(booking.id, 'upcoming'),
+    tag: bookingTag(booking.id),
+  })
+}
+
 /** The garage said yes: confirm and pay before the deadline. */
 export function customerRequestAccepted(
   request: PushRequest,

@@ -18,7 +18,8 @@ export function requestTotal(request: CustomerRequest): number {
 
 /** Checkout, pre-filled with everything the garage accepted. */
 export function confirmHref(request: CustomerRequest): string {
-  return `/book/${request.garage.id}?request=${request.id}&mode=${request.bookingType}`
+  const services = request.items.map((item) => item.serviceId).join(',')
+  return `/book/${request.garage.id}?service=${services}&mode=${request.bookingType}&request=${request.id}`
 }
 
 /**

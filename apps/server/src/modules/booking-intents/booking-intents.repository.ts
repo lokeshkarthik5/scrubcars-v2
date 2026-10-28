@@ -217,14 +217,16 @@ export const bookingIntentsRepository = {
       // An accepted request's row first (0062): a new first step in the lock
       // order, before the vehicle, taken only by a checkout that confirms
       // one. Still accepted, or the money goes back.
+      let requestYes: { repliedBy: string | null } | null = null
       if (intent.requestId) {
         const [request] = await tx
-          .select({ status: bookingRequests.status })
+          .select({ status: bookingRequests.status, repliedBy: bookingRequests.repliedBy })
           .from(bookingRequests)
           .where(eq(bookingRequests.id, intent.requestId))
           .for('update')
           .limit(1)
         if (!request || request.status !== 'accepted') return { kind: 'request_gone' }
+        requestYes = { repliedBy: request.repliedBy }
       }
 
       await lockVehicle(tx, intent.vehicleId)
@@ -314,7 +316,10 @@ export const bookingIntentsRepository = {
       // The money landed now: the garage's deadline to answer is measured
       // from here (0042). Plain reads, after every lock this write takes.
       const paidAt = new Date()
-      const respondBy = await respondByFor(tx, {
+      // A request the garage said yes to (0062) is booked accepted, as a
+      // time the garage suggested is: it already agreed to this exact job
+      // and time, so there is nothing left for it to answer.
+      const respondBy = requestYes ? null : await respondByFor(tx, {
         vendorId: intent.vendorId,
         from: paidAt,
         scheduledAt: intent.scheduledAt,
@@ -326,6 +331,7 @@ export const bookingIntentsRepository = {
         .values({
           userId: intent.userId,
           respondBy,
+          ...(requestYes && { status: 'confirmed' as const, acceptedAt: paidAt, acceptedBy: requestYes.repliedBy }),
           vendorId: intent.vendorId,
           serviceId: intent.serviceId,
           vehicleId: intent.vehicleId,
