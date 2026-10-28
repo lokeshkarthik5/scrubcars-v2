@@ -399,11 +399,13 @@ export const certificationService = {
       })
       // Gold's standards hold every Silver one, the agreement included, so a
       // garage awarded Gold holds Silver from now too (if Gold later lapses,
-      // Silver goes only by its own 14 days).
+      // Silver goes only by its own 14 days). One already holding Silver
+      // meets it now, so any 14 days it was running are over: left running,
+      // Silver could lapse before the Gold that needs it.
       const silver = await repo.findTierStanding(vendorId)
-      if (!silver?.silverAt) {
+      if (!silver?.silverAt || silver.silverShortSince) {
         await repo.saveTierStanding(vendorId, {
-          silverAt: now,
+          silverAt: silver?.silverAt ?? now,
           silverShortSince: null,
           silverEligible: true,
           evaluation: toTierSnapshot(measured.agreements.get(vendorId)!, measured.metrics.get(vendorId)!, now),

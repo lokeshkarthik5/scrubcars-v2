@@ -246,4 +246,21 @@ test.describe("what's included @p0", () => {
       included.getByRole('button', { name: '+2 more' })
     ).toBeVisible()
   })
+
+  test('a long unbroken point wraps on a 375px phone', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 })
+    const garage = new GaragePage(page)
+    await garage.goto(TRUST_LOOK.plain.id)
+    await garage.openDetails(S.points.name)
+
+    const included = garage.whatsIncluded(S.points.name)
+    await included.getByRole('button', { name: '+2 more' }).click()
+    const items = included.getByRole('listitem')
+    await expect(items).toHaveText([...S.points.points])
+    // Each point stays inside its row: nothing wider than the sheet.
+    const overflow = await items.evaluateAll((rows) =>
+      rows.map((row) => row.scrollWidth - row.clientWidth)
+    )
+    expect(overflow.every((px) => px <= 1)).toBe(true)
+  })
 })

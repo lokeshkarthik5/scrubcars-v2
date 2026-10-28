@@ -91,6 +91,8 @@ type State = {
   eligibleAlertedAt: Date | null
 }
 const states = new Map<string, State>()
+/** Silver (0063), as Award Gold reads and writes it. */
+const tierStandings = new Map<string, { silverAt: Date | null; silverShortSince: Date | null }>()
 const checks: Array<{
   id: string
   vendorId: string
@@ -151,8 +153,8 @@ beforeAll(() => {
       vendorIds.flatMap((vendorId) =>
         ['shop_photo', 'owner_id', 'bank_proof'].map((type) => ({ vendorId, type, status: 'approved' }))
       ),
-    // Silver (0063): never given by a nightly run here.
-    findTierStanding: async () => undefined,
+    // Silver (0063): never given by a nightly run here, only as a test sets it.
+    findTierStanding: async (vendorId: string) => tierStandings.get(vendorId),
     ratings: async (vendorIds: string[]) => {
       measured.push(...vendorIds)
       return vendorIds.map((vendorId) => ({ vendorId, average: 4.8, count: 14 }))
@@ -177,7 +179,9 @@ beforeAll(() => {
       ...reads,
       lockCertification: async () => undefined,
       saveEvaluation: async () => undefined,
-      saveTierStanding: async () => undefined,
+      saveTierStanding: async (id: string, values: { silverAt: Date | null; silverShortSince: Date | null }) => {
+        tierStandings.set(id, { silverAt: values.silverAt, silverShortSince: values.silverShortSince })
+      },
       certify: async (id: string, values: { certifiedBy: string; now: Date }) => {
         const state = {
           ...(states.get(id) ?? blank(id)),
@@ -224,6 +228,7 @@ afterAll(() => {
 beforeEach(() => {
   documentsOn(true)
   states.clear()
+  tierStandings.clear()
   checks.length = 0
   audits.length = 0
   measured.length = 0
@@ -382,6 +387,25 @@ describe('admin: checks, Certify and Revoke', () => {
     const again = await call(`${ADMIN()}/certify`, 'superAdmin', { body: { actorName: 'Lokesh' } })
     expect(again.status).toBe(409)
     expect(again.body.code).toBe('ALREADY_CERTIFIED')
+  })
+
+  test('Award Gold gives Silver too, and ends any 14 days a held Silver was running', async () => {
+    checks.push({ ...passingCheck(), id: 'c1', vendorId: GARAGE, kind: 'inspection', result: 'pass', recordedBySub: 'admin', recordedBy: 'Lokesh', createdAt: new Date() } as (typeof checks)[number])
+    const heldSince = new Date('2026-06-01T00:00:00Z')
+    // Held, and short since 13 days ago: left running, Silver would go
+    // tomorrow night, under the Gold that needs it.
+    tierStandings.set(GARAGE, { silverAt: heldSince, silverShortSince: new Date(Date.now() - 13 * 24 * 60 * 60 * 1000) })
+    const certified = await call(`${ADMIN()}/certify`, 'superAdmin', { body: { actorName: 'Lokesh' } })
+    expect(certified.status).toBe(200)
+    expect(tierStandings.get(GARAGE)).toEqual({ silverAt: heldSince, silverShortSince: null })
+
+    // Not holding Silver: it is given with Gold.
+    states.clear()
+    tierStandings.clear()
+    const before = Date.now()
+    expect((await call(`${ADMIN()}/certify`, 'superAdmin', { body: { actorName: 'Lokesh' } })).status).toBe(200)
+    expect(tierStandings.get(GARAGE)?.silverAt?.getTime()).toBeGreaterThanOrEqual(before)
+    expect(tierStandings.get(GARAGE)?.silverShortSince).toBeNull()
   })
 
   test('Certify is refused while a standard is not met, naming it', async () => {

@@ -154,6 +154,11 @@ test.describe.serial('tiers and medals @p0', () => {
 
     const guest = await openGuest(browser)
     await expectMedal(guest.page, TIERS.silver.id, null)
+    // The API too: no tier at all, and nothing that says it was hidden.
+    const hiddenApi = (await (await guest.ctx.request.get(`${API}/api/v1/vendors/${TIERS.silver.id}`)).json())
+      .data as Record<string, unknown>
+    expect(hiddenApi.tier).toBeNull()
+    expect(hiddenApi).not.toHaveProperty('tierHidden')
     await guest.page.goto('/garages')
     await guest.page.getByRole('button', { name: 'Silver & above' }).click()
     await expect(card(guest.page, TIERS.gold)).toBeVisible()
@@ -186,8 +191,12 @@ test.describe.serial('tiers and medals @p0', () => {
       await gold.click()
       await expect(gold).toHaveAttribute('aria-checked', 'false')
 
-      // A Gold garage shows the highest tier still shown: Silver.
+      // A Gold garage shows the highest tier still shown: Silver, in the
+      // API as on the page (never the switched-off Gold).
       await expectMedal(guest.page, TIERS.gold.id, 'Silver garage')
+      const goldOff = (await (await guest.ctx.request.get(`${API}/api/v1/vendors/${TIERS.gold.id}`)).json())
+        .data as Record<string, unknown>
+      expect(goldOff.tier).toBe('silver')
 
       const silver = switchFor(admin.page, 'Silver')
       await silver.click()
