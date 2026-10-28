@@ -4,6 +4,8 @@ import { getTenant, type TenantVariables } from '../../middleware/tenant.middlew
 import { bookingRequestsService } from './booking-requests.service.js'
 import type {
   AcceptRequestInput,
+  AdminCancelRequestInput,
+  AdminRequestsQuery,
   CreateRequestInput,
   GarageRequestsQuery,
   WindowsQuery,
@@ -80,5 +82,21 @@ export async function accept(c: GarageContext, id: string, input: AcceptRequestI
 
 export async function decline(c: GarageContext, id: string) {
   const data = await bookingRequestsService.decline(garageId(c), c.get('auth').sub, id)
+  return c.json({ success: true, data })
+}
+
+// ─── Admin (0064) ────────────────────────────────────────────────────────────
+
+export async function listForAdmin(c: CustomerContext, query: AdminRequestsQuery) {
+  const data = await bookingRequestsService.listForAdmin({ filter: query.filter, zoneSlug: query.zone })
+  return c.json({ success: true, data })
+}
+
+export async function cancelByAdmin(c: CustomerContext, id: string, input: AdminCancelRequestInput) {
+  const data = await bookingRequestsService.cancelByAdmin(id, {
+    reason: input.reason,
+    actorName: input.actorName,
+    actorSub: c.get('auth').sub,
+  })
   return c.json({ success: true, data })
 }

@@ -5,8 +5,11 @@ import {
   addPlacesAsLeads,
   createLead,
   createZone,
+  dismissRecommendation,
   getCoverage,
   getLead,
+  getRecommendationDuplicates,
+  makeLeadFromRecommendation,
   removeLead,
   removeZone,
   savePastedLeads,
@@ -152,4 +155,33 @@ export function useSearchPlaces() {
 export function useAddPlacesAsLeads() {
   const refresh = useRefreshCoverage()
   return useMutation({ mutationFn: addPlacesAsLeads, onSuccess: refresh })
+}
+
+/** What a lead made of a recommendation looks like (before Make lead). */
+export function useRecommendationDuplicates() {
+  return useMutation({ mutationFn: getRecommendationDuplicates })
+}
+
+/** Make lead (or link to a lead); the overview is read again. */
+export function useMakeLeadFromRecommendation() {
+  const refresh = useRefreshCoverage()
+  return useMutation({
+    mutationFn: ({
+      id,
+      ...input
+    }: {
+      id: string
+      leadId?: string
+      allowDuplicate?: boolean
+    }) => makeLeadFromRecommendation(id, input),
+    onSuccess: refresh,
+  })
+}
+
+export function useDismissRecommendation() {
+  const refresh = useRefreshCoverage()
+  return useMutation({
+    mutationFn: (id: string) => dismissRecommendation(id),
+    onSuccess: refresh,
+  })
 }

@@ -83,11 +83,61 @@ export interface Lead {
   updatedAt: string
 }
 
+/** A zone's demand (part 3): what customers asked for there. */
+export interface ZoneDemand {
+  zoneId: string
+  /** On the zone's free-wash list while it is not live yet. */
+  waiting: number
+  signups: number
+  /** Sign-ups holding a free wash they have not used. */
+  unusedFreeWashes: number
+  /** Requests sent from the zone in the last `hotRule.requestDays` days. */
+  requests: number
+  openRequests: number
+  /** Nobody accepted. */
+  failedRequests: number
+  recommendations: number
+  newRecommendations: number
+  /** waiting + failed requests: what Hot ranks by. */
+  score: number
+  hot: boolean
+}
+
+/** The Hot rule's numbers, as the API applies them. */
+export interface HotRule {
+  top: number
+  minScore: number
+  requestDays: number
+}
+
+export type RecommendationStatus = 'new' | 'contacted' | 'joined' | 'declined'
+
+/** "Know a good garage here?": a customer's recommendation, never who made it. */
+export interface CoverageRecommendation {
+  id: string
+  zoneId: string | null
+  name: string
+  phone: string | null
+  mapsLink: string | null
+  why: string | null
+  /** new: in the zone's list; contacted: made into (or linked to) `leadId`; joined: that lead became `vendorId`. */
+  status: RecommendationStatus
+  leadId: string | null
+  vendorId: string | null
+  handledBy: string | null
+  handledAt: string | null
+  createdAt: string
+}
+
 export interface CoverageOverview {
   zones: CoverageZone[]
   garages: CoverageGarage[]
   leads: Lead[]
   finder: { google: boolean; ola: boolean }
+  /** Part 3: absent from an API before it (the panel deploys first). */
+  demand?: ZoneDemand[]
+  hotRule?: HotRule
+  recommendations?: CoverageRecommendation[]
 }
 
 /** GET /admin/coverage */
@@ -119,7 +169,7 @@ export async function updateZone(id: string, input: Partial<ZoneInput>) {
   })
 }
 
-/** DELETE /admin/coverage/zones/:id — 409 ZONE_HAS_LEADS while a lead is in it, ZONE_IN_USE when something else still points at it. */
+/** DELETE /admin/coverage/zones/:id — 409 ZONE_IN_USE while a lead, sign-up, request or recommendation points at it (the message says which). */
 export async function removeZone(id: string) {
   return apiClient<{ removed: true }>(`/admin/coverage/zones/${id}`, {
     method: 'DELETE',
@@ -334,5 +384,37 @@ export async function addPlacesAsLeads(input: {
       method: 'POST',
       body: signedBody(input),
     }
+  )
+}
+
+/** POST /admin/coverage/recommendations/:id/duplicates — what a lead made of it looks like. */
+export async function getRecommendationDuplicates(id: string) {
+  return apiClient<{ matches: DuplicateMatch[] }>(
+    `/admin/coverage/recommendations/${id}/duplicates`,
+    { method: 'POST' }
+  )
+}
+
+/**
+ * POST /admin/coverage/recommendations/:id/lead — Make lead, or with
+ * `leadId` link it to a lead the team has. 409 LEAD_DUPLICATE unless
+ * `allowDuplicate`, RECOMMENDATION_HANDLED once it is not new,
+ * LEAD_ALREADY_ONBOARDED for a lead that is a garage.
+ */
+export async function makeLeadFromRecommendation(
+  id: string,
+  input: { leadId?: string; allowDuplicate?: boolean } = {}
+) {
+  return apiClient<{ lead: Lead; recommendation: CoverageRecommendation }>(
+    `/admin/coverage/recommendations/${id}/lead`,
+    { method: 'POST', body: signedBody(input) }
+  )
+}
+
+/** POST /admin/coverage/recommendations/:id/dismiss */
+export async function dismissRecommendation(id: string) {
+  return apiClient<CoverageRecommendation>(
+    `/admin/coverage/recommendations/${id}/dismiss`,
+    { method: 'POST', body: signedBody({}) }
   )
 }

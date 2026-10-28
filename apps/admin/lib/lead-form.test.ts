@@ -1,6 +1,12 @@
 import { expect, test } from 'bun:test'
 import { garageInitialFromLead } from './garage-form'
-import { duplicateLine, mapsLinkProblem, phoneProblem } from './lead-form'
+import {
+  duplicateLine,
+  leadOwnFieldsToSave,
+  mapsLinkProblem,
+  phoneProblem,
+  showsGoogleDetails,
+} from './lead-form'
 import { zoneChanges, zoneDraftFrom, zoneDraftProblem } from './zone-editor'
 
 test('a lead’s phone and Maps link', () => {
@@ -110,4 +116,108 @@ test('Edit zones: problems and only what changed', () => {
     lat: 13.09,
     lng: 80.2101,
   })
+})
+
+// A lead found on Google: its name and phone are Google's, none the team's.
+const googleLead = {
+  name: 'Aqua Foam Car Spa',
+  ownName: null,
+  phone: '9790060193',
+  ownPhone: null,
+}
+// A lead whose name the team confirmed; its phone is still Google's.
+const halfOwn = { ...googleLead, ownName: 'Aqua Foam Car Spa' }
+const teamLead = {
+  name: 'Speed Wash',
+  ownName: 'Speed Wash',
+  phone: '9000004401',
+  ownPhone: '9000004401',
+}
+
+test('Edit lead offers “Confirmed by phone” only while something shown is Google’s', () => {
+  expect(showsGoogleDetails(googleLead)).toBe(true)
+  expect(showsGoogleDetails(halfOwn)).toBe(true)
+  expect(showsGoogleDetails(teamLead)).toBe(false)
+  // No phone at all: nothing of Google's to confirm there.
+  expect(showsGoogleDetails({ ...halfOwn, phone: null, ownPhone: null })).toBe(
+    false
+  )
+})
+
+test('saving a Google lead unchanged and unticked keeps Google’s name and phone apart', () => {
+  expect(
+    leadOwnFieldsToSave(googleLead, {
+      name: googleLead.name,
+      phone: googleLead.phone,
+      confirmed: false,
+    })
+  ).toEqual({})
+  // Spaces around the name are not a change.
+  expect(
+    leadOwnFieldsToSave(googleLead, {
+      name: `  ${googleLead.name} `,
+      phone: googleLead.phone,
+      confirmed: false,
+    })
+  ).toEqual({})
+})
+
+test('“Confirmed by phone” makes what is shown the team’s own', () => {
+  expect(
+    leadOwnFieldsToSave(googleLead, {
+      name: googleLead.name,
+      phone: googleLead.phone,
+      confirmed: true,
+    })
+  ).toEqual({ name: 'Aqua Foam Car Spa', phone: '9790060193' })
+  // Only what is still Google's: the confirmed name is not sent again.
+  expect(
+    leadOwnFieldsToSave(halfOwn, {
+      name: halfOwn.name,
+      phone: halfOwn.phone,
+      confirmed: true,
+    })
+  ).toEqual({ phone: '9790060193' })
+})
+
+test('an edit is the team’s own, the field edited only', () => {
+  expect(
+    leadOwnFieldsToSave(googleLead, {
+      name: 'Aqua Foam',
+      phone: googleLead.phone,
+      confirmed: false,
+    })
+  ).toEqual({ name: 'Aqua Foam' })
+  expect(
+    leadOwnFieldsToSave(googleLead, {
+      name: googleLead.name,
+      phone: '9000005070',
+      confirmed: false,
+    })
+  ).toEqual({ phone: '9000005070' })
+  // Clearing Google's phone keeps no phone of ours.
+  expect(
+    leadOwnFieldsToSave(googleLead, {
+      name: googleLead.name,
+      phone: null,
+      confirmed: false,
+    })
+  ).toEqual({ phone: null })
+})
+
+test('a team lead: only what changed', () => {
+  expect(
+    leadOwnFieldsToSave(teamLead, {
+      name: 'Speed Wash',
+      phone: '9000004401',
+      confirmed: false,
+    })
+  ).toEqual({})
+  expect(
+    leadOwnFieldsToSave(teamLead, {
+      name: 'Speed Wash Studio',
+      phone: '9000004401',
+      confirmed: true,
+    })
+  ).toEqual({ name: 'Speed Wash Studio' })
 })

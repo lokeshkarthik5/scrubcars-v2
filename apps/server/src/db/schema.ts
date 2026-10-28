@@ -62,6 +62,7 @@ import type {
 } from '../lib/certification.js'
 import type { CreditEntryKind, GiftDesign, GiftStatus } from '../lib/gift-credit.js'
 import type { LeadPinSource, LeadSource, LeadStatus } from '../lib/leads.js'
+import type { RecommendationStatus } from '../lib/recommendations.js'
 import type { Tier, TierSnapshot } from '../lib/tiers.js'
 import type {
   ClaimDecision,
@@ -4741,6 +4742,10 @@ export const bookingRequests = pgTable(
     // that lapsed); a yes's own push is sent with the answer.
     customerToldAt: timestamp('customer_told_at', { withTimezone: true }),
     closedAt: timestamp('closed_at', { withTimezone: true }),
+    // An admin's cancel (0064): who, and why (the team's, never sent). The
+    // customer's own cancel leaves both empty.
+    cancelledByName: varchar('cancelled_by_name', { length: 100 }),
+    cancelReason: varchar('cancel_reason', { length: 200 }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
@@ -4780,6 +4785,10 @@ export const bookingRequests = pgTable(
     check(
       'booking_requests_status_reply_check',
       sql`(${table.status} not in ('accepted', 'converted') or ${table.reply} = 'accepted') and (${table.status} <> 'declined' or ${table.reply} = 'declined') and (${table.status} <> 'pending' or ${table.reply} is null)`
+    ),
+    check(
+      'booking_requests_admin_cancel_check',
+      sql`((${table.cancelledByName} is null) = (${table.cancelReason} is null)) and (${table.cancelReason} is null or ${table.status} = 'cancelled')`
     ),
     check('booking_requests_amounts_check', sql`${table.subtotalAmount} > 0 and ${table.durationMins} > 0`),
     check('booking_requests_distance_check', sql`${table.distanceKm} >= 0 and ${table.outsideKm} >= 0`),
@@ -4848,17 +4857,24 @@ export const garageRecommendations = pgTable(
     mapsLink: varchar('maps_link', { length: 500 }),
     phone: varchar('phone', { length: 10 }),
     why: varchar('why', { length: 500 }),
-    status: text('status').$type<'new' | 'contacted' | 'joined' | 'declined'>().default('new').notNull(),
+    status: text('status').$type<RecommendationStatus>().default('new').notNull(),
     vendorId: uuid('vendor_id').references(() => vendors.id, { onDelete: 'set null' }),
     creditStatus: text('credit_status').$type<'owed' | 'granted'>(),
     creditAmount: decimal('credit_amount', { precision: 10, scale: 2 }),
     creditEntryId: uuid('credit_entry_id').references(() => giftCreditEntries.id, { onDelete: 'restrict' }),
     creditBookingId: uuid('credit_booking_id').references(() => bookings.id, { onDelete: 'set null' }),
     creditedAt: timestamp('credited_at', { withTimezone: true }),
+    // The lead the team made it into, or linked it to (0064, Coverage);
+    // SET NULL, so removing the lead puts it back in the zone's list.
+    leadId: uuid('lead_id').references((): AnyPgColumn => leads.id, { onDelete: 'set null' }),
+    // Who made the lead or dismissed it, and when.
+    handledBy: varchar('handled_by', { length: 100 }),
+    handledAt: timestamp('handled_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
+    index('garage_recommendations_lead_idx').on(table.leadId).where(sql`${table.leadId} is not null`),
     index('garage_recommendations_zone_idx').on(table.zoneId, table.status, table.createdAt),
     index('garage_recommendations_user_idx').on(table.userId),
     index('garage_recommendations_vendor_idx').on(table.vendorId).where(sql`${table.vendorId} is not null`),
@@ -4870,6 +4886,7 @@ export const garageRecommendations = pgTable(
     check('garage_recommendations_phone_check', sql`${table.phone} is null or ${table.phone} ~ '^[6-9][0-9]{9}$'`),
     check('garage_recommendations_link_check', sql`${table.mapsLink} is null or ${table.mapsLink} ~ '^https://'`),
     check('garage_recommendations_status_check', sql`${table.status} in ('new', 'contacted', 'joined', 'declined')`),
+    check('garage_recommendations_handled_check', sql`(${table.handledBy} is null) = (${table.handledAt} is null)`),
     check(
       'garage_recommendations_credit_check',
       sql`(${table.creditStatus} is null or ${table.creditStatus} in ('owed', 'granted')) and ((${table.creditStatus} is null) = (${table.creditAmount} is null)) and ((${table.creditStatus} = 'granted') = (${table.creditEntryId} is not null and ${table.creditedAt} is not null))`

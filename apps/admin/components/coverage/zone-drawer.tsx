@@ -16,8 +16,11 @@ import { FilterChip } from '@repo/ui/sc/chip'
 import { ScSheet } from '@repo/ui/sc/modal'
 import type {
   CoverageGarage,
+  CoverageRecommendation,
   CoverageZone,
+  HotRule,
   Lead,
+  ZoneDemand,
 } from '@repo/core/api/admin-coverage'
 import { useUpdateLead } from '@repo/core/api/hooks/use-admin-coverage'
 import { errorMessage } from '@repo/core/api/hooks/use-discounts'
@@ -31,12 +34,14 @@ import { cn } from '@repo/core/utils'
 import {
   filterCounts,
   filterRows,
+  recommendedLine,
   rowStatus,
   zoneSummaryLine,
   type CallFilter,
   type CallRow,
 } from '@/lib/coverage'
-import { DemandPlaceholder, ZoneBar } from './zone-list'
+import { RecommendationList, ZoneDemandCard } from './zone-demand'
+import { HotBadge, ZoneBar } from './zone-list'
 import { AssignSelect, type Assignee } from './lead-dialogs'
 
 const FILTERS: Array<{ value: CallFilter; label: string }> = [
@@ -124,12 +129,15 @@ function leadNoteLine(lead: Lead): string {
 
 function LeadRow({
   lead,
+  recommended,
   assignees,
   onEdit,
   onNote,
   onNotInterested,
 }: {
   lead: Lead
+  /** Customers' recommendations made into this lead. */
+  recommended: CoverageRecommendation[]
   assignees: Assignee[]
   onEdit: () => void
   onNote: () => void
@@ -200,6 +208,11 @@ function LeadRow({
             )}
           </select>
         </div>
+        {recommendedLine(recommended) && (
+          <p className="truncate text-[11.5px] text-tone-progress-text">
+            {recommendedLine(recommended)}
+          </p>
+        )}
         <p className="w-fit max-w-full truncate rounded-md bg-white/[0.05] px-2 py-1 text-[11.5px] text-text-secondary">
           {leadNoteLine(lead)}
         </p>
@@ -316,12 +329,17 @@ export type LeadDialog = {
 /**
  * A zone's call list (mockup coverage-zones B): everyone the team knows in
  * the zone — leads, and garages (not live yet ones are still to target) —
- * filtered by status, each with call, WhatsApp, status, assign and note.
- * Demand per zone keeps its place at the bottom (customer reach part 2).
+ * filtered by status, each with call, WhatsApp, status, assign and note;
+ * then customers' recommendations still to act on (Make lead, Dismiss), and
+ * the zone's demand.
  */
 export function ZoneDrawer({
   zone,
   rows,
+  demand,
+  hotRule,
+  recommendations,
+  recommendedByLead,
   assignees,
   covered,
   onClose,
@@ -332,6 +350,11 @@ export function ZoneDrawer({
   /** null: the places in no zone. */
   zone: CoverageZone | null
   rows: CallRow[]
+  demand: ZoneDemand | undefined
+  hotRule: HotRule | undefined
+  /** The zone's (or no zone's) recommendations still new. */
+  recommendations: CoverageRecommendation[]
+  recommendedByLead: Map<string, CoverageRecommendation[]>
   assignees: Assignee[]
   /** A dialog is open above the drawer: Escape and the backdrop are the dialog's. */
   covered: boolean
@@ -370,6 +393,7 @@ export function ZoneDrawer({
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
+              {demand?.hot && <HotBadge />}
               {zone && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-tone-attention-tint px-2.5 py-1 text-[11.5px] text-tone-attention-text">
                   {zone.priority && <IconStarFilled size={10} aria-hidden />}
@@ -429,6 +453,7 @@ export function ZoneDrawer({
                 <LeadRow
                   key={row.id}
                   lead={row.lead}
+                  recommended={recommendedByLead.get(row.lead.id) ?? []}
                   assignees={assignees}
                   onEdit={() => onDialog({ kind: 'edit', lead: row.lead })}
                   onNote={() => onDialog({ kind: 'note', lead: row.lead })}
@@ -440,6 +465,8 @@ export function ZoneDrawer({
             )}
           </ul>
         )}
+
+        <RecommendationList title={title} recommendations={recommendations} />
 
         <div className="flex flex-wrap gap-2 border-t border-border px-4 pt-3">
           <button
@@ -467,7 +494,7 @@ export function ZoneDrawer({
         </div>
         {zone && (
           <div className="px-4 pt-3">
-            <DemandPlaceholder zoneName={zone.name} />
+            <ZoneDemandCard zone={zone} demand={demand} hotRule={hotRule} />
           </div>
         )}
       </div>

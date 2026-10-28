@@ -25,14 +25,18 @@ import { ZoneDrawer, type LeadDialog } from '@/components/coverage/zone-drawer'
 import { ZoneEditor, type PickTarget } from '@/components/coverage/zone-editor'
 import {
   CoverageTotals,
-  DemandPlaceholder,
+  DemandKey,
   ZoneList,
 } from '@/components/coverage/zone-list'
 import {
   coverageDots,
   coverageTotals,
+  demandByZone,
   listedZones,
+  newRecommendations,
   outsideRows,
+  recommendationsByLead,
+  sortByDemand,
   zoneStats,
 } from '@/lib/coverage'
 
@@ -43,8 +47,10 @@ const OUTSIDE = 'none'
  * Coverage (owner, 28 Oct 2026; mockup coverage-zones): Chennai in zones.
  * Each zone is drawn and listed with how far the team has got against its
  * target; every garage and lead is a dot; a zone opens its call list
- * (`?zone=<id>`). Edit zones, add a lead, paste a list, and find businesses
- * in a zone (/coverage/find). The old doorstep demand map is the second view
+ * (`?zone=<id>`), with its customers' recommendations and its demand;
+ * zones with the most demand list first, Hot by the API's rule. Edit
+ * zones, add a lead, paste a list, and find businesses in a zone
+ * (/coverage/find). The old doorstep demand map is the second view
  * (`?view=demand`).
  *
  * Reads the address in the browser (useSearchParams inside Suspense): the
@@ -110,6 +116,12 @@ function Coverage() {
   const totals = useMemo(() => (data ? coverageTotals(data) : null), [data])
   const dots = useMemo(() => (data ? coverageDots(data) : []), [data])
   const zones = useMemo(() => data?.zones ?? [], [data])
+  const demand = useMemo(() => (data ? demandByZone(data) : new Map()), [data])
+  const recommendations = useMemo(() => data?.recommendations ?? [], [data])
+  const recommendedByLead = useMemo(
+    () => recommendationsByLead(recommendations),
+    [recommendations]
+  )
 
   const openStats =
     zoneParam && zoneParam !== OUTSIDE
@@ -255,18 +267,22 @@ function Coverage() {
             ) : (
               <div className="flex min-w-0 flex-col gap-3">
                 <ZoneList
-                  stats={listedZones(stats, filter)}
+                  stats={listedZones(sortByDemand(stats, demand), filter)}
+                  demand={demand}
                   filter={filter}
                   onFilter={setFilter}
                   onOpen={(id) => setParams({ zone: id ?? OUTSIDE })}
-                  outsideCount={outside.length}
+                  outsideCount={
+                    outside.length +
+                    newRecommendations(recommendations, null).length
+                  }
                   selectedZoneId={
                     zoneParam === OUTSIDE
                       ? null
                       : (openStats?.zone.id ?? undefined)
                   }
                 />
-                <DemandPlaceholder />
+                <DemandKey hotRule={data.hotRule} />
               </div>
             )}
           </div>
@@ -276,6 +292,13 @@ function Coverage() {
               key={zoneParam}
               zone={openStats?.zone ?? null}
               rows={openStats ? openStats.rows : outside}
+              demand={openStats ? demand.get(openStats.zone.id) : undefined}
+              hotRule={data.hotRule}
+              recommendations={newRecommendations(
+                recommendations,
+                openStats?.zone.id ?? null
+              )}
+              recommendedByLead={recommendedByLead}
               assignees={assignees}
               covered={covered}
               onClose={() => setParams({ zone: null })}

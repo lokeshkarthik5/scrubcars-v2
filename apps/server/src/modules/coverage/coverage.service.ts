@@ -9,9 +9,22 @@ import {
   zoneEditProblem,
   type ZoneEditProblem,
 } from '../../lib/zone-edits.js'
+import {
+  HOT_ZONE_RULES,
+  zoneDemand,
+  zoneRemovalBlock,
+  type ZoneDemand,
+} from '../../lib/zone-demand.js'
 import { zoneFor } from '../../lib/zones.js'
+import { areaSignupsRepository } from '../area-signups/area-signups.repository.js'
+import { bookingRequestsRepository } from '../booking-requests/booking-requests.repository.js'
 import { leadsRepository, type Conn } from '../leads/leads.repository.js'
-import { toLeadResponse, type LeadResponse } from '../leads/leads.service.js'
+import {
+  toLeadResponse,
+  toRecommendationResponse,
+  type LeadResponse,
+  type RecommendationResponse,
+} from '../leads/leads.service.js'
 import { clearZonesCache } from '../reach/reach.service.js'
 import { isListedToCustomers } from '../vendors/vendors.predicates.js'
 import { coverageRepository, type ZoneRecord } from './coverage.repository.js'
@@ -53,6 +66,65 @@ export interface CoverageOverview {
   leads: LeadResponse[]
   /** Which sources the zone finder can search. */
   finder: { google: boolean; ola: boolean }
+  /** Each zone's demand, in the zones' order (lib/zone-demand.ts). */
+  demand: ZoneDemand[]
+  /** The Hot rule's numbers, for the panel to say (never to restate). */
+  hotRule: typeof HOT_ZONE_RULES
+  /** Customer recommendations not dismissed: new ones are the zones' lists, the rest show on their lead. */
+  recommendations: RecommendationResponse[]
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Demand per zone, from customer reach's own rows: the sign-ups (with
+ * their issued codes, read by area sign-ups' own query), the last 30 days'
+ * requests by their latest row, and the recommendations.
+ */
+async function readDemand(
+  zones: ZoneRecord[],
+  recommendations: ReadonlyArray<{ zoneId: string | null; status: string }>,
+  now: Date
+): Promise<ZoneDemand[]> {
+  const [signups, requests] = await Promise.all([
+    coverageRepository.listSignups(),
+    bookingRequestsRepository.listLatestSince(
+      new Date(now.getTime() - HOT_ZONE_RULES.requestDays * DAY_MS)
+    ),
+  ])
+  const discountIds = signups.flatMap((signup) =>
+    signup.discountId ? [signup.discountId] : []
+  )
+  const discounts = new Map(
+    (discountIds.length > 0
+      ? await areaSignupsRepository.unusedDiscounts(discountIds)
+      : []
+    ).map((discount) => [discount.id, discount])
+  )
+  return zoneDemand(
+    zones,
+    {
+      signups: signups.map((signup) => {
+        const discount = signup.discountId
+          ? discounts.get(signup.discountId)
+          : undefined
+        return {
+          zoneId: signup.zoneId,
+          freeWash: signup.freeWash,
+          discount: discount
+            ? {
+                isActive: discount.isActive,
+                held: Number(discount.held),
+                endsAt: discount.endsAt,
+              }
+            : null,
+        }
+      }),
+      requests,
+      recommendations,
+    },
+    now
+  )
 }
 
 function toZone(row: ZoneRecord): CoverageZone {
@@ -127,13 +199,15 @@ export const coverageService = {
    * with its zone (worked out here, by the one rule, so the panel never
    * restates it), every lead, and which finder sources are connected.
    */
-  async overview(): Promise<CoverageOverview> {
-    const [zones, garages, leads] = await Promise.all([
+  async overview(now = new Date()): Promise<CoverageOverview> {
+    const [zones, garages, leads, recommendations] = await Promise.all([
       coverageRepository.listZones(),
       coverageRepository.listGarages(),
       leadsRepository.listAll(),
+      leadsRepository.listRecommendations(),
     ])
     const sources = placesSources()
+    const demand = await readDemand(zones, recommendations, now)
     return {
       zones: zones.map(toZone),
       garages: garages.map((garage) => ({
@@ -148,6 +222,11 @@ export const coverageService = {
       })),
       leads: leads.map(toLeadResponse),
       finder: { google: sources.google !== null, ola: sources.ola !== null },
+      demand,
+      hotRule: HOT_ZONE_RULES,
+      recommendations: recommendations
+        .filter((rec) => rec.status !== 'declined')
+        .map(toRecommendationResponse),
     }
   },
 
@@ -233,35 +312,47 @@ export const coverageService = {
     return toZone(zone)
   },
 
-  /** Removes a zone no lead points at (409 ZONE_HAS_LEADS otherwise). Garages need nothing: their zone is worked out. */
+  /**
+   * Removes a zone nothing points at: no lead, and no customer's sign-up,
+   * request or recommendation (409 ZONE_IN_USE, saying what is in it).
+   * Garages need nothing: their zone is worked out.
+   */
   async removeZone(id: string, now = new Date()): Promise<{ removed: true }> {
     const zone = await coverageRepository.findZone(id)
     if (!zone) throw zoneNotFound()
-    const count = await leadsRepository.countInZone(id)
-    if (count > 0) {
-      throw new AppError(
+    const [leads, signups, requests, recommendations] = await Promise.all([
+      leadsRepository.countInZone(id),
+      coverageRepository.countSignupsInZone(id),
+      bookingRequestsRepository.countInZone(zone.slug),
+      leadsRepository.countRecommendationsInZone(id),
+    ])
+    const blocked = zoneRemovalBlock(zone.name, {
+      leads,
+      signups,
+      requests,
+      recommendations,
+    })
+    if (blocked) throw new AppError(409, blocked, 'ZONE_IN_USE')
+    const inUse = () =>
+      new AppError(
         409,
-        `${count === 1 ? '1 lead is' : `${count} leads are`} in ${zone.name}. Move ${count === 1 ? 'it' : 'them'} to another zone or remove ${count === 1 ? 'it' : 'them'} first.`,
-        'ZONE_HAS_LEADS'
+        `${zone.name} is still in use, so it was kept. Reload to see what is in it.`,
+        'ZONE_IN_USE'
       )
-    }
     await coverageRepository
       .transaction(async (tx) => {
         const removed = await coverageRepository.deleteZone(id, tx)
-        if (!removed) throw zoneNotFound()
+        if (removed === 'missing') throw zoneNotFound()
+        // A request sent from it meanwhile (requests keep the slug, not a key).
+        if (removed === 'in_use') throw inUse()
         await rezoneLeads(tx, now)
       })
       .catch((err: unknown) => {
         // Something points at it that the count above did not see: a lead
-        // added meanwhile, or a row of another table that keeps its zone
-        // (customer reach's sign-ups). The foreign key refuses the delete;
-        // say so without guessing which.
+        // added meanwhile, or a customer's sign-up or recommendation. The
+        // foreign key refuses the delete; say so without guessing which.
         if (hasPgCode(err, '23503')) {
-          throw new AppError(
-            409,
-            `${zone.name} is still in use, so it was kept. Reload to see what is in it.`,
-            'ZONE_IN_USE'
-          )
+          throw inUse()
         }
         throw err
       })

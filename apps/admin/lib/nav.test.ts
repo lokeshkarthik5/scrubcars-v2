@@ -16,6 +16,7 @@ describe('the grouped menu', () => {
     for (const old of [
       '/vendors',
       '/bookings',
+      '/requests',
       '/complaints',
       '/refunds',
       '/payouts',

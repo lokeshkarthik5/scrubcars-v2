@@ -196,6 +196,24 @@ export const fromPlacesSchema = z
   })
   .strict()
 
+/**
+ * POST /admin/coverage/recommendations/:id/lead: a lead made of a
+ * customer's recommendation, or (`leadId`) the recommendation linked to a
+ * lead the team already has.
+ */
+export const fromRecommendationSchema = z
+  .object({
+    actorName: signedActorName,
+    leadId: z.string().uuid().optional(),
+    allowDuplicate: z.boolean().optional(),
+  })
+  .strict()
+
+/** POST /admin/coverage/recommendations/:id/dismiss */
+export const dismissRecommendationSchema = z
+  .object({ actorName: signedActorName })
+  .strict()
+
 export type CreateLeadInput = z.infer<typeof createLeadSchema>
 export type UpdateLeadInput = z.infer<typeof updateLeadSchema>
 export type ResolvePinInput = z.infer<typeof resolvePinSchema>
@@ -204,3 +222,7 @@ export type PastePreviewInput = z.infer<typeof pastePreviewSchema>
 export type PasteSaveInput = z.infer<typeof pasteSaveSchema>
 export type FromPlacesInput = z.infer<typeof fromPlacesSchema>
 export type PlacePart = z.infer<typeof sourcePart>
+export type FromRecommendationInput = z.infer<typeof fromRecommendationSchema>
+export type DismissRecommendationInput = z.infer<
+  typeof dismissRecommendationSchema
+>

@@ -1,11 +1,19 @@
 'use client'
 
-import { IconChevronRight, IconStarFilled } from '@tabler/icons-react'
+import Link from 'next/link'
+import {
+  IconChevronRight,
+  IconFlame,
+  IconStarFilled,
+} from '@tabler/icons-react'
 import { ScSegmented } from '@repo/ui/sc/segmented'
 import { StatTile } from '@repo/ui/sc/stat-tile'
+import type { HotRule, ZoneDemand } from '@repo/core/api/admin-coverage'
 import { cn } from '@repo/core/utils'
 import {
   barParts,
+  demandLine,
+  hotRuleText,
   ZONE_COLOUR_LABELS,
   ZONE_PAINT,
   type ZoneStats,
@@ -68,15 +76,26 @@ export function CoverageTotals({
   )
 }
 
+/** "Hot", on a zone the API ranks among the top for demand. */
+export function HotBadge() {
+  return (
+    <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-tone-late-tint px-1.5 py-px text-[10.5px] font-semibold text-tone-late-text">
+      <IconFlame size={11} aria-hidden />
+      Hot
+    </span>
+  )
+}
+
 /**
- * The zone list beside the map (mockup A): priority first, each with live
- * against its target, the stacked bar and how many places are known.
- * Pressing a zone opens its call list. The last row is everything in no
- * zone. Demand per zone joins each row once customer reach part 2 is live
- * (the `demand` slot under the list keeps its place).
+ * The zone list beside the map (mockup A): the zones with the most demand
+ * first (people waiting + requests nobody accepted; the API's score), each
+ * with live against its target, the stacked bar, how many places are known
+ * and its demand, Hot by the API's rule. Pressing a zone opens its call
+ * list. The last row is everything in no zone.
  */
 export function ZoneList({
   stats,
+  demand,
   filter,
   onFilter,
   onOpen,
@@ -84,6 +103,7 @@ export function ZoneList({
   selectedZoneId,
 }: {
   stats: ZoneStats[]
+  demand: Map<string, ZoneDemand>
   filter: 'priority' | 'all'
   onFilter: (filter: 'priority' | 'all') => void
   onOpen: (zoneId: string | null) => void
@@ -94,7 +114,7 @@ export function ZoneList({
     <section aria-label="Zones" className="flex min-w-0 flex-col gap-2">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-[12.5px] text-text-secondary">
-          Zones, priority first
+          Zones, most demand first
         </h2>
         <ScSegmented
           size="sm"
@@ -108,59 +128,69 @@ export function ZoneList({
         />
       </div>
       <ul className="flex flex-col overflow-hidden rounded-[14px] border border-border bg-surface">
-        {stats.map((s) => (
-          <li
-            key={s.zone.id}
-            className="border-b border-border last:border-b-0"
-          >
-            <button
-              type="button"
-              onClick={() => onOpen(s.zone.id)}
-              aria-label={`${s.zone.name}: ${s.live} of ${s.zone.target} live, ${s.rows.length} known. Open its call list`}
-              aria-current={selectedZoneId === s.zone.id ? 'true' : undefined}
-              className={cn(
-                'grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-3.5 py-3 text-left transition-colors hover:bg-white/[0.03] sm:grid-cols-[auto_minmax(0,10rem)_1fr_auto]',
-                selectedZoneId === s.zone.id && 'bg-white/[0.05]'
-              )}
+        {stats.map((s) => {
+          const zoneDemand = demand.get(s.zone.id)
+          const line = demandLine(zoneDemand)
+          return (
+            <li
+              key={s.zone.id}
+              className="border-b border-border last:border-b-0"
             >
-              <span
+              <button
+                type="button"
+                onClick={() => onOpen(s.zone.id)}
+                aria-label={`${s.zone.name}: ${s.live} of ${s.zone.target} live, ${s.rows.length} known${zoneDemand?.hot ? ', hot' : ''}${line ? `, ${line}` : ''}. Open its call list`}
+                aria-current={selectedZoneId === s.zone.id ? 'true' : undefined}
                 className={cn(
-                  'size-2.5 rounded-[3px]',
-                  ZONE_PAINT[s.colour].dot
+                  'grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-3.5 py-3 text-left transition-colors hover:bg-white/[0.03] sm:grid-cols-[auto_minmax(0,10rem)_1fr_auto]',
+                  selectedZoneId === s.zone.id && 'bg-white/[0.05]'
                 )}
-                title={ZONE_COLOUR_LABELS[s.colour]}
-                aria-hidden
-              />
-              <span className="min-w-0">
-                <span className="flex items-center gap-1 truncate text-[13.5px] font-medium text-text-primary">
-                  {s.zone.name}
-                  {s.zone.priority && (
-                    <IconStarFilled
-                      size={11}
-                      aria-hidden
-                      className="shrink-0 text-tone-attention-dot"
-                    />
+              >
+                <span
+                  className={cn(
+                    'size-2.5 rounded-[3px]',
+                    ZONE_PAINT[s.colour].dot
+                  )}
+                  title={ZONE_COLOUR_LABELS[s.colour]}
+                  aria-hidden
+                />
+                <span className="min-w-0">
+                  <span className="flex items-center gap-1 truncate text-[13.5px] font-medium text-text-primary">
+                    {s.zone.name}
+                    {s.zone.priority && (
+                      <IconStarFilled
+                        size={11}
+                        aria-hidden
+                        className="shrink-0 text-tone-attention-dot"
+                      />
+                    )}
+                    {zoneDemand?.hot && <HotBadge />}
+                  </span>
+                  <span className="block text-[11.5px] text-text-secondary">
+                    Target {s.zone.target} · {s.rows.length} known
+                  </span>
+                  {line && (
+                    <span className="block truncate text-[11.5px] text-text-primary">
+                      {line}
+                    </span>
                   )}
                 </span>
-                <span className="block text-[11.5px] text-text-secondary">
-                  Target {s.zone.target} · {s.rows.length} known
-                </span>
-              </span>
-              <ZoneBar
-                stats={s}
-                className="col-span-3 col-start-1 row-start-2 sm:col-span-1 sm:col-start-3 sm:row-start-1"
-              />
-              <span className="flex items-center gap-1 font-numeric text-[13px] text-text-primary">
-                {s.live} / {s.zone.target}
-                <IconChevronRight
-                  size={14}
-                  aria-hidden
-                  className="text-text-muted"
+                <ZoneBar
+                  stats={s}
+                  className="col-span-3 col-start-1 row-start-2 sm:col-span-1 sm:col-start-3 sm:row-start-1"
                 />
-              </span>
-            </button>
-          </li>
-        ))}
+                <span className="flex items-center gap-1 font-numeric text-[13px] text-text-primary">
+                  {s.live} / {s.zone.target}
+                  <IconChevronRight
+                    size={14}
+                    aria-hidden
+                    className="text-text-muted"
+                  />
+                </span>
+              </button>
+            </li>
+          )
+        })}
         {stats.length === 0 && (
           <li className="px-3.5 py-4 text-[12.5px] text-text-secondary">
             No zones to show.
@@ -193,22 +223,37 @@ export function ZoneList({
 }
 
 /**
- * Where demand per zone will go (people waiting, requests, recommended
- * garages, free washes): it needs customer reach part 2, not built yet.
+ * Under the zone list: what the demand figures are and what Hot means (in
+ * the API's own numbers), and the way to every request. An API from before
+ * part 3 sends no demand: then it says so.
  */
-export function DemandPlaceholder({ zoneName }: { zoneName?: string }) {
+export function DemandKey({ hotRule }: { hotRule: HotRule | undefined }) {
   return (
     <section
       aria-label="Demand"
-      className="rounded-[12px] border border-dashed border-border px-3.5 py-3 text-[12px] text-text-secondary"
+      className="rounded-[12px] border border-border px-3.5 py-3 text-[12px] text-text-secondary"
     >
-      <h3 className="text-[12px] font-medium text-text-primary">
-        Demand{zoneName ? ` in ${zoneName}` : ''}
-      </h3>
-      <p className="mt-0.5">
-        People waiting, requests and recommended garages show here once customer
-        reach part 2 is live.
-      </p>
+      <h3 className="text-[12px] font-medium text-text-primary">Demand</h3>
+      {hotRule ? (
+        <>
+          <p className="mt-0.5">
+            Waiting: customers on a zone’s free-wash list. Requests: “Request a
+            visit” or “Request a pickup” sent from it in the last{' '}
+            {hotRule.requestDays} days; failed means nobody accepted.
+          </p>
+          <p className="mt-1">{hotRuleText(hotRule)}</p>
+        </>
+      ) : (
+        <p className="mt-0.5">
+          Demand per zone arrives with the API from this release.
+        </p>
+      )}
+      <Link
+        href="/requests"
+        className="mt-1.5 inline-flex min-h-9 items-center text-[12px] font-medium text-text-primary underline underline-offset-4"
+      >
+        See every request
+      </Link>
     </section>
   )
 }

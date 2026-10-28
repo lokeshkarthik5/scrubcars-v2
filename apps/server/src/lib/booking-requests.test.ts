@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import {
   acceptRefusal,
+  adminRequestFilter,
   beyondLine,
   checkoutMatchRefusal,
   requestPlaceMatches,
@@ -18,6 +19,7 @@ import {
   pickNextGarage,
   quickWindows,
   REQUEST_RULES,
+  requestState,
   requestStartTimes,
   respondByFor,
   startsInWindow,
@@ -322,5 +324,50 @@ describe('the customer’s limits and the checkout', () => {
     // ~1 km away: a different place, no pass on the reach check.
     expect(requestPlaceMatches(asked, { lat: 13.0157, lng: 80.2206 })).toBe(false)
     expect(REQUEST_PLACE_TOLERANCE_KM).toBe(0.1)
+  })
+})
+
+describe('a request’s state, and the admin list’s filters (0064)', () => {
+  test('from the latest row: waiting, accepted, booked, lapsed, no garage, cancelled', () => {
+    expect(requestState({ status: 'pending', reply: null })).toBe('waiting')
+    expect(requestState({ status: 'accepted', reply: 'accepted' })).toBe('accepted')
+    expect(requestState({ status: 'converted', reply: 'accepted' })).toBe('booked')
+    expect(requestState({ status: 'expired', reply: 'accepted' })).toBe('lapsed')
+    expect(requestState({ status: 'expired', reply: null })).toBe('no_garage')
+    expect(requestState({ status: 'declined', reply: 'declined' })).toBe('no_garage')
+    expect(requestState({ status: 'cancelled', reply: null })).toBe('cancelled')
+  })
+
+  test('Open is what Cancel acts on; Accepted a yes that ended; Failed nobody accepted; a cancel under All only', () => {
+    expect(adminRequestFilter('waiting')).toBe('open')
+    expect(adminRequestFilter('accepted')).toBe('open')
+    expect(adminRequestFilter('booked')).toBe('accepted')
+    expect(adminRequestFilter('lapsed')).toBe('accepted')
+    expect(adminRequestFilter('no_garage')).toBe('failed')
+    expect(adminRequestFilter('cancelled')).toBeNull()
+  })
+})
+
+describe('a service with no duration set (0064) holds the default in a request', () => {
+  test('its line, and so the request, takes 60 minutes', () => {
+    const lines = linesForPicks(
+      ['a'],
+      [
+        {
+          id: 'a',
+          name: 'Wash',
+          category: 'car_wash',
+          pricingType: 'flat',
+          price: '500.00',
+          priceHatchback: null,
+          priceSedan: null,
+          priceSuv: null,
+          durationMins: null,
+          isActive: true,
+        },
+      ],
+      'sedan'
+    )
+    expect(lines?.[0]?.durationMins).toBe(60)
   })
 })

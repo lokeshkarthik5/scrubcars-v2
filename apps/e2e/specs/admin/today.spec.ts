@@ -87,6 +87,7 @@ test.describe('Today @p0', () => {
       for (const place of [
         'Today',
         'Bookings',
+        'Requests',
         'Issues',
         'Refunds',
         'Garages',
@@ -162,6 +163,7 @@ test.describe('Today @p0', () => {
       await bar.getByRole('button', { name: 'More' }).click()
       const more = page.getByRole('dialog', { name: 'More pages' })
       for (const place of [
+        'Requests',
         'Refunds',
         'Payouts',
         'Coverage',

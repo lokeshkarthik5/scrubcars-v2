@@ -200,8 +200,9 @@ function ZoneEditRow({
           {confirming ? (
             <div className="flex flex-col gap-2 rounded-[12px] border border-border p-3">
               <p className="text-[12.5px] text-text-primary">
-                Remove {zone.name}? Customers stop seeing it. Only a zone with
-                no leads can go.
+                Remove {zone.name}? Customers stop seeing it. Only a zone
+                nothing points at can go: no leads, and no customer’s sign-up,
+                request or recommendation.
               </p>
               <div className="grid grid-cols-2 gap-2">
                 <ScButton

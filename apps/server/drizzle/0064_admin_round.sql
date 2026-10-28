@@ -30,6 +30,13 @@
 --     from the pin by the zones' one rule (lib/zones.ts zoneFor), or is the
 --     zone a pin-less lead was added in; a zone with leads cannot be removed
 --     (RESTRICT). `vendor_id` is the garage it became.
+--   - Part 3 (demand, requests, recommendations):
+--     `garage_recommendations.lead_id`, the lead a customer's recommendation
+--     was made into or linked to (SET NULL: removing the lead puts it back
+--     in the zone's list), with `handled_by` / `handled_at` (who made the
+--     lead or dismissed it); `booking_requests.cancelled_by_name` and
+--     `cancel_reason`, an admin's cancel and why (the customer's own cancel
+--     leaves both empty; the reason is the team's, never sent).
 --
 -- `vendors.address` stays NOT NULL: a doorstep-only garage may now keep it
 -- empty (''), which every reader already handles as text.
@@ -131,4 +138,17 @@ CREATE INDEX IF NOT EXISTS "leads_phone_idx" ON "leads" ("phone");--> statement-
 CREATE INDEX IF NOT EXISTS "leads_google_fetched_at_idx" ON "leads" ("google_fetched_at") WHERE "google_fetched_at" IS NOT NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "leads_vendor_id_key" ON "leads" ("vendor_id") WHERE "vendor_id" IS NOT NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "leads_google_place_id_key" ON "leads" ("google_place_id") WHERE "google_place_id" IS NOT NULL;--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "leads_ola_place_id_key" ON "leads" ("ola_place_id") WHERE "ola_place_id" IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS "leads_ola_place_id_key" ON "leads" ("ola_place_id") WHERE "ola_place_id" IS NOT NULL;--> statement-breakpoint
+ALTER TABLE "garage_recommendations" ADD COLUMN IF NOT EXISTS "lead_id" uuid;--> statement-breakpoint
+ALTER TABLE "garage_recommendations" ADD COLUMN IF NOT EXISTS "handled_by" varchar(100);--> statement-breakpoint
+ALTER TABLE "garage_recommendations" ADD COLUMN IF NOT EXISTS "handled_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "garage_recommendations" ADD CONSTRAINT "garage_recommendations_lead_id_fk"
+  FOREIGN KEY ("lead_id") REFERENCES "leads"("id") ON DELETE SET NULL;--> statement-breakpoint
+ALTER TABLE "garage_recommendations" ADD CONSTRAINT "garage_recommendations_handled_check"
+  CHECK (("handled_by" IS NULL) = ("handled_at" IS NULL));--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "garage_recommendations_lead_idx" ON "garage_recommendations" ("lead_id") WHERE "lead_id" IS NOT NULL;--> statement-breakpoint
+ALTER TABLE "booking_requests" ADD COLUMN IF NOT EXISTS "cancelled_by_name" varchar(100);--> statement-breakpoint
+ALTER TABLE "booking_requests" ADD COLUMN IF NOT EXISTS "cancel_reason" varchar(200);--> statement-breakpoint
+-- Both or neither, and only on a cancelled request.
+ALTER TABLE "booking_requests" ADD CONSTRAINT "booking_requests_admin_cancel_check"
+  CHECK ((("cancelled_by_name" IS NULL) = ("cancel_reason" IS NULL)) AND ("cancel_reason" IS NULL OR "status" = 'cancelled'));

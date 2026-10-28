@@ -30,19 +30,26 @@ import {
   googleRefreshOutcome,
   isGoogleRefreshHour,
 } from '../../lib/places/refresh.js'
+import {
+  leadFromRecommendation,
+  recommendationGarageChanges,
+} from '../../lib/recommendations.js'
 import { leadZoneId } from '../../lib/zone-edits.js'
 import { zoneFor } from '../../lib/zones.js'
 import { geoService } from '../geo/geo.service.js'
 import { isListedToCustomers } from '../vendors/vendors.predicates.js'
 import {
   leadsRepository,
+  type Conn,
   type LeadPatch,
   type LeadRecord,
   type NewLead,
+  type RecommendationRecord,
 } from './leads.repository.js'
 import type {
   CreateLeadInput,
   DuplicatesInput,
+  FromRecommendationInput,
   FromPlacesInput,
   PastePreviewInput,
   PasteSaveInput,
@@ -199,6 +206,69 @@ async function assignee(loginId: string | null | undefined): Promise<{
     )
   return { assignedLoginId: login.id, assignedName: login.name }
 }
+
+/**
+ * The recommendations made into a lead follow its garage (joined, or back
+ * to contacted when it has none), until their referral credit is decided:
+ * lib/recommendations.ts recommendationGarageChanges, under the rows' lock.
+ */
+async function syncRecommendations(
+  conn: Conn,
+  leadId: string,
+  vendorId: string | null,
+  now: Date
+): Promise<number> {
+  const recommendations = await leadsRepository.lockRecommendationsOfLead(
+    leadId,
+    conn
+  )
+  const changes = recommendationGarageChanges(recommendations, vendorId)
+  return leadsRepository.setRecommendationGarages(changes, now, conn)
+}
+
+/** A customer recommendation as Coverage lists it: never who recommended it. */
+export interface RecommendationResponse {
+  id: string
+  zoneId: string | null
+  name: string
+  phone: string | null
+  mapsLink: string | null
+  why: string | null
+  status: RecommendationRecord['status']
+  leadId: string | null
+  vendorId: string | null
+  handledBy: string | null
+  handledAt: string | null
+  createdAt: string
+}
+
+export function toRecommendationResponse(
+  row: RecommendationRecord
+): RecommendationResponse {
+  return {
+    id: row.id,
+    zoneId: row.zoneId,
+    name: row.name,
+    phone: row.phone,
+    mapsLink: row.mapsLink,
+    why: row.why,
+    status: row.status,
+    leadId: row.leadId,
+    vendorId: row.vendorId,
+    handledBy: row.handledBy,
+    handledAt: row.handledAt?.toISOString() ?? null,
+    createdAt: row.createdAt.toISOString(),
+  }
+}
+
+const recommendationNotFound = () =>
+  new AppError(404, 'Recommendation not found', 'RECOMMENDATION_NOT_FOUND')
+const recommendationHandled = () =>
+  new AppError(
+    409,
+    'Someone has already made this a lead or dismissed it. Reload to see it.',
+    'RECOMMENDATION_HANDLED'
+  )
 
 /** A pin's source from how it came: a Maps link, else typed or clicked on the map. */
 const pinSourceFor = (mapsUrl: string | null | undefined): LeadPinSource =>
@@ -501,23 +571,213 @@ export const leadsService = {
       )
     }
 
-    const row = await leadsRepository
-      .update(id, patch)
+    // The garage it became changed: the recommendations made into it follow,
+    // in the same transaction.
+    const garageChanged =
+      patch.vendorId !== undefined && patch.vendorId !== lead.vendorId
+    const { row, synced } = await leadsRepository
+      .transaction(async (tx) => {
+        const row = await leadsRepository.update(id, patch, tx)
+        if (!row) throw leadNotFound()
+        const synced = garageChanged
+          ? await syncRecommendations(tx, id, row.vendorId, now)
+          : 0
+        return { row, synced }
+      })
       .catch((err: unknown) => {
         // Another lead linked to the same garage meanwhile (leads_vendor_id_key).
         if (hasPgCode(err, '23505')) throw garageTaken()
         throw err
       })
-    if (!row) throw leadNotFound()
-    log.info({ fields: Object.keys(patch).length - 1 }, 'leads:updated')
+    log.info(
+      { fields: Object.keys(patch).length - 1, recommendations: synced },
+      'leads:updated'
+    )
     return toLeadResponse(row)
   },
 
-  async remove(id: string): Promise<{ removed: true }> {
-    const removed = await leadsRepository.remove(id)
-    if (!removed) throw leadNotFound()
-    log.info({ leads: 1 }, 'leads:removed')
+  /**
+   * The lead Add garage was opened from is now that garage (POST
+   * /admin/vendors { leadId }): Onboarded and linked, only while it has no
+   * garage yet, and the recommendations made into it are linked to the
+   * garage too (customer reach pays the referral credit on that link).
+   * False when it was linked already (a second Create, or a double press).
+   */
+  async linkOnboardedGarage(
+    leadId: string,
+    vendorId: string,
+    now = new Date()
+  ): Promise<boolean> {
+    const { linked, synced } = await leadsRepository.transaction(async (tx) => {
+      const linked = await leadsRepository.markOnboarded(
+        leadId,
+        vendorId,
+        now,
+        tx
+      )
+      const synced = linked
+        ? await syncRecommendations(tx, leadId, vendorId, now)
+        : 0
+      return { linked, synced }
+    })
+    log.info({ linked, recommendations: synced }, 'leads:onboarded')
+    return linked
+  },
+
+  /**
+   * Removes a lead. Recommendations made into it that never reached a
+   * garage go back to their zone's list, in the same transaction.
+   */
+  async remove(id: string, now = new Date()): Promise<{ removed: true }> {
+    const { removed, reopened } = await leadsRepository.transaction(
+      async (tx) => {
+        const reopened = await leadsRepository.reopenRecommendationsOfLead(
+          id,
+          now,
+          tx
+        )
+        const removed = await leadsRepository.remove(id, tx)
+        if (!removed) throw leadNotFound()
+        return { removed, reopened }
+      }
+    )
+    log.info({ leads: removed ? 1 : 0, reopened }, 'leads:removed')
     return { removed: true }
+  },
+
+  // ─── Customer recommendations (Coverage, 0064) ───────────────────────────
+
+  /** What a lead made from this recommendation would look like among the leads and garages there are. */
+  async recommendationDuplicates(
+    recommendationId: string
+  ): Promise<{ matches: DuplicateMatch[] }> {
+    const rec = await leadsRepository.findRecommendation(recommendationId)
+    if (!rec) throw recommendationNotFound()
+    const zones = await leadsRepository.listZones()
+    const made = leadFromRecommendation(rec, zones)
+    return this.duplicates({
+      name: made.name,
+      phone: made.phone,
+      lat: made.lat,
+      lng: made.lng,
+      zoneId: made.zoneId,
+    })
+  },
+
+  /**
+   * "Make lead" on a customer's recommendation: a new lead (source
+   * `customer`; its name, phone and Maps link, the pin when the link
+   * carries one), or, with `leadId`, linked to a lead the team already has
+   * (not one already a garage). Either way the recommendation is taken on
+   * (`contacted`) and points at the lead, so when that lead becomes a garage
+   * the recommendation follows it. 409 LEAD_DUPLICATE for a lookalike unless
+   * `allowDuplicate`; 409 RECOMMENDATION_HANDLED when it was not new.
+   */
+  async fromRecommendation(
+    recommendationId: string,
+    input: FromRecommendationInput,
+    now = new Date()
+  ): Promise<{ lead: LeadResponse; recommendation: RecommendationResponse }> {
+    const rec = await leadsRepository.findRecommendation(recommendationId)
+    if (!rec) throw recommendationNotFound()
+    if (rec.status !== 'new') throw recommendationHandled()
+
+    if (input.leadId) {
+      const lead = await leadsRepository.findById(input.leadId)
+      if (!lead) throw leadNotFound()
+      if (lead.vendorId) {
+        throw new AppError(
+          409,
+          'That lead is already a garage. Make a new lead, or dismiss this one.',
+          'LEAD_ALREADY_ONBOARDED'
+        )
+      }
+      const handled = await leadsRepository.handleRecommendation(rec.id, {
+        status: 'contacted',
+        leadId: lead.id,
+        handledBy: input.actorName,
+        now,
+      })
+      if (!handled) throw recommendationHandled()
+      log.info({ linked: true }, 'leads:recommendation_taken')
+      return {
+        lead: toLeadResponse(lead),
+        recommendation: toRecommendationResponse(handled),
+      }
+    }
+
+    const zones = await leadsRepository.listZones()
+    const made = leadFromRecommendation(rec, zones)
+    if (!input.allowDuplicate) {
+      const known = await this.knownPlaces(zones)
+      const matches = findDuplicates(
+        {
+          name: made.name,
+          phones: [made.phone],
+          lat: made.lat,
+          lng: made.lng,
+          zoneId: made.zoneId,
+        },
+        known,
+        LEAD_DUPLICATE_RADIUS_M
+      )
+      if (matches.length > 0) throw duplicateError(matches.map(toMatch))
+    }
+    const { lead, handled } = await leadsRepository.transaction(async (tx) => {
+      const [lead] = await leadsRepository.insert(
+        [
+          {
+            ...made,
+            source: 'customer',
+            status: 'to_target',
+            createdByName: input.actorName,
+            createdAt: now,
+            updatedAt: now,
+          },
+        ],
+        tx
+      )
+      const handled = await leadsRepository.handleRecommendation(
+        rec.id,
+        {
+          status: 'contacted',
+          leadId: lead!.id,
+          handledBy: input.actorName,
+          now,
+        },
+        tx
+      )
+      // Taken meanwhile: the lead goes too (the transaction rolls back).
+      if (!handled) throw recommendationHandled()
+      return { lead: lead!, handled }
+    })
+    log.info(
+      { leads: 1, source: 'customer', pinned: made.lat !== null },
+      'leads:added'
+    )
+    return {
+      lead: toLeadResponse(lead),
+      recommendation: toRecommendationResponse(handled),
+    }
+  },
+
+  /** "Dismiss": the recommendation leaves the zone's list (declined), by whom. */
+  async dismissRecommendation(
+    recommendationId: string,
+    actorName: string,
+    now = new Date()
+  ): Promise<RecommendationResponse> {
+    const rec = await leadsRepository.findRecommendation(recommendationId)
+    if (!rec) throw recommendationNotFound()
+    const handled = await leadsRepository.handleRecommendation(rec.id, {
+      status: 'declined',
+      leadId: null,
+      handledBy: actorName,
+      now,
+    })
+    if (!handled) throw recommendationHandled()
+    log.info({ dismissed: 1 }, 'leads:recommendation_dismissed')
+    return toRecommendationResponse(handled)
   },
 
   /** Paste a list's preview: each line, its problem, and the places it looks like. Nothing is saved. */

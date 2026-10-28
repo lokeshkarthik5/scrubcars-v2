@@ -2,6 +2,7 @@ import { AT_GARAGE_ADDRESS_MESSAGE, atGarageAddressRefused, garageAddressLine } 
 import { timingSafeEqual } from 'node:crypto'
 import { env } from '../../lib/env.js'
 import { leadsRepository } from '../leads/leads.repository.js'
+import { leadsService } from '../leads/leads.service.js'
 import { AppError } from '../../lib/errors.js'
 import { signAdminToken } from '../../lib/jwt.js'
 import { logger } from '../../lib/logger.js'
@@ -1381,10 +1382,11 @@ export const adminService = {
 
     // The lead it came from is now this garage. Only while that lead is
     // still unlinked, so a double press links it once; the garage stands
-    // either way.
+    // either way. A customer's recommendation made into that lead is linked
+    // to the garage in the same transaction (its referral credit).
     if (input.leadId) {
-      const linked = await leadsRepository
-        .markOnboarded(input.leadId, vendor.id, new Date())
+      const linked = await leadsService
+        .linkOnboardedGarage(input.leadId, vendor.id, new Date())
         .catch((err: unknown) => {
           log.error({ err, vendorId: vendor.id }, 'admin:lead_link_failed')
           return false

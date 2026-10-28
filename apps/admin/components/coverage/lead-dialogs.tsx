@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { IconCheck } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
 import { ScButton } from '@repo/ui/sc/button'
+import { ScCheckbox } from '@repo/ui/sc/checkbox'
 import { ScField, ScInput, ScTextarea } from '@repo/ui/sc/input'
 import { ScModal } from '@repo/ui/sc/modal'
 import { ScSegmented } from '@repo/ui/sc/segmented'
@@ -31,7 +32,13 @@ import {
   MATCH_REASON_TEXT,
   normalisePhone,
 } from '@repo/core/leads'
-import { duplicateLine, mapsLinkProblem, phoneProblem } from '@/lib/lead-form'
+import {
+  duplicateLine,
+  leadOwnFieldsToSave,
+  mapsLinkProblem,
+  phoneProblem,
+  showsGoogleDetails,
+} from '@/lib/lead-form'
 
 /** Active team logins, for "Assign to". */
 export interface Assignee {
@@ -677,9 +684,10 @@ export function NoteDialog({
 // ─── Edit lead ──────────────────────────────────────────────────────────────
 
 /**
- * Edit a lead: its name and phone (saving them makes them the team's own,
- * kept whatever Google says later), its Maps link and pin, its zone when it
- * has no pin, the garage it became, or remove it.
+ * Edit a lead: its name and phone (an edit, or "Confirmed by phone" for
+ * what Google gave, makes them the team's own, kept whatever Google says
+ * later; saving anything else leaves Google's apart), its Maps link and
+ * pin, its zone when it has no pin, the garage it became, or remove it.
  */
 export function EditLeadDialog({
   lead,
@@ -700,6 +708,7 @@ export function EditLeadDialog({
   const [dropPin, setDropPin] = useState(false)
   const [zoneId, setZoneId] = useState(lead.zoneId ?? '')
   const [vendorId, setVendorId] = useState(lead.vendorId ?? '')
+  const [confirmed, setConfirmed] = useState(false)
   const [confirmRemove, setConfirmRemove] = useState(false)
   const [matches, setMatches] = useState<DuplicateMatch[] | null>(null)
   const edit = (setter: (value: string) => void) => (value: string) => {
@@ -723,10 +732,15 @@ export function EditLeadDialog({
     link: mapsLinkProblem(mapsUrl),
   }
   const nextPhone = normalisePhone(phone)
-  // Saving a Google lead's name or phone as shown confirms it as the team's own.
-  const nameChanged = name.trim() !== lead.name || lead.ownName === null
-  const phoneChanged =
-    nextPhone !== lead.phone || (lead.ownPhone === null && nextPhone !== null)
+  // The team's own name and phone: only what was edited, or confirmed by
+  // phone. Saving anything else leaves Google's apart (its 30 days).
+  const own = leadOwnFieldsToSave(lead, {
+    name,
+    phone: nextPhone,
+    confirmed,
+  })
+  const nameChanged = own.name !== undefined
+  const phoneChanged = own.phone !== undefined
   const dirty =
     nameChanged ||
     phoneChanged ||
@@ -769,8 +783,7 @@ export function EditLeadDialog({
     update.mutate(
       {
         id: lead.id,
-        ...(nameChanged && { name: name.trim() }),
-        ...(phoneChanged && { phone: nextPhone }),
+        ...own,
         ...(linkChanged && { mapsUrl: mapsUrl.trim() || null }),
         ...(newPin
           ? { lat: newPin.lat, lng: newPin.lng }
@@ -864,8 +877,8 @@ export function EditLeadDialog({
         <DialogTitle
           title="Edit lead"
           hint={
-            lead.ownName === null
-              ? 'The name and phone are Google’s until you save them here; then they are yours to keep.'
+            showsGoogleDetails(lead)
+              ? 'The name and phone shown are Google’s until you edit them or tick Confirmed by phone; then they are yours to keep.'
               : undefined
           }
         />
@@ -888,6 +901,16 @@ export function EditLeadDialog({
             </span>
           )}
         </div>
+        {showsGoogleDetails(lead) && (
+          <ScCheckbox
+            label="Confirmed by phone: keep this name and phone as ours"
+            checked={confirmed}
+            onChange={(checked) => {
+              setConfirmed(checked)
+              setMatches(null)
+            }}
+          />
+        )}
         <div className="flex flex-col gap-1">
           <ScField
             label="Google Maps link"

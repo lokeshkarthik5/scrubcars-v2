@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { MAX_SERVICES_PER_BOOKING } from '../bookings/bookings.validation.js'
-import { WINDOW_PARTS } from '../../lib/booking-requests.js'
+import { signedActorName } from '../../lib/admin-actor.js'
+import { ADMIN_CANCEL_REASON, ADMIN_REQUEST_FILTERS, WINDOW_PARTS } from '../../lib/booking-requests.js'
 
 const dateKey = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'A date as YYYY-MM-DD')
 
@@ -43,7 +44,27 @@ export const acceptRequestSchema = z
   })
   .strict()
 
+/** `GET /admin/requests`: Open / Accepted / Failed / All, optionally one zone's (its slug). */
+export const adminRequestsQuerySchema = z.object({
+  filter: z.enum(ADMIN_REQUEST_FILTERS).default('open'),
+  zone: z
+    .string()
+    .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/)
+    .max(60)
+    .optional(),
+})
+
+/** `POST /admin/requests/:id/cancel`: the team's reason, kept, never sent to the customer. */
+export const adminCancelRequestSchema = z
+  .object({
+    actorName: signedActorName,
+    reason: z.string().trim().min(ADMIN_CANCEL_REASON.min).max(ADMIN_CANCEL_REASON.max),
+  })
+  .strict()
+
 export type WindowsQuery = z.infer<typeof windowsQuerySchema>
 export type CreateRequestInput = z.infer<typeof createRequestSchema>
 export type GarageRequestsQuery = z.infer<typeof garageRequestsQuerySchema>
 export type AcceptRequestInput = z.infer<typeof acceptRequestSchema>
+export type AdminRequestsQuery = z.infer<typeof adminRequestsQuerySchema>
+export type AdminCancelRequestInput = z.infer<typeof adminCancelRequestSchema>

@@ -46,6 +46,7 @@ import { adminTodayRoutes } from '../today/today.routes.js'
 import { adminGarageBoardRoutes } from '../garage-board/garage-board.routes.js'
 import { adminCoverageRoutes } from '../coverage/coverage.routes.js'
 import { adminLeadsRoutes } from '../leads/leads.routes.js'
+import { adminBookingRequestRoutes } from '../booking-requests/booking-requests.routes.js'
 import { adminPlacesRoutes } from '../places/places.routes.js'
 import * as adminController from './admin.controller.js'
 import {
@@ -487,6 +488,7 @@ adminRoutes.route('/garage-board', adminGarageBoardRoutes)
 // Coverage & leads (0064): zones, the team's leads and the zone finder.
 adminRoutes.route('/coverage', adminCoverageRoutes)
 adminRoutes.route('/leads', adminLeadsRoutes)
+adminRoutes.route('/requests', adminBookingRequestRoutes)
 adminRoutes.route('/places', adminPlacesRoutes)
 
 // Add garage's import from a poster, photo, PDF or Tally file, and the

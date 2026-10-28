@@ -11,7 +11,14 @@ import {
   sql,
 } from 'drizzle-orm'
 import { db } from '../../db/index.js'
-import { adminLogins, leads, vendors, zones } from '../../db/schema.js'
+import {
+  adminLogins,
+  garageRecommendations,
+  leads,
+  vendors,
+  zones,
+} from '../../db/schema.js'
+import type { RecommendationStatus } from '../../lib/recommendations.js'
 import { vendorNotInBin } from '../vendors/vendors.predicates.js'
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
@@ -19,6 +26,7 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 export type Conn = typeof db | Tx
 
 export type LeadRecord = typeof leads.$inferSelect
+export type RecommendationRecord = typeof garageRecommendations.$inferSelect
 export type NewLead = typeof leads.$inferInsert
 export type LeadPatch = Partial<
   Omit<NewLead, 'id' | 'createdAt' | 'createdByName'>
@@ -266,6 +274,155 @@ export const leadsRepository = {
       })
       .from(leads)
       .where(or(...conditions))
+  },
+
+  // ─── Customer recommendations (customer reach part 2, 0062; Coverage, 0064) ─
+
+  /** Every recommendation, newest first, for Coverage's demand and lists. */
+  listRecommendations(conn: Conn = db): Promise<RecommendationRecord[]> {
+    return conn
+      .select()
+      .from(garageRecommendations)
+      .orderBy(
+        desc(garageRecommendations.createdAt),
+        asc(garageRecommendations.id)
+      )
+  },
+
+  async findRecommendation(
+    id: string,
+    conn: Conn = db
+  ): Promise<RecommendationRecord | undefined> {
+    const [row] = await conn
+      .select()
+      .from(garageRecommendations)
+      .where(eq(garageRecommendations.id, id))
+      .limit(1)
+    return row
+  },
+
+  /** Customer recommendations in a zone, any state: they keep it (RESTRICT). */
+  countRecommendationsInZone(zoneId: string, conn: Conn = db) {
+    return conn
+      .select({ count: sql<number>`count(*)::int` })
+      .from(garageRecommendations)
+      .where(eq(garageRecommendations.zoneId, zoneId))
+      .then(([row]) => row?.count ?? 0)
+  },
+
+  /**
+   * A recommendation taken on (`contacted`, made into or linked to this
+   * lead) or dismissed (`declined`), by whom: only while it is still new,
+   * so two presses, or two people, act on it once. Undefined when it was
+   * not new any more.
+   */
+  async handleRecommendation(
+    id: string,
+    values: {
+      status: Extract<RecommendationStatus, 'contacted' | 'declined'>
+      leadId: string | null
+      handledBy: string
+      now: Date
+    },
+    conn: Conn = db
+  ): Promise<RecommendationRecord | undefined> {
+    const [row] = await conn
+      .update(garageRecommendations)
+      .set({
+        status: values.status,
+        leadId: values.leadId,
+        handledBy: values.handledBy,
+        handledAt: values.now,
+        updatedAt: values.now,
+      })
+      .where(
+        and(
+          eq(garageRecommendations.id, id),
+          eq(garageRecommendations.status, 'new')
+        )
+      )
+      .returning()
+    return row
+  },
+
+  /**
+   * The recommendations made into a lead, locked for the garage link
+   * (lib/recommendations.ts recommendationGarageChanges): the referral
+   * credit's own transaction locks the same rows, so a link and a credit
+   * never cross.
+   */
+  lockRecommendationsOfLead(leadId: string, conn: Conn = db) {
+    return conn
+      .select({
+        id: garageRecommendations.id,
+        status: garageRecommendations.status,
+        vendorId: garageRecommendations.vendorId,
+        creditStatus: garageRecommendations.creditStatus,
+      })
+      .from(garageRecommendations)
+      .where(eq(garageRecommendations.leadId, leadId))
+      .orderBy(asc(garageRecommendations.id))
+      .for('update')
+  },
+
+  /** Each change, only while its credit is undecided (the rule's own condition, kept here too). */
+  async setRecommendationGarages(
+    changes: ReadonlyArray<{
+      id: string
+      vendorId: string | null
+      status: RecommendationStatus
+    }>,
+    now: Date,
+    conn: Conn = db
+  ): Promise<number> {
+    let changed = 0
+    for (const change of changes) {
+      const rows = await conn
+        .update(garageRecommendations)
+        .set({
+          vendorId: change.vendorId,
+          status: change.status,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(garageRecommendations.id, change.id),
+            isNull(garageRecommendations.creditStatus)
+          )
+        )
+        .returning({ id: garageRecommendations.id })
+      changed += rows.length
+    }
+    return changed
+  },
+
+  /**
+   * A lead about to be removed: the recommendations made into it that never
+   * reached a garage go back to the zone's list (new, nobody's).
+   */
+  async reopenRecommendationsOfLead(
+    leadId: string,
+    now: Date,
+    conn: Conn = db
+  ): Promise<number> {
+    const rows = await conn
+      .update(garageRecommendations)
+      .set({
+        status: 'new',
+        leadId: null,
+        handledBy: null,
+        handledAt: null,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(garageRecommendations.leadId, leadId),
+          isNull(garageRecommendations.vendorId),
+          isNull(garageRecommendations.creditStatus)
+        )
+      )
+      .returning({ id: garageRecommendations.id })
+    return rows.length
   },
 
   transaction<T>(work: (tx: Tx) => Promise<T>): Promise<T> {

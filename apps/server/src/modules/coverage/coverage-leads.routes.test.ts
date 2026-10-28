@@ -30,6 +30,8 @@ const { adminLoginsRepository } =
 const { leadsRepository } = await import('../leads/leads.repository.js')
 const { leadsService } = await import('../leads/leads.service.js')
 const { coverageRepository } = await import('./coverage.repository.js')
+const { bookingRequestsRepository } =
+  await import('../booking-requests/booking-requests.repository.js')
 const { geoService } = await import('../geo/geo.service.js')
 
 type Lead = Awaited<ReturnType<typeof leadsRepository.listAll>>[number]
@@ -253,6 +255,17 @@ beforeAll(() => {
     async (zoneId: string) =>
       [...leads.values()].filter((lead) => lead.zoneId === zoneId).length
   )
+  // Part 3 (demand, recommendations): none here; coverage-demand.routes.test.ts has them.
+  patch(l, 'transaction', async (work: (tx: unknown) => Promise<unknown>) =>
+    work({})
+  )
+  patch(l, 'listRecommendations', async () => [])
+  patch(l, 'countRecommendationsInZone', async () => 0)
+  patch(l, 'lockRecommendationsOfLead', async () => [])
+  patch(l, 'setRecommendationGarages', async () => 0)
+  patch(l, 'reopenRecommendationsOfLead', async () => 0)
+  patch(bookingRequestsRepository, 'listLatestSince', async () => [])
+  patch(bookingRequestsRepository, 'countInZone', async () => 0)
   patch(l, 'listByPlaceIds', async (googleIds: string[], olaIds: string[]) =>
     [...leads.values()].filter(
       (lead) =>
@@ -277,9 +290,11 @@ beforeAll(() => {
   patch(c, 'deleteZone', async (id: string) => {
     const before = zones.length
     zones = zones.filter((z) => z.id !== id)
-    return zones.length < before
+    return zones.length < before ? 'deleted' : 'missing'
   })
   patch(c, 'listGarages', async () => garages)
+  patch(c, 'listSignups', async () => [])
+  patch(c, 'countSignupsInZone', async () => 0)
   patch(c, 'transaction', async (work: (tx: unknown) => Promise<unknown>) =>
     work({})
   )
@@ -484,9 +499,9 @@ describe('zone edits', () => {
       `/admin/coverage/zones/${KILPAUK}`,
       await raga()
     )
-    expect([refused.status, refused.body.code]).toEqual([409, 'ZONE_HAS_LEADS'])
+    expect([refused.status, refused.body.code]).toEqual([409, 'ZONE_IN_USE'])
     expect(refused.body.message).toBe(
-      '1 lead is in Kilpauk. Move it to another zone or remove it first.'
+      'Kilpauk is kept: it has 1 lead. Move it to another zone or remove it first.'
     )
     leads.clear()
     expect(

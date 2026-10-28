@@ -11,8 +11,11 @@
 import type {
   CoverageGarage,
   CoverageOverview,
+  CoverageRecommendation,
   CoverageZone,
+  HotRule,
   Lead,
+  ZoneDemand,
 } from '@repo/core/api/admin-coverage'
 import type { LeadStatus } from '@repo/core/leads'
 import { ZONE_RADIUS_KM } from '@repo/core/zones'
@@ -220,6 +223,89 @@ export function barParts(
 export function zoneSummaryLine(rows: CallRow[]): string {
   const counts = filterCounts(rows)
   return `${counts.onboarded} onboarded · ${counts.to_target} to target · ${counts.not_interested} not interested`
+}
+
+// ─── Demand (part 3) ────────────────────────────────────────────────────────
+
+/** Each zone's demand by its id; empty from an API before part 3. */
+export function demandByZone(
+  overview: Pick<CoverageOverview, 'demand'>
+): Map<string, ZoneDemand> {
+  return new Map((overview.demand ?? []).map((d) => [d.zoneId, d]))
+}
+
+/**
+ * The zone list in demand order: the API's score (people waiting + requests
+ * nobody accepted), highest first; equal scores keep the API's order
+ * (priority first, then A–Z). The score and Hot are the API's; this only
+ * orders them.
+ */
+export function sortByDemand(
+  stats: ZoneStats[],
+  demand: Map<string, ZoneDemand>
+): ZoneStats[] {
+  return stats
+    .map((s, order) => ({ s, order, score: demand.get(s.zone.id)?.score ?? 0 }))
+    .sort((a, b) => b.score - a.score || a.order - b.order)
+    .map(({ s }) => s)
+}
+
+const count = (n: number, one: string, many: string) =>
+  `${n} ${n === 1 ? one : many}`
+
+/** "12 waiting · 2 failed requests · 1 open request · 1 recommended", or null with no demand. */
+export function demandLine(demand: ZoneDemand | undefined): string | null {
+  if (!demand) return null
+  const parts = [
+    demand.waiting > 0 && `${demand.waiting} waiting`,
+    demand.failedRequests > 0 &&
+      count(demand.failedRequests, 'failed request', 'failed requests'),
+    demand.openRequests > 0 &&
+      count(demand.openRequests, 'open request', 'open requests'),
+    demand.newRecommendations > 0 && `${demand.newRecommendations} recommended`,
+  ].filter((part): part is string => typeof part === 'string')
+  return parts.length > 0 ? parts.join(' · ') : null
+}
+
+/** What Hot means, in the API's own numbers. */
+export function hotRuleText(rule: HotRule): string {
+  return `Hot: the top ${rule.top} zones by people waiting plus requests nobody accepted in the last ${rule.requestDays} days, each with at least ${rule.minScore}.`
+}
+
+/** A zone's recommendations still to act on (null: those in no zone), newest first as the API sends them. */
+export function newRecommendations(
+  recommendations: readonly CoverageRecommendation[],
+  zoneId: string | null
+): CoverageRecommendation[] {
+  return recommendations.filter(
+    (rec) => rec.status === 'new' && rec.zoneId === zoneId
+  )
+}
+
+/** The recommendations made into each lead, for "Recommended by a customer" on its row. */
+export function recommendationsByLead(
+  recommendations: readonly CoverageRecommendation[]
+): Map<string, CoverageRecommendation[]> {
+  const byLead = new Map<string, CoverageRecommendation[]>()
+  for (const rec of recommendations) {
+    if (!rec.leadId || rec.status === 'new' || rec.status === 'declined')
+      continue
+    byLead.set(rec.leadId, [...(byLead.get(rec.leadId) ?? []), rec])
+  }
+  return byLead
+}
+
+/** "Recommended by a customer · “Did my car well”" (by 2 customers, when more). */
+export function recommendedLine(
+  recommendations: readonly Pick<CoverageRecommendation, 'why'>[]
+): string | null {
+  if (recommendations.length === 0) return null
+  const who =
+    recommendations.length === 1
+      ? 'Recommended by a customer'
+      : `Recommended by ${recommendations.length} customers`
+  const why = recommendations.find((rec) => rec.why)?.why
+  return why ? `${who} · “${why}”` : who
 }
 
 // ─── The drawn areas ────────────────────────────────────────────────────────

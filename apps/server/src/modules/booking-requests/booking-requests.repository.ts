@@ -1,10 +1,12 @@
 import { and, asc, desc, eq, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import {
+  adminAuditLog,
   bookingRequests,
   services,
   userAddresses,
   userVehicles,
+  users,
   vendorClosures,
   vendors,
   vendorWorkingHours,
@@ -558,6 +560,116 @@ export const bookingRequestsRepository = {
          AND p.status IN ('paid', 'collected', 'refunded')
     `)
     return Number(Array.from(rows)[0]?.count ?? 0)
+  },
+
+  // ─── Admin (0064) ──────────────────────────────────────────────────────────
+
+  /**
+   * The admin Requests list: every row of the newest `limit` requests sent
+   * since `since`, and of any older one still open, with the customer's
+   * name and phone and each garage's name and phone, first rows first (the
+   * service puts each request together; its last row is where it stands).
+   */
+  listForAdmin(since: Date, limit: number) {
+    return db
+      .select({
+        request: bookingRequests,
+        customerName: users.name,
+        customerPhone: users.phone,
+        garageName: vendors.businessName,
+        garagePhone: vendors.phone,
+      })
+      .from(bookingRequests)
+      .innerJoin(users, eq(users.id, bookingRequests.userId))
+      .innerJoin(vendors, eq(vendors.id, bookingRequests.vendorId))
+      .where(
+        sql`coalesce(${bookingRequests.rootRequestId}, ${bookingRequests.id}) IN (
+          SELECT b.id FROM booking_requests b
+           WHERE b.chain_no = 1
+             AND (b.created_at >= ${since.toISOString()}::timestamptz OR EXISTS (
+               SELECT 1 FROM booking_requests o
+                WHERE coalesce(o.root_request_id, o.id) = b.id AND o.status IN ('pending', 'accepted')
+             ))
+           ORDER BY b.created_at DESC
+           LIMIT ${limit}
+        )`
+      )
+      .orderBy(asc(bookingRequests.chainNo), asc(bookingRequests.createdAt))
+  },
+
+  /**
+   * The latest row of every request sent since `since`, with its zone: what
+   * Coverage counts demand from (lib/zone-demand.ts).
+   */
+  async listLatestSince(since: Date): Promise<Array<{ zoneSlug: string | null; status: string; reply: string | null }>> {
+    const rows = await db.execute<{ zone_slug: string | null; status: string; reply: string | null }>(sql`
+      SELECT DISTINCT ON (coalesce(r.root_request_id, r.id)) r.zone_slug, r.status, r.reply
+        FROM booking_requests r
+       WHERE coalesce(r.root_request_id, r.id) IN (
+               SELECT b.id FROM booking_requests b WHERE b.chain_no = 1 AND b.created_at >= ${since.toISOString()}::timestamptz
+             )
+       ORDER BY coalesce(r.root_request_id, r.id), r.chain_no DESC
+    `)
+    return Array.from(rows).map((row) => ({ zoneSlug: row.zone_slug, status: row.status, reply: row.reply }))
+  },
+
+  /** Requests (one per request, however many garages) sent from a zone, by its slug. */
+  async countInZone(slug: string): Promise<number> {
+    const [row] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(bookingRequests)
+      .where(and(eq(bookingRequests.zoneSlug, slug), eq(bookingRequests.chainNo, 1)))
+    return Number(row?.count ?? 0)
+  },
+
+  /**
+   * An admin's cancel: an open row (waiting, or accepted with no checkout
+   * open for it: a customer paying right now is not cut off), cancelled
+   * with who and why, and the audit row, in one transaction. Null when it
+   * was not open, or a checkout is.
+   */
+  cancelByAdmin(input: { id: string; actorName: string; actorSub: string; reason: string; now: Date }): Promise<BookingRequestRecord | null> {
+    return db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(bookingRequests)
+        .set({
+          status: 'cancelled',
+          closedAt: input.now,
+          updatedAt: input.now,
+          cancelledByName: input.actorName,
+          cancelReason: input.reason,
+        })
+        .where(
+          and(
+            eq(bookingRequests.id, input.id),
+            inArray(bookingRequests.status, ['pending', 'accepted']),
+            sql`NOT EXISTS (
+              SELECT 1 FROM booking_intents i
+               WHERE i.request_id = ${bookingRequests.id} AND i.status = 'pending' AND i.expires_at > ${input.now.toISOString()}::timestamptz
+            )`
+          )
+        )
+        .returning()
+      if (!row) return null
+      await tx.insert(adminAuditLog).values({
+        action: 'booking_request_cancelled',
+        actorSub: input.actorSub,
+        actorName: input.actorName,
+        summary: { requestId: row.id, status: 'cancelled', was: row.reply === 'accepted' ? 'accepted' : 'pending' },
+        detail: { reason: input.reason, vendorId: row.vendorId, rootRequestId: row.rootRequestId ?? row.id },
+      })
+      return row
+    })
+  },
+
+  /** Whether a customer is paying for this request right now (an unexpired checkout for it). */
+  async hasOpenCheckout(id: string, now: Date): Promise<boolean> {
+    const rows = await db.execute<{ id: string }>(sql`
+      SELECT i.id FROM booking_intents i
+       WHERE i.request_id = ${id} AND i.status = 'pending' AND i.expires_at > ${now.toISOString()}::timestamptz
+       LIMIT 1
+    `)
+    return Array.from(rows).length > 0
   },
 
   /** The garage's name, for words. */

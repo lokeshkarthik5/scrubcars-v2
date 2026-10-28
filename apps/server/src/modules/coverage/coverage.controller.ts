@@ -1,5 +1,10 @@
 import type { Context } from 'hono'
 import type { AuthVariables } from '../../middleware/auth.middleware.js'
+import { leadsService } from '../leads/leads.service.js'
+import type {
+  DismissRecommendationInput,
+  FromRecommendationInput,
+} from '../leads/leads.validation.js'
 import { coverageService } from './coverage.service.js'
 import type { CreateZoneInput, UpdateZoneInput } from './coverage.validation.js'
 
@@ -29,4 +34,36 @@ export async function updateZone(
 
 export async function removeZone(c: AdminContext, id: string) {
   return c.json({ success: true, data: await coverageService.removeZone(id) })
+}
+
+export async function recommendationDuplicates(c: AdminContext, id: string) {
+  return c.json({
+    success: true,
+    data: await leadsService.recommendationDuplicates(id),
+  })
+}
+
+export async function fromRecommendation(
+  c: AdminContext,
+  id: string,
+  input: FromRecommendationInput
+) {
+  return c.json(
+    {
+      success: true,
+      data: await leadsService.fromRecommendation(id, input),
+    },
+    201
+  )
+}
+
+export async function dismissRecommendation(
+  c: AdminContext,
+  id: string,
+  input: DismissRecommendationInput
+) {
+  return c.json({
+    success: true,
+    data: await leadsService.dismissRecommendation(id, input.actorName),
+  })
 }
