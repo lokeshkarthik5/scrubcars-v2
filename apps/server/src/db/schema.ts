@@ -4649,7 +4649,7 @@ export const zoneSignups = pgTable(
       .references(() => users.id, { onDelete: 'cascade' }),
     zoneId: uuid('zone_id')
       .notNull()
-      .references(() => zones.id, { onDelete: 'cascade' }),
+      .references(() => zones.id, { onDelete: 'restrict' }),
     position: integer('position').notNull(),
     freeWash: boolean('free_wash').notNull(),
     pushOptIn: boolean('push_opt_in').default(false).notNull(),
@@ -4688,7 +4688,7 @@ export const garageRecommendations = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
-    zoneId: uuid('zone_id').references(() => zones.id, { onDelete: 'set null' }),
+    zoneId: uuid('zone_id').references(() => zones.id, { onDelete: 'restrict' }),
     name: varchar('name', { length: 100 }).notNull(),
     mapsLink: varchar('maps_link', { length: 500 }),
     phone: varchar('phone', { length: 10 }),

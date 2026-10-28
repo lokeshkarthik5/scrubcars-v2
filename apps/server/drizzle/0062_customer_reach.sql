@@ -203,6 +203,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS "booking_requests_booking_id_key" ON "booking_
 CREATE UNIQUE INDEX IF NOT EXISTS "booking_requests_one_open_key"
   ON "booking_requests" (COALESCE("root_request_id", "id")) WHERE "status" IN ('pending', 'accepted');--> statement-breakpoint
 
+-- A zone is never deleted from under its sign-ups or leads: zone FKs are
+-- ON DELETE RESTRICT (admin may remove a zone only once nothing names it).
 CREATE TABLE IF NOT EXISTS "zone_signups" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
   "user_id" uuid NOT NULL,
@@ -222,7 +224,7 @@ CREATE TABLE IF NOT EXISTS "zone_signups" (
   CONSTRAINT "zone_signups_user_id_users_id_fk"
     FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action,
   CONSTRAINT "zone_signups_zone_id_zones_id_fk"
-    FOREIGN KEY ("zone_id") REFERENCES "public"."zones"("id") ON DELETE cascade ON UPDATE no action,
+    FOREIGN KEY ("zone_id") REFERENCES "public"."zones"("id") ON DELETE restrict ON UPDATE no action,
   CONSTRAINT "zone_signups_discount_id_discounts_id_fk"
     FOREIGN KEY ("discount_id") REFERENCES "public"."discounts"("id") ON DELETE set null ON UPDATE no action,
   CONSTRAINT "zone_signups_position_check" CHECK ("position" >= 1),
@@ -255,7 +257,7 @@ CREATE TABLE IF NOT EXISTS "garage_recommendations" (
   CONSTRAINT "garage_recommendations_user_id_users_id_fk"
     FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action,
   CONSTRAINT "garage_recommendations_zone_id_zones_id_fk"
-    FOREIGN KEY ("zone_id") REFERENCES "public"."zones"("id") ON DELETE set null ON UPDATE no action,
+    FOREIGN KEY ("zone_id") REFERENCES "public"."zones"("id") ON DELETE restrict ON UPDATE no action,
   CONSTRAINT "garage_recommendations_vendor_id_vendors_id_fk"
     FOREIGN KEY ("vendor_id") REFERENCES "public"."vendors"("id") ON DELETE set null ON UPDATE no action,
   CONSTRAINT "garage_recommendations_credit_entry_id_fk"
