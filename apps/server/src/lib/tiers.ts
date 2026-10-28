@@ -8,7 +8,8 @@
  *   - **Bronze**: the garage accepted the latest Detlio garage agreement, or
  *     accepted an earlier one and the latest came out under 30 days ago
  *     (lib/agreements.ts `agreementStanding`). Worked out on read, never
- *     stored; SQL twin BRONZE_GARAGE (vendors.predicates.ts).
+ *     stored; no SQL twin (no list filters on Bronze; agreementStandings
+ *     reads it for a batch of garages in two queries).
  *   - **Silver**: Bronze, documents checked (shop photo, owner ID, bank
  *     proof; lib/vendor-documents.ts), 4.2★ or more from 5+ reviews, 10+
  *     completed jobs in 90 days, 85%+ answered in time, no garage no-shows in

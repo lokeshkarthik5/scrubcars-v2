@@ -1655,6 +1655,7 @@ export const BEHAVIOUR = {
  *   the monogram tile. Its services:
  *   - points: seven "- " points under an intro: the sheet shows five and
  *     "+2 more"; its card "Deep vacuum · Seat shampoo · Dashboard polish +4".
+ *     The last is one long unbroken word, which must wrap on a 375px phone.
  *   - bike: a plain description, no points, no media: the bike icon tile,
  *     and a sheet with no picture area, the description as written.
  *   - aiOnly: only an AI picture: customers get no media at all (the API
@@ -1676,7 +1677,9 @@ export const TRUST_LOOK = {
       intro: 'A deep clean of the whole cabin.',
       points: [
         'Deep vacuum', 'Seat shampoo', 'Dashboard polish', 'Door pads wiped',
-        'Glass cleaned', 'Odour removal', 'Mats washed',
+        'Glass cleaned', 'Odour removal',
+        // One long unbroken word (a pasted link, say): it must wrap at 375px.
+        'Mats washed: MicrofibreTowelDriedPhNeutralShampooWithoutHarshChemicals',
       ],
     },
     bike: {

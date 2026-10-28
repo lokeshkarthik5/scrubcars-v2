@@ -7,6 +7,7 @@ import {
   parseServiceDescription,
   sheetPoints,
 } from '@repo/core/service-points'
+import { cn } from '@repo/core/utils'
 
 /**
  * "What's included" in a service's sheet: the description's points, each
@@ -40,7 +41,10 @@ export function WhatsIncluded({
         {shown.map((point, i) => (
           <li
             key={`${i}-${point}`}
-            className="flex items-start gap-2.5 py-1.5 text-[14px] leading-snug text-text-primary"
+            // overflow-wrap: anywhere, so one long unbroken word (a pasted
+            // link, say) wraps instead of pushing the sheet wider than a
+            // 375px phone.
+            className="flex items-start gap-2.5 py-1.5 text-[14px] leading-snug text-text-primary [overflow-wrap:anywhere]"
           >
             <span
               aria-hidden="true"
@@ -71,7 +75,7 @@ export function WhatsIncluded({
         </button>
       )}
       {note && (
-        <p className="mt-2 whitespace-pre-line text-[13px] text-text-secondary">
+        <p className="mt-2 whitespace-pre-line text-[13px] text-text-secondary [overflow-wrap:anywhere]">
           {note}
         </p>
       )}
@@ -94,7 +98,7 @@ export function ServiceCardLine({
   if (!description) return null
   const line = cardPointsLine(parseServiceDescription(description).points)
   return (
-    <p className={className}>
+    <p className={cn('[overflow-wrap:anywhere]', className)}>
       {line ? (
         <>
           {line.text}

@@ -14,8 +14,8 @@
  *   - **Standing** (`agreementStanding`): accepted the latest version, or
  *     accepted an earlier one and the latest came out under 30 days ago
  *     (TIER_RULES.bronze.agreementGraceDays). Either way the garage holds
- *     Bronze (lib/tiers.ts). The SQL twin is BRONZE_GARAGE in
- *     modules/vendors/vendors.predicates.ts, pinned by its test.
+ *     Bronze (lib/tiers.ts). It has no SQL twin: no list filters on it,
+ *     and modules/agreements reads it for a batch of garages at once.
  *
  * The garage's words are twinned in packages/core/src/agreements.ts
  * (agreements.parity.test.ts).
