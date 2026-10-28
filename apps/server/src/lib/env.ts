@@ -183,7 +183,7 @@ export const env = {
   // for the garage's owner seat or a super-admin. Unset — as in development
   // and previews — and garage documents are off: their routes are 404, the
   // garage portal and admin hide the section, and no garage shows the
-  // "Documents verified" badge.
+  // documents-checked step of Silver (0063): nobody can reach Silver or Gold.
   r2DocsBucket: process.env.R2_DOCS_BUCKET?.trim() || undefined,
   // Overrides the derived Cloudflare endpoint. Unset in every real
   // environment; the E2E stack points it at a local MinIO, which speaks the
@@ -281,7 +281,8 @@ export const env = {
     process.env.GEO_AUTOCOMPLETE_RATE_LIMIT ?? '60'
   ),
   /**
-   * Whether an admin may verify a garage that has no pin.
+   * Whether an admin may show a garage to customers ("Show to customers",
+   * `is_verified`) while it has no pin.
    *
    * The end state is `true`: a garage with no coordinates cannot be found by a
    * customer browsing nearby, cannot be distance-sorted, and cannot have its

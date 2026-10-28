@@ -60,6 +60,7 @@ import type {
   RevokeKind,
 } from '../lib/certification.js'
 import type { CreditEntryKind, GiftDesign, GiftStatus } from '../lib/gift-credit.js'
+import type { Tier, TierSnapshot } from '../lib/tiers.js'
 import type {
   ClaimDecision,
   ClaimRoute,
@@ -599,6 +600,10 @@ export const vendors = pgTable(
     // never filled in automatically: whoever adds the garage may not be the
     // one who onboarded it. Usually a team login's name, or free text.
     onboardedByName: varchar('onboarded_by_name', { length: 100 }),
+    // Admin hid this garage's tier medal from customers (0063), during a
+    // complaint, say. The garage still sees its own tier. Internal: never on
+    // a public payload.
+    tierHidden: boolean('tier_hidden').default(false).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -2616,6 +2621,102 @@ export const vendorCertifications = pgTable(
       .on(table.vendorId)
       .where(sql`${table.certifiedAt} is not null and ${table.revokedAt} is null`),
     check('vendor_certifications_revoke_kind_check', sql`${table.revokeKind} is null or ${table.revokeKind} in ('revoked', 'lapsed')`),
+  ]
+)
+
+// The Detlio garage agreement (0063, lib/agreements.ts, modules/agreements):
+// each version admin published, a PDF in the public R2 bucket under
+// `agreements/`. The highest `version` is the one garages are asked to
+// accept. Never deleted: acceptances point at them (RESTRICT). CHECKs on the
+// key, size and name are in 0063_trust_look.sql.
+export const agreementVersions = pgTable(
+  'agreement_versions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    version: integer('version').notNull(),
+    fileKey: varchar('file_key', { length: 300 }).notNull(),
+    fileUrl: varchar('file_url', { length: 600 }).notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    note: varchar('note', { length: 300 }),
+    publishedAt: timestamp('published_at', { withTimezone: true }).defaultNow().notNull(),
+    publishedBy: varchar('published_by', { length: 100 }).notNull(),
+    publishedBySub: varchar('published_by_sub', { length: 100 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('agreement_versions_version_key').on(table.version),
+    uniqueIndex('agreement_versions_file_key_key').on(table.fileKey),
+    check('agreement_versions_version_check', sql`${table.version} >= 1`),
+  ]
+)
+
+// A garage's owner seat agreed to a version (0063): who (the user, and their
+// name as it was), when, and a keyed hash of the IP address, never the
+// address. One per garage and version. Kept while the garage row exists (a
+// tombstone included); deleting the user only clears `userId`.
+export const agreementAcceptances = pgTable(
+  'agreement_acceptances',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    versionId: uuid('version_id')
+      .notNull()
+      .references(() => agreementVersions.id, { onDelete: 'restrict' }),
+    version: integer('version').notNull(),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+    acceptedByName: varchar('accepted_by_name', { length: 120 }).notNull(),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }).defaultNow().notNull(),
+    ipHash: varchar('ip_hash', { length: 64 }),
+  },
+  (table) => [
+    uniqueIndex('agreement_acceptances_vendor_version_key').on(table.vendorId, table.versionId),
+    index('agreement_acceptances_vendor_idx').on(table.vendorId, table.version),
+    index('agreement_acceptances_version_idx').on(table.versionId),
+  ]
+)
+
+// Whether customers see each tier's medal (0063, admin Settings → Tiers).
+// One row per tier, seeded all on; a missing row reads as on
+// (lib/tiers.ts DEFAULT_TIER_SWITCHES). Garages always see their own tier.
+export const tierSwitches = pgTable(
+  'tier_switches',
+  {
+    tier: text('tier').$type<Tier>().primaryKey(),
+    shown: boolean('shown').default(true).notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedBy: varchar('updated_by', { length: 100 }),
+  },
+  (table) => [check('tier_switches_tier_check', sql`${table.tier} in ('bronze', 'silver', 'gold')`)]
+)
+
+// Silver (0063, lib/tiers.ts): given and taken by the nightly run. `silverAt`
+// while the garage holds it; `silverShortSince` starts its 14 days when it
+// falls short (CHECK: only while held); the last evaluation for admin.
+// Bronze is never stored (worked out from agreement_acceptances); Gold is
+// vendor_certifications.
+export const vendorTierStandings = pgTable(
+  'vendor_tier_standings',
+  {
+    vendorId: uuid('vendor_id')
+      .primaryKey()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    silverAt: timestamp('silver_at', { withTimezone: true }),
+    silverShortSince: timestamp('silver_short_since', { withTimezone: true }),
+    silverLostAt: timestamp('silver_lost_at', { withTimezone: true }),
+    silverEligible: boolean('silver_eligible').default(false).notNull(),
+    evaluation: jsonb('evaluation').$type<TierSnapshot>(),
+    lastEvaluatedAt: timestamp('last_evaluated_at', { withTimezone: true }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('vendor_tier_standings_silver_idx')
+      .on(table.vendorId)
+      .where(sql`${table.silverAt} is not null`),
+    check(
+      'vendor_tier_standings_short_check',
+      sql`${table.silverShortSince} is null or ${table.silverAt} is not null`
+    ),
   ]
 )
 

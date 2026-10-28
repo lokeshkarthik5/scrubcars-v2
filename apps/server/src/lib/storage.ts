@@ -3,6 +3,7 @@ import {
   CopyObjectCommand,
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3'
@@ -247,6 +248,45 @@ export async function readObject(
   } catch (error) {
     const status = (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode
     log.warn({ status, name: (error as { name?: string }).name }, 'storage:read_failed')
+    return null
+  }
+}
+
+/**
+ * What the bucket holds at `key`: its size and stored type, or null when
+ * nothing is there. For uploads registered by key (the garage agreement's
+ * PDF, 0063), checked before a row is written. Throws 503 when the bucket
+ * can't be read, said in our words and logged by kind only (the SDK's error
+ * carries the bucket and key).
+ */
+export async function headObject(
+  key: string
+): Promise<{ sizeBytes: number; contentType: string | null } | null> {
+  try {
+    const head = await getClient().send(new HeadObjectCommand({ Bucket: env.r2Bucket, Key: key }))
+    return { sizeBytes: head.ContentLength ?? 0, contentType: head.ContentType ?? null }
+  } catch (error) {
+    const status = (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode
+    if (status === 404 || (error as { name?: string }).name === 'NotFound') return null
+    log.warn({ status, name: (error as { name?: string }).name }, 'storage:head_failed')
+    throw new AppError(503, 'File storage is not answering. Please try again.', 'STORAGE_UNAVAILABLE')
+  }
+}
+
+/**
+ * The first `bytes` bytes of an object (a Range read), to check what a file
+ * really is whatever its name says. Null when it can't be read.
+ */
+export async function readObjectStart(key: string, bytes: number): Promise<Uint8Array | null> {
+  try {
+    const object = await getClient().send(
+      new GetObjectCommand({ Bucket: env.r2Bucket, Key: key, Range: `bytes=0-${bytes - 1}` })
+    )
+    if (!object.Body) return null
+    return await object.Body.transformToByteArray()
+  } catch (error) {
+    const status = (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode
+    log.warn({ status, name: (error as { name?: string }).name }, 'storage:read_start_failed')
     return null
   }
 }

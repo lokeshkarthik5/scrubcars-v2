@@ -10,10 +10,11 @@ const coreUrl = (file: string) =>
   new URL(`../../../../packages/core/src/${file}`, import.meta.url).href
 
 describe('garage documents parity', () => {
-  test('the types, the required four, the names and the limits are the same', async () => {
+  test('the types, the required three, the retired one, the names and the limits are the same', async () => {
     const core = (await import(coreUrl('vendor-documents.ts'))) as {
       DOCUMENT_TYPES: readonly string[]
       REQUIRED_DOCUMENT_TYPES: readonly string[]
+      RETIRED_DOCUMENT_TYPES: readonly string[]
       DOCUMENT_LABELS: Record<string, string>
       DOCUMENT_CONTENT_TYPES: readonly string[]
       MAX_DOCUMENT_BYTES: number
@@ -23,6 +24,7 @@ describe('garage documents parity', () => {
     }
     expect([...core.DOCUMENT_TYPES]).toEqual([...server.DOCUMENT_TYPES])
     expect([...core.REQUIRED_DOCUMENT_TYPES]).toEqual([...server.REQUIRED_DOCUMENT_TYPES])
+    expect([...core.RETIRED_DOCUMENT_TYPES]).toEqual([...server.RETIRED_DOCUMENT_TYPES])
     expect(core.DOCUMENT_LABELS).toEqual(server.DOCUMENT_LABELS)
     expect([...core.DOCUMENT_CONTENT_TYPES]).toEqual(Object.keys(server.DOCUMENT_CONTENT_TYPES))
     expect(core.MAX_DOCUMENT_BYTES).toBe(server.MAX_DOCUMENT_BYTES)

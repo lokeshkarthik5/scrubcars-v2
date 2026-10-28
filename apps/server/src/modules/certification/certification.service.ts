@@ -39,6 +39,9 @@ import {
 } from '../../lib/photo-compliance.js'
 import { alertOps } from '../../lib/ops-alerts.js'
 import { summariesByVendor } from '../../lib/vendor-documents.js'
+import type { AgreementStanding } from '../../lib/agreements.js'
+import { planSilver, silverSteps, tierRunPaused, toTierSnapshot } from '../../lib/tiers.js'
+import { agreementPublished, agreementStandings } from '../agreements/agreements.service.js'
 import {
   certificationRepository,
   type CertificationGarage,
@@ -82,9 +85,20 @@ async function photoComplianceByGarage(vendorIds: string[], now: Date): Promise<
 
 /**
  * The measured standards for a batch of garages, one grouped read each, one
- * after another (one DB connection). Documents read as null for everyone
- * while garage documents are off.
+ * after another (one DB connection), and where each stands with the garage
+ * agreement (Bronze, 0063; every tier needs it, Gold included). Documents
+ * read as null for everyone while garage documents are off.
  */
+async function measureWithAgreements(
+  vendorIds: string[],
+  now: Date
+): Promise<{ metrics: Map<string, CertificationMetrics>; agreements: Map<string, AgreementStanding> }> {
+  const agreements = await agreementStandings(vendorIds, now)
+  const metrics = await measure(vendorIds, now)
+  for (const [id, figures] of metrics) figures.agreement = agreements.get(id)?.bronze ?? false
+  return { metrics, agreements }
+}
+
 async function measure(vendorIds: string[], now: Date): Promise<Map<string, CertificationMetrics>> {
   const since = windowStart(now)
   const documentsOn = isDocumentStorageConfigured()
@@ -149,10 +163,31 @@ async function recentChecksByGarage(vendorIds: string[], today: string) {
   return byGarage
 }
 
-/** One garage, measured now. */
+/** One garage, measured now (Gold's standards, the agreement included). */
 async function evaluateGarage(vendorId: string, now: Date) {
-  const metrics = (await measure([vendorId], now)).get(vendorId)!
-  return evaluateEligibility(metrics)
+  const { metrics } = await measureWithAgreements([vendorId], now)
+  return evaluateEligibility(metrics.get(vendorId)!)
+}
+
+/**
+ * Everything a garage's tier is worked out from, measured now: its figures,
+ * the agreement, Detlio's check, and what is stored (Gold, Silver). For the
+ * "Your tier" card and admin's tier section (modules/tiers).
+ */
+export async function measureTierFacts(vendorId: string, now = new Date()) {
+  const { metrics, agreements } = await measureWithAgreements([vendorId], now)
+  const today = istDateKey(now)
+  const checks = await certificationRepository.listRecentChecks(
+    [vendorId],
+    addMonths(today, -CERTIFICATION_RULES.qualityCheckMonths)
+  )
+  return {
+    metrics: metrics.get(vendorId)!,
+    agreement: agreements.get(vendorId)!,
+    check: qualityCheckStanding(checks, today),
+    certification: await certificationRepository.findState(vendorId),
+    silver: await certificationRepository.findTierStanding(vendorId),
+  }
 }
 
 // ─── Views ───────────────────────────────────────────────────────────────────
@@ -174,7 +209,7 @@ function refusalError(refusal: CertifyRefusal, eligibility?: Eligibility): AppEr
     case 'in_bin':
       return new AppError(409, 'This garage is in the Bin. Restore it first.', 'VENDOR_IN_BIN')
     case 'already_certified':
-      return new AppError(409, 'This garage is already Detlio Certified.', 'ALREADY_CERTIFIED')
+      return new AppError(409, 'This garage is already Gold.', 'ALREADY_CERTIFIED')
     case 'not_eligible':
       return new AppError(
         409,
@@ -359,6 +394,20 @@ export const certificationService = {
         eligibility: toSnapshot(eligibility, standing.valid, now),
         now,
       })
+      // Gold's standards hold every Silver one, the agreement included, so a
+      // garage awarded Gold holds Silver from now too (if Gold later lapses,
+      // Silver goes only by its own 14 days).
+      const silver = await repo.findTierStanding(vendorId)
+      if (!silver?.silverAt) {
+        const { metrics, agreements } = await measureWithAgreements([vendorId], now)
+        await repo.saveTierStanding(vendorId, {
+          silverAt: now,
+          silverShortSince: null,
+          silverEligible: true,
+          evaluation: toTierSnapshot(agreements.get(vendorId)!, metrics.get(vendorId)!, now),
+          lastEvaluatedAt: now,
+        })
+      }
       await repo.insertAudit({
         action: 'garage_certified',
         actorSub,
@@ -388,7 +437,7 @@ export const certificationService = {
         revokeKind: 'revoked',
         now,
       })
-      if (!revoked) throw new AppError(409, 'This garage is not Detlio Certified.', 'NOT_CERTIFIED')
+      if (!revoked) throw new AppError(409, 'This garage is not Gold.', 'NOT_CERTIFIED')
       await repo.insertAudit({
         action: 'garage_certification_revoked',
         actorSub,
@@ -444,24 +493,42 @@ export const certificationService = {
    */
   async sweep(options: { dryRun: boolean; now?: Date }) {
     if (!isDocumentStorageConfigured()) return { enabled: false as const }
+    // Before admin publishes the first garage agreement nobody can hold
+    // Bronze, so every tier would start to slip: nothing changes until then.
+    if (tierRunPaused({ documentsOn: true, agreementPublished: await agreementPublished() })) {
+      return { enabled: false as const, reason: 'no_agreement' as const }
+    }
     const now = options.now ?? new Date()
     const started = Date.now()
     const due = await certificationRepository.listDueForEvaluation(
       evaluationRunStart(now),
       CERTIFICATION_SWEEP_LIMIT
     )
-    const summary = { enabled: true as const, due: due.length, evaluated: 0, eligible: 0, atRisk: 0, lapsed: 0 }
+    const summary = {
+      enabled: true as const,
+      due: due.length,
+      evaluated: 0,
+      eligible: 0,
+      atRisk: 0,
+      lapsed: 0,
+      silverGained: 0,
+      silverLost: 0,
+    }
     if (due.length === 0) return summary
 
     const ids = due.map((garage) => garage.id)
     const today = istDateKey(now)
-    const metrics = await measure(ids, now)
+    const { metrics, agreements } = await measureWithAgreements(ids, now)
     const checks = await recentChecksByGarage(ids, today)
 
     for (const garage of due) {
       if (Date.now() - started > SWEEP_BUDGET_MS) break
-      const eligibility = evaluateEligibility(metrics.get(garage.id)!)
+      const figures = metrics.get(garage.id)!
+      const agreement = agreements.get(garage.id)!
+      const eligibility = evaluateEligibility(figures)
       const standing = qualityCheckStanding(checks.get(garage.id) ?? [], today)
+      // Silver (0063): Bronze plus its own steps, given and taken here.
+      const silverEligible = agreement.bronze && silverSteps(figures).every((step) => step.met)
       if (options.dryRun) {
         summary.evaluated += 1
         continue
@@ -486,6 +553,38 @@ export const certificationService = {
             ineligibleSince: plan.lapse ? null : plan.ineligibleSince,
             eligibleAlertedAt: plan.eligibleAlertedAt,
           })
+
+          const tierState = await repo.findTierStanding(garage.id)
+          const silver = planSilver(
+            { silverAt: tierState?.silverAt ?? null, shortSince: tierState?.silverShortSince ?? null },
+            silverEligible,
+            now
+          )
+          await repo.saveTierStanding(garage.id, {
+            silverAt: silver.silverAt,
+            silverShortSince: silver.shortSince,
+            ...(silver.lostAt ? { silverLostAt: silver.lostAt } : {}),
+            silverEligible,
+            evaluation: toTierSnapshot(agreement, figures, now),
+            lastEvaluatedAt: now,
+          })
+          if (silver.event === 'gained' || silver.event === 'lost') {
+            await repo.insertAudit({
+              action: silver.event === 'gained' ? 'garage_silver_gained' : 'garage_silver_lost',
+              actorSub: 'cron',
+              actorName: AUTOMATIC_ACTOR,
+              summary: { vendorId: garage.id, garage: garage.businessName },
+              detail: {
+                shortSince: tierState?.silverShortSince?.toISOString() ?? null,
+                steps: toTierSnapshot(agreement, figures, now).steps.map((step) => ({
+                  key: step.key,
+                  met: step.met,
+                  value: step.value,
+                })),
+              },
+            })
+          }
+
           if (plan.lapse) {
             const reason = lapseReason(shortfallLine(eligibility, standing)).slice(0, 300)
             await repo.revoke(garage.id, {
@@ -506,11 +605,13 @@ export const certificationService = {
                 rules: eligibility.rules.map((rule) => ({ key: rule.key, met: rule.met, value: rule.value })),
               },
             })
-            return { ...plan, reason }
+            return { ...plan, reason, silverEvent: silver.event }
           }
-          return { ...plan, reason: null }
+          return { ...plan, reason: null, silverEvent: silver.event }
         })
         summary.evaluated += 1
+        if (plan.silverEvent === 'gained') summary.silverGained += 1
+        if (plan.silverEvent === 'lost') summary.silverLost += 1
         if (eligibility.eligible) summary.eligible += 1
 
         if (plan.alert === 'eligible') {

@@ -42,6 +42,7 @@ import { vendorDocumentsRepository } from '../vendor-documents/vendor-documents.
 import { bypassReportsService } from '../bypass-reports/bypass-reports.service.js'
 import { certificationRepository } from '../certification/certification.repository.js'
 import { graceEndsOn, isCertified } from '../../lib/certification.js'
+import { tiersService } from '../tiers/tiers.service.js'
 import { usesCustomerAddress } from '../../lib/booking-types.js'
 import {
   codeTriesLeft,
@@ -186,7 +187,7 @@ function assertPinnedBeforeVerifying(vendor: {
   if (vendor.lat === null || vendor.lng === null) {
     throw new AppError(
       422,
-      'Set the garage location on the map before verifying',
+      'Set the garage location on the map before showing it to customers',
       'VENDOR_LOCATION_REQUIRED'
     )
   }
@@ -735,6 +736,9 @@ export const adminService = {
     const certifications = new Map(
       (await certificationRepository.listStates()).map((row) => [row.vendorId, row])
     )
+    // Bronze / Silver / Gold (0063): the tier each garage holds (whatever
+    // customers are shown), for the card's tier chip. Three grouped reads.
+    const tiers = await tiersService.heldTiers(vendors.map((vendor) => vendor.id), now)
     // Bypass reports (0052): each garage's strikes, confirmed reports of the
     // last 180 IST days. One grouped read; 2 or more are highlighted.
     const strikes = await bypassReportsService.strikesByGarage(now)
@@ -785,6 +789,8 @@ export const adminService = {
         pickupEnabled: isPickupOffered(vendor),
         documents: documentSummary,
         certification: certificationSummary(certifications.get(vendor.id)),
+        tier: tiers.get(vendor.id) ?? null,
+        tierHidden: vendor.tierHidden,
         photoCompliance: compliance.get(vendor.id) ?? NO_COMPLETED_JOBS,
         bypassStrikes: strikes.get(vendor.id) ?? 0,
         redoClaims90d: redoClaims ? (redoClaims.get(vendor.id) ?? 0) : null,

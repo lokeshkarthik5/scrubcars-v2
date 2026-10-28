@@ -5,6 +5,7 @@ import {
   vendorCertifications,
   vendorDocuments,
   vendorQualityChecks,
+  vendorTierStandings,
   vendors,
 } from '../../db/schema.js'
 import {
@@ -15,6 +16,7 @@ import {
   type RevokeKind,
 } from '../../lib/certification.js'
 import type { PhotoComplianceJob } from '../../lib/photo-compliance.js'
+import type { TierSnapshot } from '../../lib/tiers.js'
 import { strikeCountsByGarage } from '../bypass-reports/bypass-reports.repository.js'
 
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
@@ -22,6 +24,7 @@ type Conn = typeof db | Tx
 
 export type CertificationRecord = typeof vendorCertifications.$inferSelect
 export type QualityCheckRecord = typeof vendorQualityChecks.$inferSelect
+export type TierStandingRecord = typeof vendorTierStandings.$inferSelect
 
 /** One completed job and its garage photo counts (0045), as lib/photo-compliance.ts reads it. */
 export type PhotoComplianceRow = PhotoComplianceJob & { vendorId: string }
@@ -65,6 +68,12 @@ function reads(conn: Conn) {
         .select()
         .from(vendorCertifications)
         .where(eq(vendorCertifications.vendorId, vendorId))
+      return row
+    },
+
+    /** A garage's Silver (0063): held since, short since, the last evaluation. */
+    async findTierStanding(vendorId: string): Promise<TierStandingRecord | undefined> {
+      const [row] = await conn.select().from(vendorTierStandings).where(eq(vendorTierStandings.vendorId, vendorId))
       return row
     },
 
@@ -313,20 +322,22 @@ function reads(conn: Conn) {
     },
 
     /**
-     * Garages due tonight: on the app (Active and verified) or certified,
-     * not in the Bin and not a tombstone, and not evaluated since `runStart`.
-     * Never evaluated first, then the longest ago.
+     * Garages due tonight: on the app (Active and shown to customers), Gold
+     * or holding Silver, not in the Bin and not a tombstone, and not
+     * evaluated since `runStart`. Never evaluated first, then the longest ago.
      */
     async listDueForEvaluation(runStart: Date, limit: number) {
       const rows = await conn.execute<{ id: string; business_name: string }>(sql`
         SELECT v.id, v.business_name
           FROM vendors v
           LEFT JOIN vendor_certifications vc ON vc.vendor_id = v.id
+          LEFT JOIN vendor_tier_standings ts ON ts.vendor_id = v.id
          WHERE v.deleted_at IS NULL
            AND v.purged_at IS NULL
            AND (
              (v.status = 'active' AND v.is_verified = true)
              OR (vc.certified_at IS NOT NULL AND vc.revoked_at IS NULL)
+             OR ts.silver_at IS NOT NULL
            )
            AND (vc.last_evaluated_at IS NULL OR vc.last_evaluated_at < ${runStart.toISOString()}::timestamptz)
          ORDER BY vc.last_evaluated_at ASC NULLS FIRST, v.id
@@ -366,6 +377,27 @@ function writes(tx: Tx) {
         .values({ vendorId, ...values })
         .onConflictDoUpdate({
           target: vendorCertifications.vendorId,
+          set: { ...values, updatedAt: sql`now()` },
+        })
+    },
+
+    /** Silver's outcome tonight (0063), on a new or existing row. */
+    async saveTierStanding(
+      vendorId: string,
+      values: {
+        silverAt: Date | null
+        silverShortSince: Date | null
+        silverLostAt?: Date
+        silverEligible: boolean
+        evaluation: TierSnapshot
+        lastEvaluatedAt: Date
+      }
+    ) {
+      await tx
+        .insert(vendorTierStandings)
+        .values({ vendorId, ...values })
+        .onConflictDoUpdate({
+          target: vendorTierStandings.vendorId,
           set: { ...values, updatedAt: sql`now()` },
         })
     },
@@ -444,7 +476,12 @@ function writes(tx: Tx) {
     },
 
     async insertAudit(entry: {
-      action: 'garage_certified' | 'garage_certification_revoked' | 'garage_certification_lapsed'
+      action:
+        | 'garage_certified'
+        | 'garage_certification_revoked'
+        | 'garage_certification_lapsed'
+        | 'garage_silver_gained'
+        | 'garage_silver_lost'
       actorSub: string
       actorName: string
       summary: Record<string, unknown>

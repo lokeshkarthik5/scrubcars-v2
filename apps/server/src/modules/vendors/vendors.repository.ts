@@ -21,7 +21,13 @@ import { DEFAULT_DOORSTEP_RADIUS_KM } from '../../lib/doorstep.js'
 import { containsPattern } from '../../lib/search.js'
 import { DEFAULT_PICKUP_RADIUS_KM } from '../../lib/pickup.js'
 import type { BookingType } from '../../lib/booking-types.js'
-import { CERTIFIED_GARAGE, LISTED_TO_CUSTOMERS, PICKUP_OFFERED, vendorPageOpen } from './vendors.predicates.js'
+import {
+  CERTIFIED_GARAGE,
+  LISTED_TO_CUSTOMERS,
+  PICKUP_OFFERED,
+  SILVER_GARAGE,
+  vendorPageOpen,
+} from './vendors.predicates.js'
 import type {
   serviceCategoryEnum,
   servicePricingTypeEnum,
@@ -127,8 +133,13 @@ export const vendorsRepository = {
     anyCategory?: ServiceCategory[]
     /** Garages left out by id (the one that did not accept in time). */
     excludeIds?: string[]
-    /** Only Detlio Certified garages (0048, CERTIFIED_GARAGE). */
-    certifiedOnly?: boolean
+    /**
+     * "Silver & above" (0063): only garages showing one of these tiers to
+     * customers (Silver and/or Gold, as admin switched them on). Gold is
+     * CERTIFIED_GARAGE; a garage holding Silver (SILVER_GARAGE) or Gold shows
+     * Silver while Silver is on. Hidden medals are left out.
+     */
+    tiers?: Array<'silver' | 'gold'>
     q?: string
     sort: VendorSort
     /**
@@ -203,7 +214,12 @@ export const vendorsRepository = {
       conditions.push(sql`v.id NOT IN (${sql.join(params.excludeIds.map((id) => sql`${id}::uuid`), sql`, `)})`)
     }
 
-    if (params.certifiedOnly) conditions.push(CERTIFIED_GARAGE)
+    if (params.tiers && params.tiers.length > 0) {
+      conditions.push(sql`v.tier_hidden = false`)
+      conditions.push(
+        params.tiers.includes('silver') ? sql`(${CERTIFIED_GARAGE} OR ${SILVER_GARAGE})` : CERTIFIED_GARAGE
+      )
+    }
 
     if (bookingType === 'dropin') conditions.push(sql`v.dropin_enabled = true`)
 

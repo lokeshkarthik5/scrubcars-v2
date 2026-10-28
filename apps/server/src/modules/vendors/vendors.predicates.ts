@@ -57,16 +57,22 @@ export function isListedToCustomers(row: ListedRow): boolean {
  */
 export const PICKUP_OFFERED = sql`(v.pickup IN ('yes', 'nearby') AND v.pickup_terms_accepted_at IS NOT NULL)`
 
-// ─── Detlio Certified ────────────────────────────────────────────────────────
+// ─── Gold and Silver ─────────────────────────────────────────────────────────
 
 /**
- * **Detlio Certified** (0048): an admin certified it and it has not been
+ * **Gold** (Detlio Certified, 0048): an admin awarded it and it has not been
  * revoked or lost since. Against the alias `v`, for the customer lists'
- * "Certified only" and the cards' seal. The row twin is isCertified in
- * lib/certification.ts, pinned to this by vendors.predicates.test.ts.
- * Change one, change both.
+ * "Silver & above". The row twin is isCertified in lib/certification.ts,
+ * pinned to this by vendors.predicates.test.ts. Change one, change both.
  */
 export const CERTIFIED_GARAGE = sql`EXISTS (SELECT 1 FROM vendor_certifications vc WHERE vc.vendor_id = v.id AND vc.certified_at IS NOT NULL AND vc.revoked_at IS NULL)`
+
+/**
+ * **Silver** (0063): the nightly run gave it and has not taken it away.
+ * Against the alias `v`. The row twin is holdsSilver in lib/tiers.ts, pinned
+ * to this by vendors.predicates.test.ts. Change one, change both.
+ */
+export const SILVER_GARAGE = sql`EXISTS (SELECT 1 FROM vendor_tier_standings ts WHERE ts.vendor_id = v.id AND ts.silver_at IS NOT NULL)`
 
 // ─── The Bin ─────────────────────────────────────────────────────────────────
 

@@ -1113,27 +1113,27 @@ export function formatOpsAlert(alert: OpsAlert): string {
 
     case 'certification_eligible':
       return lines(
-        `🏅 Eligible for Detlio Certified: ${alert.garage}`,
-        'It meets every standard. Arrange a quality check (mystery visit or inspection), record it, then Certify.',
+        `🥇 Eligible for Gold: ${alert.garage}`,
+        'It meets every Gold standard. Arrange a quality check (mystery visit or inspection), record it, then Award Gold.',
         adminGarageCertificationUrl(alert.vendorId)
       )
 
     case 'certification_at_risk':
       return lines(
-        `⚠️ Detlio Certified at risk: ${alert.garage}`,
+        `⚠️ Gold at risk: ${alert.garage}`,
         `Falling short: ${alert.shortfall}.`,
-        `It keeps the badge until ${alert.keepsUntil} unless this is put right.`,
+        `It keeps Gold until ${alert.keepsUntil} unless this is put right.`,
         adminGarageCertificationUrl(alert.vendorId)
       )
 
     case 'certification_lost':
       return lines(
-        `Detlio Certified removed: ${alert.garage}`,
+        `Gold removed: ${alert.garage}`,
         alert.how === 'lapsed'
           ? `Lost automatically. ${alert.reason}`
           : `Revoked by ${alert.by ?? 'admin'}.`,
         alert.how === 'revoked' ? quoted('Reason', alert.reason) : null,
-        'Customers no longer see the seal.',
+        'Customers no longer see its Gold medal.',
         adminGarageCertificationUrl(alert.vendorId)
       )
 
@@ -1154,7 +1154,7 @@ export function formatOpsAlert(alert: OpsAlert): string {
         `⛔ ${alert.garage} reached ${alert.strikes} strikes`,
         `${alert.strikes} confirmed reports of taking customers off Detlio in the last ${alert.windowDays} days.`,
         alert.certified
-          ? 'It is Detlio Certified: the next nightly check puts the seal at risk.'
+          ? 'It is Gold: the next nightly check puts Gold at risk.'
           : null,
         'Talk to the garage about its agreement, or pause or suspend it.',
         adminGarageUrl(alert.vendorId)

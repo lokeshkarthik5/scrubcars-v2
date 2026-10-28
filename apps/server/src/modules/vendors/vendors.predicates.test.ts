@@ -2,11 +2,13 @@ import { describe, expect, test } from 'bun:test'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import { isCertified, type CertificationRow } from '../../lib/certification.js'
 import { isPickupOffered, type PickupSettings } from '../../lib/pickup.js'
+import { holdsSilver } from '../../lib/tiers.js'
 import {
   CERTIFIED_GARAGE,
   LISTED_TO_CUSTOMERS,
   NOT_IN_BIN,
   PICKUP_OFFERED,
+  SILVER_GARAGE,
   isInBin,
   isListedToCustomers,
   vendorPageOpen,
@@ -116,7 +118,7 @@ describe('the SQL the customer lists run', () => {
   })
 })
 
-describe('Detlio Certified', () => {
+describe('Gold (Detlio Certified)', () => {
   const { sql, params } = new PgDialect().sqlToQuery(CERTIFIED_GARAGE)
   const PREFIX = 'EXISTS (SELECT 1 FROM vendor_certifications vc WHERE vc.vendor_id = v.id AND '
 
@@ -169,5 +171,27 @@ describe('pickup & drop offered', () => {
     )
     for (const row of rows) expect(sqlOffered(row)).toBe(isPickupOffered(row))
     expect(rows.filter(isPickupOffered)).toHaveLength(2)
+  })
+})
+
+describe('Silver', () => {
+  const { sql, params } = new PgDialect().sqlToQuery(SILVER_GARAGE)
+  const PREFIX = 'EXISTS (SELECT 1 FROM vendor_tier_standings ts WHERE ts.vendor_id = v.id AND '
+
+  test('the SQL the lists run is the twin, word for word', () => {
+    expect(sql).toBe(`${PREFIX}ts.silver_at IS NOT NULL)`)
+    expect(params).toEqual([])
+  })
+
+  test('evaluated as the twin reads it, it agrees on every garage (and on one never evaluated)', () => {
+    const clauses = sql.slice(PREFIX.length, -1).split(' AND ')
+    const sqlSilver = (row: { silverAt: Date | null } | null) =>
+      row !== null &&
+      clauses.every((clause) => {
+        if (clause === 'ts.silver_at IS NOT NULL') return row.silverAt !== null
+        throw new Error(`a condition the twin does not know: ${clause}`)
+      })
+    const at = new Date('2026-11-02T04:30:00Z')
+    for (const row of [null, { silverAt: null }, { silverAt: at }]) expect(sqlSilver(row)).toBe(holdsSilver(row))
   })
 })

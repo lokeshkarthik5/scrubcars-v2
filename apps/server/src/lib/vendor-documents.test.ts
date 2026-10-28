@@ -4,9 +4,12 @@ import {
   DOCUMENT_TYPES,
   MAX_DOCUMENT_BYTES,
   REQUIRED_DOCUMENT_TYPES,
+  RETIRED_DOCUMENT_TYPES,
+  UPLOADABLE_DOCUMENT_TYPES,
   documentFolder,
   documentsVerified,
   filesRefusal,
+  isRetiredDocument,
   isDocumentKey,
   progressLine,
   reviewRefusal,
@@ -24,14 +27,26 @@ const UUID = '0b4f6c1e-2d3a-4c5b-8e9f-0a1b2c3d4e5f'
 
 const approved = (type: DocumentState['type']): DocumentState => ({ type, status: 'approved' })
 
-describe('the badge', () => {
-  test('four required types, two optional', () => {
-    expect([...REQUIRED_DOCUMENT_TYPES]).toEqual(['shop_photo', 'owner_id', 'bank_proof', 'agreement'])
+describe('documents checked', () => {
+  test('three required types, two optional, and the paper agreement retired (0063)', () => {
+    expect([...REQUIRED_DOCUMENT_TYPES]).toEqual(['shop_photo', 'owner_id', 'bank_proof'])
     expect(DOCUMENT_TYPES.filter((t) => !(REQUIRED_DOCUMENT_TYPES as readonly string[]).includes(t))).toEqual([
+      'agreement',
       'gst_certificate',
       'trade_licence',
     ])
+    expect([...RETIRED_DOCUMENT_TYPES]).toEqual(['agreement'])
+    expect(UPLOADABLE_DOCUMENT_TYPES).toEqual(['shop_photo', 'owner_id', 'bank_proof', 'gst_certificate', 'trade_licence'])
+    expect(isRetiredDocument('agreement')).toBe(true)
+    expect(isRetiredDocument('owner_id')).toBe(false)
     expect(Object.keys(DOCUMENT_LABELS)).toEqual([...DOCUMENT_TYPES])
+  })
+
+  test('an approved paper agreement no longer counts, and a missing one no longer blocks', () => {
+    const three = REQUIRED_DOCUMENT_TYPES.map(approved)
+    expect(documentsVerified(three)).toBe(true)
+    expect(documentsVerified([...three, { type: 'agreement', status: 'pending' }])).toBe(true)
+    expect(documentsVerified([approved('agreement'), approved('owner_id'), approved('bank_proof')])).toBe(false)
   })
 
   test('verified only when every required type is approved', () => {
@@ -72,13 +87,13 @@ describe('the badge', () => {
     expect(summary).toEqual({
       verified: false,
       approvedRequired: 2,
-      required: 4,
+      required: 3,
       toReview: 1,
-      missingRequired: 1,
+      missingRequired: 0,
       rejected: 1,
     })
-    expect(progressLine(summary)).toBe('2 of 4 required approved')
-    expect(progressLine(summariseDocuments(REQUIRED_DOCUMENT_TYPES.map(approved)))).toBe('4 of 4 required approved')
+    expect(progressLine(summary)).toBe('2 of 3 required approved')
+    expect(progressLine(summariseDocuments(REQUIRED_DOCUMENT_TYPES.map(approved)))).toBe('3 of 3 required approved')
   })
 
   test('grouped by garage in one pass', () => {
@@ -167,7 +182,7 @@ describe('the alert line', () => {
   test('says what was uploaded and what it replaced', () => {
     expect(uploadedLine('owner_id', null)).toBe('Owner ID')
     expect(uploadedLine('bank_proof', 'approved')).toBe('Bank proof (replacing an approved one)')
-    expect(uploadedLine('agreement', 'rejected')).toBe('Signed Detlio agreement (after a rejection)')
+    expect(uploadedLine('agreement', 'rejected')).toBe('Signed agreement (old, on paper) (after a rejection)')
     expect(uploadedLine('shop_photo', 'pending')).toBe('Shop photo (replacing one not yet checked)')
   })
 })

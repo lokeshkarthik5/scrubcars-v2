@@ -42,7 +42,7 @@ const ROW = {
   createdAt: new Date('2026-01-01T00:00:00Z'),
 } satisfies PublicVendorSource & Record<string, unknown>
 
-const NOT_VERIFIED = { documentsVerified: false, certified: false }
+const NOT_VERIFIED = { tier: null }
 
 const PRIVATE = [
   'ownerId',
@@ -63,6 +63,7 @@ const PRIVATE = [
   'deletedAt',
   'deletedByName',
   'deletedReason',
+  'tierHidden',
 ]
 
 describe('toPublicVendor', () => {
@@ -98,23 +99,21 @@ describe('toPublicVendor', () => {
       bookingsPausedAt: null,
       bookingsPausedReason: null,
       createdAt: '2026-01-01T00:00:00.000Z',
-      documentsVerified: false,
-      certified: false,
+      tier: null,
     })
   })
 
-  test('garage documents are one boolean, never the documents', () => {
-    const shown = toPublicVendor(ROW, { documentsVerified: true, certified: false })
-    expect(shown.documentsVerified).toBe(true)
-    for (const key of Object.keys(shown)) expect(key).not.toMatch(/^document(?!sVerified$)|file|storage/i)
-  })
-
-  test('Detlio Certified is one boolean, never the numbers, the checks or who certified it', () => {
-    const shown = toPublicVendor(ROW, { documentsVerified: true, certified: true })
-    expect(shown.certified).toBe(true)
-    for (const key of Object.keys(shown)) {
-      expect(key).not.toMatch(/certif(?!ied$)|check|revok|eligib|rating|complaint|noShow/i)
+  test('the tier is one value, never the documents, the numbers, the checks or whether it was hidden', () => {
+    for (const tier of ['bronze', 'silver', 'gold', null] as const) {
+      const shown = toPublicVendor({ ...ROW, tierHidden: true } as typeof ROW, { tier })
+      expect(shown.tier).toBe(tier)
+      for (const key of Object.keys(shown)) {
+        expect(key).not.toMatch(/document|file|storage|certif|check|revok|eligib|rating|complaint|noShow|hidden|silver|gold/i)
+      }
     }
+    // The two badges tiers replaced (0063) are gone.
+    expect(toPublicVendor(ROW, NOT_VERIFIED)).not.toHaveProperty('documentsVerified')
+    expect(toPublicVendor(ROW, NOT_VERIFIED)).not.toHaveProperty('certified')
   })
 
   test('pickup is on only with the terms on file, and a pause says when and why', () => {
