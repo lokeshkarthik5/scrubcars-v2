@@ -1456,3 +1456,58 @@ export const STATS = {
   promo: { id: id(511), code: 'STATSPROMO' },
   garageDiscount: { id: id(512), code: 'STATSGARAGE' },
 } as const
+
+/**
+ * Statistics → Behaviour (0061; specs/admin/behaviour-api.spec.ts and
+ * behaviour.spec.ts), ids 4200–4299. Seeded usage events only: E2E builds
+ * record none of their own (NEXT_PUBLIC_ANALYTICS is off), so these are the
+ * only visits there are. Each `visits` row is that many visits doing those
+ * steps in order, two days ago at 11:00 IST, a minute apart:
+ *
+ * - landedOnly: 5 from Instagram, on a phone: landed and left.
+ * - sawGarage: 3 from Instagram, on a phone: landed, saw a garage card,
+ *   opened the garage, left.
+ * - gaveNumber: 1 from Google, on a desktop: on to a service, Book Now and a
+ *   code sent, then left.
+ * - paid: 1 direct, on a phone: all the way to paid.
+ * - fromLink: 4 from Instagram, on a phone, straight to a garage's page:
+ *   never landed, so in no step, but counted in visits.
+ * - team: 2 by `teamCustomer`, whose number is ADMIN_LOGINS.collector's
+ *   phone: landed and paid, left out as the team's.
+ * - test: 1 by CUSTOMERS.stats, eight days ago around 11:00 IST, when that
+ *   customer made STATS.testInRange (marked Test): landed and paid, left
+ *   out as a Test booking's (only in the last 30 days).
+ *
+ * Nobody picks an area (the landing page's chips come later), so that step
+ * reads "Not recorded yet".
+ *
+ * Last 7 days, every source and device: 14 visits; landed 10, saw a garage
+ * 5, opened a garage 5, opened a service 2, started booking 2, gave a
+ * number 2, paid 1; the biggest leak is Landed → Saw a garage (5). Last
+ * step before leaving, of 9: Landing page 5, A garage's page 3, Sign-in code
+ * sent 1. 2 team visits left out. Instagram: landed 8. Phone: landed 9.
+ * Last 30 days: the same, and 1 visit with a Test booking left out.
+ */
+export const BEHAVIOUR = {
+  /** The n-th seeded visit's random id, 1-based. */
+  visit: (n: number): string => id(4200 + n),
+  teamCustomer: { id: id(4290), name: 'Team Tester E2E', phone: '9000004160' },
+  groups: {
+    landedOnly: { visits: 5, daysAgo: 2, channel: 'instagram', device: 'phone',
+      steps: ['app_open', 'landing_view'] },
+    sawGarage: { visits: 3, daysAgo: 2, channel: 'instagram', device: 'phone',
+      steps: ['app_open', 'landing_view', 'garage_card_seen', 'garage_view'] },
+    gaveNumber: { visits: 1, daysAgo: 2, channel: 'google', device: 'desktop',
+      steps: ['app_open', 'landing_view', 'garage_card_seen', 'garage_view', 'service_sheet_open',
+        'booking_start', 'otp_sent'] },
+    paid: { visits: 1, daysAgo: 2, channel: 'direct', device: 'phone',
+      steps: ['app_open', 'landing_view', 'garage_card_seen', 'garage_view', 'service_sheet_open',
+        'booking_start', 'otp_sent', 'checkout_start', 'pay_click', 'pay_success'] },
+    fromLink: { visits: 4, daysAgo: 2, channel: 'instagram', device: 'phone',
+      steps: ['app_open', 'garage_view'] },
+    team: { visits: 2, daysAgo: 2, channel: 'direct', device: 'phone', user: 'team',
+      steps: ['app_open', 'landing_view', 'garage_view', 'booking_start', 'pay_success'] },
+    test: { visits: 1, daysAgo: 8, channel: 'direct', device: 'phone', user: 'stats',
+      steps: ['app_open', 'landing_view', 'garage_view', 'booking_start', 'pay_success'] },
+  },
+} as const

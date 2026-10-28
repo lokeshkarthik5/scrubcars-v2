@@ -2,7 +2,18 @@ import { describe, expect, test } from 'bun:test'
 import type { StatsBreakdown } from '@repo/core/api/admin'
 import {
   barsToLabel,
+  BEHAVIOUR_DEVICES,
+  BEHAVIOUR_PERIODS,
+  BEHAVIOUR_SOURCES,
+  behaviourLeftOutLine,
+  behaviourPeriod,
+  behaviourStartNote,
   biggestDropLine,
+  biggestLeakLine,
+  clarityProjectId,
+  clarityRecordingsUrl,
+  isBehaviourDevice,
+  isBehaviourSource,
   breakdownCsv,
   busiestSlots,
   busiestWeekday,
@@ -328,5 +339,88 @@ describe('the Funnel tab', () => {
     expect(
       returnWindowLine({ days: 60, eligible: 0, returned: 0, rate: null })
     ).toBe('Too recent to tell: no booking in the period is 60 days old yet')
+  })
+})
+
+describe('the Behaviour tab', () => {
+  test('goes by the last 7 or 30 days, 7 when opened fresh', () => {
+    expect(BEHAVIOUR_PERIODS.map((p) => p.value)).toEqual(['last7', 'last30'])
+    expect(behaviourPeriod(null)).toBe('last7')
+    expect(behaviourPeriod('last7')).toBe('last7')
+    expect(behaviourPeriod('last30')).toBe('last30')
+    // A longer period picked on another tab: the longest this tab has.
+    expect(behaviourPeriod('last90')).toBe('last30')
+    expect(behaviourPeriod('thisMonth')).toBe('last30')
+  })
+
+  test('the Source and Device filters the API takes, and nothing else', () => {
+    expect(BEHAVIOUR_SOURCES.map((s) => s.value)).toEqual([
+      'all',
+      'instagram',
+      'google',
+      'direct',
+      'other',
+    ])
+    expect(BEHAVIOUR_DEVICES.map((d) => d.value)).toEqual([
+      'all',
+      'phone',
+      'desktop',
+    ])
+    expect(isBehaviourSource('instagram')).toBe(true)
+    expect(isBehaviourSource('tiktok')).toBe(false)
+    expect(isBehaviourSource(null)).toBe(false)
+    expect(isBehaviourDevice('phone')).toBe(true)
+    expect(isBehaviourDevice('tablet')).toBe(false)
+  })
+
+  test('the Clarity link only with a real project id', () => {
+    expect(clarityProjectId('abcd1234ef')).toBe('abcd1234ef')
+    expect(clarityProjectId(undefined)).toBeNull()
+    expect(clarityProjectId('')).toBeNull()
+    expect(clarityProjectId('x"y')).toBeNull()
+    expect(clarityRecordingsUrl('abcd1234ef')).toBe(
+      'https://clarity.microsoft.com/projects/view/abcd1234ef/impressions'
+    )
+  })
+
+  test('names the biggest leak by its two steps', () => {
+    const steps = [
+      { key: 'landed', label: 'Landed' },
+      { key: 'garageSeen', label: 'Saw a garage' },
+    ].map((step) => ({
+      ...step,
+      count: 0,
+      lost: null,
+      ofPrevious: null,
+      ofLanded: null,
+    })) as never[]
+    expect(
+      biggestLeakLine({
+        steps,
+        biggestLeak: { key: 'garageSeen', from: 'landed', lost: 521 },
+      })
+    ).toBe('Biggest leak: Landed → Saw a garage, 521 visits left')
+    expect(biggestLeakLine({ steps, biggestLeak: null })).toBeNull()
+  })
+
+  test('says who was left out', () => {
+    expect(behaviourLeftOutLine({ team: 2, test: 1 })).toBe(
+      'Left out here: 2 team visits and 1 visit with a Test booking.'
+    )
+    expect(behaviourLeftOutLine({ team: 1, test: 0 })).toBe(
+      'Left out here: 1 team visit.'
+    )
+    expect(behaviourLeftOutLine({ team: 0, test: 0 })).toBe(
+      'Nothing left out in this period.'
+    )
+  })
+
+  test('says when the steps start, only while the period reaches back past it', () => {
+    const range = { from: '2026-10-22', to: '2026-10-28' }
+    expect(behaviourStartNote('2026-10-25', range)).toBe(
+      'These steps start on 25 Oct, when recording began. Days before that have none, so this period reads low.'
+    )
+    expect(behaviourStartNote('2026-10-01', range)).toBeNull()
+    expect(behaviourStartNote(null, range)).toContain('No visits recorded yet')
   })
 })

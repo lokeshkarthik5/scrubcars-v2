@@ -3,10 +3,12 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { ApiError } from '@repo/core/api/client'
 import {
+  getStatsBehaviour,
   getStatsBreakdown,
   getStatsCommission,
   getStatsFunnel,
   getStatsOverview,
+  type StatsBehaviourFilters,
   type StatsFilters,
   type StatsFunnelMode,
 } from '@repo/core/api/admin'
@@ -19,6 +21,7 @@ export const adminStatsKeys = {
   commission: (filters: StatsFilters) => [...adminStatsKeys.all, 'commission', filters] as const,
   funnel: (filters: { from: string; to: string; mode: StatsFunnelMode }) =>
     [...adminStatsKeys.all, 'funnel', filters] as const,
+  behaviour: (filters: StatsBehaviourFilters) => [...adminStatsKeys.all, 'behaviour', filters] as const,
 }
 
 // Figures over days barely move in a few minutes, and each read scans the
@@ -85,6 +88,18 @@ export function useStatsFunnel(
   return useQuery({
     queryKey: adminStatsKeys.funnel(filters),
     queryFn: () => getStatsFunnel(filters),
+    placeholderData: keepPreviousData,
+    staleTime: STALE_MS,
+    retry: retryStats,
+    enabled,
+  })
+}
+
+/** The Behaviour tab (0061). */
+export function useStatsBehaviour(filters: StatsBehaviourFilters, enabled = true) {
+  return useQuery({
+    queryKey: adminStatsKeys.behaviour(filters),
+    queryFn: () => getStatsBehaviour(filters),
     placeholderData: keepPreviousData,
     staleTime: STALE_MS,
     retry: retryStats,

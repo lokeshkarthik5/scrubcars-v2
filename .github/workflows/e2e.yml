@@ -127,6 +127,10 @@ jobs:
           # Matches apps/e2e/.env.e2e, which the build does not read. On, so
           # the Home hub's @p0 specs run against it; production stays off.
           NEXT_PUBLIC_HOME_HUB: 'on'
+          # Matches apps/e2e/.env.e2e: a made-up Clarity project, so the
+          # consent spec sees Clarity load after Allow (the request itself is
+          # blocked) and admin's Behaviour tab shows its link.
+          NEXT_PUBLIC_CLARITY_ID: e2eclarity01
 
       - name: E2E
         # On a pull request only the @p0 specs run, so feedback stays quick;

@@ -4,13 +4,16 @@ import { Suspense, useCallback } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { PageHeader } from '@repo/ui/sc/page-header'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
+import { BehaviourTab } from '@/components/statistics/behaviour-tab'
 import { BreakdownTab } from '@/components/statistics/breakdown-tab'
 import { CommissionTab } from '@/components/statistics/commission-tab'
 import {
   CompareToggle,
+  DeviceSelect,
   GarageSelect,
   ModeSelect,
   PeriodSelect,
+  SourceSelect,
 } from '@/components/statistics/filters'
 import { FunnelTab } from '@/components/statistics/funnel-tab'
 import { OverviewTab } from '@/components/statistics/overview-tab'
@@ -21,12 +24,18 @@ import {
 } from '@/components/statistics/stats-tabs'
 import { todayIst } from '@/lib/bookings'
 import {
+  BEHAVIOUR_DEVICES,
+  BEHAVIOUR_PERIODS,
+  BEHAVIOUR_SOURCES,
+  behaviourPeriod,
   comparedWith,
   comparisonDates,
   DEFAULT_PERIOD,
   FUNNEL_MODES,
   FUNNEL_PERIODS,
   funnelPeriod,
+  isBehaviourDevice,
+  isBehaviourSource,
   isFunnelMode,
   isPeriod,
   monthOptions,
@@ -36,12 +45,14 @@ import {
 } from '@/lib/statistics'
 
 /**
- * Statistics: bookings, money and garages over a period, in four tabs —
+ * Statistics: bookings, money and garages over a period, in five tabs —
  * Overview (six figures and two charts, with the pilot's own numbers),
  * Breakdown (funnel, garages, service types, busy hours, CSV), Commission
  * (Detlio's commission and each garage's free 25, reporting only) and Funnel
  * (where visits drop off on the way to a booking, from Detlio's own usage
- * events, and returning customers).
+ * events, and returning customers), and Behaviour (0061: where visits from
+ * the landing page leave on the way to a paid booking, by visit, with a
+ * link to Clarity's recordings).
  *
  * Every filter lives in the URL (tab, period, garage, compare, month, mode),
  * so a view can be shared and Back returns to it. One filter row above
@@ -92,6 +103,13 @@ function Statistics() {
   const modeParam = params.get('mode')
   const mode = isFunnelMode(modeParam) ? modeParam : 'all'
   const funnelRange = periodRange(funnelPeriod(period), today)
+  // Behaviour: the last 7 days when opened fresh (its own default), or 30.
+  const behaviourPeriodValue = behaviourPeriod(params.get('period'))
+  const behaviourRange = periodRange(behaviourPeriodValue, today)
+  const sourceParam = params.get('source')
+  const source = isBehaviourSource(sourceParam) ? sourceParam : 'all'
+  const deviceParam = params.get('device')
+  const device = isBehaviourDevice(deviceParam) ? deviceParam : 'all'
 
   return (
     <>
@@ -102,47 +120,72 @@ function Statistics() {
       />
 
       <div className="-mt-1 flex flex-col gap-2">
-        <div className="grid grid-cols-2 gap-2">
-          {tab === 'commission' ? (
+        {tab === 'behaviour' ? (
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             <PeriodSelect
-              value={month}
-              options={months}
+              value={behaviourPeriodValue}
+              options={BEHAVIOUR_PERIODS}
+              // Always written out: an empty period means 30 days elsewhere.
+              onChange={(next) => setParams({ period: next })}
+            />
+            <SourceSelect
+              value={source}
+              options={BEHAVIOUR_SOURCES}
               onChange={(next) =>
-                setParams({ month: next === months[0].value ? '' : next })
+                setParams({ source: next === 'all' ? '' : next })
               }
             />
-          ) : tab === 'funnel' ? (
-            <PeriodSelect
-              value={funnelPeriod(period)}
-              options={FUNNEL_PERIODS}
+            <DeviceSelect
+              value={device}
+              options={BEHAVIOUR_DEVICES}
               onChange={(next) =>
-                setParams({ period: next === DEFAULT_PERIOD ? '' : next })
+                setParams({ device: next === 'all' ? '' : next })
               }
             />
-          ) : (
-            <PeriodSelect
-              value={period}
-              options={PERIODS}
-              onChange={(next) =>
-                setParams({ period: next === DEFAULT_PERIOD ? '' : next })
-              }
-            />
-          )}
-          {tab === 'funnel' ? (
-            <ModeSelect
-              value={mode}
-              options={FUNNEL_MODES}
-              onChange={(next) =>
-                setParams({ mode: next === 'all' ? '' : next })
-              }
-            />
-          ) : (
-            <GarageSelect
-              value={vendorId}
-              onChange={(next) => setParams({ garage: next })}
-            />
-          )}
-        </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            {tab === 'commission' ? (
+              <PeriodSelect
+                value={month}
+                options={months}
+                onChange={(next) =>
+                  setParams({ month: next === months[0].value ? '' : next })
+                }
+              />
+            ) : tab === 'funnel' ? (
+              <PeriodSelect
+                value={funnelPeriod(period)}
+                options={FUNNEL_PERIODS}
+                onChange={(next) =>
+                  setParams({ period: next === DEFAULT_PERIOD ? '' : next })
+                }
+              />
+            ) : (
+              <PeriodSelect
+                value={period}
+                options={PERIODS}
+                onChange={(next) =>
+                  setParams({ period: next === DEFAULT_PERIOD ? '' : next })
+                }
+              />
+            )}
+            {tab === 'funnel' ? (
+              <ModeSelect
+                value={mode}
+                options={FUNNEL_MODES}
+                onChange={(next) =>
+                  setParams({ mode: next === 'all' ? '' : next })
+                }
+              />
+            ) : (
+              <GarageSelect
+                value={vendorId}
+                onChange={(next) => setParams({ garage: next })}
+              />
+            )}
+          </div>
+        )}
         {tab === 'overview' && (
           <CompareToggle
             checked={compare}
@@ -167,6 +210,9 @@ function Statistics() {
         <BreakdownTab range={range} vendorId={vendorId} />
       )}
       {tab === 'funnel' && <FunnelTab range={funnelRange} mode={mode} />}
+      {tab === 'behaviour' && (
+        <BehaviourTab range={behaviourRange} source={source} device={device} />
+      )}
       {tab === 'commission' && (
         <CommissionTab
           range={monthRange(month, today)}

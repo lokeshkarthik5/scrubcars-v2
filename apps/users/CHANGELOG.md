@@ -15,6 +15,21 @@ reconstructing every change in them.
 
 ## [Unreleased]
 
+- **Tracking: consent, Meta Pixel, Clarity, behaviour funnel** (API 0061).
+  One cookie question for analytics and marketing ("Allow" writes
+  `detlio_consent=all`; the first banner's `marketing` keeps the Pixel only
+  and is asked again). The Meta Pixel and Conversions API Purchase share a
+  hashed event id (`purchase_` + SHA-256 of the booking id), and the Pixel
+  stays off booking, car and invite pages. Microsoft Clarity
+  (`NEXT_PUBLIC_CLARITY_ID`, only after Allow) with a "step" tag per usage
+  event, and phone, code, name, address, plate, coupon/gift codes and
+  free-text boxes masked (`data-clarity-mask`). New usage events for the
+  landing → paid steps, the visit's source on `app_open`, the sign-in
+  joining the visit, and `?team-device=1` for the team's own browsers.
+  Admin: Statistics → Behaviour (funnel by visits, last step before leaving,
+  Source / Device / 7 or 30 days, "Open recordings in Clarity"). Privacy
+  Policy: a Clarity section, cookie rows, the Pixel's pages and hashed id.
+
 - **Customer UX round (audit F1–F14, approved mockups).** Checkout ("Book your wash") opens on the earliest day with a free time, morning first, with the default car (or the one on Home) chosen and the total in the bottom bar from the start, so Home → Pay is six taps; the garage's rating and Detlio Certified ride along, the best reward voucher is applied for the customer ("Best for you"), and two promises plus "Secure payment by Razorpay" sit above Pay. Booking pages lead with the status in plain words and a thin four-step bar, then what needs the customer, the rating first on a finished job with Book again as the one red button, details and contact as short rows (Call the garage during the contact window), and Cancel as an amber text action. The bookings list names the car, says what a booking needs ("Approve extra work · ₹650", red hairline) and when the garage answers. Home: the must-act card in full with one red pill, the car switched by tapping its name, the Shine Card labelled, the offer a dark ticket below the car, nothing cut off, and "Good morning" instead of the emoji. The floating nav has labels. Rupees have Indian commas everywhere, times read "9:00 am", "vendor" is "garage", headings are in sentence case, every chip is 44pt, the drawn service art loses its "Sample" badge, an empty garage list offers a way on, Wrapped without a year opens the latest one, and cards use Home's surface on every screen.
 
 - The red button's shine now finishes within 5 seconds (two 1.3 s sweeps, 0.4 s in; the animation ends at 4.8 s), inside WCAG 2.2.2's limit for moving content.

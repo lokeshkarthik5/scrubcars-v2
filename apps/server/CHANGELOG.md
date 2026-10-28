@@ -20,10 +20,27 @@ reconstructing every change in them.
 
 ### Added
 
+- **Behaviour: usage events from the landing page to paid** (migration
+  `0061_behaviour_events`, additive: wider name and props CHECKs on
+  `analytics_events`, an index on `visit_id`). New client events
+  `landing_view`, `garage_card_seen`, `area_pick`, `mode_switch`,
+  `service_sheet_open`, `booking_start`, `otp_sent`, `pay_success`,
+  `pay_failed` (and `request_sent`, `free_wash_claim`, `banner_view`,
+  `banner_close`, named for the landing page's next release); `app_open`
+  takes `medium`, `campaign`, `referrer` (a domain) and `channel`.
+  `POST /auth/otp/verify` takes an optional `visitId`: after a customer's
+  sign-in, that visit's earlier events with no account get it (that visit
+  only, the last day, after the response). `GET /admin/stats/behaviour?from&to&source&device`
+  (`modules/behaviour`, rules in `lib/behaviour.ts`): the landing → paid
+  funnel by visits, the last step before leaving, and the team's and Test
+  bookings' visits left out and counted. See AGENTS.md.
+
 - **Meta Conversions API, consent only** (no migration): `POST /payments/verify`
   takes an optional strict `marketing` block (`consent: true`, `fbp`, `fbc`,
   `eventSourceUrl`). With it, a verify that wrote or confirmed a paid booking
-  sends Meta one Purchase event (`event_id` `purchase-<bookingId>`, INR value
+  sends Meta one Purchase event (`event_id` `purchase_` + the first 32 hex of
+  the SHA-256 of the booking id, the same as the Pixel's; never the id itself;
+  an `eventSourceUrl` holding a non-garage id is dropped; INR value
   paid through Razorpay, service count, IP, user agent, `fbp`/`fbc`), after
   the response, once per booking; never a name, phone, email or address.
   Production only, off unless `META_CAPI_TOKEN` is set (`META_PIXEL_ID`,

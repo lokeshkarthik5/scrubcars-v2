@@ -11,8 +11,9 @@ import type { BrowserContext, Page } from '@playwright/test'
  * Razorpay is on the list because `window.Razorpay` is stubbed before any
  * script loads, so a request to it means the stub failed to install and the
  * test should fail loudly rather than open a real checkout.
- * Facebook is on the list because the customer app loads the Meta Pixel;
- * a test must not depend on it being up. Cloudflare Stream and OpenAI are
+ * Facebook is on the list because the customer app loads the Meta Pixel,
+ * and clarity.ms because it loads Microsoft Clarity (both only after Allow);
+ * a test must not depend on either being up. Cloudflare Stream and OpenAI are
  * faked by the API in tests and must never be reached from a page either.
  */
 const BLOCKED_HOSTS = [
@@ -25,6 +26,7 @@ const BLOCKED_HOSTS = [
   'fonts.gstatic.com',
   'connect.facebook.net',
   'www.facebook.com',
+  'clarity.ms',
   // Service videos and AI pictures are faked (STREAM_FAKE, AI_FAKE); a
   // request to the real services means a fake did not take.
   'cloudflarestream.com',

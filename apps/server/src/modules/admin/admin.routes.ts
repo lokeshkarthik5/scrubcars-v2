@@ -28,6 +28,7 @@ import { adminOnboardingMarkRoutes } from '../onboarding-marks/onboarding-marks.
 import { adminCollectionListRoutes } from '../collection-lists/collection-lists.routes.js'
 import { adminMediaRoutes } from '../service-media/service-media.routes.js'
 import { addPhotoSchema } from '../service-media/service-media.validation.js'
+import { adminBehaviourRoutes } from '../behaviour/behaviour.routes.js'
 import { adminStatsRoutes } from '../stats/stats.routes.js'
 import { adminPayoutRoutes } from '../payouts/payouts.routes.js'
 import { adminDocumentRoutes } from '../vendor-documents/vendor-documents.routes.js'
@@ -117,6 +118,8 @@ adminRoutes.get(
 // Service History certificates shared and viewed (0053): totals only, on
 // Statistics' Overview.
 adminRoutes.route('/stats/certificates', adminCertificateRoutes)
+// Statistics → Behaviour (0061): the landing → paid funnel by visits.
+adminRoutes.route('/stats/behaviour', adminBehaviourRoutes)
 // Statistics: overview, breakdown and commission over a range of days.
 // Nested here for the same cookie reason as discounts (below).
 adminRoutes.route('/stats', adminStatsRoutes)
