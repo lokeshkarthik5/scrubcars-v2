@@ -19,8 +19,11 @@ reconstructing every change in them.
   One cookie question for analytics and marketing ("Allow" writes
   `detlio_consent=all`; the first banner's `marketing` keeps the Pixel only
   and is asked again). The Meta Pixel and Conversions API Purchase share a
-  hashed event id (`purchase_` + SHA-256 of the booking id), and the Pixel
-  stays off booking, car and invite pages. Microsoft Clarity
+  hashed event id (`purchase_` + SHA-256 of the booking id), the Pixel
+  stays off booking, car and invite pages, and Meta never gets a query
+  string: every Pixel request's page and referrer addresses are cut to
+  origin + path (`lib/meta-request-shield.ts`), so checkout's promo code
+  and saved address id stay with us. Microsoft Clarity
   (`NEXT_PUBLIC_CLARITY_ID`, only after Allow) with a "step" tag per usage
   event, and phone, code, name, address, plate, coupon/gift codes and
   free-text boxes masked (`data-clarity-mask`). New usage events for the

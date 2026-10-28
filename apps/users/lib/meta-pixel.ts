@@ -18,6 +18,7 @@ import { isVerifyPath } from '@repo/core/service-history-certificate'
 import { carriesGiftCode } from './gifts'
 import { carriesCouponCode } from './coupons'
 import { marketingAllowed } from './consent'
+import { shieldMetaRequests } from './meta-request-shield'
 
 /** Detlio's Meta Pixel. Public by design — it ships in the page. */
 export const PIXEL_ID = '891710590692874'
@@ -248,9 +249,15 @@ export function installPixel(
   return true
 }
 
-/** Adds the fbevents.js script tag, once. */
+/**
+ * Adds the fbevents.js script tag, once. First puts the shield in front of
+ * the page's requests (lib/meta-request-shield.ts), so whatever fbevents.js
+ * sends Meta carries page addresses as origin + path only, never a query
+ * string (checkout's promo code and saved address id).
+ */
 export function loadPixelScript(doc: Document = document) {
   if (doc.getElementById(PIXEL_SCRIPT_ID)) return
+  if (typeof window !== 'undefined') shieldMetaRequests(window as never)
   const script = doc.createElement('script')
   script.id = PIXEL_SCRIPT_ID
   script.async = true

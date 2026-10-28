@@ -40,7 +40,8 @@ reconstructing every change in them.
   `eventSourceUrl`). With it, a verify that wrote or confirmed a paid booking
   sends Meta one Purchase event (`event_id` `purchase_` + the first 32 hex of
   the SHA-256 of the booking id, the same as the Pixel's; never the id itself;
-  an `eventSourceUrl` holding a non-garage id is dropped; INR value
+  `eventSourceUrl` cut to origin + path, a query string never sent, and
+  dropped when it holds a non-garage id; INR value
   paid through Razorpay, service count, IP, user agent, `fbp`/`fbc`), after
   the response, once per booking; never a name, phone, email or address.
   Production only, off unless `META_CAPI_TOKEN` is set (`META_PIXEL_ID`,

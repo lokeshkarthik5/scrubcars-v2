@@ -269,11 +269,16 @@ describe('the Meta Pixel', () => {
   // The address Meta gets is the whole URL, query included. These are the
   // parameters the app itself puts there (garage page and book-again for
   // checkout; the booking page reads then, rate and celebrate).
-  test('what the page address carries is spelled out, and nothing says booking details stay out', () => {
+  // lib/meta-request-shield.ts cuts every address Meta gets to origin +
+  // path (0061); the policy must say the query string is not sent.
+  test('what the page address carries is spelled out: never what comes after "?"', () => {
     const text = privacy()
-    expect(text).toContain('the services you picked (by reference number) and whether the visit is at your door')
-    expect(text).toContain('the reference number of the saved address you picked (not the address itself)')
-    expect(text).toContain('Apart from what the page address shows, we have not set it up to send your name, mobile number, address or car')
+    expect(text).toContain('the web address (URL) of the page, without anything after "?" or "#"')
+    expect(text).toContain('but not the services you picked, a promo code or your address')
+    expect(text).toContain('the address of the page you came from, likewise without anything after "?" or "#"')
+    expect(text).toContain('We have not set it up to send your name, mobile number, address or car')
+    expect(text).not.toContain('can include a promo code')
+    expect(lib).toContain('shieldMetaRequests(window')
     expect(text).not.toContain('or what you booked')
     // The booking page's parameters no longer reach Meta (0061), and the
     // note says so.

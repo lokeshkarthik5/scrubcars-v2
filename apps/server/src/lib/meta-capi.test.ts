@@ -155,8 +155,6 @@ describe('buildPurchaseEvent', () => {
 
   test('a bad event source URL is dropped, the event still built', () => {
     for (const bad of [
-      'https://detlio.com/checkout?ref=ig',
-      'https://detlio.com/checkout#paid',
       'http://detlio.com/checkout',
       'https://evil.example/checkout',
       'https://detlio.com.evil.example/x',
@@ -175,6 +173,28 @@ describe('buildPurchaseEvent', () => {
       )
       expect(body.data[0]).not.toHaveProperty('event_source_url')
     }
+    // A query string or fragment is cut off, never sent: checkout's promo
+    // code and saved address id stay with us.
+    expect(
+      cleanEventSourceUrl(
+        'https://detlio.com/book/2b7f6f0e-5d1c-4c11-9b55-2f0b6a1c9d10?service=a1&mode=doorstep&code=DIWALI50&address=6f1d2c3b-4a59-4e1f-8d2c-0b9a8e7f6d5c'
+      )
+    ).toBe('https://detlio.com/book/2b7f6f0e-5d1c-4c11-9b55-2f0b6a1c9d10')
+    expect(cleanEventSourceUrl('https://detlio.com/checkout?ref=ig#paid')).toBe(
+      'https://detlio.com/checkout'
+    )
+    const body = buildPurchaseEvent(
+      facts,
+      {
+        ...context,
+        eventSourceUrl:
+          'https://detlio.com/book/2b7f6f0e-5d1c-4c11-9b55-2f0b6a1c9d10?code=DIWALI50&address=6f1d2c3b-4a59-4e1f-8d2c-0b9a8e7f6d5c',
+      },
+      { now: NOW }
+    )
+    expect(JSON.stringify(body)).not.toContain('DIWALI50')
+    expect(JSON.stringify(body)).not.toContain('6f1d2c3b')
+    expect(JSON.stringify(body)).not.toContain('?')
     expect(cleanEventSourceUrl('https://www.detlio.com/bookings/new')).toBe(
       'https://www.detlio.com/bookings/new'
     )
