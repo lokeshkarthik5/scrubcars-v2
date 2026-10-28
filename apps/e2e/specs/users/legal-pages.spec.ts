@@ -119,8 +119,10 @@ test.describe('legal pages @p0', () => {
     ).toBeInViewport()
   })
 
-  test('the homepage footer links to all five', async ({ page }) => {
-    await page.goto('/')
+  // The marketing page's footer, kept at /about (0062); the app landing's
+  // compact footer links Terms and Privacy (homepage.spec.ts).
+  test('the marketing page footer links to all five', async ({ page }) => {
+    await page.goto('/about')
     const legal = footer(page).getByRole('navigation', { name: 'Legal' })
 
     for (const { label, href } of PAGES) {

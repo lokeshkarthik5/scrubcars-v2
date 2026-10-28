@@ -213,10 +213,11 @@ test.describe('customer auth', () => {
       // goto below races it and aborts.
       await page.waitForURL(/\/login|\/$|\/welcome/)
 
-      // Most of the app is browsable signed out — app-provider only guards
-      // /book and /profile-setup — so the proof that the session is gone is a
-      // guarded route, not the bookings list.
-      await page.goto(`/book/${VENDORS.main.id}`)
+      // Most of the app is browsable signed out — checkout too, since a
+      // guest books and signs in at Pay (0062); app-provider guards
+      // /profile-setup and /updates — so the proof that the session is gone
+      // is a guarded route, not the bookings list.
+      await page.goto('/updates')
       await expect(page).toHaveURL(/\/login/)
     })
   })

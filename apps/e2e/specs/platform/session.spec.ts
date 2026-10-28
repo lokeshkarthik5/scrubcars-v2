@@ -6,7 +6,7 @@
  */
 import { test, expect, asRole } from '../../support/fixtures'
 import { sql } from '../../support/db'
-import { BOOKINGS, CUSTOMERS, VENDORS } from '../../support/seed-ids'
+import { BOOKINGS, CUSTOMERS } from '../../support/seed-ids'
 
 test.describe('session', () => {
   test.use({ storageState: asRole('customer-session') })
@@ -33,7 +33,8 @@ test.describe('session', () => {
     await context.clearCookies()
     await context.addCookies(kept)
 
-    await page.goto(`/book/${VENDORS.main.id}?service=`)
+    // A guarded route (checkout no longer is: guests book there, 0062).
+    await page.goto('/updates')
 
     // Still allowed through a guarded route, so the refresh worked.
     await expect(page).not.toHaveURL(/\/login/)
@@ -52,7 +53,7 @@ test.describe('session', () => {
     await context.clearCookies()
     await context.addCookies(kept)
 
-    await page.goto(`/book/${VENDORS.main.id}`)
+    await page.goto('/updates')
     await expect(page).toHaveURL(/\/login/)
   })
 })
