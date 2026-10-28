@@ -64,7 +64,17 @@ test.describe('admin garage import', () => {
     await page.reload()
     await expect(page.getByLabel('Business name')).toBeVisible()
 
-    await page.getByRole('link', { name: 'Go back' }).click()
+    await page.getByRole('button', { name: 'Go back' }).click()
+    await expect(page).toHaveURL(/\/vendors\/new$/)
+    await expect(
+      page.getByRole('heading', { name: 'Import from a form or poster' })
+    ).toBeVisible()
+    await expect(page.getByLabel('Business name')).toHaveCount(0)
+
+    // The browser's own Back button returns to the import too.
+    await page.getByRole('link', { name: /Fill in by hand/ }).click()
+    await expect(page.getByLabel('Business name')).toBeVisible()
+    await page.goBack()
     await expect(
       page.getByRole('heading', { name: 'Import from a form or poster' })
     ).toBeVisible()

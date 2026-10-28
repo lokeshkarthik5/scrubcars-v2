@@ -72,8 +72,31 @@ export default function NewVendorPage() {
 }
 
 function NewVendor() {
-  const byHand = useSearchParams().get('by') === 'hand'
   const router = useRouter()
+  // Which view shows is the page's own state, seeded from ?by=hand and kept
+  // in step with it. A link from ?by=hand back to the bare /vendors/new on
+  // this prerendered page changed nothing in the production build (CI E2E,
+  // 29 Oct): the form stayed up. So Back sets the state itself, and the
+  // browser's own back and forward re-read the address.
+  const byHandParam = useSearchParams().get('by') === 'hand'
+  const [byHand, setByHand] = useState(byHandParam)
+  // Follows the address whenever it does change (adjusted during render,
+  // React's pattern for state derived from an input, not in an effect).
+  const [seenParam, setSeenParam] = useState(byHandParam)
+  if (seenParam !== byHandParam) {
+    setSeenParam(byHandParam)
+    setByHand(byHandParam)
+  }
+  useEffect(() => {
+    const sync = () =>
+      setByHand(new URLSearchParams(window.location.search).get('by') === 'hand')
+    window.addEventListener('popstate', sync)
+    return () => window.removeEventListener('popstate', sync)
+  }, [])
+  const leaveByHand = () => {
+    setByHand(false)
+    router.replace('/vendors/new')
+  }
   const [step, setStep] = useState<Step>({ kind: 'start' })
   const [reading, setReading] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -109,7 +132,7 @@ function NewVendor() {
         <PageHeader
           title="Add garage"
           subtitle="Fill in by hand"
-          backHref="/vendors/new"
+          onBack={leaveByHand}
         />
         {/* To every garage, not the Live default: a new garage is usually
             not live yet, and it is the first card there, newest first. */}
