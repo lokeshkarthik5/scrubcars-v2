@@ -675,10 +675,12 @@ export function useGarageDraft(id: string) {
     }
   }
 
+  // Resolves true once the action is saved, false when it failed (the error
+  // is then on serviceErrors[serviceId]), so a confirm sheet can stay open.
   const runServiceSwitch = async (
     serviceId: string,
     action: () => Promise<FocusAfterSwitch>
-  ) => {
+  ): Promise<boolean> => {
     setServiceBusyId(serviceId)
     setServiceNotice('')
     setServiceErrors((prev) => {
@@ -693,6 +695,7 @@ export function useGarageDraft(id: string) {
       setFocusAfterSwitch(await action())
       afterInstantSave()
       switchNote.saved()
+      return true
     } catch (err) {
       switchNote.reset()
       if (
@@ -700,11 +703,12 @@ export function useGarageDraft(id: string) {
         (err.status === 401 || err.status === 403)
       ) {
         router.replace('/login')
-        return
+        return false
       }
       const message =
         err instanceof Error ? err.message : 'Something went wrong'
       setServiceErrors((prev) => ({ ...prev, [serviceId]: message }))
+      return false
     } finally {
       setServiceBusyId(null)
     }

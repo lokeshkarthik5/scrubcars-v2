@@ -238,9 +238,12 @@ export function ServicesTab({
         }
         body="It goes off the garage page and out of admin and the garage app for good. Past bookings and receipts keep it. To take it off for a while, Hide it instead."
         confirmLabel="Delete service"
+        // Stays open until the delete is saved: a refusal shows here, on the
+        // sheet that asked, instead of closing as if it had worked.
+        error={deletingService ? serviceErrors[deletingService.id] : undefined}
         onConfirm={async () => {
-          if (deletingService) await deleteService(deletingService)
-          setDeletingService(null)
+          if (!deletingService) return
+          if (await deleteService(deletingService)) setDeletingService(null)
         }}
       />
     </>

@@ -338,6 +338,27 @@ test.describe('admin garage services', () => {
         { data: { isActive: true } }
       )
       expect(again.status()).toBe(404)
+
+      // A tab opened before the delete still lists it. Its save is refused
+      // whole, before anything is written, so the deleted service can't come
+      // back as a fresh copy.
+      const stale = await page.request.patch(
+        `${API}/api/v1/admin/vendors/${GARAGE.id}`,
+        {
+          data: {
+            services: [
+              { id: booked.id, name: BOOKED, category: 'car_wash', pricingType: 'flat', price: 499 },
+            ],
+          },
+        }
+      )
+      expect(stale.status()).toBe(409)
+      expect((await stale.json()).code).toBe('SERVICE_DELETED')
+      const [copies] = await sql<{ n: number }[]>`
+        select count(*)::int as n from services
+         where vendor_id = ${GARAGE.id} and name = ${BOOKED}
+      `
+      expect(copies!.n).toBe(1)
     })
   })
 })
