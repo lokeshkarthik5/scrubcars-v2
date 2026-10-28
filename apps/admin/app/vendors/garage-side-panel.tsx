@@ -21,6 +21,8 @@ import type { AdminVendor, ReadinessItem } from '@repo/core/api/admin'
 import { strikesHighlighted, strikesLabel } from '@repo/core/bypass-reports'
 import { cn } from '@repo/core/utils'
 import { SidePanelMarks } from '@/components/marks/side-panel-marks'
+import { ColourCell } from '@/components/garages/colour-tags'
+import { colourSetLine } from '@/lib/garage-colours'
 import { WithTeamCell } from '@/components/collection/with-team-cell'
 import { SidePanel, SidePanelFacts, SidePanelSection } from '@/components/table'
 import { PAGE_TAB_LABELS } from '@/lib/garage-edit'
@@ -175,6 +177,20 @@ export function GarageSidePanel({
       {v.readiness && (
         <SidePanelSection title="Checklist">
           <Checklist vendorId={v.id} items={v.readiness} back={back} />
+        </SidePanelSection>
+      )}
+
+      {/* The team's colour for it (0061): set here too, on a phone. */}
+      {v.colourTag !== undefined && (
+        <SidePanelSection title="Colour">
+          <div className="flex flex-col items-start gap-0.5">
+            <ColourCell vendor={v} now={now} />
+            {colourSetLine(v, now) && (
+              <p className="text-[12px] text-text-muted">
+                {colourSetLine(v, now)}
+              </p>
+            )}
+          </div>
         </SidePanelSection>
       )}
 

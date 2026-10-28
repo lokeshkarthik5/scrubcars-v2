@@ -19,6 +19,7 @@ import {
 } from '@repo/core/onboarding-marks'
 import { DEFAULT_DOORSTEP_RADIUS_KM } from './garage-edit'
 import { garageAreaName } from './localities'
+import { parseColourFilter, type ColourFilter } from './garage-colours'
 
 // ─── Chips ───────────────────────────────────────────────────────────────────
 
@@ -590,6 +591,8 @@ export interface GarageListState {
   missing?: MissingKey | null
   onboardedBy?: string | null
   team?: TeamFilter | null
+  /** The colour chip (0061): a colour, or 'none'. */
+  colour?: ColourFilter | null
 }
 
 /** The list's state from its URL. */
@@ -602,6 +605,7 @@ export function parseGarageList(params: {
     missing: parseMissing(params.get('missing')),
     onboardedBy: parseOnboardedBy(params.get('onboardedBy')),
     team: parseTeam(params.get('team')),
+    colour: parseColourFilter(params.get('colour')),
   }
 }
 
@@ -617,6 +621,7 @@ export function garageListHref(state: GarageListState): string {
   if (state.missing) query.set('missing', state.missing)
   if (state.onboardedBy) query.set('onboardedBy', state.onboardedBy)
   if (state.team) query.set('team', state.team)
+  if (state.colour) query.set('colour', state.colour)
   const text = query.toString()
   return text ? `/vendors?${text}` : '/vendors'
 }

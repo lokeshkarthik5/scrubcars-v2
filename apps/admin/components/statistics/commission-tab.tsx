@@ -23,6 +23,7 @@ const HOW_WE_COUNT = [
   'By the day the booking was made, on bookings that earn the garage its payout: finished jobs and customer no-shows.',
   'On the full price of each service: before a promo Detlio pays for, after a discount the garage gives. A final bill is charged at the rate of the service it was for.',
   'The free 25 count every booking the garage received, cancelled ones too, from its first. Test bookings are left out.',
+  'A service with its own commission % (set in the garage’s services) is charged at that rate here instead of its category’s.',
   'For reporting only: payouts, earnings and what garages see are unchanged.',
 ]
 

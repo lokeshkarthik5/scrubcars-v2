@@ -22,10 +22,12 @@ import { StatusChip } from '@repo/ui/sc/status-chip'
 import { OutsideCityChip } from '@repo/ui/features/outside-city'
 import type { AdminVendor } from '@repo/core/api/admin'
 import { cn } from '@repo/core/utils'
+import { ColourCell } from '@/components/garages/colour-tags'
 import { MarksCell } from '@/components/marks/marks-cell'
 import { MissingTags } from '@/components/marks/missing-tags'
 import { WithTeamCell } from '@/components/collection/with-team-cell'
 import type { AdminTableColumn, OptionalColumn } from '@/components/table'
+import { colourSortValue } from '@/lib/garage-colours'
 import {
   bookingParts,
   bookingsLine,
@@ -49,6 +51,8 @@ export interface GarageColumnsContext {
   showMissing: boolean
   showMarks: boolean
   showOnboardedBy: boolean
+  /** The team's colour tags (0061): absent from an older API. */
+  showColour?: boolean
   /**
    * Onboarded by is on screen: Garage, Area and Modes take less room, so the table
    * still fits a 1440 laptop.
@@ -79,6 +83,7 @@ export const STEP_TONE: Record<GarageNextStep['tone'], string> = {
 export const GARAGE_OPTIONAL_COLUMNS: OptionalColumn[] = [
   { id: 'area', header: 'Area' },
   { id: 'modes', header: 'Modes' },
+  { id: 'colour', header: 'Colour' },
   { id: 'onboardedBy', header: 'Onboarded by', defaultHidden: true },
 ]
 
@@ -160,6 +165,14 @@ export function garageColumns(
           />
         </div>
       ),
+    },
+    // The team's own colour (0061): sorts in the chips' order, none last;
+    // a press opens the picker. On a phone the row's tint says it.
+    ctx.showColour === true && {
+      id: 'colour',
+      header: 'Colour',
+      sortValue: (v) => colourSortValue(v),
+      cell: (v) => <ColourCell vendor={v} now={ctx.now} />,
     },
     ctx.showOnboardedBy && {
       id: 'onboardedBy',

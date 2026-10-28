@@ -50,6 +50,8 @@ import {
   useHiddenColumns,
   type SortState,
 } from '@/components/table'
+import { BulkColourButton, ColourChips } from '@/components/garages/colour-tags'
+import { TargetCounter } from '@/components/garages/target-counter'
 import { AddMarkButton } from '@/components/marks/add-mark-button'
 import { AskWhatsAppButton } from '@/components/marks/ask-whatsapp-button'
 import { MissingChips } from '@/components/marks/missing-chips'
@@ -57,6 +59,13 @@ import { CollectorProgressCards } from '@/components/collection/collector-progre
 import { SendToTeamButton } from '@/components/collection/send-to-team-button'
 import { keepKnown, splitSelection } from '@/lib/admin-table'
 import { binDoneMessage, deleteDoneMessage } from '@/lib/vendor-bin'
+import {
+  COLOUR_STYLES,
+  colourCounts,
+  colourOf,
+  matchesColour,
+  type ColourFilter,
+} from '@/lib/garage-colours'
 import {
   CERTIFIED_FILTER,
   CERTIFIED_LABEL,
@@ -113,7 +122,7 @@ function VendorsList() {
   // Everything the list shows lives in the URL, so Back from a garage
   // returns to it: the chip, the search, Missing, Onboarded by and the team.
   const state = parseGarageList(params)
-  const { show, q, missing, onboardedBy: onboardedFilter, team } = state
+  const { show, q, missing, onboardedBy: onboardedFilter, team, colour } = state
   // What a row's links carry as `back`: this list, as it is now.
   const back = garageListHref(state)
 
@@ -152,6 +161,8 @@ function VendorsList() {
   )
   const hasOnboarded = vendors.some((v) => v.onboardedByName !== undefined)
   const hasTeam = vendors.some((v) => v.openCollection !== undefined)
+  // The team's colour tags (0061): an older API sends no `colourTag`.
+  const hasColour = vendors.some((v) => v.colourTag !== undefined)
 
   // Team logins, for the Onboarded by choices.
   const logins = useAdminLogins()
@@ -205,8 +216,11 @@ function VendorsList() {
       matchesOnboardedBy(v, onboardedFilter) &&
       matchesTeam(v, team, mine)
   )
-  // Every garage that matches: no paging, the list is the whole set.
-  const shown = filtered.filter((v) => isMissing(v, missing))
+  // Every garage that matches: no paging, the list is the whole set. The
+  // colour chips count over what Missing leaves, as Missing counts over the
+  // rest.
+  const beforeColour = filtered.filter((v) => isMissing(v, missing))
+  const shown = beforeColour.filter((v) => matchesColour(v, colour))
   const inBin = show === 'bin'
 
   const teamCounts = {
@@ -405,6 +419,7 @@ function VendorsList() {
         showMissing: hasMissing,
         showMarks: hasMarks,
         showOnboardedBy: hasOnboarded,
+        showColour: hasColour,
         narrow: hasOnboarded && !hiddenColumns.has('onboardedBy'),
         openId,
         onOpen: (v) => setOpenId((id) => (id === v.id ? null : v.id)),
@@ -436,7 +451,7 @@ function VendorsList() {
   ]
 
   const filtersOn = [onboardedFilter, team].filter(Boolean).length
-  const anyFilter = Boolean(q || missing || onboardedFilter || team)
+  const anyFilter = Boolean(q || missing || onboardedFilter || team || colour)
 
   return (
     <>
@@ -518,6 +533,8 @@ function VendorsList() {
         />
       ) : (
         <div className="flex flex-col gap-3">
+          {/* The team's target and how close it is (0061). */}
+          {!inBin && <TargetCounter vendors={vendors} now={now} />}
           <div>
             <SavedViews
               label="Show"
@@ -690,6 +707,20 @@ function VendorsList() {
             </div>
           )}
 
+          {/* The team's colours (0061), counted over what the other
+              filters leave. */}
+          {hasColour && !inBin && (
+            <div className="-mx-4 min-w-0 overflow-x-auto px-4 [scrollbar-width:none] md:mx-0 md:overflow-visible md:px-0 [&::-webkit-scrollbar]:hidden">
+              <ColourChips
+                counts={colourCounts(beforeColour)}
+                value={colour}
+                onChange={(next: ColourFilter | null) =>
+                  setParams({ colour: next })
+                }
+              />
+            </div>
+          )}
+
           {team === 'with' && !inBin && <CollectorProgressCards />}
 
           {/* A failed refetch, with the last list still on screen. */}
@@ -714,6 +745,14 @@ function VendorsList() {
               phoneGrid={inBin ? undefined : GARAGE_PHONE_GRID}
               rowKey={(v) => v.id}
               rowLabelId={(v) => `vendor-${v.id}-name`}
+              rowClassOf={
+                inBin
+                  ? undefined
+                  : (v) => {
+                      const tag = colourOf(v)
+                      return tag ? COLOUR_STYLES[tag].row : null
+                    }
+              }
               sort={sort}
               onSortChange={setSort}
               openKey={inBin ? null : openId}
@@ -761,6 +800,9 @@ function VendorsList() {
               onClear={() => setTicked(new Set())}
             >
               {/* The secondary actions (outline), then the one red. */}
+              {hasColour && (
+                <BulkColourButton vendors={selectedVendors} now={now} />
+              )}
               <AddMarkButton vendors={selectedVendors} />
               <AskWhatsAppButton vendors={selectedVendors} />
               <SendToTeamButton
