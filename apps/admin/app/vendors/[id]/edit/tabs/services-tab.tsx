@@ -1,7 +1,8 @@
 'use client'
 
-import { IconChevronDown, IconEyeOff } from '@tabler/icons-react'
+import { IconChevronDown, IconEyeOff, IconTrash } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
+import { ConfirmSheet } from '@repo/ui/sc/confirm-sheet'
 import { cn } from '@repo/core/utils'
 import { SavedNote } from '@/components/save-bar'
 import { ServicesEditor } from '@/components/services-editor'
@@ -10,7 +11,7 @@ import type { GarageDraft, GarageDraftState } from '../use-garage-draft'
 
 /**
  * Services: the garage's list (ServicesEditor), saved as one list with Save
- * changes, and its hidden services. Hide and Show again save at once.
+ * changes, and its hidden services. Hide, Show again and Delete save at once.
  */
 export function ServicesTab({
   g,
@@ -34,6 +35,9 @@ export function ServicesTab({
     setServiceMedia,
     hideService,
     showServiceAgain,
+    deleteService,
+    deletingService,
+    setDeletingService,
     serviceBusyId,
     serviceSwitching,
     serviceErrors,
@@ -46,8 +50,8 @@ export function ServicesTab({
     <>
       <div className="flex min-h-6 items-center justify-between gap-3">
         <p className="text-[12px] text-text-muted">
-          Hide and Show again save at once; everything else waits for Save
-          changes.
+          Hide, Show again and Delete save at once; everything else waits for
+          Save changes.
         </p>
         <SavedNote state={switchNote.state} />
       </div>
@@ -70,6 +74,13 @@ export function ServicesTab({
         media={{ onChange: setServiceMedia }}
         hide={{
           onHide: hideService,
+          onDelete: (row) => {
+            if (row.id)
+              setDeletingService({
+                id: row.id,
+                name: row.name.trim() || 'this service',
+              })
+          },
           busyId: serviceBusyId,
           disabled: serviceSwitching,
         }}
@@ -80,7 +91,7 @@ export function ServicesTab({
             Each service needs a name and a price. Leave the duration on
             “Duration” to use one booking slot. Hide takes a service off the
             garage page straight away; past bookings keep it, and you can show
-            it again from Hidden services.
+            it again from Hidden services. Delete removes it for good.
           </>
         }
       />
@@ -188,6 +199,24 @@ export function ServicesTab({
                             ? 'Working…'
                             : 'Show again'}
                         </ScButton>
+                        <button
+                          type="button"
+                          disabled={serviceSwitching || saving}
+                          aria-label={`Delete ${hidden.name}`}
+                          onClick={() =>
+                            setDeletingService({
+                              id: hidden.id,
+                              name: hidden.name,
+                            })
+                          }
+                          className="flex size-11 items-center justify-center rounded-full text-text-muted transition-colors hover:text-error disabled:opacity-50"
+                        >
+                          <IconTrash
+                            size={17}
+                            stroke={1.5}
+                            aria-hidden="true"
+                          />
+                        </button>
                       </li>
                     )
                   })}
@@ -197,6 +226,23 @@ export function ServicesTab({
           </div>
         )
       )}
+
+      <ConfirmSheet
+        open={deletingService !== null}
+        onClose={() => setDeletingService(null)}
+        level="firm"
+        title={
+          deletingService
+            ? `Delete “${deletingService.name}”?`
+            : 'Delete this service?'
+        }
+        body="It goes off the garage page and out of admin and the garage app for good. Past bookings and receipts keep it. To take it off for a while, Hide it instead."
+        confirmLabel="Delete service"
+        onConfirm={async () => {
+          if (deletingService) await deleteService(deletingService)
+          setDeletingService(null)
+        }}
+      />
     </>
   )
 }

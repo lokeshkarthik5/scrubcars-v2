@@ -421,6 +421,13 @@
       "when": 1788006989735,
       "tag": "0059_onboarding_marks",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1788093389735,
+      "tag": "0060_service_deleted_at",
+      "breakpoints": true
     }
   ]
 }

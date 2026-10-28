@@ -1376,6 +1376,18 @@ export async function setAdminServiceActive(
   )
 }
 
+/**
+ * DELETE /admin/vendors/:id/services/:serviceId — delete a service, live or
+ * hidden, saved immediately. Past bookings keep it; it is listed nowhere
+ * again. One inside a package is refused (409 SERVICE_IN_PACKAGE).
+ */
+export async function deleteAdminService(vendorId: string, serviceId: string) {
+  return apiClient<AdminService>(
+    `/admin/vendors/${vendorId}/services/${serviceId}`,
+    { method: 'DELETE' }
+  )
+}
+
 // ─── AI helpers ──────────────────────────────────────────────────────────────
 
 /** Which AI helpers the API has switched on. All off without an OpenAI key. */

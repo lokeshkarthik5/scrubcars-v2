@@ -1115,6 +1115,19 @@ export const adminService = {
   },
 
   /**
+   * Deletes a service, live or hidden — the garage app's Delete. One nobody
+   * has booked goes for good; one that bookings name is marked deleted, so
+   * it is listed nowhere again while those bookings keep it. A service in a
+   * package is refused, as hiding it is: take it out of the package first.
+   */
+  async deleteService(vendorId: string, serviceId: string) {
+    await assertWritableVendor(vendorId)
+    const deleted = await vendorsService.deleteService(vendorId, serviceId)
+    log.info({ vendorId, serviceId }, 'admin:service-deleted')
+    return deleted
+  },
+
+  /**
    * Where demand outruns supply.
    *
    * Each cell reports how many live garages and how many doorstep bookings it

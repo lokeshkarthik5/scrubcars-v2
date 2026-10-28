@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, inArray, lt, lte, ne, sql } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, isNull, lt, lte, ne, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import {
   bookingIntentItems,
@@ -707,6 +707,7 @@ export const vendorsRepository = {
       where: and(
         eq(services.vendorId, vendorId),
         ne(services.category, 'package'),
+        isNull(services.deletedAt),
         ...(activeOnly ? [eq(services.isActive, true)] : [])
       ),
       orderBy: [asc(services.name)],
@@ -719,6 +720,7 @@ export const vendorsRepository = {
       where: and(
         eq(services.vendorId, vendorId),
         eq(services.category, 'package'),
+        isNull(services.deletedAt),
         ...(activeOnly ? [eq(services.isActive, true)] : [])
       ),
       orderBy: [asc(services.name)],
@@ -737,7 +739,8 @@ export const vendorsRepository = {
       where: and(
         eq(services.id, packageId),
         eq(services.vendorId, vendorId),
-        eq(services.category, 'package')
+        eq(services.category, 'package'),
+        isNull(services.deletedAt)
       ),
       with: {
         ...withImages,
@@ -848,7 +851,8 @@ export const vendorsRepository = {
       where: and(
         eq(services.id, serviceId),
         eq(services.vendorId, vendorId),
-        ne(services.category, 'package')
+        ne(services.category, 'package'),
+        isNull(services.deletedAt)
       ),
       with: withImages,
     })
@@ -858,7 +862,11 @@ export const vendorsRepository = {
   // which are valid for both.
   findAnyServiceById(vendorId: string, serviceId: string) {
     return db.query.services.findFirst({
-      where: and(eq(services.id, serviceId), eq(services.vendorId, vendorId)),
+      where: and(
+        eq(services.id, serviceId),
+        eq(services.vendorId, vendorId),
+        isNull(services.deletedAt)
+      ),
       with: withImages,
     })
   },
@@ -948,6 +956,16 @@ export const vendorsRepository = {
   deleteService(vendorId: string, serviceId: string) {
     return db
       .delete(services)
+      .where(and(eq(services.id, serviceId), eq(services.vendorId, vendorId)))
+      .returning()
+  },
+
+  // For a service bookings name: switched off and listed nowhere again, but
+  // kept for those bookings to read (see 0060).
+  markServiceDeleted(vendorId: string, serviceId: string) {
+    return db
+      .update(services)
+      .set({ isActive: false, deletedAt: new Date() })
       .where(and(eq(services.id, serviceId), eq(services.vendorId, vendorId)))
       .returning()
   },
