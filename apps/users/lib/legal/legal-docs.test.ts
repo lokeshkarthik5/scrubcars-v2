@@ -135,6 +135,16 @@ describe('what the Home hub keeps', () => {
     expect(text).toContain(BOOKING_DRAFT_KEY)
   })
 
+  // A guest's booking kept on the phone (0062) holds their address: the
+  // policy says it goes at log out, and both ways of logging out do it.
+  test('the booking kept on the phone is removed at log out, as the policy says', () => {
+    const read = (path: string) => readFileSync(join(import.meta.dir, path), 'utf8')
+    expect(privacy()).toContain('Deleted when you book, tap × on it or log out')
+    for (const path of ['../../app/profile/page.tsx', '../../components/providers/app-provider.tsx']) {
+      expect(read(path)).toContain('clearBookingDraft()')
+    }
+  })
+
   // Matching is declared ahead of the switch: the policy says what it would
   // use, and that it starts only when this text takes effect. The release
   // that turns HOME_OFFER_TARGETING on publishes this text.

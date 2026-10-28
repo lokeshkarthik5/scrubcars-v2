@@ -162,9 +162,11 @@ test.describe('guest checkout @p0', () => {
     await describeCar(page, 'Hatchback', 'Kia', 'Sonet')
 
     await enterNumberAndCode(page, CUSTOMERS.guestExisting.phone)
-    // Known number: no name box.
+    // Known number: no name box, and Verify promises no payment: a returning
+    // account stops after it to see what is theirs.
     await expect(signInCard(page).getByLabel('Your name (for the garage)')).toHaveCount(0)
-    await signInCard(page).getByRole('button', { name: 'Verify and pay ₹499' }).click()
+    await expect(signInCard(page).getByRole('button', { name: /Verify and pay/ })).toHaveCount(0)
+    await signInCard(page).getByRole('button', { name: 'Verify and continue' }).click()
 
     // Signed in, and stopped short of paying: the account has a saved car, so
     // what was entered stays chosen and "Use saved" is offered.
@@ -184,6 +186,36 @@ test.describe('guest checkout @p0', () => {
       select id from user_vehicles where user_id = ${CUSTOMERS.guestExisting.id}
     `
     expect(after.length).toBe(before.length)
+  })
+
+  test('a link’s code that does not apply stops Pay once, says why, and the next Pay is the full price', async ({ page }) => {
+    const phone = await unusedPhone()
+    await forgetOtps(phone)
+
+    // FLAT100 needs ₹1,000 or more; this cart is ₹499. Checked only once the
+    // car is saved to the new account, at Pay.
+    const checkout = new CheckoutPage(page)
+    await page.goto(`/book/${VENDORS.main.id}?service=${SERVICES.wash.id}&code=FLAT100`)
+    await checkout.pickTomorrowSlot()
+    await describeCar(page, 'Sedan', 'Honda', 'City')
+    await expect(page.getByText('Code FLAT100 is checked when you pay.')).toBeVisible()
+
+    await enterNumberAndCode(page, phone)
+    await signInCard(page).getByLabel('Your name (for the garage)').fill('Code Guest Kavi')
+    await signInCard(page).getByRole('button', { name: 'Verify and pay ₹499' }).click()
+
+    // Not paid: the coupon row says why, and the car was saved once.
+    await expect(page.getByText(/FLAT100 doesn.t apply to this booking\./).first()).toBeVisible()
+    await expect(page).toHaveURL(new RegExp(`/book/${VENDORS.main.id}`))
+    const [user] = await sql<{ id: string }[]>`select id from users where phone = ${phone}`
+    expect(await bookingsForUser(user.id)).toHaveLength(0)
+
+    await checkout.pay()
+    await page.waitForURL(/\/bookings\/[0-9a-f-]+/)
+    const [booking] = await bookingsForUser(user.id)
+    expect(booking.amount).toBe('499.00')
+    const cars = await sql`select id from user_vehicles where user_id = ${user.id}`
+    expect(cars).toHaveLength(1)
   })
 
   test('"Have an account? Sign in" opens the same card before anything is chosen', async ({ page }) => {

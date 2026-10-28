@@ -65,6 +65,7 @@ import {
   type PinText,
 } from '@/components/pin-autofill'
 import { LEGAL_LINKS } from '@/lib/legal/routes'
+import { clearBookingDraft } from '@repo/core/booking-draft'
 import { CookieSettingsButton } from '@/components/consent/cookie-settings-button'
 
 type VehicleType = 'sedan' | 'suv' | 'hatchback'
@@ -186,6 +187,9 @@ export default function ProfilePage() {
     resetUser()
     // Home's pending offer code and car are this account's, not the next one's.
     usePendingCheckoutStore.getState().clear()
+    // So is a booking kept on the phone (0062): its address must not come
+    // back in the next person's checkout.
+    clearBookingDraft()
     window.location.href = '/login'
   }
 

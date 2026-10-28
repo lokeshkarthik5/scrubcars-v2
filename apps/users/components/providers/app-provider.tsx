@@ -8,6 +8,7 @@ import { APP_VERSION } from '@repo/core/version'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { useBookingsStore } from '@repo/core/stores/bookings-store'
 import { usePendingCheckoutStore } from '@repo/core/stores/pending-checkout-store'
+import { clearBookingDraft } from '@repo/core/booking-draft'
 import { useUserStore } from '@repo/core/stores/user-store'
 import { LEGAL_ROUTES } from '@/lib/legal/routes'
 import { SIGNED_IN_HINT_KEY } from './signed-in-landing'
@@ -96,6 +97,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // An offer code or car picked on Home belongs to the account that
       // picked it, not to the next person to sign in on this phone.
       usePendingCheckoutStore.getState().clear()
+      // And a booking kept on the phone (0062), whose car and address are theirs.
+      clearBookingDraft()
 
       if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
         window.location.href = '/login'
