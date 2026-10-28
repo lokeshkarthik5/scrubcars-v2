@@ -61,8 +61,11 @@ async function expectMedal(page: Page, garageId: string, name: string | null) {
   }
 }
 
-/** A garage's card in the list: its link, named by everything on the card. */
-const card = (page: Page, name: string) => page.getByRole('link', { name: new RegExp(name) })
+/**
+ * A garage's card in the list: its link to the garage page (the link takes no
+ * name from the article inside it, so it is found by where it goes).
+ */
+const card = (page: Page, garage: { id: string }) => page.locator(`a[href^="/garage/${garage.id}"]`)
 
 const switchFor = (page: Page, tier: string) =>
   page.getByRole('region', { name: 'Tiers' }).getByRole('switch', { name: `Show ${tier} medals to customers` })
@@ -125,10 +128,10 @@ test.describe.serial('tiers and medals @p0', () => {
     await chip.click()
     await expect(chip).toHaveAttribute('aria-pressed', 'true')
 
-    await expect(card(page, TIERS.gold.name).getByRole('img', { name: 'Gold garage' })).toBeVisible()
-    await expect(card(page, TIERS.silver.name).getByRole('img', { name: 'Silver garage' })).toBeVisible()
-    await expect(card(page, TIERS.bronze.name)).toHaveCount(0)
-    await expect(card(page, TIERS.fresh.name)).toHaveCount(0)
+    await expect(card(page, TIERS.gold).getByRole('img', { name: 'Gold garage' })).toBeVisible()
+    await expect(card(page, TIERS.silver).getByRole('img', { name: 'Silver garage' })).toBeVisible()
+    await expect(card(page, TIERS.bronze)).toHaveCount(0)
+    await expect(card(page, TIERS.fresh)).toHaveCount(0)
 
     // Off again: the list is every garage once more.
     await chip.click()
@@ -153,8 +156,8 @@ test.describe.serial('tiers and medals @p0', () => {
     await expectMedal(guest.page, TIERS.silver.id, null)
     await guest.page.goto('/garages')
     await guest.page.getByRole('button', { name: 'Silver & above' }).click()
-    await expect(card(guest.page, TIERS.gold.name)).toBeVisible()
-    await expect(card(guest.page, TIERS.silver.name)).toHaveCount(0)
+    await expect(card(guest.page, TIERS.gold)).toBeVisible()
+    await expect(card(guest.page, TIERS.silver)).toHaveCount(0)
 
     await hide.click()
     await expect(hide).toHaveAttribute('aria-checked', 'false')
