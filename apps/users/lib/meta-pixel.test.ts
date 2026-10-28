@@ -203,6 +203,19 @@ describe('where the Pixel stays off', () => {
     expect(pixelExcluded('/home', null)).toBe(false)
     expect(pixelExcluded('/login', '/book/x')).toBe(false)
   })
+
+  test("pages whose address carries a booking's or a car's id, or an invite code", () => {
+    expect(pixelExcluded(`/bookings/${BOOKING}`, null)).toBe(true)
+    expect(pixelExcluded(`/bookings/${BOOKING}/receipt`, null)).toBe(true)
+    expect(pixelExcluded(`/bookings/${BOOKING}/guarantee`, null)).toBe(true)
+    expect(pixelExcluded(`/profile/cars/${BOOKING}/certificate`, null)).toBe(true)
+    expect(pixelExcluded('/invite/RAVI2026', null)).toBe(true)
+    expect(pixelExcluded('/login', `/bookings/${BOOKING}`)).toBe(true)
+    // The lists themselves hold nothing of the kind.
+    expect(pixelExcluded('/bookings', null)).toBe(false)
+    expect(pixelExcluded('/profile/cars', null)).toBe(false)
+    expect(pixelExcluded(`/garage/${GARAGE}`, null)).toBe(false)
+  })
 })
 
 describe('with a payment confirmation', () => {
@@ -215,6 +228,13 @@ describe('with a payment confirmation', () => {
     expect(eventSourceUrl('https://detlio.com/')).toBe('https://detlio.com/')
     expect(eventSourceUrl('http://localhost:3000/bookings/x?then=pay')).toBe(
       'http://localhost:3000/bookings/x'
+    )
+    // A booking's id never leaves: the path is cut before it.
+    expect(
+      eventSourceUrl(`https://detlio.com/bookings/${BOOKING}?then=pay`)
+    ).toBe('https://detlio.com/bookings')
+    expect(eventSourceUrl(`https://detlio.com/${BOOKING}`)).toBe(
+      'https://detlio.com/'
     )
     expect(eventSourceUrl('https://user:pass@detlio.com/a?b')).toBe(
       'https://detlio.com/a'
@@ -297,35 +317,38 @@ describe('in the browser', () => {
     ])
   })
 
-  test('with consent: mapped events, Purchase with its shared id, and CompleteRegistration', () => {
+  test('with consent: mapped events, Purchase with its shared id, and CompleteRegistration', async () => {
     const win = fakeBrowser('detlio_consent=marketing')
     mirrorToMeta(heard('checkout_start', { vendorId: GARAGE, serviceCount: 2 }))
     mirrorToMeta(heard('home_view'))
-    trackPurchase({ bookingId: BOOKING, rupeesPaid: 1299.5, numItems: 2 })
+    await trackPurchase({ bookingId: BOOKING, rupeesPaid: 1299.5, numItems: 2 })
     trackRegistration()
+    const eventID = await purchaseEventId(BOOKING)
+    expect(eventID).toMatch(/^purchase_[0-9a-f]{32}$/)
+    expect(eventID).not.toContain(BOOKING.slice(0, 8))
     expect(win.fbq!.queue.slice(2)).toEqual([
       ['track', 'InitiateCheckout', { num_items: 2 }],
       [
         'track',
         'Purchase',
         { value: 1299.5, currency: 'INR', num_items: 2 },
-        { eventID: purchaseEventId(BOOKING) },
+        { eventID },
       ],
       ['track', 'CompleteRegistration', {}],
     ])
   })
 
-  test('a booking paid entirely with credit is no Purchase', () => {
+  test('a booking paid entirely with credit is no Purchase', async () => {
     const win = fakeBrowser('detlio_consent=marketing')
-    trackPurchase({ bookingId: BOOKING, rupeesPaid: 0, numItems: 1 })
+    await trackPurchase({ bookingId: BOOKING, rupeesPaid: 0, numItems: 1 })
     expect(win.fbq).toBeUndefined()
   })
 
-  test('without consent, or before a choice, nothing is put on the page', () => {
+  test('without consent, or before a choice, nothing is put on the page', async () => {
     for (const cookie of ['detlio_consent=essential', '']) {
       const win = fakeBrowser(cookie)
       mirrorToMeta(heard('garage_view', { vendorId: GARAGE }))
-      trackPurchase({ bookingId: BOOKING, rupeesPaid: 499, numItems: 1 })
+      await trackPurchase({ bookingId: BOOKING, rupeesPaid: 499, numItems: 1 })
       trackRegistration()
       expect(win.fbq).toBeUndefined()
     }

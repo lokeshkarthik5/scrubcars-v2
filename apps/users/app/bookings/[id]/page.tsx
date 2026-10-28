@@ -32,6 +32,7 @@ import { Stars } from '@repo/ui/sc/stars'
 import { getBooking } from '@repo/core/api/bookings'
 import { createPaymentOrder, verifyPayment } from '@repo/core/api/payments'
 import { submitReview } from '@repo/core/api/reviews'
+import { amountBucket } from '@repo/core/analytics-events'
 import { track } from '@repo/core/analytics'
 import { toast } from 'react-toastify'
 import {
@@ -547,8 +548,14 @@ export default function BookingDetailPage({
           })
 
           if (outcome.kind === 'booked') {
+            track('pay_success', {
+              vendorId: booking.vendorId,
+              mode: booking.bookingType,
+              serviceCount: Math.min(20, Math.max(1, booking.items.length)),
+              amountBucket: amountBucket(order.amount / 100),
+            })
             // Meta's Purchase (marketing consent only), as at checkout.
-            trackPurchase({
+            void trackPurchase({
               bookingId: booking.id,
               rupeesPaid: order.amount / 100,
               numItems: booking.items.length,
@@ -559,6 +566,11 @@ export default function BookingDetailPage({
             void invalidateHome(queryClient)
             toast.success('Payment successful')
           } else {
+            if (outcome.kind === 'failed')
+              track('pay_failed', {
+                vendorId: booking.vendorId,
+                mode: booking.bookingType,
+              })
             setPaid({
               paymentId,
               phase: outcome.kind,
@@ -573,6 +585,10 @@ export default function BookingDetailPage({
           )
         },
         onFailure: (message) => {
+          track('pay_failed', {
+            vendorId: booking.vendorId,
+            mode: booking.bookingType,
+          })
           toast.error(message)
         },
       })

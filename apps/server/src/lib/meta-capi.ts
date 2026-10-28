@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { isIP } from 'node:net'
 import { runInBackground } from './background.js'
 import { env } from './env.js'
@@ -8,8 +9,8 @@ const log = logger.child({ module: 'meta-capi' })
 /**
  * Meta Conversions API: one Purchase event per paid booking, sent from the
  * server beside the customer app's Pixel, under the same event id
- * (`purchase-<bookingId>`, packages/core `purchaseEventId`) so Meta counts
- * it once. Only for a customer who accepted marketing cookies (the verify
+ * (`purchase_` + a SHA-256 of the booking id, packages/core
+ * `purchaseEventId`) so Meta counts it once, and never sees the booking id. Only for a customer who accepted marketing cookies (the verify
  * call's `marketing` block), only from Production, and only what is listed
  * in buildPurchaseEvent: never a name, phone, email, address or any hashed
  * identifier. See AGENTS.md, "Meta Conversions API".
@@ -73,7 +74,24 @@ export function cleanEventSourceUrl(value: unknown): string | undefined {
   if (url.protocol !== 'https:') return undefined
   if (!EVENT_SOURCE_HOSTS.has(url.hostname)) return undefined
   if (url.port || url.username || url.password) return undefined
+  // A booking's (or a car's) id in the path is a way back to a person: the
+  // app sends the path cut before it, so one here is refused. A garage's id
+  // (checkout, /book/<garage>) is on its public page anyway.
+  if (carriesPrivateId(url.pathname)) return undefined
   return `${url.origin}${url.pathname}`
+}
+
+const UUID_SEGMENT =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const GARAGE_SEGMENTS = new Set(['book', 'garage'])
+
+/** An id in the path that isn't a garage's (apps/users eventSourceUrl cuts there). */
+function carriesPrivateId(pathname: string): boolean {
+  const segments = pathname.split('/')
+  return segments.some(
+    (segment, i) =>
+      UUID_SEGMENT.test(segment) && !GARAGE_SEGMENTS.has(segments[i - 1] ?? '')
+  )
 }
 
 /** The client's address as Meta takes it, or undefined (the limiter's 'unknown'). */
@@ -160,9 +178,19 @@ export interface PurchaseContext {
   eventSourceUrl?: string
 }
 
-/** The event id the Pixel and this share for one booking (packages/core purchaseEventId). */
+/**
+ * The event id the Pixel and this share for one booking: "purchase_" and
+ * the first 32 hex characters of the SHA-256 of the booking id, lowercased.
+ * Twin of packages/core/src/api/payments.ts `purchaseEventId` (Web Crypto,
+ * in the browser); the server does not depend on @repo/core, so
+ * meta-capi.parity.test.ts runs both on the same ids. Change them together,
+ * or Meta counts every booking twice.
+ */
 export function purchaseEventId(bookingId: string): string {
-  return `purchase-${bookingId}`
+  const hex = createHash('sha256')
+    .update(bookingId.toLowerCase(), 'utf8')
+    .digest('hex')
+  return `purchase_${hex.slice(0, 32)}`
 }
 
 /** The request body Meta is sent, without the access token. */

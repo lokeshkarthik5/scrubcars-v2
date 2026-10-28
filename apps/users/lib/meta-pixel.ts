@@ -28,11 +28,25 @@ export const PIXEL_SCRIPT_URL = 'https://connect.facebook.net/en_US/fbevents.js'
 export const PIXEL_SCRIPT_ID = 'meta-pixel-js'
 
 /**
- * Pages the Pixel stays off: a gift's page (/gift/<code>, 0049) and sign-in
- * on the way to it (?next=/gift/<code>), a printed coupon's page (/c/<code>,
- * 0056) likewise, and a shared Service History certificate (/verify/<token>,
- * 0053). The code is the gift, the coupon or the car's record, and Meta is
- * sent the page's full address.
+ * The customer's own pages whose address carries an id or a code: a
+ * booking's pages (/bookings/<id>, its receipt and its Guarantee claim),
+ * a car's (/profile/cars/<id>, its certificate) and a friend's invite
+ * (/invite/<code>). The id is our reference for the booking or the car.
+ */
+const PERSONAL_PATH = /^\/(bookings\/[^/]+|profile\/cars\/[^/]+|invite\/[^/]+)/
+
+function carriesPersonalId(path: string | null): boolean {
+  return !!path && PERSONAL_PATH.test(path)
+}
+
+/**
+ * Pages the Pixel and Clarity (components/clarity.tsx) stay off, because
+ * Meta and Microsoft are sent the page's full address: a gift's page
+ * (/gift/<code>, 0049) and sign-in on the way to it (?next=/gift/<code>), a
+ * printed coupon's page (/c/<code>, 0056) likewise, a shared Service
+ * History certificate (/verify/<token>, 0053), and the pages whose address
+ * carries a booking's or a car's id or an invite code, and sign-in on the
+ * way to one (0061).
  */
 export function pixelExcluded(
   pathname: string | null,
@@ -41,7 +55,9 @@ export function pixelExcluded(
   return (
     carriesGiftCode(pathname, next) ||
     carriesCouponCode(pathname, next) ||
-    isVerifyPath(pathname)
+    isVerifyPath(pathname) ||
+    carriesPersonalId(pathname) ||
+    carriesPersonalId(next)
   )
 }
 
@@ -278,14 +294,26 @@ export function mirrorToMeta(event: TrackedEvent) {
 /**
  * A paid booking, right after its payment is confirmed: what was paid
  * through Razorpay (rupees), how many services, and the event id the API's
- * Conversions API report uses too, so Meta counts the booking once.
+ * Conversions API report uses too, so Meta counts the booking once. That id
+ * is a hash of the booking's id (purchaseEventId), never the id itself.
+ * Never throws; the caller need not wait for it.
  */
-export function trackPurchase(input: {
+export async function trackPurchase(input: {
   bookingId: string
   rupeesPaid: number
   numItems: number
-}) {
+}): Promise<void> {
   if (!(input.rupeesPaid > 0)) return
+  // Checked before hashing, so a customer who said no costs nothing.
+  if (typeof window === 'undefined' || !marketingAllowed()) return
+  let eventID: string
+  try {
+    eventID = await purchaseEventId(input.bookingId)
+  } catch {
+    // No Web Crypto (a very old browser): no browser Purchase. The API's
+    // report still goes, under the same id.
+    return
+  }
   sendToMeta(
     'track',
     'Purchase',
@@ -294,7 +322,7 @@ export function trackPurchase(input: {
       currency: 'INR',
       num_items: input.numItems,
     },
-    { eventID: purchaseEventId(input.bookingId) }
+    { eventID }
   )
 }
 
@@ -324,12 +352,31 @@ export function readCookie(
   return undefined
 }
 
-/** A page's address without its query string or fragment: origin and path only. */
+const UUID_SEGMENT =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** Path segments an id may follow and stay: a garage's, which its public page shows anyway. */
+const GARAGE_SEGMENTS = new Set(['book', 'garage'])
+
+/**
+ * A page's address without its query string or fragment: origin and path
+ * only, and the path cut before its first id that isn't a garage's (a
+ * booking paid from its own page reports https://detlio.com/bookings, never
+ * the booking's id; checkout keeps /book/<garage>).
+ */
 export function eventSourceUrl(href: string): string | undefined {
   try {
     const url = new URL(href)
     if (url.protocol !== 'https:' && url.protocol !== 'http:') return undefined
-    return `${url.origin}${url.pathname}`
+    const segments = url.pathname.split('/')
+    const firstId = segments.findIndex(
+      (segment, i) =>
+        UUID_SEGMENT.test(segment) &&
+        !GARAGE_SEGMENTS.has(segments[i - 1] ?? '')
+    )
+    const path =
+      firstId === -1 ? url.pathname : segments.slice(0, firstId).join('/')
+    return `${url.origin}${path || '/'}`
   } catch {
     return undefined
   }
@@ -357,11 +404,21 @@ export function marketingContext(input: {
   return context
 }
 
-/** The same, from this page. */
+/**
+ * The same, from this page. A payment is made at checkout or on a booking's
+ * own page; the Pixel stays off the latter (its address holds the booking's
+ * id), but the API's report still goes with consent, its page address cut
+ * before the id (eventSourceUrl). Never from a page that holds a code.
+ */
 export function currentMarketingContext(): MarketingConsentContext | undefined {
   try {
+    const next = new URLSearchParams(window.location.search).get('next')
+    const holdsCode =
+      carriesGiftCode(window.location.pathname, next) ||
+      carriesCouponCode(window.location.pathname, next) ||
+      isVerifyPath(window.location.pathname)
     return marketingContext({
-      allowed: marketingAllowed() && !currentPageExcluded(),
+      allowed: marketingAllowed() && !holdsCode,
       cookieString: document.cookie,
       href: window.location.href,
     })

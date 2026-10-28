@@ -76,9 +76,34 @@ export interface MarketingConsentContext {
   eventSourceUrl?: string
 }
 
-/** The Purchase event id the Pixel and the Conversions API share for one booking. */
-export function purchaseEventId(bookingId: string): string {
-  return `purchase-${bookingId}`
+/** What every Purchase event id starts with. */
+export const PURCHASE_EVENT_PREFIX = 'purchase_'
+
+/** How many hex characters of the SHA-256 follow it (128 bits). */
+export const PURCHASE_EVENT_HEX_LENGTH = 32
+
+/** The event id from the SHA-256 of the booking id, as lowercase hex. */
+export function purchaseEventIdFromDigest(hex: string): string {
+  return `${PURCHASE_EVENT_PREFIX}${hex.slice(0, PURCHASE_EVENT_HEX_LENGTH)}`
+}
+
+/**
+ * The Purchase event id the Pixel and the Conversions API share for one
+ * booking, so Meta counts it once: "purchase_" and the first 32 hex
+ * characters of the SHA-256 of the booking's id (lowercased). Meta never
+ * sees the booking's id, which is our reference number for it.
+ *
+ * Web Crypto, so it runs in the browser; the API works out the same with
+ * node:crypto (apps/server/src/lib/meta-capi.ts `purchaseEventId`), and
+ * apps/server/src/lib/meta-capi.parity.test.ts proves the two agree.
+ */
+export async function purchaseEventId(bookingId: string): Promise<string> {
+  const bytes = new TextEncoder().encode(bookingId.toLowerCase())
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))
+  const hex = Array.from(digest, (byte) =>
+    byte.toString(16).padStart(2, '0')
+  ).join('')
+  return purchaseEventIdFromDigest(hex)
 }
 
 export type VerifyPaymentPayload = (

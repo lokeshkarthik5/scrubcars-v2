@@ -28,6 +28,21 @@ export const CLIENT_EVENTS = [
   // 0056: a printed coupon's page opened, and a coupon added (source: link, typed, camera).
   'coupon_scan',
   'coupon_redeem',
+  // 0061: the landing → paid steps of admin's Statistics → Behaviour.
+  'landing_view',
+  'garage_card_seen',
+  'area_pick',
+  'mode_switch',
+  'service_sheet_open',
+  'booking_start',
+  'otp_sent',
+  'pay_success',
+  'pay_failed',
+  // 0061, named now for the landing page's next release (not sent yet).
+  'request_sent',
+  'free_wash_claim',
+  'banner_view',
+  'banner_close',
 ] as const
 
 export type ClientEventName = (typeof CLIENT_EVENTS)[number]
@@ -69,9 +84,28 @@ export function deviceClass(viewportWidth: number): DeviceClass {
   return 'desktop'
 }
 
+/**
+ * Where a visit came from, sorted for the Behaviour tab's Source filter:
+ * Instagram (its app's browser, a link from it, or utm_source), Google,
+ * Facebook, WhatsApp, Direct (no referrer and no campaign) or Other.
+ */
+export const CHANNELS = ['instagram', 'google', 'facebook', 'whatsapp', 'direct', 'other'] as const
+export type Channel = (typeof CHANNELS)[number]
+
 /** The props each event may carry, with their shapes. */
 export interface EventProps {
-  app_open: { source?: string }
+  /**
+   * The visit's first page view, once per visit: where it came from. The
+   * page it opened on is the event's own path.
+   */
+  app_open: {
+    source?: string
+    medium?: string
+    campaign?: string
+    /** The referring site's domain, never its full address. */
+    referrer?: string
+    channel?: Channel
+  }
   home_view: Record<string, never>
   garage_list_view: { mode?: BookingMode; category?: BrowseCategory }
   search: { category?: BrowseCategory; queryLength?: number }
@@ -90,11 +124,34 @@ export interface EventProps {
   coupon_scan: Record<string, never>
   /** How it was added: the QR's link, typed, or the camera in Profile. */
   coupon_redeem: { source?: 'link' | 'typed' | 'camera' }
+  /** The marketing homepage, detlio.com/. */
+  landing_view: Record<string, never>
+  /** A garage card was on screen in a list, once per visit. */
+  garage_card_seen: { mode?: BookingMode }
+  /** An area chip or "Near me" picked (a slug such as anna-nagar or near-me). */
+  area_pick: { area?: string; mode?: BookingMode }
+  /** At garage / Doorstep / Pickup switched to. */
+  mode_switch: { mode: BookingMode }
+  /** A service's details sheet opened on a garage's page. */
+  service_sheet_open: { vendorId: string; category?: BrowseCategory }
+  /** Book Now pressed on a garage's page, signed in or not. */
+  booking_start: { vendorId: string; mode?: BookingMode; serviceCount?: number }
+  /** A sign-in code was sent to the number typed: that one was, never which. */
+  otp_sent: Record<string, never>
+  /** The payment went through and the booking is made. */
+  pay_success: { vendorId: string; mode?: BookingMode; serviceCount?: number; amountBucket?: AmountBucket }
+  /** Razorpay refused the payment, or it could not be confirmed. */
+  pay_failed: { vendorId: string; mode?: BookingMode }
+  request_sent: { vendorId?: string; mode?: BookingMode }
+  free_wash_claim: Record<string, never>
+  /** Which banner, as a slug. */
+  banner_view: { banner?: string }
+  banner_close: { banner?: string }
 }
 
 /** The keys each event may carry; the server refuses any other. */
 export const EVENT_PROPS: { [K in ClientEventName]: ReadonlyArray<keyof EventProps[K] & string> } = {
-  app_open: ['source'],
+  app_open: ['source', 'medium', 'campaign', 'referrer', 'channel'],
   home_view: [],
   garage_list_view: ['mode', 'category'],
   search: ['category', 'queryLength'],
@@ -112,6 +169,19 @@ export const EVENT_PROPS: { [K in ClientEventName]: ReadonlyArray<keyof EventPro
   favourite_remove: ['vendorId'],
   coupon_scan: [],
   coupon_redeem: ['source'],
+  landing_view: [],
+  garage_card_seen: ['mode'],
+  area_pick: ['area', 'mode'],
+  mode_switch: ['mode'],
+  service_sheet_open: ['vendorId', 'category'],
+  booking_start: ['vendorId', 'mode', 'serviceCount'],
+  otp_sent: [],
+  pay_success: ['vendorId', 'mode', 'serviceCount', 'amountBucket'],
+  pay_failed: ['vendorId', 'mode'],
+  request_sent: ['vendorId', 'mode'],
+  free_wash_claim: [],
+  banner_view: ['banner'],
+  banner_close: ['banner'],
 }
 
 /** The most events one request carries (the server refuses more). */
@@ -124,12 +194,105 @@ export const SOURCE_PATTERN = /^[a-z0-9_.-]{1,32}$/
 
 /** utm_source from a page's query string, or nothing if it isn't a plain slug. */
 export function campaignSource(search: string): string | undefined {
+  return utmValue(search, 'utm_source', SOURCE_PATTERN)
+}
+
+/** A campaign name (utm_campaign) as we keep it: a lowercase slug, a little longer. */
+export const CAMPAIGN_PATTERN = /^[a-z0-9_.-]{1,64}$/
+
+/** A referring site as we keep it: its domain only, lowercase, never its path. */
+export const REFERRER_PATTERN = /^(?=.{1,64}$)[a-z0-9-]+(\.[a-z0-9-]+)+$/
+
+/** An area or banner name: a short slug the app itself chose (anna-nagar, near-me). */
+export const SLUG_PATTERN = /^[a-z0-9-]{1,40}$/
+
+/**
+ * One utm_ value, lowercased; nothing if it isn't a plain slug. Never
+ * "cleaned up" into one: "my friend Ravi" is dropped, not kept as
+ * my_friend_ravi.
+ */
+function utmValue(search: string, key: string, pattern: RegExp): string | undefined {
   try {
-    const value = new URLSearchParams(search).get('utm_source')?.trim().toLowerCase()
-    return value && SOURCE_PATTERN.test(value) ? value : undefined
+    const value = new URLSearchParams(search).get(key)?.trim().toLowerCase()
+    return value && pattern.test(value) ? value : undefined
   } catch {
     return undefined
   }
+}
+
+/**
+ * The referring site's domain (no www.), or nothing: no referrer, one that
+ * isn't http(s), or our own site (moving between our pages is not a source).
+ * Never the referrer's path or query, which can carry a search or an id.
+ */
+export function referrerDomain(referrer: string, ownHost: string): string | undefined {
+  if (!referrer) return undefined
+  try {
+    const url = new URL(referrer)
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return undefined
+    const host = url.hostname.toLowerCase().replace(/^www\./, '')
+    const own = ownHost.toLowerCase().replace(/^www\./, '')
+    if (host === own || host.endsWith(`.${own}`)) return undefined
+    return REFERRER_PATTERN.test(host) ? host : undefined
+  } catch {
+    return undefined
+  }
+}
+
+const isDomainOf = (host: string, domain: string) => host === domain || host.endsWith(`.${domain}`)
+
+/**
+ * The channel a visit came from, for the Source filter. The campaign source
+ * wins when there is one; then the referring site; then Instagram's own
+ * in-app browser, which often sends no referrer (it says "Instagram" in its
+ * user agent; only that word is read, the user agent is never kept).
+ */
+export function visitChannel(input: { source?: string; referrer?: string; userAgent?: string }): Channel {
+  const source = input.source ?? ''
+  const host = input.referrer ?? ''
+  const userAgent = input.userAgent ?? ''
+  if (source) {
+    if (/^(ig|insta)/.test(source)) return 'instagram'
+    if (/^(fb|facebook|meta)/.test(source)) return 'facebook'
+    if (/^google/.test(source)) return 'google'
+    if (/^(wa|whatsapp)/.test(source)) return 'whatsapp'
+    return 'other'
+  }
+  if (host) {
+    if (isDomainOf(host, 'instagram.com')) return 'instagram'
+    if (isDomainOf(host, 'facebook.com') || host === 'fb.me') return 'facebook'
+    if (/(^|\.)google\.[a-z.]+$/.test(host)) return 'google'
+    if (isDomainOf(host, 'whatsapp.com') || host === 'wa.me') return 'whatsapp'
+    return 'other'
+  }
+  if (/\bInstagram\b/i.test(userAgent)) return 'instagram'
+  if (/FBAN|FBAV/.test(userAgent)) return 'facebook'
+  return 'direct'
+}
+
+/**
+ * What app_open says about where a visit came from: the utm_ tags, the
+ * referring domain and the channel those add up to. Read once, when the
+ * visit starts; the first page is the event's own path.
+ */
+export function visitAttribution(input: {
+  search: string
+  referrer: string
+  userAgent: string
+  ownHost: string
+}): EventProps['app_open'] {
+  const source = campaignSource(input.search)
+  const medium = utmValue(input.search, 'utm_medium', SOURCE_PATTERN)
+  const campaign = utmValue(input.search, 'utm_campaign', CAMPAIGN_PATTERN)
+  const referrer = referrerDomain(input.referrer, input.ownHost)
+  const out: EventProps['app_open'] = {
+    channel: visitChannel({ source, referrer, userAgent: input.userAgent }),
+  }
+  if (source) out.source = source
+  if (medium) out.medium = medium
+  if (campaign) out.campaign = campaign
+  if (referrer) out.referrer = referrer
+  return out
 }
 
 /** A category from the app's filters, or nothing for "All" or anything unknown. */

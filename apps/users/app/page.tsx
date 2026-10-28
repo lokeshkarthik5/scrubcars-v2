@@ -7,6 +7,10 @@ import {
 } from '@/components/marketing/content'
 import { getLiveGarages } from '@/components/marketing/live-garages'
 import { ScrollMotion } from '@/components/marketing/scroll-motion'
+import {
+  GarageSeenWatcher,
+  LandingView,
+} from '@/components/behaviour-marks'
 import { SkipLink } from '@/components/skip-link'
 import {
   AppShowcase,
@@ -126,6 +130,10 @@ export default async function HomePage() {
       </main>
       <SiteFooter />
       <ScrollMotion />
+      {/* Statistics → Behaviour: "Landed", and "Saw a garage" once one of
+          the garage cards below is on screen. */}
+      <LandingView />
+      <GarageSeenWatcher />
     </>
   )
 }

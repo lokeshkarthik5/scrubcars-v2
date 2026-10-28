@@ -4,12 +4,16 @@ import {
   APP_VERSION_PATTERN,
   BOOKING_MODES,
   BROWSE_CATEGORIES,
+  CAMPAIGN_PATTERN,
+  CHANNELS,
   CLIENT_EVENTS,
   DEVICE_CLASSES,
   EVENT_PROPS,
   EVENT_STEPS,
   MAX_EVENTS_PER_BATCH,
   MAX_PATH_LENGTH,
+  REFERRER_PATTERN,
+  SLUG_PATTERN,
   SOURCE_PATTERN,
 } from '../../lib/analytics.js'
 
@@ -30,6 +34,15 @@ const propsSchema = z
     step: z.enum(EVENT_STEPS),
     // The length of what was typed into search, never the words.
     queryLength: z.number().int().min(0).max(200),
+    // 0061, app_open: where the visit came from. utm_ tags as slugs, the
+    // referring site's domain alone, and the channel they add up to.
+    medium: z.string().regex(SOURCE_PATTERN),
+    campaign: z.string().regex(CAMPAIGN_PATTERN),
+    referrer: z.string().regex(REFERRER_PATTERN),
+    channel: z.enum(CHANNELS),
+    // The landing page's area chips and banners, by slug.
+    area: z.string().regex(SLUG_PATTERN),
+    banner: z.string().regex(SLUG_PATTERN),
   })
   .partial()
   .strict()

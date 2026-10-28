@@ -932,6 +932,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
       // and the booking already exists. Same way out as a paid checkout.
       if (order.paidWithCredit && order.bookingId) {
         paidRef.current = true
+        track('pay_success', {
+          vendorId,
+          mode: bookingType,
+          serviceCount: selectedServices.length,
+        })
         void invalidateHome(queryClient)
         void invalidateGiftData(queryClient)
         void invalidateRewards(queryClient)
@@ -992,9 +997,16 @@ function BookContent({ vendorId }: { vendorId: string }) {
           void invalidateRewards(queryClient)
           void invalidateCoupons(queryClient)
           if (outcome.kind === 'booked') {
+            // Statistics → Behaviour's "paid".
+            track('pay_success', {
+              vendorId,
+              mode: bookingType,
+              serviceCount: selectedServices.length,
+              amountBucket: amountBucket(order.amount / 100),
+            })
             // Meta's Purchase (marketing consent only): what Razorpay took,
             // in rupees, under the event id the API's report shares.
-            trackPurchase({
+            void trackPurchase({
               bookingId: outcome.bookingId,
               rupeesPaid: order.amount / 100,
               numItems: selectedServices.length,
@@ -1005,6 +1017,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
             // page strips it once played.
             router.push(`/bookings/${outcome.bookingId}?celebrate=1`)
           } else if (outcome.kind === 'failed') {
+            track('pay_failed', { vendorId, mode: bookingType })
             setPaid({
               paymentId,
               phase: 'failed',
@@ -1018,6 +1031,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
           toast.info('Payment cancelled. Nothing was booked.')
         },
         onFailure: (message) => {
+          // Razorpay refused the payment (a declined card, a failed UPI).
+          track('pay_failed', { vendorId, mode: bookingType })
           toast.error(message)
         },
       })
@@ -1443,7 +1458,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
                       />
                     )}
                   </span>
-                  <span className="truncate font-numeric text-[13px] text-dim">
+                  <span
+                    className="truncate font-numeric text-[13px] text-dim"
+                    data-clarity-mask="true"
+                  >
                     {v.plate}
                   </span>
                 </button>
@@ -1528,7 +1546,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
                     <span className="block text-[15px] text-text-primary">
                       {a.label}
                     </span>
-                    <span className="block truncate text-[13px] text-text-secondary">
+                    <span
+                      className="block truncate text-[13px] text-text-secondary"
+                      data-clarity-mask="true"
+                    >
                       {a.address}
                     </span>
                     {/* Said on every address it applies to, so the customer
@@ -1776,7 +1797,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 <span className="min-w-0 text-text-secondary">
                   <span className="block">Pickup &amp; drop</span>
                   {selectedAddressRecord && (
-                    <span className="block truncate text-[13px] text-text-muted">
+                    <span
+                      className="block truncate text-[13px] text-text-muted"
+                      data-clarity-mask="true"
+                    >
                       From and back to {selectedAddressRecord.address}
                     </span>
                   )}

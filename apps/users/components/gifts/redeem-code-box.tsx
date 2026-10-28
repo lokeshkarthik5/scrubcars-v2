@@ -63,6 +63,7 @@ export function RedeemCodeBox() {
         }}
       >
         <ScInput
+          data-clarity-mask="true"
           label="Have a gift code?"
           placeholder="ABCD-EFGH-JKMN-PQRS"
           autoComplete="off"

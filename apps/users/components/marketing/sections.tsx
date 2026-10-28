@@ -642,7 +642,12 @@ export function Garages({ garages }: { garages: ApiVendorListItem[] }) {
         </div>
         <ul className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {garages.map((garage, index) => (
-            <li key={garage.id} className="mk-reveal" style={stagger(index)}>
+            <li
+              key={garage.id}
+              className="mk-reveal"
+              style={stagger(index)}
+              data-garage-card=""
+            >
               <Link
                 href={`/garage/${garage.id}`}
                 className={cn(

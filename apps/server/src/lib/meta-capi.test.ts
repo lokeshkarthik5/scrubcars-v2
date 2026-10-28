@@ -53,9 +53,14 @@ function recordingFetch(answer: () => Response | Promise<Response>) {
 const settle = () => new Promise((resolve) => setTimeout(resolve, 30))
 
 describe('the event id', () => {
-  // The same format as packages/core purchaseEventId, which the Pixel uses.
-  test('purchase-<bookingId>', () => {
-    expect(purchaseEventId(BOOKING)).toBe(`purchase-${BOOKING}`)
+  // The same as packages/core purchaseEventId, which the Pixel uses
+  // (meta-capi.parity.test.ts runs both). SHA-256 worked out by hand.
+  test('purchase_ and a SHA-256 of the booking id, never the id itself', () => {
+    expect(purchaseEventId('8d3c1f2e-4b5a-4c6d-9e7f-0a1b2c3d4e5f')).toBe(
+      'purchase_82a67467bc2ee43e1c857c12ef529bb5'
+    )
+    expect(purchaseEventId(BOOKING)).toMatch(/^purchase_[0-9a-f]{32}$/)
+    expect(purchaseEventId(BOOKING)).not.toContain(BOOKING.slice(0, 8))
   })
 })
 
@@ -66,7 +71,7 @@ describe('buildPurchaseEvent', () => {
         {
           event_name: 'Purchase',
           event_time: Math.floor(PAID_AT.getTime() / 1000),
-          event_id: `purchase-${BOOKING}`,
+          event_id: purchaseEventId(BOOKING),
           action_source: 'website',
           event_source_url: 'https://detlio.com/checkout',
           user_data: {
@@ -160,6 +165,8 @@ describe('buildPurchaseEvent', () => {
       'https://user:pw@detlio.com/x',
       `https://detlio.com/${'a'.repeat(300)}`,
       'not a url',
+      // A booking's id in the path.
+      'https://detlio.com/bookings/2b7f6f0e-5d1c-4c11-9b55-2f0b6a1c9d10',
     ]) {
       const body = buildPurchaseEvent(
         facts,
@@ -171,6 +178,12 @@ describe('buildPurchaseEvent', () => {
     expect(cleanEventSourceUrl('https://www.detlio.com/bookings/new')).toBe(
       'https://www.detlio.com/bookings/new'
     )
+    // A garage's id is on its public page anyway; checkout keeps it.
+    expect(
+      cleanEventSourceUrl(
+        'https://detlio.com/book/2b7f6f0e-5d1c-4c11-9b55-2f0b6a1c9d10'
+      )
+    ).toBe('https://detlio.com/book/2b7f6f0e-5d1c-4c11-9b55-2f0b6a1c9d10')
   })
 
   test('missing or malformed browser facts are left out, never sent empty', () => {
@@ -356,7 +369,7 @@ describe('metaCapi.reportPurchase', () => {
     expect(calls).toHaveLength(1)
     expect(
       (calls[0].body.data as Array<{ event_id: string }>)[0].event_id
-    ).toBe(`purchase-${BOOKING}`)
+    ).toBe(purchaseEventId(BOOKING))
   })
 
   test('a failed send may be tried again by a later verify', async () => {

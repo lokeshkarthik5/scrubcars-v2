@@ -93,6 +93,7 @@ function ProfileSetupForm() {
 
         <div className="mt-8">
           <ScInput
+            data-clarity-mask="true"
             id="profile-name"
             label="Full name"
             placeholder="Your name"

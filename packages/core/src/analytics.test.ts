@@ -111,7 +111,7 @@ describe('the tracker', () => {
     first.flush()
     expect(browser.store.get(VISIT_KEY)).toBe(VISIT)
     expect(browser.sent[0].body.events).toEqual([
-      { name: 'app_open', path: '/garage/:id', props: { source: 'instagram' } },
+      { name: 'app_open', path: '/garage/:id', props: { source: 'instagram', channel: 'instagram' } },
     ])
 
     // The same tab after a reload: the visit goes on, no second app_open.

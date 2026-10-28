@@ -137,6 +137,7 @@ export function AddAddressSheet({ open, onClose, onAdded, pickup = false }: AddA
         />
 
         <ScInput
+          data-clarity-mask="true"
           id="address-text"
           label="Address"
           placeholder="Flat, building, street"
@@ -145,6 +146,7 @@ export function AddAddressSheet({ open, onClose, onAdded, pickup = false }: AddA
           onChange={(e) => setForm({ ...form, address: e.target.value })}
         />
         <ScInput
+          data-clarity-mask="true"
           id="address-city"
           label="City"
           placeholder="e.g. Chennai"

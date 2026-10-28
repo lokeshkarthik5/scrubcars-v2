@@ -143,6 +143,7 @@ export function ReportBypassSheet({ open, onClose, booking, rewardOffered, rewar
 
             <div className="flex flex-col gap-1">
               <ScTextarea
+                data-clarity-mask="true"
                 id="bypass-note"
                 label="Anything to add? (optional)"
                 rows={3}

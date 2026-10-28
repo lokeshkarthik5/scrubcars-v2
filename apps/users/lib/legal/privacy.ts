@@ -9,7 +9,9 @@
  * That includes the Meta Pixel (components/meta-pixel.tsx, mounted on every
  * page by app/layout.tsx, loaded only after the cookie bar's Allow; the
  * events it sends are lib/meta-pixel.ts, and the API's Conversions API
- * report of a paid booking) and the server switch HOME_OFFER_TARGETING, which
+ * report of a paid booking), Microsoft Clarity (components/clarity.tsx and
+ * lib/clarity.ts, likewise only after Allow, with the data-clarity-mask
+ * fields) and the server switch HOME_OFFER_TARGETING, which
  * stays off until this text is in force (section 2, "Offers on Home").
  */
 import { type LegalDoc, orTbc, tbc } from './doc-format'
@@ -55,7 +57,7 @@ export const PRIVACY: LegalDoc = {
     },
     {
       kind: 'callout',
-      text: '**In short:** we collect what we need to book your car care — your mobile number, name, car, and for doorstep visits your address. The garage you book sees your name, car and (for doorstep) address, and your number only around the booking itself. Payments are handled by Razorpay; we never see your card or UPI PIN. We do not sell your data or show ads in Detlio. If you allow marketing cookies, our website loads Meta\'s pixel, which tells Meta (Facebook and Instagram) which of our pages you open and what you do there, such as starting checkout or paying, so we can measure our ads there (section 4).',
+      text: '**In short:** we collect what we need to book your car care — your mobile number, name, car, and for doorstep visits your address. The garage you book sees your name, car and (for doorstep) address, and your number only around the booking itself. Payments are handled by Razorpay; we never see your card or UPI PIN. We do not sell your data or show ads in Detlio. If you allow analytics and marketing cookies, our website loads Microsoft Clarity, which records how you use our pages (taps and scrolling, with what you type hidden) so we can see where people get stuck, and Meta\'s pixel, which tells Meta (Facebook and Instagram) which of our pages you open and what you do there, such as starting checkout or paying, so we can measure our ads there (section 4).',
     },
   ],
   sections: [
@@ -165,7 +167,12 @@ export const PRIVACY: LegalDoc = {
               'Helping you and dealing with complaints. Our internal notes are not shown to garages.',
             ],
             [
-              'Only if you allow marketing cookies: the pages you open on detlio.com and some of what you do there (section 4), with your IP address and details of your browser and device',
+              'Only if you allow analytics and marketing cookies: how you use detlio.com, recorded by Microsoft Clarity (taps, scrolling and the pages you open, with what you type and your personal details on screen hidden; section 4), with your IP address and details of your browser and device',
+              'Your browser sends them to Microsoft, through Clarity (section 4)',
+              'Seeing where our website confuses people or stops them booking, to fix it. Our team watches the recordings and heatmaps in Clarity; Microsoft keeps them.',
+            ],
+            [
+              'Only if you allow analytics and marketing cookies: the pages you open on detlio.com and some of what you do there (section 4), with your IP address and details of your browser and device',
               'Your browser sends them to Meta, through Meta\'s pixel; for a paid booking our server tells Meta too (section 4)',
               'Measuring and improving our ads on Facebook and Instagram. The pixel sends straight to Meta; we do not receive or keep it.',
             ],
@@ -250,13 +257,13 @@ export const PRIVACY: LegalDoc = {
             'We never see or store your card number, CVV, UPI PIN or net-banking password. You enter them on Razorpay\'s checkout, and Razorpay tells us only whether the payment went through and its reference IDs.',
             'There are no passwords: you sign in with a one-time code.',
             'We do not collect Aadhaar, PAN or other government ID numbers, health information or biometrics.',
-            'We use one advertising tool, Meta\'s pixel, only if you allow it (section 4), and no other advertising or analytics trackers. We do not show ads in Detlio.',
+            'We use two outside tools on our website, and only if you allow them (section 4): Microsoft Clarity, to see how the website is used, and Meta\'s pixel, to measure our ads. We do not use any other advertising or analytics trackers, and we do not show ads in Detlio.',
             'We do not sell your personal data, and we do not send you marketing messages by SMS, WhatsApp or email. Offers appear only inside the app, on Home (section 2).',
           ],
         },
         {
           kind: 'note',
-          text: '**Detlio\'s own usage events (new; the public text above is unchanged and may need updating).** The customer app now records a few steps of each visit for the owner\'s booking funnel in admin Statistics: app opened, Home, the garage list (booking type and category chip), a search (its category and how many characters were typed, never the words), the map, a garage\'s page (its id and booking type), a service added (garage and category), checkout started (garage, booking type, number of services), a slot picked, an address picked (that one was, not which), Pay pressed (garage, booking type, number of services, a price band such as ₹1,000–1,999), a review or complaint submitted (that it was, never the stars or words), and Help or the Contact page opened. The API adds "booking paid" and "booking cancelled" itself (garage, booking type, price band, who cancelled), with no user id and never for test payments. Each event also has the page path with its query string and any ids removed, the device class (phone, tablet or desktop, from the window width, not the browser\'s identity), the app version, and a random visit id kept in the browser tab\'s sessionStorage, which ends when the tab is closed (no cookie, no localStorage). When the customer is signed in, the server attaches their account id from the session; it is set to null if the account is deleted. No name, number, address, car, IP address or user agent is stored; nothing goes to a third party (it is sent to api.detlio.com only); a browser with its DNT (Do-Not-Track) or Global Privacy Control setting on sends nothing. Kept 180 days, then deleted automatically. Returning-customer figures are worked out from bookings, not from these events. Please advise: (1) "no other advertising or analytics trackers" above and the storage table in section 5 (which would gain a "detlio:visit (session storage)" row) should probably mention this; (2) which lawful basis covers it (product improvement is not needed for a booking, so likely s.6 consent or a legitimate-use argument; the DNT/GPC opt-out exists today, a consent step does not); (3) whether attaching the signed-in account id is acceptable, or events should stay anonymous for everyone (one line in modules/analytics to change).',
+          text: '**Detlio\'s own usage events (0040, widened in 0061; the public text above is unchanged and may need updating).** 0061 adds the steps from the homepage to a paid booking for admin\'s Statistics → Behaviour: homepage opened, a garage card on screen (once per visit), an area chip picked, At garage / Doorstep / Pickup switched, a service\'s details opened, Book Now pressed, a sign-in code sent (that one was, never the number), payment went through or failed; and, on the visit\'s first event, where it came from: the utm_ campaign tags, the referring site\'s domain only (never its full address), and the channel those add up to (Instagram, Google, Facebook, WhatsApp, direct or other; Instagram\'s in-app browser is recognised by one word in its user agent, which is not kept). When a customer signs in with a code, the visit\'s earlier events (from the same browser tab, that day) get their account id, as events after sign-in already did. Browsers the team marks as its own (detlio.com/?team-device=1, a "detlio:team-device" flag in that browser\'s local storage) send nothing, nor does Clarity or the pixel run there. Before 0061: The customer app now records a few steps of each visit for the owner\'s booking funnel in admin Statistics: app opened, Home, the garage list (booking type and category chip), a search (its category and how many characters were typed, never the words), the map, a garage\'s page (its id and booking type), a service added (garage and category), checkout started (garage, booking type, number of services), a slot picked, an address picked (that one was, not which), Pay pressed (garage, booking type, number of services, a price band such as ₹1,000–1,999), a review or complaint submitted (that it was, never the stars or words), and Help or the Contact page opened. The API adds "booking paid" and "booking cancelled" itself (garage, booking type, price band, who cancelled), with no user id and never for test payments. Each event also has the page path with its query string and any ids removed, the device class (phone, tablet or desktop, from the window width, not the browser\'s identity), the app version, and a random visit id kept in the browser tab\'s sessionStorage, which ends when the tab is closed (no cookie, no localStorage). When the customer is signed in, the server attaches their account id from the session; it is set to null if the account is deleted. No name, number, address, car, IP address or user agent is stored; nothing goes to a third party (it is sent to api.detlio.com only); a browser with its DNT (Do-Not-Track) or Global Privacy Control setting on sends nothing. Kept 180 days, then deleted automatically. Returning-customer figures are worked out from bookings, not from these events. Please advise: (1) section 3\'s list above should probably mention this (section 5 now lists detlio:visit); (2) which lawful basis covers it (product improvement is not needed for a booking, so likely s.6 consent or a legitimate-use argument; the DNT/GPC opt-out exists today, a consent step does not); (3) whether attaching the signed-in account id is acceptable, or events should stay anonymous for everyone (one line in modules/analytics to change).',
         },
         {
           kind: 'note',
@@ -405,7 +412,7 @@ export const PRIVACY: LegalDoc = {
             },
             {
               kind: 'p',
-              text: '**The pixel runs only if you allow marketing cookies.** The first time you open detlio.com we ask, in a bar at the top of the page: "Allow" or "Only essential". Until you choose Allow, Meta\'s code is not loaded and nothing is sent to Meta. If your browser has Do-Not-Track or Global Privacy Control turned on, we treat that as "Only essential" and do not ask. The pixel never runs on a gift\'s page, a printed coupon\'s page or a shared Service History page, or on sign-in on the way to one of them, because their web addresses hold a code.',
+              text: '**The pixel runs only if you allow marketing cookies.** The first time you open detlio.com we ask, in a bar at the top of the page, whether to allow analytics and marketing cookies (Microsoft Clarity, below, and this pixel): "Allow" or "Only essential". Until you choose Allow, Meta\'s code is not loaded and nothing is sent to Meta. If your browser has Do-Not-Track or Global Privacy Control turned on, we treat that as "Only essential" and do not ask. The pixel never runs on a gift\'s page, a printed coupon\'s page, a shared Service History page or a friend\'s invite, because their web addresses hold a code, nor on a booking\'s pages or a car\'s pages in your account, because theirs hold its reference number; nor on sign-in on the way to one of them.',
             },
             {
               kind: 'p',
@@ -421,7 +428,7 @@ export const PRIVACY: LegalDoc = {
                 '**AddToCart**: you add a service, with the garage\'s reference number and the kind of service.',
                 '**InitiateCheckout**: you start checkout, with how many services you picked.',
                 '**AddPaymentInfo**: you tap Pay.',
-                '**Purchase**: you pay for a booking, with the amount paid in rupees, how many services, and an event ID made from the booking\'s ID, so that Meta counts it once.',
+                '**Purchase**: you pay for a booking, with the amount paid in rupees, how many services, and an event ID made from a scrambled (hashed) form of the booking\'s ID, which does not reveal it, so that Meta counts it once.',
                 '**CompleteRegistration**: you finish creating your Detlio account. Not your name or number.',
                 '**SlotSelected**: you pick a time at checkout.',
                 '**AddressSelected**: you pick an address at checkout (that you picked one, not which).',
@@ -436,7 +443,7 @@ export const PRIVACY: LegalDoc = {
             {
               kind: 'list',
               items: [
-                'the web address (URL) of the page. On checkout (and on sign-in, when you sign in on the way to checkout) it names the garage, the services you picked (by reference number) and whether the visit is at your door, and can include a promo code. On a booking\'s pages it carries the booking\'s reference number and can show that you have just paid for it, that you have a bill to pay, or the star rating you tapped on Home before writing a review;',
+                'the web address (URL) of the page. On checkout (and on sign-in, when you sign in on the way to checkout) it names the garage, the services you picked (by reference number) and whether the visit is at your door, and can include a promo code and the reference number of the saved address you picked (not the address itself);',
                 'the address of the page you came from;',
                 'your IP address, and details of your browser and device, such as its type and screen size;',
                 'the IDs in Meta\'s cookies on detlio.com (_fbp, and _fbc if it is set; section 5), and, if you use Facebook or Instagram in the same browser and it allows it, Meta\'s own cookies, which let Meta link the visit to your Facebook or Instagram account.',
@@ -444,7 +451,7 @@ export const PRIVACY: LegalDoc = {
             },
             {
               kind: 'p',
-              text: '**A paid booking is also sent from our server.** When you pay for a booking with marketing cookies allowed, our server tells Meta about it too, through Meta\'s Conversions API, in case your browser\'s message does not arrive: the amount, how many services, the same event ID, the page address without anything after "?", your IP address, details of your browser, and the _fbp and _fbc cookies. Never your name, mobile number or address.',
+              text: '**A paid booking is also sent from our server.** When you pay for a booking with marketing cookies allowed, our server tells Meta about it too, through Meta\'s Conversions API, in case your browser\'s message does not arrive: the amount, how many services, the same event ID, the page address without anything after "?" and without a booking\'s reference number, your IP address, details of your browser, and the _fbp and _fbc cookies. Never your name, mobile number or address.',
             },
             {
               kind: 'p',
@@ -460,7 +467,7 @@ export const PRIVACY: LegalDoc = {
             },
             {
               kind: 'note',
-              text: '**Which pages the pixel runs on.** Recommendation, not done in this release: with consent, load the pixel only on the public marketing pages (the homepage, garage pages, these policies), not on signed-in pages, whose web addresses carry booking ids (/bookings/<id>, /bookings/<id>/receipt) and checkout choices (/book/<garage>?service=…&mode=doorstep&code=…, also inside /login?next=… on the way there). Every page view sends that address to Meta, as soon as the page opens: the booking page removes ?celebrate=1 (just paid), ?then=pay (a final bill to pay) and ?rate=N (the star tapped on Home\'s "Rate your wash") with replaceState, but only after the first page view has gone. If the pixel stays on these pages, at least strip those parameters before it loads, or send Meta only the path without the query. The Purchase event\'s ID ("purchase-" and the booking\'s ID, shared with the Conversions API so Meta counts the booking once) contains the booking\'s reference number (its first eight characters); a hashed ID would avoid that. The list above describes what is sent today.',
+              text: '**Which pages the pixel runs on.** Done in 0061: the pixel (and Clarity) no longer run on a booking\'s pages (/bookings/<id>, its receipt and Guarantee claim), a car\'s pages (/profile/cars/<id>), a friend\'s invite (/invite/<code>) or sign-in on the way to one, so the booking id and the booking page\'s ?celebrate=1 (just paid), ?then=pay (a final bill to pay) and ?rate=N (the star tapped on Home\'s "Rate your wash") no longer reach Meta; the Purchase event\'s ID is now "purchase_" and a SHA-256 hash of the booking\'s ID (the browser and the Conversions API work out the same one), so it no longer contains the booking\'s reference number; and the Conversions API\'s page address is cut before any id that is not a garage\'s. Still open, recommendation: checkout\'s address (/book/<garage>?service=…&mode=doorstep&code=…&address=<saved address id>, also inside /login?next=… on the way there) still goes to Meta with each page view; either keep the pixel off checkout (losing the browser\'s checkout events, not the server\'s Purchase) or move those choices out of the address. The list above describes what is sent today.',
             },
             {
               kind: 'note',
@@ -469,6 +476,36 @@ export const PRIVACY: LegalDoc = {
             {
               kind: 'note',
               text: '**Settings in Meta\'s Events Manager.** The code turns off the pixel\'s automatic events (button clicks and page metadata: autoConfig off) and its automatic page views on in-app navigation, and sends only the events listed above. "We have not set it up to send your name, mobile number…" also needs "Automatic advanced matching" to be off for pixel 891710590692874 in Events Manager: with it on, the pixel itself reads form fields, such as the mobile number on the sign-in screen, and sends them hashed. Please have the team confirm it is off, or change the sentence.',
+            },
+          ],
+        },
+        {
+          id: 'clarity',
+          heading: 'Microsoft Clarity, to see how our website is used',
+          blocks: [
+            {
+              kind: 'p',
+              text: 'detlio.com can use **Microsoft Clarity**, a tool from Microsoft, to see how people use our website, so we can find and fix the places where they get stuck or give up: which parts of a page people tap and how far they scroll (heatmaps), taps that do nothing or are repeated in frustration, and recordings that replay a visit as it happened on screen.',
+            },
+            {
+              kind: 'p',
+              text: '**Clarity runs only if you allow analytics and marketing cookies**, in the same bar at the top of the page as Meta\'s pixel (above), with the same "Allow" or "Only essential". Until you choose Allow, Microsoft\'s code is not loaded and nothing is sent to Microsoft. Do-Not-Track and Global Privacy Control count as "Only essential". Clarity never runs on the pages the pixel stays off (above).',
+            },
+            {
+              kind: 'p',
+              text: '**What is hidden.** Clarity does not record what you type into any box. We also hide, so it is never recorded, your mobile number and sign-in code, your name, your saved addresses, your car\'s number plate, gift and coupon codes, and anything you write to us. Payment happens in Razorpay\'s own window, which Clarity cannot see. Besides what it records on screen, we tell Clarity only which step of booking a visit reached (such as "started booking") and where it came from (such as Instagram); never your name, number, account or bookings.',
+            },
+            {
+              kind: 'p',
+              text: 'With what it records, your browser also sends Microsoft your IP address and details of your browser and device, such as its type and screen size, and Clarity sets its own cookies (_clck and _clsk; section 5). Microsoft receives this on its servers outside India, and keeps recordings for about 30 days and its summaries for up to 13 months, under the [Microsoft Privacy Statement](https://privacy.microsoft.com/privacystatement). Our team looks at recordings and heatmaps in Clarity to improve the website; we do not download them.',
+            },
+            {
+              kind: 'p',
+              text: '**Changing your choice.** Tap **Cookie settings** and choose "Only essential": Clarity stops at once and its cookies are cleared.',
+            },
+            {
+              kind: 'note',
+              text: '**Microsoft Clarity (new, 0061).** Done in this release: Clarity loads only after Allow on the one question that now covers analytics and marketing (the banner\'s words: "We use cookies to see how our site is used (Microsoft Clarity) and to measure our ads on Facebook and Instagram. Allow analytics and marketing cookies?"); the first banner\'s marketing-only answer keeps the pixel but not Clarity, and is asked again; phone, code, name, address, plate, codes and free-text boxes carry data-clarity-mask; Clarity\'s ad storage is set to denied; the project id is NEXT_PUBLIC_CLARITY_ID (unset = off). Please advise: (1) whether one question for analytics and marketing together is enough for s.6 consent, or the two should be separate choices (the code can split them: lib/consent.ts); (2) whether Microsoft is our Data Processor here (Clarity\'s terms say Microsoft processes it for us, but also use it to improve its services), and so belongs in the provider table; (3) the retention figures above are Microsoft\'s published defaults, not set by us; (4) the team should keep the project\'s masking on "Balanced" or "Strict" in Clarity\'s settings, which this text relies on.',
             },
           ],
         },
@@ -510,7 +547,7 @@ export const PRIVACY: LegalDoc = {
       blocks: [
         {
           kind: 'p',
-          text: 'Most of what we store is needed to make Detlio work. The exception is Meta\'s pixel (section 4), which sets advertising cookies on detlio.com, and only if you allow marketing cookies.',
+          text: 'Most of what we store is needed to make Detlio work. The exceptions are Microsoft Clarity and Meta\'s pixel (section 4), which set analytics and advertising cookies on detlio.com, and only if you allow analytics and marketing cookies.',
         },
         {
           kind: 'table',
@@ -524,7 +561,10 @@ export const PRIVACY: LegalDoc = {
             ['detlio-location (local storage)', 'Your last location and place name, if you shared it, so the app can show nearby garages', 'Until you clear it in your browser'],
             ['detlio-pending-checkout (local storage)', 'The offer code and car you picked on Home, so checkout can apply the code', 'Cleared when you book, remove the code or log out; ignored after a day, or once the offer ends'],
             ['detlio:tip-hidden-on (local storage)', 'The day you hid the car care tip on Home', 'Until you clear it in your browser; the tip comes back the next day'],
-            ['detlio_consent (cookie)', 'Your answer to the cookie question: marketing cookies allowed, or only essential ones. Change it in Cookie settings.', '1 year'],
+            ['detlio_consent (cookie)', 'Your answer to the cookie question: analytics and marketing cookies allowed, or only essential ones. Change it in Cookie settings.', '1 year'],
+            ['detlio:visit and detlio:garage-seen (session storage)', 'Detlio\'s own measurement of a visit (section 3): a random visit ID, and whether a garage has been shown yet. Never sent anywhere but our own servers.', 'Until you close the tab'],
+            ['_clck (cookie, set by Microsoft Clarity)', 'Analytics: a random ID that lets Clarity recognise this browser on each visit to detlio.com', '1 year'],
+            ['_clsk (cookie, set by Microsoft Clarity)', 'Analytics: joins the pages of one visit into one recording', '1 day'],
             ['_fbp (cookie, set by Meta\'s pixel)', 'Advertising: a random ID that lets Meta recognise this browser on each visit to detlio.com, to measure our ads', '90 days, renewed on each visit'],
             ['_fbc (cookie, set by Meta\'s pixel)', 'Advertising: set when you arrive from a link on Facebook or Instagram (including our ads) that carries Meta\'s click ID, to record which click brought you', '90 days'],
           ],
@@ -541,7 +581,7 @@ export const PRIVACY: LegalDoc = {
       blocks: [
         {
           kind: 'p',
-          text: `Our main database is hosted in ${DATABASE}. Some of our providers (such as Vercel, Cloudflare, Sentry, Telegram and OpenAI) may process data on servers outside India, and Meta receives what its pixel sends (section 4) on its servers outside India. Indian law allows this except to countries the Government restricts, and we only use providers that protect data to a reasonable standard.`,
+          text: `Our main database is hosted in ${DATABASE}. Some of our providers (such as Vercel, Cloudflare, Sentry, Telegram and OpenAI) may process data on servers outside India, and Microsoft and Meta receive what Clarity and the pixel send (section 4) on their servers outside India. Indian law allows this except to countries the Government restricts, and we only use providers that protect data to a reasonable standard.`,
         },
         {
           kind: 'note',
@@ -564,6 +604,7 @@ export const PRIVACY: LegalDoc = {
             ['Reviews', 'Shown while the garage is listed, unless removed under our Terms or at your request; kept with the booking record after that'],
             ['Sign-in codes and session records', `Codes stop working after 3 minutes. Records of codes sent and of sign-in sessions are kept for ${LOGS}`],
             ['Server logs and error reports', LOGS],
+            ['What Microsoft Clarity records, if you allow it (section 4)', 'We do not download or keep it. Microsoft keeps recordings for about 30 days and summaries for up to 13 months; the _clck cookie on your device lasts a year.'],
             ['What Meta\'s pixel sends, if you allow it (section 4)', 'We do not receive or keep it. Meta keeps it under its own policy; the _fbp cookie on your device lasts 90 days from your last visit.'],
             ['After you close your account', `${AFTER_CLOSURE}, except records we must keep by law, as above`],
           ],
@@ -624,7 +665,7 @@ export const PRIVACY: LegalDoc = {
             '**Access.** Ask for a summary of the personal data we hold about you, what we do with it, and who we have shared it with.',
             '**Correction and updating.** You can change your cars, saved addresses and profile photo in the app (Profile). For your name or anything else, ask us.',
             '**Erasure and closing your account.** Ask us to delete your data or close your account. We will delete what we no longer need, except records the law requires us to keep (section 7), and tell you what we kept and why.',
-            '**Withdrawing consent.** You can stop sharing your location at any time in your browser\'s settings, turn Meta\'s pixel off in Cookie settings (section 4), ask us to show you only the offers shown to everyone (section 2), and withdraw consent for anything else by asking us. Withdrawing does not affect what was done before, but we may not be able to provide a booking without the data it needs.',
+            '**Withdrawing consent.** You can stop sharing your location at any time in your browser\'s settings, turn Microsoft Clarity and Meta\'s pixel off in Cookie settings (section 4), ask us to show you only the offers shown to everyone (section 2), and withdraw consent for anything else by asking us. Withdrawing does not affect what was done before, but we may not be able to provide a booking without the data it needs.',
             '**Grievance.** Complain to our Grievance Officer about how we handle your data (section 14).',
             '**Nominating someone.** You can name a person to use these rights for you if you die or are unable to.',
           ],

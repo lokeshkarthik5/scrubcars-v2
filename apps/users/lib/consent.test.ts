@@ -8,6 +8,9 @@ import {
   effectiveConsent,
   getConsentSnapshot,
   getServerConsentSnapshot,
+  allowsAnalytics,
+  allowsMarketing,
+  analyticsAllowed,
   marketingAllowed,
   openConsentSettings,
   parseConsentCookie,
@@ -51,6 +54,57 @@ describe('the consent cookie', () => {
   })
 })
 
+describe('one choice for analytics and marketing', () => {
+  test('Allow is "all", and reads back as itself', () => {
+    expect(parseConsentCookie('detlio_consent=all')).toBe('all')
+    expect(consentCookieString('all', true)).toBe(
+      'detlio_consent=all; Max-Age=31536000; Path=/; SameSite=Lax; Secure'
+    )
+  })
+
+  test('Allow covers Clarity and the Pixel; Only essential neither', () => {
+    expect(allowsAnalytics('all')).toBe(true)
+    expect(allowsMarketing('all')).toBe(true)
+    expect(allowsAnalytics('essential')).toBe(false)
+    expect(allowsMarketing('essential')).toBe(false)
+    expect(allowsAnalytics(null)).toBe(false)
+    expect(allowsMarketing(null)).toBe(false)
+  })
+
+  test('the first banner\'s "marketing" keeps the Pixel, never Clarity, and is asked again', () => {
+    expect(allowsMarketing('marketing')).toBe(true)
+    expect(allowsAnalytics('marketing')).toBe(false)
+    expect(
+      shouldAsk({
+        stored: 'marketing',
+        privacySignal: false,
+        settingsOpen: false,
+        teamDevice: false,
+      })
+    ).toBe(true)
+    expect(
+      shouldAsk({
+        stored: 'all',
+        privacySignal: false,
+        settingsOpen: false,
+        teamDevice: false,
+      })
+    ).toBe(false)
+  })
+
+  test('a team device counts as essential and is never asked', () => {
+    expect(effectiveConsent('all', false, true)).toBe('essential')
+    expect(
+      shouldAsk({
+        stored: null,
+        privacySignal: false,
+        settingsOpen: false,
+        teamDevice: true,
+      })
+    ).toBe(false)
+  })
+})
+
 describe('Do-Not-Track and Global Privacy Control', () => {
   test('count as "essential" whatever the cookie says', () => {
     expect(effectiveConsent('marketing', true)).toBe('essential')
@@ -61,16 +115,17 @@ describe('Do-Not-Track and Global Privacy Control', () => {
 
   test('are never asked, unless they open Cookie settings', () => {
     expect(
-      shouldAsk({ stored: null, privacySignal: true, settingsOpen: false })
+      shouldAsk({ stored: null, privacySignal: true, settingsOpen: false, teamDevice: false })
     ).toBe(false)
     expect(
-      shouldAsk({ stored: null, privacySignal: false, settingsOpen: false })
+      shouldAsk({ stored: null, privacySignal: false, settingsOpen: false, teamDevice: false })
     ).toBe(true)
     expect(
       shouldAsk({
         stored: 'essential',
         privacySignal: false,
         settingsOpen: false,
+        teamDevice: false,
       })
     ).toBe(false)
     expect(
@@ -78,10 +133,11 @@ describe('Do-Not-Track and Global Privacy Control', () => {
         stored: 'marketing',
         privacySignal: false,
         settingsOpen: true,
+        teamDevice: false,
       })
     ).toBe(true)
     expect(
-      shouldAsk({ stored: null, privacySignal: true, settingsOpen: true })
+      shouldAsk({ stored: null, privacySignal: true, settingsOpen: true, teamDevice: false })
     ).toBe(true)
   })
 
@@ -164,6 +220,24 @@ describe('in the browser', () => {
     })
     expect(marketingAllowed()).toBe(false)
     expect(heard).toBe(2)
+  })
+
+  test('Allow lets both run; a team device lets neither, whatever the cookie says', () => {
+    fakeBrowser('detlio_consent=all')
+    expect(analyticsAllowed()).toBe(true)
+    expect(marketingAllowed()).toBe(true)
+    const store = new Map<string, string>([['detlio:team-device', '1']])
+    fakeBrowser('detlio_consent=all', {
+      localStorage: {
+        getItem: (k: string) => store.get(k) ?? null,
+        setItem: (k: string, v: string) => void store.set(k, v),
+        removeItem: (k: string) => void store.delete(k),
+      },
+      location: { protocol: 'https:', search: '' },
+    })
+    expect(getConsentSnapshot().teamDevice).toBe(true)
+    expect(analyticsAllowed()).toBe(false)
+    expect(marketingAllowed()).toBe(false)
   })
 
   test('a browser asking not to be tracked is never "marketing", even with the cookie', () => {

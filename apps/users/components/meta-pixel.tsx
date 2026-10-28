@@ -3,6 +3,7 @@
 import { usePathname, useSearchParams } from 'next/navigation'
 import { useEffect, useRef, useSyncExternalStore } from 'react'
 import {
+  allowsMarketing,
   effectiveConsent,
   getConsentSnapshot,
   getServerConsentSnapshot,
@@ -14,33 +15,7 @@ import {
   pixelExcluded,
   sendToMeta,
 } from '@/lib/meta-pixel'
-
-/** Runs `run` once the page has loaded and the browser is idle; returns a cancel. */
-function whenIdle(run: () => void): () => void {
-  let cancelled = false
-  let idle: number | undefined
-  let timer: number | undefined
-  const go = () => {
-    if (cancelled) return
-    if (typeof window.requestIdleCallback === 'function') {
-      idle = window.requestIdleCallback(() => {
-        if (!cancelled) run()
-      })
-    } else {
-      timer = window.setTimeout(() => {
-        if (!cancelled) run()
-      }, 1)
-    }
-  }
-  if (document.readyState === 'complete') go()
-  else window.addEventListener('load', go, { once: true })
-  return () => {
-    cancelled = true
-    window.removeEventListener('load', go)
-    if (idle !== undefined) window.cancelIdleCallback?.(idle)
-    if (timer !== undefined) window.clearTimeout(timer)
-  }
-}
+import { whenIdle } from '@/lib/when-idle'
 
 /**
  * Meta Pixel, only for a customer who allowed marketing cookies (the consent
@@ -70,9 +45,17 @@ export function MetaPixel() {
     getConsentSnapshot,
     getServerConsentSnapshot
   )
+  // Allow (or the first banner's marketing yes); never with DNT/GPC or on a
+  // team device.
   const allowed =
     consent.ready &&
-    effectiveConsent(consent.stored, consent.privacySignal) === 'marketing'
+    allowsMarketing(
+      effectiveConsent(
+        consent.stored,
+        consent.privacySignal,
+        consent.teamDevice
+      )
+    )
   // The path the last page view was sent for; reset on a page the Pixel
   // stays off, so coming back to a page counts it again.
   const viewed = useRef<string | null>(null)

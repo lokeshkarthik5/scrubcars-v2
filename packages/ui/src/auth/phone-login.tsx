@@ -58,6 +58,11 @@ interface PhoneLoginProps {
    */
   termsHref?: string
   privacyHref?: string
+  /**
+   * Called once a code is on its way: the customer app records otp_sent
+   * (usage events: that a code went, never the number).
+   */
+  onOtpSent?: () => void
 }
 
 const LEGAL_LINK =
@@ -90,6 +95,7 @@ export function PhoneLogin({
   newNumberNote = 'New to Detlio? Your account is created when you verify your number.',
   termsHref,
   privacyHref,
+  onOtpSent,
 }: PhoneLoginProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -137,6 +143,11 @@ export function PhoneLogin({
       // abandoned attempt must not steer a later sign-up.
       if (next) sessionStorage.setItem('auth_next', next)
       else sessionStorage.removeItem('auth_next')
+      try {
+        onOtpSent?.()
+      } catch {
+        // A measurement never stops the sign-in.
+      }
       router.push(verifyHref)
     } catch (err) {
       setError(otpErrorMessage(err, 'Failed to send OTP'))

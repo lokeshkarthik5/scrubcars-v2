@@ -421,6 +421,13 @@
       "when": 1788006989735,
       "tag": "0059_onboarding_marks",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1788179789735,
+      "tag": "0061_behaviour_events",
+      "breakpoints": true
     }
   ]
 }

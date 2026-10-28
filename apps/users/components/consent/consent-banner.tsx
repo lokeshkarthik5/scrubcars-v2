@@ -18,7 +18,8 @@ const BUTTON =
   'inline-flex h-11 min-w-[7.5rem] flex-1 items-center justify-center rounded-full px-4 text-[14px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-white sm:flex-none'
 
 /**
- * The cookie question: "Allow marketing cookies?", with Allow and Only
+ * The cookie question, one for both: "Allow analytics and marketing
+ * cookies?" (Microsoft Clarity, Meta's Pixel), with Allow and Only
  * essential, the two the same size, and a link to the privacy policy.
  *
  * A slim bar at the top of the page, in the flow and sticky, so it takes its
@@ -27,11 +28,14 @@ const BUTTON =
  * height while it is up (app/globals.css), which the few things fixed to
  * the top move down by.
  *
- * Shown until a choice is made, on every page the Pixel may run on (not
- * the gift, coupon or certificate pages), and again from Cookie settings.
- * A browser with Do Not Track or Global Privacy Control on is never asked:
- * that already means "essential". Rendered only in the browser, after the
- * cookie is read, so a customer who has chosen never sees it flash.
+ * Shown until a choice is made, on every page the Pixel and Clarity may run
+ * on (not the gift, coupon, certificate, invite or booking pages), again
+ * from Cookie settings, and once more to a customer whose only answer was
+ * the first banner's marketing yes, which did not cover analytics. A
+ * browser with Do Not Track or Global Privacy Control on, or a team device,
+ * is never asked: that already means "essential". Rendered only in the
+ * browser, after the cookie is read, so a customer who has chosen never
+ * sees it flash.
  */
 export function ConsentBanner() {
   const pathname = usePathname()
@@ -85,10 +89,15 @@ export function ConsentBanner() {
       className="sticky top-0 z-50 border-b border-border bg-surface outline-none print:hidden"
     >
       <div className="mx-auto flex w-full max-w-[428px] flex-col gap-3 px-4 py-3 sm:max-w-3xl sm:flex-row sm:items-center sm:justify-between">
-        {consent.privacySignal ? (
+        {consent.teamDevice ? (
           <p className="text-[13px] leading-5 text-text-primary">
-            Your browser asks sites not to track you, so marketing cookies stay
-            off.{' '}
+            This is a team device: nothing is measured here, and analytics and
+            marketing cookies stay off.
+          </p>
+        ) : consent.privacySignal ? (
+          <p className="text-[13px] leading-5 text-text-primary">
+            Your browser asks sites not to track you, so analytics and marketing
+            cookies stay off.{' '}
             <Link
               href={`${LEGAL_PATHS.privacy}#meta`}
               className="underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-brand-white"
@@ -98,7 +107,8 @@ export function ConsentBanner() {
           </p>
         ) : (
           <p className="text-[13px] leading-5 text-text-primary">
-            We use cookies to measure our ads on Facebook and Instagram. Allow
+            We use cookies to see how our site is used (Microsoft Clarity) and
+            to measure our ads on Facebook and Instagram. Allow analytics and
             marketing cookies?{' '}
             <Link
               href={`${LEGAL_PATHS.privacy}#meta`}
@@ -109,7 +119,7 @@ export function ConsentBanner() {
           </p>
         )}
         <div className="flex shrink-0 gap-2">
-          {consent.privacySignal ? (
+          {consent.privacySignal || consent.teamDevice ? (
             <button
               type="button"
               onClick={closeConsentSettings}
@@ -128,7 +138,7 @@ export function ConsentBanner() {
               </button>
               <button
                 type="button"
-                onClick={() => saveConsent('marketing')}
+                onClick={() => saveConsent('all')}
                 className={`${BUTTON} bg-brand-white text-brand-black hover:bg-white/90`}
               >
                 Allow
