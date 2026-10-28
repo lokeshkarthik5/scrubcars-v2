@@ -13,7 +13,7 @@ export const placesSearchSchema = z
       .max(PLACE_KINDS.length)
       .default([])
       .transform((kinds) => [...new Set(kinds)]),
-    text: z.string().trim().max(PLACE_TEXT_MAX).optional(),
+    text: z.string().trim().min(2).max(PLACE_TEXT_MAX).optional(),
   })
   .strict()
   .refine((input) => input.kinds.length > 0 || (input.text?.length ?? 0) >= 2, {

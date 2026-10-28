@@ -9,6 +9,7 @@ import {
 } from '../../lib/lead-paste.js'
 import {
   LEAD_DUPLICATE_RADIUS_M,
+  LEAD_NAME_MAX,
   LEAD_PASTE_MAX,
   leadDisplayName,
   leadDisplayPhone,
@@ -656,7 +657,8 @@ export const leadsService = {
       const pinFrom = ola ?? google!
       const pin = { lat: pinFrom.lat, lng: pinFrom.lng }
       rows.push({
-        name: ola?.name ?? null,
+        // Ola names run to 200; ours are 120.
+        name: ola ? ola.name.slice(0, LEAD_NAME_MAX).trim() : null,
         phone: ola?.phone ?? null,
         address: ola?.address ?? null,
         lat: pin.lat,

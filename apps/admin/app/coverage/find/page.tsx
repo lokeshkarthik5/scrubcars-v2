@@ -137,7 +137,12 @@ function FindBusinesses() {
       return
     setError('')
     search.mutate(
-      { zoneId: zone.id, kinds, ...(text.trim() && { text: text.trim() }) },
+      {
+        zoneId: zone.id,
+        kinds,
+        // One letter is no search; words of two or more go with the kinds.
+        ...(text.trim().length >= 2 && { text: text.trim() }),
+      },
       {
         onSuccess: (found) => {
           setResult(found)
