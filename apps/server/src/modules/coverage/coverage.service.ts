@@ -252,12 +252,15 @@ export const coverageService = {
         await rezoneLeads(tx, now)
       })
       .catch((err: unknown) => {
-        // A lead added to it meanwhile: the RESTRICT key refuses the delete.
+        // Something points at it that the count above did not see: a lead
+        // added meanwhile, or a row of another table that keeps its zone
+        // (customer reach's sign-ups). The foreign key refuses the delete;
+        // say so without guessing which.
         if (hasPgCode(err, '23503')) {
           throw new AppError(
             409,
-            `A lead was just added to ${zone.name}. Move it first.`,
-            'ZONE_HAS_LEADS'
+            `${zone.name} is still in use, so it was kept. Reload to see what is in it.`,
+            'ZONE_IN_USE'
           )
         }
         throw err

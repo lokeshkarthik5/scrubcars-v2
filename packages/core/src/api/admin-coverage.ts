@@ -119,7 +119,7 @@ export async function updateZone(id: string, input: Partial<ZoneInput>) {
   })
 }
 
-/** DELETE /admin/coverage/zones/:id — 409 ZONE_HAS_LEADS while a lead is in it. */
+/** DELETE /admin/coverage/zones/:id — 409 ZONE_HAS_LEADS while a lead is in it, ZONE_IN_USE when something else still points at it. */
 export async function removeZone(id: string) {
   return apiClient<{ removed: true }>(`/admin/coverage/zones/${id}`, {
     method: 'DELETE',

@@ -7,7 +7,9 @@
  * use too.
  *
  * Only "E2E Test Zone" (LEADS.testZone) is added, changed and removed, and
- * it is removed again after; Perambur's seeded leads are only read here.
+ * it is removed again after; Perambur's seeded leads are only read here,
+ * and only ones coverage-leads.spec.ts never changes (`notInterested`,
+ * `knownAqua`): that file runs at the same time and edits `toTarget`.
  * The figures' rules are unit-tested in apps/admin/lib/coverage.test.ts and
  * the zone rules in apps/server/src/lib/zone-edits.test.ts.
  */
@@ -31,7 +33,7 @@ const pickBanner = (page: Page) =>
 
 const zoneButton = (page: Page, name: string) =>
   page
-    .getByRole('region', { name: 'Zones' })
+    .getByRole('region', { name: 'Zones', exact: true })
     .getByRole('button', { name: new RegExp(`^${name}: `) })
 
 test.describe.serial('Coverage in zones @p0', () => {
@@ -92,12 +94,14 @@ test.describe.serial('Coverage in zones @p0', () => {
       name: `Call list for ${LEADS.zoneName}`,
     })
     await expect(
-      list.getByText(LEADS.toTarget.name, { exact: true })
+      list.getByText(LEADS.knownAqua.name, { exact: true })
     ).toBeVisible()
     await expect(
       list.getByText(LEADS.notInterested.name, { exact: true })
     ).toBeVisible()
-    await expect(list).toContainText('Owner back on Monday')
+    await expect(
+      list.getByRole('listitem').filter({ hasText: LEADS.knownAqua.name })
+    ).toContainText('Not called yet')
     await expect(list).toContainText(`“${LEADS.notInterested.reason}”`)
 
     await drawer.getByRole('button', { name: /^Not interested \d+$/ }).click()
@@ -105,18 +109,18 @@ test.describe.serial('Coverage in zones @p0', () => {
       list.getByText(LEADS.notInterested.name, { exact: true })
     ).toBeVisible()
     await expect(
-      list.getByText(LEADS.toTarget.name, { exact: true })
+      list.getByText(LEADS.knownAqua.name, { exact: true })
     ).toHaveCount(0)
     await drawer.getByRole('button', { name: /^To target \d+$/ }).click()
     await expect(
-      list.getByText(LEADS.toTarget.name, { exact: true })
+      list.getByText(LEADS.knownAqua.name, { exact: true })
     ).toBeVisible()
     await expect(
       list.getByText(LEADS.notInterested.name, { exact: true })
     ).toHaveCount(0)
     await drawer.getByRole('button', { name: /^Onboarded \d+$/ }).click()
     await expect(
-      list.getByText(LEADS.toTarget.name, { exact: true })
+      list.getByText(LEADS.knownAqua.name, { exact: true })
     ).toHaveCount(0)
     await drawer.getByRole('button', { name: /^All \d+$/ }).click()
     await expect(
@@ -126,13 +130,13 @@ test.describe.serial('Coverage in zones @p0', () => {
     // Call and WhatsApp open the phone's apps.
     const row = list
       .getByRole('listitem')
-      .filter({ hasText: LEADS.toTarget.name })
+      .filter({ hasText: LEADS.knownAqua.name })
     await expect(
-      row.getByRole('link', { name: `Call ${LEADS.toTarget.name}` })
-    ).toHaveAttribute('href', `tel:+91${LEADS.toTarget.phone}`)
+      row.getByRole('link', { name: `Call ${LEADS.knownAqua.name}` })
+    ).toHaveAttribute('href', `tel:+91${LEADS.knownAqua.phone}`)
     await expect(
-      row.getByRole('link', { name: `WhatsApp ${LEADS.toTarget.name}` })
-    ).toHaveAttribute('href', `https://wa.me/91${LEADS.toTarget.phone}`)
+      row.getByRole('link', { name: `WhatsApp ${LEADS.knownAqua.name}` })
+    ).toHaveAttribute('href', `https://wa.me/91${LEADS.knownAqua.phone}`)
     await expect(drawer.getByRole('region', { name: 'Demand' })).toBeVisible()
 
     // Straight to the address works (the page reads ?zone= in the browser).
@@ -159,7 +163,10 @@ test.describe.serial('Coverage in zones @p0', () => {
     ).toBeVisible()
     await page.getByRole('radio', { name: 'Zones' }).click()
     await expect(page).toHaveURL(/\/coverage$/)
-    await expect(page.getByRole('region', { name: 'Zones' })).toBeVisible()
+    // Exact: "Map of the zones" is a region too.
+    await expect(
+      page.getByRole('region', { name: 'Zones', exact: true })
+    ).toBeVisible()
   })
 
   test('Edit zones: add a zone, change it, move its centre, then remove it; customers see it in GET /zones', async ({
@@ -309,6 +316,9 @@ test.describe.serial('Coverage in zones @p0', () => {
     ).toBe(0)
 
     await editor.getByRole('button', { name: 'Done' }).click()
-    await expect(page.getByRole('region', { name: 'Zones' })).toBeVisible()
+    // Exact: "Map of the zones" is a region too.
+    await expect(
+      page.getByRole('region', { name: 'Zones', exact: true })
+    ).toBeVisible()
   })
 })

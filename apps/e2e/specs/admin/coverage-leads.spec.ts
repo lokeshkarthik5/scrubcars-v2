@@ -101,10 +101,11 @@ test.describe.serial('Coverage leads @p0', () => {
       0
     )
 
-    // A different number: no warning once it is checked again. Save anyway
-    // saves straight away (the warning was read).
+    // A different number: any change clears the warning (the button is
+    // Save lead again), and checked again it finds nothing, so it saves.
     await dialog.getByLabel('Phone').fill(ADDED_PHONE)
-    await dialog.getByRole('button', { name: 'Save anyway' }).click()
+    await expect(dialog.getByRole('alert')).toHaveCount(0)
+    await dialog.getByRole('button', { name: 'Save lead' }).click()
     await expect(dialog).toHaveCount(0)
     await expect(row(list, ADDED)).toBeVisible()
     await expect(row(list, ADDED)).toContainText('E2E Admin · Met at the expo')
@@ -408,9 +409,12 @@ test.describe.serial('Coverage leads @p0', () => {
 
     // Onboard again from the old address: it says it is a garage already.
     await page.goto(`/vendors/new?by=hand&lead=${LEADS.onboard.id}`)
-    await expect(page.getByRole('alert')).toContainText(
-      `${LEADS.onboard.name} is already a garage.`
-    )
+    // Filtered: page-wide, Next's route announcer is an alert too.
+    await expect(
+      page
+        .getByRole('alert')
+        .filter({ hasText: `${LEADS.onboard.name} is already a garage.` })
+    ).toBeVisible()
     await page.getByRole('link', { name: 'Open it' }).click()
     await expect(page).toHaveURL(new RegExp(`/vendors/${garage.id}/edit`))
   })

@@ -145,6 +145,27 @@ function patch(target: object, key: string, value: unknown) {
   object[key] = value
 }
 
+/** A Postgres error as the driver throws it, by its code. */
+const pgError = (code: string) =>
+  Object.assign(new Error(`pg ${code}`), { code })
+
+/** Runs `work` with one repository function swapped, then puts it back. */
+async function withStub<T>(
+  target: object,
+  key: string,
+  stub: unknown,
+  work: () => Promise<T>
+): Promise<T> {
+  const object = target as Patchable
+  const kept = object[key]
+  object[key] = stub
+  try {
+    return await work()
+  } finally {
+    object[key] = kept
+  }
+}
+
 beforeAll(() => {
   patch(adminLoginsRepository, 'findSession', async (id: string) =>
     id === RAGA || id === PRIYA
@@ -474,6 +495,24 @@ describe('zone edits', () => {
     ).toBe(200)
     expect(zones.map((z) => z.id)).toEqual([ANNA])
   })
+
+  test('a removal the foreign key refuses is a 409 that does not guess what is in it', async () => {
+    // A lead added after the count, or a customer reach row that keeps the zone.
+    const refused = await withStub(
+      coverageRepository,
+      'deleteZone',
+      async () => {
+        throw pgError('23503')
+      },
+      async () =>
+        call('DELETE', `/admin/coverage/zones/${KILPAUK}`, await raga())
+    )
+    expect([refused.status, refused.body.code]).toEqual([409, 'ZONE_IN_USE'])
+    expect(refused.body.message).toBe(
+      'Kilpauk is still in use, so it was kept. Reload to see what is in it.'
+    )
+    expect(zones.map((z) => z.id)).toEqual([ANNA, KILPAUK])
+  })
 })
 
 describe('leads', () => {
@@ -707,6 +746,22 @@ describe('leads', () => {
         })
       ).body.code
     ).toBe('LEAD_GARAGE_TAKEN')
+    // Two leads linked to one garage at once: the unique key answers the
+    // second, as the check above would have.
+    const racing = fullLead({ name: 'Racing' })
+    leads.set(racing.id, racing)
+    const raced = await withStub(
+      leadsRepository,
+      'update',
+      async () => {
+        throw pgError('23505')
+      },
+      async () =>
+        call('PATCH', `/admin/leads/${racing.id}`, await raga(), {
+          vendorId: GARAGE_LIVE,
+        })
+    )
+    expect([raced.status, raced.body.code]).toEqual([409, 'LEAD_GARAGE_TAKEN'])
     const unlinked = await call('PATCH', path, await raga(), { vendorId: null })
     expect(unlinked.body.data).toMatchObject({
       status: 'to_target',
@@ -992,6 +1047,19 @@ describe('the zone finder', () => {
       pinSource: 'google',
       google: { rating: 4.9 },
     })
+
+    // Added by someone else between the check and the save (or a second
+    // press): the unique place id refuses it, a 409, not a 500.
+    leads.clear()
+    const raced = await withStub(
+      leadsRepository,
+      'insert',
+      async () => {
+        throw pgError('23505')
+      },
+      async () => call('POST', '/admin/leads/from-places', await raga(), body)
+    )
+    expect([raced.status, raced.body.code]).toEqual([409, 'LEAD_PLACE_TAKEN'])
   })
 
   test('rate limited per admin per hour', async () => {

@@ -1,4 +1,4 @@
-import { AppError } from '../../lib/errors.js'
+import { AppError, hasPgCode } from '../../lib/errors.js'
 import { coordsInLink } from '../../lib/geo/maps-link.js'
 import { istDateKey } from '../../lib/ist.js'
 import { findDuplicates, type MatchReason } from '../../lib/lead-match.js'
@@ -171,6 +171,8 @@ function toMatch({
 
 const leadNotFound = () => new AppError(404, 'Lead not found', 'LEAD_NOT_FOUND')
 const zoneNotFound = () => new AppError(404, 'Zone not found', 'ZONE_NOT_FOUND')
+const garageTaken = () =>
+  new AppError(409, 'Another lead is already that garage.', 'LEAD_GARAGE_TAKEN')
 
 function duplicateError(matches: DuplicateMatch[]) {
   const first = matches[0]!
@@ -442,13 +444,7 @@ export const leadsService = {
         )
       }
       const other = await leadsRepository.findByVendor(input.vendorId)
-      if (other && other.id !== lead.id) {
-        throw new AppError(
-          409,
-          'Another lead is already that garage.',
-          'LEAD_GARAGE_TAKEN'
-        )
-      }
+      if (other && other.id !== lead.id) throw garageTaken()
       Object.assign(patch, {
         vendorId: input.vendorId,
         ...statusColumns({ status: 'onboarded' }, istDateKey(now), now),
@@ -505,7 +501,13 @@ export const leadsService = {
       )
     }
 
-    const row = await leadsRepository.update(id, patch)
+    const row = await leadsRepository
+      .update(id, patch)
+      .catch((err: unknown) => {
+        // Another lead linked to the same garage meanwhile (leads_vendor_id_key).
+        if (hasPgCode(err, '23505')) throw garageTaken()
+        throw err
+      })
     if (!row) throw leadNotFound()
     log.info({ fields: Object.keys(patch).length - 1 }, 'leads:updated')
     return toLeadResponse(row)
@@ -686,7 +688,18 @@ export const leadsService = {
         updatedAt: now,
       })
     }
-    const added = await leadsRepository.insert(rows)
+    const added = await leadsRepository.insert(rows).catch((err: unknown) => {
+      // The same place added by someone else (or a second press) since the
+      // check above: the place id is unique. Nothing of this batch is saved.
+      if (hasPgCode(err, '23505')) {
+        throw new AppError(
+          409,
+          'Some of these were just added as leads. Search again to see them.',
+          'LEAD_PLACE_TAKEN'
+        )
+      }
+      throw err
+    })
     log.info({ leads: added.length, skipped }, 'leads:added_from_places')
     return { added: added.length, skipped, leads: added.map(toLeadResponse) }
   },
