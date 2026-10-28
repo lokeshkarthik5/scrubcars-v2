@@ -1397,6 +1397,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
    */
   const checkOfferFor = async (vehicleId: string): Promise<string | undefined> => {
     if (!offerCode) return undefined
+    // Claimed first, so the page's own check of Home's code (the effect
+    // above, which the saved car wakes up) does not ask a second time.
+    offerCheckedFor.current = `${offerCode}|${serviceKey}|${vehicleId}`
     try {
       const applied = await applyPromo.mutateAsync({
         code: offerCode,
@@ -1405,7 +1408,6 @@ function BookContent({ vendorId }: { vendorId: string }) {
         vehicleId,
       })
       setAppliedPromo({ discount: applied, serviceKey, vehicleId })
-      offerCheckedFor.current = `${offerCode}|${serviceKey}|${vehicleId}`
       return applied.code
     } catch {
       return undefined
