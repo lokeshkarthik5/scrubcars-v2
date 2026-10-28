@@ -52,6 +52,7 @@ import type {
 } from '../lib/rewards.js'
 import type { ServiceReminderKind, ServiceReminderStatus } from '../lib/service-reminders.js'
 import type { PhotoAngle, PhotoRole } from '../lib/job-photo-standards.js'
+import type { MarkChecklistItem } from '../lib/mark-checklist.js'
 import type {
   EligibilitySnapshot,
   QualityCheckKind,
@@ -598,12 +599,28 @@ export const vendors = pgTable(
     // never filled in automatically: whoever adds the garage may not be the
     // one who onboarded it. Usually a team login's name, or free text.
     onboardedByName: varchar('onboarded_by_name', { length: 100 }),
+    // The team's own colour for the garage on the Garages list (0061):
+    // green "All confirmed", amber "A few to confirm", red "Needs details",
+    // blue "Call back" (with an optional day), or none. Set by hand only;
+    // the names are team-wide (admin_settings 'colour_names').
+    colourTag: text('colour_tag').$type<'green' | 'amber' | 'red' | 'blue'>(),
+    colourTagCallOn: date('colour_tag_call_on', { mode: 'string' }),
+    colourTagSetBy: varchar('colour_tag_set_by', { length: 100 }),
+    colourTagSetAt: timestamp('colour_tag_set_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
   },
   (table) => [
     index('vendors_owner_id_idx').on(table.ownerId),
+    check(
+      'vendors_colour_tag_check',
+      sql`${table.colourTag} is null or ${table.colourTag} in ('green', 'amber', 'red', 'blue')`
+    ),
+    check(
+      'vendors_colour_tag_call_on_check',
+      sql`${table.colourTagCallOn} is null or ${table.colourTag} = 'blue'`
+    ),
     index('vendors_status_idx').on(table.status),
     index('vendors_deleted_at_idx')
       .on(table.deletedAt)
@@ -805,7 +822,14 @@ export const services = pgTable(
     priceHatchback: decimal('price_hatchback', { precision: 10, scale: 2 }),
     priceSedan: decimal('price_sedan', { precision: 10, scale: 2 }),
     priceSuv: decimal('price_suv', { precision: 10, scale: 2 }),
-    durationMins: integer('duration_mins').notNull(),
+    // Optional since 0061: null blocks the default 60 minutes in the slot
+    // calendar. Read it only through effectiveDurationMins
+    // (lib/service-duration.ts); a booking's own snapshot is never null.
+    durationMins: integer('duration_mins'),
+    // An optional commission percent (0–50) for this service (0061), used by
+    // Statistics instead of its category's rate. Null is the category rate.
+    // Reporting only: payouts keep the category rates (lib/commission.ts).
+    commissionRate: decimal('commission_rate', { precision: 5, scale: 2 }),
     isActive: boolean('is_active').default(true).notNull(),
     // Set when a service bookings name is deleted: it stays switched off,
     // for those bookings to read, and is listed nowhere again. A service
@@ -815,6 +839,10 @@ export const services = pgTable(
   (table) => [
     index('services_vendor_id_idx').on(table.vendorId),
     index('services_category_idx').on(table.category),
+    check(
+      'services_commission_rate_check',
+      sql`${table.commissionRate} is null or (${table.commissionRate} >= 0 and ${table.commissionRate} <= 50)`
+    ),
   ]
 )
 
@@ -1956,6 +1984,9 @@ export const vendorOnboardingMarks = pgTable(
     kind: text('kind').notNull(),
     label: varchar('label', { length: 60 }),
     note: text('note'),
+    // The mark's checklist (0061): what to find out, each with its answer and
+    // who answered it when. See lib/mark-checklist.ts.
+    items: jsonb('items').$type<MarkChecklistItem[]>().default([]).notNull(),
     status: text('status').$type<'to_ask' | 'asked' | 'received'>().default('to_ask').notNull(),
     askedAt: timestamp('asked_at', { withTimezone: true }),
     askedByName: varchar('asked_by_name', { length: 100 }),
@@ -1979,6 +2010,27 @@ export const vendorOnboardingMarks = pgTable(
       sql`${table.kind} <> 'custom' OR (${table.label} IS NOT NULL AND char_length(btrim(${table.label})) > 0)`
     ),
     check('vendor_onboarding_marks_note_check', sql`${table.note} IS NULL OR char_length(${table.note}) <= 500`),
+    check(
+      'vendor_onboarding_marks_items_check',
+      sql`jsonb_typeof(${table.items}) = 'array' AND jsonb_array_length(${table.items}) <= 30`
+    ),
+  ]
+)
+
+// Team-wide admin settings (0061), one row per key: the Garages list's
+// onboarding target ('garage_target') and the colour tags' names
+// ('colour_names'). Shapes and defaults in lib/admin-settings.ts.
+export const adminSettings = pgTable(
+  'admin_settings',
+  {
+    key: text('key').$type<'garage_target' | 'colour_names'>().primaryKey(),
+    value: jsonb('value').$type<Record<string, unknown>>().notNull(),
+    updatedByName: varchar('updated_by_name', { length: 100 }).notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check('admin_settings_key_check', sql`${table.key} in ('garage_target', 'colour_names')`),
+    check('admin_settings_value_check', sql`jsonb_typeof(${table.value}) = 'object'`),
   ]
 )
 

@@ -285,3 +285,51 @@ describe('0059: booking views and Onboarded by', () => {
     expect(create.success && create.data.onboardedByName).toBe('Someone else')
   })
 })
+
+describe('the admin round (0061)', () => {
+  const garage = {
+    ownerName: 'Mathan M',
+    ownerPhone: '9876543210',
+    businessName: 'Next Level Auto Detailing',
+    phone: '9876543211',
+    city: 'Chennai',
+  }
+
+  test('a doorstep-only garage needs no address or pincode', () => {
+    const parsed = createVendorSchema.parse({ ...garage, doorstepEnabled: true, lat: 13.08, lng: 80.27 })
+    expect(parsed.address).toBe('')
+    expect(parsed.pincode).toBe('')
+  })
+
+  test('an at-garage garage needs both, and a pincode given is 6 digits', () => {
+    const noAddress = createVendorSchema.safeParse({ ...garage, dropinEnabled: true, pincode: '600020' })
+    expect(noAddress.success).toBe(false)
+    expect(noAddress.error?.issues[0].message).toContain('needs its address and a 6-digit pincode')
+    expect(createVendorSchema.safeParse({ ...garage, dropinEnabled: true, address: '1, Main Rd' }).success).toBe(false)
+    expect(
+      createVendorSchema.safeParse({ ...garage, dropinEnabled: true, address: '1, Main Rd', pincode: '600020' }).success
+    ).toBe(true)
+    expect(createVendorSchema.safeParse({ ...garage, pincode: '6000' }).success).toBe(false)
+  })
+
+  test('an update may empty the address and pincode (the service decides)', () => {
+    expect(updateVendorSchema.parse({ address: '', pincode: '' })).toMatchObject({ address: '', pincode: '' })
+    expect(updateVendorSchema.safeParse({ pincode: '12' }).success).toBe(false)
+  })
+
+  test('a service’s duration may be empty or null; its commission percent is 0–50, two decimals, or null', () => {
+    const service = { name: 'Foam wash', category: 'car_wash', pricingType: 'flat', price: 499 }
+    const ok = (extra: Record<string, unknown>) =>
+      updateVendorSchema.safeParse({ services: [{ ...service, ...extra }] }).success
+    expect(ok({})).toBe(true)
+    expect(ok({ durationMins: null })).toBe(true)
+    expect(ok({ durationMins: 0 })).toBe(false)
+    expect(ok({ commissionRate: 6.5 })).toBe(true)
+    expect(ok({ commissionRate: 0 })).toBe(true)
+    expect(ok({ commissionRate: 50 })).toBe(true)
+    expect(ok({ commissionRate: null })).toBe(true)
+    expect(ok({ commissionRate: 50.01 })).toBe(false)
+    expect(ok({ commissionRate: -1 })).toBe(false)
+    expect(ok({ commissionRate: 6.555 })).toBe(false)
+  })
+})

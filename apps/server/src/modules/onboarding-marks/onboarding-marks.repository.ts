@@ -18,6 +18,7 @@ type MarkPatch = Partial<
     | 'status'
     | 'label'
     | 'note'
+    | 'items'
     | 'askedAt'
     | 'askedByName'
     | 'receivedAt'
@@ -129,6 +130,44 @@ export const onboardingMarksRepository = {
     }
   },
 
+  /**
+   * One change to a mark, read and written under its row lock (FOR UPDATE),
+   * so two people ticking items of the same mark at once each keep their
+   * tick. `change` is handed the row as it stands and returns the patch
+   * (the service's rules). Undefined when it is not the garage's; 'exists'
+   * as in update.
+   */
+  async updateLocked(
+    vendorId: string,
+    markId: string,
+    change: (row: MarkRecord) => MarkPatch
+  ): Promise<MarkRecord | 'exists' | undefined> {
+    try {
+      return await db.transaction(async (tx) => {
+        const [row] = await tx
+          .select()
+          .from(vendorOnboardingMarks)
+          .where(
+            and(
+              eq(vendorOnboardingMarks.id, markId),
+              eq(vendorOnboardingMarks.vendorId, vendorId)
+            )
+          )
+          .for('update')
+        if (!row) return undefined
+        const [updated] = await tx
+          .update(vendorOnboardingMarks)
+          .set(change(row))
+          .where(eq(vendorOnboardingMarks.id, markId))
+          .returning()
+        return updated
+      })
+    } catch (error) {
+      if (isUniqueViolation(error)) return 'exists'
+      throw error
+    }
+  },
+
   async remove(vendorId: string, markId: string): Promise<boolean> {
     const rows = await db
       .delete(vendorOnboardingMarks)
@@ -220,6 +259,9 @@ export const onboardingMarksRepository = {
         label: vendorOnboardingMarks.label,
         status: vendorOnboardingMarks.status,
         askedAt: vendorOnboardingMarks.askedAt,
+        // The checklist's progress (0061), read as the mark is.
+        items: vendorOnboardingMarks.items,
+        note: vendorOnboardingMarks.note,
       })
       .from(vendorOnboardingMarks)
       .where(ne(vendorOnboardingMarks.status, 'received'))

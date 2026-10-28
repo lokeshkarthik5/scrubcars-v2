@@ -1,3 +1,4 @@
+import { effectiveDurationMins } from '../../lib/service-duration.js'
 import { AppError } from '../../lib/errors.js'
 import type { BookingType } from '../../lib/booking-types.js'
 import type { PickupSettings } from '../../lib/pickup.js'
@@ -54,7 +55,7 @@ export interface SlotAlertsStore {
   findUser(userId: string): Promise<{ id: string; status: string } | undefined>
   /** Only while customers can open the garage's page. */
   findGarage(vendorId: string): Promise<AlertGarage | undefined>
-  findServices(vendorId: string, serviceIds: string[]): Promise<Array<{ id: string; durationMins: number }>>
+  findServices(vendorId: string, serviceIds: string[]): Promise<Array<{ id: string; durationMins: number | null }>>
   readDay(
     vendorId: string,
     date: string
@@ -215,7 +216,8 @@ export function slotAlertsWith(deps: {
       if (services.length !== input.serviceIds.length) {
         throw new AppError(404, 'Service not found', 'SERVICE_NOT_FOUND')
       }
-      const durationMins = services.reduce((total, service) => total + service.durationMins, 0)
+      // An unset duration holds the default 60 minutes, as at checkout (0061).
+      const durationMins = services.reduce((total, service) => total + effectiveDurationMins(service), 0)
 
       const day = alertDay(
         dayFacts(garage, input.date, await store.readDay(garage.id, input.date)),

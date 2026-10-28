@@ -22,6 +22,11 @@
  * document approved yet, so no "Documents verified" badge. Never blocking:
  * listing is the Verify button's, not the documents'.
  *
+ * The admin round (0061) adds two. Blocking: at-garage on with no address
+ * or no 6-digit pincode (a doorstep-only garage needs only its pin; owner,
+ * 28 Oct 2026). Optional: services with no duration, counted, which hold the
+ * default 60 minutes in the slot calendar.
+ *
  * Only blocking and fix count as "needs fixing"; a garage with nothing but
  * optional items is Ready.
  *
@@ -31,7 +36,9 @@
  * stage (Pending, Archived…), which the list's chips already say.
  */
 
+import { atGarageAddressMissing } from './garage-address.js'
 import { DEFAULT_PICKUP_RADIUS_KM, isPickupOffered, type VendorPickupAnswer } from './pickup.js'
+import { DEFAULT_SERVICE_DURATION_MINS } from './service-duration.js'
 import { progressLine, type DocumentsSummary } from './vendor-documents.js'
 
 export type ReadinessSeverity = 'blocking' | 'fix' | 'optional'
@@ -69,8 +76,17 @@ export interface ReadinessInput {
   bays: number | null
   vehicleTypes: string[]
   photoCount: number
-  /** Its live plain services: active, packages left out, as everywhere in admin. */
-  services: Array<{ description: string | null }>
+  /**
+   * Its address and pincode. Absent (a caller from before 0061) skips the
+   * at-garage address rule.
+   */
+  address?: string | null
+  pincode?: string | null
+  /**
+   * Its live plain services: active, packages left out, as everywhere in
+   * admin. `durationMins` absent is not counted as unset.
+   */
+  services: Array<{ description: string | null; durationMins?: number | null }>
   /** Its weekly rows. A day with no row is closed, as slots.ts reads it. */
   workingHours: Array<{ isClosed: boolean }>
   /**
@@ -130,6 +146,19 @@ export function vendorReadiness(v: ReadinessInput): ReadinessItem[] {
       detail: 'Pick At the garage, Doorstep or Both',
       short: 'booking type',
       tab: 'operations',
+    })
+  }
+
+  // At the garage, customers drive in: they need the address. Doorstep-only
+  // garages go to the customer, so their pin is enough (lib/garage-address.ts).
+  if (v.address !== undefined && atGarageAddressMissing(v)) {
+    items.push({
+      key: 'no_address',
+      severity: 'blocking',
+      label: 'No address for at-garage customers',
+      detail: 'At the garage needs the address and a 6-digit pincode',
+      short: 'address',
+      tab: 'location',
     })
   }
 
@@ -264,6 +293,19 @@ export function vendorReadiness(v: ReadinessInput): ReadinessItem[] {
       detail: `Default ${DEFAULT_PICKUP_RADIUS_KM} km used`,
       short: 'pickup radius',
       tab: 'operations',
+    })
+  }
+
+  // Null is unset; a caller that did not read the column (undefined) is not.
+  const noDuration = v.services.filter((s) => s.durationMins === null).length
+  if (noDuration > 0) {
+    items.push({
+      key: 'no_durations',
+      severity: 'optional',
+      label: `Duration not set on ${plural(noDuration, 'service')}`,
+      detail: `${DEFAULT_SERVICE_DURATION_MINS} min is held in the calendar`,
+      short: 'durations',
+      tab: 'services',
     })
   }
 

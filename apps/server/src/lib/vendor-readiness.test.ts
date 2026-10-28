@@ -275,3 +275,41 @@ describe('vendorReadiness', () => {
     })
   })
 })
+
+describe('the admin round (0061)', () => {
+  test('at-garage with no address or no 6-digit pincode is blocking; doorstep-only needs neither', () => {
+    expect(keys(ready({ address: '', pincode: '600020' }))).toContain('no_address')
+    expect(keys(ready({ address: '1, Main Rd', pincode: '' }))).toContain('no_address')
+    expect(item(ready({ address: '', pincode: '' }), 'no_address')).toMatchObject({
+      severity: 'blocking',
+      label: 'No address for at-garage customers',
+      tab: 'location',
+    })
+    expect(keys(ready({ dropinEnabled: false, address: '', pincode: '' }))).not.toContain('no_address')
+    expect(keys(ready({ address: '1, Main Rd', pincode: '600020' }))).not.toContain('no_address')
+    // A caller that did not read the address is not judged on it.
+    expect(keys(ready())).not.toContain('no_address')
+  })
+
+  test('services with no duration are counted as optional, never blocking', () => {
+    const it = item(
+      ready({
+        services: [
+          { description: 'A.', durationMins: null },
+          { description: 'B.', durationMins: null },
+          { description: 'C.', durationMins: 45 },
+        ],
+      }),
+      'no_durations'
+    )
+    expect(it).toMatchObject({
+      severity: 'optional',
+      label: 'Duration not set on 2 services',
+      detail: '60 min is held in the calendar',
+      tab: 'services',
+    })
+    expect(keys(ready({ services: [{ description: 'A.', durationMins: 30 }] }))).not.toContain('no_durations')
+    // Not read (undefined) is not unset.
+    expect(keys(ready())).not.toContain('no_durations')
+  })
+})

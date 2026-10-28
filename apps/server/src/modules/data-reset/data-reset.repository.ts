@@ -375,6 +375,29 @@ export function dataResetReads(conn: Conn) {
         .orderBy(asc(complaints.number))
     },
 
+    /**
+     * The complaints about these bookings (0061): deleting one test booking
+     * takes them with it.
+     */
+    async complaintsOfBookings(bookingIds: string[]): Promise<ResetComplaint[]> {
+      if (bookingIds.length === 0) return []
+      const rows: ResetComplaint[] = []
+      for (const slice of batches(bookingIds)) {
+        rows.push(
+          ...(await conn
+            .select({
+              id: complaints.id,
+              number: complaints.number,
+              createdAt: complaints.createdAt,
+              bookingId: complaints.bookingId,
+            })
+            .from(complaints)
+            .where(inArray(complaints.bookingId, slice)))
+        )
+      }
+      return rows.sort((a, b) => a.number - b.number)
+    },
+
     /** How many usage events (0040) were recorded before the cutoff. */
     async analyticsEventsBefore(cutoff: Date): Promise<number> {
       const [row] = await conn

@@ -22,6 +22,13 @@
  * Reporting only. Nothing here changes a payout, the earnings screen, a
  * receipt or anything a garage sees; it is a figure for the owner.
  *
+ * A service may carry its own percent (0061, `services.commission_rate`,
+ * 0–50%; owner decision 28 Oct 2026: "percent only"), which replaces its
+ * category's rate for that service's lines and, as the main service, for a
+ * final bill. Statistics pass it (`overrideRate`); the garage payouts never
+ * do, so they keep charging the category rates. The free 25 apply either
+ * way.
+ *
  * Pure: the caller passes the rows. Money is rupee strings at rest and
  * integer paise in here, as lib/discounts.ts keeps it.
  */
@@ -144,6 +151,32 @@ export interface CommissionItem {
   amount: string
   pricingType?: string | null
   sortOrder: number
+  /**
+   * The service's own rate as a fraction (0.06 for 6%), when it has one
+   * (0061). Statistics only: payouts leave it out. Absent or null is the
+   * category's rate.
+   */
+  overrideRate?: number | null
+}
+
+/** The most a service's own rate may be: 50%, as the column's CHECK holds it. */
+export const MAX_OVERRIDE_RATE = 0.5
+
+/**
+ * The rate one line is charged at: the service's own, when it has a valid
+ * one, else its category's.
+ */
+export function itemRate(item: Pick<CommissionItem, 'category' | 'overrideRate'>): number {
+  const own = item.overrideRate
+  if (typeof own === 'number' && Number.isFinite(own) && own >= 0 && own <= MAX_OVERRIDE_RATE) return own
+  return COMMISSION_RATES[item.category]
+}
+
+/** A service's stored percent ("6.50") as the fraction itemRate reads, or null. */
+export function overrideRateFromPercent(percent: string | number | null | undefined): number | null {
+  if (percent === null || percent === undefined || percent === '') return null
+  const value = Number(percent)
+  return Number.isFinite(value) && value >= 0 && value <= MAX_OVERRIDE_RATE * 100 ? value / 100 : null
 }
 
 /** A booking chain's latest row, with its money and items. */
@@ -185,9 +218,14 @@ export function earnsPayout(
  * none says so.
  */
 export function mainCategory(items: CommissionItem[]): ServiceCategory | null {
+  return mainItem(items)?.category ?? null
+}
+
+/** The item a final bill is charged as (see mainCategory), or null. */
+export function mainItem(items: CommissionItem[]): CommissionItem | null {
   const ordered = [...items].sort((a, b) => a.sortOrder - b.sortOrder)
   const inspected = ordered.find((item) => item.pricingType === 'on_inspection')
-  return (inspected ?? ordered[0])?.category ?? null
+  return inspected ?? ordered[0] ?? null
 }
 
 function toPaise(rupees: string | null | undefined): number {
@@ -210,13 +248,13 @@ export function bookingCommission(booking: CommissionBooking): number {
 
   let paise = 0
   for (const item of booking.items) {
-    paise += Math.round(Math.round(toPaise(item.amount) * share) * COMMISSION_RATES[item.category])
+    paise += Math.round(Math.round(toPaise(item.amount) * share) * itemRate(item))
   }
 
   const bill = toPaise(booking.billsPaid)
-  const billCategory = mainCategory(booking.items)
-  if (bill > 0 && billCategory) {
-    paise += Math.round(bill * COMMISSION_RATES[billCategory])
+  const billItem = mainItem(booking.items)
+  if (bill > 0 && billItem) {
+    paise += Math.round(bill * itemRate(billItem))
   }
   return paise / 100
 }

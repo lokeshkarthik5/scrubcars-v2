@@ -19,6 +19,7 @@ import { adminGarageRoutes } from '../garage/garage.routes.js'
 import { adminComplaintRoutes } from '../complaints/complaints.routes.js'
 import { adminGuaranteeRoutes } from '../guarantee/guarantee.routes.js'
 import { adminDataResetRoutes } from '../data-reset/data-reset.routes.js'
+import { adminTestBookingRoutes } from '../data-reset/test-booking.routes.js'
 import { adminDiscountRoutes } from '../discounts/discounts.routes.js'
 import { adminCouponRoutes } from '../coupons/coupons.routes.js'
 import { adminNoticeRoutes } from '../notices/notices.routes.js'
@@ -39,6 +40,7 @@ import {
 } from '../members/members.validation.js'
 import { adminBypassReportRoutes } from '../bypass-reports/bypass-reports.routes.js'
 import { adminTodayRoutes } from '../today/today.routes.js'
+import { adminGarageBoardRoutes } from '../garage-board/garage-board.routes.js'
 import * as adminController from './admin.controller.js'
 import {
   adminCancelBookingSchema,
@@ -466,6 +468,9 @@ adminRoutes.route('/guarantee', adminGuaranteeRoutes)
 // pages' own services. Nested here for the same cookie reason as discounts.
 adminRoutes.route('/today', adminTodayRoutes)
 
+// The Garages page's target counter and colour tags (0061).
+adminRoutes.route('/garage-board', adminGarageBoardRoutes)
+
 // Add garage's import from a poster, photo, PDF or Tally file, and the
 // owner-phone lookup. Nested here for the same cookie reason as discounts.
 adminRoutes.route('/vendor-imports', adminVendorImportRoutes)
@@ -479,6 +484,9 @@ adminRoutes.route('/', adminAiRoutes)
 // "Start pilot clean": the test-data reset. Nested here for the same cookie
 // reason; every route is a 404 unless ADMIN_DATA_RESET is on.
 adminRoutes.route('/data-reset', adminDataResetRoutes)
+// "Delete test booking" on one booking marked Test (0061): the reset's
+// rules for that chain alone, whether or not the reset is switched on.
+adminRoutes.route('/', adminTestBookingRoutes)
 
 // A service's video, AI sample pictures and the upload block's config
 // (/media-config, /services/:serviceId/{videos,media,ai-pictures}).

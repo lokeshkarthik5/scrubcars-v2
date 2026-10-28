@@ -65,3 +65,30 @@ export const executeSchema = previewSchema.extend({
 
 export type PreviewInput = z.infer<typeof previewSchema>
 export type ExecuteInput = z.infer<typeof executeSchema>
+
+// ─── Delete one test booking, from its page (0061) ───────────────────────────
+//
+// Not behind ADMIN_DATA_RESET (owner, 28 Oct 2026: "a per-booking delete for
+// bookings marked Test"): the booking's chain only, and only when it is
+// marked Test with no real money on it, which the planner decides. No backup
+// tick: it is one test booking, and the audit row keeps every id.
+
+export const testBookingParamSchema = z.object({ id: z.string().uuid() })
+
+/** The dry run for the booking's chain. */
+export const testBookingPreviewSchema = z
+  .object({ unknownIds: z.array(z.string().max(64)).max(5000).default([]) })
+  .strict()
+
+/** The delete: the dry run's fingerprint and the typed phrase. */
+export const testBookingDeleteSchema = z
+  .object({
+    unknownIds: z.array(z.string().max(64)).max(5000).default([]),
+    selectionHash: z.string().regex(/^[0-9a-f]{64}$/, 'Run the dry run first'),
+    confirmText: z.string().max(100),
+    actorName: signedActorName,
+  })
+  .strict()
+
+export type TestBookingPreviewInput = z.infer<typeof testBookingPreviewSchema>
+export type TestBookingDeleteInput = z.infer<typeof testBookingDeleteSchema>

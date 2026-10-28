@@ -1,7 +1,7 @@
 import { sql, type SQL } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import type { ServiceCategory } from '../../lib/categories.js'
-import { MONEY_LANDED_STATUSES, type GarageQueueChain } from '../../lib/commission.js'
+import { MONEY_LANDED_STATUSES, overrideRateFromPercent, type GarageQueueChain } from '../../lib/commission.js'
 import type {
   BusyHourCell,
   OpenCheckouts,
@@ -159,7 +159,8 @@ export function statsReads(tx: Tx) {
     /**
      * The services sold on each chain booked in [start, end), from its latest
      * row, with each service's category as the catalogue has it now (an item
-     * keeps its name and price, not its category).
+     * keeps its name and price, not its category), and likewise the
+     * service's own commission percent (0061), when it has one.
      */
     async chainItems(start: Date, end: Date, vendorId?: string): Promise<StatsItemRow[]> {
       const rows = await tx.execute<{
@@ -168,9 +169,11 @@ export function statsReads(tx: Tx) {
         pricing_type: string
         amount: string
         sort_order: number
+        commission_rate: string | null
       }>(sql`
         with ${chainsCte(vendorId)}
-        select c.root_id, s.category, s.pricing_type, bi.amount::text as amount, bi.sort_order
+        select c.root_id, s.category, s.pricing_type, bi.amount::text as amount, bi.sort_order,
+               s.commission_rate::text as commission_rate
           from chains c
           join booking_items bi on bi.booking_id = c.id
           join services s on s.id = bi.service_id
@@ -183,6 +186,7 @@ export function statsReads(tx: Tx) {
         pricingType: row.pricing_type,
         amount: row.amount,
         sortOrder: row.sort_order,
+        overrideRate: overrideRateFromPercent(row.commission_rate),
       }))
     },
 

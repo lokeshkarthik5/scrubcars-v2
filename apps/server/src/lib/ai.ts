@@ -58,9 +58,20 @@ export class AiUnavailableError extends Error {
 export const FAKE_AI_TEXT =
   'Exterior washed by hand and dried with microfibre, with the wheels and glass cleaned.'
 
-/** A client that never leaves the process. Used with AI_FAKE=1 and in tests. */
-export function fakeTextClient(answer: string = FAKE_AI_TEXT): TextClient {
-  return { complete: async () => answer }
+/** The fake's answer when asked for points (the editor's Points mode, 0061). */
+export const FAKE_AI_POINTS =
+  'Full exterior clean by hand.\n- Foam wash and rinse\n- Wheels and tyres cleaned\n- Glass wiped inside and out'
+
+/**
+ * A client that never leaves the process. Used with AI_FAKE=1 and in tests.
+ * Asked for points (lib/service-description.ts pointsInstructions), it
+ * answers with points, as the real model is told to.
+ */
+export function fakeTextClient(answer: string = FAKE_AI_TEXT, pointsAnswer: string = FAKE_AI_POINTS): TextClient {
+  return {
+    complete: async (request) =>
+      request.instructions.includes('on its own line starting with "- "') ? pointsAnswer : answer,
+  }
 }
 
 interface OpenAiTextConfig {

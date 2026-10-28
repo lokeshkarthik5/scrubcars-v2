@@ -317,6 +317,7 @@ const CANCELLATION_CUTOFF_MS = 2 * 60 * 60 * 1000
 // A booking may be rescheduled at most this many times across its chain.
 // Mirrored in packages/core/src/booking-types.ts (the legal pages print it).
 const MAX_RESCHEDULES = 2
+import { effectiveDurationMins } from '../../lib/service-duration.js'
 import { paise, rupees } from '../../lib/gift-credit.js'
 import type { PaymentRecord } from './bookings.repository.js'
 import type {
@@ -402,7 +403,9 @@ type BookingWithRelations = {
     name: string
     category: string
     pricingType: string
-    durationMins: number
+    // The service's own, which may be unset (0061); the booking's
+    // `durationMins` is what it holds.
+    durationMins: number | null
   } | null
   items?: Array<{
     id: string
@@ -1293,7 +1296,9 @@ export async function resolveBookingDraft(
       serviceId: row.id,
       name: row.name,
       amount: lineAmount,
-      durationMins: row.durationMins,
+      // The snapshot is never null: a service with no duration holds the
+      // default 60 minutes (0061, lib/service-duration.ts).
+      durationMins: effectiveDurationMins(row),
     }
   })
 

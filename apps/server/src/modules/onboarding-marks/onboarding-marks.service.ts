@@ -1,6 +1,14 @@
+import { randomUUID } from 'node:crypto'
 import { isDocumentStorageConfigured } from '../../lib/document-storage.js'
 import { AppError } from '../../lib/errors.js'
 import { logger } from '../../lib/logger.js'
+import {
+  checklistProgress,
+  mergeChecklist,
+  patchChecklistItem,
+  readChecklist,
+  statusForChecklist,
+} from '../../lib/mark-checklist.js'
 import {
   summariesByVendor,
   summariseDocuments,
@@ -21,18 +29,28 @@ import type {
   MarkAskedInput,
   MarkStatus,
   UpdateMarkInput,
+  UpdateMarkItemInput,
 } from './onboarding-marks.validation.js'
 
 const log = logger.child({ module: 'onboarding-marks' })
 
-/** OnboardingMark (packages/core/src/api/admin-marks.ts). */
+/** A new checklist item's id. */
+const newItemId = () => randomUUID()
+
+/**
+ * OnboardingMark (packages/core/src/api/admin-marks.ts). A mark from before
+ * 0061 whose note has "- " lines reads them as its items, and its note
+ * without them (lib/mark-checklist.ts).
+ */
 export function toMark(row: MarkRecord) {
+  const checklist = readChecklist(row)
   return {
     id: row.id,
     vendorId: row.vendorId,
     kind: row.kind as MarkKind,
     label: markLabel(row.kind, row.label),
-    note: row.note,
+    note: checklist.note,
+    items: checklist.items,
     status: row.status,
     askedAt: row.askedAt?.toISOString() ?? null,
     askedByName: row.askedByName,
@@ -46,11 +64,11 @@ export function toMark(row: MarkRecord) {
 
 export type OnboardingMarkResponse = ReturnType<typeof toMark>
 
-/** OnboardingMarkBrief: AdminVendor.openMarks. */
+/** OnboardingMarkBrief: AdminVendor.openMarks, with its checklist's progress. */
 export type OnboardingMarkBrief = Pick<
   OnboardingMarkResponse,
   'id' | 'kind' | 'label' | 'status' | 'askedAt'
->
+> & { itemsDone: number; itemsTotal: number }
 
 function vendorNotFound() {
   return new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
@@ -58,6 +76,14 @@ function vendorNotFound() {
 
 function markNotFound() {
   return new AppError(404, 'That mark does not exist', 'MARK_NOT_FOUND')
+}
+
+function itemNotFound() {
+  return new AppError(
+    404,
+    'That item is no longer on the list. Open the mark again.',
+    'MARK_ITEM_NOT_FOUND'
+  )
 }
 
 function markExists() {
@@ -118,13 +144,16 @@ export const onboardingMarksService = {
 
   async create(vendorId: string, input: CreateMarkInput, now = new Date()) {
     await assertGarage(vendorId, true)
-    const status = input.status ?? 'to_ask'
+    const items = mergeChecklist([], input.items ?? [], input.actorName, now, newItemId)
+    // With a checklist, the ticks decide (lib/mark-checklist.ts).
+    const status = statusForChecklist(input.status ?? 'to_ask', items)
     const stamped = statusPatch(null, status, input.actorName, now)
     const row = await onboardingMarksRepository.insert({
       vendorId,
       kind: input.kind,
       label: input.label ?? null,
       note: input.note ?? null,
+      items,
       status,
       askedAt: null,
       askedByName: null,
@@ -146,18 +175,78 @@ export const onboardingMarksService = {
     now = new Date()
   ) {
     await assertGarage(vendorId, true)
-    const current = await onboardingMarksRepository.find(vendorId, markId)
-    if (!current) throw markNotFound()
-    const row = await onboardingMarksRepository.update(vendorId, markId, {
-      ...(input.status !== undefined &&
-        statusPatch(current.status, input.status, input.actorName, now)),
-      ...(input.note !== undefined && { note: input.note }),
-      ...(input.label !== undefined && { label: input.label }),
-      updatedByName: input.actorName,
-      updatedAt: now,
+    const row = await onboardingMarksRepository.updateLocked(vendorId, markId, (current) => {
+      const checklist = readChecklist(current)
+      // The list as the dialog left it, merged with what is stored so each
+      // item keeps who answered it. Items read from an old note are saved
+      // as items now, and the note keeps only its other lines.
+      const items =
+        input.items !== undefined
+          ? mergeChecklist(checklist.items, input.items, input.actorName, now, newItemId)
+          : null
+      const note =
+        input.note !== undefined
+          ? input.note
+          : items !== null && checklist.fromNote
+            ? checklist.note
+            : undefined
+      const listed = items ?? (checklist.fromNote ? [] : checklist.items)
+      const status = statusForChecklist(input.status ?? current.status, listed)
+      return {
+        ...statusPatch(current.status, status, input.actorName, now),
+        ...(items !== null && { items }),
+        ...(note !== undefined && { note }),
+        ...(input.label !== undefined && { label: input.label }),
+        updatedByName: input.actorName,
+        updatedAt: now,
+      }
     })
     if (row === 'exists') throw markExists()
     if (!row) throw markNotFound()
+    return toMark(row)
+  },
+
+  /**
+   * One item ticked, unticked or answered (the checklist and the call
+   * sheet), stamped with who and when; the mark's status follows the ticks.
+   * An item read from an old note is saved, with the rest of them, as the
+   * mark's items.
+   */
+  async updateItem(
+    vendorId: string,
+    markId: string,
+    itemId: string,
+    input: UpdateMarkItemInput,
+    now = new Date()
+  ) {
+    await assertGarage(vendorId, true)
+    let missingItem = false
+    const row = await onboardingMarksRepository.updateLocked(vendorId, markId, (current) => {
+      const checklist = readChecklist(current)
+      const items = patchChecklistItem(
+        checklist.items,
+        itemId,
+        { done: input.done, answer: input.answer },
+        input.actorName,
+        now
+      )
+      if (!items) {
+        // Nothing to write; set what is there so the statement stays valid.
+        missingItem = true
+        return { updatedAt: current.updatedAt }
+      }
+      const status = statusForChecklist(current.status, items)
+      return {
+        ...statusPatch(current.status, status, input.actorName, now),
+        items,
+        ...(checklist.fromNote && { note: checklist.note }),
+        updatedByName: input.actorName,
+        updatedAt: now,
+      }
+    })
+    if (row === 'exists') throw markExists()
+    if (!row) throw markNotFound()
+    if (missingItem) throw itemNotFound()
     return toMark(row)
   },
 
@@ -216,12 +305,15 @@ export const onboardingMarksService = {
     const byVendor = new Map<string, OnboardingMarkBrief[]>()
     for (const row of await onboardingMarksRepository.listOpenBriefs()) {
       const list = byVendor.get(row.vendorId) ?? []
+      const progress = checklistProgress(readChecklist(row).items)
       list.push({
         id: row.id,
         kind: row.kind as MarkKind,
         label: markLabel(row.kind, row.label),
         status: row.status,
         askedAt: row.askedAt?.toISOString() ?? null,
+        itemsDone: progress.done,
+        itemsTotal: progress.total,
       })
       byVendor.set(row.vendorId, list)
     }

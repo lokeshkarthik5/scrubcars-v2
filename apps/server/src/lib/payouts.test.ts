@@ -103,6 +103,17 @@ describe('bookingEarning — commission rates', () => {
   })
 })
 
+describe('bookingEarning — a service’s own rate is not for payouts (0061)', () => {
+  test('a line with its own commission percent is still charged at its category’s rate', () => {
+    const e = bookingEarning(
+      chain({ items: [{ category: 'car_wash', amount: '500.00', pricingType: 'flat', sortOrder: 0, overrideRate: 0.2 }] }),
+      PAYING
+    )
+    // 8% of 500, not 20%.
+    expect(e.commissionPaise).toBe(4_000)
+  })
+})
+
 describe('bookingEarning — the free 25', () => {
   test('the first 25 received bookings carry no commission, and say which one they were', () => {
     const e = bookingEarning(chain(), 12)

@@ -1,5 +1,6 @@
 import { bannedPhraseIn } from './copy-rules.js'
 import type { TextClient } from './ai.js'
+import { joinListText, splitListText } from './list-text.js'
 
 /**
  * "Write with AI" for a service's description in the admin editor: what is
@@ -15,6 +16,24 @@ import type { TextClient } from './ai.js'
  * Only facts about the service and the garage's business name are sent:
  * never a person's name, phone or address.
  */
+
+/**
+ * The shape asked for: `paragraph` (one or two sentences, as before) or
+ * `points` (0061: the admin editor's Points mode): an optional one-line
+ * intro, then 3 to 6 short "- " points, stored as plain text the way the
+ * editor writes it (lib/list-text.ts), so the points survive the AI.
+ */
+export type DescriptionFormat = 'paragraph' | 'points'
+
+/** Points mode: how many, and how long each part may be. */
+export const POINTS_RULES = {
+  min: 3,
+  max: 6,
+  pointMaxChars: 60,
+  introMaxChars: 120,
+  /** The whole text, intro and "- " lines together. */
+  maxChars: 500,
+} as const
 
 /** What the model is told about the service. All of it is public on the garage page. */
 export interface ServiceFacts {
@@ -82,6 +101,14 @@ export function descriptionProblem(text: string, durationGiven: boolean): string
   const sentences = text.split(/(?<=\.)\s+/).filter(Boolean)
   if (sentences.length > 2) return 'It was more than two sentences.'
 
+  return claimProblem(text, durationGiven)
+}
+
+/**
+ * The rules every description keeps whatever its shape: no claim Detlio
+ * does not make, no price, and no time unless the admin gave one.
+ */
+function claimProblem(text: string, durationGiven: boolean): string | null {
   const banned = bannedPhraseIn(text)
   if (banned) return `It said "${banned}", which Detlio does not claim.`
 
@@ -110,6 +137,70 @@ function durationWords(mins: number): string {
   if (mins % 1440 === 0) return mins === 1440 ? '1 day' : `${mins / 1440} days`
   if (mins % 60 === 0) return mins === 60 ? '1 hour' : `${mins / 60} hours`
   return `${mins} minutes`
+}
+
+/**
+ * The model's points answer as the editor stores it: an optional intro
+ * line, then "- " points, each trimmed of a closing full stop. Quotes, a
+ * "Description:" label and stray blank lines are dropped.
+ */
+export function cleanPoints(raw: string): string {
+  const text = raw
+    .trim()
+    .replace(/^description\s*:\s*/i, '')
+    .replace(/^["'“‘]+|["'”’]+$/g, '')
+  const { intro, points } = splitListText(text)
+  return joinListText(
+    intro.replace(/\s+/g, ' ').trim(),
+    points.map((point) => point.replace(/\.+$/, '').trim())
+  )
+}
+
+/**
+ * Why a points description can't be used, or null when it can: 3 to 6
+ * short points, an intro of one sentence at most, and the same claim, price
+ * and time rules as a paragraph.
+ */
+export function pointsProblem(text: string, durationGiven: boolean): string | null {
+  if (!text) return 'It was empty.'
+  if (text.length > POINTS_RULES.maxChars) {
+    return `It was ${text.length} characters; the limit is ${POINTS_RULES.maxChars}.`
+  }
+  const { intro, points } = splitListText(text)
+  if (points.length < POINTS_RULES.min || points.length > POINTS_RULES.max) {
+    return `It had ${points.length} points; write ${POINTS_RULES.min} to ${POINTS_RULES.max}, each on a line starting "- ".`
+  }
+  if (/[!?]/.test(text)) return 'It used an exclamation or question mark.'
+  if (intro.includes('\n')) return 'The line before the points was more than one line.'
+  if (intro.length > POINTS_RULES.introMaxChars) {
+    return `The line before the points was ${intro.length} characters; the limit is ${POINTS_RULES.introMaxChars}.`
+  }
+  if (intro && intro.split(/(?<=\.)\s+/).filter(Boolean).length > 1) {
+    return 'The line before the points was more than one sentence.'
+  }
+  const long = points.find((point) => point.length > POINTS_RULES.pointMaxChars)
+  if (long) return `A point was ${long.length} characters; keep each under ${POINTS_RULES.pointMaxChars}.`
+  return claimProblem(text, durationGiven)
+}
+
+/** The rules for a points answer, sent as the request's instructions. */
+export function pointsInstructions(durationGiven: boolean): string {
+  return [
+    'You write the list a customer reads under a car-care service',
+    'on Detlio, an app for booking car washes and detailing at garages in Chennai, India.',
+    'Answer in plain text: optionally one short sentence first, then',
+    `${POINTS_RULES.min} to ${POINTS_RULES.max} points, each on its own line starting with "- ",`,
+    `each at most ${POINTS_RULES.pointMaxChars} characters, saying in general terms what the service includes,`,
+    'in Indian English, without full stops at the end of the points.',
+    'Do not mention prices, money or offers.',
+    durationGiven
+      ? 'Mention how long it takes only if it helps, using the time given.'
+      : 'Do not say how long it takes.',
+    'Make no claims or promises: nothing like guaranteed, lifetime, best, 100%, permanent,',
+    'certified or verified, and no comparison with other garages.',
+    'No exclamation marks, no emojis, and do not use the garage name.',
+    'Answer with the text only, without quotes or a label.',
+  ].join(' ')
 }
 
 /** The standing rules, sent as the request's instructions. */
@@ -158,11 +249,15 @@ export type DescriptionResult =
  */
 export async function writeServiceDescription(
   facts: ServiceFacts,
-  client: TextClient
+  client: TextClient,
+  format: DescriptionFormat = 'paragraph'
 ): Promise<DescriptionResult> {
   const durationGiven = Boolean(facts.durationMins)
-  const instructions = descriptionInstructions(durationGiven)
+  const points = format === 'points'
+  const instructions = points ? pointsInstructions(durationGiven) : descriptionInstructions(durationGiven)
   const input = descriptionInput(facts)
+  const clean = points ? cleanPoints : cleanDescription
+  const check = points ? pointsProblem : descriptionProblem
 
   let problem: string | null = null
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -173,8 +268,8 @@ export async function writeServiceDescription(
         : input,
       maxOutputTokens: MAX_OUTPUT_TOKENS,
     })
-    const description = cleanDescription(raw)
-    problem = descriptionProblem(description, durationGiven)
+    const description = clean(raw)
+    problem = check(description, durationGiven)
     if (!problem) return { ok: true, description }
   }
   return { ok: false, problem: problem ?? 'It was empty.' }

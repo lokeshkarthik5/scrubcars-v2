@@ -946,3 +946,71 @@ describe('Detlio credit (0049)', () => {
     expect(idsToLookUp(input({ bookings: [b] }))).toEqual([])
   })
 })
+
+describe('one test booking with its complaints (0061)', () => {
+  const marked = (n: number, overrides: Partial<ResetBooking> = {}) =>
+    booking(n, { markedTestAt: before(1), ...overrides })
+  const about = (n: number, bookingId: string, number: number) => ({
+    id: uuid(n),
+    number,
+    createdAt: before(2),
+    bookingId,
+  })
+
+  test('the complaints about the chain’s bookings go with it, in number order, and name the counts', () => {
+    const root = marked(1)
+    const moved = marked(2, { originalBookingId: uuid(1) })
+    const plan = planReset(
+      input({
+        scope: { kind: 'chains', bookingIds: [uuid(2)] },
+        bookings: [root, moved],
+        complaints: [about(602, uuid(2), 12), about(601, uuid(1), 11)],
+      })
+    )
+    expect(plan.selectedChainIds).toEqual([uuid(1)])
+    expect(plan.selectedComplaintIds).toEqual([uuid(601), uuid(602)])
+    expect(plan.counts.complaints).toBe(2)
+    expect(countLines(plan.counts)).toContain('2 complaints')
+    // Still a booking's phrase.
+    expect(plan.confirmPhrase).toBe('DELETE 1 BOOKING')
+  })
+
+  test('a kept chain keeps its complaints: real money, or not marked Test', () => {
+    const live = marked(1, {
+      payment: { status: 'paid', gatewayTxnId: 'pay_LIVE1', gatewayMode: 'live', amount: '499.00', refundedAmount: null },
+    })
+    const kept = planReset(
+      input({ scope: { kind: 'chains', bookingIds: [uuid(1)] }, bookings: [live], complaints: [about(601, uuid(1), 11)] })
+    )
+    expect(kept.chains[0].kept).toBe('live')
+    expect(kept.selectedComplaintIds).toEqual([])
+    const unmarked = planReset(
+      input({
+        scope: { kind: 'chains', bookingIds: [uuid(1)] },
+        bookings: [booking(1)],
+        complaints: [about(601, uuid(1), 11)],
+      })
+    )
+    expect(unmarked.chains[0].kept).toBe('not_marked')
+    expect(unmarked.selectedComplaintIds).toEqual([])
+  })
+
+  test('a complaint about another booking, or about none, is never taken', () => {
+    const plan = planReset(
+      input({
+        scope: { kind: 'chains', bookingIds: [uuid(1)] },
+        bookings: [marked(1)],
+        complaints: [about(601, uuid(99), 11), { id: uuid(602), number: 12, createdAt: before(2), bookingId: null }],
+      })
+    )
+    expect(plan.selectedChainIds).toEqual([uuid(1)])
+    expect(plan.selectedComplaintIds).toEqual([])
+  })
+
+  test('the fingerprint names them, so one raised after the dry run makes it stale', () => {
+    const base = { scope: { kind: 'chains' as const, bookingIds: [uuid(1)] }, bookings: [marked(1)] }
+    const without = planReset(input(base)).selectionHash
+    const withOne = planReset(input({ ...base, complaints: [about(601, uuid(1), 11)] })).selectionHash
+    expect(withOne).not.toBe(without)
+  })
+})

@@ -1,7 +1,12 @@
 import type { Context } from 'hono'
 import type { AuthVariables } from '../../middleware/auth.middleware.js'
 import { dataResetService } from './data-reset.service.js'
-import type { ExecuteInput, PreviewInput } from './data-reset.validation.js'
+import type {
+  ExecuteInput,
+  PreviewInput,
+  TestBookingDeleteInput,
+  TestBookingPreviewInput,
+} from './data-reset.validation.js'
 
 type DataResetContext = Context<{ Variables: AuthVariables }>
 
@@ -18,5 +23,16 @@ export async function preview(c: DataResetContext, input: PreviewInput) {
 // name (adminSignedJson, 0058).
 export async function execute(c: DataResetContext, input: ExecuteInput) {
   const data = await dataResetService.execute(c.get('auth').sub, input)
+  return c.json({ success: true, data })
+}
+
+// One test booking, from its page (0061): not behind the reset's switch.
+export async function previewTestBooking(c: DataResetContext, bookingId: string, input: TestBookingPreviewInput) {
+  const data = await dataResetService.previewTestBooking(bookingId, input)
+  return c.json({ success: true, data })
+}
+
+export async function deleteTestBooking(c: DataResetContext, bookingId: string, input: TestBookingDeleteInput) {
+  const data = await dataResetService.deleteTestBooking(c.get('auth').sub, bookingId, input)
   return c.json({ success: true, data })
 }

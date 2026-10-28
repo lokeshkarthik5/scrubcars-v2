@@ -1,3 +1,4 @@
+import { AT_GARAGE_ADDRESS_MESSAGE, atGarageAddressRefused, garageAddressLine } from '../../lib/garage-address.js'
 import { timingSafeEqual } from 'node:crypto'
 import { env } from '../../lib/env.js'
 import { AppError } from '../../lib/errors.js'
@@ -160,6 +161,16 @@ async function assertPhotoCapacity(vendorId: string) {
       'PHOTO_LIMIT_REACHED'
     )
   }
+}
+
+/**
+ * A service's own commission percent as the column takes it (0061): a
+ * number is stored as written, null clears it, and left out (an older
+ * panel) leaves what is stored.
+ */
+function commissionColumn(rate: number | null | undefined): { commissionRate?: string | null } {
+  if (rate === undefined) return {}
+  return { commissionRate: rate === null ? null : rate.toFixed(2) }
 }
 
 /**
@@ -575,9 +586,8 @@ async function loadBookingDetail(id: string, now: number) {
       : null,
     lat: booking.lat,
     lng: booking.lng,
-    garageAddress: booking.vendor
-      ? `${booking.vendor.address}, ${booking.vendor.city}`
-      : null,
+    // A doorstep-only garage may have no street address (0061): the city.
+    garageAddress: booking.vendor ? garageAddressLine(booking.vendor) : null,
     // Who at the garage moved the job on. Null on bookings from before the
     // team model, and on any the garage never touched.
     acceptedByName: booking.acceptedBy ? (names.get(booking.acceptedBy) ?? null) : null,
@@ -897,6 +907,12 @@ export const adminService = {
       })
     }
 
+    // Customers drive in to an at-garage garage, so it keeps its address
+    // and pincode; a doorstep-only one needs only its pin (0061).
+    if (atGarageAddressRefused(vendor, input)) {
+      throw new AppError(400, AT_GARAGE_ADDRESS_MESSAGE, 'ADDRESS_REQUIRED')
+    }
+
     const pinMoved =
       input.lat !== undefined &&
       input.lng !== undefined &&
@@ -1005,8 +1021,6 @@ export const adminService = {
       )
       const keptIds = new Set<string>()
       const toInsert: Parameters<typeof adminRepository.insertServices>[0] = []
-      // Default duration for services left blank: one slot on this vendor.
-      const defaultDuration = input.slotIntervalMins ?? vendor.slotIntervalMins
 
       for (const s of input.services) {
         const columns = {
@@ -1014,7 +1028,10 @@ export const adminService = {
           description: s.description ?? null,
           category: s.category,
           ...resolveServicePricing(s),
-          durationMins: s.durationMins ?? defaultDuration,
+          // Left blank: no duration (0061). The slot calendar holds the
+          // default 60 minutes for it; admin flags "Duration not set".
+          durationMins: s.durationMins ?? null,
+          ...commissionColumn(s.commissionRate),
         }
         if (s.id && existingIds.has(s.id)) {
           keptIds.add(s.id)
@@ -1323,8 +1340,9 @@ export const adminService = {
           category: s.category,
           // Resolve pricing type + tiers into the columns to persist.
           ...resolveServicePricing(s),
-          // Fall back to one slot when no explicit duration was given.
-          durationMins: s.durationMins ?? vendor.slotIntervalMins,
+          // No duration given: none is stored (0061), never guessed.
+          durationMins: s.durationMins ?? null,
+          ...commissionColumn(s.commissionRate),
         }))
       )
     }

@@ -7,7 +7,9 @@ import {
   earnsPayout,
   FREE_BOOKINGS,
   garageCommissionStatus,
+  itemRate,
   mainCategory,
+  overrideRateFromPercent,
   queuePositions,
   wasReceived,
   type CommissionBooking,
@@ -349,5 +351,68 @@ describe('garageCommissionStatus', () => {
     expect(garageCommissionStatus(full, [], range).free).toEqual([
       { vendorId: 'full', name: 'Marina Auto Spa', used: 25, left: 0 },
     ])
+  })
+})
+
+describe('a service’s own rate (0061, Statistics only)', () => {
+  test('replaces its category’s rate; empty or out of range is the category’s', () => {
+    expect(itemRate({ category: 'car_wash', overrideRate: 0.06 })).toBe(0.06)
+    expect(itemRate({ category: 'car_wash', overrideRate: 0 })).toBe(0)
+    expect(itemRate({ category: 'car_wash', overrideRate: null })).toBe(0.08)
+    expect(itemRate({ category: 'detailing' })).toBe(0.05)
+    expect(itemRate({ category: 'detailing', overrideRate: 0.6 })).toBe(0.05)
+    expect(itemRate({ category: 'detailing', overrideRate: -0.01 })).toBe(0.05)
+    expect(itemRate({ category: 'detailing', overrideRate: Number.NaN })).toBe(0.05)
+  })
+
+  test('the stored percent reads as a fraction; blank or out of range is none', () => {
+    expect(overrideRateFromPercent('6.50')).toBe(0.065)
+    expect(overrideRateFromPercent('0.00')).toBe(0)
+    expect(overrideRateFromPercent(50)).toBe(0.5)
+    expect(overrideRateFromPercent(null)).toBeNull()
+    expect(overrideRateFromPercent('')).toBeNull()
+    expect(overrideRateFromPercent('51')).toBeNull()
+    expect(overrideRateFromPercent('abc')).toBeNull()
+  })
+
+  test('mixed: one line at its own rate, the other at its category’s, the bill at the main service’s', () => {
+    const mixed = booking({
+      subtotalAmount: '1500.00',
+      amount: '1500.00',
+      items: [
+        // A wash at its own 6% (category 8%).
+        { category: 'car_wash', amount: '500.00', sortOrder: 0, overrideRate: 0.06 },
+        // Detailing with none: 5%.
+        { category: 'detailing', amount: '1000.00', sortOrder: 1 },
+      ],
+    })
+    // 500 × 6% + 1000 × 5% = 30 + 50
+    expect(bookingCommission(mixed)).toBe(80)
+    // The same booking without the override: 500 × 8% + 50.
+    expect(
+      bookingCommission({ ...mixed, items: mixed.items.map((item) => ({ ...item, overrideRate: null })) })
+    ).toBe(90)
+    // A paid final bill goes at the main (first) service's own rate: 450 × 6%.
+    expect(bookingCommission({ ...mixed, billsPaid: '450.00' })).toBe(80 + 27)
+  })
+
+  test('an inspection job’s bill goes at the inspected service’s own rate', () => {
+    const inspected = booking({
+      subtotalAmount: '300.00',
+      amount: '300.00',
+      billsPaid: '1000.00',
+      items: [
+        { category: 'car_wash', amount: '200.00', sortOrder: 0 },
+        { category: 'scratch_removal', amount: '100.00', sortOrder: 1, pricingType: 'on_inspection', overrideRate: 0.1 },
+      ],
+    })
+    // 200 × 8% + 100 × 10% + 1000 × 10%
+    expect(bookingCommission(inspected)).toBe(16 + 10 + 100)
+  })
+
+  test('the free 25 still apply with a service’s own rate', () => {
+    const own = booking({ items: [{ category: 'car_wash', amount: '500.00', sortOrder: 0, overrideRate: 0.2 }] })
+    expect(chainCommission(own, FREE_BOOKINGS)).toBe(0)
+    expect(chainCommission(own, FREE_BOOKINGS + 1)).toBe(100)
   })
 })

@@ -45,6 +45,7 @@ type Mark = {
   kind: string
   label: string | null
   note: string | null
+  items?: Array<Record<string, unknown>>
   status: 'to_ask' | 'asked' | 'received'
   askedAt: Date | null
   askedByName: string | null
@@ -160,6 +161,18 @@ beforeAll(() => {
       const row = marks.get(id)
       if (!row || row.vendorId !== vendorId) return undefined
       const next = { ...row, ...values }
+      if (clashes(next)) return 'exists'
+      marks.set(id, next)
+      return next
+    }
+  )
+  patch(
+    m,
+    'updateLocked',
+    async (vendorId: string, id: string, change: (row: Mark) => Partial<Mark>) => {
+      const row = marks.get(id)
+      if (!row || row.vendorId !== vendorId) return undefined
+      const next = { ...row, ...change({ ...row, items: row.items ?? [] }) }
       if (clashes(next)) return 'exists'
       marks.set(id, next)
       return next
@@ -599,6 +612,150 @@ describe('marks', () => {
         })
       ).body.code
     ).toBe('VENDOR_IN_BIN')
+  })
+})
+
+describe('marks as a checklist (0061)', () => {
+  test('a mark made with items: each answered one is stamped; status follows the ticks', async () => {
+    const token = await raga()
+    const made = await call('POST', `/admin/vendors/${GARAGE_B}/marks`, token, {
+      kind: 'custom',
+      label: 'New garage call',
+      items: [
+        { text: 'At-garage services?' },
+        { text: '  Doorstep radius  ' },
+        { text: 'Payout details', done: true, answer: 'Will send on WhatsApp' },
+      ],
+    })
+    expect(made.status).toBe(201)
+    const mark = made.body.data
+    expect(mark.items.map((i: any) => i.text)).toEqual([
+      'At-garage services?',
+      'Doorstep radius',
+      'Payout details',
+    ])
+    expect(mark.items[0]).toMatchObject({ done: false, answer: null, answeredBy: null })
+    expect(mark.items[2]).toMatchObject({ done: true, answer: 'Will send on WhatsApp', answeredBy: 'Raga' })
+    // One of three ticked: in progress, which is Asked, stamped.
+    expect(mark.status).toBe('asked')
+    expect(mark.askedByName).toBe('Raga')
+
+    // Tick one with an answer: who and when, and still Asked.
+    const first = mark.items[0].id
+    const ticked = await call(
+      'PATCH',
+      `/admin/vendors/${GARAGE_B}/marks/${mark.id}/items/${first}`,
+      token,
+      { done: true, answer: 'Yes: wash and polish at Kilpauk' }
+    )
+    expect(ticked.status).toBe(200)
+    expect(ticked.body.data.items[0]).toMatchObject({
+      done: true,
+      answer: 'Yes: wash and polish at Kilpauk',
+      answeredBy: 'Raga',
+    })
+    expect(ticked.body.data.items[0].answeredAt).toBeTruthy()
+    expect(ticked.body.data.status).toBe('asked')
+
+    // The last one ticked: Received, which closes the mark.
+    const last = await call(
+      'PATCH',
+      `/admin/vendors/${GARAGE_B}/marks/${mark.id}/items/${mark.items[1].id}`,
+      token,
+      { done: true, answer: '5 km' }
+    )
+    expect(last.body.data.status).toBe('received')
+    expect(last.body.data.receivedAt).toBeTruthy()
+
+    // Unticked again: back to Asked, open.
+    const reopened = await call(
+      'PATCH',
+      `/admin/vendors/${GARAGE_B}/marks/${mark.id}/items/${mark.items[1].id}`,
+      token,
+      { done: false }
+    )
+    expect(reopened.body.data.status).toBe('asked')
+    expect(reopened.body.data.receivedAt).toBeNull()
+
+    // An item no longer on the list, and an empty change.
+    expect(
+      (await call('PATCH', `/admin/vendors/${GARAGE_B}/marks/${mark.id}/items/nope`, token, { done: true })).body.code
+    ).toBe('MARK_ITEM_NOT_FOUND')
+    expect(
+      (await call('PATCH', `/admin/vendors/${GARAGE_B}/marks/${mark.id}/items/${first}`, token, {})).status
+    ).toBe(400)
+  })
+
+  test('the edit dialog saves the whole list: kept items keep who answered, new ones get ids, at most 30', async () => {
+    const token = await raga()
+    const made = await call('POST', `/admin/vendors/${GARAGE_B}/marks`, token, {
+      kind: 'custom',
+      label: 'Payout setup',
+      items: [{ text: 'Bank or UPI?', done: true, answer: 'UPI' }, { text: 'Holder name' }],
+    })
+    const [bank, holder] = made.body.data.items
+    const saved = await call('PATCH', `/admin/vendors/${GARAGE_B}/marks/${made.body.data.id}`, await shared(), {
+      actorName: 'Ignored',
+      items: [
+        { id: holder.id, text: 'Account holder name' },
+        { id: bank.id, text: 'Bank or UPI?', done: true, answer: 'UPI' },
+        { text: 'Proof on WhatsApp' },
+      ],
+    })
+    expect(saved.status).toBe(200)
+    const items = saved.body.data.items
+    expect(items.map((i: any) => i.text)).toEqual(['Account holder name', 'Bank or UPI?', 'Proof on WhatsApp'])
+    // Unchanged tick and answer: still Raga's, though the shared login saved.
+    expect(items[1]).toMatchObject({ id: bank.id, answeredBy: 'Raga' })
+    expect(items[2].id).toBeTruthy()
+    expect(items[2].id).not.toBe(bank.id)
+
+    const tooMany = Array.from({ length: 31 }, (_, i) => ({ text: `Item ${i}` }))
+    expect(
+      (await call('PATCH', `/admin/vendors/${GARAGE_B}/marks/${made.body.data.id}`, token, { items: tooMany })).status
+    ).toBe(400)
+  })
+
+  test('an old note’s "- " lines read as items, and are saved as items on the first tick', async () => {
+    const token = await raga()
+    const made = await call('POST', `/admin/vendors/${GARAGE_A}/marks`, token, {
+      kind: 'custom',
+      label: 'Old call',
+      note: 'Owner busy till 5\n- Check if they do doorstep\n- Ask the radius',
+    })
+    // A mark from before 0061: the note holds the list.
+    expect(made.body.data.items.map((i: any) => i.id)).toEqual(['note-1', 'note-2'])
+    expect(made.body.data.note).toBe('Owner busy till 5')
+
+    const ticked = await call(
+      'PATCH',
+      `/admin/vendors/${GARAGE_A}/marks/${made.body.data.id}/items/note-2`,
+      token,
+      { done: true, answer: '3 km' }
+    )
+    expect(ticked.status).toBe(200)
+    expect(ticked.body.data.items.map((i: any) => [i.text, i.done])).toEqual([
+      ['Check if they do doorstep', false],
+      ['Ask the radius', true],
+    ])
+    expect(ticked.body.data.note).toBe('Owner busy till 5')
+    // Stored now: the note no longer holds them.
+    const stored = [...(await onboardingMarksRepository.list(GARAGE_A))].find(
+      (row: any) => row.id === made.body.data.id
+    ) as any
+    expect(stored.note).toBe('Owner busy till 5')
+    expect(stored.items).toHaveLength(2)
+  })
+
+  test('a mark with no items keeps the status the team sets', async () => {
+    const token = await raga()
+    const made = await call('POST', `/admin/vendors/${GARAGE_A}/marks`, token, {
+      kind: 'custom',
+      label: 'Plain one',
+      status: 'received',
+    })
+    expect(made.body.data.status).toBe('received')
+    expect(made.body.data.items).toEqual([])
   })
 })
 
