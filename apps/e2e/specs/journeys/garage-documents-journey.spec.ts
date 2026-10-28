@@ -2,14 +2,16 @@
  * Garage documents (0043), from the garage's Settings to the customer's
  * garage page.
  *
- * VENDORS.documents' owner uploads the four required documents (a photo
+ * VENDORS.documents' owner uploads the three required documents (a photo
  * and PDFs, one with a front and a back) into the private bucket, which
  * MinIO stands in for (R2_DOCS_BUCKET=detlio-e2e-docs, created without
  * public access, as in production). Nobody else can list or open them: not
  * its operator, not another garage, not a customer, and the bucket itself
  * refuses a file without its five-minute signature. Admin finds the garage
  * under "Documents to review", opens and approves each one, and the
- * customer's garage page then shows "Documents verified". The rules are
+ * garage's documents then count as checked: one of Silver's steps on its
+ * Tier tab (0063; customers see only a tier medal, never a documents
+ * badge, and the signed paper agreement is no longer a document). The rules are
  * unit-tested in apps/server/src/lib/vendor-documents.test.ts, and every
  * route's who-may-see in vendor-documents.routes.test.ts.
  *
@@ -41,7 +43,6 @@ const REQUIRED: Array<{ label: string; files: string[] }> = [
   { label: 'Shop photo', files: [PIXEL] },
   { label: 'Owner ID', files: [PDF, PIXEL] },
   { label: 'Bank proof', files: [PDF] },
-  { label: 'Signed Detlio agreement', files: [PDF] },
 ]
 
 type DocumentRow = { type: string; id: string | null; status: string; files: Array<{ id: string; side: string }> }
@@ -79,13 +80,15 @@ test.describe.serial('garage documents @p0', () => {
     await sql`delete from vendor_documents where vendor_id = ${GARAGE.id}`
   })
 
-  test('the owner uploads the four required documents from Settings → Documents', async ({ browser }) => {
+  test('the owner uploads the three required documents from Settings → Documents', async ({ browser }) => {
     const { ctx, page } = await openGarage(browser)
 
     await page.goto('/settings')
     await page.getByRole('link', { name: /^Documents/ }).click()
     await expect(page).toHaveURL(/\/settings\/documents$/)
-    await expect(page.getByText('0 of 4 required approved')).toBeVisible()
+    await expect(page.getByText('0 of 3 required approved')).toBeVisible()
+    // The paper agreement is retired (0063): click to agree replaced it.
+    await expect(page.getByRole('group', { name: 'Signed agreement (old, on paper)', exact: true })).toHaveCount(0)
     // An Aadhaar number must never be readable.
     await expect(page.getByText('Cover the first 8 digits of an Aadhaar number.')).toBeVisible()
 
@@ -155,14 +158,14 @@ test.describe.serial('garage documents @p0', () => {
     const customer = await loginViaApi(CUSTOMERS.documents.phone, 'customer')
     expect((await customer.get(GARAGE_DOCUMENTS)).status()).toBe(404)
     expect((await customer.get(linkPath)).status()).toBe(404)
-    // Customers read one boolean, and it is not earned yet.
+    // Customers read only a tier medal (0063), never anything about documents.
     const garage = (await (await customer.get(PUBLIC_GARAGE)).json()).data as Record<string, unknown>
-    expect(garage.documentsVerified).toBe(false)
-    expect(Object.keys(garage).filter((key) => /document|file/i.test(key))).toEqual(['documentsVerified'])
+    expect(garage.tier).toBeNull()
+    expect(Object.keys(garage).filter((key) => /document|file|certif/i.test(key))).toEqual([])
     await customer.dispose()
   })
 
-  test('admin finds it under Documents to review, opens a file and approves all four', async ({ browser }) => {
+  test('admin finds it under Documents to review, opens a file and approves all three', async ({ browser }) => {
     const { ctx, page } = await openAdmin(browser)
 
     await page.goto('/vendors?show=documents')
@@ -171,14 +174,14 @@ test.describe.serial('garage documents @p0', () => {
       'true'
     )
     const card = page.getByRole('row', { name: GARAGE.name, exact: true })
-    // The row's link reads "4 docs to review"; it is named in full.
-    const review = card.getByRole('link', { name: '4 documents to review' })
+    // The row's link reads "3 docs to review"; it is named in full.
+    const review = card.getByRole('link', { name: '3 documents to review' })
     await expect(review).toBeVisible()
     await review.click()
 
     await expect(page).toHaveURL(new RegExp(`/vendors/${GARAGE.id}/edit\\?tab=documents`))
     const panel = page.getByRole('tabpanel', { name: 'Documents' })
-    await expect(panel.getByText('0 of 4 required approved · 4 to review')).toBeVisible()
+    await expect(panel.getByText('0 of 3 required approved · 3 to review')).toBeVisible()
 
     // A file opens in a new tab on its five-minute link. The tab's request is
     // what is checked: headless Chromium has no PDF viewer, so the PDF becomes
@@ -197,34 +200,42 @@ test.describe.serial('garage documents @p0', () => {
       await group.getByRole('button', { name: 'Approve' }).click()
       await expect(group.getByText('Approved', { exact: true })).toBeVisible()
     }
-    await expect(panel.getByText('Documents verified', { exact: true })).toBeVisible()
+    await expect(panel.getByText('Documents checked', { exact: true })).toBeVisible()
 
     const [row] = await sql<{ n: number }[]>`
       select count(*)::int as n from vendor_documents
        where vendor_id = ${GARAGE.id} and status = 'approved' and reviewed_by = 'E2E Admin'
     `
-    expect(row.n).toBe(4)
+    expect(row.n).toBe(3)
     await ctx.close()
   })
 
-  test('the customer’s garage page shows Documents verified', async ({ browser }) => {
-    const ctx = await browser.newContext({
+  test('the documents step to Silver is done on the Tier tab; customers see no documents badge', async ({ browser }) => {
+    const { ctx, page } = await openAdmin(browser)
+    await page.goto(`/vendors/${GARAGE.id}/edit?tab=certification`)
+    const panel = page.getByRole('tabpanel', { name: 'Tier' })
+    const silver = panel.getByRole('region', { name: 'Silver steps' })
+    const documents = silver.getByRole('listitem').filter({ hasText: 'Documents checked by Detlio' })
+    await expect(documents.getByLabel('Met')).toBeVisible()
+    await expect(documents).toContainText('Shop photo, ID and bank proof approved')
+    await ctx.close()
+
+    const customer = await browser.newContext({
       storageState: statePath('customer-documents'),
       baseURL: USERS_ORIGIN,
       viewport: { width: 412, height: 915 },
       isMobile: true,
     })
-    await answerCookieQuestion(ctx)
-    await dismissLocationPrompt(ctx)
-    await blockThirdParties(ctx)
-    const page = await ctx.newPage()
-
-    await page.goto(`/garage/${GARAGE.id}`)
-    await expect(page.getByRole('heading', { name: GARAGE.name })).toBeVisible()
-    await expect(page.getByText('Documents verified', { exact: true })).toBeVisible()
-
-    const garage = (await (await ctx.request.get(PUBLIC_GARAGE)).json()).data as Record<string, unknown>
-    expect(garage.documentsVerified).toBe(true)
-    await ctx.close()
+    await answerCookieQuestion(customer)
+    await dismissLocationPrompt(customer)
+    await blockThirdParties(customer)
+    const garagePage = await customer.newPage()
+    await garagePage.goto(`/garage/${GARAGE.id}`)
+    await expect(garagePage.getByRole('heading', { name: GARAGE.name })).toBeVisible()
+    await expect(garagePage.getByText('Documents verified')).toHaveCount(0)
+    // No agreement accepted, so no tier and no medal yet.
+    const garage = (await (await customer.request.get(PUBLIC_GARAGE)).json()).data as Record<string, unknown>
+    expect(garage.tier).toBeNull()
+    await customer.close()
   })
 })

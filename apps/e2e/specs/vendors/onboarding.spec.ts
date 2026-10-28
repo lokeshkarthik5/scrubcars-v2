@@ -84,7 +84,7 @@ test('a new owner signs up and is taken through all four steps @p0', async ({ pa
 
   await page.getByRole('button', { name: /Finish|Done|Go to dashboard/i }).click()
   await expect(page).toHaveURL(/\/home/)
-  await expect(page.getByText(/under review/i)).toBeVisible()
+  await expect(page.getByText('Not shown to customers yet')).toBeVisible()
 
   const [vendor] = await sql<{
     id: string

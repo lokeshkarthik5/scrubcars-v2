@@ -1693,3 +1693,47 @@ export const TRUST_LOOK = {
     photo: { id: id(4571), url: 'https://placehold.co/600x400/png?text=Nila+Foam+Shine' },
   },
 } as const
+
+// Trust & look: tiers and the garage agreement (0063)
+/**
+ * specs/journeys/tiers-journey.spec.ts and agreement-journey.spec.ts, ids
+ * 4600–4699 and phones 90000047xx only. Five live garages far north (past
+ * 50 km: "Outside Chennai", at the end of any located list, and named
+ * "Zeal …" so they come last in a list sorted by name), each with its own
+ * owner, so nothing here moves another spec's numbers. Garage agreement v1
+ * is published by the seed (`agreementV1`; its PDF is not in the bucket:
+ * the agreement journey publishes a real one first).
+ *
+ * - gold: Gold (certified), holds Silver, accepted v1: the Gold medal, then
+ *   Silver while Gold is switched off.
+ * - silver: holds Silver, accepted v1: the Silver medal, hidden and shown
+ *   again by its Tier tab's switch.
+ * - bronze: accepted v1 only: the Bronze medal; its owner's "Your tier"
+ *   (next: Silver) links to Documents.
+ * - fresh: has accepted nothing: its owner gets Home's banner and accepts
+ *   the agreement, becoming Bronze.
+ * - award: accepted v1, its shop photo, ID and bank proof approved, 20 jobs
+ *   completed in the last 60 days (photos waived by Detlio, so the photo
+ *   standard has nothing to grade) and 10 five-star reviews from `reviewer`:
+ *   every Gold standard met, so admin records a passing check and presses
+ *   Award Gold.
+ */
+export const TIERS = {
+  owners: {
+    gold: { id: id(4600), name: 'Zeal Gold Owner', phone: '9000004700' },
+    silver: { id: id(4601), name: 'Zeal Silver Owner', phone: '9000004701' },
+    bronze: { id: id(4602), name: 'Zeal Bronze Owner', phone: '9000004702' },
+    fresh: { id: id(4603), name: 'Zeal Fresh Owner', phone: '9000004703' },
+    award: { id: id(4604), name: 'Zeal Award Owner', phone: '9000004704' },
+  },
+  reviewer: { id: id(4605), name: 'Zeal Reviewer Revathi', phone: '9000004705', vehicleId: id(4606) },
+  agreementV1: { id: id(4610), key: `agreements/v1-${id(4610)}.pdf` },
+  gold: { id: id(4620), name: 'Zeal Gold Garage', serviceId: id(4630) },
+  silver: { id: id(4621), name: 'Zeal Silver Garage', serviceId: id(4631) },
+  bronze: { id: id(4622), name: 'Zeal Bronze Garage', serviceId: id(4632) },
+  fresh: { id: id(4623), name: 'Zeal Fresh Garage', serviceId: id(4633) },
+  award: { id: id(4624), name: 'Zeal Award Garage', serviceId: id(4634) },
+  /** The award garage's 20 completed jobs, and the first 10 reviewed. */
+  awardJob: (n: number) => id(4640 + n),
+  awardReview: (n: number) => id(4670 + n),
+} as const

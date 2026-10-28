@@ -23,15 +23,15 @@ const { membersRepository } = await import('../members/members.repository.js')
 const { agreementsRepository } = await import('./agreements.repository.js')
 const { adminAgreementRoutes, garageAgreementRoutes } = await import('./agreements.routes.js')
 
-const GARAGE = 'e2e00000-0000-4000-8000-000000004510'
-const OTHER_GARAGE = 'e2e00000-0000-4000-8000-000000004511'
+const GARAGE = 'e2e00000-0000-4000-8000-000000004610'
+const OTHER_GARAGE = 'e2e00000-0000-4000-8000-000000004611'
 
 const PEOPLE = {
-  owner: 'e2e00000-0000-4000-8000-000000004501',
-  operator: 'e2e00000-0000-4000-8000-000000004502',
-  customer: 'e2e00000-0000-4000-8000-000000004503',
-  otherOwner: 'e2e00000-0000-4000-8000-000000004504',
-  superAdmin: 'e2e00000-0000-4000-8000-000000004505',
+  owner: 'e2e00000-0000-4000-8000-000000004601',
+  operator: 'e2e00000-0000-4000-8000-000000004602',
+  customer: 'e2e00000-0000-4000-8000-000000004603',
+  otherOwner: 'e2e00000-0000-4000-8000-000000004604',
+  superAdmin: 'e2e00000-0000-4000-8000-000000004605',
 }
 
 const SEATS: Array<{ userId: string; vendorId: string; role: 'vendor_admin' | 'vendor_operator' }> = [
@@ -58,7 +58,7 @@ let versions: Version[]
 let acceptances: Acceptance[]
 
 const version = (n: number, publishedAt = new Date('2026-10-01T00:00:00Z')): Version => ({
-  id: `e2e00000-0000-4000-8000-00000000452${n}`,
+  id: `e2e00000-0000-4000-8000-00000000462${n}`,
   version: n,
   fileKey: `agreements/v${n}-0b4f6c1e-2d3a-4c5b-8e9f-0a1b2c3d4e5f.pdf`,
   fileUrl: `https://cdn.example/agreements/v${n}.pdf`,

@@ -84,7 +84,7 @@ test.describe('admin garage editor layout', () => {
       'Hours & booking',
       'Services',
       'Team & payout',
-      'Certified',
+      'Tier',
     ])
 
     // Go live: the stage and Verified, as saved.
@@ -95,7 +95,7 @@ test.describe('admin garage editor layout', () => {
         .getByRole('radio', { name: 'Active' })
     ).toHaveAttribute('aria-checked', 'true')
     await expect(
-      goLive.getByRole('switch', { name: 'Verified by Detlio' })
+      goLive.getByRole('switch', { name: 'Show to customers' })
     ).toHaveAttribute('aria-checked', 'true')
     await expect(
       goLive.getByRole('button', { name: 'Pause new bookings' })

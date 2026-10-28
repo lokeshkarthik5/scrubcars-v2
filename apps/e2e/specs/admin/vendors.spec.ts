@@ -44,7 +44,7 @@ test.describe('admin vendors', () => {
 
     // Active but unverified: not Live, so under the Active chip.
     await page.goto('/vendors?show=active')
-    await page.getByRole('button', { name: `Verify ${name}` }).click()
+    await page.getByRole('button', { name: `Show ${name} to customers` }).click()
 
     await expect
       .poll(async () => {
@@ -361,19 +361,19 @@ test.describe('admin garage list: chips and checklist', () => {
     await expect(page).toHaveURL(/\/vendors\?show=notlive$/)
     await expect(
       page.getByText(
-        /^Not live yet = added, not verified yet, or something blocks it/
+        /^Not live yet = added, not shown to customers yet, or something blocks it/
       )
     ).toBeVisible()
     await expect(
       page.getByRole('row', { name: LIST.name, exact: true })
     ).toBeVisible()
 
-    // More filters holds the cross-cutting ones; Certified is there.
+    // More filters holds the cross-cutting ones; Gold (was Certified) is there.
     const more = page.getByRole('button', { name: /^More filters/ })
     await expect(more).toHaveAttribute('aria-expanded', 'false')
     await more.click()
     const extra = page.getByRole('group', { name: 'More filters' })
-    await extra.getByRole('button', { name: /^Certified \d+$/ }).click()
+    await extra.getByRole('button', { name: /^Gold \d+$/ }).click()
     await expect(page).toHaveURL(/\/vendors\?show=certified$/)
     await expect(more).toHaveAttribute('aria-expanded', 'true')
 

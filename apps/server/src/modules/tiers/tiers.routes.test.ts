@@ -21,13 +21,13 @@ const { tiersRepository } = await import('./tiers.repository.js')
 const { tiersService } = await import('./tiers.service.js')
 const { adminTierRoutes, garageTierRoutes, publicTierRoutes } = await import('./tiers.routes.js')
 
-const GARAGE = 'e2e00000-0000-4000-8000-000000004530'
-const BINNED = 'e2e00000-0000-4000-8000-000000004531'
+const GARAGE = 'e2e00000-0000-4000-8000-000000004630'
+const BINNED = 'e2e00000-0000-4000-8000-000000004631'
 
 const PEOPLE = {
-  owner: 'e2e00000-0000-4000-8000-000000004532',
-  operator: 'e2e00000-0000-4000-8000-000000004533',
-  superAdmin: 'e2e00000-0000-4000-8000-000000004534',
+  owner: 'e2e00000-0000-4000-8000-000000004632',
+  operator: 'e2e00000-0000-4000-8000-000000004633',
+  superAdmin: 'e2e00000-0000-4000-8000-000000004634',
 }
 
 const SEATS = [
@@ -300,7 +300,7 @@ describe('admin: switches, the garage view and the hide switch', () => {
     })
     const steps = body.data!.steps as Record<string, unknown[]>
     expect(Object.keys(steps)).toEqual(['bronze', 'silver', 'gold'])
-    expect((await call(`/admin/tiers/vendors/e2e00000-0000-4000-8000-000000004599`, 'superAdmin')).status).toBe(404)
+    expect((await call(`/admin/tiers/vendors/e2e00000-0000-4000-8000-000000004699`, 'superAdmin')).status).toBe(404)
   })
 
   test('hide the medal and show it again: customers see none meanwhile; audited once per change', async () => {
