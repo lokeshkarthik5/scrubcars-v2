@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import {
   AGREEMENT_CONTENT_TYPE,
   AGREEMENT_MAX_BYTES,
@@ -21,7 +21,7 @@ import {
   headObject,
   isStorageConfigured,
   publicUrlForKey,
-  readObjectStart,
+  readObject,
 } from '../../lib/storage.js'
 import { agreementsRepository, type AgreementVersionRecord } from './agreements.repository.js'
 import type { AcceptAgreementInput, AgreementUploadUrlInput, PublishAgreementInput } from './agreements.validation.js'
@@ -169,6 +169,7 @@ export const agreementsService = {
         title: `${AGREEMENT_TITLE} v${row.version}`,
         url: row.fileUrl,
         sizeBytes: row.sizeBytes,
+        sha256: row.sha256,
         note: row.note,
         publishedAt: row.publishedAt.toISOString(),
         publishedBy: row.publishedBy,
@@ -203,11 +204,15 @@ export const agreementsService = {
     if (!head) {
       throw new AppError(400, 'The PDF did not finish uploading. Upload it again.', 'AGREEMENT_FILE_MISSING')
     }
-    const start = head.sizeBytes > 0 && head.sizeBytes <= AGREEMENT_MAX_BYTES ? await readObjectStart(input.key, 5) : null
-    if (head.sizeBytes <= 0 || head.sizeBytes > AGREEMENT_MAX_BYTES || !start || !looksLikePdf(start)) {
+    // The whole file (10 MB at most) is read once: its first bytes must say
+    // PDF, and its SHA-256 is recorded, so what each garage accepted can be
+    // proved against the PDF later.
+    const file = head.sizeBytes > 0 && head.sizeBytes <= AGREEMENT_MAX_BYTES ? await readObject(input.key) : null
+    if (!file || file.body.length !== head.sizeBytes || !looksLikePdf(file.body)) {
       await deleteObject(input.key)
       throw new AppError(400, 'That file is not a PDF of up to 10 MB.', 'AGREEMENT_NOT_PDF')
     }
+    const sha256 = createHash('sha256').update(file.body).digest('hex')
 
     const published = await agreementsRepository.transaction(async (repo) => {
       await repo.lockPublishing()
@@ -224,6 +229,7 @@ export const agreementsService = {
         fileKey: input.key,
         fileUrl: publicUrlForKey(input.key),
         sizeBytes: head.sizeBytes,
+        sha256,
         note: input.note ? input.note : null,
         publishedBy: input.actorName,
         publishedBySub: actorSub,
@@ -233,7 +239,7 @@ export const agreementsService = {
         actorSub,
         actorName: input.actorName,
         summary: { version: row.version },
-        detail: { key: row.fileKey, sizeBytes: row.sizeBytes, note: row.note },
+        detail: { key: row.fileKey, sizeBytes: row.sizeBytes, sha256: row.sha256, note: row.note },
       })
       return row
     })

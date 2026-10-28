@@ -74,6 +74,8 @@ test.describe.serial('tiers and medals @p0', () => {
     await sql`update vendors set tier_hidden = false where id in (${TIERS.gold.id}, ${TIERS.silver.id}, ${TIERS.bronze.id}, ${TIERS.award.id})`
     await sql`delete from vendor_certifications where vendor_id = ${TIERS.award.id}`
     await sql`delete from vendor_quality_checks where vendor_id = ${TIERS.award.id}`
+    // The agreement journey (run before this file) has the fresh garage accept.
+    await sql`delete from agreement_acceptances where vendor_id = ${TIERS.fresh.id}`
   })
 
   test.afterAll(async () => {

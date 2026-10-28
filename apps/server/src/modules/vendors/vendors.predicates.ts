@@ -74,6 +74,20 @@ export const CERTIFIED_GARAGE = sql`EXISTS (SELECT 1 FROM vendor_certifications 
  */
 export const SILVER_GARAGE = sql`EXISTS (SELECT 1 FROM vendor_tier_standings ts WHERE ts.vendor_id = v.id AND ts.silver_at IS NOT NULL)`
 
+/**
+ * "Silver & above" (0063), against the alias `v`: garages whose medal
+ * customers see is one of `tiers` (the switched-on ones of Silver and Gold,
+ * tiersService.silverFilterTiers), never one whose medal admin hid. Gold is
+ * CERTIFIED_GARAGE; a garage holding Silver or Gold shows Silver while Silver
+ * is on (lib/tiers.ts shownTier). The garage list, the reach figures and
+ * "Just outside" all filter with this one condition.
+ */
+export function silverAndAboveCondition(tiers: ReadonlyArray<'silver' | 'gold'>) {
+  return tiers.includes('silver')
+    ? sql`(v.tier_hidden = false AND (${CERTIFIED_GARAGE} OR ${SILVER_GARAGE}))`
+    : sql`(v.tier_hidden = false AND ${CERTIFIED_GARAGE})`
+}
+
 // ─── The Bin ─────────────────────────────────────────────────────────────────
 
 /** In the Bin: moved there by admin, and not restored. */

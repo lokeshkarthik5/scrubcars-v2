@@ -70,6 +70,8 @@ export interface GarageTier {
   /** "You're Bronze. Next: Silver, 3 of 5 done." */
   line: string
   next: TierNext | null
+  /** What the tier held now asks for and is not met (absent from an older API). */
+  keep?: TierStep[]
   /** A held tier falling short: the last IST day it is kept. */
   atRisk: { tier: Tier; keepsUntil: string } | null
   agreement: AgreementStanding
@@ -106,6 +108,8 @@ export interface AdminTier {
   switches: Record<Tier, boolean>
   atRisk: { tier: Tier; keepsUntil: string } | null
   next: TierNext | null
+  /** What the tier held now asks for and is not met (absent from an older API). */
+  keep?: TierStep[]
   steps: Record<Tier, TierStep[]>
   silver: { since: string | null; lostAt: string | null; lastEvaluatedAt: string | null }
   agreement: AgreementStanding

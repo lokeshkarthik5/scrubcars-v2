@@ -112,6 +112,11 @@ export function GarageTierSection({ vendorId, readOnly }: { vendorId: string; re
             put right.
           </p>
         )}
+        {data.tier && (data.keep?.length ?? 0) > 0 && (
+          <p className="text-[12px] text-warning">
+            Not met for {TIER_LABELS[data.tier]}: {data.keep!.map((step) => step.label).join(', ')}.
+          </p>
+        )}
         {data.runPaused && <p className="text-[12px] text-warning">{PAUSED[data.runPaused]}</p>}
 
         <div className="flex items-center justify-between gap-3 border-t border-border pt-3">

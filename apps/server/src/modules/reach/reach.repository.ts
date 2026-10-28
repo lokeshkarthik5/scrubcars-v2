@@ -5,9 +5,9 @@ import { DEFAULT_DOORSTEP_RADIUS_KM } from '../../lib/doorstep.js'
 import { DEFAULT_PICKUP_RADIUS_KM } from '../../lib/pickup.js'
 import { JUST_OUTSIDE_KM } from '../../lib/reach.js'
 import {
-  CERTIFIED_GARAGE,
   LISTED_TO_CUSTOMERS,
   PICKUP_OFFERED,
+  silverAndAboveCondition,
 } from '../vendors/vendors.predicates.js'
 
 type ServiceCategory = (typeof serviceCategoryEnum.enumValues)[number]
@@ -18,14 +18,15 @@ export type ZoneRecord = typeof zones.$inferSelect
 /** The filters a list was asked with, which its reach figures follow too. */
 export interface ReachFilters {
   category?: ServiceCategory
-  certifiedOnly?: boolean
+  /** "Silver & above" (0063): the tiers it lets through; absent, every garage. */
+  tiers?: Array<'silver' | 'gold'>
 }
 
 function geography(origin: Point) {
   return sql`gis.ST_SetSRID(gis.ST_MakePoint(${origin.lng}, ${origin.lat}), 4326)::gis.geography`
 }
 
-/** The list's own category and Certified filters (vendorsRepository.listPublicVendorPage). */
+/** The list's own category and "Silver & above" filters (vendorsRepository.listPublicVendorPage). */
 function filterConditions(filters: ReachFilters) {
   const conditions = [LISTED_TO_CUSTOMERS]
   if (filters.category) {
@@ -34,7 +35,7 @@ function filterConditions(filters: ReachFilters) {
        WHERE s.vendor_id = v.id AND s.is_active = true AND s.category = ${filters.category}
     )`)
   }
-  if (filters.certifiedOnly) conditions.push(CERTIFIED_GARAGE)
+  if (filters.tiers && filters.tiers.length > 0) conditions.push(silverAndAboveCondition(filters.tiers))
   return conditions
 }
 

@@ -25,6 +25,7 @@ function reads(conn: Conn) {
           version: agreementVersions.version,
           fileUrl: agreementVersions.fileUrl,
           sizeBytes: agreementVersions.sizeBytes,
+          sha256: agreementVersions.sha256,
           note: agreementVersions.note,
           publishedAt: agreementVersions.publishedAt,
           publishedBy: agreementVersions.publishedBy,
@@ -101,6 +102,7 @@ function writes(tx: Tx) {
       fileKey: string
       fileUrl: string
       sizeBytes: number
+      sha256: string
       note: string | null
       publishedBy: string
       publishedBySub: string

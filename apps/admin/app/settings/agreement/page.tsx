@@ -176,6 +176,11 @@ export default function GarageAgreementSettingsPage() {
                           {v.acceptances === 1 ? 'garage accepted' : 'garages accepted'}
                         </p>
                         {v.note && <p className="text-[12px] text-text-muted">{v.note}</p>}
+                        {v.sha256 && (
+                          <p className="break-all font-mono text-[11px] text-text-muted" title="SHA-256 of the PDF as published">
+                            SHA-256 {v.sha256}
+                          </p>
+                        )}
                       </div>
                       <a
                         href={v.url}

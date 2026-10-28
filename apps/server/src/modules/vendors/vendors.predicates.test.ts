@@ -9,6 +9,7 @@ import {
   NOT_IN_BIN,
   PICKUP_OFFERED,
   SILVER_GARAGE,
+  silverAndAboveCondition,
   isInBin,
   isListedToCustomers,
   vendorPageOpen,
@@ -193,5 +194,18 @@ describe('Silver', () => {
       })
     const at = new Date('2026-11-02T04:30:00Z')
     for (const row of [null, { silverAt: null }, { silverAt: at }]) expect(sqlSilver(row)).toBe(holdsSilver(row))
+  })
+})
+
+describe('"Silver & above"', () => {
+  const dialect = new PgDialect()
+  test('Silver on: Gold or Silver held; Silver off: Gold only; never a hidden medal', () => {
+    const both = dialect.sqlToQuery(silverAndAboveCondition(['silver', 'gold'])).sql
+    expect(both.startsWith('(v.tier_hidden = false AND (EXISTS (SELECT 1 FROM vendor_certifications')).toBe(true)
+    expect(both).toContain(' OR EXISTS (SELECT 1 FROM vendor_tier_standings ts')
+    const goldOnly = dialect.sqlToQuery(silverAndAboveCondition(['gold'])).sql
+    expect(goldOnly.startsWith('(v.tier_hidden = false AND EXISTS (SELECT 1 FROM vendor_certifications')).toBe(true)
+    expect(goldOnly).not.toContain('vendor_tier_standings')
+    expect(dialect.sqlToQuery(silverAndAboveCondition(['silver'])).sql).toBe(both)
   })
 })

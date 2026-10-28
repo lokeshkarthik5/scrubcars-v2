@@ -233,16 +233,35 @@ describe('tierProgress', () => {
   test('Silver held: next is Gold; Gold held: the top', () => {
     const silver = tierProgress(input({ silverHeld: true, metrics: GOLD, check: PASSED }))
     expect(silver.tier).toBe('silver')
-    expect(silver.next).toMatchObject({ tier: 'gold', done: 7, total: 7 })
+    // Gold's own seven, plus Silver's documents and no missed bookings.
+    expect(silver.next).toMatchObject({ tier: 'gold', done: 9, total: 9 })
+    expect(silver.next!.steps.map((s) => s.key)).toEqual([
+      'documents',
+      'no_shows',
+      'rating',
+      'completed',
+      'response',
+      'complaints',
+      'photos',
+      'bypass',
+      'quality_check',
+    ])
+    expect(silver.keep).toEqual([])
     const gold = tierProgress(input({ silverHeld: true, goldHeld: true, metrics: GOLD, check: PASSED }))
     expect(gold.tier).toBe('gold')
     expect(gold.next).toBeNull()
     expect(progressLine(gold)).toBe("You're Gold. That's the top tier.")
   })
 
-  test('stored tiers stand while short (the 14 days), even without Bronze', () => {
-    expect(tierProgress(input({ silverHeld: true, agreement: NOT_ACCEPTED })).tier).toBe('silver')
-    expect(tierProgress(input({ goldHeld: true, agreement: NOT_ACCEPTED })).tier).toBe('gold')
+  test('stored tiers stand while short (the 14 days), even without Bronze, and say what to put right', () => {
+    const silver = tierProgress(input({ silverHeld: true, agreement: NOT_ACCEPTED }))
+    expect(silver.tier).toBe('silver')
+    expect(silver.keep.map((s) => s.key)).toEqual(['agreement'])
+    const gold = tierProgress(input({ goldHeld: true, agreement: NOT_ACCEPTED, metrics: { ...GOLD, documentsVerified: false }, check: PASSED }))
+    expect(gold.tier).toBe('gold')
+    expect(gold.next).toBeNull()
+    expect(gold.keep.map((s) => s.key)).toEqual(['agreement', 'documents'])
+    expect(tierProgress(input({ agreement: ACCEPTED })).keep).toEqual([])
   })
 })
 
@@ -257,19 +276,30 @@ describe('what customers see', () => {
     expect(heldTier({ gold: false, silver: false, bronze: false })).toBeNull()
   })
 
-  test('the highest switched-on tier at or below the one held', () => {
-    expect(shownTier('gold', ALL, false)).toBe('gold')
-    expect(shownTier('gold', { ...ALL, gold: false }, false)).toBe('silver')
-    expect(shownTier('gold', { bronze: true, silver: false, gold: false }, false)).toBe('bronze')
-    expect(shownTier('silver', GOLD_ONLY, false)).toBeNull()
-    expect(shownTier('bronze', GOLD_ONLY, false)).toBeNull()
-    expect(shownTier('gold', GOLD_ONLY, false)).toBe('gold')
-    expect(shownTier(null, ALL, false)).toBeNull()
+  const ALL_HELD = { gold: true, silver: true, bronze: true }
+  const BRONZE_ONLY = { gold: false, silver: false, bronze: true }
+
+  test('the highest switched-on tier the garage holds', () => {
+    expect(shownTier(ALL_HELD, ALL, false)).toBe('gold')
+    expect(shownTier(ALL_HELD, { ...ALL, gold: false }, false)).toBe('silver')
+    expect(shownTier(ALL_HELD, { bronze: true, silver: false, gold: false }, false)).toBe('bronze')
+    expect(shownTier({ gold: false, silver: true, bronze: true }, GOLD_ONLY, false)).toBeNull()
+    expect(shownTier(BRONZE_ONLY, GOLD_ONLY, false)).toBeNull()
+    expect(shownTier(ALL_HELD, GOLD_ONLY, false)).toBe('gold')
+    expect(shownTier({ gold: false, silver: false, bronze: false }, ALL, false)).toBeNull()
+  })
+
+  test('Gold comes with Silver; Bronze only on the agreement itself', () => {
+    // Gold without a stored Silver row still shows Silver while Gold is off.
+    expect(shownTier({ gold: true, silver: false, bronze: true }, { ...ALL, gold: false }, false)).toBe('silver')
+    // Gold or Silver in its 14 days without the agreement never shows Bronze.
+    expect(shownTier({ gold: true, silver: true, bronze: false }, { bronze: true, silver: false, gold: false }, false)).toBeNull()
+    expect(shownTier({ gold: false, silver: true, bronze: false }, ALL, false)).toBe('silver')
   })
 
   test('nothing while the garage is hidden, whatever it holds', () => {
-    expect(shownTier('gold', ALL, true)).toBeNull()
-    expect(shownTier('bronze', ALL, true)).toBeNull()
+    expect(shownTier(ALL_HELD, ALL, true)).toBeNull()
+    expect(shownTier(BRONZE_ONLY, ALL, true)).toBeNull()
   })
 
   test('"Silver & above" is offered while Silver or Gold is on', () => {

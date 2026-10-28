@@ -94,8 +94,15 @@ export function holdsSilver(row: { silverAt: Date | string | null } | null | und
   return row != null && row.silverAt != null
 }
 
-/** The highest tier a garage holds: Gold if certified, Silver if held, Bronze if on the agreement. */
-export function heldTier(held: { gold: boolean; silver: boolean; bronze: boolean }): Tier | null {
+/** What a garage holds of each tier: Gold if certified, Silver if held, Bronze if on the agreement. */
+export interface TierHoldings {
+  gold: boolean
+  silver: boolean
+  bronze: boolean
+}
+
+/** The highest tier a garage holds. */
+export function heldTier(held: TierHoldings): Tier | null {
   if (held.gold) return 'gold'
   if (held.silver) return 'silver'
   if (held.bronze) return 'bronze'
@@ -103,14 +110,22 @@ export function heldTier(held: { gold: boolean; silver: boolean; bronze: boolean
 }
 
 /**
- * The medal customers see: the highest tier at or below the one the garage
- * holds that is switched on (a Gold garage shows Silver while Gold is off),
- * and none while admin has hidden this garage's medal.
+ * The medal customers see: the highest tier the garage actually holds that
+ * is switched on (a Gold garage shows Silver while Gold is off, since Gold
+ * comes with Silver), and none while admin has hidden this garage's medal.
+ * Bronze is shown only on the agreement itself: a Gold or Silver garage that
+ * has not accepted it (during its 14 days, or before any agreement exists)
+ * never steps down to a Bronze medal that would claim it had.
  */
-export function shownTier(held: Tier | null, switches: TierSwitches, hidden: boolean): Tier | null {
-  if (held === null || hidden) return null
+export function shownTier(held: TierHoldings, switches: TierSwitches, hidden: boolean): Tier | null {
+  if (hidden) return null
+  const holds: Record<Tier, boolean> = {
+    gold: held.gold,
+    silver: held.silver || held.gold,
+    bronze: held.bronze,
+  }
   for (const tier of [...TIERS].reverse()) {
-    if (LEVEL[tier] <= LEVEL[held] && switches[tier]) return tier
+    if (holds[tier] && switches[tier]) return tier
   }
   return null
 }
@@ -391,6 +406,13 @@ export interface TierProgress {
   silverEligible: boolean
   /** The next tier up, and what it takes; null at Gold. */
   next: { tier: Tier; steps: TierStep[]; done: number; total: number } | null
+  /**
+   * What the tier held now asks for that is not met (the agreement first):
+   * a Silver or Gold garage falling short sees exactly what to put right.
+   * Empty when everything holds, and for Bronze (its one step is the
+   * agreement, whose 30 days Home's banner tells).
+   */
+  keep: TierStep[]
 }
 
 /**
@@ -406,6 +428,12 @@ export function tierProgress(input: TierInput): TierProgress {
   const silverEligible = bronze && silver.every((step) => step.met)
   const agreement = agreementStep(input.agreement)
 
+  const gold = goldSteps(input.metrics, input.check)
+  // Gold asks for everything Silver does: its stricter versions of rating,
+  // jobs and answers, plus Silver's documents and no missed bookings.
+  const silverOnly = silver.filter((step) => step.key === 'documents' || step.key === 'no_shows')
+  const goldAll = [...silverOnly, ...gold]
+
   let next: TierProgress['next'] = null
   const withAgreement = (steps: TierStep[]) => (agreement.met ? steps : [agreement, ...steps])
   if (tier === null) {
@@ -413,13 +441,16 @@ export function tierProgress(input: TierInput): TierProgress {
   } else if (tier === 'bronze') {
     next = { tier: 'silver', steps: withAgreement(silver), done: 0, total: 0 }
   } else if (tier === 'silver') {
-    next = { tier: 'gold', steps: withAgreement(goldSteps(input.metrics, input.check)), done: 0, total: 0 }
+    next = { tier: 'gold', steps: withAgreement(goldAll), done: 0, total: 0 }
   }
   if (next) {
     next.done = next.steps.filter((step) => step.met).length
     next.total = next.steps.length
   }
-  return { tier, silverEligible, next }
+
+  const keepOf = (steps: TierStep[]) => withAgreement(steps).filter((step) => !step.met)
+  const keep = tier === 'gold' ? keepOf(goldAll) : tier === 'silver' ? keepOf(silver) : []
+  return { tier, silverEligible, next, keep }
 }
 
 /** "You're Bronze. Next: Silver, 3 of 5 done." */

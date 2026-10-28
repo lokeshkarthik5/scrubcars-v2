@@ -3129,7 +3129,7 @@ async function seedTierRows() {
   await db.insert(agreementVersions).values({
     id: TIERS.agreementV1.id, version: 1, fileKey: TIERS.agreementV1.key,
     fileUrl: `${process.env.R2_PUBLIC_BASE_URL ?? 'http://localhost:9000/detlio-e2e'}/${TIERS.agreementV1.key}`,
-    sizeBytes: 1024, note: 'E2E seed', publishedAt: daysAgo(60), publishedBy: 'E2E seed', publishedBySub: 'seed',
+    sizeBytes: 1024, sha256: '0'.repeat(64), note: 'E2E seed', publishedAt: daysAgo(60), publishedBy: 'E2E seed', publishedBySub: 'seed',
   })
   await db.insert(agreementAcceptances).values(
     [TIERS.gold, TIERS.silver, TIERS.bronze, TIERS.award].map((garage) => ({

@@ -273,24 +273,6 @@ export async function headObject(
   }
 }
 
-/**
- * The first `bytes` bytes of an object (a Range read), to check what a file
- * really is whatever its name says. Null when it can't be read.
- */
-export async function readObjectStart(key: string, bytes: number): Promise<Uint8Array | null> {
-  try {
-    const object = await getClient().send(
-      new GetObjectCommand({ Bucket: env.r2Bucket, Key: key, Range: `bytes=0-${bytes - 1}` })
-    )
-    if (!object.Body) return null
-    return await object.Body.transformToByteArray()
-  } catch (error) {
-    const status = (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode
-    log.warn({ status, name: (error as { name?: string }).name }, 'storage:read_start_failed')
-    return null
-  }
-}
-
 /** Best-effort delete of an object; logs but does not throw on failure. */
 export async function deleteObject(key: string): Promise<void> {
   try {

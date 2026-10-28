@@ -19,6 +19,7 @@ import {
   tierProgress,
   tierRunPaused,
   type Tier,
+  type TierHoldings,
   type TierSwitches,
 } from '../../lib/tiers.js'
 import { agreementPublished, agreementStandings, agreementsService } from '../agreements/agreements.service.js'
@@ -36,8 +37,8 @@ async function readSwitches(): Promise<TierSwitches> {
   return switches
 }
 
-/** The tier each of these garages holds now: Gold, Silver (stored) or Bronze (the agreement). */
-async function heldTiers(vendorIds: string[], now = new Date()): Promise<Map<string, Tier | null>> {
+/** What each of these garages holds now: Gold, Silver (stored) and Bronze (the agreement). */
+async function holdings(vendorIds: string[], now = new Date()): Promise<Map<string, TierHoldings>> {
   if (vendorIds.length === 0) return new Map()
   const gold = await tiersRepository.listGoldIds(vendorIds)
   const silver = await tiersRepository.listSilverIds(vendorIds)
@@ -45,10 +46,18 @@ async function heldTiers(vendorIds: string[], now = new Date()): Promise<Map<str
   return new Map(
     vendorIds.map((id) => [
       id,
-      heldTier({ gold: gold.has(id), silver: silver.has(id), bronze: agreements.get(id)?.bronze ?? false }),
+      { gold: gold.has(id), silver: silver.has(id), bronze: agreements.get(id)?.bronze ?? false },
     ])
   )
 }
+
+/** The highest tier each of these garages holds now, whatever customers are shown. */
+async function heldTiers(vendorIds: string[], now = new Date()): Promise<Map<string, Tier | null>> {
+  const held = await holdings(vendorIds, now)
+  return new Map(vendorIds.map((id) => [id, heldTier(held.get(id)!)]))
+}
+
+const NOTHING: TierHoldings = { gold: false, silver: false, bronze: false }
 
 /** Where a garage stands now and what the next tier takes, from its own figures. */
 async function progressOf(vendorId: string, now = new Date()) {
@@ -88,10 +97,10 @@ export const tiersService = {
     if (vendorIds.length === 0) return new Map()
     const [switches, held, hidden] = [
       await readSwitches(),
-      await heldTiers(vendorIds, now),
+      await holdings(vendorIds, now),
       await tiersRepository.listHiddenIds(vendorIds),
     ]
-    return new Map(vendorIds.map((id) => [id, shownTier(held.get(id) ?? null, switches, hidden.has(id))]))
+    return new Map(vendorIds.map((id) => [id, shownTier(held.get(id) ?? NOTHING, switches, hidden.has(id))]))
   },
 
   /**
@@ -121,6 +130,8 @@ export const tiersService = {
       tier: progress.tier,
       line: progressLine(progress),
       next: progress.next,
+      /** What the tier held now asks for and is not met: what to put right. */
+      keep: progress.keep,
       atRisk,
       agreement: facts.agreement,
       documentsOn: isDocumentStorageConfigured(),
@@ -165,7 +176,15 @@ export const tiersService = {
     const now = new Date()
     const { facts, progress, atRisk } = await progressOf(vendorId, now)
     const switches = await readSwitches()
-    const shown = shownTier(progress.tier, switches, garage.tierHidden)
+    const shown = shownTier(
+      {
+        gold: isCertified(facts.certification),
+        silver: facts.silver?.silverAt != null,
+        bronze: facts.agreement.bronze,
+      },
+      switches,
+      garage.tierHidden
+    )
     return {
       garage: { id: garage.id, businessName: garage.businessName, inBin: garage.deletedAt !== null },
       tier: progress.tier,
@@ -176,6 +195,7 @@ export const tiersService = {
       switches,
       atRisk,
       next: progress.next,
+      keep: progress.keep,
       steps: {
         bronze: [agreementStep(facts.agreement)],
         silver: silverSteps(facts.metrics),

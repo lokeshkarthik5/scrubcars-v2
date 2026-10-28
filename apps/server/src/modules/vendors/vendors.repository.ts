@@ -22,10 +22,9 @@ import { containsPattern } from '../../lib/search.js'
 import { DEFAULT_PICKUP_RADIUS_KM } from '../../lib/pickup.js'
 import type { BookingType } from '../../lib/booking-types.js'
 import {
-  CERTIFIED_GARAGE,
   LISTED_TO_CUSTOMERS,
   PICKUP_OFFERED,
-  SILVER_GARAGE,
+  silverAndAboveCondition,
   vendorPageOpen,
 } from './vendors.predicates.js'
 import type {
@@ -214,12 +213,7 @@ export const vendorsRepository = {
       conditions.push(sql`v.id NOT IN (${sql.join(params.excludeIds.map((id) => sql`${id}::uuid`), sql`, `)})`)
     }
 
-    if (params.tiers && params.tiers.length > 0) {
-      conditions.push(sql`v.tier_hidden = false`)
-      conditions.push(
-        params.tiers.includes('silver') ? sql`(${CERTIFIED_GARAGE} OR ${SILVER_GARAGE})` : CERTIFIED_GARAGE
-      )
-    }
+    if (params.tiers && params.tiers.length > 0) conditions.push(silverAndAboveCondition(params.tiers))
 
     if (bookingType === 'dropin') conditions.push(sql`v.dropin_enabled = true`)
 

@@ -2637,6 +2637,7 @@ export const agreementVersions = pgTable(
     fileKey: varchar('file_key', { length: 300 }).notNull(),
     fileUrl: varchar('file_url', { length: 600 }).notNull(),
     sizeBytes: integer('size_bytes').notNull(),
+    sha256: varchar('sha256', { length: 64 }).notNull(),
     note: varchar('note', { length: 300 }),
     publishedAt: timestamp('published_at', { withTimezone: true }).defaultNow().notNull(),
     publishedBy: varchar('published_by', { length: 100 }).notNull(),

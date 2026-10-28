@@ -1645,7 +1645,7 @@ export const BEHAVIOUR = {
 
 // Trust & look: no-photo look and What's included (0063)
 /**
- * specs/users/no-photo-look.spec.ts, ids 4550–4599, phones 90000045[5-9]x.
+ * specs/users/no-photo-look.spec.ts, ids 4700–4749, phones 90000049xx.
  * Two garages far south-west like VENDORS.media (past 50 km, so "Outside
  * Chennai", and at the very end of any located list), each with its own
  * owner, so nothing here moves another spec's numbers:
@@ -1664,15 +1664,15 @@ export const BEHAVIOUR = {
  * - photo: one garage photo and no logo: the photo, with the monogram ("VP").
  */
 export const TRUST_LOOK = {
-  plainOwner: { id: id(4550), name: 'Nila Owner E2E', phone: '9000004550' },
-  photoOwner: { id: id(4551), name: 'Vel Owner E2E', phone: '9000004551' },
-  plain: { id: id(4552), name: 'Nila Polish Works', phone: '9000004552', initials: 'NP' },
-  photo: { id: id(4553), name: 'Vel Photo Garage', phone: '9000004553', initials: 'VP' },
+  plainOwner: { id: id(4700), name: 'Nila Owner E2E', phone: '9000004900' },
+  photoOwner: { id: id(4701), name: 'Vel Owner E2E', phone: '9000004901' },
+  plain: { id: id(4702), name: 'Nila Polish Works', phone: '9000004902', initials: 'NP' },
+  photo: { id: id(4703), name: 'Vel Photo Garage', phone: '9000004903', initials: 'VP' },
   /** VENDORS.photo's one photo. */
   garagePhotoUrl: 'https://placehold.co/600x400/png?text=Vel+Photo+Garage',
   services: {
     points: {
-      id: id(4560), name: 'Nila Cabin Deep Clean', price: '1999.00', durationMins: 180,
+      id: id(4710), name: 'Nila Cabin Deep Clean', price: '1999.00', durationMins: 180,
       intro: 'A deep clean of the whole cabin.',
       points: [
         'Deep vacuum', 'Seat shampoo', 'Dashboard polish', 'Door pads wiped',
@@ -1680,17 +1680,17 @@ export const TRUST_LOOK = {
       ],
     },
     bike: {
-      id: id(4561), name: 'Nila Two-Wheeler Wash', price: '200.00', durationMins: 45,
+      id: id(4711), name: 'Nila Two-Wheeler Wash', price: '200.00', durationMins: 45,
       description: 'Body, wheels and chain area',
     },
-    aiOnly: { id: id(4562), name: 'Nila Ceramic Guard', price: '4999.00', durationMins: 240 },
-    photo: { id: id(4563), name: 'Nila Foam Shine', price: '599.00', durationMins: 60 },
+    aiOnly: { id: id(4712), name: 'Nila Ceramic Guard', price: '4999.00', durationMins: 240 },
+    photo: { id: id(4713), name: 'Nila Foam Shine', price: '599.00', durationMins: 60 },
     /** On TRUST_LOOK.photo, so it is listed like any garage with a service. */
-    photoGarageWash: { id: id(4564), name: 'Vel Quick Wash', price: '399.00', durationMins: 30 },
+    photoGarageWash: { id: id(4714), name: 'Vel Quick Wash', price: '399.00', durationMins: 30 },
   },
   media: {
-    ai: { id: id(4570), url: 'https://placehold.co/600x400/png?text=AI+sample' },
-    photo: { id: id(4571), url: 'https://placehold.co/600x400/png?text=Nila+Foam+Shine' },
+    ai: { id: id(4720), url: 'https://placehold.co/600x400/png?text=AI+sample' },
+    photo: { id: id(4721), url: 'https://placehold.co/600x400/png?text=Nila+Foam+Shine' },
   },
 } as const
 

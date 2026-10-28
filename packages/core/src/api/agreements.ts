@@ -47,7 +47,7 @@ export function acceptAgreement(version: number): Promise<GarageAgreement> {
 export interface AdminAgreements {
   storageReady: boolean
   maxBytes: number
-  versions: Array<AgreementVersion & { publishedBy: string; acceptances: number }>
+  versions: Array<AgreementVersion & { publishedBy: string; acceptances: number; sha256: string }>
 }
 
 export function getAdminAgreements(): Promise<AdminAgreements> {

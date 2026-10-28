@@ -5,9 +5,49 @@ import { IconChevronRight, IconCircleCheck, IconCircleDashed } from '@tabler/ico
 import { ScCard } from '@repo/ui/sc/card'
 import { TierMedalIcon } from '@repo/ui/features/tier-medal'
 import { useGarageTier } from '@repo/core/api/hooks/use-tiers'
+import type { TierStep } from '@repo/core/api/tiers'
 import { dateKeyLabel } from '@repo/core/certification'
 import { TIER_GARAGE_LINES, TIER_LABELS, TIER_STEP_LINKS } from '@repo/core/tiers'
 import { cn } from '@repo/core/utils'
+
+/** One list of steps, each with where to act when it is not met. */
+function StepList({ steps, label }: { steps: TierStep[]; label: string }) {
+  return (
+    <section aria-label={label} className="flex flex-col gap-1.5">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.07em] text-text-muted">{label}</p>
+      <ul className="flex flex-col divide-y divide-line">
+        {steps.map((step) => {
+          const link = !step.met && step.action ? TIER_STEP_LINKS[step.action] : null
+          return (
+            <li key={step.key} className="flex items-start gap-2.5 py-2.5 first:pt-0 last:pb-0">
+              {step.met ? (
+                <IconCircleCheck size={18} aria-label="Done" className="mt-px shrink-0 text-success" />
+              ) : (
+                <IconCircleDashed size={18} aria-label="To do" className="mt-px shrink-0 text-text-muted" />
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="text-[13px] font-medium text-text-primary">{step.label}</p>
+                <p className="text-[12px] text-text-secondary">
+                  {step.value}
+                  {!step.met && <span className="text-text-muted"> · Needs: {step.target}</span>}
+                </p>
+              </div>
+              {link && (
+                <Link
+                  href={link.href}
+                  className="tap-target flex shrink-0 items-center gap-0.5 self-center text-[12px] font-medium text-text-primary underline underline-offset-2"
+                >
+                  {link.label}
+                  <IconChevronRight size={14} aria-hidden="true" />
+                </Link>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+    </section>
+  )
+}
 
 /**
  * "Your tier" on the portal's Home (0063), for the owner seat: the tier the
@@ -25,6 +65,7 @@ export function TierCard({ vendorId }: { vendorId: string | undefined }) {
   if (!data) return null
 
   const next = data.next
+  const keep = data.keep ?? []
   const percent = next && next.total > 0 ? Math.round((next.done / next.total) * 100) : 100
 
   return (
@@ -77,38 +118,12 @@ export function TierCard({ vendorId }: { vendorId: string | undefined }) {
         </p>
       )}
 
-      {next && (
-        <ul className="flex flex-col divide-y divide-line" aria-label={`Steps to ${TIER_LABELS[next.tier]}`}>
-          {next.steps.map((step) => {
-            const link = !step.met && step.action ? TIER_STEP_LINKS[step.action] : null
-            return (
-              <li key={step.key} className="flex items-start gap-2.5 py-2.5 first:pt-0 last:pb-0">
-                {step.met ? (
-                  <IconCircleCheck size={18} aria-label="Done" className="mt-px shrink-0 text-success" />
-                ) : (
-                  <IconCircleDashed size={18} aria-label="To do" className="mt-px shrink-0 text-text-muted" />
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="text-[13px] font-medium text-text-primary">{step.label}</p>
-                  <p className="text-[12px] text-text-secondary">
-                    {step.value}
-                    {!step.met && <span className="text-text-muted"> · Needs: {step.target}</span>}
-                  </p>
-                </div>
-                {link && (
-                  <Link
-                    href={link.href}
-                    className="tap-target flex shrink-0 items-center gap-0.5 self-center text-[12px] font-medium text-text-primary underline underline-offset-2"
-                  >
-                    {link.label}
-                    <IconChevronRight size={14} aria-hidden="true" />
-                  </Link>
-                )}
-              </li>
-            )
-          })}
-        </ul>
+      {/* What the tier held now asks for and is not met: put right first. */}
+      {keep.length > 0 && data.tier && (
+        <StepList steps={keep} label={`To keep ${TIER_LABELS[data.tier]}`} />
       )}
+
+      {next && <StepList steps={next.steps} label={`Steps to ${TIER_LABELS[next.tier]}`} />}
 
       {next?.tier === 'gold' && (
         <p className="text-[12px] text-text-muted">

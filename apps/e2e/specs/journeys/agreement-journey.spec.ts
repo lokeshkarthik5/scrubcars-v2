@@ -67,6 +67,11 @@ test.describe.serial('garage agreement @p0', () => {
     await sql`delete from agreement_acceptances where vendor_id = ${TIERS.fresh.id}`
   })
 
+  test.afterAll(async () => {
+    // Back as seeded for any later spec: the fresh garage has accepted nothing.
+    await sql`delete from agreement_acceptances where vendor_id = ${TIERS.fresh.id}`
+  })
+
   test('admin publishes the next version as a PDF', async ({ browser }) => {
     const { ctx, page } = await openAdmin(browser)
     await page.goto('/settings')

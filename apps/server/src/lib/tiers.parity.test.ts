@@ -37,9 +37,9 @@ describe('tiers parity', () => {
   test('the progress line reads the same', async () => {
     const core = (await import(coreUrl('tiers.ts'))) as { progressLine: (p: server.TierProgress) => string }
     const cases: server.TierProgress[] = [
-      { tier: null, silverEligible: false, next: { tier: 'bronze', steps: [], done: 0, total: 1 } },
-      { tier: 'bronze', silverEligible: false, next: { tier: 'silver', steps: [], done: 3, total: 5 } },
-      { tier: 'gold', silverEligible: true, next: null },
+      { tier: null, silverEligible: false, next: { tier: 'bronze', steps: [], done: 0, total: 1 }, keep: [] },
+      { tier: 'bronze', silverEligible: false, next: { tier: 'silver', steps: [], done: 3, total: 5 }, keep: [] },
+      { tier: 'gold', silverEligible: true, next: null, keep: [] },
     ]
     for (const progress of cases) expect(core.progressLine(progress)).toBe(server.progressLine(progress))
   })

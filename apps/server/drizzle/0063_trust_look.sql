@@ -35,8 +35,11 @@
 -- approved now has its documents checked even if its paper agreement was
 -- still waiting. Nothing is taken away by this migration: the nightly run
 -- changes no tier until admin has published the first agreement (lib/tiers.ts,
--- `tierRunPaused`), and from then on a garage that falls short keeps its tier
--- for 14 days (and has 30 days to accept a new agreement version).
+-- `tierRunPaused`). From the night it is published, a garage holding Silver
+-- or Gold that has not accepted it is short and keeps its tier for 14 days
+-- (the 30 days are for a garage that accepted an earlier version when a new
+-- one comes out), so publish the first version before those garages are
+-- asked to accept it.
 --
 -- Additive: new tables, one new column with a default, and rows. Applied by
 -- scripts/migrate.sh in one transaction; every statement is safe to re-run.
@@ -48,6 +51,9 @@ CREATE TABLE IF NOT EXISTS "agreement_versions" (
   "file_key" varchar(300) NOT NULL,
   "file_url" varchar(600) NOT NULL,
   "size_bytes" integer NOT NULL,
+  -- SHA-256 of the file as published, hex: what was accepted can be proved
+  -- against the PDF even if the object were ever replaced.
+  "sha256" varchar(64) NOT NULL,
   -- What changed, for the team and the garage ("Pickup clause added").
   "note" varchar(300),
   "published_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -58,6 +64,7 @@ CREATE TABLE IF NOT EXISTS "agreement_versions" (
   CONSTRAINT "agreement_versions_key_check" CHECK ("file_key" ~ '^agreements/v[0-9]+-[0-9a-f-]{36}\.pdf$'),
   -- 10 MB, as lib/agreements.ts limits the upload.
   CONSTRAINT "agreement_versions_size_check" CHECK ("size_bytes" BETWEEN 1 AND 10485760),
+  CONSTRAINT "agreement_versions_sha256_check" CHECK ("sha256" ~ '^[0-9a-f]{64}$'),
   CONSTRAINT "agreement_versions_published_by_check" CHECK (char_length(btrim("published_by")) > 0)
 );--> statement-breakpoint
 
