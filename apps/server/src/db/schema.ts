@@ -35,6 +35,7 @@ import type {
 } from '../lib/vendor-documents.js'
 import type { PushAudience, ScheduledPushKind } from '../lib/push.js'
 import type { SlotAlertWindow } from '../lib/slot-alerts.js'
+import type { RequestLine, RequestMode, RequestReply, RequestStatus, WindowPart } from '../lib/booking-requests.js'
 import type { CouponKind, CouponReward, RedeemChannel } from '../lib/coupons.js'
 import type { ChallengeBookingType, ChallengeCategory, ChallengeRewardKind } from '../lib/challenges.js'
 import type { WrappedStats } from '../lib/wrapped.js'
@@ -1057,11 +1058,17 @@ export const bookings = pgTable(
     // back as a negative line). Set once, by the decision (CHECK: completed
     // bookings only, never a redo).
     guaranteeRefundAt: timestamp('guarantee_refund_at', { withTimezone: true }),
+    // An accepted request's travel fee (customer reach, 0062): ₹0, ₹100 or
+    // ₹200, its own line on the receipt, part of `subtotal_amount` and kept
+    // whole by the garage (no commission, no promo comes off it). 0 on every
+    // other booking; a reschedule carries it.
+    travelFee: decimal('travel_fee', { precision: 10, scale: 2 }).default('0').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
   },
   (table) => [
+    check('bookings_travel_fee_check', sql`${table.travelFee} in (0, 100, 200)`),
     index('bookings_user_id_idx').on(table.userId),
     // Home and Updates read one customer's bookings, newest first, on every
     // open.
@@ -1507,19 +1514,30 @@ export const discounts = pgTable(
     // off, name a garage, and be limited to one service type
     // (`service_category`, null on every other code). resolveDiscount lets
     // only its owner use it, whatever REWARDS_ENABLED says.
-    source: text('source').$type<'admin' | 'reward' | 'coupon'>().default('admin').notNull(),
+    //
+    // A zone's free wash (customer reach, 0062): 'free_wash', the code a
+    // sign-up among a zone's first 50 is issued on launch day (zone_signups
+    // names it): Detlio-funded, fixed ₹ off (up to ₹499), once, for one
+    // customer, car washes only, ending 30 days after the launch
+    // (discounts_free_wash_shape_check). resolveDiscount lets only its owner
+    // use it, off the dearest car-wash line alone.
+    source: text('source').$type<'admin' | 'reward' | 'coupon' | 'free_wash'>().default('admin').notNull(),
     serviceCategory: serviceCategoryEnum('service_category'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
   },
   (table) => [
-    check('discounts_source_check', sql`${table.source} in ('admin', 'reward', 'coupon')`),
+    check('discounts_source_check', sql`${table.source} in ('admin', 'reward', 'coupon', 'free_wash')`),
+    check(
+      'discounts_free_wash_shape_check',
+      sql`${table.source} <> 'free_wash' or (${table.fundedBy} = 'platform' and ${table.vendorId} is null and not ${table.showOnHome} and ${table.discountType} = 'fixed' and ${table.totalUsageLimit} = 1 and ${table.perUserLimit} = 1 and ${table.endsAt} is not null and ${table.serviceCategory} = 'car_wash')`
+    ),
     check(
       'discounts_coupon_shape_check',
       sql`${table.source} <> 'coupon' or (${table.fundedBy} = 'platform' and not ${table.showOnHome} and ${table.totalUsageLimit} = 1 and ${table.perUserLimit} = 1 and ${table.endsAt} is not null)`
     ),
-    check('discounts_service_category_check', sql`${table.serviceCategory} is null or ${table.source} = 'coupon'`),
+    check('discounts_service_category_check', sql`${table.serviceCategory} is null or ${table.source} in ('coupon', 'free_wash')`),
     check(
       'discounts_reward_shape_check',
       sql`${table.source} <> 'reward' or (${table.fundedBy} = 'platform' and ${table.vendorId} is null and not ${table.showOnHome} and ${table.discountType} = 'fixed' and ${table.totalUsageLimit} = 1 and ${table.perUserLimit} = 1 and ${table.endsAt} is not null)`
@@ -1676,6 +1694,10 @@ export const bookingIntents = pgTable(
     // credit is spent when the booking is written, never before.
     amount: decimal('amount', { precision: 10, scale: 2 }).notNull(),
     creditAmount: decimal('credit_amount', { precision: 10, scale: 2 }).default('0.00').notNull(),
+    // An accepted request's travel fee and the request (0062); 0 and null
+    // for every other checkout. Part of `subtotal_amount`, as on the booking.
+    travelFee: decimal('travel_fee', { precision: 10, scale: 2 }).default('0').notNull(),
+    requestId: uuid('request_id').references((): AnyPgColumn => bookingRequests.id, { onDelete: 'set null' }),
     subtotalAmount: decimal('subtotal_amount', {
       precision: 10,
       scale: 2,
@@ -1724,6 +1746,8 @@ export const bookingIntents = pgTable(
     index('booking_intents_status_idx').on(table.status),
     gatewayModeCheck('booking_intents_gateway_mode_check', table.gatewayMode),
     check('booking_intents_credit_amount_check', sql`${table.creditAmount} >= 0`),
+    check('booking_intents_travel_fee_check', sql`${table.travelFee} in (0, 100, 200)`),
+    index('booking_intents_request_id_idx').on(table.requestId).where(sql`${table.requestId} is not null`),
   ]
 )
 
@@ -2882,7 +2906,7 @@ export const giftCreditEntries = pgTable(
       .where(sql`${table.kind} = 'refund'`),
     check(
       'gift_credit_entries_kind_check',
-      sql`${table.kind} in ('redeem', 'debit', 'refund', 'expiry', 'adjustment', 'report_reward')`
+      sql`${table.kind} in ('redeem', 'debit', 'refund', 'expiry', 'adjustment', 'report_reward', 'referral_reward')`
     ),
   ]
 )
@@ -4500,5 +4524,196 @@ export const zones = pgTable(
     check('zones_lat_check', sql`${table.lat} between -90 and 90`),
     check('zones_lng_check', sql`${table.lng} between -180 and 180`),
     check('zones_target_check', sql`${table.target} between 1 and 1000`),
+  ]
+)
+
+/**
+ * "Request a visit" / "Request a pickup" (customer reach, part 2, 0062;
+ * lib/booking-requests.ts): a doorstep or pickup garage whose reach stops
+ * just short of the customer is asked to come anyway. One row per garage
+ * asked: a request passed on (no answer, or no) is a new row with
+ * `forwarded_from_id` and the first row's id as `root_request_id`, at most
+ * two (`chain_no`). Only the address's id and pin are kept: the garage sees
+ * the zone and the distance until the request is a booking (`booking_id`).
+ * `items` are the services as priced for the customer's car at this garage.
+ */
+export const bookingRequests = pgTable(
+  'booking_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    rootRequestId: uuid('root_request_id').references((): AnyPgColumn => bookingRequests.id, { onDelete: 'set null' }),
+    forwardedFromId: uuid('forwarded_from_id').references((): AnyPgColumn => bookingRequests.id, { onDelete: 'set null' }),
+    chainNo: smallint('chain_no').default(1).notNull(),
+    bookingType: text('booking_type').$type<RequestMode>().notNull(),
+    vehicleId: uuid('vehicle_id').references(() => userVehicles.id, { onDelete: 'set null' }),
+    vehicleType: varchar('vehicle_type', { length: 20 }).$type<'hatchback' | 'sedan' | 'suv'>().notNull(),
+    addressId: uuid('address_id').references(() => userAddresses.id, { onDelete: 'set null' }),
+    lat: doublePrecision('lat').notNull(),
+    lng: doublePrecision('lng').notNull(),
+    zoneSlug: varchar('zone_slug', { length: 60 }),
+    distanceKm: decimal('distance_km', { precision: 6, scale: 1 }).notNull(),
+    coverKm: decimal('cover_km', { precision: 6, scale: 1 }),
+    outsideKm: decimal('outside_km', { precision: 6, scale: 1 }).notNull(),
+    items: jsonb('items').$type<RequestLine[]>().notNull(),
+    subtotalAmount: decimal('subtotal_amount', { precision: 10, scale: 2 }).notNull(),
+    durationMins: integer('duration_mins').notNull(),
+    windowDate: date('window_date', { mode: 'string' }).notNull(),
+    windowPart: text('window_part').$type<WindowPart>().notNull(),
+    windowStart: timestamp('window_start', { withTimezone: true }).notNull(),
+    windowEnd: timestamp('window_end', { withTimezone: true }).notNull(),
+    status: text('status').$type<RequestStatus>().default('pending').notNull(),
+    respondBy: timestamp('respond_by', { withTimezone: true }).notNull(),
+    reply: text('reply').$type<RequestReply>(),
+    repliedAt: timestamp('replied_at', { withTimezone: true }),
+    repliedBy: uuid('replied_by').references(() => users.id, { onDelete: 'set null' }),
+    travelFee: decimal('travel_fee', { precision: 10, scale: 2 }),
+    acceptedStartAt: timestamp('accepted_start_at', { withTimezone: true }),
+    confirmBy: timestamp('confirm_by', { withTimezone: true }),
+    bookingId: uuid('booking_id').references(() => bookings.id, { onDelete: 'set null' }),
+    // The team was told it waited 30 minutes with no answer.
+    opsAlertedAt: timestamp('ops_alerted_at', { withTimezone: true }),
+    // The customer was told how this row ended (passed on, no garage, a yes
+    // that lapsed); a yes's own push is sent with the answer.
+    customerToldAt: timestamp('customer_told_at', { withTimezone: true }),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('booking_requests_user_status_idx').on(table.userId, table.status),
+    index('booking_requests_vendor_status_idx').on(table.vendorId, table.status, table.createdAt),
+    index('booking_requests_respond_by_idx').on(table.respondBy).where(sql`${table.status} = 'pending'`),
+    index('booking_requests_confirm_by_idx').on(table.confirmBy).where(sql`${table.status} = 'accepted'`),
+    index('booking_requests_zone_idx').on(table.zoneSlug, table.status, table.createdAt),
+    index('booking_requests_created_at_idx').on(table.createdAt),
+    index('booking_requests_root_idx').on(table.rootRequestId),
+    uniqueIndex('booking_requests_booking_id_key').on(table.bookingId).where(sql`${table.bookingId} is not null`),
+    uniqueIndex('booking_requests_one_open_key')
+      .on(sql`coalesce(${table.rootRequestId}, ${table.id})`)
+      .where(sql`${table.status} in ('pending', 'accepted')`),
+    check('booking_requests_booking_type_check', sql`${table.bookingType} in ('doorstep', 'pickup')`),
+    check('booking_requests_vehicle_type_check', sql`${table.vehicleType} in ('hatchback', 'sedan', 'suv')`),
+    check(
+      'booking_requests_status_check',
+      sql`${table.status} in ('pending', 'accepted', 'declined', 'expired', 'forwarded', 'cancelled', 'converted')`
+    ),
+    check('booking_requests_window_part_check', sql`${table.windowPart} in ('morning', 'afternoon', 'evening')`),
+    check('booking_requests_window_check', sql`${table.windowEnd} > ${table.windowStart}`),
+    check(
+      'booking_requests_chain_check',
+      sql`${table.chainNo} between 1 and 2 and ((${table.chainNo} = 1) = (${table.forwardedFromId} is null and ${table.rootRequestId} is null))`
+    ),
+    check(
+      'booking_requests_reply_check',
+      sql`(${table.reply} is null or ${table.reply} in ('accepted', 'declined')) and ((${table.reply} is null) = (${table.repliedAt} is null))`
+    ),
+    check(
+      'booking_requests_accept_check',
+      sql`(coalesce(${table.reply}, '') = 'accepted') = (${table.travelFee} is not null and ${table.acceptedStartAt} is not null and ${table.confirmBy} is not null)`
+    ),
+    check('booking_requests_travel_fee_check', sql`${table.travelFee} is null or ${table.travelFee} in (0, 100, 200)`),
+    check(
+      'booking_requests_status_reply_check',
+      sql`(${table.status} not in ('accepted', 'converted') or ${table.reply} = 'accepted') and (${table.status} <> 'declined' or ${table.reply} = 'declined') and (${table.status} <> 'pending' or ${table.reply} is null)`
+    ),
+    check('booking_requests_amounts_check', sql`${table.subtotalAmount} > 0 and ${table.durationMins} > 0`),
+    check('booking_requests_distance_check', sql`${table.distanceKm} >= 0 and ${table.outsideKm} >= 0`),
+  ]
+)
+
+/**
+ * "Free wash when we reach <Area>" (customer reach, part 2, 0062;
+ * lib/area-signups.ts): a customer on a zone's list, once per zone.
+ * `position` is their place in it (1 is the first); the first 50 have
+ * `free_wash`, issued as a promo code (`discount_id`) when the zone goes
+ * live. One marker per message (`*_push_at`), claimed before it is sent;
+ * `launch_banner_seen_at` is Home's launch banner, shown once. WhatsApp is
+ * an opt-in stored for later: nothing is sent on WhatsApp yet.
+ */
+export const zoneSignups = pgTable(
+  'zone_signups',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    zoneId: uuid('zone_id')
+      .notNull()
+      .references(() => zones.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull(),
+    freeWash: boolean('free_wash').notNull(),
+    pushOptIn: boolean('push_opt_in').default(false).notNull(),
+    whatsappOptIn: boolean('whatsapp_opt_in').default(false).notNull(),
+    whatsappOptInAt: timestamp('whatsapp_opt_in_at', { withTimezone: true }),
+    discountId: uuid('discount_id').references(() => discounts.id, { onDelete: 'set null' }),
+    freeWashIssuedAt: timestamp('free_wash_issued_at', { withTimezone: true }),
+    launchPushAt: timestamp('launch_push_at', { withTimezone: true }),
+    coveragePushAt: timestamp('coverage_push_at', { withTimezone: true }),
+    reminderPushAt: timestamp('reminder_push_at', { withTimezone: true }),
+    launchBannerSeenAt: timestamp('launch_banner_seen_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('zone_signups_user_zone_key').on(table.userId, table.zoneId),
+    uniqueIndex('zone_signups_zone_position_key').on(table.zoneId, table.position),
+    index('zone_signups_zone_created_idx').on(table.zoneId, table.createdAt),
+    check('zone_signups_position_check', sql`${table.position} >= 1`),
+    check('zone_signups_free_wash_check', sql`not ${table.freeWash} or ${table.position} <= 50`),
+    check('zone_signups_issued_check', sql`${table.freeWash} or ${table.discountId} is null`),
+    check('zone_signups_whatsapp_check', sql`${table.whatsappOptIn} = (${table.whatsappOptInAt} is not null)`),
+  ]
+)
+
+/**
+ * "Know a good garage here?" (customer reach, part 2, 0062): a lead for the
+ * team (admin's zone list, PR 5), `status` new → contacted → joined /
+ * declined, `vendor_id` linked by admin. Once that garage is live and the
+ * customer completes a paid booking there, `credit_*` records the referral
+ * credit (lib/area-signups.ts REFERRAL_CREDIT; a `referral_reward` lot, or
+ * owed while credit is off). About a business, so it stays as a lead when
+ * the customer's account goes (user SET NULL).
+ */
+export const garageRecommendations = pgTable(
+  'garage_recommendations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+    zoneId: uuid('zone_id').references(() => zones.id, { onDelete: 'set null' }),
+    name: varchar('name', { length: 100 }).notNull(),
+    mapsLink: varchar('maps_link', { length: 500 }),
+    phone: varchar('phone', { length: 10 }),
+    why: varchar('why', { length: 500 }),
+    status: text('status').$type<'new' | 'contacted' | 'joined' | 'declined'>().default('new').notNull(),
+    vendorId: uuid('vendor_id').references(() => vendors.id, { onDelete: 'set null' }),
+    creditStatus: text('credit_status').$type<'owed' | 'granted'>(),
+    creditAmount: decimal('credit_amount', { precision: 10, scale: 2 }),
+    creditEntryId: uuid('credit_entry_id').references(() => giftCreditEntries.id, { onDelete: 'restrict' }),
+    creditBookingId: uuid('credit_booking_id').references(() => bookings.id, { onDelete: 'set null' }),
+    creditedAt: timestamp('credited_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('garage_recommendations_zone_idx').on(table.zoneId, table.status, table.createdAt),
+    index('garage_recommendations_user_idx').on(table.userId),
+    index('garage_recommendations_vendor_idx').on(table.vendorId).where(sql`${table.vendorId} is not null`),
+    uniqueIndex('garage_recommendations_credit_key')
+      .on(table.userId, table.vendorId)
+      .where(sql`${table.creditStatus} is not null`),
+    check('garage_recommendations_name_check', sql`length(btrim(${table.name})) between 2 and 100`),
+    check('garage_recommendations_contact_check', sql`${table.mapsLink} is not null or ${table.phone} is not null`),
+    check('garage_recommendations_phone_check', sql`${table.phone} is null or ${table.phone} ~ '^[6-9][0-9]{9}$'`),
+    check('garage_recommendations_link_check', sql`${table.mapsLink} is null or ${table.mapsLink} ~ '^https://'`),
+    check('garage_recommendations_status_check', sql`${table.status} in ('new', 'contacted', 'joined', 'declined')`),
+    check(
+      'garage_recommendations_credit_check',
+      sql`(${table.creditStatus} is null or ${table.creditStatus} in ('owed', 'granted')) and ((${table.creditStatus} is null) = (${table.creditAmount} is null)) and ((${table.creditStatus} = 'granted') = (${table.creditEntryId} is not null and ${table.creditedAt} is not null))`
+    ),
   ]
 )

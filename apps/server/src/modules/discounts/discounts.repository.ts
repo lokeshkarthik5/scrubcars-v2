@@ -28,6 +28,7 @@ import {
   services,
   userVehicles,
   vendors,
+  zoneSignups,
 } from '../../db/schema.js'
 
 export const discountsRepository = {
@@ -72,6 +73,19 @@ export const discountsRepository = {
       .from(couponRedemptions)
       .innerJoin(couponBatches, eq(couponBatches.id, couponRedemptions.batchId))
       .where(eq(couponRedemptions.discountId, discountId))
+      .limit(1)
+    return row
+  },
+
+  /**
+   * A zone's free wash (customer reach, 0062): whose it is, from the
+   * sign-up that names it. Undefined for any other code.
+   */
+  async findFreeWashOwner(discountId: string) {
+    const [row] = await db
+      .select({ userId: zoneSignups.userId })
+      .from(zoneSignups)
+      .where(eq(zoneSignups.discountId, discountId))
       .limit(1)
     return row
   },

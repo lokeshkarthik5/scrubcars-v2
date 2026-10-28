@@ -44,6 +44,7 @@ import { membersRepository } from '../members/members.repository.js'
 import { reviewsRepository } from '../reviews/reviews.repository.js'
 import { vendorsRepository } from './vendors.repository.js'
 import { slotAlertsService } from '../slot-alerts/slot-alerts.service.js'
+import { areaSignupsService } from '../area-signups/area-signups.service.js'
 import { toPublicVendor, type PublicVendorFields } from './vendors.public.js'
 import { isDocumentStorageConfigured } from '../../lib/document-storage.js'
 import { summariesByVendor } from '../../lib/vendor-documents.js'
@@ -1354,6 +1355,8 @@ export const vendorsService = {
     })
     log.info({ vendorId: vendor.id }, 'vendor:bookings_resumed')
     slotAlertsService.garageChanged(vendor.id, 'resumed')
+    // Listed again: its area may go live (customer reach, 0062).
+    areaSignupsService.launchSoon()
     return toVendorResponse(updated)
   },
 

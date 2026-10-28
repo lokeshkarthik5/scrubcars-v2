@@ -78,6 +78,12 @@ export const createBookingSchema = z
     // while GIFTS_ENABLED is on; how much is used is decided by the server
     // (lib/gift-credit.ts creditToUse), never by the client.
     useCredit: z.boolean().optional(),
+    // Customer reach (0062): the accepted request this checkout confirms.
+    // Only checkout (POST /booking-intents) takes it; the booking must be
+    // exactly what the garage accepted (garage, type, services, car,
+    // address, start), and only then may it be outside the garage's own
+    // reach, with the travel fee the garage set as its own line.
+    requestId: z.string().uuid().optional(),
   })
   .transform(({ serviceId, serviceIds, ...rest }) => ({
     ...rest,

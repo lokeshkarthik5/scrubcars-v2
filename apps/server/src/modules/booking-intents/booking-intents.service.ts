@@ -46,6 +46,8 @@ const FAILURE_MESSAGES: Record<string, string> = {
     'That promo code was fully redeemed before this payment completed, so the booking could not be confirmed. Your payment will be refunded.',
   credit_exhausted:
     'Your Detlio credit changed before this payment completed (it was used for another booking, or ran out), so the booking could not be confirmed. Your payment will be refunded, and your credit is untouched.',
+  request_gone:
+    'The garage’s yes to your request was no longer open when this payment completed, so the booking could not be confirmed. Your payment will be refunded.',
   slot_full:
     'That time was booked up at the garage before this payment completed, so the booking could not be confirmed. Your payment will be refunded.',
   garage_closed:
@@ -94,6 +96,9 @@ export const bookingIntentsService = {
         // The whole booking's duration, not one service's.
         serviceDurationMins: draft.durationMins,
         subtotalAmount: draft.amount,
+        // An accepted request's travel fee and the request it confirms (0062).
+        travelFee: draft.travelFee,
+        requestId: draft.requestId,
         // What Razorpay is asked for; the credit part is spent with the booking.
         amount: rupees(cashPaise),
         creditAmount: rupees(creditPaise),
@@ -253,6 +258,11 @@ const CREDIT_ONLY_REFUSALS: Record<string, { status: 409 | 400; message: string;
     message: 'That promo code has just been used up. Remove it and try again; nothing was charged.',
     code: 'DISCOUNT_EXHAUSTED',
   },
+  request_gone: {
+    status: 409,
+    message: "This request isn't accepted any more. Nothing was charged; send a new one.",
+    code: 'REQUEST_NOT_ACCEPTED',
+  },
   credit_exhausted: {
     status: 409,
     message: 'Your Detlio credit changed (it was used for another booking, or ran out). Check your balance and try again; nothing was charged.',
@@ -364,6 +374,11 @@ async function handleConsumeResult(
 
     case 'credit_exhausted':
       return failIntent(params, 'credit_exhausted')
+
+    // The request this checkout confirmed was no longer accepted (cancelled,
+    // or already confirmed by another checkout): money captured, no booking.
+    case 'request_gone':
+      return failIntent(params, 'request_gone')
 
     case 'previously_failed':
       throw new AppError(409, FALLBACK_FAILURE_MESSAGE, 'BOOKING_CONFIRM_FAILED_REFUND_DUE')

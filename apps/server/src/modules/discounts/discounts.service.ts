@@ -8,6 +8,7 @@ import {
 import { bannedPhraseIn } from '../../lib/copy-rules.js'
 import { categoryLabel } from '../../lib/categories.js'
 import { eligibleSubtotal as eligibleSubtotalOf } from '../../lib/coupons.js'
+import { freeWashEligibleSubtotal } from '../../lib/area-signups.js'
 import { env } from '../../lib/env.js'
 import { logger } from '../../lib/logger.js'
 import {
@@ -141,6 +142,16 @@ export async function resolveDiscount(input: {
     }
   }
 
+  // A zone's free wash (customer reach, 0062) belongs to the customer whose
+  // sign-up names it, like a coupon's voucher; anyone else gets the answer a
+  // code that does not exist gets.
+  if (discount.source === 'free_wash') {
+    const owner = await discountsRepository.findFreeWashOwner(discount.id)
+    if (!owner || owner.userId !== input.userId) {
+      throw new AppError(400, "This code isn't valid.", 'DISCOUNT_NOT_FOUND')
+    }
+  }
+
   // Everything judgeable from the row alone: active, window, vendor scope,
   // minimum order.
   assertRuleApplies(discount as DiscountRule, {
@@ -158,6 +169,16 @@ export async function resolveDiscount(input: {
         `This coupon is for ${categoryLabel(discount.serviceCategory).toLowerCase()} services. Add one to use it.`,
         'DISCOUNT_NOT_FOR_SERVICE'
       )
+    }
+    eligibleSubtotal = eligible
+  }
+
+  // The free wash comes off one car wash: the dearest car-wash line, up to
+  // its ₹499 (lib/area-signups.ts freeWashDiscount, whose tests pin it).
+  if (discount.source === 'free_wash') {
+    const eligible = freeWashEligibleSubtotal(input.lines ?? [])
+    if (eligible === null) {
+      throw new AppError(400, 'Your free wash is for a car wash. Add one to use it.', 'DISCOUNT_NOT_FOR_SERVICE')
     }
     eligibleSubtotal = eligible
   }

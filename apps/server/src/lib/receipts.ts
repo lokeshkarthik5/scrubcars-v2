@@ -262,6 +262,8 @@ export interface ReceiptBooking {
   scheduledAt: Date
   amount: string
   subtotalAmount?: string | null
+  /** An accepted request's travel fee (0062), inside the subtotal. */
+  travelFee?: string | null
   discountAmount?: string | null
   discountCode?: string | null
   paymentMethod: string
@@ -340,6 +342,11 @@ export interface Receipt {
   }
   /** The services as sold: the names and prices on the booking. */
   items: Array<{ name: string; amount: string }>
+  /**
+   * An accepted request's travel fee (customer reach, 0062): its own line,
+   * after the services and inside the subtotal; null when there is none.
+   */
+  travelFee: string | null
   subtotal: string
   discount: { code: string | null; amount: string } | null
   bookingPayment: {
@@ -634,6 +641,7 @@ export function buildReceipt(
       scheduledAtLabel: istSlotLabel(booking.scheduledAt),
     },
     items,
+    travelFee: toPaise(booking.travelFee) > 0 ? fromPaise(toPaise(booking.travelFee)) : null,
     subtotal: fromPaise(toPaise(subtotal)),
     discount:
       discountPaise > 0

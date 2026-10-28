@@ -64,7 +64,7 @@ export function resolveServicePricing(input: PricingInput): PricingColumns {
   }
 }
 
-interface PricedService {
+export interface PricedService {
   pricingType: ServicePricingType
   price: string
   priceHatchback: string | null

@@ -496,6 +496,37 @@ export type OpsAlert =
       kind: 'collection_list'
       list: CollectionListAlert
     }
+  | {
+      /**
+       * A customer asked a garage just outside its reach to come (customer
+       * reach, 0062): what, when and how far. Never the customer or the
+       * address. `forwarded` when it was passed on from another garage.
+       */
+      kind: 'request_received'
+      requestId: string
+      garageName: string
+      bookingType: string
+      services: string[]
+      windowLabel: string
+      beyond: string
+      respondBy: Date
+      forwarded: boolean
+    }
+  | {
+      /**
+       * A request has waited 30 minutes with no answer: the team phones the
+       * garage. Carries the garage's business phone, as the pending digest
+       * does, for that call.
+       */
+      kind: 'request_no_reply'
+      requestId: string
+      garageName: string
+      garagePhone: string | null
+      bookingType: string
+      services: string[]
+      windowLabel: string
+      respondBy: Date
+    }
 
 /** A collection list as its Telegram post reads it (0059). */
 export interface CollectionListAlert {
@@ -1178,6 +1209,27 @@ export function formatOpsAlert(alert: OpsAlert): string {
 
     case 'collection_list':
       return collectionListText(alert.list)
+
+    case 'request_received':
+      return lines(
+        alert.forwarded
+          ? `📨 Request passed on to ${alert.garageName} · ${modeLabel(alert.bookingType)}`
+          : `📨 New request for ${alert.garageName} · ${modeLabel(alert.bookingType)}`,
+        alert.services.join(', '),
+        `${alert.windowLabel} · ${alert.beyond}`,
+        `Garage answers by ${when(alert.respondBy)}; no answer passes it on.`,
+        `Request ${reference(alert.requestId)}`
+      )
+
+    case 'request_no_reply':
+      return lines(
+        `☎️ No answer in 30 min: ${alert.garageName} · ${modeLabel(alert.bookingType)}`,
+        alert.services.join(', '),
+        alert.windowLabel,
+        alert.garagePhone ? `Call the garage: ${phone(alert.garagePhone)}` : 'No phone on file for the garage.',
+        `It passes to the next garage at ${when(alert.respondBy)}.`,
+        `Request ${reference(alert.requestId)}`
+      )
   }
 }
 
@@ -1223,6 +1275,7 @@ const FAILURE_REASONS: Record<string, string> = {
   garage_closed: 'the garage marked that day as a holiday before the payment went through',
   garage_paused: 'the garage paused new bookings before the payment went through',
   credit_exhausted: "the customer's Detlio credit was spent or ran out before the payment went through (only the card/UPI part is to refund)",
+  request_gone: 'the garage’s yes to the request was no longer open (cancelled, or already confirmed) when the payment went through',
 }
 
 /**

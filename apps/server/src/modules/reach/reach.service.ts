@@ -6,6 +6,7 @@ import {
   outsideByKm,
 } from '../../lib/reach.js'
 import { zonesWithGarages } from '../../lib/zones.js'
+import { freeWashesLeft, waitingCount } from '../../lib/area-signups.js'
 import type { ListPublicVendorsQuery } from '../vendors/vendors.validation.js'
 import {
   vendorCardsFor,
@@ -25,6 +26,13 @@ export interface PublicZone {
   priority: boolean
   /** At least one live listed garage's pin is in this zone (lib/zones.ts). */
   hasGarage: boolean
+  /**
+   * The free-wash list (part 2): "N waiting here" from 10 sign-ups, null
+   * below ("Be the first", lib/area-signups.ts waitingCount).
+   */
+  waiting: number | null
+  /** Free washes still to give to this zone's list (of the first 50). */
+  freeWashesLeft: number
 }
 
 /**
@@ -90,7 +98,11 @@ export const reachService = {
   /** Every zone, and whether a live listed garage is in it. Cached a minute. */
   async listZones(now = Date.now()): Promise<PublicZone[]> {
     if (zonesCache && now - zonesCache.at < ZONES_TTL_MS) return zonesCache.zones
-    const [rows, pins] = [await reachRepository.listZones(), await reachRepository.listListedGaragePins()]
+    const [rows, pins, signups] = [
+      await reachRepository.listZones(),
+      await reachRepository.listListedGaragePins(),
+      await reachRepository.signupCountsByZone(),
+    ]
     const withGarage = zonesWithGarages(rows, pins)
     const zones = rows.map((zone) => ({
       slug: zone.slug,
@@ -99,6 +111,8 @@ export const reachService = {
       lng: zone.lng,
       priority: zone.priority,
       hasGarage: withGarage.has(zone.slug),
+      waiting: waitingCount(signups.get(zone.id) ?? 0),
+      freeWashesLeft: freeWashesLeft(signups.get(zone.id) ?? 0),
     }))
     zonesCache = { at: now, zones }
     return zones

@@ -123,3 +123,13 @@ export const certificateLookupRateLimiter = createRateLimiter(
   env.certificateLookupRateLimit,
   60 * 1000
 )
+
+// Customer reach, part 2 (0062): requests, area sign-ups and recommendations,
+// per signed-in customer per hour (the IP only for a route that forgot
+// authMiddleware). REACH_WRITE_RATE_LIMIT, default 20.
+const bySignedInCustomer: RateLimitKey = (c) => {
+  const auth = c.get('auth') as { sub?: string } | undefined
+  return auth?.sub ? `customer:${auth.sub}` : byClientIp(c)
+}
+
+export const reachWriteRateLimiter = createRateLimiter(env.reachWriteRateLimit, 60 * 60 * 1000, bySignedInCustomer)

@@ -1,6 +1,6 @@
 import { asc, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
-import { zones, type serviceCategoryEnum } from '../../db/schema.js'
+import { zones, zoneSignups, type serviceCategoryEnum } from '../../db/schema.js'
 import { DEFAULT_DOORSTEP_RADIUS_KM } from '../../lib/doorstep.js'
 import { DEFAULT_PICKUP_RADIUS_KM } from '../../lib/pickup.js'
 import { JUST_OUTSIDE_KM } from '../../lib/reach.js'
@@ -76,6 +76,15 @@ export const reachRepository = {
   /** Every zone: the priority ones first, each group A–Z. */
   async listZones(): Promise<ZoneRecord[]> {
     return db.select().from(zones).orderBy(sql`${zones.priority} DESC`, asc(zones.name))
+  },
+
+  /** How many free-wash sign-ups each zone has (part 2), by zone id. */
+  async signupCountsByZone(): Promise<Map<string, number>> {
+    const rows = await db
+      .select({ zoneId: zoneSignups.zoneId, count: sql<number>`count(*)::int` })
+      .from(zoneSignups)
+      .groupBy(zoneSignups.zoneId)
+    return new Map(rows.map((row) => [row.zoneId, Number(row.count)]))
   },
 
   /** The pins of every garage customers can find (LISTED_TO_CUSTOMERS), for each zone's "has a garage". */

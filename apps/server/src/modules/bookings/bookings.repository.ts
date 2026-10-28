@@ -4,6 +4,7 @@ import { db } from '../../db/index.js'
 import {
   bookingCharges,
   bookingItems,
+  bookingRequests,
   bookingReschedules,
   bookingTimeProposals,
   bookings,
@@ -1081,6 +1082,8 @@ export const bookingsRepository = {
     // A reschedule is a move, not a re-price: these are copied verbatim from
     // the booking being moved.
     subtotalAmount: string
+    /** An accepted request's travel fee (0062), carried by a move. */
+    travelFee?: string
     amount: string
     discountAmount: string
     discountId: string | null
@@ -1311,6 +1314,7 @@ export const bookingsRepository = {
           acceptedAt: data.proposal ? now : null,
           acceptedBy: data.proposal?.acceptedBy ?? null,
           subtotalAmount: data.subtotalAmount,
+          travelFee: data.travelFee ?? '0',
           amount: data.amount,
           discountAmount: data.discountAmount,
           discountId: data.discountId,
@@ -1861,6 +1865,11 @@ export const bookingsRepository = {
     return db.query.vendors.findFirst({
       where: vendorPageOpen(id),
     })
+  },
+
+  /** A request a checkout confirms (customer reach, 0062). */
+  findRequest(id: string) {
+    return db.query.bookingRequests.findFirst({ where: eq(bookingRequests.id, id) })
   },
 
   /** The garage's holiday on this IST date, if it marked one. */

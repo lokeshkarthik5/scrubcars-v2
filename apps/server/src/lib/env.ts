@@ -466,6 +466,12 @@ export const env = {
   // guessing.
   couponCodeRateLimit: Number(process.env.COUPON_CODE_RATE_LIMIT ?? '20'),
 
+  // Customer reach, part 2 (0062): sending a request, joining an area's list
+  // and recommending a garage, per signed-in customer per hour, on their own
+  // count. The database caps them too (two open requests, one sign-up per
+  // zone); this stops bursts.
+  reachWriteRateLimit: Number(process.env.REACH_WRITE_RATE_LIMIT ?? '20'),
+
   // ─── Usage events (lib/analytics.ts) ───────────────────────────────────────
   // E2E only: let Playwright's headless browser record events, which are
   // otherwise dropped with crawlers. Refused in production.

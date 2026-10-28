@@ -573,6 +573,109 @@ export function customerRewardNudge(nudge: { kind: NudgeKind; subjectKey: string
   })
 }
 
+// ─── Requests and the free wash (customer reach, part 2, 0062) ───────────────
+
+/**
+ * What a request's notification reads: the services, the window, the
+ * garage's name and how far out the customer is. Never the address, the
+ * car or the customer: the garage sees those only once it is a booking.
+ */
+export interface PushRequest {
+  id: string
+  rootRequestId: string | null
+  bookingType: string
+  items: Array<{ name: string }>
+  windowLabel: string
+}
+
+/** The customer's requests page (detlio.com). */
+export const CUSTOMER_REQUESTS_PATH = '/requests'
+/** The garage's Requests inbox (vendor.detlio.com). */
+export const GARAGE_REQUESTS_PATH = '/requests'
+
+const requestTag = (request: PushRequest) => `request:${request.rootRequestId ?? request.id}`
+
+/** A new request for the garage: urgent, the clock is running. */
+export function garageNewRequest(request: PushRequest, beyond: string, respondBy: Date, now: Date): PushMessage {
+  return message({
+    title: `New request · ${serviceLabelOf(request.items.map((item) => item.name))}`,
+    body: `${request.windowLabel} · ${beyond} — answer by ${istTimeLabel(respondBy)}`,
+    url: GARAGE_REQUESTS_PATH,
+    tag: `request:${request.id}`,
+    urgency: 'high',
+    ttlSeconds: ttlUntil(respondBy, now),
+  })
+}
+
+/** The garage said yes: confirm and pay before the deadline. */
+export function customerRequestAccepted(
+  request: PushRequest,
+  garage: string,
+  startAt: Date,
+  confirmBy: Date,
+  now: Date
+): PushMessage {
+  return message({
+    title: request.bookingType === 'pickup' ? `${garage} can collect your car!` : `${garage} can come!`,
+    body: `${istSlotShortLabel(startAt)}. Confirm and pay by ${istTimeLabel(confirmBy)} to keep it.`,
+    url: CUSTOMER_REQUESTS_PATH,
+    tag: requestTag(request),
+    urgency: 'high',
+    ttlSeconds: ttlUntil(confirmBy, now),
+  })
+}
+
+/** The first garage couldn't, so the request went to the next one. */
+export function customerRequestForwarded(request: PushRequest, from: string, to: string): PushMessage {
+  return message({
+    title: `${from} can't make it this time`,
+    body: `We've sent your request to ${to}. Same details; nothing to pay yet.`,
+    url: CUSTOMER_REQUESTS_PATH,
+    tag: requestTag(request),
+  })
+}
+
+/** Nobody could take it: what to do instead. */
+export function customerRequestNoGarage(request: PushRequest): PushMessage {
+  return message({
+    title: 'No garage could take your request this time',
+    body: 'See garages you can visit, or put your name down for a free wash in your area.',
+    url: CUSTOMER_REQUESTS_PATH,
+    tag: requestTag(request),
+    ttlSeconds: 24 * 60 * 60,
+  })
+}
+
+/** A yes the customer did not confirm in time. */
+export function customerRequestLapsed(request: PushRequest, garage: string): PushMessage {
+  return message({
+    title: 'Your accepted request has expired',
+    body: `${garage}'s yes ran out before it was confirmed. Send a new request any time.`,
+    url: CUSTOMER_REQUESTS_PATH,
+    tag: requestTag(request),
+    ttlSeconds: 24 * 60 * 60,
+  })
+}
+
+/**
+ * The free-wash sign-up's news (launch, a garage that now comes to them, the
+ * one 14-day reminder): the Reminders switch, never urgent. Words from
+ * lib/area-signups.ts.
+ */
+export function customerAreaNews(
+  kind: 'launch' | 'coverage' | 'reminder',
+  signupId: string,
+  words: { title: string; body: string }
+): PushMessage {
+  return message({
+    ...words,
+    url: kind === 'launch' ? '/home' : '/garages',
+    tag: `area:${kind}:${signupId}`,
+    category: 'reminder',
+    ttlSeconds: 24 * 60 * 60,
+  })
+}
+
 /** "Send me a test notification", from either app's Notifications screen. */
 export function testMessage(audience: 'customer' | 'garage'): PushMessage {
   return message({

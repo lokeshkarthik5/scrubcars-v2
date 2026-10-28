@@ -91,7 +91,9 @@ export type GiftStatus = (typeof GIFT_STATUSES)[number]
 
 // `report_reward` (0052): a lot of ₹100 for a bypass report Detlio confirmed
 // (lib/bypass-reports.ts), Detlio's own money, not a gift's.
-export const CREDIT_ENTRY_KINDS = ['redeem', 'debit', 'refund', 'expiry', 'adjustment', 'report_reward'] as const
+// `referral_reward` (0062): the credit for recommending a garage the
+// customer then booked (lib/area-signups.ts REFERRAL_CREDIT), likewise.
+export const CREDIT_ENTRY_KINDS = ['redeem', 'debit', 'refund', 'expiry', 'adjustment', 'report_reward', 'referral_reward'] as const
 export type CreditEntryKind = (typeof CREDIT_ENTRY_KINDS)[number]
 
 const DAY_MS = 24 * 60 * 60 * 1000

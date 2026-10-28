@@ -4,6 +4,7 @@ import {
   bookingIntentItems,
   bookingIntents,
   bookingItems,
+  bookingRequests,
   bookings,
   discountRedemptions,
   discounts,
@@ -58,6 +59,9 @@ export type ConsumeIntentResult =
   // The customer's Detlio credit no longer covers what this checkout was
   // priced with (spent in another checkout, or expired, meanwhile; 0049).
   | { kind: 'credit_exhausted' }
+  // The accepted request this checkout confirms is no longer accepted
+  // (cancelled, lapsed, or confirmed by another checkout; 0062).
+  | { kind: 'request_gone' }
   | { kind: 'previously_failed'; failureReason: string | null }
 
 export const bookingIntentsRepository = {
@@ -210,6 +214,19 @@ export const bookingIntentsRepository = {
         return { kind: 'order_mismatch' }
       }
 
+      // An accepted request's row first (0062): a new first step in the lock
+      // order, before the vehicle, taken only by a checkout that confirms
+      // one. Still accepted, or the money goes back.
+      if (intent.requestId) {
+        const [request] = await tx
+          .select({ status: bookingRequests.status })
+          .from(bookingRequests)
+          .where(eq(bookingRequests.id, intent.requestId))
+          .for('update')
+          .limit(1)
+        if (!request || request.status !== 'accepted') return { kind: 'request_gone' }
+      }
+
       await lockVehicle(tx, intent.vehicleId)
 
       const clash = await findOverlappingVehicleBooking(tx, {
@@ -316,6 +333,7 @@ export const bookingIntentsRepository = {
           scheduledAt: intent.scheduledAt,
           durationMins: intent.serviceDurationMins,
           subtotalAmount: intent.subtotalAmount,
+          travelFee: intent.travelFee,
           // What the booking costs after any promo: the Razorpay part and the
           // credit part together (amount = subtotal − discount still holds).
           amount: rupees(cashPaise + creditPaise),
@@ -374,6 +392,14 @@ export const bookingIntentsRepository = {
           code: intent.discountCode,
           discountAmount: intent.discountAmount,
         })
+      }
+
+      // The request is now this booking (0062), in the same transaction.
+      if (intent.requestId) {
+        await tx
+          .update(bookingRequests)
+          .set({ status: 'converted', bookingId: booking.id, closedAt: paidAt, updatedAt: paidAt })
+          .where(and(eq(bookingRequests.id, intent.requestId), eq(bookingRequests.status, 'accepted')))
       }
 
       await tx
