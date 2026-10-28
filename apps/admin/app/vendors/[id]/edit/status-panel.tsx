@@ -38,7 +38,7 @@ const TONE_DOT: Record<StatusLine['tone'], string> = {
 /**
  * The editor's left column: whether customers can book the garage and
  * what stands in the way (each line opens the tab that fixes it, never
- * another page), the team's marks (W4), and Go live: the stage and Verified
+ * another page), the team's marks (W4), and Go live: the stage and Show to customers
  * (saved with Save changes, like the tabs) and Pause (saved at once).
  *
  * As saved, not as drafted: an unsaved Active is not live yet.
@@ -203,7 +203,7 @@ function ChecklistLine({
 }
 
 /**
- * Go live: the stage and Verified, in the draft (Save changes sends them),
+ * Go live: the stage and Show to customers (`isVerified`), in the draft (Save changes sends them),
  * and Taking bookings, which saves the moment it is pressed. The whole of it
  * is read-only in the Bin.
  */
@@ -231,7 +231,7 @@ function GoLive({
     pauseNote,
   } = g
   const changed = dirty.includes('golive')
-  // The server refuses to verify a garage with no pin; say so before Save.
+  // The server refuses to show a garage with no pin to customers; say so before Save.
   const needsPin = draft.isVerified && !saved.isVerified && !draft.pin
 
   return (
@@ -276,17 +276,17 @@ function GoLive({
 
         <div className="flex items-center justify-between gap-3">
           <span className="text-[13.5px] text-text-primary">
-            Verified by Detlio
+            Show to customers
           </span>
           <ScSwitch
-            label="Verified by Detlio"
+            label="Show to customers"
             checked={draft.isVerified}
             onChange={(isVerified) => patch({ isVerified })}
           />
         </div>
         {needsPin && (
           <p className="text-[12.5px] text-error">
-            Verifying needs a map pin.{' '}
+            Showing it to customers needs a map pin.{' '}
             <button
               type="button"
               onClick={() => onOpenTab('location')}
@@ -353,8 +353,8 @@ function GoLive({
         </div>
 
         <p className="text-[12px] text-text-muted">
-          Live needs Active, verified and nothing blocking. Stage and Verified
-          save with Save changes.
+          Live needs Active, shown to customers and nothing blocking. Stage and
+          Show to customers save with Save changes.
         </p>
       </section>
     </fieldset>

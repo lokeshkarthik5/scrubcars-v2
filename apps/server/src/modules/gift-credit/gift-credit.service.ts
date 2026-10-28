@@ -27,6 +27,7 @@ const ENTRY_LABELS: Record<CreditEntryKind, string> = {
   expiry: 'Expired',
   adjustment: 'Adjusted by Detlio',
   report_reward: 'Report reward',
+  referral_reward: 'Garage you recommended',
 }
 
 export interface CreditView {

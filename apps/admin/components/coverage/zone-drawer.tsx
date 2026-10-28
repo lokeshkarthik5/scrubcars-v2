@@ -49,7 +49,7 @@ const FILTERS: Array<{ value: CallFilter; label: string }> = [
 const STAGE_TEXT: Record<CoverageGarage['stage'], string> = {
   live: 'live',
   pending: 'not live yet · pending',
-  not_verified: 'not live yet · not verified',
+  not_shown: 'not live yet · not shown to customers',
   paused: 'not live yet · paused',
   suspended: 'not live yet · suspended',
   archived: 'not live yet · archived',

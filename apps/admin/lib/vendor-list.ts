@@ -64,19 +64,27 @@ export const SHOW_LABELS: Record<ShowFilter | StageFilter, string> = {
  * SHOW_FILTERS and its garages are counted there too. Under More filters.
  */
 export const REVIEW_FILTER = 'documents' as const
+
+/**
+ * The next step for a garage not yet shown to customers (`is_verified`,
+ * "Show to customers"): the list draws it as the button that does it.
+ */
+export const SHOW_TO_CUSTOMERS_STEP = 'Show to customers'
 export const REVIEW_LABEL = 'Documents to review'
 
 /**
- * Detlio Certified (0048): two more filters that cut across the states,
- * under More filters. "Certified": customers see the seal now. "Eligible,
- * not yet certified": met every standard at its last evaluation (nightly,
- * or the last Certify), so a quality check is the next thing to do. Neither
- * holds a garage in the Bin.
+ * Gold (Detlio Certified, 0048; renamed with the tiers, 0063): two more
+ * filters that cut across the states, under More filters. "Gold": the
+ * garage holds Gold now (whether customers see it depends on the tier
+ * switches). "Gold-eligible, not awarded": met every Gold standard at its
+ * last evaluation (nightly, or the last Award Gold), so a quality check is
+ * the next thing to do. Neither holds a garage in the Bin. The `?show=`
+ * values stay `certified` and `eligible`, so saved links keep working.
  */
 export const CERTIFIED_FILTER = 'certified' as const
-export const CERTIFIED_LABEL = 'Certified'
+export const CERTIFIED_LABEL = 'Gold'
 export const ELIGIBLE_FILTER = 'eligible' as const
-export const ELIGIBLE_LABEL = 'Eligible, not yet certified'
+export const ELIGIBLE_LABEL = 'Gold-eligible, not awarded'
 
 /** The filters behind "More filters", in order. */
 export const MORE_FILTERS = [
@@ -126,12 +134,12 @@ type ListedFields = Pick<
 > &
   Partial<Pick<AdminVendor, 'documents' | 'certification'>>
 
-/** Detlio Certified now, and not in the Bin. */
+/** Gold (Detlio Certified) now, and not in the Bin. */
 export function isCertifiedGarage(v: ListedFields): boolean {
   return !isInBin(v) && v.certification?.certified === true
 }
 
-/** Met every standard at its last evaluation, not certified, not in the Bin. */
+/** Met every Gold standard at its last evaluation, not Gold, not in the Bin. */
 export function isEligibleNotCertified(v: ListedFields): boolean {
   return (
     !isInBin(v) &&
@@ -140,7 +148,7 @@ export function isEligibleNotCertified(v: ListedFields): boolean {
   )
 }
 
-/** How many garages the two certification chips hold. */
+/** How many garages the two Gold chips hold. */
 export function certificationCounts(vendors: ListedFields[]): {
   certified: number
   eligible: number
@@ -169,7 +177,7 @@ export function isPausedGarage(v: ListedFields): boolean {
 
 /**
  * On its way in: added (Pending) or Active, not paused, and not yet
- * something customers can find (not verified, or something blocking).
+ * something customers can find (not shown to customers, or something blocking).
  */
 export function isNotLiveYet(v: ListedFields): boolean {
   if (isInBin(v) || v.status === 'archived' || isPausedGarage(v)) return false
@@ -184,7 +192,7 @@ export function isInBin(v: Pick<AdminVendor, 'deletedAt'>): boolean {
 /**
  * Whether customers can find the garage: the server's `live`. The fallback
  * is only for a server older than that field, during a deploy, so the list
- * does not open on an empty Live; it is the same rule (Active, verified, not
+ * does not open on an empty Live; it is the same rule (Active, shown to customers, not
  * paused, not in the Bin), and the server's flag wins whenever it is there.
  */
 export function isLive(v: ListedFields): boolean {
@@ -276,16 +284,16 @@ export function showHints(
     case CERTIFIED_FILTER:
       return [
         {
-          term: 'Detlio Certified',
-          meaning: 'customers see the seal; checked every night',
+          term: 'Gold',
+          meaning: 'holds Gold, checked every night; customers see it while Gold is switched on',
         },
       ]
     case ELIGIBLE_FILTER:
       return [
         {
-          term: 'Eligible',
+          term: 'Gold-eligible',
           meaning:
-            'met every standard last night; record a quality check, then Certify',
+            'met every Gold standard last night; record a quality check, then Award Gold',
         },
       ]
     case 'notlive':
@@ -293,7 +301,7 @@ export function showHints(
         {
           term: 'Not live yet',
           meaning:
-            'added, not verified yet, or something blocks it. Its checklist says what.',
+            'added, not shown to customers yet, or something blocks it. Its checklist says what.',
         },
       ]
     case 'paused':
@@ -345,7 +353,7 @@ export function showHints(
 
 /**
  * The word beside the name for a garage customers can't find, and why: its
- * stage, or, for an Active one, that it is paused or not verified. Null when
+ * stage, or, for an Active one, that it is paused or not shown to customers. Null when
  * it is live, where the card says its bookings instead.
  */
 export function stateWord(v: ListedFields): string | null {
@@ -354,8 +362,8 @@ export function stateWord(v: ListedFields): string | null {
     return v.status.charAt(0).toUpperCase() + v.status.slice(1)
   }
   const paused = Boolean(v.bookingsPausedAt)
-  if (paused && !v.isVerified) return 'Paused · not verified'
-  return paused ? 'Paused' : 'Not verified'
+  if (paused && !v.isVerified) return 'Paused · not shown to customers'
+  return paused ? 'Paused' : 'Not shown to customers'
 }
 
 /** "12 bookings will be deleted with it", or null when none would be. */
@@ -780,7 +788,7 @@ function daysUntil(dueOn: string, now: number): number {
  * The Next step column (pattern 03): the one thing to do about the garage
  * now, most pressing first. Something blocking it from going live; then a
  * teammate collecting for it (due today, or late, in amber); then a
- * verification; then an ask that has waited past MARK_CHASE_AFTER_DAYS;
+ * "Show to customers"; then an ask that has waited past MARK_CHASE_AFTER_DAYS;
  * then the things still to collect; then what to fix. Null when there is
  * nothing to do.
  */
@@ -828,17 +836,17 @@ export function garageNextStep(
     return { text: `Collecting · ${progress}`, detail, tone: 'neutral' }
   }
 
-  // The server won't verify a garage with no pin: the pin comes first.
+  // The server won't show a garage with no pin to customers: the pin comes first.
   if (!v.isVerified && v.status !== 'suspended') {
     return v.lat == null
       ? {
           text: 'Pin first',
-          detail: 'Then verify',
+          detail: 'Then show to customers',
           tone: 'attention',
           tab: 'location',
         }
       : {
-          text: 'Verify',
+          text: SHOW_TO_CUSTOMERS_STEP,
           detail: 'Then customers can find it',
           tone: 'attention',
         }

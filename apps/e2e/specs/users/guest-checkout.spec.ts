@@ -61,7 +61,8 @@ test.describe('guest checkout @p0', () => {
     // The landing page is the app: pick an area, then a garage from the list.
     await page.goto('/')
     await page.getByRole('button', { name: 'Nungambakkam', exact: true }).click()
-    await page.getByRole('link', { name: new RegExp(VENDORS.main.name) }).first().click()
+    // The card's link (an <article> inside gives it no accessible name): by where it goes.
+    await page.locator(`a[href^="/garage/${VENDORS.main.id}"]`).first().click()
     await expect(page).toHaveURL(new RegExp(`/garage/${VENDORS.main.id}`))
 
     // Book Now goes straight to checkout, signed out: no /login on the way.

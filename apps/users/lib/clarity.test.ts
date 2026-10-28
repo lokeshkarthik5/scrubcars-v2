@@ -43,6 +43,20 @@ describe('on the page', () => {
     ])
   })
 
+  // The Privacy Policy has a section with id="clarity", so window.clarity is
+  // that element until Clarity's queue replaces it. Calling the element
+  // crashed the page when Allow came after Only essential (CI E2E, 29 Oct).
+  test('a page element named "clarity" is not taken for Clarity', () => {
+    const element = { tagName: 'SECTION' }
+    const win = { clarity: element } as unknown as Win
+    withdrawClarity(win)
+    pauseClarity(true, win)
+    expect(installClarity(win)).toBe(true)
+    expect(queue(win)).toEqual([
+      ['consentv2', { ad_Storage: 'denied', analytics_Storage: 'granted' }],
+    ])
+  })
+
   test('Only essential mid-visit withdraws it; a page it stays off pauses it', () => {
     const win = {} as Win
     withdrawClarity(win) // never loaded: nothing to do, and no throw

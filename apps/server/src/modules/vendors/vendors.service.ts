@@ -46,9 +46,8 @@ import { membersRepository } from '../members/members.repository.js'
 import { reviewsRepository } from '../reviews/reviews.repository.js'
 import { vendorsRepository } from './vendors.repository.js'
 import { slotAlertsService } from '../slot-alerts/slot-alerts.service.js'
+import { areaSignupsService } from '../area-signups/area-signups.service.js'
 import { toPublicVendor, type PublicVendorFields } from './vendors.public.js'
-import { isDocumentStorageConfigured } from '../../lib/document-storage.js'
-import { summariesByVendor } from '../../lib/vendor-documents.js'
 
 const log = logger.child({ module: 'vendors' })
 
@@ -106,12 +105,14 @@ import type {
   UpdateVendorInput,
 } from './vendors.validation.js'
 import type { AddPhotoInput } from '../service-media/service-media.validation.js'
-import { certificationService } from '../certification/certification.service.js'
+import { tiersService } from '../tiers/tiers.service.js'
+import type { Tier } from '../../lib/tiers.js'
 import {
   removeMediaFiles,
   serviceMediaService,
 } from '../service-media/service-media.service.js'
 import {
+  isCustomerVisible,
   toManagedMedia,
   toPublicMedia,
   type ManagedServiceMedia,
@@ -247,16 +248,10 @@ export type VendorListItemResponse = {
    */
   outsideServiceCity: OutsideServiceCity | null
   /**
-   * Detlio has approved every required document: the card's shield. Only
-   * this boolean (vendors.public.ts says why). False while documents are off.
+   * The card's medal (0063): Bronze, Silver or Gold as customers may see it,
+   * or null. Only this (vendors.public.ts says why).
    */
-  documentsVerified: boolean
-  /**
-   * Detlio Certified (0048): the card's seal. Only this boolean
-   * (vendors.public.ts says why). A certified card shows the seal in place
-   * of the documents shield: certification needs the documents.
-   */
-  certified: boolean
+  tier: Tier | null
 }
 
 export type VendorListResponse = {
@@ -587,8 +582,10 @@ function toServiceResponse(
   images: ServiceImageRecord[] = service.images ?? [],
   view: ServiceView = 'manage'
 ): ServiceResponse {
+  // A customer never gets an AI picture, in `media` or the older `images`.
+  const shown = view === 'public' ? images.filter(isCustomerVisible) : images
   return {
-    images: images.filter((image) => image.kind === 'image').map(toServiceImageResponse),
+    images: shown.filter((image) => image.kind === 'image').map(toServiceImageResponse),
     media: view === 'public' ? toPublicMedia(images) : toManagedMedia(images),
     id: service.id,
     name: service.name,
@@ -794,15 +791,14 @@ export async function vendorCardsFor(
   )
 
   const today = todayDateKey()
-  const [aggregates, closures, verified, certified] = await Promise.all([
+  const [aggregates, closures, tiers] = await Promise.all([
     vendorsRepository.getRatingAggregates(rows.map((vendor) => vendor.id)),
     vendorsRepository.listClosuresForVendors(
       rows.map((vendor) => vendor.id),
       today,
       addDaysToDateKey(today, LISTING_CLOSURE_DAYS_AHEAD)
     ),
-    documentsVerifiedIds(rows.map((vendor) => vendor.id)),
-    certificationService.certifiedIds(rows.map((vendor) => vendor.id)),
+    tiersService.customerTiers(rows.map((vendor) => vendor.id)),
   ])
   const closuresByVendor = new Map<string, string[]>()
   for (const closure of closures) {
@@ -851,24 +847,9 @@ export async function vendorCardsFor(
       // clause reads.
       matchedService: q ? matchedServiceName(q, vendor) : null,
       outsideServiceCity: outsideServiceCity(vendor),
-      documentsVerified: verified.has(vendor.id),
-      certified: certified.has(vendor.id),
+      tier: tiers.get(vendor.id) ?? null,
     }
   })
-}
-
-/**
- * The garages, of these, with the "Documents verified" badge: every required
- * document approved (lib/vendor-documents.ts). Nothing is read, and nobody
- * has the badge, while garage documents are off (no R2_DOCS_BUCKET). Also
- * read by the Service History certificate (0053).
- */
-export async function documentsVerifiedIds(vendorIds: string[]): Promise<Set<string>> {
-  if (vendorIds.length === 0 || !isDocumentStorageConfigured()) return new Set()
-  const rows = await vendorsRepository.listApprovedDocumentTypes(vendorIds)
-  return new Set(
-    [...summariesByVendor(rows)].filter(([, summary]) => summary.verified).map(([vendorId]) => vendorId)
-  )
 }
 
 /**
@@ -1000,6 +981,12 @@ export const vendorsService = {
       includeUnlocated: query.includeUnlocated,
     })
 
+    // "Silver & above" (0063; `certified=true` from before it means the
+    // same): the tiers admin has switched on, or no filter at all while
+    // Silver and Gold are both off.
+    const silverFilter =
+      query.tier === 'silver' || query.certified ? ((await tiersService.silverFilterTiers()) ?? undefined) : undefined
+
     let page: Array<{ id: string; distanceM: number | null }> = []
     let segment: Segment = startSegment
     let segmentOffset = offset
@@ -1012,7 +999,7 @@ export const vendorsService = {
         bbox: query.bbox,
         bookingType: query.bookingType,
         category: query.category,
-        certifiedOnly: query.certified,
+        tiers: silverFilter,
         q: query.q,
         sort,
         segment: 'located',
@@ -1025,7 +1012,7 @@ export const vendorsService = {
         const tail = await vendorsRepository.listPublicVendorPage({
           bookingType: query.bookingType,
           category: query.category,
-          certifiedOnly: query.certified,
+          tiers: silverFilter,
           q: query.q,
           sort,
           segment: 'unlocated',
@@ -1043,7 +1030,7 @@ export const vendorsService = {
       page = await vendorsRepository.listPublicVendorPage({
         bookingType: query.bookingType,
         category: query.category,
-        certifiedOnly: query.certified,
+        tiers: silverFilter,
         q: query.q,
         sort,
         segment: 'unlocated',
@@ -1074,21 +1061,17 @@ export const vendorsService = {
       throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
     }
 
-    const [photos, services, aggregates, verified, certified] = await Promise.all([
+    const [photos, services, aggregates, tiers] = await Promise.all([
       vendorsRepository.listPhotos(vendor.id),
       vendorsRepository.listServices(vendor.id, true),
       vendorsRepository.getRatingAggregates([vendor.id]),
-      documentsVerifiedIds([vendor.id]),
-      certificationService.certifiedIds([vendor.id]),
+      tiersService.customerTiers([vendor.id]),
     ])
 
     const rating = aggregates[0]
 
     return {
-      ...toPublicVendor(vendor, {
-        documentsVerified: verified.has(vendor.id),
-        certified: certified.has(vendor.id),
-      }),
+      ...toPublicVendor(vendor, { tier: tiers.get(vendor.id) ?? null }),
       photos: photos.map(toPhotoResponse),
       services: services.map((service) => toServiceResponse(service, service.images, 'public')),
       rating: rating ? Number(rating.average.toFixed(2)) : null,
@@ -1361,6 +1344,8 @@ export const vendorsService = {
     })
     log.info({ vendorId: vendor.id }, 'vendor:bookings_resumed')
     slotAlertsService.garageChanged(vendor.id, 'resumed')
+    // Listed again: its area may go live (customer reach, 0062).
+    areaSignupsService.launchSoon()
     return toVendorResponse(updated)
   },
 

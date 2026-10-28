@@ -20,13 +20,16 @@ import { useAuthStore } from '@repo/core/stores/auth-store'
 import type { Review } from '@repo/core/types'
 import { formatRating, reviewCountLabel } from '@repo/core/vendor-stats'
 import { GARAGE_NON_SOLICITATION_LINE } from '@repo/core/bypass-reports'
-import { CertifiedCard } from '@/components/certified-card'
+import { AgreementBanner } from '@/components/agreement-banner'
+import { TierCard } from '@/components/tier-card'
 import { GarageStatus } from '@/components/garage-status'
 import { GuaranteeHomeCard } from '@/components/guarantee-home-card'
 import { NewBookingCard } from '@/components/new-booking-card'
 import { PushBanner } from '@/components/push-banner'
 import { sortByUrgency, todayView, waitingSummary } from '@/lib/jobs'
 import { useVendorBookings } from '@/lib/use-vendor-bookings'
+import { useGarageRequestCount } from '@repo/core/api/hooks/use-booking-requests'
+import { REQUEST_RULES } from '@repo/core/booking-requests'
 
 /** How many new-booking cards Home shows before "See all". */
 const CARDS_ON_HOME = 3
@@ -120,20 +123,23 @@ export default function VendorHomePage() {
       <h1 className="sr-only">Home</h1>
 
       {/* Ordered by what actually blocks the garage. An unpinned garage cannot
-          be verified at all, so telling them "under review" first would be
-          misleading — there is nothing to review until they act. */}
+          be shown to customers at all, so telling them "under review" first
+          would be misleading — there is nothing to review until they act. */}
       {needsLocation ? (
         <Notice href="/settings?tab=location" title="Set your garage location">
           Customers can&apos;t find you until your garage is on the map, and we
-          can&apos;t verify you without it. Tap to pin it.
+          can&apos;t show you to customers without it. Tap to pin it.
         </Notice>
       ) : (
         !isVerified && (
-          <Notice tone="neutral" title="Your profile is under review">
-            You&apos;ll be notified once verified.
+          <Notice tone="neutral" title="Not shown to customers yet">
+            Detlio is checking your garage. You&apos;ll be told once customers can find you.
           </Notice>
         )
       )}
+
+      {/* The garage agreement (0063): a version to accept, owner seat only. */}
+      {isVendorAdmin && <AgreementBanner vendorId={vendor?.id} />}
 
       {/* A paused garage is invisible to customers, which is easy to forget a
           week later. Only an admin can resume (Settings is theirs). */}
@@ -211,6 +217,8 @@ export default function VendorHomePage() {
         )}
       </section>
 
+      <RequestsHomeCard />
+
       <div className="grid grid-cols-2 gap-2">
         {/* Each tile opens what it counts (finding 9: Today's jobs couldn't be tapped). */}
         <Link
@@ -287,13 +295,45 @@ export default function VendorHomePage() {
       {/* Free redo claims (0051): what waits for an answer, owner seat only. */}
       {isVendorAdmin && <GuaranteeHomeCard key={`guarantee-${vendor?.id}`} />}
 
-      {/* Detlio Certified (0048): something to work towards, not to act on now. */}
-      {isVendorAdmin && <CertifiedCard key={vendor?.id} />}
+      {/* Your tier (0063): Bronze, Silver or Gold and the next tier's steps,
+          something to work towards; owner seat only. */}
+      {isVendorAdmin && <TierCard vendorId={vendor?.id} />}
 
       {/* The agreement's non-solicitation term (0052): a reminder for every seat. */}
       <p className="px-1 text-[13px] text-text-secondary">
         {GARAGE_NON_SOLICITATION_LINE}
       </p>
     </AppShell>
+  )
+}
+
+/**
+ * Requests from customers just outside the garage's reach (0062), waiting
+ * for an answer: a count and the way in. Nothing while none wait, or when
+ * the count can't be read (an API without the route yet).
+ */
+function RequestsHomeCard() {
+  const count = useGarageRequestCount()
+  const waiting = count.data?.waiting ?? 0
+  if (waiting <= 0) return null
+  return (
+    <Link
+      href="/requests"
+      className="press flex min-h-14 items-center gap-3 rounded-[20px] border border-warning/40 bg-surface px-4 py-3"
+    >
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-2 text-[15px] font-semibold text-text-primary">
+          Requests
+          <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-brand-red-fill px-1.5 font-numeric text-[13px] font-semibold leading-6 text-brand-white">
+            {waiting}
+          </span>
+        </span>
+        <span className="block text-[13px] text-text-secondary">
+          {waiting} {waiting === 1 ? 'request' : 'requests'} waiting · answer
+          within {REQUEST_RULES.respondMinutes / 60} h
+        </span>
+      </span>
+      <IconChevronRight size={18} aria-hidden="true" className="shrink-0" />
+    </Link>
   )
 }

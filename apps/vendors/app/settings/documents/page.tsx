@@ -71,8 +71,8 @@ function dayLabel(date: string): string {
 
 /**
  * Settings → Documents: what the garage uploads for Detlio to check, and
- * where each one stands. When every required one is approved, customers see
- * a "Documents verified" badge on the garage.
+ * where each one stands. When every required one is approved, the documents
+ * count as checked: one of the steps to Silver (0063).
  *
  * The owner seat only (the API refuses an operator), and only while the
  * server has its private documents bucket; otherwise there is nothing here.
@@ -171,11 +171,11 @@ export default function GarageDocumentsPage() {
           <section className="flex flex-col gap-3">
             <SectionHeader
               title="Your documents"
-              subtitle="Detlio checks these. When the four required ones are approved, customers see a Documents verified badge on your garage. Only you and the Detlio team can open them."
+              subtitle="Detlio checks these. When the three required ones are approved, your documents count as checked, one of the steps to Silver. Only you and the Detlio team can open them."
             />
             {data.summary.verified ? (
-              <Notice tone="neutral" title="Documents verified">
-                Customers see the badge on your garage.
+              <Notice tone="neutral" title="Documents checked">
+                That step to Silver is done.
               </Notice>
             ) : (
               <p className="text-[13px] font-medium text-text-primary">

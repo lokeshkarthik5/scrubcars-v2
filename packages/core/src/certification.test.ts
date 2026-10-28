@@ -1,16 +1,13 @@
 import { describe, expect, test } from 'bun:test'
-import { CERTIFIED_STANDARDS, dateKeyLabel, garageCheckLine } from './certification'
+import { CERTIFICATION_THRESHOLDS, dateKeyLabel, garageCheckLine } from './certification'
+import { TIER_THRESHOLDS } from './tiers'
 
-describe('Detlio Certified words', () => {
-  test('the standards say the numbers, photos included (0045)', () => {
-    const text = CERTIFIED_STANDARDS.join(' ')
-    for (const figure of ['4.5', '10 customers', '20 jobs', '90 days', '90%', '3 in 100', '6 months']) {
-      expect(text).toContain(figure)
+describe('Gold (Detlio Certified) in the apps', () => {
+  test("the customer words' Gold numbers are Gold's (tiers.ts reads them, certification.ts keeps them)", () => {
+    for (const [key, value] of Object.entries(TIER_THRESHOLDS.gold)) {
+      const thresholds: Record<string, number> = CERTIFICATION_THRESHOLDS
+      expect<unknown>({ key, value }).toEqual({ key, value: thresholds[key] })
     }
-    expect(CERTIFIED_STANDARDS).toContain('Takes before and after photos of the car on at least 90% of jobs.')
-    expect(CERTIFIED_STANDARDS).toContain(
-      'Has not been found asking customers to book or pay outside Detlio in the last 180 days.'
-    )
   })
 
   test('a date key reads as a date', () => {

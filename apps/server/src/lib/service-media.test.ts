@@ -90,8 +90,10 @@ describe('toPublicMedia', () => {
     expect(JSON.stringify(media)).not.toContain('Sundar')
   })
 
-  test('an AI picture keeps its source, so it is labelled a sample', () => {
-    expect(toPublicMedia([row({ source: 'ai' })])[0].source).toBe('ai')
+  test('an AI picture never reaches a customer', () => {
+    expect(toPublicMedia([row({ source: 'ai' })])).toEqual([])
+    const real = row()
+    expect(toPublicMedia([row({ source: 'ai' }), real]).map((m) => m.id)).toEqual([real.id])
   })
 
   test('photos keep their order', () => {

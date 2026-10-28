@@ -7,7 +7,6 @@ import {
   IconArrowsSort,
   IconChevronDown,
   IconMap,
-  IconRosetteDiscountCheckFilled,
   IconSearch,
 } from '@tabler/icons-react'
 import { ModeSwitch } from '@/components/mode-switch'
@@ -37,7 +36,9 @@ import {
 } from '@repo/core/stores/location-store'
 import { ScButton } from '@repo/ui/sc/button'
 import { CATEGORY_FILTERS } from '@repo/core/categories'
-import { CERTIFIED_FILTER_LABEL } from '@repo/core/certification'
+import { SILVER_FILTER_LABEL } from '@repo/core/tiers'
+import { useTierConfig } from '@repo/core/api/hooks/use-tiers'
+import { TierMedalIcon } from '@repo/ui/features/tier-medal'
 import { BOOKING_TYPES } from '@repo/core/booking-types'
 import { atGarageReach, canCollectFrom, nextTabOffer } from '@repo/core/reach'
 import type { BookingType } from '@repo/core/types'
@@ -50,6 +51,7 @@ import {
   PickupExplainer,
   SkipTheDriveCard,
 } from './reach-parts'
+import { FreeWashPiece } from '@/components/reach/free-wash'
 
 const CATEGORIES = CATEGORY_FILTERS
 
@@ -57,7 +59,7 @@ type CategoryKey = (typeof CATEGORIES)[number]['key']
 
 /**
  * The first page the landing page renders on the server: At garage, every
- * category, no Certified filter, no location, the default order. The list
+ * category, no "Silver & above" filter, no location, the default order. The list
  * starts from it only while it is asking exactly that (useVendorSearch's
  * `initialPage` must never seed another question's answer).
  */
@@ -107,9 +109,14 @@ export function GarageList({
   const router = useRouter()
   const serviceMode = mode
   const [category, setCategory] = useState<CategoryKey>('all')
-  // "Certified only" (0048): a filter on the server, like the category, so
-  // it holds across sorting and every page.
-  const [certifiedOnly, setCertifiedOnly] = useState(false)
+  // "Silver & above" (0063): a filter on the server, like the category, so
+  // it holds across sorting and every page. Offered only while Detlio shows
+  // Silver or Gold (GET /tiers): with both off there is nothing to find, and
+  // an older API that cannot say means no chip either.
+  const tierConfig = useTierConfig()
+  const silverFilterOffered = tierConfig.data?.silverFilter === true
+  const [silverChosen, setSilverChosen] = useState(false)
+  const silverOnly = silverChosen && silverFilterOffered
   // `null` means "the customer has not chosen", which is what lets the default
   // follow whether we know where they are. Derived rather than set from an
   // effect, so a location fix cannot race a tap on the sort sheet.
@@ -141,7 +148,7 @@ export function GarageList({
   const asksLandingQuestion =
     serviceMode === LANDING_LIST_PARAMS.bookingType &&
     category_ === undefined &&
-    !certifiedOnly &&
+    !silverOnly &&
     !origin &&
     effectiveSort === LANDING_LIST_PARAMS.sort
 
@@ -162,7 +169,7 @@ export function GarageList({
     {
       bookingType: serviceMode,
       category: category_,
-      certified: certifiedOnly || undefined,
+      silverAndAbove: silverOnly || undefined,
       lat: origin?.lat,
       lng: origin?.lng,
       sort: effectiveSort,
@@ -290,28 +297,29 @@ export function GarageList({
       {/* py-2 -my-2: room inside the scroller for the chips' 44px touch
           areas, which it would otherwise clip at its edge. */}
       <div className="-mx-4 -my-2 flex gap-2 overflow-x-auto px-4 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {/* "Certified only" comes first, a switch rather than one of the
+        {/* "Silver & above" comes first, a switch rather than one of the
             categories: on, it narrows whichever category is chosen. White
-            when on, like the chosen category. */}
-        <button
-          type="button"
-          aria-pressed={certifiedOnly}
-          onClick={() => setCertifiedOnly((on) => !on)}
-          className={cn(
-            'flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-4 text-[13px] font-medium transition-colors',
-            certifiedOnly
-              ? 'bg-brand-white text-brand-black'
-              : 'bg-surface text-text-primary'
-          )}
-        >
-          <IconRosetteDiscountCheckFilled
-            size={15}
-            aria-hidden="true"
-            className="shrink-0"
-          />
-          {CERTIFIED_FILTER_LABEL}
-        </button>
-        <span aria-hidden="true" className="my-1.5 w-px shrink-0 bg-border" />
+            when on, like the chosen category. Not there at all while Detlio
+            shows neither Silver nor Gold. */}
+        {silverFilterOffered && (
+          <>
+            <button
+              type="button"
+              aria-pressed={silverOnly}
+              onClick={() => setSilverChosen((on) => !on)}
+              className={cn(
+                'flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-4 text-[13px] font-medium transition-colors',
+                silverOnly
+                  ? 'bg-brand-white text-brand-black'
+                  : 'bg-surface text-text-primary'
+              )}
+            >
+              <TierMedalIcon tier="silver" size={15} />
+              {SILVER_FILTER_LABEL}
+            </button>
+            <span aria-hidden="true" className="my-1.5 w-px shrink-0 bg-border" />
+          </>
+        )}
         {CATEGORIES.map((c) => (
           <button
             key={c.key}
@@ -343,6 +351,11 @@ export function GarageList({
           onSwitch={switchTo}
         />
       )}
+
+      {/* Their area has no garage yet (0062): the free wash for the day we
+          arrive, under Skip the drive or at the top. Pickup & drop offers it
+          at the bottom instead, so a screen shows it once. */}
+      {serviceMode !== 'pickup' && <FreeWashPiece placement="top" />}
 
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-3">
@@ -430,8 +443,8 @@ export function GarageList({
             // Never a dead end (F14): what was not found, and a way on.
             <div className="flex flex-col items-center gap-3 py-6 text-center">
               <p className="text-[15px] text-text-secondary">
-                {certifiedOnly
-                  ? 'No Detlio Certified garages here yet. Turn off “Certified only” to see every garage.'
+                {silverOnly
+                  ? 'No Silver or Gold garages here yet. Turn off “Silver & above” to see every garage.'
                   : serviceMode === 'pickup'
                     ? 'No garage collects from your area yet.'
                     : serviceMode === 'doorstep' && !citywide
@@ -439,16 +452,16 @@ export function GarageList({
                       : 'No garages match these filters.'}
               </p>
               <div className="flex flex-wrap justify-center gap-2">
-                {certifiedOnly && (
+                {silverOnly && (
                   <ScButton
                     variant="outline"
                     fullWidth={false}
-                    onClick={() => setCertifiedOnly(false)}
+                    onClick={() => setSilverChosen(false)}
                   >
                     Show every garage
                   </ScButton>
                 )}
-                {!certifiedOnly && category !== 'all' && (
+                {!silverOnly && category !== 'all' && (
                   <ScButton
                     variant="outline"
                     fullWidth={false}
@@ -457,7 +470,7 @@ export function GarageList({
                     Show all services
                   </ScButton>
                 )}
-                {!certifiedOnly && origin && serviceMode !== 'dropin' && (
+                {!silverOnly && origin && serviceMode !== 'dropin' && (
                   <ScButton
                     variant="outline"
                     fullWidth={false}
@@ -466,7 +479,7 @@ export function GarageList({
                     Show all of Chennai
                   </ScButton>
                 )}
-                {!certifiedOnly && serviceMode !== 'dropin' && (
+                {!silverOnly && serviceMode !== 'dropin' && (
                   <ScButton
                     variant="outline"
                     fullWidth={false}

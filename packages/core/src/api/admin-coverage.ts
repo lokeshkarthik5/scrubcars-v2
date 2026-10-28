@@ -27,7 +27,7 @@ export interface CoverageZone {
 }
 
 export type GarageStage =
-  'live' | 'pending' | 'not_verified' | 'paused' | 'suspended' | 'archived'
+  'live' | 'pending' | 'not_shown' | 'paused' | 'suspended' | 'archived'
 
 export interface CoverageGarage {
   id: string

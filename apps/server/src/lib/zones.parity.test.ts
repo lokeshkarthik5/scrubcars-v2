@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { CHENNAI_ZONES, ZONE_RADIUS_KM } from './zones.js'
+import { CHENNAI_ZONES, ZONE_RADIUS_KM, zoneFor } from './zones.js'
 
 // The customer app's seeded copy lives in packages/core, which the server
 // does not depend on. Loaded by path at run time (a computed specifier, so
@@ -26,5 +26,22 @@ describe('zones', () => {
     const ordered = core.orderZones(CHENNAI_ZONES).map((z) => z.name)
     expect(ordered.slice(0, 7)).toEqual(['Adyar', 'Anna Nagar', 'Guindy', 'Navalur', 'Nungambakkam', 'Sholinganallur', 'T Nagar'])
     expect(ordered.slice(7)).toEqual([...ordered.slice(7)].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)))
+  })
+
+  test('the app puts a point in the same zone as the server (part 2)', async () => {
+    const core = (await import(coreUrl)) as {
+      zoneFor: (point: { lat: number; lng: number }, zones: readonly CoreZone[]) => CoreZone | null
+    }
+    const points = [
+      { lat: 12.9815, lng: 80.218 },
+      { lat: 13.0, lng: 80.24 },
+      { lat: 12.95, lng: 80.2 },
+      { lat: 13.3, lng: 80.3 },
+      { lat: 10.5, lng: 79.5 },
+      { lat: 13.0418, lng: 80.2341 },
+    ]
+    for (const point of points) {
+      expect(core.zoneFor(point, CHENNAI_ZONES)?.slug ?? null).toBe(zoneFor(point, CHENNAI_ZONES)?.slug ?? null)
+    }
   })
 })

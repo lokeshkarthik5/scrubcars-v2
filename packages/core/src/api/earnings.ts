@@ -84,6 +84,13 @@ export async function getEarningsData(
 // ─── The statement (0038) ────────────────────────────────────────────────────
 
 
+/**
+ * A statement line as the garage reads it: the shared payout line, plus an
+ * accepted request's travel fee (customer reach, 0062), inside `price` and
+ * the garage's whole (no commission). Absent on an API from before it.
+ */
+export type GarageStatementLine = PayoutLine & { travelFee?: number }
+
 /** The garage's Earnings statement: what it is owed, was paid, and each booking. Rupees. */
 export interface EarningsStatement {
   /** IST dates, both included: the bookings listed became payable then. */
@@ -95,7 +102,7 @@ export interface EarningsStatement {
     /** Bookings received so far toward the free 25 (capped at 25). */
     freeBookings: { used: number; of: number }
   }
-  lines: PayoutLine[]
+  lines: GarageStatementLine[]
   /** Payouts made in the range, newest first. */
   payouts: Array<{
     id: string

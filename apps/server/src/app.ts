@@ -31,7 +31,9 @@ import { publicCertificateRoutes } from './modules/certificates/certificates.rou
 import { publicGuaranteeRoutes } from './modules/guarantee/guarantee.routes.js'
 import { publicRewardRoutes } from './modules/rewards/rewards.routes.js'
 import { geoRoutes } from './modules/geo/geo.routes.js'
+import { publicTierRoutes } from './modules/tiers/tiers.routes.js'
 import { zonesRoutes } from './modules/reach/reach.routes.js'
+import { publicBookingRequestRoutes } from './modules/booking-requests/booking-requests.routes.js'
 import { healthRoutes } from './modules/health/health.routes.js'
 import { fakeStreamRoutes, webhookRoutes } from './modules/service-media/service-media.routes.js'
 
@@ -162,6 +164,10 @@ app.route('/api/v1/rewards', publicRewardRoutes)
 app.route('/api/v1/geo', geoRoutes)
 // Chennai's zones (0062): the landing page's "Where's your car?" chips.
 app.route('/api/v1/zones', zonesRoutes)
+// Which tiers customers see (0063), for the "Silver & above" filter.
+app.route('/api/v1/tiers', publicTierRoutes)
+// Customer reach, part 2 (0062): the windows a garage can be asked for.
+app.route('/api/v1/booking-requests', publicBookingRequestRoutes)
 app.route('/api/v1/admin', adminRoutes)
 app.route('/api/v1/ops', opsRoutes)
 app.route('/api/v1/health', healthRoutes)

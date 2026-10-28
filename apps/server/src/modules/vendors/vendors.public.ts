@@ -11,12 +11,11 @@
  * whether it is paused and why — and nothing else. A new column on `vendors`
  * stays private until someone adds it here on purpose.
  *
- * Garage documents (0043) reach customers as one boolean, `documentsVerified`
- * (every required document approved by Detlio); never which documents, their
- * files or who checked them.
- *
- * Detlio Certified (0048) reaches customers as one boolean, `certified`;
- * never the standards' numbers, the quality checks or who certified it.
+ * The tiers (0063, lib/tiers.ts) reach customers as one value, `tier`: the
+ * medal they may see (the highest held tier admin has switched on, null while
+ * hidden). Never the standards' numbers, the documents, the quality checks,
+ * who awarded it or whether admin hid it. (`documentsVerified` and
+ * `certified`, the two badges tiers replace, are gone.)
  *
  * Never here: phone, whatsapp, email, address, mapsUrl, notes (the admin's
  * ops note), ownerId, the raw pickup answer and who accepted its terms,
@@ -24,6 +23,7 @@
  * portal read the full row through their own endpoints.
  */
 import { isPickupOffered } from '../../lib/pickup.js'
+import type { Tier } from '../../lib/tiers.js'
 import type { VendorRecord } from './vendors.repository.js'
 
 /** The columns the public shape is built from. */
@@ -79,17 +79,11 @@ export type PublicVendorFields = {
   bookingsPausedReason: string | null
   createdAt: string
   /**
-   * Detlio has approved every required document (lib/vendor-documents.ts):
-   * the "Documents verified" badge. Only this boolean, never the documents.
-   * False while garage documents are off.
+   * The medal customers see (lib/tiers.ts shownTier): Bronze, Silver or Gold,
+   * or null for none. Only this, never the garage's numbers, documents or
+   * checks, and never whether admin hid it.
    */
-  documentsVerified: boolean
-  /**
-   * Detlio Certified (lib/certification.ts isCertified): the seal. Only this
-   * boolean, never the garage's numbers, its quality checks or who
-   * certified it.
-   */
-  certified: boolean
+  tier: Tier | null
 }
 
 /** Every key the public shape may carry, for tests and reviewers. */
@@ -113,13 +107,12 @@ export const PUBLIC_VENDOR_KEYS = [
   'bookingsPausedAt',
   'bookingsPausedReason',
   'createdAt',
-  'documentsVerified',
-  'certified',
+  'tier',
 ] as const satisfies ReadonlyArray<keyof PublicVendorFields>
 
 export function toPublicVendor(
   vendor: PublicVendorSource,
-  extras: { documentsVerified: boolean; certified: boolean }
+  extras: { tier: Tier | null }
 ): PublicVendorFields {
   return {
     id: vendor.id,
@@ -141,7 +134,6 @@ export function toPublicVendor(
     bookingsPausedAt: vendor.bookingsPausedAt?.toISOString() ?? null,
     bookingsPausedReason: vendor.bookingsPausedReason,
     createdAt: vendor.createdAt.toISOString(),
-    documentsVerified: extras.documentsVerified,
-    certified: extras.certified,
+    tier: extras.tier,
   }
 }

@@ -4,7 +4,7 @@ import { logger } from '../../lib/logger.js'
 import { alertOps } from '../../lib/ops-alerts.js'
 import { newHandoverCodes } from '../../lib/pickup.js'
 import { createRazorpayOrder } from '../../lib/razorpay.js'
-import { garageNewBooking } from '../../lib/push-messages.js'
+import { garageNewBooking, garageRequestBooked } from '../../lib/push-messages.js'
 import { analyticsService } from '../analytics/analytics.service.js'
 import { bookingsRepository } from '../bookings/bookings.repository.js'
 import {
@@ -16,6 +16,7 @@ import { refundsService } from '../refunds/refunds.service.js'
 import { pushService } from '../push/push.service.js'
 import { giftCreditService } from '../gift-credit/gift-credit.service.js'
 import { paise, rupees, splitCheckout } from '../../lib/gift-credit.js'
+import { isFreeWashCheckout } from '../../lib/area-signups.js'
 import { bookingIntentsRepository } from './booking-intents.repository.js'
 import type { ConsumeIntentResult } from './booking-intents.repository.js'
 import type { CreateBookingIntentInput } from './booking-intents.validation.js'
@@ -46,6 +47,8 @@ const FAILURE_MESSAGES: Record<string, string> = {
     'That promo code was fully redeemed before this payment completed, so the booking could not be confirmed. Your payment will be refunded.',
   credit_exhausted:
     'Your Detlio credit changed before this payment completed (it was used for another booking, or ran out), so the booking could not be confirmed. Your payment will be refunded, and your credit is untouched.',
+  request_gone:
+    'The garage’s yes to your request was no longer open when this payment completed, so the booking could not be confirmed. Your payment will be refunded.',
   slot_full:
     'That time was booked up at the garage before this payment completed, so the booking could not be confirmed. Your payment will be refunded.',
   garage_closed:
@@ -94,6 +97,9 @@ export const bookingIntentsService = {
         // The whole booking's duration, not one service's.
         serviceDurationMins: draft.durationMins,
         subtotalAmount: draft.amount,
+        // An accepted request's travel fee and the request it confirms (0062).
+        travelFee: draft.travelFee,
+        requestId: draft.requestId,
         // What Razorpay is asked for; the credit part is spent with the booking.
         amount: rupees(cashPaise),
         creditAmount: rupees(creditPaise),
@@ -110,15 +116,24 @@ export const bookingIntentsService = {
       draft.items
     )
 
-    // Paid wholly with credit: no Razorpay order at all. The booking is
-    // written now, through the same consumeIntent (slot, car, promo and
-    // credit checks under the same locks; the receipt number; the garage's
-    // deadline), with no payment id.
-    // (Only when credit paid it: a booking that costs nothing at all is
-    // refused by Razorpay's order below, as it always was.)
-    if (cashPaise === 0 && creditPaise > 0) {
-      const { bookingId } = await confirmWithCredit(userId, intent.id)
-      log.info({ intentId: intent.id, userId, bookingId, creditAmount: intent.creditAmount }, 'booking_intent:paid_with_credit')
+    // Nothing left for Razorpay: no order at all. The booking is written
+    // now, through the same consumeIntent (slot, car, promo and credit
+    // checks under the same locks; the receipt number; the garage's
+    // deadline), with no payment id. Either Detlio credit paid it, or a
+    // zone's free wash (0062) brought it to ₹0: free means free, so there is
+    // nothing to pay and the garage is still paid the full price by Detlio
+    // (a Detlio-funded code). No other code can reach ₹0 (lib/discounts.ts).
+    if (cashPaise === 0) {
+      const free = creditPaise === 0
+      if (free && !isFreeWashCheckout(draft.discount?.source, draft.chargeAmount)) {
+        // Unreachable by the rules above; never a ₹0 Razorpay order.
+        throw new AppError(409, "This booking couldn't be priced. Nothing was charged.", 'BOOKING_NOT_CONFIRMED')
+      }
+      const { bookingId } = await confirmWithoutGateway(userId, intent.id)
+      log.info(
+        { intentId: intent.id, userId, bookingId, creditAmount: intent.creditAmount, free },
+        free ? 'booking_intent:free_wash_booked' : 'booking_intent:paid_with_credit'
+      )
       return {
         intentId: intent.id,
         orderId: null,
@@ -126,7 +141,9 @@ export const bookingIntentsService = {
         currency: 'INR',
         keyId: null,
         creditAmount: intent.creditAmount,
-        paidWithCredit: true,
+        paidWithCredit: !free,
+        /** A free wash covered it all (0062): booked, nothing paid. */
+        free,
         bookingId,
       }
     }
@@ -158,6 +175,7 @@ export const bookingIntentsService = {
       keyId: order.keyId as string | null,
       creditAmount: intent.creditAmount,
       paidWithCredit: false,
+      free: false,
       bookingId: null as string | null,
     }
   },
@@ -226,7 +244,7 @@ export const bookingIntentsService = {
   },
 }
 
-/** What a checkout paid wholly with credit is told when it can't be booked: nothing was charged. */
+/** What a checkout with nothing for Razorpay is told when it can't be booked: nothing was charged. */
 const CREDIT_ONLY_REFUSALS: Record<string, { status: 409 | 400; message: string; code: string }> = {
   vehicle_clash: {
     status: 409,
@@ -253,6 +271,11 @@ const CREDIT_ONLY_REFUSALS: Record<string, { status: 409 | 400; message: string;
     message: 'That promo code has just been used up. Remove it and try again; nothing was charged.',
     code: 'DISCOUNT_EXHAUSTED',
   },
+  request_gone: {
+    status: 409,
+    message: "This request isn't accepted any more. Nothing was charged; send a new one.",
+    code: 'REQUEST_NOT_ACCEPTED',
+  },
   credit_exhausted: {
     status: 409,
     message: 'Your Detlio credit changed (it was used for another booking, or ran out). Check your balance and try again; nothing was charged.',
@@ -261,11 +284,12 @@ const CREDIT_ONLY_REFUSALS: Record<string, { status: 409 | 400; message: string;
 }
 
 /**
- * A checkout paid wholly with Detlio credit, booked at once. No money was
- * taken, so a refusal is a plain error (nothing to refund, no ops alert) and
- * the checkout is closed as failed with no payment on it.
+ * A checkout with nothing for Razorpay (paid wholly with Detlio credit, or a
+ * free wash that covered it all, 0062), booked at once. No money was taken,
+ * so a refusal is a plain error (nothing to refund, no ops alert) and the
+ * checkout is closed as failed with no payment on it.
  */
-async function confirmWithCredit(userId: string, intentId: string): Promise<{ bookingId: string }> {
+async function confirmWithoutGateway(userId: string, intentId: string): Promise<{ bookingId: string }> {
   const result = await bookingIntentsRepository.consumeIntent({
     intentId,
     razorpayPaymentId: null,
@@ -278,7 +302,7 @@ async function confirmWithCredit(userId: string, intentId: string): Promise<{ bo
   }
   const refusal = CREDIT_ONLY_REFUSALS[result.kind]
   await bookingIntentsRepository.markFailed(intentId, null, result.kind)
-  log.warn({ intentId, userId, reason: result.kind }, 'booking_intent:credit_only_refused')
+  log.warn({ intentId, userId, reason: result.kind }, 'booking_intent:no_gateway_refused')
   if (refusal) throw new AppError(refusal.status, refusal.message, refusal.code)
   throw new AppError(409, "This booking couldn't be made. Nothing was charged.", 'BOOKING_NOT_CONFIRMED')
 }
@@ -315,6 +339,13 @@ async function handleConsumeResult(
           recipient: { audience: 'garage', vendorId: booking.vendorId },
           message: garageNewBooking(booking, new Date(), env.garageResponseMinutes),
         }]
+      })
+      // A confirmed request (0062) is booked accepted: the garage hears it
+      // is paid (the new-booking push above is only for pending ones).
+      pushService.notifyLater(async () => {
+        const booking = await bookingsRepository.findBookingById(result.bookingId)
+        if (!booking || booking.status !== 'confirmed') return []
+        return [{ recipient: { audience: 'garage', vendorId: booking.vendorId }, message: garageRequestBooked(booking) }]
       })
       // The funnel's last step, recorded here rather than by the app, whose
       // tab may be gone by now. After the response; never fails this.
@@ -365,6 +396,11 @@ async function handleConsumeResult(
     case 'credit_exhausted':
       return failIntent(params, 'credit_exhausted')
 
+    // The request this checkout confirmed was no longer accepted (cancelled,
+    // or already confirmed by another checkout): money captured, no booking.
+    case 'request_gone':
+      return failIntent(params, 'request_gone')
+
     case 'previously_failed':
       throw new AppError(409, FALLBACK_FAILURE_MESSAGE, 'BOOKING_CONFIRM_FAILED_REFUND_DUE')
   }
@@ -403,7 +439,7 @@ async function failIntent(
     return {
       kind: 'paid_no_booking',
       // Only a checkout with a Razorpay part reaches here (a credit-only one
-      // is refused in confirmWithCredit, with nothing to refund).
+      // is refused in confirmWithoutGateway, with nothing to refund).
       paymentId: params.razorpayPaymentId ?? 'none',
       reason,
       amount: intent?.amount,

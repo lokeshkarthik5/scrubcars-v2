@@ -183,7 +183,7 @@ export const env = {
   // for the garage's owner seat or a super-admin. Unset — as in development
   // and previews — and garage documents are off: their routes are 404, the
   // garage portal and admin hide the section, and no garage shows the
-  // "Documents verified" badge.
+  // documents-checked step of Silver (0063): nobody can reach Silver or Gold.
   r2DocsBucket: process.env.R2_DOCS_BUCKET?.trim() || undefined,
   // Overrides the derived Cloudflare endpoint. Unset in every real
   // environment; the E2E stack points it at a local MinIO, which speaks the
@@ -294,7 +294,8 @@ export const env = {
   // neither Google nor Ola is called.
   placesFake: readTestFake('PLACES_FAKE', 'replaces Google and Ola place searches with a fixed list'),
   /**
-   * Whether an admin may verify a garage that has no pin.
+   * Whether an admin may show a garage to customers ("Show to customers",
+   * `is_verified`) while it has no pin.
    *
    * The end state is `true`: a garage with no coordinates cannot be found by a
    * customer browsing nearby, cannot be distance-sorted, and cannot have its
@@ -478,6 +479,12 @@ export const env = {
   // counted in the database (lib/coupons.ts), which is the real cap on
   // guessing.
   couponCodeRateLimit: Number(process.env.COUPON_CODE_RATE_LIMIT ?? '20'),
+
+  // Customer reach, part 2 (0062): sending a request, joining an area's list
+  // and recommending a garage, per signed-in customer per hour, on their own
+  // count. The database caps them too (two open requests, one sign-up per
+  // zone); this stops bursts.
+  reachWriteRateLimit: Number(process.env.REACH_WRITE_RATE_LIMIT ?? '20'),
 
   // ─── Usage events (lib/analytics.ts) ───────────────────────────────────────
   // E2E only: let Playwright's headless browser record events, which are

@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { IconBuildingStore, IconStarFilled } from '@tabler/icons-react'
+import { IconStarFilled } from '@tabler/icons-react'
 import { BOOKING_TYPE_LABELS, bookingTypeParam } from '@repo/core/booking-types'
 import { distanceAndDrive } from '@repo/core/drive-time'
 import { straightLineKm } from '@repo/core/map'
@@ -13,9 +13,9 @@ import {
   useHydratedLocation,
 } from '@repo/core/stores/location-store'
 import type { BookingType, Vendor } from '@repo/core/types'
-import { CertifiedMark } from '@repo/ui/features/detlio-certified'
-import { DocumentsVerifiedMark } from '@repo/ui/features/documents-verified'
+import { TierMark } from '@repo/ui/features/tier-medal'
 import { OutsideCityChip } from '@repo/ui/features/outside-city'
+import { GarageCover, GarageMonogram } from '@repo/ui/features/garage-cover'
 
 function ModeBadge({ label, tone }: { label: string; tone: 'garage' | 'doorstep' }) {
   return (
@@ -121,14 +121,13 @@ export function VendorCard({
                 className="object-cover"
               />
             ) : (
-              // No vendor photo on file — a neutral placeholder rather than stock
-              // imagery, so the card never implies a photo we don't have.
-              <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-surface-elevated to-surface">
-                <IconBuildingStore size={30} aria-hidden="true" className="text-text-muted" />
-              </div>
+              // No photo on file: the garage's own designed cover (its
+              // initials, area and modes on its colour), never stock imagery
+              // that could pass for the garage, nor a grey box.
+              <GarageCover vendor={vendor} />
             )}
 
-            {vendor.logoUrl && (
+            {vendor.logoUrl ? (
               <div className="absolute bottom-2 left-2 h-10 w-10 overflow-hidden rounded-[10px] border border-white/70 bg-surface shadow-sm">
                 <Image
                   src={vendor.logoUrl}
@@ -138,18 +137,25 @@ export function VendorCard({
                   className="object-cover"
                 />
               </div>
+            ) : (
+              // No logo: a monogram tile in the cover's colour, over a photo
+              // or the designed cover alike.
+              <GarageMonogram
+                vendor={vendor}
+                className="absolute bottom-2 left-2 h-10 w-10 rounded-[10px] text-[14px] shadow-sm"
+              />
             )}
           </div>
 
           <div className="flex flex-col gap-1.5 px-3.5 py-3">
             <div className="flex items-start justify-between gap-2">
-              {/* One sign right after the name, and the name gives way
-                  first (truncates), so it never pushes the booking badges
-                  off a 360px card. Detlio Certified needs the documents,
-                  so a certified garage shows the seal alone. */}
+              {/* One sign right after the name, the tier medal (0063: the
+                  highest tier Detlio shows, never more than one), and the
+                  name gives way first (truncates), so it never pushes the
+                  booking badges off a 360px card. */}
               <h3 className="flex min-w-0 flex-1 items-center gap-1 text-[15px] font-semibold text-text-primary">
                 <span className="truncate">{vendor.name}</span>
-                {vendor.certified ? <CertifiedMark /> : vendor.documentsVerified && <DocumentsVerifiedMark />}
+                {vendor.tier && <TierMark tier={vendor.tier} />}
               </h3>
               <div className="flex shrink-0 gap-1.5">
                 {vendor.dropinEnabled && (

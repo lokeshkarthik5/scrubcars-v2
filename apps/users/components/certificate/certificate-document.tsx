@@ -1,14 +1,13 @@
 import type { ReactNode } from 'react'
-import { IconRosetteDiscountCheckFilled, IconShieldCheckFilled } from '@tabler/icons-react'
 import type { CertificateJob, ServiceHistoryCertificate } from '@repo/core/api/certificates'
-import { CERTIFIED_LABEL } from '@repo/core/certification'
 import {
   bodyTypeLabel,
   CERTIFICATE_SCOPE_NOTE,
   CERTIFICATE_TITLE,
   certificateDateLabel,
 } from '@repo/core/service-history-certificate'
-import { DOCUMENTS_VERIFIED_LABEL } from '@repo/core/vendor-documents'
+import { tierMedalName } from '@repo/core/tiers'
+import { TierMedalIcon } from '@repo/ui/features/tier-medal'
 import { CertificateSeal } from './certificate-seal'
 
 /**
@@ -30,25 +29,15 @@ export const CERTIFICATE_PRINT_CSS = `
 }
 `
 
-/** "Detlio Certified" for a certified garage, else "Documents verified", else nothing: one sign, as on the garage cards. */
+/** The garage's tier medal as customers see it today ("Gold garage"), or nothing: one sign, as on the garage cards. */
 function GarageMark({ garage }: { garage: CertificateJob['garage'] }) {
-  if (garage.certified) {
-    return (
-      <span className="inline-flex items-center gap-1 text-[11px] font-medium">
-        <IconRosetteDiscountCheckFilled size={13} aria-hidden="true" className="shrink-0" />
-        {CERTIFIED_LABEL}
-      </span>
-    )
-  }
-  if (garage.documentsVerified) {
-    return (
-      <span className="inline-flex items-center gap-1 text-[11px] font-medium">
-        <IconShieldCheckFilled size={13} aria-hidden="true" className="shrink-0" />
-        {DOCUMENTS_VERIFIED_LABEL}
-      </span>
-    )
-  }
-  return null
+  if (!garage.tier) return null
+  return (
+    <span className="inline-flex items-center gap-1 text-[11px] font-medium">
+      <TierMedalIcon tier={garage.tier} size={13} />
+      {tierMedalName(garage.tier)}
+    </span>
+  )
 }
 
 function photosLine(photos: CertificateJob['photos']): string {

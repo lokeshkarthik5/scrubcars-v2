@@ -34,6 +34,8 @@ import { adminStatsRoutes } from '../stats/stats.routes.js'
 import { adminPayoutRoutes } from '../payouts/payouts.routes.js'
 import { adminDocumentRoutes } from '../vendor-documents/vendor-documents.routes.js'
 import { adminCertificationRoutes } from '../certification/certification.routes.js'
+import { adminAgreementRoutes } from '../agreements/agreements.routes.js'
+import { adminTierRoutes } from '../tiers/tiers.routes.js'
 import { adminVendorImportRoutes } from '../vendor-imports/vendor-imports.routes.js'
 import {
   addMemberSchema,
@@ -431,9 +433,14 @@ adminRoutes.route('/payouts', adminPayoutRoutes)
 // behalf. Nested here for the same cookie reason as discounts; every route
 // but /config is a 404 while R2_DOCS_BUCKET is unset.
 adminRoutes.route('/documents', adminDocumentRoutes)
-// Detlio Certified (0048): a garage's standards, quality checks, Certify
-// and Revoke. Nested here for the same cookie reason as discounts.
+// Gold (Detlio Certified, 0048): a garage's standards, quality checks,
+// Award Gold (Certify) and Revoke. Nested here for the same cookie reason as discounts.
 adminRoutes.route('/certification', adminCertificationRoutes)
+// Bronze / Silver / Gold (0063): the per-tier switches, a garage's tier and
+// its hide switch; and the garage agreement's versions. Nested here for the
+// same cookie reason as discounts.
+adminRoutes.route('/tiers', adminTierRoutes)
+adminRoutes.route('/agreements', adminAgreementRoutes)
 
 // Telegram: whether the team's alerts are set up, and "Send test alert".
 // Nested here for the same cookie reason as discounts.

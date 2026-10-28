@@ -1,3 +1,4 @@
+import { tiersService } from '../tiers/tiers.service.js'
 import { logger } from '../../lib/logger.js'
 import {
   JUST_OUTSIDE_LIMIT,
@@ -6,6 +7,7 @@ import {
   outsideByKm,
 } from '../../lib/reach.js'
 import { zonesWithGarages } from '../../lib/zones.js'
+import { freeWashesLeft, waitingCount, zoneIsLive } from '../../lib/area-signups.js'
 import type { ListPublicVendorsQuery } from '../vendors/vendors.validation.js'
 import {
   vendorCardsFor,
@@ -23,8 +25,20 @@ export interface PublicZone {
   lat: number
   lng: number
   priority: boolean
-  /** At least one live listed garage's pin is in this zone (lib/zones.ts). */
+  /**
+   * At least one live listed garage's pin is in this zone (lib/zones.ts), or
+   * the zone has launched (`live_at`) and lost its garage since: either way
+   * there is no free-wash list to join (the sign-up refuses a launched zone
+   * with AREA_LIVE), so the app must not offer one.
+   */
   hasGarage: boolean
+  /**
+   * The free-wash list (part 2): "N waiting here" from 10 sign-ups, null
+   * below ("Be the first", lib/area-signups.ts waitingCount).
+   */
+  waiting: number | null
+  /** Free washes still to give to this zone's list (of the first 50). */
+  freeWashesLeft: number
 }
 
 /**
@@ -90,7 +104,11 @@ export const reachService = {
   /** Every zone, and whether a live listed garage is in it. Cached a minute. */
   async listZones(now = Date.now()): Promise<PublicZone[]> {
     if (zonesCache && now - zonesCache.at < ZONES_TTL_MS) return zonesCache.zones
-    const [rows, pins] = [await reachRepository.listZones(), await reachRepository.listListedGaragePins()]
+    const [rows, pins, signups] = [
+      await reachRepository.listZones(),
+      await reachRepository.listListedGaragePins(),
+      await reachRepository.signupCountsByZone(),
+    ]
     const withGarage = zonesWithGarages(rows, pins)
     const zones = rows.map((zone) => ({
       slug: zone.slug,
@@ -98,7 +116,9 @@ export const reachService = {
       lat: zone.lat,
       lng: zone.lng,
       priority: zone.priority,
-      hasGarage: withGarage.has(zone.slug),
+      hasGarage: zoneIsLive(zone, withGarage.has(zone.slug)),
+      waiting: waitingCount(signups.get(zone.id) ?? 0),
+      freeWashesLeft: freeWashesLeft(signups.get(zone.id) ?? 0),
     }))
     zonesCache = { at: now, zones }
     return zones
@@ -115,7 +135,10 @@ export const reachService = {
   async withReach(list: VendorListResponse, query: ListPublicVendorsQuery): Promise<ReachListResponse> {
     const origin =
       query.lat !== undefined && query.lng !== undefined ? { lat: query.lat, lng: query.lng } : undefined
-    const filters = { category: query.category, certifiedOnly: query.certified }
+    // "Silver & above" as the list itself reads it (vendors.service).
+    const tiers =
+      query.tier === 'silver' || query.certified ? ((await tiersService.silverFilterTiers()) ?? undefined) : undefined
+    const filters = { category: query.category, tiers }
 
     let reach: ReachSummary | null = null
     if (listCarriesReach(query)) {

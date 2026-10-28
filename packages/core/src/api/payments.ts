@@ -24,6 +24,11 @@ export interface BookingIntentOrder {
   /** The Detlio credit this checkout uses, as a decimal string ("0.00" when none). */
   creditAmount?: string
   paidWithCredit?: boolean
+  /**
+   * A zone's free wash covered the whole price (0062): booked with nothing
+   * paid, no Razorpay order (`bookingId` set, `orderId` null).
+   */
+  free?: boolean
   bookingId?: string | null
 }
 
@@ -49,6 +54,12 @@ export interface CreateBookingIntentPayload {
    * The server decides how much; ignored while gifts are off.
    */
   useCredit?: boolean
+  /**
+   * Customer reach (0062): the accepted request this checkout confirms. The
+   * booking must be exactly what the garage accepted; the server then adds
+   * its travel fee as its own line.
+   */
+  requestId?: string
 }
 
 interface RazorpayResult {

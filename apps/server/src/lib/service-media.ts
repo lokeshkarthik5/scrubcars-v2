@@ -7,8 +7,9 @@
  *
  * Owner decisions (16 Oct 2026): up to 3 photos and one video of at most 60
  * seconds per service, added by the garage from its own app or by admin;
- * every upload carries the privacy tick; anything AI-made is shown to
- * customers as a sample, never as the garage's own work.
+ * every upload carries the privacy tick. AI-made pictures are admin's
+ * placeholders and never reach a customer (no-photo look, 0063): a service
+ * without real media shows its category icon instead.
  */
 import { createHmac, timingSafeEqual } from 'node:crypto'
 
@@ -70,7 +71,8 @@ export type MediaRow = {
 /**
  * What a customer may see of one photo or video. Nothing about who added it
  * or the privacy tick: those are the garage's and Detlio's business, not the
- * customer's. `source` stays because an AI picture must be labelled a sample.
+ * customer's. `source` is always 'upload' here (AI pictures are left out);
+ * it stays so the apps' one ServiceMedia type fits both views.
  */
 export type PublicServiceMedia = {
   id: string
@@ -102,12 +104,22 @@ function mediaOrder(a: MediaRow, b: MediaRow): number {
 }
 
 /**
- * The customer's view of a service's media: photos, and a video only once
- * Stream says it is ready to play. A processing or failed video does not
- * exist as far as a customer is concerned.
+ * Whether a customer may ever see a row: anything but an AI picture. AI
+ * pictures stay admin's, shown in the editors only; customers see the
+ * service's category icon until the garage adds a real photo or video.
+ */
+export function isCustomerVisible(row: Pick<MediaRow, 'source'>): boolean {
+  return row.source !== 'ai'
+}
+
+/**
+ * The customer's view of a service's media: the garage's own photos, and its
+ * video only once Stream says it is ready to play. A processing or failed
+ * video, and an AI picture, do not exist as far as a customer is concerned.
  */
 export function toPublicMedia(rows: readonly MediaRow[]): PublicServiceMedia[] {
   return rows
+    .filter(isCustomerVisible)
     .filter((row) => row.kind === 'image' || row.videoStatus === 'ready')
     .sort(mediaOrder)
     .map((row) => ({

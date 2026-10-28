@@ -4,10 +4,12 @@ import { db } from '../../db/index.js'
 import {
   bookingCharges,
   bookingItems,
+  bookingRequests,
   bookingReschedules,
   bookingTimeProposals,
   bookings,
   discountRedemptions,
+  discounts,
   jobPhotos,
   payments,
   receiptCounters,
@@ -71,6 +73,8 @@ export interface BookingDiscount {
   fundedBy: 'platform' | 'vendor'
   perUserLimit: number | null
   totalUsageLimit: number | null
+  /** The code's kind (discounts.source); a 'free_wash' may bring a checkout to ₹0 (0062). */
+  source?: string
 }
 
 // Bookings that still lay claim to a vehicle. Cancelled and rescheduled ones
@@ -1081,6 +1085,8 @@ export const bookingsRepository = {
     // A reschedule is a move, not a re-price: these are copied verbatim from
     // the booking being moved.
     subtotalAmount: string
+    /** An accepted request's travel fee (0062), carried by a move. */
+    travelFee?: string
     amount: string
     discountAmount: string
     discountId: string | null
@@ -1311,6 +1317,7 @@ export const bookingsRepository = {
           acceptedAt: data.proposal ? now : null,
           acceptedBy: data.proposal?.acceptedBy ?? null,
           subtotalAmount: data.subtotalAmount,
+          travelFee: data.travelFee ?? '0',
           amount: data.amount,
           discountAmount: data.discountAmount,
           discountId: data.discountId,
@@ -1861,6 +1868,17 @@ export const bookingsRepository = {
     return db.query.vendors.findFirst({
       where: vendorPageOpen(id),
     })
+  },
+
+  /** A code's kind (discounts.source), for the receipt's free-wash line (0062). */
+  async findDiscountSource(discountId: string): Promise<string | null> {
+    const [row] = await db.select({ source: discounts.source }).from(discounts).where(eq(discounts.id, discountId)).limit(1)
+    return row?.source ?? null
+  },
+
+  /** A request a checkout confirms (customer reach, 0062). */
+  findRequest(id: string) {
+    return db.query.bookingRequests.findFirst({ where: eq(bookingRequests.id, id) })
   },
 
   /** The garage's holiday on this IST date, if it marked one. */

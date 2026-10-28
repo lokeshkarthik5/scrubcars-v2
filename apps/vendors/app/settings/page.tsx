@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import {
   IconBell,
   IconFileCertificate,
+  IconFileText,
   IconLogout,
   IconPhoto,
   IconChevronRight,
@@ -482,7 +483,7 @@ function VendorSettings() {
               action={
                 vendor && (
                   <ScBadge variant={vendor.isVerified ? 'success' : 'pending'}>
-                    {vendor.isVerified ? 'Verified' : 'Under review'}
+                    {vendor.isVerified ? 'Shown to customers' : 'Not shown to customers yet'}
                   </ScBadge>
                 )
               }
@@ -566,9 +567,16 @@ function VendorSettings() {
               href="/settings/documents"
               icon={<IconFileCertificate size={18} aria-hidden="true" />}
               title="Documents"
-              description="Your ID, bank proof and agreement, for a Documents verified badge"
+              description="Your ID, bank proof and shop photo, one of the steps to Silver"
             />
           )}
+
+          <LinkRow
+            href="/agreement"
+            icon={<IconFileText size={18} aria-hidden="true" />}
+            title="Garage agreement"
+            description="Read and accept the Detlio garage agreement, for Bronze"
+          />
         </TabsContent>
 
         <TabsContent value="location">

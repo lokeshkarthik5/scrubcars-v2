@@ -1,7 +1,8 @@
 /**
  * Garage documents (0043): what a garage uploads for Detlio to check, and
- * when it has earned the "Documents verified" badge customers see. Pure, so
- * every rule is pinned by vendor-documents.test.ts.
+ * when its documents count as checked, one of Silver's steps (lib/tiers.ts,
+ * 0063; before that, the "Documents verified" badge). Pure, so every rule is
+ * pinned by vendor-documents.test.ts.
  *
  * Owner decision (17 Oct 2026): "A separate section where they upload their
  * documents and we verify and give them a documents-verified badge." It is
@@ -28,22 +29,41 @@ export const DOCUMENT_TYPES = [
 export type DocumentType = (typeof DOCUMENT_TYPES)[number]
 
 /**
- * The four a garage needs approved for the badge. GST and a trade licence
- * are optional: many small garages have neither.
+ * The three a garage needs approved for its documents to count as checked
+ * (Silver). GST and a trade licence are optional: many small garages have
+ * neither. The signed paper agreement was the fourth until 0063, when the
+ * click-to-agree agreement (lib/agreements.ts) replaced it.
  */
 export const REQUIRED_DOCUMENT_TYPES = [
   'shop_photo',
   'owner_id',
   'bank_proof',
-  'agreement',
 ] as const satisfies readonly DocumentType[]
+
+/**
+ * Types nobody uploads any more: the signed paper agreement (0063, replaced
+ * by click to agree). Old ones stay readable in admin, and a tombstone still
+ * keeps one (Delete forever), but a new one is refused.
+ */
+export const RETIRED_DOCUMENT_TYPES = ['agreement'] as const satisfies readonly DocumentType[]
+
+export type UploadableDocumentType = Exclude<DocumentType, (typeof RETIRED_DOCUMENT_TYPES)[number]>
+
+/** What can be uploaded now, in the order the screens list them. */
+export const UPLOADABLE_DOCUMENT_TYPES = DOCUMENT_TYPES.filter(
+  (type) => !(RETIRED_DOCUMENT_TYPES as readonly string[]).includes(type)
+) as [UploadableDocumentType, ...UploadableDocumentType[]]
+
+export function isRetiredDocument(type: DocumentType): boolean {
+  return (RETIRED_DOCUMENT_TYPES as readonly string[]).includes(type)
+}
 
 /** The names the team and the garage both use. */
 export const DOCUMENT_LABELS: Record<DocumentType, string> = {
   shop_photo: 'Shop photo',
   owner_id: 'Owner ID',
   bank_proof: 'Bank proof',
-  agreement: 'Signed Detlio agreement',
+  agreement: 'Signed agreement (old, on paper)',
   gst_certificate: 'GST certificate',
   trade_licence: 'Trade licence',
 }
@@ -174,7 +194,7 @@ export function reviewRefusal(
   return null
 }
 
-// ─── The badge and the progress line ─────────────────────────────────────────
+// ─── Documents checked and the progress line ─────────────────────────────────
 
 export interface DocumentState {
   type: DocumentType
@@ -182,8 +202,8 @@ export interface DocumentState {
 }
 
 /**
- * **Documents verified**: every required type approved. Optional ones do not
- * count either way, so an expired trade licence never takes the badge away.
+ * **Documents checked**: every required type approved. Optional ones do not
+ * count either way, so an expired trade licence never takes Silver away.
  */
 export function documentsVerified(documents: readonly DocumentState[]): boolean {
   return REQUIRED_DOCUMENT_TYPES.every((type) =>
@@ -244,7 +264,7 @@ export function summariesByVendor(
 /**
  * What the Telegram alert says was uploaded: "Owner ID", or "Owner ID
  * (replacing an approved one)" when a garage swaps a document the team had
- * already passed, which takes the badge away until it is checked again.
+ * already passed, which counts as unchecked until it is checked again.
  */
 export function uploadedLine(type: DocumentType, replaced: DocumentStatus | null): string {
   const label = DOCUMENT_LABELS[type]

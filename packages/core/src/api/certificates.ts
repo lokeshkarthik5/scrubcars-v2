@@ -1,3 +1,4 @@
+import type { Tier } from '@repo/core/tiers'
 import { apiClient } from './client'
 
 /**
@@ -11,8 +12,8 @@ import { apiClient } from './client'
 
 export interface CertificateGarage {
   name: string
-  certified: boolean
-  documentsVerified: boolean
+  /** The garage's medal as customers see it today (0063); absent from an older server. */
+  tier?: Tier | null
 }
 
 export interface CertificateJob {

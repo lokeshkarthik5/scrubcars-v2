@@ -642,19 +642,19 @@ describe('documents_uploaded', () => {
   })
 })
 
-describe('Detlio Certified', () => {
+describe('Gold (Detlio Certified)', () => {
   const vendorId = 'e2e00000-0000-4000-8000-000000002810'
   const link = `https://admin.detlio.com/vendors/${vendorId}/edit?tab=certification`
 
   test('eligible: the garage, what to do next and where', () => {
     expect(formatOpsAlert({ kind: 'certification_eligible', vendorId, garage: 'Marina Auto Spa' }).split('\n')).toEqual([
-      '🏅 Eligible for Detlio Certified: Marina Auto Spa',
-      'It meets every standard. Arrange a quality check (mystery visit or inspection), record it, then Certify.',
+      '🥇 Eligible for Gold: Marina Auto Spa',
+      'It meets every Gold standard. Arrange a quality check (mystery visit or inspection), record it, then Award Gold.',
       link,
     ])
   })
 
-  test('at risk: what fell short and the last day it keeps the badge', () => {
+  test('at risk: what fell short and the last day it keeps Gold', () => {
     expect(
       formatOpsAlert({
         kind: 'certification_at_risk',
@@ -664,9 +664,9 @@ describe('Detlio Certified', () => {
         keepsUntil: 'Fri 30 Oct',
       }).split('\n')
     ).toEqual([
-      '⚠️ Detlio Certified at risk: Marina Auto Spa',
+      '⚠️ Gold at risk: Marina Auto Spa',
       'Falling short: Rating.',
-      'It keeps the badge until Fri 30 Oct unless this is put right.',
+      'It keeps Gold until Fri 30 Oct unless this is put right.',
       link,
     ])
   })
@@ -679,12 +679,12 @@ describe('Detlio Certified', () => {
         garage: 'Marina Auto Spa',
         how: 'lapsed',
         by: null,
-        reason: 'Did not meet the Detlio Certified standards for 14 days: Rating.',
+        reason: 'Did not meet the Gold standards for 14 days: Rating.',
       }).split('\n')
     ).toEqual([
-      'Detlio Certified removed: Marina Auto Spa',
-      'Lost automatically. Did not meet the Detlio Certified standards for 14 days: Rating.',
-      'Customers no longer see the seal.',
+      'Gold removed: Marina Auto Spa',
+      'Lost automatically. Did not meet the Gold standards for 14 days: Rating.',
+      'Customers no longer see its Gold medal.',
       link,
     ])
     const revoked = formatOpsAlert({
@@ -907,7 +907,7 @@ describe('bypass reports (0052)', () => {
     expect(text.split('\n')).toEqual([
       '⛔ Marina Auto Spa reached 2 strikes',
       '2 confirmed reports of taking customers off Detlio in the last 180 days.',
-      'It is Detlio Certified: the next nightly check puts the seal at risk.',
+      'It is Gold: the next nightly check puts Gold at risk.',
       'Talk to the garage about its agreement, or pause or suspend it.',
       'https://admin.detlio.com/vendors/v0000000-0000-4000-8000-000000003201/edit',
     ])

@@ -419,6 +419,21 @@ export const CUSTOMERS = {
    */
   guestExisting: { id: id(4301), phone: '9000004301', name: 'Returning Rekha', vehicleId: id(4302) },
   /**
+   * Customer reach, part 2 (0062; ids 4400–4599, phones 90000044xx and
+   * 90000045xx): requests to garages just outside their reach, around
+   * REQ_HOME (specs/journeys/booking-requests-journey.spec.ts), each with a
+   * sedan and a pinned home at REQ_HOME; and the free-wash sign-ups
+   * (specs/users/free-wash.spec.ts). Each belongs to one test.
+   */
+  request: { id: id(4401), phone: '9000004401', name: 'Request Rani', vehicleId: id(4421), addressId: id(4431) },
+  requestForward: { id: id(4402), phone: '9000004402', name: 'Forward Faisal', vehicleId: id(4422), addressId: id(4432) },
+  requestLapse: { id: id(4403), phone: '9000004403', name: 'Lapse Lakshmi', vehicleId: id(4423), addressId: id(4433) },
+  requestLimit: { id: id(4404), phone: '9000004404', name: 'Limit Leela', vehicleId: id(4424), addressId: id(4434) },
+  freeWashSign: { id: id(4405), phone: '9000004405', name: 'Signup Sundar', vehicleId: id(4425) },
+  freeWashLate: { id: id(4406), phone: '9000004406', name: 'Late Latha', vehicleId: id(4426) },
+  freeWashLaunch: { id: id(4407), phone: '9000004407', name: 'Launch Logan', vehicleId: id(4427) },
+  referral: { id: id(4408), phone: '9000004408', name: 'Referral Reena', vehicleId: id(4428) },
+  /**
    * Customers whose *session* is the thing under test.
    *
    * Logging out and revoking refresh tokens are destructive to the session
@@ -529,6 +544,8 @@ export const STAFF = {
   roundDoorstepOwner: { id: id(4203), phone: '9000004203', name: 'Round Owner Devi' },
   /** Owns the five customer-reach garages (VENDORS.reach*, 0062; the 4300–4399 range). */
   reachOwner: { id: id(4305), phone: '9000004305', name: 'Reach Owner Ravi' },
+  /** Owns the two request garages and the area-launch garage (customer reach, part 2). */
+  requestOwner: { id: id(4410), phone: '9000004410', name: 'Request Owner Ramesh' },
 } as const
 
 export const VENDORS = {
@@ -798,6 +815,16 @@ export const VENDORS = {
   reachPickup: { id: id(4312), name: 'Reach Pickup Garage' },
   reachOutsideDoorstep: { id: id(4313), name: 'Reach Outside Doorstep' },
   reachOutsidePickup: { id: id(4314), name: 'Reach Outside Pickup' },
+  /**
+   * Customer reach, part 2: two doorstep garages that cover 5 km and stop
+   * short of REQ_HOME (reqFirst ~8.7 km north, reqSecond ~12.2 km south: both
+   * "just outside"), so a request to the first passes to the second; and
+   * areaLaunch, pinned in Ambattur and not verified until
+   * specs/users/free-wash.spec.ts verifies it to launch the area.
+   */
+  reqFirst: { id: id(4441), name: 'Req First Garage' },
+  reqSecond: { id: id(4442), name: 'Req Second Garage' },
+  areaLaunch: { id: id(4443), name: 'Area Launch Garage' },
 } as const
 
 /** VENDORS.contact's own numbers (contact windows), different on purpose. */
@@ -837,6 +864,44 @@ export const REACH_PINS = {
  * in the same run still starts as a new customer).
  */
 export const GUEST_NEW_PHONES = Array.from({ length: 10 }, (_, i) => `900000439${i}`)
+
+/**
+ * Customer reach, part 2: where the request customers live, ~80 km from
+ * every other test garage, and the two request garages' pins (see
+ * VENDORS.reqFirst). Exact in binary, like the other pins.
+ */
+export const REQ_HOME = { lat: 11.25, lng: 78.75 } as const
+export const REQ_PINS = {
+  first: { lat: 11.328125, lng: 78.75 },
+  second: { lat: 11.140625, lng: 78.75 },
+} as const
+
+/**
+ * The free-wash areas (zones seeded by 0062, far from every listed test
+ * garage): Tambaram for signing up (empty list), Chromepet with its 50 free
+ * washes taken (AREA_WAITLIST), Ambattur for launch day (VENDORS.areaLaunch,
+ * CUSTOMERS.freeWashLaunch first on its list).
+ */
+export const FREE_WASH_AREAS = {
+  signUp: { slug: 'tambaram', name: 'Tambaram', lat: 12.9249, lng: 80.1 },
+  full: { slug: 'chromepet', name: 'Chromepet', lat: 12.9516, lng: 80.1462 },
+  launch: { slug: 'ambattur', name: 'Ambattur', lat: 13.1143, lng: 80.1548 },
+} as const
+/** VENDORS.areaLaunch's pin, ~0.6 km from Ambattur's centre. */
+export const AREA_LAUNCH_PIN = { lat: 13.109375, lng: 80.15625 } as const
+/** Fifty accounts already on Chromepet's list (positions 1–50: every free wash given). */
+export const AREA_WAITLIST = Array.from({ length: 50 }, (_, i) => ({
+  id: id(4500 + i),
+  phone: `90000045${String(i).padStart(2, '0')}`,
+  name: `Waitlist ${i + 1}`,
+}))
+/**
+ * CUSTOMERS.referral's recommendation, linked by the team to VENDORS.reqSecond,
+ * where they then completed a paid booking (REFERRAL_BOOKING): the cron gives
+ * the referral credit (owed while GIFTS_ENABLED is off).
+ */
+export const REFERRAL_RECOMMENDATION = id(4461)
+export const REFERRAL_BOOKING = id(4462)
 
 /** Where VENDORS.documents is: south-west, clear of every other test garage. */
 export const DOCUMENTS_PIN = { lat: 12.625, lng: 79.625 } as const
@@ -957,7 +1022,7 @@ export const SERVICES = {
   mediaAi: { id: id(428), name: 'Media Ceramic Coat', price: '2999.00', durationMins: 120 },
   /** On MEDIA: the refusals (no privacy tick, a clip over 60 seconds). Never gets media. */
   mediaRefused: { id: id(429), name: 'Media Polish', price: '899.00', durationMins: 60 },
-  /** On MEDIA, filed under others: the drawn bike sample, "No photos from this garage yet". */
+  /** On MEDIA, filed under others: the bike icon tile, never a sample (no-photo look). */
   mediaBike: { id: id(430), name: 'Media Bike Wash', price: '200.00', durationMins: 45 },
   /** One ₹499 wash on each Bin garage; binHardPackage bundles binHardWash. */
   binTeamWash: { id: id(431), name: 'Bin Team Wash', price: '499.00', durationMins: 30 },
@@ -1010,6 +1075,10 @@ export const SERVICES = {
   reachPickupWash: { id: id(4322), name: 'Reach Pickup Wash', price: '499.00', durationMins: 30 },
   reachOutsideDoorstepWash: { id: id(4323), name: 'Reach Outside Doorstep Wash', price: '399.00', durationMins: 30 },
   reachOutsidePickupWash: { id: id(4324), name: 'Reach Outside Pickup Wash', price: '599.00', durationMins: 30 },
+  /** Customer reach, part 2: the request garages' and the launch garage's one wash each. */
+  reqFirstWash: { id: id(4451), name: 'Req First Wash', price: '1800.00', durationMins: 60 },
+  reqSecondWash: { id: id(4452), name: 'Req Second Wash', price: '599.00', durationMins: 60 },
+  areaLaunchWash: { id: id(4453), name: 'Area Launch Wash', price: '399.00', durationMins: 30 },
 } as const
 
 export const DISCOUNTS = {
@@ -1646,4 +1715,99 @@ export const BEHAVIOUR = {
     test: { visits: 1, daysAgo: 8, channel: 'direct', device: 'phone', user: 'stats',
       steps: ['app_open', 'landing_view', 'garage_view', 'booking_start', 'pay_success'] },
   },
+} as const
+
+// Trust & look: no-photo look and What's included (0063)
+/**
+ * specs/users/no-photo-look.spec.ts, ids 4700–4749, phones 90000049xx.
+ * Two garages far south-west like VENDORS.media (past 50 km, so "Outside
+ * Chennai", and at the very end of any located list), each with its own
+ * owner, so nothing here moves another spec's numbers:
+ *
+ * - plain: no photo and no logo, At garage and Doorstep: its card and page
+ *   show the designed cover ("NP", "CHENNAI • AT GARAGE • DOORSTEP") and
+ *   the monogram tile. Its services:
+ *   - points: seven "- " points under an intro: the sheet shows five and
+ *     "+2 more"; its card "Deep vacuum · Seat shampoo · Dashboard polish +4".
+ *   - bike: a plain description, no points, no media: the bike icon tile,
+ *     and a sheet with no picture area, the description as written.
+ *   - aiOnly: only an AI picture: customers get no media at all (the API
+ *     leaves it out), so the coating icon tile and no picture area.
+ *   - photo: one garage photo: its thumbnail, and the sheet's media area
+ *     "From Nila Polish Works".
+ * - photo: one garage photo and no logo: the photo, with the monogram ("VP").
+ */
+export const TRUST_LOOK = {
+  plainOwner: { id: id(4700), name: 'Nila Owner E2E', phone: '9000004900' },
+  photoOwner: { id: id(4701), name: 'Vel Owner E2E', phone: '9000004901' },
+  plain: { id: id(4702), name: 'Nila Polish Works', phone: '9000004902', initials: 'NP' },
+  photo: { id: id(4703), name: 'Vel Photo Garage', phone: '9000004903', initials: 'VP' },
+  /** VENDORS.photo's one photo. */
+  garagePhotoUrl: 'https://placehold.co/600x400/png?text=Vel+Photo+Garage',
+  services: {
+    points: {
+      id: id(4710), name: 'Nila Cabin Deep Clean', price: '1999.00', durationMins: 180,
+      intro: 'A deep clean of the whole cabin.',
+      points: [
+        'Deep vacuum', 'Seat shampoo', 'Dashboard polish', 'Door pads wiped',
+        'Glass cleaned', 'Odour removal', 'Mats washed',
+      ],
+    },
+    bike: {
+      id: id(4711), name: 'Nila Two-Wheeler Wash', price: '200.00', durationMins: 45,
+      description: 'Body, wheels and chain area',
+    },
+    aiOnly: { id: id(4712), name: 'Nila Ceramic Guard', price: '4999.00', durationMins: 240 },
+    photo: { id: id(4713), name: 'Nila Foam Shine', price: '599.00', durationMins: 60 },
+    /** On TRUST_LOOK.photo, so it is listed like any garage with a service. */
+    photoGarageWash: { id: id(4714), name: 'Vel Quick Wash', price: '399.00', durationMins: 30 },
+  },
+  media: {
+    ai: { id: id(4720), url: 'https://placehold.co/600x400/png?text=AI+sample' },
+    photo: { id: id(4721), url: 'https://placehold.co/600x400/png?text=Nila+Foam+Shine' },
+  },
+} as const
+
+// Trust & look: tiers and the garage agreement (0063)
+/**
+ * specs/journeys/tiers-journey.spec.ts and agreement-journey.spec.ts, ids
+ * 4600–4699 and phones 90000047xx only. Five live garages far north (past
+ * 50 km: "Outside Chennai", at the end of any located list, and named
+ * "Zeal …" so they come last in a list sorted by name), each with its own
+ * owner, so nothing here moves another spec's numbers. Garage agreement v1
+ * is published by the seed (`agreementV1`; its PDF is not in the bucket:
+ * the agreement journey publishes a real one first).
+ *
+ * - gold: Gold (certified), holds Silver, accepted v1: the Gold medal, then
+ *   Silver while Gold is switched off.
+ * - silver: holds Silver, accepted v1: the Silver medal, hidden and shown
+ *   again by its Tier tab's switch.
+ * - bronze: accepted v1 only: the Bronze medal; its owner's "Your tier"
+ *   (next: Silver) links to Documents.
+ * - fresh: has accepted nothing: its owner gets Home's banner and accepts
+ *   the agreement, becoming Bronze.
+ * - award: accepted v1, its shop photo, ID and bank proof approved, 20 jobs
+ *   completed in the last 60 days (photos waived by Detlio, so the photo
+ *   standard has nothing to grade) and 10 five-star reviews from `reviewer`:
+ *   every Gold standard met, so admin records a passing check and presses
+ *   Award Gold.
+ */
+export const TIERS = {
+  owners: {
+    gold: { id: id(4600), name: 'Zeal Gold Owner', phone: '9000004700' },
+    silver: { id: id(4601), name: 'Zeal Silver Owner', phone: '9000004701' },
+    bronze: { id: id(4602), name: 'Zeal Bronze Owner', phone: '9000004702' },
+    fresh: { id: id(4603), name: 'Zeal Fresh Owner', phone: '9000004703' },
+    award: { id: id(4604), name: 'Zeal Award Owner', phone: '9000004704' },
+  },
+  reviewer: { id: id(4605), name: 'Zeal Reviewer Revathi', phone: '9000004705', vehicleId: id(4606) },
+  agreementV1: { id: id(4610), key: `agreements/v1-${id(4610)}.pdf` },
+  gold: { id: id(4620), name: 'Zeal Gold Garage', serviceId: id(4630) },
+  silver: { id: id(4621), name: 'Zeal Silver Garage', serviceId: id(4631) },
+  bronze: { id: id(4622), name: 'Zeal Bronze Garage', serviceId: id(4632) },
+  fresh: { id: id(4623), name: 'Zeal Fresh Garage', serviceId: id(4633) },
+  award: { id: id(4624), name: 'Zeal Award Garage', serviceId: id(4634) },
+  /** The award garage's 20 completed jobs, and the first 10 reviewed. */
+  awardJob: (n: number) => id(4640 + n),
+  awardReview: (n: number) => id(4670 + n),
 } as const

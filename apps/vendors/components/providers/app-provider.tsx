@@ -29,6 +29,7 @@ const VENDOR_ROUTES = [
   '/services',
   '/settings',
   '/photos',
+  '/requests',
 ]
 const ONBOARDING_ROUTE = '/onboarding'
 

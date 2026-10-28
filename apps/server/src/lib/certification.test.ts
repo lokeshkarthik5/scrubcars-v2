@@ -55,6 +55,16 @@ describe('evaluateEligibility', () => {
     expect(result.rules.every((r) => r.met)).toBe(true)
   })
 
+  test('agreement (0063): checked only when measured, and Gold needs it', () => {
+    expect(evaluateEligibility(GOOD).rules.some((r) => r.key === 'agreement')).toBe(false)
+    const withAgreement = evaluateEligibility({ ...GOOD, agreement: true })
+    expect(withAgreement.eligible).toBe(true)
+    expect(withAgreement.rules[0]).toMatchObject({ key: 'agreement', met: true, label: 'Garage agreement accepted' })
+    const without = evaluateEligibility({ ...GOOD, agreement: false })
+    expect(without.eligible).toBe(false)
+    expect(unmetLine(without)).toBe('Garage agreement accepted')
+  })
+
   test('documents: every required one approved; none while garage documents are off', () => {
     expect(rule(GOOD, 'documents').met).toBe(true)
     expect(rule({ ...GOOD, documentsVerified: false }, 'documents')).toMatchObject({
@@ -386,7 +396,7 @@ describe('the nightly evaluation', () => {
   test("the lapse's reason names what fell short", () => {
     const eligibility = evaluateEligibility({ ...GOOD, rating: 4.1 })
     expect(lapseReason(shortfallLine(eligibility, { valid: false, status: 'expired' }))).toBe(
-      "Did not meet the Detlio Certified standards for 14 days: Rating; Detlio's check is over 6 months old."
+      "Did not meet the Gold standards for 14 days: Rating; Detlio's check is over 6 months old."
     )
     expect(shortfallLine(evaluateEligibility(GOOD), { valid: false, status: 'failed' })).toBe(
       "Detlio's latest check did not pass"

@@ -1,6 +1,8 @@
 /**
- * Detlio Certified (0048): a quality badge a garage earns by meeting
- * measurable standards and passing an in-person check by Detlio.
+ * Gold (0063; built as Detlio Certified, 0048): the top tier, which a garage
+ * earns by holding Silver, meeting the stricter standards below and passing
+ * an in-person check by Detlio, and an admin pressing Award Gold. The tiers
+ * as a whole (Bronze, Silver, Gold) are lib/tiers.ts; this file stays Gold's.
  *
  * Pure, unit-tested (certification.test.ts). The module
  * (modules/certification) reads the numbers and writes the outcome; every
@@ -118,6 +120,12 @@ export function fromPhotoCompliance(figure: PhotoComplianceFigure): PhotoComplia
 /** What the evaluation reads about one garage. */
 export interface CertificationMetrics {
   /**
+   * Bronze (0063): the garage accepted the latest garage agreement, or is in
+   * its 30 days to accept a new version (lib/agreements.ts). Every tier needs
+   * it, Gold included. Left out (unit tests from before 0063), not checked.
+   */
+  agreement?: boolean
+  /**
    * Every required document approved (lib/vendor-documents.ts). Null while
    * garage documents are off (no R2_DOCS_BUCKET): nobody can meet it then.
    */
@@ -141,6 +149,7 @@ export interface CertificationMetrics {
 }
 
 export const RULE_KEYS = [
+  'agreement',
   'documents',
   'rating',
   'completed',
@@ -171,7 +180,8 @@ export interface Eligibility {
 }
 
 export const RULE_LABELS: Record<RuleKey, string> = {
-  documents: 'Documents verified',
+  agreement: 'Garage agreement accepted',
+  documents: 'Documents checked',
   rating: 'Rating',
   completed: 'Completed bookings (90 days)',
   response: 'Answered in time (90 days)',
@@ -194,6 +204,15 @@ export function evaluateEligibility(metrics: CertificationMetrics): Eligibility 
   const rules: RuleResult[] = []
   const add = (key: RuleKey, met: boolean, value: string, target: string, measured = true) =>
     rules.push({ key, label: RULE_LABELS[key], met, measured, value, target })
+
+  if (metrics.agreement !== undefined) {
+    add(
+      'agreement',
+      metrics.agreement,
+      metrics.agreement ? 'Accepted' : 'Not accepted',
+      'The latest version accepted (Bronze)'
+    )
+  }
 
   add(
     'documents',
@@ -529,7 +548,7 @@ export function graceEndsOn(since: Date): string {
 
 /** The reason a lapse records: what fell short, for how long. */
 export function lapseReason(shortfall: string): string {
-  return `Did not meet the Detlio Certified standards for ${CERTIFICATION_RULES.graceDays} days: ${shortfall}.`
+  return `Did not meet the Gold standards for ${CERTIFICATION_RULES.graceDays} days: ${shortfall}.`
 }
 
 /**

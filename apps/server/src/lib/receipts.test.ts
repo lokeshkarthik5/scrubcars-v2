@@ -146,6 +146,66 @@ describe('receiptIssuedAt', () => {
   })
 })
 
+describe('buildReceipt: a travel fee (0062)', () => {
+  test('its own line, inside the subtotal; none on any other booking', () => {
+    const r = receiptOf(
+      booking({
+        bookingType: 'doorstep',
+        amount: '599.00',
+        subtotalAmount: '599.00',
+        travelFee: '100.00',
+        payment: { ...booking().payment!, amount: '599.00' },
+      }),
+      []
+    )
+    expect(r.travelFee).toBe('100.00')
+    expect(r.subtotal).toBe('599.00')
+    expect(r.items).toEqual([{ name: 'Express Wash', amount: '499.00' }])
+    expect(receiptOf(booking(), []).travelFee).toBeNull()
+  })
+})
+
+describe('buildReceipt: a free wash that covered it all (0062)', () => {
+  const free = receiptOf(
+    booking({
+      amount: '0.00',
+      subtotalAmount: '299.00',
+      discountAmount: '299.00',
+      discountCode: 'FW-ABCD2345',
+      discountSource: 'free_wash',
+      items: [{ name: 'Express Wash', amount: '299.00' }],
+      payment: { ...booking().payment!, amount: '0.00', gatewayTxnId: null },
+    }),
+    []
+  )
+
+  test('names the free wash and shows ₹0 paid, with no payment id', () => {
+    expect(free.subtotal).toBe('299.00')
+    expect(free.discount).toEqual({ code: 'FW-ABCD2345', amount: '299.00', label: 'Free wash' })
+    expect(free.bookingPayment.amount).toBe('0.00')
+    expect(free.bookingPayment.method).toBe('Free wash: nothing to pay')
+    expect(free.bookingPayment.paymentId).toBeNull()
+    expect(free.totalPaid).toBe('0.00')
+    expect(free.netPaid).toBe('0.00')
+  })
+
+  test('a free wash that left something to pay still says how it was paid', () => {
+    const part = receiptOf(
+      booking({
+        amount: '200.00',
+        subtotalAmount: '699.00',
+        discountAmount: '499.00',
+        discountCode: 'FW-ABCD2345',
+        discountSource: 'free_wash',
+        payment: { ...booking().payment!, amount: '200.00' },
+      }),
+      []
+    )
+    expect(part.discount?.label).toBe('Free wash')
+    expect(part.bookingPayment.method).toBe('Online (Razorpay)')
+  })
+})
+
 describe('buildReceipt: the number', () => {
   test('prints the number it is given', () => {
     expect(receiptOf(booking(), []).receiptNumber).toBe(NUMBER)
@@ -311,7 +371,7 @@ describe('buildReceipt: a discount', () => {
   test('shows the subtotal, the code and what came off', () => {
     expect(receipt.items).toHaveLength(2)
     expect(receipt.subtotal).toBe('2498.00')
-    expect(receipt.discount).toEqual({ code: 'SAVE20', amount: '200.00' })
+    expect(receipt.discount).toEqual({ code: 'SAVE20', amount: '200.00', label: null })
   })
 
   test('the total paid is the discounted figure the customer was charged', () => {

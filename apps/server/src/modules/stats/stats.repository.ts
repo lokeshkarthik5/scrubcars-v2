@@ -80,6 +80,7 @@ export function statsReads(tx: Tx) {
         payment_refunded: string | null
         amount: string
         subtotal_amount: string
+        travel_fee: string
         discount_funded_by: 'platform' | 'vendor' | null
         bills_paid: string | null
         refunds_recorded: string | null
@@ -104,6 +105,7 @@ export function statsReads(tx: Tx) {
                p.refunded_amount::text as payment_refunded,
                c.amount::text as amount,
                c.subtotal_amount::text as subtotal_amount,
+               c.travel_fee::text as travel_fee,
                c.discount_funded_by,
                (select sum(ch.amount_due)::text
                   from booking_charges ch
@@ -147,6 +149,7 @@ export function statsReads(tx: Tx) {
         paymentRefunded: row.payment_refunded,
         amount: row.amount,
         subtotalAmount: row.subtotal_amount,
+        travelFee: row.travel_fee,
         discountFundedBy: row.discount_funded_by,
         billsPaid: row.bills_paid,
         refundsRecorded: row.refunds_recorded,

@@ -75,11 +75,43 @@ export default function NewVendorPage() {
 }
 
 function NewVendor() {
+  const router = useRouter()
+  // Which view shows is the page's own state, seeded from ?by=hand and kept
+  // in step with it. A link from ?by=hand back to the bare /vendors/new on
+  // this prerendered page changed nothing in the production build (CI E2E,
+  // 29 Oct): the form stayed up. So Back sets the state itself and rewrites
+  // the address, and the browser's own back and forward re-read it.
   const params = useSearchParams()
-  const byHand = params.get('by') === 'hand'
+  const byHandParam = params.get('by') === 'hand'
+  const [byHand, setByHand] = useState(byHandParam)
+  // Follows the address whenever it does change (adjusted during render,
+  // React's pattern for state derived from an input, not in an effect).
+  const [seenParam, setSeenParam] = useState(byHandParam)
+  if (seenParam !== byHandParam) {
+    setSeenParam(byHandParam)
+    setByHand(byHandParam)
+  }
+  useEffect(() => {
+    const sync = () =>
+      setByHand(new URLSearchParams(window.location.search).get('by') === 'hand')
+    window.addEventListener('popstate', sync)
+    return () => window.removeEventListener('popstate', sync)
+  }, [])
+  // The browser's own history call, not the router: on this prerendered
+  // page router.replace('/vendors/new') from ?by=hand left the address as it
+  // was (CI E2E). Next.js keeps useSearchParams in step with replaceState.
+  const leaveByHand = () => {
+    setByHand(false)
+    window.history.replaceState(null, '', '/vendors/new')
+  }
+  // Into the form the same way, as its own history entry, so the browser's
+  // Back returns to the import.
+  const openByHand = () => {
+    setByHand(true)
+    window.history.pushState(null, '', '/vendors/new?by=hand')
+  }
   // Coverage's "Onboard" (0064): ?by=hand&lead=<id> starts from that lead.
   const leadId = byHand ? params.get('lead') : null
-  const router = useRouter()
   const [step, setStep] = useState<Step>({ kind: 'start' })
   const [reading, setReading] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -117,7 +149,7 @@ function NewVendor() {
         <PageHeader
           title="Add garage"
           subtitle="Fill in by hand"
-          backHref="/vendors/new"
+          onBack={leaveByHand}
         />
         {/* To every garage, not the Live default: a new garage is usually
             not live yet, and it is the first card there, newest first. */}
@@ -285,7 +317,7 @@ function NewVendor() {
         onPickFiles={(files) => void readFiles(files)}
         onPickCsv={(file) => void readCsv(file)}
       />
-      <FillByHandLink />
+      <FillByHandLink onOpen={openByHand} />
     </div>
   )
 }

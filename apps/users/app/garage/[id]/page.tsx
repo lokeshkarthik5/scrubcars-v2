@@ -7,7 +7,6 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import {
   IconArrowLeft,
   IconArrowUpRight,
-  IconBuildingStore,
   IconCheck,
   IconClock,
   IconMapPin,
@@ -16,7 +15,6 @@ import {
   IconStarFilled,
 } from '@tabler/icons-react'
 import { AppShell } from '@repo/ui/sc/app-shell'
-import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@/components/ui/card'
 import { ErrorState } from '@repo/ui/sc/empty-state'
@@ -24,9 +22,9 @@ import { ScSheet } from '@repo/ui/sc/modal'
 import { Notice } from '@repo/ui/sc/notice'
 import { Reveal } from '@repo/ui/sc/reveal'
 import { Stars } from '@repo/ui/sc/stars'
-import { CertifiedSeal } from '@repo/ui/features/detlio-certified'
-import { DocumentsVerifiedBadge } from '@repo/ui/features/documents-verified'
+import { TierSeal } from '@repo/ui/features/tier-medal'
 import { OutsideCityLine } from '@repo/ui/features/outside-city'
+import { GarageCover, GarageMonogram } from '@repo/ui/features/garage-cover'
 import { useGarage, useVendorReviews } from '@repo/core/api/hooks/use-vendors'
 import { browseCategory } from '@repo/core/analytics-events'
 import { track } from '@repo/core/analytics'
@@ -34,7 +32,6 @@ import {
   useSavedGarages,
   useToggleSavedGarage,
 } from '@repo/core/api/hooks/use-favourites'
-import { categoryLabel } from '@repo/core/categories'
 import { outsideCityLine } from '@repo/core/service-city'
 import {
   bookingTypeParam,
@@ -76,9 +73,9 @@ import { OpenStatus } from '@/components/open-status'
 import { MainAction } from '@/components/main-action'
 import { ModeSwitch } from '@/components/mode-switch'
 import { isHomeHubEnabled } from '@/lib/home-hub'
-import { ServiceMediaArea } from '@/components/service-media/service-media-area'
+import { ServiceSheetTop } from '@/components/service-media/service-sheet-top'
+import { ServiceCardLine } from '@/components/service-media/service-points'
 import { ServiceThumb } from '@/components/service-media/service-thumb'
-import { ClampedText } from '@/components/service-media/clamped-text'
 import { SaveGarageButton } from '@/components/favourites/save-garage-button'
 import { SAVE_PARAM, withoutSaveFlag } from '@/lib/saved-garages'
 import { GarageSlotAlerts } from '@/components/slot-alerts/garage-slot-alerts'
@@ -484,13 +481,13 @@ export default function GaragePage({
             className="object-cover"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-surface-elevated to-surface">
-            <IconBuildingStore
-              size={40}
-              aria-hidden="true"
-              className="text-text-muted"
-            />
-          </div>
+          // No photo yet: the garage's designed cover, as on its card. The
+          // small-caps line sits under the back button, not behind it.
+          <GarageCover
+            vendor={vendor}
+            size="hero"
+            metaClassName="left-4 top-[64px]"
+          />
         )}
         <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/60 to-transparent" />
         {/* 44px, like the heart beside it: the disc is the whole target. */}
@@ -503,7 +500,7 @@ export default function GaragePage({
           <IconArrowLeft size={20} aria-hidden="true" />
         </button>
         <SaveGarageButton vendor={vendor} className="absolute right-3 top-3" />
-        {vendor.logoUrl && (
+        {vendor.logoUrl ? (
           <div className="absolute bottom-3 left-4 h-14 w-14 overflow-hidden rounded-[14px] border border-white/70 bg-surface shadow-md">
             <Image
               src={vendor.logoUrl}
@@ -513,6 +510,11 @@ export default function GaragePage({
               className="object-cover"
             />
           </div>
+        ) : (
+          <GarageMonogram
+            vendor={vendor}
+            className="absolute bottom-3 left-4 h-14 w-14 rounded-[14px] text-[20px] shadow-md"
+          />
         )}
       </div>
 
@@ -577,16 +579,10 @@ export default function GaragePage({
           </div>
         )}
 
-        {/* Detlio Certified (0048): meets the standards and passed Detlio's
-            visit, with "What this means" in plain words. It needs the
-            documents, so it stands in for their badge. Otherwise, whether
-            Detlio checked its ID, bank and shop documents; only whether,
-            never the documents. */}
-        {vendor.certified ? (
-          <CertifiedSeal />
-        ) : (
-          vendor.documentsVerified && <DocumentsVerifiedBadge />
-        )}
+        {/* The tier medal (0063): Bronze, Silver or Gold, the highest one
+            Detlio shows for this garage, with "What this means" in plain
+            words. Only which tier, never its numbers. */}
+        {vendor.tier && <TierSeal tier={vendor.tier} />}
 
         {/* Garages in other towns are part of the pilot; this says plainly
             where one is before anything is picked, so nobody books it
@@ -766,11 +762,10 @@ export default function GaragePage({
                             </span>
                           )}
 
-                          {pkg.description && (
-                            <p className="mt-1 text-[12px] text-text-secondary">
-                              {pkg.description}
-                            </p>
-                          )}
+                          <ServiceCardLine
+                            description={pkg.description}
+                            className="mt-1 text-[12px] text-text-secondary"
+                          />
 
                           <ul className="mt-2 flex flex-col gap-1">
                             {pkg.items.map((item) => (
@@ -852,8 +847,9 @@ export default function GaragePage({
                           'flex items-start gap-3'
                         )}
                       >
-                        {/* The video's poster, the first photo, or the drawn
-                          sample, so a customer can see the work at a glance. */}
+                        {/* The video's poster, the first photo, or the
+                          category icon, so a customer can see the work at a
+                          glance. */}
                         <ServiceThumb service={svc} />
                         <div className="min-w-0 flex-1">
                           {/* The name gets the whole line, and the price for
@@ -870,11 +866,12 @@ export default function GaragePage({
                               </span>
                             )}
                           </p>
-                          {svc.description && (
-                            <p className="mt-1 line-clamp-2 text-[13px] text-text-secondary">
-                              {svc.description}
-                            </p>
-                          )}
+                          {/* Its first points ("Foam wash · Vacuum +2"),
+                            or the description held to two lines. */}
+                          <ServiceCardLine
+                            description={svc.description}
+                            className="mt-1 line-clamp-2 text-[13px] text-text-secondary"
+                          />
                         </div>
                       </button>
                       <div className="mt-3 flex items-center justify-between pl-[76px]">
@@ -1061,46 +1058,24 @@ export default function GaragePage({
           <>
             {/* No close button: the sheet's own handle, backdrop tap and
                 Escape all dismiss it, and the primary action sits at the
-                bottom within thumb reach. The media come first, as in the
-                approved design: the video (or first photo) at 16:9, then
-                the photos; a drawn sample when the garage has added none. */}
-            <ServiceMediaArea service={details} garageName={vendor.name} />
-
-            <h2 className="mt-4 text-[17px] font-semibold text-text-primary">
-              {details.name}
-            </h2>
-
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <ScBadge variant="muted">
-                {categoryLabel(details.category)}
-              </ScBadge>
-              {details.durationMins != null && (
-                <span className="flex items-center gap-1.5 text-[11px] text-text-secondary">
-                  <IconClock size={12} />
-                  <span className="font-numeric font-medium">
-                    {formatDuration(details.durationMins)}
-                  </span>
-                </span>
-              )}
-            </div>
-
-            <ClampedText
+                bottom within thumb reach. The garage's own media come
+                first, as in the approved design; without any, no picture
+                area at all, the category icon beside the name. Then the
+                description and "What's included". */}
+            <ServiceSheetTop
               key={details.id}
-              className="mt-3 text-[13px] text-text-secondary"
-              text={
-                details.description ||
-                (isPackage(details)
-                  ? 'No description available for this package.'
-                  : 'No description available for this service.')
-              }
+              service={details}
+              garageName={vendor.name}
+              isPackage={isPackage(details)}
             />
 
             {/* What the bundle contains, priced against the members' current
-                prices — the same numbers the card badges. */}
+                prices — the same numbers the card badges. Named apart from
+                "What's included" (the description's points) above. */}
             {isPackage(details) && (
               <div className="mt-3">
                 <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-text-secondary">
-                  Included
+                  Services in this package
                 </p>
                 <ul className="flex flex-col gap-1">
                   {details.items.map((item) => (

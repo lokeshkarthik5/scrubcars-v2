@@ -193,6 +193,12 @@ export interface CommissionBooking {
   billsPaid: string | null
   /** Refunded instead of redone (Detlio Guarantee, 0051). Optional: absent is false. */
   guaranteeRefund?: boolean
+  /**
+   * An accepted request's travel fee (customer reach, 0062), inside
+   * `subtotalAmount`: the garage keeps it whole, so no commission is taken
+   * on it. Optional: absent is none.
+   */
+  travelFee?: string | null
 }
 
 /** Whether the booking earns the garage its payout (lib/earnings.ts). */
@@ -242,8 +248,12 @@ function toPaise(rupees: string | null | undefined): number {
  * line would show.
  */
 export function bookingCommission(booking: CommissionBooking): number {
-  const subtotal = toPaise(booking.subtotalAmount)
-  const payout = toPaise(computeVendorPayout(booking))
+  // A travel fee (0062) is the garage's whole: left out of both sides, so a
+  // garage-funded promo (which only ever comes off the services) scales the
+  // services alone.
+  const travelFee = toPaise(booking.travelFee)
+  const subtotal = toPaise(booking.subtotalAmount) - travelFee
+  const payout = toPaise(computeVendorPayout(booking)) - travelFee
   const share = subtotal > 0 ? payout / subtotal : 1
 
   let paise = 0

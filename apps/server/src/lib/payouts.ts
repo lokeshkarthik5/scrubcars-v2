@@ -106,14 +106,21 @@ export interface EarningChain {
    * hand-built chain (tests) needs no change.
    */
   guaranteeRefund?: boolean
+  /**
+   * An accepted request's travel fee (customer reach, 0062), inside
+   * `subtotalAmount`: earned in full, no commission. Optional: absent is none.
+   */
+  travelFee?: string | null
 }
 
 /** What one booking earns, in paise. */
 export interface BookingEarning {
   /** Why it earns, or null when it earns nothing (any more). */
   kind: EarningKind | null
-  /** Price before any promo, plus paid final bills. */
+  /** Price before any promo, plus paid final bills (and any travel fee). */
   pricePaise: number
+  /** An accepted request's travel fee, part of the price: the garage's whole, no commission (0062). */
+  travelFeePaise: number
   /** A promo Detlio pays for: Detlio's cost, not the garage's. */
   detlioPromoPaise: number
   /** A promo the garage funded: comes off what it earns. */
@@ -143,6 +150,7 @@ export interface BookingEarning {
 
 const NOTHING: Omit<BookingEarning, 'kind' | 'payableFrom'> = {
   pricePaise: 0,
+  travelFeePaise: 0,
   detlioPromoPaise: 0,
   garagePromoPaise: 0,
   collectedPaise: 0,
@@ -244,6 +252,7 @@ export function bookingEarning(chain: EarningChain, position: number | undefined
           // is for Statistics only (owner, 28 Oct 2026), so it is dropped.
           items: chain.items.map((item) => ({ ...item, overrideRate: null })),
           billsPaid: chain.billsPaid,
+          travelFee: chain.travelFee,
         }) * 100
       )
   // Refunded money is not earned, so it carries no commission either.
@@ -254,6 +263,7 @@ export function bookingEarning(chain: EarningChain, position: number | undefined
   return {
     kind,
     pricePaise: price,
+    travelFeePaise: toPaise(chain.travelFee),
     detlioPromoPaise: detlioPromo,
     garagePromoPaise: garagePromo,
     collectedPaise: collected,

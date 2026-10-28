@@ -19,8 +19,8 @@
  * responsibility terms, so it is not on.
  *
  * Garage documents (0043) add one optional item: not every required
- * document approved yet, so no "Documents verified" badge. Never blocking:
- * listing is the Verify button's, not the documents'.
+ * document approved yet, so not checked (one of Silver's steps, 0063). Never
+ * blocking: listing is the "Show to customers" switch's, not the documents'.
  *
  * The admin round (0064) adds two. Blocking: at-garage on with no address
  * or no 6-digit pincode (a doorstep-only garage needs only its pin; owner,
@@ -32,7 +32,8 @@
  *
  * Deliberately not checked: distance from Chennai (the owner allows garages
  * in other towns, and the out-of-town sign is its own change), whether the
- * garage is verified (that is the Verify button, not a form to fill), and the
+ * garage is shown to customers (that is the "Show to customers" switch, not a
+ * form to fill), and the
  * stage (Pending, Archived…), which the list's chips already say.
  */
 
@@ -317,13 +318,14 @@ export function vendorReadiness(v: ReadinessInput): ReadinessItem[] {
     items.push({ key: 'no_photos', severity: 'optional', label: 'No photos', short: 'photos', tab: 'details' })
   }
 
-  // Optional, never blocking: the badge is a sign for customers, and a
-  // garage is listed on `is_verified` alone (owner decision, 17 Oct 2026).
+  // Optional, never blocking: documents are a step to Silver, and a garage
+  // is listed on `is_verified` ("Show to customers") alone (owner decision,
+  // 17 Oct 2026).
   if (v.documents && !v.documents.verified) {
     items.push({
       key: 'documents_not_verified',
       severity: 'optional',
-      label: 'Documents not verified',
+      label: 'Documents not checked',
       detail:
         v.documents.toReview > 0
           ? `${progressLine(v.documents)} · ${v.documents.toReview} to review`

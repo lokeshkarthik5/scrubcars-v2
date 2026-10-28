@@ -36,10 +36,12 @@ export function parseEditTab(value: string | string[] | null | undefined): EditT
  * Every tab the page has: the four "Save changes" covers, then Team & payout
  * (the garage's people and where Detlio pays it; payout is MISSING_TABS'
  * `team`), then Documents (garage documents, 0043), shown only while
- * documents are on, and Certified (Detlio Certified, 0048), always shown.
+ * documents are on, and Tier (Bronze / Silver / Gold, 0063, with Gold's
+ * checks and Award Gold, which was Detlio Certified, 0048), always shown.
  * The last three save each action on their own. The checklist's "Documents
- * not verified" links to Documents; Telegram's certification alerts and the
- * list's Certified line to Certified.
+ * not checked" links to Documents; Telegram's Gold alerts and the list's
+ * tier line to Tier. The `?tab=` value stays `certification` so saved and
+ * alerted links keep working.
  */
 export const PAGE_TABS = [...EDIT_TABS, 'team', 'documents', 'certification'] as const
 export type PageTab = (typeof PAGE_TABS)[number]
@@ -48,7 +50,7 @@ export const PAGE_TAB_LABELS: Record<PageTab, string> = {
   ...EDIT_TAB_LABELS,
   team: 'Team & payout',
   documents: 'Documents',
-  certification: 'Certified',
+  certification: 'Tier',
 }
 
 /**

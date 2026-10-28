@@ -9,8 +9,8 @@ import { cn } from '@repo/core/utils'
 
 /**
  * The garage page's bypass reports (0052): its strikes (confirmed reports of
- * the last 180 days; 2 or more in red, and any one takes Detlio Certified
- * off the table) and reports still to look into. Nothing at all for a garage
+ * the last 180 days; 2 or more in red, and any one takes Gold off the
+ * table) and reports still to look into. Nothing at all for a garage
  * nobody has reported. Read on its own, so a failure leaves the page whole.
  */
 export function GarageStrikesCard({ vendorId }: { vendorId: string }) {
@@ -28,7 +28,7 @@ export function GarageStrikesCard({ vendorId }: { vendorId: string }) {
       </p>
       {data.strikes > 0 && (
         <p className="text-[12px] text-text-secondary">
-          Not eligible for Detlio Certified while it has a strike.
+          Not eligible for Gold while it has a strike.
           {data.highlighted && ' Talk to the garage about its agreement, or pause or suspend it.'}
         </p>
       )}

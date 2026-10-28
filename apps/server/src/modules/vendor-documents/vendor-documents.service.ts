@@ -20,6 +20,8 @@ import {
   isDocumentContentType,
   isDocumentKey,
   isRequiredDocument,
+  isRetiredDocument,
+  UPLOADABLE_DOCUMENT_TYPES,
   progressLine,
   reviewRefusal,
   summariseDocuments,
@@ -107,6 +109,8 @@ function documentView(type: DocumentType, doc: DocumentRecord | undefined, files
     type,
     label: DOCUMENT_LABELS[type],
     required: isRequiredDocument(type),
+    /** The paper agreement (0063): readable, never uploaded again. */
+    retired: isRetiredDocument(type),
     takesExpiry: takesExpiry(type),
     id: doc?.id ?? null,
     status: (doc?.status ?? 'missing') as DocumentStatus | 'missing',
@@ -291,7 +295,11 @@ export const vendorDocumentsService = {
     const { byType, filesOf, summary } = await loadDocuments(vendorDocumentsRepository, vendorId)
     return {
       summary,
-      documents: DOCUMENT_TYPES.map((type) => documentView(type, byType.get(type), filesOf(byType.get(type)))),
+      // The retired paper agreement (0063) is not listed: click to agree
+      // replaced it, and the garage cannot upload one any more.
+      documents: UPLOADABLE_DOCUMENT_TYPES.map((type) =>
+        documentView(type, byType.get(type), filesOf(byType.get(type)))
+      ),
     }
   },
 
@@ -322,7 +330,9 @@ export const vendorDocumentsService = {
     return {
       garage: { id: garage.id, businessName: garage.businessName, inBin: garage.deletedAt !== null },
       summary,
-      documents: DOCUMENT_TYPES.map((type) =>
+      // A retired type (the paper agreement, 0063) only when the garage has
+      // one, so old agreements stay readable.
+      documents: DOCUMENT_TYPES.filter((type) => !isRetiredDocument(type) || byType.has(type)).map((type) =>
         adminDocumentView(type, byType.get(type), filesOf(byType.get(type)))
       ),
     }

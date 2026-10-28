@@ -149,49 +149,50 @@ test.describe('time off in the garage portal @p0', () => {
 })
 
 test.describe('a booked service @p0', () => {
-  test('cannot be deleted, and the portal says to disable it', async ({
+  // Owner decision (28 Oct 2026): any service can be deleted. One that
+  // bookings name is kept only for them (deleted_at set), listed nowhere.
+  // This file runs last, but the seeded service is put back anyway so a
+  // retry, or a spec added after it, still finds it.
+  test.afterEach(async () => {
+    await sql`
+      update services set deleted_at = null, is_active = true
+       where id = ${SERVICES.capacityWash.id}
+    `
+  })
+
+  test('can be deleted from the portal, and is kept for its bookings', async ({
     page,
     context,
   }) => {
     await setActiveVendor(context, VENDORS.capacity.id)
-
-    // A fresh sign-in rather than the page's cookies: this file runs last, and
-    // the 15-minute token global setup minted has usually expired by then.
-    // The other tests here load the app first, which refreshes it; an API call
-    // made before any page load would get a 401.
-    const owner = await loginViaApi(STAFF.scheduleOwner.phone, 'vendor')
-
-    // BOOKINGS.capacityHeld names this service, so history depends on it.
-    const response = await owner.delete(
-      `/api/v1/vendors/me/services/${SERVICES.capacityWash.id}`,
-      { headers: { 'x-vendor-id': VENDORS.capacity.id } }
-    )
-    // Read before disposing: a disposed context discards its responses' bodies.
-    expect(response.status()).toBe(409)
-    expect(await response.json()).toEqual({
-      success: false,
-      message: 'This service has bookings. Disable it instead.',
-      code: 'SERVICE_IN_USE',
-    })
-    await owner.dispose()
 
     await page.goto('/services')
     await expect(
       page.getByText(SERVICES.capacityWash.name).first()
     ).toBeVisible()
     await page.getByRole('button', { name: 'Delete', exact: true }).click()
-    // Delete asks first; confirming still meets the server's refusal.
+    // Delete asks first.
     const sheet = page.getByRole('dialog', {
       name: `Delete ${SERVICES.capacityWash.name}?`,
     })
     await sheet.getByRole('button', { name: 'Delete service' }).click()
-    await expect(
-      page.getByText('This service has bookings. Disable it instead.')
-    ).toBeVisible()
+    await expect(sheet).toBeHidden()
+    await expect(page.getByText(SERVICES.capacityWash.name)).toHaveCount(0)
 
-    const [row] = await sql<{ n: string }[]>`
-      select count(*)::text as n from services where id = ${SERVICES.capacityWash.id}
+    // BOOKINGS.capacityHeld names this service, so the row stays for it.
+    const [row] = await sql<{ is_active: boolean; deleted: boolean }[]>`
+      select is_active, deleted_at is not null as deleted
+        from services where id = ${SERVICES.capacityWash.id}
     `
-    expect(Number(row.n)).toBe(1)
+    expect(row).toEqual({ is_active: false, deleted: true })
+
+    // And it can't be switched back on.
+    const owner = await loginViaApi(STAFF.scheduleOwner.phone, 'vendor')
+    const again = await owner.patch(
+      `/api/v1/vendors/me/services/${SERVICES.capacityWash.id}/active`,
+      { headers: { 'x-vendor-id': VENDORS.capacity.id }, data: { isActive: true } }
+    )
+    expect(again.status()).toBe(404)
+    await owner.dispose()
   })
 })

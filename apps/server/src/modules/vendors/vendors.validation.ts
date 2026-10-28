@@ -337,9 +337,16 @@ export const listPublicVendorsQuerySchema = z
       .transform((v) => v === 'true')
       .optional(),
     /**
-     * "Certified only" (0048): only Detlio Certified garages. A filter in
-     * SQL like the rest, so it holds across sorting and pages. Left out (or
-     * false), every listed garage.
+     * "Silver & above" (0063): only garages whose medal customers see is
+     * Silver or Gold (lib/tiers.ts; the tiers admin switched on, hidden
+     * medals left out). A filter in SQL like the rest, so it holds across
+     * sorting and pages. Ignored while Silver and Gold are both off (the app
+     * hides the chip then). Left out, every listed garage.
+     */
+    tier: z.enum(['silver']).optional(),
+    /**
+     * "Certified only" (0048), the chip before "Silver & above": read as
+     * `tier=silver` so a page left open across the release keeps working.
      */
     certified: z
       .enum(['true', 'false'])

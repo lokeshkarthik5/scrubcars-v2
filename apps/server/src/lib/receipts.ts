@@ -263,8 +263,12 @@ export interface ReceiptBooking {
   scheduledAt: Date
   amount: string
   subtotalAmount?: string | null
+  /** An accepted request's travel fee (0062), inside the subtotal. */
+  travelFee?: string | null
   discountAmount?: string | null
   discountCode?: string | null
+  /** The code's kind (discounts.source), read by the caller: 'free_wash' is named as such (0062). */
+  discountSource?: string | null
   paymentMethod: string
   noShow?: 'customer' | 'garage' | null
   user?: { name: string; phone: string } | null
@@ -341,8 +345,14 @@ export interface Receipt {
   }
   /** The services as sold: the names and prices on the booking. */
   items: Array<{ name: string; amount: string }>
+  /**
+   * An accepted request's travel fee (customer reach, 0062): its own line,
+   * after the services and inside the subtotal; null when there is none.
+   */
+  travelFee: string | null
   subtotal: string
-  discount: { code: string | null; amount: string } | null
+  /** `label` names a zone's free wash ("Free wash", 0062); null for any other code. */
+  discount: { code: string | null; amount: string; label: string | null } | null
   bookingPayment: {
     /** Everything paid for the booking at checkout: Razorpay's part and credit's. */
     amount: string
@@ -393,9 +403,13 @@ export interface Receipt {
   netPaid: string
 }
 
-/** How the booking was paid, in a few words: Razorpay, Detlio credit, or both (0049). */
-export function paymentMethodLabel(paymentMethod: string, razorpayPaise: number, creditPaise: number): string {
+/**
+ * How the booking was paid, in a few words: Razorpay, Detlio credit, or both
+ * (0049); or nothing at all, when a free wash covered it whole (0062).
+ */
+export function paymentMethodLabel(paymentMethod: string, razorpayPaise: number, creditPaise: number, freeWash = false): string {
   if (paymentMethod === 'cash') return 'Cash'
+  if (freeWash && razorpayPaise <= 0 && creditPaise <= 0) return 'Free wash: nothing to pay'
   if (creditPaise > 0 && razorpayPaise <= 0) return 'Detlio credit'
   if (creditPaise > 0) return 'Online (Razorpay) and Detlio credit'
   return 'Online (Razorpay)'
@@ -631,14 +645,15 @@ export function buildReceipt(
       scheduledAtLabel: istSlotLabel(booking.scheduledAt),
     },
     items,
+    travelFee: toPaise(booking.travelFee) > 0 ? fromPaise(toPaise(booking.travelFee)) : null,
     subtotal: fromPaise(toPaise(subtotal)),
     discount:
       discountPaise > 0
-        ? { code: discountCode, amount: fromPaise(discountPaise) }
+        ? { code: discountCode, amount: fromPaise(discountPaise), label: booking.discountSource === 'free_wash' ? 'Free wash' : null }
         : null,
     bookingPayment: {
       amount: fromPaise(bookingPaid),
-      method: paymentMethodLabel(booking.paymentMethod, toPaise(payment.amount), creditPaise),
+      method: paymentMethodLabel(booking.paymentMethod, toPaise(payment.amount), creditPaise, booking.discountSource === 'free_wash'),
       credit:
         creditPaise > 0
           ? { amount: fromPaise(creditPaise), razorpayAmount: fromPaise(toPaise(payment.amount)) }

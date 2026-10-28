@@ -4,14 +4,21 @@ import { isCalendarDate } from '../../lib/booking-ops.js'
 import {
   DOCUMENT_CONTENT_TYPES,
   DOCUMENT_SIDES,
-  DOCUMENT_TYPES,
   MAX_DOCUMENT_BYTES,
   MAX_FILES_PER_DOCUMENT,
   MAX_REJECTION_REASON,
+  UPLOADABLE_DOCUMENT_TYPES,
   type DocumentContentType,
 } from '../../lib/vendor-documents.js'
 
-const documentType = z.enum(DOCUMENT_TYPES)
+/**
+ * A type that can be uploaded now. The signed paper agreement is retired
+ * (0063, click to agree replaced it): old ones stay readable, a new one is
+ * refused here.
+ */
+const documentType = z.enum(UPLOADABLE_DOCUMENT_TYPES, {
+  message: 'That kind of document is not uploaded any more',
+})
 
 const contentType = z.enum(Object.keys(DOCUMENT_CONTENT_TYPES) as [DocumentContentType, ...DocumentContentType[]], {
   message: 'Use a photo (JPEG, PNG or WebP) or a PDF',
@@ -71,7 +78,7 @@ const submitFields = {
 export const submitDocumentSchema = z.object(submitFields).strict()
 
 /**
- * Admin uploads on the garage's behalf (the signed agreement, mostly), with
+ * Admin uploads on the garage's behalf (a photo the owner sent on WhatsApp), with
  * their name, and may mark it approved at once: they are the one checking it.
  */
 export const adminSubmitDocumentSchema = z

@@ -2,11 +2,8 @@
 
 import { useState } from 'react'
 import { toast } from 'react-toastify'
-import {
-  IconCircleCheckFilled,
-  IconCircleXFilled,
-  IconRosetteDiscountCheckFilled,
-} from '@tabler/icons-react'
+import { IconCircleCheckFilled, IconCircleXFilled } from '@tabler/icons-react'
+import { TierMedalIcon } from '@repo/ui/features/tier-medal'
 import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScField, ScInput, ScTextarea } from '@repo/ui/sc/input'
@@ -35,12 +32,12 @@ import { istDateTimeLabel } from '@repo/core/ist-input'
 import { cn } from '@repo/core/utils'
 import { SignedAs } from '@/components/signed-as'
 
-/** Why Certify is off, in the words the tab shows under it. */
+/** Why Award Gold is off, in the words the tab shows under it. */
 const BLOCKED: Record<CertifyBlockedBy, string> = {
   in_bin: 'The garage is in the Bin.',
-  already_certified: 'Already certified.',
+  already_certified: 'Already Gold.',
   not_eligible:
-    'It does not meet every standard yet (the lines marked not met above).',
+    'It does not meet every Gold standard yet (the lines marked not met above).',
   no_passing_check:
     'Record a passing quality check from the last 6 months first.',
 }
@@ -56,9 +53,10 @@ const CHECK_STATUS: Record<
 }
 
 /**
- * Detlio Certified (0048), on the garage edit page's Certification tab: the
- * standards measured now (each figure against its target, green or not),
- * Detlio's quality checks and "Record a check", then Certify or Revoke.
+ * Gold (0063; built as Detlio Certified, 0048), on the garage edit page's
+ * Tier tab under the tier section: Gold's standards measured now (each
+ * figure against its target, green or not; the garage agreement included),
+ * Detlio's quality checks and "Record a check", then Award Gold or Revoke.
  * Each action saves on its own, like Documents: never part of "Save
  * changes". In the Bin everything still shows and nothing can be changed.
  */
@@ -73,16 +71,16 @@ export function GarageCertificationSection({
 
   if (isLoading) {
     return (
-      <ScSection title="Detlio Certified">
+      <ScSection title="Gold">
         <SkeletonList count={3} itemClassName="h-20 rounded-[10px]" />
       </ScSection>
     )
   }
   if (error || !data) {
     return (
-      <ScSection title="Detlio Certified">
+      <ScSection title="Gold">
         <p role="alert" className="text-[12px] text-error">
-          {errorMessage(error, "Couldn't load the certification.")}
+          {errorMessage(error, "Couldn't load Gold.")}
         </p>
       </ScSection>
     )
@@ -92,16 +90,12 @@ export function GarageCertificationSection({
   return (
     <div className="flex flex-col gap-3">
       <ScSection
-        title="Detlio Certified"
+        title="Gold"
         action={
           data.certified ? (
             <ScBadge variant="success">
-              <IconRosetteDiscountCheckFilled
-                size={12}
-                aria-hidden="true"
-                className="mr-1"
-              />
-              Certified
+              <TierMedalIcon tier="gold" size={12} className="mr-1" />
+              Gold
             </ScBadge>
           ) : eligibility.eligible ? (
             <ScBadge variant="pending">Eligible</ScBadge>
@@ -112,18 +106,19 @@ export function GarageCertificationSection({
       >
         <StatusLines data={data} />
         <p className="text-[12px] text-text-muted">
-          Eligible = every standard below over the last {data.rules.windowDays}{' '}
-          days (Test-marked bookings left out). Certified = eligible, a passing
-          quality check from the last {data.rules.qualityCheckMonths} months,
-          and Certify pressed. Checked every night: a certified garage that
-          falls short for {data.rules.graceDays} days loses the seal on its own.
-          Customers see only the seal. Saved immediately — not part of “Save
-          changes”.
+          Eligible = every Gold standard below over the last{' '}
+          {data.rules.windowDays} days (Test-marked bookings left out), the
+          garage agreement included. Gold = eligible, a passing quality check
+          from the last {data.rules.qualityCheckMonths} months, and Award Gold
+          pressed. Checked every night: a Gold garage that falls short for{' '}
+          {data.rules.graceDays} days loses Gold on its own. Customers see only
+          the medal, while Gold is switched on. Saved immediately — not part of
+          “Save changes”.
         </p>
         {!readOnly && <SignedAs />}
       </ScSection>
 
-      <ScSection title="Standards">
+      <ScSection title="Gold standards">
         <ul className="flex flex-col divide-y divide-border">
           {eligibility.rules.map((rule) => (
             <li
@@ -200,13 +195,13 @@ function StatusLines({ data }: { data: AdminCertification }) {
     return (
       <div className="flex flex-col gap-1">
         <p className="text-[13px] font-medium text-text-primary">
-          Certified {data.certifiedAt && istDateTimeLabel(data.certifiedAt)}
+          Gold since {data.certifiedAt && istDateTimeLabel(data.certifiedAt)}
           {data.certifiedBy && <> by {data.certifiedBy}</>}
         </p>
         {data.atRisk && (
           <p role="status" className="text-[12px] text-warning">
             Falling short since {istDateTimeLabel(data.atRisk.since)}. It keeps
-            the seal until{' '}
+            Gold until{' '}
             <span className="font-numeric">
               {dateKeyLabel(data.atRisk.keepsUntil)}
             </span>
@@ -221,9 +216,9 @@ function StatusLines({ data }: { data: AdminCertification }) {
       <p className="text-[13px] font-medium text-text-primary">
         {data.eligibility.eligible
           ? data.qualityCheck.valid
-            ? 'Meets every standard and passed its check: ready to certify.'
-            : 'Meets every standard. Arrange a quality check next.'
-          : 'Not certified.'}
+            ? 'Meets every Gold standard and passed its check: ready for Award Gold.'
+            : 'Meets every Gold standard. Arrange a quality check next.'
+          : 'Not Gold.'}
       </p>
       {data.revoked && (
         <p className="text-[12px] text-text-secondary">
@@ -472,9 +467,9 @@ function Decision({
     setError('')
     certify.mutate(undefined, {
       onSuccess: () =>
-        toast.success(`${data.garage.businessName} is Detlio Certified`),
+        toast.success(`${data.garage.businessName} is Gold`),
       onError: (err) =>
-        setError(errorMessage(err, "Couldn't certify the garage")),
+        setError(errorMessage(err, "Couldn't award Gold")),
     })
   }
 
@@ -487,16 +482,16 @@ function Decision({
         onSuccess: () => {
           setRevoking(false)
           setReason('')
-          toast.success('Certification revoked')
+          toast.success('Gold revoked')
         },
         onError: (err) =>
-          setError(errorMessage(err, "Couldn't revoke the certification")),
+          setError(errorMessage(err, "Couldn't revoke Gold")),
       }
     )
   }
 
   return (
-    <ScSection title={data.certified ? 'Revoke' : 'Certify'}>
+    <ScSection title={data.certified ? 'Revoke Gold' : 'Award Gold'}>
       {data.certified ? (
         revoking ? (
           <div className="flex flex-col gap-2">
@@ -516,7 +511,7 @@ function Decision({
                 onClick={doRevoke}
                 className="min-h-11 px-3.5 text-[12px]"
               >
-                {revoke.isPending ? 'Revoking…' : 'Revoke certification'}
+                {revoke.isPending ? 'Revoking…' : 'Revoke Gold'}
               </ScButton>
               <ScButton
                 variant="secondary"
@@ -535,8 +530,8 @@ function Decision({
         ) : (
           <>
             <p className="text-[12px] text-text-secondary">
-              Takes the seal away now. Customers stop seeing it at once; the
-              garage can earn it again.
+              Takes Gold away now. Customers stop seeing the Gold medal at
+              once; the garage can earn it again.
             </p>
             <ScButton
               variant="secondary"
@@ -552,8 +547,9 @@ function Decision({
       ) : (
         <>
           <p className="text-[12px] text-text-secondary">
-            Records your name and the time. Customers see the seal on its card
-            and page, and can find it with “Certified only”.
+            Records your name and the time. While Gold is switched on,
+            customers see the Gold medal on its card and page, and find it with
+            “Silver & above”.
           </p>
           <ScButton
             variant="secondary"
@@ -562,12 +558,8 @@ function Decision({
             onClick={doCertify}
             className="min-h-11 self-start px-3.5 text-[12px]"
           >
-            <IconRosetteDiscountCheckFilled
-              size={15}
-              aria-hidden="true"
-              className="mr-1.5"
-            />
-            {certify.isPending ? 'Certifying…' : 'Certify'}
+            <TierMedalIcon tier="gold" size={15} className="mr-1.5" />
+            {certify.isPending ? 'Awarding…' : 'Award Gold'}
           </ScButton>
           {data.certifyBlockedBy && (
             <p className="text-[12px] text-text-muted">

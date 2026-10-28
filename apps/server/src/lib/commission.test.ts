@@ -180,6 +180,32 @@ describe('mainCategory', () => {
 })
 
 describe('bookingCommission', () => {
+  test('a travel fee (0062) is the garage’s whole: no commission on it, and a garage promo never scales it in', () => {
+    // ₹1,800 wash + ₹100 travel fee: 8% of the wash only.
+    expect(
+      bookingCommission(
+        booking({
+          amount: '1900.00',
+          subtotalAmount: '1900.00',
+          travelFee: '100.00',
+          items: [{ category: 'car_wash', amount: '1800.00', sortOrder: 0 }],
+        })
+      )
+    ).toBe(144)
+    // A garage-funded ₹180 off the wash: 8% of ₹1,620.
+    expect(
+      bookingCommission(
+        booking({
+          amount: '1720.00',
+          subtotalAmount: '1900.00',
+          discountFundedBy: 'vendor',
+          travelFee: '100.00',
+          items: [{ category: 'car_wash', amount: '1800.00', sortOrder: 0 }],
+        })
+      )
+    ).toBe(129.6)
+  })
+
   test('each item at its own category rate', () => {
     expect(
       bookingCommission(

@@ -22,6 +22,7 @@ import { SUPPORT_PHONE_DISPLAY } from '@repo/core/support'
 import { PENDING_CHECKOUT_STORAGE_KEY } from '@repo/core/stores/pending-checkout-store'
 import { TIP_HIDDEN_KEY } from '../home-hub'
 import { BOOKING_DRAFT_KEY } from '@repo/core/booking-draft'
+import { cardClosesKey } from '@repo/core/area-signups'
 import { CLIENT_EVENTS } from '@repo/core/analytics-events'
 import { META_EVENT_NAMES, metaEventFor, pixelExcluded } from '../meta-pixel'
 import { RULES } from './common'
@@ -83,6 +84,27 @@ describe('the five pages', () => {
   }
 })
 
+describe('medals (0063)', () => {
+  const terms = LEGAL_DOCS.find((doc) => doc.path === LEGAL_PATHS.terms)!
+
+  test('the Terms say what Bronze, Silver and Gold mean, and that garages cannot pay for one', () => {
+    const text = markdownOf(terms)
+    expect(text).toContain('Bronze, Silver or Gold medal')
+    expect(text).toContain('accepted Detlio\'s garage agreement')
+    expect(text).toContain('garages cannot pay for one')
+    expect(text).toContain('"Silver & above" filter only narrows the list')
+  })
+
+  test('no public text names the badges the medals replaced', () => {
+    for (const doc of LEGAL_DOCS) {
+      const text = markdownOf(doc).toLowerCase()
+      expect(text).not.toContain('documents verified')
+      expect(text).not.toContain('detlio certified')
+      expect(text).not.toContain('certified only')
+    }
+  })
+})
+
 describe('business details', () => {
   const contact = LEGAL_DOCS.find((doc) => doc.path === LEGAL_PATHS.contact)!
 
@@ -133,6 +155,18 @@ describe('what the Home hub keeps', () => {
     expect(text).toContain(PENDING_CHECKOUT_STORAGE_KEY)
     expect(text).toContain(TIP_HIDDEN_KEY)
     expect(text).toContain(BOOKING_DRAFT_KEY)
+    // The free-wash card's × (customer reach, part 2), per area.
+    expect(text).toContain(cardClosesKey('<area>'))
+  })
+
+  // Customer reach, part 2 (0062): what a request, a sign-up and a
+  // recommendation keep, and how long, are in the policy.
+  test('requests, free-wash sign-ups and recommendations are declared', () => {
+    const text = privacy()
+    expect(text).toContain('Requests to a garage just outside its area')
+    expect(text).toContain('Free-wash sign-ups')
+    expect(text).toContain('Garages you recommend')
+    expect(text).toContain('We do not send WhatsApp messages yet')
   })
 
   // A guest's booking kept on the phone (0062) holds their address: the
@@ -379,6 +413,10 @@ describe('Microsoft Clarity', () => {
       '../../components/add-address-sheet.tsx',
       '../../app/book/[vendorId]/page.tsx',
       '../../components/checkout/checkout-sign-in.tsx',
+      // Customer reach, part 2: the request's car and address, and a
+      // recommended garage's link, phone and note.
+      '../../components/reach/request-sheet.tsx',
+      '../../components/reach/free-wash.tsx',
       '../../components/coupons/coupon-code-box.tsx',
       '../../components/gifts/redeem-code-box.tsx',
       '../../app/profile/gifts/new/page.tsx',

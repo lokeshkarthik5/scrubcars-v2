@@ -4,6 +4,8 @@ import { sendOpsAlertNow } from '../../lib/ops-alerts.js'
 import { digestLookbacks, isMorningTick, planPendingDigest } from '../../lib/pending-digest.js'
 import { createThrottle } from '../../lib/throttle.js'
 import { analyticsService } from '../analytics/analytics.service.js'
+import { areaSignupsService } from '../area-signups/area-signups.service.js'
+import { bookingRequestsService } from '../booking-requests/booking-requests.service.js'
 import { carHistoryService } from '../car-history/car-history.service.js'
 import { bypassReportsService } from '../bypass-reports/bypass-reports.service.js'
 import { certificationService } from '../certification/certification.service.js'
@@ -61,6 +63,27 @@ export const opsService = {
         return { enabled: true as const, error: true as const }
       })
 
+    // Customer reach (0062): requests a garage has not answered in 30
+    // minutes alert the team; ones whose 2 hours ran out pass to the next
+    // garage or end; yeses not confirmed in time lapse. Quiet hours don't
+    // stop it (a deadline is a deadline). Never allowed to fail the digest.
+    const requests = await bookingRequestsService
+      .sweep({ dryRun: options.dryRun })
+      .catch((err: unknown) => {
+        log.error({ err }, 'ops:booking_request_sweep_failed')
+        return { error: true as const }
+      })
+
+    // Launch day for any area whose first garage went live (idempotent), the
+    // sign-ups' one message each (09:00–20:59 IST), and recommendation
+    // credits. Never allowed to fail the digest.
+    const areas = await areaSignupsService
+      .sweep({ dryRun: options.dryRun })
+      .catch((err: unknown) => {
+        log.error({ err }, 'ops:area_sweep_failed')
+        return { error: true as const }
+      })
+
     // Free redo claims (Detlio Guarantee, 0051): a garage's 12 hours run out
     // (treated as accepted), a redo window run out (closed), a redo booking
     // finished one way or another. Nothing at all while GUARANTEE_ENABLED is
@@ -113,10 +136,11 @@ export const opsService = {
         return { enabled: true as const, error: true as const }
       })
 
-    // Detlio Certified's nightly evaluation (0048): each garage once per
-    // daily run from 05:00 IST, a bounded batch a run, so its alerts land
-    // before the 07:00 roll-up. Nothing while garage documents are off.
-    // Never allowed to fail the digest.
+    // The tiers' nightly evaluation (Gold, 0048; Silver, 0063): each garage
+    // once per daily run from 05:00 IST, a bounded batch a run, so its
+    // alerts land before the 07:00 roll-up. Nothing while garage documents
+    // are off or before the first garage agreement is published. Never
+    // allowed to fail the digest.
     const certification = await certificationService
       .sweep({ dryRun: options.dryRun })
       .catch((err: unknown) => {
@@ -271,6 +295,8 @@ export const opsService = {
       analyticsPurged,
       timeProposals,
       notAccepted,
+      requests,
+      areas,
       notifications,
       certification,
       serviceReminders,

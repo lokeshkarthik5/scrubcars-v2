@@ -20,7 +20,7 @@ const { env } = await import('../../lib/env.js')
 const { AppError } = await import('../../lib/errors.js')
 const { signAccessToken } = await import('../../lib/jwt.js')
 const { authMiddleware, requireCustomer } = await import('../../middleware/auth.middleware.js')
-const { certificationService } = await import('../certification/certification.service.js')
+const { tiersService } = await import('../tiers/tiers.service.js')
 const { certificatesRepository } = await import('./certificates.repository.js')
 const { vendorsRepository } = await import('../vendors/vendors.repository.js')
 const { photoStore } = await import('./certificates.service.js')
@@ -174,7 +174,7 @@ beforeAll(() => {
       link: link ? { id: link.id, includePhotos: link.includePhotos, expiresAt: link.expiresAt, revokedAt: link.revokedAt } : null,
     }
   })
-  patch(certificationService, 'certifiedIds', async () => new Set<string>())
+  patch(tiersService, 'customerTiers', async () => new Map())
   patch(photoStore, 'read', async (photo: { storageKey: string; url: string }) => {
     reads.push(photo)
     return { body: new TextEncoder().encode(`bytes of ${photo.storageKey}`), contentType: 'image/jpeg' }

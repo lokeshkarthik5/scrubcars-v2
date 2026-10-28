@@ -20,8 +20,7 @@ import {
   type PublicCertificate,
 } from '../../lib/service-history-certificate.js'
 import { jobPhotoLink, readJobPhoto } from '../../lib/job-photo-storage.js'
-import { certificationService } from '../certification/certification.service.js'
-import { documentsVerifiedIds } from '../vendors/vendors.service.js'
+import { tiersService } from '../tiers/tiers.service.js'
 import { certificatesRepository, type CertificateLinkRow } from './certificates.repository.js'
 import type { ShareInput, UpdateShareInput } from './certificates.validation.js'
 
@@ -94,11 +93,10 @@ async function readCertificate(userId: string, car: CertificateCar, now: Date) {
   const jobs = eligibleJobs(rows)
   const vendorIds = [...new Set(jobs.map((job) => job.vendorId))]
   const photos = await certificatesRepository.listGaragePhotos(jobs.map((job) => job.id))
-  const [certified, documentsVerified] = await Promise.all([
-    certificationService.certifiedIds(vendorIds),
-    documentsVerifiedIds(vendorIds),
-  ])
-  return { car, rows, photos, certified, documentsVerified, now }
+  // Each garage's medal as customers see it today (0063): the tier switches
+  // and a hidden medal apply here as on every other customer screen.
+  const tiers = await tiersService.customerTiers(vendorIds, now)
+  return { car, rows, photos, tiers, now }
 }
 
 export const certificatesService = {

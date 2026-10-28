@@ -496,6 +496,37 @@ export type OpsAlert =
       kind: 'collection_list'
       list: CollectionListAlert
     }
+  | {
+      /**
+       * A customer asked a garage just outside its reach to come (customer
+       * reach, 0062): what, when and how far. Never the customer or the
+       * address. `forwarded` when it was passed on from another garage.
+       */
+      kind: 'request_received'
+      requestId: string
+      garageName: string
+      bookingType: string
+      services: string[]
+      windowLabel: string
+      beyond: string
+      respondBy: Date
+      forwarded: boolean
+    }
+  | {
+      /**
+       * A request has waited 30 minutes with no answer: the team phones the
+       * garage. Carries the garage's business phone, as the pending digest
+       * does, for that call.
+       */
+      kind: 'request_no_reply'
+      requestId: string
+      garageName: string
+      garagePhone: string | null
+      bookingType: string
+      services: string[]
+      windowLabel: string
+      respondBy: Date
+    }
 
 /** A collection list as its Telegram post reads it (0059). */
 export interface CollectionListAlert {
@@ -1082,27 +1113,27 @@ export function formatOpsAlert(alert: OpsAlert): string {
 
     case 'certification_eligible':
       return lines(
-        `🏅 Eligible for Detlio Certified: ${alert.garage}`,
-        'It meets every standard. Arrange a quality check (mystery visit or inspection), record it, then Certify.',
+        `🥇 Eligible for Gold: ${alert.garage}`,
+        'It meets every Gold standard. Arrange a quality check (mystery visit or inspection), record it, then Award Gold.',
         adminGarageCertificationUrl(alert.vendorId)
       )
 
     case 'certification_at_risk':
       return lines(
-        `⚠️ Detlio Certified at risk: ${alert.garage}`,
+        `⚠️ Gold at risk: ${alert.garage}`,
         `Falling short: ${alert.shortfall}.`,
-        `It keeps the badge until ${alert.keepsUntil} unless this is put right.`,
+        `It keeps Gold until ${alert.keepsUntil} unless this is put right.`,
         adminGarageCertificationUrl(alert.vendorId)
       )
 
     case 'certification_lost':
       return lines(
-        `Detlio Certified removed: ${alert.garage}`,
+        `Gold removed: ${alert.garage}`,
         alert.how === 'lapsed'
           ? `Lost automatically. ${alert.reason}`
           : `Revoked by ${alert.by ?? 'admin'}.`,
         alert.how === 'revoked' ? quoted('Reason', alert.reason) : null,
-        'Customers no longer see the seal.',
+        'Customers no longer see its Gold medal.',
         adminGarageCertificationUrl(alert.vendorId)
       )
 
@@ -1123,7 +1154,7 @@ export function formatOpsAlert(alert: OpsAlert): string {
         `⛔ ${alert.garage} reached ${alert.strikes} strikes`,
         `${alert.strikes} confirmed reports of taking customers off Detlio in the last ${alert.windowDays} days.`,
         alert.certified
-          ? 'It is Detlio Certified: the next nightly check puts the seal at risk.'
+          ? 'It is Gold: the next nightly check puts Gold at risk.'
           : null,
         'Talk to the garage about its agreement, or pause or suspend it.',
         adminGarageUrl(alert.vendorId)
@@ -1178,6 +1209,27 @@ export function formatOpsAlert(alert: OpsAlert): string {
 
     case 'collection_list':
       return collectionListText(alert.list)
+
+    case 'request_received':
+      return lines(
+        alert.forwarded
+          ? `📨 Request passed on to ${alert.garageName} · ${modeLabel(alert.bookingType)}`
+          : `📨 New request for ${alert.garageName} · ${modeLabel(alert.bookingType)}`,
+        alert.services.join(', '),
+        `${alert.windowLabel} · ${alert.beyond}`,
+        `Garage answers by ${when(alert.respondBy)}; no answer passes it on.`,
+        `Request ${reference(alert.requestId)}`
+      )
+
+    case 'request_no_reply':
+      return lines(
+        `☎️ No answer in 30 min: ${alert.garageName} · ${modeLabel(alert.bookingType)}`,
+        alert.services.join(', '),
+        alert.windowLabel,
+        alert.garagePhone ? `Call the garage: ${phone(alert.garagePhone)}` : 'No phone on file for the garage.',
+        `It passes to the next garage at ${when(alert.respondBy)}.`,
+        `Request ${reference(alert.requestId)}`
+      )
   }
 }
 
@@ -1223,6 +1275,7 @@ const FAILURE_REASONS: Record<string, string> = {
   garage_closed: 'the garage marked that day as a holiday before the payment went through',
   garage_paused: 'the garage paused new bookings before the payment went through',
   credit_exhausted: "the customer's Detlio credit was spent or ran out before the payment went through (only the card/UPI part is to refund)",
+  request_gone: 'the garage’s yes to the request was no longer open (cancelled, or already confirmed) when the payment went through',
 }
 
 /**

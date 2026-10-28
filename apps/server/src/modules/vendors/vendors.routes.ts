@@ -18,7 +18,10 @@ import { garageMediaRoutes } from '../service-media/service-media.routes.js'
 import { garageDocumentRoutes } from '../vendor-documents/vendor-documents.routes.js'
 import { garagePushRoutes } from '../push/push.routes.js'
 import { garageCertificationRoutes } from '../certification/certification.routes.js'
+import { garageAgreementRoutes } from '../agreements/agreements.routes.js'
+import { garageTierRoutes } from '../tiers/tiers.routes.js'
 import { garageGuaranteeRoutes } from '../guarantee/guarantee.routes.js'
+import { garageBookingRequestRoutes } from '../booking-requests/booking-requests.routes.js'
 import * as vendorsController from './vendors.controller.js'
 import {
   createClosureSchema,
@@ -158,10 +161,23 @@ vendorsRoutes.route('/me/push', garagePushRoutes)
 // screen.
 vendorsRoutes.route('/me/certification', garageCertificationRoutes)
 
+// Bronze / Silver / Gold (0063): the garage's own tier and what the next one
+// takes ("Your tier" on Home), and the garage agreement it reads and accepts.
+// Owner seat only, in their own files. Nested for the same reason as the
+// team screen.
+vendorsRoutes.route('/me/tier', garageTierRoutes)
+vendorsRoutes.route('/me/agreement', garageAgreementRoutes)
+
 // Detlio Guarantee (0051): the garage's free redo claims, owner seat only, in
 // its own file, every route a 404 while GUARANTEE_ENABLED is off. Nested for
 // the same reason as the team screen.
 vendorsRoutes.route('/me/guarantee', garageGuaranteeRoutes)
+
+// Requests from customers just outside the garage's reach (customer reach,
+// 0062): widened to operators in its own file (the counter answers them, as
+// it does new bookings); what one earns is the owner seat's alone. Nested
+// for the same reason as the team screen.
+vendorsRoutes.route('/me/requests', garageBookingRequestRoutes)
 
 vendorsRoutes.get(
   '/me/working-hours',

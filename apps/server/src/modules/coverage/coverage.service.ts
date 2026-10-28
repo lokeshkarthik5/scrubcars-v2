@@ -33,7 +33,7 @@ export interface CoverageZone {
 
 /** Where a garage is on the way to customers: live, or the step it is waiting on. */
 export type GarageStage =
-  'live' | 'pending' | 'not_verified' | 'paused' | 'suspended' | 'archived'
+  'live' | 'pending' | 'not_shown' | 'paused' | 'suspended' | 'archived'
 
 export interface CoverageGarage {
   id: string
@@ -79,7 +79,7 @@ export function garageStage(row: {
   if (row.status === 'pending') return 'pending'
   if (row.status === 'suspended') return 'suspended'
   if (row.status === 'archived') return 'archived'
-  if (!row.isVerified) return 'not_verified'
+  if (!row.isVerified) return 'not_shown'
   return 'paused'
 }
 

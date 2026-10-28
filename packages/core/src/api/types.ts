@@ -1,3 +1,4 @@
+import type { Tier } from '@repo/core/tiers'
 import type { ConditionPhotos, PhotoStandard, ServiceMedia } from '@repo/core/types'
 import type { PickupNext } from '@repo/core/pickup'
 import type { OutsideServiceCity } from '@repo/core/service-city'
@@ -145,10 +146,8 @@ export interface ApiVendorListItem {
    * Absent on older servers.
    */
   outsideServiceCity?: OutsideServiceCity | null
-  /** Every required document approved by Detlio. Absent on older servers. */
-  documentsVerified?: boolean
-  /** Detlio Certified (0048): the seal. Absent on older servers. */
-  certified?: boolean
+  /** The medal customers see (0063): Bronze, Silver, Gold or null. Absent on older servers. */
+  tier?: Tier | null
 }
 
 export interface ApiVendorList {
@@ -229,10 +228,8 @@ export interface ApiPublicVendor {
   bookingsPausedReason?: string | null
   /** As on a list item: set only outside Chennai. Absent on older servers. */
   outsideServiceCity?: OutsideServiceCity | null
-  /** As on a list item: the "Documents verified" badge. Absent on older servers. */
-  documentsVerified?: boolean
-  /** As on a list item: the Detlio Certified seal. Absent on older servers. */
-  certified?: boolean
+  /** As on a list item: the medal customers see (0063). Absent on older servers. */
+  tier?: Tier | null
 }
 
 export interface VendorProfileExtras {
@@ -464,6 +461,8 @@ export interface ApiBooking {
   // vendor_admin check. `amount` and `paymentMethod` are always present —
   // whoever finishes a cash job has to know what to collect.
   subtotalAmount?: string
+  /** An accepted request's travel fee (0062), inside subtotalAmount; '0.00' otherwise. Absent on older APIs. */
+  travelFee?: string
   discountAmount?: string
   discountCode: string | null
   discountFundedBy?: 'platform' | 'vendor' | null

@@ -5,6 +5,7 @@ import {
   bookingParts,
   bookingsLine,
   certificationCounts,
+  MORE_LABELS,
   editHref,
   isInBin,
   isLive,
@@ -223,7 +224,7 @@ describe('the card', () => {
       'Archived'
     )
     expect(stateWord(garage({ live: false, isVerified: false }))).toBe(
-      'Not verified'
+      'Not shown to customers'
     )
     expect(
       stateWord(
@@ -238,7 +239,7 @@ describe('the card', () => {
           bookingsPausedAt: '2026-10-10T04:30:00Z',
         })
       )
-    ).toBe('Paused · not verified')
+    ).toBe('Paused · not shown to customers')
   })
 
   test('a Bin card says how many bookings go with it, in amber', () => {
@@ -434,7 +435,7 @@ describe('documents to review', () => {
   })
 })
 
-describe('Detlio Certified chips', () => {
+describe('Gold chips (Detlio Certified)', () => {
   const cert = (certified: boolean, eligible: boolean) => ({
     certified,
     certifiedAt: certified ? '2026-10-01T05:00:00Z' : null,
@@ -445,7 +446,7 @@ describe('Detlio Certified chips', () => {
     endedKind: null,
   })
 
-  test('Certified holds certified garages; Eligible holds eligible ones not yet certified; never the Bin', () => {
+  test('Gold holds Gold garages; Gold-eligible holds eligible ones not yet Gold; never the Bin', () => {
     const certified = garage({ certification: cert(true, true) })
     const slipping = garage({ certification: cert(true, false) })
     const eligible = garage({ certification: cert(false, true) })
@@ -478,7 +479,9 @@ describe('Detlio Certified chips', () => {
     expect(parseShow('certified')).toBe('certified')
     expect(parseShow('eligible')).toBe('eligible')
     expect(listHref('eligible')).toBe('/vendors?show=eligible')
-    expect(showHints('certified')[0].term).toBe('Detlio Certified')
+    expect(showHints('certified')[0].term).toBe('Gold')
+    expect(MORE_LABELS.certified).toBe('Gold')
+    expect(MORE_LABELS.eligible).toBe('Gold-eligible, not awarded')
     expect(showHints('eligible')[0].meaning).toContain('quality check')
     expect(editHref('v1', '/vendors?show=eligible', 'certification')).toBe(
       '/vendors/v1/edit?tab=certification&back=%2Fvendors%3Fshow%3Deligible'
@@ -650,7 +653,7 @@ describe('the table cells', () => {
       tone: 'new',
     })
     expect(stageCell(garage({ live: false, isVerified: false }))).toEqual({
-      label: 'Not verified',
+      label: 'Not shown to customers',
       tone: 'attention',
     })
     expect(stageCell(garage({ live: false, status: 'archived' })).tone).toBe(
@@ -718,7 +721,7 @@ describe('the next step', () => {
         garage({ live: false, isVerified: false, lat: 13 } as Partial<Row>),
         NOW
       )?.text
-    ).toBe('Verify')
+    ).toBe('Show to customers')
     // With no pin the server refuses: the pin comes first.
     expect(
       garageNextStep(
@@ -727,7 +730,7 @@ describe('the next step', () => {
       )
     ).toEqual({
       text: 'Pin first',
-      detail: 'Then verify',
+      detail: 'Then show to customers',
       tone: 'attention',
       tab: 'location',
     })

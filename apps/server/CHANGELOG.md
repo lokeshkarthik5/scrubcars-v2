@@ -39,6 +39,34 @@ reconstructing every change in them.
   production. The pending-digest cron refreshes or clears Google's details
   on leads after 30 days (01:00–04:59 IST runs).
 
+- **Trust & look** (migration `0063_trust_look`, additive): Bronze / Silver
+  / Gold (`lib/tiers.ts`; Silver given and taken nightly in
+  `vendor_tier_standings`, Gold is Detlio Certified renamed and now needs the
+  agreement), `tier_switches` and `vendors.tier_hidden`, the click-to-agree
+  garage agreement (`agreement_versions`, `agreement_acceptances`;
+  `/admin/agreements`, `/vendors/me/agreement`), `GET /tiers`,
+  `GET /vendors/me/tier`, `/admin/tiers/*`. Customer payloads carry `tier`
+  instead of `certified` and `documentsVerified`; `GET /vendors?tier=silver`
+  ("Silver & above"; `certified=true` still accepted). The paper agreement
+  document type is retired (three required documents). AI service pictures
+  never reach customer payloads. Backfill: certified garages hold Silver.
+
+- **Customer reach** (migration `0062_customer_reach`, additive). Part 1:
+  Chennai's zones (`GET /zones`), the garage list's reach figures and
+  "Just outside their area", guest checkout. Part 2: requests to a garage
+  just outside its reach (`booking_requests`; `/users/me/requests`,
+  `/vendors/me/requests`, public `/booking-requests/windows`; the garage has
+  2 hours, a travel fee of ₹0/100/200 and a start in the customer's window;
+  passed to the next nearest garage, at most two; 30-minute Telegram alert;
+  confirm and pay through `POST /booking-intents { requestId }`, the only
+  way a booking may be outside a garage's reach), `bookings.travel_fee`
+  (its own receipt line, no commission, kept by the garage), free-wash
+  sign-ups per zone (`zone_signups`, first 50 get a ₹499 Detlio-funded
+  car-wash code on launch day, `discounts.source = 'free_wash'`), launch day
+  set once by the cron, sign-up messages (launch, coverage, one 14-day
+  reminder), garage recommendations (`garage_recommendations`) and the
+  ₹100 referral credit (`gift_credit_entries` kind `referral_reward`).
+  New env `REACH_WRITE_RATE_LIMIT` (default 20).
 - **Behaviour: usage events from the landing page to paid** (migration
   `0061_behaviour_events`, additive: wider name and props CHECKs on
   `analytics_events`, an index on `visit_id`). New client events
