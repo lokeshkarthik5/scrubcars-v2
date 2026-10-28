@@ -101,7 +101,8 @@ test.describe('coverage', () => {
   test.use({ storageState: asRole('admin') })
 
   test('the demand map renders with map tiles blocked', async ({ page }) => {
-    await page.goto('/coverage')
+    // The second view since Coverage became zones (0064, coverage-zones.spec.ts).
+    await page.goto('/coverage?view=demand')
 
     // A read-only heatmap of doorstep demand per ~1km cell, not an editor.
     await expect(page.getByRole('heading', { name: /Coverage/i })).toBeVisible()

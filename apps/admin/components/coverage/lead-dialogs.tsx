@@ -321,6 +321,11 @@ export function AddLeadDialog({
   const [error, setError] = useState('')
   const pin = useLinkPin(mapsUrl)
   const pinned = pin.kind === 'found' ? pin : null
+  // A warning is about what was typed when it was checked: a change asks again.
+  const edit = (setter: (value: string) => void) => (value: string) => {
+    setter(value)
+    setMatches(null)
+  }
 
   const problems = {
     name: name.trim() ? null : 'Enter the garage’s name.',
@@ -418,7 +423,7 @@ export function AddLeadDialog({
         <ScField
           label="Garage name"
           value={name}
-          onChange={setName}
+          onChange={edit(setName)}
           maxLength={LEAD_NAME_MAX}
           autoFocus
         />
@@ -426,7 +431,7 @@ export function AddLeadDialog({
           <ScField
             label="Phone"
             value={phone}
-            onChange={setPhone}
+            onChange={edit(setPhone)}
             inputMode="tel"
             placeholder="98400 12345"
           />
@@ -440,7 +445,7 @@ export function AddLeadDialog({
           <ScField
             label="Google Maps link"
             value={mapsUrl}
-            onChange={setMapsUrl}
+            onChange={edit(setMapsUrl)}
             inputMode="url"
             placeholder="maps.app.goo.gl/…"
           />
@@ -697,6 +702,10 @@ export function EditLeadDialog({
   const [vendorId, setVendorId] = useState(lead.vendorId ?? '')
   const [confirmRemove, setConfirmRemove] = useState(false)
   const [matches, setMatches] = useState<DuplicateMatch[] | null>(null)
+  const edit = (setter: (value: string) => void) => (value: string) => {
+    setter(value)
+    setMatches(null)
+  }
   const [error, setError] = useState('')
   const linkChanged = mapsUrl.trim() !== (lead.mapsUrl ?? '')
   const pin = useLinkPin(linkChanged ? mapsUrl : '')
@@ -863,14 +872,14 @@ export function EditLeadDialog({
         <ScField
           label="Garage name"
           value={name}
-          onChange={setName}
+          onChange={edit(setName)}
           maxLength={LEAD_NAME_MAX}
         />
         <div className="flex flex-col gap-1">
           <ScField
             label="Phone"
             value={phone}
-            onChange={setPhone}
+            onChange={edit(setPhone)}
             inputMode="tel"
           />
           {phone && problems.phone && (
@@ -883,7 +892,7 @@ export function EditLeadDialog({
           <ScField
             label="Google Maps link"
             value={mapsUrl}
-            onChange={setMapsUrl}
+            onChange={edit(setMapsUrl)}
             inputMode="url"
           />
           {mapsUrl && problems.link ? (

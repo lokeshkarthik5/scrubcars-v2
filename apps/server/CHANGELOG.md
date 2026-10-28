@@ -20,6 +20,25 @@ reconstructing every change in them.
 
 ### Added
 
+- **Coverage & leads** (admin round part 2, migration `0064_admin_round`,
+  additive: a new `leads` table). Coverage is built around Chennai's zones
+  (`GET /admin/coverage`: zones, garages with their zone from the pin, leads,
+  finder sources; `POST`/`PATCH`/`DELETE /admin/coverage/zones…` to add,
+  rename, set priority and target, move the centre or remove a zone no lead
+  points at; leads re-zoned in the same transaction; `GET /zones` reflects
+  it). Leads (`/admin/leads`): add with a Maps link's pin and zone,
+  duplicate warning (same phone, or a similar name within 150 m of a lead or
+  garage), paste a list with a preview, status (to target / not interested
+  with a reason, the day and an optional try-again day / onboarded), assign,
+  note, garage link, remove. Add garage's `POST /admin/vendors` takes
+  `leadId` and links the lead (Onboarded). The zone finder
+  (`POST /admin/places/search`): Google Places (New) Text Search
+  (`GOOGLE_PLACES_API_KEY`, field-masked) and Ola text search inside the
+  zone, merged and marked against what is known, rate limited per admin per
+  hour (`PLACES_SEARCH_RATE_LIMIT`); `PLACES_FAKE=1` for E2E, refused in
+  production. The pending-digest cron refreshes or clears Google's details
+  on leads after 30 days (01:00–04:59 IST runs).
+
 - **Behaviour: usage events from the landing page to paid** (migration
   `0061_behaviour_events`, additive: wider name and props CHECKs on
   `analytics_events`, an index on `visit_id`). New client events

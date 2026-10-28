@@ -1439,6 +1439,30 @@ export const DATA_RESET = { earlierAudit: id(1301) } as const
  * The admin round's other rows (0064; ids 4200–4249): the complaint about
  * BOOKINGS.roundDelete, and VENDORS.roundA's two marks.
  */
+/**
+ * Coverage & leads (0064; ids 4400–4449), only specs/admin/coverage-*.spec.ts
+ * touch these. The leads are in Perambur (seeded by 0062, no other fixture
+ * there): `toTarget` and `notInterested` for the call list, `onboard` for
+ * Onboard → Add garage, and `knownAqua`, whose phone is PLACES_FAKE's
+ * "Aqua Foam Car Wash" (lib/places/fake.ts), so the finder marks that one
+ * as known. `pasted` is the number Paste a list's spec writes; `dupPhone`
+ * is toTarget's, for the duplicate warning. The zone specs add and remove
+ * their own zone, "E2E Test Zone" (slug e2e-test-zone), far from every
+ * fixture.
+ */
+export const LEADS = {
+  zoneSlug: 'perambur',
+  zoneName: 'Perambur',
+  toTarget: { id: id(4401), name: 'Leads Test Wash', phone: '9000004401' },
+  notInterested: { id: id(4402), name: 'Leads Nope Detailers', phone: '9000004402', reason: 'Has their own app' },
+  onboard: { id: id(4403), name: 'Leads Onboard Garage', phone: '9000004403' },
+  knownAqua: { id: id(4404), name: 'Aqua Foam (known)', phone: '9790060193' },
+  /** The garage Onboard creates, and its owner. */
+  onboardOwner: { name: 'Leads Owner Uma', phone: '9000004440' },
+  pasted: { name: 'Leads Pasted Wash', phone: '9000004441' },
+  testZone: { name: 'E2E Test Zone', slug: 'e2e-test-zone', lat: 12.8, lng: 80.02 },
+} as const
+
 export const ROUND = {
   complaint: id(4230),
   /** "New garage call": three items, the first ticked with an answer. */

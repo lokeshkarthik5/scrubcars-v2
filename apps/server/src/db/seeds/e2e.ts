@@ -54,6 +54,8 @@ import {
   vendors,
   vendorOnboardingMarks,
   vehicleServiceReminders,
+  leads,
+  zones,
 } from '../schema.js'
 import {
   BOOKING_INTENTS,
@@ -93,6 +95,7 @@ import {
   CONTACT_DOORSTEP,
   CONTACT_GARAGE,
   ADMIN_LOGINS,
+  LEADS,
 } from './e2e-ids.js'
 import { hashPassword } from '../../lib/passwords.js'
 
@@ -2991,6 +2994,33 @@ async function seedBehaviourRows() {
   await db.insert(analyticsEvents).values(rows)
 }
 
+/**
+ * Coverage & leads (0064; ids 4400–4449, specs/admin/coverage-*.spec.ts):
+ * see LEADS. In Perambur, the zone 0062 seeded, a few hundred metres from
+ * its centre so the zone rule puts them there.
+ */
+async function seedLeadRows() {
+  const [perambur] = await db.select().from(zones).where(eq(zones.slug, LEADS.zoneSlug))
+  if (!perambur) throw new Error('e2e seed: zone perambur missing (migration 0062)')
+  const near = (north: number, east: number) => ({
+    lat: perambur.lat + north / 111_320,
+    lng: perambur.lng + east / (111_320 * Math.cos((perambur.lat * Math.PI) / 180)),
+    pinSource: 'map' as const,
+  })
+  const base = { zoneId: perambur.id, createdByName: 'E2E seed', source: 'manual' as const }
+  await db.insert(leads).values([
+    { ...base, ...near(150, 120), id: LEADS.toTarget.id, name: LEADS.toTarget.name, phone: LEADS.toTarget.phone,
+      status: 'to_target', lastNote: 'Owner back on Monday', lastNoteBy: 'E2E seed', lastNoteAt: daysAgo(1) },
+    { ...base, ...near(-200, 90), id: LEADS.notInterested.id, name: LEADS.notInterested.name,
+      phone: LEADS.notInterested.phone, status: 'not_interested', notInterestedReason: LEADS.notInterested.reason,
+      notInterestedOn: daysAgo(3).toISOString().slice(0, 10) },
+    { ...base, ...near(80, -260), id: LEADS.onboard.id, name: LEADS.onboard.name, phone: LEADS.onboard.phone,
+      mapsUrl: 'https://www.google.com/maps/@13.1217,80.2305,17z', status: 'to_target' },
+    { ...base, id: LEADS.knownAqua.id, name: LEADS.knownAqua.name, phone: LEADS.knownAqua.phone, source: 'paste',
+      status: 'to_target' },
+  ])
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set')
 
@@ -3058,6 +3088,8 @@ async function main() {
   await seedAdminRoundRows()
   console.log('[e2e-seed] behaviour visits…')
   await seedBehaviourRows()
+  console.log('[e2e-seed] coverage leads…')
+  await seedLeadRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }

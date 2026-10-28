@@ -1,3 +1,4 @@
+import { normalisePhone } from '../leads.js'
 import type { PlaceKind } from './kinds.js'
 import type {
   FoundPlace,
@@ -140,7 +141,7 @@ function placed(
     address: fake.address,
     lat,
     lng,
-    phone: fake.phone,
+    phone: normalisePhone(fake.phone),
     rating: fake.rating,
     reviewCount: fake.reviewCount,
     kinds: [],
@@ -184,7 +185,7 @@ export function createFakePlaces(): {
         return {
           name: fake ? fake.name : 'Refreshed Google Place',
           address: fake ? fake.address : 'Refreshed address',
-          phone: fake ? fake.phone : null,
+          phone: fake ? normalisePhone(fake.phone) : null,
           rating: fake ? fake.rating : 4,
           reviewCount: fake ? fake.reviewCount : 10,
           lat: null,
