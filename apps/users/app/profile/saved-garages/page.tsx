@@ -95,6 +95,9 @@ export default function SavedGaragesPage() {
               <VendorCard
                 vendor={vendor}
                 action={<SaveGarageButton vendor={vendor} />}
+                // The API sends no distance for saved garages: km + drive
+                // time from the customer's location (0062).
+                measureFromLocation
                 note={
                   vendor.bookingsPaused ? 'Not taking bookings right now' : null
                 }

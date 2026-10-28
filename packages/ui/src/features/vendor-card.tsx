@@ -39,6 +39,7 @@ export function VendorCard({
   chips,
   footer,
   approxDistance,
+  measureFromLocation = false,
 }: {
   vendor: Vendor
   /**
@@ -68,20 +69,28 @@ export function VendorCard({
    * else (a booking's address) says false.
    */
   approxDistance?: boolean
+  /**
+   * For a list the API measured no distance for (Saved garages): measure it
+   * here, from the customer's location to the pin. Off for every list the
+   * API measures itself, so a card left on screen while the list reloads
+   * never shows a distance the list was not sorted by.
+   */
+  measureFromLocation?: boolean
 }) {
   // The logo has its own badge now, so the cover is gallery-only — reusing the
   // logo as a full-bleed cover would show the same image twice on the card.
   const cover = vendor.photos[0] ?? null
   // Null distance means the request carried no origin, not that the garage is
   // at zero km — the same "unknown is not zero" rule applied to price and rating
-  // just below. A list with no distances of its own (Saved garages) is
-  // measured here from the customer's location, when one is set and the
-  // garage is pinned; "All of Chennai" is no place, so nothing then.
+  // just below. A list with no distances of its own (Saved garages,
+  // `measureFromLocation`) is measured here from the customer's location,
+  // when one is set and the garage is pinned; "All of Chennai" is no place,
+  // so nothing then.
   const location = useHydratedLocation()
   const origin = location && !isCitywide(location) ? location : null
   const km =
     vendor.distanceKm ??
-    (origin && vendor.lat != null && vendor.lng != null
+    (measureFromLocation && origin && vendor.lat != null && vendor.lng != null
       ? straightLineKm(origin, { lat: vendor.lat, lng: vendor.lng })
       : null)
   const hasDistance = km !== null

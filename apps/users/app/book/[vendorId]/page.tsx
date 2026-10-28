@@ -346,6 +346,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // Saved once each, so a second Pay after a failed one never makes a second car.
   const savedDraftCarId = useRef<string | null>(null)
   const savedDraftAddressId = useRef<string | null>(null)
+  // Set from Verify until what follows it (reading the account, paying) is
+  // done: Pay waits, so the guest's car is never saved twice.
+  const finishingSignInRef = useRef(false)
+  const [finishingSignIn, setFinishingSignIn] = useState(false)
 
   // What Home handed over (@repo/core/stores/pending-checkout-store): only
   // this account's, only while the offer still runs, and only a code that can
@@ -1419,8 +1423,12 @@ function BookContent({ vendorId }: { vendorId: string }) {
    * code checked against the saved car), then the payment opens as it always
    * did.
    */
-  const handlePay = async (customer?: { name?: string; phone?: string }) => {
+  const handlePay = async (
+    customer?: { name?: string; phone?: string },
+    fromVerify = false
+  ) => {
     if (paidRef.current || bookingLockRef.current || loading || savingDraft) return
+    if (finishingSignInRef.current && !fromVerify) return
     if (applyPromo.isPending) return
     const pendingDrafts =
       selectedVehicle === DRAFT_CAR ||
@@ -1443,36 +1451,38 @@ function BookContent({ vendorId }: { vendorId: string }) {
   }
 
   /**
-   * The card's Verify: the sign-in (the same session /verify-otp sets), then
-   * the account's own cars and addresses. A new account, or one with nothing
-   * saved to choose from, goes straight on to pay when this was "Confirm"
-   * (everything else chosen). An account with saved cars or addresses stops
-   * here, signed in, so they can keep what they entered or "Use saved".
+   * The card's Verify: the sign-in (the same session /verify-otp sets). A
+   * new account goes straight on to pay when this was "Confirm" (everything
+   * else chosen): it has nothing saved to choose from, and no credit or
+   * vouchers. A returning account stops here, signed in, so the page can
+   * show what is theirs: "Use saved" for their cars and addresses, and their
+   * credit and vouchers, before they tap Pay.
    */
   const handleVerify = async () => {
+    if (finishingSignInRef.current) return
     const payAfter = nextStep === 'signin'
-    const ok = await signIn.verify()
-    if (!ok) return
-    setSignedInHere(true)
-    setSignInOpen(false)
-    const [cars, places] = await Promise.all([
-      fetchVehicles().catch(() => [] as typeof vehicles),
-      fetchAddresses().catch(() => [] as typeof addresses),
-    ])
-    const user = useAuthStore.getState().user
-    const hasSavedChoice =
-      (carDraftReady && cars.length > 0) ||
-      (usesAddress && draftAddress !== null && places.length > 0)
-    if (!payAfter || hasSavedChoice || user?.name === 'User') {
-      requestAnimationFrame(() => goToStep('signin'))
-      return
+    finishingSignInRef.current = true
+    setFinishingSignIn(true)
+    try {
+      const ok = await signIn.verify()
+      if (!ok) return
+      setSignedInHere(true)
+      setSignInOpen(false)
+      const user = useAuthStore.getState().user
+      if (!payAfter || !signIn.isNew) {
+        requestAnimationFrame(() => goToStep('signin'))
+        return
+      }
+      // Razorpay's sheet is filled with the number just verified, and the
+      // name the new account gave.
+      await handlePay(
+        { name: signIn.name.trim() || user?.name, phone: signIn.phone },
+        true
+      )
+    } finally {
+      finishingSignInRef.current = false
+      setFinishingSignIn(false)
     }
-    // Razorpay's sheet is filled with the number just verified, and the
-    // name a new account gave.
-    await handlePay({
-      name: signIn.isNew ? signIn.name.trim() : user?.name,
-      phone: signIn.phone,
-    })
   }
 
   // A guest's booking is kept on the phone as it is chosen (0062), for
@@ -2332,7 +2342,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
         <CheckoutSignInCard
           signIn={signIn}
           headingRef={signInStepRef}
-          busy={savingDraft || loading}
+          busy={savingDraft || loading || finishingSignIn}
           onVerify={() => void handleVerify()}
           verifyLabel={
             nextStep === 'signin' && toPay != null && toPay > 0 ? (
@@ -2616,7 +2626,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
             <MainAction
               // Disabled only while a payment is opening. Before that it is
               // never a dead end: it names what is missing and goes there.
-              disabled={loading || savingDraft}
+              disabled={loading || savingDraft || finishingSignIn}
               aria-describedby={
                 vendor?.outsideServiceCity
                   ? 'checkout-outside-city checkout-cta-hint'

@@ -58,6 +58,8 @@ test.describe('the landing page is the app (0062) @p0', () => {
     await chip.click()
     await expect(chip).toHaveAttribute('aria-pressed', 'true')
     await expect(page.getByText('Nearest first from Nungambakkam')).toBeVisible()
+    // The sorted list has landed (the previous one stays, dimmed, until then).
+    await expect(page.locator('main [aria-busy="true"]')).toHaveCount(0)
 
     const distances = page.locator('main [data-garage-card] [data-distance]')
     await expect(distances.first()).toHaveText(/^~[\d.]+ (km|m) · ~\d+ (min|h)/)
