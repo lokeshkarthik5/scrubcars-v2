@@ -167,8 +167,10 @@ export function GarageForm({
       : !pickupAgreed
         ? 'Tick that the garage signed the pickup & drop agreement, or turn pickup off.'
         : null
-  const fieldsProblem = garageFieldsProblem(form)
-  const missing = missingForCreate(form, services)
+  // A doorstep-only garage needs no address or pincode (0061).
+  const atGarage = bookingMode !== 'doorstep'
+  const fieldsProblem = garageFieldsProblem(form, atGarage)
+  const missing = missingForCreate(form, services, atGarage)
 
   const toggle = <T,>(list: T[], item: T): T[] =>
     list.includes(item) ? list.filter((x) => x !== item) : [...list, item]
@@ -435,15 +437,21 @@ export function GarageForm({
 
   const locationSection = (
     <ScSection title="Location">
-      {field('address', 'Address')}
+      {field('address', atGarage ? 'Address' : 'Address (optional)')}
       <div className="grid grid-cols-2 gap-3">
         {field('city', 'City')}
-        {field('pincode', 'Pincode', {
+        {field('pincode', atGarage ? 'Pincode' : 'Pincode (optional)', {
           placeholder: '6 digits',
           inputMode: 'numeric',
           className: 'font-numeric',
         })}
       </div>
+      {!atGarage && (
+        <p className="text-[12px] text-text-secondary">
+          Doorstep only: the map pin is enough. Add the address if customers
+          will ever come to the garage.
+        </p>
+      )}
       {field('mapsUrl', 'Google Maps link (optional)', {
         placeholder: 'https://maps.app.goo.gl/…',
       })}

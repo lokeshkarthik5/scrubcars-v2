@@ -258,6 +258,10 @@ export function useGarageDraft(id: string) {
   const [draft, setDraft] = useState<GarageDraft | null>(null)
   // How customers book and Pickup & drop, as loaded: the tiles on Location
   // save them on their own (HowCustomersBook) and read these once.
+  // Whether customers come to the garage, as last saved: the address and
+  // pincode are needed only then (0061). "How customers book" saves on its
+  // own, so this follows the garage as read on load and after each such save.
+  const [atGarage, setAtGarage] = useState(true)
   const [bookingMode, setBookingMode] = useState<
     | (Pick<
         AdminVendorDetail,
@@ -400,7 +404,7 @@ export function useGarageDraft(id: string) {
   // dropped here for an incomplete price used to vanish from customers with
   // no message. A row that is not ready says so and holds the save.
   const servicesBlock = draft ? servicesSaveBlock(draft.services) : null
-  const fieldsProblem = draft ? garageFieldsProblem(draft.form) : null
+  const fieldsProblem = draft ? garageFieldsProblem(draft.form, atGarage) : null
   const saveBlock = mustReload
     ? 'Saved. Reload the page to keep editing.'
     : (fieldsProblem ?? (servicesBlock ? `${servicesBlock} (Services)` : null))
@@ -429,6 +433,7 @@ export function useGarageDraft(id: string) {
       const loaded = toDraft(v)
       setSaved(loaded)
       setDraft(loaded)
+      setAtGarage(v.dropinEnabled)
       setBookingMode(
         (prev) =>
           prev ?? {
@@ -502,6 +507,7 @@ export function useGarageDraft(id: string) {
       const v = await getAdminVendor(id)
       if (read !== checklistRead.current) return
       setChecklist((prev) => mergeChecklist(prev, v))
+      setAtGarage(v.dropinEnabled)
     } catch {
       // The change itself landed; the panel catches up on the next save
       // or reload.
@@ -965,6 +971,7 @@ export function useGarageDraft(id: string) {
     draft,
     setSaved,
     bookingMode,
+    atGarage,
     confirming,
     geoSource,
     geoConfirmedAt,

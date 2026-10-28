@@ -63,3 +63,17 @@ describe('missingForCreate', () => {
     expect(missingForCreate(READY, [emptyServiceRow()])).toBe(0)
   })
 })
+
+describe('a doorstep-only garage (0061)', () => {
+  const doorstep = { ...READY, address: '', pincode: '' }
+
+  test('needs no address, and its pincode may be empty', () => {
+    expect(missingForCreate(doorstep, [], false)).toBe(0)
+    expect(missingForCreate(doorstep, [])).toBe(2)
+    expect(isRequiredField('address', false)).toBe(false)
+    expect(isRequiredField('pincode', false)).toBe(true)
+    expect(requiredFieldFilled('pincode', doorstep, false)).toBe(true)
+    expect(requiredFieldFilled('pincode', { ...doorstep, pincode: '6000' }, false)).toBe(false)
+    expect(requiredFieldFilled('pincode', { ...doorstep, pincode: '600040' }, false)).toBe(true)
+  })
+})

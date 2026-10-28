@@ -20,7 +20,6 @@ import {
   IconTrash,
 } from '@tabler/icons-react'
 import { ScSelect } from '@repo/ui/sc/select'
-import { ScTextarea } from '@repo/ui/sc/input'
 import { ApiError } from '@repo/core/api/client'
 import { describeAdminService, getAdminAiConfig } from '@repo/core/api/admin'
 import { SERVICE_CATEGORY_OPTIONS } from '@repo/core/categories'
@@ -28,6 +27,13 @@ import { templatesNotIn, type ServiceTemplate } from '@repo/core/service-templat
 import type { ServiceMedia } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
 import { ServiceMediaPanel } from '@/components/service-media-panel'
+import {
+  DescriptionField,
+  initialDescriptionMode,
+  type DescriptionMode,
+} from '@/components/description-field'
+import { CATEGORY_COMMISSION_PERCENT } from '@repo/core/commission-rates'
+import { DEFAULT_SERVICE_DURATION_MINS } from '@repo/core/service-duration'
 import {
   DURATION_PRESETS,
   DURATION_UNITS,
@@ -262,21 +268,26 @@ export function ServicesEditor({
       return next
     })
 
-  /** One description from the API, into the row's field. Throws its error. */
-  const describe = async (row: ServiceRow) => {
+  /**
+   * One description from the API, into the row's field. Throws its error.
+   * In Points mode it asks for points, which come back as "- " lines (0061);
+   * the field is only sent then, as an older API refuses it.
+   */
+  const describe = async (row: ServiceRow, format: DescriptionMode = 'paragraph') => {
     const { description } = await describeAdminService({
       name: row.name.trim(),
       category: row.category,
       pricingType: row.pricingType,
       durationMins: rowDurationMins(row),
       garageName: garageName.trim() || undefined,
+      ...(format === 'points' && { format: 'points' as const }),
     })
     // Another tab was opened meanwhile: see `mounted`.
     if (!mounted.current) return
     update(row.key, { description })
   }
 
-  const writeOne = async (row: ServiceRow) => {
+  const writeOne = async (row: ServiceRow, format: DescriptionMode) => {
     setWritingKey(row.key)
     setAiErrors((prev) => {
       const next = { ...prev }
@@ -284,7 +295,7 @@ export function ServicesEditor({
       return next
     })
     try {
-      await describe(row)
+      await describe(row, format)
       // Text was already there (the garage's, or typed and not saved):
       // keep it for Undo rather than lose it to one tap.
       if (row.description.trim()) setReplaced((prev) => ({ ...prev, [row.key]: row.description }))
@@ -462,7 +473,7 @@ export function ServicesEditor({
                   writing={writingKey === row.key}
                   aiBusy={aiBusy}
                   aiError={aiErrors[row.key]}
-                  onWrite={() => void writeOne(row)}
+                  onWrite={(format) => void writeOne(row, format)}
                   canUndo={row.key in replaced}
                   onUndo={() => {
                     update(row.key, { description: replaced[row.key] })
@@ -527,7 +538,7 @@ function ServiceRowItem({
   writing: boolean
   aiBusy: boolean
   aiError?: string
-  onWrite: () => void
+  onWrite: (format: DescriptionMode) => void
   canUndo: boolean
   onUndo: () => void
   onDescription: (description: string) => void
@@ -542,6 +553,11 @@ function ServiceRowItem({
   const id = useId()
   const label = `Service ${number}`
   const name = row.name.trim() || label
+  // Points or Paragraph: points when the text already has "- " lines.
+  const [descriptionMode, setDescriptionMode] = useState<DescriptionMode>(() =>
+    initialDescriptionMode(row.description)
+  )
+  const commissionId = `${id}-commission`
   const missing = missingServiceFields(row)
   const problem = serviceRowProblem(row)
   const problemId = `${id}-problem`
@@ -642,7 +658,7 @@ function ServiceRowItem({
             onChange={(e) => onDuration(e.target.value)}
             className="min-h-11 appearance-none @xl:w-full rounded-full border border-border bg-transparent pl-3 pr-7 font-numeric text-[13.5px] font-medium text-text-primary outline-none transition-colors focus:border-text-secondary"
           >
-            <option value="">Duration</option>
+            <option value="">Not set</option>
             {DURATION_PRESETS.map((preset) => (
               <option key={preset} value={String(preset)}>
                 {durationLabel(preset)}
@@ -747,6 +763,17 @@ function ServiceRowItem({
         </div>
       )}
 
+      {/* No duration (0061): it books, holding the default in the slot
+          calendar, but the admin should know. */}
+      {mins == null && row.name.trim() && (
+        <p className="mt-2 flex flex-wrap items-center gap-x-1.5 text-[12.5px] text-tone-attention-text">
+          <span className="font-medium">Duration not set</span>
+          <span className="text-text-secondary">
+            · {DEFAULT_SERVICE_DURATION_MINS} min is held in the calendar
+          </span>
+        </p>
+      )}
+
       {/* Amber, as errors are: what this row needs before the garage can be
           saved. */}
       {problem && (
@@ -764,47 +791,50 @@ function ServiceRowItem({
       {open && (
         <div id={moreId} className="mt-4 flex flex-col gap-3.5 border-t border-line pt-4">
           <div className="flex flex-col gap-1.5">
-            <div className="flex min-h-6 items-center justify-between gap-2">
-              <label htmlFor={descriptionId} className="text-[12px] font-medium text-text-secondary">
-                Description
-              </label>
-              {aiOn ? (
-                <div className="-my-2.5 -mr-2 flex items-center">
-                  {/* What the AI replaced, one tap away. */}
-                  {canUndo && !writing && (
+            <DescriptionField
+              id={descriptionId}
+              label={label}
+              value={row.description}
+              onChange={onDescription}
+              mode={descriptionMode}
+              onModeChange={setDescriptionMode}
+              action={
+                aiOn ? (
+                  <div className="-my-2.5 -mr-2 flex items-center">
+                    {/* What the AI replaced, one tap away. */}
+                    {canUndo && !writing && (
+                      <button
+                        type="button"
+                        onClick={onUndo}
+                        aria-label={`Undo, put back the earlier description of ${name}`}
+                        className="inline-flex min-h-11 items-center rounded-[10px] px-2 text-[12.5px] font-medium text-text-secondary transition-colors hover:text-text-primary"
+                      >
+                        Undo
+                      </button>
+                    )}
                     <button
                       type="button"
-                      onClick={onUndo}
-                      aria-label={`Undo, put back the earlier description of ${name}`}
-                      className="inline-flex min-h-11 items-center rounded-[10px] px-2 text-[12.5px] font-medium text-text-secondary transition-colors hover:text-text-primary"
+                      disabled={!row.name.trim() || aiBusy || saving}
+                      onClick={() => onWrite(descriptionMode)}
+                      title={row.name.trim() ? undefined : 'Name the service first'}
+                      className="inline-flex min-h-11 items-center gap-1 rounded-[10px] px-2 text-[12.5px] font-medium text-text-secondary transition-colors hover:text-text-primary disabled:opacity-50"
                     >
-                      Undo
+                      <IconSparkles size={15} stroke={1.5} aria-hidden="true" />
+                      {/* Says it will replace what is there; Undo puts it back.
+                          In Points mode the AI keeps the points (0061). */}
+                      {writing
+                        ? 'Writing…'
+                        : row.description.trim()
+                          ? 'Rewrite with AI'
+                          : descriptionMode === 'points'
+                            ? 'Write as points with AI'
+                            : 'Write with AI'}
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    disabled={!row.name.trim() || aiBusy || saving}
-                    onClick={onWrite}
-                    title={row.name.trim() ? undefined : 'Name the service first'}
-                    className="inline-flex min-h-11 items-center gap-1 rounded-[10px] px-2 text-[12.5px] font-medium text-text-secondary transition-colors hover:text-text-primary disabled:opacity-50"
-                  >
-                    <IconSparkles size={15} stroke={1.5} aria-hidden="true" />
-                    {/* Says it will replace what is there; Undo puts it back. */}
-                    {writing ? 'Writing…' : row.description.trim() ? 'Rewrite with AI' : 'Write with AI'}
-                  </button>
-                </div>
-              ) : (
-                <span className="text-[12px] text-text-muted">optional</span>
-              )}
-            </div>
-            <ScTextarea
-              id={descriptionId}
-              value={row.description}
-              aria-label={`${label} description`}
-              placeholder="What the service includes (optional)"
-              rows={2}
-              onChange={(e) => onDescription(e.target.value)}
-              className="px-3 py-2.5 text-[14px] leading-snug"
+                  </div>
+                ) : (
+                  <span className="text-[12px] text-text-muted">optional</span>
+                )
+              }
             />
             {aiError && (
               <p role="alert" className="text-[12.5px] text-error">
@@ -840,6 +870,40 @@ function ServiceRowItem({
                 </option>
               ))}
             </ScSelect>
+          </div>
+
+          {/* Statistics only (0061, owner: "percent only"): payouts keep the
+              category's rate. */}
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor={commissionId} className="text-[12px] font-medium text-text-secondary">
+              Commission % (optional)
+            </label>
+            <div className="relative max-w-[180px]">
+              <input
+                id={commissionId}
+                type="text"
+                inputMode="decimal"
+                value={row.commissionRate ?? ''}
+                aria-label={`${label} commission percent`}
+                placeholder={`${CATEGORY_COMMISSION_PERCENT[row.category]}`}
+                onChange={(e) => update({ commissionRate: e.target.value })}
+                aria-invalid={flag('commissionRate')['aria-invalid']}
+                aria-describedby={[`${commissionId}-hint`, flag('commissionRate')['aria-describedby']]
+                  .filter(Boolean)
+                  .join(' ')}
+                className={cn(FIELD, 'pr-8 font-numeric text-[14px]', flag('commissionRate').className)}
+              />
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[13px] text-text-muted"
+              >
+                %
+              </span>
+            </div>
+            <p id={`${commissionId}-hint`} className="text-[12px] text-text-muted">
+              Empty uses the {SERVICE_CATEGORY_OPTIONS.find((c) => c.value === row.category)?.label.toLowerCase() ?? 'category'} rate,{' '}
+              {CATEGORY_COMMISSION_PERCENT[row.category]}%. For Statistics only; the first 25 bookings stay free.
+            </p>
           </div>
 
           {/* One place for a service's photos and video. They attach to a

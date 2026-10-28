@@ -196,13 +196,36 @@ export function markDate(at: string | Date, now: number = Date.now()): string {
 
 type MarkTiming = Pick<OnboardingMark, 'status' | 'askedAt'> & {
   receivedAt?: string | null
+  /** A full mark's checklist (0061)… */
+  items?: ReadonlyArray<{ done: boolean }>
+  /** …or a brief's counts of it. */
+  itemsDone?: number
+  itemsTotal?: number
 }
 
-/** "To ask", "Asked 24 Oct", "Asked today", "Received 25 Oct". */
+/** A mark's checklist progress, from its items or its brief's counts. */
+export function markProgress(mark: MarkTiming): { done: number; total: number } {
+  if (mark.items && mark.items.length > 0) {
+    return {
+      done: mark.items.filter((item) => item.done).length,
+      total: mark.items.length,
+    }
+  }
+  return { done: mark.itemsDone ?? 0, total: mark.itemsTotal ?? 0 }
+}
+
+/**
+ * "To ask", "Asked 24 Oct", "Asked today", "Received 25 Oct"; an open mark
+ * with a checklist says how far it is instead: "1 of 4 checked" (0061).
+ */
 export function markStatusText(
   mark: MarkTiming,
   now: number = Date.now()
 ): string {
+  const progress = markProgress(mark)
+  if (mark.status !== 'received' && progress.total > 0) {
+    return `${progress.done} of ${progress.total} checked`
+  }
   if (mark.status === 'asked' && mark.askedAt) {
     return `Asked ${markDate(mark.askedAt, now)}`
   }

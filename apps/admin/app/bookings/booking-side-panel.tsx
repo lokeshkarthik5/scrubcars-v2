@@ -20,6 +20,7 @@ import { PhoneLink } from '@/components/phone-link'
 import { SidePanel, SidePanelFacts, SidePanelSection } from '@/components/table'
 import { bookingNextStep } from '@/lib/booking-next-step'
 import {
+  bookedLine,
   bookingTypeLabel,
   cancellationLabel,
   formatRupees,
@@ -118,6 +119,9 @@ export function BookingSidePanel({
             ]
               .filter(Boolean)
               .join(' · ')}
+          </p>
+          <p className="truncate text-[12px] text-text-muted">
+            {bookedLine(b.createdAt)}
           </p>
         </>
       }

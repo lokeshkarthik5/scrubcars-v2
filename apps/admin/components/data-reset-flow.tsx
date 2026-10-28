@@ -15,7 +15,10 @@ import type {
 } from '@repo/core/api/admin'
 import { ApiError } from '@repo/core/api/client'
 import { errorMessage } from '@repo/core/api/hooks/use-discounts'
-import { useExecuteDataReset } from '@repo/core/api/hooks/use-admin-data-reset'
+import {
+  useDeleteTestBooking,
+  useExecuteDataReset,
+} from '@repo/core/api/hooks/use-admin-data-reset'
 import { cn } from '@repo/core/utils'
 import { downloadCsv, formatRupees, formatWhen, todayIst } from '@/lib/bookings'
 import { dataResetCsv, phraseTyped, plural } from '@/lib/data-reset'
@@ -313,16 +316,22 @@ export function DryRunSummary({
   preview,
   downloaded,
   onDownloaded,
+  download = true,
 }: {
   preview: DataResetPreview
   downloaded: boolean
   onDownloaded: () => void
+  /**
+   * The list to download, for a run over many rows. One test booking
+   * (0061) has no list to keep: its audit record names everything.
+   */
+  download?: boolean
 }) {
   // Everything in scope this run leaves: kept for a reason, or not ticked.
   const keptRows = [...preview.chains, ...preview.checkouts].filter(
     (row) => !row.selected
   )
-  const download = () => {
+  const downloadList = () => {
     downloadCsv(dataResetCsv(preview), `detlio-test-data-${todayIst()}.csv`)
     onDownloaded()
   }
@@ -383,21 +392,23 @@ export function DryRunSummary({
         </p>
       )}
 
-      <div className="flex flex-col gap-1">
-        <ScButton
-          variant="secondary"
-          fullWidth={false}
-          onClick={download}
-          className="flex min-h-11 items-center justify-center gap-1.5 px-4 text-[13px]"
-        >
-          <IconDownload size={16} aria-hidden /> Download list (CSV)
-        </ScButton>
-        <p className="text-[12px] text-text-muted">
-          {downloaded
-            ? 'Downloaded. Keep it with today’s database backup.'
-            : 'Every row in scope, deleted or kept, and why. Keep it with today’s database backup.'}
-        </p>
-      </div>
+      {download && (
+        <div className="flex flex-col gap-1">
+          <ScButton
+            variant="secondary"
+            fullWidth={false}
+            onClick={downloadList}
+            className="flex min-h-11 items-center justify-center gap-1.5 px-4 text-[13px]"
+          >
+            <IconDownload size={16} aria-hidden /> Download list (CSV)
+          </ScButton>
+          <p className="text-[12px] text-text-muted">
+            {downloaded
+              ? 'Downloaded. Keep it with today’s database backup.'
+              : 'Every row in scope, deleted or kept, and why. Keep it with today’s database backup.'}
+          </p>
+        </div>
+      )}
     </div>
   )
 }
@@ -405,11 +416,15 @@ export function DryRunSummary({
 /**
  * The last step: who is doing it, that there is a backup, and the phrase.
  * The one red button on the screen, and only live once all three are given.
+ *
+ * With `bookingId` it deletes that one test booking (0061) through its own
+ * route, which needs no backup tick: only the typed phrase.
  */
 export function ConfirmDelete({
   preview,
   scope,
   only,
+  bookingId,
   onDone,
   onStale,
   onPendingChange,
@@ -417,6 +432,7 @@ export function ConfirmDelete({
   preview: DataResetPreview
   scope: DataResetScope
   only?: { chainIds: string[]; checkoutIds: string[] }
+  bookingId?: string
   onDone: (result: DataResetResult) => void
   /** The dry run is out of date: run it again. */
   onStale: () => void
@@ -427,7 +443,9 @@ export function ConfirmDelete({
    */
   onPendingChange?: (pending: boolean) => void
 }) {
-  const execute = useExecuteDataReset()
+  const reset = useExecuteDataReset()
+  const single = useDeleteTestBooking()
+  const execute = bookingId ? single : reset
   const pending = execute.isPending
   // The end is told from the cleanup, so the caller hears it even when this
   // form is gone by then: the delete's answer (onDone) lands before the
@@ -438,7 +456,8 @@ export function ConfirmDelete({
     onPendingChange?.(true)
     return () => onPendingChange?.(false)
   }, [pending, onPendingChange])
-  const [backup, setBackup] = useState(false)
+  // One test booking needs no backup tick (0061).
+  const [backup, setBackup] = useState(Boolean(bookingId))
   const [phrase, setPhrase] = useState('')
   const [error, setError] = useState<{
     message: string
@@ -450,7 +469,29 @@ export function ConfirmDelete({
   const submit = () => {
     if (!ready || execute.isPending) return
     setError(null)
-    execute.mutate(
+    const handlers = {
+      onSuccess: onDone,
+      onError: (err: unknown) =>
+        setError({
+          message: errorMessage(err, "Couldn't delete. Nothing was deleted."),
+          stale: err instanceof ApiError && err.code === 'PREVIEW_STALE',
+        }),
+    }
+    if (bookingId) {
+      single.mutate(
+        {
+          bookingId,
+          input: {
+            unknownIds: preview.lookups.unknownIds,
+            selectionHash: preview.selectionHash,
+            confirmText: phrase,
+          },
+        },
+        handlers
+      )
+      return
+    }
+    reset.mutate(
       {
         scope,
         only,
@@ -459,25 +500,20 @@ export function ConfirmDelete({
         confirmText: phrase,
         backupConfirmed: true,
       },
-      {
-        onSuccess: onDone,
-        onError: (err) =>
-          setError({
-            message: errorMessage(err, "Couldn't delete. Nothing was deleted."),
-            stale: err instanceof ApiError && err.code === 'PREVIEW_STALE',
-          }),
-      }
+      handlers
     )
   }
 
   return (
     <div className="flex flex-col gap-3">
       <SignedAs />
-      <ScCheckbox
-        label="I have a database backup from today"
-        checked={backup}
-        onChange={setBackup}
-      />
+      {!bookingId && (
+        <ScCheckbox
+          label="I have a database backup from today"
+          checked={backup}
+          onChange={setBackup}
+        />
+      )}
       <div className="flex flex-col gap-1">
         <ScInput
           id="reset-phrase"

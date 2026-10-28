@@ -78,12 +78,26 @@ export const REQUIRED_GARAGE_FIELDS: ReadonlyArray<{ key: GarageTextField; fille
   { key: 'pincode', filled: (v) => /^\d{6}$/.test(v.trim()) },
 ]
 
-export const isRequiredField = (key: string): key is GarageTextField =>
-  REQUIRED_GARAGE_FIELDS.some((field) => field.key === key)
+/**
+ * The fields Create needs for this garage: a doorstep-only one (`atGarage`
+ * false, 0061) needs no address, and its pincode may be empty.
+ */
+export function requiredGarageFields(atGarage = true): ReadonlyArray<{
+  key: GarageTextField
+  filled: (value: string) => boolean
+}> {
+  if (atGarage) return REQUIRED_GARAGE_FIELDS
+  return REQUIRED_GARAGE_FIELDS.filter((field) => field.key !== 'address').map((field) =>
+    field.key === 'pincode' ? { key: field.key, filled: (v: string) => /^(\d{6})?$/.test(v.trim()) } : field
+  )
+}
+
+export const isRequiredField = (key: string, atGarage = true): key is GarageTextField =>
+  requiredGarageFields(atGarage).some((field) => field.key === key)
 
 /** Whether a required field holds what Create takes. True for an optional field. */
-export function requiredFieldFilled(key: GarageTextField, text: GarageFormText): boolean {
-  const field = REQUIRED_GARAGE_FIELDS.find((f) => f.key === key)
+export function requiredFieldFilled(key: GarageTextField, text: GarageFormText, atGarage = true): boolean {
+  const field = requiredGarageFields(atGarage).find((f) => f.key === key)
   return field ? field.filled(text[key]) : true
 }
 
@@ -92,8 +106,8 @@ export function requiredFieldFilled(key: GarageTextField, text: GarageFormText):
  * right yet, and each service still missing a price (or a name). The review
  * screen says it as "Fill in the 3 missing fields to create".
  */
-export function missingForCreate(text: GarageFormText, services: ServiceRow[]): number {
-  const fields = REQUIRED_GARAGE_FIELDS.filter((field) => !field.filled(text[field.key])).length
+export function missingForCreate(text: GarageFormText, services: ServiceRow[], atGarage = true): number {
+  const fields = requiredGarageFields(atGarage).filter((field) => !field.filled(text[field.key])).length
   const rows = services.filter((row) => missingServiceFields(row).length > 0).length
   return fields + rows
 }
