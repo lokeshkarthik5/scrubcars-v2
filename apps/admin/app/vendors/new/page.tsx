@@ -1,9 +1,10 @@
 'use client'
 
-import { use, useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useEffect, useMemo, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { PageHeader } from '@repo/ui/sc/page-header'
+import { SkeletonList } from '@repo/ui/sc/skeleton'
 import { ApiError } from '@repo/core/api/client'
 import {
   extractGarageImport,
@@ -59,13 +60,43 @@ let reviews = 0
  * is the ordinary POST /admin/vendors either way, and an import is always
  * saved as Pending and not verified.
  */
-export default function NewVendorPage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>
-}) {
-  const query = use(searchParams)
+export default function NewVendorPage() {
+  // Read in the browser: this page is prerendered, so the searchParams prop
+  // would be the build's empty one and ?by=hand would never show the form.
+  // useSearchParams needs a Suspense boundary for the static build.
+  return (
+    <Suspense fallback={<SkeletonList count={2} itemClassName="h-40" />}>
+      <NewVendor />
+    </Suspense>
+  )
+}
+
+function NewVendor() {
   const router = useRouter()
+  // Which view shows is the page's own state, seeded from ?by=hand and kept
+  // in step with it. A link from ?by=hand back to the bare /vendors/new on
+  // this prerendered page changed nothing in the production build (CI E2E,
+  // 29 Oct): the form stayed up. So Back sets the state itself, and the
+  // browser's own back and forward re-read the address.
+  const byHandParam = useSearchParams().get('by') === 'hand'
+  const [byHand, setByHand] = useState(byHandParam)
+  // Follows the address whenever it does change (adjusted during render,
+  // React's pattern for state derived from an input, not in an effect).
+  const [seenParam, setSeenParam] = useState(byHandParam)
+  if (seenParam !== byHandParam) {
+    setSeenParam(byHandParam)
+    setByHand(byHandParam)
+  }
+  useEffect(() => {
+    const sync = () =>
+      setByHand(new URLSearchParams(window.location.search).get('by') === 'hand')
+    window.addEventListener('popstate', sync)
+    return () => window.removeEventListener('popstate', sync)
+  }, [])
+  const leaveByHand = () => {
+    setByHand(false)
+    router.replace('/vendors/new')
+  }
   const [step, setStep] = useState<Step>({ kind: 'start' })
   const [reading, setReading] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -95,13 +126,13 @@ export default function NewVendorPage({
     return () => URL.revokeObjectURL(previewUrl)
   }, [previewUrl])
 
-  if (query.by === 'hand') {
+  if (byHand) {
     return (
       <div className="mx-auto w-full max-w-[640px] space-y-5">
         <PageHeader
           title="Add garage"
           subtitle="Fill in by hand"
-          backHref="/vendors/new"
+          onBack={leaveByHand}
         />
         {/* To every garage, not the Live default: a new garage is usually
             not live yet, and it is the first card there, newest first. */}

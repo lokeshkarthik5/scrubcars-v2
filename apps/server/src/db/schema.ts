@@ -808,6 +808,10 @@ export const services = pgTable(
     priceSuv: decimal('price_suv', { precision: 10, scale: 2 }),
     durationMins: integer('duration_mins').notNull(),
     isActive: boolean('is_active').default(true).notNull(),
+    // Set when a service bookings name is deleted: it stays switched off,
+    // for those bookings to read, and is listed nowhere again. A service
+    // never booked is deleted outright instead. See 0060.
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
   },
   (table) => [
     index('services_vendor_id_idx').on(table.vendorId),

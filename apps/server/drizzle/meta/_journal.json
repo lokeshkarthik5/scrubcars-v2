@@ -423,6 +423,13 @@
       "breakpoints": true
     },
     {
+      "idx": 60,
+      "version": "7",
+      "when": 1788093389735,
+      "tag": "0060_service_deleted_at",
+      "breakpoints": true
+    },
+    {
       "idx": 61,
       "version": "7",
       "when": 1788179789735,
