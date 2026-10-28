@@ -189,3 +189,23 @@ export async function resolveMapsLink(rawUrl: string): Promise<MapsLinkResult> {
 
   return { lat: coords?.lat ?? null, lng: coords?.lng ?? null, address, warning }
 }
+
+/**
+ * The pin a full Google Maps link already carries (`@lat,lng` or the
+ * `!3d…!4d…` place blob, read in resolveMapsLink's order), without fetching
+ * anything. Null for a short link, a directions link (its first pair is the
+ * route's start) or a link with no coordinates: those go through
+ * resolveMapsLink. Add lead uses it first, so a full link needs no request.
+ */
+export function coordsInLink(rawUrl: string): { lat: number; lng: number } | null {
+  let url: URL
+  try {
+    url = new URL(rawUrl)
+  } catch {
+    return null
+  }
+  if (!hostAllowed(url) || url.pathname.includes('/dir/')) return null
+  const coords = coordsFromAtSegment(url) ?? coordsFromDataBlob(url)
+  if (!coords || Math.abs(coords.lat) > 90 || Math.abs(coords.lng) > 180) return null
+  return coords
+}

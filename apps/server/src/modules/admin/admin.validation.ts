@@ -169,6 +169,9 @@ export const createVendorSchema = z.object({
   onboardedByName: onboardedByNameSchema.optional(),
   // Services offered (structured: bookable line items)
   services: z.array(serviceInputSchema).max(50).optional(),
+  // The lead this garage was onboarded from (0064, Coverage's "Onboard"):
+  // once created, the lead is linked to it and becomes Onboarded.
+  leadId: z.string().uuid().optional(),
 })
   .refine((data) => (data.lat === undefined) === (data.lng === undefined), {
     message: 'lat and lng must be provided together',

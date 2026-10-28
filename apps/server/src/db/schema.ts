@@ -60,6 +60,7 @@ import type {
   RevokeKind,
 } from '../lib/certification.js'
 import type { CreditEntryKind, GiftDesign, GiftStatus } from '../lib/gift-credit.js'
+import type { LeadPinSource, LeadSource, LeadStatus } from '../lib/leads.js'
 import type {
   ClaimDecision,
   ClaimRoute,
@@ -4556,5 +4557,85 @@ export const zones = pgTable(
     check('zones_lat_check', sql`${table.lat} between -90 and 90`),
     check('zones_lng_check', sql`${table.lng} between -180 and 180`),
     check('zones_target_check', sql`${table.target} between 1 and 1000`),
+  ]
+)
+
+/**
+ * A garage the team wants to sign up (0064, Coverage & leads). Customers
+ * never see leads. `name` / `phone` are what the team typed or confirmed;
+ * what came from Google sits apart in `google_*` with `googleFetchedAt`,
+ * refreshed or cleared after 30 days (lib/places/refresh.ts, Google's
+ * terms). `zoneId` is worked out from the pin by `zoneFor` (lib/zones.ts),
+ * or is the zone a pin-less lead was added in. `vendorId` is the garage it
+ * became (status `onboarded`).
+ */
+export const leads = pgTable(
+  'leads',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: varchar('name', { length: 120 }),
+    phone: varchar('phone', { length: 15 }),
+    address: varchar('address', { length: 300 }),
+    mapsUrl: text('maps_url'),
+    lat: doublePrecision('lat'),
+    lng: doublePrecision('lng'),
+    pinSource: text('pin_source').$type<LeadPinSource>(),
+    zoneId: uuid('zone_id').references(() => zones.id, { onDelete: 'restrict' }),
+    source: text('source').$type<LeadSource>().notNull(),
+    status: text('status').$type<LeadStatus>().default('to_target').notNull(),
+    notInterestedReason: varchar('not_interested_reason', { length: 200 }),
+    notInterestedOn: date('not_interested_on', { mode: 'string' }),
+    retryAfter: date('retry_after', { mode: 'string' }),
+    assignedLoginId: uuid('assigned_login_id').references(() => adminLogins.id, { onDelete: 'set null' }),
+    assignedName: varchar('assigned_name', { length: 100 }),
+    lastNote: text('last_note'),
+    lastNoteBy: varchar('last_note_by', { length: 100 }),
+    lastNoteAt: timestamp('last_note_at', { withTimezone: true }),
+    vendorId: uuid('vendor_id').references(() => vendors.id, { onDelete: 'set null' }),
+    onboardedAt: timestamp('onboarded_at', { withTimezone: true }),
+    googlePlaceId: varchar('google_place_id', { length: 300 }),
+    olaPlaceId: varchar('ola_place_id', { length: 300 }),
+    googleName: varchar('google_name', { length: 200 }),
+    googlePhone: varchar('google_phone', { length: 15 }),
+    googleAddress: varchar('google_address', { length: 300 }),
+    googleRating: decimal('google_rating', { precision: 2, scale: 1 }),
+    googleReviewCount: integer('google_review_count'),
+    googleFetchedAt: timestamp('google_fetched_at', { withTimezone: true }),
+    createdByName: varchar('created_by_name', { length: 100 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('leads_zone_id_idx').on(table.zoneId),
+    index('leads_phone_idx').on(table.phone),
+    index('leads_google_fetched_at_idx').on(table.googleFetchedAt).where(sql`${table.googleFetchedAt} IS NOT NULL`),
+    uniqueIndex('leads_vendor_id_key').on(table.vendorId).where(sql`${table.vendorId} IS NOT NULL`),
+    uniqueIndex('leads_google_place_id_key').on(table.googlePlaceId).where(sql`${table.googlePlaceId} IS NOT NULL`),
+    uniqueIndex('leads_ola_place_id_key').on(table.olaPlaceId).where(sql`${table.olaPlaceId} IS NOT NULL`),
+    check('leads_source_check', sql`${table.source} IN ('manual', 'paste', 'google', 'ola', 'customer')`),
+    check('leads_status_check', sql`${table.status} IN ('to_target', 'not_interested', 'onboarded')`),
+    check('leads_pin_source_check', sql`${table.pinSource} IS NULL OR ${table.pinSource} IN ('maps_link', 'map', 'google', 'ola')`),
+    check(
+      'leads_name_check',
+      sql`(${table.name} IS NULL AND ${table.googlePlaceId} IS NOT NULL) OR length(btrim(${table.name})) BETWEEN 1 AND 120`
+    ),
+    check('leads_phone_check', sql`${table.phone} IS NULL OR ${table.phone} ~ '^[0-9]{6,15}$'`),
+    check('leads_google_phone_check', sql`${table.googlePhone} IS NULL OR ${table.googlePhone} ~ '^[0-9]{6,15}$'`),
+    check(
+      'leads_pin_check',
+      sql`(${table.lat} IS NULL AND ${table.lng} IS NULL AND ${table.pinSource} IS NULL) OR (${table.lat} BETWEEN -90 AND 90 AND ${table.lng} BETWEEN -180 AND 180 AND ${table.pinSource} IS NOT NULL)`
+    ),
+    check(
+      'leads_not_interested_check',
+      sql`(${table.status} = 'not_interested') = (${table.notInterestedReason} IS NOT NULL AND ${table.notInterestedOn} IS NOT NULL)`
+    ),
+    check('leads_retry_after_check', sql`${table.retryAfter} IS NULL OR ${table.status} = 'not_interested'`),
+    check('leads_note_check', sql`${table.lastNote} IS NULL OR char_length(${table.lastNote}) <= 500`),
+    check('leads_google_rating_check', sql`${table.googleRating} IS NULL OR ${table.googleRating} BETWEEN 0 AND 5`),
+    check('leads_google_review_count_check', sql`${table.googleReviewCount} IS NULL OR ${table.googleReviewCount} >= 0`),
+    check(
+      'leads_google_fetched_check',
+      sql`${table.googleFetchedAt} IS NOT NULL OR (${table.googleName} IS NULL AND ${table.googlePhone} IS NULL AND ${table.googleAddress} IS NULL AND ${table.googleRating} IS NULL AND ${table.googleReviewCount} IS NULL)`
+    ),
   ]
 )

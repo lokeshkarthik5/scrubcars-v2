@@ -42,6 +42,9 @@ import {
 import { adminBypassReportRoutes } from '../bypass-reports/bypass-reports.routes.js'
 import { adminTodayRoutes } from '../today/today.routes.js'
 import { adminGarageBoardRoutes } from '../garage-board/garage-board.routes.js'
+import { adminCoverageRoutes } from '../coverage/coverage.routes.js'
+import { adminLeadsRoutes } from '../leads/leads.routes.js'
+import { adminPlacesRoutes } from '../places/places.routes.js'
 import * as adminController from './admin.controller.js'
 import {
   adminCancelBookingSchema,
@@ -473,6 +476,11 @@ adminRoutes.route('/today', adminTodayRoutes)
 
 // The Garages page's target counter and colour tags (0064).
 adminRoutes.route('/garage-board', adminGarageBoardRoutes)
+
+// Coverage & leads (0064): zones, the team's leads and the zone finder.
+adminRoutes.route('/coverage', adminCoverageRoutes)
+adminRoutes.route('/leads', adminLeadsRoutes)
+adminRoutes.route('/places', adminPlacesRoutes)
 
 // Add garage's import from a poster, photo, PDF or Tally file, and the
 // owner-phone lookup. Nested here for the same cookie reason as discounts.

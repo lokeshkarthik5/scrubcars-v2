@@ -280,6 +280,19 @@ export const env = {
   geoAutocompleteRateLimit: Number(
     process.env.GEO_AUTOCOMPLETE_RATE_LIMIT ?? '60'
   ),
+
+  // ─── Zone finder (0064, Coverage & leads) ──────────────────────────────────
+  // Google Places API (New) for "Find businesses in a zone". Unset means
+  // Google is skipped and the panel says "Google not connected"; Ola (the
+  // key above) still searches. Server only; the key needs a monthly cap set
+  // in Google Cloud (docs: reference GOOGLE-PLACES-KEY-STEPS.md).
+  googlePlacesApiKey: process.env.GOOGLE_PLACES_API_KEY?.trim() || undefined,
+  // Searches per signed-in admin per hour. Each one is up to five Google
+  // requests (one per kind ticked), the paid part.
+  placesSearchRateLimit: Number(process.env.PLACES_SEARCH_RATE_LIMIT ?? '30'),
+  // E2E only: the finder answers from a fixed list (lib/places/fake.ts) and
+  // neither Google nor Ola is called.
+  placesFake: readTestFake('PLACES_FAKE', 'replaces Google and Ola place searches with a fixed list'),
   /**
    * Whether an admin may verify a garage that has no pin.
    *

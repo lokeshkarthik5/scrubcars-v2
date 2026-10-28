@@ -1,6 +1,7 @@
 import { AT_GARAGE_ADDRESS_MESSAGE, atGarageAddressRefused, garageAddressLine } from '../../lib/garage-address.js'
 import { timingSafeEqual } from 'node:crypto'
 import { env } from '../../lib/env.js'
+import { leadsRepository } from '../leads/leads.repository.js'
 import { AppError } from '../../lib/errors.js'
 import { signAdminToken } from '../../lib/jwt.js'
 import { logger } from '../../lib/logger.js'
@@ -1250,6 +1251,16 @@ export const adminService = {
   },
 
   async createVendor(input: CreateVendorInput, sub: string) {
+    // Onboarded from a lead (0064): that lead must still be waiting for its
+    // garage, checked before anything is written.
+    if (input.leadId) {
+      const lead = await leadsRepository.findById(input.leadId)
+      if (!lead) throw new AppError(404, 'Lead not found', 'LEAD_NOT_FOUND')
+      if (lead.vendorId) {
+        throw new AppError(409, 'That lead is already a garage.', 'LEAD_ALREADY_ONBOARDED')
+      }
+    }
+
     // Pickup & drop's tick, before anything is written.
     const pickupPatch = await pickupPatchFor(
       { pickup: null, pickupRadiusKm: null, pickupTermsAcceptedAt: null },
@@ -1346,6 +1357,19 @@ export const adminService = {
           ...commissionColumn(s.commissionRate),
         }))
       )
+    }
+
+    // The lead it came from is now this garage. Only while that lead is
+    // still unlinked, so a double press links it once; the garage stands
+    // either way.
+    if (input.leadId) {
+      const linked = await leadsRepository
+        .markOnboarded(input.leadId, vendor.id, new Date())
+        .catch((err: unknown) => {
+          log.error({ err, vendorId: vendor.id }, 'admin:lead_link_failed')
+          return false
+        })
+      if (!linked) log.warn({ vendorId: vendor.id }, 'admin:lead_not_linked')
     }
 
     log.info({ vendorId: vendor.id, ownerId: owner.id }, 'admin:vendor-created')
