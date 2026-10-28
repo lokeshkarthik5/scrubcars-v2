@@ -351,7 +351,7 @@ function ReceiptDocument({ receipt }: { receipt: BookingReceipt }) {
             <div className="mt-1 border-t border-dashed border-neutral-200" />
             <Row label="Subtotal" value={formatReceiptAmount(receipt.subtotal)} />
             <Row
-              label={`Discount${receipt.discount.code ? ` (${receipt.discount.code})` : ''}`}
+              label={`${receipt.discount.label ?? 'Discount'}${receipt.discount.code ? ` (${receipt.discount.code})` : ''}`}
               value={formatReceiptAmount(receipt.discount.amount, true)}
             />
           </>

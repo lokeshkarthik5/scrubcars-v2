@@ -4,6 +4,8 @@ import {
   REFERRAL_CREDIT,
   coveragePushWords,
   freeWashDiscount,
+  isFreeWashCheckout,
+  zoneIsLive,
   freeWashEligibleSubtotal,
   freeWashEndsAt,
   freeWashesLeft,
@@ -19,17 +21,36 @@ import {
   zonesToLaunch,
 } from './area-signups.js'
 import { bannedPhraseIn } from './copy-rules.js'
+import { computeDiscount } from './discounts.js'
 
 const IST = (iso: string) => new Date(`${iso}+05:30`)
 const wash = (amount: string) => ({ category: 'car_wash', amount })
 
 describe('the free wash’s money', () => {
-  test('₹299 wash: all of it but the ₹1 Razorpay needs', () => {
-    expect(freeWashDiscount([wash('299.00')], '299.00')).toMatchObject({ discountAmount: '298.00', finalAmount: '1.00' })
+  test('₹299 wash: free means ₹0, no ₹1 left for Razorpay', () => {
+    expect(freeWashDiscount([wash('299.00')], '299.00')).toMatchObject({ discountAmount: '299.00', finalAmount: '0.00' })
   })
 
-  test('₹499 wash: the same', () => {
-    expect(freeWashDiscount([wash('499.00')], '499.00')).toMatchObject({ discountAmount: '498.00', finalAmount: '1.00' })
+  test('₹499 wash: the same, ₹0', () => {
+    expect(freeWashDiscount([wash('499.00')], '499.00')).toMatchObject({ discountAmount: '499.00', finalAmount: '0.00' })
+  })
+
+  test('₹500 wash: ₹499 off, ₹1 to pay (paid normally)', () => {
+    expect(freeWashDiscount([wash('500.00')], '500.00')).toMatchObject({ discountAmount: '499.00', finalAmount: '1.00' })
+  })
+
+  test('a ₹0 checkout is booked without payment only when a free wash brought it there', () => {
+    expect(isFreeWashCheckout('free_wash', '0.00')).toBe(true)
+    expect(isFreeWashCheckout('free_wash', '1.00')).toBe(false)
+    expect(isFreeWashCheckout('free_wash', '100.00')).toBe(false) // a travel fee is still paid
+    expect(isFreeWashCheckout('admin', '0.00')).toBe(false)
+    expect(isFreeWashCheckout(undefined, '0.00')).toBe(false)
+  })
+
+  test('only the free wash may reach ₹0: any other ₹499-off code keeps the ₹1 floor', () => {
+    const flat = { discountType: 'fixed' as const, percentOff: null, amountOff: '499.00', maxDiscountAmount: null }
+    expect(computeDiscount(flat, '299.00')).toEqual({ discountAmount: '298.00', finalAmount: '1.00' })
+    expect(computeDiscount(flat, '299.00', undefined, { allowFree: true })).toEqual({ discountAmount: '299.00', finalAmount: '0.00' })
   })
 
   test('₹1,800 wash: ₹499 off, the customer pays the rest', () => {
@@ -179,5 +200,13 @@ describe('the referral credit', () => {
     expect(referralCredit({ ...base, creditedSoFarRupees: 400 })).toEqual({ amountRupees: 100 })
     expect(referralCredit({ ...base, creditedSoFarRupees: 450 })).toEqual({ amountRupees: 50 })
     expect(referralCredit({ ...base, creditedSoFarRupees: 500 })).toEqual({ refusal: 'CAP_REACHED' })
+  })
+})
+
+describe('a zone with Detlio in it (no free-wash list to join)', () => {
+  test('a garage there now, or launched once and its garage gone since', () => {
+    expect(zoneIsLive({ liveAt: null }, false)).toBe(false)
+    expect(zoneIsLive({ liveAt: null }, true)).toBe(true)
+    expect(zoneIsLive({ liveAt: IST('2026-10-20T10:00:00') }, false)).toBe(true)
   })
 })

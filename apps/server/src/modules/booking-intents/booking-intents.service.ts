@@ -16,6 +16,7 @@ import { refundsService } from '../refunds/refunds.service.js'
 import { pushService } from '../push/push.service.js'
 import { giftCreditService } from '../gift-credit/gift-credit.service.js'
 import { paise, rupees, splitCheckout } from '../../lib/gift-credit.js'
+import { isFreeWashCheckout } from '../../lib/area-signups.js'
 import { bookingIntentsRepository } from './booking-intents.repository.js'
 import type { ConsumeIntentResult } from './booking-intents.repository.js'
 import type { CreateBookingIntentInput } from './booking-intents.validation.js'
@@ -115,15 +116,24 @@ export const bookingIntentsService = {
       draft.items
     )
 
-    // Paid wholly with credit: no Razorpay order at all. The booking is
-    // written now, through the same consumeIntent (slot, car, promo and
-    // credit checks under the same locks; the receipt number; the garage's
-    // deadline), with no payment id.
-    // (Only when credit paid it: a booking that costs nothing at all is
-    // refused by Razorpay's order below, as it always was.)
-    if (cashPaise === 0 && creditPaise > 0) {
-      const { bookingId } = await confirmWithCredit(userId, intent.id)
-      log.info({ intentId: intent.id, userId, bookingId, creditAmount: intent.creditAmount }, 'booking_intent:paid_with_credit')
+    // Nothing left for Razorpay: no order at all. The booking is written
+    // now, through the same consumeIntent (slot, car, promo and credit
+    // checks under the same locks; the receipt number; the garage's
+    // deadline), with no payment id. Either Detlio credit paid it, or a
+    // zone's free wash (0062) brought it to ₹0: free means free, so there is
+    // nothing to pay and the garage is still paid the full price by Detlio
+    // (a Detlio-funded code). No other code can reach ₹0 (lib/discounts.ts).
+    if (cashPaise === 0) {
+      const free = creditPaise === 0
+      if (free && !isFreeWashCheckout(draft.discount?.source, draft.chargeAmount)) {
+        // Unreachable by the rules above; never a ₹0 Razorpay order.
+        throw new AppError(409, "This booking couldn't be priced. Nothing was charged.", 'BOOKING_NOT_CONFIRMED')
+      }
+      const { bookingId } = await confirmWithoutGateway(userId, intent.id)
+      log.info(
+        { intentId: intent.id, userId, bookingId, creditAmount: intent.creditAmount, free },
+        free ? 'booking_intent:free_wash_booked' : 'booking_intent:paid_with_credit'
+      )
       return {
         intentId: intent.id,
         orderId: null,
@@ -131,7 +141,9 @@ export const bookingIntentsService = {
         currency: 'INR',
         keyId: null,
         creditAmount: intent.creditAmount,
-        paidWithCredit: true,
+        paidWithCredit: !free,
+        /** A free wash covered it all (0062): booked, nothing paid. */
+        free,
         bookingId,
       }
     }
@@ -163,6 +175,7 @@ export const bookingIntentsService = {
       keyId: order.keyId as string | null,
       creditAmount: intent.creditAmount,
       paidWithCredit: false,
+      free: false,
       bookingId: null as string | null,
     }
   },
@@ -231,7 +244,7 @@ export const bookingIntentsService = {
   },
 }
 
-/** What a checkout paid wholly with credit is told when it can't be booked: nothing was charged. */
+/** What a checkout with nothing for Razorpay is told when it can't be booked: nothing was charged. */
 const CREDIT_ONLY_REFUSALS: Record<string, { status: 409 | 400; message: string; code: string }> = {
   vehicle_clash: {
     status: 409,
@@ -271,11 +284,12 @@ const CREDIT_ONLY_REFUSALS: Record<string, { status: 409 | 400; message: string;
 }
 
 /**
- * A checkout paid wholly with Detlio credit, booked at once. No money was
- * taken, so a refusal is a plain error (nothing to refund, no ops alert) and
- * the checkout is closed as failed with no payment on it.
+ * A checkout with nothing for Razorpay (paid wholly with Detlio credit, or a
+ * free wash that covered it all, 0062), booked at once. No money was taken,
+ * so a refusal is a plain error (nothing to refund, no ops alert) and the
+ * checkout is closed as failed with no payment on it.
  */
-async function confirmWithCredit(userId: string, intentId: string): Promise<{ bookingId: string }> {
+async function confirmWithoutGateway(userId: string, intentId: string): Promise<{ bookingId: string }> {
   const result = await bookingIntentsRepository.consumeIntent({
     intentId,
     razorpayPaymentId: null,
@@ -288,7 +302,7 @@ async function confirmWithCredit(userId: string, intentId: string): Promise<{ bo
   }
   const refusal = CREDIT_ONLY_REFUSALS[result.kind]
   await bookingIntentsRepository.markFailed(intentId, null, result.kind)
-  log.warn({ intentId, userId, reason: result.kind }, 'booking_intent:credit_only_refused')
+  log.warn({ intentId, userId, reason: result.kind }, 'booking_intent:no_gateway_refused')
   if (refusal) throw new AppError(refusal.status, refusal.message, refusal.code)
   throw new AppError(409, "This booking couldn't be made. Nothing was charged.", 'BOOKING_NOT_CONFIRMED')
 }
@@ -425,7 +439,7 @@ async function failIntent(
     return {
       kind: 'paid_no_booking',
       // Only a checkout with a Razorpay part reaches here (a credit-only one
-      // is refused in confirmWithCredit, with nothing to refund).
+      // is refused in confirmWithoutGateway, with nothing to refund).
       paymentId: params.razorpayPaymentId ?? 'none',
       reason,
       amount: intent?.amount,

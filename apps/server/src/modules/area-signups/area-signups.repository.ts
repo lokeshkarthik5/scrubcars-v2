@@ -52,7 +52,10 @@ export const areaSignupsRepository = {
    * A sign-up, its place counted under the zone's own lock
    * (`zone-signups:<zoneId>`, taken on its own), so two at once never share
    * a place and the 50th is the 50th. Null when the customer is already on
-   * this zone's list.
+   * this zone's list; 'live' when the zone went live meanwhile (launchZone
+   * takes the same lock, so a sign-up is either seen by the launch and
+   * issued its free wash, or refused here: never left with a free wash that
+   * is never issued).
    */
   signUp(input: {
     userId: string
@@ -61,9 +64,11 @@ export const areaSignupsRepository = {
     whatsappOptIn: boolean
     now: Date
     freeWashFor: (position: number) => boolean
-  }): Promise<ZoneSignupRecord | null> {
+  }): Promise<ZoneSignupRecord | 'live' | null> {
     return db.transaction(async (tx) => {
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`zone-signups:${input.zoneId}`})::bigint)`)
+      const [zone] = await tx.select({ liveAt: zones.liveAt }).from(zones).where(eq(zones.id, input.zoneId)).limit(1)
+      if (!zone || zone.liveAt !== null) return 'live'
       const [existing] = await tx
         .select({ id: zoneSignups.id })
         .from(zoneSignups)
@@ -107,8 +112,7 @@ export const areaSignupsRepository = {
   },
 
   /** Free washes issued to these codes that are still unused (no live booking holds them). */
-  async unusedDiscounts(discountIds: readonly string[]) {
-    if (discountIds.length === 0) return []
+  unusedDiscounts(discountIds: readonly string[]) {
     return db
       .select({
         id: discounts.id,
@@ -116,11 +120,13 @@ export const areaSignupsRepository = {
         amountOff: discounts.amountOff,
         endsAt: discounts.endsAt,
         isActive: discounts.isActive,
+        // "discounts"."id" spelled out: inside a select Drizzle writes a
+        // column unqualified, and "id" is ambiguous against the joins here.
         held: sql<number>`(
           SELECT count(*)::int FROM discount_redemptions dr
             JOIN bookings ON bookings.id = dr.booking_id
             JOIN payments ON payments.booking_id = bookings.id
-           WHERE dr.discount_id = ${discounts.id} AND ${DISCOUNT_HELD}
+           WHERE dr.discount_id = "discounts"."id" AND ${DISCOUNT_HELD}
         )`,
       })
       .from(discounts)
@@ -151,6 +157,9 @@ export const areaSignupsRepository = {
     pick: (signups: ZoneSignupRecord[]) => ZoneSignupRecord[]
   }): Promise<{ zone: ZoneRecord; issued: number } | null> {
     return db.transaction(async (tx) => {
+      // The zone's sign-up lock first (as signUp takes it): no sign-up can
+      // land between the list read below and this commit.
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`zone-signups:${input.zoneId}`})::bigint)`)
       const [zone] = await tx
         .update(zones)
         .set({ liveAt: input.now, updatedAt: input.now })
@@ -200,21 +209,47 @@ export const areaSignupsRepository = {
   },
 
   /**
-   * Sign-ups that may be due a message: not yet told of a live zone, or
-   * (zone not live) not yet told of a garage that now reaches them or
-   * reminded. Oldest first, a bounded batch.
+   * Zones not live yet with a sign-up not yet told of a garage reaching it:
+   * the only zones whose reach the sweep needs to measure.
    */
-  listMessageCandidates(limit: number) {
+  async listZonesAwaitingCoverage(): Promise<ZoneRecord[]> {
+    return db
+      .select()
+      .from(zones)
+      .where(
+        and(
+          isNull(zones.liveAt),
+          sql`EXISTS (SELECT 1 FROM zone_signups s WHERE s.zone_id = ${zones.id} AND s.coverage_push_at IS NULL)`
+        )
+      )
+  },
+
+  /**
+   * Sign-ups due a message now, and only those (lib/area-signups.ts
+   * signupPushDue): not yet told of a live zone; in a zone a garage now
+   * reaches (`reachedZoneIds`) and not told; or 14 quiet days with no
+   * coverage and no reminder. A sign-up that is due nothing is never read,
+   * so the oldest waiting ones can't fill every batch and starve the rest
+   * (a zone's launch message among them). Oldest first, a bounded batch.
+   */
+  listMessageCandidates(input: { limit: number; reachedZoneIds: readonly string[]; remindBefore: Date }) {
+    const reached =
+      input.reachedZoneIds.length > 0
+        ? sql`${zoneSignups.zoneId} IN (${sql.join(input.reachedZoneIds.map((id) => sql`${id}::uuid`), sql`, `)})`
+        : sql`false`
     return db
       .select({ signup: zoneSignups, zone: zones })
       .from(zoneSignups)
       .innerJoin(zones, eq(zones.id, zoneSignups.zoneId))
       .where(
         sql`(${zones.liveAt} IS NOT NULL AND ${zoneSignups.launchPushAt} IS NULL)
-          OR (${zones.liveAt} IS NULL AND (${zoneSignups.coveragePushAt} IS NULL OR ${zoneSignups.reminderPushAt} IS NULL))`
+          OR (${zones.liveAt} IS NULL AND ${zoneSignups.coveragePushAt} IS NULL AND (
+            ${reached}
+            OR (${zoneSignups.reminderPushAt} IS NULL AND ${zoneSignups.createdAt} <= ${input.remindBefore.toISOString()}::timestamptz)
+          ))`
       )
       .orderBy(asc(zoneSignups.createdAt))
-      .limit(limit)
+      .limit(input.limit)
   },
 
   /**
@@ -267,8 +302,13 @@ export const areaSignupsRepository = {
     return db.insert(garageRecommendations).values(values).returning()
   },
 
-  /** Recommendations the team linked to a garage, with no credit decided yet, or owed. */
-  listCreditCandidates(limit: number) {
+  /**
+   * Recommendations the team linked to a garage, with no credit decided yet,
+   * or owed while credit is on (`creditOn`). Owed ones are left out while it
+   * is off: nothing can be done with them then, and read first (oldest
+   * `updated_at`) every run they would fill the batch and starve the rest.
+   */
+  listCreditCandidates(limit: number, creditOn: boolean) {
     return db
       .select()
       .from(garageRecommendations)
@@ -276,7 +316,9 @@ export const areaSignupsRepository = {
         and(
           isNotNull(garageRecommendations.vendorId),
           isNotNull(garageRecommendations.userId),
-          sql`(${garageRecommendations.creditStatus} IS NULL OR ${garageRecommendations.creditStatus} = 'owed')`
+          creditOn
+            ? sql`(${garageRecommendations.creditStatus} IS NULL OR ${garageRecommendations.creditStatus} = 'owed')`
+            : isNull(garageRecommendations.creditStatus)
         )
       )
       .orderBy(asc(garageRecommendations.updatedAt))
@@ -297,7 +339,7 @@ export const areaSignupsRepository = {
   /**
    * The customer's first completed booking at the garage made after the
    * recommendation, whose money landed and was kept (not Test-marked, not a
-   * free redo, nothing refunded): what earns the credit.
+   * free redo, nothing refunded, not ₹0): what earns the credit.
    */
   async firstPaidCompletedBooking(userId: string, vendorId: string, since: Date): Promise<string | null> {
     const rows = await db.execute<{ id: string }>(sql`
@@ -311,6 +353,9 @@ export const areaSignupsRepository = {
          AND b.guarantee_refund_at IS NULL
          AND p.status IN ('paid', 'collected')
          AND COALESCE(p.refunded_amount, 0) = 0
+         -- Something was paid: a free wash that covered it all (0062) is not
+         -- a paid booking, so it earns no referral credit.
+         AND (p.amount + p.credit_amount) > 0
        ORDER BY b.completed_at ASC NULLS LAST, b.id ASC
        LIMIT 1
     `)

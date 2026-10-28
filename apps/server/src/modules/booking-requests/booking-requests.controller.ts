@@ -72,7 +72,9 @@ export async function startTimes(c: GarageContext, id: string) {
 }
 
 export async function accept(c: GarageContext, id: string, input: AcceptRequestInput) {
-  const data = await bookingRequestsService.accept(garageId(c), c.get('auth').sub, id, input)
+  // The answer carries `earn` for the owner seat only, as the list does.
+  const isOwner = getTenant(c).role === 'vendor_admin'
+  const data = await bookingRequestsService.accept(garageId(c), c.get('auth').sub, id, input, isOwner)
   return c.json({ success: true, data })
 }
 

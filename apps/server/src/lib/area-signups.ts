@@ -65,6 +65,16 @@ export function signupOffer(position: number): { freeWash: boolean } {
   return { freeWash: position >= 1 && position <= FREE_WASH_RULES.perZone }
 }
 
+/**
+ * Whether Detlio is in a zone, for the free-wash list: a listed garage's pin
+ * is in it now, or it has launched (`live_at`, set once and never cleared) and
+ * lost its garage since. Either way there is no list to join: `GET /zones`
+ * says `hasGarage` and the sign-up refuses with AREA_LIVE, the same answer.
+ */
+export function zoneIsLive(zone: { liveAt: Date | null }, garageThereNow: boolean): boolean {
+  return garageThereNow || zone.liveAt !== null
+}
+
 export type SignupRefusal = 'ZONE_LIVE' | 'ALREADY_SIGNED_UP'
 
 /** Why a sign-up can't be taken: the zone already has a garage, or they are on its list. */
@@ -92,11 +102,11 @@ export function freeWashesLeft(signups: number): number {
 /**
  * What the free wash takes off a booking: up to ₹499 off the dearest single
  * car-wash line (one service, not every car wash in the cart), never more
- * than that line, and always leaving the ₹1 Razorpay needs (lib/discounts.ts
- * MIN_PAYABLE_PAISE: a ₹299 wash alone costs ₹1, or nothing when Detlio
- * credit covers it, as reward vouchers do). Null when the booking has no
- * car wash. Through computeDiscount, the one place discount money is worked
- * out.
+ * than that line. Free means free: a ₹299 wash alone costs ₹0, and a
+ * booking that comes to ₹0 is booked with no payment at all (no Razorpay
+ * order; booking-intents.service). Unlike every other code it has no ₹1
+ * floor. Null when the booking has no car wash. Through computeDiscount,
+ * the one place discount money is worked out.
  */
 export function freeWashDiscount(
   lines: ReadonlyArray<{ category: string; amount: string }>,
@@ -109,9 +119,19 @@ export function freeWashDiscount(
   const result = computeDiscount(
     { discountType: 'fixed', percentOff: null, amountOff: FREE_WASH_RULES.maxRupees.toFixed(2), maxDiscountAmount: null },
     subtotal,
-    eligibleLine
+    eligibleLine,
+    { allowFree: true }
   )
   return { ...result, eligibleLine }
+}
+
+/**
+ * Whether a checkout is a free wash that covered the whole price: the code
+ * is a zone's free wash and nothing is left to charge. The only booking made
+ * with no payment at all (booking-intents.service).
+ */
+export function isFreeWashCheckout(discountSource: string | null | undefined, chargeAmount: string): boolean {
+  return discountSource === 'free_wash' && rupeesToPaise(chargeAmount) === 0
 }
 
 /** The part of a booking the free wash may come off, for resolveDiscount: the dearest car wash. */

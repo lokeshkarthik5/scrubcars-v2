@@ -24,6 +24,11 @@ export interface BookingIntentOrder {
   /** The Detlio credit this checkout uses, as a decimal string ("0.00" when none). */
   creditAmount?: string
   paidWithCredit?: boolean
+  /**
+   * A zone's free wash covered the whole price (0062): booked with nothing
+   * paid, no Razorpay order (`bookingId` set, `orderId` null).
+   */
+  free?: boolean
   bookingId?: string | null
 }
 

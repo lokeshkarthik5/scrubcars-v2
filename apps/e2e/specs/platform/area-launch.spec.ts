@@ -7,7 +7,10 @@
  * list. Verifying the garage lists it; the next cron run sets the area's
  * live_at once, issues the free wash, and Home shows the launch banner once
  * and the free wash ready; the free wash applies at checkout. A second run
- * changes nothing.
+ * changes nothing. The ₹399 wash then costs ₹0: booked with no Razorpay
+ * order, paid 0.00, Detlio-funded (the garage is paid the ₹399), the
+ * receipt names the free wash, and cancelling it refunds nothing and gives
+ * the free wash back.
  *
  * CUSTOMERS.referral recommended VENDORS.reqSecond, which the team linked,
  * and completed a paid booking there: the cron records the ₹100 credit
@@ -15,7 +18,9 @@
  */
 import { test, expect, asRole } from '../../support/fixtures'
 import { API } from '../../support/auth'
-import { sql } from '../../support/db'
+import { sql, withCronLock } from '../../support/db'
+import { BookingPage } from '../../pages/booking.page'
+import { CheckoutPage } from '../../pages/checkout.page'
 import { CUSTOMERS, FREE_WASH_AREAS, REFERRAL_BOOKING, REFERRAL_RECOMMENDATION, SERVICES, VENDORS } from '../../support/seed-ids'
 
 test.describe.configure({ mode: 'serial' })
@@ -50,7 +55,7 @@ test.describe('launch day @p0', () => {
 
     // The garage becomes one customers can find (any path: here, verified).
     await sql`update vendors set is_verified = true where id = ${VENDORS.areaLaunch.id}`
-    const run = await request.post(DIGEST, { headers: { authorization: `Bearer ${SECRET}` } })
+    const run = await withCronLock(() => request.post(DIGEST, { headers: { authorization: `Bearer ${SECRET}` } }))
     expect(run.status()).toBe(200)
 
     const liveAt = (await zoneRow()).live_at
@@ -66,7 +71,7 @@ test.describe('launch day @p0', () => {
     expect(Math.round((discount.ends_at.getTime() - liveAt!.getTime()) / (24 * 60 * 60 * 1000))).toBe(30)
 
     // Idempotent: a second run sets nothing again and issues nothing more.
-    await request.post(DIGEST, { headers: { authorization: `Bearer ${SECRET}` } })
+    await withCronLock(() => request.post(DIGEST, { headers: { authorization: `Bearer ${SECRET}` } }))
     expect((await zoneRow()).live_at!.getTime()).toBe(liveAt!.getTime())
     expect((await signupRow()).discount_id).toBe(issued.discount_id)
     const [free] = await sql<{ n: number }[]>`
@@ -91,8 +96,73 @@ test.describe('launch day @p0', () => {
     await expect(chip).toBeVisible()
     await chip.click()
     await expect(page.getByText('Free wash applied')).toBeVisible()
-    // A ₹399 wash: all of it but the ₹1 Razorpay needs.
-    await expect(page.getByText('Saves ₹398', { exact: false })).toBeVisible()
+    // A ₹399 wash: free means free, all of it comes off and nothing is left to pay.
+    await expect(page.getByText('Saves ₹399', { exact: false })).toBeVisible()
+
+    // ── booked with no payment: no Razorpay order, ₹0, and the garage still paid in full by Detlio
+    await new CheckoutPage(page).pickTomorrowSlot()
+    await expect(page.getByText('Your free wash covers it: nothing to pay.', { exact: false })).toBeVisible()
+    await page.getByRole('button', { name: 'Book your free wash' }).click()
+    await page.waitForURL(/\/bookings\/[0-9a-f-]{36}/)
+    const bookingId = /\/bookings\/([0-9a-f-]{36})/.exec(page.url())![1]!
+    const [booked] = await sql<{
+      status: string
+      amount: string
+      subtotal_amount: string
+      discount_amount: string
+      discount_id: string | null
+      discount_funded_by: string | null
+      pay_status: string
+      pay_amount: string
+      credit_amount: string
+      gateway_txn_id: string | null
+      order_id: string | null
+    }[]>`
+      select b.status, b.amount, b.subtotal_amount, b.discount_amount, b.discount_id, b.discount_funded_by,
+             p.status as pay_status, p.amount as pay_amount, p.credit_amount, p.gateway_txn_id,
+             i.gateway_txn_id as order_id
+        from bookings b
+        join payments p on p.booking_id = b.id
+        join booking_intents i on i.booking_id = b.id
+       where b.id = ${bookingId}
+    `
+    expect(booked).toMatchObject({
+      // The garage still accepts it, as any booking.
+      status: 'pending',
+      amount: '0.00',
+      subtotal_amount: '399.00',
+      discount_amount: '399.00',
+      discount_id: issued.discount_id,
+      // Detlio-funded: the garage is paid the full ₹399.
+      discount_funded_by: 'platform',
+      pay_status: 'paid',
+      pay_amount: '0.00',
+      credit_amount: '0.00',
+      gateway_txn_id: null,
+      // No Razorpay order was ever opened.
+      order_id: null,
+    })
+    await expect(page.getByText('Nothing to pay')).toBeVisible()
+    // Used: Home no longer offers it.
+    await page.goto('/home')
+    await expect(page.getByRole('link', { name: /Your free wash is ready/ })).toHaveCount(0)
+
+    // ── the receipt names the free wash and ₹0
+    await page.goto(`/bookings/${bookingId}/receipt`)
+    await expect(page.getByText(/^Free wash \(FW-/)).toBeVisible()
+    await expect(page.getByText('Free wash: nothing to pay')).toBeVisible()
+
+    // ── cancelled before the garage accepts: nothing to refund, and the free wash is back
+    const booking = new BookingPage(page)
+    await booking.goto(bookingId)
+    await booking.openCancel()
+    await expect(page.getByText('Nothing was charged, so there is nothing to refund.', { exact: false })).toBeVisible()
+    await booking.confirmCancel()
+    await expect(page.getByText(/Cancelled by you/i)).toBeVisible()
+    const refunds = await sql<{ n: number }[]>`select count(*)::int as n from refund_records where booking_id = ${bookingId}`
+    expect(refunds[0]!.n).toBe(0)
+    await page.goto('/home')
+    await expect(page.getByRole('link', { name: /Your free wash is ready/ })).toBeVisible()
   })
 })
 
@@ -106,13 +176,13 @@ test.describe('the referral credit @p0', () => {
         `
       )[0]!
     // Another spec's cron run may have got here first: either way, one credit.
-    await request.post(DIGEST, { headers: { authorization: `Bearer ${SECRET}` } })
+    await withCronLock(() => request.post(DIGEST, { headers: { authorization: `Bearer ${SECRET}` } }))
     const after = await rec()
     expect(['owed', 'granted']).toContain(after.credit_status)
     expect(after.credit_amount).toBe('100.00')
     expect(after.credit_booking_id).toBe(REFERRAL_BOOKING)
 
-    await request.post(DIGEST, { headers: { authorization: `Bearer ${SECRET}` } })
+    await withCronLock(() => request.post(DIGEST, { headers: { authorization: `Bearer ${SECRET}` } }))
     expect(await rec()).toEqual(after)
     const ledger = await sql<{ n: number }[]>`
       select count(*)::int as n from gift_credit_entries where user_id = ${CUSTOMERS.referral.id} and kind = 'referral_reward'

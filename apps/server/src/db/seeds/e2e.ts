@@ -2362,7 +2362,10 @@ async function seedResponseDeadlineRows() {
     }],
     payment: { status: 'paid', txnId: 'pay_seed_not_accepted', gatewayMode: 'fake', paidAt },
     createdAt: paidAt,
-    respondBy: new Date(now.getTime() - 15 * MINUTE),
+    // Due later: the spec makes it 15 minutes overdue itself, inside the
+    // cron lock (apps/e2e/support/db.ts withCronLock), so another spec's
+    // cron run can't cancel it first.
+    respondBy: new Date(now.getTime() + 6 * 60 * MINUTE),
   })
 }
 

@@ -359,14 +359,20 @@ export function customerReportReward(report: { id: string }, amount: string | nu
 }
 
 /** The garage let its time to answer run out (0042); the refund is on its way. */
-export function customerNotAcceptedInTime(booking: PushBooking, options: { paidWithCreditOnly?: boolean } = {}): PushMessage {
+export function customerNotAcceptedInTime(
+  booking: PushBooking,
+  options: { paidWithCreditOnly?: boolean; nothingPaid?: boolean } = {}
+): PushMessage {
   return message({
     title: `${garageName(booking)} didn't accept in time`,
     // Paid wholly with Detlio credit (0049): it goes back as credit, with
-    // no bank in between.
-    body: options.paidWithCreditOnly
-      ? 'Your Detlio credit is going back to your account. Book another garage in Detlio.'
-      : `Your full refund is on its way (${BANK_DAYS}). Book another garage in Detlio.`,
+    // no bank in between. A free wash that covered it all (0062): nothing
+    // was paid, and the free wash can be used again.
+    body: options.nothingPaid
+      ? 'Nothing was charged, and your free wash is back while it lasts. Book another garage in Detlio.'
+      : options.paidWithCreditOnly
+        ? 'Your Detlio credit is going back to your account. Book another garage in Detlio.'
+        : `Your full refund is on its way (${BANK_DAYS}). Book another garage in Detlio.`,
     url: customerBookingPath(booking.id),
     tag: bookingTag(booking.id),
     ttlSeconds: 24 * 60 * 60,

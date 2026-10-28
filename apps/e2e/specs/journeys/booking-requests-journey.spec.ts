@@ -19,7 +19,7 @@
 import type { APIRequestContext, BrowserContext, Page } from '@playwright/test'
 import { test, expect } from '../../support/fixtures'
 import { API, loginViaApi } from '../../support/auth'
-import { sql } from '../../support/db'
+import { sql, withCronLock } from '../../support/db'
 import { openActors } from '../../support/journey'
 import { CUSTOMERS, REQ_HOME, SERVICES, STAFF, VENDORS } from '../../support/seed-ids'
 
@@ -48,7 +48,8 @@ async function standAtHome(ctx: BrowserContext) {
 }
 
 async function runCron(request: APIRequestContext) {
-  const run = await request.post(DIGEST, { headers: { authorization: `Bearer ${SECRET}` } })
+  // Inside the cron lock (support/db.ts withCronLock): never between another spec's setup and its own run.
+  const run = await withCronLock(() => request.post(DIGEST, { headers: { authorization: `Bearer ${SECRET}` } }))
   expect(run.status()).toBe(200)
   return (await run.json()).data as { requests: { alerted: number; passedOn: number; ended: number; lapsed: number } }
 }

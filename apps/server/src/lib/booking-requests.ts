@@ -21,6 +21,7 @@ import { JUST_OUTSIDE_KM } from './reach.js'
 import { addDaysToDateKey, computeAvailableSlots, filterByCapacity, type BusyInterval } from './slots.js'
 import { computeServiceAmount, sumAmounts, type PricedService, type VehicleTier } from './pricing.js'
 import { istDateKey, istTimeLabel, MONTHS, WEEKDAYS } from './ist.js'
+import { straightLineKm } from './service-city.js'
 
 const MINUTE_MS = 60 * 1000
 
@@ -485,6 +486,22 @@ export function checkoutMatchRefusal(
     return 'REQUEST_MISMATCH'
   }
   return null
+}
+
+/**
+ * How far the address's pin may be from where the request was made (its
+ * stored point) for the garage's yes to still hold: a saved address keeps
+ * its id when the customer moves its pin, and the garage agreed to come to
+ * the place it was shown, not wherever the pin is now.
+ */
+export const REQUEST_PLACE_TOLERANCE_KM = 0.1
+
+/** Whether the address a checkout uses is still where the garage agreed to come. */
+export function requestPlaceMatches(
+  request: { lat: number; lng: number },
+  address: { lat: number; lng: number }
+): boolean {
+  return straightLineKm(request, address) <= REQUEST_PLACE_TOLERANCE_KM
 }
 
 // ─── Words ───────────────────────────────────────────────────────────────────

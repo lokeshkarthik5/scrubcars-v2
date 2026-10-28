@@ -103,15 +103,25 @@ export function FreeWashPiece({ placement }: { placement: 'top' | 'bottom' }) {
 
   if (!noGarageYet(zone)) return null
 
+  // The sheets sit in one place whatever the piece shows: the sign-up turns
+  // the card into the slim line (the area status refetches), and the sheet,
+  // open on "You're on the list" and its recommend ask, must outlive that.
+  const sheets = (
+    <>
+      <FreeWashSheet open={sheetOpen} onClose={() => setSheetOpen(false)} initialZone={zone} />
+      <RecommendSheet open={recommendOpen} onClose={() => setRecommendOpen(false)} zoneSlug={zone.slug} />
+    </>
+  )
+
   if (signedUp) {
     return (
       <>
         <OnTheListLine area={zone.name} onRecommend={() => setRecommendOpen(true)} />
-        <RecommendSheet open={recommendOpen} onClose={() => setRecommendOpen(false)} zoneSlug={zone.slug} />
+        {sheets}
       </>
     )
   }
-  if (!showCard) return null
+  if (!showCard) return sheets
 
   const close = () => {
     try {
@@ -154,7 +164,7 @@ export function FreeWashPiece({ placement }: { placement: 'top' | 'bottom' }) {
           <IconX size={18} aria-hidden />
         </button>
       </section>
-      <FreeWashSheet open={sheetOpen} onClose={() => setSheetOpen(false)} initialZone={zone} />
+      {sheets}
     </>
   )
 }
