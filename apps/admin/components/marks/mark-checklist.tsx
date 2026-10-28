@@ -93,17 +93,27 @@ export function ChecklistItems({
 }) {
   const update = useUpdateMarkItem()
   const [busy, setBusy] = useState<string | null>(null)
+  // The tick as pressed, until the server's answer lands (or puts it back).
+  const [shown, setShown] = useState<Record<string, boolean>>({})
   const [error, setError] = useState('')
   const items = mark.items ?? []
 
   const tick = (item: MarkChecklistItem, done: boolean) => {
     setError('')
     setBusy(item.id)
+    setShown((prev) => ({ ...prev, [item.id]: done }))
     update.mutate(
       { vendorId, markId: mark.id, itemId: item.id, input: { done } },
       {
         onError: (err) => setError(markErrorText(err)),
-        onSettled: () => setBusy(null),
+        onSettled: () => {
+          setBusy(null)
+          setShown((prev) => {
+            const next = { ...prev }
+            delete next[item.id]
+            return next
+          })
+        },
       }
     )
   }
@@ -123,7 +133,7 @@ export function ChecklistItems({
             >
               <input
                 type="checkbox"
-                checked={item.done}
+                checked={shown[item.id] ?? item.done}
                 disabled={readOnly || busy === item.id}
                 aria-label={item.text}
                 onChange={(e) => tick(item, e.target.checked)}
@@ -439,6 +449,8 @@ export function CallSheet({
   const finish = useUpdateMark()
   const [typed, setTyped] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState<string | null>(null)
+  // The tick as pressed, until the server's answer lands (or puts it back).
+  const [shown, setShown] = useState<Record<string, boolean>>({})
   const [error, setError] = useState('')
 
   if (!mark) return null
@@ -452,12 +464,21 @@ export function CallSheet({
   ) => {
     setError('')
     setBusy(item.id)
+    const done = input.done
+    if (done !== undefined) setShown((prev) => ({ ...prev, [item.id]: done }))
     answer.mutate(
       { vendorId, markId: mark.id, itemId: item.id, input },
       {
         onSuccess: () => setTyped((prev) => ({ ...prev, [item.id]: '' })),
         onError: (err) => setError(markErrorText(err)),
-        onSettled: () => setBusy(null),
+        onSettled: () => {
+          setBusy(null)
+          setShown((prev) => {
+            const next = { ...prev }
+            delete next[item.id]
+            return next
+          })
+        },
       }
     )
   }
@@ -515,7 +536,7 @@ export function CallSheet({
                 <div className="flex items-start gap-2.5">
                   <input
                     type="checkbox"
-                    checked={item.done}
+                    checked={shown[item.id] ?? item.done}
                     disabled={saving}
                     aria-label={item.text}
                     onChange={(e) => save(item, { done: e.target.checked })}

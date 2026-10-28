@@ -45,7 +45,9 @@ test.describe('the admin round: bookings @p0', () => {
       page.getByRole('columnheader', { name: 'When', exact: true })
     ).toHaveCount(0)
     // Booked a day before the seed ran.
-    const booked = /^Booked yesterday, \d{1,2}:\d{2} [ap]m$/
+    // (A run that crosses midnight in Chennai after the seed reads a date.)
+    const booked =
+      /^Booked (yesterday|[A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2}), \d{1,2}:\d{2} [ap]m$/
     const row = page.getByRole('row').filter({ has: link })
     await expect(row.getByText(booked)).toBeVisible()
 

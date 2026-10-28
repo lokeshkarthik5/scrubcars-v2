@@ -254,7 +254,7 @@ export function GarageForm({
 
   /** The import's note on a field, while it has one to show. */
   const markOf = (key: string): ImportMark | null =>
-    visibleMark(key, marks[key], form)
+    visibleMark(key, marks[key], form, atGarage)
 
   /** A text field with the import's note under it, when it has one. */
   const field = (

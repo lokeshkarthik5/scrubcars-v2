@@ -19,7 +19,6 @@ import {
   type TargetCounts,
 } from '@repo/core/garage-target'
 import { cn } from '@repo/core/utils'
-import { istToday } from '@/lib/garage-colours'
 import {
   addedByWeek,
   liveByArea,
@@ -175,11 +174,7 @@ export function TargetCounter({
       </div>
 
       {editing && (
-        <EditTargetDialog
-          current={target}
-          now={now}
-          onClose={() => setEditing(false)}
-        />
+        <EditTargetDialog current={target} onClose={() => setEditing(false)} />
       )}
     </section>
   )
@@ -188,11 +183,9 @@ export function TargetCounter({
 /** "Onboarding target" (mockup garages-list C): how many, what counts, by when. */
 function EditTargetDialog({
   current,
-  now,
   onClose,
 }: {
   current: GarageTarget
-  now: number
   onClose: () => void
 }) {
   const id = useId()
@@ -287,7 +280,6 @@ function EditTargetDialog({
             <input
               id={`${id}-by`}
               type="date"
-              min={istToday(now)}
               value={endsOn}
               onChange={(e) => setEndsOn(e.target.value)}
               className="min-h-11 min-w-0 flex-1 rounded-[12px] border border-border bg-surface px-3 font-numeric text-[14px] text-text-primary outline-none focus:border-text-secondary"

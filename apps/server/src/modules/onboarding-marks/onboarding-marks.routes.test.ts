@@ -169,7 +169,11 @@ beforeAll(() => {
   patch(
     m,
     'updateLocked',
-    async (vendorId: string, id: string, change: (row: Mark) => Partial<Mark>) => {
+    async (
+      vendorId: string,
+      id: string,
+      change: (row: Mark) => Partial<Mark>
+    ) => {
       const row = marks.get(id)
       if (!row || row.vendorId !== vendorId) return undefined
       const next = { ...row, ...change({ ...row, items: row.items ?? [] }) }
@@ -634,8 +638,16 @@ describe('marks as a checklist (0061)', () => {
       'Doorstep radius',
       'Payout details',
     ])
-    expect(mark.items[0]).toMatchObject({ done: false, answer: null, answeredBy: null })
-    expect(mark.items[2]).toMatchObject({ done: true, answer: 'Will send on WhatsApp', answeredBy: 'Raga' })
+    expect(mark.items[0]).toMatchObject({
+      done: false,
+      answer: null,
+      answeredBy: null,
+    })
+    expect(mark.items[2]).toMatchObject({
+      done: true,
+      answer: 'Will send on WhatsApp',
+      answeredBy: 'Raga',
+    })
     // One of three ticked: in progress, which is Asked, stamped.
     expect(mark.status).toBe('asked')
     expect(mark.askedByName).toBe('Raga')
@@ -679,10 +691,24 @@ describe('marks as a checklist (0061)', () => {
 
     // An item no longer on the list, and an empty change.
     expect(
-      (await call('PATCH', `/admin/vendors/${GARAGE_B}/marks/${mark.id}/items/nope`, token, { done: true })).body.code
+      (
+        await call(
+          'PATCH',
+          `/admin/vendors/${GARAGE_B}/marks/${mark.id}/items/nope`,
+          token,
+          { done: true }
+        )
+      ).body.code
     ).toBe('MARK_ITEM_NOT_FOUND')
     expect(
-      (await call('PATCH', `/admin/vendors/${GARAGE_B}/marks/${mark.id}/items/${first}`, token, {})).status
+      (
+        await call(
+          'PATCH',
+          `/admin/vendors/${GARAGE_B}/marks/${mark.id}/items/${first}`,
+          token,
+          {}
+        )
+      ).status
     ).toBe(400)
   })
 
@@ -691,28 +717,49 @@ describe('marks as a checklist (0061)', () => {
     const made = await call('POST', `/admin/vendors/${GARAGE_B}/marks`, token, {
       kind: 'custom',
       label: 'Payout setup',
-      items: [{ text: 'Bank or UPI?', done: true, answer: 'UPI' }, { text: 'Holder name' }],
-    })
-    const [bank, holder] = made.body.data.items
-    const saved = await call('PATCH', `/admin/vendors/${GARAGE_B}/marks/${made.body.data.id}`, await shared(), {
-      actorName: 'Ignored',
       items: [
-        { id: holder.id, text: 'Account holder name' },
-        { id: bank.id, text: 'Bank or UPI?', done: true, answer: 'UPI' },
-        { text: 'Proof on WhatsApp' },
+        { text: 'Bank or UPI?', done: true, answer: 'UPI' },
+        { text: 'Holder name' },
       ],
     })
+    const [bank, holder] = made.body.data.items
+    const saved = await call(
+      'PATCH',
+      `/admin/vendors/${GARAGE_B}/marks/${made.body.data.id}`,
+      await shared(),
+      {
+        actorName: 'Ignored',
+        items: [
+          { id: holder.id, text: 'Account holder name' },
+          { id: bank.id, text: 'Bank or UPI?', done: true, answer: 'UPI' },
+          { text: 'Proof on WhatsApp' },
+        ],
+      }
+    )
     expect(saved.status).toBe(200)
     const items = saved.body.data.items
-    expect(items.map((i: any) => i.text)).toEqual(['Account holder name', 'Bank or UPI?', 'Proof on WhatsApp'])
+    expect(items.map((i: any) => i.text)).toEqual([
+      'Account holder name',
+      'Bank or UPI?',
+      'Proof on WhatsApp',
+    ])
     // Unchanged tick and answer: still Raga's, though the shared login saved.
     expect(items[1]).toMatchObject({ id: bank.id, answeredBy: 'Raga' })
     expect(items[2].id).toBeTruthy()
     expect(items[2].id).not.toBe(bank.id)
 
-    const tooMany = Array.from({ length: 31 }, (_, i) => ({ text: `Item ${i}` }))
+    const tooMany = Array.from({ length: 31 }, (_, i) => ({
+      text: `Item ${i}`,
+    }))
     expect(
-      (await call('PATCH', `/admin/vendors/${GARAGE_B}/marks/${made.body.data.id}`, token, { items: tooMany })).status
+      (
+        await call(
+          'PATCH',
+          `/admin/vendors/${GARAGE_B}/marks/${made.body.data.id}`,
+          token,
+          { items: tooMany }
+        )
+      ).status
     ).toBe(400)
   })
 
@@ -724,7 +771,10 @@ describe('marks as a checklist (0061)', () => {
       note: 'Owner busy till 5\n- Check if they do doorstep\n- Ask the radius',
     })
     // A mark from before 0061: the note holds the list.
-    expect(made.body.data.items.map((i: any) => i.id)).toEqual(['note-1', 'note-2'])
+    expect(made.body.data.items.map((i: any) => i.id)).toEqual([
+      'note-1',
+      'note-2',
+    ])
     expect(made.body.data.note).toBe('Owner busy till 5')
 
     const ticked = await call(
@@ -744,6 +794,35 @@ describe('marks as a checklist (0061)', () => {
       (row: any) => row.id === made.body.data.id
     ) as any
     expect(stored.note).toBe('Owner busy till 5')
+    expect(stored.items).toHaveLength(2)
+  })
+
+  test('a panel from before 0061 saving the note it was shown keeps the note’s list as items', async () => {
+    const token = await raga()
+    const made = await call('POST', `/admin/vendors/${GARAGE_A}/marks`, token, {
+      kind: 'custom',
+      label: 'Old tab',
+      note: 'Call after 5\n- Ask the radius\n- Ask for photos',
+    })
+    // The old panel shows the note without the list and sends it back edited.
+    const saved = await call(
+      'PATCH',
+      `/admin/vendors/${GARAGE_A}/marks/${made.body.data.id}`,
+      token,
+      {
+        note: 'Call after 6',
+        status: 'asked',
+      }
+    )
+    expect(saved.status).toBe(200)
+    expect(saved.body.data.note).toBe('Call after 6')
+    expect(saved.body.data.items.map((i: any) => i.text)).toEqual([
+      'Ask the radius',
+      'Ask for photos',
+    ])
+    const stored = [...(await onboardingMarksRepository.list(GARAGE_A))].find(
+      (row: any) => row.id === made.body.data.id
+    ) as any
     expect(stored.items).toHaveLength(2)
   })
 

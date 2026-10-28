@@ -104,7 +104,7 @@ const optionalPincodeSchema = z
 export const createVendorSchema = z.object({
   businessName: z.string().trim().min(1).max(255),
   phone: phoneSchema,
-  address: z.string().trim().max(500).default(''),
+  address: z.string().trim().default(''),
   city: z.string().trim().min(1).max(100),
   pincode: optionalPincodeSchema.default(''),
   // Required, unlike on update. A garage without coordinates cannot be found,
@@ -119,7 +119,7 @@ export const updateVendorSchema = z
   .object({
     businessName: z.string().trim().min(1).max(255).optional(),
     phone: phoneSchema.optional(),
-    address: z.string().trim().max(500).optional(),
+    address: z.string().trim().optional(),
     city: z.string().trim().min(1).max(100).optional(),
     pincode: optionalPincodeSchema.optional(),
     lat: z.number().finite().min(-90).max(90).optional(),

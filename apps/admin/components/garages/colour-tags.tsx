@@ -168,7 +168,11 @@ export function ColourPicker({
   if (renaming) {
     return (
       <MarksOverlay>
-        <RenameColoursDialog onClose={() => setRenaming(false)} />
+        <RenameColoursDialog
+          onClose={() => setRenaming(false)}
+          // Saved: done with colours for now; the list shows the new names.
+          onSaved={onClose}
+        />
       </MarksOverlay>
     )
   }
@@ -349,7 +353,15 @@ export function BulkColourButton({
  * Rename the colours once, for the whole team (mockup garages-list D6):
  * "Verified on call" instead of "All confirmed".
  */
-export function RenameColoursDialog({ onClose }: { onClose: () => void }) {
+export function RenameColoursDialog({
+  onClose,
+  onSaved = onClose,
+}: {
+  /** Cancel or Escape. */
+  onClose: () => void
+  /** After the names are saved; by default the same as closing. */
+  onSaved?: () => void
+}) {
   const current = useColourNames()
   const rename = useSetColourNames()
   const [names, setNames] = useState<ColourNames>(current)
@@ -369,7 +381,7 @@ export function RenameColoursDialog({ onClose }: { onClose: () => void }) {
       {
         onSuccess: () => {
           toast.success('Colours renamed for the whole team')
-          onClose()
+          onSaved()
         },
         onError: (err) =>
           setError(

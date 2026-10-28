@@ -108,13 +108,25 @@ export async function previewTestBookingDeleteFully(
   onProgress?: (preview: DataResetPreview) => void
 ): Promise<DataResetPreview> {
   let unknownIds: string[] = []
+  // The panel deploys before the API: until the route exists, say so rather
+  // than "Not found".
+  const ask = async (ids: string[]) => {
+    try {
+      return await previewTestBookingDelete(bookingId, { unknownIds: ids })
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404 && error.code !== 'BOOKING_NOT_FOUND') {
+        throw new ApiError(404, 'Delete test booking isn’t on the server yet. Try again after the next update.', 'ROUTE_NOT_LIVE')
+      }
+      throw error
+    }
+  }
   for (let call = 0; call < 200; call += 1) {
-    const preview = await previewTestBookingDelete(bookingId, { unknownIds })
+    const preview = await ask(unknownIds)
     onProgress?.(preview)
     if (preview.lookups.remaining === 0 || preview.lookups.checkedNow === 0) return preview
     unknownIds = preview.lookups.unknownIds
   }
-  return previewTestBookingDelete(bookingId, { unknownIds })
+  return ask(unknownIds)
 }
 
 /**

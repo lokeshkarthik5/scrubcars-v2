@@ -78,15 +78,15 @@ test.describe.serial('the admin round: Garages @p0', () => {
 
     await counter.getByRole('button', { name: 'Target 50, edit' }).click()
     const dialog = page.getByRole('dialog', { name: 'Onboarding target' })
-    await dialog.getByLabel('Target').fill('0')
+    await dialog.getByLabel('Target', { exact: true }).fill('0')
     await expect(dialog.getByText('A whole number from 1.')).toBeVisible()
     await expect(
       dialog.getByRole('button', { name: 'Save target' })
     ).toBeDisabled()
-    await dialog.getByLabel('Target').fill('60')
+    await dialog.getByLabel('Target', { exact: true }).fill('60')
     await dialog.getByRole('radio', { name: 'All onboarded' }).click()
     const by = istDay(60)
-    await dialog.getByLabel('By (optional)').fill(by)
+    await dialog.getByLabel('By (optional)', { exact: true }).fill(by)
     await dialog.getByRole('button', { name: 'Save target' }).click()
     await expect(dialog).toHaveCount(0)
 
@@ -118,15 +118,19 @@ test.describe.serial('the admin round: Garages @p0', () => {
 
     // Cancel changes nothing.
     await counter.getByRole('button', { name: 'Target 60, edit' }).click()
-    await dialog.getByLabel('Target').fill('99')
+    await dialog.getByLabel('Target', { exact: true }).fill('99')
     await dialog.getByRole('button', { name: 'Cancel' }).click()
     await expect(counter.getByText('/ 60')).toBeVisible()
 
     // No end date takes the day off.
     await counter.getByRole('button', { name: 'Target 60, edit' }).click()
-    await expect(dialog.getByLabel('By (optional)')).toHaveValue(by)
+    await expect(
+      dialog.getByLabel('By (optional)', { exact: true })
+    ).toHaveValue(by)
     await dialog.getByRole('button', { name: 'No end date' }).click()
-    await expect(dialog.getByLabel('By (optional)')).toHaveValue('')
+    await expect(
+      dialog.getByLabel('By (optional)', { exact: true })
+    ).toHaveValue('')
     await dialog.getByRole('button', { name: 'Save target' }).click()
     await expect(dialog).toHaveCount(0)
     await expect
@@ -182,7 +186,9 @@ test.describe.serial('the admin round: Garages @p0', () => {
     await expect(
       picker.getByText(/^Set by E2E Admin · \d{1,2} [A-Z][a-z]{2}/)
     ).toBeVisible()
-    await picker.getByLabel('Call back on (optional)').fill(istDay(1))
+    await picker
+      .getByLabel('Call back on (optional)', { exact: true })
+      .fill(istDay(1))
     await picker.getByRole('button', { name: /^Call back/ }).click()
     await expect(
       a.getByRole('button', {
@@ -246,7 +252,9 @@ test.describe.serial('the admin round: Garages @p0', () => {
 
     const rename = page.getByRole('dialog', { name: 'Rename colours' })
     // Cancel keeps the names.
-    await rename.getByLabel('Name for Needs details').fill('Call them')
+    await rename
+      .getByLabel('Name for Needs details', { exact: true })
+      .fill('Call them')
     await rename.getByRole('button', { name: 'Cancel' }).click()
     await expect(rename).toHaveCount(0)
     // Back on the picker, which still says Needs details.
@@ -254,11 +262,13 @@ test.describe.serial('the admin round: Garages @p0', () => {
       picker.getByRole('button', { name: /^Needs details/ })
     ).toBeVisible()
     await picker.getByRole('button', { name: 'Rename colours' }).click()
-    await rename.getByLabel('Name for All confirmed').fill('')
+    await rename.getByLabel('Name for All confirmed', { exact: true }).fill('')
     await expect(
       rename.getByRole('button', { name: 'Save names' })
     ).toBeDisabled()
-    await rename.getByLabel('Name for All confirmed').fill('Verified on call')
+    await rename
+      .getByLabel('Name for All confirmed', { exact: true })
+      .fill('Verified on call')
     await rename.getByRole('button', { name: 'Save names' }).click()
     await expect(rename).toHaveCount(0)
 

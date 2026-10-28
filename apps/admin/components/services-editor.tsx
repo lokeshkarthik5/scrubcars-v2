@@ -274,14 +274,27 @@ export function ServicesEditor({
    * the field is only sent then, as an older API refuses it.
    */
   const describe = async (row: ServiceRow, format: DescriptionMode = 'paragraph') => {
-    const { description } = await describeAdminService({
+    const facts = {
       name: row.name.trim(),
       category: row.category,
       pricingType: row.pricingType,
       durationMins: rowDurationMins(row),
       garageName: garageName.trim() || undefined,
-      ...(format === 'points' && { format: 'points' as const }),
-    })
+    }
+    const ask = async () => {
+      if (format !== 'points') return describeAdminService(facts)
+      try {
+        return await describeAdminService({ ...facts, format: 'points' })
+      } catch (err) {
+        // An API older than points refuses the field (400): a paragraph
+        // then, which Points mode shows as the line before the points.
+        if (err instanceof ApiError && err.status === 400 && err.code !== 'AI_NO_DESCRIPTION') {
+          return describeAdminService(facts)
+        }
+        throw err
+      }
+    }
+    const { description } = await ask()
     // Another tab was opened meanwhile: see `mounted`.
     if (!mounted.current) return
     update(row.key, { description })

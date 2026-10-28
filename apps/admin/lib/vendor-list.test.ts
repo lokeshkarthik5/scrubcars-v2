@@ -554,7 +554,9 @@ describe('the table filters in the URL', () => {
       colour: 'amber',
     })
     // A colour from an old or bad link is no filter.
-    expect(parseGarageList(new URLSearchParams('colour=pink')).colour).toBeNull()
+    expect(
+      parseGarageList(new URLSearchParams('colour=pink')).colour
+    ).toBeNull()
     // The editor's back arrow takes it as it is.
     expect(safeBackHref(href)).toBe(href)
     expect(garageListHref({ show: 'pending' })).toBe(listHref('pending'))

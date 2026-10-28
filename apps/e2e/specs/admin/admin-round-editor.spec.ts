@@ -85,8 +85,12 @@ test.describe.serial('the admin round: garage editor @p0', () => {
     page,
   }) => {
     await page.goto(`/vendors/${DOORSTEP.id}/edit?tab=location`)
-    await expect(page.getByLabel('Address (optional)')).toHaveValue('')
-    await expect(page.getByLabel('Pincode (optional)')).toHaveValue('')
+    await expect(
+      page.getByLabel('Address (optional)', { exact: true })
+    ).toHaveValue('')
+    await expect(
+      page.getByLabel('Pincode (optional)', { exact: true })
+    ).toHaveValue('')
     await expect(
       page.getByText('Doorstep only: the map pin is enough.', { exact: false })
     ).toBeVisible()
@@ -95,7 +99,7 @@ test.describe.serial('the admin round: garage editor @p0', () => {
       page.getByText('No address for at-garage customers')
     ).toHaveCount(0)
 
-    await page.getByLabel('City').fill('Kanchipuram')
+    await page.getByLabel('City', { exact: true }).fill('Kanchipuram')
     const save = page.getByRole('button', { name: 'Save changes' })
     await expect(save).toBeEnabled()
     await save.click()
@@ -397,7 +401,7 @@ test.describe.serial('the admin round: garage editor @p0', () => {
       name: `Calling ${STAFF.roundAOwner.name}`,
     })
     await sheet
-      .getByLabel('Answer for Ask about pickup')
+      .getByLabel('Answer for Ask about pickup', { exact: true })
       .fill('Not yet, maybe in Dec')
     await expect(
       sheet.getByRole('button', {
@@ -426,23 +430,27 @@ test.describe.serial('the admin round: garage editor @p0', () => {
     // pasted list, and an item removed.
     await old.getByRole('button', { name: 'Edit mark Old call notes' }).click()
     const dialog = page.getByRole('dialog', { name: 'Edit mark' })
-    await expect(dialog.getByLabel('Item 1')).toHaveValue(
+    await expect(dialog.getByLabel('Item 1', { exact: true })).toHaveValue(
       'Check if they do doorstep'
     )
     await expect(
       dialog.getByText('Status follows the ticks', { exact: false })
     ).toBeVisible()
     await dialog.getByRole('button', { name: 'Doorstep checks' }).click()
-    await expect(dialog.getByLabel('Item 5')).toHaveValue(
+    await expect(dialog.getByLabel('Item 5', { exact: true })).toHaveValue(
       'Pickup & drop radius?'
     )
-    const add = dialog.getByLabel('Add an item')
+    const add = dialog.getByLabel('Add an item', { exact: true })
     await add.fill('Ask for the logo')
     await add.press('Enter')
-    await expect(dialog.getByLabel('Item 6')).toHaveValue('Ask for the logo')
+    await expect(dialog.getByLabel('Item 6', { exact: true })).toHaveValue(
+      'Ask for the logo'
+    )
     await expect(add).toHaveValue('')
     await paste(add, '- Bank details\n- Opening hours')
-    await expect(dialog.getByLabel('Item 8')).toHaveValue('Opening hours')
+    await expect(dialog.getByLabel('Item 8', { exact: true })).toHaveValue(
+      'Opening hours'
+    )
     await dialog.getByRole('button', { name: 'Remove item 1' }).click()
     await expect(dialog.getByText('7 items')).toBeVisible()
     await dialog.getByRole('button', { name: 'Save', exact: true }).click()
@@ -475,9 +483,13 @@ test.describe.serial('the admin round: garage editor @p0', () => {
     const marks = page.getByRole('region', { name: 'Marks' })
     await marks.getByRole('button', { name: 'Add mark' }).click()
     const dialog = page.getByRole('dialog', { name: 'Add a mark' })
-    await dialog.getByLabel('Or write your own').fill('Payout call')
+    await dialog
+      .getByLabel('Or write your own', { exact: true })
+      .fill('Payout call')
     await dialog.getByRole('button', { name: 'Payout setup' }).click()
-    await expect(dialog.getByLabel('Item 3')).toHaveValue('Payout details')
+    await expect(dialog.getByLabel('Item 3', { exact: true })).toHaveValue(
+      'Payout details'
+    )
     await dialog.getByRole('button', { name: 'Add mark' }).click()
     await expect(dialog).toHaveCount(0)
 

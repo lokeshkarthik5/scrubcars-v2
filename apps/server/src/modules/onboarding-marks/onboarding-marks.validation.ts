@@ -36,9 +36,18 @@ const note = z
 const checklistItemSchema = z
   .object({
     id: z.string().trim().min(1).max(64).optional(),
-    text: z.string().trim().min(1, 'An item needs words').max(CHECKLIST_LIMITS.textMax),
+    text: z
+      .string()
+      .trim()
+      .min(1, 'An item needs words')
+      .max(CHECKLIST_LIMITS.textMax),
     done: z.boolean().optional(),
-    answer: z.string().trim().max(CHECKLIST_LIMITS.answerMax).nullable().optional(),
+    answer: z
+      .string()
+      .trim()
+      .max(CHECKLIST_LIMITS.answerMax)
+      .nullable()
+      .optional(),
   })
   .strict()
 
@@ -60,7 +69,12 @@ export const updateMarkItemSchema = z
   .object({
     actorName: signedActorName,
     done: z.boolean().optional(),
-    answer: z.string().trim().max(CHECKLIST_LIMITS.answerMax).nullable().optional(),
+    answer: z
+      .string()
+      .trim()
+      .max(CHECKLIST_LIMITS.answerMax)
+      .nullable()
+      .optional(),
   })
   .strict()
   .refine((input) => input.done !== undefined || input.answer !== undefined, {

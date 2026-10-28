@@ -27,12 +27,24 @@ export async function execute(c: DataResetContext, input: ExecuteInput) {
 }
 
 // One test booking, from its page (0061): not behind the reset's switch.
-export async function previewTestBooking(c: DataResetContext, bookingId: string, input: TestBookingPreviewInput) {
+export async function previewTestBooking(
+  c: DataResetContext,
+  bookingId: string,
+  input: TestBookingPreviewInput
+) {
   const data = await dataResetService.previewTestBooking(bookingId, input)
   return c.json({ success: true, data })
 }
 
-export async function deleteTestBooking(c: DataResetContext, bookingId: string, input: TestBookingDeleteInput) {
-  const data = await dataResetService.deleteTestBooking(c.get('auth').sub, bookingId, input)
+export async function deleteTestBooking(
+  c: DataResetContext,
+  bookingId: string,
+  input: TestBookingDeleteInput
+) {
+  const data = await dataResetService.deleteTestBooking(
+    c.get('auth').sub,
+    bookingId,
+    input
+  )
   return c.json({ success: true, data })
 }

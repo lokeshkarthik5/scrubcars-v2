@@ -52,7 +52,8 @@ const serviceBaseSchema = z.object({
     .number()
     .min(0)
     .max(50)
-    .refine((value) => Math.round(value * 100) === value * 100, 'At most two decimals')
+    // Compared as text: 8.29 * 100 is not 829 in floating point.
+    .refine((value) => Number(value.toFixed(2)) === value, 'At most two decimals')
     .nullable()
     .optional(),
 })
@@ -123,7 +124,7 @@ export const createVendorSchema = z.object({
   phone: phoneSchema,
   // Empty for a doorstep-only garage, which needs only its pin (0061); one
   // with at-garage on needs both (the refine below).
-  address: z.string().trim().max(500).default(''),
+  address: z.string().trim().default(''),
   city: z.string().trim().min(1).max(100),
   pincode: optionalPincodeSchema.default(''),
   email: z.string().trim().email().optional(),
@@ -208,7 +209,7 @@ export const updateVendorSchema = z.object({
   phone: phoneSchema.optional(),
   // May be emptied for a doorstep-only garage; adminService refuses leaving
   // an at-garage one without them (0061).
-  address: z.string().trim().max(500).optional(),
+  address: z.string().trim().optional(),
   city: z.string().trim().min(1).max(100).optional(),
   pincode: optionalPincodeSchema.optional(),
   email: z.string().trim().email().nullable().optional(),

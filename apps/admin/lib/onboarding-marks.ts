@@ -204,7 +204,10 @@ type MarkTiming = Pick<OnboardingMark, 'status' | 'askedAt'> & {
 }
 
 /** A mark's checklist progress, from its items or its brief's counts. */
-export function markProgress(mark: MarkTiming): { done: number; total: number } {
+export function markProgress(mark: MarkTiming): {
+  done: number
+  total: number
+} {
   if (mark.items && mark.items.length > 0) {
     return {
       done: mark.items.filter((item) => item.done).length,

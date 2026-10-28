@@ -188,16 +188,22 @@ describe('toServicePayload', () => {
   })
 
   test('an empty duration is left out; a commission percent is sent, empty as null (0061)', () => {
-    const blank = toServicePayload(row({ durationValue: '', commissionRate: '6.5' }))
+    const blank = toServicePayload(
+      row({ durationValue: '', commissionRate: '6.5' })
+    )
     expect('durationMins' in blank).toBe(false)
     expect(blank.commissionRate).toBe(6.5)
-    expect(toServicePayload(row({ commissionRate: ' ' })).commissionRate).toBeNull()
+    expect(
+      toServicePayload(row({ commissionRate: ' ' })).commissionRate
+    ).toBeNull()
   })
 
   test('a stored service with no duration or rate opens empty; one with a rate shows it', () => {
     expect(toServiceRow(stored({ durationMins: null })).durationValue).toBe('')
     expect(toServiceRow(stored()).commissionRate).toBe('')
-    expect(toServiceRow(stored({ commissionRate: '6.50' })).commissionRate).toBe('6.5')
+    expect(
+      toServiceRow(stored({ commissionRate: '6.50' })).commissionRate
+    ).toBe('6.5')
   })
 })
 

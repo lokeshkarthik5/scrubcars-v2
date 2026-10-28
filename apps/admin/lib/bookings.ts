@@ -91,7 +91,10 @@ export function formatWhen(iso: string): string {
  * "Booked today, 9:12 am", "Booked yesterday, 6:40 pm", "Booked Tue 20 Oct,
  * 11:05 am". In Chennai time.
  */
-export function bookedLine(createdAt: string, now: number = Date.now()): string {
+export function bookedLine(
+  createdAt: string,
+  now: number = Date.now()
+): string {
   const day = formatDay(createdAt, now)
   if (!day) return ''
   const said = day === 'Today' || day === 'Yesterday' ? day.toLowerCase() : day

@@ -331,5 +331,9 @@ describe('the admin round (0061)', () => {
     expect(ok({ commissionRate: 50.01 })).toBe(false)
     expect(ok({ commissionRate: -1 })).toBe(false)
     expect(ok({ commissionRate: 6.555 })).toBe(false)
+    // Two decimals that floating point cannot multiply by 100 exactly.
+    for (const rate of [1.1, 8.29, 4.35, 2.01, 0.07, 0.29, 0.57, 1.13, 49.99]) {
+      expect(ok({ commissionRate: rate })).toBe(true)
+    }
   })
 })

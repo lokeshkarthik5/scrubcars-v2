@@ -39,7 +39,12 @@ export async function updateItem(
   params: { id: string; markId: string; itemId: string },
   input: UpdateMarkItemInput
 ) {
-  const data = await onboardingMarksService.updateItem(params.id, params.markId, params.itemId, input)
+  const data = await onboardingMarksService.updateItem(
+    params.id,
+    params.markId,
+    params.itemId,
+    input
+  )
   return c.json({ success: true, data })
 }
 

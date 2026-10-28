@@ -877,6 +877,13 @@ export const adminService = {
       }
     }
 
+    // Customers drive in to an at-garage garage, so it keeps its address
+    // and pincode; a doorstep-only one needs only its pin (0061).
+    // Before any write, like the hours above.
+    if (atGarageAddressRefused(vendor, input)) {
+      throw new AppError(400, AT_GARAGE_ADDRESS_MESSAGE, 'ADDRESS_REQUIRED')
+    }
+
     // Owner name/phone live on the linked user row. Guard against moving the
     // owner phone onto a number that already belongs to another account.
     if (input.ownerPhone !== undefined || input.ownerName !== undefined) {
@@ -905,12 +912,6 @@ export const adminService = {
         lat: input.lat ?? vendor.lat,
         lng: input.lng ?? vendor.lng,
       })
-    }
-
-    // Customers drive in to an at-garage garage, so it keeps its address
-    // and pincode; a doorstep-only one needs only its pin (0061).
-    if (atGarageAddressRefused(vendor, input)) {
-      throw new AppError(400, AT_GARAGE_ADDRESS_MESSAGE, 'ADDRESS_REQUIRED')
     }
 
     const pinMoved =

@@ -144,7 +144,13 @@ export const onboardingMarksService = {
 
   async create(vendorId: string, input: CreateMarkInput, now = new Date()) {
     await assertGarage(vendorId, true)
-    const items = mergeChecklist([], input.items ?? [], input.actorName, now, newItemId)
+    const items = mergeChecklist(
+      [],
+      input.items ?? [],
+      input.actorName,
+      now,
+      newItemId
+    )
     // With a checklist, the ticks decide (lib/mark-checklist.ts).
     const status = statusForChecklist(input.status ?? 'to_ask', items)
     const stamped = statusPatch(null, status, input.actorName, now)
@@ -175,32 +181,49 @@ export const onboardingMarksService = {
     now = new Date()
   ) {
     await assertGarage(vendorId, true)
-    const row = await onboardingMarksRepository.updateLocked(vendorId, markId, (current) => {
-      const checklist = readChecklist(current)
-      // The list as the dialog left it, merged with what is stored so each
-      // item keeps who answered it. Items read from an old note are saved
-      // as items now, and the note keeps only its other lines.
-      const items =
-        input.items !== undefined
-          ? mergeChecklist(checklist.items, input.items, input.actorName, now, newItemId)
-          : null
-      const note =
-        input.note !== undefined
-          ? input.note
-          : items !== null && checklist.fromNote
-            ? checklist.note
-            : undefined
-      const listed = items ?? (checklist.fromNote ? [] : checklist.items)
-      const status = statusForChecklist(input.status ?? current.status, listed)
-      return {
-        ...statusPatch(current.status, status, input.actorName, now),
-        ...(items !== null && { items }),
-        ...(note !== undefined && { note }),
-        ...(input.label !== undefined && { label: input.label }),
-        updatedByName: input.actorName,
-        updatedAt: now,
+    const row = await onboardingMarksRepository.updateLocked(
+      vendorId,
+      markId,
+      (current) => {
+        const checklist = readChecklist(current)
+        // The list as the dialog left it, merged with what is stored so each
+        // item keeps who answered it. Items read from an old note are saved
+        // as items now, and the note keeps only its other lines.
+        // A panel from before 0061 sends the note as it was shown, without
+        // its "- " lines: those are saved as items then, not lost.
+        const items =
+          input.items !== undefined
+            ? mergeChecklist(
+                checklist.items,
+                input.items,
+                input.actorName,
+                now,
+                newItemId
+              )
+            : checklist.fromNote && input.note !== undefined
+              ? checklist.items
+              : null
+        const note =
+          input.note !== undefined
+            ? input.note
+            : items !== null && checklist.fromNote
+              ? checklist.note
+              : undefined
+        const listed = items ?? (checklist.fromNote ? [] : checklist.items)
+        const status = statusForChecklist(
+          input.status ?? current.status,
+          listed
+        )
+        return {
+          ...statusPatch(current.status, status, input.actorName, now),
+          ...(items !== null && { items }),
+          ...(note !== undefined && { note }),
+          ...(input.label !== undefined && { label: input.label }),
+          updatedByName: input.actorName,
+          updatedAt: now,
+        }
       }
-    })
+    )
     if (row === 'exists') throw markExists()
     if (!row) throw markNotFound()
     return toMark(row)
@@ -221,29 +244,33 @@ export const onboardingMarksService = {
   ) {
     await assertGarage(vendorId, true)
     let missingItem = false
-    const row = await onboardingMarksRepository.updateLocked(vendorId, markId, (current) => {
-      const checklist = readChecklist(current)
-      const items = patchChecklistItem(
-        checklist.items,
-        itemId,
-        { done: input.done, answer: input.answer },
-        input.actorName,
-        now
-      )
-      if (!items) {
-        // Nothing to write; set what is there so the statement stays valid.
-        missingItem = true
-        return { updatedAt: current.updatedAt }
+    const row = await onboardingMarksRepository.updateLocked(
+      vendorId,
+      markId,
+      (current) => {
+        const checklist = readChecklist(current)
+        const items = patchChecklistItem(
+          checklist.items,
+          itemId,
+          { done: input.done, answer: input.answer },
+          input.actorName,
+          now
+        )
+        if (!items) {
+          // Nothing to write; set what is there so the statement stays valid.
+          missingItem = true
+          return { updatedAt: current.updatedAt }
+        }
+        const status = statusForChecklist(current.status, items)
+        return {
+          ...statusPatch(current.status, status, input.actorName, now),
+          items,
+          ...(checklist.fromNote && { note: checklist.note }),
+          updatedByName: input.actorName,
+          updatedAt: now,
+        }
       }
-      const status = statusForChecklist(current.status, items)
-      return {
-        ...statusPatch(current.status, status, input.actorName, now),
-        items,
-        ...(checklist.fromNote && { note: checklist.note }),
-        updatedByName: input.actorName,
-        updatedAt: now,
-      }
-    })
+    )
     if (row === 'exists') throw markExists()
     if (!row) throw markNotFound()
     if (missingItem) throw itemNotFound()

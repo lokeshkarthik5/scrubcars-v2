@@ -70,6 +70,11 @@ const TEST_BOOKING_VOID_REASON = 'Test booking deleted from its page in admin'
 interface RunLabels {
   auditAction: string
   voidReason: string
+  /**
+   * One booking from its page (0061): a chain the rules keep is refused
+   * with the reason, rather than read as "nothing ticked".
+   */
+  refuseKept?: boolean
 }
 
 const RESET_LABELS: RunLabels = { auditAction: AUDIT_ACTION, voidReason: VOID_REASON }
@@ -579,7 +584,7 @@ export const dataResetService = {
         )
         // A booking deleted on its own says why it is kept, before anything
         // else: that is what the person needs to hear (0061).
-        if (scope.kind === 'chains') {
+        if (labels.refuseKept) {
           const kept = plan.chains.find((chain) => chain.kept)?.kept
           if (kept) throw chainKept(kept)
         }
@@ -745,7 +750,7 @@ export const dataResetService = {
         actorName: input.actorName,
       },
       now,
-      { auditAction: TEST_BOOKING_AUDIT_ACTION, voidReason: TEST_BOOKING_VOID_REASON }
+      { auditAction: TEST_BOOKING_AUDIT_ACTION, voidReason: TEST_BOOKING_VOID_REASON, refuseKept: true }
     )
   },
 }
