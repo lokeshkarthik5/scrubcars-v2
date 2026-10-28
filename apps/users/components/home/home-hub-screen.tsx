@@ -27,6 +27,7 @@ import { usePendingCheckoutStore } from '@repo/core/stores/pending-checkout-stor
 import { useUserStore } from '@repo/core/stores/user-store'
 import { CustomerShell } from '@/components/customer-shell'
 import { ContinueBookingCard } from '@/components/checkout/continue-booking'
+import { ReachStatusCards } from '@/components/reach/reach-status'
 import {
   BillDueCard,
   ComplaintAnswerCard,
@@ -180,6 +181,10 @@ function HomeHubContent() {
 
         {/* A booking started before signing in and left half way (0062). */}
         <ContinueBookingCard />
+
+        {/* Customer reach, part 2 (0062): requests, the area's list, a free
+            wash ready and launch day. */}
+        <ReachStatusCards />
 
         {home.isPending ? (
           <>

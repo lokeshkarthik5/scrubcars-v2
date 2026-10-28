@@ -17,6 +17,7 @@ import { SkeletonList } from '@repo/ui/sc/skeleton'
 import { StatTile } from '@repo/ui/sc/stat-tile'
 import { TopBar } from '@repo/ui/sc/top-bar'
 import type { PayoutLine } from '@repo/core/api/admin'
+import type { GarageStatementLine } from '@repo/core/api/earnings'
 import {
   getEarningsStatement,
   type EarningsStatement,
@@ -99,7 +100,7 @@ function statusBadge(line: PayoutLine) {
   )
 }
 
-function LineCard({ line }: { line: PayoutLine }) {
+function LineCard({ line }: { line: GarageStatementLine }) {
   const kind = lineKindLabel(line.kind)
   return (
     <ScCard
@@ -135,6 +136,14 @@ function LineCard({ line }: { line: PayoutLine }) {
 
       <dl className="flex flex-col gap-1 border-t border-border pt-2">
         <Figure label="Price" value={rupeesLabel(line.price)} />
+        {(line.travelFee ?? 0) > 0 && (
+          // An accepted request's travel fee (0062): part of the price, the
+          // garage's whole, with no commission on it.
+          <Figure
+            label="Travel fee (yours, no commission)"
+            value={rupeesLabel(line.travelFee ?? 0)}
+          />
+        )}
         {line.detlioPromo > 0 && (
           // Detlio pays for its own promos: shown so the garage sees why the
           // customer paid less, and that it changes nothing for the garage.

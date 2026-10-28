@@ -50,6 +50,7 @@ import {
   PickupExplainer,
   SkipTheDriveCard,
 } from './reach-parts'
+import { FreeWashPiece } from '@/components/reach/free-wash'
 
 const CATEGORIES = CATEGORY_FILTERS
 
@@ -343,6 +344,11 @@ export function GarageList({
           onSwitch={switchTo}
         />
       )}
+
+      {/* Their area has no garage yet (0062): the free wash for the day we
+          arrive, under Skip the drive or at the top. Pickup & drop offers it
+          at the bottom instead, so a screen shows it once. */}
+      {serviceMode !== 'pickup' && <FreeWashPiece placement="top" />}
 
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-3">

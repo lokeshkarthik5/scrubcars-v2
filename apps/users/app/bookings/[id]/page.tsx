@@ -1206,6 +1206,12 @@ export default function BookingDetailPage({
             </span>
           )}
         </Row>
+        {/* An accepted request's travel fee (0062): its own line. */}
+        {(booking.travelFee ?? 0) > 0 && (
+          <Row label="Travel fee">
+            <span className="font-numeric">{money(booking.travelFee ?? 0)}</span>
+          </Row>
+        )}
         {booking.discountAmount > 0 && (
           <Row
             label={`Discount${booking.discountCode ? ` (${booking.discountCode})` : ''}`}

@@ -9,6 +9,8 @@
  * CHENNAI_ZONES, and migration 0062) by zones.parity.test.ts.
  */
 
+import { straightLineKm } from './map'
+
 /** How far from a zone's centre a point still belongs to it, in km. */
 export const ZONE_RADIUS_KM = 6
 
@@ -83,4 +85,28 @@ export function searchZones<Z extends Pick<Zone, 'name'>>(zones: readonly Z[], q
     const words = zone.name.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean)
     return terms.every((term) => words.some((word) => word.startsWith(term)))
   })
+}
+
+/**
+ * The zone a point is in (customer reach, part 2): the nearest centre within
+ * ZONE_RADIUS_KM, else none; a tie goes to the zone listed first. The
+ * server's rule (apps/server/src/lib/zones.ts zoneFor), twinned so the app
+ * knows the customer's area from a phone fix as well as from a chip
+ * (zones.parity.test.ts).
+ */
+export function zoneFor<Z extends Pick<Zone, 'lat' | 'lng'>>(
+  point: { lat: number; lng: number } | null | undefined,
+  zones: readonly Z[]
+): Z | null {
+  if (!point || !Number.isFinite(point.lat) || !Number.isFinite(point.lng)) return null
+  let best: Z | null = null
+  let bestKm = Infinity
+  for (const zone of zones) {
+    const km = straightLineKm(point, zone)
+    if (km <= ZONE_RADIUS_KM && km < bestKm) {
+      best = zone
+      bestKm = km
+    }
+  }
+  return best
 }

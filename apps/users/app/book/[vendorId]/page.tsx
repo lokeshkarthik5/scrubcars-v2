@@ -59,6 +59,9 @@ import {
   errorMessage,
   useValidateDiscount,
 } from '@repo/core/api/hooks/use-discounts'
+import { useMyRequest } from '@repo/core/api/hooks/use-booking-requests'
+import { useAreaStatus } from '@repo/core/api/hooks/use-area'
+import { istClock, istStartLabel } from '@repo/core/booking-requests'
 import {
   createBookingIntent,
   getBookingIntentStatus,
@@ -220,11 +223,23 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // The day to open the picker on: a slot alert's notification (0047) links
   // here with the day a time opened.
   const dateParam = searchParams.get('date')
+  // Customer reach (0062): "Confirm & pay" on a request the garage accepted
+  // opens checkout on it. Its car, address and time are the garage's yes,
+  // shown fixed; its travel fee is a line of its own; the server books it
+  // only if it is still accepted and exactly this.
+  const requestParam = searchParams.get('request')
   // Signed in, or a guest (customer reach, 0062): a guest chooses everything
   // here and signs in inside the page at "Confirm". AppProvider renders this
   // page only once the session is known, so this is settled on first render.
   const authUser = useAuthStore((s) => s.user)
   const isGuest = !authUser
+  const myRequest = useMyRequest(requestParam && authUser ? requestParam : null)
+  const acceptedRequest =
+    myRequest.data && myRequest.data.state === 'accepted' && myRequest.data.garage.id === vendorId
+      ? myRequest.data
+      : null
+  const requestMode = acceptedRequest !== null
+  const travelFee = acceptedRequest?.travelFee ?? 0
   // A booking started here before on this phone (this garage, the last day):
   // its time, car and address come back (@repo/core/booking-draft). Read
   // once, on arrival.
@@ -266,9 +281,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const [loadProblem, setLoadProblem] = useState<'gone' | 'failed' | null>(null)
   // Bumped by Retry to load the garage again.
   const [loadAttempt, setLoadAttempt] = useState(0)
-  const [selectedSlot, setSelectedSlot] = useState<string | null>(() =>
+  const [pickedSlot, setSelectedSlot] = useState<string | null>(() =>
     draftSlotStillAhead(restored?.slot ?? null, Date.now())
   )
+  // An accepted request's start (0062) is the garage's yes, never picked here.
+  const selectedSlot = acceptedRequest?.acceptedStartAt ?? pickedSlot
   // The picker opens on a continued booking's day, so its time shows chosen.
   const [restoredDay] = useState(() =>
     selectedSlot ? istDay(selectedSlot) : null
@@ -374,6 +391,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // Printed coupons (0056): the customer's ready coupon vouchers, offered
   // the same way, whether or not Rewards is on.
   const myCoupons = couponsForCheckout(useMyCoupons(!!userId).data)
+  // A zone's free wash (0062), ready since its launch: one tap, the same
+  // check as a typed code (car washes only, the server decides).
+  const freeWashes = (useAreaStatus({ enabled: !!userId }).data?.signups ?? [])
+    .map((signup) => (signup.freeWashReady ? { area: signup.zone.name, ...signup.freeWashReady } : null))
+    .filter((wash): wash is { area: string; code: string; amount: number; endsAt: string } => wash !== null)
   const pending = usePendingCheckoutStore((s) => s.pending)
   const forgetPendingCode = usePendingCheckoutStore((s) => s.forgetCode)
   const clearPending = usePendingCheckoutStore((s) => s.clear)
@@ -496,17 +518,23 @@ function BookContent({ vendorId }: { vendorId: string }) {
     ? carDraftReady
       ? DRAFT_CAR
       : null
-    : (pickedVehicle ??
+    : (acceptedRequest?.vehicleId ??
+      pickedVehicle ??
       (carDraftReady
         ? DRAFT_CAR
         : bookingCarId(vehicles, livePending?.vehicleId)))
   /** The selected car as the API knows it: null while it is the guest's draft. */
   const savedVehicleId = selectedVehicle === DRAFT_CAR ? null : selectedVehicle
+  const selectedVehicleRecord = vehicles.find((v) => v.id === savedVehicleId)
+  const selectedVehicleLabel = selectedVehicleRecord
+    ? `${selectedVehicleRecord.make} ${selectedVehicleRecord.model}`.trim()
+    : null
 
   // Derived rather than set when the garage loads, for the same reason the car
   // is: the choice carried in from the garage page stands unless this garage
   // cannot do it, and there is no render where the toggle shows the wrong one.
-  const bookingType = resolveBookingType(chosenType, vendor)
+  // An accepted request's mode (0062) is the one the garage said yes to.
+  const bookingType = resolveBookingType(acceptedRequest?.bookingType ?? chosenType, vendor)
   // The mode asked for, when this garage no longer offers it: Book again on
   // a doorstep job at a garage that has since stopped travelling, or one that
   // stopped collecting while the customer was here (PICKUP_NOT_OFFERED).
@@ -570,7 +598,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
       ? draftAddress
         ? DRAFT_ADDRESS
         : null
-      : (pickedAddress ??
+      : (acceptedRequest?.addressId ??
+        pickedAddress ??
         (draftAddress ? DRAFT_ADDRESS : null) ??
         linkedAddress ??
         addresses.find((a) => a.isDefault)?.id ??
@@ -611,7 +640,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
       // 0,0 is no pin (see addressNeedsPin), not a point in the sea.
       (!(address.lat === 0 && address.lng === 0) &&
         insidePickupReach(vendor, address) === false))
+  // An accepted request is outside the garage's own reach by design: the
+  // garage said yes to it (the server checks the request instead).
   const addressOutside =
+    !requestMode &&
     selectedAddressRecord != null &&
     !addressNeedsPin &&
     outsidePickup(selectedAddressRecord)
@@ -787,9 +819,13 @@ function BookContent({ vendorId }: { vendorId: string }) {
 
   // What the customer will actually be charged. The server recomputes this at
   // booking time; this is only what the button says.
+  // An accepted request's travel fee (0062) is added after any code: a code
+  // never comes off it.
   const payableAmount = appliedDiscount
-    ? Number(appliedDiscount.finalAmount)
-    : subtotal
+    ? Math.round((Number(appliedDiscount.finalAmount) + travelFee) * 100) / 100
+    : subtotal == null
+      ? null
+      : Math.round((subtotal + travelFee) * 100) / 100
 
   // Detlio credit comes off after any promo code. The server decides how
   // much (creditToUse, mirrored by checkoutCreditSplit): all of it when the
@@ -1093,6 +1129,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
         discountCode,
         // Only said while gifts are on; the server ignores it otherwise.
         useCredit: giftsOn ? creditApplied : undefined,
+        // The accepted request this confirms (0062).
+        requestId: acceptedRequest?.id,
       })
 
       // Detlio credit covered all of it (0049): there is no payment sheet,
@@ -1778,7 +1816,42 @@ function BookContent({ vendorId }: { vendorId: string }) {
 
       {/* At garage, Doorstep or Pickup & drop on one line, only when the
           garage offers more than one. */}
-      {modeOptions.length > 1 && (
+      {/* Confirming a request the garage accepted (0062): what it said yes
+          to, fixed, with the time left to confirm. */}
+      {acceptedRequest && acceptedRequest.acceptedStartAt && acceptedRequest.confirmBy && (
+        <section
+          aria-labelledby="checkout-request"
+          className="flex flex-col gap-2 rounded-[18px] border border-[#1F5A3A] bg-[#0E2418] p-4"
+          data-checkout-request=""
+        >
+          <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-success">
+            Accepted request
+          </p>
+          <h2 id="checkout-request" className="text-[17px] font-medium text-text-primary">
+            {acceptedRequest.garage.name} will{' '}
+            {acceptedRequest.bookingType === 'pickup' ? 'collect your car' : 'come'}{' '}
+            {istStartLabel(acceptedRequest.acceptedStartAt)}
+          </h2>
+          <p className="text-[13px] text-text-secondary" data-clarity-mask="true">
+            {selectedVehicleLabel ? `${selectedVehicleLabel} · ` : ''}
+            {selectedAddressRecord?.label || selectedAddressRecord?.address || ''}
+          </p>
+          <p className="text-[13px] text-success">
+            Held for you until {istClock(acceptedRequest.confirmBy)}. The car,
+            address and time are what the garage said yes to.
+          </p>
+        </section>
+      )}
+      {requestParam && authUser && myRequest.data && !acceptedRequest && (
+        <Notice tone="neutral" title="This request is no longer open">
+          It was answered, cancelled or ran out of time.{' '}
+          <Link href="/requests" className="underline">
+            See your requests
+          </Link>
+        </Notice>
+      )}
+
+      {!requestMode && modeOptions.length > 1 && (
         <section aria-labelledby="checkout-mode">
           <h2 id="checkout-mode" className="sr-only">
             Service type
@@ -1805,7 +1878,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
         tabIndex={-1}
         aria-label="Date and time"
         className="scroll-mt-20 outline-none"
+        hidden={requestMode}
       >
+        {!requestMode && (
         <WhenPicker
           autoPick
           vendorId={vendorId}
@@ -1825,10 +1900,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
             />
           )}
         />
+        )}
       </section>
 
       {/* The car, already picked (F1): the default one, or the one on Home. */}
-      <section>
+      <section hidden={requestMode}>
         <h2
           ref={carStepRef}
           tabIndex={-1}
@@ -1946,7 +2022,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
       {/* Doorstep and pickup & drop: where to come (or collect the car from),
           picked from the customer's saved addresses so the server can check
           it against the garage's travel or pickup radius. */}
-      {usesAddress && (
+      {usesAddress && !requestMode && (
         <section>
           <h2
             ref={addressStepRef}
@@ -2094,10 +2170,12 @@ function BookContent({ vendorId }: { vendorId: string }) {
       )}
 
       {/* Savings: the best reward already applied (F1), codes, and Detlio
-          credit. Shown once there is a car to price against. Quiet chips:
-          red on checkout is Pay's alone. */}
+          credit. Shown once there is a car to price against, or credit to
+          use (the credit switch shows for a car still being typed too, since
+          credit is applied without one). Quiet chips: red on checkout is
+          Pay's alone. */}
       {selectedServices.length > 0 &&
-        savedVehicleId &&
+        (savedVehicleId || creditOffered) &&
         !unpricedForVehicle && (
           <section aria-labelledby="checkout-savings">
             <h2
@@ -2107,7 +2185,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
               Savings
             </h2>
             <div className="hub-card flex flex-col px-5 py-1">
-              {appliedDiscount ? (
+              {/* Codes need a saved car to price against (the server's check). */}
+              {savedVehicleId && (appliedDiscount ? (
                 <div className="flex min-h-[60px] items-center justify-between gap-3 py-2">
                   <div className="min-w-0">
                     <p className="text-[15px] text-text-primary">
@@ -2117,7 +2196,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
                           ? `${appliedReward.label} applied`
                           : appliedCoupon
                             ? `Coupon applied: ${appliedCoupon.title}`
-                            : `${appliedDiscount.code} applied`}
+                            : freeWashes.some((w) => w.code.toUpperCase() === appliedDiscount.code.toUpperCase())
+                              ? 'Free wash applied'
+                              : `${appliedDiscount.code} applied`}
                     </p>
                     <p className="text-[13px] text-success">
                       Saves{' '}
@@ -2187,8 +2268,19 @@ function BookContent({ vendorId }: { vendorId: string }) {
                   )}
                   {/* Detlio Rewards (0050) and printed coupons (0056): one tap,
                     the same check as a typed code. */}
-                  {(rewardVouchers.length > 0 || myCoupons.length > 0) && (
+                  {(rewardVouchers.length > 0 || myCoupons.length > 0 || freeWashes.length > 0) && (
                     <div className="mb-3 flex flex-wrap gap-2">
+                      {freeWashes.map((wash) => (
+                        <button
+                          key={wash.code}
+                          type="button"
+                          disabled={applyPromo.isPending}
+                          onClick={() => handleApplyReward(wash.code)}
+                          className="flex min-h-11 items-center rounded-full border border-stroke px-3.5 text-[13px] text-text-primary disabled:opacity-50"
+                        >
+                          Free wash · up to ₹{wash.amount}
+                        </button>
+                      ))}
                       {rewardVouchers.slice(0, 4).map((voucher) => (
                         <button
                           key={voucher.id}
@@ -2219,10 +2311,15 @@ function BookContent({ vendorId }: { vendorId: string }) {
                     </div>
                   )}
                 </div>
-              )}
+              ))}
               {/* Detlio credit (0049): a switch, on by default. */}
               {creditOffered && (
-                <div className="flex min-h-[60px] items-center justify-between gap-3 border-t border-line">
+                <div
+                  className={cn(
+                    'flex min-h-[60px] items-center justify-between gap-3',
+                    savedVehicleId && 'border-t border-line'
+                  )}
+                >
                   <span className="min-w-0 text-[15px] text-text-primary">
                     Use{' '}
                     <span className="font-numeric">
@@ -2282,6 +2379,13 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 </span>
               </div>
             )}
+            {/* An accepted request's travel fee (0062): its own line. */}
+            {travelFee > 0 && (
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-text-secondary">Travel fee</span>
+                <span className="font-numeric text-text-primary">{money(travelFee)}</span>
+              </div>
+            )}
             {appliedDiscount && (
               <div className="flex items-center justify-between gap-3">
                 <span className="min-w-0 truncate text-text-secondary">
@@ -2305,6 +2409,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 'flex items-center justify-between gap-3',
                 (selectedServices.length > 1 ||
                   isPickup ||
+                  travelFee > 0 ||
                   appliedDiscount ||
                   creditApplied) &&
                   'border-t border-line pt-3'
