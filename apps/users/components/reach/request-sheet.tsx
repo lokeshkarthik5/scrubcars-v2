@@ -291,7 +291,7 @@ export function RequestSheet({
                               <span className="block text-[12px] text-text-muted">{service.durationMins} min</span>
                             </span>
                             <span className="shrink-0 font-numeric text-[15px] text-text-primary">
-                              {vehicleType ? (amount === null ? 'Not priced' : `₹${amount.toLocaleString('en-IN')}`) : `from ₹${service.price}`}
+                              {vehicleType ? (amount === null ? 'Not priced' : `₹${amount.toLocaleString('en-IN')}`) : `from ₹${service.price.toLocaleString('en-IN')}`}
                             </span>
                           </button>
                         </li>

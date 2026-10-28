@@ -20,6 +20,22 @@ reconstructing every change in them.
 
 ### Added
 
+- **Customer reach** (migration `0062_customer_reach`, additive). Part 1:
+  Chennai's zones (`GET /zones`), the garage list's reach figures and
+  "Just outside their area", guest checkout. Part 2: requests to a garage
+  just outside its reach (`booking_requests`; `/users/me/requests`,
+  `/vendors/me/requests`, public `/booking-requests/windows`; the garage has
+  2 hours, a travel fee of ₹0/100/200 and a start in the customer's window;
+  passed to the next nearest garage, at most two; 30-minute Telegram alert;
+  confirm and pay through `POST /booking-intents { requestId }`, the only
+  way a booking may be outside a garage's reach), `bookings.travel_fee`
+  (its own receipt line, no commission, kept by the garage), free-wash
+  sign-ups per zone (`zone_signups`, first 50 get a ₹499 Detlio-funded
+  car-wash code on launch day, `discounts.source = 'free_wash'`), launch day
+  set once by the cron, sign-up messages (launch, coverage, one 14-day
+  reminder), garage recommendations (`garage_recommendations`) and the
+  ₹100 referral credit (`gift_credit_entries` kind `referral_reward`).
+  New env `REACH_WRITE_RATE_LIMIT` (default 20).
 - **Behaviour: usage events from the landing page to paid** (migration
   `0061_behaviour_events`, additive: wider name and props CHECKs on
   `analytics_events`, an index on `visit_id`). New client events
