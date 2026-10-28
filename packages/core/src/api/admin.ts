@@ -762,6 +762,8 @@ export interface CreateVendorInput {
     /** Its own commission percent for Statistics (0064); null: the category's. */
     commissionRate?: number | null
   }>
+  /** The lead it was onboarded from (Coverage's Onboard, 0064): linked once created. */
+  leadId?: string
 }
 
 /** POST /admin/login */
