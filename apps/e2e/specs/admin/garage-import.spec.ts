@@ -46,6 +46,30 @@ test.describe('admin garage import', () => {
   test.beforeEach(removeImported)
   test.afterAll(removeImported)
 
+  // Clicked, not just its href checked: the page is prerendered, so it must
+  // read ?by=hand in the browser for the form to open.
+  test('Fill in by hand opens the empty form, and back returns to the import @p0', async ({
+    page,
+  }) => {
+    await page.goto('/vendors/new')
+    await page.getByRole('link', { name: /Fill in by hand/ }).click()
+
+    await expect(page).toHaveURL(/\/vendors\/new\?by=hand$/)
+    await expect(page.getByLabel('Business name')).toHaveValue('')
+    await expect(
+      page.getByRole('heading', { name: 'Import from a form or poster' })
+    ).toHaveCount(0)
+
+    // Straight to the address works too, as from a bookmark.
+    await page.reload()
+    await expect(page.getByLabel('Business name')).toBeVisible()
+
+    await page.getByRole('link', { name: 'Go back' }).click()
+    await expect(
+      page.getByRole('heading', { name: 'Import from a form or poster' })
+    ).toBeVisible()
+  })
+
   test('a poster fills in the form, what to check is marked, and Create saves it as Pending @p0', async ({
     page,
   }) => {

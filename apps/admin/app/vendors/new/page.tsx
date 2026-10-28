@@ -1,9 +1,10 @@
 'use client'
 
-import { use, useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useEffect, useMemo, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { PageHeader } from '@repo/ui/sc/page-header'
+import { SkeletonList } from '@repo/ui/sc/skeleton'
 import { ApiError } from '@repo/core/api/client'
 import {
   extractGarageImport,
@@ -59,12 +60,19 @@ let reviews = 0
  * is the ordinary POST /admin/vendors either way, and an import is always
  * saved as Pending and not verified.
  */
-export default function NewVendorPage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>
-}) {
-  const query = use(searchParams)
+export default function NewVendorPage() {
+  // Read in the browser: this page is prerendered, so the searchParams prop
+  // would be the build's empty one and ?by=hand would never show the form.
+  // useSearchParams needs a Suspense boundary for the static build.
+  return (
+    <Suspense fallback={<SkeletonList count={2} itemClassName="h-40" />}>
+      <NewVendor />
+    </Suspense>
+  )
+}
+
+function NewVendor() {
+  const byHand = useSearchParams().get('by') === 'hand'
   const router = useRouter()
   const [step, setStep] = useState<Step>({ kind: 'start' })
   const [reading, setReading] = useState<string | null>(null)
@@ -95,7 +103,7 @@ export default function NewVendorPage({
     return () => URL.revokeObjectURL(previewUrl)
   }, [previewUrl])
 
-  if (query.by === 'hand') {
+  if (byHand) {
     return (
       <div className="mx-auto w-full max-w-[640px] space-y-5">
         <PageHeader
