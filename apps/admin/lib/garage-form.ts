@@ -39,6 +39,8 @@ export interface GarageFormInitial {
   workingDays?: number[]
   vehicleTypes?: string[]
   services?: ServiceRow[]
+  /** The map pin to start from (a lead's, from Coverage's Onboard). */
+  pin?: { lat: number; lng: number }
 }
 
 export const EMPTY_GARAGE_TEXT: GarageFormText = {
@@ -116,4 +118,27 @@ export function missingForCreate(text: GarageFormText, services: ServiceRow[], a
 export function missingLine(count: number): string | null {
   if (count === 0) return null
   return count === 1 ? 'Fill in the 1 missing field to create' : `Fill in the ${count} missing fields to create`
+}
+
+/**
+ * Add garage filled in from a lead (Coverage's "Onboard", 0064): its name,
+ * its phone when that is a ten-digit number the form takes, its Maps link
+ * and its pin. Chennai, where every zone is. The rest is typed as usual.
+ */
+export function garageInitialFromLead(lead: {
+  name: string
+  phone: string | null
+  mapsUrl: string | null
+  lat: number | null
+  lng: number | null
+}): GarageFormInitial {
+  return {
+    text: {
+      businessName: lead.name,
+      phone: lead.phone && /^\d{10}$/.test(lead.phone) ? lead.phone : '',
+      mapsUrl: lead.mapsUrl ?? '',
+      city: 'Chennai',
+    },
+    ...(lead.lat !== null && lead.lng !== null && { pin: { lat: lead.lat, lng: lead.lng } }),
+  }
 }

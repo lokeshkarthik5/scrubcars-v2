@@ -1,6 +1,7 @@
 'use client'
 
 import { Suspense, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { PageHeader } from '@repo/ui/sc/page-header'
@@ -28,6 +29,8 @@ import {
   untimedLine,
 } from '@/lib/garage-import'
 import { prepareImportFiles } from '@/lib/import-files'
+import { garageInitialFromLead } from '@/lib/garage-form'
+import { useLead } from '@repo/core/api/hooks/use-admin-coverage'
 import { listHref } from '@/lib/vendor-list'
 
 type ImportSource =
@@ -72,7 +75,10 @@ export default function NewVendorPage() {
 }
 
 function NewVendor() {
-  const byHand = useSearchParams().get('by') === 'hand'
+  const params = useSearchParams()
+  const byHand = params.get('by') === 'hand'
+  // Coverage's "Onboard" (0064): ?by=hand&lead=<id> starts from that lead.
+  const leadId = byHand ? params.get('lead') : null
   const router = useRouter()
   const [step, setStep] = useState<Step>({ kind: 'start' })
   const [reading, setReading] = useState<string | null>(null)
@@ -102,6 +108,8 @@ function NewVendor() {
     if (!previewUrl) return
     return () => URL.revokeObjectURL(previewUrl)
   }, [previewUrl])
+
+  if (byHand && leadId) return <FromLead leadId={leadId} />
 
   if (byHand) {
     return (
@@ -278,6 +286,46 @@ function NewVendor() {
         onPickCsv={(file) => void readCsv(file)}
       />
       <FillByHandLink />
+    </div>
+  )
+}
+
+/**
+ * "Onboard" on a lead (Coverage, 0064): Fill in by hand, already filled in
+ * with the lead's name, phone, Maps link and pin. Create links the lead to
+ * the new garage (it becomes Onboarded), then goes back to the lead's zone.
+ */
+function FromLead({ leadId }: { leadId: string }) {
+  const { data: lead, isLoading, isError } = useLead(leadId)
+  const initial = useMemo(() => (lead ? garageInitialFromLead(lead) : undefined), [lead])
+  const back = lead?.zoneId ? `/coverage?zone=${lead.zoneId}` : '/coverage'
+
+  return (
+    <div className="mx-auto w-full max-w-[640px] space-y-5">
+      <PageHeader
+        title="Add garage"
+        subtitle={lead ? `Fill in by hand · from the lead ${lead.name}` : 'Fill in by hand'}
+        backHref={back}
+      />
+      {isLoading ? (
+        <SkeletonList count={2} itemClassName="h-40" />
+      ) : isError || !lead ? (
+        <>
+          <p role="alert" className="text-[13px] text-tone-attention-text">
+            Couldn’t open that lead. Fill the garage in by hand; it won’t be linked to a lead.
+          </p>
+          <GarageForm layout="tabs" afterCreate={listHref('all')} />
+        </>
+      ) : lead.vendorId ? (
+        <p role="alert" className="text-[13px] text-tone-attention-text">
+          {lead.name} is already a garage.{' '}
+          <Link href={`/vendors/${lead.vendorId}/edit`} className="underline underline-offset-4">
+            Open it
+          </Link>
+        </p>
+      ) : (
+        <GarageForm key={lead.id} layout="tabs" initial={initial} leadId={lead.id} afterCreate={back} />
+      )}
     </div>
   )
 }
