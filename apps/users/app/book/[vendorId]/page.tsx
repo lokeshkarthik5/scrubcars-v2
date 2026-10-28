@@ -125,6 +125,7 @@ import type { BookingType, Service, Vendor } from '@repo/core/types'
 import { resolveServiceAmount } from '@repo/core/pricing'
 import { Figures } from '@repo/ui/sc/figures'
 import { VEHICLE_TIERS } from '@repo/core/vehicles'
+import { knownDurationTotal } from '@repo/core/service-duration'
 import { cn, formatDuration, formatServiceSummary } from '@repo/core/utils'
 
 // Sheets closed on arrival are loaded after the page, not with it: they are
@@ -649,10 +650,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const creditApplied = creditOffered && creditSwitchOn
   const toPay = creditApplied ? creditSplit.toPay : payableAmount
 
-  const totalDuration = selectedServices.reduce(
-    (total, service) => total + service.durationMins,
-    0
-  )
+  // Null when a service has no duration set (0061): no total is shown.
+  const totalDuration = knownDurationTotal(selectedServices)
 
   const canApplyPromo =
     promoInput.trim().length >= 3 &&
@@ -1312,10 +1311,15 @@ function BookContent({ vendorId }: { vendorId: string }) {
               </div>
             ))}
             <p className="text-[13px] text-dim">
-              <span className="font-numeric">
-                {formatDuration(totalDuration)}
-              </span>{' '}
-              · {BOOKING_TYPE_LABELS[bookingType]}
+              {totalDuration !== null && (
+                <>
+                  <span className="font-numeric">
+                    {formatDuration(totalDuration)}
+                  </span>{' '}
+                  ·{' '}
+                </>
+              )}
+              {BOOKING_TYPE_LABELS[bookingType]}
             </p>
           </div>
         </section>

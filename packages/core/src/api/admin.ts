@@ -11,6 +11,7 @@ import type {
 } from '@repo/core/complaints'
 import type { OutsideServiceCity } from '@repo/core/service-city'
 import type { MissingKey } from '@repo/core/onboarding-marks'
+import type { ColourTag } from '@repo/core/garage-target'
 import { setAdminSigner, signedBody } from './admin-signer'
 import type { OnboardingMarkBrief } from './admin-marks'
 
@@ -130,6 +131,15 @@ export interface AdminVendor {
   onboardedByName?: string | null
   /** Its open items on a collection list ("With Raga · due 29 Oct · 3/11"). */
   openCollection?: AdminVendorCollection | null
+  /**
+   * The team's colour for it on the Garages list (0061), or null; the
+   * Call back day ("YYYY-MM-DD", blue only), and who set it when. Absent
+   * from an older API.
+   */
+  colourTag?: ColourTag | null
+  colourTagCallOn?: string | null
+  colourTagSetBy?: string | null
+  colourTagSetAt?: string | null
 }
 
 /**
@@ -260,7 +270,13 @@ export interface AdminVendorDetail {
     priceHatchback: string | null
     priceSedan: string | null
     priceSuv: string | null
-    durationMins: number
+    /** Null: not set (0061), and 60 min is held in the calendar. */
+    durationMins: number | null
+    /**
+     * Its own commission percent for Statistics ("6.50"), or null for its
+     * category's rate (0061). Absent from an older server.
+     */
+    commissionRate?: string | null
     images: AdminPhoto[]
     /** Photos and the video, with each video's state. */
     media: ServiceMedia[]
@@ -294,7 +310,13 @@ export interface UpdateVendorServiceInput {
   priceHatchback?: number
   priceSedan?: number
   priceSuv?: number
-  durationMins?: number
+  /** Left out or null: no duration (0061). */
+  durationMins?: number | null
+  /**
+   * Its own commission percent (0–50) for Statistics, or null for the
+   * category's rate (0061). Left out leaves it as it is.
+   */
+  commissionRate?: number | null
 }
 
 export interface UpdateVendorInput {
@@ -735,7 +757,10 @@ export interface CreateVendorInput {
     priceHatchback?: number
     priceSedan?: number
     priceSuv?: number
-    durationMins?: number
+    /** Left out or null: no duration (0061). */
+    durationMins?: number | null
+    /** Its own commission percent for Statistics (0061); null: the category's. */
+    commissionRate?: number | null
   }>
 }
 
@@ -1418,6 +1443,12 @@ export interface DescribeServiceInput {
   pricingType: 'flat' | 'per_vehicle' | 'on_inspection'
   durationMins?: number
   garageName?: string
+  /**
+   * 'points' (0061, the editor's Points mode): an intro line and "- "
+   * points, kept in that shape. Left out is a paragraph; an API older than
+   * this refuses the field (400).
+   */
+  format?: 'paragraph' | 'points'
 }
 
 /**
@@ -1952,6 +1983,34 @@ export async function previewDataReset(input: DataResetPreviewInput) {
  */
 export async function executeDataReset(input: DataResetExecuteInput) {
   return apiClient<DataResetResult>('/admin/data-reset/execute', {
+    method: 'POST',
+    body: signedBody(input),
+  })
+}
+
+/**
+ * POST /admin/bookings/:id/test-delete/preview — the dry run for deleting
+ * one test booking with its whole chain (0061). Works with the reset
+ * switched off. 404 when there is no such booking.
+ */
+export async function previewTestBookingDelete(bookingId: string, input: { unknownIds?: string[] }) {
+  return apiClient<DataResetPreview>(`/admin/bookings/${bookingId}/test-delete/preview`, {
+    method: 'POST',
+    body: JSON.stringify({ unknownIds: input.unknownIds ?? [] }),
+  })
+}
+
+/**
+ * POST /admin/bookings/:id/test-delete — deletes it. 409 TEST_BOOKING_KEPT
+ * (with the reason) when it is not marked Test or real money is on it, 409
+ * PREVIEW_STALE when it changed since the dry run, 400
+ * CONFIRM_PHRASE_MISMATCH for a wrong phrase.
+ */
+export async function deleteTestBooking(
+  bookingId: string,
+  input: { unknownIds: string[]; selectionHash: string; confirmText: string }
+) {
+  return apiClient<DataResetResult>(`/admin/bookings/${bookingId}/test-delete`, {
     method: 'POST',
     body: signedBody(input),
   })

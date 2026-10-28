@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { IconPackage } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
+import { effectiveDurationMins } from '@repo/core/service-duration'
 import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
@@ -115,7 +116,11 @@ export function PackagesPanel({
     Number.isFinite(previewPrice) && previewPrice > 0
       ? itemsTotal - previewPrice
       : 0
-  const suggestedDuration = selected.reduce((sum, s) => sum + s.durationMins, 0)
+  // A member with no duration set holds the default 60 min (0061).
+  const suggestedDuration = selected.reduce(
+    (sum, s) => sum + effectiveDurationMins(s),
+    0
+  )
 
   const runAction = async (key: string, action: () => Promise<void>) => {
     setSaving(key)
@@ -184,7 +189,7 @@ export function PackagesPanel({
         pkg.priceHatchback != null ? String(pkg.priceHatchback) : '',
       priceSedan: pkg.priceSedan != null ? String(pkg.priceSedan) : '',
       priceSuv: pkg.priceSuv != null ? String(pkg.priceSuv) : '',
-      durationMins: String(pkg.durationMins),
+      durationMins: pkg.durationMins != null ? String(pkg.durationMins) : '',
       serviceIds: pkg.items.map((item) => item.serviceId),
     })
   }
@@ -449,9 +454,17 @@ export function PackagesPanel({
                         </p>
                       )}
                       <p className="mt-0.5 text-[12px] text-text-secondary">
-                        <Figures text={formatServicePrice(pkg)} /> ·{' '}
-                        <span className="font-numeric">{pkg.durationMins}</span>{' '}
-                        min
+                        <Figures text={formatServicePrice(pkg)} />
+                        {pkg.durationMins != null && (
+                          <>
+                            {' '}
+                            ·{' '}
+                            <span className="font-numeric">
+                              {pkg.durationMins}
+                            </span>{' '}
+                            min
+                          </>
+                        )}
                       </p>
                       <p className="mt-1 text-[11px] text-text-muted">
                         {pkg.items.map((item) => item.name).join(' + ')}

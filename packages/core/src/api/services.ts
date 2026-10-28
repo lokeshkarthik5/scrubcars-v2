@@ -76,7 +76,9 @@ export async function updateService(
       // Always sent so clearing the field persists (null wipes the description).
       description: data.description?.trim() ? data.description.trim() : null,
       category: data.category,
-      durationMins: data.durationMins,
+      // Left out when empty, so a service admin left without a duration
+      // (0061) can still be changed; the API keeps what is stored.
+      ...(data.durationMins > 0 && { durationMins: data.durationMins }),
       ...pricingPayload(data),
     }),
   })

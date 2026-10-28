@@ -63,6 +63,7 @@ import { pricedForCar, servicePriceText } from '@/lib/price'
 import { useBookingCar } from '@/lib/use-booking-car'
 import { Figures } from '@repo/ui/sc/figures'
 import { VEHICLE_TIERS } from '@repo/core/vehicles'
+import { knownDurationTotal } from '@repo/core/service-duration'
 import { cn, formatDuration } from '@repo/core/utils'
 import { OpenStatus } from '@/components/open-status'
 import { MainAction } from '@/components/main-action'
@@ -323,10 +324,8 @@ export default function GaragePage({
       (resolveServiceAmount(service, carType ?? undefined) ?? service.price),
     0
   )
-  const selectedDuration = selectedServices.reduce(
-    (total, service) => total + service.durationMins,
-    0
-  )
+  // Null when a service has no duration set (0061): no total is shown.
+  const selectedDuration = knownDurationTotal(selectedServices)
   const hasPerVehiclePricing = selectedServices.some(
     (service) =>
       service.pricingType === 'per_vehicle' && !pricedForCar(service, carType)
@@ -762,10 +761,14 @@ export default function GaragePage({
 
                         <div className="mt-3 flex items-center justify-between">
                           <span className="flex items-center gap-1.5 text-[12px] text-text-secondary">
-                            <IconClock size={13} />
-                            <span className="font-numeric font-medium">
-                              {formatDuration(pkg.durationMins)}
-                            </span>
+                            {pkg.durationMins != null && (
+                              <>
+                                <IconClock size={13} />
+                                <span className="font-numeric font-medium">
+                                  {formatDuration(pkg.durationMins)}
+                                </span>
+                              </>
+                            )}
                           </span>
                           {!paused && (
                             <AddToBookingButton
@@ -847,10 +850,14 @@ export default function GaragePage({
                       </button>
                       <div className="mt-3 flex items-center justify-between pl-[76px]">
                         <span className="flex items-center gap-1.5 text-[12px] text-text-secondary">
-                          <IconClock size={13} />
-                          <span className="font-numeric font-medium">
-                            {formatDuration(svc.durationMins)}
-                          </span>
+                          {svc.durationMins != null && (
+                            <>
+                              <IconClock size={13} />
+                              <span className="font-numeric font-medium">
+                                {formatDuration(svc.durationMins)}
+                              </span>
+                            </>
+                          )}
                         </span>
                         {!paused && (
                           <AddToBookingButton
@@ -969,10 +976,16 @@ export default function GaragePage({
                   selectedServices[0].name
                 ) : (
                   <>
-                    {selectedServices.length} services ·{' '}
-                    <span className="font-numeric font-medium">
-                      {formatDuration(selectedDuration)}
-                    </span>
+                    {selectedServices.length} services
+                    {selectedDuration !== null && (
+                      <>
+                        {' '}
+                        ·{' '}
+                        <span className="font-numeric font-medium">
+                          {formatDuration(selectedDuration)}
+                        </span>
+                      </>
+                    )}
                   </>
                 )}
               </p>
@@ -1032,12 +1045,14 @@ export default function GaragePage({
               <ScBadge variant="muted">
                 {categoryLabel(details.category)}
               </ScBadge>
-              <span className="flex items-center gap-1.5 text-[11px] text-text-secondary">
-                <IconClock size={12} />
-                <span className="font-numeric font-medium">
-                  {formatDuration(details.durationMins)}
+              {details.durationMins != null && (
+                <span className="flex items-center gap-1.5 text-[11px] text-text-secondary">
+                  <IconClock size={12} />
+                  <span className="font-numeric font-medium">
+                    {formatDuration(details.durationMins)}
+                  </span>
                 </span>
-              </span>
+              )}
             </div>
 
             <ClampedText

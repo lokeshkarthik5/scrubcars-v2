@@ -1,4 +1,5 @@
 import { apiClient } from '@repo/core/api/client'
+import type { MarkChecklistItem } from '@repo/core/mark-checklist'
 import type { MarkKind, MarkStatus, MissingKey } from '@repo/core/onboarding-marks'
 import { signedBody } from './admin-signer'
 
@@ -15,6 +16,12 @@ export interface OnboardingMark {
   /** Never empty: its own label, or its missing key's (markLabel). */
   label: string
   note: string | null
+  /**
+   * Its checklist (0061), in order, each with its answer and who answered
+   * it when. An older mark whose note had "- " lines lists them here (ids
+   * "note-1"…) and the note without them. Absent from an older API.
+   */
+  items?: MarkChecklistItem[]
   status: MarkStatus
   askedAt: string | null
   askedByName: string | null
@@ -25,8 +32,25 @@ export interface OnboardingMark {
   updatedAt: string
 }
 
-/** A garage's open marks on the Garages list (AdminVendor.openMarks). */
-export type OnboardingMarkBrief = Pick<OnboardingMark, 'id' | 'kind' | 'label' | 'status' | 'askedAt'>
+/**
+ * A garage's open marks on the Garages list (AdminVendor.openMarks), with
+ * its checklist's progress (0061; absent from an older API).
+ */
+export type OnboardingMarkBrief = Pick<OnboardingMark, 'id' | 'kind' | 'label' | 'status' | 'askedAt'> & {
+  itemsDone?: number
+  itemsTotal?: number
+}
+
+/**
+ * One checklist item as the edit dialog sends it: its id when it was
+ * already on the list, its words, and optionally its tick and answer.
+ */
+export interface MarkItemInput {
+  id?: string
+  text: string
+  done?: boolean
+  answer?: string | null
+}
 
 /**
  * A new mark. `label` is required for 'custom' (at most 60 characters) and
@@ -38,6 +62,8 @@ export interface CreateMarkInput {
   label?: string
   note?: string | null
   status?: MarkStatus
+  /** With a checklist, the status follows its ticks (0061). */
+  items?: MarkItemInput[]
 }
 
 /**
@@ -48,6 +74,14 @@ export interface UpdateMarkInput {
   status?: MarkStatus
   note?: string | null
   label?: string
+  /** The whole checklist as the dialog left it; left out leaves it. */
+  items?: MarkItemInput[]
+}
+
+/** One item ticked, unticked or answered: the mark's status follows. */
+export interface UpdateMarkItemInput {
+  done?: boolean
+  answer?: string | null
 }
 
 /**
@@ -77,6 +111,22 @@ export async function createVendorMark(vendorId: string, input: CreateMarkInput)
 /** PATCH /admin/vendors/:id/marks/:markId */
 export async function updateVendorMark(vendorId: string, markId: string, input: UpdateMarkInput) {
   return apiClient<OnboardingMark>(`${marksBase(vendorId)}/${markId}`, {
+    method: 'PATCH',
+    body: signedBody(input),
+  })
+}
+
+/**
+ * PATCH /admin/vendors/:id/marks/:markId/items/:itemId (0061) — the mark,
+ * with the item stamped. 404 MARK_ITEM_NOT_FOUND when it is off the list.
+ */
+export async function updateVendorMarkItem(
+  vendorId: string,
+  markId: string,
+  itemId: string,
+  input: UpdateMarkItemInput
+) {
+  return apiClient<OnboardingMark>(`${marksBase(vendorId)}/${markId}/items/${encodeURIComponent(itemId)}`, {
     method: 'PATCH',
     body: signedBody(input),
   })

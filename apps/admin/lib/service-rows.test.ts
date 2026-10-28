@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  commissionRateValue,
   isUntouchedNewRow,
   missingServiceFields,
   rowsToSave,
@@ -246,5 +247,39 @@ describe('showAgainWarning', () => {
     expect(
       showAgainWarning({ ...stored, priceHatchback: null, priceSedan: null, priceSuv: null })
     ).toBe('No one can book this until it has a price for each car size.')
+  })
+})
+
+describe('a service’s own commission (0061)', () => {
+  test('empty is the category rate; 0 to 50 with two decimals is taken; % is forgiven', () => {
+    expect(commissionRateValue('')).toBeNull()
+    expect(commissionRateValue('  ')).toBeNull()
+    expect(commissionRateValue('6')).toBe(6)
+    expect(commissionRateValue('6.5%')).toBe(6.5)
+    expect(commissionRateValue('0')).toBe(0)
+    expect(commissionRateValue('50')).toBe(50)
+    expect(commissionRateValue('50.5')).toBeUndefined()
+    expect(commissionRateValue('6.555')).toBeUndefined()
+    expect(commissionRateValue('-1')).toBeUndefined()
+    expect(commissionRateValue('abc')).toBeUndefined()
+  })
+
+  test('a row with a bad percent cannot be saved, and says why', () => {
+    const bad = row({ commissionRate: '60' })
+    expect(missingServiceFields(bad)).toEqual(['commissionRate'])
+    expect(serviceRowProblem(bad)).toBe('Commission must be a percent from 0 to 50, or empty')
+    expect(servicesSaveBlock([bad])).toBe('1 service needs its commission fixed')
+    expect(serviceRowProblem(row({ name: '', commissionRate: '60' }))).toBe(
+      'Add a name, and fix the commission (0 to 50%)'
+    )
+    expect(missingServiceFields(row({ commissionRate: '8' }))).toEqual([])
+  })
+
+  test('an empty new row with only a percent typed is not untouched', () => {
+    expect(
+      missingServiceFields(
+        row({ id: undefined, name: '', price: '', commissionRate: '5' })
+      )
+    ).toContain('name')
   })
 })

@@ -27,3 +27,17 @@ export function hasDuration(service: { durationMins?: number | null }): boolean 
   const mins = service.durationMins
   return typeof mins === 'number' && Number.isFinite(mins) && mins > 0
 }
+
+/**
+ * The services' total duration for a screen, or null when any of them has
+ * none: a total that left one out would say the job is shorter than it is,
+ * so the screen shows no total instead.
+ */
+export function knownDurationTotal(services: ReadonlyArray<{ durationMins?: number | null }>): number | null {
+  let total = 0
+  for (const service of services) {
+    if (!hasDuration(service)) return null
+    total += Math.round(service.durationMins as number)
+  }
+  return total
+}
