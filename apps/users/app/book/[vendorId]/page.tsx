@@ -346,6 +346,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // Saved once each, so a second Pay after a failed one never makes a second car.
   const savedDraftCarId = useRef<string | null>(null)
   const savedDraftAddressId = useRef<string | null>(null)
+  // Held from Pay's first tap until its save (and code check) is done.
+  const savingDraftRef = useRef(false)
   // Set from Verify until what follows it (reading the account, paying) is
   // done: Pay waits, so the guest's car is never saved twice.
   const finishingSignInRef = useRef(false)
@@ -1397,24 +1399,42 @@ function BookContent({ vendorId }: { vendorId: string }) {
   /**
    * A code from a link or Home (`?code=`) checked against a car that was
    * only just saved: the code is applied when it still works for this
-   * booking, and left off (with its reason on the coupon row) when not.
+   * booking. When it does not, nothing is paid: the guest was told "checked
+   * when you pay", so the total they are about to pay has changed, and the
+   * coupon row now says why. The next Pay goes on without it.
    */
-  const checkOfferFor = async (vehicleId: string): Promise<string | undefined> => {
-    if (!offerCode) return undefined
+  const checkOfferFor = async (
+    vehicleId: string
+  ): Promise<{ code?: string } | null> => {
+    if (!offerCode) return {}
     // Claimed first, so the page's own check of Home's code (the effect
     // above, which the saved car wakes up) does not ask a second time.
-    offerCheckedFor.current = `${offerCode}|${serviceKey}|${vehicleId}`
+    const key = `${offerCode}|${serviceKey}|${vehicleId}`
+    offerCheckedFor.current = key
+    const code = offerCode
     try {
       const applied = await applyPromo.mutateAsync({
-        code: offerCode,
+        code,
         vendorId,
         serviceIds,
         vehicleId,
       })
       setAppliedPromo({ discount: applied, serviceKey, vehicleId })
-      return applied.code
-    } catch {
-      return undefined
+      return { code: applied.code }
+    } catch (error) {
+      setAppliedPromo(null)
+      if (error instanceof ApiError && isLastingRefusal(error.code)) {
+        // As the page's own check does: kept named here, forgotten in Home's store.
+        setRefusedOffer(code)
+        forgetPendingCode()
+      } else {
+        // A failed request, not an answer: the page's own check asks again.
+        offerCheckedFor.current = null
+      }
+      toast.error(
+        `${code} doesn't apply to this booking. Check the total, then tap Pay.`
+      )
+      return null
     }
   }
 
@@ -1429,6 +1449,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
   ) => {
     if (paidRef.current || bookingLockRef.current || loading || savingDraft) return
     if (finishingSignInRef.current && !fromVerify) return
+    // A second tap landing before the first one's state has rendered: one
+    // save of the car and address, never two.
+    if (savingDraftRef.current) return
     if (applyPromo.isPending) return
     const pendingDrafts =
       selectedVehicle === DRAFT_CAR ||
@@ -1438,16 +1461,25 @@ function BookContent({ vendorId }: { vendorId: string }) {
       await handleConfirm()
       return
     }
-    const saved = await saveDraftItems()
-    if (!saved) return
-    const discountCode =
-      appliedDiscount?.code ?? (saved.carSaved ? await checkOfferFor(saved.vehicleId) : undefined)
-    await handleConfirm({
-      vehicleId: saved.vehicleId,
-      addressId: saved.addressId,
-      discountCode,
-      customer,
-    })
+    savingDraftRef.current = true
+    try {
+      const saved = await saveDraftItems()
+      if (!saved) return
+      let discountCode = appliedDiscount?.code
+      if (!discountCode && saved.carSaved) {
+        const offer = await checkOfferFor(saved.vehicleId)
+        if (!offer) return
+        discountCode = offer.code
+      }
+      await handleConfirm({
+        vehicleId: saved.vehicleId,
+        addressId: saved.addressId,
+        discountCode,
+        customer,
+      })
+    } finally {
+      savingDraftRef.current = false
+    }
   }
 
   /**
@@ -2344,8 +2376,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
           headingRef={signInStepRef}
           busy={savingDraft || loading || finishingSignIn}
           onVerify={() => void handleVerify()}
+          // "and pay" only for a new number, which goes straight on to pay;
+          // a returning one stops after Verify to see what is theirs
+          // (handleVerify), so its button must not promise a payment.
           verifyLabel={
-            nextStep === 'signin' && toPay != null && toPay > 0 ? (
+            nextStep === 'signin' && signIn.isNew && toPay != null && toPay > 0 ? (
               <>
                 Verify and pay <span className="font-numeric">{money(toPay)}</span>
               </>
@@ -2368,9 +2403,17 @@ function BookContent({ vendorId }: { vendorId: string }) {
             tabIndex={-1}
             className="scroll-mt-20 text-[17px] font-medium tracking-[-0.01em] text-text-primary outline-none"
           >
-            {needsName
-              ? 'Your name'
-              : `Signed in${authUser?.name && authUser.name !== 'User' ? ` as ${authUser.name}` : ''}`}
+            {needsName ? (
+              'Your name'
+            ) : authUser?.name && authUser.name !== 'User' ? (
+              <>
+                Signed in as{' '}
+                {/* A name: hidden from Clarity, like every name on screen. */}
+                <span data-clarity-mask="true">{authUser.name}</span>
+              </>
+            ) : (
+              'Signed in'
+            )}
           </h2>
           {needsName && (
             <ScInput

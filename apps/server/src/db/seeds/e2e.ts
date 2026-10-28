@@ -1971,13 +1971,6 @@ async function seedPayoutRows() {
 // ─── pickup & drop ──────────────────────────────────────────────────────────
 
 /**
- * Pickup & drop (0037): VENDORS.pickup, on with the responsibility terms on
- * file (pickup 'yes' alone is not on), collecting within 8 km of PICKUP_PIN;
- * and CUSTOMERS.pickup, whose one car and pinned default address
- * (ADDRESSES.pickupHome, ~1.7 km away) are what a pickup booking needs.
- * After the people it names, like every garage seeded on its own.
- */
-/**
  * Customer reach (0062): five live garages around REACH_HERE for the garage
  * list's "never empty" pieces (REACH_PINS says where each is and what it
  * shows), and CUSTOMERS.guestExisting's one saved car, for the guest
@@ -2045,6 +2038,13 @@ async function seedReachRows() {
   })
 }
 
+/**
+ * Pickup & drop (0037): VENDORS.pickup, on with the responsibility terms on
+ * file (pickup 'yes' alone is not on), collecting within 8 km of PICKUP_PIN;
+ * and CUSTOMERS.pickup, whose one car and pinned default address
+ * (ADDRESSES.pickupHome, ~1.7 km away) are what a pickup booking needs.
+ * After the people it names, like every garage seeded on its own.
+ */
 async function seedPickupRows() {
   const garage = VENDORS.pickup.id
   await db.insert(vendors).values({

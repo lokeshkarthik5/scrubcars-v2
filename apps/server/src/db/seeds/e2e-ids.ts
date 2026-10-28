@@ -783,7 +783,6 @@ export const VENDORS = {
 /** VENDORS.contact's own numbers (contact windows), different on purpose. */
 export const CONTACT_GARAGE = { phone: '9000003410', whatsapp: '9000003411' } as const
 
-/** Where VENDORS.documents is: south-west, clear of every other test garage. */
 /**
  * Customer reach (0062): where a customer stands for the "never empty" list
  * pieces, ~150 km from every other test garage, so nothing else is near.
@@ -819,6 +818,7 @@ export const REACH_PINS = {
  */
 export const GUEST_NEW_PHONES = Array.from({ length: 10 }, (_, i) => `900000439${i}`)
 
+/** Where VENDORS.documents is: south-west, clear of every other test garage. */
 export const DOCUMENTS_PIN = { lat: 12.625, lng: 79.625 } as const
 
 /** Where VENDORS.proposals is: south-west, clear of every other test garage. */
