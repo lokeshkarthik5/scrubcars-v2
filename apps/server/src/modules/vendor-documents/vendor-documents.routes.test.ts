@@ -227,3 +227,83 @@ describe('admin: super-admin only', () => {
     expect(body.code).toBe('DOCUMENT_FILE_NOT_FOUND')
   })
 })
+
+// ─── Remove (0065) ───────────────────────────────────────────────────────────
+
+describe('removing a document (0065)', () => {
+  type Doc = { id: string; vendorId: string; type: string; status: string; version: number; uploadedBy: string }
+  let docs: Doc[] = []
+  let audits: Array<{ actorName: string; detail: Record<string, unknown> }> = []
+
+  beforeAll(() => {
+    documentsOn(true)
+    const work = {
+      lockGarageDocuments: async () => undefined,
+      findDocument: async (vendorId: string, documentId: string) =>
+        docs.find((doc) => doc.id === documentId && doc.vendorId === vendorId),
+      removeDocument: async (
+        vendorId: string,
+        documentId: string,
+        audit: { actorName: string; detail: Record<string, unknown> }
+      ) => {
+        const doc = docs.find((d) => d.id === documentId && d.vendorId === vendorId)
+        if (!doc) return undefined
+        docs = docs.filter((d) => d !== doc)
+        audits.push({ actorName: audit.actorName, detail: audit.detail })
+        return { keys: [], type: doc.type }
+      },
+    }
+    patch(vendorDocumentsRepository, 'transaction', async (fn: (repo: typeof work) => Promise<unknown>) => fn(work))
+  })
+
+  const seed = (type: string, status: string, uploadedBy = 'garage') => {
+    docs = [{ id: DOCUMENT, vendorId: GARAGE, type, status, version: 1, uploadedBy }]
+    audits = []
+  }
+  const post = async (path: string, who: keyof typeof PEOPLE | 'breakGlass', body: unknown = {}, headers: Record<string, string> = {}) => {
+    const response = await app.request(path, {
+      method: 'POST',
+      headers: { ...(await cookieFor(who)), 'content-type': 'application/json', ...headers },
+      body: JSON.stringify(body),
+    })
+    return { status: response.status, body: (await response.json()) as { code?: string } }
+  }
+  const GARAGE_REMOVE = `/vendors/me/documents/${DOCUMENT}/remove`
+  const ADMIN_REMOVE = `/admin/documents/vendors/${GARAGE}/${DOCUMENT}/remove`
+
+  test('the owner seat removes an optional type, or its own required upload not approved yet', async () => {
+    seed('gst_certificate', 'approved')
+    expect((await post(GARAGE_REMOVE, 'owner')).status).toBe(200)
+    expect(docs).toEqual([])
+    expect(audits).toEqual([{ actorName: 'garage', detail: { status: 'approved', version: 1, uploadedBy: 'garage', by: 'garage' } }])
+
+    seed('owner_id', 'pending')
+    expect((await post(GARAGE_REMOVE, 'owner')).status).toBe(200)
+    expect(docs).toEqual([])
+  })
+
+  test('not an approved required one, not one Detlio added, and never by an operator', async () => {
+    seed('owner_id', 'approved')
+    expect((await post(GARAGE_REMOVE, 'owner')).body.code).toBe('DOCUMENT_REQUIRED_CONFIRM')
+    seed('bank_proof', 'pending', 'Mathew')
+    expect((await post(GARAGE_REMOVE, 'owner')).body.code).toBe('DOCUMENT_NOT_YOURS')
+    seed('gst_certificate', 'pending')
+    expect((await post(GARAGE_REMOVE, 'operator')).status).toBe(403)
+    expect((await post(`/vendors/me/documents/${DOCUMENT}/remove`, 'otherOwner')).status).toBe(404)
+    expect(docs).toHaveLength(1)
+  })
+
+  test('admin: a required type once warned, signed by the session; the approved agreement never', async () => {
+    seed('owner_id', 'approved')
+    expect((await post(ADMIN_REMOVE, 'breakGlass')).body.code).toBe('DOCUMENT_REQUIRED_CONFIRM')
+    expect(docs).toHaveLength(1)
+    expect((await post(ADMIN_REMOVE, 'breakGlass', { requiredConfirmed: true, actorName: 'Typed' })).status).toBe(200)
+    expect(docs).toEqual([])
+    expect(audits[0]!.actorName).toBe('admin')
+
+    seed('agreement', 'approved', 'Mathew')
+    expect((await post(ADMIN_REMOVE, 'breakGlass', { requiredConfirmed: true })).body.code).toBe('DOCUMENT_AGREEMENT_KEPT')
+    expect(docs).toHaveLength(1)
+    expect((await post(ADMIN_REMOVE, 'owner')).status).toBe(403)
+  })
+})

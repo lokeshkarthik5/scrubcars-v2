@@ -22,6 +22,7 @@ import {
 import { errorMessage } from '@repo/core/api/hooks/use-discounts'
 import {
   useAdminGarageDocuments,
+  useRemoveAdminDocument,
   useReviewDocument,
   useUploadAdminDocument,
 } from '@repo/core/api/hooks/use-admin-documents'
@@ -31,6 +32,7 @@ import {
   DOCUMENT_ACCEPT,
   DOCUMENT_HINTS,
   DOCUMENT_STATUS_LABELS,
+  adminCanRemove,
   fileLine,
   pickedFilesProblem,
 } from '@repo/core/vendor-documents'
@@ -188,6 +190,9 @@ function DocumentRow({
 }) {
   const review = useReviewDocument(vendorId)
   const upload = useUploadAdminDocument(vendorId)
+  const remove = useRemoveAdminDocument(vendorId)
+  // Remove (0065): asked once more, with what it costs a required type.
+  const [removing, setRemoving] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const titleId = useId()
   const [rejecting, setRejecting] = useState(false)
@@ -196,7 +201,7 @@ function DocumentRow({
   const [expiresOn, setExpiresOn] = useState('')
   const [approveUpload, setApproveUpload] = useState(true)
   const [error, setError] = useState('')
-  const busy = review.isPending || upload.isPending
+  const busy = review.isPending || upload.isPending || remove.isPending
   const pickProblem = picked.length > 0 ? pickedFilesProblem(picked) : null
 
   const open = async (fileId: string) => {
@@ -231,6 +236,25 @@ function DocumentRow({
         onError: (err) => {
           onFailed()
           setError(errorMessage(err, "Couldn't save the review"))
+        },
+      }
+    )
+  }
+
+  const removeIt = () => {
+    if (!doc.id) return
+    setError('')
+    onSaving()
+    remove.mutate(
+      { documentId: doc.id, requiredConfirmed: doc.required },
+      {
+        onSuccess: () => {
+          setRemoving(false)
+          onSaved()
+        },
+        onError: (err) => {
+          onFailed()
+          setError(errorMessage(err, "Couldn't remove the document"))
         },
       }
     )
@@ -336,7 +360,7 @@ function DocumentRow({
         </ul>
       )}
 
-      {!readOnly && doc.id && !rejecting && (
+      {!readOnly && doc.id && !rejecting && !removing && (
         <div className="flex flex-wrap gap-2">
           {doc.status !== 'approved' && (
             <ScButton
@@ -360,6 +384,50 @@ function DocumentRow({
               Reject
             </ScButton>
           )}
+          {/* The approved signed agreement is the contract: it stays. */}
+          {adminCanRemove(doc) && (
+            <ScButton
+              variant="secondary"
+              fullWidth={false}
+              disabled={busy}
+              onClick={() => setRemoving(true)}
+              aria-label={`Remove ${doc.label}`}
+              className="min-h-11 px-3.5 text-[12px]"
+            >
+              Remove…
+            </ScButton>
+          )}
+        </div>
+      )}
+
+      {!readOnly && removing && (
+        <div role="group" aria-label={`Remove ${doc.label}?`} className="flex flex-col gap-2">
+          <p className="text-[12px] text-text-primary">
+            {doc.required
+              ? `${doc.label} is one of Silver’s steps: without it approved, the garage may lose Silver. `
+              : ''}
+            It goes back to Not uploaded and its files are deleted. Recorded with your name.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <ScButton
+              variant="secondary"
+              fullWidth={false}
+              disabled={busy}
+              onClick={removeIt}
+              className="min-h-11 px-3.5 text-[12px]"
+            >
+              {remove.isPending ? 'Removing…' : `Remove ${doc.label.toLowerCase()}`}
+            </ScButton>
+            <ScButton
+              variant="secondary"
+              fullWidth={false}
+              disabled={busy}
+              onClick={() => setRemoving(false)}
+              className="min-h-11 px-3.5 text-[12px]"
+            >
+              Keep it
+            </ScButton>
+          </div>
         </div>
       )}
 

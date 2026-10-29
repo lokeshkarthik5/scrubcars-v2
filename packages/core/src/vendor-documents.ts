@@ -121,3 +121,26 @@ export function fileLine(file: { contentType: string; sizeBytes: number }): stri
       : `${Math.max(1, Math.round(file.sizeBytes / 1024))} KB`
   return `${kind} · ${size}`
 }
+
+/**
+ * Whether the garage's owner seat may remove a document (0065), as the API
+ * decides it (apps/server/src/lib/vendor-documents.ts removalRefusal): an
+ * optional type, or a required one it uploaded itself that is not approved
+ * yet. The approved signed agreement never.
+ */
+export function garageCanRemove(doc: {
+  type: DocumentType
+  status: DocumentStatus | 'missing'
+  uploadedByDetlio: boolean
+}): boolean {
+  if (doc.status === 'missing') return false
+  if (doc.type === 'agreement' && doc.status === 'approved') return false
+  if (!isRequiredDocument(doc.type)) return true
+  return !doc.uploadedByDetlio && doc.status !== 'approved'
+}
+
+/** Admin may remove any uploaded document but the approved signed agreement (0065). */
+export function adminCanRemove(doc: { type: DocumentType; status: DocumentStatus | 'missing' }): boolean {
+  if (doc.status === 'missing') return false
+  return !(doc.type === 'agreement' && doc.status === 'approved')
+}

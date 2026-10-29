@@ -23,6 +23,7 @@ import {
   isRetiredDocument,
   UPLOADABLE_DOCUMENT_TYPES,
   progressLine,
+  removalRefusal,
   reviewRefusal,
   summariseDocuments,
   takesExpiry,
@@ -32,6 +33,7 @@ import {
   type DocumentStatus,
   type DocumentType,
   type FilesRefusal,
+  type RemovalRefusal,
   type ReviewRefusal,
   type UploadRefusal,
 } from '../../lib/vendor-documents.js'
@@ -43,6 +45,7 @@ import {
   type DocumentsWork,
 } from './vendor-documents.repository.js'
 import type {
+  AdminRemoveDocumentInput,
   AdminSubmitDocumentInput,
   DocumentUploadUrlInput,
   ReviewDocumentInput,
@@ -94,6 +97,29 @@ function reviewRefused(refusal: ReviewRefusal) {
       return new AppError(409, 'This document is already approved.', 'DOCUMENT_ALREADY_APPROVED')
     case 'already_rejected':
       return new AppError(409, 'This document is already rejected.', 'DOCUMENT_ALREADY_REJECTED')
+  }
+}
+
+function removalRefused(refusal: RemovalRefusal) {
+  switch (refusal) {
+    case 'signed_agreement':
+      return new AppError(
+        409,
+        'The signed agreement is the contract behind the bookings, so it stays.',
+        'DOCUMENT_AGREEMENT_KEPT'
+      )
+    case 'approved_required':
+      return new AppError(
+        409,
+        'This document is one of Silver’s steps. Removing it may cost the garage Silver: confirm to go ahead.',
+        'DOCUMENT_REQUIRED_CONFIRM'
+      )
+    case 'not_garage_upload':
+      return new AppError(
+        409,
+        'Detlio added this document for you. Ask the Detlio team to change it.',
+        'DOCUMENT_NOT_YOURS'
+      )
   }
 }
 
@@ -316,6 +342,16 @@ export const vendorDocumentsService = {
     return documentView(input.type, result.document, result.files)
   },
 
+  /**
+   * The owner seat removes a document (0065): an optional type, or a required
+   * one it uploaded itself that Detlio has not approved yet. Back to "Not
+   * uploaded"; the files go from the bucket after the commit.
+   */
+  async removeForGarage(vendorId: string, sub: string, documentId: string) {
+    await removeDocument(vendorId, documentId, { by: 'garage', sub, name: GARAGE, requiredConfirmed: false })
+    return vendorDocumentsService.listForGarage(vendorId)
+  },
+
   /** A link to one of the garage's own files, for five minutes. */
   async fileLinkForGarage(vendorId: string, documentId: string, fileId: string) {
     return fileLink(vendorId, documentId, fileId, 'garage')
@@ -380,11 +416,57 @@ export const vendorDocumentsService = {
     return adminDocumentView(reviewed.row.type, reviewed.row, reviewed.files)
   },
 
+  /**
+   * Admin removes a document (0065): anything but the approved signed
+   * agreement; a required type only once the panel's Silver warning was
+   * confirmed. Audited; the files go after the commit.
+   */
+  async removeForAdmin(vendorId: string, sub: string, documentId: string, input: AdminRemoveDocumentInput) {
+    await assertWritableGarage(vendorId)
+    await removeDocument(vendorId, documentId, {
+      by: 'admin',
+      sub,
+      name: input.actorName,
+      requiredConfirmed: input.requiredConfirmed === true,
+    })
+    return vendorDocumentsService.listForAdmin(vendorId)
+  },
+
   async fileLinkForAdmin(vendorId: string, documentId: string, fileId: string) {
     const garage = await vendorDocumentsRepository.findGarage(vendorId)
     if (!garage || garage.purgedAt) throw garageNotFound()
     return fileLink(vendorId, documentId, fileId, 'admin')
   },
+}
+
+/**
+ * Removes one document under the garage's documents lock, checking who may
+ * (removalRefusal) against the row as it is inside the lock.
+ */
+async function removeDocument(
+  vendorId: string,
+  documentId: string,
+  who: { by: 'admin' | 'garage'; sub: string; name: string; requiredConfirmed: boolean }
+) {
+  const removed = await vendorDocumentsRepository.transaction(async (repo) => {
+    await repo.lockGarageDocuments(vendorId)
+    const current = await repo.findDocument(vendorId, documentId)
+    if (!current) throw documentNotFound()
+    const refusal = removalRefusal(current, who.by, who.requiredConfirmed)
+    if (refusal) throw removalRefused(refusal)
+    const done = await repo.removeDocument(vendorId, documentId, {
+      actorSub: who.sub,
+      actorName: who.name,
+      detail: { status: current.status, version: current.version, uploadedBy: current.uploadedBy, by: who.by },
+    })
+    if (!done) throw documentNotFound()
+    return done
+  })
+  if (removed.keys.length > 0) {
+    const keys = removed.keys
+    runInBackground('vendor_documents_removed', () => deleteDocumentObjects(keys, 'removed'))
+  }
+  log.info({ vendorId, documentId, type: removed.type, by: who.by }, 'document:removed')
 }
 
 async function assertWritableGarage(vendorId: string) {

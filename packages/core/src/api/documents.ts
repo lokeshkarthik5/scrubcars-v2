@@ -209,3 +209,27 @@ export async function openDocumentLink(getLink: () => Promise<DocumentLink>): Pr
     throw error
   }
 }
+
+/**
+ * POST /admin/documents/vendors/:id/:documentId/remove (0065): back to "Not
+ * uploaded", signed. A required type needs `requiredConfirmed` (the Silver
+ * warning); the approved signed agreement is 409 DOCUMENT_AGREEMENT_KEPT.
+ */
+export function removeAdminGarageDocument(
+  vendorId: string,
+  documentId: string,
+  requiredConfirmed: boolean
+): Promise<AdminGarageDocuments> {
+  return apiClient<AdminGarageDocuments>(`${adminBase(vendorId)}/${documentId}/remove`, {
+    method: 'POST',
+    body: signedBody({ requiredConfirmed }),
+  })
+}
+
+/**
+ * POST /vendors/me/documents/:documentId/remove (0065): the owner seat
+ * removes an optional type, or its own required upload not approved yet.
+ */
+export function removeGarageDocument(documentId: string): Promise<GarageDocuments> {
+  return apiClient<GarageDocuments>(`/vendors/me/documents/${documentId}/remove`, { method: 'POST' })
+}

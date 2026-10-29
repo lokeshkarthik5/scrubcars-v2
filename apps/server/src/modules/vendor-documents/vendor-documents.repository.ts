@@ -1,6 +1,6 @@
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
-import { vendorDocumentFiles, vendorDocuments, vendors } from '../../db/schema.js'
+import { adminAuditLog, vendorDocumentFiles, vendorDocuments, vendors } from '../../db/schema.js'
 import type {
   DocumentContentType,
   DocumentSide,
@@ -202,6 +202,35 @@ function writes(tx: Tx) {
       }>
     ): Promise<DocumentFileRecord[]> {
       return tx.insert(vendorDocumentFiles).values(rows).returning()
+    },
+
+    /**
+     * Removes a document and its files (0065), back to "Not uploaded", with
+     * its audit row. The files' keys come back for the bucket, which is
+     * cleared after the commit. Undefined when it was gone already.
+     */
+    async removeDocument(
+      vendorId: string,
+      documentId: string,
+      audit: { actorSub: string; actorName: string; detail: Record<string, unknown> }
+    ): Promise<{ keys: string[]; type: DocumentType } | undefined> {
+      const keys = await tx
+        .delete(vendorDocumentFiles)
+        .where(eq(vendorDocumentFiles.documentId, documentId))
+        .returning({ storageKey: vendorDocumentFiles.storageKey })
+      const [row] = await tx
+        .delete(vendorDocuments)
+        .where(and(eq(vendorDocuments.id, documentId), eq(vendorDocuments.vendorId, vendorId)))
+        .returning({ type: vendorDocuments.type })
+      if (!row) return undefined
+      await tx.insert(adminAuditLog).values({
+        action: 'garage_document_removed',
+        actorSub: audit.actorSub,
+        actorName: audit.actorName,
+        summary: { vendorId, documentId, type: row.type },
+        detail: { ...audit.detail, files: keys.length },
+      })
+      return { keys: keys.map((key) => key.storageKey), type: row.type }
     },
 
     /**

@@ -18,7 +18,10 @@ import {
   takesExpiry,
   uploadRefusal,
   uploadedLine,
+  removalRefusal,
   type DocumentState,
+  type DocumentStatus,
+  type DocumentType,
 } from './vendor-documents.js'
 
 const GARAGE = 'e2e00000-0000-4000-8000-000000002310'
@@ -184,5 +187,30 @@ describe('the alert line', () => {
     expect(uploadedLine('bank_proof', 'approved')).toBe('Bank proof (replacing an approved one)')
     expect(uploadedLine('agreement', 'rejected')).toBe('Signed agreement (old, on paper) (after a rejection)')
     expect(uploadedLine('shop_photo', 'pending')).toBe('Shop photo (replacing one not yet checked)')
+  })
+})
+
+describe('removing a document (0065)', () => {
+  const doc = (type: DocumentType, status: DocumentStatus, uploadedBy = 'garage') => ({ type, status, uploadedBy })
+
+  test('the approved signed agreement is never removed', () => {
+    expect(removalRefusal(doc('agreement', 'approved', 'Mathew'), 'admin', true)).toBe('signed_agreement')
+    expect(removalRefusal(doc('agreement', 'pending', 'Mathew'), 'admin')).toBeNull()
+  })
+
+  test('admin: optional types straight away, required ones once warned (Silver)', () => {
+    expect(removalRefusal(doc('gst_certificate', 'approved'), 'admin')).toBeNull()
+    expect(removalRefusal(doc('trade_licence', 'rejected'), 'admin')).toBeNull()
+    expect(removalRefusal(doc('owner_id', 'approved'), 'admin')).toBe('approved_required')
+    expect(removalRefusal(doc('owner_id', 'approved'), 'admin', true)).toBeNull()
+    expect(removalRefusal(doc('bank_proof', 'pending'), 'admin', true)).toBeNull()
+  })
+
+  test('the garage: optional types, and its own required uploads not approved yet', () => {
+    expect(removalRefusal(doc('gst_certificate', 'approved'), 'garage')).toBeNull()
+    expect(removalRefusal(doc('shop_photo', 'pending'), 'garage')).toBeNull()
+    expect(removalRefusal(doc('shop_photo', 'rejected'), 'garage')).toBeNull()
+    expect(removalRefusal(doc('shop_photo', 'approved'), 'garage')).toBe('approved_required')
+    expect(removalRefusal(doc('owner_id', 'pending', 'Mathew'), 'garage')).toBe('not_garage_upload')
   })
 })

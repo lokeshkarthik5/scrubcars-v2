@@ -34,4 +34,23 @@ describe('garage documents parity', () => {
       server.progressLine({ approvedRequired: 3, required: 4 })
     )
   })
+
+  test('who may remove a document is the same rule (0065)', async () => {
+    const core = (await import(coreUrl('vendor-documents.ts'))) as {
+      garageCanRemove: (doc: { type: string; status: string; uploadedByDetlio: boolean }) => boolean
+      adminCanRemove: (doc: { type: string; status: string }) => boolean
+    }
+    for (const type of server.DOCUMENT_TYPES) {
+      for (const status of server.DOCUMENT_STATUSES) {
+        for (const uploadedBy of ['garage', 'Mathew']) {
+          const doc = { type, status, uploadedBy }
+          expect(core.garageCanRemove({ type, status, uploadedByDetlio: uploadedBy !== 'garage' })).toBe(
+            server.removalRefusal(doc, 'garage') === null
+          )
+          // The panel offers Remove for everything the API takes once warned.
+          expect(core.adminCanRemove({ type, status })).toBe(server.removalRefusal(doc, 'admin', true) === null)
+        }
+      }
+    }
+  })
 })

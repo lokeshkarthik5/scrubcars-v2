@@ -194,6 +194,34 @@ export function reviewRefusal(
   return null
 }
 
+// ─── Remove (0065) ───────────────────────────────────────────────────────────
+
+export type RemovalRefusal = 'signed_agreement' | 'approved_required' | 'not_garage_upload'
+
+/**
+ * Whether a document can be removed (back to "Not uploaded"), and by whom,
+ * or why not (0065, owner: "everything deletable"):
+ *
+ * - The signed paper agreement, once approved, is the contract behind the
+ *   bookings (AGENTS.md): nobody removes it.
+ * - Admin removes anything else. A required type (ID, bank, shop photo) is
+ *   one of Silver's steps, so the panel warns and the request must say it
+ *   was warned (`requiredConfirmed`); without it, 'approved_required'.
+ * - The garage's owner seat removes an optional type, and a required one it
+ *   uploaded itself that Detlio has not approved yet (a wrong file).
+ */
+export function removalRefusal(
+  doc: { type: DocumentType; status: DocumentStatus; uploadedBy: string },
+  by: 'admin' | 'garage',
+  requiredConfirmed = false
+): RemovalRefusal | null {
+  if (doc.type === 'agreement' && doc.status === 'approved') return 'signed_agreement'
+  if (!isRequiredDocument(doc.type)) return null
+  if (by === 'admin') return requiredConfirmed ? null : 'approved_required'
+  if (doc.uploadedBy !== 'garage') return 'not_garage_upload'
+  return doc.status === 'approved' ? 'approved_required' : null
+}
+
 // ─── Documents checked and the progress line ─────────────────────────────────
 
 export interface DocumentState {
