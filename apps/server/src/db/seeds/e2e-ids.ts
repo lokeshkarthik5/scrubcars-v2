@@ -1883,3 +1883,89 @@ export const TIERS = {
   awardJob: (n: number) => id(4640 + n),
   awardReview: (n: number) => id(4670 + n),
 } as const
+
+/**
+ * Pre-iOS, part A (0065; ids 5400–5499, phones 90000054xx, booking
+ * references a65a00xx). Only specs/admin/pre-ios-a-*.spec.ts,
+ * specs/users/pre-ios-ratings.spec.ts and specs/vendors/pre-ios-a.spec.ts
+ * touch these. Its people are seeded by its own seed function (not through
+ * CUSTOMERS or STAFF); global-setup mints their sessions.
+ *
+ * - garage: live, pinned far from every other garage, with a drawn doorstep
+ *   area, a holiday, three documents (an approved GST certificate and owner
+ *   ID, a shop photo the garage uploaded and Detlio has not checked) and two
+ *   counted reviews (so "New on Detlio") plus a Test booking's review that
+ *   never counts. Its owner is `owner`.
+ * - ratedGarage: three counted reviews (5, 5, 4): its score shows, 4.7.
+ * - adminGarage: the admin Reviews tab's: one review to hide, one hidden
+ *   (reported by the garage) to show again, one on a Test booking to delete.
+ * - bookings.teamTest: marked Test, paid with live money, all refunded, with
+ *   a complaint, a "book directly" report and the visit request it was
+ *   booked from: deleted from its page as a team test, with a reason.
+ *   pilotTeamTest the same, deleted from Start pilot clean. (A refund still
+ *   processing at Razorpay is lib/data-reset.test.ts's: the pending-digest
+ *   cron could settle a seeded one under a parallel spec.)
+ * - bookings.waived: confirmed, photos waived (Undo), notes added and edited.
+ *   extraWork: confirmed, with extra work waiting (Withdraw).
+ * - complaint: logged by phone (Logged in error, Undo).
+ * - collection: a closed list with an item left (Reopen) and an open list
+ *   (Delete list), for "PreiOS Collector".
+ * - dismissed: a customer recommendation in no zone, dismissed (Restore).
+ */
+export const PRE_IOS = {
+  customer: { id: id(5400), phone: '9000005400', name: 'Pre Priya Raman', vehicleId: id(5401) },
+  reporter: { id: id(5402), phone: '9000005402', name: 'Reporting Ramesh', vehicleId: id(5403) },
+  owner: { id: id(5404), phone: '9000005404', name: 'PreiOS Owner Kumar' },
+  /** Owns ratedGarage and adminGarage, so `owner`'s portal has one garage. */
+  otherOwner: { id: id(5405), phone: '9000005405', name: 'PreiOS Owner Two' },
+  garage: { id: id(5410), name: 'PreiOS Car Spa', serviceId: id(5412) },
+  ratedGarage: { id: id(5411), name: 'PreiOS Rated Garage', serviceId: id(5413) },
+  adminGarage: { id: id(5414), name: 'PreiOS Review Garage', serviceId: id(5415) },
+  bookings: {
+    teamTest: refId('a65a0001'),
+    pilotTeamTest: refId('a65a0002'),
+    reviewed: refId('a65a0010'),
+    damp: refId('a65a0011'),
+    testReview: refId('a65a0012'),
+    rated: [refId('a65a0020'), refId('a65a0021'), refId('a65a0022')],
+    toHide: refId('a65a0023'),
+    hidden: refId('a65a0024'),
+    adminTest: refId('a65a0025'),
+    waived: refId('a65a0030'),
+    extraWork: refId('a65a0031'),
+  },
+  reviews: {
+    spotless: id(5420),
+    damp: id(5421),
+    test: id(5422),
+    rated: [id(5423), id(5424), id(5425)],
+    toHide: id(5426),
+    hidden: id(5427),
+    adminTest: id(5428),
+  },
+  /** What hangs off bookings.teamTest, and is cleared with it. */
+  teamTestComplaint: id(5430),
+  teamTestBypass: id(5431),
+  teamTestRequest: id(5432),
+  teamTestIntent: id(5433),
+  pilotIntent: id(5434),
+  complaint: id(5435),
+  extraWorkCharge: id(5440),
+  closure: id(5441),
+  collection: {
+    assignee: 'PreiOS Collector',
+    closedList: id(5450),
+    closedItem: id(5451),
+    openList: id(5452),
+    openItem: id(5453),
+  },
+  dismissed: { id: id(5460), name: 'PreiOS Dismissed Garage' },
+  documents: {
+    gst: id(5470),
+    ownerId: id(5471),
+    shopPhoto: id(5472),
+    gstFile: id(5473),
+    ownerIdFile: id(5474),
+    shopPhotoFile: id(5475),
+  },
+} as const

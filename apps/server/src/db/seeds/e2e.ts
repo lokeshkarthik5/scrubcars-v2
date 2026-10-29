@@ -15,7 +15,7 @@
  *      clock, so a fixed timestamp would decay into a different test overnight.
  */
 import 'dotenv/config'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { db } from '../index.js'
 import {
   adminAuditLog,
@@ -33,6 +33,9 @@ import {
   bookingNotes,
   bookingReschedules,
   bookings,
+  bypassReports,
+  collectionItems,
+  collectionLists,
   complaints,
   discountRedemptions,
   discounts,
@@ -43,6 +46,7 @@ import {
   receiptNumbers,
   receiptNumberVoids,
   refundRecords,
+  reviewReports,
   reviews,
   servicePackageItems,
   serviceImages,
@@ -55,6 +59,7 @@ import {
   userVehicles,
   users,
   vendorClosures,
+  vendorDocumentFiles,
   vendorDocuments,
   vendorPayoutAccounts,
   vendorPhotos,
@@ -114,6 +119,7 @@ import {
   DEMAND,
   TRUST_LOOK,
   TIERS,
+  PRE_IOS,
 } from './e2e-ids.js'
 import { hashPassword } from '../../lib/passwords.js'
 
@@ -3455,6 +3461,241 @@ async function seedTierRows() {
   )
 }
 
+/**
+ * Pre-iOS, part A (0065; ids 5400–5499): see PRE_IOS in e2e-ids.ts for what
+ * each row is for. Pinned far from every other garage, so no customer list
+ * or other spec meets them; its people are seeded here, not through
+ * CUSTOMERS or STAFF.
+ */
+async function seedPreIosRows() {
+  const P = PRE_IOS
+  await db.insert(users).values([
+    ...[P.customer, P.reporter].map((c) => ({
+      id: c.id, name: c.name, phone: c.phone, isCustomer: true, isVendorOwner: false,
+      phoneVerified: true, status: 'active' as const,
+    })),
+    ...[P.owner, P.otherOwner].map((o) => ({
+      id: o.id, name: o.name, phone: o.phone, isCustomer: false, isVendorOwner: true,
+      phoneVerified: true, status: 'active' as const,
+    })),
+  ])
+  await db.insert(userVehicles).values(
+    [P.customer, P.reporter].map((c, i) => ({
+      id: c.vehicleId, userId: c.id, make: 'Hyundai', model: 'Creta', color: 'White',
+      licensePlate: `TN54PR${String(i).padStart(4, '0')}`, vehicleType: 'hatchback' as const, isDefault: true,
+    }))
+  )
+
+  const pin = (n: number) => ({
+    lat: ORIGIN.lat - 1.5 - n * 0.01, lng: ORIGIN.lng - 0.4,
+    geoSource: 'map_pin' as const, geoConfirmedAt: now,
+  })
+  const garage = {
+    city: 'Chennai', vehicleTypes: ['hatchback', 'sedan', 'suv'], bays: 4, slotIntervalMins: 30,
+    whatsapp: null, status: 'active' as const, isVerified: true, dropinEnabled: true, createdAt: daysAgo(30),
+  }
+  const garages = [P.garage, P.ratedGarage, P.adminGarage]
+  await db.insert(vendors).values(
+    garages.map((g, n) => ({
+      ...garage, ...pin(n), id: g.id, ownerId: n === 0 ? P.owner.id : P.otherOwner.id, businessName: g.name,
+      phone: n === 0 ? P.owner.phone : P.otherOwner.phone,
+      address: `${n + 1}, PreiOS Road, Kovalam`, pincode: '603112',
+      doorstepEnabled: n === 0, doorstepRadiusKm: n === 0 ? 8 : null,
+    }))
+  )
+  await db.insert(userMemberMapping).values(
+    garages.map((g, n) => ({
+      vendorId: g.id, userId: n === 0 ? P.owner.id : P.otherOwner.id, role: 'vendor_admin' as const, status: 'active' as const,
+    }))
+  )
+  await db.insert(vendorWorkingHours).values(garages.flatMap((g) => hoursFor(g.id, '06:00:00', '22:00:00')))
+  await db.insert(services).values(
+    garages.map((g) => ({
+      id: g.serviceId, vendorId: g.id, name: `${g.name} Foam Wash`, description: 'An exterior foam wash and dry.',
+      category: 'car_wash' as const, pricingType: 'flat' as const, price: '450.00', durationMins: 60, isActive: true,
+    }))
+  )
+  // The garage's own drawn doorstep area: a small square around its pin.
+  const at = pin(0)
+  const ring = [
+    [at.lng - 0.02, at.lat - 0.02], [at.lng + 0.02, at.lat - 0.02], [at.lng + 0.02, at.lat + 0.02],
+    [at.lng - 0.02, at.lat + 0.02], [at.lng - 0.02, at.lat - 0.02],
+  ]
+  await db.execute(sql`
+    UPDATE vendors
+       SET doorstep_area = gis.ST_MakeValid(
+             gis.ST_SetSRID(gis.ST_GeomFromGeoJSON(${JSON.stringify({ type: 'Polygon', coordinates: [ring] })}), 4326)
+           )::gis.geography
+     WHERE id = ${P.garage.id}
+  `)
+  // A holiday nine days out.
+  const holiday = new Date(now.getTime() + 9 * 24 * HOUR).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+  await db.insert(vendorClosures).values({ id: P.closure, vendorId: P.garage.id, date: holiday, reason: 'Diwali' })
+
+  const wash = (g: { serviceId: string; name: string }) => ({
+    id: g.serviceId, name: `${g.name} Foam Wash`, amount: '450.00', durationMins: 60,
+  })
+  const mine = { userId: P.customer.id, vehicleId: P.customer.vehicleId }
+  const theirs = { userId: P.reporter.id, vehicleId: P.reporter.vehicleId }
+  const done = (day: number) => ({
+    scheduledAt: daysAgo(day), createdAt: daysAgo(day + 1), acceptedAt: daysAgo(day + 1), completedAt: daysAgo(day),
+    status: 'completed' as const,
+  })
+
+  // ── Team tests: live money, all refunded ──
+  const liveRefunded = (txn: string, day: number) => ({
+    status: 'refunded' as const, txnId: txn, paidAt: daysAgo(day + 1), gatewayMode: 'live' as const,
+    refund: { ref: `rfnd_${txn.slice(4)}`, at: daysAgo(day) },
+  })
+  await insertBooking({ ...mine, ...done(5), id: P.bookings.teamTest, vendorId: P.garage.id, items: [wash(P.garage)],
+    markedTestAt: daysAgo(4), payment: liveRefunded('pay_LivePreIos1', 5) })
+  await insertBooking({ ...mine, ...done(6), id: P.bookings.pilotTeamTest, vendorId: P.garage.id, items: [wash(P.garage)],
+    markedTestAt: daysAgo(4), payment: liveRefunded('pay_LivePreIos2', 6) })
+  // The two team tests' Razorpay refunds went through.
+  await db.update(refundRecords).set({ source: 'admin', gatewayStatus: 'processed', settledAt: daysAgo(4) })
+    .where(eq(refundRecords.bookingId, P.bookings.teamTest))
+  // Their checkouts, holding the Razorpay order ids.
+  const checkout = {
+    vendorId: P.garage.id, serviceId: P.garage.serviceId, vehicleId: P.customer.vehicleId, userId: P.customer.id,
+    bookingType: 'dropin' as const, serviceDurationMins: 60, amount: '450.00', subtotalAmount: '450.00',
+    paymentMethod: 'online' as const, status: 'consumed' as const, gatewayMode: 'live' as const,
+  }
+  await db.insert(bookingIntents).values([
+    { ...checkout, id: P.teamTestIntent, bookingId: P.bookings.teamTest, scheduledAt: daysAgo(5),
+      gatewayTxnId: 'order_LivePreIos1', paymentRef: 'pay_LivePreIos1', createdAt: daysAgo(6), expiresAt: daysAgo(6) },
+    { ...checkout, id: P.pilotIntent, bookingId: P.bookings.pilotTeamTest, scheduledAt: daysAgo(6),
+      gatewayTxnId: 'order_LivePreIos2', paymentRef: 'pay_LivePreIos2', createdAt: daysAgo(7), expiresAt: daysAgo(7) },
+  ])
+  // What the team test left for the garage and the customer: a complaint, a
+  // "book directly" report (a strike) and the visit request it came from.
+  const teamRef = P.bookings.teamTest.slice(0, 8).toUpperCase()
+  await db.insert(complaints).values({
+    id: P.teamTestComplaint, userId: P.customer.id, customerName: P.customer.name, customerPhone: P.customer.phone,
+    bookingId: P.bookings.teamTest, bookingRef: teamRef, vendorId: P.garage.id, garageName: P.garage.name,
+    category: 'other', message: 'Seeded: about a team test booking.', source: 'phone', loggedBy: 'E2E seed',
+  })
+  await db.insert(bypassReports).values({
+    id: P.teamTestBypass, userId: P.customer.id, bookingId: P.bookings.teamTest, rootBookingId: P.bookings.teamTest,
+    bookingRef: teamRef, vendorId: P.garage.id, garageName: P.garage.name, kind: 'book_directly',
+    status: 'confirmed', confirmedAt: daysAgo(3), confirmedBy: 'E2E seed',
+  })
+  const windowStart = daysAgo(5)
+  await db.insert(bookingRequests).values({
+    id: P.teamTestRequest, userId: P.customer.id, vendorId: P.garage.id, bookingType: 'doorstep',
+    vehicleType: 'hatchback', lat: at.lat, lng: at.lng, zoneSlug: null, distanceKm: '9.0', coverKm: '8.0',
+    outsideKm: '1.0', items: [{ serviceId: P.garage.serviceId, name: `${P.garage.name} Foam Wash`, category: 'car_wash', amount: '450.00', durationMins: 60 }],
+    subtotalAmount: '450.00', durationMins: 60,
+    windowDate: windowStart.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }), windowPart: 'morning',
+    windowStart, windowEnd: new Date(windowStart.getTime() + 3 * HOUR),
+    status: 'converted', reply: 'accepted', repliedAt: daysAgo(40), travelFee: '0.00',
+    acceptedStartAt: windowStart, confirmBy: daysAgo(39), respondBy: daysAgo(40), closedAt: daysAgo(39),
+    bookingId: P.bookings.teamTest, createdAt: daysAgo(40), updatedAt: daysAgo(39),
+  })
+
+  // ── Reviews ──
+  await insertBooking({ ...mine, ...done(10), id: P.bookings.reviewed, vendorId: P.garage.id, items: [wash(P.garage)],
+    payment: { status: 'paid', txnId: 'pay_e2e_preios_reviewed', gatewayMode: 'fake' } })
+  await insertBooking({ ...mine, ...done(9), id: P.bookings.damp, vendorId: P.garage.id, items: [wash(P.garage)],
+    payment: { status: 'paid', txnId: 'pay_e2e_preios_damp', gatewayMode: 'fake' } })
+  await insertBooking({ ...mine, ...done(8), id: P.bookings.testReview, vendorId: P.garage.id, items: [wash(P.garage)],
+    markedTestAt: daysAgo(7), payment: { status: 'paid', txnId: 'pay_e2e_preios_test', gatewayMode: 'fake' } })
+  for (const [n, id] of P.bookings.rated.entries()) {
+    await insertBooking({ ...theirs, ...done(10 + n), id, vendorId: P.ratedGarage.id, items: [wash(P.ratedGarage)],
+      payment: { status: 'paid', txnId: `pay_e2e_preios_rated_${n}`, gatewayMode: 'fake' } })
+  }
+  await insertBooking({ ...theirs, ...done(12), id: P.bookings.toHide, vendorId: P.adminGarage.id,
+    items: [wash(P.adminGarage)], payment: { status: 'paid', txnId: 'pay_e2e_preios_hide', gatewayMode: 'fake' } })
+  await insertBooking({ ...theirs, ...done(13), id: P.bookings.hidden, vendorId: P.adminGarage.id,
+    items: [wash(P.adminGarage)], payment: { status: 'paid', txnId: 'pay_e2e_preios_hidden', gatewayMode: 'fake' } })
+  await insertBooking({ ...theirs, ...done(14), id: P.bookings.adminTest, vendorId: P.adminGarage.id,
+    items: [wash(P.adminGarage)], markedTestAt: daysAgo(13),
+    payment: { status: 'paid', txnId: 'pay_e2e_preios_admin_test', gatewayMode: 'fake' } })
+  await db.insert(reviews).values([
+    { id: P.reviews.spotless, bookingId: P.bookings.reviewed, userId: P.customer.id, vendorId: P.garage.id,
+      rating: 5, comment: 'Spotless finish, seeded.', tags: ['spotless_finish', 'on_time'], createdAt: daysAgo(10) },
+    { id: P.reviews.damp, bookingId: P.bookings.damp, userId: P.customer.id, vendorId: P.garage.id,
+      rating: 2, comment: 'Seats were still damp, seeded.', tags: ['damp_interior'], createdAt: daysAgo(9),
+      reply: 'Sorry, we have fixed our drying step.', repliedAt: daysAgo(8) },
+    { id: P.reviews.test, bookingId: P.bookings.testReview, userId: P.customer.id, vendorId: P.garage.id,
+      rating: 5, comment: 'test test, seeded', createdAt: daysAgo(8) },
+    ...P.reviews.rated.map((id, n) => ({
+      id, bookingId: P.bookings.rated[n]!, userId: P.reporter.id, vendorId: P.ratedGarage.id,
+      rating: n === 2 ? 4 : 5, comment: `Rated seeded ${n + 1}.`, createdAt: daysAgo(10 + n),
+    })),
+    { id: P.reviews.toHide, bookingId: P.bookings.toHide, userId: P.reporter.id, vendorId: P.adminGarage.id,
+      rating: 1, comment: 'Rude staff, seeded.', tags: ['rude'], createdAt: daysAgo(12) },
+    { id: P.reviews.hidden, bookingId: P.bookings.hidden, userId: P.reporter.id, vendorId: P.adminGarage.id,
+      rating: 1, comment: 'Seeded abusive words.', createdAt: daysAgo(13),
+      hiddenAt: daysAgo(2), hiddenBy: 'E2E seed', hiddenReason: 'Abusive language' },
+    { id: P.reviews.adminTest, bookingId: P.bookings.adminTest, userId: P.reporter.id, vendorId: P.adminGarage.id,
+      rating: 5, comment: 'Admin test review, seeded.', createdAt: daysAgo(14) },
+  ])
+  await db.insert(reviewReports).values({
+    reviewId: P.reviews.hidden, reporter: 'garage', userId: P.otherOwner.id, vendorId: P.adminGarage.id,
+    reason: 'Not our customer, seeded.',
+  })
+
+  // ── Booking page: the waiver, notes, extra work ──
+  const upcoming = { scheduledAt: new Date(now.getTime() + 2 * 24 * HOUR), createdAt: daysAgo(1), acceptedAt: daysAgo(1),
+    status: 'confirmed' as const }
+  await insertBooking({ ...mine, ...upcoming, id: P.bookings.waived, vendorId: P.garage.id, items: [wash(P.garage)],
+    payment: { status: 'paid', txnId: 'pay_e2e_preios_waived', gatewayMode: 'fake' } })
+  await db.update(bookings).set({ photosWaivedAt: daysAgo(1), photosWaivedBy: 'E2E seed', photosWaivedReason: 'Seeded: phone died' })
+    .where(eq(bookings.id, P.bookings.waived))
+  await insertBooking({ ...mine, ...upcoming, id: P.bookings.extraWork, vendorId: P.garage.id, items: [wash(P.garage)],
+    payment: { status: 'paid', txnId: 'pay_e2e_preios_extra', gatewayMode: 'fake' } })
+  await db.insert(bookingCharges).values({
+    id: P.extraWorkCharge, bookingId: P.bookings.extraWork, kind: 'extra_work',
+    totalAmount: '300.00', paidBefore: '0.00', amountDue: '300.00',
+    lines: [{ description: 'PreiOS wiper blades', amount: '300.00' }],
+    status: 'due', createdAt: hoursAgo(3), updatedAt: hoursAgo(3),
+  })
+
+  // ── A complaint the team logged by phone ──
+  await db.insert(complaints).values({
+    id: P.complaint, userId: P.customer.id, customerName: P.customer.name, customerPhone: P.customer.phone,
+    category: 'other', message: 'Seeded: logged against the wrong caller.', source: 'phone', loggedBy: 'E2E seed',
+  })
+
+  // ── Collection lists: one closed with something left, one open ──
+  await db.insert(collectionLists).values([
+    { id: P.collection.closedList, assigneeName: P.collection.assignee, createdByName: 'E2E seed',
+      createdAt: daysAgo(3), closedAt: daysAgo(2) },
+    { id: P.collection.openList, assigneeName: P.collection.assignee, createdByName: 'E2E seed', createdAt: daysAgo(1) },
+  ])
+  await db.insert(collectionItems).values([
+    { id: P.collection.closedItem, listId: P.collection.closedList, vendorId: P.garage.id, kind: 'photos' },
+    { id: P.collection.openItem, listId: P.collection.openList, vendorId: P.ratedGarage.id, kind: 'photos' },
+  ])
+
+  // ── A customer recommendation in no zone, dismissed ──
+  await db.insert(garageRecommendations).values({
+    id: P.dismissed.id, userId: P.reporter.id, zoneId: null, name: P.dismissed.name, phone: '9000005460',
+    why: 'Seeded: they do great interiors', status: 'declined', handledBy: 'E2E seed', handledAt: daysAgo(1),
+    createdAt: daysAgo(2),
+  })
+
+  // ── Documents: approved GST and ID (Detlio removes), a shop photo the garage sent (it removes) ──
+  const docKey = (type: string, n: number) => `vendors/${P.garage.id}/documents/${type}/0b4f6c1e-2d3a-4c5b-8e9f-00000054${String(n).padStart(4, '0')}.pdf`
+  const reviewed = { reviewedBy: 'E2E seed', reviewedBySub: 'seed', reviewedAt: daysAgo(5) }
+  await db.insert(vendorDocuments).values([
+    { id: P.documents.gst, vendorId: P.garage.id, type: 'gst_certificate', status: 'approved', uploadedBy: 'garage',
+      uploadedBySub: P.owner.id, ...reviewed },
+    { id: P.documents.ownerId, vendorId: P.garage.id, type: 'owner_id', status: 'approved', uploadedBy: 'garage',
+      uploadedBySub: P.owner.id, ...reviewed },
+    { id: P.documents.shopPhoto, vendorId: P.garage.id, type: 'shop_photo', status: 'pending', uploadedBy: 'garage',
+      uploadedBySub: P.owner.id },
+  ])
+  await db.insert(vendorDocumentFiles).values([
+    { id: P.documents.gstFile, documentId: P.documents.gst, side: 'front', storageKey: docKey('gst_certificate', 1),
+      contentType: 'application/pdf', sizeBytes: 2048 },
+    { id: P.documents.ownerIdFile, documentId: P.documents.ownerId, side: 'front', storageKey: docKey('owner_id', 2),
+      contentType: 'application/pdf', sizeBytes: 2048 },
+    { id: P.documents.shopPhotoFile, documentId: P.documents.shopPhoto, side: 'front', storageKey: docKey('shop_photo', 3),
+      contentType: 'application/pdf', sizeBytes: 2048 },
+  ])
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set')
 
@@ -3532,6 +3773,8 @@ async function main() {
   await seedLeadRows()
   console.log('[e2e-seed] coverage demand…')
   await seedDemandRows()
+  console.log('[e2e-seed] pre-iOS, part A…')
+  await seedPreIosRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }

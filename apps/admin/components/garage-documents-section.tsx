@@ -416,7 +416,7 @@ function DocumentRow({
               onClick={removeIt}
               className="min-h-11 px-3.5 text-[12px]"
             >
-              {remove.isPending ? 'Removing…' : `Remove ${doc.label.toLowerCase()}`}
+              {remove.isPending ? 'Removing…' : `Remove ${doc.label}`}
             </ScButton>
             <ScButton
               variant="secondary"

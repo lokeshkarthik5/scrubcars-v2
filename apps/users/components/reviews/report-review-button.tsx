@@ -62,7 +62,13 @@ export function ReportReviewButton({
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          // A fresh form each time: a sent report's thanks is not shown again.
+          setReason('')
+          setError('')
+          setState('idle')
+          setOpen(true)
+        }}
         aria-label={`Report ${reviewerName}'s review`}
         className="min-h-11 px-1 text-[12px] font-medium text-text-secondary underline-offset-2 hover:underline"
       >
