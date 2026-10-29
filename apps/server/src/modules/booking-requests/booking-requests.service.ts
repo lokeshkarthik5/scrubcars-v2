@@ -40,6 +40,7 @@ import type { ServiceCategory } from '../../lib/categories.js'
 import {
   customerRequestAccepted,
   customerRequestCancelledByDetlio,
+  customerRequestWithdrawn,
   customerRequestForwarded,
   customerRequestLapsed,
   customerRequestNoGarage,
@@ -80,6 +81,8 @@ export interface CustomerRequestView {
   /** The first row's id, the same through a pass-on. */
   rootId: string
   state: CustomerRequestState
+  /** Ended because the garage took back its yes before they paid (0066). */
+  withdrawnByGarage: boolean
   status: string
   bookingType: RequestMode
   garage: { id: string; name: string }
@@ -102,6 +105,10 @@ export interface CustomerRequestView {
 export interface GarageRequestView {
   id: string
   status: string
+  /** The garage took back its yes before the customer paid (0066). */
+  withdrawn: boolean
+  /** "Withdraw" applies: accepted, the customer has not paid yet. */
+  canWithdraw: boolean
   bookingType: RequestMode
   /** Passed on from another garage that couldn't. */
   passedOn: boolean
@@ -306,6 +313,8 @@ function toGarageView(row: BookingRequestRecord, received: number | null, names:
   return {
     id: row.id,
     status: row.status,
+    withdrawn: row.withdrawnAt !== null,
+    canWithdraw: row.status === 'accepted',
     bookingType: row.bookingType,
     passedOn: row.chainNo > 1,
     items: row.items.map((item) => ({ name: item.name, amount: item.amount })),
@@ -339,6 +348,7 @@ async function toCustomerView(chain: BookingRequestRecord[], now: Date): Promise
     rootId: first.id,
     state: requestState(latest),
     status: latest.status,
+    withdrawnByGarage: latest.withdrawnAt !== null,
     bookingType: latest.bookingType,
     garage: { id: latest.vendorId, name: names[names.length - 1]! },
     tried: names,
@@ -669,6 +679,33 @@ export const bookingRequestsService = {
     // `earn` is money: the owner seat's alone (an operator's answer has none).
     const received = isOwner ? await bookingRequestsRepository.countReceivedChains(vendorId) : null
     return toGarageView(accepted, received, await zoneNames(), now)
+  },
+
+  /**
+   * The garage takes back its yes before the customer pays (0066): an
+   * accepted row of this garage's, with no checkout open for it (a customer
+   * paying right now is not cut off: 409 REQUEST_CHECKOUT_OPEN). It ends
+   * 'cancelled' with `withdrawn_at`; the customer is told as Detlio's
+   * cancel tells them, and can send a new request.
+   */
+  async withdraw(vendorId: string, id: string, isOwner = false, now = new Date()) {
+    const row = await bookingRequestsRepository.findById(id)
+    if (!row || row.vendorId !== vendorId) notFound()
+    const withdrawn = await bookingRequestsRepository.withdrawAccepted({ id, vendorId, now })
+    if (!withdrawn) {
+      if (row.status === 'accepted' && (await bookingRequestsRepository.hasOpenCheckout(id, now))) {
+        throw new AppError(409, 'The customer is paying for this right now, so it can no longer be withdrawn.', 'REQUEST_CHECKOUT_OPEN')
+      }
+      throw new AppError(409, 'This request has already moved on. Reload to see where it is.', 'REQUEST_STATE_CHANGED')
+    }
+    log.info({ requestId: id, vendorId }, 'booking_request:withdrawn_by_garage')
+    runInBackground('booking_request:told', async () => {
+      const garage = (await bookingRequestsRepository.garageName(withdrawn.vendorId)) ?? 'The garage'
+      pushService.notifyCustomer(withdrawn.userId, customerRequestWithdrawn(toPushRequest(withdrawn, now), garage))
+      await bookingRequestsRepository.markCustomerTold(withdrawn.id, new Date())
+    })
+    const received = isOwner ? await bookingRequestsRepository.countReceivedChains(vendorId) : null
+    return toGarageView(withdrawn, received, await zoneNames(), now)
   },
 
   /** The garage's "Can't": passed on to the next nearest garage, or ended. */

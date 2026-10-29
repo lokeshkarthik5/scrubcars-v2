@@ -82,6 +82,10 @@ function toCustomerComplaint(row: ComplaintRecord) {
     closedAt: row.closedAt?.toISOString() ?? null,
     // Only written when it is resolved or closed, which is when it is shown.
     resolutionNote: row.resolutionNote,
+    // Withdrawn by the customer before anyone answered (0066).
+    withdrawnAt: row.withdrawnAt?.toISOString() ?? null,
+    // Whether "Withdraw" applies now: theirs from the app, nobody has answered.
+    canWithdraw: row.status === 'open' && row.source === 'app',
   }
 }
 
@@ -122,6 +126,7 @@ function toAdminComplaint(row: AdminComplaintRow, now: Date) {
     resolvedBy: c.resolvedBy,
     closedAt: c.closedAt?.toISOString() ?? null,
     closedBy: c.closedBy,
+    withdrawnAt: c.withdrawnAt?.toISOString() ?? null,
     source: c.source,
     loggedBy: c.loggedBy,
     receivedAt: c.receivedAt.toISOString(),
@@ -338,6 +343,28 @@ export const complaintsService = {
       customer: query.phone ? (account ? { name: account.name } : null) : undefined,
       booking: query.bookingRef ? booking : undefined,
     }
+  },
+
+  /**
+   * The customer withdraws a complaint nobody has answered yet (0066): one
+   * they raised in the app, still open. Anyone else's is a 404, the same as
+   * none; one the team has answered (or logged for them) is a 409.
+   */
+  async withdraw(userId: string, id: string, now = new Date()) {
+    const withdrawn = await complaintsRepository.withdrawOwn(id, userId, now)
+    if (!withdrawn) {
+      const own = await complaintsRepository.findOwn(id, userId)
+      if (!own) throw notFound()
+      throw new AppError(
+        409,
+        own.source !== 'app'
+          ? 'Our team logged this complaint for you, so it can only be closed by the team. Contact Detlio support.'
+          : 'Our team has already answered this complaint, so it can no longer be withdrawn.',
+        'COMPLAINT_NOT_WITHDRAWABLE'
+      )
+    }
+    log.info({ complaintId: id }, 'complaint:withdrawn')
+    return toCustomerComplaint(withdrawn)
   },
 
   /** The customer's own complaints, newest first. */

@@ -18,6 +18,10 @@ customerAreaRoutes.get('/status', controller.status)
 customerAreaRoutes.post('/signups', reachWriteRateLimiter, zValidator('json', signUpSchema), (c) =>
   controller.signUp(c, c.req.valid('json'))
 )
+// Leave an area's list, and its messages (0066).
+customerAreaRoutes.delete('/signups/:zoneSlug', zValidator('param', zoneSlugParamSchema), (c) =>
+  controller.leave(c, c.req.valid('param').zoneSlug)
+)
 customerAreaRoutes.post('/signups/:zoneSlug/banner-seen', zValidator('param', zoneSlugParamSchema), (c) =>
   controller.bannerSeen(c, c.req.valid('param').zoneSlug)
 )
