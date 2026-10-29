@@ -3006,7 +3006,7 @@ export const giftNumberSeq = pgSequence('gift_number_seq', {
 // (refunded by hand). Only the code's SHA-256 is kept (`code_hash`, null
 // until the buyer first asks for the link); the code itself is shown once.
 // The buyer and the redeemer are RESTRICT: a gift is a money record, so
-// DELETE /users/me refuses an account with one (ACCOUNT_HAS_GIFTS).
+// deleting the account (0066) waits while it holds credit or an unredeemed gift.
 export const gifts = pgTable(
   'gifts',
   {

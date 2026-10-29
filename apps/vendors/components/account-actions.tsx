@@ -217,10 +217,13 @@ function LeaveGarage({ garageName }: { garageName: string }) {
           try {
             await leaveGarage()
             toast.success(`You left ${garageName}`)
-            // Another garage of theirs stays; none left, they sign out.
+            // Another garage of theirs stays; none left, they sign out (on
+            // the server too: the session itself is still good, and would
+            // otherwise land them on the sign-up steps).
             const store = useAuthStore.getState()
             const others = store.vendors.filter((v) => v.id !== store.activeVendorId)
             if (others.length === 0) {
+              await store.logout().catch(() => undefined)
               endSessionHere()
               return
             }
