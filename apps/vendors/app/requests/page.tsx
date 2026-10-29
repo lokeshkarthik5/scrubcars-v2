@@ -7,6 +7,7 @@ import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
+import { ConfirmSheet } from '@repo/ui/sc/confirm-sheet'
 import { EmptyState } from '@repo/ui/sc/empty-state'
 import { LoadError } from '@repo/ui/sc/load-error'
 import { ScSegmented } from '@repo/ui/sc/segmented'
@@ -18,6 +19,7 @@ import {
   useDeclineRequest,
   useGarageRequests,
   useRequestStartTimes,
+  useWithdrawRequest,
 } from '@repo/core/api/hooks/use-booking-requests'
 import {
   REQUEST_RULES,
@@ -338,6 +340,9 @@ function WaitingRequestCard({
 
 function AcceptedRequestCard({ request }: { request: GarageRequest }) {
   const titleId = `request-${request.id}-title`
+  const withdraw = useWithdrawRequest()
+  const [confirming, setConfirming] = useState(false)
+  const [error, setError] = useState<string | undefined>()
   return (
     <ScCard
       role="region"
@@ -365,6 +370,41 @@ function AcceptedRequestCard({ request }: { request: GarageRequest }) {
       <p className="text-[12px] text-text-secondary">
         It becomes a booking on your Bookings page once the customer pays.
       </p>
+      {/* Until the customer pays (0066): the yes can be taken back. */}
+      {request.canWithdraw !== false && (
+        <ScButton
+          variant="outline"
+          size="md"
+          aria-label={`Withdraw your yes to ${servicesLine(request)}`}
+          onClick={() => setConfirming(true)}
+        >
+          Withdraw
+        </ScButton>
+      )}
+      <ConfirmSheet
+        open={confirming}
+        onClose={() => {
+          setConfirming(false)
+          setError(undefined)
+        }}
+        onConfirm={async () => {
+          try {
+            await withdraw.mutateAsync(request.id)
+            toast.success('Withdrawn. We told the customer.')
+            setConfirming(false)
+          } catch (err) {
+            // The customer is paying right now, or it moved on: said here.
+            setError(err instanceof Error ? err.message : 'Could not withdraw it')
+          }
+        }}
+        level="firm"
+        title="Withdraw your yes?"
+        body="The customer hasn't paid yet. We tell them you can no longer come, and they can ask again."
+        confirmLabel="Withdraw"
+        cancelLabel="Keep it"
+        busy={withdraw.isPending}
+        error={error}
+      />
     </ScCard>
   )
 }
@@ -389,7 +429,7 @@ function ClosedRequestCard({ request }: { request: GarageRequest }) {
           variant={request.status === 'converted' ? 'success' : 'muted'}
           className="shrink-0"
         >
-          {CLOSED_WORD[request.status] ?? request.status}
+          {request.withdrawn ? 'Withdrawn' : (CLOSED_WORD[request.status] ?? request.status)}
         </ScBadge>
       </div>
       <p className="text-[13px] text-text-secondary">

@@ -39,12 +39,20 @@ export function DeleteAccountSheet({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Each opening starts afresh (the ConfirmSheet's way: during render, not in an effect).
+  const [wasOpen, setWasOpen] = useState(open)
+  if (wasOpen !== open) {
+    setWasOpen(open)
+    if (open) {
+      setPhase({ kind: 'checking' })
+      setTyped('')
+      setError(null)
+    }
+  }
+
   useEffect(() => {
     if (!open) return
     let cancelled = false
-    setPhase({ kind: 'checking' })
-    setTyped('')
-    setError(null)
     getAccountDeletionPreview()
       .then((preview) => {
         if (!cancelled) setPhase({ kind: 'ready', preview })

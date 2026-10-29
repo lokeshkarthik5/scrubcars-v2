@@ -59,6 +59,7 @@ import { CollectorProgressCards } from '@/components/collection/collector-progre
 import { SendToTeamButton } from '@/components/collection/send-to-team-button'
 import { keepKnown, splitSelection } from '@/lib/admin-table'
 import { binDoneMessage, deleteDoneMessage } from '@/lib/vendor-bin'
+import { ClosureRequestsNotice } from '@/components/closure-request-card'
 import {
   COLOUR_STYLES,
   colourCounts,
@@ -480,6 +481,9 @@ function VendorsList() {
           </ScButtonLink>
         }
       />
+
+      {/* Owners asking to close their garage (0066). */}
+      <ClosureRequestsNotice />
 
       <ConfirmSheet
         open={archiveOpen}
