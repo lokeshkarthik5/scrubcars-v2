@@ -61,6 +61,8 @@ test.describe('your own login @p0', () => {
       name: ADMIN_LOGINS.e2e.name,
       username: ADMIN_LOGINS.e2e.username,
       isOwner: true,
+      // Whose typed booking notes are whose (0065).
+      sub: `admin:${ADMIN_LOGINS.e2e.id}`,
     })
     await ctx.close()
   })

@@ -53,6 +53,8 @@ test.describe('remove and undo in admin @p0', () => {
     const audit = await sql<{ actor_name: string; type: string }[]>`
       select actor_name, summary->>'type' as type from admin_audit_log
        where action = 'garage_document_removed' and summary->>'vendorId' = ${P.garage.id}
+         -- Only admin's: the portal spec removes the garage's own shop photo in parallel.
+         and actor_name <> 'garage'
        order by created_at
     `
     expect(audit).toEqual([
