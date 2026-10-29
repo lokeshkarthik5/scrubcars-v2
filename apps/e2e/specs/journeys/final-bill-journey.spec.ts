@@ -365,8 +365,9 @@ test.describe('job records @p0', () => {
     await vendor
       .getByRole('button', { name: `Accept booking for ${name}` })
       .click()
+    // Accept waits five seconds behind its Undo (0066).
     await expect
-      .poll(async () => (await getBooking(BOOKINGS.jobRecords))?.accepted_at)
+      .poll(async () => (await getBooking(BOOKINGS.jobRecords))?.accepted_at, { timeout: 15_000 })
       .not.toBeNull()
 
     // A before photo, from acceptance on, on the job's page. The input is

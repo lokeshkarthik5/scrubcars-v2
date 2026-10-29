@@ -47,6 +47,14 @@ export async function updateMember(
   })
 }
 
+/**
+ * DELETE /vendors/me/members/me — leave the active garage (0066's "Leave
+ * garage"). Any seat but the owner's (the server refuses the owner).
+ */
+export async function leaveGarage(): Promise<void> {
+  await apiClient('/vendors/me/members/me', { method: 'DELETE' })
+}
+
 /** DELETE /vendors/me/members/:id */
 export async function removeMember(membershipId: string): Promise<void> {
   await apiClient(`/vendors/me/members/${membershipId}`, { method: 'DELETE' })

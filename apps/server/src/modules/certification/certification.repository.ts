@@ -1,3 +1,4 @@
+import { lateGarageCancelSql } from '../../lib/garage-cancel.js'
 import { and, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import {
@@ -241,6 +242,8 @@ function reads(conn: Conn) {
                AND c.category IN (${CATEGORIES})
                AND c.received_at >= ${since.toISOString()}::timestamptz
                AND c.error_marked_at IS NULL
+               -- Withdrawn by the customer before anyone answered (0066): left out.
+               AND c.withdrawn_at IS NULL
                AND (b.id IS NULL OR b.marked_test_at IS NULL)
             UNION ALL
             SELECT g.vendor_id, g.booking_id::text AS issue_key
@@ -265,16 +268,23 @@ function reads(conn: Conn) {
       return strikeCountsByGarage(conn, { vendorIds, since })
     },
 
-    /** Garage no-shows recorded in the window. */
+    /**
+     * Missed bookings in the window: garage no-shows recorded, and accepted
+     * bookings the garage cancelled within 24 hours of the slot (0066,
+     * lib/garage-cancel.ts; one cancelled earlier counts like a decline,
+     * which is never held against it).
+     */
     async garageNoShowCounts(vendorIds: string[], since: Date) {
       if (vendorIds.length === 0) return []
       const rows = await conn.execute<{ vendor_id: string; count: number | string }>(sql`
         SELECT b.vendor_id, count(*)::int AS count
           FROM bookings b
          WHERE b.vendor_id IN (${inList(vendorIds)})
-           AND b.no_show = 'garage'
            AND b.marked_test_at IS NULL
-           AND coalesce(b.no_show_marked_at, b.scheduled_at) >= ${since.toISOString()}::timestamptz
+           AND (
+             (b.no_show = 'garage' AND coalesce(b.no_show_marked_at, b.scheduled_at) >= ${since.toISOString()}::timestamptz)
+             OR (${lateGarageCancelSql('b')} AND b.garage_cancelled_at >= ${since.toISOString()}::timestamptz)
+           )
          GROUP BY b.vendor_id
       `)
       return Array.from(rows).map((row) => ({ vendorId: row.vendor_id, count: Number(row.count) }))

@@ -184,7 +184,10 @@ export function RequestCard({ request, now }: { request: CustomerRequest; now: n
 
       {request.state === 'cancelled' && (
         <h2 id={headingId} className="text-[15px] text-text-secondary">
-          Request to {request.garage.name} cancelled
+          {/* The garage took back its yes before they paid (0066). */}
+          {request.withdrawnByGarage
+            ? `${request.garage.name} can no longer come. Nothing was paid; send a new request any time.`
+            : `Request to ${request.garage.name} cancelled`}
         </h2>
       )}
     </section>

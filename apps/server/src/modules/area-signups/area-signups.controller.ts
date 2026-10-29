@@ -21,6 +21,11 @@ export async function signUp(c: CustomerContext, input: SignUpInput) {
   return c.json({ success: true, data }, 201)
 }
 
+export async function leave(c: CustomerContext, zoneSlug: string) {
+  const data = await areaSignupsService.leave(c.get('auth').sub, zoneSlug)
+  return c.json({ success: true, data })
+}
+
 export async function bannerSeen(c: CustomerContext, zoneSlug: string) {
   const data = await areaSignupsService.bannerSeen(customerId(c), zoneSlug)
   return c.json({ success: true, data })

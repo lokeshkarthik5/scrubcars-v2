@@ -252,6 +252,16 @@ function cancelledPanel(booking: Booking): { title: string; lines: string[] } {
     }
   }
 
+  // The garage called it off after accepting it (0066).
+  if (booking.cancelledBy === 'vendor' && booking.garageCancelled) {
+    return {
+      title: 'Cancelled by the garage',
+      lines: withRefund([
+        `${booking.vendorName} accepted this booking, then had to cancel it. Sorry about that.`,
+      ]),
+    }
+  }
+
   if (booking.cancelledBy === 'vendor') {
     return {
       // The garage, never "vendor": the customer app's word for it (F10).

@@ -29,6 +29,10 @@ export interface CustomerComplaint {
   closedAt: string | null
   /** What the team wrote back, once resolved or closed. */
   resolutionNote: string | null
+  /** They withdrew it before anyone answered (0066). Absent from older servers. */
+  withdrawnAt?: string | null
+  /** "Withdraw" applies now: raised in the app, nobody has answered. */
+  canWithdraw?: boolean
 }
 
 export interface RaiseComplaintInput {
@@ -44,6 +48,11 @@ export async function raiseComplaint(input: RaiseComplaintInput): Promise<Custom
     method: 'POST',
     body: JSON.stringify(input),
   })
+}
+
+/** POST /users/me/complaints/:id/withdraw — while nobody has answered it (0066). */
+export async function withdrawComplaint(id: string): Promise<CustomerComplaint> {
+  return apiClient<CustomerComplaint>(`/users/me/complaints/${id}/withdraw`, { method: 'POST' })
 }
 
 /** GET /users/me/complaints — newest first. */

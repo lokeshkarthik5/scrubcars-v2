@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { GARAGE_CANCEL_RULES } from '../../lib/garage-cancel.js'
 
 export const bookingStatusSchema = z.enum([
   'pending',
@@ -37,6 +38,18 @@ export const bookingIdParamSchema = z.object({
 export const cancelBookingSchema = z.object({
   reason: z.string().trim().max(500).optional(),
 })
+
+// The garage cancelling a booking it accepted (0066): the reason is
+// required, for the team (lib/garage-cancel.ts says the bounds).
+export const garageCancelSchema = z
+  .object({
+    reason: z
+      .string()
+      .trim()
+      .min(GARAGE_CANCEL_RULES.reasonMinLength, 'Say why you are cancelling')
+      .max(GARAGE_CANCEL_RULES.reasonMaxLength),
+  })
+  .strict()
 
 export const rescheduleBookingSchema = z.object({
   scheduledAt: z.string().datetime(),
@@ -133,5 +146,6 @@ export type ListVendorBookingsQuery = z.infer<
 >
 export type CreateBookingInput = z.infer<typeof createBookingSchema>
 export type CancelBookingInput = z.infer<typeof cancelBookingSchema>
+export type GarageCancelInput = z.infer<typeof garageCancelSchema>
 export type RescheduleBookingInput = z.infer<typeof rescheduleBookingSchema>
 export type HandoverCodeInput = z.infer<typeof handoverCodeSchema>

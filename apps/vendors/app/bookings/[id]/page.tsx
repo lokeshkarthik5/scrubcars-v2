@@ -29,13 +29,18 @@ import { pickupTimeline } from '@repo/core/pickup'
 import { bookingStatusTone } from '@repo/core/status-tone'
 import type { Booking } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
+import { CancelAcceptedBooking } from '@/components/cancel-accepted-booking'
 import { ExtraWorkPanel } from '@/components/extra-work'
 import { FinalBillPanel } from '@/components/final-bill'
 import { JobContact } from '@/components/job-contact'
 import { JobPhotos } from '@/components/job-photos'
 import { NewBookingCard } from '@/components/new-booking-card'
 import { PickupSteps } from '@/components/pickup-steps'
-import { changeStatusWithUndo, useDeferredStatus } from '@/lib/deferred-status'
+import {
+  changeStatusWithUndo,
+  DEFERRED_WORDS,
+  useDeferredStatus,
+} from '@/lib/deferred-status'
 import { cancelledLabel, statusLabel } from '@/lib/job-words'
 import {
   blockers,
@@ -133,7 +138,9 @@ function Job({
       ? 'completed'
       : deferred === 'in_progress'
         ? 'in_progress'
-        : b.status
+        : deferred === 'confirmed'
+          ? 'confirmed'
+          : b.status
 
   return (
     <AppShell
@@ -309,6 +316,12 @@ function Job({
       {/* Where the job is, and how to reach the customer outside the window. */}
       <JobContact booking={b} now={now} callButtons={false} />
 
+      {/* Accepted, not started: the garage can still call it off (0066).
+          Not while a step waits behind its Undo. */}
+      {b.status === 'confirmed' && !deferred && (
+        <CancelAcceptedBooking booking={b} now={now} onChanged={onChanged} />
+      )}
+
       {docked && (
         <DockedStep booking={b} deferred={deferred} onChanged={onChanged} />
       )}
@@ -428,9 +441,7 @@ function DockedStep({
           role="status"
           className="flex min-h-14 items-center justify-center text-[16px] font-medium text-text-primary"
         >
-          {deferred === 'in_progress'
-            ? 'Starting the job…'
-            : 'Completing the job…'}
+          {DEFERRED_WORDS[deferred]}
         </p>
       ) : b.bookingType === 'pickup' ? (
         <PickupSteps

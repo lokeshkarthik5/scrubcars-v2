@@ -1,12 +1,16 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { IconChevronRight, IconShieldCheck } from '@tabler/icons-react'
+import { toast } from 'react-toastify'
 import { ScButtonLink } from '@repo/ui/sc/button-link'
+import { ConfirmSheet } from '@repo/ui/sc/confirm-sheet'
 import { ScCard } from '@/components/ui/card'
 import {
   useBookingGuarantee,
   useGuaranteeConfig,
+  useWithdrawClaim,
 } from '@repo/core/api/hooks/use-guarantee'
 import { GUARANTEE_BUTTON, GUARANTEE_NAME } from '@repo/core/guarantee'
 import { formatStepTime } from '@repo/core/job-records'
@@ -29,6 +33,9 @@ export function GuaranteeCard({ booking }: { booking: Booking }) {
     booking.id,
     on && completed && !booking.guaranteeRedo
   )
+  const withdraw = useWithdrawClaim(booking.id)
+  const [withdrawing, setWithdrawing] = useState(false)
+  const [withdrawError, setWithdrawError] = useState<string | undefined>()
 
   if (!on) return null
 
@@ -105,6 +112,39 @@ export function GuaranteeCard({ booking }: { booking: Booking }) {
             See your claim
           </Link>
         )}
+        {/* While nobody has answered it (0066). */}
+        {claim.canWithdraw && (
+          <button
+            type="button"
+            onClick={() => setWithdrawing(true)}
+            className="min-h-11 self-start text-[12px] font-medium text-text-secondary underline underline-offset-2 transition-colors hover:text-text-primary"
+          >
+            Withdraw claim
+          </button>
+        )}
+        <ConfirmSheet
+          open={withdrawing}
+          onClose={() => {
+            setWithdrawing(false)
+            setWithdrawError(undefined)
+          }}
+          onConfirm={async () => {
+            try {
+              await withdraw.mutateAsync(claim.id)
+              toast.success('Claim withdrawn')
+              setWithdrawing(false)
+            } catch (err) {
+              setWithdrawError(err instanceof Error ? err.message : 'Could not withdraw the claim')
+            }
+          }}
+          level="light"
+          title="Withdraw your free redo claim?"
+          body="We'll close it and no redo is arranged. A booking takes one claim, so you can't claim on it again."
+          confirmLabel="Withdraw claim"
+          cancelLabel="Keep it"
+          busy={withdraw.isPending}
+          error={withdrawError}
+        />
       </ScCard>
     )
   }

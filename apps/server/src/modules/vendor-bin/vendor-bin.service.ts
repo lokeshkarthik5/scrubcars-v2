@@ -244,6 +244,8 @@ export const vendorBinService = {
         deletedReason: input.reason ?? null,
       })
       await syncOwnerFlags(repo, await repo.listSeatHolderIds(id))
+      // The owner asked to close it (0066): this confirms that request.
+      const closureRequestId = await repo.confirmClosureRequest(id, input.actorName, now)
       const upcoming = await repo.listUpcomingBookingIds(id)
       const audit = await repo.insertAudit({
         action: AUDIT.bin,
@@ -254,6 +256,7 @@ export const vendorBinService = {
           garageName: current.businessName,
           reason: input.reason ?? null,
           upcomingBookings: upcoming.length,
+          closureRequestId,
         },
         detail: { bookingIds: upcoming },
       })

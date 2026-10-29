@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { createStepQueue, type Step, type StepStorage } from './step-queue'
+import { createStepQueue, stepStillDue, type Step, type StepStorage } from './step-queue'
 
 /** A hand-wound clock: timers run only when `tick` says so. */
 function harness(options: { failWith?: Error } = {}) {
@@ -147,5 +147,66 @@ describe('the Undo queue', () => {
     expect(f.failed.map((s) => s.bookingId)).toEqual(['b1'])
     expect(f.queue.get('b1')).toBeUndefined()
     expect(f.memory.size).toBe(0)
+  })
+})
+
+describe('Accept and pickup & drop steps (0066)', () => {
+  let h: ReturnType<typeof harness>
+  beforeEach(() => {
+    h = harness()
+  })
+
+  test('Accept waits five seconds like Start, and Undo inside them sends nothing', async () => {
+    const accept = start({ status: 'confirmed', from: 'pending' })
+    expect(h.queue.enqueue(accept)).toBe(true)
+    h.tick(4999)
+    expect(h.sent).toHaveLength(0)
+    expect(h.queue.undo('b1')).toBe(true)
+    h.tick(10_000)
+    expect(h.sent).toHaveLength(0)
+
+    h.queue.enqueue(accept)
+    h.tick(5000)
+    expect(h.sent.map((s) => s.step.status)).toEqual(['confirmed'])
+    await h.settleAll()
+  })
+
+  test("Picked up's code is never written to storage, so a reload cannot resend it", async () => {
+    h.queue.enqueue(start({ status: 'picked_up', from: 'confirmed', code: '4821' }))
+    expect(h.memory.size).toBe(0)
+    // Still sent with its code when the five seconds are up.
+    h.tick(5000)
+    expect(h.sent[0]!.step.code).toBe('4821')
+    await h.settleAll()
+  })
+
+  test('At garage and Out for delivery are stored, and resent only while the job still waits for that step', async () => {
+    h.queue.enqueue(start({ status: 'at_garage', from: 'confirmed' }))
+    h.queue.enqueue(start({ bookingId: 'b2', status: 'out_for_delivery', from: 'confirmed' }))
+    expect(h.memory.size).toBe(1)
+    const after = harness()
+    for (const [k, v] of h.memory) after.memory.set(k, v)
+    after.queue.resume(
+      [
+        // Still waiting for At garage: resent.
+        { id: 'b1', status: 'confirmed', pickupNext: 'at_garage' },
+        // Already out for delivery (the step landed before the reload): let go.
+        { id: 'b2', status: 'confirmed', pickupNext: 'delivered' },
+      ],
+      'garage-a'
+    )
+    expect(after.sent.map((s) => [s.step.bookingId, s.step.status])).toEqual([['b1', 'at_garage']])
+    await after.settleAll()
+    expect(after.memory.size).toBe(0)
+  })
+
+  test('stepStillDue: the status for Accept, Start and Complete; the next step for pickup', () => {
+    const accept = start({ status: 'confirmed', from: 'pending' })
+    expect(stepStillDue(accept, { id: 'b1', status: 'pending' })).toBe(true)
+    expect(stepStillDue(accept, { id: 'b1', status: 'confirmed' })).toBe(false)
+    const atGarage = start({ status: 'at_garage', from: 'confirmed' })
+    expect(stepStillDue(atGarage, { id: 'b1', status: 'confirmed', pickupNext: 'at_garage' })).toBe(true)
+    expect(stepStillDue(atGarage, { id: 'b1', status: 'confirmed', pickupNext: 'start_work' })).toBe(false)
+    expect(stepStillDue(atGarage, { id: 'b1', status: 'cancelled', pickupNext: null })).toBe(false)
   })
 })

@@ -24,6 +24,7 @@ import {
 } from '@/lib/garage-edit'
 import { tabDots } from '@/lib/garage-status'
 import { BinBanner } from './bin-banner'
+import { ClosureRequestCard } from '@/components/closure-request-card'
 import { EditorHeader } from './editor-header'
 import { HowCustomersBook } from './how-customers-book'
 import { StatusPanel } from './status-panel'
@@ -197,6 +198,16 @@ export default function EditVendorPage({
           room this column has, not by the screen. */}
         <div className="@container flex min-w-0 flex-col gap-4">
           {bin && <BinBanner bin={bin} onRestore={() => setRestoring(true)} />}
+
+          {/* The owner's "Close my garage" request (0066), while open. */}
+          <ClosureRequestCard
+            vendor={{ id, businessName: saved.form.businessName }}
+            inBin={Boolean(bin)}
+            onBinned={() => {
+              markListStale()
+              void load()
+            }}
+          />
 
           {/* Bypass reports (0052): strikes and reports to look into. */}
           <GarageStrikesCard vendorId={id} />

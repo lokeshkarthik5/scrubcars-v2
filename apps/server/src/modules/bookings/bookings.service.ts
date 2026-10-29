@@ -1,3 +1,9 @@
+import { isDeletedPhone } from '../../lib/account-deletion.js'
+import {
+  GARAGE_CANCEL_REFUSAL_WORDS,
+  garageCancelRefusal,
+  isLateGarageCancel,
+} from '../../lib/garage-cancel.js'
 import { AppError } from '../../lib/errors.js'
 import { env } from '../../lib/env.js'
 import { logger } from '../../lib/logger.js'
@@ -368,6 +374,8 @@ type BookingWithRelations = {
   // missing it (0042). Optional so a hand-built row still type-checks.
   respondBy?: Date | null
   responseMissedAt?: Date | null
+  // The garage cancelled it after accepting (0066).
+  garageCancelledAt?: Date | null
   // The garage the booking is with, and whether Detlio waived its photo
   // standard on it (0045). Optional so a hand-built row still type-checks.
   vendorId?: string
@@ -600,6 +608,11 @@ export function toBookingResponse(
     // Cancelled by the cron because the garage did not answer in time:
     // "Not accepted in time", refunded in full.
     notAcceptedInTime: Boolean(booking.responseMissedAt),
+    // The garage cancelled it after accepting (0066); `late` when within 24
+    // hours of the slot, which counts as a missed booking for its tier.
+    garageCancelled: booking.garageCancelledAt
+      ? { at: booking.garageCancelledAt.toISOString(), late: isLateGarageCancel(booking.scheduledAt, booking.garageCancelledAt) }
+      : null,
     // When the other side's number shows: both apps explain a hidden number
     // from this ("shows 2 hours before…", "hidden after the job").
     contactWindow: window,
@@ -824,7 +837,12 @@ export function toVendorBookingResponse(booking: BookingWithRelations) {
     // window (lib/contact-window.ts, the same window the customer's payload
     // applies to the garage's number). `contactWindow` says when it shows.
     user: vendorView.user
-      ? { ...vendorView.user, phone: vendorView.contactWindow.open ? vendorView.user.phone : null }
+      ? {
+          ...vendorView.user,
+          // A deleted account's placeholder (0066) is never a number to call.
+          phone:
+            vendorView.contactWindow.open && !isDeletedPhone(vendorView.user.phone) ? vendorView.user.phone : null,
+        }
       : null,
     // The garage's own row: its own phone and WhatsApp are no secret from
     // it, so the window that hides them from customers does not apply.
@@ -2289,6 +2307,63 @@ export const bookingsService = {
     slotAlertsService.capacityFreed(updated!, 'garage_declined')
     // Declined by the garage: a paid one is refunded at once when
     // AUTO_REFUNDS is on.
+    if (updated?.payment?.status === 'paid') refundsService.queueAutoRefund({ kind: 'booking', id: bookingId })
+    return toVendorBookingResponse(updated!)
+  },
+
+  /**
+   * The garage cancels a booking it had accepted, before the job starts
+   * (0066, lib/garage-cancel.ts): confirmed, and for pickup & drop before
+   * the car is collected. A reason is required (the team reads it; the
+   * customer's push never carries it). The ordinary cancel write (unpaid
+   * extra work withdrawn, slot freed), stamped `garage_cancelled_at` so the
+   * tier metrics count one within 24 hours of the slot as a missed booking.
+   * Then as a decline: the customer told, Telegram, the refund queued
+   * (lib/refunds.ts owes a garage cancellation in full), slot alerts, a free
+   * redo's claim moved on.
+   */
+  async garageCancelBooking(vendorId: string, actorId: string, bookingId: string, reason: string) {
+    const { booking } = await getBookingForVendor(vendorId, bookingId)
+
+    const refusal = garageCancelRefusal(booking)
+    if (refusal) {
+      const words = GARAGE_CANCEL_REFUSAL_WORDS[refusal]
+      throw new AppError(words.status, words.message, words.code)
+    }
+
+    const [cancelled] = await bookingsRepository.cancelBooking(bookingId, 'vendor', 'confirmed', reason, null, {
+      garageCancelled: true,
+    })
+    if (!cancelled) {
+      // Started, collected or cancelled in between: say which.
+      const fresh = await bookingsRepository.findBookingById(bookingId)
+      const now = fresh ? garageCancelRefusal(fresh) : null
+      if (now) {
+        const words = GARAGE_CANCEL_REFUSAL_WORDS[now]
+        throw new AppError(words.status, words.message, words.code)
+      }
+      throw stateChanged()
+    }
+    const late = isLateGarageCancel(cancelled.scheduledAt, cancelled.garageCancelledAt ?? new Date())
+    log.info(
+      { bookingId, vendorId, actorId, status: 'cancelled', cancelledBy: 'vendor', garageCancelled: true, late },
+      'booking:status_updated'
+    )
+
+    const updated = await bookingsRepository.findBookingById(bookingId)
+    alertOps({ kind: 'garage_cancelled', booking: updated!, reason, late })
+    pushService.notifyCustomer(
+      updated!.userId,
+      pushMessages.customerGarageCancelled(
+        updated!,
+        // The card/UPI part only, as on a decline: credit goes back as credit.
+        updated?.payment?.status === 'paid' && paise(updated.payment.amount) > 0 ? updated.payment.amount : null
+      )
+    )
+    if (!updated!.guaranteeRedo) analyticsService.bookingCancelled(bookingId, 'garage')
+    slotAlertsService.capacityFreed(updated!, 'garage_cancelled')
+    // A free redo cancelled by the garage goes back to Detlio (0051).
+    if (updated!.guaranteeRedo) guaranteeService.redoChanged(bookingId)
     if (updated?.payment?.status === 'paid') refundsService.queueAutoRefund({ kind: 'booking', id: bookingId })
     return toVendorBookingResponse(updated!)
   },

@@ -10,17 +10,20 @@ import {
   IconPhoneOff,
   IconRefresh,
 } from '@tabler/icons-react'
-import { toast } from 'react-toastify'
 import { ScButton } from '@repo/ui/sc/button'
 import { BOOKING_TYPE_LABELS } from '@repo/core/booking-types'
 import { formatINR, formatWhen } from '@repo/core/format'
 import { useIsVendorAdmin } from '@repo/core/hooks/use-vendor-role'
-import { useBookingsStore } from '@repo/core/stores/bookings-store'
 import type { Booking } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
 import { AnswerDeadline } from '@/components/answer-deadline'
 import { RejectBookingSheet } from '@/components/reject-booking'
 import { SuggestTimes } from '@/components/suggest-times'
+import {
+  changeStatusWithUndo,
+  DEFERRED_WORDS,
+  useDeferredStatus,
+} from '@/lib/deferred-status'
 import {
   customerNumberLine,
   distanceKm,
@@ -58,9 +61,10 @@ export function NewBookingCard({
   /** On the job's own page, which already says who, when and the number. */
   onPage?: boolean
 }) {
-  const updateStatus = useBookingsStore((s) => s.updateStatus)
   const [rejecting, setRejecting] = useState(false)
-  const [accepting, setAccepting] = useState(false)
+  // Accept waits five seconds behind Undo (0066), like Start and Complete.
+  const deferred = useDeferredStatus(b.id)
+  const accepting = deferred === 'confirmed'
   const who = b.customerName || 'the customer'
   const passed = slotPassed(b, now)
   const lost = responseRunOut(b, now)
@@ -72,20 +76,9 @@ export function NewBookingCard({
   // operator's card shows the job without what it is worth.
   const isVendorAdmin = useIsVendorAdmin()
 
-  const accept = async () => {
-    setAccepting(true)
-    try {
-      await updateStatus(b.id, 'confirmed')
-      toast.success('Booking accepted')
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : 'Could not accept this booking'
-      )
-      onChanged()
-    } finally {
-      setAccepting(false)
-    }
-  }
+  // Sent after the Undo's five seconds; a refusal then (the time to answer
+  // ran out, the customer cancelled) is said by the queue, which re-reads.
+  const accept = () => changeStatusWithUndo(b.id, 'confirmed')
 
   return (
     <article
@@ -192,7 +185,14 @@ export function NewBookingCard({
           </p>
         )}
 
-        {waitingOnCustomer ? (
+        {accepting ? (
+          <p
+            role="status"
+            className="flex min-h-14 items-center justify-center text-[16px] font-medium text-text-primary"
+          >
+            {DEFERRED_WORDS.confirmed}
+          </p>
+        ) : waitingOnCustomer ? (
           // Times suggested instead of an answer (0041): what was offered,
           // until when, and Withdraw. Accept and Can't do wait.
           <SuggestTimes booking={b} onChanged={onChanged} />

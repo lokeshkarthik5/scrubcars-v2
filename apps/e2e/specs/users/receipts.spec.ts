@@ -194,21 +194,20 @@ test.describe('receipts @p0', () => {
       }
     })
 
-    test('an account with a receipt number cannot be deleted, and keeps its receipt', async ({ page }) => {
+    test('a receipt number no longer stops an account being deleted (0066), and stays with the booking', async ({ page }) => {
       // Opening the receipt issues its number (if no earlier test has) and
       // refreshes this context's session for the requests below.
       await page.goto(`/bookings/${BOOKINGS.receiptPaid}/receipt`)
       await expect(page.getByRole('article', { name: /^Payment receipt / })).toBeVisible()
 
-      // A number is never reused or renumbered, so the bookings it was issued
-      // on stay: a deliberate refusal, not the foreign key's 500.
-      const refused = await page.request.delete(`${API}/api/v1/users/me`)
-      expect(refused.status()).toBe(409)
-      expect(await refused.json()).toEqual({
-        success: false,
-        message: expect.stringContaining("can't be deleted from the app"),
-        code: 'ACCOUNT_HAS_RECEIPTS',
-      })
+      // Deletion anonymises now and keeps the bookings a number was issued
+      // on, so a receipt is never a reason to refuse. Only asked, never
+      // done: this customer's session serves the rest of the file
+      // (account-delete.spec.ts deletes an account of its own).
+      const preview = await page.request.get(`${API}/api/v1/account/deletion`)
+      expect(preview.status()).toBe(200)
+      const blockers = (await preview.json()).data.blockers as Array<{ code: string }>
+      expect(blockers.map((b) => b.code)).not.toContain('ACCOUNT_HAS_RECEIPTS')
 
       const still = await page.request.get(receiptUrl(BOOKINGS.receiptPaid))
       expect(still.status()).toBe(200)

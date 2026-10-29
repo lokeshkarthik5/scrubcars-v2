@@ -40,6 +40,12 @@ export function cancelledLabel(b: Booking): string {
   if (b.cancelledBy === 'vendor' && b.timeProposal?.status === 'expired') {
     return "The customer didn't pick one of your times in time"
   }
+  // Cancelled after accepting it (0066); late ones count as missed.
+  if (b.cancelledBy === 'vendor' && b.garageCancelled) {
+    return b.garageCancelled.late
+      ? 'Cancelled by you after accepting · counted as a missed booking'
+      : 'Cancelled by you after accepting'
+  }
   switch (b.cancelledBy) {
     case 'vendor':
       return 'Rejected by you'

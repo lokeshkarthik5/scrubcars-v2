@@ -45,8 +45,9 @@ test('a customer moves a booking and the garage sees the new slot @p0', async ({
       name: `Accept booking for ${CUSTOMERS.journeyMove.name}`,
     })
     .click()
+  // Accept waits five seconds behind its Undo (0066).
   await expect
-    .poll(async () => (await getBooking(original.id))?.status)
+    .poll(async () => (await getBooking(original.id))?.status, { timeout: 15_000 })
     .toBe('confirmed')
 
   // ── the move ─────────────────────────────────────────────────────────────
@@ -98,7 +99,7 @@ test('a customer moves a booking and the garage sees the new slot @p0', async ({
     })
     .click()
   await expect
-    .poll(async () => (await getBooking(movedId))?.status)
+    .poll(async () => (await getBooking(movedId))?.status, { timeout: 15_000 })
     .toBe('confirmed')
 
   // Exactly one live job for this customer: the moved one. The original must

@@ -8,6 +8,8 @@
  * id, no visit date: nothing that identifies or reaches the customer.
  */
 
+import { DELETED_REVIEW_NAME } from '../../lib/account-deletion.js'
+
 export interface PublicReviewSource {
   id: string
   vendorId: string
@@ -18,7 +20,8 @@ export interface PublicReviewSource {
   tags?: string[] | null
   reply?: string | null
   repliedAt?: Date | null
-  user?: { name: string } | null
+  /** `deletedAt` set: the customer deleted their account (0066). */
+  user?: { name: string; deletedAt?: Date | null } | null
   booking?: {
     items?: Array<{ name: string }> | null
     service?: { id: string; name: string } | null
@@ -49,7 +52,8 @@ function firstLetter(word: string): string {
 }
 
 export function toPublicReviewResponse(review: PublicReviewSource) {
-  const name = publicReviewerName(review.user?.name)
+  // A deleted account's review stays, signed "Former customer" (0066).
+  const name = review.user?.deletedAt ? DELETED_REVIEW_NAME : publicReviewerName(review.user?.name)
   return {
     id: review.id,
     vendorId: review.vendorId,

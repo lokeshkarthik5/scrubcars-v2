@@ -26,6 +26,11 @@ export async function createComplaint(c: ComplaintsContext, input: CreateComplai
   return c.json({ success: true, data }, 201)
 }
 
+export async function withdrawMyComplaint(c: ComplaintsContext, id: string) {
+  const data = await complaintsService.withdraw(getUserId(c), id)
+  return c.json({ success: true, data })
+}
+
 export async function listMyComplaints(c: ComplaintsContext) {
   const data = await complaintsService.listMine(getUserId(c))
   return c.json({ success: true, data })

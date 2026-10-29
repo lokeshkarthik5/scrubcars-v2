@@ -72,6 +72,10 @@ customerGuaranteeRoutes.get(
   zValidator('query', redoSlotsQuerySchema),
   (c) => guaranteeController.redoSlots(c, c.req.valid('param').id, c.req.valid('query').date)
 )
+// Withdraw a claim nobody has answered yet (0066).
+customerGuaranteeRoutes.post('/claims/:id/withdraw', zValidator('param', claimIdParamSchema), (c) =>
+  guaranteeController.withdraw(c, c.req.valid('param').id)
+)
 customerGuaranteeRoutes.post(
   '/claims/:id/redo',
   zValidator('param', claimIdParamSchema),

@@ -323,16 +323,19 @@ export const HELP_GROUPS: HelpGroup[] = [
       {
         id: 'cars-addresses',
         q: 'How do I change my cars and addresses?',
-        a: ['In Profile you can add and remove cars and addresses, and choose which one is the default.'],
+        a: [
+          'In Profile you can add, edit and remove cars and addresses, and choose which one is the default. The pencil beside your name changes your name and email; your phone number is how you sign in, so it stays as it is.',
+        ],
         links: [{ label: 'Profile', href: '/profile' }],
       },
       {
         id: 'delete-account',
         q: 'How do I delete my account?',
         a: [
-          'Ask us by phone, WhatsApp or email. We delete what we no longer need and tell you what the law requires us to keep, such as payment records.',
+          'In Profile, tap Delete account at the bottom. We delete your name, phone number, email, photo, saved cars’ number plates, addresses and devices, and sign you out everywhere. Your bookings, receipts and refunds stay, without your name or number, because the law says we keep money records; your reviews stay as “Former customer”.',
+          'If something is still open (a booking to come, a refund we owe you, Detlio credit or a gift nobody has redeemed), the app says what to finish first. You can sign up again later with the same number, as a new account.',
         ],
-        links: [CONTACT, { label: 'Privacy Policy', href: LEGAL_PATHS.privacy }],
+        links: [{ label: 'Profile', href: '/profile' }, { label: 'Privacy Policy', href: LEGAL_PATHS.privacy }],
       },
     ],
   },

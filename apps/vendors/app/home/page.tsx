@@ -307,6 +307,16 @@ export default function VendorHomePage() {
           something to work towards; owner seat only. */}
       {isVendorAdmin && <TierCard vendorId={vendor?.id} />}
 
+      {/* Every seat's account (0066): leave the garage, delete the login, log
+          out. An operator has no Settings tab, so this is their way there. */}
+      <Link
+        href="/account"
+        className="press flex min-h-12 items-center justify-between rounded-[16px] border border-border bg-surface px-4 py-2 text-[15px] text-text-primary"
+      >
+        Your account
+        <IconChevronRight size={18} aria-hidden="true" className="shrink-0 text-text-muted" />
+      </Link>
+
       {/* The agreement's non-solicitation term (0052): a reminder for every seat. */}
       <p className="px-1 text-[13px] text-text-secondary">
         {GARAGE_NON_SOLICITATION_LINE}

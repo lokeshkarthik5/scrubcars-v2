@@ -34,6 +34,11 @@ customerComplaintRoutes.post('/complaints', zValidator('json', createComplaintSc
   complaintsController.createComplaint(c, c.req.valid('json'))
 )
 
+// Withdraw one nobody has answered yet (0066): the session's own only.
+customerComplaintRoutes.post('/complaints/:id/withdraw', zValidator('param', complaintIdParamSchema), (c) =>
+  complaintsController.withdrawMyComplaint(c, c.req.valid('param').id)
+)
+
 // ─── Admin ───────────────────────────────────────────────────────────────────
 
 // The Complaints tab. Mounted under /api/v1/admin/complaints (see

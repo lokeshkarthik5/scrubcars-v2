@@ -66,6 +66,11 @@ export async function redoSlots(c: CustomerContext, claimId: string, date: strin
   return c.json({ success: true, data })
 }
 
+export async function withdraw(c: CustomerContext, claimId: string) {
+  const data = await guaranteeService.withdraw(customerId(c), claimId)
+  return c.json({ success: true, data })
+}
+
 export async function bookRedo(c: CustomerContext, claimId: string, input: BookRedoInput) {
   const data = await guaranteeService.bookRedo(customerId(c), claimId, input)
   return c.json({ success: true, data }, 201)

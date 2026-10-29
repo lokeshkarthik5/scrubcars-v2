@@ -2,6 +2,9 @@ import { describe, expect, test } from 'bun:test'
 import { bannedPhraseIn } from './copy-rules.js'
 import {
   GUARANTEE_RULES,
+  withdrawRefusal,
+  withdrawnClaim,
+  CLOSED_STATUSES,
   REDO_MONEY,
   REDO_WORDS,
   approvedForRedo,
@@ -473,5 +476,52 @@ describe('words', () => {
       body: 'The photos show a clean car.',
     })
     expect(customerStatusLine({ ...base, status: 'lapsed', closeReason: 'redo_no_show' }).body).toMatch(/missed/)
+  })
+})
+
+describe('the customer withdraws (0066): only while nobody has answered', () => {
+  const now = new Date('2026-10-13T06:00:00Z')
+  const unanswered = { garageResponse: null, decision: null } as const
+  const later = new Date(now.getTime() + 60 * 60 * 1000)
+  const earlier = new Date(now.getTime() - 60 * 1000)
+
+  test('waiting for the garage, inside its time: yes', () => {
+    expect(withdrawRefusal({ status: 'waiting_garage', garageRespondBy: later, ...unanswered }, now)).toBeNull()
+  })
+
+  test("the garage's time ran out: its silence approved the redo, so no", () => {
+    expect(withdrawRefusal({ status: 'waiting_garage', garageRespondBy: earlier, ...unanswered }, now)).toBe('answered')
+  })
+
+  test('with Detlio and not decided: yes; disputed by the garage: no', () => {
+    expect(withdrawRefusal({ status: 'needs_detlio', garageRespondBy: null, ...unanswered }, now)).toBeNull()
+    expect(
+      withdrawRefusal({ status: 'needs_detlio', garageRespondBy: earlier, garageResponse: 'disputed', decision: null }, now)
+    ).toBe('answered')
+  })
+
+  test('approved, decided or closed: no', () => {
+    for (const status of ['redo_approved', 'redo_booked', 'redo_done', 'refund_approved', 'rejected', 'lapsed', 'withdrawn'] as const) {
+      expect(withdrawRefusal({ status, garageRespondBy: null, ...unanswered }, now)).toBe('answered')
+    }
+    expect(withdrawRefusal({ status: 'needs_detlio', garageRespondBy: null, garageResponse: null, decision: 'redo' }, now)).toBe(
+      'answered'
+    )
+  })
+
+  test('the write closes it as withdrawn, never approved, and it counts as closed', () => {
+    expect(withdrawnClaim(now)).toEqual({ status: 'withdrawn', closedAt: now, closeReason: 'withdrawn' })
+    expect(CLOSED_STATUSES).toContain('withdrawn')
+    expect(
+      customerStatusLine({
+        status: 'withdrawn',
+        garageName: 'Shine Hub',
+        garageRespondBy: null,
+        redoBookBy: null,
+        redoScheduledAt: null,
+        closeReason: 'withdrawn',
+        decisionReason: null,
+      })
+    ).toEqual({ title: 'Claim withdrawn', body: 'You withdrew this claim.' })
   })
 })

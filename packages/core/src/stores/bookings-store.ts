@@ -54,6 +54,12 @@ interface BookingsState {
     reason?: string,
     options?: StatusRequestOptions
   ) => Promise<Booking>
+  /**
+   * Any other write on one of the garage's jobs (a pickup step, a cancel
+   * after accepting): run like a status change, so a list read that started
+   * before it is dropped, and the job replaced with the answer.
+   */
+  writeVendorBooking: (id: string, request: () => Promise<Booking>) => Promise<Booking>
   reset: () => void
 }
 
@@ -141,6 +147,17 @@ export const useBookingsStore = create<BookingsState>((set) => ({
       vendorBookings: state.vendorBookings.map((b) =>
         b.id === id ? booking : b
       ),
+    }))
+    return booking
+  },
+
+  async writeVendorBooking(id, request) {
+    statusWrites++
+    const booking = await request().finally(() => {
+      statusWrites++
+    })
+    set((state) => ({
+      vendorBookings: state.vendorBookings.map((b) => (b.id === id ? booking : b)),
     }))
     return booking
   },

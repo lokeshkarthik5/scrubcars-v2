@@ -129,13 +129,15 @@ export const CLAIM_STATUSES = [
   'refund_approved',
   'rejected',
   'lapsed',
+  // The customer withdrew it before anyone answered (0066).
+  'withdrawn',
 ] as const
 export type ClaimStatus = (typeof CLAIM_STATUSES)[number]
 
 /** Waiting for an answer: these count toward the limit until decided. */
 export const UNDECIDED_STATUSES = ['waiting_garage', 'needs_detlio'] as const satisfies readonly ClaimStatus[]
 /** Nothing more happens to these. */
-export const CLOSED_STATUSES = ['redo_done', 'refund_approved', 'rejected', 'lapsed'] as const satisfies readonly ClaimStatus[]
+export const CLOSED_STATUSES = ['redo_done', 'refund_approved', 'rejected', 'lapsed', 'withdrawn'] as const satisfies readonly ClaimStatus[]
 
 export function isClosedStatus(status: ClaimStatus): boolean {
   return (CLOSED_STATUSES as readonly string[]).includes(status)
@@ -162,7 +164,7 @@ export const ROUTE_REASON_LABELS: Record<RouteReason, string> = {
 
 export type GarageResponse = 'accepted' | 'disputed' | 'timed_out'
 export type ClaimDecision = 'redo' | 'refund' | 'reject'
-export type CloseReason = 'redo_done' | 'redo_no_show' | 'redo_not_booked' | 'refund' | 'rejected'
+export type CloseReason = 'redo_done' | 'redo_no_show' | 'redo_not_booked' | 'refund' | 'rejected' | 'withdrawn'
 
 // ─── Rule 1 and 2: which bookings can be claimed on ──────────────────────────
 
@@ -444,6 +446,34 @@ export function garageTimedOut(claim: { status: ClaimStatus; garageRespondBy: Da
   return claim.status === 'waiting_garage' && claim.garageRespondBy !== null && now.getTime() > claim.garageRespondBy.getTime()
 }
 
+// ─── The customer withdraws (0066) ───────────────────────────────────────────
+
+/**
+ * Whether the customer can still withdraw their claim: nobody has answered
+ * it. Waiting for the garage with no answer and its time not run out (its
+ * silence is an approval), or with Detlio before any decision and with no
+ * dispute from the garage. Anything later is 'answered'.
+ */
+export function withdrawRefusal(
+  claim: {
+    status: ClaimStatus
+    garageRespondBy: Date | null
+    garageResponse: GarageResponse | null
+    decision: ClaimDecision | null
+  },
+  now: Date
+): 'answered' | null {
+  if (claim.garageResponse !== null || claim.decision !== null) return 'answered'
+  if (claim.status === 'waiting_garage') return garageTimedOut(claim, now) ? 'answered' : null
+  if (claim.status === 'needs_detlio') return null
+  return 'answered'
+}
+
+/** The write that withdraws it: closed, never approved. */
+export function withdrawnClaim(now: Date) {
+  return { status: 'withdrawn' as const, closedAt: now, closeReason: 'withdrawn' as const }
+}
+
 /** The write that approves a redo (by the garage, its silence, Detlio, or no photos). */
 export function approvedForRedo(now: Date) {
   return {
@@ -652,6 +682,8 @@ export function customerStatusLine(input: {
       return { title: 'Refund approved', body: 'Detlio approved a refund instead of a redo.' }
     case 'rejected':
       return { title: 'Not approved', body: input.decisionReason }
+    case 'withdrawn':
+      return { title: 'Claim withdrawn', body: 'You withdrew this claim.' }
     case 'lapsed':
       return {
         title: 'Claim closed',

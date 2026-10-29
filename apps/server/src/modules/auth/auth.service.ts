@@ -214,6 +214,11 @@ function smsFailed(phone: string, providerMessage: string): AppError {
 }
 
 function assertActiveUser(user: UserRecord) {
+  // A deleted account (0066) can't sign in or refresh: its phone was freed,
+  // so a sign-in by that number finds the new account, never this row.
+  if (user.deletedAt) {
+    throw new AppError(401, 'User not found', 'USER_NOT_FOUND')
+  }
   if (user.status === 'suspended') {
     throw new AppError(403, 'Account is suspended', 'ACCOUNT_SUSPENDED')
   }

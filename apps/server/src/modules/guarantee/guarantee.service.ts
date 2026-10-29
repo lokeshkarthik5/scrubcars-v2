@@ -14,6 +14,7 @@ import { AppError } from '../../lib/errors.js'
 import { bookingReference } from '../../lib/booking-ops.js'
 import { runInBackground } from '../../lib/background.js'
 import {
+  withdrawRefusal,
   ADMIN_TAB_STATUSES,
   GUARANTEE_ISSUES,
   GUARANTEE_RULES,
@@ -92,6 +93,14 @@ function claimNotFound() {
   return new AppError(404, 'Claim not found', 'GUARANTEE_CLAIM_NOT_FOUND')
 }
 
+function notWithdrawable() {
+  return new AppError(
+    409,
+    'This claim has already been answered, so it can no longer be withdrawn.',
+    'GUARANTEE_NOT_WITHDRAWABLE'
+  )
+}
+
 function claimChanged() {
   return new AppError(409, 'This claim has just changed. Refresh to see where it stands.', 'GUARANTEE_CLAIM_CHANGED')
 }
@@ -152,6 +161,8 @@ function toCustomerClaim(
       claim.status === 'redo_approved' && claim.redoBookBy !== null && context.now <= claim.redoBookBy,
     // Only a claim that was not approved says why; the customer reads it.
     reason: claim.status === 'rejected' ? claim.decisionReason : null,
+    // "Withdraw" applies while nobody has answered it (0066).
+    canWithdraw: withdrawRefusal(claim, context.now) === null,
   }
 }
 
@@ -413,6 +424,22 @@ export const guaranteeService = {
     }
 
     return toCustomerClaim(claim, { garageName: booking.vendorName, redo: null, now })
+  },
+
+  /**
+   * The customer withdraws their claim while nobody has answered it (0066,
+   * lib/guarantee.ts withdrawRefusal): closed as 'withdrawn', never
+   * approved, so it counts toward nothing. Anyone else's is a 404; one the
+   * garage or Detlio has answered is a 409.
+   */
+  async withdraw(userId: string, claimId: string, now = new Date()) {
+    const claim = await guaranteeService.ownClaim(userId, claimId)
+    if (withdrawRefusal(claim, now)) throw notWithdrawable()
+    const withdrawn = await guaranteeRepository.withdraw({ claimId, userId, now })
+    if (!withdrawn) throw notWithdrawable()
+    log.info({ claimId, bookingId: withdrawn.bookingId }, 'guarantee:withdrawn')
+    const booking = await guaranteeRepository.findClaimableBooking(withdrawn.bookingId)
+    return toCustomerClaim(withdrawn, { garageName: booking?.vendorName ?? 'the garage', redo: null, now })
   },
 
   /** The customer's own claim, or a 404. */

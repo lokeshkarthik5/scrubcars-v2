@@ -675,6 +675,41 @@ export const bookingRequestsRepository = {
     })
   },
 
+  /**
+   * The garage withdraws its yes (0066): an accepted row of this garage's,
+   * with no checkout open for it. The row's lock first, in a statement of
+   * its own, for the reason cancelByAdmin gives: a checkout opening for it
+   * holds that lock until its intent is written, so the update below sees
+   * it and refuses. Null when it was not accepted, not this garage's, or a
+   * checkout is open.
+   */
+  withdrawAccepted(input: { id: string; vendorId: string; now: Date }): Promise<BookingRequestRecord | null> {
+    return db.transaction(async (tx) => {
+      await tx
+        .select({ id: bookingRequests.id })
+        .from(bookingRequests)
+        .where(eq(bookingRequests.id, input.id))
+        .for('update')
+        .limit(1)
+      const [row] = await tx
+        .update(bookingRequests)
+        .set({ status: 'cancelled', withdrawnAt: input.now, closedAt: input.now, updatedAt: input.now })
+        .where(
+          and(
+            eq(bookingRequests.id, input.id),
+            eq(bookingRequests.vendorId, input.vendorId),
+            eq(bookingRequests.status, 'accepted'),
+            sql`NOT EXISTS (
+              SELECT 1 FROM booking_intents i
+               WHERE i.request_id = ${bookingRequests.id} AND i.status = 'pending' AND i.expires_at > ${input.now.toISOString()}::timestamptz
+            )`
+          )
+        )
+        .returning()
+      return row ?? null
+    })
+  },
+
   /** Whether a customer is paying for this request right now (an unexpired checkout for it). */
   async hasOpenCheckout(id: string, now: Date): Promise<boolean> {
     const rows = await db.execute<{ id: string }>(sql`

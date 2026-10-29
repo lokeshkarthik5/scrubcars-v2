@@ -1,3 +1,4 @@
+import { COMPLAINT_WITHDRAWN_BY } from '../../lib/complaints.js'
 import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lt, ne, or, sql, type SQL } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import { adminAuditLog, bookings, complaints, users, vendors } from '../../db/schema.js'
@@ -54,7 +55,8 @@ function filterWhere(filter: ComplaintListFilter, cutoffs: OverdueCutoffs): SQL 
 /** A complaint with what admin shows beside it: whether the account is still there, and the booking. */
 const adminColumns = {
   complaint: complaints,
-  accountExists: sql<boolean>`${users.id} is not null`,
+  // A deleted account (0066) keeps its row, blanked: it counts as gone.
+  accountExists: sql<boolean>`${users.id} is not null and ${users.deletedAt} is null`,
   bookingScheduledAt: bookings.scheduledAt,
   bookingStatus: bookings.status,
 }
@@ -294,6 +296,47 @@ export const complaintsRepository = {
       .set({ ...values, updatedAt: to.at })
       .where(and(eq(complaints.id, id), inArray(complaints.status, [...from])))
       .returning({ id: complaints.id })
+    return row ?? null
+  },
+
+  /**
+   * The customer withdraws their own complaint (0066): only one they raised
+   * in the app that nobody has answered yet (still 'open'). Closed like a
+   * close, with `withdrawn_at`; the acknowledgement stamp the closed status
+   * needs (0035's CHECK) is the same moment. Null when it was not theirs,
+   * not open, or not raised in the app.
+   */
+  async withdrawOwn(id: string, userId: string, at: Date) {
+    const [row] = await db
+      .update(complaints)
+      .set({
+        status: 'closed',
+        acknowledgedAt: at,
+        acknowledgedBy: COMPLAINT_WITHDRAWN_BY,
+        closedAt: at,
+        closedBy: COMPLAINT_WITHDRAWN_BY,
+        withdrawnAt: at,
+        updatedAt: at,
+      })
+      .where(
+        and(
+          eq(complaints.id, id),
+          eq(complaints.userId, userId),
+          eq(complaints.status, 'open'),
+          eq(complaints.source, 'app')
+        )
+      )
+      .returning()
+    return row ?? null
+  },
+
+  /** The customer's own complaint, for telling "not yours" from "answered already". */
+  async findOwn(id: string, userId: string) {
+    const [row] = await db
+      .select({ id: complaints.id, status: complaints.status, source: complaints.source })
+      .from(complaints)
+      .where(and(eq(complaints.id, id), eq(complaints.userId, userId)))
+      .limit(1)
     return row ?? null
   },
 

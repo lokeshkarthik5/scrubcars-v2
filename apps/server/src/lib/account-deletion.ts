@@ -1,65 +1,195 @@
 /**
- * Why `DELETE /users/me` must refuse an account, if it must.
+ * Deleting an account in the app (0066; Apple 5.1.1(v), owner decision
+ * 29 Oct 2026: "anonymise instead of refuse").
  *
- * Deleting a user row cascades: their bookings go with it, and through
- * `vendors.owner_id` (ON DELETE CASCADE) so does any garage they own — that
- * garage's services, its bookings from other customers, and their payments.
- * Both are records that have to stay, so either fact closes the self-serve
- * path and the person is sent to support instead.
+ * A users row is never deleted: bookings, receipts, refunds, payments, gifts
+ * and the credit ledger name it, and those are records the law (and
+ * AGENTS.md's money rules) say we keep. Deleting the account blanks the
+ * person instead (`anonymisedUser`): the name, the phone (freed, so the
+ * number can sign up again as a new account), the email, the photo and the
+ * birthday; their cars' plates and colours, saved addresses, saved garages,
+ * devices, sessions, alerts, sign-ups and the addresses copied onto their
+ * bookings are removed in the same transaction (account.repository).
+ * Reviews stay, shown as "Former customer" (`DELETED_REVIEW_NAME`).
  *
- * Owning a garage is checked first: it is the wider cascade, and the support
- * conversation for it (who takes the garage over, or how it closes) is the one
- * that has to happen anyway.
+ * It is refused only while something is still open (`deletionBlockers`):
+ * a booking to come or in progress, a payment being made, money owed back
+ * to them, Detlio credit left, or a gift they bought that nobody has
+ * redeemed yet. Each refusal says what to do first. Owning a garage is
+ * refused too: closing a garage is "Close my garage" (0066), never a
+ * side effect of deleting a login.
  */
+
+/** The name a deleted account's row carries (admin and the garage read it). */
+export const DELETED_ACCOUNT_NAME = 'Deleted account'
+
+/** How a deleted customer's reviews are signed on every screen. */
+export const DELETED_REVIEW_NAME = 'Former customer'
+
+/** Every deleted account's phone starts with this; never digits after it. */
+export const DELETED_PHONE_PREFIX = 'deleted-'
+
+/** Letters only, so no placeholder can ever read as (or end in) a phone number. */
+const PLACEHOLDER_LETTERS = 'abcdefghijklmnopqrstuvwxyz'
+const PLACEHOLDER_LENGTH = 12
+
+/**
+ * The placeholder phone for a deleted account: `deleted-` and 12 random
+ * letters (20 characters, the column's size). Unique in practice (26^12),
+ * and the unique index would refuse a clash, rolling the deletion back.
+ */
+export function deletedPhone(randomBytes: Uint8Array): string {
+  if (randomBytes.length < PLACEHOLDER_LENGTH) throw new Error('deletedPhone: needs 12 random bytes')
+  let suffix = ''
+  for (let i = 0; i < PLACEHOLDER_LENGTH; i++) {
+    suffix += PLACEHOLDER_LETTERS[randomBytes[i]! % PLACEHOLDER_LETTERS.length]
+  }
+  return `${DELETED_PHONE_PREFIX}${suffix}`
+}
+
+export function isDeletedPhone(phone: string | null | undefined): boolean {
+  return typeof phone === 'string' && phone.startsWith(DELETED_PHONE_PREFIX)
+}
+
+/**
+ * The users row after deletion: every personal field blanked, the switches
+ * off, the seat flag cleared (its seats are removed with it). What is not
+ * here is kept: the id, `is_customer`, `status` and `created_at`.
+ */
+export function anonymisedUser(input: { now: Date; phone: string }) {
+  return {
+    name: DELETED_ACCOUNT_NAME,
+    phone: input.phone,
+    email: null,
+    avatarUrl: null,
+    avatarStorageKey: null,
+    phoneVerified: false,
+    isVendorOwner: false,
+    pushBookingUpdates: false,
+    pushReminders: false,
+    birthdayMonth: null,
+    birthdayDay: null,
+    deletedAt: input.now,
+  }
+}
+
+/**
+ * A car a booking still names (its foreign key is RESTRICT) is kept for that
+ * booking, without what identifies it: the plate and the colour go, and it
+ * leaves the garage list. A car nothing names is deleted outright.
+ */
+export function anonymisedVehicle(now: Date) {
+  return { licensePlate: null, color: null, isDefault: false, archivedAt: now }
+}
+
+// ─── What blocks it ──────────────────────────────────────────────────────────
+
 export interface AccountDeletionFacts {
   /** The account is `vendors.owner_id` of at least one garage. */
   ownsGarage: boolean
-  /** A receipt number was issued on one of the account's own bookings. */
-  hasReceipts: boolean
-  /**
-   * The account bought or redeemed a Detlio gift, or has Detlio credit
-   * records (0049). Gifts and the credit ledger are money records, and
-   * deleting the account would lose a balance the customer paid for.
-   */
-  hasGifts?: boolean
+  /** Their bookings still pending, confirmed or in progress. */
+  openBookings: Array<{ reference: string; status: string }>
+  /** A checkout of theirs that could still be paid (pending, not expired). */
+  openCheckout: boolean
+  /** Money lib/refunds.ts says is owed back to them, per item. */
+  refundsOwed: Array<{ reference: string; amount: string }>
+  /** Detlio credit they can still spend, in paise. */
+  creditBalancePaise: number
+  /** Paid gifts they bought that nobody has redeemed and that have not expired. */
+  unredeemedGifts: Array<{ number: string; expiresAt: Date | null }>
 }
 
-export interface AccountDeletionRefusal {
-  code: 'VENDOR_OWNER_ACCOUNT' | 'ACCOUNT_HAS_RECEIPTS' | 'ACCOUNT_HAS_GIFTS'
+export type AccountDeletionBlockerCode =
+  | 'VENDOR_OWNER_ACCOUNT'
+  | 'ACCOUNT_HAS_OPEN_BOOKING'
+  | 'ACCOUNT_HAS_OPEN_CHECKOUT'
+  | 'ACCOUNT_REFUND_OWED'
+  | 'ACCOUNT_HAS_CREDIT'
+  | 'ACCOUNT_HAS_UNREDEEMED_GIFT'
+
+export interface AccountDeletionBlocker {
+  code: AccountDeletionBlockerCode
+  /** What is open and what to do first, in the customer's words. */
   message: string
 }
 
-export function accountDeletionRefusal(
-  facts: AccountDeletionFacts
-): AccountDeletionRefusal | null {
+const rupeesText = (paise: number) => `₹${(paise / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
+
+function rupeesFromAmount(amount: string): string {
+  return rupeesText(Math.round(Number(amount) * 100))
+}
+
+const DATE_FORMAT = new Intl.DateTimeFormat('en-IN', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  timeZone: 'Asia/Kolkata',
+})
+
+function listed(items: string[], max = 3): string {
+  const shown = items.slice(0, max)
+  const more = items.length - shown.length
+  return more > 0 ? `${shown.join(', ')} and ${more} more` : shown.join(', ')
+}
+
+/**
+ * Everything that has to finish before the account can go, in the order
+ * the sheet lists it. Empty means it can be deleted now.
+ */
+export function deletionBlockers(facts: AccountDeletionFacts): AccountDeletionBlocker[] {
+  const blockers: AccountDeletionBlocker[] = []
+
   if (facts.ownsGarage) {
-    return {
+    blockers.push({
       code: 'VENDOR_OWNER_ACCOUNT',
       message:
-        "This number owns a garage on Detlio, so the account can't be deleted here. Contact support to close it.",
-    }
+        'This number owns a garage on Detlio. Close the garage first (garage app → Settings → Account → Close my garage), or move it to another owner.',
+    })
   }
 
-  // A receipt number is never reused or renumbered, so the bookings one was
-  // issued on have to stay (receipt_numbers' foreign key would refuse the
-  // cascade anyway, as a bare 500).
-  if (facts.hasReceipts) {
-    return {
-      code: 'ACCOUNT_HAS_RECEIPTS',
+  if (facts.openBookings.length > 0) {
+    const refs = facts.openBookings.map((b) => `#${b.reference}`)
+    blockers.push({
+      code: 'ACCOUNT_HAS_OPEN_BOOKING',
       message:
-        "Your account has bookings with payment receipts, so it can't be deleted from the app. Please call Detlio support to close it.",
-    }
+        facts.openBookings.length === 1
+          ? `Your booking ${refs[0]} is still open. Cancel it, or wait until it is done, then delete your account.`
+          : `Your bookings ${listed(refs)} are still open. Cancel them, or wait until they are done, then delete your account.`,
+    })
   }
 
-  // Gifts and credit are money records (the foreign keys would refuse the
-  // delete anyway, as a bare 500), and any credit left would be lost.
-  if (facts.hasGifts) {
-    return {
-      code: 'ACCOUNT_HAS_GIFTS',
-      message:
-        "Your account has Detlio gifts or credit, so it can't be deleted from the app. Please call Detlio support to close it.",
-    }
+  if (facts.openCheckout) {
+    blockers.push({
+      code: 'ACCOUNT_HAS_OPEN_CHECKOUT',
+      message: 'A payment you started is still open. Finish it, or wait 30 minutes for it to lapse, then try again.',
+    })
   }
 
-  return null
+  if (facts.refundsOwed.length > 0) {
+    const total = facts.refundsOwed.reduce((sum, item) => sum + Math.round(Number(item.amount) * 100), 0)
+    blockers.push({
+      code: 'ACCOUNT_REFUND_OWED',
+      message: `We still owe you a refund of ${rupeesText(total)} (${listed(
+        facts.refundsOwed.map((item) => `#${item.reference} ${rupeesFromAmount(item.amount)}`)
+      )}). Once it reaches you, you can delete your account. Need it sooner? Contact Detlio support.`,
+    })
+  }
+
+  if (facts.creditBalancePaise > 0) {
+    blockers.push({
+      code: 'ACCOUNT_HAS_CREDIT',
+      message: `You have ${rupeesText(facts.creditBalancePaise)} of Detlio credit. Use it on a booking first, or contact Detlio support; deleting the account would lose it.`,
+    })
+  }
+
+  if (facts.unredeemedGifts.length > 0) {
+    const first = facts.unredeemedGifts[0]!
+    const until = first.expiresAt ? ` (it lasts until ${DATE_FORMAT.format(first.expiresAt)})` : ''
+    blockers.push({
+      code: 'ACCOUNT_HAS_UNREDEEMED_GIFT',
+      message: `A gift you bought (${listed(facts.unredeemedGifts.map((g) => g.number))}) hasn't been redeemed yet${until}. Once it is, you can delete your account, or contact Detlio support to cancel and refund it.`,
+    })
+  }
+
+  return blockers
 }

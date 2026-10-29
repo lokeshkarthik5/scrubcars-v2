@@ -38,6 +38,11 @@ export function signUpForArea(input: { zoneSlug: string; pushOptIn: boolean; wha
   return apiClient<SignUpResult>('/users/me/area/signups', { method: 'POST', body: JSON.stringify(input) })
 }
 
+/** DELETE /users/me/area/signups/:zoneSlug — leave an area's list and its messages (0066). */
+export function leaveAreaList(zoneSlug: string) {
+  return apiClient<{ left: true }>(`/users/me/area/signups/${zoneSlug}`, { method: 'DELETE' })
+}
+
 export function markLaunchBannerSeen(zoneSlug: string) {
   return apiClient<{ seen: true }>(`/users/me/area/signups/${zoneSlug}/banner-seen`, { method: 'POST' })
 }

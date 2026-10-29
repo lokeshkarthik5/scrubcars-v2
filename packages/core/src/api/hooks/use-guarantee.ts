@@ -17,6 +17,7 @@ import {
   type AdminClaimTab,
   type CreateClaimInput,
   type DecideClaimInput,
+  withdrawClaim,
 } from '@repo/core/api/guarantee'
 
 /**
@@ -74,6 +75,17 @@ export function useCreateClaim() {
     mutationFn: (input: CreateClaimInput) => createClaim(input),
     onSettled: (_data, _error, input) => {
       void queryClient.invalidateQueries({ queryKey: guaranteeKeys.booking(input.bookingId) })
+    },
+  })
+}
+
+/** Withdraw a claim nobody has answered yet (0066); the booking's guarantee is re-read. */
+export function useWithdrawClaim(bookingId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (claimId: string) => withdrawClaim(claimId),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: guaranteeKeys.booking(bookingId) })
     },
   })
 }

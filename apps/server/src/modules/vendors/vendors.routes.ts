@@ -1,3 +1,4 @@
+import { garageClosureRoutes } from '../garage-closure/garage-closure.routes.js'
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import {
@@ -128,6 +129,8 @@ vendorsRoutes.get(
 // The team screen. Nested here so it inherits the /vendors/me prefix — the
 // company it acts on is the one resolveTenant produced, never a path parameter.
 vendorsRoutes.route('/me/members', membersRoutes)
+// "Close my garage" (0066): the owner asks Detlio to close the garage.
+vendorsRoutes.route('/me/closure', garageClosureRoutes)
 
 // The Earnings statement (GET /me/earnings/statement): each booking's
 // commission, share and payout. vendor_admin only in its own file, like the

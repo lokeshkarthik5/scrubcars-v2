@@ -136,8 +136,9 @@ test('a garage is verified by ops, lists a service, and takes a booking', async 
     })
     .first()
     .click()
+  // Accept waits five seconds behind its Undo (0066).
   await expect
-    .poll(async () => (await getBooking(booking.id))?.status)
+    .poll(async () => (await getBooking(booking.id))?.status, { timeout: 15_000 })
     .toBe('confirmed')
 
   await Promise.all(contexts.map((c) => c.close()))

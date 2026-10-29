@@ -7,6 +7,7 @@ import {
   bookingItems,
   bookings,
   discounts,
+  garageClosureRequests,
   internalAccessLog,
   notices,
   serviceImages,
@@ -178,6 +179,19 @@ function writes(tx: Tx) {
     ) {
       const [row] = await tx.update(vendors).set(bin).where(eq(vendors.id, id)).returning()
       return row
+    },
+
+    /**
+     * The owner's open "Close my garage" request (0066), confirmed by this
+     * move to the Bin, in the same transaction. Null when there was none.
+     */
+    async confirmClosureRequest(vendorId: string, by: string, at: Date): Promise<string | null> {
+      const [row] = await tx
+        .update(garageClosureRequests)
+        .set({ status: 'confirmed', confirmedAt: at, confirmedByName: by, updatedAt: at })
+        .where(and(eq(garageClosureRequests.vendorId, vendorId), eq(garageClosureRequests.status, 'open')))
+        .returning({ id: garageClosureRequests.id })
+      return row?.id ?? null
     },
 
     /** Everyone with a seat at the garage, active or suspended. */

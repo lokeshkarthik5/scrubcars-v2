@@ -134,6 +134,20 @@ export const areaSignupsRepository = {
   },
 
   /** Home's launch banner, seen: once, conditional on not seen. */
+  /**
+   * The customer leaves a zone's list (0066): their sign-up goes, and with
+   * it every message about that area (each is claimed on the row). A free
+   * wash it held goes too: its code is the sign-up's alone. False when they
+   * were not on it.
+   */
+  async deleteSignup(userId: string, zoneId: string): Promise<boolean> {
+    const rows = await db
+      .delete(zoneSignups)
+      .where(and(eq(zoneSignups.userId, userId), eq(zoneSignups.zoneId, zoneId)))
+      .returning({ id: zoneSignups.id })
+    return rows.length > 0
+  },
+
   async markBannerSeen(userId: string, zoneId: string, now: Date) {
     const rows = await db
       .update(zoneSignups)

@@ -111,6 +111,12 @@ export const COMPLAINT_ADMIN_NOTE_MAX = 2000
  * and the team answers within a day); a wall for a script or a stuck button,
  * which would otherwise fill the team's Telegram group.
  */
+/**
+ * Who closed a complaint the customer withdrew (0066): stamped as its
+ * acknowledgement and close, beside `withdrawn_at`.
+ */
+export const COMPLAINT_WITHDRAWN_BY = 'Customer (withdrawn)'
+
 export const MAX_UNFINISHED_COMPLAINTS = 5
 export const MAX_COMPLAINTS_PER_HOUR = 3
 
