@@ -17,6 +17,8 @@ import type {
 import { ApiError } from '@repo/core/api/client'
 import {
   useCloseCollectionList,
+  useDeleteCollectionList,
+  useReopenCollectionList,
   useCollectionLists,
   useUpdateCollectionItem,
 } from '@repo/core/api/hooks/use-admin-collection'
@@ -264,7 +266,40 @@ export function CollectionLists({
           />
         ))
       )}
+      <ClosedLists view={view} />
     </div>
+  )
+}
+
+/**
+ * The closed and finished lists (0065), on request: each can be deleted, and
+ * one closed by hand with things left on it reopened.
+ */
+function ClosedLists({ view }: { view: 'mine' | 'all' }) {
+  const [shown, setShown] = useState(false)
+  const query = useCollectionLists(view, false, shown)
+  if (!shown) {
+    return (
+      <button type="button" className={cn(BUTTON, 'self-start')} onClick={() => setShown(true)}>
+        Show closed lists
+      </button>
+    )
+  }
+  return (
+    <section aria-label="Closed lists" className="flex flex-col gap-3">
+      <h2 className="text-[15px] font-semibold text-text-primary">Closed lists</h2>
+      {query.isPending ? (
+        <Skeleton className="h-24" />
+      ) : query.isError || !query.data ? (
+        <LoadError what="the closed lists" onRetry={() => void query.refetch()} retrying={query.isRefetching} />
+      ) : query.data.lists.length === 0 ? (
+        <p className="text-[13px] text-text-secondary">No closed lists.</p>
+      ) : (
+        query.data.lists.map((list) => (
+          <CollectionListCard key={list.id} list={list} mine={view === 'mine'} highlighted={false} />
+        ))
+      )}
+    </section>
   )
 }
 
@@ -282,6 +317,13 @@ export function CollectionListCard({
   const close = useCloseCollectionList()
   const [closing, setClosing] = useState(false)
   const [closeError, setCloseError] = useState('')
+  // Reopen and Delete list (0065).
+  const reopen = useReopenCollectionList()
+  const remove = useDeleteCollectionList()
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
+  // Closed by hand with things left: worth opening again.
+  const somethingLeft = list.progress.done < list.progress.total
   const chip = dueChip(list.dueOn)
   const title = mine
     ? 'My collection list'
@@ -291,6 +333,26 @@ export function CollectionListCard({
   useEffect(() => {
     if (highlighted) ref.current?.scrollIntoView({ block: 'start' })
   }, [highlighted])
+
+  const confirmDelete = async () => {
+    setDeleteError('')
+    try {
+      await remove.mutateAsync(list.id)
+      setDeleting(false)
+      toast.success('List deleted')
+    } catch (err) {
+      setDeleteError(errorMessage(err, 'Couldn’t delete the list'))
+    }
+  }
+
+  const reopenList = async () => {
+    try {
+      await reopen.mutateAsync(list.id)
+      toast.success('List reopened')
+    } catch (err) {
+      toast.error(errorMessage(err, 'Couldn’t reopen the list'))
+    }
+  }
 
   const confirmClose = async () => {
     setCloseError('')
@@ -373,8 +435,23 @@ export function CollectionListCard({
         ))}
       </ul>
 
-      {list.open && (
-        <div className="flex justify-end border-t border-border px-4 py-2.5">
+      <div className="flex flex-wrap justify-end gap-2 border-t border-border px-4 py-2.5">
+        <button
+          type="button"
+          className={BUTTON}
+          onClick={() => {
+            setDeleteError('')
+            setDeleting(true)
+          }}
+        >
+          Delete list
+        </button>
+        {!list.open && list.closedAt && somethingLeft && (
+          <button type="button" className={BUTTON} disabled={reopen.isPending} onClick={() => void reopenList()}>
+            {reopen.isPending ? 'Reopening…' : 'Reopen'}
+          </button>
+        )}
+        {list.open && (
           <button
             type="button"
             className={BUTTON}
@@ -385,8 +462,20 @@ export function CollectionListCard({
           >
             Close list
           </button>
-        </div>
-      )}
+        )}
+      </div>
+
+      <ConfirmSheet
+        open={deleting}
+        onClose={() => setDeleting(false)}
+        onConfirm={confirmDelete}
+        level="firm"
+        title={`Delete ${mine ? 'your' : `${list.assigneeName}’s`} list?`}
+        body="The list and its ticks go for good. The garages and what they filled in stay as they are."
+        confirmLabel="Delete list"
+        busy={remove.isPending}
+        error={deleteError || undefined}
+      />
 
       <ConfirmSheet
         open={closing}

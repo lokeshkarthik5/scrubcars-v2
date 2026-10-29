@@ -53,6 +53,23 @@ adminCollectionListRoutes.post(
   (c) => controller.close(c, c.req.valid('param').id)
 )
 
+// Reopen a list closed with things left on it, and Delete a list (0065).
+// Signed by the session and audited.
+adminCollectionListRoutes.post(
+  '/collection-lists/:id/reopen',
+  ...adminMiddleware,
+  zValidator('param', listIdParamSchema),
+  adminSignedJson(closeCollectionListSchema),
+  (c) => controller.reopen(c, c.req.valid('param').id)
+)
+
+adminCollectionListRoutes.delete(
+  '/collection-lists/:id',
+  ...adminMiddleware,
+  zValidator('param', listIdParamSchema),
+  (c) => controller.remove(c, c.req.valid('param').id)
+)
+
 // Tick or untick an item, with an optional note.
 adminCollectionListRoutes.patch(
   '/collection-items/:id',

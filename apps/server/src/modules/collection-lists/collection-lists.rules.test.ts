@@ -6,6 +6,7 @@ import {
   collectionProgress,
   dedupeGarages,
   itemCleared,
+  reopenRefusal,
 } from './collection-lists.rules.js'
 
 // The apps' twin, loaded by path (see vendor-missing.parity.test.ts).
@@ -109,5 +110,20 @@ describe('dedupeGarages', () => {
         { vendorId: 'a', kinds: ['payout', 'photos'] },
       ])
     ).toEqual([{ vendorId: 'a', kinds: ['logo', 'photos', 'payout'] }])
+  })
+})
+
+describe('reopen (0065)', () => {
+  const at = new Date('2026-10-29T10:00:00Z')
+  test('a closed list with something left; never an open one or a finished one', () => {
+    const left = [
+      { status: 'collected' as const, cleared: false },
+      { status: 'to_collect' as const, cleared: false },
+    ]
+    expect(reopenRefusal(at, left)).toBeNull()
+    expect(reopenRefusal(null, left)).toBe('not_closed')
+    expect(reopenRefusal(at, [{ status: 'collected', cleared: false }, { status: 'to_collect', cleared: true }])).toBe(
+      'nothing_left'
+    )
   })
 })

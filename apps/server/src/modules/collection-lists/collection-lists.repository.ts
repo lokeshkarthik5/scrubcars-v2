@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, isNotNull, isNull } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import {
+  adminAuditLog,
   collectionItems,
   collectionLists,
   users,
@@ -176,6 +177,56 @@ export const collectionListsRepository = {
       .update(collectionLists)
       .set({ closedAt: at })
       .where(and(eq(collectionLists.id, id), isNull(collectionLists.closedAt)))
+  },
+
+  /**
+   * Opens a closed list again (0065), with its audit row; null when it was
+   * not closed by then.
+   */
+  reopen(id: string, actor: { sub: string; name: string }) {
+    return db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(collectionLists)
+        .set({ closedAt: null })
+        .where(and(eq(collectionLists.id, id), isNotNull(collectionLists.closedAt)))
+        .returning({ id: collectionLists.id })
+      if (!row) return null
+      await tx.insert(adminAuditLog).values({
+        action: 'collection_list_reopened',
+        actorSub: actor.sub,
+        actorName: actor.name,
+        summary: { listId: id },
+        detail: {},
+      })
+      return row
+    })
+  },
+
+  /**
+   * Deletes a list with its items (ON DELETE CASCADE) and an audit row
+   * naming who it was for and how many items it held (0065). Null when it
+   * was gone already.
+   */
+  deleteList(id: string, actor: { sub: string; name: string }) {
+    return db.transaction(async (tx) => {
+      const items = await tx
+        .select({ id: collectionItems.id })
+        .from(collectionItems)
+        .where(eq(collectionItems.listId, id))
+      const [row] = await tx
+        .delete(collectionLists)
+        .where(eq(collectionLists.id, id))
+        .returning({ id: collectionLists.id, assigneeName: collectionLists.assigneeName, createdAt: collectionLists.createdAt })
+      if (!row) return null
+      await tx.insert(adminAuditLog).values({
+        action: 'collection_list_deleted',
+        actorSub: actor.sub,
+        actorName: actor.name,
+        summary: { listId: id, assignee: row.assigneeName },
+        detail: { items: items.length, createdAt: row.createdAt.toISOString() },
+      })
+      return row
+    })
   },
 
   /**
