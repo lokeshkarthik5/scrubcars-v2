@@ -482,6 +482,11 @@ export interface Booking {
   responseDeadline: ResponseDeadline | null
   /** Cancelled because the garage did not accept in time (refunded in full). */
   notAcceptedInTime: boolean
+  /**
+   * The garage cancelled it after accepting (0066). `late`: within 24 hours
+   * of the slot, counted as a missed booking for the garage's medal.
+   */
+  garageCancelled: { at: string; late: boolean } | null
   /** A free redo of an earlier job (Detlio Guarantee, 0051): ₹0, no receipt. */
   guaranteeRedo: boolean
   /**

@@ -14,6 +14,7 @@ import {
   bookingIdParamSchema,
   cancelBookingSchema,
   createBookingSchema,
+  garageCancelSchema,
   handoverCodeSchema,
   listMyBookingsQuerySchema,
   listVendorBookingsQuerySchema,
@@ -110,6 +111,18 @@ bookingsRoutes.patch(
       c.req.valid('param').id,
       await parseCancelInput(c)
     )
+)
+
+// The garage cancels a booking it accepted, before the job starts (0066).
+// Open to operators like Reject: whoever answers the bookings may have to
+// call one off. A reason is required.
+bookingsRoutes.patch(
+  '/:id/garage-cancel',
+  authMiddleware,
+  ...jobMiddleware,
+  zValidator('param', bookingIdParamSchema),
+  zValidator('json', garageCancelSchema),
+  (c) => bookingsController.garageCancelBooking(c, c.req.valid('param').id, c.req.valid('json'))
 )
 
 bookingsRoutes.patch(

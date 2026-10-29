@@ -73,6 +73,15 @@ export type OpsAlert =
   | { kind: 'booking_paid'; booking: AlertBooking }
   | { kind: 'garage_declined'; booking: AlertBooking; reason?: string | null }
   | { kind: 'customer_cancelled'; booking: AlertBooking; reason?: string | null }
+  /**
+   * The garage cancelled a booking it had accepted, before the job started
+   * (0066, lib/garage-cancel.ts). `late`: within 24 hours of the slot, so it
+   * counts as a missed booking for the garage's tier.
+   */
+  | { kind: 'garage_cancelled'; booking: AlertBooking; reason: string; late: boolean }
+  /** A garage owner asked to close the garage (0066), or took the request back. */
+  | { kind: 'garage_closure_requested'; vendorId: string; garage: string; reason: string }
+  | { kind: 'garage_closure_cancelled'; vendorId: string; garage: string }
   | { kind: 'rescheduled'; booking: AlertBooking; previousScheduledAt: Date }
   | {
       kind: 'admin_cancelled'
@@ -679,6 +688,35 @@ export function formatOpsAlert(alert: OpsAlert): string {
         adminBookingUrl(b.id)
       )
     }
+
+    case 'garage_cancelled': {
+      const b = alert.booking
+      const paid = isPaid(b)
+      return lines(
+        `🚫 Garage cancelled accepted booking #${reference(b.id)}${paid ? ' · refund due' : ''}`,
+        garageLine(b),
+        `${when(b.scheduledAt)} · ${modeLabel(b.bookingType)}`,
+        alert.late
+          ? 'Within 24 hours of the slot: counted as a missed booking for its tier.'
+          : 'More than 24 hours before the slot: counted like a decline.',
+        paid
+          ? `${rupees(b.amount)} was paid. It is refunded through the usual refund path; offer the customer another garage.`
+          : 'Not paid online, so nothing to refund.',
+        quoted('Garage wrote', alert.reason),
+        adminBookingUrl(b.id)
+      )
+    }
+
+    case 'garage_closure_requested':
+      return lines(
+        `🔒 ${alert.garage} asked to close the garage`,
+        quoted('Owner wrote', alert.reason),
+        'Call the owner first. To close it, move the garage to the Bin; the owner can still cancel the request until then.',
+        adminGarageUrl(alert.vendorId)
+      )
+
+    case 'garage_closure_cancelled':
+      return lines(`↩️ ${alert.garage} no longer asks to close the garage`, adminGarageUrl(alert.vendorId))
 
     case 'customer_cancelled': {
       const b = alert.booking

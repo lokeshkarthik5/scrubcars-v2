@@ -188,24 +188,33 @@ export async function updateBookingStatus(
 // wrong one is a 400 (HANDOVER_CODE_WRONG, saying the tries left) and too
 // many a 409 (HANDOVER_CODE_LOCKED), when Detlio has to confirm it.
 
+/** The garage's own header and keepalive, as on a status change (0066: these wait behind Undo too). */
+function stepInit(options: StatusRequestOptions) {
+  return {
+    ...(options.vendorId ? { headers: { 'X-Vendor-Id': options.vendorId } } : {}),
+    ...(options.keepalive ? { keepalive: true } : {}),
+  }
+}
+
 /** PATCH /bookings/:id/picked-up — the garage has the car. */
-export async function markPickedUp(id: string, code: string): Promise<Booking> {
+export async function markPickedUp(id: string, code: string, options: StatusRequestOptions = {}): Promise<Booking> {
   const booking = await apiClient<ApiBooking>(`/bookings/${id}/picked-up`, {
     method: 'PATCH',
     body: JSON.stringify({ code }),
+    ...stepInit(options),
   })
   return mapBooking(booking)
 }
 
 /** PATCH /bookings/:id/at-garage — the car has arrived at the garage. */
-export async function markAtGarage(id: string): Promise<Booking> {
-  return mapBooking(await apiClient<ApiBooking>(`/bookings/${id}/at-garage`, { method: 'PATCH' }))
+export async function markAtGarage(id: string, options: StatusRequestOptions = {}): Promise<Booking> {
+  return mapBooking(await apiClient<ApiBooking>(`/bookings/${id}/at-garage`, { method: 'PATCH', ...stepInit(options) }))
 }
 
 /** PATCH /bookings/:id/out-for-delivery — the work is done, the car is on its way back. */
-export async function markOutForDelivery(id: string): Promise<Booking> {
+export async function markOutForDelivery(id: string, options: StatusRequestOptions = {}): Promise<Booking> {
   return mapBooking(
-    await apiClient<ApiBooking>(`/bookings/${id}/out-for-delivery`, { method: 'PATCH' })
+    await apiClient<ApiBooking>(`/bookings/${id}/out-for-delivery`, { method: 'PATCH', ...stepInit(options) })
   )
 }
 
@@ -214,6 +223,18 @@ export async function markDelivered(id: string, code: string): Promise<Booking> 
   const booking = await apiClient<ApiBooking>(`/bookings/${id}/delivered`, {
     method: 'PATCH',
     body: JSON.stringify({ code }),
+  })
+  return mapBooking(booking)
+}
+
+/**
+ * PATCH /bookings/:id/garage-cancel — the garage cancels a booking it
+ * accepted, before the job starts (0066). The reason is required.
+ */
+export async function garageCancelBooking(id: string, reason: string): Promise<Booking> {
+  const booking = await apiClient<ApiBooking>(`/bookings/${id}/garage-cancel`, {
+    method: 'PATCH',
+    body: JSON.stringify({ reason }),
   })
   return mapBooking(booking)
 }

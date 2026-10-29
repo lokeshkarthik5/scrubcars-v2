@@ -527,6 +527,8 @@ export interface ApiBooking {
   responseDeadline?: { respondBy: string; enforced: boolean; windowMins: number } | null
   /** Cancelled because the garage did not accept in time (0042). */
   notAcceptedInTime?: boolean
+  /** The garage cancelled it after accepting (0066); absent from older servers. */
+  garageCancelled?: { at: string; late: boolean } | null
   /**
    * The contact window: the other side's phone is on the payload only while
    * `open`. Absent from older servers.

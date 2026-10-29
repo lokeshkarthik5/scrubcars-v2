@@ -5,12 +5,7 @@ import { toast } from 'react-toastify'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScInput } from '@repo/ui/sc/input'
 import { ApiError } from '@repo/core/api/client'
-import {
-  markAtGarage,
-  markDelivered,
-  markOutForDelivery,
-  markPickedUp,
-} from '@repo/core/api/bookings'
+import { markDelivered } from '@repo/core/api/bookings'
 import {
   handoverLocked,
   MAX_CODE_ATTEMPTS,
@@ -20,6 +15,7 @@ import {
 import { SUPPORT_PHONE_DISPLAY, SUPPORT_TEL_HREF } from '@repo/core/support'
 import { photoGateMessage } from '@repo/core/job-photo-standards'
 import type { Booking } from '@repo/core/types'
+import { changeStatusWithUndo } from '@/lib/deferred-status'
 
 /** What each step's button explains, under it. */
 const STEP_HINTS: Record<PickupNext, string> = {
@@ -79,12 +75,17 @@ export function PickupSteps({
   const blockedId = `pickup-${booking.id}-photos`
 
   const run = async () => {
+    // Picked up, At garage and Out for delivery wait five seconds behind
+    // Undo (0066), like Start and Complete; a wrong code is said when the
+    // step goes, and the job re-read then.
+    if (step === 'picked_up' || step === 'at_garage' || step === 'out_for_delivery') {
+      changeStatusWithUndo(booking.id, step, step === 'picked_up' ? code : undefined)
+      setCode('')
+      return
+    }
     setBusy(true)
     try {
-      if (step === 'picked_up') await markPickedUp(booking.id, code)
-      else if (step === 'delivered') await markDelivered(booking.id, code)
-      else if (step === 'at_garage') await markAtGarage(booking.id)
-      else if (step === 'out_for_delivery') await markOutForDelivery(booking.id)
+      if (step === 'delivered') await markDelivered(booking.id, code)
       else await onStartWork()
       setCode('')
       if (step !== 'start_work')
