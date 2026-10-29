@@ -22,6 +22,7 @@ import { garageAgreementRoutes } from '../agreements/agreements.routes.js'
 import { garageTierRoutes } from '../tiers/tiers.routes.js'
 import { garageGuaranteeRoutes } from '../guarantee/guarantee.routes.js'
 import { garageBookingRequestRoutes } from '../booking-requests/booking-requests.routes.js'
+import { garageReviewRoutes } from '../reviews/reviews.routes.js'
 import * as vendorsController from './vendors.controller.js'
 import {
   createClosureSchema,
@@ -178,6 +179,11 @@ vendorsRoutes.route('/me/guarantee', garageGuaranteeRoutes)
 // it does new bookings); what one earns is the owner seat's alone. Nested
 // for the same reason as the team screen.
 vendorsRoutes.route('/me/requests', garageBookingRequestRoutes)
+
+// The garage's reviews (0065): its score, its one public reply to each and
+// reporting one to the team. Owner seat only, in its own file. Nested for the
+// same reason as the team screen.
+vendorsRoutes.route('/me/reviews', garageReviewRoutes)
 
 vendorsRoutes.get(
   '/me/working-hours',

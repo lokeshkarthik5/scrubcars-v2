@@ -20,6 +20,7 @@ import { adminComplaintRoutes } from '../complaints/complaints.routes.js'
 import { adminGuaranteeRoutes } from '../guarantee/guarantee.routes.js'
 import { adminDataResetRoutes } from '../data-reset/data-reset.routes.js'
 import { adminTestBookingRoutes } from '../data-reset/test-booking.routes.js'
+import { adminReviewRoutes } from '../reviews/reviews.routes.js'
 import { adminDiscountRoutes } from '../discounts/discounts.routes.js'
 import { adminCouponRoutes } from '../coupons/coupons.routes.js'
 import { adminNoticeRoutes } from '../notices/notices.routes.js'
@@ -507,6 +508,8 @@ adminRoutes.route('/data-reset', adminDataResetRoutes)
 // "Delete test booking" on one booking marked Test (0064): the reset's
 // rules for that chain alone, whether or not the reset is switched on.
 adminRoutes.route('/', adminTestBookingRoutes)
+// A garage's reviews, Hide and Show again (0065): its own file, at the root.
+adminRoutes.route('/', adminReviewRoutes)
 
 // A service's video, AI sample pictures and the upload block's config
 // (/media-config, /services/:serviceId/{videos,media,ai-pictures}).

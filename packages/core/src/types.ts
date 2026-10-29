@@ -56,6 +56,13 @@ export interface Vendor {
   rating: number
   reviewCount: number
   /**
+   * Fewer than 3 counted reviews (0065): cards and the garage page say "New
+   * on Detlio" instead of stars, and `rating` is 0. False from an older API.
+   */
+  isNew?: boolean
+  /** "Known for On time": its top good tag once 5+ customers picked it. */
+  knownFor?: { tag: string; label: string } | null
+  /**
    * The weekly hours, when the response carried them; null when it did not.
    * This, not the account status, is what "Open" is decided from — see
    * openStatus in @repo/core/opening-hours. An active account is not an open
@@ -200,6 +207,8 @@ export interface Review {
   comment: string
   date: string
   bookingContext?: string
+  /** The garage's public reply (0065), when it has one. */
+  reply?: { text: string; date: string } | null
 }
 
 export interface Vehicle {

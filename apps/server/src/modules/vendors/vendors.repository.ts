@@ -20,6 +20,8 @@ import {
 import { DEFAULT_DOORSTEP_RADIUS_KM } from '../../lib/doorstep.js'
 import { containsPattern } from '../../lib/search.js'
 import { DEFAULT_PICKUP_RADIUS_KM } from '../../lib/pickup.js'
+import { NEW_GARAGE_SORT_RATING, RATING_RULES } from '../../lib/ratings.js'
+import { COUNTED_REVIEW } from '../reviews/reviews.predicates.js'
 import type { BookingType } from '../../lib/booking-types.js'
 import {
   LISTED_TO_CUSTOMERS,
@@ -264,8 +266,11 @@ export const vendorsRepository = {
       : sql`NULL::double precision`
 
     // Aggregates needed only for their sorts. Scalar subqueries rather than
-    // joins so the rating average cannot fan out the row count.
-    const rating = sql`(SELECT avg(r.rating) FROM reviews r WHERE r.vendor_id = v.id)`
+    // joins so the rating average cannot fan out the row count. The rating
+    // is the counted reviews' (0065: no Test booking's, no hidden one), and
+    // a new garage (fewer than 3) sorts at a neutral NEW_GARAGE_SORT_RATING,
+    // never at its one 5.0 (lib/ratings.ts).
+    const rating = sql`(SELECT CASE WHEN count(*) >= ${RATING_RULES.minCountedReviews} THEN avg(r.rating) ELSE ${NEW_GARAGE_SORT_RATING} END FROM reviews r WHERE r.vendor_id = v.id AND ${COUNTED_REVIEW})`
     const startingPrice = sql`(
       SELECT min(s.price) FROM services s
        WHERE s.vendor_id = v.id AND s.is_active = true AND s.price > 0
@@ -439,25 +444,6 @@ export const vendorsRepository = {
     })
   },
 
-  /**
-   * Average rating and review count per vendor, for the listing cards and the
-   * "Top Rated" sort. One grouped query for the whole page rather than one per
-   * vendor. Vendors with no reviews are simply absent from the result — callers
-   * treat a missing entry as "not yet rated", which is not the same as zero.
-   */
-  async getRatingAggregates(vendorIds: string[]) {
-    if (vendorIds.length === 0) return []
-
-    return db
-      .select({
-        vendorId: reviews.vendorId,
-        average: sql<number>`avg(${reviews.rating})::float`,
-        count: sql<number>`count(*)::int`,
-      })
-      .from(reviews)
-      .where(inArray(reviews.vendorId, vendorIds))
-      .groupBy(reviews.vendorId)
-  },
 
   /**
    * The approved documents of these garages, as type only: what decides the

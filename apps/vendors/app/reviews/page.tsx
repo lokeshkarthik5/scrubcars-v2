@@ -14,6 +14,7 @@ import { getVendorReviews } from '@repo/core/api/reviews'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import type { Review } from '@repo/core/types'
 import { formatRating } from '@repo/core/vendor-stats'
+import { NEW_GARAGE_LABEL, RATING_RULES, isNewGarage } from '@repo/core/ratings'
 
 export default function VendorReviewsPage() {
   const [reviews, setReviews] = useState<Review[]>([])
@@ -41,10 +42,13 @@ export default function VendorReviewsPage() {
     void load()
   }, [load])
 
+  // Counted reviews only (0065: no Test booking's, none Detlio hid); fewer
+  // than 3 is a new garage, with no score yet, as customers see it.
   const avgRating =
     reviews.length > 0
       ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length
       : 0
+  const newGarage = isNewGarage(reviews.length)
 
   return (
     <AppShell showNav navType="vendor" className="gap-5 py-4">
@@ -55,6 +59,15 @@ export default function VendorReviewsPage() {
       {!loaded ? (
         // Decorative: the list's placeholders below announce the loading.
         <Skeleton className="h-[72px] w-full" />
+      ) : reviews.length > 0 && newGarage ? (
+        <ScCard className="flex flex-col gap-1 px-4 py-4">
+          <p className="text-[17px] font-semibold text-text-primary">{NEW_GARAGE_LABEL}</p>
+          <p className="text-[12px] text-text-secondary">
+            <span className="font-numeric">{reviews.length}</span>{' '}
+            {reviews.length === 1 ? 'review' : 'reviews'} so far. Customers see your score from{' '}
+            <span className="font-numeric">{RATING_RULES.minCountedReviews}</span> reviews.
+          </p>
+        </ScCard>
       ) : reviews.length > 0 ? (
         <ScCard className="flex items-center gap-4 px-4 py-4">
           <span className="font-numeric text-[40px] font-bold leading-none tracking-tight text-text-primary">
@@ -122,6 +135,13 @@ export default function VendorReviewsPage() {
                   <p className="mt-1 text-[11px] text-text-muted">
                     {review.bookingContext}
                   </p>
+                )}
+                {/* Your public reply (0065), as customers read it. */}
+                {review.reply && (
+                  <div className="mt-2 rounded-[10px] border-l-2 border-text-primary bg-surface px-3 py-2">
+                    <p className="text-[12px] font-semibold text-text-primary">Your reply</p>
+                    <p className="mt-0.5 text-[13px] text-text-secondary">{review.reply.text}</p>
+                  </div>
                 )}
               </ScCard>
             </Reveal>

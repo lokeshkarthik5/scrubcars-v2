@@ -41,7 +41,8 @@ export function DeleteTestBookingDialog({
   onClose,
   onDeleted,
 }: {
-  booking: AdminBookingDetail
+  /** The booking's page, or a Test review's row on a garage's Reviews tab (0065). */
+  booking: Pick<AdminBookingDetail, 'id' | 'reference'>
   open: boolean
   onClose: () => void
   onDeleted: (result: DataResetResult) => void

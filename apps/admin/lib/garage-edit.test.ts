@@ -52,9 +52,12 @@ describe('parsePageTab', () => {
       'Team & payout',
       'Documents',
       'Tier',
+      'Reviews',
     ])
     expect(parsePageTab('operations')).toBe('operations')
     expect(parsePageTab('certification')).toBe('certification')
+    // The reported-review alert's link (0065).
+    expect(parsePageTab('reviews')).toBe('reviews')
   })
 })
 

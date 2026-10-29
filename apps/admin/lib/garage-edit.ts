@@ -43,7 +43,7 @@ export function parseEditTab(value: string | string[] | null | undefined): EditT
  * tier line to Tier. The `?tab=` value stays `certification` so saved and
  * alerted links keep working.
  */
-export const PAGE_TABS = [...EDIT_TABS, 'team', 'documents', 'certification'] as const
+export const PAGE_TABS = [...EDIT_TABS, 'team', 'documents', 'certification', 'reviews'] as const
 export type PageTab = (typeof PAGE_TABS)[number]
 
 export const PAGE_TAB_LABELS: Record<PageTab, string> = {
@@ -51,6 +51,7 @@ export const PAGE_TAB_LABELS: Record<PageTab, string> = {
   team: 'Team & payout',
   documents: 'Documents',
   certification: 'Tier',
+  reviews: 'Reviews',
 }
 
 /**
@@ -60,6 +61,8 @@ export const PAGE_TAB_LABELS: Record<PageTab, string> = {
 export function parsePageTab(value: string | string[] | null | undefined, documentsOn = true): PageTab {
   if (value === 'documents') return documentsOn ? 'documents' : 'details'
   if (value === 'certification') return 'certification'
+  // Every review, Hide… and Show again (0065); Telegram's report alert links here.
+  if (value === 'reviews') return 'reviews'
   if (value === 'team') return 'team'
   return parseEditTab(value)
 }

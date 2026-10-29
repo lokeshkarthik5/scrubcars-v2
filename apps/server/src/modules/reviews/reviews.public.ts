@@ -14,6 +14,10 @@ export interface PublicReviewSource {
   rating: number
   comment: string | null
   createdAt: Date
+  /** 0065: the tags the customer picked, and the garage's public reply. */
+  tags?: string[] | null
+  reply?: string | null
+  repliedAt?: Date | null
   user?: { name: string } | null
   booking?: {
     items?: Array<{ name: string }> | null
@@ -52,6 +56,8 @@ export function toPublicReviewResponse(review: PublicReviewSource) {
     rating: review.rating,
     comment: review.comment,
     createdAt: review.createdAt.toISOString(),
+    tags: review.tags ?? [],
+    reply: review.reply && review.repliedAt ? { text: review.reply, repliedAt: review.repliedAt.toISOString() } : null,
     user: name ? { name } : null,
     booking: review.booking
       ? {

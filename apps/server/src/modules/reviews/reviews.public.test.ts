@@ -62,12 +62,27 @@ describe('toPublicReviewResponse', () => {
       rating: 4,
       comment: 'Careful work.',
       createdAt: '2026-10-01T10:00:00.000Z',
+      tags: [],
+      reply: null,
       user: { name: 'Ravi S.' },
       booking: {
         serviceNames: ['Foam wash', 'Interior clean'],
         service: { id: 's1', name: 'Foam wash' },
       },
     })
+  })
+
+  test('the tags and the garage\'s reply, with when it replied (0065)', () => {
+    const replied = toPublicReviewResponse({
+      ...source,
+      tags: ['on_time', 'friendly'],
+      reply: 'Thank you, Ravi!',
+      repliedAt: new Date('2026-10-02T09:00:00Z'),
+    })
+    expect(replied.tags).toEqual(['on_time', 'friendly'])
+    expect(replied.reply).toEqual({ text: 'Thank you, Ravi!', repliedAt: '2026-10-02T09:00:00.000Z' })
+    // Who in the garage replied is never public.
+    expect(JSON.stringify(replied)).not.toContain('repliedBy')
   })
 
   test('a reviewer with no name has no user', () => {

@@ -8,6 +8,7 @@ import {
   vendorTierStandings,
   vendors,
 } from '../../db/schema.js'
+import { COUNTED_REVIEW } from '../reviews/reviews.predicates.js'
 import {
   CERTIFICATION_RULES,
   type EligibilitySnapshot,
@@ -145,15 +146,14 @@ function reads(conn: Conn) {
         .where(and(inArray(vendorDocuments.vendorId, vendorIds), eq(vendorDocuments.status, 'approved')))
     },
 
-    /** All-time rating and review count. */
+    /** All-time rating and review count: counted reviews only (0065, no Test, none hidden). */
     async ratings(vendorIds: string[]) {
       if (vendorIds.length === 0) return []
       const rows = await conn.execute<{ vendor_id: string; average: number | string; count: number | string }>(sql`
         SELECT r.vendor_id, avg(r.rating)::float AS average, count(*)::int AS count
           FROM reviews r
-          JOIN bookings b ON b.id = r.booking_id
          WHERE r.vendor_id IN (${inList(vendorIds)})
-           AND b.marked_test_at IS NULL
+           AND ${COUNTED_REVIEW}
          GROUP BY r.vendor_id
       `)
       return Array.from(rows).map((row) => ({

@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { IconStarFilled } from '@tabler/icons-react'
+import { NEW_GARAGE_LABEL, hasStarScore } from '@repo/core/ratings'
 import { BOOKING_TYPE_LABELS, bookingTypeParam } from '@repo/core/booking-types'
 import { distanceAndDrive } from '@repo/core/drive-time'
 import { straightLineKm } from '@repo/core/map'
@@ -176,7 +177,8 @@ export function VendorCard({
               </div>
             </div>
 
-            {/* An unreviewed vendor reads as "New" — showing 0.0 stars would look
+            {/* A new garage (fewer than 3 counted reviews, 0065) reads as "New
+                on Detlio": one review can't rank it, and 0.0 stars would look
                 like a bad score rather than an absent one. A ₹0 floor is
                 skipped rather than rendered as a blank fact; so is the
                 distance (below) until there is a location.
@@ -184,7 +186,7 @@ export function VendorCard({
                 The figures — score, distance, price — are in the brand's numeric
                 face; the words between them stay Inter. */}
             <div className="flex items-center gap-1.5 text-[12px] text-text-secondary">
-              {vendor.reviewCount > 0 ? (
+              {hasStarScore(vendor) ? (
                 <>
                   <IconStarFilled size={12} className="text-warning" />
                   <span className="font-numeric font-medium text-text-primary">
@@ -193,7 +195,7 @@ export function VendorCard({
                   <span>({vendor.reviewCount})</span>
                 </>
               ) : (
-                <span className="font-medium text-text-primary">New</span>
+                <span className="font-medium text-text-primary">{NEW_GARAGE_LABEL}</span>
               )}
               {vendor.startingPrice > 0 && (
                 <>

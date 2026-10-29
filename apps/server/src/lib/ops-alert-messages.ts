@@ -30,6 +30,11 @@ export function adminGarageDocumentsUrl(vendorId: string): string {
   return `${ADMIN_VENDORS_URL}/${vendorId}/edit?tab=documents`
 }
 
+/** A garage's Reviews tab in admin (0065): every review, Hide and Show again, reports. */
+export function adminGarageReviewsUrl(vendorId: string): string {
+  return `${ADMIN_VENDORS_URL}/${vendorId}/edit?tab=reviews`
+}
+
 /** A garage's Certification tab in admin: its standards, checks, Certify and Revoke. */
 export function adminGarageCertificationUrl(vendorId: string): string {
   return `${ADMIN_VENDORS_URL}/${vendorId}/edit?tab=certification`
@@ -353,6 +358,22 @@ export type OpsAlert =
        * customer raised it in the app.
        */
       logged: { source: string; by: string } | null
+    }
+  | {
+      /**
+       * A review was reported to the team (0065): by a customer (any
+       * signed-in account) or by the garage it is about. Garages can't hide
+       * reviews; admin decides on the garage's Reviews tab. No reviewer's or
+       * reporter's name or phone: the stars and both texts, quoted.
+       */
+      kind: 'review_reported'
+      reviewId: string
+      vendorId: string
+      garage: string
+      rating: number
+      comment: string | null
+      reporter: 'customer' | 'garage'
+      reason: string
     }
   | {
       /**
@@ -1101,6 +1122,16 @@ export function formatOpsAlert(alert: OpsAlert): string {
         quoted(alert.logged ? 'What they said' : 'Customer wrote', alert.message),
         `Acknowledge by ${when(alert.acknowledgeBy)}.`,
         adminComplaintUrl(alert.complaintId)
+      )
+
+    case 'review_reported':
+      return lines(
+        `🚩 Review reported: ${alert.garage}`,
+        `${alert.reporter === 'garage' ? 'Reported by the garage' : 'Reported by a customer'} · ${alert.rating}★ review.`,
+        quoted('The review', alert.comment || '(stars only)'),
+        quoted('Why', alert.reason),
+        'Hide it or leave it on the garage’s Reviews tab.',
+        adminGarageReviewsUrl(alert.vendorId)
       )
 
     case 'documents_uploaded':

@@ -44,6 +44,7 @@ import { bookingsRepository } from '../bookings/bookings.repository.js'
 import { toVendorBookingResponse } from '../bookings/bookings.service.js'
 import { membersRepository } from '../members/members.repository.js'
 import { reviewsRepository } from '../reviews/reviews.repository.js'
+import { ratingsFor } from '../reviews/reviews.service.js'
 import { vendorsRepository } from './vendors.repository.js'
 import { slotAlertsService } from '../slot-alerts/slot-alerts.service.js'
 import { areaSignupsService } from '../area-signups/area-signups.service.js'
@@ -178,9 +179,13 @@ export type VendorResponse = {
 export type PublicVendorResponse = PublicVendorFields & {
   photos: PhotoResponse[]
   services: ServiceResponse[]
-  // null when the vendor has no reviews yet — distinct from a rating of 0.
+  // The counted reviews' score (0065, lib/ratings.ts): null for a new garage
+  // (fewer than 3 counted reviews), which shows "New on Detlio" instead.
   rating: number | null
   reviewCount: number
+  isNew: boolean
+  /** Its top good tag once 5+ customers picked it ("Known for On time"). */
+  knownFor: { tag: string; label: string } | null
   /**
    * Set when the garage is pinned more than 50 km from the Chennai centre, or
    * is unpinned and its own city names another town (km null), so its page
@@ -208,9 +213,12 @@ export type VendorListItemResponse = {
    */
   pickupRadiusKm: number | null
   startingPrice: number | null
-  // null when the vendor has no reviews yet — distinct from a rating of 0.
+  // The counted reviews' score (0065, lib/ratings.ts): null for a new garage
+  // (fewer than 3 counted reviews), which shows "New on Detlio" instead.
   rating: number | null
   reviewCount: number
+  isNew: boolean
+  knownFor: { tag: string; label: string } | null
   serviceTags: string[]
   photos: string[]
   // null when the caller sent no origin. Never 0 as a stand-in for "unknown" —
@@ -791,8 +799,8 @@ export async function vendorCardsFor(
   )
 
   const today = todayDateKey()
-  const [aggregates, closures, tiers] = await Promise.all([
-    vendorsRepository.getRatingAggregates(rows.map((vendor) => vendor.id)),
+  const [ratings, closures, tiers] = await Promise.all([
+    ratingsFor(rows.map((vendor) => vendor.id)),
     vendorsRepository.listClosuresForVendors(
       rows.map((vendor) => vendor.id),
       today,
@@ -806,9 +814,6 @@ export async function vendorCardsFor(
     dates.push(closure.date)
     closuresByVendor.set(closure.vendorId, dates)
   }
-  const ratingsByVendor = new Map(
-    aggregates.map((row) => [row.vendorId, row])
-  )
   const distanceByVendor = new Map(
     page.map((row) => [row.id, row.distanceM])
   )
@@ -817,7 +822,7 @@ export async function vendorCardsFor(
     const categories = [
       ...new Set(vendor.services.map((service) => service.category)),
     ]
-    const rating = ratingsByVendor.get(vendor.id)
+    const rating = ratings.get(vendor.id)
     const distanceM = distanceByVendor.get(vendor.id) ?? null
 
     return {
@@ -832,8 +837,10 @@ export async function vendorCardsFor(
       pickupEnabled: isPickupOffered(vendor),
       pickupRadiusKm: isPickupOffered(vendor) ? vendor.pickupRadiusKm : null,
       startingPrice: computeStartingPrice(vendor.services),
-      rating: rating ? Number(rating.average.toFixed(2)) : null,
-      reviewCount: rating?.count ?? 0,
+      rating: rating?.rating ?? null,
+      reviewCount: rating?.reviewCount ?? 0,
+      isNew: rating?.isNew ?? true,
+      knownFor: rating?.knownFor ?? null,
       serviceTags: categories.map(categoryLabel),
       photos: vendor.photos.map((photo) => photo.url),
       // One decimal is all a straight-line distance can honestly claim.
@@ -1061,21 +1068,23 @@ export const vendorsService = {
       throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
     }
 
-    const [photos, services, aggregates, tiers] = await Promise.all([
+    const [photos, services, ratings, tiers] = await Promise.all([
       vendorsRepository.listPhotos(vendor.id),
       vendorsRepository.listServices(vendor.id, true),
-      vendorsRepository.getRatingAggregates([vendor.id]),
+      ratingsFor([vendor.id]),
       tiersService.customerTiers([vendor.id]),
     ])
 
-    const rating = aggregates[0]
+    const rating = ratings.get(vendor.id)
 
     return {
       ...toPublicVendor(vendor, { tier: tiers.get(vendor.id) ?? null }),
       photos: photos.map(toPhotoResponse),
       services: services.map((service) => toServiceResponse(service, service.images, 'public')),
-      rating: rating ? Number(rating.average.toFixed(2)) : null,
-      reviewCount: rating?.count ?? 0,
+      rating: rating?.rating ?? null,
+      reviewCount: rating?.reviewCount ?? 0,
+      isNew: rating?.isNew ?? true,
+      knownFor: rating?.knownFor ?? null,
       outsideServiceCity: outsideServiceCity(vendor),
     }
   },

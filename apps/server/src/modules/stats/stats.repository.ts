@@ -1,5 +1,6 @@
 import { sql, type SQL } from 'drizzle-orm'
 import { db } from '../../db/index.js'
+import { COUNTED_REVIEW } from '../reviews/reviews.predicates.js'
 import type { ServiceCategory } from '../../lib/categories.js'
 import { MONEY_LANDED_STATUSES, overrideRateFromPercent, type GarageQueueChain } from '../../lib/commission.js'
 import type {
@@ -258,13 +259,12 @@ export function statsReads(tx: Tx) {
       return counts
     },
 
-    /** Each garage's average stars, over its reviews up to `end`; Test bookings' left out. */
+    /** Each garage's average stars, over its counted reviews up to `end` (0065: no Test, none hidden). */
     async ratings(end: Date, vendorId?: string): Promise<Map<string, { average: number; count: number }>> {
       const rows = await tx.execute<{ vendor_id: string; average: number | string; count: number }>(sql`
         select r.vendor_id, avg(r.rating)::float8 as average, count(*)::int as count
           from reviews r
-          join bookings b on b.id = r.booking_id
-         where b.marked_test_at is null
+         where ${COUNTED_REVIEW}
            and r.created_at < ${at(end)}
            ${vendorId ? sql`and r.vendor_id = ${vendorId}` : sql``}
          group by r.vendor_id

@@ -19,6 +19,7 @@ import { useIsVendorAdmin } from '@repo/core/hooks/use-vendor-role'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import type { Review } from '@repo/core/types'
 import { formatRating, reviewCountLabel } from '@repo/core/vendor-stats'
+import { NEW_GARAGE_LABEL, isNewGarage } from '@repo/core/ratings'
 import { GARAGE_NON_SOLICITATION_LINE } from '@repo/core/bypass-reports'
 import { AgreementBanner } from '@/components/agreement-banner'
 import { TierCard } from '@/components/tier-card'
@@ -106,7 +107,10 @@ export default function VendorHomePage() {
       .catch(() => setWeek(null))
   }, [vendor?.id, isVendorAdmin])
 
+  // The list is counted reviews only (0065: no Test booking's, none hidden),
+  // and fewer than 3 is a new garage, with no score: the customers' rule.
   const reviewCount = reviews?.length ?? 0
+  const newGarage = isNewGarage(reviewCount)
   const avgRating =
     reviewCount > 0
       ? reviews!.reduce((sum, r) => sum + r.rating, 0) / reviewCount
@@ -264,7 +268,9 @@ export default function VendorHomePage() {
               ? 'Average rating: not loaded. See reviews'
               : reviewCount === 0
                 ? 'Average rating: no reviews yet. See reviews'
-                : `Average rating ${formatRating(avgRating)} from ${reviewCountLabel(reviewCount)}. See reviews`
+                : newGarage
+                  ? `Average rating: ${NEW_GARAGE_LABEL}, ${reviewCountLabel(reviewCount)}. See reviews`
+                  : `Average rating ${formatRating(avgRating)} from ${reviewCountLabel(reviewCount)}. See reviews`
           }
           className="press block"
         >
@@ -274,6 +280,8 @@ export default function VendorHomePage() {
             value={
               reviews === null ? (
                 '–'
+              ) : reviewCount > 0 && newGarage ? (
+                <span className="text-[15px]">{NEW_GARAGE_LABEL}</span>
               ) : (
                 <span className="flex items-center gap-1.5">
                   {formatRating(avgRating)}
