@@ -7,6 +7,7 @@ import {
   COMPLAINT_MESSAGE_MAX,
   COMPLAINT_MESSAGE_MIN,
   COMPLAINT_RESOLUTION_MAX,
+  COMPLAINT_ERROR_REASON_MAX,
 } from '../../lib/complaints.js'
 
 /**
@@ -121,7 +122,19 @@ export const complaintAdminNoteSchema = z
   })
   .strict()
 
+/** "Logged in error" (0065): why, signed by the session. */
+export const loggedInErrorSchema = z
+  .object({
+    reason: z.string().trim().min(3, 'Say in a few words why').max(COMPLAINT_ERROR_REASON_MAX),
+    actorName: signedActorName,
+  })
+  .strict()
+
+/** Undo "Logged in error": signed by the session. */
+export const undoLoggedInErrorSchema = z.object({ actorName: signedActorName }).strict()
+
 export type CreateComplaintInput = z.infer<typeof createComplaintSchema>
+export type LoggedInErrorInput = z.infer<typeof loggedInErrorSchema>
 export type LogComplaintInput = z.infer<typeof logComplaintSchema>
 export type ComplaintLookupQuery = z.infer<typeof complaintLookupQuerySchema>
 export type ListComplaintsQuery = z.infer<typeof listComplaintsQuerySchema>

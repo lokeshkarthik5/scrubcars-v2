@@ -608,7 +608,14 @@ export const refundsRepository = {
     const [row] = await conn
       .select({ id: complaints.id })
       .from(complaints)
-      .where(and(eq(complaints.bookingId, bookingId), inArray(complaints.status, ['open', 'acknowledged'])))
+      // One the team logged in error (0065) holds nothing.
+      .where(
+        and(
+          eq(complaints.bookingId, bookingId),
+          inArray(complaints.status, ['open', 'acknowledged']),
+          isNull(complaints.errorMarkedAt)
+        )
+      )
       .limit(1)
     return Boolean(row)
   },

@@ -240,6 +240,7 @@ function reads(conn: Conn) {
              WHERE c.vendor_id IN (${inList(vendorIds)})
                AND c.category IN (${CATEGORIES})
                AND c.received_at >= ${since.toISOString()}::timestamptz
+               AND c.error_marked_at IS NULL
                AND (b.id IS NULL OR b.marked_test_at IS NULL)
             UNION ALL
             SELECT g.vendor_id, g.booking_id::text AS issue_key

@@ -200,3 +200,25 @@ export const COMPLAINT_ACTION_FROM: Record<ComplaintAction, readonly ComplaintSt
 export function canTakeComplaintAction(status: ComplaintStatus, action: ComplaintAction): boolean {
   return COMPLAINT_ACTION_FROM[action].includes(status)
 }
+
+// ─── Logged in error (0065) ──────────────────────────────────────────────────
+
+/** The longest reason the team gives for "Logged in error". */
+export const COMPLAINT_ERROR_REASON_MAX = 300
+
+export type LoggedInErrorRefusal = 'from_app' | 'already_marked' | 'not_marked'
+
+/**
+ * Whether a complaint can be marked "Logged in error", or the mark undone
+ * (0065): only one the team logged (a customer's own, from the app, is
+ * theirs and is closed instead), once, and undone only when marked. Never a
+ * delete: it stays in the record and leaves every count.
+ */
+export function loggedInErrorRefusal(
+  complaint: { source: ComplaintSource; errorMarkedAt: Date | null },
+  action: 'mark' | 'undo'
+): LoggedInErrorRefusal | null {
+  if (complaint.source === 'app') return 'from_app'
+  if (action === 'mark') return complaint.errorMarkedAt ? 'already_marked' : null
+  return complaint.errorMarkedAt ? null : 'not_marked'
+}

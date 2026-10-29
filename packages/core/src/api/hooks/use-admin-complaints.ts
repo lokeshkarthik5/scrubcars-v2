@@ -8,6 +8,8 @@ import {
   listAdminComplaints,
   logAdminComplaint,
   lookupForComplaint,
+  markAdminComplaintLoggedInError,
+  undoAdminComplaintLoggedInError,
   resolveAdminComplaint,
   setAdminComplaintNote,
   type AdminComplaint,
@@ -72,6 +74,15 @@ export function useResolveComplaint(id: string) {
 
 export function useCloseComplaint(id: string) {
   return useComplaintAction<string | undefined>(id, (note) => closeAdminComplaint(id, note))
+}
+
+/** "Logged in error" and its undo (0065). */
+export function useMarkComplaintLoggedInError(id: string) {
+  return useComplaintAction<string>(id, (reason) => markAdminComplaintLoggedInError(id, reason))
+}
+
+export function useUndoComplaintLoggedInError(id: string) {
+  return useComplaintAction<void>(id, () => undoAdminComplaintLoggedInError(id))
 }
 
 export function useSetComplaintNote(id: string) {

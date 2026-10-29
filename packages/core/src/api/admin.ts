@@ -2384,6 +2384,11 @@ export interface AdminComplaint {
   resolveBy: string
   /** Which promise it has missed, as of the server's clock when read. */
   overdue: 'acknowledge' | 'resolve' | null
+  /**
+   * The team logged it by mistake (0065): kept, out of every count. Absent
+   * from an API before 0065.
+   */
+  loggedInError?: { at: string; by: string | null; reason: string | null } | null
 }
 
 export interface AdminComplaintList {
@@ -2466,6 +2471,22 @@ export async function closeAdminComplaint(id: string, resolutionNote?: string): 
 }
 
 /** PUT /admin/complaints/:id/note — the team's own note; empty clears it. */
+/** POST /admin/complaints/:id/logged-in-error (0065): signed, with why. */
+export async function markAdminComplaintLoggedInError(id: string, reason: string): Promise<AdminComplaint> {
+  return apiClient<AdminComplaint>(`/admin/complaints/${id}/logged-in-error`, {
+    method: 'POST',
+    body: signedBody({ reason }),
+  })
+}
+
+/** POST /admin/complaints/:id/logged-in-error/undo (0065). */
+export async function undoAdminComplaintLoggedInError(id: string): Promise<AdminComplaint> {
+  return apiClient<AdminComplaint>(`/admin/complaints/${id}/logged-in-error/undo`, {
+    method: 'POST',
+    body: signedBody({}),
+  })
+}
+
 export async function setAdminComplaintNote(id: string, adminNote: string): Promise<AdminComplaint> {
   return apiClient<AdminComplaint>(`/admin/complaints/${id}/note`, {
     method: 'PUT',

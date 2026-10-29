@@ -8,6 +8,7 @@ import type {
   CreateComplaintInput,
   ListComplaintsQuery,
   LogComplaintInput,
+  LoggedInErrorInput,
   ResolveComplaintInput,
 } from './complaints.validation.js'
 
@@ -75,5 +76,15 @@ export async function setComplaintAdminNote(
   input: ComplaintAdminNoteInput
 ) {
   const data = await complaintsService.setAdminNote(id, input)
+  return c.json({ success: true, data })
+}
+
+export async function markLoggedInError(c: ComplaintsContext, id: string, input: LoggedInErrorInput) {
+  const data = await complaintsService.markLoggedInError(c.get('auth').sub, id, input)
+  return c.json({ success: true, data })
+}
+
+export async function undoLoggedInError(c: ComplaintsContext, id: string, actorName: string) {
+  const data = await complaintsService.undoLoggedInError(c.get('auth').sub, id, actorName)
   return c.json({ success: true, data })
 }

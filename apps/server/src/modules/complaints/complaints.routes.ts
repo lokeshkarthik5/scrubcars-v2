@@ -15,6 +15,8 @@ import {
   createComplaintSchema,
   listComplaintsQuerySchema,
   logComplaintSchema,
+  loggedInErrorSchema,
+  undoLoggedInErrorSchema,
   resolveComplaintSchema,
 } from './complaints.validation.js'
 
@@ -102,4 +104,22 @@ adminComplaintRoutes.put(
   zValidator('param', complaintIdParamSchema),
   zValidator('json', complaintAdminNoteSchema),
   (c) => complaintsController.setComplaintAdminNote(c, c.req.valid('param').id, c.req.valid('json'))
+)
+
+// "Logged in error" (0065): a team-logged complaint made by mistake stays in
+// the record and leaves every count; undone the same way. Signed, audited.
+adminComplaintRoutes.post(
+  '/:id/logged-in-error',
+  ...adminMiddleware,
+  zValidator('param', complaintIdParamSchema),
+  adminSignedJson(loggedInErrorSchema),
+  (c) => complaintsController.markLoggedInError(c, c.req.valid('param').id, c.req.valid('json'))
+)
+
+adminComplaintRoutes.post(
+  '/:id/logged-in-error/undo',
+  ...adminMiddleware,
+  zValidator('param', complaintIdParamSchema),
+  adminSignedJson(undoLoggedInErrorSchema),
+  (c) => complaintsController.undoLoggedInError(c, c.req.valid('param').id, c.req.valid('json').actorName)
 )
