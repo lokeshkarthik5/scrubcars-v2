@@ -39,6 +39,7 @@ import {
   onboardedBy,
   stageCell,
   type GarageNextStep,
+  SHOW_TO_CUSTOMERS_STEP,
 } from '@/lib/vendor-list'
 
 export interface GarageColumnsContext {
@@ -86,11 +87,11 @@ export const GARAGE_OPTIONAL_COLUMNS: OptionalColumn[] = [
  * The Garages table's columns (mockups 06 and 07), compact enough for a
  * 1440 laptop with no sideways scroll, with Onboarded by on too: Garage
  * (name, owner) · Area · Modes · Stage · Missing · Marks · (Onboarded by) ·
- * Bookings · Next step, where Verify sits when the garage needs it, then
+ * Bookings · Next step, where "Show to customers" sits when the garage needs it, then
  * the row's ⋯ (Edit, Archive, Move to Bin).
  *
  * On a phone a row is two lines (GARAGE_PHONE_GRID): the tick, the name,
- * its stage, Verify and ⋯; then its owner, what is missing and its mark.
+ * its stage, Show (to customers) and ⋯; then its owner, what is missing and its mark.
  */
 export function garageColumns(
   ctx: GarageColumnsContext
@@ -237,7 +238,7 @@ export function garageColumns(
  * A garage row on a phone (AdminTable's `phoneGrid`), about half the height
  * of the old card: the tick; the name and its stage; then its owner, what
  * it is missing and its mark (or teammate) on the right, under the stage.
- * Verify sits beside both lines on an unverified row, and ⋯ at the row's
+ * Show (to customers) sits beside both lines on a row not shown yet, and ⋯ at the row's
  * edge, in the room the right padding leaves it.
  */
 export const GARAGE_PHONE_GRID =
@@ -369,8 +370,8 @@ const VERIFY_BUTTON =
  * The one thing to do now (mockup 06): the action on the first line
  * ("Due Thu 29 Oct · 0 of 2", "Chase · 3 days ago", "Pin first"), and at
  * most one quieter line under it: why, or a link to the documents the
- * garage sent ("2 docs to review ›"). Verify is a button here, on the
- * first line when verifying is the next step and on the second when
+ * garage sent ("2 docs to review ›"). "Show to customers" is a button here,
+ * on the first line when it is the next step and on the second when
  * something else comes first, and is all a phone row shows of this cell.
  */
 function NextStepCell({
@@ -391,17 +392,25 @@ function NextStepCell({
   const step = garageNextStep(v, now)
   // The server refuses a garage with no pin: that says "Pin first".
   const canVerify = !v.isVerified && v.lat !== null
-  const verifyIsStep = canVerify && step?.text === 'Verify'
+  const verifyIsStep = canVerify && step?.text === SHOW_TO_CUSTOMERS_STEP
   const docs = hasDocumentsToReview(v) && v.documents ? v.documents : null
   const verify = canVerify && (
     <button
       type="button"
       disabled={verifying}
-      aria-label={`Verify ${v.businessName}`}
+      aria-label={`Show ${v.businessName} to customers`}
       onClick={onVerify}
       className={VERIFY_BUTTON}
     >
-      {verifying ? 'Verifying…' : 'Verify'}
+      {verifying ? (
+        'Showing…'
+      ) : (
+        // A phone row has room for one short word beside the name.
+        <>
+          <span className="md:hidden">Show</span>
+          <span className="max-md:hidden">{SHOW_TO_CUSTOMERS_STEP}</span>
+        </>
+      )}
     </button>
   )
   const docsLink = docs && (
@@ -450,7 +459,7 @@ function NextStepCell({
     first = <span className="text-text-muted max-md:hidden">—</span>
   }
 
-  // The second line: Verify when something else came first, the documents
+  // The second line: "Show to customers" when something else came first, the documents
   // to review, or why.
   const second: React.ReactNode[] = []
   if (canVerify && !verifyIsStep) second.push(verify)

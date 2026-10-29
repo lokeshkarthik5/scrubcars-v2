@@ -150,10 +150,10 @@ test.describe('admin garage import', () => {
 
     // Always Pending: there is no stage to choose.
     await expect(
-      page.getByText('Saved as Pending — nothing goes live until you verify')
+      page.getByText('Saved as Pending — nothing goes live until you show it to customers')
     ).toBeVisible()
     await expect(
-      page.getByRole('checkbox', { name: 'Mark as verified' })
+      page.getByRole('checkbox', { name: 'Show to customers' })
     ).toHaveCount(0)
 
     const create = page.getByRole('button', { name: 'Create garage' })
@@ -179,7 +179,7 @@ test.describe('admin garage import', () => {
     const card = page.getByRole('row', { name, exact: true })
     await expect(card).toContainText('Pending')
     await expect(
-      card.getByRole('button', { name: `Verify ${name}` })
+      card.getByRole('button', { name: `Show ${name} to customers` })
     ).toHaveCount(0)
 
     const [garage] = await sql<

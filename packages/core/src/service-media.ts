@@ -39,7 +39,9 @@ export function isClipTooLong(durationSecs: number): boolean {
 
 /**
  * The service card's 64px thumbnail: the video's poster (with its length),
- * else the first photo, else nothing — and the card draws the sample.
+ * else the first photo, else nothing — and the card draws the category icon
+ * (serviceIconFor). Customer screens pass customerMedia(), so `sample` is
+ * only ever true in the garage's and admin's own views.
  */
 export type CardThumbnail =
   | { kind: 'video'; url: string; durationSecs: number | null; sample: false }
@@ -58,7 +60,10 @@ export function cardThumbnail(media: readonly ServiceMedia[]): CardThumbnail | n
   return photo ? { kind: 'photo', url: photo.url, sample: photo.source === 'ai' } : null
 }
 
-/** Which drawn sample a service without media shows. */
+/**
+ * What kind of work a service is, for its icon (serviceIconFor) and the
+ * admin's AI picture prompt.
+ */
 export type SampleArt = 'wash' | 'bike' | 'detailing' | 'coating' | 'scratch' | 'others'
 
 /**
@@ -79,6 +84,30 @@ export function sampleArtFor(category: ServiceCategory, name: string): SampleArt
     default:
       return /\bwash\b/i.test(name) ? 'wash' : 'others'
   }
+}
+
+/**
+ * The category icon a service without photos shows, on the card and at the
+ * top of its sheet (the "no-photo look"): its kind of work, with a bike told
+ * apart by its name as sampleArtFor does, and a package as a package.
+ */
+export type ServiceIcon = SampleArt | 'package'
+
+export function serviceIconFor(category: ServiceCategory, name: string): ServiceIcon {
+  const art = sampleArtFor(category, name)
+  // A bike package is still a bike's; any other package is a bundle.
+  return category === 'package' && art !== 'bike' ? 'package' : art
+}
+
+/**
+ * The media a customer may see: never an AI picture. The server already
+ * leaves them out of customer responses; this keeps an older server, or a
+ * cached response, from ever drawing one.
+ */
+export function customerMedia<T extends Pick<ServiceMedia, 'source'>>(
+  media: readonly T[]
+): T[] {
+  return media.filter((item) => item.source !== 'ai')
 }
 
 /**

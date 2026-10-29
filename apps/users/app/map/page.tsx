@@ -15,7 +15,6 @@ import {
   IconChevronLeft,
   IconCurrentLocation,
   IconList,
-  IconPhoto,
   IconRefresh,
   IconStarFilled,
 } from '@tabler/icons-react'
@@ -33,6 +32,7 @@ import { boundsToParam, type MapBounds } from '@repo/ui/features/map-bounds'
 import { FLOATING_NAV_CLEARANCE } from '@repo/ui/sc/app-shell'
 import { Figures } from '@repo/ui/sc/figures'
 import { OutsideCityChip } from '@repo/ui/features/outside-city'
+import { GarageCover } from '@repo/ui/features/garage-cover'
 import {
   DEFAULT_CENTER,
   MAP_STYLES,
@@ -701,9 +701,9 @@ function MapVendorCard({
             className="h-full w-full object-cover"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center">
-            <IconPhoto size={22} className="text-text-muted" />
-          </div>
+          // No photo: its designed cover, as on its list card. The open
+          // status and badge own the top corners, so no small-caps line.
+          <GarageCover vendor={vendor} size="compact" showMeta={false} />
         )}
 
         {/* Whether they are taking work right now is the first thing that makes

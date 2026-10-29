@@ -92,7 +92,7 @@ export interface StatusHeadline {
   /** Customers can find it and book it now. */
   live: boolean
   title: string
-  /** "2 things block it · 1 to fix soon · Pending · not verified". */
+  /** "2 things block it · 1 to fix soon · Pending · not shown to customers". */
   summary: string
 }
 
@@ -101,7 +101,7 @@ const plural = (n: number, one: string, many: string) =>
 
 /**
  * The panel's first card. Live is what the garage list calls Live: Active,
- * verified, not paused, not in the Bin, and nothing blocking on its
+ * shown to customers, not paused, not in the Bin, and nothing blocking on its
  * checklist.
  */
 export function statusHeadline(
@@ -117,7 +117,7 @@ export function statusHeadline(
     parts.push(`${plural(blocking, 'thing blocks', 'things block')} it`)
   if (fix > 0) parts.push(`${fix} to fix soon`)
   if (notActive) parts.push(STAGE_LABELS[state.status] ?? state.status)
-  if (!state.isVerified) parts.push('not verified')
+  if (!state.isVerified) parts.push('not shown to customers')
 
   if (state.inBin) {
     return {

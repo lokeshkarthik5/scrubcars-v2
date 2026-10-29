@@ -50,7 +50,7 @@ interface BookingModeCardProps {
   error?: string | null
   paused?: boolean
   /**
-   * Whether customers can see the garage at all (Active and verified). The
+   * Whether customers can see the garage at all (Active and shown to customers). The
    * card is the first thing on every tab, so during setup it must not read
    * as though the garage were already taking bookings.
    */
@@ -198,7 +198,7 @@ export function BookingModeCard({
           {!live && (
             <span className="mt-1.5 flex items-start gap-1.5 text-error">
               <IconAlertCircle size={15} className="mt-px shrink-0" aria-hidden="true" />
-              Not live yet: customers can’t see this garage until it’s Active and verified.
+              Not live yet: customers can’t see this garage until it’s Active and shown to customers.
             </span>
           )}
           {paused && (

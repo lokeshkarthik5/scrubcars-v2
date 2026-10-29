@@ -86,8 +86,8 @@ export function BypassAnswerDialog({
         <ul className="list-disc space-y-1 pl-4 text-[12px] text-text-primary">
           <li>
             A strike against {report.garage.name} for {BYPASS_NUMBERS.strikeWindowDays} days (it has{' '}
-            <span className="font-numeric">{report.garage.strikes}</span> now). Any strike makes it ineligible for Detlio
-            Certified.
+            <span className="font-numeric">{report.garage.strikes}</span> now). Any strike makes it ineligible for
+            Gold.
           </li>
           <li>
             {report.customer

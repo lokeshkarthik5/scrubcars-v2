@@ -20,6 +20,10 @@ import { db } from '../index.js'
 import {
   adminAuditLog,
   adminLogins,
+  agreementAcceptances,
+  agreementVersions,
+  vendorCertifications,
+  vendorTierStandings,
   analyticsEvents,
   bookingCharges,
   bookingIntentItems,
@@ -39,6 +43,7 @@ import {
   refundRecords,
   reviews,
   servicePackageItems,
+  serviceImages,
   services,
   userAddresses,
   zones,
@@ -100,6 +105,8 @@ import {
   CONTACT_DOORSTEP,
   CONTACT_GARAGE,
   ADMIN_LOGINS,
+  TRUST_LOOK,
+  TIERS,
 } from './e2e-ids.js'
 import { hashPassword } from '../../lib/passwords.js'
 
@@ -2997,6 +3004,182 @@ async function seedBehaviourRows() {
   await db.insert(analyticsEvents).values(rows)
 }
 
+/**
+ * Trust & look (0063): the no-photo look and "What's included"
+ * (specs/users/no-photo-look.spec.ts); see TRUST_LOOK for what each row is
+ * for. Self-contained: its own owners, two garages far south-west beside
+ * VENDORS.media, their services, one garage photo and two service pictures
+ * (one AI, which customers must never get).
+ */
+async function seedTrustLookRows() {
+  const pin = { lat: ORIGIN.lat - 0.66, lng: ORIGIN.lng - 0.16 }
+  await db.insert(users).values(
+    [TRUST_LOOK.plainOwner, TRUST_LOOK.photoOwner].map((owner) => ({
+      id: owner.id, name: owner.name, phone: owner.phone,
+      isCustomer: false, isVendorOwner: true, phoneVerified: true, status: 'active' as const,
+    }))
+  )
+  await db.insert(vendors).values([
+    {
+      id: TRUST_LOOK.plain.id, ownerId: TRUST_LOOK.plainOwner.id, businessName: TRUST_LOOK.plain.name,
+      phone: TRUST_LOOK.plain.phone, address: '4, Polish Street, Porur', city: 'Chennai', pincode: '600116',
+      lat: pin.lat, lng: pin.lng, geoSource: 'map_pin', geoConfirmedAt: now,
+      vehicleTypes: ['hatchback', 'sedan', 'suv'],
+      isVerified: true, doorstepEnabled: true, dropinEnabled: true,
+      slotIntervalMins: 30, status: 'active',
+    },
+    {
+      id: TRUST_LOOK.photo.id, ownerId: TRUST_LOOK.photoOwner.id, businessName: TRUST_LOOK.photo.name,
+      phone: TRUST_LOOK.photo.phone, address: '5, Photo Street, Porur', city: 'Chennai', pincode: '600116',
+      lat: pin.lat + 0.01, lng: pin.lng, geoSource: 'map_pin', geoConfirmedAt: now,
+      vehicleTypes: ['hatchback', 'sedan', 'suv'],
+      isVerified: true, doorstepEnabled: false, dropinEnabled: true,
+      slotIntervalMins: 30, status: 'active',
+    },
+  ])
+  await db.insert(userMemberMapping).values([
+    { vendorId: TRUST_LOOK.plain.id, userId: TRUST_LOOK.plainOwner.id, role: 'vendor_admin', status: 'active' },
+    { vendorId: TRUST_LOOK.photo.id, userId: TRUST_LOOK.photoOwner.id, role: 'vendor_admin', status: 'active' },
+  ])
+  await db.insert(vendorWorkingHours).values([
+    ...hoursFor(TRUST_LOOK.plain.id, '09:00:00', '18:00:00'),
+    ...hoursFor(TRUST_LOOK.photo.id, '09:00:00', '18:00:00'),
+  ])
+  await db.insert(vendorPhotos).values({
+    vendorId: TRUST_LOOK.photo.id, url: TRUST_LOOK.garagePhotoUrl, sortOrder: 0,
+  })
+
+  const s = TRUST_LOOK.services
+  await db.insert(services).values(
+    ([
+      [s.points, TRUST_LOOK.plain.id, 'detailing',
+        [s.points.intro, ...s.points.points.map((point) => `- ${point}`)].join('\n')],
+      [s.bike, TRUST_LOOK.plain.id, 'others', s.bike.description],
+      [s.aiOnly, TRUST_LOOK.plain.id, 'coating', null],
+      [s.photo, TRUST_LOOK.plain.id, 'car_wash', null],
+      [s.photoGarageWash, TRUST_LOOK.photo.id, 'car_wash', null],
+    ] as const).map(([service, vendorId, category, description]) => ({
+      id: service.id, vendorId, name: service.name, description, category,
+      pricingType: 'flat' as const, price: service.price,
+      durationMins: service.durationMins, isActive: true,
+    }))
+  )
+  await db.insert(serviceImages).values([
+    {
+      id: TRUST_LOOK.media.ai.id, serviceId: s.aiOnly.id, url: TRUST_LOOK.media.ai.url,
+      sortOrder: 0, kind: 'image', source: 'ai', uploadedBy: 'E2E Admin', consentConfirmedAt: now,
+    },
+    {
+      id: TRUST_LOOK.media.photo.id, serviceId: s.photo.id, url: TRUST_LOOK.media.photo.url,
+      sortOrder: 0, kind: 'image', source: 'upload', uploadedBy: 'garage', consentConfirmedAt: now,
+    },
+  ])
+}
+
+/**
+ * Trust & look (0063): Bronze / Silver / Gold and the garage agreement
+ * (specs/journeys/tiers-journey.spec.ts, agreement-journey.spec.ts); see
+ * TIERS for what each row is for. Self-contained: its own owners, five
+ * garages far north, agreement v1, the award garage's jobs and reviews.
+ */
+async function seedTierRows() {
+  const pin = { lat: ORIGIN.lat + 0.62, lng: ORIGIN.lng - 0.12 }
+  const garages = [TIERS.gold, TIERS.silver, TIERS.bronze, TIERS.fresh, TIERS.award] as const
+  const owners = [TIERS.owners.gold, TIERS.owners.silver, TIERS.owners.bronze, TIERS.owners.fresh, TIERS.owners.award]
+  await db.insert(users).values([
+    ...owners.map((owner) => ({
+      id: owner.id, name: owner.name, phone: owner.phone,
+      isCustomer: false, isVendorOwner: true, phoneVerified: true, status: 'active' as const,
+    })),
+    {
+      id: TIERS.reviewer.id, name: TIERS.reviewer.name, phone: TIERS.reviewer.phone,
+      isCustomer: true, isVendorOwner: false, phoneVerified: true, status: 'active' as const,
+    },
+  ])
+  await db.insert(userVehicles).values({
+    id: TIERS.reviewer.vehicleId, userId: TIERS.reviewer.id, make: 'Kia', model: 'Seltos', color: 'Blue',
+    licensePlate: 'TN09ZE4606', vehicleType: 'suv', isDefault: true,
+  })
+  await db.insert(vendors).values(
+    garages.map((garage, i) => ({
+      id: garage.id, ownerId: owners[i]!.id, businessName: garage.name,
+      phone: `90000047${String(20 + i).padStart(2, '0')}`, address: `${i + 1}, Zeal Street, Ponneri`,
+      city: 'Chennai', pincode: '601204',
+      lat: pin.lat + i * 0.01, lng: pin.lng, geoSource: 'map_pin' as const, geoConfirmedAt: now,
+      vehicleTypes: ['hatchback', 'sedan', 'suv'],
+      isVerified: true, doorstepEnabled: false, dropinEnabled: true,
+      slotIntervalMins: 30, status: 'active' as const, bays: 2,
+    }))
+  )
+  await db.insert(userMemberMapping).values(
+    garages.map((garage, i) => ({
+      vendorId: garage.id, userId: owners[i]!.id, role: 'vendor_admin' as const, status: 'active' as const,
+    }))
+  )
+  await db.insert(vendorWorkingHours).values(garages.flatMap((garage) => hoursFor(garage.id, '08:00:00', '20:00:00')))
+  await db.insert(services).values(
+    garages.map((garage) => ({
+      id: garage.serviceId, vendorId: garage.id, name: `${garage.name.split(' ')[1]} Foam Wash`,
+      description: 'An exterior foam wash and dry.', category: 'car_wash' as const,
+      pricingType: 'flat' as const, price: '499.00', durationMins: 60, isActive: true,
+    }))
+  )
+
+  // Garage agreement v1, accepted by every garage but the fresh one.
+  await db.insert(agreementVersions).values({
+    id: TIERS.agreementV1.id, version: 1, fileKey: TIERS.agreementV1.key,
+    fileUrl: `${process.env.R2_PUBLIC_BASE_URL ?? 'http://localhost:9000/detlio-e2e'}/${TIERS.agreementV1.key}`,
+    sizeBytes: 1024, sha256: '0'.repeat(64), note: 'E2E seed', publishedAt: daysAgo(60), publishedBy: 'E2E seed', publishedBySub: 'seed',
+  })
+  await db.insert(agreementAcceptances).values(
+    [TIERS.gold, TIERS.silver, TIERS.bronze, TIERS.award].map((garage) => ({
+      vendorId: garage.id, versionId: TIERS.agreementV1.id, version: 1,
+      userId: owners[garages.indexOf(garage)]!.id, acceptedByName: owners[garages.indexOf(garage)]!.name,
+      acceptedAt: daysAgo(59), ipHash: null,
+    }))
+  )
+  // Silver for gold and silver; Gold (Detlio Certified) for gold.
+  await db.insert(vendorTierStandings).values(
+    [TIERS.gold, TIERS.silver].map((garage) => ({
+      vendorId: garage.id, silverAt: daysAgo(30), silverEligible: true, lastEvaluatedAt: daysAgo(1),
+    }))
+  )
+  await db.insert(vendorCertifications).values({
+    vendorId: TIERS.gold.id, certifiedAt: daysAgo(20), certifiedBy: 'E2E seed', certifiedBySub: 'seed',
+    eligible: true, lastEvaluatedAt: daysAgo(1),
+  })
+
+  // The award garage meets every Gold standard but Detlio's check: its
+  // documents approved, 20 jobs completed in the window (photos waived) and
+  // 10 five-star reviews.
+  await db.insert(vendorDocuments).values(
+    (['shop_photo', 'owner_id', 'bank_proof'] as const).map((type) => ({
+      vendorId: TIERS.award.id, type, status: 'approved' as const, uploadedBy: 'garage',
+      uploadedBySub: TIERS.owners.award.id, reviewedBy: 'E2E seed', reviewedBySub: 'seed', reviewedAt: daysAgo(40),
+    }))
+  )
+  const wash = { id: TIERS.award.serviceId, name: 'Award Foam Wash', amount: '499.00', durationMins: 60 }
+  for (let n = 0; n < 20; n += 1) {
+    const day = 3 + n * 2
+    await insertBooking({
+      id: TIERS.awardJob(n), userId: TIERS.reviewer.id, vehicleId: TIERS.reviewer.vehicleId,
+      vendorId: TIERS.award.id, items: [wash], status: 'completed',
+      createdAt: daysAgo(day + 1), scheduledAt: daysAgo(day), acceptedAt: daysAgo(day + 1),
+      completedAt: daysAgo(day),
+    })
+  }
+  await db
+    .update(bookings)
+    .set({ photosWaivedAt: daysAgo(2), photosWaivedBy: 'E2E seed', photosWaivedReason: 'E2E fixture: no photos needed' })
+    .where(eq(bookings.vendorId, TIERS.award.id))
+  await db.insert(reviews).values(
+    Array.from({ length: 10 }, (_, n) => ({
+      id: TIERS.awardReview(n), bookingId: TIERS.awardJob(n), userId: TIERS.reviewer.id,
+      vendorId: TIERS.award.id, rating: 5, comment: 'Spotless.', createdAt: daysAgo(2 + n * 2),
+    }))
+  )
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set')
 
@@ -3065,6 +3248,9 @@ async function main() {
   await seedAdminLoginRows()
   console.log('[e2e-seed] behaviour visits…')
   await seedBehaviourRows()
+  await seedTrustLookRows()
+  console.log('[e2e-seed] tiers and the garage agreement…')
+  await seedTierRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }

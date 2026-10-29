@@ -4,8 +4,9 @@
  * "Make a picture with AI" runs against AI_FAKE: the API returns a fixed
  * small PNG for every picture and never calls OpenAI. Everything around it
  * is real: the two options are written to MinIO under the service's temp
- * prefix, the chosen one is copied into the service's own folder, and the
- * customer sees it tagged "Sample image" — never as the garage's own work.
+ * prefix, and the chosen one is copied into the service's own folder. Admin
+ * sees it tagged "Sample"; a customer never sees it at all (no-photo look,
+ * 0063): the service shows its category icon until a real photo is added.
  */
 import { test, expect, asRole } from '../../support/fixtures'
 import { sql } from '../../support/db'
@@ -16,7 +17,7 @@ test.use({ storageState: asRole('admin') })
 const GARAGE_PAGE = `http://localhost:3000/garage/${VENDORS.media.id}`
 
 test.describe('service sample pictures', () => {
-  test('admin makes an AI picture, uses it, and customers see a sample @p0', async ({
+  test('admin makes an AI picture, uses it, and customers never see it @p0', async ({
     page,
     context,
   }) => {
@@ -57,11 +58,25 @@ test.describe('service sample pictures', () => {
     await customer.goto(GARAGE_PAGE)
     await customer.getByRole('button', { name: `View details for ${name}` }).click()
     const details = customer.getByRole('dialog', { name: `${name} details` })
-    await expect(details.getByText('Sample image')).toBeVisible()
-    await expect(details.getByText(`From`, { exact: true })).toHaveCount(0)
+    // No picture area at all: the coating icon beside the name instead.
+    await expect(details.getByTestId('service-icon-tile')).toHaveAttribute('data-icon', 'coating')
+    await expect(details.getByRole('button', { name: /^Open photo/ })).toHaveCount(0)
+    await expect(details.getByText('Sample image')).toHaveCount(0)
+    await expect(details.getByText('Sample', { exact: true })).toHaveCount(0)
+    await expect(details.getByText('From', { exact: true })).toHaveCount(0)
+
+    // Nor is it in the customer's payload, in media or the older images.
+    const res = await customer.request.get(
+      `http://localhost:8080/api/v1/vendors/${VENDORS.media.id}/services`
+    )
+    const service = (await res.json()).data.find(
+      (s: { id: string }) => s.id === SERVICES.mediaAi.id
+    )
+    expect(service.media).toEqual([])
+    expect(service.images).toEqual([])
   })
 
-  test('a service with nothing added shows the drawn sample, said to be one @p0', async ({
+  test('a service with nothing added shows its category icon, never a sample @p0', async ({
     context,
   }) => {
     const customer = await context.newPage()
@@ -69,8 +84,9 @@ test.describe('service sample pictures', () => {
     const name = SERVICES.mediaBike.name
     await customer.getByRole('button', { name: `View details for ${name}` }).click()
     const details = customer.getByRole('dialog', { name: `${name} details` })
-    await expect(details.getByText('Sample image')).toBeVisible()
-    await expect(details.getByText('No photos from this garage yet')).toBeVisible()
+    await expect(details.getByTestId('service-icon-tile')).toHaveAttribute('data-icon', 'bike')
+    await expect(details.getByText('Sample image')).toHaveCount(0)
+    await expect(details.getByText('No photos from this garage yet')).toHaveCount(0)
   })
 
   test('the AI routes answer only what the service may have @p0', async ({ page }) => {

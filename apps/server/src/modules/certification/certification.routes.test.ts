@@ -1,5 +1,5 @@
 /**
- * Who may reach Detlio Certified, through the real routes and the real auth
+ * Who may reach Gold (Detlio Certified), through the real routes and the real auth
  * and tenant middleware. Only the database is stood in for: the seat lookups
  * (membersRepository) and the certification reads and writes are replaced on
  * their objects for these tests and put back afterwards (an in-memory
@@ -22,6 +22,7 @@ const { AppError } = await import('../../lib/errors.js')
 const { signAccessToken, signAdminToken } = await import('../../lib/jwt.js')
 const { membersRepository } = await import('../members/members.repository.js')
 const { certificationRepository } = await import('./certification.repository.js')
+const { agreementsRepository } = await import('../agreements/agreements.repository.js')
 const { adminCertificationRoutes, garageCertificationRoutes } = await import('./certification.routes.js')
 
 const GARAGE = 'e2e00000-0000-4000-8000-000000002810'
@@ -90,6 +91,8 @@ type State = {
   eligibleAlertedAt: Date | null
 }
 const states = new Map<string, State>()
+/** Silver (0063), as Award Gold reads and writes it. */
+const tierStandings = new Map<string, { silverAt: Date | null; silverShortSince: Date | null }>()
 const checks: Array<{
   id: string
   vendorId: string
@@ -148,8 +151,10 @@ beforeAll(() => {
     // Every garage here meets every measured standard.
     listApprovedDocumentTypes: async (vendorIds: string[]) =>
       vendorIds.flatMap((vendorId) =>
-        ['shop_photo', 'owner_id', 'bank_proof', 'agreement'].map((type) => ({ vendorId, type, status: 'approved' }))
+        ['shop_photo', 'owner_id', 'bank_proof'].map((type) => ({ vendorId, type, status: 'approved' }))
       ),
+    // Silver (0063): never given by a nightly run here, only as a test sets it.
+    findTierStanding: async (vendorId: string) => tierStandings.get(vendorId),
     ratings: async (vendorIds: string[]) => {
       measured.push(...vendorIds)
       return vendorIds.map((vendorId) => ({ vendorId, average: 4.8, count: 14 }))
@@ -164,12 +169,19 @@ beforeAll(() => {
     photoComplianceJobs: async () => [],
   }
   for (const [key, value] of Object.entries(reads)) patch(certificationRepository, key, value)
+  // The garage agreement (0063): version 1 is out and every garage here
+  // accepted it, so each holds Bronze (Gold needs it).
+  patch(agreementsRepository, 'latest', async () => ({ id: 'a1', version: 1, publishedAt: new Date('2026-09-01T00:00:00Z') }))
+  patch(agreementsRepository, 'acceptedVersions', async (vendorIds: string[]) => new Map(vendorIds.map((id) => [id, 1])))
 
   patch(certificationRepository, 'transaction', async (vendorId: string, work: (repo: unknown) => Promise<unknown>) =>
     work({
       ...reads,
       lockCertification: async () => undefined,
       saveEvaluation: async () => undefined,
+      saveTierStanding: async (id: string, values: { silverAt: Date | null; silverShortSince: Date | null }) => {
+        tierStandings.set(id, { silverAt: values.silverAt, silverShortSince: values.silverShortSince })
+      },
       certify: async (id: string, values: { certifiedBy: string; now: Date }) => {
         const state = {
           ...(states.get(id) ?? blank(id)),
@@ -216,6 +228,7 @@ afterAll(() => {
 beforeEach(() => {
   documentsOn(true)
   states.clear()
+  tierStandings.clear()
   checks.length = 0
   audits.length = 0
   measured.length = 0
@@ -376,13 +389,32 @@ describe('admin: checks, Certify and Revoke', () => {
     expect(again.body.code).toBe('ALREADY_CERTIFIED')
   })
 
+  test('Award Gold gives Silver too, and ends any 14 days a held Silver was running', async () => {
+    checks.push({ ...passingCheck(), id: 'c1', vendorId: GARAGE, kind: 'inspection', result: 'pass', recordedBySub: 'admin', recordedBy: 'Lokesh', createdAt: new Date() } as (typeof checks)[number])
+    const heldSince = new Date('2026-06-01T00:00:00Z')
+    // Held, and short since 13 days ago: left running, Silver would go
+    // tomorrow night, under the Gold that needs it.
+    tierStandings.set(GARAGE, { silverAt: heldSince, silverShortSince: new Date(Date.now() - 13 * 24 * 60 * 60 * 1000) })
+    const certified = await call(`${ADMIN()}/certify`, 'superAdmin', { body: { actorName: 'Lokesh' } })
+    expect(certified.status).toBe(200)
+    expect(tierStandings.get(GARAGE)).toEqual({ silverAt: heldSince, silverShortSince: null })
+
+    // Not holding Silver: it is given with Gold.
+    states.clear()
+    tierStandings.clear()
+    const before = Date.now()
+    expect((await call(`${ADMIN()}/certify`, 'superAdmin', { body: { actorName: 'Lokesh' } })).status).toBe(200)
+    expect(tierStandings.get(GARAGE)?.silverAt?.getTime()).toBeGreaterThanOrEqual(before)
+    expect(tierStandings.get(GARAGE)?.silverShortSince).toBeNull()
+  })
+
   test('Certify is refused while a standard is not met, naming it', async () => {
     documentsOn(false)
     checks.push({ ...passingCheck(), id: 'c1', vendorId: GARAGE, kind: 'inspection', result: 'pass', recordedBySub: 'admin', recordedBy: 'Lokesh', createdAt: new Date() } as (typeof checks)[number])
     const { status, body } = await call(`${ADMIN()}/certify`, 'superAdmin', { body: { actorName: 'Lokesh' } })
     expect(status).toBe(409)
     expect(body.code).toBe('CERTIFICATION_NOT_ELIGIBLE')
-    expect(body.message).toContain('Documents verified')
+    expect(body.message).toContain('Documents checked')
   })
 
   test('Revoke needs a reason and a certification, and records who', async () => {

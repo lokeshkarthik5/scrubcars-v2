@@ -20,6 +20,18 @@ reconstructing every change in them.
 
 ### Added
 
+- **Trust & look** (migration `0063_trust_look`, additive): Bronze / Silver
+  / Gold (`lib/tiers.ts`; Silver given and taken nightly in
+  `vendor_tier_standings`, Gold is Detlio Certified renamed and now needs the
+  agreement), `tier_switches` and `vendors.tier_hidden`, the click-to-agree
+  garage agreement (`agreement_versions`, `agreement_acceptances`;
+  `/admin/agreements`, `/vendors/me/agreement`), `GET /tiers`,
+  `GET /vendors/me/tier`, `/admin/tiers/*`. Customer payloads carry `tier`
+  instead of `certified` and `documentsVerified`; `GET /vendors?tier=silver`
+  ("Silver & above"; `certified=true` still accepted). The paper agreement
+  document type is retired (three required documents). AI service pictures
+  never reach customer payloads. Backfill: certified garages hold Silver.
+
 - **Customer reach** (migration `0062_customer_reach`, additive). Part 1:
   Chennai's zones (`GET /zones`), the garage list's reach figures and
   "Just outside their area", guest checkout. Part 2: requests to a garage

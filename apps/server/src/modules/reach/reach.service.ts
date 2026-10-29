@@ -1,3 +1,4 @@
+import { tiersService } from '../tiers/tiers.service.js'
 import { logger } from '../../lib/logger.js'
 import {
   JUST_OUTSIDE_LIMIT,
@@ -134,7 +135,10 @@ export const reachService = {
   async withReach(list: VendorListResponse, query: ListPublicVendorsQuery): Promise<ReachListResponse> {
     const origin =
       query.lat !== undefined && query.lng !== undefined ? { lat: query.lat, lng: query.lng } : undefined
-    const filters = { category: query.category, certifiedOnly: query.certified }
+    // "Silver & above" as the list itself reads it (vendors.service).
+    const tiers =
+      query.tier === 'silver' || query.certified ? ((await tiersService.silverFilterTiers()) ?? undefined) : undefined
+    const filters = { category: query.category, tiers }
 
     let reach: ReachSummary | null = null
     if (listCarriesReach(query)) {

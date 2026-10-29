@@ -34,6 +34,8 @@ export interface GarageDocument {
   type: DocumentType
   label: string
   required: boolean
+  /** The paper agreement (0063): readable, never uploaded again. Absent from older servers. */
+  retired?: boolean
   takesExpiry: boolean
   /** Null while never uploaded. */
   id: string | null

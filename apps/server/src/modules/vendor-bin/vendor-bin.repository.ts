@@ -26,6 +26,7 @@ import {
   vendors,
   vendorServiceAreas,
   vendorWorkingHours,
+  vendorTierStandings,
 } from '../../db/schema.js'
 import { UPCOMING_STATUSES } from '../../lib/vendor-bin.js'
 import {
@@ -326,6 +327,9 @@ function writes(tx: Tx) {
     async deleteCertification(vendorId: string) {
       await tx.delete(vendorQualityChecks).where(eq(vendorQualityChecks.vendorId, vendorId))
       await tx.delete(vendorCertifications).where(eq(vendorCertifications.vendorId, vendorId))
+      // Silver (0063) goes with Gold. Its agreement acceptances stay: the
+      // contract behind the bookings kept, like the signed paper agreement.
+      await tx.delete(vendorTierStandings).where(eq(vendorTierStandings.vendorId, vendorId))
     },
 
     /**

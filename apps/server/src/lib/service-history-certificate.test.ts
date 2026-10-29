@@ -288,8 +288,10 @@ describe('buildCertificate and the public payload', () => {
       photo({ id: id(3342), bookingId: coating, stage: 'after', angle: 'front' }),
       photo({ id: id(3343), bookingId: wash, stage: 'before' }),
     ],
-    certified: new Set([id(3311)]),
-    documentsVerified: new Set([id(3310), id(3311)]),
+    tiers: new Map([
+      [id(3310), 'silver' as const],
+      [id(3311), 'gold' as const],
+    ]),
     now: NOW,
   }
 
@@ -302,12 +304,12 @@ describe('buildCertificate and the public payload', () => {
     // 20:00 UTC on 10 Oct is 01:30 on 11 Oct in Chennai.
     expect(view.jobs[0]).toEqual({
       date: '2026-10-11',
-      garage: { name: 'Shine Studio', certified: false, documentsVerified: true },
+      garage: { name: 'Shine Studio', tier: 'silver' },
       services: ['Foam Wash'],
       photos: { before: true, after: false },
       photoPair: null,
     })
-    expect(view.jobs[1].garage).toEqual({ name: 'Gloss Garage', certified: true, documentsVerified: true })
+    expect(view.jobs[1].garage).toEqual({ name: 'Gloss Garage', tier: 'gold' })
     expect(view.jobs[1].photos).toEqual({ before: true, after: true })
     expect(view.totals).toEqual({ jobs: 2, firstServiceOn: '2026-07-01', lastServiceOn: '2026-10-11' })
   })
@@ -318,12 +320,12 @@ describe('buildCertificate and the public payload', () => {
     expect(view.jobs[1].photoPair).toEqual({ before: `/signed/${id(3341)}`, after: `/signed/${id(3342)}` })
   })
 
-  test('a garage in the Bin keeps its name but loses its marks', () => {
+  test('a garage in the Bin keeps its name but loses its medal', () => {
     const view = buildCertificate(
       { ...input, rows: input.rows.map((r) => (r.id === coating ? { ...r, vendorInBin: true } : r)) },
       null
     )
-    expect(view.jobs[1].garage).toEqual({ name: 'Gloss Garage', certified: false, documentsVerified: false })
+    expect(view.jobs[1].garage).toEqual({ name: 'Gloss Garage', tier: null })
   })
 
   test('no jobs: empty list and no dates', () => {
@@ -341,7 +343,7 @@ describe('buildCertificate and the public payload', () => {
     expect(Object.keys(pub.car).sort()).toEqual(['bodyType', 'color', 'make', 'model', 'registration'])
     for (const job of pub.jobs) {
       expect(Object.keys(job).sort()).toEqual(['date', 'garage', 'photoPair', 'photos', 'services'])
-      expect(Object.keys(job.garage).sort()).toEqual(['certified', 'documentsVerified', 'name'])
+      expect(Object.keys(job.garage).sort()).toEqual(['name', 'tier'])
     }
 
     const text = JSON.stringify(pub)

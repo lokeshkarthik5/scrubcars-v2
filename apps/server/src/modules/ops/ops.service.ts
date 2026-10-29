@@ -135,10 +135,11 @@ export const opsService = {
         return { enabled: true as const, error: true as const }
       })
 
-    // Detlio Certified's nightly evaluation (0048): each garage once per
-    // daily run from 05:00 IST, a bounded batch a run, so its alerts land
-    // before the 07:00 roll-up. Nothing while garage documents are off.
-    // Never allowed to fail the digest.
+    // The tiers' nightly evaluation (Gold, 0048; Silver, 0063): each garage
+    // once per daily run from 05:00 IST, a bounded batch a run, so its
+    // alerts land before the 07:00 roll-up. Nothing while garage documents
+    // are off or before the first garage agreement is published. Never
+    // allowed to fail the digest.
     const certification = await certificationService
       .sweep({ dryRun: options.dryRun })
       .catch((err: unknown) => {

@@ -1,10 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import {
   cardThumbnail,
+  customerMedia,
   defaultAiSubject,
   formatClipLength,
   isClipTooLong,
   sampleArtFor,
+  serviceIconFor,
 } from './service-media'
 import type { ServiceMedia } from './types'
 
@@ -84,5 +86,30 @@ describe('defaultAiSubject', () => {
       'Car wash: a clean dark-grey car after a full wash'
     )
     expect(defaultAiSubject('Bike Wash', 'others', 'Others')).toContain('motorbike')
+  })
+})
+
+describe('serviceIconFor', () => {
+  test('by category, a bike by its name', () => {
+    expect(serviceIconFor('car_wash', 'Premium Car Wash')).toBe('wash')
+    expect(serviceIconFor('detailing', 'Interior Detailing')).toBe('detailing')
+    expect(serviceIconFor('coating', 'Ceramic')).toBe('coating')
+    expect(serviceIconFor('scratch_removal', 'Scratch fix')).toBe('scratch')
+    expect(serviceIconFor('others', 'Battery check')).toBe('others')
+    expect(serviceIconFor('others', 'Bike Wash')).toBe('bike')
+  })
+
+  test('a package is a package, unless it is for bikes', () => {
+    expect(serviceIconFor('package', 'Wash + Polish combo')).toBe('package')
+    expect(serviceIconFor('package', 'Shine Package')).toBe('package')
+    expect(serviceIconFor('package', 'Bike care combo')).toBe('bike')
+  })
+})
+
+describe('customerMedia', () => {
+  test('an AI picture never reaches a customer; uploads and videos do', () => {
+    const ai = photo({ id: 'ai', source: 'ai' })
+    expect(customerMedia([ai, photo(), video]).map((m) => m.id)).toEqual(['p1', 'v1'])
+    expect(customerMedia([ai])).toEqual([])
   })
 })

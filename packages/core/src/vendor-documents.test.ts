@@ -6,7 +6,9 @@ import {
   DOCUMENT_TYPES,
   MAX_DOCUMENT_BYTES,
   REQUIRED_DOCUMENT_TYPES,
+  UPLOADABLE_DOCUMENT_TYPES,
   documentsVerified,
+  isRetiredDocument,
   fileLine,
   pickedFilesProblem,
   progressLine,
@@ -24,7 +26,7 @@ describe('garage documents in the apps', () => {
     expect(DOCUMENT_HINTS.bank_proof).toContain('cancelled cheque')
   })
 
-  test('the badge needs the four required types approved, and only those', () => {
+  test('documents count as checked with the three required types approved, and only those', () => {
     const approved = REQUIRED_DOCUMENT_TYPES.map((type) => ({ type, status: 'approved' as const }))
     expect(documentsVerified(approved)).toBe(true)
     expect(documentsVerified(approved.slice(1))).toBe(false)
@@ -34,7 +36,11 @@ describe('garage documents in the apps', () => {
     expect(
       documentsVerified([...approved, { type: 'trade_licence', status: 'rejected' }])
     ).toBe(true)
-    expect(progressLine({ approvedRequired: 3, required: 4 })).toBe('3 of 4 required approved')
+    expect(progressLine({ approvedRequired: 2, required: 3 })).toBe('2 of 3 required approved')
+    // The paper agreement (0063) is retired: never required, never uploadable.
+    expect(documentsVerified([...approved, { type: 'agreement', status: 'rejected' }])).toBe(true)
+    expect(UPLOADABLE_DOCUMENT_TYPES).not.toContain('agreement')
+    expect(isRetiredDocument('agreement')).toBe(true)
   })
 
   test('picked files: one or two photos or PDFs, up to 10 MB', () => {

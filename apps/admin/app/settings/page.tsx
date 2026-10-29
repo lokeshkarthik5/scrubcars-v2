@@ -4,12 +4,14 @@ import Link from 'next/link'
 import {
   IconBell,
   IconChevronRight,
+  IconFileText,
   IconTrash,
   IconUsers,
 } from '@tabler/icons-react'
 import { useDataResetConfig } from '@repo/core/api/hooks/use-admin-data-reset'
 import { cn } from '@repo/core/utils'
 import { PageHeader } from '@repo/ui/sc/page-header'
+import { TierSwitchesCard } from '@/components/tier-switches-card'
 
 function SettingsLink({
   href,
@@ -66,7 +68,7 @@ export default function SettingsPage() {
     <>
       <PageHeader
         title="Settings"
-        subtitle="Alerts for the team, and the one-off tools."
+        subtitle="The team, garages' tiers and agreement, and the one-off tools."
       />
       <section aria-labelledby="settings-team" className="flex flex-col gap-2">
         <h2
@@ -86,6 +88,22 @@ export default function SettingsPage() {
           icon={IconBell}
           title="Telegram alerts"
           body="Whether the team's alerts are set up, and Send test alert."
+        />
+      </section>
+      {/* Bronze / Silver / Gold and the garage agreement (0063). */}
+      <section aria-labelledby="settings-garages" className="flex flex-col gap-2">
+        <h2
+          id="settings-garages"
+          className="text-[13px] font-medium text-text-secondary"
+        >
+          Garages
+        </h2>
+        <TierSwitchesCard />
+        <SettingsLink
+          href="/settings/agreement"
+          icon={IconFileText}
+          title="Garage agreement"
+          body="Upload each version as a PDF. Garages accept the newest in their app, for Bronze."
         />
       </section>
       {resetConfig?.enabled && (

@@ -2,7 +2,8 @@
 
 Garages (from their own app) and admin add up to 3 photos and one video of at
 most 60 seconds to each service. Customers see them on the garage page. Admin
-can also make a sample picture with AI for a service that has no real photo.
+can also make a sample picture with AI for a service that has no real photo;
+it shows only in the admin and garage editors, never to customers.
 
 Photos already work: they use R2, like every other upload. **Video** and **AI
 pictures** stay switched off until the settings below are in the Vercel
@@ -78,8 +79,10 @@ objects **1 day** after upload.
 
 Every upload needs the tick "No number plates or faces can be read, or the
 owner agreed". The API refuses an upload without it (`MEDIA_CONSENT_REQUIRED`)
-and stores when it was given. AI pictures and the drawn samples are always
-shown to customers as "Sample image", never as the garage's own work.
+and stores when it was given. AI pictures are never shown to customers: the
+API leaves them out of every customer response, and a service without the
+garage's own photos shows its category icon instead. Admin still sees them,
+tagged "Sample", in its editor.
 
 ## Tests
 

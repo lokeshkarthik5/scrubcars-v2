@@ -125,8 +125,7 @@ export function mapVendorListItem(item: ApiVendorListItem): Vendor {
     photos: item.photos,
     matchedService: item.matchedService ?? null,
     outsideServiceCity: item.outsideServiceCity ?? null,
-    documentsVerified: item.documentsVerified ?? false,
-    certified: item.certified ?? false,
+    tier: item.tier ?? null,
   }
 }
 
@@ -170,8 +169,7 @@ export function mapPublicVendor(vendor: ApiPublicVendor): Vendor {
     // Not a search result, so nothing was matched.
     matchedService: null,
     outsideServiceCity: vendor.outsideServiceCity ?? null,
-    documentsVerified: vendor.documentsVerified ?? false,
-    certified: vendor.certified ?? false,
+    tier: vendor.tier ?? null,
   }
 }
 

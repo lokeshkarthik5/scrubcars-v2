@@ -1,3 +1,4 @@
+import type { Tier } from '@repo/core/tiers'
 import type { OpeningDay } from '@repo/core/opening-hours'
 import type { PickupNext } from '@repo/core/pickup'
 import type { OutsideServiceCity } from '@repo/core/service-city'
@@ -100,17 +101,11 @@ export interface Vendor {
    */
   outsideServiceCity: OutsideServiceCity | null
   /**
-   * Detlio has approved the garage's required documents (ID, bank proof,
-   * shop photo, signed agreement): the shield after its name. False from a
-   * server older than garage documents, and while they are off.
+   * The garage's medal (0063): Bronze, Silver or Gold, the highest tier it
+   * holds that Detlio shows customers; null for none, and from a server
+   * older than tiers.
    */
-  documentsVerified: boolean
-  /**
-   * Detlio Certified (0048): meets Detlio's standards and passed its
-   * in-person check. The seal replaces the documents shield on a card
-   * (certification needs the documents). False from an older server.
-   */
-  certified: boolean
+  tier: Tier | null
 }
 
 // Photos of a service's work, shown in the details popup on the garage page.
@@ -124,7 +119,8 @@ export interface ServiceImage {
 /**
  * One photo or video of a service, as the garage page shows it. A video
  * reaches customers only once it is ready to play. `source: 'ai'` is a
- * picture admin made with AI: always shown tagged "Sample image".
+ * picture admin made with AI: the server leaves it out of customer payloads
+ * (0063), and the customer app drops any that still arrive.
  */
 export interface ServiceMedia {
   id: string

@@ -1,6 +1,7 @@
 /**
  * Garage documents for the apps: what each one is, what to upload, how its
- * status reads and when the "Documents verified" badge is earned. The rules
+ * status reads and when the documents count as checked (one of Silver's
+ * steps, packages/core/src/tiers.ts). The rules
  * are the server's (apps/server/src/lib/vendor-documents.ts); these are the
  * words and numbers the garage portal, admin and the customer app show,
  * kept equal to the server's by its vendor-documents.parity.test.ts.
@@ -19,14 +20,29 @@ export const DOCUMENT_TYPES = [
 
 export type DocumentType = (typeof DOCUMENT_TYPES)[number]
 
-/** The four the badge needs. */
-export const REQUIRED_DOCUMENT_TYPES = ['shop_photo', 'owner_id', 'bank_proof', 'agreement'] as const
+/** The three Silver needs approved (the paper agreement was the fourth until 0063). */
+export const REQUIRED_DOCUMENT_TYPES = ['shop_photo', 'owner_id', 'bank_proof'] as const
+
+/**
+ * Nobody uploads these any more: the signed paper agreement, replaced by
+ * click to agree (0063). Old ones stay readable in admin.
+ */
+export const RETIRED_DOCUMENT_TYPES = ['agreement'] as const
+
+/** What the garage portal lists and lets a garage upload. */
+export const UPLOADABLE_DOCUMENT_TYPES = DOCUMENT_TYPES.filter(
+  (type) => !(RETIRED_DOCUMENT_TYPES as readonly string[]).includes(type)
+) as Exclude<DocumentType, (typeof RETIRED_DOCUMENT_TYPES)[number]>[]
+
+export function isRetiredDocument(type: DocumentType): boolean {
+  return (RETIRED_DOCUMENT_TYPES as readonly string[]).includes(type)
+}
 
 export const DOCUMENT_LABELS: Record<DocumentType, string> = {
   shop_photo: 'Shop photo',
   owner_id: 'Owner ID',
   bank_proof: 'Bank proof',
-  agreement: 'Signed Detlio agreement',
+  agreement: 'Signed agreement (old, on paper)',
   gst_certificate: 'GST certificate',
   trade_licence: 'Trade licence',
 }
@@ -36,7 +52,7 @@ export const DOCUMENT_HINTS: Record<DocumentType, string> = {
   shop_photo: 'A photo of the shop front with your name board showing.',
   owner_id: 'Your PAN card, or your Aadhaar card with the number masked. Front and back if it has two sides.',
   bank_proof: 'A cancelled cheque, or the passbook or statement page that shows the account we pay you into.',
-  agreement: 'Every page of your signed Detlio garage agreement. Detlio can upload it for you.',
+  agreement: 'The paper agreement from before you could agree in the app. Kept for the record.',
   gst_certificate: 'Only if your garage is registered for GST.',
   trade_licence: 'Your trade licence from the corporation or panchayat, if you have one.',
 }
@@ -53,12 +69,6 @@ export const DOCUMENT_STATUS_LABELS: Record<DocumentStatus | 'missing', string> 
   approved: 'Approved',
   rejected: 'Rejected',
 }
-
-/** The badge's words: on cards (as the icon's label) and the garage page. */
-export const DOCUMENTS_VERIFIED_LABEL = 'Documents verified'
-
-/** The garage page's one line under the badge. */
-export const DOCUMENTS_VERIFIED_NOTE = "Detlio has checked this garage's ID, bank and shop documents."
 
 /** What the browser checks before asking for an upload link; the server checks again. */
 export const DOCUMENT_CONTENT_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'] as const

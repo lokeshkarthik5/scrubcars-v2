@@ -15,6 +15,21 @@ reconstructing every change in them.
 
 ## [Unreleased]
 
+- **Trust & look** (API 0063). Bronze / Silver / Gold medals replace the
+  "Documents verified" shield and the "Detlio Certified" seal: one medal on
+  cards, the garage page ("What this means" lists every standard), checkout
+  and the Service History certificate; "Certified only" is "Silver & above"
+  (hidden while Detlio shows neither). The garage portal gets "Your tier" on
+  Home (each missing step with a link), a banner while an agreement version
+  waits, and `/agreement` (Read (PDF), "I agree to the terms", Confirm).
+  Admin: Settings → Tiers (a switch per tier) and Garage agreement (publish
+  a versioned PDF), the edit page's Tier tab (tier, steps, acceptances, "Hide
+  this garage's medal") above Gold (Certify is "Award Gold"), and "Verified
+  by Detlio" is "Show to customers" everywhere. Garages and services without
+  photos get a designed cover, a monogram and category icons; nothing says
+  "Sample" any more; a description's "- " points show as "What's included".
+  Terms §16 describes the medals.
+
 - **Customer reach** (API 0062). Part 1: the landing page is the app, area
   chips, never-empty lists, guest checkout. Part 2: "Request a visit" /
   "Request a pickup" on garages just outside their area (a sheet with

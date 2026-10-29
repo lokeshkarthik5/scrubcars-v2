@@ -12,7 +12,6 @@ import {
   IconFlag,
   IconRefresh,
   IconRosetteDiscountCheck,
-  IconRosetteDiscountCheckFilled,
 } from '@tabler/icons-react'
 import { ScButtonLink } from '@repo/ui/sc/button-link'
 import { Figures } from '@repo/ui/sc/figures'
@@ -20,6 +19,8 @@ import { StatusChip } from '@repo/ui/sc/status-chip'
 import type { AdminVendor, ReadinessItem } from '@repo/core/api/admin'
 import { strikesHighlighted, strikesLabel } from '@repo/core/bypass-reports'
 import { cn } from '@repo/core/utils'
+import { TIER_LABELS } from '@repo/core/tiers'
+import { TierMedalIcon } from '@repo/ui/features/tier-medal'
 import { SidePanelMarks } from '@/components/marks/side-panel-marks'
 import { WithTeamCell } from '@/components/collection/with-team-cell'
 import { SidePanel, SidePanelFacts, SidePanelSection } from '@/components/table'
@@ -146,7 +147,7 @@ export function GarageSidePanel({
               onClick={() => onVerify(v)}
               className="inline-flex min-h-11 items-center rounded-[10px] border border-border px-4 text-[13px] font-medium text-text-primary hover:bg-surface-elevated disabled:opacity-50"
             >
-              {verifying ? 'Verifying…' : 'Verify garage'}
+              {verifying ? 'Showing…' : 'Show to customers'}
             </button>
           )}
           <ScButtonLink
@@ -293,9 +294,9 @@ function Checklist({
 }
 
 /**
- * What the old card listed under the name: Detlio Certified, photo
- * compliance, bypass reports and redo claims. Each only when it says
- * something.
+ * What the old card listed under the name: the tier (0063; Gold was Detlio
+ * Certified), photo compliance, bypass reports and redo claims. Each only
+ * when it says something.
  */
 function Signals({ v, back }: { v: AdminVendor; back: string }) {
   const line = 'mt-2 flex min-w-0 items-center gap-1.5 text-[12.5px]'
@@ -320,44 +321,51 @@ function Signals({ v, back }: { v: AdminVendor; back: string }) {
           />
         </Link>
       )}
-      {v.certification &&
-        (v.certification.certified || v.certification.eligible) && (
-          <Link
-            href={editHref(v.id, back, 'certification')}
-            className={cn(
-              line,
-              'font-medium text-text-primary underline-offset-2 hover:underline'
-            )}
-          >
-            {v.certification.certified ? (
-              <IconRosetteDiscountCheckFilled
-                size={15}
-                aria-hidden="true"
-                className="shrink-0"
-              />
-            ) : (
-              <IconRosetteDiscountCheck
-                size={15}
-                aria-hidden="true"
-                className="shrink-0 text-text-secondary"
-              />
-            )}
-            {v.certification.certified ? (
-              v.certification.keepsUntil ? (
-                <span className="text-warning">
-                  Certified, falling short · keeps it until{' '}
-                  <span className="font-numeric">
-                    {v.certification.keepsUntil}
-                  </span>
+      {/* The tier it holds (0063), whatever customers are shown, and
+          whether its medal is hidden; or, below Gold, that it met every
+          Gold standard and only Detlio's check is left. */}
+      {(v.tier || v.certification?.eligible) && (
+        <Link
+          href={editHref(v.id, back, 'certification')}
+          className={cn(
+            line,
+            'font-medium text-text-primary underline-offset-2 hover:underline'
+          )}
+        >
+          {v.tier ? (
+            <TierMedalIcon tier={v.tier} size={15} />
+          ) : (
+            <IconRosetteDiscountCheck
+              size={15}
+              aria-hidden="true"
+              className="shrink-0 text-text-secondary"
+            />
+          )}
+          {v.tier === 'gold' && v.certification?.keepsUntil ? (
+            <span className="text-warning">
+              Gold, falling short · keeps it until{' '}
+              <span className="font-numeric">
+                {v.certification.keepsUntil}
+              </span>
+            </span>
+          ) : v.tier ? (
+            <span>
+              {TIER_LABELS[v.tier]}
+              {v.tierHidden && (
+                <span className="text-text-secondary"> · medal hidden</span>
+              )}
+              {v.tier !== 'gold' && v.certification?.eligible && (
+                <span className="text-text-secondary">
+                  {' '}
+                  · Gold-eligible, record a check
                 </span>
-              ) : (
-                'Detlio Certified'
-              )
-            ) : (
-              'Eligible for Detlio Certified · record a check'
-            )}
-          </Link>
-        )}
+              )}
+            </span>
+          ) : (
+            'Gold-eligible · record a check'
+          )}
+        </Link>
+      )}
       {v.photoCompliance && v.photoCompliance.percent !== null && (
         <p className={cn(line, 'text-text-secondary')}>
           <IconCamera

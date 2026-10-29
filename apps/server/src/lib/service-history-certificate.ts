@@ -17,8 +17,8 @@
  *   history still shows it.)
  * - **No personal data on the public page**: the car's make, model, colour,
  *   body type and a masked registration; per job its IST date, the garage's
- *   name and its two marks (Detlio Certified, Documents verified) as they
- *   stand today, the services' names and whether the garage took before and
+ *   name and its tier medal (Bronze, Silver or Gold, 0063) as customers see
+ *   it today, the services' names and whether the garage took before and
  *   after photos. Never the owner's name, phone or address, the full plate,
  *   amounts, booking ids or a stored photo URL. `toPublicCertificate` is an
  *   allow-list, field by field, like vendors.public.ts.
@@ -34,6 +34,7 @@
  *   job photos sit at public, unguessable addresses in the photo bucket, so
  *   handing one out would outlive "Stop sharing".
  */
+import type { Tier } from './tiers.js'
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto'
 import { latestOfChains } from './car-history.js'
 import { istDateKey } from './ist.js'
@@ -103,7 +104,8 @@ export interface CertificateCar {
 export interface CertificateJob {
   /** The IST date the job was done, "YYYY-MM-DD". */
   date: string
-  garage: { name: string; certified: boolean; documentsVerified: boolean }
+  /** The garage's medal as customers see it today (lib/tiers.ts shownTier), or null. */
+  garage: { name: string; tier: Tier | null }
   services: string[]
   /** Whether the garage took before / after photos of the job. */
   photos: { before: boolean; after: boolean }
@@ -309,9 +311,8 @@ export interface CertificateInput {
   rows: CertificateRow[]
   /** The garage's photos of the listed jobs (any order). */
   photos: CertificatePhoto[]
-  /** Garages with each mark today. */
-  certified: ReadonlySet<string>
-  documentsVerified: ReadonlySet<string>
+  /** Each garage's medal today, as customers see it (absent: none). */
+  tiers: ReadonlyMap<string, Tier | null>
   now: Date
 }
 
@@ -340,8 +341,7 @@ export function buildCertificate(
       date: istDateKey(doneAt(row)),
       garage: {
         name: row.vendorName,
-        certified: marks && input.certified.has(row.vendorId),
-        documentsVerified: marks && input.documentsVerified.has(row.vendorId),
+        tier: marks ? (input.tiers.get(row.vendorId) ?? null) : null,
       },
       services: row.services,
       photos: {
@@ -391,8 +391,7 @@ export function toPublicCertificate(view: CertificateView, includesPhotos: boole
       date: job.date,
       garage: {
         name: job.garage.name,
-        certified: job.garage.certified,
-        documentsVerified: job.garage.documentsVerified,
+        tier: job.garage.tier,
       },
       services: [...job.services],
       photos: { before: job.photos.before, after: job.photos.after },

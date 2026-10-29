@@ -9,7 +9,6 @@ import {
   IconArrowUpRight,
   IconCheck,
   IconChevronRight,
-  IconCircleCheckFilled,
   IconLoader2,
   IconLock,
   IconMapPin,
@@ -148,6 +147,7 @@ import {
 import type { Address, BookingType, Service, Vendor } from '@repo/core/types'
 import { resolveServiceAmount } from '@repo/core/pricing'
 import { Figures } from '@repo/ui/sc/figures'
+import { TierChip } from '@repo/ui/features/tier-medal'
 import { VEHICLE_TIERS } from '@repo/core/vehicles'
 import {
   APP_TIMEZONE,
@@ -1709,7 +1709,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
 
       {/* What is being booked, where, and for how much: the price is for the
           customer's own car from the first second (F1, F7), and the garage's
-          rating and Certified mark ride along (F4). Each line can be removed
+          rating and tier medal (0063) ride along (F4). Each line can be removed
           here, so dropping one never means going back a screen and losing
           the time and any code. */}
       {vendor && selectedServices.length > 0 && (
@@ -1745,15 +1745,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
             )}
           </div>
           <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-dim">
-            {vendor.certified && (
-              <span className="flex items-center gap-1 text-text-primary">
-                <IconCircleCheckFilled
-                  size={15}
-                  aria-hidden
-                  className="text-success"
-                />
-                Detlio Certified
-              </span>
+            {vendor.tier && (
+              <TierChip tier={vendor.tier} />
             )}
             {[vendor.area, vendor.distanceKm != null ? vendor.distance : null]
               .filter(Boolean)

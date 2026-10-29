@@ -11,7 +11,8 @@ import { cn } from '@repo/core/utils'
  * A service's photos full screen: swipe between them (native scroll-snap,
  * so it moves with the finger), "2 / 4" at the top, the garage and the
  * service at the bottom. × or Escape closes; arrow keys step on a keyboard.
- * An AI picture keeps its "Sample image" tag here too.
+ * Only the garage's own photos come here: AI pictures never reach a
+ * customer (customerMedia).
  */
 export function PhotoViewer({
   photos,
@@ -100,11 +101,6 @@ export function PhotoViewer({
               className="object-contain"
               priority={i === startIndex}
             />
-            {photo.source === 'ai' && (
-              <span className="absolute left-4 top-3 rounded-[8px] bg-black/70 px-2 py-1 text-[12px] font-medium text-white">
-                Sample image
-              </span>
-            )}
           </div>
         ))}
       </div>

@@ -241,8 +241,7 @@ export function JobPhotos({
           than a block: why the photos are worth taking. */}
       {!required && !readOnly && own.length < MIN_GARAGE_PHOTOS && (
         <p className="text-[13px] text-text-secondary">
-          Photos protect you if a customer complains, and count toward Detlio
-          Certified.
+          Photos protect you if a customer complains, and count toward Gold.
         </p>
       )}
       {readOnly && own.length > 0 && (

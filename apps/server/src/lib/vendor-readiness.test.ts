@@ -255,7 +255,7 @@ describe('vendorReadiness', () => {
       expect(item(ready({ documents: docs() }), 'documents_not_verified')).toEqual({
         key: 'documents_not_verified',
         severity: 'optional',
-        label: 'Documents not verified',
+        label: 'Documents not checked',
         detail: '2 of 4 required approved',
         short: 'documents',
         tab: 'documents',

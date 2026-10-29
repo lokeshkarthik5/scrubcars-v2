@@ -70,11 +70,30 @@ describe('submitDocumentSchema', () => {
 
 describe('adminSubmitDocumentSchema', () => {
   test('the admin says whether they approve it as they upload it; the session signs it', () => {
-    const input = { type: 'agreement', files: [{ side: 'front', key: KEY }], actorName: 'Lokesh', approve: true }
+    const input = { type: 'bank_proof', files: [{ side: 'front', key: KEY }], actorName: 'Lokesh', approve: true }
     // A typed name is ignored: adminSignedJson signs it with the session (0058).
     expect<unknown>(adminSubmitDocumentSchema.parse(input)).toEqual({ ...input, actorName: '' })
     expect(adminSubmitDocumentSchema.safeParse({ ...input, actorName: undefined }).success).toBe(true)
     expect(adminSubmitDocumentSchema.safeParse({ ...input, approve: undefined }).success).toBe(false)
+  })
+})
+
+describe('the retired paper agreement (0063)', () => {
+  test('no new upload of it, from the garage or admin', () => {
+    expect(
+      documentUploadUrlSchema.safeParse({ type: 'agreement', contentType: 'application/pdf', sizeBytes: 1000 }).success
+    ).toBe(false)
+    expect(submitDocumentSchema.safeParse({ type: 'agreement', files: [{ side: 'front', key: KEY }] }).success).toBe(
+      false
+    )
+    expect(
+      adminSubmitDocumentSchema.safeParse({
+        type: 'agreement',
+        files: [{ side: 'front', key: KEY }],
+        actorName: 'Lokesh',
+        approve: true,
+      }).success
+    ).toBe(false)
   })
 })
 

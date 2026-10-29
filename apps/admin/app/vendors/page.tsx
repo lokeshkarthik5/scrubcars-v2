@@ -323,7 +323,7 @@ function VendorsList() {
   const handleVerify = (v: AdminVendor) => {
     clearRowError(v.id)
     verify.mutate(v.id, {
-      onError: () => showRowError(v.id, 'Failed to verify vendor'),
+      onError: () => showRowError(v.id, 'Couldn’t show this garage to customers'),
     })
   }
 
@@ -554,9 +554,9 @@ function VendorsList() {
                 aria-label="More filters"
                 className="-mx-4 mt-2 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none] md:mx-0 md:flex-wrap md:px-0 [&::-webkit-scrollbar]:hidden"
               >
-                {/* Garage documents waiting for Detlio (0043), and Detlio
-                    Certified (0048): who has the seal, and who met every
-                    standard last night and waits for a quality check. */}
+                {/* Garage documents waiting for Detlio (0043), and Gold
+                    (Detlio Certified, 0048): who holds it, and who met every
+                    Gold standard last night and waits for a quality check. */}
                 <FilterChip
                   label={REVIEW_LABEL}
                   count={toReview}
@@ -821,7 +821,7 @@ function emptyText(show: ListFilter, q: string, anyFilter: boolean): string {
   if (q) return `No garages match “${q}” here.`
   if (anyFilter) return 'No garages match these filters.'
   if (show === REVIEW_FILTER) return 'No documents to review.'
-  if (show === CERTIFIED_FILTER) return 'No Detlio Certified garages yet.'
-  if (show === ELIGIBLE_FILTER) return 'No garage is waiting to be certified.'
+  if (show === CERTIFIED_FILTER) return 'No Gold garages yet.'
+  if (show === ELIGIBLE_FILTER) return 'No garage is waiting for Gold.'
   return `No garages are ${SHOW_LABELS[show].toLowerCase()}.`
 }

@@ -79,9 +79,9 @@ test('a garage is verified by ops, lists a service, and takes a booking', async 
   await expect(customer.getByText(name)).toHaveCount(0)
 
   // ── 2. ops lets it in ────────────────────────────────────────────────────
-  // Active but not verified yet, so under Active rather than Live.
+  // Active but not shown to customers yet, so under Active rather than Live.
   await admin.goto('/vendors?show=active')
-  await admin.getByRole('button', { name: `Verify ${name}` }).click()
+  await admin.getByRole('button', { name: `Show ${name} to customers` }).click()
   await expect
     .poll(async () => {
       const rows = await sql<{ is_verified: boolean }[]>`

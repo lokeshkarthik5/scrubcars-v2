@@ -77,7 +77,7 @@ test.describe('admin garage editor', () => {
     // The fixture garage is Pending and unverified: the card must not read
     // as though customers could already book it.
     await expect(card).toContainText('When live, customers can book')
-    await expect(card).toContainText('Not live yet: Active and verified first (Go live).')
+    await expect(card).toContainText('Not live yet: Active and shown to customers first (Go live).')
 
     // Saved the moment it is tapped, with a quiet tick: no Save changes.
     await doorstep.check()

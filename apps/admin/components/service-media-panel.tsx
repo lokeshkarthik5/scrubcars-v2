@@ -325,8 +325,8 @@ function AiPictureSheet({
               className="mt-0.5 shrink-0"
               aria-hidden="true"
             />
-            Shown to customers with a ‘Sample image’ tag. It is removed by
-            itself when a real photo is added.
+            Not shown to customers: they see the service’s category icon until a
+            real photo is added. It is removed by itself then.
           </p>
         </>
       ) : (
