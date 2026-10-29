@@ -408,12 +408,18 @@ export const users = pgTable(
     // neither (CHECK). Set from the Rewards page.
     birthdayMonth: smallint('birthday_month'),
     birthdayDay: smallint('birthday_day'),
+    // The customer deleted their account in the app (0066,
+    // lib/account-deletion.ts): the row stays for the bookings and money
+    // records that name it, the person is blanked and the phone freed (a
+    // `deleted-` placeholder, CHECK). Every sign-in path refuses such a row.
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
   },
   (table) => [
     index('users_phone_idx').on(table.phone),
+    check('users_deleted_phone_check', sql`${table.deletedAt} is null or ${table.phone} like 'deleted-%'`),
     check(
       'users_birthday_check',
       sql`(${table.birthdayMonth} is null) = (${table.birthdayDay} is null) and (${table.birthdayMonth} is null or (${table.birthdayMonth} between 1 and 12 and ${table.birthdayDay} between 1 and 31))`
@@ -1102,12 +1108,24 @@ export const bookings = pgTable(
     // whole by the garage (no commission, no promo comes off it). 0 on every
     // other booking; a reschedule carries it.
     travelFee: decimal('travel_fee', { precision: 10, scale: 2 }).default('0').notNull(),
+    // The garage cancelled this booking after accepting it, before the job
+    // started (0066, lib/garage-cancel.ts). Within 24 hours of the slot it
+    // counts as a missed booking in the tier metrics; earlier, like a
+    // decline. CHECK: a garage-side cancellation of an accepted booking.
+    garageCancelledAt: timestamp('garage_cancelled_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
   },
   (table) => [
     check('bookings_travel_fee_check', sql`${table.travelFee} in (0, 100, 200)`),
+    check(
+      'bookings_garage_cancelled_check',
+      sql`${table.garageCancelledAt} is null or (${table.status}::text = 'cancelled' and ${table.cancelledBy}::text = 'vendor' and ${table.acceptedAt} is not null)`
+    ),
+    index('bookings_garage_cancelled_at_idx')
+      .on(table.vendorId, table.garageCancelledAt)
+      .where(sql`${table.garageCancelledAt} is not null`),
     index('bookings_user_id_idx').on(table.userId),
     // Home and Updates read one customer's bookings, newest first, on every
     // open.
@@ -2373,6 +2391,9 @@ export const complaints = pgTable(
       .notNull(),
     // The name the team member typed when logging it; null for 'app'.
     loggedBy: varchar('logged_by', { length: 100 }),
+    // The customer withdrew it before anyone answered (0066): closed like a
+    // close, and left out of every count. CHECK: only on a closed one.
+    withdrawnAt: timestamp('withdrawn_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -2382,6 +2403,10 @@ export const complaints = pgTable(
   },
   (table) => [
     unique('complaints_number_unique').on(table.number),
+    check(
+      'complaints_withdrawn_check',
+      sql`${table.withdrawnAt} is null or (${table.status} = 'closed' and ${table.closedAt} is not null)`
+    ),
     index('complaints_status_created_at_idx').on(table.status, table.createdAt),
     index('complaints_status_received_at_idx').on(table.status, table.receivedAt),
     index('complaints_created_at_idx').on(table.createdAt),
@@ -4746,6 +4771,9 @@ export const bookingRequests = pgTable(
     // customer's own cancel leaves both empty.
     cancelledByName: varchar('cancelled_by_name', { length: 100 }),
     cancelReason: varchar('cancel_reason', { length: 200 }),
+    // The garage withdrew its yes before the customer paid (0066): the row
+    // ends 'cancelled' with its reply still 'accepted' (CHECK).
+    withdrawnAt: timestamp('withdrawn_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
@@ -4789,6 +4817,10 @@ export const bookingRequests = pgTable(
     check(
       'booking_requests_admin_cancel_check',
       sql`((${table.cancelledByName} is null) = (${table.cancelReason} is null)) and (${table.cancelReason} is null or ${table.status} = 'cancelled')`
+    ),
+    check(
+      'booking_requests_withdrawn_check',
+      sql`${table.withdrawnAt} is null or (${table.status} = 'cancelled' and ${table.reply} = 'accepted')`
     ),
     check('booking_requests_amounts_check', sql`${table.subtotalAmount} > 0 and ${table.durationMins} > 0`),
     check('booking_requests_distance_check', sql`${table.distanceKm} >= 0 and ${table.outsideKm} >= 0`),
@@ -4971,6 +5003,46 @@ export const leads = pgTable(
     check(
       'leads_google_fetched_check',
       sql`${table.googleFetchedAt} IS NOT NULL OR (${table.googleName} IS NULL AND ${table.googlePhone} IS NULL AND ${table.googleAddress} IS NULL AND ${table.googleRating} IS NULL AND ${table.googleReviewCount} IS NULL)`
+    ),
+  ]
+)
+
+// ─── Pre-iOS: garage closure requests (0066) ─────────────────────────────────
+
+/**
+ * A garage owner's "Close my garage" (0066, modules/garage-closure): the
+ * owner asks with a reason, the team is told on Telegram and sees it in
+ * admin, and confirms it by moving the garage to the Bin (the Bin marks the
+ * open request confirmed in the same transaction). The owner can cancel it
+ * until then. At most one open per garage (partial unique index).
+ */
+export const garageClosureRequests = pgTable(
+  'garage_closure_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    requestedBy: uuid('requested_by').references(() => users.id, { onDelete: 'set null' }),
+    // The owner's name when they asked, kept for the record.
+    requestedByName: varchar('requested_by_name', { length: 255 }).notNull(),
+    reason: varchar('reason', { length: 500 }).notNull(),
+    status: text('status').$type<'open' | 'cancelled' | 'confirmed'>().default('open').notNull(),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+    confirmedByName: varchar('confirmed_by_name', { length: 100 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('garage_closure_requests_open_key').on(table.vendorId).where(sql`${table.status} = 'open'`),
+    index('garage_closure_requests_status_created_idx').on(table.status, table.createdAt),
+    check('garage_closure_requests_status_check', sql`${table.status} in ('open', 'cancelled', 'confirmed')`),
+    check('garage_closure_requests_reason_check', sql`char_length(btrim(${table.reason})) between 3 and 500`),
+    check('garage_closure_requests_cancelled_check', sql`(${table.status} = 'cancelled') = (${table.cancelledAt} is not null)`),
+    check(
+      'garage_closure_requests_confirmed_check',
+      sql`(${table.status} = 'confirmed') = (${table.confirmedAt} is not null and ${table.confirmedByName} is not null)`
     ),
   ]
 )
