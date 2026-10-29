@@ -50,6 +50,9 @@ test.describe('remove and undo in admin @p0', () => {
 
   test('a logged complaint: Logged in error, with why, and Undo', async ({ page }) => {
     await page.goto(`/complaints/${P.complaint}`)
+    // Cancel changes nothing.
+    await page.getByRole('button', { name: 'Logged in error…' }).click()
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click()
     await page.getByRole('button', { name: 'Logged in error…' }).click()
     const mark = page.getByRole('button', { name: 'Mark as logged in error' })
     await expect(mark).toBeDisabled()
@@ -77,11 +80,19 @@ test.describe('remove and undo in admin @p0', () => {
     await page.getByLabel('Add a note').fill('Called the customer about parking')
     await page.getByRole('button', { name: 'Add note' }).click()
     const note = notes.getByRole('listitem').filter({ hasText: 'Called the customer about parking' })
+    // Cancel leaves it as it was.
+    await note.getByRole('button', { name: 'Edit your note' }).click()
+    await note.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await expect(note.getByText('· edited', { exact: false })).toHaveCount(0)
     await note.getByRole('button', { name: 'Edit your note' }).click()
     await note.getByLabel('Edit your note').fill('Called the customer about parking, twice')
     await note.getByRole('button', { name: 'Save note' }).click()
     const edited = notes.getByRole('listitem').filter({ hasText: 'Called the customer about parking, twice' })
     await expect(edited.getByText('· edited', { exact: false })).toBeVisible()
+    // Keep it, then Delete for real.
+    await edited.getByRole('button', { name: 'Delete your note' }).click()
+    await edited.getByRole('button', { name: 'Keep it' }).click()
+    await expect(edited).toBeVisible()
     await edited.getByRole('button', { name: 'Delete your note' }).click()
     await edited.getByRole('button', { name: 'Delete note' }).click()
     await expect(edited).toHaveCount(0)
@@ -103,6 +114,13 @@ test.describe('remove and undo in admin @p0', () => {
 
   test('extra work the customer has not paid is withdrawn for the garage', async ({ page }) => {
     await page.goto(`/bookings/${P.bookings.extraWork}`)
+    // Keep it changes nothing.
+    await page.getByRole('button', { name: 'Withdraw PreiOS wiper blades' }).click()
+    await page
+      .getByRole('group', { name: 'Withdraw PreiOS wiper blades?' })
+      .getByRole('button', { name: 'Keep it' })
+      .click()
+    await expect(page.getByText('Waiting for customer', { exact: true })).toBeVisible()
     await page.getByRole('button', { name: 'Withdraw PreiOS wiper blades' }).click()
     await page
       .getByRole('group', { name: 'Withdraw PreiOS wiper blades?' })
@@ -123,6 +141,9 @@ test.describe('remove and undo in admin @p0', () => {
 
     await page.getByRole('tab', { name: 'Location' }).click()
     await expect(page.getByText('The garage drew its own doorstep area.')).toBeVisible()
+    await page.getByRole('button', { name: 'Clear drawn area…' }).click()
+    await page.getByRole('button', { name: 'Keep it', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Clear drawn area…' })).toBeVisible()
     await page.getByRole('button', { name: 'Clear drawn area…' }).click()
     await page.getByRole('button', { name: 'Clear drawn area', exact: true }).click()
     await expect(page.getByText('The garage drew its own doorstep area.')).toHaveCount(0)
@@ -162,6 +183,11 @@ test.describe('remove and undo in admin @p0', () => {
   test('Coverage: a dismissed recommendation restored to act on', async ({ page }) => {
     await page.goto('/coverage?zone=none')
     const drawer = page.getByRole('dialog', { name: 'Not in a zone' })
+    const dismissedList = drawer.getByRole('list', { name: 'Dismissed recommendations for Not in a zone' })
+    await drawer.getByRole('button', { name: /^Dismissed · / }).click()
+    await expect(dismissedList.getByText(P.dismissed.name)).toBeVisible()
+    await drawer.getByRole('button', { name: /^Hide dismissed · / }).click()
+    await expect(dismissedList).toHaveCount(0)
     await drawer.getByRole('button', { name: /^Dismissed · / }).click()
     await drawer
       .getByRole('list', { name: 'Dismissed recommendations for Not in a zone' })

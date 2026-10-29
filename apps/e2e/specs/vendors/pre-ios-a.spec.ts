@@ -23,6 +23,10 @@ test.describe('remove and the rating in the garage portal @p0', () => {
     // An approved required one (the owner ID, if admin has not removed it yet) has no Remove.
     await expect(page.getByRole('button', { name: 'Remove Owner ID' })).toHaveCount(0)
 
+    // Keep it changes nothing.
+    await shop.getByRole('button', { name: 'Remove Shop photo' }).click()
+    await page.getByRole('group', { name: 'Remove Shop photo?' }).getByRole('button', { name: 'Keep it' }).click()
+    await expect(shop.getByText('Waiting for review')).toBeVisible()
     await shop.getByRole('button', { name: 'Remove Shop photo' }).click()
     const ask = page.getByRole('group', { name: 'Remove Shop photo?' })
     await expect(ask).toContainText('It goes back to Not uploaded and its files are deleted.')

@@ -41,8 +41,13 @@ test.describe('a garage’s Reviews tab @p0', () => {
     expect(await hiddenAt(PRE_IOS.reviews.hidden)).toBeNull()
 
     // Hide…: asks why, then leaves every count; kept in the record.
+    // Go back changes nothing.
     await toHide.getByRole('button', { name: 'Hide the review by Reporting Ramesh' }).click()
     const dialog = page.getByRole('dialog', { name: 'Hide this review' })
+    await dialog.getByRole('button', { name: 'Go back' }).click()
+    await expect(dialog).toBeHidden()
+    await expect(toHide.getByText('Counts', { exact: true })).toBeVisible()
+    await toHide.getByRole('button', { name: 'Hide the review by Reporting Ramesh' }).click()
     const hide = dialog.getByRole('button', { name: 'Hide review' })
     await expect(hide).toBeDisabled()
     await dialog.getByLabel('Why is it hidden?').fill('Abusive language, E2E')
