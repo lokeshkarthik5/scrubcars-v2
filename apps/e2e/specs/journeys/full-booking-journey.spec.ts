@@ -98,8 +98,9 @@ test('a booking is made, worked, completed and reviewed @p0', async ({
     vendor.getByRole('button', { name: acceptLabel }).first()
   ).toBeVisible()
   await vendor.getByRole('button', { name: acceptLabel }).first().click()
+  // Accept waits five seconds behind its Undo (0066).
   await expect
-    .poll(async () => (await getBooking(created.id))?.status)
+    .poll(async () => (await getBooking(created.id))?.status, { timeout: 15_000 })
     .toBe('confirmed')
 
   // The customer's page polls every 5s, so the change reaches them without a

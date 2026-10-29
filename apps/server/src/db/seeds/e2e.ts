@@ -64,8 +64,10 @@ import {
   vendorOnboardingMarks,
   vehicleServiceReminders,
   leads,
+  garageClosureRequests,
 } from '../schema.js'
 import {
+  PREIOS,
   BOOKING_INTENTS,
   BOOKINGS,
   CHARGES,
@@ -3455,6 +3457,193 @@ async function seedTierRows() {
   )
 }
 
+/**
+ * Pre-iOS accounts round (0066; PREIOS, ids 5100–5199, phones 90000051xx):
+ * its people, its two unverified garages far from every other fixture, and
+ * the rows its specs act on (see PREIOS). Each spec acts on its own rows.
+ */
+async function seedPreiosRows() {
+  const P = PREIOS
+  const customers = [P.leaving, P.blocked, P.editor, P.withdrawer, P.customer]
+  const staff = [P.owner, P.leaver, P.deleter, P.noGarage, P.closer, P.answerer, P.quitter]
+  await db.insert(users).values([
+    ...customers.map((c) => ({
+      id: c.id, name: c.name, phone: c.phone, isCustomer: true, isVendorOwner: false,
+      phoneVerified: true, status: 'active' as const,
+    })),
+    // Garage logins: the flag lets each sign in to the portal (noGarage has no seat).
+    ...staff.map((s) => ({
+      id: s.id, name: s.name, phone: s.phone, isCustomer: false, isVendorOwner: true,
+      phoneVerified: true, status: 'active' as const,
+    })),
+  ])
+
+  for (const [garage, owner, offset, phone] of [
+    [P.garage, P.owner, 0, '9000005130'],
+    [P.closing, P.closer, 0.03125, '9000005131'],
+    [P.quitting, P.quitter, 0.0625, '9000005134'],
+  ] as const) {
+    await db.insert(vendors).values({
+      id: garage.id, ownerId: owner.id, businessName: garage.name,
+      phone,
+      address: '3, Preios Road, Villupuram', city: 'Villupuram', pincode: '605602',
+      lat: P.pin.lat + offset, lng: P.pin.lng, geoSource: 'map_pin', geoConfirmedAt: now,
+      vehicleTypes: ['hatchback', 'sedan', 'suv'],
+      isVerified: false, dropinEnabled: true, doorstepEnabled: true, doorstepRadiusKm: 10,
+      pickup: 'yes', pickupRadiusKm: 10,
+      pickupTermsAcceptedAt: daysAgo(5), pickupTermsAcceptedBy: 'admin: E2E seed',
+      slotIntervalMins: 30, status: 'pending', bays: 3,
+    })
+    await db.insert(userMemberMapping).values({
+      vendorId: garage.id, userId: owner.id, role: 'vendor_admin', status: 'active',
+    })
+    await db.insert(vendorWorkingHours).values(hoursFor(garage.id, '06:00:00', '22:00:00'))
+    await db.insert(services).values({
+      id: garage.serviceId, vendorId: garage.id,
+      name: garage.id === P.garage.id ? P.garage.serviceName : `${garage.name} Foam Wash`,
+      description: 'An exterior foam wash and dry.', category: 'car_wash', pricingType: 'flat',
+      price: '499.00', durationMins: 60, isActive: true,
+    })
+  }
+  await db.insert(userMemberMapping).values([
+    { vendorId: P.garage.id, userId: P.leaver.id, role: 'vendor_operator', status: 'active' },
+    { vendorId: P.garage.id, userId: P.deleter.id, role: 'vendor_operator', status: 'active' },
+    { vendorId: P.garage.id, userId: P.answerer.id, role: 'vendor_operator', status: 'active' },
+  ])
+  await db.insert(garageClosureRequests).values({
+    id: P.closure.id, vendorId: P.closing.id, requestedBy: P.closer.id,
+    requestedByName: P.closer.name, reason: P.closure.reason, status: 'open', createdAt: hoursAgo(3),
+  })
+
+  await db.insert(userVehicles).values([
+    { id: P.leaving.vehicleId, userId: P.leaving.id, make: 'Hyundai', model: 'Creta', color: 'Red',
+      licensePlate: P.leaving.plate, vehicleType: 'suv', isDefault: true },
+    { id: P.leaving.spareVehicleId, userId: P.leaving.id, make: 'Maruti', model: 'Alto', color: 'White',
+      licensePlate: 'TN05DL0002', vehicleType: 'hatchback', isDefault: false },
+    { id: P.blocked.vehicleId, userId: P.blocked.id, make: 'Tata', model: 'Nexon', color: 'Blue',
+      licensePlate: 'TN05DL0003', vehicleType: 'suv', isDefault: true },
+    { id: P.editor.vehicleId, userId: P.editor.id, make: 'Honda', model: 'Amaze', color: null,
+      licensePlate: 'TN05DL0004', vehicleType: 'sedan', isDefault: true },
+    { id: P.withdrawer.vehicleId, userId: P.withdrawer.id, make: 'Kia', model: 'Sonet', color: 'Grey',
+      licensePlate: 'TN05DL0005', vehicleType: 'suv', isDefault: true },
+    { id: P.customer.vehicleId, userId: P.customer.id, make: 'Honda', model: 'City', color: 'Silver',
+      licensePlate: 'TN05DL0006', vehicleType: 'sedan', isDefault: true },
+  ])
+  await db.insert(userAddresses).values([
+    { id: P.leaving.addressId, userId: P.leaving.id, label: 'Home', address: '12, Leaving Lane, 605602',
+      city: 'Villupuram', lat: P.pin.lat + 0.01, lng: P.pin.lng, geoSource: 'map_pin', isDefault: true },
+    { id: P.editor.addressId, userId: P.editor.id, label: 'Home', address: '4, Editing Street, 605602',
+      city: 'Villupuram', lat: P.pin.lat + 0.01, lng: P.pin.lng, geoSource: 'map_pin', isDefault: true },
+    { id: P.customer.addressId, userId: P.customer.id, label: 'Home', address: '8, Customer Cross, 605602',
+      city: 'Villupuram', lat: P.pin.lat + 0.01, lng: P.pin.lng, geoSource: 'map_pin', isDefault: true },
+  ])
+
+  const items = [{ id: P.garage.serviceId, name: P.garage.serviceName, amount: '499.00', durationMins: 60 }]
+  const paid = (txn: string) => ({ status: 'paid' as const, txnId: txn, gatewayMode: 'fake' as const })
+
+  // leaving: one completed doorstep job, reviewed; nothing open.
+  await insertBooking({
+    id: P.leavingDone, userId: P.leaving.id, vehicleId: P.leaving.vehicleId, vendorId: P.garage.id, items,
+    scheduledAt: daysAgo(3), status: 'completed', createdAt: daysAgo(4), acceptedAt: daysAgo(4),
+    startedAt: daysAgo(3), completedAt: daysAgo(3), payment: { ...paid('pay_e2e_preios_leaving'), paidAt: daysAgo(4) },
+    doorstep: { address: '12, Leaving Lane, Villupuram', lat: P.pin.lat + 0.01, lng: P.pin.lng },
+  })
+  await db.insert(reviews).values({
+    id: P.leavingReview, bookingId: P.leavingDone, userId: P.leaving.id, vendorId: P.garage.id,
+    rating: 5, comment: 'Spotless, and on time.',
+  })
+
+  // blocked: a booking to come.
+  await insertBooking({
+    id: P.blockedOpen, userId: P.blocked.id, vehicleId: P.blocked.vehicleId, vendorId: P.garage.id, items,
+    scheduledAt: daysAheadAt(2, 15), status: 'confirmed', createdAt: daysAgo(1), acceptedAt: daysAgo(1),
+    payment: paid('pay_e2e_preios_blocked'),
+  })
+
+  // customer's jobs at the garage.
+  const common = { userId: P.customer.id, vehicleId: P.customer.vehicleId, vendorId: P.garage.id, items }
+  await insertBooking({
+    ...common, id: P.cancelEarly, scheduledAt: daysAheadAt(3, 11), status: 'confirmed',
+    createdAt: daysAgo(1), acceptedAt: hoursAgo(20), payment: paid('pay_e2e_preios_cancel_early'),
+  })
+  await insertBooking({
+    ...common, id: P.cancelLate, scheduledAt: new Date(now.getTime() + 6 * HOUR), status: 'confirmed',
+    createdAt: daysAgo(1), acceptedAt: hoursAgo(20), payment: paid('pay_e2e_preios_cancel_late'),
+  })
+  await insertBooking({
+    ...common, id: P.accept, scheduledAt: daysAheadAt(2, 11), status: 'pending',
+    createdAt: hoursAgo(1), payment: paid('pay_e2e_preios_accept'),
+    // Three hours to answer: no run's cron reaches it (AUTO_CANCEL_UNANSWERED is on).
+    respondBy: new Date(now.getTime() + 3 * HOUR),
+  })
+  await insertBooking({
+    ...common, id: P.pickupFresh, scheduledAt: daysAheadAt(1, 16), status: 'confirmed',
+    createdAt: daysAgo(1), acceptedAt: hoursAgo(20), payment: paid('pay_e2e_preios_pickup_fresh'),
+  })
+  await insertBooking({
+    ...common, id: P.pickupOut, scheduledAt: hoursAgo(2), status: 'in_progress',
+    createdAt: daysAgo(1), acceptedAt: hoursAgo(20), startedAt: hoursAgo(1), payment: paid('pay_e2e_preios_pickup_out'),
+  })
+  const pickupWhere = { address: '8, Customer Cross, Villupuram', lat: P.pin.lat + 0.01, lng: P.pin.lng }
+  await db.update(bookings).set({
+    bookingType: 'pickup', ...pickupWhere, pickupCode: P.pickupCode, deliveryCode: P.deliveryCode,
+  }).where(eq(bookings.id, P.pickupFresh))
+  await db.update(bookings).set({
+    bookingType: 'pickup', ...pickupWhere, pickupCode: '1357', deliveryCode: '2468',
+    pickedUpAt: hoursAgo(2), atGarageAt: hoursAgo(1.5),
+  }).where(eq(bookings.id, P.pickupOut))
+  await insertBooking({
+    ...common, id: P.garageCancelled, scheduledAt: daysAheadAt(4, 11), status: 'cancelled',
+    createdAt: daysAgo(2), acceptedAt: daysAgo(2),
+    cancellation: { by: 'vendor', reason: 'Our washer broke down', at: hoursAgo(5) },
+    payment: paid('pay_e2e_preios_garage_cancelled'),
+  })
+  await db.update(bookings).set({ garageCancelledAt: hoursAgo(5) }).where(eq(bookings.id, P.garageCancelled))
+
+  // customer's request to the garage, accepted and not paid for.
+  await db.insert(bookingRequests).values({
+    id: P.request, userId: P.customer.id, vendorId: P.garage.id, chainNo: 1, bookingType: 'doorstep',
+    vehicleId: P.customer.vehicleId, vehicleType: 'sedan', addressId: P.customer.addressId,
+    lat: P.pin.lat + 0.12, lng: P.pin.lng, zoneSlug: null,
+    distanceKm: '13.3', coverKm: '10.0', outsideKm: '3.3',
+    items: [{ serviceId: P.garage.serviceId, name: P.garage.serviceName, category: 'car_wash', amount: '499.00', durationMins: 60 }],
+    subtotalAmount: '499.00', durationMins: 60,
+    windowDate: istDate(1), windowPart: 'morning', windowStart: tomorrowAt(9), windowEnd: tomorrowAt(12),
+    status: 'accepted', respondBy: hoursAgo(1),
+    reply: 'accepted', repliedAt: hoursAgo(1), repliedBy: P.owner.id,
+    travelFee: '100.00', acceptedStartAt: tomorrowAt(10), confirmBy: new Date(now.getTime() + 20 * HOUR),
+    createdAt: hoursAgo(2),
+  })
+
+  // ...and an earlier one the garage took back before it was paid for.
+  await db.insert(bookingRequests).values({
+    id: P.requestWithdrawn, userId: P.customer.id, vendorId: P.garage.id, chainNo: 1, bookingType: 'doorstep',
+    vehicleId: P.customer.vehicleId, vehicleType: 'sedan', addressId: P.customer.addressId,
+    lat: P.pin.lat + 0.12, lng: P.pin.lng, zoneSlug: null,
+    distanceKm: '13.3', coverKm: '10.0', outsideKm: '3.3',
+    items: [{ serviceId: P.garage.serviceId, name: P.garage.serviceName, category: 'car_wash', amount: '499.00', durationMins: 60 }],
+    subtotalAmount: '499.00', durationMins: 60,
+    windowDate: istDate(1), windowPart: 'afternoon', windowStart: tomorrowAt(14), windowEnd: tomorrowAt(17),
+    status: 'cancelled', respondBy: hoursAgo(3),
+    reply: 'accepted', repliedAt: hoursAgo(4), repliedBy: P.owner.id,
+    travelFee: '0.00', acceptedStartAt: tomorrowAt(15), confirmBy: new Date(now.getTime() + 18 * HOUR),
+    withdrawnAt: hoursAgo(1), closedAt: hoursAgo(1), customerToldAt: hoursAgo(1),
+    createdAt: hoursAgo(5),
+  })
+
+  // withdrawer: an open complaint from the app, and Medavakkam's list.
+  await db.insert(complaints).values({
+    id: P.complaint, userId: P.withdrawer.id, customerName: P.withdrawer.name, customerPhone: P.withdrawer.phone,
+    category: 'service_quality', message: 'The car still had dust on the bonnet after the wash.',
+    status: 'open', source: 'app', receivedAt: hoursAgo(2), createdAt: hoursAgo(2),
+  })
+  const [area] = await db.select().from(zones).where(eq(zones.slug, P.area.slug))
+  if (!area) throw new Error('0062 zones missing: run the migrations first')
+  await db.insert(zoneSignups).values({
+    userId: P.withdrawer.id, zoneId: area.id, position: 1, freeWash: true, pushOptIn: true, createdAt: daysAgo(1),
+  })
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set')
 
@@ -3532,6 +3721,8 @@ async function main() {
   await seedLeadRows()
   console.log('[e2e-seed] coverage demand…')
   await seedDemandRows()
+  console.log('[e2e-seed] pre-iOS accounts round…')
+  await seedPreiosRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }
