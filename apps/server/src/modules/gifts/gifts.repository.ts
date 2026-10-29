@@ -302,6 +302,25 @@ export const giftsRepository = {
   },
 
   /** Whether the account bought or redeemed a gift (DELETE /users/me). */
+  /**
+   * Paid gifts this customer bought that nobody has redeemed yet and that
+   * have not expired (0066: deleting the account waits for them).
+   */
+  async listUnredeemedBought(userId: string, now: Date) {
+    return db
+      .select({ number: gifts.number, expiresAt: gifts.expiresAt })
+      .from(gifts)
+      .where(
+        and(
+          eq(gifts.buyerId, userId),
+          eq(gifts.status, 'paid'),
+          or(sql`${gifts.expiresAt} is null`, gt(gifts.expiresAt, now))
+        )
+      )
+      .orderBy(gifts.number)
+      .limit(10)
+  },
+
   async hasGifts(userId: string): Promise<boolean> {
     const [row] = await db
       .select({ one: sql`1` })

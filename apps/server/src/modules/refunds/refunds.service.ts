@@ -1061,6 +1061,15 @@ export const refundsService = {
       .slice(0, DONE_LIMIT)
   },
 
+  /**
+   * What is still owed to one customer, by lib/refunds.ts (0066): deleting
+   * the account waits until each is refunded.
+   */
+  async listOwedForUser(userId: string): Promise<RefundItem[]> {
+    const items = toItems(await refundsRepository.listMaybeOwedForUser(userId))
+    return items.filter((item) => toPaise(item.amountOwed) > 0)
+  },
+
   /** A booking's refunds, owed or done, for its admin page. */
   async listForBooking(bookingId: string): Promise<RefundItem[]> {
     return toItems(await refundsRepository.listForBooking(bookingId))

@@ -65,7 +65,7 @@ export const reviewsRepository = {
     return db.query.reviews.findMany({
       where: eq(reviews.vendorId, vendorId),
       with: {
-        user: { columns: { name: true } },
+        user: { columns: { name: true, deletedAt: true } },
         booking: {
           columns: { id: true },
           with: {

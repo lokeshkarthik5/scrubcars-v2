@@ -1,3 +1,4 @@
+import { isDeletedPhone } from '../../lib/account-deletion.js'
 import { AppError } from '../../lib/errors.js'
 import { env } from '../../lib/env.js'
 import { logger } from '../../lib/logger.js'
@@ -824,7 +825,12 @@ export function toVendorBookingResponse(booking: BookingWithRelations) {
     // window (lib/contact-window.ts, the same window the customer's payload
     // applies to the garage's number). `contactWindow` says when it shows.
     user: vendorView.user
-      ? { ...vendorView.user, phone: vendorView.contactWindow.open ? vendorView.user.phone : null }
+      ? {
+          ...vendorView.user,
+          // A deleted account's placeholder (0066) is never a number to call.
+          phone:
+            vendorView.contactWindow.open && !isDeletedPhone(vendorView.user.phone) ? vendorView.user.phone : null,
+        }
       : null,
     // The garage's own row: its own phone and WhatsApp are no secret from
     // it, so the window that hides them from customers does not apply.

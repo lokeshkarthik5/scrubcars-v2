@@ -45,7 +45,8 @@ function filterWhere(filter: ComplaintListFilter, cutoffs: OverdueCutoffs): SQL 
 /** A complaint with what admin shows beside it: whether the account is still there, and the booking. */
 const adminColumns = {
   complaint: complaints,
-  accountExists: sql<boolean>`${users.id} is not null`,
+  // A deleted account (0066) keeps its row, blanked: it counts as gone.
+  accountExists: sql<boolean>`${users.id} is not null and ${users.deletedAt} is null`,
   bookingScheduledAt: bookings.scheduledAt,
   bookingStatus: bookings.status,
 }

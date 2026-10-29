@@ -296,6 +296,18 @@ export const refundsRepository = {
   },
 
   /**
+   * What may still be owed to one customer (0066: account deletion waits
+   * for it). The same narrowing as listMaybeOwed, for their own bookings,
+   * checkouts and bills; the service decides with lib/refunds.ts.
+   */
+  async listMaybeOwedForUser(userId: string) {
+    const bookingPayments = await bookingPaymentRows(and(BOOKING_PAYMENT_MAY_BE_OWED, eq(bookings.userId, userId)))
+    const checkouts = await checkoutRows(and(CHECKOUT_MAY_BE_OWED, eq(bookingIntents.userId, userId)))
+    const bills = await billRows(and(BILL_MAY_BE_OWED, eq(bookings.userId, userId)))
+    return { bookingPayments, checkouts, bills }
+  },
+
+  /**
    * Everything with a refund recorded on it, newest refund first, at most
    * `limit` of each kind. The done list is history to look things up in,
    * not a to-do list, so it is capped.
