@@ -53,6 +53,7 @@ import * as adminController from './admin.controller.js'
 import {
   adminCancelBookingSchema,
   bookingIdParamSchema,
+  bookingNoteParamSchema,
   bookingViewCountsQuerySchema,
   createBookingNoteSchema,
   createVendorSchema,
@@ -616,4 +617,25 @@ adminRoutes.post(
       c.req.valid('param').id,
       c.req.valid('json')
     )
+)
+// A typed note, by the session that typed it, within 24 hours (0065). Notes
+// an action wrote never change.
+adminRoutes.patch(
+  '/bookings/:id/notes/:noteId',
+  ...adminMiddleware,
+  zValidator('param', bookingNoteParamSchema),
+  zValidator('json', createBookingNoteSchema),
+  (c) => {
+    const { id, noteId } = c.req.valid('param')
+    return adminController.editBookingNote(c, id, noteId, c.req.valid('json'))
+  }
+)
+adminRoutes.delete(
+  '/bookings/:id/notes/:noteId',
+  ...adminMiddleware,
+  zValidator('param', bookingNoteParamSchema),
+  (c) => {
+    const { id, noteId } = c.req.valid('param')
+    return adminController.deleteBookingNote(c, id, noteId)
+  }
 )

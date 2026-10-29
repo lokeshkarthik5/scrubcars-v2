@@ -406,6 +406,9 @@ export const listBookingsQuerySchema = z
 
 export const bookingIdParamSchema = z.object({ id: z.string().uuid() })
 
+/** A booking's note (0065): edited or deleted by its author. */
+export const bookingNoteParamSchema = z.object({ id: z.string().uuid(), noteId: z.string().uuid() })
+
 /**
  * GET /admin/bookings/views: every filter the list has (status, search,
  * garage, dates, Test, type and payment), so the counts agree with the rows.

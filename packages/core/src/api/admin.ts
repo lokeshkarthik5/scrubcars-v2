@@ -558,6 +558,15 @@ export interface AdminBookingNote {
   author: string
   body: string
   createdAt: string
+  /**
+   * 0065, absent from an older API (read as system): typed by a person, or
+   * written by an action. A typed note's author (`authorSub`, compared with
+   * GET /admin/me's `sub`) may edit or delete it until `editableUntil`.
+   */
+  kind?: 'typed' | 'system'
+  authorSub?: string | null
+  editedAt?: string | null
+  editableUntil?: string | null
 }
 
 export interface AdminBookingDetail extends AdminBooking {
@@ -805,6 +814,8 @@ export interface AdminMe {
   username: string | null
   /** The owner's login: the only one that changes team logins. */
   isOwner: boolean
+  /** The session's subject (0065): whose typed booking notes are yours. Null from an older API. */
+  sub: string | null
 }
 
 /**
@@ -822,6 +833,7 @@ export async function getAdminMe(): Promise<AdminMe> {
     name: me.name?.trim() || 'admin',
     username: me.username ?? null,
     isOwner: me.isOwner ?? false,
+    sub: me.sub ?? null,
   }
   setAdminSigner(full.name)
   return full
@@ -2123,6 +2135,21 @@ export interface DeletedTestPayment {
 /** GET /admin/deleted-test-payments — the team tests' ledger, newest first (0065). */
 export async function getDeletedTestPayments() {
   return apiClient<{ payments: DeletedTestPayment[] }>('/admin/deleted-test-payments')
+}
+
+/** PATCH /admin/bookings/:id/notes/:noteId (0065): its author, within 24 hours. */
+export async function editAdminBookingNote(id: string, noteId: string, body: string) {
+  return apiClient<AdminBookingNote>(`/admin/bookings/${id}/notes/${noteId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ body }),
+  })
+}
+
+/** DELETE /admin/bookings/:id/notes/:noteId (0065): its author, within 24 hours. */
+export async function deleteAdminBookingNote(id: string, noteId: string) {
+  return apiClient<{ id: string; deleted: true }>(`/admin/bookings/${id}/notes/${noteId}`, {
+    method: 'DELETE',
+  })
 }
 
 /** POST /admin/bookings/:id/notes */

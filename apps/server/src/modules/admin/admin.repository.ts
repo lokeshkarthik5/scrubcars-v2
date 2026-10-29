@@ -29,6 +29,7 @@ import { containsPattern } from '../../lib/search.js'
 import { NOT_IN_BIN } from '../vendors/vendors.predicates.js'
 import type { BookingView } from './admin.validation.js'
 import {
+  adminAuditLog,
   bookingCharges,
   bookingTimeProposals,
   bookingIntents,
@@ -848,8 +849,92 @@ export const adminRepository = {
     })
   },
 
-  createBookingNote(data: { bookingId: string; author: string; body: string }) {
+  createBookingNote(data: {
+    bookingId: string
+    author: string
+    body: string
+    /** 0065: 'typed' with its session for a person's note; system by default. */
+    kind?: 'typed' | 'system'
+    authorSub?: string
+  }) {
     return db.insert(bookingNotes).values(data).returning()
+  },
+
+  /** One note of a booking; another booking's is undefined. */
+  async findBookingNote(bookingId: string, noteId: string) {
+    const [row] = await db
+      .select()
+      .from(bookingNotes)
+      .where(and(eq(bookingNotes.id, noteId), eq(bookingNotes.bookingId, bookingId)))
+      .limit(1)
+    return row
+  },
+
+  /**
+   * Edits a typed note, only by its author and only within its 24 hours
+   * (`since`: written after it), with an audit row (ids, never the words).
+   * Undefined when it did not qualify by the time of the write.
+   */
+  editTypedNote(input: {
+    bookingId: string
+    noteId: string
+    sub: string
+    body: string
+    at: Date
+    since: Date
+    actorName: string
+  }) {
+    return db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(bookingNotes)
+        .set({ body: input.body, editedAt: input.at })
+        .where(
+          and(
+            eq(bookingNotes.id, input.noteId),
+            eq(bookingNotes.bookingId, input.bookingId),
+            eq(bookingNotes.kind, 'typed'),
+            eq(bookingNotes.authorSub, input.sub),
+            gt(bookingNotes.createdAt, input.since)
+          )
+        )
+        .returning()
+      if (!row) return undefined
+      await tx.insert(adminAuditLog).values({
+        action: 'booking_note_edited',
+        actorSub: input.sub,
+        actorName: input.actorName,
+        summary: { bookingId: input.bookingId, noteId: input.noteId },
+        detail: {},
+      })
+      return row
+    })
+  },
+
+  /** Deletes a typed note on the same terms, with an audit row (ids only). */
+  deleteTypedNote(input: { bookingId: string; noteId: string; sub: string; since: Date; actorName: string }) {
+    return db.transaction(async (tx) => {
+      const [row] = await tx
+        .delete(bookingNotes)
+        .where(
+          and(
+            eq(bookingNotes.id, input.noteId),
+            eq(bookingNotes.bookingId, input.bookingId),
+            eq(bookingNotes.kind, 'typed'),
+            eq(bookingNotes.authorSub, input.sub),
+            gt(bookingNotes.createdAt, input.since)
+          )
+        )
+        .returning({ id: bookingNotes.id, createdAt: bookingNotes.createdAt })
+      if (!row) return undefined
+      await tx.insert(adminAuditLog).values({
+        action: 'booking_note_deleted',
+        actorSub: input.sub,
+        actorName: input.actorName,
+        summary: { bookingId: input.bookingId, noteId: input.noteId },
+        detail: { writtenAt: row.createdAt.toISOString() },
+      })
+      return row
+    })
   },
 
   /**

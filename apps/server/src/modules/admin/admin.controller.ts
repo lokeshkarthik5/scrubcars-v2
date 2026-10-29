@@ -74,7 +74,16 @@ export async function getMe(c: AdminContext) {
   const actor = signedInAdmin(c)
   return c.json({
     success: true,
-    data: { isSuperAdmin: true, kind: actor.kind, name: actor.name, username: actor.username, isOwner: actor.isOwner },
+    // `sub` (0065): the session's subject, which the panel compares with a
+    // typed booking note's author to offer Edit and Delete.
+    data: {
+      isSuperAdmin: true,
+      kind: actor.kind,
+      name: actor.name,
+      username: actor.username,
+      isOwner: actor.isOwner,
+      sub: c.get('auth').sub,
+    },
   })
 }
 
@@ -232,6 +241,17 @@ export async function addBookingNote(
 ) {
   const note = await adminService.addBookingNote(id, c.get('auth').sub, input)
   return c.json({ success: true, data: note }, 201)
+}
+
+/** A typed note, by its author, within 24 hours (0065). */
+export async function editBookingNote(c: AdminContext, id: string, noteId: string, input: CreateBookingNoteInput) {
+  const data = await adminService.editBookingNote(id, noteId, c.get('auth').sub, input)
+  return c.json({ success: true, data })
+}
+
+export async function deleteBookingNote(c: AdminContext, id: string, noteId: string) {
+  const data = await adminService.deleteBookingNote(id, noteId, c.get('auth').sub)
+  return c.json({ success: true, data })
 }
 
 // ─── Media ───────────────────────────────────────────────────────────────────

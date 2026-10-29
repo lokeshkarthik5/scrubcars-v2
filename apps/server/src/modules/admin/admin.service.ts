@@ -1,3 +1,4 @@
+import { NOTE_EDIT_HOURS, noteEditRefusal, noteEditableUntil, type NoteEditRefusal } from '../../lib/booking-notes.js'
 import { AT_GARAGE_ADDRESS_MESSAGE, atGarageAddressRefused, garageAddressLine } from '../../lib/garage-address.js'
 import { timingSafeEqual } from 'node:crypto'
 import { env } from '../../lib/env.js'
@@ -264,6 +265,10 @@ function stateChanged() {
   )
 }
 
+function noteNotFound() {
+  return new AppError(404, 'Note not found', 'NOTE_NOT_FOUND')
+}
+
 function bookingNotFound() {
   return new AppError(404, 'Booking not found', 'BOOKING_NOT_FOUND')
 }
@@ -274,6 +279,25 @@ function toBookingNoteResponse(note: BookingNoteRecord) {
     author: note.author,
     body: note.body,
     createdAt: note.createdAt.toISOString(),
+    // 0065: typed by a person, or written by an action (never editable).
+    // `authorSub` is the session that typed it, which the panel compares
+    // with its own (GET /admin/me `sub`) to offer Edit and Delete; admin
+    // only, like every note.
+    kind: note.kind,
+    authorSub: note.kind === 'typed' ? note.authorSub : null,
+    editedAt: note.editedAt?.toISOString() ?? null,
+    editableUntil: note.kind === 'typed' ? noteEditableUntil(note.createdAt).toISOString() : null,
+  }
+}
+
+function noteRefused(refusal: NoteEditRefusal) {
+  switch (refusal) {
+    case 'system_note':
+      return new AppError(409, 'This note was written by an action, so it stays as it is.', 'NOTE_SYSTEM')
+    case 'not_author':
+      return new AppError(403, 'Only the person who typed a note can change it.', 'NOTE_NOT_YOURS')
+    case 'window_closed':
+      return new AppError(409, 'A note can be changed for 24 hours after it is written.', 'NOTE_LOCKED')
   }
 }
 
@@ -1679,14 +1703,60 @@ export const adminService = {
     if (!booking) throw bookingNotFound()
 
     const author = await resolveNoteAuthor(sub)
+    // Typed by a person (0065): its author may edit or delete it for 24 h.
     const [note] = await adminRepository.createBookingNote({
       bookingId: id,
       author,
       body: input.body,
+      kind: 'typed',
+      authorSub: sub,
     })
 
     log.info({ bookingId: id, noteId: note.id, author }, 'admin:booking-note-added')
     return toBookingNoteResponse(note)
+  },
+
+  /**
+   * Its author edits a typed note within 24 hours (0065). The write is
+   * conditional on the same rule, so a press at the 24th hour changes nothing.
+   */
+  async editBookingNote(id: string, noteId: string, sub: string, input: CreateBookingNoteInput, now = new Date()) {
+    const note = await adminRepository.findBookingNote(id, noteId)
+    if (!note) throw noteNotFound()
+    const refusal = noteEditRefusal(note, sub, now)
+    if (refusal) throw noteRefused(refusal)
+    const actorName = await resolveNoteAuthor(sub)
+    const updated = await adminRepository.editTypedNote({
+      bookingId: id,
+      noteId,
+      sub,
+      body: input.body,
+      at: now,
+      since: new Date(now.getTime() - NOTE_EDIT_HOURS * 60 * 60 * 1000),
+      actorName,
+    })
+    if (!updated) throw noteRefused('window_closed')
+    log.info({ bookingId: id, noteId }, 'admin:booking-note-edited')
+    return toBookingNoteResponse(updated)
+  },
+
+  /** Its author deletes a typed note within 24 hours (0065). Audited by id. */
+  async deleteBookingNote(id: string, noteId: string, sub: string, now = new Date()) {
+    const note = await adminRepository.findBookingNote(id, noteId)
+    if (!note) throw noteNotFound()
+    const refusal = noteEditRefusal(note, sub, now)
+    if (refusal) throw noteRefused(refusal)
+    const actorName = await resolveNoteAuthor(sub)
+    const deleted = await adminRepository.deleteTypedNote({
+      bookingId: id,
+      noteId,
+      sub,
+      since: new Date(now.getTime() - NOTE_EDIT_HOURS * 60 * 60 * 1000),
+      actorName,
+    })
+    if (!deleted) throw noteRefused('window_closed')
+    log.info({ bookingId: id, noteId }, 'admin:booking-note-deleted')
+    return { id: noteId, deleted: true }
   },
 
   // ─── Media ─────────────────────────────────────────────────────────────────
