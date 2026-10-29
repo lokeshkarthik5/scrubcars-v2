@@ -151,7 +151,7 @@ export function useDeleteTestBooking() {
       input,
     }: {
       bookingId: string
-      input: { unknownIds: string[]; selectionHash: string; confirmText: string }
+      input: { unknownIds: string[]; selectionHash: string; confirmText: string; reason?: string }
     }) => deleteTestBooking(bookingId, input),
     onSuccess: refresh,
   })

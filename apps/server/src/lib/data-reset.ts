@@ -22,6 +22,13 @@
  * - Receipt numbers are never renumbered (AGENTS.md). A financial year whose
  *   receipts all belong to deleted chains restarts at 000001; any other year
  *   keeps its counter and records the deleted numbers as void.
+ * - A team test (0065): a chain marked Test that took real money may go only
+ *   once every rupee taken on it was refunded (none still owed, no Razorpay
+ *   refund still processing) and no garage payout covered it. Its payments
+ *   are written to the deleted_test_payments ledger first, and its receipt
+ *   number is always voided, never restarted. Never for a garage's delete.
+ * - A chain and its free redo (Detlio Guarantee, 0051) go together: the redo
+ *   is a booking of its own that answers the first one's claim.
  *
  * Pure and clock-free: the caller reads the rows, asks Razorpay, and passes
  * everything in. Node's crypto is used for the fingerprint, and nothing else
@@ -78,6 +85,8 @@ export interface ResetPayment {
    */
   creditAmount?: string | null
   refundedAmount: string | null
+  /** When it went through: for the team-test ledger (0065). */
+  paidAt?: Date | null
 }
 
 /** One booking of a candidate chain, with its payment. */
@@ -113,6 +122,35 @@ export interface ResetCharge {
   refundedAmount: string | null
   /** Moved with the bill's status and its order: when it was last payable, once withdrawn. */
   updatedAt: Date
+  /** A final bill or extra work (0041); absent reads as a final bill. */
+  kind?: 'final_bill' | 'extra_work'
+  paidAt?: Date | null
+}
+
+/**
+ * A refund recorded on a candidate chain's payment or bill (refund_records,
+ * kind booking or bill), for the team-test rule (0065): whether a Razorpay
+ * refund is still processing, and what the ledger keeps.
+ */
+export interface ResetRefund {
+  kind: 'booking' | 'bill'
+  /** The booking (for its payment) or the bill the refund is on. */
+  targetId: string
+  amount: string
+  refundRef: string | null
+  source: string
+  gatewayStatus: 'pending' | 'processed' | 'failed' | null
+  recordedBy: string
+  recordedAt: Date
+}
+
+/**
+ * A free redo (Detlio Guarantee, 0051): the claim on `bookingId` was answered
+ * by the ₹0 booking `redoBookingId`, a chain of its own. The two go together.
+ */
+export interface ResetRedoLink {
+  bookingId: string
+  redoBookingId: string
 }
 
 /**
@@ -185,6 +223,10 @@ export interface BookingChildCounts {
   promoUses: number
   /** refund_records of kind booking or bill. */
   refundRecords: number
+  /** "Did the garage ask you to book directly?" reports about it (0052, 0065). */
+  bypassReports?: number
+  /** Visit requests it was booked from (customer reach, 0062; 0065). */
+  requests?: number
 }
 
 /** The rows that hang off one checkout and go with it. */
@@ -257,6 +299,13 @@ export interface PlanInput {
    * paid (some may be outside the scope). Absent is none.
    */
   payouts?: ResetPayout[]
+  /**
+   * Refunds recorded on the candidate chains' payments and bills (0065), for
+   * the team-test rule. Absent is none.
+   */
+  refunds?: ResetRefund[]
+  /** Free redos among the candidate chains' bookings (0065). Absent is none. */
+  redoLinks?: ResetRedoLink[]
   /** The receipt numbers of the candidate chains. */
   receipts: ResetReceipt[]
   /**
@@ -533,6 +582,170 @@ export function idsToLookUp(
   return [...ids].sort()
 }
 
+// ─── Team tests: real money, all refunded (0065) ─────────────────────────────
+//
+// The team pays for test bookings with real money now and then (₹2 to check
+// the live keys, a ₹299 wash the owner booked himself). Such a chain, marked
+// Test, may go once every rupee taken on it was refunded: refunded on the
+// money row (Refund now, Mark refunded or the automatic mode) with no
+// Razorpay refund still processing. Its payments go to the ledger first.
+// Cash, Detlio credit, a payment with no Razorpay id and one Razorpay was
+// never asked about keep the chain as before: nothing can show those were
+// all given back.
+
+/** One real payment of a team test, as the ledger (deleted_test_payments) keeps it. */
+export interface TeamTestPayment {
+  rootId: string
+  reference: string
+  bookingIds: string[]
+  kind: 'booking' | 'final_bill' | 'extra_work'
+  chargeId: string | null
+  razorpayPaymentId: string | null
+  razorpayOrderId: string | null
+  gatewayMode: GatewayModeValue | null
+  amount: string
+  refundedAmount: string
+  refunds: Array<{
+    refundRef: string | null
+    amount: string
+    source: string
+    gatewayStatus: string | null
+    recordedBy: string
+    recordedAt: string
+  }>
+  receiptNumber: string | null
+  vendorId: string
+  garageName: string
+  customerId: string
+  paidAt: Date | null
+  bookedAt: Date
+}
+
+/** One place money landed on a chain, with what was refunded on it. */
+interface ChainMoney {
+  kind: TeamTestPayment['kind']
+  /** The booking (payment) or bill (charge) ids its refunds are recorded on. */
+  targetIds: string[]
+  chargeId: string | null
+  gatewayId: string | null
+  gatewayMode: GatewayModeValue | null
+  money: MoneyClass
+  cash: boolean
+  credit: boolean
+  amountPaise: number
+  refundedPaise: number
+  /** Standing refunds (a failed one moved no money). */
+  refunds: ResetRefund[]
+  paidAt: Date | null
+}
+
+/**
+ * Every place money landed on a chain, one per Razorpay payment: a
+ * reschedule copies the payment row, so the copies are one payment, whose
+ * refunds are recorded on the row that was not moved (the most refunded).
+ */
+function chainMoney(
+  rows: ResetBooking[],
+  charges: ResetCharge[],
+  refunds: ResetRefund[],
+  input: Pick<PlanInput, 'lookups' | 'lookupsUnavailable'>
+): ChainMoney[] {
+  const standing = refunds.filter((refund) => refund.gatewayStatus !== 'failed')
+  const out: ChainMoney[] = []
+  const payments = groupBy(
+    rows.filter((b) => b.payment && MONEY_TAKEN.has(b.payment.status) && !isZeroPayment(b.payment)),
+    (b) => b.payment!.gatewayTxnId ?? `booking:${b.id}`
+  )
+  for (const group of payments.values()) {
+    const first = group[0].payment!
+    const cash = group.some((b) => b.paymentMethod === 'cash' || b.payment!.status === 'collected')
+    const gatewayMode = group.map((b) => b.payment!.gatewayMode).find((mode) => mode !== null) ?? null
+    const ids = new Set(group.map((b) => b.id))
+    out.push({
+      kind: 'booking',
+      targetIds: [...ids],
+      chargeId: null,
+      gatewayId: first.gatewayTxnId,
+      gatewayMode,
+      money: classOf({ gatewayId: first.gatewayTxnId, gatewayMode, cash }, input),
+      cash,
+      credit: group.some((b) => Number(b.payment!.creditAmount ?? 0) > 0),
+      amountPaise: toPaise(first.amount),
+      refundedPaise: Math.max(...group.map((b) => toPaise(b.payment!.refundedAmount))),
+      refunds: standing.filter((refund) => refund.kind === 'booking' && ids.has(refund.targetId)),
+      paidAt: group.map((b) => b.payment!.paidAt ?? null).find((at) => at !== null) ?? null,
+    })
+  }
+  for (const charge of charges) {
+    if (charge.status !== 'paid' && !charge.gatewayPaymentId) continue
+    const gatewayId = charge.gatewayPaymentId ?? charge.gatewayOrderId
+    out.push({
+      kind: charge.kind ?? 'final_bill',
+      targetIds: [charge.id],
+      chargeId: charge.id,
+      gatewayId,
+      gatewayMode: charge.gatewayMode,
+      money: classOf({ gatewayId, gatewayMode: charge.gatewayMode, cash: false }, input),
+      cash: false,
+      credit: false,
+      amountPaise: toPaise(charge.amountDue),
+      refundedPaise: toPaise(charge.refundedAmount),
+      refunds: standing.filter((refund) => refund.kind === 'bill' && refund.targetId === charge.id),
+      paidAt: charge.paidAt ?? null,
+    })
+  }
+  return out
+}
+
+/** "₹299", "₹2.50", "₹1,299". */
+export function rupeesFromPaise(paise: number): string {
+  const whole = paise % 100 === 0
+  return `₹${(paise / 100).toLocaleString('en-IN', {
+    minimumFractionDigits: whole ? 0 : 2,
+    maximumFractionDigits: 2,
+  })}`
+}
+
+export type TeamTestVerdict =
+  | { deletable: true }
+  | { deletable: false; kept: KeptReason; detail: string | null }
+
+/**
+ * Whether a Test-marked chain's real money lets it go as a team test, or
+ * why not. Null when it took no real money (the ordinary rules decide).
+ */
+export function teamTestVerdict(money: ChainMoney[]): TeamTestVerdict | null {
+  const real = money.filter((item) => !isDeletableMoney(item.money))
+  if (real.length === 0) return null
+  // What no refund record can account for: cash the garage took, credit
+  // that goes back as credit, money with no Razorpay id. Kept as before.
+  if (real.some((item) => item.credit)) return { deletable: false, kept: 'unknown', detail: null }
+  if (real.some((item) => item.cash)) return { deletable: false, kept: 'cash', detail: null }
+  if (real.some((item) => item.money === 'unchecked')) return { deletable: false, kept: 'unchecked', detail: null }
+  if (real.some((item) => !item.gatewayId)) return { deletable: false, kept: 'unknown', detail: null }
+
+  const owed = real.reduce((sum, item) => sum + Math.max(0, item.amountPaise - item.refundedPaise), 0)
+  if (owed > 0) {
+    return {
+      deletable: false,
+      kept: 'refund_first',
+      detail: `Refund ${rupeesFromPaise(owed)} first. ${KEPT_REASONS.refund_first.detail}`,
+    }
+  }
+  const pending = real
+    .flatMap((item) => item.refunds)
+    .filter((refund) => refund.gatewayStatus === 'pending')
+    .reduce((sum, refund) => sum + toPaise(refund.amount), 0)
+  if (pending > 0) {
+    return {
+      deletable: false,
+      kept: 'refund_pending',
+      detail: `Razorpay hasn't finished the refund of ${rupeesFromPaise(pending)} yet. Delete it once the refund is processed.`,
+    }
+  }
+  return { deletable: true }
+}
+
 // ─── Why a row is kept ───────────────────────────────────────────────────────
 
 export type KeptReason =
@@ -545,6 +758,9 @@ export type KeptReason =
   | 'still_open'
   | 'open_order'
   | 'paid_out'
+  | 'refund_first'
+  | 'refund_pending'
+  | 'linked'
 
 /**
  * The reason shown on a greyed-out row, and the line under it. Real money,
@@ -583,9 +799,28 @@ export const KEPT_REASONS: Record<KeptReason, { label: string; detail: string }>
   paid_out: {
     label: 'Paid out to the garage — kept',
     detail:
-      'A garage payout covered this booking together with one that is kept (or the payout was recorded after the cutoff). A payout is only deleted with every booking it paid.',
+      'A garage payout covered this booking together with one that is kept (or the payout was recorded after the cutoff, or it took real money). A payout is only deleted with every booking it paid.',
+  },
+  refund_first: {
+    label: 'Real payment — refund it first',
+    detail:
+      'A booking marked Test that took real money can be deleted as a team test only once every rupee is refunded.',
+  },
+  refund_pending: {
+    label: 'Refund still processing — kept',
+    detail: "Razorpay hasn't finished the refund yet. Delete it once the refund is processed.",
+  },
+  linked: {
+    label: 'Goes with another booking — kept',
+    detail: 'This booking and its free redo go together, and the other one is kept.',
   },
 }
+
+/**
+ * The line under a team test's row (0065): real money, all refunded, so it
+ * may go, with its payments kept in the ledger.
+ */
+export const TEAM_TEST_LABEL = 'Real payment, refunded: deleted as team test, money record kept'
 
 /** Plain words for each money class, for the list and the CSV. */
 export const MONEY_LABELS: Record<MoneyClass, string> = {
@@ -624,6 +859,17 @@ export interface ChainPlan {
   markedTest: boolean
   /** Why it is kept whatever is ticked; null when it can be deleted. */
   kept: KeptReason | null
+  /**
+   * The kept reason's line for this chain, when it says more than
+   * KEPT_REASONS does ("Refund ₹299 first."); null otherwise.
+   */
+  keptDetail: string | null
+  /**
+   * A team test (0065): real money, every rupee refunded, so it may go with
+   * its payments written to the ledger. Never ticked on a run's first look
+   * (only on its own booking's page).
+   */
+  teamTest: boolean
   /** Ticked: deleted by this run. */
   selected: boolean
 }
@@ -668,6 +914,12 @@ export interface ResetCounts {
   analyticsEvents: number
   /** Garage payouts (0038) that paid only bookings this run deletes. */
   payouts: number
+  /** "Book directly" reports about the deleted bookings (0065). */
+  bypassReports?: number
+  /** Visit requests the deleted bookings were booked from (0065). */
+  requests?: number
+  /** Real payments, all refunded, written to the ledger before they go (0065). */
+  teamTestPayments?: number
 }
 
 export type ReceiptYearMode = 'restart' | 'void'
@@ -711,6 +963,8 @@ export interface ResetPlan {
   analyticsCutoff: Date | null
   /** Garage payouts this run deletes: those that paid only ticked chains. */
   selectedPayoutIds: string[]
+  /** The ticked team tests' payments, for the ledger (0065). */
+  ledger: TeamTestPayment[]
   counts: ResetCounts
   receiptPlan: ReceiptYearPlan[]
   confirmPhrase: string
@@ -759,20 +1013,29 @@ function keptReasonOf(
   money: MoneyClass,
   openOrder: boolean,
   chain: ResetBooking[],
-  scope: ResetScope
-): KeptReason | null {
-  if (!isDeletableMoney(money)) return money as KeptReason
-  if (openOrder) return 'open_order'
+  scope: ResetScope,
+  /** Marked Test: the chain, or the chain its free redo goes with. */
+  marked: boolean,
+  teamTest: TeamTestVerdict | null
+): { kept: KeptReason | null; detail: string | null; teamTest: boolean } {
+  const keep = (kept: KeptReason, detail: string | null = null) => ({ kept, detail, teamTest: false })
+  let realMoney = false
+  if (!isDeletableMoney(money)) {
+    // Real money keeps it, unless it is a team test (0065): marked Test,
+    // never a garage's delete, and every rupee given back.
+    if (scope.kind === 'garage' || !marked || !teamTest) return keep(money as KeptReason)
+    if (!teamTest.deletable) return keep(teamTest.kept, teamTest.detail)
+    realMoney = true
+  }
+  if (openOrder) return keep('open_order')
   // A chain whose first booking is from before the cutoff but which changed
   // after it (moved to a new time by a customer who is now real) is kept
   // whole: a chain goes as a whole or not at all, and it may be real.
   if (scope.kind === 'before_cutoff' && chain.some((b) => b.createdAt >= scope.cutoff)) {
-    return 'after_cutoff'
+    return keep('after_cutoff')
   }
-  if (scope.kind === 'chains' && !chain.some((b) => b.markedTestAt !== null)) {
-    return 'not_marked'
-  }
-  return null
+  if (scope.kind === 'chains' && !marked) return keep('not_marked')
+  return { kept: null, detail: null, teamTest: realMoney }
 }
 
 /**
@@ -817,6 +1080,11 @@ export function planReceipts(input: {
   unnumberedReceipts: PlanInput['unnumberedReceipts']
   counters: Map<string, number>
   voidsByYear: Map<string, number>
+  /**
+   * Deleted chains that took real money (team tests, 0065): a real receipt
+   * was issued on each, so its year never restarts. Its numbers are void.
+   */
+  voidOnlyRoots?: Set<string>
 }): ReceiptYearPlan[] {
   const deleted = input.receipts.filter((receipt) => input.deletedRoots.has(receipt.rootBookingId))
   const byYear = groupBy(deleted, (receipt) => receipt.financialYear)
@@ -832,8 +1100,9 @@ export function planReceipts(input: {
         (row) =>
           !input.deletedRoots.has(row.rootBookingId) && financialYearOf(row.issuedAt) === financialYear
       )
+      const realReceipt = rows.some((row) => input.voidOnlyRoots?.has(row.rootBookingId))
 
-      if (!keptNumbered && !keptUnnumbered) {
+      if (!keptNumbered && !keptUnnumbered && !realReceipt) {
         const nextNumber = formatReceiptSerial(financialYear, 1)
         return {
           financialYear,
@@ -916,6 +1185,8 @@ export function selectionHash(plan: {
   complaintIds?: string[]
   /** The same. */
   payoutIds?: string[]
+  /** The ticked team tests' refunds (0065): the same, only when there are any. */
+  teamTest?: Array<{ root: string; refunds: ResetRefund[] }>
 }): string {
   const bookingsByRoot = groupChains(plan.bookings)
   const chargesByBooking = groupBy(plan.charges, (charge) => charge.bookingId)
@@ -947,6 +1218,14 @@ export function selectionHash(plan: {
   const receipts = plan.receiptPlan.map((year) => [year.financialYear, year.mode, year.numbers])
   const complaints = [...(plan.complaintIds ?? [])].sort()
   const payouts = [...(plan.payoutIds ?? [])].sort()
+  const teamTest = (plan.teamTest ?? [])
+    .map((chain) => ({
+      root: chain.root,
+      refunds: chain.refunds
+        .map((r) => [r.kind, r.targetId, r.refundRef, toPaise(r.amount), r.gatewayStatus, r.recordedAt.toISOString()])
+        .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
+    }))
+    .sort((a, b) => a.root.localeCompare(b.root))
 
   return createHash('sha256')
     .update(
@@ -956,6 +1235,7 @@ export function selectionHash(plan: {
         receipts,
         ...(complaints.length > 0 ? { complaints } : {}),
         ...(payouts.length > 0 ? { payouts } : {}),
+        ...(teamTest.length > 0 ? { teamTest } : {}),
       })
     )
     .digest('hex')
@@ -967,6 +1247,18 @@ export function selectionHash(plan: {
  * group with its payouts; a chain no payout paid is in none.
  */
 export function payoutGroups(payouts: ResetPayout[]): Array<{ roots: string[]; payouts: ResetPayout[] }> {
+  return chainGroups(payouts, []).map(({ roots, payouts: paid }) => ({ roots, payouts: paid }))
+}
+
+/**
+ * Chains that go together: joined by the payouts that paid them, and by a
+ * free redo (0065) to the chain whose claim it answers. Each group with its
+ * payouts and whether a redo joins it; a chain joined to nothing is in none.
+ */
+export function chainGroups(
+  payouts: ResetPayout[],
+  links: Array<[string, string]>
+): Array<{ roots: string[]; payouts: ResetPayout[]; linked: boolean }> {
   const parent = new Map<string, string>()
   const find = (x: string): string => {
     let root = x
@@ -985,16 +1277,36 @@ export function payoutGroups(payouts: ResetPayout[]): Array<{ roots: string[]; p
       parent.set(find(root), find(key))
     }
   }
-  const groups = new Map<string, { roots: string[]; payouts: ResetPayout[] }>()
+  const linkedRoots = new Set<string>()
+  for (const [a, b] of links) {
+    if (a === b) continue
+    add(a)
+    add(b)
+    linkedRoots.add(a)
+    linkedRoots.add(b)
+    const ra = find(a)
+    const rb = find(b)
+    if (ra !== rb) parent.set(ra, rb)
+  }
+  const groups = new Map<string, { roots: string[]; payouts: ResetPayout[]; linked: boolean }>()
   const groupOf = (x: string) => {
     const k = find(x)
-    const group = groups.get(k) ?? { roots: [], payouts: [] }
+    const group = groups.get(k) ?? { roots: [], payouts: [], linked: false }
     groups.set(k, group)
     return group
   }
   for (const payout of payouts) groupOf(`payout:${payout.id}`).payouts.push(payout)
-  for (const x of parent.keys()) if (!x.startsWith('payout:')) groupOf(x).roots.push(x)
-  return [...groups.values()].map((group) => ({ roots: [...new Set(group.roots)].sort(), payouts: group.payouts }))
+  for (const x of parent.keys()) {
+    if (x.startsWith('payout:')) continue
+    const group = groupOf(x)
+    group.roots.push(x)
+    if (linkedRoots.has(x)) group.linked = true
+  }
+  return [...groups.values()].map((group) => ({
+    roots: [...new Set(group.roots)].sort(),
+    payouts: group.payouts,
+    linked: group.linked,
+  }))
 }
 
 /**
@@ -1016,14 +1328,42 @@ export function planReset(input: PlanInput): ResetPlan {
   const receiptByRoot = new Map(input.receipts.map((receipt) => [receipt.rootBookingId, receipt]))
 
   // ── Chains ──
+  const allChains = groupChains(input.bookings)
+  const rootOfBooking = new Map(input.bookings.map((b) => [b.id, chainRootOf(b)]))
+  // A free redo and the chain whose claim it answers (0065), as chain roots.
+  const redoPairs: Array<[string, string]> = (input.redoLinks ?? []).flatMap((link) => {
+    const a = rootOfBooking.get(link.bookingId)
+    const b = rootOfBooking.get(link.redoBookingId)
+    return a && b && a !== b ? [[a, b] as [string, string]] : []
+  })
+  const redoGroups = chainGroups([], redoPairs)
+  const redoGroupOf = new Map<string, string[]>()
+  for (const group of redoGroups) for (const root of group.roots) redoGroupOf.set(root, group.roots)
+  const partnersOf = (root: string) => redoGroupOf.get(root) ?? [root]
+  // In scope on its own, or with the chain its free redo goes with.
+  const ownScope = new Set(
+    [...allChains].filter(([rootId, rows]) => chainInScope(rootId, rows, scope)).map(([rootId]) => rootId)
+  )
+  const inScope = (root: string) => partnersOf(root).some((partner) => ownScope.has(partner))
+  // Marked Test: the chain, or one it goes with.
+  const markedOwn = (root: string) => (allChains.get(root) ?? []).some((b) => b.markedTestAt !== null)
+  const markedGroup = (root: string) => partnersOf(root).some(markedOwn)
+
   const chains: ChainPlan[] = []
-  for (const [rootId, rows] of groupChains(input.bookings)) {
-    if (!chainInScope(rootId, rows, scope)) continue
+  const refundsOf = new Map<string, ResetRefund[]>()
+  const moneyOf = new Map<string, ChainMoney[]>()
+  for (const [rootId, rows] of allChains) {
+    if (!inScope(rootId)) continue
     const charges = rows.flatMap((b) => chargesByBooking.get(b.id) ?? [])
     const money = worst(chainMoneyItems(rows, charges).map((item) => classOf(item, input)))
     const latest = rows[rows.length - 1]
     const openOrder = hasOpenOrder(chainOpenOrders(rows, charges), input)
-    const kept = keptReasonOf(money, openOrder, rows, scope)
+    const targets = new Set([...rows.map((b) => b.id), ...charges.map((c) => c.id)])
+    const refunds = (input.refunds ?? []).filter((refund) => targets.has(refund.targetId))
+    const placed = chainMoney(rows, charges, refunds, input)
+    refundsOf.set(rootId, refunds)
+    moneyOf.set(rootId, placed)
+    const verdict = keptReasonOf(money, openOrder, rows, scope, markedGroup(rootId), teamTestVerdict(placed))
     const razorpayIds = [
       ...new Set(
         [
@@ -1054,7 +1394,9 @@ export function planReset(input: PlanInput): ResetPlan {
       // are not owed and not recorded) plus every bill.
       refunded: sumRefunded([latest.payment?.refundedAmount, ...charges.map((c) => c.refundedAmount)]),
       markedTest: rows.some((b) => b.markedTestAt !== null),
-      kept,
+      kept: verdict.kept,
+      keptDetail: verdict.detail,
+      teamTest: verdict.teamTest,
       selected: false,
     })
   }
@@ -1062,23 +1404,27 @@ export function planReset(input: PlanInput): ResetPlan {
   // takes them in.
   chains.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.rootId.localeCompare(b.rootId))
 
-  // ── Garage payouts ──
+  // ── Chains that go together ──
   // Chains paid out together go together: a group joined by its payouts is
   // kept whole if any of it is kept, or out of scope, or was paid out after
-  // the cutoff (a payout made then may be real).
-  const groups = payoutGroups(input.payouts ?? [])
+  // the cutoff (a payout made then may be real), or took real money (a team
+  // test is never deleted once a garage was paid for it, 0065). A free redo
+  // and the chain whose claim it answers go together the same way.
+  const groups = chainGroups(input.payouts ?? [], redoPairs)
   const chainByRoot = new Map(chains.map((chain) => [chain.rootId, chain]))
   for (const group of groups) {
-    const blocked =
-      group.roots.some((root) => {
-        const chain = chainByRoot.get(root)
-        return !chain || chain.kept !== null
-      }) ||
-      (scope.kind === 'before_cutoff' && group.payouts.some((payout) => payout.recordedAt >= scope.cutoff))
+    const members = group.roots.map((root) => chainByRoot.get(root))
+    const paidOutBlock =
+      group.payouts.length > 0 &&
+      ((scope.kind === 'before_cutoff' && group.payouts.some((payout) => payout.recordedAt >= scope.cutoff)) ||
+        members.some((chain) => chain?.teamTest))
+    const blocked = paidOutBlock || members.some((chain) => !chain || chain.kept !== null)
     if (!blocked) continue
-    for (const root of group.roots) {
-      const chain = chainByRoot.get(root)
-      if (chain && chain.kept === null) chain.kept = 'paid_out'
+    for (const chain of members) {
+      if (!chain || chain.kept !== null) continue
+      chain.kept = group.payouts.length > 0 ? 'paid_out' : 'linked'
+      chain.keptDetail = null
+      chain.teamTest = false
     }
   }
 
@@ -1088,6 +1434,9 @@ export function planReset(input: PlanInput): ResetPlan {
   for (const chain of chains) {
     if (chain.kept) continue
     if (only && !only.chains.has(chain.rootId)) continue
+    // A team test is ticked by hand on a run over many bookings, never on
+    // the first look; on its own booking's page it is the one in question.
+    if (!only && chain.teamTest && scope.kind !== 'chains') continue
     if (ticked >= MAX_CHAINS_PER_RUN) {
       overCapChains += 1
       capped.add(chain.rootId)
@@ -1171,21 +1520,31 @@ export function planReset(input: PlanInput): ResetPlan {
   //
   // Deleting one test booking (scope `chains`) takes the complaints about
   // the bookings it deletes, and only those: they go with their chain, so
-  // they follow its tick rather than one of their own.
+  // they follow its tick rather than one of their own. Since 0065 every run
+  // but a garage's delete does the same for the chains it deletes (a Test
+  // run's, or a cutoff run's made after its cutoff), so no complaint is left
+  // about a booking that never was.
   const chainBookings = new Set(chains.filter((c) => c.selected).flatMap((c) => c.bookingIds))
+  const byNumber = (a: ResetComplaint, b: ResetComplaint) => a.number - b.number
+  const aboutDeleted =
+    scope.kind === 'garage'
+      ? []
+      : (input.complaints ?? [])
+          .filter((complaint) => complaint.bookingId != null && chainBookings.has(complaint.bookingId))
+          .sort(byNumber)
   const complaintsInScope =
     scope.kind === 'before_cutoff'
-      ? (input.complaints ?? [])
-          .filter((complaint) => complaint.createdAt < scope.cutoff)
-          .sort((a, b) => a.number - b.number)
+      ? (input.complaints ?? []).filter((complaint) => complaint.createdAt < scope.cutoff).sort(byNumber)
       : scope.kind === 'chains'
-        ? (input.complaints ?? [])
-            .filter((complaint) => complaint.bookingId != null && chainBookings.has(complaint.bookingId))
-            .sort((a, b) => a.number - b.number)
+        ? aboutDeleted
         : []
   const complaintsTicked = only && scope.kind !== 'chains' ? only.complaints : true
-  const selectedComplaintIds =
-    complaintsTicked ? complaintsInScope.map((complaint) => complaint.id) : []
+  const selectedComplaintIds = [
+    ...new Set([
+      ...(complaintsTicked ? complaintsInScope.map((complaint) => complaint.id) : []),
+      ...aboutDeleted.map((complaint) => complaint.id),
+    ]),
+  ]
 
   // ── Usage events recorded before the cutoff ──
   // Anonymous rows that point at nothing, taken like the complaints: one
@@ -1229,6 +1588,9 @@ export function planReset(input: PlanInput): ResetPlan {
     complaints: selectedComplaintIds.length,
     analyticsEvents: analyticsTicked ? analyticsInScope : 0,
     payouts: selectedPayoutIds.length,
+    bypassReports: 0,
+    requests: 0,
+    teamTestPayments: 0,
   }
   const bookingsById = new Map(input.bookings.map((b) => [b.id, b]))
   for (const id of selectedBookingIds) {
@@ -1242,6 +1604,8 @@ export function planReset(input: PlanInput): ResetPlan {
     counts.reviews += child.reviews
     counts.promoUses += child.promoUses
     counts.refundRecords += child.refundRecords
+    counts.bypassReports = (counts.bypassReports ?? 0) + (child.bypassReports ?? 0)
+    counts.requests = (counts.requests ?? 0) + (child.requests ?? 0)
   }
   for (const root of selectedChainIds) counts.reschedules += input.reschedulesByChain.get(root) ?? 0
   for (const id of selectedIntentIds) {
@@ -1251,6 +1615,61 @@ export function planReset(input: PlanInput): ResetPlan {
   }
   counts.receiptNumbers = input.receipts.filter((r) => selectedRoots.has(r.rootBookingId)).length
 
+  // ── The team tests' payments, for the ledger (0065) ──
+  const teamTests = chains.filter((chain) => chain.selected && chain.teamTest)
+  const intentsByBooking = groupBy(
+    input.intents.filter((intent) => intent.bookingId !== null),
+    (intent) => intent.bookingId!
+  )
+  const ledger: TeamTestPayment[] = teamTests.flatMap((chain) =>
+    (moneyOf.get(chain.rootId) ?? [])
+      .filter((item) => !isDeletableMoney(item.money))
+      .map((item) => {
+        // A booking's order is its checkout's (consumeIntent copies the
+        // payment id onto the payment, and the order stays on the checkout).
+        const order =
+          item.kind === 'booking'
+            ? (item.targetIds
+                .flatMap((id) => intentsByBooking.get(id) ?? [])
+                .map((intent) => intent.gatewayTxnId)
+                .find((id): id is string => Boolean(id)) ?? null)
+            : (input.charges.find((charge) => charge.id === item.chargeId)?.gatewayOrderId ?? null)
+        return {
+          rootId: chain.rootId,
+          reference: chain.reference,
+          bookingIds: chain.bookingIds,
+          kind: item.kind,
+          chargeId: item.chargeId,
+          razorpayPaymentId:
+            item.kind === 'booking'
+              ? item.gatewayId
+              : (input.charges.find((charge) => charge.id === item.chargeId)?.gatewayPaymentId ?? null),
+          razorpayOrderId: order,
+          gatewayMode: item.gatewayMode,
+          amount: fromPaise(item.amountPaise),
+          refundedAmount: fromPaise(item.refundedPaise),
+          refunds: item.refunds
+            .slice()
+            .sort((a, b) => a.recordedAt.getTime() - b.recordedAt.getTime())
+            .map((refund) => ({
+              refundRef: refund.refundRef,
+              amount: refund.amount,
+              source: refund.source,
+              gatewayStatus: refund.gatewayStatus,
+              recordedBy: refund.recordedBy,
+              recordedAt: refund.recordedAt.toISOString(),
+            })),
+          receiptNumber: chain.receiptNumber,
+          vendorId: chain.garageId,
+          garageName: chain.garageName,
+          customerId: chain.customerId,
+          paidAt: item.paidAt,
+          bookedAt: chain.createdAt,
+        }
+      })
+  )
+  counts.teamTestPayments = ledger.length
+
   const receiptPlan = planReceipts({
     deletedRoots: selectedRoots,
     receipts: input.receipts,
@@ -1258,6 +1677,7 @@ export function planReset(input: PlanInput): ResetPlan {
     unnumberedReceipts: input.unnumberedReceipts,
     counters: input.counters,
     voidsByYear: input.voidsByYear,
+    voidOnlyRoots: new Set(teamTests.map((chain) => chain.rootId)),
   })
 
   return {
@@ -1278,6 +1698,7 @@ export function planReset(input: PlanInput): ResetPlan {
     analyticsEvents: { count: analyticsInScope, selected: analyticsTicked },
     analyticsCutoff: analyticsTicked && scope.kind === 'before_cutoff' ? scope.cutoff : null,
     selectedPayoutIds,
+    ledger,
     counts,
     receiptPlan,
     confirmPhrase: confirmPhraseFor(counts, selectedCheckoutIds.length),
@@ -1289,6 +1710,7 @@ export function planReset(input: PlanInput): ResetPlan {
       receiptPlan,
       complaintIds: selectedComplaintIds,
       payoutIds: selectedPayoutIds,
+      teamTest: teamTests.map((chain) => ({ root: chain.rootId, refunds: refundsOf.get(chain.rootId) ?? [] })),
     }),
   }
 }
@@ -1327,6 +1749,12 @@ export function countLines(counts: ResetCounts): string[] {
     [counts.complaints, plural(counts.complaints, 'complaint', 'complaints')],
     [counts.analyticsEvents ?? 0, plural(counts.analyticsEvents ?? 0, 'usage event', 'usage events')],
     [counts.payouts ?? 0, plural(counts.payouts ?? 0, 'garage payout', 'garage payouts')],
+    [counts.bypassReports ?? 0, plural(counts.bypassReports ?? 0, '“book directly” report', '“book directly” reports')],
+    [counts.requests ?? 0, plural(counts.requests ?? 0, 'visit request', 'visit requests')],
+    [
+      counts.teamTestPayments ?? 0,
+      `${plural(counts.teamTestPayments ?? 0, 'real payment', 'real payments')} (refunded; kept in the money record)`,
+    ],
   ]
   return lines.filter(([n]) => n > 0).map(([, text]) => text)
 }

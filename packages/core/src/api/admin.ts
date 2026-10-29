@@ -1914,6 +1914,12 @@ export interface DataResetChain {
   refunded: string
   markedTest: boolean
   kept: DataResetKept | null
+  /**
+   * A team test (0065): real money, every rupee refunded, so it may go with
+   * its payments kept in the money record. Never ticked on a run's first
+   * look. Absent from older servers.
+   */
+  teamTest?: { label: string } | null
   selected: boolean
 }
 
@@ -1955,6 +1961,10 @@ export interface DataResetCounts {
   analyticsEvents?: number
   /** Garage payouts that paid only deleted bookings (absent from older servers). */
   payouts?: number
+  /** 0065, absent from older servers: "book directly" reports, visit requests, team-test payments. */
+  bypassReports?: number
+  requests?: number
+  teamTestPayments?: number
 }
 
 export interface DataResetReceiptYear {
@@ -2021,6 +2031,8 @@ export interface DataResetExecuteInput extends DataResetPreviewInput {
   selectionHash: string
   confirmText: string
   backupConfirmed: true
+  /** Why, when a ticked booking took real money (a team test, 0065). */
+  reason?: string
 }
 
 export interface DataResetResult {
@@ -2078,12 +2090,39 @@ export async function previewTestBookingDelete(bookingId: string, input: { unkno
  */
 export async function deleteTestBooking(
   bookingId: string,
-  input: { unknownIds: string[]; selectionHash: string; confirmText: string }
+  input: { unknownIds: string[]; selectionHash: string; confirmText: string; reason?: string }
 ) {
   return apiClient<DataResetResult>(`/admin/bookings/${bookingId}/test-delete`, {
     method: 'POST',
     body: signedBody(input),
   })
+}
+
+/** A real payment deleted as a team test (0065), as the ledger keeps it. */
+export interface DeletedTestPayment {
+  id: string
+  deletedAt: string
+  deletedBy: string
+  reason: string
+  bookingReference: string
+  rootBookingId: string
+  kind: 'booking' | 'final_bill' | 'extra_work'
+  razorpayPaymentId: string | null
+  razorpayOrderId: string | null
+  gatewayMode: 'live' | 'test' | 'fake' | null
+  amount: string
+  refundedAmount: string
+  refundIds: string[]
+  receiptNumber: string | null
+  garageName: string | null
+  paidAt: string | null
+  bookedAt: string
+  auditId: string
+}
+
+/** GET /admin/deleted-test-payments — the team tests' ledger, newest first (0065). */
+export async function getDeletedTestPayments() {
+  return apiClient<{ payments: DeletedTestPayment[] }>('/admin/deleted-test-payments')
 }
 
 /** POST /admin/bookings/:id/notes */

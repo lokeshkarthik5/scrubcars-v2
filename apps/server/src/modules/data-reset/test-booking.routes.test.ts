@@ -41,6 +41,10 @@ beforeAll(() => {
     }
     return { auditId: 'audit-1', by: (args[2] as { actorName: string }).actorName }
   })
+  patch(dataResetService, 'listDeletedTestPayments', async () => {
+    calls.push({ kind: 'ledger', args: [] })
+    return { payments: [{ id: 'row-1', amount: '299.00' }] }
+  })
 })
 
 afterAll(() => {
@@ -55,14 +59,14 @@ app.onError((err, c) =>
 )
 app.route('/admin', adminRoutes)
 
-async function call(path: string, body: unknown, token?: string) {
+async function call(path: string, body: unknown, token?: string, method = 'POST') {
   const res = await app.request(path, {
-    method: 'POST',
+    method,
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Cookie: `access_token=${token}` } : {}),
     },
-    body: JSON.stringify(body),
+    body: method === 'GET' ? undefined : JSON.stringify(body),
   })
   return { status: res.status, body: (await res.json().catch(() => ({}))) as { data?: any; code?: string } }
 }
@@ -105,5 +109,26 @@ describe('delete test booking routes', () => {
     // The shared env login signs as admin, whatever was typed.
     expect(done.body.data.by).toBe('admin')
     expect((await call(`/admin/bookings/${BOOKING}/test-delete`, { selectionHash: HASH, confirmText: 'x' })).status).toBe(401)
+  })
+})
+
+describe('the team tests\' ledger (0065)', () => {
+  test('admin only, not behind the reset switch', async () => {
+    expect((await call('/admin/deleted-test-payments', null, undefined, 'GET')).status).toBe(401)
+    const res = await call('/admin/deleted-test-payments', null, await signAdminToken(), 'GET')
+    expect(res.status).toBe(200)
+    expect(res.body.data.payments).toEqual([{ id: 'row-1', amount: '299.00' }])
+  })
+
+  test('the delete passes the reason on', async () => {
+    const token = await signAdminToken()
+    await call(
+      `/admin/bookings/${BOOKING}/test-delete`,
+      { selectionHash: HASH, confirmText: 'DELETE 1 BOOKING', reason: 'Owner tested live keys' },
+      token
+    )
+    expect((calls.at(-1)!.args[2] as { reason?: string }).reason).toBe('Owner tested live keys')
+    const short = await call(`/admin/bookings/${BOOKING}/test-delete`, { selectionHash: HASH, confirmText: 'DELETE 1 BOOKING', reason: 'x' }, token)
+    expect(short.status).toBe(400)
   })
 })

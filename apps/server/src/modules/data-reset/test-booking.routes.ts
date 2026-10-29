@@ -22,6 +22,7 @@ import {
  *
  *   POST /bookings/:id/test-delete/preview   the dry run
  *   POST /bookings/:id/test-delete           the delete (signed)
+ *   GET  /deleted-test-payments              the team tests' ledger (0065)
  */
 export const adminTestBookingRoutes = new Hono<{ Variables: AuthVariables }>()
 
@@ -41,4 +42,10 @@ adminTestBookingRoutes.post(
   zValidator('param', testBookingParamSchema),
   adminSignedJson(testBookingDeleteSchema),
   (c) => dataResetController.deleteTestBooking(c, c.req.valid('param').id, c.req.valid('json'))
+)
+
+// The ledger of real payments deleted as team tests (0065), newest first,
+// for the CSV on the Refunds page. Ids, amounts and Razorpay ids only.
+adminTestBookingRoutes.get('/deleted-test-payments', ...adminMiddleware, (c) =>
+  dataResetController.listDeletedTestPayments(c)
 )

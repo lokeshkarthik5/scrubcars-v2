@@ -13,6 +13,7 @@ import type { AdminRefund } from '@repo/core/api/admin'
 import { errorMessage, isAuthError } from '@repo/core/api/hooks/use-discounts'
 import { useAdminRefunds } from '@repo/core/api/hooks/use-admin-refunds'
 import { useNow } from '@repo/core/hooks/use-now'
+import { DeletedTestPaymentsDownload } from '@/components/deleted-test-payments-download'
 import { MarkRefundedDialog } from '@/components/mark-refunded-dialog'
 import { RefundNowDialog } from '@/components/refund-now-dialog'
 import { RefundCard } from '@/components/refund-card'
@@ -96,6 +97,9 @@ function RefundsList() {
             <span className="font-numeric">{formatClock(dataUpdatedAt)}</span>.
           </p>
         )}
+
+        {/* Real payments deleted with a Test booking (0065): their record. */}
+        {tab === 'done' && <DeletedTestPaymentsDownload />}
 
         {tab === 'owed' && !isPending && refunds.length > 0 && (
           <p className="text-[13px] text-text-primary">

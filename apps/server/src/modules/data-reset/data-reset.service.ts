@@ -1,6 +1,7 @@
 import { runInBackground } from '../../lib/background.js'
 import {
   KEPT_REASONS,
+  TEAM_TEST_LABEL,
   MAX_CHAINS_PER_RUN,
   MAX_CHECKOUTS_PER_RUN,
   MONEY_LABELS,
@@ -159,6 +160,21 @@ export async function loadPlanInput(
   const keys = await chainKeysOf(repo, scope)
 
   const bookings = await repo.chainBookings(keys)
+  // A free redo goes with the booking whose claim it answers (0065): read
+  // the other one's chain too, whichever side the scope named. A redo has
+  // no claim of its own, so two rounds reach every pair; a third is a guard.
+  let redoLinks = await repo.redoLinks(bookings.map((b) => b.id))
+  for (let round = 0; round < 3; round += 1) {
+    const known = new Set(bookings.map((b) => b.id))
+    const missing = [
+      ...new Set(redoLinks.flatMap((link) => [link.bookingId, link.redoBookingId]).filter((id) => !known.has(id))),
+    ]
+    if (missing.length === 0) break
+    const moreKeys = (await repo.chainKeysOfBookings(missing)).filter((key) => !keys.includes(key))
+    keys.push(...moreKeys)
+    bookings.push(...(await repo.chainBookings(moreKeys)))
+    redoLinks = await repo.redoLinks(bookings.map((b) => b.id))
+  }
   const bookingIds = bookings.map((b) => b.id)
   const charges = await repo.charges(bookingIds)
   const ownIntents = await repo.intentsOfBookings(bookingIds)
@@ -173,14 +189,17 @@ export async function loadPlanInput(
   const bookingChildCounts = await repo.bookingChildCounts(bookingIds)
   const reschedulesByChain = await repo.reschedulesByChain(keys)
   const intentChildCounts = await repo.intentChildCounts(intents.map((intent) => intent.id))
-  // A cutoff run takes complaints made before it, ticked as one; deleting
-  // one test booking (chains) takes the complaints about it (0064).
-  const complaints =
-    scope.kind === 'before_cutoff'
-      ? await repo.complaintsMadeBefore(scope.cutoff)
-      : scope.kind === 'chains'
-        ? await repo.complaintsOfBookings(bookingIds)
-        : []
+  // A cutoff run takes complaints made before it, ticked as one; every run
+  // but a garage's takes the complaints about the bookings it deletes
+  // (0064 for one test booking, 0065 for the rest).
+  const aboutBookings = scope.kind === 'garage' ? [] : await repo.complaintsOfBookings(bookingIds)
+  const beforeCutoff = scope.kind === 'before_cutoff' ? await repo.complaintsMadeBefore(scope.cutoff) : []
+  const complaints = [
+    ...beforeCutoff,
+    ...aboutBookings.filter((complaint) => !beforeCutoff.some((other) => other.id === complaint.id)),
+  ]
+  // Refunds on the chains' payments and bills, for the team-test rule (0065).
+  const refunds = scope.kind === 'garage' ? [] : await repo.refunds(bookingIds)
   // Usage events (0040), likewise a cutoff run's only, counted not listed.
   const analyticsEvents = scope.kind === 'before_cutoff' ? await repo.analyticsEventsBefore(scope.cutoff) : 0
   // Garage payouts that paid any of these chains: they go only with every
@@ -208,6 +227,8 @@ export async function loadPlanInput(
     complaints,
     analyticsEvents,
     payouts,
+    refunds,
+    redoLinks,
     receipts,
     yearReceipts,
     unnumberedReceipts,
@@ -243,8 +264,8 @@ export function rowsToLock(seen: PlanInput, only: PreviewInput['only']) {
 
 // ─── Answers ─────────────────────────────────────────────────────────────────
 
-function keptView(reason: ChainPlan['kept']) {
-  return reason ? { code: reason, ...KEPT_REASONS[reason] } : null
+function keptView(reason: ChainPlan['kept'], detail: string | null = null) {
+  return reason ? { code: reason, ...KEPT_REASONS[reason], ...(detail ? { detail } : {}) } : null
 }
 
 function toChainView(chain: ChainPlan) {
@@ -265,7 +286,9 @@ function toChainView(chain: ChainPlan) {
     receiptNumber: chain.receiptNumber,
     refunded: chain.refunded,
     markedTest: chain.markedTest,
-    kept: keptView(chain.kept),
+    kept: keptView(chain.kept, chain.keptDetail),
+    // A team test (0065): real money, all refunded; the row says so.
+    teamTest: chain.teamTest ? { label: TEAM_TEST_LABEL } : null,
     selected: chain.selected,
   }
 }
@@ -351,12 +374,22 @@ function nothingToDelete() {
  * money, not marked Test, a payment that may still arrive, or paid out to
  * the garage. Says which, in the words the dry run shows.
  */
-function chainKept(reason: NonNullable<ChainPlan['kept']>) {
-  const { label, detail } = KEPT_REASONS[reason]
+function chainKept(reason: NonNullable<ChainPlan['kept']>, keptDetail: string | null = null) {
+  const { label } = KEPT_REASONS[reason]
+  const detail = keptDetail ?? KEPT_REASONS[reason].detail
   return new AppError(
     409,
     `This booking can't be deleted. ${label}: ${detail} Nothing was deleted.`,
     'TEST_BOOKING_KEPT'
+  )
+}
+
+/** A team test's real money goes to the ledger with the reason it was deleted (0065). */
+function reasonRequired() {
+  return new AppError(
+    400,
+    'Say why this booking with a real payment is being deleted as a team test.',
+    'REASON_REQUIRED'
   )
 }
 
@@ -402,8 +435,25 @@ export async function deletePlannedRows(
   repo: DataResetReads & DataResetWrites,
   plan: ResetPlan,
   auditId: string,
-  voidReason: string
+  voidReason: string,
+  /**
+   * A test run's own (0065), never a garage's delete: who and why, for the
+   * team tests' ledger rows, and the rows that point at a booking only SET
+   * NULL that a test run clears too ("book directly" reports, visit
+   * requests).
+   */
+  testRun?: { reason: string | null; actorName: string; actorSub: string }
 ): Promise<{ photoKeys: string[]; restartYears: string[] }> {
+  // The team tests' money, recorded before anything of theirs goes.
+  if (plan.ledger.length > 0) {
+    if (!testRun?.reason) throw reasonRequired()
+    await repo.insertLedger(plan.ledger, {
+      reason: testRun.reason,
+      actorName: testRun.actorName,
+      actorSub: testRun.actorSub,
+      auditId,
+    })
+  }
   const receiptRoots = plan.chains.filter((chain) => chain.selected).map((chain) => chain.rootId)
   for (const year of plan.receiptPlan) {
     if (year.mode === 'void') {
@@ -425,6 +475,10 @@ export async function deletePlannedRows(
   if (plan.analyticsCutoff) await repo.deleteAnalyticsEventsBefore(plan.analyticsCutoff)
   // Before the bookings too: a payout's items name them ON DELETE RESTRICT.
   await repo.deletePayouts(plan.selectedPayoutIds)
+  if (testRun) {
+    await repo.deleteBypassReports(plan.selectedBookingIds)
+    await repo.deleteRequestsOf(plan.selectedBookingIds)
+  }
   await repo.deleteBookings(plan.selectedBookingIds)
   return { photoKeys, restartYears }
 }
@@ -585,8 +639,8 @@ export const dataResetService = {
         // A booking deleted on its own says why it is kept, before anything
         // else: that is what the person needs to hear (0064).
         if (labels.refuseKept) {
-          const kept = plan.chains.find((chain) => chain.kept)?.kept
-          if (kept) throw chainKept(kept)
+          const kept = plan.chains.find((chain) => chain.kept)
+          if (kept?.kept) throw chainKept(kept.kept, kept.keptDetail)
         }
         if (plan.selectionHash !== input.selectionHash) throw previewStale()
         if (
@@ -600,6 +654,8 @@ export const dataResetService = {
         if (!phraseMatches(input.confirmText, plan.confirmPhrase)) {
           throw wrongPhrase(plan.confirmPhrase)
         }
+        const reason = input.reason?.trim() || null
+        if (plan.ledger.length > 0 && !reason) throw reasonRequired()
 
         const selected = plan.chains.filter((chain) => chain.selected)
         const kept = [...plan.chains, ...plan.checkouts].filter((row) => row.kept)
@@ -618,6 +674,8 @@ export const dataResetService = {
             kept: kept.length,
             unticked: unticked.rowIds.length,
             untickedComplaints: unticked.complaintIds.length,
+            // Team tests (0065): real money, all refunded, in the ledger.
+            ...(plan.ledger.length > 0 ? { teamTestPayments: plan.ledger.length, reason } : {}),
           },
           // Ids, references and Razorpay ids, never phone numbers.
           detail: {
@@ -638,6 +696,7 @@ export const dataResetService = {
               receiptNumber: chain.receiptNumber,
               refunded: chain.refunded,
               markedTest: chain.markedTest,
+              teamTest: chain.teamTest,
             })),
             checkouts: plan.checkouts
               .filter((checkout) => checkout.selected)
@@ -667,7 +726,11 @@ export const dataResetService = {
           },
         })
 
-        const { photoKeys, restartYears } = await deletePlannedRows(repo, plan, audit.id, labels.voidReason)
+        const { photoKeys, restartYears } = await deletePlannedRows(repo, plan, audit.id, labels.voidReason, {
+          reason,
+          actorName: input.actorName,
+          actorSub: sub,
+        })
 
         // The counter's lock is the last one any transaction takes.
         await finishRestarts(repo, restartYears)
@@ -720,6 +783,37 @@ export const dataResetService = {
   },
 
   /**
+   * The team tests' ledger (0065), newest first, at most the latest 2000:
+   * what was paid and refunded on each real payment deleted as a team test,
+   * who deleted it and why. No customer name or phone: ids only.
+   */
+  async listDeletedTestPayments() {
+    const rows = await dataResetRepository.listDeletedTestPayments(2000)
+    return {
+      payments: rows.map((row) => ({
+        id: row.id,
+        deletedAt: row.deletedAt.toISOString(),
+        deletedBy: row.deletedByName,
+        reason: row.reason,
+        bookingReference: row.bookingReference,
+        rootBookingId: row.rootBookingId,
+        kind: row.kind,
+        razorpayPaymentId: row.razorpayPaymentId,
+        razorpayOrderId: row.razorpayOrderId,
+        gatewayMode: row.gatewayMode,
+        amount: row.amount,
+        refundedAmount: row.refundedAmount,
+        refundIds: row.refunds.map((refund) => refund.refundRef).filter((ref): ref is string => Boolean(ref)),
+        receiptNumber: row.receiptNumber,
+        garageName: row.garageName,
+        paidAt: row.paidAt?.toISOString() ?? null,
+        bookedAt: row.bookedAt.toISOString(),
+        auditId: row.auditId,
+      })),
+    }
+  },
+
+  /**
    * The dry run for one booking's chain, from its page (0064). Works with
    * the reset switched off. 404 when there is no such booking.
    */
@@ -748,6 +842,7 @@ export const dataResetService = {
         selectionHash: input.selectionHash,
         confirmText: input.confirmText,
         actorName: input.actorName,
+        reason: input.reason,
       },
       now,
       { auditAction: TEST_BOOKING_AUDIT_ACTION, voidReason: TEST_BOOKING_VOID_REASON, refuseKept: true }

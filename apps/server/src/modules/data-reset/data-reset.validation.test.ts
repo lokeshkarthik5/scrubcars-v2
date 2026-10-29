@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { executeSchema, previewSchema } from './data-reset.validation.js'
+import { executeSchema, previewSchema, testBookingDeleteSchema } from './data-reset.validation.js'
 
 const ID = 'e2e00000-0000-4000-8000-000000000601'
 const HASH = 'a'.repeat(64)
@@ -61,5 +61,25 @@ describe('executeSchema', () => {
   test('refused without the backup box or a dry run', () => {
     expect(executeSchema.safeParse({ ...base, backupConfirmed: false }).success).toBe(false)
     expect(executeSchema.safeParse({ ...base, selectionHash: 'abc' }).success).toBe(false)
+  })
+})
+
+describe('the team-test reason (0065)', () => {
+  const run = {
+    scope: { kind: 'marked_test' },
+    selectionHash: HASH,
+    confirmText: 'DELETE 1 BOOKING',
+    backupConfirmed: true,
+  }
+  const one = { selectionHash: HASH, confirmText: 'DELETE 1 BOOKING' }
+
+  test('optional, trimmed, 3 to 300 characters, on both deletes', () => {
+    expect(executeSchema.parse(run).reason).toBeUndefined()
+    expect(executeSchema.parse({ ...run, reason: '  Owner tested live keys  ' }).reason).toBe('Owner tested live keys')
+    expect(testBookingDeleteSchema.parse({ ...one, reason: 'Team ₹2 test' }).reason).toBe('Team ₹2 test')
+    for (const reason of ['  ', 'ab', 'x'.repeat(301)]) {
+      expect(executeSchema.safeParse({ ...run, reason }).success).toBe(false)
+      expect(testBookingDeleteSchema.safeParse({ ...one, reason }).success).toBe(false)
+    }
   })
 })

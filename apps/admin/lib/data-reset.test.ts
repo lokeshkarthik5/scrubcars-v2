@@ -33,5 +33,10 @@ describe('what happens to a row', () => {
     expect(outcomeLabel({ kept, selected: false })).toBe('Real payment — kept')
     expect(outcomeLabel({ kept: null, selected: true })).toBe('Deleted')
     expect(outcomeLabel({ kept: null, selected: false })).toBe('Unticked — kept')
+    const teamTest = { label: 'Real payment, refunded: deleted as team test, money record kept' }
+    expect(outcomeLabel({ kept: null, selected: true, teamTest })).toBe(
+      'Deleted. Real payment, refunded: deleted as team test, money record kept'
+    )
+    expect(outcomeLabel({ kept: null, selected: false, teamTest })).toBe('Unticked — kept')
   })
 })

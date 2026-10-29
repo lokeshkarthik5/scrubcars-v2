@@ -151,6 +151,11 @@ export function ChainRow({
             <span className="text-text-secondary">{kept.detail}</span>
           </p>
         )}
+        {!kept && chain.teamTest && (
+          <p className="mt-0.5 font-medium text-text-primary">
+            {chain.teamTest.label}.
+          </p>
+        )}
       </div>
     </ListRow>
   )
@@ -459,12 +464,20 @@ export function ConfirmDelete({
   // One test booking needs no backup tick (0064).
   const [backup, setBackup] = useState(Boolean(bookingId))
   const [phrase, setPhrase] = useState('')
+  // A ticked booking that took real money, all refunded, goes as a team
+  // test (0065): its payments are kept in the money record with the reason.
+  const teamTests = preview.chains.filter(
+    (chain) => chain.selected && chain.teamTest
+  ).length
+  const [reason, setReason] = useState('')
+  const reasonGiven = teamTests === 0 || reason.trim().length >= 3
   const [error, setError] = useState<{
     message: string
     stale: boolean
   } | null>(null)
 
-  const ready = backup && phraseTyped(phrase, preview.confirmPhrase)
+  const ready =
+    backup && reasonGiven && phraseTyped(phrase, preview.confirmPhrase)
 
   const submit = () => {
     if (!ready || execute.isPending) return
@@ -485,6 +498,7 @@ export function ConfirmDelete({
             unknownIds: preview.lookups.unknownIds,
             selectionHash: preview.selectionHash,
             confirmText: phrase,
+            ...(teamTests > 0 ? { reason: reason.trim() } : {}),
           },
         },
         handlers
@@ -499,6 +513,7 @@ export function ConfirmDelete({
         selectionHash: preview.selectionHash,
         confirmText: phrase,
         backupConfirmed: true,
+        ...(teamTests > 0 ? { reason: reason.trim() } : {}),
       },
       handlers
     )
@@ -513,6 +528,25 @@ export function ConfirmDelete({
           checked={backup}
           onChange={setBackup}
         />
+      )}
+      {teamTests > 0 && (
+        <div className="flex flex-col gap-1">
+          <ScInput
+            id="team-test-reason"
+            label="Why is this a team test?"
+            placeholder="Owner checked the live payment keys"
+            maxLength={300}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            className="min-h-11"
+          />
+          <p className="text-[12px] text-text-muted">
+            {teamTests === 1
+              ? 'This booking took a real payment, all refunded.'
+              : `${teamTests} of these bookings took a real payment, all refunded.`}{' '}
+            Its payment record and refunds are kept, with this reason.
+          </p>
+        </div>
       )}
       <div className="flex flex-col gap-1">
         <ScInput
@@ -559,6 +593,7 @@ export function ConfirmDelete({
             ? undefined
             : `Still to do: ${[
                 !backup && 'the backup tick',
+                !reasonGiven && 'the reason',
                 !phraseTyped(phrase, preview.confirmPhrase) &&
                   'the typed words',
               ]

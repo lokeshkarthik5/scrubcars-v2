@@ -1,4 +1,4 @@
-import { and, asc, count, eq, inArray, isNotNull, isNull, lt, or, sql, type SQL } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull, lt, or, sql, type SQL } from 'drizzle-orm'
 import type { PgColumn } from 'drizzle-orm/pg-core'
 import { db } from '../../db/index.js'
 import {
@@ -9,9 +9,12 @@ import {
   bookingIntents,
   bookingItems,
   bookingNotes,
+  bookingRequests,
   bookingReschedules,
   bookings,
+  bypassReports,
   complaints,
+  deletedTestPayments,
   discountRedemptions,
   guaranteeClaimPhotos,
   guaranteeClaims,
@@ -37,6 +40,9 @@ import type {
   ResetIntent,
   ResetPayout,
   ResetReceipt,
+  ResetRedoLink,
+  ResetRefund,
+  TeamTestPayment,
 } from '../../lib/data-reset.js'
 
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
@@ -141,6 +147,7 @@ export function dataResetReads(conn: Conn) {
             paymentAmount: payments.amount,
             paymentCredit: payments.creditAmount,
             paymentRefunded: payments.refundedAmount,
+            paymentPaidAt: payments.paidAt,
           })
           .from(bookings)
           .innerJoin(users, eq(users.id, bookings.userId))
@@ -173,6 +180,7 @@ export function dataResetReads(conn: Conn) {
                     amount: row.paymentAmount ?? '0.00',
                     creditAmount: row.paymentCredit ?? '0.00',
                     refundedAmount: row.paymentRefunded,
+                    paidAt: row.paymentPaidAt,
                   },
           })
         }
@@ -194,6 +202,8 @@ export function dataResetReads(conn: Conn) {
             gatewayMode: bookingCharges.gatewayMode,
             refundedAmount: bookingCharges.refundedAmount,
             updatedAt: bookingCharges.updatedAt,
+            kind: bookingCharges.kind,
+            paidAt: bookingCharges.paidAt,
           })
           .from(bookingCharges)
           .where(inArray(bookingCharges.bookingId, slice))
@@ -245,6 +255,53 @@ export function dataResetReads(conn: Conn) {
       return this.intents(and(isNull(bookingIntents.bookingId), eq(bookingIntents.vendorId, vendorId))!)
     },
 
+    /**
+     * Refunds recorded on these bookings' payments and bills (kind booking
+     * or bill carry the booking), failed ones included: the planner leaves
+     * those out itself (0065).
+     */
+    async refunds(bookingIds: string[]): Promise<ResetRefund[]> {
+      const out: ResetRefund[] = []
+      for (const slice of batches(bookingIds)) {
+        const rows = await conn
+          .select({
+            kind: refundRecords.kind,
+            targetId: refundRecords.targetId,
+            amount: refundRecords.amount,
+            refundRef: refundRecords.refundRef,
+            source: refundRecords.source,
+            gatewayStatus: refundRecords.gatewayStatus,
+            recordedBy: refundRecords.recordedBy,
+            recordedAt: refundRecords.recordedAt,
+          })
+          .from(refundRecords)
+          .where(and(inArray(refundRecords.bookingId, slice), inArray(refundRecords.kind, ['booking', 'bill'])))
+        out.push(...(rows as ResetRefund[]))
+      }
+      return out
+    },
+
+    /**
+     * Free redos (0051) touching these bookings, either way: a claim on one
+     * of them answered by a redo, or one of them being a redo (0065).
+     */
+    async redoLinks(bookingIds: string[]): Promise<ResetRedoLink[]> {
+      const out: ResetRedoLink[] = []
+      for (const slice of batches(bookingIds)) {
+        const rows = await conn
+          .select({ bookingId: guaranteeClaims.bookingId, redoBookingId: guaranteeClaims.redoBookingId })
+          .from(guaranteeClaims)
+          .where(
+            and(
+              isNotNull(guaranteeClaims.redoBookingId),
+              or(inArray(guaranteeClaims.bookingId, slice), inArray(guaranteeClaims.redoBookingId, slice))
+            )
+          )
+        for (const row of rows) if (row.redoBookingId) out.push({ bookingId: row.bookingId, redoBookingId: row.redoBookingId })
+      }
+      return out
+    },
+
     async bookingChildCounts(bookingIds: string[]): Promise<Map<string, BookingChildCounts>> {
       const items = await countBy(conn, bookingItems.bookingId, bookingIds)
       const notes = await countBy(conn, bookingNotes.bookingId, bookingIds)
@@ -253,6 +310,11 @@ export function dataResetReads(conn: Conn) {
       const promoUses = await countBy(conn, discountRedemptions.bookingId, bookingIds)
       // Booking and bill refunds: a checkout's carries no booking_id.
       const refunds = await countBy(conn, refundRecords.bookingId, bookingIds)
+      // "Did the garage ask you to book directly?" reports (0052) and the
+      // visit requests they were booked from (0062): both point at the
+      // booking SET NULL, so the delete takes them by hand (0065).
+      const bypass = await countBy(conn, bypassReports.bookingId, bookingIds)
+      const requests = await countBy(conn, bookingRequests.bookingId, bookingIds)
       return new Map(
         bookingIds.map((id) => [
           id,
@@ -263,6 +325,8 @@ export function dataResetReads(conn: Conn) {
             reviews: reviewRows.get(id) ?? 0,
             promoUses: promoUses.get(id) ?? 0,
             refundRecords: refunds.get(id) ?? 0,
+            bypassReports: bypass.get(id) ?? 0,
+            requests: requests.get(id) ?? 0,
           },
         ])
       )
@@ -369,7 +433,12 @@ export function dataResetReads(conn: Conn) {
     /** Customer complaints made before the cutoff (0035), oldest first. */
     async complaintsMadeBefore(cutoff: Date): Promise<ResetComplaint[]> {
       return conn
-        .select({ id: complaints.id, number: complaints.number, createdAt: complaints.createdAt })
+        .select({
+          id: complaints.id,
+          number: complaints.number,
+          createdAt: complaints.createdAt,
+          bookingId: complaints.bookingId,
+        })
         .from(complaints)
         .where(lt(complaints.createdAt, cutoff))
         .orderBy(asc(complaints.number))
@@ -577,8 +646,83 @@ export function dataResetWrites(tx: Tx) {
           .innerJoin(guaranteeClaims, eq(guaranteeClaims.id, guaranteeClaimPhotos.claimId))
           .where(inArray(guaranteeClaims.bookingId, slice))
         keys.push(...claimPhotos.map((row) => row.key))
+        // Extra work's photos (0041) live in the booking's job-photos folder
+        // and are only named in the charge's JSON: their objects go too.
+        const charges = await tx
+          .select({ photos: bookingCharges.photos })
+          .from(bookingCharges)
+          .where(inArray(bookingCharges.bookingId, slice))
+        for (const charge of charges) keys.push(...(charge.photos ?? []).map((photo) => photo.storageKey))
       }
-      return keys
+      return [...new Set(keys)]
+    },
+
+    /**
+     * The team tests' payments, written to the ledger before their rows go
+     * (0065). One row per payment, in the delete's transaction.
+     */
+    async insertLedger(
+      rows: TeamTestPayment[],
+      by: { reason: string; actorName: string; actorSub: string; auditId: string }
+    ) {
+      if (rows.length === 0) return
+      await tx.insert(deletedTestPayments).values(
+        rows.map((row) => ({
+          rootBookingId: row.rootId,
+          bookingReference: row.reference,
+          bookingIds: row.bookingIds,
+          kind: row.kind,
+          chargeId: row.chargeId,
+          razorpayPaymentId: row.razorpayPaymentId,
+          razorpayOrderId: row.razorpayOrderId,
+          gatewayMode: row.gatewayMode,
+          amount: row.amount,
+          refundedAmount: row.refundedAmount,
+          refunds: row.refunds,
+          receiptNumber: row.receiptNumber,
+          vendorId: row.vendorId,
+          garageName: row.garageName,
+          customerId: row.customerId,
+          paidAt: row.paidAt,
+          bookedAt: row.bookedAt,
+          reason: by.reason,
+          deletedByName: by.actorName,
+          deletedBySub: by.actorSub,
+          auditId: by.auditId,
+        }))
+      )
+    },
+
+    /**
+     * "Book directly" reports about these bookings (0052): they would count
+     * as the garage's strikes for a booking that never was (0065). Their
+     * credit entries, where one was paid, stay with the customer's credit.
+     */
+    async deleteBypassReports(bookingIds: string[]) {
+      for (const slice of batches(bookingIds)) {
+        await tx
+          .delete(bypassReports)
+          .where(or(inArray(bypassReports.bookingId, slice), inArray(bypassReports.rootBookingId, slice)))
+      }
+    },
+
+    /**
+     * The visit requests these bookings were booked from (0062), each with
+     * the whole request chain it was passed along (0065): a booked request
+     * with its booking gone would show the garage and the customer a ghost.
+     */
+    async deleteRequestsOf(bookingIds: string[]) {
+      for (const slice of batches(bookingIds)) {
+        const rows = await tx
+          .select({ id: bookingRequests.id, root: bookingRequests.rootRequestId })
+          .from(bookingRequests)
+          .where(inArray(bookingRequests.bookingId, slice))
+        const roots = [...new Set(rows.map((row) => row.root ?? row.id))]
+        if (roots.length === 0) continue
+        await tx
+          .delete(bookingRequests)
+          .where(or(inArray(bookingRequests.id, roots), inArray(bookingRequests.rootRequestId, roots)))
+      }
     },
 
     /** Checkouts, and their items with them (ON DELETE CASCADE). */
@@ -680,6 +824,15 @@ export type DataResetWrites = ReturnType<typeof dataResetWrites>
 
 export const dataResetRepository = {
   ...dataResetReads(db),
+
+  /** The team tests' ledger (0065), newest first. */
+  listDeletedTestPayments(limit: number) {
+    return db
+      .select()
+      .from(deletedTestPayments)
+      .orderBy(desc(deletedTestPayments.deletedAt), asc(deletedTestPayments.id))
+      .limit(limit)
+  },
 
   /**
    * Remembers what Razorpay said about old money (gateway_mode was null), on

@@ -22,6 +22,10 @@ import {
   type ResetIntent,
   type ResetPayout,
   type ResetReceipt,
+  type ResetRefund,
+  TEAM_TEST_LABEL,
+  chainGroups,
+  rupeesFromPaise,
 } from './data-reset.js'
 
 // Fixed clock: the cutoff is launch day, 1 Oct 2026 09:00 IST.
@@ -982,7 +986,8 @@ describe('one test booking with its complaints (0064)', () => {
     const kept = planReset(
       input({ scope: { kind: 'chains', bookingIds: [uuid(1)] }, bookings: [live], complaints: [about(601, uuid(1), 11)] })
     )
-    expect(kept.chains[0].kept).toBe('live')
+    // Real money not yet refunded (0065: refunded, it could go as a team test).
+    expect(kept.chains[0].kept).toBe('refund_first')
     expect(kept.selectedComplaintIds).toEqual([])
     const unmarked = planReset(
       input({
@@ -1012,5 +1017,309 @@ describe('one test booking with its complaints (0064)', () => {
     const without = planReset(input(base)).selectionHash
     const withOne = planReset(input({ ...base, complaints: [about(601, uuid(1), 11)] })).selectionHash
     expect(withOne).not.toBe(without)
+  })
+})
+
+describe('team tests: real money, all refunded (0065)', () => {
+  const live = (n: number, overrides: Partial<ResetBooking> = {}, payment: Partial<NonNullable<ResetBooking['payment']>> = {}) =>
+    booking(n, {
+      markedTestAt: before(1),
+      payment: {
+        status: 'refunded',
+        gatewayTxnId: `pay_Live${n}`,
+        gatewayMode: 'live',
+        amount: '299.00',
+        refundedAmount: '299.00',
+        paidAt: before(10),
+        ...payment,
+      },
+      ...overrides,
+    })
+  const refund = (target: string, overrides: Partial<ResetRefund> = {}): ResetRefund => ({
+    kind: 'booking',
+    targetId: target,
+    amount: '299.00',
+    refundRef: `rfnd_${target.slice(-4)}`,
+    source: 'admin',
+    gatewayStatus: 'processed',
+    recordedBy: 'Mathew',
+    recordedAt: before(5),
+    ...overrides,
+  })
+  const one = (b: ResetBooking, extra: Partial<PlanInput> = {}) =>
+    planReset(input({ scope: { kind: 'chains', bookingIds: [b.id] }, bookings: [b], refunds: [refund(b.id)], ...extra }))
+
+  test('a Test booking whose live payment was all refunded can go, as a team test, with its ledger row', () => {
+    const b = live(1)
+    const intent = {
+      id: uuid(501), bookingId: b.id, status: 'consumed', createdAt: before(10), expiresAt: before(9),
+      amount: '299.00', gatewayTxnId: 'order_Live1', paymentRef: 'pay_Live1', gatewayMode: 'live' as const,
+      refundedAmount: null, userId: uuid(800), customerName: 'Team Phone', garageName: 'Test Garage',
+    }
+    const plan = one(b, { intents: [intent], receipts: [receipt(b.id, 3)] })
+    expect(plan.chains[0]).toMatchObject({ money: 'live', kept: null, teamTest: true, selected: true })
+    expect(plan.selectedChainIds).toEqual([b.id])
+    expect(plan.ledger).toEqual([
+      {
+        rootId: b.id,
+        reference: b.id.slice(0, 8).toUpperCase(),
+        bookingIds: [b.id],
+        kind: 'booking',
+        chargeId: null,
+        razorpayPaymentId: 'pay_Live1',
+        razorpayOrderId: 'order_Live1',
+        gatewayMode: 'live',
+        amount: '299.00',
+        refundedAmount: '299.00',
+        refunds: [
+          {
+            refundRef: `rfnd_${b.id.slice(-4)}`,
+            amount: '299.00',
+            source: 'admin',
+            gatewayStatus: 'processed',
+            recordedBy: 'Mathew',
+            recordedAt: before(5).toISOString(),
+          },
+        ],
+        receiptNumber: 'DTL/26-27/000003',
+        vendorId: uuid(900),
+        garageName: 'Test Garage',
+        customerId: uuid(800),
+        paidAt: before(10),
+        bookedAt: b.createdAt,
+      },
+    ])
+    expect(plan.counts.teamTestPayments).toBe(1)
+    expect(countLines(plan.counts)).toContain('1 real payment (refunded; kept in the money record)')
+    expect(TEAM_TEST_LABEL).toBe('Real payment, refunded: deleted as team test, money record kept')
+  })
+
+  test('money still owed keeps it, saying how much to refund first', () => {
+    const plan = one(live(1, {}, { status: 'paid', refundedAmount: null }), { refunds: [] })
+    expect(plan.chains[0]).toMatchObject({ kept: 'refund_first', teamTest: false, selected: false })
+    expect(plan.chains[0].keptDetail).toBe(
+      `Refund ₹299 first. ${KEPT_REASONS.refund_first.detail}`
+    )
+    expect(plan.ledger).toEqual([])
+  })
+
+  test('a part refund keeps it with the rest to refund', () => {
+    const b = live(1, {}, { status: 'paid', refundedAmount: '296.50' })
+    const plan = one(b, { refunds: [refund(b.id, { amount: '296.50' })] })
+    expect(plan.chains[0].kept).toBe('refund_first')
+    expect(plan.chains[0].keptDetail).toStartWith('Refund ₹2.50 first.')
+  })
+
+  test('a Razorpay refund still processing keeps it until it is processed', () => {
+    const b = live(1)
+    const plan = one(b, { refunds: [refund(b.id, { gatewayStatus: 'pending' })] })
+    expect(plan.chains[0].kept).toBe('refund_pending')
+    expect(plan.chains[0].keptDetail).toBe(
+      "Razorpay hasn't finished the refund of ₹299 yet. Delete it once the refund is processed."
+    )
+    // A failed refund moved no money: the total was put back, so it is owed.
+    const failed = one(live(1, {}, { status: 'paid', refundedAmount: '0.00' }), {
+      refunds: [refund(b.id, { gatewayStatus: 'failed' })],
+    })
+    expect(failed.chains[0].kept).toBe('refund_first')
+    // Mark refunded (no Razorpay status) is a refund done.
+    expect(one(b, { refunds: [refund(b.id, { gatewayStatus: null, source: 'recorded', refundRef: null })] }).chains[0].kept).toBeNull()
+  })
+
+  test('a paid bill on the chain must be refunded too', () => {
+    const b = live(1)
+    const bill: ResetCharge = {
+      id: uuid(301), bookingId: b.id, status: 'paid', amountDue: '150.00', gatewayOrderId: 'order_Bill1',
+      gatewayPaymentId: 'pay_Bill1', gatewayMode: 'live', refundedAmount: null, updatedAt: before(4), kind: 'extra_work',
+    }
+    expect(one(b, { charges: [bill] }).chains[0].keptDetail).toStartWith('Refund ₹150 first.')
+    const refunded = { ...bill, refundedAmount: '150.00' }
+    const plan = one(b, {
+      charges: [refunded],
+      refunds: [refund(b.id), refund(bill.id, { kind: 'bill', amount: '150.00', refundRef: 'rfnd_Bill1' })],
+    })
+    expect(plan.chains[0].teamTest).toBe(true)
+    expect(plan.ledger.map((row) => [row.kind, row.razorpayPaymentId, row.razorpayOrderId, row.amount])).toEqual([
+      ['booking', 'pay_Live1', null, '299.00'],
+      ['extra_work', 'pay_Bill1', 'order_Bill1', '150.00'],
+    ])
+  })
+
+  test('cash, Detlio credit and money Razorpay was not asked about stay kept as before', () => {
+    expect(one(live(1, { paymentMethod: 'cash' }, { status: 'collected', gatewayTxnId: null, gatewayMode: null })).chains[0].kept).toBe('cash')
+    expect(one(live(1, {}, { creditAmount: '100.00' })).chains[0].kept).toBe('unknown')
+    expect(one(live(1, {}, { gatewayMode: null })).chains[0].kept).toBe('unchecked')
+  })
+
+  test('only a booking marked Test, and never in a garage\'s delete', () => {
+    const unmarked = one(live(1, { markedTestAt: null }))
+    expect(unmarked.chains[0].kept).toBe('live')
+    const garage = planReset(
+      input({ now: after(5), scope: { kind: 'garage', vendorId: uuid(900) }, bookings: [live(1)], refunds: [refund(uuid(1))] })
+    )
+    expect(garage.chains[0].kept).toBe('live')
+  })
+
+  test('a garage payout on it keeps it, whatever else the payout paid', () => {
+    const plan = one(live(1), { payouts: [{ id: uuid(701), recordedAt: before(3), rootBookingIds: [uuid(1)] }] })
+    expect(plan.chains[0]).toMatchObject({ kept: 'paid_out', teamTest: false, selected: false })
+    expect(plan.selectedPayoutIds).toEqual([])
+  })
+
+  test('on a run over many bookings it is offered, never ticked on the first look', () => {
+    const b = live(1)
+    const first = planReset(input({ scope: { kind: 'marked_test' }, bookings: [b, booking(2, { markedTestAt: before(1) })], refunds: [refund(b.id)] }))
+    const row = first.chains.find((chain) => chain.rootId === b.id)!
+    expect(row).toMatchObject({ kept: null, teamTest: true, selected: false })
+    expect(first.selectedChainIds).toEqual([uuid(2)])
+    const ticked = planReset(
+      input({
+        scope: { kind: 'marked_test' },
+        bookings: [b, booking(2, { markedTestAt: before(1) })],
+        refunds: [refund(b.id)],
+        only: { chainIds: [b.id], checkoutIds: [] },
+      })
+    )
+    expect(ticked.selectedChainIds).toEqual([b.id])
+    expect(ticked.ledger).toHaveLength(1)
+  })
+
+  test('its receipt number is voided, never restarted, even when its year has nothing else', () => {
+    const b = live(1)
+    const plan = one(b, { receipts: [receipt(b.id, 1)], yearReceipts: [{ financialYear: '26-27', rootBookingId: b.id }], counters: new Map([['26-27', 1]]) })
+    expect(plan.receiptPlan).toEqual([
+      expect.objectContaining({ financialYear: '26-27', mode: 'void', numbers: ['DTL/26-27/000001'], nextNumber: 'DTL/26-27/000002' }),
+    ])
+    // The same year with only test money restarts, as before.
+    const test = planReset(
+      input({ scope: { kind: 'chains', bookingIds: [uuid(2)] }, bookings: [booking(2, { markedTestAt: before(1) })], receipts: [receipt(uuid(2), 1)], yearReceipts: [{ financialYear: '26-27', rootBookingId: uuid(2) }] })
+    )
+    expect(test.receiptPlan[0].mode).toBe('restart')
+  })
+
+  test('a refund recorded after the dry run makes it stale', () => {
+    const b = live(1)
+    const base = one(b).selectionHash
+    expect(one(b, { refunds: [refund(b.id, { gatewayStatus: 'pending' })] }).selectionHash).not.toBe(base)
+    const settled = one(b, { refunds: [refund(b.id, { recordedAt: before(4) })] }).selectionHash
+    expect(settled).not.toBe(base)
+    // A run with no team test hashes as it always did.
+    const plain = { scope: { kind: 'chains' as const, bookingIds: [uuid(2)] }, bookings: [booking(2, { markedTestAt: before(1) })] }
+    expect(planReset(input({ ...plain, refunds: [] })).selectionHash).toBe(planReset(input(plain)).selectionHash)
+  })
+
+  test('rupees read as people write them', () => {
+    expect(rupeesFromPaise(29900)).toBe('₹299')
+    expect(rupeesFromPaise(250)).toBe('₹2.50')
+    expect(rupeesFromPaise(129900)).toBe('₹1,299')
+  })
+})
+
+describe('a free redo goes with the booking whose claim it answers (0065)', () => {
+  const original = booking(1, { markedTestAt: before(1) })
+  const redo = booking(2, { createdAt: before(8), payment: { status: 'paid', gatewayTxnId: null, gatewayMode: null, amount: '0.00', refundedAmount: null } })
+  const links = [{ bookingId: original.id, redoBookingId: redo.id }]
+
+  test('deleting the original takes its redo, which needs no Test mark of its own', () => {
+    const plan = planReset(
+      input({ scope: { kind: 'chains', bookingIds: [original.id] }, bookings: [original, redo], redoLinks: links })
+    )
+    expect(plan.selectedChainIds.sort()).toEqual([original.id, redo.id])
+    expect(plan.confirmPhrase).toBe('DELETE 2 BOOKINGS')
+    // Named from the redo's page, the same pair.
+    const fromRedo = planReset(
+      input({ scope: { kind: 'chains', bookingIds: [redo.id] }, bookings: [original, redo], redoLinks: links })
+    )
+    expect(fromRedo.selectedChainIds.sort()).toEqual([original.id, redo.id])
+  })
+
+  test('a Test run takes the unmarked redo of a marked booking', () => {
+    const plan = planReset(input({ scope: { kind: 'marked_test' }, bookings: [original, redo], redoLinks: links }))
+    expect(plan.selectedChainIds.sort()).toEqual([original.id, redo.id])
+  })
+
+  test('when either is kept, both are', () => {
+    const liveRedo = { ...redo, payment: { status: 'paid', gatewayTxnId: 'pay_LiveR', gatewayMode: 'live' as const, amount: '10.00', refundedAmount: null } }
+    const plan = planReset(
+      input({ scope: { kind: 'chains', bookingIds: [original.id] }, bookings: [original, liveRedo], redoLinks: links })
+    )
+    expect(plan.chains.find((c) => c.rootId === original.id)!.kept).toBe('linked')
+    expect(plan.selectedChainIds).toEqual([])
+    const words = KEPT_REASONS.linked
+    expect(words.label).toBe('Goes with another booking — kept')
+  })
+
+  test('unticking one unticks the other', () => {
+    const plan = planReset(
+      input({ scope: { kind: 'marked_test' }, bookings: [original, redo], redoLinks: links, only: { chainIds: [original.id], checkoutIds: [] } })
+    )
+    expect(plan.selectedChainIds).toEqual([])
+  })
+
+  test('groups join payouts and redos', () => {
+    const groups = chainGroups([{ id: uuid(701), recordedAt: before(3), rootBookingIds: [uuid(1), uuid(3)] }], [[uuid(1), uuid(2)]])
+    expect(groups).toEqual([expect.objectContaining({ roots: [uuid(1), uuid(2), uuid(3)], linked: true })])
+  })
+})
+
+describe('complaints about the chains a Test run deletes (0065)', () => {
+  test('a Test run takes the complaints about the bookings it deletes, and none of a kept one', () => {
+    const live = booking(2, {
+      markedTestAt: before(1),
+      payment: { status: 'paid', gatewayTxnId: 'pay_L2', gatewayMode: 'live', amount: '9.00', refundedAmount: null },
+    })
+    const plan = planReset(
+      input({
+        scope: { kind: 'marked_test' },
+        bookings: [booking(1, { markedTestAt: before(1) }), live],
+        complaints: [
+          { id: uuid(601), number: 1, createdAt: before(2), bookingId: uuid(1) },
+          { id: uuid(602), number: 2, createdAt: before(2), bookingId: uuid(2) },
+        ],
+      })
+    )
+    expect(plan.selectedComplaintIds).toEqual([uuid(601)])
+    // No row of its own: it goes with its booking.
+    expect(plan.complaints.ids).toEqual([])
+  })
+
+  test('a cutoff run takes a complaint about a deleted booking made after the cutoff, untick or not', () => {
+    const plan = planReset(
+      input({
+        bookings: [booking(1)],
+        complaints: [
+          { id: uuid(601), number: 1, createdAt: before(2), bookingId: null },
+          { id: uuid(602), number: 2, createdAt: after(1), bookingId: uuid(1) },
+        ],
+        only: { chainIds: [uuid(1)], checkoutIds: [], complaints: false },
+      })
+    )
+    expect(plan.selectedComplaintIds).toEqual([uuid(602)])
+    expect(plan.complaints.ids).toEqual([uuid(601)])
+  })
+
+  test('a garage\'s delete leaves complaints alone, as before', () => {
+    const plan = planReset(
+      input({
+        now: after(5),
+        scope: { kind: 'garage', vendorId: uuid(900) },
+        bookings: [booking(1)],
+        complaints: [{ id: uuid(602), number: 2, createdAt: before(1), bookingId: uuid(1) }],
+      })
+    )
+    expect(plan.selectedComplaintIds).toEqual([])
+  })
+})
+
+describe('the rest of what a deleted booking leaves (0065)', () => {
+  test('“book directly” reports and visit requests are counted and named', () => {
+    const plan = planReset(
+      input({
+        bookings: [booking(1)],
+        bookingChildCounts: new Map([[uuid(1), { items: 1, notes: 0, photos: 0, reviews: 0, promoUses: 0, refundRecords: 0, bypassReports: 1, requests: 2 }]]),
+      })
+    )
+    expect(plan.counts).toMatchObject({ bypassReports: 1, requests: 2 })
+    expect(countLines(plan.counts)).toEqual(expect.arrayContaining(['1 “book directly” report', '2 visit requests']))
   })
 })
