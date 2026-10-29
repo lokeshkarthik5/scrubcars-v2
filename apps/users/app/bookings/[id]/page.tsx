@@ -21,6 +21,7 @@ import { WhenPicker } from '@/components/checkout/when-picker'
 import { STATUS_STEPS, bookingHeadline } from '@/lib/booking-status'
 import { formatWhen } from '@repo/core/format'
 import { money } from '@/lib/money'
+import { currentMarketingContext, trackPurchase } from '@/lib/meta-pixel'
 import { contactWindowState } from '@repo/core/contact-window'
 import { telHref, whatsAppHref } from '@repo/core/contact-links'
 import { ScInput } from '@repo/ui/sc/input'
@@ -31,6 +32,7 @@ import { Stars } from '@repo/ui/sc/stars'
 import { getBooking } from '@repo/core/api/bookings'
 import { createPaymentOrder, verifyPayment } from '@repo/core/api/payments'
 import { submitReview } from '@repo/core/api/reviews'
+import { amountBucket } from '@repo/core/analytics-events'
 import { track } from '@repo/core/analytics'
 import { toast } from 'react-toastify'
 import {
@@ -517,11 +519,14 @@ export default function BookingDetailPage({
           // reads paid — which the webhook also does on its own.
           const outcome = await confirmPayment({
             verify: async () => {
+              // Only with marketing consent; left out otherwise.
+              const marketing = currentMarketingContext()
               await verifyPayment({
                 bookingId: booking.id,
                 razorpayOrderId: response.razorpay_order_id,
                 razorpayPaymentId: paymentId,
                 razorpaySignature: response.razorpay_signature,
+                ...(marketing ? { marketing } : {}),
               })
               return { bookingId: booking.id }
             },
@@ -543,12 +548,29 @@ export default function BookingDetailPage({
           })
 
           if (outcome.kind === 'booked') {
+            track('pay_success', {
+              vendorId: booking.vendorId,
+              mode: booking.bookingType,
+              serviceCount: Math.min(20, Math.max(1, booking.items.length)),
+              amountBucket: amountBucket(order.amount / 100),
+            })
+            // Meta's Purchase (marketing consent only), as at checkout.
+            void trackPurchase({
+              bookingId: booking.id,
+              rupeesPaid: order.amount / 100,
+              numItems: booking.items.length,
+            })
             const updated = await getBooking(booking.id)
             if (updated) setBooking(updated)
             setPaid({ paymentId, phase: 'booked' })
             void invalidateHome(queryClient)
             toast.success('Payment successful')
           } else {
+            if (outcome.kind === 'failed')
+              track('pay_failed', {
+                vendorId: booking.vendorId,
+                mode: booking.bookingType,
+              })
             setPaid({
               paymentId,
               phase: outcome.kind,
@@ -563,6 +585,10 @@ export default function BookingDetailPage({
           )
         },
         onFailure: (message) => {
+          track('pay_failed', {
+            vendorId: booking.vendorId,
+            mode: booking.bookingType,
+          })
           toast.error(message)
         },
       })

@@ -25,6 +25,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { MainAction } from '@/components/main-action'
 import { isHomeHubEnabled } from '@/lib/home-hub'
 import { LEGAL_PATHS } from '@/lib/legal/routes'
+import { currentMarketingContext, trackPurchase } from '@/lib/meta-pixel'
 import {
   PaymentReceivedPanel,
   paymentReceivedText,
@@ -931,6 +932,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
       // and the booking already exists. Same way out as a paid checkout.
       if (order.paidWithCredit && order.bookingId) {
         paidRef.current = true
+        track('pay_success', {
+          vendorId,
+          mode: bookingType,
+          serviceCount: selectedServices.length,
+        })
         void invalidateHome(queryClient)
         void invalidateGiftData(queryClient)
         void invalidateRewards(queryClient)
@@ -966,13 +972,18 @@ function BookContent({ vendorId }: { vendorId: string }) {
           // Retries a dropped confirm, then watches for the booking the
           // webhook writes on its own. Never throws, and never ends in Pay.
           const outcome = await confirmPayment({
-            verify: () =>
-              verifyPayment({
+            verify: () => {
+              // Only with marketing consent: the API then reports the paid
+              // booking to Meta itself (Conversions API). Left out otherwise.
+              const marketing = currentMarketingContext()
+              return verifyPayment({
                 intentId: order.intentId,
                 razorpayOrderId: response.razorpay_order_id,
                 razorpayPaymentId: paymentId,
                 razorpaySignature: response.razorpay_signature,
-              }),
+                ...(marketing ? { marketing } : {}),
+              })
+            },
             poll: async () =>
               intentPollResult(await getBookingIntentStatus(order.intentId)),
             ...realClock,
@@ -986,12 +997,27 @@ function BookContent({ vendorId }: { vendorId: string }) {
           void invalidateRewards(queryClient)
           void invalidateCoupons(queryClient)
           if (outcome.kind === 'booked') {
+            // Statistics → Behaviour's "paid".
+            track('pay_success', {
+              vendorId,
+              mode: bookingType,
+              serviceCount: selectedServices.length,
+              amountBucket: amountBucket(order.amount / 100),
+            })
+            // Meta's Purchase (marketing consent only): what Razorpay took,
+            // in rupees, under the event id the API's report shares.
+            void trackPurchase({
+              bookingId: outcome.bookingId,
+              rupeesPaid: order.amount / 100,
+              numItems: selectedServices.length,
+            })
             // The offer and car Home handed over have done their job.
             clearPending()
             // ?celebrate=1 triggers the success burst on arrival; the booking
             // page strips it once played.
             router.push(`/bookings/${outcome.bookingId}?celebrate=1`)
           } else if (outcome.kind === 'failed') {
+            track('pay_failed', { vendorId, mode: bookingType })
             setPaid({
               paymentId,
               phase: 'failed',
@@ -1005,6 +1031,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
           toast.info('Payment cancelled. Nothing was booked.')
         },
         onFailure: (message) => {
+          // Razorpay refused the payment (a declined card, a failed UPI).
+          track('pay_failed', { vendorId, mode: bookingType })
           toast.error(message)
         },
       })
@@ -1167,10 +1195,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
   return (
     <AppShell className="gap-6 pt-0 pb-0">
       {/* Sticky, not fixed: it keeps its place in the flow. Full-bleed via
-          -mx-4 against AppShell's px-4, and opaque so rows scroll under it. */}
+          -mx-4 against AppShell's px-4, and opaque so rows scroll under it.
+          Below the cookie bar while that is up (--consent-bar). */}
       <PageHeader
         title="Book your wash"
-        className="sticky top-0 z-30 -mx-4 bg-brand-black px-4"
+        className="sticky top-(--consent-bar) z-30 -mx-4 bg-brand-black px-4"
       />
 
       {/* The garage page says this where Book Now would be; a customer can
@@ -1429,7 +1458,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
                       />
                     )}
                   </span>
-                  <span className="truncate font-numeric text-[13px] text-dim">
+                  <span
+                    className="truncate font-numeric text-[13px] text-dim"
+                    data-clarity-mask="true"
+                  >
                     {v.plate}
                   </span>
                 </button>
@@ -1514,7 +1546,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
                     <span className="block text-[15px] text-text-primary">
                       {a.label}
                     </span>
-                    <span className="block truncate text-[13px] text-text-secondary">
+                    <span
+                      className="block truncate text-[13px] text-text-secondary"
+                      data-clarity-mask="true"
+                    >
                       {a.address}
                     </span>
                     {/* Said on every address it applies to, so the customer
@@ -1762,7 +1797,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 <span className="min-w-0 text-text-secondary">
                   <span className="block">Pickup &amp; drop</span>
                   {selectedAddressRecord && (
-                    <span className="block truncate text-[13px] text-text-muted">
+                    <span
+                      className="block truncate text-[13px] text-text-muted"
+                      data-clarity-mask="true"
+                    >
                       From and back to {selectedAddressRecord.address}
                     </span>
                   )}

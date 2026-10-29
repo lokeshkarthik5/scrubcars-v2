@@ -1121,6 +1121,66 @@ export interface StatsFunnelReport {
   weeks: Array<{ start: string; end: string; full: boolean; new: number; repeat: number }>
 }
 
+/** Statistics → Behaviour's Source filter (0061). */
+export type StatsBehaviourSource = 'all' | 'instagram' | 'google' | 'direct' | 'other'
+
+/** Statistics → Behaviour's Device filter. Desktop is 640px wide or more (tablets too). */
+export type StatsBehaviourDevice = 'all' | 'phone' | 'desktop'
+
+export type StatsBehaviourStepKey =
+  | 'landed'
+  | 'garageSeen'
+  | 'area'
+  | 'garage'
+  | 'service'
+  | 'booking'
+  | 'number'
+  | 'paid'
+
+/**
+ * GET /admin/stats/behaviour — see apps/server/src/lib/behaviour.ts.
+ * Visits (one browser tab each) are the unit; rates are 0–1, or null.
+ */
+export interface StatsBehaviourReport {
+  range: StatsRange
+  source: StatsBehaviourSource
+  device: StatsBehaviourDevice
+  /** The IST day the first Behaviour step was recorded; null before any. */
+  stepsSince: string | null
+  /** Visits in the period and filters, the team's and Test ones left out. */
+  visits: number
+  leftOut: { team: number; test: number }
+  funnel: {
+    steps: Array<{
+      key: StatsBehaviourStepKey
+      label: string
+      /** Null for a step nothing records yet. */
+      count: number | null
+      lost: number | null
+      ofPrevious: number | null
+      ofLanded: number | null
+    }>
+    biggestLeak: { key: StatsBehaviourStepKey; from: StatsBehaviourStepKey; lost: number } | null
+  }
+  lastSteps: {
+    /** Visits that landed and did not pay. */
+    leavers: number
+    rows: Array<{ event: string; label: string; sessions: number; share: number | null }>
+  }
+}
+
+export interface StatsBehaviourFilters {
+  from: string
+  to: string
+  source: StatsBehaviourSource
+  device: StatsBehaviourDevice
+}
+
+/** GET /admin/stats/behaviour?from&to&source&device */
+export async function getStatsBehaviour(filters: StatsBehaviourFilters) {
+  return apiClient<StatsBehaviourReport>('/admin/stats/behaviour', { params: { ...filters } })
+}
+
 /** GET /admin/stats/funnel?from&to&mode */
 export async function getStatsFunnel(filters: { from: string; to: string; mode: StatsFunnelMode }) {
   return apiClient<StatsFunnelReport>('/admin/stats/funnel', { params: { ...filters } })

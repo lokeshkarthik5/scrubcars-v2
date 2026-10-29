@@ -10,6 +10,7 @@
  * apps/server/src/lib/payouts.test.ts; this checks them end to end.
  */
 import { test, expect, asRole } from '../../support/fixtures'
+import { answerCookieQuestion } from '../../support/consent'
 import { API, setActiveVendor, statePath } from '../../support/auth'
 import { sql } from '../../support/db'
 import { VENDORS_ORIGIN } from '../../support/journey'
@@ -114,6 +115,7 @@ test.describe.serial('garage payouts @p0', () => {
       viewport: { width: 412, height: 915 },
       isMobile: true,
     })
+    await answerCookieQuestion(ctx)
     await setActiveVendor(ctx, GARAGE.id)
     const page = await ctx.newPage()
 
@@ -139,6 +141,7 @@ test.describe.serial('garage payouts @p0', () => {
 
   test('an operator never sees the money', async ({ browser }) => {
     const ctx = await browser.newContext({ storageState: statePath('vendor-operator') })
+    await answerCookieQuestion(ctx)
     const response = await ctx.request.get(STATEMENT, { headers: { 'X-Vendor-Id': VENDORS.main.id } })
     expect(response.status()).toBe(403)
     await ctx.close()

@@ -415,7 +415,11 @@ function MapBrowseContent() {
     )
 
   return (
-    <div ref={rootRef} className="fixed inset-0 bg-surface">
+    // Below the cookie bar while it is up (--consent-bar, app/globals.css).
+    <div
+      ref={rootRef}
+      className="fixed inset-x-0 top-(--consent-bar) bottom-0 bg-surface"
+    >
       {/* Chrome column: phone-width, centred, transparent to pointer events
           except where a control actually sits. First in the DOM, and kept on
           top with z-index, so a keyboard or screen-reader user reaches Back,

@@ -26,6 +26,9 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  */
 const perVisit = createKeyedLimit(20, 60 * 1000)
 
+/** How far back signing in reaches into the visit's events: a day. */
+export const VISIT_JOIN_WINDOW_MS = 24 * 60 * 60 * 1000
+
 /** Who sent a batch, as the controller read it from the request. */
 export interface IngestContext {
   /** The session's subject, when the request carried a valid customer session. */
@@ -104,6 +107,24 @@ export const analyticsService = {
   /** booking_cancelled, after the cancel committed. Paid bookings only. */
   bookingCancelled(bookingId: string, by: (typeof CANCELLED_BY)[number]): void {
     inBackground('booking_cancelled', () => recordBookingEvent('booking_cancelled', bookingId, by))
+  },
+
+  /**
+   * After a customer signs in with a code: the visit's earlier, anonymous
+   * events get the account, so the steps before sign-in (landing, the
+   * garage, Book Now, the code sent) and after it are one person's visit.
+   * Scoped to that visit id alone, to rows with no account yet, and to the
+   * last day (a visit is one browser tab). After the response; never fails
+   * the sign-in. The visit id is the random one the app keeps in
+   * sessionStorage; a wrong or made-up one matches nothing.
+   */
+  joinVisit(visitId: string | undefined, userId: string): void {
+    if (!visitId || !UUID_RE.test(visitId) || !UUID_RE.test(userId)) return
+    inBackground('join_visit', async () => {
+      const since = new Date(Date.now() - VISIT_JOIN_WINDOW_MS)
+      const joined = await analyticsRepository.attachUserToVisit(visitId, userId, since)
+      if (joined > 0) log.info({ joined }, 'analytics:visit_joined')
+    })
   },
 
   /**

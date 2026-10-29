@@ -59,9 +59,57 @@ interface RazorpayResult {
 
 // Either an intent (the booking does not exist yet — verifying is what creates
 // it) or an existing unpaid booking settled from booking details.
-export type VerifyPaymentPayload =
+/**
+ * Sent with a payment confirmation only when the customer has accepted
+ * marketing cookies (the consent banner). The API then also reports the
+ * paid booking to Meta from the server (Conversions API, META_CAPI_TOKEN),
+ * under the same event id the browser's Pixel used, so Meta counts it once.
+ * Never carries a name, phone or address. An older API ignores it.
+ */
+export interface MarketingConsentContext {
+  consent: true
+  /** Meta's _fbp cookie, when set. */
+  fbp?: string
+  /** Meta's _fbc cookie (a click from Facebook or Instagram), when set. */
+  fbc?: string
+  /** The page the payment was made on: origin + path, never a query string. */
+  eventSourceUrl?: string
+}
+
+/** What every Purchase event id starts with. */
+export const PURCHASE_EVENT_PREFIX = 'purchase_'
+
+/** How many hex characters of the SHA-256 follow it (128 bits). */
+export const PURCHASE_EVENT_HEX_LENGTH = 32
+
+/** The event id from the SHA-256 of the booking id, as lowercase hex. */
+export function purchaseEventIdFromDigest(hex: string): string {
+  return `${PURCHASE_EVENT_PREFIX}${hex.slice(0, PURCHASE_EVENT_HEX_LENGTH)}`
+}
+
+/**
+ * The Purchase event id the Pixel and the Conversions API share for one
+ * booking, so Meta counts it once: "purchase_" and the first 32 hex
+ * characters of the SHA-256 of the booking's id (lowercased). Meta never
+ * sees the booking's id, which is our reference number for it.
+ *
+ * Web Crypto, so it runs in the browser; the API works out the same with
+ * node:crypto (apps/server/src/lib/meta-capi.ts `purchaseEventId`), and
+ * apps/server/src/lib/meta-capi.parity.test.ts proves the two agree.
+ */
+export async function purchaseEventId(bookingId: string): Promise<string> {
+  const bytes = new TextEncoder().encode(bookingId.toLowerCase())
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))
+  const hex = Array.from(digest, (byte) =>
+    byte.toString(16).padStart(2, '0')
+  ).join('')
+  return purchaseEventIdFromDigest(hex)
+}
+
+export type VerifyPaymentPayload = (
   | (RazorpayResult & { intentId: string })
   | (RazorpayResult & { bookingId: string })
+) & { marketing?: MarketingConsentContext }
 
 /** POST /payments/orders */
 export async function createPaymentOrder(

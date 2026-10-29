@@ -17,6 +17,7 @@
  * admin specs cancel) can be on the list too, so nothing here counts it.
  */
 import type { Browser } from '@playwright/test'
+import { answerCookieQuestion } from '../../support/consent'
 import { test, expect } from '../../support/fixtures'
 import { API, loginViaApi, setActiveVendor, statePath } from '../../support/auth'
 import { bookingNotes, getIntent, getPayment, refundRecordsFor } from '../../support/db'
@@ -38,6 +39,7 @@ async function openAdmin(browser: Browser) {
     baseURL: ADMIN_ORIGIN,
     viewport: { width: 1280, height: 900 },
   })
+  await answerCookieQuestion(ctx)
   await blockThirdParties(ctx)
   return { ctx, page: await ctx.newPage() }
 }
@@ -49,6 +51,7 @@ async function openCustomer(browser: Browser) {
     viewport: { width: 412, height: 915 },
     isMobile: true,
   })
+  await answerCookieQuestion(ctx)
   await dismissLocationPrompt(ctx)
   await blockThirdParties(ctx)
   return { ctx, page: await ctx.newPage() }
@@ -400,6 +403,7 @@ test.describe('refunds @p0', () => {
       viewport: { width: 412, height: 915 },
       isMobile: true,
     })
+    await answerCookieQuestion(ctx)
     await setActiveVendor(ctx, VENDORS.refunds.id)
     await blockThirdParties(ctx)
     const page = await ctx.newPage()

@@ -24,6 +24,7 @@ import { Toast } from '@repo/ui/sc/toast'
 import { VendorCard } from '@repo/ui/features/vendor-card'
 import { SaveGarageButton } from '@/components/favourites/save-garage-button'
 import { Reveal } from '@repo/ui/sc/reveal'
+import { GarageSeenWatcher } from '@/components/behaviour-marks'
 import { useVendorSearch } from '@repo/core/api/hooks/use-vendors'
 import { browseCategory } from '@repo/core/analytics-events'
 import { track } from '@repo/core/analytics'
@@ -438,12 +439,15 @@ function GarageListContent() {
                   )}
                   <Reveal index={i}>
                     {/* The mode travels with the tap, so the garage page and
-                        checkout open on the choice made here. */}
-                    <VendorCard
-                      vendor={vendor}
-                      mode={serviceMode}
-                      action={<SaveGarageButton vendor={vendor} />}
-                    />
+                        checkout open on the choice made here. The wrapper is
+                        what Behaviour's "Saw a garage" watches. */}
+                    <div data-garage-card="">
+                      <VendorCard
+                        vendor={vendor}
+                        mode={serviceMode}
+                        action={<SaveGarageButton vendor={vendor} />}
+                      />
+                    </div>
                   </Reveal>
                 </Fragment>
               ))}
@@ -456,6 +460,8 @@ function GarageListContent() {
           )}
         </div>
       </section>
+
+      <GarageSeenWatcher mode={serviceMode} />
 
       <LocationPromptSheet
         open={locationSheetOpen}

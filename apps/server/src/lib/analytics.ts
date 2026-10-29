@@ -49,6 +49,21 @@ export const CLIENT_EVENTS = [
   // 0056: a printed coupon's page opened, and a coupon added (source: link, typed, camera).
   'coupon_scan',
   'coupon_redeem',
+  // 0061: the landing → paid steps of admin's Statistics → Behaviour.
+  'landing_view',
+  'garage_card_seen',
+  'area_pick',
+  'mode_switch',
+  'service_sheet_open',
+  'booking_start',
+  'otp_sent',
+  'pay_success',
+  'pay_failed',
+  // 0061, named now for the landing page's next release (not sent yet).
+  'request_sent',
+  'free_wash_claim',
+  'banner_view',
+  'banner_close',
 ] as const
 
 /**
@@ -99,7 +114,14 @@ export const CANCELLED_BY = ['customer', 'garage', 'detlio'] as const
 export const DEVICE_CLASSES = ['phone', 'tablet', 'desktop'] as const
 export type DeviceClass = (typeof DEVICE_CLASSES)[number]
 
-/** Every prop key there is. 0040's props CHECK holds the same list. */
+/**
+ * Where a visit came from (app_open's `channel`, 0061), for the Behaviour
+ * tab's Source filter. Worked out in the app (packages/core visitChannel).
+ */
+export const CHANNELS = ['instagram', 'google', 'facebook', 'whatsapp', 'direct', 'other'] as const
+export type Channel = (typeof CHANNELS)[number]
+
+/** Every prop key there is. 0061's props CHECK holds the same list. */
 export const PROP_KEYS = [
   'vendorId',
   'mode',
@@ -110,12 +132,19 @@ export const PROP_KEYS = [
   'step',
   'queryLength',
   'cancelledBy',
+  // 0061: where a visit came from (app_open), and the landing page's chips and banners.
+  'medium',
+  'campaign',
+  'referrer',
+  'channel',
+  'area',
+  'banner',
 ] as const
 export type PropKey = (typeof PROP_KEYS)[number]
 
 /** The props each event may carry; any other key is refused. */
 export const EVENT_PROPS: Record<AnalyticsEventName, readonly PropKey[]> = {
-  app_open: ['source'],
+  app_open: ['source', 'medium', 'campaign', 'referrer', 'channel'],
   home_view: [],
   garage_list_view: ['mode', 'category'],
   search: ['category', 'queryLength'],
@@ -133,12 +162,34 @@ export const EVENT_PROPS: Record<AnalyticsEventName, readonly PropKey[]> = {
   favourite_remove: ['vendorId'],
   coupon_scan: [],
   coupon_redeem: ['source'],
+  landing_view: [],
+  garage_card_seen: ['mode'],
+  area_pick: ['area', 'mode'],
+  mode_switch: ['mode'],
+  service_sheet_open: ['vendorId', 'category'],
+  booking_start: ['vendorId', 'mode', 'serviceCount'],
+  otp_sent: [],
+  pay_success: ['vendorId', 'mode', 'serviceCount', 'amountBucket'],
+  pay_failed: ['vendorId', 'mode'],
+  request_sent: ['vendorId', 'mode'],
+  free_wash_claim: [],
+  banner_view: ['banner'],
+  banner_close: ['banner'],
   booking_paid: ['vendorId', 'mode', 'serviceCount', 'amountBucket'],
   booking_cancelled: ['vendorId', 'mode', 'cancelledBy'],
 }
 
 /** A campaign source (utm_source) as we keep it: a short lowercase slug. */
 export const SOURCE_PATTERN = /^[a-z0-9_.-]{1,32}$/
+
+/** A campaign name (utm_campaign), a little longer. */
+export const CAMPAIGN_PATTERN = /^[a-z0-9_.-]{1,64}$/
+
+/** A referring site: its domain only, never its path. */
+export const REFERRER_PATTERN = /^(?=.{1,64}$)[a-z0-9-]+(\.[a-z0-9-]+)+$/
+
+/** An area or banner name: a short slug the app chose (anna-nagar, near-me). */
+export const SLUG_PATTERN = /^[a-z0-9-]{1,40}$/
 
 /** An app version as package.json writes it. */
 export const APP_VERSION_PATTERN = /^[0-9A-Za-z.+-]{1,32}$/

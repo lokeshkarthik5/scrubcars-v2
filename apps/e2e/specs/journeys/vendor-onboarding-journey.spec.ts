@@ -6,6 +6,7 @@
  * customer can actually buy. Three apps, one row.
  */
 import { test, expect, statePath } from '../../support/fixtures'
+import { answerCookieQuestion } from '../../support/consent'
 import {
   blockThirdParties,
   dismissLocationPrompt,
@@ -53,6 +54,7 @@ test('a garage is verified by ops, lists a service, and takes a booking', async 
         storageState: statePath(role),
         baseURL: base,
       })
+      await answerCookieQuestion(ctx)
       await stubRazorpay(ctx)
       await dismissLocationPrompt(ctx)
       await blockThirdParties(ctx)

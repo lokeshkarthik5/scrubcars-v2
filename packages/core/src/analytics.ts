@@ -1,11 +1,11 @@
 import {
-  campaignSource,
   cleanPath,
   deviceClass,
   EVENT_PROPS,
   MAX_EVENTS_PER_BATCH,
   type ClientEventName,
   type EventProps,
+  visitAttribution,
 } from '@repo/core/analytics-events'
 
 /**
@@ -16,8 +16,12 @@ import {
  * - A visit is a random id kept in sessionStorage: it ends with the tab, and
  *   the next visit is a new one. No cookie, no localStorage.
  * - Nothing is sent when the browser says Do Not Track or Global Privacy
- *   Control, or when the build has analytics off (development, E2E and
- *   previews, unless NEXT_PUBLIC_ANALYTICS=on).
+ *   Control, from a team device (detlio.com/?team-device=1, below), or when
+ *   the build has analytics off (development, E2E and previews, unless
+ *   NEXT_PUBLIC_ANALYTICS=on).
+ * - The visit's first event, app_open, says where it came from: utm_ tags,
+ *   the referring site's domain (never its address) and the channel those
+ *   add up to (analytics-events.ts visitAttribution).
  * - Events wait in memory and go every few seconds, as soon as a batch is
  *   full, and when the page is hidden or closed, by navigator.sendBeacon
  *   (fetch with keepalive where that is refused).
@@ -30,6 +34,59 @@ export const FLUSH_MS = 5000
 
 /** Where the visit id is kept: the tab's sessionStorage, never a cookie. */
 export const VISIT_KEY = 'detlio:visit'
+
+/**
+ * The team-device flag, in localStorage: a browser the Detlio team uses to
+ * test the site, which then sends nothing to our step log, Clarity or Meta,
+ * so the team's own clicks never count. Set by opening
+ * detlio.com/?team-device=1 once on that browser; ?team-device=0 clears it.
+ * A switch for the team, not a customer setting: it holds "1" and nothing
+ * else.
+ */
+export const TEAM_DEVICE_KEY = 'detlio:team-device'
+
+/** The query parameter that sets (1) or clears (0) the team-device flag. */
+export const TEAM_DEVICE_PARAM = 'team-device'
+
+/**
+ * Whether this browser is a team device, after the page's query has had its
+ * say: ?team-device=1 makes it one, ?team-device=0 stops it being one,
+ * anything else leaves the stored flag as it is. Returns the new flag and
+ * what to do with storage ('set', 'clear' or nothing).
+ */
+export function teamDeviceFlag(
+  search: string,
+  stored: string | null
+): { teamDevice: boolean; write: 'set' | 'clear' | null } {
+  let asked: string | null = null
+  try {
+    asked = new URLSearchParams(search).get(TEAM_DEVICE_PARAM)
+  } catch {
+    asked = null
+  }
+  if (asked === '1') return { teamDevice: true, write: stored === '1' ? null : 'set' }
+  if (asked === '0') return { teamDevice: false, write: stored === null ? null : 'clear' }
+  return { teamDevice: stored === '1', write: null }
+}
+
+/**
+ * True on a browser the team marked with ?team-device=1 (TEAM_DEVICE_KEY),
+ * applying the page's own ?team-device= first. False on the server, or when
+ * localStorage can't be read. One localStorage read: cheap enough to ask
+ * on every check.
+ */
+export function isTeamDevice(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    const storage = window.localStorage
+    const flag = teamDeviceFlag(window.location.search, storage.getItem(TEAM_DEVICE_KEY))
+    if (flag.write === 'set') storage.setItem(TEAM_DEVICE_KEY, '1')
+    if (flag.write === 'clear') storage.removeItem(TEAM_DEVICE_KEY)
+    return flag.teamDevice
+  } catch {
+    return false
+  }
+}
 
 /** Events held before the app has started the tracker (a page's first effects run first). */
 const MAX_EARLY = MAX_EVENTS_PER_BATCH
@@ -52,6 +109,14 @@ export interface TrackerDeps {
   viewportWidth: () => number
   pathname: () => string
   search: () => string
+  /** document.referrer: only its domain is kept, on app_open. */
+  referrer?: () => string
+  /** navigator.userAgent: only read for "Instagram"'s in-app browser, never kept. */
+  userAgent?: () => string
+  /** Our own host, so moving between our pages is not a referrer. */
+  ownHost?: () => string
+  /** A team device (isTeamDevice) sends nothing. */
+  teamDevice?: () => boolean
   storage: { getItem(key: string): string | null; setItem(key: string, value: string): void } | null
   randomId: () => string
   sendBeacon: ((url: string, body: string) => boolean) | null
@@ -66,6 +131,8 @@ export interface Tracker {
   track<N extends ClientEventName>(name: N, props?: EventProps[N]): void
   /** Sends whatever is waiting, now. */
   flush(): void
+  /** The visit's id while this browser records events, else null. */
+  visitId(): string | null
 }
 
 /** Only the keys the event may carry, and only values that are set. */
@@ -84,7 +151,7 @@ export function createTracker(deps: TrackerDeps): Tracker {
   let timer: unknown = null
   let visit: { id: string; isNew: boolean } | null = null
 
-  const active = () => deps.enabled && !deps.privacySignal()
+  const active = () => deps.enabled && !deps.privacySignal() && !deps.teamDevice?.()
 
   function visitId() {
     if (visit) return visit
@@ -160,13 +227,30 @@ export function createTracker(deps: TrackerDeps): Tracker {
     start() {
       try {
         if (!active()) return
-        if (visitId().isNew) track('app_open', { source: campaignSource(deps.search()) })
+        if (visitId().isNew) {
+          track(
+            'app_open',
+            visitAttribution({
+              search: deps.search(),
+              referrer: deps.referrer?.() ?? '',
+              userAgent: deps.userAgent?.() ?? '',
+              ownHost: deps.ownHost?.() ?? '',
+            })
+          )
+        }
       } catch {
         // As above.
       }
     },
     track,
     flush,
+    visitId() {
+      try {
+        return active() ? visitId().id : null
+      } catch {
+        return null
+      }
+    },
   }
 }
 
@@ -190,6 +274,81 @@ export function browserAsksNotToTrack(
   return dnt === '1' || dnt === 'yes' || nav?.globalPrivacyControl === true
 }
 
+// ─── Listeners: one more place an event goes ─────────────────────────────────
+
+/** One recorded event, as a listener sees it: only the props the event may carry. */
+export interface TrackedEvent {
+  name: ClientEventName
+  props?: Record<string, string | number>
+}
+
+export type TrackListener = (event: TrackedEvent) => void
+
+export interface TrackHub {
+  emit(name: ClientEventName, props?: object): void
+  /** Adds a listener; returns the way to remove it. */
+  subscribe(listener: TrackListener): () => void
+}
+
+/**
+ * Hands every `track` call to whoever listens: the customer app's Meta Pixel
+ * mapping (apps/users/lib/meta-events.ts), which decides for itself whether
+ * to send anything. Independent of the first-party tracker: it runs whether
+ * or not NEXT_PUBLIC_ANALYTICS is on, and a listener checks its own consent.
+ *
+ * Events recorded before anyone listens (a page's first effects run before
+ * the layout's) wait, at most MAX_EARLY of them, and go to the first
+ * listener. A listener that throws never stops the others, or the page.
+ */
+export function createTrackHub(): TrackHub {
+  const listeners = new Set<TrackListener>()
+  let waiting: TrackedEvent[] | null = []
+
+  function deliver(listener: TrackListener, event: TrackedEvent) {
+    try {
+      listener(event)
+    } catch {
+      // A listener's failure is its own.
+    }
+  }
+
+  return {
+    emit(name, props) {
+      try {
+        const event: TrackedEvent = { name }
+        const kept = allowedProps(name, props)
+        if (kept) event.props = kept
+        if (listeners.size === 0) {
+          if (waiting && waiting.length < MAX_EARLY) waiting.push(event)
+          return
+        }
+        for (const listener of [...listeners]) deliver(listener, event)
+      } catch {
+        // Never let a measurement break the page.
+      }
+    },
+    subscribe(listener) {
+      listeners.add(listener)
+      const held = waiting
+      waiting = null
+      if (held) for (const event of held) deliver(listener, event)
+      return () => {
+        listeners.delete(listener)
+      }
+    },
+  }
+}
+
+const hub = createTrackHub()
+
+/**
+ * Calls `listener` with every event the app records from now on (and those
+ * recorded before the first listener arrived). Returns the way to stop.
+ */
+export function onTrack(listener: TrackListener): () => void {
+  return hub.subscribe(listener)
+}
+
 let tracker: Tracker | null = null
 let early: Array<() => void> = []
 let started = false
@@ -211,6 +370,10 @@ export function initAnalytics(config: { endpoint: string; enabled: boolean; appV
       viewportWidth: () => window.innerWidth,
       pathname: () => window.location.pathname,
       search: () => window.location.search,
+      referrer: () => document.referrer,
+      userAgent: () => nav.userAgent,
+      ownHost: () => window.location.hostname,
+      teamDevice: isTeamDevice,
       storage: (() => {
         try {
           return window.sessionStorage
@@ -247,6 +410,19 @@ export function initAnalytics(config: { endpoint: string; enabled: boolean; appV
 }
 
 /**
+ * This visit's random id, while the tracker is recording (analytics on, no
+ * DNT/GPC, not a team device), else null. Sent with the sign-in code, so the
+ * API can put the new session's account on this visit's earlier events.
+ */
+export function currentVisitId(): string | null {
+  try {
+    return tracker?.visitId() ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Records one event. Safe anywhere: before the tracker starts, during
  * server rendering, with analytics off or the browser asking not to be
  * tracked (then nothing is sent), and it never throws.
@@ -254,6 +430,7 @@ export function initAnalytics(config: { endpoint: string; enabled: boolean; appV
 export function track<N extends ClientEventName>(name: N, props?: EventProps[N]): void {
   try {
     if (typeof window === 'undefined') return
+    hub.emit(name, props)
     if (tracker) {
       tracker.track(name, props)
       return

@@ -13,6 +13,7 @@
  * database, which is the only place both apps agree.
  */
 import { createHmac } from 'node:crypto'
+import { answerCookieQuestion } from '../../support/consent'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test, expect } from '../../support/fixtures'
@@ -163,6 +164,7 @@ test.describe('final bill @p0', () => {
       storageState: statePath('admin'),
       baseURL: ADMIN_ORIGIN,
     })
+    await answerCookieQuestion(adminCtx)
     const admin = await adminCtx.newPage()
     await admin.goto(`/bookings/${BOOKINGS.billDue}`)
     await expect(
@@ -263,6 +265,7 @@ test.describe('final bill webhook @p0', () => {
     const vendorCtx = await browser.newContext({
       storageState: statePath('vendor-inspect'),
     })
+    await answerCookieQuestion(vendorCtx)
     const customer = await loginViaApi(CUSTOMERS.billWebhook.phone)
 
     const raised = await vendorCtx.request.post(

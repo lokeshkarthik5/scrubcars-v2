@@ -1,5 +1,6 @@
 import type { Context } from 'hono'
 import type { AuthVariables } from '../../middleware/auth.middleware.js'
+import { byClientIp } from '../../middleware/rate-limit.middleware.js'
 import { paymentsService } from './payments.service.js'
 import type { VerifyPaymentInput } from './payments.validation.js'
 
@@ -22,7 +23,12 @@ export async function verifyPayment(
   c: PaymentsContext,
   input: VerifyPaymentInput
 ) {
-  const result = await paymentsService.verifyPayment(getAuth(c).sub, input)
+  // The browser's address and user agent, used only for the Meta Purchase
+  // event of a customer who accepted marketing cookies.
+  const result = await paymentsService.verifyPayment(getAuth(c).sub, input, {
+    clientIp: byClientIp(c),
+    userAgent: c.req.header('user-agent'),
+  })
 
   return c.json({
     success: true,

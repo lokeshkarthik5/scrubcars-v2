@@ -1,5 +1,13 @@
 import { describe, expect, test } from 'bun:test'
-import { browserAsksNotToTrack, createTracker, FLUSH_MS, VISIT_KEY, type TrackerDeps } from './analytics'
+import {
+  browserAsksNotToTrack,
+  createTrackHub,
+  createTracker,
+  FLUSH_MS,
+  VISIT_KEY,
+  type TrackedEvent,
+  type TrackerDeps,
+} from './analytics'
 import { amountBucket, browseCategory, campaignSource, cleanPath, deviceClass } from './analytics-events'
 
 const VISIT = '6f1d2c3b-4a59-4e1f-8d2c-0b9a8e7f6d5c'
@@ -103,7 +111,7 @@ describe('the tracker', () => {
     first.flush()
     expect(browser.store.get(VISIT_KEY)).toBe(VISIT)
     expect(browser.sent[0].body.events).toEqual([
-      { name: 'app_open', path: '/garage/:id', props: { source: 'instagram' } },
+      { name: 'app_open', path: '/garage/:id', props: { source: 'instagram', channel: 'instagram' } },
     ])
 
     // The same tab after a reload: the visit goes on, no second app_open.
@@ -247,5 +255,48 @@ describe('what goes in an event', () => {
 
   test('a price band, never the price', () => {
     expect(amountBucket(1299)).toBe('1000_1999')
+  })
+})
+
+describe('listeners (onTrack)', () => {
+  test('each listener hears every event, with only the props the event may carry', () => {
+    const hub = createTrackHub()
+    const heard: TrackedEvent[] = []
+    hub.subscribe((event) => heard.push(event))
+    hub.emit('search', { category: 'detailing', queryLength: 4, query: 'Ravi 98765 43210' })
+    hub.emit('pay_click', { vendorId: GARAGE, amountBucket: '500_999', phone: '9876543210' })
+    hub.emit('home_view')
+    expect(heard).toEqual([
+      { name: 'search', props: { category: 'detailing', queryLength: 4 } },
+      { name: 'pay_click', props: { vendorId: GARAGE, amountBucket: '500_999' } },
+      { name: 'home_view' },
+    ])
+  })
+
+  test('events before the first listener wait for it, at most a batch of them', () => {
+    const hub = createTrackHub()
+    for (let i = 0; i < 40; i++) hub.emit('map_view')
+    const first: string[] = []
+    const second: string[] = []
+    hub.subscribe((event) => first.push(event.name))
+    hub.subscribe((event) => second.push(event.name))
+    expect(first).toHaveLength(25)
+    expect(second).toHaveLength(0)
+    hub.emit('home_view')
+    expect(first.at(-1)).toBe('home_view')
+    expect(second).toEqual(['home_view'])
+  })
+
+  test('a listener that throws stops neither the others nor the caller; one removed hears nothing', () => {
+    const hub = createTrackHub()
+    const heard: string[] = []
+    hub.subscribe(() => {
+      throw new Error('boom')
+    })
+    const stop = hub.subscribe((event) => heard.push(event.name))
+    expect(() => hub.emit('map_view')).not.toThrow()
+    stop()
+    hub.emit('home_view')
+    expect(heard).toEqual(['map_view'])
   })
 })

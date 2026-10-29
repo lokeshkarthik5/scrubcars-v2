@@ -3943,9 +3943,13 @@ export const analyticsEvents = pgTable(
     index('analytics_events_user_id_idx')
       .on(table.userId)
       .where(sql`${table.userId} is not null`),
+    // 0061: a visit's events (Behaviour, and attaching an account on sign-in).
+    index('analytics_events_visit_id_idx')
+      .on(table.visitId)
+      .where(sql`${table.visitId} is not null`),
     check(
       'analytics_events_name_check',
-      sql`${table.name} in ('app_open', 'home_view', 'garage_list_view', 'search', 'map_view', 'garage_view', 'service_add', 'checkout_start', 'slot_select', 'address_select', 'pay_click', 'booking_paid', 'booking_cancelled', 'review_submit', 'complaint_submit', 'help_view', 'favourite_add', 'favourite_remove', 'coupon_scan', 'coupon_redeem')`
+      sql`${table.name} in ('app_open', 'home_view', 'garage_list_view', 'search', 'map_view', 'garage_view', 'service_add', 'checkout_start', 'slot_select', 'address_select', 'pay_click', 'booking_paid', 'booking_cancelled', 'review_submit', 'complaint_submit', 'help_view', 'favourite_add', 'favourite_remove', 'coupon_scan', 'coupon_redeem', 'landing_view', 'garage_card_seen', 'area_pick', 'mode_switch', 'service_sheet_open', 'booking_start', 'otp_sent', 'pay_success', 'pay_failed', 'request_sent', 'free_wash_claim', 'banner_view', 'banner_close')`
     ),
     check(
       'analytics_events_device_check',
@@ -3953,7 +3957,7 @@ export const analyticsEvents = pgTable(
     ),
     check(
       'analytics_events_props_check',
-      sql`jsonb_typeof(${table.props}) = 'object' and ${table.props} - array['vendorId', 'mode', 'category', 'serviceCount', 'amountBucket', 'source', 'step', 'queryLength', 'cancelledBy']::text[] = '{}'::jsonb`
+      sql`jsonb_typeof(${table.props}) = 'object' and ${table.props} - array['vendorId', 'mode', 'category', 'serviceCount', 'amountBucket', 'source', 'step', 'queryLength', 'cancelledBy', 'medium', 'campaign', 'referrer', 'channel', 'area', 'banner']::text[] = '{}'::jsonb`
     ),
     check(
       'analytics_events_visit_check',

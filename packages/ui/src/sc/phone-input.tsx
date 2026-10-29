@@ -93,6 +93,8 @@ export function ScPhoneInput({
         <input
           id="sc-phone"
           name="phone"
+          // Never recorded by Microsoft Clarity (customer app, with consent).
+          data-clarity-mask="true"
           type="tel"
           inputMode="numeric"
           autoComplete="tel-national"

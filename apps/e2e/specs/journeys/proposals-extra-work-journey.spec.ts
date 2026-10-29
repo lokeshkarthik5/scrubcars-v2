@@ -13,6 +13,7 @@
  * assertions are on the database, where both apps agree.
  */
 import { test, expect } from '../../support/fixtures'
+import { answerCookieQuestion } from '../../support/consent'
 import { API, loginViaApi, statePath } from '../../support/auth'
 import {
   getBooking,
@@ -144,6 +145,7 @@ test.describe('garage suggests another time @p0', () => {
     const vendorCtx = await browser.newContext({
       storageState: statePath('vendor-proposals'),
     })
+    await answerCookieQuestion(vendorCtx)
     const customer = await loginViaApi(CUSTOMERS.proposalDecliner.phone)
     const bookingId = BOOKINGS.proposalDecline
 

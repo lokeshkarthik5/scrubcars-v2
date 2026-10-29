@@ -20,6 +20,7 @@ import { db } from '../index.js'
 import {
   adminAuditLog,
   adminLogins,
+  analyticsEvents,
   bookingCharges,
   bookingIntentItems,
   bookingIntents,
@@ -76,6 +77,7 @@ import {
   SERVICES,
   STAFF,
   STATS,
+  BEHAVIOUR,
   UNSET_RADIUS_COVERED,
   UNSET_RADIUS_OUTSIDE,
   UNSET_RADIUS_PIN,
@@ -2729,6 +2731,74 @@ async function seedMarksRows() {
   ])
 }
 
+/**
+ * Statistics → Behaviour's visits (0061): see BEHAVIOUR in e2e-ids.ts for
+ * each group and the figures they add up to. Usage events only, plus the
+ * team's customer, whose number is a team login's phone. The Test visit
+ * leans on STATS.testInRange (CUSTOMERS.stats, made eight days ago at 11:00
+ * IST), so it is timed around that.
+ */
+async function seedBehaviourRows() {
+  await db.insert(users).values({
+    id: BEHAVIOUR.teamCustomer.id,
+    name: BEHAVIOUR.teamCustomer.name,
+    phone: BEHAVIOUR.teamCustomer.phone,
+    isCustomer: true,
+    isVendorOwner: false,
+    phoneVerified: true,
+    status: 'active',
+  })
+  const props = (
+    name: string,
+    group: { channel: string },
+    vendorId: string
+  ): Record<string, string> => {
+    switch (name) {
+      case 'app_open':
+        return { channel: group.channel }
+      case 'garage_view':
+      case 'service_sheet_open':
+      case 'booking_start':
+      case 'checkout_start':
+      case 'pay_click':
+      case 'pay_success':
+        return { vendorId, mode: 'dropin' }
+      default:
+        return {}
+    }
+  }
+  const rows: Array<typeof analyticsEvents.$inferInsert> = []
+  let n = 0
+  for (const group of Object.values(BEHAVIOUR.groups)) {
+    const userId =
+      'user' in group
+        ? group.user === 'team'
+          ? BEHAVIOUR.teamCustomer.id
+          : CUSTOMERS.stats.id
+        : null
+    for (let v = 0; v < group.visits; v++) {
+      n += 1
+      const visitId = BEHAVIOUR.visit(n)
+      // From 10:55 IST, a minute a step: the Test visit's booking (11:00)
+      // falls inside it.
+      const startAt = new Date(daysAheadAt(-group.daysAgo, 11).getTime() - 5 * 60_000 + v * 1000)
+      group.steps.forEach((name, i) => {
+        rows.push({
+          name,
+          visitId,
+          userId,
+          props: props(name, group, VENDORS.main.id),
+          path: name === 'garage_view' ? '/garage/:id' : name === 'landing_view' || name === 'app_open' ? '/' : '/book/:id',
+          device: group.device,
+          appVersion: '0.3.0',
+          occurredAt: new Date(startAt.getTime() + i * 60_000),
+        })
+      })
+    }
+  }
+  await db.insert(analyticsEvents).values(rows)
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set')
 
@@ -2791,6 +2861,8 @@ async function main() {
   await seedMarksRows()
   console.log('[e2e-seed] admin logins…')
   await seedAdminLoginRows()
+  console.log('[e2e-seed] behaviour visits…')
+  await seedBehaviourRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }

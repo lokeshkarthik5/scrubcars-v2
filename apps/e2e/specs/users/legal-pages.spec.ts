@@ -13,6 +13,7 @@
  * and the routes and links work.
  */
 import { devices, type Page } from '@playwright/test'
+import { answerCookieQuestion } from '../../support/consent'
 import { test, expect, asRole } from '../../support/fixtures'
 import { blockThirdParties, dismissLocationPrompt } from '../../support/network'
 import { SERVICES, VENDORS } from '../../support/seed-ids'
@@ -222,6 +223,7 @@ test.describe('legal pages on a phone @p0', () => {
       ...devices['Pixel 7'],
       viewport: { width: 390, height: 800 },
     })
+    await answerCookieQuestion(context)
     await blockThirdParties(context)
     await dismissLocationPrompt(context)
     const page = await context.newPage()

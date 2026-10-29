@@ -1,4 +1,4 @@
-import { eq, inArray, lt, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import { analyticsEvents, bookingItems, bookings, payments } from '../../db/schema.js'
 
@@ -32,6 +32,27 @@ export const analyticsRepository = {
       .where(eq(bookings.id, bookingId))
       .limit(1)
     return row ?? null
+  },
+
+  /**
+   * Puts an account on one visit's events that have none yet, from `since`
+   * on: the visit's steps before sign-in join the customer's after it.
+   * Only that visit, only rows with no account, never the API's own events
+   * (they have no visit). Returns how many rows changed.
+   */
+  async attachUserToVisit(visitId: string, userId: string, since: Date): Promise<number> {
+    const rows = await db
+      .update(analyticsEvents)
+      .set({ userId })
+      .where(
+        and(
+          eq(analyticsEvents.visitId, visitId),
+          isNull(analyticsEvents.userId),
+          gte(analyticsEvents.occurredAt, since)
+        )
+      )
+      .returning({ id: analyticsEvents.id })
+    return rows.length
   },
 
   /**

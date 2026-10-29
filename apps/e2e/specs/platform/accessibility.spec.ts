@@ -10,6 +10,7 @@
  * test does not notice, like contrast and duplicated ids.
  */
 import AxeBuilder from '@axe-core/playwright'
+import { answerCookieQuestion } from '../../support/consent'
 import { devices } from '@playwright/test'
 import { test, expect, asRole } from '../../support/fixtures'
 import { blockThirdParties, dismissLocationPrompt } from '../../support/network'
@@ -231,6 +232,7 @@ test.describe('responsive', () => {
       viewport: { width: NARROW_PHONE, height: 720 },
       storageState: asRole('customer-browse'),
     })
+    await answerCookieQuestion(context)
     await blockThirdParties(context)
     await dismissLocationPrompt(context)
     const page = await context.newPage()

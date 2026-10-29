@@ -263,6 +263,10 @@ export default function GaragePage({
   const openDetails = (item: Service | ServicePackage) => {
     setDetails(item)
     setDetailsOpen(true)
+    track('service_sheet_open', {
+      vendorId: id,
+      category: browseCategory(item.category),
+    })
   }
 
   const matchesQuery = (s: Service, q: string) =>
@@ -364,6 +368,13 @@ export default function GaragePage({
 
   const handleBook = () => {
     if (selected.length === 0) return
+    // Statistics → Behaviour's "started booking", signed in or not (sign-in
+    // comes next for a new customer; checkout_start only once at checkout).
+    track('booking_start', {
+      vendorId: id,
+      mode,
+      serviceCount: Math.min(20, selected.length),
+    })
     // The mode rides along so checkout opens on it. Without it checkout reset
     // to At garage, and a Doorstep customer had to choose a third time.
     const modeQuery = bookingTypeParam(mode)

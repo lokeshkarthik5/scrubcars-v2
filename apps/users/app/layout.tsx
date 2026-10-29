@@ -3,6 +3,8 @@ import type { Metadata, Viewport } from 'next'
 import { Inter, Space_Grotesk } from 'next/font/google'
 import { ToastContainer } from 'react-toastify'
 import { Analytics } from '@/components/analytics'
+import { Clarity } from '@/components/clarity'
+import { ConsentBanner } from '@/components/consent/consent-banner'
 import { MetaPixel } from '@/components/meta-pixel'
 import { AppProvider } from '@/components/providers/app-provider'
 import { SIGNED_IN_REDIRECT_SCRIPT } from '@/components/providers/signed-in-landing'
@@ -97,12 +99,19 @@ export default function RootLayout({
       </head>
       <body className="min-h-full font-sans">
         <IosZoomGuard />
-        {/* Suspense for its useSearchParams (it stays off pages whose
-            address holds a gift code). */}
+        {/* Suspense for their useSearchParams (all stay off pages whose
+            address holds a code or a booking's id). The cookie question
+            comes first in the page, in the flow, so it never covers a
+            page's own buttons; the Pixel and Clarity load only once it is
+            answered "Allow". */}
         <Suspense fallback={null}>
+          <ConsentBanner />
           <MetaPixel />
+          <Clarity />
         </Suspense>
-        {/* Detlio's own usage events, for the admin's Funnel. No third party. */}
+        {/* Detlio's own usage events, for the admin's Funnel and Behaviour;
+            mirrored to the Pixel and Clarity only with consent
+            (lib/meta-pixel.ts, lib/clarity.ts). */}
         <Analytics />
         {/* Outside AppProvider: the auth gate returns null while it resolves,
             and queries mounted underneath must keep their cache across that. */}
