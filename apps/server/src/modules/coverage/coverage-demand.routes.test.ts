@@ -279,6 +279,14 @@ beforeAll(() => {
       return next
     }
   )
+  // Restore (0065): only a dismissed one, back to new and unhandled.
+  patch(l, 'restoreRecommendation', async (id: string) => {
+    const rec = recs.get(id)
+    if (!rec || rec.status !== 'declined') return undefined
+    const next = { ...rec, status: 'new' as const, leadId: null, handledBy: null, handledAt: null }
+    recs.set(id, next)
+    return next
+  })
   patch(l, 'lockRecommendationsOfLead', async (leadId: string) =>
     [...recs.values()]
       .filter((rec) => rec.leadId === leadId)
@@ -696,6 +704,23 @@ describe('Make lead from a recommendation', () => {
     expect(again.body.code).toBe('RECOMMENDATION_HANDLED')
     const overview = await call('GET', '/admin/coverage', await raga())
     expect(overview.body.data.recommendations).toEqual([])
+    // Under Dismissed (0065), with who dismissed it.
+    expect(overview.body.data.dismissedRecommendations).toEqual([
+      expect.objectContaining({ id, status: 'declined', handledBy: 'Raga' }),
+    ])
+  })
+
+  test('Restore (0065): a dismissed one is back in its zone\'s list, unhandled; once', async () => {
+    const id = newId()
+    recs.set(id, fullRec({ id, status: 'declined', handledBy: 'Raga', handledAt: new Date() }))
+    const restored = await call('POST', `/admin/coverage/recommendations/${id}/restore`, await raga(), {})
+    expect(restored.status).toBe(200)
+    expect(restored.body.data).toMatchObject({ status: 'new', handledBy: null, handledAt: null })
+    const again = await call('POST', `/admin/coverage/recommendations/${id}/restore`, await raga(), {})
+    expect(again.body.code).toBe('RECOMMENDATION_NOT_DISMISSED')
+    const overview = await call('GET', '/admin/coverage', await raga())
+    expect(overview.body.data.dismissedRecommendations).toEqual([])
+    expect(overview.body.data.recommendations).toEqual([expect.objectContaining({ id, status: 'new' })])
   })
 })
 

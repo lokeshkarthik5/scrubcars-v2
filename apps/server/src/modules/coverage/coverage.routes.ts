@@ -26,6 +26,7 @@ import { createZoneSchema, updateZoneSchema } from './coverage.validation.js'
  *   POST   /recommendations/:id/duplicates  what a lead made of it looks like
  *   POST   /recommendations/:id/lead        Make lead (or link to a lead)
  *   POST   /recommendations/:id/dismiss     Dismiss
+ *   POST   /recommendations/:id/restore     Restore a dismissed one (0065)
  *
  * Zone changes reach customers through GET /zones (customer reach), whose
  * cache is cleared here; other instances' within a minute.
@@ -87,4 +88,12 @@ adminCoverageRoutes.post(
       c.req.valid('param').id,
       c.req.valid('json')
     )
+)
+
+adminCoverageRoutes.post(
+  '/recommendations/:id/restore',
+  ...adminMiddleware,
+  idParam,
+  adminSignedJson(dismissRecommendationSchema),
+  (c) => controller.restoreRecommendation(c, c.req.valid('param').id, c.req.valid('json'))
 )

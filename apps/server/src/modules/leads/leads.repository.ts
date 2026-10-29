@@ -362,6 +362,19 @@ export const leadsRepository = {
   },
 
   /**
+   * Restore (0065): a dismissed recommendation back to `new` in its zone's
+   * list, as if never handled. Undefined when it was not dismissed.
+   */
+  async restoreRecommendation(id: string, now: Date): Promise<RecommendationRecord | undefined> {
+    const [row] = await db
+      .update(garageRecommendations)
+      .set({ status: 'new', leadId: null, handledBy: null, handledAt: null, updatedAt: now })
+      .where(and(eq(garageRecommendations.id, id), eq(garageRecommendations.status, 'declined')))
+      .returning()
+    return row
+  },
+
+  /**
    * The recommendations made into a lead, locked for the garage link
    * (lib/recommendations.ts recommendationGarageChanges): the referral
    * credit's own transaction locks the same rows, so a link and a credit
