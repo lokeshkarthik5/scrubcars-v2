@@ -77,9 +77,11 @@ export interface ServiceMediaControls {
   onChange: (serviceId: string, media: ServiceMedia[]) => void
 }
 
-/** The edit page's Hide: saved straight away, see the page. */
+/** The edit page's Hide and Delete: saved straight away, see the page. */
 export interface ServiceHideControls {
   onHide: (row: ServiceRow) => void
+  /** Asks first; the page holds the confirm. */
+  onDelete: (row: ServiceRow) => void
   busyId: string | null
   disabled: boolean
 }
@@ -862,21 +864,33 @@ function ServiceRowItem({
 
           <div className="flex min-h-6 items-center justify-between gap-3">
             {/* Quiet: neither is the page's main action. A saved service is
-                hidden, straight away and reversibly; a row never saved is
-                only taken off the form. */}
+                hidden, straight away and reversibly, or deleted after a
+                confirm; a row never saved is only taken off the form. */}
             {row.id && hide ? (
               <>
-                <button
-                  type="button"
-                  data-service-hide
-                  disabled={hide.disabled || saving}
-                  onClick={() => hide.onHide(row)}
-                  aria-label={`Hide ${name}`}
-                  className="-my-2.5 -ml-2 inline-flex min-h-11 items-center gap-1.5 rounded-[10px] px-2 text-[13.5px] font-medium text-text-secondary transition-colors hover:text-text-primary disabled:opacity-50"
-                >
-                  <IconEyeOff size={17} stroke={1.5} aria-hidden="true" />
-                  {hide.busyId === row.id ? 'Hiding…' : 'Hide service'}
-                </button>
+                <span className="-my-2.5 -ml-2 flex items-center">
+                  <button
+                    type="button"
+                    data-service-hide
+                    disabled={hide.disabled || saving}
+                    onClick={() => hide.onHide(row)}
+                    aria-label={`Hide ${name}`}
+                    className="inline-flex min-h-11 items-center gap-1.5 rounded-[10px] px-2 text-[13.5px] font-medium text-text-secondary transition-colors hover:text-text-primary disabled:opacity-50"
+                  >
+                    <IconEyeOff size={17} stroke={1.5} aria-hidden="true" />
+                    {hide.busyId === row.id ? 'Working…' : 'Hide service'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={hide.disabled || saving}
+                    onClick={() => hide.onDelete(row)}
+                    aria-label={`Delete ${name}`}
+                    className="inline-flex min-h-11 items-center gap-1.5 rounded-[10px] px-2 text-[13.5px] font-medium text-text-secondary transition-colors hover:text-error disabled:opacity-50"
+                  >
+                    <IconTrash size={16} stroke={1.5} aria-hidden="true" />
+                    Delete
+                  </button>
+                </span>
                 <span className="text-[12px] text-text-muted">Past bookings keep it</span>
               </>
             ) : (

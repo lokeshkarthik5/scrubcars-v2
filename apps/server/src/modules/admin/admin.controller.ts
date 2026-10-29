@@ -150,6 +150,15 @@ export async function setServiceActive(
   return c.json({ success: true, data: service })
 }
 
+export async function deleteService(
+  c: AdminContext,
+  vendorId: string,
+  serviceId: string
+) {
+  const service = await adminService.deleteService(vendorId, serviceId)
+  return c.json({ success: true, data: service })
+}
+
 export async function createVendor(c: AdminContext, input: CreateVendorInput) {
   const vendor = await adminService.createVendor(input, c.get('auth').sub)
   return c.json({ success: true, data: vendor }, 201)

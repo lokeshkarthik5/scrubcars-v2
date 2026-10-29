@@ -21,6 +21,7 @@ import {
   pauseAdminVendor,
   resumeAdminVendor,
   setAdminServiceActive,
+  deleteAdminService,
   updateAdminVendor,
   uploadAdminVendorLogo,
   uploadAdminVendorPhoto,
@@ -316,6 +317,11 @@ export function useGarageDraft(id: string) {
   // focused button was on has gone, so without it a keyboard or screen-reader
   // admin is left on <body> with no word that anything happened.
   const [serviceNotice, setServiceNotice] = useState('')
+  // The service the Delete confirm is open for, live or hidden.
+  const [deletingService, setDeletingService] = useState<{
+    id: string
+    name: string
+  } | null>(null)
   // Where focus goes once a hide or show has rendered. A fresh object each
   // time, so the same target twice still moves focus twice.
   const [focusAfterSwitch, setFocusAfterSwitch] =
@@ -663,10 +669,12 @@ export function useGarageDraft(id: string) {
     }
   }
 
+  // Resolves true once the action is saved, false when it failed (the error
+  // is then on serviceErrors[serviceId]), so a confirm sheet can stay open.
   const runServiceSwitch = async (
     serviceId: string,
     action: () => Promise<FocusAfterSwitch>
-  ) => {
+  ): Promise<boolean> => {
     setServiceBusyId(serviceId)
     setServiceNotice('')
     setServiceErrors((prev) => {
@@ -681,6 +689,7 @@ export function useGarageDraft(id: string) {
       setFocusAfterSwitch(await action())
       afterInstantSave()
       switchNote.saved()
+      return true
     } catch (err) {
       switchNote.reset()
       if (
@@ -688,11 +697,12 @@ export function useGarageDraft(id: string) {
         (err.status === 401 || err.status === 403)
       ) {
         router.replace('/login')
-        return
+        return false
       }
       const message =
         err instanceof Error ? err.message : 'Something went wrong'
       setServiceErrors((prev) => ({ ...prev, [serviceId]: message }))
+      return false
     } finally {
       setServiceBusyId(null)
     }
@@ -788,6 +798,21 @@ export function useGarageDraft(id: string) {
         `“${shown.name}” is back on the garage page.${warning ? ` ${warning}` : ''}`
       )
       return { to: 'row', id: shown.id }
+    })
+
+  /**
+   * Deletes a saved service, live or hidden, once the confirm sheet says so.
+   * Saved straight away and not undoable, so unlike Hide it asks first. One
+   * nobody booked is gone for good; one that bookings name stays only for
+   * them, listed nowhere. Edits to it not saved yet go with it.
+   */
+  const deleteService = (target: { id: string; name: string }) =>
+    runServiceSwitch(target.id, async () => {
+      await deleteAdminService(id, target.id)
+      applyToBoth((rows) => rows.filter((s) => s.id !== target.id))
+      setHiddenServices((prev) => prev.filter((s) => s.id !== target.id))
+      setServiceNotice(`Deleted “${target.name}”.`)
+      return { to: 'hidden-toggle' }
     })
 
   const num = (v: string) => (v.trim() === '' ? null : Number(v))
@@ -995,6 +1020,9 @@ export function useGarageDraft(id: string) {
     setPaused,
     hideService,
     showServiceAgain,
+    deleteService,
+    deletingService,
+    setDeletingService,
     confirmLocation,
     serviceSwitching,
     handleSubmit,

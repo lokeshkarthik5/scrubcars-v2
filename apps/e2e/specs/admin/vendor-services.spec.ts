@@ -13,7 +13,7 @@
 import { test, expect, asRole } from '../../support/fixtures'
 import { API } from '../../support/auth'
 import { sql } from '../../support/db'
-import { SERVICES, VENDORS } from '../../support/seed-ids'
+import { CUSTOMERS, SERVICES, VENDORS } from '../../support/seed-ids'
 
 test.use({ storageState: asRole('admin') })
 
@@ -39,6 +39,20 @@ async function service(id: string) {
 }
 
 const servicesUrl = `${API}/api/v1/admin/vendors/${GARAGE.id}/services`
+
+// Delete's own services, made by its test and removed after: one nobody has
+// booked, and one a failed checkout names, which makes it booked.
+const FRESH = 'E2E Delete Never Booked'
+const BOOKED = 'E2E Delete Once Booked'
+const DELETE_ORDER = 'order_e2e_delete_booked'
+
+async function removeDeleteRows() {
+  await sql`delete from booking_intents where gateway_txn_id = ${DELETE_ORDER}`
+  await sql`
+    delete from services
+     where vendor_id = ${GARAGE.id} and name in (${FRESH}, ${BOOKED})
+  `
+}
 
 test.describe('admin garage services', () => {
   test('a service missing a price holds the save instead of being hidden @p0', async ({
@@ -242,5 +256,109 @@ test.describe('admin garage services', () => {
     await expect(
       page.getByRole('button', { name: `Hide ${SERVICES.adminHidden.name}` })
     ).toBeVisible()
+  })
+
+  test.describe('delete', () => {
+    test.beforeEach(removeDeleteRows)
+    test.afterAll(removeDeleteRows)
+
+    test('any service can be deleted: one never booked is gone, a booked one is kept for its bookings and listed nowhere @p0', async ({
+      page,
+    }) => {
+      await resetServices()
+      const [fresh] = await sql<{ id: string }[]>`
+        insert into services (vendor_id, name, category, price, duration_mins)
+        values (${GARAGE.id}, ${FRESH}, 'car_wash', 300, 30)
+        returning id
+      `
+      // Hidden, so it is deleted from the Hidden services list.
+      const [booked] = await sql<{ id: string }[]>`
+        insert into services (vendor_id, name, category, price, duration_mins, is_active)
+        values (${GARAGE.id}, ${BOOKED}, 'car_wash', 400, 30, false)
+        returning id
+      `
+      await sql`
+        insert into booking_intents (
+          user_id, vendor_id, service_id, vehicle_id, booking_type,
+          scheduled_at, service_duration_mins, amount, subtotal_amount,
+          payment_method, gateway_txn_id, status, expires_at
+        ) values (
+          ${CUSTOMERS.intents.id}, ${GARAGE.id}, ${booked.id},
+          ${CUSTOMERS.intents.vehicleId}, 'dropin', now() + interval '1 day',
+          30, 400, 400, 'online', ${DELETE_ORDER}, 'failed',
+          now() - interval '1 hour'
+        )
+      `
+
+      await page.goto(`/vendors/${GARAGE.id}/edit`)
+      await page.getByRole('tab', { name: 'Services' }).click()
+
+      // A live service: Delete is behind its ⋯, next to Hide, and asks first.
+      await page.getByRole('button', { name: `More for ${FRESH}` }).click()
+      await page.getByRole('button', { name: `Delete ${FRESH}` }).click()
+      await page.getByRole('button', { name: 'Delete service' }).click()
+      await expect
+        .poll(
+          async () =>
+            (await sql`select 1 from services where id = ${fresh.id}`).length
+        )
+        .toBe(0)
+      await expect(
+        page.getByRole('status').filter({ hasText: 'Deleted' })
+      ).toHaveText(`Deleted “${FRESH}”.`)
+      await expect(
+        page.getByRole('button', { name: `More for ${FRESH}` })
+      ).toHaveCount(0)
+
+      // A hidden one that a checkout names: kept for it, off and stamped.
+      await page.getByRole('button', { name: 'Hidden services (2)' }).click()
+      await page.getByRole('button', { name: `Delete ${BOOKED}` }).click()
+      await page.getByRole('button', { name: 'Delete service' }).click()
+      await expect
+        .poll(async () => {
+          const [row] = await sql<{ is_active: boolean; deleted: boolean }[]>`
+            select is_active, deleted_at is not null as deleted
+              from services where id = ${booked.id}
+          `
+          return row
+        })
+        .toEqual({ is_active: false, deleted: true })
+      await expect(
+        page.getByRole('button', { name: 'Hidden services (1)' })
+      ).toBeVisible()
+
+      // Listed nowhere, and it can't be shown again.
+      const hidden = await page.request.get(`${servicesUrl}/hidden`)
+      const names = ((await hidden.json()).data as { name: string }[]).map(
+        (s) => s.name
+      )
+      expect(names).not.toContain(BOOKED)
+      const again = await page.request.patch(
+        `${servicesUrl}/${booked.id}/active`,
+        { data: { isActive: true } }
+      )
+      expect(again.status()).toBe(404)
+
+      // A tab opened before the delete still lists it. Its save is refused
+      // whole, before anything is written, so the deleted service can't come
+      // back as a fresh copy.
+      const stale = await page.request.patch(
+        `${API}/api/v1/admin/vendors/${GARAGE.id}`,
+        {
+          data: {
+            services: [
+              { id: booked.id, name: BOOKED, category: 'car_wash', pricingType: 'flat', price: 499 },
+            ],
+          },
+        }
+      )
+      expect(stale.status()).toBe(409)
+      expect((await stale.json()).code).toBe('SERVICE_DELETED')
+      const [copies] = await sql<{ n: number }[]>`
+        select count(*)::int as n from services
+         where vendor_id = ${GARAGE.id} and name = ${BOOKED}
+      `
+      expect(copies!.n).toBe(1)
+    })
   })
 })

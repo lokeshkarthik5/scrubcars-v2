@@ -25,6 +25,7 @@ import { jobPhotosRequiredFor } from '../job-photos/job-photos.service.js'
 import { alertOps } from '../../lib/ops-alerts.js'
 import { summariseAcceptTime, summarisePilot } from '../../lib/pilot-stats.js'
 import { resolveServicePricing } from '../../lib/pricing.js'
+import { planServiceReconcile } from '../../lib/service-reconcile.js'
 import { outsideServiceCity } from '../../lib/service-city.js'
 import { istDayBounds, todayDateKey } from '../../lib/slots.js'
 import { vendorMissing, type MissingKey } from '../../lib/vendor-missing.js'
@@ -867,6 +868,21 @@ export const adminService = {
       }
     }
 
+    // The services list, planned before anything is written for the same
+    // reason: a stale tab naming a service deleted since is refused whole
+    // (lib/service-reconcile.ts), not after the vendor row has been saved.
+    const servicePlan =
+      input.services !== undefined
+        ? planServiceReconcile(input.services, await adminRepository.listServiceStates(id))
+        : null
+    if (servicePlan && servicePlan.deleted.length > 0) {
+      throw new AppError(
+        409,
+        'A service in this list was deleted since the page loaded. Reload to see the latest services, then save again.',
+        'SERVICE_DELETED'
+      )
+    }
+
     // Owner name/phone live on the linked user row. Guard against moving the
     // owner phone onto a number that already belongs to another account.
     if (input.ownerPhone !== undefined || input.ownerName !== undefined) {
@@ -995,48 +1011,39 @@ export const adminService = {
       }
     }
 
-    // Reconcile the services list when provided. Rows with an `id` (that belong
-    // to this vendor) are updated in place; rows without an `id` are inserted;
-    // existing active services missing from the payload are soft-deleted. We
-    // never hard-delete because bookings reference services with a restrict FK.
-    if (input.services !== undefined) {
-      const existingIds = new Set(
-        await adminRepository.listActiveServiceIds(id)
-      )
-      const keptIds = new Set<string>()
-      const toInsert: Parameters<typeof adminRepository.insertServices>[0] = []
+    // Reconcile the services list when provided (lib/service-reconcile.ts).
+    // Live rows are updated in place, rows without an id inserted, and live
+    // services missing from the payload soft-deleted (bookings reference
+    // services with a restrict FK). An id from a stale tab is never taken on
+    // trust: a service hidden since stays hidden, and one deleted since made
+    // the save refuse above, so it can never come back as a fresh copy.
+    if (input.services !== undefined && servicePlan) {
+      const plan = servicePlan
       // Default duration for services left blank: one slot on this vendor.
       const defaultDuration = input.slotIntervalMins ?? vendor.slotIntervalMins
+      const columnsFor = (s: (typeof input.services)[number]) => ({
+        name: s.name,
+        description: s.description ?? null,
+        category: s.category,
+        ...resolveServicePricing(s),
+        durationMins: s.durationMins ?? defaultDuration,
+      })
 
-      for (const s of input.services) {
-        const columns = {
-          name: s.name,
-          description: s.description ?? null,
-          category: s.category,
-          ...resolveServicePricing(s),
-          durationMins: s.durationMins ?? defaultDuration,
-        }
-        if (s.id && existingIds.has(s.id)) {
-          keptIds.add(s.id)
-          await adminRepository.updateService(s.id, {
-            ...columns,
-            isActive: true,
-          })
-        } else {
-          toInsert.push({
-            vendorId: id,
-            ...columns,
-          })
-        }
+      for (const row of plan.update) {
+        await adminRepository.updateService(row.id, {
+          ...columnsFor(input.services[row.index]!),
+          isActive: row.isActive,
+        })
       }
 
+      const toInsert: Parameters<typeof adminRepository.insertServices>[0] =
+        plan.insert.map((index) => ({ vendorId: id, ...columnsFor(input.services![index]!) }))
       if (toInsert.length > 0) {
         await adminRepository.insertServices(toInsert)
       }
 
-      const removedIds = [...existingIds].filter((sid) => !keptIds.has(sid))
-      if (removedIds.length > 0) {
-        await adminRepository.deactivateServices(removedIds)
+      if (plan.deactivate.length > 0) {
+        await adminRepository.deactivateServices(plan.deactivate)
       }
     }
 
@@ -1112,6 +1119,19 @@ export const adminService = {
       'admin:service-visibility-changed'
     )
     return updated
+  },
+
+  /**
+   * Deletes a service, live or hidden — the garage app's Delete. One nobody
+   * has booked goes for good; one that bookings name is marked deleted, so
+   * it is listed nowhere again while those bookings keep it. A service in a
+   * package is refused, as hiding it is: take it out of the package first.
+   */
+  async deleteService(vendorId: string, serviceId: string) {
+    await assertWritableVendor(vendorId)
+    const deleted = await vendorsService.deleteService(vendorId, serviceId)
+    log.info({ vendorId, serviceId }, 'admin:service-deleted')
+    return deleted
   },
 
   /**
