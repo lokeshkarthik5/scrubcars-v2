@@ -3696,6 +3696,9 @@ async function seedPreIosRows() {
     { id: P.documents.shopPhotoFile, documentId: P.documents.shopPhoto, side: 'front', storageKey: docKey('shop_photo', 3),
       contentType: 'application/pdf', sizeBytes: 2048 },
   ])
+}
+
+/**
  * Pre-iOS accounts round (0066; PREIOS, ids 5100–5199, phones 90000051xx):
  * its people, its two unverified garages far from every other fixture, and
  * the rows its specs act on (see PREIOS). Each spec acts on its own rows.

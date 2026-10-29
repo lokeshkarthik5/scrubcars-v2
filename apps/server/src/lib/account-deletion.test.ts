@@ -67,6 +67,13 @@ describe('deletionBlockers (0066: anonymise instead of refuse)', () => {
     expect(blocker!.message).toContain('#EF56GH78 ₹2')
   })
 
+  test('a redo claim nobody has decided blocks: a refund could still be owed', () => {
+    const [blocker] = deletionBlockers({ ...NOTHING_OPEN, openClaims: [{ reference: 'AB12CD34' }] })
+    expect(blocker!.code).toBe('ACCOUNT_HAS_OPEN_CLAIM')
+    expect(blocker!.message).toContain('#AB12CD34')
+    expect(blocker!.message).toContain('Withdraw it')
+  })
+
   test('Detlio credit left blocks: deleting would lose it', () => {
     const [blocker] = deletionBlockers({ ...NOTHING_OPEN, creditBalancePaise: 50_050 })
     expect(blocker!.code).toBe('ACCOUNT_HAS_CREDIT')

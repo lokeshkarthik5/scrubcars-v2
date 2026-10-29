@@ -91,6 +91,8 @@ export interface AccountDeletionFacts {
   openBookings: Array<{ reference: string; status: string }>
   /** A checkout of theirs that could still be paid (pending, not expired). */
   openCheckout: boolean
+  /** Redo claims nobody has decided yet, by booking reference: a refund could still be owed. */
+  openClaims?: Array<{ reference: string }>
   /** Money lib/refunds.ts says is owed back to them, per item. */
   refundsOwed: Array<{ reference: string; amount: string }>
   /** Detlio credit they can still spend, in paise. */
@@ -103,6 +105,7 @@ export type AccountDeletionBlockerCode =
   | 'VENDOR_OWNER_ACCOUNT'
   | 'ACCOUNT_HAS_OPEN_BOOKING'
   | 'ACCOUNT_HAS_OPEN_CHECKOUT'
+  | 'ACCOUNT_HAS_OPEN_CLAIM'
   | 'ACCOUNT_REFUND_OWED'
   | 'ACCOUNT_HAS_CREDIT'
   | 'ACCOUNT_HAS_UNREDEEMED_GIFT'
@@ -162,6 +165,15 @@ export function deletionBlockers(facts: AccountDeletionFacts): AccountDeletionBl
     blockers.push({
       code: 'ACCOUNT_HAS_OPEN_CHECKOUT',
       message: 'A payment you started is still open. Finish it, or wait 30 minutes for it to lapse, then try again.',
+    })
+  }
+
+  const openClaims = facts.openClaims ?? []
+  if (openClaims.length > 0) {
+    const refs = openClaims.map((c) => `#${c.reference}`)
+    blockers.push({
+      code: 'ACCOUNT_HAS_OPEN_CLAIM',
+      message: `Your Detlio Guarantee claim on ${listed(refs)} is still being looked at. Withdraw it, or wait for the answer, then delete your account.`,
     })
   }
 

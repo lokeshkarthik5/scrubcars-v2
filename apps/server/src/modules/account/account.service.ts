@@ -31,6 +31,7 @@ async function blockersFor(userId: string, now: Date): Promise<AccountDeletionBl
   const ownsGarage = await accountRepository.ownsGarage(userId)
   const openBookings = await accountRepository.listOpenBookings(userId)
   const openCheckout = await accountRepository.hasOpenCheckout(userId, now)
+  const openClaims = await accountRepository.listOpenClaims(userId)
   const owed = await refundsService.listOwedForUser(userId)
   const creditBalancePaise = await giftCreditService.availablePaise(userId, now)
   const unredeemedGifts = await giftsService.unredeemedBought(userId, now)
@@ -38,6 +39,7 @@ async function blockersFor(userId: string, now: Date): Promise<AccountDeletionBl
     ownsGarage,
     openBookings: openBookings.map((b) => ({ reference: bookingReference(b.id), status: b.status })),
     openCheckout,
+    openClaims: openClaims.map((c) => ({ reference: bookingReference(c.bookingId) })),
     refundsOwed: owed.map((item) => ({ reference: item.reference, amount: item.amountOwed })),
     creditBalancePaise,
     unredeemedGifts,

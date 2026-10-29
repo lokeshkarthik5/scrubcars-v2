@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, notInArray, or, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import {
   adminAuditLog,
@@ -16,6 +16,7 @@ import {
 } from '../../db/schema.js'
 import type { ServiceCategory } from '../../lib/categories.js'
 import {
+  CLOSED_STATUSES,
   REDO_MONEY,
   approvedWindowStart,
   limitReached,
@@ -696,11 +697,13 @@ export const guaranteeRepository = {
 
   /** A garage's claims, with the photos on each side, newest first. */
   async listGarageClaims(vendorId: string, scope: 'open' | 'closed', limit = 50) {
-    const closed: ClaimStatus[] = ['redo_done', 'refund_approved', 'rejected', 'lapsed']
+    // CLOSED_STATUSES, withdrawn (0066) included, so a claim the customer
+    // withdrew leaves the garage's Open tab.
+    const closed = [...CLOSED_STATUSES]
     return db.query.guaranteeClaims.findMany({
       where: and(
         eq(guaranteeClaims.vendorId, vendorId),
-        scope === 'closed' ? inArray(guaranteeClaims.status, closed) : sql`${guaranteeClaims.status} not in ('redo_done', 'refund_approved', 'rejected', 'lapsed')`
+        scope === 'closed' ? inArray(guaranteeClaims.status, closed) : notInArray(guaranteeClaims.status, closed)
       ),
       with: { photos: { orderBy: [asc(guaranteeClaimPhotos.createdAt)] } },
       orderBy: [desc(guaranteeClaims.createdAt)],

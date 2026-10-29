@@ -1968,6 +1968,9 @@ export const PRE_IOS = {
     ownerIdFile: id(5474),
     shopPhotoFile: id(5475),
   },
+} as const
+
+/**
  * Pre-iOS accounts round (0066): ids 5100–5199 and phones 90000051xx only,
  * people included (seeded with their rows, like TIERS, not in CUSTOMERS or
  * STAFF: the specs sign them in themselves). Two unverified garages pinned

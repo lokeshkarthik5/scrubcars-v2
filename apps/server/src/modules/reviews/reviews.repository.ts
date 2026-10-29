@@ -194,7 +194,7 @@ export const reviewsRepository = {
     const rows = await db.query.reviews.findMany({
       where: and(eq(reviews.vendorId, vendorId), countedReview()),
       with: {
-        user: { columns: { name: true } },
+        user: { columns: { name: true, deletedAt: true } },
         booking: {
           columns: { id: true },
           with: {

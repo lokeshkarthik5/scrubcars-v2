@@ -1,4 +1,4 @@
-import { and, eq, gt, inArray, isNull, notExists, sql } from 'drizzle-orm'
+import { and, eq, gt, inArray, isNull, notExists, notInArray, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import {
   analyticsEvents,
@@ -7,6 +7,7 @@ import {
   bookings,
   bypassReports,
   couponCodeAttempts,
+  guaranteeClaims,
   garageRecommendations,
   giftCodeAttempts,
   noticeDismissals,
@@ -27,6 +28,7 @@ import {
   zoneSignups,
 } from '../../db/schema.js'
 import { anonymisedUser, anonymisedVehicle } from '../../lib/account-deletion.js'
+import { CLOSED_STATUSES } from '../../lib/guarantee.js'
 
 /** The booking statuses that are still open: to come, or being worked on. */
 const OPEN_BOOKING_STATUSES = ['pending', 'confirmed', 'in_progress'] as const
@@ -43,9 +45,26 @@ export const accountRepository = {
     return db.query.users.findFirst({ where: eq(users.id, userId) })
   },
 
+  /**
+   * A garage still running under this owner. One in the Bin (closed, or
+   * deleted forever) no longer counts: a users row is never hard-deleted, so
+   * the owner FK can't cascade into it.
+   */
   async ownsGarage(userId: string): Promise<boolean> {
-    const [row] = await db.select({ id: vendors.id }).from(vendors).where(eq(vendors.ownerId, userId)).limit(1)
+    const [row] = await db
+      .select({ id: vendors.id })
+      .from(vendors)
+      .where(and(eq(vendors.ownerId, userId), isNull(vendors.deletedAt)))
+      .limit(1)
     return Boolean(row)
+  },
+
+  /** Their redo claims not yet decided, by booking: a refund could still be owed. */
+  listOpenClaims(userId: string) {
+    return db
+      .select({ bookingId: guaranteeClaims.bookingId })
+      .from(guaranteeClaims)
+      .where(and(eq(guaranteeClaims.userId, userId), notInArray(guaranteeClaims.status, [...CLOSED_STATUSES])))
   },
 
   listOpenBookings(userId: string) {
@@ -128,6 +147,8 @@ export const accountRepository = {
       // The address copied onto each doorstep or pickup booking: the money
       // record stays, where they live does not.
       await tx.update(bookings).set({ address: null, lat: null, lng: null }).where(eq(bookings.userId, userId))
+      // Their checkouts carry the same copy of the address.
+      await tx.update(bookingIntents).set({ address: null, lat: null, lng: null }).where(eq(bookingIntents.userId, userId))
 
       await tx.delete(userFavouriteVendors).where(eq(userFavouriteVendors.userId, userId))
       await tx.delete(pushSubscriptions).where(eq(pushSubscriptions.userId, userId))

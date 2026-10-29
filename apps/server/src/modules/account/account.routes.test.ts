@@ -51,6 +51,7 @@ beforeAll(() => {
   patch(accountRepository, 'ownsGarage', async (userId: string) => userId === OWNER)
   patch(accountRepository, 'listOpenBookings', async () => openBookings)
   patch(accountRepository, 'hasOpenCheckout', async () => openCheckout)
+  patch(accountRepository, 'listOpenClaims', async () => [])
   patch(accountRepository, 'anonymise', async (input: { userId: string; phone: string }) => {
     if (race) throw new DeletionRaced()
     anonymised.push({ userId: input.userId, phone: input.phone })

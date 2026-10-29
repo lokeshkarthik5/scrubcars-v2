@@ -46,7 +46,8 @@ function filterWhere(filter: ComplaintListFilter, cutoffs: OverdueCutoffs): SQL 
     case 'overdue':
       return and(overdueWhere(cutoffs), NOT_LOGGED_IN_ERROR)
     case 'resolved':
-      return and(inArray(complaints.status, FINISHED), NOT_LOGGED_IN_ERROR)
+      // A withdrawn one (0066) counts nowhere, Resolved included.
+      return and(inArray(complaints.status, FINISHED), NOT_LOGGED_IN_ERROR, isNull(complaints.withdrawnAt))
     case 'all':
       return undefined
   }
@@ -228,7 +229,7 @@ export const complaintsRepository = {
       .select({
         open: sql<number>`count(*) filter (where ${and(inArray(complaints.status, UNFINISHED), NOT_LOGGED_IN_ERROR)})`,
         overdue: sql<number>`count(*) filter (where ${and(overdueWhere(cutoffs), NOT_LOGGED_IN_ERROR)})`,
-        resolved: sql<number>`count(*) filter (where ${and(inArray(complaints.status, FINISHED), NOT_LOGGED_IN_ERROR)})`,
+        resolved: sql<number>`count(*) filter (where ${and(inArray(complaints.status, FINISHED), NOT_LOGGED_IN_ERROR, isNull(complaints.withdrawnAt))})`,
         all: count(),
       })
       .from(complaints)
