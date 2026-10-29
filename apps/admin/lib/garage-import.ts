@@ -116,11 +116,17 @@ export interface ServiceRowNote extends ImportMark {
 export function visibleMark(
   key: string,
   note: ImportFieldNote | undefined,
-  text: GarageFormText
+  text: GarageFormText,
+  /** Customers come to the garage: the address is needed (0064). */
+  atGarage = true
 ): ImportMark | null {
   if (!note) return null
   if (note.confidence === 'check') return { kind: 'check', reason: note.reason }
-  if (note.confidence === 'missing' && isRequiredField(key) && !requiredFieldFilled(key, text)) {
+  if (
+    note.confidence === 'missing' &&
+    isRequiredField(key, atGarage) &&
+    !requiredFieldFilled(key, text, atGarage)
+  ) {
     return { kind: 'missing', reason: note.reason }
   }
   return null

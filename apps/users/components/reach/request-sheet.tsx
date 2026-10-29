@@ -23,6 +23,7 @@ import {
 } from '@repo/core/booking-requests'
 import type { DraftAddress, DraftCar } from '@repo/core/booking-draft'
 import { resolveServiceAmount } from '@repo/core/pricing'
+import { effectiveDurationMins, hasDuration } from '@repo/core/service-duration'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { useUserStore } from '@repo/core/stores/user-store'
 import { VEHICLE_TIERS } from '@repo/core/vehicles'
@@ -37,6 +38,16 @@ const GUEST_CAR = 'guest-car'
 const GUEST_ADDRESS = 'guest-address'
 
 type Window = { date: string; part: WindowPart }
+
+/**
+ * A service's minutes under its name, or nothing when the garage set none
+ * ("Duration not set", 0064): customers never see an empty " min" or the
+ * calendar's default.
+ */
+export function RequestServiceMinutes({ durationMins }: { durationMins: number | null }) {
+  if (!hasDuration({ durationMins })) return null
+  return <span className="block text-[12px] text-text-muted">{durationMins} min</span>
+}
 
 /**
  * "Request a visit" / "Request a pickup" (customer reach, part 2, 0062;
@@ -105,7 +116,7 @@ export function RequestSheet({
       ? (guestCar?.vehicleType ?? null)
       : (vehicles.find((v) => v.id === carChoice)?.vehicleType ?? null)
   const chosen = services.filter((s) => serviceIds.includes(s.id))
-  const durationMins = chosen.reduce((sum, s) => sum + s.durationMins, 0)
+  const durationMins = chosen.reduce((sum, s) => sum + effectiveDurationMins(s), 0)
   const windows = useRequestWindows(open && chosen.length > 0 ? { vendorId: vendor.id, mode, durationMins } : null)
 
   // A window the garage can no longer fit (hours, the job got longer) is dropped.
@@ -288,7 +299,7 @@ export function RequestSheet({
                             </span>
                             <span className="min-w-0 flex-1">
                               <span className="block text-[15px] text-text-primary">{service.name}</span>
-                              <span className="block text-[12px] text-text-muted">{service.durationMins} min</span>
+                              <RequestServiceMinutes durationMins={service.durationMins} />
                             </span>
                             <span className="shrink-0 font-numeric text-[15px] text-text-primary">
                               {vehicleType ? (amount === null ? 'Not priced' : `₹${amount.toLocaleString('en-IN')}`) : `from ₹${service.price.toLocaleString('en-IN')}`}

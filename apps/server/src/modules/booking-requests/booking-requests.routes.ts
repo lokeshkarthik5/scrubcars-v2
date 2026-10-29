@@ -1,11 +1,18 @@
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
-import { authMiddleware, type AuthVariables } from '../../middleware/auth.middleware.js'
+import {
+  adminSignedJson,
+  authMiddleware,
+  requireSuperAdmin,
+  type AuthVariables,
+} from '../../middleware/auth.middleware.js'
 import { reachWriteRateLimiter } from '../../middleware/rate-limit.middleware.js'
 import { requireVendorRole, resolveTenant, type TenantVariables } from '../../middleware/tenant.middleware.js'
 import * as controller from './booking-requests.controller.js'
 import {
   acceptRequestSchema,
+  adminCancelRequestSchema,
+  adminRequestsQuerySchema,
   createRequestSchema,
   garageRequestsQuerySchema,
   requestIdParamSchema,
@@ -77,4 +84,28 @@ garageBookingRequestRoutes.post(
 )
 garageBookingRequestRoutes.post('/:id/decline', ...seat, zValidator('param', requestIdParamSchema), (c) =>
   controller.decline(c, c.req.valid('param').id)
+)
+
+// ─── Admin: /api/v1/admin/requests (0064) ────────────────────────────────────
+
+/**
+ * Mounted at /admin/requests (admin.routes.ts). Super-admin only. Read-only
+ * but for Cancel: an open request, with the team's reason (signed).
+ *
+ *   GET  /              ?filter=open|accepted|failed|all&zone=<slug>
+ *   POST /:id/cancel    { reason }
+ */
+export const adminBookingRequestRoutes = new Hono<{ Variables: AuthVariables }>()
+
+const admin = [authMiddleware, requireSuperAdmin] as const
+
+adminBookingRequestRoutes.get('/', ...admin, zValidator('query', adminRequestsQuerySchema), (c) =>
+  controller.listForAdmin(c, c.req.valid('query'))
+)
+adminBookingRequestRoutes.post(
+  '/:id/cancel',
+  ...admin,
+  zValidator('param', requestIdParamSchema),
+  adminSignedJson(adminCancelRequestSchema),
+  (c) => controller.cancelByAdmin(c, c.req.valid('param').id, c.req.valid('json'))
 )

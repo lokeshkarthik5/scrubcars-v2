@@ -4,6 +4,7 @@ import {
   isCalendarDate,
   parseBookingListCursor,
 } from '../../lib/booking-ops.js'
+import { AT_GARAGE_ADDRESS_MESSAGE, atGarageAddressMissing } from '../../lib/garage-address.js'
 import { MAX_PICKUP_RADIUS_KM, MIN_PICKUP_RADIUS_KM } from '../../lib/pickup.js'
 
 const phoneSchema = z
@@ -39,10 +40,22 @@ const serviceBaseSchema = z.object({
   priceHatchback: z.number().positive().optional(),
   priceSedan: z.number().positive().optional(),
   priceSuv: z.number().positive().optional(),
-  // Optional: when omitted the service inherits the vendor's slot interval so
-  // it still blocks exactly one slot. Stored in minutes (the UI offers
+  // Optional (0064): left out or null, the service has no duration, shows
+  // "Duration not set" in admin and holds the default 60 minutes in the slot
+  // calendar (lib/service-duration.ts). Stored in minutes (the UI offers
   // minute/hour/day units and converts before sending).
-  durationMins: z.number().int().positive().optional(),
+  durationMins: z.number().int().positive().max(10_080).nullable().optional(),
+  // The service's own commission percent for Statistics (0064), 0 to 50 with
+  // at most two decimals; null is the category's rate. Left out leaves it as
+  // it is, so an older panel never clears it.
+  commissionRate: z
+    .number()
+    .min(0)
+    .max(50)
+    // Compared as text: 8.29 * 100 is not 829 in floating point.
+    .refine((value) => Number(value.toFixed(2)) === value, 'At most two decimals')
+    .nullable()
+    .optional(),
 })
 
 type ServiceBase = z.infer<typeof serviceBaseSchema>
@@ -96,18 +109,24 @@ export const loginSchema = z.object({
   password: z.string().min(1),
 })
 
+// A pincode, or empty (0064): only an at-garage garage needs one
+// (lib/garage-address.ts).
+const optionalPincodeSchema = z
+  .string()
+  .trim()
+  .regex(/^(\d{6})?$/, 'Pincode must be a 6-digit number')
+
 export const createVendorSchema = z.object({
   // Business + contact
   ownerName: z.string().trim().min(1).max(255),
   ownerPhone: phoneSchema,
   businessName: z.string().trim().min(1).max(255),
   phone: phoneSchema,
-  address: z.string().trim().min(1),
+  // Empty for a doorstep-only garage, which needs only its pin (0064); one
+  // with at-garage on needs both (the refine below).
+  address: z.string().trim().default(''),
   city: z.string().trim().min(1).max(100),
-  pincode: z
-    .string()
-    .trim()
-    .regex(/^\d{6}$/, 'Pincode must be a 6-digit number'),
+  pincode: optionalPincodeSchema.default(''),
   email: z.string().trim().email().optional(),
   whatsapp: phoneSchema.optional(),
   yearsInOperation: z.string().trim().max(20).optional(),
@@ -150,10 +169,22 @@ export const createVendorSchema = z.object({
   onboardedByName: onboardedByNameSchema.optional(),
   // Services offered (structured: bookable line items)
   services: z.array(serviceInputSchema).max(50).optional(),
+  // The lead this garage was onboarded from (0064, Coverage's "Onboard"):
+  // once created, the lead is linked to it and becomes Onboarded.
+  leadId: z.string().uuid().optional(),
 })
   .refine((data) => (data.lat === undefined) === (data.lng === undefined), {
     message: 'lat and lng must be provided together',
   })
+  .refine(
+    (data) =>
+      !atGarageAddressMissing({
+        dropinEnabled: data.dropinEnabled === true,
+        address: data.address,
+        pincode: data.pincode,
+      }),
+    { message: AT_GARAGE_ADDRESS_MESSAGE, path: ['address'] }
+  )
 
 // One day of the week as the garage keeps it, the same shape the vendor's own
 // settings save. Closed days still carry times, which are ignored.
@@ -179,13 +210,11 @@ export const updateVendorSchema = z.object({
   ownerPhone: phoneSchema.optional(),
   businessName: z.string().trim().min(1).max(255).optional(),
   phone: phoneSchema.optional(),
-  address: z.string().trim().min(1).optional(),
+  // May be emptied for a doorstep-only garage; adminService refuses leaving
+  // an at-garage one without them (0064).
+  address: z.string().trim().optional(),
   city: z.string().trim().min(1).max(100).optional(),
-  pincode: z
-    .string()
-    .trim()
-    .regex(/^\d{6}$/, 'Pincode must be a 6-digit number')
-    .optional(),
+  pincode: optionalPincodeSchema.optional(),
   email: z.string().trim().email().nullable().optional(),
   whatsapp: phoneSchema.nullable().optional(),
   yearsInOperation: z.string().trim().max(20).nullable().optional(),

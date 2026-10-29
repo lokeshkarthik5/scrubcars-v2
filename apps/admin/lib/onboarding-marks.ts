@@ -8,10 +8,12 @@
  */
 import type { AdminVendor } from '@repo/core/api/admin'
 import type {
+  MarkItemInput,
   OnboardingMark,
   OnboardingMarkBrief,
 } from '@repo/core/api/admin-marks'
 import { whatsAppHref } from '@repo/core/contact-links'
+import { CHECKLIST_LIMITS } from '@repo/core/mark-checklist'
 import {
   MARK_CHASE_AFTER_DAYS,
   MARK_PRESETS,
@@ -196,13 +198,72 @@ export function markDate(at: string | Date, now: number = Date.now()): string {
 
 type MarkTiming = Pick<OnboardingMark, 'status' | 'askedAt'> & {
   receivedAt?: string | null
+  /** A full mark's checklist (0064)… */
+  items?: ReadonlyArray<{ done: boolean }>
+  /** …or a brief's counts of it. */
+  itemsDone?: number
+  itemsTotal?: number
 }
 
-/** "To ask", "Asked 24 Oct", "Asked today", "Received 25 Oct". */
+/**
+ * The checklist as the edit dialog sends it: each item's id (when it has
+ * one) and its words, never its tick or answer. The dialog does not change
+ * those (the list and the call sheet save them at once, under the mark's
+ * lock), so sending the ones it loaded would undo a tick or an answer saved
+ * while it was open, and sign it with this person's name. Left out, the
+ * server keeps what is stored.
+ */
+export function checklistPayload(
+  items: ReadonlyArray<Pick<MarkItemInput, 'id' | 'text'>>
+): MarkItemInput[] {
+  return items
+    .filter((item) => item.text.trim())
+    .map(({ id, text }) => ({ ...(id ? { id } : {}), text: text.trim() }))
+}
+
+/**
+ * "Edit that mark" after a 409: the open mark's own checklist first, so
+ * nothing on it (or its answers) is lost on Save, then the items typed for
+ * the new mark that it does not have yet (same words), at most 30.
+ */
+export function withCarriedItems(
+  existing: readonly MarkItemInput[],
+  carried: readonly MarkItemInput[]
+): MarkItemInput[] {
+  const have = new Set(existing.map((item) => item.text.trim().toLowerCase()))
+  const added = carried
+    .filter((item) => item.text.trim())
+    .filter((item) => !have.has(item.text.trim().toLowerCase()))
+    .map(({ text }) => ({ text: text.trim() }))
+  return [...existing, ...added].slice(0, CHECKLIST_LIMITS.items)
+}
+
+/** A mark's checklist progress, from its items or its brief's counts. */
+export function markProgress(mark: MarkTiming): {
+  done: number
+  total: number
+} {
+  if (mark.items && mark.items.length > 0) {
+    return {
+      done: mark.items.filter((item) => item.done).length,
+      total: mark.items.length,
+    }
+  }
+  return { done: mark.itemsDone ?? 0, total: mark.itemsTotal ?? 0 }
+}
+
+/**
+ * "To ask", "Asked 24 Oct", "Asked today", "Received 25 Oct"; an open mark
+ * with a checklist says how far it is instead: "1 of 4 checked" (0064).
+ */
 export function markStatusText(
   mark: MarkTiming,
   now: number = Date.now()
 ): string {
+  const progress = markProgress(mark)
+  if (mark.status !== 'received' && progress.total > 0) {
+    return `${progress.done} of ${progress.total} checked`
+  }
   if (mark.status === 'asked' && mark.askedAt) {
     return `Asked ${markDate(mark.askedAt, now)}`
   }

@@ -1,3 +1,5 @@
+import { AT_GARAGE_ADDRESS_MESSAGE, atGarageAddressRefused } from '../../lib/garage-address.js'
+import { effectiveDurationMins } from '../../lib/service-duration.js'
 import { AppError } from '../../lib/errors.js'
 import type { GeoSource } from '../../lib/geo/index.js'
 import { env } from '../../lib/env.js'
@@ -329,7 +331,11 @@ export type ServiceResponse = {
   priceHatchback: string | null
   priceSedan: string | null
   priceSuv: string | null
-  durationMins: number
+  /**
+   * The garage's own duration, or null when it set none (0064): a slot then
+   * holds DEFAULT_SERVICE_DURATION_MINS, but screens show no duration.
+   */
+  durationMins: number | null
   isActive: boolean
   /** Photos only, as before videos existed. Kept for older clients. */
   images: ServiceImageResponse[]
@@ -345,7 +351,7 @@ export type PackageItemResponse = {
   serviceId: string
   name: string
   price: string
-  durationMins: number
+  durationMins: number | null
   isActive: boolean
 }
 
@@ -456,6 +462,11 @@ function isWithinMonths(date: Date, months: number) {
   const cutoff = new Date()
   cutoff.setMonth(cutoff.getMonth() - months)
   return date >= cutoff
+}
+
+/** 400 ADDRESS_REQUIRED: an at-garage garage would be left without its address (0064). */
+function addressRequired() {
+  return new AppError(400, AT_GARAGE_ADDRESS_MESSAGE, 'ADDRESS_REQUIRED')
 }
 
 function toVendorResponse(vendor: VendorRecord): VendorResponse {
@@ -1111,6 +1122,8 @@ export const vendorsService = {
 
   async updateVendor(vendorId: string, input: UpdateVendorInput) {
     const vendor = await getTenantVendor(vendorId)
+    // Customers drive in to an at-garage garage: it keeps its address (0064).
+    if (atGarageAddressRefused(vendor, input)) throw addressRequired()
     const [updated] = await vendorsRepository.updateVendor(vendor.id, {
       ...input,
       // Provenance moves with the coordinates it describes, never on its own.
@@ -1164,6 +1177,11 @@ export const vendorsService = {
     actor: { userId: string; viaSupport: boolean }
   ) {
     const vendor = await getTenantVendor(vendorId)
+
+    // At the garage needs the address customers drive to (0064).
+    if (atGarageAddressRefused(vendor, { dropinEnabled: input.dropinEnabled })) {
+      throw addressRequired()
+    }
 
     // Pickup & drop (0037): turning it on records the owner's tick that the
     // garage is responsible for the car from pickup until it is returned.
@@ -1892,8 +1910,9 @@ export const vendorsService = {
     }
 
     // Services run one after another, so the block to fit is their sum.
+    // An unset duration holds the default 60 minutes (0064).
     const durationMins = requested.reduce(
-      (total, service) => total + service.durationMins,
+      (total, service) => total + effectiveDurationMins(service),
       0
     )
 

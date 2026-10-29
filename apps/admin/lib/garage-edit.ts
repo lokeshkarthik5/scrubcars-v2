@@ -235,16 +235,28 @@ export interface GarageRequiredFields {
  * Why the garage's own fields keep Save off, naming the tab the field is on
  * — the admin may be on any tab when they reach for Save — or null when they
  * are all fine. The first problem only: one thing to fix at a time.
+ *
+ * The address and pincode are needed only when customers come to the
+ * garage (`atGarage`, owner 28 Oct 2026, 0064): a doorstep-only garage needs
+ * just its map pin, and a pincode it has is still 6 digits. The API holds
+ * the same rule (apps/server/src/lib/garage-address.ts).
  */
-export function garageFieldsProblem(form: GarageRequiredFields): string | null {
+export function garageFieldsProblem(
+  form: GarageRequiredFields,
+  atGarage = true
+): string | null {
+  const pincode = form.pincode.trim()
   const checks: Array<[boolean, string]> = [
     [!form.ownerName.trim(), "Add the owner's name (Details)"],
     [!/^\d{10}$/.test(form.ownerPhone.trim()), 'Owner phone must be 10 digits (Details)'],
     [!form.businessName.trim(), 'Add the business name (Details)'],
     [!/^\d{10}$/.test(form.phone.trim()), 'Business phone must be 10 digits (Details)'],
-    [!form.address.trim(), 'Add the address (Location)'],
+    [atGarage && !form.address.trim(), 'Add the address: customers come to the garage (Location)'],
     [!form.city.trim(), 'Add the city (Location)'],
-    [!/^\d{6}$/.test(form.pincode.trim()), 'Pincode must be 6 digits (Location)'],
+    [
+      atGarage ? !/^\d{6}$/.test(pincode) : !/^(\d{6})?$/.test(pincode),
+      atGarage ? 'Pincode must be 6 digits (Location)' : 'Pincode must be 6 digits, or empty (Location)',
+    ],
   ]
   return checks.find(([failed]) => failed)?.[1] ?? null
 }

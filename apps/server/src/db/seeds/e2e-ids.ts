@@ -275,6 +275,11 @@ export const CUSTOMERS = {
    */
   dataResetUi: { id: id(151), phone: '9000000051', name: 'Reset Usha', vehicleId: id(761) },
   /**
+   * The admin round's bookings (0064; ids 4200–4249): BOOKINGS.round*, at
+   * VENDORS.roundA, for the Slot column and Delete test booking.
+   */
+  adminRound: { id: id(4200), phone: '9000004204', name: 'Round Ravi', vehicleId: id(4201) },
+  /**
    * The garage Bin's customers (specs/admin/garage-bin.spec.ts), one per
    * garage it moves or deletes, so nothing another spec reads goes with it.
    * binPaid owns an upcoming paid booking (and an unpaid one) at
@@ -534,6 +539,9 @@ export const STAFF = {
   marksBOwner: { id: id(4156), phone: '9000004155', name: 'Marks Owner Bala' },
   /** Owns VENDORS.marksC only (the garage editor layout spec, 0059). */
   marksCOwner: { id: id(4166), phone: '9000004165', name: 'Marks Owner Chitra' },
+  /** Own VENDORS.roundA and roundDoorstep (the admin round, 0064; 4200–4249). */
+  roundAOwner: { id: id(4202), phone: '9000004202', name: 'Round Owner Arul' },
+  roundDoorstepOwner: { id: id(4203), phone: '9000004203', name: 'Round Owner Devi' },
   /** Owns the five customer-reach garages (VENDORS.reach*, 0062; the 4300–4399 range). */
   reachOwner: { id: id(4305), phone: '9000004305', name: 'Reach Owner Ravi' },
   /** Owns the two request garages and the area-launch garage (customer reach, part 2). */
@@ -784,6 +792,18 @@ export const VENDORS = {
    * apart so the marks and team specs can rely on marksB never changing.
    */
   marksC: { id: id(4165), name: 'Marks Test Garage C', onboardedByName: 'E2E Admin' },
+  /**
+   * The admin round (0064; ids 4200–4249), only its specs touch these:
+   * - roundA: live, at the garage and doorstep, far from every other pin.
+   *   Its wash has no duration and its detailing its own 6% commission; it
+   *   has a checklist mark (1 of 3 ticked) and an old mark whose note holds
+   *   "- " lines. specs/admin/admin-round-*.spec.ts.
+   * - roundDoorstep: doorstep only, pending, with no address or pincode.
+   * - roundB: a second live garage for the colour tags' bulk set.
+   */
+  roundA: { id: id(4210), name: 'Round Test Garage A' },
+  roundDoorstep: { id: id(4211), name: 'Round Doorstep Garage' },
+  roundB: { id: id(4212), name: 'Round Test Garage B' },
   /**
    * Customer reach (0062; ids 4300–4399): five live garages around REACH_HERE,
    * far south-west of every other test garage, for the garage list's "never
@@ -1043,6 +1063,12 @@ export const SERVICES = {
   marksAWash: { id: id(4153), name: 'Marks A Foam Wash', price: '500.00', durationMins: 30 },
   marksBWash: { id: id(4157), name: 'Marks B Foam Wash', price: '500.00', durationMins: 30 },
   marksCWash: { id: id(4167), name: 'Marks C Foam Wash', price: '500.00', durationMins: 30 },
+  /** VENDORS.roundA's (0064): a wash with no duration, detailing at its own 6%. */
+  roundWash: { id: id(4213), name: 'Round Foam Wash', price: '450.00', durationMins: null },
+  roundDetail: { id: id(4214), name: 'Round Interior Detail', price: '1500.00', durationMins: 120 },
+  /** VENDORS.roundDoorstep's and roundB's one wash each. */
+  roundDoorstepWash: { id: id(4215), name: 'Round Doorstep Wash', price: '400.00', durationMins: 45 },
+  roundBWash: { id: id(4216), name: 'Round B Foam Wash', price: '400.00', durationMins: 45 },
   /** The customer-reach garages' one wash each (0062). */
   reachFarWash: { id: id(4320), name: 'Reach Far Wash', price: '299.00', durationMins: 30 },
   reachDoorstepWash: { id: id(4321), name: 'Reach Doorstep Wash', price: '349.00', durationMins: 30 },
@@ -1286,6 +1312,18 @@ export const BOOKINGS = {
   resetUiMarked: refId('da7a0009'),
   resetUiKeep: refId('da7a000b'),
   /**
+   * The admin round (0064), CUSTOMERS.adminRound's at VENDORS.roundA:
+   * - roundSlot: in two days, booked yesterday: the Slot column and
+   *   "Booked yesterday, …".
+   * - roundDelete: marked Test, paid with E2E money, with a team note and a
+   *   complaint about it: deleted from its page with both.
+   * - roundLive: marked Test but paid with live money: Delete test booking
+   *   says why it is kept, and deletes nothing.
+   */
+  roundSlot: refId('ad200003'),
+  roundDelete: refId('ad200001'),
+  roundLive: refId('ad200002'),
+  /**
    * The garage Bin's (CUSTOMERS.bin*). binPaidUpcoming is confirmed and paid
    * (E2E money) in three days at VENDORS.binPaid, and binUnpaidUpcoming
    * pending and unpaid: moving the garage to the Bin cancels both, and only
@@ -1465,6 +1503,111 @@ export const BOOKING_INTENTS = {
  * at: the void a restart of 22-23 clears.
  */
 export const DATA_RESET = { earlierAudit: id(1301) } as const
+
+/**
+ * Coverage & leads (0064; ids 5000–5019, phones 90000050xx), only
+ * specs/admin/coverage-*.spec.ts touch these. The leads are in Perambur
+ * (seeded by 0062): `toTarget` and `notInterested` for the call list,
+ * `onboard` for Onboard → Add garage, and `knownAqua`, whose phone is
+ * PLACES_FAKE's "Aqua Foam Car Wash" (lib/places/fake.ts), so the finder
+ * marks that one as known. `pasted` is the number Paste a list's spec
+ * writes, `added` the one Add lead's spec types. The zone specs add and
+ * remove their own zone, "E2E Test Zone" (slug e2e-test-zone), far from
+ * every fixture. (Customer reach part 2 holds 4400–4599 and its garages
+ * 9000004441–43, so these moved here.)
+ */
+export const LEADS = {
+  zoneSlug: 'perambur',
+  zoneName: 'Perambur',
+  toTarget: { id: id(5001), name: 'Leads Test Wash', phone: '9000005001' },
+  notInterested: { id: id(5002), name: 'Leads Nope Detailers', phone: '9000005002', reason: 'Has their own app' },
+  onboard: { id: id(5003), name: 'Leads Onboard Garage', phone: '9000005003' },
+  knownAqua: { id: id(5004), name: 'Aqua Foam (known)', phone: '9790060193' },
+  /** The garage Onboard creates, and its owner. */
+  onboardOwner: { name: 'Leads Owner Uma', phone: '9000005005' },
+  pasted: { name: 'Leads Pasted Wash', phone: '9000005006' },
+  added: { phone: '9000005007' },
+  testZone: { name: 'E2E Test Zone', slug: 'e2e-test-zone', lat: 12.8, lng: 80.02 },
+} as const
+
+/**
+ * Coverage part 3 (0064; ids 5020–5099, phones 90000050xx): demand in
+ * Perambur (specs/admin/coverage-demand.spec.ts, requests.spec.ts).
+ *
+ * - `waiting`: twelve customers on Perambur's free-wash list, positions
+ *   1–12, so each holds a free wash (Perambur is not live).
+ * - `requester` sent five requests from Perambur to two garages of their
+ *   own (`garages`, pinned far outside every zone, not shown to
+ *   customers): `open` waiting for its first garage (Call garage, Cancel),
+ *   `accepted` (a yes with a ₹100 travel fee), `failed` (passed on from the
+ *   first garage, which couldn't, to the second, which never answered) and
+ *   `expired` (nobody answered). Perambur: 12 waiting + 2 failed = 14, Hot.
+ * - `recommender`'s recommendations in Perambur: `make` (Make lead),
+ *   `dup` and `anyway` (both share `dupLead`'s phone: Link to it, and Make
+ *   lead anyway), `dismiss`, `onboard` (already made into `onboardLead`,
+ *   for Onboard → its garage), and `noZone` (in no zone).
+ * - `googleLead`: a lead from Google (its name and phone Google's only),
+ *   for Edit lead's "Confirmed by phone".
+ *
+ * Names share no word with each other, LEADS or PLACES_FAKE, so the
+ * duplicate rule and the finder's "known" only match what they mean to.
+ */
+export const DEMAND = {
+  waiting: Array.from({ length: 12 }, (_, i) => ({
+    id: id(5020 + i),
+    phone: `90000050${String(20 + i)}`,
+    name: `Waiting Perambur ${i + 1}`,
+  })),
+  requester: { id: id(5040), phone: '9000005040', name: 'Request Raghav' },
+  recommender: { id: id(5042), phone: '9000005042', name: 'Recommend Revathi' },
+  garages: {
+    one: { id: id(5050), name: 'Demand Doorstep One', phone: '9000005050', ownerId: id(5051), ownerPhone: '9000005051' },
+    two: { id: id(5052), name: 'Demand Doorstep Two', phone: '9000005052', ownerId: id(5053), ownerPhone: '9000005053' },
+  },
+  /** Where the request garages are: outside every zone, clear of every other fixture. */
+  garagePin: { lat: 11.75, lng: 79.25 },
+  requests: {
+    open: id(5060),
+    accepted: id(5061),
+    failedFirst: id(5062),
+    failedSecond: id(5063),
+    expired: id(5064),
+  },
+  /** The services a request asked for (names only: a request keeps its lines). */
+  service: { name: 'Demand Foam Wash', amount: '650.00' },
+  recommendations: {
+    make: { id: id(5070), name: 'Kolathur Velvet Motors', phone: '9000005070', why: 'Did a careful job on my old car' },
+    dup: { id: id(5071), name: 'Thiruvika Polish Bay', phone: '9000005080', why: 'Quick and fair' },
+    anyway: { id: id(5072), name: 'Anyway Kavya Autocare', phone: '9000005080', why: 'Near my office' },
+    dismiss: { id: id(5073), name: 'Dismissable Ravi Garage', phone: '9000005073', why: null },
+    onboard: { id: id(5074), name: 'Perambur Onyx Studio', phone: '9000005081', why: 'Best ceramic work nearby' },
+    noZone: { id: id(5075), name: 'Nowhere Nila Works', phone: '9000005075', why: 'Opens early' },
+  },
+  /** The Maps link Make lead reads `make`'s pin from: in Perambur. */
+  makeLink: 'https://www.google.com/maps/@13.1180,80.2340,17z',
+  dupLead: { id: id(5080), name: 'Thiruvika Polish Bay', phone: '9000005080' },
+  onboardLead: { id: id(5081), name: 'Perambur Onyx Studio', phone: '9000005081' },
+  /** The garage Onboard creates from `onboardLead`, and its owner. */
+  onboardOwner: { name: 'Demand Owner Devi', phone: '9000005082' },
+  googleLead: {
+    id: id(5083),
+    placeId: 'e2e-demand-google-5083',
+    googleName: 'Gem Jewel Autobay',
+    googlePhone: '9000005083',
+  },
+} as const
+
+/**
+ * The admin round's other rows (0064; ids 4200–4249): the complaint about
+ * BOOKINGS.roundDelete, and VENDORS.roundA's two marks.
+ */
+export const ROUND = {
+  complaint: id(4230),
+  /** "New garage call": three items, the first ticked with an answer. */
+  checklistMark: id(4231),
+  /** From before 0064: its note's "- " lines read as items. */
+  oldNoteMark: id(4232),
+} as const
 
 /**
  * Team notices. `homeRain` is about bookings at HOME_PROMO around

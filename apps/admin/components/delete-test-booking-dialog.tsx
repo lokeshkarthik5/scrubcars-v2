@@ -12,7 +12,7 @@ import type {
   DataResetScope,
 } from '@repo/core/api/admin'
 import { errorMessage } from '@repo/core/api/hooks/use-discounts'
-import { previewDataResetFully } from '@repo/core/api/hooks/use-admin-data-reset'
+import { previewTestBookingDeleteFully } from '@repo/core/api/hooks/use-admin-data-reset'
 import {
   ChainRow,
   CheckingLine,
@@ -22,11 +22,13 @@ import {
 } from '@/components/data-reset-flow'
 
 /**
- * "Delete test booking": the same dry run and confirmation as Start pilot
- * clean, for the one booking (its whole reschedule chain) whose page this
- * is. For tests the team runs during the pilot. The booking must be marked
- * Test, and real money is kept whatever: the server decides both, and the
- * dry run says so before anything can be confirmed.
+ * "Delete test booking": the same dry run and rules as Start pilot clean,
+ * for the one booking (its whole reschedule chain) whose page this is, with
+ * its refunds, complaints and notes. For tests the team runs during the
+ * pilot. Its own routes (0064), so it works whether or not Start pilot clean
+ * is switched on, and the typed phrase confirms it (no backup tick). The
+ * booking must be marked Test, and real money is kept whatever: the server
+ * decides both, and the dry run says so before anything can be confirmed.
  *
  * Mounted when it opens (the caller renders it then), and its dry run
  * starts with it. A dry run gone stale is run again under a new key.
@@ -57,7 +59,7 @@ export function DeleteTestBookingDialog({
   // cached or retried: a dry run is about this moment.
   const preview = useQuery({
     queryKey: ['admin-data-reset', 'booking-dry-run', booking.id, attempt],
-    queryFn: () => previewDataResetFully({ scope }, setProgress),
+    queryFn: () => previewTestBookingDeleteFully(booking.id, setProgress),
     enabled: open,
     gcTime: 0,
     staleTime: Infinity,
@@ -81,6 +83,8 @@ export function DeleteTestBookingDialog({
   }
 
   const deletable = dryRun && dryRun.countLines.length > 0
+  // Why the server keeps it (real money, not marked Test…), in its words.
+  const keptReason = dryRun?.chains.find((chain) => chain.kept)?.kept ?? null
 
   return (
     <ScModal
@@ -122,17 +126,23 @@ export function DeleteTestBookingDialog({
                 preview={dryRun}
                 downloaded={downloaded}
                 onDownloaded={() => setDownloaded(true)}
+                download={false}
               />
               <ConfirmDelete
                 preview={dryRun}
                 scope={scope}
+                bookingId={booking.id}
                 onDone={setResult}
                 onStale={run}
                 onPendingChange={setDeleting}
               />
             </>
           ) : (
-            <p className="text-[13px] text-text-primary">This booking is kept, so there is nothing to delete.</p>
+            <p role="alert" className="text-[13px] text-text-primary">
+              {keptReason
+                ? `This booking can't be deleted. ${keptReason.label}: ${keptReason.detail}`
+                : 'This booking is kept, so there is nothing to delete.'}
+            </p>
           )}
         </>
       )}

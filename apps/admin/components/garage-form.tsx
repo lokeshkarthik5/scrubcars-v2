@@ -2,7 +2,7 @@
 
 import { useId, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { IconAlertTriangle, IconUserCheck } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCheckbox } from '@repo/ui/sc/checkbox'
@@ -24,6 +24,7 @@ import {
 } from '@repo/core/api/admin'
 import { useInvalidateAdminVendors } from '@repo/core/api/hooks/use-admin-vendors'
 import { useAdminLogins } from '@repo/core/api/hooks/use-admin-logins'
+import { coverageKeys } from '@repo/core/api/hooks/use-admin-coverage'
 import { VENDOR_VEHICLE_TYPE_OPTIONS } from '@repo/core/vehicles'
 import { parsePickupRadius } from '@repo/core/pickup'
 import { cn } from '@repo/core/utils'
@@ -89,6 +90,8 @@ interface GarageFormProps {
   pendingOnly?: boolean
   /** Where to go once the garage is created. */
   afterCreate: string
+  /** The lead it is onboarded from (Coverage's Onboard, 0064): linked by Create. */
+  leadId?: string
 }
 
 /**
@@ -103,9 +106,11 @@ export function GarageForm({
   servicesHelp,
   pendingOnly = false,
   afterCreate,
+  leadId,
 }: GarageFormProps) {
   const router = useRouter()
   const markListStale = useInvalidateAdminVendors()
+  const queryClient = useQueryClient()
   const [form, setForm] = useState({ ...EMPTY_GARAGE_TEXT, ...initial?.text })
   // Pickup & drop: off unless the garage signed the agreement to be
   // responsible for the car, which the admin ticks here.
@@ -114,7 +119,11 @@ export function GarageForm({
   // Optional here, unlike the vendor's own onboarding: staff often create a
   // garage from a phone call and pin it later. The consequence lands at
   // "Show to customers", which the server refuses without coordinates.
-  const [pin, setPin] = useState<PickedLocation | null>(null)
+  const [pin, setPin] = useState<PickedLocation | null>(
+    initial?.pin
+      ? { ...initial.pin, address: '', city: '', pincode: '', source: 'map_pin' }
+      : null
+  )
   // How customers book: the same card as the edit page, held here and sent
   // with Create rather than saved on tap — there is no garage to save to yet.
   const [bookingMode, setBookingMode] = useState<BookingMode>(
@@ -167,8 +176,10 @@ export function GarageForm({
       : !pickupAgreed
         ? 'Tick that the garage signed the pickup & drop agreement, or turn pickup off.'
         : null
-  const fieldsProblem = garageFieldsProblem(form)
-  const missing = missingForCreate(form, services)
+  // A doorstep-only garage needs no address or pincode (0064).
+  const atGarage = bookingMode !== 'doorstep'
+  const fieldsProblem = garageFieldsProblem(form, atGarage)
+  const missing = missingForCreate(form, services, atGarage)
 
   const toggle = <T,>(list: T[], item: T): T[] =>
     list.includes(item) ? list.filter((x) => x !== item) : [...list, item]
@@ -229,8 +240,11 @@ export function GarageForm({
         services: servicesToSave.length
           ? servicesToSave.map(toServicePayload)
           : undefined,
+        ...(leadId && { leadId }),
       })
       markListStale()
+      // The lead is Onboarded now: Coverage reads it again.
+      if (leadId) void queryClient.invalidateQueries({ queryKey: coverageKeys.all })
       router.replace(afterCreate)
     } catch (err) {
       if (
@@ -252,7 +266,7 @@ export function GarageForm({
 
   /** The import's note on a field, while it has one to show. */
   const markOf = (key: string): ImportMark | null =>
-    visibleMark(key, marks[key], form)
+    visibleMark(key, marks[key], form, atGarage)
 
   /** A text field with the import's note under it, when it has one. */
   const field = (
@@ -435,15 +449,21 @@ export function GarageForm({
 
   const locationSection = (
     <ScSection title="Location">
-      {field('address', 'Address')}
+      {field('address', atGarage ? 'Address' : 'Address (optional)')}
       <div className="grid grid-cols-2 gap-3">
         {field('city', 'City')}
-        {field('pincode', 'Pincode', {
+        {field('pincode', atGarage ? 'Pincode' : 'Pincode (optional)', {
           placeholder: '6 digits',
           inputMode: 'numeric',
           className: 'font-numeric',
         })}
       </div>
+      {!atGarage && (
+        <p className="text-[12px] text-text-secondary">
+          Doorstep only: the map pin is enough. Add the address if customers
+          will ever come to the garage.
+        </p>
+      )}
       {field('mapsUrl', 'Google Maps link (optional)', {
         placeholder: 'https://maps.app.goo.gl/…',
       })}

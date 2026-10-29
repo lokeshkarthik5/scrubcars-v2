@@ -29,6 +29,7 @@ export function LocationTab({
     confirming,
     confirmLocation,
     pinNote,
+    atGarage,
   } = g
 
   return (
@@ -40,12 +41,12 @@ export function LocationTab({
     >
       <div className="grid gap-3 sm:grid-cols-2 @3xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <ScField
-          label="Address"
+          label={atGarage ? 'Address' : 'Address (optional)'}
           value={draft.form.address}
           onChange={set('address')}
         />
         <ScField
-          label="Pincode"
+          label={atGarage ? 'Pincode' : 'Pincode (optional)'}
           value={draft.form.pincode}
           onChange={set('pincode')}
           placeholder="6 digits"
@@ -60,6 +61,12 @@ export function LocationTab({
           placeholder="https://maps.app.goo.gl/…"
         />
       </div>
+      {!atGarage && (
+        <p className="text-[12px] text-text-secondary">
+          Doorstep only: the map pin is enough. The address and pincode are
+          needed once customers can come to the garage.
+        </p>
+      )}
 
       {/* Verification is the one moment a human already looks at this
           garage, so it is the natural place to sanity-check the pin. The

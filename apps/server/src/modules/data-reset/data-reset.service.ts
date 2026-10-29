@@ -28,7 +28,12 @@ import {
   type DataResetReads,
   type DataResetWrites,
 } from './data-reset.repository.js'
-import type { ExecuteInput, PreviewInput } from './data-reset.validation.js'
+import type {
+  ExecuteInput,
+  PreviewInput,
+  TestBookingDeleteInput,
+  TestBookingPreviewInput,
+} from './data-reset.validation.js'
 
 const log = logger.child({ module: 'data-reset' })
 
@@ -56,6 +61,23 @@ const AUDIT_ACTION = 'test_data_reset'
 
 /** Why a voided receipt number was voided, as receipt_number_voids records it. */
 const VOID_REASON = 'Test data deleted by the admin test-data reset'
+
+/** The same, for one test booking deleted from its page (0064). */
+const TEST_BOOKING_AUDIT_ACTION = 'test_booking_deleted'
+const TEST_BOOKING_VOID_REASON = 'Test booking deleted from its page in admin'
+
+/** How a run is recorded: the reset's own words, or a single test booking's. */
+interface RunLabels {
+  auditAction: string
+  voidReason: string
+  /**
+   * One booking from its page (0064): a chain the rules keep is refused
+   * with the reason, rather than read as "nothing ticked".
+   */
+  refuseKept?: boolean
+}
+
+const RESET_LABELS: RunLabels = { auditAction: AUDIT_ACTION, voidReason: VOID_REASON }
 
 /**
  * Asks Razorpay about each id, a few at a time, stopping when the budget is
@@ -151,8 +173,14 @@ export async function loadPlanInput(
   const bookingChildCounts = await repo.bookingChildCounts(bookingIds)
   const reschedulesByChain = await repo.reschedulesByChain(keys)
   const intentChildCounts = await repo.intentChildCounts(intents.map((intent) => intent.id))
-  // Only a cutoff run takes complaints; the planner ticks them as one.
-  const complaints = scope.kind === 'before_cutoff' ? await repo.complaintsMadeBefore(scope.cutoff) : []
+  // A cutoff run takes complaints made before it, ticked as one; deleting
+  // one test booking (chains) takes the complaints about it (0064).
+  const complaints =
+    scope.kind === 'before_cutoff'
+      ? await repo.complaintsMadeBefore(scope.cutoff)
+      : scope.kind === 'chains'
+        ? await repo.complaintsOfBookings(bookingIds)
+        : []
   // Usage events (0040), likewise a cutoff run's only, counted not listed.
   const analyticsEvents = scope.kind === 'before_cutoff' ? await repo.analyticsEventsBefore(scope.cutoff) : 0
   // Garage payouts that paid any of these chains: they go only with every
@@ -316,6 +344,24 @@ function wrongPhrase(phrase: string) {
 
 function nothingToDelete() {
   return new AppError(400, 'Nothing is ticked to delete.', 'NOTHING_TO_DELETE')
+}
+
+/**
+ * A booking deleted on its own (scope `chains`) that the rules keep: real
+ * money, not marked Test, a payment that may still arrive, or paid out to
+ * the garage. Says which, in the words the dry run shows.
+ */
+function chainKept(reason: NonNullable<ChainPlan['kept']>) {
+  const { label, detail } = KEPT_REASONS[reason]
+  return new AppError(
+    409,
+    `This booking can't be deleted. ${label}: ${detail} Nothing was deleted.`,
+    'TEST_BOOKING_KEPT'
+  )
+}
+
+function bookingNotFound() {
+  return new AppError(404, 'Booking not found', 'BOOKING_NOT_FOUND')
 }
 
 /**
@@ -505,7 +551,12 @@ export const dataResetService = {
    * team is told on Telegram. Live, cash and unconfirmed money is never in
    * the plan, so it cannot be deleted here whatever the request says.
    */
-  async execute(sub: string, input: ExecuteInput, now = new Date()) {
+  async execute(
+    sub: string,
+    input: Omit<ExecuteInput, 'backupConfirmed'>,
+    now = new Date(),
+    labels: RunLabels = RESET_LABELS
+  ) {
     const scope = toScope(input.scope, now)
     const keyMode = razorpayKeyMode()
     const lookupsUnavailable = keyMode === 'fake' || keyMode === 'none'
@@ -531,6 +582,12 @@ export const dataResetService = {
         const plan = planReset(
           await loadPlanInput(repo, scope, input.only, lookups, lookupsUnavailable, now)
         )
+        // A booking deleted on its own says why it is kept, before anything
+        // else: that is what the person needs to hear (0064).
+        if (labels.refuseKept) {
+          const kept = plan.chains.find((chain) => chain.kept)?.kept
+          if (kept) throw chainKept(kept)
+        }
         if (plan.selectionHash !== input.selectionHash) throw previewStale()
         if (
           plan.selectedChainIds.length === 0 &&
@@ -551,7 +608,7 @@ export const dataResetService = {
         const unticked = untickedRows(plan)
         const rowId = (row: ChainPlan | CheckoutPlan) => ('rootId' in row ? row.rootId : row.id)
         const audit = await repo.insertAudit({
-          action: AUDIT_ACTION,
+          action: labels.auditAction,
           actorSub: sub,
           actorName: input.actorName,
           summary: {
@@ -610,7 +667,7 @@ export const dataResetService = {
           },
         })
 
-        const { photoKeys, restartYears } = await deletePlannedRows(repo, plan, audit.id, VOID_REASON)
+        const { photoKeys, restartYears } = await deletePlannedRows(repo, plan, audit.id, labels.voidReason)
 
         // The counter's lock is the last one any transaction takes.
         await finishRestarts(repo, restartYears)
@@ -660,5 +717,40 @@ export const dataResetService = {
       receiptPlan: plan.receiptPlan,
       photosRemoved: photoKeys.length,
     }
+  },
+
+  /**
+   * The dry run for one booking's chain, from its page (0064). Works with
+   * the reset switched off. 404 when there is no such booking.
+   */
+  async previewTestBooking(bookingId: string, input: TestBookingPreviewInput, now = new Date()) {
+    const preview = await this.preview(
+      { scope: { kind: 'chains', bookingIds: [bookingId] }, unknownIds: input.unknownIds },
+      now
+    )
+    if (preview.chains.length === 0) throw bookingNotFound()
+    return preview
+  },
+
+  /**
+   * Deletes one test booking with its whole reschedule chain, its refunds,
+   * complaints, notes and everything else on it, by the reset's own rules
+   * (scope `chains`): refused with the reason when it is not marked Test or
+   * real money is on it (409 TEST_BOOKING_KEPT), when it changed since the
+   * dry run (409 PREVIEW_STALE) or the phrase is wrong (400).
+   */
+  async deleteTestBooking(sub: string, bookingId: string, input: TestBookingDeleteInput, now = new Date()) {
+    return this.execute(
+      sub,
+      {
+        scope: { kind: 'chains', bookingIds: [bookingId] },
+        unknownIds: input.unknownIds,
+        selectionHash: input.selectionHash,
+        confirmText: input.confirmText,
+        actorName: input.actorName,
+      },
+      now,
+      { auditAction: TEST_BOOKING_AUDIT_ACTION, voidReason: TEST_BOOKING_VOID_REASON, refuseKept: true }
+    )
   },
 }

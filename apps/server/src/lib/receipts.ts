@@ -21,6 +21,7 @@
  * the date on a receipt is the date the customer saw on their phone.
  * Clock-free: nothing here reads the time.
  */
+import { garageAddressLine } from './garage-address.js'
 import { bookingReference } from './booking-ops.js'
 import { isRazorpayRefundId } from './refunds.js'
 import type { BookingType } from './booking-types.js'
@@ -616,13 +617,9 @@ export function buildReceipt(
   const totalRefunded = refunds.reduce((total, refund) => total + toPaise(refund.amount), 0)
 
   const vendor = booking.vendor
-  const street = vendor?.address?.trim() ?? ''
-  const city = vendor?.city?.trim() ?? ''
-  // A garage's address usually names its city already; only add it when not.
-  const garageAddress =
-    street && city && !street.toLowerCase().includes(city.toLowerCase())
-      ? `${street}, ${city}`
-      : street || city
+  // A garage's address usually names its city already; only add it when
+  // not. A doorstep-only garage may have none (0064): the city alone.
+  const garageAddress = garageAddressLine({ address: vendor?.address, city: vendor?.city })
 
   return {
     receiptNumber,

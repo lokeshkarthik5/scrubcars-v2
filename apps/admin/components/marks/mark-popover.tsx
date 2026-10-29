@@ -23,9 +23,18 @@ import {
 } from '@repo/core/onboarding-marks'
 import { cn } from '@repo/core/utils'
 import { ScSegmented } from '@repo/ui/sc/segmented'
-import { ScInput, ScTextarea } from '@repo/ui/sc/input'
-import { openPresetLabels, type MarkVendor } from '@/lib/onboarding-marks'
+import { ScInput } from '@repo/ui/sc/input'
+import type { MarkItemInput } from '@repo/core/api/admin-marks'
+import { readChecklist } from '@repo/core/mark-checklist'
+import { AutoGrowTextarea } from '@/components/auto-grow-textarea'
+import {
+  checklistPayload,
+  openPresetLabels,
+  withCarriedItems,
+  type MarkVendor,
+} from '@/lib/onboarding-marks'
 import { AnchoredPopover } from './anchored-popover'
+import { ChecklistEditor, newDraftItem, type DraftItem } from './mark-checklist'
 
 /**
  * Renders an overlay at the end of <body>, out of the table cell or side
@@ -49,6 +58,8 @@ export interface MarkDraft {
   label: string
   note: string
   status: MarkStatus
+  /** Its checklist (0064), as the dialog left it. */
+  items: MarkItemInput[]
 }
 
 const STATUS_OPTIONS: Array<{ value: MarkStatus; label: ReactNode }> = [
@@ -129,6 +140,14 @@ export function MarkForm({
   )
   const [note, setNote] = useState(initial?.note ?? '')
   const [status, setStatus] = useState<MarkStatus>(initial?.status ?? 'to_ask')
+  const [items, setItems] = useState<DraftItem[]>(() =>
+    (initial?.items ?? []).map((item) => ({
+      key: item.id ?? newDraftItem(item.text).key,
+      ...item,
+    }))
+  )
+  // With a checklist the ticks decide the status (0064).
+  const listed = items.some((item) => item.text.trim())
   const kind: MarkKind = editing
     ? (initial?.kind ?? 'custom')
     : preset !== null
@@ -144,7 +163,15 @@ export function MarkForm({
       onSubmit={(event) => {
         event.preventDefault()
         if (!ready || busy) return
-        onSubmit({ kind, label, note: note.trim(), status })
+        onSubmit({
+          kind,
+          label,
+          note: note.trim(),
+          status,
+          // Ids and words only: ticks and answers are saved where they are
+          // made, and one loaded here may be out of date by now.
+          items: checklistPayload(items),
+        })
       }}
     >
       <div className="flex items-start gap-3">
@@ -235,23 +262,33 @@ export function MarkForm({
         />
       )}
 
-      <ScTextarea
+      <ChecklistEditor items={items} onChange={setItems} />
+
+      <AutoGrowTextarea
         label="Note (optional)"
-        rows={3}
+        rows={2}
         value={note}
         maxLength={MARK_LIMITS.noteMax}
         onChange={(event) => setNote(event.target.value)}
       />
 
-      <div className="flex flex-col gap-1.5">
-        <p className="text-[11px] font-medium text-text-secondary">Status</p>
-        <ScSegmented
-          aria-label="Status"
-          value={status}
-          onChange={setStatus}
-          options={STATUS_OPTIONS}
-        />
-      </div>
+      {listed ? (
+        <p className="flex items-start gap-2 rounded-[12px] bg-surface px-3 py-2.5 text-[12px] text-text-secondary">
+          <IconCheck size={14} aria-hidden className="mt-0.5 shrink-0" />
+          Status follows the ticks: To ask → In progress → Received when all are
+          ticked.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          <p className="text-[11px] font-medium text-text-secondary">Status</p>
+          <ScSegmented
+            aria-label="Status"
+            value={status}
+            onChange={setStatus}
+            options={STATUS_OPTIONS}
+          />
+        </div>
+      )}
 
       {extra}
 
@@ -301,7 +338,8 @@ export function isMarkExists(error: unknown): boolean {
   )
 }
 
-type EditableMark = OnboardingMarkBrief & Partial<Pick<OnboardingMark, 'note'>>
+type EditableMark = OnboardingMarkBrief &
+  Partial<Pick<OnboardingMark, 'note' | 'items'>>
 
 /**
  * Add a mark to one garage, or change one. On a laptop it opens next to the
@@ -325,7 +363,7 @@ export function MarkPopover({
   const [editing, setEditing] = useState<EditableMark | null>(mark ?? null)
   const [carried, setCarried] = useState<Pick<
     MarkDraft,
-    'note' | 'status'
+    'note' | 'status' | 'items'
   > | null>(null)
   const [exists, setExists] = useState<MarkDraft | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -353,6 +391,9 @@ export function MarkPopover({
   const submit = (draft: MarkDraft) => {
     setError(null)
     if (editing) {
+      // The list is sent when there is one, or was: an API older than 0064
+      // refuses the field, and a mark that never had one has nothing to say.
+      const hadItems = (full?.items ?? editing.items ?? []).length > 0
       update.mutate(
         {
           vendorId: vendor.id,
@@ -362,6 +403,9 @@ export function MarkPopover({
             note: draft.note || null,
             ...(editing.kind === 'custom' && draft.label
               ? { label: draft.label }
+              : {}),
+            ...(draft.items.length > 0 || hadItems
+              ? { items: draft.items }
               : {}),
           },
         },
@@ -377,6 +421,7 @@ export function MarkPopover({
           label: draft.label,
           note: draft.note || null,
           status: draft.status,
+          ...(draft.items.length > 0 ? { items: draft.items } : {}),
         },
       },
       {
@@ -391,7 +436,20 @@ export function MarkPopover({
     )
   }
 
-  const note = editing ? (full?.note ?? editing.note ?? '') : ''
+  // The server already reads an old note's "- " lines as items; reading
+  // them here too only matters for a mark it sent without its list. An API
+  // older than 0064 sends no `items` at all, and takes none back, so its
+  // note is left as it is.
+  const storedItems = full?.items ?? editing?.items
+  const checklist = editing
+    ? storedItems
+      ? readChecklist({
+          items: storedItems,
+          note: full?.note ?? editing.note ?? null,
+        })
+      : { items: [], note: full?.note ?? editing.note ?? null }
+    : null
+  const note = checklist?.note ?? ''
   const openPresets = openPresetLabels(marks.data ?? vendor.openMarks)
   // Wait for the note before showing the form, unless the marks can't be
   // read (an older API): then it starts without one.
@@ -430,6 +488,12 @@ export function MarkPopover({
                     label: editing.kind === 'custom' ? editing.label : '',
                     note: carried?.note ?? note,
                     status: carried?.status ?? editing.status,
+                    // The mark's own list, then anything typed for the
+                    // new one: Save sends the whole list, so the mark's
+                    // items (and their answers) must be on it.
+                    items: carried
+                      ? withCarriedItems(checklist?.items ?? [], carried.items)
+                      : (checklist?.items ?? []),
                   }
                 : undefined
             }
@@ -444,7 +508,11 @@ export function MarkPopover({
                       type="button"
                       className="min-h-9 font-semibold text-text-primary underline underline-offset-4"
                       onClick={() => {
-                        setCarried({ note: exists.note, status: exists.status })
+                        setCarried({
+                          note: exists.note,
+                          status: exists.status,
+                          items: exists.items,
+                        })
                         setEditing(existing)
                         setExists(null)
                       }}

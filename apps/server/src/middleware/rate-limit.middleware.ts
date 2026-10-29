@@ -17,8 +17,12 @@ export const byClientIp: RateLimitKey = (c) =>
   c.req.header('x-real-ip') ??
   'unknown'
 
+/**
+ * `limit` may be a function, read on each request, for a limit a test sets
+ * after the module has loaded.
+ */
 function createRateLimiter(
-  limit: number,
+  limitOf: number | (() => number),
   windowMs: number,
   keyOf: RateLimitKey = byClientIp
 ) {
@@ -26,6 +30,7 @@ function createRateLimiter(
 
   return createMiddleware(async (c, next) => {
     const key = keyOf(c)
+    const limit = typeof limitOf === 'function' ? limitOf() : limitOf
 
     const now = Date.now()
     const entry = store.get(key)
@@ -122,6 +127,15 @@ export const couponCodeRateLimiter = createRateLimiter(env.couponCodeRateLimit, 
 export const certificateLookupRateLimiter = createRateLimiter(
   env.certificateLookupRateLimit,
   60 * 1000
+)
+
+// "Find businesses in a zone" (0064), per signed-in admin per hour: each
+// search is up to five Google requests, the paid part. Read on each request
+// (PLACES_SEARCH_RATE_LIMIT), so the routes test can lower it.
+export const placesSearchRateLimiter = createRateLimiter(
+  () => env.placesSearchRateLimit,
+  60 * 60 * 1000,
+  bySignedInAdmin
 )
 
 // Customer reach, part 2 (0062): requests, area sign-ups and recommendations,

@@ -13,7 +13,11 @@ import type {
 } from '@repo/core/api/admin'
 import type { ServiceTemplate } from '@repo/core/service-templates'
 import type { ServiceCategory, ServiceMedia } from '@repo/core/types'
-import type { PricingType, ServiceRowFields } from './service-rows'
+import {
+  commissionRateValue,
+  type PricingType,
+  type ServiceRowFields,
+} from './service-rows'
 
 export type DurationUnit = 'min' | 'hour' | 'day'
 
@@ -59,10 +63,14 @@ export function durationToMins(
   return n > 0 ? Math.round(n * DURATION_FACTOR[unit]) : undefined
 }
 
-/** Stored minutes in the largest clean unit (120 → 2 hours), for editing. */
+/**
+ * Stored minutes in the largest clean unit (120 → 2 hours), for editing.
+ * None set (null, 0064) is an empty box.
+ */
 export function minsToDuration(
-  mins: number
+  stored: number | null
 ): Pick<ServiceRow, 'durationValue' | 'durationUnit'> {
+  const mins = stored ?? 0
   if (mins > 0 && mins % 1440 === 0)
     return { durationValue: String(mins / 1440), durationUnit: 'day' }
   if (mins > 0 && mins % 60 === 0)
@@ -70,7 +78,11 @@ export function minsToDuration(
   return { durationValue: mins > 0 ? String(mins) : '', durationUnit: 'min' }
 }
 
-/** The row's duration in minutes, or undefined when it is left to the slot. */
+/**
+ * The row's duration in minutes, or undefined when none is set: the slot
+ * calendar then holds the default 60 minutes and the row says "Duration not
+ * set" (0064).
+ */
 export const rowDurationMins = (
   row: Pick<ServiceRow, 'durationValue' | 'durationUnit'>
 ) => durationToMins(row.durationValue, row.durationUnit)
@@ -168,6 +180,7 @@ export function emptyServiceRow(): ServiceRow {
     priceSuv: '',
     durationValue: '',
     durationUnit: 'min',
+    commissionRate: '',
   }
 }
 
@@ -209,6 +222,7 @@ export function toServiceRow(
     priceSedan: decToInput(s.priceSedan),
     priceSuv: decToInput(s.priceSuv),
     ...minsToDuration(s.durationMins),
+    commissionRate: decToInput(s.commissionRate ?? null),
   }
 }
 
@@ -219,6 +233,8 @@ export function toServiceRow(
  */
 export function toServicePayload(row: ServiceRow): UpdateVendorServiceInput {
   const pos = (v: string) => (Number(v) > 0 ? Number(v) : undefined)
+  // Left out when empty: an API from before 0064 would refuse null, and the
+  // new one stores no duration for a service sent without one.
   const durationMins = rowDurationMins(row)
   return {
     ...(row.id && { id: row.id }),
@@ -227,6 +243,8 @@ export function toServicePayload(row: ServiceRow): UpdateVendorServiceInput {
     category: row.category,
     pricingType: row.pricingType,
     ...(durationMins != null && { durationMins }),
+    // Always sent, so emptying the box clears it (an older API ignores it).
+    commissionRate: commissionRateValue(row.commissionRate ?? ''),
     ...(row.pricingType === 'per_vehicle'
       ? {
           priceHatchback: pos(row.priceHatchback),

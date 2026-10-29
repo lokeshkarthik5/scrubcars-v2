@@ -94,9 +94,12 @@ test.describe('the reach figures, from the API @p0', () => {
     const response = await request.get(`${API}/api/v1/zones`)
     expect(response.status()).toBe(200)
     expect(response.headers()['cache-control']).toContain('public')
-    const { zones } = (await response.json()).data as {
+    const { zones: listed } = (await response.json()).data as {
       zones: Array<{ slug: string; name: string; lat: number; lng: number; priority: boolean; hasGarage: boolean }>
     }
+    // Admin's zone spec (specs/admin/coverage-zones.spec.ts) adds and removes
+    // its own "E2E Test Zone" (slug e2e-test-zone), maybe while this runs.
+    const zones = listed.filter((zone) => !zone.slug.startsWith('e2e-'))
     expect(zones).toHaveLength(25)
     expect(zones.slice(0, 7).every((zone) => zone.priority)).toBe(true)
     expect(zones.filter((zone) => zone.priority).map((zone) => zone.name)).toEqual([

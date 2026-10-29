@@ -53,6 +53,7 @@ import type {
 } from '../lib/rewards.js'
 import type { ServiceReminderKind, ServiceReminderStatus } from '../lib/service-reminders.js'
 import type { PhotoAngle, PhotoRole } from '../lib/job-photo-standards.js'
+import type { MarkChecklistItem } from '../lib/mark-checklist.js'
 import type {
   EligibilitySnapshot,
   QualityCheckKind,
@@ -60,6 +61,8 @@ import type {
   RevokeKind,
 } from '../lib/certification.js'
 import type { CreditEntryKind, GiftDesign, GiftStatus } from '../lib/gift-credit.js'
+import type { LeadPinSource, LeadSource, LeadStatus } from '../lib/leads.js'
+import type { RecommendationStatus } from '../lib/recommendations.js'
 import type { Tier, TierSnapshot } from '../lib/tiers.js'
 import type {
   ClaimDecision,
@@ -600,6 +603,14 @@ export const vendors = pgTable(
     // never filled in automatically: whoever adds the garage may not be the
     // one who onboarded it. Usually a team login's name, or free text.
     onboardedByName: varchar('onboarded_by_name', { length: 100 }),
+    // The team's own colour for the garage on the Garages list (0064):
+    // green "All confirmed", amber "A few to confirm", red "Needs details",
+    // blue "Call back" (with an optional day), or none. Set by hand only;
+    // the names are team-wide (admin_settings 'colour_names').
+    colourTag: text('colour_tag').$type<'green' | 'amber' | 'red' | 'blue'>(),
+    colourTagCallOn: date('colour_tag_call_on', { mode: 'string' }),
+    colourTagSetBy: varchar('colour_tag_set_by', { length: 100 }),
+    colourTagSetAt: timestamp('colour_tag_set_at', { withTimezone: true }),
     // Admin hid this garage's tier medal from customers (0063), during a
     // complaint, say. The garage still sees its own tier. Internal: never on
     // a public payload.
@@ -610,6 +621,14 @@ export const vendors = pgTable(
   },
   (table) => [
     index('vendors_owner_id_idx').on(table.ownerId),
+    check(
+      'vendors_colour_tag_check',
+      sql`${table.colourTag} is null or ${table.colourTag} in ('green', 'amber', 'red', 'blue')`
+    ),
+    check(
+      'vendors_colour_tag_call_on_check',
+      sql`${table.colourTagCallOn} is null or ${table.colourTag} = 'blue'`
+    ),
     index('vendors_status_idx').on(table.status),
     index('vendors_deleted_at_idx')
       .on(table.deletedAt)
@@ -811,7 +830,14 @@ export const services = pgTable(
     priceHatchback: decimal('price_hatchback', { precision: 10, scale: 2 }),
     priceSedan: decimal('price_sedan', { precision: 10, scale: 2 }),
     priceSuv: decimal('price_suv', { precision: 10, scale: 2 }),
-    durationMins: integer('duration_mins').notNull(),
+    // Optional since 0064: null blocks the default 60 minutes in the slot
+    // calendar. Read it only through effectiveDurationMins
+    // (lib/service-duration.ts); a booking's own snapshot is never null.
+    durationMins: integer('duration_mins'),
+    // An optional commission percent (0–50) for this service (0064), used by
+    // Statistics instead of its category's rate. Null is the category rate.
+    // Reporting only: payouts keep the category rates (lib/commission.ts).
+    commissionRate: decimal('commission_rate', { precision: 5, scale: 2 }),
     isActive: boolean('is_active').default(true).notNull(),
     // Set when a service bookings name is deleted: it stays switched off,
     // for those bookings to read, and is listed nowhere again. A service
@@ -821,6 +847,10 @@ export const services = pgTable(
   (table) => [
     index('services_vendor_id_idx').on(table.vendorId),
     index('services_category_idx').on(table.category),
+    check(
+      'services_commission_rate_check',
+      sql`${table.commissionRate} is null or (${table.commissionRate} >= 0 and ${table.commissionRate} <= 50)`
+    ),
   ]
 )
 
@@ -1985,6 +2015,9 @@ export const vendorOnboardingMarks = pgTable(
     kind: text('kind').notNull(),
     label: varchar('label', { length: 60 }),
     note: text('note'),
+    // The mark's checklist (0064): what to find out, each with its answer and
+    // who answered it when. See lib/mark-checklist.ts.
+    items: jsonb('items').$type<MarkChecklistItem[]>().default([]).notNull(),
     status: text('status').$type<'to_ask' | 'asked' | 'received'>().default('to_ask').notNull(),
     askedAt: timestamp('asked_at', { withTimezone: true }),
     askedByName: varchar('asked_by_name', { length: 100 }),
@@ -2008,6 +2041,27 @@ export const vendorOnboardingMarks = pgTable(
       sql`${table.kind} <> 'custom' OR (${table.label} IS NOT NULL AND char_length(btrim(${table.label})) > 0)`
     ),
     check('vendor_onboarding_marks_note_check', sql`${table.note} IS NULL OR char_length(${table.note}) <= 500`),
+    check(
+      'vendor_onboarding_marks_items_check',
+      sql`jsonb_typeof(${table.items}) = 'array' AND jsonb_array_length(${table.items}) <= 30`
+    ),
+  ]
+)
+
+// Team-wide admin settings (0064), one row per key: the Garages list's
+// onboarding target ('garage_target') and the colour tags' names
+// ('colour_names'). Shapes and defaults in lib/admin-settings.ts.
+export const adminSettings = pgTable(
+  'admin_settings',
+  {
+    key: text('key').$type<'garage_target' | 'colour_names'>().primaryKey(),
+    value: jsonb('value').$type<Record<string, unknown>>().notNull(),
+    updatedByName: varchar('updated_by_name', { length: 100 }).notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check('admin_settings_key_check', sql`${table.key} in ('garage_target', 'colour_names')`),
+    check('admin_settings_value_check', sql`jsonb_typeof(${table.value}) = 'object'`),
   ]
 )
 
@@ -4688,6 +4742,10 @@ export const bookingRequests = pgTable(
     // that lapsed); a yes's own push is sent with the answer.
     customerToldAt: timestamp('customer_told_at', { withTimezone: true }),
     closedAt: timestamp('closed_at', { withTimezone: true }),
+    // An admin's cancel (0064): who, and why (the team's, never sent). The
+    // customer's own cancel leaves both empty.
+    cancelledByName: varchar('cancelled_by_name', { length: 100 }),
+    cancelReason: varchar('cancel_reason', { length: 200 }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
@@ -4727,6 +4785,10 @@ export const bookingRequests = pgTable(
     check(
       'booking_requests_status_reply_check',
       sql`(${table.status} not in ('accepted', 'converted') or ${table.reply} = 'accepted') and (${table.status} <> 'declined' or ${table.reply} = 'declined') and (${table.status} <> 'pending' or ${table.reply} is null)`
+    ),
+    check(
+      'booking_requests_admin_cancel_check',
+      sql`((${table.cancelledByName} is null) = (${table.cancelReason} is null)) and (${table.cancelReason} is null or ${table.status} = 'cancelled')`
     ),
     check('booking_requests_amounts_check', sql`${table.subtotalAmount} > 0 and ${table.durationMins} > 0`),
     check('booking_requests_distance_check', sql`${table.distanceKm} >= 0 and ${table.outsideKm} >= 0`),
@@ -4778,8 +4840,9 @@ export const zoneSignups = pgTable(
 
 /**
  * "Know a good garage here?" (customer reach, part 2, 0062): a lead for the
- * team (admin's zone list, PR 5), `status` new → contacted → joined /
- * declined, `vendor_id` linked by admin. Once that garage is live and the
+ * team (Coverage, 0064: lib/recommendations.ts), `status` new → contacted
+ * (made into, or linked to, `lead_id`) → joined (that lead's garage is
+ * `vendor_id`) / declined (dismissed). Once that garage is live and the
  * customer completes a paid booking there, `credit_*` records the referral
  * credit (lib/area-signups.ts REFERRAL_CREDIT; a `referral_reward` lot, or
  * owed while credit is off). About a business, so it stays as a lead when
@@ -4795,17 +4858,24 @@ export const garageRecommendations = pgTable(
     mapsLink: varchar('maps_link', { length: 500 }),
     phone: varchar('phone', { length: 10 }),
     why: varchar('why', { length: 500 }),
-    status: text('status').$type<'new' | 'contacted' | 'joined' | 'declined'>().default('new').notNull(),
+    status: text('status').$type<RecommendationStatus>().default('new').notNull(),
     vendorId: uuid('vendor_id').references(() => vendors.id, { onDelete: 'set null' }),
     creditStatus: text('credit_status').$type<'owed' | 'granted'>(),
     creditAmount: decimal('credit_amount', { precision: 10, scale: 2 }),
     creditEntryId: uuid('credit_entry_id').references(() => giftCreditEntries.id, { onDelete: 'restrict' }),
     creditBookingId: uuid('credit_booking_id').references(() => bookings.id, { onDelete: 'set null' }),
     creditedAt: timestamp('credited_at', { withTimezone: true }),
+    // The lead the team made it into, or linked it to (0064, Coverage);
+    // SET NULL, so removing the lead puts it back in the zone's list.
+    leadId: uuid('lead_id').references((): AnyPgColumn => leads.id, { onDelete: 'set null' }),
+    // Who made the lead or dismissed it, and when.
+    handledBy: varchar('handled_by', { length: 100 }),
+    handledAt: timestamp('handled_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
+    index('garage_recommendations_lead_idx').on(table.leadId).where(sql`${table.leadId} is not null`),
     index('garage_recommendations_zone_idx').on(table.zoneId, table.status, table.createdAt),
     index('garage_recommendations_user_idx').on(table.userId),
     index('garage_recommendations_vendor_idx').on(table.vendorId).where(sql`${table.vendorId} is not null`),
@@ -4817,9 +4887,90 @@ export const garageRecommendations = pgTable(
     check('garage_recommendations_phone_check', sql`${table.phone} is null or ${table.phone} ~ '^[6-9][0-9]{9}$'`),
     check('garage_recommendations_link_check', sql`${table.mapsLink} is null or ${table.mapsLink} ~ '^https://'`),
     check('garage_recommendations_status_check', sql`${table.status} in ('new', 'contacted', 'joined', 'declined')`),
+    check('garage_recommendations_handled_check', sql`(${table.handledBy} is null) = (${table.handledAt} is null)`),
     check(
       'garage_recommendations_credit_check',
       sql`(${table.creditStatus} is null or ${table.creditStatus} in ('owed', 'granted')) and ((${table.creditStatus} is null) = (${table.creditAmount} is null)) and ((${table.creditStatus} = 'granted') = (${table.creditEntryId} is not null and ${table.creditedAt} is not null))`
+    ),
+  ]
+)
+
+/**
+ * A garage the team wants to sign up (0064, Coverage & leads). Customers
+ * never see leads. `name` / `phone` are what the team typed or confirmed;
+ * what came from Google sits apart in `google_*` with `googleFetchedAt`,
+ * refreshed or cleared after 30 days (lib/places/refresh.ts, Google's
+ * terms). `zoneId` is worked out from the pin by `zoneFor` (lib/zones.ts),
+ * or is the zone a pin-less lead was added in. `vendorId` is the garage it
+ * became (status `onboarded`).
+ */
+export const leads = pgTable(
+  'leads',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: varchar('name', { length: 120 }),
+    phone: varchar('phone', { length: 15 }),
+    address: varchar('address', { length: 300 }),
+    mapsUrl: text('maps_url'),
+    lat: doublePrecision('lat'),
+    lng: doublePrecision('lng'),
+    pinSource: text('pin_source').$type<LeadPinSource>(),
+    zoneId: uuid('zone_id').references(() => zones.id, { onDelete: 'restrict' }),
+    source: text('source').$type<LeadSource>().notNull(),
+    status: text('status').$type<LeadStatus>().default('to_target').notNull(),
+    notInterestedReason: varchar('not_interested_reason', { length: 200 }),
+    notInterestedOn: date('not_interested_on', { mode: 'string' }),
+    retryAfter: date('retry_after', { mode: 'string' }),
+    assignedLoginId: uuid('assigned_login_id').references(() => adminLogins.id, { onDelete: 'set null' }),
+    assignedName: varchar('assigned_name', { length: 100 }),
+    lastNote: text('last_note'),
+    lastNoteBy: varchar('last_note_by', { length: 100 }),
+    lastNoteAt: timestamp('last_note_at', { withTimezone: true }),
+    vendorId: uuid('vendor_id').references(() => vendors.id, { onDelete: 'set null' }),
+    onboardedAt: timestamp('onboarded_at', { withTimezone: true }),
+    googlePlaceId: varchar('google_place_id', { length: 300 }),
+    olaPlaceId: varchar('ola_place_id', { length: 300 }),
+    googleName: varchar('google_name', { length: 200 }),
+    googlePhone: varchar('google_phone', { length: 15 }),
+    googleAddress: varchar('google_address', { length: 300 }),
+    googleRating: decimal('google_rating', { precision: 2, scale: 1 }),
+    googleReviewCount: integer('google_review_count'),
+    googleFetchedAt: timestamp('google_fetched_at', { withTimezone: true }),
+    createdByName: varchar('created_by_name', { length: 100 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('leads_zone_id_idx').on(table.zoneId),
+    index('leads_phone_idx').on(table.phone),
+    index('leads_google_fetched_at_idx').on(table.googleFetchedAt).where(sql`${table.googleFetchedAt} IS NOT NULL`),
+    uniqueIndex('leads_vendor_id_key').on(table.vendorId).where(sql`${table.vendorId} IS NOT NULL`),
+    uniqueIndex('leads_google_place_id_key').on(table.googlePlaceId).where(sql`${table.googlePlaceId} IS NOT NULL`),
+    uniqueIndex('leads_ola_place_id_key').on(table.olaPlaceId).where(sql`${table.olaPlaceId} IS NOT NULL`),
+    check('leads_source_check', sql`${table.source} IN ('manual', 'paste', 'google', 'ola', 'customer')`),
+    check('leads_status_check', sql`${table.status} IN ('to_target', 'not_interested', 'onboarded')`),
+    check('leads_pin_source_check', sql`${table.pinSource} IS NULL OR ${table.pinSource} IN ('maps_link', 'map', 'google', 'ola')`),
+    check(
+      'leads_name_check',
+      sql`(${table.name} IS NULL AND ${table.googlePlaceId} IS NOT NULL) OR length(btrim(${table.name})) BETWEEN 1 AND 120`
+    ),
+    check('leads_phone_check', sql`${table.phone} IS NULL OR ${table.phone} ~ '^[0-9]{6,15}$'`),
+    check('leads_google_phone_check', sql`${table.googlePhone} IS NULL OR ${table.googlePhone} ~ '^[0-9]{6,15}$'`),
+    check(
+      'leads_pin_check',
+      sql`(${table.lat} IS NULL AND ${table.lng} IS NULL AND ${table.pinSource} IS NULL) OR (${table.lat} BETWEEN -90 AND 90 AND ${table.lng} BETWEEN -180 AND 180 AND ${table.pinSource} IS NOT NULL)`
+    ),
+    check(
+      'leads_not_interested_check',
+      sql`(${table.status} = 'not_interested') = (${table.notInterestedReason} IS NOT NULL AND ${table.notInterestedOn} IS NOT NULL)`
+    ),
+    check('leads_retry_after_check', sql`${table.retryAfter} IS NULL OR ${table.status} = 'not_interested'`),
+    check('leads_note_check', sql`${table.lastNote} IS NULL OR char_length(${table.lastNote}) <= 500`),
+    check('leads_google_rating_check', sql`${table.googleRating} IS NULL OR ${table.googleRating} BETWEEN 0 AND 5`),
+    check('leads_google_review_count_check', sql`${table.googleReviewCount} IS NULL OR ${table.googleReviewCount} >= 0`),
+    check(
+      'leads_google_fetched_check',
+      sql`${table.googleFetchedAt} IS NOT NULL OR (${table.googleName} IS NULL AND ${table.googlePhone} IS NULL AND ${table.googleAddress} IS NULL AND ${table.googleRating} IS NULL AND ${table.googleReviewCount} IS NULL)`
     ),
   ]
 )

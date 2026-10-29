@@ -662,6 +662,20 @@ export function customerRequestNoGarage(request: PushRequest): PushMessage {
   })
 }
 
+/**
+ * The team cancelled the request (admin Requests, 0064): sent the way an
+ * expiry is told. The team's reason stays with the team.
+ */
+export function customerRequestCancelledByDetlio(request: PushRequest, garage: string): PushMessage {
+  return message({
+    title: 'Your request was cancelled',
+    body: `Detlio cancelled your request to ${garage}. Nothing was paid; send a new request any time.`,
+    url: CUSTOMER_REQUESTS_PATH,
+    tag: requestTag(request),
+    ttlSeconds: 24 * 60 * 60,
+  })
+}
+
 /** A yes the customer did not confirm in time. */
 export function customerRequestLapsed(request: PushRequest, garage: string): PushMessage {
   return message({

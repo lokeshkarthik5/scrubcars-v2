@@ -143,6 +143,16 @@ export function freeWashEligibleSubtotal(lines: ReadonlyArray<{ category: string
 }
 
 /** When a free wash stops working: 30 days from the zone's launch. */
+/**
+ * A free wash issued to a sign-up that can still be used: switched on, not
+ * held by a live booking (`held`: redemptions that count, DISCOUNT_HELD),
+ * and before it ends. Home's "Your free wash is ready" and Coverage's
+ * "hold an unused free wash" read it.
+ */
+export function freeWashReady(discount: { isActive: boolean; held: number; endsAt: Date | null }, now: Date): boolean {
+  return discount.isActive && discount.held === 0 && discount.endsAt !== null && discount.endsAt > now
+}
+
 export function freeWashEndsAt(liveAt: Date): Date {
   return new Date(liveAt.getTime() + FREE_WASH_RULES.validDays * DAY_MS)
 }

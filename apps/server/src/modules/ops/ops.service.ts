@@ -14,6 +14,7 @@ import { giftCreditService } from '../gift-credit/gift-credit.service.js'
 import { giftsService } from '../gifts/gifts.service.js'
 import { couponsService } from '../coupons/coupons.service.js'
 import { guaranteeService } from '../guarantee/guarantee.service.js'
+import { leadsService } from '../leads/leads.service.js'
 import { payoutsService } from '../payouts/payouts.service.js'
 import { pushService } from '../push/push.service.js'
 import { refundsService } from '../refunds/refunds.service.js'
@@ -221,6 +222,15 @@ export const opsService = {
         log.error({ err }, 'ops:garage_sweep_failed')
         return { error: true as const }
       })
+    // Leads from the zone finder (0064): what Google gave is read again or
+    // cleared once 30 days old (Google's terms), in the 01:00–04:59 IST
+    // runs, a bounded batch a run. Never allowed to fail the digest.
+    const googleLeads = await leadsService
+      .refreshGoogle({ dryRun: options.dryRun })
+      .catch((err: unknown) => {
+        log.error({ err }, 'ops:google_leads_refresh_failed')
+        return { error: true as const }
+      })
     const giftCodeAttemptsPurged = options.dryRun
       ? 0
       : await giftsService.purgeAttempts().catch((err: unknown) => {
@@ -299,6 +309,7 @@ export const opsService = {
       rewards,
       rewardExtras,
       garage,
+      googleLeads,
       missedResponsesYesterday: missedResponses.reduce((sum, row) => sum + row.count, 0),
     }
 

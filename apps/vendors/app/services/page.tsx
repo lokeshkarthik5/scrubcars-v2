@@ -166,7 +166,8 @@ export default function VendorServicesPage() {
         svc.priceHatchback != null ? String(svc.priceHatchback) : '',
       priceSedan: svc.priceSedan != null ? String(svc.priceSedan) : '',
       priceSuv: svc.priceSuv != null ? String(svc.priceSuv) : '',
-      durationMins: String(svc.durationMins),
+      // Admin may leave a duration unset (0064): the box starts empty.
+      durationMins: svc.durationMins != null ? String(svc.durationMins) : '',
     })
   }
 
@@ -440,11 +441,17 @@ export default function VendorServicesPage() {
                             </p>
                           )}
                           <p className="mt-0.5 text-[12px] text-text-secondary">
-                            <Figures text={formatServicePrice(svc)} /> ·{' '}
-                            <span className="font-numeric">
-                              {svc.durationMins}
-                            </span>{' '}
-                            min
+                            <Figures text={formatServicePrice(svc)} />
+                            {svc.durationMins != null && (
+                              <>
+                                {' '}
+                                ·{' '}
+                                <span className="font-numeric">
+                                  {svc.durationMins}
+                                </span>{' '}
+                                min
+                              </>
+                            )}
                           </p>
                         </div>
                         <ScBadge

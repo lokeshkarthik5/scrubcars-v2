@@ -42,12 +42,15 @@ export function ServiceSheetTop({
   const chips = (
     <div className="flex flex-wrap items-center gap-2">
       <ScBadge variant="muted">{categoryLabel(service.category)}</ScBadge>
-      <span className="flex items-center gap-1.5 text-[11px] text-text-secondary">
-        <IconClock size={12} />
-        <span className="font-numeric font-medium">
-          {formatDuration(service.durationMins)}
+      {/* "Duration not set" (0064) shows nothing to customers. */}
+      {service.durationMins != null && (
+        <span className="flex items-center gap-1.5 text-[11px] text-text-secondary">
+          <IconClock size={12} />
+          <span className="font-numeric font-medium">
+            {formatDuration(service.durationMins)}
+          </span>
         </span>
-      </span>
+      )}
     </div>
   )
 

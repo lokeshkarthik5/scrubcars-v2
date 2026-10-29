@@ -1,5 +1,8 @@
+import { AT_GARAGE_ADDRESS_MESSAGE, atGarageAddressRefused, garageAddressLine } from '../../lib/garage-address.js'
 import { timingSafeEqual } from 'node:crypto'
 import { env } from '../../lib/env.js'
+import { leadsRepository } from '../leads/leads.repository.js'
+import { leadsService } from '../leads/leads.service.js'
 import { AppError } from '../../lib/errors.js'
 import { signAdminToken } from '../../lib/jwt.js'
 import { logger } from '../../lib/logger.js'
@@ -163,6 +166,16 @@ async function assertPhotoCapacity(vendorId: string) {
       'PHOTO_LIMIT_REACHED'
     )
   }
+}
+
+/**
+ * A service's own commission percent as the column takes it (0064): a
+ * number is stored as written, null clears it, and left out (an older
+ * panel) leaves what is stored.
+ */
+function commissionColumn(rate: number | null | undefined): { commissionRate?: string | null } {
+  if (rate === undefined) return {}
+  return { commissionRate: rate === null ? null : rate.toFixed(2) }
 }
 
 /**
@@ -578,9 +591,8 @@ async function loadBookingDetail(id: string, now: number) {
       : null,
     lat: booking.lat,
     lng: booking.lng,
-    garageAddress: booking.vendor
-      ? `${booking.vendor.address}, ${booking.vendor.city}`
-      : null,
+    // A doorstep-only garage may have no street address (0064): the city.
+    garageAddress: booking.vendor ? garageAddressLine(booking.vendor) : null,
     // Who at the garage moved the job on. Null on bookings from before the
     // team model, and on any the garage never touched.
     acceptedByName: booking.acceptedBy ? (names.get(booking.acceptedBy) ?? null) : null,
@@ -875,6 +887,13 @@ export const adminService = {
       }
     }
 
+    // Customers drive in to an at-garage garage, so it keeps its address
+    // and pincode; a doorstep-only one needs only its pin (0064).
+    // Before any write, like the hours above.
+    if (atGarageAddressRefused(vendor, input)) {
+      throw new AppError(400, AT_GARAGE_ADDRESS_MESSAGE, 'ADDRESS_REQUIRED')
+    }
+
     // The services list, planned before anything is written for the same
     // reason: a stale tab naming a service deleted since is refused whole
     // (lib/service-reconcile.ts), not after the vendor row has been saved.
@@ -1026,14 +1045,15 @@ export const adminService = {
     // the save refuse above, so it can never come back as a fresh copy.
     if (input.services !== undefined && servicePlan) {
       const plan = servicePlan
-      // Default duration for services left blank: one slot on this vendor.
-      const defaultDuration = input.slotIntervalMins ?? vendor.slotIntervalMins
       const columnsFor = (s: (typeof input.services)[number]) => ({
         name: s.name,
         description: s.description ?? null,
         category: s.category,
         ...resolveServicePricing(s),
-        durationMins: s.durationMins ?? defaultDuration,
+        // Left blank: no duration (0064). The slot calendar holds the
+        // default 60 minutes for it; admin flags "Duration not set".
+        durationMins: s.durationMins ?? null,
+        ...commissionColumn(s.commissionRate),
       })
 
       for (const row of plan.update) {
@@ -1252,6 +1272,16 @@ export const adminService = {
   },
 
   async createVendor(input: CreateVendorInput, sub: string) {
+    // Onboarded from a lead (0064): that lead must still be waiting for its
+    // garage, checked before anything is written.
+    if (input.leadId) {
+      const lead = await leadsRepository.findById(input.leadId)
+      if (!lead) throw new AppError(404, 'Lead not found', 'LEAD_NOT_FOUND')
+      if (lead.vendorId) {
+        throw new AppError(409, 'That lead is already a garage.', 'LEAD_ALREADY_ONBOARDED')
+      }
+    }
+
     // Pickup & drop's tick, before anything is written.
     const pickupPatch = await pickupPatchFor(
       { pickup: null, pickupRadiusKm: null, pickupTermsAcceptedAt: null },
@@ -1343,10 +1373,25 @@ export const adminService = {
           category: s.category,
           // Resolve pricing type + tiers into the columns to persist.
           ...resolveServicePricing(s),
-          // Fall back to one slot when no explicit duration was given.
-          durationMins: s.durationMins ?? vendor.slotIntervalMins,
+          // No duration given: none is stored (0064), never guessed.
+          durationMins: s.durationMins ?? null,
+          ...commissionColumn(s.commissionRate),
         }))
       )
+    }
+
+    // The lead it came from is now this garage. Only while that lead is
+    // still unlinked, so a double press links it once; the garage stands
+    // either way. A customer's recommendation made into that lead is linked
+    // to the garage in the same transaction (its referral credit).
+    if (input.leadId) {
+      const linked = await leadsService
+        .linkOnboardedGarage(input.leadId, vendor.id, new Date())
+        .catch((err: unknown) => {
+          log.error({ err, vendorId: vendor.id }, 'admin:lead_link_failed')
+          return false
+        })
+      if (!linked) log.warn({ vendorId: vendor.id }, 'admin:lead_not_linked')
     }
 
     log.info({ vendorId: vendor.id, ownerId: owner.id }, 'admin:vendor-created')

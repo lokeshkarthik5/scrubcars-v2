@@ -4,6 +4,7 @@ import { alertOps } from '../../lib/ops-alerts.js'
 import { runInBackground } from '../../lib/background.js'
 import {
   acceptRefusal,
+  adminRequestFilter,
   beyondLine,
   clockStep,
   confirmByFor,
@@ -18,16 +19,19 @@ import {
   quickWindows,
   REQUEST_RULES,
   requestStartTimes,
+  requestState,
   respondByFor,
   startsInWindow,
   windowBounds,
   windowLabel,
   windowOpen,
   windowShapeProblem,
+  type AdminRequestFilter,
   type GarageDay,
   type RequestCandidate,
   type RequestLine,
   type RequestMode,
+  type RequestState,
   type RequestWindow,
   type WindowPart,
 } from '../../lib/booking-requests.js'
@@ -35,12 +39,14 @@ import { bookingCommission, FREE_BOOKINGS } from '../../lib/commission.js'
 import type { ServiceCategory } from '../../lib/categories.js'
 import {
   customerRequestAccepted,
+  customerRequestCancelledByDetlio,
   customerRequestForwarded,
   customerRequestLapsed,
   customerRequestNoGarage,
   garageNewRequest,
   type PushRequest,
 } from '../../lib/push-messages.js'
+import { maskPhone } from '../../lib/rewards.js'
 import { getDayOfWeekFromDate } from '../../lib/slots.js'
 import { zoneFor } from '../../lib/zones.js'
 import type { VehicleTier } from '../../lib/pricing.js'
@@ -65,14 +71,8 @@ const CANDIDATE_LIMIT = 10
 
 // ─── Views ───────────────────────────────────────────────────────────────────
 
-/** Where a request stands for the customer, from its latest row. */
-export type CustomerRequestState =
-  | 'waiting'
-  | 'accepted'
-  | 'no_garage'
-  | 'lapsed'
-  | 'cancelled'
-  | 'booked'
+/** Where a request stands for the customer, from its latest row (lib/booking-requests.ts requestState). */
+export type CustomerRequestState = RequestState
 
 export interface CustomerRequestView {
   /** The latest row's id: what Cancel and Confirm & pay act on. */
@@ -127,6 +127,93 @@ export interface GarageRequestView {
   createdAt: string
 }
 
+/** A request on the admin Requests list (0064): one entry per request, by its latest row. */
+export interface AdminRequestView {
+  /** The latest row's id: what Cancel acts on. */
+  id: string
+  rootId: string
+  state: RequestState
+  /** Which of Open / Accepted / Failed it is under; null (All only) for a cancelled one. */
+  filter: Exclude<AdminRequestFilter, 'all'> | null
+  status: string
+  bookingType: RequestMode
+  /** The customer, with only the last four digits of their phone. */
+  customer: { id: string; name: string | null; phone: string }
+  /** The garage asked now (the latest row), with its business phone for "Call garage". */
+  garage: { id: string; name: string; phone: string | null }
+  /** Every garage asked, first first: "passed on from". */
+  chain: Array<{
+    id: string
+    garage: { id: string; name: string }
+    status: string
+    reply: 'accepted' | 'declined' | null
+    repliedAt: string | null
+  }>
+  zone: { slug: string; name: string } | null
+  items: Array<{ name: string; amount: string }>
+  subtotal: string
+  window: { date: string; part: WindowPart; label: string; start: string; end: string }
+  /** When the customer sent it (the first row). */
+  createdAt: string
+  /** When the garage asked now got it. */
+  sentAt: string
+  respondBy: string
+  travelFee: number | null
+  acceptedStartAt: string | null
+  confirmBy: string | null
+  bookingId: string | null
+  closedAt: string | null
+  /** Who cancelled: the customer, or the team (with the name and reason). */
+  cancelledBy: 'customer' | 'detlio' | null
+  cancelledByName: string | null
+  cancelReason: string | null
+}
+
+/** The admin list's window: the last 30 days' requests (and any older one still open), newest first, at most 300. */
+const ADMIN_LIST_DAYS = 30
+const ADMIN_LIST_LIMIT = 300
+
+type AdminRow = Awaited<ReturnType<typeof bookingRequestsRepository.listForAdmin>>[number]
+
+function toAdminView(rows: AdminRow[], names: Map<string, string>, now: Date): AdminRequestView {
+  const first = rows[0]!
+  const last = rows[rows.length - 1]!
+  const latest = last.request
+  const state = requestState(latest)
+  return {
+    id: latest.id,
+    rootId: first.request.id,
+    state,
+    filter: adminRequestFilter(state),
+    status: latest.status,
+    bookingType: latest.bookingType,
+    customer: { id: latest.userId, name: first.customerName, phone: maskPhone(first.customerPhone) },
+    garage: { id: latest.vendorId, name: last.garageName, phone: last.garagePhone },
+    chain: rows.map((row) => ({
+      id: row.request.id,
+      garage: { id: row.request.vendorId, name: row.garageName },
+      status: row.request.status,
+      reply: row.request.reply,
+      repliedAt: row.request.repliedAt?.toISOString() ?? null,
+    })),
+    zone: latest.zoneSlug ? { slug: latest.zoneSlug, name: names.get(latest.zoneSlug) ?? latest.zoneSlug } : null,
+    items: latest.items.map((item) => ({ name: item.name, amount: item.amount })),
+    subtotal: latest.subtotalAmount,
+    window: windowOf(latest, now),
+    createdAt: first.request.createdAt.toISOString(),
+    sentAt: latest.createdAt.toISOString(),
+    respondBy: latest.respondBy.toISOString(),
+    travelFee: toNumber(latest.travelFee),
+    acceptedStartAt: latest.acceptedStartAt?.toISOString() ?? null,
+    confirmBy: latest.confirmBy?.toISOString() ?? null,
+    bookingId: latest.bookingId,
+    closedAt: latest.closedAt?.toISOString() ?? null,
+    cancelledBy: latest.status !== 'cancelled' ? null : latest.cancelledByName ? 'detlio' : 'customer',
+    cancelledByName: latest.cancelledByName,
+    cancelReason: latest.cancelReason,
+  }
+}
+
 function windowOf(row: BookingRequestRecord, now: Date) {
   const window: RequestWindow = { date: row.windowDate, part: row.windowPart }
   return {
@@ -135,24 +222,6 @@ function windowOf(row: BookingRequestRecord, now: Date) {
     label: windowLabel(window, now),
     start: row.windowStart.toISOString(),
     end: row.windowEnd.toISOString(),
-  }
-}
-
-function customerState(row: BookingRequestRecord): CustomerRequestState {
-  switch (row.status) {
-    case 'pending':
-      return 'waiting'
-    case 'accepted':
-      return 'accepted'
-    case 'converted':
-      return 'booked'
-    case 'cancelled':
-      return 'cancelled'
-    case 'expired':
-      return row.reply === 'accepted' ? 'lapsed' : 'no_garage'
-    default:
-      // 'declined' at the last garage, or a 'forwarded' row read alone.
-      return 'no_garage'
   }
 }
 
@@ -268,7 +337,7 @@ async function toCustomerView(chain: BookingRequestRecord[], now: Date): Promise
   return {
     id: latest.id,
     rootId: first.id,
-    state: customerState(latest),
+    state: requestState(latest),
     status: latest.status,
     bookingType: latest.bookingType,
     garage: { id: latest.vendorId, name: names[names.length - 1]! },
@@ -460,6 +529,71 @@ export const bookingRequestsService = {
     log.info({ requestId: id, userId }, 'booking_request:cancelled')
     const chain = await bookingRequestsRepository.listChain(cancelled.rootRequestId ?? cancelled.id)
     return toCustomerView(chain, now)
+  },
+
+  // ─── Admin (0064) ────────────────────────────────────────────────────────
+
+  /**
+   * The admin Requests list: one entry per request, newest first, the last
+   * 30 days' and any older one still open; `zoneSlug` keeps one zone's.
+   * `counts` are each filter's, in that zone when one is given.
+   */
+  async listForAdmin(query: { filter: AdminRequestFilter; zoneSlug?: string }, now = new Date()) {
+    const rows = await bookingRequestsRepository.listForAdmin(new Date(now.getTime() - ADMIN_LIST_DAYS * DAY_MS), ADMIN_LIST_LIMIT)
+    const byRoot = new Map<string, AdminRow[]>()
+    for (const row of rows) {
+      const root = row.request.rootRequestId ?? row.request.id
+      byRoot.set(root, [...(byRoot.get(root) ?? []), row])
+    }
+    const names = await zoneNames()
+    const views = [...byRoot.values()]
+      .map((chain) => toAdminView(chain.sort((a, b) => a.request.chainNo - b.request.chainNo), names, now))
+      .filter((view) => !query.zoneSlug || view.zone?.slug === query.zoneSlug)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    const counts = { open: 0, accepted: 0, failed: 0, all: views.length }
+    for (const view of views) if (view.filter) counts[view.filter]++
+    return {
+      items: query.filter === 'all' ? views : views.filter((view) => view.filter === query.filter),
+      counts,
+      zone: query.zoneSlug ? { slug: query.zoneSlug, name: names.get(query.zoneSlug) ?? query.zoneSlug } : null,
+      days: ADMIN_LIST_DAYS,
+    }
+  },
+
+  /**
+   * The team cancels an open request (waiting, or accepted and not being
+   * paid for right now), with a reason the team keeps. The customer is told
+   * the way an expiry is (a push, then `customer_told_at`); nothing was
+   * paid. 409 REQUEST_CHECKOUT_OPEN while the customer is paying for it,
+   * REQUEST_STATE_CHANGED once it is not open.
+   */
+  async cancelByAdmin(
+    id: string,
+    input: { reason: string; actorName: string; actorSub: string },
+    now = new Date()
+  ): Promise<{ id: string; status: 'cancelled' }> {
+    const row = await bookingRequestsRepository.findById(id)
+    if (!row) notFound()
+    const cancelled = await bookingRequestsRepository.cancelByAdmin({
+      id,
+      actorName: input.actorName,
+      actorSub: input.actorSub,
+      reason: input.reason,
+      now,
+    })
+    if (!cancelled) {
+      if (row.status === 'accepted' && (await bookingRequestsRepository.hasOpenCheckout(id, now))) {
+        throw new AppError(409, 'The customer is paying for this right now. Try again in a few minutes.', 'REQUEST_CHECKOUT_OPEN')
+      }
+      throw new AppError(409, 'This request has already moved on. Reload to see where it is.', 'REQUEST_STATE_CHANGED')
+    }
+    log.info({ requestId: id, vendorId: cancelled.vendorId }, 'booking_request:cancelled_by_admin')
+    runInBackground('booking_request:told', async () => {
+      const garage = (await bookingRequestsRepository.garageName(cancelled.vendorId)) ?? 'the garage'
+      pushService.notifyCustomer(cancelled.userId, customerRequestCancelledByDetlio(toPushRequest(cancelled, now), garage))
+      await bookingRequestsRepository.markCustomerTold(cancelled.id, new Date())
+    })
+    return { id: cancelled.id, status: 'cancelled' as const }
   },
 
   // ─── The garage ──────────────────────────────────────────────────────────

@@ -22,6 +22,7 @@ import { addDaysToDateKey, computeAvailableSlots, filterByCapacity, type BusyInt
 import { computeServiceAmount, sumAmounts, type PricedService, type VehicleTier } from './pricing.js'
 import { istDateKey, istTimeLabel, MONTHS, WEEKDAYS } from './ist.js'
 import { straightLineKm } from './service-city.js'
+import { effectiveDurationMins } from './service-duration.js'
 
 const MINUTE_MS = 60 * 1000
 
@@ -81,6 +82,59 @@ export function isOpenRequest(status: string): boolean {
 
 export type RequestReply = 'accepted' | 'declined'
 export type RequestMode = 'doorstep' | 'pickup'
+
+/** Where a request stands for the customer (and the team), from its latest row. */
+export type RequestState = 'waiting' | 'accepted' | 'no_garage' | 'lapsed' | 'cancelled' | 'booked'
+
+/**
+ * A request's state, read from its latest row (the one not passed on):
+ * `no_garage` is nobody took it (the last garage said no, or no garage
+ * answered in time); `lapsed` is a yes the customer did not confirm in time.
+ */
+export function requestState(row: { status: string; reply: string | null }): RequestState {
+  switch (row.status) {
+    case 'pending':
+      return 'waiting'
+    case 'accepted':
+      return 'accepted'
+    case 'converted':
+      return 'booked'
+    case 'cancelled':
+      return 'cancelled'
+    case 'expired':
+      return row.reply === 'accepted' ? 'lapsed' : 'no_garage'
+    default:
+      // 'declined' at the last garage, or a 'forwarded' row read alone.
+      return 'no_garage'
+  }
+}
+
+/**
+ * The admin Requests list's filters (0064): Open — waiting for a garage, or
+ * accepted and waiting for the customer to confirm (what Cancel can act
+ * on); Accepted — a garage said yes and it ended (booked, or the yes
+ * lapsed); Failed — nobody accepted. A cancelled one is under All only.
+ */
+export const ADMIN_REQUEST_FILTERS = ['open', 'accepted', 'failed', 'all'] as const
+export type AdminRequestFilter = (typeof ADMIN_REQUEST_FILTERS)[number]
+
+export function adminRequestFilter(state: RequestState): Exclude<AdminRequestFilter, 'all'> | null {
+  switch (state) {
+    case 'waiting':
+    case 'accepted':
+      return 'open'
+    case 'booked':
+    case 'lapsed':
+      return 'accepted'
+    case 'no_garage':
+      return 'failed'
+    default:
+      return null
+  }
+}
+
+/** An admin's reason for cancelling a request: the team's own words, kept, never sent. */
+export const ADMIN_CANCEL_REASON = { min: 3, max: 200 } as const
 
 // ─── Windows ─────────────────────────────────────────────────────────────────
 
@@ -376,7 +430,8 @@ export type RequestService = PricedService & {
   id: string
   name: string
   category: string
-  durationMins: number
+  /** Null is "Duration not set" (0064): a line holds the default. */
+  durationMins: number | null
   isActive: boolean
 }
 
@@ -396,7 +451,7 @@ export function linesForPicks(
     if (!service || !service.isActive) return null
     const amount = computeServiceAmount(service, vehicleType)
     if (amount === null || Number(amount) <= 0) return null
-    lines.push({ serviceId: service.id, name: service.name, category: service.category, amount, durationMins: service.durationMins })
+    lines.push({ serviceId: service.id, name: service.name, category: service.category, amount, durationMins: effectiveDurationMins(service) })
   }
   return lines.length > 0 ? lines : null
 }
@@ -420,7 +475,7 @@ export function linesForCategories(
       .sort((a, b) => Number(a.amount) - Number(b.amount) || (a.s.id < b.s.id ? -1 : 1))
     const best = priced[0]
     if (!best) return null
-    lines.push({ serviceId: best.s.id, name: best.s.name, category, amount: best.amount, durationMins: best.s.durationMins })
+    lines.push({ serviceId: best.s.id, name: best.s.name, category, amount: best.amount, durationMins: effectiveDurationMins(best.s) })
   }
   return lines.length > 0 ? lines : null
 }

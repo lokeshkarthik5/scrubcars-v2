@@ -1,5 +1,5 @@
 /**
- * The panel's menu: five groups and twelve places instead of fourteen tabs in
+ * The panel's menu: five groups and thirteen places instead of fourteen tabs in
  * one row (UX audit, admin mockup 01). Nothing is removed: the three issue
  * pages share one place with tabs (Issues), and the one-off tools moved to
  * Settings. Pure, so the grouping, the feature switches and "which item is
@@ -13,6 +13,7 @@ export type NavCountKey =
 export type NavIconName =
   | 'today'
   | 'bookings'
+  | 'requests'
   | 'issues'
   | 'refunds'
   | 'garages'
@@ -64,6 +65,9 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: 'bookings',
         count: 'bookings',
       },
+      // Customers asking a garage just outside its area (0064): the garage
+      // has two hours to answer, so it sits beside Bookings.
+      { href: '/requests', label: 'Requests', icon: 'requests' },
       {
         href: '/complaints',
         label: 'Issues',

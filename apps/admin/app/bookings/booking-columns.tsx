@@ -8,7 +8,12 @@ import { cn } from '@repo/core/utils'
 import { TestBadge } from '@/components/booking-badges'
 import type { AdminTableColumn, OptionalColumn } from '@/components/table'
 import { bookingNextStep } from '@/lib/booking-next-step'
-import { bookingTypeLabel, formatRupees, formatWhen } from '@/lib/bookings'
+import {
+  bookedLine,
+  bookingTypeLabel,
+  formatRupees,
+  formatWhen,
+} from '@/lib/bookings'
 import { URGENCY_TEXT } from '@/lib/format'
 
 /** Where a booking opens, with the list's filters for its back arrow. */
@@ -31,10 +36,14 @@ export const BOOKING_OPTIONAL_COLUMNS: OptionalColumn[] = [
 ]
 
 /**
- * The Bookings table's columns (mockup 03): Ref · When · Customer · Garage ·
+ * The Bookings table's columns (mockup 03): Ref · Slot · Customer · Garage ·
  * (Type) · Amount · Status · Next step. On a phone a row is the customer and the
  * slot, with the amount and the next step on the right; a tap opens the
  * side panel, which links to the full page.
+ *
+ * Slot is the appointment (`scheduledAt`), with when the customer booked it
+ * under it ("Booked yesterday, 6:40 pm"): the column used to say "When",
+ * which read as the time it was booked (owner, 28 Oct 2026).
  */
 export function bookingColumns({
   listQuery,
@@ -65,12 +74,17 @@ export function bookingColumns({
       ),
     },
     {
-      id: 'when',
-      header: 'When',
+      id: 'slot',
+      header: 'Slot',
       phone: 'subtitle',
       cell: (b) => (
-        <span className="whitespace-nowrap font-numeric max-md:text-[12px] max-md:text-text-secondary">
-          {formatWhen(b.scheduledAt)}
+        <span className="flex flex-col">
+          <span className="whitespace-nowrap font-numeric max-md:text-[12px] max-md:text-text-secondary">
+            {formatWhen(b.scheduledAt)}
+          </span>
+          <span className="whitespace-nowrap text-[12px] text-text-muted max-md:hidden">
+            {bookedLine(b.createdAt, now)}
+          </span>
         </span>
       ),
     },

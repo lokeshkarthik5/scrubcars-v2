@@ -49,7 +49,8 @@ export async function describeServiceWith(
         durationMins: input.durationMins,
         garageName: input.garageName || undefined,
       },
-      client
+      client,
+      input.format ?? 'paragraph'
     )
     if (!result.ok) {
       // The model's answer broke a rule twice. Logged with the reason so a

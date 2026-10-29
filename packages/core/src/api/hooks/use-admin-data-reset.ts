@@ -2,9 +2,11 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  deleteTestBooking,
   executeDataReset,
   getDataResetConfig,
   previewDataReset,
+  previewTestBookingDelete,
   setAdminBookingTestMark,
   type DataResetExecuteInput,
   type DataResetPreview,
@@ -12,6 +14,7 @@ import {
 } from '@repo/core/api/admin'
 import { ApiError } from '@repo/core/api/client'
 import { adminBookingKeys } from '@repo/core/api/hooks/use-admin-bookings'
+import { adminComplaintKeys } from '@repo/core/api/hooks/use-admin-complaints'
 import { adminRefundKeys } from '@repo/core/api/hooks/use-admin-refunds'
 import { adminStatsKeys } from '@repo/core/api/hooks/use-admin-stats'
 import { pilotStatsKeys } from '@repo/core/api/hooks/use-pilot-stats'
@@ -92,6 +95,65 @@ export function useExecuteDataReset() {
     mutationFn: (input: DataResetExecuteInput) => executeDataReset(input),
     onSuccess: refresh,
     onError: refresh,
+  })
+}
+
+/**
+ * The dry run for deleting one test booking (0064), checking old payments
+ * with Razorpay to the end like previewDataResetFully. Works with the reset
+ * switched off.
+ */
+export async function previewTestBookingDeleteFully(
+  bookingId: string,
+  onProgress?: (preview: DataResetPreview) => void
+): Promise<DataResetPreview> {
+  let unknownIds: string[] = []
+  // The panel deploys before the API: until the route exists, say so rather
+  // than "Not found".
+  const ask = async (ids: string[]) => {
+    try {
+      return await previewTestBookingDelete(bookingId, { unknownIds: ids })
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404 && error.code !== 'BOOKING_NOT_FOUND') {
+        throw new ApiError(404, 'Delete test booking isn’t on the server yet. Try again after the next update.', 'ROUTE_NOT_LIVE')
+      }
+      throw error
+    }
+  }
+  for (let call = 0; call < 200; call += 1) {
+    const preview = await ask(unknownIds)
+    onProgress?.(preview)
+    if (preview.lookups.remaining === 0 || preview.lookups.checkedNow === 0) return preview
+    unknownIds = preview.lookups.unknownIds
+  }
+  return ask(unknownIds)
+}
+
+/**
+ * Deletes one test booking with its chain (0064). The lists, refunds,
+ * complaints, pilot numbers and Statistics are marked out of date; the
+ * booking's own page is left alone (it is gone, and its dialog is still
+ * showing the result), and is left by the caller.
+ */
+export function useDeleteTestBooking() {
+  const queryClient = useQueryClient()
+  const refresh = () => {
+    // Out of date, but not fetched now: the open booking page would 404.
+    void queryClient.invalidateQueries({ queryKey: adminBookingKeys.all, refetchType: 'none' })
+    void queryClient.invalidateQueries({ queryKey: adminComplaintKeys.all, refetchType: 'none' })
+    void queryClient.invalidateQueries({ queryKey: adminRefundKeys.all })
+    void queryClient.invalidateQueries({ queryKey: pilotStatsKeys.all })
+    void queryClient.invalidateQueries({ queryKey: adminStatsKeys.all })
+  }
+  return useMutation({
+    mutationFn: ({
+      bookingId,
+      input,
+    }: {
+      bookingId: string
+      input: { unknownIds: string[]; selectionHash: string; confirmText: string }
+    }) => deleteTestBooking(bookingId, input),
+    onSuccess: refresh,
   })
 }
 

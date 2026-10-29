@@ -317,6 +317,7 @@ const CANCELLATION_CUTOFF_MS = 2 * 60 * 60 * 1000
 // A booking may be rescheduled at most this many times across its chain.
 // Mirrored in packages/core/src/booking-types.ts (the legal pages print it).
 const MAX_RESCHEDULES = 2
+import { effectiveDurationMins } from '../../lib/service-duration.js'
 import { paise, rupees } from '../../lib/gift-credit.js'
 import { checkoutMatchRefusal, requestPlaceMatches } from '../../lib/booking-requests.js'
 import type { PaymentRecord } from './bookings.repository.js'
@@ -405,7 +406,9 @@ type BookingWithRelations = {
     name: string
     category: string
     pricingType: string
-    durationMins: number
+    // The service's own, which may be unset (0064); the booking's
+    // `durationMins` is what it holds.
+    durationMins: number | null
   } | null
   items?: Array<{
     id: string
@@ -669,7 +672,9 @@ export function toBookingResponse(
           name: booking.service.name,
           category: booking.service.category,
           pricingType: booking.service.pricingType,
-          durationMins: booking.service.durationMins,
+          // Never null on the wire, as older clients read it (0064): a
+          // service with no duration holds the default, as at checkout.
+          durationMins: effectiveDurationMins(booking.service),
         }
       : null,
     vehicle: booking.vehicle
@@ -1328,7 +1333,9 @@ export async function resolveBookingDraft(
       serviceId: row.id,
       name: row.name,
       amount: lineAmount,
-      durationMins: row.durationMins,
+      // The snapshot is never null: a service with no duration holds the
+      // default 60 minutes (0064, lib/service-duration.ts).
+      durationMins: effectiveDurationMins(row),
     }
   })
 
@@ -1527,7 +1534,8 @@ export async function resolveBookingDraft(
 }
 
 /** What the customer is told when a checkout's request can't be confirmed (0062). */
-function requestRefusalError(
+/** Why a checkout for a request is refused; the intent's own re-check under the request's lock says REQUEST_NOT_ACCEPTED too. */
+export function requestRefusalError(
   refusal: 'REQUEST_NOT_FOUND' | 'REQUEST_NOT_ACCEPTED' | 'REQUEST_EXPIRED' | 'REQUEST_MISMATCH'
 ): AppError {
   switch (refusal) {

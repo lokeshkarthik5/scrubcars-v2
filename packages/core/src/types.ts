@@ -151,7 +151,12 @@ export interface Service {
   priceHatchback: number | null
   priceSedan: number | null
   priceSuv: number | null
-  durationMins: number
+  /**
+   * The garage's own duration, or null when it set none (0064): a slot then
+   * holds DEFAULT_SERVICE_DURATION_MINS (./service-duration), but screens
+   * show no duration for it.
+   */
+  durationMins: number | null
   isActive: boolean
   /** Photos only. */
   images: ServiceImage[]
@@ -163,7 +168,8 @@ export interface PackageItem {
   serviceId: string
   name: string
   price: number
-  durationMins: number
+  /** Null when the garage set none (0064). */
+  durationMins: number | null
   isActive: boolean
 }
 

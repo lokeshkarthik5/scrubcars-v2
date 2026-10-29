@@ -8,6 +8,7 @@ import {
   zoneIsLive,
   freeWashEligibleSubtotal,
   freeWashEndsAt,
+  freeWashReady,
   freeWashesLeft,
   isReachPushHour,
   launchPushWords,
@@ -208,5 +209,17 @@ describe('a zone with Detlio in it (no free-wash list to join)', () => {
     expect(zoneIsLive({ liveAt: null }, false)).toBe(false)
     expect(zoneIsLive({ liveAt: null }, true)).toBe(true)
     expect(zoneIsLive({ liveAt: IST('2026-10-20T10:00:00') }, false)).toBe(true)
+  })
+})
+
+describe('freeWashReady: an issued free wash that can still be used', () => {
+  const now = new Date('2026-10-29T10:00:00+05:30')
+  const later = new Date('2026-11-28T10:00:00+05:30')
+  test('on, not held by a live booking, before it ends', () => {
+    expect(freeWashReady({ isActive: true, held: 0, endsAt: later }, now)).toBe(true)
+    expect(freeWashReady({ isActive: true, held: 1, endsAt: later }, now)).toBe(false)
+    expect(freeWashReady({ isActive: false, held: 0, endsAt: later }, now)).toBe(false)
+    expect(freeWashReady({ isActive: true, held: 0, endsAt: now }, now)).toBe(false)
+    expect(freeWashReady({ isActive: true, held: 0, endsAt: null }, now)).toBe(false)
   })
 })

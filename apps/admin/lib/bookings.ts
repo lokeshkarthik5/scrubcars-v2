@@ -8,6 +8,7 @@ import { csvCell, downloadCsv } from '@repo/core/csv'
 import type { BookingType } from '@repo/core/types'
 import {
   formatClock as sharedFormatClock,
+  formatDay,
   formatWhen as sharedFormatWhen,
 } from '@repo/core/format'
 import { APP_TIMEZONE } from '@repo/core/utils'
@@ -82,6 +83,22 @@ export function formatWhenForSheet(iso: string): string {
  */
 export function formatWhen(iso: string): string {
   return sharedFormatWhen(iso)
+}
+
+/**
+ * When the customer made the booking, under its slot (owner, 28 Oct 2026:
+ * the list's time is the appointment, so the booking time is said apart):
+ * "Booked today, 9:12 am", "Booked yesterday, 6:40 pm", "Booked Tue 20 Oct,
+ * 11:05 am". In Chennai time.
+ */
+export function bookedLine(
+  createdAt: string,
+  now: number = Date.now()
+): string {
+  const day = formatDay(createdAt, now)
+  if (!day) return ''
+  const said = day === 'Today' || day === 'Yesterday' ? day.toLowerCase() : day
+  return `Booked ${said}, ${sharedFormatClock(createdAt)}`
 }
 
 /** "3:42 pm" in Chennai: when a screen last heard from the server. */

@@ -11,7 +11,9 @@ import {
   createMarkSchema,
   deleteMarkSchema,
   markAskedSchema,
+  markItemParamSchema,
   markParamSchema,
+  updateMarkItemSchema,
   updateMarkSchema,
   vendorIdParamSchema,
 } from './onboarding-marks.validation.js'
@@ -43,6 +45,16 @@ adminOnboardingMarkRoutes.post(
   zValidator('param', vendorIdParamSchema),
   adminSignedJson(createMarkSchema),
   (c) => controller.create(c, c.req.valid('param').id, c.req.valid('json'))
+)
+
+// One checklist item ticked or answered (0064); the mark's status follows.
+// 404 MARK_ITEM_NOT_FOUND for an item no longer on the list.
+adminOnboardingMarkRoutes.patch(
+  '/vendors/:id/marks/:markId/items/:itemId',
+  ...adminMiddleware,
+  zValidator('param', markItemParamSchema),
+  adminSignedJson(updateMarkItemSchema),
+  (c) => controller.updateItem(c, c.req.valid('param'), c.req.valid('json'))
 )
 
 adminOnboardingMarkRoutes.patch(

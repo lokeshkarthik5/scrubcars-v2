@@ -242,6 +242,18 @@ describe('garageFieldsProblem', () => {
       'Add the business name (Details)'
     )
   })
+
+  test('the address and pincode only while customers come to the garage (0064)', () => {
+    const doorstep = { ...ok, address: '', pincode: '' }
+    expect(garageFieldsProblem(doorstep)).toBe('Add the address: customers come to the garage (Location)')
+    expect(garageFieldsProblem({ ...ok, pincode: '' })).toBe('Pincode must be 6 digits (Location)')
+    expect(garageFieldsProblem(doorstep, false)).toBeNull()
+    // A pincode a doorstep garage does have is still 6 digits.
+    expect(garageFieldsProblem({ ...doorstep, pincode: '6000' }, false)).toBe(
+      'Pincode must be 6 digits, or empty (Location)'
+    )
+    expect(garageFieldsProblem({ ...doorstep, pincode: '600020' }, false)).toBeNull()
+  })
 })
 
 describe('booking mode', () => {

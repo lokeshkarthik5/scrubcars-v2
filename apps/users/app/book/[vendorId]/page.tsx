@@ -149,6 +149,7 @@ import { resolveServiceAmount } from '@repo/core/pricing'
 import { Figures } from '@repo/ui/sc/figures'
 import { TierChip } from '@repo/ui/features/tier-medal'
 import { VEHICLE_TIERS } from '@repo/core/vehicles'
+import { knownDurationTotal } from '@repo/core/service-duration'
 import {
   APP_TIMEZONE,
   cn,
@@ -843,10 +844,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // The server books it with no payment at all; nothing opens Razorpay.
   const freeBooking = toPay === 0 && !creditApplied
 
-  const totalDuration = selectedServices.reduce(
-    (total, service) => total + service.durationMins,
-    0
-  )
+  // Null when a service has no duration set (0064): no total is shown.
+  const totalDuration = knownDurationTotal(selectedServices)
 
   const canApplyPromo =
     promoInput.trim().length >= 3 &&
@@ -1803,10 +1802,15 @@ function BookContent({ vendorId }: { vendorId: string }) {
               </div>
             ))}
             <p className="text-[13px] text-dim">
-              <span className="font-numeric">
-                {formatDuration(totalDuration)}
-              </span>{' '}
-              · {BOOKING_TYPE_LABELS[bookingType]}
+              {totalDuration !== null && (
+                <>
+                  <span className="font-numeric">
+                    {formatDuration(totalDuration)}
+                  </span>{' '}
+                  ·{' '}
+                </>
+              )}
+              {BOOKING_TYPE_LABELS[bookingType]}
             </p>
           </div>
         </section>

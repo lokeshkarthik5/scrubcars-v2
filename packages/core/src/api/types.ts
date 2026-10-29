@@ -320,7 +320,8 @@ export interface ApiService {
   priceHatchback: string | null
   priceSedan: string | null
   priceSuv: string | null
-  durationMins: number
+  /** Null when the garage set none (0064). */
+  durationMins: number | null
   isActive: boolean
   images: ApiServiceImage[]
   /** Absent from responses older than service videos. */
@@ -331,7 +332,8 @@ export interface ApiPackageItem {
   serviceId: string
   name: string
   price: string
-  durationMins: number
+  /** Null when the garage set none (0064). */
+  durationMins: number | null
   isActive: boolean
 }
 

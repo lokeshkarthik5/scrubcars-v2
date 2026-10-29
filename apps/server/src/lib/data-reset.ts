@@ -146,16 +146,20 @@ export interface ResetReceipt {
 }
 
 /**
- * A customer complaint made before the cutoff (0035). Complaints point at
- * bookings only loosely (ON DELETE SET NULL), so they are not part of any
- * chain: a cutoff run takes the ones made before the cutoff as a group of
- * their own, with one tick for all of them.
+ * A customer complaint (0035). Complaints point at bookings only loosely
+ * (ON DELETE SET NULL), so they are not part of any chain: a cutoff run
+ * takes the ones made before the cutoff as a group of their own, with one
+ * tick for all of them. Deleting one test booking (scope `chains`) takes
+ * the complaints about it with it (0064): they are about a booking that
+ * never was.
  */
 export interface ResetComplaint {
   id: string
   /** The sequence number, printed C-000123. */
   number: number
   createdAt: Date
+  /** The booking it is about, when the read says (scope `chains`). */
+  bookingId?: string | null
 }
 
 /**
@@ -236,7 +240,9 @@ export interface PlanInput {
   /**
    * Complaints a cutoff run may take: those made before the cutoff. Ticked
    * as one: on the first look (no `only`) they are, and after that only
-   * when `only.complaints` says so. Absent (other scopes) is none.
+   * when `only.complaints` says so. For scope `chains`, the complaints about
+   * the chains' bookings, taken with a chain that is deleted and kept with
+   * one that is not. Absent (other scopes) is none.
    */
   complaints?: ResetComplaint[]
   /**
@@ -1162,13 +1168,22 @@ export function planReset(input: PlanInput): ResetPlan {
   // kept with a null booking when the booking goes), so a cutoff run takes
   // them as one group: all ticked on the first look, and after that only
   // when the tick says so. No money and no receipts hang off them.
+  //
+  // Deleting one test booking (scope `chains`) takes the complaints about
+  // the bookings it deletes, and only those: they go with their chain, so
+  // they follow its tick rather than one of their own.
+  const chainBookings = new Set(chains.filter((c) => c.selected).flatMap((c) => c.bookingIds))
   const complaintsInScope =
     scope.kind === 'before_cutoff'
       ? (input.complaints ?? [])
           .filter((complaint) => complaint.createdAt < scope.cutoff)
           .sort((a, b) => a.number - b.number)
-      : []
-  const complaintsTicked = only ? only.complaints : true
+      : scope.kind === 'chains'
+        ? (input.complaints ?? [])
+            .filter((complaint) => complaint.bookingId != null && chainBookings.has(complaint.bookingId))
+            .sort((a, b) => a.number - b.number)
+        : []
+  const complaintsTicked = only && scope.kind !== 'chains' ? only.complaints : true
   const selectedComplaintIds =
     complaintsTicked ? complaintsInScope.map((complaint) => complaint.id) : []
 

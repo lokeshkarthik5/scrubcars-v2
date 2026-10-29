@@ -69,9 +69,29 @@ export const bookingIntentsRepository = {
    * One intent and its lines, in a transaction. An intent without its items
    * would price a booking nobody could reconstruct — and `consumeIntent`
    * builds the booking's lines from exactly these rows.
+   *
+   * A checkout that confirms an accepted request (0062) takes the request's
+   * row lock first (the lock order's first step, as in `consumeIntent`) and
+   * opens only while it is still accepted: null otherwise. A cancel (the
+   * customer's, or the team's, 0064) either comes first and is seen here,
+   * or waits for this intent and then sees it (REQUEST_CHECKOUT_OPEN), so
+   * nobody pays for a request that was cancelled under them.
    */
-  createIntent(data: BookingIntentInsert, items: BookingIntentItemInput[]) {
+  createIntent(
+    data: BookingIntentInsert,
+    items: BookingIntentItemInput[]
+  ): Promise<[BookingIntentRecord] | null> {
     return db.transaction(async (tx) => {
+      if (data.requestId) {
+        const [request] = await tx
+          .select({ status: bookingRequests.status })
+          .from(bookingRequests)
+          .where(eq(bookingRequests.id, data.requestId))
+          .for('update')
+          .limit(1)
+        if (!request || request.status !== 'accepted') return null
+      }
+
       const [intent] = await tx.insert(bookingIntents).values(data).returning()
 
       await tx.insert(bookingIntentItems).values(

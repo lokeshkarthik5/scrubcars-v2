@@ -17,10 +17,7 @@ import { ScSwitch } from '@repo/ui/sc/switch'
 import type { AdminBookingDetail } from '@repo/core/api/admin'
 import { errorMessage, isAuthError } from '@repo/core/api/hooks/use-discounts'
 import { useAdminBooking } from '@repo/core/api/hooks/use-admin-bookings'
-import {
-  useDataResetConfig,
-  useSetAdminBookingTestMark,
-} from '@repo/core/api/hooks/use-admin-data-reset'
+import { useSetAdminBookingTestMark } from '@repo/core/api/hooks/use-admin-data-reset'
 import { directionsHref } from '@repo/core/contact-links'
 import { useNow } from '@repo/core/hooks/use-now'
 import { formatDuration } from '@repo/core/utils'
@@ -47,6 +44,7 @@ import { Meta } from '@/components/meta'
 import { PhoneLink } from '@/components/phone-link'
 import { formatMoney } from '@/lib/format'
 import {
+  bookedLine,
   bookingsListHref,
   canCancel,
   canMarkNoShow,
@@ -264,9 +262,9 @@ function Timeline({ booking }: { booking: AdminBookingDetail }) {
 }
 
 /**
- * The "Test" mark, and deleting a marked booking while Start pilot clean is
- * switched on. The mark only takes the booking out of the pilot numbers;
- * slots, refunds and receipts never read it.
+ * The "Test" mark, and deleting a marked booking (0064: whether or not
+ * Start pilot clean is switched on). The mark only takes the booking out of
+ * the pilot numbers; slots, refunds and receipts never read it.
  */
 function TestBookingSection({
   booking: b,
@@ -276,7 +274,6 @@ function TestBookingSection({
   onDelete: () => void
 }) {
   const setMark = useSetAdminBookingTestMark()
-  const { data: resetConfig } = useDataResetConfig()
   const marked = Boolean(b.markedTest)
 
   // Marking changes the pilot numbers, so it is confirmed first and the
@@ -335,7 +332,7 @@ function TestBookingSection({
           onChange={change}
         />
       </div>
-      {marked && resetConfig?.enabled && (
+      {marked && (
         <ScButton variant="secondary" onClick={onDelete} className="min-h-11">
           Delete test booking…
         </ScButton>
@@ -507,6 +504,9 @@ function BookingDetail({
             </div>
             <p className="font-numeric text-[20px] font-bold tracking-tight text-text-primary">
               {formatWhen(b.scheduledAt)}
+            </p>
+            <p className="text-[12px] text-text-muted">
+              {bookedLine(b.createdAt, now)}
             </p>
             <p className="text-[13px] text-text-secondary">
               {BOOKING_TYPE_LABELS[b.bookingType as BookingType] ?? 'At garage'}{' '}

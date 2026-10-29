@@ -57,6 +57,7 @@ export function AddMarkButton({ vendors }: { vendors: AdminVendor[] }) {
             label: draft.label,
             note: draft.note || null,
             status: draft.status,
+            ...(draft.items.length > 0 ? { items: draft.items } : {}),
           },
         })
       )

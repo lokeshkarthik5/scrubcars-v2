@@ -30,13 +30,19 @@ test.describe.configure({ mode: 'serial' })
 const GARAGE = VENDORS.proposals.id
 const HEADERS = { 'X-Vendor-Id': GARAGE }
 
-/** Tomorrow at an IST hour, built exactly as the seed builds its times. */
-function tomorrowAt(hour: number): Date {
-  const d = new Date()
-  d.setDate(d.getDate() + 1)
-  d.setUTCHours(hour - 6, 30, 0, 0)
-  return d
+/**
+ * The seed books these for tomorrow (IST hours, on the seed's clock). The
+ * day is read back from the booking itself, so a run that crosses midnight
+ * UTC between the seed and the test still asks about the booked day.
+ */
+async function bookedDay(bookingId: string): Promise<string> {
+  const row = await getBooking(bookingId)
+  return istDay(new Date(row!.scheduled_at))
 }
+
+/** That day at an IST hour. */
+const atHour = (day: string, hour: number) =>
+  new Date(`${day}T${String(hour).padStart(2, '0')}:00:00+05:30`)
 
 const istDay = (date: Date) =>
   date.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
@@ -52,8 +58,9 @@ test.describe('garage suggests another time @p0', () => {
       'vendor-proposals'
     )
     const bookingId = BOOKINGS.proposalPick
-    const first = tomorrowAt(14)
-    const second = tomorrowAt(16)
+    const day = await bookedDay(bookingId)
+    const first = atHour(day, 14)
+    const second = atHour(day, 16)
 
     // ── the garage's own free times for this job ───────────────────────────
     const slots = await vendorCtx.request.get(
@@ -66,7 +73,7 @@ test.describe('garage suggests another time @p0', () => {
     expect(times).toContain(first.getTime())
     expect(times).toContain(second.getTime())
     // Never the booked time itself.
-    expect(times).not.toContain(tomorrowAt(10).getTime())
+    expect(times).not.toContain(atHour(day, 10).getTime())
 
     // ── the garage suggests two of them ────────────────────────────────────
     const suggested = await vendorCtx.request.post(
@@ -148,10 +155,11 @@ test.describe('garage suggests another time @p0', () => {
     await answerCookieQuestion(vendorCtx)
     const customer = await loginViaApi(CUSTOMERS.proposalDecliner.phone)
     const bookingId = BOOKINGS.proposalDecline
+    const evening = atHour(await bookedDay(bookingId), 18)
 
     const suggested = await vendorCtx.request.post(
       `${API}/api/v1/vendors/me/bookings/${bookingId}/time-proposal`,
-      { headers: HEADERS, data: { slots: [tomorrowAt(18).toISOString()] } }
+      { headers: HEADERS, data: { slots: [evening.toISOString()] } }
     )
     expect(suggested.status()).toBe(201)
 
@@ -171,7 +179,7 @@ test.describe('garage suggests another time @p0', () => {
     const late = await customer.post(
       `${API}/api/v1/bookings/${bookingId}/time-proposal/choose`,
       {
-        data: { slot: tomorrowAt(18).toISOString() },
+        data: { slot: evening.toISOString() },
       }
     )
     expect(late.status()).toBe(409)

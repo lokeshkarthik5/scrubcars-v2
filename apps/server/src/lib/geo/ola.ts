@@ -108,7 +108,12 @@ function pickList(body: OlaResponse): OlaPlace[] {
   return body.predictions ?? body.geocodingResults ?? body.results ?? []
 }
 
-async function call(
+/**
+ * One request to Ola Maps with the key and the Origin header Ola wants.
+ * Exported for the zone finder's Ola search (lib/places/ola.ts), so the two
+ * share one way of calling Ola.
+ */
+export async function olaRequest(
   path: string,
   params: Record<string, string>,
   apiKey: string,
@@ -190,7 +195,7 @@ export function createOlaProvider(apiKey: string): GeoProvider {
     name: 'ola',
 
     async autocomplete(q, near, sessionToken) {
-      const body = await call(
+      const body = await olaRequest(
         '/places/v1/autocomplete',
         {
           input: q,
@@ -206,12 +211,12 @@ export function createOlaProvider(apiKey: string): GeoProvider {
     },
 
     async geocode(q) {
-      const body = await call('/places/v1/geocode', { address: q }, apiKey)
+      const body = await olaRequest('/places/v1/geocode', { address: q }, apiKey)
       return pickList(body).map(normalisePlace)
     },
 
     async reverse(lat, lng) {
-      const body = await call(
+      const body = await olaRequest(
         '/places/v1/reverse-geocode',
         { latlng: `${lat},${lng}` },
         apiKey
@@ -226,7 +231,7 @@ export function createOlaProvider(apiKey: string): GeoProvider {
     },
 
     async route(from, to) {
-      const body = (await call(
+      const body = (await olaRequest(
         '/routing/v1/directions',
         {
           origin: `${from.lat},${from.lng}`,
@@ -270,7 +275,7 @@ export function createOlaProvider(apiKey: string): GeoProvider {
       if (place.lat !== null && place.lng !== null) return place
       if (!place.providerPlaceId) return place
 
-      const body = await call(
+      const body = await olaRequest(
         '/places/v1/details',
         { place_id: place.providerPlaceId },
         apiKey,

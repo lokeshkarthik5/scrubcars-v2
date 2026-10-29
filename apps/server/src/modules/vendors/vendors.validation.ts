@@ -94,12 +94,19 @@ const vendorProfileFields = {
   // the unknown key, so an old client that still sends it changes nothing.
 }
 
+// A doorstep-only garage needs only its pin (0064): the address and pincode
+// may be empty, and the booking types decide (lib/garage-address.ts).
+const optionalPincodeSchema = z
+  .string()
+  .trim()
+  .regex(/^(\d{6})?$/, 'Pincode must be a 6-digit number')
+
 export const createVendorSchema = z.object({
   businessName: z.string().trim().min(1).max(255),
   phone: phoneSchema,
-  address: z.string().trim().min(1),
+  address: z.string().trim().default(''),
   city: z.string().trim().min(1).max(100),
-  pincode: z.string().trim().regex(/^\d{6}$/, 'Pincode must be a 6-digit number'),
+  pincode: optionalPincodeSchema.default(''),
   // Required, unlike on update. A garage without coordinates cannot be found,
   // cannot be distance-sorted and cannot have its doorstep radius checked — and
   // it is far cheaper to insist at creation than to chase it afterwards.
@@ -112,9 +119,9 @@ export const updateVendorSchema = z
   .object({
     businessName: z.string().trim().min(1).max(255).optional(),
     phone: phoneSchema.optional(),
-    address: z.string().trim().min(1).optional(),
+    address: z.string().trim().optional(),
     city: z.string().trim().min(1).max(100).optional(),
-    pincode: z.string().trim().regex(/^\d{6}$/, 'Pincode must be a 6-digit number').optional(),
+    pincode: optionalPincodeSchema.optional(),
     lat: z.number().finite().min(-90).max(90).optional(),
     lng: z.number().finite().min(-180).max(180).optional(),
     ...vendorProfileFields,

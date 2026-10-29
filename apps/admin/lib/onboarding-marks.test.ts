@@ -6,6 +6,7 @@ import {
   askMessage,
   askPhone,
   askedUndoSteps,
+  checklistPayload,
   daysAgo,
   displayPhone,
   filterByMissing,
@@ -14,12 +15,14 @@ import {
   markForKey,
   markLine,
   markNeedsChase,
+  markProgress,
   markStatusText,
   missingChipKeys,
   missingCounts,
   openPresetLabels,
   openPresetLabelsForAll,
   thingsCount,
+  withCarriedItems,
 } from './onboarding-marks'
 
 /** 26 Oct 2026, 15:00 IST. */
@@ -275,5 +278,111 @@ describe('Add mark presets already open', () => {
     ]).toEqual(['Ask for radius'])
     expect(openPresetLabelsForAll([{ openMarks: [radius] }, {}]).size).toBe(0)
     expect(openPresetLabelsForAll([]).size).toBe(0)
+  })
+})
+
+describe('a mark with a checklist (0064)', () => {
+  test('an open one says how far it is; a received one says when', () => {
+    expect(
+      markStatusText(
+        {
+          status: 'asked',
+          askedAt: '2026-10-26T04:00:00Z',
+          itemsDone: 1,
+          itemsTotal: 4,
+        },
+        NOW
+      )
+    ).toBe('1 of 4 checked')
+    expect(
+      markStatusText(
+        {
+          status: 'to_ask',
+          askedAt: null,
+          items: [{ done: false }, { done: false }],
+        },
+        NOW
+      )
+    ).toBe('0 of 2 checked')
+    expect(
+      markStatusText(
+        {
+          status: 'received',
+          askedAt: null,
+          receivedAt: '2026-10-26T04:00:00Z',
+          itemsDone: 2,
+          itemsTotal: 2,
+        },
+        NOW
+      )
+    ).toBe('Received today')
+    // None: as before.
+    expect(
+      markStatusText({ status: 'to_ask', askedAt: null, itemsTotal: 0 }, NOW)
+    ).toBe('To ask')
+  })
+
+  test('progress from the items, else from the brief’s counts', () => {
+    expect(
+      markProgress({
+        status: 'asked',
+        askedAt: null,
+        items: [{ done: true }, { done: false }],
+      })
+    ).toEqual({
+      done: 1,
+      total: 2,
+    })
+    expect(
+      markProgress({
+        status: 'asked',
+        askedAt: null,
+        itemsDone: 3,
+        itemsTotal: 5,
+      })
+    ).toEqual({ done: 3, total: 5 })
+    expect(markProgress({ status: 'asked', askedAt: null })).toEqual({
+      done: 0,
+      total: 0,
+    })
+  })
+})
+
+describe('the edit dialog’s checklist (0064)', () => {
+  test('sends ids and words only, so a tick or answer saved meanwhile stays', () => {
+    expect(
+      checklistPayload([
+        { id: 'a', text: ' Doorstep radius ', done: false, answer: null },
+        { id: 'b', text: 'Payout details', done: true, answer: 'UPI' },
+        { text: 'New item' },
+        { text: '   ' },
+      ] as Parameters<typeof checklistPayload>[0])
+    ).toEqual([
+      { id: 'a', text: 'Doorstep radius' },
+      { id: 'b', text: 'Payout details' },
+      { text: 'New item' },
+    ])
+  })
+
+  test('Edit that mark keeps the mark’s own items and adds the typed ones it lacks', () => {
+    const existing = [
+      { id: 'a', text: 'Doorstep radius', done: true, answer: '8 km' },
+      { id: 'b', text: 'Payout details', done: false, answer: null },
+    ]
+    expect(
+      withCarriedItems(existing, [
+        { text: 'payout details' },
+        { text: 'Logo' },
+        { text: ' ' },
+      ])
+    ).toEqual([...existing, { text: 'Logo' }])
+    // Nothing typed: the mark's list, not an empty one that Save would clear.
+    expect(withCarriedItems(existing, [])).toEqual(existing)
+    expect(
+      withCarriedItems(
+        existing,
+        Array.from({ length: 40 }, (_, i) => ({ text: `Item ${i}` }))
+      )
+    ).toHaveLength(30)
   })
 })

@@ -26,6 +26,12 @@ export interface ServiceRowFields {
   priceSedan: string
   priceSuv: string
   durationValue: string
+  /**
+   * The service's own commission percent for Statistics (0064), as typed;
+   * empty is its category's rate. Optional: a row from the add page's import
+   * may have none.
+   */
+  commissionRate?: string
 }
 
 /** A field a row still needs, for marking that one input. */
@@ -35,6 +41,23 @@ export type ServiceRowField =
   | 'priceHatchback'
   | 'priceSedan'
   | 'priceSuv'
+  | 'commissionRate'
+
+/** The most a service's own commission may be, as the API holds it. */
+export const COMMISSION_RATE_MAX = 50
+
+/**
+ * The typed commission percent as the API takes it: a number from 0 to 50
+ * with at most two decimals, null for empty (the category's rate), or
+ * undefined when it is not a valid percent (the row then says so).
+ */
+export function commissionRateValue(typed: string): number | null | undefined {
+  const text = typed.trim().replace(/%$/, '').trim()
+  if (!text) return null
+  if (!/^\d{1,2}(\.\d{1,2})?$/.test(text)) return undefined
+  const value = Number(text)
+  return value <= COMMISSION_RATE_MAX ? value : undefined
+}
 
 const TIERS = [
   { key: 'priceHatchback', label: 'hatchback' },
@@ -56,6 +79,7 @@ export function isUntouchedNewRow(row: ServiceRowFields): boolean {
     !row.name.trim() &&
     !row.description.trim() &&
     !row.durationValue.trim() &&
+    !(row.commissionRate ?? '').trim() &&
     [row.price, row.priceHatchback, row.priceSedan, row.priceSuv].every(
       (value) => !value.trim()
     )
@@ -77,6 +101,10 @@ export function missingServiceFields(row: ServiceRowFields): ServiceRowField[] {
     }
   } else if (!isPrice(row.price)) {
     missing.push('price')
+  }
+
+  if (commissionRateValue(row.commissionRate ?? '') === undefined) {
+    missing.push('commissionRate')
   }
 
   return missing
@@ -112,7 +140,13 @@ export function serviceRowProblem(row: ServiceRowFields): string | null {
     )
   }
 
-  return `Add ${joinAnd(parts)}`
+  if (parts.length === 0 && missing.includes('commissionRate')) {
+    return `Commission must be a percent from 0 to ${COMMISSION_RATE_MAX}, or empty`
+  }
+  const add = `Add ${joinAnd(parts)}`
+  return missing.includes('commissionRate')
+    ? `${add}, and fix the commission (0 to ${COMMISSION_RATE_MAX}%)`
+    : add
 }
 
 /**
@@ -127,10 +161,21 @@ export function servicesSaveBlock(rows: ServiceRowFields[]): string | null {
 
   const needsName = blocked.some((missing) => missing.includes('name'))
   const needsPrice = blocked.some((missing) =>
-    missing.some((field) => field !== 'name')
+    missing.some((field) => field !== 'name' && field !== 'commissionRate')
+  )
+  const needsCommission = blocked.some((missing) =>
+    missing.includes('commissionRate')
   )
   const what =
-    needsName && needsPrice ? 'a name or price' : needsName ? 'a name' : 'a price'
+    needsName && needsPrice
+      ? 'a name or price'
+      : needsName
+        ? 'a name'
+        : needsPrice
+          ? 'a price'
+          : needsCommission
+            ? 'its commission fixed'
+            : 'a price'
 
   return blocked.length === 1
     ? `1 service needs ${what}`

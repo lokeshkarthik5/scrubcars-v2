@@ -76,6 +76,11 @@ export interface AdminTableProps<T> {
   groupOf?: (r: T) => string | null
   /** A coloured edge: red-orange for late, amber for today. */
   toneOf?: (r: T) => 'urgent' | 'attention' | null
+  /**
+   * The row's own tint and edge (the Garages list's colour tags, 0064).
+   * Ticked and open rows keep their own background over it.
+   */
+  rowClassOf?: (r: T) => string | null
   /** The row shown in the side panel. */
   openKey?: string | null
   /** A press on a row (not on its links or buttons); null closes. */
@@ -141,6 +146,7 @@ export function AdminTable<T>({
   onSortChange,
   groupOf,
   toneOf,
+  rowClassOf,
   openKey,
   onOpen,
   openLabel,
@@ -308,6 +314,7 @@ export function AdminTable<T>({
                             : "max-md:grid-cols-[minmax(0,1fr)_auto] max-md:[grid-template-areas:'title_aside'_'subtitle_asideSub'_'meta_action']"
                         ),
                       onOpen && 'cursor-pointer hover:bg-surface',
+                      rowClassOf?.(row),
                       ticked && 'bg-surface',
                       open &&
                         'bg-surface-elevated/60 hover:bg-surface-elevated/60',

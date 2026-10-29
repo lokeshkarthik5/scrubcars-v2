@@ -75,7 +75,11 @@ test.describe('the landing page is the app (0062) @p0', () => {
 
     const sheet = page.getByRole('dialog', { name: "Where's your car?" })
     await expect(sheet).toBeVisible()
-    await expect(sheet.getByRole('list', { name: 'Areas' }).getByRole('button')).toHaveCount(25)
+    // Admin's zone spec (specs/admin/coverage-zones.spec.ts) adds and removes
+    // its own "E2E Test Zone", maybe while this runs.
+    await expect(
+      sheet.getByRole('list', { name: 'Areas' }).getByRole('button').filter({ hasNotText: /^E2E / })
+    ).toHaveCount(25)
     await sheet.getByRole('searchbox', { name: 'Search areas' }).fill('vela')
     await expect(sheet.getByRole('list', { name: 'Areas' }).getByRole('button')).toHaveCount(1)
     await sheet.getByRole('button', { name: 'Velachery' }).click()

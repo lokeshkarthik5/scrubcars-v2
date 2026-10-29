@@ -9,6 +9,7 @@ import { analyticsService } from '../analytics/analytics.service.js'
 import { bookingsRepository } from '../bookings/bookings.repository.js'
 import {
   logReceiptNumberFailure,
+  requestRefusalError,
   resolveBookingDraft,
 } from '../bookings/bookings.service.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
@@ -84,7 +85,7 @@ export const bookingIntentsService = {
       input.useCredit && env.giftsEnabled ? await giftCreditService.availablePaise(userId) : 0
     )
 
-    const [intent] = await bookingIntentsRepository.createIntent(
+    const created = await bookingIntentsRepository.createIntent(
       {
         userId,
         vendorId: draft.vendor.id,
@@ -115,6 +116,10 @@ export const bookingIntentsService = {
       },
       draft.items
     )
+    // The request was cancelled (or lapsed) since the draft read it: no
+    // checkout, and no Razorpay order (0064: the team's cancel).
+    if (!created) throw requestRefusalError('REQUEST_NOT_ACCEPTED')
+    const [intent] = created
 
     // Nothing left for Razorpay: no order at all. The booking is written
     // now, through the same consumeIntent (slot, car, promo and credit

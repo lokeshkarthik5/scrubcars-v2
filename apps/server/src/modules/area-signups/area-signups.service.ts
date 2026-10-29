@@ -6,6 +6,7 @@ import {
   coveragePushWords,
   FREE_WASH_RULES,
   freeWashEndsAt,
+  freeWashReady,
   isReachPushHour,
   launchPushWords,
   launchPushWordsNoWash,
@@ -176,7 +177,7 @@ export const areaSignupsService = {
       const live = zone.liveAt !== null
       const discount = signup.discountId ? byId.get(signup.discountId) : undefined
       const ready =
-        discount && discount.isActive && Number(discount.held) === 0 && discount.endsAt && discount.endsAt > now
+        discount && discount.endsAt && freeWashReady({ ...discount, held: Number(discount.held) }, now)
           ? { code: discount.code, amount: Number(discount.amountOff), endsAt: discount.endsAt.toISOString() }
           : null
       const recentLaunch = zone.liveAt !== null && now.getTime() - zone.liveAt.getTime() < BANNER_DAYS * DAY_MS

@@ -18,6 +18,7 @@ import {
   IconMenu2,
   IconPhone,
   IconReceiptRefund,
+  IconSend,
   IconSettings,
   IconStar,
   IconWallet,
@@ -49,6 +50,7 @@ import type { NavCount, NavCounts } from '@/lib/today'
 const ICONS: Record<NavIconName, typeof IconCalendar> = {
   today: IconCalendarEvent,
   bookings: IconCalendar,
+  requests: IconSend,
   issues: IconAlertTriangle,
   refunds: IconReceiptRefund,
   garages: IconBuildingStore,

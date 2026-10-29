@@ -1,25 +1,29 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { IconPlus } from '@tabler/icons-react'
+import { IconPhone, IconPlus } from '@tabler/icons-react'
 import { ApiError } from '@repo/core/api/client'
 import type { OnboardingMark } from '@repo/core/api/admin-marks'
 import { useAdminVendor } from '@repo/core/api/hooks/use-admin-vendors'
 import { useVendorMarks } from '@repo/core/api/hooks/use-admin-marks'
 import {
+  MARK_STATUS_LABELS,
   MISSING_KEYS,
   MISSING_LABELS,
   MISSING_TONES,
   markLabel,
   type MissingKey,
 } from '@repo/core/onboarding-marks'
+import { checklistStatusWord, progressText } from '@repo/core/mark-checklist'
 import { cn } from '@repo/core/utils'
 import {
+  markDate,
   markForKey,
   markNeedsChase,
   markStatusText,
   type AskVendor,
 } from '@/lib/onboarding-marks'
+import { CallSheet, ChecklistItems, ChecklistProgress } from './mark-checklist'
 import { AskWhatsAppButton } from './ask-whatsapp-button'
 import { MarkDot } from './marks-cell'
 import { MarkPopover } from './mark-popover'
@@ -48,6 +52,8 @@ export function GarageMarksPanel({
   // The editor has already loaded the garage: this reads the same cache.
   const { data: detail } = useAdminVendor(vendorId)
   const [open, setOpen] = useState<OnboardingMark | 'new' | null>(null)
+  // The mark whose call sheet is open (0064).
+  const [calling, setCalling] = useState<string | null>(null)
 
   const all = useMemo(() => marksQuery.data ?? [], [marksQuery.data])
   const openMarks = useMemo(
@@ -154,6 +160,18 @@ export function GarageMarksPanel({
         ) : (
           <ul className="flex flex-col gap-1.5">
             {others.map((mark) => {
+              if ((mark.items ?? []).length > 0) {
+                return (
+                  <ChecklistMark
+                    key={mark.id}
+                    vendorId={vendorId}
+                    mark={mark}
+                    readOnly={readOnly || !vendor}
+                    onEdit={() => setOpen(mark)}
+                    onCall={() => setCalling(mark.id)}
+                  />
+                )
+              }
               const chase = markNeedsChase(mark)
               const body = (
                 <>
@@ -215,6 +233,100 @@ export function GarageMarksPanel({
           onClose={() => setOpen(null)}
         />
       )}
+
+      {calling && detail && !readOnly && (
+        <CallSheet
+          open
+          vendorId={vendorId}
+          markId={calling}
+          garageName={detail.businessName}
+          contact={
+            detail.owner
+              ? { name: detail.owner.name, phone: detail.owner.phone }
+              : { name: detail.businessName, phone: detail.phone }
+          }
+          onClose={() => setCalling(null)}
+        />
+      )}
     </section>
+  )
+}
+
+/**
+ * A mark with a checklist (0064, mockup marks-checklist A): its name and
+ * where it stands ("1 of 4 checked · Ravi, today"), a bar, its note in full,
+ * each item with its tick and answer, and "Start call".
+ */
+function ChecklistMark({
+  vendorId,
+  mark,
+  readOnly,
+  onEdit,
+  onCall,
+}: {
+  vendorId: string
+  mark: OnboardingMark
+  readOnly: boolean
+  onEdit: () => void
+  onCall: () => void
+}) {
+  const items = mark.items ?? []
+  const name = markLabel(mark.kind, mark.label)
+  const latest = items
+    .filter((item) => item.answeredBy && item.answeredAt)
+    .sort((a, b) => (b.answeredAt ?? '').localeCompare(a.answeredAt ?? ''))[0]
+  const word = checklistStatusWord(items) ?? MARK_STATUS_LABELS[mark.status]
+  return (
+    <li className="flex flex-col gap-2 rounded-[12px] border border-border bg-surface px-3 py-2.5">
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          {readOnly ? (
+            <p className="text-[13px] font-medium text-text-primary">{name}</p>
+          ) : (
+            <button
+              type="button"
+              onClick={onEdit}
+              aria-label={`Edit mark ${name}`}
+              className="text-left text-[13px] font-medium text-text-primary underline-offset-2 hover:underline"
+            >
+              {name}
+            </button>
+          )}
+          <p className="text-[12px] text-text-secondary">
+            {progressText(items)}
+            {latest?.answeredBy && latest.answeredAt
+              ? ` · ${latest.answeredBy}, ${markDate(latest.answeredAt)}`
+              : ''}
+          </p>
+        </div>
+        <span
+          className={cn(
+            'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium',
+            word === 'In progress' || mark.status === 'asked'
+              ? 'bg-tone-attention-tint text-tone-attention-text'
+              : 'bg-white/[0.06] text-text-secondary'
+          )}
+        >
+          {word}
+        </span>
+      </div>
+      <ChecklistProgress items={items} />
+      {mark.note && (
+        <p className="whitespace-pre-line text-[12px] text-text-secondary">
+          {mark.note}
+        </p>
+      )}
+      <ChecklistItems vendorId={vendorId} mark={mark} readOnly={readOnly} />
+      {!readOnly && items.some((item) => !item.done) && (
+        <button
+          type="button"
+          onClick={onCall}
+          className="inline-flex min-h-11 items-center justify-center gap-1.5 self-start rounded-full bg-brand-white px-4 text-[13px] font-semibold text-brand-black"
+        >
+          <IconPhone size={15} aria-hidden />
+          Start call
+        </button>
+      )}
+    </li>
   )
 }

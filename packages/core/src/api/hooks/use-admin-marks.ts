@@ -7,10 +7,12 @@ import {
   listVendorMarks,
   markGaragesAsked,
   updateVendorMark,
+  updateVendorMarkItem,
   type CreateMarkInput,
   type MarkAskedInput,
   type OnboardingMark,
   type UpdateMarkInput,
+  type UpdateMarkItemInput,
 } from '@repo/core/api/admin-marks'
 import { ApiError } from '@repo/core/api/client'
 import { adminVendorKeys } from '@repo/core/api/hooks/use-admin-vendors'
@@ -88,6 +90,32 @@ export function useUpdateMark() {
   return useMutation({
     mutationFn: ({ vendorId, markId, input }: { vendorId: string; markId: string; input: UpdateMarkInput }) =>
       updateVendorMark(vendorId, markId, input),
+    onSuccess: (mark, { vendorId }) => {
+      put(mark)
+      changed([vendorId])
+    },
+  })
+}
+
+/**
+ * One checklist item ticked or answered (0064), from the mark's checklist
+ * or the call sheet. Saves as it goes; the answer is the changed mark.
+ */
+export function useUpdateMarkItem() {
+  const put = usePutMark()
+  const changed = useMarksChanged()
+  return useMutation({
+    mutationFn: ({
+      vendorId,
+      markId,
+      itemId,
+      input,
+    }: {
+      vendorId: string
+      markId: string
+      itemId: string
+      input: UpdateMarkItemInput
+    }) => updateVendorMarkItem(vendorId, markId, itemId, input),
     onSuccess: (mark, { vendorId }) => {
       put(mark)
       changed([vendorId])

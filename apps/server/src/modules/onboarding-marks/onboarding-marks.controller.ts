@@ -5,6 +5,7 @@ import type {
   CreateMarkInput,
   MarkAskedInput,
   UpdateMarkInput,
+  UpdateMarkItemInput,
 } from './onboarding-marks.validation.js'
 
 type AdminContext = Context<{ Variables: AuthVariables }>
@@ -30,6 +31,20 @@ export async function update(
   input: UpdateMarkInput
 ) {
   const data = await onboardingMarksService.update(vendorId, markId, input)
+  return c.json({ success: true, data })
+}
+
+export async function updateItem(
+  c: AdminContext,
+  params: { id: string; markId: string; itemId: string },
+  input: UpdateMarkItemInput
+) {
+  const data = await onboardingMarksService.updateItem(
+    params.id,
+    params.markId,
+    params.itemId,
+    input
+  )
   return c.json({ success: true, data })
 }
 
