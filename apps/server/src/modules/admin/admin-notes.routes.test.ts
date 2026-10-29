@@ -115,3 +115,40 @@ describe('booking notes (0065)', () => {
     expect((await call('DELETE', `/admin/bookings/${BOOKING}/notes/e2e00000-0000-4000-8000-000000005459`)).status).toBe(404)
   })
 })
+
+describe('undoing the photo waiver (0065)', () => {
+  let booking: { id: string; status: string; photosWaivedAt: Date | null }
+  let claim = false
+  let undone: string[] = []
+  beforeAll(() => {
+    patch(adminRepository, 'findBookingById', async (id: string) => (id === BOOKING ? booking : undefined))
+    patch(adminRepository, 'hasGuaranteeClaim', async () => claim)
+    patch(adminRepository, 'undoJobPhotosWaiver', async (id: string) => {
+      undone.push(id)
+      return []
+    })
+  })
+  beforeEach(() => {
+    booking = { id: BOOKING, status: 'confirmed', photosWaivedAt: new Date() }
+    claim = false
+    undone = []
+  })
+
+  test('refused once the job is over, with a redo claim, or with nothing waived', async () => {
+    booking.status = 'completed'
+    expect((await call('POST', `/admin/bookings/${BOOKING}/photos-waiver/undo`, {})).body.code).toBe('WAIVER_JOB_OVER')
+    booking.status = 'in_progress'
+    claim = true
+    expect((await call('POST', `/admin/bookings/${BOOKING}/photos-waiver/undo`, {})).body.code).toBe('WAIVER_HAS_CLAIM')
+    claim = false
+    booking.photosWaivedAt = null
+    expect((await call('POST', `/admin/bookings/${BOOKING}/photos-waiver/undo`, {})).body.code).toBe('PHOTOS_NOT_WAIVED')
+    expect(undone).toEqual([])
+  })
+
+  test('the write repeats the conditions: a booking that moved meanwhile is a 409', async () => {
+    const res = await call('POST', `/admin/bookings/${BOOKING}/photos-waiver/undo`, {})
+    expect(undone).toEqual([BOOKING])
+    expect([res.status, res.body.code]).toEqual([409, 'BOOKING_STATE_CHANGED'])
+  })
+})

@@ -713,6 +713,33 @@ export const adminRepository = {
   },
 
   /**
+   * Takes Detlio's photo waiver back (0065): only while the booking is in
+   * one of `statuses` and has no free redo claim. Empty when it did not.
+   */
+  undoJobPhotosWaiver(bookingId: string, statuses: string[]) {
+    return db
+      .update(bookings)
+      .set({ photosWaivedAt: null, photosWaivedBy: null, photosWaivedReason: null })
+      .where(
+        and(
+          eq(bookings.id, bookingId),
+          isNotNull(bookings.photosWaivedAt),
+          sql`${bookings.status}::text in (${sql.join(statuses.map((status) => sql`${status}`), sql`, `)})`,
+          sql`not exists (select 1 from guarantee_claims g where g.booking_id = ${bookings.id})`
+        )
+      )
+      .returning({ id: bookings.id })
+  },
+
+  /** Whether a free redo claim (0051) was made on this booking. */
+  async hasGuaranteeClaim(bookingId: string): Promise<boolean> {
+    const rows = await db.execute<{ one: number }>(
+      sql`select 1 as one from guarantee_claims where booking_id = ${bookingId} limit 1`
+    )
+    return Array.from(rows).length > 0
+  },
+
+  /**
    * Every job completed since `since` (by completion time, or the slot for
    * one from before completion times were kept), with its garage's photo
    * counts per stage, for photo compliance (0045, lib/photo-compliance.ts

@@ -406,6 +406,9 @@ export const listBookingsQuerySchema = z
 
 export const bookingIdParamSchema = z.object({ id: z.string().uuid() })
 
+/** Undo the photo waiver (0065): signed by the session. */
+export const undoWaiverSchema = z.object({ actorName: signedActorName }).strict()
+
 /** A booking's note (0065): edited or deleted by its author. */
 export const bookingNoteParamSchema = z.object({ id: z.string().uuid(), noteId: z.string().uuid() })
 

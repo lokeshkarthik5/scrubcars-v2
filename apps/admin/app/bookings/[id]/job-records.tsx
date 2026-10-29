@@ -8,7 +8,10 @@ import { ScTextarea } from '@repo/ui/sc/input'
 import { ScModal } from '@repo/ui/sc/modal'
 import { BeforeAfterCompare } from '@repo/ui/features/before-after'
 import { errorMessage } from '@repo/core/api/hooks/use-discounts'
-import { useWaiveAdminJobPhotos } from '@repo/core/api/hooks/use-admin-bookings'
+import {
+  useUndoAdminJobPhotosWaiver,
+  useWaiveAdminJobPhotos,
+} from '@repo/core/api/hooks/use-admin-bookings'
 import { angleLabel, photoByLabel } from '@repo/core/job-photo-standards'
 import type { JobPhoto } from '@repo/core/types'
 import { ScSection } from '@repo/ui/sc/section'
@@ -290,6 +293,7 @@ export function JobPhotosSection({
   allowWaive?: boolean
 }) {
   const [waiving, setWaiving] = useState(false)
+  const undoWaiver = useUndoAdminJobPhotosWaiver()
   const photos = booking.photos ?? []
   const standard = booking.photoStandard
   const waiver = booking.photosWaiver ?? null
@@ -335,6 +339,23 @@ export function JobPhotosSection({
           <span className="font-numeric">{formatWhen(waiver.at)}</span>:{' '}
           {waiver.reason}
         </p>
+      )}
+      {/* Undo (0065): while the job is not over and has no redo claim. */}
+      {allowWaive && waiver?.undoable && (
+        <ScButton
+          variant="secondary"
+          fullWidth={false}
+          disabled={undoWaiver.isPending}
+          onClick={() =>
+            undoWaiver.mutate({ id: booking.id, input: undefined }, {
+              onSuccess: () => toast.success('Waiver undone: the garage’s photos are needed again'),
+              onError: (err) => toast.error(errorMessage(err, "Couldn't undo the waiver")),
+            })
+          }
+          className="min-h-11 self-start px-4 text-[12px]"
+        >
+          {undoWaiver.isPending ? 'Undoing…' : 'Undo waiver'}
+        </ScButton>
       )}
 
       <BeforeAfterCompare

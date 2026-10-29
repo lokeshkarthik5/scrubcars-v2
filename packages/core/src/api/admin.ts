@@ -606,7 +606,8 @@ export interface AdminBookingDetail extends AdminBooking {
   /** What Start and Complete wait for on this job (0045), as the garage sees it. */
   photoStandard?: PhotoStandard
   /** Detlio waived the photo standard on this booking (0045), by whom and why. */
-  photosWaiver?: { at: string; by: string; reason: string } | null
+  /** `undoable` (0065): while the job is not over and has no redo claim; absent before 0065. */
+  photosWaiver?: { at: string; by: string; reason: string; undoable?: boolean } | null
   /** Extra work the garage asked for (0041), newest first. */
   extraWork?: AdminExtraWork[]
   /** Times the garage suggested instead of declining (0041), newest first. */
@@ -1817,6 +1818,14 @@ export async function overrideAdminPickupStep(
  * POST /admin/bookings/:id/photos-waiver — Detlio waives the photo standard
  * on one booking (0045), with why; signed with the admin's name. Once only.
  */
+/** POST /admin/bookings/:id/photos-waiver/undo (0065): Start and Complete wait for photos again. */
+export async function undoAdminJobPhotosWaiver(id: string) {
+  return apiClient<AdminBookingDetail>(`/admin/bookings/${id}/photos-waiver/undo`, {
+    method: 'POST',
+    body: signedBody({}),
+  })
+}
+
 export async function waiveAdminJobPhotos(id: string, input: { reason: string }) {
   return apiClient<AdminBookingDetail>(`/admin/bookings/${id}/photos-waiver`, {
     method: 'POST',

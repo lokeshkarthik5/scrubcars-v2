@@ -62,6 +62,7 @@ import {
   markNoShowSchema,
   pickupStepOverrideSchema,
   waiveJobPhotosSchema,
+  undoWaiverSchema,
   pilotStatsQuerySchema,
   superAdminIdParamSchema,
   loginSchema,
@@ -605,6 +606,14 @@ adminRoutes.post(
       c.req.valid('param').id,
       c.req.valid('json')
     )
+)
+// Undo the waiver (0065): while the job is not over and has no redo claim.
+adminRoutes.post(
+  '/bookings/:id/photos-waiver/undo',
+  ...adminMiddleware,
+  zValidator('param', bookingIdParamSchema),
+  adminSignedJson(undoWaiverSchema),
+  (c) => adminController.undoJobPhotosWaiver(c, c.req.valid('param').id, c.req.valid('json').actorName)
 )
 adminRoutes.post(
   '/bookings/:id/notes',

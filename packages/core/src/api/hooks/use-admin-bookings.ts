@@ -18,6 +18,7 @@ import {
   markAdminBookingNoShow,
   overrideAdminPickupStep,
   waiveAdminJobPhotos,
+  undoAdminJobPhotosWaiver,
   type AdminBooking,
   type AdminBookingDetail,
   type AdminBookingFilters,
@@ -222,6 +223,11 @@ export function useWaiveAdminJobPhotos() {
   return useBookingAction((id: string, input: { reason: string }) =>
     waiveAdminJobPhotos(id, input)
   )
+}
+
+/** Take the waiver back (0065). */
+export function useUndoAdminJobPhotosWaiver() {
+  return useBookingAction<void>((id: string) => undoAdminJobPhotosWaiver(id))
 }
 
 /**

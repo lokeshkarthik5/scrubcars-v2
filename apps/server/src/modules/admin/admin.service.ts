@@ -23,7 +23,7 @@ import { toExtraWorkView } from '../../lib/extra-work.js'
 import { bookingRefundTotals } from '../../lib/refunds.js'
 import { toJobPhotoView } from '../../lib/job-records.js'
 import { jobPhotoLink } from '../../lib/job-photo-storage.js'
-import { garagePhotoStandardView } from '../../lib/job-photo-standards.js'
+import { WAIVER_UNDO_STATUSES, garagePhotoStandardView, waiverUndoRefusal } from '../../lib/job-photo-standards.js'
 import { photoComplianceByGarage, photoComplianceSince, type PhotoCompliance } from '../../lib/photo-compliance.js'
 import { jobPhotosRequiredFor } from '../job-photos/job-photos.service.js'
 import { alertOps } from '../../lib/ops-alerts.js'
@@ -611,6 +611,13 @@ async function loadBookingDetail(id: string, now: number) {
           at: booking.photosWaivedAt.toISOString(),
           by: booking.photosWaivedBy,
           reason: booking.photosWaivedReason,
+          // Undo (0065): while the job is not over and has no redo claim.
+          undoable:
+            waiverUndoRefusal({
+              status: booking.status,
+              photosWaivedAt: booking.photosWaivedAt,
+              hasGuaranteeClaim: await adminRepository.hasGuaranteeClaim(id),
+            }) === null,
         }
       : null,
     lat: booking.lat,
@@ -1695,6 +1702,44 @@ export const adminService = {
     })
 
     log.info({ bookingId: id, actorName: input.actorName }, 'admin:job-photos-waived')
+    return loadBookingDetail(id, Date.now())
+  },
+
+  /**
+   * Takes Detlio's photo waiver back (0065): Start and Complete wait for the
+   * garage's photos again. Only while the job is not over and it has no free
+   * redo claim; the write repeats both conditions. Leaves a note, as the
+   * waiver did.
+   */
+  async undoJobPhotosWaiver(id: string, actorName: string) {
+    const booking = await adminRepository.findBookingById(id)
+    if (!booking) throw bookingNotFound()
+    const refusal = waiverUndoRefusal({
+      status: booking.status,
+      photosWaivedAt: booking.photosWaivedAt,
+      hasGuaranteeClaim: await adminRepository.hasGuaranteeClaim(id),
+    })
+    if (refusal === 'not_waived') throw new AppError(409, 'Photos are not waived on this booking.', 'PHOTOS_NOT_WAIVED')
+    if (refusal === 'job_over') {
+      throw new AppError(409, 'The job is over, so its waiver stays as it was.', 'WAIVER_JOB_OVER')
+    }
+    if (refusal === 'claim') {
+      throw new AppError(409, 'A free redo claim was made on this booking, so its waiver stays.', 'WAIVER_HAS_CLAIM')
+    }
+    const [undone] = await adminRepository.undoJobPhotosWaiver(id, [...WAIVER_UNDO_STATUSES])
+    if (!undone) {
+      throw new AppError(
+        409,
+        'This booking changed (finished, claimed, or the waiver was undone). Reload to see it as it is now.',
+        'BOOKING_STATE_CHANGED'
+      )
+    }
+    await adminRepository.createBookingNote({
+      bookingId: id,
+      author: actorName,
+      body: `Photo waiver undone by ${actorName}: Start and Complete wait for the garage's photos again.`,
+    })
+    log.info({ bookingId: id, actorName }, 'admin:job-photos-waiver-undone')
     return loadBookingDetail(id, Date.now())
   },
 

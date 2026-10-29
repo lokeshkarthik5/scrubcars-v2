@@ -243,6 +243,12 @@ export async function addBookingNote(
   return c.json({ success: true, data: note }, 201)
 }
 
+/** Take Detlio's photo waiver back (0065). */
+export async function undoJobPhotosWaiver(c: AdminContext, id: string, actorName: string) {
+  const data = await adminService.undoJobPhotosWaiver(id, actorName)
+  return c.json({ success: true, data })
+}
+
 /** A typed note, by its author, within 24 hours (0065). */
 export async function editBookingNote(c: AdminContext, id: string, noteId: string, input: CreateBookingNoteInput) {
   const data = await adminService.editBookingNote(id, noteId, c.get('auth').sub, input)
