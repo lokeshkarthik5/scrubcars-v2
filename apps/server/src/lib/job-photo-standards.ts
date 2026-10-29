@@ -328,3 +328,28 @@ export function customerPhotoWindowsView(job: PhotoStandardJob, now: number) {
     },
   }
 }
+
+// ─── Undoing a waiver (0065) ─────────────────────────────────────────────────
+
+/** The booking statuses a waiver can be undone in: the job is not over yet. */
+export const WAIVER_UNDO_STATUSES = ['pending', 'confirmed', 'in_progress'] as const
+
+export type WaiverUndoRefusal = 'not_waived' | 'job_over' | 'claim'
+
+/**
+ * Whether Detlio's photo waiver can be taken back (0065, owner: everything
+ * that can be added must be undoable): only while the job is not over
+ * (completed or cancelled) and it has no free redo claim, which may have
+ * been decided on the waiver. Once taken back, Start and Complete wait for
+ * the garage's photos again.
+ */
+export function waiverUndoRefusal(booking: {
+  status: string
+  photosWaivedAt: Date | null
+  hasGuaranteeClaim: boolean
+}): WaiverUndoRefusal | null {
+  if (!booking.photosWaivedAt) return 'not_waived'
+  if (!(WAIVER_UNDO_STATUSES as readonly string[]).includes(booking.status)) return 'job_over'
+  if (booking.hasGuaranteeClaim) return 'claim'
+  return null
+}

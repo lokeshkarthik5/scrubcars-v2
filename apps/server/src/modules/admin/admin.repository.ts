@@ -29,6 +29,7 @@ import { containsPattern } from '../../lib/search.js'
 import { NOT_IN_BIN } from '../vendors/vendors.predicates.js'
 import type { BookingView } from './admin.validation.js'
 import {
+  adminAuditLog,
   bookingCharges,
   bookingTimeProposals,
   bookingIntents,
@@ -712,6 +713,125 @@ export const adminRepository = {
   },
 
   /**
+   * Takes Detlio's photo waiver back (0065): only while the booking is in
+   * one of `statuses` and has no free redo claim. Empty when it did not.
+   */
+  undoJobPhotosWaiver(bookingId: string, statuses: string[]) {
+    return db
+      .update(bookings)
+      .set({ photosWaivedAt: null, photosWaivedBy: null, photosWaivedReason: null })
+      .where(
+        and(
+          eq(bookings.id, bookingId),
+          isNotNull(bookings.photosWaivedAt),
+          sql`${bookings.status}::text in (${sql.join(statuses.map((status) => sql`${status}`), sql`, `)})`,
+          sql`not exists (select 1 from guarantee_claims g where g.booking_id = ${bookings.id})`
+        )
+      )
+      .returning({ id: bookings.id })
+  },
+
+  // ─── What only the garage could remove, by admin (0065) ──────────────────
+
+  /** Removes one of a garage's holidays, with its audit row; undefined when not its own. */
+  removeClosure(vendorId: string, closureId: string, actor: { sub: string; name: string }) {
+    return db.transaction(async (tx) => {
+      const [row] = await tx
+        .delete(vendorClosures)
+        .where(and(eq(vendorClosures.id, closureId), eq(vendorClosures.vendorId, vendorId)))
+        .returning({ id: vendorClosures.id, date: vendorClosures.date, reason: vendorClosures.reason })
+      if (!row) return undefined
+      await tx.insert(adminAuditLog).values({
+        action: 'garage_closure_removed',
+        actorSub: actor.sub,
+        actorName: actor.name,
+        summary: { vendorId, closureId },
+        detail: { date: row.date },
+      })
+      return row
+    })
+  },
+
+  /**
+   * Clears a garage's drawn doorstep area (back to its radius, or the 10 km
+   * default), with its audit row. False when there was none.
+   */
+  clearDoorstepArea(vendorId: string, actor: { sub: string; name: string }) {
+    return db.transaction(async (tx) => {
+      const rows = await tx.execute<{ id: string }>(sql`
+        UPDATE vendors SET doorstep_area = NULL
+         WHERE id = ${vendorId} AND doorstep_area IS NOT NULL
+        RETURNING id
+      `)
+      if (Array.from(rows).length === 0) return false
+      await tx.insert(adminAuditLog).values({
+        action: 'garage_doorstep_area_cleared',
+        actorSub: actor.sub,
+        actorName: actor.name,
+        summary: { vendorId },
+        detail: {},
+      })
+      return true
+    })
+  },
+
+  /** One extra work request of a booking; another booking's is undefined. */
+  async findExtraWork(bookingId: string, chargeId: string) {
+    const [row] = await db
+      .select()
+      .from(bookingCharges)
+      .where(
+        and(
+          eq(bookingCharges.id, chargeId),
+          eq(bookingCharges.bookingId, bookingId),
+          eq(bookingCharges.kind, 'extra_work')
+        )
+      )
+      .limit(1)
+    return row
+  },
+
+  /**
+   * Withdraws unpaid extra work as Detlio (0065): conditional on it still
+   * being due, as the garage's own withdraw is; with a booking note and an
+   * audit row. Undefined when it was not due by the time of the write.
+   */
+  withdrawExtraWork(input: { bookingId: string; chargeId: string; at: Date; actor: { sub: string; name: string }; note: string }) {
+    return db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(bookingCharges)
+        .set({ status: 'cancelled', cancelReason: 'withdrawn', cancelledAt: input.at, updatedAt: input.at })
+        .where(
+          and(
+            eq(bookingCharges.id, input.chargeId),
+            eq(bookingCharges.bookingId, input.bookingId),
+            eq(bookingCharges.kind, 'extra_work'),
+            eq(bookingCharges.status, 'due')
+          )
+        )
+        .returning()
+      if (!row) return undefined
+      await tx.insert(bookingNotes).values({ bookingId: input.bookingId, author: input.actor.name, body: input.note })
+      await tx.insert(adminAuditLog).values({
+        action: 'extra_work_withdrawn_by_detlio',
+        actorSub: input.actor.sub,
+        actorName: input.actor.name,
+        summary: { bookingId: input.bookingId, chargeId: input.chargeId },
+        detail: { amount: row.amountDue },
+      })
+      return row
+    })
+  },
+
+  /** Whether a free redo claim (0051) was made on this booking. */
+  async hasGuaranteeClaim(bookingId: string): Promise<boolean> {
+    const rows = await db.execute<{ one: number }>(
+      sql`select 1 as one from guarantee_claims where booking_id = ${bookingId} limit 1`
+    )
+    return Array.from(rows).length > 0
+  },
+
+  /**
    * Every job completed since `since` (by completion time, or the slot for
    * one from before completion times were kept), with its garage's photo
    * counts per stage, for photo compliance (0045, lib/photo-compliance.ts
@@ -848,8 +968,92 @@ export const adminRepository = {
     })
   },
 
-  createBookingNote(data: { bookingId: string; author: string; body: string }) {
+  createBookingNote(data: {
+    bookingId: string
+    author: string
+    body: string
+    /** 0065: 'typed' with its session for a person's note; system by default. */
+    kind?: 'typed' | 'system'
+    authorSub?: string
+  }) {
     return db.insert(bookingNotes).values(data).returning()
+  },
+
+  /** One note of a booking; another booking's is undefined. */
+  async findBookingNote(bookingId: string, noteId: string) {
+    const [row] = await db
+      .select()
+      .from(bookingNotes)
+      .where(and(eq(bookingNotes.id, noteId), eq(bookingNotes.bookingId, bookingId)))
+      .limit(1)
+    return row
+  },
+
+  /**
+   * Edits a typed note, only by its author and only within its 24 hours
+   * (`since`: written after it), with an audit row (ids, never the words).
+   * Undefined when it did not qualify by the time of the write.
+   */
+  editTypedNote(input: {
+    bookingId: string
+    noteId: string
+    sub: string
+    body: string
+    at: Date
+    since: Date
+    actorName: string
+  }) {
+    return db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(bookingNotes)
+        .set({ body: input.body, editedAt: input.at })
+        .where(
+          and(
+            eq(bookingNotes.id, input.noteId),
+            eq(bookingNotes.bookingId, input.bookingId),
+            eq(bookingNotes.kind, 'typed'),
+            eq(bookingNotes.authorSub, input.sub),
+            gt(bookingNotes.createdAt, input.since)
+          )
+        )
+        .returning()
+      if (!row) return undefined
+      await tx.insert(adminAuditLog).values({
+        action: 'booking_note_edited',
+        actorSub: input.sub,
+        actorName: input.actorName,
+        summary: { bookingId: input.bookingId, noteId: input.noteId },
+        detail: {},
+      })
+      return row
+    })
+  },
+
+  /** Deletes a typed note on the same terms, with an audit row (ids only). */
+  deleteTypedNote(input: { bookingId: string; noteId: string; sub: string; since: Date; actorName: string }) {
+    return db.transaction(async (tx) => {
+      const [row] = await tx
+        .delete(bookingNotes)
+        .where(
+          and(
+            eq(bookingNotes.id, input.noteId),
+            eq(bookingNotes.bookingId, input.bookingId),
+            eq(bookingNotes.kind, 'typed'),
+            eq(bookingNotes.authorSub, input.sub),
+            gt(bookingNotes.createdAt, input.since)
+          )
+        )
+        .returning({ id: bookingNotes.id, createdAt: bookingNotes.createdAt })
+      if (!row) return undefined
+      await tx.insert(adminAuditLog).values({
+        action: 'booking_note_deleted',
+        actorSub: input.sub,
+        actorName: input.actorName,
+        summary: { bookingId: input.bookingId, noteId: input.noteId },
+        detail: { writtenAt: row.createdAt.toISOString() },
+      })
+      return row
+    })
   },
 
   /**

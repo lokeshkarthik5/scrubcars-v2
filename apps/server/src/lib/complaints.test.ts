@@ -9,6 +9,7 @@ import {
   complaintOverdue,
   complaintSubmitRefusal,
   formatComplaintNumber,
+  loggedInErrorRefusal,
   overdueCutoffs,
   resolveReceivedAt,
   type ComplaintStatus,
@@ -148,5 +149,19 @@ describe('resolveReceivedAt', () => {
 describe('sources', () => {
   test('the team logs anything but the app itself', () => {
     expect([...LOGGED_COMPLAINT_SOURCES]).toEqual(COMPLAINT_SOURCES.filter((s) => s !== 'app'))
+  })
+})
+
+describe('logged in error (0065)', () => {
+  const at = new Date('2026-10-29T10:00:00Z')
+
+  test('only a complaint the team logged, marked once, undone only when marked', () => {
+    expect(loggedInErrorRefusal({ source: 'phone', errorMarkedAt: null }, 'mark')).toBeNull()
+    expect(loggedInErrorRefusal({ source: 'whatsapp', errorMarkedAt: at }, 'mark')).toBe('already_marked')
+    expect(loggedInErrorRefusal({ source: 'email', errorMarkedAt: at }, 'undo')).toBeNull()
+    expect(loggedInErrorRefusal({ source: 'other', errorMarkedAt: null }, 'undo')).toBe('not_marked')
+    // A customer's own complaint from the app is theirs: closed, never "in error".
+    expect(loggedInErrorRefusal({ source: 'app', errorMarkedAt: null }, 'mark')).toBe('from_app')
+    expect(loggedInErrorRefusal({ source: 'app', errorMarkedAt: null }, 'undo')).toBe('from_app')
   })
 })

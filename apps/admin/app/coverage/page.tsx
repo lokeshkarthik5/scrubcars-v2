@@ -300,6 +300,9 @@ function Coverage() {
                 recommendations,
                 openStats?.zone.id ?? null
               )}
+              dismissed={(data.dismissedRecommendations ?? []).filter(
+                (rec) => rec.zoneId === (openStats?.zone.id ?? null)
+              )}
               recommendedByLead={recommendedByLead}
               assignees={assignees}
               covered={covered}

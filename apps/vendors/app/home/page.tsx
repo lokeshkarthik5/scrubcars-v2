@@ -19,6 +19,7 @@ import { useIsVendorAdmin } from '@repo/core/hooks/use-vendor-role'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import type { Review } from '@repo/core/types'
 import { formatRating, reviewCountLabel } from '@repo/core/vendor-stats'
+import { NEW_GARAGE_LABEL, isNewGarage } from '@repo/core/ratings'
 import { GARAGE_NON_SOLICITATION_LINE } from '@repo/core/bypass-reports'
 import { AgreementBanner } from '@/components/agreement-banner'
 import { TierCard } from '@/components/tier-card'
@@ -106,7 +107,10 @@ export default function VendorHomePage() {
       .catch(() => setWeek(null))
   }, [vendor?.id, isVendorAdmin])
 
+  // The list is counted reviews only (0065: no Test booking's, none hidden),
+  // and fewer than 3 is a new garage, with no score: the customers' rule.
   const reviewCount = reviews?.length ?? 0
+  const newGarage = isNewGarage(reviewCount)
   const avgRating =
     reviewCount > 0
       ? reviews!.reduce((sum, r) => sum + r.rating, 0) / reviewCount
@@ -264,7 +268,9 @@ export default function VendorHomePage() {
               ? 'Average rating: not loaded. See reviews'
               : reviewCount === 0
                 ? 'Average rating: no reviews yet. See reviews'
-                : `Average rating ${formatRating(avgRating)} from ${reviewCountLabel(reviewCount)}. See reviews`
+                : newGarage
+                  ? `Average rating: ${NEW_GARAGE_LABEL}, ${reviewCountLabel(reviewCount)}. See reviews`
+                  : `Average rating ${formatRating(avgRating)} from ${reviewCountLabel(reviewCount)}. See reviews`
           }
           className="press block"
         >
@@ -274,6 +280,8 @@ export default function VendorHomePage() {
             value={
               reviews === null ? (
                 '–'
+              ) : reviewCount > 0 && newGarage ? (
+                <span className="text-[15px]">{NEW_GARAGE_LABEL}</span>
               ) : (
                 <span className="flex items-center gap-1.5">
                   {formatRating(avgRating)}
@@ -298,6 +306,16 @@ export default function VendorHomePage() {
       {/* Your tier (0063): Bronze, Silver or Gold and the next tier's steps,
           something to work towards; owner seat only. */}
       {isVendorAdmin && <TierCard vendorId={vendor?.id} />}
+
+      {/* Every seat's account (0066): leave the garage, delete the login, log
+          out. An operator has no Settings tab, so this is their way there. */}
+      <Link
+        href="/account"
+        className="press flex min-h-12 items-center justify-between rounded-[16px] border border-border bg-surface px-4 py-2 text-[15px] text-text-primary"
+      >
+        Your account
+        <IconChevronRight size={18} aria-hidden="true" className="shrink-0 text-text-muted" />
+      </Link>
 
       {/* The agreement's non-solicitation term (0052): a reminder for every seat. */}
       <p className="px-1 text-[13px] text-text-secondary">

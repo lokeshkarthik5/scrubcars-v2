@@ -80,6 +80,12 @@ export async function accept(c: GarageContext, id: string, input: AcceptRequestI
   return c.json({ success: true, data })
 }
 
+export async function withdraw(c: GarageContext, id: string) {
+  const tenant = getTenant(c)
+  const data = await bookingRequestsService.withdraw(garageId(c), id, tenant.role === 'vendor_admin')
+  return c.json({ success: true, data })
+}
+
 export async function decline(c: GarageContext, id: string) {
   const data = await bookingRequestsService.decline(garageId(c), c.get('auth').sub, id)
   return c.json({ success: true, data })

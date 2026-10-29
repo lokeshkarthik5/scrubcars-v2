@@ -152,6 +152,16 @@ export function JobRow({
   )
 }
 
+/** A step waiting behind its Undo, as the row's chip says it (0066 adds Accept and pickup's steps). */
+const DEFERRED_CHIP: Record<NonNullable<ReturnType<typeof useDeferredStatus>>, string> = {
+  confirmed: 'Accepted',
+  in_progress: 'In progress',
+  completed: 'Done',
+  picked_up: 'Picked up',
+  at_garage: 'At garage',
+  out_for_delivery: 'Out for delivery',
+}
+
 function RowChip({
   booking: b,
   now,
@@ -166,7 +176,7 @@ function RowChip({
   if (deferred) {
     return (
       <StatusChip tone={deferred === 'completed' ? 'done' : 'progress'}>
-        {deferred === 'completed' ? 'Done' : 'In progress'}
+        {DEFERRED_CHIP[deferred]}
       </StatusChip>
     )
   }

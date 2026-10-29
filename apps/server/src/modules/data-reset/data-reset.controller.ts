@@ -48,3 +48,8 @@ export async function deleteTestBooking(
   )
   return c.json({ success: true, data })
 }
+
+export async function listDeletedTestPayments(c: DataResetContext) {
+  const data = await dataResetService.listDeletedTestPayments()
+  return c.json({ success: true, data })
+}

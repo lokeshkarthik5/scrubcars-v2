@@ -17,9 +17,13 @@ import {
 
 /** What happens to a row, in the CSV and on screen. */
 export function outcomeLabel(
-  row: Pick<DataResetChain, 'kept' | 'selected'>
+  row: Pick<DataResetChain, 'kept' | 'selected'> & {
+    teamTest?: DataResetChain['teamTest']
+  }
 ): string {
   if (row.kept) return row.kept.label
+  // A team test (0065): real money, all refunded, its record kept.
+  if (row.selected && row.teamTest) return `Deleted. ${row.teamTest.label}`
   return row.selected ? 'Deleted' : 'Unticked — kept'
 }
 

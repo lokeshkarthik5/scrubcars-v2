@@ -3,6 +3,7 @@ import type { AuthVariables } from '../../middleware/auth.middleware.js'
 import { getTenant, type TenantVariables } from '../../middleware/tenant.middleware.js'
 import { vendorDocumentsService } from './vendor-documents.service.js'
 import type {
+  AdminRemoveDocumentInput,
   AdminSubmitDocumentInput,
   DocumentUploadUrlInput,
   ReviewDocumentInput,
@@ -43,6 +44,11 @@ export async function submitGarageDocument(c: VendorContext, input: SubmitDocume
   return c.json({ success: true, data })
 }
 
+export async function removeGarageDocument(c: VendorContext, documentId: string) {
+  const data = await vendorDocumentsService.removeForGarage(getTenant(c).vendorId, c.get('auth').sub, documentId)
+  return c.json({ success: true, data })
+}
+
 export async function getGarageFileLink(c: VendorContext, documentId: string, fileId: string) {
   const data = await vendorDocumentsService.fileLinkForGarage(getTenant(c).vendorId, documentId, fileId)
   noStore(c)
@@ -79,6 +85,16 @@ export async function reviewAdminDocument(
   input: ReviewDocumentInput
 ) {
   const data = await vendorDocumentsService.review(vendorId, documentId, c.get('auth').sub, input)
+  return c.json({ success: true, data })
+}
+
+export async function removeAdminDocument(
+  c: AdminContext,
+  vendorId: string,
+  documentId: string,
+  input: AdminRemoveDocumentInput
+) {
+  const data = await vendorDocumentsService.removeForAdmin(vendorId, c.get('auth').sub, documentId, input)
   return c.json({ success: true, data })
 }
 

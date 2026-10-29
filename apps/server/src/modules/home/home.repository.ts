@@ -505,6 +505,10 @@ export const homeRepository = {
       .where(
         and(
           eq(complaints.userId, userId),
+          // One the team logged in error (0065) is not the customer's.
+          isNull(complaints.errorMarkedAt),
+          // One they withdrew themselves (0066) is no news to them.
+          isNull(complaints.withdrawnAt),
           or(
             gte(complaints.acknowledgedAt, since),
             gte(complaints.resolvedAt, since),

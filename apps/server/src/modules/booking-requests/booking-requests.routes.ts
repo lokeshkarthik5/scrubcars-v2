@@ -85,6 +85,10 @@ garageBookingRequestRoutes.post(
 garageBookingRequestRoutes.post('/:id/decline', ...seat, zValidator('param', requestIdParamSchema), (c) =>
   controller.decline(c, c.req.valid('param').id)
 )
+// Take back a yes before the customer pays (0066).
+garageBookingRequestRoutes.post('/:id/withdraw', ...seat, zValidator('param', requestIdParamSchema), (c) =>
+  controller.withdraw(c, c.req.valid('param').id)
+)
 
 // ─── Admin: /api/v1/admin/requests (0064) ────────────────────────────────────
 

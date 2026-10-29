@@ -25,6 +25,7 @@ import {
   collectionProgress,
   dedupeGarages,
   itemCleared,
+  reopenRefusal,
 } from './collection-lists.rules.js'
 import type {
   CreateCollectionListsInput,
@@ -438,6 +439,58 @@ export const collectionListsService = {
     }
     const missing = await onboardingMarksService.missingFor([row.vendorId])
     return toItem(row, missing.get(row.vendorId))
+  },
+
+  /**
+   * Opens a closed list again (0065), when something on it is still to
+   * collect: a list closed by hand too early. Audited.
+   */
+  async reopen(id: string, actor: { sub: string; name: string }) {
+    const [list] = await collectionListsRepository.listByIds([id])
+    if (!list) throw listNotFound()
+    const items = await collectionListsRepository.listItems([id])
+    const missing = await onboardingMarksService.missingFor([
+      ...new Set(items.map((item) => item.vendorId)),
+    ])
+    const refusal = reopenRefusal(
+      list.closedAt,
+      items.map((item) => ({
+        status: item.status,
+        cleared: itemCleared(item.kind, missing.get(item.vendorId)),
+      }))
+    )
+    if (refusal === 'not_closed')
+      throw new AppError(
+        409,
+        'This list is open already.',
+        'COLLECTION_LIST_OPEN'
+      )
+    if (refusal === 'nothing_left') {
+      throw new AppError(
+        409,
+        'Everything on this list is done, so there is nothing to reopen it for.',
+        'COLLECTION_LIST_DONE'
+      )
+    }
+    if (!(await collectionListsRepository.reopen(id, actor))) {
+      throw new AppError(
+        409,
+        'This list is open already.',
+        'COLLECTION_LIST_OPEN'
+      )
+    }
+    const [reopened] = await collectionListsService.byIds([id])
+    if (!reopened) throw listNotFound()
+    log.info({ listId: id }, 'collection-lists:reopened')
+    return reopened
+  },
+
+  /** Deletes a list and its items, open or closed (0065). Audited. */
+  async remove(id: string, actor: { sub: string; name: string }) {
+    const deleted = await collectionListsRepository.deleteList(id, actor)
+    if (!deleted) throw listNotFound()
+    log.info({ listId: id }, 'collection-lists:deleted')
+    return { id, deleted: true }
   },
 
   async close(id: string, now = new Date()) {

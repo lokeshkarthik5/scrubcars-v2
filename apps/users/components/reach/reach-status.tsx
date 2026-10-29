@@ -2,9 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { toast } from 'react-toastify'
+import { ConfirmSheet } from '@repo/ui/sc/confirm-sheet'
 import { IconChevronRight, IconConfetti, IconGift, IconX } from '@tabler/icons-react'
 import { track } from '@repo/core/analytics'
-import { useAreaStatus, useMarkBannerSeen } from '@repo/core/api/hooks/use-area'
+import { useAreaStatus, useLeaveAreaList, useMarkBannerSeen } from '@repo/core/api/hooks/use-area'
 import { markLaunchBannerSeen, type AreaSignup } from '@repo/core/api/area'
 import type { CustomerRequest } from '@repo/core/api/booking-requests'
 import { countdownLabel, istClock } from '@repo/core/booking-requests'
@@ -56,19 +58,64 @@ export function ReachStatusCards() {
         </Link>
       ))}
       {waiting.map((signup) => (
-        <div
-          key={`list-${signup.zone.slug}`}
-          className="flex min-h-12 items-center justify-between gap-3 rounded-[16px] border border-border px-4 py-2"
-        >
-          <span className="min-w-0">
-            <span className="block text-[14px] text-text-primary">On the list for {signup.zone.name}</span>
-            <span className="block text-[12px] text-text-muted">
-              {signup.freeWash ? 'Free wash saved · ' : ''}
-              {waitingLine(signup.zone.name, signup.waiting)}
-            </span>
-          </span>
-        </div>
+        <WaitingListCard key={`list-${signup.zone.slug}`} signup={signup} />
       ))}
+    </div>
+  )
+}
+
+/**
+ * "On the list for <Area>", with Leave (0066): off the list, and no more
+ * messages about the area. A free wash saved there goes with it, said first.
+ */
+function WaitingListCard({ signup }: { signup: AreaSignup }) {
+  const leave = useLeaveAreaList()
+  const [confirming, setConfirming] = useState(false)
+  const [error, setError] = useState<string | undefined>()
+  return (
+    <div className="flex min-h-12 items-center justify-between gap-3 rounded-[16px] border border-border px-4 py-2">
+      <span className="min-w-0">
+        <span className="block text-[14px] text-text-primary">On the list for {signup.zone.name}</span>
+        <span className="block text-[12px] text-text-muted">
+          {signup.freeWash ? 'Free wash saved · ' : ''}
+          {waitingLine(signup.zone.name, signup.waiting)}
+        </span>
+      </span>
+      <button
+        type="button"
+        aria-label={`Leave the list for ${signup.zone.name}`}
+        onClick={() => setConfirming(true)}
+        className="min-h-11 shrink-0 px-1 text-[12px] font-medium text-text-secondary underline underline-offset-2 transition-colors hover:text-text-primary"
+      >
+        Leave
+      </button>
+      <ConfirmSheet
+        open={confirming}
+        onClose={() => {
+          setConfirming(false)
+          setError(undefined)
+        }}
+        onConfirm={async () => {
+          try {
+            await leave.mutateAsync(signup.zone.slug)
+            toast.success(`You left the list for ${signup.zone.name}`)
+            setConfirming(false)
+          } catch (err) {
+            setError(err instanceof Error ? err.message : 'Could not leave the list')
+          }
+        }}
+        level="light"
+        title={`Leave the list for ${signup.zone.name}?`}
+        body={
+          signup.freeWash
+            ? "We'll stop sending you news about this area, and your saved free wash goes with it."
+            : "We'll stop sending you news about this area. You can join again any time."
+        }
+        confirmLabel="Leave the list"
+        cancelLabel="Stay on it"
+        busy={leave.isPending}
+        error={error}
+      />
     </div>
   )
 }

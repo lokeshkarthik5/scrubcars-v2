@@ -1,3 +1,4 @@
+import { garageClosureRoutes } from '../garage-closure/garage-closure.routes.js'
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import {
@@ -22,6 +23,7 @@ import { garageAgreementRoutes } from '../agreements/agreements.routes.js'
 import { garageTierRoutes } from '../tiers/tiers.routes.js'
 import { garageGuaranteeRoutes } from '../guarantee/guarantee.routes.js'
 import { garageBookingRequestRoutes } from '../booking-requests/booking-requests.routes.js'
+import { garageReviewRoutes } from '../reviews/reviews.routes.js'
 import * as vendorsController from './vendors.controller.js'
 import {
   createClosureSchema,
@@ -127,6 +129,8 @@ vendorsRoutes.get(
 // The team screen. Nested here so it inherits the /vendors/me prefix — the
 // company it acts on is the one resolveTenant produced, never a path parameter.
 vendorsRoutes.route('/me/members', membersRoutes)
+// "Close my garage" (0066): the owner asks Detlio to close the garage.
+vendorsRoutes.route('/me/closure', garageClosureRoutes)
 
 // The Earnings statement (GET /me/earnings/statement): each booking's
 // commission, share and payout. vendor_admin only in its own file, like the
@@ -178,6 +182,11 @@ vendorsRoutes.route('/me/guarantee', garageGuaranteeRoutes)
 // it does new bookings); what one earns is the owner seat's alone. Nested
 // for the same reason as the team screen.
 vendorsRoutes.route('/me/requests', garageBookingRequestRoutes)
+
+// The garage's reviews (0065): its score, its one public reply to each and
+// reporting one to the team. Owner seat only, in its own file. Nested for the
+// same reason as the team screen.
+vendorsRoutes.route('/me/reviews', garageReviewRoutes)
 
 vendorsRoutes.get(
   '/me/working-hours',

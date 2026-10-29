@@ -72,6 +72,8 @@ export interface CoverageOverview {
   hotRule: typeof HOT_ZONE_RULES
   /** Customer recommendations not dismissed: new ones are the zones' lists, the rest show on their lead. */
   recommendations: RecommendationResponse[]
+  /** Dismissed ones (0065), latest dismissed first, at most 200: the Dismissed filter, with Restore. */
+  dismissedRecommendations: RecommendationResponse[]
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -226,6 +228,14 @@ export const coverageService = {
       hotRule: HOT_ZONE_RULES,
       recommendations: recommendations
         .filter((rec) => rec.status !== 'declined')
+        .map(toRecommendationResponse),
+      dismissedRecommendations: recommendations
+        .filter((rec) => rec.status === 'declined')
+        .sort(
+          (a, b) =>
+            (b.handledAt?.getTime() ?? 0) - (a.handledAt?.getTime() ?? 0)
+        )
+        .slice(0, 200)
         .map(toRecommendationResponse),
     }
   },

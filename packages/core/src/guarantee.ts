@@ -53,6 +53,8 @@ export type ClaimStatus =
   | 'refund_approved'
   | 'rejected'
   | 'lapsed'
+  /** The customer withdrew it before anyone answered (0066). */
+  | 'withdrawn'
 
 /** Short status labels for the garage portal and admin. */
 export const CLAIM_STATUS_LABELS: Record<ClaimStatus, string> = {
@@ -64,6 +66,7 @@ export const CLAIM_STATUS_LABELS: Record<ClaimStatus, string> = {
   refund_approved: 'Refund instead',
   rejected: 'Not approved',
   lapsed: 'Closed',
+  withdrawn: 'Withdrawn by the customer',
 }
 
 /** The feature's name, as the customer's screens say it. */

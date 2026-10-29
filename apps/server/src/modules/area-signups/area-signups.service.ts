@@ -128,6 +128,16 @@ export const areaSignupsService = {
     return { seen: true }
   },
 
+  /** Leave a zone's free-wash list, and its messages (0066). */
+  async leave(userId: string, zoneSlug: string) {
+    const zone = await areaSignupsRepository.findZoneBySlug(zoneSlug)
+    if (!zone) throw new AppError(404, 'Area not found', 'AREA_NOT_FOUND')
+    const left = await areaSignupsRepository.deleteSignup(userId, zone.id)
+    if (!left) throw new AppError(404, "You're not on this area's list.", 'SIGNUP_NOT_FOUND')
+    log.info({ userId, zone: zone.slug }, 'area:left')
+    return { left: true }
+  },
+
   /** "Know a good garage here?": a lead for the team. */
   async recommend(userId: string, input: RecommendInput) {
     const zone = input.zoneSlug ? await areaSignupsRepository.findZoneBySlug(input.zoneSlug) : null

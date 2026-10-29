@@ -14,6 +14,7 @@ import {
   photoGateRefusal,
   photoRemovalBlocked,
   photosRequiredFor,
+  waiverUndoRefusal,
 } from './job-photo-standards.js'
 
 const NOW = new Date('2026-10-18T10:00:00Z').getTime()
@@ -193,5 +194,18 @@ describe('what each app is told', () => {
     expect(done.before.open).toBe(false)
     expect(done.after.open).toBe(true)
     expect(done.after.closesAt).toBe(new Date(NOW + 23 * HOUR).toISOString())
+  })
+})
+
+describe('undoing a waiver (0065)', () => {
+  const at = new Date('2026-10-29T10:00:00Z')
+  test('while the job is not over and has no redo claim', () => {
+    for (const status of ['pending', 'confirmed', 'in_progress']) {
+      expect(waiverUndoRefusal({ status, photosWaivedAt: at, hasGuaranteeClaim: false })).toBeNull()
+    }
+    expect(waiverUndoRefusal({ status: 'completed', photosWaivedAt: at, hasGuaranteeClaim: false })).toBe('job_over')
+    expect(waiverUndoRefusal({ status: 'cancelled', photosWaivedAt: at, hasGuaranteeClaim: false })).toBe('job_over')
+    expect(waiverUndoRefusal({ status: 'in_progress', photosWaivedAt: at, hasGuaranteeClaim: true })).toBe('claim')
+    expect(waiverUndoRefusal({ status: 'confirmed', photosWaivedAt: null, hasGuaranteeClaim: false })).toBe('not_waived')
   })
 })

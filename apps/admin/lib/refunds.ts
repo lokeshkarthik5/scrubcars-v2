@@ -1,4 +1,5 @@
-import type { AdminRefund, RefundKind } from '@repo/core/api/admin'
+import type { AdminRefund, DeletedTestPayment, RefundKind } from '@repo/core/api/admin'
+import { toCsv } from '@repo/core/csv'
 
 /**
  * Wording for the Refunds page and a booking's refund section. Admin-only,
@@ -30,4 +31,56 @@ export function refundKindLabel(refund: Pick<AdminRefund, 'kind' | 'chargeKind'>
 export function latestRefund(list: AdminRefund[], picked: AdminRefund): AdminRefund {
   const fresh = list.find((r) => r.kind === picked.kind && r.id === picked.id)
   return fresh ?? { ...picked, amountOwed: '0.00', amountRefunded: picked.amountPaid }
+}
+
+/**
+ * The team tests' ledger (0065) as a CSV: every real payment deleted with a
+ * Test booking, what was refunded on it, who deleted it and why. Ids and
+ * amounts only, as the API sends them.
+ */
+export function deletedTestPaymentsCsv(rows: DeletedTestPayment[]): string {
+  return toCsv(
+    [
+      'Deleted at',
+      'Deleted by',
+      'Reason',
+      'Booking',
+      'What',
+      'Razorpay payment',
+      'Razorpay order',
+      'Mode',
+      'Amount',
+      'Refunded',
+      'Refund ids',
+      'Receipt',
+      'Garage',
+      'Paid at',
+      'Booked at',
+      'Audit record',
+    ],
+    rows.map((row) => [
+      row.deletedAt,
+      row.deletedBy,
+      row.reason,
+      `#${row.bookingReference}`,
+      DELETED_PAYMENT_KIND[row.kind],
+      row.razorpayPaymentId,
+      row.razorpayOrderId,
+      row.gatewayMode,
+      row.amount,
+      row.refundedAmount,
+      row.refundIds.join(' '),
+      row.receiptNumber,
+      row.garageName,
+      row.paidAt,
+      row.bookedAt,
+      row.auditId,
+    ])
+  )
+}
+
+const DELETED_PAYMENT_KIND: Record<DeletedTestPayment['kind'], string> = {
+  booking: 'Booking payment',
+  final_bill: 'Final bill',
+  extra_work: 'Extra work',
 }

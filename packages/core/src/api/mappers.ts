@@ -89,6 +89,7 @@ export function mapUserProfile(
     id: profile.id,
     name: profile.name,
     phone: profile.phone,
+    email: profile.email ?? null,
     avatarUrl: profile.avatarUrl,
     area: defaultAddress?.city,
     pincode: defaultAddress?.address.match(/\d{6}/)?.[0],
@@ -109,6 +110,8 @@ export function mapVendorListItem(item: ApiVendorListItem): Vendor {
     lng: item.lng,
     rating: item.rating ?? 0,
     reviewCount: item.reviewCount,
+    isNew: item.isNew ?? false,
+    knownFor: item.knownFor ?? null,
     openingHours: item.workingHours ?? null,
     closures: item.closures ?? [],
     // A paused garage is left out of every list, so a listed one never is.
@@ -150,6 +153,8 @@ export function mapPublicVendor(vendor: ApiPublicVendor): Vendor {
     lng: vendor.lng,
     rating: vendor.rating ?? 0,
     reviewCount: vendor.reviewCount,
+    isNew: vendor.isNew ?? false,
+    knownFor: vendor.knownFor ?? null,
     // Not on the single-vendor response: the garage page reads them from
     // /vendors/:id/working-hours, the query checkout's slot picker shares.
     openingHours: null,
@@ -234,6 +239,7 @@ export function mapVehicle(vehicle: ApiVehicle): Vehicle {
     make: vehicle.make,
     model: vehicle.model,
     plate: vehicle.licensePlate ?? '',
+    color: vehicle.color ?? null,
     vehicleType: vehicle.vehicleType as Vehicle['vehicleType'],
     isDefault: vehicle.isDefault,
     washIntervalDays: vehicle.washIntervalDays ?? null,
@@ -246,6 +252,8 @@ export function mapAddress(address: ApiAddress): Address {
     label: address.label,
     address: `${address.address}, ${address.city}`,
     pincode: address.address.match(/\d{6}/)?.[0] ?? '',
+    street: address.address,
+    city: address.city,
     lat: address.lat,
     lng: address.lng,
     isDefault: address.isDefault,
@@ -405,6 +413,7 @@ export function mapBooking(booking: ApiBooking): Booking {
     canSuggestTimes: booking.canSuggestTimes ?? false,
     responseDeadline: booking.responseDeadline ?? null,
     notAcceptedInTime: booking.notAcceptedInTime ?? false,
+    garageCancelled: booking.garageCancelled ?? null,
     contactWindow: booking.contactWindow ?? null,
     guaranteeRedo: booking.guaranteeRedo ?? false,
     refund: booking.refund
@@ -447,6 +456,7 @@ export function mapReview(review: ApiPublicReview): Review {
     rating: review.rating,
     comment: review.comment ?? '',
     date: formatReviewDate(review.createdAt),
+    reply: review.reply ? { text: review.reply.text, date: formatReviewDate(review.reply.repliedAt) } : null,
     // The job this review is about, as one line. With several services that is
     // the summary label — naming only the first would misdescribe the job.
     bookingContext: review.booking

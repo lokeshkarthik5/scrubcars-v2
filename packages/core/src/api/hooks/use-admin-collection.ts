@@ -3,6 +3,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   closeCollectionList,
+  deleteCollectionList,
+  reopenCollectionList,
   createCollectionLists,
   listCollectionLists,
   updateCollectionItem,
@@ -138,6 +140,24 @@ export function useCloseCollectionList() {
   const changed = useCollectionChanged()
   return useMutation({
     mutationFn: (id: string) => closeCollectionList(id),
+    onSuccess: changed,
+  })
+}
+
+/** Reopen a closed list with things left on it (0065). */
+export function useReopenCollectionList() {
+  const changed = useCollectionChanged()
+  return useMutation({
+    mutationFn: (id: string) => reopenCollectionList(id),
+    onSuccess: changed,
+  })
+}
+
+/** Delete a list and its items (0065). */
+export function useDeleteCollectionList() {
+  const changed = useCollectionChanged()
+  return useMutation({
+    mutationFn: (id: string) => deleteCollectionList(id),
     onSuccess: changed,
   })
 }

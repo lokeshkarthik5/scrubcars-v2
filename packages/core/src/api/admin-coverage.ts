@@ -138,6 +138,8 @@ export interface CoverageOverview {
   demand?: ZoneDemand[]
   hotRule?: HotRule
   recommendations?: CoverageRecommendation[]
+  /** Dismissed recommendations (0065), latest first: the Dismissed filter. Absent before 0065. */
+  dismissedRecommendations?: CoverageRecommendation[]
 }
 
 /** GET /admin/coverage */
@@ -408,6 +410,14 @@ export async function makeLeadFromRecommendation(
   return apiClient<{ lead: Lead; recommendation: CoverageRecommendation }>(
     `/admin/coverage/recommendations/${id}/lead`,
     { method: 'POST', body: signedBody(input) }
+  )
+}
+
+/** POST /admin/coverage/recommendations/:id/restore (0065): a dismissed one, back to new. */
+export async function restoreRecommendation(id: string) {
+  return apiClient<CoverageRecommendation>(
+    `/admin/coverage/recommendations/${id}/restore`,
+    { method: 'POST', body: signedBody({}) }
   )
 }
 

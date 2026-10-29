@@ -795,6 +795,29 @@ export const leadsService = {
     return toRecommendationResponse(handled)
   },
 
+  /**
+   * Restore a dismissed recommendation (0065): back in its zone's list to
+   * act on. Who dismissed it is cleared with it; the log says who restored.
+   */
+  async restoreRecommendation(
+    recommendationId: string,
+    actorName: string,
+    now = new Date()
+  ): Promise<RecommendationResponse> {
+    const rec = await leadsRepository.findRecommendation(recommendationId)
+    if (!rec) throw recommendationNotFound()
+    const restored = await leadsRepository.restoreRecommendation(rec.id, now)
+    if (!restored) {
+      throw new AppError(
+        409,
+        'This recommendation is not dismissed. Reload to see it as it is now.',
+        'RECOMMENDATION_NOT_DISMISSED'
+      )
+    }
+    log.info({ restored: 1, by: actorName }, 'leads:recommendation_restored')
+    return toRecommendationResponse(restored)
+  },
+
   /** Paste a list's preview: each line, its problem, and the places it looks like. Nothing is saved. */
   async pastePreview(input: PastePreviewInput) {
     const zones = await leadsRepository.listZones()

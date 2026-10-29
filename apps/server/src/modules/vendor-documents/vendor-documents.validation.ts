@@ -111,3 +111,13 @@ export type DocumentUploadUrlInput = z.infer<typeof documentUploadUrlSchema>
 export type SubmitDocumentInput = z.infer<typeof submitDocumentSchema>
 export type AdminSubmitDocumentInput = z.infer<typeof adminSubmitDocumentSchema>
 export type ReviewDocumentInput = z.infer<typeof reviewDocumentSchema>
+
+/**
+ * Remove a document (0065). Admin's is signed, and for a required type (one
+ * of Silver's steps) says the warning was read; the garage sends nothing.
+ */
+export const adminRemoveDocumentSchema = z
+  .object({ requiredConfirmed: z.boolean().optional(), actorName: signedActorName })
+  .strict()
+
+export type AdminRemoveDocumentInput = z.infer<typeof adminRemoveDocumentSchema>

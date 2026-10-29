@@ -6,6 +6,7 @@ import {
   createLead,
   createZone,
   dismissRecommendation,
+  restoreRecommendation,
   getCoverage,
   getLead,
   getRecommendationDuplicates,
@@ -174,6 +175,15 @@ export function useMakeLeadFromRecommendation() {
       leadId?: string
       allowDuplicate?: boolean
     }) => makeLeadFromRecommendation(id, input),
+    onSuccess: refresh,
+  })
+}
+
+/** Restore a dismissed recommendation (0065). */
+export function useRestoreRecommendation() {
+  const refresh = useRefreshCoverage()
+  return useMutation({
+    mutationFn: (id: string) => restoreRecommendation(id),
     onSuccess: refresh,
   })
 }

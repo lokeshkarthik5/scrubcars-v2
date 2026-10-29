@@ -6,6 +6,7 @@ import {
 import { bookingsService } from './bookings.service.js'
 import type {
   CancelBookingInput,
+  GarageCancelInput,
   CreateBookingInput,
   HandoverCodeInput,
   ListMyBookingsQuery,
@@ -156,6 +157,12 @@ export async function rejectBooking(
     success: true,
     data: booking,
   })
+}
+
+/** PATCH /bookings/:id/garage-cancel — the garage cancels a job it accepted (0066). */
+export async function garageCancelBooking(c: BookingsContext, bookingId: string, input: GarageCancelInput) {
+  const booking = await bookingsService.garageCancelBooking(getVendorId(c), getAuth(c).sub, bookingId, input.reason)
+  return c.json({ success: true, data: booking })
 }
 
 export async function markInProgress(c: BookingsContext, bookingId: string) {

@@ -27,6 +27,7 @@ import type { AnalyticsEventName, DeviceClass } from '../lib/analytics.js'
 import type { BypassKind, BypassStatus, RewardStatus } from '../lib/bypass-reports.js'
 import type { ComplaintCategory, ComplaintSource, ComplaintStatus } from '../lib/complaints.js'
 import type { GatewayRefundStatus, RefundSource } from '../lib/refunds.js'
+import type { ReviewTag } from '../lib/ratings.js'
 import type {
   DocumentContentType,
   DocumentSide,
@@ -408,12 +409,18 @@ export const users = pgTable(
     // neither (CHECK). Set from the Rewards page.
     birthdayMonth: smallint('birthday_month'),
     birthdayDay: smallint('birthday_day'),
+    // The customer deleted their account in the app (0066,
+    // lib/account-deletion.ts): the row stays for the bookings and money
+    // records that name it, the person is blanked and the phone freed (a
+    // `deleted-` placeholder, CHECK). Every sign-in path refuses such a row.
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
   },
   (table) => [
     index('users_phone_idx').on(table.phone),
+    check('users_deleted_phone_check', sql`${table.deletedAt} is null or ${table.phone} like 'deleted-%'`),
     check(
       'users_birthday_check',
       sql`(${table.birthdayMonth} is null) = (${table.birthdayDay} is null) and (${table.birthdayMonth} is null or (${table.birthdayMonth} between 1 and 12 and ${table.birthdayDay} between 1 and 31))`
@@ -1102,12 +1109,24 @@ export const bookings = pgTable(
     // whole by the garage (no commission, no promo comes off it). 0 on every
     // other booking; a reschedule carries it.
     travelFee: decimal('travel_fee', { precision: 10, scale: 2 }).default('0').notNull(),
+    // The garage cancelled this booking after accepting it, before the job
+    // started (0066, lib/garage-cancel.ts). Within 24 hours of the slot it
+    // counts as a missed booking in the tier metrics; earlier, like a
+    // decline. CHECK: a garage-side cancellation of an accepted booking.
+    garageCancelledAt: timestamp('garage_cancelled_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
   },
   (table) => [
     check('bookings_travel_fee_check', sql`${table.travelFee} in (0, 100, 200)`),
+    check(
+      'bookings_garage_cancelled_check',
+      sql`${table.garageCancelledAt} is null or (${table.status}::text = 'cancelled' and ${table.cancelledBy}::text = 'vendor' and ${table.acceptedAt} is not null)`
+    ),
+    index('bookings_garage_cancelled_at_idx')
+      .on(table.vendorId, table.garageCancelledAt)
+      .where(sql`${table.garageCancelledAt} is not null`),
     index('bookings_user_id_idx').on(table.userId),
     // Home and Updates read one customer's bookings, newest first, on every
     // open.
@@ -1188,6 +1207,13 @@ export const bookingNotes = pgTable(
       .references(() => bookings.id, { onDelete: 'cascade' }),
     author: varchar('author', { length: 100 }).notNull(),
     body: text('body').notNull(),
+    // 0065: 'typed' by a person (POST /admin/bookings/:id/notes), or
+    // 'system', written by an action (cancel, waive, mark Test…). Only a
+    // typed note can be edited or deleted, by the session that typed it
+    // (`authorSub`), within 24 hours. Every note from before 0065 is system.
+    kind: text('kind').$type<'typed' | 'system'>().default('system').notNull(),
+    authorSub: varchar('author_sub', { length: 100 }),
+    editedAt: timestamp('edited_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -1196,6 +1222,10 @@ export const bookingNotes = pgTable(
     index('booking_notes_booking_id_created_at_idx').on(
       table.bookingId,
       table.createdAt
+    ),
+    check(
+      'booking_notes_kind_check',
+      sql`${table.kind} in ('typed', 'system') and (${table.kind} = 'system' or ${table.authorSub} is not null) and (${table.editedAt} is null or ${table.kind} = 'typed')`
     ),
   ]
 )
@@ -2157,6 +2187,73 @@ export const receiptNumberVoids = pgTable(
   ]
 )
 
+// A real payment on a Test-marked booking the team deleted as a team test
+// (0065, lib/data-reset.ts): written in the delete's transaction, one row per
+// payment, before the booking's rows go. Only ever for money every rupee of
+// which was refunded. The booking is gone, so nothing here references it;
+// `auditId` is the delete's admin_audit_log row. Append-only (a trigger
+// refuses UPDATE and DELETE). Nothing shows it on screen; admin can download
+// it as CSV from Start pilot clean.
+export const deletedTestPayments = pgTable(
+  'deleted_test_payments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    rootBookingId: uuid('root_booking_id').notNull(),
+    bookingReference: varchar('booking_reference', { length: 8 }).notNull(),
+    bookingIds: uuid('booking_ids').array().notNull(),
+    kind: text('kind').$type<'booking' | 'final_bill' | 'extra_work'>().notNull(),
+    chargeId: uuid('charge_id'),
+    razorpayPaymentId: varchar('razorpay_payment_id', { length: 255 }),
+    razorpayOrderId: varchar('razorpay_order_id', { length: 255 }),
+    gatewayMode: text('gateway_mode').$type<'live' | 'test' | 'fake'>(),
+    amount: decimal('amount', { precision: 10, scale: 2 }).notNull(),
+    refundedAmount: decimal('refunded_amount', { precision: 10, scale: 2 }).notNull(),
+    refunds: jsonb('refunds')
+      .$type<
+        Array<{
+          refundRef: string | null
+          amount: string
+          source: string
+          gatewayStatus: string | null
+          recordedBy: string
+          recordedAt: string
+        }>
+      >()
+      .default(sql`'[]'::jsonb`)
+      .notNull(),
+    receiptNumber: varchar('receipt_number', { length: 20 }),
+    vendorId: uuid('vendor_id'),
+    garageName: varchar('garage_name', { length: 255 }),
+    customerId: uuid('customer_id'),
+    paidAt: timestamp('paid_at', { withTimezone: true }),
+    bookedAt: timestamp('booked_at', { withTimezone: true }).notNull(),
+    reason: varchar('reason', { length: 300 }).notNull(),
+    deletedByName: varchar('deleted_by_name', { length: 100 }).notNull(),
+    deletedBySub: varchar('deleted_by_sub', { length: 100 }).notNull(),
+    auditId: uuid('audit_id')
+      .notNull()
+      .references(() => adminAuditLog.id, { onDelete: 'restrict' }),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('deleted_test_payments_deleted_at_idx').on(table.deletedAt),
+    index('deleted_test_payments_payment_idx')
+      .on(table.razorpayPaymentId)
+      .where(sql`${table.razorpayPaymentId} is not null`),
+    check('deleted_test_payments_kind_check', sql`${table.kind} in ('booking', 'final_bill', 'extra_work')`),
+    check(
+      'deleted_test_payments_gateway_mode_check',
+      sql`${table.gatewayMode} is null or ${table.gatewayMode} in ('live', 'test', 'fake')`
+    ),
+    check(
+      'deleted_test_payments_amount_check',
+      sql`${table.amount} > 0 and ${table.refundedAmount} >= ${table.amount}`
+    ),
+    check('deleted_test_payments_reason_check', sql`char_length(btrim(${table.reason})) >= 3`),
+    check('deleted_test_payments_refunds_check', sql`jsonb_typeof(${table.refunds}) = 'array'`),
+  ]
+)
+
 // The same lines as booking_items, held against an unpaid intent. Copied
 // verbatim into booking_items by `consumeIntent`, so what the customer saw in
 // the Razorpay sheet is what the booking ends up recording.
@@ -2203,6 +2300,20 @@ export const reviews = pgTable(
       .references(() => vendors.id, { onDelete: 'cascade' }),
     rating: integer('rating').notNull(),
     comment: text('comment'),
+    // 0065 (lib/ratings.ts): tags from a fixed list, good ones for 4-5 stars
+    // and problems for 1-3 (CHECK).
+    tags: text('tags').array().$type<ReviewTag[]>().default(sql`'{}'::text[]`).notNull(),
+    // The garage's one public reply, editable for 24 hours from `repliedAt`.
+    reply: varchar('reply', { length: 1000 }),
+    repliedAt: timestamp('replied_at', { withTimezone: true }),
+    replyUpdatedAt: timestamp('reply_updated_at', { withTimezone: true }),
+    repliedBy: uuid('replied_by').references(() => users.id, { onDelete: 'set null' }),
+    // Admin hid it (abusive, fake, the wrong garage): out of every score and
+    // list, kept in the record. All three or none (CHECK); Show again clears
+    // them and both moves are in admin_audit_log.
+    hiddenAt: timestamp('hidden_at', { withTimezone: true }),
+    hiddenBy: varchar('hidden_by', { length: 100 }),
+    hiddenReason: varchar('hidden_reason', { length: 300 }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -2210,6 +2321,52 @@ export const reviews = pgTable(
   (table) => [
     index('reviews_vendor_id_idx').on(table.vendorId),
     index('reviews_user_id_idx').on(table.userId),
+    check(
+      'reviews_tags_check',
+      sql`cardinality(${table.tags}) <= 8 and ((${table.rating} >= 4 and ${table.tags} <@ array['on_time', 'spotless_finish', 'friendly', 'good_value']::text[]) or (${table.rating} <= 3 and ${table.tags} <@ array['missed_spots', 'late', 'damp_interior', 'rude']::text[]))`
+    ),
+    check(
+      'reviews_reply_check',
+      sql`(${table.reply} is null) = (${table.repliedAt} is null) and (${table.reply} is null or char_length(btrim(${table.reply})) >= 1) and (${table.replyUpdatedAt} is null or ${table.repliedAt} is not null)`
+    ),
+    check(
+      'reviews_hidden_check',
+      sql`(${table.hiddenAt} is null and ${table.hiddenBy} is null and ${table.hiddenReason} is null) or (${table.hiddenAt} is not null and ${table.hiddenBy} is not null and ${table.hiddenReason} is not null)`
+    ),
+  ]
+)
+
+// A review reported to the team (0065) by a customer (any signed-in account)
+// or by the garage it is about, with a reason. Admin reads them on the
+// garage's Reviews section; the team is told on Telegram. One per person and
+// review, and one per garage and review.
+export const reviewReports = pgTable(
+  'review_reports',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    reviewId: uuid('review_id')
+      .notNull()
+      .references(() => reviews.id, { onDelete: 'cascade' }),
+    reporter: text('reporter').$type<'customer' | 'garage'>().notNull(),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+    // The garage that reported it, for a garage's report.
+    vendorId: uuid('vendor_id').references(() => vendors.id, { onDelete: 'cascade' }),
+    reason: varchar('reason', { length: 500 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('review_reports_review_id_idx').on(table.reviewId),
+    uniqueIndex('review_reports_user_key')
+      .on(table.reviewId, table.userId)
+      .where(sql`${table.reporter} = 'customer' and ${table.userId} is not null`),
+    uniqueIndex('review_reports_garage_key')
+      .on(table.reviewId, table.vendorId)
+      .where(sql`${table.reporter} = 'garage'`),
+    check(
+      'review_reports_reporter_check',
+      sql`${table.reporter} in ('customer', 'garage') and ((${table.reporter} = 'garage') = (${table.vendorId} is not null))`
+    ),
+    check('review_reports_reason_check', sql`char_length(btrim(${table.reason})) between 3 and 500`),
   ]
 )
 
@@ -2373,6 +2530,16 @@ export const complaints = pgTable(
       .notNull(),
     // The name the team member typed when logging it; null for 'app'.
     loggedBy: varchar('logged_by', { length: 100 }),
+    // "Logged in error" (0065): a complaint the team logged by mistake. It
+    // stays in the record and leaves every count (tiers, the admin list's
+    // open and overdue, the customer's list). Team-logged only (CHECK); undo
+    // clears all three.
+    errorMarkedAt: timestamp('error_marked_at', { withTimezone: true }),
+    errorMarkedBy: varchar('error_marked_by', { length: 100 }),
+    errorReason: varchar('error_reason', { length: 300 }),
+    // The customer withdrew it before anyone answered (0066): closed like a
+    // close, and left out of every count. CHECK: only on a closed one.
+    withdrawnAt: timestamp('withdrawn_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -2382,6 +2549,10 @@ export const complaints = pgTable(
   },
   (table) => [
     unique('complaints_number_unique').on(table.number),
+    check(
+      'complaints_withdrawn_check',
+      sql`${table.withdrawnAt} is null or (${table.status} = 'closed' and ${table.closedAt} is not null)`
+    ),
     index('complaints_status_created_at_idx').on(table.status, table.createdAt),
     index('complaints_status_received_at_idx').on(table.status, table.receivedAt),
     index('complaints_created_at_idx').on(table.createdAt),
@@ -2427,6 +2598,10 @@ export const complaints = pgTable(
       sql`(${table.source} = 'app') = (${table.loggedBy} is null) and (${table.loggedBy} is null or char_length(btrim(${table.loggedBy})) > 0)`
     ),
     check('complaints_received_at_check', sql`${table.receivedAt} <= ${table.createdAt}`),
+    check(
+      'complaints_logged_in_error_check',
+      sql`(${table.errorMarkedAt} is null and ${table.errorMarkedBy} is null and ${table.errorReason} is null) or (${table.errorMarkedAt} is not null and ${table.errorMarkedBy} is not null and ${table.errorReason} is not null and ${table.source} <> 'app')`
+    ),
   ]
 )
 
@@ -2981,7 +3156,7 @@ export const giftNumberSeq = pgSequence('gift_number_seq', {
 // (refunded by hand). Only the code's SHA-256 is kept (`code_hash`, null
 // until the buyer first asks for the link); the code itself is shown once.
 // The buyer and the redeemer are RESTRICT: a gift is a money record, so
-// DELETE /users/me refuses an account with one (ACCOUNT_HAS_GIFTS).
+// deleting the account (0066) waits while it holds credit or an unredeemed gift.
 export const gifts = pgTable(
   'gifts',
   {
@@ -4746,6 +4921,9 @@ export const bookingRequests = pgTable(
     // customer's own cancel leaves both empty.
     cancelledByName: varchar('cancelled_by_name', { length: 100 }),
     cancelReason: varchar('cancel_reason', { length: 200 }),
+    // The garage withdrew its yes before the customer paid (0066): the row
+    // ends 'cancelled' with its reply still 'accepted' (CHECK).
+    withdrawnAt: timestamp('withdrawn_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
@@ -4789,6 +4967,10 @@ export const bookingRequests = pgTable(
     check(
       'booking_requests_admin_cancel_check',
       sql`((${table.cancelledByName} is null) = (${table.cancelReason} is null)) and (${table.cancelReason} is null or ${table.status} = 'cancelled')`
+    ),
+    check(
+      'booking_requests_withdrawn_check',
+      sql`${table.withdrawnAt} is null or (${table.status} = 'cancelled' and ${table.reply} = 'accepted')`
     ),
     check('booking_requests_amounts_check', sql`${table.subtotalAmount} > 0 and ${table.durationMins} > 0`),
     check('booking_requests_distance_check', sql`${table.distanceKm} >= 0 and ${table.outsideKm} >= 0`),
@@ -4971,6 +5153,46 @@ export const leads = pgTable(
     check(
       'leads_google_fetched_check',
       sql`${table.googleFetchedAt} IS NOT NULL OR (${table.googleName} IS NULL AND ${table.googlePhone} IS NULL AND ${table.googleAddress} IS NULL AND ${table.googleRating} IS NULL AND ${table.googleReviewCount} IS NULL)`
+    ),
+  ]
+)
+
+// ─── Pre-iOS: garage closure requests (0066) ─────────────────────────────────
+
+/**
+ * A garage owner's "Close my garage" (0066, modules/garage-closure): the
+ * owner asks with a reason, the team is told on Telegram and sees it in
+ * admin, and confirms it by moving the garage to the Bin (the Bin marks the
+ * open request confirmed in the same transaction). The owner can cancel it
+ * until then. At most one open per garage (partial unique index).
+ */
+export const garageClosureRequests = pgTable(
+  'garage_closure_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    requestedBy: uuid('requested_by').references(() => users.id, { onDelete: 'set null' }),
+    // The owner's name when they asked, kept for the record.
+    requestedByName: varchar('requested_by_name', { length: 255 }).notNull(),
+    reason: varchar('reason', { length: 500 }).notNull(),
+    status: text('status').$type<'open' | 'cancelled' | 'confirmed'>().default('open').notNull(),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+    confirmedByName: varchar('confirmed_by_name', { length: 100 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('garage_closure_requests_open_key').on(table.vendorId).where(sql`${table.status} = 'open'`),
+    index('garage_closure_requests_status_created_idx').on(table.status, table.createdAt),
+    check('garage_closure_requests_status_check', sql`${table.status} in ('open', 'cancelled', 'confirmed')`),
+    check('garage_closure_requests_reason_check', sql`char_length(btrim(${table.reason})) between 3 and 500`),
+    check('garage_closure_requests_cancelled_check', sql`(${table.status} = 'cancelled') = (${table.cancelledAt} is not null)`),
+    check(
+      'garage_closure_requests_confirmed_check',
+      sql`(${table.status} = 'confirmed') = (${table.confirmedAt} is not null and ${table.confirmedByName} is not null)`
     ),
   ]
 )

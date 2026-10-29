@@ -1,3 +1,4 @@
+import { NOTE_EDIT_HOURS, noteEditRefusal, noteEditableUntil, type NoteEditRefusal } from '../../lib/booking-notes.js'
 import { AT_GARAGE_ADDRESS_MESSAGE, atGarageAddressRefused, garageAddressLine } from '../../lib/garage-address.js'
 import { timingSafeEqual } from 'node:crypto'
 import { env } from '../../lib/env.js'
@@ -22,7 +23,7 @@ import { toExtraWorkView } from '../../lib/extra-work.js'
 import { bookingRefundTotals } from '../../lib/refunds.js'
 import { toJobPhotoView } from '../../lib/job-records.js'
 import { jobPhotoLink } from '../../lib/job-photo-storage.js'
-import { garagePhotoStandardView } from '../../lib/job-photo-standards.js'
+import { WAIVER_UNDO_STATUSES, garagePhotoStandardView, waiverUndoRefusal } from '../../lib/job-photo-standards.js'
 import { photoComplianceByGarage, photoComplianceSince, type PhotoCompliance } from '../../lib/photo-compliance.js'
 import { jobPhotosRequiredFor } from '../job-photos/job-photos.service.js'
 import { alertOps } from '../../lib/ops-alerts.js'
@@ -264,6 +265,10 @@ function stateChanged() {
   )
 }
 
+function noteNotFound() {
+  return new AppError(404, 'Note not found', 'NOTE_NOT_FOUND')
+}
+
 function bookingNotFound() {
   return new AppError(404, 'Booking not found', 'BOOKING_NOT_FOUND')
 }
@@ -274,6 +279,25 @@ function toBookingNoteResponse(note: BookingNoteRecord) {
     author: note.author,
     body: note.body,
     createdAt: note.createdAt.toISOString(),
+    // 0065: typed by a person, or written by an action (never editable).
+    // `authorSub` is the session that typed it, which the panel compares
+    // with its own (GET /admin/me `sub`) to offer Edit and Delete; admin
+    // only, like every note.
+    kind: note.kind,
+    authorSub: note.kind === 'typed' ? note.authorSub : null,
+    editedAt: note.editedAt?.toISOString() ?? null,
+    editableUntil: note.kind === 'typed' ? noteEditableUntil(note.createdAt).toISOString() : null,
+  }
+}
+
+function noteRefused(refusal: NoteEditRefusal) {
+  switch (refusal) {
+    case 'system_note':
+      return new AppError(409, 'This note was written by an action, so it stays as it is.', 'NOTE_SYSTEM')
+    case 'not_author':
+      return new AppError(403, 'Only the person who typed a note can change it.', 'NOTE_NOT_YOURS')
+    case 'window_closed':
+      return new AppError(409, 'A note can be changed for 24 hours after it is written.', 'NOTE_LOCKED')
   }
 }
 
@@ -587,6 +611,13 @@ async function loadBookingDetail(id: string, now: number) {
           at: booking.photosWaivedAt.toISOString(),
           by: booking.photosWaivedBy,
           reason: booking.photosWaivedReason,
+          // Undo (0065): while the job is not over and has no redo claim.
+          undoable:
+            waiverUndoRefusal({
+              status: booking.status,
+              photosWaivedAt: booking.photosWaivedAt,
+              hasGuaranteeClaim: await adminRepository.hasGuaranteeClaim(id),
+            }) === null,
         }
       : null,
     lat: booking.lat,
@@ -1674,19 +1705,158 @@ export const adminService = {
     return loadBookingDetail(id, Date.now())
   },
 
+  /**
+   * Takes Detlio's photo waiver back (0065): Start and Complete wait for the
+   * garage's photos again. Only while the job is not over and it has no free
+   * redo claim; the write repeats both conditions. Leaves a note, as the
+   * waiver did.
+   */
+  async undoJobPhotosWaiver(id: string, actorName: string) {
+    const booking = await adminRepository.findBookingById(id)
+    if (!booking) throw bookingNotFound()
+    const refusal = waiverUndoRefusal({
+      status: booking.status,
+      photosWaivedAt: booking.photosWaivedAt,
+      hasGuaranteeClaim: await adminRepository.hasGuaranteeClaim(id),
+    })
+    if (refusal === 'not_waived') throw new AppError(409, 'Photos are not waived on this booking.', 'PHOTOS_NOT_WAIVED')
+    if (refusal === 'job_over') {
+      throw new AppError(409, 'The job is over, so its waiver stays as it was.', 'WAIVER_JOB_OVER')
+    }
+    if (refusal === 'claim') {
+      throw new AppError(409, 'A free redo claim was made on this booking, so its waiver stays.', 'WAIVER_HAS_CLAIM')
+    }
+    const [undone] = await adminRepository.undoJobPhotosWaiver(id, [...WAIVER_UNDO_STATUSES])
+    if (!undone) {
+      throw new AppError(
+        409,
+        'This booking changed (finished, claimed, or the waiver was undone). Reload to see it as it is now.',
+        'BOOKING_STATE_CHANGED'
+      )
+    }
+    await adminRepository.createBookingNote({
+      bookingId: id,
+      author: actorName,
+      body: `Photo waiver undone by ${actorName}: Start and Complete wait for the garage's photos again.`,
+    })
+    log.info({ bookingId: id, actorName }, 'admin:job-photos-waiver-undone')
+    return loadBookingDetail(id, Date.now())
+  },
+
+  // ─── What only the garage could remove (0065) ───────────────────────────
+
+  /** Removes one of the garage's holidays, as the garage's own Remove does. Audited. */
+  async removeVendorClosure(vendorId: string, closureId: string, actor: { sub: string; name: string }) {
+    await assertWritableVendor(vendorId)
+    const removed = await adminRepository.removeClosure(vendorId, closureId, actor)
+    if (!removed) throw new AppError(404, 'Holiday not found', 'CLOSURE_NOT_FOUND')
+    log.info({ vendorId, closureId, date: removed.date }, 'admin:closure_removed')
+    return { id: closureId, date: removed.date, removed: true }
+  },
+
+  /**
+   * Clears the garage's drawn doorstep area (0065): it then covers its
+   * radius, or the 10 km default (lib/doorstep.ts). Audited.
+   */
+  async clearVendorDoorstepArea(vendorId: string, actor: { sub: string; name: string }) {
+    await assertWritableVendor(vendorId)
+    const cleared = await adminRepository.clearDoorstepArea(vendorId, actor)
+    if (!cleared) throw new AppError(409, 'This garage has no drawn doorstep area.', 'NO_DOORSTEP_AREA')
+    log.info({ vendorId }, 'admin:doorstep_area_cleared')
+    return { cleared: true }
+  },
+
+  /**
+   * Withdraws unpaid extra work on the garage's behalf (0065), as its own
+   * Withdraw does: never once paid. Leaves a note; audited.
+   */
+  async withdrawExtraWork(bookingId: string, chargeId: string, actor: { sub: string; name: string }, now = new Date()) {
+    const booking = await adminRepository.findBookingById(bookingId)
+    if (!booking) throw bookingNotFound()
+    const work = await adminRepository.findExtraWork(bookingId, chargeId)
+    if (!work) throw new AppError(404, 'Extra work not found', 'EXTRA_WORK_NOT_FOUND')
+    if (work.status === 'paid') {
+      throw new AppError(409, 'The customer has already paid for this extra work, so it can no longer be withdrawn.', 'EXTRA_WORK_PAID')
+    }
+    if (work.status !== 'due') throw new AppError(409, 'This extra work is no longer waiting.', 'EXTRA_WORK_CLOSED')
+    const what = work.lines[0]?.description ?? 'Extra work'
+    const withdrawn = await adminRepository.withdrawExtraWork({
+      bookingId,
+      chargeId,
+      at: now,
+      actor,
+      note: `Extra work withdrawn by ${actor.name} for the garage: ${what} (₹${work.amountDue}).`,
+    })
+    if (!withdrawn) {
+      const fresh = await adminRepository.findExtraWork(bookingId, chargeId)
+      if (fresh?.status === 'paid') {
+        throw new AppError(409, 'The customer has just paid for this extra work, so it can no longer be withdrawn.', 'EXTRA_WORK_PAID')
+      }
+      throw new AppError(409, 'This extra work is no longer waiting.', 'EXTRA_WORK_CLOSED')
+    }
+    log.info({ bookingId, chargeId }, 'admin:extra_work_withdrawn')
+    return loadBookingDetail(bookingId, now.getTime())
+  },
+
   async addBookingNote(id: string, sub: string, input: CreateBookingNoteInput) {
     const booking = await adminRepository.findBookingById(id)
     if (!booking) throw bookingNotFound()
 
     const author = await resolveNoteAuthor(sub)
+    // Typed by a person (0065): its author may edit or delete it for 24 h.
     const [note] = await adminRepository.createBookingNote({
       bookingId: id,
       author,
       body: input.body,
+      kind: 'typed',
+      authorSub: sub,
     })
 
     log.info({ bookingId: id, noteId: note.id, author }, 'admin:booking-note-added')
     return toBookingNoteResponse(note)
+  },
+
+  /**
+   * Its author edits a typed note within 24 hours (0065). The write is
+   * conditional on the same rule, so a press at the 24th hour changes nothing.
+   */
+  async editBookingNote(id: string, noteId: string, sub: string, input: CreateBookingNoteInput, now = new Date()) {
+    const note = await adminRepository.findBookingNote(id, noteId)
+    if (!note) throw noteNotFound()
+    const refusal = noteEditRefusal(note, sub, now)
+    if (refusal) throw noteRefused(refusal)
+    const actorName = await resolveNoteAuthor(sub)
+    const updated = await adminRepository.editTypedNote({
+      bookingId: id,
+      noteId,
+      sub,
+      body: input.body,
+      at: now,
+      since: new Date(now.getTime() - NOTE_EDIT_HOURS * 60 * 60 * 1000),
+      actorName,
+    })
+    if (!updated) throw noteRefused('window_closed')
+    log.info({ bookingId: id, noteId }, 'admin:booking-note-edited')
+    return toBookingNoteResponse(updated)
+  },
+
+  /** Its author deletes a typed note within 24 hours (0065). Audited by id. */
+  async deleteBookingNote(id: string, noteId: string, sub: string, now = new Date()) {
+    const note = await adminRepository.findBookingNote(id, noteId)
+    if (!note) throw noteNotFound()
+    const refusal = noteEditRefusal(note, sub, now)
+    if (refusal) throw noteRefused(refusal)
+    const actorName = await resolveNoteAuthor(sub)
+    const deleted = await adminRepository.deleteTypedNote({
+      bookingId: id,
+      noteId,
+      sub,
+      since: new Date(now.getTime() - NOTE_EDIT_HOURS * 60 * 60 * 1000),
+      actorName,
+    })
+    if (!deleted) throw noteRefused('window_closed')
+    log.info({ bookingId: id, noteId }, 'admin:booking-note-deleted')
+    return { id: noteId, deleted: true }
   },
 
   // ─── Media ─────────────────────────────────────────────────────────────────

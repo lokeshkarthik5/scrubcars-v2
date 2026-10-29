@@ -93,3 +93,17 @@ export function dedupeGarages(
     .filter(([, kinds]) => kinds.length > 0)
     .map(([vendorId, kinds]) => ({ vendorId, kinds }))
 }
+
+/**
+ * Whether a list can be opened again (0065): only a closed one with
+ * something left to collect. A finished list (every item collected or
+ * cleared) would only close itself again on the next read.
+ */
+export function reopenRefusal(
+  closedAt: Date | null,
+  items: ReadonlyArray<{ status: CollectionItemStatus; cleared: boolean }>
+): 'not_closed' | 'nothing_left' | null {
+  if (!closedAt) return 'not_closed'
+  if (items.every(collectionItemDone)) return 'nothing_left'
+  return null
+}

@@ -16,6 +16,8 @@ import {
 import * as documentsController from './vendor-documents.controller.js'
 import {
   adminDocumentParamSchema,
+  adminRemoveDocumentSchema,
+  documentParamSchema,
   adminFileParamSchema,
   adminSubmitDocumentSchema,
   documentUploadUrlSchema,
@@ -62,6 +64,16 @@ garageDocumentRoutes.post(
   ...ownerMiddleware,
   zValidator('json', submitDocumentSchema),
   (c) => documentsController.submitGarageDocument(c, c.req.valid('json'))
+)
+
+// Remove (0065): an optional type, or the garage's own upload of a required
+// one that is not approved yet. Back to "Not uploaded".
+garageDocumentRoutes.post(
+  '/:documentId/remove',
+  documentsOn,
+  ...ownerMiddleware,
+  zValidator('param', documentParamSchema),
+  (c) => documentsController.removeGarageDocument(c, c.req.valid('param').documentId)
 )
 
 garageDocumentRoutes.get(
@@ -123,6 +135,20 @@ adminDocumentRoutes.post(
   (c) => {
     const { vendorId, documentId } = c.req.valid('param')
     return documentsController.reviewAdminDocument(c, vendorId, documentId, c.req.valid('json'))
+  }
+)
+
+// Remove (0065): anything but the approved signed agreement; a required type
+// once the panel's Silver warning was confirmed. Signed and audited.
+adminDocumentRoutes.post(
+  '/vendors/:vendorId/:documentId/remove',
+  documentsOn,
+  ...adminMiddleware,
+  zValidator('param', adminDocumentParamSchema),
+  adminSignedJson(adminRemoveDocumentSchema),
+  (c) => {
+    const { vendorId, documentId } = c.req.valid('param')
+    return documentsController.removeAdminDocument(c, vendorId, documentId, c.req.valid('json'))
   }
 )
 

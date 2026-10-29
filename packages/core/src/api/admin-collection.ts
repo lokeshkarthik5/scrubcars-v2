@@ -134,3 +134,19 @@ export async function closeCollectionList(id: string) {
     body: signedBody({}),
   })
 }
+
+/**
+ * POST /admin/collection-lists/:id/reopen (0065) — a closed list with things
+ * left to collect, open again. 409 COLLECTION_LIST_OPEN, COLLECTION_LIST_DONE.
+ */
+export async function reopenCollectionList(id: string) {
+  return apiClient<CollectionList>(`/admin/collection-lists/${id}/reopen`, {
+    method: 'POST',
+    body: signedBody({}),
+  })
+}
+
+/** DELETE /admin/collection-lists/:id (0065) — the list and its items, open or closed. */
+export async function deleteCollectionList(id: string) {
+  return apiClient<{ id: string; deleted: true }>(`/admin/collection-lists/${id}`, { method: 'DELETE' })
+}

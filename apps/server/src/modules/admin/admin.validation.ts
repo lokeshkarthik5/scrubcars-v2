@@ -406,6 +406,16 @@ export const listBookingsQuerySchema = z
 
 export const bookingIdParamSchema = z.object({ id: z.string().uuid() })
 
+/** A garage's holiday, and a booking's extra work, by id (0065). */
+export const vendorClosureParamSchema = z.object({ id: z.string().uuid(), closureId: z.string().uuid() })
+export const extraWorkParamSchema = z.object({ id: z.string().uuid(), chargeId: z.string().uuid() })
+
+/** Undo the photo waiver (0065): signed by the session. */
+export const undoWaiverSchema = z.object({ actorName: signedActorName }).strict()
+
+/** A booking's note (0065): edited or deleted by its author. */
+export const bookingNoteParamSchema = z.object({ id: z.string().uuid(), noteId: z.string().uuid() })
+
 /**
  * GET /admin/bookings/views: every filter the list has (status, search,
  * garage, dates, Test, type and payment), so the counts agree with the rows.

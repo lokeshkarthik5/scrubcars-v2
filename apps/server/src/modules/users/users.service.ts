@@ -1,6 +1,4 @@
-import { accountDeletionRefusal } from '../../lib/account-deletion.js'
-import { giftCreditService } from '../gift-credit/gift-credit.service.js'
-import { giftsService } from '../gifts/gifts.service.js'
+import { accountService } from '../account/account.service.js'
 import { AppError } from '../../lib/errors.js'
 import type { GeoSource } from '../../lib/geo/index.js'
 import {
@@ -115,7 +113,8 @@ function toVehicleResponse(vehicle: VehicleRecord): VehicleResponse {
 async function getActiveUser(userId: string): Promise<UserRecord> {
   const user = await usersRepository.findUserById(userId)
 
-  if (!user) {
+  // A deleted account (0066) is gone as far as its owner can tell.
+  if (!user || user.deletedAt) {
     throw new AppError(404, 'User not found', 'USER_NOT_FOUND')
   }
 
@@ -214,22 +213,13 @@ export const usersService = {
     return toProfileResponse(updated)
   },
 
+  /**
+   * DELETE /users/me: the same deletion as DELETE /account (0066,
+   * modules/account): anonymised, refused only while something is open.
+   */
   async deleteAccount(userId: string) {
     await getActiveUser(userId)
-
-    // Deleting a user deletes their bookings with it, and any garage they own
-    // with that garage's own bookings and payments (vendors.owner_id cascades).
-    // Either is a record that must stay, so closing such an account is a
-    // person's job for now; see lib/account-deletion.ts.
-    const refusal = accountDeletionRefusal({
-      ownsGarage: await usersRepository.ownsVendor(userId),
-      hasReceipts: await usersRepository.hasReceiptNumbers(userId),
-      hasGifts:
-        (await giftsService.hasGiftRecords(userId)) || (await giftCreditService.hasCreditRecords(userId)),
-    })
-    if (refusal) throw new AppError(409, refusal.message, refusal.code)
-
-    await usersRepository.deleteUser(userId)
+    await accountService.deleteAccount(userId)
   },
 
   async listAddresses(userId: string) {

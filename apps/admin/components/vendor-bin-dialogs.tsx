@@ -62,16 +62,19 @@ const DESTRUCTIVE =
  */
 export function MoveToBinDialog({
   vendor,
+  initialReason = '',
   onClose,
   onDone,
 }: {
   vendor: { id: string; businessName: string }
+  /** The reason filled in, e.g. the owner's "Close my garage" request (0066). */
+  initialReason?: string
   onClose: () => void
   onDone: (result: AdminVendorBinResult) => void
 }) {
   const preview = useAdminVendorBinPreview(vendor.id, true)
   const bin = useBinAdminVendor()
-  const [reason, setReason] = useState('')
+  const [reason, setReason] = useState(initialReason)
   const [error, setError] = useState('')
 
   const data = preview.data

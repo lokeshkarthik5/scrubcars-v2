@@ -85,7 +85,9 @@ test.describe('vendor booking lifecycle @p0', () => {
         name: `Accept booking for ${CUSTOMERS.vendorJob.name}`,
       })
       .click()
-    await expect.poll(statusOf(BOOKINGS.vendorIncoming)).toBe('confirmed')
+    // Accept waits five seconds behind its Undo too (0066).
+    await expect(page.getByText('Booking accepted', { exact: true })).toBeVisible()
+    await expect.poll(statusOf(BOOKINGS.vendorIncoming), AFTER_UNDO).toBe('confirmed')
 
     // Accepted, the page offers the work's steps, the next one docked.
     await page

@@ -136,6 +136,10 @@ test.describe('start pilot clean, API @p0', () => {
       analyticsEvents: 0,
       // No garage payout paid these test bookings.
       payouts: 0,
+      // 0065: no "book directly" report, visit request or real payment on them.
+      bypassReports: 0,
+      requests: 0,
+      teamTestPayments: 0,
     })
     expect(plan.receiptPlan).toEqual([
       {

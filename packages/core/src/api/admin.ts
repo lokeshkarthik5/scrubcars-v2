@@ -558,6 +558,15 @@ export interface AdminBookingNote {
   author: string
   body: string
   createdAt: string
+  /**
+   * 0065, absent from an older API (read as system): typed by a person, or
+   * written by an action. A typed note's author (`authorSub`, compared with
+   * GET /admin/me's `sub`) may edit or delete it until `editableUntil`.
+   */
+  kind?: 'typed' | 'system'
+  authorSub?: string | null
+  editedAt?: string | null
+  editableUntil?: string | null
 }
 
 export interface AdminBookingDetail extends AdminBooking {
@@ -597,7 +606,8 @@ export interface AdminBookingDetail extends AdminBooking {
   /** What Start and Complete wait for on this job (0045), as the garage sees it. */
   photoStandard?: PhotoStandard
   /** Detlio waived the photo standard on this booking (0045), by whom and why. */
-  photosWaiver?: { at: string; by: string; reason: string } | null
+  /** `undoable` (0065): while the job is not over and has no redo claim; absent before 0065. */
+  photosWaiver?: { at: string; by: string; reason: string; undoable?: boolean } | null
   /** Extra work the garage asked for (0041), newest first. */
   extraWork?: AdminExtraWork[]
   /** Times the garage suggested instead of declining (0041), newest first. */
@@ -805,6 +815,8 @@ export interface AdminMe {
   username: string | null
   /** The owner's login: the only one that changes team logins. */
   isOwner: boolean
+  /** The session's subject (0065): whose typed booking notes are yours. Null from an older API. */
+  sub: string | null
 }
 
 /**
@@ -822,6 +834,7 @@ export async function getAdminMe(): Promise<AdminMe> {
     name: me.name?.trim() || 'admin',
     username: me.username ?? null,
     isOwner: me.isOwner ?? false,
+    sub: me.sub ?? null,
   }
   setAdminSigner(full.name)
   return full
@@ -1805,6 +1818,39 @@ export async function overrideAdminPickupStep(
  * POST /admin/bookings/:id/photos-waiver — Detlio waives the photo standard
  * on one booking (0045), with why; signed with the admin's name. Once only.
  */
+/** DELETE /admin/vendors/:id/closures/:closureId (0065): one of the garage's holidays, removed. Audited. */
+export async function removeAdminVendorClosure(vendorId: string, closureId: string) {
+  return apiClient<{ id: string; date: string; removed: true }>(`/admin/vendors/${vendorId}/closures/${closureId}`, {
+    method: 'DELETE',
+  })
+}
+
+/**
+ * DELETE /admin/vendors/:id/doorstep-area (0065): the garage's drawn area
+ * cleared, so its radius (or the 10 km default) applies. 409 NO_DOORSTEP_AREA.
+ */
+export async function clearAdminDoorstepArea(vendorId: string) {
+  return apiClient<{ cleared: true }>(`/admin/vendors/${vendorId}/doorstep-area`, { method: 'DELETE' })
+}
+
+/**
+ * POST /admin/bookings/:id/extra-work/:chargeId/withdraw (0065): unpaid extra
+ * work withdrawn for the garage. 409 EXTRA_WORK_PAID / EXTRA_WORK_CLOSED.
+ */
+export async function withdrawAdminExtraWork(bookingId: string, chargeId: string) {
+  return apiClient<AdminBookingDetail>(`/admin/bookings/${bookingId}/extra-work/${chargeId}/withdraw`, {
+    method: 'POST',
+  })
+}
+
+/** POST /admin/bookings/:id/photos-waiver/undo (0065): Start and Complete wait for photos again. */
+export async function undoAdminJobPhotosWaiver(id: string) {
+  return apiClient<AdminBookingDetail>(`/admin/bookings/${id}/photos-waiver/undo`, {
+    method: 'POST',
+    body: signedBody({}),
+  })
+}
+
 export async function waiveAdminJobPhotos(id: string, input: { reason: string }) {
   return apiClient<AdminBookingDetail>(`/admin/bookings/${id}/photos-waiver`, {
     method: 'POST',
@@ -1914,6 +1960,12 @@ export interface DataResetChain {
   refunded: string
   markedTest: boolean
   kept: DataResetKept | null
+  /**
+   * A team test (0065): real money, every rupee refunded, so it may go with
+   * its payments kept in the money record. Never ticked on a run's first
+   * look. Absent from older servers.
+   */
+  teamTest?: { label: string } | null
   selected: boolean
 }
 
@@ -1955,6 +2007,10 @@ export interface DataResetCounts {
   analyticsEvents?: number
   /** Garage payouts that paid only deleted bookings (absent from older servers). */
   payouts?: number
+  /** 0065, absent from older servers: "book directly" reports, visit requests, team-test payments. */
+  bypassReports?: number
+  requests?: number
+  teamTestPayments?: number
 }
 
 export interface DataResetReceiptYear {
@@ -2021,6 +2077,8 @@ export interface DataResetExecuteInput extends DataResetPreviewInput {
   selectionHash: string
   confirmText: string
   backupConfirmed: true
+  /** Why, when a ticked booking took real money (a team test, 0065). */
+  reason?: string
 }
 
 export interface DataResetResult {
@@ -2078,11 +2136,53 @@ export async function previewTestBookingDelete(bookingId: string, input: { unkno
  */
 export async function deleteTestBooking(
   bookingId: string,
-  input: { unknownIds: string[]; selectionHash: string; confirmText: string }
+  input: { unknownIds: string[]; selectionHash: string; confirmText: string; reason?: string }
 ) {
   return apiClient<DataResetResult>(`/admin/bookings/${bookingId}/test-delete`, {
     method: 'POST',
     body: signedBody(input),
+  })
+}
+
+/** A real payment deleted as a team test (0065), as the ledger keeps it. */
+export interface DeletedTestPayment {
+  id: string
+  deletedAt: string
+  deletedBy: string
+  reason: string
+  bookingReference: string
+  rootBookingId: string
+  kind: 'booking' | 'final_bill' | 'extra_work'
+  razorpayPaymentId: string | null
+  razorpayOrderId: string | null
+  gatewayMode: 'live' | 'test' | 'fake' | null
+  amount: string
+  refundedAmount: string
+  refundIds: string[]
+  receiptNumber: string | null
+  garageName: string | null
+  paidAt: string | null
+  bookedAt: string
+  auditId: string
+}
+
+/** GET /admin/deleted-test-payments — the team tests' ledger, newest first (0065). */
+export async function getDeletedTestPayments() {
+  return apiClient<{ payments: DeletedTestPayment[] }>('/admin/deleted-test-payments')
+}
+
+/** PATCH /admin/bookings/:id/notes/:noteId (0065): its author, within 24 hours. */
+export async function editAdminBookingNote(id: string, noteId: string, body: string) {
+  return apiClient<AdminBookingNote>(`/admin/bookings/${id}/notes/${noteId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ body }),
+  })
+}
+
+/** DELETE /admin/bookings/:id/notes/:noteId (0065): its author, within 24 hours. */
+export async function deleteAdminBookingNote(id: string, noteId: string) {
+  return apiClient<{ id: string; deleted: true }>(`/admin/bookings/${id}/notes/${noteId}`, {
+    method: 'DELETE',
   })
 }
 
@@ -2345,6 +2445,11 @@ export interface AdminComplaint {
   resolveBy: string
   /** Which promise it has missed, as of the server's clock when read. */
   overdue: 'acknowledge' | 'resolve' | null
+  /**
+   * The team logged it by mistake (0065): kept, out of every count. Absent
+   * from an API before 0065.
+   */
+  loggedInError?: { at: string; by: string | null; reason: string | null } | null
 }
 
 export interface AdminComplaintList {
@@ -2427,6 +2532,22 @@ export async function closeAdminComplaint(id: string, resolutionNote?: string): 
 }
 
 /** PUT /admin/complaints/:id/note — the team's own note; empty clears it. */
+/** POST /admin/complaints/:id/logged-in-error (0065): signed, with why. */
+export async function markAdminComplaintLoggedInError(id: string, reason: string): Promise<AdminComplaint> {
+  return apiClient<AdminComplaint>(`/admin/complaints/${id}/logged-in-error`, {
+    method: 'POST',
+    body: signedBody({ reason }),
+  })
+}
+
+/** POST /admin/complaints/:id/logged-in-error/undo (0065). */
+export async function undoAdminComplaintLoggedInError(id: string): Promise<AdminComplaint> {
+  return apiClient<AdminComplaint>(`/admin/complaints/${id}/logged-in-error/undo`, {
+    method: 'POST',
+    body: signedBody({}),
+  })
+}
+
 export async function setAdminComplaintNote(id: string, adminNote: string): Promise<AdminComplaint> {
   return apiClient<AdminComplaint>(`/admin/complaints/${id}/note`, {
     method: 'PUT',

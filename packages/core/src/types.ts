@@ -34,6 +34,8 @@ export interface User {
   id: string
   name: string
   phone: string
+  /** Optional on the account; absent where a payload does not carry it. */
+  email?: string | null
   avatarUrl?: string | null
   area?: string
   pincode?: string
@@ -55,6 +57,13 @@ export interface Vendor {
   lng: number | null
   rating: number
   reviewCount: number
+  /**
+   * Fewer than 3 counted reviews (0065): cards and the garage page say "New
+   * on Detlio" instead of stars, and `rating` is 0. False from an older API.
+   */
+  isNew?: boolean
+  /** "Known for On time": its top good tag once 5+ customers picked it. */
+  knownFor?: { tag: string; label: string } | null
   /**
    * The weekly hours, when the response carried them; null when it did not.
    * This, not the account status, is what "Open" is decided from — see
@@ -200,6 +209,8 @@ export interface Review {
   comment: string
   date: string
   bookingContext?: string
+  /** The garage's public reply (0065), when it has one. */
+  reply?: { text: string; date: string } | null
 }
 
 export interface Vehicle {
@@ -207,6 +218,8 @@ export interface Vehicle {
   make: string
   model: string
   plate: string
+  /** The car's colour, optional; absent where a payload carries a booking's car. */
+  color?: string | null
   vehicleType?: VehicleType
   isDefault: boolean
   /**
@@ -220,8 +233,12 @@ export interface Vehicle {
 export interface Address {
   id: string
   label: string
+  /** The street line and the city together, as lists show it. */
   address: string
   pincode: string
+  /** The two as saved, for the edit sheet (0066). */
+  street?: string
+  city?: string
   /**
    * Null until the customer drops a pin. Carried on the domain type because
    * doorstep checkout has to know which saved addresses can actually be
@@ -482,6 +499,11 @@ export interface Booking {
   responseDeadline: ResponseDeadline | null
   /** Cancelled because the garage did not accept in time (refunded in full). */
   notAcceptedInTime: boolean
+  /**
+   * The garage cancelled it after accepting (0066). `late`: within 24 hours
+   * of the slot, counted as a missed booking for the garage's medal.
+   */
+  garageCancelled: { at: string; late: boolean } | null
   /** A free redo of an earlier job (Detlio Guarantee, 0051): ₹0, no receipt. */
   guaranteeRedo: boolean
   /**

@@ -235,6 +235,20 @@ export function customerDeclined(booking: PushBooking, refundDue: string | null)
   })
 }
 
+/**
+ * The garage cancelled a booking it had accepted (0066). Never the reason it
+ * typed: that is read in the app, if anywhere.
+ */
+export function customerGarageCancelled(booking: PushBooking, refundDue: string | null): PushMessage {
+  const slot = istSlotShortLabel(booking.scheduledAt)
+  return message({
+    title: `${garageName(booking)} cancelled your booking`,
+    body: refundDue ? `${slot}. Refund due: ${rupees(refundDue)}` : slot,
+    url: customerBookingPath(booking.id),
+    tag: bookingTag(booking.id),
+  })
+}
+
 /** The garage suggested other times (0041): Updates' live "pick another time" row. */
 export function customerTimesSuggested(booking: PushBooking, options: Date[]): PushMessage {
   return message({
@@ -670,6 +684,17 @@ export function customerRequestCancelledByDetlio(request: PushRequest, garage: s
   return message({
     title: 'Your request was cancelled',
     body: `Detlio cancelled your request to ${garage}. Nothing was paid; send a new request any time.`,
+    url: CUSTOMER_REQUESTS_PATH,
+    tag: requestTag(request),
+    ttlSeconds: 24 * 60 * 60,
+  })
+}
+
+/** The garage took back its yes before the customer paid (0066). */
+export function customerRequestWithdrawn(request: PushRequest, garage: string): PushMessage {
+  return message({
+    title: `${garage} can no longer come`,
+    body: 'They took back their yes before you paid. Nothing was paid; send a new request any time.',
     url: CUSTOMER_REQUESTS_PATH,
     tag: requestTag(request),
     ttlSeconds: 24 * 60 * 60,

@@ -962,6 +962,8 @@ export function useGarageDraft(id: string) {
   }
 
   return {
+    /** The garage's id, for the tabs' own instant saves (0065). */
+    id,
     router,
     markListStale,
     afterInstantSave,
@@ -985,6 +987,9 @@ export function useGarageDraft(id: string) {
     setPauseReasonInput,
     pausing,
     closures,
+    // Admin removes a holiday (0065): the list is updated in place, so an
+    // unsaved draft is left as it is.
+    setClosures,
     bin,
     restoring,
     setRestoring,

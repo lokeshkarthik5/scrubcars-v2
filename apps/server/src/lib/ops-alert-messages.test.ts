@@ -642,6 +642,29 @@ describe('documents_uploaded', () => {
   })
 })
 
+describe('review_reported (0065)', () => {
+  const alert = {
+    kind: 'review_reported' as const,
+    reviewId: 'e2e00000-0000-4000-8000-000000005420',
+    vendorId: 'e2e00000-0000-4000-8000-000000005410',
+    garage: 'Genoraj Car Care',
+    rating: 1,
+    comment: 'Rude staff.',
+    reporter: 'garage' as const,
+    reason: 'Not our customer',
+  }
+
+  test('who reported it, the stars, both texts quoted, and the Reviews tab', () => {
+    const text = formatOpsAlert(alert)
+    expect(text.split('\n')[0]).toBe('🚩 Review reported: Genoraj Car Care')
+    expect(text).toContain('Reported by the garage · 1★ review.')
+    expect(text).toContain('Rude staff.')
+    expect(text).toContain('Not our customer')
+    expect(text).toContain('https://admin.detlio.com/vendors/e2e00000-0000-4000-8000-000000005410/edit?tab=reviews')
+    expect(formatOpsAlert({ ...alert, reporter: 'customer', comment: null })).toContain('Reported by a customer')
+  })
+})
+
 describe('Gold (Detlio Certified)', () => {
   const vendorId = 'e2e00000-0000-4000-8000-000000002810'
   const link = `https://admin.detlio.com/vendors/${vendorId}/edit?tab=certification`

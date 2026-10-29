@@ -1,5 +1,6 @@
 import { ProgressBar } from '@repo/ui/sc/progress-bar'
 import { TopBar } from '@repo/ui/sc/top-bar'
+import { OnboardingSignOut } from './onboarding-sign-out'
 
 /**
  * The top of each sign-up step: back to the step before, how far along, and
@@ -21,7 +22,14 @@ export function OnboardingHeader({
 }) {
   return (
     <div className="flex flex-col gap-4">
-      {backHref ? <TopBar showBack backHref={backHref} /> : <div className="h-2" />}
+      {backHref ? (
+        <TopBar showBack backHref={backHref} />
+      ) : (
+        // Step 1 has nothing before it; its way out is signing out (0066).
+        <div className="flex justify-end">
+          <OnboardingSignOut />
+        </div>
+      )}
       <ProgressBar progress={step * 25} />
       <div>
         <p className="text-[11px] font-medium text-text-secondary">

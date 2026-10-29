@@ -387,6 +387,12 @@ export const giftsService = {
   },
 
   /** Whether the account bought or redeemed a gift (DELETE /users/me refuses it then). */
+  /** Paid gifts the customer bought that are still waiting to be redeemed (0066). */
+  async unredeemedBought(userId: string, now = new Date()) {
+    const rows = await giftsRepository.listUnredeemedBought(userId, now)
+    return rows.map((row) => ({ number: formatGiftNumber(row.number), expiresAt: row.expiresAt }))
+  },
+
   hasGiftRecords(userId: string) {
     return giftsRepository.hasGifts(userId)
   },

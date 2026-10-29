@@ -6,6 +6,7 @@ import {
   cancelMyRequest,
   createRequest,
   declineRequest,
+  withdrawRequest,
   getGarageRequestCount,
   getMyRequest,
   getRequestStartTimes,
@@ -117,6 +118,12 @@ export function useAcceptRequest() {
       acceptRequest(input.id, { startAt: input.startAt, travelFee: input.travelFee }),
     onSettled: refresh,
   })
+}
+
+/** Take back a yes before the customer pays (0066). */
+export function useWithdrawRequest() {
+  const refresh = useRefreshGarage()
+  return useMutation({ mutationFn: (id: string) => withdrawRequest(id), onSettled: refresh })
 }
 
 export function useDeclineRequest() {

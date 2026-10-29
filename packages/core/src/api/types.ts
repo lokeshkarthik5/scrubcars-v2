@@ -118,8 +118,13 @@ export interface ApiVendorListItem {
   /** How far it collects from (null: the 10 km default). Absent from an API before 0062. */
   pickupRadiusKm?: number | null
   startingPrice: number | null
+  /** The counted reviews' score (0065): null for a new garage. */
   rating: number | null
   reviewCount: number
+  /** Fewer than 3 counted reviews: "New on Detlio". Absent from an API before 0065. */
+  isNew?: boolean
+  /** Its top good tag once 5+ customers picked it. Absent before 0065. */
+  knownFor?: { tag: string; label: string } | null
   serviceTags: string[]
   photos: string[]
   /** Null when the request carried no origin. Never 0 to mean "unknown". */
@@ -221,8 +226,12 @@ export interface ApiPublicVendor {
   createdAt: string
   photos: Array<{ id: string; url: string; sortOrder: number }>
   services: ApiService[]
+  /** The counted reviews' score (0065): null for a new garage. */
   rating: number | null
   reviewCount: number
+  /** Fewer than 3 counted reviews: "New on Detlio". Absent from an API before 0065. */
+  isNew?: boolean
+  knownFor?: { tag: string; label: string } | null
   /** Set while the garage takes no new bookings. Optional for older servers. */
   bookingsPausedAt?: string | null
   bookingsPausedReason?: string | null
@@ -527,6 +536,8 @@ export interface ApiBooking {
   responseDeadline?: { respondBy: string; enforced: boolean; windowMins: number } | null
   /** Cancelled because the garage did not accept in time (0042). */
   notAcceptedInTime?: boolean
+  /** The garage cancelled it after accepting (0066); absent from older servers. */
+  garageCancelled?: { at: string; late: boolean } | null
   /**
    * The contact window: the other side's phone is on the payload only while
    * `open`. Absent from older servers.
@@ -642,6 +653,9 @@ export interface ApiPublicReview {
   rating: number
   comment: string | null
   createdAt: string
+  /** 0065, absent before: the tags picked, and the garage's public reply. */
+  tags?: string[]
+  reply?: { text: string; repliedAt: string } | null
   user: { name: string } | null
   booking: {
     /** Every service the review is about. */
@@ -679,4 +693,16 @@ export interface ApiReview {
       name: string
     } | null
   } | null
+}
+
+/** GET /reviews/vendors/:vendorId/summary (0065): the garage page's rating block. */
+export interface ApiReviewSummary {
+  /** Null for a new garage (fewer than 3 counted reviews). */
+  rating: number | null
+  reviewCount: number
+  isNew: boolean
+  tags: Array<{ tag: string; label: string; count: number; positive: boolean }>
+  knownFor: { tag: string; label: string } | null
+  /** Stars 5 to 1, with how many counted reviews gave each. */
+  stars: Array<{ stars: number; count: number }>
 }

@@ -35,6 +35,7 @@ import { publicTierRoutes } from './modules/tiers/tiers.routes.js'
 import { zonesRoutes } from './modules/reach/reach.routes.js'
 import { publicBookingRequestRoutes } from './modules/booking-requests/booking-requests.routes.js'
 import { healthRoutes } from './modules/health/health.routes.js'
+import { accountRoutes } from './modules/account/account.routes.js'
 import { fakeStreamRoutes, webhookRoutes } from './modules/service-media/service-media.routes.js'
 
 console.log(`[BOOT] app.ts loading (v${APP_VERSION})`)
@@ -138,6 +139,8 @@ app.get('/', (c) => c.text(`Detlio API v${APP_VERSION}`))
 
 app.route('/api/v1/auth', authRoutes)
 app.route('/api/v1/users', usersRoutes)
+// The signed-in person's own account, from either app (0066).
+app.route('/api/v1/account', accountRoutes)
 app.route('/api/v1/vendors', vendorsRoutes)
 app.route('/api/v1/bookings', bookingsRoutes)
 // Paying a final bill: /bookings/:id/charges/:chargeId/{pay,verify}.

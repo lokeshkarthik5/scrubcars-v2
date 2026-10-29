@@ -56,6 +56,7 @@ import { useBookingsStore } from '@repo/core/stores/bookings-store'
 import { useUserStore } from '@repo/core/stores/user-store'
 import { useVendorOnboardingStore } from '@repo/core/stores/vendor-onboarding-store'
 import { cn } from '@repo/core/utils'
+import { AccountActions } from '@/components/account-actions'
 import { ActiveGarage } from '@/components/active-garage'
 import { PickupSection } from './pickup-section'
 import { HolidaysSection, PauseSection } from './time-off-section'
@@ -940,6 +941,10 @@ function VendorSettings() {
             title="Team"
             description="Add admins and operators, and set what they can do"
           />
+
+          {/* Close my garage (the owner), or leave it and delete the login
+              (any other seat) (0066). */}
+          <AccountActions />
 
           <section className="flex flex-col gap-3">
             <SectionHeader title="Support" />

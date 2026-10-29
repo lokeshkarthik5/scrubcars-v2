@@ -8,6 +8,7 @@ import type {
   CreateComplaintInput,
   ListComplaintsQuery,
   LogComplaintInput,
+  LoggedInErrorInput,
   ResolveComplaintInput,
 } from './complaints.validation.js'
 
@@ -23,6 +24,11 @@ function getUserId(c: ComplaintsContext): string {
 export async function createComplaint(c: ComplaintsContext, input: CreateComplaintInput) {
   const data = await complaintsService.submit(getUserId(c), input)
   return c.json({ success: true, data }, 201)
+}
+
+export async function withdrawMyComplaint(c: ComplaintsContext, id: string) {
+  const data = await complaintsService.withdraw(getUserId(c), id)
+  return c.json({ success: true, data })
 }
 
 export async function listMyComplaints(c: ComplaintsContext) {
@@ -75,5 +81,15 @@ export async function setComplaintAdminNote(
   input: ComplaintAdminNoteInput
 ) {
   const data = await complaintsService.setAdminNote(id, input)
+  return c.json({ success: true, data })
+}
+
+export async function markLoggedInError(c: ComplaintsContext, id: string, input: LoggedInErrorInput) {
+  const data = await complaintsService.markLoggedInError(c.get('auth').sub, id, input)
+  return c.json({ success: true, data })
+}
+
+export async function undoLoggedInError(c: ComplaintsContext, id: string, actorName: string) {
+  const data = await complaintsService.undoLoggedInError(c.get('auth').sub, id, actorName)
   return c.json({ success: true, data })
 }

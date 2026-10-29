@@ -77,6 +77,8 @@ import { ServiceSheetTop } from '@/components/service-media/service-sheet-top'
 import { ServiceCardLine } from '@/components/service-media/service-points'
 import { ServiceThumb } from '@/components/service-media/service-thumb'
 import { SaveGarageButton } from '@/components/favourites/save-garage-button'
+import { ReportReviewButton } from '@/components/reviews/report-review-button'
+import { NEW_GARAGE_LABEL, hasStarScore, newGarageReviewsLine } from '@repo/core/ratings'
 import { SAVE_PARAM, withoutSaveFlag } from '@/lib/saved-garages'
 import { GarageSlotAlerts } from '@/components/slot-alerts/garage-slot-alerts'
 
@@ -433,15 +435,17 @@ export default function GaragePage({
     )
   }
 
+  // The score is the API's (0065, lib/ratings.ts on the server): counted
+  // reviews only (no Test booking's, none hidden), and none for a new garage
+  // (fewer than 3), which reads "New on Detlio" so one review can't rank it.
   // A garage with no reviews yet shows none of the rating furniture — a
   // "0.0 (0 reviews)" line reads as a bad score, not as a new listing.
-  const reviewCount = reviews.length || vendor.reviewCount
+  const reviewCount = vendor.reviewCount || reviews.length
   const hasReviews = reviewCount > 0
+  const showStars = hasStarScore({ reviewCount, isNew: vendor.isNew })
   const visibleTabs = TABS.filter((t) => t.key !== 'reviews' || hasReviews)
-  const avgRating =
-    reviews.length > 0
-      ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length
-      : vendor.rating
+  const avgRating = vendor.rating
+  const soFar = newGarageReviewsLine(reviewCount)
   // Gallery-only hero — the logo gets its own badge below, so using it as the
   // hero too would repeat the same image.
   const hero = vendor.photos[0] ?? null
@@ -532,7 +536,7 @@ export default function GaragePage({
         {/* Score, distance and drive time are figures, in the brand's numeric
             face; the words between them stay Inter. */}
         <div className="flex items-center gap-1.5 text-[13px] text-text-secondary">
-          {hasReviews ? (
+          {showStars ? (
             <>
               <IconStarFilled size={13} className="text-text-primary" />
               <span className="font-numeric text-text-primary">
@@ -543,7 +547,7 @@ export default function GaragePage({
               </span>
             </>
           ) : (
-            <span className="font-medium text-text-primary">New on Detlio</span>
+            <span className="font-medium text-text-primary">{NEW_GARAGE_LABEL}</span>
           )}
           {fromHere !== null && (
             <>
@@ -929,17 +933,26 @@ export default function GaragePage({
 
         {tab === 'reviews' && (
           <>
-            <div className="mb-2 flex items-center gap-3">
-              <span className="font-numeric text-3xl font-bold text-text-primary">
-                {avgRating.toFixed(1)}
-              </span>
-              <div>
-                <Stars rating={avgRating} size={16} />
-                <p className="text-[11px] text-text-secondary">
-                  {reviews.length} reviews
-                </p>
+            {showStars ? (
+              <div className="mb-2 flex items-center gap-3">
+                <span className="font-numeric text-3xl font-bold text-text-primary">
+                  {avgRating.toFixed(1)}
+                </span>
+                <div>
+                  <Stars rating={avgRating} size={16} />
+                  <p className="text-[11px] text-text-secondary">
+                    {reviewCount} {reviewCount === 1 ? 'review' : 'reviews'}
+                  </p>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="mb-2">
+                <p className="text-[15px] font-semibold text-text-primary">{NEW_GARAGE_LABEL}</p>
+                {soFar && (
+                  <p className="text-[11px] text-text-secondary">{soFar}</p>
+                )}
+              </div>
+            )}
             {reviews.length === 0 && (
               <p className="py-4 text-center text-[13px] text-text-secondary">
                 No reviews yet.
@@ -965,6 +978,24 @@ export default function GaragePage({
                   <p className="mt-2 text-[13px] text-text-secondary">
                     {review.comment}
                   </p>
+                  {/* The garage's one public reply (0065). */}
+                  {review.reply && (
+                    <div className="mt-2 rounded-[10px] border-l-2 border-text-primary bg-surface px-3 py-2">
+                      <p className="text-[12px] font-semibold text-text-primary">
+                        Reply from {vendor.name}
+                      </p>
+                      <p className="mt-0.5 text-[13px] text-text-secondary">
+                        {review.reply.text}
+                      </p>
+                    </div>
+                  )}
+                  <div className="mt-1 flex justify-end">
+                    <ReportReviewButton
+                      reviewId={review.id}
+                      reviewerName={review.userName}
+                      garagePath={`/garage/${vendor.id}`}
+                    />
+                  </div>
                 </ScCard>
               </Reveal>
             ))}

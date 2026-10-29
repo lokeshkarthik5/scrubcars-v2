@@ -13,6 +13,7 @@ import type {
 } from '@repo/core/api/admin-coverage'
 import {
   useDismissRecommendation,
+  useRestoreRecommendation,
   useMakeLeadFromRecommendation,
   useRecommendationDuplicates,
 } from '@repo/core/api/hooks/use-admin-coverage'
@@ -331,6 +332,80 @@ export function RecommendationList({
           <RecommendationRow key={rec.id} rec={rec} />
         ))}
       </ul>
+    </section>
+  )
+}
+
+/**
+ * The Dismissed filter (0065): recommendations the team dismissed in this
+ * zone (or in none), shown on request, each with Restore, which puts it back
+ * in the list to act on.
+ */
+export function DismissedRecommendations({
+  title,
+  recommendations,
+}: {
+  title: string
+  recommendations: CoverageRecommendation[]
+}) {
+  const [shown, setShown] = useState(false)
+  const restore = useRestoreRecommendation()
+  if (recommendations.length === 0) return null
+  return (
+    <section
+      aria-label={`Dismissed in ${title}`}
+      className="border-t border-border px-4 py-3"
+    >
+      <button
+        type="button"
+        aria-expanded={shown}
+        onClick={() => setShown((on) => !on)}
+        className="min-h-9 text-[12px] font-medium text-text-secondary underline underline-offset-4"
+      >
+        {shown ? 'Hide dismissed' : 'Dismissed'} ·{' '}
+        <span className="font-numeric">{recommendations.length}</span>
+      </button>
+      {shown && (
+        <ul
+          aria-label={`Dismissed recommendations for ${title}`}
+          className="mt-1 flex flex-col"
+        >
+          {recommendations.map((rec) => (
+            <li
+              key={rec.id}
+              className="flex items-center gap-2 border-b border-border py-2 last:border-b-0"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[13px] text-text-primary">
+                  {rec.name}
+                </p>
+                <p className="text-[11.5px] text-text-muted">
+                  Dismissed{rec.handledBy ? ` by ${rec.handledBy}` : ''}
+                  {rec.why ? ` · “${rec.why}”` : ''}
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={restore.isPending}
+                onClick={() =>
+                  restore.mutate(rec.id, {
+                    onSuccess: () =>
+                      toast.success(`${rec.name} is back to act on`),
+                    onError: (err) =>
+                      toast.error(
+                        errorMessage(err, 'Couldn’t restore it. Try again.')
+                      ),
+                  })
+                }
+                aria-label={`Restore ${rec.name}`}
+                className={PILL}
+              >
+                Restore
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   )
 }

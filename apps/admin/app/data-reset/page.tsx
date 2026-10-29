@@ -250,9 +250,13 @@ function StartPilotClean({
     setUntickedCheckouts((set) => toggle(set, id, !on))
   }
 
+  // Tick all takes only test money: a booking that took real money (a team
+  // test, 0065) is ticked by hand, one at a time.
   const deletable = listing
     ? {
-        chains: listing.chains.filter((c) => !c.kept).map((c) => c.rootId),
+        chains: listing.chains
+          .filter((c) => !c.kept && !c.teamTest)
+          .map((c) => c.rootId),
         checkouts: listing.checkouts.filter((c) => !c.kept).map((c) => c.id),
       }
     : { chains: [], checkouts: [] }

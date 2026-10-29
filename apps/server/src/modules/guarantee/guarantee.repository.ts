@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, notInArray, or, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import {
   adminAuditLog,
@@ -16,6 +16,7 @@ import {
 } from '../../db/schema.js'
 import type { ServiceCategory } from '../../lib/categories.js'
 import {
+  CLOSED_STATUSES,
   REDO_MONEY,
   approvedWindowStart,
   limitReached,
@@ -25,6 +26,7 @@ import {
   type CustomerClaimHistory,
   type GuaranteeIssue,
   type RoutedClaim,
+  withdrawnClaim,
 } from '../../lib/guarantee.js'
 import { getDateKeyFromScheduledAt } from '../../lib/slots.js'
 import {
@@ -310,6 +312,45 @@ export const guaranteeRepository = {
       if ((error as { code?: string })?.code === '23505') return { kind: 'already_claimed' }
       throw error
     }
+  },
+
+  /**
+   * The customer withdraws their claim (0066): conditional on it being
+   * theirs and still unanswered (no garage response, no decision, waiting
+   * for the garage inside its time or with Detlio), in the same statement,
+   * with a booking note. Null when any of that changed.
+   */
+  async withdraw(params: { claimId: string; userId: string; now: Date }): Promise<ClaimWithPhotos | null> {
+    const updated = await db.transaction(async (tx) => {
+      const [claim] = await tx
+        .update(guaranteeClaims)
+        .set({ ...withdrawnClaim(params.now), updatedAt: params.now })
+        .where(
+          and(
+            eq(guaranteeClaims.id, params.claimId),
+            eq(guaranteeClaims.userId, params.userId),
+            isNull(guaranteeClaims.garageResponse),
+            isNull(guaranteeClaims.decision),
+            or(
+              and(
+                eq(guaranteeClaims.status, 'waiting_garage'),
+                or(isNull(guaranteeClaims.garageRespondBy), gte(guaranteeClaims.garageRespondBy, params.now))
+              ),
+              eq(guaranteeClaims.status, 'needs_detlio')
+            )
+          )
+        )
+        .returning()
+      if (!claim) return null
+      await tx.insert(bookingNotes).values({
+        bookingId: claim.bookingId,
+        author: 'Detlio',
+        body: 'Free redo claim withdrawn by the customer before anyone answered it.',
+      })
+      return claim
+    })
+    if (!updated) return null
+    return (await guaranteeRepository.findClaimById(updated.id)) ?? null
   },
 
   /**
@@ -656,11 +697,13 @@ export const guaranteeRepository = {
 
   /** A garage's claims, with the photos on each side, newest first. */
   async listGarageClaims(vendorId: string, scope: 'open' | 'closed', limit = 50) {
-    const closed: ClaimStatus[] = ['redo_done', 'refund_approved', 'rejected', 'lapsed']
+    // CLOSED_STATUSES, withdrawn (0066) included, so a claim the customer
+    // withdrew leaves the garage's Open tab.
+    const closed = [...CLOSED_STATUSES]
     return db.query.guaranteeClaims.findMany({
       where: and(
         eq(guaranteeClaims.vendorId, vendorId),
-        scope === 'closed' ? inArray(guaranteeClaims.status, closed) : sql`${guaranteeClaims.status} not in ('redo_done', 'refund_approved', 'rejected', 'lapsed')`
+        scope === 'closed' ? inArray(guaranteeClaims.status, closed) : notInArray(guaranteeClaims.status, closed)
       ),
       with: { photos: { orderBy: [asc(guaranteeClaimPhotos.createdAt)] } },
       orderBy: [desc(guaranteeClaims.createdAt)],

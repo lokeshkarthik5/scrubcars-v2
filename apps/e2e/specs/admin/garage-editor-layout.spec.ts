@@ -85,6 +85,7 @@ test.describe('admin garage editor layout', () => {
       'Services',
       'Team & payout',
       'Tier',
+      'Reviews',
     ])
 
     // Go live: the stage and Verified, as saved.

@@ -1,3 +1,4 @@
+import { adminGarageClosureRoutes } from '../garage-closure/garage-closure.routes.js'
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { z } from 'zod'
@@ -20,6 +21,7 @@ import { adminComplaintRoutes } from '../complaints/complaints.routes.js'
 import { adminGuaranteeRoutes } from '../guarantee/guarantee.routes.js'
 import { adminDataResetRoutes } from '../data-reset/data-reset.routes.js'
 import { adminTestBookingRoutes } from '../data-reset/test-booking.routes.js'
+import { adminReviewRoutes } from '../reviews/reviews.routes.js'
 import { adminDiscountRoutes } from '../discounts/discounts.routes.js'
 import { adminCouponRoutes } from '../coupons/coupons.routes.js'
 import { adminNoticeRoutes } from '../notices/notices.routes.js'
@@ -52,6 +54,9 @@ import * as adminController from './admin.controller.js'
 import {
   adminCancelBookingSchema,
   bookingIdParamSchema,
+  bookingNoteParamSchema,
+  extraWorkParamSchema,
+  vendorClosureParamSchema,
   bookingViewCountsQuerySchema,
   createBookingNoteSchema,
   createVendorSchema,
@@ -60,6 +65,7 @@ import {
   markNoShowSchema,
   pickupStepOverrideSchema,
   waiveJobPhotosSchema,
+  undoWaiverSchema,
   pilotStatsQuerySchema,
   superAdminIdParamSchema,
   loginSchema,
@@ -178,6 +184,9 @@ adminRoutes.patch(
 // forever, only from the Bin). Their own module; mounted at the root for the
 // cookie's sake, like the media routes below.
 adminRoutes.route('/', adminVendorBinRoutes)
+// "Close my garage" requests (0066): GET /garage-closures and
+// /vendors/:id/closure-request. Confirmed by moving the garage to the Bin.
+adminRoutes.route('/', adminGarageClosureRoutes)
 // Onboarding marks (0059): GET/POST /vendors/:id/marks, PATCH/DELETE
 // /vendors/:id/marks/:markId and POST /onboarding-marks/asked. Collection
 // lists ("Send to team"): /collection-lists, /collection-lists/:id/close and
@@ -507,6 +516,8 @@ adminRoutes.route('/data-reset', adminDataResetRoutes)
 // "Delete test booking" on one booking marked Test (0064): the reset's
 // rules for that chain alone, whether or not the reset is switched on.
 adminRoutes.route('/', adminTestBookingRoutes)
+// A garage's reviews, Hide and Show again (0065): its own file, at the root.
+adminRoutes.route('/', adminReviewRoutes)
 
 // A service's video, AI sample pictures and the upload block's config
 // (/media-config, /services/:serviceId/{videos,media,ai-pictures}).
@@ -602,6 +613,40 @@ adminRoutes.post(
       c.req.valid('json')
     )
 )
+// What only the garage could remove, by admin (0065), each audited: a
+// holiday, the drawn doorstep area, and unpaid extra work.
+adminRoutes.delete(
+  '/vendors/:id/closures/:closureId',
+  ...adminMiddleware,
+  zValidator('param', vendorClosureParamSchema),
+  (c) => {
+    const { id, closureId } = c.req.valid('param')
+    return adminController.removeVendorClosure(c, id, closureId)
+  }
+)
+adminRoutes.delete(
+  '/vendors/:id/doorstep-area',
+  ...adminMiddleware,
+  zValidator('param', bookingIdParamSchema),
+  (c) => adminController.clearVendorDoorstepArea(c, c.req.valid('param').id)
+)
+adminRoutes.post(
+  '/bookings/:id/extra-work/:chargeId/withdraw',
+  ...adminMiddleware,
+  zValidator('param', extraWorkParamSchema),
+  (c) => {
+    const { id, chargeId } = c.req.valid('param')
+    return adminController.withdrawExtraWork(c, id, chargeId)
+  }
+)
+// Undo the waiver (0065): while the job is not over and has no redo claim.
+adminRoutes.post(
+  '/bookings/:id/photos-waiver/undo',
+  ...adminMiddleware,
+  zValidator('param', bookingIdParamSchema),
+  adminSignedJson(undoWaiverSchema),
+  (c) => adminController.undoJobPhotosWaiver(c, c.req.valid('param').id, c.req.valid('json').actorName)
+)
 adminRoutes.post(
   '/bookings/:id/notes',
   ...adminMiddleware,
@@ -613,4 +658,25 @@ adminRoutes.post(
       c.req.valid('param').id,
       c.req.valid('json')
     )
+)
+// A typed note, by the session that typed it, within 24 hours (0065). Notes
+// an action wrote never change.
+adminRoutes.patch(
+  '/bookings/:id/notes/:noteId',
+  ...adminMiddleware,
+  zValidator('param', bookingNoteParamSchema),
+  zValidator('json', createBookingNoteSchema),
+  (c) => {
+    const { id, noteId } = c.req.valid('param')
+    return adminController.editBookingNote(c, id, noteId, c.req.valid('json'))
+  }
+)
+adminRoutes.delete(
+  '/bookings/:id/notes/:noteId',
+  ...adminMiddleware,
+  zValidator('param', bookingNoteParamSchema),
+  (c) => {
+    const { id, noteId } = c.req.valid('param')
+    return adminController.deleteBookingNote(c, id, noteId)
+  }
 )

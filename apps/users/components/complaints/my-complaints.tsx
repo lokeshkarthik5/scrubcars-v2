@@ -1,10 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import { toast } from 'react-toastify'
 import { ScBadge } from '@repo/ui/sc/badge'
+import { ConfirmSheet } from '@repo/ui/sc/confirm-sheet'
 import { ScCard } from '@/components/ui/card'
 import type { CustomerComplaint } from '@repo/core/api/complaints'
-import { useMyComplaints } from '@repo/core/api/hooks/use-complaints'
+import { useMyComplaints, useWithdrawComplaint } from '@repo/core/api/hooks/use-complaints'
 import {
   COMPLAINT_CATEGORY_LABELS,
   COMPLAINT_SOURCE_CUSTOMER_LINES,
@@ -27,8 +29,12 @@ const STATUS_BADGE: Record<ComplaintStatus, 'pending' | 'success' | 'muted'> = {
 }
 
 function ComplaintRow({ complaint }: { complaint: CustomerComplaint }) {
+  const withdrawn = Boolean(complaint.withdrawnAt)
   const answered =
-    complaint.status === 'resolved' || complaint.status === 'closed'
+    (complaint.status === 'resolved' || complaint.status === 'closed') && !withdrawn
+  const withdraw = useWithdrawComplaint()
+  const [confirming, setConfirming] = useState(false)
+  const [error, setError] = useState<string | undefined>()
   return (
     <li>
       <ScCard className="flex flex-col gap-1.5">
@@ -37,7 +43,7 @@ function ComplaintRow({ complaint }: { complaint: CustomerComplaint }) {
             {complaint.number}
           </span>
           <ScBadge variant={STATUS_BADGE[complaint.status]}>
-            {COMPLAINT_STATUS_LABELS[complaint.status]}
+            {withdrawn ? 'Withdrawn' : COMPLAINT_STATUS_LABELS[complaint.status]}
           </ScBadge>
           <span className="ml-auto font-numeric text-[11px] text-text-muted">
             {formatComplaintDate(complaint.receivedAt)}
@@ -66,6 +72,41 @@ function ComplaintRow({ complaint }: { complaint: CustomerComplaint }) {
         <p className="line-clamp-3 whitespace-pre-wrap break-words text-[12px] text-text-primary">
           {complaint.message}
         </p>
+        {/* Nobody has answered it yet (0066): the customer can take it back. */}
+        {complaint.canWithdraw && (
+          <button
+            type="button"
+            aria-label={`Withdraw complaint ${complaint.number}`}
+            onClick={() => setConfirming(true)}
+            className="mt-1 min-h-11 self-start text-[12px] font-medium text-text-secondary underline underline-offset-2 transition-colors hover:text-text-primary"
+          >
+            Withdraw
+          </button>
+        )}
+        <ConfirmSheet
+          open={confirming}
+          onClose={() => {
+            setConfirming(false)
+            setError(undefined)
+          }}
+          onConfirm={async () => {
+            try {
+              await withdraw.mutateAsync(complaint.id)
+              toast.success('Complaint withdrawn')
+              setConfirming(false)
+            } catch (err) {
+              // Answered meanwhile: said here; the list is re-read.
+              setError(err instanceof Error ? err.message : 'Could not withdraw it')
+            }
+          }}
+          level="light"
+          title={`Withdraw complaint ${complaint.number}?`}
+          body="We'll close it without answering. You can raise a new one any time."
+          confirmLabel="Withdraw complaint"
+          cancelLabel="Keep it"
+          busy={withdraw.isPending}
+          error={error}
+        />
         {answered && complaint.resolutionNote && (
           <div className="mt-1 rounded-[10px] border border-border bg-surface-elevated px-3 py-2">
             <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">

@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   getMyComplaints,
   raiseComplaint,
+  withdrawComplaint,
   type RaiseComplaintInput,
 } from '@repo/core/api/complaints'
 
@@ -22,6 +23,17 @@ export function useMyComplaints(options?: { enabled?: boolean }) {
     staleTime: 30_000,
     refetchOnWindowFocus: true,
     enabled: options?.enabled ?? true,
+  })
+}
+
+/** Withdraw one nobody has answered yet (0066); My complaints is refreshed. */
+export function useWithdrawComplaint() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => withdrawComplaint(id),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: complaintKeys.mine })
+    },
   })
 }
 

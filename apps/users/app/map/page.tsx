@@ -18,6 +18,7 @@ import {
   IconRefresh,
   IconStarFilled,
 } from '@tabler/icons-react'
+import { NEW_GARAGE_LABEL, hasStarScore } from '@repo/core/ratings'
 import { useVendorSearch } from '@repo/core/api/hooks/use-vendors'
 import { track } from '@repo/core/analytics'
 import {
@@ -732,7 +733,7 @@ function MapVendorCard({
           <p className="min-w-0 flex-1 truncate text-[14px] font-semibold text-text-primary">
             {vendor.name}
           </p>
-          {vendor.reviewCount > 0 ? (
+          {hasStarScore(vendor) ? (
             <span className="flex shrink-0 items-center gap-1 text-[12px]">
               <IconStarFilled size={11} className="text-warning" />
               <span className="font-numeric font-medium text-text-primary">
@@ -744,7 +745,7 @@ function MapVendorCard({
             </span>
           ) : (
             <span className="shrink-0 text-[12px] font-medium text-text-primary">
-              New
+              {NEW_GARAGE_LABEL}
             </span>
           )}
         </div>

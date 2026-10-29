@@ -40,6 +40,7 @@ import { ErrorState } from '@repo/ui/sc/empty-state'
 import { ScSheet } from '@repo/ui/sc/modal'
 import { Notice } from '@repo/ui/sc/notice'
 import { OutsideCityLine } from '@repo/ui/features/outside-city'
+import { hasStarScore } from '@repo/core/ratings'
 import { useGuaranteeConfig } from '@repo/core/api/hooks/use-guarantee'
 import { GUARANTEE_BADGE, GUARANTEE_SUMMARY } from '@repo/core/guarantee'
 import { WhenPicker } from '@/components/checkout/when-picker'
@@ -1721,7 +1722,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
             >
               {vendor.name}
             </h2>
-            {vendor.reviewCount > 0 ? (
+            {hasStarScore(vendor) ? (
               <span className="flex shrink-0 items-center gap-1 pt-0.5 text-[13px] text-text-primary">
                 <IconStarFilled
                   size={13}

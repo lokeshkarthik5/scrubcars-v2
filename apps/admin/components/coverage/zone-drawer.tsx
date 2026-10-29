@@ -40,7 +40,11 @@ import {
   type CallFilter,
   type CallRow,
 } from '@/lib/coverage'
-import { RecommendationList, ZoneDemandCard } from './zone-demand'
+import {
+  DismissedRecommendations,
+  RecommendationList,
+  ZoneDemandCard,
+} from './zone-demand'
 import { HotBadge, ZoneBar } from './zone-list'
 import { AssignSelect, type Assignee } from './lead-dialogs'
 
@@ -347,6 +351,7 @@ export function ZoneDrawer({
   demand,
   hotRule,
   recommendations,
+  dismissed = [],
   recommendedByLead,
   assignees,
   covered,
@@ -362,6 +367,8 @@ export function ZoneDrawer({
   hotRule: HotRule | undefined
   /** The zone's (or no zone's) recommendations still new. */
   recommendations: CoverageRecommendation[]
+  /** The zone's (or no zone's) dismissed ones (0065), for the Dismissed filter. */
+  dismissed?: CoverageRecommendation[]
   recommendedByLead: Map<string, CoverageRecommendation[]>
   assignees: Assignee[]
   /** A dialog is open above the drawer: Escape and the backdrop are the dialog's. */
@@ -482,6 +489,7 @@ export function ZoneDrawer({
         )}
 
         <RecommendationList title={title} recommendations={recommendations} />
+        <DismissedRecommendations title={title} recommendations={dismissed} />
 
         <div className="flex flex-wrap gap-2 border-t border-border px-4 pt-3">
           <button

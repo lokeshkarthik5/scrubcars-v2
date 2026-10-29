@@ -1,7 +1,8 @@
 /**
- * The queue behind Start job and Complete job's Undo (UX audit, garage
- * finding 5), with no React and no browser in it, so it can be tested: the
- * timers, the storage and the request are passed in.
+ * The queue behind the garage's 5-second Undo (UX audit, garage finding 5):
+ * Start job and Complete job, and since 0066 Accept and pickup & drop's
+ * Picked up, At garage and Out for delivery. No React and no browser in it,
+ * so it can be tested: the timers, the storage and the request are passed in.
  *
  * A step waits UNDO_MS, then is sent; it stays "sending" until the request
  * settles, so it can't be pressed twice or undone once it has gone. Each
@@ -10,7 +11,20 @@
  * on the next load, if the job still has the status it had (`from`).
  */
 
-export type StepStatus = 'in_progress' | 'completed'
+export type StepStatus =
+  | 'confirmed'
+  | 'in_progress'
+  | 'completed'
+  | 'picked_up'
+  | 'at_garage'
+  | 'out_for_delivery'
+
+/** Pickup & drop's handover steps: the status stays confirmed, `pickup.nextStep` moves. */
+export const PICKUP_STEPS = ['picked_up', 'at_garage', 'out_for_delivery'] as const satisfies readonly StepStatus[]
+
+export function isPickupStep(status: StepStatus): status is (typeof PICKUP_STEPS)[number] {
+  return (PICKUP_STEPS as readonly string[]).includes(status)
+}
 
 export interface Step {
   bookingId: string
@@ -19,6 +33,30 @@ export interface Step {
   from: string
   /** The garage it was pressed for: sent with it, whatever is active by then. */
   vendorId: string | null
+  /**
+   * Picked up's 4-digit code, as the customer read it out. Held in memory
+   * only: a step with a code is never written to storage (it is the
+   * customer's code), so a reload cannot resend it.
+   */
+  code?: string
+}
+
+/** A job as the resume check reads it. */
+export interface ResumableJob {
+  id: string
+  status: string
+  /** Pickup & drop's next step (`pickup.nextStep`), if any. */
+  pickupNext?: string | null
+}
+
+/**
+ * Whether a stored step still has to go after a reload: its job is where it
+ * was when the button was pressed. A pickup step's job keeps its status, so
+ * its own next step is what says so.
+ */
+export function stepStillDue(step: Step, job: ResumableJob): boolean {
+  if (isPickupStep(step.status)) return job.status === 'confirmed' && job.pickupNext === step.status
+  return job.status === step.from
 }
 
 export type StepPhase = 'waiting' | 'sending'
@@ -85,6 +123,7 @@ export function createStepQueue(deps: StepQueueDeps) {
   }
 
   function store(step: Step) {
+    if (step.code !== undefined) return
     writeStored([
       ...readStored().filter((s) => s.bookingId !== step.bookingId),
       step,
@@ -156,15 +195,12 @@ export function createStepQueue(deps: StepQueueDeps) {
      * the status it had when pressed, and forgotten otherwise (done already,
      * or changed elsewhere). Only the given garage's steps are looked at.
      */
-    resume(
-      jobs: ReadonlyArray<{ id: string; status: string }>,
-      vendorId: string | null
-    ) {
+    resume(jobs: ReadonlyArray<ResumableJob>, vendorId: string | null) {
       for (const step of readStored()) {
         if (entries.has(step.bookingId)) continue
         if (step.vendorId !== vendorId) continue
         const job = jobs.find((j) => j.id === step.bookingId)
-        if (!job || job.status !== step.from) {
+        if (!job || !stepStillDue(step, job)) {
           unstore(step.bookingId)
           continue
         }

@@ -1883,3 +1883,148 @@ export const TIERS = {
   awardJob: (n: number) => id(4640 + n),
   awardReview: (n: number) => id(4670 + n),
 } as const
+
+/**
+ * Pre-iOS, part A (0065; ids 5400–5499, phones 90000054xx, booking
+ * references a65a00xx). Only specs/admin/pre-ios-a-*.spec.ts,
+ * specs/users/pre-ios-ratings.spec.ts and specs/vendors/pre-ios-a.spec.ts
+ * touch these. Its people are seeded by its own seed function (not through
+ * CUSTOMERS or STAFF); global-setup mints their sessions.
+ *
+ * - garage: live, pinned far from every other garage, with a drawn doorstep
+ *   area, a holiday, three documents (an approved GST certificate and owner
+ *   ID, a shop photo the garage uploaded and Detlio has not checked) and two
+ *   counted reviews (so "New on Detlio") plus a Test booking's review that
+ *   never counts. Its owner is `owner`.
+ * - ratedGarage: three counted reviews (5, 5, 4): its score shows, 4.7.
+ * - adminGarage: the admin Reviews tab's: one review to hide, one hidden
+ *   (reported by the garage) to show again, one on a Test booking to delete.
+ * - bookings.teamTest: marked Test, paid with live money, all refunded, with
+ *   a complaint, a "book directly" report and the visit request it was
+ *   booked from: deleted from its page as a team test, with a reason.
+ *   pilotTeamTest the same, deleted from Start pilot clean. (A refund still
+ *   processing at Razorpay is lib/data-reset.test.ts's: the pending-digest
+ *   cron could settle a seeded one under a parallel spec.)
+ * - bookings.waived: confirmed, photos waived (Undo), notes added and edited.
+ *   extraWork: confirmed, with extra work waiting (Withdraw).
+ * - complaint: logged by phone (Logged in error, Undo).
+ * - collection: a closed list with an item left (Reopen) and an open list
+ *   (Delete list), for "PreiOS Collector".
+ * - dismissed: a customer recommendation in no zone, dismissed (Restore).
+ */
+export const PRE_IOS = {
+  customer: { id: id(5400), phone: '9000005400', name: 'Pre Priya Raman', vehicleId: id(5401) },
+  reporter: { id: id(5402), phone: '9000005402', name: 'Reporting Ramesh', vehicleId: id(5403) },
+  owner: { id: id(5404), phone: '9000005404', name: 'PreiOS Owner Kumar' },
+  /** Owns ratedGarage and adminGarage, so `owner`'s portal has one garage. */
+  otherOwner: { id: id(5405), phone: '9000005405', name: 'PreiOS Owner Two' },
+  garage: { id: id(5410), name: 'PreiOS Car Spa', serviceId: id(5412) },
+  ratedGarage: { id: id(5411), name: 'PreiOS Rated Garage', serviceId: id(5413) },
+  adminGarage: { id: id(5414), name: 'PreiOS Review Garage', serviceId: id(5415) },
+  bookings: {
+    teamTest: refId('a65a0001'),
+    pilotTeamTest: refId('a65a0002'),
+    reviewed: refId('a65a0010'),
+    damp: refId('a65a0011'),
+    testReview: refId('a65a0012'),
+    rated: [refId('a65a0020'), refId('a65a0021'), refId('a65a0022')],
+    toHide: refId('a65a0023'),
+    hidden: refId('a65a0024'),
+    adminTest: refId('a65a0025'),
+    waived: refId('a65a0030'),
+    extraWork: refId('a65a0031'),
+  },
+  reviews: {
+    spotless: id(5420),
+    damp: id(5421),
+    test: id(5422),
+    rated: [id(5423), id(5424), id(5425)],
+    toHide: id(5426),
+    hidden: id(5427),
+    adminTest: id(5428),
+  },
+  /** What hangs off bookings.teamTest, and is cleared with it. */
+  teamTestComplaint: id(5430),
+  teamTestBypass: id(5431),
+  teamTestRequest: id(5432),
+  teamTestIntent: id(5433),
+  pilotIntent: id(5434),
+  complaint: id(5435),
+  extraWorkCharge: id(5440),
+  closure: id(5441),
+  collection: {
+    assignee: 'PreiOS Collector',
+    closedList: id(5450),
+    closedItem: id(5451),
+    openList: id(5452),
+    openItem: id(5453),
+  },
+  dismissed: { id: id(5460), name: 'PreiOS Dismissed Garage' },
+  documents: {
+    gst: id(5470),
+    ownerId: id(5471),
+    shopPhoto: id(5472),
+    gstFile: id(5473),
+    ownerIdFile: id(5474),
+    shopPhotoFile: id(5475),
+  },
+} as const
+
+/**
+ * Pre-iOS accounts round (0066): ids 5100–5199 and phones 90000051xx only,
+ * people included (seeded with their rows, like TIERS, not in CUSTOMERS or
+ * STAFF: the specs sign them in themselves). Two unverified garages pinned
+ * far from every other fixture: `garage` (owner `owner`, operators `leaver`,
+ * `deleter` and `answerer`) with `customer`'s jobs, `closing` (owner
+ * `closer`) with an open "Close my garage" request, and `quitting` (owner
+ * `quitter`). Each spec file signs in its own people, so no two files share
+ * a number (concurrent sign-ins of one number race for its code). `leaving` deletes their account (a
+ * completed doorstep job with a review, a booked car, a spare car, an
+ * address); `blocked` has a booking to come; `editor` edits their details;
+ * `withdrawer` has an open complaint and is on Medavakkam's list;
+ * `noGarage` is a garage login with no garage yet.
+ */
+export const PREIOS = {
+  pin: { lat: 11.75, lng: 79.25 },
+  leaving: {
+    id: id(5101), phone: '9000005101', name: 'Leaving Lakshmi',
+    vehicleId: id(5102), spareVehicleId: id(5103), addressId: id(5104), plate: 'TN05DL0001',
+  },
+  blocked: { id: id(5105), phone: '9000005105', name: 'Blocked Bala', vehicleId: id(5106) },
+  editor: { id: id(5107), phone: '9000005107', name: 'Editing Ezhil', vehicleId: id(5108), addressId: id(5109) },
+  withdrawer: { id: id(5113), phone: '9000005113', name: 'Withdrawing Vani', vehicleId: id(5114) },
+  customer: { id: id(5116), phone: '9000005116', name: 'Garage Side Gita', vehicleId: id(5117), addressId: id(5118) },
+  owner: { id: id(5120), phone: '9000005120', name: 'Preios Owner Prakash' },
+  leaver: { id: id(5121), phone: '9000005121', name: 'Leaving Operator Lokesh' },
+  deleter: { id: id(5122), phone: '9000005122', name: 'Deleting Operator Divya' },
+  noGarage: { id: id(5123), phone: '9000005123', name: 'No Garage Naveen' },
+  closer: { id: id(5124), phone: '9000005124', name: 'Closing Owner Kumar' },
+  /** An operator at `garage` who answers its requests (the withdraw test). */
+  answerer: { id: id(5125), phone: '9000005125', name: 'Answering Operator Anbu' },
+  /** Owns `quitting`, and asks to close it (and takes that back). */
+  quitter: { id: id(5126), phone: '9000005126', name: 'Quitting Owner Queen' },
+  garage: { id: id(5130), name: 'Preios Test Garage', serviceId: id(5132), serviceName: 'Preios Foam Wash' },
+  closing: { id: id(5131), name: 'Closing Test Garage', serviceId: id(5133) },
+  quitting: { id: id(5134), name: 'Quitting Test Garage', serviceId: id(5135) },
+  closure: { id: id(5140), reason: 'Moving the business to Coimbatore' },
+  /** leaving's completed doorstep job and its review; blocked's booking to come. */
+  leavingDone: id(5110),
+  leavingReview: id(5111),
+  blockedOpen: id(5112),
+  complaint: id(5115),
+  /** customer's jobs at `garage`: accepted 3 days out, accepted in 6 hours, waiting to be accepted. */
+  cancelEarly: id(5150),
+  cancelLate: id(5151),
+  accept: id(5152),
+  /** Pickup & drop: not collected yet (codes below), and being worked on at the garage. */
+  pickupFresh: id(5153),
+  pickupOut: id(5154),
+  /** Already cancelled by the garage after accepting: the customer's page says so. */
+  garageCancelled: id(5155),
+  pickupCode: '4821',
+  deliveryCode: '7395',
+  /** customer's request to `garage`, accepted and not paid for; and one the garage already took back. */
+  request: id(5160),
+  requestWithdrawn: id(5161),
+  area: { slug: 'medavakkam', name: 'Medavakkam' },
+} as const

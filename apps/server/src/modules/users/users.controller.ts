@@ -1,5 +1,6 @@
 import type { Context } from 'hono'
 import type { AuthVariables } from '../../middleware/auth.middleware.js'
+import { clearSessionCookies } from '../account/account.controller.js'
 import { usersService } from './users.service.js'
 import type {
   AvatarUploadUrlInput,
@@ -70,6 +71,8 @@ export async function deleteAvatar(c: UsersContext) {
 
 export async function deleteAccount(c: UsersContext) {
   await usersService.deleteAccount(getUserId(c))
+  // This browser's session goes with the account (0066).
+  clearSessionCookies(c)
 
   return c.json({
     success: true,

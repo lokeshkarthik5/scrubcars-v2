@@ -9,6 +9,7 @@ import { cn } from '@repo/core/utils'
 import { GarageDocumentsSection } from '@/components/garage-documents-section'
 import { GarageCertificationSection } from '@/components/garage-certification-section'
 import { GarageTierSection } from '@/components/garage-tier-section'
+import { GarageReviewsSection } from '@/components/garage-reviews-section'
 import { GarageStrikesCard } from '@/components/garage-strikes-card'
 import { SaveBar } from '@/components/save-bar'
 import { RestoreDialog } from '@/components/vendor-bin-dialogs'
@@ -23,6 +24,7 @@ import {
 } from '@/lib/garage-edit'
 import { tabDots } from '@/lib/garage-status'
 import { BinBanner } from './bin-banner'
+import { ClosureRequestCard } from '@/components/closure-request-card'
 import { EditorHeader } from './editor-header'
 import { HowCustomersBook } from './how-customers-book'
 import { StatusPanel } from './status-panel'
@@ -197,6 +199,16 @@ export default function EditVendorPage({
         <div className="@container flex min-w-0 flex-col gap-4">
           {bin && <BinBanner bin={bin} onRestore={() => setRestoring(true)} />}
 
+          {/* The owner's "Close my garage" request (0066), while open. */}
+          <ClosureRequestCard
+            vendor={{ id, businessName: saved.form.businessName }}
+            inBin={Boolean(bin)}
+            onBinned={() => {
+              markListStale()
+              void load()
+            }}
+          />
+
           {/* Bypass reports (0052): strikes and reports to look into. */}
           <GarageStrikesCard vendorId={id} />
 
@@ -214,7 +226,8 @@ export default function EditVendorPage({
               {tabs.map((value) => {
                 const label = PAGE_TAB_LABELS[value]
                 const changed = isEditTab(value) && dirty.includes(value)
-                const dot = dots[value]
+                // Reviews (0065) is not one of the checklist's tabs.
+                const dot = value === 'reviews' ? undefined : dots[value]
                 return (
                   <TabsTrigger
                     key={value}
@@ -319,6 +332,13 @@ export default function EditVendorPage({
                   checks, Award Gold and Revoke. */}
               <GarageTierSection vendorId={id} readOnly={readOnly} />
               <GarageCertificationSection vendorId={id} readOnly={readOnly} />
+            </TabsContent>
+            {/* Every review and whether it counts (0065), outside the
+              read-only fieldset: in the Bin it still shows, unchanged. */}
+            <TabsContent value="reviews">
+              {shownTab === 'reviews' && (
+                <GarageReviewsSection vendorId={id} readOnly={readOnly} />
+              )}
             </TabsContent>
           </Tabs>
 

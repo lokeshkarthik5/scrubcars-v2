@@ -25,6 +25,7 @@ import {
   getGarageDocuments,
   getGarageDocumentsConfig,
   openDocumentLink,
+  removeGarageDocument,
   uploadGarageDocument,
   type GarageDocument,
   type GarageDocuments,
@@ -37,6 +38,7 @@ import {
   DOCUMENT_HINTS,
   DOCUMENT_STATUS_LABELS,
   fileLine,
+  garageCanRemove,
   pickedFilesProblem,
 } from '@repo/core/vendor-documents'
 
@@ -197,6 +199,7 @@ export default function GarageDocumentsPage() {
                     replaceDocument(next)
                     void load()
                   }}
+                  onRemoved={(next) => setData(next)}
                 />
               </Reveal>
             ))}
@@ -210,9 +213,12 @@ export default function GarageDocumentsPage() {
 function DocumentCard({
   doc,
   onUploaded,
+  onRemoved,
 }: {
   doc: GarageDocument
   onUploaded: (doc: GarageDocument) => void
+  /** Removed (0065): the documents as they are now. */
+  onRemoved: (documents: GarageDocuments) => void
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [picked, setPicked] = useState<File[]>([])
@@ -244,6 +250,29 @@ function DocumentCard({
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'Upload failed. Please try again.'
+      )
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // Remove (0065): an optional document, or your own upload of a required
+  // one Detlio has not approved yet. Asked once more first.
+  const [confirmRemove, setConfirmRemove] = useState(false)
+  const remove = async () => {
+    if (!doc.id) return
+    setBusy(true)
+    setError('')
+    try {
+      const next = await removeGarageDocument(doc.id)
+      setConfirmRemove(false)
+      toast.success(`${doc.label} removed`)
+      onRemoved(next)
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Couldn’t remove it. Please try again.'
       )
     } finally {
       setBusy(false)
@@ -355,7 +384,43 @@ function DocumentCard({
         onChange={(e) => pick(e.target.files)}
       />
 
-      {picked.length === 0 ? (
+      {confirmRemove ? (
+        <div
+          role="group"
+          aria-label={`Remove ${doc.label}?`}
+          className="flex flex-col gap-2 border-t border-border pt-3"
+        >
+          <p className="text-[13px] text-text-primary">
+            Remove {inSentence(doc.label)}? It goes back to Not uploaded and its
+            files are deleted.
+          </p>
+          {error && (
+            <p role="alert" className="text-[12px] text-error">
+              {error}
+            </p>
+          )}
+          <div className="flex gap-2">
+            <ScButton
+              variant="outline"
+              size="md"
+              onClick={() => void remove()}
+              disabled={busy}
+            >
+              {busy ? 'Removing…' : `Remove ${inSentence(doc.label)}`}
+            </ScButton>
+            <ScButton
+              variant="outline"
+              size="md"
+              fullWidth={false}
+              disabled={busy}
+              onClick={() => setConfirmRemove(false)}
+              className="px-4"
+            >
+              Keep it
+            </ScButton>
+          </div>
+        </div>
+      ) : picked.length === 0 ? (
         <div className="flex flex-col gap-1">
           <ScButton
             variant="outline"
@@ -376,6 +441,19 @@ function DocumentCard({
             {doc.status === 'approved' &&
               ' Replacing it sends it back for review.'}
           </p>
+          {garageCanRemove(doc) && (
+            <button
+              type="button"
+              onClick={() => {
+                setError('')
+                setConfirmRemove(true)
+              }}
+              aria-label={`Remove ${doc.label}`}
+              className="min-h-11 self-start text-[12px] font-medium text-text-secondary underline-offset-2 hover:underline"
+            >
+              Remove
+            </button>
+          )}
         </div>
       ) : (
         <div className="flex flex-col gap-2 border-t border-border pt-3">

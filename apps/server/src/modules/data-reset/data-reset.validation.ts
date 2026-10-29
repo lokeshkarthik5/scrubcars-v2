@@ -3,6 +3,18 @@ import { signedActorName } from '../../lib/admin-actor.js'
 import { MAX_TICKED_IDS } from '../../lib/data-reset.js'
 
 /**
+ * Why a booking that took real money is deleted as a team test (0065): kept
+ * in the ledger with its payments. Needed only when the run deletes one; the
+ * service refuses without it then (400 REASON_REQUIRED).
+ */
+const teamTestReason = z
+  .string()
+  .trim()
+  .min(3, 'Say in a few words why it is a team test')
+  .max(300, 'Keep the reason to 300 characters')
+  .optional()
+
+/**
  * Which bookings a run is about (see ResetScope in lib/data-reset.ts). The
  * cutoff is an instant with its offset, as the admin page sends the IST time
  * the owner picked ("2026-10-01T09:00:00+05:30").
@@ -61,6 +73,7 @@ export const executeSchema = previewSchema.extend({
   backupConfirmed: z.literal(true, {
     error: 'Confirm you have a database backup from today',
   }),
+  reason: teamTestReason,
 })
 
 export type PreviewInput = z.infer<typeof previewSchema>
@@ -87,6 +100,7 @@ export const testBookingDeleteSchema = z
     selectionHash: z.string().regex(/^[0-9a-f]{64}$/, 'Run the dry run first'),
     confirmText: z.string().max(100),
     actorName: signedActorName,
+    reason: teamTestReason,
   })
   .strict()
 

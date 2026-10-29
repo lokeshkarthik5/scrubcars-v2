@@ -1595,7 +1595,10 @@ export const bookingsRepository = {
     cancelledBy: 'user' | 'vendor',
     from: BookingStatus,
     reason?: string | null,
-    proposalOutcome?: { proposalId: string; status: 'declined' | 'expired' } | null
+    proposalOutcome?: { proposalId: string; status: 'declined' | 'expired' } | null,
+    // The garage cancelling a booking it had accepted (0066): stamped so
+    // the tier metrics can tell it from a decline (lib/garage-cancel.ts).
+    options: { garageCancelled?: boolean } = {}
   ) {
     return db
       .transaction(async (tx) => {
@@ -1607,6 +1610,7 @@ export const bookingsRepository = {
             cancelledBy,
             cancellationReason: reason ?? null,
             cancelledAt: at,
+            ...(options.garageCancelled ? { garageCancelledAt: at } : {}),
           })
           .where(
             and(

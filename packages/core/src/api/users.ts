@@ -199,12 +199,19 @@ export type WashIntervalDays = 7 | 10 | 14 | 21 | 30
 /**
  * PATCH /users/me/vehicles/:id
  *
- * Today only the wash interval is edited from the app (the Home wash bar's
- * sheet); null goes back to the default.
+ * The Home wash bar's sheet sets the wash interval (null goes back to the
+ * default); Profile's Edit sheet the make, model, plate and colour (0066).
  */
 export async function updateVehicle(
   id: string,
-  payload: { washIntervalDays?: WashIntervalDays | null }
+  payload: {
+    washIntervalDays?: WashIntervalDays | null
+    // The Edit sheet on Profile (0066): null clears the plate or colour.
+    make?: string
+    model?: string
+    licensePlate?: string | null
+    color?: string | null
+  }
 ): Promise<Vehicle> {
   const vehicle = await apiClient<ApiVehicle>(`/users/me/vehicles/${id}`, {
     method: 'PATCH',

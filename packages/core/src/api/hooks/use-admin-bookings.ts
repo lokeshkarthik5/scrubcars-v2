@@ -9,6 +9,8 @@ import {
 } from '@tanstack/react-query'
 import {
   addAdminBookingNote,
+  deleteAdminBookingNote,
+  editAdminBookingNote,
   cancelAdminBooking,
   getAdminBooking,
   getAdminBookingViewCounts,
@@ -16,6 +18,8 @@ import {
   markAdminBookingNoShow,
   overrideAdminPickupStep,
   waiveAdminJobPhotos,
+  undoAdminJobPhotosWaiver,
+  withdrawAdminExtraWork,
   type AdminBooking,
   type AdminBookingDetail,
   type AdminBookingFilters,
@@ -222,6 +226,16 @@ export function useWaiveAdminJobPhotos() {
   )
 }
 
+/** Withdraw unpaid extra work for the garage (0065). */
+export function useWithdrawAdminExtraWork() {
+  return useBookingAction<string>((id: string, chargeId: string) => withdrawAdminExtraWork(id, chargeId))
+}
+
+/** Take the waiver back (0065). */
+export function useUndoAdminJobPhotosWaiver() {
+  return useBookingAction<void>((id: string) => undoAdminJobPhotosWaiver(id))
+}
+
 /**
  * A note is prepended to the cached detail rather than refetched, so it
  * appears the moment the server accepts it; the lists are refetched for their
@@ -246,6 +260,45 @@ export function useAddAdminBookingNote() {
             : booking
       )
       void queryClient.invalidateQueries({ queryKey: adminBookingKeys.lists() })
+    },
+  })
+}
+
+/** Edit or delete your own typed note within 24 hours (0065). */
+export function useEditAdminBookingNote() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, noteId, body }: { id: string; noteId: string; body: string }) =>
+      editAdminBookingNote(id, noteId, body),
+    onSuccess: (note, { id }) => {
+      queryClient.setQueryData<AdminBookingDetail>(adminBookingKeys.detail(id), (booking) =>
+        booking ? { ...booking, notes: booking.notes.map((n) => (n.id === note.id ? note : n)) } : booking
+      )
+    },
+    onError: (_error, { id }) => {
+      void queryClient.invalidateQueries({ queryKey: adminBookingKeys.detail(id) })
+    },
+  })
+}
+
+export function useDeleteAdminBookingNote() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, noteId }: { id: string; noteId: string }) => deleteAdminBookingNote(id, noteId),
+    onSuccess: (_done, { id, noteId }) => {
+      queryClient.setQueryData<AdminBookingDetail>(adminBookingKeys.detail(id), (booking) =>
+        booking
+          ? {
+              ...booking,
+              notes: booking.notes.filter((n) => n.id !== noteId),
+              notesCount: Math.max(0, booking.notesCount - 1),
+            }
+          : booking
+      )
+      void queryClient.invalidateQueries({ queryKey: adminBookingKeys.lists() })
+    },
+    onError: (_error, { id }) => {
+      void queryClient.invalidateQueries({ queryKey: adminBookingKeys.detail(id) })
     },
   })
 }

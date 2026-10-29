@@ -8,7 +8,7 @@ import { IconAlertTriangle, IconCheck } from '@tabler/icons-react'
 import { ScBadge, bookingStatusBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ErrorState } from '@repo/ui/sc/empty-state'
-import { ScTextarea } from '@repo/ui/sc/input'
+import { ScInput, ScTextarea } from '@repo/ui/sc/input'
 import { ScModal } from '@repo/ui/sc/modal'
 import { PageHeader } from '@repo/ui/sc/page-header'
 import { ScSection } from '@repo/ui/sc/section'
@@ -19,8 +19,10 @@ import {
   useAcknowledgeComplaint,
   useAdminComplaint,
   useCloseComplaint,
+  useMarkComplaintLoggedInError,
   useResolveComplaint,
   useSetComplaintNote,
+  useUndoComplaintLoggedInError,
 } from '@repo/core/api/hooks/use-admin-complaints'
 import {
   COMPLAINT_ADMIN_NOTE_MAX,
@@ -379,6 +381,9 @@ function ComplaintDetail({ id }: { id: string }) {
             <ScBadge variant={STATUS_BADGE[c.status]}>
               {COMPLAINT_ADMIN_STATUS_LABELS[c.status]}
             </ScBadge>
+            {c.loggedInError && (
+              <ScBadge variant="muted">Logged in error</ScBadge>
+            )}
             {overdue && (
               <ScBadge variant="danger">
                 <IconAlertTriangle size={11} aria-hidden className="mr-1" />
@@ -504,7 +509,122 @@ function ComplaintDetail({ id }: { id: string }) {
       <Actions key={c.id} c={c} />
 
       <InternalNote key={c.id} c={c} />
+
+      {c.source !== 'app' && <LoggedInError key={`error-${c.id}`} c={c} />}
     </>
+  )
+}
+
+/**
+ * "Logged in error" (0065), for a complaint the team logged by mistake (the
+ * wrong caller, a test call): it stays in the record, under All, and leaves
+ * every count (Open, Overdue, the customer's list, Silver and Gold). Never a
+ * delete, and undone with Undo. Only on a team-logged complaint: a
+ * customer's own is closed instead.
+ */
+function LoggedInError({ c }: { c: AdminComplaint }) {
+  const mark = useMarkComplaintLoggedInError(c.id)
+  const undo = useUndoComplaintLoggedInError(c.id)
+  const [asking, setAsking] = useState(false)
+  const [reason, setReason] = useState('')
+  const busy = mark.isPending || undo.isPending
+  const marked = c.loggedInError ?? null
+
+  return (
+    <ScSection title="Logged in error">
+      {marked ? (
+        <div className="flex flex-col gap-2">
+          <p className="text-[13px] text-text-primary">
+            Marked by {marked.by},{' '}
+            <span className="font-numeric">{formatWhen(marked.at)}</span>:{' '}
+            {marked.reason}
+          </p>
+          <p className="text-[12px] text-text-muted">
+            Kept in the record and out of every count: Open, Overdue, the
+            customer&apos;s list and the tiers.
+          </p>
+          <ScButton
+            variant="secondary"
+            fullWidth={false}
+            disabled={busy}
+            onClick={() =>
+              undo.mutate(undefined, {
+                onSuccess: () =>
+                  toast.success(`${c.number} is back in the counts`),
+                onError: (err) =>
+                  toast.error(errorMessage(err, "Couldn't undo it")),
+              })
+            }
+            className="min-h-11 self-start px-4 text-[13px]"
+          >
+            {undo.isPending ? 'Undoing…' : 'Undo'}
+          </ScButton>
+        </div>
+      ) : asking ? (
+        <form
+          className="flex flex-col gap-2"
+          onSubmit={(event) => {
+            event.preventDefault()
+            const why = reason.trim()
+            if (why.length < 3) return
+            mark.mutate(why, {
+              onSuccess: () => {
+                setAsking(false)
+                setReason('')
+                toast.success(`${c.number} marked as logged in error`)
+              },
+              onError: (err) =>
+                toast.error(errorMessage(err, "Couldn't mark it")),
+            })
+          }}
+        >
+          <ScInput
+            id="complaint-error-reason"
+            label="Why was it logged in error?"
+            placeholder="Logged against the wrong caller"
+            maxLength={300}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            className="min-h-11"
+          />
+          <div className="flex gap-2">
+            <ScButton
+              type="submit"
+              variant="secondary"
+              fullWidth={false}
+              disabled={busy || reason.trim().length < 3}
+              className="min-h-11 px-4 text-[13px]"
+            >
+              {mark.isPending ? 'Saving…' : 'Mark as logged in error'}
+            </ScButton>
+            <ScButton
+              variant="secondary"
+              fullWidth={false}
+              disabled={busy}
+              onClick={() => setAsking(false)}
+              className="min-h-11 px-4 text-[13px]"
+            >
+              Cancel
+            </ScButton>
+          </div>
+        </form>
+      ) : (
+        <div className="flex flex-col gap-2">
+          <p className="text-[12px] text-text-secondary">
+            Logged by mistake? It stays in the record and leaves every count.
+            You can undo it.
+          </p>
+          <ScButton
+            variant="secondary"
+            fullWidth={false}
+            onClick={() => setAsking(true)}
+            className="min-h-11 self-start px-4 text-[13px]"
+          >
+            Logged in error…
+          </ScButton>
+        </div>
+      )}
+    </ScSection>
   )
 }
 

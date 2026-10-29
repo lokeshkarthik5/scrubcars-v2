@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   getAdminDocumentsConfig,
   getAdminGarageDocuments,
+  removeAdminGarageDocument,
   reviewAdminGarageDocument,
   uploadAdminGarageDocument,
   type DocumentReview,
@@ -61,6 +62,16 @@ export function useUploadAdminDocument(vendorId: string) {
   return useMutation({
     mutationFn: (input: DocumentUpload & { approve: boolean }) =>
       uploadAdminGarageDocument(vendorId, input),
+    onSettled: refresh,
+  })
+}
+
+/** Remove (0065): back to "Not uploaded"; a required type once warned. */
+export function useRemoveAdminDocument(vendorId: string) {
+  const refresh = useRefresh(vendorId)
+  return useMutation({
+    mutationFn: ({ documentId, requiredConfirmed }: { documentId: string; requiredConfirmed: boolean }) =>
+      removeAdminGarageDocument(vendorId, documentId, requiredConfirmed),
     onSettled: refresh,
   })
 }

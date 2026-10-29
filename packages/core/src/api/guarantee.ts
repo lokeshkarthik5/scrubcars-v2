@@ -59,6 +59,8 @@ export interface CustomerClaim {
   canBookRedo: boolean
   /** Why it was not approved; only then. */
   reason: string | null
+  /** "Withdraw" applies: nobody has answered it yet (0066). Absent from older servers. */
+  canWithdraw?: boolean
 }
 
 export interface BookingGuarantee {
@@ -67,6 +69,11 @@ export interface BookingGuarantee {
   /** Until when, while it can. */
   claimBy: string | null
   claim: CustomerClaim | null
+}
+
+/** POST /users/me/guarantee/claims/:id/withdraw — while nobody has answered it (0066). */
+export function withdrawClaim(claimId: string) {
+  return apiClient<CustomerClaim>(`/users/me/guarantee/claims/${claimId}/withdraw`, { method: 'POST' })
 }
 
 /** GET /users/me/guarantee/bookings/:bookingId */

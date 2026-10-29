@@ -1,6 +1,7 @@
-import { and, asc, count, desc, eq, gte, inArray, lt, or, sql, type SQL } from 'drizzle-orm'
+import { COMPLAINT_WITHDRAWN_BY } from '../../lib/complaints.js'
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lt, ne, or, sql, type SQL } from 'drizzle-orm'
 import { db } from '../../db/index.js'
-import { bookings, complaints, users, vendors } from '../../db/schema.js'
+import { adminAuditLog, bookings, complaints, users, vendors } from '../../db/schema.js'
 import type { ComplaintStatus } from '../../lib/complaints.js'
 
 export type ComplaintRecord = typeof complaints.$inferSelect
@@ -29,14 +30,24 @@ function overdueWhere(cutoffs: OverdueCutoffs): SQL {
   )!
 }
 
+/**
+ * Not "Logged in error" (0065): a complaint the team logged by mistake stays
+ * in the record (All) and leaves every count and list but that one: Open,
+ * Overdue and Resolved, the customer's own list and Updates, the tiers, and
+ * the automatic refunds' hold. Every reader of complaints that counts or
+ * shows them to anyone but admin's All says so through this.
+ */
+export const NOT_LOGGED_IN_ERROR = isNull(complaints.errorMarkedAt)
+
 function filterWhere(filter: ComplaintListFilter, cutoffs: OverdueCutoffs): SQL | undefined {
   switch (filter) {
     case 'open':
-      return inArray(complaints.status, UNFINISHED)
+      return and(inArray(complaints.status, UNFINISHED), NOT_LOGGED_IN_ERROR)
     case 'overdue':
-      return overdueWhere(cutoffs)
+      return and(overdueWhere(cutoffs), NOT_LOGGED_IN_ERROR)
     case 'resolved':
-      return inArray(complaints.status, FINISHED)
+      // A withdrawn one (0066) counts nowhere, Resolved included.
+      return and(inArray(complaints.status, FINISHED), NOT_LOGGED_IN_ERROR, isNull(complaints.withdrawnAt))
     case 'all':
       return undefined
   }
@@ -45,7 +56,8 @@ function filterWhere(filter: ComplaintListFilter, cutoffs: OverdueCutoffs): SQL 
 /** A complaint with what admin shows beside it: whether the account is still there, and the booking. */
 const adminColumns = {
   complaint: complaints,
-  accountExists: sql<boolean>`${users.id} is not null`,
+  // A deleted account (0066) keeps its row, blanked: it counts as gone.
+  accountExists: sql<boolean>`${users.id} is not null and ${users.deletedAt} is null`,
   bookingScheduledAt: bookings.scheduledAt,
   bookingStatus: bookings.status,
 }
@@ -110,7 +122,7 @@ export const complaintsRepository = {
           lastHour: sql<number>`count(*) filter (where ${gte(complaints.createdAt, input.since)})`,
         })
         .from(complaints)
-        .where(eq(complaints.userId, input.userId))
+        .where(and(eq(complaints.userId, input.userId), NOT_LOGGED_IN_ERROR))
 
       const refusal = input.decide({
         unfinished: Number(counts?.unfinished ?? 0),
@@ -183,7 +195,7 @@ export const complaintsRepository = {
     return db
       .select()
       .from(complaints)
-      .where(eq(complaints.userId, userId))
+      .where(and(eq(complaints.userId, userId), NOT_LOGGED_IN_ERROR))
       .orderBy(desc(complaints.receivedAt), desc(complaints.number))
       .limit(limit)
   },
@@ -215,9 +227,9 @@ export const complaintsRepository = {
   async countForAdmin(cutoffs: OverdueCutoffs) {
     const [row] = await db
       .select({
-        open: sql<number>`count(*) filter (where ${inArray(complaints.status, UNFINISHED)})`,
-        overdue: sql<number>`count(*) filter (where ${overdueWhere(cutoffs)})`,
-        resolved: sql<number>`count(*) filter (where ${inArray(complaints.status, FINISHED)})`,
+        open: sql<number>`count(*) filter (where ${and(inArray(complaints.status, UNFINISHED), NOT_LOGGED_IN_ERROR)})`,
+        overdue: sql<number>`count(*) filter (where ${and(overdueWhere(cutoffs), NOT_LOGGED_IN_ERROR)})`,
+        resolved: sql<number>`count(*) filter (where ${and(inArray(complaints.status, FINISHED), NOT_LOGGED_IN_ERROR, isNull(complaints.withdrawnAt))})`,
         all: count(),
       })
       .from(complaints)
@@ -288,6 +300,47 @@ export const complaintsRepository = {
     return row ?? null
   },
 
+  /**
+   * The customer withdraws their own complaint (0066): only one they raised
+   * in the app that nobody has answered yet (still 'open'). Closed like a
+   * close, with `withdrawn_at`; the acknowledgement stamp the closed status
+   * needs (0035's CHECK) is the same moment. Null when it was not theirs,
+   * not open, or not raised in the app.
+   */
+  async withdrawOwn(id: string, userId: string, at: Date) {
+    const [row] = await db
+      .update(complaints)
+      .set({
+        status: 'closed',
+        acknowledgedAt: at,
+        acknowledgedBy: COMPLAINT_WITHDRAWN_BY,
+        closedAt: at,
+        closedBy: COMPLAINT_WITHDRAWN_BY,
+        withdrawnAt: at,
+        updatedAt: at,
+      })
+      .where(
+        and(
+          eq(complaints.id, id),
+          eq(complaints.userId, userId),
+          eq(complaints.status, 'open'),
+          eq(complaints.source, 'app')
+        )
+      )
+      .returning()
+    return row ?? null
+  },
+
+  /** The customer's own complaint, for telling "not yours" from "answered already". */
+  async findOwn(id: string, userId: string) {
+    const [row] = await db
+      .select({ id: complaints.id, status: complaints.status, source: complaints.source })
+      .from(complaints)
+      .where(and(eq(complaints.id, id), eq(complaints.userId, userId)))
+      .limit(1)
+    return row ?? null
+  },
+
   /** Whether a complaint exists, to tell "not found" from "already done". */
   async exists(id: string): Promise<boolean> {
     const [row] = await db.select({ id: complaints.id }).from(complaints).where(eq(complaints.id, id)).limit(1)
@@ -301,6 +354,52 @@ export const complaintsRepository = {
       .where(eq(complaints.id, id))
       .returning({ id: complaints.id })
     return row ?? null
+  },
+
+  /**
+   * Marks a team-logged complaint "Logged in error" with who and why, or
+   * undoes it, with its audit row, in one transaction (0065). Conditional on
+   * its state, so a second press changes nothing: null when it did not move.
+   */
+  setLoggedInError(
+    id: string,
+    change: { mark: true; by: string; reason: string; at: Date } | { mark: false; by: string; at: Date },
+    actorSub: string
+  ) {
+    return db.transaction(async (tx) => {
+      const [before] = await tx
+        .select({ errorMarkedBy: complaints.errorMarkedBy, errorReason: complaints.errorReason, errorMarkedAt: complaints.errorMarkedAt })
+        .from(complaints)
+        .where(eq(complaints.id, id))
+        .for('update')
+      if (!before) return null
+      const [row] = await tx
+        .update(complaints)
+        .set(
+          change.mark
+            ? { errorMarkedAt: change.at, errorMarkedBy: change.by, errorReason: change.reason, updatedAt: change.at }
+            : { errorMarkedAt: null, errorMarkedBy: null, errorReason: null, updatedAt: change.at }
+        )
+        .where(
+          and(
+            eq(complaints.id, id),
+            ne(complaints.source, 'app'),
+            change.mark ? isNull(complaints.errorMarkedAt) : isNotNull(complaints.errorMarkedAt)
+          )
+        )
+        .returning({ id: complaints.id, number: complaints.number })
+      if (!row) return null
+      await tx.insert(adminAuditLog).values({
+        action: change.mark ? 'complaint_logged_in_error' : 'complaint_logged_in_error_undone',
+        actorSub,
+        actorName: change.by,
+        summary: { complaintId: id, number: row.number },
+        detail: change.mark
+          ? { reason: change.reason }
+          : { was: { by: before.errorMarkedBy, reason: before.errorReason, at: before.errorMarkedAt?.toISOString() ?? null } },
+      })
+      return row
+    })
   },
 
   findUserById(id: string) {

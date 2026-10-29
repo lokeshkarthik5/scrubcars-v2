@@ -8,7 +8,11 @@ import { ScTextarea } from '@repo/ui/sc/input'
 import { ScModal } from '@repo/ui/sc/modal'
 import { BeforeAfterCompare } from '@repo/ui/features/before-after'
 import { errorMessage } from '@repo/core/api/hooks/use-discounts'
-import { useWaiveAdminJobPhotos } from '@repo/core/api/hooks/use-admin-bookings'
+import {
+  useUndoAdminJobPhotosWaiver,
+  useWaiveAdminJobPhotos,
+  useWithdrawAdminExtraWork,
+} from '@repo/core/api/hooks/use-admin-bookings'
 import { angleLabel, photoByLabel } from '@repo/core/job-photo-standards'
 import type { JobPhoto } from '@repo/core/types'
 import { ScSection } from '@repo/ui/sc/section'
@@ -290,6 +294,7 @@ export function JobPhotosSection({
   allowWaive?: boolean
 }) {
   const [waiving, setWaiving] = useState(false)
+  const undoWaiver = useUndoAdminJobPhotosWaiver()
   const photos = booking.photos ?? []
   const standard = booking.photoStandard
   const waiver = booking.photosWaiver ?? null
@@ -335,6 +340,30 @@ export function JobPhotosSection({
           <span className="font-numeric">{formatWhen(waiver.at)}</span>:{' '}
           {waiver.reason}
         </p>
+      )}
+      {/* Undo (0065): while the job is not over and has no redo claim. */}
+      {allowWaive && waiver?.undoable && (
+        <ScButton
+          variant="secondary"
+          fullWidth={false}
+          disabled={undoWaiver.isPending}
+          onClick={() =>
+            undoWaiver.mutate(
+              { id: booking.id, input: undefined },
+              {
+                onSuccess: () =>
+                  toast.success(
+                    'Waiver undone: the garage’s photos are needed again'
+                  ),
+                onError: (err) =>
+                  toast.error(errorMessage(err, "Couldn't undo the waiver")),
+              }
+            )
+          }
+          className="min-h-11 self-start px-4 text-[12px]"
+        >
+          {undoWaiver.isPending ? 'Undoing…' : 'Undo waiver'}
+        </ScButton>
       )}
 
       <BeforeAfterCompare
@@ -510,6 +539,75 @@ function WaivePhotosDialog({
   )
 }
 
+/**
+ * Withdraw unpaid extra work for the garage (0065), asked once more first.
+ * The customer then has nothing to pay; recorded as a note and audited.
+ */
+function WithdrawExtraWorkButton({
+  bookingId,
+  chargeId,
+  what,
+}: {
+  bookingId: string
+  chargeId: string
+  what: string
+}) {
+  const withdraw = useWithdrawAdminExtraWork()
+  const [asking, setAsking] = useState(false)
+  if (!asking) {
+    return (
+      <button
+        type="button"
+        onClick={() => setAsking(true)}
+        aria-label={`Withdraw ${what}`}
+        className="min-h-11 px-1 text-[12px] font-medium text-text-secondary underline-offset-2 hover:underline"
+      >
+        Withdraw…
+      </button>
+    )
+  }
+  return (
+    <span
+      role="group"
+      aria-label={`Withdraw ${what}?`}
+      className="flex flex-wrap items-center gap-2"
+    >
+      <span className="text-[12px] text-text-secondary">
+        The customer won&apos;t be asked to pay it.
+      </span>
+      <ScButton
+        variant="secondary"
+        fullWidth={false}
+        disabled={withdraw.isPending}
+        onClick={() =>
+          withdraw.mutate(
+            { id: bookingId, input: chargeId },
+            {
+              onSuccess: () => toast.success('Extra work withdrawn'),
+              onError: (err) => {
+                setAsking(false)
+                toast.error(errorMessage(err, "Couldn't withdraw it"))
+              },
+            }
+          )
+        }
+        className="min-h-11 px-3 text-[12px]"
+      >
+        {withdraw.isPending ? 'Withdrawing…' : 'Withdraw extra work'}
+      </ScButton>
+      <ScButton
+        variant="secondary"
+        fullWidth={false}
+        disabled={withdraw.isPending}
+        onClick={() => setAsking(false)}
+        className="min-h-11 px-3 text-[12px]"
+      >
+        Keep it
+      </ScButton>
+    </span>
+  )
+}
+
 const EXTRA_WORK_STATE: Record<
   AdminExtraWork['state'],
   { label: string; variant: 'pending' | 'success' | 'muted' }
@@ -517,7 +615,8 @@ const EXTRA_WORK_STATE: Record<
   awaiting: { label: 'Waiting for customer', variant: 'pending' },
   paid: { label: 'Approved & paid', variant: 'success' },
   declined: { label: 'Declined by customer', variant: 'muted' },
-  withdrawn: { label: 'Withdrawn by garage', variant: 'muted' },
+  // By the garage, or by Detlio for it (0065, the notes say which).
+  withdrawn: { label: 'Withdrawn', variant: 'muted' },
   closed: { label: 'Closed with the booking', variant: 'muted' },
 }
 
@@ -547,10 +646,18 @@ export function ExtraWorkSection({ booking }: { booking: AdminBookingDetail }) {
                 {formatRupees(work.amount)}
               </span>
             </div>
-            <div>
+            <div className="flex flex-wrap items-center gap-2">
               <ScBadge variant={EXTRA_WORK_STATE[work.state].variant}>
                 {EXTRA_WORK_STATE[work.state].label}
               </ScBadge>
+              {/* For the garage (0065): unpaid only, as its own Withdraw. */}
+              {work.state === 'awaiting' && (
+                <WithdrawExtraWorkButton
+                  bookingId={booking.id}
+                  chargeId={work.id}
+                  what={work.description}
+                />
+              )}
             </div>
             {work.note && (
               <p className="text-[12px] text-text-secondary">

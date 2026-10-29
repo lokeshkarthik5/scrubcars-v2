@@ -8,6 +8,7 @@ import {
   customerCompleted,
   customerDayBefore,
   customerDeclined,
+  customerGarageCancelled,
   customerExtraWorkRequested,
   customerHourBefore,
   customerNotAcceptedInTime,
@@ -38,6 +39,7 @@ import {
   customerRequestForwarded,
   customerRequestLapsed,
   customerRequestCancelledByDetlio,
+  customerRequestWithdrawn,
   customerRequestNoGarage,
   garageNewRequest,
   garageRequestBooked,
@@ -121,6 +123,7 @@ const ALL: Array<[string, PushMessage]> = [
   ['customer request no garage', customerRequestNoGarage(request)],
   ['customer request lapsed', customerRequestLapsed(request, 'Marina Auto Spa')],
   ['customer request cancelled by Detlio', customerRequestCancelledByDetlio(request, 'Marina Auto Spa')],
+  ['customer request withdrawn by the garage', customerRequestWithdrawn(request, 'Marina Auto Spa')],
   ['customer area launch', customerAreaNews('launch', 's1', { title: 'Detlio is now in Velachery', body: '3 garages near you. Your free wash is ready.' })],
   ['garage new booking', garageNewBooking(booking, NOW, 30)],
   ['garage respond soon', garageRespondSoon(booking, IST('2026-10-16T18:20:00'))],
@@ -133,6 +136,7 @@ const ALL: Array<[string, PushMessage]> = [
   ['garage not accepted in time', garageNotAcceptedInTime(booking)],
   ['customer accepted', customerAccepted(booking)],
   ['customer declined', customerDeclined(booking, '799.00')],
+  ['customer garage cancelled', customerGarageCancelled({ ...booking, status: 'cancelled' }, '799.00')],
   ['customer times suggested', customerTimesSuggested(booking, [IST('2026-10-17T11:00:00'), IST('2026-10-17T12:30:00')])],
   ['customer extra work', customerExtraWorkRequested(booking, '500.00')],
   ['customer picked up', customerPickupStep({ ...booking, bookingType: 'pickup' }, 'picked_up')],
@@ -238,6 +242,9 @@ describe('customer: the same words as Updates', () => {
   test('declined says the refund due only when there is one', () => {
     expect(customerDeclined(booking, '799.00').body).toBe('Sat 17 Oct, 10 AM. Refund due: ₹799')
     expect(customerDeclined(booking, null).body).toBe('Sat 17 Oct, 10 AM')
+    // 0066: a booking the garage had accepted, then cancelled.
+    expect(customerGarageCancelled(booking, '799.00').title).toBe('Marina Auto Spa cancelled your booking')
+    expect(customerGarageCancelled(booking, null).body).toBe('Sat 17 Oct, 10 AM')
   })
 
   test('extra work names the amount, never the garage’s description', () => {

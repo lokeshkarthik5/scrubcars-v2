@@ -9,6 +9,7 @@ import {
   complaintOverdue,
   complaintSubmitRefusal,
   formatComplaintNumber,
+  loggedInErrorRefusal,
   overdueCutoffs,
   type ComplaintAction,
   type ComplaintStatus,
@@ -32,6 +33,7 @@ import type {
   CreateComplaintInput,
   ListComplaintsQuery,
   LogComplaintInput,
+  LoggedInErrorInput,
   ResolveComplaintInput,
 } from './complaints.validation.js'
 import { adminSubjectName } from '../admin-logins/admin-logins.service.js'
@@ -82,6 +84,10 @@ function toCustomerComplaint(row: ComplaintRecord) {
     closedAt: row.closedAt?.toISOString() ?? null,
     // Only written when it is resolved or closed, which is when it is shown.
     resolutionNote: row.resolutionNote,
+    // Withdrawn by the customer before anyone answered (0066).
+    withdrawnAt: row.withdrawnAt?.toISOString() ?? null,
+    // Whether "Withdraw" applies now: theirs from the app, nobody has answered.
+    canWithdraw: row.status === 'open' && row.source === 'app',
   }
 }
 
@@ -122,6 +128,7 @@ function toAdminComplaint(row: AdminComplaintRow, now: Date) {
     resolvedBy: c.resolvedBy,
     closedAt: c.closedAt?.toISOString() ?? null,
     closedBy: c.closedBy,
+    withdrawnAt: c.withdrawnAt?.toISOString() ?? null,
     source: c.source,
     loggedBy: c.loggedBy,
     receivedAt: c.receivedAt.toISOString(),
@@ -129,7 +136,11 @@ function toAdminComplaint(row: AdminComplaintRow, now: Date) {
     updatedAt: c.updatedAt.toISOString(),
     acknowledgeBy: due.acknowledgeBy.toISOString(),
     resolveBy: due.resolveBy.toISOString(),
-    overdue: complaintOverdue(c, now),
+    // A complaint logged in error (0065) is never overdue: it is out of every count.
+    overdue: c.errorMarkedAt ? null : complaintOverdue(c, now),
+    loggedInError: c.errorMarkedAt
+      ? { at: c.errorMarkedAt.toISOString(), by: c.errorMarkedBy, reason: c.errorReason }
+      : null,
   }
 }
 
@@ -184,10 +195,27 @@ async function move(
  * which they read in My complaints.
  */
 function notifyCustomer(
-  complaint: { id: string; number: number; userId: string | null },
+  complaint: { id: string; number: number; userId: string | null; errorMarkedAt?: Date | null },
   step: 'acknowledged' | 'resolved'
 ) {
+  // One the team logged in error (0065) was never the customer's.
+  if (complaint.errorMarkedAt) return
   if (complaint.userId) pushService.notifyCustomer(complaint.userId, customerComplaint(complaint, step))
+}
+
+function loggedInErrorRefused(refusal: 'from_app' | 'already_marked' | 'not_marked') {
+  switch (refusal) {
+    case 'from_app':
+      return new AppError(
+        409,
+        'The customer raised this one in the app. Close it instead.',
+        'COMPLAINT_FROM_APP'
+      )
+    case 'already_marked':
+      return new AppError(409, 'This complaint is already marked as logged in error.', 'COMPLAINT_ALREADY_IN_ERROR')
+    case 'not_marked':
+      return new AppError(409, 'This complaint is not marked as logged in error.', 'COMPLAINT_NOT_IN_ERROR')
+  }
 }
 
 export const complaintsService = {
@@ -340,6 +368,28 @@ export const complaintsService = {
     }
   },
 
+  /**
+   * The customer withdraws a complaint nobody has answered yet (0066): one
+   * they raised in the app, still open. Anyone else's is a 404, the same as
+   * none; one the team has answered (or logged for them) is a 409.
+   */
+  async withdraw(userId: string, id: string, now = new Date()) {
+    const withdrawn = await complaintsRepository.withdrawOwn(id, userId, now)
+    if (!withdrawn) {
+      const own = await complaintsRepository.findOwn(id, userId)
+      if (!own) throw notFound()
+      throw new AppError(
+        409,
+        own.source !== 'app'
+          ? 'Our team logged this complaint for you, so it can only be closed by the team. Contact Detlio support.'
+          : 'Our team has already answered this complaint, so it can no longer be withdrawn.',
+        'COMPLAINT_NOT_WITHDRAWABLE'
+      )
+    }
+    log.info({ complaintId: id }, 'complaint:withdrawn')
+    return toCustomerComplaint(withdrawn)
+  },
+
   /** The customer's own complaints, newest first. */
   async listMine(userId: string) {
     const rows = await complaintsRepository.listForCustomer(userId, CUSTOMER_LIST_LIMIT)
@@ -406,6 +456,36 @@ export const complaintsService = {
       })
     )
     log.info({ complaintId: id }, 'complaint:closed')
+    return toAdminComplaint(await getAdminOr404(id), now)
+  },
+
+  /**
+   * "Logged in error" (0065): a complaint the team logged by mistake (the
+   * wrong customer, a test call). It stays in the record, under All, and
+   * leaves every count. Only team-logged ones; undone by undoLoggedInError.
+   */
+  async markLoggedInError(sub: string, id: string, input: LoggedInErrorInput, now = new Date()) {
+    const row = await getAdminOr404(id)
+    const refusal = loggedInErrorRefusal(row.complaint, 'mark')
+    if (refusal) throw loggedInErrorRefused(refusal)
+    const marked = await complaintsRepository.setLoggedInError(
+      id,
+      { mark: true, by: input.actorName, reason: input.reason, at: now },
+      sub
+    )
+    if (!marked) throw loggedInErrorRefused('already_marked')
+    log.info({ complaintId: id, by: input.actorName }, 'complaint:logged_in_error')
+    return toAdminComplaint(await getAdminOr404(id), now)
+  },
+
+  /** Undo "Logged in error": back in the counts as it was. */
+  async undoLoggedInError(sub: string, id: string, actorName: string, now = new Date()) {
+    const row = await getAdminOr404(id)
+    const refusal = loggedInErrorRefusal(row.complaint, 'undo')
+    if (refusal) throw loggedInErrorRefused(refusal)
+    const undone = await complaintsRepository.setLoggedInError(id, { mark: false, by: actorName, at: now }, sub)
+    if (!undone) throw loggedInErrorRefused('not_marked')
+    log.info({ complaintId: id, by: actorName }, 'complaint:logged_in_error_undone')
     return toAdminComplaint(await getAdminOr404(id), now)
   },
 

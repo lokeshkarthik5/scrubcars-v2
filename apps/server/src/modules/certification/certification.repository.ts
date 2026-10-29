@@ -1,3 +1,4 @@
+import { lateGarageCancelSql } from '../../lib/garage-cancel.js'
 import { and, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import {
@@ -8,6 +9,7 @@ import {
   vendorTierStandings,
   vendors,
 } from '../../db/schema.js'
+import { COUNTED_REVIEW } from '../reviews/reviews.predicates.js'
 import {
   CERTIFICATION_RULES,
   type EligibilitySnapshot,
@@ -145,15 +147,14 @@ function reads(conn: Conn) {
         .where(and(inArray(vendorDocuments.vendorId, vendorIds), eq(vendorDocuments.status, 'approved')))
     },
 
-    /** All-time rating and review count. */
+    /** All-time rating and review count: counted reviews only (0065, no Test, none hidden). */
     async ratings(vendorIds: string[]) {
       if (vendorIds.length === 0) return []
       const rows = await conn.execute<{ vendor_id: string; average: number | string; count: number | string }>(sql`
         SELECT r.vendor_id, avg(r.rating)::float AS average, count(*)::int AS count
           FROM reviews r
-          JOIN bookings b ON b.id = r.booking_id
          WHERE r.vendor_id IN (${inList(vendorIds)})
-           AND b.marked_test_at IS NULL
+           AND ${COUNTED_REVIEW}
          GROUP BY r.vendor_id
       `)
       return Array.from(rows).map((row) => ({
@@ -240,6 +241,9 @@ function reads(conn: Conn) {
              WHERE c.vendor_id IN (${inList(vendorIds)})
                AND c.category IN (${CATEGORIES})
                AND c.received_at >= ${since.toISOString()}::timestamptz
+               AND c.error_marked_at IS NULL
+               -- Withdrawn by the customer before anyone answered (0066): left out.
+               AND c.withdrawn_at IS NULL
                AND (b.id IS NULL OR b.marked_test_at IS NULL)
             UNION ALL
             SELECT g.vendor_id, g.booking_id::text AS issue_key
@@ -264,16 +268,23 @@ function reads(conn: Conn) {
       return strikeCountsByGarage(conn, { vendorIds, since })
     },
 
-    /** Garage no-shows recorded in the window. */
+    /**
+     * Missed bookings in the window: garage no-shows recorded, and accepted
+     * bookings the garage cancelled within 24 hours of the slot (0066,
+     * lib/garage-cancel.ts; one cancelled earlier counts like a decline,
+     * which is never held against it).
+     */
     async garageNoShowCounts(vendorIds: string[], since: Date) {
       if (vendorIds.length === 0) return []
       const rows = await conn.execute<{ vendor_id: string; count: number | string }>(sql`
         SELECT b.vendor_id, count(*)::int AS count
           FROM bookings b
          WHERE b.vendor_id IN (${inList(vendorIds)})
-           AND b.no_show = 'garage'
            AND b.marked_test_at IS NULL
-           AND coalesce(b.no_show_marked_at, b.scheduled_at) >= ${since.toISOString()}::timestamptz
+           AND (
+             (b.no_show = 'garage' AND coalesce(b.no_show_marked_at, b.scheduled_at) >= ${since.toISOString()}::timestamptz)
+             OR (${lateGarageCancelSql('b')} AND b.garage_cancelled_at >= ${since.toISOString()}::timestamptz)
+           )
          GROUP BY b.vendor_id
       `)
       return Array.from(rows).map((row) => ({ vendorId: row.vendor_id, count: Number(row.count) }))

@@ -131,8 +131,9 @@ test.describe('the admin round: bookings @p0', () => {
     const dialog = page.getByRole('dialog', {
       name: `Delete test booking #${ref}`,
     })
+    // Live money not refunded (0065: once all of it is, it can go as a team test).
     await expect(dialog.getByRole('alert')).toHaveText(
-      "This booking can't be deleted. Real payment — kept: Razorpay says this was a live payment."
+      "This booking can't be deleted. Real payment — refund it first: Refund ₹450 first. A booking marked Test that took real money can be deleted as a team test only once every rupee is refunded."
     )
     await expect(
       dialog.getByRole('button', { name: /^Delete 1 booking/ })
@@ -147,7 +148,7 @@ test.describe('the admin round: bookings @p0', () => {
     )
     expect(preview.status()).toBe(200)
     const dryRun = (await preview.json()).data
-    expect(dryRun.chains[0].kept.code).toBe('live')
+    expect(dryRun.chains[0].kept.code).toBe('refund_first')
     const refused = await page.request.post(
       `${API}/api/v1/admin/bookings/${id}/test-delete`,
       {
