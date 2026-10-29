@@ -63,6 +63,22 @@ export const leadsRepository = {
     return row
   },
 
+  /**
+   * A lead read under its row lock, for linking a recommendation to it:
+   * Onboard (markOnboarded) and the garage link (update) write the same
+   * row, so a lead becoming a garage meanwhile is either seen here or,
+   * after, finds the recommendation to take along.
+   */
+  async lockById(id: string, conn: Conn = db): Promise<LeadRecord | undefined> {
+    const [row] = await conn
+      .select()
+      .from(leads)
+      .where(eq(leads.id, id))
+      .for('update')
+      .limit(1)
+    return row
+  },
+
   /** The lead that became this garage, if one did. */
   async findByVendor(
     vendorId: string,

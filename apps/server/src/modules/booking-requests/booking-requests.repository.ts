@@ -627,9 +627,22 @@ export const bookingRequestsRepository = {
    * open for it: a customer paying right now is not cut off), cancelled
    * with who and why, and the audit row, in one transaction. Null when it
    * was not open, or a checkout is.
+   *
+   * The row's lock first, as a statement of its own: a checkout opening
+   * for it holds that lock until its intent is written (booking-intents
+   * createIntent), so the update below, a later statement, sees that
+   * checkout and refuses. Locked and checked in one statement, the update
+   * would wait for the lock and then re-check only the row, never the
+   * intent written meanwhile, and cancel a request the customer is paying for.
    */
   cancelByAdmin(input: { id: string; actorName: string; actorSub: string; reason: string; now: Date }): Promise<BookingRequestRecord | null> {
     return db.transaction(async (tx) => {
+      await tx
+        .select({ id: bookingRequests.id })
+        .from(bookingRequests)
+        .where(eq(bookingRequests.id, input.id))
+        .for('update')
+        .limit(1)
       const [row] = await tx
         .update(bookingRequests)
         .set({

@@ -1534,7 +1534,8 @@ export async function resolveBookingDraft(
 }
 
 /** What the customer is told when a checkout's request can't be confirmed (0062). */
-function requestRefusalError(
+/** Why a checkout for a request is refused; the intent's own re-check under the request's lock says REQUEST_NOT_ACCEPTED too. */
+export function requestRefusalError(
   refusal: 'REQUEST_NOT_FOUND' | 'REQUEST_NOT_ACCEPTED' | 'REQUEST_EXPIRED' | 'REQUEST_MISMATCH'
 ): AppError {
   switch (refusal) {

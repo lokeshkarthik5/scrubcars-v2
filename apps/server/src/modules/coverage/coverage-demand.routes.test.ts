@@ -163,6 +163,10 @@ function patch(target: object, key: string, value: unknown) {
   object[key] = value
 }
 
+/** What a lead's row lock reads instead of the stored row (a change meanwhile), and the connections it was taken on. */
+const lockedLead = new Map<string, Lead>()
+let lockedWith: unknown[] = []
+let handledWith: unknown
 let zoneRequests = new Map<string, number>()
 let deleteAnswer: 'deleted' | 'in_use' | 'missing' | null = null
 
@@ -185,6 +189,12 @@ beforeAll(() => {
   )
   patch(l, 'listAll', async () => [...leads.values()])
   patch(l, 'findById', async (id: string) => leads.get(id))
+  // The lead as its row lock reads it: the stored row, unless a test says
+  // what a lead became meanwhile (after the plain read).
+  patch(l, 'lockById', async (id: string, conn: unknown) => {
+    lockedWith.push(conn)
+    return lockedLead.get(id) ?? leads.get(id)
+  })
   patch(l, 'findByVendor', async (vendorId: string) =>
     [...leads.values()].find((lead) => lead.vendorId === vendorId)
   )
@@ -252,8 +262,10 @@ beforeAll(() => {
         leadId: string | null
         handledBy: string
         now: Date
-      }
+      },
+      conn?: unknown
     ) => {
+      handledWith = conn
       const rec = recs.get(id)
       if (!rec || rec.status !== 'new') return undefined
       const next = {
@@ -360,6 +372,8 @@ beforeEach(() => {
   ]
   leads.clear()
   recs.clear()
+  lockedLead.clear()
+  lockedWith = []
   signups = []
   requestFacts = []
   zoneRequests = new Map()
@@ -624,6 +638,41 @@ describe('Make lead from a recommendation', () => {
     ).toBe('RECOMMENDATION_NOT_FOUND')
   })
 
+  test('Link to a lead that became a garage meanwhile: read under its lock, in the link’s transaction, and refused', async () => {
+    // The plain read still says "no garage"; the lead's row, locked, has one.
+    const lead = fullLead({ name: 'Shine Car Care', zoneId: PERAMBUR })
+    leads.set(lead.id, lead)
+    lockedLead.set(lead.id, { ...lead, status: 'onboarded', vendorId: GARAGE })
+    const id = newId()
+    recs.set(id, fullRec({ id }))
+    const refused = await call(
+      'POST',
+      `/admin/coverage/recommendations/${id}/lead`,
+      await raga(),
+      { leadId: lead.id }
+    )
+    expect([refused.status, refused.body.code]).toEqual([
+      409,
+      'LEAD_ALREADY_ONBOARDED',
+    ])
+    // Left new, never a "contacted" one on a garage's lead with no garage.
+    expect(recs.get(id)).toMatchObject({ status: 'new', leadId: null })
+
+    // Not a garage: the lock and the link are one transaction.
+    lockedLead.clear()
+    lockedWith = []
+    const linked = await call(
+      'POST',
+      `/admin/coverage/recommendations/${id}/lead`,
+      await raga(),
+      { leadId: lead.id }
+    )
+    expect(linked.status).toBe(201)
+    expect(lockedWith).toHaveLength(1)
+    expect(lockedWith[0]).toBeDefined()
+    expect(handledWith).toBe(lockedWith[0])
+  })
+
   test('Dismiss: declined, by the signed name, and off the zone’s list; once', async () => {
     const id = newId()
     recs.set(id, fullRec({ id }))
@@ -695,6 +744,18 @@ describe('the recommendation follows its lead to a garage (referral credit)', ()
       vendorId: null,
       status: 'contacted',
     })
+  })
+
+  test('unlinked on a stale read (the lead was linked meanwhile): the recommendation still follows the row as saved', async () => {
+    const { recId, leadId } = await madeLead()
+    // Linked to a garage by someone else after this PATCH read the lead:
+    // the recommendation already joined, the read still says no garage.
+    recs.set(recId, { ...recs.get(recId)!, vendorId: GARAGE, status: 'joined' })
+    const unlinked = await call('PATCH', `/admin/leads/${leadId}`, await raga(), {
+      status: 'to_target',
+    })
+    expect(unlinked.status).toBe(200)
+    expect(recs.get(recId)).toMatchObject({ vendorId: null, status: 'contacted' })
   })
 
   test('once its credit is decided, nothing the lead does moves it', async () => {

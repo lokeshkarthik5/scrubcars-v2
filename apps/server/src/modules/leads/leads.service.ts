@@ -571,10 +571,11 @@ export const leadsService = {
       )
     }
 
-    // The garage it became changed: the recommendations made into it follow,
-    // in the same transaction.
-    const garageChanged =
-      patch.vendorId !== undefined && patch.vendorId !== lead.vendorId
+    // The garage link was written: the recommendations made into it follow
+    // the row as saved, in the same transaction. Whenever it is written, not
+    // only when it differs from the lead read above: that read may be stale
+    // (linked meanwhile), and the rule changes only what differs.
+    const garageChanged = patch.vendorId !== undefined
     const { row, synced } = await leadsRepository
       .transaction(async (tx) => {
         const row = await leadsRepository.update(id, patch, tx)
@@ -683,22 +684,36 @@ export const leadsService = {
     if (rec.status !== 'new') throw recommendationHandled()
 
     if (input.leadId) {
-      const lead = await leadsRepository.findById(input.leadId)
-      if (!lead) throw leadNotFound()
-      if (lead.vendorId) {
-        throw new AppError(
-          409,
-          'That lead is already a garage. Make a new lead, or dismiss this one.',
-          'LEAD_ALREADY_ONBOARDED'
-        )
-      }
-      const handled = await leadsRepository.handleRecommendation(rec.id, {
-        status: 'contacted',
-        leadId: lead.id,
-        handledBy: input.actorName,
-        now,
-      })
-      if (!handled) throw recommendationHandled()
+      const leadId = input.leadId
+      // Under the lead's lock: a lead that became a garage meanwhile is
+      // refused here, or (made one just after) finds this recommendation
+      // and takes it to the garage (syncRecommendations), never leaving it
+      // on a garage's lead with no garage, which would lose its credit.
+      const { lead, handled } = await leadsRepository.transaction(
+        async (tx) => {
+          const lead = await leadsRepository.lockById(leadId, tx)
+          if (!lead) throw leadNotFound()
+          if (lead.vendorId) {
+            throw new AppError(
+              409,
+              'That lead is already a garage. Make a new lead, or dismiss this one.',
+              'LEAD_ALREADY_ONBOARDED'
+            )
+          }
+          const handled = await leadsRepository.handleRecommendation(
+            rec.id,
+            {
+              status: 'contacted',
+              leadId: lead.id,
+              handledBy: input.actorName,
+              now,
+            },
+            tx
+          )
+          if (!handled) throw recommendationHandled()
+          return { lead, handled }
+        }
+      )
       log.info({ linked: true }, 'leads:recommendation_taken')
       return {
         lead: toLeadResponse(lead),
