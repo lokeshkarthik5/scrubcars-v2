@@ -6,6 +6,8 @@ import { ScButton } from '@repo/ui/sc/button'
 import { ScCheckbox } from '@repo/ui/sc/checkbox'
 import { DEFAULT_PICKUP_RADIUS_KM, PICKUP_TERMS_ADMIN } from '@repo/core/pickup'
 import { cn } from '@repo/core/utils'
+import { clearAdminDoorstepArea } from '@repo/core/api/admin'
+import { errorMessage } from '@repo/core/api/hooks/use-discounts'
 import { useLiveBookingMode } from '@/components/booking-mode-card'
 import { RESPONSIBILITY, useLivePickup } from '@/components/pickup-card'
 import { SavedNote } from '@/components/save-bar'
@@ -81,7 +83,23 @@ export function HowCustomersBook({
 
   const garageOn = mode.mode === 'garage' || mode.mode === 'both'
   const doorstepOn = mode.mode === 'doorstep' || mode.mode === 'both'
-  const drawnArea = booking.hasDoorstepArea
+  // Read once, then kept here: Clear (0065) takes it off without a reload.
+  const [drawnArea, setDrawnArea] = useState(booking.hasDoorstepArea)
+  const [clearing, setClearing] = useState<'idle' | 'asking' | 'busy'>('idle')
+  const [clearError, setClearError] = useState('')
+  const clearArea = async () => {
+    setClearing('busy')
+    setClearError('')
+    try {
+      await clearAdminDoorstepArea(vendorId)
+      setDrawnArea(false)
+      setClearing('idle')
+      onSaved()
+    } catch (err) {
+      setClearing('asking')
+      setClearError(errorMessage(err, "Couldn't clear the drawn area"))
+    }
+  }
   const reach = bookingReachLine(mode.mode, mode.savedKm, { drawnArea })
 
   const tick = (dropin: boolean, doorstep: boolean) => {
@@ -147,6 +165,55 @@ export function HowCustomersBook({
         <p role="alert" className="mt-2.5 text-[12.5px] text-error">
           Keep at least one of At the garage or Doorstep.
         </p>
+      )}
+
+      {/* The garage's own drawn doorstep area (0065): Detlio can clear it,
+        and the radius below (or the default) applies from then on. */}
+      {drawnArea && (
+        <div className="mt-2.5 flex flex-wrap items-center gap-2 text-[12.5px] text-text-secondary">
+          <span>The garage drew its own doorstep area.</span>
+          {clearing === 'idle' ? (
+            <button
+              type="button"
+              onClick={() => setClearing('asking')}
+              className="min-h-11 px-1 font-medium text-text-primary underline-offset-2 hover:underline"
+            >
+              Clear drawn area…
+            </button>
+          ) : (
+            <>
+              <span>
+                Clear it? Doorstep then reaches {mode.savedKm ?? DEFAULT_DOORSTEP_RADIUS_KM} km from the pin.
+              </span>
+              <ScButton
+                variant="secondary"
+                fullWidth={false}
+                disabled={clearing === 'busy'}
+                onClick={() => void clearArea()}
+                className="min-h-11 px-3 text-[12px]"
+              >
+                {clearing === 'busy' ? 'Clearing…' : 'Clear drawn area'}
+              </ScButton>
+              <ScButton
+                variant="secondary"
+                fullWidth={false}
+                disabled={clearing === 'busy'}
+                onClick={() => {
+                  setClearing('idle')
+                  setClearError('')
+                }}
+                className="min-h-11 px-3 text-[12px]"
+              >
+                Keep it
+              </ScButton>
+            </>
+          )}
+          {clearError && (
+            <p role="alert" className="w-full text-error">
+              {clearError}
+            </p>
+          )}
+        </div>
       )}
 
       {doorstepOn && (

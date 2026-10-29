@@ -243,6 +243,27 @@ export async function addBookingNote(
   return c.json({ success: true, data: note }, 201)
 }
 
+// ─── What only the garage could remove (0065) ───────────────────────────────
+
+function actorOf(c: AdminContext) {
+  return { sub: c.get('auth').sub, name: signedInAdmin(c).name }
+}
+
+export async function removeVendorClosure(c: AdminContext, vendorId: string, closureId: string) {
+  const data = await adminService.removeVendorClosure(vendorId, closureId, actorOf(c))
+  return c.json({ success: true, data })
+}
+
+export async function clearVendorDoorstepArea(c: AdminContext, vendorId: string) {
+  const data = await adminService.clearVendorDoorstepArea(vendorId, actorOf(c))
+  return c.json({ success: true, data })
+}
+
+export async function withdrawExtraWork(c: AdminContext, bookingId: string, chargeId: string) {
+  const data = await adminService.withdrawExtraWork(bookingId, chargeId, actorOf(c))
+  return c.json({ success: true, data })
+}
+
 /** Take Detlio's photo waiver back (0065). */
 export async function undoJobPhotosWaiver(c: AdminContext, id: string, actorName: string) {
   const data = await adminService.undoJobPhotosWaiver(id, actorName)

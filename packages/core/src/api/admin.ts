@@ -1818,6 +1818,31 @@ export async function overrideAdminPickupStep(
  * POST /admin/bookings/:id/photos-waiver — Detlio waives the photo standard
  * on one booking (0045), with why; signed with the admin's name. Once only.
  */
+/** DELETE /admin/vendors/:id/closures/:closureId (0065): one of the garage's holidays, removed. Audited. */
+export async function removeAdminVendorClosure(vendorId: string, closureId: string) {
+  return apiClient<{ id: string; date: string; removed: true }>(`/admin/vendors/${vendorId}/closures/${closureId}`, {
+    method: 'DELETE',
+  })
+}
+
+/**
+ * DELETE /admin/vendors/:id/doorstep-area (0065): the garage's drawn area
+ * cleared, so its radius (or the 10 km default) applies. 409 NO_DOORSTEP_AREA.
+ */
+export async function clearAdminDoorstepArea(vendorId: string) {
+  return apiClient<{ cleared: true }>(`/admin/vendors/${vendorId}/doorstep-area`, { method: 'DELETE' })
+}
+
+/**
+ * POST /admin/bookings/:id/extra-work/:chargeId/withdraw (0065): unpaid extra
+ * work withdrawn for the garage. 409 EXTRA_WORK_PAID / EXTRA_WORK_CLOSED.
+ */
+export async function withdrawAdminExtraWork(bookingId: string, chargeId: string) {
+  return apiClient<AdminBookingDetail>(`/admin/bookings/${bookingId}/extra-work/${chargeId}/withdraw`, {
+    method: 'POST',
+  })
+}
+
 /** POST /admin/bookings/:id/photos-waiver/undo (0065): Start and Complete wait for photos again. */
 export async function undoAdminJobPhotosWaiver(id: string) {
   return apiClient<AdminBookingDetail>(`/admin/bookings/${id}/photos-waiver/undo`, {

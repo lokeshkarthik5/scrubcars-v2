@@ -19,6 +19,7 @@ import {
   overrideAdminPickupStep,
   waiveAdminJobPhotos,
   undoAdminJobPhotosWaiver,
+  withdrawAdminExtraWork,
   type AdminBooking,
   type AdminBookingDetail,
   type AdminBookingFilters,
@@ -223,6 +224,11 @@ export function useWaiveAdminJobPhotos() {
   return useBookingAction((id: string, input: { reason: string }) =>
     waiveAdminJobPhotos(id, input)
   )
+}
+
+/** Withdraw unpaid extra work for the garage (0065). */
+export function useWithdrawAdminExtraWork() {
+  return useBookingAction<string>((id: string, chargeId: string) => withdrawAdminExtraWork(id, chargeId))
 }
 
 /** Take the waiver back (0065). */

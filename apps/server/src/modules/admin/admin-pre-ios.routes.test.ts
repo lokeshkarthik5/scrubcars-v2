@@ -1,9 +1,15 @@
 /**
- * Booking notes (0065) through the real admin routes and auth, with the
- * database stood in for: "Add note" writes a typed note with its session;
- * its author edits or deletes it for 24 hours; a note an action wrote, or
- * someone else's, never changes. The rule is lib/booking-notes.test.ts's;
- * the writes repeat it in their WHERE, which these stand-ins follow.
+ * The admin side of the pre-iOS round (0065) through the real admin routes
+ * and auth, with the database stood in for:
+ *
+ * - booking notes: "Add note" writes a typed note with its session; its
+ *   author edits or deletes it for 24 hours; a note an action wrote, or
+ *   someone else's, never changes (rule: lib/booking-notes.test.ts);
+ * - Undo on the photo waiver (rule: lib/job-photo-standards.test.ts);
+ * - what only the garage could remove: a holiday, the drawn doorstep area,
+ *   unpaid extra work.
+ *
+ * The writes repeat their rules in their WHERE, which these stand-ins follow.
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test'
 
@@ -150,5 +156,79 @@ describe('undoing the photo waiver (0065)', () => {
     const res = await call('POST', `/admin/bookings/${BOOKING}/photos-waiver/undo`, {})
     expect(undone).toEqual([BOOKING])
     expect([res.status, res.body.code]).toEqual([409, 'BOOKING_STATE_CHANGED'])
+  })
+})
+
+describe('what only the garage could remove, by admin (0065)', () => {
+  const GARAGE = 'e2e00000-0000-4000-8000-000000005452'
+  const CLOSURE = 'e2e00000-0000-4000-8000-000000005453'
+  const CHARGE = 'e2e00000-0000-4000-8000-000000005454'
+  let inBin = false
+  let closures: string[] = []
+  let drawn = true
+  let work: { id: string; status: string; amountDue: string; lines: Array<{ description: string; amount: string }> }
+  let withdrawn: Array<{ note: string; actor: { name: string } }> = []
+
+  beforeAll(() => {
+    patch(adminRepository, 'findVendorById', async (id: string) =>
+      id === GARAGE ? { id, deletedAt: inBin ? new Date() : null, purgedAt: null } : undefined
+    )
+    patch(adminRepository, 'removeClosure', async (vendorId: string, closureId: string) => {
+      if (vendorId !== GARAGE || !closures.includes(closureId)) return undefined
+      closures = closures.filter((c) => c !== closureId)
+      return { id: closureId, date: '2026-11-02', reason: null }
+    })
+    patch(adminRepository, 'clearDoorstepArea', async () => {
+      if (!drawn) return false
+      drawn = false
+      return true
+    })
+    patch(adminRepository, 'findBookingById', async (id: string) => (id === BOOKING ? { id, status: 'confirmed' } : undefined))
+    patch(adminRepository, 'findExtraWork', async (_b: string, chargeId: string) => (chargeId === CHARGE ? work : undefined))
+    patch(adminRepository, 'withdrawExtraWork', async (input: { note: string; actor: { name: string } }) => {
+      if (work.status !== 'due') return undefined
+      work.status = 'cancelled'
+      withdrawn.push({ note: input.note, actor: input.actor })
+      return work
+    })
+    // The answer is the booking as it is now; its read is not what is tested here.
+    patch(adminRepository, 'findBookingDetail', async () => undefined)
+  })
+  beforeEach(() => {
+    inBin = false
+    closures = [CLOSURE]
+    drawn = true
+    work = { id: CHARGE, status: 'due', amountDue: '450.00', lines: [{ description: 'Wiper blades', amount: '450.00' }] }
+    withdrawn = []
+  })
+
+  test('remove a holiday; another garage\'s, or one in the Bin, is refused', async () => {
+    const res = await call('DELETE', `/admin/vendors/${GARAGE}/closures/${CLOSURE}`)
+    expect(res.status).toBe(200)
+    expect(closures).toEqual([])
+    expect((await call('DELETE', `/admin/vendors/${GARAGE}/closures/${CLOSURE}`)).body.code).toBe('CLOSURE_NOT_FOUND')
+    closures = [CLOSURE]
+    inBin = true
+    expect((await call('DELETE', `/admin/vendors/${GARAGE}/closures/${CLOSURE}`)).body.code).toBe('VENDOR_IN_BIN')
+    expect(closures).toEqual([CLOSURE])
+  })
+
+  test('clear the drawn doorstep area; none to clear is a 409', async () => {
+    expect((await call('DELETE', `/admin/vendors/${GARAGE}/doorstep-area`)).status).toBe(200)
+    expect(drawn).toBe(false)
+    expect((await call('DELETE', `/admin/vendors/${GARAGE}/doorstep-area`)).body.code).toBe('NO_DOORSTEP_AREA')
+  })
+
+  test('withdraw unpaid extra work with a note; never once paid', async () => {
+    const res = await call('POST', `/admin/bookings/${BOOKING}/extra-work/${CHARGE}/withdraw`, {})
+    // The withdraw went through; the detail read is stood in as missing.
+    expect(withdrawn).toEqual([
+      { note: 'Extra work withdrawn by admin for the garage: Wiper blades (₹450.00).', actor: expect.objectContaining({ name: 'admin' }) },
+    ])
+    expect(res.status).toBe(404)
+    work.status = 'paid'
+    expect((await call('POST', `/admin/bookings/${BOOKING}/extra-work/${CHARGE}/withdraw`, {})).body.code).toBe('EXTRA_WORK_PAID')
+    work.status = 'cancelled'
+    expect((await call('POST', `/admin/bookings/${BOOKING}/extra-work/${CHARGE}/withdraw`, {})).body.code).toBe('EXTRA_WORK_CLOSED')
   })
 })

@@ -406,6 +406,10 @@ export const listBookingsQuerySchema = z
 
 export const bookingIdParamSchema = z.object({ id: z.string().uuid() })
 
+/** A garage's holiday, and a booking's extra work, by id (0065). */
+export const vendorClosureParamSchema = z.object({ id: z.string().uuid(), closureId: z.string().uuid() })
+export const extraWorkParamSchema = z.object({ id: z.string().uuid(), chargeId: z.string().uuid() })
+
 /** Undo the photo waiver (0065): signed by the session. */
 export const undoWaiverSchema = z.object({ actorName: signedActorName }).strict()
 

@@ -1,5 +1,9 @@
 'use client'
 
+import { useState } from 'react'
+import { toast } from 'react-toastify'
+import { removeAdminVendorClosure } from '@repo/core/api/admin'
+import { errorMessage } from '@repo/core/api/hooks/use-discounts'
 import { Chip } from '@repo/ui/sc/chip'
 import { ScField } from '@repo/ui/sc/input'
 import { ScSection } from '@repo/ui/sc/section'
@@ -32,7 +36,8 @@ export function HoursBookingTab({
   g: GarageDraftState
   draft: GarageDraft
 }) {
-  const { set, patch, updateDay, toggle, closures } = g
+  const { set, patch, updateDay, toggle, closures, setClosures } = g
+  const vendorId = g.id
   const legacy = legacyVehicleTypes(draft.vehicleTypes)
 
   return (
@@ -103,22 +108,32 @@ export function HoursBookingTab({
           ) : (
             <ul className="flex flex-col gap-1 text-[12px] text-text-primary">
               {closures.map((closure) => (
-                <li key={closure.id}>
-                  <span className="font-numeric font-medium">
-                    {formatDay(closure.date)}
-                  </span>
-                  {closure.reason && (
-                    <span className="text-text-secondary">
-                      {' '}
-                      · {closure.reason}
+                <li key={closure.id} className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1">
+                    <span className="font-numeric font-medium">
+                      {formatDay(closure.date)}
                     </span>
-                  )}
+                    {closure.reason && (
+                      <span className="text-text-secondary">
+                        {' '}
+                        · {closure.reason}
+                      </span>
+                    )}
+                  </span>
+                  <RemoveHolidayButton
+                    vendorId={vendorId}
+                    closure={closure}
+                    onRemoved={() =>
+                      setClosures((all) => all.filter((c) => c.id !== closure.id))
+                    }
+                  />
                 </li>
               ))}
             </ul>
           )}
           <p className="text-[12px] text-text-muted">
-            The garage sets these in its own Settings.
+            The garage sets these in its own Settings. Remove takes one off at
+            once, recorded with your name.
           </p>
         </div>
       </ScSection>
@@ -212,5 +227,44 @@ export function HoursBookingTab({
         </ScSection>
       </div>
     </div>
+  )
+}
+
+/**
+ * Remove a holiday the garage set (0065), as its own Settings does: saved on
+ * its own at once, never part of Save changes. Audited with the signed name.
+ */
+function RemoveHolidayButton({
+  vendorId,
+  closure,
+  onRemoved,
+}: {
+  vendorId: string
+  closure: { id: string; date: string }
+  onRemoved: () => void
+}) {
+  const [busy, setBusy] = useState(false)
+  const remove = async () => {
+    setBusy(true)
+    try {
+      await removeAdminVendorClosure(vendorId, closure.id)
+      onRemoved()
+      toast.success(`Holiday on ${formatDay(closure.date)} removed`)
+    } catch (err) {
+      toast.error(errorMessage(err, "Couldn't remove the holiday"))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={() => void remove()}
+      aria-label={`Remove the holiday on ${formatDay(closure.date)}`}
+      className="min-h-11 shrink-0 px-2 text-[12px] font-medium text-text-secondary underline-offset-2 hover:underline disabled:opacity-40"
+    >
+      {busy ? 'Removing…' : 'Remove'}
+    </button>
   )
 }

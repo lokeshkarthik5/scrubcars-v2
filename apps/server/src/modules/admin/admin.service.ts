@@ -1743,6 +1743,61 @@ export const adminService = {
     return loadBookingDetail(id, Date.now())
   },
 
+  // ─── What only the garage could remove (0065) ───────────────────────────
+
+  /** Removes one of the garage's holidays, as the garage's own Remove does. Audited. */
+  async removeVendorClosure(vendorId: string, closureId: string, actor: { sub: string; name: string }) {
+    await assertWritableVendor(vendorId)
+    const removed = await adminRepository.removeClosure(vendorId, closureId, actor)
+    if (!removed) throw new AppError(404, 'Holiday not found', 'CLOSURE_NOT_FOUND')
+    log.info({ vendorId, closureId, date: removed.date }, 'admin:closure_removed')
+    return { id: closureId, date: removed.date, removed: true }
+  },
+
+  /**
+   * Clears the garage's drawn doorstep area (0065): it then covers its
+   * radius, or the 10 km default (lib/doorstep.ts). Audited.
+   */
+  async clearVendorDoorstepArea(vendorId: string, actor: { sub: string; name: string }) {
+    await assertWritableVendor(vendorId)
+    const cleared = await adminRepository.clearDoorstepArea(vendorId, actor)
+    if (!cleared) throw new AppError(409, 'This garage has no drawn doorstep area.', 'NO_DOORSTEP_AREA')
+    log.info({ vendorId }, 'admin:doorstep_area_cleared')
+    return { cleared: true }
+  },
+
+  /**
+   * Withdraws unpaid extra work on the garage's behalf (0065), as its own
+   * Withdraw does: never once paid. Leaves a note; audited.
+   */
+  async withdrawExtraWork(bookingId: string, chargeId: string, actor: { sub: string; name: string }, now = new Date()) {
+    const booking = await adminRepository.findBookingById(bookingId)
+    if (!booking) throw bookingNotFound()
+    const work = await adminRepository.findExtraWork(bookingId, chargeId)
+    if (!work) throw new AppError(404, 'Extra work not found', 'EXTRA_WORK_NOT_FOUND')
+    if (work.status === 'paid') {
+      throw new AppError(409, 'The customer has already paid for this extra work, so it can no longer be withdrawn.', 'EXTRA_WORK_PAID')
+    }
+    if (work.status !== 'due') throw new AppError(409, 'This extra work is no longer waiting.', 'EXTRA_WORK_CLOSED')
+    const what = work.lines[0]?.description ?? 'Extra work'
+    const withdrawn = await adminRepository.withdrawExtraWork({
+      bookingId,
+      chargeId,
+      at: now,
+      actor,
+      note: `Extra work withdrawn by ${actor.name} for the garage: ${what} (₹${work.amountDue}).`,
+    })
+    if (!withdrawn) {
+      const fresh = await adminRepository.findExtraWork(bookingId, chargeId)
+      if (fresh?.status === 'paid') {
+        throw new AppError(409, 'The customer has just paid for this extra work, so it can no longer be withdrawn.', 'EXTRA_WORK_PAID')
+      }
+      throw new AppError(409, 'This extra work is no longer waiting.', 'EXTRA_WORK_CLOSED')
+    }
+    log.info({ bookingId, chargeId }, 'admin:extra_work_withdrawn')
+    return loadBookingDetail(bookingId, now.getTime())
+  },
+
   async addBookingNote(id: string, sub: string, input: CreateBookingNoteInput) {
     const booking = await adminRepository.findBookingById(id)
     if (!booking) throw bookingNotFound()

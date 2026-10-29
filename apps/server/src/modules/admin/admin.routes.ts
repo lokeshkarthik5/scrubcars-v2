@@ -54,6 +54,8 @@ import {
   adminCancelBookingSchema,
   bookingIdParamSchema,
   bookingNoteParamSchema,
+  extraWorkParamSchema,
+  vendorClosureParamSchema,
   bookingViewCountsQuerySchema,
   createBookingNoteSchema,
   createVendorSchema,
@@ -606,6 +608,32 @@ adminRoutes.post(
       c.req.valid('param').id,
       c.req.valid('json')
     )
+)
+// What only the garage could remove, by admin (0065), each audited: a
+// holiday, the drawn doorstep area, and unpaid extra work.
+adminRoutes.delete(
+  '/vendors/:id/closures/:closureId',
+  ...adminMiddleware,
+  zValidator('param', vendorClosureParamSchema),
+  (c) => {
+    const { id, closureId } = c.req.valid('param')
+    return adminController.removeVendorClosure(c, id, closureId)
+  }
+)
+adminRoutes.delete(
+  '/vendors/:id/doorstep-area',
+  ...adminMiddleware,
+  zValidator('param', bookingIdParamSchema),
+  (c) => adminController.clearVendorDoorstepArea(c, c.req.valid('param').id)
+)
+adminRoutes.post(
+  '/bookings/:id/extra-work/:chargeId/withdraw',
+  ...adminMiddleware,
+  zValidator('param', extraWorkParamSchema),
+  (c) => {
+    const { id, chargeId } = c.req.valid('param')
+    return adminController.withdrawExtraWork(c, id, chargeId)
+  }
 )
 // Undo the waiver (0065): while the job is not over and has no redo claim.
 adminRoutes.post(
