@@ -34,6 +34,8 @@ export interface User {
   id: string
   name: string
   phone: string
+  /** Optional on the account; absent where a payload does not carry it. */
+  email?: string | null
   avatarUrl?: string | null
   area?: string
   pincode?: string
@@ -207,6 +209,8 @@ export interface Vehicle {
   make: string
   model: string
   plate: string
+  /** The car's colour, optional; absent where a payload carries a booking's car. */
+  color?: string | null
   vehicleType?: VehicleType
   isDefault: boolean
   /**
@@ -220,8 +224,12 @@ export interface Vehicle {
 export interface Address {
   id: string
   label: string
+  /** The street line and the city together, as lists show it. */
   address: string
   pincode: string
+  /** The two as saved, for the edit sheet (0066). */
+  street?: string
+  city?: string
   /**
    * Null until the customer drops a pin. Carried on the domain type because
    * doorstep checkout has to know which saved addresses can actually be

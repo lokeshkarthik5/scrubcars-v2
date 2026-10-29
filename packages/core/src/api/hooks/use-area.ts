@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   getAreaStatus,
+  leaveAreaList,
   markLaunchBannerSeen,
   recommendGarage,
   signUpForArea,
@@ -31,6 +32,18 @@ export function useSignUpForArea() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: signUpForArea,
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: areaKeys.status })
+      void queryClient.invalidateQueries({ queryKey: zoneKeys.all })
+    },
+  })
+}
+
+/** Leave an area's list and its messages (0066). */
+export function useLeaveAreaList() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: leaveAreaList,
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: areaKeys.status })
       void queryClient.invalidateQueries({ queryKey: zoneKeys.all })

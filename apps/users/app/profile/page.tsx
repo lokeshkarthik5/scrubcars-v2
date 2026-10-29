@@ -8,9 +8,16 @@ import {
   IconChevronRight,
   IconLogout,
   IconMapPin,
+  IconPencil,
   IconPlus,
   IconTrash,
 } from '@tabler/icons-react'
+import {
+  EditAddressSheet,
+  EditProfileSheet,
+  EditVehicleSheet,
+} from '@/components/profile/edit-sheets'
+import { DeleteAccountSheet } from '@/components/profile/delete-account-sheet'
 import { MyComplaints } from '@/components/complaints/my-complaints'
 import { CustomerShell } from '@/components/customer-shell'
 import { isHomeHubEnabled } from '@/lib/home-hub'
@@ -122,6 +129,11 @@ export default function ProfilePage() {
   const [promoting, setPromoting] = useState<string | null>(null)
   // Notifications shows only once the API has them set up (0044).
   const [pushOn, setPushOn] = useState(false)
+  // The Edit sheets and Delete account (0066): one open at a time.
+  const [editingProfile, setEditingProfile] = useState(false)
+  const [editingVehicle, setEditingVehicle] = useState<string | null>(null)
+  const [editingAddress, setEditingAddress] = useState<string | null>(null)
+  const [deletingAccount, setDeletingAccount] = useState(false)
   // Gift a wash and Detlio credit show only while the API has gifts on
   // (0049); loading or a failed read counts as off.
   const giftsConfig = useGiftsConfig()
@@ -191,6 +203,16 @@ export default function ProfilePage() {
     // back in the next person's checkout.
     clearBookingDraft()
     window.location.href = '/login'
+  }
+
+  // The account is gone on the server (0066): this browser's session goes
+  // too, without asking the API (the cookies are already cleared), then home.
+  const finishDeletion = () => {
+    useAuthStore.getState().clearSession()
+    resetUser()
+    usePendingCheckoutStore.getState().clear()
+    clearBookingDraft()
+    window.location.href = '/'
   }
 
   const handleAvatarPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -418,6 +440,15 @@ export default function ProfilePage() {
             </button>
           )}
         </div>
+        {/* Name and email (0066); the phone is the sign-in. */}
+        <button
+          type="button"
+          aria-label="Edit name and email"
+          onClick={() => setEditingProfile(true)}
+          className="-my-2 -mr-2 flex size-11 shrink-0 items-center justify-center text-text-muted transition-colors hover:text-text-primary"
+        >
+          <IconPencil size={16} aria-hidden="true" />
+        </button>
       </ScCard>
 
       <Link href="/bookings">
@@ -671,6 +702,14 @@ export default function ProfilePage() {
                 )}
                 <button
                   type="button"
+                  aria-label={`Edit ${v.make} ${v.model}`}
+                  onClick={() => setEditingVehicle(v.id)}
+                  className="-my-2 -ml-1 flex size-11 shrink-0 items-center justify-center text-text-muted transition-colors hover:text-text-primary"
+                >
+                  <IconPencil size={16} aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
                   aria-label={`Remove ${v.make} ${v.model}`}
                   onClick={() => removeVehicle(v.id)}
                   disabled={deleting === v.id}
@@ -845,6 +884,14 @@ export default function ProfilePage() {
                 )}
                 <button
                   type="button"
+                  aria-label={`Edit ${a.label} address`}
+                  onClick={() => setEditingAddress(a.id)}
+                  className="-my-2 -ml-1 flex size-11 shrink-0 items-center justify-center text-text-muted transition-colors hover:text-text-primary"
+                >
+                  <IconPencil size={16} aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
                   aria-label={`Remove ${a.label} address`}
                   onClick={() => removeAddress(a.id)}
                   disabled={deleting === a.id}
@@ -926,6 +973,41 @@ export default function ProfilePage() {
           Log out
         </span>
       </ScButton>
+
+      {/* Apple 5.1.1(v) (0066): deleting the account in the app. Quiet, last
+          on the page; the sheet says what goes, what stays and why. */}
+      <button
+        type="button"
+        onClick={() => setDeletingAccount(true)}
+        className="mx-auto mb-2 min-h-11 px-3 text-[13px] text-text-muted underline underline-offset-2 transition-colors hover:text-text-primary"
+      >
+        Delete account
+      </button>
+
+      {editingProfile && user && (
+        <EditProfileSheet user={user} open onClose={() => setEditingProfile(false)} />
+      )}
+      {vehicles
+        .filter((v) => v.id === editingVehicle)
+        .map((v) => (
+          <EditVehicleSheet
+            key={v.id}
+            vehicle={v}
+            open
+            onClose={() => setEditingVehicle(null)}
+            onSaved={() => void invalidateHome(queryClient)}
+          />
+        ))}
+      {addresses
+        .filter((a) => a.id === editingAddress)
+        .map((a) => (
+          <EditAddressSheet key={a.id} address={a} open onClose={() => setEditingAddress(null)} />
+        ))}
+      <DeleteAccountSheet
+        open={deletingAccount}
+        onClose={() => setDeletingAccount(false)}
+        onDeleted={finishDeletion}
+      />
     </CustomerShell>
   )
 }

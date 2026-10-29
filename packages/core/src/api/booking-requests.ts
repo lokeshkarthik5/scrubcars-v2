@@ -38,6 +38,8 @@ export interface CustomerRequest {
   rootId: string
   state: CustomerRequestState
   status: string
+  /** Ended because the garage took back its yes before they paid (0066). */
+  withdrawnByGarage?: boolean
   bookingType: RequestMode
   garage: { id: string; name: string }
   tried: string[]
@@ -58,6 +60,10 @@ export interface CustomerRequest {
 export interface GarageRequest {
   id: string
   status: string
+  /** The garage took back its yes before the customer paid (0066). Absent from older servers. */
+  withdrawn?: boolean
+  /** "Withdraw" applies: accepted, not paid for yet. */
+  canWithdraw?: boolean
   bookingType: RequestMode
   passedOn: boolean
   items: Array<{ name: string; amount: string }>
@@ -131,6 +137,11 @@ export function getRequestStartTimes(id: string) {
 
 export function acceptRequest(id: string, input: { startAt: string; travelFee: TravelFee }) {
   return apiClient<GarageRequest>(`/vendors/me/requests/${id}/accept`, { method: 'POST', body: JSON.stringify(input) })
+}
+
+/** POST /vendors/me/requests/:id/withdraw — take back a yes before the customer pays (0066). */
+export function withdrawRequest(id: string) {
+  return apiClient<GarageRequest>(`/vendors/me/requests/${id}/withdraw`, { method: 'POST' })
 }
 
 export function declineRequest(id: string) {

@@ -627,7 +627,7 @@ export const PRIVACY: LegalDoc = {
             ['Server logs and error reports', LOGS],
             ['What Microsoft Clarity records, if you allow it (section 4)', 'We do not download or keep it. Microsoft keeps recordings for about 30 days and summaries for up to 13 months; the _clck cookie on your device lasts a year.'],
             ['What Meta\'s pixel sends, if you allow it (section 4)', 'We do not receive or keep it. Meta keeps it under its own policy; the _fbp cookie on your device lasts 90 days from your last visit.'],
-            ['Requests to garages and free-wash sign-ups', 'While your account is open; deleted with it. A request that became a booking is kept with that booking, as above.'],
+            ['Requests to garages and free-wash sign-ups', 'While your account is open, or until you leave an area\'s list; deleted with your account (the booking a request became is kept, as above, without your address).'],
             ['Garages you recommend', 'Kept by our team as a lead about that business; when you close your account it is no longer linked to you.'],
             ['After you close your account', `${AFTER_CLOSURE}, except records we must keep by law, as above`],
           ],
@@ -686,8 +686,8 @@ export const PRIVACY: LegalDoc = {
           kind: 'list',
           items: [
             '**Access.** Ask for a summary of the personal data we hold about you, what we do with it, and who we have shared it with.',
-            '**Correction and updating.** You can change your cars, saved addresses and profile photo in the app (Profile). For your name or anything else, ask us.',
-            '**Erasure and closing your account.** Ask us to delete your data or close your account. We will delete what we no longer need, except records the law requires us to keep (section 7), and tell you what we kept and why.',
+            '**Correction and updating.** You can change your name, email, cars, saved addresses and profile photo in the app (Profile). For anything else, ask us.',
+            '**Erasure and closing your account.** Delete your account yourself in the app (Profile → Delete account), or ask us. We delete your name, phone number, email, photo, your cars\' number plates and colours, your saved addresses and the addresses on your bookings, your devices and sessions. We keep the records the law requires (section 7): bookings, payments, refunds and receipts, without your name or number, and your reviews, shown as "Former customer". If a booking, a refund we owe you, Detlio credit or an unredeemed gift is still open, the app tells you what to finish first.',
             '**Withdrawing consent.** You can stop sharing your location at any time in your browser\'s settings, turn Microsoft Clarity and Meta\'s pixel off in Cookie settings (section 4), ask us to show you only the offers shown to everyone (section 2), and withdraw consent for anything else by asking us. Withdrawing does not affect what was done before, but we may not be able to provide a booking without the data it needs.',
             '**Grievance.** Complain to our Grievance Officer about how we handle your data (section 14).',
             '**Nominating someone.** You can name a person to use these rights for you if you die or are unable to.',
@@ -699,7 +699,7 @@ export const PRIVACY: LegalDoc = {
         },
         {
           kind: 'note',
-          text: '**No in-app deletion.** The API has an account-delete endpoint but the app has no button for it, and it should not be used as-is: it hard-deletes payment and refund records, may fail for anyone with bookings, leaves photos in storage, and for a garage owner would delete the garage and other customers\' bookings. Deletion is therefore offered on request only, handled by the team. DPDP rule 14 needs the "means" for requests published (done above); a one-month reply also meets SPDI rule 5(9).',
+          text: '**In-app deletion (0066, Apple 5.1.1(v)).** Profile → Delete account (and "Delete my account" for garage staff) anonymises instead of deleting: the account row stays so bookings, receipts, payments, refunds, gifts and the credit ledger keep their customer, and the person is blanked (name "Deleted account", the phone replaced by a placeholder so the number can sign up again, email, photo and birthday cleared; cars\' plates and colours, saved addresses, the addresses copied onto bookings, saved garages, devices, slot alerts, area sign-ups, requests and every session deleted; usage events, recommendations and reports about garages unlinked). Reviews stay as "Former customer"; complaints keep the name and number they were made with, as the record of the grievance. It is refused while a booking is to come or in progress, a payment is open, a refund is owed, credit is left or a bought gift is unredeemed. A garage owner cannot delete their login; they ask to close the garage. Please advise: (1) whether keeping complaints\' snapshots after deletion is right, or they should be blanked after a period; (2) the period for the anonymised booking records (section 7); (3) whether the free-wash code a sign-up held should be honoured after deletion (today it is lost).',
         },
       ],
     },

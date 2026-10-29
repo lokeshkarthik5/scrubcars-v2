@@ -57,11 +57,11 @@ function complaintRow(over: Record<string, unknown> = {}) {
     source: 'app',
     receivedAt: NOW,
     createdAt: NOW,
-    acknowledgedAt: null,
-    resolvedAt: null,
-    closedAt: null,
-    resolutionNote: null,
-    withdrawnAt: null,
+    acknowledgedAt: null as Date | null,
+    resolvedAt: null as Date | null,
+    closedAt: null as Date | null,
+    resolutionNote: null as string | null,
+    withdrawnAt: null as Date | null,
     ...over,
   }
 }
@@ -134,7 +134,7 @@ function requestRow(over: Record<string, unknown> = {}) {
     travelFee: '100.00',
     acceptedStartAt: new Date('2026-10-30T04:00:00Z'),
     confirmBy: new Date('2026-10-29T12:00:00Z'),
-    withdrawnAt: null,
+    withdrawnAt: null as Date | null,
     createdAt: NOW,
     ...over,
   }
