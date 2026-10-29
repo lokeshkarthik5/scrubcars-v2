@@ -3,6 +3,11 @@
 # Runs the Playwright suite against production builds of all three frontends
 # and a real API, backed by a throwaway Postgres. Deployment stays on Vercel;
 # this only gates correctness.
+#
+# Expo apps (users-app / vendors-app) are not in the Playwright surface. A
+# change set that only touches those folders skips the suite — even when
+# bun.lock also moves, which Expo installs always do. Manual runs
+# (workflow_dispatch) always run.
 name: E2E
 
 on:
@@ -20,7 +25,41 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  e2e:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      e2e: ${{ steps.set.outputs.e2e }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          filters: |
+            e2e:
+              - 'apps/users/**'
+              - 'apps/vendors/**'
+              - 'apps/admin/**'
+              - 'apps/server/**'
+              - 'apps/e2e/**'
+              - 'packages/**'
+              - 'package.json'
+              - 'turbo.json'
+              - '.github/workflows/e2e.yml'
+              # Omit apps/users-app, apps/vendors-app, and bun.lock on purpose.
+
+      - id: set
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ steps.filter.outputs.e2e }}" = "true" ]; then
+            echo "e2e=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "e2e=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  e2e_run:
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -151,3 +190,27 @@ jobs:
             apps/e2e/playwright-report/
             apps/e2e/test-results/
           retention-days: 7
+
+  # Always reports. Keeps the check name `E2E / e2e` green when the suite
+  # was skipped (Expo-only PR); a skipped job alone would block a required
+  # status check.
+  e2e:
+    needs: [changes, e2e_run]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require E2E only when the change set needs it
+        run: |
+          if [ "${{ needs.changes.result }}" != "success" ]; then
+            echo "Path filter job failed: ${{ needs.changes.result }}" >&2
+            exit 1
+          fi
+          if [ "${{ needs.changes.outputs.e2e }}" != "true" ]; then
+            echo "Skipping E2E — no web, API, package, or e2e workflow changes."
+            exit 0
+          fi
+          if [ "${{ needs.e2e_run.result }}" = "success" ]; then
+            exit 0
+          fi
+          echo "E2E job result: ${{ needs.e2e_run.result }}" >&2
+          exit 1
