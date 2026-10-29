@@ -144,6 +144,8 @@ function lineView(line: StatementLine, chain: (EarningChainRow & { items: Earnin
     /** 'job', 'customer_no_show', or null when it earns nothing any more. */
     kind: e.kind,
     price: rupees(e.pricePaise),
+    /** An accepted request's travel fee, inside the price: the garage keeps it whole (0062). */
+    travelFee: rupees(e.travelFeePaise),
     detlioPromo: rupees(e.detlioPromoPaise),
     garagePromo: rupees(e.garagePromoPaise),
     /** The garage's part of refunds on it. */

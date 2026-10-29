@@ -99,9 +99,20 @@ test.describe('axe, signed out @p0', () => {
 
   scanEach([
     {
-      name: 'the marketing homepage',
+      // The app landing (0062): the area chips and the garage list.
+      name: 'the landing page',
       path: '/',
+      ready: (page) => page.locator('main [data-garage-card]').first(),
+    },
+    {
+      name: 'the marketing page, at /about',
+      path: '/about',
       ready: (page) => page.getByRole('heading', { level: 1 }),
+    },
+    {
+      name: 'checkout as a guest',
+      path: `/book/${VENDORS.main.id}?service=${SERVICES.wash.id}`,
+      ready: (page) => page.getByRole('heading', { name: 'When?' }),
     },
   ])
 })

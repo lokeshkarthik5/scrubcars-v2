@@ -1,4 +1,4 @@
-import { LIST_RADIUS_KM } from './discovery.js'
+import { CITY_REACH_KM } from './discovery.js'
 
 /**
  * The city the pilot serves, and how a garage outside it is told apart.
@@ -23,7 +23,7 @@ import { LIST_RADIUS_KM } from './discovery.js'
 export const SERVICE_CITY = {
   name: 'Chennai',
   centre: { lat: 13.0827, lng: 80.2707 },
-  radiusKm: LIST_RADIUS_KM,
+  radiusKm: CITY_REACH_KM,
 } as const
 
 export interface OutsideServiceCity {

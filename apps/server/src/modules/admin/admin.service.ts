@@ -74,6 +74,7 @@ import {
 } from './admin.repository.js'
 import { rewardsService } from '../rewards/rewards.service.js'
 import { slotAlertsService } from '../slot-alerts/slot-alerts.service.js'
+import { areaSignupsService } from '../area-signups/area-signups.service.js'
 import { guaranteeService } from '../guarantee/guarantee.service.js'
 import type {
   AdminCancelBookingInput,
@@ -1053,6 +1054,8 @@ export const adminService = {
     log.info({ vendorId: id }, 'admin:vendor-updated')
     // Hours, bays, the day's cap or the slot length may have made room (0047).
     slotAlertsService.garageChanged(id, 'admin_garage_updated')
+    // A status, verification or pin change may list it in a new area (0062).
+    areaSignupsService.launchSoon()
     return { ...updated, pickupEnabled: isPickupOffered(updated) }
   },
 
@@ -1192,6 +1195,8 @@ export const adminService = {
     // moment its pin becomes confirmed.
     const [updated] = await adminRepository.verifyVendor(id)
     log.info({ vendorId: id }, 'admin:vendor-verified')
+    // Its area may go live now (customer reach, 0062; the cron catches any miss).
+    areaSignupsService.launchSoon()
     return updated
   },
 
@@ -1209,6 +1214,7 @@ export const adminService = {
     const [updated] = await adminRepository.unarchiveVendor(id)
     log.info({ vendorId: id }, 'admin:vendor-unarchived')
     slotAlertsService.garageChanged(id, 'admin_unarchived')
+    areaSignupsService.launchSoon()
     return updated
   },
 
@@ -1235,6 +1241,7 @@ export const adminService = {
     })
     log.info({ vendorId: id }, 'admin:vendor-resumed')
     slotAlertsService.garageChanged(id, 'admin_resumed')
+    areaSignupsService.launchSoon()
     return updated
   },
 

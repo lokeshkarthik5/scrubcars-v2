@@ -55,6 +55,8 @@ export interface EarningChainRow {
   paymentRefunded: string | null
   amount: string
   subtotalAmount: string
+  /** An accepted request's travel fee (0062), inside the subtotal. */
+  travelFee: string
   discountFundedBy: 'platform' | 'vendor' | null
   billsPaid: string | null
   lastBillPaidAt: Date | null
@@ -118,6 +120,7 @@ export function payoutsReads(conn: Tx) {
         payment_refunded: string | null
         amount: string
         subtotal_amount: string
+        travel_fee: string
         discount_funded_by: 'platform' | 'vendor' | null
         bills_paid: string | null
         last_bill_paid_at: Date | string | null
@@ -140,6 +143,7 @@ export function payoutsReads(conn: Tx) {
                p.refunded_amount::text as payment_refunded,
                e.amount::text as amount,
                e.subtotal_amount::text as subtotal_amount,
+               e.travel_fee::text as travel_fee,
                e.discount_funded_by,
                (select sum(ch.amount_due)::text
                   from booking_charges ch
@@ -173,6 +177,7 @@ export function payoutsReads(conn: Tx) {
         paymentRefunded: row.payment_refunded,
         amount: row.amount,
         subtotalAmount: row.subtotal_amount,
+        travelFee: row.travel_fee,
         discountFundedBy: row.discount_funded_by,
         billsPaid: row.bills_paid,
         lastBillPaidAt: toDate(row.last_bill_paid_at),

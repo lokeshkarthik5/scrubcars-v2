@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { IconChevronRight, IconMapPin } from '@tabler/icons-react'
-import { LocationPromptSheet } from '@repo/ui/features/location-prompt-sheet'
+import { AreaPicker } from '@/components/area/area-picker'
 import { Figures } from '@repo/ui/sc/figures'
 import { formatDistance } from '@repo/core/map'
 import type { HomeData } from '@repo/core/api/home'
@@ -52,9 +52,10 @@ const shell =
 
 /**
  * How many garages there are within 50 km of the customer's rounded location
- * (the garage list's own radius), opening the map; with none, it opens the
- * garage list instead. With no location, it asks for one in our own
- * words first (the browser's prompt gives no reason and no second chance).
+ * (the city's reach; the list itself has no cut-off since 0062), opening the
+ * map; with none, it opens the garage list instead. With no location, it
+ * opens the area sheet (0062): an area in one tap, or "Near me" behind our
+ * own explainer (the browser's prompt gives no reason and no second chance).
  *
  * `located` says whether Home sent a location. The server answers null both
  * when none was sent and when its nearby count failed; only the first is a
@@ -73,14 +74,14 @@ export function NearbyCard({ nearby, located }: { nearby: HomeData['nearby']; lo
           <span className="relative">
             <span className="block text-[13px] text-dim">Nearby garages</span>
             <span className="mt-[5px] mb-1 block text-[17px] tracking-[-0.012em] text-text-primary">
-              Turn on location to see the nearest
+              Pick your area to see the nearest
             </span>
           </span>
           <span aria-hidden className="relative grid size-10 shrink-0 place-items-center rounded-full bg-white/[0.08] backdrop-blur-sm">
             <IconMapPin size={20} stroke={1.5} />
           </span>
         </button>
-        <LocationPromptSheet open={asking} onClose={() => setAsking(false)} />
+        <AreaPicker open={asking} onClose={() => setAsking(false)} />
       </>
     )
   }

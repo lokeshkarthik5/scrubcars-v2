@@ -20,6 +20,8 @@ import { slotAlertsRoutes } from '../slot-alerts/slot-alerts.routes.js'
 import { customerRewardRoutes } from '../rewards/rewards.routes.js'
 import { customerRewardExtrasRoutes } from '../reward-extras/reward-extras.routes.js'
 import { customerGarageRoutes } from '../garage/garage.routes.js'
+import { customerBookingRequestRoutes } from '../booking-requests/booking-requests.routes.js'
+import { customerAreaRoutes } from '../area-signups/area-signups.routes.js'
 import * as usersController from './users.controller.js'
 import {
   avatarUploadUrlSchema,
@@ -68,6 +70,10 @@ usersRoutes.route('/me/push', customerPushRoutes)
 // "Notify me if a slot opens": /me/slot-alerts (0047). Same mounting, same
 // check.
 usersRoutes.route('/me', slotAlertsRoutes)
+// Customer reach, part 2 (0062): requests to garages just outside their
+// reach, the free-wash sign-up, Home's live status and recommendations.
+usersRoutes.route('/me/requests', customerBookingRequestRoutes)
+usersRoutes.route('/me/area', customerAreaRoutes)
 
 // Gift a wash (0049): the gifts the customer bought, redeeming one, and
 // their Detlio credit: /me/gifts and /me/credit. Same mounting, same check;

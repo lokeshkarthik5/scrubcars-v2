@@ -18,8 +18,8 @@ export const SERVICE_CITY = {
   /** Where the map opens before it knows anything (DEFAULT_CENTER is this). */
   centre: { lat: 13.0827, lng: 80.2707 },
   /**
-   * The list's radius from a customer (LIST_RADIUS_KM on the server), and the
-   * map's city mode's reach from the centre. Past it, a garage is outside.
+   * The city's reach (CITY_REACH_KM on the server): the map's city mode's
+   * and Nearby mode's reach. Past it from the centre, a garage is outside.
    */
   radiusKm: 50,
 } as const

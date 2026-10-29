@@ -2,7 +2,7 @@ import { AppError } from '../../lib/errors.js'
 import { env } from '../../lib/env.js'
 import { logger } from '../../lib/logger.js'
 import { alertOps } from '../../lib/ops-alerts.js'
-import { LIST_RADIUS_KM } from '../../lib/discovery.js'
+import { CITY_REACH_KM } from '../../lib/discovery.js'
 import { CATEGORY_LABELS, type ServiceCategory } from '../../lib/categories.js'
 import { addDays, istDateKey, istMidnight } from '../../lib/ist.js'
 import {
@@ -42,6 +42,8 @@ async function afterCancel(bookingId: string) {
     booking.userId,
     customerNotAcceptedInTime(booking, {
       paidWithCreditOnly: Number(booking.payment?.amount ?? 0) === 0 && Number(booking.payment?.creditAmount ?? 0) > 0,
+      // A free wash that covered it all (0062): nothing paid at all.
+      nothingPaid: !!booking.payment && Number(booking.payment.amount) === 0 && Number(booking.payment.creditAmount ?? 0) === 0,
     })
   )
   pushService.notifyGarage(booking.vendorId, garageNotAcceptedInTime(booking))
@@ -127,7 +129,7 @@ export const garageResponseService = {
       origin,
       // Doorstep and pickup are bounded by each garage's own reach from its
       // pin; a drop-in by the list's usual radius.
-      radiusM: bookingType === 'dropin' ? LIST_RADIUS_KM * 1000 : undefined,
+      radiusM: bookingType === 'dropin' ? CITY_REACH_KM * 1000 : undefined,
       bookingType,
       anyCategory: categories,
       excludeIds: [booking.vendorId],

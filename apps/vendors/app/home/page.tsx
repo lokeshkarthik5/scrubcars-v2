@@ -27,6 +27,8 @@ import { NewBookingCard } from '@/components/new-booking-card'
 import { PushBanner } from '@/components/push-banner'
 import { sortByUrgency, todayView, waitingSummary } from '@/lib/jobs'
 import { useVendorBookings } from '@/lib/use-vendor-bookings'
+import { useGarageRequestCount } from '@repo/core/api/hooks/use-booking-requests'
+import { REQUEST_RULES } from '@repo/core/booking-requests'
 
 /** How many new-booking cards Home shows before "See all". */
 const CARDS_ON_HOME = 3
@@ -211,6 +213,8 @@ export default function VendorHomePage() {
         )}
       </section>
 
+      <RequestsHomeCard />
+
       <div className="grid grid-cols-2 gap-2">
         {/* Each tile opens what it counts (finding 9: Today's jobs couldn't be tapped). */}
         <Link
@@ -295,5 +299,36 @@ export default function VendorHomePage() {
         {GARAGE_NON_SOLICITATION_LINE}
       </p>
     </AppShell>
+  )
+}
+
+/**
+ * Requests from customers just outside the garage's reach (0062), waiting
+ * for an answer: a count and the way in. Nothing while none wait, or when
+ * the count can't be read (an API without the route yet).
+ */
+function RequestsHomeCard() {
+  const count = useGarageRequestCount()
+  const waiting = count.data?.waiting ?? 0
+  if (waiting <= 0) return null
+  return (
+    <Link
+      href="/requests"
+      className="press flex min-h-14 items-center gap-3 rounded-[20px] border border-warning/40 bg-surface px-4 py-3"
+    >
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-2 text-[15px] font-semibold text-text-primary">
+          Requests
+          <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-brand-red-fill px-1.5 font-numeric text-[13px] font-semibold leading-6 text-brand-white">
+            {waiting}
+          </span>
+        </span>
+        <span className="block text-[13px] text-text-secondary">
+          {waiting} {waiting === 1 ? 'request' : 'requests'} waiting · answer
+          within {REQUEST_RULES.respondMinutes / 60} h
+        </span>
+      </span>
+      <IconChevronRight size={18} aria-hidden="true" className="shrink-0" />
+    </Link>
   )
 }

@@ -47,8 +47,8 @@ describe('NearbyCard', () => {
     expect(href(html)).toBe('/garages')
   })
 
-  test('no location asks for one; a failed count with a location hides the card', () => {
-    expect(text(render(null, false))).toBe('Nearby garages Turn on location to see the nearest')
+  test('no location asks for an area; a failed count with a location hides the card', () => {
+    expect(text(render(null, false))).toBe('Nearby garages Pick your area to see the nearest')
     expect(render(null, true)).toBe('')
   })
 })

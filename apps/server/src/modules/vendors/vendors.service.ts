@@ -44,6 +44,7 @@ import { membersRepository } from '../members/members.repository.js'
 import { reviewsRepository } from '../reviews/reviews.repository.js'
 import { vendorsRepository } from './vendors.repository.js'
 import { slotAlertsService } from '../slot-alerts/slot-alerts.service.js'
+import { areaSignupsService } from '../area-signups/area-signups.service.js'
 import { toPublicVendor, type PublicVendorFields } from './vendors.public.js'
 import { isDocumentStorageConfigured } from '../../lib/document-storage.js'
 import { summariesByVendor } from '../../lib/vendor-documents.js'
@@ -198,6 +199,12 @@ export type VendorListItemResponse = {
   dropinEnabled: boolean
   /** Offers pickup & drop (isPickupOffered). */
   pickupEnabled: boolean
+  /**
+   * How far it collects cars from, from its pin; null is the default
+   * (DEFAULT_PICKUP_RADIUS_KM). The garage page already shows it; on the card
+   * it is for "Can collect your car" (0062). Null too when it does not collect.
+   */
+  pickupRadiusKm: number | null
   startingPrice: number | null
   // null when the vendor has no reviews yet — distinct from a rating of 0.
   rating: number | null
@@ -817,6 +824,7 @@ export async function vendorCardsFor(
       doorstepEnabled: vendor.doorstepEnabled,
       dropinEnabled: vendor.dropinEnabled,
       pickupEnabled: isPickupOffered(vendor),
+      pickupRadiusKm: isPickupOffered(vendor) ? vendor.pickupRadiusKm : null,
       startingPrice: computeStartingPrice(vendor.services),
       rating: rating ? Number(rating.average.toFixed(2)) : null,
       reviewCount: rating?.count ?? 0,
@@ -1336,6 +1344,8 @@ export const vendorsService = {
     })
     log.info({ vendorId: vendor.id }, 'vendor:bookings_resumed')
     slotAlertsService.garageChanged(vendor.id, 'resumed')
+    // Listed again: its area may go live (customer reach, 0062).
+    areaSignupsService.launchSoon()
     return toVendorResponse(updated)
   },
 

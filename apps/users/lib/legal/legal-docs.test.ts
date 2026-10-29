@@ -21,6 +21,8 @@ import { customerRefundLine } from '@repo/core/refunds'
 import { SUPPORT_PHONE_DISPLAY } from '@repo/core/support'
 import { PENDING_CHECKOUT_STORAGE_KEY } from '@repo/core/stores/pending-checkout-store'
 import { TIP_HIDDEN_KEY } from '../home-hub'
+import { BOOKING_DRAFT_KEY } from '@repo/core/booking-draft'
+import { cardClosesKey } from '@repo/core/area-signups'
 import { CLIENT_EVENTS } from '@repo/core/analytics-events'
 import { META_EVENT_NAMES, metaEventFor, pixelExcluded } from '../meta-pixel'
 import { RULES } from './common'
@@ -131,6 +133,29 @@ describe('what the Home hub keeps', () => {
     const text = privacy()
     expect(text).toContain(PENDING_CHECKOUT_STORAGE_KEY)
     expect(text).toContain(TIP_HIDDEN_KEY)
+    expect(text).toContain(BOOKING_DRAFT_KEY)
+    // The free-wash card's × (customer reach, part 2), per area.
+    expect(text).toContain(cardClosesKey('<area>'))
+  })
+
+  // Customer reach, part 2 (0062): what a request, a sign-up and a
+  // recommendation keep, and how long, are in the policy.
+  test('requests, free-wash sign-ups and recommendations are declared', () => {
+    const text = privacy()
+    expect(text).toContain('Requests to a garage just outside its area')
+    expect(text).toContain('Free-wash sign-ups')
+    expect(text).toContain('Garages you recommend')
+    expect(text).toContain('We do not send WhatsApp messages yet')
+  })
+
+  // A guest's booking kept on the phone (0062) holds their address: the
+  // policy says it goes at log out, and both ways of logging out do it.
+  test('the booking kept on the phone is removed at log out, as the policy says', () => {
+    const read = (path: string) => readFileSync(join(import.meta.dir, path), 'utf8')
+    expect(privacy()).toContain('Deleted when you book, tap × on it or log out')
+    for (const path of ['../../app/profile/page.tsx', '../../components/providers/app-provider.tsx']) {
+      expect(read(path)).toContain('clearBookingDraft()')
+    }
   })
 
   // Matching is declared ahead of the switch: the policy says what it would
@@ -366,6 +391,11 @@ describe('Microsoft Clarity', () => {
       '../../app/profile/page.tsx',
       '../../components/add-address-sheet.tsx',
       '../../app/book/[vendorId]/page.tsx',
+      '../../components/checkout/checkout-sign-in.tsx',
+      // Customer reach, part 2: the request's car and address, and a
+      // recommended garage's link, phone and note.
+      '../../components/reach/request-sheet.tsx',
+      '../../components/reach/free-wash.tsx',
       '../../components/coupons/coupon-code-box.tsx',
       '../../components/gifts/redeem-code-box.tsx',
       '../../app/profile/gifts/new/page.tsx',

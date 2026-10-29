@@ -137,6 +137,21 @@ export const PRIVACY: LegalDoc = {
               'Running the booking, your booking history, receipts, support and our accounts; on Home, your last wash, next booking and Book again. Once matched offers are switched on, also whether, and with which garages, you have booked, to choose offers.',
             ],
             [
+              'Requests to a garage just outside its area: the services, your car\'s size, a time window, which saved address (and its map pin), and the garage\'s answer (yes with a start time and any travel fee, or no)',
+              'You and the garage',
+              'Asking up to two nearby garages to come to you (or collect your car), and turning a yes into a booking. Until you book, the garage sees only your area\'s name and how far you are, never your address, name or number. If a garage does not answer in 30 minutes our team may phone the garage about it.',
+            ],
+            [
+              'Free-wash sign-ups: the area you pick, your place on its list, and whether you want app notifications and (later) WhatsApp messages',
+              'You',
+              'Telling you once when a garage opens in your area, once if a garage starts coming to it, and once more after 14 days with no news; and, if you are among an area\'s first 50, your free wash on the day it opens. We do not send WhatsApp messages yet: that choice is only kept for when we can.',
+            ],
+            [
+              'Garages you recommend: the garage\'s name, a Google Maps link or its phone number, and why (optional)',
+              'You',
+              'Our team contacts the garage to invite it to Detlio. If it joins and you complete a paid booking there, you get Detlio credit (₹100 a garage, up to ₹500).',
+            ],
+            [
               'A reason you type when cancelling (optional)',
               'You',
               'Handling the change. Seen by the garage and our team.',
@@ -190,6 +205,10 @@ export const PRIVACY: LegalDoc = {
         {
           kind: 'note',
           text: '**Lawful basis.** DPDP Act s.7(a) lets data the customer volunteers for a booking be used for it without separate consent; other uses need consent (s.6). Please mark which basis covers each row (the table could gain a fourth column). Two uses are marketing and are not needed for a booking: matched offers on Home ("Offers on Home" below; off until this text is in force) and Meta\'s pixel (section 4), which now loads only after the customer allows marketing cookies. Offers on Home has no consent step yet; see the notes on each.',
+        },
+        {
+          kind: 'note',
+          text: '**Customer reach, part 2 (0062): requests, free-wash sign-ups and recommendations.** Rows above are new in this release. Please advise: (1) the lawful basis for each (a request and a sign-up are asked for by the customer, so likely s.7(a); the 14-day reminder and the launch message are closer to marketing, sent only to people who signed up for exactly that news); (2) the WhatsApp opt-in is stored now but nothing is sent until a WhatsApp Business sender is set up, at which point the consent wording may need to name it; (3) a recommendation can contain a phone number of a garage owner (a person), kept as a lead after the customer leaves; whether that needs anything beyond this policy; (4) the referral credit (₹100 a garage, ₹500 at most; placeholder amounts, owner to confirm) is Detlio credit under the gift-credit terms.',
         },
         {
           kind: 'note',
@@ -493,7 +512,7 @@ export const PRIVACY: LegalDoc = {
             },
             {
               kind: 'p',
-              text: '**What is hidden.** Clarity does not record what you type into any box. We also hide, so it is never recorded, your mobile number and sign-in code, your name, your saved addresses, your car\'s number plate, gift and coupon codes, and anything you write to us. Payment happens in Razorpay\'s own window, which Clarity cannot see. Besides what it records on screen, we tell Clarity only which step of booking a visit reached (such as "started booking") and where it came from (such as Instagram); never your name, number, account or bookings.',
+              text: '**What is hidden.** Clarity does not record what you type into any box. We also hide, so it is never recorded, your mobile number and sign-in code, your name, your saved addresses, your car\'s number plate, gift and coupon codes, the link, phone number and note of a garage you recommend, and anything you write to us. Payment happens in Razorpay\'s own window, which Clarity cannot see. Besides what it records on screen, we tell Clarity only which step of booking a visit reached (such as "started booking") and where it came from (such as Instagram); never your name, number, account or bookings.',
             },
             {
               kind: 'p',
@@ -558,7 +577,9 @@ export const PRIVACY: LegalDoc = {
             ['access_token (cookie)', 'Proves you are signed in to our servers. Contains your account ID, not your name or number.', '15 minutes'],
             ['auth_phone and related items (session storage)', 'Remember the number and timers between the sign-in and code screens', 'Until you close the tab'],
             ['detlio:signed-in (local storage)', 'Remembers that this browser is signed in, to skip the homepage', 'Until you log out'],
-            ['detlio-location (local storage)', 'Your last location and place name, if you shared it, so the app can show nearby garages', 'Until you clear it in your browser'],
+            ['detlio-location (local storage)', 'Your last location and place name, if you shared it, or the area you picked (such as Adyar), so the app can show nearby garages', 'Until you clear it in your browser'],
+            ['detlio:free-wash-closed:<area> (local storage)', 'How many times you closed the free-wash card for an area, and when, so it comes back after 7 days and stops after the third time', 'Until you clear it in your browser'],
+            ['detlio:booking-draft (local storage)', 'A booking you started before signing in: the garage, services, time, your car\'s type, make and model, and the address you gave, so you can continue it. It is not sent to us until you sign in to pay; then the car and address are saved to your account.', 'Deleted when you book, tap × on it or log out; ignored and removed after 24 hours'],
             ['detlio-pending-checkout (local storage)', 'The offer code and car you picked on Home, so checkout can apply the code', 'Cleared when you book, remove the code or log out; ignored after a day, or once the offer ends'],
             ['detlio:tip-hidden-on (local storage)', 'The day you hid the car care tip on Home', 'Until you clear it in your browser; the tip comes back the next day'],
             ['detlio_consent (cookie)', 'Your answer to the cookie question: analytics and marketing cookies allowed, or only essential ones. Change it in Cookie settings.', '1 year'],
@@ -606,6 +627,8 @@ export const PRIVACY: LegalDoc = {
             ['Server logs and error reports', LOGS],
             ['What Microsoft Clarity records, if you allow it (section 4)', 'We do not download or keep it. Microsoft keeps recordings for about 30 days and summaries for up to 13 months; the _clck cookie on your device lasts a year.'],
             ['What Meta\'s pixel sends, if you allow it (section 4)', 'We do not receive or keep it. Meta keeps it under its own policy; the _fbp cookie on your device lasts 90 days from your last visit.'],
+            ['Requests to garages and free-wash sign-ups', 'While your account is open; deleted with it. A request that became a booking is kept with that booking, as above.'],
+            ['Garages you recommend', 'Kept by our team as a lead about that business; when you close your account it is no longer linked to you.'],
             ['After you close your account', `${AFTER_CLOSURE}, except records we must keep by law, as above`],
           ],
         },

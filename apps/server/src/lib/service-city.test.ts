@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { LIST_RADIUS_KM } from './discovery.js'
+import { CITY_REACH_KM } from './discovery.js'
 import {
   SERVICE_CITY,
   outsideServiceCity,
@@ -20,7 +20,7 @@ describe('SERVICE_CITY', () => {
   test('is Chennai, with the list’s 50 km', () => {
     expect(SERVICE_CITY.name).toBe('Chennai')
     expect(SERVICE_CITY.centre).toEqual({ lat: 13.0827, lng: 80.2707 })
-    expect(SERVICE_CITY.radiusKm).toBe(LIST_RADIUS_KM)
+    expect(SERVICE_CITY.radiusKm).toBe(CITY_REACH_KM)
     expect(SERVICE_CITY.radiusKm).toBe(50)
   })
 })

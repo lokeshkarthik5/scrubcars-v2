@@ -134,6 +134,11 @@ const BookingHelpSheet = dynamic(
  * promises no bank refund.
  */
 function cancelRefundNote(booking: Booking): string {
+  // A free wash that covered it all (0062): nothing to refund, and the free
+  // wash can be used again while it is valid.
+  if (booking.servicePrice <= 0 && (booking.creditPaid ?? 0) <= 0) {
+    return 'Nothing was charged, so there is nothing to refund. Your free wash comes back while it lasts.'
+  }
   const credit = Math.min(booking.creditPaid ?? 0, booking.servicePrice)
   const online = Math.round((booking.servicePrice - credit) * 100) / 100
   if (credit <= 0) {
@@ -1206,6 +1211,12 @@ export default function BookingDetailPage({
             </span>
           )}
         </Row>
+        {/* An accepted request's travel fee (0062): its own line. */}
+        {(booking.travelFee ?? 0) > 0 && (
+          <Row label="Travel fee">
+            <span className="font-numeric">{money(booking.travelFee ?? 0)}</span>
+          </Row>
+        )}
         {booking.discountAmount > 0 && (
           <Row
             label={`Discount${booking.discountCode ? ` (${booking.discountCode})` : ''}`}
@@ -1218,7 +1229,10 @@ export default function BookingDetailPage({
         <Row
           label={
             booking.paymentStatus === 'paid'
-              ? (booking.creditPaid ?? 0) >= booking.servicePrice
+              ? // A free wash that covered it all (0062): nothing was paid.
+                booking.servicePrice === 0 && (booking.creditPaid ?? 0) === 0
+                ? 'Nothing to pay'
+                : (booking.creditPaid ?? 0) >= booking.servicePrice
                 ? 'Paid'
                 : 'Paid online'
               : booking.paymentStatus === 'refunded'

@@ -318,6 +318,7 @@ const CANCELLATION_CUTOFF_MS = 2 * 60 * 60 * 1000
 // Mirrored in packages/core/src/booking-types.ts (the legal pages print it).
 const MAX_RESCHEDULES = 2
 import { paise, rupees } from '../../lib/gift-credit.js'
+import { checkoutMatchRefusal, requestPlaceMatches } from '../../lib/booking-requests.js'
 import type { PaymentRecord } from './bookings.repository.js'
 import type {
   CreateBookingInput,
@@ -333,6 +334,8 @@ type BookingWithRelations = {
   durationMins?: number | null
   amount: string
   subtotalAmount?: string | null
+  /** An accepted request's travel fee (0062); '0.00' otherwise. Part of subtotalAmount. */
+  travelFee?: string | null
   discountAmount?: string | null
   discountCode?: string | null
   discountFundedBy?: 'platform' | 'vendor' | null
@@ -542,6 +545,9 @@ export function toBookingResponse(
     // Pre-discount price, what came off, and who paid for it. `amount` stays
     // the figure actually charged, so every existing consumer is unaffected.
     subtotalAmount: booking.subtotalAmount ?? booking.amount,
+    // An accepted request's travel fee (0062): its own line, inside the
+    // subtotal; the garage keeps it whole.
+    travelFee: Number(booking.travelFee ?? 0).toFixed(2),
     discountAmount: booking.discountAmount ?? '0.00',
     discountCode: booking.discountCode ?? null,
     discountFundedBy: booking.discountFundedBy ?? null,
@@ -1188,12 +1194,41 @@ export async function resolveBookingDraft(
     )
   }
 
+  // Customer reach (0062): confirming a request the garage accepted. It must
+  // be the customer's own, still accepted and before its deadline, and the
+  // booking exactly what was accepted. Only then are the reach check and
+  // the minimum notice the garage's own answer (it picked the time from its
+  // free slots), and its travel fee a line of its own.
+  const request = input.requestId ? await bookingsRepository.findRequest(input.requestId) : null
+  if (input.requestId) {
+    const refusal = request
+      ? checkoutMatchRefusal(
+          { ...request, serviceIds: request.items.map((item) => item.serviceId) },
+          {
+            userId,
+            vendorId: input.vendorId,
+            bookingType: input.bookingType,
+            vehicleId: input.vehicleId,
+            addressId: input.addressId,
+            serviceIds: input.serviceIds,
+            scheduledAt,
+          },
+          new Date()
+        )
+      : 'REQUEST_NOT_FOUND'
+    if (refusal) {
+      log.warn({ userId, requestId: input.requestId, refusal }, 'booking:request_refused')
+      throw requestRefusalError(refusal)
+    }
+  }
+
   // Time for the garage to see and accept it, and for a doorstep crew to get
   // there. Checked here, before any payment order exists, so a refusal costs
   // the customer nothing. (Payment itself does not re-check: an intent lives
   // 30 minutes, so a booking paid late still has at least 30 minutes' notice
-  // at the garage and 2h30 doorstep — and never starts in the past.)
-  assertMinNotice(scheduledAt, input.bookingType)
+  // at the garage and 2h30 doorstep — and never starts in the past.) An
+  // accepted request's start was the garage's own pick.
+  if (!request) assertMinNotice(scheduledAt, input.bookingType)
 
   const vendor = await bookingsRepository.findPublicVendorById(input.vendorId)
   log.info({ vendorId: input.vendorId, found: !!vendor, isVerified: vendor?.isVerified, status: vendor?.status }, 'booking:vendor_lookup')
@@ -1304,10 +1339,14 @@ export async function resolveBookingDraft(
   // A booking type's own fee goes on here, before any promo code
   // (bookingTypeFee, lib/pickup.ts). Zero for every type today: the pickup &
   // drop fee is to be decided (owner, 17 Oct 2026).
-  const amount = sumAmounts([
+  // An accepted request's travel fee (0062) goes on last, its own line: no
+  // promo code ever comes off it, and the garage keeps it whole.
+  const travelFee = request?.travelFee ? Number(request.travelFee).toFixed(2) : '0.00'
+  const beforeTravel = sumAmounts([
     ...items.map((item) => item.amount),
     bookingTypeFee(input.bookingType),
   ])
+  const amount = sumAmounts([beforeTravel, travelFee])
   const durationMins = items.reduce((total, item) => total + item.durationMins, 0)
 
   // Resolve the promo code against the *server-computed* subtotal. A
@@ -1321,7 +1360,8 @@ export async function resolveBookingDraft(
       code: input.discountCode,
       userId,
       vendorId: vendor.id,
-      subtotal: amount,
+      // The services' price: a code never comes off a travel fee.
+      subtotal: beforeTravel,
       // A coupon voucher limited to one service type (0056) comes off those lines.
       lines: resolvedServices.map((row, index) => ({ category: row.category, amount: items[index]!.amount })),
     })
@@ -1333,8 +1373,9 @@ export async function resolveBookingDraft(
       fundedBy: resolved.fundedBy,
       perUserLimit: resolved.perUserLimit,
       totalUsageLimit: resolved.totalUsageLimit,
+      source: resolved.source,
     }
-    chargeAmount = resolved.finalAmount
+    chargeAmount = sumAmounts([resolved.finalAmount, travelFee])
 
     log.info(
       {
@@ -1415,11 +1456,22 @@ export async function resolveBookingDraft(
       )
     }
 
+    // An accepted request's yes is for the place the garage was shown: an
+    // address whose pin moved since (same id, new spot) is not what it
+    // agreed to, so it gets no pass on the reach check (0062).
+    if (request && !requestPlaceMatches(request, { lat: savedAddress.lat, lng: savedAddress.lng })) {
+      log.warn({ userId, requestId: request.id, addressId: input.addressId }, 'booking:request_address_moved')
+      throw requestRefusalError('REQUEST_MISMATCH')
+    }
+
     // Doorstep: the garage's drawn area or travel radius. Pickup: its pickup
-    // radius from its pin (10 km when empty).
-    const covered = pickup
-      ? await bookingsRepository.isWithinPickupRadius(vendor.id, savedAddress.lat, savedAddress.lng)
-      : await bookingsRepository.isWithinDoorstepRadius(vendor.id, savedAddress.lat, savedAddress.lng)
+    // radius from its pin (10 km when empty). Only an accepted request the
+    // garage itself said yes to (checked above) may be outside it.
+    const covered = request
+      ? true
+      : pickup
+        ? await bookingsRepository.isWithinPickupRadius(vendor.id, savedAddress.lat, savedAddress.lng)
+        : await bookingsRepository.isWithinDoorstepRadius(vendor.id, savedAddress.lat, savedAddress.lng)
 
     if (!covered) {
       log.warn(
@@ -1468,6 +1520,29 @@ export async function resolveBookingDraft(
     lat,
     lng,
     address,
+    // An accepted request's travel fee and the request (0062).
+    travelFee,
+    requestId: request?.id ?? null,
+  }
+}
+
+/** What the customer is told when a checkout's request can't be confirmed (0062). */
+function requestRefusalError(
+  refusal: 'REQUEST_NOT_FOUND' | 'REQUEST_NOT_ACCEPTED' | 'REQUEST_EXPIRED' | 'REQUEST_MISMATCH'
+): AppError {
+  switch (refusal) {
+    case 'REQUEST_NOT_FOUND':
+      return new AppError(404, 'Request not found', 'REQUEST_NOT_FOUND')
+    case 'REQUEST_NOT_ACCEPTED':
+      return new AppError(409, "This request isn't accepted any more. Send a new one.", 'REQUEST_NOT_ACCEPTED')
+    case 'REQUEST_EXPIRED':
+      return new AppError(409, 'The time to confirm this request has passed. Send a new one.', 'REQUEST_EXPIRED')
+    case 'REQUEST_MISMATCH':
+      return new AppError(
+        409,
+        'This booking is not what the garage accepted. Open the request again to confirm it.',
+        'REQUEST_MISMATCH'
+      )
   }
 }
 
@@ -1507,6 +1582,8 @@ function moveParams(
     expectedStatus: move.expectedStatus,
     subtotalAmount: booking.subtotalAmount ?? booking.amount,
     amount: booking.amount,
+    // An accepted request's travel fee (0062) moves with the job.
+    travelFee: booking.travelFee ?? '0.00',
     discountAmount: booking.discountAmount ?? '0.00',
     discountId: booking.discountId ?? null,
     discountCode: booking.discountCode ?? null,
@@ -1684,7 +1761,9 @@ export const bookingsService = {
     }
 
     const refundRecords = await bookingsRepository.listRefundRecordsForBooking(booking.id)
-    return buildReceipt(booking, refundRecords, receiptNumber)
+    // A zone's free wash is named on the receipt (0062).
+    const discountSource = booking.discountId ? await bookingsRepository.findDiscountSource(booking.discountId) : null
+    return buildReceipt({ ...booking, discountSource }, refundRecords, receiptNumber)
   },
 
   /**
@@ -1699,6 +1778,11 @@ export const bookingsService = {
   },
 
   async createBooking(userId: string, input: CreateBookingInput) {
+    // An accepted request (0062) is confirmed through checkout
+    // (POST /booking-intents) only, which converts it with the payment.
+    if (input.requestId) {
+      throw new AppError(400, 'Confirm a request through checkout.', 'REQUEST_NEEDS_CHECKOUT')
+    }
     log.info({
       userId,
       vendorId: input.vendorId,
@@ -1723,6 +1807,12 @@ export const bookingsService = {
         lng,
         address,
       } = await resolveBookingDraft(userId, input)
+
+      // A free wash that covers the whole price (0062) is booked by checkout
+      // with no payment at all; this pay-later path would open a ₹0 order.
+      if (Number(chargeAmount) <= 0) {
+        throw new AppError(400, 'Book your free wash through checkout.', 'FREE_BOOKING_NEEDS_CHECKOUT')
+      }
 
       const bookingDate = getDateKeyFromScheduledAt(scheduledAt)
       log.info({ userId, vendorId: vendor.id, bookingDate, scheduledAt: scheduledAt.toISOString() }, 'booking:db_insert_start')

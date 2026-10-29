@@ -118,6 +118,8 @@ export function mapVendorListItem(item: ApiVendorListItem): Vendor {
     dropinEnabled: item.dropinEnabled,
     doorstepEnabled: item.doorstepEnabled,
     pickupEnabled: item.pickupEnabled ?? false,
+    // Absent from an API before 0062: then nobody "can collect" (unknown).
+    ...(item.pickupRadiusKm !== undefined ? { pickupRadiusKm: item.pickupRadiusKm } : {}),
     serviceTags: item.serviceTags,
     isVerified: item.isVerified,
     photos: item.photos,
@@ -322,6 +324,7 @@ export function mapBooking(booking: ApiBooking): Booking {
       fallbackItems.reduce((total, item) => total + item.durationMins, 0),
     servicePrice: Number(booking.amount),
     subtotalPrice: Number(booking.subtotalAmount ?? booking.amount),
+    travelFee: Number(booking.travelFee ?? 0),
     discountAmount: Number(booking.discountAmount ?? 0),
     discountCode: booking.discountCode ?? undefined,
     discountFundedBy: booking.discountFundedBy ?? undefined,

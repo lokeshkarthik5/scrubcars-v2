@@ -4,6 +4,7 @@ import {
   bookingIntentItems,
   bookingIntents,
   bookingItems,
+  bookingRequests,
   bookings,
   discountRedemptions,
   discounts,
@@ -58,6 +59,9 @@ export type ConsumeIntentResult =
   // The customer's Detlio credit no longer covers what this checkout was
   // priced with (spent in another checkout, or expired, meanwhile; 0049).
   | { kind: 'credit_exhausted' }
+  // The accepted request this checkout confirms is no longer accepted
+  // (cancelled, lapsed, or confirmed by another checkout; 0062).
+  | { kind: 'request_gone' }
   | { kind: 'previously_failed'; failureReason: string | null }
 
 export const bookingIntentsRepository = {
@@ -205,9 +209,27 @@ export const bookingIntentsRepository = {
       if ((params.razorpayPaymentId === null) !== (cashPaise === 0)) {
         return { kind: 'order_mismatch' }
       }
-      // Never a booking that nothing paid for.
-      if (params.razorpayPaymentId === null && creditPaise === 0) {
+      // Never a booking that nothing paid for, except one a zone's free
+      // wash covered whole (0062): it must name a code, which is checked to
+      // be a free wash under the discount lock below.
+      const freeWash = params.razorpayPaymentId === null && creditPaise === 0
+      if (freeWash && !intent.discountId) {
         return { kind: 'order_mismatch' }
+      }
+
+      // An accepted request's row first (0062): a new first step in the lock
+      // order, before the vehicle, taken only by a checkout that confirms
+      // one. Still accepted, or the money goes back.
+      let requestYes: { repliedBy: string | null } | null = null
+      if (intent.requestId) {
+        const [request] = await tx
+          .select({ status: bookingRequests.status, repliedBy: bookingRequests.repliedBy })
+          .from(bookingRequests)
+          .where(eq(bookingRequests.id, intent.requestId))
+          .for('update')
+          .limit(1)
+        if (!request || request.status !== 'accepted') return { kind: 'request_gone' }
+        requestYes = { repliedBy: request.repliedBy }
       }
 
       await lockVehicle(tx, intent.vehicleId)
@@ -243,12 +265,15 @@ export const bookingIntentsRepository = {
           .select({
             totalUsageLimit: discounts.totalUsageLimit,
             perUserLimit: discounts.perUserLimit,
+            source: discounts.source,
           })
           .from(discounts)
           .where(eq(discounts.id, intent.discountId))
           .limit(1)
 
         if (!discount) return { kind: 'discount_exhausted' }
+        // Only a free wash may leave nothing to pay (lib/discounts.ts).
+        if (freeWash && discount.source !== 'free_wash') return { kind: 'order_mismatch' }
 
         if (discount.totalUsageLimit !== null) {
           const used = await countHeldRedemptions(tx, intent.discountId)
@@ -297,7 +322,10 @@ export const bookingIntentsRepository = {
       // The money landed now: the garage's deadline to answer is measured
       // from here (0042). Plain reads, after every lock this write takes.
       const paidAt = new Date()
-      const respondBy = await respondByFor(tx, {
+      // A request the garage said yes to (0062) is booked accepted, as a
+      // time the garage suggested is: it already agreed to this exact job
+      // and time, so there is nothing left for it to answer.
+      const respondBy = requestYes ? null : await respondByFor(tx, {
         vendorId: intent.vendorId,
         from: paidAt,
         scheduledAt: intent.scheduledAt,
@@ -309,6 +337,7 @@ export const bookingIntentsRepository = {
         .values({
           userId: intent.userId,
           respondBy,
+          ...(requestYes && { status: 'confirmed' as const, acceptedAt: paidAt, acceptedBy: requestYes.repliedBy }),
           vendorId: intent.vendorId,
           serviceId: intent.serviceId,
           vehicleId: intent.vehicleId,
@@ -316,6 +345,7 @@ export const bookingIntentsRepository = {
           scheduledAt: intent.scheduledAt,
           durationMins: intent.serviceDurationMins,
           subtotalAmount: intent.subtotalAmount,
+          travelFee: intent.travelFee,
           // What the booking costs after any promo: the Razorpay part and the
           // credit part together (amount = subtotal − discount still holds).
           amount: rupees(cashPaise + creditPaise),
@@ -349,7 +379,11 @@ export const bookingIntentsRepository = {
       // `amount` is only what Razorpay took, so every refund rule only ever
       // sends back money Razorpay holds; the credit part is `credit_amount`
       // and goes back as credit (0049). Paid wholly with credit: 0.00 and no
-      // gateway ids (the test-data reset then keeps it as real money).
+      // gateway ids (the test-data reset then keeps it as real money). A
+      // free wash that covered it all (0062) is the same row with no credit
+      // either: 'paid' with 0.00, nothing for any refund to send back, and
+      // the garage paid the full subtotal by Detlio (discount_funded_by
+      // 'platform', lib/discounts.ts computeVendorPayout).
       await tx.insert(payments).values({
         bookingId: booking.id,
         gateway: 'razorpay',
@@ -374,6 +408,14 @@ export const bookingIntentsRepository = {
           code: intent.discountCode,
           discountAmount: intent.discountAmount,
         })
+      }
+
+      // The request is now this booking (0062), in the same transaction.
+      if (intent.requestId) {
+        await tx
+          .update(bookingRequests)
+          .set({ status: 'converted', bookingId: booking.id, closedAt: paidAt, updatedAt: paidAt })
+          .where(and(eq(bookingRequests.id, intent.requestId), eq(bookingRequests.status, 'accepted')))
       }
 
       await tx

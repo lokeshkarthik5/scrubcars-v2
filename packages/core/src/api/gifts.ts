@@ -85,7 +85,7 @@ export interface GiftLink {
   path: string
 }
 
-export type CreditEntryKind = 'redeem' | 'debit' | 'refund' | 'expiry' | 'adjustment' | 'report_reward'
+export type CreditEntryKind = 'redeem' | 'debit' | 'refund' | 'expiry' | 'adjustment' | 'report_reward' | 'referral_reward'
 
 export interface CreditView {
   /** What can be spent now, rupees as a decimal string. */

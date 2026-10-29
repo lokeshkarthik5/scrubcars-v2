@@ -56,7 +56,9 @@ export function OtherGaragesCard({ booking }: { booking: Booking }) {
         <ul className="flex flex-col gap-3">
           {vendors.map((vendor) => (
             <li key={vendor.id}>
-              <VendorCard vendor={vendor} mode={mode} />
+              {/* Measured from the booking's own address or garage, not
+                  from an area the customer picked: never "~". */}
+              <VendorCard vendor={vendor} mode={mode} approxDistance={false} />
             </li>
           ))}
         </ul>

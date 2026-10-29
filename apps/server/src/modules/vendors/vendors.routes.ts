@@ -19,6 +19,7 @@ import { garageDocumentRoutes } from '../vendor-documents/vendor-documents.route
 import { garagePushRoutes } from '../push/push.routes.js'
 import { garageCertificationRoutes } from '../certification/certification.routes.js'
 import { garageGuaranteeRoutes } from '../guarantee/guarantee.routes.js'
+import { garageBookingRequestRoutes } from '../booking-requests/booking-requests.routes.js'
 import * as vendorsController from './vendors.controller.js'
 import {
   createClosureSchema,
@@ -162,6 +163,12 @@ vendorsRoutes.route('/me/certification', garageCertificationRoutes)
 // its own file, every route a 404 while GUARANTEE_ENABLED is off. Nested for
 // the same reason as the team screen.
 vendorsRoutes.route('/me/guarantee', garageGuaranteeRoutes)
+
+// Requests from customers just outside the garage's reach (customer reach,
+// 0062): widened to operators in its own file (the counter answers them, as
+// it does new bookings); what one earns is the owner seat's alone. Nested
+// for the same reason as the team screen.
+vendorsRoutes.route('/me/requests', garageBookingRequestRoutes)
 
 vendorsRoutes.get(
   '/me/working-hours',

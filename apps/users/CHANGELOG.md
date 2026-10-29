@@ -15,6 +15,20 @@ reconstructing every change in them.
 
 ## [Unreleased]
 
+- **Customer reach** (API 0062). Part 1: the landing page is the app, area
+  chips, never-empty lists, guest checkout. Part 2: "Request a visit" /
+  "Request a pickup" on garages just outside their area (a sheet with
+  services, a time window and the address; nothing paid), Your requests
+  (`/requests`: the clock, Confirm & pay, what next when nobody could), the
+  garage portal's Requests inbox (travel fee, start time, Accept / Can't)
+  and Home badge, checkout confirming an accepted request with the travel
+  fee as its own line, the free-wash card and sheet for an area with no
+  garage (× back after 7 days, 3 times; "Notify me" once 50 are taken),
+  Recommend a garage, Home's live status (launch banner once, requests,
+  free wash ready, on the list), the free wash as a checkout chip, the
+  travel fee on the booking, receipt and Earnings. Fix: the Detlio credit
+  switch shows for a returning account still using the car it typed.
+
 - **Tracking: consent, Meta Pixel, Clarity, behaviour funnel** (API 0061).
   One cookie question for analytics and marketing ("Allow" writes
   `detlio_consent=all`; the first banner's `marketing` keeps the Pixel only

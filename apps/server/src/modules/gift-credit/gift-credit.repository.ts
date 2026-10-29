@@ -115,6 +115,33 @@ export async function insertReportRewardLot(
   return entry!
 }
 
+/**
+ * The credit for recommending a garage the customer then booked (customer
+ * reach, 0062; lib/area-signups.ts REFERRAL_CREDIT): a `referral_reward`
+ * lot lasting 12 months like a gift, written in the caller's transaction
+ * under the customer's credit lock (taken here). The caller holds the
+ * customer's `garage-recommendations:<userId>` lock first; nothing holds the
+ * credit lock and then asks for that one.
+ */
+export async function insertReferralRewardLot(
+  tx: AnyTx,
+  input: { userId: string; amountPaise: number; reason: string; now: Date }
+): Promise<{ id: string }> {
+  await lockCredit(tx, input.userId)
+  const [entry] = await tx
+    .insert(giftCreditEntries)
+    .values({
+      userId: input.userId,
+      kind: 'referral_reward',
+      amount: rupees(input.amountPaise),
+      expiresAt: giftExpiresAt(input.now),
+      reason: input.reason.slice(0, 300),
+      actorName: 'Detlio',
+    })
+    .returning({ id: giftCreditEntries.id })
+  return entry!
+}
+
 /** What returnBookingCredit did. */
 export type CreditReturn =
   | { kind: 'returned'; userId: string; amount: string; expiresAt: Date; rootBookingId: string }

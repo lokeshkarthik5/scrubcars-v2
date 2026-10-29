@@ -5,6 +5,13 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { IconBuildingStore, IconStarFilled } from '@tabler/icons-react'
 import { BOOKING_TYPE_LABELS, bookingTypeParam } from '@repo/core/booking-types'
+import { distanceAndDrive } from '@repo/core/drive-time'
+import { straightLineKm } from '@repo/core/map'
+import {
+  isApproximate,
+  isCitywide,
+  useHydratedLocation,
+} from '@repo/core/stores/location-store'
 import type { BookingType, Vendor } from '@repo/core/types'
 import { CertifiedMark } from '@repo/ui/features/detlio-certified'
 import { DocumentsVerifiedMark } from '@repo/ui/features/documents-verified'
@@ -29,6 +36,10 @@ export function VendorCard({
   mode,
   action,
   note,
+  chips,
+  footer,
+  approxDistance,
+  measureFromLocation = false,
 }: {
   vendor: Vendor
   /**
@@ -44,14 +55,50 @@ export function VendorCard({
   action?: ReactNode
   /** One quiet line under the details ("Not taking bookings right now"). */
   note?: string | null
+  /** Small chips under the details, inside the card ("Can collect your car"). */
+  chips?: ReactNode
+  /**
+   * Controls under the card, outside its link ("See prices" on a garage just
+   * outside the customer's area, and the slot beside it).
+   */
+  footer?: ReactNode
+  /**
+   * Whether the distance is measured from an area's centre rather than the
+   * customer's own fix, so it reads "~6.2 km". Left out, it follows the
+   * stored location (an area is approximate); a list measured from somewhere
+   * else (a booking's address) says false.
+   */
+  approxDistance?: boolean
+  /**
+   * For a list the API measured no distance for (Saved garages): measure it
+   * here, from the customer's location to the pin. Off for every list the
+   * API measures itself, so a card left on screen while the list reloads
+   * never shows a distance the list was not sorted by.
+   */
+  measureFromLocation?: boolean
 }) {
   // The logo has its own badge now, so the cover is gallery-only — reusing the
   // logo as a full-bleed cover would show the same image twice on the card.
   const cover = vendor.photos[0] ?? null
   // Null distance means the request carried no origin, not that the garage is
   // at zero km — the same "unknown is not zero" rule applied to price and rating
-  // just below.
-  const hasDistance = vendor.distanceKm !== null
+  // just below. A list with no distances of its own (Saved garages,
+  // `measureFromLocation`) is measured here from the customer's location,
+  // when one is set and the garage is pinned; "All of Chennai" is no place,
+  // so nothing then.
+  const location = useHydratedLocation()
+  const origin = location && !isCitywide(location) ? location : null
+  const km =
+    vendor.distanceKm ??
+    (measureFromLocation && origin && vendor.lat != null && vendor.lng != null
+      ? straightLineKm(origin, { lat: vendor.lat, lng: vendor.lng })
+      : null)
+  const hasDistance = km !== null
+  // "6.2 km · ~20 min" (0062): every card, every list. The drive time is an
+  // estimate from the distance (lib drive-time), never a routing call.
+  const distanceText = hasDistance
+    ? distanceAndDrive(km, approxDistance ?? isApproximate(location))
+    : null
   const modeParam = mode ? bookingTypeParam(mode) : null
 
   return (
@@ -123,10 +170,10 @@ export function VendorCard({
               </div>
             </div>
 
-            {/* Distance is absent until the customer shares a location, so it is
-                skipped (like a ₹0 floor) rather than rendered as a blank fact.
-                An unreviewed vendor reads as "New" — showing 0.0 stars would look
-                like a bad score rather than an absent one.
+            {/* An unreviewed vendor reads as "New" — showing 0.0 stars would look
+                like a bad score rather than an absent one. A ₹0 floor is
+                skipped rather than rendered as a blank fact; so is the
+                distance (below) until there is a location.
 
                 The figures — score, distance, price — are in the brand's numeric
                 face; the words between them stay Inter. */}
@@ -141,12 +188,6 @@ export function VendorCard({
                 </>
               ) : (
                 <span className="font-medium text-text-primary">New</span>
-              )}
-              {hasDistance && (
-                <>
-                  <span>·</span>
-                  <span className="font-numeric font-medium">{vendor.distance}</span>
-                </>
               )}
               {vendor.startingPrice > 0 && (
                 <>
@@ -177,10 +218,27 @@ export function VendorCard({
               </p>
             )}
             {note && <p className="truncate text-[12px] text-text-muted">{note}</p>}
+            {/* Distance and drive time on a line of their own, with any chips
+                after them, so the figures never push the price off a 360px
+                card. */}
+            {(distanceText || chips) && (
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                {distanceText && (
+                  <span
+                    data-distance=""
+                    className="whitespace-nowrap rounded-md bg-surface-elevated px-2 py-0.5 font-numeric text-[12px] font-medium text-text-primary"
+                  >
+                    {distanceText}
+                  </span>
+                )}
+                {chips}
+              </div>
+            )}
           </div>
         </article>
       </Link>
       {action && <div className="absolute right-2 top-2">{action}</div>}
+      {footer}
     </div>
   )
 }

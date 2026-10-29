@@ -103,6 +103,8 @@ export interface StatsChainRow {
   paymentRefunded: string | null
   amount: string
   subtotalAmount: string
+  /** An accepted request's travel fee (0062), inside the subtotal; no commission on it. Optional. */
+  travelFee?: string | null
   discountFundedBy: 'platform' | 'vendor' | null
   /** Final bills paid in the app on any row of the chain, added up. */
   billsPaid: string | null
@@ -207,6 +209,7 @@ export function commissionBooking(row: StatsChainRow, items: CommissionItem[]): 
     items,
     billsPaid: row.billsPaid,
     guaranteeRefund: row.guaranteeRefund ?? false,
+    travelFee: row.travelFee ?? null,
   }
 }
 

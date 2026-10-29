@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { LIST_RADIUS_KM } from './discovery.js'
+import { CITY_REACH_KM } from './discovery.js'
 import { SERVICE_CITY, straightLineKm } from './service-city.js'
 
 // The twins the customer app reads live in packages/core, which the server
@@ -24,7 +24,7 @@ describe('service city', () => {
     expect(core.SERVICE_CITY.name).toBe(SERVICE_CITY.name)
     expect(core.SERVICE_CITY.centre).toEqual(SERVICE_CITY.centre)
     expect(core.SERVICE_CITY.radiusKm).toBe(SERVICE_CITY.radiusKm)
-    expect(core.SERVICE_CITY.radiusKm).toBe(LIST_RADIUS_KM)
+    expect(core.SERVICE_CITY.radiusKm).toBe(CITY_REACH_KM)
     // The map opens on, and its city mode measures from, the same point.
     expect(map.DEFAULT_CENTER).toEqual([
       SERVICE_CITY.centre.lng,

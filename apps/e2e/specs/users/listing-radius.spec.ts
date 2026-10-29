@@ -1,8 +1,10 @@
 /**
- * How far the garage list reaches (owner decision, 2026-10-16): every garage
- * within 50 km of the customer, nearest first, on the list, Home and the map;
- * no radius for a typed search; doorstep bounded by each garage's own reach,
- * which is 10 km for a garage that left it empty, at checkout as in the list.
+ * How far the garage list reaches: every listed garage, nearest first, with
+ * no cut-off (customer reach, 0062: "the list is never empty"; before it,
+ * 50 km). Home's Nearby count and the map's Nearby mode keep the city's 50 km
+ * (CITY_REACH_KM). No radius for a typed search; doorstep bounded by each
+ * garage's own reach, which is 10 km for a garage that left it empty, at
+ * checkout as in the list.
  *
  * Distances from ORIGIN in the seed: MAIN 0, the fillers 7.8–24.8 km (Filler
  * 12 the furthest), the scheduling garages 32–37 km, INSPECT 42.2 km, REFUNDS
@@ -56,7 +58,7 @@ async function allPages(
   let cursor: string | null = null
   for (let page = 0; page < 50; page++) {
     const body: ListBody = await list(request, cursor ? { ...params, cursor } : params)
-    expect(body.radiusKm).toBe(50)
+    expect(body.radiusKm).toBeNull()
     items.push(...body.items)
     cursor = body.nextCursor
     if (!cursor) break
@@ -87,31 +89,38 @@ const STEADY = [
   VENDORS.inspect.id,
 ]
 
-test.describe('the 50 km list @p0', () => {
-  test('lists every garage within 50 km of the customer, nearest first', async ({ request }) => {
-    const body = await list(request, { ...FROM_ORIGIN, bookingType: 'dropin', limit: 50 })
-    const listed = ids(body.items)
+test.describe('the list with no cut-off (0062) @p0', () => {
+  test('lists every garage, nearest first, past the old 50 km too', async ({ request }) => {
+    const listed = await allPages(request, { ...FROM_ORIGIN, bookingType: 'dropin', limit: 50 })
+    const listedIds = ids(listed)
 
-    // Not just the nearest ring: 24.8 km and 42.2 km are both in.
-    expect(listed).toContain(VENDORS.main.id)
-    expect(listed).toContain(fillerVendorId(11))
-    expect(listed).toContain(VENDORS.inspect.id)
-    // 52.6 km and 124.7 km are not.
-    expect(listed).not.toContain(VENDORS.refunds.id)
-    expect(listed).not.toContain(VENDORS.homePromo.id)
+    // 24.8 km and 42.2 km, as before, and now 52.6 km and 124.7 km too.
+    expect(listedIds).toContain(VENDORS.main.id)
+    expect(listedIds).toContain(fillerVendorId(11))
+    expect(listedIds).toContain(VENDORS.inspect.id)
+    expect(listedIds).toContain(VENDORS.refunds.id)
+    expect(listedIds).toContain(VENDORS.homePromo.id)
 
     // Nearest first, and garages with no pin (if any) only after every one
     // with a distance.
-    const located = body.items.filter((item) => item.distanceKm !== null)
+    const located = listed.filter((item) => item.distanceKm !== null)
     const distances = located.map((item) => item.distanceKm as number)
     expect(distances).toEqual([...distances].sort((a, b) => a - b))
-    expect(Math.max(...distances)).toBeLessThanOrEqual(50)
-    expect(body.items.slice(0, located.length).every((item) => item.distanceKm !== null)).toBe(true)
+    expect(Math.max(...distances)).toBeGreaterThan(100)
+    expect(listed.slice(0, located.length).every((item) => item.distanceKm !== null)).toBe(true)
 
-    // The bound searched, and nothing in the old field: bundles from the
+    // No bound to say, and nothing in the old field: bundles from the
     // ladder days print "Nothing within 10 km" for any value over 10.
+    const first = await list(request, { ...FROM_ORIGIN, bookingType: 'dropin', limit: 5 })
+    expect(first.radiusKm).toBeNull()
+    expect(first.appliedRadiusKm).toBeNull()
+  })
+
+  test('a radius the caller asks for still bounds it (the map’s Nearby mode sends 50)', async ({ request }) => {
+    const body = await list(request, { ...FROM_ORIGIN, bookingType: 'dropin', radiusKm: 50, limit: 50, includeUnlocated: 'false' })
     expect(body.radiusKm).toBe(50)
-    expect(body.appliedRadiusKm).toBeNull()
+    expect(ids(body.items)).not.toContain(VENDORS.refunds.id)
+    expect(ids(body.items)).toContain(VENDORS.inspect.id)
   })
 
   test('the radius is the same on every page: pages of 4 add up to one page of 50', async ({
@@ -131,14 +140,15 @@ test.describe('the 50 km list @p0', () => {
     }).toPass({ timeout: 15_000 })
   })
 
-  test('nothing within 50 km: the bound is still said, with an empty list', async ({ request }) => {
+  test('nothing within 50 km: still every garage, nearest first, never an empty list', async ({ request }) => {
     const body = await list(request, {
       ...MADURAI,
       bookingType: 'dropin',
       includeUnlocated: 'false',
     })
-    expect(body.items).toEqual([])
-    expect(body.radiusKm).toBe(50)
+    expect(body.items.length).toBeGreaterThan(0)
+    expect(body.items[0].distanceKm).toBeGreaterThan(50)
+    expect(body.radiusKm).toBeNull()
     expect(body.appliedRadiusKm).toBeNull()
   })
 
@@ -278,16 +288,16 @@ async function standAt(page: Page, point: { lat: number; lng: number } = FROM_OR
   }, point)
 }
 
-test.describe('the 50 km list on screen @p0', () => {
+test.describe('the list on screen @p0', () => {
   test.use({ storageState: asRole('customer-browse') })
 
-  test('the garage list says how far it reaches and goes past 10 km', async ({ page }) => {
+  test('the garage list says where it measures from and goes past 10 km', async ({ page }) => {
     await standAt(page)
     await page.goto('/garages')
 
     // The heading the other specs look for stays.
     await expect(page.getByRole('heading', { name: 'Nearby Garages' })).toBeVisible()
-    await expect(page.getByText('Garages within 50 km of you, nearest first')).toBeVisible()
+    await expect(page.getByText('Nearest first from Home')).toBeVisible()
     await expect(page.getByText(VENDORS.main.name).first()).toBeVisible()
     // 24.8 km out, which the old ladder never reached from here.
     await expect(page.getByText('Filler Garage 12').first()).toBeAttached()
@@ -304,15 +314,15 @@ test.describe('the 50 km list on screen @p0', () => {
     await expect(page.getByRole('link', { name: new RegExp(VENDORS.refunds.name) })).toHaveCount(0)
   })
 
-  test('nothing within 50 km: the list says so plainly', async ({ page }) => {
+  test('nothing within 50 km: the list still shows every garage, with how far each is', async ({ page }) => {
     await standAt(page, MADURAI)
     await page.goto('/garages')
 
-    await expect(page.getByRole('heading', { name: 'Nearby Garages' })).toBeVisible()
-    // Either above the not-yet-pinned garages or as the empty list: the same
-    // words, and never a far garage passed off as near.
-    await expect(page.getByText('No garages within 50 km of you yet.').first()).toBeVisible()
-    await expect(page.getByText(VENDORS.main.name)).toHaveCount(0)
+    // Never an empty list (0062), and never a far garage passed off as near:
+    // every card says its distance and drive time.
+    await expect(page.locator('[data-garage-card]').first()).toBeVisible()
+    await expect(page.locator('[data-garage-card] [data-distance]').first()).toHaveText(/^\d{3}\.\d km · ~\d+ h/)
+    await expect(page.getByText('No garages within 50 km of you yet.')).toHaveCount(0)
   })
 
   test('nothing within 50 km: the map says so and leads to every garage', async ({ page }) => {

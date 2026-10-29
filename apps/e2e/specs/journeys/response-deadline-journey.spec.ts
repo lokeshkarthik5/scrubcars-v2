@@ -3,8 +3,8 @@
  * customer app, at VENDORS.response (fixtures in the reserved 2200–2299
  * range). AUTO_CANCEL_UNANSWERED is on in E2E (.env.e2e).
  *
- * BOOKINGS.notAccepted is paid and pending, its garage's deadline to accept
- * 15 minutes gone. The garage's Accept is refused with a 409 before the
+ * BOOKINGS.notAccepted is paid and pending; the spec puts its garage's
+ * deadline to accept 15 minutes in the past, inside the cron lock. The garage's Accept is refused with a 409 before the
  * cron has run; the pending-digest run cancels it as the garage's, "Not
  * accepted in time", with the payment owed back in full; Accept is still
  * refused after; and the customer's booking page says the garage didn't
@@ -14,7 +14,7 @@
 import { test, expect } from '../../support/fixtures'
 import { answerCookieQuestion } from '../../support/consent'
 import { API, loginViaApi, statePath } from '../../support/auth'
-import { getBooking, getPayment, sql } from '../../support/db'
+import { getBooking, getPayment, sql, withCronLock } from '../../support/db'
 import { USERS_ORIGIN } from '../../support/journey'
 import { blockThirdParties, dismissLocationPrompt } from '../../support/network'
 import { BOOKINGS, CUSTOMERS, STAFF, VENDORS } from '../../support/seed-ids'
@@ -34,25 +34,31 @@ test.describe('garage response deadline @p0', () => {
     test.skip(SECRET.length < 32, 'CRON_SECRET is not set for this run')
     const garage = await loginViaApi(STAFF.responseOwner.phone, 'vendor')
 
-    // ── past the deadline, before the cron: Accept is refused ──────────────
-    const early = await garage.patch(`${API}/api/v1/bookings/${BOOKING}/accept`, { headers: HEADERS })
-    expect(early.status()).toBe(409)
-    expect((await early.json()).code).toBe('RESPONSE_TIME_PASSED')
-    // And so is suggesting other times instead.
-    const suggest = await garage.post(`${API}/api/v1/vendors/me/bookings/${BOOKING}/time-proposal`, {
-      headers: HEADERS,
-      data: { slots: [new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString()] },
-    })
-    expect(suggest.status()).toBe(409)
-    expect((await suggest.json()).code).toBe('RESPONSE_TIME_PASSED')
-    expect((await getBooking(BOOKING))?.status).toBe('pending')
+    // Made overdue here, inside the cron lock, and held until this spec's own
+    // run: another spec's run would otherwise cancel it first.
+    await withCronLock(async () => {
+      await sql`update bookings set respond_by = now() - interval '15 minutes' where id = ${BOOKING}`
 
-    // ── the scheduler's run cancels it ─────────────────────────────────────
-    const run = await request.post(DIGEST, { headers: { authorization: `Bearer ${SECRET}` } })
-    expect(run.status()).toBe(200)
-    const { data } = await run.json()
-    expect(data.notAccepted.enabled).toBe(true)
-    expect(data.notAccepted.cancelled).toBeGreaterThanOrEqual(1)
+      // ── past the deadline, before the cron: Accept is refused ──────────────
+      const early = await garage.patch(`${API}/api/v1/bookings/${BOOKING}/accept`, { headers: HEADERS })
+      expect(early.status()).toBe(409)
+      expect((await early.json()).code).toBe('RESPONSE_TIME_PASSED')
+      // And so is suggesting other times instead.
+      const suggest = await garage.post(`${API}/api/v1/vendors/me/bookings/${BOOKING}/time-proposal`, {
+        headers: HEADERS,
+        data: { slots: [new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString()] },
+      })
+      expect(suggest.status()).toBe(409)
+      expect((await suggest.json()).code).toBe('RESPONSE_TIME_PASSED')
+      expect((await getBooking(BOOKING))?.status).toBe('pending')
+
+      // ── the scheduler's run cancels it ─────────────────────────────────────
+      const run = await request.post(DIGEST, { headers: { authorization: `Bearer ${SECRET}` } })
+      expect(run.status()).toBe(200)
+      const { data } = await run.json()
+      expect(data.notAccepted.enabled).toBe(true)
+      expect(data.notAccepted.cancelled).toBeGreaterThanOrEqual(1)
+    })
 
     const row = await getBooking(BOOKING)
     expect(row?.status).toBe('cancelled')

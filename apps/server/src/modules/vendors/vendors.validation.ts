@@ -310,9 +310,10 @@ export const listPublicVendorsQuerySchema = z
     // Drop-in only. Doorstep deliberately ignores this and uses the *vendor's*
     // doorstepRadiusKm instead: the question is "who will come to me", and the
     // garage is the one that decides how far it travels. Pickup & drop, the
-    // same, with the garage's pickupRadiusKm. Left out, the list reaches
-    // LIST_RADIUS_KM (lib/discovery.ts), which is also the most a caller may
-    // ask for. A typed search (`q`) ignores it: no radius applies.
+    // same, with the garage's pickupRadiusKm. Left out, the list has no
+    // bound (0062: every garage, nearest first); 50 km (CITY_REACH_KM,
+    // lib/discovery.ts) is the most a caller may ask for. A typed search
+    // (`q`) ignores it: no radius applies.
     radiusKm: z.coerce.number().positive().max(50).optional(),
     bbox: bboxSchema.optional(),
     sort: vendorSortSchema.optional(),
