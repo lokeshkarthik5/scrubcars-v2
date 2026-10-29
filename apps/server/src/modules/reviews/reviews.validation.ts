@@ -1,6 +1,10 @@
 import { z } from 'zod'
 import { signedActorName } from '../../lib/admin-actor.js'
-import { RATING_RULES, REVIEW_TAGS, reviewTagsRefusal } from '../../lib/ratings.js'
+import {
+  RATING_RULES,
+  REVIEW_TAGS,
+  reviewTagsRefusal,
+} from '../../lib/ratings.js'
 
 const TAG_WORDS = {
   unknown_tag: 'Pick tags from the list.',
@@ -22,7 +26,12 @@ export const createReviewSchema = z
   })
   .superRefine((value, ctx) => {
     const refusal = reviewTagsRefusal(value.rating, value.tags ?? [])
-    if (refusal) ctx.addIssue({ code: 'custom', path: ['tags'], message: TAG_WORDS[refusal] })
+    if (refusal)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['tags'],
+        message: TAG_WORDS[refusal],
+      })
   })
 
 export const vendorIdParamSchema = z.object({
@@ -39,7 +48,10 @@ export const reportReviewSchema = z
     reason: z
       .string()
       .trim()
-      .min(RATING_RULES.reasonMinLength, 'Say in a few words what is wrong with it')
+      .min(
+        RATING_RULES.reasonMinLength,
+        'Say in a few words what is wrong with it'
+      )
       .max(RATING_RULES.reportReasonMaxLength),
   })
   .strict()
@@ -47,7 +59,11 @@ export const reportReviewSchema = z
 /** The garage's one public reply (0065), editable for 24 hours. */
 export const replySchema = z
   .object({
-    text: z.string().trim().min(1, 'Write a reply').max(RATING_RULES.replyMaxLength),
+    text: z
+      .string()
+      .trim()
+      .min(1, 'Write a reply')
+      .max(RATING_RULES.replyMaxLength),
   })
   .strict()
 
@@ -64,7 +80,9 @@ export const hideReviewSchema = z
   .strict()
 
 /** Admin shows a hidden review again. Signed by the session. */
-export const showReviewSchema = z.object({ actorName: signedActorName }).strict()
+export const showReviewSchema = z
+  .object({ actorName: signedActorName })
+  .strict()
 
 export type CreateReviewInput = z.infer<typeof createReviewSchema>
 export type ReportReviewInput = z.infer<typeof reportReviewSchema>

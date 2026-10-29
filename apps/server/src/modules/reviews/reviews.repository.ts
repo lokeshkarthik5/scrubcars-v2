@@ -1,6 +1,22 @@
-import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  sql,
+} from 'drizzle-orm'
 import { db } from '../../db/index.js'
-import { adminAuditLog, bookingItems, bookings, reviewReports, reviews, vendors } from '../../db/schema.js'
+import {
+  adminAuditLog,
+  bookingItems,
+  bookings,
+  reviewReports,
+  reviews,
+  vendors,
+} from '../../db/schema.js'
 import type { ReviewTag } from '../../lib/ratings.js'
 import { COUNTED_REVIEW, countedReview } from './reviews.predicates.js'
 
@@ -100,10 +116,17 @@ export const reviewsRepository = {
    */
   async ratingAggregates(vendorIds: string[]): Promise<RatingAggregate[]> {
     if (vendorIds.length === 0) return []
-    const rows = await db.execute<{ vendor_id: string; average: number | string; count: number | string }>(sql`
+    const rows = await db.execute<{
+      vendor_id: string
+      average: number | string
+      count: number | string
+    }>(sql`
       SELECT r.vendor_id, avg(r.rating)::float AS average, count(*)::int AS count
         FROM reviews r
-       WHERE r.vendor_id IN (${sql.join(vendorIds.map((id) => sql`${id}::uuid`), sql`, `)})
+       WHERE r.vendor_id IN (${sql.join(
+         vendorIds.map((id) => sql`${id}::uuid`),
+         sql`, `
+       )})
          AND ${COUNTED_REVIEW}
        GROUP BY r.vendor_id
     `)
@@ -115,29 +138,50 @@ export const reviewsRepository = {
   },
 
   /** How many counted reviews picked each tag, per garage. */
-  async tagCounts(vendorIds: string[]): Promise<Array<{ vendorId: string; tag: string; count: number }>> {
+  async tagCounts(
+    vendorIds: string[]
+  ): Promise<Array<{ vendorId: string; tag: string; count: number }>> {
     if (vendorIds.length === 0) return []
-    const rows = await db.execute<{ vendor_id: string; tag: string; count: number | string }>(sql`
+    const rows = await db.execute<{
+      vendor_id: string
+      tag: string
+      count: number | string
+    }>(sql`
       SELECT r.vendor_id, t.tag, count(*)::int AS count
         FROM reviews r
        CROSS JOIN LATERAL unnest(r.tags) AS t(tag)
-       WHERE r.vendor_id IN (${sql.join(vendorIds.map((id) => sql`${id}::uuid`), sql`, `)})
+       WHERE r.vendor_id IN (${sql.join(
+         vendorIds.map((id) => sql`${id}::uuid`),
+         sql`, `
+       )})
          AND ${COUNTED_REVIEW}
        GROUP BY r.vendor_id, t.tag
     `)
-    return Array.from(rows).map((row) => ({ vendorId: row.vendor_id, tag: row.tag, count: Number(row.count) }))
+    return Array.from(rows).map((row) => ({
+      vendorId: row.vendor_id,
+      tag: row.tag,
+      count: Number(row.count),
+    }))
   },
 
   /** How many counted reviews gave each number of stars, for one garage. */
-  async starCounts(vendorId: string): Promise<Array<{ stars: number; count: number }>> {
-    const rows = await db.execute<{ stars: number; count: number | string }>(sql`
+  async starCounts(
+    vendorId: string
+  ): Promise<Array<{ stars: number; count: number }>> {
+    const rows = await db.execute<{
+      stars: number
+      count: number | string
+    }>(sql`
       SELECT r.rating AS stars, count(*)::int AS count
         FROM reviews r
        WHERE r.vendor_id = ${vendorId}::uuid
          AND ${COUNTED_REVIEW}
        GROUP BY r.rating
     `)
-    return Array.from(rows).map((row) => ({ stars: Number(row.stars), count: Number(row.count) }))
+    return Array.from(rows).map((row) => ({
+      stars: Number(row.stars),
+      count: Number(row.count),
+    }))
   },
 
   // ─── The garage's own (0065) ──────────────────────────────────────────────
@@ -153,7 +197,12 @@ export const reviewsRepository = {
         user: { columns: { name: true } },
         booking: {
           columns: { id: true },
-          with: { items: { columns: { name: true }, orderBy: [asc(bookingItems.sortOrder)] } },
+          with: {
+            items: {
+              columns: { name: true },
+              orderBy: [asc(bookingItems.sortOrder)],
+            },
+          },
         },
       },
       orderBy: [desc(reviews.createdAt)],
@@ -174,7 +223,10 @@ export const reviewsRepository = {
           )
       : []
     const reportedIds = new Set(reported.map((row) => row.reviewId))
-    return rows.map((row) => ({ ...row, reportedByGarage: reportedIds.has(row.id) }))
+    return rows.map((row) => ({
+      ...row,
+      reportedByGarage: reportedIds.has(row.id),
+    }))
   },
 
   /** One review of this garage, whatever its state; another garage's is undefined. */
@@ -223,7 +275,9 @@ export const reviewsRepository = {
           eq(reviews.id, input.reviewId),
           eq(reviews.vendorId, input.vendorId),
           isNull(reviews.hiddenAt),
-          input.seenRepliedAt ? eq(reviews.repliedAt, input.seenRepliedAt) : isNull(reviews.repliedAt)
+          input.seenRepliedAt
+            ? eq(reviews.repliedAt, input.seenRepliedAt)
+            : isNull(reviews.repliedAt)
         )
       )
       .returning()
@@ -263,7 +317,11 @@ export const reviewsRepository = {
     vendorId: string | null
     reason: string
   }) {
-    const [row] = await db.insert(reviewReports).values(values).onConflictDoNothing().returning()
+    const [row] = await db
+      .insert(reviewReports)
+      .values(values)
+      .onConflictDoNothing()
+      .returning()
     return row
   },
 
@@ -281,7 +339,12 @@ export const reviewsRepository = {
         user: { columns: { name: true } },
         booking: {
           columns: { id: true, scheduledAt: true, markedTestAt: true },
-          with: { items: { columns: { name: true }, orderBy: [asc(bookingItems.sortOrder)] } },
+          with: {
+            items: {
+              columns: { name: true },
+              orderBy: [asc(bookingItems.sortOrder)],
+            },
+          },
         },
       },
       orderBy: [desc(reviews.createdAt)],
@@ -304,7 +367,10 @@ export const reviewsRepository = {
           )
           .orderBy(asc(reviewReports.createdAt))
       : []
-    return rows.map((row) => ({ ...row, reports: reports.filter((report) => report.reviewId === row.id) }))
+    return rows.map((row) => ({
+      ...row,
+      reports: reports.filter((report) => report.reviewId === row.id),
+    }))
   },
 
   async findForAdmin(reviewId: string) {
@@ -326,13 +392,22 @@ export const reviewsRepository = {
    * Hides a review that is showing, with its audit row, in one transaction;
    * undefined when it was already hidden.
    */
-  hide(reviewId: string, actor: { sub: string; name: string }, reason: string, at: Date) {
+  hide(
+    reviewId: string,
+    actor: { sub: string; name: string },
+    reason: string,
+    at: Date
+  ) {
     return db.transaction(async (tx) => {
       const [row] = await tx
         .update(reviews)
         .set({ hiddenAt: at, hiddenBy: actor.name, hiddenReason: reason })
         .where(and(eq(reviews.id, reviewId), isNull(reviews.hiddenAt)))
-        .returning({ id: reviews.id, vendorId: reviews.vendorId, rating: reviews.rating })
+        .returning({
+          id: reviews.id,
+          vendorId: reviews.vendorId,
+          rating: reviews.rating,
+        })
       if (!row) return undefined
       await tx.insert(adminAuditLog).values({
         action: 'review_hidden',
@@ -352,7 +427,11 @@ export const reviewsRepository = {
   show(reviewId: string, actor: { sub: string; name: string }) {
     return db.transaction(async (tx) => {
       const [before] = await tx
-        .select({ hiddenAt: reviews.hiddenAt, hiddenBy: reviews.hiddenBy, hiddenReason: reviews.hiddenReason })
+        .select({
+          hiddenAt: reviews.hiddenAt,
+          hiddenBy: reviews.hiddenBy,
+          hiddenReason: reviews.hiddenReason,
+        })
         .from(reviews)
         .where(eq(reviews.id, reviewId))
         .for('update')
@@ -368,7 +447,11 @@ export const reviewsRepository = {
         actorSub: actor.sub,
         actorName: actor.name,
         summary: { reviewId, vendorId: row.vendorId },
-        detail: { hiddenAt: before.hiddenAt.toISOString(), hiddenBy: before.hiddenBy, reason: before.hiddenReason },
+        detail: {
+          hiddenAt: before.hiddenAt.toISOString(),
+          hiddenBy: before.hiddenBy,
+          reason: before.hiddenReason,
+        },
       })
       return row
     })

@@ -41,12 +41,18 @@ export async function close(c: AdminContext, id: string) {
 
 export async function reopen(c: AdminContext, id: string) {
   const actor = signedInAdmin(c)
-  const data = await collectionListsService.reopen(id, { sub: c.get('auth').sub, name: actor.name })
+  const data = await collectionListsService.reopen(id, {
+    sub: c.get('auth').sub,
+    name: actor.name,
+  })
   return c.json({ success: true, data })
 }
 
 export async function remove(c: AdminContext, id: string) {
   const actor = signedInAdmin(c)
-  const data = await collectionListsService.remove(id, { sub: c.get('auth').sub, name: actor.name })
+  const data = await collectionListsService.remove(id, {
+    sub: c.get('auth').sub,
+    name: actor.name,
+  })
   return c.json({ success: true, data })
 }

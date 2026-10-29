@@ -17,9 +17,22 @@ export const RATING_RULES = {
   hideReasonMaxLength: 300,
 } as const
 
-export const POSITIVE_REVIEW_TAGS = ['on_time', 'spotless_finish', 'friendly', 'good_value'] as const
-export const NEGATIVE_REVIEW_TAGS = ['missed_spots', 'late', 'damp_interior', 'rude'] as const
-export const REVIEW_TAGS = [...POSITIVE_REVIEW_TAGS, ...NEGATIVE_REVIEW_TAGS] as const
+export const POSITIVE_REVIEW_TAGS = [
+  'on_time',
+  'spotless_finish',
+  'friendly',
+  'good_value',
+] as const
+export const NEGATIVE_REVIEW_TAGS = [
+  'missed_spots',
+  'late',
+  'damp_interior',
+  'rude',
+] as const
+export const REVIEW_TAGS = [
+  ...POSITIVE_REVIEW_TAGS,
+  ...NEGATIVE_REVIEW_TAGS,
+] as const
 
 export type ReviewTag = (typeof REVIEW_TAGS)[number]
 
@@ -52,7 +65,10 @@ export function newGarageReviewsLine(count: number): string | null {
  * Whether a garage shows a star score: it has counted reviews and is not new
  * (the API's `isNew`, 0065). A new garage shows NEW_GARAGE_LABEL instead.
  */
-export function hasStarScore(vendor: { reviewCount: number; isNew?: boolean }): boolean {
+export function hasStarScore(vendor: {
+  reviewCount: number
+  isNew?: boolean
+}): boolean {
   return vendor.reviewCount > 0 && !vendor.isNew
 }
 

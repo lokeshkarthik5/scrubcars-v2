@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { deletedTestPaymentsCsv } from './refunds'
 
-describe('the team tests\' ledger CSV (0065)', () => {
+describe("the team tests' ledger CSV (0065)", () => {
   test('one line per payment, ids and amounts as the API sends them', () => {
     const csv = deletedTestPaymentsCsv([
       {
@@ -26,7 +26,9 @@ describe('the team tests\' ledger CSV (0065)', () => {
       },
     ])
     const [header, line] = csv.trim().split('\r\n')
-    expect(header).toStartWith('Deleted at,Deleted by,Reason,Booking,What,Razorpay payment')
+    expect(header).toStartWith(
+      'Deleted at,Deleted by,Reason,Booking,What,Razorpay payment'
+    )
     expect(line).toBe(
       '2026-10-29T10:00:00.000Z,Mathew,"Owner checked live keys, refunded",#AB12CD34,Booking payment,pay_Live1,order_Live1,live,299.00,299.00,rfnd_A rfnd_B,DTL/26-27/000003,Genoraj Car Care,2026-10-20T10:00:00.000Z,2026-10-20T09:58:00.000Z,audit-1'
     )

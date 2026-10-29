@@ -269,7 +269,11 @@ function DocumentCard({
       toast.success(`${doc.label} removed`)
       onRemoved(next)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Couldn’t remove it. Please try again.')
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Couldn’t remove it. Please try again.'
+      )
     } finally {
       setBusy(false)
     }
@@ -381,9 +385,14 @@ function DocumentCard({
       />
 
       {confirmRemove ? (
-        <div role="group" aria-label={`Remove ${doc.label}?`} className="flex flex-col gap-2 border-t border-border pt-3">
+        <div
+          role="group"
+          aria-label={`Remove ${doc.label}?`}
+          className="flex flex-col gap-2 border-t border-border pt-3"
+        >
           <p className="text-[13px] text-text-primary">
-            Remove {inSentence(doc.label)}? It goes back to Not uploaded and its files are deleted.
+            Remove {inSentence(doc.label)}? It goes back to Not uploaded and its
+            files are deleted.
           </p>
           {error && (
             <p role="alert" className="text-[12px] text-error">
@@ -391,7 +400,12 @@ function DocumentCard({
             </p>
           )}
           <div className="flex gap-2">
-            <ScButton variant="outline" size="md" onClick={() => void remove()} disabled={busy}>
+            <ScButton
+              variant="outline"
+              size="md"
+              onClick={() => void remove()}
+              disabled={busy}
+            >
               {busy ? 'Removing…' : `Remove ${inSentence(doc.label)}`}
             </ScButton>
             <ScButton

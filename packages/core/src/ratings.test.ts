@@ -1,7 +1,12 @@
 import { describe, expect, test } from 'bun:test'
-import { NEW_GARAGE_LABEL, hasStarScore, isNewGarage, newGarageReviewsLine } from './ratings'
+import {
+  NEW_GARAGE_LABEL,
+  hasStarScore,
+  isNewGarage,
+  newGarageReviewsLine,
+} from './ratings'
 
-describe('the web\'s new-garage rule (0065)', () => {
+describe("the web's new-garage rule (0065)", () => {
   test('stars only for a garage that is not new and has counted reviews', () => {
     expect(hasStarScore({ reviewCount: 23, isNew: false })).toBe(true)
     expect(hasStarScore({ reviewCount: 2, isNew: true })).toBe(false)
@@ -18,7 +23,7 @@ describe('the web\'s new-garage rule (0065)', () => {
   })
 })
 
-describe('the garage portal\'s twin of isNew', () => {
+describe("the garage portal's twin of isNew", () => {
   test('fewer than 3 counted reviews is new', () => {
     expect(isNewGarage(0)).toBe(true)
     expect(isNewGarage(2)).toBe(true)

@@ -449,17 +449,35 @@ export const collectionListsService = {
     const [list] = await collectionListsRepository.listByIds([id])
     if (!list) throw listNotFound()
     const items = await collectionListsRepository.listItems([id])
-    const missing = await onboardingMarksService.missingFor([...new Set(items.map((item) => item.vendorId))])
+    const missing = await onboardingMarksService.missingFor([
+      ...new Set(items.map((item) => item.vendorId)),
+    ])
     const refusal = reopenRefusal(
       list.closedAt,
-      items.map((item) => ({ status: item.status, cleared: itemCleared(item.kind, missing.get(item.vendorId)) }))
+      items.map((item) => ({
+        status: item.status,
+        cleared: itemCleared(item.kind, missing.get(item.vendorId)),
+      }))
     )
-    if (refusal === 'not_closed') throw new AppError(409, 'This list is open already.', 'COLLECTION_LIST_OPEN')
+    if (refusal === 'not_closed')
+      throw new AppError(
+        409,
+        'This list is open already.',
+        'COLLECTION_LIST_OPEN'
+      )
     if (refusal === 'nothing_left') {
-      throw new AppError(409, 'Everything on this list is done, so there is nothing to reopen it for.', 'COLLECTION_LIST_DONE')
+      throw new AppError(
+        409,
+        'Everything on this list is done, so there is nothing to reopen it for.',
+        'COLLECTION_LIST_DONE'
+      )
     }
     if (!(await collectionListsRepository.reopen(id, actor))) {
-      throw new AppError(409, 'This list is open already.', 'COLLECTION_LIST_OPEN')
+      throw new AppError(
+        409,
+        'This list is open already.',
+        'COLLECTION_LIST_OPEN'
+      )
     }
     const [reopened] = await collectionListsService.byIds([id])
     if (!reopened) throw listNotFound()

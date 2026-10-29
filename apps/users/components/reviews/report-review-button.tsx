@@ -46,7 +46,8 @@ export function ReportReviewButton({
     } catch (err) {
       setState('idle')
       setError(
-        err instanceof ApiError && (err.code === 'REVIEW_ALREADY_REPORTED' || err.code === 'REVIEW_OWN')
+        err instanceof ApiError &&
+          (err.code === 'REVIEW_ALREADY_REPORTED' || err.code === 'REVIEW_OWN')
           ? err.message
           : "Couldn't send the report. Try again."
       )
@@ -87,12 +88,19 @@ export function ReportReviewButton({
             {!user ? (
               <div className="flex flex-col gap-4">
                 <div>
-                  <h2 className="text-base font-semibold text-text-primary">Sign in to report a review</h2>
+                  <h2 className="text-base font-semibold text-text-primary">
+                    Sign in to report a review
+                  </h2>
                   <p className="mt-1 text-[13px] text-text-secondary">
-                    Reports come from an account, so the team can follow up. Signing in brings you back here.
+                    Reports come from an account, so the team can follow up.
+                    Signing in brings you back here.
                   </p>
                 </div>
-                <ScButtonLink href={`/login?next=${encodeURIComponent(garagePath)}`} fullWidth className="min-h-12">
+                <ScButtonLink
+                  href={`/login?next=${encodeURIComponent(garagePath)}`}
+                  fullWidth
+                  className="min-h-12"
+                >
                   Sign in
                 </ScButtonLink>
                 <button
@@ -106,21 +114,31 @@ export function ReportReviewButton({
             ) : state === 'sent' ? (
               <div className="flex flex-col gap-4">
                 <div role="status">
-                  <h2 className="text-base font-semibold text-text-primary">Thanks, we&apos;ve got it</h2>
+                  <h2 className="text-base font-semibold text-text-primary">
+                    Thanks, we&apos;ve got it
+                  </h2>
                   <p className="mt-1 text-[13px] text-text-secondary">
-                    The team will look at this review. If it breaks our rules, it comes down.
+                    The team will look at this review. If it breaks our rules,
+                    it comes down.
                   </p>
                 </div>
-                <ScButton variant="secondary" onClick={close} className="min-h-11">
+                <ScButton
+                  variant="secondary"
+                  onClick={close}
+                  className="min-h-11"
+                >
                   Done
                 </ScButton>
               </div>
             ) : (
               <div className="flex flex-col gap-4">
                 <div>
-                  <h2 className="text-base font-semibold text-text-primary">Report this review</h2>
+                  <h2 className="text-base font-semibold text-text-primary">
+                    Report this review
+                  </h2>
                   <p className="mt-1 text-[13px] text-text-secondary">
-                    Tell the team what is wrong: abusive, fake, or about another garage.
+                    Tell the team what is wrong: abusive, fake, or about another
+                    garage.
                   </p>
                 </div>
                 <ScTextarea
@@ -136,7 +154,11 @@ export function ReportReviewButton({
                     {error}
                   </p>
                 )}
-                <ScButton onClick={send} disabled={!ready || state === 'sending'} className="min-h-12">
+                <ScButton
+                  onClick={send}
+                  disabled={!ready || state === 'sending'}
+                  className="min-h-12"
+                >
                   {state === 'sending' ? 'Sending…' : 'Send report'}
                 </ScButton>
                 <button

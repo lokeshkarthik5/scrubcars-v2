@@ -352,7 +352,10 @@ export function DismissedRecommendations({
   const restore = useRestoreRecommendation()
   if (recommendations.length === 0) return null
   return (
-    <section aria-label={`Dismissed in ${title}`} className="border-t border-border px-4 py-3">
+    <section
+      aria-label={`Dismissed in ${title}`}
+      className="border-t border-border px-4 py-3"
+    >
       <button
         type="button"
         aria-expanded={shown}
@@ -363,11 +366,19 @@ export function DismissedRecommendations({
         <span className="font-numeric">{recommendations.length}</span>
       </button>
       {shown && (
-        <ul aria-label={`Dismissed recommendations for ${title}`} className="mt-1 flex flex-col">
+        <ul
+          aria-label={`Dismissed recommendations for ${title}`}
+          className="mt-1 flex flex-col"
+        >
           {recommendations.map((rec) => (
-            <li key={rec.id} className="flex items-center gap-2 border-b border-border py-2 last:border-b-0">
+            <li
+              key={rec.id}
+              className="flex items-center gap-2 border-b border-border py-2 last:border-b-0"
+            >
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] text-text-primary">{rec.name}</p>
+                <p className="truncate text-[13px] text-text-primary">
+                  {rec.name}
+                </p>
                 <p className="text-[11.5px] text-text-muted">
                   Dismissed{rec.handledBy ? ` by ${rec.handledBy}` : ''}
                   {rec.why ? ` · “${rec.why}”` : ''}
@@ -378,8 +389,12 @@ export function DismissedRecommendations({
                 disabled={restore.isPending}
                 onClick={() =>
                   restore.mutate(rec.id, {
-                    onSuccess: () => toast.success(`${rec.name} is back to act on`),
-                    onError: (err) => toast.error(errorMessage(err, 'Couldn’t restore it. Try again.')),
+                    onSuccess: () =>
+                      toast.success(`${rec.name} is back to act on`),
+                    onError: (err) =>
+                      toast.error(
+                        errorMessage(err, 'Couldn’t restore it. Try again.')
+                      ),
                   })
                 }
                 aria-label={`Restore ${rec.name}`}

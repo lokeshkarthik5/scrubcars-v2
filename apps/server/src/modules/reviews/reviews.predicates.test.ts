@@ -3,7 +3,8 @@ import { PgDialect } from 'drizzle-orm/pg-core'
 import { COUNTED_REVIEW, countedReview } from './reviews.predicates.js'
 
 const dialect = new PgDialect()
-const text = (fragment: Parameters<PgDialect['sqlToQuery']>[0]) => dialect.sqlToQuery(fragment).sql
+const text = (fragment: Parameters<PgDialect['sqlToQuery']>[0]) =>
+  dialect.sqlToQuery(fragment).sql
 
 /**
  * The SQL twins of lib/ratings.ts isCountedReview: both leave out a hidden

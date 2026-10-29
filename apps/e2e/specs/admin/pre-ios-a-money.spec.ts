@@ -17,9 +17,11 @@ import { PRE_IOS } from '../../support/seed-ids'
 
 const reference = (id: string) => id.slice(0, 8).toUpperCase()
 const exists = async (table: string, column: string, id: string) =>
-  (await sql.unsafe(`select 1 from ${table} where ${column} = $1`, [id])).length > 0
+  (await sql.unsafe(`select 1 from ${table} where ${column} = $1`, [id]))
+    .length > 0
 
-const TEAM_TEST_LINE = 'Real payment, refunded: deleted as team test, money record kept.'
+const TEAM_TEST_LINE =
+  'Real payment, refunded: deleted as team test, money record kept.'
 
 test.use({ storageState: asRole('admin') })
 
@@ -39,9 +41,13 @@ test.describe('delete as team test @p0', () => {
     }
 
     await page.goto(`/bookings/${id}`)
-    await expect(page.getByRole('heading', { name: `Booking #${ref}` })).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: `Booking #${ref}` })
+    ).toBeVisible()
     await page.getByRole('button', { name: 'Delete test booking…' }).click()
-    const dialog = page.getByRole('dialog', { name: `Delete test booking #${ref}` })
+    const dialog = page.getByRole('dialog', {
+      name: `Delete test booking #${ref}`,
+    })
     await expect(dialog.getByText(TEAM_TEST_LINE)).toBeVisible()
     await expect(dialog.getByText('This deletes, for good:')).toBeVisible()
     for (const line of [
@@ -56,7 +62,9 @@ test.describe('delete as team test @p0', () => {
 
     // The phrase alone is not enough: a real payment needs its reason.
     const confirm = dialog.getByRole('button', { name: 'Delete 1 booking' })
-    await dialog.getByLabel('Type DELETE 1 BOOKING to confirm').fill('DELETE 1 BOOKING')
+    await dialog
+      .getByLabel('Type DELETE 1 BOOKING to confirm')
+      .fill('DELETE 1 BOOKING')
     await expect(confirm).toBeDisabled()
     const reason = dialog.getByLabel('Why is this a team test?')
     await reason.fill('ab')
@@ -111,7 +119,10 @@ test.describe('delete as team test @p0', () => {
       deleted_by_name: 'E2E Admin',
     })
     expect(ledger!.refunds).toEqual([
-      expect.objectContaining({ refundRef: 'rfnd_LivePreIos1', gatewayStatus: 'processed' }),
+      expect.objectContaining({
+        refundRef: 'rfnd_LivePreIos1',
+        gatewayStatus: 'processed',
+      }),
     ])
     const [audit] = await sql<{ action: string }[]>`
       select action from admin_audit_log
@@ -125,13 +136,19 @@ test.describe('delete as team test @p0', () => {
       page.waitForEvent('download'),
       page.getByRole('button', { name: 'Deleted team tests (CSV)' }).click(),
     ])
-    expect(download.suggestedFilename()).toMatch(/^detlio-deleted-team-tests-\d{4}-\d{2}-\d{2}\.csv$/)
+    expect(download.suggestedFilename()).toMatch(
+      /^detlio-deleted-team-tests-\d{4}-\d{2}-\d{2}\.csv$/
+    )
     const csv = readFileSync((await download.path())!, 'utf8')
     expect(csv).toContain('Deleted at,Deleted by,Reason,Booking')
     expect(csv).toContain(`#${ref}`)
     expect(csv).toContain('pay_LivePreIos1')
     expect(csv).toContain('"Owner checked the live keys, refunded"')
-    await expect(page.getByRole('status').filter({ hasText: /^Downloaded \d+ payments?\.$/ })).toBeVisible()
+    await expect(
+      page
+        .getByRole('status')
+        .filter({ hasText: /^Downloaded \d+ payments?\.$/ })
+    ).toBeVisible()
   })
 
   test('from Start pilot clean: ticked by hand, never by Tick all, and deleted with a reason', async ({
@@ -158,29 +175,42 @@ test.describe('delete as team test @p0', () => {
     await page.getByRole('button', { name: 'Dry run' }).click()
     await expect(page.getByText('1 booking', { exact: true })).toBeVisible()
     await expect(
-      page.getByText('1 real payment (refunded; kept in the money record)', { exact: true })
+      page.getByText('1 real payment (refunded; kept in the money record)', {
+        exact: true,
+      })
     ).toBeVisible()
     const [download] = await Promise.all([
       page.waitForEvent('download'),
       page.getByRole('button', { name: 'Download list (CSV)' }).click(),
     ])
     const csv = readFileSync((await download.path())!, 'utf8')
-    expect(csv).toContain(`#${ref},"Deleted. Real payment, refunded: deleted as team test, money record kept"`)
+    expect(csv).toContain(
+      `#${ref},"Deleted. Real payment, refunded: deleted as team test, money record kept"`
+    )
     await page.getByRole('button', { name: 'Continue' }).click()
 
     await page.getByLabel('I have a database backup from today').check()
-    await page.getByLabel('Type DELETE 1 BOOKING to confirm').fill('DELETE 1 BOOKING')
+    await page
+      .getByLabel('Type DELETE 1 BOOKING to confirm')
+      .fill('DELETE 1 BOOKING')
     const confirm = page.getByRole('button', { name: 'Delete 1 booking' })
     await expect(confirm).toBeDisabled()
-    await page.getByLabel('Why is this a team test?').fill('Pilot clean: team’s ₹450 wash')
+    await page
+      .getByLabel('Why is this a team test?')
+      .fill('Pilot clean: team’s ₹450 wash')
     await expect(confirm).toBeEnabled()
     await confirm.click()
 
     await expect(page.getByText('Done. Deleted by E2E Admin.')).toBeVisible()
     expect(await exists('bookings', 'id', id)).toBe(false)
-    const [ledger] = await sql<{ reason: string; razorpay_payment_id: string }[]>`
+    const [ledger] = await sql<
+      { reason: string; razorpay_payment_id: string }[]
+    >`
       select reason, razorpay_payment_id from deleted_test_payments where root_booking_id = ${id}
     `
-    expect(ledger).toEqual({ reason: 'Pilot clean: team’s ₹450 wash', razorpay_payment_id: 'pay_LivePreIos2' })
+    expect(ledger).toEqual({
+      reason: 'Pilot clean: team’s ₹450 wash',
+      razorpay_payment_id: 'pay_LivePreIos2',
+    })
   })
 })

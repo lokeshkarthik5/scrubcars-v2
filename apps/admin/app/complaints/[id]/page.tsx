@@ -381,7 +381,9 @@ function ComplaintDetail({ id }: { id: string }) {
             <ScBadge variant={STATUS_BADGE[c.status]}>
               {COMPLAINT_ADMIN_STATUS_LABELS[c.status]}
             </ScBadge>
-            {c.loggedInError && <ScBadge variant="muted">Logged in error</ScBadge>}
+            {c.loggedInError && (
+              <ScBadge variant="muted">Logged in error</ScBadge>
+            )}
             {overdue && (
               <ScBadge variant="danger">
                 <IconAlertTriangle size={11} aria-hidden className="mr-1" />
@@ -534,10 +536,12 @@ function LoggedInError({ c }: { c: AdminComplaint }) {
         <div className="flex flex-col gap-2">
           <p className="text-[13px] text-text-primary">
             Marked by {marked.by},{' '}
-            <span className="font-numeric">{formatWhen(marked.at)}</span>: {marked.reason}
+            <span className="font-numeric">{formatWhen(marked.at)}</span>:{' '}
+            {marked.reason}
           </p>
           <p className="text-[12px] text-text-muted">
-            Kept in the record and out of every count: Open, Overdue, the customer&apos;s list and the tiers.
+            Kept in the record and out of every count: Open, Overdue, the
+            customer&apos;s list and the tiers.
           </p>
           <ScButton
             variant="secondary"
@@ -545,8 +549,10 @@ function LoggedInError({ c }: { c: AdminComplaint }) {
             disabled={busy}
             onClick={() =>
               undo.mutate(undefined, {
-                onSuccess: () => toast.success(`${c.number} is back in the counts`),
-                onError: (err) => toast.error(errorMessage(err, "Couldn't undo it")),
+                onSuccess: () =>
+                  toast.success(`${c.number} is back in the counts`),
+                onError: (err) =>
+                  toast.error(errorMessage(err, "Couldn't undo it")),
               })
             }
             className="min-h-11 self-start px-4 text-[13px]"
@@ -567,7 +573,8 @@ function LoggedInError({ c }: { c: AdminComplaint }) {
                 setReason('')
                 toast.success(`${c.number} marked as logged in error`)
               },
-              onError: (err) => toast.error(errorMessage(err, "Couldn't mark it")),
+              onError: (err) =>
+                toast.error(errorMessage(err, "Couldn't mark it")),
             })
           }}
         >
@@ -604,7 +611,8 @@ function LoggedInError({ c }: { c: AdminComplaint }) {
       ) : (
         <div className="flex flex-col gap-2">
           <p className="text-[12px] text-text-secondary">
-            Logged by mistake? It stays in the record and leaves every count. You can undo it.
+            Logged by mistake? It stays in the record and leaves every count.
+            You can undo it.
           </p>
           <ScButton
             variant="secondary"

@@ -231,7 +231,10 @@ export const coverageService = {
         .map(toRecommendationResponse),
       dismissedRecommendations: recommendations
         .filter((rec) => rec.status === 'declined')
-        .sort((a, b) => (b.handledAt?.getTime() ?? 0) - (a.handledAt?.getTime() ?? 0))
+        .sort(
+          (a, b) =>
+            (b.handledAt?.getTime() ?? 0) - (a.handledAt?.getTime() ?? 0)
+        )
         .slice(0, 200)
         .map(toRecommendationResponse),
     }

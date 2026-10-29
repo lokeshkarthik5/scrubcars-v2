@@ -57,8 +57,15 @@ export async function fromRecommendation(
   )
 }
 
-export async function restoreRecommendation(c: AdminContext, id: string, input: DismissRecommendationInput) {
-  return c.json({ success: true, data: await leadsService.restoreRecommendation(id, input.actorName) })
+export async function restoreRecommendation(
+  c: AdminContext,
+  id: string,
+  input: DismissRecommendationInput
+) {
+  return c.json({
+    success: true,
+    data: await leadsService.restoreRecommendation(id, input.actorName),
+  })
 }
 
 export async function dismissRecommendation(

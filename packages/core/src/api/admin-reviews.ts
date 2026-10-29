@@ -17,14 +17,30 @@ export interface AdminReview {
   tags: AdminReviewTag[]
   createdAt: string
   reviewer: string | null
-  booking: { id: string; reference: string; scheduledAt: string; serviceNames: string[] } | null
+  booking: {
+    id: string
+    reference: string
+    scheduledAt: string
+    serviceNames: string[]
+  } | null
   /** Counts toward every score: not a Test booking's, not hidden. */
   counts: boolean
   /** A Test booking's: never counts. */
   test: boolean
   hidden: { at: string; by: string | null; reason: string | null } | null
-  reply: { text: string; repliedAt: string; updatedAt: string | null; editableUntil: string; editable: boolean } | null
-  reports: Array<{ id: string; reporter: 'customer' | 'garage'; reason: string; at: string }>
+  reply: {
+    text: string
+    repliedAt: string
+    updatedAt: string | null
+    editableUntil: string
+    editable: boolean
+  } | null
+  reports: Array<{
+    id: string
+    reporter: 'customer' | 'garage'
+    reason: string
+    at: string
+  }>
 }
 
 export interface AdminReviewSummary {
@@ -52,16 +68,22 @@ export async function getAdminGarageReviews(vendorId: string) {
  * VENDOR_IN_BIN.
  */
 export async function hideAdminReview(reviewId: string, reason: string) {
-  return apiClient<{ id: string; hidden: true }>(`/admin/reviews/${reviewId}/hide`, {
-    method: 'POST',
-    body: signedBody({ reason }),
-  })
+  return apiClient<{ id: string; hidden: true }>(
+    `/admin/reviews/${reviewId}/hide`,
+    {
+      method: 'POST',
+      body: signedBody({ reason }),
+    }
+  )
 }
 
 /** POST /admin/reviews/:id/show — Show again. 409 REVIEW_NOT_HIDDEN. */
 export async function showAdminReview(reviewId: string) {
-  return apiClient<{ id: string; hidden: false }>(`/admin/reviews/${reviewId}/show`, {
-    method: 'POST',
-    body: signedBody({}),
-  })
+  return apiClient<{ id: string; hidden: false }>(
+    `/admin/reviews/${reviewId}/show`,
+    {
+      method: 'POST',
+      body: signedBody({}),
+    }
+  )
 }

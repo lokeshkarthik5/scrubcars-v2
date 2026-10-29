@@ -41,9 +41,22 @@ export const RATING_RULES = {
  */
 export const NEW_GARAGE_SORT_RATING = 4
 
-export const POSITIVE_REVIEW_TAGS = ['on_time', 'spotless_finish', 'friendly', 'good_value'] as const
-export const NEGATIVE_REVIEW_TAGS = ['missed_spots', 'late', 'damp_interior', 'rude'] as const
-export const REVIEW_TAGS = [...POSITIVE_REVIEW_TAGS, ...NEGATIVE_REVIEW_TAGS] as const
+export const POSITIVE_REVIEW_TAGS = [
+  'on_time',
+  'spotless_finish',
+  'friendly',
+  'good_value',
+] as const
+export const NEGATIVE_REVIEW_TAGS = [
+  'missed_spots',
+  'late',
+  'damp_interior',
+  'rude',
+] as const
+export const REVIEW_TAGS = [
+  ...POSITIVE_REVIEW_TAGS,
+  ...NEGATIVE_REVIEW_TAGS,
+] as const
 
 export type PositiveReviewTag = (typeof POSITIVE_REVIEW_TAGS)[number]
 export type ReviewTag = (typeof REVIEW_TAGS)[number]
@@ -79,7 +92,10 @@ export type ReviewTagsRefusal = 'unknown_tag' | 'wrong_tone' | 'duplicate'
  * tag on a 1-3 star review (or a problem on a 4-5), and the same tag twice
  * are refused.
  */
-export function reviewTagsRefusal(rating: number, tags: readonly string[]): ReviewTagsRefusal | null {
+export function reviewTagsRefusal(
+  rating: number,
+  tags: readonly string[]
+): ReviewTagsRefusal | null {
   if (tags.some((tag) => !isReviewTag(tag))) return 'unknown_tag'
   if (new Set(tags).size !== tags.length) return 'duplicate'
   const allowed = tagsForRating(rating) as readonly string[]
@@ -88,7 +104,10 @@ export function reviewTagsRefusal(rating: number, tags: readonly string[]): Revi
 }
 
 /** Whether a review counts toward any score, list or tier. */
-export function isCountedReview(review: { hiddenAt: Date | null; bookingMarkedTest: boolean }): boolean {
+export function isCountedReview(review: {
+  hiddenAt: Date | null
+  bookingMarkedTest: boolean
+}): boolean {
   return review.hiddenAt === null && !review.bookingMarkedTest
 }
 
@@ -105,20 +124,28 @@ export interface GarageRating {
  * What customers and the garage see, from the counted reviews' average and
  * count (`average` null or `count` 0 when there are none).
  */
-export function garageRating(counted: { average: number | null; count: number } | null | undefined): GarageRating {
+export function garageRating(
+  counted: { average: number | null; count: number } | null | undefined
+): GarageRating {
   const count = counted?.count ?? 0
   const average = counted?.average ?? null
   if (count < RATING_RULES.minCountedReviews || average === null) {
     return { rating: null, reviewCount: count, isNew: true }
   }
-  return { rating: Number(average.toFixed(2)), reviewCount: count, isNew: false }
+  return {
+    rating: Number(average.toFixed(2)),
+    reviewCount: count,
+    isNew: false,
+  }
 }
 
 /**
  * The garage's top good tag once enough customers picked it, or null. Ties go
  * to the earlier tag in the list.
  */
-export function knownFor(tagCounts: ReadonlyArray<{ tag: string; count: number }>): PositiveReviewTag | null {
+export function knownFor(
+  tagCounts: ReadonlyArray<{ tag: string; count: number }>
+): PositiveReviewTag | null {
   let best: { tag: PositiveReviewTag; count: number } | null = null
   for (const tag of POSITIVE_REVIEW_TAGS) {
     const count = tagCounts.find((row) => row.tag === tag)?.count ?? 0
@@ -134,11 +161,21 @@ export function orderedTagCounts(
 ): Array<{ tag: ReviewTag; label: string; count: number; positive: boolean }> {
   return REVIEW_TAGS.flatMap((tag) => {
     const count = tagCounts.find((row) => row.tag === tag)?.count ?? 0
-    return count > 0 ? [{ tag, label: REVIEW_TAG_LABELS[tag], count, positive: isPositiveTag(tag) }] : []
+    return count > 0
+      ? [
+          {
+            tag,
+            label: REVIEW_TAG_LABELS[tag],
+            count,
+            positive: isPositiveTag(tag),
+          },
+        ]
+      : []
   })
 }
 
-export type ReplyRefusal = 'review_hidden' | 'window_closed' | 'empty' | 'too_long'
+export type ReplyRefusal =
+  'review_hidden' | 'window_closed' | 'empty' | 'too_long'
 
 /**
  * Whether the garage may post or change its reply now. The first reply may
@@ -154,17 +191,24 @@ export function replyRefusal(
   const trimmed = text.trim()
   if (trimmed.length === 0) return 'empty'
   if (trimmed.length > RATING_RULES.replyMaxLength) return 'too_long'
-  if (review.repliedAt && !replyEditable(review.repliedAt, now)) return 'window_closed'
+  if (review.repliedAt && !replyEditable(review.repliedAt, now))
+    return 'window_closed'
   return null
 }
 
 /** Whether a reply first posted at `repliedAt` may still be changed. */
 export function replyEditable(repliedAt: Date, now: Date): boolean {
-  return now.getTime() < repliedAt.getTime() + RATING_RULES.replyEditHours * 60 * 60 * 1000
+  return (
+    now.getTime() <
+    repliedAt.getTime() + RATING_RULES.replyEditHours * 60 * 60 * 1000
+  )
 }
 
 /** A reason typed for a report or a hide: trimmed, 3 characters up to the limit. */
-export function reasonProblem(reason: string, max: number): 'too_short' | 'too_long' | null {
+export function reasonProblem(
+  reason: string,
+  max: number
+): 'too_short' | 'too_long' | null {
   const trimmed = reason.trim()
   if (trimmed.length < RATING_RULES.reasonMinLength) return 'too_short'
   if (trimmed.length > max) return 'too_long'

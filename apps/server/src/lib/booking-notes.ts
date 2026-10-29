@@ -22,7 +22,8 @@ export function noteEditRefusal(
 ): NoteEditRefusal | null {
   if (note.kind !== 'typed') return 'system_note'
   if (!note.authorSub || note.authorSub !== sub) return 'not_author'
-  if (now.getTime() >= noteEditableUntil(note.createdAt).getTime()) return 'window_closed'
+  if (now.getTime() >= noteEditableUntil(note.createdAt).getTime())
+    return 'window_closed'
   return null
 }
 

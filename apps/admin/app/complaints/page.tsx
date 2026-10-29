@@ -122,7 +122,9 @@ function ComplaintRow({
             {COMPLAINT_ADMIN_STATUS_LABELS[c.status]}
           </ScBadge>
           {/* Kept under All, out of every count (0065). */}
-          {c.loggedInError && <ScBadge variant="muted">Logged in error</ScBadge>}
+          {c.loggedInError && (
+            <ScBadge variant="muted">Logged in error</ScBadge>
+          )}
           {overdue && (
             <StatusChip tone="late" dot={false}>
               <IconAlertTriangle size={12} aria-hidden />

@@ -60,7 +60,11 @@ async function globalSetup() {
   await saveState('vendor-operator', STAFF.operator.phone, 'vendor')
   await saveState('super-admin', STAFF.superAdmin.phone, 'vendor')
   // Pre-iOS, part A (0065): its people are seeded apart from CUSTOMERS and STAFF.
-  await saveState('customer-preios-reporter', PRE_IOS.reporter.phone, 'customer')
+  await saveState(
+    'customer-preios-reporter',
+    PRE_IOS.reporter.phone,
+    'customer'
+  )
   await saveState('vendor-preios', PRE_IOS.owner.phone, 'vendor')
   await saveAdminState('admin')
   await saveAdminState('admin-shared', ADMIN)

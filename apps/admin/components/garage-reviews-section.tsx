@@ -11,7 +11,11 @@ import { ScSection } from '@repo/ui/sc/section'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
 import type { AdminReview } from '@repo/core/api/admin-reviews'
 import { errorMessage } from '@repo/core/api/hooks/use-discounts'
-import { useAdminGarageReviews, useHideReview, useShowReview } from '@repo/core/api/hooks/use-admin-reviews'
+import {
+  useAdminGarageReviews,
+  useHideReview,
+  useShowReview,
+} from '@repo/core/api/hooks/use-admin-reviews'
 import { NEW_GARAGE_LABEL, RATING_RULES } from '@repo/core/ratings'
 import { DeleteTestBookingDialog } from '@/components/delete-test-booking-dialog'
 import { SignedAs } from '@/components/signed-as'
@@ -27,7 +31,13 @@ import { reviewCountsLabel } from '@/lib/reviews'
  * and the garage are listed under each review. While the garage is in the
  * Bin nothing can be changed.
  */
-export function GarageReviewsSection({ vendorId, readOnly }: { vendorId: string; readOnly: boolean }) {
+export function GarageReviewsSection({
+  vendorId,
+  readOnly,
+}: {
+  vendorId: string
+  readOnly: boolean
+}) {
   const reviews = useAdminGarageReviews(vendorId)
   const [hiding, setHiding] = useState<AdminReview | null>(null)
   const [deleting, setDeleting] = useState<AdminReview | null>(null)
@@ -50,22 +60,32 @@ export function GarageReviewsSection({ vendorId, readOnly }: { vendorId: string;
         <p className="text-[13px] text-text-primary">
           {summary.isNew ? (
             <>
-              <span className="font-semibold">{NEW_GARAGE_LABEL}</span> for customers:{' '}
-              <span className="font-numeric">{summary.reviewCount}</span> counted{' '}
-              {summary.reviewCount === 1 ? 'review' : 'reviews'} (a score shows from{' '}
-              <span className="font-numeric">{RATING_RULES.minCountedReviews}</span>).
+              <span className="font-semibold">{NEW_GARAGE_LABEL}</span> for
+              customers:{' '}
+              <span className="font-numeric">{summary.reviewCount}</span>{' '}
+              counted {summary.reviewCount === 1 ? 'review' : 'reviews'} (a
+              score shows from{' '}
+              <span className="font-numeric">
+                {RATING_RULES.minCountedReviews}
+              </span>
+              ).
             </>
           ) : (
             <>
-              Customers see <span className="font-numeric font-semibold">{summary.rating?.toFixed(1)}</span> from{' '}
-              <span className="font-numeric">{summary.reviewCount}</span> counted reviews.
+              Customers see{' '}
+              <span className="font-numeric font-semibold">
+                {summary.rating?.toFixed(1)}
+              </span>{' '}
+              from <span className="font-numeric">{summary.reviewCount}</span>{' '}
+              counted reviews.
             </>
           )}
           {summary.knownFor && <> Known for {summary.knownFor.label}.</>}
         </p>
         <p className="text-[12px] text-text-secondary">
-          Test bookings never count: not in the stars, the garage list, tiers, Statistics or the garage&apos;s own
-          screen. A hidden review leaves every score and stays in the record.
+          Test bookings never count: not in the stars, the garage list, tiers,
+          Statistics or the garage&apos;s own screen. A hidden review leaves
+          every score and stays in the record.
         </p>
 
         {error && (
@@ -77,7 +97,10 @@ export function GarageReviewsSection({ vendorId, readOnly }: { vendorId: string;
         {list.length === 0 ? (
           <p className="text-[13px] text-text-secondary">No reviews yet.</p>
         ) : (
-          <ul aria-label="Reviews" className="flex flex-col divide-y divide-border">
+          <ul
+            aria-label="Reviews"
+            className="flex flex-col divide-y divide-border"
+          >
             {list.map((review) => (
               <li
                 key={review.id}
@@ -86,13 +109,20 @@ export function GarageReviewsSection({ vendorId, readOnly }: { vendorId: string;
               >
                 <div className="min-w-0 flex-1 text-[12px]">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="flex items-center gap-0.5" aria-label={`${review.rating} stars`}>
+                    <span
+                      className="flex items-center gap-0.5"
+                      aria-label={`${review.rating} stars`}
+                    >
                       {Array.from({ length: 5 }, (_, i) => (
                         <IconStarFilled
                           key={i}
                           size={12}
                           aria-hidden
-                          className={i < review.rating ? 'text-warning' : 'text-text-muted'}
+                          className={
+                            i < review.rating
+                              ? 'text-warning'
+                              : 'text-text-muted'
+                          }
                         />
                       ))}
                     </span>
@@ -102,21 +132,30 @@ export function GarageReviewsSection({ vendorId, readOnly }: { vendorId: string;
                   </div>
                   {review.comment && (
                     <p className="mt-0.5 text-text-secondary">
-                      &ldquo;{review.comment}&rdquo;{review.reply ? ' · replied' : ''}
+                      &ldquo;{review.comment}&rdquo;
+                      {review.reply ? ' · replied' : ''}
                     </p>
                   )}
                   {review.tags.length > 0 && (
-                    <p className="mt-0.5 text-text-muted">{review.tags.map((tag) => tag.label).join(' · ')}</p>
+                    <p className="mt-0.5 text-text-muted">
+                      {review.tags.map((tag) => tag.label).join(' · ')}
+                    </p>
                   )}
                   {review.hidden && (
                     <p className="mt-0.5 text-text-secondary">
                       {review.hidden.reason} · hidden by {review.hidden.by},{' '}
-                      <span className="font-numeric">{formatWhen(review.hidden.at)}</span>
+                      <span className="font-numeric">
+                        {formatWhen(review.hidden.at)}
+                      </span>
                     </p>
                   )}
                   {review.reports.map((report) => (
                     <p key={report.id} className="mt-0.5 text-text-secondary">
-                      Reported by {report.reporter === 'garage' ? 'the garage' : 'a customer'}: {report.reason}
+                      Reported by{' '}
+                      {report.reporter === 'garage'
+                        ? 'the garage'
+                        : 'a customer'}
+                      : {report.reason}
                     </p>
                   ))}
                 </div>
@@ -131,8 +170,13 @@ export function GarageReviewsSection({ vendorId, readOnly }: { vendorId: string;
                         #{review.booking.reference}
                       </Link>
                       <p className="text-text-secondary">
-                        {review.test ? 'Test booking' : review.booking.serviceNames.join(', ')} ·{' '}
-                        <span className="font-numeric">{formatWhen(review.booking.scheduledAt)}</span>
+                        {review.test
+                          ? 'Test booking'
+                          : review.booking.serviceNames.join(', ')}{' '}
+                        ·{' '}
+                        <span className="font-numeric">
+                          {formatWhen(review.booking.scheduledAt)}
+                        </span>
                       </p>
                     </>
                   ) : (
@@ -141,7 +185,15 @@ export function GarageReviewsSection({ vendorId, readOnly }: { vendorId: string;
                 </div>
 
                 <div className="flex items-center gap-2 sm:w-56 sm:justify-end">
-                  <ScBadge variant={review.counts ? 'success' : review.test ? 'danger' : 'muted'}>
+                  <ScBadge
+                    variant={
+                      review.counts
+                        ? 'success'
+                        : review.test
+                          ? 'danger'
+                          : 'muted'
+                    }
+                  >
                     {reviewCountsLabel(review)}
                   </ScBadge>
                   {!readOnly &&
@@ -164,7 +216,10 @@ export function GarageReviewsSection({ vendorId, readOnly }: { vendorId: string;
                         onClick={() => {
                           setError('')
                           show.mutate(review.id, {
-                            onError: (err) => setError(errorMessage(err, "Couldn't show it again")),
+                            onError: (err) =>
+                              setError(
+                                errorMessage(err, "Couldn't show it again")
+                              ),
                           })
                         }}
                         className="min-h-11 px-3 text-[12px]"
@@ -189,10 +244,19 @@ export function GarageReviewsSection({ vendorId, readOnly }: { vendorId: string;
         )}
       </div>
 
-      {hiding && <HideReviewDialog vendorId={vendorId} review={hiding} onClose={() => setHiding(null)} />}
+      {hiding && (
+        <HideReviewDialog
+          vendorId={vendorId}
+          review={hiding}
+          onClose={() => setHiding(null)}
+        />
+      )}
       {deleting?.booking && (
         <DeleteTestBookingDialog
-          booking={{ id: deleting.booking.id, reference: deleting.booking.reference }}
+          booking={{
+            id: deleting.booking.id,
+            reference: deleting.booking.reference,
+          }}
           open
           onClose={() => setDeleting(null)}
           onDeleted={() => {
@@ -225,7 +289,11 @@ function HideReviewDialog({
     setError('')
     hide.mutate(
       { reviewId: review.id, reason: reason.trim() },
-      { onSuccess: onClose, onError: (err) => setError(errorMessage(err, "Couldn't hide the review")) }
+      {
+        onSuccess: onClose,
+        onError: (err) =>
+          setError(errorMessage(err, "Couldn't hide the review")),
+      }
     )
   }
 
@@ -238,10 +306,12 @@ function HideReviewDialog({
       className="flex max-w-[440px] flex-col gap-4"
     >
       <div>
-        <h2 className="text-[15px] font-semibold text-text-primary">Hide this review</h2>
+        <h2 className="text-[15px] font-semibold text-text-primary">
+          Hide this review
+        </h2>
         <p className="mt-1 text-[12px] text-text-secondary">
-          For abusive, fake or wrong-garage reviews. It leaves the score, the lists and the tiers, and stays in the
-          record. Show again undoes it.
+          For abusive, fake or wrong-garage reviews. It leaves the score, the
+          lists and the tiers, and stays in the record. Show again undoes it.
         </p>
       </div>
       <SignedAs />
@@ -260,10 +330,19 @@ function HideReviewDialog({
         </p>
       )}
       <div className="flex gap-2">
-        <ScButton variant="secondary" onClick={onClose} disabled={hide.isPending} className="min-h-11">
+        <ScButton
+          variant="secondary"
+          onClick={onClose}
+          disabled={hide.isPending}
+          className="min-h-11"
+        >
           Go back
         </ScButton>
-        <ScButton onClick={submit} disabled={!ready || hide.isPending} className="min-h-11">
+        <ScButton
+          onClick={submit}
+          disabled={!ready || hide.isPending}
+          className="min-h-11"
+        >
           {hide.isPending ? 'Hiding…' : 'Hide review'}
         </ScButton>
       </div>

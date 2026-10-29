@@ -280,23 +280,38 @@ function ClosedLists({ view }: { view: 'mine' | 'all' }) {
   const query = useCollectionLists(view, false, shown)
   if (!shown) {
     return (
-      <button type="button" className={cn(BUTTON, 'self-start')} onClick={() => setShown(true)}>
+      <button
+        type="button"
+        className={cn(BUTTON, 'self-start')}
+        onClick={() => setShown(true)}
+      >
         Show closed lists
       </button>
     )
   }
   return (
     <section aria-label="Closed lists" className="flex flex-col gap-3">
-      <h2 className="text-[15px] font-semibold text-text-primary">Closed lists</h2>
+      <h2 className="text-[15px] font-semibold text-text-primary">
+        Closed lists
+      </h2>
       {query.isPending ? (
         <Skeleton className="h-24" />
       ) : query.isError || !query.data ? (
-        <LoadError what="the closed lists" onRetry={() => void query.refetch()} retrying={query.isRefetching} />
+        <LoadError
+          what="the closed lists"
+          onRetry={() => void query.refetch()}
+          retrying={query.isRefetching}
+        />
       ) : query.data.lists.length === 0 ? (
         <p className="text-[13px] text-text-secondary">No closed lists.</p>
       ) : (
         query.data.lists.map((list) => (
-          <CollectionListCard key={list.id} list={list} mine={view === 'mine'} highlighted={false} />
+          <CollectionListCard
+            key={list.id}
+            list={list}
+            mine={view === 'mine'}
+            highlighted={false}
+          />
         ))
       )}
     </section>
@@ -447,7 +462,12 @@ export function CollectionListCard({
           Delete list
         </button>
         {!list.open && list.closedAt && somethingLeft && (
-          <button type="button" className={BUTTON} disabled={reopen.isPending} onClick={() => void reopenList()}>
+          <button
+            type="button"
+            className={BUTTON}
+            disabled={reopen.isPending}
+            onClick={() => void reopenList()}
+          >
             {reopen.isPending ? 'Reopening…' : 'Reopen'}
           </button>
         )}

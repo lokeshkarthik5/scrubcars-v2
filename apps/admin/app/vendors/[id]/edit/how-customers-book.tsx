@@ -183,7 +183,8 @@ export function HowCustomersBook({
           ) : (
             <>
               <span>
-                Clear it? Doorstep then reaches {mode.savedKm ?? DEFAULT_DOORSTEP_RADIUS_KM} km from the pin.
+                Clear it? Doorstep then reaches{' '}
+                {mode.savedKm ?? DEFAULT_DOORSTEP_RADIUS_KM} km from the pin.
               </span>
               <ScButton
                 variant="secondary"

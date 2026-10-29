@@ -188,7 +188,9 @@ export const collectionListsRepository = {
       const [row] = await tx
         .update(collectionLists)
         .set({ closedAt: null })
-        .where(and(eq(collectionLists.id, id), isNotNull(collectionLists.closedAt)))
+        .where(
+          and(eq(collectionLists.id, id), isNotNull(collectionLists.closedAt))
+        )
         .returning({ id: collectionLists.id })
       if (!row) return null
       await tx.insert(adminAuditLog).values({
@@ -216,7 +218,11 @@ export const collectionListsRepository = {
       const [row] = await tx
         .delete(collectionLists)
         .where(eq(collectionLists.id, id))
-        .returning({ id: collectionLists.id, assigneeName: collectionLists.assigneeName, createdAt: collectionLists.createdAt })
+        .returning({
+          id: collectionLists.id,
+          assigneeName: collectionLists.assigneeName,
+          createdAt: collectionLists.createdAt,
+        })
       if (!row) return null
       await tx.insert(adminAuditLog).values({
         action: 'collection_list_deleted',

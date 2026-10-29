@@ -104,7 +104,13 @@ export function NotesSection({
  * One note. Your own typed note can be edited or deleted for 24 hours after
  * you wrote it (0065); a note an action wrote, or someone else's, cannot.
  */
-function NoteItem({ bookingId, note }: { bookingId: string; note: AdminBookingNote }) {
+function NoteItem({
+  bookingId,
+  note,
+}: {
+  bookingId: string
+  note: AdminBookingNote
+}) {
   const me = useAdminMe()
   const now = useNow(60_000)
   const edit = useEditAdminBookingNote()
@@ -135,7 +141,8 @@ function NoteItem({ bookingId, note }: { bookingId: string; note: AdminBookingNo
               { id: bookingId, noteId: note.id, body: text },
               {
                 onSuccess: () => setEditing(false),
-                onError: (err) => setError(errorMessage(err, "Couldn't save the note")),
+                onError: (err) =>
+                  setError(errorMessage(err, "Couldn't save the note")),
               }
             )
           }}
@@ -181,7 +188,9 @@ function NoteItem({ bookingId, note }: { bookingId: string; note: AdminBookingNo
         <div className="mt-1 flex flex-wrap items-center justify-end gap-2">
           {confirmDelete ? (
             <>
-              <span className="text-[12px] text-text-secondary">Delete this note?</span>
+              <span className="text-[12px] text-text-secondary">
+                Delete this note?
+              </span>
               <ScButton
                 variant="secondary"
                 fullWidth={false}
@@ -190,7 +199,10 @@ function NoteItem({ bookingId, note }: { bookingId: string; note: AdminBookingNo
                   setError('')
                   remove.mutate(
                     { id: bookingId, noteId: note.id },
-                    { onError: (err) => setError(errorMessage(err, "Couldn't delete the note")) }
+                    {
+                      onError: (err) =>
+                        setError(errorMessage(err, "Couldn't delete the note")),
+                    }
                   )
                 }}
                 className="min-h-11 px-3 text-[12px]"

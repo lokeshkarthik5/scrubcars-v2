@@ -61,11 +61,17 @@ export default function VendorReviewsPage() {
         <Skeleton className="h-[72px] w-full" />
       ) : reviews.length > 0 && newGarage ? (
         <ScCard className="flex flex-col gap-1 px-4 py-4">
-          <p className="text-[17px] font-semibold text-text-primary">{NEW_GARAGE_LABEL}</p>
+          <p className="text-[17px] font-semibold text-text-primary">
+            {NEW_GARAGE_LABEL}
+          </p>
           <p className="text-[12px] text-text-secondary">
             <span className="font-numeric">{reviews.length}</span>{' '}
-            {reviews.length === 1 ? 'review' : 'reviews'} so far. Customers see your score from{' '}
-            <span className="font-numeric">{RATING_RULES.minCountedReviews}</span> reviews.
+            {reviews.length === 1 ? 'review' : 'reviews'} so far. Customers see
+            your score from{' '}
+            <span className="font-numeric">
+              {RATING_RULES.minCountedReviews}
+            </span>{' '}
+            reviews.
           </p>
         </ScCard>
       ) : reviews.length > 0 ? (
@@ -139,8 +145,12 @@ export default function VendorReviewsPage() {
                 {/* Your public reply (0065), as customers read it. */}
                 {review.reply && (
                   <div className="mt-2 rounded-[10px] border-l-2 border-text-primary bg-surface px-3 py-2">
-                    <p className="text-[12px] font-semibold text-text-primary">Your reply</p>
-                    <p className="mt-0.5 text-[13px] text-text-secondary">{review.reply.text}</p>
+                    <p className="text-[12px] font-semibold text-text-primary">
+                      Your reply
+                    </p>
+                    <p className="mt-0.5 text-[13px] text-text-secondary">
+                      {review.reply.text}
+                    </p>
                   </div>
                 )}
               </ScCard>

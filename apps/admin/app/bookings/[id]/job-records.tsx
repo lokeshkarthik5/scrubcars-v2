@@ -348,10 +348,17 @@ export function JobPhotosSection({
           fullWidth={false}
           disabled={undoWaiver.isPending}
           onClick={() =>
-            undoWaiver.mutate({ id: booking.id, input: undefined }, {
-              onSuccess: () => toast.success('Waiver undone: the garage’s photos are needed again'),
-              onError: (err) => toast.error(errorMessage(err, "Couldn't undo the waiver")),
-            })
+            undoWaiver.mutate(
+              { id: booking.id, input: undefined },
+              {
+                onSuccess: () =>
+                  toast.success(
+                    'Waiver undone: the garage’s photos are needed again'
+                  ),
+                onError: (err) =>
+                  toast.error(errorMessage(err, "Couldn't undo the waiver")),
+              }
+            )
           }
           className="min-h-11 self-start px-4 text-[12px]"
         >
@@ -536,7 +543,15 @@ function WaivePhotosDialog({
  * Withdraw unpaid extra work for the garage (0065), asked once more first.
  * The customer then has nothing to pay; recorded as a note and audited.
  */
-function WithdrawExtraWorkButton({ bookingId, chargeId, what }: { bookingId: string; chargeId: string; what: string }) {
+function WithdrawExtraWorkButton({
+  bookingId,
+  chargeId,
+  what,
+}: {
+  bookingId: string
+  chargeId: string
+  what: string
+}) {
   const withdraw = useWithdrawAdminExtraWork()
   const [asking, setAsking] = useState(false)
   if (!asking) {
@@ -552,8 +567,14 @@ function WithdrawExtraWorkButton({ bookingId, chargeId, what }: { bookingId: str
     )
   }
   return (
-    <span role="group" aria-label={`Withdraw ${what}?`} className="flex flex-wrap items-center gap-2">
-      <span className="text-[12px] text-text-secondary">The customer won&apos;t be asked to pay it.</span>
+    <span
+      role="group"
+      aria-label={`Withdraw ${what}?`}
+      className="flex flex-wrap items-center gap-2"
+    >
+      <span className="text-[12px] text-text-secondary">
+        The customer won&apos;t be asked to pay it.
+      </span>
       <ScButton
         variant="secondary"
         fullWidth={false}
@@ -631,7 +652,11 @@ export function ExtraWorkSection({ booking }: { booking: AdminBookingDetail }) {
               </ScBadge>
               {/* For the garage (0065): unpaid only, as its own Withdraw. */}
               {work.state === 'awaiting' && (
-                <WithdrawExtraWorkButton bookingId={booking.id} chargeId={work.id} what={work.description} />
+                <WithdrawExtraWorkButton
+                  bookingId={booking.id}
+                  chargeId={work.id}
+                  what={work.description}
+                />
               )}
             </div>
             {work.note && (

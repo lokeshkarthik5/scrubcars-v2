@@ -7,7 +7,11 @@ import {
   requireSuperAdmin,
   type AuthVariables,
 } from '../../middleware/auth.middleware.js'
-import { requireVendorRole, resolveTenant, type TenantVariables } from '../../middleware/tenant.middleware.js'
+import {
+  requireVendorRole,
+  resolveTenant,
+  type TenantVariables,
+} from '../../middleware/tenant.middleware.js'
 import * as reviewsController from './reviews.controller.js'
 import {
   createReviewSchema,
@@ -56,7 +60,12 @@ reviewsRoutes.post(
   authMiddleware,
   zValidator('param', reviewIdParamSchema),
   zValidator('json', reportReviewSchema),
-  (c) => reviewsController.reportReview(c, c.req.valid('param').reviewId, c.req.valid('json'))
+  (c) =>
+    reviewsController.reportReview(
+      c,
+      c.req.valid('param').reviewId,
+      c.req.valid('json')
+    )
 )
 
 // ─── The garage's own (0065) ─────────────────────────────────────────────────
@@ -69,16 +78,29 @@ reviewsRoutes.post(
  */
 export const garageReviewRoutes = new Hono<{ Variables: TenantVariables }>()
 
-const ownerMiddleware = [authMiddleware, resolveTenant, requireVendorRole('vendor_admin')] as const
+const ownerMiddleware = [
+  authMiddleware,
+  resolveTenant,
+  requireVendorRole('vendor_admin'),
+] as const
 
-garageReviewRoutes.get('/', ...ownerMiddleware, reviewsController.listGarageReviews)
+garageReviewRoutes.get(
+  '/',
+  ...ownerMiddleware,
+  reviewsController.listGarageReviews
+)
 
 garageReviewRoutes.put(
   '/:reviewId/reply',
   ...ownerMiddleware,
   zValidator('param', reviewIdParamSchema),
   zValidator('json', replySchema),
-  (c) => reviewsController.replyAsGarage(c, c.req.valid('param').reviewId, c.req.valid('json'))
+  (c) =>
+    reviewsController.replyAsGarage(
+      c,
+      c.req.valid('param').reviewId,
+      c.req.valid('json')
+    )
 )
 
 garageReviewRoutes.post(
@@ -86,7 +108,12 @@ garageReviewRoutes.post(
   ...ownerMiddleware,
   zValidator('param', reviewIdParamSchema),
   zValidator('json', reportReviewSchema),
-  (c) => reviewsController.reportAsGarage(c, c.req.valid('param').reviewId, c.req.valid('json'))
+  (c) =>
+    reviewsController.reportAsGarage(
+      c,
+      c.req.valid('param').reviewId,
+      c.req.valid('json')
+    )
 )
 
 // ─── Admin (0065) ────────────────────────────────────────────────────────────
@@ -115,7 +142,12 @@ adminReviewRoutes.post(
   ...adminMiddleware,
   zValidator('param', reviewIdParamSchema),
   adminSignedJson(hideReviewSchema),
-  (c) => reviewsController.hideReview(c, c.req.valid('param').reviewId, c.req.valid('json'))
+  (c) =>
+    reviewsController.hideReview(
+      c,
+      c.req.valid('param').reviewId,
+      c.req.valid('json')
+    )
 )
 
 adminReviewRoutes.post(
@@ -123,5 +155,10 @@ adminReviewRoutes.post(
   ...adminMiddleware,
   zValidator('param', reviewIdParamSchema),
   adminSignedJson(showReviewSchema),
-  (c) => reviewsController.showReview(c, c.req.valid('param').reviewId, c.req.valid('json').actorName)
+  (c) =>
+    reviewsController.showReview(
+      c,
+      c.req.valid('param').reviewId,
+      c.req.valid('json').actorName
+    )
 )

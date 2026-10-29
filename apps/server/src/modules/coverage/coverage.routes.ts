@@ -95,5 +95,10 @@ adminCoverageRoutes.post(
   ...adminMiddleware,
   idParam,
   adminSignedJson(dismissRecommendationSchema),
-  (c) => controller.restoreRecommendation(c, c.req.valid('param').id, c.req.valid('json'))
+  (c) =>
+    controller.restoreRecommendation(
+      c,
+      c.req.valid('param').id,
+      c.req.valid('json')
+    )
 )

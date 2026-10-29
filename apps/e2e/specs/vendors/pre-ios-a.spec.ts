@@ -16,23 +16,36 @@ const P = PRE_IOS
 test.use({ storageState: asRole('vendor-preios') })
 
 test.describe('remove and the rating in the garage portal @p0', () => {
-  test('Documents: Remove its own shop photo before Detlio checks it', async ({ page }) => {
+  test('Documents: Remove its own shop photo before Detlio checks it', async ({
+    page,
+  }) => {
     await page.goto('/settings/documents')
     const shop = page.getByRole('group', { name: 'Shop photo', exact: true })
     await expect(shop.getByText('Waiting for review')).toBeVisible()
     // An approved required one (the owner ID, if admin has not removed it yet) has no Remove.
-    await expect(page.getByRole('button', { name: 'Remove Owner ID' })).toHaveCount(0)
+    await expect(
+      page.getByRole('button', { name: 'Remove Owner ID' })
+    ).toHaveCount(0)
 
     // Keep it changes nothing.
     await shop.getByRole('button', { name: 'Remove Shop photo' }).click()
-    await page.getByRole('group', { name: 'Remove Shop photo?' }).getByRole('button', { name: 'Keep it' }).click()
+    await page
+      .getByRole('group', { name: 'Remove Shop photo?' })
+      .getByRole('button', { name: 'Keep it' })
+      .click()
     await expect(shop.getByText('Waiting for review')).toBeVisible()
     await shop.getByRole('button', { name: 'Remove Shop photo' }).click()
     const ask = page.getByRole('group', { name: 'Remove Shop photo?' })
-    await expect(ask).toContainText('It goes back to Not uploaded and its files are deleted.')
+    await expect(ask).toContainText(
+      'It goes back to Not uploaded and its files are deleted.'
+    )
     await ask.getByRole('button', { name: 'Remove shop photo' }).click()
     await expect(shop.getByText('Not uploaded')).toBeVisible()
-    expect((await sql`select 1 from vendor_documents where id = ${P.documents.shopPhoto}`).length).toBe(0)
+    expect(
+      (
+        await sql`select 1 from vendor_documents where id = ${P.documents.shopPhoto}`
+      ).length
+    ).toBe(0)
     const [audit] = await sql<{ actor_name: string }[]>`
       select actor_name from admin_audit_log
        where action = 'garage_document_removed' and summary->>'documentId' = ${P.documents.shopPhoto}
@@ -40,10 +53,16 @@ test.describe('remove and the rating in the garage portal @p0', () => {
     expect(audit).toEqual({ actor_name: 'garage' })
   })
 
-  test('Reviews: New on Detlio with two counted reviews; a Test booking’s is not listed', async ({ page }) => {
+  test('Reviews: New on Detlio with two counted reviews; a Test booking’s is not listed', async ({
+    page,
+  }) => {
     await page.goto('/reviews')
     await expect(page.getByText('New on Detlio', { exact: true })).toBeVisible()
-    await expect(page.getByText('reviews so far. Customers see your score from', { exact: false })).toBeVisible()
+    await expect(
+      page.getByText('reviews so far. Customers see your score from', {
+        exact: false,
+      })
+    ).toBeVisible()
     await expect(page.getByText('Seats were still damp, seeded.')).toBeVisible()
     await expect(page.getByText('Your reply')).toBeVisible()
     await expect(page.getByText('test test, seeded')).toHaveCount(0)

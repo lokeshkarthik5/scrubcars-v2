@@ -124,7 +124,9 @@ export function HoursBookingTab({
                     vendorId={vendorId}
                     closure={closure}
                     onRemoved={() =>
-                      setClosures((all) => all.filter((c) => c.id !== closure.id))
+                      setClosures((all) =>
+                        all.filter((c) => c.id !== closure.id)
+                      )
                     }
                   />
                 </li>

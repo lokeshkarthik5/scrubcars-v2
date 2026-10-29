@@ -122,8 +122,11 @@ describe('reopen (0065)', () => {
     ]
     expect(reopenRefusal(at, left)).toBeNull()
     expect(reopenRefusal(null, left)).toBe('not_closed')
-    expect(reopenRefusal(at, [{ status: 'collected', cleared: false }, { status: 'to_collect', cleared: true }])).toBe(
-      'nothing_left'
-    )
+    expect(
+      reopenRefusal(at, [
+        { status: 'collected', cleared: false },
+        { status: 'to_collect', cleared: true },
+      ])
+    ).toBe('nothing_left')
   })
 })
