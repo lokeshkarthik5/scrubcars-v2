@@ -1,3 +1,4 @@
+import { adminGarageClosureRoutes } from '../garage-closure/garage-closure.routes.js'
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { z } from 'zod'
@@ -178,6 +179,9 @@ adminRoutes.patch(
 // forever, only from the Bin). Their own module; mounted at the root for the
 // cookie's sake, like the media routes below.
 adminRoutes.route('/', adminVendorBinRoutes)
+// "Close my garage" requests (0066): GET /garage-closures and
+// /vendors/:id/closure-request. Confirmed by moving the garage to the Bin.
+adminRoutes.route('/', adminGarageClosureRoutes)
 // Onboarding marks (0059): GET/POST /vendors/:id/marks, PATCH/DELETE
 // /vendors/:id/marks/:markId and POST /onboarding-marks/asked. Collection
 // lists ("Send to team"): /collection-lists, /collection-lists/:id/close and
