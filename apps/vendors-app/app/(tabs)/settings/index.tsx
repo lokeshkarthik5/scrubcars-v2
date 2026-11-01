@@ -1,29 +1,31 @@
-import type { ApiVendorProfile } from '@repo/core/api/types';
 import { getPushConfig } from '@repo/core/api/push';
-import { APP_TIMEZONE } from '@repo/core/utils';
+import type { ApiVendorClosure, ApiVendorProfile, ApiWorkingHours } from '@repo/core/api/types';
 import { useQuery } from '@tanstack/react-query';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AccountActions } from '@/components/account-actions';
 import { AppShell, garageScreen } from '@/components/app-shell';
 import { Label, ScButton } from '@/components/button';
 import { IconBell, IconLogout, IconUsers } from '@/components/icons';
-import { ScInput } from '@/components/inputs';
-import { ScCard } from '@/components/primitives';
-import { LinkRow, ScSwitch, SectionHeader } from '@/components/rows';
+import { Skeleton, SkeletonList } from '@/components/primitives';
+import { LinkRow, SectionHeader, TopBar } from '@/components/rows';
+import { HoursTab } from '@/components/settings/hours-tab';
+import { LocationTab } from '@/components/settings/location-tab';
+import { ProfileTab } from '@/components/settings/profile-tab';
+import { TimeOffTab } from '@/components/settings/time-off-tab';
 import { SupportCard } from '@/components/support-card';
 import { T } from '@/components/text';
 import { toast } from '@/components/toast';
 import { APP_VERSION } from '@/lib/app-config';
 import { useAuth } from '@/lib/auth';
-import { getMyVendor, pauseBookings, resumeBookings } from '@/lib/garage-api';
-import { colors } from '@/lib/theme';
 import { errorText } from '@/lib/error-text';
+import { getMyVendor, getWorkingHours } from '@/lib/garage-api';
+import { initialTab, SETTINGS_TABS, type SettingsTab } from '@/lib/settings-logic';
+import { colors } from '@/lib/theme';
+import { getMyClosures } from '@/lib/vendor-api';
 
-const TABS = ['profile', 'location', 'hours', 'time-off', 'account'] as const;
-type SettingsTab = (typeof TABS)[number];
 const LABELS: Record<SettingsTab, string> = {
   profile: 'Profile',
   location: 'Location',
@@ -33,55 +35,119 @@ const LABELS: Record<SettingsTab, string> = {
 };
 
 /**
- * Settings (apps/vendors/app/settings/page.tsx), with the web's five tabs. Account
- * and Pause new bookings are v1.0 and live; the rest are v1.1 and say so. Opens on
- * Account rather than the web's Profile, so the tab never lands on an empty screen.
+ * Settings (apps/vendors/app/settings/page.tsx), with the web's five tabs. Like the web it
+ * loads the garage, its working hours and its holidays together, and shows a skeleton until
+ * the first two are in; a failed load is a toast. A tab is built the first time it is opened
+ * and kept (hidden) after, so what was typed in Profile, Hours or Location survives a look at
+ * another tab, as the web's lifted state does. The screen is keyed by garage (garageScreen),
+ * so a company switch loads afresh.
  */
 function SettingsScreen() {
   const params = useLocalSearchParams<{ tab?: string }>();
-  const requested = TABS.includes(params.tab as SettingsTab) ? (params.tab as SettingsTab) : 'account';
+  const requested = initialTab(params.tab);
   const [tab, setTab] = useState<SettingsTab>(requested);
+  const [opened, setOpened] = useState<SettingsTab[]>([requested]);
   const [seen, setSeen] = useState(requested);
+  const open = (next: SettingsTab) => {
+    setTab(next);
+    setOpened((list) => (list.includes(next) ? list : [...list, next]));
+  };
   if (requested !== seen) {
     setSeen(requested);
-    setTab(requested);
+    open(requested);
   }
+
+  const [vendor, setVendor] = useState<ApiVendorProfile | null>(null);
+  const [hours, setHours] = useState<ApiWorkingHours[]>([]);
+  const [closures, setClosures] = useState<ApiVendorClosure[]>([]);
+  // Holidays load on their own: a failure there should cost the Holidays list, not every tab.
+  const [closuresFailed, setClosuresFailed] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    getMyClosures()
+      .then((list) => {
+        if (cancelled) return;
+        setClosures(list);
+        setClosuresFailed(false);
+      })
+      .catch(() => {
+        if (!cancelled) setClosuresFailed(true);
+      });
+    Promise.all([getMyVendor(), getWorkingHours()])
+      .then(([vendorData, hoursData]) => {
+        if (cancelled) return;
+        setVendor(vendorData);
+        setHours(hoursData);
+      })
+      .catch((err) => {
+        if (!cancelled) toast.error(errorText(err, 'Failed to load settings'));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (loading) {
+    return (
+      <AppShell>
+        <TopBar title="Settings" />
+        {/* The tab strip, then a form's worth of card. */}
+        <SkeletonList count={2} height={44} />
+        <Skeleton height={320} />
+      </AppShell>
+    );
+  }
+
+  const panel = (key: SettingsTab, content: ReactNode) =>
+    opened.includes(key) ? (
+      <View key={key} style={tab === key ? styles.panel : styles.hidden}>
+        {content}
+      </View>
+    ) : null;
 
   return (
     <AppShell>
-      <T accessibilityRole="header" size={18} weight={700}>
-        Settings
-      </T>
-      <View accessibilityRole="tablist" style={styles.tabs}>
-        {TABS.map((key) => (
-          <Pressable
-            key={key}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: tab === key }}
-            onPress={() => setTab(key)}
-            style={[styles.tab, tab === key && styles.tabOn]}
-          >
-            <T size={13} weight={500} numberOfLines={1} color={tab === key ? colors.textPrimary : colors.textSecondary}>
-              {LABELS[key]}
-            </T>
-          </Pressable>
-        ))}
+      <TopBar title="Settings" />
+      <View style={styles.tabsBlock}>
+        <View accessibilityRole="tablist" style={styles.tabs}>
+          {SETTINGS_TABS.map((key) => (
+            <Pressable
+              key={key}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: tab === key }}
+              onPress={() => open(key)}
+              style={[styles.tab, tab === key && styles.tabOn]}
+            >
+              <T size={13} weight={500} numberOfLines={1} color={tab === key ? colors.textPrimary : colors.textSecondary}>
+                {LABELS[key]}
+              </T>
+            </Pressable>
+          ))}
+        </View>
+        {panel('profile', <ProfileTab vendor={vendor} onSaved={setVendor} />)}
+        {panel('location', vendor ? <LocationTab vendor={vendor} onSaved={setVendor} /> : null)}
+        {panel(
+          'hours',
+          <HoursTab vendor={vendor} hours={hours} onVendorChange={setVendor} onOpenLocation={() => open('location')} />
+        )}
+        {panel(
+          'time-off',
+          <TimeOffTab
+            vendor={vendor}
+            closures={closures}
+            closuresFailed={closuresFailed}
+            onVendorChange={setVendor}
+            onClosuresChange={setClosures}
+          />
+        )}
+        {panel('account', <AccountTab />)}
       </View>
-      {tab === 'account' ? <AccountTab /> : tab === 'time-off' ? <TimeOffTab /> : <Later what={LABELS[tab]} />}
     </AppShell>
-  );
-}
-
-function Later({ what }: { what: string }) {
-  return (
-    <View style={styles.later}>
-      <T size={14} weight={600} align="center">
-        {what}
-      </T>
-      <T size={13} color={colors.textSecondary} align="center">
-        Coming in the next version. Until then, change this at vendor.detlio.com.
-      </T>
-    </View>
   );
 }
 
@@ -132,119 +198,16 @@ function AccountTab() {
   );
 }
 
-function TimeOffTab() {
-  const [vendor, setVendor] = useState<ApiVendorProfile | null>(null);
-  useEffect(() => {
-    getMyVendor()
-      .then(setVendor)
-      .catch(() => undefined);
-  }, []);
-  return (
-    <>
-      {vendor ? <PauseSection vendor={vendor} onChange={setVendor} /> : null}
-      <Later what="Holidays" />
-    </>
-  );
-}
-
-/** PauseSection (apps/vendors/app/settings/time-off-section.tsx). */
-function PauseSection({ vendor, onChange }: { vendor: ApiVendorProfile; onChange: (v: ApiVendorProfile) => void }) {
-  const [reason, setReason] = useState(vendor.bookingsPausedReason ?? '');
-  const [busy, setBusy] = useState(false);
-  const paused = vendor.bookingsPausedAt != null;
-  const savedReason = vendor.bookingsPausedReason ?? '';
-
-  const run = async (action: () => Promise<ApiVendorProfile>, done: string) => {
-    setBusy(true);
-    try {
-      const updated = await action();
-      onChange(updated);
-      setReason(updated.bookingsPausedReason ?? '');
-      toast.success(done);
-    } catch (err) {
-      toast.error(errorText(err, 'Something went wrong'));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const pause = () => run(() => pauseBookings(reason.trim() || undefined), 'New bookings paused');
-  const toggle = () => (paused ? run(resumeBookings, 'Taking bookings again') : pause());
-
-  return (
-    <View style={styles.section}>
-      <SectionHeader title="Pause new bookings" />
-      <ScCard style={styles.section}>
-        <T size={11} color={colors.textSecondary}>
-          {"Customers can't book you while this is on. Bookings you already have stay as they are."}
-        </T>
-        <ScInput
-          label="Reason (optional, customers see this)"
-          placeholder="e.g. Closed for renovation"
-          maxLength={200}
-          value={reason}
-          onChangeText={setReason}
-        />
-        <View style={styles.switchRow}>
-          <T size={13} weight={500}>
-            Pause new bookings
-          </T>
-          <ScSwitch label="Pause new bookings" tone="warning" checked={paused} disabled={busy} onChange={() => void toggle()} />
-        </View>
-        {paused ? (
-          <>
-            <T size={12}>
-              {'Paused since '}
-              <T num size={12} weight={500}>
-                {new Date(vendor.bookingsPausedAt as string).toLocaleDateString('en-IN', {
-                  weekday: 'short',
-                  day: 'numeric',
-                  month: 'short',
-                  timeZone: APP_TIMEZONE,
-                })}
-              </T>
-              .
-              {savedReason ? (
-                <T size={12} color={colors.textSecondary}>{` Customers see: “${savedReason}”`}</T>
-              ) : null}
-            </T>
-            <View style={styles.pauseActions}>
-              <View style={styles.half}>
-                <ScButton variant="outline" disabled={busy || reason.trim() === savedReason} onPress={() => void pause()}>
-                  Update reason
-                </ScButton>
-              </View>
-              <View style={styles.half}>
-                <ScButton variant="main" size="lg" disabled={busy} onPress={() => void toggle()}>
-                  {busy ? 'Saving...' : 'Resume bookings'}
-                </ScButton>
-              </View>
-            </View>
-          </>
-        ) : null}
-      </ScCard>
-    </View>
-  );
-}
-
 export default garageScreen(SettingsScreen);
 
 const styles = StyleSheet.create({
+  tabsBlock: { gap: 16 },
   tabs: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: 12, padding: 4 },
   tab: { flex: 1, minHeight: 48, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   tabOn: { backgroundColor: colors.surfaceElevated },
-  later: {
-    gap: 4,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    paddingHorizontal: 16,
-    paddingVertical: 24,
-  },
+  // The web's TabsContent is a column with gap-5.
+  panel: { gap: 20 },
+  hidden: { display: 'none' },
   section: { gap: 12 },
-  switchRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  pauseActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  half: { flex: 1, minWidth: 0 },
   version: { marginBottom: 8 },
 });

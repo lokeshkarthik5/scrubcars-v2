@@ -55,6 +55,12 @@
           "microphonePermission": false
         }
       ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Detlio uses your location to place your garage on the map. It is only read when you ask for it."
+        }
+      ],
       "expo-notifications",
       "expo-sharing",
       "@react-native-community/datetimepicker"

@@ -1,0 +1,259 @@
+import { DEFAULT_DOORSTEP_RADIUS_KM, DOORSTEP_RADIUS_PLACEHOLDER } from '@repo/core/doorstep';
+import { router } from 'expo-router';
+import { useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
+
+import { AppShell } from '@/components/app-shell';
+import { ScButton } from '@/components/button';
+import { Chip } from '@/components/chip';
+import { TimeField } from '@/components/form-controls';
+import { ScInput } from '@/components/inputs';
+import { ScCard } from '@/components/primitives';
+import { T } from '@/components/text';
+import { toast } from '@/components/toast';
+import { errorText } from '@/lib/error-text';
+import { useOnboardingDraft, writeDraft } from '@/lib/onboarding-draft';
+import {
+  baysProblem,
+  DAYS,
+  jobsProblem,
+  MAX_BAYS,
+  MAX_RADIUS_KM,
+  MIN_RADIUS_KM,
+  radiusProblem,
+  type ServiceMode,
+  SLOT_INTERVALS,
+  step3JobTypes,
+  step3Problem,
+  step3Settings,
+  stepPath,
+  toggleDay,
+} from '@/lib/onboarding-logic';
+import { decimalOnly, digitsOnly } from '@/lib/settings-logic';
+import { colors, PRESSED_SCALE } from '@/lib/theme';
+import { setWorkingHoursForDays, updateSlotInterval, updateVendorJobTypes, updateVendorSettings } from '@/lib/vendor-api';
+
+import { OnboardingHeader, SectionTitle, useDraftSync } from './parts';
+
+const MODES: { value: ServiceMode; label: string }[] = [
+  { value: 'garage', label: 'They come to my garage' },
+  { value: 'doorstep', label: 'I also go to them' },
+];
+
+/** Step 3: Garage setup (apps/vendors/app/onboarding/step-3/page.tsx). Acts on the garage step 2 made. */
+export function StepSetup() {
+  const saved = useOnboardingDraft.getState();
+  const [slotInterval, setSlotInterval] = useState<30 | 45 | 60>(saved.slotInterval);
+  const [openTime, setOpenTime] = useState(saved.openTime);
+  const [closeTime, setCloseTime] = useState(saved.closeTime);
+  const [workingDays, setWorkingDays] = useState<number[]>(saved.workingDays);
+  // "How do customers get serviced?" The distance is optional: left empty, the garage covers
+  // the default 10 km from its pin.
+  const [mode, setMode] = useState<ServiceMode>(saved.doorstep ? 'doorstep' : 'garage');
+  const [radiusKm, setRadiusKm] = useState(saved.doorstepRadiusKm);
+  const [bays, setBays] = useState(saved.bays);
+  const [jobsPerDay, setJobsPerDay] = useState(saved.jobsPerDay);
+  const [loading, setLoading] = useState(false);
+
+  const doorstep = mode === 'doorstep';
+  useDraftSync({ slotInterval, openTime, closeTime, workingDays, doorstep, doorstepRadiusKm: radiusKm, bays, jobsPerDay });
+
+  const radiusError = radiusProblem(doorstep, radiusKm);
+  const baysError = baysProblem(bays);
+  const jobsError = jobsProblem(jobsPerDay);
+  const blocked = step3Problem({ doorstep, doorstepRadiusKm: radiusKm, bays, jobsPerDay }) !== null;
+
+  const handleContinue = async () => {
+    if (blocked) return;
+    setLoading(true);
+    try {
+      const form = { doorstep, doorstepRadiusKm: radiusKm, bays, jobsPerDay };
+      writeDraft({ slotInterval, openTime, closeTime, workingDays, ...form });
+      const settings = step3Settings(form);
+      // The same four calls, together, as submitVendorOnboarding(3).
+      await Promise.all([
+        updateVendorJobTypes(step3JobTypes(form)),
+        updateSlotInterval(slotInterval),
+        setWorkingHoursForDays(workingDays, openTime, closeTime),
+        ...(settings ? [updateVendorSettings(settings)] : []),
+      ]);
+      router.push(stepPath(4));
+    } catch (err) {
+      toast.error(errorText(err, 'Failed to save. Please try again.'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <AppShell hasNav={false}>
+      <OnboardingHeader
+        step={3}
+        title="Garage setup"
+        subtitle="When you work, and how many cars you can take."
+        onBack={() => (router.canGoBack() ? router.back() : router.replace(stepPath(2)))}
+      />
+
+      <View style={styles.section}>
+        <SectionTitle title="Slot interval" subtitle="How far apart the start times customers can pick are." />
+        <View style={styles.row}>
+          {SLOT_INTERVALS.map((mins) => (
+            <Chip key={mins} label={`${mins} min`} selected={slotInterval === mins} onPress={() => setSlotInterval(mins)} />
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <SectionTitle title="Working days" />
+        <View style={styles.wrap}>
+          {DAYS.map((label, day) => (
+            <Chip
+              key={label}
+              label={label}
+              selected={workingDays.includes(day)}
+              onPress={() => setWorkingDays((days) => toggleDay(days, day))}
+            />
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <SectionTitle
+          title="Working hours"
+          subtitle="Applied to every working day. You can set each day in Settings later."
+        />
+        <View style={styles.row}>
+          <View style={styles.half}>
+            <TimeField label="Open time" value={openTime} onChange={setOpenTime} />
+          </View>
+          <View style={styles.half}>
+            <TimeField label="Close time" value={closeTime} onChange={setCloseTime} />
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <SectionTitle title="How do customers get serviced?" />
+        {/* Two radios rather than chips: exactly one answer is always true, and the doorstep one
+            carries its own distance. */}
+        <View accessibilityRole="radiogroup" style={styles.radios}>
+          {MODES.map((option) => {
+            const on = mode === option.value;
+            return (
+              <Pressable
+                key={option.value}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: on }}
+                onPress={() => setMode(option.value)}
+                style={({ pressed }) => [
+                  styles.radio,
+                  on ? styles.radioOn : styles.radioOff,
+                  pressed && { transform: [{ scale: PRESSED_SCALE }] },
+                ]}
+              >
+                <View style={[styles.dot, { borderColor: on ? colors.textPrimary : colors.textMuted }]}>
+                  {on ? <View style={styles.dotFill} /> : null}
+                </View>
+                <T size={13} color={on ? colors.textPrimary : colors.textSecondary}>
+                  {option.label}
+                </T>
+              </Pressable>
+            );
+          })}
+        </View>
+        {doorstep ? (
+          <View>
+            <ScInput
+              label="Up to how many km from your garage?"
+              numeric
+              keyboardType="number-pad"
+              placeholder={DOORSTEP_RADIUS_PLACEHOLDER}
+              accessibilityHint={`From ${MIN_RADIUS_KM} to ${MAX_RADIUS_KM} kilometres`}
+              value={radiusKm}
+              onChangeText={(text) => setRadiusKm(decimalOnly(text))}
+            />
+            {radiusError ? (
+              <T accessibilityRole="alert" size={12} color={colors.warning} style={styles.below}>
+                {radiusError}
+              </T>
+            ) : null}
+            <T size={11} color={colors.textMuted} style={styles.below}>
+              Optional. Leave it empty to use{' '}
+              <T size={11} num color={colors.textMuted}>
+                {DEFAULT_DOORSTEP_RADIUS_KM}
+              </T>{' '}
+              km. Customers further away won&apos;t see you for doorstep jobs. You can draw an exact area later in
+              Settings.
+            </T>
+          </View>
+        ) : null}
+      </View>
+
+      <View style={styles.section}>
+        <SectionTitle title="Capacity" />
+        <ScCard style={styles.capacity}>
+          <ScInput
+            label="How many cars can you work on at the same time?"
+            numeric
+            keyboardType="number-pad"
+            placeholder="1"
+            accessibilityHint={`From 1 to ${MAX_BAYS}`}
+            value={bays}
+            onChangeText={(text) => setBays(digitsOnly(text, 3))}
+          />
+          <ScInput
+            label="Most jobs in a day (optional)"
+            numeric
+            keyboardType="number-pad"
+            placeholder="No limit"
+            value={jobsPerDay}
+            onChangeText={(text) => setJobsPerDay(digitsOnly(text, 4))}
+          />
+          {baysError || jobsError ? (
+            <T accessibilityRole="alert" size={12} color={colors.warning}>
+              {baysError ?? jobsError}
+            </T>
+          ) : null}
+          <T size={11} color={colors.textMuted}>
+            Customers are only offered times when you have room for one more car.
+          </T>
+        </ScCard>
+      </View>
+
+      <ScButton
+        variant="main"
+        size="lg"
+        style={styles.continue}
+        disabled={loading || blocked}
+        onPress={() => void handleContinue()}
+      >
+        Continue
+      </ScButton>
+    </AppShell>
+  );
+}
+
+const styles = StyleSheet.create({
+  section: { gap: 12 },
+  row: { flexDirection: 'row', gap: 8 },
+  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  half: { flex: 1 },
+  radios: { gap: 8 },
+  radio: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  radioOn: { borderColor: 'rgba(250,250,250,0.6)', backgroundColor: colors.surfaceElevated },
+  radioOff: { borderColor: colors.border, backgroundColor: colors.surface },
+  dot: { width: 16, height: 16, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  dotFill: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.textPrimary },
+  below: { marginTop: 4 },
+  capacity: { gap: 12 },
+  continue: { marginTop: 'auto', marginBottom: 16 },
+});
