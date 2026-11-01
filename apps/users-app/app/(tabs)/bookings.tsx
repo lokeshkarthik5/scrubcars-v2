@@ -65,8 +65,8 @@ function BookingCard({ booking, tab, addresses, action, now }: { booking: Bookin
             {booking.serviceSummary}
           </T>
           <View style={styles.chips}>
-            {refunded ? <StatusChip tone="done">Refunded</StatusChip> : null}
-            <StatusChip tone={chip.tone}>{chip.label}</StatusChip>
+            {refunded ? <StatusChip tone="done" dot={false}>Refunded</StatusChip> : null}
+            <StatusChip tone={chip.tone} dot={false}>{chip.label}</StatusChip>
           </View>
         </View>
         <T size={13} lh={18} color={colors.dim}>

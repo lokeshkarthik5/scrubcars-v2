@@ -253,14 +253,14 @@ export function Stars({ rating, max = 5, size = 14 }: { rating: number; max?: nu
 export type StatusTone = keyof Tokens['tones'];
 
 /** StatusChip. */
-export function StatusChip({ tone, children, size = 'sm' }: { tone: StatusTone; children: string; size?: 'sm' | 'md' }) {
+export function StatusChip({ tone, children, size = 'sm', dot = true }: { tone: StatusTone; children: string; size?: 'sm' | 'md'; dot?: boolean }) {
   const colors = useColors();
   const styles = useStyles();
   const t = colors.tones[tone];
   const md = size === 'md';
   return (
     <View style={[styles.chip, md && styles.chipMd, { backgroundColor: t.tint }]}>
-      <View style={[styles.chipDot, md && styles.chipDotMd, { backgroundColor: t.dot }]} />
+      {dot ? <View style={[styles.chipDot, md && styles.chipDotMd, { backgroundColor: t.dot }]} /> : null}
       <T size={md ? 13 : 12} weight={500} lh={16} color={t.text} numberOfLines={1}>
         {children}
       </T>
