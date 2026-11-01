@@ -36,6 +36,7 @@ import { RightTile, WashStatusTile } from '@/components/home/tiles';
 import { UpdatesBlock } from '@/components/home/updates-block';
 import { ReachStatusCards } from '@/components/reach/reach-status';
 import { CustomerShell } from '@/components/screen';
+import { REWARDS_SCREEN } from '@/lib/next-version';
 import { useAuth } from '@/lib/auth';
 import { coarse, isCitywide, useLocationStore } from '@/lib/location';
 import { otpFlow } from '@/lib/otp-flow';
@@ -218,7 +219,7 @@ export default function HomeScreen() {
             />
           ) : null}
 
-          {rewards.data ? (
+          {REWARDS_SCREEN && rewards.data ? (
             <PressRow onPress={() => router.push('/profile/rewards' as Href)} style={styles.rewards}>
               <T size={13} lh={18} style={styles.shrink}>
                 <Figures

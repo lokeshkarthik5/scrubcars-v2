@@ -14,6 +14,7 @@ import { Image, Pressable, ScrollView, View } from 'react-native';
 
 import { PaymentReceivedPanel } from '@/components/checkout/payment-received-panel';
 import { payCharge } from '@/lib/charge-payment';
+import { chargeKey, usePendingKeys } from '@/lib/pending-payment';
 import { errorText } from '@/lib/error-text';
 
 import { PhotoViewer } from './photo-viewer';
@@ -51,6 +52,7 @@ export function ExtraWorkCard({
   const [declining, setDeclining] = useState<string | null>(null);
   const [viewing, setViewing] = useState<{ url: string; name: string } | null>(null);
   const paidRef = useRef(new Set<string>());
+  const pendingKeys = usePendingKeys();
   const record = (id: string, payment: WorkPayment) => setPayments((current) => ({ ...current, [id]: payment }));
   const firstAwaiting = booking.extraWork.find((work) => work.state === 'awaiting')?.id;
 
@@ -69,7 +71,12 @@ export function ExtraWorkCard({
           record(work.id, { paymentId, phase: 'confirming' });
         },
       });
-      if (result.kind === 'cancelled') toast.info('Payment cancelled. You can approve it any time from this page.');
+      if (result.kind === 'checking') toast.info("We're still checking your last payment. There's no need to pay again.");
+      else if (result.kind === 'settled') {
+        const updated = await getBooking(booking.id);
+        if (updated) onUpdated(updated);
+        toast.success(`Approved. ${booking.vendorName} can go ahead.`);
+      } else if (result.kind === 'cancelled') toast.info('Payment cancelled. You can approve it any time from this page.');
       else if (result.kind === 'failed-to-pay') toast.error(result.message);
       else if (result.outcome.kind === 'booked') {
         const updated = await getBooking(booking.id);
@@ -181,6 +188,11 @@ export function ExtraWorkCard({
               </ScButton>
             ) : showPanel && payment ? (
               <PaymentReceivedPanel paymentId={payment.paymentId} refundMessage={payment.phase === 'failed' ? payment.refundMessage : undefined} waitingOn="bill_not_marked_paid" />
+            ) : open && pendingKeys.includes(chargeKey(work.id)) && opening !== work.id ? (
+              <ScButton variant="quiet" height={52} disabled>
+                <Spinner size={16} />
+                <Label>Checking your payment…</Label>
+              </ScButton>
             ) : open ? (
               <View style={styles.actions}>
                 {work.id === firstAwaiting ? (

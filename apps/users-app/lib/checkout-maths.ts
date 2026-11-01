@@ -39,3 +39,13 @@ export function guaranteeCovers(lines: readonly CoverLine[], categoryOf: (servic
     return members.length > 0 && members.every((category) => category !== undefined && REDO_CATEGORIES.includes(category));
   });
 }
+
+/**
+ * Before Razorpay opens: the order's figure (paise) against the one on screen (rupees). The
+ * same goes straight on; different, or nothing shown, stops until the customer has seen the
+ * server's total and said yes.
+ */
+export async function confirmOrderTotal(orderPaise: number, shownRupees: number | null, ask: (rupees: number) => Promise<boolean>): Promise<boolean> {
+  if (shownRupees !== null && Math.round(shownRupees * 100) === orderPaise) return true;
+  return ask(orderPaise / 100);
+}

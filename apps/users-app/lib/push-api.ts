@@ -11,5 +11,5 @@ export interface DeviceStatus {
 export const registerPushDevice = (token: string, platform: DevicePlatform) =>
   apiClient<DeviceStatus>('/users/me/push/devices', { method: 'POST', body: JSON.stringify({ token, platform }) });
 
-export const removePushDevice = (token: string) =>
-  apiClient<DeviceStatus>('/users/me/push/devices', { method: 'DELETE', body: JSON.stringify({ token }) });
+export const removePushDevice = (token: string, signal?: AbortSignal) =>
+  apiClient<DeviceStatus>('/users/me/push/devices', { method: 'DELETE', signal, body: JSON.stringify({ token }) });

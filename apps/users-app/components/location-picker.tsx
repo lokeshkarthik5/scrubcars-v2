@@ -46,7 +46,7 @@ import {
 import { ScButton } from '@repo/native-ui/button';
 import { IconCurrentLocation, IconMapPin, IconSearch } from '@repo/native-ui/icons';
 import { font, T } from '@repo/native-ui/text';
-import { createStyles, useColors, useTheme } from '@repo/native-ui/theme';
+import { createStyles, useColors, useTheme, ThemeScope } from '@repo/native-ui/theme';
 
 export type { PickedLocation };
 
@@ -439,11 +439,9 @@ export function LocationPicker({ value, onChange, showSearch = true, expectedCit
         </MapView> : null}
 
         {resolving && mapShown ? (
-          <View style={styles.lookup}>
-            <T size={11} color={colors.textSecondary} align="center">
-              Looking up this location…
-            </T>
-          </View>
+          <ThemeScope scheme="dark">
+            <LookupBar />
+          </ThemeScope>
         ) : null}
       </View>
 
@@ -501,6 +499,19 @@ export function LocationPicker({ value, onChange, showSearch = true, expectedCit
           {error}
         </T>
       ) : null}
+    </View>
+  );
+}
+
+/** A fixed dark bar over the map, so its words are the dark theme's in both themes. */
+function LookupBar() {
+  const colors = useColors();
+  const styles = useStyles();
+  return (
+    <View style={styles.lookup}>
+      <T size={11} color={colors.textSecondary} align="center">
+        Looking up this location…
+      </T>
     </View>
   );
 }

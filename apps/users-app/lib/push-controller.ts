@@ -12,7 +12,7 @@ export interface PushControllerDeps {
   getProjectId(): string | null;
   getToken(projectId: string): Promise<string>;
   register(token: string): Promise<{ devices?: number }>;
-  remove(token: string): Promise<unknown>;
+  remove(token: string, signal?: AbortSignal): Promise<unknown>;
   storage: {
     getItem(key: string): string | null;
     setItem(key: string, value: string): void;
@@ -94,10 +94,10 @@ export function createPushController(deps: PushControllerDeps) {
     },
 
     /** Signing out: this phone stops getting the account's alerts. */
-    async forget(options: { sessionGone: boolean }) {
+    async forget(options: { sessionGone: boolean; signal?: AbortSignal }) {
       const record = read();
       clear();
-      if (record && !options.sessionGone) await deps.remove(record.token).catch(() => undefined);
+      if (record && !options.sessionGone) await deps.remove(record.token, options.signal).catch(() => undefined);
     },
 
   };

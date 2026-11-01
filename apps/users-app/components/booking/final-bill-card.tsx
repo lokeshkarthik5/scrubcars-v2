@@ -12,6 +12,7 @@ import { View } from 'react-native';
 
 import { PaymentReceivedPanel } from '@/components/checkout/payment-received-panel';
 import { payCharge } from '@/lib/charge-payment';
+import { chargeKey, usePendingPayment } from '@/lib/pending-payment';
 import { errorText } from '@/lib/error-text';
 
 export interface BillPayment {
@@ -42,6 +43,7 @@ export function FinalBillCard({
   const styles = useStyles();
   const [opening, setOpening] = useState(false);
   const paidRef = useRef(false);
+  const checking = usePendingPayment(chargeKey(bill.id));
   const setPaid = (next: BillPayment) => onPayment(bill.id, next);
 
   const handlePay = async () => {
@@ -59,7 +61,12 @@ export function FinalBillCard({
           setPaid({ paymentId, phase: 'confirming' });
         },
       });
-      if (result.kind === 'cancelled') toast.info('Payment cancelled. You can pay the bill any time from this page.');
+      if (result.kind === 'checking') toast.info("We're still checking your last payment. There's no need to pay again.");
+      else if (result.kind === 'settled') {
+        const updated = await getBooking(booking.id);
+        if (updated) onUpdated(updated);
+        toast.success('Final bill paid');
+      } else if (result.kind === 'cancelled') toast.info('Payment cancelled. You can pay the bill any time from this page.');
       else if (result.kind === 'failed-to-pay') toast.error(result.message);
       else if (result.outcome.kind === 'booked') {
         const updated = await getBooking(booking.id);
@@ -167,7 +174,12 @@ export function FinalBillCard({
         </ScButton>
       ) : showPanel && paid ? (
         <PaymentReceivedPanel paymentId={paid.paymentId} refundMessage={paid.phase === 'failed' ? paid.refundMessage : undefined} waitingOn="bill_not_marked_paid" />
-      ) : booking.status === 'cancelled' ? null : (
+      ) : booking.status === 'cancelled' ? null : checking && !opening ? (
+        <ScButton variant="quiet" height={52} disabled>
+          <Spinner size={16} />
+          <Label>Checking your payment…</Label>
+        </ScButton>
+      ) : (
         <ScButton variant="hero" disabled={opening} onPress={() => void handlePay()}>
           <Label color={colors.white}>
             <Figures color={colors.white} size={15} weight={700} text={opening ? 'Opening payment...' : `Pay ${formatRupees(bill.amountDue)}`} />

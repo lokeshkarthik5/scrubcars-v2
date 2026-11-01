@@ -41,6 +41,8 @@ interface LocationState extends Stored {
   selectChennai: () => void;
   refreshPermission: () => Promise<void>;
   requestGpsLocation: () => Promise<ActiveLocation | null>;
+  /** Signing out or deleting: the next person, or a guest, starts with no place of this one's. */
+  reset: () => void;
 }
 
 export const useLocationStore = create<LocationState>()((set, get) => {
@@ -77,6 +79,10 @@ export const useLocationStore = create<LocationState>()((set, get) => {
         source: 'manual',
         updatedAt: Date.now(),
       }),
+    reset: () => {
+      set({ location: null, promptDismissedAt: null, locating: false });
+      keep();
+    },
     async refreshPermission() {
       try {
         const status = await Location.getForegroundPermissionsAsync();
