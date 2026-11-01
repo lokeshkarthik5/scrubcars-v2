@@ -629,10 +629,13 @@ export const rewardExtrasRepository = {
   async listStartCandidates(challengeId: string, quietSince: Date, limit: number): Promise<string[]> {
     const rows = await db.execute<{ user_id: string }>(sql`
       select distinct ps.user_id
-        from push_subscriptions ps
+        from (
+          select user_id from push_subscriptions where audience = 'customer'
+          union
+          select user_id from push_devices where audience = 'customer'
+        ) ps
         join users u on u.id = ps.user_id and u.push_reminders
-       where ps.audience = 'customer'
-         and not exists (
+       where not exists (
            select 1 from reward_nudges n
             where n.user_id = ps.user_id and n.kind = 'challenge_start' and n.subject_key = ${`challenge_start:${challengeId}`}
          )
