@@ -13,6 +13,7 @@ import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withSeq
 
 import { Confetti, GOLD_SPARKS } from '@/components/confetti';
 import { buzz, useReducedMotion } from '@/lib/motion';
+import { stopOf } from '@/lib/svg-colour';
 
 import { GarageCard, GarageCardBack, IllustrationLine } from './garage-card';
 import { GarageShare } from './garage-share';
@@ -86,8 +87,8 @@ export function PullReveal({ pull, onRevealed, firstName = null, compact = false
           <Svg width="100%" height="100%">
             <Defs>
               <RadialGradient id="reveal-burst" cx="50%" cy="50%" r="50%">
-                <Stop offset="0.35" stopColor={look.glow} />
-                <Stop offset="1" stopColor={look.glow} stopOpacity={0} />
+                <Stop offset="0.35" {...stopOf(look.glow)} />
+                <Stop offset="1" stopColor={stopOf(look.glow).stopColor} stopOpacity={0} />
               </RadialGradient>
             </Defs>
             <Rect width="100%" height="100%" fill="url(#reveal-burst)" />

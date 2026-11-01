@@ -240,7 +240,7 @@ export default function NewGiftScreen() {
         <T size={14} weight={600} lh={20}>
           Who it&apos;s for
         </T>
-        <ScInput label="Their name" autoComplete="off" maxLength={NAME_MAX} value={recipientName} onChangeText={setRecipientName} />
+        <ScInput label="Their name" autoComplete="off" autoCorrect={false} maxLength={NAME_MAX} value={recipientName} onChangeText={setRecipientName} />
         <View style={styles.gap4}>
           <ScTextarea label="Message (optional)" rows={3} maxLength={MESSAGE_MAX} value={message} onChangeText={(t) => setMessage(t.replace(/[\r\n]+/g, ' '))} />
           <T num size={11} lh={15} align="right" color={colors.textMuted}>{`${message.length}/${MESSAGE_MAX}`}</T>

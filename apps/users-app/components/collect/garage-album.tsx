@@ -259,7 +259,7 @@ const useStyles = createStyles((c) => ({
   between: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   shrink: { flexShrink: 1, minWidth: 0 },
   three: { flexDirection: 'row', gap: 8 },
-  tileThird: { flex: 1 },
+  tileThird: { width: '31.5%' },
   heroTop: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 },
   heroRight: { alignItems: 'flex-end' },
   heroFacts: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 16, rowGap: 4 },

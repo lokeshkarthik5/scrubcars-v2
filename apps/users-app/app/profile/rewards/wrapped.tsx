@@ -23,6 +23,7 @@ import { WrappedVisual } from '@/components/rewards/wrapped-visual';
 import { sharePicture } from '@/components/share-host';
 import { useAuth } from '@/lib/auth';
 import { useReducedMotion } from '@/lib/motion';
+import { stopOf } from '@/lib/svg-colour';
 import { levelMetal, splitBig, WRAPPED_THEMES } from '@/lib/wrapped-look';
 
 /** apps/users/app/profile/rewards/wrapped/page.tsx: the year as story cards. Dark in both themes, as a story is. */
@@ -160,8 +161,8 @@ function Story({ stats, year, close }: { stats: WrappedStats; year: number; clos
         </Pressable>
         <View style={styles.grow}>
           <ScButton variant="main" height={44} disabled={sharing} onPress={() => void share()}>
-            <IconShare size={18} color={colors.canvas} />
-            <Label color={colors.canvas}>{sharing ? 'Making the image…' : 'Share this card'}</Label>
+            <IconShare size={18} color={colors.white} />
+            <Label color={colors.white}>{sharing ? 'Making the image…' : 'Share this card'}</Label>
           </ScButton>
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel="Next card" disabled={index === cards.length - 1} onPress={() => go(1)} style={[styles.round, index === cards.length - 1 && styles.dim]}>
@@ -191,8 +192,8 @@ function Backdrop({ cardKey }: { cardKey: WrappedCard['key'] }) {
       <Svg style={StyleSheet.absoluteFill}>
         <Defs>
           <RadialGradient id="wr-glow" cx="80%" cy="18%" rx="90%" ry="55%">
-            <Stop offset="0" stopColor={t.glow} />
-            <Stop offset="0.7" stopColor={t.glow} stopOpacity={0} />
+            <Stop offset="0" {...stopOf(t.glow)} />
+            <Stop offset="0.7" stopColor={stopOf(t.glow).stopColor} stopOpacity={0} />
           </RadialGradient>
         </Defs>
         <Rect width="100%" height="100%" fill="url(#wr-glow)" />

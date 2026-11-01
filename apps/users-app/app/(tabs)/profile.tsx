@@ -26,9 +26,10 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { type ComponentRef, useEffect, useRef, useState } from 'react';
+import { type ComponentRef, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Image, Pressable, ScrollView, View } from 'react-native';
 
+import { LevelBadge } from '@/components/rewards/level-badge';
 import { ContactButtons } from '@/components/booking/help-sheet';
 import { MyComplaints } from '@/components/complaints/my-complaints';
 import { LocationPicker, type PickedLocation } from '@/components/location-picker';
@@ -76,7 +77,7 @@ function AppearanceCard() {
   );
 }
 
-function Row({ label, sub, href, count }: { label: string; sub?: string; href: string; count?: string | number | null }) {
+function Row({ label, sub, href, count, trailing }: { label: string; sub?: string; href: string; count?: string | number | null; trailing?: ReactNode }) {
   const colors = useColors();
   const styles = useStyles();
   return (
@@ -97,6 +98,7 @@ function Row({ label, sub, href, count }: { label: string; sub?: string; href: s
             {String(count)}
           </T>
         ) : null}
+        {trailing}
         <IconChevronRight size={18} color={colors.textSecondary} />
       </HubCard>
     </PressRow>
@@ -403,7 +405,14 @@ export default function ProfileScreen() {
       <Row label="Saved garages" href="/profile/saved-garages" />
       {slotAlertCount > 0 ? <Row label="Slot alerts" href="/profile/slot-alerts" count={slotAlertCount} /> : null}
       <Row label="Coupons" sub="Have a coupon? Add it here" href="/profile/coupons" count={readyCoupons || null} />
-      {rewardsOn ? <Row label="Detlio Rewards" sub={rewardsSummary.data ? stampsToGoLine(rewardsSummary.data.card.toGo) : undefined} href="/profile/rewards" /> : null}
+      {rewardsOn ? (
+        <Row
+          label="Detlio Rewards"
+          sub={rewardsSummary.data ? `${stampsToGoLine(rewardsSummary.data.card.toGo)}${rewardsSummary.data.extras && rewardsSummary.data.extras.badgesEarned > 0 ? ` · ${rewardsSummary.data.extras.badgesEarned} ${rewardsSummary.data.extras.badgesEarned === 1 ? 'badge' : 'badges'}` : ''}` : undefined}
+          href="/profile/rewards"
+          trailing={rewardsSummary.data ? <LevelBadge level={rewardsSummary.data.level.level} label={rewardsSummary.data.level.label} /> : null}
+        />
+      ) : null}
       {giftsOn ? <Row label="Detlio credit" href="/profile/credit" count={credit.data ? formatRupees(Number(credit.data.balance)) : null} /> : null}
       {giftsOn ? <Row label="Gift a wash" href="/profile/gifts" /> : null}
       {notifications ? <Row label="Notifications" href="/profile/notifications" /> : null}

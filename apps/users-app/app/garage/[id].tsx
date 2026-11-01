@@ -428,6 +428,7 @@ export default function GarageScreen() {
       ) : null}
 
       <ServiceSheet
+        garageName={vendor?.name ?? ''}
         details={details}
         open={detailsOpen}
         onClose={() => setDetailsOpen(false)}

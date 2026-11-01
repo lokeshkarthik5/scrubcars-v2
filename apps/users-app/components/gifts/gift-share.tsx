@@ -76,8 +76,8 @@ export function GiftShare({ gift, link }: { gift: ShareGift; link: GiftLink }) {
       </ScCard>
       <View style={styles.gap8}>
         <ScButton variant="main" onPress={() => Share.share({ title: 'A Detlio gift', message: text }).catch(() => undefined)}>
-          <IconShare size={18} color={colors.canvas} />
-          <Label color={colors.canvas}>Share</Label>
+          <IconShare size={18} color={colors.white} />
+          <Label color={colors.white}>Share</Label>
         </ScButton>
         <View style={styles.pair}>
           <View style={styles.half}>

@@ -52,7 +52,8 @@
           "cameraPermission": "Detlio uses your camera so you can add a photo of your car to a booking."
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true

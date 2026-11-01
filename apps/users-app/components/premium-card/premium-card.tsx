@@ -8,6 +8,7 @@ import Svg, { Circle, Defs, G, LinearGradient as SvgLinear, Path, RadialGradient
 
 import { cardPhotoSource } from '@/lib/card-photos';
 import { useReducedMotion } from '@/lib/motion';
+import { stopOf } from '@/lib/svg-colour';
 import { CARD, CHIP_ICON_PATHS, CONFETTI, INKS, LOOKS, PHOTO, RIBBON, SPARKS, TIP_LABEL, sparkPath, titleSize, type CardChip, type ChipIcon, type PremiumCardSpec } from '@/lib/premium-card';
 
 export function ChipGlyph({ icon, size, colour }: { icon: ChipIcon; size: number; colour: string }) {
@@ -53,8 +54,8 @@ function Lights({ spec, id, heightUnits }: { spec: PremiumCardSpec; id: string; 
     <Svg style={StyleSheet.absoluteFill} viewBox={`0 0 100 ${heightUnits}`} preserveAspectRatio="xMidYMin slice">
       <Defs>
         <RadialGradient id={`${id}-wash`} gradientUnits="userSpaceOnUse" cx={PHOTO.wash.x} cy={PHOTO.wash.y} rx={PHOTO.wash.rx} ry={PHOTO.wash.ry}>
-          <Stop offset="0" stopColor={look.wash} />
-          <Stop offset="1" stopColor={look.wash} stopOpacity={0} />
+          <Stop offset="0" {...stopOf(look.wash)} />
+          <Stop offset="1" stopColor={stopOf(look.wash).stopColor} stopOpacity={0} />
         </RadialGradient>
         <SvgLinear id={`${id}-sash`} gradientUnits="userSpaceOnUse" x1={RIBBON.across.from[0]} y1={RIBBON.across.from[1]} x2={RIBBON.across.to[0]} y2={RIBBON.across.to[1]}>
           {stops}
@@ -122,7 +123,7 @@ function Face({ spec, size, u, heightUnits, moving }: { spec: PremiumCardSpec; s
   return (
     <View style={{ flex: 1, overflow: 'hidden', borderRadius: CARD.radius * u, borderWidth: Math.max(0.5, 0.28 * u), borderColor: look.tone === 'night' ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.55)' }}>
       <LinearGradient colors={look.ground} locations={[0, 0.52, 1]} style={StyleSheet.absoluteFill} />
-      <CarPhoto car={spec.car} heightUnits={PHOTO.height} u={u} ground={look.ground[0]} fade={PHOTO.fade} />
+      <CarPhoto car={spec.car} heightUnits={PHOTO.height} u={u} ground={look.ground[1]} fade={PHOTO.fade} />
       {look.tint ? <LinearGradient colors={[look.tint, look.tint, 'transparent']} locations={[0, 0.6, 1]} style={{ position: 'absolute', left: 0, right: 0, top: 0, height: PHOTO.height * u, opacity: 0.35 }} /> : null}
       {size !== 'thumb' ? <Lights spec={spec} id={id} heightUnits={heightUnits} /> : null}
       {size !== 'thumb' ? (

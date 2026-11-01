@@ -128,8 +128,8 @@ export default function CarCertificateScreen() {
   return page(
     <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 24 }]}>
       <ScButton variant="main" onPress={() => void print()}>
-        <IconPrinter size={18} color={colors.canvas} />
-        <Label color={colors.canvas}>Print / Save as PDF</Label>
+        <IconPrinter size={18} color={colors.white} />
+        <Label color={colors.white}>Print / Save as PDF</Label>
       </ScButton>
       <T size={12} lh={16} color={colors.textMuted}>
         On Android, choose Save as PDF as the printer; on iPhone, tap Share on the print screen, then Save to Files.

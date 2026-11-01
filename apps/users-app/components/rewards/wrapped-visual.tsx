@@ -19,8 +19,8 @@ function Car({ width }: { width: number }) {
           <Stop offset="1" stopColor="#0D0D10" />
         </LinearGradient>
         <RadialGradient id="wv-floor" cx="0.5" cy="0.5" r="0.5">
-          <Stop offset="0" stopColor="rgba(255,255,255,0.22)" />
-          <Stop offset="1" stopColor="rgba(255,255,255,0)" />
+          <Stop offset="0" stopColor="#FFFFFF" stopOpacity={0.22} />
+          <Stop offset="1" stopColor="#FFFFFF" stopOpacity={0} />
         </RadialGradient>
       </Defs>
       <Ellipse cx="305" cy="174" rx="290" ry="9" fill="url(#wv-floor)" />
