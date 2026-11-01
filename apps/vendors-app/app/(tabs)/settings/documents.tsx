@@ -24,7 +24,8 @@ import {
 } from '@/lib/documents-view';
 import { colors } from '@/lib/theme';
 
-const goBack = () => (router.canGoBack() ? router.back() : router.replace('/settings'));
+// The web's back arrow goes to /settings; in the tab bar `back` would land on Home instead.
+const goBack = () => router.navigate('/settings');
 
 /**
  * Settings > Documents (apps/vendors/app/settings/documents/page.tsx): what the garage uploads

@@ -32,7 +32,8 @@ import {
 import { digitsOnly } from '@/lib/settings-logic';
 import { colors } from '@/lib/theme';
 
-const goBack = () => (router.canGoBack() ? router.back() : router.replace('/settings'));
+// The web's back arrow goes to /settings; in the tab bar `back` would land on Home instead.
+const goBack = () => router.navigate('/settings');
 
 type Asking = { kind: 'remove' | 'owner'; member: ApiMember };
 

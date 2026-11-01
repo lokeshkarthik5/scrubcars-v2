@@ -38,7 +38,8 @@ import {
 } from '@/lib/vendor-api';
 
 const GAP = 8;
-const goBack = () => (router.canGoBack() ? router.back() : router.replace('/settings'));
+// The web's back arrow goes to /settings; in the tab bar `back` would land on Home instead.
+const goBack = () => router.navigate('/settings');
 
 /**
  * Garage photos (apps/vendors/app/photos/page.tsx): the logo shown next to the garage in customer

@@ -33,7 +33,8 @@ import { useGarageAgreement } from '@/lib/garage-api';
 import { openLink } from '@/lib/open-link';
 import { colors } from '@/lib/theme';
 
-const goBack = () => (router.canGoBack() ? router.back() : router.replace('/settings'));
+// The web's back arrow goes to /settings; in the tab bar `back` would land on Home instead.
+const goBack = () => router.navigate('/settings');
 
 /**
  * apps/vendors/app/agreement/page.tsx: the Detlio garage agreement, click to agree (0063):
