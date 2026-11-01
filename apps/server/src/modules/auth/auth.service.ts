@@ -514,7 +514,11 @@ export const authService = {
     return createSession(user, input.audience)
   },
 
-  async refreshSession(refreshToken: string): Promise<SessionResult> {
+  /**
+   * `app` is the native app asking (POST /auth/native/refresh): the customer
+   * app always stays a customer session. The websites send none.
+   */
+  async refreshSession(refreshToken: string, app?: TokenAudience): Promise<SessionResult> {
     const tokenHash = hashRefreshToken(refreshToken)
     const storedToken = await authRepository.findActiveRefreshToken(tokenHash)
 
@@ -541,9 +545,8 @@ export const authService = {
     // Which app this session belongs to. Same rule as the login gate, so a
     // half-onboarded vendor refreshing their tab lands back in the vendor app
     // rather than being bounced to the customer one mid-signup.
-    const audience: TokenAudience = (await canOpenVendorApp(user))
-      ? 'vendor'
-      : 'customer'
+    const audience: TokenAudience =
+      app !== 'customer' && (await canOpenVendorApp(user)) ? 'vendor' : 'customer'
     log.info({ userId: user.id, audience }, 'session:refreshed')
     return createSession(user, audience)
   },

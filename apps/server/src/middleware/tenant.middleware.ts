@@ -112,6 +112,10 @@ export const resolveTenant = createMiddleware<{ Variables: TenantVariables }>(
       return
     }
 
+    // A support session is an admin tool and admin stays on the web (see
+    // requireSuperAdmin): a native app's token only ever opens its own seats.
+    if (c.get('authVia') === 'bearer') notFound()
+
     const platformRow = await membersRepository.findActivePlatformRow(auth.sub)
 
     if (platformRow?.role !== 'super_admin') notFound()
