@@ -1,5 +1,7 @@
-import { isClipTooLong, MAX_PHOTO_BYTES, MAX_VIDEO_BYTES, VIDEO_TOO_LONG_MESSAGE } from '@repo/core/service-media';
+import { isClipTooLong, MAX_VIDEO_BYTES, VIDEO_TOO_LONG_MESSAGE } from '@repo/core/service-media';
 import type { ServiceMedia } from '@repo/core/types';
+
+import { MAX_SOURCE_BYTES } from './photo-limits';
 
 /**
  * packages/ui/src/features/service-media-editor.tsx, minus the drawing: which photo or
@@ -48,7 +50,7 @@ export function checkPhotoPick(photo: PickedPhoto): string | null {
     // No type and no extension: the phone could not say; preparing it will.
     if (ext && !PHOTO_EXT.has(ext)) return NOT_A_PHOTO;
   }
-  if (typeof photo.fileSize === 'number' && photo.fileSize > MAX_PHOTO_BYTES) return PHOTO_TOO_BIG;
+  if (typeof photo.fileSize === 'number' && photo.fileSize > MAX_SOURCE_BYTES) return PHOTO_TOO_BIG;
   return null;
 }
 

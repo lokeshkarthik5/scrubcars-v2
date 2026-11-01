@@ -28,6 +28,7 @@ import { UpdateRequired } from '@/components/update-required';
 import { useForcedUpdate } from '@/lib/app-config';
 import { installUnauthorizedHandler, useAuth, useIsVendorAdmin } from '@/lib/auth';
 import { afterSignIn } from '@/lib/deep-link';
+import { clearPrivateCache } from '@/lib/private-cache';
 import { queryClient } from '@/lib/query-client';
 import { useColdStartLink, useNotificationTaps } from '@/lib/notifications';
 import { gateRedirect } from '@/lib/route-gate';
@@ -134,6 +135,8 @@ export default function RootLayout() {
   useEffect(() => {
     // So a bug report can name the build it came from.
     console.log(`Detlio v${Constants.expoConfig?.version ?? 'unknown'}`);
+    // Nothing private from an earlier run stays on the disk (also cleared on sign-out).
+    clearPrivateCache();
     const removeHandler = installUnauthorizedHandler();
     void useAuth.getState().restore();
     return removeHandler;

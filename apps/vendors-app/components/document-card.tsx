@@ -10,7 +10,9 @@ import * as Device from 'expo-device';
 import * as ImagePicker from 'expo-image-picker';
 import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { File } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import {
   getGarageDocumentLink,
@@ -37,6 +39,7 @@ import {
   viewLabel,
 } from '@/lib/documents-view';
 import { errorText } from '@/lib/error-text';
+import { discardAfterShare, discardCached, newPrivateFile } from '@/lib/private-cache';
 import { colors, tones } from '@/lib/theme';
 
 import { Label, ScButton } from './button';
@@ -169,6 +172,7 @@ export function DocumentCard({
     try {
       const files = await prepareDocumentFiles(picked);
       const next = await uploadGarageDocument({ type: doc.type, files, expiresOn: expiresOn || null });
+      discardCached(picked.map((p) => p.uri));
       setPicked([]);
       toast.success(`${doc.label} sent for review`);
       onUploaded(next);
@@ -195,12 +199,26 @@ export function DocumentCard({
     }
   };
 
-  // The link works for five minutes; it is opened once and not kept anywhere.
+  // The link works for five minutes; it is opened once and not kept anywhere. iOS shows it in the
+  // in-app Safari view. Android's browser (Chrome) tends to download a PDF into shared storage
+  // (Downloads), where any app can read an ID, so there the file is fetched into the app's private
+  // cache, handed to the person's chosen viewer, and deleted.
   const view = async (fileId: string) => {
     if (!doc.id) return;
     try {
       const { url } = await getGarageDocumentLink(doc.id, fileId);
-      await WebBrowser.openBrowserAsync(url);
+      if (Platform.OS !== 'android') {
+        await WebBrowser.openBrowserAsync(url);
+        return;
+      }
+      const contentType = doc.files.find((f) => f.id === fileId)?.contentType ?? 'application/pdf';
+      const file = newPrivateFile(contentType);
+      try {
+        await File.downloadFileAsync(url, file, { idempotent: true });
+        await Sharing.shareAsync(file.uri, { mimeType: contentType, dialogTitle: doc.label });
+      } finally {
+        discardAfterShare(file);
+      }
     } catch (err) {
       toast.error(errorText(err, OPEN_FAILED));
     }
@@ -377,7 +395,10 @@ export function DocumentCard({
               fullWidth={false}
               paddingX={16}
               disabled={busy}
-              onPress={() => setPicked([])}
+              onPress={() => {
+                discardCached(picked.map((p) => p.uri));
+                setPicked([]);
+              }}
             >
               Cancel
             </ScButton>

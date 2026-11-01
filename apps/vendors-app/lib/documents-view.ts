@@ -2,6 +2,8 @@ import { DOCUMENT_CONTENT_TYPES, pickedFilesProblem } from '@repo/core/vendor-do
 
 import type { StatusTone } from '@/components/primitives';
 
+import { MAX_SOURCE_BYTES } from './photo-limits';
+
 /**
  * The words and little rules of Settings > Documents (apps/vendors/app/settings/documents/page.tsx),
  * kept pure so they can be tested. The rules for what may be sent are core's
@@ -112,5 +114,13 @@ export function contentTypeOf(file: PickedDocument): string {
 
 /** core's pickedFilesProblem over the chosen files. An unknown size passes: the bytes are counted later. */
 export function chosenFilesProblem(files: PickedDocument[]): string | null {
-  return pickedFilesProblem(files.map((file) => ({ type: contentTypeOf(file), size: file.size ?? 1 })));
+  return pickedFilesProblem(
+    files.map((file) => {
+      const type = contentTypeOf(file);
+      // A photo is shrunk before it is sent and held to its limit then; only an absurd one stops here.
+      const real = file.size ?? 1;
+      const size = type.startsWith('image/') && real > 0 && real <= MAX_SOURCE_BYTES ? 1 : real;
+      return { type, size };
+    })
+  );
 }

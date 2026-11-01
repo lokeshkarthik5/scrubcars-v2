@@ -3,6 +3,7 @@ import { expect, test } from 'bun:test';
 
 import {
   flyZoom,
+  mapAvailable,
   isSearchable,
   LINK_WARNINGS,
   linkMatchesCity,
@@ -91,4 +92,16 @@ test('withTimeout resolves, rejects, and gives up', async () => {
   expect(await withTimeout(Promise.resolve(1), 50)).toBe(1);
   await expect(withTimeout(Promise.reject(new Error('x')), 50)).rejects.toThrow('x');
   await expect(withTimeout(new Promise(() => undefined), 10)).rejects.toThrow('timeout');
+});
+
+test('the map needs no key on iOS', () => {
+  expect(mapAvailable('ios', undefined)).toBe(true);
+  expect(mapAvailable('ios', '')).toBe(true);
+});
+
+test('the map needs a key in the build on Android', () => {
+  expect(mapAvailable('android', undefined)).toBe(false);
+  expect(mapAvailable('android', null)).toBe(false);
+  expect(mapAvailable('android', '   ')).toBe(false);
+  expect(mapAvailable('android', 'AIza-example')).toBe(true);
 });

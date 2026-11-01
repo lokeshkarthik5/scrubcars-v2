@@ -132,3 +132,15 @@ export function regionFor(
 /** The zoom to fly to: in to `target`, but never back out from where the owner already is. */
 export const flyZoom = (currentZoom: number | null, target: number) =>
   currentZoom === null ? target : Math.max(currentZoom, target);
+
+/**
+ * Whether the map can be drawn. iOS uses Apple Maps, which needs no key. Android draws Google
+ * Maps, which with no API key in the build shows grey tiles or crashes the screen: then the
+ * picker leaves the map out and keeps the address search, "Use my current location" and the
+ * pasted link or coordinates, which place the pin without it.
+ */
+export const mapAvailable = (os: string, androidMapsKey: string | null | undefined): boolean =>
+  os !== 'android' || Boolean(androidMapsKey && androidMapsKey.trim());
+
+export const MAP_UNAVAILABLE_NOTE =
+  'The map is not available in this version of the app. Search for the address, use your current location, or paste a link or coordinates.';

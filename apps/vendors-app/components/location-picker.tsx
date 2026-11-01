@@ -7,10 +7,12 @@ import {
   type GeoPlace,
 } from '@repo/core/api/geo';
 import { DEFAULT_CENTER, PICKER_ZOOM } from '@repo/core/map';
+import Constants from 'expo-constants';
 import * as Location from 'expo-location';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -31,6 +33,8 @@ import {
   LOCATION_TIMEOUT_MS,
   LOOKUP_FAILED,
   makeSessionToken,
+  MAP_UNAVAILABLE_NOTE,
+  mapAvailable,
   OPEN_ZOOM,
   type PickedLocation,
   regionFor,
@@ -137,6 +141,7 @@ export function LocationPicker({ value, onChange, showSearch = true, expectedCit
   onChangeRef.current = onChange;
 
   const mapRef = useRef<MapView>(null);
+  const mapShown = mapAvailable(Platform.OS, Constants.expoConfig?.android?.config?.googleMaps?.apiKey);
   const { width: windowWidth } = useWindowDimensions();
   const mapWidth = useRef(Math.max(windowWidth - 64, 200));
   const zoom = useRef<number | null>(null);
@@ -399,12 +404,17 @@ export function LocationPicker({ value, onChange, showSearch = true, expectedCit
       ) : null}
 
       <View
-        style={styles.mapBox}
+        style={mapShown ? styles.mapBox : undefined}
         onLayout={(e) => {
           mapWidth.current = e.nativeEvent.layout.width;
         }}
       >
-        <MapView
+        {!mapShown ? (
+          <T size={12} color={colors.textSecondary}>
+            {MAP_UNAVAILABLE_NOTE}
+          </T>
+        ) : null}
+        {mapShown ? <MapView
           ref={mapRef}
           style={styles.map}
           initialRegion={initialRegion}
@@ -424,9 +434,9 @@ export function LocationPicker({ value, onChange, showSearch = true, expectedCit
               onDragEnd={(lat, lng) => void placePin(lat, lng, 'map_pin')}
             />
           ) : null}
-        </MapView>
+        </MapView> : null}
 
-        {resolving ? (
+        {resolving && mapShown ? (
           <View style={styles.lookup}>
             <T size={11} color={colors.textSecondary} align="center">
               Looking up this location…

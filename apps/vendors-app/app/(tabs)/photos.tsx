@@ -16,6 +16,7 @@ import { useIsVendorAdmin } from '@/lib/auth';
 import { errorText } from '@/lib/error-text';
 import { getMyVendor } from '@/lib/garage-api';
 import { prepareForUpload } from '@/lib/photo-prepare';
+import { discardCached } from '@/lib/private-cache';
 import {
   LOGO_REMOVE_FAILED,
   LOGO_SUBTITLE,
@@ -100,6 +101,7 @@ function PhotosScreen() {
     try {
       const prepared = await prepareForUpload(asset.uri, 'This logo');
       const vendor = await uploadVendorLogo(prepared.bytes);
+      discardCached([asset.uri, prepared.uri]);
       setLogoUrl(vendor.logoUrl);
       toast.success('Logo updated');
     } catch (err) {
@@ -139,6 +141,7 @@ function PhotosScreen() {
         }
         const prepared = await prepareForUpload(asset.uri, name);
         const created = await uploadVendorPhoto(prepared.bytes);
+        discardCached([asset.uri, prepared.uri]);
         setPhotos((prev) => [...prev, created]);
       }
     } catch (err) {

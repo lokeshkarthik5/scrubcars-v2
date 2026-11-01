@@ -4,6 +4,7 @@ import { File } from 'expo-file-system';
 import type { PreparedDocumentFile } from './documents-api';
 import { contentTypeOf, type PickedDocument } from './documents-view';
 import { prepareForUpload } from './photo-prepare';
+import { discardCached } from './private-cache';
 
 /**
  * The phone's half of apps/vendors' document upload (core api/documents.ts `cleaned`): a
@@ -21,6 +22,8 @@ export async function prepareDocumentFiles(files: PickedDocument[]): Promise<Pre
       prepared.push({ bytes, contentType: 'application/pdf' });
     } else {
       const photo = await prepareForUpload(file.uri, file.name);
+      // The bytes are in memory: the re-encoded copy is not needed on disk.
+      discardCached([photo.uri]);
       prepared.push({ bytes: photo.bytes, contentType: 'image/jpeg' });
     }
   }

@@ -71,6 +71,14 @@ test('chosen files are checked the way core checks them', () => {
   expect(chosenFilesProblem([{ ...pdf, size: undefined }])).toBeNull();
 });
 
+test('a phone photo over 10 MB is shrunk before it is sent, so only a PDF is held to 10 MB here', () => {
+  const photo = { uri: 'x', name: 'a.jpg', mimeType: 'image/jpeg', size: 12 * 1024 * 1024 };
+  expect(chosenFilesProblem([photo])).toBeNull();
+  expect(chosenFilesProblem([{ ...photo, size: 0 }])).toBe('That file is empty.');
+  expect(chosenFilesProblem([{ ...photo, size: 101 * 1024 * 1024 }])).toBe('Files can be up to 10 MB.');
+  expect(chosenFilesProblem([{ ...photo, name: 'a.pdf', mimeType: 'application/pdf' }])).toBe('Files can be up to 10 MB.');
+});
+
 test('the front is listed before the back whatever order the API sends', () => {
   const back = { id: 'b', side: 'back' as const };
   const front = { id: 'f', side: 'front' as const };

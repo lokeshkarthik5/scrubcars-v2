@@ -13,6 +13,7 @@ import { AFTER_SHEET_MS, ScSheet } from '@/components/sheet';
 import { T } from '@/components/text';
 import { errorText } from '@/lib/error-text';
 import { prepareForUpload } from '@/lib/photo-prepare';
+import { discardCached } from '@/lib/private-cache';
 import {
   getServiceMedia,
   removeServiceMedia,
@@ -120,6 +121,7 @@ export function ServiceMediaEditor({
     try {
       const prepared = await prepareForUpload(asset.uri, 'That photo');
       onMediaChange(await uploadServicePhoto(serviceId, prepared.bytes));
+      discardCached([asset.uri, prepared.uri]);
     } catch (err) {
       fail(err, 'The photo did not upload. Try again.');
     } finally {

@@ -3,6 +3,7 @@ import type { MediaConfig, VideoStart } from '@repo/core/api/service-media';
 import type { ServiceMedia } from '@repo/core/types';
 import { File, FileMode, Paths, UploadType } from 'expo-file-system';
 
+import { uniqueCacheName } from './cache-names';
 import { TUS_FAILED_MESSAGE, TusHttpError, type TusIO, tusUpload } from './tus-upload';
 
 /**
@@ -82,7 +83,7 @@ const header = (headers: Record<string, string>, name: string) =>
  */
 function phoneTusIO(video: File): { io: TusIO; release: () => void } {
   const handle = video.open(FileMode.ReadOnly);
-  const chunk = new File(Paths.cache, 'service-video-chunk.bin');
+  const chunk = new File(Paths.cache, uniqueCacheName('service-video-chunk', 'bin'));
   const io: TusIO = {
     async head(url) {
       const res = await fetch(url, { method: 'HEAD', headers: TUS_HEADERS });

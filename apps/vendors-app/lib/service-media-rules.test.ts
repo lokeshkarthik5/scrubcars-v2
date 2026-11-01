@@ -47,7 +47,9 @@ test('a photo must be JPEG, PNG or WebP (a phone HEIC is converted, so it passes
   expect(checkPhotoPick({ uri: 'file:///a.gif', mimeType: 'image/gif' })).toBe(NOT_A_PHOTO);
   expect(checkPhotoPick({ uri: 'file:///a.pdf', mimeType: 'application/pdf' })).toBe(NOT_A_PHOTO);
   expect(checkPhotoPick({ uri: 'file:///a.jpg', mimeType: 'image/jpeg', fileSize: 5 * MB })).toBeNull();
-  expect(checkPhotoPick({ uri: 'file:///a.jpg', mimeType: 'image/jpeg', fileSize: 5 * MB + 1 })).toBe(PHOTO_TOO_BIG);
+  expect(checkPhotoPick({ uri: 'file:///a.jpg', mimeType: 'image/jpeg', fileSize: 100 * MB + 1 })).toBe(PHOTO_TOO_BIG);
+  // A normal phone photo is over 5 MB as taken and is shrunk before it is sent.
+  expect(checkPhotoPick({ uri: 'file:///a.jpg', mimeType: 'image/jpeg', fileSize: 12 * MB })).toBeNull();
 });
 
 test('the web wording of both photo refusals', () => {
