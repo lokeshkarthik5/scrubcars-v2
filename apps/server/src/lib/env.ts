@@ -4,6 +4,7 @@ import { parseDailyCap } from './refund-sending.js'
 import { isAutoCancelOn, parseResponseMinutes } from './response-deadline.js'
 import { isPushConfigured } from './push.js'
 import { readReviewLoginEnv } from './review-login.js'
+import { readAppConfigEnv } from './app-config.js'
 import { parsePhotosRequired, parseRequiredGarages } from './job-photo-standards.js'
 import type { GeoProviderName } from './geo/types.js'
 
@@ -146,6 +147,17 @@ export const env = {
   // Any of the three missing or malformed and the feature is fully off. The
   // accounts must already exist: this never creates one. Production only.
   reviewLogin: readReviewLoginEnv(process.env),
+  // ─── Forced update (lib/app-config.ts, GET /app-config) ───────────────────
+  // What the Expo apps are told when they start: the oldest version still
+  // allowed, the newest release and where to get it. One variable per app
+  // (CUSTOMER / GARAGE), platform (IOS / ANDROID) and kind:
+  //   APP_MIN_VERSION_CUSTOMER_IOS=1.2.0    below this, the app must update
+  //   APP_LATEST_VERSION_CUSTOMER_IOS=1.3.0 optional, shown as "newest"
+  //   APP_STORE_URL_CUSTOMER_IOS=https://apps.apple.com/app/id…
+  // …and the same for CUSTOMER_ANDROID, GARAGE_IOS and GARAGE_ANDROID.
+  // Unset (or not a version / https address) means no update is required,
+  // so a server without them never locks anyone out.
+  appConfig: readAppConfigEnv(process.env),
   // ─── Meta Conversions API (lib/meta-capi.ts) ──────────────────────────────
   // A paid booking is reported to Meta as one Purchase event from the
   // server, beside the customer app's Pixel and under the same event id, but
