@@ -41,3 +41,8 @@ test('a held coupon code stays until it is cleared, and only for its kind', () =
   heldLinkCode.clear();
   expect(heldLinkCode.peek('c')).toBeNull();
 });
+
+test('the web\'s complaints anchor opens the complaints screen', () => {
+  expect(rewriteSystemPath('/profile#my-complaints')).toBe('/profile/complaints');
+  expect(rewriteSystemPath('/profile')).toBe('/profile');
+});

@@ -1,6 +1,4 @@
-import { describe, expect, mock, test } from 'bun:test';
-
-mock.module('expo-secure-store', () => ({ getItem: () => null, setItem: () => undefined, deleteItemAsync: async () => undefined }));
+import { describe, expect, test } from 'bun:test';
 
 const { draftResumePath, draftSlotStillAhead, parseBookingDraft } = await import('./booking-draft');
 

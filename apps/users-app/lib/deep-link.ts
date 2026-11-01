@@ -41,6 +41,8 @@ export function rewriteSystemPath(path: string): string {
       held = { kind: secret[1] as HeldCode['kind'], code: decodeURIComponent(secret[2]) };
       return '/';
     }
+    // The web's anchor on Profile: here it has its own screen.
+    if (pathname === '/profile' && url.hash === '#my-complaints') return '/profile/complaints';
     return `${pathname}${url.search}`;
   } catch {
     return '/';

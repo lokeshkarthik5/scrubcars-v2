@@ -1,13 +1,6 @@
 import { beforeEach, expect, mock, test } from 'bun:test';
 
-const store = new Map<string, string>();
-mock.module('expo-secure-store', () => ({
-  getItem: (key: string) => store.get(key) ?? null,
-  setItem: (key: string, value: string) => void store.set(key, value),
-  getItemAsync: async (key: string) => store.get(key) ?? null,
-  setItemAsync: async (key: string, value: string) => void store.set(key, value),
-  deleteItemAsync: async (key: string) => void store.delete(key),
-}));
+const store = (globalThis as unknown as { __secureStore: Map<string, string> }).__secureStore;
 mock.module('expo-location', () => ({}));
 mock.module('react-native', () => ({ AppState: { addEventListener: () => ({ remove: () => undefined }) }, Platform: { OS: 'ios' } }));
 

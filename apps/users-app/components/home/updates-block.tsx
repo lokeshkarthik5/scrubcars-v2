@@ -39,6 +39,8 @@ import { type Href, router } from 'expo-router';
 import { Linking, Pressable, View } from 'react-native';
 import type { ReactElement } from 'react';
 
+import { rewriteSystemPath } from '@/lib/deep-link';
+
 const KIND_ICONS: Record<UpdateKind, (props: IconProps) => ReactElement> = {
   notice: IconSpeakerphone,
   accepted: IconCalendarCheck,
@@ -115,7 +117,7 @@ export function UpdateRow({
   const open = () => {
     if (!href) return;
     if (external) void Linking.openURL(href);
-    else router.push(href as Href);
+    else router.push(rewriteSystemPath(href) as Href);
   };
   return (
     <View style={styles.row}>
