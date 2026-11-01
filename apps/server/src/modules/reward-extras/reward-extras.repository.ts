@@ -35,6 +35,7 @@ import {
   type RewardLevel,
   type RewardsSettings,
 } from '../../lib/rewards.js'
+import { tstz } from '../../lib/sql-dates.js'
 import { yearRange, type WrappedBooking, type WrappedStats } from '../../lib/wrapped.js'
 import { bookingCategories } from '../car-history/car-history.repository.js'
 import { DISCOUNT_HELD } from '../discounts/discounts.predicates.js'
@@ -114,7 +115,7 @@ async function eligibleBookings(conn: Conn, userId: string, range?: { start: Dat
       join vendors v on v.id = rb.vendor_id
      where rb.user_id = ${userId}
        and rb.earned and rb.revoked_at is null
-       ${range ? sql`and rb.completed_at >= ${range.start} and rb.completed_at < ${range.end}` : sql``}
+       ${range ? sql`and rb.completed_at >= ${tstz(range.start)} and rb.completed_at < ${tstz(range.end)}` : sql``}
      order by rb.completed_at
      limit 2000
   `)
@@ -521,7 +522,7 @@ export const rewardExtrasRepository = {
         from people p
         left join reward_badge_checks c on c.user_id = p.user_id
        where c.checked_at is null
-          or c.checked_at < ${dayStart}
+          or c.checked_at < ${tstz(dayStart)}
           or exists (select 1 from reviews r where r.user_id = p.user_id and r.created_at > c.checked_at)
           or exists (select 1 from reward_referrals rr where rr.referrer_id = p.user_id and rr.settled_at > c.checked_at)
        order by c.checked_at nulls first, p.user_id
@@ -569,7 +570,7 @@ export const rewardExtrasRepository = {
       select a.id, a.user_id, a.badge_key, a.challenge_id, a.bonus_stamps, c.title as challenge_title
         from reward_badge_awards a
         left join reward_challenges c on c.id = a.challenge_id
-       where a.earned_at >= ${since}
+       where a.earned_at >= ${tstz(since)}
          and not exists (
            select 1 from reward_nudges n where n.user_id = a.user_id and n.kind = 'badge' and n.subject_key = 'badge:' || a.id
          )
@@ -641,7 +642,7 @@ export const rewardExtrasRepository = {
          )
          and not exists (
            select 1 from reward_nudges n
-            where n.user_id = ps.user_id and n.sent_at > ${quietSince}
+            where n.user_id = ps.user_id and n.sent_at > ${tstz(quietSince)}
               and n.kind not in (${sql.join(CELEBRATORY_NUDGE_KINDS.map((kind) => sql`${kind}`), sql`, `)})
          )
        limit ${limit}
@@ -676,7 +677,7 @@ export const rewardExtrasRepository = {
       select distinct rb.user_id
         from reward_bookings rb
        where rb.earned and rb.revoked_at is null
-         and rb.completed_at >= ${start} and rb.completed_at < ${end}
+         and rb.completed_at >= ${tstz(start)} and rb.completed_at < ${tstz(end)}
          and not exists (
            select 1 from reward_nudges n where n.user_id = rb.user_id and n.kind = 'wrapped' and n.subject_key = ${`wrapped:${year}`}
          )
@@ -767,7 +768,7 @@ export const rewardExtrasRepository = {
       select extract(year from rb.completed_at at time zone 'Asia/Kolkata')::int as year, count(*)::int as n
         from reward_bookings rb
        where rb.user_id = ${userId} and rb.earned and rb.revoked_at is null
-         and rb.completed_at >= ${from} and rb.completed_at < ${to}
+         and rb.completed_at >= ${tstz(from)} and rb.completed_at < ${tstz(to)}
        group by 1
     `)
     for (const row of Array.from(rows)) map.set(Number(row.year), Number(row.n))
@@ -817,7 +818,7 @@ export const rewardExtrasRepository = {
         join bookings on bookings.id = dr.booking_id
         join payments on payments.booking_id = bookings.id
        where dr.user_id = ${userId} and ${DISCOUNT_HELD}
-         and dr.created_at >= ${range.start} and dr.created_at < ${range.end}
+         and dr.created_at >= ${tstz(range.start)} and dr.created_at < ${tstz(range.end)}
     `)
     const badges = await db
       .select({ key: rewardBadgeAwards.badgeKey, challengeTitle: rewardChallenges.title })
@@ -830,10 +831,10 @@ export const rewardExtrasRepository = {
       select
         (select count(*)::int from reward_bookings rb
           where rb.user_id = ${userId} and rb.earned and rb.revoked_at is null
-            and rb.completed_at > ${monthsBefore(levelAt, settings.levelWindowMonths)} and rb.completed_at <= ${levelAt}) as bookings,
+            and rb.completed_at > ${tstz(monthsBefore(levelAt, settings.levelWindowMonths))} and rb.completed_at <= ${tstz(levelAt)}) as bookings,
         (select count(*)::int from reward_level_drops d
           where d.user_id = ${userId}
-            and d.dropped_at > ${monthsBefore(levelAt, settings.noShowDropMonths)} and d.dropped_at <= ${levelAt}) as drops
+            and d.dropped_at > ${tstz(monthsBefore(levelAt, settings.noShowDropMonths))} and d.dropped_at <= ${tstz(levelAt)}) as drops
     `)
     return {
       bookings,
@@ -849,7 +850,7 @@ export const rewardExtrasRepository = {
       kind === 'opened'
         ? await db
             .update(rewardWrapped)
-            .set({ openedCount: sql`${rewardWrapped.openedCount} + 1`, firstOpenedAt: sql`coalesce(${rewardWrapped.firstOpenedAt}, ${now})` })
+            .set({ openedCount: sql`${rewardWrapped.openedCount} + 1`, firstOpenedAt: sql`coalesce(${rewardWrapped.firstOpenedAt}, ${tstz(now)})` })
             .where(and(eq(rewardWrapped.userId, userId), eq(rewardWrapped.year, year)))
             .returning({ year: rewardWrapped.year })
         : await db
@@ -868,7 +869,7 @@ export const rewardExtrasRepository = {
       .select({
         key: rewardBadgeAwards.badgeKey,
         total: sql<number>`count(*)::int`,
-        thisMonth: sql<number>`count(*) filter (where ${rewardBadgeAwards.earnedAt} >= ${monthStart})::int`,
+        thisMonth: sql<number>`count(*) filter (where ${rewardBadgeAwards.earnedAt} >= ${tstz(monthStart)})::int`,
         stamps: sql<number>`coalesce(sum(${rewardBadgeAwards.bonusStamps}), 0)::int`,
       })
       .from(rewardBadgeAwards)
@@ -1063,7 +1064,7 @@ export const rewardExtrasRepository = {
     const { start, end } = yearRange(year)
     const [eligible] = await db.execute<{ n: number }>(sql`
       select count(distinct user_id)::int as n from reward_bookings
-       where earned and revoked_at is null and completed_at >= ${start} and completed_at < ${end}
+       where earned and revoked_at is null and completed_at >= ${tstz(start)} and completed_at < ${tstz(end)}
     `)
     const [told] = await db.execute<{ n: number }>(sql`
       select count(*)::int as n from reward_nudges where kind = 'wrapped' and subject_key = ${`wrapped:${year}`}
