@@ -26,7 +26,9 @@ export default function OnboardingScreen() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    openDraft();
+    // Signed out (phone gone): the draft stays closed. A step still mounted lower in the stack
+    // would otherwise write its stale form back as it unmounts.
+    if (phone) openDraft();
     const draft = draftData(useOnboardingDraft.getState());
     if (draftFor(draft, phone) !== draft) useOnboardingDraft.getState().reset();
     setReady(true);

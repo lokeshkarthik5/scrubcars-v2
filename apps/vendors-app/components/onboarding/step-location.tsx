@@ -126,7 +126,6 @@ export function StepLocation() {
           label="Pincode"
           numeric
           keyboardType="number-pad"
-          maxLength={6}
           placeholder="600001"
           value={pincode}
           onChangeText={(text) => setPincode(digitsOnly(text, 6))}

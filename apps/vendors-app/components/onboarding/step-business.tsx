@@ -62,7 +62,6 @@ export function StepBusiness() {
           label="WhatsApp number (optional)"
           numeric
           keyboardType="number-pad"
-          maxLength={10}
           placeholder="10-digit number"
           value={form.whatsapp}
           onChangeText={(text) => setForm({ ...form, whatsapp: digitsOnly(text, 10) })}
