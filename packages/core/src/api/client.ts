@@ -2,7 +2,9 @@ import type { ApiErrorResponse, ApiSuccessResponse } from './types'
 
 /** The API every request goes to; also where usage events are sent (analytics.ts). */
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080/api/v1'
+  process.env.NEXT_PUBLIC_API_URL ??
+  process.env.EXPO_PUBLIC_API_URL ??
+  'http://localhost:8080/api/v1'
 
 /**
  * The company every vendor-scoped request acts on. Attached here, in the one
@@ -79,6 +81,21 @@ async function triggerUnauthorizedLogout() {
   }
 }
 
+/**
+ * How a native app signs its requests (native-session.ts). A website never sets
+ * this, and without it every request goes out with cookies, as it always has.
+ */
+export interface BearerAuth {
+  getAccessToken(): string | null
+  refresh(): Promise<boolean>
+}
+
+let bearerAuth: BearerAuth | null = null
+
+export function setBearerAuth(auth: BearerAuth | null) {
+  bearerAuth = auth
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -113,7 +130,20 @@ async function parseError(response: Response): Promise<ApiError> {
   )
 }
 
+function send(url: string, init: RequestInit, headers: Record<string, string>) {
+  if (!bearerAuth) {
+    return fetch(url, { ...init, headers, credentials: 'include' })
+  }
+  const token = bearerAuth.getAccessToken()
+  return fetch(url, {
+    ...init,
+    headers: token ? { ...headers, Authorization: `Bearer ${token}` } : headers,
+    credentials: 'omit',
+  })
+}
+
 async function tryRefreshCookies(keepalive = false): Promise<boolean> {
+  if (bearerAuth) return bearerAuth.refresh()
   if (refreshPromise) return refreshPromise
 
   refreshPromise = fetch(`${API_BASE_URL}/auth/refresh`, {
@@ -139,7 +169,10 @@ export async function apiClient<T>(
 
   const url = new URL(
     `${API_BASE_URL}${endpoint}`,
-    typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'
+    // React Native has a `window`, but no location on it.
+    typeof window !== 'undefined' && window.location
+      ? window.location.origin
+      : 'http://localhost:3000'
   )
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
@@ -153,22 +186,14 @@ export async function apiClient<T>(
     ...(headers as Record<string, string>),
   }
 
-  let response = await fetch(url.toString(), {
-    ...rest,
-    headers: requestHeaders,
-    credentials: 'include',
-  })
+  let response = await send(url.toString(), rest, requestHeaders)
 
   noteSupportSession(response)
 
   if (response.status === 401 && auth) {
     const refreshed = await tryRefreshCookies(Boolean(rest.keepalive))
     if (refreshed) {
-      response = await fetch(url.toString(), {
-        ...rest,
-        headers: requestHeaders,
-        credentials: 'include',
-      })
+      response = await send(url.toString(), rest, requestHeaders)
       noteSupportSession(response)
     }
   }
