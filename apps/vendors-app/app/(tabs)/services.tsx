@@ -10,7 +10,7 @@ import { PackagesPanel } from '@/components/services/packages-panel';
 import { ServicesTab } from '@/components/services/services-tab';
 import { T } from '@/components/text';
 import { toast } from '@/components/toast';
-import { useAuth } from '@/lib/auth';
+import { useAuth, useIsVendorAdmin } from '@/lib/auth';
 import { emptyServiceForm, type ServiceForm } from '@/lib/service-form';
 import { getMediaConfig, getMyServices } from '@/lib/services-api';
 import { colors } from '@/lib/theme';
@@ -52,8 +52,12 @@ function ServicesScreen() {
   // server). Shared by every service and package on the screen.
   const [mediaConfig, setMediaConfig] = useState<MediaConfig | null>(null);
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
+  // An operator is sent home by the route gate; the server refuses them (403), so the
+  // screen behind the gate must not ask, or "Failed to load services" flashes as they leave.
+  const isVendorAdmin = useIsVendorAdmin();
 
   const load = useCallback(() => {
+    if (!isVendorAdmin) return;
     setLoading(true);
     setFailed(false);
     getMyServices()
@@ -66,7 +70,7 @@ function ServicesScreen() {
     getMediaConfig()
       .then(setMediaConfig)
       .catch(() => undefined);
-  }, []);
+  }, [isVendorAdmin]);
   useEffect(load, [load]);
 
   // The form is at the top; Edit on a card lower down brings it into view.
