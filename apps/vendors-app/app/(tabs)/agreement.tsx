@@ -4,6 +4,7 @@ import { ApiError } from '@repo/core/api/client';
 import { dateKeyLabel } from '@repo/core/certification';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
@@ -30,11 +31,14 @@ import {
 import { useAuth, useIsVendorAdmin } from '@/lib/auth';
 import { errorText } from '@/lib/error-text';
 import { useGarageAgreement } from '@/lib/garage-api';
-import { openLink } from '@/lib/open-link';
 import { colors } from '@/lib/theme';
+import { useRefreshOnFocus } from '@/lib/use-refresh-on-focus';
 
 // The web's back arrow goes to /settings; in the tab bar `back` would land on Home instead.
 const goBack = () => router.navigate('/settings');
+
+const readPdf = (url: string) =>
+  WebBrowser.openBrowserAsync(url).catch(() => toast.error('Couldn’t open the agreement.'));
 
 /**
  * apps/vendors/app/agreement/page.tsx: the Detlio garage agreement, click to agree (0063):
@@ -48,6 +52,8 @@ function AgreementScreen() {
   const vendorId = useAuth((s) => s.activeVendorId) ?? undefined;
   const { data, isError, refetch } = useGarageAgreement(vendorId, isVendorAdmin);
   const queryClient = useQueryClient();
+  // The tab stays mounted: a version Detlio published meanwhile shows when it is opened again.
+  useRefreshOnFocus(['agreement', 'garage', vendorId]);
   // The tick is for one version of one garage's agreement: a new version starts unticked.
   const [tickedFor, setTickedFor] = useState<string | null>(null);
 
@@ -91,7 +97,7 @@ function AgreementScreen() {
           <T size={13} color={colors.error}>
             {AGREEMENT_LOAD_FAILED}
           </T>
-          <ScButton variant="outline" size="md" fullWidth={false} onPress={() => void refetch()} style={styles.retry}>
+          <ScButton variant="outline" size="md" fullWidth={false} onPress={() => void refetch()} paddingX={16}>
             Try again
           </ScButton>
         </View>
@@ -117,11 +123,11 @@ function AgreementScreen() {
                 </T>
               </View>
             </View>
-            {/* The web's link opens the PDF in a new tab; here it opens in the phone's browser. */}
+            {/* The web's link opens the PDF in a new tab; here it opens in the in-app browser. */}
             <Pressable
               accessibilityRole="link"
               accessibilityLabel="Read (PDF)"
-              onPress={() => openLink(latest.url)}
+              onPress={() => void readPdf(latest.url)}
               style={({ pressed }) => [styles.read, pressed && { backgroundColor: colors.surfaceElevated }]}
             >
               <T size={14} weight={500}>
@@ -152,7 +158,7 @@ function AgreementScreen() {
                 style={styles.tick}
               >
                 <View style={[styles.box, agreed && styles.boxOn]}>
-                  {agreed ? <IconCheck size={14} stroke={2.5} color={colors.brandBlack} /> : null}
+                  {agreed ? <IconCheck size={14} stroke={2.5} color={colors.white} /> : null}
                 </View>
                 <View style={styles.flex}>
                   <T size={14}>{AGREEMENT_TICK}</T>
@@ -190,7 +196,6 @@ export default garageScreen(AgreementScreen);
 const styles = StyleSheet.create({
   flex: { flex: 1, minWidth: 0 },
   error: { alignItems: 'flex-start', gap: 8 },
-  retry: { paddingHorizontal: 16 },
   card: { gap: 12 },
   head: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   fileIcon: { marginTop: 2 },
@@ -217,6 +222,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  boxOn: { backgroundColor: colors.brandWhite, borderColor: colors.brandWhite },
+  // The web's raw checkbox takes the brand red as its accent (accent-[var(--color-brand-red)]).
+  boxOn: { backgroundColor: colors.brandRedFill, borderColor: colors.brandRedFill },
   record: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 4 },
 });

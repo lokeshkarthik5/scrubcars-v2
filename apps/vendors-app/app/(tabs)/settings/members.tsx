@@ -1,7 +1,7 @@
 import { addMember, type ApiMember, getMembers, removeMember, transferOwnership, updateMember } from '@repo/core/api/members';
 import type { VendorRole } from '@repo/core/api/types';
-import { router } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
@@ -75,6 +75,15 @@ function MembersScreen() {
   useEffect(() => {
     if (isVendorAdmin) void load();
   }, [isVendorAdmin, load]);
+
+  // The tab stays mounted: read again when it is opened again, where the web's page is new each time.
+  const seen = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (seen.current && isVendorAdmin) void load();
+      seen.current = true;
+    }, [isVendorAdmin, load])
+  );
 
   const handleAdd = async () => {
     if (!isTenDigits(phone)) {
@@ -220,7 +229,7 @@ function MembersScreen() {
                         variant="outline"
                         fullWidth={false}
                         disabled={busy}
-                        style={styles.action}
+                        paddingX={14}
                         onPress={() =>
                           void run(member.id, () => updateMember(member.id, { status: suspend.next }), suspend.done)
                         }
@@ -231,7 +240,7 @@ function MembersScreen() {
                         variant="outline"
                         fullWidth={false}
                         disabled={busy}
-                        style={styles.action}
+                        paddingX={14}
                         accessibilityLabel={`Remove ${member.name}`}
                         onPress={() => setAsking({ kind: 'remove', member })}
                       >
@@ -245,7 +254,7 @@ function MembersScreen() {
                           variant="outline"
                           fullWidth={false}
                           disabled={busy}
-                          style={styles.action}
+                          paddingX={14}
                           onPress={() => setAsking({ kind: 'owner', member })}
                         >
                           Make owner
@@ -300,5 +309,4 @@ const styles = StyleSheet.create({
     paddingTop: 12,
   },
   roleSelect: { minWidth: 130 },
-  action: { paddingHorizontal: 14 },
 });

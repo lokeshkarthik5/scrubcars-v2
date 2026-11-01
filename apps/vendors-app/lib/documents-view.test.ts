@@ -9,6 +9,7 @@ import {
   inSentence,
   pickedLine,
   removePrompt,
+  sideOrdered,
   uploadHint,
   viewLabel,
 } from './documents-view';
@@ -68,4 +69,12 @@ test('chosen files are checked the way core checks them', () => {
   expect(chosenFilesProblem([{ ...pdf, size: 11 * 1024 * 1024 }])).toBe('Files can be up to 10 MB.');
   expect(chosenFilesProblem([{ ...pdf, size: 0 }])).toBe('That file is empty.');
   expect(chosenFilesProblem([{ ...pdf, size: undefined }])).toBeNull();
+});
+
+test('the front is listed before the back whatever order the API sends', () => {
+  const back = { id: 'b', side: 'back' as const };
+  const front = { id: 'f', side: 'front' as const };
+  expect(sideOrdered([back, front]).map((file) => file.id)).toEqual(['f', 'b']);
+  expect(sideOrdered([front, back]).map((file) => file.id)).toEqual(['f', 'b']);
+  expect(sideOrdered([front])).toEqual([front]);
 });

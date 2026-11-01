@@ -8,6 +8,7 @@ import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg'
 
 import { useGarageTier } from '@/lib/garage-api';
 import { colors } from '@/lib/theme';
+import { useRefreshOnFocus } from '@/lib/use-refresh-on-focus';
 
 import { IconChevronRight, IconCircleCheck, IconCircleDashed } from './icons';
 import { ScCard } from './primitives';
@@ -104,6 +105,7 @@ function StepList({ steps, label }: { steps: TierStep[]; label: string }) {
 /** TierCard: the garage's medal and what the next one takes; nothing until loaded or on failure. */
 export function TierCard({ vendorId }: { vendorId: string | undefined }) {
   const { data } = useGarageTier(vendorId);
+  useRefreshOnFocus(['tier', 'garage', vendorId]);
   if (!data) return null;
 
   const next = data.next;

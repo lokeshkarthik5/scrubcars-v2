@@ -1,5 +1,5 @@
-import { router } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
@@ -81,6 +81,16 @@ function DocumentsScreen() {
     };
   }, [isVendorAdmin, fetchAll]);
 
+  // The tab stays mounted: what Detlio decided meanwhile shows when it is opened again, where the
+  // web's page is new each time. The first focus is the load above.
+  const seen = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (seen.current && isVendorAdmin) void load();
+      seen.current = true;
+    }, [isVendorAdmin, load])
+  );
+
   const replaceDocument = (next: GarageDocument) =>
     setData(
       (current) =>
@@ -96,7 +106,7 @@ function DocumentsScreen() {
           <T size={13} color={colors.error}>
             Couldn’t load your documents.
           </T>
-          <ScButton variant="outline" fullWidth={false} onPress={() => void load()} style={styles.retry}>
+          <ScButton variant="outline" fullWidth={false} onPress={() => void load()} paddingX={16}>
             Try again
           </ScButton>
         </View>
@@ -154,7 +164,6 @@ export default garageScreen(DocumentsScreen);
 
 const styles = StyleSheet.create({
   error: { alignItems: 'flex-start', gap: 8 },
-  retry: { paddingHorizontal: 16 },
   intro: { gap: 12 },
   list: { gap: 10 },
 });

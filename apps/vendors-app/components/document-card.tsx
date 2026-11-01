@@ -30,6 +30,7 @@ import {
   pickedLine,
   REMOVE_FAILED,
   removePrompt,
+  sideOrdered,
   STATUS_TONE,
   UPLOAD_FAILED,
   uploadHint,
@@ -234,7 +235,7 @@ export function DocumentCard({
 
       {doc.files.length > 0 ? (
         <View style={styles.files}>
-          {doc.files.map((file) => (
+          {sideOrdered(doc.files).map((file) => (
             <View key={file.id} style={styles.file}>
               <View style={[styles.fileName, styles.flex]}>
                 <IconFileText size={14} color={colors.textSecondary} />
@@ -289,7 +290,7 @@ export function DocumentCard({
             <ScButton
               variant="outline"
               fullWidth={false}
-              style={styles.keep}
+              paddingX={16}
               disabled={busy}
               onPress={() => setConfirmRemove(false)}
             >
@@ -374,7 +375,7 @@ export function DocumentCard({
             <ScButton
               variant="outline"
               fullWidth={false}
-              style={styles.keep}
+              paddingX={16}
               disabled={busy}
               onPress={() => setPicked([])}
             >
@@ -418,7 +419,6 @@ const styles = StyleSheet.create({
   section: { gap: 8, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 },
   gap4: { gap: 4 },
   buttons: { flexDirection: 'row', gap: 8 },
-  keep: { paddingHorizontal: 16 },
   removeLink: { minHeight: 44, alignSelf: 'flex-start', justifyContent: 'center' },
   underline: { textDecorationLine: 'underline' },
   sources: { paddingHorizontal: 16 },

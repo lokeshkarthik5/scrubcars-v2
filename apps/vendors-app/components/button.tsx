@@ -13,6 +13,8 @@ interface ScButtonProps {
   variant?: ButtonVariant;
   size?: ButtonSize;
   fullWidth?: boolean;
+  /** The web's px-*: the inside padding of the pill. `style` pads outside it. */
+  paddingX?: number;
   disabled?: boolean;
   /** Why it can't be pressed yet, under it in grey. Only shown while disabled. */
   disabledReason?: string;
@@ -34,6 +36,7 @@ export function ScButton({
   variant = 'main',
   size = 'md',
   fullWidth = true,
+  paddingX,
   disabled = false,
   disabledReason,
   onPress,
@@ -65,7 +68,7 @@ export function ScButton({
     justifyContent: 'center',
     flexDirection: 'row',
     gap: 8,
-    paddingHorizontal: backgroundColor ? 16 : variant === 'text' ? 12 : 24,
+    paddingHorizontal: paddingX ?? (backgroundColor ? 16 : variant === 'text' ? 12 : 24),
     ...(greyed
       ? { backgroundColor: glass ? 'rgba(255,255,255,0.1)' : colors.surfaceElevated }
       : variant === 'cta'

@@ -51,6 +51,11 @@ export function fileSideLabel(fileCount: number, side: 'front' | 'back'): string
   return side === 'front' ? (fileCount > 1 ? 'Front' : 'File') : 'Back';
 }
 
+/** The front first, then the back: the API doesn't promise an order. */
+export function sideOrdered<T extends { side: 'front' | 'back' }>(files: T[]): T[] {
+  return [...files].sort((a, b) => (a.side === b.side ? 0 : a.side === 'front' ? -1 : 1));
+}
+
 /** What a View button says to a screen reader. */
 export function viewLabel(docLabel: string, fileCount: number, side: 'front' | 'back'): string {
   return `View ${docLabel}${fileCount > 1 ? `, ${side}` : ''}`;

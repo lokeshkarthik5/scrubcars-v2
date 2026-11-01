@@ -41,6 +41,7 @@ import {
 } from '@/lib/garage-api';
 import { sortByUrgency, todayView, waitingSummary } from '@/lib/jobs';
 import { colors } from '@/lib/theme';
+import { useRefreshOnFocus } from '@/lib/use-refresh-on-focus';
 import { useVendorBookings } from '@/lib/use-vendor-bookings';
 
 /** How many new-booking cards Home shows before "See all". */
@@ -270,6 +271,8 @@ function HomeScreen() {
 
 function AgreementBanner({ vendorId }: { vendorId: string | undefined }) {
   const { data } = useGarageAgreement(vendorId);
+  // Home stays mounted: accepting (or a new version) shows when it is opened again.
+  useRefreshOnFocus(['agreement', 'garage', vendorId]);
   if (!data) return null;
   const line = agreementBannerLine(data.standing);
   if (!line) return null;
