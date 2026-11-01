@@ -3,11 +3,11 @@ import { formatClock, formatRelative } from '@repo/core/format';
 import { bookingStatusTone } from '@repo/core/status-tone';
 import type { Booking } from '@repo/core/types';
 import { type Href, router } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { changeStatusWithUndo, useDeferredStatus } from '@/lib/deferred-status';
 import { cancelledLabel, nextStep, nextStepLabel, servicesLine, shortName, statusLabel } from '@/lib/jobs';
-import { colors, tones } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
 import { Label, ScButton } from '@repo/native-ui/button';
 import { IconCamera, IconCar, IconChevronRight } from '@repo/native-ui/icons';
@@ -29,6 +29,8 @@ export function JobRow({
   showStep?: boolean;
   emphasis?: boolean;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const deferred = useDeferredStatus(b.id);
   const who = b.customerName || 'the customer';
   const step = showStep && !deferred ? nextStep(b) : null;
@@ -138,6 +140,7 @@ function RowChip({
   startsIn: number | null;
   deferred: ReturnType<typeof useDeferredStatus>;
 }) {
+  const styles = useStyles();
   if (deferred) {
     return <StatusChip tone={deferred === 'completed' ? 'done' : 'progress'}>{DEFERRED_CHIP[deferred]}</StatusChip>;
   }
@@ -154,7 +157,7 @@ function RowChip({
   return <StatusChip tone={bookingStatusTone(b.status)}>{statusLabel(b)}</StatusChip>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   flex: { flex: 1, minWidth: 0 },
   shrink: { flexShrink: 1, minWidth: 0 },
   row: {
@@ -165,8 +168,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   plain: { borderColor: colors.border },
-  emphasis: { borderColor: 'rgba(59,130,246,0.6)' },
-  edge: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, backgroundColor: tones.progress.dot },
+  emphasis: { borderColor: colors.progressBorder },
+  edge: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, backgroundColor: colors.tones.progress.dot },
   top: { flexDirection: 'row', gap: 16 },
   clock: { width: 64 },
   meridiem: { marginTop: 4 },
@@ -177,9 +180,9 @@ const styles = StyleSheet.create({
   relative: {
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.25)',
+    borderColor: colors.outlineChip,
     paddingHorizontal: 10,
     paddingVertical: 2,
     flexShrink: 0,
   },
-});
+}));

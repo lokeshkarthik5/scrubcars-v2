@@ -1,6 +1,6 @@
 import { type Href, router } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
 import { AccountActions } from '@/components/account-actions';
 import { AppShell, garageScreen } from '@/components/app-shell';
@@ -12,10 +12,12 @@ import { SupportCard } from '@/components/support-card';
 import { T } from '@repo/native-ui/text';
 import { APP_VERSION } from '@/lib/app-config';
 import { useAuth } from '@/lib/auth';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
 /** apps/vendors/app/account/page.tsx: who is signed in, and the ways out, for every seat. */
 function AccountScreen() {
+  const colors = useColors();
+  const styles = useStyles();
   const user = useAuth((s) => s.user);
   const vendor = useAuth((s) => s.vendor);
   const vendorCount = useAuth((s) => s.vendors.length);
@@ -71,8 +73,8 @@ function AccountScreen() {
 
 export default garageScreen(AccountScreen);
 
-const styles = StyleSheet.create({
+const useStyles = createStyles(() => ({
   card: { gap: 2 },
   section: { gap: 12 },
   version: { marginBottom: 8 },
-});
+}));

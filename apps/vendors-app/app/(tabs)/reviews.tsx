@@ -3,7 +3,7 @@ import { formatRating } from '@repo/core/vendor-stats';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
 import { ScButton } from '@repo/native-ui/button';
@@ -27,12 +27,13 @@ import {
   updateRow,
   withReply,
 } from '@/lib/reviews-view';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
 const goBack = () => (router.canGoBack() ? router.back() : router.replace('/home'));
 
 /** "3 reviews", with the figure in the brand's numeric face. */
 function CountLine({ count, suffix = '' }: { count: number; suffix?: string }) {
+  const colors = useColors();
   return (
     <T size={12} color={colors.textSecondary}>
       <T num size={12} color={colors.textSecondary}>
@@ -45,6 +46,8 @@ function CountLine({ count, suffix = '' }: { count: number; suffix?: string }) {
 
 /** The summary card (mockup frame H): the score, or "New on Detlio", and what customers say. */
 function SummaryCard({ data }: { data: ReviewsData }) {
+  const colors = useColors();
+  const styles = useStyles();
   const view = summaryView(data);
   const tags = tagSummary(data.tags);
   const hasTags = tags.top.length > 0 || tags.workOn.length > 0;
@@ -113,6 +116,7 @@ function SummaryCard({ data }: { data: ReviewsData }) {
 
 /** One of the two side-by-side pills under a review (mockup: 14px, half the width each). */
 function PillButton({ label, onPress }: { label: string; onPress: () => void }) {
+  const styles = useStyles();
   return (
     <View style={styles.flex}>
       <ScButton variant="outline" onPress={onPress}>
@@ -135,6 +139,8 @@ function ReviewCard({
   onReply: () => void;
   onReport: () => void;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const canReply = canAct && review.canReply;
   const canReport = canAct && !review.reported;
   const reportedNote = canAct && review.reported;
@@ -210,6 +216,8 @@ function ReviewCard({
  * and has nothing to act on, as the server refuses them.
  */
 function ReviewsScreen() {
+  const colors = useColors();
+  const styles = useStyles();
   const vendorId = useAuth((s) => s.vendor?.id);
   const isOwner = useIsVendorAdmin();
   const support = useSupportSession();
@@ -309,7 +317,7 @@ function ReviewsScreen() {
 
 export default garageScreen(ReviewsScreen);
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   flex: { flex: 1, minWidth: 0 },
   list: { gap: 8 },
   summary: { paddingVertical: 16, paddingHorizontal: 16 },
@@ -351,4 +359,4 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
   },
   pills: { flexDirection: 'row', gap: 8 },
-});
+}));

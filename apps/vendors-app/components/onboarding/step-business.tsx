@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
 import { AppShell } from '@/components/app-shell';
 import { ScButton } from '@repo/native-ui/button';
@@ -12,12 +12,14 @@ import { useAuth } from '@/lib/auth';
 import { useOnboardingDraft } from '@/lib/onboarding-draft';
 import { phoneDigits, stepPath, step1Complete, YEARS_OPTIONS } from '@/lib/onboarding-logic';
 import { digitsOnly } from '@/lib/settings-logic';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
 import { FieldLabel, OnboardingHeader, useDraftSync } from './parts';
 
 /** Step 1: Business info (apps/vendors/app/onboarding/step-1/page.tsx). Nothing is sent yet. */
 export function StepBusiness() {
+  const colors = useColors();
+  const styles = useStyles();
   const phone = phoneDigits(useAuth((s) => s.user?.phone));
   const saved = useOnboardingDraft.getState();
   const [form, setForm] = useState({
@@ -108,7 +110,7 @@ export function StepBusiness() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   card: { gap: 16 },
   group: { gap: 6 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
@@ -116,9 +118,9 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.brandBlack,
+    backgroundColor: colors.canvas,
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
   continue: { marginTop: 'auto', marginBottom: 16 },
-});
+}));

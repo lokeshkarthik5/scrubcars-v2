@@ -2,7 +2,7 @@ import { ApiError } from '@repo/core/api/client';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Image, Pressable, View } from 'react-native';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
 import { Label, ScButton } from '@repo/native-ui/button';
@@ -28,7 +28,7 @@ import {
   tileSize,
   UPLOAD_FAILED,
 } from '@/lib/photos-view';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 import {
   type ApiVendorPhoto,
   deleteVendorLogo,
@@ -48,6 +48,8 @@ const goBack = () => router.navigate('/settings');
  * home. Every image is re-encoded as a JPEG by photo-prepare.ts, which drops its location.
  */
 function PhotosScreen() {
+  const colors = useColors();
+  const styles = useStyles();
   const isVendorAdmin = useIsVendorAdmin();
   const [photos, setPhotos] = useState<ApiVendorPhoto[]>([]);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -224,7 +226,7 @@ function PhotosScreen() {
 
         {/* The screen's one main action. */}
         <ScButton variant="main" size="lg" disabled={uploading} onPress={() => void handleFiles()}>
-          <IconUpload size={18} />
+          <IconUpload size={18} color={colors.white} />
           <Label color={colors.white}>{uploading ? 'Uploading…' : 'Add photos'}</Label>
         </ScButton>
 
@@ -279,7 +281,7 @@ function PhotosScreen() {
 
 export default garageScreen(PhotosScreen);
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   section: { gap: 12 },
   heading: { gap: 2 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -319,4 +321,4 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     paddingVertical: 48,
   },
-});
+}));

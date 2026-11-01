@@ -1,5 +1,5 @@
 import { type Href, router } from 'expo-router';
-import { Linking, StyleSheet, View } from 'react-native';
+import { Linking, View } from 'react-native';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
 import { ScButton } from '@repo/native-ui/button';
@@ -9,7 +9,7 @@ import { ScSwitch, TopBar } from '@/components/rows';
 import { T } from '@repo/native-ui/text';
 import { useAuth, useIsVendorAdmin } from '@/lib/auth';
 import { usePushDevice } from '@/lib/push-device';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
 const WHAT_YOU_GET = [
   'A new booking, with how long you have to accept it',
@@ -25,6 +25,8 @@ const WHAT_YOU_GET = [
  * endpoint, and PR #102 has none for a phone.
  */
 function NotificationsScreen() {
+  const colors = useColors();
+  const styles = useStyles();
   const isAdmin = useIsVendorAdmin();
   const vendor = useAuth((s) => s.vendor);
   const device = usePushDevice();
@@ -136,7 +138,7 @@ function NotificationsScreen() {
 
 export default garageScreen(NotificationsScreen);
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   flex: { flex: 1, minWidth: 0 },
   status: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
   cards: { gap: 12 },
@@ -153,4 +155,4 @@ const styles = StyleSheet.create({
   get: { gap: 8 },
   lines: { gap: 6 },
   line: { flexDirection: 'row', gap: 8 },
-});
+}));

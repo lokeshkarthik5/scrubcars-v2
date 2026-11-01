@@ -1,6 +1,7 @@
-import { Pressable, StyleSheet } from 'react-native';
+import { Pressable } from 'react-native';
 
-import { PRESSED_SCALE } from '@/lib/theme';
+import { createStyles } from '@repo/native-ui/theme';
+import { PRESSED_SCALE } from '@repo/native-ui/tokens';
 
 import { T } from '@repo/native-ui/text';
 
@@ -18,6 +19,7 @@ export function RowAction({
   disabled?: boolean;
   children: string;
 }) {
+  const styles = useStyles();
   return (
     <Pressable
       accessibilityRole="button"
@@ -32,13 +34,13 @@ export function RowAction({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   action: {
     minHeight: 48,
     justifyContent: 'center',
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderColor: colors.outlineSoft,
     paddingHorizontal: 16,
   },
-});
+}));

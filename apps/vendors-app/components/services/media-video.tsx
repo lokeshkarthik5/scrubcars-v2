@@ -13,10 +13,10 @@ import {
 } from '@repo/native-ui/icons';
 import { T } from '@repo/native-ui/text';
 import { percent, type VideoWork } from '@/lib/service-media-rules';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
 /** A square cell, 12 round: the photo tiles and the video slot share it. */
-export const tileStyles = StyleSheet.create({
+export const useTileStyles = createStyles((colors) => ({
   tile: { width: '100%', aspectRatio: 1, overflow: 'hidden', borderRadius: 12 },
   filled: { backgroundColor: colors.surfaceElevated },
   empty: {
@@ -37,10 +37,11 @@ export const tileStyles = StyleSheet.create({
     borderColor: colors.error,
     backgroundColor: colors.errorMuted,
   },
-});
+}));
 
 /** A thin progress ring; spins when there is no figure to show. */
 export function Ring({ fraction }: { fraction: number | null }) {
+  const colors = useColors();
   const spin = useRef(new Animated.Value(0)).current;
   const indeterminate = fraction === null;
   useEffect(() => {
@@ -82,6 +83,8 @@ export function Ring({ fraction }: { fraction: number | null }) {
 
 /** The clip-length pill: video icon and "0:45". */
 function LengthPill({ secs, ready }: { secs: number; ready?: boolean }) {
+  const colors = useColors();
+  const styles = useStyles();
   return (
     <View style={[styles.pill, ready ? styles.pillReady : styles.pillRefused]}>
       <IconVideo size={12} color={ready ? colors.white : colors.error} />
@@ -106,6 +109,9 @@ export function VideoSlot({
   disabled: boolean;
   onAdd: () => void;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
+  const tileStyles = useTileStyles();
   // Refused on the phone: amber, with the clip's length when known.
   if (work.step === 'refused') {
     return (
@@ -242,6 +248,8 @@ export function VideoStatusLine({
   onReplace: () => void;
   onRemove: () => void;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   if (work.step === 'refused') {
     return (
       <View accessibilityRole="alert" style={styles.lineTop}>
@@ -356,7 +364,7 @@ export function VideoStatusLine({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   flex: { flex: 1, minWidth: 0 },
   centre: { alignItems: 'center', justifyContent: 'center' },
   corner: { position: 'absolute', bottom: 8, left: 8 },
@@ -371,7 +379,8 @@ const styles = StyleSheet.create({
   },
   pill: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
   pillReady: { backgroundColor: 'rgba(0,0,0,0.7)' },
-  pillRefused: { backgroundColor: 'rgba(0,0,0,0.4)' },
+  // On the amber "failed" tile, not on a photo: dark in the dark theme, the tile's own tint in the light one.
+  pillRefused: { backgroundColor: colors.scheme === 'dark' ? 'rgba(0,0,0,0.4)' : colors.errorMuted },
   line: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   lineTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   lineIcon: { marginTop: 2 },
@@ -380,4 +389,4 @@ const styles = StyleSheet.create({
   spacer: { flex: 1 },
   actions: { flexDirection: 'row', alignItems: 'center', flexShrink: 0 },
   errorRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-});
+}));

@@ -9,9 +9,9 @@ import {
 import { useBookingsStore } from '@repo/core/stores/bookings-store';
 import type { Booking } from '@repo/core/types';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
 import { ScButton } from '@repo/native-ui/button';
 import { ScTextarea } from '@repo/native-ui/inputs';
@@ -30,6 +30,8 @@ export function CancelAcceptedBooking({
   now: number;
   onChanged: () => void;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const writeVendorBooking = useBookingsStore((s) => s.writeVendorBooking);
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('');
@@ -107,4 +109,4 @@ export function CancelAcceptedBooking({
   );
 }
 
-const styles = StyleSheet.create({ body: { gap: 12 } });
+const useStyles = createStyles(() => ({ body: { gap: 12 } }));

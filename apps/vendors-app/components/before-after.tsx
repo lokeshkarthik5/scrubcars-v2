@@ -3,7 +3,7 @@ import type { JobPhoto } from '@repo/core/types';
 import { useMemo, useRef, useState } from 'react';
 import { Image, PanResponder, StyleSheet, View } from 'react-native';
 
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
 import { Chip } from '@repo/native-ui/chip';
 import { T } from '@repo/native-ui/text';
@@ -14,6 +14,8 @@ import { T } from '@repo/native-ui/text';
  * place of the web's range input, and the same steps for a screen reader.
  */
 export function BeforeAfterCompare({ photos, title = 'Before and after' }: { photos: readonly JobPhoto[]; title?: string }) {
+  const colors = useColors();
+  const styles = useStyles();
   const pairs = beforeAfterPairs(photos);
   const [index, setIndex] = useState(0);
   const [split, setSplit] = useState(50);
@@ -113,7 +115,7 @@ export function BeforeAfterCompare({ photos, title = 'Before and after' }: { pho
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   column: { gap: 8 },
   head: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
   frame: {
@@ -130,4 +132,4 @@ const styles = StyleSheet.create({
   tagLeft: { left: 8 },
   tagRight: { right: 8 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-});
+}));

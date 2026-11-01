@@ -1,9 +1,9 @@
 import { Fragment, type ComponentRef, type ComponentType, type ReactNode, type RefObject } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/lib/auth';
-import { colors } from '@/lib/theme';
+import { createStyles } from '@repo/native-ui/theme';
 
 import { CompanySwitcher } from './company-switcher';
 import { BrandMark } from '@repo/native-ui/primitives';
@@ -27,6 +27,7 @@ export function garageScreen<P extends object>(Screen: ComponentType<P>) {
 
 /** VendorShellHeader: which garage, and whether this is a support session. */
 function VendorShellHeader() {
+  const styles = useStyles();
   const vendorCount = useAuth((s) => s.vendors.length);
   const support = useSupportSession();
   if (vendorCount < 2 && !support) return null;
@@ -66,6 +67,7 @@ export function AppShell({
   /** Docked under the scroll, above the keyboard: the job's one next step. */
   footer?: ReactNode;
 }) {
+  const styles = useStyles();
   const insets = useSafeAreaInsets();
   return (
     // The inset is outside the scroll, so content never runs under the status bar.
@@ -102,13 +104,13 @@ export function AppShell({
   );
 }
 
-const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: colors.brandBlack },
+const useStyles = createStyles((colors) => ({
+  page: { flex: 1, backgroundColor: colors.canvas },
   content: { flexGrow: 1, paddingHorizontal: 16 },
   footer: {
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    backgroundColor: colors.brandBlack,
+    backgroundColor: colors.canvas,
     paddingHorizontal: 16,
     paddingTop: 12,
   },
@@ -116,4 +118,4 @@ const styles = StyleSheet.create({
   switcherRow: { flexDirection: 'row', justifyContent: 'flex-end' },
   brand: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   brandRight: { flexShrink: 1, minWidth: 0 },
-});
+}));

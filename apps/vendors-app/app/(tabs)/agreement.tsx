@@ -6,7 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
 import { ScButton } from '@repo/native-ui/button';
@@ -31,7 +31,7 @@ import {
 import { useAuth, useIsVendorAdmin } from '@/lib/auth';
 import { errorText } from '@/lib/error-text';
 import { useGarageAgreement } from '@/lib/garage-api';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 import { useRefreshOnFocus } from '@/lib/use-refresh-on-focus';
 
 // The web's back arrow goes to /settings; in the tab bar `back` would land on Home instead.
@@ -48,6 +48,8 @@ const readPdf = (url: string) =>
  * can read it but never accept it for the garage.
  */
 function AgreementScreen() {
+  const colors = useColors();
+  const styles = useStyles();
   const isVendorAdmin = useIsVendorAdmin();
   const vendorId = useAuth((s) => s.activeVendorId) ?? undefined;
   const { data, isError, refetch } = useGarageAgreement(vendorId, isVendorAdmin);
@@ -193,7 +195,7 @@ function AgreementScreen() {
 
 export default garageScreen(AgreementScreen);
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   flex: { flex: 1, minWidth: 0 },
   error: { alignItems: 'flex-start', gap: 8 },
   card: { gap: 12 },
@@ -223,6 +225,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   // The web's raw checkbox takes the brand red as its accent (accent-[var(--color-brand-red)]).
-  boxOn: { backgroundColor: colors.brandRedFill, borderColor: colors.brandRedFill },
+  boxOn: { backgroundColor: colors.redFill, borderColor: colors.redFill },
   record: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 4 },
-});
+}));

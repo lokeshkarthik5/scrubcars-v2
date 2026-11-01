@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { openLink } from '@/lib/open-link';
-import { colors, PRESSED_SCALE } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
+import { PRESSED_SCALE } from '@repo/native-ui/tokens';
 
 import { IconArrowLeft, IconBrandWhatsapp, IconChevronRight, IconPhone } from '@repo/native-ui/icons';
 import { PressRow, ScCard } from '@repo/native-ui/primitives';
@@ -19,6 +20,7 @@ export function SectionHeader({ title }: { title: string }) {
 
 /** TopBar: a back arrow in a 44px target, and the screen's title. */
 export function TopBar({ title, onBack }: { title: string; onBack?: () => void }) {
+  const styles = useStyles();
   return (
     <View style={styles.topBar}>
       {onBack ? (
@@ -43,6 +45,7 @@ export function ContactButtons({
   whatsAppHref: string | null;
   who: string;
 }) {
+  const styles = useStyles();
   if (!callHref && !whatsAppHref) return null;
   return (
     <View style={styles.contact}>
@@ -88,6 +91,8 @@ export function LinkRow({
   description: string;
   onPress: () => void;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   return (
     <PressRow accessibilityLabel={title} onPress={onPress}>
       <ScCard style={styles.linkRow}>
@@ -120,6 +125,8 @@ export function ScSwitch({
   disabled?: boolean;
   tone?: 'default' | 'warning';
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const warning = tone === 'warning';
   return (
     <Pressable
@@ -137,14 +144,14 @@ export function ScSwitch({
       <View
         style={[
           styles.track,
-          checked ? { backgroundColor: warning ? colors.warning : colors.brandWhite } : styles.trackOff,
+          checked ? { backgroundColor: warning ? colors.warning : colors.chosenBg } : styles.trackOff,
         ]}
       >
         <View
           style={[
             styles.knob,
             checked
-              ? { left: 22, backgroundColor: warning ? colors.brandWhite : colors.brandBlack }
+              ? { left: 22, backgroundColor: warning ? colors.textPrimary : colors.chosenText }
               : { left: 2, backgroundColor: colors.textSecondary },
           ]}
         />
@@ -153,7 +160,7 @@ export function ScSwitch({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   flex: { flex: 1, minWidth: 0 },
   topBar: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 12 },
   back: { width: 44, height: 44, marginLeft: -11, marginRight: -11, alignItems: 'center', justifyContent: 'center' },
@@ -185,4 +192,4 @@ const styles = StyleSheet.create({
   track: { width: 44, height: 24, borderRadius: 999 },
   trackOff: { borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceElevated },
   knob: { position: 'absolute', top: 2, width: 20, height: 20, borderRadius: 10 },
-});
+}));

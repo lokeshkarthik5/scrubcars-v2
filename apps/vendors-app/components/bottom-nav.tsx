@@ -1,9 +1,9 @@
 import { type Href, router, usePathname } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useIsVendorAdmin } from '@/lib/auth';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
 import { IconCalendar, IconChartBar, IconHome, IconSettings, IconTool, type IconProps } from '@repo/native-ui/icons';
 import { T } from '@repo/native-ui/text';
@@ -18,6 +18,8 @@ const ITEMS: { href: string; label: string; icon: (props: IconProps) => React.JS
 
 /** BottomNav, vendor type: an operator gets Home and Bookings. The bar's only red is the dot. */
 export function BottomNav() {
+  const colors = useColors();
+  const styles = useStyles();
   const pathname = usePathname();
   const isAdmin = useIsVendorAdmin();
   const insets = useSafeAreaInsets();
@@ -51,7 +53,7 @@ export function BottomNav() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   nav: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -69,6 +71,6 @@ const styles = StyleSheet.create({
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: colors.brandRed,
+    backgroundColor: colors.red,
   },
-});
+}));

@@ -3,7 +3,7 @@ import { SERVICE_CATEGORY_OPTIONS } from '@repo/core/categories';
 import { withMedia } from '@repo/core/service-media';
 import type { Service, ServiceMedia } from '@repo/core/types';
 import { type Dispatch, type SetStateAction, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
 import { ScButton } from '@repo/native-ui/button';
 import { Chip } from '@repo/native-ui/chip';
@@ -19,7 +19,7 @@ import {
   servicePayload,
 } from '@/lib/service-form';
 import { createService, deleteService, toggleServiceActive, updateService } from '@/lib/services-api';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
 import { CatalogueCard } from './catalogue-card';
 import { DeleteSheet } from './delete-sheet';
@@ -52,6 +52,8 @@ export function ServicesTab({
   /** The form is above the list; bring it into view when Edit fills it. */
   onEditStarted: () => void;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const { saving, run } = useSaver();
   const [deleting, setDeleting] = useState<Service | null>(null);
   const change = (patch: Partial<ServiceForm>) => setForm((current) => ({ ...current, ...patch }));
@@ -172,10 +174,10 @@ export function ServicesTab({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   column: { gap: 20 },
   section: { gap: 12 },
   form: { gap: 12 },
   group: { gap: 8 },
   list: { gap: 8 },
-});
+}));

@@ -1,7 +1,7 @@
 import type { MediaConfig } from '@repo/core/api/service-media';
 import type { Service } from '@repo/core/types';
 import { type ComponentRef, useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, type ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, type ScrollView, View } from 'react-native';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
 import { LoadError, SkeletonList } from '@repo/native-ui/primitives';
@@ -13,7 +13,7 @@ import { toast } from '@repo/native-ui/toast';
 import { useAuth, useIsVendorAdmin } from '@/lib/auth';
 import { emptyServiceForm, type ServiceForm } from '@/lib/service-form';
 import { getMediaConfig, getMyServices } from '@/lib/services-api';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
 type Tab = 'services' | 'packages';
 const TABS: { value: Tab; label: string }[] = [
@@ -26,6 +26,7 @@ const TABS: { value: Tab; label: string }[] = [
  * wordmark. Left out for someone with two or more: the company switcher already says.
  */
 function ActiveGarage() {
+  const colors = useColors();
   const name = useAuth((s) => s.vendor?.businessName);
   const vendorCount = useAuth((s) => s.vendors.length);
   if (!name || vendorCount > 1) return null;
@@ -42,6 +43,8 @@ function ActiveGarage() {
  * with only the open one mounted, so Packages loads when it is opened.
  */
 function ServicesScreen() {
+  const colors = useColors();
+  const styles = useStyles();
   const [tab, setTab] = useState<Tab>('services');
   const [services, setServices] = useState<Service[]>([]);
   const [serviceForm, setServiceForm] = useState<ServiceForm>(emptyServiceForm);
@@ -126,11 +129,11 @@ function ServicesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   tabsRoot: { gap: 16 },
   tabs: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: 12, padding: 4 },
   tab: { flex: 1, minHeight: 48, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   tabOn: { backgroundColor: colors.surfaceElevated },
-});
+}));
 
 export default garageScreen(ServicesScreen);

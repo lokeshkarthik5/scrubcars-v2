@@ -4,9 +4,9 @@ import { bookingDayLabel, istDateKey } from '@repo/core/home-display';
 import type { Booking } from '@repo/core/types';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { ScrollView, type StyleProp, StyleSheet, View, type ViewStyle } from 'react-native';
+import { ScrollView, type StyleProp, View, type ViewStyle } from 'react-native';
 
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
 import { ScButton } from '@repo/native-ui/button';
 import { Chip } from '@repo/native-ui/chip';
@@ -43,6 +43,8 @@ export function SuggestTimes({
   onChanged: () => void;
   style?: StyleProp<ViewStyle>;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const proposal = booking.timeProposal?.status === 'open' ? booking.timeProposal : null;
   const ranOut = booking.status === 'pending' && booking.timeProposal?.status === 'expired';
   const who = booking.customerName ?? 'the customer';
@@ -135,6 +137,8 @@ function SuggestTimesSheet({
   onClose: () => void;
   onSent: () => void;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const who = booking.customerName ?? 'the customer';
   const [days] = useState(() => {
     const booked = new Date(booking.scheduledAtIso);
@@ -290,6 +294,8 @@ function SuggestTimesSheet({
 }
 
 function Eyebrow({ children }: { children: string }) {
+  const colors = useColors();
+  const styles = useStyles();
   return (
     <T size={11} weight={500} tracking={0.025} uppercase color={colors.textSecondary} style={styles.mt4}>
       {children}
@@ -297,7 +303,7 @@ function Eyebrow({ children }: { children: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   flex: { flex: 1, minWidth: 0 },
   waiting: { gap: 8 },
   waitingHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -310,4 +316,4 @@ const styles = StyleSheet.create({
   timeRow: { marginTop: 8, minHeight: 44, flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'flex-start' },
   offered: { marginTop: 4, gap: 2 },
   actions: { marginTop: 20, flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
-});
+}));

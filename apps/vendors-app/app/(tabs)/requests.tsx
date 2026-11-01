@@ -4,7 +4,7 @@ import { formatINR } from '@repo/core/format';
 import { useNow } from '@repo/core/hooks/use-now';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import Svg, { Circle, Line, Text as SvgText } from 'react-native-svg';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
@@ -47,7 +47,7 @@ import {
   WITHDRAWN_TOAST,
   whenWhereLine,
 } from '@/lib/requests-view';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
 /**
  * apps/vendors/app/requests/page.tsx: Requests (customer reach, 0062). Customers just outside
@@ -58,6 +58,8 @@ import { colors } from '@/lib/theme';
  * to an operator), and the page itself is every seat's.
  */
 function RequestsScreen() {
+  const colors = useColors();
+  const styles = useStyles();
   const [scope, setScope] = useState<'open' | 'closed'>('open');
   const requests = useGarageRequestsInbox(scope);
   const items = requests.data?.items ?? [];
@@ -125,6 +127,8 @@ function RadioChip({
   numeric?: boolean;
   grow?: boolean;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   return (
     <Pressable
       accessibilityRole="radio"
@@ -133,7 +137,7 @@ function RadioChip({
       onPress={onPress}
       style={[styles.chip, grow && styles.chipGrow, selected ? styles.chipOn : styles.chipOff, disabled && { opacity: 0.6 }]}
     >
-      <T num={numeric} size={14} weight={grow ? 500 : 400} color={selected ? colors.brandBlack : colors.textPrimary}>
+      <T num={numeric} size={14} weight={grow ? 500 : 400} color={selected ? colors.chosenText : colors.textPrimary}>
         {label}
       </T>
     </Pressable>
@@ -141,6 +145,8 @@ function RadioChip({
 }
 
 function WaitingRequestCard({ request }: { request: GarageRequest }) {
+  const colors = useColors();
+  const styles = useStyles();
   // Live to the second, like the web's page-wide ticker.
   const now = useNow(1000);
   const [fee, setFee] = useState<TravelFee>(0);
@@ -275,6 +281,8 @@ function WaitingRequestCard({ request }: { request: GarageRequest }) {
 }
 
 function AcceptedRequestCard({ request }: { request: GarageRequest }) {
+  const colors = useColors();
+  const styles = useStyles();
   const withdraw = useWithdrawRequest();
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | undefined>();
@@ -334,6 +342,8 @@ function AcceptedRequestCard({ request }: { request: GarageRequest }) {
 }
 
 function ClosedRequestCard({ request }: { request: GarageRequest }) {
+  const colors = useColors();
+  const styles = useStyles();
   const badge = closedBadge(request);
   return (
     <ScCard style={[styles.card, styles.cardClosed]}>
@@ -364,6 +374,8 @@ function ReachSketch({
   distanceKm: number;
   outsideKm: number;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const g = reachGeometry({ coverKm, distanceKm, outsideKm });
   return (
     <View accessibilityRole="image" accessibilityLabel={g.label} style={styles.sketch}>
@@ -372,24 +384,24 @@ function ReachSketch({
           cx={g.cx}
           cy={g.cy}
           r={g.r}
-          fill="rgba(34,197,94,0.12)"
-          stroke="rgba(34,197,94,0.6)"
+          fill={colors.successMuted}
+          stroke={colors.reachStroke}
           strokeDasharray="4 3"
         />
-        <Circle cx={g.cx} cy={g.cy} r={4} fill="#22C55E" />
+        <Circle cx={g.cx} cy={g.cy} r={4} fill={colors.successFill} />
         <Line
           x1={g.cx}
           y1={g.cy}
           x2={g.dot}
           y2={g.cy}
-          stroke="rgba(255,255,255,0.45)"
+          stroke={colors.reachLine}
           strokeDasharray="3 3"
         />
-        <Circle cx={g.dot} cy={g.cy} r={5} fill="#E4002B" />
-        <SvgText x={g.cx} y={g.cy + 18} textAnchor="middle" fontSize="10" fill="#9CA3AF">
+        <Circle cx={g.dot} cy={g.cy} r={5} fill={colors.redFill} />
+        <SvgText x={g.cx} y={g.cy + 18} textAnchor="middle" fontSize="10" fill={colors.reachLabel}>
           {g.youLabel}
         </SvgText>
-        <SvgText x={g.dot} y={g.cy - 10} textAnchor="end" fontSize="10" fill="#9CA3AF">
+        <SvgText x={g.dot} y={g.cy - 10} textAnchor="end" fontSize="10" fill={colors.reachLabel}>
           customer
         </SvgText>
       </Svg>
@@ -399,11 +411,11 @@ function ReachSketch({
 
 export default garageScreen(RequestsScreen);
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   flex: { flex: 1, minWidth: 0 },
   list: { gap: 12 },
   card: { gap: 12 },
-  cardWaiting: { borderColor: 'rgba(245,165,36,0.4)' },
+  cardWaiting: { borderColor: colors.waitingBorder },
   cardAccepted: { gap: 8 },
   cardClosed: { gap: 4 },
   head: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
@@ -420,8 +432,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   chipGrow: { flex: 1 },
-  chipOn: { borderColor: colors.brandWhite, backgroundColor: colors.brandWhite },
+  chipOn: { borderColor: colors.chosenBg, backgroundColor: colors.chosenBg },
   chipOff: { borderColor: colors.border, backgroundColor: colors.surface },
   actions: { flexDirection: 'row', gap: 8 },
   sketch: { height: 96, overflow: 'hidden', borderRadius: 12, backgroundColor: colors.surfaceElevated },
-});
+}));

@@ -2,12 +2,12 @@ import type { MediaConfig } from '@repo/core/api/service-media';
 import { formatServicePrice } from '@repo/core/pricing';
 import type { Service, ServiceMedia } from '@repo/core/types';
 import type { ReactNode } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
 import { ScBadge } from '@/components/form-controls';
 import { ScCard } from '@repo/native-ui/primitives';
 import { T } from '@repo/native-ui/text';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
 import { Figures, Num } from './figures';
 import { RowAction } from './row-action';
@@ -39,6 +39,8 @@ export function CatalogueCard({
   /** An action on this row is saving. */
   busy: boolean;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   return (
     <ScCard style={styles.card}>
       <View style={styles.top}>
@@ -90,11 +92,11 @@ export function CatalogueCard({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   card: { gap: 12 },
   top: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
   text: { flex: 1, minWidth: 0 },
   price: { marginTop: 2 },
   section: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-});
+}));

@@ -12,11 +12,11 @@ import type { Booking, JobPhoto } from '@repo/core/types';
 import * as Device from 'expo-device';
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
-import { ActivityIndicator, Dimensions, Image, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Dimensions, Image, Pressable, View } from 'react-native';
 
 import { deleteJobPhoto, uploadJobPhoto } from '@/lib/job-records-api';
 import { prepareForUpload } from '@/lib/photo-prepare';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
 import { ScButton } from '@repo/native-ui/button';
 import { CameraCapture } from './camera-capture';
@@ -77,6 +77,8 @@ export function JobPhotos({
   onChanged: () => void;
   readOnly?: boolean;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const [uploading, setUploading] = useState<Slot | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [viewing, setViewing] = useState<Viewing | null>(null);
@@ -217,10 +219,10 @@ export function JobPhotos({
                   <Image source={{ uri: photo.url }} style={styles.fill} />
                 </Pressable>
                 <View style={styles.check}>
-                  <IconCheck size={16} stroke={3} color={colors.brandBlack} />
+                  <IconCheck size={16} stroke={3} color={colors.chosenText} />
                 </View>
                 <View style={styles.angleTag} pointerEvents="none">
-                  <T size={14} weight={500} lh={18}>
+                  <T size={14} weight={500} lh={18} color={colors.white}>
                     {label}
                   </T>
                 </View>
@@ -260,7 +262,7 @@ export function JobPhotos({
                 <View>
                   {thumb(photo, `${label.toLowerCase()} ${stageWord} photo for ${who}`, true)}
                   <View style={styles.smallCheck}>
-                    <IconCheck size={12} stroke={3} color={colors.brandBlack} />
+                    <IconCheck size={12} stroke={3} color={colors.chosenText} />
                   </View>
                 </View>
                 <T size={13} color={colors.textSecondary}>
@@ -432,18 +434,18 @@ export function JobPhotos({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   fill: { width: '100%', height: '100%' },
   column: { gap: 12 },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   pill: {
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderColor: colors.outlineSoft,
     paddingHorizontal: 12,
     paddingVertical: 4,
   },
-  pillDone: { borderColor: 'rgba(34,197,94,0.4)' },
+  pillDone: { borderColor: colors.successBorder },
   bigRow: { flexDirection: 'row', gap: 12 },
   bigCell: { flex: 1, aspectRatio: 4 / 3 },
   bigPhoto: {
@@ -456,7 +458,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   bigTile: { borderRadius: 16, borderWidth: 2, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  bigNext: { borderColor: colors.brandRed, backgroundColor: 'rgba(239,50,64,0.1)' },
+  bigNext: { borderColor: colors.red, backgroundColor: colors.redWash },
   bigIdle: { borderColor: colors.border },
   dim: { opacity: 0.6 },
   check: {
@@ -466,7 +468,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: colors.success,
+    backgroundColor: colors.successFill,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -487,7 +489,7 @@ const styles = StyleSheet.create({
     gap: 6,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderColor: colors.outlineSoft,
     paddingHorizontal: 16,
   },
   thumbCell: { alignItems: 'center', gap: 4 },
@@ -507,7 +509,7 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: colors.success,
+    backgroundColor: colors.successFill,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -517,4 +519,4 @@ const styles = StyleSheet.create({
   viewerRow: { flexDirection: 'row', gap: 8 },
   half: { flex: 1, minWidth: 0 },
   moreSheet: { gap: 10 },
-});
+}));

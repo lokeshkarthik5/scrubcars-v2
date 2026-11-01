@@ -4,7 +4,7 @@ import { useNow } from '@repo/core/hooks/use-now';
 import { formatStepTime } from '@repo/core/job-records';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
 import { ScButton } from '@repo/native-ui/button';
@@ -37,7 +37,7 @@ import {
   NOT_SWITCHED_ON,
   OWNER_ONLY,
 } from '@/lib/guarantee-view';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
 /**
  * apps/vendors/app/guarantee/page.tsx: free redo claims (Detlio Guarantee, 0051), for the
@@ -47,6 +47,8 @@ import { colors } from '@/lib/theme';
  * approves the redo, and a job with no before/after photos is approved at once.
  */
 function GuaranteeClaimsScreen() {
+  const colors = useColors();
+  const styles = useStyles();
   const isVendorAdmin = useIsVendorAdmin();
   const config = useGuaranteeConfig();
   const on = config.data?.enabled === true;
@@ -107,6 +109,8 @@ function GuaranteeClaimsScreen() {
 }
 
 function ClaimCard({ claim, now }: { claim: GarageClaim; now: number }) {
+  const colors = useColors();
+  const styles = useStyles();
   const answer = useAnswerClaim();
   const [disputing, setDisputing] = useState(false);
   const [note, setNote] = useState('');
@@ -258,7 +262,7 @@ function ClaimCard({ claim, now }: { claim: GarageClaim; now: number }) {
 
 export default garageScreen(GuaranteeClaimsScreen);
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   flex: { flex: 1, minWidth: 0 },
   list: { gap: 12 },
   card: { gap: 12 },
@@ -268,4 +272,4 @@ const styles = StyleSheet.create({
   answer: { gap: 8 },
   actions: { flexDirection: 'row', gap: 8 },
   dispute: { gap: 12, paddingTop: 4 },
-});
+}));

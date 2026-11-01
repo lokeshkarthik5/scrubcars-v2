@@ -1,6 +1,6 @@
 import type { ApiVendorProfile, ApiWorkingHours } from '@repo/core/api/types';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { ScButton } from '@repo/native-ui/button';
 import { Chip } from '@repo/native-ui/chip';
@@ -20,7 +20,7 @@ import {
   type WorkingHoursForm,
   workingHoursPayload,
 } from '@/lib/settings-logic';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 import { setVendorWorkingHours, updateSlotInterval, updateVendorJobTypes, updateVendorSettings } from '@/lib/vendor-api';
 
 import { PickupSection } from './pickup-section';
@@ -42,6 +42,8 @@ export function HoursTab({
   onVendorChange: (vendor: ApiVendorProfile) => void;
   onOpenLocation: () => void;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const [workingHours, setWorkingHours] = useState<WorkingHoursForm[]>(() => mapWorkingHours(hours));
   const [capacity, setCapacity] = useState(() =>
     capacityFromVendor(vendor ?? { bays: null, jobsPerDay: null })
@@ -239,7 +241,7 @@ export function HoursTab({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   flex: { flex: 1, minWidth: 0 },
   section: { gap: 12 },
   part: { gap: 4 },
@@ -263,4 +265,4 @@ const styles = StyleSheet.create({
   pinNote: { alignItems: 'flex-start' },
   pinLink: { minHeight: 44, justifyContent: 'center' },
   underline: { textDecorationLine: 'underline' },
-});
+}));

@@ -2,7 +2,7 @@ import type { MediaConfig } from '@repo/core/api/service-media';
 import { withMedia } from '@repo/core/service-media';
 import type { Service, ServiceMedia, ServicePackage } from '@repo/core/types';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { ScButton } from '@repo/native-ui/button';
 import { Chip } from '@repo/native-ui/chip';
@@ -23,7 +23,7 @@ import {
   toggleId,
 } from '@/lib/service-form';
 import { createPackage, deletePackage, getMyPackages, toggleServiceActive, updatePackage } from '@/lib/services-api';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
 import { CatalogueCard } from './catalogue-card';
 import { DeleteSheet } from './delete-sheet';
@@ -48,6 +48,8 @@ export function PackagesPanel({
   /** The builder is above the list; bring it into view when Edit fills it. */
   onEditStarted: () => void;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const [packages, setPackages] = useState<ServicePackage[]>([]);
   const [form, setForm] = useState<PackageForm>(emptyPackageForm);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -260,7 +262,7 @@ export function PackagesPanel({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   column: { gap: 20 },
   section: { gap: 12 },
   form: { gap: 12 },
@@ -270,4 +272,4 @@ const styles = StyleSheet.create({
   suggest: { minHeight: 44, justifyContent: 'center', marginTop: 4 },
   underline: { textDecorationLine: 'underline' },
   preview: { borderRadius: 12, backgroundColor: colors.surfaceElevated, padding: 12 },
-});
+}));

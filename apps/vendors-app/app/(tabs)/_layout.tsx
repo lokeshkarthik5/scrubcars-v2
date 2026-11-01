@@ -1,14 +1,15 @@
 import { Tabs } from 'expo-router';
 
 import { BottomNav } from '@/components/bottom-nav';
-import { colors } from '@/lib/theme';
+import { useColors } from '@repo/native-ui/theme';
 
 /** Every seat's tabs; BottomNav draws the ones the seat has. */
 export default function TabsLayout() {
+  const colors = useColors();
   return (
     <Tabs
       tabBar={() => <BottomNav />}
-      screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: colors.brandBlack } }}
+      screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: colors.canvas } }}
     >
       <Tabs.Screen name="home" />
       <Tabs.Screen name="bookings" />

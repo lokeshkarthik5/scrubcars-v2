@@ -10,11 +10,11 @@ import { leaveGarage } from '@repo/core/api/members';
 import { typedConfirmMatches } from '@repo/core/confirm';
 import { type Href, router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
 import { useAuth } from '@/lib/auth';
 import { forgetPushForGarage, restorePushForGarage } from '@/lib/push-device';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
 import { ScButton } from '@repo/native-ui/button';
 import { ScInput, ScTextarea } from '@repo/native-ui/inputs';
@@ -45,6 +45,8 @@ export function AccountActions() {
 }
 
 function CloseGarage({ garageName }: { garageName: string }) {
+  const colors = useColors();
+  const styles = useStyles();
   const [request, setRequest] = useState<ClosureRequest | null | undefined>(undefined);
   const [asking, setAsking] = useState(false);
   const [reason, setReason] = useState('');
@@ -166,6 +168,8 @@ function CloseGarage({ garageName }: { garageName: string }) {
 }
 
 function LeaveGarage({ garageName }: { garageName: string }) {
+  const colors = useColors();
+  const styles = useStyles();
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | undefined>();
 
@@ -222,6 +226,8 @@ function LeaveGarage({ garageName }: { garageName: string }) {
 }
 
 function DeleteMyAccount() {
+  const colors = useColors();
+  const styles = useStyles();
   const [open, setOpen] = useState(false);
   const [preview, setPreview] = useState<AccountDeletionPreview | null>(null);
   const [typed, setTyped] = useState('');
@@ -334,7 +340,7 @@ function DeleteMyAccount() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   section: { gap: 12 },
   sheet: { gap: 12, paddingHorizontal: 20, paddingTop: 4 },
   actions: { marginTop: 8, gap: 10 },
@@ -349,4 +355,4 @@ const styles = StyleSheet.create({
   },
   typed: { gap: 6 },
   typedInput: { height: 48, borderRadius: 14, fontSize: 16, paddingHorizontal: 14 },
-});
+}));

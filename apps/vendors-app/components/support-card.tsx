@@ -1,7 +1,7 @@
 import { SUPPORT_PHONE_DISPLAY, SUPPORT_TEL_HREF, SUPPORT_WHATSAPP_HREF } from '@repo/core/support';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
 import { ScCard } from '@repo/native-ui/primitives';
 import { ContactButtons } from './rows';
@@ -9,6 +9,8 @@ import { T } from '@repo/native-ui/text';
 
 /** SupportCard. */
 export function SupportCard() {
+  const colors = useColors();
+  const styles = useStyles();
   return (
     <ScCard style={styles.card}>
       <View>
@@ -24,4 +26,4 @@ export function SupportCard() {
   );
 }
 
-const styles = StyleSheet.create({ card: { gap: 12 } });
+const useStyles = createStyles(() => ({ card: { gap: 12 } }));

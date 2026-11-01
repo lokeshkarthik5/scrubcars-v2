@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
-import { colors, PRESSED_SCALE } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
+import { PRESSED_SCALE } from '@repo/native-ui/tokens';
 
 import { IconChevronRight } from '@repo/native-ui/icons';
 import { T } from '@repo/native-ui/text';
@@ -20,6 +21,8 @@ export function JobSheetRow({
   onOpen?: () => void;
   accessibilityLabel?: string;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const body = (
     <>
       {icon}
@@ -53,7 +56,7 @@ export function JobSheetRow({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles(() => ({
   flex: { flex: 1, minWidth: 0 },
   row: {
     minHeight: 64,
@@ -63,4 +66,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
-});
+}));

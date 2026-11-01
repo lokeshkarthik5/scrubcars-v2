@@ -3,7 +3,7 @@ import { type ComponentRef, useRef, useState } from 'react';
 import { Image, Modal, Pressable, StyleSheet, View } from 'react-native';
 
 import { useAuth } from '@/lib/auth';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
 import { IconCheck, IconChevronDown } from '@repo/native-ui/icons';
 import { T } from '@repo/native-ui/text';
@@ -15,6 +15,8 @@ const ROLE_LABEL: Record<string, string> = {
 
 /** CompanySwitcher: nothing for one garage; a dropdown with logo, name and role for more. */
 export function CompanySwitcher() {
+  const colors = useColors();
+  const styles = useStyles();
   const vendors = useAuth((s) => s.vendors);
   const activeVendorId = useAuth((s) => s.activeVendorId);
   const setActiveVendor = useAuth((s) => s.setActiveVendor);
@@ -77,6 +79,7 @@ export function CompanySwitcher() {
 }
 
 function CompanyLogo({ vendor }: { vendor: ApiAuthVendor }) {
+  const styles = useStyles();
   if (vendor.logoUrl) return <Image source={{ uri: vendor.logoUrl }} style={styles.logo} />;
   return (
     <View style={[styles.logo, styles.logoLetter]}>
@@ -87,7 +90,7 @@ function CompanyLogo({ vendor }: { vendor: ApiAuthVendor }) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   flex: { flex: 1, minWidth: 0 },
   shrink: { flexShrink: 1 },
   button: {
@@ -116,4 +119,4 @@ const styles = StyleSheet.create({
   optionPressed: { backgroundColor: colors.surfaceElevated },
   logo: { width: 20, height: 20, borderRadius: 4 },
   logoLetter: { backgroundColor: colors.surfaceElevated, alignItems: 'center', justifyContent: 'center' },
-});
+}));

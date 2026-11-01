@@ -1,11 +1,11 @@
 import { finalBillFigures, finalBillStatusLabel, formatRupees } from '@repo/core/job-records';
 import type { Booking, FinalBill } from '@repo/core/types';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { useIsVendorAdmin } from '@/lib/auth';
 import { raiseFinalBill } from '@/lib/job-records-api';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
 import { ScButton } from '@repo/native-ui/button';
 import { IconPlus, IconReceipt, IconTrash } from '@repo/native-ui/icons';
@@ -58,6 +58,8 @@ function formProblem(lines: Line[], total: number): string | null {
 
 /** FinalBillPanel (apps/vendors/components/final-bill.tsx). */
 export function FinalBillPanel({ booking, onChanged }: { booking: Booking; onChanged: () => void }) {
+  const colors = useColors();
+  const styles = useStyles();
   const bill = booking.finalBill;
   const [open, setOpen] = useState(false);
   const [lines, setLines] = useState<Line[]>(() => linesFrom(bill, booking));
@@ -288,7 +290,7 @@ export function FinalBillPanel({ booking, onChanged }: { booking: Booking; onCha
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   flex: { flex: 1, minWidth: 0 },
   half: { flex: 1, minWidth: 0 },
   billDetail: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 2 },
@@ -302,4 +304,4 @@ const styles = StyleSheet.create({
   totals: { marginTop: 16, gap: 6, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
   actions: { marginTop: 20, flexDirection: 'row', gap: 8 },
-});
+}));

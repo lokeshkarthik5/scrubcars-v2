@@ -1,10 +1,10 @@
 import { type Href, router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { devicePrefs } from '@/lib/device-prefs';
 import { usePushDevice } from '@/lib/push-device';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
 import { ScButton } from '@repo/native-ui/button';
 import { IconBell, IconX } from '@repo/native-ui/icons';
@@ -21,6 +21,8 @@ function snoozed(): boolean {
 
 /** PushBanner: until this phone has alerts on, for every seat. */
 export function PushBanner() {
+  const colors = useColors();
+  const styles = useStyles();
   const device = usePushDevice();
   const [hidden, setHidden] = useState(snoozed);
 
@@ -39,8 +41,8 @@ export function PushBanner() {
         <ScButton
           variant="outline"
           fullWidth={false}
-          backgroundColor={colors.textPrimary}
-          labelColor={colors.brandBlack}
+          backgroundColor={colors.chosenBg}
+          labelColor={colors.chosenText}
           disabled={device.busy}
           style={styles.turnOn}
           onPress={() => void device.turnOn()}
@@ -73,7 +75,7 @@ export function PushBanner() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -91,4 +93,4 @@ const styles = StyleSheet.create({
   why: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 12 },
   underline: { textDecorationLine: 'underline' },
   close: { width: 44, height: 44, marginLeft: -4, alignItems: 'center', justifyContent: 'center' },
-});
+}));

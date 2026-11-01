@@ -1,7 +1,7 @@
 import { DEFAULT_DOORSTEP_RADIUS_KM, DOORSTEP_RADIUS_PLACEHOLDER } from '@repo/core/doorstep';
 import type { ApiVendorProfile } from '@repo/core/api/types';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
 import { ScButton } from '@repo/native-ui/button';
 import { ScBadge } from '@/components/form-controls';
@@ -18,7 +18,7 @@ import {
   radiusText,
   radiusUnreadable,
 } from '@/lib/location-settings';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 import { updateVendorSettings } from '@/lib/vendor-api';
 
 import { useSaving } from './use-saving';
@@ -35,6 +35,8 @@ export function LocationTab({
   vendor: ApiVendorProfile;
   onSaved: (vendor: ApiVendorProfile) => void;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const [pin, setPin] = useState<PickedLocation | null>(() => pinFromVendor(vendor));
   const [radius, setRadius] = useState(() => radiusText(vendor));
   const { saving, run } = useSaving();
@@ -105,7 +107,7 @@ export function LocationTab({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles(() => ({
   section: { gap: 12 },
   header: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 },
-});
+}));

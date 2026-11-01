@@ -2,7 +2,7 @@ import { addMember, type ApiMember, getMembers, removeMember, transferOwnership,
 import type { VendorRole } from '@repo/core/api/types';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
 import { ScButton } from '@repo/native-ui/button';
@@ -30,7 +30,7 @@ import {
   transferPrompt,
 } from '@/lib/members-view';
 import { digitsOnly } from '@/lib/settings-logic';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
 // The web's back arrow goes to /settings; in the tab bar `back` would land on Home instead.
 const goBack = () => router.navigate('/settings');
@@ -44,6 +44,8 @@ type Asking = { kind: 'remove' | 'owner'; member: ApiMember };
  * admins only; the API refuses an operator.
  */
 function MembersScreen() {
+  const colors = useColors();
+  const styles = useStyles();
   const isVendorAdmin = useIsVendorAdmin();
   const isOwner = useAuth((s) => s.isOwner);
 
@@ -290,7 +292,7 @@ function MembersScreen() {
 
 export default garageScreen(MembersScreen);
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   flex: { flex: 1, minWidth: 0 },
   section: { gap: 12 },
   card: { gap: 12 },
@@ -309,4 +311,4 @@ const styles = StyleSheet.create({
     paddingTop: 12,
   },
   roleSelect: { minWidth: 130 },
-});
+}));

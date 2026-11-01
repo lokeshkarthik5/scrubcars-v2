@@ -1,6 +1,7 @@
 import Svg, { Path } from 'react-native-svg';
 
 import type { IconProps } from '@repo/native-ui/icons';
+import { useColors } from '@repo/native-ui/theme';
 
 /**
  * The Tabler icons the owner screens (agreement, documents, team, photos) use that
@@ -8,12 +9,15 @@ import type { IconProps } from '@repo/native-ui/icons';
  * screens add to that file at the same time. Same drawings as @tabler/icons-react 3.46.0 (MIT).
  */
 function draw(paths: string[], filled = false) {
-  return function Icon({ size = 24, stroke = 2, color = '#FAFAFA' }: IconProps) {
+  return function Icon({ size = 24, stroke = 2, color }: IconProps) {
+    // Left out, the theme's main text colour, as the shared kit's icons.
+    const fallback = useColors().textPrimary;
+    const tint = color ?? fallback;
     const paint = filled
-      ? { fill: color }
+      ? { fill: tint }
       : {
           fill: 'none',
-          stroke: color,
+          stroke: tint,
           strokeWidth: stroke,
           strokeLinecap: 'round' as const,
           strokeLinejoin: 'round' as const,

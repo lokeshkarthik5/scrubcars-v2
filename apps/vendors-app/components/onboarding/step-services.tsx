@@ -5,7 +5,7 @@ import type { PricingType, ServiceCategory } from '@repo/core/types';
 import { VEHICLE_TIERS, VENDOR_VEHICLE_TYPE_OPTIONS } from '@repo/core/vehicles';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
 import { AppShell } from '@/components/app-shell';
 import { Chip } from '@repo/native-ui/chip';
@@ -29,13 +29,15 @@ import {
   toggleVehicleType,
 } from '@/lib/onboarding-logic';
 import { decimalOnly } from '@/lib/settings-logic';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 import { updateVendorSettings } from '@/lib/vendor-api';
 
 import { FieldLabel, OnboardingHeader, SectionTitle } from './parts';
 
 /** Step 4: Services and vehicles, the last step (apps/vendors/app/onboarding/step-4/page.tsx). */
 export function StepServices() {
+  const colors = useColors();
+  const styles = useStyles();
   const [vehicleTypes, setVehicleTypes] = useState<string[]>(useOnboardingDraft.getState().vehicleTypes);
   const [name, setName] = useState('');
   const [category, setCategory] = useState<ServiceCategory>('car_wash');
@@ -231,7 +233,7 @@ export function StepServices() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles(() => ({
   flex: { flex: 1, minWidth: 0 },
   section: { gap: 12 },
   card: { gap: 16 },
@@ -243,4 +245,4 @@ const styles = StyleSheet.create({
   error: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
   errorIcon: { marginTop: 3 },
   footer: { marginTop: 'auto', paddingBottom: 16 },
-});
+}));

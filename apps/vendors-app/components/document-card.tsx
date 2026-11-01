@@ -12,7 +12,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import { File } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 
 import {
   getGarageDocumentLink,
@@ -40,7 +40,7 @@ import {
 } from '@/lib/documents-view';
 import { errorText } from '@/lib/error-text';
 import { discardAfterShare, discardCached, newPrivateFile } from '@/lib/private-cache';
-import { colors, tones } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
 import { Label, ScButton } from '@repo/native-ui/button';
 import { DateField } from './form-controls';
@@ -53,7 +53,9 @@ import { toast } from '@repo/native-ui/toast';
 
 /** The status chip: a dot, but an approved one has the shield instead. */
 function DocumentChip({ status }: { status: GarageDocument['status'] }) {
-  const tone = tones[STATUS_TONE[status]];
+  const colors = useColors();
+  const styles = useStyles();
+  const tone = colors.tones[STATUS_TONE[status]];
   return (
     <View style={[styles.chip, { backgroundColor: tone.tint }]}>
       {status === 'approved' ? (
@@ -118,6 +120,7 @@ async function fromCamera(): Promise<PickedDocument[]> {
 }
 
 function SourceRow({ icon, label, onPress }: { icon: React.ReactNode; label: string; onPress: () => void }) {
+  const styles = useStyles();
   return (
     <Pressable accessibilityRole="button" onPress={onPress} style={styles.source}>
       {icon}
@@ -145,6 +148,8 @@ export function DocumentCard({
   /** Removed (0065): the documents as they are now. */
   onRemoved: (documents: GarageDocuments) => void;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const [picked, setPicked] = useState<PickedDocument[]>([]);
   const [choosing, setChoosing] = useState(false);
   const [expiresOn, setExpiresOn] = useState(doc.expiresOn ?? '');
@@ -419,7 +424,7 @@ export function DocumentCard({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   flex: { flex: 1, minWidth: 0 },
   card: { gap: 12 },
   head: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
@@ -451,4 +456,4 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.line,
   },
-});
+}));

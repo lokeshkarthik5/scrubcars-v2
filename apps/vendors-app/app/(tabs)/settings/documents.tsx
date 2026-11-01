@@ -1,6 +1,6 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
 import { ScButton } from '@repo/native-ui/button';
@@ -22,7 +22,7 @@ import {
   DOCUMENTS_OFF_BODY,
   DOCUMENTS_OFF_TITLE,
 } from '@/lib/documents-view';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
 // The web's back arrow goes to /settings; in the tab bar `back` would land on Home instead.
 const goBack = () => router.navigate('/settings');
@@ -36,6 +36,8 @@ const goBack = () => router.navigate('/settings');
  * signed links (DocumentCard), and nothing of them is kept on the phone.
  */
 function DocumentsScreen() {
+  const colors = useColors();
+  const styles = useStyles();
   const isVendorAdmin = useIsVendorAdmin();
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [data, setData] = useState<GarageDocuments | null>(null);
@@ -162,8 +164,8 @@ function DocumentsScreen() {
 
 export default garageScreen(DocumentsScreen);
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   error: { alignItems: 'flex-start', gap: 8 },
   intro: { gap: 12 },
   list: { gap: 10 },
-});
+}));

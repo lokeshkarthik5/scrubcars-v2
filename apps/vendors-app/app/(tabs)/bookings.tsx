@@ -1,7 +1,7 @@
 import { useNow } from '@repo/core/hooks/use-now';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { type ComponentRef, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, type ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, type ScrollView, View } from 'react-native';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
 import { GarageStatus } from '@/components/garage-status';
@@ -29,12 +29,13 @@ import {
   todayView,
   waitingSummary,
 } from '@/lib/jobs';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
+import type { Tokens } from '@repo/native-ui/tokens';
 import { useVendorBookings } from '@/lib/use-vendor-bookings';
 
 const TAB_LABELS: Record<ListTab, string> = { today: 'Today', new: 'New', later: 'Later', done: 'Done' };
 
-const EMPTY: Record<ListTab, { icon: ReactNode; title: string; subtitle: string }> = {
+const emptyStates = (colors: Tokens): Record<ListTab, { icon: ReactNode; title: string; subtitle: string }> => ({
   today: {
     icon: <IconCalendarCheck size={28} stroke={1.5} color={colors.textMuted} />,
     title: 'Nothing on today',
@@ -55,10 +56,12 @@ const EMPTY: Record<ListTab, { icon: ReactNode; title: string; subtitle: string 
     title: 'Nothing done yet',
     subtitle: 'Finished jobs, and bookings that were cancelled, are kept here.',
   },
-};
+});
 
 /** apps/vendors/app/bookings/page.tsx, in its order. */
 function BookingsScreen() {
+  const colors = useColors();
+  const styles = useStyles();
   const params = useLocalSearchParams<{ tab?: string; job?: string }>();
   // The list follows ?tab= whenever it changes (a link or a notification while
   // it is open), including the server's old names; a tap sets it at once.
@@ -155,7 +158,7 @@ function BookingsScreen() {
 
       {tab !== 'new' && waiting.count > 0 ? (
         <Pressable accessibilityRole="button" onPress={() => pickTab('new')} style={styles.strip}>
-          <IconAlarm size={22} color={colors.brandRed} />
+          <IconAlarm size={22} color={colors.red} />
           <T size={16} lh={22} style={styles.flex}>
             {waiting.count === 1 ? '1 booking to answer' : `${waiting.count} bookings to answer`}
             {waiting.soonestMs !== null ? (
@@ -184,7 +187,7 @@ function BookingsScreen() {
           <LoadError what="your bookings" onRetry={reload} retrying={retrying} />
         ) : isEmpty ? (
           <>
-            <EmptyState {...EMPTY[tab]} />
+            <EmptyState {...emptyStates(colors)[tab]} />
             {tab === 'today' && today.tomorrow > 0 ? (
               <TomorrowRow count={today.tomorrow} onOpen={() => pickTab('later')} />
             ) : null}
@@ -252,6 +255,8 @@ function BookingsScreen() {
 
 /** Tomorrow, folded into one row that opens Later. */
 function TomorrowRow({ count, onOpen }: { count: number; onOpen: () => void }) {
+  const colors = useColors();
+  const styles = useStyles();
   return (
     <Pressable accessibilityRole="button" onPress={onOpen} style={styles.tomorrow}>
       <T size={17}>
@@ -268,7 +273,7 @@ function TomorrowRow({ count, onOpen }: { count: number; onOpen: () => void }) {
 
 export default garageScreen(BookingsScreen);
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   flex: { flex: 1, minWidth: 0 },
   strip: {
     minHeight: 56,
@@ -277,8 +282,8 @@ const styles = StyleSheet.create({
     gap: 12,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(239,50,64,0.4)',
-    backgroundColor: 'rgba(239,50,64,0.1)',
+    borderColor: colors.redBorder,
+    backgroundColor: colors.redWash,
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
@@ -296,4 +301,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
-});
+}));
