@@ -104,6 +104,7 @@ export default function Index() {
             keyboardType="number-pad"
             maxLength={10}
             onChangeText={setPhone}
+            placeholderTextColor="#8A8A93"
             placeholder="10-digit mobile number"
             style={styles.input}
             value={phone}
@@ -120,7 +121,8 @@ export default function Index() {
             <TextInput
               accessibilityLabel="Your name"
               onChangeText={setName}
-              placeholder="Your name"
+              placeholderTextColor="#8A8A93"
+            placeholder="Your name"
               style={styles.input}
               value={name}
             />
@@ -131,6 +133,7 @@ export default function Index() {
             keyboardType="number-pad"
             maxLength={6}
             onChangeText={setOtp}
+            placeholderTextColor="#8A8A93"
             placeholder="6-digit code"
             style={styles.input}
             textContentType="oneTimeCode"
