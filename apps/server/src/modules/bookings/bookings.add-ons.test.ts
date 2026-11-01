@@ -95,6 +95,24 @@ describe('a booking or checkout of add-ons alone', () => {
   })
 })
 
+describe('the line limits, on the real path', () => {
+  const rows = (count: number, isAddon: boolean, from: number) =>
+    Array.from({ length: count }, (_, i) => row(id(from + i), isAddon, 10, '99.00'))
+
+  test('eleven services are refused, by name', async () => {
+    const eleven = rows(11, false, 5900)
+    standIn(eleven)
+    const refusal = await resolveBookingDraft('user', input(eleven.map((r) => r.id))).catch((error: unknown) => error)
+    expect((refusal as InstanceType<typeof AppError>).code).toBe('TOO_MANY_SERVICES')
+  })
+
+  test('five services and six add-ons go on', async () => {
+    const lines = [...rows(5, false, 5900), ...rows(6, true, 5920)]
+    standIn(lines)
+    await expect(resolveBookingDraft('user', input(lines.map((r) => r.id)))).rejects.toThrow('past the lines')
+  })
+})
+
 describe('the booking line payload', () => {
   test('carries isAddon, which a client that ignores it still shows as a plain line', () => {
     const response = toBookingResponse({

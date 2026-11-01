@@ -1,7 +1,7 @@
 'use client'
 
 import { IconCheck, IconPlus } from '@tabler/icons-react'
-import { addOnTimeLabel } from '@repo/core/add-ons'
+import { ADD_ON_LIMITS, addOnTimeLabel } from '@repo/core/add-ons'
 import type { AddOn } from '@repo/core/api/add-ons'
 import { cn } from '@repo/core/utils'
 import { Figures } from '@repo/ui/sc/figures'
@@ -38,6 +38,8 @@ export function CheckoutAddOns({
       <ul className="hub-card flex flex-col divide-y divide-line px-4">
         {addOns.map((addOn) => {
           const added = picked.includes(addOn.id)
+          // The server's limit: nothing more to add, but an added one comes off.
+          const full = !added && picked.length >= ADD_ON_LIMITS.perBooking
           return (
             <li
               key={addOn.id}
@@ -54,6 +56,7 @@ export function CheckoutAddOns({
               <button
                 type="button"
                 aria-pressed={added}
+                disabled={full}
                 aria-label={
                   added
                     ? `Remove ${addOn.name} from booking`
@@ -61,7 +64,7 @@ export function CheckoutAddOns({
                 }
                 onClick={() => onToggle(addOn.id)}
                 className={cn(
-                  'press flex min-h-11 shrink-0 items-center gap-1 rounded-full border px-4 text-[13px] font-medium transition-colors',
+                  'press flex min-h-11 disabled:opacity-50 shrink-0 items-center gap-1 rounded-full border px-4 text-[13px] font-medium transition-colors',
                   added
                     ? 'border-text-primary text-text-primary'
                     : 'border-white/20 text-text-primary'

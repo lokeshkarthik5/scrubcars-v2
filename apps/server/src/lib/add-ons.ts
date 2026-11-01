@@ -18,7 +18,19 @@ export const ADD_ON_LIMITS = {
   nameLength: 120,
   /** A day's work: past this it is a job of its own, not an extra. */
   extraMins: 480,
+  /** On one booking, on top of its services. */
+  perBooking: 10,
 } as const
+
+/** Services on one booking; add-ons have their own limit, above. */
+export const MAX_SERVICE_LINES = 10
+
+/**
+ * What a request's `serviceIds` may hold before the rows are read: services
+ * and add-ons travel together there, so only the service layer can tell them
+ * apart (lineCapRefusal).
+ */
+export const MAX_BOOKING_LINES = MAX_SERVICE_LINES + ADD_ON_LIMITS.perBooking
 
 export const ADD_ONS_ALONE_CODE = 'ADD_ONS_NEED_A_SERVICE'
 export const ADD_ONS_ALONE_MESSAGE =
@@ -54,6 +66,19 @@ export function servicesFirst<T extends { isAddon?: boolean | null }>(
   lines: readonly T[]
 ): T[] {
   return [...serviceLinesOf(lines), ...addOnLinesOf(lines)]
+}
+
+/** Which limit these lines pass, each kind counted on its own; null when neither. */
+export function lineCapRefusal(
+  lines: ReadonlyArray<{ isAddon?: boolean | null }>
+): { code: string; message: string } | null {
+  if (serviceLinesOf(lines).length > MAX_SERVICE_LINES) {
+    return { code: 'TOO_MANY_SERVICES', message: `A booking can include at most ${MAX_SERVICE_LINES} services` }
+  }
+  if (addOnLinesOf(lines).length > ADD_ON_LIMITS.perBooking) {
+    return { code: 'TOO_MANY_ADD_ONS', message: `A booking can include at most ${ADD_ON_LIMITS.perBooking} add-ons` }
+  }
+  return null
 }
 
 /** The add-on lines' price, in paise. */

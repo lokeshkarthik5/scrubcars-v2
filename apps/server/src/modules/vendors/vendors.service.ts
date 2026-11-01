@@ -1,4 +1,4 @@
-import { ADD_ONS_ALONE_CODE, ADD_ONS_ALONE_MESSAGE, onlyAddOns } from '../../lib/add-ons.js'
+import { ADD_ONS_ALONE_CODE, ADD_ONS_ALONE_MESSAGE, lineCapRefusal, onlyAddOns, serviceLinesOf } from '../../lib/add-ons.js'
 import { AT_GARAGE_ADDRESS_MESSAGE, atGarageAddressRefused } from '../../lib/garage-address.js'
 import { effectiveDurationMins } from '../../lib/service-duration.js'
 import { AppError } from '../../lib/errors.js'
@@ -2027,6 +2027,8 @@ export const vendorsService = {
     if (onlyAddOns(requested)) {
       throw new AppError(400, ADD_ONS_ALONE_MESSAGE, ADD_ONS_ALONE_CODE)
     }
+    const overCap = lineCapRefusal(requested)
+    if (overCap) throw new AppError(400, overCap.message, overCap.code)
 
     // Services run one after another, so the block to fit is their sum.
     // An unset duration holds the default 60 minutes (0064); an add-on's
@@ -2064,9 +2066,30 @@ export const vendorsService = {
       throw new AppError(404, 'Booking not found', 'BOOKING_NOT_FOUND')
     }
 
-    return vendorsService.getAvailableSlots(vendorId, query, {
-      excludeBookingId: booking.id,
-    })
+    // As the move itself (rescheduleBooking): it re-books exactly what was
+    // sold, so the job comes off the booking. A service or add-on switched off
+    // or deleted since must not block moving what the customer already paid
+    // for, and `query.serviceIds` isn't trusted to say what the job is.
+    const items = booking.items ?? []
+    if (items.length === 0) {
+      throw new AppError(404, 'Service not found', 'SERVICE_NOT_FOUND')
+    }
+
+    const vendor = await vendorsRepository.findPublicVendorById(vendorId)
+    if (!vendor) {
+      throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
+    }
+
+    return jobSlots(
+      vendor,
+      {
+        date: query.date,
+        bookingType: booking.bookingType,
+        durationMins: booking.durationMins ?? items.reduce((total, item) => total + item.durationMins, 0),
+        serviceIds: items.map((item) => item.serviceId),
+      },
+      { excludeBookingId: booking.id }
+    )
   },
 
   /**
@@ -2169,7 +2192,8 @@ export const vendorsService = {
         .map((booking) => ({
           id: booking.id,
           serviceName: booking.items[0]?.name ?? booking.service?.name ?? '',
-          serviceNames: booking.items.map((item) => item.name),
+          // The services, as every list names them: an add-on isn't one (0068).
+          serviceNames: serviceLinesOf(booking.items).map((item) => item.name),
           customerName: booking.user?.name ?? 'Customer',
           scheduledAt: booking.scheduledAt.toISOString(),
           bookingType: booking.bookingType,

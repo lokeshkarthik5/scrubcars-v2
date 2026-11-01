@@ -324,7 +324,7 @@ const CANCELLATION_CUTOFF_MS = 2 * 60 * 60 * 1000
 // Mirrored in packages/core/src/booking-types.ts (the legal pages print it).
 const MAX_RESCHEDULES = 2
 import { effectiveDurationMins } from '../../lib/service-duration.js'
-import { ADD_ONS_ALONE_CODE, ADD_ONS_ALONE_MESSAGE, onlyAddOns, servicesFirst } from '../../lib/add-ons.js'
+import { ADD_ONS_ALONE_CODE, ADD_ONS_ALONE_MESSAGE, lineCapRefusal, onlyAddOns, servicesFirst } from '../../lib/add-ons.js'
 import { paise, rupees } from '../../lib/gift-credit.js'
 import { checkoutMatchRefusal, requestPlaceMatches } from '../../lib/booking-requests.js'
 import type { PaymentRecord } from './bookings.repository.js'
@@ -1317,6 +1317,9 @@ export async function resolveBookingDraft(
     log.warn({ userId, vendorId: vendor.id, serviceIds: input.serviceIds }, 'booking:add_ons_alone')
     throw new AppError(400, ADD_ONS_ALONE_MESSAGE, ADD_ONS_ALONE_CODE)
   }
+
+  const overCap = lineCapRefusal(found)
+  if (overCap) throw new AppError(400, overCap.message, overCap.code)
 
   // Services first, then add-ons: the first line is `bookings.service_id`.
   const resolvedServices = servicesFirst(services as NonNullable<(typeof services)[number]>[])

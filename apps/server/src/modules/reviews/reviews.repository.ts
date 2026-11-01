@@ -75,7 +75,10 @@ export const reviewsRepository = {
         booking: {
           with: {
             service: true,
-            items: { orderBy: [asc(bookingItems.sortOrder)] },
+            items: {
+              where: eq(bookingItems.isAddon, false),
+              orderBy: [asc(bookingItems.sortOrder)],
+            },
           },
         },
         vendor: true,

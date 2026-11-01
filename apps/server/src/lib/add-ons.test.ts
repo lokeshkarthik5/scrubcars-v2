@@ -2,6 +2,8 @@ import { describe, expect, test } from 'bun:test'
 import {
   addOnLinesOf,
   addOnPaise,
+  lineCapRefusal,
+  MAX_BOOKING_LINES,
   onlyAddOns,
   serviceLinesOf,
   servicesFirst,
@@ -70,6 +72,32 @@ describe('add-ons alone', () => {
   test('adds up the add-on lines in paise', () => {
     expect(addOnPaise([foam, helmet, freshener])).toBe(14800)
     expect(addOnPaise([foam])).toBe(0)
+  })
+})
+
+describe('how many lines a booking may carry', () => {
+  const service = { isAddon: false }
+  const addOn = { isAddon: true }
+  const many = <T,>(line: T, count: number): T[] => Array.from({ length: count }, () => line)
+
+  test('each kind counts against its own limit', () => {
+    expect(lineCapRefusal([...many(service, 5), ...many(addOn, 6)])).toBeNull()
+    expect(lineCapRefusal([...many(service, 10), ...many(addOn, 10)])).toBeNull()
+  })
+
+  test('past either, the words name the right one', () => {
+    expect(lineCapRefusal(many(service, 11))).toEqual({
+      code: 'TOO_MANY_SERVICES',
+      message: 'A booking can include at most 10 services',
+    })
+    expect(lineCapRefusal([service, ...many(addOn, 11)])).toEqual({
+      code: 'TOO_MANY_ADD_ONS',
+      message: 'A booking can include at most 10 add-ons',
+    })
+  })
+
+  test('the request schemas bound the two together', () => {
+    expect(MAX_BOOKING_LINES).toBe(20)
   })
 })
 

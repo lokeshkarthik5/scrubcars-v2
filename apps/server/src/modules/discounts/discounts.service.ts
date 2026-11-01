@@ -26,7 +26,7 @@ import {
   type HomeFields,
 } from '../../lib/offers.js'
 import { countReach, reachSettings, type ReachCustomer } from '../../lib/offer-reach.js'
-import { ADD_ONS_ALONE_CODE, ADD_ONS_ALONE_MESSAGE, onlyAddOns } from '../../lib/add-ons.js'
+import { ADD_ONS_ALONE_CODE, ADD_ONS_ALONE_MESSAGE, lineCapRefusal, onlyAddOns } from '../../lib/add-ons.js'
 import { computeServiceAmount, sumAmounts } from '../../lib/pricing.js'
 import { isWashDue, washStatus } from '../../lib/wash-status.js'
 import { discountsRepository } from './discounts.repository.js'
@@ -429,6 +429,8 @@ export const discountsService = {
     if (onlyAddOns(services.map((service) => ({ isAddon: service!.isAddon })))) {
       throw new AppError(400, ADD_ONS_ALONE_MESSAGE, ADD_ONS_ALONE_CODE)
     }
+    const overCap = lineCapRefusal(services.map((service) => ({ isAddon: service!.isAddon })))
+    if (overCap) throw new AppError(400, overCap.message, overCap.code)
 
     if (!vehicle) {
       throw new AppError(404, 'Vehicle not found', 'VEHICLE_NOT_FOUND')

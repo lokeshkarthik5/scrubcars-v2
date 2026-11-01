@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { ADD_ON_LIMITS } from '../../lib/add-ons.js'
+import { ADD_ON_LIMITS, MAX_BOOKING_LINES } from '../../lib/add-ons.js'
 import { isCalendarDate } from '../../lib/booking-ops.js'
 import { MAX_PICKUP_RADIUS_KM, MIN_PICKUP_RADIUS_KM } from '../../lib/pickup.js'
 import type { ServicePricingType } from '../../lib/pricing.js'
@@ -52,7 +52,7 @@ export const slotsQuerySchema = z
   .refine(
     (input) =>
       input.serviceIds.length > 0 &&
-      input.serviceIds.length <= 10 &&
+      input.serviceIds.length <= MAX_BOOKING_LINES &&
       input.serviceIds.every((id) =>
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
       ),
