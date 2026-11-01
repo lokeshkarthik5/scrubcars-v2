@@ -20,3 +20,10 @@ export function initSentry() {
     beforeBreadcrumb: (crumb) => (crumb.category === 'console' ? null : scrubBreadcrumb(crumb)),
   });
 }
+
+/** A crash the error screen caught. Nothing runs without a DSN. */
+export function captureError(error: unknown) {
+  if (!process.env.EXPO_PUBLIC_SENTRY_DSN) return;
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  (require('@sentry/react-native') as typeof import('@sentry/react-native')).captureException(error);
+}

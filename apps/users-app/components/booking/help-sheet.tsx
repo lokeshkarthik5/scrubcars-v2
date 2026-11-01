@@ -13,11 +13,12 @@ import { AFTER_SHEET_MS, ScSheet } from '@repo/native-ui/sheet';
 import { T } from '@repo/native-ui/text';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 import { type Href, router } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
+import { RaiseComplaintSheet } from '@/components/complaints/raise-complaint-sheet';
 import { openLink } from '@/lib/open-link';
+import { track } from '@/lib/shims/analytics';
 
 import { mayBeReportable, ReportBypassSheet } from './report-bypass';
 
@@ -55,8 +56,12 @@ export function BookingHelpSheet({ open, onClose, booking }: { open: boolean; on
   const colors = useColors();
   const styles = useStyles();
   const [reporting, setReporting] = useState(false);
+  const [raising, setRaising] = useState(false);
   const bypass = useBypassStatus(booking.id, open && mayBeReportable(booking)).data;
   const now = useNow(30_000);
+  useEffect(() => {
+    if (open) track('help_view', { step: 'booking' });
+  }, [open]);
   const reference = `#${bookingReference(booking.id)}`;
   const garage = booking.garage;
   const windowState = contactWindowState(booking.contactWindow, now);
@@ -138,11 +143,7 @@ export function BookingHelpSheet({ open, onClose, booking }: { open: boolean; on
           <ScButton
             variant="outline"
             height={44}
-            onPress={() => {
-              // The complaint form comes with the profile, next stage.
-              onClose();
-              setTimeout(() => router.push('/profile/complaints' as Href), AFTER_SHEET_MS);
-            }}
+            onPress={() => setRaising(true)}
           >
             <IconMessageReport size={18} color={colors.textPrimary} />
             <Label>Raise a complaint</Label>
@@ -164,7 +165,10 @@ export function BookingHelpSheet({ open, onClose, booking }: { open: boolean; on
             </ScButton>
           </View>
         ) : null}
-        <Pressable accessibilityRole="link" onPress={() => void WebBrowser.openBrowserAsync('https://detlio.com/help')} style={styles.faq}>
+        <Pressable accessibilityRole="link" onPress={() => {
+            onClose();
+            setTimeout(() => router.push('/help' as Href), AFTER_SHEET_MS);
+          }} style={styles.faq}>
           <T size={13} lh={18} color={colors.textSecondary}>
             {'Common questions: '}
             <T size={13} weight={500} lh={18}>
@@ -174,6 +178,14 @@ export function BookingHelpSheet({ open, onClose, booking }: { open: boolean; on
           <IconChevronRight size={16} color={colors.textMuted} />
         </Pressable>
       </View>
+      <RaiseComplaintSheet
+        open={raising}
+        onClose={() => {
+          setRaising(false);
+          onClose();
+        }}
+        booking={{ id: booking.id, reference, vendorName: booking.vendorName }}
+      />
       {bypass?.canReport ? (
         <ReportBypassSheet
           open={reporting}

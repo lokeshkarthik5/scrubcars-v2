@@ -5,13 +5,14 @@ import { ErrorState, PressRow, Spinner } from '@repo/native-ui/primitives';
 import { font, T } from '@repo/native-ui/text';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 import { useLocalSearchParams } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ScrollView, TextInput, View } from 'react-native';
 
 import { canSortByRating, sortLabel, SortSheet, type SortKey } from '@/components/garage/sort-sheet';
 import { VendorCard } from '@/components/garage/vendor-card';
 import { CustomerShell } from '@/components/screen';
 import { coarse, isCitywide, useLocationStore } from '@/lib/location';
+import { track } from '@/lib/shims/analytics';
 
 const SORT_CHIPS: { label: string; value: SortKey }[] = [
   { label: 'Nearest', value: 'distance' },
@@ -29,6 +30,9 @@ export default function SearchScreen() {
   const [sortOpen, setSortOpen] = useState(false);
   const location = useLocationStore((s) => s.location);
   const debouncedQuery = useDebounced(query, 300);
+  useEffect(() => {
+    if (debouncedQuery.trim()) track('search', { queryLength: Math.min(200, debouncedQuery.trim().length) });
+  }, [debouncedQuery]);
   const citywide = isCitywide(location);
   const origin = citywide || !location ? undefined : coarse(location);
 

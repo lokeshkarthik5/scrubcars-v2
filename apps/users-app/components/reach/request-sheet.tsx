@@ -27,6 +27,7 @@ import { CheckoutSignInCard, useCheckoutSignIn } from '@/components/checkout/sig
 import { useAuth } from '@/lib/auth';
 import { type DraftAddress, type DraftCar, draftCarReady } from '@/lib/booking-draft';
 import { errorText } from '@/lib/error-text';
+import { track } from '@/lib/shims/analytics';
 
 const GUEST_CAR = 'guest-car';
 const GUEST_ADDRESS = 'guest-address';
@@ -134,6 +135,7 @@ export function RequestSheet({ open, onClose, garage, mode }: { open: boolean; o
       }
       if (!vehicleId || !addressId) return;
       setSent(await create.mutateAsync({ vendorId: vendor.id, bookingType: mode, serviceIds, vehicleId, addressId, window }));
+      track('request_sent', { vendorId: vendor.id, mode });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : errorText(err, "Couldn't send the request. Try again."));
     } finally {

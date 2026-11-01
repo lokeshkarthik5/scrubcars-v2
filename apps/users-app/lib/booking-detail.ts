@@ -62,6 +62,18 @@ export function cancelledPanel(booking: Booking): { title: string; lines: string
   return { title: booking.cancelledBy === 'user' ? 'Cancelled by you' : 'Booking cancelled', lines: withRefund([reason ?? 'This booking was cancelled.']) };
 }
 
+/**
+ * What the paid row shows. The web prints the whole booking there
+ * (apps/users/app/bookings/[id]/page.tsx: money(booking.servicePrice) under "Paid online"),
+ * though `amount` includes any credit: the server's two parts are the payment's online
+ * amount and creditAmount (bookings.service.ts). Online is what went through Razorpay.
+ */
+export function paymentRowAmount(booking: Pick<Booking, 'paymentStatus' | 'servicePrice' | 'creditPaid'>): number {
+  const credit = booking.creditPaid ?? 0;
+  if (booking.paymentStatus !== 'paid' || credit <= 0 || credit >= booking.servicePrice) return booking.servicePrice;
+  return Math.round((booking.servicePrice - credit) * 100) / 100;
+}
+
 export function paymentRowLabel(booking: Pick<Booking, 'paymentStatus' | 'paymentMethod' | 'servicePrice' | 'creditPaid'>): string {
   if (booking.paymentStatus === 'paid') {
     if (booking.servicePrice === 0 && (booking.creditPaid ?? 0) === 0) return 'Nothing to pay';

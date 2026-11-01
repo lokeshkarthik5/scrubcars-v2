@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 
-import { cancelRefundNote, paymentRowLabel } from './booking-detail';
+import { cancelRefundNote, paymentRowAmount, paymentRowLabel } from './booking-detail';
 
 test('the refund wording follows what was paid', () => {
   expect(cancelRefundNote({ servicePrice: 0, creditPaid: 0 })).toContain('Nothing was charged');
@@ -16,4 +16,10 @@ test('what the paid row is called', () => {
   expect(paymentRowLabel({ ...b, servicePrice: 0, creditPaid: 0 })).toBe('Nothing to pay');
   expect(paymentRowLabel({ ...b, servicePrice: 500, creditPaid: 500 })).toBe('Paid');
   expect(paymentRowLabel({ ...b, servicePrice: 500, creditPaid: 100 })).toBe('Paid online');
+});
+
+test('paid online is what went through Razorpay, not the booking total', () => {
+  expect(paymentRowAmount({ paymentStatus: 'paid', servicePrice: 598.4, creditPaid: 100 })).toBe(498.4);
+  expect(paymentRowAmount({ paymentStatus: 'paid', servicePrice: 500, creditPaid: 0 })).toBe(500);
+  expect(paymentRowAmount({ paymentStatus: 'paid', servicePrice: 500, creditPaid: 500 })).toBe(500);
 });

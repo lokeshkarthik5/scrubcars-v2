@@ -7,10 +7,10 @@ import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /**
- * Stage 1 only: where a button leads to a screen the next stages build, so every button goes
+ * A v1.1 screen (rewards, credit, gifts): where a button leads to a screen a later version build, so every button goes
  * somewhere and the routes are already in place. Goes away as those screens arrive.
  */
-export function ComingNext({ title, stage }: { title: string; stage: 2 | 3 }) {
+export function ComingNext({ title }: { title: string; stage?: 2 | 3 }) {
   const colors = useColors();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
@@ -25,7 +25,7 @@ export function ComingNext({ title, stage }: { title: string; stage: 2 | 3 }) {
           {title}
         </T>
         <T size={13} color={colors.textSecondary} align="center">
-          This part of the app comes in stage {stage} of the build.
+          This part of the app comes in the next version. It's on detlio.com today.
         </T>
         <ScButton variant="outline" fullWidth={false} onPress={back}>
           Go back

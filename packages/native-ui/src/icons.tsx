@@ -132,3 +132,4 @@ export const IconPhone = icon([["path", {"d": "M5 4h4l2 5l-2.5 1.5a11 11 0 0 0 5
 export const IconLoader2 = icon([["path", {"d": "M12 3a9 9 0 1 0 9 9"}]]);
 export const IconTrash = icon([["path", {"d": "M4 7l16 0"}], ["path", {"d": "M10 11l0 6"}], ["path", {"d": "M14 11l0 6"}], ["path", {"d": "M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12"}], ["path", {"d": "M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3"}]]);
 export const IconCameraPlus = icon([["path", {"d": "M12 20h-7a2 2 0 0 1 -2 -2v-9a2 2 0 0 1 2 -2h1a2 2 0 0 0 2 -2a1 1 0 0 1 1 -1h6a1 1 0 0 1 1 1a2 2 0 0 0 2 2h1a2 2 0 0 1 2 2v3.5"}], ["path", {"d": "M16 19h6"}], ["path", {"d": "M19 16v6"}], ["path", {"d": "M9 13a3 3 0 1 0 6 0a3 3 0 0 0 -6 0"}]]);
+export const IconTicket = icon([["path", {"d": "M15 5l0 2"}],["path", {"d": "M15 11l0 2"}],["path", {"d": "M15 17l0 2"}],["path", {"d": "M5 5h14a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-3a2 2 0 0 0 0 -4v-3a2 2 0 0 1 2 -2"}]]);

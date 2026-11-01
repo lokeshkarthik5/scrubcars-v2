@@ -18,12 +18,12 @@ import { customerRefundLine } from '@repo/core/refunds';
 import { customerWaitingNote } from '@repo/core/response-deadline';
 import { useBookingsStore } from '@repo/core/stores/bookings-store';
 import { useUserStore } from '@repo/core/stores/user-store';
-import type { Booking } from '@repo/core/types';
+import type { Booking, Review } from '@repo/core/types';
 import { Label, ScButton } from '@repo/native-ui/button';
 import { AddOnMark } from '@repo/native-ui/chip';
 import { IconArrowUpRight, IconChevronRight, IconNavigation, IconRepeat } from '@repo/native-ui/icons';
 import { ScInput } from '@repo/native-ui/inputs';
-import { HubCard, ScCard, Skeleton, Spinner, Stars } from '@repo/native-ui/primitives';
+import { HubCard, ScCard, Skeleton, Spinner } from '@repo/native-ui/primitives';
 import { ScSheet } from '@repo/native-ui/sheet';
 import { Figures, T } from '@repo/native-ui/text';
 import { createStyles, useColors } from '@repo/native-ui/theme';
@@ -44,12 +44,14 @@ import { OtherGaragesCard } from '@/components/booking/other-garages-card';
 import { PickupCodeCard, PickupTimeline, StatusStepper } from '@/components/booking/progress';
 import { BypassReportLine } from '@/components/booking/report-bypass';
 import { SuccessBurst } from '@/components/booking/success-burst';
+import { ReviewCard, ReviewDone } from '@/components/booking/review-card';
 import { TimeProposalCard } from '@/components/booking/time-proposal-card';
 import { PaymentReceivedPanel } from '@/components/checkout/payment-received-panel';
 import { WhenPicker } from '@/components/checkout/when-picker';
+import { GuaranteeCard } from '@/components/guarantee/guarantee-card';
 import { PageHeader } from '@/components/page-header';
 import { bookingHeadline, STATUS_STEPS } from '@/lib/booking-status';
-import { cancelledPanel, cancelRefundNote, paymentRowLabel } from '@/lib/booking-detail';
+import { cancelledPanel, cancelRefundNote, paymentRowAmount, paymentRowLabel } from '@/lib/booking-detail';
 import { openCheckout } from '@/lib/checkout';
 import { errorText } from '@/lib/error-text';
 import { coarse, isStale, useLocationStore } from '@/lib/location';
@@ -102,7 +104,7 @@ function ContactRow({ label, onPress, last }: { label: string; onPress: () => vo
   );
 }
 
-/** apps/users/app/bookings/[id]/page.tsx. The review, guarantee and scratch card come with the next stage. */
+/** apps/users/app/bookings/[id]/page.tsx. The scratch card and garage card come with v1.1. */
 export default function BookingDetailScreen() {
   const params = useLocalSearchParams<{ id: string; celebrate?: string; then?: string; rate?: string }>();
   const id = String(params.id);
@@ -121,7 +123,11 @@ export default function BookingDetailScreen() {
   const [loadError, setLoadError] = useState(false);
   const [arrival] = useState(() => {
     const then = params.then;
-    return { then: then === 'pay' || then === 'reschedule' || then === 'help' || then === 'times' || then === 'extra' ? then : null };
+    const rate = Number(params.rate);
+    return {
+      then: then === 'pay' || then === 'reschedule' || then === 'help' || then === 'times' || then === 'extra' ? then : null,
+      rate: Number.isInteger(rate) && rate >= 1 && rate <= 5 ? rate : 0,
+    };
   });
   const arrivalHandled = useRef(false);
   const [paying, setPaying] = useState(false);
@@ -145,7 +151,8 @@ export default function BookingDetailScreen() {
     if (params.celebrate === '1') setCelebrating(true);
   }, [params.celebrate]);
   const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
-  const cardY = useRef<Partial<Record<'bill' | 'extra' | 'times', number>>>({});
+  const cardY = useRef<Partial<Record<'bill' | 'extra' | 'times' | 'rate', number>>>({});
+  const [submittedReview, setSubmittedReview] = useState<Review | null>(null);
 
   const needsAddresses = !!booking && booking.bookingType !== 'dropin' && canBookAgain(booking) && addresses.length === 0;
   useEffect(() => {
@@ -154,7 +161,14 @@ export default function BookingDetailScreen() {
 
   useEffect(() => {
     getBooking(id).then(
-      (b) => (b ? setBooking(b) : setLoadError(true)),
+      (b) => {
+        if (!b) {
+          setLoadError(true);
+          return;
+        }
+        setBooking(b);
+        if (b.review) setSubmittedReview(b.review);
+      },
       () => setLoadError(true)
     );
   }, [id]);
@@ -169,7 +183,9 @@ export default function BookingDetailScreen() {
           ? 'times'
           : arrival.then === 'extra' && booking.extraWork.some((work) => work.state === 'awaiting')
             ? 'extra'
-            : null;
+            : arrival.rate > 0 && booking.status === 'completed'
+              ? 'rate'
+              : null;
     if (target) {
       setTimeout(() => {
         const y = cardY.current[target];
@@ -504,21 +520,10 @@ export default function BookingDetailScreen() {
           </ScCard>
         ) : null}
 
-        {finished && booking.review ? (
-          <ScCard style={styles.gap8}>
-            <T size={17} weight={500} lh={24}>
-              Your review
-            </T>
-            <Stars rating={booking.review.rating} size={18} />
-            <T size={15} lh={22} color={colors.textSecondary}>
-              Thanks for your review.
-            </T>
-            {booking.review.comment ? (
-              <T size={15} lh={22}>
-                {booking.review.comment}
-              </T>
-            ) : null}
-          </ScCard>
+        {finished ? (
+          <View onLayout={(e) => (cardY.current.rate = e.nativeEvent.layout.y)}>
+            {submittedReview ? <ReviewDone review={submittedReview} /> : <ReviewCard booking={booking} initialRating={arrival.rate} onSaved={setSubmittedReview} />}
+          </View>
         ) : null}
 
         {finished && canBookAgain(booking) && !billDue ? (
@@ -527,6 +532,8 @@ export default function BookingDetailScreen() {
             <IconArrowUpRight size={17} stroke={1.5} color={colors.white} />
           </ScButton>
         ) : null}
+
+        <GuaranteeCard booking={booking} />
 
         <JobPhotosCard photos={booking.jobPhotos} completed={finished} />
         <CarConditionCard
@@ -568,7 +575,7 @@ export default function BookingDetailScreen() {
             </Row>
           ) : null}
           <Row label={paymentRowLabel(booking)}>
-            <Amount value={money(booking.servicePrice)} />
+            <Amount value={money(paymentRowAmount(booking))} />
           </Row>
           {(booking.creditPaid ?? 0) > 0 ? (
             <Row label="Paid with Detlio credit">

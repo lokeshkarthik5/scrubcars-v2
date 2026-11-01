@@ -15,6 +15,7 @@ import { Pressable, View } from 'react-native';
 
 import { useAuth } from '@/lib/auth';
 import { session } from '@/lib/session';
+import { track } from '@/lib/shims/analytics';
 
 const OTP_LENGTH = 6;
 const WEBSITE = 'https://detlio.com';
@@ -62,6 +63,7 @@ export function useCheckoutSignIn() {
       setOtp('');
       setCodeKey((k) => k + 1);
       setPhase('code');
+      track('otp_sent');
       return true;
     } catch (err) {
       setError(otpErrorMessage(err, 'Failed to send the code'));

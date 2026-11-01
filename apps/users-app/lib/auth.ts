@@ -24,6 +24,8 @@ interface AuthState {
   applySession: (data: NativeSessionData) => void;
   setName: (name: string) => void;
   signOut: () => Promise<void>;
+  /** After the server has deleted the account: nothing to tell it, everything to forget. */
+  forgetDeleted: () => Promise<void>;
 }
 
 /** Nothing of the last person stays on this phone. */
@@ -67,6 +69,13 @@ export const useAuth = create<AuthState>()((set) => ({
 
   setName(name) {
     set((state) => ({ user: state.user ? { ...state.user, name } : state.user }));
+  },
+
+  async forgetDeleted() {
+    await Promise.allSettled([...beforeSignOut].map(async (hook) => hook({ sessionGone: true })));
+    await session.signOut();
+    forgetPerson();
+    set({ status: 'ready', user: null });
   },
 
   async signOut() {

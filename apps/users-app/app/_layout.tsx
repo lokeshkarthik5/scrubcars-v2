@@ -27,6 +27,7 @@ import { StyleSheet, View } from 'react-native';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { OfflineBanner } from '@/components/offline-banner';
 import { PaymentRecovery } from '@/components/payment-recovery';
 import { UpdateRequired } from '@/components/update-required';
 import { useForcedUpdate } from '@/lib/app-config';
@@ -39,8 +40,10 @@ import { otpFlow } from '@/lib/otp-flow';
 import { queryClient } from '@/lib/query-client';
 import { gateRedirect } from '@/lib/route-gate';
 import { initSentry } from '@/lib/sentry';
+import { setAnalyticsPath, startAnalytics, track } from '@/lib/shims/analytics';
+import { heldLinkCode } from '@/lib/deep-link';
 
-export { ErrorBoundary } from 'expo-router';
+export { CrashScreen as ErrorBoundary } from '@/components/crash-screen';
 
 initSentry();
 void SplashScreen.preventAutoHideAsync();
@@ -78,9 +81,12 @@ function Unreachable() {
 }
 
 const SIGN_IN = new Set(['/login', '/verify-otp']);
-const ALWAYS_DARK = new Set([...SIGN_IN, '/profile-setup']);
+const ALWAYS_DARK = new Set(['/welcome', ...SIGN_IN, '/profile-setup']);
 
 /** The route gate: the web's AppProvider. Covers the screen until the session is settled. */
+const WELCOME_SEEN = 'detlio.welcomeSeen';
+const SCREEN_EVENTS: Record<string, 'home_view' | 'garage_list_view' | 'map_view'> = { '/home': 'home_view', '/garages': 'garage_list_view', '/map': 'map_view' };
+
 function SessionGate() {
   const colors = useColors();
   const styles = useStyles();
@@ -99,8 +105,25 @@ function SessionGate() {
   const navigatorReady = Boolean(useRootNavigationState()?.key);
   useNotificationTaps(status === 'ready' && navigatorReady);
 
+  useEffect(() => startAnalytics(), []);
+  useEffect(() => {
+    setAnalyticsPath(pathname);
+    const name = SCREEN_EVENTS[pathname];
+    if (name) track(name);
+  }, [pathname]);
+
   useEffect(() => {
     if (status !== 'ready' || coldLink === undefined) return;
+    // A printed coupon's link: its code never travels in a route (lib/deep-link.ts).
+    if (heldLinkCode.kind() === 'c' && pathname === '/') {
+      router.replace('/coupon' as Href);
+      return;
+    }
+    // A guest's first time on this phone.
+    if (pathname === '/' && !user && !coldLink && !devicePrefs.getItem(WELCOME_SEEN)) {
+      router.replace('/welcome' as Href);
+      return;
+    }
     if (coldLink && !coldLinkUsed.current && pathname === '/') {
       coldLinkUsed.current = true;
       router.replace(coldLink as Href);
@@ -138,6 +161,7 @@ function SessionGate() {
         <Stack.Screen name="(tabs)" />
       </Stack>
       {status === 'ready' ? <PaymentRecovery /> : null}
+      <OfflineBanner />
       {status === 'restoring' || (redirect && redirect !== pathname) ? (
         <View style={[StyleSheet.absoluteFill, styles.cover]} />
       ) : null}

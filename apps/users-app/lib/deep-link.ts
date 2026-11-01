@@ -8,8 +8,14 @@ export type HeldCode = { kind: 'c' | 'gift' | 'invite'; code: string };
 
 let held: HeldCode | null = null;
 
-/** In memory only. The coupon, gift and invite screens (stage 3) take it from here. */
+/** In memory only. The coupon screen reads it from here; gifts and invites come with v1.1. */
 export const heldLinkCode = {
+  /** The held code of this kind, left in place: signing in on the way needs it again. */
+  peek: (kind: HeldCode['kind']): string | null => (held?.kind === kind ? held.code : null),
+  kind: (): HeldCode['kind'] | null => held?.kind ?? null,
+  clear: () => {
+    held = null;
+  },
   take: () => {
     const code = held;
     held = null;

@@ -15,6 +15,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { otpFlow } from '@/lib/otp-flow';
 import { session } from '@/lib/session';
+import { track } from '@/lib/shims/analytics';
 
 const TERMS_URL = 'https://detlio.com/terms';
 const PRIVACY_URL = 'https://detlio.com/privacy';
@@ -69,6 +70,7 @@ function Form() {
     setError('');
     try {
       const sent = await session.sendCode(phone);
+      track('otp_sent');
       const { expiresAt, resendAt } = otpDeadlines(Date.now(), sent.expiresInSeconds);
       otpFlow.set({ phone, purpose: sent.purpose, expiresAt, resendAt });
       router.push('/verify-otp' as Href);

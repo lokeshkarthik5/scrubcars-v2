@@ -7,12 +7,11 @@ import { ScCard, Spinner } from '@repo/native-ui/primitives';
 import { T } from '@repo/native-ui/text';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 import { toast } from '@repo/native-ui/toast';
-import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
 import { Image, Pressable, View } from 'react-native';
 
-import { uploadCarPhoto } from '@/lib/car-photo';
 import { errorText } from '@/lib/error-text';
+import { pickPhoto, uploadCarPhoto } from '@/lib/photo-upload';
 
 import { PhotoViewer } from './photo-viewer';
 
@@ -29,17 +28,8 @@ export function CarConditionCard({ booking, onChanged }: { booking: Booking; onC
   if (stages.length === 0) return null;
 
   const upload = async (stage: JobPhoto['stage'], angle: PhotoAngle | undefined) => {
-    // The camera, as the web's `capture`; a phone without one (the simulator) picks from its photos.
-    const permission = await ImagePicker.requestCameraPermissionsAsync();
-    let picked: ImagePicker.ImagePickerResult;
-    try {
-      if (!permission.granted) throw new Error('no camera');
-      picked = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 1, exif: false });
-    } catch {
-      picked = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 1, exif: false });
-    }
-    const uri = picked.assets?.[0]?.uri;
-    if (picked.canceled || !uri) return;
+    const uri = await pickPhoto();
+    if (!uri) return;
     setUploading(`${stage}:${angle ?? 'extra'}`);
     try {
       await uploadCarPhoto(booking.id, stage, uri, angle);

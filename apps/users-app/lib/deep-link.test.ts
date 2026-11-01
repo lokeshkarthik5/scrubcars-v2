@@ -32,3 +32,12 @@ test('where signing in goes on to', () => {
   expect(otpFlow.takeWelcome()).toBe(true);
   expect(otpFlow.takeWelcome()).toBe(false);
 });
+
+test('a held coupon code stays until it is cleared, and only for its kind', () => {
+  rewriteSystemPath('/c/DTLSECRET');
+  expect(heldLinkCode.peek('c')).toBe('DTLSECRET');
+  expect(heldLinkCode.peek('gift')).toBeNull();
+  expect(heldLinkCode.peek('c')).toBe('DTLSECRET');
+  heldLinkCode.clear();
+  expect(heldLinkCode.peek('c')).toBeNull();
+});

@@ -1,5 +1,6 @@
 import { useZones } from '@repo/core/api/hooks/use-zones';
 import { searchZones, type Zone } from '@repo/core/zones';
+
 import { IconCheck, IconCurrentLocation, IconMapPin, IconSearch } from '@repo/native-ui/icons';
 import { PressRow } from '@repo/native-ui/primitives';
 import { ScSheet } from '@repo/native-ui/sheet';
@@ -9,6 +10,7 @@ import { useState } from 'react';
 import { Pressable, TextInput, View } from 'react-native';
 
 import { useLocationStore } from '@/lib/location';
+import { track } from '@/lib/shims/analytics';
 
 import { LocationPrompt } from './location-prompt';
 
@@ -28,7 +30,10 @@ function AreaList({ query, chosen, onChoose }: { query: string; chosen?: string;
             key={zone.slug}
             accessibilityRole="button"
             accessibilityState={{ selected: on }}
-            onPress={() => onChoose(zone)}
+            onPress={() => {
+              track('area_pick', { area: zone.slug });
+              onChoose(zone);
+            }}
             style={styles.areaRow}
           >
             <IconMapPin size={16} color={colors.textSecondary} />

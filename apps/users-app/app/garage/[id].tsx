@@ -34,6 +34,7 @@ import { GarageAddOns, PackageCard, ServiceCard, ServiceSheet } from '@/componen
 import { OutsideCityLine, TierSeal } from '@/components/garage/tier';
 import { getVendorAddOns } from '@/lib/add-ons';
 import { useAuth } from '@/lib/auth';
+import { track } from '@/lib/shims/analytics';
 import { useBookingCar } from '@/lib/booking-car';
 import { coarse, isApproximate, isCitywide, useLocationStore } from '@/lib/location';
 import { money, pricedForCar, servicePriceText } from '@/lib/price';
@@ -111,6 +112,12 @@ export default function GarageScreen() {
     return selected.map((sid) => catalogue.find((s) => s.id === sid)).filter((s): s is Service | ServicePackage => s != null);
   }, [selected, services, packages]);
 
+  const seenGarage = useRef(false);
+  useEffect(() => {
+    if (!vendor || seenGarage.current) return;
+    seenGarage.current = true;
+    track('garage_view', { vendorId: vendor.id, mode: parseBookingType(params.mode ?? null) ?? 'dropin' });
+  }, [vendor, params.mode]);
   const toggle = (sid: string) => setSelected((list) => (list.includes(sid) ? list.filter((x) => x !== sid) : [...list, sid]));
   const open = (item: Service | ServicePackage) => {
     setDetails(item);
@@ -163,6 +170,7 @@ export default function GarageScreen() {
 
   const book = () => {
     if (selected.length === 0) return;
+    track('booking_start', { vendorId: id, mode, serviceCount: Math.min(20, selected.length) });
     const modeQuery = bookingTypeParam(mode);
     router.push(
       `/book/${id}?service=${selected.join(',')}${modeQuery ? `&mode=${modeQuery}` : ''}${offerCode ? `&code=${encodeURIComponent(offerCode)}` : ''}` as Href

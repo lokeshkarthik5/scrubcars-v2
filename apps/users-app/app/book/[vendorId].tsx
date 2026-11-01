@@ -2,6 +2,7 @@ import type { AddOn } from '@repo/core/api/add-ons';
 import { addOnsAfterRemoving, jobSummary } from '@repo/core/add-ons';
 import { ApiError } from '@repo/core/api/client';
 import type { AppliedDiscount } from '@repo/core/api/discounts';
+import { redeemCoupon } from '@repo/core/api/coupons';
 import { useAreaStatus } from '@repo/core/api/hooks/use-area';
 import { useMyRequest } from '@repo/core/api/hooks/use-booking-requests';
 import { invalidateCoupons, useMyCoupons } from '@repo/core/api/hooks/use-coupons';
@@ -15,6 +16,7 @@ import { garageQuery } from '@repo/core/api/hooks/use-vendors';
 import { createBookingIntent, getBookingIntentStatus, verifyPayment } from '@repo/core/api/payments';
 import { createAddress, createVehicle, getAddresses, updateAddress, updateProfile } from '@repo/core/api/users';
 import { getVendor } from '@repo/core/api/vendors';
+import { amountBucket } from '@repo/core/analytics-events';
 import { pickRequestedServices, unofferedMode } from '@repo/core/book-again';
 import { istClock, istStartLabel } from '@repo/core/booking-requests';
 import {
@@ -71,6 +73,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PageHeader as Header } from '@/components/page-header';
 import { AddAddressSheet } from '@/components/checkout/add-address-sheet';
 import { CheckoutAddOns } from '@/components/checkout/checkout-add-ons';
+import { CouponScanner } from '@/components/coupons/coupon-scanner';
 import { GuestCarForm } from '@/components/checkout/guest-car';
 import { PaymentReceivedPanel } from '@/components/checkout/payment-received-panel';
 import { CheckoutSignInCard, useCheckoutSignIn } from '@/components/checkout/sign-in';
@@ -98,6 +101,7 @@ import { errorText } from '@/lib/error-text';
 import { usePendingCheckout } from '@/lib/pending-checkout';
 import { isPendingExpired, pendingPayment, readPendingOutcome, setPaymentFlowOnScreen } from '@/lib/pending-payment';
 import { money, servicePriceText } from '@/lib/price';
+import { track } from '@/lib/shims/analytics';
 import { istDay } from '@/lib/when-picker';
 
 type CheckoutStep = 'slot' | 'car' | 'address' | 'pin' | 'outside' | 'unpriced' | 'signin' | 'name';
@@ -292,8 +296,23 @@ export default function BookScreen() {
   const bookingType = resolveBookingType(acceptedRequest?.bookingType ?? chosenType, vendor);
   const modeWithdrawn = unofferedMode(chosenType, vendor);
   const modeOptions = vendor ? offeredBookingTypes(vendor).map((value) => ({ value, label: BOOKING_TYPE_LABELS[value] })) : [];
-  const pickSlot = useCallback((scheduledAt: string | null) => setSelectedSlot(scheduledAt), []);
-  const pickAddress = (addressId: string) => setPickedAddress(addressId);
+  const checkoutSeen = useRef(false);
+  useEffect(() => {
+    if (checkoutSeen.current || !vendor || selectedServices.length === 0) return;
+    checkoutSeen.current = true;
+    track('checkout_start', { vendorId, mode: bookingType, serviceCount: selectedServices.length });
+  }, [vendor, vendorId, bookingType, selectedServices.length]);
+  const pickSlot = useCallback(
+    (scheduledAt: string | null) => {
+      setSelectedSlot(scheduledAt);
+      if (scheduledAt) track('slot_select', { vendorId, mode: bookingType });
+    },
+    [vendorId, bookingType]
+  );
+  const pickAddress = (addressId: string) => {
+    setPickedAddress(addressId);
+    track('address_select', { vendorId, mode: bookingType });
+  };
 
   const isPickup = bookingType === 'pickup';
   const usesAddress = bookingType === 'doorstep' || isPickup;
@@ -506,6 +525,24 @@ export default function BookScreen() {
   const toggleAddOn = (addOnId: string) =>
     setPickedAddOnIds((current) => (current.includes(addOnId) ? current.filter((id) => id !== addOnId) : [...current, addOnId]));
 
+  // A printed coupon goes into the account first; what comes back is the code that applies.
+  const [scanning, setScanning] = useState(false);
+  const [scanBusy, setScanBusy] = useState(false);
+  const addScanned = async (scanned: string) => {
+    setScanBusy(true);
+    try {
+      const { coupon } = await redeemCoupon(scanned, 'camera');
+      track('coupon_redeem', { source: 'camera' });
+      void invalidateCoupons(queryClient);
+      setPromoOpen(false);
+      if (coupon?.code) handleApplyReward(coupon.code);
+    } catch (error) {
+      toast.error(errorText(error, "Couldn't add that coupon. Check your connection and try again."));
+    } finally {
+      setScanBusy(false);
+    }
+  };
+
   const handleRemovePromo = () => {
     setSuggestionDropped(true);
     setSuggestedCode(null);
@@ -593,6 +630,7 @@ export default function BookScreen() {
     bookingLockRef.current = true;
     setLoading(true);
     setPaymentFlowOnScreen(true);
+    track('pay_click', { vendorId, mode: bookingType, serviceCount: selectedServices.length, amountBucket: payableAmount === null ? undefined : amountBucket(payableAmount) });
     try {
       if (!(await lastPaymentClear())) return;
       const order = await createBookingIntent({
@@ -609,6 +647,7 @@ export default function BookScreen() {
       });
       if ((order.paidWithCredit || order.free) && order.bookingId) {
         paidRef.current = true;
+        track('pay_success', { vendorId, mode: bookingType, serviceCount: selectedServices.length });
         afterBooked(order.bookingId);
         return;
       }
@@ -630,6 +669,7 @@ export default function BookScreen() {
       }
       if (result.kind === 'failed') {
         pendingPayment.clear();
+        track('pay_failed', { vendorId, mode: bookingType });
         toast.error(result.message);
         return;
       }
@@ -649,9 +689,11 @@ export default function BookScreen() {
       });
       if (outcome.kind === 'booked') {
         pendingPayment.clear();
+        track('pay_success', { vendorId, mode: bookingType, serviceCount: selectedServices.length, amountBucket: amountBucket(order.amount / 100) });
         afterBooked(outcome.bookingId);
       } else if (outcome.kind === 'failed') {
         pendingPayment.clear();
+        track('pay_failed', { vendorId, mode: bookingType });
         void invalidateHome(queryClient);
         setPaid({ paymentId: result.paymentId, phase: 'failed', refundMessage: outcome.message });
       } else {
@@ -1680,6 +1722,20 @@ export default function BookScreen() {
         <T size={13} lh={18} color={colors.textMuted} style={styles.promoNote}>
           Have a code from Detlio? Enter it above to see your savings before you pay.
         </T>
+        <View style={styles.scanRow}>
+          <ScButton variant="outline" height={44} disabled={applyPromo.isPending || scanBusy} onPress={() => setScanning(true)}>
+            {scanBusy ? 'Adding…' : 'Scan a coupon'}
+          </ScButton>
+        </View>
+        {scanning ? (
+          <CouponScanner
+            onClose={() => setScanning(false)}
+            onCode={(scanned) => {
+              setScanning(false);
+              void addScanned(scanned);
+            }}
+          />
+        ) : null}
       </ScSheet>
 
       <ScSheet horizontalPadding={16} open={unsettled} onClose={() => setUnsettled(false)} accessibilityLabel="Your last payment">
@@ -1774,5 +1830,6 @@ const useStyles = createStyles((c) => ({
   promoInput: { flex: 1, minWidth: 0, paddingVertical: 14, fontSize: 15, color: c.textPrimary },
   promoApply: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 8, marginRight: -4 },
   promoNote: { marginTop: 16 },
+  scanRow: { marginTop: 12 },
   unsettled: { marginTop: 20, gap: 8 },
 }));

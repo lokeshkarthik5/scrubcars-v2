@@ -221,7 +221,7 @@ export function CarHero({
         <IconHistory size={20} stroke={1.5} />
       </StageDisc>
       {cars.length === 1 ? (
-        <StageDisc label="Add or edit cars" right={12} onPress={() => router.navigate('/profile' as Href)}>
+        <StageDisc label="Add or edit cars" right={12} onPress={() => router.navigate('/profile?section=vehicles' as Href)}>
           <IconPencil size={20} stroke={1.5} />
         </StageDisc>
       ) : null}
@@ -290,7 +290,7 @@ export function CarHero({
             accessibilityRole="link"
             onPress={() => {
               setChoosing(false);
-              router.navigate('/profile' as Href);
+              router.navigate('/profile?section=vehicles' as Href);
             }}
             style={styles.addEdit}
           >
