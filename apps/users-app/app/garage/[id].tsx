@@ -34,6 +34,7 @@ import { GarageAddOns, PackageCard, ServiceCard, ServiceSheet } from '@/componen
 import { OutsideCityLine, TierSeal } from '@/components/garage/tier';
 import { getVendorAddOns } from '@/lib/add-ons';
 import { useAuth } from '@/lib/auth';
+import { browseCategory } from '@repo/core/analytics-events';
 import { track } from '@/lib/shims/analytics';
 import { useBookingCar } from '@/lib/booking-car';
 import { coarse, isApproximate, isCitywide, useLocationStore } from '@/lib/location';
@@ -118,10 +119,17 @@ export default function GarageScreen() {
     seenGarage.current = true;
     track('garage_view', { vendorId: vendor.id, mode: parseBookingType(params.mode ?? null) ?? 'dropin' });
   }, [vendor, params.mode]);
-  const toggle = (sid: string) => setSelected((list) => (list.includes(sid) ? list.filter((x) => x !== sid) : [...list, sid]));
+  const toggle = (sid: string) => {
+    if (!selected.includes(sid)) {
+      const item = [...(garage.data?.services ?? []), ...(garage.data?.packages ?? [])].find((s) => s.id === sid);
+      track('service_add', { vendorId: id, category: browseCategory(item?.category) });
+    }
+    setSelected((list) => (list.includes(sid) ? list.filter((x) => x !== sid) : [...list, sid]));
+  };
   const open = (item: Service | ServicePackage) => {
     setDetails(item);
     setDetailsOpen(true);
+    track('service_sheet_open', { vendorId: id, category: browseCategory(item.category) });
   };
 
   const mode = resolveBookingType(chosenMode, vendor);

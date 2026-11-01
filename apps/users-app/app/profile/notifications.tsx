@@ -85,6 +85,11 @@ export default function NotificationsScreen() {
                 onChange={(on) => void (on ? device.turnOn() : device.turnOff())}
               />
             </View>
+            {device.subscribed && device.devices !== null && device.devices > 1 ? (
+              <T size={12} lh={16} color={colors.textSecondary}>
+                {`Also on for ${device.devices - 1} other ${device.devices === 2 ? 'device' : 'devices'}`}
+              </T>
+            ) : null}
             {device.denied ? (
               <View style={styles.denied}>
                 <T size={12} lh={16} color={colors.warning}>

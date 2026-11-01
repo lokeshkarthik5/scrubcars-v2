@@ -29,6 +29,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { type ComponentRef, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Image, Pressable, ScrollView, View } from 'react-native';
 
+import { AppLockCard } from '@/components/profile/app-lock-card';
 import { LevelBadge } from '@/components/rewards/level-badge';
 import { ContactButtons } from '@/components/booking/help-sheet';
 import { MyComplaints } from '@/components/complaints/my-complaints';
@@ -417,6 +418,7 @@ export default function ProfileScreen() {
       {giftsOn ? <Row label="Gift a wash" href="/profile/gifts" /> : null}
       {notifications ? <Row label="Notifications" href="/profile/notifications" /> : null}
       <AppearanceCard />
+      <AppLockCard />
 
       <View onLayout={(e) => (sections.current.vehicles = e.nativeEvent.layout.y)} style={styles.section}>
         {sectionHead('Vehicles', 'Add vehicle', () => setShowVehicleForm((v) => !v))}

@@ -46,3 +46,7 @@ test('the web\'s complaints anchor opens the complaints screen', () => {
   expect(rewriteSystemPath('/profile#my-complaints')).toBe('/profile/complaints');
   expect(rewriteSystemPath('/profile')).toBe('/profile');
 });
+
+test('a help anchor opens that answer', () => {
+  expect(rewriteSystemPath('/help#cancel')).toBe('/help?open=cancel');
+});

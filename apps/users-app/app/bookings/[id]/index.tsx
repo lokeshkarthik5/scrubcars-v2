@@ -32,7 +32,7 @@ import { toast } from '@repo/native-ui/toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { type ComponentRef, type ReactNode, useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { AppState, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PullReveal } from '@/components/collect/pull-reveal';
@@ -129,7 +129,7 @@ export default function BookingDetailScreen() {
     const then = params.then;
     const rate = Number(params.rate);
     return {
-      then: then === 'pay' || then === 'reschedule' || then === 'help' || then === 'times' || then === 'extra' ? then : null,
+      then: then === 'pay' || then === 'reschedule' || then === 'help' || then === 'times' || then === 'extra' || then === 'photos' ? then : null,
       rate: Number.isInteger(rate) && rate >= 1 && rate <= 5 ? rate : 0,
     };
   });
@@ -156,7 +156,7 @@ export default function BookingDetailScreen() {
     if (params.celebrate === '1') setCelebrating(true);
   }, [params.celebrate]);
   const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
-  const cardY = useRef<Partial<Record<'bill' | 'extra' | 'times' | 'rate', number>>>({});
+  const cardY = useRef<Partial<Record<'bill' | 'extra' | 'times' | 'rate' | 'photos', number>>>({});
   const [submittedReview, setSubmittedReview] = useState<Review | null>(null);
 
   const needsAddresses = !!booking && booking.bookingType !== 'dropin' && canBookAgain(booking) && addresses.length === 0;
@@ -190,7 +190,9 @@ export default function BookingDetailScreen() {
             ? 'extra'
             : arrival.rate > 0 && booking.status === 'completed'
               ? 'rate'
-              : null;
+              : arrival.then === 'photos'
+                ? 'photos'
+                : null;
     if (target) {
       setTimeout(() => {
         const y = cardY.current[target];
@@ -207,6 +209,8 @@ export default function BookingDetailScreen() {
     if (terminal && !watchingBill) return;
     const interval = setInterval(
       async () => {
+        // Not while the app is in the background.
+        if (AppState.currentState !== 'active') return;
         const fresh = await getBooking(id).catch(() => null);
         if (fresh) setBooking(fresh);
       },
@@ -581,7 +585,9 @@ export default function BookingDetailScreen() {
           </View>
         ) : null}
 
-        <JobPhotosCard photos={booking.jobPhotos} completed={finished} />
+        <View onLayout={(e) => (cardY.current.photos = e.nativeEvent.layout.y)}>
+          <JobPhotosCard photos={booking.jobPhotos} completed={finished} />
+        </View>
         <CarConditionCard
           booking={booking}
           onChanged={async () => {

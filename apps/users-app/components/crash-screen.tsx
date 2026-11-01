@@ -3,7 +3,7 @@ import { ScButton } from '@repo/native-ui/button';
 import { T } from '@repo/native-ui/text';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 import { type ErrorBoundaryProps, router } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 
 import { ContactButtons } from '@/components/booking/help-sheet';
@@ -13,7 +13,8 @@ import { captureError } from '@/lib/sentry';
 export function CrashScreen({ error, retry }: ErrorBoundaryProps) {
   const colors = useColors();
   const styles = useStyles();
-  useEffect(() => captureError(error), [error]);
+  const [reference, setReference] = useState<string | undefined>();
+  useEffect(() => setReference(captureError(error)), [error]);
   return (
     <View style={styles.page}>
       <T accessibilityRole="header" size={20} weight={600} lh={28} align="center">
@@ -33,6 +34,11 @@ export function CrashScreen({ error, retry }: ErrorBoundaryProps) {
       <T size={12} lh={16} color={colors.textSecondary} align="center">
         Still stuck? Our team can help.
       </T>
+      {reference ? (
+        <T num selectable size={11} lh={15} color={colors.textMuted} align="center">
+          {`Reference ${reference.slice(0, 12)}`}
+        </T>
+      ) : null}
       <ContactButtons who="Detlio support" callHref={SUPPORT_TEL_HREF} whatsApp={SUPPORT_WHATSAPP_HREF} />
     </View>
   );

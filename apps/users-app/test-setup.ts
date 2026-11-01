@@ -19,4 +19,12 @@ mock.module('expo-secure-store', () => ({
   deleteItemAsync: async (key: string) => void store.delete(key),
 }));
 
+mock.module('expo-local-authentication', () => ({
+  hasHardwareAsync: async () => false,
+  isEnrolledAsync: async () => false,
+  authenticateAsync: async () => ({ success: false }),
+}));
+
+mock.module('expo-network', () => ({ addNetworkStateListener: () => ({ remove: () => undefined }), useNetworkState: () => ({}) }));
+
 beforeEach(() => store.clear());

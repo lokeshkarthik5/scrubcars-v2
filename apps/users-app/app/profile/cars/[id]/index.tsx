@@ -58,7 +58,7 @@ function HistoryCard({ item, now }: { item: CarHistoryItem; now: Date }) {
             </Pressable>
           ) : null}
           {photos > 0 ? (
-            <Pressable accessibilityRole="link" accessibilityLabel={`Before and after photos: ${services}, ${date}`} onPress={() => router.push(`/bookings/${item.bookingId}` as Href)} style={styles.footLink}>
+            <Pressable accessibilityRole="link" accessibilityLabel={`Before and after photos: ${services}, ${date}`} onPress={() => router.push(`/bookings/${item.bookingId}?then=photos` as Href)} style={styles.footLink}>
               <T size={12} weight={600} lh={16}>
                 Photos
               </T>

@@ -43,6 +43,7 @@ export function rewriteSystemPath(path: string): string {
     }
     // The web's anchor on Profile: here it has its own screen.
     if (pathname === '/profile' && url.hash === '#my-complaints') return '/profile/complaints';
+    if (pathname === '/help' && url.hash.length > 1) return `/help?open=${encodeURIComponent(url.hash.slice(1))}`;
     return `${pathname}${url.search}`;
   } catch {
     return '/';

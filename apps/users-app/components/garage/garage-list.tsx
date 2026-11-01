@@ -1,3 +1,4 @@
+import { track } from '@/lib/shims/analytics';
 import { FreeWashPiece } from '@/components/reach/free-wash';
 import { RequestSheet } from '@/components/reach/request-sheet';
 import { useTierConfig } from '@repo/core/api/hooks/use-tiers';
@@ -139,6 +140,8 @@ function PickupExplainer() {
   );
 }
 
+const garageCardSeen = { done: false };
+
 function JustOutsideSection({ items, mode }: { items: JustOutsideVendor[]; mode: 'doorstep' | 'pickup' }) {
   const colors = useColors();
   const styles = useStyles();
@@ -270,6 +273,14 @@ export function GarageList({
   const listEnded = !isLoading && !isError && !hasMore && !isRefreshing;
   const justOutside = (mode === 'doorstep' || mode === 'pickup') && listEnded ? (outside ?? []) : [];
   const nextOffer = nextTabOffer(mode, reach);
+
+  // Once a visit, when a garage card first shows.
+  useEffect(() => {
+    if (vendors.length > 0 && !garageCardSeen.done) {
+      garageCardSeen.done = true;
+      track('garage_card_seen', mode ? { mode } : {});
+    }
+  }, [vendors.length, mode]);
 
   useEffect(() => {
     void refreshPermission();

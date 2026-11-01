@@ -67,10 +67,12 @@ import { createStyles, useColors } from '@repo/native-ui/theme';
 import { toast } from '@repo/native-ui/toast';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { type ComponentRef, useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { LEGAL_PATHS } from '@/lib/help-legal';
 import { PageHeader as Header } from '@/components/page-header';
 import { AddAddressSheet } from '@/components/checkout/add-address-sheet';
 import { CheckoutAddOns } from '@/components/checkout/checkout-add-ons';
@@ -1667,6 +1669,20 @@ export default function BookScreen() {
                 </T>
               </View>
             )}
+            {/* Beside Pay, as Razorpay and the E-Commerce Rules expect. */}
+            {!hint ? (
+              <T size={12} lh={16} align="center" color={colors.textMuted} style={styles.mt8}>
+                {'By paying you agree to the '}
+                <T size={12} lh={16} color={colors.textMuted} onPress={() => void WebBrowser.openBrowserAsync(`https://detlio.com${LEGAL_PATHS.terms}`)} style={{ textDecorationLine: 'underline' }}>
+                  Terms
+                </T>
+                {' and the '}
+                <T size={12} lh={16} color={colors.textMuted} onPress={() => void WebBrowser.openBrowserAsync(`https://detlio.com${LEGAL_PATHS.refunds}`)} style={{ textDecorationLine: 'underline' }}>
+                  Cancellation &amp; Refund Policy
+                </T>
+                .
+              </T>
+            ) : null}
           </>
         )}
       </View>

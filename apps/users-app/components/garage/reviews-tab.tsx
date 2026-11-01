@@ -251,6 +251,11 @@ export function ReviewsTab({ vendor, reviewCount }: { vendor: Vendor; reviewCoun
               <T num size={11} weight={500} color={colors.textMuted}>
                 {review.date}
               </T>
+              {review.bookingContext ? (
+                <T size={11} lh={15} color={colors.textMuted}>
+                  {`Booked on Detlio · ${review.bookingContext}`}
+                </T>
+              ) : null}
             </View>
             <Stars rating={review.rating} size={12} />
           </View>

@@ -53,7 +53,13 @@
         }
       ],
       "expo-sharing",
-      "expo-video"
+      "expo-video",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Detlio uses Face ID to unlock the app, only if you turn the lock on in Profile."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

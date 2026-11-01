@@ -56,6 +56,7 @@ export function usePushDevice() {
   });
   const [permission, setPermission] = useState<PermissionState>('undetermined');
   const [subscribed, setSubscribed] = useState(() => controller.isOn(userId));
+  const [devices, setDevices] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
 
   const check = useCallback(async () => {
@@ -81,8 +82,9 @@ export function usePushDevice() {
     if (!userId) return;
     setBusy(true);
     try {
-      const { result } = await controller.turnOn(userId);
+      const { result, devices } = await controller.turnOn(userId);
       if (result === 'on') {
+        setDevices(devices ?? null);
         changed();
         toast.success('Notifications are on for this phone');
       } else if (result === 'no_project') {
@@ -120,6 +122,7 @@ export function usePushDevice() {
     subscribed,
     busy,
     turnOn,
+    devices,
     turnOff,
   };
 }
