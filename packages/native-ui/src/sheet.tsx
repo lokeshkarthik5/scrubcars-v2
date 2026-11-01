@@ -197,7 +197,17 @@ export function ConfirmSheet({
         <T size={17} weight={600}>
           {title}
         </T>
-        {body ? <View style={styles.confirmBody}>{body}</View> : null}
+        {body ? (
+          <View style={styles.confirmBody}>
+            {typeof body === 'string' ? (
+              <T size={14} lh={20} color={colors.textSecondary}>
+                {body}
+              </T>
+            ) : (
+              body
+            )}
+          </View>
+        ) : null}
         {error ? (
           <T accessibilityRole="alert" size={14} lh={19} color={colors.error} style={styles.confirmError}>
             {error}

@@ -304,6 +304,8 @@ export default function ProfileScreen() {
     try {
       await deleteVehicle(id);
       useUserStore.setState((s) => ({ vehicles: s.vehicles.filter((v) => v.id !== id) }));
+      // The server may have made another car the default.
+      void useUserStore.getState().fetchVehicles().catch(() => undefined);
       void invalidateHome(queryClient);
       toast.success('Vehicle removed');
     } catch (err) {
@@ -318,6 +320,7 @@ export default function ProfileScreen() {
     try {
       await deleteAddress(id);
       useUserStore.setState((s) => ({ addresses: s.addresses.filter((a) => a.id !== id) }));
+      void useUserStore.getState().fetchAddresses().catch(() => undefined);
       toast.success('Address removed');
     } catch (err) {
       toast.error(errorText(err, 'Failed to remove address'));
