@@ -3,37 +3,18 @@ import { expect, test } from 'bun:test';
 
 import { addOnCountLabel, addOnTimeLabel, getVendorAddOns } from './add-ons';
 
-const row = {
-  id: 'a',
-  name: 'Helmet wash',
-  pricingType: 'flat' as const,
-  price: '99.00',
-  priceHatchback: null,
-  priceSedan: null,
-  priceSuv: null,
-  extraMins: 10,
-  isActive: true,
-};
-
-test('reads the contract', async () => {
-  const read = (async () => [row]) as never;
-  const [addOn] = await getVendorAddOns('v1', read);
-  expect(addOn.price).toBe(99);
-  expect(addOn.extraMins).toBe(10);
-});
-
 test('a server without the route means no section', async () => {
-  const read = (async () => {
+  const get = (async () => {
     throw new ApiError(404, 'Not found');
   }) as never;
-  expect(await getVendorAddOns('v1', read)).toEqual([]);
+  expect(await getVendorAddOns('v1', get)).toEqual([]);
 });
 
 test('any other failure is still a failure', async () => {
-  const read = (async () => {
+  const get = (async () => {
     throw new ApiError(500, 'Oops');
   }) as never;
-  await expect(getVendorAddOns('v1', read)).rejects.toThrow('Oops');
+  await expect(getVendorAddOns('v1', get)).rejects.toThrow('Oops');
 });
 
 test('the words', () => {

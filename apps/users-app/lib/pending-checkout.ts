@@ -23,6 +23,7 @@ interface PendingState {
   pending: PendingCheckout | null;
   rememberOffer: (offer: Omit<PendingCheckout, 'savedAt'>) => void;
   rememberCar: (car: { userId: string; vehicleId: string }) => void;
+  forgetCode: () => void;
   clear: () => void;
 }
 
@@ -45,6 +46,11 @@ export const usePendingCheckout = create<PendingState>()((set, get) => {
         vehicleId,
         savedAt: Date.now(),
       });
+    },
+    // A code the server refused for good: keep the car, drop the code.
+    forgetCode: () => {
+      const keep = get().pending;
+      if (keep) save({ ...keep, code: null, vendorId: null, endsAt: null });
     },
     clear: () => save(null),
   };

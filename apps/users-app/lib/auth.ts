@@ -5,7 +5,9 @@ import { useBookingsStore } from '@repo/core/stores/bookings-store';
 import { useUserStore } from '@repo/core/stores/user-store';
 import { create } from 'zustand';
 
+import { clearBookingDraft } from './booking-draft';
 import { usePendingCheckout } from './pending-checkout';
+import { pendingPayment } from './pending-payment';
 import { queryClient } from './query-client';
 import { session } from './session';
 
@@ -29,7 +31,20 @@ function forgetPerson() {
   useUserStore.getState().reset();
   useBookingsStore.getState().reset();
   usePendingCheckout.getState().clear();
+  clearBookingDraft();
+  pendingPayment.clear();
   queryClient.clear();
+}
+
+/** Before signing out: this phone's alerts stop while the session can still say so. */
+type SignOutHook = (options: { sessionGone: boolean }) => void | Promise<unknown>;
+const beforeSignOut = new Set<SignOutHook>();
+
+export function onBeforeSignOut(hook: SignOutHook) {
+  beforeSignOut.add(hook);
+  return () => {
+    beforeSignOut.delete(hook);
+  };
 }
 
 export const useAuth = create<AuthState>()((set) => ({
@@ -55,6 +70,7 @@ export const useAuth = create<AuthState>()((set) => ({
   },
 
   async signOut() {
+    await Promise.allSettled([...beforeSignOut].map(async (hook) => hook({ sessionGone: false })));
     await session.signOut();
     forgetPerson();
     set({ status: 'ready', user: null });
@@ -71,6 +87,7 @@ export const isProfileIncomplete = (user: ApiAuthUser | null) => user?.name === 
 export function installUnauthorizedHandler() {
   setUnauthorizedHandler(async () => {
     if (await session.hasRefreshToken()) return;
+    await Promise.allSettled([...beforeSignOut].map(async (hook) => hook({ sessionGone: true })));
     forgetPerson();
     useAuth.setState({ status: 'ready', user: null });
   });

@@ -19,7 +19,7 @@ import { ToastHost } from '@repo/native-ui/toast';
 import { QueryClientProvider } from '@tanstack/react-query';
 import Constants from 'expo-constants';
 import { useFonts } from 'expo-font';
-import { type Href, router, Stack, useGlobalSearchParams, usePathname } from 'expo-router';
+import { type Href, router, Stack, useGlobalSearchParams, usePathname, useRootNavigationState } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef } from 'react';
@@ -27,10 +27,12 @@ import { StyleSheet, View } from 'react-native';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { PaymentRecovery } from '@/components/payment-recovery';
 import { UpdateRequired } from '@/components/update-required';
 import { useForcedUpdate } from '@/lib/app-config';
 import { installUnauthorizedHandler, isProfileIncomplete, useAuth } from '@/lib/auth';
 import { devicePrefs } from '@/lib/device-prefs';
+import { useColdStartLink, useNotificationTaps } from '@/lib/notifications';
 import { otpFlow } from '@/lib/otp-flow';
 import { queryClient } from '@/lib/query-client';
 import { gateRedirect } from '@/lib/route-gate';
@@ -89,7 +91,19 @@ function SessionGate() {
   const paramsRef = useRef(params);
   paramsRef.current = params;
 
+  // A cold-start link goes first: the router can miss it in Expo Go (lib/notifications.ts).
+  const coldLink = useColdStartLink();
+  const coldLinkUsed = useRef(false);
+  const navigatorReady = Boolean(useRootNavigationState()?.key);
+  useNotificationTaps(status === 'ready' && navigatorReady);
+
   useEffect(() => {
+    if (status !== 'ready' || coldLink === undefined) return;
+    if (coldLink && !coldLinkUsed.current && pathname === '/') {
+      coldLinkUsed.current = true;
+      router.replace(coldLink as Href);
+      return;
+    }
     if (!redirect || redirect === pathname) return;
     if (redirect === '/login') {
       // Back here after the code, kept in memory only.
@@ -108,7 +122,7 @@ function SessionGate() {
       return;
     }
     router.replace(redirect as Href);
-  }, [pathname, redirect]);
+  }, [pathname, redirect, status, coldLink]);
 
   useEffect(() => {
     if (status !== 'restoring') void SplashScreen.hideAsync();
@@ -121,6 +135,7 @@ function SessionGate() {
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.canvas } }}>
         <Stack.Screen name="(tabs)" />
       </Stack>
+      {status === 'ready' ? <PaymentRecovery /> : null}
       {status === 'restoring' || (redirect && redirect !== pathname) ? (
         <View style={[StyleSheet.absoluteFill, styles.cover]} />
       ) : null}

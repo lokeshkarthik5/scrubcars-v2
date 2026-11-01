@@ -69,6 +69,10 @@ export interface Tokens {
   stageContact: string;
   meterOn: string;
   meterOff: string;
+  /** bg-white/[0.02], [0.03], [0.04]: a choice's resting and chosen fill. */
+  fillFaint: string;
+  fillSoft: string;
+  fillChosen: string;
   /** The map. */
   pinBg: string;
   pinText: string;
@@ -92,6 +96,9 @@ export interface Tokens {
 
 export const darkTokens: Tokens = {
   scheme: 'dark',
+  fillFaint: 'rgba(255,255,255,0.02)',
+  fillSoft: 'rgba(255,255,255,0.03)',
+  fillChosen: 'rgba(255,255,255,0.04)',
   canvas: '#0A0A0B',
   surface: '#141416',
   surfaceElevated: '#272730',
@@ -165,6 +172,9 @@ export const darkTokens: Tokens = {
 
 export const lightTokens: Tokens = {
   scheme: 'light',
+  fillFaint: 'rgba(0,0,0,0.015)',
+  fillSoft: 'rgba(0,0,0,0.02)',
+  fillChosen: 'rgba(0,0,0,0.04)',
   canvas: '#F7F7F8',
   surface: '#FFFFFF',
   surfaceElevated: '#EDEDF0',
