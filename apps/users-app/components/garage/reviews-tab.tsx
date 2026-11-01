@@ -6,7 +6,7 @@ import type { Review, Vendor } from '@repo/core/types';
 import { ScButton } from '@repo/native-ui/button';
 import { ScTextarea } from '@repo/native-ui/inputs';
 import { ScCard, Stars } from '@repo/native-ui/primitives';
-import { ScSheet } from '@repo/native-ui/sheet';
+import { AFTER_SHEET_MS, ScSheet } from '@repo/native-ui/sheet';
 import { T } from '@repo/native-ui/text';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 import { useQuery } from '@tanstack/react-query';
@@ -86,7 +86,7 @@ function ReportReview({ review, garagePath }: { review: Review; garagePath: stri
             <ScButton
               onPress={() => {
                 setOpen(false);
-                router.push(`/login?next=${encodeURIComponent(garagePath)}` as Href);
+                setTimeout(() => router.push(`/login?next=${encodeURIComponent(garagePath)}` as Href), AFTER_SHEET_MS);
               }}
             >
               Sign in

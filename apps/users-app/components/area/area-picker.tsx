@@ -2,7 +2,7 @@ import { useZones } from '@repo/core/api/hooks/use-zones';
 import { searchZones, type Zone } from '@repo/core/zones';
 import { IconCheck, IconCurrentLocation, IconMapPin, IconSearch } from '@repo/native-ui/icons';
 import { PressRow } from '@repo/native-ui/primitives';
-import { AFTER_SHEET_MS, ScSheet } from '@repo/native-ui/sheet';
+import { ScSheet } from '@repo/native-ui/sheet';
 import { font, T } from '@repo/native-ui/text';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 import { useState } from 'react';
@@ -10,7 +10,7 @@ import { Pressable, TextInput, View } from 'react-native';
 
 import { useLocationStore } from '@/lib/location';
 
-import { LocationPromptSheet } from './location-prompt';
+import { LocationPrompt } from './location-prompt';
 
 /** The line said when "Near me" can't work: the phone has location blocked. */
 export const NEAR_ME_BLOCKED_LINE = 'Location is off for Detlio. Pick your area instead — distances work the same.';
@@ -58,11 +58,10 @@ export function AreaPicker({ open, onClose }: { open: boolean; onClose: () => vo
   const [query, setQuery] = useState('');
   const [blocked, setBlocked] = useState(false);
   const [explaining, setExplaining] = useState(false);
-  const [reopened, setReopened] = useState(false);
 
   const close = () => {
     setQuery('');
-    setReopened(false);
+    setExplaining(false);
     setBlocked(false);
     // Closed without a place: not offered again by itself for a week.
     if (!useLocationStore.getState().location) useLocationStore.getState().dismissPrompt();
@@ -74,15 +73,23 @@ export function AreaPicker({ open, onClose }: { open: boolean; onClose: () => vo
       setBlocked(true);
       return;
     }
-    setReopened(false);
-    onClose();
-    // Two sheets never stack, and iOS drops a modal presented while another goes away.
-    setTimeout(() => setExplaining(true), AFTER_SHEET_MS);
+    setExplaining(true);
   };
 
   return (
-    <>
-      <ScSheet open={open || reopened} onClose={close} accessibilityLabel="Where's your car?" horizontalPadding={16}>
+    <ScSheet open={open} onClose={close} accessibilityLabel="Where's your car?" horizontalPadding={explaining ? 0 : 16}>
+      {explaining ? (
+        <LocationPrompt
+          onClose={() => {
+            const { permission, location: now } = useLocationStore.getState();
+            // Refused at the phone's prompt: back on the areas, with the line.
+            if (permission === 'denied' && now?.source !== 'gps') {
+              setExplaining(false);
+              setBlocked(true);
+            } else close();
+          }}
+        />
+      ) : (
         <View style={styles.body}>
           <View>
             <T size={20} lh={28} tracking={-0.015}>
@@ -137,19 +144,8 @@ export function AreaPicker({ open, onClose }: { open: boolean; onClose: () => vo
             </T>
           </Pressable>
         </View>
-      </ScSheet>
-      <LocationPromptSheet
-        open={explaining}
-        onClose={() => {
-          setExplaining(false);
-          const { permission, location: now } = useLocationStore.getState();
-          if (permission === 'denied' && now?.source !== 'gps') {
-            setBlocked(true);
-            setTimeout(() => setReopened(true), AFTER_SHEET_MS);
-          }
-        }}
-      />
-    </>
+      )}
+    </ScSheet>
   );
 }
 

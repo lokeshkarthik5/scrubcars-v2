@@ -1,6 +1,5 @@
 import { ScButton } from '@repo/native-ui/button';
 import { IconMapPin, IconRoute, IconSparkles } from '@repo/native-ui/icons';
-import { ScSheet } from '@repo/native-ui/sheet';
 import { T } from '@repo/native-ui/text';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 import { Linking, View } from 'react-native';
@@ -14,10 +13,12 @@ const REASONS = [
 ];
 
 /**
- * LocationPromptSheet: our words before the phone's. Only the wording about "your browser"
- * differs from the web: on a phone, it's the phone that asks and that blocks.
+ * LocationPromptSheet's content: our words before the phone's. Only the wording about "your
+ * browser" differs from the web: on a phone, it's the phone that asks and that blocks. It takes
+ * over the area sheet rather than opening a second one: iOS drops a modal presented while
+ * another is leaving.
  */
-export function LocationPromptSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function LocationPrompt({ onClose }: { onClose: () => void }) {
   const colors = useColors();
   const styles = useStyles();
   const requestGpsLocation = useLocationStore((s) => s.requestGpsLocation);
@@ -33,8 +34,7 @@ export function LocationPromptSheet({ open, onClose }: { open: boolean; onClose:
   };
 
   return (
-    <ScSheet open={open} onClose={notNow} accessibilityLabel="Enable location">
-      <View style={styles.body}>
+    <View style={styles.body}>
         <View style={styles.head}>
           <View style={styles.disc}>
             <IconMapPin size={24} />
@@ -103,8 +103,7 @@ export function LocationPromptSheet({ open, onClose }: { open: boolean; onClose:
             Enable location asks your phone. We only use it to sort garages — it is never shared.
           </T>
         ) : null}
-      </View>
-    </ScSheet>
+    </View>
   );
 }
 

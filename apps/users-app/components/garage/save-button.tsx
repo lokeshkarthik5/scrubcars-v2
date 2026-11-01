@@ -4,7 +4,7 @@ import type { Vendor } from '@repo/core/types';
 import { ScButton } from '@repo/native-ui/button';
 import { IconHeart, IconHeartFilled } from '@repo/native-ui/icons';
 import { PressRow } from '@repo/native-ui/primitives';
-import { ScSheet } from '@repo/native-ui/sheet';
+import { AFTER_SHEET_MS, ScSheet } from '@repo/native-ui/sheet';
 import { T } from '@repo/native-ui/text';
 import { useColors } from '@repo/native-ui/theme';
 import { toast } from '@repo/native-ui/toast';
@@ -79,7 +79,8 @@ export function SaveGarageButton({ vendor }: { vendor: Vendor }) {
             variant="main"
             onPress={() => {
               setAskSignIn(false);
-              router.push(`/login?next=${encodeURIComponent(saveGarageReturnPath(vendor.id))}` as Href);
+              // After the sheet has gone, or the sign-in's box loses its focus to it.
+              setTimeout(() => router.push(`/login?next=${encodeURIComponent(saveGarageReturnPath(vendor.id))}` as Href), AFTER_SHEET_MS);
             }}
           >
             Sign in

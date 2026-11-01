@@ -101,6 +101,7 @@ export default function HomeScreen() {
 
   const [selectedCar, setSelectedCar] = useState(0);
   const [addCarOpen, setAddCarOpen] = useState(false);
+  const [pulling, setPulling] = useState(false);
   const afterAdding = useRef<((carId: string) => void) | null>(null);
 
   useEffect(() => {
@@ -134,7 +135,14 @@ export default function HomeScreen() {
   };
 
   return (
-    <CustomerShell gap={12} refreshing={home.isRefetching} onRefresh={() => void home.refetch()}>
+    <CustomerShell
+      gap={12}
+      refreshing={pulling}
+      onRefresh={() => {
+        setPulling(true);
+        void home.refetch().finally(() => setPulling(false));
+      }}
+    >
       <HomeHeader
         firstName={firstName}
         avatarUrl={data?.header.avatarUrl ?? profile?.avatarUrl ?? null}
