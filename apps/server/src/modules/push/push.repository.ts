@@ -1,6 +1,7 @@
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
-import { notificationSends, pushSubscriptions, users } from '../../db/schema.js'
+import { notificationSends, pushDevices, pushSubscriptions, users } from '../../db/schema.js'
+import type { DevicePlatform } from '../../lib/expo-push.js'
 import type { PushAudience, ScheduledPushKind } from '../../lib/push.js'
 import { NOT_IN_BIN } from '../vendors/vendors.predicates.js'
 
@@ -28,6 +29,15 @@ export interface ScheduledCandidateRow {
   /** The booked services' names, in order. */
   serviceNames: string[]
 }
+
+/** A phone as the sender needs it: where to, and which kind. */
+export type DeviceRow = {
+  id: string
+  token: string
+  platform: DevicePlatform
+}
+
+type Scope = { userId: string; audience: PushAudience; vendorId: string | null }
 
 const toDate = (value: Date | string | null): Date | null =>
   value === null ? null : value instanceof Date ? value : new Date(value)
@@ -169,6 +179,124 @@ export const pushRepository = {
     return Array.from(rows)
   },
 
+  // ─── Phones (push_devices, 0067): the same shapes as the browsers above ────
+
+  /**
+   * Stores this phone for this person (and garage), or moves an existing
+   * token to them: one token is one installed app, and the last person to
+   * turn notifications on in it is who it belongs to.
+   */
+  async upsertDevice(input: {
+    token: string
+    platform: DevicePlatform
+    userId: string
+    audience: PushAudience
+    vendorId: string | null
+  }) {
+    const [row] = await db
+      .insert(pushDevices)
+      .values(input)
+      .onConflictDoUpdate({
+        target: pushDevices.token,
+        set: {
+          platform: input.platform,
+          userId: input.userId,
+          audience: input.audience,
+          vendorId: input.vendorId,
+          updatedAt: sql`now()`,
+          failureCount: 0,
+        },
+      })
+      .returning({ id: pushDevices.id })
+    return row
+  },
+
+  /** Keeps the newest `keep` of a person's phones for one app (and garage); deletes the rest. */
+  async pruneDevices(scope: Scope, keep: number) {
+    const rows = await db
+      .select({ id: pushDevices.id })
+      .from(pushDevices)
+      .where(deviceScopeWhere(scope))
+      .orderBy(sql`${pushDevices.updatedAt} desc`, sql`${pushDevices.id} desc`)
+    const extra = rows.slice(keep).map((row) => row.id)
+    if (extra.length === 0) return 0
+    await db.delete(pushDevices).where(inArray(pushDevices.id, extra))
+    return extra.length
+  },
+
+  /** Deletes this phone if it is this person's (and garage's); answers whether it was. */
+  async deleteOwnDevice(scope: Scope, token: string): Promise<boolean> {
+    const rows = await db
+      .delete(pushDevices)
+      .where(and(deviceScopeWhere(scope), eq(pushDevices.token, token)))
+      .returning({ id: pushDevices.id })
+    return rows.length > 0
+  },
+
+  /** How many phones a person has turned on, for one app (and garage). */
+  async countDevices(scope: Scope) {
+    const [row] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(pushDevices)
+      .where(deviceScopeWhere(scope))
+    return row?.count ?? 0
+  },
+
+  /** A customer's phones and their two switches. Only an active account's. */
+  async listCustomerDevices(userId: string) {
+    return db
+      .select({
+        id: pushDevices.id,
+        token: pushDevices.token,
+        platform: pushDevices.platform,
+        pushBookingUpdates: users.pushBookingUpdates,
+        pushReminders: users.pushReminders,
+      })
+      .from(pushDevices)
+      .innerJoin(users, eq(users.id, pushDevices.userId))
+      .where(and(eq(pushDevices.userId, userId), eq(pushDevices.audience, 'customer'), eq(users.status, 'active')))
+  },
+
+  /**
+   * Every phone of a garage's team, on the same terms as the browsers: turned
+   * on for this garage by someone who still holds an active seat there, while
+   * the garage is out of the Bin.
+   */
+  async listGarageDevices(vendorId: string): Promise<DeviceRow[]> {
+    const rows = await db.execute<DeviceRow>(sql`
+      SELECT pd.id, pd.token, pd.platform
+        FROM push_devices pd
+        JOIN user_member_mapping m
+          ON m.user_id = pd.user_id
+         AND m.vendor_id = pd.vendor_id
+         AND m.status = 'active'
+         AND m.role IN ('vendor_admin', 'vendor_operator')
+        JOIN vendors v ON v.id = pd.vendor_id
+       WHERE pd.vendor_id = ${vendorId}
+         AND pd.audience = 'garage'
+         AND ${NOT_IN_BIN}
+    `)
+    return Array.from(rows)
+  },
+
+  async markDeviceSent(id: string, at: Date) {
+    await db.update(pushDevices).set({ lastSuccessAt: at, failureCount: 0 }).where(eq(pushDevices.id, id))
+  },
+
+  /** One more failure in a row; answers the new count. */
+  async markDeviceFailed(id: string): Promise<number> {
+    const [row] = await db
+      .update(pushDevices)
+      .set({ failureCount: sql`${pushDevices.failureCount} + 1` })
+      .where(eq(pushDevices.id, id))
+      .returning({ failureCount: pushDevices.failureCount })
+    return row?.failureCount ?? 0
+  },
+
+  async deleteDevice(id: string) {
+    await db.delete(pushDevices).where(eq(pushDevices.id, id))
+  },
+
   async getPreferences(userId: string) {
     const [row] = await db
       .select({ pushBookingUpdates: users.pushBookingUpdates, pushReminders: users.pushReminders })
@@ -239,11 +367,15 @@ export const pushRepository = {
     const status = input.kind === 'respond_soon' ? sql`'pending'` : sql`'confirmed'`
     const audience =
       input.kind === 'respond_soon'
-        ? sql`EXISTS (SELECT 1 FROM push_subscriptions ps
-                       WHERE ps.vendor_id = b.vendor_id AND ps.audience = 'garage')`
+        ? sql`(EXISTS (SELECT 1 FROM push_subscriptions ps
+                        WHERE ps.vendor_id = b.vendor_id AND ps.audience = 'garage')
+               OR EXISTS (SELECT 1 FROM push_devices pd
+                           WHERE pd.vendor_id = b.vendor_id AND pd.audience = 'garage'))`
         : sql`u.push_reminders AND u.status = 'active'
-              AND EXISTS (SELECT 1 FROM push_subscriptions ps
-                           WHERE ps.user_id = b.user_id AND ps.audience = 'customer')`
+              AND (EXISTS (SELECT 1 FROM push_subscriptions ps
+                            WHERE ps.user_id = b.user_id AND ps.audience = 'customer')
+                   OR EXISTS (SELECT 1 FROM push_devices pd
+                               WHERE pd.user_id = b.user_id AND pd.audience = 'customer'))`
     const rows = await db.execute<{
       id: string
       user_id: string
@@ -303,5 +435,13 @@ function scopeWhere(scope: { userId: string; audience: PushAudience; vendorId: s
     scope.vendorId === null
       ? sql`${pushSubscriptions.vendorId} IS NULL`
       : eq(pushSubscriptions.vendorId, scope.vendorId)
+  )
+}
+
+function deviceScopeWhere(scope: Scope) {
+  return and(
+    eq(pushDevices.userId, scope.userId),
+    eq(pushDevices.audience, scope.audience),
+    scope.vendorId === null ? sql`${pushDevices.vendorId} IS NULL` : eq(pushDevices.vendorId, scope.vendorId)
   )
 }
