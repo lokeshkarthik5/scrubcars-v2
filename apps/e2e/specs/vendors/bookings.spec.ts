@@ -88,6 +88,9 @@ test.describe('vendor booking lifecycle @p0', () => {
     // Accept waits five seconds behind its Undo too (0066).
     await expect(page.getByText('Booking accepted', { exact: true })).toBeVisible()
     await expect.poll(statusOf(BOOKINGS.vendorIncoming), AFTER_UNDO).toBe('confirmed')
+    // Each step's Undo toast has the booking's id. A next step pressed while the
+    // last toast is closing reuses it and closes with it, so wait for it to go.
+    await expect(page.getByText('Booking accepted', { exact: true })).toBeHidden()
 
     // Accepted, the page offers the work's steps, the next one docked.
     await page

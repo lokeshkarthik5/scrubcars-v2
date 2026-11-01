@@ -147,6 +147,16 @@ export const env = {
   // Any of the three missing or malformed and the feature is fully off. The
   // accounts must already exist: this never creates one. Production only.
   reviewLogin: readReviewLoginEnv(process.env),
+  // ─── Native app notifications (lib/expo-push.ts, 0067) ─────────────────────
+  // Phones with the Expo apps get the same notifications as browsers, sent
+  // through Expo's push service (no Apple or Firebase key on this server).
+  // The access token is created in the Expo dashboard (Account settings →
+  // Access tokens) with "Enhanced push security" switched on for the project,
+  // so a leaked device token alone cannot push to our users. Unset — as in
+  // development, E2E and previews — and device notifications are off: the
+  // device routes are a 404 and nothing is read or sent. PUSH_FAKE (above)
+  // records device sends in memory instead of calling Expo.
+  expoPushAccessToken: process.env.EXPO_PUSH_ACCESS_TOKEN?.trim() || undefined,
   // ─── Forced update (lib/app-config.ts, GET /app-config) ───────────────────
   // What the Expo apps are told when they start: the oldest version still
   // allowed, the newest release and where to get it. One variable per app
@@ -518,6 +528,16 @@ export const env = {
     'records usage events from headless browsers'
   ),
 } as const
+
+/** Whether notifications to the native apps are on (the Expo access token is set). */
+export function isDevicePushEnabled(): boolean {
+  return env.expoPushAccessToken !== undefined
+}
+
+/** Whether any notification channel is on: browsers, phones, or both. */
+export function isAnyPushEnabled(): boolean {
+  return isPushEnabled() || isDevicePushEnabled()
+}
 
 /** Whether browser notifications are on (VAPID set, or the E2E stand-in). */
 export function isPushEnabled(): boolean {
