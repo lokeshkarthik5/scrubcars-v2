@@ -11,6 +11,7 @@ import { onBeforeSignOut, useAuth } from './auth';
 import { devicePrefs } from './device-prefs';
 import { registerPushDevice, removePushDevice } from './push-api';
 import { createPushController, type PermissionState } from './push-controller';
+import { errorText } from './error-text';
 
 const toState = (result: { status: string }): PermissionState =>
   result.status === 'granted' ? 'granted' : result.status === 'denied' ? 'denied' : 'undetermined';
@@ -121,7 +122,7 @@ export function usePushDevice(): PushDevice {
       }
       setPermission(await Notifications.getPermissionsAsync().then(toState));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Couldn't turn notifications on. Try again.");
+      toast.error(errorText(error, "Couldn't turn notifications on. Try again."));
     } finally {
       setBusy(false);
     }
@@ -134,7 +135,7 @@ export function usePushDevice(): PushDevice {
       changed();
       toast.success('Notifications are off for this device');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Couldn't turn notifications off. Try again.");
+      toast.error(errorText(error, "Couldn't turn notifications off. Try again."));
     } finally {
       setBusy(false);
     }

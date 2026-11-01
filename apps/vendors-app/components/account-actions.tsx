@@ -24,6 +24,7 @@ import { ConfirmSheet, ScSheet } from './sheet';
 import { useSupportSession } from './support-session-banner';
 import { T } from './text';
 import { toast } from './toast';
+import { errorText } from '@/lib/error-text';
 
 const DATE = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' });
 
@@ -80,7 +81,7 @@ function CloseGarage({ garageName }: { garageName: string }) {
       setReason('');
       toast.success('Request sent. Detlio will call you.');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not send the request');
+      setError(errorText(err, 'Could not send the request'));
     } finally {
       setBusy(false);
     }
@@ -145,7 +146,7 @@ function CloseGarage({ garageName }: { garageName: string }) {
             setCancelling(false);
             toast.success('Request cancelled. Your garage stays open.');
           } catch (err) {
-            toast.error(err instanceof Error ? err.message : 'Could not cancel the request');
+            toast.error(errorText(err, 'Could not cancel the request'));
             setCancelling(false);
             setRequest(await getMyClosureRequest().catch(() => null));
           }
@@ -202,7 +203,7 @@ function LeaveGarage({ garageName }: { garageName: string }) {
             router.navigate('/home' as Href);
           } catch (err) {
             if (leaving && alertsWereOn) void restorePushForGarage(leaving);
-            setError(err instanceof Error ? err.message : 'Could not leave the garage');
+            setError(errorText(err, 'Could not leave the garage'));
           }
         }}
         level="firm"
@@ -235,7 +236,7 @@ function DeleteMyAccount() {
     try {
       setPreview(await getAccountDeletionPreview());
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not check your account');
+      setError(errorText(err, 'Could not check your account'));
     }
   };
 
@@ -248,7 +249,7 @@ function DeleteMyAccount() {
       setOpen(false);
       await useAuth.getState().signOut({ sessionGone: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not delete your account');
+      setError(errorText(err, 'Could not delete your account'));
       setBusy(false);
     }
   };

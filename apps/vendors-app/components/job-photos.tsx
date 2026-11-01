@@ -24,6 +24,7 @@ import { IconCamera, IconCameraPlus, IconCheck } from './icons';
 import { AFTER_SHEET_MS, ScModal, ScSheet } from './sheet';
 import { T } from './text';
 import { toast } from './toast';
+import { errorText } from '@/lib/error-text';
 
 const LABELS: Record<JobPhoto['stage'], string> = { before: 'Before photos', after: 'After photos' };
 
@@ -108,7 +109,7 @@ export function JobPhotos({
           const prepared = await prepareForUpload(uri);
           await uploadJobPhoto(booking.id, stage, prepared.bytes, slot === 'extra' ? undefined : slot);
         } catch (error) {
-          toast.error(error instanceof Error ? error.message : 'Upload failed');
+          toast.error(errorText(error, 'Upload failed'));
         }
       }
     } finally {
@@ -140,7 +141,7 @@ export function JobPhotos({
       closeViewer();
       onChanged();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not remove this photo');
+      toast.error(errorText(error, 'Could not remove this photo'));
     } finally {
       setRemovingId(null);
     }

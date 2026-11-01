@@ -15,6 +15,7 @@ import { ScButton } from './button';
 import { ScInput } from './inputs';
 import { T } from './text';
 import { toast } from './toast';
+import { errorText } from '@/lib/error-text';
 
 const STEP_HINTS: Record<PickupNext, string> = {
   picked_up:
@@ -72,7 +73,7 @@ export function PickupSteps({
       onChanged();
     } catch (error) {
       if (error instanceof ApiError && error.code === 'HANDOVER_CODE_LOCKED') setLockedStep(step);
-      toast.error(error instanceof Error ? error.message : 'Could not update this booking');
+      toast.error(errorText(error, 'Could not update this booking'));
       onChanged();
     } finally {
       setBusy(false);

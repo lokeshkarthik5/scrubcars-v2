@@ -163,6 +163,7 @@ export function OtpInput({
 const styles = StyleSheet.create({
   field: { gap: 6 },
   solid: {
+    letterSpacing: 0,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.border,
@@ -191,6 +192,9 @@ const styles = StyleSheet.create({
     borderRightColor: 'rgba(255,255,255,0.15)',
   },
   phoneInput: {
+    // iOS reuses a text field's native view: without this, the wide spacing of the
+    // pickup code's box came back here after a sign-out.
+    letterSpacing: 0,
     flex: 1,
     paddingHorizontal: 14,
     paddingVertical: 16,

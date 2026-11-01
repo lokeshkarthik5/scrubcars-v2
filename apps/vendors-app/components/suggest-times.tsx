@@ -16,6 +16,7 @@ import { Spinner } from './primitives';
 import { ScSheet } from './sheet';
 import { T } from './text';
 import { toast } from './toast';
+import { errorText } from '@/lib/error-text';
 
 /** Mirrors the server (lib/time-proposals.ts) so the sheet refuses first. */
 const MAX_TIMES = 3;
@@ -55,7 +56,7 @@ export function SuggestTimes({
       await withdrawTimeProposal(booking.id);
       toast.success('Suggested times withdrawn. Accept or reject the booking as usual.');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not withdraw the times');
+      toast.error(errorText(error, 'Could not withdraw the times'));
     } finally {
       setWithdrawing(false);
       onChanged();
@@ -184,7 +185,7 @@ function SuggestTimesSheet({
       toast.success(`Times sent. ${who} picks one in the Detlio app.`);
       onSent();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not send the times');
+      toast.error(errorText(error, 'Could not send the times'));
     } finally {
       setSending(false);
     }

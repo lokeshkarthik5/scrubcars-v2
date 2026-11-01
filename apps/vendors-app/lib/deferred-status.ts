@@ -16,6 +16,7 @@ import {
   type StepPhase,
   type StepStatus,
 } from './jobs';
+import { errorText } from './error-text';
 
 /**
  * Accept, Start, Complete and pickup's steps behind a 5-second Undo. A copy of
@@ -77,7 +78,7 @@ const queue = createStepQueue({
   },
   onFailed: (_step, error) => {
     // Refused (photos removed meanwhile, the time ran out): say why, and re-read.
-    toast.error(error instanceof Error ? error.message : 'Could not update this job');
+    toast.error(errorText(error, 'Could not update this job'));
     void readFreshBookings().catch(() => undefined);
   },
 });

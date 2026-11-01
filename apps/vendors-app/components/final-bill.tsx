@@ -15,6 +15,7 @@ import { type StatusTone, StatusChip } from './primitives';
 import { ScSheet } from './sheet';
 import { T } from './text';
 import { toast } from './toast';
+import { errorText } from '@/lib/error-text';
 
 const MAX_LINES = 20;
 const MAX_DESCRIPTION = 80;
@@ -101,7 +102,7 @@ export function FinalBillPanel({ booking, onChanged }: { booking: Booking; onCha
       );
       onChanged();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not send the bill');
+      toast.error(errorText(error, 'Could not send the bill'));
       onChanged();
     } finally {
       setSending(false);

@@ -18,6 +18,7 @@ import { ScTextarea } from './inputs';
 import { ConfirmSheet } from './sheet';
 import { T } from './text';
 import { toast } from './toast';
+import { errorText } from '@/lib/error-text';
 
 /** CancelAcceptedBooking: accepted, not started, the garage can no longer do it. */
 export function CancelAcceptedBooking({
@@ -59,7 +60,7 @@ export function CancelAcceptedBooking({
       setOpen(false);
       onChanged();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not cancel this booking');
+      setError(errorText(err, 'Could not cancel this booking'));
       onChanged();
     }
   };

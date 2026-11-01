@@ -17,6 +17,7 @@ import { type StatusTone, StatusChip } from './primitives';
 import { AFTER_SHEET_MS, ScSheet } from './sheet';
 import { T } from './text';
 import { toast } from './toast';
+import { errorText } from '@/lib/error-text';
 
 const MAX_DESCRIPTION = 80;
 const MAX_NOTE = 500;
@@ -57,7 +58,7 @@ export function ExtraWorkPanel({ booking, onChanged }: { booking: Booking; onCha
       await withdrawExtraWork(booking.id, work.id);
       toast.success('Extra work withdrawn.');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not withdraw it');
+      toast.error(errorText(error, 'Could not withdraw it'));
     } finally {
       setWithdrawing(null);
       onChanged();
@@ -187,7 +188,7 @@ function ExtraWorkSheet({ booking, onClose, onSent }: { booking: Booking; onClos
           const prepared = await prepareForUpload(asset.uri);
           setPhotos((current) => (current.length >= MAX_PHOTOS ? current : [...current, prepared]));
         } catch (error) {
-          toast.error(error instanceof Error ? error.message : 'That photo could not be used');
+          toast.error(errorText(error, 'That photo could not be used'));
         }
       }
     } finally {
@@ -208,7 +209,7 @@ function ExtraWorkSheet({ booking, onClose, onSent }: { booking: Booking; onClos
       toast.success(`Sent. ${who} can approve and pay ${formatINR(Number(amount), { paise: true })} in the Detlio app.`);
       onSent();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not send it');
+      toast.error(errorText(error, 'Could not send it'));
     } finally {
       setSending(false);
     }

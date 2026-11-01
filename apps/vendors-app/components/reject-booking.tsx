@@ -10,6 +10,7 @@ import { ScInput } from './inputs';
 import { ConfirmSheet } from './sheet';
 import { T } from './text';
 import { toast } from './toast';
+import { errorText } from '@/lib/error-text';
 
 /** RejectBookingSheet: "Can't do", asked the same way everywhere; a reason the customer sees. */
 export function RejectBookingSheet({
@@ -39,7 +40,7 @@ export function RejectBookingSheet({
       onDone?.();
     } catch (error) {
       // The slot started, or the customer cancelled a moment ago: say so and re-read.
-      toast.error(error instanceof Error ? error.message : 'Could not reject this booking');
+      toast.error(errorText(error, 'Could not reject this booking'));
       void readFreshBookings().catch(() => undefined);
       onClose();
     } finally {

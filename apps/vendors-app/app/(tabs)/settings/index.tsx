@@ -20,6 +20,7 @@ import { APP_VERSION } from '@/lib/app-config';
 import { useAuth } from '@/lib/auth';
 import { getMyVendor, pauseBookings, resumeBookings } from '@/lib/garage-api';
 import { colors } from '@/lib/theme';
+import { errorText } from '@/lib/error-text';
 
 const TABS = ['profile', 'location', 'hours', 'time-off', 'account'] as const;
 type SettingsTab = (typeof TABS)[number];
@@ -161,7 +162,7 @@ function PauseSection({ vendor, onChange }: { vendor: ApiVendorProfile; onChange
       setReason(updated.bookingsPausedReason ?? '');
       toast.success(done);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Something went wrong');
+      toast.error(errorText(err, 'Something went wrong'));
     } finally {
       setBusy(false);
     }
