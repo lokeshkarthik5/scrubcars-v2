@@ -1,3 +1,4 @@
+import { formatRupees } from '@repo/core/job-records';
 import type { AddOn } from '@repo/core/api/add-ons';
 import { addOnsAfterRemoving, jobSummary } from '@repo/core/add-ons';
 import { ApiError } from '@repo/core/api/client';
@@ -60,7 +61,7 @@ import {
 } from '@repo/native-ui/icons';
 import { ErrorState, HubCard, Notice, ScSegmented, Spinner } from '@repo/native-ui/primitives';
 import { ScInput } from '@repo/native-ui/inputs';
-import { ScSheet } from '@repo/native-ui/sheet';
+import { ConfirmSheet, ScSheet } from '@repo/native-ui/sheet';
 import { Figures, T } from '@repo/native-ui/text';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 import { toast } from '@repo/native-ui/toast';
@@ -96,10 +97,10 @@ import {
   writeBookingDraft,
 } from '@/lib/booking-draft';
 import { openCheckout } from '@/lib/checkout';
-import { checkoutCreditSplit, couponsForCheckout, guaranteeCovers } from '@/lib/checkout-maths';
+import { checkoutCreditSplit, confirmOrderTotal, couponsForCheckout, guaranteeCovers } from '@/lib/checkout-maths';
 import { errorText } from '@/lib/error-text';
 import { usePendingCheckout } from '@/lib/pending-checkout';
-import { isPendingExpired, pendingPayment, readPendingOutcome, setPaymentFlowOnScreen } from '@/lib/pending-payment';
+import { checkPending, pendingKey, type PendingPayment, pendingPayment, setPaymentFlowOnScreen } from '@/lib/pending-payment';
 import { money, servicePriceText } from '@/lib/price';
 import { track } from '@/lib/shims/analytics';
 import { istDay } from '@/lib/when-picker';
@@ -185,6 +186,7 @@ export default function BookScreen() {
   const [paid, setPaid] = useState<{ paymentId: string; phase: 'confirming' | 'unconfirmed' | 'failed'; refundMessage?: string } | null>(null);
   /** A payment from before, not yet settled: stops a second one until it's known. */
   const [unsettled, setUnsettled] = useState(false);
+  const [totalCheck, setTotalCheck] = useState<{ rupees: number; resolve: (agreed: boolean) => void } | null>(null);
 
   const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const stepY = useRef<Partial<Record<'slot' | 'car' | 'address' | 'summary' | 'signin', number>>>({});
@@ -589,29 +591,20 @@ export default function BookScreen() {
 
   /** Never a second payment over one that might still settle. */
   const lastPaymentClear = async (): Promise<boolean> => {
-    const last = pendingPayment.read();
-    if (!last || last.kind !== 'intent') return true;
-    if (isPendingExpired(last, Date.now())) {
-      pendingPayment.clear();
-      return true;
-    }
-    try {
-      const outcome = await readPendingOutcome(last);
-      if (outcome.kind === 'pending') {
+    for (const last of pendingPayment.list()) {
+      if (last.kind !== 'intent') continue;
+      const outcome = await checkPending(last);
+      if (outcome.kind === 'checking') {
         setUnsettled(true);
         return false;
       }
-      pendingPayment.clear();
       if (outcome.kind === 'booked') {
         afterBooked(outcome.bookingId);
         return false;
       }
-      toast.error(outcome.message);
-      return true;
-    } catch {
-      setUnsettled(true);
-      return false;
+      if (outcome.kind === 'failed') toast.error(outcome.message);
     }
+    return true;
   };
 
   const handleConfirm = async (chosen?: {
@@ -652,8 +645,16 @@ export default function BookScreen() {
         return;
       }
       if (!order.orderId) throw new Error('Could not start the payment. Please try again.');
+      // The server's figure is what's charged: a different one is shown before Razorpay opens.
+      const agreed = await confirmOrderTotal(order.amount, toPay, (rupees) => new Promise((resolve) => setTotalCheck({ rupees, resolve })));
+      if (!agreed) {
+        toast.info('Nothing was booked or charged.');
+        return;
+      }
       // Written before the window opens: if the app dies in it, the webhook settles and this finds out.
-      pendingPayment.write({ kind: 'intent', intentId: order.intentId, vendorName: vendor?.name ?? '', startedAt: Date.now() });
+      const record: PendingPayment = { kind: 'intent', intentId: order.intentId, vendorName: vendor?.name ?? '', startedAt: Date.now() };
+      pendingPayment.write(record);
+      const payKey = pendingKey(record);
       const result = await openCheckout(
         { orderId: order.orderId, amount: order.amount, currency: order.currency, keyId: order.keyId ?? '' },
         {
@@ -663,12 +664,12 @@ export default function BookScreen() {
         }
       );
       if (result.kind === 'cancelled') {
-        pendingPayment.clear();
+        pendingPayment.clear(payKey);
         toast.info('Payment cancelled. Nothing was booked.');
         return;
       }
       if (result.kind === 'failed') {
-        pendingPayment.clear();
+        pendingPayment.clear(payKey);
         track('pay_failed', { vendorId, mode: bookingType });
         toast.error(result.message);
         return;
@@ -688,11 +689,11 @@ export default function BookScreen() {
         ...realClock,
       });
       if (outcome.kind === 'booked') {
-        pendingPayment.clear();
+        pendingPayment.clear(payKey);
         track('pay_success', { vendorId, mode: bookingType, serviceCount: selectedServices.length, amountBucket: amountBucket(order.amount / 100) });
         afterBooked(outcome.bookingId);
       } else if (outcome.kind === 'failed') {
-        pendingPayment.clear();
+        pendingPayment.clear(payKey);
         track('pay_failed', { vendorId, mode: bookingType });
         void invalidateHome(queryClient);
         setPaid({ paymentId: result.paymentId, phase: 'failed', refundMessage: outcome.message });
@@ -1738,6 +1739,22 @@ export default function BookScreen() {
         ) : null}
       </ScSheet>
 
+      <ConfirmSheet
+        open={totalCheck !== null}
+        level="firm"
+        title="The total has changed"
+        body={totalCheck ? `The total to pay is now ${formatRupees(totalCheck.rupees)}. Nothing has been charged.` : undefined}
+        confirmLabel={totalCheck ? `Pay ${formatRupees(totalCheck.rupees)}` : 'Pay'}
+        cancelLabel="Don't pay"
+        onConfirm={() => {
+          totalCheck?.resolve(true);
+          setTotalCheck(null);
+        }}
+        onClose={() => {
+          totalCheck?.resolve(false);
+          setTotalCheck(null);
+        }}
+      />
       <ScSheet horizontalPadding={16} open={unsettled} onClose={() => setUnsettled(false)} accessibilityLabel="Your last payment">
         <T size={20} lh={28} tracking={-0.015}>
           Your last payment isn&apos;t settled yet
@@ -1752,7 +1769,9 @@ export default function BookScreen() {
           <ScButton
             variant="outline"
             onPress={() => {
-              pendingPayment.clear();
+              pendingPayment.list().forEach((last) => {
+                if (last.kind === 'intent') pendingPayment.clear(pendingKey(last));
+              });
               setUnsettled(false);
             }}
           >

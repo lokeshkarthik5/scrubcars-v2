@@ -4,7 +4,7 @@ import { invalidateHome } from '@repo/core/api/hooks/use-home';
 import { invalidateRewards } from '@repo/core/api/hooks/use-rewards';
 import { slotKeys } from '@repo/core/api/hooks/use-slots';
 import { useTravelTime } from '@repo/core/api/hooks/use-travel-time';
-import { createPaymentOrder, verifyPayment } from '@repo/core/api/payments';
+import { verifyPayment } from '@repo/core/api/payments';
 import { bookAgainPath, canBookAgain, matchSavedAddress } from '@repo/core/book-again';
 import { BOOKING_TYPE_LABELS, bookingReference, CONFIRMED_CHANGE_CUTOFF_MINS } from '@repo/core/booking-types';
 import { googleMapsLink, telHref, whatsAppHref } from '@repo/core/contact-links';
@@ -56,7 +56,8 @@ import { openCheckout } from '@/lib/checkout';
 import { errorText } from '@/lib/error-text';
 import { coarse, isStale, useLocationStore } from '@/lib/location';
 import { openLink } from '@/lib/open-link';
-import { pendingPayment, setPaymentFlowOnScreen } from '@/lib/pending-payment';
+import { startBookingPayment } from '@/lib/charge-payment';
+import { bookingKey, pendingPayment, setPaymentFlowOnScreen, usePendingPayment } from '@/lib/pending-payment';
 import { money } from '@/lib/price';
 
 const OPEN_STATUSES: ReadonlySet<Booking['status']> = new Set(['pending', 'confirmed', 'in_progress']);
@@ -131,6 +132,7 @@ export default function BookingDetailScreen() {
   });
   const arrivalHandled = useRef(false);
   const [paying, setPaying] = useState(false);
+  const checkingPayment = usePendingPayment(bookingKey(id));
   const paidRef = useRef(false);
   const [paid, setPaid] = useState<{ paymentId: string; phase: 'confirming' | 'booked' | 'unconfirmed' | 'failed'; refundMessage?: string } | null>(null);
   const [billPayments, setBillPayments] = useState<Record<string, BillPayment>>({});
@@ -220,16 +222,24 @@ export default function BookingDetailScreen() {
     setPaymentFlowOnScreen(true);
     try {
       if (!profile) await fetchProfile();
-      const order = await createPaymentOrder(booking.id);
-      pendingPayment.write({ kind: 'booking', bookingId: booking.id, vendorName: booking.vendorName, startedAt: Date.now() });
-      const result = await openCheckout(order, { description: `${booking.serviceSummary} at ${booking.vendorName}`, name: profile?.name, phone: profile?.phone });
+      const started = await startBookingPayment(booking);
+      if (started.kind !== 'order') {
+        if (started.kind === 'checking') toast.info("We're still checking your last payment. There's no need to pay again.");
+        else if (started.kind === 'failed') toast.error(started.message);
+        else toast.success('Your payment went through.');
+        const fresh = await getBooking(booking.id).catch(() => null);
+        if (fresh) setBooking(fresh);
+        return;
+      }
+      const payKey = bookingKey(booking.id);
+      const result = await openCheckout(started.order, { description: `${booking.serviceSummary} at ${booking.vendorName}`, name: profile?.name, phone: profile?.phone });
       if (result.kind === 'cancelled') {
-        pendingPayment.clear();
+        pendingPayment.clear(payKey);
         toast.info('Payment cancelled. You can pay anytime from booking details.');
         return;
       }
       if (result.kind === 'failed') {
-        pendingPayment.clear();
+        pendingPayment.clear(payKey);
         toast.error(result.message);
         return;
       }
@@ -248,7 +258,7 @@ export default function BookingDetailScreen() {
         },
         ...realClock,
       });
-      if (outcome.kind !== 'unconfirmed') pendingPayment.clear();
+      if (outcome.kind !== 'unconfirmed') pendingPayment.clear(payKey);
       if (outcome.kind === 'booked') {
         const updated = await getBooking(booking.id);
         if (updated) setBooking(updated);
@@ -500,7 +510,12 @@ export default function BookingDetailScreen() {
           </View>
         ) : null}
 
-        {unpaid ? (
+        {unpaid && checkingPayment && !paying ? (
+          <ScButton variant="quiet" height={52} disabled>
+            <Spinner size={16} />
+            <Label>Checking your payment…</Label>
+          </ScButton>
+        ) : unpaid ? (
           <ScButton variant="hero" height={52} disabled={paying} onPress={() => void handlePayNow()}>
             <Label color={colors.white}>
               <Figures color={colors.white} size={15} weight={600} text={paying ? 'Opening payment...' : `Pay ${money(booking.servicePrice)}`} />

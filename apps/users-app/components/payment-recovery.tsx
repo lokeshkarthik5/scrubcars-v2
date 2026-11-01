@@ -10,7 +10,9 @@ import { useEffect, useRef, useState } from 'react';
 import { AppState, View } from 'react-native';
 
 import { clearBookingDraft } from '@/lib/booking-draft';
-import { isPendingExpired, paymentFlowOnScreen, pendingPayment, readPendingOutcome } from '@/lib/pending-payment';
+import { checkPending, paymentFlowOnScreen, pendingPayment } from '@/lib/pending-payment';
+
+const RECHECK_MS = 10_000;
 
 /**
  * Back in the app after a payment it lost sight of, killed in Razorpay's window, say. The
@@ -27,28 +29,23 @@ export function PaymentRecovery() {
   useEffect(() => {
     const check = async () => {
       if (checking.current || paymentFlowOnScreen()) return;
-      const payment = pendingPayment.read();
-      if (!payment) return;
+      const payments = pendingPayment.list();
+      if (payments.length === 0) return;
       checking.current = true;
       try {
-        const outcome = await readPendingOutcome(payment);
-        if (paymentFlowOnScreen()) return;
-        if (outcome.kind === 'booked') {
-          pendingPayment.clear();
-          if (payment.kind === 'intent') clearBookingDraft();
-          void invalidateHome(queryClient);
-          void queryClient.invalidateQueries();
-          toast.success(payment.kind === 'intent' ? 'Your payment went through. The booking is with the garage.' : 'Your payment went through.');
-          router.push(`/bookings/${outcome.bookingId}` as Href);
-        } else if (outcome.kind === 'failed') {
-          pendingPayment.clear();
-          setFailed(outcome.message);
-        } else if (isPendingExpired(payment, Date.now())) {
-          // Razorpay's window is long closed, and no webhook came: it was never paid.
-          pendingPayment.clear();
+        for (const payment of payments) {
+          const outcome = await checkPending(payment);
+          if (outcome.kind === 'booked') {
+            if (payment.kind === 'intent') clearBookingDraft();
+            void invalidateHome(queryClient);
+            void queryClient.invalidateQueries();
+            toast.success(payment.kind === 'intent' ? 'Your payment went through. The booking is with the garage.' : 'Your payment went through.');
+            router.push(`/bookings/${outcome.bookingId}` as Href);
+          } else if (outcome.kind === 'failed') {
+            setFailed(outcome.message);
+          }
+          if (paymentFlowOnScreen()) return;
         }
-      } catch {
-        // No signal: asked again next time.
       } finally {
         checking.current = false;
       }
@@ -57,7 +54,12 @@ export function PaymentRecovery() {
     const subscription = AppState.addEventListener('change', (state) => {
       if (state === 'active') void check();
     });
-    return () => subscription.remove();
+    // Pay reads "checking your payment" until this resolves, so it can't wait for a return.
+    const watching = setInterval(() => void check(), RECHECK_MS);
+    return () => {
+      subscription.remove();
+      clearInterval(watching);
+    };
   }, [queryClient]);
 
   return (

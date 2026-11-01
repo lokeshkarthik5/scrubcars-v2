@@ -1,11 +1,12 @@
 import type { ApiAuthUser } from '@repo/core/api/types';
 import { setUnauthorizedHandler } from '@repo/core/api/client';
-import type { NativeSessionData } from '@repo/core/native-session';
+import { type NativeSessionData, SERVER_SIGN_OUT_TIMEOUT_MS } from '@repo/core/native-session';
 import { useBookingsStore } from '@repo/core/stores/bookings-store';
 import { useUserStore } from '@repo/core/stores/user-store';
 import { create } from 'zustand';
 
 import { clearBookingDraft } from './booking-draft';
+import { useLocationStore } from './location';
 import { usePendingCheckout } from './pending-checkout';
 import { pendingPayment } from './pending-payment';
 import { queryClient } from './query-client';
@@ -34,12 +35,13 @@ function forgetPerson() {
   useBookingsStore.getState().reset();
   usePendingCheckout.getState().clear();
   clearBookingDraft();
-  pendingPayment.clear();
+  pendingPayment.clearAll();
+  useLocationStore.getState().reset();
   queryClient.clear();
 }
 
 /** Before signing out: this phone's alerts stop while the session can still say so. */
-type SignOutHook = (options: { sessionGone: boolean }) => void | Promise<unknown>;
+type SignOutHook = (options: { sessionGone: boolean; signal?: AbortSignal }) => void | Promise<unknown>;
 const beforeSignOut = new Set<SignOutHook>();
 
 export function onBeforeSignOut(hook: SignOutHook) {
@@ -79,10 +81,13 @@ export const useAuth = create<AuthState>()((set) => ({
   },
 
   async signOut() {
-    await Promise.allSettled([...beforeSignOut].map(async (hook) => hook({ sessionGone: false })));
-    await session.signOut();
+    // Started while the token is still in memory; a request reads it as it leaves. Never waited on.
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), SERVER_SIGN_OUT_TIMEOUT_MS);
+    void Promise.allSettled([...beforeSignOut].map(async (hook) => hook({ sessionGone: false, signal: abort.signal }))).finally(() => clearTimeout(timer));
     forgetPerson();
     set({ status: 'ready', user: null });
+    await session.signOut();
   },
 }));
 

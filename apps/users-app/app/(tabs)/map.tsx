@@ -12,7 +12,8 @@ import { Figures, T } from '@repo/native-ui/text';
 import { createStyles, useColors, useTheme } from '@repo/native-ui/theme';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, useWindowDimensions, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import Constants from 'expo-constants';
+import { Image, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import MapView, { Marker, type Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -21,6 +22,7 @@ import { OpenStatus } from '@/components/garage/open-status';
 import { OutsideCityChip } from '@/components/garage/tier';
 import { useNavClearance } from '@/components/hub-nav';
 import { coarse, isApproximate, isCitywide, useLocationStore } from '@/lib/location';
+import { mapAvailable } from '@/lib/location-picker-logic';
 import { framingBounds, groupPins, hasMovedMeaningfully, pinLabel, regionToBounds, regionZoom, type LatLngBounds } from '@/lib/map-view';
 
 const PAGE_LIMIT = 50;
@@ -286,11 +288,12 @@ export default function MapScreen() {
     setBaseline(bounds);
   };
 
+  const mapShown = mapAvailable(Platform.OS, Constants.expoConfig?.android?.config?.googleMaps?.apiKey);
   const center = location ? { latitude: location.lat, longitude: location.lng } : { latitude: DEFAULT_CENTER[1], longitude: DEFAULT_CENTER[0] };
 
   return (
     <View style={styles.page}>
-      <MapView
+      {mapShown ? <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFill}
         userInterfaceStyle={scheme}
@@ -358,7 +361,13 @@ export default function MapScreen() {
             <Pin vendor={groups.chosen} selected />
           </Marker>
         ) : null}
-      </MapView>
+      </MapView> : (
+        <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.noMap]}>
+          <T size={13} lh={18} align="center" color={colors.textSecondary}>
+            The map isn&apos;t available in this version of the app. Garages near you are listed here.
+          </T>
+        </View>
+      )}
 
       <View pointerEvents="box-none" style={[StyleSheet.absoluteFill, { paddingTop: insets.top + 8 }]}>
         <View pointerEvents="box-none" style={styles.top}>
@@ -491,6 +500,7 @@ const useStyles = createStyles((c) => ({
   },
   pinTail: { position: 'absolute', bottom: 0, width: 10, height: 10, transform: [{ rotate: '45deg' }], zIndex: -1 },
   bubble: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: c.pinBg, shadowColor: '#0A0A0B', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.28, shadowRadius: 3 },
+  noMap: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
   meHalo: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: c.meHalo },
   meDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 2, borderColor: c.scheme === 'light' ? '#FFFFFF' : '#0A0A0B', backgroundColor: c.meDot },
 }));
