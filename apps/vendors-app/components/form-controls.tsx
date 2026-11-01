@@ -202,6 +202,7 @@ function PickerField({
       </Pressable>
       <ScSheet open={open} onClose={() => setOpen(false)} accessibilityLabel={label ?? 'Choose'} horizontalPadding={16}>
         <View style={styles.pickerBody}>
+          <View style={styles.pickerCentre}>
           <DateTimePicker
             value={draft}
             mode={mode}
@@ -212,6 +213,7 @@ function PickerField({
             minuteInterval={minuteInterval}
             onChange={(_e: DateTimePickerEvent, d?: Date) => d && setDraft(d)}
           />
+          </View>
           <ScButton
             onPress={() => {
               onPick(draft);
@@ -323,4 +325,5 @@ const styles = StyleSheet.create({
     borderTopColor: colors.line,
   },
   pickerBody: { gap: 12 },
+  pickerCentre: { alignItems: 'center' },
 });
