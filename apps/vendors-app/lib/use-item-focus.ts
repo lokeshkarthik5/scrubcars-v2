@@ -5,6 +5,9 @@ import { toast } from '@repo/native-ui/toast';
 
 import { locateItem, type Scope, type ScopeLookup, scrollTarget } from './focus-item';
 
+/** How long the card is kept in view while what is above it finishes loading. */
+const SETTLE_MS = 3000;
+
 /**
  * A list screen (free redo claims, Requests) opened on one item: `?claim=<id>` or
  * `?request=<id>`. Once per id named, also when the screen is already mounted and
@@ -42,6 +45,8 @@ export function useItemFocus({
   const listTop = useRef(0);
   const tops = useRef(new Map<string, number>());
   const scrolledTo = useRef<string | null>(null);
+  const scrolledTop = useRef<number | null>(null);
+  const settleUntil = useRef(0);
   const [laidOut, setLaidOut] = useState(0);
   const refetchRef = useRef(refetch);
   refetchRef.current = refetch;
@@ -66,10 +71,18 @@ export function useItemFocus({
   }, [id, asked, done, open, closed, missing, onScope]);
 
   useEffect(() => {
-    if (!target || scrolledTo.current === target) return;
+    if (!target) return;
     const top = tops.current.get(target);
     if (top === undefined) return;
-    scrolledTo.current = target;
+    if (scrolledTo.current !== target) {
+      scrolledTo.current = target;
+      settleUntil.current = Date.now() + SETTLE_MS;
+      scrolledTop.current = null;
+    }
+    // Photos above the card load after the list is laid out and push it down: follow it for a
+    // moment, so the card is still where the link pointed once they have.
+    if (Date.now() > settleUntil.current || scrolledTop.current === top) return;
+    scrolledTop.current = top;
     scrollRef.current?.scrollTo({ y: scrollTarget(listTop.current, top), animated: false });
   }, [target, laidOut, scrollRef]);
 

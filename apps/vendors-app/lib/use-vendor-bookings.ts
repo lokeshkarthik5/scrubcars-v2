@@ -61,6 +61,11 @@ function read(): Promise<void> {
   return promise;
 }
 
+/** A push arrived: read the jobs now rather than at the next poll. Nothing when no screen shows them. */
+export function refreshBookingsNow() {
+  if (users > 0) void read();
+}
+
 const inFront = () => AppState.currentState === 'active';
 
 function start(vendorId: string) {
