@@ -3,11 +3,11 @@ import { SERVICE_CATEGORY_OPTIONS } from '@repo/core/categories';
 import { withMedia } from '@repo/core/service-media';
 import type { Service, ServiceMedia } from '@repo/core/types';
 import { type Dispatch, type SetStateAction, useState } from 'react';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { ScButton } from '@repo/native-ui/button';
 import { Chip } from '@repo/native-ui/chip';
-import { IconTool } from '@repo/native-ui/icons';
+import { IconPlus, IconTool } from '@repo/native-ui/icons';
 import { ScInput, ScTextarea } from '@repo/native-ui/inputs';
 import { EmptyState, ScCard } from '@repo/native-ui/primitives';
 import {
@@ -19,8 +19,10 @@ import {
   servicePayload,
 } from '@/lib/service-form';
 import { createService, deleteService, toggleServiceActive, updateService } from '@/lib/services-api';
+import { T } from '@repo/native-ui/text';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 
+import { AddOnsSection } from './add-ons-section';
 import { CatalogueCard } from './catalogue-card';
 import { DeleteSheet } from './delete-sheet';
 import { ChipRow, PricingBlock } from './pricing-block';
@@ -56,6 +58,8 @@ export function ServicesTab({
   const styles = useStyles();
   const { saving, run } = useSaver();
   const [deleting, setDeleting] = useState<Service | null>(null);
+  // Bumped by the heading's "Add add-on": the section opens its sheet.
+  const [addOnRequest, setAddOnRequest] = useState(0);
   const change = (patch: Partial<ServiceForm>) => setForm((current) => ({ ...current, ...patch }));
 
   const reset = () => {
@@ -100,7 +104,25 @@ export function ServicesTab({
   return (
     <View style={styles.column}>
       <View style={styles.section}>
-        <SectionTitle title={editingId ? 'Edit service' : 'Add a service'} onCancel={editingId ? reset : undefined} />
+        <SectionTitle
+          title={editingId ? 'Edit service' : 'Add a service'}
+          onCancel={editingId ? reset : undefined}
+          // The real tab has no "add service" button, only this form, so "Add add-on" sits in the
+          // heading's slot. A quiet link: the screen's one red is Add service.
+          action={
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setAddOnRequest((n) => n + 1)}
+              hitSlop={6}
+              style={styles.addOn}
+            >
+              <IconPlus size={15} color={colors.textSecondary} />
+              <T size={13} weight={500} color={colors.textSecondary}>
+                Add add-on
+              </T>
+            </Pressable>
+          }
+        />
         <ScCard style={styles.form}>
           <ScInput label="Service name" value={form.name} onChangeText={(name) => change({ name })} />
           <ScTextarea
@@ -169,6 +191,8 @@ export function ServicesTab({
         )}
       </View>
 
+      <AddOnsSection addRequest={addOnRequest} />
+
       <DeleteSheet target={deleting} noun="service" onClose={() => setDeleting(null)} onConfirm={remove} />
     </View>
   );
@@ -180,4 +204,5 @@ const useStyles = createStyles((colors) => ({
   form: { gap: 12 },
   group: { gap: 8 },
   list: { gap: 8 },
+  addOn: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 4, marginVertical: -10 },
 }));

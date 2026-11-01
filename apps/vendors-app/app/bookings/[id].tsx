@@ -41,9 +41,10 @@ import {
   photoStage,
   progressIndex,
   PROGRESS_STEPS,
-  servicesLine,
   statusLabel,
 } from '@/lib/jobs';
+import { JobAddOnLines } from '@/components/job-add-on-lines';
+import { serviceOnlyLine } from '@/lib/add-on-lines';
 import { openLink } from '@/lib/open-link';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 import { useVendorBookings } from '@/lib/use-vendor-bookings';
@@ -176,8 +177,9 @@ function Job({ booking: b, now, onChanged }: { booking: Booking; now: number; on
           </StatusChip>
         </View>
         <T size={16} color={colors.textSecondary}>
-          {`${servicesLine(b)} · ${BOOKING_TYPE_LABELS[b.bookingType]}`}
+          {`${serviceOnlyLine(b)} · ${BOOKING_TYPE_LABELS[b.bookingType]}`}
         </T>
+        <JobAddOnLines items={b.items} size={14} />
         {stepTimes.length > 0 ? (
           <T num size={14} color={colors.textSecondary}>
             {stepTimes.join(' · ')}

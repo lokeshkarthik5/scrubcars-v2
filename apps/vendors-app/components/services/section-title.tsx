@@ -10,11 +10,14 @@ export function SectionTitle({
   title,
   onCancel,
   count,
+  action,
 }: {
   title: string;
   /** Shown as "Cancel edit" when given. */
   onCancel?: () => void;
   count?: number;
+  /** Beside the heading when not editing: the Services form's "Add add-on". */
+  action?: React.ReactNode;
 }) {
   const colors = useColors();
   const styles = useStyles();
@@ -27,6 +30,8 @@ export function SectionTitle({
             Cancel edit
           </T>
         </Pressable>
+      ) : action ? (
+        action
       ) : count !== undefined && count > 0 ? (
         <T num size={12} color={colors.textMuted}>
           {count}

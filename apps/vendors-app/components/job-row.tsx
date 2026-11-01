@@ -6,12 +6,13 @@ import { type Href, router } from 'expo-router';
 import { Pressable, View } from 'react-native';
 
 import { changeStatusWithUndo, useDeferredStatus } from '@/lib/deferred-status';
-import { cancelledLabel, nextStep, nextStepLabel, servicesLine, shortName, statusLabel } from '@/lib/jobs';
+import { cancelledLabel, nextStep, nextStepLabel, shortName, statusLabel } from '@/lib/jobs';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 
 import { Label, ScButton } from '@repo/native-ui/button';
 import { IconCamera, IconCar, IconChevronRight } from '@repo/native-ui/icons';
 import { StatusChip } from '@repo/native-ui/primitives';
+import { listServicesLine } from '@/lib/add-on-lines';
 import { T } from '@repo/native-ui/text';
 
 /**
@@ -72,7 +73,7 @@ export function JobRow({
             </T>
           ) : null}
           <T size={15} color={colors.textSecondary} numberOfLines={1}>
-            {`${servicesLine(b)} · ${BOOKING_TYPE_LABELS[b.bookingType]}`}
+            {`${listServicesLine(b)} · ${BOOKING_TYPE_LABELS[b.bookingType]}`}
           </T>
           {dayOff && b.status !== 'completed' ? (
             <T size={14} color={colors.textSecondary} style={styles.label}>

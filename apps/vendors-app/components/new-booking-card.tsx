@@ -13,7 +13,6 @@ import {
   jobPrice,
   proposalOpen,
   responseRunOut,
-  servicesLine,
   slotPassed,
 } from '@/lib/jobs';
 import { createStyles, useColors } from '@repo/native-ui/theme';
@@ -22,6 +21,8 @@ import { AnswerDeadline } from './answer-deadline';
 import { Label, ScButton } from '@repo/native-ui/button';
 import { IconCar, IconCheck, IconHome, IconMapPin, IconPhoneOff, IconRefresh } from '@repo/native-ui/icons';
 import { PressRow } from '@repo/native-ui/primitives';
+import { JobAddOnLines } from './job-add-on-lines';
+import { serviceOnlyLine } from '@/lib/add-on-lines';
 import { RejectBookingSheet } from './reject-booking';
 import { SuggestTimes } from './suggest-times';
 import { T } from '@repo/native-ui/text';
@@ -99,8 +100,9 @@ export function NewBookingCard({
               {formatWhen(b.scheduledAtIso, now)}
             </T>
             <T size={17} weight={500}>
-              {servicesLine(b)}
+              {serviceOnlyLine(b)}
             </T>
+            <JobAddOnLines items={b.items} size={15} />
             {b.vehicle ? (
               <T size={16} color={colors.textSecondary}>
                 {`${b.vehicle.make} ${b.vehicle.model} · `}
