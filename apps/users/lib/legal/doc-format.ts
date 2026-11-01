@@ -63,6 +63,14 @@ export interface LegalDoc {
   sections: LegalSection[]
   /** Show an "On this page" list. For the long pages. */
   toc: boolean
+  /**
+   * A how-to page that describes something the apps already do (deleting an
+   * account), not a policy waiting to come into force. It is outside the draft
+   * switch: indexable, no "not yet in force" banner and no "In force from"
+   * line, because a store listing links to it and a search engine must keep
+   * it. The lawyer still reads it in the Markdown copy.
+   */
+  standing?: boolean
 }
 
 // ─── Placeholders ────────────────────────────────────────────────────────────

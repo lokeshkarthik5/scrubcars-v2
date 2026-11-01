@@ -216,7 +216,7 @@ export function LegalPage({
   return (
     <div className="legal-doc flex min-h-dvh flex-col bg-brand-black">
       <SkipLink />
-      {LEGAL_DRAFT && <DraftBanner />}
+      {LEGAL_DRAFT && !doc.standing && <DraftBanner />}
 
       <header className="legal-chrome border-b border-white/[0.06]">
         <div className="mx-auto flex h-16 w-full max-w-[70ch] items-center justify-between gap-4 px-4 lg:max-w-[1440px] lg:px-16 xl:px-20">
@@ -247,11 +247,17 @@ export function LegalPage({
           Last updated: {LAST_UPDATED}
           {/* A separator on one line, a line break on a phone — never both,
               which would leave a "·" hanging at the end of the first line. */}
-          <span aria-hidden className="hidden sm:inline">
-            {' · '}
-          </span>
-          <br className="sm:hidden" />
-          In force from: <Inline text={effective} />
+          {!doc.standing && (
+            <span aria-hidden className="hidden sm:inline">
+              {' · '}
+            </span>
+          )}
+          {!doc.standing && (
+            <>
+              <br className="sm:hidden" />
+              In force from: <Inline text={effective} />
+            </>
+          )}
         </p>
 
         {doc.intro.map((block, index) => (

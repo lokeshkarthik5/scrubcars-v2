@@ -15,6 +15,14 @@ reconstructing every change in them.
 
 ## [Unreleased]
 
+- **Delete your account, on the web** (`/delete-account`). A public, static,
+  indexable page the app stores link to: how a customer deletes their
+  account in the app, what is deleted and kept, what to finish first, how to
+  ask us when the app is not to hand, and how garage staff and owners do it.
+  Linked from both footers and the Privacy Policy. Outside the legal pages'
+  draft switch on purpose (`LegalDoc.standing`: no noindex, no "not yet in
+  force" banner); the text is still in the lawyer's Markdown copy.
+
 - **Trust & look** (API 0063). Bronze / Silver / Gold medals replace the
   "Documents verified" shield and the "Detlio Certified" seal: one medal on
   cards, the garage page ("What this means" lists every standard), checkout
