@@ -56,8 +56,16 @@ export const registerDeviceSchema = z
 
 export const removeDeviceSchema = z.object({ token: deviceToken }).strict()
 
+/**
+ * "Send a test to my phone": every phone of this person's, or just this one
+ * when its token is named. Strict like the rest, and like the other routes it needs a JSON
+ * body: the app sends `{}` for "all my phones".
+ */
+export const deviceTestSchema = z.object({ token: deviceToken.optional() }).strict()
+
 export type SubscribeInput = z.infer<typeof subscribeSchema>
 export type EndpointInput = z.infer<typeof endpointSchema>
 export type PreferencesInput = z.infer<typeof preferencesSchema>
 export type RegisterDeviceInput = z.infer<typeof registerDeviceSchema>
 export type RemoveDeviceInput = z.infer<typeof removeDeviceSchema>
+export type DeviceTestInput = z.infer<typeof deviceTestSchema>

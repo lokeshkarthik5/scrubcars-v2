@@ -34,6 +34,7 @@ import { pushRepository, type ScheduledCandidateRow } from './push.repository.js
 import { deviceDeliveryWith } from './push.device-rules.js'
 import { deliveryWith, type DeliverySummary } from './push.rules.js'
 import type {
+  DeviceTestInput,
   EndpointInput,
   PreferencesInput,
   RegisterDeviceInput,
@@ -85,6 +86,20 @@ const testLimit = createKeyedLimit(5, 10 * 60 * 1000)
 
 /** One cron run spends at most this long sending scheduled notifications. */
 const SWEEP_BUDGET_MS = 10_000
+
+/** One test a person asks for, browser or phone, out of their five. */
+function takeTestAllowance(scope: Scope) {
+  const limit = testLimit(`${scope.audience}:${scope.userId}`)
+  if (!limit.ok) {
+    throw new AppError(429, 'Too many test notifications. Try again in a few minutes.', 'PUSH_TEST_RATE_LIMIT', {
+      retryAfterSeconds: limit.retryAfterSeconds,
+    })
+  }
+}
+
+function notRegistered(): AppError {
+  return new AppError(404, "Notifications aren't on for this phone. Turn them on first.", 'PUSH_NOT_SUBSCRIBED')
+}
 
 function notSubscribed(): AppError {
   return new AppError(
@@ -299,12 +314,7 @@ export const pushService = {
    * of it. Rate limited per person.
    */
   async sendTest(scope: Scope, input: EndpointInput) {
-    const limit = testLimit(`${scope.audience}:${scope.userId}`)
-    if (!limit.ok) {
-      throw new AppError(429, 'Too many test notifications. Try again in a few minutes.', 'PUSH_TEST_RATE_LIMIT', {
-        retryAfterSeconds: limit.retryAfterSeconds,
-      })
-    }
+    takeTestAllowance(scope)
     const own = await pushRepository.findOwnSubscription(scope, input.endpoint)
     if (!own) throw notSubscribed()
 
@@ -315,6 +325,31 @@ export const pushService = {
     // The push service says this browser's subscription is gone: it was
     // deleted just now, and the screen asks for notifications again.
     if (summary.removed === 1) return { result: 'expired' as const }
+    return { result: 'failed' as const }
+  },
+
+  /**
+   * "Send me a test notification" from the native app: to this person's own
+   * phones only (and, for a garage seat, only those turned on for this
+   * garage), or to the one phone named. The same five-per-ten-minutes allowance
+   * as the browser test, shared with it. Awaited, so the screen can say what
+   * came of it.
+   */
+  async sendDeviceTest(scope: Scope, input: DeviceTestInput) {
+    takeTestAllowance(scope)
+    const own = await pushRepository.listOwnDevices(scope, input.token)
+    if (own.length === 0) throw notRegistered()
+
+    const message = testMessage(scope.audience)
+    const summary = await deliverToDevices(own, message)
+    log.info(
+      { channel: 'devices', audience: scope.audience, sent: summary.sent, removed: summary.removed, failures: summary.failures },
+      'push:test'
+    )
+    if (summary.sent > 0) return { result: 'sent' as const }
+    // Expo says every one of these phones is gone: they were deleted just
+    // now, and the screen asks for notifications again.
+    if (summary.failed === 0 && summary.removed > 0) return { result: 'expired' as const }
     return { result: 'failed' as const }
   },
 
