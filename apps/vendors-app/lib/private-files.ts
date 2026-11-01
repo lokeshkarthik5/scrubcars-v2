@@ -43,5 +43,16 @@ export function isInside(uri: string, root: string): boolean {
   return path.startsWith(`${base}/`);
 }
 
+/**
+ * The cache folders a picker's copy may sit in. In Expo Go the app's cache is a folder of its own
+ * inside Library/Caches (".../Caches/ExponentExperienceData/@anonymous/<app>/") while the pickers
+ * write to Library/Caches itself, so the copy is outside it: both roots count there. In a real
+ * build the cache IS Library/Caches and this is just that.
+ */
+export function cacheRoots(cacheUri: string): string[] {
+  const at = cacheUri.indexOf('/ExponentExperienceData/');
+  return at === -1 ? [cacheUri] : [cacheUri, cacheUri.slice(0, at)];
+}
+
 /** Android keeps the shared file until the other app has read it; iOS has finished when the sheet closes. */
 export const DELETE_AFTER_SHARE_MS = { ios: 0, android: 2 * 60 * 1000 } as const;

@@ -117,17 +117,21 @@ export function ServiceMediaEditor({
     setError(null);
     const refused = checkPhotoPick(asset);
     if (refused) {
+      discardCached([asset.uri]);
       setError(refused);
       return;
     }
     setBusy('photo');
+    let preparedUri: string | null = null;
     try {
       const prepared = await prepareForUpload(asset.uri, 'That photo');
+      preparedUri = prepared.uri;
       onMediaChange(await uploadServicePhoto(serviceId, prepared.bytes));
-      discardCached([asset.uri, prepared.uri]);
     } catch (err) {
       fail(err, 'The photo did not upload. Try again.');
     } finally {
+      // The picker's copy of the original (location still on it) goes whatever happened.
+      discardCached([asset.uri, preparedUri]);
       setBusy(null);
     }
   };

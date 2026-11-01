@@ -94,21 +94,26 @@ function PhotosScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: 'images', exif: false });
     const asset = result.canceled ? undefined : result.assets[0];
     if (!asset) return;
+    // The picker's copy of the original (location still on it) is deleted whatever happens next:
+    // refused, unreadable, failed or sent.
     const problem = logoProblem({ name: asset.fileName ?? 'Logo', mimeType: asset.mimeType, size: asset.fileSize });
     if (problem) {
+      discardCached([asset.uri]);
       toast.error(problem);
       return;
     }
     setLogoBusy(true);
+    let preparedUri: string | null = null;
     try {
       const prepared = await prepareForUpload(asset.uri, 'This logo');
+      preparedUri = prepared.uri;
       const vendor = await uploadVendorLogo(prepared.bytes);
-      discardCached([asset.uri, prepared.uri]);
       setLogoUrl(vendor.logoUrl);
       toast.success('Logo updated');
     } catch (err) {
       toast.error(errorText(err, UPLOAD_FAILED));
     } finally {
+      discardCached([asset.uri, preparedUri]);
       setLogoBusy(false);
     }
   };
@@ -138,15 +143,23 @@ function PhotosScreen() {
         const name = asset.fileName ?? `Photo ${index + 1}`;
         const problem = photoProblem({ name, mimeType: asset.mimeType, size: asset.fileSize });
         if (problem) {
+          discardCached([asset.uri]);
           toast.error(problem);
           continue;
         }
-        const prepared = await prepareForUpload(asset.uri, name);
-        const created = await uploadVendorPhoto(prepared.bytes);
-        discardCached([asset.uri, prepared.uri]);
-        setPhotos((prev) => [...prev, created]);
+        let preparedUri: string | null = null;
+        try {
+          const prepared = await prepareForUpload(asset.uri, name);
+          preparedUri = prepared.uri;
+          const created = await uploadVendorPhoto(prepared.bytes);
+          setPhotos((prev) => [...prev, created]);
+        } finally {
+          discardCached([asset.uri, preparedUri]);
+        }
       }
     } catch (err) {
+      // The pictures after the one that failed were never read: their copies go too.
+      discardCached(result.assets.map((a) => a.uri));
       toast.error(errorText(err, UPLOAD_FAILED));
     } finally {
       setUploading(false);

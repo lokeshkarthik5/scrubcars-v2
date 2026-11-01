@@ -20,7 +20,7 @@ import { SupportCard } from '@/components/support-card';
 import { T } from '@repo/native-ui/text';
 import { toast } from '@repo/native-ui/toast';
 import { APP_VERSION } from '@/lib/app-config';
-import { useAuth } from '@/lib/auth';
+import { isSignedOut, useAuth } from '@/lib/auth';
 import { errorText } from '@/lib/error-text';
 import { getMyVendor, getWorkingHours } from '@/lib/garage-api';
 import { initialTab, SETTINGS_TABS, type SettingsTab } from '@/lib/settings-logic';
@@ -85,7 +85,7 @@ function SettingsScreen() {
         setHours(hoursData);
       })
       .catch((err) => {
-        if (!cancelled) toast.error(errorText(err, 'Failed to load settings'));
+        if (!cancelled && !isSignedOut()) toast.error(errorText(err, 'Failed to load settings'));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

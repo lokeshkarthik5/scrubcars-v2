@@ -164,6 +164,9 @@ export function installUnauthorizedHandler() {
   return () => setUnauthorizedHandler(null);
 }
 
+/** Nobody is signed in (just left, or never was): a read that fails now is no one's news. */
+export const isSignedOut = () => useAuth.getState().user === null;
+
 /**
  * As core's useIsVendorAdmin: convenience, not a boundary. An unknown role reads
  * as admin and the server refuses what isn't allowed.

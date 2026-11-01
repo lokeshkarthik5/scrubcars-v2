@@ -10,7 +10,7 @@ import { PackagesPanel } from '@/components/services/packages-panel';
 import { ServicesTab } from '@/components/services/services-tab';
 import { T } from '@repo/native-ui/text';
 import { toast } from '@repo/native-ui/toast';
-import { useAuth, useIsVendorAdmin } from '@/lib/auth';
+import { isSignedOut, useAuth, useIsVendorAdmin } from '@/lib/auth';
 import { emptyServiceForm, type ServiceForm } from '@/lib/service-form';
 import { getMediaConfig, getMyServices } from '@/lib/services-api';
 import { createStyles, useColors } from '@repo/native-ui/theme';
@@ -66,6 +66,8 @@ function ServicesScreen() {
     getMyServices()
       .then(setServices)
       .catch(() => {
+        // Leaving (signing out flips an operator to "admin" for a moment): no news to give.
+        if (isSignedOut()) return;
         toast.error('Failed to load services');
         setFailed(true);
       })
