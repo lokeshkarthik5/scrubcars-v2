@@ -3,10 +3,10 @@ import { type Href, router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { ScButton } from '@/components/button';
+import { ScButton } from '@repo/native-ui/button';
 import { ScBadge } from '@/components/form-controls';
-import { ScInput } from '@/components/inputs';
-import { ScCard } from '@/components/primitives';
+import { ScInput } from '@repo/native-ui/inputs';
+import { ScCard } from '@repo/native-ui/primitives';
 import { LinkRow, SectionHeader } from '@/components/rows';
 import { getGarageDocumentsConfig } from '@/lib/documents-api';
 import { useIsVendorAdmin } from '@/lib/auth';

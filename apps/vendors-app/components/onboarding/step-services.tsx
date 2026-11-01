@@ -8,12 +8,12 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppShell } from '@/components/app-shell';
-import { Chip } from '@/components/chip';
-import { IconAlertCircle, IconCircleCheck } from '@/components/icons';
-import { ScInput } from '@/components/inputs';
-import { ScCard } from '@/components/primitives';
+import { Chip } from '@repo/native-ui/chip';
+import { IconAlertCircle, IconCircleCheck } from '@repo/native-ui/icons';
+import { ScInput } from '@repo/native-ui/inputs';
+import { ScCard } from '@repo/native-ui/primitives';
 import { RectButton } from '@/components/rect-button';
-import { T } from '@/components/text';
+import { T } from '@repo/native-ui/text';
 import { useAuth } from '@/lib/auth';
 import { errorText } from '@/lib/error-text';
 import { closeDraft, useOnboardingDraft, writeDraft } from '@/lib/onboarding-draft';

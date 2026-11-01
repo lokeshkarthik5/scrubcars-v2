@@ -16,14 +16,14 @@ import { useAuth } from '@/lib/auth';
 import { forgetPushForGarage, restorePushForGarage } from '@/lib/push-device';
 import { colors } from '@/lib/theme';
 
-import { ScButton } from './button';
-import { ScInput, ScTextarea } from './inputs';
-import { ScCard } from './primitives';
+import { ScButton } from '@repo/native-ui/button';
+import { ScInput, ScTextarea } from '@repo/native-ui/inputs';
+import { ScCard } from '@repo/native-ui/primitives';
 import { SectionHeader } from './rows';
-import { ConfirmSheet, ScSheet } from './sheet';
+import { ConfirmSheet, ScSheet } from '@repo/native-ui/sheet';
 import { useSupportSession } from './support-session-banner';
-import { T } from './text';
-import { toast } from './toast';
+import { T } from '@repo/native-ui/text';
+import { toast } from '@repo/native-ui/toast';
 import { errorText } from '@/lib/error-text';
 
 const DATE = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' });

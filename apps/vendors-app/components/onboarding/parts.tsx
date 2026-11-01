@@ -2,8 +2,8 @@ import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ProgressBar } from '@/components/form-controls';
-import { IconArrowLeft, IconLogout } from '@/components/icons';
-import { T } from '@/components/text';
+import { IconArrowLeft, IconLogout } from '@repo/native-ui/icons';
+import { T } from '@repo/native-ui/text';
 import { useAuth } from '@/lib/auth';
 import { type OnboardingDraft, type OnboardingStep, progressFor } from '@/lib/onboarding-logic';
 import { writeDraft } from '@/lib/onboarding-draft';

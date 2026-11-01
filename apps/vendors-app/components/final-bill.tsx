@@ -7,14 +7,14 @@ import { useIsVendorAdmin } from '@/lib/auth';
 import { raiseFinalBill } from '@/lib/job-records-api';
 import { colors } from '@/lib/theme';
 
-import { ScButton } from './button';
-import { IconPlus, IconReceipt, IconTrash } from './icons';
-import { ScInput, ScTextarea } from './inputs';
+import { ScButton } from '@repo/native-ui/button';
+import { IconPlus, IconReceipt, IconTrash } from '@repo/native-ui/icons';
+import { ScInput, ScTextarea } from '@repo/native-ui/inputs';
 import { JobSheetRow } from './job-sheet-row';
-import { type StatusTone, StatusChip } from './primitives';
-import { ScSheet } from './sheet';
-import { T } from './text';
-import { toast } from './toast';
+import { type StatusTone, StatusChip } from '@repo/native-ui/primitives';
+import { ScSheet } from '@repo/native-ui/sheet';
+import { T } from '@repo/native-ui/text';
+import { toast } from '@repo/native-ui/toast';
 import { errorText } from '@/lib/error-text';
 import { seedLines, serviceLinesOf } from '@/lib/final-bill-lines';
 

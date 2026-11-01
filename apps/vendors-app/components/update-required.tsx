@@ -5,10 +5,10 @@ import { APP_VERSION } from '@/lib/app-config';
 import { openLink } from '@/lib/open-link';
 import { colors } from '@/lib/theme';
 
-import { AuthStage } from './auth-stage';
-import { ScButton } from './button';
-import { BrandMark } from './primitives';
-import { T } from './text';
+import { AuthStage } from '@repo/native-ui/auth-stage';
+import { ScButton } from '@repo/native-ui/button';
+import { BrandMark } from '@repo/native-ui/primitives';
+import { T } from '@repo/native-ui/text';
 
 /** Native only (frame J): a website updates itself. The sign-in stage, card and red button. */
 export function UpdateRequired({ answer }: { answer: AppConfigAnswer }) {

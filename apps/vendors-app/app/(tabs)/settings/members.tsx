@@ -5,15 +5,15 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
-import { ScButton } from '@/components/button';
+import { ScButton } from '@repo/native-ui/button';
 import { ScBadge, ScSelect } from '@/components/form-controls';
-import { IconLock, IconTrash } from '@/components/icons';
-import { ScInput } from '@/components/inputs';
-import { ScCard, SkeletonList } from '@/components/primitives';
+import { IconLock, IconTrash } from '@repo/native-ui/icons';
+import { ScInput } from '@repo/native-ui/inputs';
+import { ScCard, SkeletonList } from '@repo/native-ui/primitives';
 import { SectionHeader, TopBar } from '@/components/rows';
-import { ConfirmSheet } from '@/components/sheet';
-import { T } from '@/components/text';
-import { toast } from '@/components/toast';
+import { ConfirmSheet } from '@repo/native-ui/sheet';
+import { T } from '@repo/native-ui/text';
+import { toast } from '@repo/native-ui/toast';
 import { useAuth, useIsVendorAdmin } from '@/lib/auth';
 import { errorText } from '@/lib/error-text';
 import {

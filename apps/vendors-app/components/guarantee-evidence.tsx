@@ -8,8 +8,8 @@ import { garageStages, hasGaragePhotos } from '@/lib/guarantee-view';
 import { colors } from '@/lib/theme';
 
 import { BeforeAfterCompare } from './before-after';
-import { IconX } from './icons';
-import { T } from './text';
+import { IconX } from '@repo/native-ui/icons';
+import { T } from '@repo/native-ui/text';
 
 /** A photo the customer took of the problem (Detlio Guarantee, 0051). */
 export interface ClaimPhotoView {

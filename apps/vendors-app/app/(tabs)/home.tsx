@@ -14,7 +14,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
 import { GarageStatus } from '@/components/garage-status';
-import { IconChevronRight, IconInbox, IconShieldCheck } from '@/components/icons';
+import { IconChevronRight, IconInbox, IconShieldCheck } from '@repo/native-ui/icons';
 import { NewBookingCard } from '@/components/new-booking-card';
 import {
   CountBadge,
@@ -26,9 +26,9 @@ import {
   Stars,
   StatTile,
   TileFigure,
-} from '@/components/primitives';
+} from '@repo/native-ui/primitives';
 import { PushBanner } from '@/components/push-banner';
-import { T } from '@/components/text';
+import { T } from '@repo/native-ui/text';
 import { TierCard } from '@/components/tier-card';
 import { useAuth, useIsVendorAdmin } from '@/lib/auth';
 import {

@@ -9,8 +9,8 @@ import { getVendorClosures, getVendorWorkingHours, getWorkingHours } from '@/lib
 import { usePushDevice } from '@/lib/push-device';
 import { colors } from '@/lib/theme';
 
-import { IconBellOff } from './icons';
-import { T } from './text';
+import { IconBellOff } from '@repo/native-ui/icons';
+import { T } from '@repo/native-ui/text';
 
 /** Whether the garage is open now, from its own hours and holidays; null while unknown. */
 function useShopOpen(): boolean | null {

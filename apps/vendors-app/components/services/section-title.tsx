@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { colors } from '@/lib/theme';
 
 import { SectionHeader } from '../rows';
-import { T } from '../text';
+import { T } from '@repo/native-ui/text';
 
 /** SectionHeader with its `action` slot: "Cancel edit" while editing, or the list's count. */
 export function SectionTitle({

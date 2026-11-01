@@ -5,9 +5,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors } from '@/lib/theme';
 
-import { ScButton } from './button';
-import { IconBolt, IconCar, IconX } from './icons';
-import { T } from './text';
+import { ScButton } from '@repo/native-ui/button';
+import { IconBolt, IconCar, IconX } from '@repo/native-ui/icons';
+import { T } from '@repo/native-ui/text';
 
 /**
  * Native only (frame E): the website opens the phone's plain camera; this adds the

@@ -4,9 +4,9 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { openLink } from '@/lib/open-link';
 import { colors, PRESSED_SCALE } from '@/lib/theme';
 
-import { IconArrowLeft, IconBrandWhatsapp, IconChevronRight, IconPhone } from './icons';
-import { PressRow, ScCard } from './primitives';
-import { T } from './text';
+import { IconArrowLeft, IconBrandWhatsapp, IconChevronRight, IconPhone } from '@repo/native-ui/icons';
+import { PressRow, ScCard } from '@repo/native-ui/primitives';
+import { T } from '@repo/native-ui/text';
 
 /** SectionHeader. */
 export function SectionHeader({ title }: { title: string }) {

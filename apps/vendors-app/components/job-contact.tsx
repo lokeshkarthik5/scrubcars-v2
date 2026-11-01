@@ -8,8 +8,8 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { openLink } from '@/lib/open-link';
 import { colors } from '@/lib/theme';
 
-import { IconBrandWhatsapp, IconCar, IconHome, IconMapPin, IconNavigation, IconPhoneOff } from './icons';
-import { T } from './text';
+import { IconBrandWhatsapp, IconCar, IconHome, IconMapPin, IconNavigation, IconPhoneOff } from '@repo/native-ui/icons';
+import { T } from '@repo/native-ui/text';
 
 const OPEN_STATUSES: ReadonlySet<Booking['status']> = new Set(['pending', 'confirmed', 'in_progress']);
 const ENDED_STATUSES: ReadonlySet<Booking['status']> = new Set(['cancelled', 'rescheduled']);

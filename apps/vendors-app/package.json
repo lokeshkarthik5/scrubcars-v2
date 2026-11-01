@@ -7,6 +7,7 @@
     "@expo-google-fonts/space-grotesk": "^0.4.1",
     "@react-native-community/datetimepicker": "9.2.1",
     "@repo/core": "*",
+    "@repo/native-ui": "*",
     "@sentry/react-native": "~8.28.0",
     "@tanstack/react-query": "^5.102.6",
     "expo": "~58.0.21",

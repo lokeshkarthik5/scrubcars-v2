@@ -4,12 +4,12 @@ import { type ComponentRef, useCallback, useEffect, useRef, useState } from 'rea
 import { Pressable, type ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
-import { LoadError, SkeletonList } from '@/components/primitives';
+import { LoadError, SkeletonList } from '@repo/native-ui/primitives';
 import { TopBar } from '@/components/rows';
 import { PackagesPanel } from '@/components/services/packages-panel';
 import { ServicesTab } from '@/components/services/services-tab';
-import { T } from '@/components/text';
-import { toast } from '@/components/toast';
+import { T } from '@repo/native-ui/text';
+import { toast } from '@repo/native-ui/toast';
 import { useAuth, useIsVendorAdmin } from '@/lib/auth';
 import { emptyServiceForm, type ServiceForm } from '@/lib/service-form';
 import { getMediaConfig, getMyServices } from '@/lib/services-api';

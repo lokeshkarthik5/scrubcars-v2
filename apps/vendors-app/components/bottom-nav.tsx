@@ -5,8 +5,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useIsVendorAdmin } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 
-import { IconCalendar, IconChartBar, IconHome, IconSettings, IconTool, type IconProps } from './icons';
-import { T } from './text';
+import { IconCalendar, IconChartBar, IconHome, IconSettings, IconTool, type IconProps } from '@repo/native-ui/icons';
+import { T } from '@repo/native-ui/text';
 
 const ITEMS: { href: string; label: string; icon: (props: IconProps) => React.JSX.Element; adminOnly?: boolean }[] = [
   { href: '/home', label: 'Home', icon: IconHome },

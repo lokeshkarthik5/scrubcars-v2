@@ -5,9 +5,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
-import { ScButton } from '@/components/button';
+import { ScButton } from '@repo/native-ui/button';
 import { ScBadge, DateField } from '@/components/form-controls';
-import { IconDownload, IconReceipt } from '@/components/icons';
+import { IconDownload, IconReceipt } from '@repo/native-ui/icons';
 import {
   EmptyState,
   LoadError,
@@ -16,10 +16,10 @@ import {
   Skeleton,
   SkeletonList,
   StatusChip,
-} from '@/components/primitives';
+} from '@repo/native-ui/primitives';
 import { SectionHeader, TopBar } from '@/components/rows';
-import { T } from '@/components/text';
-import { toast } from '@/components/toast';
+import { T } from '@repo/native-ui/text';
+import { toast } from '@repo/native-ui/toast';
 import { useAuth, useIsVendorAdmin } from '@/lib/auth';
 import {
   balanceFootnote,

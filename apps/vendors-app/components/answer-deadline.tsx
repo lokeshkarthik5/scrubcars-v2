@@ -7,8 +7,8 @@ import { Animated, StyleSheet, View } from 'react-native';
 
 import { colors } from '@/lib/theme';
 
-import { IconAlarm } from './icons';
-import { T } from './text';
+import { IconAlarm } from '@repo/native-ui/icons';
+import { T } from '@repo/native-ui/text';
 
 const MINUTE_MS = 60 * 1000;
 

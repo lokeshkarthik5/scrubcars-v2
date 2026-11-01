@@ -1,5 +1,5 @@
-import { ConfirmSheet } from '@/components/sheet';
-import { T } from '@/components/text';
+import { ConfirmSheet } from '@repo/native-ui/sheet';
+import { T } from '@repo/native-ui/text';
 import { colors } from '@/lib/theme';
 
 /**

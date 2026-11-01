@@ -9,10 +9,10 @@ import { changeStatusWithUndo, useDeferredStatus } from '@/lib/deferred-status';
 import { cancelledLabel, nextStep, nextStepLabel, servicesLine, shortName, statusLabel } from '@/lib/jobs';
 import { colors, tones } from '@/lib/theme';
 
-import { Label, ScButton } from './button';
-import { IconCamera, IconCar, IconChevronRight } from './icons';
-import { StatusChip } from './primitives';
-import { T } from './text';
+import { Label, ScButton } from '@repo/native-ui/button';
+import { IconCamera, IconCar, IconChevronRight } from '@repo/native-ui/icons';
+import { StatusChip } from '@repo/native-ui/primitives';
+import { T } from '@repo/native-ui/text';
 
 /**
  * JobRow (apps/vendors/components/job-row.tsx): one short row per job, the time big

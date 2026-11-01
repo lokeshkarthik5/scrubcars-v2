@@ -1,15 +1,16 @@
 import { formatCountdown, otpDeadlines, otpErrorMessage, retryAt as retryMoment, secondsUntil } from '@repo/core/otp';
 import { useNow } from '@repo/core/hooks/use-now';
+import { normaliseIndianMobile } from '@repo/core/phone';
 import { type Href, router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { AuthHeading, AuthStage } from '@/components/auth-stage';
-import { Label, ScButton } from '@/components/button';
-import { IconAlertCircle } from '@/components/icons';
-import { ScPhoneInput } from '@/components/inputs';
-import { T } from '@/components/text';
+import { AuthHeading, AuthStage } from '@repo/native-ui/auth-stage';
+import { Label, ScButton } from '@repo/native-ui/button';
+import { IconAlertCircle } from '@repo/native-ui/icons';
+import { ScPhoneInput } from '@repo/native-ui/inputs';
+import { T } from '@repo/native-ui/text';
 import { otpFlow } from '@/lib/otp-flow';
 import { session } from '@/lib/session';
 import { colors } from '@/lib/theme';
@@ -75,7 +76,7 @@ export default function LoginScreen() {
     >
       <AuthHeading title="Detlio for Partners" subtitle="Log in with the number registered for your garage." />
       <View style={styles.form}>
-        <ScPhoneInput value={phone} onChange={changePhone} onSubmit={() => void submit()} />
+        <ScPhoneInput normalise={normaliseIndianMobile} value={phone} onChange={changePhone} onSubmit={() => void submit()} />
         {shownError ? (
           <View accessibilityRole="alert" style={styles.error}>
             <View style={styles.errorIcon}>

@@ -2,7 +2,7 @@ import { Pressable, StyleSheet } from 'react-native';
 
 import { PRESSED_SCALE } from '@/lib/theme';
 
-import { T } from '../text';
+import { T } from '@repo/native-ui/text';
 
 /**
  * apps/vendors/app/services/catalogue-row.tsx: a row's small actions (Edit, Disable,

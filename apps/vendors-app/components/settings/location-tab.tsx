@@ -3,14 +3,14 @@ import type { ApiVendorProfile } from '@repo/core/api/types';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { ScButton } from '@/components/button';
+import { ScButton } from '@repo/native-ui/button';
 import { ScBadge } from '@/components/form-controls';
-import { ScInput } from '@/components/inputs';
+import { ScInput } from '@repo/native-ui/inputs';
 import { LocationPicker, type PickedLocation } from '@/components/location-picker';
-import { ScCard } from '@/components/primitives';
+import { ScCard } from '@repo/native-ui/primitives';
 import { SectionHeader } from '@/components/rows';
-import { T } from '@/components/text';
-import { toast } from '@/components/toast';
+import { T } from '@repo/native-ui/text';
+import { toast } from '@repo/native-ui/toast';
 import {
   locationPayload,
   pinFromVendor,

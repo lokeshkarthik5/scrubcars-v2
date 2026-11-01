@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { toast } from '@/components/toast';
+import { toast } from '@repo/native-ui/toast';
 import { errorText } from '@/lib/error-text';
 
 /**

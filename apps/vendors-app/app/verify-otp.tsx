@@ -4,11 +4,11 @@ import { type Href, router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { AuthStage } from '@/components/auth-stage';
-import { Label, ScButton } from '@/components/button';
-import { IconAlertCircle } from '@/components/icons';
-import { OtpInput } from '@/components/inputs';
-import { T } from '@/components/text';
+import { AuthStage } from '@repo/native-ui/auth-stage';
+import { Label, ScButton } from '@repo/native-ui/button';
+import { IconAlertCircle } from '@repo/native-ui/icons';
+import { OtpInput } from '@repo/native-ui/inputs';
+import { T } from '@repo/native-ui/text';
 import { useAuth } from '@/lib/auth';
 import { otpFlow } from '@/lib/otp-flow';
 import { session } from '@/lib/session';

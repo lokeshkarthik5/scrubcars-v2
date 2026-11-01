@@ -5,11 +5,11 @@ import type { Service, ServiceMedia } from '@repo/core/types';
 import { type Dispatch, type SetStateAction, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { ScButton } from '@/components/button';
-import { Chip } from '@/components/chip';
-import { IconTool } from '@/components/icons';
-import { ScInput, ScTextarea } from '@/components/inputs';
-import { EmptyState, ScCard } from '@/components/primitives';
+import { ScButton } from '@repo/native-ui/button';
+import { Chip } from '@repo/native-ui/chip';
+import { IconTool } from '@repo/native-ui/icons';
+import { ScInput, ScTextarea } from '@repo/native-ui/inputs';
+import { EmptyState, ScCard } from '@repo/native-ui/primitives';
 import {
   canSubmitService,
   emptyServiceForm,

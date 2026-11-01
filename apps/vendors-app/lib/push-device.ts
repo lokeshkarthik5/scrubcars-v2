@@ -5,7 +5,7 @@ import * as Notifications from 'expo-notifications';
 import { useCallback, useEffect, useState } from 'react';
 import { AppState, Platform } from 'react-native';
 
-import { toast } from '@/components/toast';
+import { toast } from '@repo/native-ui/toast';
 
 import { onBeforeSignOut, useAuth } from './auth';
 import { devicePrefs } from './device-prefs';

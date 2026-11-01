@@ -12,12 +12,12 @@ import {
   IconChevronRight,
   IconCircleCheck,
   IconInbox,
-} from '@/components/icons';
+} from '@repo/native-ui/icons';
 import { JobRow } from '@/components/job-row';
 import { NewBookingCard } from '@/components/new-booking-card';
-import { CountBadge, EmptyState, LoadError, ScSegmented, SkeletonList } from '@/components/primitives';
+import { CountBadge, EmptyState, LoadError, ScSegmented, SkeletonList } from '@repo/native-ui/primitives';
 import { PushBanner } from '@/components/push-banner';
-import { T } from '@/components/text';
+import { T } from '@repo/native-ui/text';
 import {
   calendarDate,
   doneJobs,

@@ -1,6 +1,6 @@
 import Svg, { Path } from 'react-native-svg';
 
-import type { IconProps } from '@/components/icons';
+import type { IconProps } from '@repo/native-ui/icons';
 
 /**
  * The three Tabler icons Settings' link rows use, drawn here rather than appended to

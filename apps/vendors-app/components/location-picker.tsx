@@ -46,9 +46,9 @@ import {
 } from '@/lib/location-picker-logic';
 import { colors } from '@/lib/theme';
 
-import { IconCurrentLocation, IconMapPin, IconSearch } from './icons';
+import { IconCurrentLocation, IconMapPin, IconSearch } from '@repo/native-ui/icons';
 import { RectButton } from './rect-button';
-import { font, T } from './text';
+import { font, T } from '@repo/native-ui/text';
 
 export type { PickedLocation };
 

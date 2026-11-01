@@ -42,14 +42,14 @@ import { errorText } from '@/lib/error-text';
 import { discardAfterShare, discardCached, newPrivateFile } from '@/lib/private-cache';
 import { colors, tones } from '@/lib/theme';
 
-import { Label, ScButton } from './button';
+import { Label, ScButton } from '@repo/native-ui/button';
 import { DateField } from './form-controls';
-import { IconCamera } from './icons';
+import { IconCamera } from '@repo/native-ui/icons';
 import { IconEye, IconFileText, IconPhoto, IconShieldCheckFilled, IconUpload } from './owner-icons';
-import { Notice, ScCard } from './primitives';
-import { AFTER_SHEET_MS, ScSheet } from './sheet';
-import { T } from './text';
-import { toast } from './toast';
+import { Notice, ScCard } from '@repo/native-ui/primitives';
+import { AFTER_SHEET_MS, ScSheet } from '@repo/native-ui/sheet';
+import { T } from '@repo/native-ui/text';
+import { toast } from '@repo/native-ui/toast';
 
 /** The status chip: a dot, but an approved one has the shield instead. */
 function DocumentChip({ status }: { status: GarageDocument['status'] }) {

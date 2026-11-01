@@ -5,8 +5,8 @@ import { Image, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 
-import { IconCheck, IconChevronDown } from './icons';
-import { T } from './text';
+import { IconCheck, IconChevronDown } from '@repo/native-ui/icons';
+import { T } from '@repo/native-ui/text';
 
 const ROLE_LABEL: Record<string, string> = {
   vendor_admin: 'Admin',

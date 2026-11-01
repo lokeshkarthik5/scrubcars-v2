@@ -5,8 +5,8 @@ import { StyleSheet, View } from 'react-native';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 
-import { IconShieldLock } from './icons';
-import { T } from './text';
+import { IconShieldLock } from '@repo/native-ui/icons';
+import { T } from '@repo/native-ui/text';
 
 export function useSupportSession(): boolean {
   const [active, setActive] = useState(false);

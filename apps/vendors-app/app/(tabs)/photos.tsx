@@ -5,13 +5,13 @@ import { useEffect, useState } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
-import { Label, ScButton } from '@/components/button';
-import { ScCard, Skeleton } from '@/components/primitives';
+import { Label, ScButton } from '@repo/native-ui/button';
+import { ScCard, Skeleton } from '@repo/native-ui/primitives';
 import { TopBar } from '@/components/rows';
-import { IconTrash } from '@/components/icons';
+import { IconTrash } from '@repo/native-ui/icons';
 import { IconBuildingStore, IconPhoto, IconUpload } from '@/components/owner-icons';
-import { T } from '@/components/text';
-import { toast } from '@/components/toast';
+import { T } from '@repo/native-ui/text';
+import { toast } from '@repo/native-ui/toast';
 import { useIsVendorAdmin } from '@/lib/auth';
 import { errorText } from '@/lib/error-text';
 import { getMyVendor } from '@/lib/garage-api';

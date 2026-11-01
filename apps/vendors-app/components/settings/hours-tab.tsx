@@ -2,13 +2,13 @@ import type { ApiVendorProfile, ApiWorkingHours } from '@repo/core/api/types';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { ScButton } from '@/components/button';
-import { Chip } from '@/components/chip';
+import { ScButton } from '@repo/native-ui/button';
+import { Chip } from '@repo/native-ui/chip';
 import { TimeField } from '@/components/form-controls';
-import { ScInput } from '@/components/inputs';
-import { ScCard } from '@/components/primitives';
+import { ScInput } from '@repo/native-ui/inputs';
+import { ScCard } from '@repo/native-ui/primitives';
 import { ScSwitch, SectionHeader } from '@/components/rows';
-import { T } from '@/components/text';
+import { T } from '@repo/native-ui/text';
 import {
   capacityFromVendor,
   capacityPayload,

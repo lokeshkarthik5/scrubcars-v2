@@ -1,6 +1,6 @@
 import Svg, { Path } from 'react-native-svg';
 
-import type { IconProps } from '@/components/icons';
+import type { IconProps } from '@repo/native-ui/icons';
 
 /**
  * The Tabler icons the owner screens (agreement, documents, team, photos) use that

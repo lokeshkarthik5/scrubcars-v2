@@ -10,9 +10,9 @@ import { useGarageTier } from '@/lib/garage-api';
 import { colors } from '@/lib/theme';
 import { useRefreshOnFocus } from '@/lib/use-refresh-on-focus';
 
-import { IconChevronRight, IconCircleCheck, IconCircleDashed } from './icons';
-import { ScCard } from './primitives';
-import { T } from './text';
+import { IconChevronRight, IconCircleCheck, IconCircleDashed } from '@repo/native-ui/icons';
+import { ScCard } from '@repo/native-ui/primitives';
+import { T } from '@repo/native-ui/text';
 
 const METALS: Record<Tier, { light: string; dark: string; ribbon: string }> = {
   bronze: { light: '#E0A672', dark: '#8A5528', ribbon: '#6B4424' },

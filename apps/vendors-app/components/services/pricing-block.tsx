@@ -2,9 +2,9 @@ import { PRICING_TYPES } from '@repo/core/pricing';
 import type { PricingType } from '@repo/core/types';
 import { StyleSheet, View } from 'react-native';
 
-import { Chip } from '@/components/chip';
-import { ScInput } from '@/components/inputs';
-import { T } from '@/components/text';
+import { Chip } from '@repo/native-ui/chip';
+import { ScInput } from '@repo/native-ui/inputs';
+import { T } from '@repo/native-ui/text';
 import { type PricingFields, sanitizeDecimal } from '@/lib/service-form';
 import { colors } from '@/lib/theme';
 

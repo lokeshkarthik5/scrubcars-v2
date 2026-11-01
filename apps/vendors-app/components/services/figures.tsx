@@ -3,7 +3,7 @@ import { Text } from 'react-native';
 
 import { splitFigures } from '@/lib/service-form';
 
-import { font } from '../text';
+import { font } from '@repo/native-ui/text';
 
 /**
  * packages/ui/src/sc/figures.tsx: a label whose figures ("₹599", "₹399–₹7999", "45") are set

@@ -19,12 +19,12 @@ import {
 import { colors } from '@/lib/theme';
 
 import { AnswerDeadline } from './answer-deadline';
-import { Label, ScButton } from './button';
-import { IconCar, IconCheck, IconHome, IconMapPin, IconPhoneOff, IconRefresh } from './icons';
-import { PressRow } from './primitives';
+import { Label, ScButton } from '@repo/native-ui/button';
+import { IconCar, IconCheck, IconHome, IconMapPin, IconPhoneOff, IconRefresh } from '@repo/native-ui/icons';
+import { PressRow } from '@repo/native-ui/primitives';
 import { RejectBookingSheet } from './reject-booking';
 import { SuggestTimes } from './suggest-times';
-import { T } from './text';
+import { T } from '@repo/native-ui/text';
 
 /**
  * NewBookingCard (apps/vendors/components/new-booking-card.tsx): a new booking,

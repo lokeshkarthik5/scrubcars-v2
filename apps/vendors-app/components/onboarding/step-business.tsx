@@ -3,11 +3,11 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppShell } from '@/components/app-shell';
-import { ScButton } from '@/components/button';
-import { Chip } from '@/components/chip';
-import { ScInput } from '@/components/inputs';
-import { ScCard } from '@/components/primitives';
-import { T } from '@/components/text';
+import { ScButton } from '@repo/native-ui/button';
+import { Chip } from '@repo/native-ui/chip';
+import { ScInput } from '@repo/native-ui/inputs';
+import { ScCard } from '@repo/native-ui/primitives';
+import { T } from '@repo/native-ui/text';
 import { useAuth } from '@/lib/auth';
 import { useOnboardingDraft } from '@/lib/onboarding-draft';
 import { phoneDigits, stepPath, step1Complete, YEARS_OPTIONS } from '@/lib/onboarding-logic';

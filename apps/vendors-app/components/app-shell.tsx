@@ -6,7 +6,7 @@ import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 
 import { CompanySwitcher } from './company-switcher';
-import { BrandMark } from './primitives';
+import { BrandMark } from '@repo/native-ui/primitives';
 import { SupportSessionBanner, useSupportSession } from './support-session-banner';
 
 /**

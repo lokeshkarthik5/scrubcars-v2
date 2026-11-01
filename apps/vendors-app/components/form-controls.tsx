@@ -4,10 +4,10 @@ import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { colors } from '@/lib/theme';
 
-import { ScButton } from './button';
-import { IconCheck, IconChevronDown } from './icons';
-import { ScSheet } from './sheet';
-import { T } from './text';
+import { ScButton } from '@repo/native-ui/button';
+import { IconCheck, IconChevronDown } from '@repo/native-ui/icons';
+import { ScSheet } from '@repo/native-ui/sheet';
+import { T } from '@repo/native-ui/text';
 
 /** ScCheckbox (packages/ui/src/sc/checkbox.tsx): ticked is white, with a 44px row to hit. */
 export function ScCheckbox({

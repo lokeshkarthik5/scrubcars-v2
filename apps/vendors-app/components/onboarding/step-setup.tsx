@@ -4,13 +4,13 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppShell } from '@/components/app-shell';
-import { ScButton } from '@/components/button';
-import { Chip } from '@/components/chip';
+import { ScButton } from '@repo/native-ui/button';
+import { Chip } from '@repo/native-ui/chip';
 import { TimeField } from '@/components/form-controls';
-import { ScInput } from '@/components/inputs';
-import { ScCard } from '@/components/primitives';
-import { T } from '@/components/text';
-import { toast } from '@/components/toast';
+import { ScInput } from '@repo/native-ui/inputs';
+import { ScCard } from '@repo/native-ui/primitives';
+import { T } from '@repo/native-ui/text';
+import { toast } from '@repo/native-ui/toast';
 import { errorText } from '@/lib/error-text';
 import { useOnboardingDraft, writeDraft } from '@/lib/onboarding-draft';
 import {

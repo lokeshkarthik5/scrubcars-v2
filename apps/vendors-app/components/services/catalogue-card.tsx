@@ -5,8 +5,8 @@ import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { ScBadge } from '@/components/form-controls';
-import { ScCard } from '@/components/primitives';
-import { T } from '@/components/text';
+import { ScCard } from '@repo/native-ui/primitives';
+import { T } from '@repo/native-ui/text';
 import { colors } from '@/lib/theme';
 
 import { Figures, Num } from './figures';

@@ -3,7 +3,7 @@ import { useBookingsStore } from '@repo/core/stores/bookings-store';
 import { useSyncExternalStore } from 'react';
 import { AppState } from 'react-native';
 
-import { showUndoToast, toast } from '@/components/toast';
+import { showUndoToast, toast } from '@repo/native-ui/toast';
 
 import { onBeforeSessionChange, useAuth } from './auth';
 import { devicePrefs } from './device-prefs';

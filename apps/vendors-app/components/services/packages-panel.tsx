@@ -4,13 +4,13 @@ import type { Service, ServiceMedia, ServicePackage } from '@repo/core/types';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { ScButton } from '@/components/button';
-import { Chip } from '@/components/chip';
-import { IconPackage } from '@/components/icons';
-import { ScInput, ScTextarea } from '@/components/inputs';
-import { EmptyState, LoadError, ScCard, SkeletonList } from '@/components/primitives';
-import { T } from '@/components/text';
-import { toast } from '@/components/toast';
+import { ScButton } from '@repo/native-ui/button';
+import { Chip } from '@repo/native-ui/chip';
+import { IconPackage } from '@repo/native-ui/icons';
+import { ScInput, ScTextarea } from '@repo/native-ui/inputs';
+import { EmptyState, LoadError, ScCard, SkeletonList } from '@repo/native-ui/primitives';
+import { T } from '@repo/native-ui/text';
+import { toast } from '@repo/native-ui/toast';
 import {
   canSubmitPackage,
   emptyPackageForm,

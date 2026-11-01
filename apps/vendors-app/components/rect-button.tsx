@@ -3,7 +3,7 @@ import { Pressable, type StyleProp, StyleSheet, type ViewStyle } from 'react-nat
 
 import { colors, PRESSED_SCALE } from '@/lib/theme';
 
-import { T } from './text';
+import { T } from '@repo/native-ui/text';
 
 /**
  * The web's older ScButton shapes (`primary`, `secondary` in packages/ui/src/sc/button.tsx):

@@ -5,8 +5,8 @@ import { Image, PanResponder, StyleSheet, View } from 'react-native';
 
 import { colors } from '@/lib/theme';
 
-import { Chip } from './chip';
-import { T } from './text';
+import { Chip } from '@repo/native-ui/chip';
+import { T } from '@repo/native-ui/text';
 
 /**
  * BeforeAfterCompare: one picture with a slider, the before left of the line, the

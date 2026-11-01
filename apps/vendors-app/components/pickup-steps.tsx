@@ -11,10 +11,10 @@ import { changeStatusWithUndo } from '@/lib/deferred-status';
 import { openLink } from '@/lib/open-link';
 import { colors } from '@/lib/theme';
 
-import { ScButton } from './button';
-import { ScInput } from './inputs';
-import { T } from './text';
-import { toast } from './toast';
+import { ScButton } from '@repo/native-ui/button';
+import { ScInput } from '@repo/native-ui/inputs';
+import { T } from '@repo/native-ui/text';
+import { toast } from '@repo/native-ui/toast';
 import { errorText } from '@/lib/error-text';
 
 const STEP_HINTS: Record<PickupNext, string> = {

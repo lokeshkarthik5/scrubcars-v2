@@ -3,8 +3,8 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { colors, PRESSED_SCALE } from '@/lib/theme';
 
-import { IconChevronRight } from './icons';
-import { T } from './text';
+import { IconChevronRight } from '@repo/native-ui/icons';
+import { T } from '@repo/native-ui/text';
 
 /** JobSheetRow: opens its own sheet when there is something to do; plain text when not. */
 export function JobSheetRow({

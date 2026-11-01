@@ -1,6 +1,6 @@
 import { DOCUMENT_CONTENT_TYPES, pickedFilesProblem } from '@repo/core/vendor-documents';
 
-import type { StatusTone } from '@/components/primitives';
+import type { StatusTone } from '@repo/native-ui/primitives';
 
 import { MAX_SOURCE_BYTES } from './photo-limits';
 

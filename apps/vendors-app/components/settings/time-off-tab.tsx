@@ -4,13 +4,13 @@ import { APP_TIMEZONE } from '@repo/core/utils';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { ScButton } from '@/components/button';
+import { ScButton } from '@repo/native-ui/button';
 import { DateField } from '@/components/form-controls';
-import { ScInput } from '@/components/inputs';
-import { Notice, ScCard } from '@/components/primitives';
+import { ScInput } from '@repo/native-ui/inputs';
+import { Notice, ScCard } from '@repo/native-ui/primitives';
 import { ScSwitch, SectionHeader } from '@/components/rows';
-import { T } from '@/components/text';
-import { toast } from '@/components/toast';
+import { T } from '@repo/native-ui/text';
+import { toast } from '@repo/native-ui/toast';
 import { errorText } from '@/lib/error-text';
 import { pauseBookings, resumeBookings } from '@/lib/garage-api';
 import { bookingsSentence, closureWindow, formatDay, sortClosures } from '@/lib/settings-logic';

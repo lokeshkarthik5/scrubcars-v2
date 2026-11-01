@@ -8,14 +8,14 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Line, Text as SvgText } from 'react-native-svg';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
-import { ScButton } from '@/components/button';
+import { ScButton } from '@repo/native-ui/button';
 import { ScBadge } from '@/components/form-controls';
-import { IconMapPin } from '@/components/icons';
-import { EmptyState, LoadError, ScCard, ScSegmented, SkeletonList } from '@/components/primitives';
+import { IconMapPin } from '@repo/native-ui/icons';
+import { EmptyState, LoadError, ScCard, ScSegmented, SkeletonList } from '@repo/native-ui/primitives';
 import { TopBar } from '@/components/rows';
-import { ConfirmSheet } from '@/components/sheet';
-import { T } from '@/components/text';
-import { toast } from '@/components/toast';
+import { ConfirmSheet } from '@repo/native-ui/sheet';
+import { T } from '@repo/native-ui/text';
+import { toast } from '@repo/native-ui/toast';
 import { errorText } from '@/lib/error-text';
 import {
   useAcceptRequest,

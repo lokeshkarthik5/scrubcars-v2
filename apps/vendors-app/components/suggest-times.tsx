@@ -8,14 +8,14 @@ import { ScrollView, type StyleProp, StyleSheet, View, type ViewStyle } from 're
 
 import { colors } from '@/lib/theme';
 
-import { ScButton } from './button';
-import { Chip } from './chip';
-import { IconCalendarQuestion } from './icons';
-import { ScTextarea } from './inputs';
-import { Spinner } from './primitives';
-import { ScSheet } from './sheet';
-import { T } from './text';
-import { toast } from './toast';
+import { ScButton } from '@repo/native-ui/button';
+import { Chip } from '@repo/native-ui/chip';
+import { IconCalendarQuestion } from '@repo/native-ui/icons';
+import { ScTextarea } from '@repo/native-ui/inputs';
+import { Spinner } from '@repo/native-ui/primitives';
+import { ScSheet } from '@repo/native-ui/sheet';
+import { T } from '@repo/native-ui/text';
+import { toast } from '@repo/native-ui/toast';
 import { errorText } from '@/lib/error-text';
 
 /** Mirrors the server (lib/time-proposals.ts) so the sheet refuses first. */

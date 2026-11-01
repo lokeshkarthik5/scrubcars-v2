@@ -3,11 +3,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
-import { ScButton } from '@/components/button';
+import { ScButton } from '@repo/native-ui/button';
 import { DocumentCard } from '@/components/document-card';
-import { Notice, SkeletonList } from '@/components/primitives';
+import { Notice, SkeletonList } from '@repo/native-ui/primitives';
 import { SectionHeader, TopBar } from '@/components/rows';
-import { T } from '@/components/text';
+import { T } from '@repo/native-ui/text';
 import { useIsVendorAdmin } from '@/lib/auth';
 import {
   type GarageDocument,

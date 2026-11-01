@@ -6,9 +6,9 @@ import { devicePrefs } from '@/lib/device-prefs';
 import { usePushDevice } from '@/lib/push-device';
 import { colors } from '@/lib/theme';
 
-import { ScButton } from './button';
-import { IconBell, IconX } from './icons';
-import { T } from './text';
+import { ScButton } from '@repo/native-ui/button';
+import { IconBell, IconX } from '@repo/native-ui/icons';
+import { T } from '@repo/native-ui/text';
 
 /** A close is "not now", never "never": it comes back a week later while alerts are off. */
 const SNOOZED_AT_KEY = 'detlio.pushBannerSnoozedAt';

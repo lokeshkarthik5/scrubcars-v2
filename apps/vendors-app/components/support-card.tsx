@@ -3,9 +3,9 @@ import { StyleSheet, View } from 'react-native';
 
 import { colors } from '@/lib/theme';
 
-import { ScCard } from './primitives';
+import { ScCard } from '@repo/native-ui/primitives';
 import { ContactButtons } from './rows';
-import { T } from './text';
+import { T } from '@repo/native-ui/text';
 
 /** SupportCard. */
 export function SupportCard() {

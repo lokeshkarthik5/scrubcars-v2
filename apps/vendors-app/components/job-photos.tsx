@@ -18,12 +18,12 @@ import { deleteJobPhoto, uploadJobPhoto } from '@/lib/job-records-api';
 import { prepareForUpload } from '@/lib/photo-prepare';
 import { colors } from '@/lib/theme';
 
-import { ScButton } from './button';
+import { ScButton } from '@repo/native-ui/button';
 import { CameraCapture } from './camera-capture';
-import { IconCamera, IconCameraPlus, IconCheck } from './icons';
-import { AFTER_SHEET_MS, ScModal, ScSheet } from './sheet';
-import { T } from './text';
-import { toast } from './toast';
+import { IconCamera, IconCameraPlus, IconCheck } from '@repo/native-ui/icons';
+import { AFTER_SHEET_MS, ScModal, ScSheet } from '@repo/native-ui/sheet';
+import { T } from '@repo/native-ui/text';
+import { toast } from '@repo/native-ui/toast';
 import { errorText } from '@/lib/error-text';
 
 const LABELS: Record<JobPhoto['stage'], string> = { before: 'Before photos', after: 'After photos' };

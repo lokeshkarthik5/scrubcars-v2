@@ -10,8 +10,8 @@ import {
   IconPlayerPlayFilled,
   IconVideo,
   IconVideoPlus,
-} from '@/components/icons';
-import { T } from '@/components/text';
+} from '@repo/native-ui/icons';
+import { T } from '@repo/native-ui/text';
 import { percent, type VideoWork } from '@/lib/service-media-rules';
 import { colors } from '@/lib/theme';
 

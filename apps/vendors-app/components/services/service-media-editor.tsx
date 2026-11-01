@@ -7,10 +7,10 @@ import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useRef, useState } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 
-import { ScButton } from '@/components/button';
-import { IconCheck, IconPhotoPlus, IconX } from '@/components/icons';
-import { AFTER_SHEET_MS, ScSheet } from '@/components/sheet';
-import { T } from '@/components/text';
+import { ScButton } from '@repo/native-ui/button';
+import { IconCheck, IconPhotoPlus, IconX } from '@repo/native-ui/icons';
+import { AFTER_SHEET_MS, ScSheet } from '@repo/native-ui/sheet';
+import { T } from '@repo/native-ui/text';
 import { errorText } from '@/lib/error-text';
 import { prepareForUpload } from '@/lib/photo-prepare';
 import { discardCached } from '@/lib/private-cache';

@@ -2,11 +2,11 @@ import { type Href, router } from 'expo-router';
 import { Linking, StyleSheet, View } from 'react-native';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
-import { ScButton } from '@/components/button';
-import { IconBellOff, IconDeviceMobile } from '@/components/icons';
-import { EmptyState, Notice, ScCard, Skeleton, StatusChip } from '@/components/primitives';
+import { ScButton } from '@repo/native-ui/button';
+import { IconBellOff, IconDeviceMobile } from '@repo/native-ui/icons';
+import { EmptyState, Notice, ScCard, Skeleton, StatusChip } from '@repo/native-ui/primitives';
 import { ScSwitch, TopBar } from '@/components/rows';
-import { T } from '@/components/text';
+import { T } from '@repo/native-ui/text';
 import { useAuth, useIsVendorAdmin } from '@/lib/auth';
 import { usePushDevice } from '@/lib/push-device';
 import { colors } from '@/lib/theme';

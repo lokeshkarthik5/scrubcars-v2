@@ -6,13 +6,13 @@ import { useCallback, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
-import { ScButton } from '@/components/button';
-import { IconStar } from '@/components/icons';
-import { EmptyState, LoadError, ScCard, Skeleton, SkeletonList, Stars } from '@/components/primitives';
+import { ScButton } from '@repo/native-ui/button';
+import { IconStar } from '@repo/native-ui/icons';
+import { EmptyState, LoadError, ScCard, Skeleton, SkeletonList, Stars } from '@repo/native-ui/primitives';
 import { ReplySheet, ReportSheet } from '@/components/review-sheets';
 import { TopBar } from '@/components/rows';
 import { useSupportSession } from '@/components/support-session-banner';
-import { T } from '@/components/text';
+import { T } from '@repo/native-ui/text';
 import { useAuth, useIsVendorAdmin } from '@/lib/auth';
 import { getReviewsFor } from '@/lib/reviews-api';
 import {

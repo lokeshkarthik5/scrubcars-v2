@@ -9,13 +9,13 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
-import { ScButton } from '@/components/button';
-import { IconCheck, IconCircleCheck } from '@/components/icons';
+import { ScButton } from '@repo/native-ui/button';
+import { IconCheck, IconCircleCheck } from '@repo/native-ui/icons';
 import { IconExternalLink, IconFileText } from '@/components/owner-icons';
-import { Notice, ScCard, SkeletonList } from '@/components/primitives';
+import { Notice, ScCard, SkeletonList } from '@repo/native-ui/primitives';
 import { TopBar } from '@/components/rows';
-import { T } from '@/components/text';
-import { toast } from '@/components/toast';
+import { T } from '@repo/native-ui/text';
+import { toast } from '@repo/native-ui/toast';
 import {
   acceptedLine,
   AGREEMENT_ACCEPT_FAILED,

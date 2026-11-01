@@ -13,7 +13,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
 import { BeforeAfterCompare } from '@/components/before-after';
-import { Label, ScButton } from '@/components/button';
+import { Label, ScButton } from '@repo/native-ui/button';
 import { CancelAcceptedBooking } from '@/components/cancel-accepted-booking';
 import { ExtraWorkPanel } from '@/components/extra-work';
 import { FinalBillPanel } from '@/components/final-bill';
@@ -25,13 +25,13 @@ import {
   IconCircle,
   IconLock,
   IconPhone,
-} from '@/components/icons';
+} from '@repo/native-ui/icons';
 import { JobContact } from '@/components/job-contact';
 import { JobPhotos } from '@/components/job-photos';
 import { NewBookingCard } from '@/components/new-booking-card';
 import { PickupSteps } from '@/components/pickup-steps';
-import { EmptyState, LoadError, SkeletonList, Stars, StatusChip } from '@/components/primitives';
-import { T } from '@/components/text';
+import { EmptyState, LoadError, SkeletonList, Stars, StatusChip } from '@repo/native-ui/primitives';
+import { T } from '@repo/native-ui/text';
 import { changeStatusWithUndo, DEFERRED_WORDS, useDeferredStatus } from '@/lib/deferred-status';
 import {
   blockers,

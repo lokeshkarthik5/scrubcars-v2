@@ -4,12 +4,12 @@ import { StyleSheet, View } from 'react-native';
 
 import { AccountActions } from '@/components/account-actions';
 import { AppShell, garageScreen } from '@/components/app-shell';
-import { Label, ScButton } from '@/components/button';
-import { IconLogout } from '@/components/icons';
-import { ScCard } from '@/components/primitives';
+import { Label, ScButton } from '@repo/native-ui/button';
+import { IconLogout } from '@repo/native-ui/icons';
+import { ScCard } from '@repo/native-ui/primitives';
 import { SectionHeader, TopBar } from '@/components/rows';
 import { SupportCard } from '@/components/support-card';
-import { T } from '@/components/text';
+import { T } from '@repo/native-ui/text';
 import { APP_VERSION } from '@/lib/app-config';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
