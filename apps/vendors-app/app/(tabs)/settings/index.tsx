@@ -6,10 +6,11 @@ import { type ReactNode, useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { AccountActions } from '@/components/account-actions';
+import { AppearanceCard } from '@/components/appearance-card';
 import { AppShell, garageScreen } from '@/components/app-shell';
 import { Label, ScButton } from '@repo/native-ui/button';
 import { IconBell, IconLogout, IconUsers } from '@repo/native-ui/icons';
-import { ScCard, ScSegmented, Skeleton, SkeletonList } from '@repo/native-ui/primitives';
+import { Skeleton, SkeletonList } from '@repo/native-ui/primitives';
 import { LinkRow, SectionHeader, TopBar } from '@/components/rows';
 import { HoursTab } from '@/components/settings/hours-tab';
 import { LocationTab } from '@/components/settings/location-tab';
@@ -23,8 +24,7 @@ import { useAuth } from '@/lib/auth';
 import { errorText } from '@/lib/error-text';
 import { getMyVendor, getWorkingHours } from '@/lib/garage-api';
 import { initialTab, SETTINGS_TABS, type SettingsTab } from '@/lib/settings-logic';
-import { createStyles, useColors, useTheme } from '@repo/native-ui/theme';
-import type { Appearance } from '@repo/native-ui/tokens';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 import { getMyClosures } from '@/lib/vendor-api';
 
 const LABELS: Record<SettingsTab, string> = {
@@ -154,36 +154,6 @@ function SettingsScreen() {
   );
 }
 
-const APPEARANCES: { value: Appearance; label: string }[] = [
-  { value: 'system', label: 'System' },
-  { value: 'light', label: 'Light' },
-  { value: 'dark', label: 'Dark' },
-];
-
-/** Appearance (white-theme frame M): how the app looks on this phone; the web has no such setting. */
-function AppearanceCard() {
-  const colors = useColors();
-  const styles = useStyles();
-  const { appearance, setAppearance } = useTheme();
-  return (
-    <ScCard>
-      <T accessibilityRole="header" size={20} weight={600} lh={28}>
-        Appearance
-      </T>
-      <T size={14} lh={20} color={colors.textSecondary} style={styles.appearanceNote}>
-        How the app looks on this phone. System follows your phone&apos;s setting.
-      </T>
-      <ScSegmented
-        accessibilityLabel="Appearance"
-        options={APPEARANCES}
-        value={appearance}
-        onChange={setAppearance}
-        trackColor={colors.canvas}
-      />
-    </ScCard>
-  );
-}
-
 function AccountTab() {
   const colors = useColors();
   const styles = useStyles();
@@ -246,5 +216,4 @@ const useStyles = createStyles((colors) => ({
   hidden: { display: 'none' },
   section: { gap: 12 },
   version: { marginBottom: 8 },
-  appearanceNote: { marginTop: 4, marginBottom: 12 },
 }));

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { View } from 'react-native';
 
 import { AccountActions } from '@/components/account-actions';
+import { AppearanceCard } from '@/components/appearance-card';
 import { AppShell, garageScreen } from '@/components/app-shell';
 import { Label, ScButton } from '@repo/native-ui/button';
 import { IconLogout } from '@repo/native-ui/icons';
@@ -44,6 +45,8 @@ function AccountScreen() {
           <T num size={13} color={colors.textSecondary}>{`+91 ${user.phone}`}</T>
         </ScCard>
       ) : null}
+
+      <AppearanceCard />
 
       <AccountActions />
 
