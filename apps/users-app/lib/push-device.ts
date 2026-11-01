@@ -9,7 +9,8 @@ import { AppState, Platform } from 'react-native';
 import { onBeforeSignOut, useAuth } from './auth';
 import { devicePrefs } from './device-prefs';
 import { errorText } from './error-text';
-import { registerPushDevice, removePushDevice } from './push-api';
+import { deviceTestReply } from './device-test-reply';
+import { registerPushDevice, removePushDevice, sendDeviceTest } from './push-api';
 import { createPushController, type PermissionState } from './push-controller';
 
 const toState = (result: { status: string }): PermissionState =>
@@ -36,6 +37,11 @@ if (Platform.OS === 'android') {
   void Notifications.setNotificationChannelAsync('default', {
     name: 'Booking updates',
     importance: Notifications.AndroidImportance.HIGH,
+  }).catch(() => undefined);
+  // Ready for when the server names it: it sends none yet (apps/server/src/lib/expo-push.ts).
+  void Notifications.setNotificationChannelAsync('reminders', {
+    name: 'Reminders',
+    importance: Notifications.AndroidImportance.DEFAULT,
   }).catch(() => undefined);
 }
 
@@ -100,6 +106,23 @@ export function usePushDevice() {
     }
   }, [userId]);
 
+  const [testHidden, setTestHidden] = useState(false);
+  const sendTest = useCallback(async () => {
+    setBusy(true);
+    const reply = deviceTestReply(await sendDeviceTest().catch((error: unknown) => ({ error })));
+    setBusy(false);
+    if (reply.kind === 'sent') toast.success(reply.message);
+    else if (reply.kind === 'hide') setTestHidden(true);
+    else {
+      toast.error(reply.message);
+      if (reply.kind === 'expired') {
+        // The server has dropped this phone's token.
+        await controller.forget({ sessionGone: true });
+        changed();
+      }
+    }
+  }, []);
+
   const turnOff = useCallback(async () => {
     setBusy(true);
     try {
@@ -123,6 +146,8 @@ export function usePushDevice() {
     busy,
     turnOn,
     devices,
+    sendTest,
+    testHidden,
     turnOff,
   };
 }

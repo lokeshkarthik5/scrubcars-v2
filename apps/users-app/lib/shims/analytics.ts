@@ -1,7 +1,7 @@
-import { cleanPath, type ClientEventName, EVENT_PROPS, type EventProps } from '@repo/core/analytics-events';
+import { cleanPath, type ClientEventName, EVENT_PROPS, type EventProps, visitAttribution } from '@repo/core/analytics-events';
 import { apiClient } from '@repo/core/api/client';
 import Constants from 'expo-constants';
-import { AppState, Platform } from 'react-native';
+import { AppState, Linking, Platform } from 'react-native';
 
 import { devicePrefs } from '../device-prefs';
 
@@ -88,13 +88,26 @@ export function currentVisitId(): string | null {
   return null;
 }
 
+/** Attribution from the link's query alone. A phone has no referring site. */
+export function appOpenAttribution(url: string | null | undefined) {
+  const at = url ? url.indexOf('?') : -1;
+  const search = url && at >= 0 ? url.slice(at).split('#')[0] : '';
+  return visitAttribution({ search, referrer: '', userAgent: '', ownHost: '' });
+}
+
 /** One app_open a visit, and whatever's queued goes before the phone sleeps. */
 export function startAnalytics() {
   if (!on()) return () => undefined;
-  if (visitId().isNew) track('app_open');
+  // Where a visit came from: the tags on the link that opened the app. Only the query is read,
+  // never the path, which can hold a gift or invite code.
+  if (visitId().isNew) {
+    void Linking.getInitialURL()
+      .catch(() => null)
+      .then((url) => track('app_open', appOpenAttribution(url)));
+  }
   const subscription = AppState.addEventListener('change', (state) => {
     if (state !== 'active') flush();
-    else if (visitId().isNew) track('app_open');
+    else if (visitId().isNew) track('app_open', appOpenAttribution(null));
   });
   return () => subscription.remove();
 }
