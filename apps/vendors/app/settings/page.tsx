@@ -570,8 +570,13 @@ function VendorSettings() {
               icon={<IconFileCertificate size={18} aria-hidden="true" />}
               title="Documents"
               description={
-                // A doorstep-only garage has no shop, so no shop photo is asked for.
-                vendor && isDoorstepOnly(vendor)
+                // A doorstep-only garage (no pickup either) has no shop, so no shop photo is asked for.
+                vendor &&
+                isDoorstepOnly({
+                  doorstepEnabled: vendor.doorstepEnabled,
+                  dropinEnabled: vendor.dropinEnabled,
+                  pickupOffered: vendor.pickupEnabled === true,
+                })
                   ? 'Your ID and bank proof, one of the steps to Silver'
                   : 'Your ID, bank proof and shop photo, one of the steps to Silver'
               }

@@ -15,14 +15,17 @@ const { onboardingMarksService } = await import('./onboarding-marks.service.js')
 const DOORSTEP = 'e2e00000-0000-4000-8000-000000002312'
 const WITH_SHOP = 'e2e00000-0000-4000-8000-000000002310'
 const PICKUP_ONLY = 'e2e00000-0000-4000-8000-000000002314'
+const DOORSTEP_PICKUP = 'e2e00000-0000-4000-8000-000000002315'
 
-const FACTS = (id: string, doorstepEnabled: boolean, dropinEnabled: boolean) => ({
+const FACTS = (id: string, doorstepEnabled: boolean, dropinEnabled: boolean, pickup = false) => ({
   id,
   logoUrl: 'https://example.com/logo.png',
   lat: 12.6,
   lng: 79.6,
   doorstepEnabled,
   dropinEnabled,
+  pickup: pickup ? ('yes' as const) : ('no' as const),
+  pickupTermsAcceptedAt: pickup ? new Date('2026-10-01T00:00:00Z') : null,
   doorstepRadiusKm: 10,
   bays: 2,
   photos: [{ id: 'p1' }, { id: 'p2' }, { id: 'p3' }],
@@ -51,7 +54,8 @@ beforeAll(() => {
   patch(onboardingMarksRepository, 'listMissingFacts', async () => [
     FACTS(DOORSTEP, true, false),
     FACTS(WITH_SHOP, true, true),
-    FACTS(PICKUP_ONLY, false, false),
+    FACTS(PICKUP_ONLY, false, false, true),
+    FACTS(DOORSTEP_PICKUP, true, false, true),
   ])
   patch(onboardingMarksRepository, 'listDrawnAreaIds', async () => [])
   patch(onboardingMarksRepository, 'listPayoutAccounts', async () => [])
@@ -70,9 +74,11 @@ afterAll(() => {
 
 describe('missing documents, per garage', () => {
   test('a doorstep-only garage with ID and bank proof is missing no documents; the others still need the shop photo', async () => {
-    const missing = await onboardingMarksService.missingFor([DOORSTEP, WITH_SHOP, PICKUP_ONLY])
+    const missing = await onboardingMarksService.missingFor([DOORSTEP, WITH_SHOP, PICKUP_ONLY, DOORSTEP_PICKUP])
     expect(missing.get(DOORSTEP)).not.toContain('documents')
     expect(missing.get(WITH_SHOP)).toContain('documents')
     expect(missing.get(PICKUP_ONLY)).toContain('documents')
+    // Doorstep plus pickup & drop, at-garage off: it collects cars, so it has premises.
+    expect(missing.get(DOORSTEP_PICKUP)).toContain('documents')
   })
 })

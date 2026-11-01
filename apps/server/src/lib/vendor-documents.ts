@@ -16,6 +16,8 @@
  * packages/core/src/vendor-documents.ts (vendor-documents.parity.test.ts).
  */
 
+import { isPickupOffered, type PickupSettings } from './pickup.js'
+
 /** Every kind of document, in the order the screens list them. */
 export const DOCUMENT_TYPES = [
   'shop_photo',
@@ -51,18 +53,38 @@ export const REQUIRED_DOCUMENT_TYPES = [
 export interface DocumentModes {
   doorstepEnabled: boolean
   dropinEnabled: boolean
+  /** Offers pickup & drop (lib/pickup.ts isPickupOffered): the garage collects cars, so it has premises. */
+  pickupOffered: boolean
+}
+
+/** The modes from a garage row (or the columns that decide them). */
+export function documentModesOf(row: {
+  doorstepEnabled: boolean
+  dropinEnabled: boolean
+  pickup: PickupSettings['pickup']
+  pickupTermsAcceptedAt: PickupSettings['pickupTermsAcceptedAt']
+}): DocumentModes {
+  return {
+    doorstepEnabled: row.doorstepEnabled,
+    dropinEnabled: row.dropinEnabled,
+    pickupOffered: isPickupOffered({
+      pickup: row.pickup,
+      pickupRadiusKm: null,
+      pickupTermsAcceptedAt: row.pickupTermsAcceptedAt,
+    }),
+  }
 }
 
 /**
  * **Doorstep-only** (owner decision, 1 Nov 2026: "Documents for doorstep they
- * cant provide a front store photo so that cant be mandatory"): doorstep on
- * and at-garage (drop-in) off, so there is no shop to photograph. A garage
- * with pickup & drop alone (neither on) is not doorstep-only: it works from
- * premises, so the photo is still required. Turning at-garage on later makes
+ * cant provide a front store photo so that cant be mandatory"): doorstep on,
+ * at-garage (drop-in) off and pickup & drop not offered, so there is no shop
+ * to photograph. A garage that collects cars (pickup offered, with or without
+ * doorstep) works from premises, so the photo is still required. Turning at-garage on later makes
  * the photo required again, and Silver follows the normal at-risk rules.
  */
 export function isDoorstepOnly(modes: DocumentModes): boolean {
-  return modes.doorstepEnabled && !modes.dropinEnabled
+  return modes.doorstepEnabled && !modes.dropinEnabled && !modes.pickupOffered
 }
 
 /**

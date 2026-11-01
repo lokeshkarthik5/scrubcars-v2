@@ -8,6 +8,7 @@ import type {
   DocumentStatus,
   DocumentType,
 } from '../../lib/vendor-documents.js'
+import { documentModesOf } from '../../lib/vendor-documents.js'
 
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 type Conn = typeof db | Tx
@@ -46,11 +47,16 @@ function reads(conn: Conn) {
      */
     async findModes(vendorId: string): Promise<DocumentModes> {
       const [row] = await conn
-        .select({ doorstepEnabled: vendors.doorstepEnabled, dropinEnabled: vendors.dropinEnabled })
+        .select({
+          doorstepEnabled: vendors.doorstepEnabled,
+          dropinEnabled: vendors.dropinEnabled,
+          pickup: vendors.pickup,
+          pickupTermsAcceptedAt: vendors.pickupTermsAcceptedAt,
+        })
         .from(vendors)
         .where(eq(vendors.id, vendorId))
         .limit(1)
-      return row ?? { doorstepEnabled: false, dropinEnabled: false }
+      return row ? documentModesOf(row) : { doorstepEnabled: false, dropinEnabled: false, pickupOffered: false }
     },
 
     /** The garage's documents, one per type at most. */

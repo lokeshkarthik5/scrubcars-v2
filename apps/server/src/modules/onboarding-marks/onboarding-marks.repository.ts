@@ -289,6 +289,8 @@ export const onboardingMarksRepository = {
         doorstepEnabled: true,
         // With doorstepEnabled, whether the shop photo is a required document.
         dropinEnabled: true,
+        pickup: true,
+        pickupTermsAcceptedAt: true,
         doorstepRadiusKm: true,
         bays: true,
       },

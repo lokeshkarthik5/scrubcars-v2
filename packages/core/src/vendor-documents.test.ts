@@ -22,10 +22,11 @@ import {
   progressLine,
 } from './vendor-documents'
 
-const AT_GARAGE: DocumentModes = { doorstepEnabled: false, dropinEnabled: true }
-const BOTH: DocumentModes = { doorstepEnabled: true, dropinEnabled: true }
-const DOORSTEP_ONLY: DocumentModes = { doorstepEnabled: true, dropinEnabled: false }
-const PICKUP_ONLY: DocumentModes = { doorstepEnabled: false, dropinEnabled: false }
+const AT_GARAGE: DocumentModes = { doorstepEnabled: false, dropinEnabled: true, pickupOffered: false }
+const BOTH: DocumentModes = { doorstepEnabled: true, dropinEnabled: true, pickupOffered: false }
+const DOORSTEP_ONLY: DocumentModes = { doorstepEnabled: true, dropinEnabled: false, pickupOffered: false }
+const DOORSTEP_AND_PICKUP: DocumentModes = { doorstepEnabled: true, dropinEnabled: false, pickupOffered: true }
+const PICKUP_ONLY: DocumentModes = { doorstepEnabled: false, dropinEnabled: false, pickupOffered: true }
 
 describe('garage documents in the apps', () => {
   test('every type has a name and says what to upload', () => {
@@ -58,7 +59,7 @@ describe('garage documents in the apps', () => {
 
   test('a doorstep-only garage has no shop: its shop photo is optional, everyone else’s is required', () => {
     expect(isDoorstepOnly(DOORSTEP_ONLY)).toBe(true)
-    for (const modes of [AT_GARAGE, BOTH, PICKUP_ONLY]) {
+    for (const modes of [AT_GARAGE, BOTH, PICKUP_ONLY, DOORSTEP_AND_PICKUP]) {
       expect(isDoorstepOnly(modes)).toBe(false)
       expect(isRequiredDocument('shop_photo', modes)).toBe(true)
     }
@@ -73,6 +74,7 @@ describe('garage documents in the apps', () => {
     expect(documentsVerified([...idAndBank, { type: 'shop_photo', status: 'rejected' }], DOORSTEP_ONLY)).toBe(true)
     expect(documentsVerified(idAndBank, BOTH)).toBe(false)
     expect(documentsVerified(idAndBank, PICKUP_ONLY)).toBe(false)
+    expect(documentsVerified(idAndBank, DOORSTEP_AND_PICKUP)).toBe(false)
     expect(documentsVerified(idAndBank, { ...DOORSTEP_ONLY, dropinEnabled: true })).toBe(false)
   })
 

@@ -9,12 +9,12 @@ import * as server from './vendor-documents.js'
 const coreUrl = (file: string) =>
   new URL(`../../../../packages/core/src/${file}`, import.meta.url).href
 
-const ALL_MODES: server.DocumentModes[] = [
-  { doorstepEnabled: false, dropinEnabled: false },
-  { doorstepEnabled: true, dropinEnabled: false },
-  { doorstepEnabled: false, dropinEnabled: true },
-  { doorstepEnabled: true, dropinEnabled: true },
-]
+// Every combination of the three facts.
+const ALL_MODES: server.DocumentModes[] = [false, true].flatMap((doorstepEnabled) =>
+  [false, true].flatMap((dropinEnabled) =>
+    [false, true].map((pickupOffered) => ({ doorstepEnabled, dropinEnabled, pickupOffered }))
+  )
+)
 
 describe('garage documents parity', () => {
   test('the types, the required three, the retired one, the names and the limits are the same', async () => {

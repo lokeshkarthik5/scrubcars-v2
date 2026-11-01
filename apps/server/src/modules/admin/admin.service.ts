@@ -39,6 +39,7 @@ import { onboardingMarksService } from '../onboarding-marks/onboarding-marks.ser
 import { isDocumentStorageConfigured } from '../../lib/document-storage.js'
 import {
   summariesByVendor,
+  documentModesOf,
   summariseDocuments,
   type DocumentsSummary,
 } from '../../lib/vendor-documents.js'
@@ -775,7 +776,7 @@ export const adminService = {
           await vendorDocumentsRepository.listAllStates(),
           // Each garage's own modes: a doorstep-only garage has no shop, so
           // its shop photo is not one of the required ones.
-          new Map(vendors.map((vendor) => [vendor.id, vendor]))
+          new Map(vendors.map((vendor) => [vendor.id, documentModesOf(vendor)]))
         )
       : new Map<string, DocumentsSummary>()
     // Detlio Certified (0048), from each garage's last evaluation: the
@@ -874,7 +875,7 @@ export const adminService = {
       onboardingMarksService.payoutVendorIds([id]),
       documentsOn ? vendorDocumentsRepository.listDocuments(id) : Promise.resolve([]),
     ])
-    const documents = documentsOn ? summariseDocuments(documentRows, vendor) : null
+    const documents = documentsOn ? summariseDocuments(documentRows, documentModesOf(vendor)) : null
     // The Garages list's checklist and missing keys (0059), for the
     // editor's status panel: the same rules on the same facts.
     const facts = {

@@ -31,15 +31,17 @@ export const REQUIRED_DOCUMENT_TYPES = ['shop_photo', 'owner_id', 'bank_proof'] 
 export interface DocumentModes {
   doorstepEnabled: boolean
   dropinEnabled: boolean
+  /** Offers pickup & drop (the API's `pickupEnabled`): it collects cars, so it has premises. */
+  pickupOffered: boolean
 }
 
 /**
- * Doorstep on and at-garage off: no shop to photograph (owner, 1 Nov 2026).
- * Pickup & drop alone (neither on) is not doorstep-only: it has premises.
+ * Doorstep on, at-garage off and pickup & drop not offered: no shop to
+ * photograph (owner, 1 Nov 2026). A garage that collects cars has premises.
  * The server's twin: lib/vendor-documents.ts isDoorstepOnly.
  */
 export function isDoorstepOnly(modes: DocumentModes): boolean {
-  return modes.doorstepEnabled && !modes.dropinEnabled
+  return modes.doorstepEnabled && !modes.dropinEnabled && !modes.pickupOffered
 }
 
 /** The types this garage needs approved: all three, or ID and bank proof when doorstep-only. */

@@ -8,7 +8,7 @@ shield on the garage's card and page. It is separate from Verify
 
 | Document | | What to upload |
 | --- | --- | --- |
-| Shop photo | required, except for a doorstep-only garage (doorstep on, at-garage off), where it is optional | The shop front with its name board |
+| Shop photo | required, except for a doorstep-only garage (doorstep on, at-garage off, no pickup & drop), where it is optional | The shop front with its name board |
 | Owner ID | required | PAN card, or Aadhaar **with the first 8 digits covered** |
 | Bank proof | required | A cancelled cheque, or the passbook / statement page with the payout account |
 | Signed Detlio agreement | required | Usually uploaded by admin |

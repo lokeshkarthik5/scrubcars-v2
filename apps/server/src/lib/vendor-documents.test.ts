@@ -7,6 +7,7 @@ import {
   RETIRED_DOCUMENT_TYPES,
   UPLOADABLE_DOCUMENT_TYPES,
   documentFolder,
+  documentModesOf,
   documentsVerified,
   filesRefusal,
   isDoorstepOnly,
@@ -34,11 +35,13 @@ const UUID = '0b4f6c1e-2d3a-4c5b-8e9f-0a1b2c3d4e5f'
 
 // How a garage takes bookings decides whether it has a shop (0043, owner
 // decision 1 Nov 2026): doorstep-only has none, so its shop photo is optional.
-const AT_GARAGE: DocumentModes = { doorstepEnabled: false, dropinEnabled: true }
-const BOTH: DocumentModes = { doorstepEnabled: true, dropinEnabled: true }
-const DOORSTEP_ONLY: DocumentModes = { doorstepEnabled: true, dropinEnabled: false }
+const AT_GARAGE: DocumentModes = { doorstepEnabled: false, dropinEnabled: true, pickupOffered: false }
+const BOTH: DocumentModes = { doorstepEnabled: true, dropinEnabled: true, pickupOffered: false }
+const DOORSTEP_ONLY: DocumentModes = { doorstepEnabled: true, dropinEnabled: false, pickupOffered: false }
+// Doorstep and pickup & drop, at-garage off: it collects cars, so it has premises.
+const DOORSTEP_AND_PICKUP: DocumentModes = { doorstepEnabled: true, dropinEnabled: false, pickupOffered: true }
 // Pickup & drop alone (neither of the two on): it has premises.
-const PICKUP_ONLY: DocumentModes = { doorstepEnabled: false, dropinEnabled: false }
+const PICKUP_ONLY: DocumentModes = { doorstepEnabled: false, dropinEnabled: false, pickupOffered: true }
 
 const approved = (type: DocumentState['type']): DocumentState => ({ type, status: 'approved' })
 
@@ -145,16 +148,31 @@ describe('documents checked', () => {
 describe('a doorstep-only garage has no shop (owner decision, 1 Nov 2026)', () => {
   const idAndBank = [approved('owner_id'), approved('bank_proof')]
 
-  test('doorstep on and at-garage off is doorstep-only; nothing else is', () => {
+  test('doorstep on, at-garage off and no pickup is doorstep-only; nothing else is', () => {
     expect(isDoorstepOnly(DOORSTEP_ONLY)).toBe(true)
     expect(isDoorstepOnly(BOTH)).toBe(false)
     expect(isDoorstepOnly(AT_GARAGE)).toBe(false)
     // Pickup & drop alone has premises, so the photo stays required.
     expect(isDoorstepOnly(PICKUP_ONLY)).toBe(false)
+    // So does doorstep with pickup & drop, at-garage off.
+    expect(isDoorstepOnly(DOORSTEP_AND_PICKUP)).toBe(false)
+    // A garage with nothing on is not doorstep-only either.
+    expect(isDoorstepOnly({ doorstepEnabled: false, dropinEnabled: false, pickupOffered: false })).toBe(false)
+  })
+
+  test('the modes come from the garage row: pickup counts only with its terms on file', () => {
+    const row = { doorstepEnabled: true, dropinEnabled: false }
+    const terms = new Date('2026-10-01T00:00:00Z')
+    expect(documentModesOf({ ...row, pickup: 'yes', pickupTermsAcceptedAt: terms }).pickupOffered).toBe(true)
+    expect(documentModesOf({ ...row, pickup: 'nearby', pickupTermsAcceptedAt: terms }).pickupOffered).toBe(true)
+    // "yes" from before 0037 has no terms, so pickup is not on and the photo is optional.
+    expect(documentModesOf({ ...row, pickup: 'yes', pickupTermsAcceptedAt: null }).pickupOffered).toBe(false)
+    expect(documentModesOf({ ...row, pickup: 'no', pickupTermsAcceptedAt: terms }).pickupOffered).toBe(false)
+    expect(documentModesOf({ ...row, pickup: null, pickupTermsAcceptedAt: null })).toEqual(DOORSTEP_ONLY)
   })
 
   test('the required types: three for everyone else, ID and bank proof for doorstep-only', () => {
-    for (const modes of [AT_GARAGE, BOTH, PICKUP_ONLY]) {
+    for (const modes of [AT_GARAGE, BOTH, PICKUP_ONLY, DOORSTEP_AND_PICKUP]) {
       expect([...requiredDocumentTypes(modes)]).toEqual(['shop_photo', 'owner_id', 'bank_proof'])
       expect(isRequiredDocument('shop_photo', modes)).toBe(true)
     }
@@ -202,8 +220,8 @@ describe('a doorstep-only garage has no shop (owner decision, 1 Nov 2026)', () =
     expect(summariseDocuments(idAndBank, BOTH)).toMatchObject({ missingRequired: 1, required: 3, approvedRequired: 2 })
   })
 
-  test('at-garage only and pickup & drop only need it too', () => {
-    for (const modes of [AT_GARAGE, PICKUP_ONLY]) {
+  test('at-garage only, pickup & drop only, and doorstep with pickup & drop need it too', () => {
+    for (const modes of [AT_GARAGE, PICKUP_ONLY, DOORSTEP_AND_PICKUP]) {
       expect(documentsVerified(idAndBank, modes)).toBe(false)
       expect(documentsVerified([...idAndBank, approved('shop_photo')], modes)).toBe(true)
     }
@@ -213,6 +231,8 @@ describe('a doorstep-only garage has no shop (owner decision, 1 Nov 2026)', () =
     const docs = idAndBank
     expect(documentsVerified(docs, DOORSTEP_ONLY)).toBe(true)
     expect(documentsVerified(docs, { ...DOORSTEP_ONLY, dropinEnabled: true })).toBe(false)
+    // Or turns pickup & drop on.
+    expect(documentsVerified(docs, { ...DOORSTEP_ONLY, pickupOffered: true })).toBe(false)
     // And off again: verified without anything new uploaded.
     expect(documentsVerified(docs, { ...DOORSTEP_ONLY, dropinEnabled: false })).toBe(true)
   })

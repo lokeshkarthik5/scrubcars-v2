@@ -159,6 +159,8 @@ function reads(conn: Conn) {
           vendorId: vendors.id,
           doorstepEnabled: vendors.doorstepEnabled,
           dropinEnabled: vendors.dropinEnabled,
+          pickup: vendors.pickup,
+          pickupTermsAcceptedAt: vendors.pickupTermsAcceptedAt,
         })
         .from(vendors)
         .where(inArray(vendors.id, vendorIds))

@@ -45,9 +45,10 @@ const SEATS: Array<{ userId: string; vendorId: string; role: 'vendor_admin' | 'v
 // ─── Stand-ins for the database ──────────────────────────────────────────────
 
 /** How the garage takes bookings, which decides whether its shop photo is required. */
-const AT_GARAGE = { doorstepEnabled: false, dropinEnabled: true }
-const DOORSTEP_ONLY = { doorstepEnabled: true, dropinEnabled: false }
-let modes: { doorstepEnabled: boolean; dropinEnabled: boolean } = AT_GARAGE
+const AT_GARAGE = { doorstepEnabled: false, dropinEnabled: true, pickupOffered: false }
+const DOORSTEP_ONLY = { doorstepEnabled: true, dropinEnabled: false, pickupOffered: false }
+const DOORSTEP_AND_PICKUP = { doorstepEnabled: true, dropinEnabled: false, pickupOffered: true }
+let modes: { doorstepEnabled: boolean; dropinEnabled: boolean; pickupOffered: boolean } = AT_GARAGE
 
 type Patchable = Record<string, unknown>
 const originals: Array<[Patchable, string, unknown]> = []
@@ -201,8 +202,11 @@ describe('the garage portal: owner seat only', () => {
       expect(listed.data.documents.map((doc) => doc.type)).toContain('shop_photo')
     }
 
-    // Pickup & drop alone (neither on) keeps all three.
-    modes = { doorstepEnabled: false, dropinEnabled: false }
+    // Pickup & drop keeps all three.
+    modes = { doorstepEnabled: false, dropinEnabled: false, pickupOffered: true }
+    expect((await requiredTypes(GARAGE_LIST, 'owner')).required).toEqual(['shop_photo', 'owner_id', 'bank_proof'])
+    // So does doorstep with pickup & drop, at-garage off.
+    modes = DOORSTEP_AND_PICKUP
     expect((await requiredTypes(GARAGE_LIST, 'owner')).required).toEqual(['shop_photo', 'owner_id', 'bank_proof'])
     modes = AT_GARAGE
   })

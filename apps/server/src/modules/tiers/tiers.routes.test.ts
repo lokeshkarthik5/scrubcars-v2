@@ -53,7 +53,7 @@ let silver: Set<string>
 let accepted: Map<string, number>
 let documentsApproved: string[]
 /** How the garage takes bookings: a doorstep-only garage has no shop photo to give. */
-let documentModes: { doorstepEnabled: boolean; dropinEnabled: boolean }
+let documentModes: { doorstepEnabled: boolean; dropinEnabled: boolean; pickupOffered: boolean }
 let audits: string[]
 
 beforeAll(() => {
@@ -118,7 +118,15 @@ beforeAll(() => {
   const reads = {
     listApprovedDocumentTypes: async (ids: string[]) =>
       ids.flatMap((vendorId) => documentsApproved.map((type) => ({ vendorId, type, status: 'approved' }))),
-    listDocumentModes: async (ids: string[]) => ids.map((vendorId) => ({ vendorId, ...documentModes })),
+    // The garage row's columns; pickup counts only with its terms on file.
+    listDocumentModes: async (ids: string[]) =>
+      ids.map((vendorId) => ({
+        vendorId,
+        doorstepEnabled: documentModes.doorstepEnabled,
+        dropinEnabled: documentModes.dropinEnabled,
+        pickup: documentModes.pickupOffered ? ('yes' as const) : ('no' as const),
+        pickupTermsAcceptedAt: documentModes.pickupOffered ? new Date('2026-10-01T00:00:00Z') : null,
+      })),
     ratings: async (ids: string[]) => ids.map((vendorId) => ({ vendorId, average: 4.2, count: 5 })),
     completedCounts: async (ids: string[]) => ids.map((vendorId) => ({ vendorId, count: 10 })),
     responseCounts: async () => [],
@@ -153,7 +161,7 @@ beforeEach(() => {
   silver = new Set()
   accepted = new Map([[GARAGE, 1]])
   documentsApproved = ['shop_photo', 'owner_id', 'bank_proof']
-  documentModes = { doorstepEnabled: false, dropinEnabled: true }
+  documentModes = { doorstepEnabled: false, dropinEnabled: true, pickupOffered: false }
   audits = []
   const values = env as unknown as Record<string, string | undefined>
   values.r2AccountId = 'test-account'
@@ -253,7 +261,7 @@ describe('"Your tier": the owner seat, its own garage', () => {
     }
     documentsApproved = ['owner_id', 'bank_proof']
 
-    documentModes = { doorstepEnabled: true, dropinEnabled: false }
+    documentModes = { doorstepEnabled: true, dropinEnabled: false, pickupOffered: false }
     expect(await documentsStep()).toMatchObject({
       met: true,
       value: 'ID and bank proof approved',
@@ -261,16 +269,18 @@ describe('"Your tier": the owner seat, its own garage', () => {
     })
 
     // The garage opens its shop: the same approvals now fall short of the photo.
-    documentModes = { doorstepEnabled: true, dropinEnabled: true }
+    documentModes = { doorstepEnabled: true, dropinEnabled: true, pickupOffered: false }
     expect(await documentsStep()).toMatchObject({
       met: false,
       value: 'Not all approved yet',
       target: 'Shop photo, owner ID and bank proof approved',
     })
 
-    // Pickup & drop alone has premises too.
-    documentModes = { doorstepEnabled: false, dropinEnabled: false }
+    // Pickup & drop alone has premises too, and so does doorstep with pickup & drop.
+    documentModes = { doorstepEnabled: false, dropinEnabled: false, pickupOffered: true }
     expect((await documentsStep()).met).toBe(false)
+    documentModes = { doorstepEnabled: true, dropinEnabled: false, pickupOffered: true }
+    expect(await documentsStep()).toMatchObject({ met: false, target: 'Shop photo, owner ID and bank proof approved' })
   })
 
   test('each missing step says where to act', async () => {

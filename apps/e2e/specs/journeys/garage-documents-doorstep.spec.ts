@@ -3,13 +3,13 @@
  * shop photo is optional (owner decision, 1 Nov 2026: "Documents for doorstep
  * they cant provide a front store photo so that cant be mandatory").
  *
- * VENDORS.documentsDoorstep has doorstep on and at-garage off. Its owner sees
+ * VENDORS.documentsDoorstep has doorstep on, at-garage off and no pickup & drop. Its owner sees
  * two required documents (ID and bank proof) and the shop photo as Optional,
  * and Documents checked needs only the two: admin approves them and the
  * garage's documents count as checked, one of Silver's steps, with no shop
  * photo uploaded at all. A shop photo sent anyway can still be reviewed,
- * rejected without changing that, and removed. Turning at-garage on makes the
- * photo required again (the documents drop back to "not checked"); turning it
+ * rejected without changing that, and removed. Turning at-garage on, or pickup &
+ * drop (it collects cars, so it has premises), makes the photo required again (the documents drop back to "not checked"); turning it
  * off restores it. The rules are unit-tested in
  * apps/server/src/lib/vendor-documents.test.ts; the garage with a shop keeps
  * all three in garage-documents-journey.spec.ts.
@@ -66,7 +66,10 @@ test.describe.serial('garage documents, doorstep-only garage @p0', () => {
   test.beforeAll(async () => {
     // As seeded, whatever an earlier attempt left: doorstep only, no documents.
     await sql`delete from vendor_documents where vendor_id = ${GARAGE.id}`
-    await sql`update vendors set doorstep_enabled = true, dropin_enabled = false where id = ${GARAGE.id}`
+    await sql`
+      update vendors set doorstep_enabled = true, dropin_enabled = false, pickup = 'no', pickup_terms_accepted_at = null
+       where id = ${GARAGE.id}
+    `
   })
 
   test('the owner is asked for ID and bank proof; the shop photo is optional', async ({ browser }) => {
@@ -212,6 +215,12 @@ test.describe.serial('garage documents, doorstep-only garage @p0', () => {
     await ctx.close()
 
     await sql`update vendors set dropin_enabled = false where id = ${GARAGE.id}`
+    expect((await readState()).summary).toMatchObject({ verified: true, required: 2, missingRequired: 0 })
+
+    // Doorstep with pickup & drop (terms on file), at-garage off: it collects cars, so the photo is required.
+    await sql`update vendors set pickup = 'yes', pickup_terms_accepted_at = now() where id = ${GARAGE.id}`
+    expect((await readState()).summary).toMatchObject({ verified: false, required: 3, missingRequired: 1 })
+    await sql`update vendors set pickup = 'no', pickup_terms_accepted_at = null where id = ${GARAGE.id}`
     expect((await readState()).summary).toMatchObject({ verified: true, required: 2, missingRequired: 0 })
   })
 })

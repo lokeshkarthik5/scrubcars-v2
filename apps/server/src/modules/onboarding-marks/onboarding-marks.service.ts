@@ -9,7 +9,7 @@ import {
   readChecklist,
   statusForChecklist,
 } from '../../lib/mark-checklist.js'
-import { summariesByVendor } from '../../lib/vendor-documents.js'
+import { documentModesOf, summariesByVendor } from '../../lib/vendor-documents.js'
 import {
   markLabel,
   payoutUsable,
@@ -369,7 +369,7 @@ export const onboardingMarksService = {
     const drawnIds = new Set(drawn)
     // Each garage's own modes: a doorstep-only garage has no shop, so its
     // shop photo is not a missing document.
-    const summaries = summariesByVendor(documents, new Map(facts.map((v) => [v.id, v])))
+    const summaries = summariesByVendor(documents, new Map(facts.map((v) => [v.id, documentModesOf(v)])))
     return new Map(
       facts.map((v) => [
         v.id,
