@@ -1,3 +1,4 @@
+import { RequestSheet } from '@/components/reach/request-sheet';
 import { useTierConfig } from '@repo/core/api/hooks/use-tiers';
 import { useVendorSearch } from '@repo/core/api/hooks/use-vendors';
 import { BOOKING_TYPE_LABELS, BOOKING_TYPES, bookingTypeParam } from '@repo/core/booking-types';
@@ -22,7 +23,6 @@ import {
 import { ErrorState, HubCard, PressRow, Spinner } from '@repo/native-ui/primitives';
 import { T } from '@repo/native-ui/text';
 import { createStyles, useColors } from '@repo/native-ui/theme';
-import { toast } from '@repo/native-ui/toast';
 import { type Href, router } from 'expo-router';
 import { Fragment, useEffect, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
@@ -141,6 +141,7 @@ function PickupExplainer() {
 function JustOutsideSection({ items, mode }: { items: JustOutsideVendor[]; mode: 'doorstep' | 'pickup' }) {
   const colors = useColors();
   const styles = useStyles();
+  const [requesting, setRequesting] = useState<JustOutsideVendor | null>(null);
   const modeParam = bookingTypeParam(mode);
   return (
     <View style={styles.outside}>
@@ -174,7 +175,7 @@ function JustOutsideSection({ items, mode }: { items: JustOutsideVendor[]; mode:
               </PressRow>
               <PressRow
                 accessibilityLabel={`${requestActionLabel(mode)} from ${item.vendor.name}`}
-                onPress={() => toast.info('Requests come in a later stage of the app.')}
+                onPress={() => setRequesting(item)}
                 style={styles.request}
               >
                 <T size={14} weight={500} color={colors.chosenText}>
@@ -185,6 +186,7 @@ function JustOutsideSection({ items, mode }: { items: JustOutsideVendor[]; mode:
           }
         />
       ))}
+      {requesting ? <RequestSheet open onClose={() => setRequesting(null)} garage={requesting} mode={mode} /> : null}
     </View>
   );
 }

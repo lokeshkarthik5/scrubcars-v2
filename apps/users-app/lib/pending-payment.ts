@@ -1,6 +1,6 @@
 import { getBooking } from '@repo/core/api/bookings';
 import { getBookingIntentStatus } from '@repo/core/api/payments';
-import { extraWorkPollResult, finalBillPollResult, intentPollResult, type PollResult } from '@repo/core/payment-confirmation';
+import { extraWorkPollResult, FALLBACK_REFUND_MESSAGE, finalBillPollResult, intentPollResult, type PollResult } from '@repo/core/payment-confirmation';
 
 import { devicePrefs } from './device-prefs';
 
@@ -16,7 +16,8 @@ export const PENDING_PAYMENT_TTL_MS = 30 * 60 * 1000;
 
 export type PendingPayment =
   | { kind: 'intent'; intentId: string; vendorName: string; startedAt: number }
-  | { kind: 'charge'; what: 'final_bill' | 'extra_work'; bookingId: string; chargeId: string; vendorName: string; startedAt: number };
+  | { kind: 'charge'; what: 'final_bill' | 'extra_work'; bookingId: string; chargeId: string; vendorName: string; startedAt: number }
+  | { kind: 'booking'; bookingId: string; vendorName: string; startedAt: number };
 
 export const pendingPayment = {
   read(): PendingPayment | null {
@@ -46,6 +47,12 @@ export async function readPendingOutcome(payment: PendingPayment): Promise<PollR
   if (payment.kind === 'intent') return intentPollResult(await getBookingIntentStatus(payment.intentId));
   const booking = await getBooking(payment.bookingId);
   if (!booking) return { kind: 'pending' };
+  if (payment.kind === 'booking') {
+    if (booking.paymentStatus !== 'paid') return { kind: 'pending' };
+    return booking.status === 'cancelled'
+      ? { kind: 'failed', message: booking.cancellationReason ?? FALLBACK_REFUND_MESSAGE }
+      : { kind: 'booked', bookingId: payment.bookingId };
+  }
   return payment.what === 'final_bill'
     ? finalBillPollResult(payment.bookingId, payment.chargeId, booking.finalBill, booking.status)
     : extraWorkPollResult(payment.bookingId, payment.chargeId, booking.extraWork, booking.status);

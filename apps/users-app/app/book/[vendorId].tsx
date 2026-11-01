@@ -44,7 +44,6 @@ import { Label, ScButton } from '@repo/native-ui/button';
 import { AddOnMark, ScSwitch } from '@repo/native-ui/chip';
 import {
   IconAlertCircle,
-  IconArrowLeft,
   IconArrowUpRight,
   IconCheck,
   IconChevronRight,
@@ -69,6 +68,7 @@ import { type ComponentRef, useCallback, useEffect, useRef, useState } from 'rea
 import { Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { PageHeader as Header } from '@/components/page-header';
 import { AddAddressSheet } from '@/components/checkout/add-address-sheet';
 import { CheckoutAddOns } from '@/components/checkout/checkout-add-ons';
 import { GuestCarForm } from '@/components/checkout/guest-car';
@@ -110,27 +110,6 @@ const BOOKED_AS: Record<BookingType, string> = {
   doorstep: 'a doorstep visit',
   pickup: 'pickup & drop',
 };
-
-/** The screen's header, PageHeader (apps/users/components/ui/page-header.tsx). */
-function Header({ title }: { title: string }) {
-  const colors = useColors();
-  const styles = useStyles();
-  return (
-    <View style={styles.header}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Back"
-        onPress={() => (router.canGoBack() ? router.back() : router.replace('/garages' as Href))}
-        style={styles.back}
-      >
-        <IconArrowLeft size={22} stroke={1.5} color={colors.textPrimary} />
-      </Pressable>
-      <T size={20} lh={28} tracking={-0.015}>
-        {title}
-      </T>
-    </View>
-  );
-}
 
 /** apps/users/app/book/[vendorId]/page.tsx. Prices come from the server; what's charged is the server's sum. */
 export default function BookScreen() {
@@ -847,7 +826,7 @@ export default function BookScreen() {
       setSignedInHere(true);
       setSignInOpen(false);
       if (!payAfter || !signIn.isNew) {
-        requestAnimationFrame(() => goToStep('signin'));
+        setTimeout(() => goToStep('signin'), 300);
         return;
       }
       await handlePay({ name: signIn.name.trim() || useAuth.getState().user?.name, phone: signIn.phone }, true);
@@ -1731,9 +1710,7 @@ export default function BookScreen() {
 
 const useStyles = createStyles((c) => ({
   page: { flex: 1, backgroundColor: c.canvas },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, height: 52 },
-  back: { height: 44, width: 44, alignItems: 'center', justifyContent: 'center' },
-  body: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 24, gap: 24 },
+  body: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24, gap: 24 },
   gone: { alignItems: 'center', gap: 12, paddingVertical: 48, paddingHorizontal: 16 },
   goneLink: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 12 },
   underline: { textDecorationLine: 'underline' },

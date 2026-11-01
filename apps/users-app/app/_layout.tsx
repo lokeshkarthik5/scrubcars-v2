@@ -33,6 +33,8 @@ import { useForcedUpdate } from '@/lib/app-config';
 import { installUnauthorizedHandler, isProfileIncomplete, useAuth } from '@/lib/auth';
 import { devicePrefs } from '@/lib/device-prefs';
 import { useColdStartLink, useNotificationTaps } from '@/lib/notifications';
+// Registers for sign-out: this phone's notifications stop with the session.
+import '@/lib/push-device';
 import { otpFlow } from '@/lib/otp-flow';
 import { queryClient } from '@/lib/query-client';
 import { gateRedirect } from '@/lib/route-gate';

@@ -188,8 +188,8 @@ const useStyles = createStyles((c) => ({
     overflow: 'hidden',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderColor: c.scheme === 'dark' ? 'rgba(255,255,255,0.15)' : c.border,
+    backgroundColor: c.scheme === 'dark' ? 'rgba(255,255,255,0.06)' : c.surface,
   },
   phoneCode: {
     flexDirection: 'row',
@@ -197,7 +197,7 @@ const useStyles = createStyles((c) => ({
     gap: 6,
     paddingHorizontal: 14,
     borderRightWidth: 1,
-    borderRightColor: 'rgba(255,255,255,0.15)',
+    borderRightColor: c.scheme === 'dark' ? 'rgba(255,255,255,0.15)' : c.border,
   },
   phoneInput: {
     // iOS reuses a text field's native view: without this, the wide spacing of the
@@ -217,12 +217,12 @@ const useStyles = createStyles((c) => ({
     height: 50,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderColor: c.scheme === 'dark' ? 'rgba(255,255,255,0.15)' : c.border,
+    backgroundColor: c.scheme === 'dark' ? 'rgba(255,255,255,0.06)' : c.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  otpFilled: { borderColor: 'rgba(255,255,255,0.3)' },
+  otpFilled: { borderColor: c.scheme === 'dark' ? 'rgba(255,255,255,0.3)' : c.outlineStrong },
   otpFocus: { borderColor: c.textPrimary },
   otpHidden: { position: 'absolute', width: 1, height: 1, opacity: 0.01 },
 }));

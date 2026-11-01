@@ -6,7 +6,7 @@ import { create } from 'zustand';
 import { devicePrefs } from './device-prefs';
 
 export type { ActiveLocation } from '@repo/core/stores/location-store';
-export { coarse, isApproximate, isCitywide, shouldOfferLocationPrompt } from '@repo/core/stores/location-store';
+export { coarse, isApproximate, isCitywide, isStale, shouldOfferLocationPrompt } from '@repo/core/stores/location-store';
 
 /**
  * Where the customer is, for sorting garages by distance: core's location store with the

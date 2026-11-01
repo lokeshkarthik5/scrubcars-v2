@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'rea
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AreaPicker } from '@/components/area/area-picker';
+import { ContinueBookingCard } from '@/components/checkout/continue-booking';
 import { GarageList } from '@/components/garage/garage-list';
 import { CustomerShell } from '@/components/screen';
 import { useAuth } from '@/lib/auth';
@@ -73,6 +74,7 @@ export default function GaragesScreen() {
         </Pressable>
       }
     >
+      <ContinueBookingCard />
       <GarageList
         mode={mode}
         onModeChange={setMode}

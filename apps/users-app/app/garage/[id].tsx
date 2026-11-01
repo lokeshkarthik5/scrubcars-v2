@@ -28,6 +28,7 @@ import { GarageCover, GarageMonogram } from '@/components/garage/cover';
 import { ModeSwitch } from '@/components/garage/mode-switch';
 import { OpenStatus } from '@/components/garage/open-status';
 import { ReviewsTab } from '@/components/garage/reviews-tab';
+import { GarageSlotAlerts } from '@/components/slot-alerts/garage-slot-alerts';
 import { SaveGarageButton } from '@/components/garage/save-button';
 import { GarageAddOns, PackageCard, ServiceCard, ServiceSheet } from '@/components/garage/service-cards';
 import { OutsideCityLine, TierSeal } from '@/components/garage/tier';
@@ -268,6 +269,10 @@ export default function GarageScreen() {
           ) : null}
         </View>
 
+        <View style={styles.alerts}>
+          <GarageSlotAlerts vendorId={vendor.id} />
+        </View>
+
         <View accessibilityRole="tablist" accessibilityLabel="Garage sections" style={styles.tabs}>
           {visibleTabs.map((t) => (
             <Pressable
@@ -447,6 +452,7 @@ const useStyles = createStyles((c) => ({
   facts: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
   areaChip: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, backgroundColor: c.surface, paddingHorizontal: 12, paddingVertical: 6 },
   modes: { marginTop: 4 },
+  alerts: { paddingHorizontal: 16 },
   tabs: { marginTop: 16, flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: c.border, paddingHorizontal: 16 },
   tab: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderBottomWidth: 2, marginBottom: -1, paddingVertical: 10 },
   panel: { gap: 12, paddingHorizontal: 16, paddingVertical: 16 },

@@ -2,7 +2,9 @@ import { firstNameOf, initialOf } from '@repo/core/home-display';
 import { useUserStore } from '@repo/core/stores/user-store';
 import { ScButton } from '@repo/native-ui/button';
 import { IconChevronRight } from '@repo/native-ui/icons';
+import { getPushConfig } from '@repo/core/api/push';
 import { HubCard, PressRow, ScSegmented } from '@repo/native-ui/primitives';
+import { useQuery } from '@tanstack/react-query';
 import { T } from '@repo/native-ui/text';
 import { createStyles, useColors, useTheme } from '@repo/native-ui/theme';
 import type { Appearance } from '@repo/native-ui/tokens';
@@ -59,6 +61,8 @@ export default function ProfileScreen() {
   const styles = useStyles();
   const user = useAuth((s) => s.user);
   const signOut = useAuth((s) => s.signOut);
+  // Only once the API has them set up, as the web's.
+  const notifications = useQuery({ queryKey: ['push', 'customer', 'config'], queryFn: () => getPushConfig('customer'), enabled: !!user, retry: false, staleTime: 5 * 60_000 }).data?.enabled;
   const profile = useUserStore((s) => s.profile);
 
   useEffect(() => {
@@ -132,6 +136,7 @@ export default function ProfileScreen() {
       </HubCard>
       <Row label="My bookings" href="/bookings" />
       <Row label="Saved garages" href="/profile/saved-garages" />
+      {notifications ? <Row label="Notifications" href="/profile/notifications" /> : null}
       <AppearanceCard />
       <ScButton variant="outline" onPress={() => void signOut().then(() => router.push('/login' as Href))}>
         Log out

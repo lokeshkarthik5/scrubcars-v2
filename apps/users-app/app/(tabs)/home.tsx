@@ -27,12 +27,14 @@ import {
   ServiceReminderHomeCard,
   TimeProposalHomeCard,
 } from '@/components/home/action-cards';
+import { ContinueBookingCard } from '@/components/checkout/continue-booking';
 import { AddCarSheet } from '@/components/home/add-car-sheet';
 import { CarHero } from '@/components/home/car-hero';
 import { NearbyCard, TipCard } from '@/components/home/nearby-tip';
 import { HomeOffers } from '@/components/home/offers';
 import { RightTile, WashStatusTile } from '@/components/home/tiles';
 import { UpdatesBlock } from '@/components/home/updates-block';
+import { ReachStatusCards } from '@/components/reach/reach-status';
 import { CustomerShell } from '@/components/screen';
 import { useAuth } from '@/lib/auth';
 import { coarse, isCitywide, useLocationStore } from '@/lib/location';
@@ -149,6 +151,8 @@ export default function HomeScreen() {
         hasUnread={data?.header.hasUnread ?? false}
         now={now}
       />
+      <ContinueBookingCard />
+      <ReachStatusCards />
       {home.isPending ? (
         <>
           <Skeleton height={124} radius={28} />

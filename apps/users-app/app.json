@@ -43,7 +43,16 @@
         {
           "locationWhenInUsePermission": "Detlio uses your location to show the nearest garages. It is only read when you ask for it."
         }
-      ]
+      ],
+      "expo-notifications",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Detlio uses your photos so you can add one of your car to a booking.",
+          "cameraPermission": "Detlio uses your camera so you can add a photo of your car to a booking."
+        }
+      ],
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true
