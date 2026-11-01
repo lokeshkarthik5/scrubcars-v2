@@ -7,6 +7,7 @@ import { create } from 'zustand';
 import { devicePrefs } from './device-prefs';
 import { queryClient } from './query-client';
 import { session } from './session';
+import { bumpEpoch } from './session-epoch';
 
 /**
  * The app's session store, in place of core's stores/auth-store.ts, which needs
@@ -81,12 +82,18 @@ const SIGNED_OUT = {
   isOwner: false,
 };
 
+/** Nothing of the last garage or person stays, and a read still on its way is void. */
+function clearGarageData() {
+  bumpEpoch();
+  useBookingsStore.getState().reset();
+  queryClient.clear();
+}
+
 function forgetSession() {
   setActiveVendorId(null);
   devicePrefs.removeItem(ACTIVE_VENDOR_KEY);
   clearSupportSession();
-  useBookingsStore.getState().reset();
-  queryClient.clear();
+  clearGarageData();
 }
 
 export const useAuth = create<AuthState>()((set, get) => ({
@@ -103,11 +110,10 @@ export const useAuth = create<AuthState>()((set, get) => ({
 
   applySession(data) {
     const list = data.vendors.length > 0 ? data.vendors : data.vendor ? [data.vendor] : [];
-    set({
-      status: 'ready',
-      user: data.user,
-      ...vendorState(list, devicePrefs.getItem(ACTIVE_VENDOR_KEY)),
-    });
+    // Leaving a garage lands here with another one active.
+    const next = vendorState(list, devicePrefs.getItem(ACTIVE_VENDOR_KEY));
+    if (next.activeVendorId !== get().activeVendorId) clearGarageData();
+    set({ status: 'ready', user: data.user, ...next });
   },
 
   setActiveVendor(vendorId) {
@@ -116,8 +122,7 @@ export const useAuth = create<AuthState>()((set, get) => ({
     // Sent for the garage it was pressed for; each step names it.
     void runBeforeChange();
     // Before the new garage's screens mount: nothing of the last one stays.
-    useBookingsStore.getState().reset();
-    queryClient.clear();
+    clearGarageData();
     set(vendorState(vendors, vendorId));
   },
 

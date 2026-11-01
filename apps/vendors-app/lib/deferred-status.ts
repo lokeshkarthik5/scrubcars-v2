@@ -7,6 +7,7 @@ import { showUndoToast, toast } from '@/components/toast';
 
 import { onBeforeSessionChange, useAuth } from './auth';
 import { devicePrefs } from './device-prefs';
+import { readFreshBookings } from './fresh-bookings';
 import {
   createStepQueue,
   isPickupStep,
@@ -77,10 +78,7 @@ const queue = createStepQueue({
   onFailed: (_step, error) => {
     // Refused (photos removed meanwhile, the time ran out): say why, and re-read.
     toast.error(error instanceof Error ? error.message : 'Could not update this job');
-    void useBookingsStore
-      .getState()
-      .fetchVendorBookings()
-      .catch(() => undefined);
+    void readFreshBookings().catch(() => undefined);
   },
 });
 

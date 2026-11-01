@@ -13,6 +13,7 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { useAuth } from '@/lib/auth';
+import { forgetPushForGarage, restorePushForGarage } from '@/lib/push-device';
 import { colors } from '@/lib/theme';
 
 import { ScButton } from './button';
@@ -185,6 +186,8 @@ function LeaveGarage({ garageName }: { garageName: string }) {
           setError(undefined);
         }}
         onConfirm={async () => {
+          const leaving = useAuth.getState().activeVendorId;
+          const alertsWereOn = leaving ? await forgetPushForGarage(leaving) : false;
           try {
             await leaveGarage();
             toast.success(`You left ${garageName}`);
@@ -198,6 +201,7 @@ function LeaveGarage({ garageName }: { garageName: string }) {
             await store.reloadSession();
             router.navigate('/home' as Href);
           } catch (err) {
+            if (leaving && alertsWereOn) void restorePushForGarage(leaving);
             setError(err instanceof Error ? err.message : 'Could not leave the garage');
           }
         }}

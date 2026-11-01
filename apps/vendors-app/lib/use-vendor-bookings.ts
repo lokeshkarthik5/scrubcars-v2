@@ -4,6 +4,8 @@ import { AppState, type NativeEventSubscription } from 'react-native';
 
 import { useAuth } from './auth';
 import { resumeWaitingSteps } from './deferred-status';
+import { readFreshBookings } from './fresh-bookings';
+import { currentEpoch } from './session-epoch';
 
 /**
  * ONE poller for the garage's jobs, shared by every screen that shows them. A copy
@@ -15,17 +17,19 @@ export const POLL_MS = 10_000;
 
 interface PollState {
   vendorId: string | null;
+  /** The session and garage this state is about: the same garage, signed in again, starts afresh. */
+  epoch: number;
   loaded: boolean;
   failed: boolean;
   retrying: boolean;
 }
 
-let state: PollState = { vendorId: null, loaded: false, failed: false, retrying: false };
+let state: PollState = { vendorId: null, epoch: currentEpoch(), loaded: false, failed: false, retrying: false };
 const listeners = new Set<() => void>();
 let users = 0;
 let timer: ReturnType<typeof setInterval> | null = null;
 let appState: NativeEventSubscription | null = null;
-let inFlight: { vendorId: string | null; promise: Promise<void> } | null = null;
+let inFlight: { epoch: number; promise: Promise<void> } | null = null;
 
 function update(patch: Partial<PollState>) {
   state = { ...state, ...patch };
@@ -33,28 +37,27 @@ function update(patch: Partial<PollState>) {
 }
 
 function read(): Promise<void> {
-  if (inFlight && inFlight.vendorId === state.vendorId) return inFlight.promise;
+  const epoch = currentEpoch();
+  if (inFlight?.epoch === epoch) return inFlight.promise;
   const vendorId = state.vendorId;
-  const promise: Promise<void> = useBookingsStore
-    .getState()
-    .fetchVendorBookings()
+  const promise: Promise<void> = readFreshBookings()
     .then((jobs) => {
-      if (vendorId !== state.vendorId) {
-        // The last garage's read landed after a switch and went into the store:
-        // read this garage's over it at once.
-        void read();
+      if (!jobs) {
+        // The last garage's or session's read, undone. A screen still open needs this one's.
+        if (users > 0 && useAuth.getState().activeVendorId) void read();
         return;
       }
+      if (epoch !== state.epoch) return;
       update({ failed: false, loaded: true });
       resumeWaitingSteps(jobs, vendorId);
     })
     .catch(() => {
-      if (vendorId === state.vendorId) update({ failed: true, loaded: true });
+      if (epoch === state.epoch) update({ failed: true, loaded: true });
     })
     .finally(() => {
       if (inFlight?.promise === promise) inFlight = null;
     });
-  inFlight = { vendorId, promise };
+  inFlight = { epoch, promise };
   return promise;
 }
 
@@ -62,8 +65,8 @@ const inFront = () => AppState.currentState === 'active';
 
 function start(vendorId: string) {
   users++;
-  if (vendorId !== state.vendorId) {
-    update({ vendorId, loaded: false, failed: false });
+  if (vendorId !== state.vendorId || currentEpoch() !== state.epoch) {
+    update({ vendorId, epoch: currentEpoch(), loaded: false, failed: false });
     void read();
   } else if (users === 1) {
     void read();
@@ -115,7 +118,7 @@ export function useVendorBookings() {
     return stop;
   }, [vendorId]);
 
-  const current = poll.vendorId === vendorId;
+  const current = poll.vendorId === vendorId && poll.epoch === currentEpoch();
   return {
     bookings,
     loaded: current && poll.loaded,

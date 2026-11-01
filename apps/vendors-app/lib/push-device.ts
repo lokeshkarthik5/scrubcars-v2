@@ -44,6 +44,19 @@ if (Platform.OS === 'android') {
 const listeners = new Set<() => void>();
 const changed = () => listeners.forEach((listener) => listener());
 
+/** Before leaving a garage, while the seat can still remove its alerts. */
+export async function forgetPushForGarage(vendorId: string): Promise<boolean> {
+  const wasOn = await controller.forgetGarage(vendorId);
+  changed();
+  return wasOn;
+}
+
+/** A leave the server refused: the phone goes back on. */
+export async function restorePushForGarage(vendorId: string) {
+  await controller.turnOn(vendorId).catch(() => undefined);
+  changed();
+}
+
 export type PushSupport = 'supported' | 'denied';
 
 export interface PushDevice {

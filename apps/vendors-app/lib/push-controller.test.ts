@@ -20,8 +20,8 @@ function setup(options: { permission?: PermissionState; answer?: PermissionState
       calls.push(`register ${token}`);
       return { devices: 1 };
     },
-    remove: async (token) => {
-      calls.push(`remove ${token}`);
+    remove: async (token, vendorId) => {
+      calls.push(`remove ${token} from ${vendorId}`);
     },
     storage: {
       getItem: (key) => store.get(key) ?? null,
@@ -77,7 +77,7 @@ test('off removes it from the server', async () => {
   const { controller, calls } = setup();
   await controller.turnOn('a');
   await controller.turnOff();
-  expect(calls.at(-1)).toBe(`remove ${TOKEN}`);
+  expect(calls.at(-1)).toBe(`remove ${TOKEN} from a`);
   expect(controller.isOn('a')).toBe(false);
 });
 
@@ -85,7 +85,7 @@ test('signing out removes it, unless the session is already gone', async () => {
   const out = setup();
   await out.controller.turnOn('a');
   await out.controller.forget({ sessionGone: false });
-  expect(out.calls.at(-1)).toBe(`remove ${TOKEN}`);
+  expect(out.calls.at(-1)).toBe(`remove ${TOKEN} from a`);
   const deleted = setup();
   await deleted.controller.turnOn('a');
   await deleted.controller.forget({ sessionGone: true });
@@ -102,4 +102,32 @@ test('a launch re-registers for its garage only', async () => {
   await controller.refresh('a');
   await controller.refresh('a');
   expect(calls).toEqual([`register ${TOKEN}`]);
+});
+
+test('removal names the garage it was turned on in, whichever is active now', async () => {
+  // On in A, then the owner switches to B: forget() and turnOff() don't take the active one.
+  const { controller, calls } = setup();
+  await controller.turnOn('a');
+  await controller.forget({ sessionGone: false });
+  expect(calls.at(-1)).toBe(`remove ${TOKEN} from a`);
+});
+
+test('turning on in another garage moves the phone there, and removal follows', async () => {
+  const { controller, calls } = setup();
+  await controller.turnOn('a');
+  await controller.turnOn('b');
+  expect(controller.isOn('a')).toBe(false);
+  expect(controller.isOn('b')).toBe(true);
+  await controller.turnOff();
+  expect(calls.at(-1)).toBe(`remove ${TOKEN} from b`);
+});
+
+test('leaving a garage removes its alerts first, and leaves another garage\'s alone', async () => {
+  const { controller, calls } = setup();
+  await controller.turnOn('a');
+  expect(await controller.forgetGarage('b')).toBe(false);
+  expect(controller.isOn('a')).toBe(true);
+  expect(await controller.forgetGarage('a')).toBe(true);
+  expect(calls.at(-1)).toBe(`remove ${TOKEN} from a`);
+  expect(controller.isOn('a')).toBe(false);
 });

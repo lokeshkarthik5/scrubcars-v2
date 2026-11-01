@@ -3,6 +3,7 @@ import type { Booking } from '@repo/core/types';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import { readFreshBookings } from '@/lib/fresh-bookings';
 import { colors } from '@/lib/theme';
 
 import { ScInput } from './inputs';
@@ -23,7 +24,6 @@ export function RejectBookingSheet({
   onDone?: () => void;
 }) {
   const updateStatus = useBookingsStore((s) => s.updateStatus);
-  const fetchVendorBookings = useBookingsStore((s) => s.fetchVendorBookings);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const who = booking.customerName || 'The customer';
@@ -40,7 +40,7 @@ export function RejectBookingSheet({
     } catch (error) {
       // The slot started, or the customer cancelled a moment ago: say so and re-read.
       toast.error(error instanceof Error ? error.message : 'Could not reject this booking');
-      void fetchVendorBookings().catch(() => undefined);
+      void readFreshBookings().catch(() => undefined);
       onClose();
     } finally {
       setBusy(false);

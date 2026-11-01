@@ -18,8 +18,13 @@ export const registerPushDevice = (token: string, platform: DevicePlatform) =>
     body: JSON.stringify({ token, platform }),
   });
 
-export const removePushDevice = (token: string) =>
+/**
+ * Under the garage it was turned on in, whichever is active now: the server only
+ * deletes a token for the same person and garage.
+ */
+export const removePushDevice = (token: string, vendorId: string) =>
   apiClient<DeviceStatus>('/vendors/me/push/devices', {
     method: 'DELETE',
+    headers: { 'X-Vendor-Id': vendorId },
     body: JSON.stringify({ token }),
   });

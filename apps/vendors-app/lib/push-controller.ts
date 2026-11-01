@@ -13,7 +13,8 @@ export interface PushControllerDeps {
   getProjectId(): string | null;
   getToken(projectId: string): Promise<string>;
   register(token: string): Promise<{ devices?: number }>;
-  remove(token: string): Promise<unknown>;
+  /** Under the garage the phone was turned on in, not the active one. */
+  remove(token: string, vendorId: string): Promise<unknown>;
   storage: {
     getItem(key: string): string | null;
     setItem(key: string, value: string): void;
@@ -64,7 +65,7 @@ export function createPushController(deps: PushControllerDeps) {
 
     async turnOff() {
       const record = read();
-      if (record) await deps.remove(record.token);
+      if (record) await deps.remove(record.token, record.vendorId);
       clear();
     },
 
@@ -98,7 +99,19 @@ export function createPushController(deps: PushControllerDeps) {
     async forget(options: { sessionGone: boolean }) {
       const record = read();
       clear();
-      if (record && !options.sessionGone) await deps.remove(record.token).catch(() => undefined);
+      if (record && !options.sessionGone) await deps.remove(record.token, record.vendorId).catch(() => undefined);
+    },
+
+    /**
+     * Leaving a garage: its removal needs the seat, so this goes first. True when
+     * the phone was on for it, so a refused leave can turn it back on.
+     */
+    async forgetGarage(vendorId: string): Promise<boolean> {
+      const record = read();
+      if (record?.vendorId !== vendorId) return false;
+      clear();
+      await deps.remove(record.token, vendorId).catch(() => undefined);
+      return true;
     },
   };
 }
