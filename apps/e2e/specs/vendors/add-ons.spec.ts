@@ -28,7 +28,11 @@ test.describe('add-ons in the garage portal @p0', () => {
       section.getByText(A.helmet.name, { exact: true })
     ).toBeVisible()
     await expect(section.getByText('₹99 · +10 min')).toBeVisible()
-    await expect(section.getByText('No extra time')).toBeVisible()
+    const freshener = section
+      .locator('div', { hasText: A.freshener.name })
+      .filter({ has: page.getByRole('button', { name: 'Delete' }) })
+      .last()
+    await expect(freshener.getByText('No extra time')).toBeVisible()
     await expect(
       section.getByText(A.retired.name, { exact: true })
     ).toBeVisible()
