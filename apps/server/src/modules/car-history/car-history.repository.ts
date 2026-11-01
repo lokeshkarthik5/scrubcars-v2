@@ -468,8 +468,10 @@ export const carHistoryRepository = {
          AND uv.archived_at IS NULL
          AND u.status = 'active'
          AND u.push_reminders
-         AND EXISTS (SELECT 1 FROM push_subscriptions ps
-                      WHERE ps.user_id = r.user_id AND ps.audience = 'customer')
+         AND (EXISTS (SELECT 1 FROM push_subscriptions ps
+                       WHERE ps.user_id = r.user_id AND ps.audience = 'customer')
+              OR EXISTS (SELECT 1 FROM push_devices pd
+                          WHERE pd.user_id = r.user_id AND pd.audience = 'customer'))
        ORDER BY r.created_at ASC, r.id ASC
        LIMIT ${limit}
     `)

@@ -1,6 +1,6 @@
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
-import { isPushEnabled } from '../../lib/env.js'
+import { isAnyPushEnabled, isDevicePushEnabled, isPushEnabled } from '../../lib/env.js'
 import { authMiddleware, type AuthVariables } from '../../middleware/auth.middleware.js'
 import { notFoundUnless } from '../../middleware/feature-switch.middleware.js'
 import {
@@ -9,7 +9,13 @@ import {
   type TenantVariables,
 } from '../../middleware/tenant.middleware.js'
 import * as pushController from './push.controller.js'
-import { endpointSchema, preferencesSchema, subscribeSchema } from './push.validation.js'
+import {
+  endpointSchema,
+  preferencesSchema,
+  registerDeviceSchema,
+  removeDeviceSchema,
+  subscribeSchema,
+} from './push.validation.js'
 
 /**
  * Browser notifications (0044). Off while VAPID is unset: every route below
@@ -20,6 +26,15 @@ import { endpointSchema, preferencesSchema, subscribeSchema } from './push.valid
  * device, and request logs record paths.
  */
 const pushOn = notFoundUnless(isPushEnabled)
+
+/**
+ * The native apps' phones (0067) are their own switch: the Expo access token
+ * (EXPO_PUSH_ACCESS_TOKEN). Unset, the device routes are the same 404, before
+ * auth. The customer's two switches work for either kind of device, so they
+ * stay available while either is on.
+ */
+const devicePushOn = notFoundUnless(isDevicePushEnabled)
+const anyPushOn = notFoundUnless(isAnyPushEnabled)
 
 // ─── Customer ────────────────────────────────────────────────────────────────
 
@@ -41,8 +56,15 @@ customerPushRoutes.post('/unsubscribe', pushOn, zValidator('json', endpointSchem
 customerPushRoutes.post('/status', pushOn, zValidator('json', endpointSchema), (c) =>
   pushController.customerStatus(c, c.req.valid('json'))
 )
-customerPushRoutes.patch('/preferences', pushOn, zValidator('json', preferencesSchema), (c) =>
+customerPushRoutes.patch('/preferences', anyPushOn, zValidator('json', preferencesSchema), (c) =>
   pushController.setCustomerPreferences(c, c.req.valid('json'))
+)
+// A phone running the native app (Expo token in the body, never the URL).
+customerPushRoutes.post('/devices', devicePushOn, zValidator('json', registerDeviceSchema), (c) =>
+  pushController.registerCustomerDevice(c, c.req.valid('json'))
+)
+customerPushRoutes.delete('/devices', devicePushOn, zValidator('json', removeDeviceSchema), (c) =>
+  pushController.removeCustomerDevice(c, c.req.valid('json'))
 )
 customerPushRoutes.post('/test', pushOn, zValidator('json', endpointSchema), (c) =>
   pushController.testCustomer(c, c.req.valid('json'))
@@ -77,4 +99,12 @@ garagePushRoutes.post('/status', pushOn, ...seatMiddleware, zValidator('json', e
 )
 garagePushRoutes.post('/test', pushOn, ...seatMiddleware, zValidator('json', endpointSchema), (c) =>
   pushController.testGarage(c, c.req.valid('json'))
+)
+
+// A phone running the garage app: the garage is the tenant resolveTenant gave.
+garagePushRoutes.post('/devices', devicePushOn, ...seatMiddleware, zValidator('json', registerDeviceSchema), (c) =>
+  pushController.registerGarageDevice(c, c.req.valid('json'))
+)
+garagePushRoutes.delete('/devices', devicePushOn, ...seatMiddleware, zValidator('json', removeDeviceSchema), (c) =>
+  pushController.removeGarageDevice(c, c.req.valid('json'))
 )
