@@ -1,10 +1,4 @@
-import {
-  AADHAAR_MASK_NOTE,
-  DOCUMENT_HINTS,
-  DOCUMENT_STATUS_LABELS,
-  fileLine,
-  garageCanRemove,
-} from '@repo/core/vendor-documents';
+import { AADHAAR_MASK_NOTE, DOCUMENT_STATUS_LABELS, fileLine } from '@repo/core/vendor-documents';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Device from 'expo-device';
 import * as ImagePicker from 'expo-image-picker';
@@ -23,8 +17,10 @@ import {
 } from '@/lib/documents-api';
 import { prepareDocumentFiles } from '@/lib/documents-upload';
 import {
+  canRemoveDocument,
   chosenFilesProblem,
   dayLabel,
+  documentHint,
   fileSideLabel,
   inSentence,
   OPEN_FAILED,
@@ -246,7 +242,7 @@ export function DocumentCard({
       </View>
 
       <T size={12} color={colors.textSecondary} lh={20}>
-        {DOCUMENT_HINTS[doc.type]}
+        {documentHint(doc.type, doc.required)}
       </T>
       {doc.type === 'owner_id' ? (
         <T size={12} weight={500}>{`${AADHAAR_MASK_NOTE}.`}</T>
@@ -332,7 +328,7 @@ export function DocumentCard({
           <T size={13} color={colors.textSecondary}>
             {uploadHint(doc)}
           </T>
-          {garageCanRemove(doc) ? (
+          {canRemoveDocument(doc) ? (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`Remove ${doc.label}`}

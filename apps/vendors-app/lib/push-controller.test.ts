@@ -131,3 +131,23 @@ test('leaving a garage removes its alerts first, and leaves another garage\'s al
   expect(calls.at(-1)).toBe(`remove ${TOKEN} from a`);
   expect(controller.isOn('a')).toBe(false);
 });
+
+test('the token for a test is this phone\'s, for the garage it is on in only', async () => {
+  const { controller } = setup();
+  expect(controller.tokenFor('a')).toBeNull();
+  await controller.turnOn('a');
+  expect(controller.tokenFor('a')).toBe(TOKEN);
+  expect(controller.tokenFor('b')).toBeNull();
+  expect(controller.tokenFor(null)).toBeNull();
+});
+
+test('a phone the server dropped goes off here, without a request', async () => {
+  const { controller, calls } = setup();
+  await controller.turnOn('a');
+  controller.markGone('b');
+  expect(controller.isOn('a')).toBe(true);
+  controller.markGone('a');
+  expect(controller.isOn('a')).toBe(false);
+  expect(controller.tokenFor('a')).toBeNull();
+  expect(calls).toEqual([`register ${TOKEN}`]);
+});

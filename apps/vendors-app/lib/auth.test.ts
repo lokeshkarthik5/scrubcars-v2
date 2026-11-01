@@ -1,17 +1,10 @@
 /// <reference types="bun" />
 import { beforeEach, expect, mock, test } from 'bun:test';
 
-const store = new Map<string, string>();
-mock.module('expo-secure-store', () => ({
-  WHEN_UNLOCKED_THIS_DEVICE_ONLY: 1,
-  getItem: (key: string) => store.get(key) ?? null,
-  setItem: (key: string, value: string) => void store.set(key, value),
-  getItemAsync: async (key: string) => store.get(key) ?? null,
-  setItemAsync: async (key: string, value: string) => void store.set(key, value),
-  deleteItemAsync: async (key: string) => void store.delete(key),
-}));
-mock.module('react-native', () => ({ AppState: { addEventListener: () => ({ remove: () => undefined }) }, Platform: { OS: 'ios' } }));
+// The phone's native modules are mocked once, in test-setup.ts (bunfig.toml).
+const store = (globalThis as unknown as { __secureStore: Map<string, string> }).__secureStore;
 
+const { appLock } = await import('./app-lock');
 const { onBeforeSignOut, useAuth } = await import('./auth');
 
 const signedIn = { id: 'u1', name: 'Om' } as never;
@@ -49,4 +42,11 @@ test('a quick server is not waited for beyond its answer', async () => {
   stop();
   expect(Date.now() - started).toBeLessThan(1000);
   expect(useAuth.getState().user).toBeNull();
+});
+
+test('the Face ID lock is off again once signed out', async () => {
+  appLock.set(true);
+  expect(appLock.enabled()).toBe(true);
+  await useAuth.getState().signOut();
+  expect(appLock.enabled()).toBe(false);
 });

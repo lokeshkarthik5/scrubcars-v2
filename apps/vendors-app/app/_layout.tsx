@@ -16,7 +16,7 @@ import { useFonts } from 'expo-font';
 import { type Href, router, Stack, useGlobalSearchParams, usePathname, useRootNavigationState } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -25,6 +25,7 @@ import { ScButton } from '@repo/native-ui/button';
 import { T } from '@repo/native-ui/text';
 import { createStyles, ThemeProvider, useColors, useTheme } from '@repo/native-ui/theme';
 import { ToastHost } from '@repo/native-ui/toast';
+import { AppLockGate } from '@/components/app-lock-screen';
 import { UpdateRequired } from '@/components/update-required';
 import { useForcedUpdate } from '@/lib/app-config';
 import { installUnauthorizedHandler, useAuth, useIsVendorAdmin } from '@/lib/auth';
@@ -142,9 +143,16 @@ export default function RootLayout() {
     console.log(`Detlio v${Constants.expoConfig?.version ?? 'unknown'}`);
     // Nothing private from an earlier run stays on the disk (also cleared on sign-out).
     clearPrivateCache();
-    const removeHandler = installUnauthorizedHandler();
+    return installUnauthorizedHandler();
+  }, []);
+
+  // The refresh token isn't read until the optional lock has opened. Nothing below the gate
+  // runs before it: not the session, the alerts' tap handler or the cold-start link (they
+  // mount with the session gate), so a notification tapped while locked is handled after.
+  const [unlocked, setUnlocked] = useState(false);
+  const opened = useCallback(() => {
+    setUnlocked(true);
     void useAuth.getState().restore();
-    return removeHandler;
   }, []);
 
   if (!fontsLoaded) return null;
@@ -152,7 +160,7 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider storage={devicePrefs}>
-        <ThemedRoot />
+        {unlocked ? <ThemedRoot /> : <AppLockGate onOpen={opened} />}
       </ThemeProvider>
     </SafeAreaProvider>
   );

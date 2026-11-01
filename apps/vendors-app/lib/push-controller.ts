@@ -50,6 +50,21 @@ export function createPushController(deps: PushControllerDeps) {
     /** Whether this phone is on, for this garage. */
     isOn: (vendorId: string | null) => Boolean(vendorId && read()?.vendorId === vendorId),
 
+    /** This phone's token, when it is on for this garage: what a test names, so it reaches this phone only. */
+    tokenFor: (vendorId: string | null) => {
+      const record = read();
+      return vendorId && record?.vendorId === vendorId ? record.token : null;
+    },
+
+    /**
+     * The server says it no longer has this phone (a test came back expired, or
+     * unknown): it is off here too, so the screen asks to turn it on again.
+     * Nothing is sent: the server has already dropped it.
+     */
+    markGone(vendorId: string) {
+      if (read()?.vendorId === vendorId) clear();
+    },
+
     /** Asks the phone when it hasn't been asked, then registers. Throws what the API refuses. */
     async turnOn(vendorId: string): Promise<{ result: TurnOnResult; devices?: number }> {
       let permission = await deps.getPermission();

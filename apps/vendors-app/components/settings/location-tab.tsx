@@ -8,6 +8,7 @@ import { ScBadge } from '@/components/form-controls';
 import { ScInput } from '@repo/native-ui/inputs';
 import { LocationPicker, type PickedLocation } from '@/components/location-picker';
 import { ScCard } from '@repo/native-ui/primitives';
+import { CoverageArea } from './coverage-area';
 import { SectionHeader } from '@/components/rows';
 import { T } from '@repo/native-ui/text';
 import { toast } from '@repo/native-ui/toast';
@@ -25,8 +26,8 @@ import { useSaving } from './use-saving';
 
 /**
  * Settings > Location (apps/vendors/app/settings/page.tsx): the garage's pin and how far it
- * travels for doorstep jobs, saved together. "Save location" waits for a pin. The doorstep
- * coverage area (a drawn polygon) is the web's later section and is not here yet.
+ * travels for doorstep jobs, saved together. "Save location" waits for a pin. Below sits the
+ * doorstep coverage area (a drawn polygon), offered once the garage has a pin.
  */
 export function LocationTab({
   vendor,
@@ -103,6 +104,15 @@ export function LocationTab({
           {saving === 'location' ? 'Saving...' : 'Save location'}
         </ScButton>
       </ScCard>
+
+      {/* Only offered once the garage has a pin: an area drawn around nowhere in particular is
+          not useful, and the map would open on a default city centre rather than on the garage. */}
+      {vendor.lat != null && vendor.lng != null ? (
+        <CoverageArea
+          center={{ lat: vendor.lat, lng: vendor.lng }}
+          fallbackRadiusKm={vendor.doorstepRadiusKm}
+        />
+      ) : null}
     </View>
   );
 }

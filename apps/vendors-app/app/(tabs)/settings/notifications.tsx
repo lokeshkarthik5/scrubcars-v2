@@ -2,8 +2,8 @@ import { type Href, router } from 'expo-router';
 import { Linking, View } from 'react-native';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
-import { ScButton } from '@repo/native-ui/button';
-import { IconBellOff, IconDeviceMobile } from '@repo/native-ui/icons';
+import { Label, ScButton } from '@repo/native-ui/button';
+import { IconBellOff, IconBellRinging, IconDeviceMobile } from '@repo/native-ui/icons';
 import { EmptyState, Notice, ScCard, Skeleton, StatusChip } from '@repo/native-ui/primitives';
 import { ScSwitch, TopBar } from '@/components/rows';
 import { T } from '@repo/native-ui/text';
@@ -21,8 +21,8 @@ const WHAT_YOU_GET = [
 
 /**
  * apps/vendors/app/settings/notifications/page.tsx: alerts on this phone, for every
- * seat. No "Send me a test notification": the API's test route takes a browser's
- * endpoint, and PR #102 has none for a phone.
+ * seat. "Send me a test notification" shows while this phone is on, and goes to
+ * this phone only (PR #113).
  */
 function NotificationsScreen() {
   const colors = useColors();
@@ -95,6 +95,14 @@ function NotificationsScreen() {
                     </T>
                     {` other ${device.devices === 2 ? 'device' : 'devices'}.`}
                   </T>
+                ) : null}
+                {device.subscribed && device.canTest ? (
+                  <ScButton variant="outline" disabled={device.busy} onPress={() => void device.sendTest()}>
+                    <IconBellRinging size={16} color={device.busy ? colors.textMuted : colors.textPrimary} />
+                    <Label color={device.busy ? colors.textMuted : colors.textPrimary}>
+                      Send me a test notification
+                    </Label>
+                  </ScButton>
                 ) : null}
               </ScCard>
               {!device.subscribed && device.support === 'denied' ? (

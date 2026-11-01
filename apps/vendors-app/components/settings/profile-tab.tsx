@@ -9,6 +9,7 @@ import { ScInput } from '@repo/native-ui/inputs';
 import { ScCard } from '@repo/native-ui/primitives';
 import { LinkRow, SectionHeader } from '@/components/rows';
 import { getGarageDocumentsConfig } from '@/lib/documents-api';
+import { documentsRowDescription } from '@/lib/documents-view';
 import { useIsVendorAdmin } from '@/lib/auth';
 import { updateVendorSettings } from '@/lib/vendor-api';
 import { digitsOnly, type ProfileForm, profileFromVendor, profilePayload } from '@/lib/settings-logic';
@@ -110,7 +111,8 @@ export function ProfileTab({
         <LinkRow
           icon={<IconFileCertificate size={18} />}
           title="Documents"
-          description="Your ID, bank proof and shop photo, one of the steps to Silver"
+          // A doorstep-only garage (no pickup either) has no shop, so no shop photo is asked for.
+          description={documentsRowDescription(vendor)}
           onPress={() => router.push('/settings/documents' as Href)}
         />
       ) : null}

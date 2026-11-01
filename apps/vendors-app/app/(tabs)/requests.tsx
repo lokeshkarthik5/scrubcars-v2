@@ -2,13 +2,14 @@ import type { GarageRequest } from '@repo/core/api/booking-requests';
 import { countdownLabel, istClock, istStartLabel, REQUEST_RULES, travelFeeLabel, type TravelFee } from '@repo/core/booking-requests';
 import { formatINR } from '@repo/core/format';
 import { useNow } from '@repo/core/hooks/use-now';
-import { router } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { type ComponentRef, useRef, useState } from 'react';
+import { Pressable, type ScrollView, View } from 'react-native';
 import Svg, { Circle, Line, Text as SvgText } from 'react-native-svg';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
 import { ScButton } from '@repo/native-ui/button';
+import { FocusFrame } from '@/components/focus-frame';
 import { ScBadge } from '@/components/form-controls';
 import { IconMapPin } from '@repo/native-ui/icons';
 import { EmptyState, LoadError, ScCard, ScSegmented, SkeletonList } from '@repo/native-ui/primitives';
@@ -17,6 +18,7 @@ import { ConfirmSheet } from '@repo/native-ui/sheet';
 import { T } from '@repo/native-ui/text';
 import { toast } from '@repo/native-ui/toast';
 import { errorText } from '@/lib/error-text';
+import { itemIdParam, REQUEST_MISSING, type ScopeLookup } from '@/lib/focus-item';
 import {
   useAcceptRequest,
   useDeclineRequest,
@@ -47,6 +49,7 @@ import {
   WITHDRAWN_TOAST,
   whenWhereLine,
 } from '@/lib/requests-view';
+import { useItemFocus } from '@/lib/use-item-focus';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 
 /**
@@ -61,11 +64,31 @@ function RequestsScreen() {
   const colors = useColors();
   const styles = useStyles();
   const [scope, setScope] = useState<'open' | 'closed'>('open');
-  const requests = useGarageRequestsInbox(scope);
+  const openRequests = useGarageRequestsInbox('open', scope === 'open');
+  const closedRequests = useGarageRequestsInbox('closed', scope === 'closed');
+  const requests = scope === 'open' ? openRequests : closedRequests;
   const items = requests.data?.items ?? [];
 
+  // A notification or link for one request (/requests#request-<id>): the scope that has it,
+  // scrolled to and flashed. Once per id named.
+  const params = useLocalSearchParams<{ request?: string }>();
+  const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
+  const { onListLayout, frameProps } = useItemFocus({
+    id: itemIdParam(params.request),
+    ready: true,
+    open: lookupOf(openRequests),
+    closed: lookupOf(closedRequests),
+    refetch: () => {
+      void openRequests.refetch();
+      void closedRequests.refetch();
+    },
+    onScope: setScope,
+    missing: REQUEST_MISSING,
+    scrollRef: scroll,
+  });
+
   return (
-    <AppShell gap={16}>
+    <AppShell gap={16} scrollRef={scroll}>
       <TopBar title="Requests" onBack={() => (router.canGoBack() ? router.back() : router.replace('/home'))} />
       <T size={12} color={colors.textSecondary}>
         {REQUESTS_INTRO}
@@ -90,16 +113,18 @@ function RequestsScreen() {
           subtitle={EMPTY_SUBTITLE}
         />
       ) : (
-        <View style={styles.list}>
-          {items.map((request) =>
-            scope === 'closed' ? (
-              <ClosedRequestCard key={request.id} request={request} />
-            ) : request.status === 'pending' ? (
-              <WaitingRequestCard key={request.id} request={request} />
-            ) : (
-              <AcceptedRequestCard key={request.id} request={request} />
-            )
-          )}
+        <View style={styles.list} onLayout={onListLayout}>
+          {items.map((request) => (
+            <FocusFrame key={request.id} {...frameProps(request.id)}>
+              {scope === 'closed' ? (
+                <ClosedRequestCard request={request} />
+              ) : request.status === 'pending' ? (
+                <WaitingRequestCard request={request} />
+              ) : (
+                <AcceptedRequestCard request={request} />
+              )}
+            </FocusFrame>
+          ))}
           {scope === 'open' ? (
             <T size={12} color={colors.textSecondary} align="center">
               {REQUESTS_FOOTER}
@@ -109,6 +134,15 @@ function RequestsScreen() {
       )}
     </AppShell>
   );
+}
+
+/** One scope's list as lib/focus-item.ts reads it. */
+function lookupOf(query: ReturnType<typeof useGarageRequestsInbox>): ScopeLookup {
+  return {
+    ids: query.data?.items.map((request) => request.id),
+    updatedAt: query.dataUpdatedAt,
+    failedAt: query.errorUpdatedAt,
+  };
 }
 
 /** A radio chip: the fee and the start times. White when chosen, as the web's. */

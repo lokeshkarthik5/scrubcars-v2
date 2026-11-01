@@ -7,6 +7,7 @@ import { Pressable, View } from 'react-native';
 
 import { AccountActions } from '@/components/account-actions';
 import { AppearanceCard } from '@/components/appearance-card';
+import { AppLockCard } from '@/components/app-lock-card';
 import { AppShell, garageScreen } from '@/components/app-shell';
 import { Label, ScButton } from '@repo/native-ui/button';
 import { IconBell, IconLogout, IconUsers } from '@repo/native-ui/icons';
@@ -167,6 +168,7 @@ function AccountTab() {
   return (
     <>
       <AppearanceCard />
+      <AppLockCard />
       {push.data?.enabled ? (
         <LinkRow
           icon={<IconBell size={18} />}

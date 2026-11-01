@@ -4,6 +4,7 @@ import { type NativeSessionData, SERVER_SIGN_OUT_TIMEOUT_MS } from '@repo/core/n
 import { useBookingsStore } from '@repo/core/stores/bookings-store';
 import { create } from 'zustand';
 
+import { appLock } from './app-lock';
 import { devicePrefs } from './device-prefs';
 import { queryClient } from './query-client';
 import { session } from './session';
@@ -92,6 +93,8 @@ function clearGarageData() {
 function forgetSession() {
   setActiveVendorId(null);
   devicePrefs.removeItem(ACTIVE_VENDOR_KEY);
+  // The lock belongs to the person on this phone, and is off again for the next one.
+  appLock.set(false);
   clearSupportSession();
   clearGarageData();
 }

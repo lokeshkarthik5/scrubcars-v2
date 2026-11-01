@@ -9,8 +9,9 @@ test('every push path the server sends (lib/push-messages.ts) keeps its target',
   expect(pathFromPushUrl('/bookings?tab=upcoming#job-j1')).toBe('/bookings?tab=upcoming&job=j1');
   expect(pathFromPushUrl('/bookings?tab=completed#job-j1')).toBe('/bookings?tab=completed&job=j1');
   expect(pathFromPushUrl('/bookings?tab=cancelled#job-j1')).toBe('/bookings?tab=cancelled&job=j1');
-  expect(pathFromPushUrl('/guarantee#claim-c1')).toBe('/guarantee');
+  expect(pathFromPushUrl('/guarantee#claim-c1')).toBe('/guarantee?claim=c1');
   expect(pathFromPushUrl('/requests')).toBe('/requests');
+  expect(pathFromPushUrl('/requests#request-r1')).toBe('/requests?request=r1');
   expect(pathFromPushUrl('/settings/notifications')).toBe('/settings/notifications');
 });
 

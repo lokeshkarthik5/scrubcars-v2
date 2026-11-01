@@ -28,6 +28,7 @@ export interface DocumentFile {
 export interface GarageDocument {
   type: DocumentType;
   label: string;
+  /** The server's answer for THIS garage: a doorstep-only garage's shop photo is optional (PR #106). */
   required: boolean;
   retired?: boolean;
   takesExpiry: boolean;
@@ -44,6 +45,7 @@ export interface GarageDocument {
   files: DocumentFile[];
 }
 
+/** Worked out by the server for this garage: the screen reads these and never counts documents itself. */
 export interface DocumentsSummary {
   verified: boolean;
   approvedRequired: number;
