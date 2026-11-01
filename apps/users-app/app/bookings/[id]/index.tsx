@@ -140,6 +140,10 @@ export default function BookingDetailScreen() {
   const storedLocation = useLocationStore((s) => s.location);
   const gpsHere = storedLocation?.source === 'gps' && !isStale(storedLocation) ? coarse(storedLocation) : null;
   const [celebrating, setCelebrating] = useState(() => params.celebrate === '1');
+  // Arriving from checkout, the params can land a render after the screen does.
+  useEffect(() => {
+    if (params.celebrate === '1') setCelebrating(true);
+  }, [params.celebrate]);
   const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const cardY = useRef<Partial<Record<'bill' | 'extra' | 'times', number>>>({});
 

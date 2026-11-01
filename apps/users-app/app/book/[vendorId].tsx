@@ -1725,7 +1725,7 @@ const useStyles = createStyles((c) => ({
   lineRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
   lineName: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, flexShrink: 1, minWidth: 0 },
   remove: { height: 44, width: 44, marginVertical: -10, marginLeft: -12, marginRight: -6, alignItems: 'center', justifyContent: 'center' },
-  accepted: { gap: 8, borderRadius: 18, borderWidth: 1, borderColor: c.successFill, backgroundColor: c.successMuted, padding: 16 },
+  accepted: { gap: 8, borderRadius: 18, borderWidth: 1, borderColor: c.acceptedBorder, backgroundColor: c.acceptedBg, padding: 16 },
   mt8: { marginTop: 8 },
   mt4: { marginTop: 4, alignSelf: 'flex-start' },
   mt2: { marginTop: 2 },

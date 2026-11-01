@@ -199,7 +199,7 @@ export function RequestCard({ request, now }: { request: CustomerRequest; now: n
 
 const useStyles = createStyles((c) => ({
   card: { gap: 12, borderRadius: 18, borderWidth: 1, padding: 16 },
-  green: { borderColor: c.successFill, backgroundColor: c.successMuted },
+  green: { borderColor: c.acceptedBorder, backgroundColor: c.acceptedBg },
   plain: { borderColor: c.border, backgroundColor: c.surface },
   between: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
   grow: { flex: 1, minWidth: 0 },

@@ -181,13 +181,13 @@ function RequestStatusCard({ request, now }: { request: CustomerRequest; now: nu
 const useStyles = createStyles((c) => ({
   column: { gap: 8 },
   row: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 12 },
-  green: { borderColor: c.successFill, backgroundColor: c.successMuted },
+  green: { borderColor: c.acceptedBorder, backgroundColor: c.acceptedBg },
   plain: { borderColor: c.border, backgroundColor: c.surface },
   grow: { flex: 1, minWidth: 0 },
   list: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, borderRadius: 16, borderWidth: 1, borderColor: c.border, paddingHorizontal: 16, paddingVertical: 8 },
   leave: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 4 },
   underline: { textDecorationLine: 'underline' },
-  banner: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, borderRadius: 16, borderWidth: 1, borderColor: c.successFill, backgroundColor: c.successMuted, padding: 16 },
+  banner: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, borderRadius: 16, borderWidth: 1, borderColor: c.acceptedBorder, backgroundColor: c.acceptedBg, padding: 16 },
   see: { marginTop: 8, minHeight: 44, justifyContent: 'center' },
   close: { marginRight: -8, marginTop: -8, height: 44, width: 44, alignItems: 'center', justifyContent: 'center' },
 }));

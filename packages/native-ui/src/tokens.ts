@@ -73,6 +73,9 @@ export interface Tokens {
   fillFaint: string;
   fillSoft: string;
   fillChosen: string;
+  /** A garage's yes: the accepted request's card. */
+  acceptedBg: string;
+  acceptedBorder: string;
   /** The map. */
   pinBg: string;
   pinText: string;
@@ -99,6 +102,8 @@ export const darkTokens: Tokens = {
   fillFaint: 'rgba(255,255,255,0.02)',
   fillSoft: 'rgba(255,255,255,0.03)',
   fillChosen: 'rgba(255,255,255,0.04)',
+  acceptedBg: '#0E2418',
+  acceptedBorder: '#1F5A3A',
   canvas: '#0A0A0B',
   surface: '#141416',
   surfaceElevated: '#272730',
@@ -175,6 +180,8 @@ export const lightTokens: Tokens = {
   fillFaint: 'rgba(0,0,0,0.015)',
   fillSoft: 'rgba(0,0,0,0.02)',
   fillChosen: 'rgba(0,0,0,0.04)',
+  acceptedBg: '#EFF9F2',
+  acceptedBorder: '#A7DDB9',
   canvas: '#F7F7F8',
   surface: '#FFFFFF',
   surfaceElevated: '#EDEDF0',
