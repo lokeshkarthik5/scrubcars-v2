@@ -5,7 +5,12 @@ import { AppError } from '../../lib/errors.js'
 import type { TenantVariables } from '../../middleware/tenant.middleware.js'
 import { analyticsService } from '../analytics/analytics.service.js'
 import { authService } from './auth.service.js'
-import type { SendOtpInput, VerifyOtpInput } from './auth.validation.js'
+import type {
+  NativeLogoutInput,
+  NativeRefreshInput,
+  SendOtpInput,
+  VerifyOtpInput,
+} from './auth.validation.js'
 
 type AuthContext = Context<{ Variables: TenantVariables }>
 
@@ -71,6 +76,28 @@ function sessionResponse(
   })
 }
 
+/**
+ * The native apps' answer: the same session, with the tokens in the body and
+ * no cookies. Only the /auth/native routes use it, and those never read a
+ * cookie, so a script on a website can never turn its HttpOnly cookie into a
+ * token it can read.
+ */
+function nativeSessionResponse(
+  c: AuthContext,
+  session: Awaited<ReturnType<typeof authService.verifyOtp>>
+) {
+  return c.json({
+    success: true,
+    data: {
+      user: session.user,
+      vendor: session.vendor,
+      vendors: session.vendors,
+      accessToken: session.accessToken,
+      refreshToken: session.refreshToken,
+    },
+  })
+}
+
 export async function sendOtp(c: AuthContext, input: SendOtpInput) {
   const data = await authService.sendOtp(input)
 
@@ -104,6 +131,30 @@ export async function refresh(c: AuthContext) {
   // Shares sessionResponse rather than rebuilding the payload: the duplicate is
   // how `vendors` came to be missing from one of the two in the first place.
   return sessionResponse(c, session)
+}
+
+export async function verifyOtpNative(c: AuthContext, input: VerifyOtpInput) {
+  const session = await authService.verifyOtp(input)
+  if (input.audience === 'customer') {
+    analyticsService.joinVisit(input.visitId, session.user.id)
+  }
+
+  return nativeSessionResponse(c, session)
+}
+
+export async function refreshNative(c: AuthContext, input: NativeRefreshInput) {
+  const session = await authService.refreshSession(input.refreshToken, input.audience)
+
+  return nativeSessionResponse(c, session)
+}
+
+export async function logoutNative(c: AuthContext, input: NativeLogoutInput) {
+  await authService.logout(input.refreshToken)
+
+  return c.json({
+    success: true,
+    message: 'Logged out successfully',
+  })
 }
 
 export async function logout(c: AuthContext) {

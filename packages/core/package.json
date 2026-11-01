@@ -22,7 +22,7 @@
     "@types/bun": "^1.4.2",
     "@types/geojson": "^7946.0.16",
     "@types/node": "^20",
-    "@types/react": "^19",
+    "@types/react": "19.2.18",
     "react": "19.2.4",
     "typescript": "^5"
   }

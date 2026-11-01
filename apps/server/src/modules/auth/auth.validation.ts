@@ -73,5 +73,21 @@ export const verifyOtpSchema = z
     }
   })
 
+// The native apps hand the refresh token over in the body: they have no cookie.
+const refreshTokenSchema = z.string().regex(/^[a-f0-9]{64}$/, 'Invalid refresh token')
+
+export const nativeRefreshSchema = z
+  .object({
+    refreshToken: refreshTokenSchema,
+    // Which app is asking, so a person who is both a customer and a garage
+    // owner stays a customer in the customer app.
+    audience: authAudienceSchema,
+  })
+  .strict()
+
+export const nativeLogoutSchema = z.object({ refreshToken: refreshTokenSchema }).strict()
+
 export type SendOtpInput = z.infer<typeof sendOtpSchema>
 export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>
+export type NativeRefreshInput = z.infer<typeof nativeRefreshSchema>
+export type NativeLogoutInput = z.infer<typeof nativeLogoutSchema>
