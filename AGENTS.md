@@ -280,6 +280,10 @@ Owner, 29 Oct 2026: "I need everything to be deletable as sometimes the team can
 - **Tests never reach a push service**: unit tests pass a stand-in sender; E2E runs with `PUSH_FAKE=1` and a public key only (`.env.e2e`), which records in memory (`fakePushOutbox`); an endpoint ending `/e2e-gone` answers 410. Refused at boot in production, like `AI_FAKE`. Lawyer note: `apps/users/lib/legal/privacy.ts` §7 (not public copy)
 - E2E fixtures for this feature use ids `id(2400)`–`id(2499)` and phones `90000024xx` only (`seedPushRows`, `VENDORS.push`, `CUSTOMERS.push`, `CUSTOMERS.pushOutsider`, `STAFF.pushOwner`, `STAFF.pushOperator`)
 
+### Forced update for the native apps
+
+- **Forced update** (`GET /api/v1/app-config?app=customer|garage&platform=ios|android&version=1.2.3`, `modules/app-config`, rules in `lib/app-config.ts`, pure): public, no sign-in, `Cache-Control: no-store`, the query `.strict()`. Answers `{ minVersion, latestVersion, updateRequired, storeUrl }` from the environment: `APP_MIN_VERSION_<APP>_<PLATFORM>`, `APP_LATEST_VERSION_…` (optional) and `APP_STORE_URL_…` (https only), `<APP>` = `CUSTOMER`/`GARAGE`, `<PLATFORM>` = `IOS`/`ANDROID`. Versions compare numerically per part (`1.10.0` > `1.9.0`, `1.2` = `1.2.0`); a `version` that is not one to three dotted numbers is a 400. **Safe by default**: a minimum unset or unreadable (a typo) means `updateRequired: false`, so an unconfigured server can never lock anyone out. No database, no migration
+
 ### Detlio Rewards (0050)
 
 - **A loyalty programme that makes booking through Detlio a habit** (owner, 18 Oct 2026). Rules in `lib/rewards.ts` (pure, unit-tested; every rule takes the settings as an argument), `modules/rewards` (customer `/users/me/rewards`, public `/api/v1/rewards`, admin `/admin/rewards`), display twin `packages/core/src/rewards.ts` (`rewards.parity.test.ts`), client `packages/core/src/api/rewards.ts`
