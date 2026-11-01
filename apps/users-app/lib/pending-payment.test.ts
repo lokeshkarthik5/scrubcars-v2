@@ -1,11 +1,6 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { beforeEach, describe, expect, test } from 'bun:test';
 
-const store = new Map<string, string>();
-mock.module('expo-secure-store', () => ({
-  getItem: (key: string) => store.get(key) ?? null,
-  setItem: (key: string, value: string) => void store.set(key, value),
-  deleteItemAsync: async (key: string) => void store.delete(key),
-}));
+const store = (globalThis as unknown as { __secureStore: Map<string, string> }).__secureStore;
 
 const { ApiError } = await import('@repo/core/api/client');
 const { intentPollResult } = await import('@repo/core/payment-confirmation');
