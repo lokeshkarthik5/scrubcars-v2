@@ -16,6 +16,7 @@ import { ScSheet } from './sheet';
 import { T } from './text';
 import { toast } from './toast';
 import { errorText } from '@/lib/error-text';
+import { seedLines, serviceLinesOf } from '@/lib/final-bill-lines';
 
 const MAX_LINES = 20;
 const MAX_DESCRIPTION = 80;
@@ -31,15 +32,12 @@ const STATUS_TONE: Record<FinalBill['status'], StatusTone> = {
 
 function linesFrom(bill: FinalBill | null, booking: Booking): Line[] {
   if (bill) return bill.lines.map((line) => ({ description: line.description, amount: String(line.amount) }));
-  const booked = booking.items.slice(0, MAX_LINES).map((item) => ({
-    description: item.name.slice(0, MAX_DESCRIPTION),
-    amount: String(item.amount),
-  }));
+  const booked = seedLines(booking.items, MAX_LINES, MAX_DESCRIPTION);
   return booked.length > 0 ? booked : [{ description: '', amount: '' }];
 }
 
 const bookedSummary = (booking: Booking) =>
-  booking.items.map((item) => `${item.name} ${formatRupees(item.amount)}`).join(' · ');
+  serviceLinesOf(booking.items).map((item) => `${item.name} ${formatRupees(item.amount)}`).join(' · ');
 
 function formProblem(lines: Line[], total: number): string | null {
   if (lines.some((line) => !line.description.trim())) return 'Describe every line.';
