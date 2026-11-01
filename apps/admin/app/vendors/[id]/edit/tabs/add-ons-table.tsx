@@ -13,7 +13,10 @@ import { ScSwitch } from '@repo/ui/sc/switch'
 import { ConfirmSheet } from '@repo/ui/sc/confirm-sheet'
 
 const GRID =
-  'grid grid-cols-[minmax(0,1fr)_5rem] items-center gap-2 @xl:grid-cols-[minmax(0,1fr)_5rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_3rem_auto]'
+  'grid grid-cols-3 items-end gap-2 @xl:grid-cols-[minmax(0,1.8fr)_5rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_3rem_auto] @xl:items-center'
+/** A cell's word on a phone, where the table's headings are hidden. */
+const CELL_WORD =
+  'mb-1 block text-[11px] font-medium text-text-muted @xl:hidden'
 const INPUT =
   'min-h-11 w-full min-w-0 rounded-[10px] border border-border bg-transparent px-2.5 text-[14px] text-text-primary outline-none transition-colors placeholder:text-text-muted focus:border-text-secondary'
 
@@ -165,7 +168,7 @@ export function AddOnsTable({
       className="@container flex flex-col gap-2"
       data-admin-add-ons=""
     >
-      <div className="flex items-baseline justify-between gap-3">
+      <div className="flex flex-col gap-1 @xl:flex-row @xl:items-baseline @xl:justify-between @xl:gap-3">
         <h2
           id="add-ons-heading"
           className="flex items-baseline gap-2 text-[15px] font-medium text-text-primary"
@@ -207,18 +210,25 @@ export function AddOnsTable({
               <input
                 aria-label={`${name} name`}
                 placeholder="Add-on name"
-                className={INPUT}
+                className={`${INPUT} col-span-2 @xl:col-span-1`}
                 value={row.name}
                 onChange={(e) => change(row.key, { name: e.target.value })}
               />
-              <input
-                aria-label={`${name} extra minutes`}
-                inputMode="numeric"
-                placeholder="—"
-                className={`${INPUT} font-numeric`}
-                value={row.extraMins}
-                onChange={(e) => change(row.key, { extraMins: e.target.value })}
-              />
+              <div>
+                <span aria-hidden="true" className={CELL_WORD}>
+                  Extra min
+                </span>
+                <input
+                  aria-label={`${name} extra minutes`}
+                  inputMode="numeric"
+                  placeholder="—"
+                  className={`${INPUT} font-numeric`}
+                  value={row.extraMins}
+                  onChange={(e) =>
+                    change(row.key, { extraMins: e.target.value })
+                  }
+                />
+              </div>
               {(
                 [
                   ['hatch', 'hatchback'],
@@ -226,21 +236,24 @@ export function AddOnsTable({
                   ['suv', 'SUV'],
                 ] as const
               ).map(([field, word]) => (
-                <input
-                  key={field}
-                  aria-label={`${name} ${word} price in rupees`}
-                  inputMode="numeric"
-                  placeholder={
-                    word === 'hatchback'
+                <div key={field}>
+                  <span aria-hidden="true" className={CELL_WORD}>
+                    {word === 'hatchback'
                       ? 'Hatch'
                       : word === 'SUV'
                         ? 'SUV'
-                        : 'Sedan'
-                  }
-                  className={`${INPUT} font-numeric`}
-                  value={row[field]}
-                  onChange={(e) => change(row.key, { [field]: e.target.value })}
-                />
+                        : 'Sedan'}
+                  </span>
+                  <input
+                    aria-label={`${name} ${word} price in rupees`}
+                    inputMode="numeric"
+                    className={`${INPUT} font-numeric`}
+                    value={row[field]}
+                    onChange={(e) =>
+                      change(row.key, { [field]: e.target.value })
+                    }
+                  />
+                </div>
               ))}
               <ScSwitch
                 label={`${name} offered to customers`}
