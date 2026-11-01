@@ -342,7 +342,12 @@ function ReceiptDocument({ receipt }: { receipt: BookingReceipt }) {
 
       <Section title="Services">
         {receipt.items.map((item, index) => (
-          <Row key={`${item.name}-${index}`} label={item.name} value={formatReceiptAmount(item.amount)} />
+          <Row
+            key={`${item.name}-${index}`}
+            // Plain words, not a chip, so the mark survives the PDF (0068).
+            label={item.isAddon ? `${item.name} · Add-on` : item.name}
+            value={formatReceiptAmount(item.amount)}
+          />
         ))}
         {/* An accepted request's travel fee (0062): its own line. */}
         {receipt.travelFee && <Row label="Travel fee" value={formatReceiptAmount(receipt.travelFee)} />}

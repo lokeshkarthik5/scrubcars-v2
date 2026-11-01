@@ -105,7 +105,7 @@ export const certificatesRepository = {
              (v.deleted_at IS NOT NULL) AS vendor_in_bin,
              coalesce(
                (SELECT array_agg(bi.name ORDER BY bi.sort_order, bi.created_at)
-                  FROM booking_items bi WHERE bi.booking_id = b.id),
+                  FROM booking_items bi WHERE bi.booking_id = b.id AND NOT bi.is_addon),
                (SELECT array_agg(s.name) FROM services s WHERE s.id = b.service_id)
              ) AS services
         FROM bookings b

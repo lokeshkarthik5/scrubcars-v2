@@ -22,7 +22,9 @@ import type {
   SetLogoInput,
   SetWorkingHoursInput,
   SlotsQueryInput,
+  CreateAddOnInput,
   ToggleServiceActiveInput,
+  UpdateAddOnInput,
   UpdateJobTypesInput,
   UpdatePackageInput,
   UpdateServiceInput,
@@ -360,6 +362,26 @@ export async function listPublicServices(c: VendorsContext, vendorId: string) {
     success: true,
     data: services,
   })
+}
+
+export async function listPublicAddOns(c: VendorsContext, vendorId: string) {
+  return c.json({ success: true, data: await vendorsService.listPublicAddOns(vendorId) })
+}
+
+export async function listMyAddOns(c: VendorsContext) {
+  return c.json({ success: true, data: await vendorsService.listMyAddOns(getVendorId(c)) })
+}
+
+export async function createAddOn(c: VendorsContext, input: CreateAddOnInput) {
+  return c.json({ success: true, data: await vendorsService.createAddOn(getVendorId(c), input) }, 201)
+}
+
+export async function updateAddOn(c: VendorsContext, addOnId: string, input: UpdateAddOnInput) {
+  return c.json({ success: true, data: await vendorsService.updateAddOn(getVendorId(c), addOnId, input) })
+}
+
+export async function deleteAddOn(c: VendorsContext, addOnId: string) {
+  return c.json({ success: true, data: await vendorsService.deleteAddOn(getVendorId(c), addOnId) })
 }
 
 export async function listMyServices(c: VendorsContext) {

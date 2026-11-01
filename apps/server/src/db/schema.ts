@@ -850,10 +850,20 @@ export const services = pgTable(
     // for those bookings to read, and is listed nowhere again. A service
     // never booked is deleted outright instead. See 0060.
     deletedAt: timestamp('deleted_at', { withTimezone: true }),
+    // An add-on (0068): a small extra that goes with any of the garage's
+    // services and is never booked alone. Every read that means "a service"
+    // filters it out; its category is always 'others', never shown, and it is
+    // never priced on inspection (services_addon_shape_check). See lib/add-ons.ts.
+    isAddon: boolean('is_addon').default(false).notNull(),
   },
   (table) => [
     index('services_vendor_id_idx').on(table.vendorId),
     index('services_category_idx').on(table.category),
+    index('services_vendor_addon_idx').on(table.vendorId).where(sql`${table.isAddon}`),
+    check(
+      'services_addon_shape_check',
+      sql`not ${table.isAddon} or (${table.category} = 'others' and ${table.pricingType} <> 'on_inspection')`
+    ),
     check(
       'services_commission_rate_check',
       sql`${table.commissionRate} is null or (${table.commissionRate} >= 0 and ${table.commissionRate} <= 50)`
@@ -1395,6 +1405,9 @@ export const bookingItems = pgTable(
     amount: decimal('amount', { precision: 10, scale: 2 }).notNull(),
     durationMins: integer('duration_mins').notNull(),
     sortOrder: integer('sort_order').default(0).notNull(),
+    // Snapshot of services.is_addon (0068): an add-on stays marked on this
+    // booking and its receipt whatever later happens to the service.
+    isAddon: boolean('is_addon').default(false).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -2271,6 +2284,7 @@ export const bookingIntentItems = pgTable(
     amount: decimal('amount', { precision: 10, scale: 2 }).notNull(),
     durationMins: integer('duration_mins').notNull(),
     sortOrder: integer('sort_order').default(0).notNull(),
+    isAddon: boolean('is_addon').default(false).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),

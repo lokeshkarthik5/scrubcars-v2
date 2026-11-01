@@ -16,14 +16,15 @@ const toDateKey = (value: Date | string | null): string | null =>
 /**
  * Every category a booking (alias `b`) covered: its items' services, the
  * members of any package among them, and for a booking from before
- * booking_items its single service. Distinct, as text.
+ * booking_items its single service. Distinct, as text. Not add-ons (0068):
+ * reminders, achievements and challenges read this, and they aren't services done.
  */
 export function bookingCategories(): SQL {
   return sql`ARRAY(
     SELECT DISTINCT cats.c FROM (
       SELECT s.category::text AS c
         FROM booking_items bi JOIN services s ON s.id = bi.service_id
-       WHERE bi.booking_id = b.id
+       WHERE bi.booking_id = b.id AND NOT bi.is_addon
       UNION ALL
       SELECT ms.category::text
         FROM booking_items bi
@@ -162,7 +163,7 @@ export const carHistoryRepository = {
                (SELECT json_agg(json_build_object('name', bi.name, 'category', s.category::text)
                                 ORDER BY bi.sort_order, bi.created_at)
                   FROM booking_items bi JOIN services s ON s.id = bi.service_id
-                 WHERE bi.booking_id = b.id),
+                 WHERE bi.booking_id = b.id AND NOT bi.is_addon),
                (SELECT json_agg(json_build_object('name', s.name, 'category', s.category::text))
                   FROM services s WHERE s.id = b.service_id)
              ) AS items,

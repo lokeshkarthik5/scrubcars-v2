@@ -265,7 +265,7 @@ export const pushRepository = {
                       WHERE tp.booking_id = b.id AND tp.status = 'open') AS has_open_proposal,
              v.business_name,
              (SELECT array_agg(bi.name ORDER BY bi.sort_order, bi.created_at)
-                FROM booking_items bi WHERE bi.booking_id = b.id) AS service_names
+                FROM booking_items bi WHERE bi.booking_id = b.id AND NOT bi.is_addon) AS service_names
         FROM bookings b
         JOIN users u ON u.id = b.user_id
         JOIN vendors v ON v.id = b.vendor_id

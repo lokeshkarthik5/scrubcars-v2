@@ -26,6 +26,7 @@ import {
   type HomeFields,
 } from '../../lib/offers.js'
 import { countReach, reachSettings, type ReachCustomer } from '../../lib/offer-reach.js'
+import { ADD_ONS_ALONE_CODE, ADD_ONS_ALONE_MESSAGE, onlyAddOns } from '../../lib/add-ons.js'
 import { computeServiceAmount, sumAmounts } from '../../lib/pricing.js'
 import { isWashDue, washStatus } from '../../lib/wash-status.js'
 import { discountsRepository } from './discounts.repository.js'
@@ -106,7 +107,7 @@ export async function resolveDiscount(input: {
    * service type (a printed coupon's voucher, 0056). Both callers pass
    * them; without them such a code applies to nothing.
    */
-  lines?: ReadonlyArray<{ category: string; amount: string }>
+  lines?: ReadonlyArray<{ category: string; amount: string; isAddon?: boolean }>
 }): Promise<ResolvedDiscount> {
   const discount = await discountsRepository.findByCode(input.code)
 
@@ -424,6 +425,11 @@ export const discountsService = {
       throw new AppError(404, 'Service not found', 'SERVICE_NOT_FOUND')
     }
 
+    // Add-ons go with a service (0068); the booking would refuse this cart.
+    if (onlyAddOns(services.map((service) => ({ isAddon: service!.isAddon })))) {
+      throw new AppError(400, ADD_ONS_ALONE_MESSAGE, ADD_ONS_ALONE_CODE)
+    }
+
     if (!vehicle) {
       throw new AppError(404, 'Vehicle not found', 'VEHICLE_NOT_FOUND')
     }
@@ -452,7 +458,11 @@ export const discountsService = {
       userId,
       vendorId: input.vendorId,
       subtotal,
-      lines: services.map((service, index) => ({ category: service!.category, amount: lineAmounts[index]! })),
+      lines: services.map((service, index) => ({
+        category: service!.category,
+        amount: lineAmounts[index]!,
+        isAddon: service!.isAddon,
+      })),
     })
 
     log.info(

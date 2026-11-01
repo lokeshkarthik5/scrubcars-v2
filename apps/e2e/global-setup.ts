@@ -13,7 +13,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { AUTH_DIR, saveAdminState, saveState } from './support/auth'
 import { closeDb } from './support/db'
-import { ADMIN, CUSTOMERS, PRE_IOS, STAFF } from './support/seed-ids'
+import { ADD_ONS, ADMIN, CUSTOMERS, PRE_IOS, STAFF } from './support/seed-ids'
 
 const dir = path.dirname(fileURLToPath(import.meta.url))
 loadEnv({ path: path.join(dir, '.env.e2e') })
@@ -66,6 +66,8 @@ async function globalSetup() {
     'customer'
   )
   await saveState('vendor-preios', PRE_IOS.owner.phone, 'vendor')
+  await saveState('customer-add-ons', ADD_ONS.customer.phone, 'customer')
+  await saveState('vendor-add-ons', ADD_ONS.owner.phone, 'vendor')
   await saveAdminState('admin')
   await saveAdminState('admin-shared', ADMIN)
 

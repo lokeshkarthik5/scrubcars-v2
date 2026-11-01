@@ -37,6 +37,7 @@ export interface BookingIntentItemInput {
   name: string
   amount: string
   durationMins: number
+  isAddon?: boolean
 }
 
 // What `consumeIntent` did. Everything except 'created' and 'already' means no
@@ -102,6 +103,7 @@ export const bookingIntentsRepository = {
           amount: item.amount,
           durationMins: item.durationMins,
           sortOrder: index,
+          isAddon: item.isAddon ?? false,
         }))
       )
 
@@ -392,6 +394,7 @@ export const bookingIntentsRepository = {
           amount: item.amount,
           durationMins: item.durationMins,
           sortOrder: item.sortOrder,
+          isAddon: item.isAddon,
         }))
       )
 

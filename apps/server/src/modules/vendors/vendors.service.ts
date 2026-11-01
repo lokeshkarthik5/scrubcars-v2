@@ -1,3 +1,4 @@
+import { ADD_ONS_ALONE_CODE, ADD_ONS_ALONE_MESSAGE, onlyAddOns } from '../../lib/add-ons.js'
 import { AT_GARAGE_ADDRESS_MESSAGE, atGarageAddressRefused } from '../../lib/garage-address.js'
 import { effectiveDurationMins } from '../../lib/service-duration.js'
 import { AppError } from '../../lib/errors.js'
@@ -98,7 +99,9 @@ import type {
   SetLogoInput,
   SetWorkingHoursInput,
   SlotsQueryInput,
+  CreateAddOnInput,
   ToggleServiceActiveInput,
+  UpdateAddOnInput,
   UpdateJobTypesInput,
   UpdatePackageInput,
   UpdateServiceInput,
@@ -606,6 +609,35 @@ function toServiceResponse(
     priceSuv: service.priceSuv,
     durationMins: service.durationMins,
     isActive: service.isActive,
+  }
+}
+
+/** An add-on as both the garage and customers read it (0068). */
+export type AddOnResponse = {
+  id: string
+  name: string
+  pricingType: 'flat' | 'per_vehicle'
+  price: string
+  priceHatchback: string | null
+  priceSedan: string | null
+  priceSuv: string | null
+  /** Minutes it adds to the job; 0 is none. */
+  extraMins: number
+  isActive: boolean
+}
+
+function toAddOnResponse(addOn: ServiceRecord): AddOnResponse {
+  return {
+    id: addOn.id,
+    name: addOn.name,
+    // The shape check (0068) keeps on_inspection out; this is only the type's say-so.
+    pricingType: addOn.pricingType === 'per_vehicle' ? 'per_vehicle' : 'flat',
+    price: addOn.price,
+    priceHatchback: addOn.priceHatchback,
+    priceSedan: addOn.priceSedan,
+    priceSuv: addOn.priceSuv,
+    extraMins: effectiveDurationMins({ durationMins: addOn.durationMins, isAddon: true }),
+    isActive: addOn.isActive,
   }
 }
 
@@ -1584,6 +1616,79 @@ export const vendorsService = {
     return services.map((service) => toServiceResponse(service, service.images, 'public'))
   },
 
+  // ─── Add-ons (0068) ────────────────────────────────────────────────────────
+  //
+  // Their own routes, so the service routes stay exactly as older clients read
+  // them. The garage's and the admin editor's: admin passes the garage's id.
+
+  async listPublicAddOns(vendorId: string) {
+    const vendor = await vendorsRepository.findPublicVendorById(vendorId)
+
+    if (!vendor) {
+      throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
+    }
+
+    const addOns = await vendorsRepository.listAddOns(vendor.id, true)
+    return addOns.map(toAddOnResponse)
+  },
+
+  async listMyAddOns(vendorId: string) {
+    const vendor = await getTenantVendor(vendorId)
+    const addOns = await vendorsRepository.listAddOns(vendor.id)
+    return addOns.map(toAddOnResponse)
+  },
+
+  async createAddOn(vendorId: string, input: CreateAddOnInput) {
+    const vendor = await getTenantVendor(vendorId)
+    const [addOn] = await vendorsRepository.createAddOn(vendor.id, {
+      name: input.name,
+      ...resolveServicePricing(input),
+      durationMins: input.extraMins ?? 0,
+      isActive: input.isActive,
+    })
+    return toAddOnResponse(addOn)
+  },
+
+  async updateAddOn(vendorId: string, addOnId: string, input: UpdateAddOnInput) {
+    const vendor = await getTenantVendor(vendorId)
+    const existing = await vendorsRepository.findAddOnById(vendor.id, addOnId)
+    if (!existing) throw new AppError(404, 'Add-on not found', 'ADD_ON_NOT_FOUND')
+
+    // As a service's: a new pricing type rewrites the whole pricing block.
+    const pricing =
+      input.pricingType !== undefined
+        ? resolveServicePricing({
+            pricingType: input.pricingType,
+            price: input.price,
+            priceHatchback: input.priceHatchback,
+            priceSedan: input.priceSedan,
+            priceSuv: input.priceSuv,
+          })
+        : input.price !== undefined
+          ? { price: input.price.toFixed(2) }
+          : {}
+
+    const [updated] = await vendorsRepository.updateService(vendor.id, addOnId, {
+      ...(input.name !== undefined ? { name: input.name } : {}),
+      ...pricing,
+      ...(input.extraMins !== undefined ? { durationMins: input.extraMins ?? 0 } : {}),
+      ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
+    })
+    return toAddOnResponse(updated)
+  },
+
+  /** One bookings name stays, marked deleted, for them to read; one never booked goes. */
+  async deleteAddOn(vendorId: string, addOnId: string) {
+    const vendor = await getTenantVendor(vendorId)
+    const existing = await vendorsRepository.findAddOnById(vendor.id, addOnId)
+    if (!existing) throw new AppError(404, 'Add-on not found', 'ADD_ON_NOT_FOUND')
+
+    const [gone] = (await vendorsRepository.isServiceReferenced(addOnId))
+      ? await vendorsRepository.markServiceDeleted(vendor.id, addOnId)
+      : await vendorsRepository.deleteService(vendor.id, addOnId)
+    return toAddOnResponse(gone)
+  },
+
   async listMyServices(vendorId: string) {
     const vendor = await getTenantVendor(vendorId)
     const services = await vendorsRepository.listServices(vendor.id)
@@ -1918,8 +2023,14 @@ export const vendorsService = {
       throw new AppError(404, 'Service not found', 'SERVICE_NOT_FOUND')
     }
 
+    // Add-ons go with a service (0068): there is no job to quote times for.
+    if (onlyAddOns(requested)) {
+      throw new AppError(400, ADD_ONS_ALONE_MESSAGE, ADD_ONS_ALONE_CODE)
+    }
+
     // Services run one after another, so the block to fit is their sum.
-    // An unset duration holds the default 60 minutes (0064).
+    // An unset duration holds the default 60 minutes (0064); an add-on's
+    // blank is no extra time (0068).
     const durationMins = requested.reduce(
       (total, service) => total + effectiveDurationMins(service),
       0
