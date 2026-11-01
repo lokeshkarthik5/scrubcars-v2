@@ -170,7 +170,7 @@ export function FinalBillCard({
       ) : booking.status === 'cancelled' ? null : (
         <ScButton variant="hero" disabled={opening} onPress={() => void handlePay()}>
           <Label color={colors.white}>
-            <Figures size={15} weight={700} text={opening ? 'Opening payment...' : `Pay ${formatRupees(bill.amountDue)}`} />
+            <Figures color={colors.white} size={15} weight={700} text={opening ? 'Opening payment...' : `Pay ${formatRupees(bill.amountDue)}`} />
           </Label>
           {!opening ? <IconArrowUpRight size={17} stroke={1.5} color={colors.white} /> : null}
         </ScButton>

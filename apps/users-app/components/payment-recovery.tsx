@@ -61,7 +61,7 @@ export function PaymentRecovery() {
   }, [queryClient]);
 
   return (
-    <ScSheet open={failed !== null} onClose={() => setFailed(null)} accessibilityLabel="Your payment">
+    <ScSheet horizontalPadding={16} open={failed !== null} onClose={() => setFailed(null)} accessibilityLabel="Your payment">
       <T size={20} lh={28} tracking={-0.015}>
         Your payment didn&apos;t make a booking
       </T>

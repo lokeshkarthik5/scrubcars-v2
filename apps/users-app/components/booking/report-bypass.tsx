@@ -73,7 +73,7 @@ export function ReportBypassSheet({
     );
   };
   return (
-    <ScSheet open={open} onClose={close} dismissible={!send.isPending} accessibilityLabel={sent ? BYPASS_THANKS_TITLE : 'Tell us about the garage'}>
+    <ScSheet horizontalPadding={16} open={open} onClose={close} dismissible={!send.isPending} accessibilityLabel={sent ? BYPASS_THANKS_TITLE : 'Tell us about the garage'}>
       <View style={styles.column}>
         <View style={styles.head}>
           <View style={styles.grow}>

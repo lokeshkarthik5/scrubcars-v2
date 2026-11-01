@@ -1607,7 +1607,7 @@ export default function BookScreen() {
             ) : (
               <ScButton variant="hero" height={52} disabled={busy} onPress={() => void handlePay()}>
                 <Label color={colors.white}>
-                  <Figures size={15} text={payLabel} weight={600} />
+                  <Figures color={colors.white} size={15} text={payLabel} weight={600} />
                 </Label>
                 {!loading ? <IconArrowUpRight size={17} stroke={1.5} color={colors.white} /> : null}
               </ScButton>
@@ -1644,7 +1644,7 @@ export default function BookScreen() {
         }
       />
 
-      <ScSheet open={promoOpen} onClose={() => setPromoOpen(false)} dismissible={!applyPromo.isPending} accessibilityLabel="Coupons and offers">
+      <ScSheet horizontalPadding={16} open={promoOpen} onClose={() => setPromoOpen(false)} dismissible={!applyPromo.isPending} accessibilityLabel="Coupons and offers">
         <T size={20} lh={28} tracking={-0.015}>
           Coupons and offers
         </T>
@@ -1682,7 +1682,7 @@ export default function BookScreen() {
         </T>
       </ScSheet>
 
-      <ScSheet open={unsettled} onClose={() => setUnsettled(false)} accessibilityLabel="Your last payment">
+      <ScSheet horizontalPadding={16} open={unsettled} onClose={() => setUnsettled(false)} accessibilityLabel="Your last payment">
         <T size={20} lh={28} tracking={-0.015}>
           Your last payment isn&apos;t settled yet
         </T>

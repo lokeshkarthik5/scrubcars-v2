@@ -66,7 +66,7 @@ export function BookingHelpSheet({ open, onClose, booking }: { open: boolean; on
   const garageMessage = `Hi, this is about my Detlio booking ${reference} with you for ${booking.scheduledAt}.`;
   const garageWhatsApp = showGarage ? (whatsAppHref(garage?.whatsapp, garageMessage) ?? whatsAppHref(garage?.phone, garageMessage)) : null;
   return (
-    <ScSheet open={open} onClose={onClose} accessibilityLabel="Help with this booking">
+    <ScSheet horizontalPadding={16} open={open} onClose={onClose} accessibilityLabel="Help with this booking">
       <View style={styles.column}>
         <View style={styles.head}>
           <View style={styles.grow}>

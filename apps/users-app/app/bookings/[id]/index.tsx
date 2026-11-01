@@ -353,13 +353,6 @@ export default function BookingDetailScreen() {
 
   return (
     <View style={[styles.page, { paddingTop: insets.top }]}>
-      {celebrating ? (
-        <SuccessBurst
-          title={awaitingGarage ? 'Booking requested' : 'Booking confirmed'}
-          subtitle={awaitingGarage ? `Waiting for ${booking.vendorName} to accept your ${booking.scheduledAt} slot.` : `${booking.serviceSummary} at ${booking.vendorName} · ${booking.scheduledAt}`}
-          onDone={() => setCelebrating(false)}
-        />
-      ) : null}
       <PageHeader title={`Booking #${bookingReference(booking.id)}`} backTo="/bookings" />
       <ScrollView ref={scrollRef} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 24 }]}>
         <View style={styles.status}>
@@ -490,7 +483,7 @@ export default function BookingDetailScreen() {
         {unpaid ? (
           <ScButton variant="hero" height={52} disabled={paying} onPress={() => void handlePayNow()}>
             <Label color={colors.white}>
-              <Figures size={15} weight={600} text={paying ? 'Opening payment...' : `Pay ${money(booking.servicePrice)}`} />
+              <Figures color={colors.white} size={15} weight={600} text={paying ? 'Opening payment...' : `Pay ${money(booking.servicePrice)}`} />
             </Label>
             {!paying ? <IconArrowUpRight size={17} stroke={1.5} color={colors.white} /> : null}
           </ScButton>
@@ -756,9 +749,17 @@ export default function BookingDetailScreen() {
       </ScrollView>
 
       {gettingThere ? <BookingDirectionsSheet open={showDirections} onClose={() => setShowDirections(false)} booking={booking} /> : null}
+      {celebrating ? (
+        <SuccessBurst
+          title={awaitingGarage ? 'Booking requested' : 'Booking confirmed'}
+          subtitle={awaitingGarage ? `Waiting for ${booking.vendorName} to accept your ${booking.scheduledAt} slot.` : `${booking.serviceSummary} at ${booking.vendorName} · ${booking.scheduledAt}`}
+          onDone={() => setCelebrating(false)}
+        />
+      ) : null}
       <BookingHelpSheet open={showHelp} onClose={() => setShowHelp(false)} booking={booking} />
 
       <ScSheet
+        horizontalPadding={16}
         open={showReschedule && canChange && booking.remainingReschedules > 0 && !lockedIn}
         onClose={() => setShowReschedule(false)}
         dismissible={!rescheduling}

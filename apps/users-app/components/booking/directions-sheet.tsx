@@ -149,7 +149,7 @@ function DirectionsContent({ booking, onClose }: { booking: Booking; onClose: ()
 /** BookingDirectionsSheet (apps/users/components/booking-directions-sheet.tsx). */
 export function BookingDirectionsSheet({ open, onClose, booking }: { open: boolean; onClose: () => void; booking: Booking }) {
   return (
-    <ScSheet open={open} onClose={onClose} accessibilityLabel="Directions">
+    <ScSheet horizontalPadding={16} open={open} onClose={onClose} accessibilityLabel="Directions">
       {open ? <DirectionsContent booking={booking} onClose={onClose} /> : null}
     </ScSheet>
   );

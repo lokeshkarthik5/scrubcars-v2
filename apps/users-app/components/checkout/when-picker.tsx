@@ -256,7 +256,7 @@ export function WhenPicker({
         </>
       ) : null}
 
-      <ScSheet open={showCalendar} onClose={() => setShowCalendar(false)} accessibilityLabel="Pick a date">
+      <ScSheet horizontalPadding={16} open={showCalendar} onClose={() => setShowCalendar(false)} accessibilityLabel="Pick a date">
         <View style={styles.calHead}>
           <Pressable
             accessibilityRole="button"

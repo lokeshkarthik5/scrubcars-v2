@@ -162,7 +162,7 @@ export function RequestSheet({ open, onClose, garage, mode }: { open: boolean; o
   );
 
   return (
-    <ScSheet open={open} onClose={close} accessibilityLabel={`Request ${vendor.name}`}>
+    <ScSheet horizontalPadding={16} open={open} onClose={close} accessibilityLabel={`Request ${vendor.name}`}>
       {sent ? (
         <View style={styles.sent}>
           <IconCircleCheck size={44} color={colors.success} />

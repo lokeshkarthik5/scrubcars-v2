@@ -186,7 +186,7 @@ export function ExtraWorkCard({
                 {work.id === firstAwaiting ? (
                   <ScButton variant="hero" disabled={busy} onPress={() => void handlePay(work)}>
                     <Label color={colors.white}>
-                      <Figures size={15} weight={700} text={opening === work.id ? 'Opening payment...' : `Approve & pay ${formatRupees(work.amount)}`} />
+                      <Figures color={colors.white} size={15} weight={700} text={opening === work.id ? 'Opening payment...' : `Approve & pay ${formatRupees(work.amount)}`} />
                     </Label>
                     {opening !== work.id ? <IconArrowUpRight size={17} stroke={1.5} color={colors.white} /> : null}
                   </ScButton>

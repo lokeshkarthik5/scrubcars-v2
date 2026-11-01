@@ -2,7 +2,7 @@ import { IconCheck } from '@repo/native-ui/icons';
 import { T } from '@repo/native-ui/text';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 import { useEffect, useRef } from 'react';
-import { AccessibilityInfo, Animated, Modal, Pressable, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, Animated, Pressable, StyleSheet, View } from 'react-native';
 
 const CONFETTI = [
   { x: -56, r: '-220deg', delay: 120, tone: 'redFill' },
@@ -39,7 +39,10 @@ function Piece({ x, r, delay, color }: { x: number; r: string; delay: number; co
   );
 }
 
-/** SuccessBurst (packages/ui/src/sc/success-burst.tsx): the moment after a booking is paid for. */
+/**
+ * SuccessBurst (packages/ui/src/sc/success-burst.tsx): the moment after a booking is paid for.
+ * A view, not a Modal: iOS drops a modal shown while Razorpay's window is still leaving.
+ */
 export function SuccessBurst({ title, subtitle, durationMs = 2200, onDone }: { title: string; subtitle?: string; durationMs?: number; onDone: () => void }) {
   const colors = useColors();
   const styles = useStyles();
@@ -57,7 +60,6 @@ export function SuccessBurst({ title, subtitle, durationMs = 2200, onDone }: { t
   }, [fade, pop, durationMs, title]);
 
   return (
-    <Modal transparent visible animationType="none" statusBarTranslucent>
       <Animated.View style={[StyleSheet.absoluteFill, styles.page, { opacity: fade }]}>
         <Pressable accessibilityLabel="Close" style={StyleSheet.absoluteFill} onPress={() => doneRef.current()} />
         <View style={styles.burst} pointerEvents="none">
@@ -77,12 +79,11 @@ export function SuccessBurst({ title, subtitle, durationMs = 2200, onDone }: { t
           </T>
         ) : null}
       </Animated.View>
-    </Modal>
   );
 }
 
 const useStyles = createStyles((c) => ({
-  page: { backgroundColor: c.canvas, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
+  page: { zIndex: 50, backgroundColor: c.canvas, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
   burst: { height: 96, width: 96, alignItems: 'center', justifyContent: 'center' },
   ring: { height: 88, width: 88, borderRadius: 44, borderWidth: 3, borderColor: c.success, alignItems: 'center', justifyContent: 'center' },
   title: { marginTop: 24 },

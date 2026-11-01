@@ -72,7 +72,7 @@ export function AddAddressSheet({
   };
 
   return (
-    <ScSheet open={open} onClose={close} dismissible={!save.isPending} accessibilityLabel="Add an address">
+    <ScSheet horizontalPadding={16} open={open} onClose={close} dismissible={!save.isPending} accessibilityLabel="Add an address">
       <T size={19} weight={600} lh={26}>
         Add an address
       </T>
