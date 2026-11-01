@@ -3011,6 +3011,44 @@ export const pushSubscriptions = pgTable(
   ]
 )
 
+// Phones that turned notifications on in the native apps (0067), beside
+// push_subscriptions (browsers), which stays as it is. `token` is the Expo
+// push token the app got from Expo (`ExponentPushToken[...]`, lib/expo-push.ts):
+// a device identifier, never logged. Scoped exactly as subscriptions are:
+// `audience` is the app it came from, and a garage's row names the garage the
+// seat turned it on for (CHECK). Removed when the person turns it off, when
+// Expo says the token is dead (DeviceNotRegistered), after repeated failed
+// sends, and with the account. The CHECKs are in 0067_push_devices.sql.
+export const pushDevices = pgTable(
+  'push_devices',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    token: varchar('token', { length: 200 }).notNull(),
+    platform: text('platform').$type<'ios' | 'android'>().notNull(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    audience: text('audience').$type<PushAudience>().notNull(),
+    vendorId: uuid('vendor_id').references(() => vendors.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+    lastSuccessAt: timestamp('last_success_at', { withTimezone: true }),
+    // Failed sends in a row (not DeviceNotRegistered, which removes the row at once).
+    failureCount: integer('failure_count').default(0).notNull(),
+  },
+  (table) => [
+    uniqueIndex('push_devices_token_key').on(table.token),
+    index('push_devices_user_id_idx').on(table.userId),
+    index('push_devices_vendor_id_idx')
+      .on(table.vendorId)
+      .where(sql`${table.vendorId} is not null`),
+    check('push_devices_platform_check', sql`${table.platform} in ('ios', 'android')`),
+    check('push_devices_audience_check', sql`${table.audience} in ('customer', 'garage')`),
+    check('push_devices_vendor_check', sql`(${table.audience} = 'garage') = (${table.vendorId} is not null)`),
+    check('push_devices_failure_count_check', sql`${table.failureCount} >= 0`),
+  ]
+)
+
 // The scheduled notifications already sent (0044): a customer's reminder
 // the evening before and an hour before, a garage's "accept within 10 min".
 // One row per booking per kind (unique), claimed before the send, so a cron
