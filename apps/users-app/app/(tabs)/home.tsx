@@ -14,7 +14,7 @@ import { createStyles, useColors } from '@repo/native-ui/theme';
 import { toast } from '@repo/native-ui/toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
-import { type Href, router, useLocalSearchParams } from 'expo-router';
+import { type Href, router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Image, View } from 'react-native';
 
@@ -36,11 +36,12 @@ import { UpdatesBlock } from '@/components/home/updates-block';
 import { CustomerShell } from '@/components/screen';
 import { useAuth } from '@/lib/auth';
 import { coarse, isCitywide, useLocationStore } from '@/lib/location';
+import { otpFlow } from '@/lib/otp-flow';
 import { usePendingCheckout } from '@/lib/pending-checkout';
 import { useRefreshOnFocus } from '@/lib/use-refresh-on-focus';
 
 /** "Good morning" before noon, "Good afternoon" until 5 pm, then "Good evening", in Chennai. */
-export function greetingFor(now: Date): string {
+function greetingFor(now: Date): string {
   const hour = new Date(now.getTime() + 330 * 60_000).getUTCHours();
   return hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 }
@@ -89,7 +90,6 @@ export default function HomeScreen() {
   const rememberCar = usePendingCheckout((s) => s.rememberCar);
   const dismissRate = useDismissReviewPrompt();
   const reminderAction = useServiceReminderAction();
-  const { welcome } = useLocalSearchParams<{ welcome?: string }>();
 
   // Rounded to ~110 m before it leaves the phone; "All of Chennai" is no place, so not sent.
   const origin = location && !isCitywide(location) ? coarse(location) : null;
@@ -110,14 +110,9 @@ export default function HomeScreen() {
   const data = home.data;
   const firstName = data?.header.firstName || firstNameOf((profile ?? authUser)?.name);
 
-  const welcomed = useRef(false);
   useEffect(() => {
-    if (welcome === '1' && !welcomed.current && firstName) {
-      welcomed.current = true;
-      toast.success(`Welcome, ${firstName}! Find your first car wash.`);
-      router.setParams({ welcome: undefined });
-    }
-  }, [welcome, firstName]);
+    if (firstName && otpFlow.takeWelcome()) toast.success(`Welcome, ${firstName}! Find your first car wash.`);
+  }, [firstName]);
 
   if (!authUser) return null;
 

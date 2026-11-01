@@ -267,3 +267,33 @@ export function isInFrame(
 export function frameCentreOffset(padding: FitPadding): [number, number] {
   return [(padding.left - padding.right) / 2, (padding.top - padding.bottom) / 2]
 }
+
+/** A react-native-maps region as the bounds above. */
+export function regionToBounds(region: { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number }): LatLngBounds {
+  return {
+    minLat: region.latitude - region.latitudeDelta / 2,
+    maxLat: region.latitude + region.latitudeDelta / 2,
+    minLng: region.longitude - region.longitudeDelta / 2,
+    maxLng: region.longitude + region.longitudeDelta / 2,
+  };
+}
+
+/** The web's zoom for that view, so the overlap test above means the same on the phone. */
+export function regionZoom(region: { longitudeDelta: number }, widthPx: number): number {
+  return Math.log2((360 / region.longitudeDelta) * (widthPx / TILE_PX));
+}
+
+/**
+ * How much the viewport must change before "Search this area" appears: a quarter-screen
+ * pan, or a ~35% change in how much ground is visible (apps/users/app/map/page.tsx).
+ */
+export function hasMovedMeaningfully(live: LatLngBounds | null, searched: LatLngBounds | null): boolean {
+  if (!live || !searched) return false;
+  const width = Math.abs(searched.maxLng - searched.minLng);
+  const height = Math.abs(searched.maxLat - searched.minLat);
+  if (width === 0 || height === 0) return false;
+  const shiftX = Math.abs((live.minLng + live.maxLng) / 2 - (searched.minLng + searched.maxLng) / 2) / width;
+  const shiftY = Math.abs((live.minLat + live.maxLat) / 2 - (searched.minLat + searched.maxLat) / 2) / height;
+  const zoomChange = Math.abs(Math.abs(live.maxLng - live.minLng) / width - 1);
+  return shiftX > 0.25 || shiftY > 0.25 || zoomChange > 0.35;
+}

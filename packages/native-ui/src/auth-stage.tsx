@@ -1,5 +1,4 @@
 import { BlurView } from 'expo-blur';
-import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { ReactNode } from 'react';
 import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
@@ -32,7 +31,8 @@ function Glow({ size, opacity, id, style }: { size: number; opacity: number; id:
  * AuthStage (packages/ui/src/auth/auth-stage.tsx): the spotlit car full-width at
  * the bottom, a dark wash, a low red glow, and the frosted-glass card. The photo is
  * dark by nature, so the stage is dark in both themes (the owner's Option 1): it
- * scopes itself, and everything inside draws dark, the status bar included.
+ * scopes itself, and everything inside draws dark. The app's one status bar (its root
+ * layout) goes light on these screens.
  */
 export function AuthStage({
   onBack,
@@ -45,7 +45,6 @@ export function AuthStage({
 }) {
   return (
     <ThemeScope scheme="dark">
-      <StatusBar style="light" />
       <Stage onBack={onBack} footer={footer}>
         {children}
       </Stage>

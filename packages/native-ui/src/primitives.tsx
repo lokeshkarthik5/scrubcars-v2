@@ -180,6 +180,7 @@ export function ScSegmented<V extends string>({
   accessibilityLabel,
   minHeight = 48,
   labelSize = 14,
+  trackColor,
 }: {
   value: V;
   onChange: (value: V) => void;
@@ -187,11 +188,13 @@ export function ScSegmented<V extends string>({
   accessibilityLabel?: string;
   minHeight?: number;
   labelSize?: number;
+  /** When it sits on a card, where the usual surface wouldn't show. */
+  trackColor?: string;
 }) {
   const colors = useColors();
   const styles = useStyles();
   return (
-    <View accessibilityRole="radiogroup" accessibilityLabel={accessibilityLabel} style={styles.segmented}>
+    <View accessibilityRole="radiogroup" accessibilityLabel={accessibilityLabel} style={[styles.segmented, trackColor ? { backgroundColor: trackColor } : null]}>
       {options.map((option) => {
         const selected = option.value === value;
         return (

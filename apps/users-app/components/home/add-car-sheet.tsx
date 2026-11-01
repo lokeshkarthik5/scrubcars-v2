@@ -58,16 +58,17 @@ export function AddCarSheet({ open, onClose, onAdded }: { open: boolean; onClose
       <View style={styles.form}>
         <View style={styles.two}>
           <View style={styles.half}>
-            <ScInput label="Make" placeholder="e.g. Maruti" value={form.make} onChangeText={(make) => setForm({ ...form, make })} />
+            <ScInput label="Make" placeholder="e.g. Maruti" autoCorrect={false} autoCapitalize="words" value={form.make} onChangeText={(make) => setForm({ ...form, make })} />
           </View>
           <View style={styles.half}>
-            <ScInput label="Model" placeholder="e.g. Swift" value={form.model} onChangeText={(model) => setForm({ ...form, model })} />
+            <ScInput label="Model" placeholder="e.g. Swift" autoCorrect={false} autoCapitalize="words" value={form.model} onChangeText={(model) => setForm({ ...form, model })} />
           </View>
         </View>
         <ScInput
           label="License plate (optional)"
           placeholder="e.g. TN 01 AB 1234"
           autoCapitalize="characters"
+          autoCorrect={false}
           value={form.licensePlate}
           onChangeText={(text) => setForm({ ...form, licensePlate: text.toUpperCase() })}
         />

@@ -16,7 +16,6 @@ const SINGLE_COPY = [
   'zustand',
   'expo-blur',
   'expo-linear-gradient',
-  'expo-status-bar',
   'react-native-safe-area-context',
   'react-native-svg',
 ];

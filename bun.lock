@@ -274,7 +274,6 @@
       "peerDependencies": {
         "expo-blur": "*",
         "expo-linear-gradient": "*",
-        "expo-status-bar": "*",
         "react": "*",
         "react-native": "*",
         "react-native-safe-area-context": "*",

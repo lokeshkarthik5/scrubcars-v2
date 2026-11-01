@@ -308,7 +308,7 @@ const useStyles = createStyles((c) => ({
   headTwoDiscs: { paddingRight: 108 },
   title: { marginTop: 6, marginBottom: 8 },
   emptyLine: { maxWidth: 268 },
-  ghost: { position: 'absolute', top: 150, opacity: c.scheme === 'light' ? 0.4 : 0.5 },
+  ghost: { position: 'absolute', top: 150, opacity: c.scheme === 'light' ? 0.4 : 0.35 },
   switch: { marginTop: 6, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 6 },
   shrink: { flexShrink: 1, minWidth: 0 },
   discHit: { position: 'absolute', top: 18, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },

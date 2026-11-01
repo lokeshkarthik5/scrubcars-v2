@@ -3,13 +3,12 @@ import { useUserStore } from '@repo/core/stores/user-store';
 import { ScButton } from '@repo/native-ui/button';
 import { IconChevronRight } from '@repo/native-ui/icons';
 import { HubCard, PressRow, ScSegmented } from '@repo/native-ui/primitives';
-import { ConfirmSheet } from '@repo/native-ui/sheet';
 import { T } from '@repo/native-ui/text';
 import { createStyles, useColors, useTheme } from '@repo/native-ui/theme';
 import type { Appearance } from '@repo/native-ui/tokens';
 import { LinearGradient } from 'expo-linear-gradient';
 import { type Href, router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Image, View } from 'react-native';
 
 import { CustomerShell } from '@/components/screen';
@@ -33,7 +32,7 @@ function AppearanceCard() {
         How the app looks on this phone. System follows your phone&apos;s setting.
       </T>
       <View style={styles.segment}>
-        <ScSegmented accessibilityLabel="Appearance" value={appearance} onChange={setAppearance} options={OPTIONS} minHeight={44} />
+        <ScSegmented accessibilityLabel="Appearance" value={appearance} onChange={setAppearance} options={OPTIONS} minHeight={44} trackColor={colors.canvas} />
       </View>
     </HubCard>
   );
@@ -61,7 +60,6 @@ export default function ProfileScreen() {
   const user = useAuth((s) => s.user);
   const signOut = useAuth((s) => s.signOut);
   const profile = useUserStore((s) => s.profile);
-  const [confirming, setConfirming] = useState(false);
 
   useEffect(() => {
     if (user) void useUserStore.getState().fetchProfile().catch(() => undefined);
@@ -135,21 +133,9 @@ export default function ProfileScreen() {
       <Row label="My bookings" href="/bookings" />
       <Row label="Saved garages" href="/profile/saved-garages" />
       <AppearanceCard />
-      <ScButton variant="outline" onPress={() => setConfirming(true)}>
+      <ScButton variant="outline" onPress={() => void signOut().then(() => router.push('/login' as Href))}>
         Log out
       </ScButton>
-      <ConfirmSheet
-        open={confirming}
-        onClose={() => setConfirming(false)}
-        level="firm"
-        title="Log out?"
-        confirmLabel="Log out"
-        cancelLabel="Stay logged in"
-        onConfirm={async () => {
-          await signOut();
-          setConfirming(false);
-        }}
-      />
     </CustomerShell>
   );
 }

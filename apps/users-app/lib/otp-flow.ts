@@ -1,4 +1,5 @@
 import type { NativeOtpPurpose } from '@repo/core/native-session';
+import { safeNextPath } from '@repo/core/redirect';
 
 /**
  * What the code screen needs from the phone screen. The web keeps it in sessionStorage;
@@ -14,6 +15,7 @@ export interface OtpFlow {
 
 let flow: OtpFlow | null = null;
 let next: string | null = null;
+let welcome = false;
 
 export const otpFlow = {
   get: () => flow,
@@ -24,9 +26,19 @@ export const otpFlow = {
     next = value;
   },
   peekNext: () => next,
-  takeNext: () => {
-    const value = next;
+  /**
+   * Where signing in goes on to: what it interrupted, or Home, which says welcome once.
+   * safeNextPath's the path, as this may have come from a link.
+   */
+  takeDestination: () => {
+    const value = safeNextPath(next);
     next = null;
+    welcome = value === null;
+    return value ?? '/home';
+  },
+  takeWelcome: () => {
+    const value = welcome;
+    welcome = false;
     return value;
   },
 };

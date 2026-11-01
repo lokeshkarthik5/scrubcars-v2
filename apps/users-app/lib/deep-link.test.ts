@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
-import { afterSignIn, heldLinkCode, rewriteSystemPath } from './deep-link';
+import { heldLinkCode, rewriteSystemPath } from './deep-link';
+import { otpFlow } from './otp-flow';
 
 describe('rewriteSystemPath', () => {
   test('the web address, the scheme, and Expo Go', () => {
@@ -22,8 +23,12 @@ describe('rewriteSystemPath', () => {
   });
 });
 
-test('afterSignIn checks the path', () => {
-  expect(afterSignIn('/garage/abc', '/home')).toBe('/garage/abc');
-  expect(afterSignIn('//evil.com', '/home')).toBe('/home');
-  expect(afterSignIn(null, '/home')).toBe('/home');
+test('where signing in goes on to', () => {
+  otpFlow.setNext('/garage/abc');
+  expect(otpFlow.takeDestination()).toBe('/garage/abc');
+  expect(otpFlow.takeWelcome()).toBe(false);
+  otpFlow.setNext('//evil.com');
+  expect(otpFlow.takeDestination()).toBe('/home');
+  expect(otpFlow.takeWelcome()).toBe(true);
+  expect(otpFlow.takeWelcome()).toBe(false);
 });

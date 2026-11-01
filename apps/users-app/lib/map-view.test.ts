@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  hasMovedMeaningfully,
+  regionToBounds,
+  regionZoom,
   PIN_MAX_WIDTH_PX,
   PIN_OVERLAP_PX,
   PIN_SELECTED_SCALE,
@@ -216,3 +219,19 @@ describe('frameCentreOffset', () => {
     expect(frameCentreOffset({ top: 128, bottom: 284, left: 73, right: 73 })).toEqual([0, -78])
   })
 })
+
+describe('the phone map', () => {
+  const box = { minLng: 80, minLat: 13, maxLng: 80.4, maxLat: 13.4 };
+  test('regionToBounds', () => {
+    expect(regionToBounds({ latitude: 13.2, longitude: 80.2, latitudeDelta: 0.4, longitudeDelta: 0.4 }).minLng).toBeCloseTo(80);
+  });
+  test('regionZoom gets closer as the view narrows', () => {
+    expect(regionZoom({ longitudeDelta: 0.1 }, 430)).toBeGreaterThan(regionZoom({ longitudeDelta: 0.5 }, 430));
+  });
+  test('Search this area waits for a real move', () => {
+    expect(hasMovedMeaningfully(null, box)).toBe(false);
+    expect(hasMovedMeaningfully(box, box)).toBe(false);
+    expect(hasMovedMeaningfully({ ...box, minLng: 80.2, maxLng: 80.6 }, box)).toBe(true);
+    expect(hasMovedMeaningfully({ ...box, minLng: 79.9, maxLng: 80.5 }, box)).toBe(true);
+  });
+});

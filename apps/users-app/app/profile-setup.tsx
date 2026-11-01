@@ -11,7 +11,6 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { useAuth } from '@/lib/auth';
-import { afterSignIn } from '@/lib/deep-link';
 import { otpFlow } from '@/lib/otp-flow';
 import { errorText } from '@/lib/error-text';
 
@@ -30,7 +29,7 @@ function Form() {
       useAuth.getState().setName(profile.name);
       useUserStore.setState((s) => ({ profile: s.profile ? { ...s.profile, name: profile.name } : s.profile }));
       // Replace: Back from the booking should not land on a form already filled in.
-      router.replace(afterSignIn(otpFlow.takeNext(), '/home?welcome=1') as Href);
+      router.replace(otpFlow.takeDestination() as Href);
     } catch (err) {
       toast.error(errorText(err, 'Something went wrong'));
       setLoading(false);

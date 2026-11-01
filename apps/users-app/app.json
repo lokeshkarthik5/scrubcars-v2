@@ -33,10 +33,17 @@
         {
           "image": "./assets/images/splash-icon.png",
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#0A0A0B"
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Detlio uses your location to show the nearest garages. It is only read when you ask for it."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

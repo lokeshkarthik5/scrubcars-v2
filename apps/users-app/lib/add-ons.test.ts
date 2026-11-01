@@ -24,14 +24,14 @@ test('reads the contract', async () => {
 
 test('a server without the route means no section', async () => {
   const read = (async () => {
-    throw new ApiError('Not found', 404);
+    throw new ApiError(404, 'Not found');
   }) as never;
   expect(await getVendorAddOns('v1', read)).toEqual([]);
 });
 
 test('any other failure is still a failure', async () => {
   const read = (async () => {
-    throw new ApiError('Oops', 500);
+    throw new ApiError(500, 'Oops');
   }) as never;
   await expect(getVendorAddOns('v1', read)).rejects.toThrow('Oops');
 });

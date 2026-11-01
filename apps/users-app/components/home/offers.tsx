@@ -1,7 +1,7 @@
 import { useDismissOffer } from '@repo/core/api/hooks/use-home';
 import type { HomeOffer } from '@repo/core/api/home';
 import { offerFigureOf, offerMetaLines } from '@repo/core/home-display';
-import { formatOfferFigure, stripOfferCode } from '@repo/core/offer-figure';
+import { formatOfferFigure, stripOfferCode, type OfferFigureSize } from '@repo/core/offer-figure';
 import { IconArrowUpRight, IconBuildingStore, IconSparkles, IconX } from '@repo/native-ui/icons';
 import { PressRow } from '@repo/native-ui/primitives';
 import { T } from '@repo/native-ui/text';
@@ -13,6 +13,8 @@ import { Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
 import { usePendingCheckout } from '@/lib/pending-checkout';
 
 const GAP = 8;
+/** packages/ui/styles/globals.css, offer-coupon__figure[data-size]. */
+const FIGURE_SIZE: Record<OfferFigureSize, number> = { percent: 40, amount: 34, 'amount-sm': 26, 'amount-xs': 20, free: 26 };
 
 function Coupon({ offer, hasCar, muted, onSelect, onDismiss, width }: {
   offer: HomeOffer;
@@ -53,10 +55,10 @@ function Coupon({ offer, hasCar, muted, onSelect, onDismiss, width }: {
           ))}
         </View>
         <View style={styles.stub}>
-          <T num size={fig.size === 'long' ? 26 : 40} weight={500} lh={fig.size === 'long' ? 30 : 42} tracking={-0.03}>
-            {fig.prefix ? <T num size={16} lh={20} weight={500}>{fig.prefix}</T> : null}
+          <T num size={FIGURE_SIZE[fig.size]} weight={500} lh={FIGURE_SIZE[fig.size] + 4} tracking={-0.03}>
+            {fig.prefix ? <T num size={Math.min(20, FIGURE_SIZE[fig.size])} weight={500}>{fig.prefix}</T> : null}
             {fig.value}
-            {fig.suffix ? <T num size={16} lh={20} weight={500}>{fig.suffix}</T> : null}
+            {fig.suffix ? <T num size={18} weight={500}>{fig.suffix}</T> : null}
           </T>
           {code ? (
             <View style={styles.code}>

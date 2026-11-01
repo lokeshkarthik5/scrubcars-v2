@@ -30,7 +30,6 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { UpdateRequired } from '@/components/update-required';
 import { useForcedUpdate } from '@/lib/app-config';
 import { installUnauthorizedHandler, isProfileIncomplete, useAuth } from '@/lib/auth';
-import { afterSignIn } from '@/lib/deep-link';
 import { devicePrefs } from '@/lib/device-prefs';
 import { otpFlow } from '@/lib/otp-flow';
 import { queryClient } from '@/lib/query-client';
@@ -75,6 +74,7 @@ function Unreachable() {
 }
 
 const SIGN_IN = new Set(['/login', '/verify-otp']);
+const ALWAYS_DARK = new Set([...SIGN_IN, '/profile-setup']);
 
 /** The route gate: the web's AppProvider. Covers the screen until the session is settled. */
 function SessionGate() {
@@ -103,7 +103,7 @@ function SessionGate() {
     if (SIGN_IN.has(pathname)) {
       // Signed in: past the sign-in screens, to what it interrupted. A new customer gives
       // their name first, and `next` waits for them.
-      const target = redirect === '/home' ? afterSignIn(otpFlow.takeNext(), '/home?welcome=1') : redirect;
+      const target = redirect === '/home' ? otpFlow.takeDestination() : redirect;
       router.dismissTo(target as Href);
       return;
     }
@@ -131,6 +131,9 @@ function SessionGate() {
 function ThemedRoot() {
   const { colors } = useTheme();
   const updateRequired = useForcedUpdate();
+  const pathname = usePathname();
+  // One status bar, so a screen leaving can't strand the wrong one: sign-in is always dark.
+  const onDarkStage = Boolean(updateRequired) || ALWAYS_DARK.has(pathname);
 
   useEffect(() => {
     if (updateRequired) void SplashScreen.hideAsync();
@@ -138,7 +141,7 @@ function ThemedRoot() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <StatusBar style={colors.statusBar} />
+      <StatusBar style={onDarkStage ? 'light' : colors.statusBar} />
       {updateRequired ? <UpdateRequired answer={updateRequired} /> : <SessionGate />}
       <ToastHost />
     </QueryClientProvider>

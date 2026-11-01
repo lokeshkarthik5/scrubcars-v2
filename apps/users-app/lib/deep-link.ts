@@ -1,5 +1,3 @@
-import { safeNextPath } from '@repo/core/redirect';
-
 /**
  * Codes in these links are secrets: a coupon, a gift, an invite. The rest of the app
  * must never see the URL, so they are lifted out here and the app goes on without them.
@@ -41,9 +39,4 @@ export function rewriteSystemPath(path: string): string {
   } catch {
     return '/';
   }
-}
-
-/** Where to go after signing in, when sign-in interrupted something. */
-export function afterSignIn(next: string | null, fallback: string): string {
-  return safeNextPath(next) ?? fallback;
 }

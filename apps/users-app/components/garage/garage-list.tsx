@@ -408,7 +408,7 @@ export function GarageList({
                 ) : null}
                 {!silverOnly && mode !== 'dropin' ? (
                   <ScButton variant="outline" fullWidth={false} onPress={() => switchTo('dropin')}>
-                    Try {BOOKING_TYPE_LABELS.dropin}
+                    {`Try ${BOOKING_TYPE_LABELS.dropin}`}
                   </ScButton>
                 ) : null}
               </View>
