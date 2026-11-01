@@ -6,6 +6,7 @@ import { useUserStore } from '@repo/core/stores/user-store';
 import { create } from 'zustand';
 
 import { clearBookingDraft } from './booking-draft';
+import { heldLinkCode } from './deep-link';
 import { forgetInvite } from './invite';
 import { useLocationStore } from './location';
 import { usePendingCheckout } from './pending-checkout';
@@ -38,6 +39,7 @@ function forgetPerson() {
   clearBookingDraft();
   pendingPayment.clearAll();
   forgetInvite();
+  heldLinkCode.clear();
   useLocationStore.getState().reset();
   queryClient.clear();
 }

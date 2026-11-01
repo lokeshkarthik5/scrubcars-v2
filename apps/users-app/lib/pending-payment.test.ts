@@ -4,7 +4,7 @@ const store = (globalThis as unknown as { __secureStore: Map<string, string> }).
 
 const { ApiError } = await import('@repo/core/api/client');
 const { intentPollResult } = await import('@repo/core/payment-confirmation');
-const { bookingKey, chargeKey, checkPending, giftPollResult, isPendingExpired, PENDING_PAYMENT_TTL_MS, pendingKey, pendingPayment, setPaymentFlowOnScreen } = await import('./pending-payment');
+const { bookingKey, chargeKey, checkPending, failedTitle, giftPollResult, isPendingExpired, PENDING_PAYMENT_TTL_MS, pendingKey, pendingPayment, setPaymentFlowOnScreen } = await import('./pending-payment');
 const { payCharge, startBookingPayment, startGiftPayment, paymentCalls } = await import('./charge-payment');
 
 type Calls = typeof paymentCalls;
@@ -253,4 +253,11 @@ describe('a gift', () => {
     expect(giftPollResult({ state: 'redeemed' }).kind).toBe('booked');
     expect(giftPollResult({ state: 'cancelled' }).kind).toBe('failed');
   });
+});
+
+test('a failed payment is named for what it was', () => {
+  expect(failedTitle('gift')).not.toContain('booking');
+  expect(failedTitle('charge')).not.toContain('booking');
+  expect(failedTitle('intent')).toContain('booking');
+  expect(failedTitle('booking')).toContain('booking');
 });

@@ -76,6 +76,13 @@ export function usePendingKeys(): string[] {
 }
 
 /** Whether Pay should read "checking your payment" for this one. PaymentRecovery resolves it. */
+/** What a payment that couldn't stand is called, on the sheet that says so. */
+export function failedTitle(kind: PendingPayment['kind']): string {
+  if (kind === 'gift') return "Your gift didn't go through";
+  if (kind === 'charge') return "Your payment couldn't be used";
+  return "Your payment didn't make a booking";
+}
+
 /** Any gift payment still being checked: a new gift has no key to look up until the server makes it. */
 export const pendingGift = (): PendingPayment | null => pendingPayment.list().find((p) => p.kind === 'gift') ?? null;
 

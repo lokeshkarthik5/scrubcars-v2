@@ -22,7 +22,7 @@ import { buzz, useReducedMotion } from '@/lib/motion';
 import { usePendingCheckout } from '@/lib/pending-checkout';
 import { prizeCardSpec } from '@/lib/premium-card';
 import { isMoneyPrize, prizeTier, voucherEndsAt } from '@/lib/scratch-prize';
-import { BRUSH, cellsUnder, clearedShare, CLEAR_AT, strokeBetween } from '@/lib/scratch-foil';
+import { BRUSH, cellsUnder, clearedShare, CLEAR_AT, movedEnough, strokeBetween } from '@/lib/scratch-foil';
 
 const STARS: Array<[number, number, number]> = [[0.1, 0.25, 7], [0.22, 0.72, 5], [0.84, 0.22, 6], [0.92, 0.68, 8], [0.7, 0.82, 4], [0.32, 0.18, 4]];
 
@@ -141,10 +141,17 @@ export function ScratchCardPanel({ card, compact = false }: { card: ScratchCardV
   const last = useRef<{ x: number; y: number } | null>(null);
   const add = (x: number, y: number, fresh = false) => {
     const from = fresh ? null : last.current;
+    if (!movedEnough(from, { x, y })) return;
     const points = from ? strokeBetween(from, { x, y }) : [{ x, y }];
     last.current = { x, y };
-    setStrokes((all) => [...all, ...points]);
-    points.forEach((p) => cellsUnder(p.x, p.y, sizeRef.current).forEach((c) => cells.current.add(c)));
+    // A mark over foil already gone adds nothing, so the mask stays bounded by the card.
+    const marks = points.filter((p) => {
+      const under = cellsUnder(p.x, p.y, sizeRef.current);
+      const adds = under.some((c) => !cells.current.has(c));
+      under.forEach((c) => cells.current.add(c));
+      return adds;
+    });
+    if (marks.length > 0) setStrokes((all) => [...all, ...marks]);
   };
   const addRef = useRef(add);
   addRef.current = add;

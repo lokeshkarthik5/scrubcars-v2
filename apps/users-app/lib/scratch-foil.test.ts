@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 
-import { BRUSH, CELL, cellsUnder, clearedShare, CLEAR_AT, strokeBetween } from './scratch-foil';
+import { BRUSH, CELL, cellsUnder, clearedShare, CLEAR_AT, movedEnough, MIN_MOVE, strokeBetween } from './scratch-foil';
 
 const size = { width: 400, height: 528 };
 
@@ -26,4 +26,10 @@ test('a fast stroke leaves no gaps', () => {
   const points = strokeBetween({ x: 0, y: 0 }, { x: 300, y: 0 });
   expect(points.at(-1)).toEqual({ x: 300, y: 0 });
   expect(points[1].x - points[0].x).toBeLessThan(BRUSH);
+});
+
+test('a resting finger adds no marks', () => {
+  expect(movedEnough(null, { x: 1, y: 1 })).toBe(true);
+  expect(movedEnough({ x: 10, y: 10 }, { x: 11, y: 11 })).toBe(false);
+  expect(movedEnough({ x: 0, y: 0 }, { x: MIN_MOVE, y: 0 })).toBe(true);
 });

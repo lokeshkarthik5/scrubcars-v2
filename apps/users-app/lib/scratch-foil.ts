@@ -35,3 +35,7 @@ export function strokeBetween(from: { x: number; y: number }, to: { x: number; y
   const steps = Math.max(1, Math.ceil(Math.hypot(to.x - from.x, to.y - from.y) / (BRUSH * 0.8)));
   return Array.from({ length: steps }, (_, i) => ({ x: from.x + ((to.x - from.x) * (i + 1)) / steps, y: from.y + ((to.y - from.y) * (i + 1)) / steps }));
 }
+
+/** A finger resting or trembling adds nothing: a new mark only once it has moved this far. */
+export const MIN_MOVE = BRUSH * 0.4;
+export const movedEnough = (from: { x: number; y: number } | null, to: { x: number; y: number }) => !from || Math.hypot(to.x - from.x, to.y - from.y) >= MIN_MOVE;

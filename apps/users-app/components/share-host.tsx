@@ -4,6 +4,8 @@ import { type ComponentRef, type ReactNode, useEffect, useRef, useState } from '
 import { PixelRatio, Share, View } from 'react-native';
 import { create } from 'zustand';
 
+import { oneAtATime } from '@/lib/one-at-a-time';
+
 /**
  * Shared pictures (the web's lib/share-image.ts): the picture is laid out as an ordinary view,
  * a third of its pixel size, out of sight; view-shot makes it a PNG on the phone and the share
@@ -22,8 +24,15 @@ const { captureRef } = require('react-native-view-shot') as { captureRef: (view:
 
 const useJob = create<{ job: Job | null }>(() => ({ job: null }));
 
+const startJob = oneAtATime<Job>(
+  () => useJob.getState().job,
+  (job) => useJob.setState({ job })
+);
+
 export function sharePicture(node: ReactNode, size: { width: number; height: number }, title: string): Promise<boolean> {
-  return new Promise((done) => useJob.setState({ job: { node, ...size, title, done } }));
+  return new Promise((done) => {
+    if (!startJob({ node, ...size, title, done })) done(false);
+  });
 }
 
 export function ShareHost() {

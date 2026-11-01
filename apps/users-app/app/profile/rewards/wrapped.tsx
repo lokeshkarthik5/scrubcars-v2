@@ -151,7 +151,7 @@ function Story({ stats, year, close }: { stats: WrappedStats; year: number; clos
         </View>
         {close}
       </View>
-      <View accessibilityLabel={`Detlio Wrapped ${year}, card ${index + 1} of ${cards.length}`} {...responder.panHandlers} style={[styles.story, { width, aspectRatio: 9 / 16 }]}>
+      <View accessibilityLabel={`Detlio Wrapped ${year}, card ${index + 1} of ${cards.length}`} {...responder.panHandlers} pointerEvents="box-only" style={[styles.story, { width, aspectRatio: 9 / 16 }]}>
         <Backdrop cardKey={card.key} />
         <CardView key={`${card.key}-${showName}`} card={card} year={year} stats={stats} width={width} />
       </View>
