@@ -16,21 +16,37 @@ import { membersRepository } from '../modules/members/members.repository.js'
 
 export type AuthVariables = {
   auth: AccessTokenPayload
+  /** How the session arrived: the websites use the cookie, the native apps Bearer. */
+  authVia?: 'cookie' | 'bearer'
   /** The signed-in admin; set by requireSuperAdmin, so only on admin routes. */
   adminActor?: AdminActor
 }
 
+/**
+ * The access token, from the cookie the websites send or the Authorization
+ * header the native apps send. The cookie is read first, so a browser session
+ * behaves exactly as it did before Bearer existed. A browser cannot send the
+ * header across sites at all: CORS leaves Authorization out of allowHeaders.
+ */
+function readAccessToken(c: Context): { token: string; via: 'cookie' | 'bearer' } | null {
+  const cookie = getCookie(c, 'access_token')
+  if (cookie) return { token: cookie, via: 'cookie' }
+  const bearer = /^Bearer ([^\s]+)$/i.exec(c.req.header('Authorization') ?? '')?.[1]
+  return bearer ? { token: bearer, via: 'bearer' } : null
+}
+
 export const authMiddleware = createMiddleware<{ Variables: AuthVariables }>(
   async (c, next) => {
-    const token = getCookie(c, 'access_token')
+    const found = readAccessToken(c)
 
-    if (!token) {
+    if (!found) {
       throw new AppError(401, 'Authentication required', 'UNAUTHORIZED')
     }
 
     try {
-      const payload = await verifyAccessToken(token)
+      const payload = await verifyAccessToken(found.token)
       c.set('auth', payload)
+      c.set('authVia', found.via)
       await next()
     } catch {
       throw new AppError(
@@ -49,10 +65,10 @@ export const authMiddleware = createMiddleware<{ Variables: AuthVariables }>(
  */
 export const optionalAuthMiddleware = createMiddleware<{ Variables: Partial<AuthVariables> }>(
   async (c, next) => {
-    const token = getCookie(c, 'access_token')
-    if (token) {
+    const found = readAccessToken(c)
+    if (found) {
       try {
-        c.set('auth', await verifyAccessToken(token))
+        c.set('auth', await verifyAccessToken(found.token))
       } catch {
         // Treated as signed out.
       }
@@ -94,6 +110,12 @@ export const requireCustomer =createMiddleware<{ Variables: AuthVariables }>(
 export const requireSuperAdmin = createMiddleware<{ Variables: AuthVariables }>(
   async (c, next) => {
     const auth = c.get('auth')
+
+    // Admin stays on the web: a token handed to a native app never opens it,
+    // even for a person who is also a platform admin.
+    if (c.get('authVia') === 'bearer') {
+      throw new AppError(403, 'Admin access required', 'ADMIN_REQUIRED')
+    }
 
     if (auth.sub === BREAK_GLASS_SUBJECT) {
       c.set('adminActor', {

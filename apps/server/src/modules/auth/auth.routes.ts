@@ -10,7 +10,12 @@ import {
 } from '../../middleware/tenant.middleware.js'
 import { rateLimiter } from '../../middleware/rate-limit.middleware.js'
 import * as authController from './auth.controller.js'
-import { sendOtpSchema, verifyOtpSchema } from './auth.validation.js'
+import {
+  nativeLogoutSchema,
+  nativeRefreshSchema,
+  sendOtpSchema,
+  verifyOtpSchema,
+} from './auth.validation.js'
 
 export const authRoutes = new Hono<{ Variables: TenantVariables }>()
 
@@ -35,6 +40,32 @@ authRoutes.post(
 // out by its own browsers.
 authRoutes.post('/refresh', authController.refresh)
 authRoutes.post('/logout', rateLimiter, authController.logout)
+
+// The native apps sign in here. Same OTP rules and same sessions as the routes
+// above, with tokens in the body instead of cookies. They read only the body,
+// never a cookie (see nativeSessionResponse). Sending the code is the shared
+// POST /otp/send.
+authRoutes.post(
+  '/native/otp/verify',
+  rateLimiter,
+  zValidator('json', verifyOtpSchema),
+  (c) => authController.verifyOtpNative(c, c.req.valid('json'))
+)
+
+// Behind the global limiter only, like /refresh: not a guessing surface, and
+// phones on one mobile network share an IP.
+authRoutes.post(
+  '/native/refresh',
+  zValidator('json', nativeRefreshSchema),
+  (c) => authController.refreshNative(c, c.req.valid('json'))
+)
+
+authRoutes.post(
+  '/native/logout',
+  rateLimiter,
+  zValidator('json', nativeLogoutSchema),
+  (c) => authController.logoutNative(c, c.req.valid('json'))
+)
 
 authRoutes.get('/me', authMiddleware, authController.getMe)
 authRoutes.get(
