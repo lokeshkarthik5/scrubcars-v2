@@ -35,6 +35,7 @@ import { publicTierRoutes } from './modules/tiers/tiers.routes.js'
 import { zonesRoutes } from './modules/reach/reach.routes.js'
 import { publicBookingRequestRoutes } from './modules/booking-requests/booking-requests.routes.js'
 import { healthRoutes } from './modules/health/health.routes.js'
+import { appConfigRoutes } from './modules/app-config/app-config.routes.js'
 import { accountRoutes } from './modules/account/account.routes.js'
 import { fakeStreamRoutes, webhookRoutes } from './modules/service-media/service-media.routes.js'
 
@@ -174,6 +175,8 @@ app.route('/api/v1/booking-requests', publicBookingRequestRoutes)
 app.route('/api/v1/admin', adminRoutes)
 app.route('/api/v1/ops', opsRoutes)
 app.route('/api/v1/health', healthRoutes)
+// Forced update for the native apps: the minimum version, from the environment.
+app.route('/api/v1/app-config', appConfigRoutes)
 // The customer app's usage events (first-party, no third party).
 app.route(EVENTS_PATH, analyticsRoutes)
 // Cloudflare Stream says here when a service video is ready or has failed.

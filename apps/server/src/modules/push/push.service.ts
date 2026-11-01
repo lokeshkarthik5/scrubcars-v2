@@ -1,7 +1,9 @@
 import { runInBackground } from '../../lib/background.js'
-import { env, isPushEnabled } from '../../lib/env.js'
+import { env, isAnyPushEnabled, isDevicePushEnabled, isPushEnabled } from '../../lib/env.js'
 import { AppError } from '../../lib/errors.js'
+import { createExpoPushSender } from '../../lib/expo-push.js'
 import { logger } from '../../lib/logger.js'
+import { reportError } from '../../lib/monitoring.js'
 import {
   customerWants,
   deviceLabel,
@@ -29,8 +31,15 @@ import {
 import { createKeyedLimit } from '../../lib/throttle.js'
 import { webPushSender } from '../../lib/web-push.js'
 import { pushRepository, type ScheduledCandidateRow } from './push.repository.js'
+import { deviceDeliveryWith } from './push.device-rules.js'
 import { deliveryWith, type DeliverySummary } from './push.rules.js'
-import type { EndpointInput, PreferencesInput, SubscribeInput } from './push.validation.js'
+import type {
+  EndpointInput,
+  PreferencesInput,
+  RegisterDeviceInput,
+  RemoveDeviceInput,
+  SubscribeInput,
+} from './push.validation.js'
 
 const log = logger.child({ module: 'push' })
 
@@ -56,6 +65,21 @@ const deliver = deliveryWith({
   sender: webPushSender,
 })
 
+const expoPushSender = createExpoPushSender({
+  fetch: (url, init) => globalThis.fetch(url, init),
+  accessToken: () => env.expoPushAccessToken,
+  fake: () => env.pushFake,
+})
+
+const deliverToDevices = deviceDeliveryWith({
+  store: {
+    markSent: (id, at) => pushRepository.markDeviceSent(id, at),
+    markFailed: (id) => pushRepository.markDeviceFailed(id),
+    deleteSubscription: (id) => pushRepository.deleteDevice(id),
+  },
+  sender: expoPushSender,
+})
+
 /** "Send me a test notification": five a person per ten minutes. */
 const testLimit = createKeyedLimit(5, 10 * 60 * 1000)
 
@@ -70,10 +94,16 @@ function notSubscribed(): AppError {
   )
 }
 
-function logDelivery(recipient: PushRecipient, message: PushMessage, summary: DeliverySummary) {
+function logDelivery(
+  recipient: PushRecipient,
+  message: PushMessage,
+  summary: DeliverySummary,
+  channel: 'browsers' | 'devices' = 'browsers'
+) {
   if (summary.devices === 0) return
   // The tag says what it was about (a booking id at most); never an endpoint.
   const fields = {
+    channel,
     audience: recipient.audience,
     tag: message.tag,
     devices: summary.devices,
@@ -93,12 +123,62 @@ async function targetsFor(recipient: PushRecipient, message: PushMessage) {
   return rows.filter((row) => customerWants(message.category, row))
 }
 
-async function deliverTo(recipient: PushRecipient, message: PushMessage): Promise<DeliverySummary> {
+/** A browser fan-out: what it was, when there was nobody to send to. */
+const NO_DEVICES: DeliverySummary = { devices: 0, sent: 0, removed: 0, failed: 0, failures: [] }
+
+async function deliverToBrowsers(recipient: PushRecipient, message: PushMessage): Promise<DeliverySummary> {
   const targets = await targetsFor(recipient, message)
-  if (targets.length === 0) return { devices: 0, sent: 0, removed: 0, failed: 0, failures: [] }
+  if (targets.length === 0) return NO_DEVICES
   const summary = await deliver(targets, message)
   logDelivery(recipient, message, summary)
   return summary
+}
+
+/** The phones a recipient's message goes to, on the same terms as the browsers. */
+async function deviceTargetsFor(recipient: PushRecipient, message: PushMessage) {
+  if (recipient.audience === 'garage') return pushRepository.listGarageDevices(recipient.vendorId)
+  const rows = await pushRepository.listCustomerDevices(recipient.userId)
+  return rows.filter((row) => customerWants(message.category, row))
+}
+
+async function deliverToPhones(recipient: PushRecipient, message: PushMessage): Promise<DeliverySummary> {
+  const targets = await deviceTargetsFor(recipient, message)
+  if (targets.length === 0) return NO_DEVICES
+  const summary = await deliverToDevices(targets, message)
+  logDelivery(recipient, message, summary, 'devices')
+  return summary
+}
+
+/**
+ * Sends to the recipient's browsers and their phones, each when switched on.
+ * The two never break each other: a phone send that fails (or whose read
+ * fails) is logged and dropped, so browsers are never held up or failed by
+ * it; a browser failure is still raised as before, after the phones were
+ * tried. Answers the browsers' summary.
+ */
+async function deliverTo(recipient: PushRecipient, message: PushMessage): Promise<DeliverySummary> {
+  let browsers = NO_DEVICES
+  let browserFailure: unknown
+  let browserFailed = false
+  if (isPushEnabled()) {
+    try {
+      browsers = await deliverToBrowsers(recipient, message)
+    } catch (err) {
+      browserFailed = true
+      browserFailure = err
+    }
+  }
+  if (isDevicePushEnabled()) {
+    try {
+      await deliverToPhones(recipient, message)
+    } catch (err) {
+      // Never an endpoint or token: the error is logged by its name alone.
+      log.error({ audience: recipient.audience, tag: message.tag, error: (err as Error)?.name }, 'push:devices_failed')
+      reportError(err, { task: 'push_devices' })
+    }
+  }
+  if (browserFailed) throw browserFailure
+  return browsers
 }
 
 /** A cron candidate as the message builders read it. */
@@ -165,6 +245,45 @@ export const pushService = {
     return { subscribed: own !== undefined, devices: await pushRepository.countSubscriptions(scope) }
   },
 
+  /**
+   * Turns notifications on for this phone (the native app's Expo token), for
+   * the session's person and (garage) the tenant's garage: the same scope as
+   * a browser. Keeps at most MAX_SUBSCRIPTIONS_PER_USER phones per person per
+   * app, the newest. A customer is also told their two switches, which apply
+   * to phones as to browsers.
+   */
+  async registerDevice(scope: Scope, input: RegisterDeviceInput) {
+    await pushRepository.upsertDevice({
+      token: input.token,
+      platform: input.platform,
+      userId: scope.userId,
+      audience: scope.audience,
+      vendorId: scope.vendorId,
+    })
+    await pushRepository.pruneDevices(scope, MAX_SUBSCRIPTIONS_PER_USER)
+    log.info(
+      { audience: scope.audience, vendorId: scope.vendorId, userId: scope.userId, platform: input.platform },
+      'push:device_registered'
+    )
+    const base = { registered: true as const, devices: await pushRepository.countDevices(scope) }
+    if (scope.audience !== 'customer') return base
+    const prefs = await pushRepository.getPreferences(scope.userId)
+    return {
+      ...base,
+      bookingUpdates: prefs?.pushBookingUpdates ?? true,
+      reminders: prefs?.pushReminders ?? true,
+    }
+  },
+
+  /** Turns this phone off (sign out, or notifications off). Not an error when it was off already. */
+  async removeDevice(scope: Scope, input: RemoveDeviceInput) {
+    const removed = await pushRepository.deleteOwnDevice(scope, input.token)
+    if (removed) {
+      log.info({ audience: scope.audience, vendorId: scope.vendorId, userId: scope.userId }, 'push:device_removed')
+    }
+    return { registered: false as const, devices: await pushRepository.countDevices(scope) }
+  },
+
   async setPreferences(userId: string, input: PreferencesInput) {
     const row = await pushRepository.setPreferences(userId, {
       ...(input.bookingUpdates !== undefined && { pushBookingUpdates: input.bookingUpdates }),
@@ -207,7 +326,7 @@ export const pushService = {
    * response too, only when they are on.
    */
   notify(recipient: PushRecipient, source: PushMessageSource): void {
-    if (!isPushEnabled()) return
+    if (!isAnyPushEnabled()) return
     runInBackground('push_notify', async () => {
       const message = typeof source === 'function' ? await source() : source
       if (!message) return
@@ -221,7 +340,7 @@ export const pushService = {
    * notifications are on, and answers every recipient with its message.
    */
   notifyLater(loader: () => Promise<Array<{ recipient: PushRecipient; message: PushMessage }>>): void {
-    if (!isPushEnabled()) return
+    if (!isAnyPushEnabled()) return
     runInBackground('push_notify', async () => {
       for (const { recipient, message } of await loader()) await deliverTo(recipient, message)
     })
@@ -233,7 +352,7 @@ export const pushService = {
    * are off, with nothing read.
    */
   async sendNow(recipient: PushRecipient, message: PushMessage): Promise<DeliverySummary | null> {
-    if (!isPushEnabled()) return null
+    if (!isAnyPushEnabled()) return null
     return deliverTo(recipient, message)
   },
 
@@ -254,7 +373,7 @@ export const pushService = {
    * run, within a time budget. A dry run only counts. Off, nothing is read.
    */
   async sweepScheduled(options: { dryRun: boolean }, now = new Date()) {
-    if (!isPushEnabled()) return { enabled: false as const }
+    if (!isAnyPushEnabled()) return { enabled: false as const }
     const summary = { enabled: true as const, dayBefore: 0, hourBefore: 0, respondSoon: 0, skipped: 0, failed: 0 }
     const started = Date.now()
     const plan: Array<{ kind: ScheduledPushKind; range: Range; key: 'dayBefore' | 'hourBefore' | 'respondSoon' }> = []

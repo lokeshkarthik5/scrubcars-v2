@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { DEVICE_PLATFORMS, isExpoPushToken } from '../../lib/expo-push.js'
 import { isAllowedPushEndpoint, isValidSubscriptionKeys, MAX_ENDPOINT_LENGTH } from '../../lib/push.js'
 
 /**
@@ -39,6 +40,24 @@ export const preferencesSchema = z
   .strict()
   .refine((input) => input.bookingUpdates !== undefined || input.reminders !== undefined, 'Nothing to change')
 
+/**
+ * A phone's Expo push token (`ExponentPushToken[…]`), as the native app gets
+ * it from Expo. Strict, like the browser's: nothing else rides along, and the
+ * token travels in the body (POST/DELETE), never the URL.
+ */
+const deviceToken = z.string().trim().max(200).refine(isExpoPushToken, 'Not an Expo push token')
+
+export const registerDeviceSchema = z
+  .object({
+    token: deviceToken,
+    platform: z.enum(DEVICE_PLATFORMS),
+  })
+  .strict()
+
+export const removeDeviceSchema = z.object({ token: deviceToken }).strict()
+
 export type SubscribeInput = z.infer<typeof subscribeSchema>
 export type EndpointInput = z.infer<typeof endpointSchema>
 export type PreferencesInput = z.infer<typeof preferencesSchema>
+export type RegisterDeviceInput = z.infer<typeof registerDeviceSchema>
+export type RemoveDeviceInput = z.infer<typeof removeDeviceSchema>
