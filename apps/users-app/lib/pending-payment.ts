@@ -1,5 +1,6 @@
 import { getBooking } from '@repo/core/api/bookings';
 import { ApiError } from '@repo/core/api/client';
+import { getMyGift } from '@repo/core/api/gifts';
 import { getBookingIntentStatus } from '@repo/core/api/payments';
 import { extraWorkPollResult, FALLBACK_REFUND_MESSAGE, finalBillPollResult, intentPollResult, type PollResult } from '@repo/core/payment-confirmation';
 
@@ -21,13 +22,15 @@ export const PENDING_PAYMENT_TTL_MS = 30 * 60 * 1000;
 export type PendingPayment =
   | { kind: 'intent'; intentId: string; vendorName: string; startedAt: number }
   | { kind: 'charge'; what: 'final_bill' | 'extra_work'; bookingId: string; chargeId: string; vendorName: string; startedAt: number }
-  | { kind: 'booking'; bookingId: string; vendorName: string; startedAt: number };
+  | { kind: 'booking'; bookingId: string; vendorName: string; startedAt: number }
+  | { kind: 'gift'; giftId: string; startedAt: number };
 
 export const chargeKey = (chargeId: string) => `charge:${chargeId}`;
 export const bookingKey = (bookingId: string) => `booking:${bookingId}`;
 
 export function pendingKey(payment: PendingPayment): string {
   if (payment.kind === 'intent') return `intent:${payment.intentId}`;
+  if (payment.kind === 'gift') return `gift:${payment.giftId}`;
   return payment.kind === 'charge' ? chargeKey(payment.chargeId) : bookingKey(payment.bookingId);
 }
 
@@ -73,6 +76,9 @@ export function usePendingKeys(): string[] {
 }
 
 /** Whether Pay should read "checking your payment" for this one. PaymentRecovery resolves it. */
+/** Any gift payment still being checked: a new gift has no key to look up until the server makes it. */
+export const pendingGift = (): PendingPayment | null => pendingPayment.list().find((p) => p.kind === 'gift') ?? null;
+
 export const usePendingPayment = (key: string): boolean =>
   useSyncExternalStore(pendingPayment.subscribe, () => pendingPayment.get(key) !== null);
 
@@ -83,9 +89,17 @@ export const setPaymentFlowOnScreen = (value: boolean) => {
 };
 export const paymentFlowOnScreen = () => flowOnScreen;
 
+/** A gift's payment: anything past `pending` means the money landed. `/profile/gifts` is where it shows. */
+export function giftPollResult(gift: { state: string }): PollResult {
+  if (gift.state === 'pending') return { kind: 'pending' };
+  if (gift.state === 'cancelled') return { kind: 'failed', message: 'This gift was cancelled. If you paid, the money comes back to you.' };
+  return { kind: 'booked', bookingId: '' };
+}
+
 /** What the server says about it now. Never guesses: no answer is `pending`. */
 export async function readPendingOutcome(payment: PendingPayment): Promise<PollResult> {
   if (payment.kind === 'intent') return intentPollResult(await getBookingIntentStatus(payment.intentId));
+  if (payment.kind === 'gift') return giftPollResult((await getMyGift(payment.giftId)).gift);
   const booking = await getBooking(payment.bookingId);
   if (!booking) return { kind: 'pending' };
   if (payment.kind === 'booking') {

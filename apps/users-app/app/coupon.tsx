@@ -147,8 +147,8 @@ export default function CouponLinkScreen() {
               </T>
             ) : null}
             {stamps ? (
-              <ScButton variant="main" onPress={() => router.replace('/garages' as Href)}>
-                Book a wash
+              <ScButton variant="main" onPress={() => router.replace('/profile/rewards' as Href)}>
+                See your Shine Card
               </ScButton>
             ) : (
               <ScButton variant="main" onPress={() => book(added)}>

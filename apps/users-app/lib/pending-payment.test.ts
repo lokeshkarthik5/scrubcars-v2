@@ -4,8 +4,8 @@ const store = (globalThis as unknown as { __secureStore: Map<string, string> }).
 
 const { ApiError } = await import('@repo/core/api/client');
 const { intentPollResult } = await import('@repo/core/payment-confirmation');
-const { bookingKey, chargeKey, checkPending, isPendingExpired, PENDING_PAYMENT_TTL_MS, pendingKey, pendingPayment, setPaymentFlowOnScreen } = await import('./pending-payment');
-const { payCharge, startBookingPayment, paymentCalls } = await import('./charge-payment');
+const { bookingKey, chargeKey, checkPending, giftPollResult, isPendingExpired, PENDING_PAYMENT_TTL_MS, pendingKey, pendingPayment, setPaymentFlowOnScreen } = await import('./pending-payment');
+const { payCharge, startBookingPayment, startGiftPayment, paymentCalls } = await import('./charge-payment');
 
 type Calls = typeof paymentCalls;
 type Outcome = { kind: 'pending' } | { kind: 'booked'; bookingId: string } | { kind: 'failed'; message: string };
@@ -15,10 +15,11 @@ const booking = { id: 'b1', vendorName: 'Garage' };
 const NEVER = new Promise<never>(() => undefined);
 
 function calls(options: { outcome?: Outcome | Error; checkout?: () => Promise<unknown>; confirm?: () => Promise<unknown> } = {}) {
-  const counts = { payFinalBill: 0, createPaymentOrder: 0, openCheckout: 0 };
+  const counts = { payFinalBill: 0, createPaymentOrder: 0, buyGift: 0, openCheckout: 0 };
   const made = {
     payFinalBill: async () => (counts.payFinalBill++, ORDER),
     createPaymentOrder: async () => (counts.createPaymentOrder++, ORDER),
+    buyGift: async () => (counts.buyGift++, { ...ORDER, giftId: 'g1' }),
     openCheckout: (async () => (counts.openCheckout++, options.checkout ? options.checkout() : { kind: 'cancelled' })) as never,
     readOutcome: (async () => {
       if (options.outcome instanceof Error) throw options.outcome;
@@ -132,7 +133,7 @@ describe('a final bill or extra work', () => {
     setPaymentFlowOnScreen(false);
     const second = calls({ outcome: { kind: 'pending' } });
     expect(await payCharge(charge(), second.made)).toEqual({ kind: 'checking' });
-    expect(second.counts).toEqual({ payFinalBill: 0, createPaymentOrder: 0, openCheckout: 0 });
+    expect(second.counts).toEqual({ payFinalBill: 0, createPaymentOrder: 0, buyGift: 0, openCheckout: 0 });
     expect(pendingPayment.get(chargeKey('c1'))).not.toBeNull();
   });
 
@@ -224,5 +225,32 @@ describe('a pay-later booking', () => {
     const other = calls({ outcome: { kind: 'pending' } });
     expect((await startBookingPayment({ id: 'b2', vendorName: 'G' }, other.made)).kind).toBe('order');
     expect(other.counts.createPaymentOrder).toBe(1);
+  });
+});
+
+describe('a gift', () => {
+  const payload = { amount: 1000, recipientName: 'Meena', design: 'shine' as const };
+
+  test('one app kill, then a second tap: no second gift', async () => {
+    const first = calls();
+    expect((await startGiftPayment(payload, first.made)).kind).toBe('order');
+    expect(first.counts.buyGift).toBe(1);
+    const second = calls({ outcome: { kind: 'pending' } });
+    expect(await startGiftPayment(payload, second.made)).toEqual({ kind: 'checking' });
+    expect(second.counts.buyGift).toBe(0);
+  });
+
+  test('paid while away: said so, nothing new', async () => {
+    await startGiftPayment(payload, calls().made);
+    const second = calls({ outcome: { kind: 'booked', bookingId: '' } });
+    expect((await startGiftPayment(payload, second.made)).kind).toBe('booked');
+    expect(second.counts.buyGift).toBe(0);
+  });
+
+  test('what its state means', () => {
+    expect(giftPollResult({ state: 'pending' })).toEqual({ kind: 'pending' });
+    expect(giftPollResult({ state: 'available' }).kind).toBe('booked');
+    expect(giftPollResult({ state: 'redeemed' }).kind).toBe('booked');
+    expect(giftPollResult({ state: 'cancelled' }).kind).toBe('failed');
   });
 });

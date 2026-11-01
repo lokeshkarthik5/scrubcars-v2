@@ -31,7 +31,6 @@ import { Image, Pressable, ScrollView, View } from 'react-native';
 
 import { ContactButtons } from '@/components/booking/help-sheet';
 import { MyComplaints } from '@/components/complaints/my-complaints';
-import { GIFTS_SCREEN, REWARDS_SCREEN } from '@/lib/next-version';
 import { LocationPicker, type PickedLocation } from '@/components/location-picker';
 import { DeleteAccountSheet } from '@/components/profile/delete-account-sheet';
 import { EditAddressSheet, EditProfileSheet, EditVehicleSheet } from '@/components/profile/edit-sheets';
@@ -404,24 +403,9 @@ export default function ProfileScreen() {
       <Row label="Saved garages" href="/profile/saved-garages" />
       {slotAlertCount > 0 ? <Row label="Slot alerts" href="/profile/slot-alerts" count={slotAlertCount} /> : null}
       <Row label="Coupons" sub="Have a coupon? Add it here" href="/profile/coupons" count={readyCoupons || null} />
-      {REWARDS_SCREEN && rewardsOn ? <Row label="Detlio Rewards" sub={rewardsSummary.data ? stampsToGoLine(rewardsSummary.data.card.toGo) : undefined} href="/profile/rewards" /> : null}
-      {/* Informational until v1.1's credit screen. */}
-      {giftsOn && Number(credit.data?.balance ?? 0) > 0 ? (
-        <HubCard radius={18} style={styles.rowCard}>
-          <View style={styles.flex}>
-            <T size={15} lh={20}>
-              Detlio credit
-            </T>
-            <T size={12} lh={16} color={colors.textSecondary}>
-              Comes off at checkout
-            </T>
-          </View>
-          <T num size={13} lh={18} color={colors.textSecondary}>
-            {formatRupees(Number(credit.data?.balance ?? 0))}
-          </T>
-        </HubCard>
-      ) : null}
-      {GIFTS_SCREEN && giftsOn ? <Row label="Gift a wash" href="/profile/gifts" /> : null}
+      {rewardsOn ? <Row label="Detlio Rewards" sub={rewardsSummary.data ? stampsToGoLine(rewardsSummary.data.card.toGo) : undefined} href="/profile/rewards" /> : null}
+      {giftsOn ? <Row label="Detlio credit" href="/profile/credit" count={credit.data ? formatRupees(Number(credit.data.balance)) : null} /> : null}
+      {giftsOn ? <Row label="Gift a wash" href="/profile/gifts" /> : null}
       {notifications ? <Row label="Notifications" href="/profile/notifications" /> : null}
       <AppearanceCard />
 

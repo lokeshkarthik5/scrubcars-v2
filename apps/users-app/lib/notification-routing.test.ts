@@ -23,8 +23,8 @@ test('every customer push path the server sends keeps its target', () => {
   }
 });
 
-test('a complaint answer opens the profile, its anchor dropped', () => {
-  expect(pathFromPushUrl('/profile#my-complaints')).toBe('/profile');
+test('a complaint answer opens the complaints screen', () => {
+  expect(pathFromPushUrl('/profile#my-complaints')).toBe('/profile/complaints');
 });
 
 test('anything that is not a path on this app opens the start', () => {

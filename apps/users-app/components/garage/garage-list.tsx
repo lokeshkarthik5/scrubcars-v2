@@ -1,3 +1,4 @@
+import { FreeWashPiece } from '@/components/reach/free-wash';
 import { RequestSheet } from '@/components/reach/request-sheet';
 import { useTierConfig } from '@repo/core/api/hooks/use-tiers';
 import { useVendorSearch } from '@repo/core/api/hooks/use-vendors';
@@ -298,6 +299,8 @@ export function GarageList({
         </T>
       </PressRow>
 
+      {mode !== 'pickup' ? <FreeWashPiece placement="top" /> : null}
+
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -444,6 +447,7 @@ export function GarageList({
             <JustOutsideSection items={justOutside} mode={mode as 'doorstep' | 'pickup'} />
           ) : null}
           {listEnded && mode !== 'pickup' ? <NextTabFooter offer={nextOffer} onSwitch={switchTo} /> : null}
+          {listEnded && mode === 'pickup' ? <FreeWashPiece placement="bottom" /> : null}
         </View>
       </View>
 

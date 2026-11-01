@@ -35,7 +35,11 @@ export function PaymentRecovery() {
       try {
         for (const payment of payments) {
           const outcome = await checkPending(payment);
-          if (outcome.kind === 'booked') {
+          if (outcome.kind === 'booked' && payment.kind === 'gift') {
+            void queryClient.invalidateQueries();
+            toast.success('Your gift is paid. Get its link in Gifts you sent.');
+            router.push('/profile/gifts' as Href);
+          } else if (outcome.kind === 'booked') {
             if (payment.kind === 'intent') clearBookingDraft();
             void invalidateHome(queryClient);
             void queryClient.invalidateQueries();

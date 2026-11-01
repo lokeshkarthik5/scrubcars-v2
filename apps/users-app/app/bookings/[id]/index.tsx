@@ -1,7 +1,8 @@
 import { getBooking } from '@repo/core/api/bookings';
 import { ApiError } from '@repo/core/api/client';
 import { invalidateHome } from '@repo/core/api/hooks/use-home';
-import { invalidateRewards } from '@repo/core/api/hooks/use-rewards';
+import { garageLive, useGaragePulls, useMarkGaragePullsSeen } from '@repo/core/api/hooks/use-garage';
+import { invalidateRewards, rewardsEnabled, useRewardsConfig, useRewardsSummary } from '@repo/core/api/hooks/use-rewards';
 import { slotKeys } from '@repo/core/api/hooks/use-slots';
 import { useTravelTime } from '@repo/core/api/hooks/use-travel-time';
 import { verifyPayment } from '@repo/core/api/payments';
@@ -34,6 +35,8 @@ import { type ComponentRef, type ReactNode, useEffect, useRef, useState } from '
 import { Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { PullReveal } from '@/components/collect/pull-reveal';
+import { ScratchCardPanel } from '@/components/rewards/scratch-card';
 import { CarConditionCard } from '@/components/booking/car-condition-card';
 import { BookingDirectionsSheet, describeDrive } from '@/components/booking/directions-sheet';
 import { ExtraWorkCard } from '@/components/booking/extra-work-card';
@@ -105,7 +108,7 @@ function ContactRow({ label, onPress, last }: { label: string; onPress: () => vo
   );
 }
 
-/** apps/users/app/bookings/[id]/page.tsx. The scratch card and garage card come with v1.1. */
+/** apps/users/app/bookings/[id]/page.tsx.  */
 export default function BookingDetailScreen() {
   const params = useLocalSearchParams<{ id: string; celebrate?: string; then?: string; rate?: string }>();
   const id = String(params.id);
@@ -211,6 +214,17 @@ export default function BookingDetailScreen() {
     );
     return () => clearInterval(interval);
   }, [id, bookingStatus, watchingBill]);
+
+  // Detlio Rewards (0050): a scratch card this booking's chain earned, kept once shown.
+  const rewardsConfig = useRewardsConfig();
+  const rewardsSummary = useRewardsSummary(rewardsEnabled(rewardsConfig.data) && booking?.status === 'completed');
+  const waitingCard = booking && rewardsSummary.data ? (rewardsSummary.data.scratchCards.find((card) => card.bookingId === booking.id || card.rootBookingId === booking.id) ?? null) : null;
+  const [scratchCard, setScratchCard] = useState<typeof waitingCard>(null);
+  if (waitingCard && waitingCard.id !== scratchCard?.id) setScratchCard(waitingCard);
+  // 0057: this booking's Garage card, face down until tapped.
+  const garagePulls = useGaragePulls(garageLive(rewardsConfig.data) && booking?.status === 'completed');
+  const markPullSeen = useMarkGaragePullsSeen();
+  const bookingPull = booking && garagePulls.data ? (garagePulls.data.pulls.find((p) => p.source === 'booking' && (p.bookingId === booking.id || p.rootBookingId === booking.id)) ?? null) : null;
 
   const bookingPaid = booking?.paymentStatus === 'paid';
   const paymentSettled = paid?.phase === 'booked' || (paid !== null && paid.phase !== 'confirming' && bookingPaid);
@@ -550,6 +564,23 @@ export default function BookingDetailScreen() {
 
         <GuaranteeCard booking={booking} />
 
+        {finished && scratchCard ? (
+          <View style={styles.earned}>
+            <T size={17} weight={500} lh={24}>
+              You earned a stamp and a scratch card
+            </T>
+            <ScratchCardPanel card={scratchCard} compact />
+          </View>
+        ) : null}
+        {finished && bookingPull ? (
+          <View style={styles.earned}>
+            <T size={17} weight={500} lh={24}>
+              A new car for your Garage
+            </T>
+            <PullReveal pull={bookingPull} onRevealed={() => (!bookingPull.seen ? markPullSeen.mutate([bookingPull.id]) : undefined)} />
+          </View>
+        ) : null}
+
         <JobPhotosCard photos={booking.jobPhotos} completed={finished} />
         <CarConditionCard
           booking={booking}
@@ -825,6 +856,7 @@ export default function BookingDetailScreen() {
 }
 
 const useStyles = createStyles((c) => ({
+  earned: { gap: 8 },
   page: { flex: 1, backgroundColor: c.canvas },
   body: { paddingHorizontal: 16, paddingTop: 8, gap: 16 },
   loading: { paddingHorizontal: 16, gap: 12 },

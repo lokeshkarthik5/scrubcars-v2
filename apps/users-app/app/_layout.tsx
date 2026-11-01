@@ -29,6 +29,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { OfflineBanner } from '@/components/offline-banner';
 import { PaymentRecovery } from '@/components/payment-recovery';
+import { ShareHost } from '@/components/share-host';
 import { UpdateRequired } from '@/components/update-required';
 import { useForcedUpdate } from '@/lib/app-config';
 import { installUnauthorizedHandler, isProfileIncomplete, useAuth } from '@/lib/auth';
@@ -115,8 +116,9 @@ function SessionGate() {
   useEffect(() => {
     if (status !== 'ready' || coldLink === undefined) return;
     // A printed coupon's link: its code never travels in a route (lib/deep-link.ts).
-    if (heldLinkCode.kind() === 'c' && pathname === '/') {
-      router.replace('/coupon' as Href);
+    const heldKind = heldLinkCode.kind();
+    if (heldKind && pathname === '/') {
+      router.replace((heldKind === 'c' ? '/coupon' : heldKind === 'gift' ? '/gift' : '/invite') as Href);
       return;
     }
     // A guest's first time on this phone.
@@ -184,6 +186,7 @@ function ThemedRoot() {
     <QueryClientProvider client={queryClient}>
       <StatusBar style={onDarkStage ? 'light' : colors.statusBar} />
       {updateRequired ? <UpdateRequired answer={updateRequired} /> : <SessionGate />}
+      <ShareHost />
       <ToastHost />
     </QueryClientProvider>
   );

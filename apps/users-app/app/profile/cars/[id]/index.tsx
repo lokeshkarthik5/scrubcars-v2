@@ -7,8 +7,8 @@ import { categoryLabel } from '@repo/core/categories';
 import type { ServiceCategory } from '@repo/core/types';
 import { ScButton } from '@repo/native-ui/button';
 import { Chip } from '@repo/native-ui/chip';
-import { IconCalendarCheck, IconCar, IconHistory, IconSparkles } from '@repo/native-ui/icons';
-import { EmptyState, ErrorState, ScCard, Skeleton } from '@repo/native-ui/primitives';
+import { IconCalendarCheck, IconCar, IconHistory, IconSparkles, IconFileInvoice, IconChevronRight } from '@repo/native-ui/icons';
+import { EmptyState, ErrorState, ScCard, Skeleton, PressRow } from '@repo/native-ui/primitives';
 import { Figures, T } from '@repo/native-ui/text';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 import { toast } from '@repo/native-ui/toast';
@@ -135,7 +135,7 @@ function ReminderCard({ reminder, now, onBook }: { reminder: ServiceReminder; no
   );
 }
 
-/** apps/users/app/profile/cars/[id]/page.tsx. The certificate comes with v1.1. */
+/** apps/users/app/profile/cars/[id]/page.tsx.  */
 export default function CarHistoryScreen() {
   const params = useLocalSearchParams<{ id: string }>();
   const id = String(params.id);
@@ -188,6 +188,20 @@ export default function CarHistoryScreen() {
                 {`Service history${data.car.licensePlate ? ` · ${data.car.licensePlate}` : ''}`}
               </T>
               {data.reminder ? <ReminderCard reminder={data.reminder} now={now} onBook={chooseThisCar} /> : null}
+              {data.categories.length > 0 ? (
+                <PressRow onPress={() => router.push(`/profile/cars/${id}/certificate` as Href)} style={styles.certificate}>
+                  <IconFileInvoice size={20} color={colors.textPrimary} />
+                  <View style={styles.grow}>
+                    <T size={13} weight={600} lh={18}>
+                      Service history certificate
+                    </T>
+                    <T size={11} lh={15} color={colors.textSecondary}>
+                      Print it or share a link a buyer can check
+                    </T>
+                  </View>
+                  <IconChevronRight size={16} color={colors.textSecondary} />
+                </PressRow>
+              ) : null}
               {data.items.length > 0 || category ? (
                 <View style={styles.tiles}>
                   <ScCard style={styles.tile}>
@@ -263,6 +277,7 @@ export default function CarHistoryScreen() {
 }
 
 const useStyles = createStyles((c) => ({
+  certificate: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 14, borderWidth: 1, borderColor: c.border, backgroundColor: c.surface, paddingHorizontal: 16, paddingVertical: 12 },
   page: { flex: 1, backgroundColor: c.canvas },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   body: { paddingHorizontal: 16, paddingTop: 8, gap: 12 },
