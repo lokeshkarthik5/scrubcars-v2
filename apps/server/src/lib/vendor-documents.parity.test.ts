@@ -9,6 +9,13 @@ import * as server from './vendor-documents.js'
 const coreUrl = (file: string) =>
   new URL(`../../../../packages/core/src/${file}`, import.meta.url).href
 
+const ALL_MODES: server.DocumentModes[] = [
+  { doorstepEnabled: false, dropinEnabled: false },
+  { doorstepEnabled: true, dropinEnabled: false },
+  { doorstepEnabled: false, dropinEnabled: true },
+  { doorstepEnabled: true, dropinEnabled: true },
+]
+
 describe('garage documents parity', () => {
   test('the types, the required three, the retired one, the names and the limits are the same', async () => {
     const core = (await import(coreUrl('vendor-documents.ts'))) as {
@@ -35,22 +42,51 @@ describe('garage documents parity', () => {
     )
   })
 
-  test('who may remove a document is the same rule (0065)', async () => {
+  test('who may remove a document is the same rule (0065), for every way a garage takes bookings', async () => {
     const core = (await import(coreUrl('vendor-documents.ts'))) as {
-      garageCanRemove: (doc: { type: string; status: string; uploadedByDetlio: boolean }) => boolean
+      garageCanRemove: (doc: { type: string; status: string; uploadedByDetlio: boolean; required: boolean }) => boolean
       adminCanRemove: (doc: { type: string; status: string }) => boolean
+      isRequiredDocument: (type: string, modes: server.DocumentModes) => boolean
     }
-    for (const type of server.DOCUMENT_TYPES) {
-      for (const status of server.DOCUMENT_STATUSES) {
-        for (const uploadedBy of ['garage', 'Mathew']) {
-          const doc = { type, status, uploadedBy }
-          expect(core.garageCanRemove({ type, status, uploadedByDetlio: uploadedBy !== 'garage' })).toBe(
-            server.removalRefusal(doc, 'garage') === null
-          )
-          // The panel offers Remove for everything the API takes once warned.
-          expect(core.adminCanRemove({ type, status })).toBe(server.removalRefusal(doc, 'admin', true) === null)
+    for (const modes of ALL_MODES) {
+      for (const type of server.DOCUMENT_TYPES) {
+        const required = core.isRequiredDocument(type, modes)
+        for (const status of server.DOCUMENT_STATUSES) {
+          for (const uploadedBy of ['garage', 'Mathew']) {
+            const doc = { type, status, uploadedBy }
+            expect(core.garageCanRemove({ type, status, uploadedByDetlio: uploadedBy !== 'garage', required })).toBe(
+              server.removalRefusal(doc, 'garage', false, modes) === null
+            )
+            // The panel offers Remove for everything the API takes once warned.
+            expect(core.adminCanRemove({ type, status })).toBe(
+              server.removalRefusal(doc, 'admin', true, modes) === null
+            )
+          }
         }
       }
+    }
+  })
+
+  test('which types a garage must have approved is the same rule (doorstep-only has no shop)', async () => {
+    const core = (await import(coreUrl('vendor-documents.ts'))) as {
+      isDoorstepOnly: (modes: server.DocumentModes) => boolean
+      requiredDocumentTypes: (modes: server.DocumentModes) => readonly string[]
+      isRequiredDocument: (type: string, modes: server.DocumentModes) => boolean
+      documentsVerified: (docs: Array<{ type: string; status: string }>, modes: server.DocumentModes) => boolean
+    }
+    for (const modes of ALL_MODES) {
+      expect(core.isDoorstepOnly(modes)).toBe(server.isDoorstepOnly(modes))
+      expect([...core.requiredDocumentTypes(modes)]).toEqual([...server.requiredDocumentTypes(modes)])
+      for (const type of server.DOCUMENT_TYPES) {
+        expect(core.isRequiredDocument(type, modes)).toBe(server.isRequiredDocument(type, modes))
+      }
+      const idAndBank = [
+        { type: 'owner_id', status: 'approved' },
+        { type: 'bank_proof', status: 'approved' },
+      ] as const
+      expect(core.documentsVerified([...idAndBank], modes)).toBe(
+        server.documentsVerified([...idAndBank], modes)
+      )
     }
   })
 })

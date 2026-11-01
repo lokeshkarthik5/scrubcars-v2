@@ -130,6 +130,12 @@ export interface CertificationMetrics {
    * garage documents are off (no R2_DOCS_BUCKET): nobody can meet it then.
    */
   documentsVerified: boolean | null
+  /**
+   * The garage is doorstep-only, so its shop photo is not one of the required
+   * documents (lib/vendor-documents.ts isDoorstepOnly). Only changes the
+   * words of the documents step. Left out, false.
+   */
+  shopPhotoOptional?: boolean
   /** All-time average, null with no reviews. */
   rating: number | null
   reviewCount: number

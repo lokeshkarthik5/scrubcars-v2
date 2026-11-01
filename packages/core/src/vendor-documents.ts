@@ -20,8 +20,34 @@ export const DOCUMENT_TYPES = [
 
 export type DocumentType = (typeof DOCUMENT_TYPES)[number]
 
-/** The three Silver needs approved (the paper agreement was the fourth until 0063). */
+/**
+ * The three Silver needs approved (the paper agreement was the fourth until
+ * 0063). The full list: a doorstep-only garage has no shop, so for it the
+ * shop photo is optional (`requiredDocumentTypes`).
+ */
 export const REQUIRED_DOCUMENT_TYPES = ['shop_photo', 'owner_id', 'bank_proof'] as const
+
+/** How a garage takes bookings: the two facts that decide whether it has a shop. */
+export interface DocumentModes {
+  doorstepEnabled: boolean
+  dropinEnabled: boolean
+}
+
+/**
+ * Doorstep on and at-garage off: no shop to photograph (owner, 1 Nov 2026).
+ * Pickup & drop alone (neither on) is not doorstep-only: it has premises.
+ * The server's twin: lib/vendor-documents.ts isDoorstepOnly.
+ */
+export function isDoorstepOnly(modes: DocumentModes): boolean {
+  return modes.doorstepEnabled && !modes.dropinEnabled
+}
+
+/** The types this garage needs approved: all three, or ID and bank proof when doorstep-only. */
+export function requiredDocumentTypes(modes: DocumentModes): readonly DocumentType[] {
+  return isDoorstepOnly(modes)
+    ? REQUIRED_DOCUMENT_TYPES.filter((type) => type !== 'shop_photo')
+    : REQUIRED_DOCUMENT_TYPES
+}
 
 /**
  * Nobody uploads these any more: the signed paper agreement, replaced by
@@ -57,6 +83,18 @@ export const DOCUMENT_HINTS: Record<DocumentType, string> = {
   trade_licence: 'Your trade licence from the corporation or panchayat, if you have one.',
 }
 
+/**
+ * Under a doorstep-only garage's shop photo, in place of the usual hint: it
+ * has no shop, so this one is optional.
+ */
+export const SHOP_PHOTO_OPTIONAL_HINT =
+  'Optional. You work at customers’ doorsteps, so there may be no shop front. Add a photo of one if you have it.'
+
+/** The hint under a document, which for the shop photo depends on whether it is required. */
+export function documentHint(type: DocumentType, required: boolean): string {
+  return type === 'shop_photo' && !required ? SHOP_PHOTO_OPTIONAL_HINT : DOCUMENT_HINTS[type]
+}
+
 /** The one extra line on Owner ID: an Aadhaar number must never be readable. */
 export const AADHAAR_MASK_NOTE = 'Cover the first 8 digits of an Aadhaar number'
 
@@ -79,13 +117,16 @@ export const MAX_FILES_PER_DOCUMENT = 2
 /** Seconds a view link works; the button says so. */
 export const DOCUMENT_LINK_TTL_SECONDS = 5 * 60
 
-export function isRequiredDocument(type: DocumentType): boolean {
-  return (REQUIRED_DOCUMENT_TYPES as readonly string[]).includes(type)
+export function isRequiredDocument(type: DocumentType, modes: DocumentModes): boolean {
+  return requiredDocumentTypes(modes).includes(type)
 }
 
-/** Every required type approved. Optional ones never decide it. */
-export function documentsVerified(documents: ReadonlyArray<{ type: DocumentType; status: DocumentStatus | 'missing' }>): boolean {
-  return REQUIRED_DOCUMENT_TYPES.every((type) =>
+/** Every type this garage requires approved. Optional ones never decide it. */
+export function documentsVerified(
+  documents: ReadonlyArray<{ type: DocumentType; status: DocumentStatus | 'missing' }>,
+  modes: DocumentModes
+): boolean {
+  return requiredDocumentTypes(modes).every((type) =>
     documents.some((doc) => doc.type === type && doc.status === 'approved')
   )
 }
@@ -126,16 +167,18 @@ export function fileLine(file: { contentType: string; sizeBytes: number }): stri
  * Whether the garage's owner seat may remove a document (0065), as the API
  * decides it (apps/server/src/lib/vendor-documents.ts removalRefusal): an
  * optional type, or a required one it uploaded itself that is not approved
- * yet. The approved signed agreement never.
+ * yet. The approved signed agreement never. `required` is the API's answer
+ * for this garage (a doorstep-only garage's shop photo is optional).
  */
 export function garageCanRemove(doc: {
   type: DocumentType
   status: DocumentStatus | 'missing'
   uploadedByDetlio: boolean
+  required: boolean
 }): boolean {
   if (doc.status === 'missing') return false
   if (doc.type === 'agreement' && doc.status === 'approved') return false
-  if (!isRequiredDocument(doc.type)) return true
+  if (!doc.required) return true
   return !doc.uploadedByDetlio && doc.status !== 'approved'
 }
 

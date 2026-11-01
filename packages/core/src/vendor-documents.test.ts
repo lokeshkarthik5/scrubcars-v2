@@ -7,12 +7,25 @@ import {
   MAX_DOCUMENT_BYTES,
   REQUIRED_DOCUMENT_TYPES,
   UPLOADABLE_DOCUMENT_TYPES,
+  SHOP_PHOTO_OPTIONAL_HINT,
+  adminCanRemove,
+  documentHint,
   documentsVerified,
+  garageCanRemove,
+  isDoorstepOnly,
+  isRequiredDocument,
   isRetiredDocument,
+  requiredDocumentTypes,
+  type DocumentModes,
   fileLine,
   pickedFilesProblem,
   progressLine,
 } from './vendor-documents'
+
+const AT_GARAGE: DocumentModes = { doorstepEnabled: false, dropinEnabled: true }
+const BOTH: DocumentModes = { doorstepEnabled: true, dropinEnabled: true }
+const DOORSTEP_ONLY: DocumentModes = { doorstepEnabled: true, dropinEnabled: false }
+const PICKUP_ONLY: DocumentModes = { doorstepEnabled: false, dropinEnabled: false }
 
 describe('garage documents in the apps', () => {
   test('every type has a name and says what to upload', () => {
@@ -28,19 +41,53 @@ describe('garage documents in the apps', () => {
 
   test('documents count as checked with the three required types approved, and only those', () => {
     const approved = REQUIRED_DOCUMENT_TYPES.map((type) => ({ type, status: 'approved' as const }))
-    expect(documentsVerified(approved)).toBe(true)
-    expect(documentsVerified(approved.slice(1))).toBe(false)
+    expect(documentsVerified(approved, AT_GARAGE)).toBe(true)
+    expect(documentsVerified(approved.slice(1), AT_GARAGE)).toBe(false)
     expect(
-      documentsVerified([...approved.slice(1), { type: 'shop_photo', status: 'pending' }])
+      documentsVerified([...approved.slice(1), { type: 'shop_photo', status: 'pending' }], AT_GARAGE)
     ).toBe(false)
     expect(
-      documentsVerified([...approved, { type: 'trade_licence', status: 'rejected' }])
+      documentsVerified([...approved, { type: 'trade_licence', status: 'rejected' }], AT_GARAGE)
     ).toBe(true)
     expect(progressLine({ approvedRequired: 2, required: 3 })).toBe('2 of 3 required approved')
     // The paper agreement (0063) is retired: never required, never uploadable.
-    expect(documentsVerified([...approved, { type: 'agreement', status: 'rejected' }])).toBe(true)
+    expect(documentsVerified([...approved, { type: 'agreement', status: 'rejected' }], AT_GARAGE)).toBe(true)
     expect(UPLOADABLE_DOCUMENT_TYPES).not.toContain('agreement')
     expect(isRetiredDocument('agreement')).toBe(true)
+  })
+
+  test('a doorstep-only garage has no shop: its shop photo is optional, everyone else’s is required', () => {
+    expect(isDoorstepOnly(DOORSTEP_ONLY)).toBe(true)
+    for (const modes of [AT_GARAGE, BOTH, PICKUP_ONLY]) {
+      expect(isDoorstepOnly(modes)).toBe(false)
+      expect(isRequiredDocument('shop_photo', modes)).toBe(true)
+    }
+    expect(isRequiredDocument('shop_photo', DOORSTEP_ONLY)).toBe(false)
+    expect([...requiredDocumentTypes(DOORSTEP_ONLY)]).toEqual(['owner_id', 'bank_proof'])
+
+    const idAndBank = [
+      { type: 'owner_id' as const, status: 'approved' as const },
+      { type: 'bank_proof' as const, status: 'approved' as const },
+    ]
+    expect(documentsVerified(idAndBank, DOORSTEP_ONLY)).toBe(true)
+    expect(documentsVerified([...idAndBank, { type: 'shop_photo', status: 'rejected' }], DOORSTEP_ONLY)).toBe(true)
+    expect(documentsVerified(idAndBank, BOTH)).toBe(false)
+    expect(documentsVerified(idAndBank, PICKUP_ONLY)).toBe(false)
+    expect(documentsVerified(idAndBank, { ...DOORSTEP_ONLY, dropinEnabled: true })).toBe(false)
+  })
+
+  test('the shop photo’s hint says it is optional only when it is', () => {
+    expect(documentHint('shop_photo', true)).toBe(DOCUMENT_HINTS.shop_photo)
+    expect(documentHint('shop_photo', false)).toBe(SHOP_PHOTO_OPTIONAL_HINT)
+    expect(SHOP_PHOTO_OPTIONAL_HINT).toContain('Optional')
+    expect(documentHint('owner_id', false)).toBe(DOCUMENT_HINTS.owner_id)
+  })
+
+  test('the garage removes an optional shop photo even when Detlio approved it', () => {
+    const photo = { type: 'shop_photo' as const, status: 'approved' as const, uploadedByDetlio: false }
+    expect(garageCanRemove({ ...photo, required: false })).toBe(true)
+    expect(garageCanRemove({ ...photo, required: true })).toBe(false)
+    expect(adminCanRemove(photo)).toBe(true)
   })
 
   test('picked files: one or two photos or PDFs, up to 10 MB', () => {

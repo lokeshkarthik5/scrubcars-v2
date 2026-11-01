@@ -44,6 +44,11 @@ const SEATS: Array<{ userId: string; vendorId: string; role: 'vendor_admin' | 'v
 
 // ─── Stand-ins for the database ──────────────────────────────────────────────
 
+/** How the garage takes bookings, which decides whether its shop photo is required. */
+const AT_GARAGE = { doorstepEnabled: false, dropinEnabled: true }
+const DOORSTEP_ONLY = { doorstepEnabled: true, dropinEnabled: false }
+let modes: { doorstepEnabled: boolean; dropinEnabled: boolean } = AT_GARAGE
+
 type Patchable = Record<string, unknown>
 const originals: Array<[Patchable, string, unknown]> = []
 function patch(target: object, key: string, value: unknown) {
@@ -82,6 +87,7 @@ beforeAll(() => {
   )
   patch(membersRepository, 'logInternalAccess', async () => undefined)
 
+  patch(vendorDocumentsRepository, 'findModes', async () => modes)
   patch(vendorDocumentsRepository, 'listDocuments', async () => [])
   patch(vendorDocumentsRepository, 'listFiles', async () => [])
   patch(vendorDocumentsRepository, 'findGarage', async (vendorId: string) =>
@@ -170,6 +176,37 @@ describe('the garage portal: owner seat only', () => {
     expect(response.headers.get('Cache-Control')).toBe('no-store')
   })
 
+  test('the list says which documents are required for this garage’s modes', async () => {
+    type Listed = { summary: { required: number; missingRequired: number }; documents: Array<{ type: string; required: boolean }> }
+    const requiredTypes = async (path: string, who: 'owner' | 'superAdmin') => {
+      const { body } = await call(path, who)
+      const data = body.data as unknown as Listed
+      return { data, required: data.documents.filter((doc) => doc.required).map((doc) => doc.type) }
+    }
+
+    modes = AT_GARAGE
+    expect((await requiredTypes(GARAGE_LIST, 'owner')).required).toEqual(['shop_photo', 'owner_id', 'bank_proof'])
+    expect((await requiredTypes(ADMIN_LIST, 'superAdmin')).required).toEqual(['shop_photo', 'owner_id', 'bank_proof'])
+
+    // Doorstep on and at-garage off: no shop, so ID and bank proof only.
+    modes = DOORSTEP_ONLY
+    for (const [path, who] of [
+      [GARAGE_LIST, 'owner'],
+      [ADMIN_LIST, 'superAdmin'],
+    ] as const) {
+      const listed = await requiredTypes(path, who)
+      expect(listed.required).toEqual(['owner_id', 'bank_proof'])
+      expect(listed.data.summary).toMatchObject({ required: 2, missingRequired: 2 })
+      // Still listed, so it can be uploaded as an optional type.
+      expect(listed.data.documents.map((doc) => doc.type)).toContain('shop_photo')
+    }
+
+    // Pickup & drop alone (neither on) keeps all three.
+    modes = { doorstepEnabled: false, dropinEnabled: false }
+    expect((await requiredTypes(GARAGE_LIST, 'owner')).required).toEqual(['shop_photo', 'owner_id', 'bank_proof'])
+    modes = AT_GARAGE
+  })
+
   test('an operator of the same garage can neither list nor view', async () => {
     for (const path of [GARAGE_LIST, GARAGE_LINK, '/vendors/me/documents/config']) {
       const { status, body } = await call(path, 'operator')
@@ -239,6 +276,7 @@ describe('removing a document (0065)', () => {
     documentsOn(true)
     const work = {
       lockGarageDocuments: async () => undefined,
+      findModes: async () => modes,
       findDocument: async (vendorId: string, documentId: string) =>
         docs.find((doc) => doc.id === documentId && doc.vendorId === vendorId),
       removeDocument: async (
@@ -257,6 +295,7 @@ describe('removing a document (0065)', () => {
   })
 
   const seed = (type: string, status: string, uploadedBy = 'garage') => {
+    modes = AT_GARAGE
     docs = [{ id: DOCUMENT, vendorId: GARAGE, type, status, version: 1, uploadedBy }]
     audits = []
   }
@@ -270,6 +309,29 @@ describe('removing a document (0065)', () => {
   }
   const GARAGE_REMOVE = `/vendors/me/documents/${DOCUMENT}/remove`
   const ADMIN_REMOVE = `/admin/documents/vendors/${GARAGE}/${DOCUMENT}/remove`
+
+  test('a doorstep-only garage’s shop photo is optional: the owner removes it even approved, admin needs no warning', async () => {
+    seed('shop_photo', 'approved')
+    modes = DOORSTEP_ONLY
+    expect((await post(GARAGE_REMOVE, 'owner')).status).toBe(200)
+    expect(docs).toEqual([])
+
+    seed('shop_photo', 'approved', 'Mathew')
+    modes = DOORSTEP_ONLY
+    expect((await post(ADMIN_REMOVE, 'breakGlass')).status).toBe(200)
+    expect(docs).toEqual([])
+
+    // The same approved photo at a garage with a shop is still protected.
+    seed('shop_photo', 'approved')
+    expect((await post(GARAGE_REMOVE, 'owner')).body.code).toBe('DOCUMENT_REQUIRED_CONFIRM')
+    expect((await post(ADMIN_REMOVE, 'breakGlass')).body.code).toBe('DOCUMENT_REQUIRED_CONFIRM')
+    expect(docs).toHaveLength(1)
+
+    // ID stays required for a doorstep-only garage.
+    seed('owner_id', 'approved')
+    modes = DOORSTEP_ONLY
+    expect((await post(GARAGE_REMOVE, 'owner')).body.code).toBe('DOCUMENT_REQUIRED_CONFIRM')
+  })
 
   test('the owner seat removes an optional type, or its own required upload not approved yet', async () => {
     seed('gst_certificate', 'approved')

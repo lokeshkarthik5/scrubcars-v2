@@ -50,6 +50,7 @@ import {
 import { toast } from 'react-toastify'
 import { getGarageDocumentsConfig } from '@repo/core/api/documents'
 import { getPushConfig } from '@repo/core/api/push'
+import { isDoorstepOnly } from '@repo/core/vendor-documents'
 import { useIsVendorAdmin } from '@repo/core/hooks/use-vendor-role'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { useBookingsStore } from '@repo/core/stores/bookings-store'
@@ -568,7 +569,12 @@ function VendorSettings() {
               href="/settings/documents"
               icon={<IconFileCertificate size={18} aria-hidden="true" />}
               title="Documents"
-              description="Your ID, bank proof and shop photo, one of the steps to Silver"
+              description={
+                // A doorstep-only garage has no shop, so no shop photo is asked for.
+                vendor && isDoorstepOnly(vendor)
+                  ? 'Your ID and bank proof, one of the steps to Silver'
+                  : 'Your ID, bank proof and shop photo, one of the steps to Silver'
+              }
             />
           )}
 
