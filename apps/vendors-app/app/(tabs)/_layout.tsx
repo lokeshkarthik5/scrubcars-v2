@@ -14,7 +14,9 @@ export default function TabsLayout() {
       <Tabs.Screen name="bookings" />
       <Tabs.Screen name="services" />
       <Tabs.Screen name="earnings" />
-      <Tabs.Screen name="settings" />
+      <Tabs.Screen name="settings/index" />
+      <Tabs.Screen name="settings/notifications" />
+      <Tabs.Screen name="account" />
     </Tabs>
   );
 }

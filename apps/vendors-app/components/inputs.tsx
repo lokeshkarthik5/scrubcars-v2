@@ -11,8 +11,9 @@ import { font, T } from './text';
 export function ScInput({
   label,
   style,
+  numeric,
   ...props
-}: TextInputProps & { label?: string }) {
+}: TextInputProps & { label?: string; numeric?: boolean }) {
   return (
     <View style={styles.field}>
       {label ? (
@@ -23,7 +24,7 @@ export function ScInput({
       <TextInput
         placeholderTextColor={colors.textMuted}
         keyboardAppearance="dark"
-        style={[styles.solid, style]}
+        style={[styles.solid, numeric && styles.numeric, style]}
         accessibilityLabel={props.accessibilityLabel ?? label}
         {...props}
       />
@@ -172,6 +173,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textPrimary,
   },
+  numeric: { fontFamily: font(400, true) },
   phone: {
     flexDirection: 'row',
     overflow: 'hidden',

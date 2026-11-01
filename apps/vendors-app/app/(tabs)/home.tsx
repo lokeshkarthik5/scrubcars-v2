@@ -8,8 +8,8 @@ import { useNow } from '@repo/core/hooks/use-now';
 import { isNewGarage, NEW_GARAGE_LABEL } from '@repo/core/ratings';
 import type { Review } from '@repo/core/types';
 import { formatRating, reviewCountLabel } from '@repo/core/vendor-stats';
-import { type Href, router } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { type Href, router, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
@@ -83,10 +83,18 @@ function HomeScreen() {
         setReviewsFailed(false);
       })
       .catch(() => setReviewsFailed(true));
-    getMyVendor()
-      .then(setProfile)
-      .catch(() => undefined);
   }, [vendor?.id]);
+
+  // On every return, not once: a tab stays mounted here, and pausing or resuming
+  // in Settings must show on Home as it does on the web's fresh page.
+  useFocusEffect(
+    useCallback(() => {
+      if (!vendor?.id) return;
+      getMyVendor()
+        .then(setProfile)
+        .catch(() => undefined);
+    }, [vendor?.id])
+  );
 
   // Money is a separate call, and an operator's home page never makes it.
   useEffect(() => {

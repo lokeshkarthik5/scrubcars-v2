@@ -22,6 +22,9 @@ import { ToastHost } from './toast';
 
 const DURATION = 220;
 
+/** iOS drops a modal presented while another is going away: wait this long after closing one. */
+export const AFTER_SHEET_MS = DURATION + 120;
+
 /**
  * ScSheet (packages/ui/src/sc/modal.tsx): slides up from the edge over a dimmed,
  * lightly blurred page. Stays mounted through its exit, as the web's does.
@@ -105,6 +108,46 @@ export function ScSheet({
   );
 }
 
+/** ScModal: the centred dialog (the photo viewer). */
+export function ScModal({
+  open,
+  onClose,
+  children,
+  dismissible = true,
+  accessibilityLabel,
+}: {
+  open: boolean;
+  onClose: () => void;
+  children: ReactNode;
+  dismissible?: boolean;
+  accessibilityLabel?: string;
+}) {
+  if (!open) return null;
+  return (
+    <Modal
+      transparent
+      visible
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={() => {
+        if (dismissible) onClose();
+      }}
+    >
+      <Pressable
+        accessibilityLabel="Close"
+        style={[StyleSheet.absoluteFill, styles.modalBackdrop]}
+        onPress={() => dismissible && onClose()}
+      />
+      <View style={styles.modalCentre} pointerEvents="box-none">
+        <View accessibilityViewIsModal accessibilityLabel={accessibilityLabel} style={styles.modalPanel}>
+          {children}
+        </View>
+      </View>
+      <ToastHost />
+    </Modal>
+  );
+}
+
 /** ConfirmSheet, 'light' and 'firm' levels: closing after the action is the caller's. */
 export function ConfirmSheet({
   open,
@@ -116,6 +159,7 @@ export function ConfirmSheet({
   confirmLabel,
   cancelLabel = 'Keep it',
   busy = false,
+  error,
 }: {
   open: boolean;
   onClose: () => void;
@@ -126,6 +170,8 @@ export function ConfirmSheet({
   confirmLabel: string;
   cancelLabel?: string;
   busy?: boolean;
+  /** Why it didn't work, shown in the sheet: a caller keeps it open and sets this. */
+  error?: string;
 }) {
   const [pending, setPending] = useState(false);
   const working = busy || pending;
@@ -148,6 +194,11 @@ export function ConfirmSheet({
           {title}
         </T>
         {body ? <View style={styles.confirmBody}>{body}</View> : null}
+        {error ? (
+          <T accessibilityRole="alert" size={14} lh={19} color={colors.error} style={styles.confirmError}>
+            {error}
+          </T>
+        ) : null}
         <View style={styles.confirmActions}>
           <ScButton
             variant={level === 'light' ? 'main' : 'danger-outline'}
@@ -177,6 +228,19 @@ export function ConfirmSheet({
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  modalBackdrop: { backgroundColor: 'rgba(0,0,0,0.6)' },
+  modalCentre: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
+  modalPanel: {
+    width: '100%',
+    maxWidth: 420,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.brandBlack,
+    paddingHorizontal: 12,
+    paddingTop: 16,
+    paddingBottom: 20,
+  },
   end: { flex: 1, justifyContent: 'flex-end' },
   backdrop: { backgroundColor: 'rgba(0,0,0,0.5)' },
   panel: {
@@ -190,6 +254,7 @@ const styles = StyleSheet.create({
   handle: { width: 36, height: 4, borderRadius: 999, backgroundColor: colors.border },
   confirm: { paddingHorizontal: 20, paddingTop: 4 },
   confirmBody: { marginTop: 8 },
+  confirmError: { marginTop: 16 },
   confirmActions: { marginTop: 20, gap: 10 },
   confirmLabel: { flexDirection: 'row', alignItems: 'center', gap: 8 },
 });

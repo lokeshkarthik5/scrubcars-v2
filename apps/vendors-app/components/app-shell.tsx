@@ -1,5 +1,5 @@
 import { Fragment, type ComponentRef, type ComponentType, type ReactNode, type RefObject } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/lib/auth';
@@ -53,6 +53,7 @@ export function AppShell({
   gap = 20,
   hasNav = true,
   scrollRef,
+  footer,
 }: {
   children: ReactNode;
   showBrand?: boolean;
@@ -62,18 +63,23 @@ export function AppShell({
   /** A tab screen sits above the nav; a screen off the tabs reaches the edge. */
   hasNav?: boolean;
   scrollRef?: RefObject<ComponentRef<typeof ScrollView> | null>;
+  /** Docked under the scroll, above the keyboard: the job's one next step. */
+  footer?: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
   return (
     // The inset is outside the scroll, so content never runs under the status bar.
-    <View style={[styles.page, { paddingTop: insets.top }]}>
+    <KeyboardAvoidingView
+      behavior={footer && Platform.OS === 'ios' ? 'padding' : undefined}
+      style={[styles.page, { paddingTop: insets.top }]}
+    >
       <ScrollView
         ref={scrollRef}
         style={styles.page}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={[
           styles.content,
-          { gap, paddingTop: 16, paddingBottom: hasNav ? 16 : insets.bottom + 16 },
+          { gap, paddingTop: 16, paddingBottom: hasNav || footer ? 16 : insets.bottom + 16 },
         ]}
       >
         <VendorShellHeader />
@@ -85,13 +91,23 @@ export function AppShell({
         ) : null}
         {children}
       </ScrollView>
-    </View>
+      {footer ? (
+        <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>{footer}</View>
+      ) : null}
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.brandBlack },
   content: { flexGrow: 1, paddingHorizontal: 16 },
+  footer: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    backgroundColor: colors.brandBlack,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
   shellHeader: { gap: 8 },
   switcherRow: { flexDirection: 'row', justifyContent: 'flex-end' },
   brand: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },

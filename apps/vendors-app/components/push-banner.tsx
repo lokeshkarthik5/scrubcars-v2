@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { devicePrefs } from '@/lib/device-prefs';
-import { usePushDevice } from '@/lib/garage-api';
+import { usePushDevice } from '@/lib/push-device';
 import { colors } from '@/lib/theme';
 
 import { ScButton } from './button';
@@ -35,16 +35,29 @@ export function PushBanner() {
         </T>{' '}
         on this phone
       </T>
-      <ScButton
-        variant="outline"
-        fullWidth={false}
-        backgroundColor={colors.textPrimary}
-        labelColor={colors.brandBlack}
-        style={styles.turnOn}
-        onPress={() => router.push('/settings/notifications' as Href)}
-      >
-        Turn on
-      </ScButton>
+      {device.support === 'supported' ? (
+        <ScButton
+          variant="outline"
+          fullWidth={false}
+          backgroundColor={colors.textPrimary}
+          labelColor={colors.brandBlack}
+          disabled={device.busy}
+          style={styles.turnOn}
+          onPress={() => void device.turnOn()}
+        >
+          Turn on
+        </ScButton>
+      ) : (
+        <Pressable
+          accessibilityRole="link"
+          onPress={() => router.push('/settings/notifications' as Href)}
+          style={styles.why}
+        >
+          <T size={15} weight={600} style={styles.underline}>
+            Why
+          </T>
+        </Pressable>
+      )}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Not now"
@@ -75,5 +88,7 @@ const styles = StyleSheet.create({
   },
   text: { flex: 1, minWidth: 0 },
   turnOn: { flexShrink: 0 },
+  why: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 12 },
+  underline: { textDecorationLine: 'underline' },
   close: { width: 44, height: 44, marginLeft: -4, alignItems: 'center', justifyContent: 'center' },
 });

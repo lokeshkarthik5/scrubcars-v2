@@ -2,7 +2,6 @@ import type { GarageClaim, GuaranteeConfig } from '@repo/core/api/guarantee';
 import { apiClient } from '@repo/core/api/client';
 import { getGarageAgreement } from '@repo/core/api/agreements';
 import { getGarageRequestCount } from '@repo/core/api/booking-requests';
-import { getPushConfig } from '@repo/core/api/push';
 import { getGarageTier } from '@repo/core/api/tiers';
 import type { ApiVendorProfile, ApiWorkingHours } from '@repo/core/api/types';
 import { useQuery } from '@tanstack/react-query';
@@ -20,6 +19,10 @@ export const getWorkingHours = () => apiClient<ApiWorkingHours[]>('/vendors/me/w
 export const getVendorWorkingHours = (id: string) =>
   apiClient<ApiWorkingHours[]>(`/vendors/${id}/working-hours`, { auth: false });
 export const getVendorClosures = (id: string) => apiClient<string[]>(`/vendors/${id}/closures`, { auth: false });
+
+export const pauseBookings = (reason?: string) =>
+  apiClient<ApiVendorProfile>('/vendors/me/pause', { method: 'POST', body: JSON.stringify(reason ? { reason } : {}) });
+export const resumeBookings = () => apiClient<ApiVendorProfile>('/vendors/me/resume', { method: 'POST' });
 
 /** packages/core/src/api/guarantee.ts */
 const getGuaranteeConfig = () => apiClient<GuaranteeConfig>('/guarantee/config', { auth: false });
@@ -80,24 +83,4 @@ export function useGarageClaims(enabled: boolean) {
     staleTime: 30_000,
     refetchInterval: 60_000,
   });
-}
-
-/**
- * This phone's alerts, as the screens read the web's usePushDevice. Native push
- * comes with the alerts work (stage 2): until then this phone is never subscribed,
- * so the banner and "Alerts: Off" show whenever the API has notifications on, and
- * lead to the notifications screen.
- */
-export function usePushDevice() {
-  const config = useQuery({
-    queryKey: ['push', 'garage', 'config'],
-    queryFn: () => getPushConfig('garage'),
-    retry: false,
-    staleTime: 5 * 60_000,
-  });
-  return {
-    loaded: config.isFetched,
-    enabled: config.data?.enabled === true,
-    subscribed: false,
-  };
 }

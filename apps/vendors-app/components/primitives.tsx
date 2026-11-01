@@ -245,12 +245,13 @@ export function Stars({ rating, max = 5, size = 14 }: { rating: number; max?: nu
 export type StatusTone = keyof typeof tones;
 
 /** StatusChip. */
-export function StatusChip({ tone, children }: { tone: StatusTone; children: string }) {
+export function StatusChip({ tone, children, size = 'sm' }: { tone: StatusTone; children: string; size?: 'sm' | 'md' }) {
   const t = tones[tone];
+  const md = size === 'md';
   return (
-    <View style={[styles.chip, { backgroundColor: t.tint }]}>
-      <View style={[styles.chipDot, { backgroundColor: t.dot }]} />
-      <T size={12} weight={500} lh={16} color={t.text} numberOfLines={1}>
+    <View style={[styles.chip, md && styles.chipMd, { backgroundColor: t.tint }]}>
+      <View style={[styles.chipDot, md && styles.chipDotMd, { backgroundColor: t.dot }]} />
+      <T size={md ? 13 : 12} weight={500} lh={16} color={t.text} numberOfLines={1}>
         {children}
       </T>
     </View>
@@ -355,5 +356,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     flexShrink: 0,
   },
+  chipMd: { height: 32, gap: 8, paddingHorizontal: 12 },
   chipDot: { width: 6, height: 6, borderRadius: 3 },
+  chipDotMd: { width: 8, height: 8, borderRadius: 4 },
 });

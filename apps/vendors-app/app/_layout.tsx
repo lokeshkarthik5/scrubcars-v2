@@ -13,7 +13,7 @@ import {
 import { QueryClientProvider } from '@tanstack/react-query';
 import Constants from 'expo-constants';
 import { useFonts } from 'expo-font';
-import { type Href, router, Stack, useGlobalSearchParams, usePathname } from 'expo-router';
+import { type Href, router, Stack, useGlobalSearchParams, usePathname, useRootNavigationState } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef } from 'react';
@@ -24,14 +24,19 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ScButton } from '@/components/button';
 import { T } from '@/components/text';
 import { ToastHost } from '@/components/toast';
+import { UpdateRequired } from '@/components/update-required';
+import { useForcedUpdate } from '@/lib/app-config';
 import { installUnauthorizedHandler, useAuth, useIsVendorAdmin } from '@/lib/auth';
 import { afterSignIn } from '@/lib/deep-link';
 import { queryClient } from '@/lib/query-client';
+import { useColdStartLink, useNotificationTaps } from '@/lib/notifications';
 import { gateRedirect } from '@/lib/route-gate';
+import { initSentry } from '@/lib/sentry';
 import { colors } from '@/lib/theme';
 
 export { ErrorBoundary } from 'expo-router';
 
+initSentry();
 void SplashScreen.preventAutoHideAsync();
 
 /** A phone with a token and no signal: still signed in. */
@@ -66,9 +71,18 @@ function SessionGate() {
   const wasSignedIn = useRef(false);
   if (signedIn) wasSignedIn.current = true;
 
+  const coldLink = useColdStartLink();
+  const coldLinkUsed = useRef(false);
+
   const redirect = status === 'ready' ? gateRedirect(pathname, { signedIn, hasGarage, isAdmin }) : null;
 
   useEffect(() => {
+    if (status !== 'ready' || coldLink === undefined) return;
+    if (coldLink && !coldLinkUsed.current && pathname === '/') {
+      coldLinkUsed.current = true;
+      router.replace(coldLink as Href);
+      return;
+    }
     if (!redirect || redirect === pathname) return;
     if (redirect === '/login') {
       if (pathname !== '/' && !wasSignedIn.current) {
@@ -86,11 +100,14 @@ function SessionGate() {
       return;
     }
     router.replace(redirect as Href);
-  }, [params, pathname, redirect]);
+  }, [coldLink, params, pathname, redirect, status]);
 
   useEffect(() => {
     if (status !== 'restoring') void SplashScreen.hideAsync();
   }, [status]);
+
+  const navigatorReady = Boolean(useRootNavigationState()?.key);
+  useNotificationTaps(status === 'ready' && navigatorReady);
 
   if (status === 'unreachable') return <Unreachable />;
 
@@ -122,13 +139,19 @@ export default function RootLayout() {
     return removeHandler;
   }, []);
 
+  const updateRequired = useForcedUpdate();
+
+  useEffect(() => {
+    if (updateRequired) void SplashScreen.hideAsync();
+  }, [updateRequired]);
+
   if (!fontsLoaded) return null;
 
   return (
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
         <StatusBar style="light" />
-        <SessionGate />
+        {updateRequired ? <UpdateRequired answer={updateRequired} /> : <SessionGate />}
         <ToastHost />
       </QueryClientProvider>
     </SafeAreaProvider>

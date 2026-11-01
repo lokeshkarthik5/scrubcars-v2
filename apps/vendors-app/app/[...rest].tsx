@@ -10,7 +10,6 @@ const LATER: Record<string, string> = {
   guarantee: 'Free redo claims',
   agreement: 'Garage agreement',
   photos: 'Garage photos',
-  'settings/notifications': 'Notifications',
   'settings/documents': 'Documents',
   'settings/members': 'Team',
 };

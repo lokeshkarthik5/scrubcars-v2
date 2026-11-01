@@ -30,7 +30,10 @@ interface AuthState {
   restore: () => Promise<void>;
   applySession: (data: NativeSessionData) => void;
   setActiveVendor: (vendorId: string) => void;
-  signOut: () => Promise<void>;
+  /** `sessionGone`: the server has ended it already (the account was deleted). */
+  signOut: (options?: { sessionGone?: boolean }) => Promise<void>;
+  /** Re-reads the garages after a seat changed, and goes on with what's left. */
+  reloadSession: () => Promise<void>;
 }
 
 function vendorState(vendors: ApiAuthVendor[], preferred: string | null) {
@@ -54,6 +57,16 @@ export function onBeforeSessionChange(hook: () => void | Promise<unknown>) {
   beforeChange.add(hook);
   return () => {
     beforeChange.delete(hook);
+  };
+}
+
+/** Before signing out only: this phone's alerts stop while the session can still say so. */
+const beforeSignOut = new Set<(options: { sessionGone: boolean }) => void | Promise<unknown>>();
+
+export function onBeforeSignOut(hook: (options: { sessionGone: boolean }) => void | Promise<unknown>) {
+  beforeSignOut.add(hook);
+  return () => {
+    beforeSignOut.delete(hook);
   };
 }
 
@@ -108,8 +121,15 @@ export const useAuth = create<AuthState>()((set, get) => ({
     set(vendorState(vendors, vendorId));
   },
 
-  async signOut() {
+  async reloadSession() {
+    const result = await session.refresh();
+    if (result.status === 'signed-in') get().applySession(result.session);
+  },
+
+  async signOut(options) {
+    const sessionGone = options?.sessionGone ?? false;
     await runBeforeChange();
+    await Promise.allSettled([...beforeSignOut].map(async (hook) => hook({ sessionGone })));
     await session.signOut();
     forgetSession();
     set({ status: 'ready', ...SIGNED_OUT });

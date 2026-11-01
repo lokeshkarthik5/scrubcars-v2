@@ -5,7 +5,8 @@ import { type Href, router } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { useAuth } from '@/lib/auth';
-import { getVendorClosures, getVendorWorkingHours, getWorkingHours, usePushDevice } from '@/lib/garage-api';
+import { getVendorClosures, getVendorWorkingHours, getWorkingHours } from '@/lib/garage-api';
+import { usePushDevice } from '@/lib/push-device';
 import { colors } from '@/lib/theme';
 
 import { IconBellOff } from './icons';
@@ -40,7 +41,7 @@ export function GarageStatus() {
   const open = useShopOpen();
 
   if (!vendor) return null;
-  const alertsOff = device.loaded && device.enabled && !device.subscribed;
+  const alertsOff = device.loaded && device.enabled === true && !device.subscribed;
 
   return (
     <View style={styles.column}>

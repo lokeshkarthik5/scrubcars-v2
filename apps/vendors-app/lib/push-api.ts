@@ -1,0 +1,25 @@
+import { apiClient } from '@repo/core/api/client';
+
+/**
+ * A phone's alerts (PR #102, migration 0067), not in packages/core yet. Until
+ * that server is live these answer 404, which the switch says as a failure. The
+ * token travels in the body, never the URL.
+ */
+export type DevicePlatform = 'ios' | 'android';
+
+export interface DeviceStatus {
+  registered: boolean;
+  devices: number;
+}
+
+export const registerPushDevice = (token: string, platform: DevicePlatform) =>
+  apiClient<DeviceStatus>('/vendors/me/push/devices', {
+    method: 'POST',
+    body: JSON.stringify({ token, platform }),
+  });
+
+export const removePushDevice = (token: string) =>
+  apiClient<DeviceStatus>('/vendors/me/push/devices', {
+    method: 'DELETE',
+    body: JSON.stringify({ token }),
+  });
