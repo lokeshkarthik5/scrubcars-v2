@@ -22,10 +22,41 @@ test("Expo Go's path prefix goes", () => {
   expect(rewriteSystemPath('exp://127.0.0.1:8081')).toBe('/');
 });
 
-test('other paths, and a hash that is not a job, pass through', () => {
-  expect(rewriteSystemPath('/guarantee#claim-1')).toBe('/guarantee');
+test('a claim and a request travel as claim= and request=', () => {
+  expect(rewriteSystemPath('/guarantee#claim-c1')).toBe('/guarantee?claim=c1');
+  expect(rewriteSystemPath('/requests#request-r1')).toBe('/requests?request=r1');
+  expect(rewriteSystemPath('https://vendor.detlio.com/guarantee#claim-c1')).toBe('/guarantee?claim=c1');
+  expect(rewriteSystemPath('detliogarages://guarantee#claim-c1')).toBe('/guarantee?claim=c1');
+  expect(rewriteSystemPath('detliogarages://requests#request-r1')).toBe('/requests?request=r1');
+  expect(rewriteSystemPath('exp://127.0.0.1:8081/--/guarantee?claim=c1')).toBe('/guarantee?claim=c1');
+  expect(rewriteSystemPath('exp://127.0.0.1:8081/--/requests?request=r1')).toBe('/requests?request=r1');
+});
+
+test('ids with odd characters survive the round trip', () => {
+  const id = '0b1c2d3e-aaaa-bbbb-cccc-1234567890ab';
+  expect(rewriteSystemPath(`/guarantee#claim-${id}`)).toBe(`/guarantee?claim=${id}`);
+  expect(new URLSearchParams(rewriteSystemPath('/requests#request-a%20b').split('?')[1]).get('request')).toBe('a%20b');
+});
+
+test('other paths, and a hash that names nothing, pass through', () => {
   expect(rewriteSystemPath('/requests')).toBe('/requests');
+  expect(rewriteSystemPath('/guarantee')).toBe('/guarantee');
+  expect(rewriteSystemPath('/settings/notifications')).toBe('/settings/notifications');
   expect(rewriteSystemPath('/bookings?tab=new#job-')).toBe('/bookings?tab=new');
+  expect(rewriteSystemPath('/guarantee#claim-')).toBe('/guarantee');
+  expect(rewriteSystemPath('/requests#request-')).toBe('/requests');
+  expect(rewriteSystemPath('/guarantee#other-c1')).toBe('/guarantee');
+});
+
+test('a claim already in the query is kept', () => {
+  expect(rewriteSystemPath('/guarantee?claim=c1')).toBe('/guarantee?claim=c1');
+  expect(rewriteSystemPath('/requests?request=r1')).toBe('/requests?request=r1');
+});
+
+test('signing in first still arrives at the claim, the request and the job', () => {
+  expect(afterSignIn('/guarantee?claim=c1', '/home')).toBe('/guarantee?claim=c1');
+  expect(afterSignIn('/requests?request=r1', '/home')).toBe('/requests?request=r1');
+  expect(afterSignIn('/bookings?tab=new&job=j1', '/home')).toBe('/bookings?tab=new&job=j1');
 });
 
 test('a link is only followed inside the app', () => {

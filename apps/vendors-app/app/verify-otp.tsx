@@ -2,25 +2,40 @@ import { useNow } from '@repo/core/hooks/use-now';
 import { formatCountdown, otpDeadlines, otpErrorMessage, retryAt as retryMoment, secondsUntil } from '@repo/core/otp';
 import { type Href, router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
-import { AuthStage } from '@/components/auth-stage';
-import { Label, ScButton } from '@/components/button';
-import { IconAlertCircle } from '@/components/icons';
-import { OtpInput } from '@/components/inputs';
-import { T } from '@/components/text';
+import { AuthStage } from '@repo/native-ui/auth-stage';
+import { Label, ScButton } from '@repo/native-ui/button';
+import { IconAlertCircle } from '@repo/native-ui/icons';
+import { OtpInput } from '@repo/native-ui/inputs';
+import { T } from '@repo/native-ui/text';
 import { useAuth } from '@/lib/auth';
 import { otpFlow } from '@/lib/otp-flow';
 import { session } from '@/lib/session';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
 function formatPhone(phone: string) {
   if (phone.length !== 10) return `+91 ${phone}`;
   return `+91 ${phone.slice(0, 5)} ${phone.slice(5)}`;
 }
 
-/** PhoneVerify (packages/ui/src/auth/phone-verify.tsx), as apps/vendors words it. */
+/**
+ * PhoneVerify (packages/ui/src/auth/phone-verify.tsx), as apps/vendors words it. Sign-in is
+ * always dark: the body is a component rendered inside AuthStage's dark scope, so its colours
+ * are the dark ones whatever Settings > Appearance says.
+ */
 export default function VerifyOtpScreen() {
+  const back = () => (router.canGoBack() ? router.back() : router.replace('/login' as Href));
+  return (
+    <AuthStage onBack={back}>
+      <VerifyBody />
+    </AuthStage>
+  );
+}
+
+function VerifyBody() {
+  const colors = useColors();
+  const styles = useStyles();
   const flow = otpFlow.get();
   const phone = flow?.phone ?? '';
   const purpose = flow?.purpose ?? 'login';
@@ -34,7 +49,6 @@ export default function VerifyOtpScreen() {
 
   const expirySeconds = expiresAt ? secondsUntil(expiresAt, now) : null;
   const resendSeconds = resendAt ? secondsUntil(resendAt, now) : 0;
-  const back = () => (router.canGoBack() ? router.back() : router.replace('/login' as Href));
 
   const verify = async () => {
     if (!phone || otp.length !== 6) return;
@@ -78,7 +92,7 @@ export default function VerifyOtpScreen() {
   const disabled = loading || !phone || otp.length !== 6;
 
   return (
-    <AuthStage onBack={back}>
+    <>
       <View style={styles.center}>
         <T accessibilityRole="header" size={28} weight={700} lh={36} tracking={-0.02} align="center">
           Verify your number
@@ -150,17 +164,17 @@ export default function VerifyOtpScreen() {
         </Pressable>
         <View style={styles.verify}>
           <ScButton variant="cta" glass disabled={disabled} onPress={() => void verify()}>
-            <Label color={disabled ? colors.textSecondary : colors.brandWhite}>
+            <Label color={disabled ? colors.textSecondary : colors.textPrimary}>
               {loading ? 'Verifying...' : 'Verify'}
             </Label>
           </ScButton>
         </View>
       </View>
-    </AuthStage>
+    </>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   center: { alignItems: 'center' },
   sent: { paddingTop: 8 },
   boxes: { paddingTop: 28 },
@@ -171,4 +185,4 @@ const styles = StyleSheet.create({
   resend: { marginTop: 8, minHeight: 44, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },
   underline: { textDecorationLine: 'underline' },
   verify: { marginTop: 32, alignSelf: 'stretch' },
-});
+}));

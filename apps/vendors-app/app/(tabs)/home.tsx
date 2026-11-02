@@ -10,11 +10,11 @@ import type { Review } from '@repo/core/types';
 import { formatRating, reviewCountLabel } from '@repo/core/vendor-stats';
 import { type Href, router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
 import { GarageStatus } from '@/components/garage-status';
-import { IconChevronRight, IconInbox, IconShieldCheck } from '@/components/icons';
+import { IconChevronRight, IconInbox, IconShieldCheck } from '@repo/native-ui/icons';
 import { NewBookingCard } from '@/components/new-booking-card';
 import {
   CountBadge,
@@ -26,9 +26,9 @@ import {
   Stars,
   StatTile,
   TileFigure,
-} from '@/components/primitives';
+} from '@repo/native-ui/primitives';
 import { PushBanner } from '@/components/push-banner';
-import { T } from '@/components/text';
+import { T } from '@repo/native-ui/text';
 import { TierCard } from '@/components/tier-card';
 import { useAuth, useIsVendorAdmin } from '@/lib/auth';
 import {
@@ -40,7 +40,7 @@ import {
   weekEarnings,
 } from '@/lib/garage-api';
 import { sortByUrgency, todayView, waitingSummary } from '@/lib/jobs';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 import { useRefreshOnFocus } from '@/lib/use-refresh-on-focus';
 import { useVendorBookings } from '@/lib/use-vendor-bookings';
 
@@ -51,6 +51,8 @@ const go = (path: string) => router.push(path as Href);
 
 /** apps/vendors/app/home/page.tsx, in its order. */
 function HomeScreen() {
+  const colors = useColors();
+  const styles = useStyles();
   const vendor = useAuth((s) => s.vendor);
   const { bookings, loaded, failed, retrying, reload } = useVendorBookings();
   const now = useNow(10_000);
@@ -284,6 +286,8 @@ function AgreementBanner({ vendorId }: { vendorId: string | undefined }) {
 }
 
 function RequestsHomeCard() {
+  const colors = useColors();
+  const styles = useStyles();
   const count = useGarageRequestCount();
   const waiting = count.data?.waiting ?? 0;
   if (waiting <= 0) return null;
@@ -306,6 +310,8 @@ function RequestsHomeCard() {
 }
 
 function GuaranteeHomeCard() {
+  const colors = useColors();
+  const styles = useStyles();
   const config = useGuaranteeConfig();
   const on = config.data?.enabled === true;
   const claims = useGarageClaims(on);
@@ -333,7 +339,7 @@ function GuaranteeHomeCard() {
 
 export default garageScreen(HomeScreen);
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   flex: { flex: 1, minWidth: 0 },
   section: { gap: 12 },
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
@@ -355,7 +361,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderColor: colors.outlineSoft,
   },
   tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   tileCell: { width: '48.8%', flexGrow: 1, flexBasis: '45%' },
@@ -367,7 +373,7 @@ const styles = StyleSheet.create({
     gap: 12,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(245,165,36,0.4)',
+    borderColor: colors.warningBorder,
     backgroundColor: colors.surface,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -386,4 +392,4 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   reminder: { paddingHorizontal: 4 },
-});
+}));

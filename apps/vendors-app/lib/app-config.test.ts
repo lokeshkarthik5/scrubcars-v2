@@ -3,7 +3,6 @@ import { expect, mock, test } from 'bun:test';
 
 // The rule only: the React and native parts of this module are not under test.
 mock.module('expo-constants', () => ({ default: { expoConfig: { version: '1.0.0' } } }));
-mock.module('react-native', () => ({ AppState: {}, Platform: { OS: 'ios' } }));
 
 const { mustUpdate } = await import('./app-config');
 

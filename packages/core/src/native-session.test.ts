@@ -227,6 +227,25 @@ describe('signing out', () => {
     expect(bodyOf(calls[0])).toEqual({ refreshToken: 'refresh-1' })
   })
 
+  test('never waits on the server', async () => {
+    const storage = memoryStorage('refresh-1')
+    const native = createNativeSession('customer', storage)
+    const realFetch = globalThis.fetch
+    let init: RequestInit | undefined
+    globalThis.fetch = ((_url: string, options: RequestInit) => {
+      init = options
+      return new Promise(() => undefined)
+    }) as unknown as typeof fetch
+    try {
+      await native.signOut()
+    } finally {
+      globalThis.fetch = realFetch
+    }
+    expect(storage.value).toBeNull()
+    expect(native.getAccessToken()).toBeNull()
+    expect(init?.signal).toBeInstanceOf(AbortSignal)
+  })
+
   test('still signs out with no signal', async () => {
     const storage = memoryStorage('refresh-1')
     const native = createNativeSession('customer', storage)

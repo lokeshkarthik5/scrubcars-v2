@@ -1,7 +1,7 @@
 import { ApiError } from '@repo/core/api/client';
 import { RATING_RULES } from '@repo/core/ratings';
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
 import { errorText } from '@/lib/error-text';
 import { reportReviewAsGarage, replyToReview } from '@/lib/reviews-api';
@@ -12,13 +12,13 @@ import {
   replyWindowLine,
   reportReady,
 } from '@/lib/reviews-view';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
-import { ScButton } from './button';
-import { ScTextarea } from './inputs';
-import { ScSheet } from './sheet';
-import { T } from './text';
-import { toast } from './toast';
+import { ScButton } from '@repo/native-ui/button';
+import { ScTextarea } from '@repo/native-ui/inputs';
+import { ScSheet } from '@repo/native-ui/sheet';
+import { T } from '@repo/native-ui/text';
+import { toast } from '@repo/native-ui/toast';
 
 /** A sheet stays mounted through its exit: keep what it showed while it slides away. */
 function useLastReview(review: ReviewRow | null) {
@@ -50,6 +50,8 @@ export function ReplySheet({
   /** The review moved on under the sheet (hidden, window closed, changed): read the list again. */
   onStale: () => void;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const shown = useLastReview(review);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -152,6 +154,8 @@ export function ReportSheet({
   /** The server has the report (or already had it): the row says so. */
   onReported: (reviewId: string) => void;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const shown = useLastReview(review);
   const [reason, setReason] = useState('');
   const [state, setState] = useState<'idle' | 'sending' | 'sent'>('idle');
@@ -240,7 +244,7 @@ export function ReportSheet({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   body: { gap: 16, paddingTop: 4 },
   gap4: { gap: 4 },
-});
+}));

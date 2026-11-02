@@ -2,21 +2,23 @@ import type { GarageRequest } from '@repo/core/api/booking-requests';
 import { countdownLabel, istClock, istStartLabel, REQUEST_RULES, travelFeeLabel, type TravelFee } from '@repo/core/booking-requests';
 import { formatINR } from '@repo/core/format';
 import { useNow } from '@repo/core/hooks/use-now';
-import { router } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { type ComponentRef, useRef, useState } from 'react';
+import { Pressable, type ScrollView, View } from 'react-native';
 import Svg, { Circle, Line, Text as SvgText } from 'react-native-svg';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
-import { ScButton } from '@/components/button';
+import { ScButton } from '@repo/native-ui/button';
+import { FocusFrame } from '@/components/focus-frame';
 import { ScBadge } from '@/components/form-controls';
-import { IconMapPin } from '@/components/icons';
-import { EmptyState, LoadError, ScCard, ScSegmented, SkeletonList } from '@/components/primitives';
+import { IconMapPin } from '@repo/native-ui/icons';
+import { EmptyState, LoadError, ScCard, ScSegmented, SkeletonList } from '@repo/native-ui/primitives';
 import { TopBar } from '@/components/rows';
-import { ConfirmSheet } from '@/components/sheet';
-import { T } from '@/components/text';
-import { toast } from '@/components/toast';
+import { ConfirmSheet } from '@repo/native-ui/sheet';
+import { T } from '@repo/native-ui/text';
+import { toast } from '@repo/native-ui/toast';
 import { errorText } from '@/lib/error-text';
+import { itemIdParam, REQUEST_MISSING, type ScopeLookup } from '@/lib/focus-item';
 import {
   useAcceptRequest,
   useDeclineRequest,
@@ -47,7 +49,8 @@ import {
   WITHDRAWN_TOAST,
   whenWhereLine,
 } from '@/lib/requests-view';
-import { colors } from '@/lib/theme';
+import { useItemFocus } from '@/lib/use-item-focus';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
 /**
  * apps/vendors/app/requests/page.tsx: Requests (customer reach, 0062). Customers just outside
@@ -58,12 +61,34 @@ import { colors } from '@/lib/theme';
  * to an operator), and the page itself is every seat's.
  */
 function RequestsScreen() {
+  const colors = useColors();
+  const styles = useStyles();
   const [scope, setScope] = useState<'open' | 'closed'>('open');
-  const requests = useGarageRequestsInbox(scope);
+  const openRequests = useGarageRequestsInbox('open', scope === 'open');
+  const closedRequests = useGarageRequestsInbox('closed', scope === 'closed');
+  const requests = scope === 'open' ? openRequests : closedRequests;
   const items = requests.data?.items ?? [];
 
+  // A notification or link for one request (/requests#request-<id>): the scope that has it,
+  // scrolled to and flashed. Once per id named.
+  const params = useLocalSearchParams<{ request?: string }>();
+  const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
+  const { onListLayout, frameProps } = useItemFocus({
+    id: itemIdParam(params.request),
+    ready: true,
+    open: lookupOf(openRequests),
+    closed: lookupOf(closedRequests),
+    refetch: () => {
+      void openRequests.refetch();
+      void closedRequests.refetch();
+    },
+    onScope: setScope,
+    missing: REQUEST_MISSING,
+    scrollRef: scroll,
+  });
+
   return (
-    <AppShell gap={16}>
+    <AppShell gap={16} scrollRef={scroll}>
       <TopBar title="Requests" onBack={() => (router.canGoBack() ? router.back() : router.replace('/home'))} />
       <T size={12} color={colors.textSecondary}>
         {REQUESTS_INTRO}
@@ -88,16 +113,18 @@ function RequestsScreen() {
           subtitle={EMPTY_SUBTITLE}
         />
       ) : (
-        <View style={styles.list}>
-          {items.map((request) =>
-            scope === 'closed' ? (
-              <ClosedRequestCard key={request.id} request={request} />
-            ) : request.status === 'pending' ? (
-              <WaitingRequestCard key={request.id} request={request} />
-            ) : (
-              <AcceptedRequestCard key={request.id} request={request} />
-            )
-          )}
+        <View style={styles.list} onLayout={onListLayout}>
+          {items.map((request) => (
+            <FocusFrame key={request.id} {...frameProps(request.id)}>
+              {scope === 'closed' ? (
+                <ClosedRequestCard request={request} />
+              ) : request.status === 'pending' ? (
+                <WaitingRequestCard request={request} />
+              ) : (
+                <AcceptedRequestCard request={request} />
+              )}
+            </FocusFrame>
+          ))}
           {scope === 'open' ? (
             <T size={12} color={colors.textSecondary} align="center">
               {REQUESTS_FOOTER}
@@ -107,6 +134,15 @@ function RequestsScreen() {
       )}
     </AppShell>
   );
+}
+
+/** One scope's list as lib/focus-item.ts reads it. */
+function lookupOf(query: ReturnType<typeof useGarageRequestsInbox>): ScopeLookup {
+  return {
+    ids: query.data?.items.map((request) => request.id),
+    updatedAt: query.dataUpdatedAt,
+    failedAt: query.errorUpdatedAt,
+  };
 }
 
 /** A radio chip: the fee and the start times. White when chosen, as the web's. */
@@ -125,6 +161,8 @@ function RadioChip({
   numeric?: boolean;
   grow?: boolean;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   return (
     <Pressable
       accessibilityRole="radio"
@@ -133,7 +171,7 @@ function RadioChip({
       onPress={onPress}
       style={[styles.chip, grow && styles.chipGrow, selected ? styles.chipOn : styles.chipOff, disabled && { opacity: 0.6 }]}
     >
-      <T num={numeric} size={14} weight={grow ? 500 : 400} color={selected ? colors.brandBlack : colors.textPrimary}>
+      <T num={numeric} size={14} weight={grow ? 500 : 400} color={selected ? colors.chosenText : colors.textPrimary}>
         {label}
       </T>
     </Pressable>
@@ -141,6 +179,8 @@ function RadioChip({
 }
 
 function WaitingRequestCard({ request }: { request: GarageRequest }) {
+  const colors = useColors();
+  const styles = useStyles();
   // Live to the second, like the web's page-wide ticker.
   const now = useNow(1000);
   const [fee, setFee] = useState<TravelFee>(0);
@@ -275,6 +315,8 @@ function WaitingRequestCard({ request }: { request: GarageRequest }) {
 }
 
 function AcceptedRequestCard({ request }: { request: GarageRequest }) {
+  const colors = useColors();
+  const styles = useStyles();
   const withdraw = useWithdrawRequest();
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | undefined>();
@@ -334,6 +376,8 @@ function AcceptedRequestCard({ request }: { request: GarageRequest }) {
 }
 
 function ClosedRequestCard({ request }: { request: GarageRequest }) {
+  const colors = useColors();
+  const styles = useStyles();
   const badge = closedBadge(request);
   return (
     <ScCard style={[styles.card, styles.cardClosed]}>
@@ -364,6 +408,8 @@ function ReachSketch({
   distanceKm: number;
   outsideKm: number;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const g = reachGeometry({ coverKm, distanceKm, outsideKm });
   return (
     <View accessibilityRole="image" accessibilityLabel={g.label} style={styles.sketch}>
@@ -372,24 +418,24 @@ function ReachSketch({
           cx={g.cx}
           cy={g.cy}
           r={g.r}
-          fill="rgba(34,197,94,0.12)"
-          stroke="rgba(34,197,94,0.6)"
+          fill={colors.successMuted}
+          stroke={colors.reachStroke}
           strokeDasharray="4 3"
         />
-        <Circle cx={g.cx} cy={g.cy} r={4} fill="#22C55E" />
+        <Circle cx={g.cx} cy={g.cy} r={4} fill={colors.successFill} />
         <Line
           x1={g.cx}
           y1={g.cy}
           x2={g.dot}
           y2={g.cy}
-          stroke="rgba(255,255,255,0.45)"
+          stroke={colors.reachLine}
           strokeDasharray="3 3"
         />
-        <Circle cx={g.dot} cy={g.cy} r={5} fill="#E4002B" />
-        <SvgText x={g.cx} y={g.cy + 18} textAnchor="middle" fontSize="10" fill="#9CA3AF">
+        <Circle cx={g.dot} cy={g.cy} r={5} fill={colors.redFill} />
+        <SvgText x={g.cx} y={g.cy + 18} textAnchor="middle" fontSize="10" fill={colors.reachLabel}>
           {g.youLabel}
         </SvgText>
-        <SvgText x={g.dot} y={g.cy - 10} textAnchor="end" fontSize="10" fill="#9CA3AF">
+        <SvgText x={g.dot} y={g.cy - 10} textAnchor="end" fontSize="10" fill={colors.reachLabel}>
           customer
         </SvgText>
       </Svg>
@@ -399,11 +445,11 @@ function ReachSketch({
 
 export default garageScreen(RequestsScreen);
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   flex: { flex: 1, minWidth: 0 },
   list: { gap: 12 },
   card: { gap: 12 },
-  cardWaiting: { borderColor: 'rgba(245,165,36,0.4)' },
+  cardWaiting: { borderColor: colors.waitingBorder },
   cardAccepted: { gap: 8 },
   cardClosed: { gap: 4 },
   head: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
@@ -420,8 +466,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   chipGrow: { flex: 1 },
-  chipOn: { borderColor: colors.brandWhite, backgroundColor: colors.brandWhite },
+  chipOn: { borderColor: colors.chosenBg, backgroundColor: colors.chosenBg },
   chipOff: { borderColor: colors.border, backgroundColor: colors.surface },
   actions: { flexDirection: 'row', gap: 8 },
   sketch: { height: 96, overflow: 'hidden', borderRadius: 12, backgroundColor: colors.surfaceElevated },
-});
+}));

@@ -6,18 +6,18 @@ import {
   pickupReachLine,
 } from '@repo/core/pickup';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
-import { ScButton } from '@/components/button';
+import { ScButton } from '@repo/native-ui/button';
 import { ScCheckbox } from '@/components/form-controls';
-import { ScInput } from '@/components/inputs';
-import { Notice, ScCard } from '@/components/primitives';
+import { ScInput } from '@repo/native-ui/inputs';
+import { Notice, ScCard } from '@repo/native-ui/primitives';
 import { ScSwitch, SectionHeader } from '@/components/rows';
-import { T } from '@/components/text';
-import { toast } from '@/components/toast';
+import { T } from '@repo/native-ui/text';
+import { toast } from '@repo/native-ui/toast';
 import { errorText } from '@/lib/error-text';
 import { decimalOnly, formatAcceptedDay } from '@/lib/settings-logic';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 import { updateVendorJobTypes } from '@/lib/vendor-api';
 
 /**
@@ -34,6 +34,8 @@ export function PickupSection({
   vendor: ApiVendorProfile;
   onChange: (vendor: ApiVendorProfile) => void;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const enabled = vendor.pickupEnabled === true;
   const [turningOn, setTurningOn] = useState(false);
   const [accepted, setAccepted] = useState(false);
@@ -195,11 +197,11 @@ export function PickupSection({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   flex: { flex: 1, minWidth: 0 },
   section: { gap: 12 },
   part: { gap: 8 },
   divided: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   buttons: { flexDirection: 'row', gap: 8 },
-});
+}));

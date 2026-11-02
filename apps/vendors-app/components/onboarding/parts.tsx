@@ -1,13 +1,13 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { ProgressBar } from '@/components/form-controls';
-import { IconArrowLeft, IconLogout } from '@/components/icons';
-import { T } from '@/components/text';
+import { IconArrowLeft, IconLogout } from '@repo/native-ui/icons';
+import { T } from '@repo/native-ui/text';
 import { useAuth } from '@/lib/auth';
 import { type OnboardingDraft, type OnboardingStep, progressFor } from '@/lib/onboarding-logic';
 import { writeDraft } from '@/lib/onboarding-draft';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
 /**
  * "Sign out" on the first sign-up step (0066). A login with no garage lands here and had no
@@ -15,6 +15,8 @@ import { colors } from '@/lib/theme';
  * to look. Signing out empties the draft too (lib/onboarding-draft.ts).
  */
 export function OnboardingSignOut() {
+  const colors = useColors();
+  const styles = useStyles();
   const [busy, setBusy] = useState(false);
   return (
     <Pressable
@@ -54,6 +56,8 @@ export function OnboardingHeader({
   /** The step before. Absent on step 1. */
   onBack?: () => void;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   return (
     <View style={styles.header}>
       {onBack ? (
@@ -94,6 +98,8 @@ export function OnboardingHeader({
 
 /** SectionHeader with its one-line subtitle (packages/ui/src/sc/section-header.tsx). */
 export function SectionTitle({ title, subtitle }: { title: string; subtitle?: string }) {
+  const colors = useColors();
+  const styles = useStyles();
   return (
     <View>
       <T accessibilityRole="header" size={15} weight={600}>
@@ -110,6 +116,7 @@ export function SectionTitle({ title, subtitle }: { title: string; subtitle?: st
 
 /** A small label over a group of chips: the web's 11px medium secondary line. */
 export function FieldLabel({ children }: { children: ReactNode }) {
+  const colors = useColors();
   return (
     <T size={11} weight={500} color={colors.textSecondary}>
       {children}
@@ -132,7 +139,7 @@ export function useDraftSync(values: Partial<OnboardingDraft>) {
   useEffect(() => () => writeDraft(latest.current), []);
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles(() => ({
   header: { gap: 16 },
   topBar: { minHeight: 44, flexDirection: 'row', alignItems: 'center' },
   back: { width: 44, height: 44, marginLeft: -11, marginRight: -11, alignItems: 'center', justifyContent: 'center' },
@@ -141,4 +148,4 @@ const styles = StyleSheet.create({
   title: { marginTop: 4 },
   subtitle: { marginTop: 4 },
   sectionSubtitle: { marginTop: 2 },
-});
+}));

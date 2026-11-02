@@ -1,24 +1,55 @@
 import { formatCountdown, otpDeadlines, otpErrorMessage, retryAt as retryMoment, secondsUntil } from '@repo/core/otp';
 import { useNow } from '@repo/core/hooks/use-now';
+import { normaliseIndianMobile } from '@repo/core/phone';
 import { type Href, router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
-import { AuthHeading, AuthStage } from '@/components/auth-stage';
-import { Label, ScButton } from '@/components/button';
-import { IconAlertCircle } from '@/components/icons';
-import { ScPhoneInput } from '@/components/inputs';
-import { T } from '@/components/text';
+import { AuthHeading, AuthStage } from '@repo/native-ui/auth-stage';
+import { Label, ScButton } from '@repo/native-ui/button';
+import { IconAlertCircle } from '@repo/native-ui/icons';
+import { ScPhoneInput } from '@repo/native-ui/inputs';
+import { T } from '@repo/native-ui/text';
 import { otpFlow } from '@/lib/otp-flow';
 import { session } from '@/lib/session';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
 /** Detlio's Privacy Policy, as the web's sign-in links it. */
 const PRIVACY_POLICY_URL = 'https://detlio.com/privacy';
 
-/** PhoneLogin (packages/ui/src/auth/phone-login.tsx), as apps/vendors/app/login/page.tsx words it. */
+/**
+ * PhoneLogin (packages/ui/src/auth/phone-login.tsx), as apps/vendors/app/login/page.tsx words it.
+ * Sign-in is always dark (the owner's Option 1): AuthStage scopes itself dark, so the form and
+ * the footer are components rendered inside it, reading the dark colours, never the app's theme.
+ */
 export default function LoginScreen() {
+  return <AuthStage footer={<LoginFooter />}><LoginForm /></AuthStage>;
+}
+
+function LoginFooter() {
+  const colors = useColors();
+  const styles = useStyles();
+  return (
+    <T size={12} lh={16} color={colors.textMuted} align="center" style={styles.legal}>
+      {'How we use your data is set out in our\n'}
+      <T
+        accessibilityRole="link"
+        size={12}
+        lh={16}
+        color={colors.textMuted}
+        style={styles.link}
+        onPress={() => void WebBrowser.openBrowserAsync(PRIVACY_POLICY_URL)}
+      >
+        Privacy Policy
+      </T>
+    </T>
+  );
+}
+
+function LoginForm() {
+  const colors = useColors();
+  const styles = useStyles();
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -56,26 +87,10 @@ export default function LoginScreen() {
   const disabled = !isValid || loading || waitSeconds > 0;
 
   return (
-    <AuthStage
-      footer={
-        <T size={12} lh={16} color={colors.textMuted} align="center" style={styles.legal}>
-          {'How we use your data is set out in our\n'}
-          <T
-            accessibilityRole="link"
-            size={12}
-            lh={16}
-            color={colors.textMuted}
-            style={styles.link}
-            onPress={() => void WebBrowser.openBrowserAsync(PRIVACY_POLICY_URL)}
-          >
-            Privacy Policy
-          </T>
-        </T>
-      }
-    >
+    <>
       <AuthHeading title="Detlio for Partners" subtitle="Log in with the number registered for your garage." />
       <View style={styles.form}>
-        <ScPhoneInput value={phone} onChange={changePhone} onSubmit={() => void submit()} />
+        <ScPhoneInput normalise={normaliseIndianMobile} value={phone} onChange={changePhone} onSubmit={() => void submit()} />
         {shownError ? (
           <View accessibilityRole="alert" style={styles.error}>
             <View style={styles.errorIcon}>
@@ -87,7 +102,7 @@ export default function LoginScreen() {
           </View>
         ) : null}
         <ScButton variant="cta" glass disabled={disabled} onPress={() => void submit()}>
-          <Label color={disabled ? colors.textSecondary : colors.brandWhite}>
+          <Label color={disabled ? colors.textSecondary : colors.textPrimary}>
             {loading ? (
               'Sending...'
             ) : waitSeconds > 0 && waitSeconds < 60 ? (
@@ -106,15 +121,15 @@ export default function LoginScreen() {
           New to Detlio? You can set up your garage once your number is verified.
         </T>
       </View>
-    </AuthStage>
+    </>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   form: { marginTop: 32, gap: 16 },
   error: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
   errorIcon: { marginTop: 3 },
   errorText: { flex: 1 },
   legal: { paddingBottom: 8 },
   link: { textDecorationLine: 'underline' },
-});
+}));

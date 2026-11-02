@@ -1,12 +1,12 @@
 import { subscribeToSupportSession } from '@repo/core/api/client';
 import { useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
 import { useAuth } from '@/lib/auth';
-import { colors } from '@/lib/theme';
+import { createStyles } from '@repo/native-ui/theme';
 
-import { IconShieldLock } from './icons';
-import { T } from './text';
+import { IconShieldLock } from '@repo/native-ui/icons';
+import { T } from '@repo/native-ui/text';
 
 export function useSupportSession(): boolean {
   const [active, setActive] = useState(false);
@@ -16,6 +16,7 @@ export function useSupportSession(): boolean {
 
 /** SupportSessionBanner: said on every screen while Detlio staff act inside a garage. */
 export function SupportSessionBanner() {
+  const styles = useStyles();
   const active = useSupportSession();
   const vendor = useAuth((s) => s.vendor);
   if (!active) return null;
@@ -29,7 +30,7 @@ export function SupportSessionBanner() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -37,9 +38,9 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderLeftWidth: 3,
     borderLeftColor: colors.warning,
-    backgroundColor: 'rgba(245,165,36,0.036)',
+    backgroundColor: colors.warningWash,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
   text: { flex: 1 },
-});
+}));

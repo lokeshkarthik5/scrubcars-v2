@@ -1,22 +1,22 @@
+import { serviceLinesOf } from '@repo/core/add-ons';
 import { finalBillFigures, finalBillStatusLabel, formatRupees } from '@repo/core/job-records';
 import type { Booking, FinalBill } from '@repo/core/types';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { useIsVendorAdmin } from '@/lib/auth';
 import { raiseFinalBill } from '@/lib/job-records-api';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
-import { ScButton } from './button';
-import { IconPlus, IconReceipt, IconTrash } from './icons';
-import { ScInput, ScTextarea } from './inputs';
+import { ScButton } from '@repo/native-ui/button';
+import { IconPlus, IconReceipt, IconTrash } from '@repo/native-ui/icons';
+import { ScInput, ScTextarea } from '@repo/native-ui/inputs';
 import { JobSheetRow } from './job-sheet-row';
-import { type StatusTone, StatusChip } from './primitives';
-import { ScSheet } from './sheet';
-import { T } from './text';
-import { toast } from './toast';
+import { type StatusTone, StatusChip } from '@repo/native-ui/primitives';
+import { ScSheet } from '@repo/native-ui/sheet';
+import { T } from '@repo/native-ui/text';
+import { toast } from '@repo/native-ui/toast';
 import { errorText } from '@/lib/error-text';
-import { seedLines, serviceLinesOf } from '@/lib/final-bill-lines';
 
 const MAX_LINES = 20;
 const MAX_DESCRIPTION = 80;
@@ -32,7 +32,11 @@ const STATUS_TONE: Record<FinalBill['status'], StatusTone> = {
 
 function linesFrom(bill: FinalBill | null, booking: Booking): Line[] {
   if (bill) return bill.lines.map((line) => ({ description: line.description, amount: String(line.amount) }));
-  const booked = seedLines(booking.items, MAX_LINES, MAX_DESCRIPTION);
+  // The final bill stays separate from add-ons (0068): paid at booking, and credited nothing,
+  // so they aren't lines on it.
+  const booked = serviceLinesOf(booking.items)
+    .slice(0, MAX_LINES)
+    .map((item) => ({ description: item.name.slice(0, MAX_DESCRIPTION), amount: String(item.amount) }));
   return booked.length > 0 ? booked : [{ description: '', amount: '' }];
 }
 
@@ -58,6 +62,8 @@ function formProblem(lines: Line[], total: number): string | null {
 
 /** FinalBillPanel (apps/vendors/components/final-bill.tsx). */
 export function FinalBillPanel({ booking, onChanged }: { booking: Booking; onChanged: () => void }) {
+  const colors = useColors();
+  const styles = useStyles();
   const bill = booking.finalBill;
   const [open, setOpen] = useState(false);
   const [lines, setLines] = useState<Line[]>(() => linesFrom(bill, booking));
@@ -288,7 +294,7 @@ export function FinalBillPanel({ booking, onChanged }: { booking: Booking; onCha
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   flex: { flex: 1, minWidth: 0 },
   half: { flex: 1, minWidth: 0 },
   billDetail: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 2 },
@@ -302,4 +308,4 @@ const styles = StyleSheet.create({
   totals: { marginTop: 16, gap: 6, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
   actions: { marginTop: 20, flexDirection: 'row', gap: 8 },
-});
+}));

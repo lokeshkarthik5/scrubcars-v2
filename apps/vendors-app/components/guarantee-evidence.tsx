@@ -1,15 +1,15 @@
 import { angleLabel } from '@repo/core/job-photo-standards';
 import type { JobPhoto } from '@repo/core/types';
 import { type ReactNode, useState } from 'react';
-import { Image, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Image, Modal, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { garageStages, hasGaragePhotos } from '@/lib/guarantee-view';
-import { colors } from '@/lib/theme';
+import { createStyles, ThemeScope, useColors } from '@repo/native-ui/theme';
 
 import { BeforeAfterCompare } from './before-after';
-import { IconX } from './icons';
-import { T } from './text';
+import { IconX } from '@repo/native-ui/icons';
+import { T } from '@repo/native-ui/text';
 
 /** A photo the customer took of the problem (Detlio Guarantee, 0051). */
 export interface ClaimPhotoView {
@@ -25,6 +25,7 @@ export interface ClaimPhotoView {
 const source = (url: string) => ({ uri: url, cache: 'reload' as const });
 
 function Thumb({ url, label, onOpen }: { url: string; label: string; onOpen: () => void }) {
+  const styles = useStyles();
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={`View ${label}`} onPress={onOpen} style={styles.thumb}>
       <Image source={source(url)} style={styles.thumbImage} resizeMode="cover" />
@@ -33,10 +34,34 @@ function Thumb({ url, label, onOpen }: { url: string; label: string; onOpen: () 
 }
 
 function Strip({ children }: { children: ReactNode }) {
+  const styles = useStyles();
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.strip}>
       {children}
     </ScrollView>
+  );
+}
+
+/** A photo full screen, on a dark backdrop. */
+function PhotoViewer({ open, onClose }: { open: { url: string; label: string }; onClose: () => void }) {
+  const colors = useColors();
+  const styles = useStyles();
+  const insets = useSafeAreaInsets();
+  return (
+    <Pressable accessibilityViewIsModal accessibilityLabel={open.label} onPress={onClose} style={styles.viewer}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Close photo"
+        onPress={onClose}
+        style={[styles.close, { top: insets.top + 16 }]}
+      >
+        <IconX size={20} />
+      </Pressable>
+      <Image source={source(open.url)} accessibilityLabel={open.label} style={styles.full} resizeMode="contain" />
+      <T size={13} color={colors.textSecondary}>
+        {open.label}
+      </T>
+    </Pressable>
   );
 }
 
@@ -56,8 +81,9 @@ export function GuaranteeEvidence({
   customerTitle?: string;
   garageTitle?: string;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const [open, setOpen] = useState<{ url: string; label: string } | null>(null);
-  const insets = useSafeAreaInsets();
   const stages = garageStages(garagePhotos);
   const garage = garagePhotos.filter((photo) => photo.by === 'garage');
 
@@ -119,32 +145,17 @@ export function GuaranteeEvidence({
 
       {open ? (
         <Modal transparent visible animationType="fade" statusBarTranslucent onRequestClose={() => setOpen(null)}>
-          <Pressable
-            accessibilityViewIsModal
-            accessibilityLabel={open.label}
-            onPress={() => setOpen(null)}
-            style={styles.viewer}
-          >
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Close photo"
-              onPress={() => setOpen(null)}
-              style={[styles.close, { top: insets.top + 16 }]}
-            >
-              <IconX size={20} />
-            </Pressable>
-            <Image source={source(open.url)} accessibilityLabel={open.label} style={styles.full} resizeMode="contain" />
-            <T size={13} color={colors.textSecondary}>
-              {open.label}
-            </T>
-          </Pressable>
+          {/* The viewer is dark in both themes, like a photo viewer. */}
+          <ThemeScope scheme="dark">
+            <PhotoViewer open={open} onClose={() => setOpen(null)} />
+          </ThemeScope>
         </Modal>
       ) : null}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   column: { gap: 12 },
   section: { gap: 6 },
   stage: { gap: 4 },
@@ -165,6 +176,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 12,
     padding: 16,
+    // A dark scrim over a photo: dark in both themes.
     backgroundColor: 'rgba(0,0,0,0.9)',
   },
   close: {
@@ -179,4 +191,4 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   full: { width: '100%', height: '80%', borderRadius: 12 },
-});
+}));

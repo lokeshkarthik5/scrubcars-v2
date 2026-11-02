@@ -2,19 +2,19 @@ import type { ApiVendorClosure, ApiVendorProfile } from '@repo/core/api/types';
 import type { Booking } from '@repo/core/types';
 import { APP_TIMEZONE } from '@repo/core/utils';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
-import { ScButton } from '@/components/button';
+import { ScButton } from '@repo/native-ui/button';
 import { DateField } from '@/components/form-controls';
-import { ScInput } from '@/components/inputs';
-import { Notice, ScCard } from '@/components/primitives';
+import { ScInput } from '@repo/native-ui/inputs';
+import { Notice, ScCard } from '@repo/native-ui/primitives';
 import { ScSwitch, SectionHeader } from '@/components/rows';
-import { T } from '@/components/text';
-import { toast } from '@/components/toast';
+import { T } from '@repo/native-ui/text';
+import { toast } from '@repo/native-ui/toast';
 import { errorText } from '@/lib/error-text';
 import { pauseBookings, resumeBookings } from '@/lib/garage-api';
 import { bookingsSentence, closureWindow, formatDay, sortClosures } from '@/lib/settings-logic';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 import { addClosure, removeClosure } from '@/lib/vendor-api';
 
 /**
@@ -55,6 +55,8 @@ export function PauseSection({
   vendor: ApiVendorProfile;
   onChange: (vendor: ApiVendorProfile) => void;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const [reason, setReason] = useState(vendor.bookingsPausedReason ?? '');
   const [busy, setBusy] = useState(false);
   // `!=`, not `!==`: a server older than pausing sends no field at all, and that garage is not paused.
@@ -151,6 +153,8 @@ export function HolidaysSection({
   loadFailed?: boolean;
   onChange: (closures: ApiVendorClosure[]) => void;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const { min, max } = closureWindow();
   const [date, setDate] = useState('');
   const [reason, setReason] = useState('');
@@ -263,7 +267,7 @@ export function HolidaysSection({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   flex: { flex: 1, minWidth: 0 },
   section: { gap: 12 },
   switchRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
@@ -272,4 +276,4 @@ const styles = StyleSheet.create({
   closure: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
   closureDivider: { borderTopWidth: 1, borderTopColor: colors.border },
   remove: { minHeight: 44, paddingHorizontal: 8, justifyContent: 'center' },
-});
+}));

@@ -1,15 +1,15 @@
 import { type Href, router } from 'expo-router';
-import { Linking, StyleSheet, View } from 'react-native';
+import { Linking, View } from 'react-native';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
-import { ScButton } from '@/components/button';
-import { IconBellOff, IconDeviceMobile } from '@/components/icons';
-import { EmptyState, Notice, ScCard, Skeleton, StatusChip } from '@/components/primitives';
+import { Label, ScButton } from '@repo/native-ui/button';
+import { IconBellOff, IconBellRinging, IconDeviceMobile } from '@repo/native-ui/icons';
+import { EmptyState, Notice, ScCard, Skeleton, StatusChip } from '@repo/native-ui/primitives';
 import { ScSwitch, TopBar } from '@/components/rows';
-import { T } from '@/components/text';
+import { T } from '@repo/native-ui/text';
 import { useAuth, useIsVendorAdmin } from '@/lib/auth';
 import { usePushDevice } from '@/lib/push-device';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
 const WHAT_YOU_GET = [
   'A new booking, with how long you have to accept it',
@@ -21,10 +21,12 @@ const WHAT_YOU_GET = [
 
 /**
  * apps/vendors/app/settings/notifications/page.tsx: alerts on this phone, for every
- * seat. No "Send me a test notification": the API's test route takes a browser's
- * endpoint, and PR #102 has none for a phone.
+ * seat. "Send me a test notification" shows while this phone is on, and goes to
+ * this phone only (PR #113).
  */
 function NotificationsScreen() {
+  const colors = useColors();
+  const styles = useStyles();
   const isAdmin = useIsVendorAdmin();
   const vendor = useAuth((s) => s.vendor);
   const device = usePushDevice();
@@ -94,6 +96,14 @@ function NotificationsScreen() {
                     {` other ${device.devices === 2 ? 'device' : 'devices'}.`}
                   </T>
                 ) : null}
+                {device.subscribed && device.canTest ? (
+                  <ScButton variant="outline" disabled={device.busy} onPress={() => void device.sendTest()}>
+                    <IconBellRinging size={16} color={device.busy ? colors.textMuted : colors.textPrimary} />
+                    <Label color={device.busy ? colors.textMuted : colors.textPrimary}>
+                      Send me a test notification
+                    </Label>
+                  </ScButton>
+                ) : null}
               </ScCard>
               {!device.subscribed && device.support === 'denied' ? (
                 <>
@@ -136,7 +146,7 @@ function NotificationsScreen() {
 
 export default garageScreen(NotificationsScreen);
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   flex: { flex: 1, minWidth: 0 },
   status: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
   cards: { gap: 12 },
@@ -153,4 +163,4 @@ const styles = StyleSheet.create({
   get: { gap: 8 },
   lines: { gap: 6 },
   line: { flexDirection: 'row', gap: 8 },
-});
+}));

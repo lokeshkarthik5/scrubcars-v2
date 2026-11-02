@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react';
-import { Pressable, type StyleProp, StyleSheet, type ViewStyle } from 'react-native';
+import { Pressable, type StyleProp, type ViewStyle } from 'react-native';
 
-import { colors, PRESSED_SCALE } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
+import { PRESSED_SCALE } from '@repo/native-ui/tokens';
 
-import { T } from './text';
+import { T } from '@repo/native-ui/text';
 
 /**
  * The web's older ScButton shapes (`primary`, `secondary` in packages/ui/src/sc/button.tsx):
@@ -30,6 +31,8 @@ export function RectButton({
   accessibilityLabel?: string;
   style?: StyleProp<ViewStyle>;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const primary = tone === 'primary';
   return (
     <Pressable
@@ -50,7 +53,7 @@ export function RectButton({
       ]}
     >
       {typeof children === 'string' ? (
-        <T size={small ? 12 : 14} weight={600} lh={small ? 18 : 20} color={colors.brandWhite}>
+        <T size={small ? 12 : 14} weight={600} lh={small ? 18 : 20} color={primary ? colors.white : colors.textPrimary}>
           {children}
         </T>
       ) : (
@@ -60,11 +63,11 @@ export function RectButton({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   base: { borderRadius: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   normal: { minHeight: 44, paddingHorizontal: 16, paddingVertical: 12 },
   small: { minHeight: 44, paddingHorizontal: 16, paddingVertical: 8 },
   full: { alignSelf: 'stretch' },
-  primary: { backgroundColor: colors.brandRedFill },
+  primary: { backgroundColor: colors.redFill },
   secondary: { borderWidth: 1, borderColor: colors.border, backgroundColor: 'transparent' },
-});
+}));

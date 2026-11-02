@@ -1,3 +1,4 @@
+import { ApiError } from '@repo/core/api/client';
 import { getPushConfig } from '@repo/core/api/push';
 import { useQuery } from '@tanstack/react-query';
 import Constants from 'expo-constants';
@@ -5,13 +6,14 @@ import * as Notifications from 'expo-notifications';
 import { useCallback, useEffect, useState } from 'react';
 import { AppState, Platform } from 'react-native';
 
-import { toast } from '@/components/toast';
+import { toast } from '@repo/native-ui/toast';
 
 import { onBeforeSignOut, useAuth } from './auth';
 import { devicePrefs } from './device-prefs';
-import { registerPushDevice, removePushDevice } from './push-api';
+import { registerPushDevice, removePushDevice, sendPushDeviceTest } from './push-api';
 import { createPushController, type PermissionState } from './push-controller';
 import { errorText } from './error-text';
+import { pushTestErrorOutcome, pushTestResultOutcome, TEST_FALLBACK, TEST_NOT_ON, type PushTestOutcome } from './push-test';
 
 const toState = (result: { status: string }): PermissionState =>
   result.status === 'granted' ? 'granted' : result.status === 'denied' ? 'denied' : 'undetermined';
@@ -70,6 +72,10 @@ export interface PushDevice {
   busy: boolean;
   turnOn: () => Promise<void>;
   turnOff: () => Promise<void>;
+  /** False once the API says it has no test route (device push is off there): hide the button. */
+  canTest: boolean;
+  /** To this phone only: its own token is sent, never "all my phones". */
+  sendTest: () => Promise<void>;
 }
 
 /** The web's usePushDevice, for this phone: one read of the config per garage, and this phone's state. */
@@ -86,6 +92,7 @@ export function usePushDevice(): PushDevice {
   const [subscribed, setSubscribed] = useState(() => controller.isOn(vendorId));
   const [devices, setDevices] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [noTestRouteFor, setNoTestRouteFor] = useState<string | null>(null);
 
   const check = useCallback(async () => {
     setPermission(await controller.refresh(vendorId));
@@ -141,6 +148,40 @@ export function usePushDevice(): PushDevice {
     }
   }, []);
 
+  const sendTest = useCallback(async () => {
+    if (!vendorId) return;
+    setBusy(true);
+    const show = (outcome: PushTestOutcome) => {
+      if (outcome.tone === 'success') toast.success(outcome.message);
+      else toast.error(outcome.message);
+      if (outcome.hideButton) setNoTestRouteFor(vendorId);
+      if (outcome.turnOff) {
+        controller.markGone(vendorId);
+        setSubscribed(false);
+        changed();
+      }
+    };
+    try {
+      const token = controller.tokenFor(vendorId);
+      if (!token) {
+        setSubscribed(false);
+        toast.error(TEST_NOT_ON);
+        return;
+      }
+      const { result } = await sendPushDeviceTest(token);
+      show(pushTestResultOutcome(result));
+    } catch (error) {
+      const fallback = errorText(error, TEST_FALLBACK);
+      show(
+        error instanceof ApiError
+          ? pushTestErrorOutcome(error, fallback)
+          : { tone: 'error', message: fallback },
+      );
+    } finally {
+      setBusy(false);
+    }
+  }, [vendorId]);
+
   return {
     loaded: config.isFetched,
     enabled: config.isError ? null : (config.data?.enabled ?? null),
@@ -150,5 +191,7 @@ export function usePushDevice(): PushDevice {
     busy,
     turnOn,
     turnOff,
+    canTest: noTestRouteFor !== vendorId,
+    sendTest,
   };
 }

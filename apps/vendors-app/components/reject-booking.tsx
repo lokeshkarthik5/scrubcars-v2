@@ -1,15 +1,15 @@
 import { useBookingsStore } from '@repo/core/stores/bookings-store';
 import type { Booking } from '@repo/core/types';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
 import { readFreshBookings } from '@/lib/fresh-bookings';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
-import { ScInput } from './inputs';
-import { ConfirmSheet } from './sheet';
-import { T } from './text';
-import { toast } from './toast';
+import { ScInput } from '@repo/native-ui/inputs';
+import { ConfirmSheet } from '@repo/native-ui/sheet';
+import { T } from '@repo/native-ui/text';
+import { toast } from '@repo/native-ui/toast';
 import { errorText } from '@/lib/error-text';
 
 /** RejectBookingSheet: "Can't do", asked the same way everywhere; a reason the customer sees. */
@@ -24,6 +24,8 @@ export function RejectBookingSheet({
   onClose: () => void;
   onDone?: () => void;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const updateStatus = useBookingsStore((s) => s.updateStatus);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
@@ -75,4 +77,4 @@ export function RejectBookingSheet({
   );
 }
 
-const styles = StyleSheet.create({ body: { gap: 12 } });
+const useStyles = createStyles(() => ({ body: { gap: 12 } }));

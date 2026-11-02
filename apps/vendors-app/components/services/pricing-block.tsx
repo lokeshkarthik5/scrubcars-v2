@@ -1,17 +1,18 @@
 import { PRICING_TYPES } from '@repo/core/pricing';
 import type { PricingType } from '@repo/core/types';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
-import { Chip } from '@/components/chip';
-import { ScInput } from '@/components/inputs';
-import { T } from '@/components/text';
+import { Chip } from '@repo/native-ui/chip';
+import { ScInput } from '@repo/native-ui/inputs';
+import { T } from '@repo/native-ui/text';
 import { type PricingFields, sanitizeDecimal } from '@/lib/service-form';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
 import { FieldLabel } from './section-title';
 
 /** Chips that wrap onto the next line, 8 apart (the web's `flex flex-wrap gap-2`). */
 export function ChipRow({ children }: { children: React.ReactNode }) {
+  const styles = useStyles();
   return <View style={styles.chips}>{children}</View>;
 }
 
@@ -30,6 +31,8 @@ export function PricingBlock({
   /** "Price (₹)" on a service, "Package price (₹)" on a package. */
   flatLabel: string;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const hint = PRICING_TYPES.find((pt) => pt.value === form.pricingType)?.hint;
   return (
     <>
@@ -93,10 +96,10 @@ export function PricingBlock({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   // mb-2 on the caption, mt-1.5 on the hint: a little under 8 between each.
   group: { gap: 8 },
   tiers: { flexDirection: 'row', gap: 8 },
   tier: { flex: 1, minWidth: 0 },
-});
+}));

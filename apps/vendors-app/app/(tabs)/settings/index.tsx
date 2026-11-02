@@ -3,27 +3,29 @@ import type { ApiVendorClosure, ApiVendorProfile, ApiWorkingHours } from '@repo/
 import { useQuery } from '@tanstack/react-query';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { type ReactNode, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { AccountActions } from '@/components/account-actions';
+import { AppearanceCard } from '@/components/appearance-card';
+import { AppLockCard } from '@/components/app-lock-card';
 import { AppShell, garageScreen } from '@/components/app-shell';
-import { Label, ScButton } from '@/components/button';
-import { IconBell, IconLogout, IconUsers } from '@/components/icons';
-import { Skeleton, SkeletonList } from '@/components/primitives';
+import { Label, ScButton } from '@repo/native-ui/button';
+import { IconBell, IconLogout, IconUsers } from '@repo/native-ui/icons';
+import { Skeleton, SkeletonList } from '@repo/native-ui/primitives';
 import { LinkRow, SectionHeader, TopBar } from '@/components/rows';
 import { HoursTab } from '@/components/settings/hours-tab';
 import { LocationTab } from '@/components/settings/location-tab';
 import { ProfileTab } from '@/components/settings/profile-tab';
 import { TimeOffTab } from '@/components/settings/time-off-tab';
 import { SupportCard } from '@/components/support-card';
-import { T } from '@/components/text';
-import { toast } from '@/components/toast';
+import { T } from '@repo/native-ui/text';
+import { toast } from '@repo/native-ui/toast';
 import { APP_VERSION } from '@/lib/app-config';
-import { useAuth } from '@/lib/auth';
+import { isSignedOut, useAuth } from '@/lib/auth';
 import { errorText } from '@/lib/error-text';
 import { getMyVendor, getWorkingHours } from '@/lib/garage-api';
 import { initialTab, SETTINGS_TABS, type SettingsTab } from '@/lib/settings-logic';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 import { getMyClosures } from '@/lib/vendor-api';
 
 const LABELS: Record<SettingsTab, string> = {
@@ -43,6 +45,8 @@ const LABELS: Record<SettingsTab, string> = {
  * so a company switch loads afresh.
  */
 function SettingsScreen() {
+  const colors = useColors();
+  const styles = useStyles();
   const params = useLocalSearchParams<{ tab?: string }>();
   const requested = initialTab(params.tab);
   const [tab, setTab] = useState<SettingsTab>(requested);
@@ -82,7 +86,7 @@ function SettingsScreen() {
         setHours(hoursData);
       })
       .catch((err) => {
-        if (!cancelled) toast.error(errorText(err, 'Failed to load settings'));
+        if (!cancelled && !isSignedOut()) toast.error(errorText(err, 'Failed to load settings'));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -152,6 +156,8 @@ function SettingsScreen() {
 }
 
 function AccountTab() {
+  const colors = useColors();
+  const styles = useStyles();
   const signOut = useAuth((s) => s.signOut);
   const [busy, setBusy] = useState(false);
   const push = useQuery({
@@ -161,6 +167,8 @@ function AccountTab() {
   });
   return (
     <>
+      <AppearanceCard />
+      <AppLockCard />
       {push.data?.enabled ? (
         <LinkRow
           icon={<IconBell size={18} />}
@@ -200,7 +208,7 @@ function AccountTab() {
 
 export default garageScreen(SettingsScreen);
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   tabsBlock: { gap: 16 },
   tabs: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: 12, padding: 4 },
   tab: { flex: 1, minHeight: 48, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
@@ -210,4 +218,4 @@ const styles = StyleSheet.create({
   hidden: { display: 'none' },
   section: { gap: 12 },
   version: { marginBottom: 8 },
-});
+}));

@@ -3,13 +3,13 @@ import { directionsHref } from '@repo/core/contact-links';
 import { contactWindowState, customerNumberHiddenLine, garageSupportMessage } from '@repo/core/contact-window';
 import { supportWhatsAppHref } from '@repo/core/support';
 import type { Booking } from '@repo/core/types';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { openLink } from '@/lib/open-link';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
-import { IconBrandWhatsapp, IconCar, IconHome, IconMapPin, IconNavigation, IconPhoneOff } from './icons';
-import { T } from './text';
+import { IconBrandWhatsapp, IconCar, IconHome, IconMapPin, IconNavigation, IconPhoneOff } from '@repo/native-ui/icons';
+import { T } from '@repo/native-ui/text';
 
 const OPEN_STATUSES: ReadonlySet<Booking['status']> = new Set(['pending', 'confirmed', 'in_progress']);
 const ENDED_STATUSES: ReadonlySet<Booking['status']> = new Set(['cancelled', 'rescheduled']);
@@ -20,6 +20,8 @@ const ENDED_STATUSES: ReadonlySet<Booking['status']> = new Set(['cancelled', 're
  * contact window. The window is the server's: the number comes only while it is open.
  */
 export function JobContact({ booking, now }: { booking: Booking; now: number }) {
+  const colors = useColors();
+  const styles = useStyles();
   const doorstep = booking.bookingType === 'doorstep';
   const pickup = booking.bookingType === 'pickup';
   const open = OPEN_STATUSES.has(booking.status);
@@ -118,7 +120,7 @@ export function JobContact({ booking, now }: { booking: Booking; now: number }) 
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   flex: { flex: 1, minWidth: 0 },
   column: { gap: 8 },
   type: { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -152,4 +154,4 @@ const styles = StyleSheet.create({
   hiddenLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   support: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 6 },
   underline: { textDecorationLine: 'underline' },
-});
+}));

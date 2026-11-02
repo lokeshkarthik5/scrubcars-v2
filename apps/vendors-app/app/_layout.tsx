@@ -16,14 +16,16 @@ import { useFonts } from 'expo-font';
 import { type Href, router, Stack, useGlobalSearchParams, usePathname, useRootNavigationState } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { ScButton } from '@/components/button';
-import { T } from '@/components/text';
-import { ToastHost } from '@/components/toast';
+import { ScButton } from '@repo/native-ui/button';
+import { T } from '@repo/native-ui/text';
+import { createStyles, ThemeProvider, useColors, useTheme } from '@repo/native-ui/theme';
+import { ToastHost } from '@repo/native-ui/toast';
+import { AppLockGate } from '@/components/app-lock-screen';
 import { UpdateRequired } from '@/components/update-required';
 import { useForcedUpdate } from '@/lib/app-config';
 import { installUnauthorizedHandler, useAuth, useIsVendorAdmin } from '@/lib/auth';
@@ -33,7 +35,7 @@ import { queryClient } from '@/lib/query-client';
 import { useColdStartLink, useNotificationTaps } from '@/lib/notifications';
 import { gateRedirect } from '@/lib/route-gate';
 import { initSentry } from '@/lib/sentry';
-import { colors } from '@/lib/theme';
+import { devicePrefs } from '@/lib/device-prefs';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -43,6 +45,8 @@ void SplashScreen.preventAutoHideAsync();
 /** A phone with a token and no signal: still signed in. */
 function Unreachable() {
   const restore = useAuth((s) => s.restore);
+  const colors = useColors();
+  const styles = useStyles();
   return (
     <View style={styles.unreachable}>
       <T accessibilityRole="header" size={18} weight={700} align="center">
@@ -60,6 +64,8 @@ function Unreachable() {
 
 /** The route gate: the web's AppProvider. Renders nothing until the session is settled. */
 function SessionGate() {
+  const colors = useColors();
+  const styles = useStyles();
   const status = useAuth((s) => s.status);
   const signedIn = useAuth((s) => s.user !== null);
   const hasGarage = useAuth((s) => s.vendor !== null);
@@ -114,7 +120,7 @@ function SessionGate() {
 
   return (
     <>
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.brandBlack } }} />
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.canvas } }} />
       {status === 'restoring' || redirect ? <View style={[StyleSheet.absoluteFill, styles.cover]} /> : null}
     </>
   );
@@ -137,38 +143,60 @@ export default function RootLayout() {
     console.log(`Detlio v${Constants.expoConfig?.version ?? 'unknown'}`);
     // Nothing private from an earlier run stays on the disk (also cleared on sign-out).
     clearPrivateCache();
-    const removeHandler = installUnauthorizedHandler();
-    void useAuth.getState().restore();
-    return removeHandler;
+    return installUnauthorizedHandler();
   }, []);
 
-  const updateRequired = useForcedUpdate();
-
-  useEffect(() => {
-    if (updateRequired) void SplashScreen.hideAsync();
-  }, [updateRequired]);
+  // The refresh token isn't read until the optional lock has opened. Nothing below the gate
+  // runs before it: not the session, the alerts' tap handler or the cold-start link (they
+  // mount with the session gate), so a notification tapped while locked is handled after.
+  const [unlocked, setUnlocked] = useState(false);
+  const opened = useCallback(() => {
+    setUnlocked(true);
+    void useAuth.getState().restore();
+  }, []);
 
   if (!fontsLoaded) return null;
 
   return (
     <SafeAreaProvider>
-      <QueryClientProvider client={queryClient}>
-        <StatusBar style="light" />
-        {updateRequired ? <UpdateRequired answer={updateRequired} /> : <SessionGate />}
-        <ToastHost />
-      </QueryClientProvider>
+      <ThemeProvider storage={devicePrefs}>
+        {unlocked ? <ThemedRoot /> : <AppLockGate onOpen={opened} />}
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }
 
-const styles = StyleSheet.create({
-  cover: { backgroundColor: colors.brandBlack },
+/** Sign-in and the code screen are dark whatever is chosen (the owner's Option 1). */
+const ALWAYS_DARK = new Set(['/', '/login', '/verify-otp']);
+
+function ThemedRoot() {
+  const { colors } = useTheme();
+  const updateRequired = useForcedUpdate();
+  const pathname = usePathname();
+  // One status bar, so a screen leaving can't strand the wrong one.
+  const onDarkStage = Boolean(updateRequired) || ALWAYS_DARK.has(pathname);
+
+  useEffect(() => {
+    if (updateRequired) void SplashScreen.hideAsync();
+  }, [updateRequired]);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <StatusBar style={onDarkStage ? 'light' : colors.statusBar} />
+      {updateRequired ? <UpdateRequired answer={updateRequired} /> : <SessionGate />}
+      <ToastHost />
+    </QueryClientProvider>
+  );
+}
+
+const useStyles = createStyles((colors) => ({
+  cover: { backgroundColor: colors.canvas },
   unreachable: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
     padding: 24,
-    backgroundColor: colors.brandBlack,
+    backgroundColor: colors.canvas,
   },
-});
+}));

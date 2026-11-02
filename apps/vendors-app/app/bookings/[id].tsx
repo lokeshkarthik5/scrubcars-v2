@@ -9,11 +9,11 @@ import { bookingStatusTone } from '@repo/core/status-tone';
 import type { Booking } from '@repo/core/types';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
 import { BeforeAfterCompare } from '@/components/before-after';
-import { Label, ScButton } from '@/components/button';
+import { Label, ScButton } from '@repo/native-ui/button';
 import { CancelAcceptedBooking } from '@/components/cancel-accepted-booking';
 import { ExtraWorkPanel } from '@/components/extra-work';
 import { FinalBillPanel } from '@/components/final-bill';
@@ -25,13 +25,13 @@ import {
   IconCircle,
   IconLock,
   IconPhone,
-} from '@/components/icons';
+} from '@repo/native-ui/icons';
 import { JobContact } from '@/components/job-contact';
 import { JobPhotos } from '@/components/job-photos';
 import { NewBookingCard } from '@/components/new-booking-card';
 import { PickupSteps } from '@/components/pickup-steps';
-import { EmptyState, LoadError, SkeletonList, Stars, StatusChip } from '@/components/primitives';
-import { T } from '@/components/text';
+import { EmptyState, LoadError, SkeletonList, Stars, StatusChip } from '@repo/native-ui/primitives';
+import { T } from '@repo/native-ui/text';
 import { changeStatusWithUndo, DEFERRED_WORDS, useDeferredStatus } from '@/lib/deferred-status';
 import {
   blockers,
@@ -41,11 +41,12 @@ import {
   photoStage,
   progressIndex,
   PROGRESS_STEPS,
-  servicesLine,
   statusLabel,
 } from '@/lib/jobs';
+import { JobAddOnLines } from '@/components/job-add-on-lines';
+import { serviceOnlyLine } from '@/lib/add-on-lines';
 import { openLink } from '@/lib/open-link';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 import { useVendorBookings } from '@/lib/use-vendor-bookings';
 
 /** apps/vendors/app/bookings/[id]/page.tsx: one job, one screen, one next step. */
@@ -74,6 +75,7 @@ function JobScreen() {
 }
 
 function BackLink() {
+  const styles = useStyles();
   return (
     <Pressable
       accessibilityRole="button"
@@ -87,6 +89,8 @@ function BackLink() {
 }
 
 function Job({ booking: b, now, onChanged }: { booking: Booking; now: number; onChanged: () => void }) {
+  const colors = useColors();
+  const styles = useStyles();
   const deferred = useDeferredStatus(b.id);
   const [beforeOpen, setBeforeOpen] = useState(false);
   const who = b.customerName || 'the customer';
@@ -173,8 +177,9 @@ function Job({ booking: b, now, onChanged }: { booking: Booking; now: number; on
           </StatusChip>
         </View>
         <T size={16} color={colors.textSecondary}>
-          {`${servicesLine(b)} · ${BOOKING_TYPE_LABELS[b.bookingType]}`}
+          {`${serviceOnlyLine(b)} · ${BOOKING_TYPE_LABELS[b.bookingType]}`}
         </T>
+        <JobAddOnLines items={b.items} size={14} />
         {stepTimes.length > 0 ? (
           <T num size={14} color={colors.textSecondary}>
             {stepTimes.join(' · ')}
@@ -283,6 +288,8 @@ function Progress({
   booking: Booking;
   deferred: ReturnType<typeof useDeferredStatus>;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const pickup = b.bookingType === 'pickup' ? pickupTimeline(b) : null;
   const steps = pickup
     ? pickup.map((step) => ({ label: step.label, state: step.state }))
@@ -305,7 +312,7 @@ function Progress({
             <View
               style={[
                 styles.stepLine,
-                { backgroundColor: step.state === 'upcoming' ? colors.border : colors.textPrimary },
+                { backgroundColor: step.state === 'upcoming' ? colors.border : colors.chosenBg },
               ]}
             />
           ) : null}
@@ -320,7 +327,7 @@ function Progress({
             ]}
           >
             {step.state === 'done' ? (
-              <IconCheck size={16} stroke={3} color={colors.brandBlack} />
+              <IconCheck size={16} stroke={3} color={colors.chosenText} />
             ) : step.state === 'current' ? (
               <View style={styles.stepInner} />
             ) : null}
@@ -349,6 +356,8 @@ function DockedStep({
   deferred: ReturnType<typeof useDeferredStatus>;
   onChanged: () => void;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const who = b.customerName || 'the customer';
   const action = b.status === 'confirmed' ? 'start' : 'complete';
   const missing = blockers(b, action);
@@ -396,14 +405,14 @@ function DockedStep({
 
 export default garageScreen(JobScreen);
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   flex: { flex: 1, minWidth: 0 },
   round: {
     width: 48,
     height: 48,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderColor: colors.outlineSoft,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
@@ -436,12 +445,12 @@ const styles = StyleSheet.create({
   step: { flex: 1, alignItems: 'center', gap: 6 },
   stepLine: { position: 'absolute', top: 15, right: '50%', width: '100%', height: 2 },
   stepDot: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  stepDone: { backgroundColor: colors.textPrimary },
-  stepCurrent: { borderWidth: 2, borderColor: '#3B82F6', backgroundColor: colors.brandBlack },
-  stepUpcoming: { borderWidth: 2, borderColor: colors.border, backgroundColor: colors.brandBlack },
-  stepInner: { width: 12, height: 12, borderRadius: 6, backgroundColor: '#3B82F6' },
+  stepDone: { backgroundColor: colors.chosenBg },
+  stepCurrent: { borderWidth: 2, borderColor: colors.tones.progress.dot, backgroundColor: colors.canvas },
+  stepUpcoming: { borderWidth: 2, borderColor: colors.border, backgroundColor: colors.canvas },
+  stepInner: { width: 12, height: 12, borderRadius: 6, backgroundColor: colors.tones.progress.dot },
   dock: { gap: 12 },
   waiting: { minHeight: 56, alignItems: 'center', justifyContent: 'center' },
   missing: { gap: 8 },
   missingRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-});
+}));

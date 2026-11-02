@@ -3,17 +3,19 @@ import { useNow } from '@repo/core/hooks/use-now';
 import { garageCountdown } from '@repo/core/response-deadline';
 import type { ResponseDeadline } from '@repo/core/types';
 import { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import { Animated, View } from 'react-native';
 
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
-import { IconAlarm } from './icons';
-import { T } from './text';
+import { IconAlarm } from '@repo/native-ui/icons';
+import { T } from '@repo/native-ui/text';
 
 const MINUTE_MS = 60 * 1000;
 
 /** AnswerDeadline: how long is left to answer, big, with a bar that drains. Ticks every 10 s. */
 export function AnswerDeadline({ deadline }: { deadline: ResponseDeadline }) {
+  const colors = useColors();
+  const styles = useStyles();
   const now = useNow(10_000);
   const respondBy = new Date(deadline.respondBy).getTime();
   const windowMs = deadline.windowMins * MINUTE_MS;
@@ -77,7 +79,7 @@ export function AnswerDeadline({ deadline }: { deadline: ResponseDeadline }) {
             style={[
               styles.fill,
               {
-                backgroundColor: tint,
+                backgroundColor: urgent ? colors.warningFill : colors.textPrimary,
                 width: width.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }),
               },
             ]}
@@ -88,7 +90,7 @@ export function AnswerDeadline({ deadline }: { deadline: ResponseDeadline }) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   box: {
     overflow: 'hidden',
     borderTopLeftRadius: 19,
@@ -96,7 +98,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  urgent: { backgroundColor: 'rgba(245,165,36,0.15)' },
+  urgent: { backgroundColor: colors.warningSoft },
   missed: {
     borderTopLeftRadius: 19,
     borderTopRightRadius: 19,
@@ -118,4 +120,4 @@ const styles = StyleSheet.create({
   words: { flexDirection: 'row', alignItems: 'baseline', gap: 8, flexShrink: 1 },
   track: { height: 6, backgroundColor: colors.border },
   fill: { height: '100%', borderTopRightRadius: 3, borderBottomRightRadius: 3 },
-});
+}));

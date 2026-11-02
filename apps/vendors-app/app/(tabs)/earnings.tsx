@@ -2,12 +2,12 @@ import { type EarningsStatement, type GarageStatementLine, getEarningsStatement 
 import { istDateLabel, LINE_STATUS_LABEL, PAYOUT_METHOD_LABEL, rupeesLabel } from '@repo/core/payouts';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
-import { ScButton } from '@/components/button';
+import { ScButton } from '@repo/native-ui/button';
 import { ScBadge, DateField } from '@/components/form-controls';
-import { IconDownload, IconReceipt } from '@/components/icons';
+import { IconDownload, IconReceipt } from '@repo/native-ui/icons';
 import {
   EmptyState,
   LoadError,
@@ -16,10 +16,10 @@ import {
   Skeleton,
   SkeletonList,
   StatusChip,
-} from '@/components/primitives';
+} from '@repo/native-ui/primitives';
 import { SectionHeader, TopBar } from '@/components/rows';
-import { T } from '@/components/text';
-import { toast } from '@/components/toast';
+import { T } from '@repo/native-ui/text';
+import { toast } from '@repo/native-ui/toast';
 import { useAuth, useIsVendorAdmin } from '@/lib/auth';
 import {
   balanceFootnote,
@@ -43,10 +43,11 @@ import {
   statementCsvText,
 } from '@/lib/earnings-view';
 import { shareCsv } from '@/lib/earnings-share';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
 /** Words with their figures in the brand's numeric face, as the web sets them. */
 function Words({ segments, size }: { segments: Segment[]; size: number }) {
+  const colors = useColors();
   return (
     <T size={size} color={colors.textSecondary}>
       {segments.map((segment, i) => (
@@ -65,6 +66,8 @@ function Words({ segments, size }: { segments: Segment[]; size: number }) {
 
 /** One figure of a booking's breakdown. */
 function Figure({ row }: { row: FigureRow }) {
+  const colors = useColors();
+  const styles = useStyles();
   return (
     <View style={styles.figure}>
       <T
@@ -90,6 +93,8 @@ function Figure({ row }: { row: FigureRow }) {
 }
 
 function LineCard({ line }: { line: GarageStatementLine }) {
+  const colors = useColors();
+  const styles = useStyles();
   const kind = lineKindBadge(line);
   const balanceNote = lineBalanceNote(line);
   return (
@@ -146,6 +151,8 @@ function LineCard({ line }: { line: GarageStatementLine }) {
 
 /** apps/vendors/app/earnings/page.tsx: what Detlio owes the garage, each booking and each payout. */
 function EarningsScreen() {
+  const colors = useColors();
+  const styles = useStyles();
   const vendor = useAuth((s) => s.vendor);
   const vendorCount = useAuth((s) => s.vendors.length);
   const isVendorAdmin = useIsVendorAdmin();
@@ -374,7 +381,7 @@ function EarningsScreen() {
 
 export default garageScreen(EarningsScreen);
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   flex: { flex: 1, minWidth: 0 },
   tiles: { flexDirection: 'row', gap: 8 },
   balance: { gap: 8 },
@@ -404,4 +411,4 @@ const styles = StyleSheet.create({
   figureLabel: { flexShrink: 1 },
   figureValue: { flexShrink: 1 },
   payout: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-});
+}));

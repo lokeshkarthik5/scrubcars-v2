@@ -15,7 +15,6 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  StyleSheet,
   TextInput,
   useWindowDimensions,
   View,
@@ -44,11 +43,11 @@ import {
   withTimeout,
   zoomFor,
 } from '@/lib/location-picker-logic';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors, useTheme } from '@repo/native-ui/theme';
 
-import { IconCurrentLocation, IconMapPin, IconSearch } from './icons';
+import { IconCurrentLocation, IconMapPin, IconSearch } from '@repo/native-ui/icons';
 import { RectButton } from './rect-button';
-import { font, T } from './text';
+import { font, T } from '@repo/native-ui/text';
 
 export type { PickedLocation };
 
@@ -69,8 +68,9 @@ interface LocationPickerProps {
 
 /** The web's red filled IconMapPin, drawn solid so it reads on a map. */
 function PinDrawing() {
+  const colors = useColors();
   return (
-    <Svg width={30} height={30} viewBox="0 0 24 24" fill={colors.brandRed} stroke={colors.brandRed} strokeWidth={2}>
+    <Svg width={30} height={30} viewBox="0 0 24 24" fill={colors.red} stroke={colors.red} strokeWidth={2}>
       <Path d="M17.657 16.657l-4.243 4.243a2 2 0 0 1 -2.827 0l-4.244 -4.243a8 8 0 1 1 11.314 0" />
     </Svg>
   );
@@ -112,6 +112,9 @@ function PinMarker({
  * "lat, lng" still place the pin, as on the web.
  */
 export function LocationPicker({ value, onChange, showSearch = true, expectedCity }: LocationPickerProps) {
+  const colors = useColors();
+  const { scheme } = useTheme();
+  const styles = useStyles();
   const [pin, setPin] = useState<{ lat: number; lng: number } | null>(value ?? null);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<GeoPlace[]>([]);
@@ -358,7 +361,7 @@ export function LocationPicker({ value, onChange, showSearch = true, expectedCit
               onChangeText={setQuery}
               placeholder={SEARCH_PLACEHOLDER}
               placeholderTextColor={colors.textMuted}
-              keyboardAppearance="dark"
+              keyboardAppearance={colors.keyboard}
               autoCorrect={false}
               returnKeyType="search"
               style={styles.searchInput}
@@ -418,7 +421,7 @@ export function LocationPicker({ value, onChange, showSearch = true, expectedCit
           ref={mapRef}
           style={styles.map}
           initialRegion={initialRegion}
-          userInterfaceStyle="dark"
+          userInterfaceStyle={scheme}
           rotateEnabled={false}
           pitchEnabled={false}
           showsCompass={false}
@@ -458,7 +461,7 @@ export function LocationPicker({ value, onChange, showSearch = true, expectedCit
             onFocus={() => setResults([])}
             placeholder="Paste Google Maps link or 13.0043, 80.2554"
             placeholderTextColor={colors.textMuted}
-            keyboardAppearance="dark"
+            keyboardAppearance={colors.keyboard}
             autoCapitalize="none"
             autoCorrect={false}
             returnKeyType="go"
@@ -484,9 +487,9 @@ export function LocationPicker({ value, onChange, showSearch = true, expectedCit
 
       <RectButton tone="secondary" disabled={locating} onPress={() => void useCurrentLocation()}>
         {locating ? (
-          <ActivityIndicator size="small" color={colors.brandWhite} />
+          <ActivityIndicator size="small" color={colors.textPrimary} />
         ) : (
-          <IconCurrentLocation size={15} color={colors.brandWhite} />
+          <IconCurrentLocation size={15} color={colors.textPrimary} />
         )}
         <T size={14} weight={600} lh={20}>
           {locating ? 'Finding you…' : 'Use my current location'}
@@ -517,7 +520,7 @@ export function LocationPicker({ value, onChange, showSearch = true, expectedCit
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   root: { gap: 12 },
   flex: { flex: 1, minWidth: 0 },
   search: {
@@ -557,7 +560,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(20,20,22,0.9)',
+    backgroundColor: colors.surfaceVeil,
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
@@ -578,4 +581,4 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   },
   use: { flexShrink: 0 },
-});
+}));

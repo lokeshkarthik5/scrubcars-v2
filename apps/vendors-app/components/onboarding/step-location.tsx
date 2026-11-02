@@ -3,11 +3,11 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppShell } from '@/components/app-shell';
-import { ScButton } from '@/components/button';
-import { ScInput, ScTextarea } from '@/components/inputs';
+import { ScButton } from '@repo/native-ui/button';
+import { ScInput, ScTextarea } from '@repo/native-ui/inputs';
 import { LocationPicker, type PickedLocation } from '@/components/location-picker';
-import { ScCard } from '@/components/primitives';
-import { toast } from '@/components/toast';
+import { ScCard } from '@repo/native-ui/primitives';
+import { toast } from '@repo/native-ui/toast';
 import { useAuth } from '@/lib/auth';
 import { errorText } from '@/lib/error-text';
 import { onboardingHold } from '@/lib/route-gate';

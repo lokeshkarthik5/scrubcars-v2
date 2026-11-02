@@ -1,16 +1,16 @@
 import { DEFAULT_DOORSTEP_RADIUS_KM, DOORSTEP_RADIUS_PLACEHOLDER } from '@repo/core/doorstep';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { AppShell } from '@/components/app-shell';
-import { ScButton } from '@/components/button';
-import { Chip } from '@/components/chip';
+import { ScButton } from '@repo/native-ui/button';
+import { Chip } from '@repo/native-ui/chip';
 import { TimeField } from '@/components/form-controls';
-import { ScInput } from '@/components/inputs';
-import { ScCard } from '@/components/primitives';
-import { T } from '@/components/text';
-import { toast } from '@/components/toast';
+import { ScInput } from '@repo/native-ui/inputs';
+import { ScCard } from '@repo/native-ui/primitives';
+import { T } from '@repo/native-ui/text';
+import { toast } from '@repo/native-ui/toast';
 import { errorText } from '@/lib/error-text';
 import { useOnboardingDraft, writeDraft } from '@/lib/onboarding-draft';
 import {
@@ -30,7 +30,8 @@ import {
   toggleDay,
 } from '@/lib/onboarding-logic';
 import { decimalOnly, digitsOnly } from '@/lib/settings-logic';
-import { colors, PRESSED_SCALE } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
+import { PRESSED_SCALE } from '@repo/native-ui/tokens';
 import { setWorkingHoursForDays, updateSlotInterval, updateVendorJobTypes, updateVendorSettings } from '@/lib/vendor-api';
 
 import { OnboardingHeader, SectionTitle, useDraftSync } from './parts';
@@ -42,6 +43,8 @@ const MODES: { value: ServiceMode; label: string }[] = [
 
 /** Step 3: Garage setup (apps/vendors/app/onboarding/step-3/page.tsx). Acts on the garage step 2 made. */
 export function StepSetup() {
+  const colors = useColors();
+  const styles = useStyles();
   const saved = useOnboardingDraft.getState();
   const [slotInterval, setSlotInterval] = useState<30 | 45 | 60>(saved.slotInterval);
   const [openTime, setOpenTime] = useState(saved.openTime);
@@ -233,7 +236,7 @@ export function StepSetup() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   section: { gap: 12 },
   row: { flexDirection: 'row', gap: 8 },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
@@ -249,11 +252,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
-  radioOn: { borderColor: 'rgba(250,250,250,0.6)', backgroundColor: colors.surfaceElevated },
+  radioOn: { borderColor: colors.outlineChosen, backgroundColor: colors.surfaceElevated },
   radioOff: { borderColor: colors.border, backgroundColor: colors.surface },
   dot: { width: 16, height: 16, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  dotFill: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.textPrimary },
+  dotFill: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.chosenBg },
   below: { marginTop: 4 },
   capacity: { gap: 12 },
   continue: { marginTop: 'auto', marginBottom: 16 },
-});
+}));

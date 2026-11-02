@@ -1,6 +1,6 @@
 import { Linking } from 'react-native';
 
-import { toast } from '@/components/toast';
+import { toast } from '@repo/native-ui/toast';
 
 /** Hands a tel:, WhatsApp or Maps link to the phone, and says so if it can't. */
 export function openLink(url: string) {

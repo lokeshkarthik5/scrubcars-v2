@@ -5,6 +5,8 @@ import { Linking } from 'react-native';
 
 import { rewriteSystemPath } from './deep-link';
 import { pathFromPushUrl } from './notification-routing';
+import { queryClient } from './query-client';
+import { refreshBookingsNow } from './use-vendor-bookings';
 
 // In front too: the web's service worker shows them whatever the tab is doing.
 Notifications.setNotificationHandler({
@@ -36,7 +38,16 @@ export function useNotificationTaps(ready: boolean) {
       })
       .catch(() => undefined);
     const subscription = Notifications.addNotificationResponseReceivedListener(open);
-    return () => subscription.remove();
+    // A push that lands while the app is open: the lists it is about are read now, not at the next poll.
+    const received = Notifications.addNotificationReceivedListener(() => {
+      refreshBookingsNow();
+      void queryClient.invalidateQueries({ queryKey: ['requests'] });
+      void queryClient.invalidateQueries({ queryKey: ['guarantee'] });
+    });
+    return () => {
+      subscription.remove();
+      received.remove();
+    };
   }, [ready]);
 }
 

@@ -5,16 +5,16 @@ import { handoverLocked, MAX_CODE_ATTEMPTS, PICKUP_STEP_LABELS, type PickupNext 
 import { SUPPORT_PHONE_DISPLAY, SUPPORT_TEL_HREF } from '@repo/core/support';
 import type { Booking } from '@repo/core/types';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
 import { changeStatusWithUndo } from '@/lib/deferred-status';
 import { openLink } from '@/lib/open-link';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
-import { ScButton } from './button';
-import { ScInput } from './inputs';
-import { T } from './text';
-import { toast } from './toast';
+import { ScButton } from '@repo/native-ui/button';
+import { ScInput } from '@repo/native-ui/inputs';
+import { T } from '@repo/native-ui/text';
+import { toast } from '@repo/native-ui/toast';
 import { errorText } from '@/lib/error-text';
 
 const STEP_HINTS: Record<PickupNext, string> = {
@@ -40,6 +40,8 @@ export function PickupSteps({
   onStartWork: () => void;
   onChanged: () => void;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const step = booking.pickup?.nextStep ?? null;
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
@@ -144,8 +146,8 @@ export function PickupSteps({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles(() => ({
   column: { gap: 8 },
   code: { letterSpacing: 4, fontSize: 16 },
   underline: { textDecorationLine: 'underline' },
-});
+}));

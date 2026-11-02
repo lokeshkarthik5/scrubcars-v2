@@ -1,9 +1,10 @@
 import type { ApiAuthUser, ApiAuthVendor, VendorRole } from '@repo/core/api/types';
 import { clearSupportSession, setActiveVendorId, setUnauthorizedHandler } from '@repo/core/api/client';
-import type { NativeSessionData } from '@repo/core/native-session';
+import { type NativeSessionData, SERVER_SIGN_OUT_TIMEOUT_MS } from '@repo/core/native-session';
 import { useBookingsStore } from '@repo/core/stores/bookings-store';
 import { create } from 'zustand';
 
+import { appLock } from './app-lock';
 import { devicePrefs } from './device-prefs';
 import { queryClient } from './query-client';
 import { session } from './session';
@@ -62,9 +63,9 @@ export function onBeforeSessionChange(hook: () => void | Promise<unknown>) {
 }
 
 /** Before signing out only: this phone's alerts stop while the session can still say so. */
-const beforeSignOut = new Set<(options: { sessionGone: boolean }) => void | Promise<unknown>>();
+const beforeSignOut = new Set<(options: { sessionGone: boolean; signal?: AbortSignal }) => void | Promise<unknown>>();
 
-export function onBeforeSignOut(hook: (options: { sessionGone: boolean }) => void | Promise<unknown>) {
+export function onBeforeSignOut(hook: (options: { sessionGone: boolean; signal?: AbortSignal }) => void | Promise<unknown>) {
   beforeSignOut.add(hook);
   return () => {
     beforeSignOut.delete(hook);
@@ -92,6 +93,8 @@ function clearGarageData() {
 function forgetSession() {
   setActiveVendorId(null);
   devicePrefs.removeItem(ACTIVE_VENDOR_KEY);
+  // The lock belongs to the person on this phone, and is off again for the next one.
+  appLock.set(false);
   clearSupportSession();
   clearGarageData();
 }
@@ -133,11 +136,21 @@ export const useAuth = create<AuthState>()((set, get) => ({
 
   async signOut(options) {
     const sessionGone = options?.sessionGone ?? false;
-    await runBeforeChange();
-    await Promise.allSettled([...beforeSignOut].map(async (hook) => hook({ sessionGone })));
-    await session.signOut();
+    // Started while the token is still in memory. Steps behind Undo and this phone's alerts get a
+    // short, bounded moment to reach the server (a bad signal must not hold anyone on a spinner),
+    // then the phone is cleared whatever the server has said.
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), SERVER_SIGN_OUT_TIMEOUT_MS);
+    const work = Promise.allSettled([
+      runBeforeChange(),
+      ...[...beforeSignOut].map(async (hook) => hook({ sessionGone, signal: abort.signal })),
+    ]);
+    await Promise.race([work, new Promise((resolve) => setTimeout(resolve, SERVER_SIGN_OUT_TIMEOUT_MS))]);
+    clearTimeout(timer);
     forgetSession();
     set({ status: 'ready', ...SIGNED_OUT });
+    // Clears the token on this phone first; the server is told afterwards and nothing waits for it.
+    await session.signOut();
   },
 }));
 
@@ -153,6 +166,9 @@ export function installUnauthorizedHandler() {
   });
   return () => setUnauthorizedHandler(null);
 }
+
+/** Nobody is signed in (just left, or never was): a read that fails now is no one's news. */
+export const isSignedOut = () => useAuth.getState().user === null;
 
 /**
  * As core's useIsVendorAdmin: convenience, not a boundary. An unknown role reads

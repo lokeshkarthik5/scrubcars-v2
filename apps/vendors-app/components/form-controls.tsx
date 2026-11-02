@@ -1,13 +1,14 @@
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useState } from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 
-import { colors } from '@/lib/theme';
+import { createStyles, useColors, useTheme } from '@repo/native-ui/theme';
+import type { Tokens } from '@repo/native-ui/tokens';
 
-import { ScButton } from './button';
-import { IconCheck, IconChevronDown } from './icons';
-import { ScSheet } from './sheet';
-import { T } from './text';
+import { ScButton } from '@repo/native-ui/button';
+import { IconCheck, IconChevronDown } from '@repo/native-ui/icons';
+import { ScSheet } from '@repo/native-ui/sheet';
+import { T } from '@repo/native-ui/text';
 
 /** ScCheckbox (packages/ui/src/sc/checkbox.tsx): ticked is white, with a 44px row to hit. */
 export function ScCheckbox({
@@ -21,6 +22,8 @@ export function ScCheckbox({
   onChange: (checked: boolean) => void;
   disabled?: boolean;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   return (
     <Pressable
       accessibilityRole="checkbox"
@@ -31,7 +34,7 @@ export function ScCheckbox({
       style={[styles.checkRow, disabled && { opacity: 0.6 }]}
     >
       <View style={[styles.box, checked && styles.boxOn]}>
-        {checked ? <IconCheck size={12} stroke={2.5} color={colors.brandBlack} /> : null}
+        {checked ? <IconCheck size={12} stroke={2.5} color={colors.chosenText} /> : null}
       </View>
       <T size={12} style={styles.flex}>
         {label}
@@ -41,18 +44,20 @@ export function ScCheckbox({
 }
 
 type BadgeVariant = 'success' | 'pending' | 'muted' | 'active' | 'accent' | 'danger';
-const BADGE: Record<BadgeVariant, { bg: string; fg: string; border?: string }> = {
-  success: { bg: 'rgba(34,197,94,0.12)', fg: colors.success },
-  pending: { bg: 'transparent', fg: colors.textPrimary, border: 'rgba(255,255,255,0.2)' },
+const badgeLook = (colors: Tokens): Record<BadgeVariant, { bg: string; fg: string; border?: string }> => ({
+  success: { bg: colors.successMuted, fg: colors.success },
+  pending: { bg: 'transparent', fg: colors.textPrimary, border: colors.outlineSoft },
   muted: { bg: colors.surfaceElevated, fg: colors.textSecondary, border: colors.border },
-  active: { bg: colors.brandWhite, fg: colors.brandBlack },
-  accent: { bg: 'rgba(228,0,43,0.14)', fg: '#F45A66' },
+  active: { bg: colors.chosenBg, fg: colors.chosenText },
+  accent: { bg: colors.tones.new.tint, fg: colors.tones.new.text },
   danger: { bg: colors.errorMuted, fg: colors.error },
-};
+});
 
 /** ScBadge (packages/ui/src/sc/badge.tsx): 11px words in a small rounded tag. */
 export function ScBadge({ children, variant = 'muted' }: { children: string; variant?: BadgeVariant }) {
-  const v = BADGE[variant];
+  const colors = useColors();
+  const styles = useStyles();
+  const v = badgeLook(colors)[variant];
   return (
     <View
       style={[
@@ -70,6 +75,7 @@ export function ScBadge({ children, variant = 'muted' }: { children: string; var
 
 /** ProgressBar (packages/ui/src/sc/progress-bar.tsx): 3px, the one red bar. `progress` is 0 to 100. */
 export function ProgressBar({ progress }: { progress: number }) {
+  const styles = useStyles();
   return (
     <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: Math.round(progress) }} style={styles.progress}>
       <View style={[styles.progressFill, { width: `${Math.min(100, Math.max(0, progress))}%` }]} />
@@ -91,6 +97,8 @@ export function ScSelect<V extends string>({
   onChange: (value: V) => void;
   disabled?: boolean;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const [open, setOpen] = useState(false);
   const current = options.find((o) => o.value === value);
   return (
@@ -177,6 +185,9 @@ function PickerField({
   maximumDate?: Date;
   minuteInterval?: 1 | 5 | 10 | 15 | 20 | 30;
 }) {
+  const colors = useColors();
+  const { scheme } = useTheme();
+  const styles = useStyles();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(value);
   return (
@@ -207,7 +218,7 @@ function PickerField({
             value={draft}
             mode={mode}
             display={Platform.OS === 'ios' ? (mode === 'date' ? 'inline' : 'spinner') : 'default'}
-            themeVariant="dark"
+            themeVariant={scheme}
             minimumDate={minimumDate}
             maximumDate={maximumDate}
             minuteInterval={minuteInterval}
@@ -285,7 +296,7 @@ export function TimeField({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   flex: { flex: 1, minWidth: 0 },
   field: { gap: 6 },
   checkRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -299,10 +310,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  boxOn: { backgroundColor: colors.brandWhite, borderColor: colors.brandWhite },
+  boxOn: { backgroundColor: colors.chosenBg, borderColor: colors.chosenBg },
   badge: { alignSelf: 'flex-start', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 },
-  progress: { height: 3, width: '100%', borderRadius: 2, overflow: 'hidden', backgroundColor: colors.surface },
-  progressFill: { height: '100%', borderRadius: 2, backgroundColor: colors.brandRed },
+  progress: { height: 3, width: '100%', borderRadius: 2, overflow: 'hidden', backgroundColor: colors.track },
+  progressFill: { height: '100%', borderRadius: 2, backgroundColor: colors.red },
   select: {
     minHeight: 44,
     flexDirection: 'row',
@@ -326,4 +337,4 @@ const styles = StyleSheet.create({
   },
   pickerBody: { gap: 12 },
   pickerCentre: { alignItems: 'center' },
-});
+}));

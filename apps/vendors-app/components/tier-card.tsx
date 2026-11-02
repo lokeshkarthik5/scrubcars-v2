@@ -3,16 +3,16 @@ import { dateKeyLabel } from '@repo/core/certification';
 import { TIER_GARAGE_LINES, TIER_LABELS, TIER_STEP_LINKS, type Tier } from '@repo/core/tiers';
 import { type Href, router } from 'expo-router';
 import { Fragment, useId } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 
 import { useGarageTier } from '@/lib/garage-api';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 import { useRefreshOnFocus } from '@/lib/use-refresh-on-focus';
 
-import { IconChevronRight, IconCircleCheck, IconCircleDashed } from './icons';
-import { ScCard } from './primitives';
-import { T } from './text';
+import { IconChevronRight, IconCircleCheck, IconCircleDashed } from '@repo/native-ui/icons';
+import { ScCard } from '@repo/native-ui/primitives';
+import { T } from '@repo/native-ui/text';
 
 const METALS: Record<Tier, { light: string; dark: string; ribbon: string }> = {
   bronze: { light: '#E0A672', dark: '#8A5528', ribbon: '#6B4424' },
@@ -41,6 +41,7 @@ export function TierMedalIcon({ tier, size = 16, grey }: { tier: Tier; size?: nu
 }
 
 function Eyebrow({ children }: { children: string }) {
+  const colors = useColors();
   return (
     <T size={11} weight={600} tracking={0.07} uppercase color={colors.textMuted}>
       {children}
@@ -49,6 +50,8 @@ function Eyebrow({ children }: { children: string }) {
 }
 
 function StepList({ steps, label }: { steps: TierStep[]; label: string }) {
+  const colors = useColors();
+  const styles = useStyles();
   return (
     <View accessibilityLabel={label} style={styles.steps}>
       <Eyebrow>{label}</Eyebrow>
@@ -104,6 +107,8 @@ function StepList({ steps, label }: { steps: TierStep[]; label: string }) {
 
 /** TierCard: the garage's medal and what the next one takes; nothing until loaded or on failure. */
 export function TierCard({ vendorId }: { vendorId: string | undefined }) {
+  const colors = useColors();
+  const styles = useStyles();
   const { data } = useGarageTier(vendorId);
   useRefreshOnFocus(['tier', 'garage', vendorId]);
   if (!data) return null;
@@ -183,7 +188,7 @@ export function TierCard({ vendorId }: { vendorId: string | undefined }) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   flex: { flex: 1, minWidth: 0 },
   card: { gap: 12 },
   head: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
@@ -209,4 +214,4 @@ const styles = StyleSheet.create({
   stepIcon: { marginTop: 1 },
   stepLink: { flexDirection: 'row', alignItems: 'center', gap: 2, alignSelf: 'center' },
   underline: { textDecorationLine: 'underline' },
-});
+}));

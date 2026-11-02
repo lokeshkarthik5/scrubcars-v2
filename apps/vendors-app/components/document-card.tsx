@@ -1,10 +1,4 @@
-import {
-  AADHAAR_MASK_NOTE,
-  DOCUMENT_HINTS,
-  DOCUMENT_STATUS_LABELS,
-  fileLine,
-  garageCanRemove,
-} from '@repo/core/vendor-documents';
+import { AADHAAR_MASK_NOTE, DOCUMENT_STATUS_LABELS, fileLine } from '@repo/core/vendor-documents';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Device from 'expo-device';
 import * as ImagePicker from 'expo-image-picker';
@@ -12,7 +6,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import { File } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 
 import {
   getGarageDocumentLink,
@@ -23,8 +17,10 @@ import {
 } from '@/lib/documents-api';
 import { prepareDocumentFiles } from '@/lib/documents-upload';
 import {
+  canRemoveDocument,
   chosenFilesProblem,
   dayLabel,
+  documentHint,
   fileSideLabel,
   inSentence,
   OPEN_FAILED,
@@ -40,20 +36,22 @@ import {
 } from '@/lib/documents-view';
 import { errorText } from '@/lib/error-text';
 import { discardAfterShare, discardCached, newPrivateFile } from '@/lib/private-cache';
-import { colors, tones } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
-import { Label, ScButton } from './button';
+import { Label, ScButton } from '@repo/native-ui/button';
 import { DateField } from './form-controls';
-import { IconCamera } from './icons';
+import { IconCamera } from '@repo/native-ui/icons';
 import { IconEye, IconFileText, IconPhoto, IconShieldCheckFilled, IconUpload } from './owner-icons';
-import { Notice, ScCard } from './primitives';
-import { AFTER_SHEET_MS, ScSheet } from './sheet';
-import { T } from './text';
-import { toast } from './toast';
+import { Notice, ScCard } from '@repo/native-ui/primitives';
+import { AFTER_SHEET_MS, ScSheet } from '@repo/native-ui/sheet';
+import { T } from '@repo/native-ui/text';
+import { toast } from '@repo/native-ui/toast';
 
 /** The status chip: a dot, but an approved one has the shield instead. */
 function DocumentChip({ status }: { status: GarageDocument['status'] }) {
-  const tone = tones[STATUS_TONE[status]];
+  const colors = useColors();
+  const styles = useStyles();
+  const tone = colors.tones[STATUS_TONE[status]];
   return (
     <View style={[styles.chip, { backgroundColor: tone.tint }]}>
       {status === 'approved' ? (
@@ -118,6 +116,7 @@ async function fromCamera(): Promise<PickedDocument[]> {
 }
 
 function SourceRow({ icon, label, onPress }: { icon: React.ReactNode; label: string; onPress: () => void }) {
+  const styles = useStyles();
   return (
     <Pressable accessibilityRole="button" onPress={onPress} style={styles.source}>
       {icon}
@@ -145,6 +144,8 @@ export function DocumentCard({
   /** Removed (0065): the documents as they are now. */
   onRemoved: (documents: GarageDocuments) => void;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const [picked, setPicked] = useState<PickedDocument[]>([]);
   const [choosing, setChoosing] = useState(false);
   const [expiresOn, setExpiresOn] = useState(doc.expiresOn ?? '');
@@ -241,7 +242,7 @@ export function DocumentCard({
       </View>
 
       <T size={12} color={colors.textSecondary} lh={20}>
-        {DOCUMENT_HINTS[doc.type]}
+        {documentHint(doc.type, doc.required)}
       </T>
       {doc.type === 'owner_id' ? (
         <T size={12} weight={500}>{`${AADHAAR_MASK_NOTE}.`}</T>
@@ -327,7 +328,7 @@ export function DocumentCard({
           <T size={13} color={colors.textSecondary}>
             {uploadHint(doc)}
           </T>
-          {garageCanRemove(doc) ? (
+          {canRemoveDocument(doc) ? (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`Remove ${doc.label}`}
@@ -419,7 +420,7 @@ export function DocumentCard({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   flex: { flex: 1, minWidth: 0 },
   card: { gap: 12 },
   head: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
@@ -451,4 +452,4 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.line,
   },
-});
+}));

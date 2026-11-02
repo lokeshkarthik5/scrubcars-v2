@@ -2,23 +2,25 @@ import type { GarageClaim } from '@repo/core/api/guarantee';
 import { CLAIM_STATUS_LABELS, GUARANTEE_RULES } from '@repo/core/guarantee';
 import { useNow } from '@repo/core/hooks/use-now';
 import { formatStepTime } from '@repo/core/job-records';
-import { router } from 'expo-router';
-import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { type ComponentRef, useRef, useState } from 'react';
+import { type ScrollView, View } from 'react-native';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
-import { ScButton } from '@/components/button';
+import { ScButton } from '@repo/native-ui/button';
+import { FocusFrame } from '@/components/focus-frame';
 import { ScBadge } from '@/components/form-controls';
 import { GuaranteeEvidence } from '@/components/guarantee-evidence';
-import { IconShieldCheck } from '@/components/icons';
-import { ScTextarea } from '@/components/inputs';
-import { EmptyState, LoadError, ScCard, ScSegmented, SkeletonList } from '@/components/primitives';
+import { IconShieldCheck } from '@repo/native-ui/icons';
+import { ScTextarea } from '@repo/native-ui/inputs';
+import { EmptyState, LoadError, ScCard, ScSegmented, SkeletonList } from '@repo/native-ui/primitives';
 import { TopBar } from '@/components/rows';
-import { ScSheet } from '@/components/sheet';
-import { T } from '@/components/text';
-import { toast } from '@/components/toast';
+import { ScSheet } from '@repo/native-ui/sheet';
+import { T } from '@repo/native-ui/text';
+import { toast } from '@repo/native-ui/toast';
 import { useIsVendorAdmin } from '@/lib/auth';
 import { errorText } from '@/lib/error-text';
+import { CLAIM_MISSING, itemIdParam, type ScopeLookup } from '@/lib/focus-item';
 import { useGuaranteeConfig } from '@/lib/garage-api';
 import { useAnswerClaim, useGarageClaimsInbox } from '@/lib/guarantee-api';
 import {
@@ -37,7 +39,8 @@ import {
   NOT_SWITCHED_ON,
   OWNER_ONLY,
 } from '@/lib/guarantee-view';
-import { colors } from '@/lib/theme';
+import { useItemFocus } from '@/lib/use-item-focus';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
 /**
  * apps/vendors/app/guarantee/page.tsx: free redo claims (Detlio Guarantee, 0051), for the
@@ -47,16 +50,39 @@ import { colors } from '@/lib/theme';
  * approves the redo, and a job with no before/after photos is approved at once.
  */
 function GuaranteeClaimsScreen() {
+  const colors = useColors();
+  const styles = useStyles();
   const isVendorAdmin = useIsVendorAdmin();
   const config = useGuaranteeConfig();
   const on = config.data?.enabled === true;
   const [scope, setScope] = useState<'open' | 'closed'>('open');
-  const claims = useGarageClaimsInbox(scope, on && isVendorAdmin);
+  const available = on && isVendorAdmin;
+  const openClaims = useGarageClaimsInbox('open', available && scope === 'open');
+  const closedClaims = useGarageClaimsInbox('closed', available && scope === 'closed');
+  const claims = scope === 'open' ? openClaims : closedClaims;
   // Ticks the countdowns once a minute.
   const now = useNow(60_000);
 
+  // A notification or link for one claim (/guarantee#claim-<id>): the scope that has it,
+  // scrolled to and flashed. Once per id named.
+  const params = useLocalSearchParams<{ claim?: string }>();
+  const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
+  const { onListLayout, frameProps } = useItemFocus({
+    id: itemIdParam(params.claim),
+    ready: available,
+    open: lookupOf(openClaims),
+    closed: lookupOf(closedClaims),
+    refetch: () => {
+      void openClaims.refetch();
+      void closedClaims.refetch();
+    },
+    onScope: setScope,
+    missing: CLAIM_MISSING,
+    scrollRef: scroll,
+  });
+
   return (
-    <AppShell gap={16}>
+    <AppShell gap={16} scrollRef={scroll}>
       <TopBar
         title="Free redo claims"
         onBack={() => (router.canGoBack() ? router.back() : router.replace('/home'))}
@@ -94,9 +120,11 @@ function GuaranteeClaimsScreen() {
               subtitle="Claims customers make on your jobs show here."
             />
           ) : (
-            <View style={styles.list}>
+            <View style={styles.list} onLayout={onListLayout}>
               {claims.data!.items.map((claim) => (
-                <ClaimCard key={claim.id} claim={claim} now={now} />
+                <FocusFrame key={claim.id} {...frameProps(claim.id)}>
+                  <ClaimCard claim={claim} now={now} />
+                </FocusFrame>
               ))}
             </View>
           )}
@@ -106,7 +134,18 @@ function GuaranteeClaimsScreen() {
   );
 }
 
+/** One scope's list as lib/focus-item.ts reads it. */
+function lookupOf(query: ReturnType<typeof useGarageClaimsInbox>): ScopeLookup {
+  return {
+    ids: query.data?.items.map((claim) => claim.id),
+    updatedAt: query.dataUpdatedAt,
+    failedAt: query.errorUpdatedAt,
+  };
+}
+
 function ClaimCard({ claim, now }: { claim: GarageClaim; now: number }) {
+  const colors = useColors();
+  const styles = useStyles();
   const answer = useAnswerClaim();
   const [disputing, setDisputing] = useState(false);
   const [note, setNote] = useState('');
@@ -258,7 +297,7 @@ function ClaimCard({ claim, now }: { claim: GarageClaim; now: number }) {
 
 export default garageScreen(GuaranteeClaimsScreen);
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   flex: { flex: 1, minWidth: 0 },
   list: { gap: 12 },
   card: { gap: 12 },
@@ -268,4 +307,4 @@ const styles = StyleSheet.create({
   answer: { gap: 8 },
   actions: { flexDirection: 'row', gap: 8 },
   dispute: { gap: 12, paddingTop: 4 },
-});
+}));

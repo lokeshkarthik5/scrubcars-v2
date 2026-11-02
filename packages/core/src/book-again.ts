@@ -1,3 +1,4 @@
+import { serviceLinesOf } from './add-ons'
 import { bookingTypeParam, resolveBookingType } from '@repo/core/booking-types'
 import { bookingListTab } from '@repo/core/my-bookings'
 import type { Address, Booking, BookingType, Vendor } from '@repo/core/types'
@@ -35,7 +36,8 @@ export function bookAgainPath(
   return bookAgainPathFor({
     vendorId: booking.vendorId,
     bookingType: booking.bookingType,
-    serviceIds: booking.items.map((item) => item.serviceId),
+    // The services only: add-ons are chosen again at checkout (0068).
+    serviceIds: serviceLinesOf(booking.items).map((item) => item.serviceId),
     addressId,
   })
 }

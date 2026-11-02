@@ -1,6 +1,6 @@
-import { ConfirmSheet } from '@/components/sheet';
-import { T } from '@/components/text';
-import { colors } from '@/lib/theme';
+import { ConfirmSheet } from '@repo/native-ui/sheet';
+import { T } from '@repo/native-ui/text';
+import { useColors } from '@repo/native-ui/theme';
 
 /**
  * Delete asks first (UX audit, garage finding 5): one brushed tap used to remove a
@@ -18,6 +18,7 @@ export function DeleteSheet({
   onClose: () => void;
   onConfirm: (id: string) => Promise<void>;
 }) {
+  const colors = useColors();
   return (
     <ConfirmSheet
       open={target !== null}

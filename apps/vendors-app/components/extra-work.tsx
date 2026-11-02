@@ -2,21 +2,21 @@ import { formatINR } from '@repo/core/format';
 import type { Booking, ExtraWork } from '@repo/core/types';
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
-import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Image, Pressable, View } from 'react-native';
 
 import { useIsVendorAdmin } from '@/lib/auth';
 import { askExtraWork, withdrawExtraWork } from '@/lib/job-records-api';
 import { type PreparedPhoto, prepareForUpload } from '@/lib/photo-prepare';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
-import { ScButton } from './button';
-import { IconCameraPlus, IconTool, IconX } from './icons';
-import { ScInput, ScTextarea } from './inputs';
+import { ScButton } from '@repo/native-ui/button';
+import { IconCameraPlus, IconTool, IconX } from '@repo/native-ui/icons';
+import { ScInput, ScTextarea } from '@repo/native-ui/inputs';
 import { JobSheetRow } from './job-sheet-row';
-import { type StatusTone, StatusChip } from './primitives';
-import { AFTER_SHEET_MS, ScSheet } from './sheet';
-import { T } from './text';
-import { toast } from './toast';
+import { type StatusTone, StatusChip } from '@repo/native-ui/primitives';
+import { AFTER_SHEET_MS, ScSheet } from '@repo/native-ui/sheet';
+import { T } from '@repo/native-ui/text';
+import { toast } from '@repo/native-ui/toast';
 import { errorText } from '@/lib/error-text';
 
 const MAX_DESCRIPTION = 80;
@@ -41,6 +41,8 @@ function formProblem(description: string, amount: string): string | null {
 
 /** ExtraWorkPanel (apps/vendors/components/extra-work.tsx). */
 export function ExtraWorkPanel({ booking, onChanged }: { booking: Booking; onChanged: () => void }) {
+  const colors = useColors();
+  const styles = useStyles();
   const [listOpen, setListOpen] = useState(false);
   const [asking, setAsking] = useState(false);
   const [withdrawing, setWithdrawing] = useState<string | null>(null);
@@ -162,6 +164,8 @@ export function ExtraWorkPanel({ booking, onChanged }: { booking: Booking; onCha
 }
 
 function ExtraWorkSheet({ booking, onClose, onSent }: { booking: Booking; onClose: () => void; onSent: () => void }) {
+  const colors = useColors();
+  const styles = useStyles();
   const who = booking.customerName ?? 'the customer';
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
@@ -316,7 +320,7 @@ function ExtraWorkSheet({ booking, onClose, onSent }: { booking: Booking; onClos
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   flex: { flex: 1, minWidth: 0 },
   half: { flex: 1, minWidth: 0 },
   list: { marginTop: 16, gap: 12 },
@@ -361,4 +365,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   actions: { marginTop: 20, flexDirection: 'row', gap: 8 },
-});
+}));

@@ -28,3 +28,17 @@ export const removePushDevice = (token: string, vendorId: string) =>
     headers: { 'X-Vendor-Id': vendorId },
     body: JSON.stringify({ token }),
   });
+
+export type PushTestResult = 'sent' | 'expired' | 'failed';
+
+/**
+ * "Send me a test notification" (PR #113). The body is always sent, because the
+ * route needs a JSON body: `{ token }` for one phone, `{}` for every phone of
+ * this person's turned on for the garage. This app always names its own phone,
+ * so a test never lands on another of the person's phones.
+ */
+export const sendPushDeviceTest = (token?: string) =>
+  apiClient<{ result: PushTestResult }>('/vendors/me/push/devices/test', {
+    method: 'POST',
+    body: JSON.stringify(token ? { token } : {}),
+  });

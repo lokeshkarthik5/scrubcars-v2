@@ -2,15 +2,15 @@ import { useNow } from '@repo/core/hooks/use-now';
 import { openStatus } from '@repo/core/opening-hours';
 import { useQuery } from '@tanstack/react-query';
 import { type Href, router } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { useAuth } from '@/lib/auth';
 import { getVendorClosures, getVendorWorkingHours, getWorkingHours } from '@/lib/garage-api';
 import { usePushDevice } from '@/lib/push-device';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
-import { IconBellOff } from './icons';
-import { T } from './text';
+import { IconBellOff } from '@repo/native-ui/icons';
+import { T } from '@repo/native-ui/text';
 
 /** Whether the garage is open now, from its own hours and holidays; null while unknown. */
 function useShopOpen(): boolean | null {
@@ -35,6 +35,8 @@ function useShopOpen(): boolean | null {
 
 /** GarageStatus: beside the wordmark, which garage, open or not, and "Alerts: Off". */
 export function GarageStatus() {
+  const colors = useColors();
+  const styles = useStyles();
   const vendor = useAuth((s) => s.vendor);
   const vendorCount = useAuth((s) => s.vendors.length);
   const device = usePushDevice();
@@ -71,10 +73,10 @@ export function GarageStatus() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles(() => ({
   column: { alignItems: 'flex-end', gap: 2, minWidth: 0 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0 },
   dot: { width: 8, height: 8, borderRadius: 4 },
   name: { flexShrink: 1 },
   alerts: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-});
+}));

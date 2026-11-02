@@ -2,13 +2,19 @@
 import { expect, test } from 'bun:test';
 
 import {
+  canRemoveDocument,
   chosenFilesProblem,
   contentTypeOf,
   dayLabel,
+  DOCUMENTS_INTRO,
+  documentHint,
+  documentsRowDescription,
   fileSideLabel,
   inSentence,
+  isDoorstepOnly,
   pickedLine,
   removePrompt,
+  SHOP_PHOTO_OPTIONAL_HINT,
   sideOrdered,
   uploadHint,
   viewLabel,
@@ -85,4 +91,77 @@ test('the front is listed before the back whatever order the API sends', () => {
   expect(sideOrdered([back, front]).map((file) => file.id)).toEqual(['f', 'b']);
   expect(sideOrdered([front, back]).map((file) => file.id)).toEqual(['f', 'b']);
   expect(sideOrdered([front])).toEqual([front]);
+});
+
+const SHOP = { doorstepEnabled: false, dropinEnabled: true, pickupOffered: false };
+
+test('doorstep-only: doorstep on, at-garage off, no pickup & drop', () => {
+  expect(isDoorstepOnly({ doorstepEnabled: true, dropinEnabled: false, pickupOffered: false })).toBe(true);
+  expect(isDoorstepOnly(SHOP)).toBe(false);
+  expect(isDoorstepOnly({ doorstepEnabled: true, dropinEnabled: true, pickupOffered: false })).toBe(false);
+  // Collecting cars means premises, with or without doorstep.
+  expect(isDoorstepOnly({ doorstepEnabled: true, dropinEnabled: false, pickupOffered: true })).toBe(false);
+  expect(isDoorstepOnly({ doorstepEnabled: false, dropinEnabled: false, pickupOffered: true })).toBe(false);
+  expect(isDoorstepOnly({ doorstepEnabled: false, dropinEnabled: false, pickupOffered: false })).toBe(false);
+});
+
+test('the Documents row says what is asked for', () => {
+  const doorstep = { doorstepEnabled: true, dropinEnabled: false };
+  expect(documentsRowDescription({ ...doorstep, pickupEnabled: false })).toBe(
+    'Your ID and bank proof, one of the steps to Silver'
+  );
+  expect(documentsRowDescription(doorstep)).toBe('Your ID and bank proof, one of the steps to Silver');
+  expect(documentsRowDescription({ ...doorstep, pickupEnabled: true })).toBe(
+    'Your ID, bank proof and shop photo, one of the steps to Silver'
+  );
+  expect(documentsRowDescription({ doorstepEnabled: true, dropinEnabled: true, pickupEnabled: false })).toBe(
+    'Your ID, bank proof and shop photo, one of the steps to Silver'
+  );
+  expect(documentsRowDescription(null)).toBe('Your ID, bank proof and shop photo, one of the steps to Silver');
+});
+
+test('the shop photo hint follows what the server requires', () => {
+  expect(SHOP_PHOTO_OPTIONAL_HINT).toBe(
+    'Optional. You work at customers’ doorsteps, so there may be no shop front. Add a photo of one if you have it.'
+  );
+  expect(documentHint('shop_photo', false)).toBe(SHOP_PHOTO_OPTIONAL_HINT);
+  expect(documentHint('shop_photo', true)).not.toBe(SHOP_PHOTO_OPTIONAL_HINT);
+  expect(documentHint('shop_photo', true)).toContain('shop');
+  // Only the shop photo has an optional wording.
+  expect(documentHint('owner_id', false)).toBe(documentHint('owner_id', true));
+  expect(documentHint('gst_certificate', false)).toBe(documentHint('gst_certificate', true));
+});
+
+test('the section subtitle no longer counts the required ones', () => {
+  expect(DOCUMENTS_INTRO).toBe(
+    'Detlio checks these. When the required ones are approved, your documents count as checked, one of the steps to Silver. Only you and the Detlio team can open them.'
+  );
+});
+
+test('a doorstep-only garage may always remove its optional shop photo, even approved', () => {
+  const photo = { type: 'shop_photo' as const, uploadedByDetlio: false, required: false };
+  for (const status of ['pending', 'approved', 'rejected'] as const) {
+    expect(canRemoveDocument({ ...photo, status })).toBe(true);
+  }
+  // Even one Detlio uploaded.
+  expect(canRemoveDocument({ ...photo, status: 'approved', uploadedByDetlio: true })).toBe(true);
+  expect(canRemoveDocument({ ...photo, status: 'missing' })).toBe(false);
+});
+
+test('a garage with a shop removes a required document only if it uploaded it and it is not approved', () => {
+  const photo = { type: 'shop_photo' as const, uploadedByDetlio: false, required: true };
+  expect(canRemoveDocument({ ...photo, status: 'pending' })).toBe(true);
+  expect(canRemoveDocument({ ...photo, status: 'rejected' })).toBe(true);
+  expect(canRemoveDocument({ ...photo, status: 'approved' })).toBe(false);
+  expect(canRemoveDocument({ ...photo, status: 'pending', uploadedByDetlio: true })).toBe(false);
+  expect(canRemoveDocument({ ...photo, status: 'missing' })).toBe(false);
+});
+
+test('optional types go by what the server says, not by a list', () => {
+  const gst = { type: 'gst_certificate' as const, uploadedByDetlio: true, required: false };
+  expect(canRemoveDocument({ ...gst, status: 'approved' })).toBe(true);
+  // The same type, required of this garage, is not removable once approved.
+  expect(canRemoveDocument({ ...gst, required: true, status: 'approved' })).toBe(false);
+  // The approved signed agreement never.
+  expect(canRemoveDocument({ type: 'agreement', status: 'approved', uploadedByDetlio: false, required: false })).toBe(false);
 });

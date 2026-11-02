@@ -9,15 +9,15 @@ import {
 import { useBookingsStore } from '@repo/core/stores/bookings-store';
 import type { Booking } from '@repo/core/types';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
-import { ScButton } from './button';
-import { ScTextarea } from './inputs';
-import { ConfirmSheet } from './sheet';
-import { T } from './text';
-import { toast } from './toast';
+import { ScButton } from '@repo/native-ui/button';
+import { ScTextarea } from '@repo/native-ui/inputs';
+import { ConfirmSheet } from '@repo/native-ui/sheet';
+import { T } from '@repo/native-ui/text';
+import { toast } from '@repo/native-ui/toast';
 import { errorText } from '@/lib/error-text';
 
 /** CancelAcceptedBooking: accepted, not started, the garage can no longer do it. */
@@ -30,6 +30,8 @@ export function CancelAcceptedBooking({
   now: number;
   onChanged: () => void;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const writeVendorBooking = useBookingsStore((s) => s.writeVendorBooking);
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('');
@@ -107,4 +109,4 @@ export function CancelAcceptedBooking({
   );
 }
 
-const styles = StyleSheet.create({ body: { gap: 12 } });
+const useStyles = createStyles(() => ({ body: { gap: 12 } }));

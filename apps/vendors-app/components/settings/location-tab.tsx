@@ -1,16 +1,17 @@
 import { DEFAULT_DOORSTEP_RADIUS_KM, DOORSTEP_RADIUS_PLACEHOLDER } from '@repo/core/doorstep';
 import type { ApiVendorProfile } from '@repo/core/api/types';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
-import { ScButton } from '@/components/button';
+import { ScButton } from '@repo/native-ui/button';
 import { ScBadge } from '@/components/form-controls';
-import { ScInput } from '@/components/inputs';
+import { ScInput } from '@repo/native-ui/inputs';
 import { LocationPicker, type PickedLocation } from '@/components/location-picker';
-import { ScCard } from '@/components/primitives';
+import { ScCard } from '@repo/native-ui/primitives';
+import { CoverageArea } from './coverage-area';
 import { SectionHeader } from '@/components/rows';
-import { T } from '@/components/text';
-import { toast } from '@/components/toast';
+import { T } from '@repo/native-ui/text';
+import { toast } from '@repo/native-ui/toast';
 import {
   locationPayload,
   pinFromVendor,
@@ -18,15 +19,15 @@ import {
   radiusText,
   radiusUnreadable,
 } from '@/lib/location-settings';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 import { updateVendorSettings } from '@/lib/vendor-api';
 
 import { useSaving } from './use-saving';
 
 /**
  * Settings > Location (apps/vendors/app/settings/page.tsx): the garage's pin and how far it
- * travels for doorstep jobs, saved together. "Save location" waits for a pin. The doorstep
- * coverage area (a drawn polygon) is the web's later section and is not here yet.
+ * travels for doorstep jobs, saved together. "Save location" waits for a pin. Below sits the
+ * doorstep coverage area (a drawn polygon), offered once the garage has a pin.
  */
 export function LocationTab({
   vendor,
@@ -35,6 +36,8 @@ export function LocationTab({
   vendor: ApiVendorProfile;
   onSaved: (vendor: ApiVendorProfile) => void;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const [pin, setPin] = useState<PickedLocation | null>(() => pinFromVendor(vendor));
   const [radius, setRadius] = useState(() => radiusText(vendor));
   const { saving, run } = useSaving();
@@ -101,11 +104,20 @@ export function LocationTab({
           {saving === 'location' ? 'Saving...' : 'Save location'}
         </ScButton>
       </ScCard>
+
+      {/* Only offered once the garage has a pin: an area drawn around nowhere in particular is
+          not useful, and the map would open on a default city centre rather than on the garage. */}
+      {vendor.lat != null && vendor.lng != null ? (
+        <CoverageArea
+          center={{ lat: vendor.lat, lng: vendor.lng }}
+          fallbackRadiusKm={vendor.doorstepRadiusKm}
+        />
+      ) : null}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles(() => ({
   section: { gap: 12 },
   header: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 },
-});
+}));

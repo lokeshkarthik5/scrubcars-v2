@@ -3,26 +3,29 @@ import { useRef, useState, type ComponentRef } from 'react';
 import { Linking, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { colors } from '@/lib/theme';
+import { StatusBar } from 'expo-status-bar';
 
-import { ScButton } from './button';
-import { IconBolt, IconCar, IconX } from './icons';
-import { T } from './text';
+import { createStyles, ThemeScope, useColors } from '@repo/native-ui/theme';
+
+import { ScButton } from '@repo/native-ui/button';
+import { IconBolt, IconCar, IconX } from '@repo/native-ui/icons';
+import { T } from '@repo/native-ui/text';
 
 /**
  * Native only (frame E): the website opens the phone's plain camera; this adds the
  * angle guide, in the web's buttons, pill, wording and colours. Back camera, flash
  * off by default. What it takes still goes through photo-prepare.ts before upload.
  */
-export function CameraCapture({
-  open,
-  title,
-  label,
-  hint,
-  counter,
-  onClose,
-  onTaken,
-}: {
+export function CameraCapture(props: CameraCaptureProps) {
+  // The one screen that stays dark in both themes: its tokens are the dark ones.
+  return (
+    <ThemeScope scheme="dark">
+      <CameraScreen {...props} />
+    </ThemeScope>
+  );
+}
+
+interface CameraCaptureProps {
   open: boolean;
   /** "After photos · Front". */
   title: string;
@@ -32,7 +35,19 @@ export function CameraCapture({
   counter: string;
   onClose: () => void;
   onTaken: (uri: string) => void;
-}) {
+}
+
+function CameraScreen({
+  open,
+  title,
+  label,
+  hint,
+  counter,
+  onClose,
+  onTaken,
+}: CameraCaptureProps) {
+  const colors = useColors();
+  const styles = useStyles();
   const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
   const [flash, setFlash] = useState(false);
@@ -54,6 +69,7 @@ export function CameraCapture({
 
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>
+      <StatusBar style="light" />
       <View style={[styles.page, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 16 }]}>
         <View style={styles.head}>
           <Pressable accessibilityRole="button" accessibilityLabel="Close camera" onPress={onClose} style={styles.round}>
@@ -69,7 +85,7 @@ export function CameraCapture({
             onPress={() => setFlash((value) => !value)}
             style={[styles.round, flash && styles.flashOn]}
           >
-            <IconBolt size={22} color={flash ? colors.brandBlack : colors.textPrimary} />
+            <IconBolt size={22} color={flash ? colors.canvas : colors.textPrimary} />
           </Pressable>
         </View>
 
@@ -132,8 +148,8 @@ export function CameraCapture({
   );
 }
 
-const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: colors.brandBlack, paddingHorizontal: 16 },
+const useStyles = createStyles((colors) => ({
+  page: { flex: 1, backgroundColor: colors.canvas, paddingHorizontal: 16 },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   title: { flex: 1, textAlign: 'center' },
   round: {
@@ -141,7 +157,7 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderColor: colors.outlineSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -154,7 +170,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 2,
     borderStyle: 'dashed',
-    borderColor: colors.brandRed,
+    borderColor: colors.red,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -176,7 +192,7 @@ const styles = StyleSheet.create({
     left: 0,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderColor: colors.outlineSoft,
     paddingHorizontal: 12,
     paddingVertical: 4,
   },
@@ -191,4 +207,4 @@ const styles = StyleSheet.create({
   },
   shutterBusy: { opacity: 0.5 },
   shutterInner: { width: 68, height: 68, borderRadius: 34, backgroundColor: colors.white },
-});
+}));

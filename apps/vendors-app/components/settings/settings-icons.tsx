@@ -1,6 +1,7 @@
 import Svg, { Path } from 'react-native-svg';
 
-import type { IconProps } from '@/components/icons';
+import type { IconProps } from '@repo/native-ui/icons';
+import { useColors } from '@repo/native-ui/theme';
 
 /**
  * The three Tabler icons Settings' link rows use, drawn here rather than appended to
@@ -8,14 +9,15 @@ import type { IconProps } from '@/components/icons';
  * @tabler/icons-react 3.46.0 (MIT).
  */
 function draw(paths: string[]) {
-  return function Icon({ size = 24, stroke = 2, color = '#FAFAFA' }: IconProps) {
+  return function Icon({ size = 24, stroke = 2, color }: IconProps) {
+    const colors = useColors();
     return (
       <Svg
         width={size}
         height={size}
         viewBox="0 0 24 24"
         fill="none"
-        stroke={color}
+        stroke={color ?? colors.textPrimary}
         strokeWidth={stroke}
         strokeLinecap="round"
         strokeLinejoin="round"

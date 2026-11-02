@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 
-import { extensionFor, isInside, privateFileName, SWEPT_CACHE_DIRS } from './private-files';
+import { cacheRoots, extensionFor, isInside, privateFileName, SWEPT_CACHE_DIRS } from './private-files';
 
 const CACHE = 'file:///var/mobile/Containers/Data/Application/ABC/Library/Caches/';
 
@@ -27,4 +27,12 @@ test('the sweep covers the app folder and the picker copies', () => {
   expect(SWEPT_CACHE_DIRS).toContain('ImagePicker');
   expect(SWEPT_CACHE_DIRS).toContain('DocumentPicker');
   expect(SWEPT_CACHE_DIRS).toContain('detlio-private');
+});
+
+test('in Expo Go the picker folders in Library/Caches count as the cache too', () => {
+  const scoped = `${CACHE}ExponentExperienceData/@anonymous/detlio-1234/`;
+  expect(cacheRoots(scoped)).toEqual([scoped, `${CACHE.slice(0, -1)}`]);
+  expect(cacheRoots(CACHE)).toEqual([CACHE]);
+  expect(cacheRoots(scoped).some((root) => isInside(`${CACHE}ImagePicker/a.jpeg`, root))).toBe(true);
+  expect(cacheRoots(CACHE).some((root) => isInside('file:///var/mobile/Media/DCIM/a.jpg', root))).toBe(false);
 });

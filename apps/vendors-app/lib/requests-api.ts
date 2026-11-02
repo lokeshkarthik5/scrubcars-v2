@@ -21,8 +21,9 @@ const GARAGE_KEY = ['requests', 'garage'] as const;
 const COUNT_KEY = ['requests', 'garage-count'] as const;
 
 /** The inbox, re-read every 15 s while Open is shown: requests have a clock. */
-export function useGarageRequestsInbox(scope: 'open' | 'closed') {
+export function useGarageRequestsInbox(scope: 'open' | 'closed', enabled = true) {
   return useQuery({
+    enabled,
     queryKey: [...GARAGE_KEY, scope],
     queryFn: () => listGarageRequests(scope),
     refetchInterval: scope === 'open' ? 15_000 : false,

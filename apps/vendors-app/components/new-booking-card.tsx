@@ -3,7 +3,7 @@ import { formatINR, formatWhen } from '@repo/core/format';
 import type { Booking } from '@repo/core/types';
 import { type Href, router } from 'expo-router';
 import { useState } from 'react';
-import { type LayoutChangeEvent, StyleSheet, View } from 'react-native';
+import { type LayoutChangeEvent, View } from 'react-native';
 
 import { useIsVendorAdmin } from '@/lib/auth';
 import { changeStatusWithUndo, DEFERRED_WORDS, useDeferredStatus } from '@/lib/deferred-status';
@@ -13,18 +13,19 @@ import {
   jobPrice,
   proposalOpen,
   responseRunOut,
-  servicesLine,
   slotPassed,
 } from '@/lib/jobs';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
 import { AnswerDeadline } from './answer-deadline';
-import { Label, ScButton } from './button';
-import { IconCar, IconCheck, IconHome, IconMapPin, IconPhoneOff, IconRefresh } from './icons';
-import { PressRow } from './primitives';
+import { Label, ScButton } from '@repo/native-ui/button';
+import { IconCar, IconCheck, IconHome, IconMapPin, IconPhoneOff, IconRefresh } from '@repo/native-ui/icons';
+import { PressRow } from '@repo/native-ui/primitives';
+import { JobAddOnLines } from './job-add-on-lines';
+import { serviceOnlyLine } from '@/lib/add-on-lines';
 import { RejectBookingSheet } from './reject-booking';
 import { SuggestTimes } from './suggest-times';
-import { T } from './text';
+import { T } from '@repo/native-ui/text';
 
 /**
  * NewBookingCard (apps/vendors/components/new-booking-card.tsx): a new booking,
@@ -45,6 +46,8 @@ export function NewBookingCard({
   /** Where the card sits, for a notification that scrolls to it. */
   onLayout?: (event: LayoutChangeEvent) => void;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const [rejecting, setRejecting] = useState(false);
   const deferred = useDeferredStatus(b.id);
   const accepting = deferred === 'confirmed';
@@ -97,8 +100,9 @@ export function NewBookingCard({
               {formatWhen(b.scheduledAtIso, now)}
             </T>
             <T size={17} weight={500}>
-              {servicesLine(b)}
+              {serviceOnlyLine(b)}
             </T>
+            <JobAddOnLines items={b.items} size={15} />
             {b.vehicle ? (
               <T size={16} color={colors.textSecondary}>
                 {`${b.vehicle.make} ${b.vehicle.model} · `}
@@ -199,7 +203,7 @@ export function NewBookingCard({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   shrink: { flexShrink: 1, minWidth: 0 },
   card: { borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   inner: { padding: 20, gap: 16 },
@@ -234,4 +238,4 @@ const styles = StyleSheet.create({
   two: { flexDirection: 'row', gap: 8 },
   half: { flex: 1, minWidth: 0 },
   numberLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-});
+}));

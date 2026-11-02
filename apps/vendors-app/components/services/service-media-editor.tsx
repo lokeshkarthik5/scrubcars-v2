@@ -7,10 +7,10 @@ import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useRef, useState } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 
-import { ScButton } from '@/components/button';
-import { IconCheck, IconPhotoPlus, IconX } from '@/components/icons';
-import { AFTER_SHEET_MS, ScSheet } from '@/components/sheet';
-import { T } from '@/components/text';
+import { ScButton } from '@repo/native-ui/button';
+import { IconCheck, IconPhotoPlus, IconX } from '@repo/native-ui/icons';
+import { AFTER_SHEET_MS, ScSheet } from '@repo/native-ui/sheet';
+import { T } from '@repo/native-ui/text';
 import { errorText } from '@/lib/error-text';
 import { prepareForUpload } from '@/lib/photo-prepare';
 import { discardCached } from '@/lib/private-cache';
@@ -34,10 +34,10 @@ import {
   startedList,
   type VideoWork,
 } from '@/lib/service-media-rules';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
 import { Num } from './figures';
-import { tileStyles, VideoSlot, VideoStatusLine } from './media-video';
+import { useTileStyles, VideoSlot, VideoStatusLine } from './media-video';
 
 type Source = 'camera' | 'library';
 
@@ -69,6 +69,9 @@ export function ServiceMediaEditor({
   /** Null while loading: photos only until it says video is on. */
   config: MediaConfig | null;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
+  const tileStyles = useTileStyles();
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState<'photo' | 'remove' | null>(null);
   const [video, setVideo] = useState<VideoWork>({ step: 'idle' });
@@ -114,17 +117,21 @@ export function ServiceMediaEditor({
     setError(null);
     const refused = checkPhotoPick(asset);
     if (refused) {
+      discardCached([asset.uri]);
       setError(refused);
       return;
     }
     setBusy('photo');
+    let preparedUri: string | null = null;
     try {
       const prepared = await prepareForUpload(asset.uri, 'That photo');
+      preparedUri = prepared.uri;
       onMediaChange(await uploadServicePhoto(serviceId, prepared.bytes));
-      discardCached([asset.uri, prepared.uri]);
     } catch (err) {
       fail(err, 'The photo did not upload. Try again.');
     } finally {
+      // The picker's copy of the original (location still on it) goes whatever happened.
+      discardCached([asset.uri, preparedUri]);
       setBusy(null);
     }
   };
@@ -245,7 +252,7 @@ export function ServiceMediaEditor({
         />
         {photo.source === 'ai' ? (
           <View style={styles.sample}>
-            <T size={11} weight={500} lh={16} color={colors.textPrimary}>
+            <T size={11} weight={500} lh={16} color={colors.white}>
               Sample
             </T>
           </View>
@@ -322,7 +329,7 @@ export function ServiceMediaEditor({
         style={styles.consent}
       >
         <View style={[styles.box, consent && styles.boxOn]}>
-          {consent ? <IconCheck size={16} stroke={3} color={colors.brandBlack} /> : null}
+          {consent ? <IconCheck size={16} stroke={3} color={colors.chosenText} /> : null}
         </View>
         <T size={13} lh={18} color={colors.textSecondary} style={styles.flex}>
           <T size={13} lh={18} weight={600}>
@@ -404,7 +411,7 @@ export function ServiceMediaEditor({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   flex: { flex: 1, minWidth: 0 },
   column: { gap: 12 },
   head: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 },
@@ -421,7 +428,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  boxOn: { borderColor: colors.brandWhite, backgroundColor: colors.brandWhite },
+  boxOn: { borderColor: colors.chosenBg, backgroundColor: colors.chosenBg },
   grid: { gap: 8 },
   row: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
   cell: { flex: 1, minWidth: 0 },
@@ -431,6 +438,7 @@ const styles = StyleSheet.create({
     bottom: 4,
     left: 4,
     borderRadius: 6,
+    // Over the photo: dark in both themes.
     backgroundColor: 'rgba(0,0,0,0.7)',
     paddingHorizontal: 6,
     paddingVertical: 2,
@@ -445,4 +453,4 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.7)',
   },
   choices: { gap: 8 },
-});
+}));

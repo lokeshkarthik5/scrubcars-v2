@@ -1,21 +1,25 @@
 import { type Href, router } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
 import { AccountActions } from '@/components/account-actions';
+import { AppearanceCard } from '@/components/appearance-card';
+import { AppLockCard } from '@/components/app-lock-card';
 import { AppShell, garageScreen } from '@/components/app-shell';
-import { Label, ScButton } from '@/components/button';
-import { IconLogout } from '@/components/icons';
-import { ScCard } from '@/components/primitives';
+import { Label, ScButton } from '@repo/native-ui/button';
+import { IconLogout } from '@repo/native-ui/icons';
+import { ScCard } from '@repo/native-ui/primitives';
 import { SectionHeader, TopBar } from '@/components/rows';
 import { SupportCard } from '@/components/support-card';
-import { T } from '@/components/text';
+import { T } from '@repo/native-ui/text';
 import { APP_VERSION } from '@/lib/app-config';
 import { useAuth } from '@/lib/auth';
-import { colors } from '@/lib/theme';
+import { createStyles, useColors } from '@repo/native-ui/theme';
 
 /** apps/vendors/app/account/page.tsx: who is signed in, and the ways out, for every seat. */
 function AccountScreen() {
+  const colors = useColors();
+  const styles = useStyles();
   const user = useAuth((s) => s.user);
   const vendor = useAuth((s) => s.vendor);
   const vendorCount = useAuth((s) => s.vendors.length);
@@ -42,6 +46,9 @@ function AccountScreen() {
           <T num size={13} color={colors.textSecondary}>{`+91 ${user.phone}`}</T>
         </ScCard>
       ) : null}
+
+      <AppearanceCard />
+      <AppLockCard />
 
       <AccountActions />
 
@@ -71,8 +78,8 @@ function AccountScreen() {
 
 export default garageScreen(AccountScreen);
 
-const styles = StyleSheet.create({
+const useStyles = createStyles(() => ({
   card: { gap: 2 },
   section: { gap: 12 },
   version: { marginBottom: 8 },
-});
+}));
