@@ -1,36 +1,60 @@
-import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Redirect, router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useState } from 'react';
 
-import { AuthHeading, AuthStage } from '@/components/auth-stage';
-import { ScButton } from '@/components/button';
-import { T } from '@/components/text';
+import { StepServices } from '@/components/onboarding/step-services';
+import { StepBusiness } from '@/components/onboarding/step-business';
+import { StepLocation } from '@/components/onboarding/step-location';
+import { StepSetup } from '@/components/onboarding/step-setup';
 import { useAuth } from '@/lib/auth';
-import { colors } from '@/lib/theme';
+import { draftData, openDraft, useOnboardingDraft } from '@/lib/onboarding-draft';
+import { draftFor, parseStep, phoneDigits, stepGuard, stepPath } from '@/lib/onboarding-logic';
+import { onboardingHold } from '@/lib/route-gate';
 
-/** A number with no garage yet. The set-up wizard is v1.1; until then, the website has it. */
+/**
+ * The first-garage wizard, /onboarding/step-1 to step-4 (apps/vendors/app/onboarding/step-N).
+ * The session gate sends a signed-in number with no garage here. The draft is kept on the
+ * phone, so a killed app resumes; a draft that belongs to another number is dropped.
+ */
 export default function OnboardingScreen() {
-  const signOut = useAuth((s) => s.signOut);
-  const [busy, setBusy] = useState(false);
-  return (
-    <AuthStage>
-      <AuthHeading title="Set up your garage" subtitle="Coming in the next version." />
-      <View style={styles.body}>
-        <T size={13} lh={20} color={colors.textSecondary} align="center">
-          For now, set up your garage at vendor.detlio.com with this number.
-        </T>
-        <ScButton
-          variant="outline"
-          disabled={busy}
-          onPress={() => {
-            setBusy(true);
-            void signOut().finally(() => setBusy(false));
-          }}
-        >
-          Sign out
-        </ScButton>
-      </View>
-    </AuthStage>
-  );
-}
+  const { step: param } = useLocalSearchParams<{ step?: string }>();
+  const step = parseStep(param);
+  const phone = phoneDigits(useAuth((s) => s.user?.phone));
+  const hasGarage = useAuth((s) => s.vendor !== null);
+  const businessName = useOnboardingDraft((s) => s.businessName);
+  const ownerName = useOnboardingDraft((s) => s.ownerName);
+  const city = useOnboardingDraft((s) => s.city);
+  const [ready, setReady] = useState(false);
 
-const styles = StyleSheet.create({ body: { marginTop: 24, gap: 16 } });
+  useEffect(() => {
+    // Signed out (phone gone): the draft stays closed. A step still mounted lower in the stack
+    // would otherwise write its stale form back as it unmounts.
+    if (phone) openDraft();
+    const draft = draftData(useOnboardingDraft.getState());
+    if (draftFor(draft, phone) !== draft) useOnboardingDraft.getState().reset();
+    setReady(true);
+  }, [phone]);
+
+  // The gate's hold only bridges step 2 to step 3.
+  useEffect(() => {
+    if (step !== null && step >= 3) onboardingHold.set(false);
+  }, [step]);
+
+  const elsewhere = ready && step ? stepGuard(step, { draft: { businessName, ownerName, city }, hasGarage }) : null;
+  useEffect(() => {
+    if (elsewhere) router.replace(stepPath(elsewhere));
+  }, [elsewhere]);
+
+  if (step === null) return <Redirect href="/onboarding/step-1" />;
+  if (!ready || elsewhere) return null;
+
+  switch (step) {
+    case 1:
+      return <StepBusiness />;
+    case 2:
+      return <StepLocation />;
+    case 3:
+      return <StepSetup />;
+    default:
+      return <StepServices />;
+  }
+}

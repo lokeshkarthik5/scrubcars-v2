@@ -77,6 +77,10 @@ export function AppShell({
         ref={scrollRef}
         style={styles.page}
         keyboardShouldPersistTaps="handled"
+        // Without a docked footer nothing lifts the page above the keyboard: iOS adds the
+        // keyboard's height to the scroll's bottom inset and scrolls the focused box into
+        // view (a no-op while the keyboard is down). A footer screen has the padding above.
+        automaticallyAdjustKeyboardInsets={!footer}
         contentContainerStyle={[
           styles.content,
           { gap, paddingTop: 16, paddingBottom: hasNav || footer ? 16 : insets.bottom + 16 },

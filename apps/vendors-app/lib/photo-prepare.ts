@@ -2,6 +2,7 @@ import { File } from 'expo-file-system';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 
 import { jpegHasLocation } from './jpeg-metadata';
+import { sentTooLarge } from './photo-limits';
 
 /**
  * apps/vendors/lib/resize-image.ts for a phone: a JPEG no larger than 1600px on
@@ -38,7 +39,7 @@ export async function prepareForUpload(uri: string, name = 'This photo'): Promis
     throw new Error(`${name} couldn't be read. Try another photo, or take one with the camera.`);
   }
   const bytes = await new File(saved.uri).bytes();
-  if (bytes.length > MAX_UPLOAD_BYTES) throw new Error(`${name} is too large (max 5 MB).`);
+  if (sentTooLarge(bytes.length)) throw new Error(`${name} is too large (max 5 MB).`);
   if (jpegHasLocation(bytes)) throw new Error(`${name} couldn't be prepared for upload.`);
   return { uri: saved.uri, bytes };
 }

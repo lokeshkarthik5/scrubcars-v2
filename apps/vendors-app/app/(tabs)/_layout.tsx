@@ -17,6 +17,13 @@ export default function TabsLayout() {
       <Tabs.Screen name="settings/index" />
       <Tabs.Screen name="settings/notifications" />
       <Tabs.Screen name="account" />
+      <Tabs.Screen name="reviews" />
+      <Tabs.Screen name="requests" />
+      <Tabs.Screen name="guarantee" />
+      <Tabs.Screen name="agreement" />
+      <Tabs.Screen name="photos" />
+      <Tabs.Screen name="settings/documents" />
+      <Tabs.Screen name="settings/members" />
     </Tabs>
   );
 }
