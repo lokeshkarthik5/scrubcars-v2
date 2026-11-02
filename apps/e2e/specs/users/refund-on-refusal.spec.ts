@@ -103,6 +103,29 @@ test.afterAll(async () => {
 })
 
 test.describe('a payment for a time the garage can no longer take @p0', () => {
+  test('a car already booked at that time is refused before any payment', async () => {
+    const at = tomorrowAt('08:00')
+    const booked = await openCheckout(first, CUSTOMERS.raceFirst.vehicleId, at)
+    expect((await pay(first, { intentId: booked.intentId }, booked.orderId)).status()).toBe(200)
+
+    const again = await first.post(`${API}/api/v1/booking-intents`, {
+      data: {
+        vendorId: VENDORS.lastBay.id,
+        serviceIds: [SERVICES.lastBayWash.id],
+        vehicleId: CUSTOMERS.raceFirst.vehicleId,
+        bookingType: 'dropin',
+        paymentMethod: 'online',
+        scheduledAt: at.toISOString(),
+      },
+    })
+    expect(again.status()).toBe(409)
+    expect(await again.json()).toEqual({
+      success: false,
+      message: expect.stringContaining('nothing was charged'),
+      code: 'VEHICLE_DOUBLE_BOOKED',
+    })
+  })
+
   test('two customers pay for the last bay: one is booked, the other refunded', async () => {
     const at = tomorrowAt('14:00')
 
