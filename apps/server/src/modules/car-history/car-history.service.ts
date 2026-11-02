@@ -1,7 +1,7 @@
 import { runInBackground } from '../../lib/background.js'
 import { buildCarHistory, type CarHistory } from '../../lib/car-history.js'
 import type { ServiceCategory } from '../../lib/categories.js'
-import { isPushEnabled } from '../../lib/env.js'
+import { isAnyPushEnabled } from '../../lib/env.js'
 import { AppError } from '../../lib/errors.js'
 import { addDays, istDateKey, istMidnight } from '../../lib/ist.js'
 import { logger } from '../../lib/logger.js'
@@ -276,7 +276,7 @@ export const carHistoryService = {
       }
     }
 
-    if (!isPushEnabled() || !isReminderPushRun(now)) return summary
+    if (!isAnyPushEnabled() || !isReminderPushRun(now)) return summary
 
     const today = istDateKey(now)
     const candidates = await carHistoryRepository.listPushCandidates(today, SERVICE_REMINDER_BATCH)
