@@ -2,8 +2,8 @@
 
 Garages hear about new bookings, and customers about their bookings, through
 the browser's own notifications (Web Push). It is free: no SMS, no WhatsApp
-approval. Native app push (FCM/APNs) comes later and plugs into the same
-`notify` in `modules/push/push.service.ts`.
+approval. The native apps are a second kind of device on the same `notify` in
+`modules/push/push.service.ts` (see "Phones (the native apps)" at the end).
 
 The feature stays **off** until the three `VAPID_*` variables are set in the
 Vercel environment of the API (`api.detlio.com`). Off means: every push route
@@ -105,3 +105,40 @@ address or car, a pickup code, or anything a person typed. The words are in
 Unit tests never send. E2E runs with `PUSH_FAKE=1` and a public key only
 (`apps/e2e/.env.e2e`): sends are recorded in memory instead of reaching a
 push service. The server refuses to boot with `PUSH_FAKE` in production.
+
+## Phones (the native apps, migration 0067)
+
+The Expo apps (customer and garage) get every notification a browser gets,
+word for word (`lib/push-messages.ts`), through **Expo's push service**
+(`https://exp.host/--/api/v2/push/send`, `lib/expo-push.ts`). Chosen over
+calling FCM and APNs directly because the server then needs no Apple key or
+Firebase service account: the app hands us an Expo token
+(`ExponentPushToken[...]`) and Expo delivers.
+
+- **Off until `EXPO_PUSH_ACCESS_TOKEN` is set.** Off means: the device routes
+  answer 404 and no `push_devices` row is read or written for a send.
+  Browsers are unaffected either way, and each kind works without the other.
+- **Setup**: in the Expo dashboard, create an access token (Account settings
+  → Access tokens), switch **Enhanced push security** on for the project
+  (Project → Credentials/Notifications) so a leaked device token alone cannot
+  push to our users, and set the token in the Vercel environment of the API
+  (Production, and Preview if previews should send). Nothing else.
+- **Routes**, beside the browser ones: `POST` and `DELETE`
+  `/users/me/push/devices` (customer) and `/vendors/me/push/devices` (garage
+  seat) with `{ token, platform: 'ios' | 'android' }` / `{ token }`. The token
+  is in the body, never the URL. Same audience, tenant and support-session
+  rules as `/subscriptions`; the customer's two switches (Booking updates,
+  Reminders) apply to phones too.
+- **Table**: `push_devices` (token unique, platform, user, audience, garage
+  for garage seats). `push_subscriptions` is untouched. At most 10 phones per
+  person per app, the newest. Deleted with the account.
+- **Cleaning**: Expo answering `DeviceNotRegistered` deletes the row at once;
+  ten other failures in a row delete it too; a token that is not an Expo
+  token is deleted and never sent. Receipts (Expo's second step, ~15 minutes
+  later) are not read yet.
+- **A phone never breaks a browser**, nor the reverse: each kind is sent and
+  logged on its own, and a failing phone send is logged (by name and
+  status, never a token) and dropped.
+- **Tests**: `PUSH_FAKE=1` records phone sends in memory
+  (`fakeDeviceOutbox`) instead of calling Expo; unit tests pass a canned
+  `fetch`.

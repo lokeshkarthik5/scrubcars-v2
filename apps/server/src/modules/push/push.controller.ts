@@ -3,7 +3,13 @@ import { AppError } from '../../lib/errors.js'
 import type { AuthVariables } from '../../middleware/auth.middleware.js'
 import { getTenant, type TenantVariables } from '../../middleware/tenant.middleware.js'
 import { pushService } from './push.service.js'
-import type { EndpointInput, PreferencesInput, SubscribeInput } from './push.validation.js'
+import type {
+  EndpointInput,
+  PreferencesInput,
+  RegisterDeviceInput,
+  RemoveDeviceInput,
+  SubscribeInput,
+} from './push.validation.js'
 
 type CustomerContext = Context<{ Variables: AuthVariables }>
 type GarageContext = Context<{ Variables: TenantVariables }>
@@ -61,6 +67,14 @@ export async function testCustomer(c: CustomerContext, input: EndpointInput) {
   return c.json({ success: true, data: await pushService.sendTest(customerScope(c), input) })
 }
 
+export async function registerCustomerDevice(c: CustomerContext, input: RegisterDeviceInput) {
+  return c.json({ success: true, data: await pushService.registerDevice(customerScope(c), input) })
+}
+
+export async function removeCustomerDevice(c: CustomerContext, input: RemoveDeviceInput) {
+  return c.json({ success: true, data: await pushService.removeDevice(customerScope(c), input) })
+}
+
 // ─── Garage seat (/vendors/me/push) ──────────────────────────────────────────
 
 export async function getGarageConfig(c: GarageContext) {
@@ -84,4 +98,13 @@ export async function garageStatus(c: GarageContext, input: EndpointInput) {
 export async function testGarage(c: GarageContext, input: EndpointInput) {
   refuseSupportSession(c)
   return c.json({ success: true, data: await pushService.sendTest(garageScope(c), input) })
+}
+
+export async function registerGarageDevice(c: GarageContext, input: RegisterDeviceInput) {
+  refuseSupportSession(c)
+  return c.json({ success: true, data: await pushService.registerDevice(garageScope(c), input) })
+}
+
+export async function removeGarageDevice(c: GarageContext, input: RemoveDeviceInput) {
+  return c.json({ success: true, data: await pushService.removeDevice(garageScope(c), input) })
 }

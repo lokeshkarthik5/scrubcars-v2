@@ -3,6 +3,8 @@ import { isDataResetEnabled } from './data-reset.js'
 import { parseDailyCap } from './refund-sending.js'
 import { isAutoCancelOn, parseResponseMinutes } from './response-deadline.js'
 import { isPushConfigured } from './push.js'
+import { readReviewLoginEnv } from './review-login.js'
+import { readAppConfigEnv } from './app-config.js'
 import { parsePhotosRequired, parseRequiredGarages } from './job-photo-standards.js'
 import type { GeoProviderName } from './geo/types.js'
 
@@ -134,6 +136,38 @@ export const env = {
   // service (lib/web-push.ts), so the suite can switch the feature on with a
   // public key alone. Refused in production.
   pushFake: readTestFake('PUSH_FAKE', 'records browser notifications instead of sending them'),
+  // ─── App-store reviewer login (lib/review-login.ts) ────────────────────────
+  // Apple and Google sign in to test the native apps and cannot get our SMS.
+  // Two dedicated accounts (a customer and a garage, on their own phone
+  // numbers, never anyone's real one) take a fixed code instead, on the
+  // native sign-in route only:
+  //   REVIEW_LOGIN_CUSTOMER_PHONE   10 digits, the customer app's reviewer
+  //   REVIEW_LOGIN_GARAGE_PHONE     10 digits, the garage app's reviewer
+  //   REVIEW_LOGIN_CODE_HASH        from `bun run --cwd apps/server review-login:hash`
+  // Any of the three missing or malformed and the feature is fully off. The
+  // accounts must already exist: this never creates one. Production only.
+  reviewLogin: readReviewLoginEnv(process.env),
+  // ─── Native app notifications (lib/expo-push.ts, 0067) ─────────────────────
+  // Phones with the Expo apps get the same notifications as browsers, sent
+  // through Expo's push service (no Apple or Firebase key on this server).
+  // The access token is created in the Expo dashboard (Account settings →
+  // Access tokens) with "Enhanced push security" switched on for the project,
+  // so a leaked device token alone cannot push to our users. Unset — as in
+  // development, E2E and previews — and device notifications are off: the
+  // device routes are a 404 and nothing is read or sent. PUSH_FAKE (above)
+  // records device sends in memory instead of calling Expo.
+  expoPushAccessToken: process.env.EXPO_PUSH_ACCESS_TOKEN?.trim() || undefined,
+  // ─── Forced update (lib/app-config.ts, GET /app-config) ───────────────────
+  // What the Expo apps are told when they start: the oldest version still
+  // allowed, the newest release and where to get it. One variable per app
+  // (CUSTOMER / GARAGE), platform (IOS / ANDROID) and kind:
+  //   APP_MIN_VERSION_CUSTOMER_IOS=1.2.0    below this, the app must update
+  //   APP_LATEST_VERSION_CUSTOMER_IOS=1.3.0 optional, shown as "newest"
+  //   APP_STORE_URL_CUSTOMER_IOS=https://apps.apple.com/app/id…
+  // …and the same for CUSTOMER_ANDROID, GARAGE_IOS and GARAGE_ANDROID.
+  // Unset (or not a version / https address) means no update is required,
+  // so a server without them never locks anyone out.
+  appConfig: readAppConfigEnv(process.env),
   // ─── Meta Conversions API (lib/meta-capi.ts) ──────────────────────────────
   // A paid booking is reported to Meta as one Purchase event from the
   // server, beside the customer app's Pixel and under the same event id, but
@@ -494,6 +528,16 @@ export const env = {
     'records usage events from headless browsers'
   ),
 } as const
+
+/** Whether notifications to the native apps are on (the Expo access token is set). */
+export function isDevicePushEnabled(): boolean {
+  return env.expoPushAccessToken !== undefined
+}
+
+/** Whether any notification channel is on: browsers, phones, or both. */
+export function isAnyPushEnabled(): boolean {
+  return isPushEnabled() || isDevicePushEnabled()
+}
 
 /** Whether browser notifications are on (VAPID set, or the E2E stand-in). */
 export function isPushEnabled(): boolean {

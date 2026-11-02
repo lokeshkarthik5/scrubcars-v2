@@ -12,14 +12,20 @@
 /** What an empty duration blocks in the slot calendar. */
 export const DEFAULT_SERVICE_DURATION_MINS = 60
 
-/** The duration a service holds: its own, or the default when it has none. */
+/**
+ * The duration a service holds: its own, or the default when it has none. An
+ * add-on (0068) has no default: blank is no extra time.
+ */
 export function effectiveDurationMins(service: {
   durationMins?: number | null
+  isAddon?: boolean | null
 }): number {
   const mins = service.durationMins
   return typeof mins === 'number' && Number.isFinite(mins) && mins > 0
     ? Math.round(mins)
-    : DEFAULT_SERVICE_DURATION_MINS
+    : service.isAddon === true
+      ? 0
+      : DEFAULT_SERVICE_DURATION_MINS
 }
 
 /** Whether the garage set a duration for the service. */

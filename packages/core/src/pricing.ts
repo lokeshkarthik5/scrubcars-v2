@@ -14,6 +14,9 @@ export function formatBookingAmount(amount: number): string {
   return `₹${amount}`
 }
 
+/** What pricing reads: a service's fields, or an add-on's (0068). */
+export type PricedFields = Pick<Service, 'pricingType' | 'price' | 'priceHatchback' | 'priceSedan' | 'priceSuv'>
+
 /** The tier price for a given vehicle type, or null if that tier isn't set. */
 export function tierPriceFor(
   service: Pick<Service, 'priceHatchback' | 'priceSedan' | 'priceSuv'>,
@@ -36,7 +39,7 @@ export function tierPriceFor(
  * hatchback rate and the booking would then be refused anyway.
  */
 export function resolveServiceAmount(
-  service: Service,
+  service: PricedFields,
   vehicleType?: VehicleType
 ): number | null {
   if (service.pricingType === 'per_vehicle' && vehicleType) {
@@ -56,7 +59,7 @@ export function resolveServiceAmount(
  * details popup, which has the room for it.
  */
 export function formatServicePrice(
-  service: Service,
+  service: PricedFields,
   vehicleType?: VehicleType
 ): string {
   switch (service.pricingType) {

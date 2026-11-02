@@ -12,6 +12,7 @@ import {
   giftCodeAttempts,
   noticeDismissals,
   offerDismissals,
+  pushDevices,
   pushSubscriptions,
   refreshTokens,
   rewardNudges,
@@ -152,6 +153,7 @@ export const accountRepository = {
 
       await tx.delete(userFavouriteVendors).where(eq(userFavouriteVendors.userId, userId))
       await tx.delete(pushSubscriptions).where(eq(pushSubscriptions.userId, userId))
+      await tx.delete(pushDevices).where(eq(pushDevices.userId, userId))
       await tx.delete(slotAlerts).where(eq(slotAlerts.userId, userId))
       await tx.delete(zoneSignups).where(eq(zoneSignups.userId, userId))
       await tx.delete(noticeDismissals).where(eq(noticeDismissals.userId, userId))
