@@ -38,7 +38,7 @@ if (Platform.OS === 'android') {
     name: 'Booking updates',
     importance: Notifications.AndroidImportance.HIGH,
   }).catch(() => undefined);
-  // Ready for when the server names it: it sends none yet (apps/server/src/lib/expo-push.ts).
+  // The server sends customer reminders here (apps/server/src/lib/expo-push.ts).
   void Notifications.setNotificationChannelAsync('reminders', {
     name: 'Reminders',
     importance: Notifications.AndroidImportance.DEFAULT,
