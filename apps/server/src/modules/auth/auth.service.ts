@@ -19,6 +19,7 @@ import {
   otpMatches,
   otpSendLimitMessage,
 } from '../../lib/otp.js'
+import { reviewCodeMatches, reviewLoginApplies } from '../../lib/review-login.js'
 import { sendOtpSms, SmsSendError } from '../../lib/sms.js'
 import { createThrottle } from '../../lib/throttle.js'
 import {
@@ -397,6 +398,13 @@ export const authService = {
 
     await assertOtpSendAllowed(input.phone)
 
+    // The app-store reviewer's number (lib/review-login.ts): the code is made
+    // and stored like any other so the send limits and the attempt limits
+    // count as usual, but no SMS goes out (nobody could type it: the reviewer
+    // signs in with the fixed code, on the native route only) and nothing
+    // here says the number is special. Off unless all three settings are set.
+    const reviewer = reviewLoginApplies(env.reviewLogin, input)
+
     const otpCode = generateOtpCode()
     const expiresAt = getOtpExpiryDate()
 
@@ -408,7 +416,7 @@ export const authService = {
     })
 
     try {
-      await sendOtpSms(input.phone, otpCode)
+      if (!reviewer) await sendOtpSms(input.phone, otpCode)
     } catch (err) {
       if (!(err instanceof SmsSendError)) throw err
       // A code the provider definitely refused is not one the customer used
@@ -423,7 +431,10 @@ export const authService = {
       throw smsFailed(input.phone, err.message)
     }
 
-    log.info({ phone: maskPhone(input.phone), purpose: input.purpose, audience: input.audience }, 'otp:sent')
+    log.info(
+      { phone: maskPhone(input.phone), purpose: input.purpose, audience: input.audience },
+      reviewer ? 'otp:review_not_sent' : 'otp:sent'
+    )
 
     // After the SMS, so the purge never delays the code reaching the phone.
     await purgeOldOtps()
@@ -436,7 +447,12 @@ export const authService = {
     }
   },
 
-  async verifyOtp(input: VerifyOtpInput): Promise<SessionResult> {
+  /**
+   * `native` is the native apps' route (POST /auth/native/otp/verify). Only
+   * there can the app-store reviewer's fixed code stand in for the texted one
+   * (lib/review-login.ts); on the websites' route it is just a wrong code.
+   */
+  async verifyOtp(input: VerifyOtpInput, options: { native?: boolean } = {}): Promise<SessionResult> {
     if (BYPASS_PHONES.has(input.phone)) {
       const user = await resolveUserAfterVerification(input)
       log.debug({ userId: user.id, audience: input.audience, purpose: input.purpose }, 'otp:bypass_verified')
@@ -498,7 +514,16 @@ export const authService = {
       )
     }
 
-    if (!otpMatches(otpKey, otpRecord.otpCode, input.otp, input.phone, input.purpose)) {
+    // The reviewer's number takes the fixed code in place of the texted one.
+    // Everything around it is the normal path: the same attempt limits (the
+    // claim above), the same single use, and the same account lookup, which
+    // refuses a number with no account (a `login` never creates one).
+    const reviewer = options.native === true && reviewLoginApplies(env.reviewLogin, input)
+    const codeMatches = reviewer
+      ? await reviewCodeMatches(env.reviewLogin!, input.otp)
+      : otpMatches(otpKey, otpRecord.otpCode, input.otp, input.phone, input.purpose)
+
+    if (!codeMatches) {
       log.warn({ phone: maskPhone(input.phone), purpose: input.purpose }, 'otp:invalid')
       throw new AppError(400, 'Invalid or expired OTP', 'INVALID_OTP')
     }
@@ -511,6 +536,16 @@ export const authService = {
 
     const user = await resolveUserAfterVerification(input)
     log.info({ userId: user.id, phone: maskPhone(input.phone), audience: input.audience, purpose: input.purpose }, 'otp:verified')
+    if (reviewer) {
+      // Every use tells the team. Never the code. Fire and forget, like every
+      // ops alert: it cannot fail the sign-in, and is off outside Production.
+      log.warn({ userId: user.id, audience: input.audience }, 'otp:review_login_used')
+      alertOps({
+        kind: 'review_login_used',
+        app: input.audience === 'vendor' ? 'garage' : 'customer',
+        phone: input.phone,
+      })
+    }
     return createSession(user, input.audience)
   },
 

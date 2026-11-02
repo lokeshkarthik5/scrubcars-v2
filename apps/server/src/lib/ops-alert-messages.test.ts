@@ -252,6 +252,18 @@ describe('sms failure', () => {
   })
 })
 
+describe('app-store reviewer login', () => {
+  test('says which app and the masked number, and carries nothing secret', () => {
+    const text = formatOpsAlert({ kind: 'review_login_used', app: 'garage', phone: '9876544321' })
+    expect(text).toContain('🔑 App-store reviewer login used')
+    expect(text).toContain('garage app')
+    expect(text).toContain('******4321')
+    expect(text).not.toContain('9876544321')
+    expect(text).toContain('REVIEW_LOGIN_CODE_HASH')
+    expect(formatOpsAlert({ kind: 'review_login_used', app: 'customer', phone: '9876544321' })).toContain('customer app')
+  })
+})
+
 describe('receipt number failure', () => {
   test('names the booking, says the money is safe, quotes the database and links to the booking', () => {
     const text = formatOpsAlert({
