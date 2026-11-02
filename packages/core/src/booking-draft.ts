@@ -45,6 +45,8 @@ export interface BookingDraft {
   vendorId: string
   vendorName: string
   serviceIds: string[]
+  /** The add-ons picked with them (0068); absent on a draft from before. */
+  addOnIds?: string[]
   mode: BookingType
   /** The picked time (ISO), or null before one is picked. */
   slot: string | null
@@ -101,6 +103,9 @@ export function parseBookingDraft(raw: string | null | undefined, now: number): 
     vendorId: d.vendorId,
     vendorName: d.vendorName,
     serviceIds: d.serviceIds as string[],
+    ...(Array.isArray(d.addOnIds) && d.addOnIds.every(isString) && d.addOnIds.length > 0
+      ? { addOnIds: d.addOnIds as string[] }
+      : {}),
     mode: d.mode as BookingType,
     slot: (d.slot as string | null) ?? null,
     car: d.car == null ? null : parseCar(d.car),
@@ -116,8 +121,9 @@ export function isDraftLive(draft: Pick<BookingDraft, 'savedAt'>, now: number): 
 }
 
 /** Where "Continue your booking" goes: checkout with the same garage, services and mode. */
-export function draftResumePath(draft: Pick<BookingDraft, 'vendorId' | 'serviceIds' | 'mode'>): string {
+export function draftResumePath(draft: Pick<BookingDraft, 'vendorId' | 'serviceIds' | 'mode' | 'addOnIds'>): string {
   const params = new URLSearchParams({ service: draft.serviceIds.join(',') })
+  if (draft.addOnIds?.length) params.set('addons', draft.addOnIds.join(','))
   if (draft.mode !== 'dropin') params.set('mode', draft.mode)
   return `/book/${encodeURIComponent(draft.vendorId)}?${params.toString()}`
 }
