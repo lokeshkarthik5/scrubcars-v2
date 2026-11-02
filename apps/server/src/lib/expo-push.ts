@@ -47,8 +47,10 @@ export interface DevicePushSender {
 /**
  * One request body for Expo: the same title and body a browser shows, and
  * `data` with the app path to open (`url`) and the tag, as the browsers get
- * them. No channelId: a channel the app has not created would hide the
- * notification. `collapseId` (≤ 64 bytes) lets a booking's news replace its
+ * them. Reminders go to the customer app's Android `reminders` channel, so
+ * they can be silenced apart from booking news; everything else takes the
+ * default channel, because a channel the app has not created would hide the
+ * notification. Only customers get the 'reminder' category. `collapseId` (≤ 64 bytes) lets a booking's news replace its
  * earlier notification instead of piling up.
  */
 export function expoRequestMessage(target: DeviceTarget, message: PushMessage) {
@@ -60,6 +62,7 @@ export function expoRequestMessage(target: DeviceTarget, message: PushMessage) {
     sound: 'default',
     ttl: message.ttlSeconds,
     priority: message.urgency === 'high' ? 'high' : 'default',
+    ...(message.category === 'reminder' ? { channelId: 'reminders' } : {}),
     ...(message.tag.length <= 64 ? { collapseId: message.tag } : {}),
   }
 }
