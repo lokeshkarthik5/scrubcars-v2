@@ -2015,6 +2015,7 @@ export const PREIOS = {
   /** customer's jobs at `garage`: accepted 3 days out, accepted in 6 hours, waiting to be accepted. */
   cancelEarly: id(5150),
   cancelLate: id(5151),
+  cancelOld: id(5159),
   accept: id(5152),
   /** Pickup & drop: not collected yet (codes below), and being worked on at the garage. */
   pickupFresh: id(5153),
