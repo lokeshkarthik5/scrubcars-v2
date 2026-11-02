@@ -110,8 +110,9 @@ test.describe('a payment for a time the garage can no longer take @p0', () => {
 
     const again = await first.post(`${API}/api/v1/booking-intents`, {
       data: {
-        vendorId: VENDORS.lastBay.id,
-        serviceIds: [SERVICES.lastBayWash.id],
+        // Another garage: LAST_BAY's one bay would refuse it as full first.
+        vendorId: VENDORS.main.id,
+        serviceIds: [SERVICES.wash.id],
         vehicleId: CUSTOMERS.raceFirst.vehicleId,
         bookingType: 'dropin',
         paymentMethod: 'online',
