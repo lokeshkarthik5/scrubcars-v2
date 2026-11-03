@@ -515,6 +515,8 @@ export const STAFF = {
   documentsOwner: { id: id(2301), phone: '9000002301', name: 'Documents Owner Deepa' },
   /** vendor_operator on VENDORS.documents: must not list or open them. */
   documentsOperator: { id: id(2302), phone: '9000002302', name: 'Documents Operator Durai' },
+  /** Owns VENDORS.documentsDoorstep only (doorstep-only: its shop photo is optional). */
+  documentsDoorstepOwner: { id: id(2304), phone: '9000002304', name: 'Documents Doorstep Devi' },
   /** Owns VENDORS.push only (0044; the 2400–2499 range): turns on new-booking alerts. */
   pushOwner: { id: id(2402), phone: '9000002402', name: 'Push Owner Pavan' },
   /** vendor_operator on VENDORS.push: may turn alerts on too (the counter needs them). */
@@ -710,6 +712,12 @@ export const VENDORS = {
    * Far from ORIGIN like the other single-purpose garages (DOCUMENTS_PIN).
    */
   documents: { id: id(2310), name: 'Documents Test Garage' },
+  /**
+   * Doorstep-only (doorstep on, at-garage off), so it has no shop and its
+   * shop photo is optional. Pending and not verified, so no customer list
+   * shows it. One ₹400 wash (SERVICES.documentsDoorstepWash). The 2300 range.
+   */
+  documentsDoorstep: { id: id(2312), name: 'Documents Doorstep Garage' },
   /**
    * Browser notifications (0044). Pending and not verified, so no customer
    * list ever shows it and nobody books it: it only gives its owner's and
@@ -1041,6 +1049,7 @@ export const SERVICES = {
   /** On PROPOSALS: its one service (0041). */
   proposalsWash: { id: id(2111), name: 'Proposals Foam Wash', price: '500.00', durationMins: 60 },
   documentsWash: { id: id(2311), name: 'Documents Foam Wash', price: '400.00', durationMins: 45 },
+  documentsDoorstepWash: { id: id(2313), name: 'Documents Doorstep Wash', price: '400.00', durationMins: 45 },
   /** On PHOTOS (0045): its one service. */
   photosWash: { id: id(2511), name: 'Photo Check Wash', price: '450.00', durationMins: 45 },
   /** On RESPONSE (0042): its one service. */
@@ -2015,6 +2024,7 @@ export const PREIOS = {
   /** customer's jobs at `garage`: accepted 3 days out, accepted in 6 hours, waiting to be accepted. */
   cancelEarly: id(5150),
   cancelLate: id(5151),
+  cancelOld: id(5159),
   accept: id(5152),
   /** Pickup & drop: not collected yet (codes below), and being worked on at the garage. */
   pickupFresh: id(5153),
@@ -2027,4 +2037,28 @@ export const PREIOS = {
   request: id(5160),
   requestWithdrawn: id(5161),
   area: { slug: 'medavakkam', name: 'Medavakkam' },
+} as const
+
+/**
+ * Garage add-ons (0068; ids 5800–5849, phones 90000058xx): a listed garage far
+ * from every other fixture, with one service and four add-ons (one off), its
+ * own owner and customer, and three of the customer's jobs carrying add-on lines.
+ */
+export const ADD_ONS = {
+  customer: { id: id(5800), phone: '9000005800', name: 'Add-on Meena', vehicleId: id(5801) },
+  owner: { id: id(5802), phone: '9000005802', name: 'Add-on Owner Karthik' },
+  garage: { id: id(5803), name: 'Add-on Car Spa' },
+  foam: { id: id(5804), name: 'Add-on Foam Wash', price: 599, durationMins: 45 },
+  helmet: { id: id(5805), name: 'Helmet wash', price: 99, extraMins: 10 },
+  freshener: { id: id(5806), name: 'Air freshener', price: 49 },
+  oil: { id: id(5807), name: 'Oil change', sedanPrice: 999, extraMins: 30 },
+  retired: { id: id(5808), name: 'Retired ceramic spray' },
+  /** Waiting for the garage, and done and paid (the receipt). */
+  pending: id(5810),
+  done: id(5811),
+  /** Admin's editor spec changes this one alone, so no other spec races with it. */
+  editGarage: {
+    id: id(5812), name: 'Add-on Edit Garage', serviceId: id(5813), serviceName: 'Add-on Edit Wash',
+    addOnId: id(5814), addOnName: 'Boot mat wash', ownerId: id(5815), ownerPhone: '9000005815',
+  },
 } as const

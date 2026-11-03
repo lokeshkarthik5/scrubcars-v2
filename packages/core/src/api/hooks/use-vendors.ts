@@ -5,6 +5,7 @@ import { ApiError } from '@repo/core/api/client'
 import { getVendorPackages } from '@repo/core/api/packages'
 import { getVendorReviews } from '@repo/core/api/reviews'
 import { getVendorServices } from '@repo/core/api/services'
+import { getVendorAddOns, type AddOn } from '@repo/core/api/add-ons'
 import {
   getPublicVendor,
   getVendors,
@@ -139,6 +140,8 @@ export function useVendorSearch(
 export interface GarageData {
   vendor: Vendor
   services: Service[]
+  /** Listed under the services, picked at checkout (0068). */
+  addOns: AddOn[]
   packages: ServicePackage[]
 }
 
@@ -165,12 +168,14 @@ export function garageQuery(id: string) {
     queryKey: vendorKeys.garage(id),
     queryFn: async (): Promise<GarageData | null> => {
       try {
-        const [vendor, services, packages] = await Promise.all([
+        const [vendor, services, packages, addOns] = await Promise.all([
           getPublicVendor(id),
           getVendorServices(id),
           getVendorPackages(id),
+          // Extras only: a failure here must never lose the garage's page.
+          getVendorAddOns(id).catch(() => [] as AddOn[]),
         ])
-        return { vendor: mapPublicVendor(vendor), services, packages }
+        return { vendor: mapPublicVendor(vendor), services, packages, addOns }
       } catch (error) {
         if (error instanceof ApiError && error.status === 404) return null
         throw error

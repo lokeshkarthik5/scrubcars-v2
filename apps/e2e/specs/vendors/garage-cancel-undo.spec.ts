@@ -95,6 +95,17 @@ test.describe('garage cancels an accepted booking', () => {
     expect(again.status()).toBe(400)
     expect((await again.json()).code).toBe('INVALID_BOOKING_STATUS')
   })
+
+  test('a confirmed booking with no accepted time (from before 0028) can still be cancelled', async ({ context }) => {
+    await signInAsOwner(context)
+
+    const response = await context.request.patch(`${API}/api/v1/bookings/${PREIOS.cancelOld}/garage-cancel`, {
+      data: { reason: 'Our pressure washer broke down' },
+      headers: { 'x-vendor-id': PREIOS.garage.id },
+    })
+    expect(response.status()).toBe(200)
+    expect((await garageCancel(PREIOS.cancelOld))?.stamped).toBe(true)
+  })
 })
 
 test.describe('five seconds of Undo on Accept and the pickup steps', () => {

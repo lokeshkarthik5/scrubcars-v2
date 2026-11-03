@@ -4,6 +4,7 @@ import type { AuthVariables } from '../../middleware/auth.middleware.js'
 import { getTenant, type TenantVariables } from '../../middleware/tenant.middleware.js'
 import { pushService } from './push.service.js'
 import type {
+  DeviceTestInput,
   EndpointInput,
   PreferencesInput,
   RegisterDeviceInput,
@@ -67,6 +68,10 @@ export async function testCustomer(c: CustomerContext, input: EndpointInput) {
   return c.json({ success: true, data: await pushService.sendTest(customerScope(c), input) })
 }
 
+export async function testCustomerDevices(c: CustomerContext, input: DeviceTestInput) {
+  return c.json({ success: true, data: await pushService.sendDeviceTest(customerScope(c), input) })
+}
+
 export async function registerCustomerDevice(c: CustomerContext, input: RegisterDeviceInput) {
   return c.json({ success: true, data: await pushService.registerDevice(customerScope(c), input) })
 }
@@ -98,6 +103,11 @@ export async function garageStatus(c: GarageContext, input: EndpointInput) {
 export async function testGarage(c: GarageContext, input: EndpointInput) {
   refuseSupportSession(c)
   return c.json({ success: true, data: await pushService.sendTest(garageScope(c), input) })
+}
+
+export async function testGarageDevices(c: GarageContext, input: DeviceTestInput) {
+  refuseSupportSession(c)
+  return c.json({ success: true, data: await pushService.sendDeviceTest(garageScope(c), input) })
 }
 
 export async function registerGarageDevice(c: GarageContext, input: RegisterDeviceInput) {

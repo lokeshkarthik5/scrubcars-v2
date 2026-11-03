@@ -11,7 +11,8 @@
  *     stored; no SQL twin (no list filters on Bronze; agreementStandings
  *     reads it for a batch of garages in two queries).
  *   - **Silver**: Bronze, documents checked (shop photo, owner ID, bank
- *     proof; lib/vendor-documents.ts), 4.2★ or more from 5+ reviews, 10+
+ *     proof, the photo not needed from a doorstep-only garage;
+ *     lib/vendor-documents.ts), 4.2★ or more from 5+ reviews, 10+
  *     completed jobs in 90 days, 85%+ answered in time, no garage no-shows in
  *     90 days. Given and taken by the nightly run (`planSilver`), stored in
  *     vendor_tier_standings; SQL twin SILVER_GARAGE.
@@ -273,6 +274,8 @@ function noShowsStep(metrics: CertificationMetrics, max: number): TierStep {
  */
 export function silverSteps(metrics: CertificationMetrics): TierStep[] {
   const R = TIER_RULES.silver
+  // A doorstep-only garage has no shop, so its shop photo is not asked for.
+  const needs = metrics.shopPhotoOptional === true ? 'ID and bank proof approved' : 'Shop photo, ID and bank proof approved'
   return [
     {
       key: 'documents',
@@ -283,9 +286,9 @@ export function silverSteps(metrics: CertificationMetrics): TierStep[] {
         metrics.documentsVerified === null
           ? 'Not open yet'
           : metrics.documentsVerified
-            ? 'Shop photo, ID and bank proof approved'
+            ? needs
             : 'Not all approved yet',
-      target: 'Shop photo, owner ID and bank proof approved',
+      target: metrics.shopPhotoOptional === true ? 'Owner ID and bank proof approved' : 'Shop photo, owner ID and bank proof approved',
       action: metrics.documentsVerified === null ? null : 'documents',
     },
     ratingStep(metrics, R.minRating, R.minReviews),

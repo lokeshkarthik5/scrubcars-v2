@@ -1,3 +1,4 @@
+import { jobSummary, serviceLinesOf } from '@repo/core/add-ons'
 import { contactWindowState } from '@repo/core/contact-window'
 import { formatClock, formatDay } from '@repo/core/format'
 import {
@@ -241,9 +242,19 @@ export function jobPrice(b: Booking): number {
 
 /** "Foam wash + Interior vacuum", or the server's "Full wash + 2 more" past two. */
 export function servicesLine(b: Booking): string {
-  if (b.items.length > 0 && b.items.length <= 2)
+  // With add-ons, the server's "Foam wash + 2 add-ons": one line on a list row.
+  if (b.items.length > 0 && b.items.length <= 2 && !b.items.some((item) => item.isAddon))
     return b.items.map((item) => item.name).join(' + ')
   return b.serviceSummary
+}
+
+/**
+ * The services alone, where each add-on gets its own marked line below
+ * (JobAddOnLines): the new booking card and the job's page.
+ */
+export function serviceOnlyLine(b: Booking): string {
+  const items = serviceLinesOf(b.items)
+  return servicesLine({ ...b, items, serviceSummary: jobSummary(items) || b.serviceSummary })
 }
 
 /** "Rahul V.": first name and the surname's initial, for tight rows. */

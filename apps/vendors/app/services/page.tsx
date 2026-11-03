@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { IconTool } from '@tabler/icons-react'
+import { IconPlus, IconTool } from '@tabler/icons-react'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ConfirmSheet } from '@repo/ui/sc/confirm-sheet'
 import { ScBadge } from '@repo/ui/sc/badge'
@@ -34,6 +34,7 @@ import type { PricingType, Service, ServiceCategory } from '@repo/core/types'
 import { SERVICE_CATEGORY_OPTIONS } from '@repo/core/categories'
 import { ActiveGarage } from '@/components/active-garage'
 import { RowAction } from './catalogue-row'
+import { AddOnsSection } from './add-ons-section'
 import { PackagesPanel } from './packages-panel'
 import { PRICING_TYPES, formatServicePrice } from '@repo/core/pricing'
 
@@ -86,6 +87,8 @@ export default function VendorServicesPage() {
     if (!isVendorAdmin) roleRouter.replace('/home')
   }, [isVendorAdmin, roleRouter])
   const [tab, setTab] = useState<'services' | 'packages'>('services')
+  // Bumped by the heading's "Add add-on": the section opens its sheet.
+  const [addOnRequest, setAddOnRequest] = useState(0)
   const [services, setServices] = useState<Service[]>([])
   const [serviceForm, setServiceForm] = useState<ServiceForm>(emptyServiceForm)
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null)
@@ -249,7 +252,19 @@ export default function VendorServicesPage() {
                   >
                     Cancel edit
                   </button>
-                ) : undefined
+                ) : (
+                  // The real tab has no "add service" button, only this form,
+                  // so "Add add-on" sits in the heading's slot. An outline:
+                  // the screen's one red is Add service.
+                  <button
+                    type="button"
+                    onClick={() => setAddOnRequest((n) => n + 1)}
+                    className="-my-2 inline-flex min-h-11 items-center gap-1 px-1 text-[13px] font-medium text-text-secondary transition-colors hover:text-text-primary"
+                  >
+                    <IconPlus size={15} aria-hidden="true" />
+                    Add add-on
+                  </button>
+                )
               }
             />
             <ScCard className="flex flex-col gap-3">
@@ -500,6 +515,8 @@ export default function VendorServicesPage() {
               </div>
             )}
           </section>
+
+          <AddOnsSection addRequest={addOnRequest} />
         </TabsContent>
       </Tabs>
 

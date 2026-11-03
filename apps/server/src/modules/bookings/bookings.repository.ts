@@ -62,6 +62,8 @@ export interface BookingItemInput {
   name: string
   amount: string
   durationMins: number
+  /** An add-on line (0068); snapshotted with the line's name and price. */
+  isAddon?: boolean
 }
 
 // The discount already resolved by discountsService, carried into the write so
@@ -1032,6 +1034,7 @@ export const bookingsRepository = {
           amount: item.amount,
           durationMins: item.durationMins,
           sortOrder: index,
+          isAddon: item.isAddon ?? false,
         }))
       )
 
@@ -1346,6 +1349,7 @@ export const bookingsRepository = {
           amount: item.amount,
           durationMins: item.durationMins,
           sortOrder: index,
+          isAddon: item.isAddon ?? false,
         }))
       )
 
@@ -1610,7 +1614,12 @@ export const bookingsRepository = {
             cancelledBy,
             cancellationReason: reason ?? null,
             cancelledAt: at,
-            ...(options.garageCancelled ? { garageCancelledAt: at } : {}),
+            // A confirmed booking from before 0028 has no accepted_at, and the
+            // table refuses a garage cancellation without one. Its created_at
+            // keeps it out of the recent accept counts and response times.
+            ...(options.garageCancelled
+              ? { garageCancelledAt: at, acceptedAt: sql`coalesce(${bookings.acceptedAt}, ${bookings.createdAt})` }
+              : {}),
           })
           .where(
             and(

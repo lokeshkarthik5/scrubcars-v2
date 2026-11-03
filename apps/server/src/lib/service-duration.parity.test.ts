@@ -10,6 +10,9 @@ describe('service duration parity', () => {
     for (const durationMins of [null, undefined, 0, -5, 30, 90, 1440, Number.NaN]) {
       expect(core.effectiveDurationMins({ durationMins })).toBe(server.effectiveDurationMins({ durationMins }))
       expect(core.hasDuration({ durationMins })).toBe(server.hasDuration({ durationMins }))
+      expect(core.effectiveDurationMins({ durationMins, isAddon: true })).toBe(
+        server.effectiveDurationMins({ durationMins, isAddon: true })
+      )
     }
   })
 })

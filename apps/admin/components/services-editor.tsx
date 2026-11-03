@@ -110,6 +110,8 @@ interface ServicesEditorProps {
   /** A refusal about one saved row (a Hide the API turned down), by id. */
   rowErrors?: Record<string, string>
   footnote: ReactNode
+  /** "Add add-on", beside "Add service" (0068); the table is its own section. */
+  onAddAddOn?: () => void
   onAuthError: () => void
   /**
    * Told when AI text starts and stops arriving, so the page can hold Save
@@ -153,6 +155,7 @@ export function ServicesEditor({
   hide,
   rowErrors = {},
   footnote,
+  onAddAddOn,
   onAuthError,
   onAiBusyChange,
   rowNotes = {},
@@ -379,6 +382,11 @@ export function ServicesEditor({
           >
             <IconPlus size={17} stroke={1.5} aria-hidden="true" /> Add service
           </button>
+          {onAddAddOn && (
+            <button type="button" onClick={onAddAddOn} className={PILL_BUTTON}>
+              <IconPlus size={17} stroke={1.5} aria-hidden="true" /> Add add-on
+            </button>
+          )}
           {aiOn && emptyDescriptions.length > 0 && (
             <button type="button" disabled={busy} onClick={() => void fillAll()} className={PILL_BUTTON}>
               <IconSparkles size={17} stroke={1.5} aria-hidden="true" />

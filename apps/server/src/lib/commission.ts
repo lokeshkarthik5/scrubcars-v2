@@ -146,6 +146,8 @@ export function queuePositions(chains: QueuedChain[]): Map<string, number> {
 
 /** A service sold on a booking, with what commission needs of it. */
 export interface CommissionItem {
+  /** An add-on line (0068). Charged as any line, at its category's rate. */
+  isAddon?: boolean
   category: ServiceCategory
   /** The pre-discount line price, as booking_items keeps it. */
   amount: string
