@@ -302,6 +302,13 @@ export type OpsAlert =
       quietMinutes: number
     }
   | {
+      kind: 'review_login_used'
+      /** Which app the reviewer signed in to. */
+      app: 'customer' | 'garage'
+      /** The reviewer account's number. Masked here, whatever it arrives as. */
+      phone: string
+    }
+  | {
       kind: 'receipt_number_failed'
       /** The booking whose payment went through, or whose receipt was opened. */
       bookingId: string
@@ -1106,6 +1113,14 @@ export function formatOpsAlert(alert: OpsAlert): string {
         quoted('Provider said', alert.providerMessage),
         'Check the SMS account (balance, sender approval) and its status page.',
         `Further failures in the next ${alert.quietMinutes} minutes won't be alerted.`
+      )
+
+    case 'review_login_used':
+      // Never the code, and never the hash: only that the door was used.
+      return lines(
+        `🔑 App-store reviewer login used`,
+        `Someone signed in to the ${alert.app === 'garage' ? 'garage' : 'customer'} app as the reviewer account (${maskedPhone(alert.phone)}).`,
+        'Expected while Apple or Google review an app. If no review is under way, change REVIEW_LOGIN_CODE_HASH or clear it to switch the reviewer login off.'
       )
 
     case 'receipt_number_failed':

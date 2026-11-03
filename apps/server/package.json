@@ -15,6 +15,7 @@
     "seed:users": "bash scripts/seed.sh --users",
     "seed:vendors": "bash scripts/seed.sh --vendors",
     "alerts:telegram": "tsx scripts/telegram-setup.ts",
+    "review-login:hash": "tsx scripts/review-login-hash.ts",
     "test": "bun test"
   },
   "dependencies": {

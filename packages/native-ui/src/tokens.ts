@@ -44,6 +44,8 @@ export interface Tokens {
   warning: string;
   warningMuted: string;
   warningFill: string;
+  /** A faint amber wash: the support-session banner's fill. */
+  warningWash: string;
   error: string;
   errorMuted: string;
   info: string;
@@ -61,6 +63,24 @@ export interface Tokens {
   disc: string;
   discStrong: string;
   outlineStrong: string;
+  /** A pending badge's outline (the web's border-white/20). */
+  outlineSoft: string;
+  /** A chosen option's outline (the web's border-text-primary/60). */
+  outlineChosen: string;
+  /** The "starts in 40 min" pill on a job row (border-white/25). */
+  outlineChip: string;
+  /** A garage's amber outline, a red strip, a blue outline, a green outline: borders of a status card. */
+  warningBorder: string;
+  redBorder: string;
+  redWash: string;
+  progressBorder: string;
+  successBorder: string;
+  /** The answer-deadline banner when time is short. */
+  warningSoft: string;
+  /** The empty part of a progress bar. */
+  track: string;
+  /** Surface at 90%: a caption laid over a map. */
+  surfaceVeil: string;
   avatarFrom: string;
   avatarTo: string;
   /** The car's stage on Home. */
@@ -76,6 +96,12 @@ export interface Tokens {
   /** A garage's yes: the accepted request's card. */
   acceptedBg: string;
   acceptedBorder: string;
+  /** A request waiting for the garage's answer: the card's amber edge. */
+  waitingBorder: string;
+  /** The reach sketch on a request: the cover circle's edge, the line to the customer, its labels. */
+  reachStroke: string;
+  reachLine: string;
+  reachLabel: string;
   /** The map. */
   pinBg: string;
   pinText: string;
@@ -104,6 +130,10 @@ export const darkTokens: Tokens = {
   fillChosen: 'rgba(255,255,255,0.04)',
   acceptedBg: '#0E2418',
   acceptedBorder: '#1F5A3A',
+  waitingBorder: 'rgba(245,165,36,0.4)',
+  reachStroke: 'rgba(34,197,94,0.6)',
+  reachLine: 'rgba(255,255,255,0.45)',
+  reachLabel: '#9CA3AF',
   canvas: '#0A0A0B',
   surface: '#141416',
   surfaceElevated: '#272730',
@@ -128,6 +158,7 @@ export const darkTokens: Tokens = {
   warning: '#F5A524',
   warningMuted: 'rgba(245,165,36,0.12)',
   warningFill: '#F5A524',
+  warningWash: 'rgba(245,165,36,0.036)',
   error: '#F5A524',
   errorMuted: 'rgba(245,165,36,0.12)',
   info: '#3B82F6',
@@ -143,6 +174,17 @@ export const darkTokens: Tokens = {
   disc: 'rgba(255,255,255,0.06)',
   discStrong: 'rgba(255,255,255,0.08)',
   outlineStrong: 'rgba(250,250,250,0.4)',
+  outlineSoft: 'rgba(255,255,255,0.2)',
+  outlineChosen: 'rgba(250,250,250,0.6)',
+  outlineChip: 'rgba(255,255,255,0.25)',
+  warningBorder: 'rgba(245,165,36,0.4)',
+  redBorder: 'rgba(239,50,64,0.4)',
+  redWash: 'rgba(239,50,64,0.1)',
+  progressBorder: 'rgba(59,130,246,0.6)',
+  successBorder: 'rgba(34,197,94,0.4)',
+  warningSoft: 'rgba(245,165,36,0.15)',
+  track: '#141416',
+  surfaceVeil: 'rgba(20,20,22,0.9)',
   avatarFrom: '#2E2E34',
   avatarTo: '#1C1C20',
   stage: ['#1E1F24', '#131418', '#0C0D10'],
@@ -182,6 +224,10 @@ export const lightTokens: Tokens = {
   fillChosen: 'rgba(0,0,0,0.04)',
   acceptedBg: '#EFF9F2',
   acceptedBorder: '#A7DDB9',
+  waitingBorder: 'rgba(217,138,0,0.45)',
+  reachStroke: 'rgba(22,163,74,0.6)',
+  reachLine: 'rgba(10,10,11,0.4)',
+  reachLabel: '#62626A',
   canvas: '#F7F7F8',
   surface: '#FFFFFF',
   surfaceElevated: '#EDEDF0',
@@ -206,6 +252,7 @@ export const lightTokens: Tokens = {
   warning: '#7F4C00',
   warningMuted: 'rgba(217,138,0,0.18)',
   warningFill: '#D98A00',
+  warningWash: 'rgba(217,138,0,0.08)',
   error: '#7F4C00',
   errorMuted: 'rgba(217,138,0,0.18)',
   info: '#1D4FD7',
@@ -221,6 +268,17 @@ export const lightTokens: Tokens = {
   disc: 'rgba(10,10,11,0.05)',
   discStrong: 'rgba(10,10,11,0.07)',
   outlineStrong: 'rgba(11,11,13,0.4)',
+  outlineSoft: 'rgba(10,10,11,0.2)',
+  outlineChosen: 'rgba(11,11,13,0.6)',
+  outlineChip: 'rgba(10,10,11,0.2)',
+  warningBorder: 'rgba(217,138,0,0.5)',
+  redBorder: 'rgba(228,0,43,0.3)',
+  redWash: 'rgba(228,0,43,0.06)',
+  progressBorder: 'rgba(37,99,235,0.5)',
+  successBorder: 'rgba(34,197,94,0.4)',
+  warningSoft: 'rgba(245,165,36,0.18)',
+  track: '#E6E6EA',
+  surfaceVeil: 'rgba(255,255,255,0.9)',
   avatarFrom: '#EDEDF0',
   avatarTo: '#E0E0E5',
   stage: ['#FFFFFF', '#F4F4F6', '#E6E6EA'],

@@ -184,7 +184,7 @@ export function ScSegmented<V extends string>({
 }: {
   value: V;
   onChange: (value: V) => void;
-  options: { value: V; label: string; icon?: ReactNode }[];
+  options: { value: V; label: ReactNode; icon?: ReactNode }[];
   accessibilityLabel?: string;
   minHeight?: number;
   labelSize?: number;
@@ -206,9 +206,13 @@ export function ScSegmented<V extends string>({
             style={[styles.segment, { minHeight }, selected && styles.segmentOn]}
           >
             {option.icon}
-            <T size={labelSize} weight={500} numberOfLines={1} color={selected ? colors.textPrimary : colors.textSecondary}>
-              {option.label}
-            </T>
+            {typeof option.label === 'string' ? (
+              <T size={labelSize} weight={500} numberOfLines={1} color={selected ? colors.textPrimary : colors.textSecondary}>
+                {option.label}
+              </T>
+            ) : (
+              option.label
+            )}
           </Pressable>
         );
       })}
@@ -347,6 +351,20 @@ const useStyles = createStyles((c) => ({
   },
   segmentOn: { backgroundColor: c.surfaceElevated },
   skeleton: { backgroundColor: c.skeleton },
+  skeletonList: { gap: 8 },
+  tile: {
+    flex: 1,
+    minWidth: 0,
+    height: '100%',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: c.border,
+    backgroundColor: c.surface,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  tileValue: { marginTop: 2, minHeight: 28, justifyContent: 'center' },
+  tileHint: { marginTop: 2 },
   stars: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   chip: {
     height: 24,
@@ -361,3 +379,83 @@ const useStyles = createStyles((c) => ({
   chipDot: { width: 6, height: 6, borderRadius: 3 },
   chipDotMd: { width: 8, height: 8, borderRadius: 4 },
 }));
+
+/** LoadError (the garage's wording): a failed load said as one, never drawn as an empty list or a 0. */
+export function LoadError({ what, onRetry, retrying = false }: { what?: string; onRetry: () => void; retrying?: boolean }) {
+  const colors = useColors();
+  const styles = useStyles();
+  return (
+    <View accessibilityRole="alert" style={styles.loadError}>
+      <IconAlertCircle size={24} color={colors.textSecondary} />
+      <T size={14} align="center">
+        {what ? `Couldn't load ${what}.` : "Couldn't load."}
+      </T>
+      <ScButton variant="outline" fullWidth={false} onPress={onRetry} disabled={retrying}>
+        {retrying ? 'Retrying…' : 'Retry'}
+      </ScButton>
+    </View>
+  );
+}
+
+export function SkeletonList({ count = 3, height = 96 }: { count?: number; height?: number }) {
+  const styles = useStyles();
+  return (
+    <View accessibilityLabel="Loading" accessibilityRole="progressbar" style={styles.skeletonList}>
+      {Array.from({ length: count }, (_, index) => (
+        <Skeleton key={index} height={height} />
+      ))}
+    </View>
+  );
+}
+
+/** StatTile: one number and what it counts. */
+export function StatTile({ label, value, hint }: { label: string; value: ReactNode; hint?: string }) {
+  const colors = useColors();
+  const styles = useStyles();
+  return (
+    <View style={styles.tile}>
+      <T size={11} weight={500} color={colors.textSecondary}>
+        {label}
+      </T>
+      <View style={styles.tileValue}>
+        {typeof value === 'string' || typeof value === 'number' ? <TileFigure>{value}</TileFigure> : value}
+      </View>
+      {hint ? (
+        <T size={11} color={colors.textSecondary} style={styles.tileHint}>
+          {hint}
+        </T>
+      ) : null}
+    </View>
+  );
+}
+
+export function TileFigure({ children, size = 22 }: { children: ReactNode; size?: number }) {
+  return (
+    <T num size={size} weight={700} lh={28} tracking={-0.025}>
+      {children}
+    </T>
+  );
+}
+
+/** The red count on a heading or a card: a fill, with white figures in both themes. */
+export function CountBadge({ count, small }: { count: number; small?: boolean }) {
+  const colors = useColors();
+  const line = small ? 20 : 24;
+  return (
+    <View
+      style={{
+        minWidth: line,
+        height: line,
+        borderRadius: 999,
+        paddingHorizontal: 6,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: small ? colors.red : colors.redFill,
+      }}
+    >
+      <T num size={small ? 12 : 13} weight={600} lh={line} color={colors.white}>
+        {count}
+      </T>
+    </View>
+  );
+}
