@@ -3,10 +3,12 @@ import { db } from '../../db/index.js'
 import { adminAuditLog, vendorDocumentFiles, vendorDocuments, vendors } from '../../db/schema.js'
 import type {
   DocumentContentType,
+  DocumentModes,
   DocumentSide,
   DocumentStatus,
   DocumentType,
 } from '../../lib/vendor-documents.js'
+import { documentModesOf } from '../../lib/vendor-documents.js'
 
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 type Conn = typeof db | Tx
@@ -36,6 +38,25 @@ function reads(conn: Conn) {
         .where(eq(vendors.id, vendorId))
         .limit(1)
       return row
+    },
+
+    /**
+     * How the garage takes bookings, which decides whether its shop photo is
+     * required (lib/vendor-documents.ts isDoorstepOnly). A garage not found
+     * reads as one with premises, so nothing is waived by accident.
+     */
+    async findModes(vendorId: string): Promise<DocumentModes> {
+      const [row] = await conn
+        .select({
+          doorstepEnabled: vendors.doorstepEnabled,
+          dropinEnabled: vendors.dropinEnabled,
+          pickup: vendors.pickup,
+          pickupTermsAcceptedAt: vendors.pickupTermsAcceptedAt,
+        })
+        .from(vendors)
+        .where(eq(vendors.id, vendorId))
+        .limit(1)
+      return row ? documentModesOf(row) : { doorstepEnabled: false, dropinEnabled: false, pickupOffered: false }
     },
 
     /** The garage's documents, one per type at most. */

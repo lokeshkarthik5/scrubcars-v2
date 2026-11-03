@@ -2258,6 +2258,32 @@ async function seedDocumentRows() {
 }
 
 /**
+ * Garage documents for a doorstep-only garage (no shop, so its shop photo is
+ * optional): VENDORS.documentsDoorstep with its owner's seat and one service.
+ * Pending and not verified so no customer list shows it. The 2300–2399 range.
+ */
+async function seedDocumentDoorstepRows() {
+  const garage = VENDORS.documentsDoorstep.id
+  await db.insert(vendors).values({
+    id: garage, ownerId: STAFF.documentsDoorstepOwner.id, businessName: VENDORS.documentsDoorstep.name,
+    phone: '9000002305', address: '6, Doorstep Lane, Chengalpattu', city: 'Chennai', pincode: '603002',
+    lat: DOCUMENTS_PIN.lat + 0.02, lng: DOCUMENTS_PIN.lng, geoSource: 'map_pin', geoConfirmedAt: now,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'],
+    isVerified: false, doorstepEnabled: true, dropinEnabled: false, doorstepRadiusKm: 10,
+    slotIntervalMins: 30, status: 'pending', bays: 1,
+  })
+  await db.insert(userMemberMapping).values({
+    vendorId: garage, userId: STAFF.documentsDoorstepOwner.id, role: 'vendor_admin', status: 'active',
+  })
+  await db.insert(vendorWorkingHours).values(hoursFor(garage, '06:00:00', '22:00:00'))
+  await db.insert(services).values({
+    id: SERVICES.documentsDoorstepWash.id, vendorId: garage, name: SERVICES.documentsDoorstepWash.name,
+    description: 'An exterior foam wash and dry.', category: 'car_wash', pricingType: 'flat',
+    price: SERVICES.documentsDoorstepWash.price, durationMins: SERVICES.documentsDoorstepWash.durationMins, isActive: true,
+  })
+}
+
+/**
  * Browser notifications (0044): VENDORS.push with its owner's and an
  * operator's seat, pending and unverified so no customer sees it. Every id
  * and phone is in the 2400–2499 / 90000024xx range reserved for this
@@ -4008,6 +4034,7 @@ async function main() {
   await seedResponseDeadlineRows()
   console.log('[e2e-seed] garage documents…')
   await seedDocumentRows()
+  await seedDocumentDoorstepRows()
   console.log('[e2e-seed] browser notifications…')
   await seedPushRows()
   console.log('[e2e-seed] job photo standards…')

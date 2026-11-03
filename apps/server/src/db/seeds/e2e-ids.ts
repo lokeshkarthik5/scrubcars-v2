@@ -515,6 +515,8 @@ export const STAFF = {
   documentsOwner: { id: id(2301), phone: '9000002301', name: 'Documents Owner Deepa' },
   /** vendor_operator on VENDORS.documents: must not list or open them. */
   documentsOperator: { id: id(2302), phone: '9000002302', name: 'Documents Operator Durai' },
+  /** Owns VENDORS.documentsDoorstep only (doorstep-only: its shop photo is optional). */
+  documentsDoorstepOwner: { id: id(2304), phone: '9000002304', name: 'Documents Doorstep Devi' },
   /** Owns VENDORS.push only (0044; the 2400–2499 range): turns on new-booking alerts. */
   pushOwner: { id: id(2402), phone: '9000002402', name: 'Push Owner Pavan' },
   /** vendor_operator on VENDORS.push: may turn alerts on too (the counter needs them). */
@@ -710,6 +712,12 @@ export const VENDORS = {
    * Far from ORIGIN like the other single-purpose garages (DOCUMENTS_PIN).
    */
   documents: { id: id(2310), name: 'Documents Test Garage' },
+  /**
+   * Doorstep-only (doorstep on, at-garage off), so it has no shop and its
+   * shop photo is optional. Pending and not verified, so no customer list
+   * shows it. One ₹400 wash (SERVICES.documentsDoorstepWash). The 2300 range.
+   */
+  documentsDoorstep: { id: id(2312), name: 'Documents Doorstep Garage' },
   /**
    * Browser notifications (0044). Pending and not verified, so no customer
    * list ever shows it and nobody books it: it only gives its owner's and
@@ -1041,6 +1049,7 @@ export const SERVICES = {
   /** On PROPOSALS: its one service (0041). */
   proposalsWash: { id: id(2111), name: 'Proposals Foam Wash', price: '500.00', durationMins: 60 },
   documentsWash: { id: id(2311), name: 'Documents Foam Wash', price: '400.00', durationMins: 45 },
+  documentsDoorstepWash: { id: id(2313), name: 'Documents Doorstep Wash', price: '400.00', durationMins: 45 },
   /** On PHOTOS (0045): its one service. */
   photosWash: { id: id(2511), name: 'Photo Check Wash', price: '450.00', durationMins: 45 },
   /** On RESPONSE (0042): its one service. */

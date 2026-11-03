@@ -30,7 +30,7 @@ import { istDateTimeLabel } from '@repo/core/ist-input'
 import {
   AADHAAR_MASK_NOTE,
   DOCUMENT_ACCEPT,
-  DOCUMENT_HINTS,
+  documentHint,
   DOCUMENT_STATUS_LABELS,
   adminCanRemove,
   fileLine,
@@ -137,7 +137,7 @@ export function GarageDocumentsSection({
         )}
       </p>
       <p className="text-[12px] text-text-muted">
-        When the three required ones are approved, the documents count as
+        When the required ones are approved, the documents count as
         checked, one of the steps to Silver. It does not decide whether the
         garage is listed (that is Show to customers). Files open in a new tab on
         a link that works for 5 minutes;
@@ -301,7 +301,7 @@ function DocumentRow({
           </p>
           <p className="text-[12px] text-text-muted">
             {doc.retired ? 'No longer used' : doc.required ? 'Required' : 'Optional'} ·{' '}
-            {DOCUMENT_HINTS[doc.type]}
+            {documentHint(doc.type, doc.required)}
             {doc.type === 'owner_id' && ` ${AADHAAR_MASK_NOTE}.`}
           </p>
         </div>
