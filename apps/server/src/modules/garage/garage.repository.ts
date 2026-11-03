@@ -30,6 +30,7 @@ import {
   type SeriesStatus,
 } from '../../lib/garage.js'
 import { achievementSettings, istMonthKey, istMonthRange, stampExpiresAt, type RewardsSettings } from '../../lib/rewards.js'
+import { tstz } from '../../lib/sql-dates.js'
 import { rewardsTx, type IssuedVoucher } from '../rewards/rewards.repository.js'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -408,7 +409,7 @@ export const garageRepository = {
       select p.id, p.user_id, c.name, p.rarity, p.was_duplicate
         from garage_pulls p
         join garage_cars c on c.id = p.car_id
-       where p.pulled_at >= ${since}
+       where p.pulled_at >= ${tstz(since)}
          and not exists (select 1 from reward_nudges n where n.user_id = p.user_id and n.kind = 'garage_card' and n.subject_key = 'garage_pull:' || p.id)
        order by p.pulled_at
        limit ${limit}
@@ -417,7 +418,7 @@ export const garageRepository = {
       select r.id, r.user_id, r.series_id, r.row, v.amount as voucher_amount, r.fallback_stamps
         from garage_row_completions r
         left join reward_vouchers v on v.id = r.voucher_id
-       where r.completed_at >= ${since}
+       where r.completed_at >= ${tstz(since)}
          and not exists (select 1 from reward_nudges n where n.user_id = r.user_id and n.kind = 'garage_row' and n.subject_key = 'garage_row:' || r.series_id || ':' || r.row)
        order by r.completed_at
        limit ${limit}
@@ -426,7 +427,7 @@ export const garageRepository = {
       select sc.user_id, sc.series_id, s.name
         from garage_series_completions sc
         join garage_series s on s.id = sc.series_id
-       where sc.completed_at >= ${since}
+       where sc.completed_at >= ${tstz(since)}
          and not exists (select 1 from reward_nudges n where n.user_id = sc.user_id and n.kind = 'garage_series' and n.subject_key = 'garage_series:' || sc.series_id)
        limit ${limit}
     `)
@@ -656,29 +657,29 @@ export const garageRepository = {
     const { start, end } = istMonthRange(monthKey)
     const byRarity = await db.execute<{ rarity: GarageRarity; n: number; forced: number }>(sql`
       select rarity, count(*)::int as n, count(*) filter (where forced is not null)::int as forced
-        from garage_pulls where series_id = ${seriesId} and pulled_at >= ${start} and pulled_at < ${end}
+        from garage_pulls where series_id = ${seriesId} and pulled_at >= ${tstz(start)} and pulled_at < ${tstz(end)}
        group by rarity
     `)
     const bySource = await db.execute<{ source: PullSource; n: number }>(sql`
       select source, count(*)::int as n
-        from garage_pulls where series_id = ${seriesId} and pulled_at >= ${start} and pulled_at < ${end}
+        from garage_pulls where series_id = ${seriesId} and pulled_at >= ${tstz(start)} and pulled_at < ${tstz(end)}
        group by source
     `)
     const [dupes] = await db.execute<{ n: number; converted: number }>(sql`
       select count(*) filter (where was_duplicate)::int as n, count(*) filter (where converted_at is not null)::int as converted
-        from garage_pulls where series_id = ${seriesId} and pulled_at >= ${start} and pulled_at < ${end}
+        from garage_pulls where series_id = ${seriesId} and pulled_at >= ${tstz(start)} and pulled_at < ${tstz(end)}
     `)
     const [stamps] = await db.execute<{ n: number }>(sql`
-      select count(*)::int as n from reward_stamps where source = 'garage' and earned_at >= ${start} and earned_at < ${end}
+      select count(*)::int as n from reward_stamps where source = 'garage' and earned_at >= ${tstz(start)} and earned_at < ${tstz(end)}
     `)
     const rows = await db.execute<{ row: number; n: number; vouchers: number; amount: string | null }>(sql`
       select r.row, count(*)::int as n, count(r.voucher_id)::int as vouchers, sum(v.amount) as amount
         from garage_row_completions r left join reward_vouchers v on v.id = r.voucher_id
-       where r.series_id = ${seriesId} and r.completed_at >= ${start} and r.completed_at < ${end}
+       where r.series_id = ${seriesId} and r.completed_at >= ${tstz(start)} and r.completed_at < ${tstz(end)}
        group by r.row order by r.row
     `)
     const [series] = await db.execute<{ month: number; ever: number }>(sql`
-      select count(*) filter (where completed_at >= ${start} and completed_at < ${end})::int as month, count(*)::int as ever
+      select count(*) filter (where completed_at >= ${tstz(start)} and completed_at < ${tstz(end)})::int as month, count(*)::int as ever
         from garage_series_completions where series_id = ${seriesId}
     `)
     const [collectors] = await db.execute<{ n: number }>(sql`
@@ -729,7 +730,7 @@ export const garageRepository = {
         join users u on u.id = p.user_id
         join garage_cars c on c.id = p.car_id
         join garage_series s on s.id = p.series_id
-       where p.pulled_at >= ${start} and p.pulled_at < ${end}
+       where p.pulled_at >= ${tstz(start)} and p.pulled_at < ${tstz(end)}
        order by p.pulled_at
        limit ${limit}
     `)
