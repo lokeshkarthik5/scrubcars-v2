@@ -74,7 +74,11 @@ jobs:
     needs: gate
     if: needs.gate.outputs.release == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # migrate.sh opens a new connection per file and per check, so the three
+    # migration steps alone take ~16 minutes at 68 files and grow with every
+    # migration. A timeout cancels the job before Deploy, leaving the database
+    # migrated and the old API serving it.
+    timeout-minutes: 45
     # Never cancel a release in flight, and never run two at once: a newer one
     # queues behind it (GitHub keeps only the newest queued run, which is the
     # one that matters).
