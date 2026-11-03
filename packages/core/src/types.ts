@@ -264,6 +264,8 @@ export interface BookingItem {
   durationMins: number
   /** How the service is priced; an inspection fee is not the whole price. */
   pricingType?: PricingType
+  /** An add-on (0068): shown as its own marked line, and no service done. */
+  isAddon?: boolean
 }
 
 /** A photo the garage took of the job: the car before, or the work after. */
@@ -616,7 +618,8 @@ export interface BookingReceipt {
     scheduledAt: string
     scheduledAtLabel: string
   }
-  items: Array<{ name: string; amount: string }>
+  /** `isAddon` (0068) marks an add-on's line; absent otherwise. */
+  items: Array<{ name: string; amount: string; isAddon?: boolean }>
   /** An accepted request's travel fee (0062): its own line, inside the subtotal. Absent on older APIs. */
   travelFee?: string | null
   subtotal: string

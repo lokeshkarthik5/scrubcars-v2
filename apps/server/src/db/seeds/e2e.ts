@@ -122,6 +122,7 @@ import {
   TRUST_LOOK,
   TIERS,
   PRE_IOS,
+  ADD_ONS,
 } from './e2e-ids.js'
 import { hashPassword } from '../../lib/passwords.js'
 
@@ -586,7 +587,7 @@ type BookingSpec = {
   scheduledAt: Date
   /** 'rescheduled' is the old way a move retired a booking; a fixture keeps it. */
   status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'rescheduled'
-  items: Array<{ id: string; name: string; amount: string; durationMins: number }>
+  items: Array<{ id: string; name: string; amount: string; durationMins: number; isAddon?: boolean }>
   discount?: { id: string; code: string; amount: string; fundedBy: 'platform' | 'vendor' }
   /**
    * `paidAt` defaults to a day ago for a paid (or since refunded) one. A
@@ -697,6 +698,7 @@ async function insertBooking(spec: BookingSpec) {
       amount: item.amount,
       durationMins: item.durationMins,
       sortOrder,
+      isAddon: item.isAddon ?? false,
     }))
   )
 
@@ -2256,6 +2258,32 @@ async function seedDocumentRows() {
 }
 
 /**
+ * Garage documents for a doorstep-only garage (no shop, so its shop photo is
+ * optional): VENDORS.documentsDoorstep with its owner's seat and one service.
+ * Pending and not verified so no customer list shows it. The 2300–2399 range.
+ */
+async function seedDocumentDoorstepRows() {
+  const garage = VENDORS.documentsDoorstep.id
+  await db.insert(vendors).values({
+    id: garage, ownerId: STAFF.documentsDoorstepOwner.id, businessName: VENDORS.documentsDoorstep.name,
+    phone: '9000002305', address: '6, Doorstep Lane, Chengalpattu', city: 'Chennai', pincode: '603002',
+    lat: DOCUMENTS_PIN.lat + 0.02, lng: DOCUMENTS_PIN.lng, geoSource: 'map_pin', geoConfirmedAt: now,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'],
+    isVerified: false, doorstepEnabled: true, dropinEnabled: false, doorstepRadiusKm: 10,
+    slotIntervalMins: 30, status: 'pending', bays: 1,
+  })
+  await db.insert(userMemberMapping).values({
+    vendorId: garage, userId: STAFF.documentsDoorstepOwner.id, role: 'vendor_admin', status: 'active',
+  })
+  await db.insert(vendorWorkingHours).values(hoursFor(garage, '06:00:00', '22:00:00'))
+  await db.insert(services).values({
+    id: SERVICES.documentsDoorstepWash.id, vendorId: garage, name: SERVICES.documentsDoorstepWash.name,
+    description: 'An exterior foam wash and dry.', category: 'car_wash', pricingType: 'flat',
+    price: SERVICES.documentsDoorstepWash.price, durationMins: SERVICES.documentsDoorstepWash.durationMins, isActive: true,
+  })
+}
+
+/**
  * Browser notifications (0044): VENDORS.push with its owner's and an
  * operator's seat, pending and unverified so no customer sees it. Every id
  * and phone is in the 2400–2499 / 90000024xx range reserved for this
@@ -3699,6 +3727,80 @@ async function seedPreIosRows() {
 }
 
 /**
+ * Garage add-ons (0068; ADD_ONS, ids 5800–5849, phones 90000058xx). A listed
+ * garage of its own, far from every other fixture, so no other spec sees its
+ * jobs or a new button at checkout.
+ */
+async function seedAddOnRows() {
+  const A = ADD_ONS
+  await db.insert(users).values([
+    { id: A.customer.id, name: A.customer.name, phone: A.customer.phone, isCustomer: true, isVendorOwner: false,
+      phoneVerified: true, status: 'active' as const },
+    { id: A.owner.id, name: A.owner.name, phone: A.owner.phone, isCustomer: false, isVendorOwner: true,
+      phoneVerified: true, status: 'active' as const },
+  ])
+  await db.insert(userVehicles).values({
+    id: A.customer.vehicleId, userId: A.customer.id, make: 'Hyundai', model: 'Verna', color: 'White',
+    licensePlate: 'TN58AD0001', vehicleType: 'sedan', isDefault: true,
+  })
+  const E = A.editGarage
+  await db.insert(users).values({
+    id: E.ownerId, name: 'Add-on Edit Owner', phone: E.ownerPhone, isCustomer: false, isVendorOwner: true,
+    phoneVerified: true, status: 'active' as const,
+  })
+  for (const [garage, owner, phone, n] of [
+    [A.garage, A.owner.id, A.owner.phone, 0],
+    [E, E.ownerId, E.ownerPhone, 1],
+  ] as const) {
+    await db.insert(vendors).values({
+      id: garage.id, ownerId: owner, businessName: garage.name, phone,
+      address: `${n + 1}, Add-on Road, Kovalam`, city: 'Chennai', pincode: '603112',
+      lat: ORIGIN.lat - 1.7 - n * 0.01, lng: ORIGIN.lng - 0.4, geoSource: 'map_pin', geoConfirmedAt: now,
+      vehicleTypes: ['hatchback', 'sedan', 'suv'], bays: 4, slotIntervalMins: 30, whatsapp: null,
+      status: 'active', isVerified: true, dropinEnabled: true, doorstepEnabled: false, createdAt: daysAgo(30),
+    })
+    await db.insert(userMemberMapping).values({
+      vendorId: garage.id, userId: owner, role: 'vendor_admin', status: 'active',
+    })
+    await db.insert(vendorWorkingHours).values(hoursFor(garage.id, '06:00:00', '22:00:00'))
+  }
+  await db.insert(services).values([
+    { id: E.serviceId, vendorId: E.id, name: E.serviceName, description: 'An exterior foam wash and dry.',
+      category: 'car_wash', pricingType: 'flat', price: '499.00', durationMins: 60, isActive: true },
+    { id: E.addOnId, vendorId: E.id, name: E.addOnName, category: 'others', isAddon: true, pricingType: 'per_vehicle',
+      price: '99.00', priceHatchback: '99.00', priceSedan: '149.00', priceSuv: '199.00', durationMins: 20 },
+  ])
+  const addOn = { vendorId: A.garage.id, category: 'others' as const, isAddon: true }
+  await db.insert(services).values([
+    { id: A.foam.id, vendorId: A.garage.id, name: A.foam.name, description: 'An exterior foam wash and dry.',
+      category: 'car_wash', pricingType: 'flat', price: '599.00', durationMins: A.foam.durationMins, isActive: true },
+    { ...addOn, id: A.helmet.id, name: A.helmet.name, pricingType: 'flat', price: '99.00', durationMins: A.helmet.extraMins },
+    { ...addOn, id: A.freshener.id, name: A.freshener.name, pricingType: 'flat', price: '49.00', durationMins: 0 },
+    { ...addOn, id: A.oil.id, name: A.oil.name, pricingType: 'per_vehicle', price: '899.00', priceHatchback: '899.00',
+      priceSedan: '999.00', priceSuv: '1199.00', durationMins: A.oil.extraMins },
+    { ...addOn, id: A.retired.id, name: A.retired.name, pricingType: 'flat', price: '10.00', durationMins: 0, isActive: false },
+  ])
+
+  const items = [
+    { id: A.foam.id, name: A.foam.name, amount: '599.00', durationMins: A.foam.durationMins },
+    { id: A.helmet.id, name: A.helmet.name, amount: '99.00', durationMins: A.helmet.extraMins, isAddon: true },
+    { id: A.freshener.id, name: A.freshener.name, amount: '49.00', durationMins: 0, isAddon: true },
+  ]
+  const common = { userId: A.customer.id, vehicleId: A.customer.vehicleId, vendorId: A.garage.id, items }
+  await insertBooking({
+    ...common, id: A.pending, scheduledAt: daysAheadAt(2, 11), status: 'pending', createdAt: hoursAgo(1),
+    payment: { status: 'paid', txnId: 'pay_e2e_addons_pending', gatewayMode: 'fake' },
+    // Three hours to answer: no run's cron reaches it (AUTO_CANCEL_UNANSWERED is on).
+    respondBy: new Date(now.getTime() + 3 * HOUR),
+  })
+  await insertBooking({
+    ...common, id: A.done, scheduledAt: daysAgo(3), status: 'completed', createdAt: daysAgo(4),
+    acceptedAt: daysAgo(4), startedAt: daysAgo(3), completedAt: daysAgo(3),
+    payment: { status: 'paid', txnId: 'pay_e2e_addons_done', gatewayMode: 'fake', paidAt: daysAgo(4) },
+  })
+}
+
+/**
  * Pre-iOS accounts round (0066; PREIOS, ids 5100–5199, phones 90000051xx):
  * its people, its two unverified garages far from every other fixture, and
  * the rows its specs act on (see PREIOS). Each spec acts on its own rows.
@@ -3932,6 +4034,7 @@ async function main() {
   await seedResponseDeadlineRows()
   console.log('[e2e-seed] garage documents…')
   await seedDocumentRows()
+  await seedDocumentDoorstepRows()
   console.log('[e2e-seed] browser notifications…')
   await seedPushRows()
   console.log('[e2e-seed] job photo standards…')
@@ -3966,6 +4069,8 @@ async function main() {
   await seedPreIosRows()
   console.log('[e2e-seed] pre-iOS accounts round…')
   await seedPreiosRows()
+  console.log('[e2e-seed] garage add-ons…')
+  await seedAddOnRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }

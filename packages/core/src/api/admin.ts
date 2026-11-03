@@ -447,6 +447,8 @@ export interface AdminBooking {
   vehicle: { id: string; make: string; model: string; plate: string | null } | null
   /** Every service on the booking, priced as sold. */
   items: Array<{
+    /** An add-on line (0068); absent from older servers. */
+    isAddon?: boolean
     id: string
     serviceId: string
     name: string

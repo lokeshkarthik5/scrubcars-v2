@@ -16,6 +16,8 @@
  * packages/core/src/vendor-documents.ts (vendor-documents.parity.test.ts).
  */
 
+import { isPickupOffered, type PickupSettings } from './pickup.js'
+
 /** Every kind of document, in the order the screens list them. */
 export const DOCUMENT_TYPES = [
   'shop_photo',
@@ -33,12 +35,68 @@ export type DocumentType = (typeof DOCUMENT_TYPES)[number]
  * (Silver). GST and a trade licence are optional: many small garages have
  * neither. The signed paper agreement was the fourth until 0063, when the
  * click-to-agree agreement (lib/agreements.ts) replaced it.
+ *
+ * This is the full list. A doorstep-only garage has no shop, so for it the
+ * shop photo is optional (`requiredDocumentTypes`, below).
  */
 export const REQUIRED_DOCUMENT_TYPES = [
   'shop_photo',
   'owner_id',
   'bank_proof',
 ] as const satisfies readonly DocumentType[]
+
+/**
+ * How a garage takes bookings, the two facts that decide whether it has a
+ * shop. Every caller that works out documents state passes these from the
+ * garage's own row (batch reads included), so none can forget.
+ */
+export interface DocumentModes {
+  doorstepEnabled: boolean
+  dropinEnabled: boolean
+  /** Offers pickup & drop (lib/pickup.ts isPickupOffered): the garage collects cars, so it has premises. */
+  pickupOffered: boolean
+}
+
+/** The modes from a garage row (or the columns that decide them). */
+export function documentModesOf(row: {
+  doorstepEnabled: boolean
+  dropinEnabled: boolean
+  pickup: PickupSettings['pickup']
+  pickupTermsAcceptedAt: PickupSettings['pickupTermsAcceptedAt']
+}): DocumentModes {
+  return {
+    doorstepEnabled: row.doorstepEnabled,
+    dropinEnabled: row.dropinEnabled,
+    pickupOffered: isPickupOffered({
+      pickup: row.pickup,
+      pickupRadiusKm: null,
+      pickupTermsAcceptedAt: row.pickupTermsAcceptedAt,
+    }),
+  }
+}
+
+/**
+ * **Doorstep-only** (owner decision, 1 Nov 2026: "Documents for doorstep they
+ * cant provide a front store photo so that cant be mandatory"): doorstep on,
+ * at-garage (drop-in) off and pickup & drop not offered, so there is no shop
+ * to photograph. A garage that collects cars (pickup offered, with or without
+ * doorstep) works from premises, so the photo is still required. Turning at-garage on later makes
+ * the photo required again, and Silver follows the normal at-risk rules.
+ */
+export function isDoorstepOnly(modes: DocumentModes): boolean {
+  return modes.doorstepEnabled && !modes.dropinEnabled && !modes.pickupOffered
+}
+
+/**
+ * The types this garage needs approved for its documents to count as
+ * checked: the three, or ID and bank proof for a doorstep-only garage (its
+ * shop photo is then an optional type: still uploaded, reviewed and removed).
+ */
+export function requiredDocumentTypes(modes: DocumentModes): readonly DocumentType[] {
+  return isDoorstepOnly(modes)
+    ? REQUIRED_DOCUMENT_TYPES.filter((type) => type !== 'shop_photo')
+    : REQUIRED_DOCUMENT_TYPES
+}
 
 /**
  * Types nobody uploads any more: the signed paper agreement (0063, replaced
@@ -104,8 +162,8 @@ export function isDocumentType(value: string): value is DocumentType {
   return (DOCUMENT_TYPES as readonly string[]).includes(value)
 }
 
-export function isRequiredDocument(type: DocumentType): boolean {
-  return (REQUIRED_DOCUMENT_TYPES as readonly string[]).includes(type)
+export function isRequiredDocument(type: DocumentType, modes: DocumentModes): boolean {
+  return requiredDocumentTypes(modes).includes(type)
 }
 
 export function isDocumentContentType(value: string): value is DocumentContentType {
@@ -209,14 +267,17 @@ export type RemovalRefusal = 'signed_agreement' | 'approved_required' | 'not_gar
  *   was warned (`requiredConfirmed`); without it, 'approved_required'.
  * - The garage's owner seat removes an optional type, and a required one it
  *   uploaded itself that Detlio has not approved yet (a wrong file).
+ * - "Required" is for this garage (`modes`): a doorstep-only garage's shop
+ *   photo is optional, so it goes like any optional type.
  */
 export function removalRefusal(
   doc: { type: DocumentType; status: DocumentStatus; uploadedBy: string },
   by: 'admin' | 'garage',
-  requiredConfirmed = false
+  requiredConfirmed: boolean,
+  modes: DocumentModes
 ): RemovalRefusal | null {
   if (doc.type === 'agreement' && doc.status === 'approved') return 'signed_agreement'
-  if (!isRequiredDocument(doc.type)) return null
+  if (!isRequiredDocument(doc.type, modes)) return null
   if (by === 'admin') return requiredConfirmed ? null : 'approved_required'
   if (doc.uploadedBy !== 'garage') return 'not_garage_upload'
   return doc.status === 'approved' ? 'approved_required' : null
@@ -230,11 +291,13 @@ export interface DocumentState {
 }
 
 /**
- * **Documents checked**: every required type approved. Optional ones do not
- * count either way, so an expired trade licence never takes Silver away.
+ * **Documents checked**: every type this garage requires approved. Optional
+ * ones do not count either way, so an expired trade licence never takes
+ * Silver away, and a doorstep-only garage's shop photo (pending, rejected or
+ * missing) does not either.
  */
-export function documentsVerified(documents: readonly DocumentState[]): boolean {
-  return REQUIRED_DOCUMENT_TYPES.every((type) =>
+export function documentsVerified(documents: readonly DocumentState[], modes: DocumentModes): boolean {
+  return requiredDocumentTypes(modes).every((type) =>
     documents.some((doc) => doc.type === type && doc.status === 'approved')
   )
 }
@@ -252,18 +315,17 @@ export interface DocumentsSummary {
   rejected: number
 }
 
-export function summariseDocuments(documents: readonly DocumentState[]): DocumentsSummary {
-  const approvedRequired = REQUIRED_DOCUMENT_TYPES.filter((type) =>
+export function summariseDocuments(documents: readonly DocumentState[], modes: DocumentModes): DocumentsSummary {
+  const required = requiredDocumentTypes(modes)
+  const approvedRequired = required.filter((type) =>
     documents.some((doc) => doc.type === type && doc.status === 'approved')
   ).length
   return {
-    verified: approvedRequired === REQUIRED_DOCUMENT_TYPES.length,
+    verified: approvedRequired === required.length,
     approvedRequired,
-    required: REQUIRED_DOCUMENT_TYPES.length,
+    required: required.length,
     toReview: documents.filter((doc) => doc.status === 'pending').length,
-    missingRequired: REQUIRED_DOCUMENT_TYPES.filter(
-      (type) => !documents.some((doc) => doc.type === type)
-    ).length,
+    missingRequired: required.filter((type) => !documents.some((doc) => doc.type === type)).length,
     rejected: documents.filter((doc) => doc.status === 'rejected').length,
   }
 }
@@ -275,18 +337,28 @@ export function progressLine(summary: Pick<DocumentsSummary, 'approvedRequired' 
 
 /**
  * Every document row grouped by garage, as the admin list and the customer
- * lists read them: one pass, no query per garage.
+ * lists read them: one pass, no query per garage. `modes` holds every garage
+ * to summarise; each gets a summary (a garage with no rows reads as nothing
+ * uploaded) worked out for its own modes, and rows of a garage not in it are
+ * left out.
  */
 export function summariesByVendor(
-  rows: ReadonlyArray<DocumentState & { vendorId: string }>
+  rows: ReadonlyArray<DocumentState & { vendorId: string }>,
+  modes: ReadonlyMap<string, DocumentModes>
 ): Map<string, DocumentsSummary> {
   const byVendor = new Map<string, DocumentState[]>()
   for (const row of rows) {
+    if (!modes.has(row.vendorId)) continue
     const list = byVendor.get(row.vendorId) ?? []
     list.push(row)
     byVendor.set(row.vendorId, list)
   }
-  return new Map([...byVendor].map(([vendorId, docs]) => [vendorId, summariseDocuments(docs)]))
+  return new Map(
+    [...modes].map(([vendorId, vendorModes]) => [
+      vendorId,
+      summariseDocuments(byVendor.get(vendorId) ?? [], vendorModes),
+    ])
+  )
 }
 
 /**

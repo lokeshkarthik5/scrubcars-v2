@@ -612,6 +612,8 @@ export interface ApiBooking {
     durationMins: number
     /** Absent from older servers. */
     pricingType?: 'flat' | 'per_vehicle' | 'on_inspection' | null
+    /** An add-on line (0068); absent from older servers. */
+    isAddon?: boolean
   }>
   /** The booking's total duration: the sum of its items. */
   durationMins: number
@@ -705,4 +707,31 @@ export interface ApiReviewSummary {
   knownFor: { tag: string; label: string } | null
   /** Stars 5 to 1, with how many counted reviews gave each. */
   stars: Array<{ stars: number; count: number }>
+}
+
+/** An add-on as the API sends it (0068). Prices are decimal strings. */
+export interface ApiAddOn {
+  id: string
+  name: string
+  pricingType: 'flat' | 'per_vehicle'
+  price: string
+  priceHatchback: string | null
+  priceSedan: string | null
+  priceSuv: string | null
+  extraMins: number
+  isActive: boolean
+}
+
+/** An add-on: a small extra that goes with any of a garage's services. */
+export interface AddOn {
+  id: string
+  name: string
+  pricingType: 'flat' | 'per_vehicle'
+  price: number
+  priceHatchback: number | null
+  priceSedan: number | null
+  priceSuv: number | null
+  /** Minutes it adds to the job; 0 is none. */
+  extraMins: number
+  isActive: boolean
 }

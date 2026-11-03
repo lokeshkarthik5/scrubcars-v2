@@ -7,6 +7,8 @@ export interface SubmitReviewPayload {
   bookingId: string
   rating: number
   comment?: string
+  /** 0065: from tagsForRating(rating). */
+  tags?: string[]
 }
 
 /** GET /reviews/vendors/:vendorId */
@@ -33,6 +35,7 @@ export async function submitReview(
       bookingId: payload.bookingId,
       rating: payload.rating,
       comment: payload.comment,
+      ...(payload.tags?.length ? { tags: payload.tags } : {}),
     }),
   })
   return mapReview(review)

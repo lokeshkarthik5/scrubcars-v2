@@ -1,5 +1,6 @@
 'use client'
 
+import { JobAddOnLines } from '@/components/job-add-on-lines'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import {
@@ -49,7 +50,7 @@ import {
   photoStage,
   progressIndex,
   PROGRESS_STEPS,
-  servicesLine,
+  serviceOnlyLine,
 } from '@/lib/jobs'
 import { useVendorBookings } from '@/lib/use-vendor-bookings'
 
@@ -203,8 +204,9 @@ function Job({
           </StatusChip>
         </div>
         <p className="text-[16px] text-text-secondary">
-          {servicesLine(b)} · {BOOKING_TYPE_LABELS[b.bookingType]}
+          {serviceOnlyLine(b)} · {BOOKING_TYPE_LABELS[b.bookingType]}
         </p>
+        <JobAddOnLines items={b.items} className="text-[14px] text-text-secondary" />
         {stepTimes.length > 0 && (
           <p className="font-numeric text-[14px] text-text-secondary">
             {stepTimes.join(' · ')}

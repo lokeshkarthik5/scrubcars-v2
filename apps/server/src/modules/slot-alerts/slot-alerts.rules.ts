@@ -1,3 +1,4 @@
+import { ADD_ONS_ALONE_CODE, ADD_ONS_ALONE_MESSAGE, lineCapRefusal, onlyAddOns } from '../../lib/add-ons.js'
 import { effectiveDurationMins } from '../../lib/service-duration.js'
 import { AppError } from '../../lib/errors.js'
 import type { BookingType } from '../../lib/booking-types.js'
@@ -55,7 +56,7 @@ export interface SlotAlertsStore {
   findUser(userId: string): Promise<{ id: string; status: string } | undefined>
   /** Only while customers can open the garage's page. */
   findGarage(vendorId: string): Promise<AlertGarage | undefined>
-  findServices(vendorId: string, serviceIds: string[]): Promise<Array<{ id: string; durationMins: number | null }>>
+  findServices(vendorId: string, serviceIds: string[]): Promise<Array<{ id: string; durationMins: number | null; isAddon?: boolean }>>
   readDay(
     vendorId: string,
     date: string
@@ -216,6 +217,9 @@ export function slotAlertsWith(deps: {
       if (services.length !== input.serviceIds.length) {
         throw new AppError(404, 'Service not found', 'SERVICE_NOT_FOUND')
       }
+      if (onlyAddOns(services)) throw new AppError(400, ADD_ONS_ALONE_MESSAGE, ADD_ONS_ALONE_CODE)
+      const overCap = lineCapRefusal(services)
+      if (overCap) throw new AppError(400, overCap.message, overCap.code)
       // An unset duration holds the default 60 minutes, as at checkout (0064).
       const durationMins = services.reduce((total, service) => total + effectiveDurationMins(service), 0)
 
