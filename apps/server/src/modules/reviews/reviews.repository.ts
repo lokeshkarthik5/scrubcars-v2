@@ -75,7 +75,10 @@ export const reviewsRepository = {
         booking: {
           with: {
             service: true,
-            items: { orderBy: [asc(bookingItems.sortOrder)] },
+            items: {
+              where: eq(bookingItems.isAddon, false),
+              orderBy: [asc(bookingItems.sortOrder)],
+            },
           },
         },
         vendor: true,
@@ -101,6 +104,7 @@ export const reviewsRepository = {
             service: { columns: { id: true, name: true } },
             items: {
               columns: { name: true },
+              where: eq(bookingItems.isAddon, false),
               orderBy: [asc(bookingItems.sortOrder)],
             },
           },
@@ -200,6 +204,7 @@ export const reviewsRepository = {
           with: {
             items: {
               columns: { name: true },
+              where: eq(bookingItems.isAddon, false),
               orderBy: [asc(bookingItems.sortOrder)],
             },
           },
@@ -342,6 +347,7 @@ export const reviewsRepository = {
           with: {
             items: {
               columns: { name: true },
+              where: eq(bookingItems.isAddon, false),
               orderBy: [asc(bookingItems.sortOrder)],
             },
           },

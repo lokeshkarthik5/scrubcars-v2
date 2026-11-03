@@ -164,7 +164,9 @@ export const guaranteeRepository = {
       })
       .from(bookingItems)
       .innerJoin(services, eq(services.id, bookingItems.serviceId))
-      .where(eq(bookingItems.bookingId, bookingId))
+      // Add-ons carry no redo promise (0068): the claim and the redo read the
+      // booking's services only, so an add-on neither blocks one nor is redone.
+      .where(and(eq(bookingItems.bookingId, bookingId), eq(bookingItems.isAddon, false)))
       .orderBy(asc(bookingItems.sortOrder))
 
     const packageIds = items.filter((item) => item.category === 'package').map((item) => item.serviceId)
@@ -191,7 +193,8 @@ export const guaranteeRepository = {
       status: booking.status,
       bookingType: booking.bookingType,
       scheduledAt: booking.scheduledAt,
-      durationMins: booking.durationMins,
+      // The services' time: what a redo holds, with no add-on minutes (0068).
+      durationMins: items.reduce((total, item) => total + item.durationMins, 0) || booking.durationMins,
       completedAt: booking.completedAt ?? booking.deliveredAt ?? null,
       markedTestAt: booking.markedTestAt,
       guaranteeRedo: booking.guaranteeRedo,
@@ -502,21 +505,23 @@ export const guaranteeRepository = {
       const items = await tx
         .select()
         .from(bookingItems)
-        .where(eq(bookingItems.bookingId, original.id))
+        .where(and(eq(bookingItems.bookingId, original.id), eq(bookingItems.isAddon, false)))
         .orderBy(asc(bookingItems.sortOrder))
+      // A redo repeats the services, not the add-ons (0068), so it holds their time only.
+      const redoDurationMins = items.reduce((total, item) => total + item.durationMins, 0) || original.durationMins
 
       await lockVehicle(tx, original.vehicleId)
       const clash = await findOverlappingVehicleBooking(tx, {
         vehicleId: original.vehicleId,
         scheduledAt: params.scheduledAt,
-        durationMins: original.durationMins,
+        durationMins: redoDurationMins,
       })
       if (clash) return { kind: 'vehicle_clash' }
 
       const refusal = await checkGarageCanTake(tx, {
         vendorId: original.vendorId,
         scheduledAt: params.scheduledAt,
-        durationMins: original.durationMins,
+        durationMins: redoDurationMins,
       })
       if (refusal) return { kind: 'garage', refusal }
 
@@ -529,7 +534,7 @@ export const guaranteeRepository = {
           vehicleId: original.vehicleId,
           bookingType: original.bookingType,
           scheduledAt: params.scheduledAt,
-          durationMins: original.durationMins,
+          durationMins: redoDurationMins,
           status: 'confirmed',
           acceptedAt: params.now,
           amount: REDO_MONEY.amount,
@@ -729,7 +734,11 @@ export const guaranteeRepository = {
         markedTestAt: true,
       },
       with: {
-        items: { columns: { name: true }, orderBy: [asc(bookingItems.sortOrder)] },
+        items: {
+          columns: { name: true },
+          where: eq(bookingItems.isAddon, false),
+          orderBy: [asc(bookingItems.sortOrder)],
+        },
         photos: { orderBy: [asc(jobPhotos.createdAt), asc(jobPhotos.id)] },
         vendor: { columns: { businessName: true } },
         user: { columns: { name: true, phone: true } },

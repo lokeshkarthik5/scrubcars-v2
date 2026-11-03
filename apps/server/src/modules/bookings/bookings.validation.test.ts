@@ -39,14 +39,18 @@ describe('createBookingSchema', () => {
     expect(() => createBookingSchema.parse({ ...base, serviceIds: [] })).toThrow()
   })
 
-  it('rejects more services than a booking may carry', () => {
-    const tooMany = Array.from(
-      { length: 11 },
-      (_, i) => `1111111${i}-1111-4111-8111-11111111111${i % 10}`
+  const lines = (count: number) =>
+    Array.from({ length: count }, (_, i) => `11111111-1111-4111-8111-${String(i).padStart(12, '0')}`)
+
+  it('rejects more lines than a booking may carry: its services and add-ons', () => {
+    expect(() => createBookingSchema.parse({ ...base, serviceIds: lines(21) })).toThrow(
+      'A booking can include at most 10 services and 10 add-ons'
     )
-    expect(() =>
-      createBookingSchema.parse({ ...base, serviceIds: tooMany })
-    ).toThrow()
+  })
+
+  it('takes five services and six add-ons: which is which is the service layer\'s to count', () => {
+    expect(createBookingSchema.parse({ ...base, serviceIds: lines(11) }).serviceIds).toHaveLength(11)
+    expect(createBookingSchema.parse({ ...base, serviceIds: lines(20) }).serviceIds).toHaveLength(20)
   })
 
   // Doorstep used to be refused outright by a `z.literal('dropin')`, which is

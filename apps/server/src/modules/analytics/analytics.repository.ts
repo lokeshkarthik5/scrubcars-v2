@@ -25,7 +25,7 @@ export const analyticsRepository = {
         amount: bookings.amount,
         paymentStatus: payments.status,
         gatewayMode: payments.gatewayMode,
-        serviceCount: sql<number>`(select count(*)::int from ${bookingItems} where ${bookingItems.bookingId} = ${bookings.id})`,
+        serviceCount: sql<number>`(select count(*)::int from ${bookingItems} where ${bookingItems.bookingId} = ${bookings.id} and not ${bookingItems.isAddon})`,
       })
       .from(bookings)
       .leftJoin(payments, eq(payments.bookingId, bookings.id))

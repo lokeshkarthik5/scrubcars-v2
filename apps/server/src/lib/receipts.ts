@@ -273,7 +273,7 @@ export interface ReceiptBooking {
   noShow?: 'customer' | 'garage' | null
   user?: { name: string; phone: string } | null
   vendor?: { businessName: string; address: string; city: string } | null
-  items?: Array<{ name: string; amount: string }> | null
+  items?: Array<{ name: string; amount: string; isAddon?: boolean }> | null
   service?: { name: string } | null
   payment?: ReceiptPayment | null
   charges?: ReceiptBill[] | null
@@ -344,7 +344,7 @@ export interface Receipt {
     scheduledAtLabel: string
   }
   /** The services as sold: the names and prices on the booking. */
-  items: Array<{ name: string; amount: string }>
+  items: Array<{ name: string; amount: string; isAddon?: boolean }>
   /**
    * An accepted request's travel fee (customer reach, 0062): its own line,
    * after the services and inside the subtotal; null when there is none.
@@ -541,7 +541,12 @@ export function buildReceipt(
 
   const items =
     booking.items && booking.items.length > 0
-      ? booking.items.map((item) => ({ name: item.name, amount: fromPaise(toPaise(item.amount)) }))
+      ? booking.items.map((item) => ({
+          name: item.name,
+          amount: fromPaise(toPaise(item.amount)),
+          // Sent for add-ons only: a line the client marks "· Add-on" (0068).
+          ...(item.isAddon === true && { isAddon: true }),
+        }))
       : // Bookings from before booking_items carry only their one service.
         booking.service
         ? [{ name: booking.service.name, amount: fromPaise(toPaise(subtotal)) }]

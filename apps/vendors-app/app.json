@@ -33,13 +33,47 @@
         {
           "image": "./assets/images/splash-icon.png",
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#0A0A0B"
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-font",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Detlio uses the camera to take before and after photos of the car.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "barcodeScannerEnabled": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Detlio lets you add job photos from your library.",
+          "cameraPermission": "Detlio uses the camera to take before and after photos of the car.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Detlio uses your location to place your garage on the map. It is only read when you ask for it."
+        }
+      ],
+      "expo-notifications",
+      "expo-sharing",
+      "@react-native-community/datetimepicker",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Detlio uses Face ID to unlock the app, only if you turn the lock on in the app."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "backgroundColor": "#0A0A0B"
   }
 }

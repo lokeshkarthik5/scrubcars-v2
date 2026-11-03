@@ -1,3 +1,4 @@
+import { createAddOnSchema, updateAddOnSchema } from '../vendors/vendors.validation.js'
 import { adminGarageClosureRoutes } from '../garage-closure/garage-closure.routes.js'
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
@@ -252,6 +253,40 @@ adminRoutes.delete(
       c.req.valid('param').id,
       c.req.valid('param').serviceId
     )
+)
+
+// A garage's add-ons (0068): the same section as the garage's own. Saved
+// immediately, like hiding a service: never part of the editor's Save changes.
+const vendorAddOnParamSchema = z.object({
+  id: z.string().uuid(),
+  addOnId: z.string().uuid(),
+})
+
+adminRoutes.get(
+  '/vendors/:id/add-ons',
+  ...adminMiddleware,
+  zValidator('param', vendorIdParamSchema),
+  (c) => adminController.listAddOns(c, c.req.valid('param').id)
+)
+adminRoutes.post(
+  '/vendors/:id/add-ons',
+  ...adminMiddleware,
+  zValidator('param', vendorIdParamSchema),
+  zValidator('json', createAddOnSchema),
+  (c) => adminController.createAddOn(c, c.req.valid('param').id, c.req.valid('json'))
+)
+adminRoutes.patch(
+  '/vendors/:id/add-ons/:addOnId',
+  ...adminMiddleware,
+  zValidator('param', vendorAddOnParamSchema),
+  zValidator('json', updateAddOnSchema),
+  (c) => adminController.updateAddOn(c, c.req.valid('param').id, c.req.valid('param').addOnId, c.req.valid('json'))
+)
+adminRoutes.delete(
+  '/vendors/:id/add-ons/:addOnId',
+  ...adminMiddleware,
+  zValidator('param', vendorAddOnParamSchema),
+  (c) => adminController.deleteAddOn(c, c.req.valid('param').id, c.req.valid('param').addOnId)
 )
 
 // Vendor team. Ownership transfer is deliberately absent: adding, removing and

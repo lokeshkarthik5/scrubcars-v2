@@ -62,6 +62,8 @@ export interface BookingItemInput {
   name: string
   amount: string
   durationMins: number
+  /** An add-on line (0068); snapshotted with the line's name and price. */
+  isAddon?: boolean
 }
 
 // The discount already resolved by discountsService, carried into the write so
@@ -1032,6 +1034,7 @@ export const bookingsRepository = {
           amount: item.amount,
           durationMins: item.durationMins,
           sortOrder: index,
+          isAddon: item.isAddon ?? false,
         }))
       )
 
@@ -1346,6 +1349,7 @@ export const bookingsRepository = {
           amount: item.amount,
           durationMins: item.durationMins,
           sortOrder: index,
+          isAddon: item.isAddon ?? false,
         }))
       )
 

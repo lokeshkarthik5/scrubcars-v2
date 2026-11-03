@@ -1,3 +1,4 @@
+import { addOnPaise } from './add-ons.js'
 /**
  * The final bill of an inspection job, as pure rules.
  *
@@ -75,9 +76,14 @@ export function creditAtBooking(booking: {
   amount: string
   subtotalAmount?: string | null
   payment?: { status: string } | null
+  items?: ReadonlyArray<{ amount: string; isAddon?: boolean | null }> | null
 }): string {
   if (!booking.payment || !['paid', 'collected'].includes(booking.payment.status)) return '0.00'
-  return fromPaise(toPaise(booking.subtotalAmount ?? booking.amount))
+  // An add-on (0068) is paid upfront with the inspection fee and stays out of
+  // the final bill: its price credits nothing, and the bill's form does not
+  // start from it either.
+  const whole = toPaise(booking.subtotalAmount ?? booking.amount)
+  return fromPaise(Math.max(0, whole - addOnPaise(booking.items ?? [])))
 }
 
 /** Why a final bill cannot be raised on a booking right now. */

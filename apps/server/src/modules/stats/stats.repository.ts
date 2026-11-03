@@ -174,10 +174,11 @@ export function statsReads(tx: Tx) {
         amount: string
         sort_order: number
         commission_rate: string | null
+        is_addon: boolean
       }>(sql`
         with ${chainsCte(vendorId)}
         select c.root_id, s.category, s.pricing_type, bi.amount::text as amount, bi.sort_order,
-               s.commission_rate::text as commission_rate
+               s.commission_rate::text as commission_rate, bi.is_addon
           from chains c
           join booking_items bi on bi.booking_id = c.id
           join services s on s.id = bi.service_id
@@ -191,6 +192,7 @@ export function statsReads(tx: Tx) {
         amount: row.amount,
         sortOrder: row.sort_order,
         overrideRate: overrideRateFromPercent(row.commission_rate),
+        isAddon: row.is_addon,
       }))
     },
 

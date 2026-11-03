@@ -40,6 +40,9 @@ export interface NativeSignInInput {
 
 export type NativeOtpPurpose = NativeSignInInput['purpose']
 
+/** How long a server call made while signing out is given. */
+export const SERVER_SIGN_OUT_TIMEOUT_MS = 3000
+
 // The refusals that mean "no account of that kind yet", as the websites' sign-in.
 const SIGN_UP_CODES = new Set(['USER_NOT_FOUND', 'NOT_A_VENDOR'])
 
@@ -136,17 +139,25 @@ export function createNativeSession(audience: NativeAudience, storage: RefreshTo
       return adopt(tokens)
     },
 
-    /** Signed out on this phone whatever the server says; it is only told if it can be. */
+    /**
+     * Signed out on this phone whatever the server says. The server is told afterwards, if it
+     * can be, and nothing waits for it: a bad signal must not hold anyone on a spinner.
+     */
     async signOut(): Promise<void> {
       const refreshToken = await storage.get()
       accessToken = null
       await storage.clear()
       if (!refreshToken) return
-      await apiClient('/auth/native/logout', {
+      const abort = new AbortController()
+      const timer = setTimeout(() => abort.abort(), SERVER_SIGN_OUT_TIMEOUT_MS)
+      void apiClient('/auth/native/logout', {
         method: 'POST',
         auth: false,
+        signal: abort.signal,
         body: JSON.stringify({ refreshToken }),
-      }).catch(() => undefined)
+      })
+        .catch(() => undefined)
+        .finally(() => clearTimeout(timer))
     },
 
     /** Makes apiClient sign every request with this session. Call once, at startup. */

@@ -1,5 +1,6 @@
 'use client'
 
+import { serviceLinesOf } from '@repo/core/add-ons'
 import { useState } from 'react'
 import { IconPlus, IconReceipt, IconTrash } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
@@ -46,7 +47,9 @@ function linesFrom(bill: FinalBill | null, booking: Booking): Line[] {
       amount: String(line.amount),
     }))
   }
-  const booked = booking.items.slice(0, MAX_LINES).map((item) => ({
+  // The final bill stays separate from add-ons (0068): paid at booking, and
+  // credited nothing, so they aren't lines on it.
+  const booked = serviceLinesOf(booking.items).slice(0, MAX_LINES).map((item) => ({
     description: item.name.slice(0, MAX_DESCRIPTION),
     amount: String(item.amount),
   }))
@@ -55,7 +58,7 @@ function linesFrom(bill: FinalBill | null, booking: Booking): Line[] {
 
 /** "Dent Inspection ₹299 · Foam wash ₹600": what the booking's payment was for. */
 function bookedSummary(booking: Booking): string {
-  return booking.items
+  return serviceLinesOf(booking.items)
     .map((item) => `${item.name} ${formatRupees(item.amount)}`)
     .join(' · ')
 }

@@ -35,7 +35,7 @@ import { onVendorSwitch, useAuthStore } from '@repo/core/stores/auth-store'
 import {
   AADHAAR_MASK_NOTE,
   DOCUMENT_ACCEPT,
-  DOCUMENT_HINTS,
+  documentHint,
   DOCUMENT_STATUS_LABELS,
   fileLine,
   garageCanRemove,
@@ -173,7 +173,7 @@ export default function GarageDocumentsPage() {
           <section className="flex flex-col gap-3">
             <SectionHeader
               title="Your documents"
-              subtitle="Detlio checks these. When the three required ones are approved, your documents count as checked, one of the steps to Silver. Only you and the Detlio team can open them."
+              subtitle="Detlio checks these. When the required ones are approved, your documents count as checked, one of the steps to Silver. Only you and the Detlio team can open them."
             />
             {data.summary.verified ? (
               <Notice tone="neutral" title="Documents checked">
@@ -318,7 +318,7 @@ function DocumentCard({
       </div>
 
       <p className="text-[12px] leading-relaxed text-text-secondary">
-        {DOCUMENT_HINTS[doc.type]}
+        {documentHint(doc.type, doc.required)}
       </p>
       {doc.type === 'owner_id' && (
         <p className="text-[12px] font-medium text-text-primary">
