@@ -1614,7 +1614,12 @@ export const bookingsRepository = {
             cancelledBy,
             cancellationReason: reason ?? null,
             cancelledAt: at,
-            ...(options.garageCancelled ? { garageCancelledAt: at } : {}),
+            // A confirmed booking from before 0028 has no accepted_at, and the
+            // table refuses a garage cancellation without one. Its created_at
+            // keeps it out of the recent accept counts and response times.
+            ...(options.garageCancelled
+              ? { garageCancelledAt: at, acceptedAt: sql`coalesce(${bookings.acceptedAt}, ${bookings.createdAt})` }
+              : {}),
           })
           .where(
             and(

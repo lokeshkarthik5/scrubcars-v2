@@ -3913,6 +3913,11 @@ async function seedPreiosRows() {
     ...common, id: P.cancelLate, scheduledAt: new Date(now.getTime() + 6 * HOUR), status: 'confirmed',
     createdAt: daysAgo(1), acceptedAt: hoursAgo(20), payment: paid('pay_e2e_preios_cancel_late'),
   })
+  // Confirmed with no accepted_at, like a row from before 0028.
+  await insertBooking({
+    ...common, id: P.cancelOld, scheduledAt: daysAheadAt(4, 11), status: 'confirmed',
+    createdAt: daysAgo(1), payment: paid('pay_e2e_preios_cancel_old'),
+  })
   await insertBooking({
     ...common, id: P.accept, scheduledAt: daysAheadAt(2, 11), status: 'pending',
     createdAt: hoursAgo(1), payment: paid('pay_e2e_preios_accept'),
