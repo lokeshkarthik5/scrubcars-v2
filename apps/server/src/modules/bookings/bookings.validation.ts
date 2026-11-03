@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { ADD_ON_LIMITS, MAX_BOOKING_LINES, MAX_SERVICE_LINES } from '../../lib/add-ons.js'
 import { GARAGE_CANCEL_RULES } from '../../lib/garage-cancel.js'
 
 export const bookingStatusSchema = z.enum([
@@ -59,7 +60,10 @@ export const rescheduleBookingSchema = z.object({
 // A booking can carry several services, but not an unbounded number: the
 // duration is their sum, and past a handful nothing fits inside a working day
 // anyway. The cap is here rather than in the UI so the API is bounded too.
-export const MAX_SERVICES_PER_BOOKING = 10
+// Add-ons travel in the same list with a limit of their own, so the schema can
+// only bound the two together; resolveBookingDraft counts each (lineCapRefusal).
+export const MAX_SERVICES_PER_BOOKING = MAX_SERVICE_LINES
+const TOO_MANY_LINES = `A booking can include at most ${MAX_SERVICE_LINES} services and ${ADD_ON_LIMITS.perBooking} add-ons`
 
 export const createBookingSchema = z
   .object({
@@ -72,7 +76,7 @@ export const createBookingSchema = z
     serviceIds: z
       .array(z.string().uuid())
       .min(1)
-      .max(MAX_SERVICES_PER_BOOKING)
+      .max(MAX_BOOKING_LINES, TOO_MANY_LINES)
       .optional(),
     vehicleId: z.string().uuid(),
     bookingType: createBookingTypeSchema,
@@ -110,8 +114,8 @@ export const createBookingSchema = z
     message: 'Pick at least one service',
     path: ['serviceIds'],
   })
-  .refine((input) => input.serviceIds.length <= MAX_SERVICES_PER_BOOKING, {
-    message: `A booking can include at most ${MAX_SERVICES_PER_BOOKING} services`,
+  .refine((input) => input.serviceIds.length <= MAX_BOOKING_LINES, {
+    message: TOO_MANY_LINES,
     path: ['serviceIds'],
   })
   .refine(

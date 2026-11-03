@@ -122,6 +122,7 @@ async function findJob(conn: Conn, bookingId: string) {
       subtotalAmount: bookings.subtotalAmount,
       discountAmount: bookings.discountAmount,
       discountFundedBy: bookings.discountFundedBy,
+      addOnAmount: sql<string>`(select coalesce(sum(bi.amount), 0)::text from booking_items bi where bi.booking_id = ${bookings.id} and bi.is_addon)`,
       markedTestAt: bookings.markedTestAt,
       guaranteeRedo: bookings.guaranteeRedo,
       guaranteeRefundAt: bookings.guaranteeRefundAt,
@@ -156,6 +157,7 @@ function jobForRules(job: Job) {
     subtotalAmount: job.subtotalAmount,
     discountAmount: job.discountAmount,
     discountFundedBy: job.discountFundedBy,
+    addOnAmount: job.addOnAmount,
   }
 }
 

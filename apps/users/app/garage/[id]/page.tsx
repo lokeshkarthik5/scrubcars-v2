@@ -26,6 +26,8 @@ import { TierSeal } from '@repo/ui/features/tier-medal'
 import { OutsideCityLine } from '@repo/ui/features/outside-city'
 import { GarageCover, GarageMonogram } from '@repo/ui/features/garage-cover'
 import { useGarage, useVendorReviews } from '@repo/core/api/hooks/use-vendors'
+import { GarageAddOns } from '@/components/garage/garage-add-ons'
+import type { AddOn } from '@repo/core/api/add-ons'
 import { browseCategory } from '@repo/core/analytics-events'
 import { track } from '@repo/core/analytics'
 import {
@@ -97,6 +99,7 @@ const NO_REVIEWS: Review[] = []
 // the garage loads.
 const NO_SERVICES: Service[] = []
 const NO_PACKAGES: ServicePackage[] = []
+const NO_ADD_ONS: AddOn[] = []
 
 // A package is a Service plus its contents, so the details popup takes either
 // and only the bundle-specific block below depends on the difference.
@@ -216,6 +219,7 @@ export default function GaragePage({
   const vendor: Vendor | null = garage.data?.vendor ?? null
   const services = garage.data?.services ?? NO_SERVICES
   const packages = garage.data?.packages ?? NO_PACKAGES
+  const addOns = garage.data?.addOns ?? NO_ADD_ONS
   // Cached five minutes, so Back to this page shows them at once.
   const reviews = useVendorReviews(id).data ?? NO_REVIEWS
   const [tab, setTab] = useState<Tab>('services')
@@ -903,6 +907,10 @@ export default function GaragePage({
               })
             )}
           </>
+        )}
+
+        {tab === 'services' && addOns.length > 0 && (
+          <GarageAddOns addOns={addOns} carType={carType} />
         )}
 
         {tab === 'photos' && (

@@ -2,9 +2,17 @@ import { and, asc, count, eq, gt, gte, isNull, lt, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import { bookings, payments, users, vendors } from '../../db/schema.js'
 
-/** "Foam wash + Interior": a booking's services, in the order they were added. */
+/**
+ * "Foam wash + Interior": a booking's services, in the order they were added,
+ * then its add-ons as a count, to fit one line: "Foam wash + 2 add-ons" (0068).
+ */
 const serviceNames = sql<string>`coalesce((
-  select string_agg(bi.name, ' + ' order by bi.created_at, bi.id)
+  select string_agg(bi.name, ' + ' order by bi.created_at, bi.id) filter (where not bi.is_addon)
+    || case count(*) filter (where bi.is_addon)
+         when 0 then ''
+         when 1 then ' + 1 add-on'
+         else ' + ' || (count(*) filter (where bi.is_addon))::text || ' add-ons'
+       end
   from booking_items bi where bi.booking_id = ${bookings.id}
 ), '')`
 

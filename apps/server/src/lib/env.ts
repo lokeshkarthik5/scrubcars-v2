@@ -3,6 +3,7 @@ import { isDataResetEnabled } from './data-reset.js'
 import { parseDailyCap } from './refund-sending.js'
 import { isAutoCancelOn, parseResponseMinutes } from './response-deadline.js'
 import { isPushConfigured } from './push.js'
+import { readReviewLoginEnv } from './review-login.js'
 import { readAppConfigEnv } from './app-config.js'
 import { parsePhotosRequired, parseRequiredGarages } from './job-photo-standards.js'
 import type { GeoProviderName } from './geo/types.js'
@@ -135,6 +136,17 @@ export const env = {
   // service (lib/web-push.ts), so the suite can switch the feature on with a
   // public key alone. Refused in production.
   pushFake: readTestFake('PUSH_FAKE', 'records browser notifications instead of sending them'),
+  // ─── App-store reviewer login (lib/review-login.ts) ────────────────────────
+  // Apple and Google sign in to test the native apps and cannot get our SMS.
+  // Two dedicated accounts (a customer and a garage, on their own phone
+  // numbers, never anyone's real one) take a fixed code instead, on the
+  // native sign-in route only:
+  //   REVIEW_LOGIN_CUSTOMER_PHONE   10 digits, the customer app's reviewer
+  //   REVIEW_LOGIN_GARAGE_PHONE     10 digits, the garage app's reviewer
+  //   REVIEW_LOGIN_CODE_HASH        from `bun run --cwd apps/server review-login:hash`
+  // Any of the three missing or malformed and the feature is fully off. The
+  // accounts must already exist: this never creates one. Production only.
+  reviewLogin: readReviewLoginEnv(process.env),
   // ─── Native app notifications (lib/expo-push.ts, 0067) ─────────────────────
   // Phones with the Expo apps get the same notifications as browsers, sent
   // through Expo's push service (no Apple or Firebase key on this server).

@@ -32,7 +32,7 @@ function filterConditions(filters: ReachFilters) {
   if (filters.category) {
     conditions.push(sql`EXISTS (
       SELECT 1 FROM services s
-       WHERE s.vendor_id = v.id AND s.is_active = true AND s.category = ${filters.category}
+       WHERE s.vendor_id = v.id AND s.is_active = true AND s.is_addon = false AND s.category = ${filters.category}
     )`)
   }
   if (filters.tiers && filters.tiers.length > 0) conditions.push(silverAndAboveCondition(filters.tiers))
@@ -61,7 +61,7 @@ function pickupCovers(point: ReturnType<typeof geography>) {
 /** A garage's "from" price: the card's own rule (computeStartingPrice), in SQL. */
 const STARTING_PRICE = sql`(
   SELECT min(s.price) FROM services s
-   WHERE s.vendor_id = v.id AND s.is_active = true AND s.price > 0
+   WHERE s.vendor_id = v.id AND s.is_active = true AND s.is_addon = false AND s.price > 0
 )`
 
 export type ReachRow = {

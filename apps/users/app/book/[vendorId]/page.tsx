@@ -151,11 +151,14 @@ import { Figures } from '@repo/ui/sc/figures'
 import { TierChip } from '@repo/ui/features/tier-medal'
 import { VEHICLE_TIERS } from '@repo/core/vehicles'
 import { knownDurationTotal } from '@repo/core/service-duration'
+import { addOnsAfterRemoving, jobSummary } from '@repo/core/add-ons'
+import type { AddOn } from '@repo/core/api/add-ons'
+import { AddOnMark } from '@repo/ui/sc/add-on-mark'
+import { CheckoutAddOns } from '@/components/checkout/checkout-add-ons'
 import {
   APP_TIMEZONE,
   cn,
   formatDuration,
-  formatServiceSummary,
 } from '@repo/core/utils'
 
 // Sheets closed on arrival are loaded after the page, not with it: they are
@@ -212,6 +215,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const searchParams = useSearchParams()
   // Comma-separated, in the order they were added on the garage page.
   const serviceIdsParam = searchParams.get('service')
+  // The add-ons picked with them (0068), when a draft is resumed.
+  const addOnIdsParam = searchParams.get('addons')
   // At garage, Doorstep or Pickup & drop, as chosen on home or the garage
   // page. Absent means no choice was made, which checkout takes as At garage.
   const modeParam = searchParams.get('mode')
@@ -268,6 +273,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
 
   const [vendor, setVendor] = useState<Vendor | null>(null)
   const [selectedServices, setSelectedServices] = useState<Service[]>([])
+  // The garage's add-ons, and those picked: services stay `selectedServices`,
+  // so nothing that means "a service" can count an add-on (0068).
+  const [garageAddOns, setGarageAddOns] = useState<AddOn[]>([])
+  const [pickedAddOnIds, setPickedAddOnIds] = useState<string[]>([])
   // Each of the garage's services' category, by id: a package's members are
   // looked up here to tell whether the Guarantee covers it.
   const [categoryById, setCategoryById] = useState<Record<string, string>>({})
@@ -441,6 +450,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
           return
         }
         setVendor(garage.vendor)
+        setGarageAddOns(garage.addOns)
+        setPickedAddOnIds((addOnIdsParam?.split(',') ?? []).filter((id) => garage.addOns.some((a) => a.id === id)))
         setCategoryById(
           Object.fromEntries(
             garage.services.map((service) => [service.id, service.category])
@@ -488,7 +499,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
     return () => {
       cancelled = true
     }
-  }, [vendorId, serviceIdsParam, modeParam, router, loadAttempt, queryClient])
+  }, [vendorId, serviceIdsParam, addOnIdsParam, modeParam, router, loadAttempt, queryClient])
 
   // The account's cars, addresses and name, once there is an account: on
   // arrival when signed in, or as soon as a guest signs in here. A guest has
@@ -679,7 +690,16 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // Identifies the exact cart a code was validated against. Removing a service
   // changes it, which retires the code — the total it was checked against no
   // longer exists.
-  const serviceIds = selectedServices.map((service) => service.id)
+  // A request confirms exactly what the garage accepted: no add-ons (0068).
+  const pickedAddOns = requestMode
+    ? []
+    : garageAddOns.filter((addOn) => pickedAddOnIds.includes(addOn.id))
+  // Add-on lines travel in `serviceIds`, services first: price, code and
+  // slot checks all read the whole job, and the server marks them by the row.
+  const serviceIds = [
+    ...selectedServices.map((service) => service.id),
+    ...pickedAddOns.map((addOn) => addOn.id),
+  ]
   const serviceKey = serviceIds.join(',')
 
   // Derived rather than cleared in an effect: if the customer changes the
@@ -720,10 +740,16 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // a per-vehicle service the garage has not priced for this car — the server
   // refuses such a booking rather than billing another tier's rate, so the
   // line is shown but the payment is blocked below.
-  const lines = selectedServices.map((service) => ({
+  const lines = [...selectedServices, ...pickedAddOns].map((service) => ({
     service,
     amount: resolveServiceAmount(service, selectedVehicleType),
   }))
+  const lineCount = lines.length
+  /** "Foam wash + 2 add-ons" on one line. */
+  const bookingSummary = jobSummary([
+    ...selectedServices,
+    ...pickedAddOns.map((addOn) => ({ name: addOn.name, isAddon: true })),
+  ])
 
   const unpricedLines =
     selectedVehicleType != null
@@ -846,7 +872,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const freeBooking = toPay === 0 && !creditApplied
 
   // Null when a service has no duration set (0064): no total is shown.
-  const totalDuration = knownDurationTotal(selectedServices)
+  const servicesDuration = knownDurationTotal(selectedServices)
+  const totalDuration =
+    servicesDuration === null
+      ? null
+      : pickedAddOns.reduce((total, addOn) => total + addOn.extraMins, servicesDuration)
 
   const canApplyPromo =
     promoInput.trim().length >= 3 &&
@@ -997,13 +1027,24 @@ function BookContent({ vendorId }: { vendorId: string }) {
 
   // Removing a line from the summary rather than going back a screen. The last
   // one cannot be removed: an empty booking is not a state this page has.
+  // An add-on's line comes off here too. The cross on a service counts
+  // services only, and were the last one ever to go, its add-ons go with it:
+  // checkout can't hold add-ons alone.
   const removeService = (serviceId: string) => {
-    setSelectedServices((current) =>
-      current.length <= 1
-        ? current
-        : current.filter((service) => service.id !== serviceId)
-    )
+    if (pickedAddOnIds.includes(serviceId)) {
+      setPickedAddOnIds((current) => current.filter((id) => id !== serviceId))
+      return
+    }
+    const left = selectedServices.filter((service) => service.id !== serviceId)
+    if (selectedServices.length <= 1) return
+    setSelectedServices(left)
+    setPickedAddOnIds((current) => addOnsAfterRemoving(current, left.length))
   }
+
+  const toggleAddOn = (addOnId: string) =>
+    setPickedAddOnIds((current) =>
+      current.includes(addOnId) ? current.filter((id) => id !== addOnId) : [...current, addOnId]
+    )
 
   const handleRemovePromo = () => {
     // A suggested reward goes for this checkout: Remove means "not this".
@@ -1168,9 +1209,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
           currency: order.currency,
           keyId: order.keyId ?? '',
         },
-        description: `${formatServiceSummary(
-          selectedServices.map((service) => service.name)
-        )} at ${vendor?.name ?? 'the garage'}`,
+        description: `${bookingSummary} at ${vendor?.name ?? 'the garage'}`,
         customer: chosen?.customer ?? {
           name: profile?.name,
           phone: profile?.phone,
@@ -1568,6 +1607,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
       vendorId,
       vendorName: vendor.name,
       serviceIds: selectedServices.map((service) => service.id),
+      addOnIds: pickedAddOnIds,
       mode: bookingType,
       slot: selectedSlot,
       car: draftCar,
@@ -1579,6 +1619,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
     vendor,
     vendorId,
     selectedServices,
+    pickedAddOnIds,
     bookingType,
     selectedSlot,
     draftCar,
@@ -1760,7 +1801,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 className="flex items-start justify-between gap-3 text-[15px]"
               >
                 <span className="flex min-w-0 items-start gap-1.5">
-                  {selectedServices.length > 1 && (
+                  {/* Counts services only: the only service has no cross, so
+                      the customer can't end up with add-ons alone. */}
+                  {(selectedServices.length > 1 || pickedAddOnIds.includes(service.id)) && (
                     <button
                       type="button"
                       onClick={() => removeService(service.id)}
@@ -1773,6 +1816,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                   )}
                   <span className="min-w-0 text-text-secondary">
                     {service.name}
+                    {pickedAddOnIds.includes(service.id) && <AddOnMark className="ml-1.5" />}
                     {vehicleTierLabel &&
                       service.pricingType === 'per_vehicle' && (
                         <span className="text-text-muted">
@@ -1815,6 +1859,16 @@ function BookContent({ vendorId }: { vendorId: string }) {
             </p>
           </div>
         </section>
+      )}
+
+      {/* Right under the booking (frame D), before the mode, time and car. */}
+      {vendor && selectedServices.length > 0 && !requestMode && garageAddOns.length > 0 && (
+        <CheckoutAddOns
+          addOns={garageAddOns}
+          picked={pickedAddOnIds}
+          vehicleType={selectedVehicleType ?? undefined}
+          onToggle={toggleAddOn}
+        />
       )}
 
       {/* At garage, Doorstep or Pickup & drop on one line, only when the
@@ -2355,7 +2409,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
           </h2>
           <div className="hub-card flex flex-col gap-3 p-5 text-[15px]">
             {/* Only once there is more than one line to add up. */}
-            {selectedServices.length > 1 && (
+            {lineCount > 1 && (
               <div className="flex items-center justify-between gap-3">
                 <span className="text-text-secondary">Subtotal</span>
                 <span className="font-numeric text-text-primary">
@@ -2410,7 +2464,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
             <div
               className={cn(
                 'flex items-center justify-between gap-3',
-                (selectedServices.length > 1 ||
+                (lineCount > 1 ||
                   isPickup ||
                   travelFee > 0 ||
                   appliedDiscount ||
@@ -2721,9 +2775,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
             {selectedServices.length > 0 && (
               <div className="mb-2.5 flex items-baseline justify-between gap-3 text-[13px]">
                 <span className="min-w-0 truncate text-dim">
-                  {formatServiceSummary(
-                    selectedServices.map((service) => service.name)
-                  )}
+                  {bookingSummary}
                   {selectedCar ? ` · ${selectedCar.model}` : ''}
                 </span>
                 {subtotal != null && selectedVehicle && (

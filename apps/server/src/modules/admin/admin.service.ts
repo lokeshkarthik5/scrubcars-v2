@@ -39,6 +39,7 @@ import { onboardingMarksService } from '../onboarding-marks/onboarding-marks.ser
 import { isDocumentStorageConfigured } from '../../lib/document-storage.js'
 import {
   summariesByVendor,
+  documentModesOf,
   summariseDocuments,
   type DocumentsSummary,
 } from '../../lib/vendor-documents.js'
@@ -72,6 +73,7 @@ import { vendorInBin } from '../../lib/vendor-bin.js'
 import { isInBin, isListedToCustomers } from '../vendors/vendors.predicates.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { vendorsService } from '../vendors/vendors.service.js'
+import type { CreateAddOnInput, UpdateAddOnInput } from '../vendors/vendors.validation.js'
 import {
   adminRepository,
   type BookingFilterSet,
@@ -142,7 +144,8 @@ async function assertWritableVendor(vendorId: string) {
 
 async function assertService(serviceId: string) {
   const service = await adminRepository.findServiceById(serviceId)
-  if (!service) {
+  // An add-on has no photos (0068): as unknown here as a made-up id.
+  if (!service || service.isAddon) {
     throw new AppError(404, 'Service not found', 'SERVICE_NOT_FOUND')
   }
   return service
@@ -507,6 +510,7 @@ function toAdminBookingRow(
       name: item.name,
       amount: item.amount,
       durationMins: item.durationMins,
+      isAddon: item.isAddon,
     })),
     cancelledBy: booking.cancelledBy,
     cancelledOnBehalfOf: booking.cancelledOnBehalfOf,
@@ -771,7 +775,12 @@ export const adminService = {
     // are off.
     const documentsOn = isDocumentStorageConfigured()
     const documents = documentsOn
-      ? summariesByVendor(await vendorDocumentsRepository.listAllStates())
+      ? summariesByVendor(
+          await vendorDocumentsRepository.listAllStates(),
+          // Each garage's own modes: a doorstep-only garage has no shop, so
+          // its shop photo is not one of the required ones.
+          new Map(vendors.map((vendor) => [vendor.id, documentModesOf(vendor)]))
+        )
       : new Map<string, DocumentsSummary>()
     // Detlio Certified (0048), from each garage's last evaluation: the
     // "Certified" and "Eligible, not yet certified" chips. Never the
@@ -796,7 +805,7 @@ export const adminService = {
       onboardingMarksService.openBriefsByVendor(),
     ])
     const documentSummaryOf = (vendorId: string) =>
-      documentsOn ? (documents.get(vendorId) ?? summariseDocuments([])) : null
+      documentsOn ? (documents.get(vendorId) ?? null) : null
     const missing = new Map<string, MissingKey[]>(
       vendors.map((vendor) => [
         vendor.id,
@@ -869,7 +878,7 @@ export const adminService = {
       onboardingMarksService.payoutVendorIds([id]),
       documentsOn ? vendorDocumentsRepository.listDocuments(id) : Promise.resolve([]),
     ])
-    const documents = documentsOn ? summariseDocuments(documentRows) : null
+    const documents = documentsOn ? summariseDocuments(documentRows, documentModesOf(vendor)) : null
     // The Garages list's checklist and missing keys (0059), for the
     // editor's status panel: the same rules on the same facts.
     const facts = {
@@ -1122,6 +1131,25 @@ export const adminService = {
    * The editor loads only live services, so this list is the only way back to
    * a hidden one.
    */
+  async listAddOns(vendorId: string) {
+    return vendorsService.listMyAddOns(vendorId)
+  },
+
+  async createAddOn(vendorId: string, input: CreateAddOnInput) {
+    await assertWritableVendor(vendorId)
+    return vendorsService.createAddOn(vendorId, input)
+  },
+
+  async updateAddOn(vendorId: string, addOnId: string, input: UpdateAddOnInput) {
+    await assertWritableVendor(vendorId)
+    return vendorsService.updateAddOn(vendorId, addOnId, input)
+  },
+
+  async deleteAddOn(vendorId: string, addOnId: string) {
+    await assertWritableVendor(vendorId)
+    return vendorsService.deleteAddOn(vendorId, addOnId)
+  },
+
   async listHiddenServices(vendorId: string) {
     await assertVendor(vendorId)
     const services = await vendorsService.listMyServices(vendorId)

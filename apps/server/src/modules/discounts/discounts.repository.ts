@@ -436,6 +436,7 @@ export const discountsRepository = {
         priceSuv: services.priceSuv,
         isActive: services.isActive,
         category: services.category,
+        isAddon: services.isAddon,
       })
       .from(services)
       .where(

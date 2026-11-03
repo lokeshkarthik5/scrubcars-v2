@@ -45,7 +45,9 @@ import {
   rescheduleSlotsParamSchema,
   setWorkingHoursSchema,
   slotsQuerySchema,
+  createAddOnSchema,
   toggleServiceActiveSchema,
+  updateAddOnSchema,
   updateJobTypesSchema,
   updatePackageSchema,
   updateServiceSchema,
@@ -308,6 +310,33 @@ vendorsRoutes.delete(
   (c) => vendorsController.deletePhoto(c, c.req.valid('param').id)
 )
 
+// Add-ons (0068): small extras that go with any service. Their own routes, so
+// the service routes above stay as older clients read them. Same tenant rules.
+vendorsRoutes.get(
+  '/me/add-ons',
+  ...tenantMiddleware,
+  vendorsController.listMyAddOns
+)
+vendorsRoutes.post(
+  '/me/add-ons',
+  ...tenantMiddleware,
+  zValidator('json', createAddOnSchema),
+  (c) => vendorsController.createAddOn(c, c.req.valid('json'))
+)
+vendorsRoutes.patch(
+  '/me/add-ons/:id',
+  ...tenantMiddleware,
+  zValidator('param', resourceIdParamSchema),
+  zValidator('json', updateAddOnSchema),
+  (c) => vendorsController.updateAddOn(c, c.req.valid('param').id, c.req.valid('json'))
+)
+vendorsRoutes.delete(
+  '/me/add-ons/:id',
+  ...tenantMiddleware,
+  zValidator('param', resourceIdParamSchema),
+  (c) => vendorsController.deleteAddOn(c, c.req.valid('param').id)
+)
+
 vendorsRoutes.get(
   '/me/services',
   ...tenantMiddleware,
@@ -451,6 +480,11 @@ vendorsRoutes.get(
   '/:id/services',
   zValidator('param', vendorIdParamSchema),
   (c) => vendorsController.listPublicServices(c, c.req.valid('param').id)
+)
+vendorsRoutes.get(
+  '/:id/add-ons',
+  zValidator('param', vendorIdParamSchema),
+  (c) => vendorsController.listPublicAddOns(c, c.req.valid('param').id)
 )
 vendorsRoutes.get(
   '/:id/packages',

@@ -134,7 +134,9 @@ export async function refresh(c: AuthContext) {
 }
 
 export async function verifyOtpNative(c: AuthContext, input: VerifyOtpInput) {
-  const session = await authService.verifyOtp(input)
+  // `native` is what lets the app-store reviewer's fixed code through, here
+  // and nowhere else (lib/review-login.ts).
+  const session = await authService.verifyOtp(input, { native: true })
   if (input.audience === 'customer') {
     analyticsService.joinVisit(input.visitId, session.user.id)
   }
