@@ -87,7 +87,8 @@ export const garageResponseRepository = {
       .select({ serviceId: bookingItems.serviceId, category: services.category })
       .from(bookingItems)
       .innerJoin(services, eq(services.id, bookingItems.serviceId))
-      .where(eq(bookingItems.bookingId, bookingId))
+      // Which other garages can take this job: its services, not its add-ons (0068).
+      .where(and(eq(bookingItems.bookingId, bookingId), eq(bookingItems.isAddon, false)))
       .orderBy(asc(bookingItems.sortOrder))
 
     const packageIds = items.filter((item) => item.category === 'package').map((item) => item.serviceId)

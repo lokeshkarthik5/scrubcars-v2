@@ -1,5 +1,7 @@
 'use client'
 
+import { serviceLinesOf } from '@repo/core/add-ons'
+import { AddOnMark } from '@repo/ui/sc/add-on-mark'
 import { use, useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
@@ -21,6 +23,7 @@ import { WhenPicker } from '@/components/checkout/when-picker'
 import { STATUS_STEPS, bookingHeadline } from '@/lib/booking-status'
 import { formatWhen } from '@repo/core/format'
 import { money } from '@/lib/money'
+import { onlineAmount } from '@/lib/booking-payment'
 import { currentMarketingContext, trackPurchase } from '@/lib/meta-pixel'
 import { contactWindowState } from '@repo/core/contact-window'
 import { telHref, whatsAppHref } from '@repo/core/contact-links'
@@ -566,14 +569,14 @@ export default function BookingDetailPage({
             track('pay_success', {
               vendorId: booking.vendorId,
               mode: booking.bookingType,
-              serviceCount: Math.min(20, Math.max(1, booking.items.length)),
+              serviceCount: Math.min(20, Math.max(1, serviceLinesOf(booking.items).length)),
               amountBucket: amountBucket(order.amount / 100),
             })
             // Meta's Purchase (marketing consent only), as at checkout.
             void trackPurchase({
               bookingId: booking.id,
               rupeesPaid: order.amount / 100,
-              numItems: booking.items.length,
+              numItems: serviceLinesOf(booking.items).length,
             })
             const updated = await getBooking(booking.id)
             if (updated) setBooking(updated)
@@ -793,6 +796,13 @@ export default function BookingDetailPage({
     (['confirmed', 'in_progress'].includes(booking.status) &&
       booking.extraWork.some((work) => work.state === 'awaiting')) ||
     timeProposal !== null
+  // The payment row's two online labels ("Paid online", "To be paid online")
+  // state the online part, not the whole booking.
+  const onlineRow =
+    booking.paymentStatus === 'paid'
+      ? (booking.creditPaid ?? 0) < booking.servicePrice
+      : booking.paymentStatus !== 'refunded' &&
+        booking.paymentMethod === 'online'
   const unpaid =
     !paid &&
     booking.paymentMethod === 'online' &&
@@ -1211,6 +1221,7 @@ export default function BookingDetailPage({
               {booking.items.map((item) => (
                 <span key={item.id}>
                   {item.name}{' '}
+                  {item.isAddon && <AddOnMark className="mx-1" />}
                   <span className="font-numeric">{money(item.amount)}</span>
                 </span>
               ))}
@@ -1252,7 +1263,16 @@ export default function BookingDetailPage({
                   : 'Cash'
           }
         >
-          <span className="font-numeric">{money(booking.servicePrice)}</span>
+          {/* "Paid online" and "To be paid online" are the online part: the
+              total less the Detlio credit (shown on the next row). The other
+              labels ("Paid", "Refunded", "Cash") state the whole booking. */}
+          <span className="font-numeric">
+            {money(
+              onlineRow
+                ? onlineAmount(booking.servicePrice, booking.creditPaid)
+                : booking.servicePrice
+            )}
+          </span>
         </Row>
         {/* Gift a wash (0049): the part Detlio credit paid. */}
         {(booking.creditPaid ?? 0) > 0 && (

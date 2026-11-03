@@ -124,6 +124,27 @@ describe('Silver steps, each at its edge', () => {
     })
   })
 
+  test('documents: a doorstep-only garage is not asked for a shop photo', () => {
+    const doorstep = { ...SILVER_EDGE, shopPhotoOptional: true }
+    expect(step(doorstep, 'documents')).toMatchObject({
+      met: true,
+      value: 'ID and bank proof approved',
+      target: 'Owner ID and bank proof approved',
+    })
+    expect(step({ ...doorstep, documentsVerified: false }, 'documents')).toMatchObject({
+      met: false,
+      value: 'Not all approved yet',
+      target: 'Owner ID and bank proof approved',
+    })
+    // Everyone else is unchanged.
+    for (const metrics of [SILVER_EDGE, { ...SILVER_EDGE, shopPhotoOptional: false }]) {
+      expect(step(metrics, 'documents')).toMatchObject({
+        value: 'Shop photo, ID and bank proof approved',
+        target: 'Shop photo, owner ID and bank proof approved',
+      })
+    }
+  })
+
   test('rating: 4.2 from 5 passes; 4.19 or 4 reviews does not', () => {
     expect(step({ ...SILVER_EDGE, rating: 4.19 }, 'rating').met).toBe(false)
     expect(step({ ...SILVER_EDGE, reviewCount: 4, rating: 5 }, 'rating').met).toBe(false)

@@ -460,8 +460,13 @@ export function voucherDiscountValues(batch: BatchOffer, now: Date) {
  * rupees as a decimal string, or null when the booking has none. A package
  * counts as its own category ('package'), not as its members'.
  */
-export function eligibleSubtotal(lines: ReadonlyArray<{ category: string; amount: string }>, category: string): string | null {
-  const matching = lines.filter((line) => line.category === category)
+export function eligibleSubtotal(
+  lines: ReadonlyArray<{ category: string; amount: string; isAddon?: boolean }>,
+  category: string
+): string | null {
+  // An add-on (0068) is held under 'others' but is no service type: a voucher
+  // limited to a type never comes off it, or counts it as that type.
+  const matching = lines.filter((line) => line.category === category && line.isAddon !== true)
   if (matching.length === 0) return null
   const paise = matching.reduce((sum, line) => sum + Math.round(Number.parseFloat(line.amount) * 100), 0)
   return (paise / 100).toFixed(2)

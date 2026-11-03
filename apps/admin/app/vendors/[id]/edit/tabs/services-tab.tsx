@@ -1,6 +1,8 @@
 'use client'
 
+import { useState } from 'react'
 import { IconChevronDown, IconEyeOff, IconTrash } from '@tabler/icons-react'
+import { AddOnsTable } from './add-ons-table'
 import { ScButton } from '@repo/ui/sc/button'
 import { ConfirmSheet } from '@repo/ui/sc/confirm-sheet'
 import { cn } from '@repo/core/utils'
@@ -14,12 +16,16 @@ import type { GarageDraft, GarageDraftState } from '../use-garage-draft'
  * changes, and its hidden services. Hide, Show again and Delete save at once.
  */
 export function ServicesTab({
+  vendorId,
   g,
   draft,
 }: {
+  vendorId: string
   g: GarageDraftState
   draft: GarageDraft
 }) {
+  // Bumped by "Add add-on", beside "Add service": the table adds a blank row.
+  const [addOnRequest, setAddOnRequest] = useState(0)
   const {
     resetCount,
     setDescribing,
@@ -58,6 +64,7 @@ export function ServicesTab({
 
       <ServicesEditor
         key={resetCount}
+        onAddAddOn={() => setAddOnRequest((n) => n + 1)}
         onAiBusyChange={setDescribing}
         rows={draft.services}
         setRows={setServices}
@@ -95,6 +102,8 @@ export function ServicesTab({
           </>
         }
       />
+
+      <AddOnsTable vendorId={vendorId} addRequest={addOnRequest} />
 
       {/* Always mounted, so the message is announced when it lands. */}
       <p

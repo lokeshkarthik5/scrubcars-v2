@@ -153,6 +153,9 @@ beforeAll(() => {
       vendorIds.flatMap((vendorId) =>
         ['shop_photo', 'owner_id', 'bank_proof'].map((type) => ({ vendorId, type, status: 'approved' }))
       ),
+    // Every garage takes bookings at the garage, so all three are required.
+    listDocumentModes: async (vendorIds: string[]) =>
+      vendorIds.map((vendorId) => ({ vendorId, doorstepEnabled: false, dropinEnabled: true })),
     // Silver (0063): never given by a nightly run here, only as a test sets it.
     findTierStanding: async (vendorId: string) => tierStandings.get(vendorId),
     ratings: async (vendorIds: string[]) => {

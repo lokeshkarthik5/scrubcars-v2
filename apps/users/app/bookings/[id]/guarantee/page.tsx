@@ -1,5 +1,6 @@
 'use client'
 
+import { serviceLinesOf } from '@repo/core/add-ons'
 import { use, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -208,7 +209,7 @@ function ClaimForm({
             </h1>
             <p className="mt-0.5 text-[12px] text-text-secondary">
               {booking.vendorName} ·{' '}
-              {booking.items.map((item) => item.name).join(', ')}
+              {serviceLinesOf(booking.items).map((item) => item.name).join(', ')}
               {claimBy && <> · Ask by {formatStepTime(claimBy)}</>}
             </p>
           </div>

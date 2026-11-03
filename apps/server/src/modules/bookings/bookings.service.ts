@@ -324,6 +324,7 @@ const CANCELLATION_CUTOFF_MS = 2 * 60 * 60 * 1000
 // Mirrored in packages/core/src/booking-types.ts (the legal pages print it).
 const MAX_RESCHEDULES = 2
 import { effectiveDurationMins } from '../../lib/service-duration.js'
+import { ADD_ONS_ALONE_CODE, ADD_ONS_ALONE_MESSAGE, lineCapRefusal, onlyAddOns, servicesFirst } from '../../lib/add-ons.js'
 import { paise, rupees } from '../../lib/gift-credit.js'
 import { checkoutMatchRefusal, requestPlaceMatches } from '../../lib/booking-requests.js'
 import type { PaymentRecord } from './bookings.repository.js'
@@ -425,6 +426,8 @@ type BookingWithRelations = {
     amount: string
     durationMins: number
     sortOrder: number
+    // An add-on (0068): the snapshot on the line, never the live service.
+    isAddon?: boolean
     // The service's pricing type, when the read joined it (BOOKING_ITEMS).
     service?: { pricingType: string } | null
   }> | null
@@ -669,6 +672,8 @@ export function toBookingResponse(
       name: item.name,
       amount: item.amount,
       durationMins: item.durationMins,
+      // Added for add-ons (0068). A client that ignores it shows a plain line.
+      isAddon: item.isAddon ?? false,
       // How the service is priced today. An inspection job says what the
       // customer prepaid was a fee, not the whole price.
       pricingType: item.service?.pricingType ?? null,
@@ -1306,7 +1311,18 @@ export async function resolveBookingDraft(
     )
   }
 
-  const resolvedServices = services as NonNullable<(typeof services)[number]>[]
+  // Add-ons go with a service (0068). Every line-writing path comes through
+  // here, or keeps the lines of a booking that passed it.
+  if (onlyAddOns(found.filter((row) => input.serviceIds.includes(row.id)))) {
+    log.warn({ userId, vendorId: vendor.id, serviceIds: input.serviceIds }, 'booking:add_ons_alone')
+    throw new AppError(400, ADD_ONS_ALONE_MESSAGE, ADD_ONS_ALONE_CODE)
+  }
+
+  const overCap = lineCapRefusal(found)
+  if (overCap) throw new AppError(400, overCap.message, overCap.code)
+
+  // Services first, then add-ons: the first line is `bookings.service_id`.
+  const resolvedServices = servicesFirst(services as NonNullable<(typeof services)[number]>[])
   // The first service, for the columns that still hold one. Not a fallback:
   // `serviceIds` is non-empty by schema, so this always exists.
   const service = resolvedServices[0]
@@ -1352,8 +1368,10 @@ export async function resolveBookingDraft(
       name: row.name,
       amount: lineAmount,
       // The snapshot is never null: a service with no duration holds the
-      // default 60 minutes (0064, lib/service-duration.ts).
+      // default 60 minutes (0064, lib/service-duration.ts); an add-on's blank
+      // is no extra time (0068).
       durationMins: effectiveDurationMins(row),
+      isAddon: row.isAddon,
     }
   })
 
@@ -1388,7 +1406,11 @@ export async function resolveBookingDraft(
       // The services' price: a code never comes off a travel fee.
       subtotal: beforeTravel,
       // A coupon voucher limited to one service type (0056) comes off those lines.
-      lines: resolvedServices.map((row, index) => ({ category: row.category, amount: items[index]!.amount })),
+      lines: resolvedServices.map((row, index) => ({
+        category: row.category,
+        amount: items[index]!.amount,
+        isAddon: row.isAddon,
+      })),
     })
 
     discount = {
@@ -1600,6 +1622,7 @@ function moveParams(
       name: item.name,
       amount: item.amount,
       durationMins: item.durationMins,
+      isAddon: item.isAddon ?? false,
     })),
     vehicleId: booking.vehicleId,
     bookingType: booking.bookingType,

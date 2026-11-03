@@ -38,7 +38,7 @@ import {
   type PhotoCompliance as PhotoComplianceFigure,
 } from '../../lib/photo-compliance.js'
 import { alertOps } from '../../lib/ops-alerts.js'
-import { summariesByVendor } from '../../lib/vendor-documents.js'
+import { documentModesOf, isDoorstepOnly, summariesByVendor, type DocumentModes } from '../../lib/vendor-documents.js'
 import type { AgreementStanding } from '../../lib/agreements.js'
 import { planSilver, silverSteps, tierRunPaused, toTierSnapshot } from '../../lib/tiers.js'
 import { agreementPublished, agreementStandings } from '../agreements/agreements.service.js'
@@ -102,8 +102,15 @@ async function measureWithAgreements(
 async function measure(vendorIds: string[], now: Date): Promise<Map<string, CertificationMetrics>> {
   const since = windowStart(now)
   const documentsOn = isDocumentStorageConfigured()
+  // Each garage's own modes decide which documents it needs: a doorstep-only
+  // garage has no shop, so its shop photo is not required.
+  const modes = documentsOn
+    ? new Map<string, DocumentModes>(
+        (await certificationRepository.listDocumentModes(vendorIds)).map((row) => [row.vendorId, documentModesOf(row)])
+      )
+    : new Map<string, DocumentModes>()
   const documents = documentsOn
-    ? summariesByVendor(await certificationRepository.listApprovedDocumentTypes(vendorIds))
+    ? summariesByVendor(await certificationRepository.listApprovedDocumentTypes(vendorIds), modes)
     : null
   const ratings = new Map((await certificationRepository.ratings(vendorIds)).map((row) => [row.vendorId, row]))
   const completed = new Map(
@@ -136,6 +143,7 @@ async function measure(vendorIds: string[], now: Date): Promise<Map<string, Cert
         id,
         {
           documentsVerified: documents === null ? null : (documents.get(id)?.verified ?? false),
+          shopPhotoOptional: documents !== null && modes.has(id) && isDoorstepOnly(modes.get(id)!),
           rating: rating ? rating.average : null,
           reviewCount: rating?.count ?? 0,
           completed: completed.get(id) ?? 0,

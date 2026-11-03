@@ -97,7 +97,8 @@ function photoLimitReached() {
  */
 async function resolveService(actor: MediaActor, serviceId: string, change = true) {
   const service = await serviceMediaRepository.findService(serviceId)
-  if (!service || service.vendor.purgedAt) throw serviceNotFound()
+  // An add-on has no photos or video (0068).
+  if (!service || service.isAddon || service.vendor.purgedAt) throw serviceNotFound()
   if (actor.kind === 'garage' && service.vendorId !== actor.vendorId) throw serviceNotFound()
   // A garage's team cannot reach a garage in the Bin at all (resolveTenant);
   // admin can see it but not change it until it is restored.
