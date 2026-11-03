@@ -19,6 +19,7 @@ const { env } = await import('../../lib/env.js')
 const { AppError } = await import('../../lib/errors.js')
 const { signAccessToken } = await import('../../lib/jwt.js')
 const { membersRepository } = await import('../members/members.repository.js')
+const { fakeDeviceOutbox } = await import('../../lib/expo-push.js')
 const { pushRepository } = await import('./push.repository.js')
 const { customerPushRoutes, garagePushRoutes } = await import('./push.routes.js')
 const { authMiddleware, requireCustomer } = await import('../../middleware/auth.middleware.js')
@@ -43,6 +44,7 @@ const SEATS: Array<{ userId: string; vendorId: string; role: 'vendor_admin' | 'v
 
 const TOKEN = 'ExponentPushToken[AbCdEfGhIjKlMnOpQrStUv]'
 const TOKEN_2 = 'ExponentPushToken[ZyXwVuTsRqPoNmLkJiHgFe]'
+const TOKEN_3 = 'ExponentPushToken[QqWwEeRrTtYyUuIiOoPpAa]'
 const DEVICE = { token: TOKEN, platform: 'ios' }
 
 type Patchable = Record<string, unknown>
@@ -108,6 +110,14 @@ beforeAll(() => {
     stored.delete(token)
     return true
   })
+  patch(pushRepository, 'listOwnDevices', async (scope: Scope, token?: string) =>
+    [...stored.values()]
+      .filter((row) => sameScope(row, scope) && (token === undefined || row.token === token))
+      .map((row, index) => ({ id: `device-${index}`, token: row.token, platform: row.platform }))
+  )
+  patch(pushRepository, 'markDeviceSent', async () => undefined)
+  patch(pushRepository, 'markDeviceFailed', async () => 1)
+  patch(pushRepository, 'deleteDevice', async () => undefined)
   patch(pushRepository, 'getPreferences', async () => ({ pushBookingUpdates: true, pushReminders: false }))
   patch(pushRepository, 'setPreferences', async (_userId: string, set: Record<string, boolean>) => ({
     pushBookingUpdates: set.pushBookingUpdates ?? true,
@@ -118,6 +128,8 @@ beforeAll(() => {
 beforeEach(() => {
   stored.clear()
   pruned = []
+  fakeDeviceOutbox.length = 0
+  envValues.pushFake = true
   devicesOn(true)
 })
 
@@ -325,5 +337,117 @@ describe('garage seats: only for their own garage', () => {
     const own = await call('DELETE', '/vendors/me/push/devices', 'owner', { token: TOKEN })
     expect(own.body.data).toEqual({ registered: false, devices: 0 })
     expect(stored.has(TOKEN)).toBe(false)
+  })
+})
+
+describe('"Send me a test notification" from a phone', () => {
+  // Five a person per ten minutes, shared with the browser test: each person
+  // below asks at most four times.
+  test('while the Expo access token is unset it is a 404, before auth too', async () => {
+    devicesOn(false)
+    const customer = await call('POST', '/users/me/push/devices/test', 'customer', {})
+    expect(customer.status).toBe(404)
+    expect(customer.body.code).toBe('NOT_FOUND')
+    for (const who of [null, 'owner'] as const) {
+      const { status, body } = await call('POST', '/vendors/me/push/devices/test', who, {})
+      expect(status).toBe(404)
+      expect(body.code).toBe('NOT_FOUND')
+    }
+    expect(fakeDeviceOutbox).toHaveLength(0)
+  })
+
+  test('a customer’s test goes to their own phones only, and says what it was', async () => {
+    await call('POST', '/users/me/push/devices', 'customer', DEVICE)
+    await call('POST', '/users/me/push/devices', 'customer', { token: TOKEN_2, platform: 'android' })
+    await call('POST', '/users/me/push/devices', 'otherCustomer', { token: TOKEN_3, platform: 'ios' })
+
+    const { status, body } = await call('POST', '/users/me/push/devices/test', 'customer', {})
+    expect(status).toBe(200)
+    expect(body.data).toEqual({ result: 'sent' })
+    expect(fakeDeviceOutbox).toHaveLength(2)
+    expect(fakeDeviceOutbox.map((sent) => sent.platform).sort()).toEqual(['android', 'ios'])
+    expect(fakeDeviceOutbox[0]).toMatchObject({
+      title: 'Detlio notifications are on',
+      body: 'Updates about your bookings will show here.',
+      tag: 'test',
+      url: '/profile/notifications',
+    })
+  })
+
+  test('naming one of their phones tests that phone alone; naming someone else’s is a 404', async () => {
+    await call('POST', '/users/me/push/devices', 'customer', DEVICE)
+    await call('POST', '/users/me/push/devices', 'customer', { token: TOKEN_2, platform: 'android' })
+    await call('POST', '/users/me/push/devices', 'otherCustomer', { token: TOKEN_3, platform: 'ios' })
+
+    expect((await call('POST', '/users/me/push/devices/test', 'otherCustomer', { token: TOKEN_3 })).body.data).toEqual({
+      result: 'sent',
+    })
+    expect(fakeDeviceOutbox.map((sent) => sent.platform)).toEqual(['ios'])
+
+    fakeDeviceOutbox.length = 0
+    const stranger = await call('POST', '/users/me/push/devices/test', 'customer', { token: TOKEN_3 })
+    expect(stranger.status).toBe(404)
+    expect(stranger.body.code).toBe('PUSH_NOT_SUBSCRIBED')
+    expect(stranger.body.message).toBe("Notifications aren't on for this phone. Turn them on first.")
+    expect(fakeDeviceOutbox).toHaveLength(0)
+  })
+
+  test('with no phone turned on it is a 404 and nothing is sent', async () => {
+    const { status, body } = await call('POST', '/users/me/push/devices/test', 'customer', {})
+    expect(status).toBe(404)
+    expect(body.code).toBe('PUSH_NOT_SUBSCRIBED')
+    expect(fakeDeviceOutbox).toHaveLength(0)
+  })
+
+  test('a token that is not an Expo token, or anything extra in the body, is refused', async () => {
+    await call('POST', '/users/me/push/devices', 'customer', DEVICE)
+    for (const body of [{ token: 'nope' }, { token: TOKEN, userId: PEOPLE.otherCustomer }, { audience: 'garage' }]) {
+      expect((await call('POST', '/users/me/push/devices/test', 'customer', body)).status).toBe(400)
+    }
+    expect(fakeDeviceOutbox).toHaveLength(0)
+  })
+
+  test('a garage seat’s test goes to its own phones for this garage, with the garage wording', async () => {
+    await call('POST', '/vendors/me/push/devices', 'owner', DEVICE)
+    await call('POST', '/vendors/me/push/devices', 'otherOwner', { token: TOKEN_3, platform: 'android' })
+
+    const { status, body } = await call('POST', '/vendors/me/push/devices/test', 'owner', {})
+    expect(status).toBe(200)
+    expect(body.data).toEqual({ result: 'sent' })
+    expect(fakeDeviceOutbox).toEqual([
+      expect.objectContaining({
+        platform: 'ios',
+        tag: 'test',
+        body: 'New bookings will show here, even with the portal closed.',
+        url: '/settings/notifications',
+      }),
+    ])
+    // A teammate has no phone of their own on this garage: nothing to test.
+    expect((await call('POST', '/vendors/me/push/devices/test', 'operator', {})).status).toBe(404)
+    // Another garage's owner cannot reach this garage by header.
+    const header = await call('POST', '/vendors/me/push/devices/test', 'otherOwner', { token: TOKEN }, { 'X-Vendor-Id': GARAGE })
+    expect(header.status).toBe(404)
+    expect(fakeDeviceOutbox).toHaveLength(1)
+  })
+
+  test('a customer has no seat (404); a Detlio support session cannot test (403); signed out is a 401', async () => {
+    expect((await call('POST', '/vendors/me/push/devices/test', 'customer', {})).status).toBe(404)
+    const support = await call('POST', '/vendors/me/push/devices/test', 'superAdmin', {}, { 'X-Vendor-Id': GARAGE })
+    expect(support.status).toBe(403)
+    expect(support.body.code).toBe('PUSH_SUPPORT_SESSION')
+    expect((await call('POST', '/users/me/push/devices/test', null, {})).status).toBe(401)
+    expect((await call('POST', '/users/me/push/devices/test', 'owner', {})).status).toBe(403)
+  })
+
+  test('the sixth in ten minutes is a 429 with the browser test’s wording', async () => {
+    await call('POST', '/users/me/push/devices', 'otherCustomer', { token: TOKEN_3, platform: 'ios' })
+    // This person has already asked once above, so four more fill the five.
+    for (let i = 0; i < 4; i += 1) {
+      expect((await call('POST', '/users/me/push/devices/test', 'otherCustomer', {})).status).toBe(200)
+    }
+    const { status, body } = await call('POST', '/users/me/push/devices/test', 'otherCustomer', {})
+    expect(status).toBe(429)
+    expect(body.code).toBe('PUSH_TEST_RATE_LIMIT')
+    expect(body.message).toBe('Too many test notifications. Try again in a few minutes.')
   })
 })

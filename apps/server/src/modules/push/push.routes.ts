@@ -10,6 +10,7 @@ import {
 } from '../../middleware/tenant.middleware.js'
 import * as pushController from './push.controller.js'
 import {
+  deviceTestSchema,
   endpointSchema,
   preferencesSchema,
   registerDeviceSchema,
@@ -66,6 +67,9 @@ customerPushRoutes.post('/devices', devicePushOn, zValidator('json', registerDev
 customerPushRoutes.delete('/devices', devicePushOn, zValidator('json', removeDeviceSchema), (c) =>
   pushController.removeCustomerDevice(c, c.req.valid('json'))
 )
+customerPushRoutes.post('/devices/test', devicePushOn, zValidator('json', deviceTestSchema), (c) =>
+  pushController.testCustomerDevices(c, c.req.valid('json'))
+)
 customerPushRoutes.post('/test', pushOn, zValidator('json', endpointSchema), (c) =>
   pushController.testCustomer(c, c.req.valid('json'))
 )
@@ -107,4 +111,7 @@ garagePushRoutes.post('/devices', devicePushOn, ...seatMiddleware, zValidator('j
 )
 garagePushRoutes.delete('/devices', devicePushOn, ...seatMiddleware, zValidator('json', removeDeviceSchema), (c) =>
   pushController.removeGarageDevice(c, c.req.valid('json'))
+)
+garagePushRoutes.post('/devices/test', devicePushOn, ...seatMiddleware, zValidator('json', deviceTestSchema), (c) =>
+  pushController.testGarageDevices(c, c.req.valid('json'))
 )

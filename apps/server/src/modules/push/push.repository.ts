@@ -257,6 +257,14 @@ export const pushRepository = {
       .where(and(eq(pushDevices.userId, userId), eq(pushDevices.audience, 'customer'), eq(users.status, 'active')))
   },
 
+  /** This person's own phones in this scope (the one named, when a token is given). */
+  async listOwnDevices(scope: Scope, token?: string): Promise<DeviceRow[]> {
+    return db
+      .select({ id: pushDevices.id, token: pushDevices.token, platform: pushDevices.platform })
+      .from(pushDevices)
+      .where(and(deviceScopeWhere(scope), token === undefined ? undefined : eq(pushDevices.token, token)))
+  },
+
   /**
    * Every phone of a garage's team, on the same terms as the browsers: turned
    * on for this garage by someone who still holds an active seat there, while
