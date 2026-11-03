@@ -490,10 +490,13 @@ export function summariseServiceTypes(
       shares.set(line.category, (shares.get(line.category) ?? 0) + share)
     })
 
+    // An add-on (0068) keeps its money under Others, so the money still adds
+    // up, but a wash with one extra isn't an Others booking.
+    const bookedTypes = new Set(lines.filter((line) => line.isAddon !== true).map((line) => line.category))
     for (const [category, paise] of shares) {
       const type = types.get(category)
       if (!type) continue
-      type.bookings++
+      if (bookedTypes.has(category)) type.bookings++
       type.paise += paise
     }
   }

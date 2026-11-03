@@ -1,5 +1,6 @@
 'use client'
 
+import { AddOnMark } from '@repo/ui/sc/add-on-mark'
 import { use, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -593,7 +594,10 @@ function BookingDetail({
                   key={item.id}
                   className="flex justify-between gap-3 text-[13px]"
                 >
-                  <span className="text-text-primary">{item.name}</span>
+                  <span className="flex items-center gap-1.5 text-text-primary">
+                    {item.name}
+                    {item.isAddon && <AddOnMark />}
+                  </span>
                   <span className="font-numeric text-text-secondary">
                     {formatRupees(item.amount)}
                   </span>

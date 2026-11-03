@@ -307,7 +307,8 @@ export const onboardingMarksRepository = {
           },
           where: and(
             eq(services.isActive, true),
-            ne(services.category, 'package')
+            ne(services.category, 'package'),
+            eq(services.isAddon, false)
           ),
         },
         workingHours: { columns: { isClosed: true } },

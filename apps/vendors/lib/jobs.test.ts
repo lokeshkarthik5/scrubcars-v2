@@ -12,6 +12,7 @@ import {
   nextStep,
   nextStepLabel,
   progressIndex,
+  serviceOnlyLine,
   servicesLine,
   shortName,
   sortByUrgency,
@@ -291,5 +292,27 @@ describe('next step', () => {
     expect(progressIndex(job())).toBe(1)
     expect(progressIndex(job({ status: 'in_progress' }))).toBe(2)
     expect(progressIndex(job({ status: 'completed' }))).toBe(5)
+  })
+})
+
+describe('a job with add-ons', () => {
+  const lines = [
+    { id: 'i1', serviceId: 's1', name: 'Foam wash', amount: 599, durationMins: 45 },
+    { id: 'i2', serviceId: 's2', name: 'Helmet wash', amount: 99, durationMins: 10, isAddon: true },
+    { id: 'i3', serviceId: 's3', name: 'Air freshener', amount: 49, durationMins: 0, isAddon: true },
+  ]
+  const withAddOns = job({ items: lines, serviceSummary: 'Foam wash + 2 add-ons' })
+
+  test('a list row keeps to one line', () => {
+    expect(servicesLine(withAddOns)).toBe('Foam wash + 2 add-ons')
+    expect(servicesLine(job({ items: lines.slice(0, 2), serviceSummary: 'Foam wash + 1 add-on' }))).toBe('Foam wash + 1 add-on')
+  })
+
+  test('the card and job page show the services alone, the add-ons on lines of their own', () => {
+    expect(serviceOnlyLine(withAddOns)).toBe('Foam wash')
+  })
+
+  test('the price on the card includes them', () => {
+    expect(jobPrice(withAddOns)).toBe(747)
   })
 })

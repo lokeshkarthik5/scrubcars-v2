@@ -1,3 +1,4 @@
+import { ADD_ON_CATEGORY } from '../../lib/add-ons.js'
 import { and, asc, eq, gte, inArray, isNull, lt, lte, ne, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import {
@@ -191,7 +192,7 @@ export const vendorsRepository = {
         OR v.city ILIKE ${term}
         OR EXISTS (
           SELECT 1 FROM services s
-           WHERE s.vendor_id = v.id AND s.is_active = true AND s.name ILIKE ${term}
+           WHERE s.vendor_id = v.id AND s.is_active = true AND s.is_addon = false AND s.name ILIKE ${term}
         )
       )`)
     }
@@ -199,14 +200,14 @@ export const vendorsRepository = {
     if (category) {
       conditions.push(sql`EXISTS (
         SELECT 1 FROM services s
-         WHERE s.vendor_id = v.id AND s.is_active = true AND s.category = ${category}
+         WHERE s.vendor_id = v.id AND s.is_active = true AND s.is_addon = false AND s.category = ${category}
       )`)
     }
 
     if (params.anyCategory && params.anyCategory.length > 0) {
       conditions.push(sql`EXISTS (
         SELECT 1 FROM services s
-         WHERE s.vendor_id = v.id AND s.is_active = true
+         WHERE s.vendor_id = v.id AND s.is_active = true AND s.is_addon = false
            AND s.category IN (${sql.join(params.anyCategory.map((c) => sql`${c}`), sql`, `)})
       )`)
     }
@@ -273,7 +274,7 @@ export const vendorsRepository = {
     const rating = sql`(SELECT CASE WHEN count(*) >= ${RATING_RULES.minCountedReviews} THEN avg(r.rating) ELSE ${NEW_GARAGE_SORT_RATING} END FROM reviews r WHERE r.vendor_id = v.id AND ${COUNTED_REVIEW})`
     const startingPrice = sql`(
       SELECT min(s.price) FROM services s
-       WHERE s.vendor_id = v.id AND s.is_active = true AND s.price > 0
+       WHERE s.vendor_id = v.id AND s.is_active = true AND s.is_addon = false AND s.price > 0
     )`
 
     const orderBy = (() => {
@@ -336,8 +337,9 @@ export const vendorsRepository = {
         photos: {
           orderBy: [asc(vendorPhotos.sortOrder)],
         },
+        // What a garage's card reads ("from" price, category tags): never add-ons.
         services: {
-          where: eq(services.isActive, true),
+          where: and(eq(services.isActive, true), eq(services.isAddon, false)),
         },
         serviceAreas: true,
         workingHours: {
@@ -703,12 +705,56 @@ export const vendorsRepository = {
       where: and(
         eq(services.vendorId, vendorId),
         ne(services.category, 'package'),
+        eq(services.isAddon, false),
         isNull(services.deletedAt),
         ...(activeOnly ? [eq(services.isActive, true)] : [])
       ),
       orderBy: [asc(services.name)],
       with: withImages,
     })
+  },
+
+  // Add-ons only (0068): every list that means "services" leaves them out.
+  listAddOns(vendorId: string, activeOnly = false) {
+    return db.query.services.findMany({
+      where: and(
+        eq(services.vendorId, vendorId),
+        eq(services.isAddon, true),
+        isNull(services.deletedAt),
+        ...(activeOnly ? [eq(services.isActive, true)] : [])
+      ),
+      orderBy: [asc(services.name)],
+    })
+  },
+
+  findAddOnById(vendorId: string, addOnId: string) {
+    return db.query.services.findFirst({
+      where: and(
+        eq(services.id, addOnId),
+        eq(services.vendorId, vendorId),
+        eq(services.isAddon, true),
+        isNull(services.deletedAt)
+      ),
+    })
+  },
+
+  createAddOn(
+    vendorId: string,
+    data: {
+      name: string
+      pricingType: ServicePricingType
+      price: string
+      priceHatchback?: string | null
+      priceSedan?: string | null
+      priceSuv?: string | null
+      durationMins: number
+      isActive: boolean
+    }
+  ) {
+    return db
+      .insert(services)
+      .values({ ...data, vendorId, category: ADD_ON_CATEGORY, isAddon: true })
+      .returning()
   },
 
   listPackages(vendorId: string, activeOnly = false) {
@@ -758,6 +804,7 @@ export const vendorsRepository = {
         eq(services.vendorId, vendorId),
         inArray(services.id, serviceIds),
         ne(services.category, 'package'),
+        eq(services.isAddon, false),
         eq(services.isActive, true)
       ),
     })
@@ -848,6 +895,7 @@ export const vendorsRepository = {
         eq(services.id, serviceId),
         eq(services.vendorId, vendorId),
         ne(services.category, 'package'),
+        eq(services.isAddon, false),
         isNull(services.deletedAt)
       ),
       with: withImages,
@@ -855,12 +903,13 @@ export const vendorsRepository = {
   },
 
   // Either kind. Used by the shared active-toggle and the image endpoints,
-  // which are valid for both.
+  // which are valid for both. An add-on is neither: it has its own routes.
   findAnyServiceById(vendorId: string, serviceId: string) {
     return db.query.services.findFirst({
       where: and(
         eq(services.id, serviceId),
         eq(services.vendorId, vendorId),
+        eq(services.isAddon, false),
         isNull(services.deletedAt)
       ),
       with: withImages,

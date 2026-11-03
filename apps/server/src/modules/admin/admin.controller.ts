@@ -1,3 +1,4 @@
+import type { CreateAddOnInput, UpdateAddOnInput } from '../vendors/vendors.validation.js'
 import type { Context } from 'hono'
 import { deleteCookie, setCookie } from 'hono/cookie'
 import { env } from '../../lib/env.js'
@@ -142,6 +143,22 @@ export async function pauseVendor(
 export async function resumeVendor(c: AdminContext, id: string) {
   const vendor = await adminService.resumeVendor(id)
   return c.json({ success: true, data: vendor })
+}
+
+export async function listAddOns(c: AdminContext, vendorId: string) {
+  return c.json({ success: true, data: await adminService.listAddOns(vendorId) })
+}
+
+export async function createAddOn(c: AdminContext, vendorId: string, input: CreateAddOnInput) {
+  return c.json({ success: true, data: await adminService.createAddOn(vendorId, input) }, 201)
+}
+
+export async function updateAddOn(c: AdminContext, vendorId: string, addOnId: string, input: UpdateAddOnInput) {
+  return c.json({ success: true, data: await adminService.updateAddOn(vendorId, addOnId, input) })
+}
+
+export async function deleteAddOn(c: AdminContext, vendorId: string, addOnId: string) {
+  return c.json({ success: true, data: await adminService.deleteAddOn(vendorId, addOnId) })
 }
 
 export async function listHiddenServices(c: AdminContext, vendorId: string) {

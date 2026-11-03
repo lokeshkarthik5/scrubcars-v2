@@ -306,7 +306,7 @@ export default function EditVendorPage({
                 <HoursBookingTab g={g} draft={draft} />
               </TabsContent>
               <TabsContent value="services">
-                <ServicesTab g={g} draft={draft} />
+                <ServicesTab vendorId={id} g={g} draft={draft} />
               </TabsContent>
               <TabsContent value="team">
                 <TeamPayoutTab vendorId={id} onSaved={afterInstantSave} />

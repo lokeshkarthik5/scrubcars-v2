@@ -135,8 +135,11 @@ export function isFreeWashCheckout(discountSource: string | null | undefined, ch
 }
 
 /** The part of a booking the free wash may come off, for resolveDiscount: the dearest car wash. */
-export function freeWashEligibleSubtotal(lines: ReadonlyArray<{ category: string; amount: string }>): string | null {
-  const washes = lines.filter((line) => line.category === FREE_WASH_RULES.category)
+export function freeWashEligibleSubtotal(
+  lines: ReadonlyArray<{ category: string; amount: string; isAddon?: boolean }>
+): string | null {
+  // Only ever the wash line: an add-on (0068) is still paid for.
+  const washes = lines.filter((line) => line.category === FREE_WASH_RULES.category && line.isAddon !== true)
   if (washes.length === 0) return null
   const dearest = Math.max(...washes.map((line) => rupeesToPaise(line.amount)))
   return paiseToRupees(dearest)

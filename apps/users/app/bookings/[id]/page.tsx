@@ -1,5 +1,7 @@
 'use client'
 
+import { serviceLinesOf } from '@repo/core/add-ons'
+import { AddOnMark } from '@repo/ui/sc/add-on-mark'
 import { use, useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
@@ -566,14 +568,14 @@ export default function BookingDetailPage({
             track('pay_success', {
               vendorId: booking.vendorId,
               mode: booking.bookingType,
-              serviceCount: Math.min(20, Math.max(1, booking.items.length)),
+              serviceCount: Math.min(20, Math.max(1, serviceLinesOf(booking.items).length)),
               amountBucket: amountBucket(order.amount / 100),
             })
             // Meta's Purchase (marketing consent only), as at checkout.
             void trackPurchase({
               bookingId: booking.id,
               rupeesPaid: order.amount / 100,
-              numItems: booking.items.length,
+              numItems: serviceLinesOf(booking.items).length,
             })
             const updated = await getBooking(booking.id)
             if (updated) setBooking(updated)
@@ -1211,6 +1213,7 @@ export default function BookingDetailPage({
               {booking.items.map((item) => (
                 <span key={item.id}>
                   {item.name}{' '}
+                  {item.isAddon && <AddOnMark className="mx-1" />}
                   <span className="font-numeric">{money(item.amount)}</span>
                 </span>
               ))}

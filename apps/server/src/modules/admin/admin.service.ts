@@ -73,6 +73,7 @@ import { vendorInBin } from '../../lib/vendor-bin.js'
 import { isInBin, isListedToCustomers } from '../vendors/vendors.predicates.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { vendorsService } from '../vendors/vendors.service.js'
+import type { CreateAddOnInput, UpdateAddOnInput } from '../vendors/vendors.validation.js'
 import {
   adminRepository,
   type BookingFilterSet,
@@ -143,7 +144,8 @@ async function assertWritableVendor(vendorId: string) {
 
 async function assertService(serviceId: string) {
   const service = await adminRepository.findServiceById(serviceId)
-  if (!service) {
+  // An add-on has no photos (0068): as unknown here as a made-up id.
+  if (!service || service.isAddon) {
     throw new AppError(404, 'Service not found', 'SERVICE_NOT_FOUND')
   }
   return service
@@ -508,6 +510,7 @@ function toAdminBookingRow(
       name: item.name,
       amount: item.amount,
       durationMins: item.durationMins,
+      isAddon: item.isAddon,
     })),
     cancelledBy: booking.cancelledBy,
     cancelledOnBehalfOf: booking.cancelledOnBehalfOf,
@@ -1128,6 +1131,25 @@ export const adminService = {
    * The editor loads only live services, so this list is the only way back to
    * a hidden one.
    */
+  async listAddOns(vendorId: string) {
+    return vendorsService.listMyAddOns(vendorId)
+  },
+
+  async createAddOn(vendorId: string, input: CreateAddOnInput) {
+    await assertWritableVendor(vendorId)
+    return vendorsService.createAddOn(vendorId, input)
+  },
+
+  async updateAddOn(vendorId: string, addOnId: string, input: UpdateAddOnInput) {
+    await assertWritableVendor(vendorId)
+    return vendorsService.updateAddOn(vendorId, addOnId, input)
+  },
+
+  async deleteAddOn(vendorId: string, addOnId: string) {
+    await assertWritableVendor(vendorId)
+    return vendorsService.deleteAddOn(vendorId, addOnId)
+  },
+
   async listHiddenServices(vendorId: string) {
     await assertVendor(vendorId)
     const services = await vendorsService.listMyServices(vendorId)

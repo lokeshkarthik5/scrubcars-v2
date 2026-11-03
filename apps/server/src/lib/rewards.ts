@@ -626,6 +626,8 @@ export interface CompletedJob {
   subtotalAmount: string
   discountAmount: string
   discountFundedBy: 'platform' | 'vendor' | null
+  /** The add-on lines' price (0068): an add-on earns no stamp of its own. */
+  addOnAmount?: string | null
 }
 
 /**
@@ -634,8 +636,10 @@ export interface CompletedJob {
  * garage-funded discount stays off: the garage really charged less. Same
  * branch as `computeVendorPayout` in lib/discounts.ts, on purpose.
  */
-export function eligibleAmountPaise(job: Pick<CompletedJob, 'amount' | 'subtotalAmount' | 'discountFundedBy'>): number {
-  return job.discountFundedBy === 'platform' ? paise(job.subtotalAmount) : paise(job.amount)
+export function eligibleAmountPaise(job: Pick<CompletedJob, 'amount' | 'subtotalAmount' | 'discountFundedBy' | 'addOnAmount'>): number {
+  const worth = job.discountFundedBy === 'platform' ? paise(job.subtotalAmount) : paise(job.amount)
+  // An add-on can't carry a booking over the minimum on its own (0068).
+  return Math.max(0, worth - paise(job.addOnAmount ?? null))
 }
 
 /** How much off the booking was, in whole percent of its price (any promo or voucher). */

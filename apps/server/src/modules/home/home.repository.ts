@@ -135,6 +135,8 @@ export const homeRepository = {
         service: { columns: { name: true } },
         items: {
           columns: { name: true, sortOrder: true },
+          // The job's label, on the card and in Updates: its services.
+          where: eq(bookingItems.isAddon, false),
           orderBy: [asc(bookingItems.sortOrder)],
         },
         payment: {
@@ -293,7 +295,8 @@ export const homeRepository = {
       })
       .from(bookingItems)
       .innerJoin(services, eq(services.id, bookingItems.serviceId))
-      .where(inArray(bookingItems.bookingId, bookingIds))
+      // Book again repeats the services; add-ons are chosen again at checkout (0068).
+      .where(and(inArray(bookingItems.bookingId, bookingIds), eq(bookingItems.isAddon, false)))
       .orderBy(asc(bookingItems.sortOrder))
 
     const withItems = new Set(itemized.map((row) => row.bookingId))

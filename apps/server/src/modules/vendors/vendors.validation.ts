@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { ADD_ON_LIMITS, MAX_BOOKING_LINES } from '../../lib/add-ons.js'
 import { isCalendarDate } from '../../lib/booking-ops.js'
 import { MAX_PICKUP_RADIUS_KM, MIN_PICKUP_RADIUS_KM } from '../../lib/pickup.js'
 import type { ServicePricingType } from '../../lib/pricing.js'
@@ -51,7 +52,7 @@ export const slotsQuerySchema = z
   .refine(
     (input) =>
       input.serviceIds.length > 0 &&
-      input.serviceIds.length <= 10 &&
+      input.serviceIds.length <= MAX_BOOKING_LINES &&
       input.serviceIds.every((id) =>
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
       ),
@@ -462,6 +463,51 @@ export const updateServiceSchema = z
 export const toggleServiceActiveSchema = z.object({
   isActive: z.boolean(),
 })
+
+// ─── Add-ons (0068) ──────────────────────────────────────────────────────────
+//
+// Name, price (flat or per car type) and optional extra minutes. No category,
+// description, photos or on-inspection price: an add-on isn't a service.
+
+const addOnPricingTypeSchema = z.enum(['flat', 'per_vehicle'])
+const addOnExtraMinsSchema = z.number().int().min(0).max(ADD_ON_LIMITS.extraMins).nullable()
+
+export const createAddOnSchema = z
+  .object({
+    name: z.string().trim().min(1).max(ADD_ON_LIMITS.nameLength),
+    pricingType: addOnPricingTypeSchema.default('flat'),
+    price: z.number().positive().optional(),
+    priceHatchback: z.number().positive().optional(),
+    priceSedan: z.number().positive().optional(),
+    priceSuv: z.number().positive().optional(),
+    extraMins: addOnExtraMinsSchema.optional(),
+    isActive: z.boolean().default(true),
+  })
+  .strict()
+  .superRefine(refinePricing)
+
+export const updateAddOnSchema = z
+  .object({
+    name: z.string().trim().min(1).max(ADD_ON_LIMITS.nameLength).optional(),
+    pricingType: addOnPricingTypeSchema.optional(),
+    price: z.number().positive().optional(),
+    priceHatchback: z.number().positive().optional(),
+    priceSedan: z.number().positive().optional(),
+    priceSuv: z.number().positive().optional(),
+    extraMins: addOnExtraMinsSchema.optional(),
+    isActive: z.boolean().optional(),
+  })
+  .strict()
+  .superRefine((data, ctx) => {
+    if (Object.keys(data).length === 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'At least one field must be provided' })
+      return
+    }
+    refinePricing(data, ctx)
+  })
+
+export type CreateAddOnInput = z.infer<typeof createAddOnSchema>
+export type UpdateAddOnInput = z.infer<typeof updateAddOnSchema>
 
 // ─── Service images ──────────────────────────────────────────────────────────
 

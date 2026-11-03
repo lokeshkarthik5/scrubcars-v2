@@ -2037,3 +2037,27 @@ export const PREIOS = {
   requestWithdrawn: id(5161),
   area: { slug: 'medavakkam', name: 'Medavakkam' },
 } as const
+
+/**
+ * Garage add-ons (0068; ids 5800–5849, phones 90000058xx): a listed garage far
+ * from every other fixture, with one service and four add-ons (one off), its
+ * own owner and customer, and three of the customer's jobs carrying add-on lines.
+ */
+export const ADD_ONS = {
+  customer: { id: id(5800), phone: '9000005800', name: 'Add-on Meena', vehicleId: id(5801) },
+  owner: { id: id(5802), phone: '9000005802', name: 'Add-on Owner Karthik' },
+  garage: { id: id(5803), name: 'Add-on Car Spa' },
+  foam: { id: id(5804), name: 'Add-on Foam Wash', price: 599, durationMins: 45 },
+  helmet: { id: id(5805), name: 'Helmet wash', price: 99, extraMins: 10 },
+  freshener: { id: id(5806), name: 'Air freshener', price: 49 },
+  oil: { id: id(5807), name: 'Oil change', sedanPrice: 999, extraMins: 30 },
+  retired: { id: id(5808), name: 'Retired ceramic spray' },
+  /** Waiting for the garage, and done and paid (the receipt). */
+  pending: id(5810),
+  done: id(5811),
+  /** Admin's editor spec changes this one alone, so no other spec races with it. */
+  editGarage: {
+    id: id(5812), name: 'Add-on Edit Garage', serviceId: id(5813), serviceName: 'Add-on Edit Wash',
+    addOnId: id(5814), addOnName: 'Boot mat wash', ownerId: id(5815), ownerPhone: '9000005815',
+  },
+} as const
