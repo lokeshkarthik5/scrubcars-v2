@@ -23,6 +23,7 @@ import { WhenPicker } from '@/components/checkout/when-picker'
 import { STATUS_STEPS, bookingHeadline } from '@/lib/booking-status'
 import { formatWhen } from '@repo/core/format'
 import { money } from '@/lib/money'
+import { onlineAmount } from '@/lib/booking-payment'
 import { currentMarketingContext, trackPurchase } from '@/lib/meta-pixel'
 import { contactWindowState } from '@repo/core/contact-window'
 import { telHref, whatsAppHref } from '@repo/core/contact-links'
@@ -795,6 +796,13 @@ export default function BookingDetailPage({
     (['confirmed', 'in_progress'].includes(booking.status) &&
       booking.extraWork.some((work) => work.state === 'awaiting')) ||
     timeProposal !== null
+  // The payment row's two online labels ("Paid online", "To be paid online")
+  // state the online part, not the whole booking.
+  const onlineRow =
+    booking.paymentStatus === 'paid'
+      ? (booking.creditPaid ?? 0) < booking.servicePrice
+      : booking.paymentStatus !== 'refunded' &&
+        booking.paymentMethod === 'online'
   const unpaid =
     !paid &&
     booking.paymentMethod === 'online' &&
@@ -1255,7 +1263,16 @@ export default function BookingDetailPage({
                   : 'Cash'
           }
         >
-          <span className="font-numeric">{money(booking.servicePrice)}</span>
+          {/* "Paid online" and "To be paid online" are the online part: the
+              total less the Detlio credit (shown on the next row). The other
+              labels ("Paid", "Refunded", "Cash") state the whole booking. */}
+          <span className="font-numeric">
+            {money(
+              onlineRow
+                ? onlineAmount(booking.servicePrice, booking.creditPaid)
+                : booking.servicePrice
+            )}
+          </span>
         </Row>
         {/* Gift a wash (0049): the part Detlio credit paid. */}
         {(booking.creditPaid ?? 0) > 0 && (
