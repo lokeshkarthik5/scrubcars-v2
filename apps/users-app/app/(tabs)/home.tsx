@@ -1,5 +1,6 @@
 import { useServiceReminderAction } from '@repo/core/api/hooks/use-car-history';
 import { invalidateHome, useDismissReviewPrompt, useHome } from '@repo/core/api/hooks/use-home';
+import { garageLive, useGaragePulls } from '@repo/core/api/hooks/use-garage';
 import { rewardsEnabled, useRewardsConfig, useRewardsSummary } from '@repo/core/api/hooks/use-rewards';
 import type { HomeCar } from '@repo/core/api/home';
 import { bookingTypeParam } from '@repo/core/booking-types';
@@ -27,6 +28,9 @@ import {
   ServiceReminderHomeCard,
   TimeProposalHomeCard,
 } from '@/components/home/action-cards';
+import { PullRevealSheet } from '@/components/collect/pull-reveal-sheet';
+import { BadgeCelebration } from '@/components/rewards/badge-celebration';
+import { ChallengeLine } from '@/components/rewards/challenge-card';
 import { ContinueBookingCard } from '@/components/checkout/continue-booking';
 import { AddCarSheet } from '@/components/home/add-car-sheet';
 import { CarHero } from '@/components/home/car-hero';
@@ -36,7 +40,6 @@ import { RightTile, WashStatusTile } from '@/components/home/tiles';
 import { UpdatesBlock } from '@/components/home/updates-block';
 import { ReachStatusCards } from '@/components/reach/reach-status';
 import { CustomerShell } from '@/components/screen';
-import { REWARDS_SCREEN } from '@/lib/next-version';
 import { useAuth } from '@/lib/auth';
 import { coarse, isCitywide, useLocationStore } from '@/lib/location';
 import { otpFlow } from '@/lib/otp-flow';
@@ -99,6 +102,7 @@ export default function HomeScreen() {
   const home = useHome(origin, { enabled: !!authUser });
   const rewardsConfig = useRewardsConfig();
   const rewards = useRewardsSummary(rewardsEnabled(rewardsConfig.data) && !!authUser);
+  const garagePulls = useGaragePulls(garageLive(rewardsConfig.data) && !!authUser);
   const clock = useNow();
   useRefreshOnFocus(['home']);
 
@@ -193,6 +197,10 @@ export default function HomeScreen() {
             shine={rewards.data && cars.length > 0 ? rewards.data.card : null}
           />
 
+          {rewards.data?.extras && rewards.data.extras.unseen.length > 0 ? <BadgeCelebration badges={rewards.data.extras.unseen} /> : null}
+          {/* Badges first; new cars on the next visit, so two sheets never open at once. */}
+          {garagePulls.data && garagePulls.data.unseen > 0 && !(rewards.data?.extras && rewards.data.extras.unseen.length > 0) ? <PullRevealSheet pulls={garagePulls.data.pulls} firstName={firstNameOf(authUser.name)} /> : null}
+
           {car ? (
             <View style={styles.tiles}>
               <RightTile tile={car.rightTile} onBook={() => rememberCar({ userId: authUser.id, vehicleId: car.id })} />
@@ -219,7 +227,7 @@ export default function HomeScreen() {
             />
           ) : null}
 
-          {REWARDS_SCREEN && rewards.data ? (
+          {rewards.data ? (
             <PressRow onPress={() => router.push('/profile/rewards' as Href)} style={styles.rewards}>
               <T size={13} lh={18} style={styles.shrink}>
                 <Figures
@@ -244,6 +252,8 @@ export default function HomeScreen() {
               </View>
             </PressRow>
           ) : null}
+
+          {rewards.data?.extras?.challenge ? <ChallengeLine challenge={rewards.data.extras.challenge} /> : null}
 
           {data.updates ? <UpdatesBlock updates={data.updates} now={now} /> : null}
           <NearbyCard nearby={data.nearby} located={!!origin} />

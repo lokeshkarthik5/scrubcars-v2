@@ -22,8 +22,9 @@ export function initSentry() {
 }
 
 /** A crash the error screen caught. Nothing runs without a DSN. */
-export function captureError(error: unknown) {
-  if (!process.env.EXPO_PUBLIC_SENTRY_DSN) return;
+/** The report's reference, for the crash screen; none when reporting is off. */
+export function captureError(error: unknown): string | undefined {
+  if (!process.env.EXPO_PUBLIC_SENTRY_DSN) return undefined;
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  (require('@sentry/react-native') as typeof import('@sentry/react-native')).captureException(error);
+  return (require('@sentry/react-native') as typeof import('@sentry/react-native')).captureException(error);
 }

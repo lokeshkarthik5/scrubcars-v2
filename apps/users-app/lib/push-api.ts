@@ -13,3 +13,7 @@ export const registerPushDevice = (token: string, platform: DevicePlatform) =>
 
 export const removePushDevice = (token: string, signal?: AbortSignal) =>
   apiClient<DeviceStatus>('/users/me/push/devices', { method: 'DELETE', signal, body: JSON.stringify({ token }) });
+
+export type DeviceTestResult = 'sent' | 'expired' | 'failed';
+
+export const sendDeviceTest = () => apiClient<{ result: DeviceTestResult }>('/users/me/push/devices/test', { method: 'POST', body: JSON.stringify({}) });

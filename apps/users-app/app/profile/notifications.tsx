@@ -1,7 +1,7 @@
 import { setPushPreferences } from '@repo/core/api/push';
-import { ScButton } from '@repo/native-ui/button';
+import { Label, ScButton } from '@repo/native-ui/button';
 import { ScSwitch } from '@repo/native-ui/chip';
-import { IconBellOff } from '@repo/native-ui/icons';
+import { IconBellOff, IconBellRinging } from '@repo/native-ui/icons';
 import { EmptyState, ScCard } from '@repo/native-ui/primitives';
 import { T } from '@repo/native-ui/text';
 import { createStyles, useColors } from '@repo/native-ui/theme';
@@ -85,6 +85,17 @@ export default function NotificationsScreen() {
                 onChange={(on) => void (on ? device.turnOn() : device.turnOff())}
               />
             </View>
+            {device.subscribed && device.devices !== null && device.devices > 1 ? (
+              <T size={12} lh={16} color={colors.textSecondary}>
+                {`Also on for ${device.devices - 1} other ${device.devices === 2 ? 'device' : 'devices'}`}
+              </T>
+            ) : null}
+            {device.subscribed && !device.testHidden ? (
+              <ScButton variant="outline" disabled={device.busy} onPress={() => void device.sendTest()}>
+                <IconBellRinging size={16} color={colors.textPrimary} />
+                <Label>Send me a test notification</Label>
+              </ScButton>
+            ) : null}
             {device.denied ? (
               <View style={styles.denied}>
                 <T size={12} lh={16} color={colors.warning}>

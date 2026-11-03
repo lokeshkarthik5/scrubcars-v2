@@ -27,6 +27,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useState, type ReactElement } from 'react';
 import { Image, Pressable, View } from 'react-native';
 
+import { ServiceMediaArea } from '@/components/service-media/service-media-area';
 import { addOnCountLabel, addOnTimeLabel, type AddOn } from '@/lib/add-ons';
 import { money, pricedForCar, servicePriceText } from '@/lib/price';
 
@@ -286,7 +287,7 @@ function WhatsIncluded({ points, note }: { points: string[]; note: string | null
   );
 }
 
-/** The details sheet. The garage's photo on top; playing a video comes with the media stage. */
+/** The details sheet: the garage's own video or photos on top. */
 export function ServiceSheet({
   details,
   open,
@@ -294,7 +295,9 @@ export function ServiceSheet({
   added,
   paused,
   onToggle,
+  garageName,
 }: {
+  garageName: string;
   details: Service | ServicePackage | null;
   open: boolean;
   onClose: () => void;
@@ -310,7 +313,7 @@ export function ServiceSheet({
     <ScSheet open={open} onClose={onClose} accessibilityLabel={details ? `${details.name} details` : 'Service details'} horizontalPadding={16}>
       {details ? (
         <>
-          {media ? <Image source={{ uri: media.url }} resizeMode="cover" style={styles.sheetPhoto} /> : null}
+          <ServiceMediaArea service={details} garageName={garageName} />
           <View style={styles.sheetTitleRow}>
             {media ? null : <IconTile service={details} size={48} />}
             <View style={styles.flex}>

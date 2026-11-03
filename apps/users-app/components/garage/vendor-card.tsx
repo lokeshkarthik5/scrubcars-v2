@@ -1,6 +1,6 @@
 import { BOOKING_TYPE_LABELS, bookingTypeParam } from '@repo/core/booking-types';
 import { distanceAndDrive } from '@repo/core/drive-time';
-import { hasStarScore, NEW_GARAGE_LABEL } from '@repo/core/ratings';
+import { hasStarScore, NEW_GARAGE_LABEL, newGarageReviewsLine } from '@repo/core/ratings';
 import type { BookingType, Vendor } from '@repo/core/types';
 import { IconStarFilled } from '@repo/native-ui/icons';
 import { PressRow } from '@repo/native-ui/primitives';
@@ -97,6 +97,7 @@ export function VendorCard({
             ) : (
               <T size={12} weight={500} lh={18}>
                 {NEW_GARAGE_LABEL}
+                {newGarageReviewsLine(vendor.reviewCount) ? ` · ${newGarageReviewsLine(vendor.reviewCount)}` : ''}
               </T>
             )}
             {vendor.startingPrice > 0 ? (

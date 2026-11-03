@@ -8,6 +8,7 @@ import { type Href, router } from 'expo-router';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { FreeWashPiece } from '@/components/reach/free-wash';
 import { PageHeader } from '@/components/page-header';
 import { RequestCard } from '@/components/reach/request-card';
 import { useAuth } from '@/lib/auth';
@@ -41,7 +42,12 @@ export default function RequestsScreen() {
             </ScButton>
           </View>
         ) : (
-          items.map((request) => <RequestCard key={request.rootId} request={request} now={now} />)
+          <>
+            {items.map((request) => (
+              <RequestCard key={request.rootId} request={request} now={now} />
+            ))}
+            {items.some((r) => r.state === 'no_garage') ? <FreeWashPiece placement="bottom" /> : null}
+          </>
         )}
       </ScrollView>
     </View>

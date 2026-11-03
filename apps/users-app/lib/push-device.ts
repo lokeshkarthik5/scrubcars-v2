@@ -9,7 +9,8 @@ import { AppState, Platform } from 'react-native';
 import { onBeforeSignOut, useAuth } from './auth';
 import { devicePrefs } from './device-prefs';
 import { errorText } from './error-text';
-import { registerPushDevice, removePushDevice } from './push-api';
+import { deviceTestReply } from './device-test-reply';
+import { registerPushDevice, removePushDevice, sendDeviceTest } from './push-api';
 import { createPushController, type PermissionState } from './push-controller';
 
 const toState = (result: { status: string }): PermissionState =>
@@ -37,6 +38,11 @@ if (Platform.OS === 'android') {
     name: 'Booking updates',
     importance: Notifications.AndroidImportance.HIGH,
   }).catch(() => undefined);
+  // The server sends customer reminders here (apps/server/src/lib/expo-push.ts).
+  void Notifications.setNotificationChannelAsync('reminders', {
+    name: 'Reminders',
+    importance: Notifications.AndroidImportance.DEFAULT,
+  }).catch(() => undefined);
 }
 
 const listeners = new Set<() => void>();
@@ -56,6 +62,7 @@ export function usePushDevice() {
   });
   const [permission, setPermission] = useState<PermissionState>('undetermined');
   const [subscribed, setSubscribed] = useState(() => controller.isOn(userId));
+  const [devices, setDevices] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
 
   const check = useCallback(async () => {
@@ -81,8 +88,9 @@ export function usePushDevice() {
     if (!userId) return;
     setBusy(true);
     try {
-      const { result } = await controller.turnOn(userId);
+      const { result, devices } = await controller.turnOn(userId);
       if (result === 'on') {
+        setDevices(devices ?? null);
         changed();
         toast.success('Notifications are on for this phone');
       } else if (result === 'no_project') {
@@ -97,6 +105,23 @@ export function usePushDevice() {
       setBusy(false);
     }
   }, [userId]);
+
+  const [testHidden, setTestHidden] = useState(false);
+  const sendTest = useCallback(async () => {
+    setBusy(true);
+    const reply = deviceTestReply(await sendDeviceTest().catch((error: unknown) => ({ error })));
+    setBusy(false);
+    if (reply.kind === 'sent') toast.success(reply.message);
+    else if (reply.kind === 'hide') setTestHidden(true);
+    else {
+      toast.error(reply.message);
+      if (reply.kind === 'expired') {
+        // The server has dropped this phone's token.
+        await controller.forget({ sessionGone: true });
+        changed();
+      }
+    }
+  }, []);
 
   const turnOff = useCallback(async () => {
     setBusy(true);
@@ -120,6 +145,9 @@ export function usePushDevice() {
     subscribed,
     busy,
     turnOn,
+    devices,
+    sendTest,
+    testHidden,
     turnOff,
   };
 }

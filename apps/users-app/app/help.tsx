@@ -5,7 +5,7 @@ import { IconChevronDown, IconSearch } from '@repo/native-ui/icons';
 import { ScCard } from '@repo/native-ui/primitives';
 import { T } from '@repo/native-ui/text';
 import { createStyles, useColors } from '@repo/native-ui/theme';
-import { type Href, router } from 'expo-router';
+import { type Href, router, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, TextInput, View } from 'react-native';
@@ -67,6 +67,7 @@ export default function HelpScreen() {
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const user = useAuth((s) => s.user);
+  const params = useLocalSearchParams<{ open?: string }>();
   const [query, setQuery] = useState('');
   const [searched, setSearched] = useState('');
   const [raising, setRaising] = useState(false);
@@ -105,9 +106,9 @@ export default function HelpScreen() {
             style={styles.input}
           />
         </View>
-        {searching && found === 0 ? (
-          <T size={13} lh={18} color={colors.textSecondary}>
-            {HELP_INTRO.noResults}
+        {searching ? (
+          <T accessibilityLiveRegion="polite" size={13} lh={18} color={colors.textSecondary}>
+            {found === 0 ? HELP_INTRO.noResults : `${found} answer${found === 1 ? '' : 's'} found`}
           </T>
         ) : null}
         {groups.map((group) => (
@@ -118,7 +119,7 @@ export default function HelpScreen() {
             <ScCard style={styles.list}>
               {group.questions.map((question, index) => (
                 <View key={`${question.id}:${searching}`} style={index > 0 ? styles.line : undefined}>
-                  <Question question={question} open={searching} />
+                  <Question question={question} open={searching || question.id === params.open} />
                 </View>
               ))}
             </ScCard>
