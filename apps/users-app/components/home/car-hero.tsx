@@ -12,7 +12,6 @@ import { useState } from 'react';
 import { Image, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Svg, { Defs, Ellipse, RadialGradient, Stop } from 'react-native-svg';
 
-import { REWARDS_SCREEN } from '@/lib/next-version';
 
 const TYPE_LABEL: Record<HomeCar['vehicleType'], string> = { hatchback: 'Hatchback', sedan: 'Sedan', suv: 'SUV' };
 
@@ -230,7 +229,6 @@ export function CarHero({
       {shine ? (
         <PressRow
           accessibilityLabel={`Shine Card: ${shine.onCard} of ${shine.goal} stamps. ${shineLine(shine.toGo, shine.rewardAmount)}.`}
-          disabled={!REWARDS_SCREEN}
           onPress={() => router.push('/profile/rewards' as Href)}
           style={styles.shine}
         >

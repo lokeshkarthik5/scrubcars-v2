@@ -7,6 +7,7 @@ mock.module('react-native', () => ({ AppState: { addEventListener: () => ({ remo
 const { onBeforeSignOut, useAuth } = await import('./auth');
 const { useLocationStore } = await import('./location');
 const { pendingPayment } = await import('./pending-payment');
+const { heldLinkCode, rewriteSystemPath } = await import('./deep-link');
 
 const signedIn = { id: 'u1', name: 'Ravi' } as never;
 const here = { lat: 13.0827, lng: 80.2707, label: 'Current location', source: 'gps', updatedAt: 1 } as const;
@@ -50,4 +51,11 @@ test('a guest can still choose a place afterwards', async () => {
   await useAuth.getState().signOut();
   useLocationStore.getState().setArea({ slug: 'adyar', name: 'Adyar', lat: 13, lng: 80 });
   expect(useLocationStore.getState().location?.label).toBe('Adyar');
+});
+
+test('a held link code does not outlive the person', async () => {
+  rewriteSystemPath('/gift/ABCD');
+  expect(heldLinkCode.peek('gift')).toBe('ABCD');
+  await useAuth.getState().signOut();
+  expect(heldLinkCode.kind()).toBeNull();
 });

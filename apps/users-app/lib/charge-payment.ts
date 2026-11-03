@@ -1,11 +1,12 @@
 import { getBooking } from '@repo/core/api/bookings';
+import { buyGift, type BuyGiftPayload } from '@repo/core/api/gifts';
 import { createPaymentOrder } from '@repo/core/api/payments';
 import { payFinalBill, verifyExtraWorkPayment, verifyFinalBillPayment } from '@repo/core/api/job-records';
 import { confirmPayment, extraWorkPollResult, finalBillPollResult, type PaymentOutcome, realClock } from '@repo/core/payment-confirmation';
 import type { Booking } from '@repo/core/types';
 
 import { type CheckoutInfo, openCheckout } from './checkout';
-import { bookingKey, chargeKey, checkPending, type PendingCheck, pendingPayment, readPendingOutcome, setPaymentFlowOnScreen } from './pending-payment';
+import { bookingKey, chargeKey, checkPending, type PendingCheck, pendingGift, pendingPayment, readPendingOutcome, setPaymentFlowOnScreen } from './pending-payment';
 
 export type ChargeResult =
   /** An earlier payment for this charge might still settle: nothing new was started. */
@@ -17,7 +18,7 @@ export type ChargeResult =
   | { kind: 'paid'; paymentId: string; outcome: PaymentOutcome };
 
 /** The calls a payment makes, passed in so tests can kill the app halfway. */
-export const paymentCalls = { payFinalBill, createPaymentOrder, openCheckout, readOutcome: readPendingOutcome, confirm: confirmPayment };
+export const paymentCalls = { payFinalBill, createPaymentOrder, buyGift, openCheckout, readOutcome: readPendingOutcome, confirm: confirmPayment };
 export type PaymentCalls = typeof paymentCalls;
 
 /** Never a new order over a payment that might still settle. */
@@ -35,6 +36,18 @@ export async function startBookingPayment(
   if (last.kind !== 'none') return last;
   const order = await calls.createPaymentOrder(booking.id);
   pendingPayment.write({ kind: 'booking', bookingId: booking.id, vendorName: booking.vendorName, startedAt: Date.now() });
+  return { kind: 'order', order };
+}
+
+/** A new gift's order, or why none should be made: the same guard, over any gift still being checked. */
+export async function startGiftPayment(payload: BuyGiftPayload, calls: PaymentCalls = paymentCalls): Promise<Exclude<PendingCheck, { kind: 'none' }> | { kind: 'order'; order: Awaited<ReturnType<typeof buyGift>> }> {
+  const last = pendingGift();
+  if (last) {
+    const check = await checkPending(last, Date.now(), calls.readOutcome);
+    if (check.kind !== 'none') return check;
+  }
+  const order = await calls.buyGift(payload);
+  pendingPayment.write({ kind: 'gift', giftId: order.giftId, startedAt: Date.now() });
   return { kind: 'order', order };
 }
 

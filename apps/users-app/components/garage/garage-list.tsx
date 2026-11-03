@@ -1,3 +1,5 @@
+import { track } from '@/lib/shims/analytics';
+import { FreeWashPiece } from '@/components/reach/free-wash';
 import { RequestSheet } from '@/components/reach/request-sheet';
 import { useTierConfig } from '@repo/core/api/hooks/use-tiers';
 import { useVendorSearch } from '@repo/core/api/hooks/use-vendors';
@@ -138,6 +140,8 @@ function PickupExplainer() {
   );
 }
 
+const garageCardSeen = { done: false };
+
 function JustOutsideSection({ items, mode }: { items: JustOutsideVendor[]; mode: 'doorstep' | 'pickup' }) {
   const colors = useColors();
   const styles = useStyles();
@@ -270,6 +274,14 @@ export function GarageList({
   const justOutside = (mode === 'doorstep' || mode === 'pickup') && listEnded ? (outside ?? []) : [];
   const nextOffer = nextTabOffer(mode, reach);
 
+  // Once a visit, when a garage card first shows.
+  useEffect(() => {
+    if (vendors.length > 0 && !garageCardSeen.done) {
+      garageCardSeen.done = true;
+      track('garage_card_seen', mode ? { mode } : {});
+    }
+  }, [vendors.length, mode]);
+
   useEffect(() => {
     void refreshPermission();
   }, [refreshPermission]);
@@ -297,6 +309,8 @@ export function GarageList({
           Search garages or services
         </T>
       </PressRow>
+
+      {mode !== 'pickup' ? <FreeWashPiece placement="top" /> : null}
 
       <ScrollView
         horizontal
@@ -444,6 +458,7 @@ export function GarageList({
             <JustOutsideSection items={justOutside} mode={mode as 'doorstep' | 'pickup'} />
           ) : null}
           {listEnded && mode !== 'pickup' ? <NextTabFooter offer={nextOffer} onSwitch={switchTo} /> : null}
+          {listEnded && mode === 'pickup' ? <FreeWashPiece placement="bottom" /> : null}
         </View>
       </View>
 

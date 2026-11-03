@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AppState, View } from 'react-native';
 
 import { clearBookingDraft } from '@/lib/booking-draft';
-import { checkPending, paymentFlowOnScreen, pendingPayment } from '@/lib/pending-payment';
+import { checkPending, failedTitle, paymentFlowOnScreen, pendingPayment } from '@/lib/pending-payment';
 
 const RECHECK_MS = 10_000;
 
@@ -23,7 +23,7 @@ const RECHECK_MS = 10_000;
 export function PaymentRecovery() {
   const colors = useColors();
   const queryClient = useQueryClient();
-  const [failed, setFailed] = useState<string | null>(null);
+  const [failed, setFailed] = useState<{ title: string; message: string } | null>(null);
   const checking = useRef(false);
 
   useEffect(() => {
@@ -35,14 +35,18 @@ export function PaymentRecovery() {
       try {
         for (const payment of payments) {
           const outcome = await checkPending(payment);
-          if (outcome.kind === 'booked') {
+          if (outcome.kind === 'booked' && payment.kind === 'gift') {
+            void queryClient.invalidateQueries();
+            toast.success('Your gift is paid. Get its link in Gifts you sent.');
+            router.push('/profile/gifts' as Href);
+          } else if (outcome.kind === 'booked') {
             if (payment.kind === 'intent') clearBookingDraft();
             void invalidateHome(queryClient);
             void queryClient.invalidateQueries();
             toast.success(payment.kind === 'intent' ? 'Your payment went through. The booking is with the garage.' : 'Your payment went through.');
             router.push(`/bookings/${outcome.bookingId}` as Href);
           } else if (outcome.kind === 'failed') {
-            setFailed(outcome.message);
+            setFailed({ title: failedTitle(payment.kind), message: outcome.message });
           }
           if (paymentFlowOnScreen()) return;
         }
@@ -65,10 +69,10 @@ export function PaymentRecovery() {
   return (
     <ScSheet horizontalPadding={16} open={failed !== null} onClose={() => setFailed(null)} accessibilityLabel="Your payment">
       <T size={20} lh={28} tracking={-0.015}>
-        Your payment didn&apos;t make a booking
+        {failed?.title ?? ''}
       </T>
       <T size={15} lh={22} color={colors.textSecondary} style={{ marginTop: 8 }}>
-        {failed ?? ''}
+        {failed?.message ?? ''}
       </T>
       <View style={{ marginTop: 20 }}>
         <ScButton variant="main" onPress={() => setFailed(null)}>

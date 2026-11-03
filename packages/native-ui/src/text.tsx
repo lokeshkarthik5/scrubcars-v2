@@ -91,3 +91,12 @@ export function Figures({ text, weight, size, color, lh }: { text: string; weigh
     </>
   );
 }
+
+/** Figures on a line of its own: its own T, so it can stand anywhere. */
+export function FigureLine({ text, weight, size, color, lh }: { text: string; weight?: Weight; size: number; color?: string; lh?: number }) {
+  return (
+    <T size={size} weight={weight} color={color} lh={lh}>
+      <Figures text={text} size={size} weight={weight} color={color} lh={lh} />
+    </T>
+  );
+}

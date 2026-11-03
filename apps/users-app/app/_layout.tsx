@@ -22,13 +22,15 @@ import { useFonts } from 'expo-font';
 import { type Href, router, Stack, useGlobalSearchParams, usePathname, useRootNavigationState } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { AppLockGate } from '@/components/app-lock-screen';
 import { OfflineBanner } from '@/components/offline-banner';
 import { PaymentRecovery } from '@/components/payment-recovery';
+import { ShareHost } from '@/components/share-host';
 import { UpdateRequired } from '@/components/update-required';
 import { useForcedUpdate } from '@/lib/app-config';
 import { installUnauthorizedHandler, isProfileIncomplete, useAuth } from '@/lib/auth';
@@ -115,8 +117,9 @@ function SessionGate() {
   useEffect(() => {
     if (status !== 'ready' || coldLink === undefined) return;
     // A printed coupon's link: its code never travels in a route (lib/deep-link.ts).
-    if (heldLinkCode.kind() === 'c' && pathname === '/') {
-      router.replace('/coupon' as Href);
+    const heldKind = heldLinkCode.kind();
+    if (heldKind && pathname === '/') {
+      router.replace((heldKind === 'c' ? '/coupon' : heldKind === 'gift' ? '/gift' : '/invite') as Href);
       return;
     }
     // A guest's first time on this phone.
@@ -184,6 +187,7 @@ function ThemedRoot() {
     <QueryClientProvider client={queryClient}>
       <StatusBar style={onDarkStage ? 'light' : colors.statusBar} />
       {updateRequired ? <UpdateRequired answer={updateRequired} /> : <SessionGate />}
+      <ShareHost />
       <ToastHost />
     </QueryClientProvider>
   );
@@ -206,9 +210,14 @@ export default function RootLayout() {
   useEffect(() => {
     // So a bug report can name the build it came from.
     console.log(`Detlio v${Constants.expoConfig?.version ?? 'unknown'}`);
-    const removeHandler = installUnauthorizedHandler();
+    return installUnauthorizedHandler();
+  }, []);
+
+  // The refresh token isn't read until the optional lock has opened.
+  const [unlocked, setUnlocked] = useState(false);
+  const opened = useCallback(() => {
+    setUnlocked(true);
     void useAuth.getState().restore();
-    return removeHandler;
   }, []);
 
   if (!fontsLoaded) return null;
@@ -216,7 +225,7 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider storage={devicePrefs}>
-        <ThemedRoot />
+        {unlocked ? <ThemedRoot /> : <AppLockGate onOpen={opened} />}
       </ThemeProvider>
     </SafeAreaProvider>
   );
