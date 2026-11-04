@@ -24,6 +24,11 @@ import { formatMoney } from './format'
  * threshold as the Telegram nudge (NUDGE_AFTER_MINS in pending-digest.ts), so
  * the screen and the alert agree about what "too long" means.
  */
+/** A booking line's name, an add-on marked: "Helmet wash (add-on)". */
+export function lineName(item: { name: string; isAddon?: boolean }): string {
+  return item.isAddon ? `${item.name} (add-on)` : item.name
+}
+
 export const WAITING_ALERT_MINS = 30
 
 /** "At garage", "Doorstep", "Pickup & drop", for a type as the API sends it. */
@@ -264,7 +269,8 @@ const CSV_COLUMNS: Array<
   ['Address', (b) => b.address],
   ['Car', (b) => (b.vehicle ? `${b.vehicle.make} ${b.vehicle.model}` : null)],
   ['Plate', (b) => b.vehicle?.plate ?? null],
-  ['Services', (b) => b.items.map((item) => item.name).join(' + ')],
+  // Each add-on marked in its own words, so a sheet can tell them apart (0068).
+  ['Services', (b) => b.items.map(lineName).join(' + ')],
   ['Amount', (b) => Number(b.amount)],
   ['Payment', (b) => b.payment?.status ?? null],
   ['Razorpay payment id', (b) => b.payment?.gatewayTxnId ?? null],

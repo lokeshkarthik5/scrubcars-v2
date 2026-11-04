@@ -1,3 +1,4 @@
+import { MAX_BOOKING_LINES } from '../../lib/add-ons.js'
 import { z } from 'zod'
 import { SLOT_ALERT_WINDOWS } from '../../lib/slot-alerts.js'
 
@@ -16,11 +17,11 @@ export const createSlotAlertSchema = z
     window: z.enum(SLOT_ALERT_WINDOWS).default('any'),
     bookingType: z.enum(['dropin', 'doorstep', 'pickup']),
     // The services being booked together, as the slot picker sends them:
-    // 1–10, no repeats.
+    // 1 or more, add-ons included (0068), no repeats.
     serviceIds: z
       .array(z.guid())
       .min(1)
-      .max(10)
+      .max(MAX_BOOKING_LINES)
       .refine((ids) => new Set(ids).size === ids.length, 'serviceIds must not repeat'),
   })
   .strict()

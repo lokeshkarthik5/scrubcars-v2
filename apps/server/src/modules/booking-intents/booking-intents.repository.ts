@@ -37,6 +37,7 @@ export interface BookingIntentItemInput {
   name: string
   amount: string
   durationMins: number
+  isAddon?: boolean
 }
 
 // What `consumeIntent` did. Everything except 'created' and 'already' means no
@@ -65,6 +66,15 @@ export type ConsumeIntentResult =
   | { kind: 'previously_failed'; failureReason: string | null }
 
 export const bookingIntentsRepository = {
+  /**
+   * Whether the car already has a booking at this time, read before a
+   * checkout opens so nobody pays for one that can't be written. consumeIntent
+   * checks again under the lock.
+   */
+  findVehicleClash(params: { vehicleId: string; scheduledAt: Date; durationMins: number }) {
+    return db.transaction((tx) => findOverlappingVehicleBooking(tx, params))
+  },
+
   /**
    * One intent and its lines, in a transaction. An intent without its items
    * would price a booking nobody could reconstruct — and `consumeIntent`
@@ -102,6 +112,7 @@ export const bookingIntentsRepository = {
           amount: item.amount,
           durationMins: item.durationMins,
           sortOrder: index,
+          isAddon: item.isAddon ?? false,
         }))
       )
 
@@ -392,6 +403,7 @@ export const bookingIntentsRepository = {
           amount: item.amount,
           durationMins: item.durationMins,
           sortOrder: item.sortOrder,
+          isAddon: item.isAddon,
         }))
       )
 

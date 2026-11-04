@@ -169,6 +169,12 @@ describe('setting an alert', () => {
     expect(await refusalOf(rules().create(USER, { ...ask, date: '2027-01-30' }, NOW))).toBe('SLOT_ALERT_TOO_FAR_AHEAD')
     expect(await refusalOf(rules().create(USER, { ...ask, bookingType: 'pickup' }, NOW))).toBe('BOOKING_TYPE_NOT_OFFERED')
     expect(await refusalOf(rules().create(USER, { ...ask, serviceIds: [SERVICE, id(2729)] }, NOW))).toBe('SERVICE_NOT_FOUND')
+    // Add-ons go with a service (0068).
+    const addOnsAlone = slotAlertsWith({
+      store: { ...memoryStore(), findServices: async () => [{ id: SERVICE, durationMins: 10, isAddon: true }] },
+      onOpened: () => undefined,
+    })
+    expect(await refusalOf(addOnsAlone.create(USER, ask, NOW))).toBe('ADD_ONS_NEED_A_SERVICE')
     garage = { ...GARAGE_ROW, bookingsPausedAt: NOW }
     expect(await refusalOf(rules().create(USER, ask, NOW))).toBe('GARAGE_PAUSED')
     garage = undefined

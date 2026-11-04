@@ -1,3 +1,4 @@
+import { jobSummary } from '../add-ons'
 import { formatDistance } from '@repo/core/map'
 import type {
   ApiAddress,
@@ -302,6 +303,7 @@ export function mapBooking(booking: ApiBooking): Booking {
     amount: Number(item.amount),
     durationMins: item.durationMins,
     pricingType: item.pricingType ?? undefined,
+    ...(item.isAddon === true && { isAddon: true }),
   }))
 
   const fallbackItems =
@@ -324,7 +326,7 @@ export function mapBooking(booking: ApiBooking): Booking {
     items: fallbackItems,
     serviceId: fallbackItems[0]?.serviceId ?? '',
     serviceName: fallbackItems[0]?.name ?? '',
-    serviceSummary: formatServiceSummary(fallbackItems.map((item) => item.name)),
+    serviceSummary: jobSummary(fallbackItems),
     durationMins:
       booking.durationMins ??
       fallbackItems.reduce((total, item) => total + item.durationMins, 0),

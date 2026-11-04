@@ -147,6 +147,25 @@ function reads(conn: Conn) {
         .where(and(inArray(vendorDocuments.vendorId, vendorIds), eq(vendorDocuments.status, 'approved')))
     },
 
+    /**
+     * How these garages take bookings, so each one's required documents are
+     * worked out for its own modes (a doorstep-only garage has no shop, so
+     * its shop photo is optional: lib/vendor-documents.ts).
+     */
+    listDocumentModes(vendorIds: string[]) {
+      if (vendorIds.length === 0) return Promise.resolve([])
+      return conn
+        .select({
+          vendorId: vendors.id,
+          doorstepEnabled: vendors.doorstepEnabled,
+          dropinEnabled: vendors.dropinEnabled,
+          pickup: vendors.pickup,
+          pickupTermsAcceptedAt: vendors.pickupTermsAcceptedAt,
+        })
+        .from(vendors)
+        .where(inArray(vendors.id, vendorIds))
+    },
+
     /** All-time rating and review count: counted reviews only (0065, no Test, none hidden). */
     async ratings(vendorIds: string[]) {
       if (vendorIds.length === 0) return []

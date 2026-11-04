@@ -1,3 +1,4 @@
+import { MAX_BOOKING_LINES } from '../../lib/add-ons.js'
 import { z } from 'zod'
 import { HOME_AUDIENCES } from '../../db/schema.js'
 import { MAX_NEAR_RADIUS_KM } from '../../lib/offers.js'
@@ -34,7 +35,8 @@ export const validateDiscountSchema = z
     code: codeSchema,
     vendorId: z.string().uuid(),
     serviceId: z.string().uuid().optional(),
-    serviceIds: z.array(z.string().uuid()).min(1).max(10).optional(),
+    // Services and add-ons (0068): the booking counts each against its own limit.
+    serviceIds: z.array(z.string().uuid()).min(1).max(MAX_BOOKING_LINES).optional(),
     vehicleId: z.string().uuid(),
   })
   .transform(({ serviceId, serviceIds, ...rest }) => ({

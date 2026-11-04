@@ -276,7 +276,7 @@ export const adminRepository = {
             priceSedan: true,
             priceSuv: true,
           },
-          where: and(eq(services.isActive, true), ne(services.category, 'package')),
+          where: and(eq(services.isActive, true), ne(services.category, 'package'), eq(services.isAddon, false)),
         },
         // Ids only: the checklist asks whether there are any.
         photos: { columns: { id: true } },
@@ -326,7 +326,7 @@ export const adminRepository = {
           orderBy: [asc(vendorPhotos.sortOrder), asc(vendorPhotos.createdAt)],
         },
         services: {
-          where: and(eq(services.isActive, true), ne(services.category, 'package')),
+          where: and(eq(services.isActive, true), ne(services.category, 'package'), eq(services.isAddon, false)),
           orderBy: [asc(services.name)],
           with: {
             images: {
@@ -545,7 +545,9 @@ export const adminRepository = {
   ): Promise<Array<{ id: string; isActive: boolean; deleted: boolean }>> {
     const rows = await db.query.services.findMany({
       columns: { id: true, isActive: true, deletedAt: true },
-      where: and(eq(services.vendorId, vendorId), ne(services.category, 'package')),
+      // Add-ons too (0068): the editor saves them on their own routes, so
+      // counting them here would hide every add-on on each save.
+      where: and(eq(services.vendorId, vendorId), ne(services.category, 'package'), eq(services.isAddon, false)),
     })
     return rows.map((r) => ({ id: r.id, isActive: r.isActive, deleted: r.deletedAt !== null }))
   },

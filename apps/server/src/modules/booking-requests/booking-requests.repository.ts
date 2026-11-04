@@ -211,7 +211,9 @@ export const bookingRequestsRepository = {
         isActive: services.isActive,
       })
       .from(services)
-      .where(inArray(services.vendorId, [...vendorIds]))
+      // Not add-ons (0068): a request is for a service, and "the same details"
+      // at another garage must never pick an add-on as the cheapest "others".
+      .where(and(inArray(services.vendorId, [...vendorIds]), eq(services.isAddon, false)))
   },
 
   /** A garage's weekly hours, every day it has a row for. */

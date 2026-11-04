@@ -69,6 +69,9 @@ beforeAll(() => {
       ['shop_photo', 'owner_id', 'bank_proof'].map((type) => ({ vendorId, type, status: 'approved' }))
     )
   )
+  patch(certificationRepository, 'listDocumentModes', async (ids: string[]) =>
+    ids.map((vendorId) => ({ vendorId, doorstepEnabled: false, dropinEnabled: true }))
+  )
   patch(agreementsRepository, 'latest', async () => agreementLatest)
   patch(agreementsRepository, 'acceptedVersions', async (ids: string[]) =>
     new Map(ids.filter((id) => accepted.has(id)).map((id) => [id, accepted.get(id)!]))
