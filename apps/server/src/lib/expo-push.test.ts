@@ -74,6 +74,11 @@ describe('the request', () => {
     expect(request).not.toHaveProperty('collapseId')
     expect(request).not.toHaveProperty('channelId')
   })
+
+  test('a reminder goes to the reminders channel', () => {
+    const request = expoRequestMessage({ token: TOKEN, platform: 'android' }, { ...MESSAGE, category: 'reminder' })
+    expect(request.channelId).toBe('reminders')
+  })
 })
 
 describe('what Expo’s answer means', () => {
