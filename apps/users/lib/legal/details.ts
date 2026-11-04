@@ -24,16 +24,16 @@ import { SUPPORT_PHONE_DISPLAY, SUPPORT_TEL_HREF } from '@repo/core/support'
  * checkout and Profile link these pages unconditionally, so production would
  * ask customers to agree to pages marked "not yet in force".
  */
-export const LEGAL_DRAFT = true
+export const LEGAL_DRAFT = false
 
 /** The customer site, for canonical URLs and the Markdown copy's links. */
 export const SITE_ORIGIN = 'https://detlio.com'
 
 /** The date the current text was last changed. */
-export const LAST_UPDATED = '16 October 2026'
+export const LAST_UPDATED = '4 November 2026'
 
 /** The date the current text takes effect. Null until it is published. */
-export const EFFECTIVE_DATE: string | null = null
+export const EFFECTIVE_DATE: string | null = '5 November 2026'
 
 export const BUSINESS = {
   /** The brand customers see. */
@@ -108,18 +108,18 @@ export const GOVERNING_COURTS: string | null = 'Chennai'
  * How many days after a job a customer has to report damage or a problem
  * with the work. Null until the owner decides.
  */
-export const DISPUTE_WINDOW_DAYS: number | null = null
+export const DISPUTE_WINDOW_DAYS: number | null = 2
 
 /** How long records are kept. Null until the owner, lawyer and CA decide. */
 export const RETENTION = {
   /** Booking, payment, refund and receipt records, after the booking. */
-  bookingRecords: null as string | null,
+  bookingRecords: '8 years' as string | null,
   /** Before/after job photos, after the job. */
-  jobPhotos: null as string | null,
+  jobPhotos: '1 year after the job, or longer while a complaint about that job is open' as string | null,
   /** Server and error logs. */
-  logs: null as string | null,
+  logs: 'up to 90 days' as string | null,
   /** Account details after the account is closed. */
-  afterClosure: null as string | null,
+  afterClosure: 'Your details are deleted straight away' as string | null,
 }
 
 /**
@@ -127,7 +127,7 @@ export const RETENTION = {
  * India"). Only a planning document says Supabase ap-south-1; null until
  * confirmed in the Supabase dashboard.
  */
-export const DATABASE_LOCATION: string | null = null
+export const DATABASE_LOCATION: string | null = 'Mumbai, India'
 
 /** Public escalation routes. */
 export const ESCALATION = {

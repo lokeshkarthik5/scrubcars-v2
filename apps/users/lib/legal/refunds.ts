@@ -6,12 +6,12 @@
  * discounts.predicates.ts (whether a promo code comes back). Change the code
  * and this page together.
  */
-import { type LegalDoc, tbc } from './doc-format'
+import { type LegalDoc } from './doc-format'
 import { CONTACT_LINE, LINK, RULES } from './common'
 import { ESCALATION } from './details'
 import { LEGAL_PATHS } from './routes'
 
-const LATE_CANCEL = tbc('what is refunded when support cancels a confirmed booking less than 2 hours before the slot')
+const LATE_CANCEL = 'a full refund if the garage agrees to release the slot, otherwise no refund'
 
 export const REFUNDS: LegalDoc = {
   path: LEGAL_PATHS.refunds,
@@ -55,7 +55,7 @@ export const REFUNDS: LegalDoc = {
               'You want to cancel',
               `After the garage accepts, less than ${RULES.changeCutoff} before the slot`,
               `You can't cancel in the app. Contact us: ${LATE_CANCEL}`,
-              tbc('promo code on a late cancellation'),
+              'Returned only if the booking is refunded',
             ],
             [
               'You reschedule',
