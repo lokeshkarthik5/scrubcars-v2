@@ -14,7 +14,7 @@
  * fields) and the server switch HOME_OFFER_TARGETING, which
  * stays off until this text is in force (section 2, "Offers on Home").
  */
-import { type LegalDoc, orTbc, tbc } from './doc-format'
+import { type LegalDoc, orTbc } from './doc-format'
 import {
   CONTACT_LINE,
   EMAIL_LINK,
@@ -42,7 +42,7 @@ const AFTER_CLOSURE = orTbc(RETENTION.afterClosure, 'how long account details ar
 const DATABASE = orTbc(DATABASE_LOCATION, 'where our database is hosted (believed to be Mumbai, India)')
 const BOARD = ESCALATION.dataProtectionBoardUrl
   ? `[the Board's website](${ESCALATION.dataProtectionBoardUrl})`
-  : `the Board's website (${tbc('Data Protection Board complaint link')})`
+  : 'its own complaint process'
 
 export const PRIVACY: LegalDoc = {
   path: LEGAL_PATHS.privacy,

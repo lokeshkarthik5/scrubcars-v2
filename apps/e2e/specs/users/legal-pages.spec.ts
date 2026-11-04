@@ -22,7 +22,7 @@ import { SERVICES, VENDORS } from '../../support/seed-ids'
  * apps/users/lib/legal/details.ts — LEGAL_DRAFT. While the pages are drafts
  * they carry a banner and a robots noindex; flip this with it.
  */
-const LEGAL_DRAFT = true
+const LEGAL_DRAFT = false
 
 /** apps/users/lib/legal/details.ts — BUSINESS.address and BUSINESS.email. */
 const ADDRESS = 'No. 47, Radha Nagar Main Road, Chromepet, Chengalpattu, Tamil Nadu 600044'

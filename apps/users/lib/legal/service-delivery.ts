@@ -4,12 +4,12 @@
  * Razorpay asks every merchant for a "shipping" policy; for a service this is
  * how, where and when the service is delivered. Kept short.
  */
-import { type LegalDoc, tbc } from './doc-format'
+import { type LegalDoc } from './doc-format'
 import { CONTACT_LINE, LINK, RULES } from './common'
 import { LEGAL_PATHS } from './routes'
 import { CONTACT_WINDOW_HOURS } from './contact-window'
 
-const GRACE = tbc('grace period after the booked time')
+const GRACE = '30 minutes'
 
 export const SERVICE_DELIVERY: LegalDoc = {
   path: LEGAL_PATHS.delivery,
@@ -47,7 +47,7 @@ export const SERVICE_DELIVERY: LegalDoc = {
       blocks: [
         {
           kind: 'p',
-          text: `Detlio is live in Chennai. You can book only the garages listed on Detlio, and doorstep visits only within each garage's own area. Service area: ${tbc('exact service area for the pilot')}.`,
+          text: `Detlio is live in Chennai. You can book only the garages listed on Detlio, and doorstep visits only within each garage's own area. Service area: Chennai, the areas and garages shown in the app when you search.`,
         },
       ],
     },
