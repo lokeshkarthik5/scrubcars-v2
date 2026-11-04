@@ -6,7 +6,8 @@ import { LEGAL_DRAFT } from './details'
  * A legal page's metadata: its own title and description, its canonical URL
  * on detlio.com (metadataBase is set in the root layout), and — while the
  * pages are drafts — a robots noindex, so a draft is never what a search
- * engine keeps.
+ * engine keeps. A `standing` page (a how-to the store listings link to) is
+ * always indexable.
  */
 export function legalMetadata(doc: LegalDoc): Metadata {
   const title = `${doc.title} · Detlio`
@@ -14,7 +15,7 @@ export function legalMetadata(doc: LegalDoc): Metadata {
     title,
     description: doc.description,
     alternates: { canonical: doc.path },
-    robots: LEGAL_DRAFT ? { index: false, follow: false } : undefined,
+    robots: LEGAL_DRAFT && !doc.standing ? { index: false, follow: false } : undefined,
     openGraph: {
       type: 'website',
       url: doc.path,

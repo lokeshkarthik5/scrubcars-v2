@@ -1,5 +1,5 @@
 /**
- * The five legal pages, checked as data: well-formed, linked to each other
+ * The five legal pages and the delete-account page, checked as data: well-formed, linked to each other
  * correctly, and saying what the code enforces. The renderer and the
  * Markdown export are tested in packages/core/src/legal-doc.test.ts; the
  * pages in a browser in apps/e2e/specs/users/legal-pages.spec.ts.
@@ -28,7 +28,8 @@ import { META_EVENT_NAMES, metaEventFor, pixelExcluded } from '../meta-pixel'
 import { RULES } from './common'
 import { BUSINESS, LEGAL_DRAFT } from './details'
 import { LEGAL_DOCS } from './index'
-import { LEGAL_LINKS, LEGAL_PATHS, LEGAL_ROUTES } from './routes'
+import { FOOTER_LEGAL_LINKS, LEGAL_LINKS, LEGAL_PATHS, LEGAL_ROUTES } from './routes'
+import { DELETE_ACCOUNT, DELETION_BLOCKER_LINES } from './delete-account'
 
 const markdownOf = (doc: (typeof LEGAL_DOCS)[number]) =>
   legalDocToMarkdown(doc, { origin: '', draft: true, lastUpdated: 'x' })
@@ -40,9 +41,10 @@ const hrefsIn = (doc: (typeof LEGAL_DOCS)[number]) =>
     .flatMap((line) => parseInline(line))
     .flatMap((node) => (node.type === 'link' ? [node.href] : []))
 
-describe('the five pages', () => {
+describe('the five pages, and the delete-account page', () => {
   test('one per legal path, in footer order', () => {
-    expect(LEGAL_DOCS.map((doc) => doc.path)).toEqual(LEGAL_LINKS.map((l) => l.href))
+    expect(LEGAL_DOCS.map((doc) => doc.path)).toEqual(FOOTER_LEGAL_LINKS.map((l) => l.href))
+    expect(FOOTER_LEGAL_LINKS.slice(0, LEGAL_LINKS.length)).toEqual([...LEGAL_LINKS])
     expect([...LEGAL_ROUTES].sort()).toEqual(Object.values(LEGAL_PATHS).sort())
   })
 
@@ -572,5 +574,62 @@ describe('garage onboarding documents', () => {
 
   test("the lawyer's question is on the page while it is a draft", () => {
     expect(privacy()).toContain('**Garage documents read by AI.**')
+  })
+})
+
+// The page the app stores link to (/delete-account): it is outside the draft
+// switch, and what it says about deletion is what the code does.
+describe('the delete-account page', () => {
+  const read = (path: string) => readFileSync(join(import.meta.dir, path), 'utf8')
+  const markdown = () => markdownOf(DELETE_ACCOUNT)
+
+  test('is a standing page: indexable and not marked as a draft', () => {
+    expect(DELETE_ACCOUNT.standing).toBe(true)
+    for (const doc of LEGAL_DOCS.filter((d) => d.path !== DELETE_ACCOUNT.path)) {
+      expect(doc.standing).toBeUndefined()
+    }
+    const metadata = read('./metadata.ts')
+    expect(metadata).toContain('LEGAL_DRAFT && !doc.standing')
+    expect(read('../../components/legal/legal-page.tsx')).toContain('LEGAL_DRAFT && !doc.standing')
+    expect(read('../../app/delete-account/page.tsx')).toContain("dynamic = 'force-static'")
+  })
+
+  test('names both apps, the business, the support phone and the confirm word', () => {
+    const text = markdown()
+    expect(text).toContain('**Detlio** (the customer app')
+    expect(text).toContain('**Detlio for Garages**')
+    expect(text).toContain(BUSINESS.tradeName)
+    expect(text).toContain(SUPPORT_PHONE_DISPLAY)
+    expect(text).toContain(BUSINESS.email)
+    expect(text).toContain('**DELETE**')
+    expect(text).not.toMatch(/\[to be confirmed/)
+  })
+
+  test('lists a line for every reason the server refuses a deletion', () => {
+    const server = read('../../../server/src/lib/account-deletion.ts')
+    const union = server.slice(server.indexOf('export type AccountDeletionBlockerCode'), server.indexOf('export interface AccountDeletionBlocker '))
+    const codes = [...union.matchAll(/\| '([A-Z_]+)'/g)].map((m) => m[1])
+    expect(codes.length).toBeGreaterThan(0)
+    expect(Number(DELETION_BLOCKER_LINES.length)).toBe(codes.length)
+    // The checkout lifetime in the line is the one the app and server use.
+    expect(server).toContain('wait 30 minutes')
+    expect(markdown()).toContain('wait 30 minutes')
+  })
+
+  test('says what the sheet says is deleted, and does not promise a deadline the code lacks', () => {
+    const text = markdown()
+    expect(text).toContain('Your name, phone number, email and profile photo')
+    expect(text).toContain('Former customer')
+    expect(text).toContain('Deleted account')
+    // The only period: the reply time the Privacy Policy already gives.
+    expect(text).toContain('We reply within one month at most.')
+    expect(text).not.toMatch(/within \d+ (hours|days)|in \d+ (hours|days)/i)
+  })
+
+  test('is linked from the Privacy Policy and both footers', () => {
+    const privacy = markdownOf(LEGAL_DOCS.find((doc) => doc.path === LEGAL_PATHS.privacy)!)
+    expect(privacy).toContain('](/delete-account)')
+    expect(read('../../components/landing/landing-footer.tsx')).toContain('DELETE_ACCOUNT_LINK')
+    expect(read('../../components/marketing/sections.tsx')).toContain('FOOTER_LEGAL_LINKS')
   })
 })
