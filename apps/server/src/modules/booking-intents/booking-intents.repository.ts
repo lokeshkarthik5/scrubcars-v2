@@ -67,6 +67,15 @@ export type ConsumeIntentResult =
 
 export const bookingIntentsRepository = {
   /**
+   * Whether the car already has a booking at this time, read before a
+   * checkout opens so nobody pays for one that can't be written. consumeIntent
+   * checks again under the lock.
+   */
+  findVehicleClash(params: { vehicleId: string; scheduledAt: Date; durationMins: number }) {
+    return db.transaction((tx) => findOverlappingVehicleBooking(tx, params))
+  },
+
+  /**
    * One intent and its lines, in a transaction. An intent without its items
    * would price a booking nobody could reconstruct — and `consumeIntent`
    * builds the booking's lines from exactly these rows.

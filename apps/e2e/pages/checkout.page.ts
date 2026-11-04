@@ -46,6 +46,14 @@ export class CheckoutPage {
     await expect(slot).toHaveAttribute('aria-pressed', 'true')
   }
 
+  /** The last bookable time of the day, for a car already booked at the first. */
+  async pickLastSlot() {
+    await this.showAllTimes()
+    const slot = this.slots().last()
+    await slot.click()
+    await expect(slot).toHaveAttribute('aria-pressed', 'true')
+  }
+
   /** Picks tomorrow and the first slot on it — the common opening move. */
   async pickTomorrowSlot() {
     await this.pickTomorrow()
