@@ -43,7 +43,7 @@ import { BrandMark } from '@repo/ui/sc/brand-mark'
 import { OutsideCityChip } from '@repo/ui/features/outside-city'
 import { OPERATED_BY } from '@/lib/legal/common'
 import { BUSINESS } from '@/lib/legal/details'
-import { LEGAL_LINKS } from '@/lib/legal/routes'
+import { FOOTER_LEGAL_LINKS } from '@/lib/legal/routes'
 import { CookieSettingsButton } from '@/components/consent/cookie-settings-button'
 import { BeforeAfter } from './before-after'
 import { Reel } from './reel'
@@ -1241,7 +1241,7 @@ export function SiteFooter() {
           ))}
         </nav>
         <nav aria-label="Legal" className="flex flex-col gap-3">
-          {LEGAL_LINKS.map((link) => (
+          {FOOTER_LEGAL_LINKS.map((link) => (
             <Link
               key={link.href}
               href={link.href}

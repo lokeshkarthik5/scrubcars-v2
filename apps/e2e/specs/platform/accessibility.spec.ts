@@ -136,6 +136,7 @@ test.describe('accessibility', () => {
     ['refund policy', '/refund-policy'],
     ['service delivery', '/service-delivery'],
     ['contact', '/contact'],
+    ['delete account', '/delete-account'],
   ]
 
   for (const [name, path] of screens) {

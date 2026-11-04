@@ -57,11 +57,61 @@ jobs:
             echo "e2e=false" >> "$GITHUB_OUTPUT"
           fi
 
+  # Typecheck and unit tests do not feed the browser suite, so they run
+  # beside it. The suite's own job no longer waits the minute they take.
+  checks:
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          # Pinned deliberately. Vercel's build image ships 1.3.14 and cannot
+          # read the lockfileVersion 2 that bun 1.4 writes, so a CI run on 1.4
+          # would rewrite the lockfile and break deploys. See README.
+          bun-version: 1.3.14
+
+      - name: Restore bun's package cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Restore the typecheck build cache
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-checks-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            turbo-checks-${{ runner.os }}-
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Unit tests
+        run: bun run test
+
   e2e_run:
     needs: changes
     if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # Main and a manual run split the 584 tests across two machines. A pull
+    # request stays one machine and runs only @p0. Each machine has its own
+    # Postgres: a shard drops and reseeds the database for the files it runs.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(github.event_name == 'pull_request' && '[1]' || '[1, 2]') }}
+        total: ${{ fromJSON(github.event_name == 'pull_request' && '[1]' || '[2]') }}
 
     services:
       postgres:
@@ -94,8 +144,22 @@ jobs:
           # would rewrite the lockfile and break deploys. See README.
           bun-version: 1.3.14
 
+      - name: Restore bun's package cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      # The browser binary is cached. System libraries are not, so --with-deps
+      # still installs those on every run.
+      - name: Restore the Playwright browser
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('bun.lock') }}
 
       - name: Install Playwright browser
         run: bunx playwright install --with-deps chromium
@@ -150,11 +214,17 @@ jobs:
           # Garage documents (R2_DOCS_BUCKET): private, as in production.
           docker exec minio mc mb --ignore-existing local/detlio-e2e-docs
 
-      - name: Typecheck
-        run: bun run typecheck
-
-      - name: Unit tests
-        run: bun run test
+      - name: Restore the app build cache
+        # Turbo skips an app whose inputs and the E2E NEXT_PUBLIC_* values
+        # (listed on the build task) match a build already in this directory.
+        # A separate key from the checks job, so a typecheck cache cannot
+        # replace a full app build.
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-e2e-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            turbo-e2e-${{ runner.os }}-
 
       - name: Build
         # CI serves production builds rather than `next dev`: compile-on-first-hit
@@ -173,19 +243,21 @@ jobs:
 
       - name: E2E
         # On a pull request only the @p0 specs run, so feedback stays quick;
-        # main gets the whole suite.
+        # main gets the whole suite, half on each machine.
+        working-directory: apps/e2e
         run: |
+          shard="${{ matrix.shard }}/${{ matrix.total }}"
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            bun run test:e2e:p0
+            bun run test:e2e:p0 -- --shard="$shard"
           else
-            bun run test:e2e
+            bun run test:e2e -- --shard="$shard"
           fi
 
       - name: Upload report
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.shard }}-of-${{ matrix.total }}
           path: |
             apps/e2e/playwright-report/
             apps/e2e/test-results/
@@ -195,7 +267,7 @@ jobs:
   # was skipped (Expo-only PR); a skipped job alone would block a required
   # status check.
   e2e:
-    needs: [changes, e2e_run]
+    needs: [changes, checks, e2e_run]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -209,8 +281,11 @@ jobs:
             echo "Skipping E2E — no web, API, package, or e2e workflow changes."
             exit 0
           fi
-          if [ "${{ needs.e2e_run.result }}" = "success" ]; then
-            exit 0
+          if [ "${{ needs.checks.result }}" != "success" ]; then
+            echo "Checks job result: ${{ needs.checks.result }}" >&2
+            exit 1
           fi
-          echo "E2E job result: ${{ needs.e2e_run.result }}" >&2
-          exit 1
+          if [ "${{ needs.e2e_run.result }}" != "success" ]; then
+            echo "E2E job result: ${{ needs.e2e_run.result }}" >&2
+            exit 1
+          fi

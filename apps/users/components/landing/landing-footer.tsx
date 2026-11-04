@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { CookieSettingsButton } from '@/components/consent/cookie-settings-button'
 import { OPERATED_BY } from '@/lib/legal/common'
-import { LEGAL_PATHS } from '@/lib/legal/routes'
+import { DELETE_ACCOUNT_LINK, LEGAL_PATHS } from '@/lib/legal/routes'
 
 const LINKS = [
   { label: 'About', href: '/about' },
@@ -10,6 +10,7 @@ const LINKS = [
   { label: 'Terms', href: LEGAL_PATHS.terms },
   { label: 'Privacy', href: LEGAL_PATHS.privacy },
   { label: 'Contact', href: LEGAL_PATHS.contact },
+  DELETE_ACCOUNT_LINK,
 ] as const
 
 const LINK =
