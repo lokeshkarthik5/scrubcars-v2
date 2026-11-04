@@ -117,15 +117,14 @@ jobs:
           sudo apt-get install -y --no-install-recommends postgresql-client
 
       - name: Validate migrations
-        # File checks plus the ones that need the database: checksums of
-        # applied files (catches an edited migration) and applied migrations
-        # whose file has been deleted. Fails before anything is applied.
+        # File checks plus one read of schema_migrations: checksums of applied
+        # files (catches an edited migration) and applied migrations whose file
+        # has been deleted. Fails before anything is applied.
         run: bash apps/server/scripts/migrate.sh check
 
-      - name: Pending migrations
-        run: bash apps/server/scripts/migrate.sh status
-
       - name: Apply migrations
+        # Sends SQL only for versions missing from schema_migrations. Files
+        # already applied are compared in memory and skipped.
         run: bash apps/server/scripts/migrate.sh migrate
 
       # ── 2. Build ──────────────────────────────────────────────────────────
@@ -166,5 +165,6 @@ jobs:
           echo "${url}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Migration state
+        # Read-only, including after a failed deploy. Does not apply anything.
         if: always() && env.DIRECT_URL != ''
         run: bash apps/server/scripts/migrate.sh status

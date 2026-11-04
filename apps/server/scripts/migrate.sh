@@ -32,6 +32,18 @@ readonly JOURNAL_FILE="${MIGRATIONS_DIR}/meta/_journal.json"
 readonly MIGRATIONS_TABLE="schema_migrations"
 readonly ADVISORY_LOCK_KEY="83927401"
 
+# One snapshot of schema_migrations for this process. Opening psql once per
+# file, from a GitHub runner through the session pooler, costs a couple of
+# seconds a connection — with 69 files, read twice, and the release doing it
+# four times, that alone passed the job's 20-minute limit. Applied SQL is
+# still never sent again; this only stops paying for a connection to find that
+# out. The apply itself re-checks under its advisory lock.
+APPLIED_FILE=""
+cleanup_applied() {
+  [[ -n "$APPLIED_FILE" ]] && rm -f "$APPLIED_FILE"
+}
+trap cleanup_applied EXIT
+
 # DDL needs an exclusive lock on its table, and while it waits for one, every
 # new query on that table queues behind it. Without a cap, one slow query turns
 # a 50ms migration into an outage. With it, the migration rolls back and can be
@@ -163,16 +175,30 @@ migration_version_from_file() {
   printf '%s' "$version"
 }
 
+# Reads every applied version and its checksum in one connection. Later lookups
+# stay in this file. Call after ensure_migrations_table.
+load_applied() {
+  [[ -n "$APPLIED_FILE" ]] && return 0
+  APPLIED_FILE="$(mktemp)"
+  if ! psql_exec -F ' ' -c "SELECT version, checksum FROM ${MIGRATIONS_TABLE} ORDER BY version;" >"$APPLIED_FILE"; then
+    die "Could not read ${MIGRATIONS_TABLE}"
+  fi
+}
+
+require_applied_snapshot() {
+  [[ -n "$APPLIED_FILE" && -f "$APPLIED_FILE" ]] || die "Applied migrations were not loaded"
+}
+
 migration_applied() {
   local version="$1"
-  local count
-  count="$(psql_exec -c "SELECT COUNT(*) FROM ${MIGRATIONS_TABLE} WHERE version = '${version}';")"
-  [[ "$count" == "1" ]]
+  require_applied_snapshot
+  awk -v v="$version" '$1 == v { found = 1; exit } END { exit !found }' "$APPLIED_FILE"
 }
 
 stored_checksum() {
   local version="$1"
-  psql_exec -c "SELECT checksum FROM ${MIGRATIONS_TABLE} WHERE version = '${version}';"
+  require_applied_snapshot
+  awk -v v="$version" '$1 == v { print $2; exit }' "$APPLIED_FILE"
 }
 
 discover_migrations() {
@@ -267,11 +293,12 @@ validate_sequence() {
 # means the repo no longer describes the schema the database actually has.
 validate_no_missing_files() {
   local version missing=()
+  require_applied_snapshot
 
-  while IFS= read -r version; do
+  while read -r version _; do
     [[ -z "$version" ]] && continue
     [[ -f "${MIGRATIONS_DIR}/${version}.sql" ]] || missing+=("$version")
-  done < <(psql_exec -c "SELECT version FROM ${MIGRATIONS_TABLE} ORDER BY version;")
+  done <"$APPLIED_FILE"
 
   if [[ ${#missing[@]} -gt 0 ]]; then
     die "Applied migration(s) missing from ${MIGRATIONS_DIR}: ${missing[*]}. Restore the file(s); never delete an applied migration"
@@ -299,6 +326,7 @@ plain CREATE/DROP INDEX instead of CONCURRENTLY."
 
 cmd_status() {
   ensure_migrations_table
+  load_applied
 
   local file version checksum applied
   local pending=0 applied_count=0
@@ -346,6 +374,7 @@ cmd_check() {
   psql_exec -c "SELECT 1;" >/dev/null || die "Cannot connect to database"
   validate_files
   ensure_migrations_table
+  load_applied
   validate_no_missing_files
   validate_checksums
   log "All migration checks passed"
@@ -401,6 +430,7 @@ cmd_migrate() {
 
   validate_files
   ensure_migrations_table
+  load_applied
   validate_no_missing_files
   validate_checksums
 
