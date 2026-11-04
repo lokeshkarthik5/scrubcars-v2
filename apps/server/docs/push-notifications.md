@@ -129,6 +129,11 @@ Firebase service account: the app hands us an Expo token
   is in the body, never the URL. Same audience, tenant and support-session
   rules as `/subscriptions`; the customer's two switches (Booking updates,
   Reminders) apply to phones too.
+  `POST /users/me/push/devices/test` and `/vendors/me/push/devices/test`
+  (body `{}`, or `{ token }` for one phone) send the "Detlio notifications are
+  on" test to this person's own phones only; the answer is
+  `{ result: 'sent' | 'expired' | 'failed' }`, or a 404 when no phone is on.
+  Same limit as the browser test (five per person per ten minutes, shared).
 - **Table**: `push_devices` (token unique, platform, user, audience, garage
   for garage seats). `push_subscriptions` is untouched. At most 10 phones per
   person per app, the newest. Deleted with the account.

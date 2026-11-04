@@ -139,7 +139,8 @@ function lineView(line: StatementLine, chain: (EarningChainRow & { items: Earnin
     payableFrom: line.payableFrom.toISOString(),
     scheduledAt: chain?.scheduledAt.toISOString() ?? null,
     customerFirstName: firstNameOf(chain?.customerName),
-    services: chain?.items.map((item) => item.name) ?? [],
+    // An add-on keeps its mark on a statement and its CSV (0068).
+    services: chain?.items.map((item) => (item.isAddon ? `${item.name} (add-on)` : item.name)) ?? [],
     bookingType: chain?.bookingType ?? null,
     /** 'job', 'customer_no_show', or null when it earns nothing any more. */
     kind: e.kind,

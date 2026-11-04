@@ -1,5 +1,6 @@
 'use client'
 
+import { JobAddOnLines } from '@/components/job-add-on-lines'
 import { useState } from 'react'
 import Link from 'next/link'
 import {
@@ -30,7 +31,7 @@ import {
   jobPrice,
   proposalOpen,
   responseRunOut,
-  servicesLine,
+  serviceOnlyLine,
   slotPassed,
 } from '@/lib/jobs'
 
@@ -102,8 +103,9 @@ export function NewBookingCard({
               {formatWhen(b.scheduledAtIso, now)}
             </p>
             <p className="text-[17px] font-medium text-text-primary">
-              {servicesLine(b)}
+              {serviceOnlyLine(b)}
             </p>
+            <JobAddOnLines items={b.items} className="text-[15px] text-text-secondary" />
             {b.vehicle && (
               <p className="text-[16px] text-text-secondary">
                 {b.vehicle.make} {b.vehicle.model} ·{' '}

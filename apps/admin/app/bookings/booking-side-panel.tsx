@@ -27,6 +27,7 @@ import {
   formatWhen,
   paymentStatusLabel,
   pickupStepLine,
+  lineName,
 } from '@/lib/bookings'
 import { URGENCY_TEXT } from '@/lib/format'
 import { bookingHref } from './booking-columns'
@@ -53,7 +54,7 @@ export function BookingSidePanel({
   const badge = bookingStatusBadge(b.status)
   const step = bookingNextStep(b, now)
   const cancelled = cancellationLabel(b)
-  const services = b.items.map((item) => item.name).join(', ')
+  const services = b.items.map(lineName).join(', ')
   const facts: Array<[string, React.ReactNode]> = [
     [b.items.length > 1 ? 'Services' : 'Service', services || '—'],
     [

@@ -76,6 +76,20 @@ export const bookingIntentsService = {
   async createIntent(userId: string, input: CreateBookingIntentInput) {
     const draft = await resolveBookingDraft(userId, input)
 
+    const clash = await bookingIntentsRepository.findVehicleClash({
+      vehicleId: draft.vehicle.id,
+      scheduledAt: draft.scheduledAt,
+      durationMins: draft.durationMins,
+    })
+    if (clash) {
+      log.warn({ userId, vehicleId: draft.vehicle.id, clashingBookingId: clash.id }, 'booking:vehicle_double_booked')
+      throw new AppError(
+        409,
+        'That car already has a booking at this time. Pick another time; nothing was charged.',
+        'VEHICLE_DOUBLE_BOOKED'
+      )
+    }
+
     // Detlio credit (0049), after any promo code: as much of the balance as
     // the rules allow (lib/gift-credit.ts creditToUse). Read, not held: the
     // booking write spends it under the customer's credit lock, and refuses

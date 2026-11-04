@@ -37,7 +37,7 @@ export interface PushBooking {
   status?: string
   respondBy?: Date | null
   vendor?: { businessName: string } | null
-  items?: Array<{ name: string }> | null
+  items?: Array<{ name: string; isAddon?: boolean }> | null
   service?: { name: string } | null
 }
 
@@ -47,7 +47,9 @@ function garageName(booking: PushBooking): string {
 
 /** "Exterior Wash", "Exterior Wash + 1 more": as Home and Updates say it. */
 export function pushServiceLabel(booking: PushBooking): string {
-  const names = booking.items?.length ? booking.items.map((item) => item.name) : booking.service ? [booking.service.name] : []
+  // A lock-screen line: the services, with no add-ons (0068).
+  const lines = booking.items?.filter((item) => item.isAddon !== true) ?? []
+  const names = lines.length ? lines.map((item) => item.name) : booking.service ? [booking.service.name] : []
   return serviceLabelOf(names)
 }
 

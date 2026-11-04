@@ -30,6 +30,7 @@ import {
   uploadRefusal,
   uploadedLine,
   type DocumentContentType,
+  type DocumentModes,
   type DocumentStatus,
   type DocumentType,
   type FilesRefusal,
@@ -130,11 +131,17 @@ function removalRefused(refusal: RemovalRefusal) {
  * for one never uploaded. Files are named by id, side, type and size only:
  * no key and no URL. A link to look at one is its own request.
  */
-function documentView(type: DocumentType, doc: DocumentRecord | undefined, files: DocumentFileRecord[]) {
+function documentView(
+  type: DocumentType,
+  doc: DocumentRecord | undefined,
+  files: DocumentFileRecord[],
+  modes: DocumentModes
+) {
   return {
     type,
     label: DOCUMENT_LABELS[type],
-    required: isRequiredDocument(type),
+    /** For this garage: a doorstep-only garage's shop photo is optional. */
+    required: isRequiredDocument(type, modes),
     /** The paper agreement (0063): readable, never uploaded again. */
     retired: isRetiredDocument(type),
     takesExpiry: takesExpiry(type),
@@ -156,22 +163,31 @@ function documentView(type: DocumentType, doc: DocumentRecord | undefined, files
 }
 
 /** Admin also reads who uploaded it and who reviewed it. */
-function adminDocumentView(type: DocumentType, doc: DocumentRecord | undefined, files: DocumentFileRecord[]) {
+function adminDocumentView(
+  type: DocumentType,
+  doc: DocumentRecord | undefined,
+  files: DocumentFileRecord[],
+  modes: DocumentModes
+) {
   return {
-    ...documentView(type, doc, files),
+    ...documentView(type, doc, files, modes),
     uploadedBy: doc ? (doc.uploadedBy === GARAGE ? 'The garage' : doc.uploadedBy) : null,
     reviewedBy: doc?.reviewedBy ?? null,
   }
 }
 
-async function loadDocuments(reads: Pick<DocumentsWork, 'listDocuments' | 'listFiles'>, vendorId: string) {
+async function loadDocuments(
+  reads: Pick<DocumentsWork, 'listDocuments' | 'listFiles' | 'findModes'>,
+  vendorId: string
+) {
+  const modes = await reads.findModes(vendorId)
   const docs = await reads.listDocuments(vendorId)
   const files = await reads.listFiles(docs.map((doc) => doc.id))
   const byType = new Map(docs.map((doc) => [doc.type, doc]))
   const filesOf = (doc: DocumentRecord | undefined) =>
     doc ? files.filter((file) => file.documentId === doc.id) : []
-  const summary = summariseDocuments(docs)
-  return { byType, filesOf, summary: { ...summary, line: progressLine(summary) } }
+  const summary = summariseDocuments(docs, modes)
+  return { byType, filesOf, modes, summary: { ...summary, line: progressLine(summary) } }
 }
 
 // ─── Submitting ──────────────────────────────────────────────────────────────
@@ -318,13 +334,13 @@ export const vendorDocumentsService = {
   // ─── The garage's own (the tenant's owner seat) ────────────────────────────
 
   async listForGarage(vendorId: string) {
-    const { byType, filesOf, summary } = await loadDocuments(vendorDocumentsRepository, vendorId)
+    const { byType, filesOf, modes, summary } = await loadDocuments(vendorDocumentsRepository, vendorId)
     return {
       summary,
       // The retired paper agreement (0063) is not listed: click to agree
       // replaced it, and the garage cannot upload one any more.
       documents: UPLOADABLE_DOCUMENT_TYPES.map((type) =>
-        documentView(type, byType.get(type), filesOf(byType.get(type)))
+        documentView(type, byType.get(type), filesOf(byType.get(type)), modes)
       ),
     }
   },
@@ -339,7 +355,7 @@ export const vendorDocumentsService = {
     const result = await submitDocument(vendorId, { kind: 'garage', sub }, input)
     // A retry of the same files has already been announced.
     if (!result.retry) alertDocumentsUploaded(vendorId, input.type, result.replaced)
-    return documentView(input.type, result.document, result.files)
+    return documentView(input.type, result.document, result.files, await vendorDocumentsRepository.findModes(vendorId))
   },
 
   /**
@@ -362,14 +378,14 @@ export const vendorDocumentsService = {
   async listForAdmin(vendorId: string) {
     const garage = await vendorDocumentsRepository.findGarage(vendorId)
     if (!garage || garage.purgedAt) throw garageNotFound()
-    const { byType, filesOf, summary } = await loadDocuments(vendorDocumentsRepository, vendorId)
+    const { byType, filesOf, modes, summary } = await loadDocuments(vendorDocumentsRepository, vendorId)
     return {
       garage: { id: garage.id, businessName: garage.businessName, inBin: garage.deletedAt !== null },
       summary,
       // A retired type (the paper agreement, 0063) only when the garage has
       // one, so old agreements stay readable.
       documents: DOCUMENT_TYPES.filter((type) => !isRetiredDocument(type) || byType.has(type)).map((type) =>
-        adminDocumentView(type, byType.get(type), filesOf(byType.get(type)))
+        adminDocumentView(type, byType.get(type), filesOf(byType.get(type)), modes)
       ),
     }
   },
@@ -383,7 +399,12 @@ export const vendorDocumentsService = {
     await assertWritableGarage(vendorId)
     const { actorName, approve, ...document } = input
     const result = await submitDocument(vendorId, { kind: 'admin', sub, name: actorName, approve }, document)
-    return adminDocumentView(input.type, result.document, result.files)
+    return adminDocumentView(
+      input.type,
+      result.document,
+      result.files,
+      await vendorDocumentsRepository.findModes(vendorId)
+    )
   },
 
   /**
@@ -407,13 +428,13 @@ export const vendorDocumentsService = {
       // Under the lock nothing moved since the read; this is the belt.
       if (!row) throw reviewRefused('changed')
       const files = await repo.listFiles([row.id])
-      return { row, files }
+      return { row, files, modes: await repo.findModes(vendorId) }
     })
     log.info(
       { vendorId, documentId, type: reviewed.row.type, version: reviewed.row.version, action: input.action, by: input.actorName },
       'document:reviewed'
     )
-    return adminDocumentView(reviewed.row.type, reviewed.row, reviewed.files)
+    return adminDocumentView(reviewed.row.type, reviewed.row, reviewed.files, reviewed.modes)
   },
 
   /**
@@ -452,7 +473,7 @@ async function removeDocument(
     await repo.lockGarageDocuments(vendorId)
     const current = await repo.findDocument(vendorId, documentId)
     if (!current) throw documentNotFound()
-    const refusal = removalRefusal(current, who.by, who.requiredConfirmed)
+    const refusal = removalRefusal(current, who.by, who.requiredConfirmed, await repo.findModes(vendorId))
     if (refusal) throw removalRefused(refusal)
     const done = await repo.removeDocument(vendorId, documentId, {
       actorSub: who.sub,

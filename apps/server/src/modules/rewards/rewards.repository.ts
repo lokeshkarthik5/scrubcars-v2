@@ -62,6 +62,7 @@ import {
   type StampRow,
   type VoucherKind,
 } from '../../lib/rewards.js'
+import { tstz } from '../../lib/sql-dates.js'
 import { DISCOUNT_HELD } from '../discounts/discounts.predicates.js'
 import { WASH_CATEGORIES } from '../home/home.repository.js'
 
@@ -121,6 +122,7 @@ async function findJob(conn: Conn, bookingId: string) {
       subtotalAmount: bookings.subtotalAmount,
       discountAmount: bookings.discountAmount,
       discountFundedBy: bookings.discountFundedBy,
+      addOnAmount: sql<string>`(select coalesce(sum(bi.amount), 0)::text from booking_items bi where bi.booking_id = ${bookings.id} and bi.is_addon)`,
       markedTestAt: bookings.markedTestAt,
       guaranteeRedo: bookings.guaranteeRedo,
       guaranteeRefundAt: bookings.guaranteeRefundAt,
@@ -155,6 +157,7 @@ function jobForRules(job: Job) {
     subtotalAmount: job.subtotalAmount,
     discountAmount: job.discountAmount,
     discountFundedBy: job.discountFundedBy,
+    addOnAmount: job.addOnAmount,
   }
 }
 
@@ -181,7 +184,7 @@ async function listStamps(conn: Conn, userId: string, now: Date) {
     .where(
       and(
         eq(rewardStamps.userId, userId),
-        sql`(${rewardStamps.earnedAt} > ${monthsBefore(now, 25)} or (${rewardStamps.voucherId} is null and ${rewardStamps.voidedAt} is null and ${rewardStamps.expiresAt} > ${now}))`
+        sql`(${rewardStamps.earnedAt} > ${tstz(monthsBefore(now, 25))} or (${rewardStamps.voucherId} is null and ${rewardStamps.voidedAt} is null and ${rewardStamps.expiresAt} > ${tstz(now)}))`
       )
     )
     .orderBy(desc(rewardStamps.earnedAt))
@@ -893,7 +896,7 @@ export const rewardsRepository = {
         from reward_bookings rb
         join users u on u.id = rb.user_id
        where rb.earned and rb.revoked_at is null
-         and rb.completed_at > ${monthsBefore(input.now, input.settings.levelWindowMonths)}
+         and rb.completed_at > ${tstz(monthsBefore(input.now, input.settings.levelWindowMonths))}
          ${input.kind === 'birthday' ? sql`and u.birthday_month = ${month}` : sql``}
          and not exists (
            select 1 from reward_perks p where p.user_id = rb.user_id and p.kind = ${input.kind} and p.year = ${year}
@@ -911,7 +914,7 @@ export const rewardsRepository = {
       select b.id
         from bookings b
        where b.status = 'completed'
-         and coalesce(b.completed_at, b.delivered_at) >= ${since}
+         and coalesce(b.completed_at, b.delivered_at) >= ${tstz(since)}
          and not exists (select 1 from bookings later where later.rescheduled_from_id = b.id)
          and not exists (
            select 1 from reward_bookings rb where rb.root_booking_id = coalesce(b.original_booking_id, b.id)
@@ -928,7 +931,7 @@ export const rewardsRepository = {
       select b.id
         from bookings b
        where b.no_show = 'customer'
-         and b.no_show_marked_at >= ${since}
+         and b.no_show_marked_at >= ${tstz(since)}
          and not exists (
            select 1 from reward_level_drops d where d.root_booking_id = coalesce(b.original_booking_id, b.id)
          )
@@ -1059,7 +1062,7 @@ export const rewardsRepository = {
         from reward_vouchers v
         join discounts d on d.id = v.discount_id
        where v.user_id = ${userId}
-         and (v.issued_at > ${new Date(now.getTime() - 180 * DAY_MS)} or v.expires_at > ${now})
+         and (v.issued_at > ${tstz(new Date(now.getTime() - 180 * DAY_MS))} or v.expires_at > ${tstz(now)})
        order by v.issued_at desc
        limit 60
     `)
@@ -1104,7 +1107,7 @@ export const rewardsRepository = {
       .where(
         and(
           eq(rewardScratchCards.userId, userId),
-          sql`(${rewardScratchCards.createdAt} > ${new Date(now.getTime() - 90 * DAY_MS)} or (${rewardScratchCards.scratchedAt} is null and ${rewardScratchCards.voidedAt} is null and ${rewardScratchCards.expiresAt} > ${now}))`
+          sql`(${rewardScratchCards.createdAt} > ${tstz(new Date(now.getTime() - 90 * DAY_MS))} or (${rewardScratchCards.scratchedAt} is null and ${rewardScratchCards.voidedAt} is null and ${rewardScratchCards.expiresAt} > ${tstz(now)}))`
         )
       )
       .orderBy(desc(rewardScratchCards.createdAt))
@@ -1229,7 +1232,7 @@ export const rewardsRepository = {
   async referralCounts(referrerId: string, now: Date) {
     const [row] = await db
       .select({
-        rewardedThisYear: sql<number>`count(*) filter (where ${rewardReferrals.status} = 'rewarded' and ${rewardReferrals.referrerVoucherId} is not null and ${rewardReferrals.settledAt} >= ${istYearStart(now)})::int`,
+        rewardedThisYear: sql<number>`count(*) filter (where ${rewardReferrals.status} = 'rewarded' and ${rewardReferrals.referrerVoucherId} is not null and ${rewardReferrals.settledAt} >= ${tstz(istYearStart(now))})::int`,
         pending: sql<number>`count(*) filter (where ${rewardReferrals.status} = 'pending')::int`,
         total: sql<number>`count(*)::int`,
       })
@@ -1360,13 +1363,13 @@ export const rewardsRepository = {
     const soon = new Date(now.getTime() + settings.expiryWarningDays * DAY_MS)
     const quietSince = new Date(now.getTime() - settings.nudgeGapDays * DAY_MS)
     const notRecentlyNudged = (userColumn: ReturnType<typeof sql.raw>) =>
-      sql`not exists (select 1 from reward_nudges n where n.user_id = ${userColumn} and n.sent_at > ${quietSince} and ${countsTowardGap(sql.raw('n.kind'))})`
+      sql`not exists (select 1 from reward_nudges n where n.user_id = ${userColumn} and n.sent_at > ${tstz(quietSince)} and ${countsTowardGap(sql.raw('n.kind'))})`
 
     const vouchers = await db.execute<{ id: string; user_id: string; amount: string; expires_at: Date | string }>(sql`
       select v.id, v.user_id, v.amount, v.expires_at
         from reward_vouchers v
        where v.cancelled_at is null
-         and v.expires_at > ${now} and v.expires_at <= ${soon}
+         and v.expires_at > ${tstz(now)} and v.expires_at <= ${tstz(soon)}
          and ${heldBookingOf(sql.raw('v.discount_id'))} is null
          and ${notRecentlyNudged(sql.raw('v.user_id'))}
          and not exists (select 1 from reward_nudges n where n.user_id = v.user_id and n.kind = 'expiring' and n.subject_key = 'voucher:' || v.id)
@@ -1377,7 +1380,7 @@ export const rewardsRepository = {
       select c.id, c.user_id, c.expires_at
         from reward_scratch_cards c
        where c.scratched_at is null and c.voided_at is null
-         and c.expires_at > ${now} and c.expires_at <= ${soon}
+         and c.expires_at > ${tstz(now)} and c.expires_at <= ${tstz(soon)}
          and ${notRecentlyNudged(sql.raw('c.user_id'))}
          and not exists (select 1 from reward_nudges n where n.user_id = c.user_id and n.kind = 'expiring' and n.subject_key = 'card:' || c.id)
        order by c.expires_at
@@ -1387,7 +1390,7 @@ export const rewardsRepository = {
       select s.user_id, min(s.expires_at) as first_expiry, count(*)::int as count
         from reward_stamps s
        where s.voucher_id is null and s.voided_at is null
-         and s.expires_at > ${now} and s.expires_at <= ${soon}
+         and s.expires_at > ${tstz(now)} and s.expires_at <= ${tstz(soon)}
          and ${notRecentlyNudged(sql.raw('s.user_id'))}
        group by s.user_id
        order by min(s.expires_at)
@@ -1396,7 +1399,7 @@ export const rewardsRepository = {
     const oneAway = await db.execute<{ user_id: string; newest_id: string }>(sql`
       select s.user_id, (array_agg(s.id order by s.earned_at desc, s.id desc))[1] as newest_id
         from reward_stamps s
-       where s.voucher_id is null and s.voided_at is null and s.expires_at > ${now}
+       where s.voucher_id is null and s.voided_at is null and s.expires_at > ${tstz(now)}
          and ${notRecentlyNudged(sql.raw('s.user_id'))}
        group by s.user_id
       having count(*) = ${settings.stampsPerCard - 1}
@@ -1415,7 +1418,7 @@ export const rewardsRepository = {
         select distinct rb.user_id
           from reward_bookings rb
          where rb.earned and rb.revoked_at is null
-           and rb.completed_at > ${monthsBefore(now, 6)}
+           and rb.completed_at > ${tstz(monthsBefore(now, 6))}
       ),
       last_wash as (
         select distinct on (b.vehicle_id) b.vehicle_id, b.user_id, coalesce(b.completed_at, b.scheduled_at) as washed_at
@@ -1432,10 +1435,10 @@ export const rewardsRepository = {
       )
       select lw.user_id, lw.vehicle_id, lw.washed_at, v.wash_interval_days,
              (select count(*)::int from reward_stamps o
-               where o.user_id = lw.user_id and o.voucher_id is null and o.voided_at is null and o.expires_at > ${now}) as on_card
+               where o.user_id = lw.user_id and o.voucher_id is null and o.voided_at is null and o.expires_at > ${tstz(now)}) as on_card
         from last_wash lw
         join user_vehicles v on v.id = lw.vehicle_id and v.archived_at is null
-       where lw.washed_at < ${new Date(now.getTime() - 4 * DAY_MS)}
+       where lw.washed_at < ${tstz(new Date(now.getTime() - 4 * DAY_MS))}
          and not exists (
            select 1 from bookings b2 join payments p2 on p2.booking_id = b2.id
             where b2.vehicle_id = lw.vehicle_id
@@ -1538,7 +1541,7 @@ export const rewardsRepository = {
     const issued = await db.execute<{ kind: VoucherKind; n: number; total: string | null }>(sql`
       select kind, count(*)::int as n, sum(amount) as total
         from reward_vouchers
-       where issued_at >= ${start} and issued_at < ${end}
+       where issued_at >= ${tstz(start)} and issued_at < ${tstz(end)}
        group by kind
     `)
     const redeemed = await db.execute<{ kind: VoucherKind; n: number; total: string | null }>(sql`
@@ -1547,7 +1550,7 @@ export const rewardsRepository = {
         join reward_vouchers v on v.discount_id = dr.discount_id
         join bookings on bookings.id = dr.booking_id
         join payments on payments.booking_id = bookings.id
-       where dr.created_at >= ${start} and dr.created_at < ${end}
+       where dr.created_at >= ${tstz(start)} and dr.created_at < ${tstz(end)}
          and ${DISCOUNT_HELD}
        group by v.kind
     `)
@@ -1555,7 +1558,7 @@ export const rewardsRepository = {
       select v.kind, count(*)::int as n, sum(v.amount) as total
         from reward_vouchers v
        where v.cancelled_at is null
-         and v.expires_at >= ${start} and v.expires_at < ${until}
+         and v.expires_at >= ${tstz(start)} and v.expires_at < ${tstz(until)}
          and ${heldBookingOf(sql.raw('v.discount_id'))} is null
        group by v.kind
     `)
@@ -1563,39 +1566,39 @@ export const rewardsRepository = {
       select drawn_outcome, outcome, count(*)::int as n, sum(prize_amount) as prizes,
              count(*) filter (where scratched_at is not null)::int as scratched
         from reward_scratch_cards
-       where created_at >= ${start} and created_at < ${end}
+       where created_at >= ${tstz(start)} and created_at < ${tstz(end)}
        group by drawn_outcome, outcome
     `)
     const stamps = await db.execute<{ source: string; n: number; used: number; lapsed: number; removed: number }>(sql`
       select source, count(*)::int as n,
              count(*) filter (where voucher_id is not null)::int as used,
-             count(*) filter (where voucher_id is null and voided_at is null and expires_at <= ${now})::int as lapsed,
+             count(*) filter (where voucher_id is null and voided_at is null and expires_at <= ${tstz(now)})::int as lapsed,
              count(*) filter (where voided_at is not null)::int as removed
         from reward_stamps
-       where earned_at >= ${start} and earned_at < ${end}
+       where earned_at >= ${tstz(start)} and earned_at < ${tstz(end)}
        group by source
     `)
     const [stampsLapsed] = await db.execute<{ n: number }>(sql`
       select count(*)::int as n
         from reward_stamps
        where voucher_id is null and voided_at is null
-         and expires_at >= ${start} and expires_at < ${until}
+         and expires_at >= ${tstz(start)} and expires_at < ${tstz(until)}
     `)
     const [cardsExpired] = await db.execute<{ n: number }>(sql`
       select count(*)::int as n
         from reward_scratch_cards
        where scratched_at is null and voided_at is null
-         and expires_at >= ${start} and expires_at < ${until}
+         and expires_at >= ${tstz(start)} and expires_at < ${tstz(until)}
     `)
     const [judged] = await db.execute<{ earned: number; refused: number; revoked: number }>(sql`
       select count(*) filter (where earned)::int as earned,
              count(*) filter (where not earned)::int as refused,
              count(*) filter (where revoked_at is not null)::int as revoked
         from reward_bookings
-       where judged_at >= ${start} and judged_at < ${end}
+       where judged_at >= ${tstz(start)} and judged_at < ${tstz(end)}
     `)
     const [drops] = await db.execute<{ n: number }>(sql`
-      select count(*)::int as n from reward_level_drops where dropped_at >= ${start} and dropped_at < ${end}
+      select count(*)::int as n from reward_level_drops where dropped_at >= ${tstz(start)} and dropped_at < ${tstz(end)}
     `)
     const byKind = <T extends { kind: VoucherKind; n: number; total: string | null }>(rows: Iterable<T>) =>
       Array.from(rows).map((row) => ({ kind: row.kind, n: Number(row.n), total: Number(row.total ?? 0).toFixed(2) }))
@@ -1645,14 +1648,14 @@ export const rewardsRepository = {
       with earned as (
         select user_id, completed_at
           from reward_bookings
-         where earned and revoked_at is null and completed_at > ${monthsBefore(now, 25)}
+         where earned and revoked_at is null and completed_at > ${tstz(monthsBefore(now, 25))}
       ),
       people as (select distinct user_id from earned)
       select p.user_id,
-             (select count(*)::int from earned e where e.user_id = p.user_id and e.completed_at > ${windowNow}) as now_n,
-             (select count(*)::int from earned e where e.user_id = p.user_id and e.completed_at > ${windowBefore} and e.completed_at <= ${before}) as before_n,
-             (select count(*)::int from reward_level_drops d where d.user_id = p.user_id and d.dropped_at > ${dropsNow}) as now_drops,
-             (select count(*)::int from reward_level_drops d where d.user_id = p.user_id and d.dropped_at > ${dropsBefore} and d.dropped_at <= ${before}) as before_drops,
+             (select count(*)::int from earned e where e.user_id = p.user_id and e.completed_at > ${tstz(windowNow)}) as now_n,
+             (select count(*)::int from earned e where e.user_id = p.user_id and e.completed_at > ${tstz(windowBefore)} and e.completed_at <= ${tstz(before)}) as before_n,
+             (select count(*)::int from reward_level_drops d where d.user_id = p.user_id and d.dropped_at > ${tstz(dropsNow)}) as now_drops,
+             (select count(*)::int from reward_level_drops d where d.user_id = p.user_id and d.dropped_at > ${tstz(dropsBefore)} and d.dropped_at <= ${tstz(before)}) as before_drops,
              (select array_agg(distinct to_char(e.completed_at at time zone 'Asia/Kolkata', 'YYYY-MM')) from earned e where e.user_id = p.user_id) as months
         from people p
        limit 20000
@@ -1670,7 +1673,7 @@ export const rewardsRepository = {
   /** Invites in a range: opened → taken up → first booking paid → rewarded. */
   async referralFunnel(start: Date, end: Date) {
     const [opens] = await db.execute<{ n: number }>(sql`
-      select count(*)::int as n from reward_invite_opens where opened_at >= ${start} and opened_at < ${end}
+      select count(*)::int as n from reward_invite_opens where opened_at >= ${tstz(start)} and opened_at < ${tstz(end)}
     `)
     const [rest] = await db.execute<{ claimed: number; booked: number; rewarded: number; refused: number }>(sql`
       select count(*)::int as claimed,
@@ -1681,7 +1684,7 @@ export const rewardsRepository = {
              count(*) filter (where r.status = 'rewarded')::int as rewarded,
              count(*) filter (where r.status = 'refused')::int as refused
         from reward_referrals r
-       where r.claimed_at >= ${start} and r.claimed_at < ${end}
+       where r.claimed_at >= ${tstz(start)} and r.claimed_at < ${tstz(end)}
     `)
     return {
       opened: Number(opens?.n ?? 0),
@@ -1706,7 +1709,7 @@ export const rewardsRepository = {
         from reward_bookings rb
         join users u on u.id = rb.user_id
        where rb.earned and rb.revoked_at is null
-         and rb.completed_at > ${monthsBefore(now, settings.levelWindowMonths)}
+         and rb.completed_at > ${tstz(monthsBefore(now, settings.levelWindowMonths))}
        group by rb.user_id, u.name, u.phone
        order by count(*) desc, rb.user_id
        limit ${limit}
@@ -1729,7 +1732,7 @@ export const rewardsRepository = {
         from reward_bookings rb
         join users u on u.id = rb.user_id
        where rb.earned and rb.revoked_at is null
-         and rb.completed_at > ${monthsBefore(now, 12)}
+         and rb.completed_at > ${tstz(monthsBefore(now, 12))}
        group by rb.user_id, u.name, u.phone
       having count(*) >= ${REWARDS_FIXED.heavyDiscountMinBookings}
          and count(*) filter (where rb.discount_percent >= ${REWARDS_FIXED.heavyDiscountPercent}) * 1.0 / count(*) > ${REWARDS_FIXED.heavyDiscountShare}
@@ -1803,24 +1806,24 @@ export const rewardsRepository = {
       select * from (
         select s.earned_at as at, 'stamp' as type, s.source as detail, null::numeric as amount, s.user_id,
                s.booking_id, case when s.voided_at is not null then 'removed' when s.voucher_id is not null then 'used' else 'on_card' end as state
-          from reward_stamps s where s.earned_at >= ${start} and s.earned_at < ${end}
+          from reward_stamps s where s.earned_at >= ${tstz(start)} and s.earned_at < ${tstz(end)}
         union all
         select c.created_at, 'scratch_card', c.outcome || case when c.fell_back then ' (cap: was ' || c.drawn_outcome || ')' else '' end,
                c.prize_amount, c.user_id, c.root_booking_id,
                case when c.voided_at is not null then 'void' when c.scratched_at is not null then 'scratched' else 'waiting' end
-          from reward_scratch_cards c where c.created_at >= ${start} and c.created_at < ${end}
+          from reward_scratch_cards c where c.created_at >= ${tstz(start)} and c.created_at < ${tstz(end)}
         union all
         select v.issued_at, 'voucher', v.kind || coalesce(' · ' || v.level, ''), v.amount, v.user_id, v.source_booking_id,
                case when v.cancelled_at is not null then 'cancelled'
                     when ${heldBookingOf(sql.raw('v.discount_id'))} is not null then 'spent'
                     else 'unspent' end
-          from reward_vouchers v where v.issued_at >= ${start} and v.issued_at < ${end}
+          from reward_vouchers v where v.issued_at >= ${tstz(start)} and v.issued_at < ${tstz(end)}
         union all
         select d.dropped_at, 'level_drop', d.from_level || ' → ' || d.to_level, null, d.user_id, d.root_booking_id, null
-          from reward_level_drops d where d.dropped_at >= ${start} and d.dropped_at < ${end}
+          from reward_level_drops d where d.dropped_at >= ${tstz(start)} and d.dropped_at < ${tstz(end)}
         union all
         select r.claimed_at, 'invite', r.status, null, r.referrer_id, r.root_booking_id, r.refusal
-          from reward_referrals r where r.claimed_at >= ${start} and r.claimed_at < ${end}
+          from reward_referrals r where r.claimed_at >= ${tstz(start)} and r.claimed_at < ${tstz(end)}
       ) events
       join users u on u.id = events.user_id
       order by events.at

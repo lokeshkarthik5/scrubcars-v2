@@ -78,6 +78,7 @@ export interface EarningItemRow {
   pricingType: string
   amount: string
   sortOrder: number
+  isAddon?: boolean
 }
 
 export interface EarningRefundRow {
@@ -204,9 +205,10 @@ export function payoutsReads(conn: Tx) {
         pricing_type: string
         amount: string
         sort_order: number
+        is_addon: boolean
       }>(sql`
         with ${earningCte(vendorId)}
-        select e.root_id, bi.name, s.category, s.pricing_type, bi.amount::text as amount, bi.sort_order
+        select e.root_id, bi.name, s.category, s.pricing_type, bi.amount::text as amount, bi.sort_order, bi.is_addon
           from earning e
           join booking_items bi on bi.booking_id = e.id
           join services s on s.id = bi.service_id
@@ -218,6 +220,7 @@ export function payoutsReads(conn: Tx) {
         pricingType: row.pricing_type,
         amount: row.amount,
         sortOrder: row.sort_order,
+        isAddon: row.is_addon,
       }))
     },
 

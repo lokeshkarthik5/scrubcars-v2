@@ -120,7 +120,10 @@ test.describe('payment @p0', () => {
 
     const checkout = new CheckoutPage(page)
     await checkout.goto(VENDORS.main.id, [SERVICES.wash.id])
-    await checkout.pickTomorrowSlot()
+    await checkout.pickTomorrow()
+    // Not the first slot: the first test books the Swift there, and checkout
+    // refuses a car that is already booked.
+    await checkout.pickLastSlot()
     await checkout.pickVehicle(/Maruti Swift/)
 
     await setPaymentMode(page, 'dismiss')
@@ -138,7 +141,10 @@ test.describe('payment @p0', () => {
 
     const checkout = new CheckoutPage(page)
     await checkout.goto(VENDORS.main.id, [SERVICES.wash.id])
-    await checkout.pickTomorrowSlot()
+    await checkout.pickTomorrow()
+    // Not the first slot: the first test books the Swift there, and checkout
+    // refuses a car that is already booked.
+    await checkout.pickLastSlot()
     await checkout.pickVehicle(/Maruti Swift/)
 
     await setPaymentMode(page, 'fail')

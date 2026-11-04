@@ -40,7 +40,9 @@ test.describe('remove and the rating in the garage portal @p0', () => {
       'It goes back to Not uploaded and its files are deleted.'
     )
     await ask.getByRole('button', { name: 'Remove shop photo' }).click()
-    await expect(shop.getByText('Not uploaded')).toBeVisible()
+    // Exact: the question above says "It goes back to Not uploaded", and a
+    // loose match would pass on that while the removal is still in flight.
+    await expect(shop.getByText('Not uploaded', { exact: true })).toBeVisible()
     expect(
       (
         await sql`select 1 from vendor_documents where id = ${P.documents.shopPhoto}`
