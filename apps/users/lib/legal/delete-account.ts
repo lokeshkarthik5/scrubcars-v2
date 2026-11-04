@@ -125,7 +125,7 @@ export const DELETE_ACCOUNT: LegalDoc = {
         },
         {
           kind: 'note',
-          text: '**How long records are kept.** The page says "as long as the law requires" because no period has been decided (details.ts RETENTION is unset; the code deletes nothing on a timer). Please give the period and the law for booking, payment, refund and receipt records, for complaint records, and for job photos (which are not deleted with the account and may show a number plate). Also: (1) the in-app sheet says the kept items are "without your name or number" but complaints keep both; the page says so honestly, and the sheet\'s heading should change; (2) copies of the database in backups are not touched by deletion, and nobody has confirmed how long the host keeps them.',
+          text: '**How long records are kept.** The page says "as long as the law requires" because no period has been decided (details.ts RETENTION is unset; the code deletes nothing on a timer). Please give the period and the law for booking, payment, refund and receipt records, for complaint records, and for job photos (which are not deleted with the account and may show a number plate). Also: (1) the in-app sheet now says complaints keep the name and number they were made with (bookings and money records are kept without them); (2) copies of the database in backups are not touched by deletion, and nobody has confirmed how long the host keeps them.',
         },
       ],
     },
