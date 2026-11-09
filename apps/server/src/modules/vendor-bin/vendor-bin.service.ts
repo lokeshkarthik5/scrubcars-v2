@@ -122,6 +122,18 @@ function garageScope(vendorId: string): ResetScope {
   return { kind: 'garage', vendorId }
 }
 
+/** Payouts to the garage that this delete leaves on record. */
+function payoutsLeftBy(plan: ResetPlan, payoutIds: string[]): number {
+  const deleted = new Set(plan.selectedPayoutIds)
+  return payoutIds.filter((payoutId) => !deleted.has(payoutId)).length
+}
+
+/** Why the owner's Delete forever put its money in the ledger: the Bin's own reason. */
+function ledgerReason(vendor: VendorRecord): string {
+  const why = vendor.deletedReason?.trim()
+  return `Deleted forever with the garage ${vendor.businessName}${why ? `: ${why}` : ''}`.slice(0, 300)
+}
+
 function keptView(row: ChainPlan | CheckoutPlan) {
   if (!row.kept) return null
   const isChain = 'rootId' in row
@@ -138,13 +150,24 @@ function keptView(row: ChainPlan | CheckoutPlan) {
 function purgeView(
   vendor: VendorRecord,
   plan: ResetPlan,
-  assets: Awaited<ReturnType<typeof vendorBinRepository.countAssets>>
+  assets: Awaited<ReturnType<typeof vendorBinRepository.countAssets>>,
+  payoutsLeft: number
 ) {
   const keptChains = plan.chains.filter((chain) => chain.kept)
   const keptCheckouts = plan.checkouts.filter((checkout) => checkout.kept)
+  // The owner's Delete forever (10 Nov 2026): the bookings it takes that
+  // anyone else's would keep for their money, each with what it leaves.
+  const ownerTaken = plan.chains.filter((chain) => chain.selected && chain.ownerOverride)
   return {
     garage: garageView(vendor),
-    outcome: purgeOutcome(plan),
+    outcome: purgeOutcome(plan, payoutsLeft),
+    ownerTaken: ownerTaken.map((chain) => ({
+      id: chain.rootId,
+      reference: chain.reference,
+      moneyLabel: MONEY_LABELS[chain.money],
+      lines: chain.ownerLines,
+    })),
+    payoutsLeft,
     bookings: { deleted: plan.counts.bookings, kept: keptChains.length },
     checkouts: { deleted: plan.selectedCheckoutIds.length, kept: keptCheckouts.length },
     // The logo is one file on the garage row, counted with its gallery.
@@ -335,13 +358,14 @@ export const vendorBinService = {
    * stays as a tombstone. Deletes nothing. The fingerprint is what the
    * delete must match.
    */
-  async deletePreview(id: string, now = new Date()) {
+  async deletePreview(id: string, now = new Date(), owner = false) {
     const vendor = assertLive(await vendorBinRepository.findVendor(id))
     const plan = planReset(
-      await loadPlanInput(vendorBinRepository, garageScope(id), undefined, NO_LOOKUPS, true, now)
+      await loadPlanInput(vendorBinRepository, garageScope(id), undefined, NO_LOOKUPS, true, now, owner)
     )
     const assets = await vendorBinRepository.countAssets(id)
-    return { inBin: isInBin(vendor), ...purgeView(vendor, plan, assets) }
+    const payoutsLeft = payoutsLeftBy(plan, await vendorBinRepository.payoutIdsOf(id))
+    return { inBin: isInBin(vendor), ...purgeView(vendor, plan, assets, payoutsLeft) }
   },
 
   /**
@@ -365,8 +389,21 @@ export const vendorBinService = {
    *
    * After the commit: the garage's files are removed from R2 and Stream,
    * best effort, and the team is told on Telegram.
+   *
+   * The owner's login (`owner`, 10 Nov 2026) takes the chains anyone else's
+   * keeps for their money too, by the rules of the owner's Delete test
+   * booking: their payments go to the ledger first (with the Bin's reason),
+   * credit spent goes back to the customer, and a payout stays on record
+   * with only the deleted bookings' lines gone (and keeps the garage as a
+   * tombstone, since it names it).
    */
-  async deleteForever(sub: string, id: string, input: DeleteVendorForeverInput, now = new Date()) {
+  async deleteForever(
+    sub: string,
+    id: string,
+    input: DeleteVendorForeverInput,
+    now = new Date(),
+    owner = false
+  ) {
     const scope = garageScope(id)
     let result: {
       vendor: VendorRecord
@@ -383,14 +420,15 @@ export const vendorBinService = {
         if (!isInBin(vendor)) throw deleteNeedsBin()
         if (!garageNameMatches(input.confirmName, vendor.businessName)) throw garageNameMismatch()
 
-        const seen = await loadPlanInput(repo, scope, undefined, NO_LOOKUPS, true, now)
+        const seen = await loadPlanInput(repo, scope, undefined, NO_LOOKUPS, true, now, owner)
         const toLock = rowsToLock(seen, undefined)
         await repo.lockIntents(toLock.intentIds)
         await repo.lockBookings(toLock.bookingIds)
-        const plan = planReset(await loadPlanInput(repo, scope, undefined, NO_LOOKUPS, true, now))
+        const plan = planReset(await loadPlanInput(repo, scope, undefined, NO_LOOKUPS, true, now, owner))
         if (plan.selectionHash !== input.selectionHash) throw purgePreviewStale()
 
-        const outcome = purgeOutcome(plan)
+        const payoutsLeft = payoutsLeftBy(plan, await repo.payoutIdsOf(id))
+        const outcome = purgeOutcome(plan, payoutsLeft)
         const assets = await repo.countAssets(id)
         const cascades = await repo.countCascadeRows(id)
         const seatHolders = await repo.listSeatHolderIds(id)
@@ -433,6 +471,18 @@ export const vendorBinService = {
               })),
             intentIds: plan.selectedIntentIds,
             payoutIds: plan.selectedPayoutIds,
+            // The owner's Delete forever: what only the owner could take,
+            // payouts left on record and credit given back.
+            ...(owner
+              ? {
+                  byOwner: true,
+                  ownerTaken: plan.chains
+                    .filter((chain) => chain.selected && chain.ownerOverride)
+                    .map((chain) => ({ rootId: chain.rootId, lines: chain.ownerLines })),
+                  keptPayoutIds: plan.keptPayoutIds,
+                  creditReturned: plan.creditReturns,
+                }
+              : {}),
             receiptPlan: plan.receiptPlan,
             kept: kept.map((row) => ({ id: 'rootId' in row ? row.rootId : row.id, reason: row.kept })),
             seatHolders,
@@ -456,7 +506,19 @@ export const vendorBinService = {
               .map((file) => file.storageKey)
           : []
 
-        const { photoKeys, restartYears } = await deletePlannedRows(repo, plan, audit.id, VOID_REASON)
+        // The owner's delete writes the money it takes to the ledger, with
+        // the Bin's reason; a garage's delete never clears the rows a test
+        // run does beside the cascade.
+        const { photoKeys, restartYears } = await deletePlannedRows(
+          repo,
+          plan,
+          audit.id,
+          VOID_REASON,
+          plan.ledger.length > 0
+            ? { reason: ledgerReason(vendor), actorName: input.actorName, actorSub: sub }
+            : undefined,
+          { clearLinked: false, now }
+        )
 
         if (outcome === 'hard_delete') {
           await repo.deletePackageItems(id)

@@ -63,6 +63,8 @@ test.describe('your own login @p0', () => {
       isOwner: true,
       // Whose typed booking notes are whose (0065).
       sub: `admin:${ADMIN_LOGINS.e2e.id}`,
+      // The owner deletes anything (0069).
+      canDeleteAnything: true,
     })
     await ctx.close()
   })
@@ -70,7 +72,7 @@ test.describe('your own login @p0', () => {
   test('the shared login still gets in, and signs as admin', async () => {
     const { status, ctx } = await signIn(ADMIN.username, ADMIN.password)
     expect(status).toBe(200)
-    expect((await (await ctx.get('/api/v1/admin/me')).json()).data).toMatchObject({ kind: 'shared', name: 'admin', username: null, isOwner: false })
+    expect((await (await ctx.get('/api/v1/admin/me')).json()).data).toMatchObject({ kind: 'shared', name: 'admin', username: null, isOwner: false, canDeleteAnything: true })
     // There is an owner, so the shared login can no longer add logins.
     const add = await ctx.post('/api/v1/admin/logins', { data: { username: 'e2e-sneaky', name: 'Sneaky E2E', password: 'sneaky-e2e-password' } })
     expect(add.status()).toBe(403)

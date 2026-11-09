@@ -70,6 +70,13 @@ import {
   vehicleServiceReminders,
   leads,
   garageClosureRequests,
+  gifts,
+  rewardChallenges,
+  couponBatches,
+  couponCodes,
+  couponRedemptions,
+  rewardStamps,
+  guaranteeClaims,
 } from '../schema.js'
 import {
   PREIOS,
@@ -123,8 +130,11 @@ import {
   TIERS,
   PRE_IOS,
   ADD_ONS,
+  OWNER_DELETE,
 } from './e2e-ids.js'
 import { hashPassword } from '../../lib/passwords.js'
+import { codeSuffix, couponCodeHash, couponKeys, deriveCouponCode } from '../../lib/coupons.js'
+import { env } from '../../lib/env.js'
 
 // ─── time helpers ───────────────────────────────────────────────────────────
 
@@ -3992,6 +4002,201 @@ async function seedPreiosRows() {
   })
 }
 
+/**
+ * The owner deletes anything (10 Nov 2026; OWNER_DELETE, ids 7300–7399,
+ * phones 90000073xx, bookings de1e69xx): a non-owner admin login and one to
+ * delete, a listed one-bay garage far from every other fixture, its two
+ * customers, and the rows the owner deletes (see OWNER_DELETE). Each spec
+ * acts on its own rows only.
+ */
+async function seedOwnerDeleteRows() {
+  const O = OWNER_DELETE
+  const longAgo = daysAgo(30)
+  for (const login of [O.teammate, O.doomedLogin]) {
+    await db.insert(adminLogins).values({
+      id: login.id, username: login.username, name: login.name,
+      passwordHash: await hashPassword(login.password), status: 'active', isOwner: false,
+      sessionsFrom: longAgo, createdByName: 'E2E seed', createdAt: longAgo, updatedAt: longAgo,
+    })
+  }
+  await db.insert(users).values([
+    { id: O.customer.id, name: O.customer.name, phone: O.customer.phone, isCustomer: true, isVendorOwner: false,
+      phoneVerified: true, status: 'active' as const },
+    { id: O.leaving.id, name: O.leaving.name, phone: O.leaving.phone, isCustomer: true, isVendorOwner: false,
+      phoneVerified: true, status: 'active' as const },
+    // A customer too, so the Customers page finds them: and refuses to delete them.
+    { id: O.owner.id, name: O.owner.name, phone: O.owner.phone, isCustomer: true, isVendorOwner: true,
+      phoneVerified: true, status: 'active' as const },
+  ])
+  await db.insert(userVehicles).values([
+    { id: O.customer.vehicleId, userId: O.customer.id, make: 'Maruti', model: 'Baleno', color: 'Blue',
+      licensePlate: 'TN09OD0001', vehicleType: 'hatchback', isDefault: true },
+    { id: O.leaving.vehicleId, userId: O.leaving.id, make: 'Honda', model: 'City', color: 'Grey',
+      licensePlate: 'TN09OD0002', vehicleType: 'sedan', isDefault: true },
+  ])
+  // One bay, so the live booking's hour is the only job it can take then.
+  await db.insert(vendors).values({
+    id: O.garage.id, ownerId: O.owner.id, businessName: O.garage.name, phone: O.owner.phone,
+    address: '9, Owner Road, Kelambakkam', city: 'Chennai', pincode: '603103',
+    lat: O.garage.lat, lng: O.garage.lng, geoSource: 'map_pin', geoConfirmedAt: now,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'], bays: 1, slotIntervalMins: 30, whatsapp: null,
+    status: 'active', isVerified: true, dropinEnabled: true, doorstepEnabled: false, createdAt: longAgo,
+  })
+  await db.insert(userMemberMapping).values({
+    vendorId: O.garage.id, userId: O.owner.id, role: 'vendor_admin', status: 'active',
+  })
+  await db.insert(vendorWorkingHours).values(hoursFor(O.garage.id, '06:00:00', '22:00:00'))
+  await db.insert(services).values({
+    id: O.garage.serviceId, vendorId: O.garage.id, name: O.garage.serviceName,
+    description: 'An exterior foam wash and dry.', category: 'car_wash', pricingType: 'flat',
+    price: '450.00', durationMins: 60, isActive: true,
+  })
+  await db.insert(discounts).values({
+    id: O.discount.id, code: O.discount.code, description: '₹50 off, seeded for the owner delete',
+    discountType: 'fixed', amountOff: '50.00', fundedBy: 'platform', startsAt: longAgo,
+    endsAt: daysAheadAt(300, 10), isActive: true,
+  })
+
+  const wash = { id: O.garage.serviceId, name: O.garage.serviceName, amount: '450.00', durationMins: 60 }
+  const mine = { userId: O.customer.id, vehicleId: O.customer.vehicleId, vendorId: O.garage.id, items: [wash] }
+  await insertBooking({
+    ...mine, id: O.bookings.live, scheduledAt: tomorrowAt(O.liveHour), status: 'confirmed',
+    createdAt: hoursAgo(3), acceptedAt: hoursAgo(2),
+    payment: { status: 'paid', txnId: 'pay_LiveOwnerDel1', gatewayMode: 'live', paidAt: hoursAgo(3) },
+  })
+  await insertBooking({
+    ...mine, id: O.bookings.teammateLive, scheduledAt: daysAgo(3), status: 'completed', createdAt: daysAgo(4),
+    acceptedAt: daysAgo(4), startedAt: daysAgo(3), completedAt: daysAgo(3), markedTestAt: daysAgo(1),
+    payment: { status: 'paid', txnId: 'pay_LiveOwnerDel2', gatewayMode: 'live', paidAt: daysAgo(4) },
+  })
+  await insertBooking({
+    ...mine, id: O.bookings.reviewed, scheduledAt: daysAgo(5), status: 'completed', createdAt: daysAgo(6),
+    acceptedAt: daysAgo(6), startedAt: daysAgo(5), completedAt: daysAgo(5),
+    payment: { status: 'paid', txnId: 'pay_e2e_ownerdel_reviewed', gatewayMode: 'fake', paidAt: daysAgo(6) },
+  })
+  await insertBooking({
+    ...mine, id: O.bookings.discounted, scheduledAt: daysAgo(7), status: 'completed', createdAt: daysAgo(8),
+    acceptedAt: daysAgo(8), startedAt: daysAgo(7), completedAt: daysAgo(7),
+    discount: { id: O.discount.id, code: O.discount.code, amount: '50.00', fundedBy: 'platform' },
+    payment: { status: 'paid', txnId: 'pay_e2e_ownerdel_discounted', gatewayMode: 'fake', paidAt: daysAgo(8) },
+  })
+  await insertBooking({
+    userId: O.leaving.id, vehicleId: O.leaving.vehicleId, vendorId: O.garage.id, items: [wash],
+    id: O.bookings.leavingOpen, scheduledAt: daysAheadAt(3, 15), status: 'pending', createdAt: hoursAgo(1),
+    payment: { status: 'paid', txnId: 'pay_e2e_ownerdel_leaving', gatewayMode: 'fake', paidAt: hoursAgo(1) },
+    // Three hours to answer: no run's cron reaches it (AUTO_CANCEL_UNANSWERED is on).
+    respondBy: new Date(now.getTime() + 3 * HOUR),
+  })
+
+  const reviewedRef = O.bookings.reviewed.slice(0, 8).toUpperCase()
+  await db.insert(reviews).values({
+    id: O.review, bookingId: O.bookings.reviewed, userId: O.customer.id, vendorId: O.garage.id,
+    rating: 2, comment: 'Seeded: the owner deletes this review.',
+  })
+  await db.insert(complaints).values({
+    id: O.complaint, userId: O.customer.id, customerName: O.customer.name, customerPhone: O.customer.phone,
+    bookingId: O.bookings.reviewed, bookingRef: reviewedRef, vendorId: O.garage.id, garageName: O.garage.name,
+    category: 'other', message: 'Seeded: the owner deletes this complaint.', source: 'phone', loggedBy: 'E2E seed',
+  })
+  const keptRef = O.bookings.teammateLive.slice(0, 8).toUpperCase()
+  await db.insert(reviews).values({
+    id: O.keptReview, bookingId: O.bookings.teammateLive, userId: O.customer.id, vendorId: O.garage.id,
+    rating: 5, comment: 'Seeded: nobody deletes this review.',
+  })
+  await db.insert(complaints).values({
+    id: O.keptComplaint, userId: O.customer.id, customerName: O.customer.name, customerPhone: O.customer.phone,
+    bookingId: O.bookings.teammateLive, bookingRef: keptRef, vendorId: O.garage.id, garageName: O.garage.name,
+    category: 'other', message: 'Seeded: nobody deletes this complaint.', source: 'phone', loggedBy: 'E2E seed',
+  })
+  await db.insert(jobPhotos).values({
+    id: O.jobPhoto, bookingId: O.bookings.reviewed, stage: 'after',
+    storageKey: `vendors/${O.garage.id}/job-photos/${O.bookings.reviewed}/owner-delete.jpg`,
+    url: `http://localhost:9000/detlio-e2e/vendors/${O.garage.id}/job-photos/${O.bookings.reviewed}/owner-delete.jpg`,
+  })
+  await db.insert(bypassReports).values({
+    id: O.bypassReport, userId: O.customer.id, bookingId: O.bookings.reviewed, rootBookingId: O.bookings.reviewed,
+    bookingRef: reviewedRef, vendorId: O.garage.id, garageName: O.garage.name, kind: 'book_directly', status: 'new',
+  })
+  // Scheduled a month out at this garage alone, so no Home shows it meanwhile.
+  await db.insert(notices).values({
+    id: O.notice, title: 'Owner delete notice', body: 'Seeded: the owner deletes this notice.',
+    audience: 'with_booking_between', vendorId: O.garage.id,
+    bookingFrom: daysAheadAt(30, 9), bookingTo: daysAheadAt(30, 18),
+    startsAt: daysAheadAt(29, 9), endsAt: daysAheadAt(31, 9), createdBy: 'E2E seed',
+  })
+  await db.insert(gifts).values({
+    id: O.gift, buyerId: O.customer.id, amount: '500.00', recipientName: 'Seeded friend', design: 'pearl',
+    status: 'pending',
+  })
+  await db.insert(rewardChallenges).values({
+    id: O.challenge.id, title: O.challenge.title, startDate: istDate(20), endDate: istDate(27), goalCount: 2,
+    rewardKind: 'stamps', rewardStamps: 2, createdBy: 'E2E seed',
+  })
+  // A zone of its own, far from every pin, with both customers on its list.
+  await db.insert(zones).values({
+    id: O.zone.id, slug: O.zone.slug, name: O.zone.name, lat: O.zone.lat, lng: O.zone.lng, target: 3,
+  })
+  await db.insert(zoneSignups).values([
+    { userId: O.customer.id, zoneId: O.zone.id, position: 1, freeWash: false, createdAt: daysAgo(2) },
+    { userId: O.leaving.id, zoneId: O.zone.id, position: 2, freeWash: false, createdAt: daysAgo(1) },
+  ])
+
+  // Two redo claims. A redo booking deleted by Delete test booking leaves
+  // its claim at redo_booked with no redo (ON DELETE SET NULL): that one the
+  // owner may delete. The other's redo is still there.
+  await insertBooking({
+    ...mine, id: O.bookings.claimed, scheduledAt: daysAgo(10), status: 'completed', createdAt: daysAgo(11),
+    acceptedAt: daysAgo(11), startedAt: daysAgo(10), completedAt: daysAgo(10),
+    payment: { status: 'paid', txnId: 'pay_e2e_ownerdel_claimed', gatewayMode: 'fake', paidAt: daysAgo(11) },
+  })
+  await insertBooking({
+    ...mine, id: O.bookings.claimedRedo, scheduledAt: daysAgo(12), status: 'completed', createdAt: daysAgo(13),
+    acceptedAt: daysAgo(13), startedAt: daysAgo(12), completedAt: daysAgo(12),
+    payment: { status: 'paid', txnId: 'pay_e2e_ownerdel_claimed_redo', gatewayMode: 'fake', paidAt: daysAgo(13) },
+  })
+  await insertBooking({
+    ...mine, id: O.bookings.redo, scheduledAt: daysAgo(9), status: 'completed', createdAt: daysAgo(10),
+    acceptedAt: daysAgo(10), startedAt: daysAgo(9), completedAt: daysAgo(9),
+    payment: { status: 'paid', txnId: 'pay_e2e_ownerdel_redo', gatewayMode: 'fake', paidAt: daysAgo(10) },
+  })
+  const redoClaim = {
+    userId: O.customer.id, vendorId: O.garage.id, issues: ['missed_spots' as const], status: 'redo_booked' as const,
+    route: 'detlio' as const, routeReasons: ['first_booking' as const], decision: 'redo' as const,
+    decidedBy: 'E2E seed', decidedAt: daysAgo(9), approvedAt: daysAgo(9), redoBookBy: daysAheadAt(5, 10),
+  }
+  await db.insert(guaranteeClaims).values([
+    { ...redoClaim, id: O.claim, bookingId: O.bookings.claimed, redoBookingId: null },
+    { ...redoClaim, id: O.claimWithRedo, bookingId: O.bookings.claimedRedo, redoBookingId: O.bookings.redo },
+  ])
+
+  // A printed batch, its codes derived and hashed under the secret the API
+  // reads (COUPON_SECRET, else JWT_SECRET), as a batch made in the panel.
+  const C = O.coupons
+  const keys = couponKeys(env.couponSecret ?? env.jwtSecret)
+  const codeRow = (id: string, seq: number) => {
+    const code = deriveCouponCode(keys.codeKey, C.batchId, seq)
+    return { id, batchId: C.batchId, seq, codeHash: couponCodeHash(keys.lookupKey, code), suffix: codeSuffix(code) }
+  }
+  await db.insert(couponBatches).values({
+    id: C.batchId, name: C.name, location: 'E2E seed stand', kind: 'unique', reward: 'stamps', stamps: 2,
+    validFrom: daysAgo(5), validUntil: daysAheadAt(60, 10), codeCount: 2, keyId: keys.keyId,
+    createdByName: 'E2E seed', createdAt: daysAgo(5),
+  })
+  await db.insert(couponCodes).values([
+    { ...codeRow(C.redeemedCode, 0), scanCount: 1, firstScannedAt: daysAgo(2), lastScannedAt: daysAgo(2),
+      redeemedAt: daysAgo(2), redeemedBy: O.customer.id },
+    codeRow(C.freeCode, 1),
+  ])
+  await db.insert(couponRedemptions).values({
+    id: C.redemption, batchId: C.batchId, codeId: C.redeemedCode, codeKind: 'unique', userId: O.customer.id,
+    kind: 'stamps', stamps: 2, channel: 'typed', createdAt: daysAgo(2),
+  })
+  await db.insert(rewardStamps).values({
+    id: C.stamp, userId: O.customer.id, source: 'coupon', couponRedemptionId: C.redemption,
+    earnedAt: daysAgo(2), expiresAt: daysAheadAt(300, 10),
+  })
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set')
 
@@ -4076,6 +4281,8 @@ async function main() {
   await seedPreiosRows()
   console.log('[e2e-seed] garage add-ons…')
   await seedAddOnRows()
+  console.log('[e2e-seed] the owner deletes anything…')
+  await seedOwnerDeleteRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }

@@ -460,6 +460,36 @@ export function DeleteForeverSheet({
                   {year.words}.
                 </p>
               ))}
+              {/* The owner's Delete forever (10 Nov 2026): bookings anyone
+                  else's keeps for their money go too; what each leaves. */}
+              {(data.ownerTaken?.length ?? 0) > 0 && (
+                <div className="flex flex-col gap-1.5">
+                  <p className="text-[12px] font-semibold text-text-primary">
+                    Deleted though they took real money (you are the owner)
+                  </p>
+                  <ul aria-label="Real money deleted" className="flex flex-col gap-1.5 text-[12px] text-text-primary">
+                    {data.ownerTaken!.map((row) => (
+                      <li key={row.id}>
+                        <span className="font-numeric">#{row.reference}</span> · {row.moneyLabel}
+                        {row.lines.map((line) => (
+                          <span key={line} className="block text-text-secondary">
+                            {line}
+                          </span>
+                        ))}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-[12px] text-text-secondary">
+                    Each payment is kept in the money record (Refunds → Deleted team tests) with the Bin&apos;s
+                    reason. Nothing is refunded.
+                  </p>
+                </div>
+              )}
+              {(data.payoutsLeft ?? 0) > 0 && (
+                <p className="text-[12px] text-text-secondary">
+                  Its payouts stay on record, so the garage is kept as a hidden record for them.
+                </p>
+              )}
               {data.outcome === 'partial' && (
                 <p className="text-[12px] text-text-primary">
                   This garage has more bookings than one go deletes. The oldest

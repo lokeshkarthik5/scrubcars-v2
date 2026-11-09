@@ -18,6 +18,8 @@ import {
 } from '@repo/core/api/hooks/use-admin-reviews'
 import { NEW_GARAGE_LABEL, RATING_RULES } from '@repo/core/ratings'
 import { DeleteTestBookingDialog } from '@/components/delete-test-booking-dialog'
+import { OwnerDeleteButton } from '@/components/owner-delete'
+import { useOwnerDeleteReview } from '@repo/core/api/hooks/use-admin-owner-delete'
 import { SignedAs } from '@/components/signed-as'
 import { formatWhen } from '@/lib/bookings'
 import { reviewCountsLabel } from '@/lib/reviews'
@@ -42,6 +44,7 @@ export function GarageReviewsSection({
   const [hiding, setHiding] = useState<AdminReview | null>(null)
   const [deleting, setDeleting] = useState<AdminReview | null>(null)
   const show = useShowReview(vendorId)
+  const removeReview = useOwnerDeleteReview()
   const [error, setError] = useState('')
 
   if (reviews.isPending) return <SkeletonList count={2} itemClassName="h-24" />
@@ -237,6 +240,26 @@ export function GarageReviewsSection({
                         Hide…
                       </ScButton>
                     ))}
+                  {/* The owner's hard delete (10 Nov 2026), beside Hide. */}
+                  {!readOnly && (
+                    <OwnerDeleteButton
+                      label="Delete review…"
+                      ariaLabel={`Delete the ${review.rating}-star review by ${review.reviewer ?? 'a customer'}`}
+                      title="Delete this review?"
+                      confirmLabel="Delete review"
+                      done="Review deleted"
+                      className="min-h-11 px-3 text-[12px]"
+                      body={
+                        <p>
+                          The {review.rating}-star review by{' '}
+                          {review.reviewer ?? 'a customer'} goes for good, with
+                          its reports. The garage&apos;s rating is worked out
+                          again without it. Hide keeps it on record instead.
+                        </p>
+                      }
+                      onDelete={() => removeReview.mutateAsync(review.id)}
+                    />
+                  )}
                 </div>
               </li>
             ))}

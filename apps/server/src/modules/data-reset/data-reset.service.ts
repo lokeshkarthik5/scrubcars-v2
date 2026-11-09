@@ -6,9 +6,9 @@ import {
   MAX_CHECKOUTS_PER_RUN,
   MONEY_LABELS,
   chainRootOf,
+  confirmMatches,
   countLines,
   idsToLookUp,
-  phraseMatches,
   planReset,
   untickedRows,
   type ChainPlan,
@@ -155,7 +155,12 @@ export async function loadPlanInput(
   only: PreviewInput['only'],
   lookups: Map<string, RazorpayLookup>,
   lookupsUnavailable: boolean,
-  now: Date
+  now: Date,
+  /**
+   * The owner's delete (10 Nov 2026): one booking marked Test or a garage
+   * deleted forever, by the owner's login. See PlanInput.owner.
+   */
+  owner = false
 ): Promise<PlanInput> {
   const keys = await chainKeysOf(repo, scope)
 
@@ -198,8 +203,9 @@ export async function loadPlanInput(
     ...beforeCutoff,
     ...aboutBookings.filter((complaint) => !beforeCutoff.some((other) => other.id === complaint.id)),
   ]
-  // Refunds on the chains' payments and bills, for the team-test rule (0065).
-  const refunds = scope.kind === 'garage' ? [] : await repo.refunds(bookingIds)
+  // Refunds on the chains' payments and bills, for the team-test rule (0065)
+  // and, on the owner's delete of a garage, for its ledger rows.
+  const refunds = scope.kind === 'garage' && !owner ? [] : await repo.refunds(bookingIds)
   // Usage events (0040), likewise a cutoff run's only, counted not listed.
   const analyticsEvents = scope.kind === 'before_cutoff' ? await repo.analyticsEventsBefore(scope.cutoff) : 0
   // Garage payouts that paid any of these chains: they go only with every
@@ -236,6 +242,7 @@ export async function loadPlanInput(
     voidsByYear,
     lookups,
     lookupsUnavailable,
+    owner,
   }
 }
 
@@ -287,8 +294,17 @@ function toChainView(chain: ChainPlan) {
     refunded: chain.refunded,
     markedTest: chain.markedTest,
     kept: keptView(chain.kept, chain.keptDetail),
-    // A team test (0065): real money, all refunded; the row says so.
-    teamTest: chain.teamTest ? { label: TEAM_TEST_LABEL } : null,
+    // A team test (0065): real money, all refunded; the row says so. The
+    // owner's delete of money not all given back says it in ownerLines.
+    teamTest: chain.teamTest && !chain.ownerOverride ? { label: TEAM_TEST_LABEL } : null,
+    // The owner's delete (10 Nov 2026): taken by a rule only the owner has,
+    // and what it leaves, a line each ("This booking is still on…", "₹450
+    // was really paid and has not been refunded…"). A reason is needed
+    // whenever money goes to the ledger.
+    ownerOverride: chain.ownerOverride,
+    stillOn: chain.stillOn,
+    lines: chain.ownerLines,
+    reasonRequired: chain.teamTest || chain.payoutKept,
     selected: chain.selected,
   }
 }
@@ -333,6 +349,8 @@ function toPlanView(plan: ResetPlan) {
     receiptPlan: plan.receiptPlan,
     overCap: plan.overCap,
     confirmPhrase: plan.confirmPhrase,
+    // 'reference' (the owner's delete): type the booking's reference.
+    confirmKind: plan.confirmKind,
     selectionHash: plan.selectionHash,
   }
 }
@@ -361,8 +379,14 @@ function previewStale() {
   )
 }
 
-function wrongPhrase(phrase: string) {
-  return new AppError(400, `Type ${phrase} exactly as shown to confirm.`, 'CONFIRM_PHRASE_MISMATCH')
+function wrongPhrase(plan: Pick<ResetPlan, 'confirmKind' | 'confirmPhrase'>) {
+  return new AppError(
+    400,
+    plan.confirmKind === 'reference'
+      ? `Type the booking reference ${plan.confirmPhrase} to confirm.`
+      : `Type ${plan.confirmPhrase} exactly as shown to confirm.`,
+    'CONFIRM_PHRASE_MISMATCH'
+  )
 }
 
 function nothingToDelete() {
@@ -442,8 +466,18 @@ export async function deletePlannedRows(
    * NULL that a test run clears too ("book directly" reports, visit
    * requests).
    */
-  testRun?: { reason: string | null; actorName: string; actorSub: string }
+  testRun?: { reason: string | null; actorName: string; actorSub: string },
+  options: {
+    /**
+     * Clear the rows a test run clears beside the cascade ("book directly"
+     * reports, visit requests). On for every test run; off for a garage's
+     * delete, which passes `testRun` only for the owner's ledger rows.
+     */
+    clearLinked?: boolean
+    now?: Date
+  } = {}
 ): Promise<{ photoKeys: string[]; restartYears: string[] }> {
+  const clearLinked = options.clearLinked ?? Boolean(testRun)
   // The team tests' money, recorded before anything of theirs goes.
   if (plan.ledger.length > 0) {
     if (!testRun?.reason) throw reasonRequired()
@@ -475,7 +509,22 @@ export async function deletePlannedRows(
   if (plan.analyticsCutoff) await repo.deleteAnalyticsEventsBefore(plan.analyticsCutoff)
   // Before the bookings too: a payout's items name them ON DELETE RESTRICT.
   await repo.deletePayouts(plan.selectedPayoutIds)
-  if (testRun) {
+  // A payout that stays on record (the owner's delete) loses only the
+  // deleted bookings' lines; the ledger rows above say what they were.
+  if (plan.keptPayoutIds.length > 0) await repo.deletePayoutItemsOf(plan.selectedBookingIds)
+  // Credit spent on a deleted chain goes back to the customer (the owner's
+  // delete), before its booking (and so its debit's link) goes.
+  const referenceOf = new Map(plan.chains.map((chain) => [chain.rootId, chain.reference]))
+  for (const credit of plan.creditReturns) {
+    await repo.returnCredit({
+      customerId: credit.customerId,
+      rootId: credit.rootId,
+      reference: referenceOf.get(credit.rootId) ?? credit.rootId.slice(0, 8).toUpperCase(),
+      amount: credit.amount,
+      now: options.now ?? new Date(),
+    })
+  }
+  if (clearLinked) {
     await repo.deleteBypassReports(plan.selectedBookingIds)
     await repo.deleteRequestsOf(plan.selectedBookingIds)
   }
@@ -528,7 +577,7 @@ export const dataResetService = {
    * Razorpay says about old payments (gateway_mode), and asks about at most
    * a slice of them per call: `lookups.remaining` says how many are left.
    */
-  async preview(input: PreviewInput, now = new Date()) {
+  async preview(input: PreviewInput, now = new Date(), owner = false) {
     const scope = toScope(input.scope, now)
     const keyMode = razorpayKeyMode()
     const lookupsUnavailable = keyMode === 'fake' || keyMode === 'none'
@@ -542,7 +591,8 @@ export const dataResetService = {
       input.only,
       lookups,
       lookupsUnavailable,
-      now
+      now,
+      owner
     )
 
     let checkedNow = 0
@@ -609,7 +659,9 @@ export const dataResetService = {
     sub: string,
     input: Omit<ExecuteInput, 'backupConfirmed'>,
     now = new Date(),
-    labels: RunLabels = RESET_LABELS
+    labels: RunLabels = RESET_LABELS,
+    /** The owner's delete of one booking marked Test (10 Nov 2026). */
+    owner = false
   ) {
     const scope = toScope(input.scope, now)
     const keyMode = razorpayKeyMode()
@@ -628,13 +680,13 @@ export const dataResetService = {
         // Only the ticked rows are locked: the rest of the scope is read for
         // the plan and the audit, but nothing is done to it, and locking
         // every booking in scope would hold up the pilot's payments.
-        const seen = await loadPlanInput(repo, scope, input.only, lookups, lookupsUnavailable, now)
+        const seen = await loadPlanInput(repo, scope, input.only, lookups, lookupsUnavailable, now, owner)
         const toLock = rowsToLock(seen, input.only)
         await repo.lockIntents(toLock.intentIds)
         await repo.lockBookings(toLock.bookingIds)
 
         const plan = planReset(
-          await loadPlanInput(repo, scope, input.only, lookups, lookupsUnavailable, now)
+          await loadPlanInput(repo, scope, input.only, lookups, lookupsUnavailable, now, owner)
         )
         // A booking deleted on its own says why it is kept, before anything
         // else: that is what the person needs to hear (0064).
@@ -651,9 +703,7 @@ export const dataResetService = {
         ) {
           throw nothingToDelete()
         }
-        if (!phraseMatches(input.confirmText, plan.confirmPhrase)) {
-          throw wrongPhrase(plan.confirmPhrase)
-        }
+        if (!confirmMatches(input.confirmText, plan)) throw wrongPhrase(plan)
         const reason = input.reason?.trim() || null
         if (plan.ledger.length > 0 && !reason) throw reasonRequired()
 
@@ -676,6 +726,8 @@ export const dataResetService = {
             untickedComplaints: unticked.complaintIds.length,
             // Team tests (0065): real money, all refunded, in the ledger.
             ...(plan.ledger.length > 0 ? { teamTestPayments: plan.ledger.length, reason } : {}),
+            // The owner's delete (10 Nov 2026): what only the owner could take.
+            ...(owner ? { byOwner: true } : {}),
           },
           // Ids, references and Razorpay ids, never phone numbers.
           detail: {
@@ -718,6 +770,14 @@ export const dataResetService = {
             analyticsEventsBefore: plan.analyticsCutoff?.toISOString() ?? null,
             // Garage payouts that paid only deleted bookings: ids only.
             payoutIds: plan.selectedPayoutIds,
+            // The owner's delete: payouts left on record without the deleted
+            // bookings' lines, credit given back, and what only the owner
+            // could take, with the dry run's words for it.
+            keptPayoutIds: plan.keptPayoutIds,
+            creditReturned: plan.creditReturns,
+            ownerTaken: selected
+              .filter((chain) => chain.ownerOverride)
+              .map((chain) => ({ rootId: chain.rootId, stillOn: chain.stillOn, lines: chain.ownerLines })),
             receiptPlan: plan.receiptPlan,
             kept: kept.map((row) => ({ id: rowId(row), reason: row.kept })),
             unticked: unticked.rowIds,
@@ -726,11 +786,14 @@ export const dataResetService = {
           },
         })
 
-        const { photoKeys, restartYears } = await deletePlannedRows(repo, plan, audit.id, labels.voidReason, {
-          reason,
-          actorName: input.actorName,
-          actorSub: sub,
-        })
+        const { photoKeys, restartYears } = await deletePlannedRows(
+          repo,
+          plan,
+          audit.id,
+          labels.voidReason,
+          { reason, actorName: input.actorName, actorSub: sub },
+          { now }
+        )
 
         // The counter's lock is the last one any transaction takes.
         await finishRestarts(repo, restartYears)
@@ -803,6 +866,11 @@ export const dataResetService = {
         gatewayMode: row.gatewayMode,
         amount: row.amount,
         refundedAmount: row.refundedAmount,
+        // The owner's delete (0069): where the money stands, a line for the
+        // record and the credit given back. 'refunded' for every older row.
+        state: row.state,
+        note: row.note,
+        creditReturned: row.creditReturned,
         refundIds: row.refunds.map((refund) => refund.refundRef).filter((ref): ref is string => Boolean(ref)),
         receiptNumber: row.receiptNumber,
         garageName: row.garageName,
@@ -817,10 +885,11 @@ export const dataResetService = {
    * The dry run for one booking's chain, from its page (0064). Works with
    * the reset switched off. 404 when there is no such booking.
    */
-  async previewTestBooking(bookingId: string, input: TestBookingPreviewInput, now = new Date()) {
+  async previewTestBooking(bookingId: string, input: TestBookingPreviewInput, now = new Date(), owner = false) {
     const preview = await this.preview(
       { scope: { kind: 'chains', bookingIds: [bookingId] }, unknownIds: input.unknownIds },
-      now
+      now,
+      owner
     )
     if (preview.chains.length === 0) throw bookingNotFound()
     return preview
@@ -832,8 +901,19 @@ export const dataResetService = {
    * (scope `chains`): refused with the reason when it is not marked Test or
    * real money is on it (409 TEST_BOOKING_KEPT), when it changed since the
    * dry run (409 PREVIEW_STALE) or the phrase is wrong (400).
+   *
+   * The owner's login (`owner`, 10 Nov 2026) deletes it whatever its money
+   * or state: open, paid and not refunded, paid out. Nothing is refunded or
+   * told; its money goes to the ledger as it stands and the reference is
+   * typed to confirm. Every other admin keeps the rules above.
    */
-  async deleteTestBooking(sub: string, bookingId: string, input: TestBookingDeleteInput, now = new Date()) {
+  async deleteTestBooking(
+    sub: string,
+    bookingId: string,
+    input: TestBookingDeleteInput,
+    now = new Date(),
+    owner = false
+  ) {
     return this.execute(
       sub,
       {
@@ -845,7 +925,8 @@ export const dataResetService = {
         reason: input.reason,
       },
       now,
-      { auditAction: TEST_BOOKING_AUDIT_ACTION, voidReason: TEST_BOOKING_VOID_REASON, refuseKept: true }
+      { auditAction: TEST_BOOKING_AUDIT_ACTION, voidReason: TEST_BOOKING_VOID_REASON, refuseKept: true },
+      owner
     )
   },
 }

@@ -484,6 +484,13 @@
       "when": 1788784589735,
       "tag": "0068_garage_add_ons",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1788784589736,
+      "tag": "0069_owner_delete",
+      "breakpoints": true
     }
   ]
 }

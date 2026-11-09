@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  adminDeletionCheck,
   anonymisedUser,
   anonymisedVehicle,
   DELETED_ACCOUNT_NAME,
@@ -158,5 +159,65 @@ describe('anonymisedUser: what is blanked and what is kept', () => {
 
   test('a car a booking names keeps its make and model, never its plate or colour', () => {
     expect(anonymisedVehicle(now)).toEqual({ licensePlate: null, color: null, isDefault: false, archivedAt: now })
+  })
+})
+
+describe('adminDeletionCheck: the owner deletes from admin (10 Nov 2026)', () => {
+  const none = {
+    ownsGarage: false,
+    openBookings: [],
+    openCheckout: false,
+    openClaims: [],
+    refundsOwed: [],
+    creditBalancePaise: 0,
+    unredeemedGifts: [],
+  }
+
+  test('nothing open: no block and no warnings', () => {
+    expect(adminDeletionCheck(none)).toEqual({ block: null, warnings: [] })
+  })
+
+  test('owning a garage still blocks it, in the team\'s words', () => {
+    expect(adminDeletionCheck({ ...none, ownsGarage: true }).block).toEqual({
+      code: 'VENDOR_OWNER_ACCOUNT',
+      message: 'This person owns a garage. Remove them from the garage first.',
+    })
+  })
+
+  test('everything else that stops the customer is a warning saying what happens to it', () => {
+    const check = adminDeletionCheck({
+      ...none,
+      openBookings: [{ reference: 'AB12CD34', status: 'confirmed' }],
+      openCheckout: true,
+      openClaims: [{ reference: 'EF56AB78' }],
+      refundsOwed: [{ reference: 'AB12CD34', amount: '450.00' }],
+      creditBalancePaise: 20000,
+      unredeemedGifts: [{ number: 'G-000012', expiresAt: null }],
+    })
+    expect(check.block).toBeNull()
+    expect(check.warnings.map((w) => w.code)).toEqual([
+      'ACCOUNT_HAS_OPEN_BOOKING',
+      'ACCOUNT_HAS_OPEN_CHECKOUT',
+      'ACCOUNT_HAS_OPEN_CLAIM',
+      'ACCOUNT_REFUND_OWED',
+      'ACCOUNT_HAS_CREDIT',
+      'ACCOUNT_HAS_UNREDEEMED_GIFT',
+    ])
+    expect(check.warnings[0]!.message).toBe(
+      'Booking #AB12CD34 is still on. It is cancelled first without telling the customer or the garage; a paid one becomes a refund owed on the Refunds page.'
+    )
+    expect(check.warnings[3]!.message).toBe('₹450 is still owed back to them (#AB12CD34 ₹450). It stays on the Refunds page.')
+    expect(check.warnings[4]!.message).toBe("They have ₹200 of Detlio credit. It can't be used once the account is gone.")
+  })
+
+  test('two open bookings are named together', () => {
+    const check = adminDeletionCheck({
+      ...none,
+      openBookings: [
+        { reference: 'AAAA0001', status: 'pending' },
+        { reference: 'AAAA0002', status: 'in_progress' },
+      ],
+    })
+    expect(check.warnings[0]!.message).toStartWith('Bookings #AAAA0001, #AAAA0002 are still on. They are cancelled first')
   })
 })

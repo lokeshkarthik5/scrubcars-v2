@@ -2,7 +2,7 @@ import type { CreateAddOnInput, UpdateAddOnInput } from '../vendors/vendors.vali
 import type { Context } from 'hono'
 import { deleteCookie, setCookie } from 'hono/cookie'
 import { env } from '../../lib/env.js'
-import { userIdFromSubject } from '../../lib/admin-actor.js'
+import { canDeleteAnything, userIdFromSubject } from '../../lib/admin-actor.js'
 import { signedInAdmin, type AuthVariables } from '../../middleware/auth.middleware.js'
 import { membersService } from '../members/members.service.js'
 import { adminService } from './admin.service.js'
@@ -83,6 +83,9 @@ export async function getMe(c: AdminContext) {
       name: actor.name,
       username: actor.username,
       isOwner: actor.isOwner,
+      // The owner's deletes (10 Nov 2026): the owner or the break-glass
+      // login. The panel shows the owner-only Delete buttons only then.
+      canDeleteAnything: canDeleteAnything(actor),
       sub: c.get('auth').sub,
     },
   })

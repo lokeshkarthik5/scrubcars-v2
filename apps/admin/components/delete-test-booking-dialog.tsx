@@ -27,8 +27,11 @@ import {
  * its refunds, complaints and notes. For tests the team runs during the
  * pilot. Its own routes (0064), so it works whether or not Start pilot clean
  * is switched on, and the typed phrase confirms it (no backup tick). The
- * booking must be marked Test, and real money is kept whatever: the server
- * decides both, and the dry run says so before anything can be confirmed.
+ * booking must be marked Test, and real money keeps it, except for the
+ * owner (10 Nov 2026), whose dry run says what was paid and not given back
+ * and asks for the booking's reference instead: the server decides all of
+ * it, and the dry run says so before anything can be confirmed. Opened from
+ * the booking's page, a Test review's row, or the bookings list.
  *
  * Mounted when it opens (the caller renders it then), and its dry run
  * starts with it. A dry run gone stale is run again under a new key.

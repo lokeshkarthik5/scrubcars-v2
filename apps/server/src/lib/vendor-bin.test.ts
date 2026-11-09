@@ -61,8 +61,9 @@ function abandonedCheckout(n: number): ResetIntent {
 }
 
 /** The garage's bookings planned as Delete forever plans them: Razorpay never asked. */
-function plan(bookings: ResetBooking[], intents: ResetIntent[] = []) {
+function plan(bookings: ResetBooking[], intents: ResetIntent[] = [], owner = false) {
   const input: PlanInput = {
+    owner,
     now: NOW,
     scope: { kind: 'garage', vendorId: GARAGE },
     only: null,
@@ -126,6 +127,19 @@ describe('delete forever: the garage row goes, or stays as a tombstone', () => {
     expect(p.chains.find((c) => c.rootId === uuid(2))?.kept).toBe('live')
     expect(p.selectedChainIds).toEqual([uuid(1)])
     expect(purgeOutcome(p)).toBe('tombstone')
+  })
+
+  test('the owner\'s Delete forever takes real money too, so a test garage goes outright (10 Nov 2026)', () => {
+    const p = plan([booking(1, 'test'), booking(2, 'live'), booking(3, null)], [], true)
+    expect(p.chains.every((c) => c.kept === null && c.selected)).toBe(true)
+    expect(p.ledger.map((row) => row.state)).toEqual(['not_refunded', 'not_refunded'])
+    expect(purgeOutcome(p)).toBe('hard_delete')
+  })
+
+  test('a payout left on record keeps the garage as a tombstone, even with nothing else kept', () => {
+    const p = plan([booking(1, 'test')], [], true)
+    expect(purgeOutcome(p, 1)).toBe('tombstone')
+    expect(purgeOutcome(p, 0)).toBe('hard_delete')
   })
 
   test('money nobody has classed is never deleted from here: kept, so a tombstone', () => {

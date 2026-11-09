@@ -6,6 +6,7 @@ import type { ZodType } from 'zod'
 import {
   BREAK_GLASS_NAME,
   BREAK_GLASS_SUBJECT,
+  canDeleteAnything,
   userIdFromSubject,
   type AdminActor,
 } from '../lib/admin-actor.js'
@@ -175,6 +176,19 @@ export function signedInAdmin(c: Context<{ Variables: AuthVariables }>): AdminAc
   if (!actor) throw new Error('signedInAdmin: requireSuperAdmin did not run on this route')
   return actor
 }
+
+/**
+ * The owner's own deletes (10 Nov 2026), behind requireSuperAdmin: the
+ * owner's login or the shared break-glass login (`canDeleteAnything`).
+ * Anyone else signed in to admin is 403 ADMIN_OWNER_ONLY, as Team logins
+ * answers them: they are known admins, so nothing is given away by saying so.
+ */
+export const requireOwner = createMiddleware<{ Variables: AuthVariables }>(async (c, next) => {
+  if (!canDeleteAnything(signedInAdmin(c))) {
+    throw new AppError(403, 'Only the owner can delete this.', 'ADMIN_OWNER_ONLY')
+  }
+  await next()
+})
 
 /**
  * zValidator('json', schema) for an admin write that is signed: once the body

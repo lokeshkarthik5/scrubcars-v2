@@ -817,6 +817,12 @@ export interface AdminMe {
   username: string | null
   /** The owner's login: the only one that changes team logins. */
   isOwner: boolean
+  /**
+   * The owner's deletes (10 Nov 2026): the owner's login or the shared
+   * break-glass login. The panel shows the owner-only Delete buttons only
+   * then. False from an older API.
+   */
+  canDeleteAnything: boolean
   /** The session's subject (0065): whose typed booking notes are yours. Null from an older API. */
   sub: string | null
 }
@@ -836,6 +842,7 @@ export async function getAdminMe(): Promise<AdminMe> {
     name: me.name?.trim() || 'admin',
     username: me.username ?? null,
     isOwner: me.isOwner ?? false,
+    canDeleteAnything: me.canDeleteAnything ?? false,
     sub: me.sub ?? null,
   }
   setAdminSigner(full.name)
@@ -1408,6 +1415,13 @@ export interface AdminVendorDeletePreview {
     label: string
     detail: string
   }>
+  /**
+   * The owner's Delete forever (10 Nov 2026), absent from older servers:
+   * bookings it takes that anyone else's keeps for their money, each with
+   * what it leaves, and payouts left on record (which keep a tombstone).
+   */
+  ownerTaken?: Array<{ id: string; reference: string; moneyLabel: string; lines: string[] }>
+  payoutsLeft?: number
   overCap: { chains: number; checkouts: number }
   selectionHash: string
 }
@@ -1968,6 +1982,16 @@ export interface DataResetChain {
    * look. Absent from older servers.
    */
   teamTest?: { label: string } | null
+  /**
+   * The owner's delete (10 Nov 2026), absent from older servers: taken by a
+   * rule only the owner has (real money not refunded, an order that may
+   * still be paid, a garage payout), whether it is still on, and what it
+   * leaves, a line each. A reason is needed when `reasonRequired`.
+   */
+  ownerOverride?: boolean
+  stillOn?: boolean
+  lines?: string[]
+  reasonRequired?: boolean
   selected: boolean
 }
 
@@ -2013,6 +2037,9 @@ export interface DataResetCounts {
   bypassReports?: number
   requests?: number
   teamTestPayments?: number
+  /** The owner's delete (10 Nov 2026): real payments not refunded, and payout lines whose payout stays. */
+  unrefundedPayments?: number
+  payoutLines?: number
 }
 
 export interface DataResetReceiptYear {
@@ -2051,8 +2078,13 @@ export interface DataResetPreview {
   receiptPlan: DataResetReceiptYear[]
   /** Deletable rows left unticked because the run is over its cap. */
   overCap: { chains: number; checkouts: number }
-  /** What to type: "DELETE 143 BOOKINGS". */
+  /** What to type: "DELETE 143 BOOKINGS", or the booking's reference when `confirmKind` says so. */
   confirmPhrase: string
+  /**
+   * 'reference' (the owner's delete of what anyone else's keeps, 10 Nov
+   * 2026): type the booking's reference ("AD200012"). Absent is 'phrase'.
+   */
+  confirmKind?: 'phrase' | 'reference'
   selectionHash: string
   lookups: {
     keyMode: DataResetConfig['keyMode']
@@ -2154,12 +2186,20 @@ export interface DeletedTestPayment {
   reason: string
   bookingReference: string
   rootBookingId: string
-  kind: 'booking' | 'final_bill' | 'extra_work'
+  /** 'payout' (10 Nov 2026): a garage payout's line on a booking the owner deleted. */
+  kind: 'booking' | 'final_bill' | 'extra_work' | 'payout'
   razorpayPaymentId: string | null
   razorpayOrderId: string | null
   gatewayMode: 'live' | 'test' | 'fake' | null
   amount: string
   refundedAmount: string
+  /**
+   * Where the money stands (0069), absent from older servers (read as
+   * 'refunded'), a line for the record, and Detlio credit given back.
+   */
+  state?: 'refunded' | 'not_refunded' | 'refund_pending' | 'credit_returned' | 'paid_out'
+  note?: string | null
+  creditReturned?: string
   refundIds: string[]
   receiptNumber: string | null
   garageName: string | null

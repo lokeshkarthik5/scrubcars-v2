@@ -1,8 +1,12 @@
 import { and, eq, gt, inArray, isNull, notExists, notInArray, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import {
+  adminAuditLog,
   analyticsEvents,
+  bookingCharges,
   bookingIntents,
+  bookingNotes,
+  bookingTimeProposals,
   bookingRequests,
   bookings,
   bypassReports,
@@ -92,8 +96,19 @@ export const accountRepository = {
    * rolls the whole thing back (DeletionRaced). Returns the avatar key to
    * delete from storage after the commit, if any.
    */
-  anonymise(input: { userId: string; now: Date; phone: string }): Promise<{ avatarKey: string | null; avatarUrl: string | null } | null> {
-    const { userId, now } = input
+  anonymise(input: {
+    userId: string
+    now: Date
+    phone: string
+    /**
+     * The owner's Delete customer account from admin (10 Nov 2026): what is
+     * still open is ended quietly instead of refusing (their bookings
+     * cancelled as Detlio's decision with a note, nobody told; an open
+     * checkout closed), and the delete is audited with who did it.
+     */
+    byAdmin?: { sub: string; name: string; reason: string }
+  }): Promise<{ avatarKey: string | null; avatarUrl: string | null; endedBookingIds: string[] } | null> {
+    const { userId, now, byAdmin } = input
     return db.transaction(async (tx) => {
       const [user] = await tx
         .select({ id: users.id, deletedAt: users.deletedAt, avatarStorageKey: users.avatarStorageKey, avatarUrl: users.avatarUrl })
@@ -113,7 +128,52 @@ export const accountRepository = {
         .from(bookingIntents)
         .where(and(eq(bookingIntents.userId, userId), eq(bookingIntents.status, 'pending'), gt(bookingIntents.expiresAt, now)))
         .limit(1)
-      if (open || checkout) throw new DeletionRaced()
+      if ((open || checkout) && !byAdmin) throw new DeletionRaced()
+
+      // From admin: their bookings still on are cancelled as Detlio's own
+      // decision, the ordinary admin cancel's columns and a note, but none of
+      // its messages (nobody is told). A paid one is then a refund owed by
+      // lib/refunds.ts like any Detlio cancellation. An unpaid bill and an
+      // open time suggestion go with each, as the admin cancel does. An open
+      // checkout is closed: a payment that lands anyway fails the checkout
+      // and shows as a refund owed.
+      const ended = byAdmin
+        ? await tx
+            .update(bookings)
+            .set({
+              status: 'cancelled',
+              cancelledBy: 'admin',
+              cancelledOnBehalfOf: 'detlio',
+              cancellationReason: byAdmin.reason,
+              cancelledAt: now,
+            })
+            .where(and(eq(bookings.userId, userId), inArray(bookings.status, [...OPEN_BOOKING_STATUSES])))
+            .returning({ id: bookings.id })
+        : []
+      const endedBookingIds = ended.map((row) => row.id)
+      if (byAdmin && endedBookingIds.length > 0) {
+        await tx.insert(bookingNotes).values(
+          endedBookingIds.map((bookingId) => ({
+            bookingId,
+            author: byAdmin.name,
+            body: `Cancelled because the customer's account was deleted by ${byAdmin.name}. Nobody was told.`,
+          }))
+        )
+        await tx
+          .update(bookingCharges)
+          .set({ status: 'cancelled', cancelReason: 'booking_closed', cancelledAt: now, updatedAt: now })
+          .where(and(inArray(bookingCharges.bookingId, endedBookingIds), eq(bookingCharges.status, 'due')))
+        await tx
+          .update(bookingTimeProposals)
+          .set({ status: 'closed', resolvedAt: now })
+          .where(and(inArray(bookingTimeProposals.bookingId, endedBookingIds), eq(bookingTimeProposals.status, 'open')))
+      }
+      if (byAdmin) {
+        await tx
+          .update(bookingIntents)
+          .set({ expiresAt: now })
+          .where(and(eq(bookingIntents.userId, userId), eq(bookingIntents.status, 'pending'), gt(bookingIntents.expiresAt, now)))
+      }
 
       // Every session, on every device: a refresh is refused from now on,
       // and an access token still in a browser lapses within 15 minutes
@@ -176,7 +236,18 @@ export const accountRepository = {
         .returning({ id: users.id })
       if (!done) throw new DeletionRaced()
 
-      return { avatarKey: user.avatarStorageKey ?? null, avatarUrl: user.avatarUrl ?? null }
+      if (byAdmin) {
+        await tx.insert(adminAuditLog).values({
+          action: 'customer_account_deleted',
+          actorSub: byAdmin.sub,
+          actorName: byAdmin.name,
+          // Ids only: the name and phone are the ones just blanked.
+          summary: { userId, endedBookings: endedBookingIds.length },
+          detail: { endedBookingIds },
+        })
+      }
+
+      return { avatarKey: user.avatarStorageKey ?? null, avatarUrl: user.avatarUrl ?? null, endedBookingIds }
     })
   },
 }
