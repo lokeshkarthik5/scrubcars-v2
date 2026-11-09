@@ -3,6 +3,8 @@ import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useIsVendorAdmin } from '@/lib/auth';
+import { useGarageBookOn } from '@/lib/garage-book';
+import { BookNav } from './book/book-nav';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 
 import { IconCalendar, IconChartBar, IconHome, IconSettings, IconTool, type IconProps } from '@repo/native-ui/icons';
@@ -16,8 +18,17 @@ const ITEMS: { href: string; label: string; icon: (props: IconProps) => React.JS
   { href: '/settings', label: 'Settings', icon: IconSettings, adminOnly: true },
 ];
 
-/** BottomNav, vendor type: an operator gets Home and Bookings. The bar's only red is the dot. */
+/**
+ * The tabs' bar: Garage Book's (Home · Jobs · + · Customers · Business) while the book is
+ * on (0069), else today's bar exactly as it was.
+ */
 export function BottomNav() {
+  const book = useGarageBookOn();
+  return book ? <BookNav /> : <TodayNav />;
+}
+
+/** BottomNav, vendor type: an operator gets Home and Bookings. The bar's only red is the dot. */
+function TodayNav() {
   const colors = useColors();
   const styles = useStyles();
   const pathname = usePathname();

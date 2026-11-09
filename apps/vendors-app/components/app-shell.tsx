@@ -3,6 +3,8 @@ import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/lib/auth';
+import { useGarageBookOn } from '@/lib/garage-book';
+import { useBookNavClearance } from './book/book-nav';
 import { createStyles } from '@repo/native-ui/theme';
 
 import { CompanySwitcher } from './company-switcher';
@@ -69,6 +71,10 @@ export function AppShell({
 }) {
   const styles = useStyles();
   const insets = useSafeAreaInsets();
+  // Garage Book's bar floats over the screen (0069): a tab screen scrolls clear of it.
+  const book = useGarageBookOn();
+  const floating = useBookNavClearance();
+  const navGap = hasNav && book ? floating : 16;
   return (
     // The inset is outside the scroll, so content never runs under the status bar.
     <KeyboardAvoidingView
@@ -85,7 +91,7 @@ export function AppShell({
         automaticallyAdjustKeyboardInsets={!footer}
         contentContainerStyle={[
           styles.content,
-          { gap, paddingTop: 16, paddingBottom: hasNav || footer ? 16 : insets.bottom + 16 },
+          { gap, paddingTop: 16, paddingBottom: footer ? 16 : hasNav ? navGap : insets.bottom + 16 },
         ]}
       >
         <VendorShellHeader />

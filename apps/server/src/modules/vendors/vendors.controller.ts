@@ -1,3 +1,4 @@
+import { env } from '../../lib/env.js'
 import type { Context } from 'hono'
 import {
   getTenant,
@@ -103,7 +104,9 @@ export async function getMyVendor(c: VendorsContext) {
 
   return c.json({
     success: true,
-    data: vendor,
+    // Garage Book (0069): whether the apps show the book's tabs. Added, so
+    // every existing field is as it was.
+    data: { ...vendor, garageBook: { enabled: env.garageBook } },
   })
 }
 

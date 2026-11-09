@@ -159,6 +159,16 @@ export function GarageSidePanel({
           >
             Open editor
           </ScButtonLink>
+          {/* Garage Book (0069): the garage's own book, read-only and logged. */}
+          {process.env.NEXT_PUBLIC_GARAGE_BOOK === 'on' && (
+            <ScButtonLink
+              href={`/vendors/${v.id}/book`}
+              variant="secondary"
+              className="flex min-h-11 items-center px-4 text-[13px]"
+            >
+              Garage Book
+            </ScButtonLink>
+          )}
         </>
       }
     >

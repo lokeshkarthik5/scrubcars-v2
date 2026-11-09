@@ -24,6 +24,7 @@ import { garageTierRoutes } from '../tiers/tiers.routes.js'
 import { garageGuaranteeRoutes } from '../guarantee/guarantee.routes.js'
 import { garageBookingRequestRoutes } from '../booking-requests/booking-requests.routes.js'
 import { garageReviewRoutes } from '../reviews/reviews.routes.js'
+import { garageBookRoutes } from '../garage-book/garage-book.routes.js'
 import * as vendorsController from './vendors.controller.js'
 import {
   createClosureSchema,
@@ -199,6 +200,12 @@ vendorsRoutes.route('/me/requests', garageBookingRequestRoutes)
 // reporting one to the team. Owner seat only, in its own file. Nested for the
 // same reason as the team screen.
 vendorsRoutes.route('/me/reviews', garageReviewRoutes)
+
+// Garage Book (0069): the garage's own book — walk-ins, its own customers,
+// reminders, money owed, stats. Widened to operators in its own file, with
+// every money figure left out for them; Money owed, Stats and the Excel are
+// the owner seat's. Every route a 404 while GARAGE_BOOK is off.
+vendorsRoutes.route('/me/book', garageBookRoutes)
 
 vendorsRoutes.get(
   '/me/working-hours',

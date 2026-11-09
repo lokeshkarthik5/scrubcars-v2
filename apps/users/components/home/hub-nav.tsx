@@ -11,6 +11,7 @@ import {
 } from '@tabler/icons-react'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { cn } from '@repo/core/utils'
+import { LitOrb, MetalGradient } from '@repo/ui/finish/lit-orb'
 import { HUB_NAV_HREF, hubNavCurrent, type HubNavItem } from '@/lib/hub-nav'
 
 const TABS = [
@@ -75,12 +76,7 @@ export function HubNav({
         )}
       >
         {active ? (
-          <span aria-hidden="true" className="hub-orb fx-pop">
-            <span className="hub-orb__bloom" />
-            <span className="hub-orb__well" />
-            <span className="hub-orb__ring" />
-            <Icon size={17} className="relative" />
-          </span>
+          <LitOrb icon={Icon} />
         ) : (
           <Icon size={21} aria-hidden />
         )}
@@ -104,15 +100,7 @@ export function HubNav({
           grid, not each path's box: a straight line has a box with no
           width or height, and a box-sized gradient paints nothing on it,
           which would wipe out the calendar's rings and the map's folds. */}
-      <svg width="0" height="0" aria-hidden="true" className="absolute">
-        <defs>
-          <linearGradient id="hub-metal" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="24">
-            <stop offset="0" stopColor="#ffffff" />
-            <stop offset=".55" stopColor="#d9d9de" />
-            <stop offset="1" stopColor="#9c9ca6" />
-          </linearGradient>
-        </defs>
-      </svg>
+      <MetalGradient />
       <nav
         aria-label="Main"
         className="fx-glass fixed left-1/2 z-40 flex h-16 w-[min(340px,calc(100%-32px))] -translate-x-1/2 items-center justify-between rounded-pill px-3"

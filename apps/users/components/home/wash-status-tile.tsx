@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { IconCheck, IconDroplet } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
 import { ScSheet } from '@repo/ui/sc/modal'
@@ -13,9 +13,8 @@ import {
   washLine,
   washMeter,
 } from '@repo/core/home-display'
-import { washGaugeAngle, washGaugeShare } from '@repo/core/moments'
 import { cn } from '@repo/core/utils'
-import { usePrefersReducedMotion, useSeenOnce } from '@repo/ui/finish/motion'
+import { WashGauge } from '@repo/ui/finish/wash-gauge'
 import { TileIcon } from './tile'
 
 /**
@@ -36,11 +35,6 @@ export function WashStatusTile({ car, now }: { car: HomeCar; now: Date }) {
   const meter = washMeter(wash)
   const line = washLine(wash, now)
   const days = wash.daysSinceWash
-  const gaugeRef = useRef<HTMLSpanElement>(null)
-  const seen = useSeenOnce(gaugeRef)
-  const reduce = usePrefersReducedMotion()
-  const angle = washGaugeAngle(days, wash.intervalDays)
-  const share = washGaugeShare(days, wash.intervalDays)
 
   return (
     <>
@@ -54,43 +48,7 @@ export function WashStatusTile({ car, now }: { car: HomeCar; now: Date }) {
           <TileIcon icon={IconDroplet} />
         </span>
         <span className="flex flex-1 items-end pr-1.5 pb-2.5">
-          <span
-            ref={gaugeRef}
-            aria-hidden
-            data-play={seen && !reduce ? '' : undefined}
-            className="mo-gauge relative block h-[54px] w-[96px]"
-            style={{ '--angle': `${angle}deg` } as React.CSSProperties}
-          >
-            <svg viewBox="0 0 96 54" className="absolute inset-0 size-full overflow-visible">
-              <defs>
-                <linearGradient id={`wash-gauge-${car.id}`} x1="0" x2="1">
-                  <stop offset="0" stopColor="#22C55E" />
-                  <stop offset="0.6" stopColor="#F5B83D" />
-                  <stop offset="1" stopColor="#ff2d4a" />
-                </linearGradient>
-              </defs>
-              <path
-                d="M8 50 A40 40 0 0 1 88 50"
-                fill="none"
-                strokeWidth="6"
-                strokeLinecap="round"
-                stroke="rgb(255 255 255 / 0.08)"
-              />
-              <path
-                d="M8 50 A40 40 0 0 1 88 50"
-                fill="none"
-                strokeWidth="6"
-                strokeLinecap="round"
-                pathLength={1}
-                strokeDasharray="1"
-                strokeDashoffset={1 - share}
-                stroke={meter.over ? 'var(--color-warning)' : `url(#wash-gauge-${car.id})`}
-                className="mo-gauge__fill"
-              />
-            </svg>
-            <span className="mo-gauge__needle absolute bottom-1 left-1/2 -ml-[1.25px] block h-[38px] w-[2.5px] rounded-[2px] bg-gradient-to-t from-white to-[#ff4d66] shadow-[0_0_8px_rgb(255_45_74/0.8)]" />
-            <span className="absolute bottom-0 left-1/2 -ml-[6px] block size-3 rounded-full bg-[radial-gradient(circle_at_40%_30%,#fff,#8d919c)]" />
-          </span>
+          <WashGauge daysSinceWash={days} intervalDays={wash.intervalDays} over={meter.over} />
         </span>
         <span className="flex items-baseline gap-1.5 whitespace-nowrap">
           {days === null ? (

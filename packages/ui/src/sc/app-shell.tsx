@@ -1,6 +1,7 @@
 import { VendorShellHeader } from '@repo/ui/features/vendor-shell-header'
 import { cn } from '@repo/core/utils'
-import { BottomNav, type NavType } from './bottom-nav'
+import type { NavType } from './bottom-nav'
+import { NavSlot } from './nav-slot'
 import { BrandMark } from './brand-mark'
 
 /**
@@ -64,7 +65,7 @@ export function AppShell({
       </main>
       {/* Truthiness, not ??: a caller's `flag && <Nav />` passes false when
           off, and that must still mean the flat bar, as the padding above does. */}
-      {showNav && (floatingNav || <BottomNav type={navType} />)}
+      {showNav && (floatingNav || <NavSlot type={navType} />)}
     </div>
   )
 }

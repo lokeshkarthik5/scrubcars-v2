@@ -5,6 +5,7 @@ import { QueryProvider } from '@repo/ui/providers/query-provider'
 import { IosZoomGuard } from '@repo/ui/sc/ios-zoom-guard'
 import { AppProvider } from '@/components/providers/app-provider'
 import { VendorScope } from '@/components/vendor-scope'
+import { BookNavProvider } from '@/components/book/book-nav-provider'
 import 'react-toastify/dist/ReactToastify.css'
 import './globals.css'
 
@@ -54,7 +55,10 @@ export default function RootLayout({
             and queries mounted underneath must keep their cache across that. */}
         <QueryProvider>
           <AppProvider>
-            <VendorScope>{children}</VendorScope>
+            <VendorScope>
+              {/* Garage Book's bar on every page while the book is on (0069). */}
+              <BookNavProvider>{children}</BookNavProvider>
+            </VendorScope>
           </AppProvider>
         </QueryProvider>
         <ToastContainer

@@ -17,80 +17,9 @@
   --color-brand-graphite: #272730;
 }
 
-/* ─── The bottom bar: F + H silver (customer UI round, Nov 2026) ───────────
- *
- * components/home/hub-nav.tsx. The tab you are on is a graphite orb with a
- * ring of light (the red-glow mockup's F, held still: the mockup's turning
- * light is a loop, and the finish allows none); the others are brushed
- * silver lines (H). Icons stroke with the bar's metal gradient (#hub-metal).
- */
-.hub-tab svg {
-  stroke: url(#hub-metal);
-  filter: drop-shadow(0 1px 0 rgb(0 0 0 / 0.8));
-}
-.hub-tab--on {
-  --icon-line: 1.9px;
-}
-.hub-orb {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-}
-.hub-orb > * {
-  border-radius: 50%;
-}
-.hub-orb__well {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at 50% 30%, #2c2c31 0%, #19191c 55%, #0e0e10 100%);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.09),
-    inset 0 -4px 8px rgb(0 0 0 / 0.55);
-}
-/* The ring: a crimson base with two hot spots, warm and pink at their edges,
-   cut to a thin band by the mask. */
-.hub-orb__ring,
-.hub-orb__bloom {
-  position: absolute;
-  background: conic-gradient(
-    from 300deg,
-    rgb(20 0 4 / 0.55) 0deg 28deg,
-    #7a0018 50deg,
-    #ff2a3d 66deg,
-    #ff7a3a 80deg,
-    #ffb070 90deg,
-    #fff1ea 99deg,
-    #fff 104deg,
-    #ffd0dc 111deg,
-    #ff5c8a 122deg,
-    #e8125a 136deg,
-    #7a0019 152deg,
-    rgb(20 0 4 / 0.55) 172deg 206deg,
-    #7a0018 226deg,
-    #ff4a3a 244deg,
-    #ff9466 258deg,
-    #fff4ef 272deg,
-    #ff9ab4 284deg,
-    #ff2d6f 296deg,
-    #7a0019 314deg,
-    rgb(20 0 4 / 0.55) 334deg 360deg
-  );
-}
-.hub-orb__ring {
-  inset: 0;
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 1.6px), #000 calc(100% - 1.1px));
-  mask: radial-gradient(farthest-side, transparent calc(100% - 1.6px), #000 calc(100% - 1.1px));
-}
-.hub-orb__bloom {
-  inset: -4%;
-  filter: blur(6px) brightness(1.6);
-  opacity: 0.75;
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 2.5px), #000 100%);
-  mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 2.5px), #000 100%);
-}
+/* The bottom bar's orb and silver icons (F + H) live in the shared finish
+   (packages/ui/styles/finish.css), so the garage portal's Garage Book bar
+   draws the same ones. */
 
 /* ─── The garage list (customer UI round, Nov 2026) ──────────────────────────
  *
@@ -1212,51 +1141,8 @@ html[data-vt='vt-booking-back']::view-transition-new(root) {
   transition: none;
 }
 
-/* 7 · The Home wash gauge: the needle sweeps all the way once and settles. */
-.mo-gauge__needle {
-  transform-origin: 50% 100%;
-  transform: rotate(var(--angle, -90deg));
-}
-.mo-gauge[data-play] .mo-gauge__needle {
-  animation: mo-sweep 1.5s cubic-bezier(0.45, 0, 0.2, 1) both;
-}
-@keyframes mo-sweep {
-  0% {
-    transform: rotate(-90deg);
-  }
-  45% {
-    transform: rotate(90deg);
-  }
-  to {
-    transform: rotate(var(--angle, -90deg));
-  }
-}
-.mo-gauge__fill {
-  transition: stroke-dashoffset 0.6s var(--ease-settle);
-}
-.mo-gauge[data-play] .mo-gauge__fill {
-  animation: mo-gauge-fill 1.5s cubic-bezier(0.45, 0, 0.2, 1) both;
-}
-@keyframes mo-gauge-fill {
-  0% {
-    stroke-dashoffset: 1;
-  }
-  45% {
-    stroke-dashoffset: 0;
-  }
-}
-
-/* 8 · Real number plates: white plate, black edge, the blue IND band. */
-.mo-plate {
-  background: #f4f4f2;
-  box-shadow:
-    0 0 0 1.5px #111,
-    0 0 0 3px #d8d8d4,
-    0 6px 14px rgb(0 0 0 / 0.5);
-}
-.mo-plate__band {
-  background: #1d4fb8;
-}
+/* 7 and 8 · The wash gauge and the number plates live in the shared finish
+   (packages/ui/styles/finish.css, packages/ui/src/finish), with Garage Book. */
 
 /* 9 · Cards in metal: brushed silver or gold, the points rolling, the bar filling once. */
 .mo-metal {
@@ -1340,7 +1226,6 @@ html[data-vt='vt-booking-back']::view-transition-new(root) {
   .mo-shutter img,
   .mo-ticket,
   .mo-pull[data-refreshing] .mo-pull__car,
-  .mo-gauge[data-play] :is(.mo-gauge__needle, .mo-gauge__fill),
   .mo-fill-once {
     animation: none;
   }
@@ -1352,7 +1237,6 @@ html[data-vt='vt-booking-back']::view-transition-new(root) {
   .mo-road__carriage,
   .mo-track__fill,
   .mo-ring__fill,
-  .mo-gauge__fill,
   .mo-pull__list,
   .mo-unread,
   .bk-opt,

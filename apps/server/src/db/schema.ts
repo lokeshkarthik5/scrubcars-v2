@@ -5248,3 +5248,218 @@ export const garageClosureRequests = pgTable(
     ),
   ]
 )
+
+// ─── Garage Book (0069, modules/garage-book) ─────────────────────────────────
+
+/**
+ * The garage's own book, beside its Detlio bookings: its own customers and
+ * their cars, walk-in jobs, money owed and paid back, and reminders. A
+ * Detlio customer is never copied in here: they are read from bookings, and
+ * the garage may only keep a private team note on one
+ * (garage_detlio_customer_notes), never a phone number. Detlio staff can
+ * read all of it (admin's read-only view, logged). Walk-ins never hold Detlio
+ * slot capacity: lib/slots.ts does not read these tables.
+ */
+export const garageCustomers = pgTable(
+  'garage_customers',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    name: varchar('name', { length: 120 }).notNull(),
+    // Ten national digits (normaliseIndianMobile), or null for a customer
+    // the garage only knows by name or plate.
+    phone: varchar('phone', { length: 20 }),
+    note: varchar('note', { length: 500 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('garage_customers_vendor_idx').on(table.vendorId),
+    uniqueIndex('garage_customers_vendor_phone_key')
+      .on(table.vendorId, table.phone)
+      .where(sql`${table.phone} is not null and ${table.deletedAt} is null`),
+    check('garage_customers_name_check', sql`char_length(btrim(${table.name})) between 1 and 120`),
+    check('garage_customers_phone_check', sql`${table.phone} is null or ${table.phone} ~ '^[0-9]{10}$'`),
+  ]
+)
+
+export const garageCustomerCars = pgTable(
+  'garage_customer_cars',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    garageCustomerId: uuid('garage_customer_id')
+      .notNull()
+      .references(() => garageCustomers.id, { onDelete: 'cascade' }),
+    // The customer's garage, copied so a plate is found with one index.
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    // Written the way plates are laid out (formatIndianPlate), or null.
+    plate: varchar('plate', { length: 20 }),
+    make: varchar('make', { length: 100 }),
+    model: varchar('model', { length: 100 }),
+    colour: varchar('colour', { length: 50 }),
+    // How often this car is washed, for its reminder; null is the garage's default.
+    washIntervalDays: smallint('wash_interval_days'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('garage_customer_cars_customer_idx').on(table.garageCustomerId),
+    index('garage_customer_cars_vendor_plate_idx').on(table.vendorId, table.plate),
+    check(
+      'garage_customer_cars_wash_interval_check',
+      sql`${table.washIntervalDays} is null or ${table.washIntervalDays} between 1 and 365`
+    ),
+  ]
+)
+
+/** A garage's private team note on a Detlio customer: the note only, never a phone. */
+export const garageDetlioCustomerNotes = pgTable(
+  'garage_detlio_customer_notes',
+  {
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    note: varchar('note', { length: 500 }).notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.vendorId, table.userId] })]
+)
+
+export type GarageJobStatus = 'booked' | 'in_progress' | 'done' | 'cancelled'
+export type GarageJobPayment = 'upi' | 'cash' | 'later'
+
+/** A walk-in job. `client_id` makes a resend from a phone that was offline a no-op. */
+export const garageJobs = pgTable(
+  'garage_jobs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    clientId: varchar('client_id', { length: 64 }).notNull(),
+    garageCustomerId: uuid('garage_customer_id')
+      .notNull()
+      .references(() => garageCustomers.id, { onDelete: 'cascade' }),
+    carId: uuid('car_id').references(() => garageCustomerCars.id, { onDelete: 'set null' }),
+    scheduledAt: timestamp('scheduled_at', { withTimezone: true }).notNull(),
+    status: text('status').$type<GarageJobStatus>().default('booked').notNull(),
+    paymentMethod: text('payment_method').$type<GarageJobPayment>().notNull(),
+    totalPaise: integer('total_paise').default(0).notNull(),
+    remindInDays: smallint('remind_in_days'),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    doneAt: timestamp('done_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('garage_jobs_vendor_client_key').on(table.vendorId, table.clientId),
+    index('garage_jobs_vendor_scheduled_idx').on(table.vendorId, table.scheduledAt),
+    index('garage_jobs_customer_idx').on(table.garageCustomerId),
+    check('garage_jobs_status_check', sql`${table.status} in ('booked', 'in_progress', 'done', 'cancelled')`),
+    check('garage_jobs_payment_check', sql`${table.paymentMethod} in ('upi', 'cash', 'later')`),
+    check('garage_jobs_total_check', sql`${table.totalPaise} >= 0`),
+    check(
+      'garage_jobs_remind_check',
+      sql`${table.remindInDays} is null or ${table.remindInDays} between 1 and 365`
+    ),
+    check('garage_jobs_done_check', sql`(${table.status} = 'done') = (${table.doneAt} is not null)`),
+    check('garage_jobs_client_id_check', sql`char_length(${table.clientId}) between 8 and 64`),
+  ]
+)
+
+export const garageJobLines = pgTable(
+  'garage_job_lines',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    jobId: uuid('job_id')
+      .notNull()
+      .references(() => garageJobs.id, { onDelete: 'cascade' }),
+    serviceId: uuid('service_id').references(() => services.id, { onDelete: 'set null' }),
+    label: varchar('label', { length: 120 }).notNull(),
+    pricePaise: integer('price_paise').notNull(),
+    qty: smallint('qty').default(1).notNull(),
+  },
+  (table) => [
+    index('garage_job_lines_job_idx').on(table.jobId),
+    check('garage_job_lines_price_check', sql`${table.pricePaise} >= 0`),
+    check('garage_job_lines_qty_check', sql`${table.qty} between 1 and 99`),
+    check('garage_job_lines_label_check', sql`char_length(btrim(${table.label})) between 1 and 120`),
+  ]
+)
+
+/** Money owed (a Pay later job) and paid back. Balance = owed − paid. Only a record: Detlio takes no money here. */
+export const garagePayments = pgTable(
+  'garage_payments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    garageCustomerId: uuid('garage_customer_id')
+      .notNull()
+      .references(() => garageCustomers.id, { onDelete: 'cascade' }),
+    jobId: uuid('job_id').references(() => garageJobs.id, { onDelete: 'cascade' }),
+    kind: text('kind').$type<'owed' | 'paid'>().notNull(),
+    amountPaise: integer('amount_paise').notNull(),
+    method: text('method').$type<'upi' | 'cash'>(),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('garage_payments_vendor_customer_idx').on(table.vendorId, table.garageCustomerId),
+    index('garage_payments_vendor_created_idx').on(table.vendorId, table.createdAt),
+    // One owed row per Pay later job: editing the job changes it.
+    uniqueIndex('garage_payments_job_owed_key').on(table.jobId).where(sql`${table.kind} = 'owed'`),
+    check('garage_payments_kind_check', sql`${table.kind} in ('owed', 'paid')`),
+    check('garage_payments_amount_check', sql`${table.amountPaise} > 0`),
+    check('garage_payments_method_check', sql`${table.method} is null or ${table.method} in ('upi', 'cash')`),
+    check('garage_payments_paid_method_check', sql`${table.kind} = 'owed' or ${table.method} is not null`),
+  ]
+)
+
+export const garageReminderSettings = pgTable('garage_reminder_settings', {
+  vendorId: uuid('vendor_id')
+    .primaryKey()
+    .references(() => vendors.id, { onDelete: 'cascade' }),
+  message: varchar('message', { length: 500 }).notNull(),
+  defaultIntervalDays: smallint('default_interval_days').default(30).notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+/**
+ * Every reminder sent: to an own customer through the garage's own WhatsApp,
+ * or to a Detlio customer as a Detlio app notification (one per customer per
+ * garage per 7 days, read through the user index).
+ */
+export const garageReminderSends = pgTable(
+  'garage_reminder_sends',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    garageCustomerId: uuid('garage_customer_id').references(() => garageCustomers.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    channel: text('channel').$type<'whatsapp' | 'detlio_push'>().notNull(),
+    sentAt: timestamp('sent_at', { withTimezone: true }).defaultNow().notNull(),
+    sentBy: uuid('sent_by').references(() => users.id, { onDelete: 'set null' }),
+  },
+  (table) => [
+    index('garage_reminder_sends_vendor_user_idx').on(table.vendorId, table.userId, table.sentAt),
+    index('garage_reminder_sends_vendor_customer_idx').on(table.vendorId, table.garageCustomerId, table.sentAt),
+    check('garage_reminder_sends_channel_check', sql`${table.channel} in ('whatsapp', 'detlio_push')`),
+    check(
+      'garage_reminder_sends_target_check',
+      sql`(${table.garageCustomerId} is null) <> (${table.userId} is null)`
+    ),
+    check(
+      'garage_reminder_sends_channel_target_check',
+      sql`(${table.channel} = 'whatsapp') = (${table.garageCustomerId} is not null)`
+    ),
+  ]
+)

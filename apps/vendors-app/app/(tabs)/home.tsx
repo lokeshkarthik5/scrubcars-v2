@@ -43,6 +43,8 @@ import { sortByUrgency, todayView, waitingSummary } from '@/lib/jobs';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 import { useRefreshOnFocus } from '@/lib/use-refresh-on-focus';
 import { useVendorBookings } from '@/lib/use-vendor-bookings';
+import { useGarageBookOn } from '@/lib/garage-book';
+import { BookHome } from '@/components/book/book-home';
 
 /** How many new-booking cards Home shows before "See all". */
 const CARDS_ON_HOME = 3;
@@ -61,6 +63,8 @@ function HomeScreen() {
   const [profile, setProfile] = useState<ApiVendorProfile | null>(null);
   const [week, setWeek] = useState<number | null>(null);
   const isVendorAdmin = useIsVendorAdmin();
+  // Garage Book (0069): Home is the book's (B1) while it is on; off, exactly as it was.
+  const book = useGarageBookOn();
 
   const isVerified = vendor?.isVerified ?? false;
   const needsLocation = profile !== null && profile.lat === null;
@@ -112,7 +116,7 @@ function HomeScreen() {
   const avgRating = reviewCount > 0 ? reviews!.reduce((sum, r) => sum + r.rating, 0) / reviewCount : 0;
 
   return (
-    <AppShell showBrand brandRight={<GarageStatus />}>
+    <AppShell showBrand brandRight={<GarageStatus />} gap={book ? 16 : 20}>
       {needsLocation ? (
         <Notice title="Set your garage location" onPress={() => go('/settings?tab=location')}>
           {"Customers can't find you until your garage is on the map, and we can't show you to customers without it. Tap to pin it."}
@@ -139,122 +143,131 @@ function HomeScreen() {
 
       <PushBanner />
 
-      <View style={styles.section}>
-        <View style={styles.sectionHead}>
-          <View style={styles.titleRow}>
-            <T accessibilityRole="header" size={18} weight={600}>
-              Waiting for your answer
-            </T>
-            {waiting.count > 0 ? <CountBadge count={waiting.count} /> : null}
-          </View>
-          <Pressable
-            accessibilityRole="link"
-            onPress={() => go('/bookings?tab=new')}
-            style={styles.seeAll}
-          >
-            <T size={15} weight={500} color={colors.textSecondary}>
-              See all
-            </T>
-            <IconChevronRight size={18} color={colors.textSecondary} />
-          </Pressable>
-        </View>
-
-        {!loaded && bookings.length === 0 ? (
-          <SkeletonList count={2} height={256} />
-        ) : jobsUnknown ? (
-          <LoadError what="your bookings" onRetry={reload} retrying={retrying} />
-        ) : pending.length === 0 ? (
-          <View style={styles.noBookings}>
-            <IconInbox size={22} color={colors.textSecondary} />
-            <T size={15} color={colors.textSecondary} style={styles.flex}>
-              No new bookings. They show here the moment a customer pays.
-            </T>
-          </View>
-        ) : (
-          <>
-            {pending.slice(0, CARDS_ON_HOME).map((b) => (
-              <NewBookingCard key={b.id} booking={b} now={now} onChanged={reload} />
-            ))}
-            {pending.length > CARDS_ON_HOME ? (
+      {book ? (
+        <>
+          <BookHome pending={pending} now={now} onChanged={reload} />
+          <RequestsHomeCard />
+        </>
+      ) : (
+        <>
+          <View style={styles.section}>
+            <View style={styles.sectionHead}>
+              <View style={styles.titleRow}>
+                <T accessibilityRole="header" size={18} weight={600}>
+                  Waiting for your answer
+                </T>
+                {waiting.count > 0 ? <CountBadge count={waiting.count} /> : null}
+              </View>
               <Pressable
                 accessibilityRole="link"
                 onPress={() => go('/bookings?tab=new')}
-                style={styles.seeAllRow}
+                style={styles.seeAll}
               >
-                <T size={15} weight={500}>
-                  {'See all '}
-                  <T num size={15} weight={500}>
-                    {pending.length}
-                  </T>
-                  {' new bookings'}
+                <T size={15} weight={500} color={colors.textSecondary}>
+                  See all
                 </T>
+                <IconChevronRight size={18} color={colors.textSecondary} />
               </Pressable>
+            </View>
+
+            {!loaded && bookings.length === 0 ? (
+              <SkeletonList count={2} height={256} />
+            ) : jobsUnknown ? (
+              <LoadError what="your bookings" onRetry={reload} retrying={retrying} />
+            ) : pending.length === 0 ? (
+              <View style={styles.noBookings}>
+                <IconInbox size={22} color={colors.textSecondary} />
+                <T size={15} color={colors.textSecondary} style={styles.flex}>
+                  No new bookings. They show here the moment a customer pays.
+                </T>
+              </View>
+            ) : (
+              <>
+                {pending.slice(0, CARDS_ON_HOME).map((b) => (
+                  <NewBookingCard key={b.id} booking={b} now={now} onChanged={reload} />
+                ))}
+                {pending.length > CARDS_ON_HOME ? (
+                  <Pressable
+                    accessibilityRole="link"
+                    onPress={() => go('/bookings?tab=new')}
+                    style={styles.seeAllRow}
+                  >
+                    <T size={15} weight={500}>
+                      {'See all '}
+                      <T num size={15} weight={500}>
+                        {pending.length}
+                      </T>
+                      {' new bookings'}
+                    </T>
+                  </Pressable>
+                ) : null}
+              </>
+            )}
+          </View>
+
+          <RequestsHomeCard />
+
+          <View style={styles.tiles}>
+            <PressRow
+              style={styles.tileCell}
+              accessibilityLabel={
+                jobsUnknown
+                  ? "Today's jobs: unknown. Open Today"
+                  : `Today's jobs: ${today.working.length + today.next.length}. Open Today`
+              }
+              onPress={() => go('/bookings?tab=today')}
+            >
+              <StatTile
+                label="Today's jobs"
+                value={jobsUnknown ? '–' : today.working.length + today.next.length}
+                hint={today.working.length > 0 ? `${today.working.length} under way` : undefined}
+              />
+            </PressRow>
+            {isVendorAdmin ? (
+              <PressRow
+                style={styles.tileCell}
+                accessibilityLabel={`This week: ${week === null ? 'not loaded' : formatINR(week)}. Open Earnings`}
+                onPress={() => go('/earnings')}
+              >
+                {/* A dash, never ₹0, until the figure arrives (or when it fails). */}
+                <StatTile label="This week" value={week === null ? '–' : formatINR(week)} />
+              </PressRow>
             ) : null}
-          </>
-        )}
-      </View>
-
-      <RequestsHomeCard />
-
-      <View style={styles.tiles}>
-        <PressRow
-          style={styles.tileCell}
-          accessibilityLabel={
-            jobsUnknown
-              ? "Today's jobs: unknown. Open Today"
-              : `Today's jobs: ${today.working.length + today.next.length}. Open Today`
-          }
-          onPress={() => go('/bookings?tab=today')}
-        >
-          <StatTile
-            label="Today's jobs"
-            value={jobsUnknown ? '–' : today.working.length + today.next.length}
-            hint={today.working.length > 0 ? `${today.working.length} under way` : undefined}
-          />
-        </PressRow>
-        {isVendorAdmin ? (
-          <PressRow
-            style={styles.tileCell}
-            accessibilityLabel={`This week: ${week === null ? 'not loaded' : formatINR(week)}. Open Earnings`}
-            onPress={() => go('/earnings')}
-          >
-            {/* A dash, never ₹0, until the figure arrives (or when it fails). */}
-            <StatTile label="This week" value={week === null ? '–' : formatINR(week)} />
-          </PressRow>
-        ) : null}
-        <PressRow
-          style={styles.tileCell}
-          accessibilityLabel={
-            reviews === null
-              ? 'Average rating: not loaded. See reviews'
-              : reviewCount === 0
-                ? 'Average rating: no reviews yet. See reviews'
-                : newGarage
-                  ? `Average rating: ${NEW_GARAGE_LABEL}, ${reviewCountLabel(reviewCount)}. See reviews`
-                  : `Average rating ${formatRating(avgRating)} from ${reviewCountLabel(reviewCount)}. See reviews`
-          }
-          onPress={() => go('/reviews')}
-        >
-          <StatTile
-            label="Avg rating"
-            value={
-              reviews === null ? (
-                '–'
-              ) : reviewCount > 0 && newGarage ? (
-                <TileFigure size={15}>{NEW_GARAGE_LABEL}</TileFigure>
-              ) : (
-                <View style={styles.rating}>
-                  <TileFigure>{formatRating(avgRating)}</TileFigure>
-                  {reviewCount > 0 ? <Stars rating={avgRating} size={12} /> : null}
-                </View>
-              )
-            }
-            hint={reviewsFailed ? "Couldn't load" : reviews === null ? undefined : reviewCountLabel(reviewCount)}
-          />
-        </PressRow>
-        {/* An odd tile keeps its half, as the web's two-column grid does. */}
-        {isVendorAdmin ? <View style={styles.tileCell} /> : null}
-      </View>
+            <PressRow
+              style={styles.tileCell}
+              accessibilityLabel={
+                reviews === null
+                  ? 'Average rating: not loaded. See reviews'
+                  : reviewCount === 0
+                    ? 'Average rating: no reviews yet. See reviews'
+                    : newGarage
+                      ? `Average rating: ${NEW_GARAGE_LABEL}, ${reviewCountLabel(reviewCount)}. See reviews`
+                      : `Average rating ${formatRating(avgRating)} from ${reviewCountLabel(reviewCount)}. See reviews`
+              }
+              onPress={() => go('/reviews')}
+            >
+              <StatTile
+                label="Avg rating"
+                value={
+                  reviews === null ? (
+                    '–'
+                  ) : reviewCount > 0 && newGarage ? (
+                    <TileFigure size={15}>{NEW_GARAGE_LABEL}</TileFigure>
+                  ) : (
+                    <View style={styles.rating}>
+                      <TileFigure>{formatRating(avgRating)}</TileFigure>
+                      {reviewCount > 0 ? <Stars rating={avgRating} size={12} /> : null}
+                    </View>
+                  )
+                }
+                hint={reviewsFailed ? "Couldn't load" : reviews === null ? undefined : reviewCountLabel(reviewCount)}
+              />
+            </PressRow>
+            {/* An odd tile keeps its half, as the web's two-column grid does. */}
+            {isVendorAdmin ? <View style={styles.tileCell} /> : null}
+          </View>
+        </>
+      )}
 
       {isVendorAdmin ? <GuaranteeHomeCard /> : null}
       {isVendorAdmin ? <TierCard vendorId={vendor?.id} /> : null}

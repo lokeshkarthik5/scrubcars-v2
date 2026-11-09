@@ -1,3 +1,4 @@
+import { adminGarageBookRoutes } from '../garage-book/garage-book.routes.js'
 import { createAddOnSchema, updateAddOnSchema } from '../vendors/vendors.validation.js'
 import { adminGarageClosureRoutes } from '../garage-closure/garage-closure.routes.js'
 import { zValidator } from '@hono/zod-validator'
@@ -533,6 +534,8 @@ adminRoutes.route('/garage-board', adminGarageBoardRoutes)
 adminRoutes.route('/coverage', adminCoverageRoutes)
 adminRoutes.route('/leads', adminLeadsRoutes)
 adminRoutes.route('/requests', adminBookingRequestRoutes)
+// Garage Book (0069): a garage's book, read-only, every look logged.
+adminRoutes.route('/', adminGarageBookRoutes)
 adminRoutes.route('/places', adminPlacesRoutes)
 
 // Add garage's import from a poster, photo, PDF or Tally file, and the
