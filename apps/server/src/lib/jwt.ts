@@ -44,11 +44,20 @@ function parseExpiryToSeconds(expiry: string): number {
   }
 }
 
+/**
+ * How long an access token lives, in seconds (JWT_ACCESS_EXPIRES_IN, 15
+ * minutes unless set). The access cookie lives exactly as long, so the
+ * browser never keeps a token past its expiry nor drops one still valid.
+ */
+export function accessTokenSeconds(): number {
+  return parseExpiryToSeconds(env.jwtAccessExpiresIn)
+}
+
 export async function signAccessToken(
   payload: AccessTokenPayload
 ): Promise<string> {
   const exp = Math.floor(
-    Date.now() / 1000 + parseExpiryToSeconds(env.jwtAccessExpiresIn)
+    Date.now() / 1000 + accessTokenSeconds()
   )
 
   return sign(
