@@ -87,7 +87,7 @@ export default function SentGiftsPage() {
       <CustomerShell showNav showBrand className="gap-4 py-4">
         {header}
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
-          <p className="text-[15px] font-semibold text-text-primary">
+          <p className="text-t3 font-semibold text-text-primary">
             Sign in to see the gifts you sent
           </p>
           <ScButton
@@ -201,21 +201,21 @@ export default function SentGiftsPage() {
                       className="w-[64px] shrink-0"
                     />
                     <div className="min-w-0 flex-1">
-                      <p className="text-[15px] font-semibold text-text-primary">
+                      <p className="text-t3 font-semibold text-text-primary">
                         <span className="font-numeric">
                           {giftRupees(gift.amount)}
                         </span>{' '}
                         for {gift.recipientName}
                       </p>
                       {gift.state === 'redeemed' && gift.redeemedAt ? (
-                        <p className="text-[12px] text-text-secondary">
+                        <p className="text-t5 text-text-secondary">
                           Redeemed on{' '}
                           <span className="font-numeric">
                             {formatGiftDate(gift.redeemedAt)}
                           </span>
                         </p>
                       ) : gift.state === 'available' && gift.expiresAt ? (
-                        <p className="text-[12px] text-text-secondary">
+                        <p className="text-t5 text-text-secondary">
                           Use by{' '}
                           <span className="font-numeric">
                             {formatGiftDate(gift.expiresAt)}
@@ -229,20 +229,20 @@ export default function SentGiftsPage() {
                   </div>
 
                   {gift.message && (
-                    <p className="line-clamp-2 break-words text-[12px] italic text-text-secondary">
+                    <p className="line-clamp-2 break-words text-t5 italic text-text-secondary">
                       “{gift.message}”
                     </p>
                   )}
 
                   {/* The purchase's evidence: there is no booking receipt for a gift. */}
-                  <p className="break-all font-numeric text-[11px] text-text-muted">
+                  <p className="break-all font-numeric text-t5 text-text-muted">
                     {giftEvidenceLine(gift)}
                   </p>
 
                   {gift.canMakeLink &&
                     (gift.linkMade && confirming === gift.id ? (
                       <div className="flex flex-col gap-2 border-t border-border pt-2">
-                        <p className="text-[12px] text-text-primary">
+                        <p className="text-t5 text-text-primary">
                           A new link replaces the old one. Any link you shared
                           before stops working.
                         </p>
@@ -285,7 +285,7 @@ export default function SentGiftsPage() {
                     ))}
 
                   {linkError?.giftId === gift.id && (
-                    <p role="alert" className="text-[12px] text-error">
+                    <p role="alert" className="text-t5 text-error">
                       {linkError.text}
                     </p>
                   )}

@@ -37,8 +37,8 @@ export function ChallengeCard({ challenge, highlight = false }: { challenge: Cus
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="text-[15px] font-semibold leading-tight text-text-primary">{challenge.title}</h3>
-          <p className="mt-0.5 text-[12px] text-text-secondary">
+          <h3 className="text-t3 font-semibold leading-tight text-text-primary">{challenge.title}</h3>
+          <p className="mt-0.5 text-t5 text-text-secondary">
             <Figures text={challengeWinsLine(challenge)} />
           </p>
         </div>
@@ -52,9 +52,9 @@ export function ChallengeCard({ challenge, highlight = false }: { challenge: Cus
           {challenge.won ? <IconCheck size={16} stroke={2.5} /> : <IconTrophy size={16} stroke={1.6} />}
         </span>
       </div>
-      {challenge.description && <p className="text-[12px] text-text-muted">{challenge.description}</p>}
+      {challenge.description && <p className="text-t5 text-text-muted">{challenge.description}</p>}
       <ChallengeBar count={challenge.count} goal={challenge.goal} won={challenge.won} />
-      <p className={cn('text-[12px]', challenge.won ? 'text-text-primary' : 'text-text-secondary')}>
+      <p className={cn('text-t5', challenge.won ? 'text-text-primary' : 'text-text-secondary')}>
         <Figures text={challenge.won ? `You won: ${challenge.reward}` : challenge.line} />
       </p>
     </article>

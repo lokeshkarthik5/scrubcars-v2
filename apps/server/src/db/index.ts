@@ -33,7 +33,11 @@ const client = postgres(connectionString, {
   prepare: false,
   max: connectionPoolMax(),
   connect_timeout: 10,
-  idle_timeout: 20,
+  // Four minutes, not twenty seconds: a warm Vercel instance between two
+  // customers' taps kept paying a fresh TLS connection to the pooler for the
+  // next read (speed fix 5, customer UI round). Still well inside the
+  // pooler's own idle limit, so it is the client that closes it.
+  idle_timeout: 240,
   ssl: sslDisabled ? false : 'require',
 })
 

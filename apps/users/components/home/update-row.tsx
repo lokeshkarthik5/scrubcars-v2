@@ -137,7 +137,7 @@ export function UpdateRow({
       <span className="min-w-0 flex-1">
         <span
           className={cn(
-            'line-clamp-2 text-[17px] leading-[1.32] tracking-[-0.012em]',
+            'line-clamp-2 text-t2 leading-[1.32] tracking-[-0.012em]',
             row.unread ? 'text-text-primary' : 'text-[#E4E4E7]'
           )}
         >
@@ -145,12 +145,12 @@ export function UpdateRow({
           {row.unread && <span className="sr-only"> (new)</span>}
         </span>
         {meta && (
-          <span className="mt-1 line-clamp-2 block text-[13px] text-dim">
+          <span className="mt-1 line-clamp-2 block text-t4 text-dim">
             {meta}
           </span>
         )}
         {row.linkUrl && row.linkLabel && (
-          <span className="mt-1.5 inline-flex items-center gap-1 text-[13px] font-medium text-text-primary">
+          <span className="mt-1.5 inline-flex items-center gap-1 text-t4 font-medium text-text-primary">
             {row.linkLabel}
             <IconArrowUpRight size={14} stroke={1.6} aria-hidden />
           </span>

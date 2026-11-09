@@ -2,7 +2,7 @@
 
 import { serviceLinesOf } from '@repo/core/add-ons'
 import { AddOnMark } from '@repo/ui/sc/add-on-mark'
-import { use, useEffect, useRef, useState } from 'react'
+import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -79,7 +79,7 @@ import { ApiError } from '@repo/core/api/client'
 import { slotKeys } from '@repo/core/api/hooks/use-slots'
 import { invalidateHome } from '@repo/core/api/hooks/use-home'
 import { useNow } from '@repo/core/hooks/use-now'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   invalidateRewards,
   rewardsEnabled,
@@ -310,8 +310,45 @@ export default function BookingDetailPage({
   // cross while the customer looks at it.
   const now = useNow(30_000)
   const rescheduleBooking = useBookingsStore((s) => s.rescheduleBooking)
-  const [booking, setBooking] = useState<Booking | null>(null)
-  const [loadError, setLoadError] = useState(false)
+  // The booking as one query (speed fix 9, customer UI round): seeded from
+  // the bookings list when it came from there, so the page paints at once,
+  // and polled every 5 seconds while it can still change, which the query
+  // pauses by itself in a hidden tab. A failed poll keeps what is on screen;
+  // only a first read that finds nothing is "could not load".
+  const bookingKey = useMemo(() => ['bookings', 'detail', id] as const, [id])
+  const bookingQuery = useQuery({
+    queryKey: bookingKey,
+    queryFn: async (): Promise<Booking | null> => {
+      const fresh = await getBooking(id)
+      if (fresh) return fresh
+      return queryClient.getQueryData<Booking | null>(bookingKey) ?? null
+    },
+    placeholderData: () =>
+      useBookingsStore.getState().customerBookings.find((b) => b.id === id),
+    // Every 5s until the booking reaches a terminal state — except a
+    // completed inspection job, whose final bill can still arrive (up to
+    // three days after completion) or be settled by the webhook. That is
+    // watched more slowly, and only while the bill can still change
+    // (finalBillMayChange).
+    refetchInterval: (query) => {
+      const current = query.state.data
+      if (!current) return false
+      const terminal =
+        current.status === 'completed' ||
+        current.status === 'cancelled' ||
+        current.status === 'rescheduled'
+      if (!terminal) return 5000
+      return finalBillMayChange(current, Date.now()) ? 15_000 : false
+    },
+  })
+  const booking = bookingQuery.data ?? null
+  // Seeded from the list, the booking has not been read in full yet.
+  const bookingSettled = !!booking && !bookingQuery.isPlaceholderData
+  const loadError = bookingQuery.data === null
+  const setBooking = useCallback(
+    (next: Booking) => queryClient.setQueryData<Booking | null>(bookingKey, next),
+    [queryClient, bookingKey]
+  )
   // Detlio Rewards (0050): a scratch card waiting for this booking's chain.
   const rewardsConfig = useRewardsConfig()
   const rewardsSummary = useRewardsSummary(
@@ -424,28 +461,22 @@ export default function BookingDetailPage({
     if (needsAddresses) void fetchAddresses().catch(() => undefined)
   }, [needsAddresses, fetchAddresses])
 
-  useEffect(() => {
-    getBooking(id).then((b) => {
-      if (b) {
-        setBooking(b)
-        // Seed from the booking that came back, not just from a submission
-        // made in this session. Without this, revisiting a job you have
-        // already reviewed shows the empty rating form again and invites a
-        // second review that reviews.booking_id (unique) will refuse.
-        if (b.review) {
-          setSubmittedReview(b.review)
-        }
-      } else {
-        setLoadError(true)
-      }
-    })
-  }, [id])
+  // Seed from the booking that came back, not just from a submission made in
+  // this session. Without this, revisiting a job you have already reviewed
+  // shows the empty rating form again and invites a second review that
+  // reviews.booking_id (unique) will refuse. Once, from the full read (the
+  // list's copy may not carry the review); adjusted during render.
+  const [reviewSeededFor, setReviewSeededFor] = useState<string | null>(null)
+  if (bookingSettled && booking && reviewSeededFor !== booking.id) {
+    setReviewSeededFor(booking.id)
+    if (booking.review) setSubmittedReview(booking.review)
+  }
 
   // Once the booking is here, scroll to what Home asked for — only if it
   // still applies (a bill still due, a finished job), so a stale link does
   // nothing.
   useEffect(() => {
-    if (!booking || arrivalHandled.current) return
+    if (!bookingSettled || !booking || arrivalHandled.current) return
     arrivalHandled.current = true
     const scrollTo = (elementId: string) =>
       requestAnimationFrame(() =>
@@ -475,33 +506,7 @@ export default function BookingDetailPage({
         `${url.pathname}${url.search}${url.hash}`
       )
     }
-  }, [booking, arrival])
-
-  // Poll for live status updates (e.g. vendor accepts/rejects) every 5s.
-  // Stop once the booking reaches a terminal state — except a completed
-  // inspection job, whose final bill can still arrive (up to three days after
-  // completion) or be settled by the webhook. That is watched more slowly,
-  // and only while the bill can still change (finalBillMayChange).
-  const bookingStatus = booking?.status
-  const watchingBill = booking ? finalBillMayChange(booking, now) : false
-  useEffect(() => {
-    if (!bookingStatus) return
-    const terminal =
-      bookingStatus === 'completed' ||
-      bookingStatus === 'cancelled' ||
-      bookingStatus === 'rescheduled'
-    if (terminal && !watchingBill) return
-
-    const interval = setInterval(
-      async () => {
-        const fresh = await getBooking(id)
-        if (fresh) setBooking(fresh)
-      },
-      terminal ? 15_000 : 5000
-    )
-
-    return () => clearInterval(interval)
-  }, [id, bookingStatus, watchingBill])
+  }, [booking, bookingSettled, arrival])
 
   // The webhook can settle the payment after we stopped watching. The 5-second
   // poll above then shows the booking as paid, and a panel still saying
@@ -748,7 +753,7 @@ export default function BookingDetailPage({
     return (
       <CustomerShell showNav className="py-2">
         <PageHeader title="Booking" />
-        <p className="pt-4 text-[15px] text-text-secondary">
+        <p className="pt-4 text-t3 text-text-secondary">
           Could not load this booking. It may have been removed or you may not
           have access.
         </p>
@@ -872,7 +877,7 @@ export default function BookingDetailPage({
       >
         {/* Who, how and which car: a small heading, so the garage's name
             is a landmark on the page as it was. */}
-        <h2 className="text-[13px] font-normal text-dim">
+        <h2 className="text-t4 font-normal text-dim">
           {[
             booking.vendorName,
             BOOKING_TYPE_LABELS[booking.bookingType],
@@ -889,12 +894,12 @@ export default function BookingDetailPage({
         </h2>
         {cancelled
           ? cancelled.lines.map((line) => (
-              <p key={line} className="text-[15px] text-text-secondary">
+              <p key={line} className="text-t3 text-text-secondary">
                 {line}
               </p>
             ))
           : headline.detail && (
-              <p className="text-[15px] text-text-secondary">
+              <p className="text-t3 text-text-secondary">
                 {headline.detail}
               </p>
             )}
@@ -903,19 +908,19 @@ export default function BookingDetailPage({
           !timeProposal &&
           !missedByGarage &&
           customerWaitingNote(booking.responseDeadline, now) && (
-            <p className="text-[13px] text-dim">
+            <p className="text-t4 text-dim">
               {customerWaitingNote(booking.responseDeadline, now)}
             </p>
           )}
         {missedByGarage && (
-          <p className="text-[15px] text-text-secondary">
+          <p className="text-t3 text-text-secondary">
             Your booking time has passed without the garage accepting, so this
             booking won&apos;t go ahead. Cancel it or pick a new time below, or
             use Help with this booking about your payment.
           </p>
         )}
         {booking.status === 'rescheduled' && (
-          <p className="text-[15px] text-text-secondary">
+          <p className="text-t3 text-text-secondary">
             This booking was moved to a new time. Open your bookings to see the
             new one and whether the garage has accepted it.
           </p>
@@ -933,7 +938,7 @@ export default function BookingDetailPage({
                 />
               ))}
             </div>
-            <div className="mt-1.5 grid grid-cols-4 gap-1.5 text-[12px]">
+            <div className="mt-1.5 grid grid-cols-4 gap-1.5 text-t5">
               {STATUS_STEPS.map((step, i) => (
                 <span
                   key={step}
@@ -987,13 +992,13 @@ export default function BookingDetailPage({
         )
         .map(([chargeId, payment]) => (
           <ScCard key={chargeId} className="flex flex-col gap-3">
-            <h2 className="text-[17px] font-medium text-text-primary">
+            <h2 className="text-t2 font-medium text-text-primary">
               Your earlier bill payment
             </h2>
             {payment.phase === 'confirming' ? (
               <p
                 role="status"
-                className="flex items-center gap-2 text-[15px] text-text-primary"
+                className="flex items-center gap-2 text-t3 text-text-primary"
               >
                 <IconLoader2
                   size={16}
@@ -1050,7 +1055,7 @@ export default function BookingDetailPage({
         <MainAction
           disabled={paying}
           onClick={handlePayNow}
-          className="h-[52px] rounded-full py-0 text-[15px] font-medium"
+          className="h-[52px] rounded-full py-0 text-t3 font-medium"
           heroIcon={
             !paying && <IconArrowUpRight size={17} stroke={1.5} aria-hidden />
           }
@@ -1072,7 +1077,7 @@ export default function BookingDetailPage({
         // Graphite with a spinner, not the red pill: red means "this pays".
         <ScButton
           disabled
-          className="flex h-[52px] items-center justify-center gap-2 rounded-full bg-surface-elevated py-0 text-[15px] font-medium text-text-primary ring-1 ring-inset ring-border hover:bg-surface-elevated disabled:cursor-wait disabled:opacity-100"
+          className="flex h-[52px] items-center justify-center gap-2 rounded-full bg-surface-elevated py-0 text-t3 font-medium text-text-primary ring-1 ring-inset ring-border hover:bg-surface-elevated disabled:cursor-wait disabled:opacity-100"
         >
           <IconLoader2
             size={16}
@@ -1100,17 +1105,17 @@ export default function BookingDetailPage({
       {finished && (
         // #rate: Home's "Rate your wash" stars land here, the rating chosen.
         <ScCard id="rate" className="scroll-mt-4">
-          <h2 className="mb-3 text-[17px] font-medium text-text-primary">
+          <h2 className="mb-3 text-t2 font-medium text-text-primary">
             {submittedReview ? 'Your review' : 'How was it?'}
           </h2>
           {submittedReview ? (
             <div className="flex flex-col gap-2">
               <Stars rating={submittedReview.rating} size={18} />
-              <p className="text-[15px] text-text-secondary">
+              <p className="text-t3 text-text-secondary">
                 Thanks for your review.
               </p>
               {submittedReview.comment && (
-                <p className="text-[15px] text-text-primary">
+                <p className="text-t3 text-text-primary">
                   {submittedReview.comment}
                 </p>
               )}
@@ -1137,7 +1142,7 @@ export default function BookingDetailPage({
                     type="button"
                     disabled={submitting}
                     onClick={handleSubmitReview}
-                    className="press flex h-[52px] w-full items-center justify-center rounded-pill border border-stroke text-[15px] font-medium text-text-primary disabled:opacity-50"
+                    className="press flex h-[52px] w-full items-center justify-center rounded-pill border border-stroke text-t3 font-medium text-text-primary disabled:opacity-50"
                   >
                     {submitting ? 'Submitting...' : 'Submit review'}
                   </button>
@@ -1167,7 +1172,7 @@ export default function BookingDetailPage({
         <section aria-labelledby="scratch-card" className="flex flex-col gap-2">
           <h2
             id="scratch-card"
-            className="text-[17px] font-medium text-text-primary"
+            className="text-t2 font-medium text-text-primary"
           >
             You earned a stamp and a scratch card
           </h2>
@@ -1180,7 +1185,7 @@ export default function BookingDetailPage({
         <section aria-labelledby="garage-card" className="flex flex-col gap-2">
           <h2
             id="garage-card"
-            className="text-[17px] font-medium text-text-primary"
+            className="text-t2 font-medium text-text-primary"
           >
             A new car for your Garage
           </h2>
@@ -1318,18 +1323,18 @@ export default function BookingDetailPage({
       {gettingThere && !missedByGarage && (
         <ScCard className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="text-[15px] font-medium text-text-primary">
+            <h2 className="text-t3 font-medium text-text-primary">
               Getting there
             </h2>
             {gettingThere.address && (
-              <p className="mt-0.5 text-[13px] text-text-secondary">
+              <p className="mt-0.5 text-t4 text-text-secondary">
                 {[gettingThere.address, gettingThere.city]
                   .filter(Boolean)
                   .join(', ')}
               </p>
             )}
             {travel.data && (
-              <p className="mt-1 text-[13px] text-text-secondary">
+              <p className="mt-1 text-t4 text-text-secondary">
                 {describeDrive(travel.data).atGarage ? (
                   "You're at the garage."
                 ) : (
@@ -1346,7 +1351,7 @@ export default function BookingDetailPage({
           <button
             type="button"
             onClick={() => setShowDirections(true)}
-            className="press flex h-11 shrink-0 items-center gap-1.5 rounded-pill border border-stroke px-4 text-[15px] text-text-primary"
+            className="press flex h-11 shrink-0 items-center gap-1.5 rounded-pill border border-stroke px-4 text-t3 text-text-primary"
           >
             <IconNavigation size={16} aria-hidden />
             Directions
@@ -1360,7 +1365,7 @@ export default function BookingDetailPage({
         {garageCall && (
           <a
             href={garageCall}
-            className="flex min-h-[56px] items-center justify-between gap-3 border-b border-line text-[15px] text-text-primary"
+            className="flex min-h-[56px] items-center justify-between gap-3 border-b border-line text-t3 text-text-primary"
           >
             Call {booking.vendorName}
             <IconChevronRight
@@ -1376,7 +1381,7 @@ export default function BookingDetailPage({
             href={garageWhatsApp}
             target="_blank"
             rel="noopener"
-            className="flex min-h-[56px] items-center justify-between gap-3 border-b border-line text-[15px] text-text-primary"
+            className="flex min-h-[56px] items-center justify-between gap-3 border-b border-line text-t3 text-text-primary"
           >
             WhatsApp the garage
             <IconChevronRight
@@ -1393,7 +1398,7 @@ export default function BookingDetailPage({
             setShowHelp(true)
             track('help_view', { step: 'booking' })
           }}
-          className="flex min-h-[56px] items-center justify-between gap-3 text-left text-[15px] text-text-primary"
+          className="flex min-h-[56px] items-center justify-between gap-3 text-left text-t3 text-text-primary"
         >
           Help with this booking
           <IconChevronRight
@@ -1412,10 +1417,10 @@ export default function BookingDetailPage({
           landed on a final bill the garage replaced. */}
       {!cancelled && customerRefundLine(booking.refund, 'earlier_bill') && (
         <ScCard>
-          <h2 className="mb-1 text-[15px] font-medium text-text-primary">
+          <h2 className="mb-1 text-t3 font-medium text-text-primary">
             Refund
           </h2>
-          <p className="text-[15px] text-text-secondary">
+          <p className="text-t3 text-text-secondary">
             {customerRefundLine(booking.refund, 'earlier_bill')}
           </p>
         </ScCard>
@@ -1432,7 +1437,7 @@ export default function BookingDetailPage({
           href={bookAgainPath(booking, matchSavedAddress(booking, addresses))}
           variant="secondary"
           fullWidth
-          className="flex h-[52px] items-center justify-center gap-2 rounded-pill border-stroke py-0 text-[15px] font-medium"
+          className="flex h-[52px] items-center justify-center gap-2 rounded-pill border-stroke py-0 text-t3 font-medium"
         >
           <IconRepeat size={18} aria-hidden />
           Book again
@@ -1456,10 +1461,10 @@ export default function BookingDetailPage({
       {/* Pickup & drop once collected: no Reschedule or Cancel, and why. */}
       {carAway && OPEN_STATUSES.has(booking.status) && (
         <ScCard>
-          <h2 className="mb-1 text-[15px] font-medium text-text-primary">
+          <h2 className="mb-1 text-t3 font-medium text-text-primary">
             Your car is with the garage
           </h2>
-          <p className="text-[15px] text-text-secondary">
+          <p className="text-t3 text-text-secondary">
             {booking.vendorName} has collected your car, so this booking
             can&apos;t be cancelled or moved in the app. To change anything, or
             if something isn&apos;t right, use Help with this booking to reach
@@ -1475,7 +1480,7 @@ export default function BookingDetailPage({
           aria-label="Change this booking"
           className="hub-card flex flex-col gap-3 p-5"
         >
-          <p className="text-[13px] text-text-secondary">
+          <p className="text-t4 text-text-secondary">
             {lockedIn
               ? `Your slot is less than 2 hours away, so it can't be moved here. Use Help with this booking to reach ${booking.vendorName} or our team.`
               : booking.status === 'confirmed'
@@ -1492,7 +1497,7 @@ export default function BookingDetailPage({
               setRescheduleSlot(null)
               setShowReschedule(true)
             }}
-            className="press flex h-[52px] w-full items-center justify-center rounded-pill border border-stroke text-[15px] font-medium text-text-primary disabled:cursor-not-allowed disabled:border-transparent disabled:bg-surface-elevated disabled:text-text-muted"
+            className="press flex h-[52px] w-full items-center justify-center rounded-pill border border-stroke text-t3 font-medium text-text-primary disabled:cursor-not-allowed disabled:border-transparent disabled:bg-surface-elevated disabled:text-text-muted"
           >
             {booking.remainingReschedules <= 0
               ? 'No reschedules left'
@@ -1503,14 +1508,14 @@ export default function BookingDetailPage({
 
           {lockedIn ? (
             // Shown instead of a control the server would refuse.
-            <p className="text-[13px] text-text-secondary">
+            <p className="text-t4 text-text-secondary">
               Your slot is less than 2 hours away and {booking.vendorName} has
               accepted it, so it can&apos;t be cancelled here. Use Help with
               this booking to reach the garage or our team.
             </p>
           ) : showCancelConfirm ? (
             <div className="rise-in flex flex-col gap-3 border-t border-line pt-3">
-              <p className="text-[15px] text-text-primary">
+              <p className="text-t3 text-text-primary">
                 {booking.status === 'pending'
                   ? `${booking.vendorName} hasn't accepted yet, so you can cancel any time. This cannot be undone.`
                   : 'Cancel this booking? This cannot be undone.'}
@@ -1522,7 +1527,7 @@ export default function BookingDetailPage({
               />
               {booking.paymentMethod === 'online' &&
                 booking.paymentStatus === 'paid' && (
-                  <p className="text-[13px] text-text-muted">
+                  <p className="text-t4 text-text-muted">
                     {cancelRefundNote(booking)}
                   </p>
                 )}
@@ -1531,7 +1536,7 @@ export default function BookingDetailPage({
                   type="button"
                   disabled={cancelling}
                   onClick={() => setShowCancelConfirm(false)}
-                  className="press flex h-[52px] flex-1 items-center justify-center rounded-pill border border-stroke text-[15px] font-medium text-text-primary disabled:opacity-50"
+                  className="press flex h-[52px] flex-1 items-center justify-center rounded-pill border border-stroke text-t3 font-medium text-text-primary disabled:opacity-50"
                 >
                   Keep booking
                 </button>
@@ -1539,7 +1544,7 @@ export default function BookingDetailPage({
                   type="button"
                   disabled={cancelling}
                   onClick={handleCancelBooking}
-                  className="press flex h-[52px] flex-1 items-center justify-center rounded-pill border border-error/50 text-[15px] font-medium text-error disabled:opacity-50"
+                  className="press flex h-[52px] flex-1 items-center justify-center rounded-pill border border-error/50 text-t3 font-medium text-error disabled:opacity-50"
                 >
                   {cancelling ? 'Cancelling...' : 'Confirm cancel'}
                 </button>
@@ -1550,7 +1555,7 @@ export default function BookingDetailPage({
             <button
               type="button"
               onClick={() => setShowCancelConfirm(true)}
-              className="min-h-11 w-full text-center text-[15px] font-medium text-error"
+              className="min-h-11 w-full text-center text-t3 font-medium text-error"
             >
               Cancel booking
             </button>
@@ -1561,7 +1566,7 @@ export default function BookingDetailPage({
       {/* The full timeline, for the curious: when each step happened. */}
       {showProgress && (
         <ScCard>
-          <h2 className="mb-3 text-[15px] font-medium text-text-primary">
+          <h2 className="mb-3 text-t3 font-medium text-text-primary">
             Progress
           </h2>
           {isPickup ? (
@@ -1612,7 +1617,7 @@ export default function BookingDetailPage({
           <h2 className="text-[20px] font-normal tracking-[-0.015em] text-text-primary">
             Reschedule booking
           </h2>
-          <p className="mb-4 mt-1 text-[13px] text-text-secondary">
+          <p className="mb-4 mt-1 text-t4 text-text-secondary">
             You can reschedule only twice · {booking.remainingReschedules} of 2
             left. Pick a new time; {booking.vendorName} will be asked to accept
             it.
@@ -1638,7 +1643,7 @@ export default function BookingDetailPage({
               type="button"
               disabled={rescheduling}
               onClick={() => setShowReschedule(false)}
-              className="press flex h-[52px] flex-1 items-center justify-center rounded-pill border border-stroke text-[15px] font-medium text-text-primary disabled:opacity-50"
+              className="press flex h-[52px] flex-1 items-center justify-center rounded-pill border border-stroke text-t3 font-medium text-text-primary disabled:opacity-50"
             >
               Cancel
             </button>
@@ -1648,7 +1653,7 @@ export default function BookingDetailPage({
               variant={rescheduleSlot ? 'hero' : 'secondary'}
               disabled={!rescheduleSlot || rescheduling}
               onClick={handleReschedule}
-              className="h-[52px] flex-1 rounded-pill py-0 text-[15px] font-medium disabled:opacity-100 disabled:border-transparent disabled:bg-surface-elevated disabled:text-text-muted"
+              className="h-[52px] flex-1 rounded-pill py-0 text-t3 font-medium disabled:opacity-100 disabled:border-transparent disabled:bg-surface-elevated disabled:text-text-muted"
             >
               <span>
                 {rescheduling ? 'Rescheduling...' : 'Confirm reschedule'}
@@ -1674,7 +1679,7 @@ function Row({
   return (
     <div
       className={cn(
-        'flex min-h-[56px] items-center justify-between gap-4 py-3 text-[15px]',
+        'flex min-h-[56px] items-center justify-between gap-4 py-3 text-t3',
         !last && 'border-b border-line'
       )}
     >

@@ -148,7 +148,7 @@ export function ServiceVideo({
       )}
 
       {!started && duration > 0 && (
-        <span className="absolute bottom-2.5 right-2.5 z-10 rounded-[8px] bg-black/70 px-2 py-1 text-[13px] font-medium text-white">
+        <span className="absolute bottom-2.5 right-2.5 z-10 rounded-[8px] bg-black/70 px-2 py-1 text-t4 font-medium text-white">
           <span className="font-numeric">{formatClipLength(duration)}</span>
         </span>
       )}
@@ -180,7 +180,7 @@ export function ServiceVideo({
                 <IconPlayerPlayFilled size={20} aria-hidden="true" />
               )}
             </button>
-            <span className="font-numeric text-[13px]">
+            <span className="font-numeric text-t4">
               {formatClipLength(time)} / {formatClipLength(duration)}
             </span>
             <button
@@ -210,7 +210,7 @@ export function ServiceVideo({
       {failed && (
         <p
           role="status"
-          className="absolute inset-x-0 bottom-0 z-10 bg-black/75 px-3 py-2 text-[12px] text-error"
+          className="absolute inset-x-0 bottom-0 z-10 bg-black/75 px-3 py-2 text-t5 text-error"
         >
           The video did not load. Check the connection and try again.
         </p>

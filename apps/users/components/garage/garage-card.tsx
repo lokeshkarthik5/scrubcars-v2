@@ -81,7 +81,7 @@ export function GarageCard({ car, className, shine = true }: { car: GarageOwnedC
 
 /** The illustration line, under a card wherever one is shown (detail, reveal; the shared image draws it too). */
 export function IllustrationLine({ className }: { className?: string }) {
-  return <p className={cn('text-center text-[11px] leading-snug text-text-muted', className)}>{ILLUSTRATION_LINE}</p>
+  return <p className={cn('text-center text-t5 leading-snug text-text-muted', className)}>{ILLUSTRATION_LINE}</p>
 }
 
 /**

@@ -92,7 +92,7 @@ export function GarageAlbumView({
       >
         <div className="flex items-end justify-between gap-3">
           <div>
-            <p className="text-[12px] text-text-secondary">
+            <p className="text-t5 text-text-secondary">
               {album.series.name} · supercar cards
             </p>
             <h2
@@ -103,7 +103,7 @@ export function GarageAlbumView({
                 {collectedLine(album.collected, total)}
               </span>
             </h2>
-            <p className="mt-1 text-[13px] text-text-secondary">
+            <p className="mt-1 text-t4 text-text-secondary">
               cars collected
             </p>
           </div>
@@ -111,7 +111,7 @@ export function GarageAlbumView({
             <p className="font-numeric text-[20px] font-semibold leading-none text-text-primary">
               {rowsDone}/{album.rows.length}
             </p>
-            <p className="mt-1 text-[11px] text-text-secondary">
+            <p className="mt-1 text-t5 text-text-secondary">
               rows complete
             </p>
           </div>
@@ -129,7 +129,7 @@ export function GarageAlbumView({
             style={{ width: `${Math.max(2, percent)}%` }}
           />
         </div>
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-text-secondary">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-t5 text-text-secondary">
           <span>
             <Figures
               text={`Each row of 5: ${rewardRupees(album.rowReward)} off`}
@@ -145,7 +145,7 @@ export function GarageAlbumView({
           </span>
         </div>
         {album.completedAt && (
-          <p className="flex items-center gap-2 rounded-[12px] border border-[#F7D06B]/40 bg-[#F7D06B]/10 px-3 py-2 text-[13px] text-text-primary">
+          <p className="flex items-center gap-2 rounded-[12px] border border-[#F7D06B]/40 bg-[#F7D06B]/10 px-3 py-2 text-t4 text-text-primary">
             <IconCircleCheckFilled
               size={16}
               className="text-[#F7D06B]"
@@ -190,7 +190,7 @@ export function GarageAlbumView({
               <div className="flex items-baseline justify-between gap-3">
                 <h3
                   id={`row-${row.row}`}
-                  className="text-[13px] font-semibold text-text-primary"
+                  className="text-t4 font-semibold text-text-primary"
                 >
                   Row {row.row}{' '}
                   <span className="font-numeric font-normal text-text-secondary">
@@ -199,7 +199,7 @@ export function GarageAlbumView({
                 </h3>
                 <span
                   className={cn(
-                    'text-[11px]',
+                    'text-t5',
                     row.complete ? 'text-[#F7D06B]' : 'text-text-muted'
                   )}
                 >
@@ -221,7 +221,7 @@ export function GarageAlbumView({
           aria-label={`${RARITY_LABELS[filter]} cards`}
           className="flex flex-col gap-2"
         >
-          <p className="text-[12px] text-text-secondary">
+          <p className="text-t5 text-text-secondary">
             <Figures
               text={`${counts[filter].owned} of ${counts[filter].all} ${RARITY_LABELS[filter]} cards`}
             />
@@ -233,11 +233,11 @@ export function GarageAlbumView({
       )}
 
       <details className="group rounded-[14px] border border-border px-4 py-3">
-        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 text-[13px] font-medium text-text-primary">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 text-t4 font-medium text-text-primary">
           <IconInfoCircle size={16} aria-hidden="true" />
           How the Garage works
         </summary>
-        <ul className="mt-2 flex list-disc flex-col gap-1.5 pl-5 text-[12px] text-text-secondary">
+        <ul className="mt-2 flex list-disc flex-col gap-1.5 pl-5 text-t5 text-text-secondary">
           <li>
             Every booking that earns a Shine Card stamp also earns one Garage
             card. Some scratch cards, challenges and badges give cards too.
@@ -308,7 +308,7 @@ function OwnedDetail({
       </div>
       <div className="flex w-full flex-col items-center gap-1 text-center">
         <p
-          className="text-[12px] uppercase tracking-[0.14em]"
+          className="text-t5 uppercase tracking-[0.14em]"
           style={{ color: look.pill }}
         >
           {car.rarityLabel} ·{' '}
@@ -320,7 +320,7 @@ function OwnedDetail({
           {car.name}
         </h2>
         <IllustrationLine className="max-w-[300px]" />
-        <p className="text-[12px] text-text-secondary">
+        <p className="text-t5 text-text-secondary">
           <Figures
             text={
               car.count > 1
@@ -354,7 +354,7 @@ function MissingDetail({
         <GarageTile car={car} />
       </div>
       <p
-        className="text-[12px] uppercase tracking-[0.14em]"
+        className="text-t5 uppercase tracking-[0.14em]"
         style={{ color: RARITY_LOOKS[car.rarity].pill }}
       >
         {car.rarityLabel} ·{' '}
@@ -362,10 +362,10 @@ function MissingDetail({
           {cardNumber(car.number, car.total)}
         </span>
       </p>
-      <h2 className="text-[18px] font-semibold text-text-primary">
+      <h2 className="text-t2 font-semibold text-text-primary">
         Not in your Garage yet
       </h2>
-      <p className="text-[13px] text-text-secondary">
+      <p className="text-t4 text-text-secondary">
         Every booking paid through Detlio earns a card. This one could be next.
       </p>
     </div>

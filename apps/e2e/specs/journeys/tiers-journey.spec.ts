@@ -67,6 +67,9 @@ async function expectMedal(page: Page, garageId: string, name: string | null) {
  */
 const card = (page: Page, garage: { id: string }) => page.locator(`a[href^="/garage/${garage.id}"]`)
 
+/** The list's Silver & above key, named in full ("Silver+: Silver & Gold garages only"). */
+const SILVER_KEY = /^Silver\+/
+
 const switchFor = (page: Page, tier: string) =>
   page.getByRole('region', { name: 'Tiers' }).getByRole('switch', { name: `Show ${tier} medals to customers` })
 
@@ -120,13 +123,19 @@ test.describe.serial('tiers and medals @p0', () => {
     await ctx.close()
   })
 
-  test('“Silver & above” narrows the list to Silver and Gold, each card with its medal', async ({ browser }) => {
+  test('“Silver+” narrows the list to Silver and Gold, each card with its medal', async ({ browser }) => {
     const { ctx, page } = await openGuest(browser)
     await page.goto('/garages')
-    const chip = page.getByRole('button', { name: 'Silver & above' })
+    // The website's two-line key for "Silver & above" (customer UI round):
+    // "Silver+" over "Silver & Gold", brushed silver while on.
+    const chip = page.getByRole('button', { name: SILVER_KEY })
     await expect(chip).toHaveAttribute('aria-pressed', 'false')
+    await expect(chip).toContainText('Silver & Gold')
+    const asked = page.waitForRequest((r) => r.url().includes('/api/v1/vendors?') && r.url().includes('tier=silver'))
     await chip.click()
     await expect(chip).toHaveAttribute('aria-pressed', 'true')
+    await expect(chip).toHaveClass(/fx-silver/)
+    await asked
 
     await expect(card(page, TIERS.gold).getByRole('img', { name: 'Gold garage' })).toBeVisible()
     await expect(card(page, TIERS.silver).getByRole('img', { name: 'Silver garage' })).toBeVisible()
@@ -136,6 +145,7 @@ test.describe.serial('tiers and medals @p0', () => {
     // Off again: the list is every garage once more.
     await chip.click()
     await expect(chip).toHaveAttribute('aria-pressed', 'false')
+    await expect(chip).not.toHaveClass(/fx-silver/)
     await ctx.close()
   })
 
@@ -160,7 +170,7 @@ test.describe.serial('tiers and medals @p0', () => {
     expect(hiddenApi.tier).toBeNull()
     expect(hiddenApi).not.toHaveProperty('tierHidden')
     await guest.page.goto('/garages')
-    await guest.page.getByRole('button', { name: 'Silver & above' }).click()
+    await guest.page.getByRole('button', { name: SILVER_KEY }).click()
     await expect(card(guest.page, TIERS.gold)).toBeVisible()
     await expect(card(guest.page, TIERS.silver)).toHaveCount(0)
 
@@ -210,8 +220,8 @@ test.describe.serial('tiers and medals @p0', () => {
       const config = guest.page.waitForResponse((r) => new URL(r.url()).pathname === '/api/v1/tiers')
       await guest.page.goto('/garages')
       expect((await (await config).json()).data).toMatchObject({ silverFilter: false })
-      await expect(guest.page.getByRole('button', { name: 'All', exact: true })).toBeVisible()
-      await expect(guest.page.getByRole('button', { name: 'Silver & above' })).toHaveCount(0)
+      await expect(guest.page.getByRole('button', { name: /^Service: All services/ })).toBeVisible()
+      await expect(guest.page.getByRole('button', { name: SILVER_KEY })).toHaveCount(0)
 
       // Back on, both: Gold again.
       await silver.click()

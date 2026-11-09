@@ -85,8 +85,8 @@ export function InviteView({ code }: { code: string }) {
         <SkeletonCard />
       ) : (
         <ScCard className="shine-card flex flex-col gap-3 rounded-card px-5 py-6">
-          <p className="text-[12px] text-text-secondary">Detlio Rewards</p>
-          <h1 className="text-[24px] font-semibold leading-tight text-text-primary">
+          <p className="text-t5 text-text-secondary">Detlio Rewards</p>
+          <h1 className="text-title font-semibold leading-tight text-text-primary">
             {invite.referrerFirstName} invited you to Detlio
           </h1>
           <p className="text-[14px] text-text-secondary">
@@ -104,12 +104,12 @@ export function InviteView({ code }: { code: string }) {
               Sign up to join
             </ScButton>
           ) : claim.isPending ? (
-            <p className="text-[13px] text-text-secondary">
+            <p className="text-t4 text-text-secondary">
               Adding the invite to your account…
             </p>
           ) : claim.isSuccess ? (
             <>
-              <p className="text-[13px] text-success">
+              <p className="text-t4 text-success">
                 You&apos;re in. Book your first wash to get your reward.
               </p>
               <ScButton
@@ -121,7 +121,7 @@ export function InviteView({ code }: { code: string }) {
             </>
           ) : claim.isError ? (
             <>
-              <p className="text-[13px] text-warning">
+              <p className="text-t4 text-warning">
                 {claim.error instanceof Error
                   ? claim.error.message
                   : "Couldn't add the invite."}
@@ -135,7 +135,7 @@ export function InviteView({ code }: { code: string }) {
               </ScButton>
             </>
           ) : null}
-          <p className="text-[11px] text-text-muted">
+          <p className="text-t5 text-text-muted">
             For people new to Detlio. One invite per person.
           </p>
         </ScCard>

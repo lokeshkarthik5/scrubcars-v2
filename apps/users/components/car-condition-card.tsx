@@ -114,7 +114,7 @@ export function CarConditionCard({
         <h2 className="text-sm font-semibold text-text-primary">
           Your car&apos;s condition
         </h2>
-        <p className="mt-0.5 text-[12px] text-text-secondary">{intro}</p>
+        <p className="mt-0.5 text-t5 text-text-secondary">{intro}</p>
       </div>
 
       {stages.map((stage) => {
@@ -143,10 +143,10 @@ export function CarConditionCard({
         return (
           <div key={stage} className="flex flex-col gap-1.5">
             <div className="flex items-baseline justify-between gap-2">
-              <p className="text-[11px] font-medium uppercase tracking-wide text-text-secondary">
+              <p className="text-t5 font-medium uppercase tracking-wide text-text-secondary">
                 {stage === 'before' ? 'Before the work' : 'After the work'}
               </p>
-              <p className="font-numeric text-[11px] text-text-muted">
+              <p className="font-numeric text-t5 text-text-muted">
                 {mine.length}/{windows.max}
               </p>
             </div>

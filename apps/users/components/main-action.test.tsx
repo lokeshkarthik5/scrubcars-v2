@@ -19,7 +19,7 @@ function withHub(value: string | undefined, render: () => string) {
 const pay = (props: { hero?: boolean; disabled?: boolean } = {}) =>
   renderToStaticMarkup(
     <MainAction
-      className="rounded-full py-4 text-[15px]"
+      className="rounded-full py-4 text-t3"
       heroIcon={<i data-icon="arrow" />}
       {...props}
     >
@@ -30,7 +30,7 @@ const pay = (props: { hero?: boolean; disabled?: boolean } = {}) =>
 describe('MainAction with the Home hub off (production)', () => {
   test("is the screen's old red button, byte for byte", () => {
     const before = renderToStaticMarkup(
-      <ScButton className="rounded-full py-4 text-[15px]">
+      <ScButton className="rounded-full py-4 text-t3">
         Pay <span className="font-numeric font-bold">₹499</span>
       </ScButton>
     )

@@ -41,6 +41,8 @@ import {
 } from '../../lib/service-city.js'
 import { matchedServiceName } from '../../lib/search.js'
 import { isPickupOffered, planPickupChange } from '../../lib/pickup.js'
+import { NEXT_FREE_MAX_IDS, nextFreeTimes, nextFreeWindow, type NextFree } from '../../lib/next-free.js'
+import type { BookingType } from '../../lib/booking-types.js'
 import { bookingsRepository } from '../bookings/bookings.repository.js'
 import { toVendorBookingResponse } from '../bookings/bookings.service.js'
 import { membersRepository } from '../members/members.repository.js'
@@ -2096,6 +2098,63 @@ export const vendorsService = {
    * The garage's holidays over the next couple of months, as IST date keys,
    * so the customer's picker can grey them out like weekly off days.
    */
+  /**
+   * "Next free" for the garage list's cards (lib/next-free.ts): for each id,
+   * the first day this week with a time for the job checkout books from a
+   * card's time (the garage's first service, as /book/:id picks with no
+   * service named), and its first three times. Null for a garage that is not
+   * open to customers, does not offer this booking type, sells nothing yet,
+   * or has no time in the week. Every id asked for has a key, so the list
+   * can tell "no time" from "not asked".
+   *
+   * Five grouped reads for all of them, whatever the count; the rule per
+   * garage and day is the picker's own (slotsForDay).
+   */
+  async nextFree(
+    ids: string[],
+    bookingType: BookingType,
+    now: number = Date.now()
+  ): Promise<Record<string, NextFree | null>> {
+    // A screenful of cards, never the whole list: the reads below grow with it.
+    if (ids.length > NEXT_FREE_MAX_IDS) {
+      throw new AppError(400, `At most ${NEXT_FREE_MAX_IDS} garages at once`, 'TOO_MANY_GARAGES')
+    }
+    const window = nextFreeWindow(now)
+    const [garages, catalogue, hours, closures, busy] = await Promise.all([
+      vendorsRepository.findPublicVendorsByIds(ids),
+      vendorsRepository.listServicesForVendors(ids),
+      vendorsRepository.listWorkingHoursForVendors(ids),
+      vendorsRepository.listClosuresForVendors(ids, window.first, window.last),
+      bookingsRepository.listCapacityHoldersForVendors(ids, window.from, window.to),
+    ])
+
+    const answer: Record<string, NextFree | null> = Object.fromEntries(ids.map((id) => [id, null]))
+    for (const garage of garages) {
+      const offered =
+        bookingType === 'dropin'
+          ? garage.dropinEnabled
+          : bookingType === 'doorstep'
+            ? garage.doorstepEnabled
+            : isPickupOffered(garage)
+      const first = catalogue.find((service) => service.vendorId === garage.id)
+      if (!offered || !first) continue
+      answer[garage.id] = nextFreeTimes(
+        {
+          pausedAt: garage.bookingsPausedAt,
+          slotIntervalMins: garage.slotIntervalMins,
+          bays: garage.bays,
+          jobsPerDay: garage.jobsPerDay,
+          hours: hours.filter((row) => row.vendorId === garage.id),
+          closures: new Set(closures.filter((row) => row.vendorId === garage.id).map((row) => row.date)),
+          busy: busy.filter((row) => row.vendorId === garage.id),
+        },
+        { durationMins: effectiveDurationMins(first), bookingType },
+        now
+      )
+    }
+    return answer
+  },
+
   async getPublicClosures(vendorId: string): Promise<string[]> {
     const vendor = await vendorsRepository.findPublicVendorById(vendorId)
 

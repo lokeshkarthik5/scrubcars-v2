@@ -49,7 +49,7 @@ export function ServiceThumb({
       />
 
       {thumb.kind === 'video' && thumb.durationSecs !== null && (
-        <span className="absolute bottom-1 left-1 flex items-center gap-0.5 rounded-[6px] bg-black/75 px-1 py-px text-[11px] font-medium text-white">
+        <span className="absolute bottom-1 left-1 flex items-center gap-0.5 rounded-[6px] bg-black/75 px-1 py-px text-t5 font-medium text-white">
           <IconPlayerPlayFilled size={8} />
           <span className="font-numeric">
             {formatClipLength(thumb.durationSecs)}

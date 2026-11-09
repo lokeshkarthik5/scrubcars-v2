@@ -25,7 +25,7 @@ import {
 import { UpdateList, UpdateRow } from './update-row'
 
 function GroupLabel({ children }: { children: React.ReactNode }) {
-  return <h2 className="px-1 pt-[22px] pb-2.5 text-[15px] text-[#A1A1AA]">{children}</h2>
+  return <h2 className="px-1 pt-[22px] pb-2.5 text-t3 text-[#A1A1AA]">{children}</h2>
 }
 
 /**
@@ -112,7 +112,7 @@ export function UpdatesScreen() {
               markSeen.mutate(data.now)
             }
           }}
-          className="-mr-2 min-h-11 px-2 text-[15px] text-[#A1A1AA] disabled:opacity-50"
+          className="-mr-2 min-h-11 px-2 text-t3 text-[#A1A1AA] disabled:opacity-50"
         >
           Mark all read
         </button>
@@ -181,11 +181,11 @@ export function UpdatesScreen() {
           ))}
 
           {data.items.length === 0 && data.todo.length === 0 && !data.pinnedNotice ? (
-            <p className="mt-10 px-6 text-center text-[15px] text-[#A1A1AA]">
+            <p className="mt-10 px-6 text-center text-t3 text-[#A1A1AA]">
               Nothing yet. Your bookings, bills and notes from the Detlio team will show here.
             </p>
           ) : (
-            <p className="mt-[18px] text-center text-[13px] text-dim">The last 30 days.</p>
+            <p className="mt-[18px] text-center text-t4 text-dim">The last 30 days.</p>
           )}
         </>
       )}

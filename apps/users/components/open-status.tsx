@@ -58,8 +58,8 @@ export function OpenStatus({
       className={cn(
         'inline-flex min-w-0 items-center gap-1.5',
         variant === 'overlay'
-          ? 'rounded-full bg-brand-black/75 px-2 py-0.5 text-[12px] leading-4 text-text-secondary backdrop-blur-sm'
-          : 'text-[13px] leading-[18px] text-text-secondary',
+          ? 'rounded-full bg-brand-black/75 px-2 py-0.5 text-t5 leading-4 text-text-secondary backdrop-blur-sm'
+          : 'text-t4 leading-[18px] text-text-secondary',
         className
       )}
     >

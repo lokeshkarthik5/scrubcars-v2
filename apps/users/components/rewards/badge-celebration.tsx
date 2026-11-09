@@ -72,18 +72,18 @@ export function BadgeCelebration({ badges, focusId = null }: { badges: BadgeToCe
             <span aria-hidden className="badge-celebrate__glow" />
             <BadgeMedal badgeKey={badge.key} earned size={104} className="badge-celebrate__medal" />
           </div>
-          <p className="text-[12px] uppercase tracking-[0.12em] text-text-secondary">Badge earned</p>
+          <p className="text-t5 uppercase tracking-[0.12em] text-text-secondary">Badge earned</p>
           <h2 className="text-[22px] font-semibold leading-tight text-text-primary" aria-live="polite">
             {badge.label}
           </h2>
-          <p className="text-[13px] text-text-secondary">{badge.howTo}</p>
+          <p className="text-t4 text-text-secondary">{badge.howTo}</p>
           {more === 0 && inCabinet > 0 && (
-            <p className="text-[12px] text-text-muted">
+            <p className="text-t5 text-text-muted">
               And {inCabinet} more {inCabinet === 1 ? 'badge' : 'badges'} in your cabinet.
             </p>
           )}
           {bonus && (
-            <p className="rounded-full border border-line px-3 py-1 text-[12px] text-text-primary">
+            <p className="rounded-full border border-line px-3 py-1 text-t5 text-text-primary">
               <Figures text={`${bonus} added to your Shine Card`} />
             </p>
           )}

@@ -28,11 +28,11 @@ export function CheckoutAddOns({
     >
       <h2
         id="checkout-add-ons"
-        className="text-[17px] font-medium text-text-primary"
+        className="text-t2 font-medium text-text-primary"
       >
         Add-ons
       </h2>
-      <p className="text-[13px] text-dim">
+      <p className="text-t4 text-dim">
         Optional. They go with the services you&apos;ve chosen.
       </p>
       <ul className="hub-card flex flex-col divide-y divide-line px-4">
@@ -46,8 +46,8 @@ export function CheckoutAddOns({
               className="flex items-center justify-between gap-3 py-3"
             >
               <div className="min-w-0">
-                <p className="text-[15px] text-text-primary">{addOn.name}</p>
-                <p className="mt-0.5 text-[13px] text-text-secondary">
+                <p className="text-t3 text-text-primary">{addOn.name}</p>
+                <p className="mt-0.5 text-t4 text-text-secondary">
                   <Figures text={servicePriceText(addOn, vehicleType)} />
                   {' · '}
                   <Figures text={addOnTimeLabel(addOn.extraMins)} />
@@ -64,7 +64,7 @@ export function CheckoutAddOns({
                 }
                 onClick={() => onToggle(addOn.id)}
                 className={cn(
-                  'press flex min-h-11 disabled:opacity-50 shrink-0 items-center gap-1 rounded-full border px-4 text-[13px] font-medium transition-colors',
+                  'press flex min-h-11 disabled:opacity-50 shrink-0 items-center gap-1 rounded-full border px-4 text-t4 font-medium transition-colors',
                   added
                     ? 'border-text-primary text-text-primary'
                     : 'border-white/20 text-text-primary'

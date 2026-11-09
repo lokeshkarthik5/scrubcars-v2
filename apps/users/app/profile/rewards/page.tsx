@@ -105,7 +105,7 @@ function RewardsScreen() {
       <CustomerShell showNav showBrand className="gap-4 py-4">
         {header}
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
-          <p className="text-[15px] font-semibold text-text-primary">
+          <p className="text-t3 font-semibold text-text-primary">
             Sign in to see your rewards
           </p>
           <ScButton
@@ -232,10 +232,10 @@ function RewardsBody({
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[12px] text-text-secondary">Shine Card</p>
+          <p className="text-t5 text-text-secondary">Shine Card</p>
           <h2
             id="shine-card"
-            className="mt-0.5 text-[18px] font-semibold leading-tight text-text-primary"
+            className="mt-0.5 text-t2 font-semibold leading-tight text-text-primary"
           >
             <Figures text={stampsToGoLine(card.toGo)} />
           </h2>
@@ -249,13 +249,13 @@ function RewardsBody({
       >
         <StampStars onCard={card.onCard} goal={card.goal} size={30} remember />
       </div>
-      <p className="text-[12px] text-text-secondary">
+      <p className="text-t5 text-text-secondary">
         <Figures
           text={`${card.goal} stamps make ${rewardRupees(card.rewardAmount)} off. One for every booking of ${rewardRupees(view.invite.minAmount)} or more paid through Detlio.`}
         />
       </p>
       {card.nextExpiry && (
-        <p className="text-[11px] text-text-muted">
+        <p className="text-t5 text-text-muted">
           <Figures
             text={`${card.nextExpiry.count} ${card.nextExpiry.count === 1 ? 'stamp ends' : 'stamps end'} after ${rewardDay(card.nextExpiry.lastDay)}`}
           />
@@ -271,14 +271,14 @@ function RewardsBody({
           Your rewards
         </h2>
         {available.length > 0 && (
-          <span className="text-[11px] text-text-muted">
+          <span className="text-t5 text-text-muted">
             One per booking, at checkout
           </span>
         )}
       </div>
       {available.length === 0 ? (
         <ScCard className="py-3">
-          <p className="text-[12px] text-text-secondary">
+          <p className="text-t5 text-text-secondary">
             Nothing to use yet. Fill your Shine Card or scratch a card to win
             one.
           </p>
@@ -288,7 +288,7 @@ function RewardsBody({
           {available.map((v) => (
             <VoucherRow key={v.id} voucher={v} />
           ))}
-          <p className="text-[11px] text-text-muted">
+          <p className="text-t5 text-text-muted">
             Not with another code; works with Detlio credit. Given back if the
             booking is cancelled.
           </p>
@@ -349,7 +349,7 @@ function RewardsBody({
         {view.lifetime.washes > 0 && (
           <div className="grid grid-cols-2 gap-2">
             <div className="rounded-[14px] border border-border bg-surface px-3.5 py-3">
-              <p className="text-[11px] text-text-secondary">
+              <p className="text-t5 text-text-secondary">
                 Saved with rewards
               </p>
               <p className="mt-1 font-numeric text-[22px] font-semibold leading-none text-text-primary">
@@ -357,7 +357,7 @@ function RewardsBody({
               </p>
             </div>
             <div className="rounded-[14px] border border-border bg-surface px-3.5 py-3">
-              <p className="text-[11px] text-text-secondary">
+              <p className="text-t5 text-text-secondary">
                 {view.lifetime.since
                   ? `Washes since ${view.lifetime.since}`
                   : 'Washes'}
@@ -378,9 +378,9 @@ function RewardsBody({
             <LevelBadge
               level={level.level}
               label={level.label}
-              className="px-2.5 py-1 text-[13px]"
+              className="px-2.5 py-1 text-t4"
             />
-            <span className="font-numeric text-[12px] text-text-secondary">
+            <span className="font-numeric text-t5 text-text-secondary">
               {level.bookings} in 12 months
             </span>
           </div>
@@ -398,24 +398,24 @@ function RewardsBody({
                   style={{ width: `${Math.max(4, Math.min(100, progress))}%` }}
                 />
               </div>
-              <div className="flex justify-between text-[11px] text-text-muted">
+              <div className="flex justify-between text-t5 text-text-muted">
                 <span>{level.label}</span>
                 <span>{level.nextLabel}</span>
               </div>
             </div>
           )}
           {level.noShowDrops > 0 && (
-            <p className="text-[11px] text-warning">
+            <p className="text-t5 text-warning">
               A missed booking took one level off for 12 months.
             </p>
           )}
           {/* The monthly streak, as this cycle's months. */}
           <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-3">
             <div className="min-w-0">
-              <p className="text-[12px] text-text-primary">
+              <p className="text-t5 text-text-primary">
                 <Figures text={streakLine(streak)} />
               </p>
-              <p className="text-[11px] text-text-muted">
+              <p className="text-t5 text-text-muted">
                 <Figures
                   text={`${streak.monthsNeeded} months in a row earn ${streak.bonusStamps === 1 ? 'a bonus stamp' : `${streak.bonusStamps} bonus stamps`}.`}
                 />
@@ -436,7 +436,7 @@ function RewardsBody({
             </span>
           </div>
           <details className="level-ladder group border-t border-white/10 pt-2">
-            <summary className="flex min-h-9 cursor-pointer list-none items-center justify-between text-[12px] font-medium text-text-primary">
+            <summary className="flex min-h-9 cursor-pointer list-none items-center justify-between text-t5 font-medium text-text-primary">
               All levels and what they unlock
               <IconChevronRight
                 size={14}
@@ -469,14 +469,14 @@ function RewardsBody({
                   <div className="min-w-0">
                     <p
                       className={cn(
-                        'text-[13px]',
+                        'text-t4',
                         step.current
                           ? 'font-semibold text-text-primary'
                           : 'text-text-primary'
                       )}
                     >
                       {step.label}
-                      <span className="font-numeric text-[12px] text-text-muted">
+                      <span className="font-numeric text-t5 text-text-muted">
                         {' '}
                         ·{' '}
                         {step.minBookings === 0
@@ -484,13 +484,13 @@ function RewardsBody({
                           : `${step.minBookings} washes`}
                       </span>
                       {step.current && (
-                        <span className="text-[12px] text-text-secondary">
+                        <span className="text-t5 text-text-secondary">
                           {' '}
                           · you
                         </span>
                       )}
                     </p>
-                    <ul className="text-[12px] text-text-secondary">
+                    <ul className="text-t5 text-text-secondary">
                       {step.unlocks.map((u) => (
                         <li key={u}>
                           <Figures text={u} />
@@ -546,7 +546,7 @@ function RewardsBody({
                 <span className="font-numeric">{extras.wrapped.years[0]}</span>{' '}
                 Detlio Wrapped
               </span>
-              <span className="block text-[12px] text-text-secondary">
+              <span className="block text-t5 text-text-secondary">
                 Your year in washes, garages and shine.
               </span>
             </span>
@@ -561,7 +561,7 @@ function RewardsBody({
 
       <InviteCard invite={view.invite} />
       {view.referredBy && (
-        <p className="text-[12px] text-text-secondary">
+        <p className="text-t5 text-text-secondary">
           You joined through {view.referredBy.firstName}&apos;s invite.
           {view.referredBy.status === 'pending' &&
             ' Your reward comes with your first booking.'}
@@ -593,12 +593,12 @@ function RewardsBody({
                   className="flex items-center justify-between gap-3 px-3.5 py-2.5"
                 >
                   <div className="min-w-0">
-                    <p className="text-[13px] text-text-primary">{v.label}</p>
-                    <p className="font-numeric text-[11px] text-text-muted">
+                    <p className="text-t4 text-text-primary">{v.label}</p>
+                    <p className="font-numeric text-t5 text-text-muted">
                       {rewardDate(v.issuedAt)}
                     </p>
                   </div>
-                  <span className="shrink-0 text-[12px] text-text-secondary">
+                  <span className="shrink-0 text-t5 text-text-secondary">
                     <span className="font-numeric">
                       {rewardRupees(v.amount)}
                     </span>{' '}
@@ -623,7 +623,7 @@ function RewardsBody({
         </h2>
         {view.history.length === 0 ? (
           <ScCard>
-            <p className="text-[12px] text-text-secondary">
+            <p className="text-t5 text-text-secondary">
               Your first completed booking through Detlio starts your card.
             </p>
           </ScCard>
@@ -633,8 +633,8 @@ function RewardsBody({
               {view.history.map((row) => {
                 const body = (
                   <div className="px-3.5 py-2.5">
-                    <p className="text-[13px] text-text-primary">{row.title}</p>
-                    <p className="text-[11px] text-text-muted">
+                    <p className="text-t4 text-text-primary">{row.title}</p>
+                    <p className="text-t5 text-text-muted">
                       <span className="font-numeric">{rewardDate(row.at)}</span>
                       {row.detail ? ` · ${row.detail}` : ''}
                     </p>
@@ -703,14 +703,14 @@ function VoucherRow({ voucher }: { voucher: RewardVoucher }) {
         <Glyph size={20} stroke={1.8} />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-[18px] font-semibold leading-tight text-text-primary">
+        <p className="text-t2 font-semibold leading-tight text-text-primary">
           {freeWash ? (
             'Free wash'
           ) : (
             <Figures text={`${rewardRupees(voucher.amount)} off`} />
           )}
         </p>
-        <p className="text-[12px] leading-snug text-text-secondary">
+        <p className="text-t5 leading-snug text-text-secondary">
           {freeWash ? (
             <Figures
               text={`Up to ${rewardRupees(voucher.amount)} · scratch card`}
@@ -719,7 +719,7 @@ function VoucherRow({ voucher }: { voucher: RewardVoucher }) {
             voucher.label
           )}
         </p>
-        <p className="text-[11px] text-text-muted">
+        <p className="text-t5 text-text-muted">
           Use by{' '}
           <span className="font-numeric">{rewardDay(voucher.lastDay)}</span>
         </p>
@@ -728,7 +728,7 @@ function VoucherRow({ voucher }: { voucher: RewardVoucher }) {
         <button
           type="button"
           onClick={() => void copy()}
-          className="flex shrink-0 items-center gap-1 rounded-full border border-line px-2.5 py-1 font-numeric text-[12px] text-text-primary"
+          className="flex shrink-0 items-center gap-1 rounded-full border border-line px-2.5 py-1 font-numeric text-t5 text-text-primary"
           aria-label={`Copy code ${voucher.code}`}
         >
           {voucher.code}

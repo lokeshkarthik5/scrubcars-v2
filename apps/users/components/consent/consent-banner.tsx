@@ -113,12 +113,12 @@ export function ConsentBanner() {
     >
       <div className="mx-auto flex w-full max-w-[428px] flex-col gap-3 px-4 py-3 sm:max-w-3xl sm:flex-row sm:items-center sm:justify-between">
         {consent.teamDevice ? (
-          <p className="text-[13px] leading-5 text-text-primary">
+          <p className="text-t4 leading-5 text-text-primary">
             This is a team device: nothing is measured here, and analytics and
             marketing cookies stay off.
           </p>
         ) : consent.privacySignal ? (
-          <p className="text-[13px] leading-5 text-text-primary">
+          <p className="text-t4 leading-5 text-text-primary">
             Your browser asks sites not to track you, so analytics and marketing
             cookies stay off.{' '}
             <Link
@@ -129,7 +129,7 @@ export function ConsentBanner() {
             </Link>
           </p>
         ) : (
-          <p className="text-[13px] leading-5 text-text-primary">
+          <p className="text-t4 leading-5 text-text-primary">
             We use cookies to see how our site is used (Microsoft Clarity) and
             to measure our ads on Facebook and Instagram. Allow analytics and
             marketing cookies?{' '}

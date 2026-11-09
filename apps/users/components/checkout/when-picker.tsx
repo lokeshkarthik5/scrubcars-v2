@@ -241,20 +241,20 @@ export function WhenPicker({
       >
         <span
           className={cn(
-            'text-[12px]',
+            'text-t5',
             on && !closed ? 'text-brand-black/60' : 'text-dim'
           )}
         >
           {label}
         </span>
-        <span className="font-numeric text-[17px] font-medium">{sub}</span>
+        <span className="font-numeric text-t2 font-medium">{sub}</span>
       </button>
     )
   }
 
   return (
     <div>
-      <h2 className="mb-3 text-[17px] font-medium tracking-[-0.01em] text-text-primary">
+      <h2 className="mb-3 text-t2 font-medium tracking-[-0.01em] text-text-primary">
         {title}
       </h2>
       <div className="-mx-4 mb-3 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -290,14 +290,14 @@ export function WhenPicker({
           aria-label="Pick a later date"
           className="press flex min-h-[60px] min-w-[54px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[16px] border border-line bg-white/[0.03] text-dim"
         >
-          <span className="text-[12px]">More</span>
+          <span className="text-t5">More</span>
           <IconCalendar size={18} stroke={1.5} aria-hidden />
         </button>
       </div>
 
       {selectedDate && (
         <>
-          <p className="mb-3 text-[13px] text-dim">
+          <p className="mb-3 text-t4 text-dim">
             {autoPick ? 'Earliest first. ' : ''}
             {noticeSentence(bookingType).replace(' at least', '')}
           </p>
@@ -308,7 +308,7 @@ export function WhenPicker({
               ))}
             </div>
           ) : slots.length === 0 ? (
-            <p className="text-[13px] text-text-secondary">
+            <p className="text-t4 text-text-secondary">
               {isPaused
                 ? rescheduleOf
                   ? "This garage isn't taking changes right now. Your booking stays at its current time, or you can cancel it."
@@ -333,7 +333,7 @@ export function WhenPicker({
                     aria-pressed={value === time}
                     onClick={() => onChange(time)}
                     className={cn(
-                      'press min-h-12 rounded-[14px] border font-numeric text-[15px] transition-colors',
+                      'press min-h-12 rounded-[14px] border font-numeric text-t3 transition-colors',
                       value === time
                         ? 'border-transparent bg-[#F5F5F6] font-medium text-brand-black'
                         : 'border-line bg-white/[0.03] text-text-primary'
@@ -347,7 +347,7 @@ export function WhenPicker({
                 <button
                   type="button"
                   onClick={() => setShowLater(true)}
-                  className="mx-auto mt-1 flex min-h-11 items-center gap-1 px-3 text-[13px] text-text-primary"
+                  className="mx-auto mt-1 flex min-h-11 items-center gap-1 px-3 text-t4 text-text-primary"
                 >
                   Show afternoon and evening
                   <IconChevronDown size={15} stroke={1.5} aria-hidden />
@@ -389,7 +389,7 @@ export function WhenPicker({
           </button>
           <span
             aria-live="polite"
-            className="text-[15px] font-medium text-text-primary"
+            className="text-t3 font-medium text-text-primary"
           >
             {MONTH_NAMES[calMonth.month]} {calMonth.year}
           </span>
@@ -410,7 +410,7 @@ export function WhenPicker({
         </div>
         <div aria-hidden="true" className="mb-1 grid grid-cols-7 text-center">
           {DAY_NAMES.map((d) => (
-            <span key={d} className="text-[12px] text-text-muted">
+            <span key={d} className="text-t5 text-text-muted">
               {d[0]}
             </span>
           ))}
@@ -442,7 +442,7 @@ export function WhenPicker({
                   setShowCalendar(false)
                 }}
                 className={cn(
-                  'flex h-11 items-center justify-center rounded-full font-numeric text-[15px] transition-colors',
+                  'flex h-11 items-center justify-center rounded-full font-numeric text-t3 transition-colors',
                   disabled
                     ? 'cursor-not-allowed text-text-muted opacity-30'
                     : key === customDate

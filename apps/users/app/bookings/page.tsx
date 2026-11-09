@@ -117,7 +117,7 @@ function BookingCard({
       )}
     >
       <div className="flex items-start justify-between gap-3">
-        <p className="min-w-0 text-[17px] leading-snug text-text-primary">
+        <p className="min-w-0 text-t2 leading-snug text-text-primary">
           <Link
             href={`/bookings/${booking.id}`}
             // The card's words, said once: the service is the visible text,
@@ -142,7 +142,7 @@ function BookingCard({
         </span>
       </div>
       {/* The garage, the car (on every card, F3) and when. */}
-      <p className="text-[13px] leading-snug text-dim">
+      <p className="text-t4 leading-snug text-dim">
         {[
           booking.vendorName,
           booking.vehicle?.model,
@@ -151,8 +151,8 @@ function BookingCard({
           .filter(Boolean)
           .join(' · ')}
       </p>
-      {pickup && <p className="text-[13px] text-dim">{pickup}</p>}
-      <div className="mt-1 flex items-center justify-between gap-3 text-[13px]">
+      {pickup && <p className="text-t4 text-dim">{pickup}</p>}
+      <div className="mt-1 flex items-center justify-between gap-3 text-t4">
         {needs ? (
           <span className="flex min-w-0 items-center gap-1.5 text-text-primary">
             <span
@@ -179,7 +179,7 @@ function BookingCard({
               {money(booking.subtotalPrice)}
             </s>
           )}
-          <span className="font-numeric text-[15px] text-text-primary">
+          <span className="font-numeric text-t3 text-text-primary">
             {money(booking.servicePrice)}
           </span>
         </span>
@@ -194,7 +194,7 @@ function BookingCard({
           <Link
             href={bookAgainPath(booking, matchSavedAddress(booking, addresses))}
             aria-label={`Book again: ${booking.serviceSummary} at ${booking.vendorName}`}
-            className="relative z-10 -mr-2 inline-flex min-h-11 items-center gap-1.5 rounded-[8px] px-2 text-[13px] font-medium text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-primary/70"
+            className="relative z-10 -mr-2 inline-flex min-h-11 items-center gap-1.5 rounded-[8px] px-2 text-t4 font-medium text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-primary/70"
           >
             <IconRepeat size={15} aria-hidden="true" />
             Book again
@@ -269,10 +269,10 @@ function BookingsContent() {
       <CustomerShell showNav className="gap-4 py-4">
         <TopBar title="Bookings" large={isHomeHubEnabled()} />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
-          <p className="text-[15px] font-semibold text-text-primary">
+          <p className="text-t3 font-semibold text-text-primary">
             Login to view your bookings
           </p>
-          <p className="text-[13px] text-text-secondary">
+          <p className="text-t4 text-text-secondary">
             Sign in to see your booking history
           </p>
           <ScButton
@@ -320,7 +320,7 @@ function BookingsContent() {
           <h2 className="text-[20px] font-normal tracking-[-0.015em] text-text-primary">
             No upcoming bookings
           </h2>
-          <p className="text-[15px] text-text-secondary">
+          <p className="text-t3 text-text-secondary">
             Book a car wash or detailing at a garage near you.
           </p>
           {/* The empty list's way forward, as the one red pill (F5). */}

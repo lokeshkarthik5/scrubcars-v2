@@ -26,6 +26,7 @@ import { TierSeal } from '@repo/ui/features/tier-medal'
 import { OutsideCityLine } from '@repo/ui/features/outside-city'
 import { GarageCover, GarageMonogram } from '@repo/ui/features/garage-cover'
 import { useGarage, useVendorReviews } from '@repo/core/api/hooks/use-vendors'
+import { SkeletonList } from '@repo/ui/sc/skeleton'
 import { GarageAddOns } from '@/components/garage/garage-add-ons'
 import type { AddOn } from '@repo/core/api/add-ons'
 import { browseCategory } from '@repo/core/analytics-events'
@@ -159,7 +160,7 @@ function AddToBookingButton({
       aria-pressed={added}
       onClick={onToggle}
       className={cn(
-        'press relative z-10 inline-flex h-11 min-w-[104px] shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-full border px-4 text-[15px] font-medium',
+        'press relative z-10 inline-flex h-11 min-w-[104px] shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-full border px-4 text-t3 font-medium',
         'transition-colors duration-150 ease-[cubic-bezier(0.2,0,0,1)]',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
         added
@@ -217,12 +218,20 @@ export default function GaragePage({
   // page someone can book from.
   const garage = useGarage(id)
   const vendor: Vendor | null = garage.data?.vendor ?? null
+  // The garage as the list or the map showed it, while its own read is on
+  // the way (useGarage's placeholder): the hero, the name, the rating and the
+  // distance paint at once; only the catalogue waits, as a skeleton rather
+  // than "No services available yet".
+  const catalogueLoading = garage.isPlaceholderData
   const services = garage.data?.services ?? NO_SERVICES
   const packages = garage.data?.packages ?? NO_PACKAGES
   const addOns = garage.data?.addOns ?? NO_ADD_ONS
-  // Cached five minutes, so Back to this page shows them at once.
-  const reviews = useVendorReviews(id).data ?? NO_REVIEWS
   const [tab, setTab] = useState<Tab>('services')
+  // Read when the Reviews tab is first opened (speed fix 8, customer UI
+  // round): the count is already on the garage, so nothing before that needs
+  // the list. Cached five minutes, so Back to this page shows them at once.
+  const reviewsQuery = useVendorReviews(id, { enabled: tab === 'reviews' })
+  const reviews = reviewsQuery.data ?? NO_REVIEWS
   // The At garage / Doorstep / Pickup & drop choice, as made on home or here.
   // Null until one is made; `mode` below is what the garage can actually do
   // with it (Pickup & drop only where the garage offers it).
@@ -422,18 +431,18 @@ export default function GaragePage({
         ) : garage.data === null ? (
           // 404: the garage is not listed (unverified, archived, or never was).
           <div className="flex flex-col items-center gap-3 py-12 text-center">
-            <p className="text-[13px] text-text-secondary">
+            <p className="text-t4 text-text-secondary">
               This garage isn&apos;t taking bookings on Detlio.
             </p>
             <Link
               href="/garages"
-              className="flex min-h-11 items-center px-3 text-[13px] font-semibold text-text-primary underline"
+              className="flex min-h-11 items-center px-3 text-t4 font-semibold text-text-primary underline"
             >
               Find another garage
             </Link>
           </div>
         ) : (
-          <p className="text-[13px] text-text-secondary">Loading…</p>
+          <p className="text-t4 text-text-secondary">Loading…</p>
         )}
       </AppShell>
     )
@@ -539,7 +548,7 @@ export default function GaragePage({
 
         {/* Score, distance and drive time are figures, in the brand's numeric
             face; the words between them stay Inter. */}
-        <div className="flex items-center gap-1.5 text-[13px] text-text-secondary">
+        <div className="flex items-center gap-1.5 text-t4 text-text-secondary">
           {showStars ? (
             <>
               <IconStarFilled size={13} className="text-text-primary" />
@@ -580,7 +589,7 @@ export default function GaragePage({
 
         {vendor.area && (
           <div className="flex">
-            <span className="flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-[12px] text-text-secondary">
+            <span className="flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-t5 text-text-secondary">
               <IconMapPin size={13} />
               {vendor.area}
             </span>
@@ -612,7 +621,7 @@ export default function GaragePage({
             comes for the car and brings it back. Free for now (owner
             decision); checkout shows a fee line if one is ever set. */}
         {mode === 'pickup' && (
-          <p className="text-[12px] leading-relaxed text-text-secondary">
+          <p className="text-t5 leading-relaxed text-text-secondary">
             Free pickup &amp; drop: {vendor.name} collects your car from your
             address, works on it at the garage and brings it back.
           </p>
@@ -668,7 +677,7 @@ export default function GaragePage({
             // below, a red tab as well pushed this page past the brand's
             // 5–8% budget for red.
             className={cn(
-              'min-h-11 flex-1 border-b-2 py-2.5 text-[15px] transition-colors',
+              'min-h-11 flex-1 border-b-2 py-2.5 text-t3 transition-colors',
               tab === t.key
                 ? 'border-text-primary text-text-primary'
                 : 'border-transparent text-text-secondary'
@@ -699,17 +708,17 @@ export default function GaragePage({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search services..."
-                className="w-full bg-transparent text-[13px] text-text-primary outline-none"
+                className="w-full bg-transparent text-t4 text-text-primary outline-none"
               />
             </label>
 
             {filteredPackages.length > 0 && (
               <>
                 <div className="flex items-center justify-between">
-                  <h2 className="text-[17px] font-medium text-text-primary">
+                  <h2 className="text-t2 font-medium text-text-primary">
                     Packages
                   </h2>
-                  <span className="text-[12px] text-text-secondary">
+                  <span className="text-t5 text-text-secondary">
                     {filteredPackages.length}{' '}
                     {filteredPackages.length === 1 ? 'package' : 'packages'}
                   </span>
@@ -735,11 +744,11 @@ export default function GaragePage({
                           className={CARD_DETAILS_TRIGGER}
                         >
                           <div className="flex items-start justify-between gap-3">
-                            <p className="min-w-0 flex-1 text-[17px] text-text-primary">
+                            <p className="min-w-0 flex-1 text-t2 text-text-primary">
                               {pkg.name}
                             </p>
                             <div className="shrink-0 text-right">
-                              <span className="text-[15px] text-text-primary">
+                              <span className="text-t3 text-text-primary">
                                 <Figures
                                   text={servicePriceText(pkg, carType)}
                                 />
@@ -750,7 +759,7 @@ export default function GaragePage({
                                 the wrong vehicle. */}
                               {pkg.tierBreakdown === null &&
                                 pkg.savings !== null && (
-                                  <p className="font-numeric text-[12px] text-text-secondary line-through">
+                                  <p className="font-numeric text-t5 text-text-secondary line-through">
                                     {money(pkg.itemsTotal)}
                                   </p>
                                 )}
@@ -761,7 +770,7 @@ export default function GaragePage({
                             made a saving read like a button — on a card whose
                             only button is the red Add below it. */}
                           {pkg.savings !== null && (
-                            <span className="mt-1.5 inline-block rounded-full bg-white/[0.06] px-2.5 py-0.5 text-[12px] text-text-primary">
+                            <span className="mt-1.5 inline-block rounded-full bg-white/[0.06] px-2.5 py-0.5 text-t5 text-text-primary">
                               Save{' '}
                               <span className="font-numeric">
                                 {money(pkg.savings)}
@@ -772,14 +781,14 @@ export default function GaragePage({
 
                           <ServiceCardLine
                             description={pkg.description}
-                            className="mt-1 text-[12px] text-text-secondary"
+                            className="mt-1 text-t5 text-text-secondary"
                           />
 
                           <ul className="mt-2 flex flex-col gap-1">
                             {pkg.items.map((item) => (
                               <li
                                 key={item.serviceId}
-                                className="flex items-center gap-1.5 text-[12px] text-text-secondary"
+                                className="flex items-center gap-1.5 text-t5 text-text-secondary"
                               >
                                 <IconCheck
                                   size={13}
@@ -792,7 +801,7 @@ export default function GaragePage({
                         </button>
 
                         <div className="mt-3 flex items-center justify-between">
-                          <span className="flex items-center gap-1.5 text-[12px] text-text-secondary">
+                          <span className="flex items-center gap-1.5 text-t5 text-text-secondary">
                             {pkg.durationMins != null && (
                               <>
                                 <IconClock size={13} />
@@ -818,17 +827,19 @@ export default function GaragePage({
             )}
 
             <div className="flex items-center justify-between">
-              <h2 className="text-[17px] font-medium text-text-primary">
+              <h2 className="text-t2 font-medium text-text-primary">
                 Services
               </h2>
-              <span className="text-[12px] text-text-secondary">
+              <span className="text-t5 text-text-secondary">
                 {filtered.length}{' '}
                 {filtered.length === 1 ? 'service' : 'services'}
               </span>
             </div>
 
-            {filtered.length === 0 ? (
-              <p className="py-6 text-center text-[13px] text-text-secondary">
+            {catalogueLoading ? (
+              <SkeletonList count={3} itemClassName="h-24 rounded-[16px]" />
+            ) : filtered.length === 0 ? (
+              <p className="py-6 text-center text-t4 text-text-secondary">
                 {services.length === 0
                   ? 'No services available yet.'
                   : 'No services match that search.'}
@@ -862,10 +873,10 @@ export default function GaragePage({
                         <div className="min-w-0 flex-1">
                           {/* The name gets the whole line, and the price for
                             the customer's own car sits under it (F13). */}
-                          <p className="text-[17px] leading-snug text-text-primary">
+                          <p className="text-t2 leading-snug text-text-primary">
                             {svc.name}
                           </p>
-                          <p className="mt-0.5 text-[15px] text-text-primary">
+                          <p className="mt-0.5 text-t3 text-text-primary">
                             <Figures text={servicePriceText(svc, carType)} />
                             {pricedForCar(svc, carType) && myCar && (
                               <span className="text-dim">
@@ -878,12 +889,12 @@ export default function GaragePage({
                             or the description held to two lines. */}
                           <ServiceCardLine
                             description={svc.description}
-                            className="mt-1 line-clamp-2 text-[13px] text-text-secondary"
+                            className="mt-1 line-clamp-2 text-t4 text-text-secondary"
                           />
                         </div>
                       </button>
                       <div className="mt-3 flex items-center justify-between pl-[76px]">
-                        <span className="flex items-center gap-1.5 text-[12px] text-text-secondary">
+                        <span className="flex items-center gap-1.5 text-t5 text-text-secondary">
                           {svc.durationMins != null && (
                             <>
                               <IconClock size={13} />
@@ -932,7 +943,7 @@ export default function GaragePage({
                 </Reveal>
               ))
             ) : (
-              <p className="col-span-2 py-6 text-center text-[13px] text-text-secondary">
+              <p className="col-span-2 py-6 text-center text-t4 text-text-secondary">
                 No photos yet.
               </p>
             )}
@@ -948,51 +959,57 @@ export default function GaragePage({
                 </span>
                 <div>
                   <Stars rating={avgRating} size={16} />
-                  <p className="text-[11px] text-text-secondary">
+                  <p className="text-t5 text-text-secondary">
                     {reviewCount} {reviewCount === 1 ? 'review' : 'reviews'}
                   </p>
                 </div>
               </div>
             ) : (
               <div className="mb-2">
-                <p className="text-[15px] font-semibold text-text-primary">{NEW_GARAGE_LABEL}</p>
+                <p className="text-t3 font-semibold text-text-primary">{NEW_GARAGE_LABEL}</p>
                 {soFar && (
-                  <p className="text-[11px] text-text-secondary">{soFar}</p>
+                  <p className="text-t5 text-text-secondary">{soFar}</p>
                 )}
               </div>
             )}
-            {reviews.length === 0 && (
-              <p className="py-4 text-center text-[13px] text-text-secondary">
-                No reviews yet.
+            {reviewsQuery.isPending ? (
+              <p className="py-4 text-center text-t4 text-text-secondary">
+                Loading reviews…
               </p>
+            ) : (
+              reviews.length === 0 && (
+                <p className="py-4 text-center text-t4 text-text-secondary">
+                  No reviews yet.
+                </p>
+              )
             )}
             {reviews.map((review, i) => (
               <Reveal key={review.id} index={i}>
                 <ScCard>
                   <div className="flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-elevated text-[11px] font-semibold text-text-primary">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-elevated text-t5 font-semibold text-text-primary">
                       {review.userName.slice(0, 2).toUpperCase()}
                     </div>
                     <div className="flex-1">
-                      <p className="text-[13px] font-medium text-text-primary">
+                      <p className="text-t4 font-medium text-text-primary">
                         {review.userName}
                       </p>
-                      <p className="font-numeric text-[11px] font-medium text-text-muted">
+                      <p className="font-numeric text-t5 font-medium text-text-muted">
                         {review.date}
                       </p>
                     </div>
                     <Stars rating={review.rating} size={12} />
                   </div>
-                  <p className="mt-2 text-[13px] text-text-secondary">
+                  <p className="mt-2 text-t4 text-text-secondary">
                     {review.comment}
                   </p>
                   {/* The garage's one public reply (0065). */}
                   {review.reply && (
                     <div className="mt-2 rounded-[10px] border-l-2 border-text-primary bg-surface px-3 py-2">
-                      <p className="text-[12px] font-semibold text-text-primary">
+                      <p className="text-t5 font-semibold text-text-primary">
                         Reply from {vendor.name}
                       </p>
-                      <p className="mt-0.5 text-[13px] text-text-secondary">
+                      <p className="mt-0.5 text-t4 text-text-secondary">
                         {review.reply.text}
                       </p>
                     </div>
@@ -1023,10 +1040,10 @@ export default function GaragePage({
           role="status"
           className="fixed bottom-0 left-1/2 z-40 w-full max-w-[428px] -translate-x-1/2 border-t border-border bg-brand-black px-4 py-3"
         >
-          <p className="text-[15px] font-semibold text-text-primary">
+          <p className="text-t3 font-semibold text-text-primary">
             Not taking bookings right now
           </p>
-          <p className="mt-0.5 text-[13px] text-text-secondary">
+          <p className="mt-0.5 text-t4 text-text-secondary">
             {vendor.bookingsPausedReason
               ? vendor.bookingsPausedReason
               : 'This garage has paused new bookings. Check back later, or pick another garage.'}
@@ -1036,7 +1053,7 @@ export default function GaragePage({
         selectedServices.length > 0 && (
           <div className="fixed bottom-0 left-1/2 z-40 flex w-full max-w-[428px] -translate-x-1/2 items-center gap-3 border-t border-border bg-brand-black px-4 py-3">
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[13px] text-text-secondary">
+              <p className="truncate text-t4 text-text-secondary">
                 {selectedServices.length === 1 ? (
                   selectedServices[0].name
                 ) : (
@@ -1054,7 +1071,7 @@ export default function GaragePage({
                   </>
                 )}
               </p>
-              <p className="truncate text-[17px] text-text-primary">
+              <p className="truncate text-t2 text-text-primary">
                 <Figures
                   text={
                     selectedServices.length === 1
@@ -1113,14 +1130,14 @@ export default function GaragePage({
                 "What's included" (the description's points) above. */}
             {isPackage(details) && (
               <div className="mt-3">
-                <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-text-secondary">
+                <p className="mb-1.5 text-t5 font-medium uppercase tracking-wide text-text-secondary">
                   Services in this package
                 </p>
                 <ul className="flex flex-col gap-1">
                   {details.items.map((item) => (
                     <li
                       key={item.serviceId}
-                      className="flex items-center gap-1.5 text-[13px] text-text-secondary"
+                      className="flex items-center gap-1.5 text-t4 text-text-secondary"
                     >
                       <IconCheck
                         size={13}
@@ -1133,7 +1150,7 @@ export default function GaragePage({
                 {/* A per-vehicle bundle's saving differs per vehicle, so it is
                     shown on the tier rows below instead of as one figure. */}
                 {details.tierBreakdown === null && details.savings !== null && (
-                  <p className="mt-2 text-[12px] font-semibold text-text-primary">
+                  <p className="mt-2 text-t5 font-semibold text-text-primary">
                     Save{' '}
                     <span className="font-numeric font-bold">
                       {money(details.savings)}
@@ -1153,7 +1170,7 @@ export default function GaragePage({
             <div className="mt-4 border-t border-border pt-3">
               {details.pricingType === 'per_vehicle' ? (
                 <>
-                  <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-text-secondary">
+                  <p className="mb-1.5 text-t5 font-medium uppercase tracking-wide text-text-secondary">
                     Price by vehicle
                   </p>
                   {VEHICLE_TIERS.map(({ value: type, label }) => {
@@ -1167,27 +1184,27 @@ export default function GaragePage({
                         key={type}
                         className="flex items-center justify-between py-0.5"
                       >
-                        <span className="text-[13px] text-text-secondary">
+                        <span className="text-t4 text-text-secondary">
                           {label}
                         </span>
                         {price == null ? (
                           // Only reachable on services created before every tier
                           // became mandatory. Say so plainly rather than showing
                           // another vehicle's price — booking would be refused.
-                          <span className="text-[12px] text-text-muted">
+                          <span className="text-t5 text-text-muted">
                             Price on request
                           </span>
                         ) : (
                           <span className="flex items-center gap-2">
                             {tierSavings !== null && (
-                              <span className="text-[11px] font-medium text-text-secondary">
+                              <span className="text-t5 font-medium text-text-secondary">
                                 save{' '}
                                 <span className="font-numeric">
                                   {money(tierSavings)}
                                 </span>
                               </span>
                             )}
-                            <span className="font-numeric text-[13px] font-bold text-text-primary">
+                            <span className="font-numeric text-t4 font-bold text-text-primary">
                               {money(price)}
                             </span>
                           </span>
@@ -1198,18 +1215,18 @@ export default function GaragePage({
                 </>
               ) : (
                 <div className="flex items-center justify-between">
-                  <span className="text-[13px] text-text-secondary">
+                  <span className="text-t4 text-text-secondary">
                     {details.pricingType === 'on_inspection'
                       ? 'Inspection fee'
                       : 'Price'}
                   </span>
-                  <span className="font-numeric text-[15px] font-bold text-text-primary">
+                  <span className="font-numeric text-t3 font-bold text-text-primary">
                     {money(details.price)}
                   </span>
                 </div>
               )}
               {details.pricingType === 'on_inspection' && (
-                <p className="mt-1.5 text-[11px] text-text-muted">
+                <p className="mt-1.5 text-t5 text-text-muted">
                   You pay the inspection fee when you book. If the work costs
                   more, the garage sends the final bill in the app and you pay
                   the rest there.

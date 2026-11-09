@@ -12,14 +12,19 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
+  IconArrowUpRight,
   IconChevronLeft,
+  IconChevronRight,
+  IconChevronUp,
   IconCurrentLocation,
   IconList,
+  IconMap,
   IconRefresh,
   IconStarFilled,
 } from '@tabler/icons-react'
 import { NEW_GARAGE_LABEL, hasStarScore } from '@repo/core/ratings'
-import { useVendorSearch } from '@repo/core/api/hooks/use-vendors'
+import { prefetchGarage, useVendorSearch } from '@repo/core/api/hooks/use-vendors'
+import { useQueryClient } from '@tanstack/react-query'
 import { track } from '@repo/core/analytics'
 import {
   coarse,
@@ -40,10 +45,12 @@ import {
   MAP_THEME,
   straightLineKm,
 } from '@repo/core/map'
-import { distanceAndDrive } from '@repo/core/drive-time'
+import { distanceAndDrive, distanceLabel, driveTimeLabel } from '@repo/core/drive-time'
 import { SERVICE_CITY } from '@repo/core/service-city'
 import { categoryLabel } from '@repo/core/categories'
 import { cn } from '@repo/core/utils'
+import { ScSheet } from '@repo/ui/sc/modal'
+import { usePrefersReducedMotion } from '@repo/ui/finish/motion'
 import {
   BOOKING_TYPE_LABELS,
   bookingTypeParam,
@@ -91,6 +98,10 @@ const MapController = dynamic(
 )
 const GaragePins = dynamic(
   () => import('@/components/map/garage-pins').then((m) => m.GaragePins),
+  { ssr: false }
+)
+const RouteArc = dynamic(
+  () => import('@/components/map/route-arc').then((m) => m.RouteArc),
   { ssr: false }
 )
 
@@ -202,6 +213,9 @@ function MapBrowseContent() {
   const [chosenId, setChosenId] = useState<string | null>(null)
   /** The last garage chosen by a tap, for the map to bring into view. */
   const [reveal, setReveal] = useState<{ id: string; n: number } | null>(null)
+  /** The pull-up list of every garage on the map (List, or "N garages near you"). */
+  const [listOpen, setListOpen] = useState(false)
+  const reduce = usePrefersReducedMotion()
   const rootRef = useRef<HTMLDivElement>(null)
   const topRef = useRef<HTMLDivElement>(null)
   const resultsRef = useRef<HTMLDivElement>(null)
@@ -304,14 +318,14 @@ function MapBrowseContent() {
 
     scrollingProgrammatically.current = true
     node.scrollIntoView({
-      behavior: 'smooth',
+      behavior: reduce ? 'auto' : 'smooth',
       inline: 'center',
       block: 'nearest',
     })
     window.setTimeout(() => {
       scrollingProgrammatically.current = false
     }, 500)
-  }, [])
+  }, [reduce])
 
   /**
    * A pin or a card was tapped: that garage's card comes to the middle of the
@@ -324,6 +338,14 @@ function MapBrowseContent() {
     setChosenId(vendor.id)
     setReveal((last) => ({ id: vendor.id, n: (last?.n ?? 0) + 1 }))
     scrollCardIntoView(vendor.id)
+  }
+
+  const selectedIndex = vendors.findIndex((v) => v.id === selectedId)
+
+  /** The pager and the strip's edges: the next or the previous card. */
+  const step = (by: 1 | -1) => {
+    const next = vendors[selectedIndex + by]
+    if (next) choose(next)
   }
 
   /**
@@ -442,18 +464,18 @@ function MapBrowseContent() {
           {/* Grouped so `justify-between` puts Back on one edge and this pair on
               the other, rather than spreading three controls evenly. */}
           <div className="flex items-center gap-2">
-            {/* Back to the list in the same mode the map was opened in. */}
-            <Link
-              href={
-                bookingTypeParam(bookingType)
-                  ? `/garages?mode=${bookingTypeParam(bookingType)}`
-                  : '/garages'
-              }
-              className="press pointer-events-auto flex min-h-11 items-center gap-1.5 rounded-full bg-surface-elevated px-3.5 py-2 text-[13px] font-semibold text-text-primary shadow-lg ring-1 ring-border"
+            {/* Every garage on the map as a list, pulled up over it. The garage
+                list itself is Back, or the + in the bar. */}
+            <button
+              type="button"
+              onClick={() => setListOpen(true)}
+              aria-haspopup="dialog"
+              disabled={vendors.length === 0}
+              className="fx-glass fx-press pointer-events-auto flex h-11 items-center gap-1.5 rounded-pill px-[15px] text-t4 font-semibold text-text-primary disabled:opacity-50"
             >
-              <IconList size={15} aria-hidden="true" />
+              <IconList size={16} aria-hidden="true" />
               List
-            </Link>
+            </button>
 
             <RoundButton
               label="Centre on my location"
@@ -481,7 +503,7 @@ function MapBrowseContent() {
               //
               // White, not red: the map's one red is the selected garage's
               // pin, and red text on graphite is under AA contrast anyway.
-              className="press pointer-events-auto flex min-h-11 items-center gap-1.5 rounded-full bg-brand-white px-4 py-2 text-[13px] font-semibold text-brand-black shadow-lg"
+              className="press pointer-events-auto flex min-h-11 items-center gap-1.5 rounded-full bg-brand-white px-4 py-2 text-t4 font-semibold text-brand-black shadow-lg"
             >
               <IconRefresh size={15} aria-hidden="true" />
               Search this area
@@ -500,18 +522,18 @@ function MapBrowseContent() {
           style={hub ? { paddingBottom: FLOATING_NAV_CLEARANCE } : undefined}
         >
           {isLoading ? (
-            <p className="px-4 text-center text-[12px] text-text-secondary">
+            <p className="px-4 text-center text-t5 text-text-secondary">
               {nearby ? 'Finding garages near you…' : 'Looking in this area…'}
             </p>
           ) : vendors.length === 0 ? (
-            <div className="pointer-events-auto mx-4 flex flex-col items-center rounded-[14px] bg-surface-elevated px-4 py-3 text-center shadow-lg ring-1 ring-border">
-              <p className="text-[13px] text-text-secondary">{emptyMessage}</p>
+            <div className="fx-glass pointer-events-auto mx-4 flex flex-col items-center rounded-[22px] px-4 py-3 text-center">
+              <p className="text-t4 text-text-secondary">{emptyMessage}</p>
               {/* Nothing within reach is not the end: the list has every
                   garage, further away and not yet pinned ones included. */}
               {nearby && bookingType === 'dropin' && (
                 <Link
                   href="/garages"
-                  className="flex min-h-11 items-center px-3 text-[13px] font-semibold text-text-primary underline underline-offset-4"
+                  className="flex min-h-11 items-center px-3 text-t4 font-semibold text-text-primary underline underline-offset-4"
                 >
                   See all garages
                 </Link>
@@ -519,35 +541,91 @@ function MapBrowseContent() {
             </div>
           ) : (
             <>
-              <div
-                ref={cardsRef}
-                onScroll={onCardsScroll}
-                // Side padding of half the strip minus half a card, so any card
-                // — including the only one — can actually reach the centre that
-                // `snap-center` is aiming at. Plain `px-4` pins the first card
-                // to the left edge and leaves a lone result looking off-centre.
-                // `py-2` is not cosmetic. Setting `overflow-x` to anything but
-                // `visible` makes the computed `overflow-y` `auto` too, so this
-                // container clips vertically — and a card's `ring-1`/`shadow-xl`
-                // are painted OUTSIDE its border box. Without the vertical
-                // padding the ring is shaved off along the top edge.
-                className="pointer-events-auto flex snap-x snap-mandatory gap-3 overflow-x-auto px-[max(1rem,calc(50%-150px))] py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-              >
-                {vendors.map((vendor) => (
-                  <MapVendorCard
-                    key={vendor.id}
-                    vendor={vendor}
-                    selected={vendor.id === selectedId}
-                    mode={bookingType}
-                    onChoose={() => choose(vendor)}
-                  />
-                ))}
+              {/* Above the strip: the pull-up list, and where in the strip
+                  the chosen card is ("1 of 6"), with a step either way. */}
+              <div className="flex items-center justify-between gap-2 px-4">
+                <button
+                  type="button"
+                  onClick={() => setListOpen(true)}
+                  aria-haspopup="dialog"
+                  className="fx-glass fx-press pointer-events-auto flex h-9 items-center gap-[7px] rounded-pill pl-[9px] pr-[13px] text-t4 font-semibold text-text-primary"
+                >
+                  <IconChevronUp size={18} aria-hidden="true" />
+                  <span>
+                    <span className="font-numeric">{vendors.length}</span>{' '}
+                    {nearby
+                      ? vendors.length === 1
+                        ? 'garage near you'
+                        : 'garages near you'
+                      : vendors.length === 1
+                        ? 'garage here'
+                        : 'garages here'}
+                  </span>
+                </button>
+                {vendors.length > 1 && (
+                  <div className="fx-glass pointer-events-auto flex h-9 items-center gap-0.5 rounded-pill px-[3px] text-t4 font-semibold">
+                    <button
+                      type="button"
+                      aria-label="Previous garage"
+                      disabled={selectedIndex <= 0}
+                      onClick={() => step(-1)}
+                      className="grid size-[30px] place-items-center rounded-full disabled:opacity-30"
+                    >
+                      <IconChevronLeft size={17} aria-hidden />
+                    </button>
+                    <span className="min-w-11 text-center" aria-live="polite">
+                      <span className="font-numeric">{selectedIndex + 1}</span>{' '}
+                      <span className="font-medium text-text-secondary">of</span>{' '}
+                      <span className="font-numeric">{vendors.length}</span>
+                    </span>
+                    <button
+                      type="button"
+                      aria-label="Next garage"
+                      disabled={selectedIndex >= vendors.length - 1}
+                      onClick={() => step(1)}
+                      className="grid size-[30px] place-items-center rounded-full disabled:opacity-30"
+                    >
+                      <IconChevronRight size={17} aria-hidden />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="relative">
+                <div
+                  ref={cardsRef}
+                  onScroll={onCardsScroll}
+                  // Side padding of half the strip minus half a card, so any
+                  // card — the only one included — can reach the centre that
+                  // `snap-center` aims at, and the next one peeks in at the
+                  // edge. `py-2.5` is not cosmetic: a horizontal scroller clips
+                  // vertically too, and the cards' edge light and shadow are
+                  // painted outside their boxes.
+                  className="pointer-events-auto flex snap-x snap-mandatory gap-3 overflow-x-auto px-[max(1rem,calc(50%-144px))] py-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                >
+                  {vendors.map((vendor) => (
+                    <MapVendorCard
+                      key={vendor.id}
+                      vendor={vendor}
+                      selected={vendor.id === selectedId}
+                      mode={bookingType}
+                      onChoose={() => choose(vendor)}
+                    />
+                  ))}
+                </div>
+                {/* The strip's edges: a step to the card either side. */}
+                {selectedIndex > 0 && (
+                  <EdgeButton side="prev" onClick={() => step(-1)} />
+                )}
+                {selectedIndex < vendors.length - 1 && (
+                  <EdgeButton side="next" onClick={() => step(1)} />
+                )}
               </div>
 
               {vendors.length === PAGE_LIMIT && (
                 // Saying so beats a silently truncated map, which reads as
                 // "this is everything" when it is not.
-                <p className="px-4 text-center text-[11px] text-text-muted">
+                <p className="px-4 text-center text-t5 text-text-muted">
                   {nearby ? (
                     <>
                       Showing the nearest{' '}
@@ -588,6 +666,16 @@ function MapBrowseContent() {
             fitMaxZoom={15}
           />
 
+          {/* The route from the customer to the chosen garage, drawn once
+              each time one is chosen (Route draw), arcing off the map. */}
+          <RouteArc
+            from={origin}
+            to={(() => {
+              const chosen = vendors.find((v) => v.id === selectedId)
+              return chosen && hasPin(chosen) ? { lat: chosen.lat, lng: chosen.lng } : null
+            })()}
+          />
+
           <GaragePins
             vendors={vendors}
             selectedId={selectedId}
@@ -600,6 +688,47 @@ function MapBrowseContent() {
           />
         </Map>
       </div>
+
+      <ScSheet
+        open={listOpen}
+        onClose={() => setListOpen(false)}
+        aria-label="Garages on the map"
+        className="fx-glass mx-2 h-[82vh] max-h-[82vh] rounded-b-none rounded-t-[28px] border border-b-0 border-white/14 bg-[rgb(16_16_20/0.82)] pb-0"
+      >
+        <div className="flex items-center justify-between gap-2.5 px-4 pb-3 pt-1">
+          <div>
+            <h2 className="text-t2 font-semibold text-text-primary">
+              {nearby ? 'Garages near you' : 'Garages here'}
+            </h2>
+            <p className="text-t4 text-text-secondary">
+              <span className="font-numeric">{vendors.length}</span>{' '}
+              {origin ? 'nearest first' : 'on the map'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setListOpen(false)}
+            className="fx-glass fx-press flex h-9 items-center gap-1.5 rounded-pill pl-[9px] pr-3 text-t4 font-semibold text-text-primary"
+          >
+            <IconMap size={16} aria-hidden />
+            Map
+          </button>
+        </div>
+        <ul className="flex flex-col gap-2 px-2.5 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
+          {vendors.map((vendor) => (
+            <li key={vendor.id}>
+              <MapListRow
+                vendor={vendor}
+                selected={vendor.id === selectedId}
+                onChoose={() => {
+                  choose(vendor)
+                  setListOpen(false)
+                }}
+              />
+            </li>
+          ))}
+        </ul>
+      </ScSheet>
 
       {/* No scrim: nothing scrolls under the pill here, and a dark band
           would only hide the streets. */}
@@ -625,9 +754,81 @@ function RoundButton({
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
-      className="press pointer-events-auto flex size-11 items-center justify-center rounded-full bg-surface-elevated text-text-primary shadow-lg ring-1 ring-border disabled:opacity-50"
+      className="fx-glass fx-press pointer-events-auto flex size-11 items-center justify-center rounded-full text-text-primary disabled:opacity-50"
     >
       {children}
+    </button>
+  )
+}
+
+/** A step to the card either side, on the strip's edge. */
+function EdgeButton({ side, onClick }: { side: 'prev' | 'next'; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={side === 'prev' ? 'Previous garage' : 'Next garage'}
+      className={cn(
+        'fx-glass fx-press pointer-events-auto absolute top-[72px] grid size-[38px] place-items-center rounded-full text-text-primary',
+        side === 'prev' ? 'left-2.5' : 'right-2.5'
+      )}
+    >
+      {side === 'prev' ? <IconChevronLeft size={18} aria-hidden /> : <IconChevronRight size={18} aria-hidden />}
+    </button>
+  )
+}
+
+/** A row of the pull-up list: photo, name, area, and how far, how long, how much. */
+function MapListRow({
+  vendor,
+  selected,
+  onChoose,
+}: {
+  vendor: Vendor
+  selected: boolean
+  onChoose: () => void
+}) {
+  const approx = useLocationStore((s) => isApproximate(s.location))
+  const km = vendor.distanceKm
+  return (
+    <button
+      type="button"
+      onClick={onChoose}
+      aria-current={selected ? 'true' : undefined}
+      className={cn(
+        'grid w-full grid-cols-[64px_minmax(0,1fr)_auto] items-center gap-3 rounded-[18px] border p-2 text-left transition-colors',
+        selected ? 'border-white/30 bg-white/9' : 'border-white/7 bg-white/5 hover:bg-white/9'
+      )}
+    >
+      <span className="relative size-16 overflow-hidden rounded-[13px] bg-surface">
+        {vendor.photos[0] ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={vendor.photos[0]} alt="" className="size-full object-cover" />
+        ) : (
+          <GarageCover vendor={vendor} size="compact" showMeta={false} />
+        )}
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate text-t3 font-semibold text-text-primary">{vendor.name}</span>
+        <span className="mt-0.5 block truncate text-t4 text-text-secondary">
+          {[vendor.area, hasStarScore(vendor) ? `★ ${vendor.rating.toFixed(1)}` : NEW_GARAGE_LABEL]
+            .filter(Boolean)
+            .join(' · ')}
+        </span>
+      </span>
+      <span className="flex flex-col items-end gap-0.5">
+        {km !== null && (
+          <>
+            <span className="whitespace-nowrap font-numeric text-[16px] font-semibold text-text-primary">
+              {distanceLabel(km, approx)}
+            </span>
+            <span className="whitespace-nowrap text-t5 text-text-secondary">{driveTimeLabel(km)}</span>
+          </>
+        )}
+        {vendor.startingPrice > 0 && (
+          <span className="font-numeric text-t4 font-semibold text-[#E8E8EC]">₹{vendor.startingPrice}</span>
+        )}
+      </span>
     </button>
   )
 }
@@ -655,6 +856,7 @@ function MapVendorCard({
   onChoose: () => void
 }) {
   const modeParam = bookingTypeParam(mode)
+  const queryClient = useQueryClient()
   // "6.2 km · ~20 min" (0062), "~" before the km when measured from an area.
   const approx = useLocationStore((s) => isApproximate(s.location))
   const distance =
@@ -677,6 +879,8 @@ function MapVendorCard({
       }
       data-vendor-id={vendor.id}
       aria-current={selected ? 'true' : undefined}
+      // The garage page starts loading the moment a finger lands on its card.
+      onPointerDown={() => void prefetchGarage(queryClient, vendor.id)}
       // A tap on a card at the side of the strip picks it first, so its pin
       // can be found on the map before committing to the garage; a tap on
       // the chosen card opens the garage. A modified click (new tab) always
@@ -688,12 +892,13 @@ function MapVendorCard({
         onChoose()
       }}
       className={cn(
-        'flex w-[78vw] max-w-[300px] shrink-0 snap-center flex-col overflow-hidden rounded-[16px] bg-surface-elevated shadow-xl ring-1 transition-colors',
-        // The selected card is outlined in white; its pin carries the red.
-        selected ? 'ring-text-primary/60' : 'ring-border'
+        'fx-glass flex w-[min(78vw,288px)] shrink-0 snap-center flex-col rounded-[24px] p-[7px] transition-[transform,opacity,border-color] duration-[400ms] ease-[cubic-bezier(.2,.8,.2,1)] motion-reduce:transition-none',
+        // The chosen card full size and lit at its edge; its pin carries
+        // the red. The others step back a little, so the next one peeks.
+        selected ? 'border-white/34 opacity-100' : 'scale-[0.93] opacity-[0.66]'
       )}
     >
-      <div className="relative h-[112px] w-full bg-surface">
+      <div className="relative h-[124px] w-full overflow-hidden rounded-[18px] bg-surface">
         {vendor.photos[0] ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -722,21 +927,24 @@ function MapVendorCard({
         />
 
         {badge && (
-          <span className="absolute right-2 top-2 rounded-full bg-surface-elevated/90 px-2 py-0.5 text-[11px] font-semibold text-text-primary ring-1 ring-border">
+          <span className="fx-glass absolute right-2 top-2 rounded-full px-2 py-0.5 text-t5 font-semibold text-text-primary">
             {badge}
           </span>
         )}
+        <span aria-hidden="true" className="fx-pearl absolute bottom-2 right-2 grid size-9 place-items-center rounded-full">
+          <IconArrowUpRight size={18} />
+        </span>
       </div>
 
-      <div className="flex flex-col gap-1 p-3">
+      <div className="flex flex-col gap-1 px-2 pb-1 pt-2.5">
         <div className="flex items-start justify-between gap-2">
-          <p className="min-w-0 flex-1 truncate text-[14px] font-semibold text-text-primary">
+          <p className="min-w-0 flex-1 truncate text-t2 font-semibold text-text-primary">
             {vendor.name}
           </p>
           {hasStarScore(vendor) ? (
-            <span className="flex shrink-0 items-center gap-1 text-[12px]">
+            <span className="flex shrink-0 items-center gap-1 pt-1 text-t5">
               <IconStarFilled size={11} className="text-warning" />
-              <span className="font-numeric font-medium text-text-primary">
+              <span className="font-numeric font-semibold text-text-primary">
                 {vendor.rating.toFixed(1)}
               </span>
               <span className="text-text-secondary">
@@ -744,7 +952,7 @@ function MapVendorCard({
               </span>
             </span>
           ) : (
-            <span className="shrink-0 text-[12px] font-medium text-text-primary">
+            <span className="shrink-0 pt-1 text-t5 font-medium text-text-primary">
               {NEW_GARAGE_LABEL}
             </span>
           )}
@@ -752,7 +960,7 @@ function MapVendorCard({
 
         {vendor.serviceTags.length > 0 && (
           // The list's own category names, never the raw codes (F10).
-          <p className="truncate text-[13px] text-text-secondary">
+          <p className="truncate text-t4 text-text-secondary">
             {vendor.serviceTags.map(categoryLabel).join(' · ')}
           </p>
         )}
@@ -761,7 +969,7 @@ function MapVendorCard({
             "this area" modes) carries the sign in place of its town, which
             the sign already names. */}
         {vendor.outsideServiceCity ? (
-          <p className="flex min-w-0 items-center gap-1.5 text-[12px] text-text-secondary">
+          <p className="flex min-w-0 items-center gap-1.5 text-t5 text-text-secondary">
             <OutsideCityChip
               outside={vendor.outsideServiceCity}
               className="min-w-0 bg-surface"
@@ -771,7 +979,7 @@ function MapVendorCard({
             )}
           </p>
         ) : (
-          <p className="truncate text-[12px] text-text-secondary">
+          <p className="truncate text-t5 text-text-secondary">
             <Figures
               text={[vendor.area, distance]
                 .filter(Boolean)
@@ -781,8 +989,8 @@ function MapVendorCard({
         )}
 
         {vendor.startingPrice > 0 && (
-          <p className="mt-0.5 text-[13px] text-text-secondary">
-            <span className="font-numeric font-bold text-text-primary">
+          <p className="mt-0.5 text-t4 text-text-secondary">
+            <span className="font-numeric text-[17px] font-semibold text-text-primary">
               ₹{vendor.startingPrice}
             </span>{' '}
             onwards

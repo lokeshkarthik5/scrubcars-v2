@@ -88,7 +88,7 @@ export default function GuaranteeClaimPage({
     <main className="mx-auto flex min-h-dvh w-full max-w-[428px] flex-col gap-4 bg-brand-black px-4 pb-10 pt-4">
       <TopBar showBack backHref={`/bookings/${id}`} title={GUARANTEE_NAME} />
       {loading ? (
-        <p role="status" className="text-[13px] text-text-secondary">
+        <p role="status" className="text-t4 text-text-secondary">
           Loading…
         </p>
       ) : !on || !booking || !guarantee.data ? (
@@ -113,7 +113,7 @@ export default function GuaranteeClaimPage({
 function Unavailable({ id, message }: { id: string; message: string }) {
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-[13px] text-text-secondary">{message}</p>
+      <p className="text-t4 text-text-secondary">{message}</p>
       <Link
         href={`/bookings/${id}`}
         className="flex min-h-11 items-center justify-center rounded-[10px] border border-border text-sm font-semibold text-text-primary"
@@ -207,14 +207,14 @@ function ClaimForm({
             <h1 className="text-sm font-semibold text-text-primary">
               Not happy with this job?
             </h1>
-            <p className="mt-0.5 text-[12px] text-text-secondary">
+            <p className="mt-0.5 text-t5 text-text-secondary">
               {booking.vendorName} ·{' '}
               {serviceLinesOf(booking.items).map((item) => item.name).join(', ')}
               {claimBy && <> · Ask by {formatStepTime(claimBy)}</>}
             </p>
           </div>
         </div>
-        <ul className="ml-1 flex list-disc flex-col gap-1 pl-4 text-[12px] text-text-secondary">
+        <ul className="ml-1 flex list-disc flex-col gap-1 pl-4 text-t5 text-text-secondary">
           {GUARANTEE_HOW_IT_WORKS.map((line) => (
             <li key={line}>{line}</li>
           ))}
@@ -231,7 +231,7 @@ function ClaimForm({
             label={ISSUE_LABELS[issue]}
             checked={issues.includes(issue)}
             onChange={(checked) => toggle(issue, checked)}
-            className="text-[13px]"
+            className="text-t4"
           />
         ))}
         {issues.includes('other') && (
@@ -251,7 +251,7 @@ function ClaimForm({
           <h2 className="text-sm font-semibold text-text-primary">
             Photos of the problem
           </h2>
-          <p className="mt-0.5 text-[12px] text-text-secondary">
+          <p className="mt-0.5 text-t5 text-text-secondary">
             Take at least {GUARANTEE_RULES.minPhotos} with your camera, close up
             on what was missed. Location and camera details are removed before
             upload.
@@ -286,7 +286,7 @@ function ClaimForm({
           {room > 0 && (
             <label
               className={cn(
-                'flex size-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-[10px] border border-dashed border-border text-[11px] text-text-secondary',
+                'flex size-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-[10px] border border-dashed border-border text-t5 text-text-secondary',
                 uploading && 'pointer-events-none opacity-60'
               )}
             >
@@ -328,7 +328,7 @@ function ClaimForm({
         {create.isPending ? 'Sending…' : 'Ask for a free redo'}
       </ScButton>
       {problem && (
-        <p className="text-center text-[12px] text-text-secondary">{problem}</p>
+        <p className="text-center text-t5 text-text-secondary">{problem}</p>
       )}
     </div>
   )
@@ -354,7 +354,7 @@ function ClaimStatus({
             {claim.title}
           </h1>
           {claim.body && (
-            <p className="mt-0.5 text-[12px] text-text-secondary">
+            <p className="mt-0.5 text-t5 text-text-secondary">
               {claim.body}
             </p>
           )}
@@ -374,7 +374,7 @@ function ClaimStatus({
 
       <ScCard className="flex flex-col gap-2">
         <h2 className="text-sm font-semibold text-text-primary">Your claim</h2>
-        <p className="text-[12px] text-text-secondary">
+        <p className="text-t5 text-text-secondary">
           {claim.issues.map((issue) => ISSUE_LABELS[issue]).join(', ')}
           {claim.otherText ? ` — ${claim.otherText}` : ''}
         </p>
@@ -446,7 +446,7 @@ function RedoPicker({
           Pick a time at {booking.vendorName}
         </h2>
         {claim.redoBookBy && (
-          <p className="mt-0.5 text-[12px] text-text-secondary">
+          <p className="mt-0.5 text-t5 text-text-secondary">
             Free of charge, by {formatStepTime(claim.redoBookBy)}.
           </p>
         )}
@@ -467,7 +467,7 @@ function RedoPicker({
               setTime(null)
             }}
             className={cn(
-              'min-h-11 shrink-0 rounded-[10px] border px-3 text-[12px]',
+              'min-h-11 shrink-0 rounded-[10px] border px-3 text-t5',
               day === shownDate
                 ? 'border-brand-white bg-surface text-text-primary'
                 : 'border-border text-text-secondary'
@@ -478,11 +478,11 @@ function RedoPicker({
         ))}
       </div>
       {slots.isLoading ? (
-        <p role="status" className="text-[12px] text-text-secondary">
+        <p role="status" className="text-t5 text-text-secondary">
           Loading times…
         </p>
       ) : (slots.data?.slots.length ?? 0) === 0 ? (
-        <p className="text-[12px] text-text-secondary">
+        <p className="text-t5 text-text-secondary">
           {slots.data?.isClosed
             ? 'The garage is closed that day.'
             : 'No free times that day. Try another day.'}
@@ -496,7 +496,7 @@ function RedoPicker({
               onClick={() => setTime(slot.time)}
               aria-pressed={time === slot.time}
               className={cn(
-                'min-h-[42px] rounded-[10px] border text-[13px]',
+                'min-h-[42px] rounded-[10px] border text-t4',
                 time === slot.time
                   ? 'border-brand-white bg-surface text-text-primary'
                   : 'border-border text-text-secondary'

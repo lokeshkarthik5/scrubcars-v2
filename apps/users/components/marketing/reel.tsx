@@ -45,7 +45,7 @@ export function Reel({ reel }: { reel: ReelContent }) {
         <span className="flex size-14 items-center justify-center rounded-full border border-white/20 text-text-secondary">
           <IconPlayerPlayFilled size={22} aria-hidden />
         </span>
-        <span className="text-[13px] text-text-muted">Video goes here</span>
+        <span className="text-t4 text-text-muted">Video goes here</span>
       </div>
     )
   }

@@ -36,7 +36,7 @@ export function ContactComplaintEntry() {
       className="legal-chrome my-6 flex flex-col gap-3 rounded-xl border border-border bg-surface px-4 py-4"
     >
       <div>
-        <h2 id="raise-complaint" className="text-[16px] font-semibold text-text-primary">
+        <h2 id="raise-complaint" className="text-t3 font-semibold text-text-primary">
           Raise a complaint
         </h2>
         <p className="mt-1 text-[14px] leading-relaxed text-text-secondary">

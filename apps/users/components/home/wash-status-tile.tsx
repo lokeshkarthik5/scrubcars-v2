@@ -38,7 +38,7 @@ export function WashStatusTile({ car, now }: { car: HomeCar; now: Date }) {
         className="hub-card press flex min-h-[164px] min-w-0 flex-col pt-3.5 pr-3.5 pb-[18px] pl-5 text-left"
       >
         <span className="flex items-center justify-between">
-          <span className="text-[13px] text-dim">Last wash</span>
+          <span className="text-t4 text-dim">Last wash</span>
           <TileIcon icon={IconDroplet} />
         </span>
         <span className="flex flex-1 items-end pr-1.5 pb-3">
@@ -62,13 +62,13 @@ export function WashStatusTile({ car, now }: { car: HomeCar; now: Date }) {
               <span className="font-numeric text-[40px] leading-[0.9] font-medium tracking-[-0.045em] text-text-primary">
                 {days}
               </span>
-              <span className="text-[13px] text-dim">
+              <span className="text-t4 text-dim">
                 {days === 1 ? 'day ago' : 'days ago'}
               </span>
             </>
           )}
         </span>
-        <span className="mt-[9px] flex items-start gap-1.5 text-[13px] leading-snug text-dim">
+        <span className="mt-[9px] flex items-start gap-1.5 text-t4 leading-snug text-dim">
           {wash.state === 'booked' && (
             <IconCheck
               size={14}
@@ -146,7 +146,7 @@ function WashIntervalSheet({
         disabled={save.isPending}
         onClick={() => pick(days)}
         className={cn(
-          'flex min-h-12 w-full items-center justify-between rounded-[14px] border px-4 text-left text-[15px] transition-colors',
+          'flex min-h-12 w-full items-center justify-between rounded-[14px] border px-4 text-left text-t3 transition-colors',
           chosen
             ? 'border-text-primary text-text-primary'
             : 'border-line text-text-secondary'
@@ -166,10 +166,10 @@ function WashIntervalSheet({
       aria-label="How often to wash"
       className="px-4"
     >
-      <h2 className="text-[19px] font-medium text-text-primary">
+      <h2 className="text-t2 font-medium text-text-primary">
         How often to wash
       </h2>
-      <p className="mt-1 text-[13px] text-text-secondary">
+      <p className="mt-1 text-t4 text-text-secondary">
         {car.make} {car.model}. {WASH_INTERVAL_DEFAULT_NOTE}
       </p>
       <div className="mt-4 flex flex-col gap-2">

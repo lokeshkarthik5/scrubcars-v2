@@ -46,7 +46,7 @@ type Window = { date: string; part: WindowPart }
  */
 export function RequestServiceMinutes({ durationMins }: { durationMins: number | null }) {
   if (!hasDuration({ durationMins })) return null
-  return <span className="block text-[12px] text-text-muted">{durationMins} min</span>
+  return <span className="block text-t5 text-text-muted">{durationMins} min</span>
 }
 
 /**
@@ -206,7 +206,7 @@ export function RequestSheet({
           <div className="flex flex-col items-center gap-3 py-4 text-center" role="status">
             <IconCircleCheck size={44} className="text-success" aria-hidden />
             <h2 className="text-[20px] font-medium text-text-primary">Request sent</h2>
-            <p className="text-[15px] text-text-secondary">
+            <p className="text-t3 text-text-secondary">
               Waiting for {sent.garage.name}. They reply by {istClock(sent.respondBy)}, or we ask the next garage.
               Nothing to pay yet.
             </p>
@@ -214,7 +214,7 @@ export function RequestSheet({
               <Link
                 href="/requests"
                 onClick={close}
-                className="press flex min-h-12 items-center justify-center rounded-full bg-brand-white text-[15px] font-medium text-brand-black"
+                className="press flex min-h-12 items-center justify-center rounded-full bg-brand-white text-t3 font-medium text-brand-black"
               >
                 See your request
               </Link>
@@ -227,7 +227,7 @@ export function RequestSheet({
           <>
             <div>
               <h2 className="text-[20px] font-medium text-text-primary">Request {vendor.name}</h2>
-              <p className="text-[13px] text-text-secondary">
+              <p className="text-t4 text-text-secondary">
                 {mode === 'pickup' ? 'They collect your car and bring it back' : 'To your home'} ·{' '}
                 {garage.coverKm !== null ? `covers ${garage.coverKm} km, ` : ''}
                 {garage.outsideKm} km outside
@@ -236,7 +236,7 @@ export function RequestSheet({
 
             {(guest || carChoice === GUEST_CAR) && (
               <section aria-labelledby="request-car" className="flex flex-col gap-2">
-                <h3 id="request-car" className="text-[12px] font-medium uppercase tracking-[0.12em] text-text-muted">
+                <h3 id="request-car" className="text-t5 font-medium uppercase tracking-[0.12em] text-text-muted">
                   Your car
                 </h3>
                 <GuestCarForm car={guestCar} onChange={setGuestCar} />
@@ -244,7 +244,7 @@ export function RequestSheet({
             )}
             {!guest && vehicles.length > 1 && (
               <section aria-labelledby="request-saved-car" className="flex flex-col gap-2">
-                <h3 id="request-saved-car" className="text-[12px] font-medium uppercase tracking-[0.12em] text-text-muted">
+                <h3 id="request-saved-car" className="text-t5 font-medium uppercase tracking-[0.12em] text-text-muted">
                   Which car
                 </h3>
                 <div className="flex flex-wrap gap-2" data-clarity-mask="true">
@@ -258,20 +258,20 @@ export function RequestSheet({
               <button
                 type="button"
                 onClick={() => setCarChoice(GUEST_CAR)}
-                className="flex min-h-11 items-center gap-1.5 self-start text-[13px] text-text-secondary underline"
+                className="flex min-h-11 items-center gap-1.5 self-start text-t4 text-text-secondary underline"
               >
                 <IconPlus size={14} aria-hidden /> Add your car
               </button>
             )}
 
             <section aria-labelledby="request-services" className="flex flex-col gap-2">
-              <h3 id="request-services" className="text-[12px] font-medium uppercase tracking-[0.12em] text-text-muted">
+              <h3 id="request-services" className="text-t5 font-medium uppercase tracking-[0.12em] text-text-muted">
                 Service{carLabel ? ` · your ${carLabel}` : ''}
               </h3>
               {garageData.isLoading ? (
-                <p className="text-[13px] text-text-secondary">Loading services…</p>
+                <p className="text-t4 text-text-secondary">Loading services…</p>
               ) : services.length === 0 ? (
-                <p className="text-[13px] text-text-secondary">This garage has no services to ask for yet.</p>
+                <p className="text-t4 text-text-secondary">This garage has no services to ask for yet.</p>
               ) : (
                 <ul className="flex flex-col gap-2">
                   {services.map((service) => {
@@ -298,10 +298,10 @@ export function RequestSheet({
                               {on && <IconCheck size={13} />}
                             </span>
                             <span className="min-w-0 flex-1">
-                              <span className="block text-[15px] text-text-primary">{service.name}</span>
+                              <span className="block text-t3 text-text-primary">{service.name}</span>
                               <RequestServiceMinutes durationMins={service.durationMins} />
                             </span>
-                            <span className="shrink-0 font-numeric text-[15px] text-text-primary">
+                            <span className="shrink-0 font-numeric text-t3 text-text-primary">
                               {vehicleType ? (amount === null ? 'Not priced' : `₹${amount.toLocaleString('en-IN')}`) : `from ₹${service.price.toLocaleString('en-IN')}`}
                             </span>
                           </button>
@@ -311,22 +311,22 @@ export function RequestSheet({
                 </ul>
               )}
               {unpriced && (
-                <p role="alert" className="text-[13px] text-error">
+                <p role="alert" className="text-t4 text-error">
                   One of these isn&apos;t priced for your car at this garage. Remove it to send the request.
                 </p>
               )}
             </section>
 
             <section aria-labelledby="request-when" className="flex flex-col gap-2">
-              <h3 id="request-when" className="text-[12px] font-medium uppercase tracking-[0.12em] text-text-muted">
+              <h3 id="request-when" className="text-t5 font-medium uppercase tracking-[0.12em] text-text-muted">
                 When
               </h3>
               {chosen.length === 0 ? (
-                <p className="text-[13px] text-text-secondary">Pick a service to see when they can come.</p>
+                <p className="text-t4 text-text-secondary">Pick a service to see when they can come.</p>
               ) : windows.isLoading ? (
-                <p className="text-[13px] text-text-secondary">Checking their hours…</p>
+                <p className="text-t4 text-text-secondary">Checking their hours…</p>
               ) : windows.isError || !windows.data ? (
-                <p className="text-[13px] text-error">Couldn&apos;t load their hours. Close and try again.</p>
+                <p className="text-t4 text-error">Couldn&apos;t load their hours. Close and try again.</p>
               ) : (
                 <>
                   <div role="group" aria-label="Time window" className="flex flex-wrap gap-2">
@@ -385,7 +385,7 @@ export function RequestSheet({
                       )}
                     </div>
                   )}
-                  <p className="text-[12px] text-text-muted">
+                  <p className="text-t5 text-text-muted">
                     A window, not an exact time: the garage picks a start inside it.
                   </p>
                 </>
@@ -393,7 +393,7 @@ export function RequestSheet({
             </section>
 
             <section aria-labelledby="request-where" className="flex flex-col gap-2">
-              <h3 id="request-where" className="text-[12px] font-medium uppercase tracking-[0.12em] text-text-muted">
+              <h3 id="request-where" className="text-t5 font-medium uppercase tracking-[0.12em] text-text-muted">
                 Where
               </h3>
               <div className="flex flex-col gap-2" data-clarity-mask="true">
@@ -409,21 +409,21 @@ export function RequestSheet({
                         addressChoice === a.id ? 'border-brand-white' : 'border-border'
                       )}
                     >
-                      <span className="text-[15px] text-text-primary">{a.label || 'Address'}</span>
-                      <span className="truncate text-[12px] text-text-muted">{a.address}</span>
+                      <span className="text-t3 text-text-primary">{a.label || 'Address'}</span>
+                      <span className="truncate text-t5 text-text-muted">{a.address}</span>
                     </button>
                   ))}
                 {guestAddress && (guest || addressChoice === GUEST_ADDRESS) && (
                   <div className="flex min-h-14 flex-col justify-center rounded-[14px] border border-brand-white px-4 py-2">
-                    <span className="text-[15px] text-text-primary">{guestAddress.label || 'Address'}</span>
-                    <span className="truncate text-[12px] text-text-muted">{guestAddress.address}</span>
+                    <span className="text-t3 text-text-primary">{guestAddress.label || 'Address'}</span>
+                    <span className="truncate text-t5 text-text-muted">{guestAddress.address}</span>
                   </div>
                 )}
               </div>
               <button
                 type="button"
                 onClick={() => setAddAddressOpen(true)}
-                className="flex min-h-11 items-center gap-1.5 self-start text-[13px] text-text-secondary underline"
+                className="flex min-h-11 items-center gap-1.5 self-start text-t4 text-text-secondary underline"
               >
                 <IconPlus size={14} aria-hidden /> {guestAddress || pinned.length > 0 ? 'Use another address' : 'Add your address'}
               </button>
@@ -431,7 +431,7 @@ export function RequestSheet({
 
             <ul aria-label="What happens next" className="flex flex-col gap-1.5">
               {REQUEST_PROMISES.map((line) => (
-                <li key={line} className="flex items-start gap-2 text-[13px] text-text-secondary">
+                <li key={line} className="flex items-start gap-2 text-t4 text-text-secondary">
                   <IconCheck size={15} className="mt-0.5 shrink-0 text-success" aria-hidden />
                   {line}
                 </li>
@@ -439,7 +439,7 @@ export function RequestSheet({
             </ul>
 
             {error && (
-              <p role="alert" className="text-[13px] text-error">
+              <p role="alert" className="text-t4 text-error">
                 {error}
               </p>
             )}
@@ -453,7 +453,7 @@ export function RequestSheet({
                   busy={sending}
                 />
               ) : (
-                <p className="text-[13px] text-text-secondary">
+                <p className="text-t4 text-text-secondary">
                   Pick a service, your car, a time and your address. Then sign in with your number to send it.
                 </p>
               )
@@ -462,7 +462,7 @@ export function RequestSheet({
                 {sending ? 'Sending…' : 'Send request'}
               </ScButton>
             )}
-            <p className="pb-2 text-center text-[12px] text-text-muted">{label}: free to ask, no payment until they say yes.</p>
+            <p className="pb-2 text-center text-t5 text-text-muted">{label}: free to ask, no payment until they say yes.</p>
           </>
         )}
       </div>

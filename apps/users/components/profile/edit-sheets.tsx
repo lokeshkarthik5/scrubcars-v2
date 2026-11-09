@@ -43,7 +43,7 @@ function SheetShell({
           if (canSave && !busy) onSave()
         }}
       >
-        <h2 className="text-[17px] font-semibold text-text-primary">{title}</h2>
+        <h2 className="text-t2 font-semibold text-text-primary">{title}</h2>
         {children}
         <div className="mt-2 flex flex-col gap-2.5">
           <ScButton type="submit" variant="main" disabled={!canSave || busy}>
@@ -100,11 +100,11 @@ export function EditProfileSheet({ user, open, onClose }: { user: User; open: bo
         onChange={(e) => setEmail(e.target.value)}
       />
       {!emailOk && (
-        <p role="alert" className="text-[12px] text-warning">
+        <p role="alert" className="text-t5 text-warning">
           Enter an email like name@example.com, or leave it empty.
         </p>
       )}
-      <p className="text-[12px] text-text-muted">Your phone number is how you sign in, so it can&apos;t be changed here.</p>
+      <p className="text-t5 text-text-muted">Your phone number is how you sign in, so it can&apos;t be changed here.</p>
     </SheetShell>
   )
 }
@@ -204,7 +204,7 @@ export function EditAddressSheet({ address, open, onClose }: { address: Address;
         onChange={(e) => setStreet(e.target.value)}
       />
       <ScInput data-clarity-mask="true" label="City" value={city} onChange={(e) => setCity(e.target.value)} />
-      <p className="text-[12px] text-text-muted">
+      <p className="text-t5 text-text-muted">
         The pin on the map stays where it is. To move it, remove this address and add it again.
       </p>
     </SheetShell>

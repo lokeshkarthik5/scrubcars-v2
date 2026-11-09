@@ -112,7 +112,7 @@ function SearchContent() {
           aria-label="Search garages or services"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="flex-1 bg-transparent text-[13px] text-text-primary outline-none"
+          className="flex-1 bg-transparent text-t4 text-text-primary outline-none"
         />
       </div>
 
@@ -133,7 +133,7 @@ function SearchContent() {
         <button
           type="button"
           onClick={() => setSortOpen(true)}
-          className="flex min-h-11 shrink-0 items-center gap-1 rounded-full border border-line px-3.5 text-[13px] text-text-secondary transition-colors hover:text-text-primary"
+          className="flex min-h-11 shrink-0 items-center gap-1 rounded-full border border-line px-3.5 text-t4 text-text-secondary transition-colors hover:text-text-primary"
         >
           <IconAdjustments size={14} aria-hidden="true" />
           Filter
@@ -154,7 +154,7 @@ function SearchContent() {
               "Searching…" was the page contradicting itself. Likewise above
               a failed load, where nothing was found or not found. */}
           {!awaitingFirstAnswer && !isError && (
-            <p className="text-[11px] text-text-secondary">
+            <p className="text-t5 text-text-secondary">
               {/* "20+" rather than "20": the count is what has been paged in so
                   far, not the size of the result set, and stating it flatly
                   would be a number the next scroll contradicts. */}
@@ -164,7 +164,7 @@ function SearchContent() {
             </p>
           )}
           {sort !== 'relevance' && (
-            <p className="ml-auto text-[11px] text-text-secondary">
+            <p className="ml-auto text-t5 text-text-secondary">
               Sorted by {sortLabel(sort)}
             </p>
           )}
@@ -172,7 +172,7 @@ function SearchContent() {
 
         <div className="flex flex-col gap-2">
           {awaitingFirstAnswer ? (
-            <p className="py-6 text-center text-[13px] text-text-secondary">
+            <p className="py-6 text-center text-t4 text-text-secondary">
               Searching…
             </p>
           ) : isError ? (
@@ -181,7 +181,7 @@ function SearchContent() {
               onRetry={retry}
             />
           ) : vendors.length === 0 ? (
-            <p className="py-6 text-center text-[13px] text-text-secondary">
+            <p className="py-6 text-center text-t4 text-text-secondary">
               No garages or services match your search.
             </p>
           ) : (

@@ -51,7 +51,7 @@ import { servicePriceText } from '@/lib/price'
 import { bookingCarId } from '@/lib/booking-car'
 import { guaranteeCovers } from '@/lib/guarantee-cover'
 import { SlotAlertAsk } from '@/components/slot-alerts/slot-alert-ask'
-import { slotKeys } from '@repo/core/api/hooks/use-slots'
+import { slotKeys, useAvailableSlots } from '@repo/core/api/hooks/use-slots'
 import { ScSwitch } from '@repo/ui/sc/switch'
 import { ScToggle } from '@repo/ui/sc/toggle'
 import type { AppliedDiscount } from '@repo/core/api/discounts'
@@ -95,7 +95,7 @@ import { GuestCarForm, draftCarReady } from '@/components/checkout/guest-car'
 import { ApiError } from '@repo/core/api/client'
 import { amountBucket } from '@repo/core/analytics-events'
 import { track } from '@repo/core/analytics'
-import { garageQuery } from '@repo/core/api/hooks/use-vendors'
+import { CHECKOUT_GARAGE_STALE_MS, garageQuery } from '@repo/core/api/hooks/use-vendors'
 import { pickRequestedServices, unofferedMode } from '@repo/core/book-again'
 import { getVendor } from '@repo/core/api/vendors'
 import { outsideCityCheckoutLine } from '@repo/core/service-city'
@@ -230,6 +230,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // The day to open the picker on: a slot alert's notification (0047) links
   // here with the day a time opened.
   const dateParam = searchParams.get('date')
+  // A time picked on a garage card's "Next free" row (customer UI round,
+  // Nov 2026): checkout opens on its day with it chosen, as long as it is
+  // still ahead, and lets it go with the usual toast if it has been taken.
+  const slotParam = searchParams.get('slot')
   // Customer reach (0062): "Confirm & pay" on a request the garage accepted
   // opens checkout on it. Its car, address and time are the garage's yes,
   // shown fixed; its travel fee is a line of its own; the server books it
@@ -292,8 +296,14 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const [loadProblem, setLoadProblem] = useState<'gone' | 'failed' | null>(null)
   // Bumped by Retry to load the garage again.
   const [loadAttempt, setLoadAttempt] = useState(0)
-  const [pickedSlot, setSelectedSlot] = useState<string | null>(() =>
-    draftSlotStillAhead(restored?.slot ?? null, Date.now())
+  // Read once, on arrival, like the draft: the card's time wins over one
+  // left from an earlier visit, being the newer choice.
+  const [linkedSlot] = useState<string | null>(() => {
+    const at = slotParam ? Date.parse(slotParam) : Number.NaN
+    return Number.isFinite(at) && at > Date.now() ? new Date(at).toISOString() : null
+  })
+  const [pickedSlot, setSelectedSlot] = useState<string | null>(
+    () => linkedSlot ?? draftSlotStillAhead(restored?.slot ?? null, Date.now())
   )
   // An accepted request's start (0062) is the garage's yes, never picked here.
   const selectedSlot = acceptedRequest?.acceptedStartAt ?? pickedSlot
@@ -440,7 +450,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
     // and `/services` deliberately excludes them. Without them, a customer
     // who added a package on the garage page arrived here with nothing
     // selected.
-    queryClient.fetchQuery(garageQuery(vendorId)).then(
+    // Taken as current for five minutes here (speed fix 10), so checkout
+    // opens at once from a garage page the customer has been reading.
+    queryClient.fetchQuery({ ...garageQuery(vendorId), staleTime: CHECKOUT_GARAGE_STALE_MS }).then(
       (garage) => {
         if (cancelled) return
         // Not listed (a 404 on any of the three): the garage page's answer.
@@ -828,6 +840,30 @@ function BookContent({ vendorId }: { vendorId: string }) {
 
   // The picker let go of the chosen time (it ran out of notice, or the
   // customer switched to doorstep, which needs more): say so and go back to it.
+  // The card's time, checked against the day's free times once they are in
+  // (the picker's own query, so no extra request): still free, it stays
+  // chosen; taken since, it is let go with the toast a taken time always gets.
+  const linkedSlotDay = linkedSlot ? istDay(linkedSlot) : null
+  const linkedSlotTimes = useAvailableSlots({
+    vendorId,
+    serviceIds: linkedSlot ? serviceIds : [],
+    date: linkedSlotDay,
+    bookingType,
+  })
+  const [linkedSlotChecked, setLinkedSlotChecked] = useState(false)
+  const [linkedSlotTaken, setLinkedSlotTaken] = useState(false)
+  // Settled during render, once, as the picker settles its own day.
+  if (linkedSlot && !linkedSlotChecked && linkedSlotTimes.isSuccess) {
+    setLinkedSlotChecked(true)
+    if (pickedSlot === linkedSlot && !linkedSlotTimes.data.slots.some((slot) => slot.time === linkedSlot)) {
+      setSelectedSlot(null)
+      setLinkedSlotTaken(true)
+    }
+  }
+  useEffect(() => {
+    if (linkedSlotTaken) toast.error('That time was just taken; pick another.')
+  }, [linkedSlotTaken])
+
   const handleSlotLapse = (scheduledAt: string) => {
     const label = formatClock(scheduledAt)
     toast.info(
@@ -1648,12 +1684,12 @@ function BookContent({ vendorId }: { vendorId: string }) {
           // The garage page's own words for a garage that is not listed:
           // unverified, archived, or never was.
           <div className="flex flex-col items-center gap-3 py-12 text-center">
-            <p className="text-[15px] text-text-secondary">
+            <p className="text-t3 text-text-secondary">
               This garage isn&apos;t taking bookings on Detlio.
             </p>
             <Link
               href="/garages"
-              className="flex min-h-11 items-center px-3 text-[15px] font-medium text-text-primary underline underline-offset-2"
+              className="flex min-h-11 items-center px-3 text-t3 font-medium text-text-primary underline underline-offset-2"
             >
               Find another garage
             </Link>
@@ -1697,7 +1733,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
       {/* A returning customer can sign in first and use their saved car and
           addresses (0062); everyone else signs in at the end, at Pay. */}
       {isGuest && !signInOpen && nextStep !== 'signin' && (
-        <p className="-mt-3 text-[13px] text-text-secondary">
+        <p className="-mt-3 text-t4 text-text-secondary">
           Have an account?{' '}
           <button
             type="button"
@@ -1759,12 +1795,12 @@ function BookContent({ vendorId }: { vendorId: string }) {
             <h2
               ref={summaryStepRef}
               tabIndex={-1}
-              className="min-w-0 scroll-mt-20 text-[17px] font-medium tracking-[-0.01em] text-text-primary outline-none"
+              className="min-w-0 scroll-mt-20 text-t2 font-medium tracking-[-0.01em] text-text-primary outline-none"
             >
               {vendor.name}
             </h2>
             {hasStarScore(vendor) ? (
-              <span className="flex shrink-0 items-center gap-1 pt-0.5 text-[13px] text-text-primary">
+              <span className="flex shrink-0 items-center gap-1 pt-0.5 text-t4 text-text-primary">
                 <IconStarFilled
                   size={13}
                   aria-hidden
@@ -1780,12 +1816,12 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 </span>
               </span>
             ) : (
-              <span className="shrink-0 pt-0.5 text-[13px] text-dim">
+              <span className="shrink-0 pt-0.5 text-t4 text-dim">
                 New on Detlio
               </span>
             )}
           </div>
-          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-dim">
+          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-t4 text-dim">
             {vendor.tier && (
               <TierChip tier={vendor.tier} />
             )}
@@ -1798,7 +1834,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
             {lines.map(({ service, amount }) => (
               <div
                 key={service.id}
-                className="flex items-start justify-between gap-3 text-[15px]"
+                className="flex items-start justify-between gap-3 text-t3"
               >
                 <span className="flex min-w-0 items-start gap-1.5">
                   {/* Counts services only: the only service has no cross, so
@@ -1846,7 +1882,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 </span>
               </div>
             ))}
-            <p className="text-[13px] text-dim">
+            <p className="text-t4 text-dim">
               {totalDuration !== null && (
                 <>
                   <span className="font-numeric">
@@ -1881,19 +1917,19 @@ function BookContent({ vendorId }: { vendorId: string }) {
           className="flex flex-col gap-2 rounded-[18px] border border-[#1F5A3A] bg-[#0E2418] p-4"
           data-checkout-request=""
         >
-          <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-success">
+          <p className="text-t5 font-medium uppercase tracking-[0.12em] text-success">
             Accepted request
           </p>
-          <h2 id="checkout-request" className="text-[17px] font-medium text-text-primary">
+          <h2 id="checkout-request" className="text-t2 font-medium text-text-primary">
             {acceptedRequest.garage.name} will{' '}
             {acceptedRequest.bookingType === 'pickup' ? 'collect your car' : 'come'}{' '}
             {istStartLabel(acceptedRequest.acceptedStartAt)}
           </h2>
-          <p className="text-[13px] text-text-secondary" data-clarity-mask="true">
+          <p className="text-t4 text-text-secondary" data-clarity-mask="true">
             {selectedVehicleLabel ? `${selectedVehicleLabel} · ` : ''}
             {selectedAddressRecord?.label || selectedAddressRecord?.address || ''}
           </p>
-          <p className="text-[13px] text-success">
+          <p className="text-t4 text-success">
             Held for you until {istClock(acceptedRequest.confirmBy)}. The car,
             address and time are what the garage said yes to.
           </p>
@@ -1920,7 +1956,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
             className="whitespace-nowrap"
           />
           {isPickup && (
-            <p className="mt-2 text-[13px] leading-relaxed text-text-secondary">
+            <p className="mt-2 text-t4 leading-relaxed text-text-secondary">
               {vendor?.name ?? 'The garage'} collects your car from your
               address, works on it at the garage and brings it back.
             </p>
@@ -1965,7 +2001,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
         <h2
           ref={carStepRef}
           tabIndex={-1}
-          className="mb-3 scroll-mt-20 text-[17px] font-medium tracking-[-0.01em] text-text-primary outline-none"
+          className="mb-3 scroll-mt-20 text-t2 font-medium tracking-[-0.01em] text-text-primary outline-none"
         >
           Car
         </h2>
@@ -1981,17 +2017,17 @@ function BookContent({ vendorId }: { vendorId: string }) {
           />
         ) : vehicles.length === 0 && !carDraftReady ? (
           <div className="flex flex-col items-start gap-2 rounded-[22px] border border-warning/40 bg-warning-muted/20 p-4">
-            <p className="text-[15px] text-text-primary">
+            <p className="text-t3 text-text-primary">
               Add a car to continue
             </p>
-            <p className="text-[13px] text-text-secondary">
+            <p className="text-t4 text-text-secondary">
               We need to know which car we&apos;re washing — pricing can differ
               by type.
             </p>
             <button
               type="button"
               onClick={() => setAddCarOpen(true)}
-              className="press mt-1 inline-flex h-11 items-center gap-1.5 rounded-pill border border-stroke px-4 text-[15px] text-text-primary"
+              className="press mt-1 inline-flex h-11 items-center gap-1.5 rounded-pill border border-stroke px-4 text-t3 text-text-primary"
             >
               <IconPlus size={16} aria-hidden /> Add a car
             </button>
@@ -2012,7 +2048,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                     : 'border-line bg-white/[0.02]'
                 )}
               >
-                <span className="flex min-w-0 items-center gap-1.5 text-[15px] text-text-primary">
+                <span className="flex min-w-0 items-center gap-1.5 text-t3 text-text-primary">
                   <span className="truncate">
                     {draftCar.make.trim()} {draftCar.model.trim()}
                   </span>
@@ -2020,7 +2056,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                     <IconCheck size={15} stroke={2} aria-hidden className="shrink-0" />
                   )}
                 </span>
-                <span className="truncate text-[13px] text-dim">
+                <span className="truncate text-t4 text-dim">
                   {VEHICLE_TIERS.find((t) => t.value === draftCar.vehicleType)?.label} · new
                 </span>
               </button>
@@ -2041,7 +2077,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                       : 'border-line bg-white/[0.02]'
                   )}
                 >
-                  <span className="flex min-w-0 items-center gap-1.5 text-[15px] text-text-primary">
+                  <span className="flex min-w-0 items-center gap-1.5 text-t3 text-text-primary">
                     <span className="truncate">
                       {v.make} {v.model}
                     </span>
@@ -2055,7 +2091,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                     )}
                   </span>
                   <span
-                    className="truncate font-numeric text-[13px] text-dim"
+                    className="truncate font-numeric text-t4 text-dim"
                     data-clarity-mask="true"
                   >
                     {v.plate}
@@ -2068,7 +2104,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
             <button
               type="button"
               onClick={() => setAddCarOpen(true)}
-              className="press flex min-h-[64px] items-center justify-center gap-1.5 rounded-[18px] border border-dashed border-stroke text-[13px] text-text-secondary transition-colors hover:text-text-primary"
+              className="press flex min-h-[64px] items-center justify-center gap-1.5 rounded-[18px] border border-dashed border-stroke text-t4 text-text-secondary transition-colors hover:text-text-primary"
             >
               <IconPlus size={15} aria-hidden /> Add another car
             </button>
@@ -2084,23 +2120,23 @@ function BookContent({ vendorId }: { vendorId: string }) {
           <h2
             ref={addressStepRef}
             tabIndex={-1}
-            className="mb-3 scroll-mt-20 text-[17px] font-medium tracking-[-0.01em] text-text-primary outline-none"
+            className="mb-3 scroll-mt-20 text-t2 font-medium tracking-[-0.01em] text-text-primary outline-none"
           >
             {isPickup
               ? 'Where should we collect your car?'
               : 'Where should we come?'}
           </h2>
           {isPickup && addressOptions.length > 0 && (
-            <p className="-mt-1 mb-3 text-[13px] text-text-secondary">
+            <p className="-mt-1 mb-3 text-t4 text-text-secondary">
               The garage brings your car back to the same address.
             </p>
           )}
           {addressOptions.length === 0 ? (
             <div className="flex flex-col items-start gap-2 rounded-[22px] border border-warning/40 bg-warning-muted/20 p-4">
-              <p className="text-[15px] text-text-primary">
+              <p className="text-t3 text-text-primary">
                 Add an address to continue
               </p>
-              <p className="text-[13px] text-text-secondary">
+              <p className="text-t4 text-text-secondary">
                 {isPickup
                   ? 'Pickup & drop needs the address your car is collected from.'
                   : 'Doorstep service needs somewhere to go.'}
@@ -2110,7 +2146,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
               <button
                 type="button"
                 onClick={() => setAddAddressOpen(true)}
-                className="press mt-1 inline-flex h-11 items-center gap-1.5 rounded-pill border border-stroke px-4 text-[15px] text-text-primary"
+                className="press mt-1 inline-flex h-11 items-center gap-1.5 rounded-pill border border-stroke px-4 text-t3 text-text-primary"
               >
                 <IconPlus size={16} aria-hidden /> Add an address
               </button>
@@ -2139,14 +2175,14 @@ function BookContent({ vendorId }: { vendorId: string }) {
                     />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block text-[15px] text-text-primary">
+                    <span className="block text-t3 text-text-primary">
                       {a.label}
                       {a.id === DRAFT_ADDRESS && !isGuest && (
                         <span className="text-text-muted"> · new</span>
                       )}
                     </span>
                     <span
-                      className="block truncate text-[13px] text-text-secondary"
+                      className="block truncate text-t4 text-text-secondary"
                       data-clarity-mask="true"
                     >
                       {a.address}
@@ -2154,7 +2190,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                     {/* Said on every address it applies to, so the customer
                         can see which of theirs would work before tapping. */}
                     {outsidePickup(a) && (
-                      <span className="mt-0.5 block text-[13px] text-error">
+                      <span className="mt-0.5 block text-t4 text-error">
                         Outside this garage&apos;s pickup area
                       </span>
                     )}
@@ -2167,10 +2203,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
                   role="status"
                   className="flex flex-col gap-2 rounded-[18px] border border-warning/40 bg-warning-muted/20 p-4"
                 >
-                  <p className="text-[15px] text-text-primary">
+                  <p className="text-t3 text-text-primary">
                     This garage doesn&apos;t pick up from this address
                   </p>
-                  <p className="text-[13px] text-text-secondary">
+                  <p className="text-t4 text-text-secondary">
                     Try another address
                     {otherMode
                       ? `, or book ${BOOKED_AS[otherMode]} instead`
@@ -2181,7 +2217,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                     <button
                       type="button"
                       onClick={() => setChosenType(otherMode)}
-                      className="press mt-1 inline-flex h-11 items-center self-start rounded-pill border border-stroke px-4 text-[15px] text-text-primary"
+                      className="press mt-1 inline-flex h-11 items-center self-start rounded-pill border border-stroke px-4 text-t3 text-text-primary"
                     >
                       Choose {BOOKING_TYPE_LABELS[otherMode]}
                     </button>
@@ -2194,11 +2230,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
                   <p
                     ref={pinStepRef}
                     tabIndex={-1}
-                    className="scroll-mt-20 text-[15px] text-text-primary outline-none"
+                    className="scroll-mt-20 text-t3 text-text-primary outline-none"
                   >
                     Pin the exact spot
                   </p>
-                  <p className="text-[13px] text-text-secondary">
+                  <p className="text-t4 text-text-secondary">
                     {isPickup
                       ? 'We need it to check this garage collects from you, and so the driver finds your car.'
                       : 'We need it to check this garage travels to you.'}
@@ -2211,7 +2247,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
               <button
                 type="button"
                 onClick={() => setAddAddressOpen(true)}
-                className="press flex min-h-12 items-center justify-center gap-1.5 rounded-[18px] border border-dashed border-stroke text-[13px] text-text-secondary transition-colors hover:text-text-primary"
+                className="press flex min-h-12 items-center justify-center gap-1.5 rounded-[18px] border border-dashed border-stroke text-t4 text-text-secondary transition-colors hover:text-text-primary"
               >
                 {isGuest ? (
                   'Change address'
@@ -2237,7 +2273,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
           <section aria-labelledby="checkout-savings">
             <h2
               id="checkout-savings"
-              className="mb-3 text-[17px] font-medium tracking-[-0.01em] text-text-primary"
+              className="mb-3 text-t2 font-medium tracking-[-0.01em] text-text-primary"
             >
               Savings
             </h2>
@@ -2246,7 +2282,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
               {savedVehicleId && (appliedDiscount ? (
                 <div className="flex min-h-[60px] items-center justify-between gap-3 py-2">
                   <div className="min-w-0">
-                    <p className="text-[15px] text-text-primary">
+                    <p className="text-t3 text-text-primary">
                       {suggestionApplied && appliedReward
                         ? `Best for you: ${appliedReward.label}`
                         : appliedReward
@@ -2257,7 +2293,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                               ? 'Free wash applied'
                               : `${appliedDiscount.code} applied`}
                     </p>
-                    <p className="text-[13px] text-success">
+                    <p className="text-t4 text-success">
                       Saves{' '}
                       <span className="font-numeric">
                         {money(appliedDiscount.discountAmount)}
@@ -2269,7 +2305,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                   <button
                     type="button"
                     onClick={handleRemovePromo}
-                    className="-mr-2 min-h-11 shrink-0 px-2 text-[15px] text-text-primary"
+                    className="-mr-2 min-h-11 shrink-0 px-2 text-t3 text-text-primary"
                   >
                     Remove
                   </button>
@@ -2285,11 +2321,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
                       <span className="flex size-7 items-center justify-center rounded-full bg-success-muted text-success">
                         <IconPercentage size={15} aria-hidden />
                       </span>
-                      <span className="text-[15px] text-text-primary">
+                      <span className="text-t3 text-text-primary">
                         Coupons and offers
                       </span>
                     </span>
-                    <span className="flex shrink-0 items-center gap-0.5 text-[13px] text-text-primary">
+                    <span className="flex shrink-0 items-center gap-0.5 text-t4 text-text-primary">
                       {offerChecking ? `Checking ${offerCode}…` : 'Apply'}
                       <IconChevronRight size={15} aria-hidden />
                     </span>
@@ -2301,7 +2337,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                     <div className="mb-2 flex items-center justify-between gap-3">
                       <p
                         role="status"
-                        className="flex items-start gap-1.5 text-[13px] text-error"
+                        className="flex items-start gap-1.5 text-t4 text-error"
                       >
                         <IconAlertCircle
                           size={15}
@@ -2317,7 +2353,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                         type="button"
                         onClick={handleRemovePromo}
                         aria-label={`Remove ${offerCode}`}
-                        className="-mr-2 min-h-11 shrink-0 px-2 text-[13px] text-text-primary"
+                        className="-mr-2 min-h-11 shrink-0 px-2 text-t4 text-text-primary"
                       >
                         Remove
                       </button>
@@ -2333,7 +2369,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                           type="button"
                           disabled={applyPromo.isPending}
                           onClick={() => handleApplyReward(wash.code)}
-                          className="flex min-h-11 items-center rounded-full border border-stroke px-3.5 text-[13px] text-text-primary disabled:opacity-50"
+                          className="flex min-h-11 items-center rounded-full border border-stroke px-3.5 text-t4 text-text-primary disabled:opacity-50"
                         >
                           Free wash · up to ₹{wash.amount}
                         </button>
@@ -2344,7 +2380,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                           type="button"
                           disabled={applyPromo.isPending}
                           onClick={() => handleApplyReward(voucher.code!)}
-                          className="flex min-h-11 items-center gap-1.5 rounded-full border border-stroke px-3.5 text-[13px] text-text-primary disabled:opacity-50"
+                          className="flex min-h-11 items-center gap-1.5 rounded-full border border-stroke px-3.5 text-t4 text-text-primary disabled:opacity-50"
                         >
                           <span className="font-numeric">
                             {rewardRupees(voucher.amount)} off
@@ -2360,7 +2396,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                           type="button"
                           disabled={applyPromo.isPending}
                           onClick={() => handleApplyReward(coupon.code)}
-                          className="flex min-h-11 items-center rounded-full border border-stroke px-3.5 text-[13px] text-text-primary disabled:opacity-50"
+                          className="flex min-h-11 items-center rounded-full border border-stroke px-3.5 text-t4 text-text-primary disabled:opacity-50"
                         >
                           {coupon.title}
                         </button>
@@ -2377,7 +2413,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                     savedVehicleId && 'border-t border-line'
                   )}
                 >
-                  <span className="min-w-0 text-[15px] text-text-primary">
+                  <span className="min-w-0 text-t3 text-text-primary">
                     Use{' '}
                     <span className="font-numeric">
                       {money(creditSplit.credit)}
@@ -2407,7 +2443,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
           <h2 id="checkout-price" className="sr-only">
             Price
           </h2>
-          <div className="hub-card flex flex-col gap-3 p-5 text-[15px]">
+          <div className="hub-card flex flex-col gap-3 p-5 text-t3">
             {/* Only once there is more than one line to add up. */}
             {lineCount > 1 && (
               <div className="flex items-center justify-between gap-3">
@@ -2424,7 +2460,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                   <span className="block">Pickup &amp; drop</span>
                   {selectedAddressRecord && (
                     <span
-                      className="block truncate text-[13px] text-text-muted"
+                      className="block truncate text-t4 text-text-muted"
                       data-clarity-mask="true"
                     >
                       From and back to {selectedAddressRecord.address}
@@ -2472,7 +2508,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                   'border-t border-line pt-3'
               )}
             >
-              <span className="text-[17px] text-text-primary">To pay</span>
+              <span className="text-t2 text-text-primary">To pay</span>
               <span className="font-numeric text-[20px] text-text-primary">
                 {toPay == null || !selectedVehicle ? '—' : money(toPay)}
               </span>
@@ -2482,7 +2518,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
           {/* Before paying, on purpose (owner decision): who has the car
               while it is away. */}
           {isPickup && (
-            <p className="flex items-start gap-1.5 text-[13px] leading-relaxed text-text-primary">
+            <p className="flex items-start gap-1.5 text-t4 leading-relaxed text-text-primary">
               <IconShieldCheck
                 size={16}
                 className="mt-px shrink-0 text-text-secondary"
@@ -2497,7 +2533,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
           {selectedServices.some(
             (service) => service.pricingType === 'on_inspection'
           ) && (
-            <p className="text-[13px] leading-relaxed text-text-secondary">
+            <p className="text-t4 leading-relaxed text-text-secondary">
               You pay the inspection fee now. If the work costs more, the garage
               sends the final bill in the app and you pay the rest here.
             </p>
@@ -2506,7 +2542,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
           {/* Mirrors what the server enforces: CANCELLATION_CUTOFF_MS and
               MAX_RESCHEDULES in bookings.service.ts, and the no-show rule ops
               applies (markNoShow). */}
-          <p className="text-[12px] leading-relaxed text-text-muted">
+          <p className="text-t5 leading-relaxed text-text-muted">
             <span className="text-text-secondary">Cancellation policy:</span>{' '}
             Cancel any time until the garage accepts. Once it has, cancel or
             reschedule up to 2 hours before your slot. You can reschedule up to
@@ -2521,7 +2557,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
               once the car is saved to one (0062). A code from a link is
               checked then, before paying. */}
           {selectedVehicle && !savedVehicleId && (
-            <p className="text-[13px] leading-relaxed text-text-secondary">
+            <p className="text-t4 leading-relaxed text-text-secondary">
               {offerCode
                 ? `Code ${offerCode} is checked when you pay.`
                 : 'Have a coupon? You can apply it once you’re signed in.'}
@@ -2563,7 +2599,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
             id="checkout-signed-in"
             ref={signInStepRef}
             tabIndex={-1}
-            className="scroll-mt-20 text-[17px] font-medium tracking-[-0.01em] text-text-primary outline-none"
+            className="scroll-mt-20 text-t2 font-medium tracking-[-0.01em] text-text-primary outline-none"
           >
             {needsName ? (
               'Your name'
@@ -2592,7 +2628,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
           )}
           {selectedVehicle === DRAFT_CAR && vehicles.length > 0 && (
             <div className="flex flex-col gap-2">
-              <p className="text-[13px] text-text-secondary">
+              <p className="text-t4 text-text-secondary">
                 We&apos;ll save the car you entered. Or use a saved one:
               </p>
               <div className="flex flex-wrap gap-2">
@@ -2601,7 +2637,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                     key={v.id}
                     type="button"
                     onClick={() => setPickedVehicle(v.id)}
-                    className="flex min-h-11 items-center rounded-full border border-stroke px-3.5 text-[13px] text-text-primary"
+                    className="flex min-h-11 items-center rounded-full border border-stroke px-3.5 text-t4 text-text-primary"
                   >
                     Use saved: {v.make} {v.model}
                   </button>
@@ -2611,7 +2647,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
           )}
           {selectedAddress === DRAFT_ADDRESS && addresses.length > 0 && (
             <div className="flex flex-col gap-2">
-              <p className="text-[13px] text-text-secondary">
+              <p className="text-t4 text-text-secondary">
                 We&apos;ll save the address you entered. Or use a saved one:
               </p>
               <div className="flex flex-wrap gap-2">
@@ -2620,7 +2656,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                     key={a.id}
                     type="button"
                     onClick={() => pickAddress(a.id)}
-                    className="flex min-h-11 items-center rounded-full border border-stroke px-3.5 text-[13px] text-text-primary"
+                    className="flex min-h-11 items-center rounded-full border border-stroke px-3.5 text-t4 text-text-primary"
                   >
                     Use saved: {a.label}
                   </button>
@@ -2629,7 +2665,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
             </div>
           )}
           {!needsName && selectedVehicle !== DRAFT_CAR && selectedAddress !== DRAFT_ADDRESS && (
-            <p className="text-[13px] text-text-secondary">
+            <p className="text-t4 text-text-secondary">
               You&apos;re signed in. Pay below to send your booking to the garage.
             </p>
           )}
@@ -2693,14 +2729,14 @@ function BookContent({ vendorId }: { vendorId: string }) {
             value={promoInput}
             onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
             onKeyDown={(e) => e.key === 'Enter' && handleApplyPromo()}
-            className="min-w-0 flex-1 bg-transparent py-3.5 text-[15px] uppercase text-text-primary outline-none placeholder:normal-case placeholder:text-text-muted"
+            className="min-w-0 flex-1 bg-transparent py-3.5 text-t3 uppercase text-text-primary outline-none placeholder:normal-case placeholder:text-text-muted"
           />
           {/* White, not red: the sheet's action is a text action (F5). */}
           <button
             type="button"
             disabled={!canApplyPromo || applyPromo.isPending}
             onClick={handleApplyPromo}
-            className="-mr-1 min-h-11 shrink-0 px-2 text-[15px] font-medium text-text-primary transition-colors disabled:text-text-muted"
+            className="-mr-1 min-h-11 shrink-0 px-2 text-t3 font-medium text-text-primary transition-colors disabled:text-text-muted"
           >
             {applyPromo.isPending ? 'Checking…' : 'Apply'}
           </button>
@@ -2713,7 +2749,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
           <p
             id="promo-code-error"
             role="alert"
-            className="mt-2 flex items-start gap-1.5 text-[13px] text-error"
+            className="mt-2 flex items-start gap-1.5 text-t4 text-error"
           >
             <IconAlertCircle
               size={15}
@@ -2724,7 +2760,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
           </p>
         )}
 
-        <p className="mt-4 text-[13px] text-text-muted">
+        <p className="mt-4 text-t4 text-text-muted">
           Have a code from Detlio? Enter it above to see your savings before you
           pay.
         </p>
@@ -2759,7 +2795,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
           // Graphite with a spinner, not the red pill: red means "this pays".
           <ScButton
             disabled
-            className="flex h-[52px] items-center justify-center gap-2 rounded-full bg-surface-elevated py-0 text-[15px] font-medium text-text-primary ring-1 ring-inset ring-border hover:bg-surface-elevated disabled:cursor-wait disabled:opacity-100"
+            className="flex h-[52px] items-center justify-center gap-2 rounded-full bg-surface-elevated py-0 text-t3 font-medium text-text-primary ring-1 ring-inset ring-border hover:bg-surface-elevated disabled:cursor-wait disabled:opacity-100"
           >
             <IconLoader2
               size={16}
@@ -2773,7 +2809,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
             {/* The running total from the first second (F1): what, for which
                 car, and how much. */}
             {selectedServices.length > 0 && (
-              <div className="mb-2.5 flex items-baseline justify-between gap-3 text-[13px]">
+              <div className="mb-2.5 flex items-baseline justify-between gap-3 text-t4">
                 <span className="min-w-0 truncate text-dim">
                   {bookingSummary}
                   {selectedCar ? ` · ${selectedCar.model}` : ''}
@@ -2781,7 +2817,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 {subtotal != null && selectedVehicle && (
                   <span className="shrink-0 text-dim">
                     {toPay != null && toPay !== subtotal ? 'To pay' : 'Total'}{' '}
-                    <span className="font-numeric text-[15px] text-text-primary">
+                    <span className="font-numeric text-t3 text-text-primary">
                       {money(toPay ?? subtotal)}
                     </span>
                   </span>
@@ -2790,7 +2826,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
             )}
             {/* Two promises right above Pay, where people hesitate (F4). */}
             {!nextStep && (
-              <ul className="mb-2.5 flex flex-col items-center gap-1 text-[13px] text-text-secondary">
+              <ul className="mb-2.5 flex flex-col items-center gap-1 text-t4 text-text-secondary">
                 {guaranteeApplies && (
                   // Short, beside Pay; the full promise is on the claim screen.
                   <li
@@ -2839,7 +2875,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 nextStep ? () => goToStep(nextStep) : () => void handlePay()
               }
               className={cn(
-                'h-[52px] rounded-full py-0 text-[15px] font-medium',
+                'h-[52px] rounded-full py-0 text-t3 font-medium',
                 // Grey until the booking is ready, so red only ever means
                 // "this pays" (F5's "not ready yet").
                 nextStep &&
@@ -2879,7 +2915,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
             </MainAction>
             <p
               id="checkout-cta-hint"
-              className="mt-2 text-center text-[12px] leading-snug text-text-muted"
+              className="mt-2 text-center text-t5 leading-snug text-text-muted"
             >
               {nextStep === 'address' ? (
                 addressOptions.length === 0 ? (
@@ -2932,7 +2968,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
             </p>
             {/* Beside Pay, as Razorpay and the E-Commerce Rules expect. New
                 tabs, so the time, car and code picked here are still here. */}
-            <p className="mt-1 text-center text-[12px] text-text-muted">
+            <p className="mt-1 text-center text-t5 text-text-muted">
               By paying you agree to the{' '}
               <a
                 href={LEGAL_PATHS.terms}

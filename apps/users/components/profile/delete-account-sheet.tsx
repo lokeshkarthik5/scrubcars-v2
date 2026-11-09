@@ -94,7 +94,7 @@ export function DeleteAccountSheet({
       <div className="flex flex-col gap-3 px-5 pt-1">
         {phase.kind === 'deleted' ? (
           <>
-            <h2 className="text-[17px] font-semibold text-text-primary">{words.doneTitle}</h2>
+            <h2 className="text-t2 font-semibold text-text-primary">{words.doneTitle}</h2>
             <p role="status" className="text-[14px] text-text-secondary">
               {words.doneBody}
             </p>
@@ -104,7 +104,7 @@ export function DeleteAccountSheet({
           </>
         ) : (
           <>
-            <h2 className="text-[17px] font-semibold text-text-primary">{words.title}</h2>
+            <h2 className="text-t2 font-semibold text-text-primary">{words.title}</h2>
             {phase.kind === 'checking' && (
               <p role="status" className="text-[14px] text-text-secondary">
                 Checking your account…
@@ -133,23 +133,23 @@ export function DeleteAccountSheet({
             {phase.kind === 'ready' && phase.preview.canDelete && (
               <>
                 <section aria-label="What is deleted">
-                  <p className="text-[13px] font-semibold text-text-primary">{words.deletedHeading}</p>
-                  <ul className="mt-1 list-disc pl-5 text-[13px] text-text-secondary">
+                  <p className="text-t4 font-semibold text-text-primary">{words.deletedHeading}</p>
+                  <ul className="mt-1 list-disc pl-5 text-t4 text-text-secondary">
                     {words.deleted.map((line) => (
                       <li key={line}>{line}</li>
                     ))}
                   </ul>
                 </section>
                 <section aria-label="What is kept">
-                  <p className="text-[13px] font-semibold text-text-primary">{words.keptHeading}</p>
-                  <ul className="mt-1 list-disc pl-5 text-[13px] text-text-secondary">
+                  <p className="text-t4 font-semibold text-text-primary">{words.keptHeading}</p>
+                  <ul className="mt-1 list-disc pl-5 text-t4 text-text-secondary">
                     {words.kept.map((line) => (
                       <li key={line}>{line}</li>
                     ))}
                   </ul>
                 </section>
-                <p className="text-[13px] text-text-secondary">{words.final}</p>
-                <label className="flex flex-col gap-1.5 text-[13px] text-text-secondary">
+                <p className="text-t4 text-text-secondary">{words.final}</p>
+                <label className="flex flex-col gap-1.5 text-t4 text-text-secondary">
                   <span>
                     Type <span className="font-semibold text-text-primary">{ACCOUNT_DELETION_CONFIRM}</span> to confirm
                   </span>
@@ -160,7 +160,7 @@ export function DeleteAccountSheet({
                     autoComplete="off"
                     autoCapitalize="characters"
                     spellCheck={false}
-                    className="h-12 w-full rounded-[14px] border border-border bg-surface px-3.5 text-[16px] text-text-primary outline-none focus:border-text-primary"
+                    className="h-12 w-full rounded-[14px] border border-border bg-surface px-3.5 text-t3 text-text-primary outline-none focus:border-text-primary"
                   />
                 </label>
               </>

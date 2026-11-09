@@ -141,12 +141,12 @@ export default function BookingReceiptPage({ params }: { params: Promise<{ id: s
       <main className="mx-auto flex min-h-dvh w-full max-w-[428px] flex-col bg-brand-black px-4 py-4">
         <TopBar showBack backHref={`/bookings/${id}`} title="Receipt" />
         {state.kind === 'loading' ? (
-          <p role="status" className="pt-4 text-[13px] text-text-secondary">
+          <p role="status" className="pt-4 text-t4 text-text-secondary">
             Loading your receipt…
           </p>
         ) : (
           <div className="flex flex-col gap-4 pt-4">
-            <p className="text-[13px] text-text-secondary">
+            <p className="text-t4 text-text-secondary">
               {state.kind === 'unavailable' || state.kind === 'pending'
                 ? state.message
                 : 'Could not load this receipt. It may have been removed or you may not have access.'}
@@ -206,7 +206,7 @@ export default function BookingReceiptPage({ params }: { params: Promise<{ id: s
         {printBlocked && (
           <p
             role="alert"
-            className="mt-3 rounded-[10px] border border-warning bg-warning-muted/20 px-3 py-2 text-[13px] text-warning"
+            className="mt-3 rounded-[10px] border border-warning bg-warning-muted/20 px-3 py-2 text-t4 text-warning"
           >
             Your browser can&apos;t print from here. Open this page in Chrome or Safari (⋮ › Open
             in browser) to save it as a PDF. You may need to sign in there.
@@ -214,7 +214,7 @@ export default function BookingReceiptPage({ params }: { params: Promise<{ id: s
         )}
         {/* iPhones have no "Save as PDF" printer: Safari saves a PDF from
             the Share button on its print screen. So both phones get a line. */}
-        <p className="mt-2 text-[12px] text-text-muted">
+        <p className="mt-2 text-t5 text-text-muted">
           Download PDF opens your phone&apos;s print screen. On Android, choose{' '}
           <strong>Save as PDF</strong> as the printer; on iPhone, tap <strong>Share</strong> at the
           top, then <strong>Save to Files</strong>. A shared link only opens for you when signed
@@ -242,7 +242,7 @@ function Row({
 }) {
   return (
     <div
-      className={`flex items-baseline justify-between gap-4 py-1 ${strong ? 'text-[15px] font-bold' : 'text-[13px]'}`}
+      className={`flex items-baseline justify-between gap-4 py-1 ${strong ? 'text-t3 font-bold' : 'text-t4'}`}
     >
       <span className="min-w-0 break-words">{label}</span>
       {/* Never narrower than its longest word: an amount stays on one line,
@@ -255,7 +255,7 @@ function Row({
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="border-t border-neutral-200 pt-4 break-inside-avoid">
-      <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-600">
+      <h2 className="mb-2 text-t5 font-semibold uppercase tracking-wide text-neutral-600">
         {title}
       </h2>
       {children}
@@ -265,7 +265,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 /** A detail under a line: a payment id, a date, how a refund went back. */
 function Detail({ children }: { children: React.ReactNode }) {
-  return <p className="text-[12px] text-neutral-600">{children}</p>
+  return <p className="text-t5 text-neutral-600">{children}</p>
 }
 
 /**
@@ -295,15 +295,15 @@ function ReceiptDocument({ receipt }: { receipt: BookingReceipt }) {
           {/* The business behind the brand, so the customer knows who they
               paid; "Detlio" alone is a brand, not a business. */}
           {issuer.tradeName && (
-            <p className="mt-2 text-[12px]">Operated by {issuer.tradeName}</p>
+            <p className="mt-2 text-t5">Operated by {issuer.tradeName}</p>
           )}
-          {issuer.address && <p className="text-[12px] text-neutral-600">{issuer.address}</p>}
-          <p className="mt-1 text-[12px] text-neutral-600">{issuer.website}</p>
+          {issuer.address && <p className="text-t5 text-neutral-600">{issuer.address}</p>}
+          <p className="mt-1 text-t5 text-neutral-600">{issuer.website}</p>
         </div>
         <div className="sm:shrink-0 sm:text-right">
-          <h1 className="text-[15px] font-semibold">Payment receipt</h1>
-          <p className="mt-1 font-numeric text-[13px] font-medium">{receipt.receiptNumber}</p>
-          <p className="text-[12px] text-neutral-600">
+          <h1 className="text-t3 font-semibold">Payment receipt</h1>
+          <p className="mt-1 font-numeric text-t4 font-medium">{receipt.receiptNumber}</p>
+          <p className="text-t5 text-neutral-600">
             Issued <span className="font-numeric">{receipt.issuedOn}</span>
           </p>
         </div>
@@ -311,18 +311,18 @@ function ReceiptDocument({ receipt }: { receipt: BookingReceipt }) {
 
       <div className="grid gap-4 border-t border-neutral-200 pt-4 sm:grid-cols-2">
         <div className="min-w-0">
-          <h2 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-600">
+          <h2 className="mb-1 text-t5 font-semibold uppercase tracking-wide text-neutral-600">
             Customer
           </h2>
-          <p className="text-[13px] font-medium">{receipt.customer.name}</p>
-          <p className="font-numeric text-[13px]">{receipt.customer.phone}</p>
+          <p className="text-t4 font-medium">{receipt.customer.name}</p>
+          <p className="font-numeric text-t4">{receipt.customer.phone}</p>
         </div>
         <div className="min-w-0">
-          <h2 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-600">
+          <h2 className="mb-1 text-t5 font-semibold uppercase tracking-wide text-neutral-600">
             Garage
           </h2>
-          <p className="text-[13px] font-medium">{receipt.garage.name}</p>
-          <p className="text-[13px] text-neutral-600">{receipt.garage.address}</p>
+          <p className="text-t4 font-medium">{receipt.garage.name}</p>
+          <p className="text-t4 text-neutral-600">{receipt.garage.address}</p>
         </div>
       </div>
 
@@ -493,7 +493,7 @@ function ReceiptDocument({ receipt }: { receipt: BookingReceipt }) {
         <Row label="Net amount paid" value={formatReceiptAmount(receipt.netPaid)} strong />
       </Section>
 
-      <footer className="border-t border-neutral-200 pt-4 text-[12px] text-neutral-600">
+      <footer className="border-t border-neutral-200 pt-4 text-t5 text-neutral-600">
         <p className="font-medium text-brand-rich">{RECEIPT_NOT_TAX_INVOICE}</p>
         <p className="mt-1">
           Questions about this receipt? Call Detlio support on{' '}

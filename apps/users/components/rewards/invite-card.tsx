@@ -55,7 +55,7 @@ export function InviteCard({ invite }: { invite: MyRewards['invite'] }) {
         <h2 className="text-sm font-semibold text-text-primary">
           Invite a friend
         </h2>
-        <p className="mt-1 text-[13px] text-text-secondary">
+        <p className="mt-1 text-t4 text-text-secondary">
           <Figures
             text={`You both get ${rewardRupees(invite.amount)} off when their first booking of ${rewardRupees(invite.minAmount)} or more is done.`}
           />
@@ -63,7 +63,7 @@ export function InviteCard({ invite }: { invite: MyRewards['invite'] }) {
       </div>
       {url ? (
         <>
-          <p className="truncate rounded-[10px] border border-line px-3 py-2 font-numeric text-[13px] text-text-primary">
+          <p className="truncate rounded-[10px] border border-line px-3 py-2 font-numeric text-t4 text-text-primary">
             {url}
           </p>
           <div className="grid grid-cols-2 gap-2">
@@ -95,7 +95,7 @@ export function InviteCard({ invite }: { invite: MyRewards['invite'] }) {
           {create.isPending ? 'Making your link…' : 'Get your invite link'}
         </ScButton>
       )}
-      <p className="text-[11px] text-text-muted">
+      <p className="text-t5 text-text-muted">
         <Figures
           text={`${invite.rewardedThisYear} rewarded this year (up to ${invite.maxPerYear}; ${left} left)${invite.pending > 0 ? ` · ${invite.pending} waiting for a first booking` : ''}. For people new to Detlio only.`}
         />

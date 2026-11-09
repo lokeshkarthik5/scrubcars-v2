@@ -29,6 +29,7 @@ import {
   PICKUP_OFFERED,
   silverAndAboveCondition,
   vendorPageOpen,
+  vendorPagesOpen,
 } from './vendors.predicates.js'
 import type {
   serviceCategoryEnum,
@@ -84,6 +85,45 @@ export const vendorsRepository = {
   findPublicVendorById(id: string) {
     return db.query.vendors.findFirst({
       where: vendorPageOpen(id),
+    })
+  },
+
+  /**
+   * The garages a "Next free" ask names whose page is open, paused ones
+   * included: the rule itself answers null for those (lib/next-free.ts).
+   */
+  findPublicVendorsByIds(ids: string[]) {
+    if (ids.length === 0) return Promise.resolve([])
+    return db.query.vendors.findMany({
+      where: and(inArray(vendors.id, ids), vendorPagesOpen()),
+    })
+  },
+
+  /**
+   * The bookable services of several garages, in listServices' order (by
+   * name): the first one per garage is what checkout books from a link that
+   * names none, so it is the job "Next free" finds times for.
+   */
+  listServicesForVendors(vendorIds: string[]) {
+    if (vendorIds.length === 0) return Promise.resolve([])
+    return db.query.services.findMany({
+      columns: { id: true, vendorId: true, durationMins: true, isAddon: true },
+      where: and(
+        inArray(services.vendorId, vendorIds),
+        ne(services.category, 'package'),
+        eq(services.isAddon, false),
+        isNull(services.deletedAt),
+        eq(services.isActive, true)
+      ),
+      orderBy: [asc(services.name)],
+    })
+  },
+
+  /** Every weekday's hours of several garages, in one read. */
+  listWorkingHoursForVendors(vendorIds: string[]) {
+    if (vendorIds.length === 0) return Promise.resolve([])
+    return db.query.vendorWorkingHours.findMany({
+      where: inArray(vendorWorkingHours.vendorId, vendorIds),
     })
   },
 
