@@ -6,6 +6,7 @@ import {
   searchPlaces,
   type GeoPlace,
 } from '@repo/core/api/geo';
+import { useT } from '@repo/core/i18n'
 import { DEFAULT_CENTER, PICKER_ZOOM } from '@repo/core/map';
 import Constants from 'expo-constants';
 import * as Location from 'expo-location';
@@ -83,6 +84,7 @@ function PinMarker({
   coordinate: { latitude: number; longitude: number };
   onDragEnd: (lat: number, lng: number) => void;
 }) {
+  const t = useT()
   const [tracking, setTracking] = useState(true);
   useEffect(() => {
     const timer = setTimeout(() => setTracking(false), 600);
@@ -95,7 +97,7 @@ function PinMarker({
       tracksViewChanges={tracking}
       anchor={{ x: 0.5, y: 0.9 }}
       centerOffset={{ x: 0, y: -13 }}
-      accessibilityLabel="Garage pin. Drag to place it exactly."
+      accessibilityLabel={t('Garage pin. Drag to place it exactly.')}
       onDragEnd={(e) => onDragEnd(e.nativeEvent.coordinate.latitude, e.nativeEvent.coordinate.longitude)}
     >
       <PinDrawing />
@@ -111,6 +113,7 @@ function PinMarker({
  * "lat, lng" still place the pin, as on the web.
  */
 export function LocationPicker({ value, onChange, showSearch = true, expectedCity }: LocationPickerProps) {
+  const t = useT()
   const colors = useColors();
   const styles = useStyles();
   const { scheme } = useTheme();
@@ -193,7 +196,7 @@ export function LocationPicker({ value, onChange, showSearch = true, expectedCit
       // The pin is the thing that matters and we already have it. A failed lookup costs the
       // prefilled address text, not the coordinates.
       setAddress(null);
-      setError(LOOKUP_FAILED);
+      setError(t(LOOKUP_FAILED));
       onChangeRef.current({ lat, lng, address: '', city: '', pincode: '', source });
     } finally {
       if (seq === placeSeq.current) setResolving(false);
@@ -249,7 +252,7 @@ export function LocationPicker({ value, onChange, showSearch = true, expectedCit
             : place;
 
       if (resolved.lat === null || resolved.lng === null) {
-        setError(SUGGESTION_FAILED);
+        setError(t(SUGGESTION_FAILED));
         return;
       }
 
@@ -277,7 +280,7 @@ export function LocationPicker({ value, onChange, showSearch = true, expectedCit
         source: 'map_pin',
       });
     } catch {
-      setError(SUGGESTION_FAILED);
+      setError(t(SUGGESTION_FAILED));
     } finally {
       setResolving(false);
     }
@@ -318,6 +321,7 @@ export function LocationPicker({ value, onChange, showSearch = true, expectedCit
   };
 
   const useCurrentLocation = async () => {
+    const t = useT();
     const seq = ++locateSeq.current;
     setLocating(true);
     setError(null);
@@ -336,7 +340,7 @@ export function LocationPicker({ value, onChange, showSearch = true, expectedCit
       setFlyTo({ lat: latitude, lng: longitude });
       void placePin(latitude, longitude, 'gps');
     } catch {
-      if (seq === locateSeq.current) setError(LOCATION_BLOCKED);
+      if (seq === locateSeq.current) setError(t(LOCATION_BLOCKED));
     } finally {
       if (seq === locateSeq.current) setLocating(false);
     }
@@ -355,10 +359,10 @@ export function LocationPicker({ value, onChange, showSearch = true, expectedCit
           <View style={styles.search}>
             <IconSearch size={17} color={colors.textSecondary} />
             <TextInput
-              accessibilityLabel={SEARCH_PLACEHOLDER}
+              accessibilityLabel={t(SEARCH_PLACEHOLDER)}
               value={query}
               onChangeText={setQuery}
-              placeholder={SEARCH_PLACEHOLDER}
+              placeholder={t(SEARCH_PLACEHOLDER)}
               placeholderTextColor={colors.textMuted}
               keyboardAppearance="dark"
               autoCorrect={false}
@@ -375,7 +379,7 @@ export function LocationPicker({ value, onChange, showSearch = true, expectedCit
               nestedScrollEnabled
               keyboardShouldPersistTaps="handled"
               style={styles.results}
-              accessibilityLabel="Place suggestions"
+              accessibilityLabel={t('Place suggestions')}
             >
               {results.map((place, index) => (
                 <Pressable
@@ -413,7 +417,7 @@ export function LocationPicker({ value, onChange, showSearch = true, expectedCit
       >
         {!mapShown ? (
           <T size={12} color={colors.textSecondary}>
-            {MAP_UNAVAILABLE_NOTE}
+            {t(MAP_UNAVAILABLE_NOTE)}
           </T>
         ) : null}
         {mapShown ? <MapView
@@ -451,12 +455,12 @@ export function LocationPicker({ value, onChange, showSearch = true, expectedCit
       <View style={styles.linkBlock}>
         <View style={styles.linkRow}>
           <TextInput
-            accessibilityLabel="Google Maps link or coordinates"
+            accessibilityLabel={t('Google Maps link or coordinates')}
             value={linkInput}
             onChangeText={setLinkInput}
             onSubmitEditing={() => void applyLink()}
             onFocus={() => setResults([])}
-            placeholder="Paste Google Maps link or 13.0043, 80.2554"
+            placeholder={t('Paste Google Maps link or 13.0043, 80.2554')}
             placeholderTextColor={colors.textMuted}
             keyboardAppearance="dark"
             autoCapitalize="none"
@@ -465,7 +469,7 @@ export function LocationPicker({ value, onChange, showSearch = true, expectedCit
             style={styles.linkInput}
           />
           <ScButton variant="outline" height={38} fullWidth={false} disabled={!linkInput.trim() || linkBusy} onPress={() => void applyLink()} style={styles.use}>
-            {linkBusy ? 'Locating…' : 'Use'}
+            {linkBusy ? t('Locating…') : t('Use')}
           </ScButton>
         </View>
         {linkNotice ? (
@@ -476,19 +480,19 @@ export function LocationPicker({ value, onChange, showSearch = true, expectedCit
       </View>
 
       <ScButton variant="outline" height={44} disabled={locating} onPress={() => void useCurrentLocation()}>
-        {locating ? 'Finding you…' : 'Use my current location'}
+        {locating ? t('Finding you…') : t('Use my current location')}
       </ScButton>
 
       {!pin ? (
         <T size={11} color={colors.textSecondary}>
-          Search above, tap the map, or use your current location. Drag the pin to place it exactly.
+          {t('Search above, tap the map, or use your current location. Drag the pin to place it exactly.')}
         </T>
       ) : null}
 
       {address ? (
         <T size={11} color={colors.textSecondary}>
           <T size={11} color={colors.textMuted}>
-            Pin is at:
+            {t('Pin is at:')}
           </T>{' '}
           {address}
         </T>
@@ -505,12 +509,13 @@ export function LocationPicker({ value, onChange, showSearch = true, expectedCit
 
 /** A fixed dark bar over the map, so its words are the dark theme's in both themes. */
 function LookupBar() {
+  const t = useT()
   const colors = useColors();
   const styles = useStyles();
   return (
     <View style={styles.lookup}>
       <T size={11} color={colors.textSecondary} align="center">
-        Looking up this location…
+        {t('Looking up this location…')}
       </T>
     </View>
   );

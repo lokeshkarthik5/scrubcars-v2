@@ -1,6 +1,7 @@
 import { useGarage } from '@repo/core/api/hooks/use-vendors';
 import { bookingTypeParam } from '@repo/core/booking-types';
 import { distanceLabel, driveTimeLabel } from '@repo/core/drive-time';
+import { useT } from '@repo/core/i18n';
 import type { BookingType, Vendor } from '@repo/core/types';
 import { formatDuration } from '@repo/core/utils';
 import { RedButton } from '@repo/native-ui/finish';
@@ -32,12 +33,13 @@ export function QuickLook({
   mode: BookingType;
   onClose: () => void;
 }) {
+  const t = useT();
   return (
     <ScModal
       open={vendor !== null}
       onClose={onClose}
       flush
-      accessibilityLabel={vendor ? `Quick look: ${vendor.name}` : 'Quick look'}
+      accessibilityLabel={vendor ? t('Quick look: {name}', { name: vendor.name }) : t('Quick look')}
     >
       {vendor ? <QuickLookBody vendor={vendor} mode={mode} onClose={onClose} /> : null}
     </ScModal>
@@ -45,6 +47,7 @@ export function QuickLook({
 }
 
 function QuickLookBody({ vendor, mode, onClose }: { vendor: Vendor; mode: BookingType; onClose: () => void }) {
+  const t = useT();
   const styles = useStyles();
   const { fx } = useFinish();
   const garage = useGarage(vendor.id);
@@ -118,12 +121,12 @@ function QuickLookBody({ vendor, mode, onClose }: { vendor: Vendor; mode: Bookin
           <PressScale accessibilityRole="link" onPress={() => go(`/garage/${vendor.id}${query}`)} style={styles.flex}>
             <View style={[styles.open, { borderColor: fx.glassEdge }]}>
               <T variant="t3" weight={600}>
-                Open garage
+                {t('Open garage')}
               </T>
             </View>
           </PressScale>
           <RedButton height={48} radius={14} onPress={() => go(`/book/${vendor.id}${query}`)} style={styles.flex}>
-            Book
+            {t('Book')}
           </RedButton>
         </View>
       </View>

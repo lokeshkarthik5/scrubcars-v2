@@ -20,6 +20,7 @@ import {
 } from '@repo/core/reach'
 import type { BookingType } from '@repo/core/types'
 import { FreeWashSlot, RequestActionSlot } from './reach-slots'
+import { useT } from '@repo/core/i18n'
 
 /**
  * The garage list's "never empty" pieces (customer reach, 0062). Every piece
@@ -40,6 +41,7 @@ export function SkipTheDriveCard({
   nearestKm: number | null
   onSwitch: (mode: BookingType) => void
 }) {
+  const t = useT()
   return (
     <section
       aria-labelledby="skip-the-drive"
@@ -47,12 +49,12 @@ export function SkipTheDriveCard({
     >
       <div>
         <p className="text-t5 font-medium uppercase tracking-[0.12em] text-[#8FB4F0]">
-          Skip the drive
+          {t('Skip the drive')}
         </p>
         <h2 id="skip-the-drive" className="mt-1.5 text-t2 font-medium text-text-primary">
           {skipTheDriveTitle(nearestKm)}
         </h2>
-        <p className="mt-0.5 text-t4 text-text-secondary">Get it done without driving:</p>
+        <p className="mt-0.5 text-t4 text-text-secondary">{t('Get it done without driving:')}</p>
       </div>
       <ul className="flex flex-col gap-2">
         {rows.map((row) => (
@@ -77,13 +79,14 @@ export function SkipTheDriveCard({
 
 /** At garage, nearest 5–10 km, and a doorstep garage comes to them. */
 export function AtHomeLine({ onSwitch }: { onSwitch: () => void }) {
+  const t = useT()
   return (
     <button
       type="button"
       onClick={onSwitch}
       className="flex min-h-11 items-center gap-1 self-start text-t4 text-text-secondary"
     >
-      or have it done at home
+      {t('or have it done at home')}
       <IconArrowRight size={14} aria-hidden />
     </button>
   )
@@ -94,10 +97,11 @@ export function AtHomeLine({ onSwitch }: { onSwitch: () => void }) {
  * customer: a raised chip with the pickup car, beside "Comes to you too".
  */
 export function CanCollectChip() {
+  const t = useT()
   return (
     <span className="fx-raised inline-flex h-[26px] items-center gap-1.5 rounded-pill px-2.5 text-t4 font-medium text-[#D4D4DA]">
       <IconCarGarage size={13} aria-hidden className="text-[#A8A8B2]" />
-      Can collect your car
+      {t('Can collect your car')}
     </span>
   )
 }
@@ -112,15 +116,16 @@ export function CanCollectChip() {
  * (JOB_PHOTOS_REQUIRED is off), so photos at handover are not promised.
  */
 export function PickupExplainer() {
+  const t = useT()
   const steps = [
-    'Collected from your address. You hand it over with a code from the app.',
-    'Worked on at the garage. Follow each step on your booking, from picked up to on its way back.',
-    'Brought back to the same address, handed over with a second code.',
+    t('Collected from your address. You hand it over with a code from the app.'),
+    t('Worked on at the garage. Follow each step on your booking, from picked up to on its way back.'),
+    t('Brought back to the same address, handed over with a second code.'),
   ]
   return (
     <section aria-labelledby="pickup-explainer" className="hub-card flex flex-col gap-3 p-4">
       <h2 id="pickup-explainer" className="text-t2 font-medium text-text-primary">
-        They collect, you relax
+        {t('They collect, you relax')}
       </h2>
       <ol className="flex flex-col gap-2.5">
         {steps.map((step, i) => (
@@ -135,18 +140,18 @@ export function PickupExplainer() {
           </li>
         ))}
       </ol>
-      <ul aria-label="Why it is safe" className="flex flex-wrap gap-1.5">
+      <ul aria-label={t('Why it is safe')} className="flex flex-wrap gap-1.5">
         <li className="flex items-center gap-1 rounded-md bg-success-muted px-2 py-1 text-t5 text-success">
           <IconShieldCheck size={13} aria-hidden />
-          Garage responsible for your car
+          {t('Garage responsible for your car')}
         </li>
         <li className="flex items-center gap-1 rounded-md bg-success-muted px-2 py-1 text-t5 text-success">
           <IconKey size={13} aria-hidden />
-          Handover codes both ways
+          {t('Handover codes both ways')}
         </li>
         <li className="flex items-center gap-1 rounded-md bg-success-muted px-2 py-1 text-t5 text-success">
           <IconCamera size={13} aria-hidden />
-          Add your own photos before pickup
+          {t('Add your own photos before pickup')}
         </li>
       </ul>
     </section>
@@ -166,14 +171,15 @@ export function JustOutsideSection({
   items: JustOutsideVendor[]
   mode: Extract<BookingType, 'doorstep' | 'pickup'>
 }) {
+  const t = useT()
   const modeParam = bookingTypeParam(mode)
   return (
     <section aria-labelledby="just-outside" className="flex flex-col gap-3 pt-2">
       <div className="flex items-baseline justify-between gap-3">
         <h2 id="just-outside" className="text-t2 font-medium text-text-primary">
-          Just outside their area
+          {t('Just outside their area')}
         </h2>
-        <span className="text-t5 text-text-muted">by distance</span>
+        <span className="text-t5 text-text-muted">{t('by distance')}</span>
       </div>
       {items.map((item) => (
         <div key={item.vendor.id} data-garage-card="" data-just-outside="">
@@ -190,9 +196,9 @@ export function JustOutsideSection({
                 <Link
                   href={`/garage/${item.vendor.id}${modeParam ? `?mode=${modeParam}` : ''}`}
                   className="press flex min-h-11 items-center rounded-full border border-stroke px-4 text-[14px] text-text-primary"
-                  aria-label={`See prices at ${item.vendor.name}`}
+                  aria-label={t('See prices at {name}', { name: item.vendor.name })}
                 >
-                  See prices
+                  {t('See prices')}
                 </Link>
                 <RequestActionSlot garage={item} mode={mode} />
               </div>
@@ -219,6 +225,7 @@ export function NextTabFooter({
   offer: NextTabOffer | null
   onSwitch: (mode: BookingType) => void
 }) {
+  const t = useT()
   if (mode === 'pickup') return <FreeWashSlot />
   if (!offer) return null
   return (
@@ -228,7 +235,7 @@ export function NextTabFooter({
       className="press mt-1 flex min-h-14 w-full items-center gap-3 rounded-[16px] border border-dashed border-stroke px-4 text-left"
     >
       <span className="min-w-0 flex-1">
-        <span className="block text-t5 text-text-muted">Nothing here suits you?</span>
+        <span className="block text-t5 text-text-muted">{t('Nothing here suits you?')}</span>
         <span className="block text-t3 text-text-primary">{offer.label}</span>
       </span>
       <IconArrowRight size={18} aria-hidden className="shrink-0 text-text-secondary" />

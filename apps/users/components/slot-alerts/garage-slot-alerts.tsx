@@ -9,6 +9,7 @@ import {
 } from '@repo/core/api/hooks/use-slot-alerts'
 import { slotAlertSummary } from '@repo/core/slot-alerts'
 import { useAuthStore } from '@repo/core/stores/auth-store'
+import { useT } from '@repo/core/i18n'
 
 /**
  * The garage page's line for the days the customer is waiting on here
@@ -16,6 +17,7 @@ import { useAuthStore } from '@repo/core/stores/auth-store'
  * none. Set from checkout's "Notify me if a slot opens".
  */
 export function GarageSlotAlerts({ vendorId }: { vendorId: string }) {
+  const t = useT()
   const user = useAuthStore((s) => s.user)
   const alerts = useSlotAlerts({ enabled: !!user })
   const cancel = useCancelSlotAlert()
@@ -27,7 +29,7 @@ export function GarageSlotAlerts({ vendorId }: { vendorId: string }) {
   return (
     <ScCard
       className="flex items-start gap-3"
-      aria-label="Your slot alerts here"
+      aria-label={t('Your slot alerts here')}
     >
       <IconBell
         size={18}
@@ -37,7 +39,7 @@ export function GarageSlotAlerts({ vendorId }: { vendorId: string }) {
       />
       <div className="min-w-0 flex-1">
         <p className="text-t4 font-medium text-text-primary">
-          Waiting for a slot
+          {t('Waiting for a slot')}
         </p>
         <ul className="mt-1 flex flex-col gap-1">
           {here.map((alert) => (
@@ -50,10 +52,10 @@ export function GarageSlotAlerts({ vendorId }: { vendorId: string }) {
                 type="button"
                 disabled={cancel.isPending}
                 onClick={() => cancel.mutate(alert.id)}
-                aria-label={`Stop waiting for ${slotAlertSummary(alert)}`}
+                aria-label={t('Stop waiting for {slotAlertSummary}', { slotAlertSummary: slotAlertSummary(alert) })}
                 className="tap-target shrink-0 px-1 font-medium text-text-primary underline disabled:opacity-40"
               >
-                Stop waiting
+                {t('Stop waiting')}
               </button>
             </li>
           ))}
@@ -62,7 +64,7 @@ export function GarageSlotAlerts({ vendorId }: { vendorId: string }) {
           href="/profile/slot-alerts"
           className="mt-1 inline-block text-t5 text-text-secondary underline"
         >
-          All slot alerts
+          {t('All slot alerts')}
         </Link>
       </div>
     </ScCard>

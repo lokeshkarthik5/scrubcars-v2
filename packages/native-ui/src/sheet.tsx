@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ScButton } from './button';
 import { Spinner } from './primitives';
+import { useT } from './lang';
 import { T } from './text';
 import { createStyles, useColors, useFinish, useTheme } from './theme';
 import { ToastHost } from './toast';
@@ -44,6 +45,7 @@ export function ScSheet({
   accessibilityLabel?: string;
   horizontalPadding?: number;
 }) {
+  const t = useT();
   const { scheme } = useTheme();
   const { on: finish, fx } = useFinish();
   const styles = useStyles();
@@ -74,7 +76,7 @@ export function ScSheet({
         <Animated.View style={[StyleSheet.absoluteFill, { opacity: progress }]}>
           <BlurView intensity={8} tint={scheme} style={StyleSheet.absoluteFill} />
           <Pressable
-            accessibilityLabel="Close"
+            accessibilityLabel={t('Close')}
             style={[StyleSheet.absoluteFill, styles.backdrop]}
             onPress={() => dismissible && onClose()}
           />
@@ -138,6 +140,7 @@ export function ScModal({
   /** No inner padding: the content runs to the panel's edge (the quick look's photo). */
   flush?: boolean;
 }) {
+  const t = useT();
   const styles = useStyles();
   const { on: finish, fx } = useFinish();
   if (!open) return null;
@@ -152,7 +155,7 @@ export function ScModal({
       }}
     >
       <Pressable
-        accessibilityLabel="Close"
+        accessibilityLabel={t('Close')}
         style={[StyleSheet.absoluteFill, styles.modalBackdrop]}
         onPress={() => dismissible && onClose()}
       />
@@ -186,7 +189,7 @@ export function ConfirmSheet({
   title,
   body,
   confirmLabel,
-  cancelLabel = 'Keep it',
+  cancelLabel,
   busy = false,
   error,
 }: {
@@ -202,6 +205,7 @@ export function ConfirmSheet({
   /** Why it didn't work, shown in the sheet: a caller keeps it open and sets this. */
   error?: string;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const [pending, setPending] = useState(false);
@@ -259,7 +263,7 @@ export function ConfirmSheet({
             </View>
           </ScButton>
           <ScButton variant="outline" onPress={onClose} disabled={working}>
-            {cancelLabel}
+            {cancelLabel ?? t('Keep it')}
           </ScButton>
         </View>
       </View>

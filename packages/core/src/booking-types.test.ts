@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import {
   bookingTypeParam,
+  noticeSentence,
   offeredBookingTypes,
   parseBookingType,
   resolveBookingType,
@@ -71,5 +72,14 @@ describe('resolveBookingType', () => {
     expect(resolveBookingType(null, garage(true, true))).toBe('dropin')
     expect(resolveBookingType('doorstep', garage(true, false))).toBe('dropin')
     expect(resolveBookingType('dropin', garage(false, true))).toBe('doorstep')
+  })
+})
+
+describe('noticeSentence', () => {
+  test('says "at least" unless told not to, each form its own sentence', () => {
+    expect(noticeSentence('dropin')).toBe("At-garage bookings need at least 1 hour's notice.")
+    expect(noticeSentence('dropin', { atLeast: false })).toBe("At-garage bookings need 1 hour's notice.")
+    expect(noticeSentence('doorstep', { atLeast: false })).toBe("Doorstep visits need 3 hours' notice.")
+    expect(noticeSentence('pickup', { atLeast: false })).toBe("Pickup & drop needs 3 hours' notice.")
   })
 })

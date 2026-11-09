@@ -11,6 +11,7 @@
 // Relative, not @repo/core/…: kept loadable by path like the other twins.
 import { insidePickupReach } from './pickup'
 import type { BookingType } from './types'
+import { t, tn } from './i18n/translate'
 
 /** What each tab offers the customer, as the API counts it. */
 export interface ReachFigures {
@@ -43,10 +44,6 @@ export interface SkipTheDriveRow {
   detail: string
 }
 
-function garages(count: number): string {
-  return count === 1 ? '1 garage' : `${count} garages`
-}
-
 function rupees(amount: number): string {
   return `₹${Math.round(amount).toLocaleString('en-IN')}`
 }
@@ -71,19 +68,22 @@ export function atGarageReach(
     if (figures.doorstep.count > 0) {
       rows.push({
         mode: 'doorstep',
-        title: 'At your door',
-        detail: `${garages(figures.doorstep.count)} can come to your door${
-          figures.doorstep.fromPrice ? ` · from ${rupees(figures.doorstep.fromPrice)}` : ''
-        }`,
+        title: t('At your door'),
+        detail: figures.doorstep.fromPrice
+          ? tn(
+              figures.doorstep.count,
+              '{count} garage can come to your door · from {price}',
+              '{count} garages can come to your door · from {price}',
+              { price: rupees(figures.doorstep.fromPrice) }
+            )
+          : tn(figures.doorstep.count, '{count} garage can come to your door', '{count} garages can come to your door'),
       })
     }
     if (figures.pickup.count > 0) {
       rows.push({
         mode: 'pickup',
-        title: 'We collect your car',
-        detail: `${garages(figures.pickup.count)} ${
-          figures.pickup.count === 1 ? 'picks' : 'pick'
-        } up and ${figures.pickup.count === 1 ? 'drops' : 'drop'} back`,
+        title: t('We collect your car'),
+        detail: tn(figures.pickup.count, '{count} garage picks up and drops back', '{count} garages pick up and drop back'),
       })
     }
     return { skipTheDrive: rows.length > 0 ? rows : null, atHomeLine: false, nearestKm: figures.dropin.nearestKm }
@@ -98,8 +98,8 @@ export function atGarageReach(
 /** "The nearest garage is 14 km away", for the card's title; "No garage to drive to nearby" with none. */
 export function skipTheDriveTitle(nearestKm: number | null): string {
   return nearestKm === null
-    ? 'No garage to drive to near you yet'
-    : `The nearest garage is ${Math.round(nearestKm)} km away`
+    ? t('No garage to drive to near you yet')
+    : t('The nearest garage is {km} km away', { km: Math.round(nearestKm) })
 }
 
 export interface NextTabOffer {
@@ -147,7 +147,7 @@ export function canCollectFrom(
  * outside its area".
  */
 export function outsideLine(coverKm: number | null, outsideKm: number): string {
-  const out = `${outsideKm.toFixed(1).replace(/\.0$/, '')} km outside`
-  if (coverKm === null) return `${out} its area`
-  return `covers ${String(Number(coverKm.toFixed(1)))} km · ${out}`
+  const outside = outsideKm.toFixed(1).replace(/\.0$/, '')
+  if (coverKm === null) return t('{km} km outside its area', { km: outside })
+  return t('covers {cover} km · {km} km outside', { cover: String(Number(coverKm.toFixed(1))), km: outside })
 }

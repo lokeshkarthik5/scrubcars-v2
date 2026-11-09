@@ -11,6 +11,7 @@ import { ClampedText } from './clamped-text'
 import { ServiceIconTile } from './service-icon-tile'
 import { ServiceMediaArea } from './service-media-area'
 import { WhatsIncluded } from './service-points'
+import { useT } from '@repo/core/i18n'
 
 /**
  * The top of a service's (or package's) details sheet, down to what it
@@ -36,6 +37,7 @@ export function ServiceSheetTop({
   garageName: string
   isPackage: boolean
 }) {
+  const t = useT()
   const hasMedia = customerMedia(service.media).length > 0
   const { intro, points, note } = parseServiceDescription(service.description)
 
@@ -83,8 +85,8 @@ export function ServiceSheetTop({
           text={
             service.description ||
             (isPackage
-              ? 'No description available for this package.'
-              : 'No description available for this service.')
+              ? t('No description available for this package.')
+              : t('No description available for this service.'))
           }
         />
       ) : (

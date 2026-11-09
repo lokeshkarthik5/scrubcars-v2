@@ -7,14 +7,16 @@ import { createStyles, useColors } from '@repo/native-ui/theme';
 
 import { IconCheck, IconChevronDown } from '@repo/native-ui/icons';
 import { T } from '@repo/native-ui/text';
+import { msg, useT } from '@repo/core/i18n';
 
 const ROLE_LABEL: Record<string, string> = {
-  vendor_admin: 'Admin',
-  vendor_operator: 'Operator',
+  vendor_admin: msg('Admin'),
+  vendor_operator: msg('Operator'),
 };
 
 /** CompanySwitcher: nothing for one garage; a dropdown with logo, name and role for more. */
 export function CompanySwitcher() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const vendors = useAuth((s) => s.vendors);
@@ -31,7 +33,7 @@ export function CompanySwitcher() {
       <Pressable
         ref={button}
         accessibilityRole="button"
-        accessibilityLabel={`Garage: ${active.businessName}. Switch garage`}
+        accessibilityLabel={t('Garage: {name}. Switch garage', { name: active.businessName })}
         accessibilityState={{ expanded: menuTop !== null }}
         onPress={() => button.current?.measureInWindow((_x, y, _w, h) => setMenuTop(y + h + 4))}
         style={styles.button}
@@ -44,7 +46,7 @@ export function CompanySwitcher() {
       </Pressable>
       <Modal transparent visible={menuTop !== null} animationType="none" onRequestClose={() => setMenuTop(null)}>
         {/* Outside-tap closes. */}
-        <Pressable accessibilityLabel="Close" style={StyleSheet.absoluteFill} onPress={() => setMenuTop(null)} />
+        <Pressable accessibilityLabel={t('Close')} style={StyleSheet.absoluteFill} onPress={() => setMenuTop(null)} />
         <View accessibilityRole="menu" style={[styles.menu, { top: menuTop ?? 0 }]}>
           {vendors.map((vendor) => {
             const isActive = vendor.id === active.id;
@@ -65,7 +67,7 @@ export function CompanySwitcher() {
                     {vendor.businessName}
                   </T>
                   <T size={11} color={colors.textSecondary}>
-                    {vendor.isOwner ? 'Owner' : (ROLE_LABEL[vendor.role ?? ''] ?? 'Member')}
+                    {t(vendor.isOwner ? 'Owner' : (ROLE_LABEL[vendor.role ?? ''] ?? 'Member'))}
                   </T>
                 </View>
                 {isActive ? <IconCheck size={16} /> : null}

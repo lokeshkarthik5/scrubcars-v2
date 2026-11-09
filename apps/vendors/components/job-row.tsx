@@ -2,6 +2,8 @@
 
 import Link from 'next/link'
 import { IconCamera, IconCar, IconChevronRight } from '@tabler/icons-react'
+import { useT } from '@repo/core/i18n'
+import { msg } from '@repo/core/i18n/translate'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScButtonLink } from '@repo/ui/sc/button-link'
 import { StatusChip } from '@repo/ui/sc/status-chip'
@@ -36,8 +38,9 @@ export function JobRow({
   /** The job under way: outlined in blue, its step the screen's one red. */
   emphasis?: boolean
 }) {
+  const t = useT()
   const deferred = useDeferredStatus(b.id)
-  const who = b.customerName || 'the customer'
+  const who = b.customerName || t('the customer')
   const step = showStep && !deferred ? nextStep(b) : null
   const startsIn =
     b.status === 'confirmed' ? new Date(b.scheduledAtIso).getTime() - now : null
@@ -50,7 +53,7 @@ export function JobRow({
   return (
     <article
       id={`job-${b.id}`}
-      aria-label={`Job for ${who}`}
+      aria-label={t('Job for {who}', { who })}
       className={cn(
         'relative scroll-mt-4 rounded-[20px] border bg-surface p-4',
         emphasis
@@ -92,11 +95,11 @@ export function JobRow({
             </p>
           )}
           <p className="truncate text-[15px] text-text-secondary">
-            {servicesLine(b)} · {BOOKING_TYPE_LABELS[b.bookingType]}
+            {servicesLine(b)} · {t(BOOKING_TYPE_LABELS[b.bookingType])}
           </p>
           {dayOff && b.status !== 'completed' && (
             <p className="mt-1 text-[14px] text-text-secondary">
-              {cancelledLabel(b)}
+              {t(cancelledLabel(b))}
             </p>
           )}
         </div>
@@ -117,7 +120,7 @@ export function JobRow({
               variant={emphasis ? 'main' : 'outline'}
               size={emphasis ? 'lg' : 'md'}
               fullWidth
-              aria-label={`${nextStepLabel(step)} for ${who}`}
+              aria-label={t('{action} for {who}', { action: nextStepLabel(step), who })}
               onClick={() =>
                 changeStatusWithUndo(
                   b.id,
@@ -135,7 +138,7 @@ export function JobRow({
               variant={emphasis ? 'main' : 'outline'}
               size={emphasis ? 'lg' : 'md'}
               fullWidth
-              aria-label={`${nextStepLabel(step)} for ${who}`}
+              aria-label={t('{action} for {who}', { action: nextStepLabel(step), who })}
             >
               {step.kind === 'photos' && (
                 <IconCamera size={20} aria-hidden="true" />
@@ -154,12 +157,12 @@ export function JobRow({
 
 /** A step waiting behind its Undo, as the row's chip says it (0066 adds Accept and pickup's steps). */
 const DEFERRED_CHIP: Record<NonNullable<ReturnType<typeof useDeferredStatus>>, string> = {
-  confirmed: 'Accepted',
-  in_progress: 'In progress',
-  completed: 'Done',
-  picked_up: 'Picked up',
-  at_garage: 'At garage',
-  out_for_delivery: 'Out for delivery',
+  confirmed: msg('Accepted'),
+  in_progress: msg('In progress'),
+  completed: msg('Done'),
+  picked_up: msg('Picked up'),
+  at_garage: msg('At garage'),
+  out_for_delivery: msg('Out for delivery'),
 }
 
 function RowChip({
@@ -173,10 +176,11 @@ function RowChip({
   startsIn: number | null
   deferred: ReturnType<typeof useDeferredStatus>
 }) {
+  const t = useT()
   if (deferred) {
     return (
       <StatusChip tone={deferred === 'completed' ? 'done' : 'progress'}>
-        {DEFERRED_CHIP[deferred]}
+        {t(DEFERRED_CHIP[deferred])}
       </StatusChip>
     )
   }
@@ -189,6 +193,6 @@ function RowChip({
     )
   }
   return (
-    <StatusChip tone={bookingStatusTone(b.status)}>{statusLabel(b)}</StatusChip>
+    <StatusChip tone={bookingStatusTone(b.status)}>{t(statusLabel(b))}</StatusChip>
   )
 }

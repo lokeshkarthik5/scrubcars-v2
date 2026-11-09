@@ -1,4 +1,5 @@
 import type { BookingType, Vendor } from '@repo/core/types'
+import { msg, t } from './i18n/translate'
 
 /**
  * What a customer calls each way of being served.
@@ -10,9 +11,9 @@ import type { BookingType, Vendor } from '@repo/core/types'
  * without a name.
  */
 export const BOOKING_TYPE_LABELS: Record<BookingType, string> = {
-  dropin: 'At garage',
-  doorstep: 'Doorstep',
-  pickup: 'Pickup & drop',
+  dropin: msg('At garage'),
+  doorstep: msg('Doorstep'),
+  pickup: msg('Pickup & drop'),
 }
 
 /** What every screen assumes until the customer says otherwise. */
@@ -34,17 +35,27 @@ export function meetsNotice(iso: string, type: BookingType, now: number = Date.n
   return new Date(iso).getTime() >= now + MIN_NOTICE_MINS[type] * 60_000
 }
 
-/** "At-garage bookings need at least 1 hour's notice." */
-export function noticeSentence(type: BookingType): string {
+/**
+ * "At-garage bookings need at least 1 hour's notice.", or without "at least"
+ * (`{ atLeast: false }`: "At-garage bookings need 1 hour's notice.", the time
+ * picker's quiet line). Each form is its own key, so Tamil drops its word too.
+ */
+export function noticeSentence(type: BookingType, { atLeast = true }: { atLeast?: boolean } = {}): string {
   const hours = MIN_NOTICE_MINS[type] / 60
-  const notice = hours === 1 ? "1 hour's notice" : `${hours} hours' notice`
+  const notice = hours === 1 ? t("1 hour's notice") : t("{count} hours' notice", { count: hours })
   switch (type) {
     case 'doorstep':
-      return `Doorstep visits need at least ${notice}.`
+      return atLeast
+        ? t('Doorstep visits need at least {notice}.', { notice })
+        : t('Doorstep visits need {notice}.', { notice })
     case 'pickup':
-      return `Pickup & drop needs at least ${notice}.`
+      return atLeast
+        ? t('Pickup & drop needs at least {notice}.', { notice })
+        : t('Pickup & drop needs {notice}.', { notice })
     case 'dropin':
-      return `At-garage bookings need at least ${notice}.`
+      return atLeast
+        ? t('At-garage bookings need at least {notice}.', { notice })
+        : t('At-garage bookings need {notice}.', { notice })
   }
 }
 

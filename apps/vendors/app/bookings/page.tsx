@@ -17,6 +17,8 @@ import {
   IconCircleCheck,
   IconInbox,
 } from '@tabler/icons-react'
+import { fill, useT, useTn } from '@repo/core/i18n'
+import { msg } from '@repo/core/i18n/translate'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { EmptyState } from '@repo/ui/sc/empty-state'
 import { LoadError } from '@repo/ui/sc/load-error'
@@ -40,37 +42,38 @@ import {
   type ListTab,
 } from '@/lib/jobs'
 
+// English, shown as `t(…)`; short, so the four fit in Tamil too.
 const TAB_LABELS: Record<ListTab, string> = {
-  today: 'Today',
-  new: 'New',
-  later: 'Later',
-  done: 'Done',
+  today: msg('Today'),
+  new: msg('New'),
+  later: msg('Later'),
+  done: msg('Done'),
 }
 
-/** What an empty list says, in the garage's words. */
+/** What an empty list says, in the garage's words (English, shown as `t(…)`). */
 const EMPTY: Record<
   ListTab,
   { icon: React.ReactNode; title: string; subtitle: string }
 > = {
   today: {
     icon: <IconCalendarCheck size={28} stroke={1.5} />,
-    title: 'Nothing on today',
-    subtitle: 'Jobs you accept for today show here, in time order.',
+    title: msg('Nothing on today'),
+    subtitle: msg('Jobs you accept for today show here, in time order.'),
   },
   new: {
     icon: <IconInbox size={28} stroke={1.5} />,
-    title: 'No new bookings',
-    subtitle: 'New requests from customers show up here for you to accept.',
+    title: msg('No new bookings'),
+    subtitle: msg('New requests from customers show up here for you to accept.'),
   },
   later: {
     icon: <IconCalendarEvent size={28} stroke={1.5} />,
-    title: 'Nothing later',
-    subtitle: 'Jobs you accept for another day wait here.',
+    title: msg('Nothing later'),
+    subtitle: msg('Jobs you accept for another day wait here.'),
   },
   done: {
     icon: <IconCircleCheck size={28} stroke={1.5} />,
-    title: 'Nothing done yet',
-    subtitle: 'Finished jobs, and bookings that were cancelled, are kept here.',
+    title: msg('Nothing done yet'),
+    subtitle: msg('Finished jobs, and bookings that were cancelled, are kept here.'),
   },
 }
 
@@ -92,6 +95,8 @@ export default function VendorBookingsPage() {
  * other list, as one red row with the shortest deadline.
  */
 function VendorBookings() {
+  const t = useT()
+  const tn = useTn()
   const router = useRouter()
   const searchParams = useSearchParams()
   // The list follows ?tab= whenever it changes (a link or a notification
@@ -174,11 +179,11 @@ function VendorBookings() {
       brandRight={<GarageStatus />}
       className="gap-4 py-4"
     >
-      <h1 className="sr-only">Bookings</h1>
+      <h1 className="sr-only">{t('Bookings')}</h1>
       <PushBanner />
 
       <ScSegmented
-        aria-label="Bookings"
+        aria-label={t('Bookings')}
         value={tab}
         onChange={pickTab}
         className="[&_[role=radio]]:min-h-12 [&_[role=radio]]:text-[16px]"
@@ -187,13 +192,13 @@ function VendorBookings() {
           label:
             key === 'new' && !unknown && waiting.count > 0 ? (
               <span className="inline-flex items-center gap-1.5">
-                {TAB_LABELS[key]}
+                {t(TAB_LABELS[key])}
                 <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-brand-red px-1.5 font-numeric text-[12px] font-semibold leading-5 text-brand-white">
                   {waiting.count}
                 </span>
               </span>
             ) : (
-              TAB_LABELS[key]
+              t(TAB_LABELS[key])
             ),
         }))}
       />
@@ -210,16 +215,20 @@ function VendorBookings() {
             className="shrink-0 text-brand-red"
           />
           <span className="min-w-0 flex-1 text-[16px] leading-snug text-text-primary">
-            {waiting.count === 1
-              ? '1 booking to answer'
-              : `${waiting.count} bookings to answer`}
+            {tn(waiting.count, '{count} booking to answer', '{count} bookings to answer')}
             {waiting.soonestMs !== null && (
               <>
                 {' · '}
-                <span className="font-numeric font-semibold text-warning">
-                  {Math.max(1, Math.ceil(waiting.soonestMs / 60_000))} min
-                </span>{' '}
-                left{waiting.count > 1 ? ' on one' : ''}
+                {fill(
+                  waiting.count > 1 ? t('{time} left on one') : t('{time} left'),
+                  {
+                    time: (
+                      <span className="font-numeric font-semibold text-warning">
+                        {Math.max(1, Math.ceil(waiting.soonestMs / 60_000))} min
+                      </span>
+                    ),
+                  }
+                )}
               </>
             )}
           </span>
@@ -235,10 +244,14 @@ function VendorBookings() {
         {!loaded && bookings.length === 0 ? (
           <SkeletonList count={3} itemClassName="h-28" />
         ) : unknown ? (
-          <LoadError what="your bookings" onRetry={reload} />
+          <LoadError what={t('your bookings')} onRetry={reload} />
         ) : isEmpty ? (
           <>
-            <EmptyState {...EMPTY[tab]} />
+            <EmptyState
+              icon={EMPTY[tab].icon}
+              title={t(EMPTY[tab].title)}
+              subtitle={t(EMPTY[tab].subtitle)}
+            />
             {tab === 'today' && today.tomorrow > 0 && (
               <TomorrowRow
                 count={today.tomorrow}
@@ -258,7 +271,7 @@ function VendorBookings() {
                     id="today-now"
                     className="text-[17px] font-semibold text-text-primary"
                   >
-                    Now
+                    {t('Now')}
                   </h2>
                   <p className="font-numeric text-[14px] text-text-secondary">
                     {calendarDate(now)}
@@ -278,7 +291,7 @@ function VendorBookings() {
                   id="today-next"
                   className="text-[17px] font-semibold text-text-primary"
                 >
-                  Next
+                  {t('Next')}
                 </h2>
                 {today.next.map((b) => (
                   <JobRow key={b.id} booking={b} now={now} showStep />
@@ -305,11 +318,11 @@ function VendorBookings() {
           later.map((group) => (
             <section
               key={group.day}
-              aria-label={group.day}
+              aria-label={t(group.day)}
               className="flex flex-col gap-3"
             >
               <h2 className="text-[17px] font-semibold text-text-primary">
-                {group.day}
+                {t(group.day)}
               </h2>
               {group.jobs.map((b) => (
                 <JobRow key={b.id} booking={b} now={now} />
@@ -326,6 +339,7 @@ function VendorBookings() {
 
 /** Tomorrow, folded into one row that opens Later. */
 function TomorrowRow({ count, onOpen }: { count: number; onOpen: () => void }) {
+  const t = useT()
   return (
     <button
       type="button"
@@ -333,8 +347,9 @@ function TomorrowRow({ count, onOpen }: { count: number; onOpen: () => void }) {
       className="press flex min-h-14 items-center justify-between rounded-[20px] border border-border bg-surface px-4 py-3 text-left text-[17px] text-text-primary"
     >
       <span>
-        Tomorrow · <span className="font-numeric">{count}</span>{' '}
-        {count === 1 ? 'job' : 'jobs'}
+        {fill(count === 1 ? t('Tomorrow · {count} job') : t('Tomorrow · {count} jobs'), {
+          count: <span className="font-numeric">{count}</span>,
+        })}
       </span>
       <IconChevronRight
         size={20}

@@ -41,6 +41,7 @@ import {
 import { formatStepTime } from '@repo/core/job-records'
 import type { Booking } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
+import { useT } from '@repo/core/i18n'
 
 const DAY_LABEL = new Intl.DateTimeFormat('en-IN', {
   timeZone: 'Asia/Kolkata',
@@ -67,6 +68,7 @@ export default function GuaranteeClaimPage({
 }: {
   params: Promise<{ id: string }>
 }) {
+  const t = useT()
   const { id } = use(params)
   const config = useGuaranteeConfig()
   const on = config.data?.enabled === true
@@ -89,12 +91,12 @@ export default function GuaranteeClaimPage({
       <TopBar showBack backHref={`/bookings/${id}`} title={GUARANTEE_NAME} />
       {loading ? (
         <p role="status" className="text-t4 text-text-secondary">
-          Loading…
+          {t('Loading…')}
         </p>
       ) : !on || !booking || !guarantee.data ? (
         <Unavailable
           id={id}
-          message="The Detlio Guarantee isn't available for this booking."
+          message={t("The Detlio Guarantee isn't available for this booking.")}
         />
       ) : guarantee.data.claim ? (
         <ClaimStatus booking={booking} claim={guarantee.data.claim} />
@@ -103,7 +105,7 @@ export default function GuaranteeClaimPage({
       ) : (
         <Unavailable
           id={id}
-          message="This booking can't take a free redo claim. Use Help with this booking to raise a complaint instead."
+          message={t("This booking can't take a free redo claim. Use Help with this booking to raise a complaint instead.")}
         />
       )}
     </main>
@@ -111,6 +113,7 @@ export default function GuaranteeClaimPage({
 }
 
 function Unavailable({ id, message }: { id: string; message: string }) {
+  const t = useT()
   return (
     <div className="flex flex-col gap-4">
       <p className="text-t4 text-text-secondary">{message}</p>
@@ -118,7 +121,7 @@ function Unavailable({ id, message }: { id: string; message: string }) {
         href={`/bookings/${id}`}
         className="flex min-h-11 items-center justify-center rounded-[10px] border border-border text-sm font-semibold text-text-primary"
       >
-        Back to booking
+        {t('Back to booking')}
       </Link>
     </div>
   )
@@ -136,6 +139,7 @@ function ClaimForm({
   booking: Booking
   claimBy: string | null
 }) {
+  const t = useT()
   const router = useRouter()
   const create = useCreateClaim()
   const [issues, setIssues] = useState<GuaranteeIssue[]>([])
@@ -164,7 +168,7 @@ function ClaimForm({
       toast.error(
         error instanceof Error
           ? error.message
-          : 'Your photo did not upload. Please try again.'
+          : t('Your photo did not upload. Please try again.')
       )
     } finally {
       setUploading(false)
@@ -183,13 +187,13 @@ function ClaimForm({
         ...(issues.includes('other') && { otherText: otherText.trim() }),
         photoKeys: photos.map((photo) => photo.key),
       })
-      toast.success('Claim sent')
+      toast.success(t('Claim sent'))
       router.replace(`/bookings/${booking.id}/guarantee`)
     } catch (error) {
       toast.error(
         error instanceof ApiError || error instanceof Error
           ? error.message
-          : 'Could not send your claim. Please try again.'
+          : t('Could not send your claim. Please try again.')
       )
     }
   }
@@ -205,30 +209,30 @@ function ClaimForm({
           />
           <div>
             <h1 className="text-sm font-semibold text-text-primary">
-              Not happy with this job?
+              {t('Not happy with this job?')}
             </h1>
             <p className="mt-0.5 text-t5 text-text-secondary">
               {booking.vendorName} ·{' '}
               {serviceLinesOf(booking.items).map((item) => item.name).join(', ')}
-              {claimBy && <> · Ask by {formatStepTime(claimBy)}</>}
+              {claimBy && <> {t('· Ask by {claimBy}', { claimBy: formatStepTime(claimBy) })}</>}
             </p>
           </div>
         </div>
         <ul className="ml-1 flex list-disc flex-col gap-1 pl-4 text-t5 text-text-secondary">
           {GUARANTEE_HOW_IT_WORKS.map((line) => (
-            <li key={line}>{line}</li>
+            <li key={line}>{t(line)}</li>
           ))}
         </ul>
       </ScCard>
 
       <ScCard className="flex flex-col gap-1">
         <h2 className="text-sm font-semibold text-text-primary">
-          What&apos;s wrong?
+          {t("What's wrong?")}
         </h2>
         {GUARANTEE_ISSUES.map((issue) => (
           <ScCheckbox
             key={issue}
-            label={ISSUE_LABELS[issue]}
+            label={t(ISSUE_LABELS[issue])}
             checked={issues.includes(issue)}
             onChange={(checked) => toggle(issue, checked)}
             className="text-t4"
@@ -237,7 +241,7 @@ function ClaimForm({
         {issues.includes('other') && (
           <ScTextarea
             data-clarity-mask="true"
-            label="Tell us what's wrong"
+            label={t("Tell us what's wrong")}
             rows={3}
             maxLength={GUARANTEE_RULES.otherTextMax}
             value={otherText}
@@ -249,12 +253,10 @@ function ClaimForm({
       <ScCard className="flex flex-col gap-2">
         <div>
           <h2 className="text-sm font-semibold text-text-primary">
-            Photos of the problem
+            {t('Photos of the problem')}
           </h2>
           <p className="mt-0.5 text-t5 text-text-secondary">
-            Take at least {GUARANTEE_RULES.minPhotos} with your camera, close up
-            on what was missed. Location and camera details are removed before
-            upload.
+            {t('Take at least {minPhotos} with your camera, close up on what was missed. Location and camera details are removed before upload.', { minPhotos: GUARANTEE_RULES.minPhotos })}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -266,7 +268,7 @@ function ClaimForm({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={photo.preview}
-                alt={`Problem photo ${index + 1}`}
+                alt={t('Problem photo {value}', { value: index + 1 })}
                 className="h-full w-full object-cover"
               />
               <button
@@ -276,7 +278,7 @@ function ClaimForm({
                     current.filter((value) => value.key !== photo.key)
                   )
                 }
-                aria-label={`Remove photo ${index + 1}`}
+                aria-label={t('Remove photo {value}', { value: index + 1 })}
                 className="absolute right-1 top-1 flex size-7 items-center justify-center rounded-full bg-black/70 text-white"
               >
                 <IconX size={14} aria-hidden />
@@ -295,7 +297,7 @@ function ClaimForm({
               ) : (
                 <IconCamera size={20} aria-hidden />
               )}
-              {uploading ? 'Uploading' : 'Take photo'}
+              {uploading ? t('Uploading') : t('Take photo')}
               <input
                 type="file"
                 accept="image/*"
@@ -314,7 +316,7 @@ function ClaimForm({
 
       <ScCard className="flex flex-col gap-2">
         <h2 className="text-sm font-semibold text-text-primary">
-          What Detlio compares
+          {t('What Detlio compares')}
         </h2>
         <GuaranteeEvidence garagePhotos={booking.jobPhotos} />
       </ScCard>
@@ -325,7 +327,7 @@ function ClaimForm({
         disabled={Boolean(problem) || create.isPending || uploading}
         className="min-h-11"
       >
-        {create.isPending ? 'Sending…' : 'Ask for a free redo'}
+        {create.isPending ? t('Sending…') : t('Ask for a free redo')}
       </ScButton>
       {problem && (
         <p className="text-center text-t5 text-text-secondary">{problem}</p>
@@ -341,6 +343,7 @@ function ClaimStatus({
   booking: Booking
   claim: CustomerClaim
 }) {
+  const t = useT()
   return (
     <div className="flex flex-col gap-4">
       <ScCard className="flex items-start gap-3">
@@ -368,20 +371,20 @@ function ClaimStatus({
           href={`/bookings/${claim.redoBooking.id}`}
           className="flex min-h-11 items-center justify-center rounded-[10px] border border-border text-sm font-semibold text-text-primary"
         >
-          See your free redo booking
+          {t('See your free redo booking')}
         </Link>
       )}
 
       <ScCard className="flex flex-col gap-2">
-        <h2 className="text-sm font-semibold text-text-primary">Your claim</h2>
+        <h2 className="text-sm font-semibold text-text-primary">{t('Your claim')}</h2>
         <p className="text-t5 text-text-secondary">
-          {claim.issues.map((issue) => ISSUE_LABELS[issue]).join(', ')}
+          {claim.issues.map((issue) => t(ISSUE_LABELS[issue])).join(', ')}
           {claim.otherText ? ` — ${claim.otherText}` : ''}
         </p>
         <GuaranteeEvidence
           customerPhotos={claim.photos}
           garagePhotos={booking.jobPhotos}
-          customerTitle="Your photos"
+          customerTitle={t('Your photos')}
         />
       </ScCard>
 
@@ -389,7 +392,7 @@ function ClaimStatus({
         href={`/bookings/${booking.id}`}
         className="flex min-h-11 items-center justify-center rounded-[10px] border border-border text-sm font-semibold text-text-primary"
       >
-        Back to booking
+        {t('Back to booking')}
       </Link>
     </div>
   )
@@ -407,6 +410,7 @@ function RedoPicker({
   booking: Booking
   claim: CustomerClaim
 }) {
+  const t = useT()
   const queryClient = useQueryClient()
   const [date, setDate] = useState<string | null>(null)
   const [time, setTime] = useState<string | null>(null)
@@ -423,7 +427,7 @@ function RedoPicker({
         claimId: claim.id,
         scheduledAt: time,
       })
-      toast.success('Free redo booked')
+      toast.success(t('Free redo booked'))
       void queryClient.invalidateQueries({
         queryKey: guaranteeKeys.booking(booking.id),
       })
@@ -434,7 +438,7 @@ function RedoPicker({
       toast.error(
         error instanceof Error
           ? error.message
-          : 'Could not book that time. Pick another one.'
+          : t('Could not book that time. Pick another one.')
       )
     }
   }
@@ -443,18 +447,18 @@ function RedoPicker({
     <ScCard className="flex flex-col gap-3">
       <div>
         <h2 className="text-sm font-semibold text-text-primary">
-          Pick a time at {booking.vendorName}
+          {t('Pick a time at {vendorName}', { vendorName: booking.vendorName })}
         </h2>
         {claim.redoBookBy && (
           <p className="mt-0.5 text-t5 text-text-secondary">
-            Free of charge, by {formatStepTime(claim.redoBookBy)}.
+            {t('Free of charge, by {redoBookBy}.', { redoBookBy: formatStepTime(claim.redoBookBy) })}
           </p>
         )}
       </div>
       <div
         className="flex gap-2 overflow-x-auto pb-1"
         role="listbox"
-        aria-label="Day"
+        aria-label={t('Day')}
       >
         {days.map((day) => (
           <button
@@ -479,13 +483,13 @@ function RedoPicker({
       </div>
       {slots.isLoading ? (
         <p role="status" className="text-t5 text-text-secondary">
-          Loading times…
+          {t('Loading times…')}
         </p>
       ) : (slots.data?.slots.length ?? 0) === 0 ? (
         <p className="text-t5 text-text-secondary">
           {slots.data?.isClosed
-            ? 'The garage is closed that day.'
-            : 'No free times that day. Try another day.'}
+            ? t('The garage is closed that day.')
+            : t('No free times that day. Try another day.')}
         </p>
       ) : (
         <div className="grid grid-cols-3 gap-2">
@@ -513,7 +517,7 @@ function RedoPicker({
         disabled={!time || book.isPending}
         className="min-h-11"
       >
-        {book.isPending ? 'Booking…' : 'Book my free redo'}
+        {book.isPending ? t('Booking…') : t('Book my free redo')}
       </ScButton>
     </ScCard>
   )

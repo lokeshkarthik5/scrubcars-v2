@@ -1,6 +1,7 @@
 import { ApiError } from '@repo/core/api/client';
 import { lookupCoupon, type MyCoupon, redeemCoupon } from '@repo/core/api/coupons';
 import { couponKeys, invalidateCoupons } from '@repo/core/api/hooks/use-coupons';
+import { useT } from '@repo/core/i18n';
 import { ScButton } from '@repo/native-ui/button';
 import { IconTicket } from '@repo/native-ui/icons';
 import { EmptyState, ErrorState, ScCard, Skeleton } from '@repo/native-ui/primitives';
@@ -26,6 +27,7 @@ import { track } from '@/lib/shims/analytics';
  * code is a secret, so it stays in memory (lib/deep-link.ts) and is never in this screen's route.
  */
 export default function CouponLinkScreen() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
@@ -73,7 +75,7 @@ export default function CouponLinkScreen() {
       heldLinkCode.clear();
       void invalidateCoupons(queryClient);
     } catch (error) {
-      setAddError(error instanceof ApiError ? error.message : "Couldn't add the coupon. Check your connection and try again.");
+      setAddError(error instanceof ApiError ? error.message : t("Couldn't add the coupon. Check your connection and try again."));
     } finally {
       setAdding(false);
     }
@@ -96,7 +98,7 @@ export default function CouponLinkScreen() {
 
   const body = () => {
     if (!code) {
-      return <EmptyState icon={<IconTicket size={32} stroke={1.5} color={colors.textSecondary} />} title="We couldn't open this coupon" subtitle="Open its link again, or type its code in Profile → Coupons." />;
+      return <EmptyState icon={<IconTicket size={32} stroke={1.5} color={colors.textSecondary} />} title={t("We couldn't open this coupon")} subtitle={t('Open its link again, or type its code in Profile → Coupons.')} />;
     }
     if (lookup.isPending) {
       return (
@@ -111,14 +113,14 @@ export default function CouponLinkScreen() {
       if (error instanceof ApiError && [400, 404, 429].includes(error.status)) {
         return (
           <View style={styles.column}>
-            <EmptyState icon={<IconTicket size={32} stroke={1.5} color={colors.textSecondary} />} title="We couldn't open this coupon" subtitle={error.message} />
+            <EmptyState icon={<IconTicket size={32} stroke={1.5} color={colors.textSecondary} />} title={t("We couldn't open this coupon")} subtitle={error.message} />
             <ScButton variant="outline" onPress={() => router.replace('/garages' as Href)}>
-              Find garages
+              {t('Find garages')}
             </ScButton>
           </View>
         );
       }
-      return <ErrorState message="Couldn't load this coupon. Check your connection." onRetry={() => void lookup.refetch()} />;
+      return <ErrorState message={t("Couldn't load this coupon. Check your connection.")} onRetry={() => void lookup.refetch()} />;
     }
     const coupon = lookup.data;
     if (!coupon) return null;
@@ -139,24 +141,24 @@ export default function CouponLinkScreen() {
         {added ? (
           <ScCard style={styles.column}>
             <T size={14} weight={600} lh={20}>
-              {`${stamps ? 'Added to your Shine Card.' : 'Added to your Detlio account.'}${!stamps && added.expiresAt ? ` ${couponUseByLine(added.expiresAt)}.` : ''}`}
+              {`${stamps ? t('Added to your Shine Card.') : t('Added to your Detlio account.')}${!stamps && added.expiresAt ? ` ${couponUseByLine(added.expiresAt)}.` : ''}`}
             </T>
             {!stamps ? (
               <T size={13} lh={18} color={colors.textSecondary}>
-                It comes off at checkout, once.
+                {t('It comes off at checkout, once.')}
               </T>
             ) : null}
             {stamps ? (
               <ScButton variant="main" onPress={() => router.replace('/profile/rewards' as Href)}>
-                See your Shine Card
+                {t('See your Shine Card')}
               </ScButton>
             ) : (
               <ScButton variant="main" onPress={() => book(added)}>
-                Book a wash
+                {t('Book a wash')}
               </ScButton>
             )}
             <ScButton variant="outline" height={44} onPress={() => router.replace('/profile/coupons' as Href)}>
-              See your coupons
+              {t('See your coupons')}
             </ScButton>
           </ScCard>
         ) : closed ? (
@@ -166,7 +168,7 @@ export default function CouponLinkScreen() {
             </T>
             {coupon.state === 'added' ? (
               <ScButton variant="outline" height={44} onPress={() => router.replace('/profile/coupons' as Href)}>
-                Open my coupons
+                {t('Open my coupons')}
               </ScButton>
             ) : null}
           </ScCard>
@@ -176,14 +178,14 @@ export default function CouponLinkScreen() {
               {couponUseByLine(coupon.validUntil)}
             </T>
             <ScButton variant="main" disabled={adding} onPress={() => void add()}>
-              {adding ? 'Adding…' : 'Add to my Detlio'}
+              {adding ? t('Adding…') : t('Add to my Detlio')}
             </ScButton>
             <T size={12} lh={16} color={colors.textMuted}>
               {user
                 ? stamps
-                  ? 'The stamps go on your Shine Card in Detlio Rewards.'
-                  : 'It goes into your account as a coupon only you can use, and comes off at checkout.'
-                : 'Sign in or create an account with your phone number, then it is added to your account.'}
+                  ? t('The stamps go on your Shine Card in Detlio Rewards.')
+                  : t('It goes into your account as a coupon only you can use, and comes off at checkout.')
+                : t('Sign in or create an account with your phone number, then it is added to your account.')}
             </T>
             {addError ? (
               <T accessibilityRole="alert" size={13} lh={18} color={colors.error}>
@@ -198,7 +200,7 @@ export default function CouponLinkScreen() {
 
   return (
     <View style={[styles.page, { paddingTop: insets.top }]}>
-      <PageHeader title="A Detlio coupon" backTo="/garages" />
+      <PageHeader title={t('A Detlio coupon')} backTo="/garages" />
       <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 24 }]}>{body()}</ScrollView>
     </View>
   );

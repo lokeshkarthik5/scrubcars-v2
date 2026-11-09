@@ -4,11 +4,12 @@ import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import { IconCheck, IconChevronDown } from '@tabler/icons-react'
 import { useAuthStore } from '@repo/core/stores/auth-store'
+import { msg, useT } from '@repo/core/i18n'
 import { cn } from '@repo/core/utils'
 
 const ROLE_LABEL: Record<string, string> = {
-  vendor_admin: 'Admin',
-  vendor_operator: 'Operator',
+  vendor_admin: msg('Admin'),
+  vendor_operator: msg('Operator'),
 }
 
 /**
@@ -19,6 +20,7 @@ const ROLE_LABEL: Record<string, string> = {
  * already knew.
  */
 export function CompanySwitcher({ className }: { className?: string }) {
+  const t = useT()
   const vendors = useAuthStore((s) => s.vendors)
   const activeVendorId = useAuthStore((s) => s.activeVendorId)
   const setActiveVendor = useAuthStore((s) => s.setActiveVendor)
@@ -82,8 +84,8 @@ export function CompanySwitcher({ className }: { className?: string }) {
                   </span>
                   <span className="block text-[11px] text-text-secondary">
                     {vendor.isOwner
-                      ? 'Owner'
-                      : ROLE_LABEL[vendor.role ?? ''] ?? 'Member'}
+                      ? t('Owner')
+                      : t(ROLE_LABEL[vendor.role ?? ''] ?? 'Member')}
                   </span>
                 </span>
                 {isActive && (

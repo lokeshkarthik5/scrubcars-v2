@@ -25,6 +25,7 @@ import {
 } from '@repo/core/slot-alerts'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import type { BookingType } from '@repo/core/types'
+import { fill, useT } from '@repo/core/i18n'
 
 /**
  * Checkout's "Notify me if a slot opens" (0047), under the slot picker's
@@ -50,6 +51,7 @@ export function SlotAlertAsk({
   serviceIds: string[]
   bookingType: BookingType
 }) {
+  const t = useT()
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
   const alerts = useSlotAlerts({ enabled: !!user })
@@ -92,17 +94,15 @@ export function SlotAlertAsk({
         />
         <div className="min-w-0 flex-1">
           <p className="text-t4 font-medium text-text-primary">
-            Waiting for a slot on {slotAlertSummary(waiting)}
+            {t('Waiting for a slot on {slotAlertSummary}', { slotAlertSummary: slotAlertSummary(waiting) })}
           </p>
           <p className="mt-0.5 text-t5 text-text-secondary">
-            If one opens it shows in Updates, and as a notification if
-            they&apos;re on. It isn&apos;t held for you.{' '}
-            <Link
+            {fill(t("If one opens it shows in Updates, and as a notification if they're on. It isn't held for you. {part}"), { part: <Link
               href="/profile/slot-alerts"
               className="font-medium text-text-primary underline"
             >
-              Slot alerts
-            </Link>
+              {t('Slot alerts')}
+            </Link> })}
           </p>
           <button
             type="button"
@@ -110,7 +110,7 @@ export function SlotAlertAsk({
             onClick={() => cancelAlert.mutate(waiting.id)}
             className="tap-target -ml-1 mt-1 px-1 text-t5 font-medium text-text-secondary underline disabled:opacity-40"
           >
-            Stop waiting
+            {t('Stop waiting')}
           </button>
         </div>
       </ScCard>
@@ -125,10 +125,9 @@ export function SlotAlertAsk({
         className="tap-target mt-3 flex items-center gap-1.5 text-t5 text-text-secondary"
       >
         <IconBell size={14} stroke={1.6} aria-hidden="true" />
-        None of these suit you?{' '}
-        <span className="font-medium text-text-primary underline">
-          Notify me if one opens
-        </span>
+        {fill(t('None of these suit you? {part}'), { part: <span className="font-medium text-text-primary underline">
+          {t('Notify me if one opens')}
+        </span> })}
       </button>
     )
   }
@@ -149,7 +148,7 @@ export function SlotAlertAsk({
           setProblem(
             err instanceof ApiError
               ? err.message
-              : "Couldn't set that up. Check your connection and try again."
+              : t("Couldn't set that up. Check your connection and try again.")
           ),
       }
     )
@@ -161,24 +160,22 @@ export function SlotAlertAsk({
     <ScCard className="mt-3 flex flex-col gap-3">
       <div>
         <h3 className="text-t4 font-semibold text-text-primary">
-          Notify me if a slot opens
+          {t('Notify me if a slot opens')}
         </h3>
         <p className="mt-0.5 text-t5 text-text-secondary">
-          If a time frees up on {day}, it shows in Updates, and as a
-          notification if they&apos;re on. It isn&apos;t held: the first to book
-          gets it.
+          {t("If a time frees up on {day}, it shows in Updates, and as a notification if they're on. It isn't held: the first to book gets it.", { day })}
         </p>
       </div>
 
       <div
         role="group"
-        aria-label="Which part of the day"
+        aria-label={t('Which part of the day')}
         className="flex flex-wrap gap-2"
       >
         {SLOT_ALERT_WINDOWS.map((option) => (
           <Chip
             key={option}
-            label={SLOT_ALERT_WINDOW_LABELS[option]}
+            label={t(SLOT_ALERT_WINDOW_LABELS[option])}
             selected={part === option}
             disabled={hasFreeTime(option)}
             onClick={() => {
@@ -193,7 +190,7 @@ export function SlotAlertAsk({
           {hint && <span className="font-numeric">{hint}</span>}
           {hint && waitable.length < SLOT_ALERT_WINDOWS.length && ' · '}
           {waitable.length < SLOT_ALERT_WINDOWS.length &&
-            'Crossed out: a time is free then. Pick it above.'}
+            t('Crossed out: a time is free then. Pick it above.')}
         </p>
       )}
 
@@ -210,7 +207,7 @@ export function SlotAlertAsk({
         className="flex items-center justify-center gap-1.5"
       >
         <IconBell size={16} stroke={1.6} aria-hidden="true" />
-        {user ? 'Notify me' : 'Sign in to get notified'}
+        {user ? t('Notify me') : t('Sign in to get notified')}
       </ScButton>
     </ScCard>
   )

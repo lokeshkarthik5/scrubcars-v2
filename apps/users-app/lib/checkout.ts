@@ -1,3 +1,4 @@
+import { t } from '@repo/core/i18n/translate';
 /**
  * The one way to Razorpay's window. Razorpay's SDK is native code, so it's required only when
  * paying: Expo Go hasn't got it, and importing it there at launch would take the whole app down.
@@ -53,7 +54,7 @@ export function classifySdkError(error: unknown): CheckoutResult {
     // A plain sentence.
   }
   if (e.code === 0 || /cancel/i.test(`${reason} ${description}`)) return { kind: 'cancelled' };
-  return { kind: 'failed', message: description || 'Payment failed. If money left your account it will be refunded.' };
+  return { kind: 'failed', message: description || t('Payment failed. If money left your account it will be refunded.') };
 }
 
 /**
@@ -64,11 +65,11 @@ function askFakeCheckout(order: CheckoutOrder): Promise<CheckoutResult> {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { Alert } = require('react-native') as typeof import('react-native');
   return new Promise((resolve) => {
-    Alert.alert('Test payment', `Local fake-payments order, ${order.amount / 100} rupees. Nothing real happens.`, [
-      { text: 'Pay', onPress: () => resolve(fakeResult(order.orderId)) },
-      { text: 'Cancel', onPress: () => resolve({ kind: 'cancelled' }) },
-      { text: 'Fail', onPress: () => resolve({ kind: 'failed', message: 'Your bank declined this payment. Nothing was charged.' }) },
-      { text: 'Leave open' },
+    Alert.alert(t('Test payment'), `Local fake-payments order, ${order.amount / 100} rupees. Nothing real happens.`, [
+      { text: t('Pay'), onPress: () => resolve(fakeResult(order.orderId)) },
+      { text: t('Cancel'), onPress: () => resolve({ kind: 'cancelled' }) },
+      { text: t('Fail'), onPress: () => resolve({ kind: 'failed', message: t('Your bank declined this payment. Nothing was charged.') }) },
+      { text: t('Leave open') },
     ]);
   });
 }

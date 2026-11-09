@@ -1,6 +1,7 @@
 import { ApiError } from '@repo/core/api/client';
 import { useBypassStatus, useReportBypass } from '@repo/core/api/hooks/use-bypass-reports';
 import { bookingReference } from '@repo/core/booking-types';
+import { useT } from '@repo/core/i18n';
 import {
   BYPASS_ANONYMITY_LINE,
   BYPASS_KIND_LABELS,
@@ -44,6 +45,7 @@ export function ReportBypassSheet({
   rewardOffered: boolean;
   rewardAmount: string;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const send = useReportBypass();
@@ -68,25 +70,25 @@ export function ReportBypassSheet({
       { bookingId: booking.id, kind, ...(trimmed ? { note: trimmed } : {}) },
       {
         onSuccess: () => setSent(true),
-        onError: (err) => setError(err instanceof ApiError ? err.message : "Couldn't send this. Check your connection and try again."),
+        onError: (err) => setError(err instanceof ApiError ? err.message : t("Couldn't send this. Check your connection and try again.")),
       }
     );
   };
   return (
-    <ScSheet horizontalPadding={16} open={open} onClose={close} dismissible={!send.isPending} accessibilityLabel={sent ? BYPASS_THANKS_TITLE : 'Tell us about the garage'}>
+    <ScSheet horizontalPadding={16} open={open} onClose={close} dismissible={!send.isPending} accessibilityLabel={sent ? t(BYPASS_THANKS_TITLE) : t('Tell us about the garage')}>
       <View style={styles.column}>
         <View style={styles.head}>
           <View style={styles.grow}>
             <T size={16} weight={600} lh={22}>
-              {sent ? BYPASS_THANKS_TITLE : BYPASS_QUESTION}
+              {sent ? t(BYPASS_THANKS_TITLE) : t(BYPASS_QUESTION)}
             </T>
             {!sent ? (
               <T size={12} lh={16} color={colors.textSecondary} style={styles.mt4}>
-                {`About booking ${booking.reference} · ${booking.vendorName}`}
+                {t('About booking {reference} · {name}', { reference: booking.reference, name: booking.vendorName })}
               </T>
             ) : null}
           </View>
-          <Pressable accessibilityRole="button" accessibilityLabel="Close" disabled={send.isPending} onPress={close} style={styles.close}>
+          <Pressable accessibilityRole="button" accessibilityLabel={t('Close')} disabled={send.isPending} onPress={close} style={styles.close}>
             <IconCircleX size={22} color={colors.textSecondary} />
           </Pressable>
         </View>
@@ -96,7 +98,7 @@ export function ReportBypassSheet({
               <IconCircleCheck size={20} color={colors.success} />
               <View style={styles.grow}>
                 <T size={14} weight={600} lh={20}>
-                  {BYPASS_THANKS_BODY}
+                  {t(BYPASS_THANKS_BODY)}
                 </T>
                 {rewardOffered ? (
                   <T size={12} lh={16} color={colors.textSecondary} style={styles.mt4}>
@@ -106,30 +108,30 @@ export function ReportBypassSheet({
               </View>
             </View>
             <ScButton variant="outline" height={44} onPress={close}>
-              Done
+              {t('Done')}
             </ScButton>
           </View>
         ) : (
           <View style={styles.part}>
             <View style={styles.part8}>
               <T size={11} weight={500} lh={15} color={colors.textSecondary}>
-                What happened?
+                {t('What happened?')}
               </T>
               <View style={styles.chips}>
                 {BYPASS_KINDS.map((value) => (
-                  <Chip key={value} label={BYPASS_KIND_LABELS[value]} selected={kind === value} onPress={() => setKind(value)} />
+                  <Chip key={value} label={t(BYPASS_KIND_LABELS[value])} selected={kind === value} onPress={() => setKind(value)} />
                 ))}
               </View>
             </View>
             <View>
-              <ScTextarea label="Anything to add? (optional)" rows={3} maxLength={BYPASS_NUMBERS.noteMax} placeholder="What they said, and when" value={note} onChangeText={setNote} />
+              <ScTextarea label={t('Anything to add? (optional)')} rows={3} maxLength={BYPASS_NUMBERS.noteMax} placeholder={t('What they said, and when')} value={note} onChangeText={setNote} />
               <T num size={11} lh={15} color={colors.textMuted} align="right" style={styles.mt4}>
                 {`${note.length}/${BYPASS_NUMBERS.noteMax}`}
               </T>
             </View>
             <View style={styles.lines}>
               <T size={12} lh={16} color={colors.textSecondary}>
-                {BYPASS_ANONYMITY_LINE}
+                {t(BYPASS_ANONYMITY_LINE)}
               </T>
               {rewardOffered ? (
                 <T size={12} lh={16} color={colors.textSecondary}>
@@ -143,7 +145,7 @@ export function ReportBypassSheet({
               </T>
             ) : null}
             <ScButton variant="main" height={44} disabled={!canSend} onPress={submit}>
-              {send.isPending ? 'Sending…' : 'Send'}
+              {send.isPending ? t('Sending…') : t('Send')}
             </ScButton>
           </View>
         )}
@@ -154,6 +156,7 @@ export function ReportBypassSheet({
 
 /** BypassReportLine (apps/users/components/bypass/bypass-report-line.tsx). */
 export function BypassReportLine({ booking }: { booking: Booking }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const [open, setOpen] = useState(false);
@@ -176,7 +179,7 @@ export function BypassReportLine({ booking }: { booking: Booking }) {
         <View style={styles.lineLeft}>
           <IconFlag size={16} color={colors.textMuted} />
           <T size={13} lh={18} color={colors.textSecondary} style={styles.grow}>
-            {BYPASS_QUESTION_SHORT}
+            {t(BYPASS_QUESTION_SHORT)}
           </T>
         </View>
         <IconChevronRight size={16} color={colors.textMuted} />

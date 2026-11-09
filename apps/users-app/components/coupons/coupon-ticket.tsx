@@ -1,4 +1,5 @@
 import type { CouponReward } from '@repo/core/coupons';
+import { t, useT } from '@repo/core/i18n';
 import { formatOfferFigure } from '@repo/core/offer-figure';
 import { ScCard } from '@repo/native-ui/primitives';
 import { T } from '@repo/native-ui/text';
@@ -21,18 +22,19 @@ interface CouponTicketProps {
 function figureOf(props: CouponTicketProps): { text: string; under: string } {
   switch (props.reward) {
     case 'amount':
-      return { text: formatOfferFigure({ kind: 'amount', rupees: props.amountOff ?? 0 }).text, under: 'off' };
+      return { text: formatOfferFigure({ kind: 'amount', rupees: props.amountOff ?? 0 }).text, under: t('off') };
     case 'percent':
-      return { text: formatOfferFigure({ kind: 'percent', value: props.percentOff ?? 0 }).text, under: 'off' };
+      return { text: formatOfferFigure({ kind: 'percent', value: props.percentOff ?? 0 }).text, under: t('off') };
     case 'free_wash':
-      return { text: 'FREE', under: 'car wash' };
+      return { text: t('FREE'), under: t('car wash') };
     case 'stamps':
-      return { text: `+${props.stamps ?? 0}`, under: props.stamps === 1 ? 'stamp' : 'stamps' };
+      return { text: `+${props.stamps ?? 0}`, under: props.stamps === 1 ? t('stamp') : t('stamps') };
   }
 }
 
 /** CouponTicket (apps/users/components/coupons/coupon-ticket.tsx). */
 export function CouponTicket(props: CouponTicketProps) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const figure = figureOf(props);
@@ -48,7 +50,7 @@ export function CouponTicket(props: CouponTicketProps) {
       </View>
       <View style={styles.body}>
         <T size={11} weight={500} lh={15} uppercase tracking={0.05} color={colors.textMuted}>
-          Detlio coupon
+          {t('Detlio coupon')}
         </T>
         <T size={15} weight={600} lh={20}>
           {props.title}

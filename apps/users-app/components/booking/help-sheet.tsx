@@ -5,6 +5,7 @@ import { COMPLAINT_ACKNOWLEDGE_HOURS } from '@repo/core/complaints';
 import { telHref, whatsAppHref } from '@repo/core/contact-links';
 import { contactWindowState, garageNumberHiddenLine } from '@repo/core/contact-window';
 import { useNow } from '@repo/core/hooks/use-now';
+import { useT } from '@repo/core/i18n';
 import { SUPPORT_TEL_HREF, supportWhatsAppHref } from '@repo/core/support';
 import type { Booking } from '@repo/core/types';
 import { Label, ScButton } from '@repo/native-ui/button';
@@ -26,21 +27,22 @@ const ENDED: ReadonlySet<Booking['status']> = new Set(['cancelled', 'rescheduled
 
 /** ContactButtons (packages/ui/src/sc/contact-buttons.tsx): Call and WhatsApp, each only with a number. */
 export function ContactButtons({ who, callHref, whatsApp }: { who: string; callHref: string | null; whatsApp: string | null }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   if (!callHref && !whatsApp) return null;
   return (
     <View style={styles.contact}>
       {callHref ? (
-        <Pressable accessibilityRole="link" accessibilityLabel={`Call ${who}`} onPress={() => openLink(callHref)} style={styles.contactLink}>
+        <Pressable accessibilityRole="link" accessibilityLabel={t('Call {name}', { name: who })} onPress={() => openLink(callHref)} style={styles.contactLink}>
           <IconPhone size={16} color={colors.textPrimary} />
           <T size={13} weight={500} lh={18}>
-            Call
+            {t('Call')}
           </T>
         </Pressable>
       ) : null}
       {whatsApp ? (
-        <Pressable accessibilityRole="link" accessibilityLabel={`WhatsApp ${who}`} onPress={() => openLink(whatsApp)} style={styles.contactLink}>
+        <Pressable accessibilityRole="link" accessibilityLabel={t('WhatsApp {name}', { name: who })} onPress={() => openLink(whatsApp)} style={styles.contactLink}>
           <IconBrandWhatsapp size={16} color="#25D366" />
           <T size={13} weight={500} lh={18}>
             WhatsApp
@@ -53,6 +55,7 @@ export function ContactButtons({ who, callHref, whatsApp }: { who: string; callH
 
 /** BookingHelpSheet (apps/users/components/booking-help-sheet.tsx). */
 export function BookingHelpSheet({ open, onClose, booking }: { open: boolean; onClose: () => void; booking: Booking }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const [reporting, setReporting] = useState(false);
@@ -71,18 +74,18 @@ export function BookingHelpSheet({ open, onClose, booking }: { open: boolean; on
   const garageMessage = `Hi, this is about my Detlio booking ${reference} with you for ${booking.scheduledAt}.`;
   const garageWhatsApp = showGarage ? (whatsAppHref(garage?.whatsapp, garageMessage) ?? whatsAppHref(garage?.phone, garageMessage)) : null;
   return (
-    <ScSheet horizontalPadding={16} open={open} onClose={onClose} accessibilityLabel="Help with this booking">
+    <ScSheet horizontalPadding={16} open={open} onClose={onClose} accessibilityLabel={t('Help with this booking')}>
       <View style={styles.column}>
         <View style={styles.head}>
           <View style={styles.grow}>
             <T size={16} weight={600} lh={22}>
-              Help with this booking
+              {t('Help with this booking')}
             </T>
             <T size={12} lh={16} color={colors.textSecondary} style={styles.mt4}>
-              {`Booking ${reference} · ${booking.vendorName} · ${booking.scheduledAt}`}
+              {t('Booking {reference} · {name} · {when}', { reference, name: booking.vendorName, when: booking.scheduledAt })}
             </T>
           </View>
-          <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={styles.close}>
+          <Pressable accessibilityRole="button" accessibilityLabel={t('Close')} onPress={onClose} style={styles.close}>
             <IconCircleX size={22} color={colors.textSecondary} />
           </Pressable>
         </View>
@@ -94,10 +97,10 @@ export function BookingHelpSheet({ open, onClose, booking }: { open: boolean; on
               </T>
               <T size={12} lh={16} color={colors.textSecondary}>
                 {booking.bookingType === 'doorstep'
-                  ? 'For timings, finding your place, or questions about the work.'
+                  ? t('For timings, finding your place, or questions about the work.')
                   : booking.bookingType === 'pickup'
-                    ? 'For the pickup and return times, where your car is, or questions about the work.'
-                    : 'For timings, finding the garage, or questions about the work.'}
+                    ? t('For the pickup and return times, where your car is, or questions about the work.')
+                    : t('For timings, finding the garage, or questions about the work.')}
               </T>
             </View>
             <ContactButtons who={booking.vendorName} callHref={garageCall} whatsApp={garageWhatsApp} />
@@ -111,7 +114,7 @@ export function BookingHelpSheet({ open, onClose, booking }: { open: boolean; on
             <View style={styles.hidden}>
               <IconPhoneOff size={14} color={colors.textSecondary} />
               <T size={12} lh={16} color={colors.textSecondary} style={styles.grow}>
-                {`${garageNumberHiddenLine(garageHidden)} ${garageHidden === 'before' ? 'Until then, the Detlio team can pass a message on.' : 'The Detlio team can reach them for you.'}`}
+                {`${garageNumberHiddenLine(garageHidden)} ${garageHidden === 'before' ? t('Until then, the Detlio team can pass a message on.') : t('The Detlio team can reach them for you.')}`}
               </T>
             </View>
           </View>
@@ -119,14 +122,14 @@ export function BookingHelpSheet({ open, onClose, booking }: { open: boolean; on
         <View style={styles.section}>
           <View>
             <T size={13} weight={600} lh={18}>
-              Detlio team
+              {t('Detlio team')}
             </T>
             <T size={12} lh={16} color={colors.textSecondary}>
-              {"For payments and refunds, or if something isn't right. We'll take it up with the garage for you."}
+              {t("For payments and refunds, or if something isn't right. We'll take it up with the garage for you.")}
             </T>
           </View>
           <ContactButtons
-            who="Detlio support"
+            who={t('Detlio support')}
             callHref={SUPPORT_TEL_HREF}
             whatsApp={supportWhatsAppHref(`Hi Detlio, I need help with booking ${reference} at ${booking.vendorName} (${booking.scheduledAt}).`)}
           />
@@ -134,10 +137,10 @@ export function BookingHelpSheet({ open, onClose, booking }: { open: boolean; on
         <View style={styles.section}>
           <View>
             <T size={13} weight={600} lh={18}>
-              Make a complaint
+              {t('Make a complaint')}
             </T>
             <T size={12} lh={16} color={colors.textSecondary}>
-              {`In writing, with a complaint number to quote. We reply within ${COMPLAINT_ACKNOWLEDGE_HOURS} hours.`}
+              {t('In writing, with a complaint number to quote. We reply within {hours} hours.', { hours: COMPLAINT_ACKNOWLEDGE_HOURS })}
             </T>
           </View>
           <ScButton
@@ -146,22 +149,22 @@ export function BookingHelpSheet({ open, onClose, booking }: { open: boolean; on
             onPress={() => setRaising(true)}
           >
             <IconMessageReport size={18} color={colors.textPrimary} />
-            <Label>Raise a complaint</Label>
+            <Label>{t('Raise a complaint')}</Label>
           </ScButton>
         </View>
         {bypass?.canReport ? (
           <View style={styles.section}>
             <View>
               <T size={13} weight={600} lh={18}>
-                {BYPASS_QUESTION}
+                {t(BYPASS_QUESTION)}
               </T>
               <T size={12} lh={16} color={colors.textSecondary}>
-                Tell us in confidence. The garage is never told who reported it.
+                {t('Tell us in confidence. The garage is never told who reported it.')}
               </T>
             </View>
             <ScButton variant="outline" height={44} onPress={() => setReporting(true)}>
               <IconFlag size={18} color={colors.textPrimary} />
-              <Label>Tell us what happened</Label>
+              <Label>{t('Tell us what happened')}</Label>
             </ScButton>
           </View>
         ) : null}
@@ -170,9 +173,9 @@ export function BookingHelpSheet({ open, onClose, booking }: { open: boolean; on
             setTimeout(() => router.push('/help' as Href), AFTER_SHEET_MS);
           }} style={styles.faq}>
           <T size={13} lh={18} color={colors.textSecondary}>
-            {'Common questions: '}
+            {`${t('Common questions:')} `}
             <T size={13} weight={500} lh={18}>
-              Help centre
+              {t('Help centre')}
             </T>
           </T>
           <IconChevronRight size={16} color={colors.textMuted} />

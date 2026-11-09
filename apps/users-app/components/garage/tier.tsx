@@ -1,3 +1,4 @@
+import { useT } from '@repo/core/i18n';
 import { TIER_KEPT_LINE, TIER_LABELS, TIER_NOTES, tierMedalName, tierStandards, type Tier } from '@repo/core/tiers';
 import { IconCircleCheck, IconMapPin } from '@repo/native-ui/icons';
 import { ScSheet } from '@repo/native-ui/sheet';
@@ -48,6 +49,7 @@ export function TierMark({ tier }: { tier: Tier }) {
 
 /** On the garage page: the medal with its words, and "What this means". */
 export function TierSeal({ tier }: { tier: Tier }) {
+  const t = useT();
   const colors = useColors();
   const { scheme } = useTheme();
   const styles = useStyles();
@@ -65,14 +67,14 @@ export function TierSeal({ tier }: { tier: Tier }) {
         </View>
         <Pressable accessibilityRole="button" hitSlop={12} onPress={() => setOpen(true)}>
           <T size={12} weight={500} color={colors.textSecondary} style={styles.underline}>
-            What this means
+            {t('What this means')}
           </T>
         </Pressable>
       </View>
       <T size={11} color={colors.textMuted}>
-        {TIER_NOTES[tier]}
+        {t(TIER_NOTES[tier])}
       </T>
-      <ScSheet open={open} onClose={() => setOpen(false)} accessibilityLabel={`${name}: what this means`} horizontalPadding={16}>
+      <ScSheet open={open} onClose={() => setOpen(false)} accessibilityLabel={t('{name}: what this means', { name })} horizontalPadding={16}>
         <View style={styles.sheetHead}>
           <TierMedalIcon tier={tier} size={24} />
           <T size={17} weight={600}>
@@ -80,7 +82,7 @@ export function TierSeal({ tier }: { tier: Tier }) {
           </T>
         </View>
         <T size={13} color={colors.textSecondary} style={styles.sheetLine}>
-          Detlio shows this medal on a garage that:
+          {t('Detlio shows this medal on a garage that:')}
         </T>
         {tierStandards(tier).map((group) => (
           <View key={group.tier} style={styles.group}>
@@ -88,7 +90,7 @@ export function TierSeal({ tier }: { tier: Tier }) {
               <View style={styles.groupHead}>
                 <TierMedalIcon tier={group.tier} size={12} />
                 <T size={11} weight={600} tracking={0.07} uppercase color={colors.textMuted}>
-                  {TIER_LABELS[group.tier]}
+                  {t(TIER_LABELS[group.tier])}
                 </T>
               </View>
             ) : null}

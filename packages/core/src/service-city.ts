@@ -1,3 +1,5 @@
+import { t } from './i18n/translate'
+
 /**
  * The city the pilot serves, and the words for a garage outside it.
  *
@@ -9,8 +11,9 @@
  * the garage is, never a warning that something is wrong.
  *
  * The centre and the reach are a twin of the server's SERVICE_CITY, kept equal
- * by apps/server/src/lib/service-city.parity.test.ts. No imports, so that test
- * can load this file directly.
+ * by apps/server/src/lib/service-city.parity.test.ts. Its one import is the
+ * Tamil lookup, by relative path and free of packages, so that test can still
+ * load this file directly.
  */
 
 export const SERVICE_CITY = {
@@ -43,8 +46,8 @@ const km = (value: number) => value.toLocaleString('en-IN')
 /** The chip on a garage card: "Outside Chennai · Sivakasi", or "Outside Chennai". */
 export function outsideCityTag(outside: OutsideServiceCity): string {
   return outside.town
-    ? `Outside ${SERVICE_CITY.name} · ${outside.town}`
-    : `Outside ${SERVICE_CITY.name}`
+    ? t('Outside {city} · {town}', { city: t(SERVICE_CITY.name), town: outside.town })
+    : t('Outside {city}', { city: t(SERVICE_CITY.name) })
 }
 
 /**
@@ -59,17 +62,21 @@ export function outsideCityTag(outside: OutsideServiceCity): string {
  * as checkout instead.
  */
 export function outsideCityLine(outside: OutsideServiceCity): string {
-  if (!outside.town) return `This garage is outside ${SERVICE_CITY.name}.`
+  if (!outside.town) return t('This garage is outside {city}.', { city: t(SERVICE_CITY.name) })
   return outside.km === null
-    ? `This garage is in ${outside.town}.`
-    : `This garage is in ${outside.town}, about ${km(outside.km)} km from ${SERVICE_CITY.name}.`
+    ? t('This garage is in {town}.', { town: outside.town })
+    : t('This garage is in {town}, about {km} km from {city}.', {
+        town: outside.town,
+        km: km(outside.km),
+        city: t(SERVICE_CITY.name),
+      })
 }
 
 /** Checkout's line beside Pay: "This garage is in Sivakasi, not Chennai." */
 export function outsideCityCheckoutLine(outside: OutsideServiceCity): string {
   return outside.town
-    ? `This garage is in ${outside.town}, not ${SERVICE_CITY.name}.`
-    : `This garage is outside ${SERVICE_CITY.name}.`
+    ? t('This garage is in {town}, not {city}.', { town: outside.town, city: t(SERVICE_CITY.name) })
+    : t('This garage is outside {city}.', { city: t(SERVICE_CITY.name) })
 }
 
 /** What the "near you" count and the "Further away" line need from a garage. */

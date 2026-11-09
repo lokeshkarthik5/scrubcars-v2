@@ -1,4 +1,5 @@
 import type { ApiVendorProfile, ApiWorkingHours } from '@repo/core/api/types';
+import { t, tn } from '@repo/core/i18n/translate';
 
 /**
  * The pure parts of Settings (apps/vendors/app/settings/page.tsx, pickup-section.tsx
@@ -40,12 +41,12 @@ export const decimalOnly = (value: string, max?: number) => {
 export function capacityProblem(bays: string, jobsPerDay: string): string | null {
   const bayCount = Number(bays);
   if (!/^\d+$/.test(bays) || bayCount < 1 || bayCount > MAX_BAYS) {
-    return `Cars at the same time must be between 1 and ${MAX_BAYS}.`;
+    return t('Cars at the same time must be between 1 and {max}.', { max: MAX_BAYS });
   }
   if (jobsPerDay.trim() === '') return null;
   const jobs = Number(jobsPerDay);
   if (!/^\d+$/.test(jobsPerDay) || jobs < 1 || jobs > MAX_JOBS_PER_DAY) {
-    return `Jobs in a day must be between 1 and ${MAX_JOBS_PER_DAY}, or left blank.`;
+    return t('Jobs in a day must be between 1 and {max}, or left blank.', { max: MAX_JOBS_PER_DAY });
   }
   return null;
 }
@@ -182,9 +183,11 @@ export function formatAcceptedDay(iso: string) {
 }
 
 export function bookingsSentence(count: number) {
-  return count === 1
-    ? 'You have 1 booking that day — reschedule or cancel it with the customer.'
-    : `You have ${count} bookings that day — reschedule or cancel them with the customers.`;
+  return tn(
+    count,
+    'You have {count} booking that day — reschedule or cancel it with the customer.',
+    'You have {count} bookings that day — reschedule or cancel them with the customers.'
+  );
 }
 
 /** The closures list in date order, as the web keeps it after an add. */

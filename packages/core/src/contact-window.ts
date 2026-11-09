@@ -1,4 +1,5 @@
 import type { ContactWindow } from '@repo/core/types'
+import { t } from './i18n/translate'
 
 /**
  * How the contact window reads in the customer app and the garage portal
@@ -34,15 +35,15 @@ export function contactWindowState(window: ContactWindow | null | undefined, now
 /** The customer's line where the garage's Call and WhatsApp would be. */
 export function garageNumberHiddenLine(state: Exclude<ContactWindowState, 'open'>): string {
   return state === 'before'
-    ? `The garage's number shows ${CONTACT_OPENS_HOURS_BEFORE} hours before your booking.`
-    : "The garage's number is hidden after your booking."
+    ? t("The garage's number shows {hours} hours before your booking.", { hours: CONTACT_OPENS_HOURS_BEFORE })
+    : t("The garage's number is hidden after your booking.")
 }
 
 /** The garage's line where the customer's Call and WhatsApp would be. */
 export function customerNumberHiddenLine(state: Exclude<ContactWindowState, 'open'>): string {
   return state === 'before'
-    ? `Customer's number shows ${CONTACT_OPENS_HOURS_BEFORE} hours before the job.`
-    : "Customer's number is hidden after the job."
+    ? t("Customer's number shows {hours} hours before the job.", { hours: CONTACT_OPENS_HOURS_BEFORE })
+    : t("Customer's number is hidden after the job.")
 }
 
 /**

@@ -19,6 +19,8 @@ export interface GraphiteOption<T extends string> {
  * (it reaches across both places, then settles), and a red light under it
  * once it has settled. Two-line options are 56 tall; `pinned` (the switch
  * stuck to the top on glass) shrinks them to 44 and hides the quiet line.
+ * Each line stays on one line inside its own option: one too long for it
+ * (Tamil at 390px) ends in an ellipsis rather than running into the next.
  *
  * A radiogroup, as ScSegmented is and for its reason: the choice narrows the
  * one list on screen, there are no panels. Arrow keys move the choice; only
@@ -149,7 +151,7 @@ export function GraphiteSwitch<T extends string>({
             tabIndex={selected ? 0 : -1}
             onClick={() => choose(option.value)}
             className={cn(
-              'relative z-[1] grid content-center justify-center gap-x-1.5 gap-y-0.5 rounded-[14px] px-1 transition-[color,min-height] duration-200',
+              'relative z-[1] grid min-w-0 content-center justify-center gap-x-1.5 gap-y-0.5 rounded-[14px] px-1 transition-[color,min-height] duration-200',
               'grid-cols-[auto_auto] items-center',
               pinned ? 'min-h-9 pb-1' : 'min-h-12 pb-1.5',
               selected ? 'text-text-primary' : 'text-[#8E8E98] hover:text-text-secondary'
@@ -162,8 +164,9 @@ export function GraphiteSwitch<T extends string>({
                   'grid place-items-center [&_svg]:size-[18px]',
                   selected && 'drop-shadow-[0_0_4px_rgb(255_255_255/0.35)]',
                   // A tight three-way switch drops the icons below 400px,
-                  // as the old one did, rather than wrap a label.
-                  options.length > 2 && 'hidden min-[400px]:grid'
+                  // as the old one did, rather than wrap a label; in Tamil,
+                  // whose words are wider, at every width.
+                  options.length > 2 && 'hidden min-[400px]:grid [&:lang(ta)]:hidden'
                 )}
               >
                 {option.icon}
@@ -172,9 +175,15 @@ export function GraphiteSwitch<T extends string>({
             <span
               id={`${id}-${i}`}
               className={cn(
-                'whitespace-nowrap text-[14px]',
+                // One line that never runs into its neighbour: a label too long
+                // for its third (Tamil) ends in an ellipsis. Clipped sideways
+                // only, so tall Tamil marks are never cut; a label that fits
+                // (English) draws exactly as before.
+                // Tamil a size down (13px), so "பிக்கப் & டிராப்" fits its third at 390px.
+                'min-w-0 overflow-x-clip text-ellipsis whitespace-nowrap text-[14px] [&:lang(ta)]:text-[13px]',
                 selected ? 'font-semibold' : 'font-medium',
-                !option.icon || options.length > 2 ? 'max-[399px]:col-span-2' : undefined
+                !option.icon || options.length > 2 ? 'max-[399px]:col-span-2' : undefined,
+                options.length > 2 && '[&:lang(ta)]:col-span-2'
               )}
             >
               {option.label}
@@ -183,7 +192,7 @@ export function GraphiteSwitch<T extends string>({
               <span
                 id={`${id}-${i}-q`}
                 className={cn(
-                  'col-span-2 whitespace-nowrap text-center text-t5 font-medium transition-colors',
+                  'col-span-2 min-w-0 overflow-x-clip text-ellipsis whitespace-nowrap text-center text-t5 font-medium transition-colors',
                   selected ? 'text-[#A8A8B2]' : 'text-[#8E8E98]',
                   pinned && 'hidden'
                 )}

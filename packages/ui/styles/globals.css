@@ -2,12 +2,16 @@
 @import "tw-animate-css";
 
 @theme inline {
-  --font-sans: var(--font-inter);
+  /* Tamil letters come from Noto Sans Tamil (the customer and garage
+     websites load it as --font-noto-tamil for the Language choice): Inter
+     has none, so the browser falls through to it for those letters alone.
+     The admin panel does not load it, hence the fallback. */
+  --font-sans: var(--font-inter), var(--font-noto-tamil, sans-serif);
   /* Space Grotesk is the brand face for figures only — prices, durations,
      dates and times — never for UI text. Each app loads it with next/font as
      --font-space-grotesk in its root layout; an app that did not would fall
      back to Inter here rather than to the browser default. */
-  --font-numeric: var(--font-space-grotesk, var(--font-inter));
+  --font-numeric: var(--font-space-grotesk, var(--font-inter)), var(--font-noto-tamil, sans-serif);
   /* Brand red is for things to press — primary buttons and a single focal
      dot — and never for errors, selection or status. See --color-error. */
   --color-brand-red: #EF3240;
@@ -153,7 +157,7 @@
   --toastify-color-dark: --theme(--color-surface);
   --toastify-color-error: --theme(--color-error);
   --toastify-color-warning: --theme(--color-error);
-  --toastify-font-family: var(--font-inter), sans-serif;
+  --toastify-font-family: var(--font-inter), var(--font-noto-tamil, sans-serif);
 }
 
 @layer base {

@@ -1,6 +1,7 @@
 import { formatRupees } from '@repo/core/job-records'
 import type { BookingRefund } from '@repo/core/types'
 import { APP_TIMEZONE } from '@repo/core/utils'
+import { t } from './i18n/translate'
 
 /**
  * How refunds are put into words: the line a customer reads on their booking
@@ -72,8 +73,8 @@ export function customerRefundLine(
   if (!credit) return moneyRefundLine(refund, what, false)
 
   const creditLine = credit.returnedAt
-    ? `${formatRupees(credit.amount)} back in your Detlio credit.`
-    : `${formatRupees(credit.amount)} going back to your Detlio credit.`
+    ? t('{amount} back in your Detlio credit.', { amount: formatRupees(credit.amount) })
+    : t('{amount} going back to your Detlio credit.', { amount: formatRupees(credit.amount) })
 
   // `amount` and, once it is back, `amountRefunded` count the credit too.
   const moneyAmount = toRupees(toPaise(refund.amount) - toPaise(credit.amount))
@@ -110,38 +111,65 @@ function toRupees(paise: number): number {
  * owed line names the amount paid online instead.
  */
 function moneyRefundLine(refund: BookingRefund, what: RefundFor, partOnline: boolean): string {
-  const when = refund.refundedAt ? ` on ${formatDate(refund.refundedAt)}` : ''
-  const forBill = what === 'earlier_bill' ? ' for the earlier final bill' : ''
-  const showing = `It can take ${BANK_DAYS} to show in your account.`
+  // Each shape is one whole sentence to translate: Tamil does not put the
+  // pieces ("for the earlier final bill", "on 3 Nov") where English does.
+  const bill = what === 'earlier_bill'
+  const days = t(BANK_DAYS)
+  const date = refund.refundedAt ? formatDate(refund.refundedAt) : null
+  const showing = t('It can take {days} to show in your account.', { days })
 
   // Sent through Razorpay from the app and still on its way: said as
   // started, with the day it was, until Razorpay finishes it. What went back
   // before it (counted in amountRefunded too) is said first, so it doesn't
   // vanish while the new one is on its way.
   if (refund.started && refund.started.amount > 0) {
-    const startedLine = `started on ${formatDate(refund.started.at)}. It reaches your account in ${BANK_DAYS}.`
+    const started = {
+      amount: formatRupees(refund.started.amount),
+      date: formatDate(refund.started.at),
+      days,
+    }
     const donePaise = Math.round(refund.amountRefunded * 100) - Math.round(refund.started.amount * 100)
     if (donePaise > 0) {
-      return `Refunded ${formatRupees(donePaise / 100)}${forBill} so far. A further refund of ${formatRupees(refund.started.amount)} ${startedLine}`
+      const done = formatRupees(donePaise / 100)
+      return bill
+        ? t('Refunded {done} for the earlier final bill so far. A further refund of {amount} started on {date}. It reaches your account in {days}.', { ...started, done })
+        : t('Refunded {done} so far. A further refund of {amount} started on {date}. It reaches your account in {days}.', { ...started, done })
     }
-    return `Refund of ${formatRupees(refund.started.amount)}${forBill} ${startedLine}`
+    return bill
+      ? t('Refund of {amount} for the earlier final bill started on {date}. It reaches your account in {days}.', started)
+      : t('Refund of {amount} started on {date}. It reaches your account in {days}.', started)
   }
 
   if (refund.status === 'refunded') {
-    return `Refunded ${formatRupees(refund.amountRefunded)}${forBill}${when}. ${showing}`
+    const vars = { amount: formatRupees(refund.amountRefunded), date: date ?? '' }
+    const line = bill
+      ? date
+        ? t('Refunded {amount} for the earlier final bill on {date}.', vars)
+        : t('Refunded {amount} for the earlier final bill.', vars)
+      : date
+        ? t('Refunded {amount} on {date}.', vars)
+        : t('Refunded {amount}.', vars)
+    return `${line} ${showing}`
   }
 
   if (refund.amountRefunded > 0) {
-    return `Refunded ${formatRupees(refund.amountRefunded)} of ${formatRupees(refund.amount)}${forBill}${when}. ${showing}`
+    const vars = { done: formatRupees(refund.amountRefunded), amount: formatRupees(refund.amount), date: date ?? '' }
+    const line = bill
+      ? date
+        ? t('Refunded {done} of {amount} for the earlier final bill on {date}.', vars)
+        : t('Refunded {done} of {amount} for the earlier final bill.', vars)
+      : date
+        ? t('Refunded {done} of {amount} on {date}.', vars)
+        : t('Refunded {done} of {amount}.', vars)
+    return `${line} ${showing}`
   }
 
-  const yours =
-    what === 'earlier_bill'
-      ? `your ${formatRupees(refund.amount)} payment for the earlier final bill`
-      : partOnline
-        ? `the ${formatRupees(refund.amount)} you paid online`
-        : 'your payment'
-  return `Our team will refund ${yours} to your original payment method within ${BANK_DAYS}.`
+  const yours = bill
+    ? t('your {amount} payment for the earlier final bill', { amount: formatRupees(refund.amount) })
+    : partOnline
+      ? t('the {amount} you paid online', { amount: formatRupees(refund.amount) })
+      : t('your payment')
+  return t('Our team will refund {yours} to your original payment method within {days}.', { yours, days })
 }
 
 /**

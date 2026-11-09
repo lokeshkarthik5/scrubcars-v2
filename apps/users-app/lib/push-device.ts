@@ -1,4 +1,5 @@
 import { getPushConfig } from '@repo/core/api/push';
+import { useT } from '@repo/core/i18n';
 import { toast } from '@repo/native-ui/toast';
 import { useQuery } from '@tanstack/react-query';
 import Constants from 'expo-constants';
@@ -52,6 +53,7 @@ export const PUSH_CONFIG_KEY = ['push', 'customer', 'config'];
 
 /** The web's usePushDevice, for this phone: the server's config and this phone's own state. */
 export function usePushDevice() {
+  const t = useT();
   const userId = useAuth((s) => s.user?.id ?? null);
   const config = useQuery({
     queryKey: PUSH_CONFIG_KEY,
@@ -92,15 +94,15 @@ export function usePushDevice() {
       if (result === 'on') {
         setDevices(devices ?? null);
         changed();
-        toast.success('Notifications are on for this phone');
+        toast.success(t('Notifications are on for this phone'));
       } else if (result === 'no_project') {
-        toast.error("This build of the app can't get notifications.");
+        toast.error(t("This build of the app can't get notifications."));
       } else {
-        toast.error('Notifications are blocked for this app in the phone’s settings.');
+        toast.error(t('Notifications are blocked for this app in the phone’s settings.'));
       }
       setPermission(await Notifications.getPermissionsAsync().then(toState));
     } catch (error) {
-      toast.error(errorText(error, "Couldn't turn notifications on. Try again."));
+      toast.error(errorText(error, t("Couldn't turn notifications on. Try again.")));
     } finally {
       setBusy(false);
     }
@@ -128,9 +130,9 @@ export function usePushDevice() {
     try {
       await controller.turnOff();
       changed();
-      toast.success('Notifications are off for this phone');
+      toast.success(t('Notifications are off for this phone'));
     } catch (error) {
-      toast.error(errorText(error, "Couldn't turn notifications off. Try again."));
+      toast.error(errorText(error, t("Couldn't turn notifications off. Try again.")));
     } finally {
       setBusy(false);
     }

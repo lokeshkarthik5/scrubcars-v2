@@ -10,6 +10,7 @@ import {
 } from '@repo/core/api/account'
 import { ACCOUNT_DELETION_CONFIRM, ACCOUNT_DELETION_WORDS } from '@repo/core/account-deletion'
 import { typedConfirmMatches } from '@repo/core/confirm'
+import { fill, msg, useT } from '@repo/core/i18n'
 
 type Phase =
   | { kind: 'checking' }
@@ -34,6 +35,7 @@ export function DeleteAccountSheet({
   /** After the account is gone and the person pressed Done: clear the session here and leave. */
   onDeleted: () => void
 }) {
+  const t = useT()
   const [phase, setPhase] = useState<Phase>({ kind: 'checking' })
   const [typed, setTyped] = useState('')
   const [busy, setBusy] = useState(false)
@@ -59,7 +61,7 @@ export function DeleteAccountSheet({
       })
       .catch((err: unknown) => {
         if (!cancelled)
-          setPhase({ kind: 'failed', message: err instanceof Error ? err.message : 'Could not check your account.' })
+          setPhase({ kind: 'failed', message: err instanceof Error ? err.message : msg('Could not check your account.') })
       })
     return () => {
       cancelled = true
@@ -81,7 +83,7 @@ export function DeleteAccountSheet({
       setPhase({ kind: 'deleted' })
     } catch (err) {
       // Something opened meanwhile (a booking, a payment): say it here.
-      setError(err instanceof Error ? err.message : 'Could not delete your account.')
+      setError(err instanceof Error ? err.message : t('Could not delete your account.'))
     } finally {
       setBusy(false)
     }
@@ -90,35 +92,35 @@ export function DeleteAccountSheet({
   const words = ACCOUNT_DELETION_WORDS
 
   return (
-    <ScSheet open={open} onClose={close} dismissible={!busy} aria-label="Delete account">
+    <ScSheet open={open} onClose={close} dismissible={!busy} aria-label={t('Delete account')}>
       <div className="flex flex-col gap-3 px-5 pt-1">
         {phase.kind === 'deleted' ? (
           <>
-            <h2 className="text-t2 font-semibold text-text-primary">{words.doneTitle}</h2>
+            <h2 className="text-t2 font-semibold text-text-primary">{t(words.doneTitle)}</h2>
             <p role="status" className="text-[14px] text-text-secondary">
-              {words.doneBody}
+              {t(words.doneBody)}
             </p>
             <ScButton variant="main" onClick={onDeleted}>
-              Done
+              {t('Done')}
             </ScButton>
           </>
         ) : (
           <>
-            <h2 className="text-t2 font-semibold text-text-primary">{words.title}</h2>
+            <h2 className="text-t2 font-semibold text-text-primary">{t(words.title)}</h2>
             {phase.kind === 'checking' && (
               <p role="status" className="text-[14px] text-text-secondary">
-                Checking your account…
+                {t('Checking your account…')}
               </p>
             )}
             {phase.kind === 'failed' && (
               <p role="alert" className="text-[14px] text-error">
-                {phase.message}
+                {t(phase.message)}
               </p>
             )}
             {phase.kind === 'ready' && !phase.preview.canDelete && (
               <>
-                <p className="text-[14px] text-text-secondary">{words.blockedIntro}</p>
-                <ul aria-label="Before you can delete" className="flex flex-col gap-2">
+                <p className="text-[14px] text-text-secondary">{t(words.blockedIntro)}</p>
+                <ul aria-label={t('Before you can delete')} className="flex flex-col gap-2">
                   {phase.preview.blockers.map((blocker) => (
                     <li
                       key={blocker.code}
@@ -132,26 +134,26 @@ export function DeleteAccountSheet({
             )}
             {phase.kind === 'ready' && phase.preview.canDelete && (
               <>
-                <section aria-label="What is deleted">
-                  <p className="text-t4 font-semibold text-text-primary">{words.deletedHeading}</p>
+                <section aria-label={t('What is deleted')}>
+                  <p className="text-t4 font-semibold text-text-primary">{t(words.deletedHeading)}</p>
                   <ul className="mt-1 list-disc pl-5 text-t4 text-text-secondary">
                     {words.deleted.map((line) => (
-                      <li key={line}>{line}</li>
+                      <li key={line}>{t(line)}</li>
                     ))}
                   </ul>
                 </section>
-                <section aria-label="What is kept">
-                  <p className="text-t4 font-semibold text-text-primary">{words.keptHeading}</p>
+                <section aria-label={t('What is kept')}>
+                  <p className="text-t4 font-semibold text-text-primary">{t(words.keptHeading)}</p>
                   <ul className="mt-1 list-disc pl-5 text-t4 text-text-secondary">
                     {words.kept.map((line) => (
-                      <li key={line}>{line}</li>
+                      <li key={line}>{t(line)}</li>
                     ))}
                   </ul>
                 </section>
-                <p className="text-t4 text-text-secondary">{words.final}</p>
+                <p className="text-t4 text-text-secondary">{t(words.final)}</p>
                 <label className="flex flex-col gap-1.5 text-t4 text-text-secondary">
                   <span>
-                    Type <span className="font-semibold text-text-primary">{ACCOUNT_DELETION_CONFIRM}</span> to confirm
+                    {fill(t('Type {word} to confirm'), { word: <span className="font-semibold text-text-primary">{ACCOUNT_DELETION_CONFIRM}</span> })}
                   </span>
                   <input
                     value={typed}
@@ -177,11 +179,11 @@ export function DeleteAccountSheet({
                   onClick={() => void remove()}
                   disabled={busy || !typedConfirmMatches(typed, ACCOUNT_DELETION_CONFIRM)}
                 >
-                  {busy ? 'Deleting…' : 'Delete my account'}
+                  {busy ? t('Deleting…') : t('Delete my account')}
                 </ScButton>
               )}
               <ScButton variant="outline" onClick={close} disabled={busy}>
-                {phase.kind === 'ready' && phase.preview.canDelete ? 'Keep my account' : 'Close'}
+                {phase.kind === 'ready' && phase.preview.canDelete ? t('Keep my account') : t('Close')}
               </ScButton>
             </div>
           </>

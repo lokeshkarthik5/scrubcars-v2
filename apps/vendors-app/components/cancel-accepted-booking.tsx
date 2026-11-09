@@ -19,6 +19,7 @@ import { ConfirmSheet } from '@repo/native-ui/sheet';
 import { T } from '@repo/native-ui/text';
 import { toast } from '@repo/native-ui/toast';
 import { errorText } from '@/lib/error-text';
+import { useT } from '@repo/core/i18n';
 
 /** CancelAcceptedBooking: accepted, not started, the garage can no longer do it. */
 export function CancelAcceptedBooking({
@@ -30,6 +31,7 @@ export function CancelAcceptedBooking({
   now: number;
   onChanged: () => void;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const writeVendorBooking = useBookingsStore((s) => s.writeVendorBooking);
@@ -39,7 +41,7 @@ export function CancelAcceptedBooking({
 
   if (!canGarageCancel(booking)) return null;
 
-  const who = booking.customerName || 'The customer';
+  const who = booking.customerName || t('The customer');
   const late = isLateGarageCancel(new Date(booking.scheduledAtIso), new Date(now));
   const paid = booking.paymentStatus === 'paid';
 
@@ -51,18 +53,18 @@ export function CancelAcceptedBooking({
   const cancel = async () => {
     const text = reason.trim();
     if (text.length < GARAGE_CANCEL_REASON_MIN) {
-      setError('Say why you are cancelling, so Detlio can help the customer.');
+      setError(t('Say why you are cancelling, so Detlio can help the customer.'));
       return;
     }
     setError(undefined);
     try {
       await writeVendorBooking(booking.id, () => garageCancelBooking(booking.id, text));
-      toast.success('Booking cancelled');
+      toast.success(t('Booking cancelled'));
       setReason('');
       setOpen(false);
       onChanged();
     } catch (err) {
-      setError(errorText(err, 'Could not cancel this booking'));
+      setError(errorText(err, t('Could not cancel this booking')));
       onChanged();
     }
   };
@@ -71,29 +73,35 @@ export function CancelAcceptedBooking({
     <View>
       <ScButton
         variant="outline"
-        accessibilityLabel={`Cancel booking for ${booking.customerName || 'the customer'}`}
+        accessibilityLabel={t('Cancel booking for {name}', { name: booking.customerName || t('the customer') })}
         onPress={() => setOpen(true)}
       >
-        Cancel booking
+        {t('Cancel booking')}
       </ScButton>
       <ConfirmSheet
         open={open}
         onClose={close}
         onConfirm={cancel}
         level="firm"
-        title="Cancel this booking?"
+        title={t('Cancel this booking?')}
         body={
           <View style={styles.body}>
             <T size={15} color={colors.textSecondary}>
-              {paid ? `${who} gets a full refund, and we tell them you had to cancel.` : `We tell ${who} you had to cancel.`}
+              {paid
+                ? t('{who} gets a full refund, and we tell them you had to cancel.', { who })
+                : t('We tell {who} you had to cancel.', { who })}
             </T>
             <T size={15} color={late ? colors.warning : colors.textSecondary}>
               {late
-                ? `This is within ${GARAGE_CANCEL_LATE_HOURS} hours of the booking, so it counts as a missed booking for your medal.`
-                : `More than ${GARAGE_CANCEL_LATE_HOURS} hours before the booking, it counts like a booking you couldn't take.`}
+                ? t('This is within {hours} hours of the booking, so it counts as a missed booking for your medal.', {
+                    hours: GARAGE_CANCEL_LATE_HOURS,
+                  })
+                : t("More than {hours} hours before the booking, it counts like a booking you couldn't take.", {
+                    hours: GARAGE_CANCEL_LATE_HOURS,
+                  })}
             </T>
             <ScTextarea
-              label="Why are you cancelling?"
+              label={t('Why are you cancelling?')}
               rows={3}
               maxLength={GARAGE_CANCEL_REASON_MAX}
               value={reason}
@@ -101,8 +109,8 @@ export function CancelAcceptedBooking({
             />
           </View>
         }
-        confirmLabel="Cancel booking"
-        cancelLabel="Keep booking"
+        confirmLabel={t('Cancel booking')}
+        cancelLabel={t('Keep booking')}
         error={error}
       />
     </View>

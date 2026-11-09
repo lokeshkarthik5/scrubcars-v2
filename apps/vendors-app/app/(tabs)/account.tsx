@@ -6,6 +6,7 @@ import { AccountActions } from '@/components/account-actions';
 import { AppearanceCard } from '@/components/appearance-card';
 import { AppLockCard } from '@/components/app-lock-card';
 import { AppShell, garageScreen } from '@/components/app-shell';
+import { LanguageRow } from '@/components/language-row';
 import { Label, ScButton } from '@repo/native-ui/button';
 import { IconLogout } from '@repo/native-ui/icons';
 import { ScCard } from '@repo/native-ui/primitives';
@@ -15,9 +16,11 @@ import { T } from '@repo/native-ui/text';
 import { APP_VERSION } from '@/lib/app-config';
 import { useAuth } from '@/lib/auth';
 import { createStyles, useColors } from '@repo/native-ui/theme';
+import { useT } from '@repo/core/i18n';
 
 /** apps/vendors/app/account/page.tsx: who is signed in, and the ways out, for every seat. */
 function AccountScreen() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const user = useAuth((s) => s.user);
@@ -37,7 +40,7 @@ function AccountScreen() {
         )
       }
     >
-      <TopBar title="Your account" onBack={() => router.navigate('/home' as Href)} />
+      <TopBar title={t('Your account')} onBack={() => router.navigate('/home' as Href)} />
       {user ? (
         <ScCard style={styles.card}>
           <T size={15} weight={600}>
@@ -49,11 +52,13 @@ function AccountScreen() {
 
       <AppearanceCard />
       <AppLockCard />
+      {/* English or தமிழ் (Tamil): every seat's, as on the web. */}
+      <LanguageRow />
 
       <AccountActions />
 
       <View style={styles.section}>
-        <SectionHeader title="Support" />
+        <SectionHeader title={t('Support')} />
         <SupportCard />
       </View>
 
@@ -66,7 +71,7 @@ function AccountScreen() {
         }}
       >
         <IconLogout size={18} />
-        <Label>Log out</Label>
+        <Label>{t('Log out')}</Label>
       </ScButton>
 
       <T num size={12} color={colors.textMuted} align="center" style={styles.version}>

@@ -1,3 +1,5 @@
+import { msg, t } from './i18n/translate'
+
 /**
  * Complaints: the reference number a customer is given, and the response
  * clock the team works to. Pure, with the clock passed in.
@@ -35,12 +37,12 @@ export type ComplaintCategory = (typeof COMPLAINT_CATEGORIES)[number]
 
 /** The chips on the complaint form, and the category everywhere it is shown. */
 export const COMPLAINT_CATEGORY_LABELS: Record<ComplaintCategory, string> = {
-  payment_or_refund: 'Payment or refund',
-  service_quality: 'Quality of the work',
-  garage_no_show: "Garage didn't turn up",
-  damage: 'Damage to my car',
-  app_problem: 'Problem with the app',
-  other: 'Something else',
+  payment_or_refund: msg('Payment or refund'),
+  service_quality: msg('Quality of the work'),
+  garage_no_show: msg("Garage didn't turn up"),
+  damage: msg('Damage to my car'),
+  app_problem: msg('Problem with the app'),
+  other: msg('Something else'),
 }
 
 /**
@@ -71,11 +73,11 @@ export const COMPLAINT_SOURCE_LABELS: Record<ComplaintSource, string> = {
  * they never typed in the app makes sense: "You told us by phone".
  */
 export const COMPLAINT_SOURCE_CUSTOMER_LINES: Record<Exclude<ComplaintSource, 'app'>, string> = {
-  phone: 'You told us by phone',
-  whatsapp: 'You told us on WhatsApp',
-  email: 'You told us by email',
-  in_person: 'You told us in person',
-  other: 'You told our team',
+  phone: msg('You told us by phone'),
+  whatsapp: msg('You told us on WhatsApp'),
+  email: msg('You told us by email'),
+  in_person: msg('You told us in person'),
+  other: msg('You told our team'),
 }
 
 /** How far back the team may date a complaint it logs. */
@@ -91,10 +93,10 @@ export type ComplaintStatus = (typeof COMPLAINT_STATUSES)[number]
 
 /** The status as the customer reads it in My complaints. */
 export const COMPLAINT_STATUS_LABELS: Record<ComplaintStatus, string> = {
-  open: 'Received',
-  acknowledged: 'Being looked into',
-  resolved: 'Resolved',
-  closed: 'Closed',
+  open: msg('Received'),
+  acknowledged: msg('Being looked into'),
+  resolved: msg('Resolved'),
+  closed: msg('Closed'),
 }
 
 /** The status as the team reads it in admin. */
@@ -205,7 +207,10 @@ export function complaintClockLine(
 
 /** The line the customer reads once the complaint is in. */
 export function complaintReceivedLine(number: string): string {
-  return `Complaint ${number} received — we'll get back to you within ${COMPLAINT_ACKNOWLEDGE_HOURS} hours.`
+  return t("Complaint {number} received — we'll get back to you within {hours} hours.", {
+    number,
+    hours: COMPLAINT_ACKNOWLEDGE_HOURS,
+  })
 }
 
 const DATE_PARTS = new Intl.DateTimeFormat('en-IN', {

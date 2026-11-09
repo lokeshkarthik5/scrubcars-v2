@@ -16,12 +16,14 @@ import { useFonts } from 'expo-font';
 import { type Href, router, Stack, useGlobalSearchParams, usePathname, useRootNavigationState } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { loadLang, useLang, useT, useTn } from '@repo/core/i18n';
 import { ScButton } from '@repo/native-ui/button';
+import { LangProvider } from '@repo/native-ui/lang';
 import { T } from '@repo/native-ui/text';
 import { createStyles, ThemeProvider, useColors, useTheme } from '@repo/native-ui/theme';
 import { ToastHost } from '@repo/native-ui/toast';
@@ -40,23 +42,27 @@ import { devicePrefs } from '@/lib/device-prefs';
 export { ErrorBoundary } from 'expo-router';
 
 initSentry();
+// English or Tamil, as chosen on this phone (Profile → Language): read before the first
+// render, so the app opens in its language.
+loadLang(devicePrefs);
 void SplashScreen.preventAutoHideAsync();
 
 /** A phone with a token and no signal: still signed in. */
 function Unreachable() {
+  const t = useT();
   const restore = useAuth((s) => s.restore);
   const colors = useColors();
   const styles = useStyles();
   return (
     <View style={styles.unreachable}>
       <T accessibilityRole="header" size={18} weight={700} align="center">
-        Could not reach Detlio
+        {t('Could not reach Detlio')}
       </T>
       <T size={14} color={colors.textSecondary} align="center">
-        You are still signed in. Check your connection.
+        {t('You are still signed in. Check your connection.')}
       </T>
       <ScButton variant="outline" fullWidth={false} onPress={() => void restore()}>
-        Try again
+        {t('Try again')}
       </ScButton>
     </View>
   );
@@ -126,6 +132,18 @@ function SessionGate() {
   );
 }
 
+/** core's language, handed to the shared parts (packages/native-ui has no core dependency). */
+function AppLang({ children }: { children: ReactNode }) {
+  const lang = useLang((s) => s.lang);
+  const t = useT();
+  const tn = useTn();
+  return (
+    <LangProvider lang={lang} t={t} tn={tn}>
+      {children}
+    </LangProvider>
+  );
+}
+
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
@@ -160,7 +178,7 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider storage={devicePrefs}>
-        {unlocked ? <ThemedRoot /> : <AppLockGate onOpen={opened} />}
+        <AppLang>{unlocked ? <ThemedRoot /> : <AppLockGate onOpen={opened} />}</AppLang>
       </ThemeProvider>
     </SafeAreaProvider>
   );

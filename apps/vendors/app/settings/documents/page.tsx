@@ -9,6 +9,7 @@ import {
   IconUpload,
 } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
+import { fill, useT } from '@repo/core/i18n'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { StatusChip } from '@repo/ui/sc/status-chip'
 import type { StatusTone } from '@repo/core/status-tone'
@@ -80,6 +81,7 @@ function dayLabel(date: string): string {
  * server has its private documents bucket; otherwise there is nothing here.
  */
 export default function GarageDocumentsPage() {
+  const t = useT()
   const router = useRouter()
   const isVendorAdmin = useIsVendorAdmin()
   const activeVendorId = useAuthStore((s) => s.activeVendorId)
@@ -145,12 +147,12 @@ export default function GarageDocumentsPage() {
 
   return (
     <AppShell showNav navType="vendor" className="gap-5 py-4">
-      <TopBar title="Documents" showBack backHref="/settings" />
+      <TopBar title={t('Documents')} showBack backHref="/settings" />
 
       {failed ? (
         <div className="flex flex-col items-start gap-2">
           <p role="alert" className="text-[13px] text-error">
-            Couldn’t load your documents.
+            {t('Couldn’t load your documents.')}
           </p>
           <ScButton
             variant="outline"
@@ -159,12 +161,12 @@ export default function GarageDocumentsPage() {
             onClick={() => void load()}
             className="px-4"
           >
-            Try again
+            {t('Try again')}
           </ScButton>
         </div>
       ) : enabled === false ? (
-        <Notice tone="neutral" title="Documents aren’t open yet">
-          Detlio will tell you when you can upload them here.
+        <Notice tone="neutral" title={t('Documents aren’t open yet')}>
+          {t('Detlio will tell you when you can upload them here.')}
         </Notice>
       ) : !data ? (
         <SkeletonList count={4} itemClassName="h-32" />
@@ -172,20 +174,25 @@ export default function GarageDocumentsPage() {
         <>
           <section className="flex flex-col gap-3">
             <SectionHeader
-              title="Your documents"
-              subtitle="Detlio checks these. When the required ones are approved, your documents count as checked, one of the steps to Silver. Only you and the Detlio team can open them."
+              title={t('Your documents')}
+              subtitle={t(
+                'Detlio checks these. When the required ones are approved, your documents count as checked, one of the steps to Silver. Only you and the Detlio team can open them.'
+              )}
             />
             {data.summary.verified ? (
-              <Notice tone="neutral" title="Documents checked">
-                That step to Silver is done.
+              <Notice tone="neutral" title={t('Documents checked')}>
+                {t('That step to Silver is done.')}
               </Notice>
             ) : (
               <p className="text-[13px] font-medium text-text-primary">
-                <span className="font-numeric">
-                  {data.summary.approvedRequired}
-                </span>{' '}
-                of <span className="font-numeric">{data.summary.required}</span>{' '}
-                required approved
+                {fill(t('{done} of {count} required approved'), {
+                  done: (
+                    <span className="font-numeric">
+                      {data.summary.approvedRequired}
+                    </span>
+                  ),
+                  count: <span className="font-numeric">{data.summary.required}</span>,
+                })}
               </p>
             )}
           </section>
@@ -220,6 +227,9 @@ function DocumentCard({
   /** Removed (0065): the documents as they are now. */
   onRemoved: (documents: GarageDocuments) => void
 }) {
+  const t = useT()
+  // The document's name, as the server sends it, in the language in use.
+  const label = t(doc.label)
   const inputRef = useRef<HTMLInputElement>(null)
   const [picked, setPicked] = useState<File[]>([])
   const [expiresOn, setExpiresOn] = useState(doc.expiresOn ?? '')
@@ -245,11 +255,11 @@ function DocumentCard({
         expiresOn: expiresOn || null,
       })
       setPicked([])
-      toast.success(`${doc.label} sent for review`)
+      toast.success(t('{document} sent for review', { document: label }))
       onUploaded(next)
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : 'Upload failed. Please try again.'
+        err instanceof Error ? err.message : t('Upload failed. Please try again.')
       )
     } finally {
       setBusy(false)
@@ -266,13 +276,13 @@ function DocumentCard({
     try {
       const next = await removeGarageDocument(doc.id)
       setConfirmRemove(false)
-      toast.success(`${doc.label} removed`)
+      toast.success(t('{document} removed', { document: label }))
       onRemoved(next)
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : 'Couldn’t remove it. Please try again.'
+          : t('Couldn’t remove it. Please try again.')
       )
     } finally {
       setBusy(false)
@@ -284,7 +294,7 @@ function DocumentCard({
     try {
       await openDocumentLink(() => getGarageDocumentLink(doc.id!, fileId))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Couldn’t open the file')
+      toast.error(err instanceof Error ? err.message : t('Couldn’t open the file'))
     }
   }
 
@@ -300,10 +310,10 @@ function DocumentCard({
             id={titleId}
             className="text-[13px] font-semibold text-text-primary"
           >
-            {doc.label}
+            {label}
           </p>
           <p className="text-[11px] text-text-muted">
-            {doc.required ? 'Required' : 'Optional'}
+            {doc.required ? t('Required') : t('Optional')}
           </p>
         </div>
         <StatusChip
@@ -313,7 +323,7 @@ function DocumentCard({
           {doc.status === 'approved' && (
             <IconShieldCheckFilled size={12} aria-hidden="true" />
           )}
-          {DOCUMENT_STATUS_LABELS[doc.status]}
+          {t(DOCUMENT_STATUS_LABELS[doc.status])}
         </StatusChip>
       </div>
 
@@ -322,12 +332,12 @@ function DocumentCard({
       </p>
       {doc.type === 'owner_id' && (
         <p className="text-[12px] font-medium text-text-primary">
-          {AADHAAR_MASK_NOTE}.
+          {t(AADHAAR_MASK_NOTE)}.
         </p>
       )}
 
       {doc.status === 'rejected' && doc.rejectionReason && (
-        <Notice title="What to fix">{doc.rejectionReason}</Notice>
+        <Notice title={t('What to fix')}>{doc.rejectionReason}</Notice>
       )}
 
       {doc.files.length > 0 && (
@@ -346,30 +356,37 @@ function DocumentCard({
                 <span className="truncate">
                   {file.side === 'front'
                     ? doc.files.length > 1
-                      ? 'Front'
-                      : 'File'
-                    : 'Back'}{' '}
+                      ? t('Front')
+                      : t('File')
+                    : t('Back')}{' '}
                   · <span className="font-numeric">{fileLine(file)}</span>
                 </span>
               </span>
               <button
                 type="button"
                 onClick={() => void view(file.id)}
-                aria-label={`View ${doc.label}${doc.files.length > 1 ? `, ${file.side}` : ''}`}
+                aria-label={
+                  doc.files.length > 1
+                    ? file.side === 'front'
+                      ? t('View {document}, front', { document: label })
+                      : t('View {document}, back', { document: label })
+                    : t('View {photo}', { photo: label })
+                }
                 className="flex min-h-11 shrink-0 items-center gap-1 text-[12px] font-medium text-text-primary underline-offset-2 hover:underline"
               >
-                <IconEye size={14} aria-hidden="true" /> View
+                <IconEye size={14} aria-hidden="true" /> {t('View')}
               </button>
             </li>
           ))}
           {doc.expiresOn && (
             <li className="text-[12px] text-text-secondary">
-              Expires{' '}
-              <span className="font-numeric">{dayLabel(doc.expiresOn)}</span>
+              {fill(t('Expires {date}'), {
+                date: <span className="font-numeric">{dayLabel(doc.expiresOn)}</span>,
+              })}
             </li>
           )}
           {doc.uploadedByDetlio && (
-            <li className="text-[11px] text-text-muted">Uploaded by Detlio</li>
+            <li className="text-[11px] text-text-muted">{t('Uploaded by Detlio')}</li>
           )}
         </ul>
       )}
@@ -380,19 +397,20 @@ function DocumentCard({
         accept={DOCUMENT_ACCEPT}
         multiple
         hidden
-        aria-label={`Choose files for ${doc.label}`}
+        aria-label={t('Choose files for {document}', { document: label })}
         onChange={(e) => pick(e.target.files)}
       />
 
       {confirmRemove ? (
         <div
           role="group"
-          aria-label={`Remove ${doc.label}?`}
+          aria-label={t('Remove {document}?', { document: label })}
           className="flex flex-col gap-2 border-t border-border pt-3"
         >
           <p className="text-[13px] text-text-primary">
-            Remove {inSentence(doc.label)}? It goes back to Not uploaded and its
-            files are deleted.
+            {t('Remove {document}? It goes back to Not uploaded and its files are deleted.', {
+              document: inSentence(label),
+            })}
           </p>
           {error && (
             <p role="alert" className="text-[12px] text-error">
@@ -406,7 +424,9 @@ function DocumentCard({
               onClick={() => void remove()}
               disabled={busy}
             >
-              {busy ? 'Removing…' : `Remove ${inSentence(doc.label)}`}
+              {busy
+                ? t('Removing…')
+                : t('Remove {photo}', { photo: inSentence(label) })}
             </ScButton>
             <ScButton
               variant="outline"
@@ -416,7 +436,7 @@ function DocumentCard({
               onClick={() => setConfirmRemove(false)}
               className="px-4"
             >
-              Keep it
+              {t('Keep it')}
             </ScButton>
           </div>
         </div>
@@ -430,16 +450,16 @@ function DocumentCard({
           >
             <IconUpload size={16} aria-hidden="true" />
             {doc.status === 'missing'
-              ? `Upload ${inSentence(doc.label)}`
-              : `Replace ${inSentence(doc.label)}`}
+              ? t('Upload {document}', { document: inSentence(label) })
+              : t('Replace {document}', { document: inSentence(label) })}
           </ScButton>
           <p className="text-[13px] text-text-secondary">
-            A photo or PDF, up to 10 MB.
+            {t('A photo or PDF, up to 10 MB.')}
             {/* Only an ID card has two sides; a shop photo doesn't. */}
             {doc.type === 'owner_id' &&
-              ' Two files if it has a front and a back.'}
+              ` ${t('Two files if it has a front and a back.')}`}
             {doc.status === 'approved' &&
-              ' Replacing it sends it back for review.'}
+              ` ${t('Replacing it sends it back for review.')}`}
           </p>
           {garageCanRemove(doc) && (
             <button
@@ -448,10 +468,10 @@ function DocumentCard({
                 setError('')
                 setConfirmRemove(true)
               }}
-              aria-label={`Remove ${doc.label}`}
+              aria-label={t('Remove {photo}', { photo: label })}
               className="min-h-11 self-start text-[12px] font-medium text-text-secondary underline-offset-2 hover:underline"
             >
-              Remove
+              {t('Remove')}
             </button>
           )}
         </div>
@@ -460,14 +480,18 @@ function DocumentCard({
           <ul className="flex flex-col gap-1 text-[12px] text-text-secondary">
             {picked.map((file, index) => (
               <li key={`${file.name}-${index}`} className="truncate">
-                {picked.length > 1 ? (index === 0 ? 'Front: ' : 'Back: ') : ''}
+                {picked.length > 1
+                  ? index === 0
+                    ? `${t('Front')}: `
+                    : `${t('Back')}: `
+                  : ''}
                 {file.name}
               </li>
             ))}
           </ul>
           {doc.takesExpiry && (
             <ScInput
-              label="Expiry date (optional)"
+              label={t('Expiry date (optional)')}
               type="date"
               value={expiresOn}
               onChange={(e) => setExpiresOn(e.target.value)}
@@ -487,7 +511,7 @@ function DocumentCard({
               onClick={() => void send()}
               disabled={busy || Boolean(problem)}
             >
-              {busy ? 'Sending…' : 'Send for review'}
+              {busy ? t('Sending…') : t('Send for review')}
             </ScButton>
             <ScButton
               variant="outline"
@@ -497,7 +521,7 @@ function DocumentCard({
               onClick={() => setPicked([])}
               className="px-4"
             >
-              Cancel
+              {t('Cancel')}
             </ScButton>
           </div>
         </div>

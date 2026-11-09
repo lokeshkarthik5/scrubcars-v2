@@ -11,6 +11,7 @@ import type { BookingType, Vendor } from '@repo/core/types'
 import { GarageCover } from '@repo/ui/features/garage-cover'
 import { ScModal } from '@repo/ui/sc/modal'
 import { Skeleton } from '@repo/ui/sc/skeleton'
+import { useT } from '@repo/core/i18n'
 
 /**
  * Press and hold a garage card (§3): a glass quick look over the list, with
@@ -29,11 +30,12 @@ export function QuickLook({
   mode: BookingType
   onClose: () => void
 }) {
+  const t = useT()
   return (
     <ScModal
       open={vendor !== null}
       onClose={onClose}
-      aria-label={vendor ? `Quick look: ${vendor.name}` : 'Quick look'}
+      aria-label={vendor ? t('Quick look: {name}', { name: vendor.name }) : t('Quick look')}
       className="fx-glass max-w-[354px] overflow-hidden rounded-[26px] border-white/18 bg-[rgb(18_18_22/0.82)] p-0"
     >
       {vendor && <QuickLookBody vendor={vendor} mode={mode} onClose={onClose} />}
@@ -42,6 +44,7 @@ export function QuickLook({
 }
 
 function QuickLookBody({ vendor, mode, onClose }: { vendor: Vendor; mode: BookingType; onClose: () => void }) {
+  const t = useT()
   const garage = useGarage(vendor.id)
   const services = garage.isPlaceholderData ? null : (garage.data?.services.slice(0, 3) ?? [])
   const modeParam = bookingTypeParam(mode)
@@ -97,14 +100,14 @@ function QuickLookBody({ vendor, mode, onClose }: { vendor: Vendor; mode: Bookin
             onClick={onClose}
             className="fx-press flex h-12 flex-1 items-center justify-center rounded-[14px] border border-white/16 bg-white/5 text-t3 font-semibold text-white"
           >
-            Open garage
+            {t('Open garage')}
           </Link>
           <Link
             href={`/book/${vendor.id}${query}`}
             onClick={onClose}
             className="fx-red-button fx-press flex h-12 flex-1 items-center justify-center rounded-[14px] text-t3 font-semibold"
           >
-            Book
+            {t('Book')}
           </Link>
         </div>
       </div>

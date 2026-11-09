@@ -1,9 +1,11 @@
 import type { MapsLinkResult, MapsLinkWarning } from '@repo/core/api/geo';
+import { msg, t } from '@repo/core/i18n/translate';
 
 /**
  * The pure parts of the map picker (packages/ui/src/features/location-picker.tsx): the words
  * for a pasted link, when to search, the map's zoom maths and the location timeout. Kept free
- * of react-native so `bun test` can load it.
+ * of react-native so `bun test` can load it. Its words are English constants (msg) for the
+ * screen's t(); linkOutcome's notice comes out in the language in use.
  */
 export interface PickedLocation {
   lat: number;
@@ -19,22 +21,23 @@ export interface PickedLocation {
 export const DEBOUNCE_MS = 300;
 export const MIN_QUERY_LENGTH = 3;
 /** The search box's own words, for its placeholder and its label. */
-export const SEARCH_PLACEHOLDER = 'Search for area, street or landmark';
+export const SEARCH_PLACEHOLDER = msg('Search for area, street or landmark');
 /** The web waits 15 s for a real fix: this coordinate is stored for good. */
 export const LOCATION_TIMEOUT_MS = 15_000;
 export const OPEN_ZOOM = 11;
 
 export const LINK_WARNINGS: Record<MapsLinkWarning, string> = {
-  place_share_link:
-    'That looks like a Google place-share link, which carries no location. We placed the pin from its address — check it before saving.',
-  directions_link: 'That was a directions link, so we used its destination. Check the pin before saving.',
-  no_location_found: 'Could not read a location from that link. Search above, or drop the pin by hand.',
-  unreachable: 'Could not open that link. Search above, or drop the pin by hand.',
+  place_share_link: msg(
+    'That looks like a Google place-share link, which carries no location. We placed the pin from its address — check it before saving.'
+  ),
+  directions_link: msg('That was a directions link, so we used its destination. Check the pin before saving.'),
+  no_location_found: msg('Could not read a location from that link. Search above, or drop the pin by hand.'),
+  unreachable: msg('Could not open that link. Search above, or drop the pin by hand.'),
 };
 
-export const LOOKUP_FAILED = 'Could not look up that address — you can type it below.';
-export const SUGGESTION_FAILED = 'Could not locate that address. Try dropping the pin instead.';
-export const LOCATION_BLOCKED = 'Location access was blocked. Search or drop the pin instead.';
+export const LOOKUP_FAILED = msg('Could not look up that address — you can type it below.');
+export const SUGGESTION_FAILED = msg('Could not locate that address. Try dropping the pin instead.');
+export const LOCATION_BLOCKED = msg('Location access was blocked. Search or drop the pin instead.');
 
 /** A search runs for three letters or more. */
 export const isSearchable = (query: string) => query.trim().length >= MIN_QUERY_LENGTH;
@@ -73,17 +76,20 @@ export function linkOutcome(
   expectedCity?: string
 ): { point: { lat: number; lng: number } | null; notice: string | null } {
   if (result.lat === null || result.lng === null) {
-    return { point: null, notice: LINK_WARNINGS[result.warning ?? 'no_location_found'] };
+    return { point: null, notice: t(LINK_WARNINGS[result.warning ?? 'no_location_found']) };
   }
   const notices: string[] = [];
-  if (result.warning) notices.push(LINK_WARNINGS[result.warning]);
+  if (result.warning) notices.push(t(LINK_WARNINGS[result.warning]));
   const resolvedCity = result.address ?? '';
   if (!linkMatchesCity(resolvedCity, expectedCity)) {
     notices.push(
-      `This link points to “${resolvedCity.slice(0, 60)}”, which does not look like ${expectedCity}. Check the pin.`
+      t('This link points to “{place}”, which does not look like {city}. Check the pin.', {
+        place: resolvedCity.slice(0, 60),
+        city: expectedCity ?? '',
+      })
     );
   } else if (result.source === 'geocoded') {
-    notices.push('Pin placed from the link’s address — check it before saving.');
+    notices.push(t('Pin placed from the link’s address — check it before saving.'));
   }
   return { point: { lat: result.lat, lng: result.lng }, notice: notices.length > 0 ? notices.join(' ') : null };
 }
@@ -142,5 +148,6 @@ export const flyZoom = (currentZoom: number | null, target: number) =>
 export const mapAvailable = (os: string, androidMapsKey: string | null | undefined): boolean =>
   os !== 'android' || Boolean(androidMapsKey && androidMapsKey.trim());
 
-export const MAP_UNAVAILABLE_NOTE =
-  'The map is not available in this version of the app. Search for the address, use your current location, or paste a link or coordinates.';
+export const MAP_UNAVAILABLE_NOTE = msg(
+  'The map is not available in this version of the app. Search for the address, use your current location, or paste a link or coordinates.'
+);

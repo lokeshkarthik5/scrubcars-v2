@@ -1,9 +1,15 @@
+'use client'
+
 import { IconAlertCircle } from '@tabler/icons-react'
 import { cn } from '@repo/core/utils'
 import { ScButton } from './button'
+import { useT } from '@repo/core/i18n'
 
 interface LoadErrorProps {
-  /** What failed, as it finishes the sentence: "today's jobs" → "Couldn't load today's jobs." */
+  /**
+   * What failed, as it finishes the sentence: "today's jobs" → "Couldn't load today's jobs."
+   * Translated by the caller (t("today's jobs")): Tamil puts it first.
+   */
   what?: string
   onRetry: () => void
   /** True while the retry runs. */
@@ -22,6 +28,7 @@ export function LoadError({
   retrying = false,
   className,
 }: LoadErrorProps) {
+  const t = useT()
   return (
     <div
       role="status"
@@ -36,7 +43,7 @@ export function LoadError({
         className="text-text-secondary"
       />
       <p className="text-[14px] text-text-primary">
-        {what ? `Couldn't load ${what}.` : "Couldn't load."}
+        {what ? t("Couldn't load {what}.", { what }) : t("Couldn't load.")}
       </p>
       <ScButton
         type="button"
@@ -46,7 +53,7 @@ export function LoadError({
         disabled={retrying}
         aria-busy={retrying || undefined}
       >
-        {retrying ? 'Retrying…' : 'Retry'}
+        {retrying ? t('Retrying…') : t('Retry')}
       </ScButton>
     </div>
   )

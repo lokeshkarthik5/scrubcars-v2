@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import { toast } from '@repo/native-ui/toast';
 import { errorText } from '@/lib/error-text';
+import { t } from '@repo/core/i18n/translate';
 
 /**
  * The web's runAction (services page and packages panel): marks what is saving, runs it,
@@ -14,9 +15,9 @@ export function useSaver() {
     setSaving(key);
     try {
       await action();
-      toast.success('Saved successfully');
+      toast.success(t('Saved successfully'));
     } catch (err) {
-      toast.error(errorText(err, 'Something went wrong'));
+      toast.error(errorText(err, t('Something went wrong')));
     } finally {
       setSaving(null);
     }

@@ -38,7 +38,8 @@ export function Tile({
       className={cn('hub-card press flex min-h-[164px] min-w-0 flex-col pt-3.5 pr-3.5 pb-[18px] pl-5', className)}
     >
       <span className="flex items-center justify-between gap-2">
-        <span className="truncate text-t4 text-dim">{label}</span>
+        {/* Two lines, so a longer label (Tamil) wraps rather than ends in an ellipsis. */}
+        <span className="line-clamp-2 min-w-0 text-t4 text-dim">{label}</span>
         <TileIcon icon={icon} />
       </span>
       {children}

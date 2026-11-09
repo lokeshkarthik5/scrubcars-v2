@@ -44,6 +44,7 @@ import {
 } from '@/lib/earnings-view';
 import { shareCsv } from '@/lib/earnings-share';
 import { createStyles, useColors } from '@repo/native-ui/theme';
+import { fill, useT } from '@repo/core/i18n';
 
 /** Words with their figures in the brand's numeric face, as the web sets them. */
 function Words({ segments, size }: { segments: Segment[]; size: number }) {
@@ -93,6 +94,7 @@ function Figure({ row }: { row: FigureRow }) {
 }
 
 function LineCard({ line }: { line: GarageStatementLine }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const kind = lineKindBadge(line);
@@ -107,7 +109,7 @@ function LineCard({ line }: { line: GarageStatementLine }) {
           <Words segments={lineMeta(line)} size={11} />
           {kind ? (
             <View style={styles.kind}>
-              <ScBadge variant="muted">{kind}</ScBadge>
+              <ScBadge variant="muted">{t(kind)}</ScBadge>
             </View>
           ) : null}
         </View>
@@ -115,7 +117,7 @@ function LineCard({ line }: { line: GarageStatementLine }) {
           <T num size={14} weight={700}>
             {rupeesLabel(line.share)}
           </T>
-          <StatusChip tone={LINE_TONE[line.status] ?? 'closed'}>{LINE_STATUS_LABEL[line.status]}</StatusChip>
+          <StatusChip tone={LINE_TONE[line.status] ?? 'closed'}>{t(LINE_STATUS_LABEL[line.status])}</StatusChip>
         </View>
       </View>
 
@@ -151,6 +153,7 @@ function LineCard({ line }: { line: GarageStatementLine }) {
 
 /** apps/vendors/app/earnings/page.tsx: what Detlio owes the garage, each booking and each payout. */
 function EarningsScreen() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const vendor = useAuth((s) => s.vendor);
@@ -228,9 +231,9 @@ function EarningsScreen() {
     setSharing(true);
     try {
       const shared = await shareCsv(statementCsvText(statement.lines), csvFileName(statement.range));
-      if (!shared) toast.error("This phone can't share files");
+      if (!shared) toast.error(t("This phone can't share files"));
     } catch {
-      toast.error("Couldn't make the file. Try again.");
+      toast.error(t("Couldn't make the file. Try again."));
     } finally {
       setSharing(false);
     }
@@ -249,7 +252,7 @@ function EarningsScreen() {
         )
       }
     >
-      <TopBar title="Earnings" />
+      <TopBar title={t('Earnings')} />
 
       {!statement && loading ? (
         <View style={styles.tiles}>
@@ -261,12 +264,12 @@ function EarningsScreen() {
           </View>
         </View>
       ) : !statement && error ? (
-        <LoadError what="your earnings" onRetry={() => {
+        <LoadError what={t('your earnings')} onRetry={() => {
           setLoading(true);
           setAttempt((n) => n + 1);
         }} />
       ) : statement && tiles ? (
-        <View accessibilityLabel="Your balance" style={styles.balance}>
+        <View accessibilityLabel={t('Your balance')} style={styles.balance}>
           <View style={styles.tiles}>
             <View style={styles.tile}>
               <T size={11} weight={500} color={colors.textSecondary}>
@@ -296,13 +299,13 @@ function EarningsScreen() {
 
       <View style={styles.section}>
         <View style={styles.sectionHead}>
-          <SectionHeader title="Bookings" />
+          <SectionHeader title={t('Bookings')} />
           <ScButton
             variant="outline"
             fullWidth={false}
             disabled={!statement || statement.lines.length === 0 || sharing}
             onPress={() => void download()}
-            accessibilityLabel="Download as CSV"
+            accessibilityLabel={t('Download as CSV')}
           >
             <IconDownload size={15} color={!statement || statement.lines.length === 0 ? colors.textMuted : colors.textPrimary} />
             <T size={15} weight={600} lh={20} color={!statement || statement.lines.length === 0 ? colors.textMuted : colors.textPrimary}>
@@ -310,14 +313,19 @@ function EarningsScreen() {
             </T>
           </ScButton>
         </View>
-        <ScSegmented accessibilityLabel="Period" value={preset} onChange={pick} options={PRESETS} />
+        <ScSegmented
+          accessibilityLabel={t('Period')}
+          value={preset}
+          onChange={pick}
+          options={PRESETS.map((option) => ({ ...option, label: t(option.label) }))}
+        />
         {preset === 'custom' ? (
           <View style={styles.dates}>
             <View style={styles.flex}>
-              <DateField label="From" value={range.from} max={range.to} onChange={(v) => setDate('from', v)} />
+              <DateField label={t('From')} value={range.from} max={range.to} onChange={(v) => setDate('from', v)} />
             </View>
             <View style={styles.flex}>
-              <DateField label="To" value={range.to} min={range.from} onChange={(v) => setDate('to', v)} />
+              <DateField label={t('To')} value={range.to} min={range.from} onChange={(v) => setDate('to', v)} />
             </View>
           </View>
         ) : null}
@@ -332,8 +340,8 @@ function EarningsScreen() {
         ) : statement && statement.lines.length === 0 ? (
           <EmptyState
             icon={<IconReceipt size={28} stroke={1.5} color={colors.textSecondary} />}
-            title="Nothing in these dates"
-            subtitle="Each job you complete shows up here with Detlio's commission, your share and its payout."
+            title={t('Nothing in these dates')}
+            subtitle={t("Each job you complete shows up here with Detlio's commission, your share and its payout.")}
           />
         ) : statement ? (
           <View
@@ -349,22 +357,25 @@ function EarningsScreen() {
 
       {statement && statement.payouts.length > 0 ? (
         <View style={styles.section}>
-          <SectionHeader title="Payouts" />
+          <SectionHeader title={t('Payouts')} />
           <View style={styles.lines}>
             {statement.payouts.map((payout) => (
               <ScCard key={payout.id} style={styles.payout}>
                 <View style={styles.flex}>
                   <T size={13} weight={500}>
-                    {`${PAYOUT_METHOD_LABEL[payout.method]} · `}
+                    {`${t(PAYOUT_METHOD_LABEL[payout.method])} · `}
                     <T num size={13} weight={500}>
                       {istDateLabel(payout.paidAt)}
                     </T>
                   </T>
                   <T size={11} color={colors.textSecondary} numberOfLines={1}>
-                    {'Ref '}
-                    <T num size={11}>
-                      {payout.reference}
-                    </T>
+                    {fill(t('Ref {ref}'), {
+                      ref: (
+                        <T num size={11}>
+                          {payout.reference}
+                        </T>
+                      ),
+                    })}
                   </T>
                 </View>
                 <T num size={14} weight={700} color={colors.success}>

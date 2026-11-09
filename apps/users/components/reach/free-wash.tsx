@@ -32,6 +32,8 @@ import { isCitywide, useHydratedLocation } from '@repo/core/stores/location-stor
 import { zoneFor, type Zone } from '@repo/core/zones'
 import { cn } from '@repo/core/utils'
 import { CheckoutSignInCard, useCheckoutSignIn } from '@/components/checkout/checkout-sign-in'
+import { useT } from '@repo/core/i18n'
+import { t } from '@repo/core/i18n/translate'
 
 /**
  * "Not in your area yet" (customer reach, part 2, 0062; mockups
@@ -76,6 +78,7 @@ function readCloses(slug: string) {
  * card (back after 7 days, at most 3 times).
  */
 export function FreeWashPiece({ placement }: { placement: 'top' | 'bottom' }) {
+  const t = useT()
   const zone = useCustomerZone()
   const user = useAuthStore((s) => s.user)
   const status = useAreaStatus({ enabled: !!user })
@@ -145,7 +148,7 @@ export function FreeWashPiece({ placement }: { placement: 'top' | 'bottom' }) {
             {freeWashCardTitle(zone.name)}
           </h2>
           <p className="text-t5 text-text-secondary">
-            No garage in your area yet · {waitingLine(zone.name, zone.waiting)}
+            {t('No garage in your area yet · {waitingLine}', { waitingLine: waitingLine(zone.name, zone.waiting) })}
           </p>
         </div>
         <button
@@ -153,12 +156,12 @@ export function FreeWashPiece({ placement }: { placement: 'top' | 'bottom' }) {
           onClick={() => setSheetOpen(true)}
           className="press flex min-h-11 shrink-0 items-center rounded-full bg-brand-white px-4 text-[14px] font-medium text-brand-black"
         >
-          Claim
+          {t('Claim')}
         </button>
         <button
           type="button"
           onClick={close}
-          aria-label="Close the free wash card"
+          aria-label={t('Close the free wash card')}
           className="-mr-2 grid size-11 shrink-0 place-items-center text-text-secondary"
         >
           <IconX size={18} aria-hidden />
@@ -171,14 +174,15 @@ export function FreeWashPiece({ placement }: { placement: 'top' | 'bottom' }) {
 
 /** "✓ On the list for <Area> · Recommend": the one slim line once signed up. */
 export function OnTheListLine({ area, onRecommend }: { area: string; onRecommend: () => void }) {
+  const t = useT()
   return (
     <div className="flex min-h-11 items-center justify-between gap-3 rounded-[14px] border border-border px-4" data-on-the-list="">
       <p className="flex items-center gap-1.5 text-t4 text-text-primary">
         <IconCheck size={15} className="text-success" aria-hidden />
-        On the list for {area}
+        {t('On the list for {area}', { area })}
       </p>
       <button type="button" onClick={onRecommend} className="min-h-11 text-t4 text-text-primary underline underline-offset-2">
-        Recommend
+        {t('Recommend')}
       </button>
     </div>
   )
@@ -192,7 +196,7 @@ async function turnOnPush() {
     const subscription = await subscribeThisBrowser(config.publicKey)
     await savePushSubscription('customer', subscription)
   } catch {
-    toast.info("We couldn't turn on notifications on this phone. You can from Profile → Notifications.")
+    toast.info(t("We couldn't turn on notifications on this phone. You can from Profile → Notifications."))
   }
 }
 
@@ -211,6 +215,7 @@ export function FreeWashSheet({
   onClose: () => void
   initialZone: Zone | null
 }) {
+  const t = useT()
   const user = useAuthStore((s) => s.user)
   const zones = useZones()
   const signUp = useSignUpForArea()
@@ -245,7 +250,7 @@ export function FreeWashSheet({
       if (push) void turnOnPush()
       setDone({ area: result.zone.name, freeWash: result.freeWash, slug: result.zone.slug })
     } catch (err) {
-      setError(err instanceof ApiError || err instanceof Error ? err.message : "Couldn't save it. Try again.")
+      setError(err instanceof ApiError || err instanceof Error ? err.message : t("Couldn't save it. Try again."))
     } finally {
       setSaving(false)
     }
@@ -265,7 +270,7 @@ export function FreeWashSheet({
     <ScSheet
       open={open}
       onClose={close}
-      aria-label={recommending ? 'Recommend a garage' : done ? "You're on the list" : 'Which area are you in?'}
+      aria-label={recommending ? t('Recommend a garage') : done ? t("You're on the list") : t('Which area are you in?')}
     >
       <div className="flex flex-col gap-5 px-5 pt-2 pb-2" data-free-wash-sheet="">
         {done && recommending ? (
@@ -273,46 +278,47 @@ export function FreeWashSheet({
         ) : done ? (
           <div className="flex flex-col items-center gap-3 text-center">
             <IconCircleCheck size={44} className="text-success" aria-hidden />
-            <h2 className="text-[20px] font-medium text-text-primary">You&apos;re on the list</h2>
+            <h2 className="text-[20px] font-medium text-text-primary">{t("You're on the list")}</h2>
             <p className="text-t3 text-text-secondary">
-              We&apos;ll tell you the day Detlio opens in {done.area}.
-              {done.freeWash ? ' Your free wash is saved.' : ''}
+              {t("We'll tell you the day Detlio opens in {area}.", { area: done.area })}
+              {done.freeWash ? ` ${t('Your free wash is saved.')}` : ''}
             </p>
             <div className="flex w-full items-start gap-3 rounded-[16px] border border-[#1F5A3A] bg-[#0E2418] p-4 text-left">
               <IconGift size={20} className="mt-0.5 shrink-0 text-success" aria-hidden />
               <p className="text-[14px] text-text-primary">{recommendAsk()}</p>
             </div>
             <ScButton variant="outline" onClick={() => setRecommending(true)}>
-              Recommend a garage
+              {t('Recommend a garage')}
             </ScButton>
             <ScButton variant="text" onClick={close}>
-              Not now
+              {t('Not now')}
             </ScButton>
           </div>
         ) : (
           <>
             <div>
-              <h2 className="text-[20px] font-medium text-text-primary">Which area are you in?</h2>
+              <h2 className="text-[20px] font-medium text-text-primary">{t('Which area are you in?')}</h2>
               <p className="text-t4 text-text-secondary">
-                We&apos;re not in your area yet. Tell us, and {gone ? 'we’ll tell you' : 'your first wash is on us'} when we
-                arrive.
+                {gone
+                  ? t("We're not in your area yet. Tell us, and we’ll tell you when we arrive.")
+                  : t("We're not in your area yet. Tell us, and your first wash is on us when we arrive.")}
               </p>
             </div>
-            <div role="group" aria-label="Your area" className="flex flex-wrap gap-2">
+            <div role="group" aria-label={t('Your area')} className="flex flex-wrap gap-2">
               {chips.map((z) => (
                 <Chip key={z.slug} label={z.name} selected={zoneSlug === z.slug} onClick={() => setZoneSlug(z.slug)} />
               ))}
-              <Chip label="Other…" selected={otherOpen} onClick={() => setOtherOpen((v) => !v)} />
+              <Chip label={t('Other…')} selected={otherOpen} onClick={() => setOtherOpen((v) => !v)} />
             </div>
             {otherOpen && (
               <label className="flex flex-col gap-1.5 text-t5 font-medium text-text-secondary">
-                Another area
+                {t('Another area')}
                 <select
                   value={zoneSlug ?? ''}
                   onChange={(e) => setZoneSlug(e.target.value || null)}
                   className="min-h-11 rounded-[10px] border border-border bg-surface px-3 text-t4 text-text-primary"
                 >
-                  <option value="">Pick your area</option>
+                  <option value="">{t('Pick your area')}</option>
                   {waitingZones.map((z) => (
                     <option key={z.slug} value={z.slug}>
                       {z.name}
@@ -331,15 +337,15 @@ export function FreeWashSheet({
                 )}
               >
                 <p className="text-t5 font-medium uppercase tracking-[0.12em] text-success">
-                  {gone ? 'Notify me' : 'Free wash'}
+                  {gone ? t('Notify me') : t('Free wash')}
                 </p>
                 <h3 id="free-wash-offer" className="text-t2 font-medium text-text-primary">
-                  {gone ? `Be told when we reach ${zone.name}` : 'Your first car wash, free'}
+                  {gone ? t('Be told when we reach {name}', { name: zone.name }) : t('Your first car wash, free')}
                 </h3>
                 <p className="text-t4 text-text-secondary">
                   {gone
-                    ? `The ${FREE_WASH_RULES.perZone} free washes for ${zone.name} are taken. We'll still tell you the day we open.`
-                    : `Up to ₹${FREE_WASH_RULES.maxRupees}, the day Detlio opens in ${zone.name}, for ${FREE_WASH_RULES.validDays} days. Saved to your account; we'll tell you.`}
+                    ? t("The {count} free washes for {name} are taken. We'll still tell you the day we open.", { count: FREE_WASH_RULES.perZone, name: zone.name })
+                    : t("Up to ₹{amount}, the day Detlio opens in {name}, for {days} days. Saved to your account; we'll tell you.", { amount: FREE_WASH_RULES.maxRupees, name: zone.name, days: FREE_WASH_RULES.validDays })}
                 </p>
                 <p className="text-t5 text-text-muted">{waitingLine(zone.name, zone.waiting)}</p>
               </section>
@@ -347,13 +353,13 @@ export function FreeWashSheet({
 
             <div className="flex flex-col divide-y divide-line">
               <div className="flex min-h-14 items-center justify-between gap-3">
-                <span className="text-t3 text-text-primary">App notification</span>
-                <ScSwitch label="App notification" checked={push} onChange={setPush} />
+                <span className="text-t3 text-text-primary">{t('App notification')}</span>
+                <ScSwitch label={t('App notification')} checked={push} onChange={setPush} />
               </div>
               <div className="flex min-h-14 items-center justify-between gap-3">
                 <span className="min-w-0">
                   <span className="block text-t3 text-text-primary">WhatsApp</span>
-                  <span className="block text-t5 text-text-muted">Saved for later; we don&apos;t send WhatsApp messages yet.</span>
+                  <span className="block text-t5 text-text-muted">{t("Saved for later; we don't send WhatsApp messages yet.")}</span>
                 </span>
                 <ScSwitch label="WhatsApp" checked={whatsapp} onChange={setWhatsapp} />
               </div>
@@ -366,15 +372,15 @@ export function FreeWashSheet({
             )}
 
             {!zone ? (
-              <p className="text-t4 text-text-secondary">Pick your area.</p>
+              <p className="text-t4 text-text-secondary">{t('Pick your area.')}</p>
             ) : user ? (
               <ScButton variant="main" size="lg" disabled={saving} onClick={() => void save()}>
-                {saving ? 'Saving…' : gone ? 'Notify me' : 'Save my free wash'}
+                {saving ? t('Saving…') : gone ? t('Notify me') : t('Save my free wash')}
               </ScButton>
             ) : (
               <CheckoutSignInCard
                 signIn={signIn}
-                verifyLabel={gone ? 'Verify and notify me' : 'Verify and save my free wash'}
+                verifyLabel={gone ? t('Verify and notify me') : t('Verify and save my free wash')}
                 onVerify={() => void verifyAndSave()}
                 busy={saving}
               />
@@ -393,6 +399,7 @@ export function FreeWashSheet({
  * link, phone and note are masked for Clarity.
  */
 export function RecommendForm({ zoneSlug, onDone }: { zoneSlug: string | null; onDone: () => void }) {
+  const t = useT()
   const recommend = useRecommendGarage()
   const [name, setName] = useState('')
   const [mapsLink, setMapsLink] = useState('')
@@ -412,30 +419,29 @@ export function RecommendForm({ zoneSlug, onDone }: { zoneSlug: string | null; o
         phone: phone.trim() || undefined,
         why: why.trim() || undefined,
       })
-      toast.success('Thanks! We’ll get in touch with them.')
+      toast.success(t('Thanks! We’ll get in touch with them.'))
       setName('')
       setMapsLink('')
       setPhone('')
       setWhy('')
       onDone()
     } catch (err) {
-      setError(err instanceof ApiError || err instanceof Error ? err.message : "Couldn't send it. Try again.")
+      setError(err instanceof ApiError || err instanceof Error ? err.message : t("Couldn't send it. Try again."))
     }
   }
 
   return (
     <div className="flex flex-col gap-4" data-recommend-form="">
       <div>
-        <h2 className="text-[20px] font-medium text-text-primary">Recommend a garage</h2>
+        <h2 className="text-[20px] font-medium text-text-primary">{t('Recommend a garage')}</h2>
         <p className="text-t4 text-text-secondary">
-          ₹{REFERRAL_CREDIT.perGarageRupees} Detlio credit if they join and you book them (up to ₹
-          {REFERRAL_CREDIT.maxPerCustomerRupees}).
+          {t('₹{perGarageRupees} Detlio credit if they join and you book them (up to ₹{maxPerCustomerRupees}).', { perGarageRupees: REFERRAL_CREDIT.perGarageRupees, maxPerCustomerRupees: REFERRAL_CREDIT.maxPerCustomerRupees })}
         </p>
       </div>
-      <ScInput label="Garage name" maxLength={100} value={name} onChange={(e) => setName(e.target.value)} />
+      <ScInput label={t('Garage name')} maxLength={100} value={name} onChange={(e) => setName(e.target.value)} />
       <ScInput
         data-clarity-mask="true"
-        label="Google Maps link"
+        label={t('Google Maps link')}
         inputMode="url"
         placeholder="https://maps.app.goo.gl/…"
         maxLength={500}
@@ -444,16 +450,16 @@ export function RecommendForm({ zoneSlug, onDone }: { zoneSlug: string | null; o
       />
       <ScInput
         data-clarity-mask="true"
-        label="Or their phone"
+        label={t('Or their phone')}
         inputMode="tel"
-        placeholder="10-digit mobile"
+        placeholder={t('10-digit mobile')}
         maxLength={14}
         value={phone}
         onChange={(e) => setPhone(e.target.value)}
       />
       <ScTextarea
         data-clarity-mask="true"
-        label="Why they're good (optional)"
+        label={t("Why they're good (optional)")}
         maxLength={500}
         rows={3}
         value={why}
@@ -465,7 +471,7 @@ export function RecommendForm({ zoneSlug, onDone }: { zoneSlug: string | null; o
         </p>
       )}
       <ScButton variant="main" disabled={!ready || recommend.isPending} onClick={() => void submit()}>
-        {recommend.isPending ? 'Sending…' : 'Send recommendation'}
+        {recommend.isPending ? t('Sending…') : t('Send recommendation')}
       </ScButton>
     </div>
   )
@@ -473,8 +479,9 @@ export function RecommendForm({ zoneSlug, onDone }: { zoneSlug: string | null; o
 
 /** The small "Recommend" link's sheet. */
 export function RecommendSheet({ open, onClose, zoneSlug }: { open: boolean; onClose: () => void; zoneSlug: string | null }) {
+  const t = useT()
   return (
-    <ScSheet open={open} onClose={onClose} aria-label="Recommend a garage">
+    <ScSheet open={open} onClose={onClose} aria-label={t('Recommend a garage')}>
       <div className="px-5 pt-2 pb-2">{open && <RecommendForm zoneSlug={zoneSlug} onDone={onClose} />}</div>
     </ScSheet>
   )

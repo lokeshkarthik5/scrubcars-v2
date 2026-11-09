@@ -12,6 +12,8 @@ import {
   IconLock,
   IconPhone,
 } from '@tabler/icons-react'
+import { useT } from '@repo/core/i18n'
+import { msg } from '@repo/core/i18n/translate'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScButton } from '@repo/ui/sc/button'
 import { EmptyState } from '@repo/ui/sc/empty-state'
@@ -69,6 +71,7 @@ import { useVendorBookings } from '@/lib/use-vendor-bookings'
  *   beside it when it can't be pressed
  */
 export default function JobPage() {
+  const t = useT()
   const { id } = useParams<{ id: string }>()
   const { bookings, loaded, failed, retrying, reload } = useVendorBookings()
   const now = useNow(10_000)
@@ -81,11 +84,11 @@ export default function JobPage() {
         {!loaded ? (
           <SkeletonList count={3} itemClassName="h-32" />
         ) : failed ? (
-          <LoadError what="this job" onRetry={reload} retrying={retrying} />
+          <LoadError what={t('this job')} onRetry={reload} retrying={retrying} />
         ) : (
           <EmptyState
-            title="This job isn't on your list"
-            subtitle="It may belong to another garage, or the link is old."
+            title={t("This job isn't on your list")}
+            subtitle={t('It may belong to another garage, or the link is old.')}
           />
         )}
       </AppShell>
@@ -96,10 +99,11 @@ export default function JobPage() {
 }
 
 function BackLink() {
+  const t = useT()
   return (
     <Link
       href="/bookings"
-      aria-label="Back to bookings"
+      aria-label={t('Back to bookings')}
       className="press flex size-12 shrink-0 items-center justify-center rounded-full border border-white/20 text-text-primary"
     >
       <IconArrowLeft size={22} aria-hidden="true" />
@@ -116,8 +120,9 @@ function Job({
   now: number
   onChanged: () => void
 }) {
+  const t = useT()
   const deferred = useDeferredStatus(b.id)
-  const who = b.customerName || 'the customer'
+  const who = b.customerName || t('the customer')
   const ended = b.status === 'cancelled' || b.status === 'rescheduled'
   const contactOpen =
     !ended && contactWindowState(b.contactWindow, now) === 'open'
@@ -168,7 +173,7 @@ function Job({
         {callHref && (
           <a
             href={callHref}
-            aria-label={`Call ${who}`}
+            aria-label={t('Call {who}', { who })}
             className="press flex size-12 shrink-0 items-center justify-center rounded-full border border-white/20 text-text-primary"
           >
             <IconPhone size={22} aria-hidden="true" />
@@ -179,7 +184,7 @@ function Job({
             href={chatHref}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label={`WhatsApp ${who}`}
+            aria-label={t('WhatsApp {who}', { who })}
             className="press flex size-12 shrink-0 items-center justify-center rounded-full border border-white/20 text-[#25D366]"
           >
             <IconBrandWhatsapp size={22} aria-hidden="true" />
@@ -200,11 +205,11 @@ function Job({
             <span />
           )}
           <StatusChip tone={bookingStatusTone(shownStatus)} size="md">
-            {statusLabel({ ...b, status: shownStatus })}
+            {t(statusLabel({ ...b, status: shownStatus }))}
           </StatusChip>
         </div>
         <p className="text-[16px] text-text-secondary">
-          {serviceOnlyLine(b)} · {BOOKING_TYPE_LABELS[b.bookingType]}
+          {serviceOnlyLine(b)} · {t(BOOKING_TYPE_LABELS[b.bookingType])}
         </p>
         <JobAddOnLines items={b.items} className="text-[14px] text-text-secondary" />
         {stepTimes.length > 0 && (
@@ -232,15 +237,14 @@ function Job({
           />
           {b.photoStandard?.required && b.photoStandard.waived && (
             <p className="mt-3 text-[13px] text-text-secondary">
-              Detlio waived the photos for this job: Start and Complete
-              don&apos;t wait for them.
+              {t("Detlio waived the photos for this job: Start and Complete don't wait for them.")}
             </p>
           )}
           {stage === 'after' && (
             // The car as it came in, folded away while the work goes on.
             <details className="mt-4 border-t border-border pt-3">
               <summary className="flex min-h-12 cursor-pointer list-none items-center gap-1 text-[15px] font-medium text-text-primary">
-                Before photos ·
+                {t('Before photos')} ·
                 <span className="font-numeric">
                   {photoCount(b, 'before').have}
                 </span>
@@ -304,7 +308,7 @@ function Job({
       {ended && (
         <section className="rounded-[20px] border border-border bg-surface p-4">
           <p className="text-[16px] font-medium text-text-primary">
-            {cancelledLabel(b)}
+            {t(cancelledLabel(b))}
           </p>
           {/* The label says it all for a missed answer (its reason is the same words). */}
           {b.cancellationReason && !b.notAcceptedInTime && (
@@ -331,10 +335,11 @@ function Job({
   )
 }
 
+// English, shown as `t(…)` in each step's name.
 const STEP_STATE_WORDS = {
-  done: 'done',
-  current: 'now',
-  upcoming: 'to come',
+  done: msg('done'),
+  current: msg('now'),
+  upcoming: msg('to come'),
 } as const
 
 /** Accepted → Before → Working → After → Done, or pickup & drop's own steps. */
@@ -345,6 +350,8 @@ function Progress({
   booking: Booking
   deferred: ReturnType<typeof useDeferredStatus>
 }) {
+  const t = useT()
+  // pickupTimeline's labels come in the language in use; ours are English.
   const pickup = b.bookingType === 'pickup' ? pickupTimeline(b) : null
   const steps = pickup
     ? pickup.map((step) => ({ label: step.label, state: step.state }))
@@ -356,18 +363,18 @@ function Progress({
               ? 2
               : (progressIndex(b) ?? 0)
         return {
-          label,
+          label: t(label),
           state: i < current ? 'done' : i === current ? 'current' : 'upcoming',
         } as const
       })
   return (
-    <ol aria-label="Job progress" className="flex items-start">
+    <ol aria-label={t('Job progress')} className="flex items-start">
       {steps.map((step, i) => (
         <li
           key={step.label}
           // Named with its state ("Before: done"), and the one in hand is the
           // current step, so the line reads the same without the picture.
-          aria-label={`${step.label}: ${STEP_STATE_WORDS[step.state]}`}
+          aria-label={`${step.label}: ${t(STEP_STATE_WORDS[step.state])}`}
           aria-current={step.state === 'current' ? 'step' : undefined}
           className="relative flex flex-1 flex-col items-center gap-1.5 text-center"
         >
@@ -430,7 +437,8 @@ function DockedStep({
   deferred: ReturnType<typeof useDeferredStatus>
   onChanged: () => void
 }) {
-  const who = b.customerName || 'the customer'
+  const t = useT()
+  const who = b.customerName || t('the customer')
   const action = b.status === 'confirmed' ? 'start' : 'complete'
   const missing = blockers(b, action)
 
@@ -443,7 +451,7 @@ function DockedStep({
           role="status"
           className="flex min-h-14 items-center justify-center text-[16px] font-medium text-text-primary"
         >
-          {DEFERRED_WORDS[deferred]}
+          {t(DEFERRED_WORDS[deferred])}
         </p>
       ) : b.bookingType === 'pickup' ? (
         <PickupSteps
@@ -456,7 +464,7 @@ function DockedStep({
           {missing.length > 0 && (
             <ul
               id={`job-${b.id}-missing`}
-              aria-label="Still to do"
+              aria-label={t('Still to do')}
               className="flex flex-col gap-2"
             >
               {missing.map((line) => (
@@ -483,11 +491,11 @@ function DockedStep({
               aria-describedby={
                 missing.length > 0 ? `job-${b.id}-missing` : undefined
               }
-              aria-label={`Start job for ${who}`}
+              aria-label={t('Start job for {who}', { who })}
               onClick={() => changeStatusWithUndo(b.id, 'in_progress')}
             >
               {missing.length > 0 && <IconLock size={20} aria-hidden="true" />}
-              Start job
+              {t('Start job')}
             </ScButton>
           ) : (
             <ScButton
@@ -497,11 +505,11 @@ function DockedStep({
               aria-describedby={
                 missing.length > 0 ? `job-${b.id}-missing` : undefined
               }
-              aria-label={`Complete job for ${who}`}
+              aria-label={t('Complete job for {who}', { who })}
               onClick={() => changeStatusWithUndo(b.id, 'completed')}
             >
               {missing.length > 0 && <IconLock size={20} aria-hidden="true" />}
-              Complete job
+              {t('Complete job')}
             </ScButton>
           )}
         </div>

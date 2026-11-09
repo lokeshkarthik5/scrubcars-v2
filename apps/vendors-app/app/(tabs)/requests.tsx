@@ -40,7 +40,7 @@ import {
   needsStartHint,
   reachGeometry,
   REQUESTS_FOOTER,
-  REQUESTS_INTRO,
+  requestsIntro,
   servicesLine,
   startTimeHeading,
   waitingLabel,
@@ -51,6 +51,7 @@ import {
 } from '@/lib/requests-view';
 import { useItemFocus } from '@/lib/use-item-focus';
 import { createStyles, useColors } from '@repo/native-ui/theme';
+import { fill, useT } from '@repo/core/i18n';
 
 /**
  * apps/vendors/app/requests/page.tsx: Requests (customer reach, 0062). Customers just outside
@@ -61,6 +62,7 @@ import { createStyles, useColors } from '@repo/native-ui/theme';
  * to an operator), and the page itself is every seat's.
  */
 function RequestsScreen() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const [scope, setScope] = useState<'open' | 'closed'>('open');
@@ -89,28 +91,28 @@ function RequestsScreen() {
 
   return (
     <AppShell gap={16} scrollRef={scroll}>
-      <TopBar title="Requests" onBack={() => (router.canGoBack() ? router.back() : router.replace('/home'))} />
+      <TopBar title={t('Requests')} onBack={() => (router.canGoBack() ? router.back() : router.replace('/home'))} />
       <T size={12} color={colors.textSecondary}>
-        {REQUESTS_INTRO}
+        {requestsIntro()}
       </T>
       <ScSegmented
-        accessibilityLabel="Which requests"
+        accessibilityLabel={t('Which requests')}
         value={scope}
         onChange={setScope}
         options={[
-          { value: 'open', label: 'Open' },
-          { value: 'closed', label: 'Closed' },
+          { value: 'open', label: t('Open') },
+          { value: 'closed', label: t('Closed') },
         ]}
       />
       {requests.isLoading ? (
         <SkeletonList count={2} height={320} />
       ) : requests.isError && !requests.data ? (
-        <LoadError what="your requests" onRetry={() => void requests.refetch()} retrying={requests.isFetching} />
+        <LoadError what={t('your requests')} onRetry={() => void requests.refetch()} retrying={requests.isFetching} />
       ) : items.length === 0 ? (
         <EmptyState
           icon={<IconMapPin size={28} stroke={1.5} color={colors.textSecondary} />}
-          title={EMPTY_TITLE}
-          subtitle={EMPTY_SUBTITLE}
+          title={t(EMPTY_TITLE)}
+          subtitle={t(EMPTY_SUBTITLE)}
         />
       ) : (
         <View style={styles.list} onLayout={onListLayout}>
@@ -127,7 +129,7 @@ function RequestsScreen() {
           ))}
           {scope === 'open' ? (
             <T size={12} color={colors.textSecondary} align="center">
-              {REQUESTS_FOOTER}
+              {t(REQUESTS_FOOTER)}
             </T>
           ) : null}
         </View>
@@ -179,6 +181,7 @@ function RadioChip({
 }
 
 function WaitingRequestCard({ request }: { request: GarageRequest }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   // Live to the second, like the web's page-wide ticker.
@@ -199,7 +202,7 @@ function WaitingRequestCard({ request }: { request: GarageRequest }) {
       const accepted = await accept.mutateAsync({ id: request.id, startAt: chosen, travelFee: fee });
       toast.success(acceptedToast(accepted.confirmBy));
     } catch (error) {
-      toast.error(errorText(error, ACCEPT_FAILED));
+      toast.error(errorText(error, t(ACCEPT_FAILED)));
     }
   };
 
@@ -208,7 +211,7 @@ function WaitingRequestCard({ request }: { request: GarageRequest }) {
       const result = await decline.mutateAsync(request.id);
       toast.success(declineToast(result.outcome));
     } catch (error) {
-      toast.error(errorText(error, DECLINE_FAILED));
+      toast.error(errorText(error, t(DECLINE_FAILED)));
     }
   };
 
@@ -218,7 +221,7 @@ function WaitingRequestCard({ request }: { request: GarageRequest }) {
         <T size={11} weight={600} color={colors.warning} uppercase tracking={0.08} style={styles.flex}>
           {waitingLabel(request)}
         </T>
-        <T num size={13} weight={600} color={colors.warning} accessibilityLabel={`Time left to answer: ${left}`}>
+        <T num size={13} weight={600} color={colors.warning} accessibilityLabel={t('Time left to answer: {left}', { left })}>
           {left}
         </T>
       </View>
@@ -230,15 +233,17 @@ function WaitingRequestCard({ request }: { request: GarageRequest }) {
           {whenWhereLine(request)}
         </T>
         <T size={13} color={colors.textSecondary}>
-          {`${request.beyond} · ${request.distanceKm} km from you`}
+          {`${request.beyond} · ${t('{km} km from you', { km: request.distanceKm })}`}
         </T>
         {request.earn !== null ? (
           <T size={13} style={styles.lineGap}>
-            {'You earn '}
-            <T num size={13} weight={600}>
-              {formatINR(request.earn)}
-            </T>
-            {' + any travel fee'}
+            {fill(t('You earn {amount} + any travel fee'), {
+              amount: (
+                <T num size={13} weight={600}>
+                  {formatINR(request.earn)}
+                </T>
+              ),
+            })}
           </T>
         ) : null}
       </View>
@@ -247,9 +252,9 @@ function WaitingRequestCard({ request }: { request: GarageRequest }) {
 
       <View style={styles.group}>
         <T size={12} color={colors.textSecondary}>
-          Travel fee (the customer sees it before paying)
+          {t('Travel fee (the customer sees it before paying)')}
         </T>
-        <View accessibilityRole="radiogroup" accessibilityLabel="Travel fee" style={styles.feeRow}>
+        <View accessibilityRole="radiogroup" accessibilityLabel={t('Travel fee')} style={styles.feeRow}>
           {REQUEST_RULES.travelFees.map((value) => (
             <RadioChip
               key={value}
@@ -269,14 +274,14 @@ function WaitingRequestCard({ request }: { request: GarageRequest }) {
         </T>
         {startTimes.isLoading ? (
           <T size={13} color={colors.textSecondary}>
-            Finding your free times…
+            {t('Finding your free times…')}
           </T>
         ) : starts.length === 0 ? (
           <T size={13} color={colors.textSecondary}>
-            No free start time left in this window
+            {t('No free start time left in this window')}
           </T>
         ) : (
-          <View accessibilityRole="radiogroup" accessibilityLabel="Start time" style={styles.startRow}>
+          <View accessibilityRole="radiogroup" accessibilityLabel={t('Start time')} style={styles.startRow}>
             {starts.map((iso) => (
               <RadioChip
                 key={iso}
@@ -293,7 +298,7 @@ function WaitingRequestCard({ request }: { request: GarageRequest }) {
 
       <View style={styles.actions}>
         <ScButton variant="outline" fullWidth={false} style={styles.flex} onPress={() => void onDecline()} disabled={busy}>
-          {"Can't"}
+          {t("Can't")}
         </ScButton>
         <ScButton
           variant="main"
@@ -302,12 +307,12 @@ function WaitingRequestCard({ request }: { request: GarageRequest }) {
           onPress={() => void onAccept()}
           disabled={!canAccept(chosen, busy)}
         >
-          Accept
+          {t('Accept')}
         </ScButton>
       </View>
       {needsStartHint(chosen, starts.length) ? (
         <T size={12} color={colors.textSecondary}>
-          Pick a start time to accept.
+          {t('Pick a start time to accept.')}
         </T>
       ) : null}
     </ScCard>
@@ -315,6 +320,7 @@ function WaitingRequestCard({ request }: { request: GarageRequest }) {
 }
 
 function AcceptedRequestCard({ request }: { request: GarageRequest }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const withdraw = useWithdrawRequest();
@@ -326,21 +332,21 @@ function AcceptedRequestCard({ request }: { request: GarageRequest }) {
         <T accessibilityRole="header" size={15} weight={600} style={styles.flex}>
           {servicesLine(request)}
         </T>
-        <ScBadge variant="success">Accepted</ScBadge>
+        <ScBadge variant="success">{t('Accepted')}</ScBadge>
       </View>
       <T size={13}>{acceptedLine(request, istStartLabel)}</T>
       <T size={12} color={colors.textSecondary}>
-        It becomes a booking on your Bookings page once the customer pays.
+        {t('It becomes a booking on your Bookings page once the customer pays.')}
       </T>
       {/* Until the customer pays (0066): the yes can be taken back. */}
       {request.canWithdraw !== false ? (
         <ScButton
           variant="outline"
           size="md"
-          accessibilityLabel={`Withdraw your yes to ${servicesLine(request)}`}
+          accessibilityLabel={t('Withdraw your yes to {services}', { services: servicesLine(request) })}
           onPress={() => setConfirming(true)}
         >
-          Withdraw
+          {t('Withdraw')}
         </ScButton>
       ) : null}
       <ConfirmSheet
@@ -352,22 +358,22 @@ function AcceptedRequestCard({ request }: { request: GarageRequest }) {
         onConfirm={async () => {
           try {
             await withdraw.mutateAsync(request.id);
-            toast.success(WITHDRAWN_TOAST);
+            toast.success(t(WITHDRAWN_TOAST));
             setConfirming(false);
           } catch (err) {
             // The customer is paying right now, or it moved on: said here.
-            setError(errorText(err, WITHDRAW_FAILED));
+            setError(errorText(err, t(WITHDRAW_FAILED)));
           }
         }}
         level="firm"
-        title="Withdraw your yes?"
+        title={t('Withdraw your yes?')}
         body={
           <T size={14} lh={19} color={colors.textSecondary}>
-            {WITHDRAW_BODY}
+            {t(WITHDRAW_BODY)}
           </T>
         }
-        confirmLabel="Withdraw"
-        cancelLabel="Keep it"
+        confirmLabel={t('Withdraw')}
+        cancelLabel={t('Keep it')}
         busy={withdraw.isPending}
         error={error}
       />
@@ -408,6 +414,7 @@ function ReachSketch({
   distanceKm: number;
   outsideKm: number;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const g = reachGeometry({ coverKm, distanceKm, outsideKm });
@@ -436,7 +443,7 @@ function ReachSketch({
           {g.youLabel}
         </SvgText>
         <SvgText x={g.dot} y={g.cy - 10} textAnchor="end" fontSize="10" fill={colors.reachLabel}>
-          customer
+          {t('customer')}
         </SvgText>
       </Svg>
     </View>

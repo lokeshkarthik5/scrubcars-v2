@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { ProgressRoad, type RoadStop } from './road'
+import { useT } from '@repo/core/i18n'
 
 /** How long the moment holds before it hands the page back. */
 const HOLD_MS = 2400
@@ -33,6 +34,7 @@ export function Ignition({
   caption?: string | null
   onDone: () => void
 }) {
+  const t = useT()
   const [leaving, setLeaving] = useState(false)
   // Held in a ref (written in an effect, never during render) so the timers
   // below are not restarted every time the page behind re-renders — the
@@ -75,7 +77,7 @@ export function Ignition({
         <div className="mo-ign__card fx-edge mt-6 w-full rounded-[22px] p-4 text-left">
           <h2 className="text-t2 font-semibold text-text-primary">{title}</h2>
           {subtitle && <p className="mt-1 text-t4 text-text-secondary">{subtitle}</p>}
-          <ProgressRoad stops={stops} compact className="mb-3 mt-[26px]" label="Your booking, just sent" />
+          <ProgressRoad stops={stops} compact className="mb-3 mt-[26px]" label={t('Your booking, just sent')} />
           {caption && <p className="text-t5 font-medium text-[#8E8E98]">{caption}</p>}
         </div>
         <span aria-hidden="true" className="mo-ign__strip" />

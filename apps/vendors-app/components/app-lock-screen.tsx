@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { View } from 'react-native';
 
 import { askToUnlock, lockOnLaunch } from '@/lib/app-lock';
+import { useT } from '@repo/core/i18n';
 
 /**
  * Nothing below it runs, the session included, until it opens: the optional Face ID or
@@ -40,6 +41,7 @@ export function AppLockGate({ onOpen }: { onOpen: () => void }) {
 }
 
 function Locked({ onUnlock }: { onUnlock: () => void }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   return (
@@ -47,10 +49,10 @@ function Locked({ onUnlock }: { onUnlock: () => void }) {
       <StatusBar style="light" />
       <BrandMark height={32} />
       <T size={15} lh={22} align="center" color={colors.textSecondary}>
-        Detlio for Garages is locked on this phone.
+        {t('Detlio for Garages is locked on this phone.')}
       </T>
       <ScButton variant="main" fullWidth={false} paddingX={32} onPress={onUnlock}>
-        Unlock
+        {t('Unlock')}
       </ScButton>
     </View>
   );

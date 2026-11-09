@@ -12,7 +12,9 @@ import {
   SpaceGrotesk_600SemiBold,
   SpaceGrotesk_700Bold,
 } from '@expo-google-fonts/space-grotesk';
+import { loadLang, useLang, useT, useTn } from '@repo/core/i18n';
 import { ScButton } from '@repo/native-ui/button';
+import { LangProvider } from '@repo/native-ui/lang';
 import { T } from '@repo/native-ui/text';
 import { useReduceMotion } from '@repo/native-ui/motion';
 import { createStyles, ThemeProvider, useColors, useTheme } from '@repo/native-ui/theme';
@@ -23,7 +25,7 @@ import { useFonts } from 'expo-font';
 import { type Href, router, Stack, useGlobalSearchParams, usePathname, useRootNavigationState } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback, useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -49,6 +51,9 @@ import { heldLinkCode } from '@/lib/deep-link';
 export { CrashScreen as ErrorBoundary } from '@/components/crash-screen';
 
 initSentry();
+// English or Tamil, as chosen on this phone (Profile → Language): read before the first
+// render, so the app opens in its language.
+loadLang(devicePrefs);
 void SplashScreen.preventAutoHideAsync();
 
 const useStyles = createStyles((c) => ({
@@ -65,19 +70,20 @@ const useStyles = createStyles((c) => ({
 
 /** A phone with a token and no signal: still signed in. */
 function Unreachable() {
+  const t = useT()
   const colors = useColors();
   const styles = useStyles();
   const restore = useAuth((s) => s.restore);
   return (
     <View style={styles.unreachable}>
       <T accessibilityRole="header" size={18} weight={700} align="center">
-        Could not reach Detlio
+        {t('Could not reach Detlio')}
       </T>
       <T size={14} color={colors.textSecondary} align="center">
-        You are still signed in. Check your connection.
+        {t('You are still signed in. Check your connection.')}
       </T>
       <ScButton variant="outline" fullWidth={false} onPress={() => void restore()}>
-        Try again
+        {t('Try again')}
       </ScButton>
     </View>
   );
@@ -201,6 +207,18 @@ function ThemedRoot() {
   );
 }
 
+/** core's language, handed to the shared parts (packages/native-ui has no core dependency). */
+function AppLang({ children }: { children: ReactNode }) {
+  const lang = useLang((s) => s.lang);
+  const t = useT();
+  const tn = useTn();
+  return (
+    <LangProvider lang={lang} t={t} tn={tn}>
+      {children}
+    </LangProvider>
+  );
+}
+
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
     Inter_300Light,
@@ -234,7 +252,7 @@ export default function RootLayout() {
     <SafeAreaProvider>
       {/* The customer UI round's finish (Nov 2026): this app only, as on the website. */}
       <ThemeProvider storage={devicePrefs} finish>
-        {unlocked ? <ThemedRoot /> : <AppLockGate onOpen={opened} />}
+        <AppLang>{unlocked ? <ThemedRoot /> : <AppLockGate onOpen={opened} />}</AppLang>
       </ThemeProvider>
     </SafeAreaProvider>
   );

@@ -9,6 +9,7 @@
  */
 
 import { decodeImage, encodeImage, fitWithin, type DecodedImage } from '@repo/core/image-upload'
+import { t } from '@repo/core/i18n/translate'
 
 export const MAX_UPLOAD_DIMENSION = 1600
 
@@ -27,14 +28,18 @@ const JPEG_QUALITY = 0.85
  */
 export async function resizeForUpload(file: File): Promise<Blob> {
   if (!file.type.startsWith('image/')) {
-    throw new Error(`${file.name} is not a photo.`)
+    throw new Error(t('{name} is not a photo.', { name: file.name }))
   }
 
   let decoded: DecodedImage
   try {
     decoded = await decodeImage(file)
   } catch {
-    throw new Error(`${file.name} couldn't be read. Try another photo, or take one with the camera.`)
+    throw new Error(
+      t("{name} couldn't be read. Try another photo, or take one with the camera.", {
+        name: file.name,
+      })
+    )
   }
 
   let blob: Blob | null
@@ -48,7 +53,9 @@ export async function resizeForUpload(file: File): Promise<Blob> {
   } finally {
     decoded.close()
   }
-  if (!blob || blob.type !== 'image/jpeg') throw new Error(`${file.name} couldn't be prepared for upload.`)
-  if (blob.size > MAX_UPLOAD_BYTES) throw new Error(`${file.name} is too large (max 5 MB).`)
+  if (!blob || blob.type !== 'image/jpeg')
+    throw new Error(t("{name} couldn't be prepared for upload.", { name: file.name }))
+  if (blob.size > MAX_UPLOAD_BYTES)
+    throw new Error(t('{name} is too large (max 5 MB).', { name: file.name }))
   return blob
 }

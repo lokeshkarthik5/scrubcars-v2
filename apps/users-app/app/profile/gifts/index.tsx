@@ -1,6 +1,7 @@
 import { ApiError } from '@repo/core/api/client';
 import { makeGiftLink, type GiftLink, type GiftState, type SentGift } from '@repo/core/api/gifts';
 import { giftsEnabled, invalidateGiftData, useGiftsConfig, useMySentGifts } from '@repo/core/api/hooks/use-gifts';
+import { useT } from '@repo/core/i18n';
 import { ScButton } from '@repo/native-ui/button';
 import { IconGift } from '@repo/native-ui/icons';
 import { EmptyState, ErrorState, ScCard, Skeleton, StatusChip } from '@repo/native-ui/primitives';
@@ -24,6 +25,7 @@ const STATE_TONE: Record<GiftState, 'done' | 'progress' | 'closed'> = { pending:
 
 /** apps/users/app/profile/gifts/page.tsx. A new link ends the old one: the button says so first. */
 export default function SentGiftsScreen() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
@@ -46,14 +48,14 @@ export default function SentGiftsScreen() {
       setSharing({ gift: { ...gift, linkMade: true }, link });
       void invalidateGiftData(queryClient);
     } catch (error) {
-      setLinkError({ giftId: gift.id, text: error instanceof ApiError ? error.message : "Couldn't make the link. Check your connection and try again." });
+      setLinkError({ giftId: gift.id, text: error instanceof ApiError ? error.message : t("Couldn't make the link. Check your connection and try again.") });
       void invalidateGiftData(queryClient);
     } finally {
       setMaking(null);
     }
   };
   const list = gifts.data ?? [];
-  const page = (children: React.ReactNode, title = 'Gifts you sent') => (
+  const page = (children: React.ReactNode, title = t('Gifts you sent')) => (
     <View style={[styles.page, { paddingTop: insets.top }]}>
       <PageHeader title={title} backTo="/profile" />
       {children}
@@ -63,10 +65,10 @@ export default function SentGiftsScreen() {
     return page(
       <View style={styles.center}>
         <T size={15} weight={600} align="center">
-          Sign in to see the gifts you sent
+          {t('Sign in to see the gifts you sent')}
         </T>
         <ScButton variant="main" fullWidth={false} paddingX={32} onPress={() => router.push(`/login?next=${encodeURIComponent('/profile/gifts')}` as Href)}>
-          Sign in
+          {t('Sign in')}
         </ScButton>
       </View>
     );
@@ -77,10 +79,10 @@ export default function SentGiftsScreen() {
       <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 24 }]}>
         <GiftShare gift={sharing.gift} link={sharing.link} />
         <ScButton variant="outline" onPress={() => setSharing(null)}>
-          Back to Gifts you sent
+          {t('Back to Gifts you sent')}
         </ScButton>
       </ScrollView>,
-      'Share your gift'
+      t('Share your gift')
     );
   }
   return page(
@@ -91,18 +93,18 @@ export default function SentGiftsScreen() {
           <Skeleton height={120} />
         </>
       ) : gifts.isError && list.length === 0 ? (
-        <ErrorState message="Couldn't load your gifts. Check your connection." onRetry={() => void gifts.refetch()} />
+        <ErrorState message={t("Couldn't load your gifts. Check your connection.")} onRetry={() => void gifts.refetch()} />
       ) : list.length === 0 ? (
         <View style={styles.none}>
-          <EmptyState icon={<IconGift size={32} stroke={1.5} color={colors.textSecondary} />} title="No gifts sent yet" subtitle="Give someone a car wash: they get a link that adds it to their Detlio credit." />
+          <EmptyState icon={<IconGift size={32} stroke={1.5} color={colors.textSecondary} />} title={t('No gifts sent yet')} subtitle={t('Give someone a car wash: they get a link that adds it to their Detlio credit.')} />
           <ScButton variant="outline" fullWidth={false} onPress={() => router.push('/profile/gifts/new' as Href)}>
-            Gift a wash
+            {t('Gift a wash')}
           </ScButton>
         </View>
       ) : (
         <>
           <ScButton variant="main" onPress={() => router.push('/profile/gifts/new' as Href)}>
-            Gift a wash
+            {t('Gift a wash')}
           </ScButton>
           {list.map((gift) => (
             <ScCard key={gift.id} style={styles.card}>
@@ -111,10 +113,10 @@ export default function SentGiftsScreen() {
                   <PremiumCard spec={giftCardSpec({ design: gift.design, amount: gift.amount, recipientName: gift.recipientName, expiresAt: gift.expiresAt })} size="thumb" animate={false} />
                 </View>
                 <View style={styles.grow}>
-                  <FigureLine size={15} weight={600} lh={20} text={`${giftRupees(gift.amount)} for ${gift.recipientName}`} />
-                  {gift.state === 'redeemed' && gift.redeemedAt ? <FigureLine size={12} lh={16} color={colors.textSecondary} text={`Redeemed on ${formatGiftDate(gift.redeemedAt)}`} /> : gift.state === 'available' && gift.expiresAt ? <FigureLine size={12} lh={16} color={colors.textSecondary} text={`Use by ${formatGiftDate(gift.expiresAt)}`} /> : null}
+                  <FigureLine size={15} weight={600} lh={20} text={t('{amount} for {name}', { amount: giftRupees(gift.amount), name: gift.recipientName })} />
+                  {gift.state === 'redeemed' && gift.redeemedAt ? <FigureLine size={12} lh={16} color={colors.textSecondary} text={t('Redeemed on {day}', { day: formatGiftDate(gift.redeemedAt) })} /> : gift.state === 'available' && gift.expiresAt ? <FigureLine size={12} lh={16} color={colors.textSecondary} text={t('Use by {day}', { day: formatGiftDate(gift.expiresAt) })} /> : null}
                 </View>
-                <StatusChip tone={STATE_TONE[gift.state]}>{GIFT_STATE_LABELS[gift.state]}</StatusChip>
+                <StatusChip tone={STATE_TONE[gift.state]}>{t(GIFT_STATE_LABELS[gift.state])}</StatusChip>
               </View>
               {gift.message ? (
                 <T size={12} lh={16} numberOfLines={2} color={colors.textSecondary} style={styles.italic}>{`“${gift.message}”`}</T>
@@ -126,24 +128,24 @@ export default function SentGiftsScreen() {
                 gift.linkMade && confirming === gift.id ? (
                   <View style={styles.confirm}>
                     <T size={12} lh={16}>
-                      A new link replaces the old one. Any link you shared before stops working.
+                      {t('A new link replaces the old one. Any link you shared before stops working.')}
                     </T>
                     <View style={styles.pair}>
                       <View style={styles.half}>
                         <ScButton variant="outline" disabled={making === gift.id} onPress={() => setConfirming(null)}>
-                          Keep the old link
+                          {t('Keep the old link')}
                         </ScButton>
                       </View>
                       <View style={styles.half}>
                         <ScButton variant="outline" disabled={making === gift.id} onPress={() => void getLink(gift)}>
-                          {making === gift.id ? 'Making…' : 'Get a new link'}
+                          {making === gift.id ? t('Making…') : t('Get a new link')}
                         </ScButton>
                       </View>
                     </View>
                   </View>
                 ) : (
                   <ScButton variant="outline" disabled={making === gift.id} onPress={() => (gift.linkMade ? setConfirming(gift.id) : void getLink(gift))}>
-                    {making === gift.id ? 'Making…' : gift.linkMade ? 'Get a new link' : 'Get the link'}
+                    {making === gift.id ? t('Making…') : gift.linkMade ? t('Get a new link') : t('Get the link')}
                   </ScButton>
                 )
               ) : null}

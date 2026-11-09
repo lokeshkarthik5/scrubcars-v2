@@ -8,6 +8,7 @@ import { IconAlertCircle, IconAlertTriangle, IconChevronRight, IconInfoCircle, I
 import { T } from './text';
 import { createStyles, useColors, useFinish, useTheme } from './theme';
 import { PRESSED_SCALE, type Tokens } from './tokens';
+import { useT } from './lang';
 
 const LOGO_RATIO = 316 / 90;
 
@@ -118,6 +119,7 @@ export function PressRow({
 
 /** ErrorState / LoadError: a failed load said as one, never drawn as an empty list or a 0. */
 export function ErrorState({ message, onRetry, retrying = false }: { message: string; onRetry: () => void; retrying?: boolean }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   return (
@@ -127,7 +129,7 @@ export function ErrorState({ message, onRetry, retrying = false }: { message: st
         {message}
       </T>
       <ScButton variant="outline" fullWidth={false} onPress={onRetry} disabled={retrying}>
-        {retrying ? 'Retrying…' : 'Try again'}
+        {retrying ? t('Retrying…') : t('Try again')}
       </ScButton>
     </View>
   );
@@ -236,7 +238,15 @@ export function ScSegmented<V extends string>({
               {selected ? <Raised radius={10} style={StyleSheet.absoluteFill} /> : null}
               {option.icon}
               {typeof option.label === 'string' ? (
-                <T size={labelSize} weight={selected ? 600 : 500} numberOfLines={1} color={selected ? colors.textPrimary : colors.textSecondary}>
+                <T
+                  size={labelSize}
+                  weight={selected ? 600 : 500}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.85}
+                  color={selected ? colors.textPrimary : colors.textSecondary}
+                  style={styles.segmentLabel}
+                >
                   {option.label}
                 </T>
               ) : (
@@ -263,7 +273,15 @@ export function ScSegmented<V extends string>({
           >
             {option.icon}
             {typeof option.label === 'string' ? (
-              <T size={labelSize} weight={500} numberOfLines={1} color={selected ? colors.textPrimary : colors.textSecondary}>
+              <T
+                size={labelSize}
+                weight={500}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.85}
+                color={selected ? colors.textPrimary : colors.textSecondary}
+                style={styles.segmentLabel}
+              >
                 {option.label}
               </T>
             ) : (
@@ -329,8 +347,9 @@ export function StatusChip({ tone, children, size = 'sm', dot = true }: { tone: 
 }
 
 export function Spinner({ size = 18, color }: { size?: number; color?: string }) {
+  const t = useT();
   const colors = useColors();
-  return <ActivityIndicator size={size > 24 ? 'large' : 'small'} color={color ?? colors.textMuted} accessibilityLabel="Loading" />;
+  return <ActivityIndicator size={size > 24 ? 'large' : 'small'} color={color ?? colors.textMuted} accessibilityLabel={t('Loading')} />;
 }
 
 /** A red-free soft disc holding an icon: TileIcon, the update row's. */
@@ -402,12 +421,15 @@ const useStyles = createStyles((c) => ({
   segmented: { flexDirection: 'row', backgroundColor: c.surface, borderRadius: 12, padding: 4 },
   segment: {
     flex: 1,
+    minWidth: 0,
     borderRadius: 9,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
   },
+  // One line inside its own segment: a longer (Tamil) label shrinks a little, then ends in an ellipsis.
+  segmentLabel: { flexShrink: 1, minWidth: 0 },
   segmentOn: { backgroundColor: c.surfaceElevated },
   skeleton: { backgroundColor: c.skeleton },
   skeletonList: { gap: 8 },
@@ -440,26 +462,29 @@ const useStyles = createStyles((c) => ({
 }));
 
 /** LoadError (the garage's wording): a failed load said as one, never drawn as an empty list or a 0. */
+/** `what` is translated by the caller (t("today's jobs")): Tamil puts it first. */
 export function LoadError({ what, onRetry, retrying = false }: { what?: string; onRetry: () => void; retrying?: boolean }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   return (
     <View accessibilityRole="alert" style={styles.loadError}>
       <IconAlertCircle size={24} color={colors.textSecondary} />
       <T size={14} align="center">
-        {what ? `Couldn't load ${what}.` : "Couldn't load."}
+        {what ? t("Couldn't load {what}.", { what }) : t("Couldn't load.")}
       </T>
       <ScButton variant="outline" fullWidth={false} onPress={onRetry} disabled={retrying}>
-        {retrying ? 'Retrying…' : 'Retry'}
+        {retrying ? t('Retrying…') : t('Retry')}
       </ScButton>
     </View>
   );
 }
 
 export function SkeletonList({ count = 3, height = 96 }: { count?: number; height?: number }) {
+  const t = useT();
   const styles = useStyles();
   return (
-    <View accessibilityLabel="Loading" accessibilityRole="progressbar" style={styles.skeletonList}>
+    <View accessibilityLabel={t('Loading')} accessibilityRole="progressbar" style={styles.skeletonList}>
       {Array.from({ length: count }, (_, index) => (
         <Skeleton key={index} height={height} />
       ))}

@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { IconPackage } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
 import { effectiveDurationMins } from '@repo/core/service-duration'
+import { fill, useT } from '@repo/core/i18n'
+import { t } from '@repo/core/i18n/translate'
 import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
@@ -33,6 +35,9 @@ import type {
   ServicePackage,
 } from '@repo/core/types'
 import { RowAction } from './catalogue-row'
+
+/** Said from an effect, so it reads the language in use without being one of the effect's dependencies. */
+const loadFailed = () => t('Failed to load packages')
 
 type PackageForm = {
   name: string
@@ -76,6 +81,7 @@ export function PackagesPanel({
   /** The photo-and-video block's config, fetched once by the page. */
   mediaConfig: MediaConfig | null
 }) {
+  const t = useT()
   const [packages, setPackages] = useState<ServicePackage[]>([])
   const [form, setForm] = useState<PackageForm>(emptyPackageForm)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -92,7 +98,7 @@ export function PackagesPanel({
   useEffect(() => {
     getMyPackages()
       .then(setPackages)
-      .catch(() => toast.error('Failed to load packages'))
+      .catch(() => toast.error(loadFailed()))
       .finally(() => setLoading(false))
   }, [])
 
@@ -126,9 +132,9 @@ export function PackagesPanel({
     setSaving(key)
     try {
       await action()
-      toast.success('Saved successfully')
+      toast.success(t('Saved successfully'))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Something went wrong')
+      toast.error(err instanceof Error ? err.message : t('Something went wrong'))
     } finally {
       setSaving(null)
     }
@@ -229,8 +235,8 @@ export function PackagesPanel({
     return (
       <EmptyState
         icon={<IconPackage size={28} stroke={1.5} />}
-        title="Packages need two services"
-        subtitle="Add at least 2 active services before building a package."
+        title={t('Packages need two services')}
+        subtitle={t('Add at least 2 active services before building a package.')}
       />
     )
   }
@@ -245,7 +251,7 @@ export function PackagesPanel({
     <div className="flex flex-col gap-5">
       <section className="flex flex-col gap-3">
         <SectionHeader
-          title={editingId ? 'Edit package' : 'Build a package'}
+          title={editingId ? t('Edit package') : t('Build a package')}
           action={
             editingId ? (
               <button
@@ -253,19 +259,19 @@ export function PackagesPanel({
                 onClick={resetForm}
                 className="-my-2 min-h-11 px-1 text-[13px] font-medium text-text-secondary transition-colors hover:text-text-primary"
               >
-                Cancel edit
+                {t('Cancel edit')}
               </button>
             ) : undefined
           }
         />
         <ScCard className="flex flex-col gap-3">
           <ScInput
-            label="Package name"
+            label={t('Package name')}
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
           />
           <ScTextarea
-            label="Description (optional)"
+            label={t('Description (optional)')}
             rows={2}
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
@@ -273,9 +279,10 @@ export function PackagesPanel({
 
           <div>
             <p className="mb-2 text-[11px] font-medium text-text-secondary">
-              Services included (
-              <span className="font-numeric">{form.serviceIds.length}</span>{' '}
-              selected · minimum <span className="font-numeric">2</span>)
+              {fill(t('Services included ({count} selected · minimum {min})'), {
+                count: <span className="font-numeric">{form.serviceIds.length}</span>,
+                min: <span className="font-numeric">2</span>,
+              })}
             </p>
             <div className="flex flex-wrap gap-2">
               {selectableServices.map((svc) => (
@@ -291,20 +298,20 @@ export function PackagesPanel({
 
           <div>
             <p className="mb-2 text-[11px] font-medium text-text-secondary">
-              Pricing
+              {t('Pricing')}
             </p>
             <div className="flex flex-wrap gap-2">
               {PRICING_TYPES.map((pt) => (
                 <Chip
                   key={pt.value}
-                  label={pt.label}
+                  label={t(pt.label)}
                   selected={form.pricingType === pt.value}
                   onClick={() => setForm({ ...form, pricingType: pt.value })}
                 />
               ))}
             </div>
             <p className="mt-1.5 text-[11px] text-text-muted">
-              {PRICING_TYPES.find((pt) => pt.value === form.pricingType)?.hint}
+              {t(PRICING_TYPES.find((pt) => pt.value === form.pricingType)?.hint ?? '')}
             </p>
           </div>
 
@@ -313,8 +320,8 @@ export function PackagesPanel({
             <ScInput
               label={
                 form.pricingType === 'on_inspection'
-                  ? 'Inspection fee (₹)'
-                  : 'Package price (₹)'
+                  ? t('Inspection fee (₹)')
+                  : t('Package price (₹)')
               }
               type="number"
               className="font-numeric"
@@ -326,7 +333,7 @@ export function PackagesPanel({
           {form.pricingType === 'per_vehicle' && (
             <div className="grid grid-cols-3 gap-2">
               <ScInput
-                label="Hatchback (₹)"
+                label={t('Hatchback (₹)')}
                 type="number"
                 className="font-numeric"
                 value={form.priceHatchback}
@@ -335,7 +342,7 @@ export function PackagesPanel({
                 }
               />
               <ScInput
-                label="Sedan (₹)"
+                label={t('Sedan (₹)')}
                 type="number"
                 className="font-numeric"
                 value={form.priceSedan}
@@ -344,7 +351,7 @@ export function PackagesPanel({
                 }
               />
               <ScInput
-                label="SUV (₹)"
+                label={t('SUV (₹)')}
                 type="number"
                 className="font-numeric"
                 value={form.priceSuv}
@@ -355,7 +362,7 @@ export function PackagesPanel({
 
           <div>
             <ScInput
-              label="Duration (mins)"
+              label={t('Duration (mins)')}
               type="number"
               className="font-numeric"
               value={form.durationMins}
@@ -375,9 +382,9 @@ export function PackagesPanel({
                   }
                   className="mt-1 min-h-11 text-[12px] font-medium text-text-primary underline underline-offset-2"
                 >
-                  Services add up to{' '}
-                  <span className="font-numeric">{suggestedDuration}</span> min
-                  — use that
+                  {fill(t('Services add up to {mins} min — use that'), {
+                    mins: <span className="font-numeric">{suggestedDuration}</span>,
+                  })}
                 </button>
               )}
           </div>
@@ -388,19 +395,21 @@ export function PackagesPanel({
             // discount line is.
             <div className="rounded-[12px] bg-surface-elevated p-3">
               <p className="text-[11px] text-text-secondary">
-                Bought separately:{' '}
-                <span className="font-numeric">₹{itemsTotal}</span>
+                {fill(t('Bought separately: {amount}'), {
+                  amount: <span className="font-numeric">₹{itemsTotal}</span>,
+                })}
               </p>
               {previewSavings > 0 ? (
                 <p className="text-[12px] font-medium text-success">
-                  Customers save{' '}
-                  <span className="font-numeric">₹{previewSavings}</span>
+                  {fill(t('Customers save {amount}'), {
+                    amount: <span className="font-numeric">₹{previewSavings}</span>,
+                  })}
                 </p>
               ) : (
                 <p className="text-[11px] text-text-muted">
-                  Price the package below{' '}
-                  <span className="font-numeric">₹{itemsTotal}</span> to show a
-                  savings badge.
+                  {fill(t('Price the package below {amount} to show a savings badge.'), {
+                    amount: <span className="font-numeric">₹{itemsTotal}</span>,
+                  })}
                 </p>
               )}
             </div>
@@ -413,17 +422,17 @@ export function PackagesPanel({
             onClick={submit}
           >
             {saving === 'package'
-              ? 'Saving...'
+              ? t('Saving...')
               : editingId
-                ? 'Update package'
-                : 'Create package'}
+                ? t('Update package')
+                : t('Create package')}
           </ScButton>
         </ScCard>
       </section>
 
       <section className="flex flex-col gap-3">
         <SectionHeader
-          title="Your packages"
+          title={t('Your packages')}
           action={
             packages.length > 0 ? (
               <span className="font-numeric text-[12px] text-text-muted">
@@ -435,8 +444,8 @@ export function PackagesPanel({
         {packages.length === 0 ? (
           <EmptyState
             icon={<IconPackage size={28} stroke={1.5} />}
-            title="No packages yet"
-            subtitle="Bundle 2 or more services to create one."
+            title={t('No packages yet')}
+            subtitle={t('Bundle 2 or more services to create one.')}
           />
         ) : (
           <div className="flex flex-col gap-2">
@@ -471,20 +480,20 @@ export function PackagesPanel({
                       </p>
                       {pkg.savings !== null && (
                         <p className="mt-1 text-[11px] font-medium text-success">
-                          Saves{' '}
-                          <span className="font-numeric">₹{pkg.savings}</span>{' '}
-                          vs{' '}
-                          <span className="font-numeric">
-                            ₹{pkg.itemsTotal}
-                          </span>{' '}
-                          separately
+                          {fill(t('Saves {amount} vs {total} separately'), {
+                            amount: <span className="font-numeric">₹{pkg.savings}</span>,
+                            total: (
+                              <span className="font-numeric">
+                                ₹{pkg.itemsTotal}
+                              </span>
+                            ),
+                          })}
                         </p>
                       )}
                       {/* Amber: a problem to fix, not a button. */}
                       {pkg.hasInactiveItems && (
                         <p className="mt-1 text-[11px] text-warning">
-                          Contains a disabled service — customers still see it
-                          listed.
+                          {t('Contains a disabled service — customers still see it listed.')}
                         </p>
                       )}
                     </div>
@@ -492,7 +501,7 @@ export function PackagesPanel({
                       variant={pkg.isActive ? 'success' : 'muted'}
                       className="shrink-0"
                     >
-                      {pkg.isActive ? 'Active' : 'Inactive'}
+                      {pkg.isActive ? t('Active') : t('Inactive')}
                     </ScBadge>
                   </div>
 
@@ -510,14 +519,14 @@ export function PackagesPanel({
                   </div>
 
                   <div className="flex flex-wrap gap-2 border-t border-border pt-3">
-                    <RowAction onClick={() => startEdit(pkg)}>Edit</RowAction>
+                    <RowAction onClick={() => startEdit(pkg)}>{t('Edit')}</RowAction>
                     <RowAction
                       onClick={() => setPackageActive(pkg.id, !pkg.isActive)}
                     >
-                      {pkg.isActive ? 'Disable' : 'Enable'}
+                      {pkg.isActive ? t('Disable') : t('Enable')}
                     </RowAction>
                     <RowAction onClick={() => setDeleting(pkg)}>
-                      Delete
+                      {t('Delete')}
                     </RowAction>
                   </div>
                 </ScCard>
@@ -531,9 +540,15 @@ export function PackagesPanel({
         open={deleting !== null}
         onClose={() => setDeleting(null)}
         level="firm"
-        title={deleting ? `Delete ${deleting.name}?` : 'Delete this package?'}
-        body="Customers can't book it any more, and it can't be undone. To stop it for a while, Disable it instead."
-        confirmLabel="Delete package"
+        title={
+          deleting
+            ? t('Delete {name}?', { name: deleting.name })
+            : t('Delete this package?')
+        }
+        body={t(
+          "Customers can't book it any more, and it can't be undone. To stop it for a while, Disable it instead."
+        )}
+        confirmLabel={t('Delete package')}
         onConfirm={async () => {
           if (deleting) await remove(deleting.id)
           setDeleting(null)

@@ -12,6 +12,8 @@ import { cn } from '@repo/core/utils'
 import { burstConfetti } from '@/lib/confetti'
 import { GarageCard, GarageCardBack, IllustrationLine } from './garage-card'
 import { GarageShare } from './garage-share'
+import { useT } from '@repo/core/i18n'
+import { t, tn } from '@repo/core/i18n/translate'
 
 export type RevealStage = 'back' | 'shaking' | 'turning' | 'front'
 
@@ -35,14 +37,14 @@ const GOLD_SPARKS = ['#FFE08A', '#F7D06B', '#FFF4C2', '#D9A62E', '#FFFFFF']
 
 /** What the pull finished, in words: a row, the series, or a duplicate's stamp progress. */
 export function pullNews(pull: GaragePull): string | null {
-  if (pull.seriesCompleted) return 'Series complete! Every car is in your Garage, and the Garage Legend badge is yours.'
+  if (pull.seriesCompleted) return t('Series complete! Every car is in your Garage, and the Garage Legend badge is yours.')
   if (pull.rowCompleted) {
     const r = pull.rowCompleted
     return r.voucherAmount !== null
-      ? `Row ${r.row} complete — ${rewardRupees(r.voucherAmount)} off your next booking.`
-      : `Row ${r.row} complete — ${r.stamps === 1 ? 'a bonus stamp' : `${r.stamps} bonus stamps`} on your Shine Card.`
+      ? t('Row {row} complete — {rewardRupees} off your next booking.', { row: r.row, rewardRupees: rewardRupees(r.voucherAmount) })
+      : tn(r.stamps, 'Row {row} complete — a bonus stamp on your Shine Card.', 'Row {row} complete — {count} bonus stamps on your Shine Card.', { row: r.row })
   }
-  if (pull.duplicate) return 'A duplicate. Every 3 duplicates make a bonus Shine Card stamp.'
+  if (pull.duplicate) return t('A duplicate. Every 3 duplicates make a bonus Shine Card stamp.')
   return null
 }
 
@@ -68,6 +70,7 @@ export function PullReveal({
   firstName?: string | null
   compact?: boolean
 }) {
+  const t = useT()
   const [stage, setStage] = useState<RevealStage>(pinned ?? (pull.seen ? 'front' : 'back'))
   const still = useReducedMotion()
   const told = useRef(false)
@@ -115,7 +118,7 @@ export function PullReveal({
               <GarageCard car={pull.car} />
             </div>
           ) : (
-            <button type="button" onClick={reveal} className="block w-full" aria-label="Reveal your new card">
+            <button type="button" onClick={reveal} className="block w-full" aria-label={t('Reveal your new card')}>
               <GarageCardBack />
             </button>
           )
@@ -124,7 +127,7 @@ export function PullReveal({
             type="button"
             onClick={reveal}
             disabled={current !== 'back'}
-            aria-label={current === 'back' ? 'Reveal your new card' : undefined}
+            aria-label={current === 'back' ? t('Reveal your new card') : undefined}
             className={cn('block w-full text-left', current === 'shaking' && 'garage-reveal__shake')}
           >
             <div className={cn('garage-reveal__flipper', turned && 'garage-reveal__flipper--turned')}>
@@ -163,7 +166,7 @@ export function PullReveal({
                 className="flex min-h-11 items-center justify-center gap-2 rounded-[12px] border border-line text-[14px] font-medium text-text-primary"
               >
                 <IconCards size={18} aria-hidden="true" />
-                See your Garage
+                {t('See your Garage')}
                 <IconArrowRight size={16} aria-hidden="true" />
               </Link>
               <GarageShare car={pull.car} firstName={firstName} />
@@ -171,9 +174,9 @@ export function PullReveal({
           </>
         ) : (
           <>
-            <p className="text-t4 text-text-secondary">{pull.sourceLabel === 'Booking completed' ? 'Your booking earned a card for your Garage.' : `${pull.sourceLabel}: a card for your Garage.`}</p>
+            <p className="text-t4 text-text-secondary">{pull.sourceLabel === 'Booking completed' ? t('Your booking earned a card for your Garage.') : t('{sourceLabel}: a card for your Garage.', { sourceLabel: pull.sourceLabel })}</p>
             <ScButton variant="secondary" onClick={reveal} disabled={current !== 'back'} className="min-h-11 px-6">
-              {current === 'back' ? 'Reveal' : 'Revealing…'}
+              {current === 'back' ? t('Reveal') : t('Revealing…')}
             </ScButton>
           </>
         )}

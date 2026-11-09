@@ -61,6 +61,7 @@ import { OpenStatus } from '@/components/open-status'
 import { HubNav } from '@/components/home/hub-nav'
 import { isHomeHubEnabled } from '@/lib/home-hub'
 import { fitPadding, framingBounds, type FitPadding } from '@/lib/map-view'
+import { fill, useT } from '@repo/core/i18n'
 
 /**
  * Airbnb-style map browse.
@@ -164,6 +165,7 @@ function hasPin(
 }
 
 function MapBrowseContent() {
+  const t = useT()
   const router = useRouter()
   // Read at build time (lib/home-hub.ts): the hub's floating nav, or none as
   // before.
@@ -428,16 +430,15 @@ function MapBrowseContent() {
 
   const emptyMessage =
     bookingType === 'pickup' ? (
-      'No garages pick up near you yet — try At garage or Doorstep.'
+      t('No garages pick up near you yet — try At garage or Doorstep.')
     ) : bookingType === 'doorstep' ? (
-      'No garages travel to this area yet.'
+      t('No garages travel to this area yet.')
     ) : nearby && radiusKm !== null ? (
       <>
-        No garages within <span className="font-numeric">{radiusKm}</span> km of
-        you yet.
+        {fill(t('No garages within {radiusKm} km of you yet.'), { radiusKm: <span className="font-numeric">{radiusKm}</span> })}
       </>
     ) : (
-      'No garages in this area. Try zooming out or moving the map.'
+      t('No garages in this area. Try zooming out or moving the map.')
     )
 
   return (
@@ -457,7 +458,7 @@ function MapBrowseContent() {
           ref={topRef}
           className="flex items-start justify-between gap-2 p-4 pt-[max(1rem,env(safe-area-inset-top))]"
         >
-          <RoundButton label="Back" onClick={() => router.back()}>
+          <RoundButton label={t('Back')} onClick={() => router.back()}>
             <IconChevronLeft size={20} />
           </RoundButton>
 
@@ -474,11 +475,11 @@ function MapBrowseContent() {
               className="fx-glass fx-press pointer-events-auto flex h-11 items-center gap-1.5 rounded-pill px-[15px] text-t4 font-semibold text-text-primary disabled:opacity-50"
             >
               <IconList size={16} aria-hidden="true" />
-              List
+              {t('List')}
             </button>
 
             <RoundButton
-              label="Centre on my location"
+              label={t('Centre on my location')}
               onClick={centreOnMe}
               disabled={locating}
             >
@@ -506,7 +507,7 @@ function MapBrowseContent() {
               className="press pointer-events-auto flex min-h-11 items-center gap-1.5 rounded-full bg-brand-white px-4 py-2 text-t4 font-semibold text-brand-black shadow-lg"
             >
               <IconRefresh size={15} aria-hidden="true" />
-              Search this area
+              {t('Search this area')}
             </button>
           </div>
         )}
@@ -523,7 +524,7 @@ function MapBrowseContent() {
         >
           {isLoading ? (
             <p className="px-4 text-center text-t5 text-text-secondary">
-              {nearby ? 'Finding garages near you…' : 'Looking in this area…'}
+              {nearby ? t('Finding garages near you…') : t('Looking in this area…')}
             </p>
           ) : vendors.length === 0 ? (
             <div className="fx-glass pointer-events-auto mx-4 flex flex-col items-center rounded-[22px] px-4 py-3 text-center">
@@ -535,7 +536,7 @@ function MapBrowseContent() {
                   href="/garages"
                   className="flex min-h-11 items-center px-3 text-t4 font-semibold text-text-primary underline underline-offset-4"
                 >
-                  See all garages
+                  {t('See all garages')}
                 </Link>
               )}
             </div>
@@ -555,18 +556,18 @@ function MapBrowseContent() {
                     <span className="font-numeric">{vendors.length}</span>{' '}
                     {nearby
                       ? vendors.length === 1
-                        ? 'garage near you'
-                        : 'garages near you'
+                        ? t('garage near you')
+                        : t('garages near you')
                       : vendors.length === 1
-                        ? 'garage here'
-                        : 'garages here'}
+                        ? t('garage here')
+                        : t('garages here')}
                   </span>
                 </button>
                 {vendors.length > 1 && (
                   <div className="fx-glass pointer-events-auto flex h-9 items-center gap-0.5 rounded-pill px-[3px] text-t4 font-semibold">
                     <button
                       type="button"
-                      aria-label="Previous garage"
+                      aria-label={t('Previous garage')}
                       disabled={selectedIndex <= 0}
                       onClick={() => step(-1)}
                       className="grid size-[30px] place-items-center rounded-full disabled:opacity-30"
@@ -574,13 +575,14 @@ function MapBrowseContent() {
                       <IconChevronLeft size={17} aria-hidden />
                     </button>
                     <span className="min-w-11 text-center" aria-live="polite">
-                      <span className="font-numeric">{selectedIndex + 1}</span>{' '}
-                      <span className="font-medium text-text-secondary">of</span>{' '}
-                      <span className="font-numeric">{vendors.length}</span>
+                      {fill(t('{index} of {total}'), {
+                        index: <span className="font-numeric">{selectedIndex + 1}</span>,
+                        total: <span className="font-numeric">{vendors.length}</span>,
+                      })}
                     </span>
                     <button
                       type="button"
-                      aria-label="Next garage"
+                      aria-label={t('Next garage')}
                       disabled={selectedIndex >= vendors.length - 1}
                       onClick={() => step(1)}
                       className="grid size-[30px] place-items-center rounded-full disabled:opacity-30"
@@ -628,14 +630,11 @@ function MapBrowseContent() {
                 <p className="px-4 text-center text-t5 text-text-muted">
                   {nearby ? (
                     <>
-                      Showing the nearest{' '}
-                      <span className="font-numeric">{PAGE_LIMIT}</span>.
+                      {fill(t('Showing the nearest {limit}.'), { limit: <span className="font-numeric">{PAGE_LIMIT}</span> })}
                     </>
                   ) : (
                     <>
-                      Showing the first{' '}
-                      <span className="font-numeric">{PAGE_LIMIT}</span> — zoom
-                      in to narrow it down.
+                      {fill(t('Showing the first {limit} — zoom in to narrow it down.'), { limit: <span className="font-numeric">{PAGE_LIMIT}</span> })}
                     </>
                   )}
                 </p>
@@ -692,17 +691,17 @@ function MapBrowseContent() {
       <ScSheet
         open={listOpen}
         onClose={() => setListOpen(false)}
-        aria-label="Garages on the map"
+        aria-label={t('Garages on the map')}
         className="fx-glass mx-2 h-[82vh] max-h-[82vh] rounded-b-none rounded-t-[28px] border border-b-0 border-white/14 bg-[rgb(16_16_20/0.82)] pb-0"
       >
         <div className="flex items-center justify-between gap-2.5 px-4 pb-3 pt-1">
           <div>
             <h2 className="text-t2 font-semibold text-text-primary">
-              {nearby ? 'Garages near you' : 'Garages here'}
+              {nearby ? t('Garages near you') : t('Garages here')}
             </h2>
             <p className="text-t4 text-text-secondary">
               <span className="font-numeric">{vendors.length}</span>{' '}
-              {origin ? 'nearest first' : 'on the map'}
+              {origin ? t('nearest first') : t('on the map')}
             </p>
           </div>
           <button
@@ -711,7 +710,7 @@ function MapBrowseContent() {
             className="fx-glass fx-press flex h-9 items-center gap-1.5 rounded-pill pl-[9px] pr-3 text-t4 font-semibold text-text-primary"
           >
             <IconMap size={16} aria-hidden />
-            Map
+            {t('Map')}
           </button>
         </div>
         <ul className="flex flex-col gap-2 px-2.5 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
@@ -763,11 +762,12 @@ function RoundButton({
 
 /** A step to the card either side, on the strip's edge. */
 function EdgeButton({ side, onClick }: { side: 'prev' | 'next'; onClick: () => void }) {
+  const t = useT()
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-label={side === 'prev' ? 'Previous garage' : 'Next garage'}
+      aria-label={side === 'prev' ? t('Previous garage') : t('Next garage')}
       className={cn(
         'fx-glass fx-press pointer-events-auto absolute top-[72px] grid size-[38px] place-items-center rounded-full text-text-primary',
         side === 'prev' ? 'left-2.5' : 'right-2.5'
@@ -788,6 +788,7 @@ function MapListRow({
   selected: boolean
   onChoose: () => void
 }) {
+  const t = useT()
   const approx = useLocationStore((s) => isApproximate(s.location))
   const km = vendor.distanceKm
   return (
@@ -811,7 +812,7 @@ function MapListRow({
       <span className="min-w-0">
         <span className="block truncate text-t3 font-semibold text-text-primary">{vendor.name}</span>
         <span className="mt-0.5 block truncate text-t4 text-text-secondary">
-          {[vendor.area, hasStarScore(vendor) ? `★ ${vendor.rating.toFixed(1)}` : NEW_GARAGE_LABEL]
+          {[vendor.area, hasStarScore(vendor) ? `★ ${vendor.rating.toFixed(1)}` : t(NEW_GARAGE_LABEL)]
             .filter(Boolean)
             .join(' · ')}
         </span>
@@ -855,6 +856,7 @@ function MapVendorCard({
   /** Makes this the chosen garage: its card centred, its pin red. */
   onChoose: () => void
 }) {
+  const t = useT()
   const modeParam = bookingTypeParam(mode)
   const queryClient = useQueryClient()
   // "6.2 km · ~20 min" (0062), "~" before the km when measured from an area.
@@ -865,9 +867,9 @@ function MapVendorCard({
   // so that is the badge; otherwise Doorstep, as before.
   const badge =
     mode === 'pickup'
-      ? BOOKING_TYPE_LABELS.pickup
+      ? t(BOOKING_TYPE_LABELS.pickup)
       : vendor.doorstepEnabled
-        ? BOOKING_TYPE_LABELS.doorstep
+        ? t(BOOKING_TYPE_LABELS.doorstep)
         : null
 
   return (
@@ -953,7 +955,7 @@ function MapVendorCard({
             </span>
           ) : (
             <span className="shrink-0 pt-1 text-t5 font-medium text-text-primary">
-              {NEW_GARAGE_LABEL}
+              {t(NEW_GARAGE_LABEL)}
             </span>
           )}
         </div>
@@ -990,10 +992,9 @@ function MapVendorCard({
 
         {vendor.startingPrice > 0 && (
           <p className="mt-0.5 text-t4 text-text-secondary">
-            <span className="font-numeric text-[17px] font-semibold text-text-primary">
+            {fill(t('{price} onwards'), { price: <span className="font-numeric text-[17px] font-semibold text-text-primary">
               ₹{vendor.startingPrice}
-            </span>{' '}
-            onwards
+            </span> })}
           </p>
         )}
       </div>

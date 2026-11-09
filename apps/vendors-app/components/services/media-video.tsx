@@ -14,6 +14,7 @@ import {
 import { T } from '@repo/native-ui/text';
 import { percent, type VideoWork } from '@/lib/service-media-rules';
 import { createStyles, useColors } from '@repo/native-ui/theme';
+import { fill, useT } from '@repo/core/i18n';
 
 /** A square cell, 12 round: the photo tiles and the video slot share it. */
 export const useTileStyles = createStyles((colors) => ({
@@ -109,6 +110,7 @@ export function VideoSlot({
   disabled: boolean;
   onAdd: () => void;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const tileStyles = useTileStyles();
@@ -117,7 +119,7 @@ export function VideoSlot({
     return (
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`Add a different video of ${serviceName}`}
+        accessibilityLabel={t('Add a different video of {service}', { service: serviceName })}
         disabled={disabled}
         onPress={onAdd}
         style={[tileStyles.tile, tileStyles.failed, disabled && { opacity: 0.6 }]}
@@ -133,7 +135,7 @@ export function VideoSlot({
     return (
       <View
         accessibilityRole="progressbar"
-        accessibilityLabel={uploading ? `Uploading, ${percent(work.fraction)}%` : 'Checking the video'}
+        accessibilityLabel={uploading ? t('Uploading, {percent}%', { percent: percent(work.fraction) }) : t('Checking the video')}
         style={[tileStyles.tile, tileStyles.filled, styles.centre]}
       >
         <Ring fraction={uploading ? work.fraction : null} />
@@ -148,17 +150,23 @@ export function VideoSlot({
     return (
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`Add a video of ${serviceName}`}
+        accessibilityLabel={t('Add a video of {service}', { service: serviceName })}
         disabled={disabled}
         onPress={onAdd}
         style={[tileStyles.tile, tileStyles.empty, disabled && { opacity: 0.4 }]}
       >
         <IconVideoPlus size={22} stroke={1.6} color={colors.textSecondary} />
         <T size={12} weight={500} lh={14} color={colors.textSecondary} align="center">
-          Add video
+          {t('Add video')}
         </T>
         <T size={11} lh={14} color={colors.textMuted} align="center">
-          up to <T num size={11} lh={14} color={colors.textMuted}>60</T> sec
+          {fill(t('up to {seconds} sec'), {
+            seconds: (
+              <T num size={11} lh={14} color={colors.textMuted}>
+                60
+              </T>
+            ),
+          })}
         </T>
       </Pressable>
     );
@@ -166,7 +174,7 @@ export function VideoSlot({
 
   if (video.videoStatus === 'error') {
     return (
-      <View accessibilityLabel="Video failed" style={[tileStyles.tile, tileStyles.failed]}>
+      <View accessibilityLabel={t('Video failed')} style={[tileStyles.tile, tileStyles.failed]}>
         <IconAlertTriangle size={24} stroke={1.8} color={colors.error} />
       </View>
     );
@@ -174,7 +182,7 @@ export function VideoSlot({
 
   if (video.videoStatus === 'ready' && video.posterUrl) {
     return (
-      <View accessibilityLabel={`Video of ${serviceName}`} style={[tileStyles.tile, tileStyles.filled]}>
+      <View accessibilityLabel={t('Video of {service}', { service: serviceName })} style={[tileStyles.tile, tileStyles.filled]}>
         <Image source={{ uri: video.posterUrl }} resizeMode="cover" style={StyleSheet.absoluteFill} />
         <View style={[StyleSheet.absoluteFill, styles.centre]} pointerEvents="none">
           <View style={styles.play}>
@@ -192,7 +200,7 @@ export function VideoSlot({
 
   // Processing: Stream has the file and is encoding it.
   return (
-    <View accessibilityRole="progressbar" accessibilityLabel="Video processing" style={[tileStyles.tile, tileStyles.filled, styles.centre]}>
+    <View accessibilityRole="progressbar" accessibilityLabel={t('Video processing')} style={[tileStyles.tile, tileStyles.filled, styles.centre]}>
       <Ring fraction={null} />
       <View style={styles.corner}>
         <IconVideo size={14} color={colors.textSecondary} />
@@ -248,6 +256,7 @@ export function VideoStatusLine({
   onReplace: () => void;
   onRemove: () => void;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   if (work.step === 'refused') {
@@ -265,7 +274,7 @@ export function VideoStatusLine({
   if (work.step === 'checking') {
     return (
       <T size={13} color={colors.textSecondary}>
-        Checking the video…
+        {t('Checking the video…')}
       </T>
     );
   }
@@ -275,7 +284,7 @@ export function VideoStatusLine({
         <IconVideo size={16} color={colors.textSecondary} />
         <T size={13} color={colors.textSecondary}>
           <T size={13} weight={600}>
-            Uploading…
+            {t('Uploading…')}
           </T>{' '}
           <T num size={13} color={colors.textSecondary}>
             {percent(work.fraction)}%
@@ -288,7 +297,7 @@ export function VideoStatusLine({
 
   const earlierNote = keepsEarlier ? (
     <T size={12} lh={16} color={colors.textMuted}>
-      Customers see the earlier video until the new one is ready.
+      {t('Customers see the earlier video until the new one is ready.')}
     </T>
   ) : null;
 
@@ -299,9 +308,9 @@ export function VideoStatusLine({
           <IconVideo size={16} color={colors.textSecondary} />
           <T size={13} color={colors.textSecondary}>
             <T size={13} weight={600}>
-              Processing…
+              {t('Processing…')}
             </T>{' '}
-            ready in about a minute
+            {t('ready in about a minute')}
           </T>
         </View>
         {earlierNote}
@@ -311,8 +320,8 @@ export function VideoStatusLine({
 
   const actions = (
     <View style={styles.actions}>
-      <TextAction label="Replace" disabled={busy || !canReplace} onPress={onReplace} />
-      <TextAction label="Remove" accessibilityLabel="Remove video" disabled={busy} onPress={onRemove} />
+      <TextAction label={t('Replace')} disabled={busy || !canReplace} onPress={onReplace} />
+      <TextAction label={t('Remove')} accessibilityLabel={t('Remove video')} disabled={busy} onPress={onRemove} />
     </View>
   );
 
@@ -325,14 +334,14 @@ export function VideoStatusLine({
               <IconVideo size={16} color={colors.error} />
             </View>
             <T size={13} color={colors.error} style={styles.flex}>
-              {video.videoError ?? 'This video could not be processed — try uploading it again'}
+              {video.videoError ?? t('This video could not be processed — try uploading it again')}
             </T>
           </View>
           {actions}
         </View>
         {keepsEarlier ? (
           <T size={12} lh={16} color={colors.textMuted}>
-            Customers still see the earlier video. Remove this one to go back to it.
+            {t('Customers still see the earlier video. Remove this one to go back to it.')}
           </T>
         ) : null}
       </View>
@@ -355,7 +364,7 @@ export function VideoStatusLine({
       <View style={styles.ready}>
         <IconCheck size={14} stroke={2.5} color={colors.success} />
         <T size={13} color={colors.textSecondary}>
-          Ready
+          {t('Ready')}
         </T>
       </View>
       <View style={styles.spacer} />

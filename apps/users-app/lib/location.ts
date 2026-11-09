@@ -1,3 +1,4 @@
+import { msg } from '@repo/core/i18n/translate';
 import { ASSUMED_ORIGIN } from '@repo/core/map';
 import type { ActiveLocation, PermissionState } from '@repo/core/stores/location-store';
 import * as Location from 'expo-location';
@@ -105,7 +106,7 @@ export const useLocationStore = create<LocationState>()((set, get) => {
         const location: ActiveLocation = {
           lat: fix.coords.latitude,
           lng: fix.coords.longitude,
-          label: 'Current location',
+          label: msg('Current location'),
           source: 'gps',
           updatedAt: Date.now(),
         };

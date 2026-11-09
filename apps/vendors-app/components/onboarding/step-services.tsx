@@ -33,9 +33,11 @@ import { createStyles, useColors } from '@repo/native-ui/theme';
 import { updateVendorSettings } from '@/lib/vendor-api';
 
 import { FieldLabel, OnboardingHeader, SectionTitle } from './parts';
+import { useT } from '@repo/core/i18n';
 
 /** Step 4: Services and vehicles, the last step (apps/vendors/app/onboarding/step-4/page.tsx). */
 export function StepServices() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const [vehicleTypes, setVehicleTypes] = useState<string[]>(useOnboardingDraft.getState().vehicleTypes);
@@ -71,7 +73,7 @@ export function StepServices() {
       setPrice('');
       setTiers(EMPTY_TIERS);
     } catch (err) {
-      setError(errorText(err, 'Failed to add service'));
+      setError(errorText(err, t('Failed to add service')));
     } finally {
       setLoading(false);
     }
@@ -86,7 +88,7 @@ export function StepServices() {
       closeDraft();
       router.replace('/home');
     } catch (err) {
-      setError(errorText(err, 'Failed to finish onboarding'));
+      setError(errorText(err, t('Failed to finish onboarding')));
     } finally {
       setFinishing(false);
     }
@@ -98,21 +100,21 @@ export function StepServices() {
     <AppShell hasNav={false}>
       <OnboardingHeader
         step={4}
-        title="Services & vehicles"
-        subtitle="Add what you sell. You can add more, and packages, in Services later."
+        title={t('Services & vehicles')}
+        subtitle={t('Add what you sell. You can add more, and packages, in Services later.')}
         onBack={() => (router.canGoBack() ? router.back() : router.replace(stepPath(3)))}
       />
 
       <View style={styles.section}>
         <SectionTitle
-          title="Quick add a common service"
-          subtitle="Tap a preset or type a custom name below, then set price & duration."
+          title={t('Quick add a common service')}
+          subtitle={t('Tap a preset or type a custom name below, then set price & duration.')}
         />
         <View style={styles.wrap}>
           {SERVICE_PRESETS.map((preset) => (
             <Chip
               key={preset.name}
-              label={preset.name}
+              label={t(preset.name)}
               selected={name === preset.name}
               onPress={() => {
                 setName(preset.name);
@@ -124,26 +126,26 @@ export function StepServices() {
       </View>
 
       <ScCard style={styles.card}>
-        <ScInput label="Service name" value={name} onChangeText={setName} />
+        <ScInput label={t('Service name')} value={name} onChangeText={setName} />
 
         <View style={styles.group}>
-          <FieldLabel>Category</FieldLabel>
+          <FieldLabel>{t('Category')}</FieldLabel>
           <View style={styles.wrap}>
             {SERVICE_CATEGORY_OPTIONS.map((c) => (
-              <Chip key={c.value} label={c.label} selected={category === c.value} onPress={() => setCategory(c.value)} />
+              <Chip key={c.value} label={t(c.label)} selected={category === c.value} onPress={() => setCategory(c.value)} />
             ))}
           </View>
         </View>
 
         <View style={styles.group}>
-          <FieldLabel>Pricing</FieldLabel>
+          <FieldLabel>{t('Pricing')}</FieldLabel>
           <View style={styles.wrap}>
             {PRICING_TYPES.map((pt) => (
-              <Chip key={pt.value} label={pt.label} selected={pricingType === pt.value} onPress={() => setPricingType(pt.value)} />
+              <Chip key={pt.value} label={t(pt.label)} selected={pricingType === pt.value} onPress={() => setPricingType(pt.value)} />
             ))}
           </View>
           <T size={11} color={colors.textMuted}>
-            {pricing?.hint}
+            {pricing ? t(pricing.hint) : null}
           </T>
         </View>
 
@@ -152,7 +154,7 @@ export function StepServices() {
             {VEHICLE_TIERS.map(({ value, label }) => (
               <View key={value} style={styles.tier}>
                 <ScInput
-                  label={`${label} (₹)`}
+                  label={`${t(label)} (₹)`}
                   numeric
                   keyboardType="decimal-pad"
                   value={tiers[value]}
@@ -163,7 +165,7 @@ export function StepServices() {
           </View>
         ) : (
           <ScInput
-            label={pricingType === 'on_inspection' ? 'Inspection fee (₹)' : 'Price (₹)'}
+            label={pricingType === 'on_inspection' ? t('Inspection fee (₹)') : t('Price (₹)')}
             numeric
             keyboardType="decimal-pad"
             value={price}
@@ -172,7 +174,7 @@ export function StepServices() {
         )}
 
         <View style={styles.group}>
-          <FieldLabel>Duration</FieldLabel>
+          <FieldLabel>{t('Duration')}</FieldLabel>
           <View style={styles.wrap}>
             {DURATIONS.map((d) => (
               <Chip key={d} label={`${d} min`} selected={duration === d} onPress={() => setDuration(d)} />
@@ -187,7 +189,7 @@ export function StepServices() {
           disabled={!serviceReady(form) || loading}
           onPress={() => void handleAddService()}
         >
-          {loading ? 'Adding...' : 'Add service'}
+          {loading ? t('Adding...') : t('Add service')}
         </RectButton>
 
         {addedCount > 0 ? (
@@ -202,12 +204,14 @@ export function StepServices() {
 
       <View style={styles.section}>
         <SectionTitle
-          title="Vehicle types handled"
-          subtitle="These are the vehicle types customers can book for, and the tiers you price against when a service uses per-vehicle pricing."
+          title={t('Vehicle types handled')}
+          subtitle={t(
+            'These are the vehicle types customers can book for, and the tiers you price against when a service uses per-vehicle pricing.'
+          )}
         />
         <View style={styles.wrap}>
           {VENDOR_VEHICLE_TYPE_OPTIONS.map((type) => (
-            <Chip key={type} label={type} selected={vehicleTypes.includes(type)} onPress={() => toggleType(type)} />
+            <Chip key={type} label={t(type)} selected={vehicleTypes.includes(type)} onPress={() => toggleType(type)} />
           ))}
         </View>
       </View>
@@ -226,7 +230,7 @@ export function StepServices() {
 
       <View style={styles.footer}>
         <RectButton tone={addedCount === 0 ? 'secondary' : 'primary'} disabled={finishing} onPress={() => void handleFinish()}>
-          {finishing ? 'Opening dashboard...' : 'Go to dashboard'}
+          {finishing ? t('Opening dashboard...') : t('Go to dashboard')}
         </RectButton>
       </View>
     </AppShell>

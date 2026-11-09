@@ -5,6 +5,7 @@ import { IconUsers } from '@tabler/icons-react'
 import { formatOfferFigure, stripOfferCode } from '@repo/core/offer-figure'
 import type { OfferCardPreview } from '@repo/core/offer-preview'
 import { cn } from '@repo/core/utils'
+import { useT, type Translate } from '@repo/core/i18n'
 import { OfferCarousel, OfferCoupon } from '@repo/ui/home/offer-coupon'
 import { ScCard } from '@repo/ui/sc/card'
 
@@ -39,12 +40,13 @@ export function DiscountHomePreview({
   reach,
   className,
 }: DiscountHomePreviewProps) {
+  const t = useT()
   return (
-    <aside aria-label="Preview on Home" className={cn('flex flex-col gap-4', className)}>
+    <aside aria-label={t('Preview on Home')} className={cn('flex flex-col gap-4', className)}>
       <ScCard className="flex flex-col gap-3 px-4 py-4">
         <div className="flex items-baseline justify-between gap-3">
-          <h2 className="text-[15px] font-semibold text-text-primary">Preview on Home</h2>
-          <span className="text-[11px] text-text-muted">Live as you type</span>
+          <h2 className="text-[15px] font-semibold text-text-primary">{t('Preview on Home')}</h2>
+          <span className="text-[11px] text-text-muted">{t('Live as you type')}</span>
         </div>
         {/* A 390pt phone's column at every window width: 16px gutters, as
             Home has, so the ticket is the 358px a customer sees and a title
@@ -57,9 +59,9 @@ export function DiscountHomePreview({
             says is read out from the line below instead. */}
         {cards[0] && (
           <p className="sr-only">
-            {describeCard(cards[0].card)}
+            {describeCard(cards[0].card, t)}
             {cards.length > 1 &&
-              ` ${cards.length - 1} more ${cards.length === 2 ? 'offer' : 'offers'} beside it.`}
+              ` ${cards.length === 2 ? t('{count} more offer beside it.', { count: 1 }) : t('{count} more offers beside it.', { count: cards.length - 1 })}`}
           </p>
         )}
         <div
@@ -67,7 +69,7 @@ export function DiscountHomePreview({
           className="mx-auto w-full max-w-[390px] overflow-hidden rounded-[22px] border border-border bg-brand-black px-4 pb-5 pt-4"
         >
           {cards.length > 0 ? (
-            <OfferCarousel label="Offers on Home">
+            <OfferCarousel label={t('Offers on Home')}>
               {cards.map(({ key, card }) => (
                 <OfferCoupon
                   key={key}
@@ -81,7 +83,7 @@ export function DiscountHomePreview({
             </OfferCarousel>
           ) : (
             <p className="py-8 text-center text-[12px] text-text-muted">
-              Switch on Show on Home to see the card customers will get.
+              {t('Switch on Show on Home to see the card customers will get.')}
             </p>
           )}
           {/* What sits under the offers on Home, so the card is seen in place. */}
@@ -89,7 +91,7 @@ export function DiscountHomePreview({
             aria-hidden="true"
             className="mt-6 h-12 rounded-t-[22px] border border-b-0 border-border bg-surface px-4 pt-3 text-[12px] text-text-muted"
           >
-            Your car
+            {t('Your car')}
           </div>
         </div>
       </ScCard>
@@ -139,12 +141,12 @@ export function DiscountHomePreview({
 }
 
 /** The draft card as one sentence, for a screen reader. */
-function describeCard(card: OfferCardPreview): string {
+function describeCard(card: OfferCardPreview, t: Translate): string {
   return [
-    `${card.eyebrow.label} · Offer`,
+    t('{label} · Offer', { label: card.eyebrow.label }),
     card.title,
     formatOfferFigure(card.figure).text,
-    `Code ${card.code}`,
+    t('Code {code}', { code: card.code }),
     // The coupon prints the code once, on the stub; so does this.
     ...card.metaLines.map((line) => stripOfferCode(line, card.code)).filter(Boolean),
   ].join('. ') + '.'

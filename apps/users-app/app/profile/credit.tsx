@@ -1,4 +1,5 @@
 import { giftsEnabled, useGiftsConfig, useMyCredit } from '@repo/core/api/hooks/use-gifts';
+import { useT } from '@repo/core/i18n';
 import { ScButton } from '@repo/native-ui/button';
 import { IconChevronRight } from '@repo/native-ui/icons';
 import { ErrorState, PressRow, ScCard, Skeleton } from '@repo/native-ui/primitives';
@@ -16,6 +17,7 @@ import { formatGiftDate, giftRupees, signedRupees } from '@/lib/gifts';
 
 /** apps/users/app/profile/credit/page.tsx. */
 export default function CreditScreen() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
@@ -27,14 +29,14 @@ export default function CreditScreen() {
   const soon = view ? Number(view.expiringSoon) : 0;
   return (
     <View style={[styles.page, { paddingTop: insets.top }]}>
-      <PageHeader title="Detlio credit" backTo="/profile" />
+      <PageHeader title={t('Detlio credit')} backTo="/profile" />
       {!user ? (
         <View style={styles.center}>
           <T size={15} weight={600} align="center">
-            Sign in to see your Detlio credit
+            {t('Sign in to see your Detlio credit')}
           </T>
           <ScButton variant="main" fullWidth={false} paddingX={32} onPress={() => router.push(`/login?next=${encodeURIComponent('/profile/credit')}` as Href)}>
-            Sign in
+            {t('Sign in')}
           </ScButton>
         </View>
       ) : !config.isPending && !on ? (
@@ -47,39 +49,39 @@ export default function CreditScreen() {
               <Skeleton height={120} />
             </>
           ) : credit.isError || !view ? (
-            <ErrorState message="Couldn't load your credit. Check your connection." onRetry={() => void credit.refetch()} />
+            <ErrorState message={t("Couldn't load your credit. Check your connection.")} onRetry={() => void credit.refetch()} />
           ) : (
             <>
               <ScCard style={styles.balance}>
                 <T size={12} lh={16} color={colors.textSecondary}>
-                  Balance
+                  {t('Balance')}
                 </T>
                 <T num size={40} weight={700} lh={44} tracking={-0.025}>
                   {giftRupees(view.balance)}
                 </T>
-                {view.nextExpiry ? <FigureLine size={12} lh={16} color={colors.textSecondary} text={`${giftRupees(view.nextExpiry.amount)} expires on ${formatGiftDate(view.nextExpiry.at)}`} /> : null}
-                {soon > 0 ? <FigureLine size={12} lh={16} color={colors.warning} text={`${giftRupees(soon)} expires in the next 30 days`} /> : null}
+                {view.nextExpiry ? <FigureLine size={12} lh={16} color={colors.textSecondary} text={t('{amount} expires on {day}', { amount: giftRupees(view.nextExpiry.amount), day: formatGiftDate(view.nextExpiry.at) })} /> : null}
+                {soon > 0 ? <FigureLine size={12} lh={16} color={colors.warning} text={t('{amount} expires in the next 30 days', { amount: giftRupees(soon) })} /> : null}
                 <T size={11} lh={15} color={colors.textMuted} style={styles.mt8}>
-                  Used on your next booking at checkout, after any coupon. You can turn it off there.
+                  {t('Used on your next booking at checkout, after any coupon. You can turn it off there.')}
                 </T>
               </ScCard>
               <RedeemCodeBox />
               <PressRow onPress={() => router.push('/profile/gifts/new' as Href)}>
                 <ScCard style={styles.row}>
                   <T size={13} lh={18}>
-                    Gift a wash
+                    {t('Gift a wash')}
                   </T>
                   <IconChevronRight size={16} color={colors.textMuted} />
                 </ScCard>
               </PressRow>
               <View style={styles.section}>
                 <T size={14} weight={600} lh={20}>
-                  History
+                  {t('History')}
                 </T>
                 {view.entries.length === 0 ? (
                   <ScCard>
                     <T size={12} lh={16} color={colors.textSecondary}>
-                      Nothing yet. A gift you redeem shows here.
+                      {t('Nothing yet. A gift you redeem shows here.')}
                     </T>
                   </ScCard>
                 ) : (

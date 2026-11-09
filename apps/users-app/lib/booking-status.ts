@@ -1,10 +1,11 @@
 import type { HomeActionCard } from '@repo/core/api/home';
 import { formatClock, formatDay } from '@repo/core/format';
+import { msg, t } from '@repo/core/i18n/translate';
 import type { StatusTone } from '@repo/core/status-tone';
 import type { Booking } from '@repo/core/types';
 
 /** apps/users/lib/booking-status.ts: what a booking's state is called, everywhere. */
-export const STATUS_STEPS = ['Requested', 'Accepted', 'In progress', 'Done'] as const;
+export const STATUS_STEPS = [msg('Requested'), msg('Accepted'), msg('In progress'), msg('Done')] as const;
 
 export interface BookingHeadline {
   title: string;
@@ -32,47 +33,47 @@ type HeadlineBooking = Pick<
 
 export function whenWords(at: string, now: number): string {
   const day = formatDay(at, now);
-  const lead = day === 'Today' ? 'today' : day === 'Tomorrow' ? 'tomorrow' : `on ${day}`;
-  return `${lead} at ${formatClock(at)}`;
+  const time = formatClock(at);
+  return day === 'Today' ? t('today at {time}', { time }) : day === 'Tomorrow' ? t('tomorrow at {time}', { time }) : t('on {day} at {time}', { day, time });
 }
 
 function dayWords(at: string, now: number, order: 'day-first' | 'clock-first' = 'day-first'): string {
   const day = formatDay(at, now);
-  const word = day === 'Today' ? 'today' : day === 'Tomorrow' ? 'tomorrow' : day;
-  if (order === 'clock-first') return `${formatClock(at)} ${word === day ? `on ${day}` : word}`;
-  return `${word} at ${formatClock(at)}`;
+  const time = formatClock(at);
+  if (order === 'clock-first') return day === 'Today' ? t('{time} today', { time }) : day === 'Tomorrow' ? t('{time} tomorrow', { time }) : t('{time} on {day}', { time, day });
+  return day === 'Today' ? t('today at {time}', { time }) : day === 'Tomorrow' ? t('tomorrow at {time}', { time }) : t('{day} at {time}', { day, time });
 }
 
 export function bookingHeadline(booking: HeadlineBooking, now: number): BookingHeadline {
-  const car = booking.vehicle?.model ?? 'car';
+  const car = booking.vehicle?.model ?? t('car');
   switch (booking.status) {
     case 'pending': {
       if (booking.timeProposal?.status === 'open') {
-        return { title: `${booking.vendorName} can't do your time`, detail: 'Pick one of the times it suggested below.', step: 0 };
+        return { title: t("{name} can't do your time", { name: booking.vendorName }), detail: t('Pick one of the times it suggested below.'), step: 0 };
       }
       if (new Date(booking.scheduledAtIso).getTime() <= now) {
-        return { title: `${booking.vendorName} didn't accept in time`, detail: null, step: null };
+        return { title: t("{name} didn't accept in time", { name: booking.vendorName }), detail: null, step: null };
       }
       if (booking.paymentMethod === 'online' && booking.paymentStatus === 'pending') {
         return {
-          title: 'Pay to send your request',
-          detail: `Requested for ${dayWords(booking.scheduledAtIso, now)}. Your time isn't held until you pay.`,
+          title: t('Pay to send your request'),
+          detail: t("Requested for {when}. Your time isn't held until you pay.", { when: dayWords(booking.scheduledAtIso, now) }),
           step: 0,
         };
       }
       const respondBy = booking.responseDeadline?.respondBy;
-      const answers = respondBy && Date.parse(respondBy) > now ? `They answer by ${dayWords(respondBy, now, 'clock-first')}. ` : '';
+      const answers = respondBy && Date.parse(respondBy) > now ? t('They answer by {when}.', { when: dayWords(respondBy, now, 'clock-first') }) + ' ' : '';
       return {
-        title: `Waiting for ${booking.vendorName} to accept`,
-        detail: `${answers}Requested for ${dayWords(booking.scheduledAtIso, now)}.`,
+        title: t('Waiting for {name} to accept', { name: booking.vendorName }),
+        detail: answers + t('Requested for {when}.', { when: dayWords(booking.scheduledAtIso, now) }),
         step: 0,
       };
     }
     case 'confirmed': {
       const when = whenWords(booking.scheduledAtIso, now);
       const title =
-        booking.bookingType === 'doorstep' ? `Coming to you ${when}` : booking.bookingType === 'pickup' ? `Pickup ${when}` : `See you ${when}`;
-      return { title, detail: `${booking.vendorName} accepted your booking.`, step: 1 };
+        booking.bookingType === 'doorstep' ? t('Coming to you {when}', { when }) : booking.bookingType === 'pickup' ? t('Pickup {when}', { when }) : t('See you {when}', { when });
+      return { title, detail: t('{name} accepted your booking.', { name: booking.vendorName }), step: 1 };
     }
     case 'in_progress': {
       const washing = /wash/i.test(booking.serviceSummary);
@@ -80,44 +81,53 @@ export function bookingHeadline(booking: HeadlineBooking, now: number): BookingH
       const doneBy =
         started && booking.durationMins > 0 ? new Date(new Date(started).getTime() + booking.durationMins * 60_000).toISOString() : null;
       return {
-        title: washing ? 'Washing your car now' : 'Working on your car now',
-        detail: started ? `Started ${formatClock(started)}${doneBy ? ` · done by about ${formatClock(doneBy)}` : ''}` : null,
+        title: washing ? t('Washing your car now') : t('Working on your car now'),
+        detail: started
+          ? doneBy
+            ? t('Started {time} · done by about {doneBy}', { time: formatClock(started), doneBy: formatClock(doneBy) })
+            : t('Started {time}', { time: formatClock(started) })
+          : null,
         step: 2,
       };
     }
     case 'completed':
       return {
-        title: `Your ${car} is done`,
-        detail: booking.completedAtIso ? `${booking.vendorName} · ${formatDay(booking.completedAtIso, now)}` : booking.vendorName,
+        title: t('Your {car} is done', { car }),
+        detail: booking.completedAtIso ? `${booking.vendorName} · ${t(formatDay(booking.completedAtIso, now))}` : booking.vendorName,
         step: 3,
       };
     case 'rescheduled':
-      return { title: 'Moved to a new time', detail: null, step: null };
+      return { title: t('Moved to a new time'), detail: null, step: null };
     default:
-      return { title: 'Booking cancelled', detail: null, step: null };
+      return { title: t('Booking cancelled'), detail: null, step: null };
   }
 }
 
 export function customerStatusChip(status: Booking['status']): { label: string; tone: StatusTone } {
   switch (status) {
     case 'pending':
-      return { label: 'Waiting for garage', tone: 'closed' };
+      return { label: t('Waiting for garage'), tone: 'closed' };
     case 'confirmed':
-      return { label: 'Accepted', tone: 'progress' };
+      return { label: t('Accepted'), tone: 'progress' };
     case 'in_progress':
-      return { label: 'In progress', tone: 'progress' };
+      return { label: t('In progress'), tone: 'progress' };
     case 'completed':
-      return { label: 'Done', tone: 'done' };
+      return { label: t('Done'), tone: 'done' };
     case 'rescheduled':
-      return { label: 'Moved', tone: 'closed' };
+      return { label: t('Moved'), tone: 'closed' };
     default:
-      return { label: 'Cancelled', tone: 'closed' };
+      return { label: t('Cancelled'), tone: 'closed' };
   }
 }
 
 export function answersByLine(respondBy: string, now: number): string {
   const day = formatDay(respondBy, now);
-  return `Garage answers by ${formatClock(respondBy)} ${day === 'Today' ? 'today' : day === 'Tomorrow' ? 'tomorrow' : `on ${day}`}`;
+  const time = formatClock(respondBy);
+  return day === 'Today'
+    ? t('Garage answers by {time} today', { time })
+    : day === 'Tomorrow'
+      ? t('Garage answers by {time} tomorrow', { time })
+      : t('Garage answers by {time} on {day}', { time, day });
 }
 
 export function actionsByBooking(todo: readonly HomeActionCard[] | undefined, money: (amount: string) => string): Map<string, string> {
@@ -126,16 +136,16 @@ export function actionsByBooking(todo: readonly HomeActionCard[] | undefined, mo
     if (!('bookingId' in card) || out.has(card.bookingId)) continue;
     switch (card.kind) {
       case 'extra_work_due':
-        out.set(card.bookingId, `Approve extra work · ${money(card.amount)}`);
+        out.set(card.bookingId, t('Approve extra work · {amount}', { amount: money(card.amount) }));
         break;
       case 'bill_due':
-        out.set(card.bookingId, `Pay your final bill · ${money(card.amountDue)}`);
+        out.set(card.bookingId, t('Pay your final bill · {amount}', { amount: money(card.amountDue) }));
         break;
       case 'time_proposal':
-        out.set(card.bookingId, 'Pick another time');
+        out.set(card.bookingId, t('Pick another time'));
         break;
       case 'garage_closed':
-        out.set(card.bookingId, 'Garage closed that day');
+        out.set(card.bookingId, t('Garage closed that day'));
         break;
     }
   }

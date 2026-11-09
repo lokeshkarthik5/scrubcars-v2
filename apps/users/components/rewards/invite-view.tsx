@@ -17,6 +17,7 @@ import { rewardRupees } from '@repo/core/rewards'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { CustomerShell } from '@/components/customer-shell'
 import { forgetInvite, readStoredInvite, storeInvite } from '@/lib/invite'
+import { msg, useT } from '@repo/core/i18n'
 
 /**
  * The invite page. Opening it asks the API who invited (first name only)
@@ -26,6 +27,7 @@ import { forgetInvite, readStoredInvite, storeInvite } from '@/lib/invite'
  * opened counts.
  */
 export function InviteView({ code }: { code: string }) {
+  const t = useT()
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
   const ready = useAuthStore((s) => s.isSessionReady)
@@ -48,7 +50,7 @@ export function InviteView({ code }: { code: string }) {
         setFailed(
           error instanceof Error
             ? error.message
-            : "This invite link isn't valid."
+            : msg("This invite link isn't valid.")
         )
       )
   }, [on, code, invite])
@@ -69,29 +71,29 @@ export function InviteView({ code }: { code: string }) {
       {!config.isPending && !on ? (
         <EmptyState
           icon={<IconStar size={32} stroke={1.5} />}
-          title="Invites aren't available right now"
-          subtitle="You can still book a wash on Detlio."
-          actionLabel="Find garages"
+          title={t("Invites aren't available right now")}
+          subtitle={t('You can still book a wash on Detlio.')}
+          actionLabel={t('Find garages')}
           onAction={() => router.push('/garages')}
         />
       ) : failed ? (
         <EmptyState
           icon={<IconStar size={32} stroke={1.5} />}
-          title={failed}
-          actionLabel="Find garages"
+          title={t(failed)}
+          actionLabel={t('Find garages')}
           onAction={() => router.push('/garages')}
         />
       ) : !invite ? (
         <SkeletonCard />
       ) : (
         <ScCard className="shine-card flex flex-col gap-3 rounded-card px-5 py-6">
-          <p className="text-t5 text-text-secondary">Detlio Rewards</p>
+          <p className="text-t5 text-text-secondary">{t('Detlio Rewards')}</p>
           <h1 className="text-title font-semibold leading-tight text-text-primary">
-            {invite.referrerFirstName} invited you to Detlio
+            {t('{referrerFirstName} invited you to Detlio', { referrerFirstName: invite.referrerFirstName })}
           </h1>
           <p className="text-[14px] text-text-secondary">
             <Figures
-              text={`Get ${rewardRupees(invite.amount)} off when your first booking of ${rewardRupees(invite.minAmount)} or more is done. ${invite.referrerFirstName} gets ${rewardRupees(invite.amount)} off too.`}
+              text={t('Get {rewardRupees} off when your first booking of {rewardRupees2} or more is done. {referrerFirstName} gets {rewardRupees3} off too.', { rewardRupees: rewardRupees(invite.amount), rewardRupees2: rewardRupees(invite.minAmount), referrerFirstName: invite.referrerFirstName, rewardRupees3: rewardRupees(invite.amount) })}
             />
           </p>
           {!user ? (
@@ -101,22 +103,22 @@ export function InviteView({ code }: { code: string }) {
                 router.push(`/login?next=${encodeURIComponent(next)}`)
               }
             >
-              Sign up to join
+              {t('Sign up to join')}
             </ScButton>
           ) : claim.isPending ? (
             <p className="text-t4 text-text-secondary">
-              Adding the invite to your account…
+              {t('Adding the invite to your account…')}
             </p>
           ) : claim.isSuccess ? (
             <>
               <p className="text-t4 text-success">
-                You&apos;re in. Book your first wash to get your reward.
+                {t("You're in. Book your first wash to get your reward.")}
               </p>
               <ScButton
                 className="mt-1"
                 onClick={() => router.push('/garages')}
               >
-                Book a wash
+                {t('Book a wash')}
               </ScButton>
             </>
           ) : claim.isError ? (
@@ -124,19 +126,19 @@ export function InviteView({ code }: { code: string }) {
               <p className="text-t4 text-warning">
                 {claim.error instanceof Error
                   ? claim.error.message
-                  : "Couldn't add the invite."}
+                  : t("Couldn't add the invite.")}
               </p>
               <ScButton
                 variant="secondary"
                 className="mt-1"
                 onClick={() => router.push('/garages')}
               >
-                Find garages
+                {t('Find garages')}
               </ScButton>
             </>
           ) : null}
           <p className="text-t5 text-text-muted">
-            For people new to Detlio. One invite per person.
+            {t('For people new to Detlio. One invite per person.')}
           </p>
         </ScCard>
       )}

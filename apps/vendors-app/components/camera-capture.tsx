@@ -10,6 +10,7 @@ import { createStyles, ThemeScope, useColors } from '@repo/native-ui/theme';
 import { ScButton } from '@repo/native-ui/button';
 import { IconBolt, IconCar, IconX } from '@repo/native-ui/icons';
 import { T } from '@repo/native-ui/text';
+import { useT } from '@repo/core/i18n';
 
 /**
  * Native only (frame E): the website opens the phone's plain camera; this adds the
@@ -46,6 +47,7 @@ function CameraScreen({
   onClose,
   onTaken,
 }: CameraCaptureProps) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
@@ -72,7 +74,7 @@ function CameraScreen({
       <StatusBar style="light" />
       <View style={[styles.page, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 16 }]}>
         <View style={styles.head}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Close camera" onPress={onClose} style={styles.round}>
+          <Pressable accessibilityRole="button" accessibilityLabel={t('Close camera')} onPress={onClose} style={styles.round}>
             <IconX size={22} />
           </Pressable>
           <T accessibilityRole="header" size={17} weight={600} style={styles.title} numberOfLines={1}>
@@ -80,7 +82,7 @@ function CameraScreen({
           </T>
           <Pressable
             accessibilityRole="switch"
-            accessibilityLabel="Flash"
+            accessibilityLabel={t('Flash')}
             accessibilityState={{ checked: flash }}
             onPress={() => setFlash((value) => !value)}
             style={[styles.round, flash && styles.flashOn]}
@@ -111,7 +113,7 @@ function CameraScreen({
         ) : (
           <View style={styles.middle}>
             <T size={15} color={colors.textSecondary} align="center" style={styles.hint}>
-              Detlio needs the camera to take photos of the car.
+              {t('Detlio needs the camera to take photos of the car.')}
             </T>
             <ScButton
               variant="outline"
@@ -122,7 +124,7 @@ function CameraScreen({
                 else void requestPermission();
               }}
             >
-              {permission && !permission.canAskAgain ? 'Open Settings' : 'Allow camera'}
+              {permission && !permission.canAskAgain ? t('Open Settings') : t('Allow camera')}
             </ScButton>
           </View>
         )}
@@ -135,7 +137,7 @@ function CameraScreen({
           </View>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Take photo"
+            accessibilityLabel={t('Take photo')}
             disabled={!permission?.granted || taking}
             onPress={() => void take()}
             style={[styles.shutter, taking && styles.shutterBusy]}

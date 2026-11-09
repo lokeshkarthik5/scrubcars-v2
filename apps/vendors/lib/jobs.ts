@@ -7,6 +7,7 @@ import {
   photoGateMessage,
   photosOf,
 } from '@repo/core/job-photo-standards'
+import { msg, t } from '@repo/core/i18n/translate'
 import { PICKUP_STEP_LABELS, type PickupNext } from '@repo/core/pickup'
 import type { Booking } from '@repo/core/types'
 
@@ -260,13 +261,13 @@ export function serviceOnlyLine(b: Booking): string {
 /** "Rahul V.": first name and the surname's initial, for tight rows. */
 export function shortName(name: string | undefined): string {
   const parts = (name ?? '').trim().split(/\s+/).filter(Boolean)
-  if (parts.length === 0) return 'Customer'
+  if (parts.length === 0) return t('Customer')
   if (parts.length === 1) return parts[0]
   return `${parts[0]} ${parts[parts.length - 1].charAt(0).toUpperCase()}.`
 }
 
 export function firstName(name: string | undefined): string {
-  return (name ?? '').trim().split(/\s+/)[0] || 'the customer'
+  return (name ?? '').trim().split(/\s+/)[0] || t('the customer')
 }
 
 /** Straight-line km from the garage's pin to a doorstep or pickup address, to a tenth under 10 km. */
@@ -303,12 +304,14 @@ export function customerNumberLine(b: Booking, now: number): string | null {
   const state = contactWindowState(b.contactWindow, now)
   if (state === 'open') return null
   if (state === 'after' || !b.contactWindow)
-    return "Customer's number is hidden after the job."
+    return t("Customer's number is hidden after the job.")
   const opens = b.contactWindow.opensAt
   const day = formatDay(opens, now)
-  const when =
-    day === 'Today' ? '' : day === 'Tomorrow' ? ' tomorrow' : ` on ${day}`
-  return `Customer's number shows from ${formatClock(opens)}${when}`
+  const time = formatClock(opens)
+  if (day === 'Today') return t("Customer's number shows from {time}", { time })
+  if (day === 'Tomorrow')
+    return t("Customer's number shows from {time} tomorrow", { time })
+  return t("Customer's number shows from {time} on {day}", { time, day })
 }
 
 /** The garage's photos of one stage, and how many the standard asks for (0 when it doesn't). */
@@ -355,7 +358,9 @@ export function nextStep(b: Booking): NextStep | null {
     if (b.completeBlockedByExtraWork) {
       return {
         kind: 'wait',
-        text: `Waiting for ${firstName(b.customerName)} to answer the extra work`,
+        text: t('Waiting for {name} to answer the extra work', {
+          name: firstName(b.customerName),
+        }),
       }
     }
     if (b.photoStandard?.finishBlocked)
@@ -368,16 +373,20 @@ export function nextStep(b: Booking): NextStep | null {
 /** The row's button words for a step. */
 export function nextStepLabel(step: NextStep): string {
   switch (step.kind) {
-    case 'photos':
-      return `${step.stage === 'before' ? 'Before' : 'After'} photos ${Math.min(step.have, step.need)}/${step.need}`
+    case 'photos': {
+      const vars = { have: Math.min(step.have, step.need), need: step.need }
+      return step.stage === 'before'
+        ? t('Before photos {have}/{need}', vars)
+        : t('After photos {have}/{need}', vars)
+    }
     case 'start':
-      return 'Start job'
+      return t('Start job')
     case 'complete':
-      return 'Complete job'
+      return t('Complete job')
     case 'pickup':
       return step.step === 'start_work'
-        ? 'Start job'
-        : `Next: ${PICKUP_STEP_LABELS[step.step]}`
+        ? t('Start job')
+        : t('Next: {step}', { step: t(PICKUP_STEP_LABELS[step.step]) })
     case 'wait':
       return step.text
   }
@@ -396,18 +405,20 @@ export function blockers(b: Booking, action: 'start' | 'complete'): string[] {
       : b.photoStandard?.finishBlocked
   if (photoBlock) lines.push(photoGateMessage(photoBlock))
   if (action === 'complete' && b.completeBlockedByExtraWork) {
-    lines.push(`${firstName(b.customerName)} to answer the extra work`)
+    lines.push(
+      t('{name} to answer the extra work', { name: firstName(b.customerName) })
+    )
   }
   return lines
 }
 
-/** The job page's progress line for a job at the garage or the door. */
+/** The job page's progress line for a job at the garage or the door (shown as `t(label)`). */
 export const PROGRESS_STEPS = [
-  'Accepted',
-  'Before',
-  'Working',
-  'After',
-  'Done',
+  msg('Accepted'),
+  msg('Before'),
+  msg('Working'),
+  msg('After'),
+  msg('Done'),
 ] as const
 
 /**

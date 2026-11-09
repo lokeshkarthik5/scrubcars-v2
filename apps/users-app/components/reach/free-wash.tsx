@@ -3,6 +3,7 @@ import { useAreaStatus, useRecommendGarage, useSignUpForArea } from '@repo/core/
 import { useZones } from '@repo/core/api/hooks/use-zones';
 import { cardClosesKey, closeOnce, FREE_WASH_RULES, freeWashCardTitle, freeWashCardVisible, freeWashesGone, parseCardCloses, recommendAsk, REFERRAL_CREDIT, waitingLine } from '@repo/core/area-signups';
 import { useNow } from '@repo/core/hooks/use-now';
+import { useT } from '@repo/core/i18n';
 import { zoneFor, type Zone } from '@repo/core/zones';
 import { ScButton } from '@repo/native-ui/button';
 import { Chip, ScSwitch } from '@repo/native-ui/chip';
@@ -47,6 +48,7 @@ function useGreen() {
 
 /** FreeWashPiece (apps/users/components/reach/free-wash.tsx): the card, or once on the list, a slim line. */
 export function FreeWashPiece({ placement }: { placement: 'top' | 'bottom' }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const green = useGreen();
@@ -96,14 +98,14 @@ export function FreeWashPiece({ placement }: { placement: 'top' | 'bottom' }) {
           <T size={15} weight={500} lh={20}>
             {freeWashCardTitle(zone.name)}
           </T>
-          <T size={12} lh={16} color={colors.textSecondary}>{`No garage in your area yet · ${waitingLine(zone.name, zone.waiting)}`}</T>
+          <T size={12} lh={16} color={colors.textSecondary}>{`${t('No garage in your area yet')} · ${waitingLine(zone.name, zone.waiting)}`}</T>
         </View>
         <Pressable accessibilityRole="button" onPress={() => setSheetOpen(true)} style={styles.claim}>
           <T size={14} weight={500} lh={18} color={colors.canvas}>
-            Claim
+            {t('Claim')}
           </T>
         </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Close the free wash card" onPress={close} style={styles.x}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('Close the free wash card')} onPress={close} style={styles.x}>
           <IconX size={18} color={colors.textSecondary} />
         </Pressable>
       </View>
@@ -113,17 +115,18 @@ export function FreeWashPiece({ placement }: { placement: 'top' | 'bottom' }) {
 }
 
 export function OnTheListLine({ area, onRecommend }: { area: string; onRecommend: () => void }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   return (
     <View style={styles.line}>
       <View style={styles.lineLeft}>
         <IconCheck size={15} color={colors.success} />
-        <T size={13} lh={18} style={styles.grow}>{`On the list for ${area}`}</T>
+        <T size={13} lh={18} style={styles.grow}>{t('On the list for {area}', { area })}</T>
       </View>
       <Pressable accessibilityRole="button" onPress={onRecommend} style={styles.recommend}>
         <T size={13} lh={18} style={styles.underline}>
-          Recommend
+          {t('Recommend')}
         </T>
       </Pressable>
     </View>
@@ -132,6 +135,7 @@ export function OnTheListLine({ area, onRecommend }: { area: string; onRecommend
 
 /** "Which area are you in?". A guest signs in on the in-sheet card first: it stops one person claiming fifty. */
 export function FreeWashSheet({ open, onClose, initialZone }: { open: boolean; onClose: () => void; initialZone: Zone | null }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const green = useGreen();
@@ -162,11 +166,11 @@ export function FreeWashSheet({ open, onClose, initialZone }: { open: boolean; o
       const result = await signUp.mutateAsync({ zoneSlug: zone.slug, pushOptIn: push, whatsappOptIn: whatsapp });
       if (result.freeWash) track('free_wash_claim');
       if (push) {
-        void pushDevice.turnOn().catch(() => toast.info("We couldn't turn on notifications on this phone. You can from Profile → Notifications."));
+        void pushDevice.turnOn().catch(() => toast.info(t("We couldn't turn on notifications on this phone. You can from Profile → Notifications.")));
       }
       setDone({ area: result.zone.name, freeWash: result.freeWash, slug: result.zone.slug });
     } catch (err) {
-      setError(err instanceof ApiError || err instanceof Error ? err.message : "Couldn't save it. Try again.");
+      setError(err instanceof ApiError || err instanceof Error ? err.message : t("Couldn't save it. Try again."));
     } finally {
       setSaving(false);
     }
@@ -181,7 +185,7 @@ export function FreeWashSheet({ open, onClose, initialZone }: { open: boolean; o
   };
 
   return (
-    <ScSheet horizontalPadding={16} open={open} onClose={close} accessibilityLabel={recommending ? 'Recommend a garage' : done ? "You're on the list" : 'Which area are you in?'}>
+    <ScSheet horizontalPadding={16} open={open} onClose={close} accessibilityLabel={recommending ? t('Recommend a garage') : done ? t("You're on the list") : t('Which area are you in?')}>
       <ScrollView keyboardShouldPersistTaps="handled" style={styles.sheet} contentContainerStyle={styles.sheetBody}>
         {done && recommending ? (
           <RecommendForm zoneSlug={done.slug} onDone={close} />
@@ -189,10 +193,11 @@ export function FreeWashSheet({ open, onClose, initialZone }: { open: boolean; o
           <View style={styles.done}>
             <IconCircleCheck size={44} color={colors.success} />
             <T size={20} weight={500} lh={26} align="center">
-              You&apos;re on the list
+              {t("You're on the list")}
             </T>
             <T size={15} lh={22} align="center" color={colors.textSecondary}>
-              {`We'll tell you the day Detlio opens in ${done.area}.${done.freeWash ? ' Your free wash is saved.' : ''}`}
+              {t("We'll tell you the day Detlio opens in {area}.", { area: done.area })}
+              {done.freeWash ? ` ${t('Your free wash is saved.')}` : ''}
             </T>
             <View style={[styles.ask, { borderColor: green.border, backgroundColor: green.background }]}>
               <IconGift size={20} color={colors.success} />
@@ -202,28 +207,28 @@ export function FreeWashSheet({ open, onClose, initialZone }: { open: boolean; o
             </View>
             <View style={styles.stretch}>
               <ScButton variant="outline" onPress={() => setRecommending(true)}>
-                Recommend a garage
+                {t('Recommend a garage')}
               </ScButton>
             </View>
             <ScButton variant="text" onPress={close}>
-              Not now
+              {t('Not now')}
             </ScButton>
           </View>
         ) : (
           <>
             <View>
               <T size={20} weight={500} lh={26}>
-                Which area are you in?
+                {t('Which area are you in?')}
               </T>
               <T size={13} lh={18} color={colors.textSecondary}>
-                {`We're not in your area yet. Tell us, and ${gone ? 'we’ll tell you' : 'your first wash is on us'} when we arrive.`}
+                {gone ? t("We're not in your area yet. Tell us, and we’ll tell you when we arrive.") : t("We're not in your area yet. Tell us, and your first wash is on us when we arrive.")}
               </T>
             </View>
             <View style={styles.chips}>
               {chips.map((z) => (
                 <Chip key={z.slug} label={z.name} selected={zoneSlug === z.slug} onPress={() => setZoneSlug(z.slug)} />
               ))}
-              <Chip label="Other…" selected={otherOpen} onPress={() => setOtherOpen((v) => !v)} />
+              <Chip label={t('Other…')} selected={otherOpen} onPress={() => setOtherOpen((v) => !v)} />
             </View>
             {otherOpen ? (
               <View style={styles.chips}>
@@ -235,13 +240,15 @@ export function FreeWashSheet({ open, onClose, initialZone }: { open: boolean; o
             {zone ? (
               <View style={[styles.offer, gone ? { borderColor: colors.border } : { borderColor: green.border, backgroundColor: green.background }]}>
                 <T size={11} weight={500} lh={15} uppercase tracking={0.12} color={colors.success}>
-                  {gone ? 'Notify me' : 'Free wash'}
+                  {gone ? t('Notify me') : t('Free wash')}
                 </T>
                 <T size={17} weight={500} lh={22}>
-                  {gone ? `Be told when we reach ${zone.name}` : 'Your first car wash, free'}
+                  {gone ? t('Be told when we reach {area}', { area: zone.name }) : t('Your first car wash, free')}
                 </T>
                 <T size={13} lh={18} color={colors.textSecondary}>
-                  {gone ? `The ${FREE_WASH_RULES.perZone} free washes for ${zone.name} are taken. We'll still tell you the day we open.` : `Up to ₹${FREE_WASH_RULES.maxRupees}, the day Detlio opens in ${zone.name}, for ${FREE_WASH_RULES.validDays} days. Saved to your account; we'll tell you.`}
+                  {gone
+                    ? t("The {count} free washes for {area} are taken. We'll still tell you the day we open.", { count: FREE_WASH_RULES.perZone, area: zone.name })
+                    : t("Up to ₹{amount}, the day Detlio opens in {area}, for {days} days. Saved to your account; we'll tell you.", { amount: FREE_WASH_RULES.maxRupees, area: zone.name, days: FREE_WASH_RULES.validDays })}
                 </T>
                 <T size={12} lh={16} color={colors.textMuted}>
                   {waitingLine(zone.name, zone.waiting)}
@@ -251,9 +258,9 @@ export function FreeWashSheet({ open, onClose, initialZone }: { open: boolean; o
             <View>
               <View style={styles.switchRow}>
                 <T size={15} lh={20}>
-                  App notification
+                  {t('App notification')}
                 </T>
-                <ScSwitch label="App notification" checked={push} onChange={setPush} />
+                <ScSwitch label={t('App notification')} checked={push} onChange={setPush} />
               </View>
               <View style={[styles.switchRow, styles.ruled]}>
                 <View style={styles.grow}>
@@ -261,7 +268,7 @@ export function FreeWashSheet({ open, onClose, initialZone }: { open: boolean; o
                     WhatsApp
                   </T>
                   <T size={12} lh={16} color={colors.textMuted}>
-                    Saved for later; we don&apos;t send WhatsApp messages yet.
+                    {t("Saved for later; we don't send WhatsApp messages yet.")}
                   </T>
                 </View>
                 <ScSwitch label="WhatsApp" checked={whatsapp} onChange={setWhatsapp} />
@@ -274,14 +281,14 @@ export function FreeWashSheet({ open, onClose, initialZone }: { open: boolean; o
             ) : null}
             {!zone ? (
               <T size={13} lh={18} color={colors.textSecondary}>
-                Pick your area.
+                {t('Pick your area.')}
               </T>
             ) : user ? (
               <ScButton variant="main" disabled={saving} onPress={() => void save()}>
-                {saving ? 'Saving…' : gone ? 'Notify me' : 'Save my free wash'}
+                {saving ? t('Saving…') : gone ? t('Notify me') : t('Save my free wash')}
               </ScButton>
             ) : (
-              <CheckoutSignInCard signIn={signIn} verifyLabel={gone ? 'Verify and notify me' : 'Verify and save my free wash'} onVerify={() => void verifyAndSave()} busy={saving} />
+              <CheckoutSignInCard signIn={signIn} verifyLabel={gone ? t('Verify and notify me') : t('Verify and save my free wash')} onVerify={() => void verifyAndSave()} busy={saving} />
             )}
           </>
         )}
@@ -292,6 +299,7 @@ export function FreeWashSheet({ open, onClose, initialZone }: { open: boolean; o
 
 /** RecommendForm: a lead for the team. */
 export function RecommendForm({ zoneSlug, onDone }: { zoneSlug: string | null; onDone: () => void }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const recommend = useRecommendGarage();
@@ -305,44 +313,45 @@ export function RecommendForm({ zoneSlug, onDone }: { zoneSlug: string | null; o
     setError('');
     try {
       await recommend.mutateAsync({ zoneSlug: zoneSlug ?? undefined, name: name.trim(), mapsLink: mapsLink.trim() || undefined, phone: phone.trim() || undefined, why: why.trim() || undefined });
-      toast.success('Thanks! We’ll get in touch with them.');
+      toast.success(t('Thanks! We’ll get in touch with them.'));
       setName('');
       setMapsLink('');
       setPhone('');
       setWhy('');
       onDone();
     } catch (err) {
-      setError(err instanceof ApiError || err instanceof Error ? err.message : "Couldn't send it. Try again.");
+      setError(err instanceof ApiError || err instanceof Error ? err.message : t("Couldn't send it. Try again."));
     }
   };
   return (
     <View style={styles.form}>
       <View>
         <T size={20} weight={500} lh={26}>
-          Recommend a garage
+          {t('Recommend a garage')}
         </T>
-        <T size={13} lh={18} color={colors.textSecondary}>{`₹${REFERRAL_CREDIT.perGarageRupees} Detlio credit if they join and you book them (up to ₹${REFERRAL_CREDIT.maxPerCustomerRupees}).`}</T>
+        <T size={13} lh={18} color={colors.textSecondary}>{t('₹{amount} Detlio credit if they join and you book them (up to ₹{max}).', { amount: REFERRAL_CREDIT.perGarageRupees, max: REFERRAL_CREDIT.maxPerCustomerRupees })}</T>
       </View>
-      <ScInput label="Garage name" maxLength={100} value={name} onChangeText={setName} />
-      <ScInput label="Google Maps link" keyboardType="url" autoCapitalize="none" placeholder="https://maps.app.goo.gl/…" maxLength={500} value={mapsLink} onChangeText={setMapsLink} />
-      <ScInput label="Or their phone" keyboardType="phone-pad" placeholder="10-digit mobile" maxLength={14} value={phone} onChangeText={setPhone} />
-      <ScTextarea label="Why they're good (optional)" maxLength={500} rows={3} value={why} onChangeText={setWhy} />
+      <ScInput label={t('Garage name')} maxLength={100} value={name} onChangeText={setName} />
+      <ScInput label={t('Google Maps link')} keyboardType="url" autoCapitalize="none" placeholder="https://maps.app.goo.gl/…" maxLength={500} value={mapsLink} onChangeText={setMapsLink} />
+      <ScInput label={t('Or their phone')} keyboardType="phone-pad" placeholder={t('10-digit mobile')} maxLength={14} value={phone} onChangeText={setPhone} />
+      <ScTextarea label={t("Why they're good (optional)")} maxLength={500} rows={3} value={why} onChangeText={setWhy} />
       {error ? (
         <T accessibilityRole="alert" size={13} lh={18} color={colors.error}>
           {error}
         </T>
       ) : null}
       <ScButton variant="main" disabled={!ready || recommend.isPending} onPress={() => void submit()}>
-        {recommend.isPending ? 'Sending…' : 'Send recommendation'}
+        {recommend.isPending ? t('Sending…') : t('Send recommendation')}
       </ScButton>
     </View>
   );
 }
 
 export function RecommendSheet({ open, onClose, zoneSlug }: { open: boolean; onClose: () => void; zoneSlug: string | null }) {
+  const t = useT();
   const styles = useStyles();
   return (
-    <ScSheet horizontalPadding={16} open={open} onClose={onClose} accessibilityLabel="Recommend a garage">
+    <ScSheet horizontalPadding={16} open={open} onClose={onClose} accessibilityLabel={t('Recommend a garage')}>
       <ScrollView keyboardShouldPersistTaps="handled" style={styles.sheet} contentContainerStyle={styles.sheetBody}>
         {open ? <RecommendForm zoneSlug={zoneSlug} onDone={onClose} /> : null}
       </ScrollView>

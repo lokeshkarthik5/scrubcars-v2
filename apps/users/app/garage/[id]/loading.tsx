@@ -1,4 +1,7 @@
+'use client'
+
 import { Skeleton } from '@repo/ui/sc/skeleton'
+import { useT } from '@repo/core/i18n'
 
 /**
  * The garage page while its code and its garage are on the way (speed fix 2,
@@ -10,13 +13,14 @@ import { Skeleton } from '@repo/ui/sc/skeleton'
  * top of the page straight away (useGarage's placeholder). When a card is
  * growing into the page (lib/view-transition.ts), this is what is drawn
  * inside the growing box at first (layout.tsx), so the morph never waits on
- * the garage.
+ * the garage. A client component, so its one word follows Profile → Language.
  */
 export default function GarageLoading() {
+  const t = useT()
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-[428px] flex-col bg-brand-black">
       <main role="status" aria-busy="true" className="flex flex-1 flex-col">
-        <span className="sr-only">Loading</span>
+        <span className="sr-only">{t('Loading')}</span>
         <Skeleton className="h-[340px] w-full rounded-none" />
         <div className="flex flex-col gap-2 px-4 pt-4">
           <Skeleton className="h-7 w-2/3 rounded-[10px]" />

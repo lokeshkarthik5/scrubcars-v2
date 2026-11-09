@@ -1,4 +1,5 @@
 import { useZones } from '@repo/core/api/hooks/use-zones';
+import { msg, useT } from '@repo/core/i18n';
 import { searchZones, type Zone } from '@repo/core/zones';
 
 import { IconCheck, IconCurrentLocation, IconMapPin, IconSearch } from '@repo/native-ui/icons';
@@ -15,14 +16,15 @@ import { track } from '@/lib/shims/analytics';
 import { LocationPrompt } from './location-prompt';
 
 /** The line said when "Near me" can't work: the phone has location blocked. */
-export const NEAR_ME_BLOCKED_LINE = 'Location is off for Detlio. Pick your area instead — distances work the same.';
+export const NEAR_ME_BLOCKED_LINE = msg('Location is off for Detlio. Pick your area instead — distances work the same.');
 
 function AreaList({ query, chosen, onChoose }: { query: string; chosen?: string; onChoose: (zone: Zone) => void }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const found = searchZones(useZones(), query);
   return (
-    <View accessibilityLabel="Areas">
+    <View accessibilityLabel={t('Areas')}>
       {found.map((zone) => {
         const on = chosen === zone.slug;
         return (
@@ -46,7 +48,7 @@ function AreaList({ query, chosen, onChoose }: { query: string; chosen?: string;
       })}
       {found.length === 0 ? (
         <T size={13} color={colors.textSecondary} style={styles.none}>
-          No area called “{query.trim()}” yet. Try a nearby one, or All of Chennai.
+          {t('No area called “{trim}” yet. Try a nearby one, or All of Chennai.', { trim: query.trim() })}
         </T>
       ) : null}
     </View>
@@ -55,6 +57,7 @@ function AreaList({ query, chosen, onChoose }: { query: string; chosen?: string;
 
 /** AreaPicker: "Near me", then every zone with a search box, then "All of Chennai". */
 export function AreaPicker({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const location = useLocationStore((s) => s.location);
@@ -82,7 +85,7 @@ export function AreaPicker({ open, onClose }: { open: boolean; onClose: () => vo
   };
 
   return (
-    <ScSheet open={open} onClose={close} accessibilityLabel="Where's your car?" horizontalPadding={explaining ? 0 : 16}>
+    <ScSheet open={open} onClose={close} accessibilityLabel={t("Where's your car?")} horizontalPadding={explaining ? 0 : 16}>
       {explaining ? (
         <LocationPrompt
           onClose={() => {
@@ -98,29 +101,29 @@ export function AreaPicker({ open, onClose }: { open: boolean; onClose: () => vo
         <View style={styles.body}>
           <View>
             <T size={20} lh={28} tracking={-0.015}>
-              Where&apos;s your car?
+              {t("Where's your car?")}
             </T>
             <T size={13} color={colors.textSecondary} style={styles.sub}>
-              Pick your area to see distances and drive times. No location permission needed.
+              {t('Pick your area to see distances and drive times. No location permission needed.')}
             </T>
           </View>
           {blocked ? (
             <T accessibilityLiveRegion="polite" size={13} lh={18} color={colors.textSecondary}>
-              {NEAR_ME_BLOCKED_LINE}
+              {t(NEAR_ME_BLOCKED_LINE)}
             </T>
           ) : null}
           <PressRow onPress={askNearMe} style={styles.nearMe}>
             <IconCurrentLocation size={18} />
             <T size={15} style={styles.flex}>
-              Near me
+              {t('Near me')}
             </T>
             {location?.source === 'gps' ? <IconCheck size={16} /> : null}
           </PressRow>
           <View style={styles.search}>
             <IconSearch size={16} color={colors.textSecondary} />
             <TextInput
-              accessibilityLabel="Search areas"
-              placeholder="Search areas"
+              accessibilityLabel={t('Search areas')}
+              placeholder={t('Search areas')}
               placeholderTextColor={colors.textMuted}
               keyboardAppearance={colors.keyboard}
               value={query}
@@ -145,7 +148,7 @@ export function AreaPicker({ open, onClose }: { open: boolean; onClose: () => vo
             style={styles.city}
           >
             <T size={15} style={styles.underline}>
-              All of Chennai
+              {t('All of Chennai')}
             </T>
           </Pressable>
         </View>

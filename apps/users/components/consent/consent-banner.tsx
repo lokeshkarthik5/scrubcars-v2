@@ -13,6 +13,7 @@ import {
 } from '@/lib/consent'
 import { pixelExcluded } from '@/lib/meta-pixel'
 import { LEGAL_PATHS } from '@/lib/legal/routes'
+import { fill, useT } from '@repo/core/i18n'
 
 /**
  * A sheet or dialog is open over the page: the shared overlays lock the
@@ -59,6 +60,7 @@ const BUTTON =
  * sees it flash.
  */
 export function ConsentBanner() {
+  const t = useT()
   const pathname = usePathname()
   const params = useSearchParams()
   const consent = useSyncExternalStore(
@@ -105,7 +107,7 @@ export function ConsentBanner() {
   return (
     <section
       ref={bar}
-      aria-label="Cookie choice"
+      aria-label={t('Cookie choice')}
       tabIndex={-1}
       data-consent-banner
       // Out of sight, keeping its room, while a sheet or dialog is open.
@@ -114,31 +116,25 @@ export function ConsentBanner() {
       <div className="mx-auto flex w-full max-w-[428px] flex-col gap-3 px-4 py-3 sm:max-w-3xl sm:flex-row sm:items-center sm:justify-between">
         {consent.teamDevice ? (
           <p className="text-t4 leading-5 text-text-primary">
-            This is a team device: nothing is measured here, and analytics and
-            marketing cookies stay off.
+            {t('This is a team device: nothing is measured here, and analytics and marketing cookies stay off.')}
           </p>
         ) : consent.privacySignal ? (
           <p className="text-t4 leading-5 text-text-primary">
-            Your browser asks sites not to track you, so analytics and marketing
-            cookies stay off.{' '}
-            <Link
+            {fill(t('Your browser asks sites not to track you, so analytics and marketing cookies stay off. {part}'), { part: <Link
               href={`${LEGAL_PATHS.privacy}#meta`}
               className="underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-brand-white"
             >
-              Privacy policy
-            </Link>
+              {t('Privacy policy')}
+            </Link> })}
           </p>
         ) : (
           <p className="text-t4 leading-5 text-text-primary">
-            We use cookies to see how our site is used (Microsoft Clarity) and
-            to measure our ads on Facebook and Instagram. Allow analytics and
-            marketing cookies?{' '}
-            <Link
+            {fill(t('We use cookies to see how our site is used (Microsoft Clarity) and to measure our ads on Facebook and Instagram. Allow analytics and marketing cookies? {part}'), { part: <Link
               href={`${LEGAL_PATHS.privacy}#meta`}
               className="underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-brand-white"
             >
-              Privacy policy
-            </Link>
+              {t('Privacy policy')}
+            </Link> })}
           </p>
         )}
         <div className="flex shrink-0 gap-2">
@@ -148,7 +144,7 @@ export function ConsentBanner() {
               onClick={closeConsentSettings}
               className={`${BUTTON} border border-white/25 text-text-primary hover:bg-white/[0.06]`}
             >
-              OK
+              {t('OK')}
             </button>
           ) : (
             <>
@@ -157,14 +153,14 @@ export function ConsentBanner() {
                 onClick={() => saveConsent('essential')}
                 className={`${BUTTON} border border-white/25 text-text-primary hover:bg-white/[0.06]`}
               >
-                Only essential
+                {t('Only essential')}
               </button>
               <button
                 type="button"
                 onClick={() => saveConsent('all')}
                 className={`${BUTTON} bg-brand-white text-brand-black hover:bg-white/90`}
               >
-                Allow
+                {t('Allow')}
               </button>
             </>
           )}

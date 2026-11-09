@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { IconPlus, IconTool } from '@tabler/icons-react'
+import { useT } from '@repo/core/i18n'
+import { t } from '@repo/core/i18n/translate'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ConfirmSheet } from '@repo/ui/sc/confirm-sheet'
 import { ScBadge } from '@repo/ui/sc/badge'
@@ -39,6 +41,9 @@ import { PackagesPanel } from './packages-panel'
 import { PRICING_TYPES, formatServicePrice } from '@repo/core/pricing'
 
 const SERVICE_CATEGORIES = SERVICE_CATEGORY_OPTIONS
+
+/** Said from an effect, so it reads the language in use without being one of the effect's dependencies. */
+const loadFailed = () => t('Failed to load services')
 
 type ServiceForm = {
   name: string
@@ -78,6 +83,7 @@ function hasValidPricing(form: ServiceForm): boolean {
 }
 
 export default function VendorServicesPage() {
+  const t = useT()
   const isVendorAdmin = useIsVendorAdmin()
   const roleRouter = useRouter()
 
@@ -101,7 +107,7 @@ export default function VendorServicesPage() {
   useEffect(() => {
     getMyServices()
       .then(setServices)
-      .catch(() => toast.error('Failed to load services'))
+      .catch(() => toast.error(loadFailed()))
       .finally(() => setLoading(false))
     garageMediaApi
       .config()
@@ -113,9 +119,9 @@ export default function VendorServicesPage() {
     setSaving(key)
     try {
       await action()
-      toast.success('Saved successfully')
+      toast.success(t('Saved successfully'))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Something went wrong')
+      toast.error(err instanceof Error ? err.message : t('Something went wrong'))
     } finally {
       setSaving(null)
     }
@@ -208,7 +214,7 @@ export default function VendorServicesPage() {
         brandRight={<ActiveGarage />}
         className="gap-5 py-4"
       >
-        <TopBar title="Services" />
+        <TopBar title={t('Services')} />
         <SkeletonList count={3} itemClassName="h-28" />
       </AppShell>
     )
@@ -222,7 +228,7 @@ export default function VendorServicesPage() {
       brandRight={<ActiveGarage />}
       className="gap-5 py-4"
     >
-      <TopBar title="Services" />
+      <TopBar title={t('Services')} />
 
       {/* Real tabs, as in Settings: each is its own panel, and only the open
           one is mounted, so Packages still loads when it is opened. */}
@@ -231,8 +237,8 @@ export default function VendorServicesPage() {
         onValueChange={(value) => setTab(value as 'services' | 'packages')}
       >
         <TabsList>
-          <TabsTrigger value="services">Services</TabsTrigger>
-          <TabsTrigger value="packages">Packages</TabsTrigger>
+          <TabsTrigger value="services">{t('Services')}</TabsTrigger>
+          <TabsTrigger value="packages">{t('Packages')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="packages">
@@ -242,7 +248,7 @@ export default function VendorServicesPage() {
         <TabsContent value="services">
           <section className="flex flex-col gap-3">
             <SectionHeader
-              title={editingServiceId ? 'Edit service' : 'Add a service'}
+              title={editingServiceId ? t('Edit service') : t('Add a service')}
               action={
                 editingServiceId ? (
                   <button
@@ -250,7 +256,7 @@ export default function VendorServicesPage() {
                     onClick={resetServiceForm}
                     className="-my-2 min-h-11 px-1 text-[13px] font-medium text-text-secondary transition-colors hover:text-text-primary"
                   >
-                    Cancel edit
+                    {t('Cancel edit')}
                   </button>
                 ) : (
                   // The real tab has no "add service" button, only this form,
@@ -262,7 +268,7 @@ export default function VendorServicesPage() {
                     className="-my-2 inline-flex min-h-11 items-center gap-1 px-1 text-[13px] font-medium text-text-secondary transition-colors hover:text-text-primary"
                   >
                     <IconPlus size={15} aria-hidden="true" />
-                    Add add-on
+                    {t('Add add-on')}
                   </button>
                 )
               }
@@ -270,14 +276,14 @@ export default function VendorServicesPage() {
             <ScCard className="flex flex-col gap-3">
               <ScInput
                 id="service-name"
-                label="Service name"
+                label={t('Service name')}
                 value={serviceForm.name}
                 onChange={(e) =>
                   setServiceForm({ ...serviceForm, name: e.target.value })
                 }
               />
               <ScTextarea
-                label="Description (optional)"
+                label={t('Description (optional)')}
                 rows={2}
                 value={serviceForm.description}
                 onChange={(e) =>
@@ -289,13 +295,13 @@ export default function VendorServicesPage() {
               />
               <div>
                 <p className="mb-2 text-[11px] font-medium text-text-secondary">
-                  Category
+                  {t('Category')}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {SERVICE_CATEGORIES.map((cat) => (
                     <Chip
                       key={cat.value}
-                      label={cat.label}
+                      label={t(cat.label)}
                       selected={serviceForm.category === cat.value}
                       onClick={() =>
                         setServiceForm({ ...serviceForm, category: cat.value })
@@ -306,13 +312,13 @@ export default function VendorServicesPage() {
               </div>
               <div>
                 <p className="mb-2 text-[11px] font-medium text-text-secondary">
-                  Pricing
+                  {t('Pricing')}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {PRICING_TYPES.map((pt) => (
                     <Chip
                       key={pt.value}
-                      label={pt.label}
+                      label={t(pt.label)}
                       selected={serviceForm.pricingType === pt.value}
                       onClick={() =>
                         setServiceForm({
@@ -324,11 +330,11 @@ export default function VendorServicesPage() {
                   ))}
                 </div>
                 <p className="mt-1.5 text-[11px] text-text-muted">
-                  {
+                  {t(
                     PRICING_TYPES.find(
                       (pt) => pt.value === serviceForm.pricingType
-                    )?.hint
-                  }
+                    )?.hint ?? ''
+                  )}
                 </p>
               </div>
 
@@ -338,8 +344,8 @@ export default function VendorServicesPage() {
                   id="service-price"
                   label={
                     serviceForm.pricingType === 'on_inspection'
-                      ? 'Inspection fee (₹)'
-                      : 'Price (₹)'
+                      ? t('Inspection fee (₹)')
+                      : t('Price (₹)')
                   }
                   type="number"
                   className="font-numeric"
@@ -353,7 +359,7 @@ export default function VendorServicesPage() {
               {serviceForm.pricingType === 'per_vehicle' && (
                 <div className="grid grid-cols-3 gap-2">
                   <ScInput
-                    label="Hatchback (₹)"
+                    label={t('Hatchback (₹)')}
                     type="number"
                     className="font-numeric"
                     value={serviceForm.priceHatchback}
@@ -365,7 +371,7 @@ export default function VendorServicesPage() {
                     }
                   />
                   <ScInput
-                    label="Sedan (₹)"
+                    label={t('Sedan (₹)')}
                     type="number"
                     className="font-numeric"
                     value={serviceForm.priceSedan}
@@ -377,7 +383,7 @@ export default function VendorServicesPage() {
                     }
                   />
                   <ScInput
-                    label="SUV (₹)"
+                    label={t('SUV (₹)')}
                     type="number"
                     className="font-numeric"
                     value={serviceForm.priceSuv}
@@ -393,7 +399,7 @@ export default function VendorServicesPage() {
 
               <ScInput
                 id="service-duration"
-                label="Duration (mins)"
+                label={t('Duration (mins)')}
                 type="number"
                 className="font-numeric"
                 value={serviceForm.durationMins}
@@ -415,17 +421,17 @@ export default function VendorServicesPage() {
                 onClick={submitService}
               >
                 {saving === 'service'
-                  ? 'Saving...'
+                  ? t('Saving...')
                   : editingServiceId
-                    ? 'Update service'
-                    : 'Add service'}
+                    ? t('Update service')
+                    : t('Add service')}
               </ScButton>
             </ScCard>
           </section>
 
           <section className="flex flex-col gap-3">
             <SectionHeader
-              title="Your services"
+              title={t('Your services')}
               action={
                 services.length > 0 ? (
                   <span className="font-numeric text-[12px] text-text-muted">
@@ -437,8 +443,10 @@ export default function VendorServicesPage() {
             {services.length === 0 ? (
               <EmptyState
                 icon={<IconTool size={28} stroke={1.5} />}
-                title="No services yet"
-                subtitle="Add what you offer above. Customers can book a service once it is active."
+                title={t('No services yet')}
+                subtitle={t(
+                  'Add what you offer above. Customers can book a service once it is active.'
+                )}
               />
             ) : (
               <div className="flex flex-col gap-2">
@@ -473,7 +481,7 @@ export default function VendorServicesPage() {
                           variant={svc.isActive ? 'success' : 'muted'}
                           className="shrink-0"
                         >
-                          {svc.isActive ? 'Active' : 'Inactive'}
+                          {svc.isActive ? t('Active') : t('Inactive')}
                         </ScBadge>
                       </div>
 
@@ -496,17 +504,17 @@ export default function VendorServicesPage() {
                           screen is for, and its red is the form's Add service. */}
                       <div className="flex flex-wrap gap-2 border-t border-border pt-3">
                         <RowAction onClick={() => startEditService(svc)}>
-                          Edit
+                          {t('Edit')}
                         </RowAction>
                         <RowAction
                           onClick={() =>
                             setServiceActive(svc.id, !svc.isActive)
                           }
                         >
-                          {svc.isActive ? 'Disable' : 'Enable'}
+                          {svc.isActive ? t('Disable') : t('Enable')}
                         </RowAction>
                         <RowAction onClick={() => setDeleting(svc)}>
-                          Delete
+                          {t('Delete')}
                         </RowAction>
                       </div>
                     </ScCard>
@@ -524,9 +532,15 @@ export default function VendorServicesPage() {
         open={deleting !== null}
         onClose={() => setDeleting(null)}
         level="firm"
-        title={deleting ? `Delete ${deleting.name}?` : 'Delete this service?'}
-        body="Customers can't book it any more, and it can't be undone. To stop it for a while, Disable it instead."
-        confirmLabel="Delete service"
+        title={
+          deleting
+            ? t('Delete {name}?', { name: deleting.name })
+            : t('Delete this service?')
+        }
+        body={t(
+          "Customers can't book it any more, and it can't be undone. To stop it for a while, Disable it instead."
+        )}
+        confirmLabel={t('Delete service')}
         onConfirm={async () => {
           if (deleting) await removeService(deleting.id)
           setDeleting(null)

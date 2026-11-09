@@ -10,6 +10,7 @@ import {
   readBookingDraft,
   type BookingDraft,
 } from '@repo/core/booking-draft'
+import { useT } from '@repo/core/i18n'
 
 /**
  * "Continue your booking at <garage>" (customer reach, 0062): a booking
@@ -19,6 +20,7 @@ import {
  * holds it. × forgets it.
  */
 export function ContinueBookingCard() {
+  const t = useT()
   // localStorage is only there in the browser, after hydration: the server
   // and the first client render show nothing.
   const hydrated = useHydrated()
@@ -30,7 +32,7 @@ export function ContinueBookingCard() {
   return (
     <div
       role="region"
-      aria-label="Continue your booking"
+      aria-label={t('Continue your booking')}
       className="hub-card relative flex items-center gap-3 py-3 pl-4 pr-2"
     >
       <Link
@@ -38,16 +40,16 @@ export function ContinueBookingCard() {
         className="flex min-h-11 min-w-0 flex-1 items-center gap-3"
       >
         <span className="min-w-0 flex-1">
-          <span className="block text-t5 text-text-muted">You started a booking</span>
+          <span className="block text-t5 text-text-muted">{t('You started a booking')}</span>
           <span className="block truncate text-t3 text-text-primary">
-            Continue your booking at {draft.vendorName}
+            {t('Continue your booking at {vendorName}', { vendorName: draft.vendorName })}
           </span>
         </span>
         <IconArrowRight size={18} aria-hidden className="shrink-0 text-text-secondary" />
       </Link>
       <button
         type="button"
-        aria-label="Forget this booking"
+        aria-label={t('Forget this booking')}
         onClick={() => {
           clearBookingDraft()
           setForgotten(true)

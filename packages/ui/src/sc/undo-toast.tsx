@@ -1,4 +1,5 @@
 import { toast, type Id } from 'react-toastify'
+import { t } from '@repo/core/i18n/translate'
 
 /**
  * "Job started · Undo": the action has already happened, and this offers
@@ -20,7 +21,7 @@ export function showUndoToast(
     toastId?: Id
   }
 ): Id {
-  const { onUndo, durationMs = 6000, undoLabel = 'Undo', toastId } = opts
+  const { onUndo, durationMs = 6000, undoLabel = t('Undo'), toastId } = opts
   let undone = false
   return toast(
     ({ closeToast }) => (

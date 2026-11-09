@@ -2,6 +2,7 @@
 
 import { IconStar, IconStarFilled } from '@tabler/icons-react'
 import { cn } from '@repo/core/utils'
+import { useTn } from '@repo/core/i18n'
 
 interface StarsProps {
   rating: number
@@ -20,6 +21,7 @@ export function Stars({
   value,
   onChange,
 }: StarsProps) {
+  const tn = useTn()
   const display = interactive ? (value ?? 0) : rating
 
   // A display-only row is drawn without buttons. Five disabled buttons were
@@ -57,7 +59,7 @@ export function Stars({
             // keyboard or screen reader is guesswork. When they are not
             // interactive they are decoration next to a visible number, and
             // announcing five buttons would be noise — hence aria-hidden.
-            aria-label={interactive ? `Rate ${i + 1} star${i === 0 ? '' : 's'}` : undefined}
+            aria-label={interactive ? tn(i + 1, 'Rate {count} star', 'Rate {count} stars') : undefined}
             aria-pressed={interactive ? i < display : undefined}
             aria-hidden={interactive ? undefined : true}
             tabIndex={interactive ? undefined : -1}

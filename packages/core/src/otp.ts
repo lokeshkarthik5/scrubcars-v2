@@ -1,5 +1,6 @@
 import { ApiError } from '@repo/core/api/client'
 import { SUPPORT_PHONE_DISPLAY } from '@repo/core/support'
+import { t } from './i18n/translate'
 
 /**
  * The login code's two clocks, as the verify screen shows them.
@@ -60,12 +61,18 @@ export function otpDeadlines(
 export function otpErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof ApiError) {
     if (error.code === 'SMS_SEND_FAILED') {
-      return `We couldn't send the code right now. Try again in a minute, or WhatsApp us on ${SUPPORT_PHONE_DISPLAY}.`
+      return t(
+        "We couldn't send the code right now. Try again in a minute, or WhatsApp us on {phone}.",
+        {
+          phone: SUPPORT_PHONE_DISPLAY,
+        }
+      )
     }
     return error.message
   }
   // fetch throws a TypeError when the request never reached the server.
-  if (error instanceof TypeError) return 'Check your connection and try again.'
+  if (error instanceof TypeError)
+    return t('Check your connection and try again.')
   return fallback
 }
 

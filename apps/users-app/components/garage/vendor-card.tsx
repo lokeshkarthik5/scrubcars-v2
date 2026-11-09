@@ -1,6 +1,7 @@
 import { matchSpans } from '@repo/core/moments';
 import { BOOKING_TYPE_LABELS, bookingTypeParam } from '@repo/core/booking-types';
 import { distanceAndDrive } from '@repo/core/drive-time';
+import { fill, useT } from '@repo/core/i18n';
 import { hasStarScore, NEW_GARAGE_LABEL, newGarageReviewsLine } from '@repo/core/ratings';
 import type { BookingType, Vendor } from '@repo/core/types';
 import { IconStarFilled } from '@repo/native-ui/icons';
@@ -72,6 +73,7 @@ export function VendorCard({
   /** The search that found it: its words are underlined in the name and the service. */
   highlight?: string;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const location = useLocationStore((s) => s.location);
@@ -91,7 +93,7 @@ export function VendorCard({
           {cover ? <Image source={{ uri: cover }} accessibilityLabel={vendor.name} resizeMode="cover" style={styles.fill} /> : <GarageCover vendor={vendor} />}
           {vendor.logoUrl ? (
             <View style={styles.logo}>
-              <Image source={{ uri: vendor.logoUrl }} accessibilityLabel={`${vendor.name} logo`} resizeMode="cover" style={styles.fill} />
+              <Image source={{ uri: vendor.logoUrl }} accessibilityLabel={t('{name} logo', { name: vendor.name })} resizeMode="cover" style={styles.fill} />
             </View>
           ) : (
             <GarageMonogram vendor={vendor} size={40} radius={10} fontSize={14} style={styles.monogram} />
@@ -106,9 +108,9 @@ export function VendorCard({
               {vendor.tier ? <TierMark tier={vendor.tier} /> : null}
             </View>
             <View style={styles.badges}>
-              {vendor.dropinEnabled ? <ModeBadge label={BOOKING_TYPE_LABELS.dropin} tone="garage" /> : null}
-              {vendor.doorstepEnabled && mode !== 'pickup' ? <ModeBadge label={BOOKING_TYPE_LABELS.doorstep} tone="doorstep" /> : null}
-              {mode === 'pickup' && vendor.pickupEnabled ? <ModeBadge label={BOOKING_TYPE_LABELS.pickup} tone="doorstep" /> : null}
+              {vendor.dropinEnabled ? <ModeBadge label={t(BOOKING_TYPE_LABELS.dropin)} tone="garage" /> : null}
+              {vendor.doorstepEnabled && mode !== 'pickup' ? <ModeBadge label={t(BOOKING_TYPE_LABELS.doorstep)} tone="doorstep" /> : null}
+              {mode === 'pickup' && vendor.pickupEnabled ? <ModeBadge label={t(BOOKING_TYPE_LABELS.pickup)} tone="doorstep" /> : null}
             </View>
           </View>
           <View style={styles.facts}>
@@ -124,7 +126,7 @@ export function VendorCard({
               </>
             ) : (
               <T size={12} weight={500} lh={18}>
-                {NEW_GARAGE_LABEL}
+                {t(NEW_GARAGE_LABEL)}
                 {newGarageReviewsLine(vendor.reviewCount) ? ` · ${newGarageReviewsLine(vendor.reviewCount)}` : ''}
               </T>
             )}
@@ -134,10 +136,13 @@ export function VendorCard({
                   ·
                 </T>
                 <T size={12} lh={18} color={colors.textSecondary}>
-                  {'From '}
-                  <T num size={12} weight={500} lh={18}>
-                    ₹{vendor.startingPrice}
-                  </T>
+                  {fill(t('From {price}'), {
+                    price: (
+                      <T num size={12} weight={500} lh={18}>
+                        ₹{vendor.startingPrice}
+                      </T>
+                    ),
+                  })}
                 </T>
               </>
             ) : null}
@@ -145,10 +150,13 @@ export function VendorCard({
           {vendor.outsideServiceCity ? <OutsideCityChip outside={vendor.outsideServiceCity} /> : null}
           {vendor.matchedService ? (
             <T size={12} numberOfLines={1} color={colors.textSecondary}>
-              {'Offers '}
-              <T size={12} weight={500}>
-                <Matched text={vendor.matchedService} query={highlight} size={12} weight={500} />
-              </T>
+              {fill(t('Offers {service}'), {
+                service: (
+                  <T size={12} weight={500}>
+                    <Matched text={vendor.matchedService} query={highlight} size={12} weight={500} />
+                  </T>
+                ),
+              })}
             </T>
           ) : null}
           {note ? (
@@ -168,7 +176,7 @@ export function VendorCard({
               {vendor.knownFor ? (
                 <View style={styles.known}>
                   <T size={12} lh={16} color={colors.success}>
-                    Known for {vendor.knownFor.label}
+                    {t('Known for {label}', { label: vendor.knownFor.label })}
                   </T>
                 </View>
               ) : null}

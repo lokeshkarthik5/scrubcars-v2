@@ -1,5 +1,6 @@
 import { ADD_ON_LIMITS, addOnTimeLabel } from '@repo/core/add-ons';
 import type { AddOn } from '@repo/core/api/add-ons';
+import { useT } from '@repo/core/i18n';
 import type { VehicleType } from '@repo/core/types';
 import { HubCard } from '@repo/native-ui/primitives';
 import { Figures, T } from '@repo/native-ui/text';
@@ -21,13 +22,14 @@ export function CheckoutAddOns({
   vehicleType: VehicleType | undefined;
   onToggle: (addOnId: string) => void;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   return (
     <View style={styles.section}>
-      <T variant="t2">Add-ons</T>
+      <T variant="t2">{t('Add-ons')}</T>
       <T size={13} lh={18} color={colors.dim}>
-        {"Optional. They go with the services you've chosen."}
+        {t("Optional. They go with the services you've chosen.")}
       </T>
       <HubCard style={styles.card}>
         {addOns.map((addOn, index) => {

@@ -22,6 +22,7 @@ import {
   complaintReceivedLine,
   type ComplaintCategory,
 } from '@repo/core/complaints'
+import { fill, useT } from '@repo/core/i18n'
 
 /**
  * "Complaint C-000123 received — we'll get back to you within 24 hours.",
@@ -63,6 +64,7 @@ interface RaiseComplaintSheetProps {
  * Red once, on Submit: the sheet's one main action.
  */
 export function RaiseComplaintSheet({ open, onClose, booking }: RaiseComplaintSheetProps) {
+  const t = useT()
   const raise = useRaiseComplaint()
   const [category, setCategory] = useState<ComplaintCategory | null>(null)
   const [message, setMessage] = useState('')
@@ -98,7 +100,7 @@ export function RaiseComplaintSheet({ open, onClose, booking }: RaiseComplaintSh
           setError(
             err instanceof ApiError
               ? err.message
-              : "Couldn't send your complaint. Check your connection and try again."
+              : t("Couldn't send your complaint. Check your connection and try again.")
           ),
       }
     )
@@ -109,24 +111,23 @@ export function RaiseComplaintSheet({ open, onClose, booking }: RaiseComplaintSh
       open={open}
       onClose={close}
       dismissible={!raise.isPending}
-      aria-label={received ? 'Complaint received' : 'Raise a complaint'}
+      aria-label={received ? t('Complaint received') : t('Raise a complaint')}
       className="px-4 pt-1"
     >
       <div className="flex flex-col gap-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h2 className="text-base font-semibold text-text-primary">
-              {received ? 'Complaint received' : 'Raise a complaint'}
+              {received ? t('Complaint received') : t('Raise a complaint')}
             </h2>
             {!received && (
               <p className="mt-1 text-t5 text-text-secondary">
                 {booking ? (
                   <>
-                    About booking <span className="font-numeric font-medium">{booking.reference}</span>{' '}
-                    · {booking.vendorName}
+                    {fill(t('About booking {reference} · {vendorName}'), { reference: <span className="font-numeric font-medium">{booking.reference}</span>, vendorName: booking.vendorName })}
                   </>
                 ) : (
-                  'Tell us what went wrong. If it is about a booking, raising it from the booking’s Help is quicker.'
+                  t('Tell us what went wrong. If it is about a booking, raising it from the booking’s Help is quicker.')
                 )}
               </p>
             )}
@@ -135,7 +136,7 @@ export function RaiseComplaintSheet({ open, onClose, booking }: RaiseComplaintSh
             type="button"
             onClick={close}
             disabled={raise.isPending}
-            aria-label="Close"
+            aria-label={t('Close')}
             className="-mr-2 -mt-1 flex size-11 shrink-0 items-center justify-center disabled:opacity-40"
           >
             <IconCircleX size={22} className="text-text-secondary" />
@@ -151,9 +152,7 @@ export function RaiseComplaintSheet({ open, onClose, booking }: RaiseComplaintSh
                   <ReceivedLine number={received.number} />
                 </p>
                 <p className="mt-1 text-t5 text-text-secondary">
-                  Quote <span className="font-numeric font-medium text-text-primary">{received.number}</span>{' '}
-                  if you call or message us about it. You can follow it, and read our answer, in
-                  Profile under My complaints.
+                  {fill(t('Quote {number} if you call or message us about it. You can follow it, and read our answer, in Profile under My complaints.'), { number: <span className="font-numeric font-medium text-text-primary">{received.number}</span> })}
                 </p>
               </div>
             </div>
@@ -163,22 +162,22 @@ export function RaiseComplaintSheet({ open, onClose, booking }: RaiseComplaintSh
                 onClick={close}
                 className="flex min-h-11 flex-1 items-center justify-center rounded-[10px] border border-border text-t4 font-medium text-text-primary transition-colors hover:bg-surface"
               >
-                My complaints
+                {t('My complaints')}
               </Link>
               <ScButton variant="secondary" onClick={close} className="min-h-11 flex-1">
-                Done
+                {t('Done')}
               </ScButton>
             </div>
           </div>
         ) : (
           <form onSubmit={submit} className="flex flex-col gap-4">
             <fieldset className="flex flex-col gap-2">
-              <legend className="mb-2 text-t5 font-medium text-text-secondary">What is it about?</legend>
+              <legend className="mb-2 text-t5 font-medium text-text-secondary">{t('What is it about?')}</legend>
               <div className="flex flex-wrap gap-2">
                 {COMPLAINT_CATEGORIES.map((value) => (
                   <Chip
                     key={value}
-                    label={COMPLAINT_CATEGORY_LABELS[value]}
+                    label={t(COMPLAINT_CATEGORY_LABELS[value])}
                     selected={category === value}
                     onClick={() => {
                       setCategory(value)
@@ -194,10 +193,10 @@ export function RaiseComplaintSheet({ open, onClose, booking }: RaiseComplaintSh
               <ScTextarea
                 data-clarity-mask="true"
                 id="complaint-message"
-                label="What happened?"
+                label={t('What happened?')}
                 rows={5}
                 maxLength={COMPLAINT_MESSAGE_MAX}
-                placeholder="What went wrong, and what you would like us to do"
+                placeholder={t('What went wrong, and what you would like us to do')}
                 value={message}
                 onChange={(e) => {
                   setMessage(e.target.value)
@@ -210,7 +209,7 @@ export function RaiseComplaintSheet({ open, onClose, booking }: RaiseComplaintSh
               <p id="complaint-message-hint" className="flex justify-between text-t5 text-text-muted">
                 <span>
                   {trimmed.length > 0 && trimmed.length < COMPLAINT_MESSAGE_MIN
-                    ? `At least ${COMPLAINT_MESSAGE_MIN} characters`
+                    ? t('At least {min} characters', { min: COMPLAINT_MESSAGE_MIN })
                     : ''}
                 </span>
                 <span className="font-numeric">
@@ -220,9 +219,7 @@ export function RaiseComplaintSheet({ open, onClose, booking }: RaiseComplaintSh
             </div>
 
             <p className="text-t5 text-text-secondary">
-              You get a complaint number at once. We acknowledge every complaint within{' '}
-              <span className="font-numeric">{COMPLAINT_ACKNOWLEDGE_HOURS}</span> hours and aim to
-              resolve it within <span className="font-numeric">{COMPLAINT_RESOLVE_DAYS}</span> days.
+              {fill(t('You get a complaint number at once. We acknowledge every complaint within {hours} hours and aim to resolve it within {days} days.'), { hours: <span className="font-numeric">{COMPLAINT_ACKNOWLEDGE_HOURS}</span>, days: <span className="font-numeric">{COMPLAINT_RESOLVE_DAYS}</span> })}
             </p>
 
             {error && (
@@ -232,7 +229,7 @@ export function RaiseComplaintSheet({ open, onClose, booking }: RaiseComplaintSh
             )}
 
             <ScButton type="submit" disabled={!canSubmit} className="min-h-11">
-              {raise.isPending ? 'Sending…' : 'Submit complaint'}
+              {raise.isPending ? t('Sending…') : t('Submit complaint')}
             </ScButton>
           </form>
         )}

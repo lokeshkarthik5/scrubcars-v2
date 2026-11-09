@@ -9,6 +9,7 @@ import { ApiError } from '@repo/core/api/client'
 import { redeemGift } from '@repo/core/api/gifts'
 import { invalidateGiftData } from '@repo/core/api/hooks/use-gifts'
 import { formatGiftDate, giftRupees } from '@/lib/gifts'
+import { useT } from '@repo/core/i18n'
 
 /**
  * "Have a gift code?" on the credit page: for a code read off a printed card
@@ -18,6 +19,7 @@ import { formatGiftDate, giftRupees } from '@/lib/gifts'
  * sentence, which is written for the customer.
  */
 export function RedeemCodeBox() {
+  const t = useT()
   const queryClient = useQueryClient()
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
@@ -35,9 +37,16 @@ export function RedeemCodeBox() {
       setCode('')
       setResult({
         ok: true,
-        text: `${giftRupees(done.amount)} added to your Detlio credit. Balance ${giftRupees(done.balance)}.${
-          done.expiresAt ? ` Use by ${formatGiftDate(done.expiresAt)}.` : ''
-        }`,
+        text: done.expiresAt
+          ? t('{amount} added to your Detlio credit. Balance {balance}. Use by {date}.', {
+              amount: giftRupees(done.amount),
+              balance: giftRupees(done.balance),
+              date: formatGiftDate(done.expiresAt),
+            })
+          : t('{amount} added to your Detlio credit. Balance {balance}.', {
+              amount: giftRupees(done.amount),
+              balance: giftRupees(done.balance),
+            }),
       })
       void invalidateGiftData(queryClient)
     } catch (error) {
@@ -46,7 +55,7 @@ export function RedeemCodeBox() {
         text:
           error instanceof ApiError
             ? error.message
-            : "Couldn't redeem that code. Check your connection and try again.",
+            : t("Couldn't redeem that code. Check your connection and try again."),
       })
     } finally {
       setBusy(false)
@@ -64,7 +73,7 @@ export function RedeemCodeBox() {
       >
         <ScInput
           data-clarity-mask="true"
-          label="Have a gift code?"
+          label={t('Have a gift code?')}
           placeholder="ABCD-EFGH-JKMN-PQRS"
           autoComplete="off"
           autoCapitalize="characters"
@@ -80,7 +89,7 @@ export function RedeemCodeBox() {
           disabled={!code.trim() || busy}
           className="min-h-11"
         >
-          {busy ? 'Redeeming…' : 'Redeem'}
+          {busy ? t('Redeeming…') : t('Redeem')}
         </ScButton>
       </form>
       {result && (

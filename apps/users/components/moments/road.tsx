@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { roadStopAt } from '@repo/core/moments'
 import { cn } from '@repo/core/utils'
+import { t } from '@repo/core/i18n/translate'
 import { usePrefersReducedMotion, useSeenOnce } from '@repo/ui/finish/motion'
 
 /** The small side-on car that drives the road (the list card's own). */
@@ -24,7 +25,7 @@ export function RoadCar({ className }: { className?: string }) {
  * the garage's red pin, drawn in once when it comes into view while the car
  * drives to the garage. Decorative: the distance is said in words beside it.
  */
-export function GarageRoad({ from = 'You', to, className }: { from?: string; to: string; className?: string }) {
+export function GarageRoad({ from, to, className }: { from?: string; to: string; className?: string }) {
   const ref = useRef<HTMLDivElement>(null)
   const seen = useSeenOnce(ref)
   const reduce = usePrefersReducedMotion()
@@ -39,7 +40,7 @@ export function GarageRoad({ from = 'You', to, className }: { from?: string; to:
         </span>
       </div>
       <div className="mt-[9px] flex justify-between gap-3 text-t5 font-medium text-[#8E8E98]">
-        <span>{from}</span>
+        <span>{from ?? t('You')}</span>
         <span className="truncate">{to}</span>
       </div>
     </div>
@@ -64,7 +65,7 @@ export interface RoadStop {
  */
 export function ProgressRoad({
   stops,
-  label = 'Booking status',
+  label,
   flashAt,
   compact = false,
   className,
@@ -120,13 +121,14 @@ export function ProgressRoad({
           </span>
         )}
       </div>
-      <ol aria-label={label} className={cn('mt-3.5 flex justify-between gap-1 text-t5 font-medium', compact && 'sr-only')}>
+      <ol aria-label={label ?? t('Booking status')} className={cn('mt-3.5 flex justify-between gap-1 text-t5 font-medium', compact && 'sr-only')}>
         {stops.map((stop, i) => (
           <li
             key={stop.label}
             aria-current={i === at ? 'step' : undefined}
             className={cn(
-              'min-w-0 flex-1 truncate',
+              // Wraps rather than cuts off: Tamil step names are longer.
+              'min-w-0 flex-1 break-words',
               i === 0 ? 'text-left' : i === stops.length - 1 ? 'text-right' : 'text-center',
               i === at ? 'text-text-primary' : 'text-[#8E8E98]'
             )}
@@ -139,10 +141,10 @@ export function ProgressRoad({
   )
 }
 
-/** The four steps (STATUS_STEPS) as stops, from the headline's step. */
+/** The four steps (STATUS_STEPS) as stops, in the language chosen, from the headline's step. */
 export function statusStops(steps: readonly string[], step: number, finished: boolean): RoadStop[] {
   return steps.map((label, i) => ({
-    label,
+    label: t(label),
     state: finished || i < step ? 'done' : i === step ? 'current' : 'upcoming',
   }))
 }

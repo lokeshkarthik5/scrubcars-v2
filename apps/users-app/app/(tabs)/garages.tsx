@@ -1,4 +1,5 @@
 import { parseBookingType } from '@repo/core/booking-types';
+import { useT } from '@repo/core/i18n';
 import type { BookingType } from '@repo/core/types';
 import { useUserStore } from '@repo/core/stores/user-store';
 import { Raised, TopGlow } from '@repo/native-ui/finish';
@@ -20,6 +21,7 @@ import { isCitywide, useLocationStore } from '@/lib/location';
 
 /** GarageListScreen (apps/users/components/garages/garage-list-screen.tsx). */
 export default function GaragesScreen() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const { fx } = useFinish();
@@ -47,14 +49,14 @@ export default function GaragesScreen() {
 
   // Under the place, in words: what the pill cannot say in one line.
   const status = locating
-    ? 'Finding you…'
+    ? t('Finding you…')
     : citywide
       ? permission === 'denied'
-        ? 'Location blocked — all of Chennai'
-        : 'All of Chennai'
+        ? t('Location blocked — all of Chennai')
+        : t('All of Chennai')
       : location?.source === 'area'
-        ? 'Change area'
-        : (profile?.area ?? 'Showing garages near you');
+        ? t('Change area')
+        : (profile?.area ?? t('Showing garages near you'));
 
   const header = (
     <>
@@ -67,7 +69,7 @@ export default function GaragesScreen() {
         <View style={styles.place}>
           <PressScale
             accessibilityRole="button"
-            accessibilityLabel="Choose location"
+            accessibilityLabel={t('Choose location')}
             accessibilityHint={status}
             disabled={locating}
             onPress={() => setAreaOpen(true)}
@@ -75,7 +77,7 @@ export default function GaragesScreen() {
             <Raised radius={12} style={styles.pill} innerStyle={styles.pillInner}>
               <IconMapPin size={15} />
               <T variant="t3" weight={600} numberOfLines={1} style={styles.shrink}>
-                {locating ? 'Finding you…' : location && !citywide ? location.label : 'Chennai'}
+                {locating ? t('Finding you…') : location && !citywide ? t(location.label) : t('Chennai')}
               </T>
               <IconChevronDown size={13} color={fx.quiet} />
             </Raised>

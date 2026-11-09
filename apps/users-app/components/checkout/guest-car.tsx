@@ -1,3 +1,4 @@
+import { useT } from '@repo/core/i18n';
 import type { VehicleType } from '@repo/core/types';
 import { VEHICLE_TIERS } from '@repo/core/vehicles';
 import { Chip } from '@repo/native-ui/chip';
@@ -10,6 +11,7 @@ import type { DraftCar } from '@/lib/booking-draft';
 
 /** GuestCarForm (apps/users/components/checkout/guest-car.tsx). */
 export function GuestCarForm({ car, onChange }: { car: DraftCar | null; onChange: (car: DraftCar) => void }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const current: DraftCar = car ?? { vehicleType: 'sedan', make: '', model: '' };
@@ -18,13 +20,13 @@ export function GuestCarForm({ car, onChange }: { car: DraftCar | null; onChange
     <View style={styles.form}>
       <View>
         <T size={13} lh={18} color={colors.textSecondary} style={styles.typeLabel}>
-          Body type — it sets the price
+          {t('Body type — it sets the price')}
         </T>
         <View style={styles.chips}>
           {VEHICLE_TIERS.map((tier) => (
             <Chip
               key={tier.value}
-              label={tier.label}
+              label={t(tier.label)}
               selected={typeChosen && current.vehicleType === tier.value}
               onPress={() => onChange({ ...current, vehicleType: tier.value as VehicleType })}
             />
@@ -34,8 +36,8 @@ export function GuestCarForm({ car, onChange }: { car: DraftCar | null; onChange
       <View style={styles.row}>
         <View style={styles.half}>
           <ScInput
-            label="Make"
-            placeholder="e.g. Maruti"
+            label={t('Make')}
+            placeholder={t('e.g. Maruti')}
             autoComplete="off"
             autoCorrect={false}
             maxLength={100}
@@ -45,8 +47,8 @@ export function GuestCarForm({ car, onChange }: { car: DraftCar | null; onChange
         </View>
         <View style={styles.half}>
           <ScInput
-            label="Model"
-            placeholder="e.g. Swift"
+            label={t('Model')}
+            placeholder={t('e.g. Swift')}
             autoComplete="off"
             autoCorrect={false}
             maxLength={100}

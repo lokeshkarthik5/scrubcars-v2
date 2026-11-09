@@ -1,3 +1,4 @@
+import { msg } from '@repo/core/i18n/translate';
 /**
  * Opening a list on one item a link or a notification named: `/guarantee?claim=<id>`,
  * `/requests?request=<id>`. Which list holds it (Open first, then Closed), and the
@@ -5,8 +6,8 @@
  * lib/use-item-focus.ts.
  */
 
-export const CLAIM_MISSING = 'That claim is no longer here';
-export const REQUEST_MISSING = 'That request is no longer here';
+export const CLAIM_MISSING = msg('That claim is no longer here');
+export const REQUEST_MISSING = msg('That request is no longer here');
 
 /** Long enough for any id the server makes, short enough to refuse rubbish. */
 const MAX_ID_LENGTH = 100;

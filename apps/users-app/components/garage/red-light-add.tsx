@@ -1,3 +1,4 @@
+import { useT } from '@repo/core/i18n';
 import { IconPlus } from '@repo/native-ui/icons';
 import { EASE_SPRING, useReduceMotion, type ViewRef } from '@repo/native-ui/motion';
 import { RED_LIGHT } from '@repo/native-ui/tokens';
@@ -132,6 +133,7 @@ export function RedLightAdd({
   fly?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
+  const t = useT();
   const styles = useStyles();
   const colors = useColors();
   const reduce = useReduceMotion();
@@ -171,7 +173,7 @@ export function RedLightAdd({
     <Pressable
       ref={ref}
       accessibilityRole="button"
-      accessibilityLabel={added ? `Remove ${name} from booking` : `Add ${name} to booking`}
+      accessibilityLabel={added ? t('Remove {name} from booking', { name }) : t('Add {name} to booking', { name })}
       accessibilityState={{ selected: added, disabled }}
       disabled={disabled}
       onPress={() => {
@@ -221,7 +223,7 @@ export function RedLightAdd({
           <IconPlus size={15} line={2} color="#FF4D66" />
         )}
         <T variant="t4" weight={600} color={ink}>
-          {added ? 'Added' : 'Add'}
+          {added ? t('Added') : t('Add')}
         </T>
         <Animated.View
           style={[

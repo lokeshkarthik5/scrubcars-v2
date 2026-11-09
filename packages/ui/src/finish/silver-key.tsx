@@ -4,6 +4,7 @@ import { useRef } from 'react'
 import { cn } from '@repo/core/utils'
 import { TierMedalIcon } from '@repo/ui/features/tier-medal'
 import { replay } from './motion'
+import { useT } from '@repo/core/i18n'
 
 /**
  * The "Silver+ / Silver & Gold" key (§3): a two-line raised key that turns
@@ -28,13 +29,14 @@ export function SilverKey({
   pinned?: boolean
   className?: string
 }) {
+  const t = useT()
   const ref = useRef<HTMLButtonElement>(null)
   return (
     <button
       ref={ref}
       type="button"
       aria-pressed={on}
-      aria-label={`${label}: ${quiet} garages only`}
+      aria-label={t('{label}: {quiet} garages only', { label, quiet })}
       onClick={() => {
         if (!on) {
           // The coin and the glint play when it turns on, never on the way off.

@@ -43,6 +43,7 @@ import { sortByUrgency, todayView, waitingSummary } from '@/lib/jobs';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 import { useRefreshOnFocus } from '@/lib/use-refresh-on-focus';
 import { useVendorBookings } from '@/lib/use-vendor-bookings';
+import { fill, useT, useTn } from '@repo/core/i18n';
 
 /** How many new-booking cards Home shows before "See all". */
 const CARDS_ON_HOME = 3;
@@ -51,6 +52,7 @@ const go = (path: string) => router.push(path as Href);
 
 /** apps/vendors/app/home/page.tsx, in its order. */
 function HomeScreen() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const vendor = useAuth((s) => s.vendor);
@@ -114,12 +116,14 @@ function HomeScreen() {
   return (
     <AppShell showBrand brandRight={<GarageStatus />}>
       {needsLocation ? (
-        <Notice title="Set your garage location" onPress={() => go('/settings?tab=location')}>
-          {"Customers can't find you until your garage is on the map, and we can't show you to customers without it. Tap to pin it."}
+        <Notice title={t('Set your garage location')} onPress={() => go('/settings?tab=location')}>
+          {t(
+            "Customers can't find you until your garage is on the map, and we can't show you to customers without it. Tap to pin it."
+          )}
         </Notice>
       ) : !isVerified ? (
-        <Notice tone="neutral" title="Not shown to customers yet">
-          {"Detlio is checking your garage. You'll be told once customers can find you."}
+        <Notice tone="neutral" title={t('Not shown to customers yet')}>
+          {t("Detlio is checking your garage. You'll be told once customers can find you.")}
         </Notice>
       ) : null}
 
@@ -127,12 +131,12 @@ function HomeScreen() {
 
       {paused ? (
         isVendorAdmin ? (
-          <Notice title="New bookings are paused" onPress={() => go('/settings?tab=time-off')}>
-            {"Customers can't find or book you. Bookings you already have stay as they are. Tap to resume in Settings."}
+          <Notice title={t('New bookings are paused')} onPress={() => go('/settings?tab=time-off')}>
+            {t("Customers can't find or book you. Bookings you already have stay as they are. Tap to resume in Settings.")}
           </Notice>
         ) : (
-          <Notice title="New bookings are paused">
-            {"Customers can't find or book this garage. Bookings already made stay as they are."}
+          <Notice title={t('New bookings are paused')}>
+            {t("Customers can't find or book this garage. Bookings already made stay as they are.")}
           </Notice>
         )
       ) : null}
@@ -143,7 +147,7 @@ function HomeScreen() {
         <View style={styles.sectionHead}>
           <View style={styles.titleRow}>
             <T accessibilityRole="header" size={18} weight={600}>
-              Waiting for your answer
+              {t('Waiting for your answer')}
             </T>
             {waiting.count > 0 ? <CountBadge count={waiting.count} /> : null}
           </View>
@@ -153,7 +157,7 @@ function HomeScreen() {
             style={styles.seeAll}
           >
             <T size={15} weight={500} color={colors.textSecondary}>
-              See all
+              {t('See all')}
             </T>
             <IconChevronRight size={18} color={colors.textSecondary} />
           </Pressable>
@@ -162,12 +166,12 @@ function HomeScreen() {
         {!loaded && bookings.length === 0 ? (
           <SkeletonList count={2} height={256} />
         ) : jobsUnknown ? (
-          <LoadError what="your bookings" onRetry={reload} retrying={retrying} />
+          <LoadError what={t('your bookings')} onRetry={reload} retrying={retrying} />
         ) : pending.length === 0 ? (
           <View style={styles.noBookings}>
             <IconInbox size={22} color={colors.textSecondary} />
             <T size={15} color={colors.textSecondary} style={styles.flex}>
-              No new bookings. They show here the moment a customer pays.
+              {t('No new bookings. They show here the moment a customer pays.')}
             </T>
           </View>
         ) : (
@@ -182,11 +186,13 @@ function HomeScreen() {
                 style={styles.seeAllRow}
               >
                 <T size={15} weight={500}>
-                  {'See all '}
-                  <T num size={15} weight={500}>
-                    {pending.length}
-                  </T>
-                  {' new bookings'}
+                  {fill(t('See all {count} new bookings'), {
+                    count: (
+                      <T num size={15} weight={500}>
+                        {pending.length}
+                      </T>
+                    ),
+                  })}
                 </T>
               </Pressable>
             ) : null}
@@ -201,47 +207,55 @@ function HomeScreen() {
           style={styles.tileCell}
           accessibilityLabel={
             jobsUnknown
-              ? "Today's jobs: unknown. Open Today"
-              : `Today's jobs: ${today.working.length + today.next.length}. Open Today`
+              ? t("Today's jobs: unknown. Open Today")
+              : t("Today's jobs: {count}. Open Today", { count: today.working.length + today.next.length })
           }
           onPress={() => go('/bookings?tab=today')}
         >
           <StatTile
-            label="Today's jobs"
+            label={t("Today's jobs")}
             value={jobsUnknown ? '–' : today.working.length + today.next.length}
-            hint={today.working.length > 0 ? `${today.working.length} under way` : undefined}
+            hint={today.working.length > 0 ? t('{count} under way', { count: today.working.length }) : undefined}
           />
         </PressRow>
         {isVendorAdmin ? (
           <PressRow
             style={styles.tileCell}
-            accessibilityLabel={`This week: ${week === null ? 'not loaded' : formatINR(week)}. Open Earnings`}
+            accessibilityLabel={t('This week: {value}. Open Earnings', {
+              value: week === null ? t('not loaded') : formatINR(week),
+            })}
             onPress={() => go('/earnings')}
           >
             {/* A dash, never ₹0, until the figure arrives (or when it fails). */}
-            <StatTile label="This week" value={week === null ? '–' : formatINR(week)} />
+            <StatTile label={t('This week')} value={week === null ? '–' : formatINR(week)} />
           </PressRow>
         ) : null}
         <PressRow
           style={styles.tileCell}
           accessibilityLabel={
             reviews === null
-              ? 'Average rating: not loaded. See reviews'
+              ? t('Average rating: not loaded. See reviews')
               : reviewCount === 0
-                ? 'Average rating: no reviews yet. See reviews'
+                ? t('Average rating: no reviews yet. See reviews')
                 : newGarage
-                  ? `Average rating: ${NEW_GARAGE_LABEL}, ${reviewCountLabel(reviewCount)}. See reviews`
-                  : `Average rating ${formatRating(avgRating)} from ${reviewCountLabel(reviewCount)}. See reviews`
+                  ? t('Average rating: {label}, {reviews}. See reviews', {
+                      label: t(NEW_GARAGE_LABEL),
+                      reviews: reviewCountLabel(reviewCount),
+                    })
+                  : t('Average rating {rating} from {reviews}. See reviews', {
+                      rating: formatRating(avgRating),
+                      reviews: reviewCountLabel(reviewCount),
+                    })
           }
           onPress={() => go('/reviews')}
         >
           <StatTile
-            label="Avg rating"
+            label={t('Avg rating')}
             value={
               reviews === null ? (
                 '–'
               ) : reviewCount > 0 && newGarage ? (
-                <TileFigure size={15}>{NEW_GARAGE_LABEL}</TileFigure>
+                <TileFigure size={15}>{t(NEW_GARAGE_LABEL)}</TileFigure>
               ) : (
                 <View style={styles.rating}>
                   <TileFigure>{formatRating(avgRating)}</TileFigure>
@@ -249,7 +263,7 @@ function HomeScreen() {
                 </View>
               )
             }
-            hint={reviewsFailed ? "Couldn't load" : reviews === null ? undefined : reviewCountLabel(reviewCount)}
+            hint={reviewsFailed ? t("Couldn't load") : reviews === null ? undefined : reviewCountLabel(reviewCount)}
           />
         </PressRow>
         {/* An odd tile keeps its half, as the web's two-column grid does. */}
@@ -260,18 +274,19 @@ function HomeScreen() {
       {isVendorAdmin ? <TierCard vendorId={vendor?.id} /> : null}
 
       <PressRow onPress={() => go('/account')} style={styles.account}>
-        <T size={15}>Your account</T>
+        <T size={15}>{t('Your account')}</T>
         <IconChevronRight size={18} color={colors.textMuted} />
       </PressRow>
 
       <T size={13} color={colors.textSecondary} style={styles.reminder}>
-        {GARAGE_NON_SOLICITATION_LINE}
+        {t(GARAGE_NON_SOLICITATION_LINE)}
       </T>
     </AppShell>
   );
 }
 
 function AgreementBanner({ vendorId }: { vendorId: string | undefined }) {
+  const t = useT();
   const { data } = useGarageAgreement(vendorId);
   // Home stays mounted: accepting (or a new version) shows when it is opened again.
   useRefreshOnFocus(['agreement', 'garage', vendorId]);
@@ -279,13 +294,15 @@ function AgreementBanner({ vendorId }: { vendorId: string | undefined }) {
   const line = agreementBannerLine(data.standing);
   if (!line) return null;
   return (
-    <Notice title="Accept the Detlio garage agreement" onPress={() => go('/agreement')}>
+    <Notice title={t('Accept the Detlio garage agreement')} onPress={() => go('/agreement')}>
       {line}
     </Notice>
   );
 }
 
 function RequestsHomeCard() {
+  const t = useT();
+  const tn = useTn();
   const colors = useColors();
   const styles = useStyles();
   const count = useGarageRequestCount();
@@ -296,12 +313,14 @@ function RequestsHomeCard() {
       <View style={styles.flex}>
         <View style={styles.titleRow}>
           <T size={15} weight={600}>
-            Requests
+            {t('Requests')}
           </T>
           <CountBadge count={waiting} />
         </View>
         <T size={13} color={colors.textSecondary}>
-          {`${waiting} ${waiting === 1 ? 'request' : 'requests'} waiting · answer within ${REQUEST_RULES.respondMinutes / 60} h`}
+          {tn(waiting, '{count} request waiting · answer within {hours} h', '{count} requests waiting · answer within {hours} h', {
+            hours: REQUEST_RULES.respondMinutes / 60,
+          })}
         </T>
       </View>
       <IconChevronRight size={18} />
@@ -310,6 +329,7 @@ function RequestsHomeCard() {
 }
 
 function GuaranteeHomeCard() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const config = useGuaranteeConfig();
@@ -323,12 +343,15 @@ function GuaranteeHomeCard() {
         <IconShieldCheck size={22} />
         <View style={styles.flex}>
           <T accessibilityRole="header" size={14} weight={600}>
-            Free redo claims
+            {t('Free redo claims')}
           </T>
           <T size={12} color={colors.textSecondary}>
             {toAnswer > 0
-              ? `${toAnswer} to answer within ${claims.data.reviewHours} hours of opening — no answer approves the redo.`
-              : 'Before and after photos on every job are your defence if a customer claims.'}
+              ? t('{count} to answer within {hours} hours of opening — no answer approves the redo.', {
+                  count: toAnswer,
+                  hours: claims.data.reviewHours,
+                })
+              : t('Before and after photos on every job are your defence if a customer claims.')}
           </T>
         </View>
         <IconChevronRight size={18} color={colors.textSecondary} />

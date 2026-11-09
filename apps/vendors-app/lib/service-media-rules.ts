@@ -2,11 +2,13 @@ import { isClipTooLong, MAX_VIDEO_BYTES, VIDEO_TOO_LONG_MESSAGE } from '@repo/co
 import type { ServiceMedia } from '@repo/core/types';
 
 import { MAX_SOURCE_BYTES } from './photo-limits';
+import { msg, t } from '@repo/core/i18n/translate';
 
 /**
  * packages/ui/src/features/service-media-editor.tsx, minus the drawing: which photo or
  * video may be added (and what is said when not), which row is "the video" on screen,
- * and what the list becomes after an upload settles. Pure, so each rule is a test.
+ * and what the list becomes after an upload settles. Pure, so each rule is a test. The
+ * messages are English constants (msg); the checks hand them back in the language in use.
  */
 
 /** How often a processing video is checked while the block is open. */
@@ -15,10 +17,10 @@ export const POLL_MS = 4000;
 /** The shortest the photo grid is ever drawn. */
 export const DEFAULT_MAX_PHOTOS = 3;
 
-export const NOT_A_PHOTO = 'Use a JPEG, PNG or WebP photo.';
-export const PHOTO_TOO_BIG = 'That photo is over 5 MB. Pick a smaller one.';
-export const NOT_A_VIDEO = 'That file is not a video.';
-export const VIDEO_TOO_BIG = 'That file is over 2 GB.';
+export const NOT_A_PHOTO = msg('Use a JPEG, PNG or WebP photo.');
+export const PHOTO_TOO_BIG = msg('That photo is over 5 MB. Pick a smaller one.');
+export const NOT_A_VIDEO = msg('That file is not a video.');
+export const VIDEO_TOO_BIG = msg('That file is over 2 GB.');
 
 /**
  * What the library may give for a photo. The web accepts JPEG, PNG and WebP; a phone's
@@ -44,13 +46,13 @@ const extensionOf = (uri: string) => {
 export function checkPhotoPick(photo: PickedPhoto): string | null {
   const mime = photo.mimeType?.toLowerCase();
   if (mime) {
-    if (!PHOTO_MIME.has(mime)) return NOT_A_PHOTO;
+    if (!PHOTO_MIME.has(mime)) return t(NOT_A_PHOTO);
   } else {
     const ext = extensionOf(photo.uri);
     // No type and no extension: the phone could not say; preparing it will.
-    if (ext && !PHOTO_EXT.has(ext)) return NOT_A_PHOTO;
+    if (ext && !PHOTO_EXT.has(ext)) return t(NOT_A_PHOTO);
   }
-  if (typeof photo.fileSize === 'number' && photo.fileSize > MAX_SOURCE_BYTES) return PHOTO_TOO_BIG;
+  if (typeof photo.fileSize === 'number' && photo.fileSize > MAX_SOURCE_BYTES) return t(PHOTO_TOO_BIG);
   return null;
 }
 
@@ -78,12 +80,12 @@ export function checkVideoPick(video: PickedVideo, sizeBytes: number | null): Vi
       ? video.duration / 1000
       : null;
   const isVideo = video.type ? video.type === 'video' : Boolean(video.mimeType?.startsWith('video/'));
-  if (!isVideo) return { ok: false, message: NOT_A_VIDEO, durationSecs: null };
+  if (!isVideo) return { ok: false, message: t(NOT_A_VIDEO), durationSecs: null };
   const size = typeof video.fileSize === 'number' && video.fileSize > 0 ? video.fileSize : sizeBytes;
-  if (size === null || size <= 0) return { ok: false, message: NOT_A_VIDEO, durationSecs: null };
-  if (size > MAX_VIDEO_BYTES) return { ok: false, message: VIDEO_TOO_BIG, durationSecs: null };
+  if (size === null || size <= 0) return { ok: false, message: t(NOT_A_VIDEO), durationSecs: null };
+  if (size > MAX_VIDEO_BYTES) return { ok: false, message: t(VIDEO_TOO_BIG), durationSecs: null };
   if (durationSecs !== null && isClipTooLong(durationSecs)) {
-    return { ok: false, message: VIDEO_TOO_LONG_MESSAGE, durationSecs };
+    return { ok: false, message: t(VIDEO_TOO_LONG_MESSAGE), durationSecs };
   }
   return { ok: true, sizeBytes: size, durationSecs };
 }

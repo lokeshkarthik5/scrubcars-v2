@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { IconDownload, IconReceipt } from '@tabler/icons-react'
+import { fill, useT } from '@repo/core/i18n'
+import { msg } from '@repo/core/i18n/translate'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScBadge } from '@repo/ui/sc/badge'
 import { StatusChip } from '@repo/ui/sc/status-chip'
@@ -41,14 +43,15 @@ import { ActiveGarage } from '@/components/active-garage'
 
 type Preset = EarningsRangePreset | 'custom'
 
+// English, shown as `t(label)`.
 const PRESETS: Array<{ value: Preset; label: string }> = [
-  { value: 'last30', label: '30 days' },
-  { value: 'thisMonth', label: 'This month' },
-  { value: 'lastMonth', label: 'Last month' },
-  { value: 'custom', label: 'Dates' },
+  { value: 'last30', label: msg('30 days') },
+  { value: 'thisMonth', label: msg('This month') },
+  { value: 'lastMonth', label: msg('Last month') },
+  { value: 'custom', label: msg('Dates') },
 ]
 
-/** One figure of a booking's breakdown, left out when it is nothing. */
+/** One figure of a booking's breakdown, left out when it is nothing; the label comes translated. */
 function Figure({
   label,
   value,
@@ -92,26 +95,28 @@ const LINE_TONE: Partial<Record<PayoutLine['status'], StatusTone>> = {
   owed_back: 'attention',
 }
 
-function statusBadge(line: PayoutLine) {
+function StatusBadge({ line }: { line: PayoutLine }) {
+  const t = useT()
   return (
     <StatusChip tone={LINE_TONE[line.status] ?? 'closed'}>
-      {LINE_STATUS_LABEL[line.status]}
+      {t(LINE_STATUS_LABEL[line.status])}
     </StatusChip>
   )
 }
 
 function LineCard({ line }: { line: GarageStatementLine }) {
+  const t = useT()
   const kind = lineKindLabel(line.kind)
   return (
     <ScCard
       role="group"
-      aria-label={`Booking #${line.reference}`}
+      aria-label={t('Booking #{reference}', { reference: line.reference })}
       className="flex flex-col gap-2.5"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-[13px] font-medium text-text-primary">
-            {line.services.join(' + ') || 'Booking'}
+            {line.services.join(' + ') || t('Booking')}
           </p>
           <p className="text-[11px] text-text-secondary">
             {line.customerFirstName} ·{' '}
@@ -130,17 +135,17 @@ function LineCard({ line }: { line: GarageStatementLine }) {
           <p className="font-numeric text-[14px] font-bold text-text-primary">
             {rupeesLabel(line.share)}
           </p>
-          {statusBadge(line)}
+          <StatusBadge line={line} />
         </div>
       </div>
 
       <dl className="flex flex-col gap-1 border-t border-border pt-2">
-        <Figure label="Price" value={rupeesLabel(line.price)} />
+        <Figure label={t('Price')} value={rupeesLabel(line.price)} />
         {(line.travelFee ?? 0) > 0 && (
           // An accepted request's travel fee (0062): part of the price, the
           // garage's whole, with no commission on it.
           <Figure
-            label="Travel fee (yours, no commission)"
+            label={t('Travel fee (yours, no commission)')}
             value={rupeesLabel(line.travelFee ?? 0)}
           />
         )}
@@ -148,22 +153,22 @@ function LineCard({ line }: { line: GarageStatementLine }) {
           // Detlio pays for its own promos: shown so the garage sees why the
           // customer paid less, and that it changes nothing for the garage.
           <Figure
-            label="Detlio promo (paid by Detlio)"
+            label={t('Detlio promo (paid by Detlio)')}
             value={rupeesLabel(line.detlioPromo)}
           />
         )}
         {line.garagePromo > 0 && (
           <Figure
-            label="Your promo"
+            label={t('Your promo')}
             value={rupeesLabel(line.garagePromo)}
             minus
           />
         )}
         {line.refunds > 0 && (
-          <Figure label="Refunded" value={rupeesLabel(line.refunds)} minus />
+          <Figure label={t('Refunded')} value={rupeesLabel(line.refunds)} minus />
         )}
         <div className="flex items-baseline justify-between gap-3 text-[12px]">
-          <dt className="text-text-secondary">Detlio commission</dt>
+          <dt className="text-text-secondary">{t('Detlio commission')}</dt>
           <dd
             className={cn(
               'text-right',
@@ -177,10 +182,10 @@ function LineCard({ line }: { line: GarageStatementLine }) {
               : `−${commissionLabel(line)}`}
           </dd>
         </div>
-        <Figure label="Your share" value={rupeesLabel(line.share)} strong />
+        <Figure label={t('Your share')} value={rupeesLabel(line.share)} strong />
         {line.heldByGarage > 0 && (
           <Figure
-            label="Cash you collected"
+            label={t('Cash you collected')}
             value={rupeesLabel(line.heldByGarage)}
             minus
           />
@@ -192,33 +197,48 @@ function LineCard({ line }: { line: GarageStatementLine }) {
           {line.payouts.map((payout, i) => (
             <span key={payout.payoutId}>
               {i > 0 && ' · '}
-              {payout.amount < 0 ? 'Taken back' : 'Paid'}{' '}
-              {rupeesLabel(Math.abs(payout.amount))} on{' '}
-              <span className="font-numeric">
-                {istDateLabel(payout.paidAt)}
-              </span>
-              , ref{' '}
-              <span className="font-numeric text-text-primary">
-                {payout.reference}
-              </span>
+              {fill(
+                payout.amount < 0
+                  ? t('Taken back {amount} on {date}, ref {reference}')
+                  : t('Paid {amount} on {date}, ref {reference}'),
+                {
+                  amount: rupeesLabel(Math.abs(payout.amount)),
+                  date: (
+                    <span className="font-numeric">
+                      {istDateLabel(payout.paidAt)}
+                    </span>
+                  ),
+                  reference: (
+                    <span className="font-numeric text-text-primary">
+                      {payout.reference}
+                    </span>
+                  ),
+                }
+              )}
             </span>
           ))}
         </p>
       )}
       {line.status === 'due' && line.paid !== 0 && (
         <p className="text-[11px] text-text-secondary">
-          <span className="font-numeric text-text-primary">
-            {rupeesLabel(line.balance)}
-          </span>{' '}
-          more to come
+          {fill(t('{amount} more to come'), {
+            amount: (
+              <span className="font-numeric text-text-primary">
+                {rupeesLabel(line.balance)}
+              </span>
+            ),
+          })}
         </p>
       )}
       {line.status === 'owed_back' && (
         <p className="text-[11px] text-text-secondary">
-          <span className="font-numeric text-text-primary">
-            {rupeesLabel(-line.balance)}
-          </span>{' '}
-          comes off your next payout
+          {fill(t('{amount} comes off your next payout'), {
+            amount: (
+              <span className="font-numeric text-text-primary">
+                {rupeesLabel(-line.balance)}
+              </span>
+            ),
+          })}
         </p>
       )}
     </ScCard>
@@ -226,6 +246,7 @@ function LineCard({ line }: { line: GarageStatementLine }) {
 }
 
 export default function VendorEarningsPage() {
+  const t = useT()
   const vendor = useAuthStore((s) => s.vendor)
   const isVendorAdmin = useIsVendorAdmin()
   const router = useRouter()
@@ -301,7 +322,7 @@ export default function VendorEarningsPage() {
       brandRight={<ActiveGarage />}
       className="gap-5 py-4"
     >
-      <TopBar title="Earnings" />
+      <TopBar title={t('Earnings')} />
 
       {!statement && loading ? (
         <SkeletonList
@@ -311,45 +332,49 @@ export default function VendorEarningsPage() {
         />
       ) : !statement && error ? (
         <ErrorState
-          message="Couldn't load your earnings."
+          message={t("Couldn't load your earnings.")}
           onRetry={() => setAttempt((n) => n + 1)}
         />
       ) : summary ? (
-        <section aria-label="Your balance" className="flex flex-col gap-2">
+        <section aria-label={t('Your balance')} className="flex flex-col gap-2">
           <div className="grid grid-cols-2 gap-2">
             <StatTile
-              label={owesDetlio ? 'You owe Detlio' : 'Due now'}
+              label={owesDetlio ? t('You owe Detlio') : t('Due now')}
               // Money owed to the garage is never amber (finding 7): amber
               // is for a problem, and this is good news.
               value={rupeesLabel(Math.abs(summary.balanceDue))}
               hint={
                 owesDetlio
-                  ? 'Comes off your next payout'
+                  ? t('Comes off your next payout')
                   : summary.oldestUnpaidAt
-                    ? `Oldest from ${istDateLabel(summary.oldestUnpaidAt)}`
-                    : `Paid within ${statement.cycleHours} hours`
+                    ? t('Oldest from {date}', { date: istDateLabel(summary.oldestUnpaidAt) })
+                    : t('Paid within {hours} hours', { hours: statement.cycleHours })
               }
             />
             <StatTile
-              label="Paid this month"
+              label={t('Paid this month')}
               tone="success"
               value={rupeesLabel(summary.paidThisMonth)}
             />
           </div>
           <p className="text-[11px] text-text-secondary">
-            Detlio pays your share within {statement.cycleHours} hours of each
-            job, by bank transfer or UPI. Commission is 8% on washes, packages
-            and others, 5% on detailing, coating and scratch removal.
+            {t(
+              'Detlio pays your share within {hours} hours of each job, by bank transfer or UPI. Commission is 8% on washes, packages and others, 5% on detailing, coating and scratch removal.',
+              { hours: statement.cycleHours }
+            )}
             {summary.freeBookings.used < summary.freeBookings.of
-              ? ` Your first ${summary.freeBookings.of} bookings are free: ${summary.freeBookings.used} used so far.`
+              ? ` ${t('Your first {count} bookings are free: {used} used so far.', {
+                  count: summary.freeBookings.of,
+                  used: summary.freeBookings.used,
+                })}`
               : ''}
           </p>
         </section>
       ) : null}
 
-      <section className="flex flex-col gap-3" aria-label="Bookings">
+      <section className="flex flex-col gap-3" aria-label={t('Bookings')}>
         <SectionHeader
-          title="Bookings"
+          title={t('Bookings')}
           action={
             <ScButton
               variant="outline"
@@ -363,17 +388,17 @@ export default function VendorEarningsPage() {
           }
         />
         <ScSegmented
-          aria-label="Period"
+          aria-label={t('Period')}
           value={preset}
           onChange={pick}
-          options={PRESETS}
+          options={PRESETS.map((option) => ({ ...option, label: t(option.label) }))}
           className="[&_[role=radio]]:min-h-12 [&_[role=radio]]:text-[15px]"
         />
         {preset === 'custom' && (
           <div className="grid grid-cols-2 gap-2">
             <ScInput
               type="date"
-              label="From"
+              label={t('From')}
               value={range.from}
               max={range.to}
               onChange={(e) => setDate('from', e.target.value)}
@@ -381,7 +406,7 @@ export default function VendorEarningsPage() {
             />
             <ScInput
               type="date"
-              label="To"
+              label={t('To')}
               value={range.to}
               min={range.from}
               onChange={(e) => setDate('to', e.target.value)}
@@ -392,9 +417,10 @@ export default function VendorEarningsPage() {
 
         {statement && error && (
           <p role="status" className="text-[12px] text-error">
-            Couldn&apos;t load those dates. Showing{' '}
-            {istDateLabel(`${statement.range.from}T12:00:00+05:30`)} to{' '}
-            {istDateLabel(`${statement.range.to}T12:00:00+05:30`)}.
+            {t("Couldn't load those dates. Showing {from} to {to}.", {
+              from: istDateLabel(`${statement.range.from}T12:00:00+05:30`),
+              to: istDateLabel(`${statement.range.to}T12:00:00+05:30`),
+            })}
           </p>
         )}
         {!statement && loading ? (
@@ -402,8 +428,10 @@ export default function VendorEarningsPage() {
         ) : statement && statement.lines.length === 0 ? (
           <EmptyState
             icon={<IconReceipt size={28} stroke={1.5} />}
-            title="Nothing in these dates"
-            subtitle="Each job you complete shows up here with Detlio's commission, your share and its payout."
+            title={t('Nothing in these dates')}
+            subtitle={t(
+              "Each job you complete shows up here with Detlio's commission, your share and its payout."
+            )}
           />
         ) : statement ? (
           <div
@@ -421,8 +449,8 @@ export default function VendorEarningsPage() {
       </section>
 
       {statement && statement.payouts.length > 0 && (
-        <section className="flex flex-col gap-3" aria-label="Payouts">
-          <SectionHeader title="Payouts" />
+        <section className="flex flex-col gap-3" aria-label={t('Payouts')}>
+          <SectionHeader title={t('Payouts')} />
           <div className="flex flex-col gap-2">
             {statement.payouts.map((payout) => (
               <ScCard
@@ -431,16 +459,19 @@ export default function VendorEarningsPage() {
               >
                 <div className="min-w-0">
                   <p className="text-[13px] font-medium text-text-primary">
-                    {PAYOUT_METHOD_LABEL[payout.method]} ·{' '}
+                    {t(PAYOUT_METHOD_LABEL[payout.method])} ·{' '}
                     <span className="font-numeric">
                       {istDateLabel(payout.paidAt)}
                     </span>
                   </p>
                   <p className="truncate text-[11px] text-text-secondary">
-                    Ref{' '}
-                    <span className="font-numeric text-text-primary">
-                      {payout.reference}
-                    </span>
+                    {fill(t('Ref {reference}'), {
+                      reference: (
+                        <span className="font-numeric text-text-primary">
+                          {payout.reference}
+                        </span>
+                      ),
+                    })}
                   </p>
                 </div>
                 <p className="font-numeric text-[14px] font-bold text-success">

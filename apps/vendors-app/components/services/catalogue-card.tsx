@@ -12,6 +12,7 @@ import { createStyles, useColors } from '@repo/native-ui/theme';
 import { Figures, Num } from './figures';
 import { RowAction } from './row-action';
 import { ServiceMediaEditor } from './service-media-editor';
+import { useT } from '@repo/core/i18n';
 
 /**
  * One row of the catalogue: a service in the Services tab, a package in the Packages tab
@@ -39,6 +40,7 @@ export function CatalogueCard({
   /** An action on this row is saving. */
   busy: boolean;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   return (
@@ -64,7 +66,7 @@ export function CatalogueCard({
           </T>
           {details}
         </View>
-        <ScBadge variant={item.isActive ? 'success' : 'muted'}>{item.isActive ? 'Active' : 'Inactive'}</ScBadge>
+        <ScBadge variant={item.isActive ? 'success' : 'muted'}>{item.isActive ? t('Active') : t('Inactive')}</ScBadge>
       </View>
 
       {/* Photos and video, shown to customers on the garage page. */}
@@ -80,12 +82,12 @@ export function CatalogueCard({
 
       {/* Quiet outlines, all three: none of them is what this screen is for. */}
       <View style={[styles.section, styles.actions]}>
-        <RowAction onPress={onEdit}>Edit</RowAction>
+        <RowAction onPress={onEdit}>{t('Edit')}</RowAction>
         <RowAction onPress={onToggle} disabled={busy}>
-          {item.isActive ? 'Disable' : 'Enable'}
+          {item.isActive ? t('Disable') : t('Enable')}
         </RowAction>
         <RowAction onPress={onDelete} disabled={busy}>
-          Delete
+          {t('Delete')}
         </RowAction>
       </View>
     </ScCard>

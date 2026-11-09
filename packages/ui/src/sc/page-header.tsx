@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { IconArrowLeft } from '@tabler/icons-react'
 import { cn } from '@repo/core/utils'
+import { useT } from '@repo/core/i18n'
 
 interface PageHeaderProps {
   title: string
@@ -42,6 +43,7 @@ export function PageHeader({
   actions,
   className,
 }: PageHeaderProps) {
+  const t = useT()
   const router = useRouter()
 
   return (
@@ -51,14 +53,14 @@ export function PageHeader({
       <div className="flex min-w-0 items-center gap-2">
         {(showBack || backHref || onBack) &&
           (backHref && !onBack ? (
-            <Link href={backHref} aria-label="Go back" className={BACK_CLASS}>
+            <Link href={backHref} aria-label={t('Go back')} className={BACK_CLASS}>
               <IconArrowLeft size={22} stroke={1.5} />
             </Link>
           ) : (
             <button
               type="button"
               onClick={() => (onBack ? onBack() : router.back())}
-              aria-label="Go back"
+              aria-label={t('Go back')}
               className={BACK_CLASS}
             >
               <IconArrowLeft size={22} stroke={1.5} />

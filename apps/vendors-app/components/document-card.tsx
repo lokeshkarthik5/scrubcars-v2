@@ -46,9 +46,12 @@ import { Notice, ScCard } from '@repo/native-ui/primitives';
 import { AFTER_SHEET_MS, ScSheet } from '@repo/native-ui/sheet';
 import { T } from '@repo/native-ui/text';
 import { toast } from '@repo/native-ui/toast';
+import { t } from '@repo/core/i18n/translate';
+import { fill, useT } from '@repo/core/i18n';
 
 /** The status chip: a dot, but an approved one has the shield instead. */
 function DocumentChip({ status }: { status: GarageDocument['status'] }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const tone = colors.tones[STATUS_TONE[status]];
@@ -60,7 +63,7 @@ function DocumentChip({ status }: { status: GarageDocument['status'] }) {
         <View style={[styles.dot, { backgroundColor: tone.dot }]} />
       )}
       <T size={12} weight={500} lh={16} color={tone.text} numberOfLines={1}>
-        {DOCUMENT_STATUS_LABELS[status]}
+        {t(DOCUMENT_STATUS_LABELS[status])}
       </T>
     </View>
   );
@@ -95,7 +98,7 @@ async function fromLibrary(): Promise<PickedDocument[]> {
   if (result.canceled) return [];
   return result.assets.map((asset, index) => ({
     uri: asset.uri,
-    name: asset.fileName ?? `Photo ${index + 1}`,
+    name: asset.fileName ?? t('Photo {n}', { n: index + 1 }),
     mimeType: asset.mimeType ?? 'image/jpeg',
     size: asset.fileSize,
   }));
@@ -104,12 +107,12 @@ async function fromLibrary(): Promise<PickedDocument[]> {
 /** One photo from the camera. */
 async function fromCamera(): Promise<PickedDocument[]> {
   const permission = await ImagePicker.requestCameraPermissionsAsync();
-  if (!permission.granted) throw new Error('Allow the camera in Settings to take a photo.');
+  if (!permission.granted) throw new Error(t('Allow the camera in Settings to take a photo.'));
   const result = await ImagePicker.launchCameraAsync({ mediaTypes: 'images', exif: false });
   if (result.canceled) return [];
   return result.assets.map((asset) => ({
     uri: asset.uri,
-    name: asset.fileName ?? 'Photo',
+    name: asset.fileName ?? t('Photo'),
     mimeType: asset.mimeType ?? 'image/jpeg',
     size: asset.fileSize,
   }));
@@ -144,6 +147,7 @@ export function DocumentCard({
   /** Removed (0065): the documents as they are now. */
   onRemoved: (documents: GarageDocuments) => void;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const [picked, setPicked] = useState<PickedDocument[]>([]);
@@ -153,6 +157,8 @@ export function DocumentCard({
   const [error, setError] = useState('');
   const [confirmRemove, setConfirmRemove] = useState(false);
   const problem = picked.length > 0 ? chosenFilesProblem(picked) : null;
+  // The server's label is the English of DOCUMENT_LABELS: said in the language in use.
+  const label = t(doc.label);
 
   const choose = async (source: () => Promise<PickedDocument[]>) => {
     setChoosing(false);
@@ -162,7 +168,7 @@ export function DocumentCard({
       await new Promise((resolve) => setTimeout(resolve, AFTER_SHEET_MS));
       setPicked(await source());
     } catch (err) {
-      toast.error(errorText(err, 'Couldn’t open that.'));
+      toast.error(errorText(err, t('Couldn’t open that.')));
     }
   };
 
@@ -175,10 +181,10 @@ export function DocumentCard({
       const next = await uploadGarageDocument({ type: doc.type, files, expiresOn: expiresOn || null });
       discardCached(picked.map((p) => p.uri));
       setPicked([]);
-      toast.success(`${doc.label} sent for review`);
+      toast.success(t('{doc} sent for review', { doc: label }));
       onUploaded(next);
     } catch (err) {
-      setError(errorText(err, UPLOAD_FAILED));
+      setError(errorText(err, t(UPLOAD_FAILED)));
     } finally {
       setBusy(false);
     }
@@ -191,10 +197,10 @@ export function DocumentCard({
     try {
       const next = await removeGarageDocument(doc.id);
       setConfirmRemove(false);
-      toast.success(`${doc.label} removed`);
+      toast.success(t('{doc} removed', { doc: label }));
       onRemoved(next);
     } catch (err) {
-      setError(errorText(err, REMOVE_FAILED));
+      setError(errorText(err, t(REMOVE_FAILED)));
     } finally {
       setBusy(false);
     }
@@ -216,40 +222,40 @@ export function DocumentCard({
       const file = newPrivateFile(contentType);
       try {
         await File.downloadFileAsync(url, file, { idempotent: true });
-        await Sharing.shareAsync(file.uri, { mimeType: contentType, dialogTitle: doc.label });
+        await Sharing.shareAsync(file.uri, { mimeType: contentType, dialogTitle: label });
       } finally {
         discardAfterShare(file);
       }
     } catch (err) {
-      toast.error(errorText(err, OPEN_FAILED));
+      toast.error(errorText(err, t(OPEN_FAILED)));
     }
   };
 
   const cameraOn = Device.isDevice;
 
   return (
-    <ScCard accessibilityLabel={doc.label} style={styles.card}>
+    <ScCard accessibilityLabel={label} style={styles.card}>
       <View style={styles.head}>
         <View style={styles.flex}>
           <T size={13} weight={600}>
-            {doc.label}
+            {label}
           </T>
           <T size={11} color={colors.textMuted}>
-            {doc.required ? 'Required' : 'Optional'}
+            {doc.required ? t('Required') : t('Optional')}
           </T>
         </View>
         <DocumentChip status={doc.status} />
       </View>
 
       <T size={12} color={colors.textSecondary} lh={20}>
-        {documentHint(doc.type, doc.required)}
+        {t(documentHint(doc.type, doc.required))}
       </T>
       {doc.type === 'owner_id' ? (
-        <T size={12} weight={500}>{`${AADHAAR_MASK_NOTE}.`}</T>
+        <T size={12} weight={500}>{`${t(AADHAAR_MASK_NOTE)}.`}</T>
       ) : null}
 
       {doc.status === 'rejected' && doc.rejectionReason ? (
-        <Notice title="What to fix">{doc.rejectionReason}</Notice>
+        <Notice title={t('What to fix')}>{doc.rejectionReason}</Notice>
       ) : null}
 
       {doc.files.length > 0 ? (
@@ -267,36 +273,39 @@ export function DocumentCard({
               </View>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={viewLabel(doc.label, doc.files.length, file.side)}
+                accessibilityLabel={viewLabel(label, doc.files.length, file.side)}
                 onPress={() => void view(file.id)}
                 style={styles.view}
               >
                 <IconEye size={14} />
                 <T size={12} weight={500}>
-                  View
+                  {t('View')}
                 </T>
               </Pressable>
             </View>
           ))}
           {doc.expiresOn ? (
             <T size={12} color={colors.textSecondary}>
-              {'Expires '}
-              <T num size={12} color={colors.textSecondary}>
-                {dayLabel(doc.expiresOn)}
-              </T>
+              {fill(t('Expires {date}'), {
+                date: (
+                  <T num size={12} color={colors.textSecondary}>
+                    {dayLabel(doc.expiresOn)}
+                  </T>
+                ),
+              })}
             </T>
           ) : null}
           {doc.uploadedByDetlio ? (
             <T size={11} color={colors.textMuted}>
-              Uploaded by Detlio
+              {t('Uploaded by Detlio')}
             </T>
           ) : null}
         </View>
       ) : null}
 
       {confirmRemove ? (
-        <View accessibilityLabel={`Remove ${doc.label}?`} style={styles.section}>
-          <T size={13}>{removePrompt(doc.label)}</T>
+        <View accessibilityLabel={t('Remove {doc}?', { doc: label })} style={styles.section}>
+          <T size={13}>{removePrompt(label)}</T>
           {error ? (
             <T accessibilityRole="alert" size={12} color={colors.error}>
               {error}
@@ -304,7 +313,7 @@ export function DocumentCard({
           ) : null}
           <View style={styles.buttons}>
             <ScButton variant="outline" fullWidth={false} style={styles.flex} onPress={() => void remove()} disabled={busy}>
-              {busy ? 'Removing…' : `Remove ${inSentence(doc.label)}`}
+              {busy ? t('Removing…') : t('Remove {doc}', { doc: inSentence(label) })}
             </ScButton>
             <ScButton
               variant="outline"
@@ -313,7 +322,7 @@ export function DocumentCard({
               disabled={busy}
               onPress={() => setConfirmRemove(false)}
             >
-              Keep it
+              {t('Keep it')}
             </ScButton>
           </View>
         </View>
@@ -322,7 +331,9 @@ export function DocumentCard({
           <ScButton variant="outline" onPress={() => setChoosing(true)}>
             <IconUpload size={16} />
             <Label>
-              {doc.status === 'missing' ? `Upload ${inSentence(doc.label)}` : `Replace ${inSentence(doc.label)}`}
+              {doc.status === 'missing'
+                ? t('Upload {doc}', { doc: inSentence(label) })
+                : t('Replace {doc}', { doc: inSentence(label) })}
             </Label>
           </ScButton>
           <T size={13} color={colors.textSecondary}>
@@ -331,7 +342,7 @@ export function DocumentCard({
           {canRemoveDocument(doc) ? (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={`Remove ${doc.label}`}
+              accessibilityLabel={t('Remove {doc}', { doc: label })}
               onPress={() => {
                 setError('');
                 setConfirmRemove(true);
@@ -339,7 +350,7 @@ export function DocumentCard({
               style={styles.removeLink}
             >
               <T size={12} weight={500} color={colors.textSecondary} style={styles.underline}>
-                Remove
+                {t('Remove')}
               </T>
             </Pressable>
           ) : null}
@@ -355,16 +366,16 @@ export function DocumentCard({
           </View>
           {doc.takesExpiry ? (
             <View style={styles.gap4}>
-              <DateField label="Expiry date (optional)" value={expiresOn} onChange={setExpiresOn} placeholder="" />
+              <DateField label={t('Expiry date (optional)')} value={expiresOn} onChange={setExpiresOn} placeholder="" />
               {expiresOn ? (
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Clear the expiry date"
+                  accessibilityLabel={t('Clear the expiry date')}
                   onPress={() => setExpiresOn('')}
                   style={styles.removeLink}
                 >
                   <T size={12} weight={500} color={colors.textSecondary} style={styles.underline}>
-                    Clear date
+                    {t('Clear date')}
                   </T>
                 </Pressable>
               ) : null}
@@ -389,7 +400,7 @@ export function DocumentCard({
               onPress={() => void send()}
               disabled={busy || Boolean(problem)}
             >
-              {busy ? 'Sending…' : 'Send for review'}
+              {busy ? t('Sending…') : t('Send for review')}
             </ScButton>
             <ScButton
               variant="outline"
@@ -401,18 +412,18 @@ export function DocumentCard({
                 setPicked([]);
               }}
             >
-              Cancel
+              {t('Cancel')}
             </ScButton>
           </View>
         </View>
       )}
 
-      <ScSheet open={choosing} onClose={() => setChoosing(false)} accessibilityLabel={`Choose files for ${doc.label}`}>
+      <ScSheet open={choosing} onClose={() => setChoosing(false)} accessibilityLabel={t('Choose files for {doc}', { doc: label })}>
         <View style={styles.sources}>
-          <SourceRow icon={<IconFileText size={20} />} label="Choose a file (PDF or photo)" onPress={() => void choose(fromFiles)} />
-          <SourceRow icon={<IconPhoto size={20} />} label="Photo library" onPress={() => void choose(fromLibrary)} />
+          <SourceRow icon={<IconFileText size={20} />} label={t('Choose a file (PDF or photo)')} onPress={() => void choose(fromFiles)} />
+          <SourceRow icon={<IconPhoto size={20} />} label={t('Photo library')} onPress={() => void choose(fromLibrary)} />
           {cameraOn ? (
-            <SourceRow icon={<IconCamera size={20} />} label="Take a photo" onPress={() => void choose(fromCamera)} />
+            <SourceRow icon={<IconCamera size={20} />} label={t('Take a photo')} onPress={() => void choose(fromCamera)} />
           ) : null}
         </View>
       </ScSheet>

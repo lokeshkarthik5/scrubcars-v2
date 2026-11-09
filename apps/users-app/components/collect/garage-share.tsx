@@ -1,4 +1,5 @@
 import type { GarageOwnedCar } from '@repo/core/api/garage';
+import { useT } from '@repo/core/i18n';
 import { Label, ScButton } from '@repo/native-ui/button';
 import { ScCheckbox } from '@repo/native-ui/chip';
 import { IconBrandInstagram } from '@repo/native-ui/icons';
@@ -15,6 +16,7 @@ import { GarageSharePicture } from './garage-card';
 
 /** GarageShare: the card as a Story or Post. The first name goes on only when ticked. */
 export function GarageShare({ car, firstName = null }: { car: GarageOwnedCar; firstName?: string | null }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const [open, setOpen] = useState(false);
@@ -31,20 +33,20 @@ export function GarageShare({ car, firstName = null }: { car: GarageOwnedCar; fi
     <View style={styles.column}>
       <ScButton variant="outline" onPress={() => setOpen((on) => !on)}>
         <IconBrandInstagram size={18} color={colors.textPrimary} />
-        <Label>Share</Label>
+        <Label>{t('Share')}</Label>
       </ScButton>
       {open ? (
         <View style={styles.box}>
           <T size={12} lh={16} color={colors.textSecondary}>
-            Your card as a picture for your story or feed, with “Collected on Detlio”.
+            {t('Your card as a picture for your story or feed, with “Collected on Detlio”.')}
           </T>
-          {firstName ? <ScCheckbox label={`Show “${firstName}’s Garage” on the picture`} checked={showName} onChange={setShowName} /> : null}
+          {firstName ? <ScCheckbox label={t('Show “{name}’s Garage” on the picture', { name: firstName })} checked={showName} onChange={setShowName} /> : null}
           <View style={styles.pair}>
             {(Object.keys(SHARE_FORMATS) as ShareFormat[]).map((format) => (
               <View key={format} style={styles.half}>
                 <ScButton variant="outline" disabled={busy !== null} onPress={() => void share(format)}>
                   {busy === format ? <Spinner size={14} /> : null}
-                  <Label>{`${SHARE_FORMATS[format].label} ${format === 'story' ? '9:16' : '4:5'}`}</Label>
+                  <Label>{`${t(SHARE_FORMATS[format].label)} ${format === 'story' ? '9:16' : '4:5'}`}</Label>
                 </ScButton>
               </View>
             ))}

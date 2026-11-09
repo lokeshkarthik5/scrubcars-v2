@@ -1,3 +1,4 @@
+import { fill, useT } from '@repo/core/i18n';
 import { customerMedia, formatClipLength } from '@repo/core/service-media';
 import type { Service, ServiceMedia } from '@repo/core/types';
 import { IconBuildingStore, IconX } from '@repo/native-ui/icons';
@@ -11,15 +12,19 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /** "From <garage>": only the garage's own photos and video are shown to a customer. */
 function MediaTag({ garageName }: { garageName: string }) {
+  const t = useT();
   const styles = useStyles();
   return (
     <View style={styles.tag}>
       <IconBuildingStore size={15} stroke={1.6} color="#FFFFFF" />
       <T size={13} lh={18} numberOfLines={1} color="rgba(255,255,255,0.75)" style={styles.shrink}>
-        {'From '}
-        <T size={13} weight={500} lh={18} color="#FFFFFF">
-          {garageName}
-        </T>
+        {fill(t('From {name}'), {
+          name: (
+            <T size={13} weight={500} lh={18} color="#FFFFFF">
+              {garageName}
+            </T>
+          ),
+        })}
       </T>
     </View>
   );
@@ -27,6 +32,7 @@ function MediaTag({ garageName }: { garageName: string }) {
 
 /** ServiceVideo: the poster, then the phone's own player (play, seek, mute, full screen) on tap. */
 function ServiceVideo({ video, serviceName, garageName }: { video: ServiceMedia; serviceName: string; garageName: string }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const [started, setStarted] = useState(false);
@@ -43,7 +49,7 @@ function ServiceVideo({ video, serviceName, garageName }: { video: ServiceMedia;
       {started ? (
         <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="cover" nativeControls fullscreenOptions={{ enable: true }} />
       ) : (
-        <Pressable accessibilityRole="button" accessibilityLabel={`Play the video of ${serviceName}`} onPress={start} style={StyleSheet.absoluteFill}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('Play the video of {name}', { name: serviceName })} onPress={start} style={StyleSheet.absoluteFill}>
           {video.posterUrl ? <Image source={{ uri: video.posterUrl }} resizeMode="cover" style={[StyleSheet.absoluteFill, styles.fill]} /> : null}
           <View style={styles.play}>
             <T size={18} lh={22} color="#FFFFFF">
@@ -67,7 +73,7 @@ function ServiceVideo({ video, serviceName, garageName }: { video: ServiceMedia;
       {started && status === 'error' ? (
         <View style={styles.failed}>
           <T accessibilityRole="alert" size={13} lh={18} align="center" color={colors.white}>
-            The video did not load. Check the connection and try again.
+            {t('The video did not load. Check the connection and try again.')}
           </T>
         </View>
       ) : null}
@@ -77,6 +83,7 @@ function ServiceVideo({ video, serviceName, garageName }: { video: ServiceMedia;
 
 /** PhotoViewer: full screen, swipe between them, the counter and dots, close. */
 function PhotoViewer({ photos, startIndex, garageName, serviceName, onClose }: { photos: ServiceMedia[]; startIndex: number; garageName: string; serviceName: string; onClose: () => void }) {
+  const t = useT();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -86,12 +93,12 @@ function PhotoViewer({ photos, startIndex, garageName, serviceName, onClose }: {
       <View style={styles.viewer}>
         <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} contentOffset={{ x: startIndex * width, y: 0 }} onMomentumScrollEnd={(e) => setIndex(Math.round(e.nativeEvent.contentOffset.x / width))}>
           {photos.map((photo, i) => (
-            <Image key={photo.id} source={{ uri: photo.url }} accessibilityLabel={`Photo ${i + 1} of ${serviceName}`} resizeMode="contain" style={{ width, height: '100%' }} />
+            <Image key={photo.id} source={{ uri: photo.url }} accessibilityLabel={t('Photo {number} of {name}', { number: i + 1, name: serviceName })} resizeMode="contain" style={{ width, height: '100%' }} />
           ))}
         </ScrollView>
         <View style={[styles.viewerTop, { top: insets.top + 8 }]}>
           <MediaTag garageName={garageName} />
-          <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={styles.close}>
+          <Pressable accessibilityRole="button" accessibilityLabel={t('Close')} onPress={onClose} style={styles.close}>
             <IconX size={20} color="#FFFFFF" />
           </Pressable>
         </View>
@@ -112,6 +119,7 @@ function PhotoViewer({ photos, startIndex, garageName, serviceName, onClose }: {
 
 /** ServiceMediaArea (apps/users/components/service-media/service-media-area.tsx). */
 export function ServiceMediaArea({ service, garageName }: { service: Pick<Service, 'media' | 'name'>; garageName: string }) {
+  const t = useT();
   const styles = useStyles();
   const [viewing, setViewing] = useState<number | null>(null);
   const media = customerMedia(service.media);
@@ -125,7 +133,7 @@ export function ServiceMediaArea({ service, garageName }: { service: Pick<Servic
       {video ? (
         <ServiceVideo video={video} serviceName={service.name} garageName={garageName} />
       ) : hero ? (
-        <Pressable accessibilityRole="button" accessibilityLabel={`Open photo 1 of ${service.name}`} onPress={() => setViewing(0)} style={styles.hero}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('Open photo {number} of {name}', { number: 1, name: service.name })} onPress={() => setViewing(0)} style={styles.hero}>
           <Image source={{ uri: hero.url }} resizeMode="cover" style={[StyleSheet.absoluteFill, styles.fill]} />
           <View style={styles.tagAt}>
             <MediaTag garageName={garageName} />
@@ -137,7 +145,7 @@ export function ServiceMediaArea({ service, garageName }: { service: Pick<Servic
           {thumbs.map((photo) => {
             const index = photos.indexOf(photo);
             return (
-              <Pressable key={photo.id} accessibilityRole="button" accessibilityLabel={`Open photo ${index + 1} of ${service.name}`} onPress={() => setViewing(index)} style={styles.thumb}>
+              <Pressable key={photo.id} accessibilityRole="button" accessibilityLabel={t('Open photo {number} of {name}', { number: index + 1, name: service.name })} onPress={() => setViewing(index)} style={styles.thumb}>
                 <Image source={{ uri: photo.url }} resizeMode="cover" style={[StyleSheet.absoluteFill, styles.fill]} />
               </Pressable>
             );

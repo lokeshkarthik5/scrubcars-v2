@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { useT } from '@repo/core/i18n'
 
 interface InfiniteSentinelProps {
   onVisible: () => void
@@ -22,6 +23,7 @@ export function InfiniteSentinel({
   enabled,
   loading = false,
 }: InfiniteSentinelProps) {
+  const t = useT()
   const ref = useRef<HTMLDivElement>(null)
   // Held in a ref so a new closure each render does not tear down the observer.
   // Synced in an effect rather than during render, since a render that React
@@ -52,7 +54,7 @@ export function InfiniteSentinel({
 
   return (
     <div ref={ref} className="py-4 text-center text-[12px] text-text-muted">
-      {loading ? 'Loading more…' : ''}
+      {loading ? t('Loading more…') : ''}
     </div>
   )
 }

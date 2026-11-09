@@ -1,3 +1,5 @@
+import { msg, t } from './i18n/translate'
+
 /**
  * The Detlio garage agreement for the apps (0063): the words the garage
  * portal and admin show, and the upload limits admin checks before asking
@@ -8,10 +10,10 @@
  */
 
 /** "Detlio garage agreement v2". */
-export const AGREEMENT_TITLE = 'Detlio garage agreement'
+export const AGREEMENT_TITLE = msg('Detlio garage agreement')
 
 /** The tick the owner seat must give before Confirm. */
-export const AGREEMENT_TICK = 'I agree to the terms'
+export const AGREEMENT_TICK = msg('I agree to the terms')
 
 export const AGREEMENT_CONTENT_TYPE = 'application/pdf'
 export const AGREEMENT_MAX_BYTES = 10 * 1024 * 1024
@@ -19,7 +21,7 @@ export const AGREEMENT_GRACE_DAYS = 30
 export const AGREEMENT_NOTE_MAX = 300
 
 export function agreementTitle(version: number): string {
-  return `${AGREEMENT_TITLE} v${version}`
+  return `${t(AGREEMENT_TITLE)} v${version}`
 }
 
 /** What is wrong with a file picked as the agreement, before anything is sent, or null. */
@@ -51,10 +53,15 @@ export function agreementBannerLine(standing: {
 }): string | null {
   if (standing.latestVersion === null) return null
   if (standing.status === 'grace' && standing.acceptBy) {
-    return `Detlio has updated the garage agreement (v${standing.latestVersion}). Accept it by ${dayLabel(standing.acceptBy)} to keep your tier.`
+    return t('Detlio has updated the garage agreement (v{version}). Accept it by {date} to keep your tier.', {
+      version: standing.latestVersion,
+      date: dayLabel(standing.acceptBy),
+    })
   }
   if (standing.status === 'not_accepted') {
-    return `Accept the ${agreementTitle(standing.latestVersion)} to earn Bronze and show customers you are with Detlio.`
+    return t('Accept the {agreement} to earn Bronze and show customers you are with Detlio.', {
+      agreement: agreementTitle(standing.latestVersion),
+    })
   }
   return null
 }

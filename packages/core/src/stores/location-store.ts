@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { useHydrated } from '@repo/core/hooks/use-hydrated'
 import { ASSUMED_ORIGIN } from '@repo/core/map'
+import { msg } from '../i18n/translate'
 
 /**
  * Where the customer is, for sorting garages by distance.
@@ -136,7 +137,8 @@ export const useLocationStore = create<LocationState>()(
               const location: ActiveLocation = {
                 lat: position.coords.latitude,
                 lng: position.coords.longitude,
-                label: 'Current location',
+                // English as stored: a screen shows t(location.label).
+                label: msg('Current location'),
                 source: 'gps',
                 updatedAt: Date.now(),
               }

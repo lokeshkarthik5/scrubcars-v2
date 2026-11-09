@@ -16,14 +16,16 @@ import { ScInput } from '@repo/native-ui/inputs';
 import { T } from '@repo/native-ui/text';
 import { toast } from '@repo/native-ui/toast';
 import { errorText } from '@/lib/error-text';
+import { fill, msg, useT, useTn } from '@repo/core/i18n';
 
 const STEP_HINTS: Record<PickupNext, string> = {
-  picked_up:
-    "Ask the customer for the 4-digit pickup code in their Detlio app. From now until the car is back, it's in your care.",
-  at_garage: 'Press when the car arrives at your garage.',
-  start_work: 'Start the work on the car.',
-  out_for_delivery: 'Press when the work is done and the car leaves to go back to the customer.',
-  delivered: 'Ask the customer for the 4-digit delivery code in their Detlio app. This finishes the job.',
+  picked_up: msg(
+    "Ask the customer for the 4-digit pickup code in their Detlio app. From now until the car is back, it's in your care."
+  ),
+  at_garage: msg('Press when the car arrives at your garage.'),
+  start_work: msg('Start the work on the car.'),
+  out_for_delivery: msg('Press when the work is done and the car leaves to go back to the customer.'),
+  delivered: msg('Ask the customer for the 4-digit delivery code in their Detlio app. This finishes the job.'),
 };
 
 /**
@@ -40,6 +42,8 @@ export function PickupSteps({
   onStartWork: () => void;
   onChanged: () => void;
 }) {
+  const t = useT();
+  const tn = useTn();
   const colors = useColors();
   const styles = useStyles();
   const step = booking.pickup?.nextStep ?? null;
@@ -52,7 +56,7 @@ export function PickupSteps({
   const needsCode = step === 'picked_up' || step === 'delivered';
   const triesLeft = step === 'picked_up' ? booking.pickup?.pickupCodeTriesLeft : booking.pickup?.deliveryCodeTriesLeft;
   const outOfTries = handoverLocked(step, lockedStep, triesLeft);
-  const who = booking.customerName ?? 'this customer';
+  const who = booking.customerName ?? t('this customer');
   const photoBlock =
     step === 'start_work'
       ? (booking.photoStandard?.startBlocked ?? null)
@@ -71,11 +75,11 @@ export function PickupSteps({
       if (step === 'delivered') await markDelivered(booking.id, code);
       else onStartWork();
       setCode('');
-      if (step !== 'start_work') toast.success(`${PICKUP_STEP_LABELS[step]} marked`);
+      if (step !== 'start_work') toast.success(t('{step} marked', { step: t(PICKUP_STEP_LABELS[step]) }));
       onChanged();
     } catch (error) {
       if (error instanceof ApiError && error.code === 'HANDOVER_CODE_LOCKED') setLockedStep(step);
-      toast.error(errorText(error, 'Could not update this booking'));
+      toast.error(errorText(error, t('Could not update this booking')));
       onChanged();
     } finally {
       setBusy(false);
@@ -86,10 +90,10 @@ export function PickupSteps({
     <View style={styles.column}>
       {needsCode && !outOfTries ? (
         <ScInput
-          label={step === 'picked_up' ? "Customer's pickup code" : "Customer's delivery code"}
+          label={step === 'picked_up' ? t("Customer's pickup code") : t("Customer's delivery code")}
           keyboardType="number-pad"
           autoComplete="one-time-code"
-          placeholder="4 digits"
+          placeholder={t('4 digits')}
           numeric
           style={styles.code}
           value={code}
@@ -99,18 +103,23 @@ export function PickupSteps({
 
       {outOfTries ? (
         <T accessibilityRole="alert" size={14} color={colors.warning}>
-          {'Too many wrong codes. Call Detlio support on '}
-          <T
-            accessibilityRole="link"
-            num
-            size={14}
-            color={colors.warning}
-            style={styles.underline}
-            onPress={() => openLink(SUPPORT_TEL_HREF)}
-          >
-            {SUPPORT_PHONE_DISPLAY}
-          </T>
-          : we can confirm the handover once we have spoken to the customer.
+          {fill(
+            t('Too many wrong codes. Call Detlio support on {phone}: we can confirm the handover once we have spoken to the customer.'),
+            {
+              phone: (
+                <T
+                  accessibilityRole="link"
+                  num
+                  size={14}
+                  color={colors.warning}
+                  style={styles.underline}
+                  onPress={() => openLink(SUPPORT_TEL_HREF)}
+                >
+                  {SUPPORT_PHONE_DISPLAY}
+                </T>
+              ),
+            }
+          )}
         </T>
       ) : (
         <>
@@ -122,21 +131,28 @@ export function PickupSteps({
           <ScButton
             variant="main"
             size="lg"
-            accessibilityLabel={step === 'start_work' ? `Start job for ${who}` : `Mark ${PICKUP_STEP_LABELS[step]} for ${who}`}
+            accessibilityLabel={
+              step === 'start_work'
+                ? t('Start job for {who}', { who })
+                : t('Mark {step} for {who}', { step: t(PICKUP_STEP_LABELS[step]), who })
+            }
             disabled={busy || (needsCode && code.length !== 4) || photoBlock !== null}
             onPress={() => void run()}
           >
-            {busy ? 'Saving...' : step === 'start_work' ? 'Start job' : PICKUP_STEP_LABELS[step]}
+            {busy ? t('Saving...') : step === 'start_work' ? t('Start job') : t(PICKUP_STEP_LABELS[step])}
           </ScButton>
           <T size={13} color={colors.textSecondary}>
-            {STEP_HINTS[step]}
+            {t(STEP_HINTS[step])}
             {needsCode && triesLeft !== undefined && triesLeft < MAX_CODE_ATTEMPTS ? (
               <>
                 {' '}
-                <T num size={13} color={colors.textSecondary}>
-                  {triesLeft}
-                </T>
-                {` ${triesLeft === 1 ? 'try' : 'tries'} left.`}
+                {fill(tn(triesLeft, '{num} try left.', '{num} tries left.'), {
+                  num: (
+                    <T num size={13} color={colors.textSecondary}>
+                      {triesLeft}
+                    </T>
+                  ),
+                })}
               </>
             ) : null}
           </T>

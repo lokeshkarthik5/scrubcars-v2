@@ -47,6 +47,7 @@ import type { ServiceCategory } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
 import { CustomerShell } from '@/components/customer-shell'
 import { isHomeHubEnabled } from '@/lib/home-hub'
+import { fill, useT } from '@repo/core/i18n'
 
 /**
  * The card's own link, stretched over the whole card (as on My bookings), so
@@ -82,6 +83,7 @@ export default function CarHistoryPage({
 }: {
   params: Promise<{ id: string }>
 }) {
+  const t = useT()
   const { id } = use(params)
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
@@ -100,14 +102,14 @@ export default function CarHistoryPage({
     return (
       <CustomerShell showNav showBrand className="gap-4 py-4">
         <TopBar
-          title="Car history"
+          title={t('Car history')}
           showBack
           backHref="/profile"
           large={isHomeHubEnabled()}
         />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
           <p className="text-t3 font-semibold text-text-primary">
-            Sign in to see your car&apos;s history
+            {t("Sign in to see your car's history")}
           </p>
           <ScButton
             variant="main"
@@ -118,7 +120,7 @@ export default function CarHistoryPage({
               )
             }
           >
-            Sign in
+            {t('Sign in')}
           </ScButton>
         </div>
       </CustomerShell>
@@ -128,7 +130,7 @@ export default function CarHistoryPage({
   const data = history.data
   const notFound =
     history.error instanceof ApiError && history.error.status === 404
-  const carName = data ? `${data.car.make} ${data.car.model}` : 'Car history'
+  const carName = data ? `${data.car.make} ${data.car.model}` : t('Car history')
 
   return (
     <CustomerShell showNav showBrand className="gap-4 py-4">
@@ -147,21 +149,21 @@ export default function CarHistoryPage({
       ) : notFound ? (
         <EmptyState
           icon={<IconCar size={32} stroke={1.5} />}
-          title="This car isn't in your garage"
-          subtitle="It may have been removed. Your cars are in Profile."
-          actionLabel="Go to Profile"
+          title={t("This car isn't in your garage")}
+          subtitle={t('It may have been removed. Your cars are in Profile.')}
+          actionLabel={t('Go to Profile')}
           onAction={() => router.push('/profile#vehicles')}
         />
       ) : !data ? (
         <ErrorState
-          message="Couldn't load this car's history. Check your connection."
+          message={t("Couldn't load this car's history. Check your connection.")}
           onRetry={() => void history.refetch()}
         />
       ) : (
         <>
           <p className="-mt-2 flex items-center gap-1.5 text-t5 text-text-secondary">
             <IconHistory size={14} aria-hidden="true" />
-            Service history
+            {t('Service history')}
             {data.car.licensePlate ? ` · ${data.car.licensePlate}` : ''}
           </p>
 
@@ -188,10 +190,10 @@ export default function CarHistoryPage({
               />
               <span className="min-w-0 flex-1">
                 <span className="block text-t4 font-semibold text-text-primary">
-                  Service history certificate
+                  {t('Service history certificate')}
                 </span>
                 <span className="block text-t5 text-text-secondary">
-                  Print it or share a link a buyer can check
+                  {t('Print it or share a link a buyer can check')}
                 </span>
               </span>
               <IconChevronRight
@@ -207,33 +209,31 @@ export default function CarHistoryPage({
           {(data.items.length > 0 || category) && (
             <div className="grid grid-cols-2 gap-2">
               <StatTile
-                label="Washes this year"
+                label={t('Washes this year')}
                 value={data.totals.washesThisYear}
               />
               <StatTile
-                label="Spent this year"
+                label={t('Spent this year')}
                 value={money(data.totals.spentThisYear)}
               />
             </div>
           )}
           {data.totals.since && (
             <p className="-mt-2 text-t5 text-text-secondary">
-              <span className="font-numeric font-medium text-text-primary">
+              {fill(t('{money} on {washCount} since {sinceLabel}'), { money: <span className="font-numeric font-medium text-text-primary">
                 {money(data.totals.spentTotal)}
-              </span>{' '}
-              on {washCount(data.totals.washesTotal)} since{' '}
-              {sinceLabel(data.totals.since)}
+              </span>, washCount: washCount(data.totals.washesTotal), sinceLabel: sinceLabel(data.totals.since) })}
             </p>
           )}
 
           {data.categories.length > 1 && (
             <div
               role="group"
-              aria-label="Filter by service"
+              aria-label={t('Filter by service')}
               className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1"
             >
               <Chip
-                label="All"
+                label={t('All')}
                 selected={category === null}
                 onClick={() => setCategory(null)}
               />
@@ -252,16 +252,15 @@ export default function CarHistoryPage({
             category ? (
               <ScCard>
                 <p className="text-t5 text-text-secondary">
-                  No {categoryLabel(category).toLowerCase()} jobs for this car
-                  yet.
+                  {t('No {categoryLabel} jobs for this car yet.', { categoryLabel: categoryLabel(category).toLowerCase() })}
                 </p>
               </ScCard>
             ) : (
               <EmptyState
                 icon={<IconHistory size={32} stroke={1.5} />}
-                title="No washes yet"
-                subtitle="Every job done on this car will be listed here, with its receipt and photos."
-                actionLabel="Book a wash"
+                title={t('No washes yet')}
+                subtitle={t('Every job done on this car will be listed here, with its receipt and photos.')}
+                actionLabel={t('Book a wash')}
                 onAction={() => {
                   chooseThisCar()
                   router.push('/garages')
@@ -270,7 +269,7 @@ export default function CarHistoryPage({
             )
           ) : (
             <ul
-              aria-label={`Jobs on your ${carName}, newest first`}
+              aria-label={t('Jobs on your {carName}, newest first', { carName })}
               className="flex flex-col gap-2"
             >
               {data.items.map((item) => (
@@ -284,13 +283,13 @@ export default function CarHistoryPage({
           {data.cancelledCount > 0 && (
             <p className="text-t5 text-text-secondary">
               {data.cancelledCount === 1
-                ? '1 cancelled booking for this car isn’t listed here.'
-                : `${data.cancelledCount} cancelled bookings for this car aren’t listed here.`}{' '}
+                ? t('1 cancelled booking for this car isn’t listed here.')
+                : t('{cancelledCount} cancelled bookings for this car aren’t listed here.', { cancelledCount: data.cancelledCount })}{' '}
               <Link
                 href="/bookings?tab=past"
                 className="font-medium text-text-primary underline underline-offset-2"
               >
-                See My bookings
+                {t('See My bookings')}
               </Link>
             </p>
           )}
@@ -301,6 +300,7 @@ export default function CarHistoryPage({
 }
 
 function HistoryCard({ item, now }: { item: CarHistoryItem; now: Date }) {
+  const t = useT()
   const date = historyDateLabel(item.doneAt, now)
   const services = servicesLine(item.services)
   const photos = item.photos.before + item.photos.after
@@ -311,7 +311,7 @@ function HistoryCard({ item, now }: { item: CarHistoryItem; now: Date }) {
           <p className="text-t4 font-semibold text-text-primary">
             <Link
               href={`/bookings/${item.bookingId}`}
-              aria-label={`${services} at ${item.vendorName}, ${date}, ${money(item.amountPaid)}`}
+              aria-label={t('{services} at {vendorName}, {date}, {money}', { services, vendorName: item.vendorName, date, money: money(item.amountPaid) })}
               className={CARD_LINK}
             >
               {services}
@@ -333,21 +333,21 @@ function HistoryCard({ item, now }: { item: CarHistoryItem; now: Date }) {
           {item.receiptAvailable && (
             <Link
               href={`/bookings/${item.bookingId}/receipt`}
-              aria-label={`Receipt: ${services}, ${date}`}
+              aria-label={t('Receipt: {services}, {date}', { services, date })}
               className={FOOT_LINK}
             >
               <IconFileInvoice size={14} aria-hidden="true" />
-              Receipt
+              {t('Receipt')}
             </Link>
           )}
           {photos > 0 && (
             <Link
               href={`/bookings/${item.bookingId}#job-photos`}
-              aria-label={`Before and after photos: ${services}, ${date}`}
+              aria-label={t('Before and after photos: {services}, {date}', { services, date })}
               className={FOOT_LINK}
             >
               <IconPhoto size={14} aria-hidden="true" />
-              Photos
+              {t('Photos')}
             </Link>
           )}
         </span>
@@ -370,6 +370,7 @@ function ReminderCard({
   now: Date
   onBook: () => void
 }) {
+  const t = useT()
   const action = useServiceReminderAction()
   const run = (kind: 'dismiss' | 'snooze') =>
     action.mutate(
@@ -377,11 +378,11 @@ function ReminderCard({
       {
         onSuccess: () =>
           toast.success(
-            kind === 'dismiss' ? 'Reminder dismissed' : 'Snoozed for 2 weeks'
+            kind === 'dismiss' ? t('Reminder dismissed') : t('Snoozed for 2 weeks')
           ),
         onError: (err) =>
           toast.error(
-            err instanceof Error ? err.message : 'Something went wrong'
+            err instanceof Error ? err.message : t('Something went wrong')
           ),
       }
     )
@@ -390,7 +391,7 @@ function ReminderCard({
 
   return (
     <ScCard
-      aria-label={`Reminder: ${reminder.title}`}
+      aria-label={t('Reminder: {title}', { title: reminder.title })}
       role="region"
       className="flex flex-col gap-3"
     >
@@ -430,7 +431,7 @@ function ReminderCard({
           href={`/bookings/${reminder.booked!.bookingId}`}
           className="-my-1 inline-flex min-h-11 items-center gap-1 self-start text-t5 font-semibold text-text-primary"
         >
-          See the booking
+          {t('See the booking')}
           <IconChevronRight size={14} aria-hidden="true" />
         </Link>
       ) : (
@@ -442,7 +443,7 @@ function ReminderCard({
             className="px-5"
             onClick={onBook}
           >
-            Book
+            {t('Book')}
           </ScButtonLink>
           {canSnoozeReminder(reminder) && (
             <button
@@ -451,17 +452,17 @@ function ReminderCard({
               onClick={() => run('snooze')}
               className="min-h-11 px-2 text-t5 font-medium text-text-secondary transition-colors hover:text-text-primary disabled:opacity-40"
             >
-              Remind me in 2 weeks
+              {t('Remind me in 2 weeks')}
             </button>
           )}
           <button
             type="button"
             disabled={action.isPending}
             onClick={() => run('dismiss')}
-            aria-label={`Dismiss reminder: ${reminder.title}`}
+            aria-label={t('Dismiss reminder: {title}', { title: reminder.title })}
             className="min-h-11 px-2 text-t5 font-medium text-text-secondary transition-colors hover:text-text-primary disabled:opacity-40"
           >
-            Dismiss
+            {t('Dismiss')}
           </button>
         </div>
       )}

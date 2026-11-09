@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/auth';
 import { type OnboardingDraft, type OnboardingStep, progressFor } from '@/lib/onboarding-logic';
 import { writeDraft } from '@/lib/onboarding-draft';
 import { createStyles, useColors } from '@repo/native-ui/theme';
+import { fill, useT } from '@repo/core/i18n';
 
 /**
  * "Sign out" on the first sign-up step (0066). A login with no garage lands here and had no
@@ -15,13 +16,14 @@ import { createStyles, useColors } from '@repo/native-ui/theme';
  * to look. Signing out empties the draft too (lib/onboarding-draft.ts).
  */
 export function OnboardingSignOut() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const [busy, setBusy] = useState(false);
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel="Sign out"
+      accessibilityLabel={t('Sign out')}
       disabled={busy}
       onPress={() => {
         setBusy(true);
@@ -34,7 +36,7 @@ export function OnboardingSignOut() {
     >
       <IconLogout size={18} color={colors.textSecondary} />
       <T size={14} weight={500} lh={20} color={colors.textSecondary}>
-        Sign out
+        {t('Sign out')}
       </T>
     </Pressable>
   );
@@ -56,13 +58,14 @@ export function OnboardingHeader({
   /** The step before. Absent on step 1. */
   onBack?: () => void;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   return (
     <View style={styles.header}>
       {onBack ? (
         <View style={styles.topBar}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={onBack} style={styles.back}>
+          <Pressable accessibilityRole="button" accessibilityLabel={t('Go back')} onPress={onBack} style={styles.back}>
             <IconArrowLeft size={22} stroke={1.5} />
           </Pressable>
         </View>
@@ -74,14 +77,18 @@ export function OnboardingHeader({
       <ProgressBar progress={progressFor(step)} />
       <View>
         <T size={11} weight={500} color={colors.textSecondary}>
-          Step{' '}
-          <T size={11} weight={500} num color={colors.textSecondary}>
-            {step}
-          </T>{' '}
-          of{' '}
-          <T size={11} weight={500} num color={colors.textSecondary}>
-            4
-          </T>
+          {fill(t('Step {step} of {total}'), {
+            step: (
+              <T size={11} weight={500} num color={colors.textSecondary}>
+                {step}
+              </T>
+            ),
+            total: (
+              <T size={11} weight={500} num color={colors.textSecondary}>
+                4
+              </T>
+            ),
+          })}
         </T>
         <T accessibilityRole="header" size={20} weight={600} lh={28} tracking={-0.025} style={styles.title}>
           {title}

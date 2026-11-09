@@ -1,6 +1,7 @@
 import * as Sharing from 'expo-sharing';
 
 import { discardAfterShare, newPrivateFile } from './private-cache';
+import { t } from '@repo/core/i18n/translate';
 
 /**
  * The CSV button on a phone. The web saves a Blob through a link, which has no native
@@ -16,7 +17,7 @@ export async function shareCsv(text: string, fileName: string): Promise<boolean>
     await Sharing.shareAsync(file.uri, {
       mimeType: 'text/csv',
       UTI: 'public.comma-separated-values-text',
-      dialogTitle: 'Your earnings',
+      dialogTitle: t('Your earnings'),
     });
   } finally {
     discardAfterShare(file);

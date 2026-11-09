@@ -1,4 +1,7 @@
+'use client'
+
 import { IconAlertCircle } from '@tabler/icons-react'
+import { useT } from '@repo/core/i18n'
 import { BrandMark } from './brand-mark'
 import { ScButton } from './button'
 
@@ -39,6 +42,7 @@ export function CrashScreen({
   children,
   inChrome = false,
 }: CrashScreenProps) {
+  const t = useT()
   return (
     <div
       className={
@@ -57,7 +61,7 @@ export function CrashScreen({
         <div className="mt-2 flex w-full max-w-[300px] flex-col gap-2">
           {onRetry && (
             <ScButton type="button" onClick={onRetry} className="min-h-11">
-              Try again
+              {t('Try again')}
             </ScButton>
           )}
           <a
@@ -71,7 +75,7 @@ export function CrashScreen({
         {children && <div className="w-full max-w-[300px] pt-4">{children}</div>}
 
         {reference && (
-          <p className="pt-2 text-[11px] text-text-muted">Reference {reference}</p>
+          <p className="pt-2 text-[11px] text-text-muted">{t('Reference {reference}', { reference })}</p>
         )}
       </div>
     </div>

@@ -1,3 +1,4 @@
+import { msg, useT } from '@repo/core/i18n';
 import { ScButton } from '@repo/native-ui/button';
 import { IconMapPin, IconRoute, IconSparkles } from '@repo/native-ui/icons';
 import { T } from '@repo/native-ui/text';
@@ -7,9 +8,9 @@ import { Linking, View } from 'react-native';
 import { useLocationStore } from '@/lib/location';
 
 const REASONS = [
-  { icon: IconRoute, title: 'Real distances', body: 'See how far each garage actually is, not just its area.' },
-  { icon: IconSparkles, title: 'Nearest first', body: 'Sort by what is closest instead of scrolling to find it.' },
-  { icon: IconMapPin, title: 'Doorstep that reaches you', body: 'Only show garages that travel to your address.' },
+  { icon: IconRoute, title: msg('Real distances'), body: msg('See how far each garage actually is, not just its area.') },
+  { icon: IconSparkles, title: msg('Nearest first'), body: msg('Sort by what is closest instead of scrolling to find it.') },
+  { icon: IconMapPin, title: msg('Doorstep that reaches you'), body: msg('Only show garages that travel to your address.') },
 ];
 
 /**
@@ -19,6 +20,7 @@ const REASONS = [
  * another is leaving.
  */
 export function LocationPrompt({ onClose }: { onClose: () => void }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const requestGpsLocation = useLocationStore((s) => s.requestGpsLocation);
@@ -40,12 +42,12 @@ export function LocationPrompt({ onClose }: { onClose: () => void }) {
             <IconMapPin size={24} />
           </View>
           <T size={20} lh={28} tracking={-0.015} align="center">
-            {blocked ? 'Location is blocked' : 'Find garages near you'}
+            {blocked ? t('Location is blocked') : t('Find garages near you')}
           </T>
           <T size={15} align="center" color={colors.textSecondary}>
             {blocked
-              ? 'Your phone is blocking location for Detlio. You can turn it back on in Settings.'
-              : 'Share your location and we’ll show the closest garages first, with real distances.'}
+              ? t('Your phone is blocking location for Detlio. You can turn it back on in Settings.')
+              : t('Share your location and we’ll show the closest garages first, with real distances.')}
           </T>
         </View>
         {!blocked ? (
@@ -57,10 +59,10 @@ export function LocationPrompt({ onClose }: { onClose: () => void }) {
                 </View>
                 <View style={styles.reasonText}>
                   <T size={15} weight={500}>
-                    {title}
+                    {t(title)}
                   </T>
                   <T size={13} color={colors.textSecondary}>
-                    {body}
+                    {t(body)}
                   </T>
                 </View>
               </View>
@@ -76,11 +78,11 @@ export function LocationPrompt({ onClose }: { onClose: () => void }) {
                 void requestGpsLocation().finally(onClose);
               }}
             >
-              {locating ? 'Finding you…' : 'Enable location'}
+              {locating ? t('Finding you…') : t('Enable location')}
             </ScButton>
           ) : (
             <ScButton variant="outline" onPress={() => void Linking.openSettings()}>
-              Open Settings
+              {t('Open Settings')}
             </ScButton>
           )}
           <ScButton
@@ -90,17 +92,17 @@ export function LocationPrompt({ onClose }: { onClose: () => void }) {
               onClose();
             }}
           >
-            All of Chennai
+            {t('All of Chennai')}
           </ScButton>
           {!blocked ? (
             <ScButton variant="text" onPress={notNow}>
-              Not now
+              {t('Not now')}
             </ScButton>
           ) : null}
         </View>
         {!blocked ? (
           <T size={12} align="center" color={colors.textMuted}>
-            Enable location asks your phone. We only use it to sort garages — it is never shared.
+            {t('Enable location asks your phone. We only use it to sort garages — it is never shared.')}
           </T>
         ) : null}
     </View>

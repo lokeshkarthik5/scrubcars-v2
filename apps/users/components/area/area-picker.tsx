@@ -15,10 +15,12 @@ import { useLocationStore } from '@repo/core/stores/location-store'
 import { searchZones, type Zone } from '@repo/core/zones'
 import type { BookingType } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
+import { useT } from '@repo/core/i18n'
+import { msg } from '@repo/core/i18n/translate'
 
 /** The line said when "Near me" cannot work: the browser has location blocked. */
 export const NEAR_ME_BLOCKED_LINE =
-  'Location is off for this site. Pick your area instead — distances work the same.'
+  msg('Location is off for this site. Pick your area instead — distances work the same.')
 
 /**
  * Picks an area: its centre and name go into the location store at once, with
@@ -64,9 +66,10 @@ export function useNearMe(mode?: BookingType) {
 
 /** The friendly line under the chips, or at the top of the sheet. */
 export function NearMeBlocked() {
+  const t = useT()
   return (
     <p role="status" className="text-t4 leading-snug text-text-secondary">
-      {NEAR_ME_BLOCKED_LINE}
+      {t(NEAR_ME_BLOCKED_LINE)}
     </p>
   )
 }
@@ -87,6 +90,7 @@ export function AreaPicker({
   /** The tab the list is on, for the area_pick event. */
   mode?: BookingType
 }) {
+  const t = useT()
   const location = useLocationStore((s) => s.location)
   const selectChennai = useLocationStore((s) => s.selectChennai)
   const pickArea = useAreaPick(mode)
@@ -123,15 +127,14 @@ export function AreaPicker({
 
   return (
     <>
-      <ScSheet open={open || reopened} onClose={close} aria-label="Where's your car?" className="px-4">
+      <ScSheet open={open || reopened} onClose={close} aria-label={t("Where's your car?")} className="px-4">
         <div className="flex flex-col gap-4 pt-1">
           <div>
             <h2 className="text-[20px] font-normal tracking-[-0.015em] text-text-primary">
-              Where&apos;s your car?
+              {t("Where's your car?")}
             </h2>
             <p className="mt-1 text-t4 text-text-secondary">
-              Pick your area to see distances and drive times. No location
-              permission needed.
+              {t('Pick your area to see distances and drive times. No location permission needed.')}
             </p>
           </div>
 
@@ -143,9 +146,9 @@ export function AreaPicker({
             className="press flex min-h-12 items-center gap-3 rounded-[14px] border border-line bg-white/[0.03] px-4 text-left text-t3 text-text-primary"
           >
             <IconCurrentLocation size={18} aria-hidden className="shrink-0" />
-            <span className="min-w-0 flex-1">Near me</span>
+            <span className="min-w-0 flex-1">{t('Near me')}</span>
             {location?.source === 'gps' && (
-              <IconCheck size={16} aria-label="Chosen" className="shrink-0" />
+              <IconCheck size={16} aria-label={t('Chosen')} className="shrink-0" />
             )}
           </button>
 
@@ -153,8 +156,8 @@ export function AreaPicker({
             <IconSearch size={16} aria-hidden className="shrink-0 text-text-secondary" />
             <input
               type="search"
-              aria-label="Search areas"
-              placeholder="Search areas"
+              aria-label={t('Search areas')}
+              placeholder={t('Search areas')}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               className="min-w-0 flex-1 bg-transparent py-3 text-t3 text-text-primary outline-none placeholder:text-text-muted"
@@ -171,7 +174,7 @@ export function AreaPicker({
             }}
             className="min-h-11 self-center px-3 text-t3 text-text-primary underline underline-offset-2"
           >
-            All of Chennai
+            {t('All of Chennai')}
           </button>
         </div>
       </ScSheet>
@@ -200,9 +203,10 @@ function AreaList({
   chosen: string | undefined
   onChoose: (zone: Zone) => void
 }) {
+  const t = useT()
   const found = searchZones(useZones(), query)
   return (
-    <ul aria-label="Areas" className="flex flex-col">
+    <ul aria-label={t('Areas')} className="flex flex-col">
       {found.map((zone) => {
         const on = chosen === zone.slug
         return (
@@ -225,8 +229,7 @@ function AreaList({
       })}
       {found.length === 0 && (
         <li className="py-4 text-t4 text-text-secondary">
-          No area called &ldquo;{query.trim()}&rdquo; yet. Try a nearby one, or
-          All of Chennai.
+          {t('No area called “{query}” yet. Try a nearby one, or All of Chennai.', { query: query.trim() })}
         </li>
       )}
     </ul>

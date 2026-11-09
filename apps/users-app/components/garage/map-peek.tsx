@@ -1,3 +1,4 @@
+import { useT } from '@repo/core/i18n';
 import type { BookingType, Vendor } from '@repo/core/types';
 import { Glass, Odometer } from '@repo/native-ui/finish';
 import { IconArrowUpRight } from '@repo/native-ui/icons';
@@ -54,6 +55,7 @@ export function MapPeek({
   /** The list's scroll, for the drift. */
   scrollY: Animated.Value;
 }) {
+  const t = useT();
   const styles = useStyles();
   const { fx, scheme } = useFinish();
   const reduce = useReduceMotion();
@@ -114,7 +116,7 @@ export function MapPeek({
   return (
     <PressScale
       accessibilityRole="link"
-      accessibilityLabel={`Open the map: ${countLabel.count} ${countLabel.words}`}
+      accessibilityLabel={t('Open the map: {count} {words}', { count: countLabel.count, words: countLabel.words })}
       onPress={() => router.navigate(`/map?${query.toString()}` as Href)}
       style={styles.card}
     >
@@ -211,7 +213,7 @@ export function MapPeek({
         </Glass>
         <Glass radius={999} style={[styles.chip, styles.open]}>
           <T variant="t4" weight={600} color={scheme === 'light' ? undefined : '#FFFFFF'}>
-            Map
+            {t('Map')}
           </T>
           <IconArrowUpRight size={14} color={scheme === 'light' ? undefined : '#FFFFFF'} />
         </Glass>

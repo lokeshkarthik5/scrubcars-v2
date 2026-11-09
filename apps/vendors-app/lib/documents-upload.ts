@@ -5,6 +5,7 @@ import type { PreparedDocumentFile } from './documents-api';
 import { contentTypeOf, type PickedDocument } from './documents-view';
 import { prepareForUpload } from './photo-prepare';
 import { discardCached } from './private-cache';
+import { t } from '@repo/core/i18n/translate';
 
 /**
  * The phone's half of apps/vendors' document upload (core api/documents.ts `cleaned`): a
@@ -17,8 +18,8 @@ export async function prepareDocumentFiles(files: PickedDocument[]): Promise<Pre
   for (const file of files) {
     if (contentTypeOf(file) === 'application/pdf') {
       const bytes = await new File(file.uri).bytes();
-      if (bytes.length === 0) throw new Error(`${file.name} is empty.`);
-      if (bytes.length > MAX_DOCUMENT_BYTES) throw new Error('Files can be up to 10 MB.');
+      if (bytes.length === 0) throw new Error(t('{name} is empty.', { name: file.name }));
+      if (bytes.length > MAX_DOCUMENT_BYTES) throw new Error(t('Files can be up to 10 MB.'));
       prepared.push({ bytes, contentType: 'application/pdf' });
     } else {
       const photo = await prepareForUpload(file.uri, file.name);

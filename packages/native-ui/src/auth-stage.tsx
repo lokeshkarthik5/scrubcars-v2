@@ -9,6 +9,7 @@ import { IconArrowLeft } from './icons';
 import { BrandMark } from './primitives';
 import { T } from './text';
 import { ThemeScope, useColors } from './theme';
+import { useT } from './lang';
 
 /** A round glow: bg-[radial-gradient(closest-side,rgb(239 50 64/x),transparent)]. */
 function Glow({ size, opacity, id, style }: { size: number; opacity: number; id: string; style: object }) {
@@ -61,6 +62,7 @@ function Stage({
   children: ReactNode;
   footer?: ReactNode;
 }) {
+  const t = useT();
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const carWidth = width * 1.3;
@@ -91,7 +93,7 @@ function Stage({
         >
           <View style={styles.topBar}>
             {onBack ? (
-              <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={onBack} style={styles.back}>
+              <Pressable accessibilityRole="button" accessibilityLabel={t('Go back')} onPress={onBack} style={styles.back}>
                 <IconArrowLeft size={22} stroke={1.5} />
               </Pressable>
             ) : null}

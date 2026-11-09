@@ -1,3 +1,4 @@
+import { useT } from '@repo/core/i18n';
 import { T } from '@repo/native-ui/text';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 import { useNetworkState } from 'expo-network';
@@ -6,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /** Not on the web, which has per-screen errors only; the checklist's addition for a phone. */
 export function OfflineBanner() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
@@ -14,7 +16,7 @@ export function OfflineBanner() {
   return (
     <View accessibilityLiveRegion="polite" pointerEvents="none" style={[styles.banner, { top: insets.top + 4 }]}>
       <T size={12} weight={500} lh={16} color={colors.textPrimary} align="center">
-        {"You're offline. Showing what's already on your phone."}
+        {t("You're offline. Showing what's already on your phone.")}
       </T>
     </View>
   );

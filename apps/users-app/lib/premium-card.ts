@@ -1,6 +1,7 @@
 import type { GiftDesign } from '@repo/core/api/gifts'
 import { PHOTO_ASPECT, pickCardCar, type CardCar, type CardCarTone } from '@repo/core/card-cars'
 import { istMonth, pickCarCareTip } from '@repo/core/car-care-tips'
+import { msg, t } from '@repo/core/i18n/translate'
 import { rewardDay, rewardRupees, type ScratchOutcome } from '@repo/core/rewards'
 import { giftArtFor, giftRupees, type GiftArt } from './gifts'
 import { prizeTier, type PrizeTier } from './scratch-prize'
@@ -256,18 +257,18 @@ export function firstName(name: string | null | undefined): string {
 }
 
 const GIFT_TITLES: Record<GiftArt, string> = {
-  shine: 'A gift for you',
-  midnight: 'A gift for you',
-  pearl: 'A gift for you',
-  birthday: 'Happy birthday',
-  diwali: 'Happy Diwali',
-  thank_you: 'Thank you',
+  shine: msg('A gift for you'),
+  midnight: msg('A gift for you'),
+  pearl: msg('A gift for you'),
+  birthday: msg('Happy birthday'),
+  diwali: msg('Happy Diwali'),
+  thank_you: msg('Thank you'),
 }
 
 const OCCASION_CHIPS: Partial<Record<GiftArt, CardChip>> = {
-  birthday: { icon: 'confetti', text: 'Birthday' },
-  diwali: { icon: 'flame', text: 'Diwali' },
-  thank_you: { icon: 'heart', text: 'Thank you' },
+  birthday: { icon: 'confetti', text: msg('Birthday') },
+  diwali: { icon: 'flame', text: msg('Diwali') },
+  thank_you: { icon: 'heart', text: msg('Thank you') },
 }
 
 /**
@@ -292,9 +293,10 @@ export function giftCardSpec(gift: {
   const hasAmount = gift.amount !== null && gift.amount !== '' && Number(gift.amount) > 0
   const rupees = hasAmount ? giftRupees(gift.amount as string | number) : null
   const name = firstName(gift.recipientName)
-  const chips: CardChip[] = [{ icon: 'gift', text: rupees ?? 'Gift card' }]
-  if (name && gift.showName !== false) chips.push({ icon: 'user', text: `For ${name}`, fluid: true })
-  chips.push(OCCASION_CHIPS[art] ?? { icon: 'calendar', text: `Valid ${gift.validMonths ?? 12} months` })
+  const chips: CardChip[] = [{ icon: 'gift', text: rupees ?? t('Gift card') }]
+  if (name && gift.showName !== false) chips.push({ icon: 'user', text: t('For {name}', { name }), fluid: true })
+  const occasion = OCCASION_CHIPS[art]
+  chips.push(occasion ? { ...occasion, text: t(occasion.text) } : { icon: 'calendar', text: t('Valid {count} months', { count: gift.validMonths ?? 12 }) })
   const month = istMonth(gift.expiresAt ?? gift.now ?? new Date())
   const tip = pickCarCareTip({
     seed: `gift|${art}|${hasAmount ? Number(gift.amount) : ''}|${name.toLowerCase()}`,
@@ -308,7 +310,7 @@ export function giftCardSpec(gift: {
     // all show the same car.
     car: pickCardCar({ seed: `gift|${art}|${hasAmount ? Number(gift.amount) : ''}|${name.toLowerCase()}`, tone: PHOTO_TONE[LOOKS[art].tone], look: art }),
     chips,
-    title: [GIFT_TITLES[art], rupees ? `${rupees} of car care` : 'Car care, gifted'],
+    title: [t(GIFT_TITLES[art]), rupees ? t('{amount} of car care', { amount: rupees }) : t('Car care, gifted')],
     tip: tip.text,
   }
 }
@@ -324,11 +326,11 @@ const PRIZE_LOOKS: Record<PrizeTier, CardLook> = {
 export function prizeTitle(prize: { outcome: ScratchOutcome; amount: string | null }): [string, string] {
   switch (prize.outcome) {
     case 'bonus_stamp':
-      return ['Bonus star', 'On your Shine Card']
+      return [t('Bonus star'), t('On your Shine Card')]
     case 'free_wash':
-      return ['Free wash', 'Jackpot']
+      return [t('Free wash'), t('Jackpot')]
     default:
-      return [`${rewardRupees(prize.amount)} off`, 'Off your next booking']
+      return [t('{amount} off', { amount: rewardRupees(prize.amount) }), t('Off your next booking')]
   }
 }
 
@@ -350,10 +352,10 @@ export function prizeCardSpec(card: {
   // A free wash leads with what it covers; every other prize with "Scratch card".
   const chips: CardChip[] =
     card.outcome === 'free_wash' && card.amount
-      ? [{ icon: 'sparkles', text: `Up to ${rewardRupees(card.amount)}` }]
-      : [{ icon: 'ticket', text: 'Scratch card' }]
+      ? [{ icon: 'sparkles', text: t('Up to {amount}', { amount: rewardRupees(card.amount) }) }]
+      : [{ icon: 'ticket', text: t('Scratch card') }]
   if (card.vendorName) chips.push({ icon: 'pin', text: card.vendorName, fluid: true })
-  if (card.useBy) chips.push({ icon: 'calendar', text: `Use by ${rewardDay(card.useBy)}` })
+  if (card.useBy) chips.push({ icon: 'calendar', text: t('Use by {day}', { day: rewardDay(card.useBy) }) })
   else if (card.outcome === 'bonus_stamp') chips.push({ icon: 'star', text: 'Shine Card' })
   const look = PRIZE_LOOKS[prizeTier(card.outcome)]
   return {
@@ -367,17 +369,17 @@ export function prizeCardSpec(card: {
 
 /** The shared image's two sizes: an Instagram story and a portrait post. */
 export const SHARE_FORMATS = {
-  story: { width: 1080, height: 1920, label: 'Story' },
-  post: { width: 1080, height: 1350, label: 'Post' },
+  story: { width: 1080, height: 1920, label: msg('Story') },
+  post: { width: 1080, height: 1350, label: msg('Post') },
 } as const
 export type ShareFormat = keyof typeof SHARE_FORMATS
 
 /** The line every shared image carries, on its pill. */
-export const SHARE_LINE = 'Book on detlio.com'
+export const SHARE_LINE = msg('Book on detlio.com')
 
 /**
  * The line under a gift card on the share screen and the recipient's page
  * (and in the gift terms): the photos are real cars, so the card must not
  * read as a maker's offer.
  */
-export const CARS_ILLUSTRATION_LINE = 'Cars shown for illustration only. Not affiliated with any car maker.'
+export const CARS_ILLUSTRATION_LINE = msg('Cars shown for illustration only. Not affiliated with any car maker.')

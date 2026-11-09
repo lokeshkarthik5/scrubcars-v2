@@ -20,6 +20,8 @@ import { bookingDayLabel } from '@repo/core/home-display'
 import { formatClock, formatWhen } from '@repo/core/format'
 import { formatRupees } from '@repo/core/job-records'
 import { cn } from '@repo/core/utils'
+import { fill, useT, useTn } from '@repo/core/i18n'
+import { t } from '@repo/core/i18n/translate'
 
 type BillCard = Extract<HomeActionCard, { kind: 'bill_due' }>
 type ProposalCard = Extract<HomeActionCard, { kind: 'time_proposal' }>
@@ -72,13 +74,14 @@ function Eyebrow({
  * customer, its dot the screen's only other red (F2).
  */
 function NeedsYou({ vendorName }: { vendorName: string }) {
+  const t = useT()
   return (
     <p className="flex min-w-0 items-center gap-1.5 text-t4 text-dim">
       <span
         aria-hidden
         className="size-1.5 shrink-0 rounded-full bg-brand-red"
       />
-      <span>Needs you · {vendorName}</span>
+      <span>{t('Needs you · {vendorName}', { vendorName })}</span>
     </p>
   )
 }
@@ -89,7 +92,7 @@ const PILL = 'mt-4 h-[52px] w-full px-5'
 /** "Today", or the IST day the bill was raised. */
 function raisedLabel(iso: string, now: Date): string {
   const day = bookingDayLabel(iso)
-  return day === bookingDayLabel(now.toISOString()) ? 'Today' : day
+  return day === bookingDayLabel(now.toISOString()) ? t('Today') : day
 }
 
 /**
@@ -108,16 +111,17 @@ export function BillDueCard({
   /** Another bill above already carries the screen's one red button. */
   quiet?: boolean
 }) {
+  const t = useT()
   const amount = formatRupees(Number(card.amountDue))
   return (
     <section
-      aria-label={`Final bill from ${card.vendorName}`}
+      aria-label={t('Final bill from {vendorName}', { vendorName: card.vendorName })}
       className="hub-card p-5"
     >
       <NeedsYou vendorName={card.vendorName} />
       {/* Written in full (F9): nothing cut off with "…". */}
       <p className="mt-2 text-[20px] leading-tight tracking-[-0.015em] text-text-primary">
-        Pay your final bill
+        {t('Pay your final bill')}
       </p>
       <p className="mt-1 text-t3 text-dim">
         {card.serviceName} ·{' '}
@@ -129,17 +133,17 @@ export function BillDueCard({
           href={bookingActionPath(card.bookingId, 'pay')}
           className="mt-4 w-full"
         >
-          Pay&nbsp;<span className="font-numeric">{amount}</span>
+          {fill(t('Pay {amount}'), { amount: <span className="font-numeric">{amount}</span> })}
         </OutlineLink>
       ) : (
         <ScButtonLink
           href={bookingActionPath(card.bookingId, 'pay')}
           variant="hero"
           className={PILL}
-          aria-label={`Pay ${amount}`}
+          aria-label={t('Pay {amount}', { amount })}
         >
           <span>
-            Pay <span className="font-numeric">{amount}</span>
+            {fill(t('Pay {amount}'), { amount: <span className="font-numeric">{amount}</span> })}
           </span>
           <IconArrowUpRight size={17} stroke={1.5} aria-hidden />
         </ScButtonLink>
@@ -149,7 +153,7 @@ export function BillDueCard({
           href="/updates"
           className="mt-1 inline-flex min-h-11 items-center text-t4 text-text-muted underline underline-offset-2"
         >
-          +{card.moreDue} more to pay
+          {t('+{moreDue} more to pay', { moreDue: card.moreDue })}
         </Link>
       )}
     </section>
@@ -164,28 +168,29 @@ export function BillDueCard({
  * these work".
  */
 export function TimeProposalHomeCard({ card }: { card: ProposalCard }) {
+  const t = useT()
+  const tn = useTn()
   return (
     <section
-      aria-label={`${card.vendorName} suggested other times`}
+      aria-label={t('{vendorName} suggested other times', { vendorName: card.vendorName })}
       className="hub-card p-5"
     >
       <NeedsYou vendorName={card.vendorName} />
       <p className="mt-2 text-[20px] leading-tight tracking-[-0.015em] text-text-primary">
-        Can&apos;t do{' '}
-        <span className="font-numeric">{formatClock(card.scheduledAt)}</span> —
-        pick another time
+        {fill(t("Can't do {scheduledAt} — pick another time"), { scheduledAt: <span className="font-numeric">{formatClock(card.scheduledAt)}</span> })}
       </p>
       <p className="mt-1 text-t3 text-dim">
-        {card.options.length === 1 ? '1 time' : `${card.options.length} times`}{' '}
-        offered · answer by{' '}
-        <span className="font-numeric">{formatWhen(card.expiresAt)}</span>
+        {fill(
+          tn(card.options.length, '{count} time offered · answer by {expiresAt}', '{count} times offered · answer by {expiresAt}'),
+          { expiresAt: <span className="font-numeric">{formatWhen(card.expiresAt)}</span> }
+        )}
       </p>
       <ScButtonLink
         href={bookingActionPath(card.bookingId, 'times')}
         variant="hero"
         className={PILL}
       >
-        <span>Pick a time</span>
+        <span>{t('Pick a time')}</span>
         <IconArrowUpRight size={17} stroke={1.5} aria-hidden />
       </ScButtonLink>
     </section>
@@ -204,15 +209,16 @@ export function ExtraWorkHomeCard({
   card: ExtraWorkDueCard
   now: Date
 }) {
+  const t = useT()
   const amount = formatRupees(Number(card.amount))
   return (
     <section
-      aria-label={`Extra work from ${card.vendorName}`}
+      aria-label={t('Extra work from {vendorName}', { vendorName: card.vendorName })}
       className="hub-card p-5"
     >
       <NeedsYou vendorName={card.vendorName} />
       <p className="mt-2 text-[20px] leading-tight tracking-[-0.015em] text-text-primary">
-        Approve extra work
+        {t('Approve extra work')}
       </p>
       {/* The whole description (F9), then the amount. */}
       <p className="mt-1 text-t3 text-dim">
@@ -224,9 +230,9 @@ export function ExtraWorkHomeCard({
         href={bookingActionPath(card.bookingId, 'extra')}
         variant="hero"
         className={PILL}
-        aria-label={`Review and approve ${amount}`}
+        aria-label={t('Review and approve {amount}', { amount })}
       >
-        <span>Review &amp; approve</span>
+        <span>{t('Review & approve')}</span>
         <IconArrowUpRight size={17} stroke={1.5} aria-hidden />
       </ScButtonLink>
       {card.moreDue > 0 && (
@@ -234,7 +240,7 @@ export function ExtraWorkHomeCard({
           href="/updates"
           className="mt-1 inline-flex min-h-11 items-center text-t4 text-text-muted underline underline-offset-2"
         >
-          +{card.moreDue} more to answer
+          {t('+{moreDue} more to answer', { moreDue: card.moreDue })}
         </Link>
       )}
     </section>
@@ -249,32 +255,36 @@ export function ExtraWorkHomeCard({
  * screen's red is still Book a wash.
  */
 export function GarageClosedCard({ card }: { card: ClosedCard }) {
+  const t = useT()
   const at = new Date(card.scheduledAt)
   return (
     <section
-      aria-label={`${card.vendorName} is closed on your booking day`}
+      aria-label={t('{vendorName} is closed on your booking day', { vendorName: card.vendorName })}
       className="hub-card p-5"
     >
       <Eyebrow vendorName={card.vendorName} icon={IconCalendarOff} />
       <p className="mt-3.5 text-t2 font-medium tracking-[-0.012em] text-text-primary">
-        Closed on {bookingDayLabel(card.scheduledAt)}
+        {t('Closed on {bookingDayLabel}', { bookingDayLabel: bookingDayLabel(card.scheduledAt) })}
       </p>
       <p className="mt-1 text-t4 text-dim">
-        {card.reason === 'holiday' ? 'A holiday' : 'Its weekly day off'}, the
-        day of your <span className="font-numeric">{formatClock(at)}</span>{' '}
-        booking.
+        {fill(
+          card.reason === 'holiday'
+            ? t('A holiday, the day of your {at} booking.')
+            : t('Its weekly day off, the day of your {at} booking.'),
+          { at: <span className="font-numeric">{formatClock(at)}</span> }
+        )}{' '}
         {card.canChangeTime
-          ? ' Pick another time, or ask us for help.'
-          : ' Ask us for help with it.'}
+          ? t('Pick another time, or ask us for help.')
+          : t('Ask us for help with it.')}
       </p>
       <div className="mt-4 flex gap-2">
         {card.canChangeTime && (
           <OutlineLink href={bookingActionPath(card.bookingId, 'reschedule')}>
-            Change time
+            {t('Change time')}
           </OutlineLink>
         )}
         <OutlineLink href={bookingActionPath(card.bookingId, 'help')}>
-          Get help
+          {t('Get help')}
         </OutlineLink>
       </div>
     </section>
@@ -325,10 +335,12 @@ export function RateWashCard({
   onDismiss: () => void
   dismissing?: boolean
 }) {
+  const tn = useTn()
+  const t = useT()
   const router = useRouter()
   return (
     <section
-      aria-label="Rate your wash"
+      aria-label={t('Rate your wash')}
       className="hub-card pt-1 pr-1.5 pb-2 pl-5"
     >
       <div className="flex items-center gap-2">
@@ -336,13 +348,13 @@ export function RateWashCard({
           {/* Two lines at most: a long garage name wraps rather than losing
               the question mark. */}
           <p className="line-clamp-2 text-t3 font-medium tracking-[-0.01em] text-text-primary">
-            How was your wash at {card.vendorName}?
+            {t('How was your wash at {vendorName}?', { vendorName: card.vendorName })}
           </p>
-          <p className="text-t4 text-dim">{card.vehicleName} · Rate it</p>
+          <p className="text-t4 text-dim">{t('{vehicleName} · Rate it', { vehicleName: card.vehicleName })}</p>
         </div>
         <button
           type="button"
-          aria-label="Hide Rate your wash"
+          aria-label={t('Hide Rate your wash')}
           disabled={dismissing}
           onClick={onDismiss}
           className="grid size-11 shrink-0 place-items-center self-start text-dim"
@@ -356,7 +368,7 @@ export function RateWashCard({
           <button
             key={stars}
             type="button"
-            aria-label={`Rate ${stars} star${stars === 1 ? '' : 's'}`}
+            aria-label={tn(stars, 'Rate {count} star', 'Rate {count} stars')}
             onClick={() =>
               router.push(`/bookings/${card.bookingId}?rate=${stars}`)
             }
@@ -378,9 +390,10 @@ export function RateWashCard({
  * screen's red is still Book a wash.
  */
 export function ComplaintAnswerCard({ card }: { card: ComplaintCard }) {
+  const t = useT()
   return (
     <section
-      aria-label={`Complaint ${card.number} resolved`}
+      aria-label={t('Complaint {number} resolved', { number: card.number })}
       className="hub-card p-5"
     >
       <div className="flex h-5 items-center justify-between gap-3">
@@ -395,14 +408,14 @@ export function ComplaintAnswerCard({ card }: { card: ComplaintCard }) {
       <div className="mt-3.5 flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-t2 font-medium tracking-[-0.012em] text-text-primary">
-            Complaint resolved
+            {t('Complaint resolved')}
           </p>
           <p className="mt-1 truncate text-t4 text-dim">
-            We&apos;ve answered it.
+            {t("We've answered it.")}
           </p>
         </div>
         <OutlineLink href={MY_COMPLAINTS_PATH} className="shrink-0">
-          See our answer
+          {t('See our answer')}
         </OutlineLink>
       </div>
     </section>
@@ -433,6 +446,7 @@ export function ServiceReminderHomeCard({
   onDismiss: () => void
   busy?: boolean
 }) {
+  const t = useT()
   return (
     <section aria-label={card.title} className="hub-card pt-1 pr-1.5 pb-4 pl-5">
       <div className="flex items-start gap-2">
@@ -458,7 +472,7 @@ export function ServiceReminderHomeCard({
         </div>
         <button
           type="button"
-          aria-label={`Dismiss reminder: ${card.title}`}
+          aria-label={t('Dismiss reminder: {title}', { title: card.title })}
           disabled={busy}
           onClick={onDismiss}
           className="grid size-11 shrink-0 place-items-center text-dim"
@@ -469,16 +483,16 @@ export function ServiceReminderHomeCard({
       <div className="mt-4 flex items-center gap-2 pr-3.5">
         <OutlineLink href={reminderBookHref(card)} onClick={onBook}>
           <IconSparkles size={16} stroke={1.5} aria-hidden className="mr-1.5" />
-          Book
+          {t('Book')}
         </OutlineLink>
         <button
           type="button"
           disabled={busy}
           onClick={onSnooze}
-          aria-label="Remind me in 2 weeks"
+          aria-label={t('Remind me in 2 weeks')}
           className="inline-flex h-11 items-center px-3 text-t3 text-dim disabled:opacity-40"
         >
-          In 2 weeks
+          {t('In 2 weeks')}
         </button>
       </div>
     </section>

@@ -3,6 +3,7 @@ import { mapExtraWork, mapFinalBill, mapJobPhoto } from '@repo/core/api/mappers'
 import type { ApiExtraWork, ApiFinalBill, ApiJobPhoto } from '@repo/core/api/types';
 import type { PhotoAngle } from '@repo/core/job-photo-standards';
 import type { JobPhoto } from '@repo/core/types';
+import { t } from '@repo/core/i18n/translate';
 
 /**
  * The garage's side of packages/core/src/api/job-records.ts, whose module imports
@@ -28,7 +29,7 @@ export async function uploadJobPhoto(
     body: JSON.stringify({ stage, contentType: 'image/jpeg' }),
   });
   const sent = await put(uploadUrl, bytes);
-  if (!sent.ok) throw new Error('Upload failed. Please try again.');
+  if (!sent.ok) throw new Error(t('Upload failed. Please try again.'));
   const photo = await apiClient<ApiJobPhoto>(base, {
     method: 'POST',
     body: JSON.stringify({ stage, key, ...(angle && { angle }) }),
@@ -62,7 +63,7 @@ export async function askExtraWork(
       { method: 'POST', body: JSON.stringify({ contentType: 'image/jpeg' }) }
     );
     const sent = await put(uploadUrl, bytes);
-    if (!sent.ok) throw new Error('A photo did not upload. Please try again.');
+    if (!sent.ok) throw new Error(t('A photo did not upload. Please try again.'));
     photoKeys.push(key);
   }
   const work = await apiClient<ApiExtraWork>(`/vendors/me/bookings/${bookingId}/extra-work`, {

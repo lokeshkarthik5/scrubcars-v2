@@ -7,17 +7,19 @@ import { createStyles, useColors } from '@repo/native-ui/theme';
 
 import { IconCalendar, IconChartBar, IconHome, IconSettings, IconTool, type IconProps } from '@repo/native-ui/icons';
 import { T } from '@repo/native-ui/text';
+import { msg, useT } from '@repo/core/i18n';
 
 const ITEMS: { href: string; label: string; icon: (props: IconProps) => React.JSX.Element; adminOnly?: boolean }[] = [
-  { href: '/home', label: 'Home', icon: IconHome },
-  { href: '/bookings', label: 'Bookings', icon: IconCalendar },
-  { href: '/services', label: 'Services', icon: IconTool, adminOnly: true },
-  { href: '/earnings', label: 'Earnings', icon: IconChartBar, adminOnly: true },
-  { href: '/settings', label: 'Settings', icon: IconSettings, adminOnly: true },
+  { href: '/home', label: msg('Home'), icon: IconHome },
+  { href: '/bookings', label: msg('Bookings'), icon: IconCalendar },
+  { href: '/services', label: msg('Services'), icon: IconTool, adminOnly: true },
+  { href: '/earnings', label: msg('Earnings'), icon: IconChartBar, adminOnly: true },
+  { href: '/settings', label: msg('Settings'), icon: IconSettings, adminOnly: true },
 ];
 
 /** BottomNav, vendor type: an operator gets Home and Bookings. The bar's only red is the dot. */
 export function BottomNav() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const pathname = usePathname();
@@ -34,7 +36,7 @@ export function BottomNav() {
           <Pressable
             key={href}
             accessibilityRole="tab"
-            accessibilityLabel={label}
+            accessibilityLabel={t(label)}
             accessibilityState={{ selected: active }}
             onPress={() => {
               if (!active) router.navigate(href as Href);
@@ -43,8 +45,9 @@ export function BottomNav() {
           >
             {active ? <View style={styles.dot} /> : null}
             <Icon size={22} stroke={active ? 2 : 1.5} color={tint} />
-            <T size={11} weight={500} lh={16} color={tint}>
-              {label}
+            {/* Tamil is longer: one line, shrunk to fit its fifth of the bar. */}
+            <T size={11} weight={500} lh={16} color={tint} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+              {t(label)}
             </T>
           </Pressable>
         );

@@ -10,6 +10,7 @@ import { createStyles, ThemeScope, useColors } from '@repo/native-ui/theme';
 import { BeforeAfterCompare } from './before-after';
 import { IconX } from '@repo/native-ui/icons';
 import { T } from '@repo/native-ui/text';
+import { useT } from '@repo/core/i18n';
 
 /** A photo the customer took of the problem (Detlio Guarantee, 0051). */
 export interface ClaimPhotoView {
@@ -25,9 +26,10 @@ export interface ClaimPhotoView {
 const source = (url: string) => ({ uri: url, cache: 'reload' as const });
 
 function Thumb({ url, label, onOpen }: { url: string; label: string; onOpen: () => void }) {
+  const t = useT();
   const styles = useStyles();
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={`View ${label}`} onPress={onOpen} style={styles.thumb}>
+    <Pressable accessibilityRole="button" accessibilityLabel={t('View {photo}', { photo: label })} onPress={onOpen} style={styles.thumb}>
       <Image source={source(url)} style={styles.thumbImage} resizeMode="cover" />
     </Pressable>
   );
@@ -44,6 +46,7 @@ function Strip({ children }: { children: ReactNode }) {
 
 /** A photo full screen, on a dark backdrop. */
 function PhotoViewer({ open, onClose }: { open: { url: string; label: string }; onClose: () => void }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
@@ -51,7 +54,7 @@ function PhotoViewer({ open, onClose }: { open: { url: string; label: string }; 
     <Pressable accessibilityViewIsModal accessibilityLabel={open.label} onPress={onClose} style={styles.viewer}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Close photo"
+        accessibilityLabel={t('Close photo')}
         onPress={onClose}
         style={[styles.close, { top: insets.top + 16 }]}
       >
@@ -73,16 +76,19 @@ function PhotoViewer({ open, onClose }: { open: { url: string; label: string }; 
 export function GuaranteeEvidence({
   customerPhotos,
   garagePhotos,
-  customerTitle = "Customer's photos of the problem",
-  garageTitle = "Garage's before and after photos",
+  customerTitle: customerTitleGiven,
+  garageTitle: garageTitleGiven,
 }: {
   customerPhotos?: readonly ClaimPhotoView[];
   garagePhotos: readonly JobPhoto[];
   customerTitle?: string;
   garageTitle?: string;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
+  const customerTitle = customerTitleGiven ?? t("Customer's photos of the problem");
+  const garageTitle = garageTitleGiven ?? t("Garage's before and after photos");
   const [open, setOpen] = useState<{ url: string; label: string } | null>(null);
   const stages = garageStages(garagePhotos);
   const garage = garagePhotos.filter((photo) => photo.by === 'garage');
@@ -99,8 +105,8 @@ export function GuaranteeEvidence({
               <Thumb
                 key={photo.id}
                 url={photo.url}
-                label={`problem photo ${index + 1}`}
-                onOpen={() => setOpen({ url: photo.url, label: `Problem photo ${index + 1}` })}
+                label={t('problem photo {n}', { n: index + 1 })}
+                onOpen={() => setOpen({ url: photo.url, label: t('Problem photo {n}', { n: index + 1 }) })}
               />
             ))}
           </Strip>
@@ -113,20 +119,23 @@ export function GuaranteeEvidence({
         </T>
         {!hasGaragePhotos(garagePhotos) ? (
           <T size={12} color={colors.textSecondary}>
-            The garage took no photos of this job.
+            {t('The garage took no photos of this job.')}
           </T>
         ) : (
           <>
-            <BeforeAfterCompare photos={garage} title="Compare before and after" />
+            <BeforeAfterCompare photos={garage} title={t('Compare before and after')} />
             {(['before', 'after'] as const).map((stage) =>
               stages[stage].length > 0 ? (
                 <View key={stage} style={styles.stage}>
                   <T size={11} color={colors.textSecondary}>
-                    {stage === 'before' ? 'Before' : 'After'}
+                    {stage === 'before' ? t('Before') : t('After')}
                   </T>
                   <Strip>
                     {stages[stage].map((photo) => {
-                      const label = `${stage} — ${angleLabel(photo.angle)}`;
+                      const label =
+                        stage === 'before'
+                          ? t('before — {angle}', { angle: angleLabel(photo.angle) })
+                          : t('after — {angle}', { angle: angleLabel(photo.angle) });
                       return (
                         <Thumb key={photo.id} url={photo.url} label={label} onOpen={() => setOpen({ url: photo.url, label })} />
                       );
@@ -135,7 +144,7 @@ export function GuaranteeEvidence({
                 </View>
               ) : (
                 <T key={stage} size={12} color={colors.textSecondary}>
-                  {`No ${stage} photos from the garage.`}
+                  {stage === 'before' ? t('No before photos from the garage.') : t('No after photos from the garage.')}
                 </T>
               )
             )}

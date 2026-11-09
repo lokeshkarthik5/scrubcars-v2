@@ -11,6 +11,7 @@ import { requestActionLabel } from '@repo/core/booking-requests';
 import { SILVER_KEY_LABEL, SILVER_KEY_QUIET } from '@repo/core/tiers';
 import type { BookingType, Vendor } from '@repo/core/types';
 import type { JustOutsideVendor } from '@repo/core/api/vendors';
+import { msg, t, useT } from '@repo/core/i18n';
 import { ScButton } from '@repo/native-ui/button';
 import { Glass, GraphiteSwitch, Odometer, Raised, Recessed, SilverKey, TwoLineControl } from '@repo/native-ui/finish';
 import {
@@ -67,19 +68,20 @@ function SkipTheDriveCard({
   nearestKm: number | null;
   onSwitch: (mode: BookingType) => void;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   return (
     <View style={styles.skip}>
       <View>
         <T size={11} weight={500} tracking={0.12} uppercase color={colors.skipKicker}>
-          Skip the drive
+          {t('Skip the drive')}
         </T>
         <T size={17} weight={500} style={styles.skipTitle}>
           {skipTheDriveTitle(nearestKm)}
         </T>
         <T size={13} color={colors.textSecondary}>
-          Get it done without driving:
+          {t('Get it done without driving:')}
         </T>
       </View>
       {rows.map((row) => (
@@ -98,22 +100,23 @@ function SkipTheDriveCard({
 }
 
 function PickupExplainer() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const steps = [
-    'Collected from your address. You hand it over with a code from the app.',
-    'Worked on at the garage. Follow each step on your booking, from picked up to on its way back.',
-    'Brought back to the same address, handed over with a second code.',
+    t('Collected from your address. You hand it over with a code from the app.'),
+    t('Worked on at the garage. Follow each step on your booking, from picked up to on its way back.'),
+    t('Brought back to the same address, handed over with a second code.'),
   ];
   const safe = [
-    { Icon: IconShieldCheck, words: 'Garage responsible for your car' },
-    { Icon: IconKey, words: 'Handover codes both ways' },
-    { Icon: IconCamera, words: 'Add your own photos before pickup' },
+    { Icon: IconShieldCheck, words: t('Garage responsible for your car') },
+    { Icon: IconKey, words: t('Handover codes both ways') },
+    { Icon: IconCamera, words: t('Add your own photos before pickup') },
   ];
   return (
     <HubCard style={styles.explainer}>
       <T size={17} weight={500}>
-        They collect, you relax
+        {t('They collect, you relax')}
       </T>
       {steps.map((step, i) => (
         <View key={step} style={styles.step}>
@@ -144,6 +147,7 @@ function PickupExplainer() {
 const garageCardSeen = { done: false };
 
 function JustOutsideSection({ items, mode }: { items: JustOutsideVendor[]; mode: 'doorstep' | 'pickup' }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const [requesting, setRequesting] = useState<JustOutsideVendor | null>(null);
@@ -152,10 +156,10 @@ function JustOutsideSection({ items, mode }: { items: JustOutsideVendor[]; mode:
     <View style={styles.outside}>
       <View style={styles.headRow}>
         <T size={17} weight={500}>
-          Just outside their area
+          {t('Just outside their area')}
         </T>
         <T size={12} color={colors.textMuted}>
-          by distance
+          {t('by distance')}
         </T>
       </View>
       {items.map((item) => (
@@ -172,14 +176,14 @@ function JustOutsideSection({ items, mode }: { items: JustOutsideVendor[]; mode:
           footer={
             <View style={styles.outsideActions}>
               <PressRow
-                accessibilityLabel={`See prices at ${item.vendor.name}`}
+                accessibilityLabel={t('See prices at {name}', { name: item.vendor.name })}
                 onPress={() => router.push(`/garage/${item.vendor.id}${modeParam ? `?mode=${modeParam}` : ''}` as Href)}
                 style={styles.seePrices}
               >
-                <T size={14}>See prices</T>
+                <T size={14}>{t('See prices')}</T>
               </PressRow>
               <PressRow
-                accessibilityLabel={`${requestActionLabel(mode)} from ${item.vendor.name}`}
+                accessibilityLabel={t('{action} from {name}', { action: requestActionLabel(mode), name: item.vendor.name })}
                 onPress={() => setRequesting(item)}
                 style={styles.request}
               >
@@ -197,6 +201,7 @@ function JustOutsideSection({ items, mode }: { items: JustOutsideVendor[]; mode:
 }
 
 function NextTabFooter({ offer, onSwitch }: { offer: NextTabOffer | null; onSwitch: (mode: BookingType) => void }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   if (!offer) return null;
@@ -204,7 +209,7 @@ function NextTabFooter({ offer, onSwitch }: { offer: NextTabOffer | null; onSwit
     <PressRow onPress={() => onSwitch(offer.mode)} style={styles.nextTab}>
       <View style={styles.flex}>
         <T size={12} color={colors.textMuted}>
-          Nothing here suits you?
+          {t('Nothing here suits you?')}
         </T>
         <T size={15}>{offer.label}</T>
       </View>
@@ -215,9 +220,9 @@ function NextTabFooter({ offer, onSwitch }: { offer: NextTabOffer | null; onSwit
 
 /** The mode switch's quiet second lines and icons (§3). */
 const MODE_QUIET: Record<BookingType, string> = {
-  dropin: 'Drive it in',
-  doorstep: 'We come to you',
-  pickup: 'We collect it',
+  dropin: msg('Drive it in'),
+  doorstep: msg('We come to you'),
+  pickup: msg('We collect it'),
 };
 const MODE_ICONS: Record<BookingType, (props: IconProps) => ReactElement> = {
   dropin: IconBuildingStore,
@@ -227,7 +232,7 @@ const MODE_ICONS: Record<BookingType, (props: IconProps) => ReactElement> = {
 
 /** "5 garages", "20+ garages", "1 garage". */
 function garagesWord(count: number, more: boolean): string {
-  return count === 1 && !more ? 'garage' : 'garages';
+  return count === 1 && !more ? t('garage') : t('garages');
 }
 
 /** Whether a list card offers the service, from its tags (codes or their names). */
@@ -261,6 +266,7 @@ export function GarageList({
   onAskArea: () => void;
   header: ReactNode;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const { fx } = useFinish();
@@ -417,7 +423,7 @@ export function GarageList({
     >
       {pinned ? <Glass pointerEvents="none" radius={0} edge={false} base={fx.glassPinned} style={StyleSheet.absoluteFill} /> : null}
       <GraphiteSwitch
-        accessibilityLabel="Service mode"
+        accessibilityLabel={t('Service mode')}
         value={mode}
         onChange={changeMode}
         pinned={pinned}
@@ -425,8 +431,8 @@ export function GarageList({
           const Icon = MODE_ICONS[value];
           return {
             value,
-            label: BOOKING_TYPE_LABELS[value],
-            quiet: MODE_QUIET[value],
+            label: t(BOOKING_TYPE_LABELS[value]),
+            quiet: t(MODE_QUIET[value]),
             icon: (ink: string) => <Icon size={18} color={ink} />,
           };
         })}
@@ -434,14 +440,14 @@ export function GarageList({
       <View style={styles.filterRow}>
         <TwoLineControl
           onPress={() => setFilterOpen(true)}
-          accessibilityLabel={`Service: ${serviceFilterLabel(category)}${listCount ? `, ${listCount}` : ''}. Change`}
+          accessibilityLabel={listCount ? t('Service: {service}, {count}. Change', { service: serviceFilterLabel(category), count: listCount }) : t('Service: {service}. Change', { service: serviceFilterLabel(category) })}
           pinned={pinned}
           style={styles.flex}
           tile={(ink) => <ServiceFilterIcon filter={category} color={ink} />}
           main={serviceFilterLabel(category)}
           quiet={
             isLoading ? (
-              'Finding garages…'
+              t('Finding garages…')
             ) : (
               <View style={styles.countLine}>
                 <Odometer value={`${vendors.length}${hasMore ? '+' : ''}`} numeric={vendors.length} size={11} weight={500} lh={15} color={fx.quiet} />
@@ -458,8 +464,8 @@ export function GarageList({
           <SilverKey
             on={silverOnly}
             onToggle={() => setSilverChosen((on) => !on)}
-            label={SILVER_KEY_LABEL}
-            quiet={SILVER_KEY_QUIET}
+            label={t(SILVER_KEY_LABEL)}
+            quiet={t(SILVER_KEY_QUIET)}
             pinned={pinned}
             medal={<TierMedalIcon tier="silver" size={18} />}
           />
@@ -472,12 +478,12 @@ export function GarageList({
     <Fragment key={vendor.id}>
       {i === firstFar ? (
         <T variant="t5" color={colors.textMuted} style={styles.unlocated}>
-          Further away — other towns
+          {t('Further away — other towns')}
         </T>
       ) : null}
       {i === firstUnlocatedIndex ? (
         <T variant="t5" color={colors.textMuted} style={styles.unlocated}>
-          Other garages — location not set yet
+          {t('Other garages — location not set yet')}
         </T>
       ) : null}
       <Placed listTop={listTop}>
@@ -494,7 +500,7 @@ export function GarageList({
                 mode === 'dropin' && canCollectFrom(vendor, origin) ? (
                   <View style={styles.collect}>
                     <T size={12} weight={500} lh={16} color={colors.collectText}>
-                      Can collect your car
+                      {t('Can collect your car')}
                     </T>
                   </View>
                 ) : undefined
@@ -511,13 +517,13 @@ export function GarageList({
   const above = (
     <View key="above" style={styles.stack}>
       {header}
-      <PressScale accessibilityRole="button" accessibilityLabel="Search garages or services" onPress={() => router.navigate('/search' as Href)}>
+      <PressScale accessibilityRole="button" accessibilityLabel={t('Search garages or services')} onPress={() => router.navigate('/search' as Href)}>
         <Recessed radius={16} style={styles.search} innerStyle={styles.searchInner}>
           <IconSearch size={18} color={fx.quiet} />
           <T variant="t3" weight={400} color={fx.quiet}>
-            Search
+            {t('Search')}
           </T>
-          <RollingHint hints={SEARCH_HINTS} color={fx.quiet} />
+          <RollingHint hints={SEARCH_HINTS.map((hint) => t(hint))} color={fx.quiet} />
         </Recessed>
       </PressScale>
       {/* After the list's own first answer, so it never stands between the customer and the first garage. */}
@@ -534,11 +540,11 @@ export function GarageList({
             words:
               near.count === 1 && !near.more
                 ? origin
-                  ? 'garage near you'
-                  : 'garage in Chennai'
+                  ? t('garage near you')
+                  : t('garage in Chennai')
                 : origin
-                  ? 'garages near you'
-                  : 'garages in Chennai',
+                  ? t('garages near you')
+                  : t('garages in Chennai'),
           }}
         />
       ) : null}
@@ -558,7 +564,7 @@ export function GarageList({
           <View style={styles.headRow}>
             {/* No count beside it: the count lives in the filter button. */}
             <T variant="t2" accessibilityRole="header" style={styles.flex}>
-              {mode === 'dropin' && atGarage.skipTheDrive ? 'Or drive to' : 'Nearby garages'}
+              {mode === 'dropin' && atGarage.skipTheDrive ? t('Or drive to') : t('Nearby garages')}
             </T>
             <PressScale accessibilityRole="button" onPress={() => setSortOpen(true)}>
               <Raised radius={12} style={styles.sort} innerStyle={styles.sortInner}>
@@ -571,20 +577,20 @@ export function GarageList({
           </View>
           {origin && location && vendors.length > 0 && sort === 'distance' ? (
             <T variant="t5" color={fx.quiet} style={styles.caption}>
-              Nearest first from {location.label}
-              {approximate ? ' (distances from the area’s centre)' : ''}
+              {t('Nearest first from {label}', { label: t(location.label) })}
+              {approximate ? ` ${t('(distances from the area’s centre)')}` : ''}
             </T>
           ) : null}
           {mode === 'pickup' && !origin && vendors.length > 0 ? (
             <T variant="t5" color={colors.textMuted} style={styles.caption}>
-              Set your location to see only garages that collect from your area. Checkout checks your address either way.
+              {t('Set your location to see only garages that collect from your area. Checkout checks your address either way.')}
             </T>
           ) : null}
         </View>
         {atGarage.atHomeLine ? (
           <Pressable accessibilityRole="button" onPress={() => switchTo('doorstep')} style={styles.atHome}>
             <T size={13} color={colors.textSecondary}>
-              or have it done at home
+              {t('or have it done at home')}
             </T>
             <IconArrowRight size={14} color={colors.textSecondary} />
           </Pressable>
@@ -596,40 +602,40 @@ export function GarageList({
         >
           {isLoading || (isRefreshing && vendors.length === 0) ? (
             <T variant="t4" color={colors.textSecondary} align="center" style={styles.finding}>
-              Finding garages…
+              {t('Finding garages…')}
             </T>
           ) : isError ? (
-            <ErrorState message="Couldn't load garages. Check your connection." onRetry={retry} />
+            <ErrorState message={t("Couldn't load garages. Check your connection.")} onRetry={retry} />
           ) : vendors.length === 0 ? (
             <View style={styles.none}>
               <T variant="t3" weight={400} color={colors.textSecondary} align="center">
                 {silverOnly
-                  ? `No Silver or Gold garages here yet. Turn off “${SILVER_KEY_LABEL}” to see every garage.`
+                  ? t('No Silver or Gold garages here yet. Turn off “{label}” to see every garage.', { label: t(SILVER_KEY_LABEL) })
                   : mode === 'pickup'
-                    ? 'No garage collects from your area yet.'
+                    ? t('No garage collects from your area yet.')
                     : mode === 'doorstep' && !citywide
-                      ? 'No garage travels to your area yet.'
-                      : 'No garages match these filters.'}
+                      ? t('No garage travels to your area yet.')
+                      : t('No garages match these filters.')}
               </T>
               <View style={styles.noneActions}>
                 {silverOnly ? (
                   <ScButton variant="outline" fullWidth={false} onPress={() => setSilverChosen(false)}>
-                    Show every garage
+                    {t('Show every garage')}
                   </ScButton>
                 ) : null}
                 {!silverOnly && category !== 'all' ? (
                   <ScButton variant="outline" fullWidth={false} onPress={() => setCategory('all')}>
-                    Show all services
+                    {t('Show all services')}
                   </ScButton>
                 ) : null}
                 {!silverOnly && origin && mode !== 'dropin' ? (
                   <ScButton variant="outline" fullWidth={false} onPress={selectChennai}>
-                    Show all of Chennai
+                    {t('Show all of Chennai')}
                   </ScButton>
                 ) : null}
                 {!silverOnly && mode !== 'dropin' ? (
                   <ScButton variant="outline" fullWidth={false} onPress={() => switchTo('dropin')}>
-                    {`Try ${BOOKING_TYPE_LABELS.dropin}`}
+                    {t('Try {mode}', { mode: t(BOOKING_TYPE_LABELS.dropin) })}
                   </ScButton>
                 ) : null}
               </View>
@@ -680,7 +686,7 @@ export function GarageList({
   );
 }
 
-const SEARCH_HINTS = ['garages or services', 'foam wash', 'ceramic coating', 'interior cleaning', 'scratch removal'];
+const SEARCH_HINTS = [msg('garages or services'), msg('foam wash'), msg('ceramic coating'), msg('interior cleaning'), msg('scratch removal')];
 
 const useStyles = createStyles((c) => ({
   flex: { flex: 1, minWidth: 0 },

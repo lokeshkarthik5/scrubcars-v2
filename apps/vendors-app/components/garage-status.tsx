@@ -11,6 +11,7 @@ import { createStyles, useColors } from '@repo/native-ui/theme';
 
 import { IconBellOff } from '@repo/native-ui/icons';
 import { T } from '@repo/native-ui/text';
+import { useT } from '@repo/core/i18n';
 
 /** Whether the garage is open now, from its own hours and holidays; null while unknown. */
 function useShopOpen(): boolean | null {
@@ -35,6 +36,7 @@ function useShopOpen(): boolean | null {
 
 /** GarageStatus: beside the wordmark, which garage, open or not, and "Alerts: Off". */
 export function GarageStatus() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const vendor = useAuth((s) => s.vendor);
@@ -53,7 +55,7 @@ export function GarageStatus() {
         ) : null}
         <T size={14} weight={500} color={colors.textSecondary} numberOfLines={1} style={styles.name}>
           {vendorCount > 1 ? '' : vendor.businessName}
-          {open !== null ? `${vendorCount > 1 ? '' : ' · '}${open ? 'Open' : 'Closed'}` : ''}
+          {open !== null ? `${vendorCount > 1 ? '' : ' · '}${open ? t('Open') : t('Closed')}` : ''}
         </T>
       </View>
       {alertsOff ? (
@@ -65,7 +67,7 @@ export function GarageStatus() {
         >
           <IconBellOff size={14} color={colors.warning} />
           <T size={13} weight={500} color={colors.warning}>
-            Alerts: Off
+            {t('Alerts: Off')}
           </T>
         </Pressable>
       ) : null}

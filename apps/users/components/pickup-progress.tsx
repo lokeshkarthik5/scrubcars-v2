@@ -10,6 +10,7 @@ import {
 } from '@repo/core/pickup'
 import type { Booking } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
+import { useT } from '@repo/core/i18n'
 
 /**
  * A pickup & drop job's timeline on the booking page: Booked → Picked up →
@@ -25,11 +26,12 @@ export function PickupTimeline({
   booking: PickupTimelineBooking
   now: number
 }) {
+  const t = useT()
   const steps = pickupTimeline(booking)
   if (!steps) return null
 
   return (
-    <ol aria-label="Pickup progress" className="flex flex-col">
+    <ol aria-label={t('Pickup progress')} className="flex flex-col">
       {steps.map((step, i) => {
         const done = step.state === 'done'
         const active = step.state !== 'upcoming'
@@ -117,6 +119,7 @@ export function PickupCodeCard({
 }: {
   booking: Pick<Booking, 'status' | 'pickup'>
 }) {
+  const t = useT()
   const card = pickupCodeCard(booking)
   if (!card) return null
 
@@ -138,8 +141,8 @@ export function PickupCodeCard({
       </p>
       <p className="text-t5 text-text-muted">
         {card.kind === 'pickup'
-          ? 'Share it only when you hand over your car. The garage enters it to mark your car picked up.'
-          : 'Share it only once you have your car back. The garage enters it to finish the job.'}
+          ? t('Share it only when you hand over your car. The garage enters it to mark your car picked up.')
+          : t('Share it only once you have your car back. The garage enters it to finish the job.')}
       </p>
     </ScCard>
   )

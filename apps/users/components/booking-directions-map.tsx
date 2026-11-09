@@ -4,6 +4,7 @@ import { useMemo } from 'react'
 import { Map, MapMarker, MarkerContent } from '@repo/ui/sc/map'
 import { MapController } from '@repo/ui/features/map-controller'
 import { MAP_STYLES, MAP_THEME } from '@repo/core/map'
+import { useT } from '@repo/core/i18n'
 
 interface Point {
   lat: number
@@ -22,6 +23,7 @@ interface Point {
  * inside a sheet steals the drag that should scroll or close it.
  */
 export default function BookingDirectionsMap({ garage, here }: { garage: Point; here: Point | null }) {
+  const t = useT()
   const bounds = useMemo(
     () =>
       here
@@ -49,7 +51,7 @@ export default function BookingDirectionsMap({ garage, here }: { garage: Point; 
       <MapMarker latitude={garage.lat} longitude={garage.lng}>
         <MarkerContent>
           <span className="block rounded-full bg-brand-red-fill px-2.5 py-1 text-t5 font-semibold text-brand-white shadow-md">
-            Garage
+            {t('Garage')}
           </span>
         </MarkerContent>
       </MapMarker>
@@ -57,7 +59,7 @@ export default function BookingDirectionsMap({ garage, here }: { garage: Point; 
         <MapMarker latitude={here.lat} longitude={here.lng}>
           <MarkerContent>
             <span
-              aria-label="You"
+              aria-label={t('You')}
               className="block size-3.5 rounded-full border-2 border-brand-black bg-brand-white shadow-[0_0_0_4px_rgba(255,255,255,0.25)]"
             />
           </MarkerContent>

@@ -32,34 +32,42 @@ import {
 import { createStyles, useColors } from '@repo/native-ui/theme';
 import type { Tokens } from '@repo/native-ui/tokens';
 import { useVendorBookings } from '@/lib/use-vendor-bookings';
+import { fill, msg, useT, useTn } from '@repo/core/i18n';
 
-const TAB_LABELS: Record<ListTab, string> = { today: 'Today', new: 'New', later: 'Later', done: 'Done' };
+const TAB_LABELS: Record<ListTab, string> = {
+  today: msg('Today'),
+  new: msg('New'),
+  later: msg('Later'),
+  done: msg('Done'),
+};
 
 const emptyStates = (colors: Tokens): Record<ListTab, { icon: ReactNode; title: string; subtitle: string }> => ({
   today: {
     icon: <IconCalendarCheck size={28} stroke={1.5} color={colors.textMuted} />,
-    title: 'Nothing on today',
-    subtitle: 'Jobs you accept for today show here, in time order.',
+    title: msg('Nothing on today'),
+    subtitle: msg('Jobs you accept for today show here, in time order.'),
   },
   new: {
     icon: <IconInbox size={28} stroke={1.5} color={colors.textMuted} />,
-    title: 'No new bookings',
-    subtitle: 'New requests from customers show up here for you to accept.',
+    title: msg('No new bookings'),
+    subtitle: msg('New requests from customers show up here for you to accept.'),
   },
   later: {
     icon: <IconCalendarEvent size={28} stroke={1.5} color={colors.textMuted} />,
-    title: 'Nothing later',
-    subtitle: 'Jobs you accept for another day wait here.',
+    title: msg('Nothing later'),
+    subtitle: msg('Jobs you accept for another day wait here.'),
   },
   done: {
     icon: <IconCircleCheck size={28} stroke={1.5} color={colors.textMuted} />,
-    title: 'Nothing done yet',
-    subtitle: 'Finished jobs, and bookings that were cancelled, are kept here.',
+    title: msg('Nothing done yet'),
+    subtitle: msg('Finished jobs, and bookings that were cancelled, are kept here.'),
   },
 });
 
 /** apps/vendors/app/bookings/page.tsx, in its order. */
 function BookingsScreen() {
+  const t = useT();
+  const tn = useTn();
   const colors = useColors();
   const styles = useStyles();
   const params = useLocalSearchParams<{ tab?: string; job?: string }>();
@@ -137,7 +145,7 @@ function BookingsScreen() {
       <PushBanner />
 
       <ScSegmented
-        accessibilityLabel="Bookings"
+        accessibilityLabel={t('Bookings')}
         value={tab}
         onChange={pickTab}
         options={LIST_TABS.map((key) => ({
@@ -146,12 +154,12 @@ function BookingsScreen() {
             key === 'new' && !unknown && waiting.count > 0 ? (
               <>
                 <T size={16} weight={500} color={tab === key ? colors.textPrimary : colors.textSecondary}>
-                  {TAB_LABELS[key]}
+                  {t(TAB_LABELS[key])}
                 </T>
                 <CountBadge count={waiting.count} small />
               </>
             ) : (
-              TAB_LABELS[key]
+              t(TAB_LABELS[key])
             ),
         }))}
       />
@@ -160,14 +168,17 @@ function BookingsScreen() {
         <Pressable accessibilityRole="button" onPress={() => pickTab('new')} style={styles.strip}>
           <IconAlarm size={22} color={colors.red} />
           <T size={16} lh={22} style={styles.flex}>
-            {waiting.count === 1 ? '1 booking to answer' : `${waiting.count} bookings to answer`}
+            {tn(waiting.count, '{count} booking to answer', '{count} bookings to answer')}
             {waiting.soonestMs !== null ? (
               <>
                 {' · '}
-                <T num size={16} weight={600} lh={22} color={colors.warning}>
-                  {`${Math.max(1, Math.ceil(waiting.soonestMs / 60_000))} min`}
-                </T>
-                {` left${waiting.count > 1 ? ' on one' : ''}`}
+                {fill(waiting.count > 1 ? t('{time} left on one') : t('{time} left'), {
+                  time: (
+                    <T num size={16} weight={600} lh={22} color={colors.warning}>
+                      {`${Math.max(1, Math.ceil(waiting.soonestMs / 60_000))} min`}
+                    </T>
+                  ),
+                })}
               </>
             ) : null}
           </T>
@@ -184,10 +195,14 @@ function BookingsScreen() {
         {!loaded && bookings.length === 0 ? (
           <SkeletonList count={3} height={112} />
         ) : unknown ? (
-          <LoadError what="your bookings" onRetry={reload} retrying={retrying} />
+          <LoadError what={t('your bookings')} onRetry={reload} retrying={retrying} />
         ) : isEmpty ? (
           <>
-            <EmptyState {...emptyStates(colors)[tab]} />
+            <EmptyState
+              icon={emptyStates(colors)[tab].icon}
+              title={t(emptyStates(colors)[tab].title)}
+              subtitle={t(emptyStates(colors)[tab].subtitle)}
+            />
             {tab === 'today' && today.tomorrow > 0 ? (
               <TomorrowRow count={today.tomorrow} onOpen={() => pickTab('later')} />
             ) : null}
@@ -198,7 +213,7 @@ function BookingsScreen() {
               <View style={styles.list}>
                 <View style={styles.nowHead}>
                   <T accessibilityRole="header" size={17} weight={600}>
-                    Now
+                    {t('Now')}
                   </T>
                   <T num size={14} color={colors.textSecondary}>
                     {calendarDate(now)}
@@ -212,7 +227,7 @@ function BookingsScreen() {
             {today.next.length > 0 ? (
               <View style={styles.list}>
                 <T accessibilityRole="header" size={17} weight={600}>
-                  Next
+                  {t('Next')}
                 </T>
                 {today.next.map((b) => (
                   <JobRow key={b.id} booking={b} now={now} showStep />
@@ -236,9 +251,9 @@ function BookingsScreen() {
           ))
         ) : tab === 'later' ? (
           later.map((group) => (
-            <View key={group.day} accessibilityLabel={group.day} style={styles.list}>
+            <View key={group.day} accessibilityLabel={t(group.day)} style={styles.list}>
               <T accessibilityRole="header" size={17} weight={600}>
-                {group.day}
+                {t(group.day)}
               </T>
               {group.jobs.map((b) => (
                 <JobRow key={b.id} booking={b} now={now} />
@@ -255,16 +270,19 @@ function BookingsScreen() {
 
 /** Tomorrow, folded into one row that opens Later. */
 function TomorrowRow({ count, onOpen }: { count: number; onOpen: () => void }) {
+  const tn = useTn();
   const colors = useColors();
   const styles = useStyles();
   return (
     <Pressable accessibilityRole="button" onPress={onOpen} style={styles.tomorrow}>
       <T size={17}>
-        {'Tomorrow · '}
-        <T num size={17}>
-          {count}
-        </T>
-        {` ${count === 1 ? 'job' : 'jobs'}`}
+        {fill(tn(count, 'Tomorrow · {num} job', 'Tomorrow · {num} jobs'), {
+          num: (
+            <T num size={17}>
+              {count}
+            </T>
+          ),
+        })}
       </T>
       <IconChevronRight size={20} color={colors.textSecondary} />
     </Pressable>

@@ -1,4 +1,5 @@
 import { deleteMyCarPhoto } from '@repo/core/api/job-records';
+import { useT } from '@repo/core/i18n';
 import { angleLabel, angleSlots, extraPhotos, PHOTO_ANGLE_LABELS, type PhotoAngle, photosOf } from '@repo/core/job-photo-standards';
 import { formatStepTime } from '@repo/core/job-records';
 import type { Booking, JobPhoto } from '@repo/core/types';
@@ -19,6 +20,7 @@ import { PhotoViewer } from './photo-viewer';
 
 /** CarConditionCard (apps/users/components/car-condition-card.tsx). */
 export function CarConditionCard({ booking, onChanged }: { booking: Booking; onChanged: () => Promise<void> | void }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const windows = booking.conditionPhotos;
@@ -40,7 +42,7 @@ export function CarConditionCard({ booking, onChanged }: { booking: Booking; onC
       setShot((keys) => new Set(keys).add(`${stage}:${angle ?? 'extra'}`));
       await onChanged();
     } catch (error) {
-      toast.error(errorText(error, 'Your photo did not upload. Please try again.'));
+      toast.error(errorText(error, t('Your photo did not upload. Please try again.')));
     } finally {
       setUploading(null);
     }
@@ -53,23 +55,25 @@ export function CarConditionCard({ booking, onChanged }: { booking: Booking; onC
       setViewing(null);
       await onChanged();
     } catch (error) {
-      toast.error(errorText(error, "Couldn't remove this photo"));
+      toast.error(errorText(error, t("Couldn't remove this photo")));
     } finally {
       setRemoving(false);
     }
   };
 
   const intro = windows.before.open
-    ? `Optional: add up to ${windows.max} photos of your car before the work starts, close up on any scratches or dents. The garage sees them too, and they stay with this booking.`
+    ? t('Optional: add up to {max} photos of your car before the work starts, close up on any scratches or dents. The garage sees them too, and they stay with this booking.', { max: windows.max })
     : windows.after.open
-      ? `Your car is done. Add up to ${windows.max} photos of how it came back${windows.after.closesAt ? `, until ${formatStepTime(windows.after.closesAt)}` : ''}.`
-      : 'Your photos of your car, kept with this booking.';
+      ? windows.after.closesAt
+        ? t('Your car is done. Add up to {max} photos of how it came back, until {time}.', { max: windows.max, time: formatStepTime(windows.after.closesAt) })
+        : t('Your car is done. Add up to {max} photos of how it came back.', { max: windows.max })
+      : t('Your photos of your car, kept with this booking.');
 
   return (
     <ScCard style={styles.card}>
       <View>
         <T size={14} weight={600} lh={20}>
-          {"Your car's condition"}
+          {t("Your car's condition")}
         </T>
         <T size={12} lh={16} color={colors.textSecondary} style={styles.sub}>
           {intro}
@@ -82,7 +86,7 @@ export function CarConditionCard({ booking, onChanged }: { booking: Booking; onC
         const slots = angleSlots(booking.jobPhotos, 'customer', stage);
         const extras = extraPhotos(booking.jobPhotos, 'customer', stage);
         const thumb = (photo: JobPhoto, name: string, key?: string) => (
-          <Pressable accessibilityRole="imagebutton" accessibilityLabel={`View ${name}`} onPress={() => setViewing({ photo, url: photo.url, name, canRemove: open })}>
+          <Pressable accessibilityRole="imagebutton" accessibilityLabel={t('View {name}', { name })} onPress={() => setViewing({ photo, url: photo.url, name, canRemove: open })}>
             <ShutterImage uri={photo.url} play={key !== undefined && shot.has(key)} style={styles.thumb} />
           </Pressable>
         );
@@ -90,7 +94,7 @@ export function CarConditionCard({ booking, onChanged }: { booking: Booking; onC
           <View key={stage} style={styles.stage}>
             <View style={styles.stageHead}>
               <T size={11} weight={500} lh={15} uppercase tracking={0.05} color={colors.textSecondary}>
-                {stage === 'before' ? 'Before the work' : 'After the work'}
+                {stage === 'before' ? t('Before the work') : t('After the work')}
               </T>
               <T num size={11} lh={15} color={colors.textMuted}>
                 {`${mine.length}/${windows.max}`}
@@ -98,11 +102,11 @@ export function CarConditionCard({ booking, onChanged }: { booking: Booking; onC
             </View>
             <View style={styles.slots}>
               {slots.map(({ angle, photo }) => {
-                const label = PHOTO_ANGLE_LABELS[angle];
+                const label = t(PHOTO_ANGLE_LABELS[angle]);
                 if (photo) {
                   return (
                     <View key={angle} style={styles.slot}>
-                      {thumb(photo, `your ${label.toLowerCase()} photo, ${stage} the work`, `${stage}:${angle}`)}
+                      {thumb(photo, stage === 'before' ? t('your {angle} photo, before the work', { angle: label.toLowerCase() }) : t('your {angle} photo, after the work', { angle: label.toLowerCase() }), `${stage}:${angle}`)}
                       <T size={10} lh={14} color={colors.textSecondary}>
                         {label}
                       </T>
@@ -115,7 +119,7 @@ export function CarConditionCard({ booking, onChanged }: { booking: Booking; onC
                   <View key={angle} style={styles.slot}>
                     <Pressable
                       accessibilityRole="button"
-                      accessibilityLabel={`Add a ${label.toLowerCase()} photo of your car, ${stage} the work`}
+                      accessibilityLabel={stage === 'before' ? t('Add a {angle} photo of your car, before the work', { angle: label.toLowerCase() }) : t('Add a {angle} photo of your car, after the work', { angle: label.toLowerCase() })}
                       disabled={uploading !== null}
                       onPress={() => void upload(stage, angle)}
                       style={[styles.add, uploading !== null && styles.dim]}
@@ -130,7 +134,7 @@ export function CarConditionCard({ booking, onChanged }: { booking: Booking; onC
               })}
               {extras.map((photo, i) => (
                 <View key={photo.id} style={styles.slot}>
-                  {thumb(photo, `your extra photo ${i + 1}, ${stage} the work`)}
+                  {thumb(photo, stage === 'before' ? t('your extra photo {number}, before the work', { number: i + 1 }) : t('your extra photo {number}, after the work', { number: i + 1 }))}
                   <T size={10} lh={14} color={colors.textSecondary}>
                     {angleLabel(photo.angle)}
                   </T>

@@ -2,6 +2,7 @@
 
 import { IconCircleX } from '@tabler/icons-react'
 import { cn } from '@repo/core/utils'
+import { msg, t, useT } from '@repo/core/i18n'
 import { ScSheet } from './modal'
 
 export type SortKey =
@@ -12,15 +13,16 @@ export type SortKey =
   | 'price_desc'
 
 export const SORT_OPTIONS: { value: SortKey; label: string }[] = [
-  { value: 'distance', label: 'Nearest First' },
-  { value: 'relevance', label: 'Relevance' },
-  { value: 'rating', label: 'Top Rated' },
-  { value: 'price_asc', label: 'Cost: Low to High' },
-  { value: 'price_desc', label: 'Cost: High to Low' },
+  { value: 'distance', label: msg('Nearest First') },
+  { value: 'relevance', label: msg('Relevance') },
+  { value: 'rating', label: msg('Top Rated') },
+  { value: 'price_asc', label: msg('Cost: Low to High') },
+  { value: 'price_desc', label: msg('Cost: High to Low') },
 ]
 
+/** The sort's name, in the language in use. */
 export function sortLabel(value: SortKey) {
-  return SORT_OPTIONS.find((o) => o.value === value)?.label ?? 'Relevance'
+  return t(SORT_OPTIONS.find((o) => o.value === value)?.label ?? 'Relevance')
 }
 
 interface SortSheetProps {
@@ -77,16 +79,17 @@ export function SortSheet({
   locationUnavailable = false,
   ratingAvailable,
 }: SortSheetProps) {
+  const t = useT()
   // ScSheet owns the slide-in/out, the scroll lock and Escape-to-close.
   return (
-    <ScSheet open={open} onClose={onClose} aria-label="Sort by">
+    <ScSheet open={open} onClose={onClose} aria-label={t('Sort by')}>
       <div>
         <div className="flex items-center justify-between border-b border-border px-5 pb-4 pt-1">
-          <h2 className="text-[17px] font-semibold text-text-primary">Sort by</h2>
+          <h2 className="text-[17px] font-semibold text-text-primary">{t('Sort by')}</h2>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t('Close')}
             className="-mr-[11px] flex size-11 items-center justify-center"
           >
             <IconCircleX size={22} aria-hidden="true" className="text-text-secondary" />
@@ -110,10 +113,10 @@ export function SortSheet({
             className="flex w-full items-center justify-between border-b border-border px-5 py-4 text-left last:border-b-0 disabled:opacity-40"
           >
             <span className="text-[15px] text-text-primary">
-              {opt.label}
+              {t(opt.label)}
               {disabled && (
                 <span className="block text-[11px] text-text-muted">
-                  Turn on location to use this
+                  {t('Turn on location to use this')}
                 </span>
               )}
             </span>

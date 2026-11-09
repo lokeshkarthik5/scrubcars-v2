@@ -31,6 +31,7 @@ import {
 } from '@/lib/members-view';
 import { digitsOnly } from '@/lib/settings-logic';
 import { createStyles, useColors } from '@repo/native-ui/theme';
+import { msg, useT } from '@repo/core/i18n';
 
 // The web's back arrow goes to /settings; in the tab bar `back` would land on Home instead.
 const goBack = () => router.navigate('/settings');
@@ -44,6 +45,7 @@ type Asking = { kind: 'remove' | 'owner'; member: ApiMember };
  * admins only; the API refuses an operator.
  */
 function MembersScreen() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const isVendorAdmin = useIsVendorAdmin();
@@ -67,7 +69,7 @@ function MembersScreen() {
     try {
       setMembers(await getMembers());
     } catch (err) {
-      toast.error(errorText(err, 'Failed to load members'));
+      toast.error(errorText(err, t('Failed to load members')));
     } finally {
       setLoading(false);
     }
@@ -89,7 +91,7 @@ function MembersScreen() {
 
   const handleAdd = async () => {
     if (!isTenDigits(phone)) {
-      toast.error(PHONE_PROBLEM);
+      toast.error(t(PHONE_PROBLEM));
       return;
     }
     setAdding(true);
@@ -99,9 +101,9 @@ function MembersScreen() {
       setName('');
       setRole('vendor_operator');
       await load();
-      toast.success('Member added');
+      toast.success(t('Member added'));
     } catch (err) {
-      toast.error(errorText(err, 'Failed to add member'));
+      toast.error(errorText(err, t('Failed to add member')));
     } finally {
       setAdding(false);
     }
@@ -112,9 +114,9 @@ function MembersScreen() {
     try {
       await action();
       await load();
-      toast.success(done);
+      toast.success(t(done));
     } catch (err) {
-      toast.error(errorText(err, 'Something went wrong'));
+      toast.error(errorText(err, t('Something went wrong')));
     } finally {
       setBusyId(null);
     }
@@ -124,7 +126,7 @@ function MembersScreen() {
     if (!asking) return;
     const { kind, member } = asking;
     if (kind === 'remove') {
-      await run(member.id, () => removeMember(member.id), 'Member removed');
+      await run(member.id, () => removeMember(member.id), msg('Member removed'));
     } else {
       await run(
         member.id,
@@ -133,7 +135,7 @@ function MembersScreen() {
           // The seats changed: read them again so this screen knows who is the owner now.
           await useAuth.getState().reloadSession();
         },
-        'Ownership transferred'
+        msg('Ownership transferred')
       );
     }
     // run() has said what happened; the sheet shows its spinner until then.
@@ -142,13 +144,13 @@ function MembersScreen() {
 
   return (
     <AppShell>
-      <TopBar title="Team" onBack={goBack} />
+      <TopBar title={t('Team')} onBack={goBack} />
 
       <View style={styles.section}>
-        <SectionHeader title="Add a team member" />
+        <SectionHeader title={t('Add a team member')} />
         <ScCard style={styles.card}>
           <ScInput
-            label="Phone"
+            label={t('Phone')}
             numeric
             keyboardType="number-pad"
             textContentType="telephoneNumber"
@@ -156,21 +158,24 @@ function MembersScreen() {
             value={phone}
             onChangeText={(text) => setPhone(digitsOnly(text, 10))}
           />
-          <ScInput label="Name (optional)" value={name} onChangeText={setName} />
-          <ScSelect label="Role" value={role} options={ROLE_OPTIONS} onChange={setRole} />
+          <ScInput label={t('Name (optional)')} value={name} onChangeText={setName} />
+          <ScSelect
+            label={t('Role')}
+            value={role}
+            options={ROLE_OPTIONS.map((option) => ({ ...option, label: t(option.label) }))} onChange={setRole} />
           {/* No invite step: being added grants access on their next login. */}
           <T size={11} color={colors.textSecondary}>
-            {ADD_NOTE}
+            {t(ADD_NOTE)}
           </T>
           <ScButton variant="main" size="lg" onPress={() => void handleAdd()} disabled={adding}>
-            {adding ? 'Adding...' : 'Add member'}
+            {adding ? t('Adding...') : t('Add member')}
           </ScButton>
         </ScCard>
       </View>
 
       <View style={styles.section}>
         <View style={styles.header}>
-          <SectionHeader title="Members" />
+          <SectionHeader title={t('Members')} />
           {!loading && members.length > 0 ? (
             <T num size={12} color={colors.textMuted}>
               {members.length}
@@ -196,11 +201,11 @@ function MembersScreen() {
                       </T>
                     </View>
                     <View style={styles.badges}>
-                      {member.status === 'suspended' ? <ScBadge variant="danger">Suspended</ScBadge> : null}
+                      {member.status === 'suspended' ? <ScBadge variant="danger">{t('Suspended')}</ScBadge> : null}
                       {member.isOwner ? (
-                        <ScBadge variant="success">Owner</ScBadge>
+                        <ScBadge variant="success">{t('Owner')}</ScBadge>
                       ) : (
-                        <ScBadge variant="pending">{roleLabel(member.role)}</ScBadge>
+                        <ScBadge variant="pending">{t(roleLabel(member.role))}</ScBadge>
                       )}
                     </View>
                   </View>
@@ -211,7 +216,7 @@ function MembersScreen() {
                     <View style={styles.locked}>
                       <IconLock size={13} stroke={1.5} color={colors.textSecondary} />
                       <T size={11} color={colors.textSecondary} style={styles.flex}>
-                        {OWNER_LOCKED}
+                        {t(OWNER_LOCKED)}
                       </T>
                     </View>
                   ) : (
@@ -219,11 +224,11 @@ function MembersScreen() {
                       <View style={styles.roleSelect}>
                         <ScSelect
                           value={member.role}
-                          options={ROLE_SHORT_OPTIONS}
+                          options={ROLE_SHORT_OPTIONS.map((option) => ({ ...option, label: t(option.label) }))}
                           disabled={busy}
                           onChange={(next) => {
                             if (next === member.role) return;
-                            void run(member.id, () => updateMember(member.id, { role: next }), 'Role updated');
+                            void run(member.id, () => updateMember(member.id, { role: next }), msg('Role updated'));
                           }}
                         />
                       </View>
@@ -236,19 +241,19 @@ function MembersScreen() {
                           void run(member.id, () => updateMember(member.id, { status: suspend.next }), suspend.done)
                         }
                       >
-                        {suspend.label}
+                        {t(suspend.label)}
                       </ScButton>
                       <ScButton
                         variant="outline"
                         fullWidth={false}
                         disabled={busy}
                         paddingX={14}
-                        accessibilityLabel={`Remove ${member.name}`}
+                        accessibilityLabel={t('Remove {name}', { name: member.name })}
                         onPress={() => setAsking({ kind: 'remove', member })}
                       >
                         <IconTrash size={14} stroke={1.5} />
                         <T size={15} weight={600} lh={20} color={busy ? colors.textMuted : colors.textPrimary}>
-                          Remove
+                          {t('Remove')}
                         </T>
                       </ScButton>
                       {canMakeOwner(isOwner, member) ? (
@@ -259,7 +264,7 @@ function MembersScreen() {
                           paddingX={14}
                           onPress={() => setAsking({ kind: 'owner', member })}
                         >
-                          Make owner
+                          {t('Make owner')}
                         </ScButton>
                       ) : null}
                     </View>
@@ -277,14 +282,14 @@ function MembersScreen() {
         onClose={() => setAsking(null)}
         onConfirm={confirmAsked}
         level="firm"
-        title={asking?.kind === 'owner' ? 'Make owner' : 'Remove member'}
+        title={asking?.kind === 'owner' ? t('Make owner') : t('Remove member')}
         body={
           <T size={14} lh={19} color={colors.textSecondary}>
             {asking ? (asking.kind === 'owner' ? transferPrompt(asking.member.name) : removePrompt(asking.member.name)) : ''}
           </T>
         }
-        confirmLabel={asking?.kind === 'owner' ? 'Make owner' : 'Remove'}
-        cancelLabel="Cancel"
+        confirmLabel={asking?.kind === 'owner' ? t('Make owner') : t('Remove')}
+        cancelLabel={t('Cancel')}
       />
     </AppShell>
   );

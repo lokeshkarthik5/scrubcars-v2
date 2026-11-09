@@ -1,6 +1,7 @@
 import { getBooking } from '@repo/core/api/bookings';
 import { ApiError } from '@repo/core/api/client';
 import { declineExtraWork } from '@repo/core/api/job-records';
+import { msg, useT } from '@repo/core/i18n';
 import { formatRupees } from '@repo/core/job-records';
 import type { Booking, ExtraWork } from '@repo/core/types';
 import { Label, ScButton } from '@repo/native-ui/button';
@@ -26,10 +27,10 @@ interface WorkPayment {
 }
 
 const STATE_LINE: Record<Exclude<ExtraWork['state'], 'awaiting'>, string> = {
-  paid: 'Approved and paid',
-  declined: 'You declined it',
-  withdrawn: 'The garage withdrew it',
-  closed: 'Closed with the booking',
+  paid: msg('Approved and paid'),
+  declined: msg('You declined it'),
+  withdrawn: msg('The garage withdrew it'),
+  closed: msg('Closed with the booking'),
 };
 
 const paidOn = (iso: string) => new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' });
@@ -45,6 +46,7 @@ export function ExtraWorkCard({
   onUpdated: (booking: Booking) => void;
   customer?: { name?: string; phone?: string };
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const [payments, setPayments] = useState<Record<string, WorkPayment>>({});
@@ -71,25 +73,25 @@ export function ExtraWorkCard({
           record(work.id, { paymentId, phase: 'confirming' });
         },
       });
-      if (result.kind === 'checking') toast.info("We're still checking your last payment. There's no need to pay again.");
+      if (result.kind === 'checking') toast.info(t("We're still checking your last payment. There's no need to pay again."));
       else if (result.kind === 'settled') {
         const updated = await getBooking(booking.id);
         if (updated) onUpdated(updated);
-        toast.success(`Approved. ${booking.vendorName} can go ahead.`);
-      } else if (result.kind === 'cancelled') toast.info('Payment cancelled. You can approve it any time from this page.');
+        toast.success(t('Approved. {name} can go ahead.', { name: booking.vendorName }));
+      } else if (result.kind === 'cancelled') toast.info(t('Payment cancelled. You can approve it any time from this page.'));
       else if (result.kind === 'failed-to-pay') toast.error(result.message);
       else if (result.outcome.kind === 'booked') {
         const updated = await getBooking(booking.id);
         if (updated) onUpdated(updated);
         record(work.id, { paymentId: result.paymentId, phase: 'paid' });
-        toast.success(`Approved. ${booking.vendorName} can go ahead.`);
+        toast.success(t('Approved. {name} can go ahead.', { name: booking.vendorName }));
       } else {
         const refundMessage = result.outcome.kind === 'failed' ? result.outcome.message : undefined;
         record(work.id, { paymentId: result.paymentId, phase: result.outcome.kind, refundMessage });
         if (refundMessage) toast.error(refundMessage);
       }
     } catch (error) {
-      toast.error(errorText(error, 'Could not start the payment. Please try again.'));
+      toast.error(errorText(error, t('Could not start the payment. Please try again.')));
       if (error instanceof ApiError && error.code === 'EXTRA_WORK_CLOSED') {
         const fresh = await getBooking(booking.id);
         if (fresh) onUpdated(fresh);
@@ -104,9 +106,9 @@ export function ExtraWorkCard({
     setDeclining(work.id);
     try {
       await declineExtraWork(booking.id, work.id);
-      toast.success(`Declined. ${booking.vendorName} can see your answer.`);
+      toast.success(t('Declined. {name} can see your answer.', { name: booking.vendorName }));
     } catch (error) {
-      toast.error(errorText(error, 'Something went wrong. Please try again.'));
+      toast.error(errorText(error, t('Something went wrong. Please try again.')));
     } finally {
       const fresh = await getBooking(booking.id).catch(() => null);
       if (fresh) onUpdated(fresh);
@@ -122,18 +124,18 @@ export function ExtraWorkCard({
           <View style={styles.needs}>
             <View style={styles.dot} />
             <T size={13} lh={18} color={colors.dim}>
-              Needs your answer
+              {t('Needs your answer')}
             </T>
           </View>
         ) : null}
         <View style={styles.titleRow}>
           <IconTool size={18} stroke={1.5} color={colors.textSecondary} />
           <T size={17} weight={500} lh={24}>
-            Extra work
+            {t('Extra work')}
           </T>
         </View>
         <T size={13} lh={18} color={colors.textSecondary} style={styles.sub}>
-          {`Asked for by ${booking.vendorName}. Nothing is done or charged unless you approve and pay here.`}
+          {t('Asked for by {name}. Nothing is done or charged unless you approve and pay here.', { name: booking.vendorName })}
         </T>
       </View>
       {booking.extraWork.map((work, index) => {
@@ -150,7 +152,7 @@ export function ExtraWorkCard({
                   <Pressable
                     key={photo.url}
                     accessibilityRole="imagebutton"
-                    accessibilityLabel={`Open photo ${i + 1} of ${work.photos.length} of ${work.description}`}
+                    accessibilityLabel={t('Open photo {number} of {total} of {description}', { number: i + 1, total: work.photos.length, description: work.description })}
                     onPress={() => setViewing({ url: photo.url, name: work.description })}
                   >
                     <Image source={{ uri: photo.url }} style={styles.photo} />
@@ -169,7 +171,7 @@ export function ExtraWorkCard({
             {work.note ? (
               <T size={13} lh={18} color={colors.textSecondary}>
                 <T size={13} weight={500} lh={18}>
-                  {"Garage's note: "}
+                  {`${t("Garage's note:")} `}
                 </T>
                 {work.note}
               </T>
@@ -178,42 +180,42 @@ export function ExtraWorkCard({
               <View style={styles.okLine}>
                 <IconCircleCheck size={16} color={colors.success} />
                 <T size={13} weight={500} lh={18} color={colors.success}>
-                  <Figures size={13} weight={500} color={colors.success} text={`Approved and paid on ${paidOn(work.paidAt ?? new Date().toISOString())}`} />
+                  <Figures size={13} weight={500} color={colors.success} text={t('Approved and paid on {day}', { day: paidOn(work.paidAt ?? new Date().toISOString()) })} />
                 </T>
               </View>
             ) : payment?.phase === 'confirming' ? (
               <ScButton variant="quiet" height={52} disabled>
                 <Spinner size={16} />
-                <Label>Payment received — confirming…</Label>
+                <Label>{t('Payment received — confirming…')}</Label>
               </ScButton>
             ) : showPanel && payment ? (
               <PaymentReceivedPanel paymentId={payment.paymentId} refundMessage={payment.phase === 'failed' ? payment.refundMessage : undefined} waitingOn="bill_not_marked_paid" />
             ) : open && pendingKeys.includes(chargeKey(work.id)) && opening !== work.id ? (
               <ScButton variant="quiet" height={52} disabled>
                 <Spinner size={16} />
-                <Label>Checking your payment…</Label>
+                <Label>{t('Checking your payment…')}</Label>
               </ScButton>
             ) : open ? (
               <View style={styles.actions}>
                 {work.id === firstAwaiting ? (
                   <ScButton variant="hero" disabled={busy} onPress={() => void handlePay(work)}>
                     <Label color={colors.white}>
-                      <Figures color={colors.white} size={15} weight={700} text={opening === work.id ? 'Opening payment...' : `Approve & pay ${formatRupees(work.amount)}`} />
+                      <Figures color={colors.white} size={15} weight={700} text={opening === work.id ? t('Opening payment...') : t('Approve & pay {amount}', { amount: formatRupees(work.amount) })} />
                     </Label>
                     {opening !== work.id ? <IconArrowUpRight size={17} stroke={1.5} color={colors.white} /> : null}
                   </ScButton>
                 ) : (
                   <ScButton variant="outline" disabled={busy} onPress={() => void handlePay(work)}>
-                    {opening === work.id ? 'Opening payment...' : `Approve & pay ${formatRupees(work.amount)}`}
+                    {opening === work.id ? t('Opening payment...') : t('Approve & pay {amount}', { amount: formatRupees(work.amount) })}
                   </ScButton>
                 )}
-                <ScButton variant="text" disabled={busy} accessibilityLabel={`No thanks to ${work.description}`} onPress={() => void handleDecline(work)}>
-                  {declining === work.id ? 'Declining...' : 'No thanks'}
+                <ScButton variant="text" disabled={busy} accessibilityLabel={t('No thanks to {description}', { description: work.description })} onPress={() => void handleDecline(work)}>
+                  {declining === work.id ? t('Declining...') : t('No thanks')}
                 </ScButton>
               </View>
             ) : work.state !== 'awaiting' ? (
               <T size={13} lh={18} color={colors.textSecondary}>
-                {STATE_LINE[work.state]}
+                {t(STATE_LINE[work.state])}
               </T>
             ) : null}
           </View>

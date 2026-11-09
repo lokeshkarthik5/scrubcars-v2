@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { IconLogout } from '@tabler/icons-react'
+import { useT } from '@repo/core/i18n'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { useBookingsStore } from '@repo/core/stores/bookings-store'
 import { useUserStore } from '@repo/core/stores/user-store'
@@ -13,6 +14,7 @@ import { useVendorOnboardingStore } from '@repo/core/stores/vendor-onboarding-st
  * removed it, or someone who only wanted to look.
  */
 export function OnboardingSignOut() {
+  const t = useT()
   const [busy, setBusy] = useState(false)
 
   const signOut = async () => {
@@ -35,7 +37,7 @@ export function OnboardingSignOut() {
       className="flex min-h-11 items-center gap-1.5 px-1 text-[14px] font-medium text-text-secondary transition-colors hover:text-text-primary disabled:opacity-50"
     >
       <IconLogout size={18} aria-hidden="true" />
-      Sign out
+      {t('Sign out')}
     </button>
   )
 }

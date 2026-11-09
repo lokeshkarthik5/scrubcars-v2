@@ -12,6 +12,7 @@ import { useAuthStore } from '@repo/core/stores/auth-store'
 import { CustomerShell } from '@/components/customer-shell'
 import { SaveGarageButton } from '@/components/favourites/save-garage-button'
 import { isHomeHubEnabled } from '@/lib/home-hub'
+import { useT } from '@repo/core/i18n'
 
 /**
  * Profile → Saved garages (under /profile, so the nav's Profile stays lit):
@@ -22,6 +23,7 @@ import { isHomeHubEnabled } from '@/lib/home-hub'
  * it.
  */
 export default function SavedGaragesPage() {
+  const t = useT()
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
   const ready = useAuthStore((s) => s.isSessionReady)
@@ -31,14 +33,14 @@ export default function SavedGaragesPage() {
     return (
       <CustomerShell showNav showBrand className="gap-4 py-4">
         <TopBar
-          title="Saved garages"
+          title={t('Saved garages')}
           showBack
           backHref="/profile"
           large={isHomeHubEnabled()}
         />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
           <p className="text-t3 font-semibold text-text-primary">
-            Sign in to see your saved garages
+            {t('Sign in to see your saved garages')}
           </p>
           <ScButton
             variant="main"
@@ -49,7 +51,7 @@ export default function SavedGaragesPage() {
               )
             }
           >
-            Sign in
+            {t('Sign in')}
           </ScButton>
         </div>
       </CustomerShell>
@@ -61,7 +63,7 @@ export default function SavedGaragesPage() {
   return (
     <CustomerShell showNav showBrand className="gap-4 py-4">
       <TopBar
-        title="Saved garages"
+        title={t('Saved garages')}
         showBack
         backHref="/profile"
         large={isHomeHubEnabled()}
@@ -74,20 +76,20 @@ export default function SavedGaragesPage() {
         </div>
       ) : saved.isError && vendors.length === 0 ? (
         <ErrorState
-          message="Couldn't load your saved garages. Check your connection."
+          message={t("Couldn't load your saved garages. Check your connection.")}
           onRetry={() => void saved.refetch()}
         />
       ) : vendors.length === 0 ? (
         <EmptyState
           icon={<IconHeart size={32} stroke={1.5} />}
-          title="No saved garages yet"
-          subtitle="Tap the heart on a garage to keep it here."
-          actionLabel="Find garages"
+          title={t('No saved garages yet')}
+          subtitle={t('Tap the heart on a garage to keep it here.')}
+          actionLabel={t('Find garages')}
           onAction={() => router.push('/garages')}
         />
       ) : (
         <ul
-          aria-label="Saved garages, newest first"
+          aria-label={t('Saved garages, newest first')}
           className="flex flex-col gap-3"
         >
           {vendors.map((vendor, i) => (
@@ -99,7 +101,7 @@ export default function SavedGaragesPage() {
                 // time from the customer's location (0062).
                 measureFromLocation
                 note={
-                  vendor.bookingsPaused ? 'Not taking bookings right now' : null
+                  vendor.bookingsPaused ? t('Not taking bookings right now') : null
                 }
               />
             </Reveal>

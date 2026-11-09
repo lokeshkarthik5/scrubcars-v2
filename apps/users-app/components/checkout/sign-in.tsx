@@ -1,5 +1,6 @@
 import type { OtpPurpose } from '@repo/core/api/types';
 import { useNow } from '@repo/core/hooks/use-now';
+import { fill, useT } from '@repo/core/i18n';
 import type { NativeOtpPurpose } from '@repo/core/native-session';
 import { formatCountdown, otpDeadlines, otpErrorMessage, retryAt as retryMoment, secondsUntil } from '@repo/core/otp';
 import { normaliseIndianMobile } from '@repo/core/phone';
@@ -26,6 +27,7 @@ const WEBSITE = 'https://detlio.com';
  * screen's, through useAuth.
  */
 export function useCheckoutSignIn() {
+  const t = useT();
   const [phase, setPhase] = useState<'phone' | 'code'>('phone');
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
@@ -66,7 +68,7 @@ export function useCheckoutSignIn() {
       track('otp_sent');
       return true;
     } catch (err) {
-      setError(otpErrorMessage(err, 'Failed to send the code'));
+      setError(otpErrorMessage(err, t('Failed to send the code')));
       setRetryAt(retryMoment(err, Date.now()));
       return false;
     } finally {
@@ -86,7 +88,7 @@ export function useCheckoutSignIn() {
       setOtp('');
       setCodeKey((k) => k + 1);
     } catch (err) {
-      setError(otpErrorMessage(err, 'Failed to resend the code'));
+      setError(otpErrorMessage(err, t('Failed to resend the code')));
       const at = retryMoment(err, Date.now());
       if (at) setResendAt(at);
     } finally {
@@ -114,7 +116,7 @@ export function useCheckoutSignIn() {
       useAuth.getState().applySession(data);
       return true;
     } catch (err) {
-      setError(otpErrorMessage(err, 'Verification failed'));
+      setError(otpErrorMessage(err, t('Verification failed')));
       return false;
     } finally {
       setVerifying(false);
@@ -162,6 +164,7 @@ export function CheckoutSignInCard({
   onVerify: () => void;
   busy: boolean;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const now = useNow(1000);
@@ -173,10 +176,10 @@ export function CheckoutSignInCard({
     <HubCard style={styles.card}>
       <View>
         <T size={17} weight={500} lh={24}>
-          Your phone number
+          {t('Your phone number')}
         </T>
         <T size={13} lh={18} color={colors.textSecondary} style={styles.sub}>
-          For your booking updates. No password: we text you a code.
+          {t('For your booking updates. No password: we text you a code.')}
         </T>
       </View>
       {signIn.phase === 'phone' ? (
@@ -195,10 +198,10 @@ export function CheckoutSignInCard({
             onPress={() => void signIn.sendCode()}
           >
             {signIn.sending
-              ? 'Sending…'
+              ? t('Sending…')
               : waitSeconds > 0 && waitSeconds < 60
-                ? `Send code in ${formatCountdown(waitSeconds)}`
-                : 'Send code'}
+                ? t('Send code in {time}', { time: formatCountdown(waitSeconds) })
+                : t('Send code')}
           </ScButton>
         </View>
       ) : (
@@ -209,21 +212,21 @@ export function CheckoutSignInCard({
             </T>
             <Pressable accessibilityRole="button" disabled={signIn.verifying || busy} onPress={signIn.editNumber} style={styles.link}>
               <T size={13} lh={18} color={colors.textSecondary} style={styles.underline}>
-                Change number
+                {t('Change number')}
               </T>
             </Pressable>
           </View>
           <View style={styles.sent}>
             <IconCheck size={14} color={colors.success} />
             <T size={13} lh={18} color={colors.success}>
-              Code sent by SMS
+              {t('Code sent by SMS')}
             </T>
           </View>
           <OtpInput length={OTP_LENGTH} onChange={signIn.setOtp} resetKey={signIn.codeKey} invalid={Boolean(shownError)} />
           {signIn.isNew ? (
             <ScInput
-              label="Your name (for the garage)"
-              placeholder="Your name"
+              label={t('Your name (for the garage)')}
+              placeholder={t('Your name')}
               autoComplete="name"
               autoCapitalize="words"
               autoCorrect={false}
@@ -234,7 +237,7 @@ export function CheckoutSignInCard({
           ) : null}
           <View style={styles.between}>
             <T size={12} lh={16} color={colors.textSecondary} style={styles.grow}>
-              {expirySeconds === null ? '' : expirySeconds > 0 ? `Code expires in ${formatCountdown(expirySeconds)}` : 'Code expired — send a new one'}
+              {expirySeconds === null ? '' : expirySeconds > 0 ? t('Code expires in {time}', { time: formatCountdown(expirySeconds) }) : t('Code expired — send a new one')}
             </T>
             <Pressable accessibilityRole="button" disabled={resendSeconds > 0 || signIn.sending} onPress={() => void signIn.resend()} style={styles.link}>
               <T
@@ -244,12 +247,12 @@ export function CheckoutSignInCard({
                 color={resendSeconds > 0 || signIn.sending ? colors.textMuted : colors.textPrimary}
                 style={resendSeconds > 0 || signIn.sending ? undefined : styles.underline}
               >
-                {signIn.sending ? 'Sending…' : resendSeconds > 0 ? `Resend in ${formatCountdown(resendSeconds)}` : 'Resend code'}
+                {signIn.sending ? t('Sending…') : resendSeconds > 0 ? t('Resend in {time}', { time: formatCountdown(resendSeconds) }) : t('Resend code')}
               </T>
             </Pressable>
           </View>
           <ScButton variant="main" disabled={!signIn.readyToVerify || signIn.verifying || busy} onPress={onVerify}>
-            {signIn.verifying ? 'Verifying…' : busy ? 'One moment…' : verifyLabel}
+            {signIn.verifying ? t('Verifying…') : busy ? t('One moment…') : verifyLabel}
           </ScButton>
         </View>
       )}
@@ -262,15 +265,18 @@ export function CheckoutSignInCard({
         </View>
       ) : null}
       <T size={12} lh={16} color={colors.textMuted}>
-        {'New to Detlio? Your account is made when you verify. By continuing you agree to our '}
-        <T size={12} lh={16} color={colors.textMuted} style={styles.underline} onPress={() => void WebBrowser.openBrowserAsync(`${WEBSITE}/terms`)}>
-          Terms
-        </T>
-        {'; our '}
-        <T size={12} lh={16} color={colors.textMuted} style={styles.underline} onPress={() => void WebBrowser.openBrowserAsync(`${WEBSITE}/privacy`)}>
-          Privacy Policy
-        </T>
-        {' explains how we use your data.'}
+        {fill(t('New to Detlio? Your account is made when you verify. By continuing you agree to our {terms}; our {privacy} explains how we use your data.'), {
+          terms: (
+            <T size={12} lh={16} color={colors.textMuted} style={styles.underline} onPress={() => void WebBrowser.openBrowserAsync(`${WEBSITE}/terms`)}>
+              {t('Terms')}
+            </T>
+          ),
+          privacy: (
+            <T size={12} lh={16} color={colors.textMuted} style={styles.underline} onPress={() => void WebBrowser.openBrowserAsync(`${WEBSITE}/privacy`)}>
+              {t('Privacy Policy')}
+            </T>
+          ),
+        })}
       </T>
     </HubCard>
   );

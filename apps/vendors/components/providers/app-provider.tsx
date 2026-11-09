@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
 import { setUnauthorizedHandler } from '@repo/core/api/client'
+import { useDocumentLang } from '@repo/core/i18n'
 import { APP_VERSION } from '@repo/core/version'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { useBookingsStore } from '@repo/core/stores/bookings-store'
@@ -70,6 +71,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         restoreSession: s.restoreSession,
       }))
     )
+
+  // English or Tamil, as chosen on this browser (the Language row): read
+  // once the page has hydrated, and mirrored on <html lang>.
+  useDocumentLang()
 
   // Printed once per load so a bug report can name the build it came from.
   useEffect(() => {

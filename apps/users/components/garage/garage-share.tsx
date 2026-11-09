@@ -6,6 +6,7 @@ import { IconBrandInstagram, IconLoader2 } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
 import type { GarageOwnedCar } from '@repo/core/api/garage'
 import { SHARE_FORMATS, type ShareFormat } from '@/lib/premium-card'
+import { useT } from '@repo/core/i18n'
 
 /**
  * "Share to Instagram" for a Garage card (0057): the card as a Story or a
@@ -20,6 +21,7 @@ export function GarageShare({
   car: GarageOwnedCar
   firstName?: string | null
 }) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const [showName, setShowName] = useState(false)
   const [busy, setBusy] = useState<ShareFormat | null>(null)
@@ -35,9 +37,9 @@ export function GarageShare({
         showName ? firstName : null
       )
       if (outcome === 'downloaded')
-        toast.success('Picture saved. Share it from your photos.')
+        toast.success(t('Picture saved. Share it from your photos.'))
     } catch {
-      toast.error("Couldn't make the picture. Try again.")
+      toast.error(t("Couldn't make the picture. Try again."))
     } finally {
       setBusy(null)
     }
@@ -52,13 +54,12 @@ export function GarageShare({
         className="flex min-h-11 items-center justify-center gap-2"
       >
         <IconBrandInstagram size={18} aria-hidden="true" />
-        Share
+        {t('Share')}
       </ScButton>
       {open && (
         <div className="flex flex-col gap-2.5 rounded-[12px] border border-border bg-surface p-3 text-left">
           <p className="text-t5 text-text-secondary">
-            Your card as a picture for your story or feed, with “Collected on
-            Detlio”.
+            {t('Your card as a picture for your story or feed, with “Collected on Detlio”.')}
           </p>
           {firstName && (
             <label className="flex min-h-11 items-center gap-2.5 text-t4 text-text-primary">
@@ -68,7 +69,7 @@ export function GarageShare({
                 onChange={(e) => setShowName(e.target.checked)}
                 className="size-4 accent-[#FAFAFA]"
               />
-              Show “{firstName}’s Garage” on the picture
+              {t('Show “{firstName}’s Garage” on the picture', { firstName })}
             </label>
           )}
           <div className="grid grid-cols-2 gap-2">

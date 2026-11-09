@@ -1,5 +1,6 @@
 import { getOtherGarages } from '@repo/core/api/bookings';
 import { bookingTypeParam } from '@repo/core/booking-types';
+import { useT } from '@repo/core/i18n';
 import type { Booking } from '@repo/core/types';
 import { ScButton } from '@repo/native-ui/button';
 import { IconBuildingStore } from '@repo/native-ui/icons';
@@ -14,6 +15,7 @@ import { VendorCard } from '@/components/garage/vendor-card';
 
 /** OtherGaragesCard (apps/users/components/other-garages-card.tsx). */
 export function OtherGaragesCard({ booking }: { booking: Booking }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const others = useQuery({ queryKey: ['bookings', booking.id, 'other-garages'], queryFn: () => getOtherGarages(booking.id), staleTime: 5 * 60_000 });
@@ -25,10 +27,10 @@ export function OtherGaragesCard({ booking }: { booking: Booking }) {
     <View style={styles.column}>
       <View>
         <T size={14} weight={600} lh={20}>
-          Book another garage
+          {t('Book another garage')}
         </T>
         <T size={12} lh={16} color={colors.textSecondary} style={styles.sub}>
-          {`Nearby garages that do this kind of job${vendors.length > 0 ? ', nearest first' : ''}.`}
+          {vendors.length > 0 ? t('Nearby garages that do this kind of job, nearest first.') : t('Nearby garages that do this kind of job.')}
         </T>
       </View>
       {others.isPending ? (
@@ -39,12 +41,12 @@ export function OtherGaragesCard({ booking }: { booking: Booking }) {
         <ScCard style={styles.none}>
           <IconBuildingStore size={20} color={colors.textMuted} />
           <T size={13} lh={18} color={colors.textSecondary} style={styles.grow}>
-            {others.isError ? "Couldn't load garages near you." : 'No other garage nearby does this job right now.'}
+            {others.isError ? t("Couldn't load garages near you.") : t('No other garage nearby does this job right now.')}
           </T>
         </ScCard>
       )}
       <ScButton variant="outline" onPress={() => router.push(listHref as Href)}>
-        See all garages
+        {t('See all garages')}
       </ScButton>
     </View>
   );

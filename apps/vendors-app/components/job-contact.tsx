@@ -10,6 +10,7 @@ import { createStyles, useColors } from '@repo/native-ui/theme';
 
 import { IconBrandWhatsapp, IconCar, IconHome, IconMapPin, IconNavigation, IconPhoneOff } from '@repo/native-ui/icons';
 import { T } from '@repo/native-ui/text';
+import { fill, useT } from '@repo/core/i18n';
 
 const OPEN_STATUSES: ReadonlySet<Booking['status']> = new Set(['pending', 'confirmed', 'in_progress']);
 const ENDED_STATUSES: ReadonlySet<Booking['status']> = new Set(['cancelled', 'rescheduled']);
@@ -20,6 +21,7 @@ const ENDED_STATUSES: ReadonlySet<Booking['status']> = new Set(['cancelled', 're
  * contact window. The window is the server's: the number comes only while it is open.
  */
 export function JobContact({ booking, now }: { booking: Booking; now: number }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const doorstep = booking.bookingType === 'doorstep';
@@ -27,7 +29,7 @@ export function JobContact({ booking, now }: { booking: Booking; now: number }) 
   const open = OPEN_STATUSES.has(booking.status);
   const windowState = contactWindowState(booking.contactWindow, now);
   const ended = ENDED_STATUSES.has(booking.status);
-  const who = booking.customerName || 'the customer';
+  const who = booking.customerName || t('the customer');
   const location = (doorstep || pickup) && open ? booking.jobLocation : undefined;
   const city = booking.garage?.city;
   const mapsHref = location
@@ -46,14 +48,14 @@ export function JobContact({ booking, now }: { booking: Booking; now: number }) 
         <View style={styles.badge}>
           <IconCar size={16} />
           <T size={15} weight={500}>
-            {BOOKING_TYPE_LABELS.pickup}
+            {t(BOOKING_TYPE_LABELS.pickup)}
           </T>
         </View>
       ) : (
         <View style={styles.type}>
           {doorstep ? <IconHome size={16} /> : <IconMapPin size={16} />}
           <T size={15} weight={500}>
-            {BOOKING_TYPE_LABELS[booking.bookingType]}
+            {t(BOOKING_TYPE_LABELS[booking.bookingType])}
           </T>
         </View>
       )}
@@ -63,26 +65,26 @@ export function JobContact({ booking, now }: { booking: Booking; now: number }) 
           <View>
             {pickup ? (
               <T size={13} color={colors.textSecondary}>
-                Collect from and return to
+                {t('Collect from and return to')}
               </T>
             ) : null}
             <T size={15}>{location.address}</T>
             {location.lat === null || location.lng === null ? (
               <T size={13} color={colors.textSecondary} style={styles.mt}>
-                No map pin on this address. Call to confirm the spot.
+                {t('No map pin on this address. Call to confirm the spot.')}
               </T>
             ) : null}
           </View>
           {mapsHref ? (
             <Pressable
               accessibilityRole="link"
-              accessibilityLabel={`Open in Maps for ${who}`}
+              accessibilityLabel={t('Open in Maps for {who}', { who })}
               onPress={() => openLink(mapsHref)}
               style={styles.maps}
             >
               <IconNavigation size={16} />
               <T size={15} weight={500}>
-                Open in Maps
+                {t('Open in Maps')}
               </T>
             </Pressable>
           ) : null}
@@ -108,10 +110,13 @@ export function JobContact({ booking, now }: { booking: Booking; now: number }) 
           >
             <IconBrandWhatsapp size={16} color="#25D366" />
             <T size={15} color={colors.textSecondary} style={styles.flex}>
-              {'Need to reach the customer? '}
-              <T size={15} weight={500} style={styles.underline}>
-                Contact Detlio support
-              </T>
+              {fill(t('Need to reach the customer? {link}'), {
+                link: (
+                  <T size={15} weight={500} style={styles.underline}>
+                    {t('Contact Detlio support')}
+                  </T>
+                ),
+              })}
             </T>
           </Pressable>
         </View>

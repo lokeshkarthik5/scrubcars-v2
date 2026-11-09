@@ -19,6 +19,7 @@ import { EASE_SETTLE, PressScale, useReduceMotion } from './motion';
 import { T } from './text';
 import { useColors, useFinish } from './theme';
 import { RED_LIGHT, redButtonGradient } from './tokens';
+import { useT } from './lang';
 
 /**
  * The finish's materials and controls (docs/ui-round-2026-11.md §1), the native twins
@@ -480,12 +481,32 @@ export function GraphiteSwitch<V extends string>({
           >
             <View style={styles.optionTop}>
               {showIcons && option.icon ? option.icon(ink) : null}
-              <T size={14} weight={selected ? 600 : 500} lh={18} numberOfLines={1} color={ink}>
+              {/* One line, inside its own option: a label too long for it (Tamil) shrinks a
+                  little, then ends in an ellipsis, and never runs into its neighbour. */}
+              <T
+                size={14}
+                weight={selected ? 600 : 500}
+                lh={18}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+                adjustsFontSizeToFit
+                minimumFontScale={0.85}
+                color={ink}
+                style={styles.optionLabel}
+              >
                 {option.label}
               </T>
             </View>
             {option.quiet && !pinned ? (
-              <T variant="t5" numberOfLines={1} color={selected ? fx.quietBright : fx.quiet}>
+              <T
+                variant="t5"
+                numberOfLines={1}
+                ellipsizeMode="tail"
+                adjustsFontSizeToFit
+                minimumFontScale={0.85}
+                color={selected ? fx.quietBright : fx.quiet}
+                style={styles.optionQuiet}
+              >
                 {option.quiet}
               </T>
             ) : null}
@@ -575,6 +596,7 @@ export function SilverKey({
   medal: ReactNode;
   pinned?: boolean;
 }) {
+  const t = useT();
   const { fx } = useFinish();
   const colors = useColors();
   const reduce = useReduceMotion();
@@ -651,7 +673,7 @@ export function SilverKey({
   return (
     <PressScale
       accessibilityRole="button"
-      accessibilityLabel={`${label}: ${quiet} garages only`}
+      accessibilityLabel={t('{label}: {quiet} garages only', { label, quiet })}
       accessibilityState={{ selected: on }}
       onPress={press}
     >
@@ -869,8 +891,18 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.28)',
   },
   keyLight: { position: 'absolute', left: '50%', marginLeft: -10 },
-  option: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center', gap: 2, paddingHorizontal: 4 },
+  option: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+    paddingHorizontal: 4,
+    overflow: 'hidden',
+  },
   optionTop: { flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: '100%' },
+  optionLabel: { flexShrink: 1, minWidth: 0 },
+  optionQuiet: { maxWidth: '100%' },
   twoLine: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingLeft: 8, paddingRight: 16 },
   twoLineText: { flex: 1, minWidth: 0, gap: 2 },
   trailing: { marginLeft: 'auto', flexDirection: 'row', alignItems: 'center' },

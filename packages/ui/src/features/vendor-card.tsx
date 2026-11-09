@@ -18,6 +18,7 @@ import { TierMark } from '@repo/ui/features/tier-medal'
 import { OutsideCityChip } from '@repo/ui/features/outside-city'
 import { GarageCover, GarageMonogram } from '@repo/ui/features/garage-cover'
 import { matchSpans } from '@repo/core/moments'
+import { fill, useT } from '@repo/core/i18n'
 
 /**
  * Text with the words a search matched marked (`mo-match`: the customer
@@ -42,6 +43,7 @@ function Matched({ text, query }: { text: string; query?: string }) {
 }
 
 function ModeBadge({ label, tone }: { label: string; tone: 'garage' | 'doorstep' }) {
+  const t = useT()
   return (
     <span
       className={
@@ -50,7 +52,7 @@ function ModeBadge({ label, tone }: { label: string; tone: 'garage' | 'doorstep'
           : 'rounded-md bg-surface-elevated px-2 py-0.5 text-[11px] font-medium text-text-secondary'
       }
     >
-      {label}
+      {t(label)}
     </span>
   )
 }
@@ -106,6 +108,7 @@ export function VendorCard({
 }) {
   // The logo has its own badge now, so the cover is gallery-only — reusing the
   // logo as a full-bleed cover would show the same image twice on the card.
+  const t = useT()
   const cover = vendor.photos[0] ?? null
   // Null distance means the request carried no origin, not that the garage is
   // at zero km — the same "unknown is not zero" rule applied to price and rating
@@ -158,7 +161,7 @@ export function VendorCard({
               <div className="absolute bottom-2 left-2 h-10 w-10 overflow-hidden rounded-[10px] border border-white/70 bg-surface shadow-sm">
                 <Image
                   src={vendor.logoUrl}
-                  alt={`${vendor.name} logo`}
+                  alt={t('{name} logo', { name: vendor.name })}
                   fill
                   sizes="40px"
                   className="object-cover"
@@ -186,7 +189,9 @@ export function VendorCard({
                 </span>
                 {vendor.tier && <TierMark tier={vendor.tier} />}
               </h3>
-              <div className="flex shrink-0 gap-1.5">
+              {/* At most 60% of the row, wrapping: Tamil names for the ways
+                  of being served are longer than the English. */}
+              <div className="flex max-w-[60%] shrink-0 flex-wrap justify-end gap-1.5">
                 {vendor.dropinEnabled && (
                   <ModeBadge label={BOOKING_TYPE_LABELS.dropin} tone="garage" />
                 )}
@@ -223,16 +228,19 @@ export function VendorCard({
                   <span>({vendor.reviewCount})</span>
                 </>
               ) : (
-                <span className="font-medium text-text-primary">{NEW_GARAGE_LABEL}</span>
+                <span className="font-medium text-text-primary">{t(NEW_GARAGE_LABEL)}</span>
               )}
               {vendor.startingPrice > 0 && (
                 <>
                   <span>·</span>
                   <span>
-                    From{' '}
-                    <span className="font-numeric font-medium text-text-primary">
-                      ₹{vendor.startingPrice}
-                    </span>
+                    {fill(t('From {price}'), {
+                      price: (
+                        <span className="font-numeric font-medium text-text-primary">
+                          ₹{vendor.startingPrice}
+                        </span>
+                      ),
+                    })}
                   </span>
                 </>
               )}
@@ -249,10 +257,13 @@ export function VendorCard({
                 like a wrong result. */}
             {vendor.matchedService && (
               <p className="truncate text-[12px] text-text-secondary">
-                Offers{' '}
-                <span className="font-medium text-text-primary">
-                  <Matched text={vendor.matchedService} query={highlight} />
-                </span>
+                {fill(t('Offers {service}'), {
+                  service: (
+                    <span className="font-medium text-text-primary">
+                      <Matched text={vendor.matchedService} query={highlight} />
+                    </span>
+                  ),
+                })}
               </p>
             )}
             {note && <p className="truncate text-[12px] text-text-muted">{note}</p>}

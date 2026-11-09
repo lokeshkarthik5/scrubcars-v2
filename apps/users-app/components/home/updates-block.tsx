@@ -1,6 +1,7 @@
 import { useDismissNotice } from '@repo/core/api/hooks/use-home';
 import type { HomeData, UpdateKind } from '@repo/core/api/home';
 import { updateTimeLabel } from '@repo/core/home-display';
+import { useT } from '@repo/core/i18n';
 import {
   IconArrowUpRight,
   IconBell,
@@ -108,6 +109,7 @@ export function UpdateRow({
   first?: boolean;
   onDismiss?: () => void;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const Icon = KIND_ICONS[row.kind] ?? IconBell;
@@ -149,7 +151,7 @@ export function UpdateRow({
       <View style={styles.side}>
         {row.unread ? <UnreadLight /> : null}
         {onDismiss ? (
-          <Pressable accessibilityRole="button" accessibilityLabel={`Hide notice: ${row.title}`} onPress={onDismiss} style={styles.x}>
+          <Pressable accessibilityRole="button" accessibilityLabel={t('Hide notice: {title}', { title: row.title })} onPress={onDismiss} style={styles.x}>
             <IconX size={18} stroke={1.5} color={colors.dim} />
           </Pressable>
         ) : null}
@@ -161,6 +163,7 @@ export function UpdateRow({
 
 /** UpdatesBlock: the pinned notice, then the newest two rows, then See all. */
 export function UpdatesBlock({ updates, now }: { updates: NonNullable<HomeData['updates']>; now: Date }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const dismiss = useDismissNotice();
@@ -170,15 +173,15 @@ export function UpdatesBlock({ updates, now }: { updates: NonNullable<HomeData['
     <View style={styles.block}>
       <View style={styles.head}>
         <T accessibilityRole="header" size={17} weight={500} tracking={-0.012}>
-          Updates
+          {t('Updates')}
         </T>
         <Pressable accessibilityRole="link" hitSlop={12} onPress={() => router.push('/updates' as Href)}>
           <T size={15} color={colors.textSoft}>
-            See all
+            {t('See all')}
           </T>
         </Pressable>
       </View>
-      <HubCard accessibilityLabel="Latest updates" style={styles.list}>
+      <HubCard accessibilityLabel={t('Latest updates')} style={styles.list}>
         {pinnedNotice ? (
           <UpdateRow
             pinned
@@ -191,7 +194,7 @@ export function UpdatesBlock({ updates, now }: { updates: NonNullable<HomeData['
               at: pinnedNotice.startsAt,
               unread: false,
               bookingId: null,
-              from: 'Detlio team',
+              from: t('Detlio team'),
               linkUrl: pinnedNotice.linkUrl,
               linkLabel: pinnedNotice.linkLabel,
             }}
@@ -203,7 +206,7 @@ export function UpdatesBlock({ updates, now }: { updates: NonNullable<HomeData['
             key={item.id}
             first={i === 0 && !pinnedNotice}
             now={now}
-            row={{ ...item, from: item.kind === 'notice' ? 'Detlio team' : null }}
+            row={{ ...item, from: item.kind === 'notice' ? t('Detlio team') : null }}
             onDismiss={item.noticeId ? () => dismiss.mutate(item.noticeId!) : undefined}
           />
         ))}

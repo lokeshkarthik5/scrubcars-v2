@@ -1,12 +1,16 @@
 import type { PricingType, ServiceCategory } from '@repo/core/types';
 
 import { DAYS, MAX_BAYS, SLOT_INTERVALS } from './settings-logic';
+import { msg, t, tn } from '@repo/core/i18n/translate';
 
 /**
  * The pure parts of the first-garage wizard (apps/vendors/app/onboarding/step-1..4, the draft in
  * packages/core/src/stores/vendor-onboarding-store.ts, and submitVendorOnboarding in
  * packages/core/src/api/vendors.ts): the draft's shape, each step's rules and request bodies,
  * and which step a person may be on. Kept free of react-native so `bun test` can load it.
+ * Labels and toasts stay English (msg) for the screen's t(); the problems built here come out in
+ * the language in use. The years, vehicle types and service presets are sent as English: only their
+ * labels change, as on the web.
  */
 export { DAYS, MAX_BAYS, SLOT_INTERVALS };
 
@@ -24,7 +28,13 @@ export function parseStep(param: string | string[] | undefined): OnboardingStep 
 /** One progress step is a quarter of the bar. */
 export const progressFor = (step: OnboardingStep) => step * 25;
 
-export const YEARS_OPTIONS = ['Under 1 year', '1–3 years', '3–5 years', '5–10 years', '10+ years'];
+export const YEARS_OPTIONS = [
+  msg('Under 1 year'),
+  msg('1–3 years'),
+  msg('3–5 years'),
+  msg('5–10 years'),
+  msg('10+ years'),
+];
 
 export const MIN_RADIUS_KM = 1;
 export const MAX_RADIUS_KM = 30;
@@ -107,8 +117,8 @@ export const step1Complete = (d: Pick<OnboardingDraft, 'businessName' | 'ownerNa
 
 export const pincodeValid = (pincode: string) => /^\d{6}$/.test(pincode);
 
-export const NO_PIN_TOAST = 'Set your garage location on the map';
-export const BAD_PINCODE_TOAST = 'Enter a valid 6-digit pincode';
+export const NO_PIN_TOAST = msg('Set your garage location on the map');
+export const BAD_PINCODE_TOAST = msg('Enter a valid 6-digit pincode');
 
 /** What stops Continue on step 2, in the toast's words, or null. */
 export function step2Problem(input: { hasPin: boolean; pincode: string }): string | null {
@@ -159,7 +169,7 @@ export const radiusProblem = (doorstep: boolean, radiusKm: string): string | nul
   if (!doorstep || radiusKm.trim() === '') return null;
   const radius = Number(radiusKm);
   return !Number.isFinite(radius) || radius < MIN_RADIUS_KM || radius > MAX_RADIUS_KM
-    ? `Enter how far you'll go, from ${MIN_RADIUS_KM} to ${MAX_RADIUS_KM} km, or leave it empty.`
+    ? t("Enter how far you'll go, from {min} to {max} km, or leave it empty.", { min: MIN_RADIUS_KM, max: MAX_RADIUS_KM })
     : null;
 };
 
@@ -167,14 +177,14 @@ export const baysProblem = (bays: string): string | null => {
   if (bays.trim() === '') return null;
   const count = Number(bays);
   return !Number.isInteger(count) || count < 1 || count > MAX_BAYS
-    ? `Cars at the same time must be between 1 and ${MAX_BAYS}.`
+    ? t('Cars at the same time must be between 1 and {max}.', { max: MAX_BAYS })
     : null;
 };
 
 export const jobsProblem = (jobsPerDay: string): string | null => {
   if (jobsPerDay.trim() === '') return null;
   const jobs = Number(jobsPerDay);
-  return !Number.isInteger(jobs) || jobs < 1 ? 'Jobs in a day must be 1 or more, or left blank.' : null;
+  return !Number.isInteger(jobs) || jobs < 1 ? t('Jobs in a day must be 1 or more, or left blank.') : null;
 };
 
 /** Continue on step 3 is disabled while any of these shows. */
@@ -213,17 +223,17 @@ export function step3Settings(d: Pick<OnboardingDraft, 'bays' | 'jobsPerDay'>) {
 /* ---------- Step 4: services and vehicles ---------- */
 
 export const SERVICE_PRESETS: { name: string; category: ServiceCategory }[] = [
-  { name: 'Exterior / foam wash', category: 'car_wash' },
-  { name: 'Interior cleaning & vacuum', category: 'detailing' },
-  { name: 'Full detailing', category: 'detailing' },
-  { name: 'Ceramic / paint protection', category: 'coating' },
-  { name: 'Polishing & buffing', category: 'detailing' },
-  { name: 'Denting & painting', category: 'scratch_removal' },
-  { name: 'General / periodic service', category: 'others' },
-  { name: 'AC service & repair', category: 'others' },
-  { name: 'Battery service', category: 'others' },
-  { name: 'Windshield & glass', category: 'others' },
-  { name: 'EV servicing', category: 'others' },
+  { name: msg('Exterior / foam wash'), category: 'car_wash' },
+  { name: msg('Interior cleaning & vacuum'), category: 'detailing' },
+  { name: msg('Full detailing'), category: 'detailing' },
+  { name: msg('Ceramic / paint protection'), category: 'coating' },
+  { name: msg('Polishing & buffing'), category: 'detailing' },
+  { name: msg('Denting & painting'), category: 'scratch_removal' },
+  { name: msg('General / periodic service'), category: 'others' },
+  { name: msg('AC service & repair'), category: 'others' },
+  { name: msg('Battery service'), category: 'others' },
+  { name: msg('Windshield & glass'), category: 'others' },
+  { name: msg('EV servicing'), category: 'others' },
 ];
 
 export const DURATIONS = [30, 45, 60, 90, 120, 180];
@@ -270,7 +280,7 @@ export const toggleVehicleType = (types: string[], type: string) =>
   types.includes(type) ? types.filter((t) => t !== type) : [...types, type];
 
 /** "3 services added." */
-export const addedText = (count: number) => `${count} service${count === 1 ? '' : 's'} added.`;
+export const addedText = (count: number) => tn(count, '{count} service added.', '{count} services added.');
 
 /* ---------- Where a person may be ---------- */
 

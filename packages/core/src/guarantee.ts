@@ -1,3 +1,5 @@
+import { msg, t } from './i18n/translate'
+
 /**
  * Detlio Guarantee (0051): the words and numbers the apps show for a free
  * redo claim. Twin of the server's apps/server/src/lib/guarantee.ts, which
@@ -37,11 +39,11 @@ export const GUARANTEE_ISSUES = [
 export type GuaranteeIssue = (typeof GUARANTEE_ISSUES)[number]
 
 export const ISSUE_LABELS: Record<GuaranteeIssue, string> = {
-  missed_spots: 'Missed spots or dirt left',
-  water_marks: 'Water marks or streaks',
-  interior_not_cleaned: 'Interior not cleaned',
-  wrong_service: 'Wrong service done',
-  other: 'Something else',
+  missed_spots: msg('Missed spots or dirt left'),
+  water_marks: msg('Water marks or streaks'),
+  interior_not_cleaned: msg('Interior not cleaned'),
+  wrong_service: msg('Wrong service done'),
+  other: msg('Something else'),
 }
 
 export type ClaimStatus =
@@ -58,27 +60,32 @@ export type ClaimStatus =
 
 /** Short status labels for the garage portal and admin. */
 export const CLAIM_STATUS_LABELS: Record<ClaimStatus, string> = {
-  waiting_garage: 'Waiting for the garage',
-  needs_detlio: 'With Detlio',
-  redo_approved: 'Redo approved — customer to pick a time',
-  redo_booked: 'Redo booked',
-  redo_done: 'Redo done',
-  refund_approved: 'Refund instead',
-  rejected: 'Not approved',
-  lapsed: 'Closed',
-  withdrawn: 'Withdrawn by the customer',
+  waiting_garage: msg('Waiting for the garage'),
+  needs_detlio: msg('With Detlio'),
+  redo_approved: msg('Redo approved — customer to pick a time'),
+  redo_booked: msg('Redo booked'),
+  redo_done: msg('Redo done'),
+  refund_approved: msg('Refund instead'),
+  rejected: msg('Not approved'),
+  lapsed: msg('Closed'),
+  withdrawn: msg('Withdrawn by the customer'),
 }
 
 /** The feature's name, as the customer's screens say it. */
-export const GUARANTEE_NAME = 'Detlio Guarantee'
+export const GUARANTEE_NAME = msg('Detlio Guarantee')
 
 /** The checkout badge. */
-export const GUARANTEE_BADGE = 'Covered by Detlio Guarantee'
+export const GUARANTEE_BADGE = msg('Covered by Detlio Guarantee')
 
 /** The button on a completed job. */
-export const GUARANTEE_BUTTON = 'Not happy? Detlio Guarantee — free redo'
+export const GUARANTEE_BUTTON = msg('Not happy? Detlio Guarantee — free redo')
 
-/** One line under the checkout badge and on the claim screen. */
+/**
+ * One line under the checkout badge and on the claim screen. This and the
+ * list below carry their numbers, so a screen shows them as t(GUARANTEE_SUMMARY):
+ * the Tamil is keyed by this exact English, and a changed number falls back
+ * to English rather than showing an old one.
+ */
 export const GUARANTEE_SUMMARY = `Not happy with a wash or detailing? Ask for a free redo within ${GUARANTEE_RULES.claimWindowHours} hours, with photos of the problem.`
 
 /** What the claim screen says about how it is decided. */
@@ -91,7 +98,7 @@ export const GUARANTEE_HOW_IT_WORKS = [
 ] as const
 
 /** Covers car washes and detailing (and packages of them), as the server's redoCategories. */
-export const GUARANTEE_COVERS = 'Car washes and detailing, including packages of them.'
+export const GUARANTEE_COVERS = msg('Car washes and detailing, including packages of them.')
 
 /** "Respond within 3 h 20 m", for the garage's countdown. */
 export function timeLeftLabel(untilIso: string | null, now: number = Date.now()): string | null {
@@ -111,11 +118,11 @@ export function claimFormProblem(input: {
   otherText: string
   photos: number
 }): string | null {
-  if (input.issues.length === 0) return "Pick what's wrong."
-  if (input.issues.includes('other') && !input.otherText.trim()) return "Say what's wrong in a few words."
+  if (input.issues.length === 0) return t("Pick what's wrong.")
+  if (input.issues.includes('other') && !input.otherText.trim()) return t("Say what's wrong in a few words.")
   if (input.photos < GUARANTEE_RULES.minPhotos) {
-    return `Add at least ${GUARANTEE_RULES.minPhotos} photos of the problem.`
+    return t('Add at least {count} photos of the problem.', { count: GUARANTEE_RULES.minPhotos })
   }
-  if (input.photos > GUARANTEE_RULES.maxPhotos) return `Add at most ${GUARANTEE_RULES.maxPhotos} photos.`
+  if (input.photos > GUARANTEE_RULES.maxPhotos) return t('Add at most {count} photos.', { count: GUARANTEE_RULES.maxPhotos })
   return null
 }

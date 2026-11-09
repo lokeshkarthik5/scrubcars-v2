@@ -1,5 +1,6 @@
 import { toMinutes, useTravelTime } from '@repo/core/api/hooks/use-travel-time';
 import { directionsHref, googleMapsLink } from '@repo/core/contact-links';
+import { useT } from '@repo/core/i18n';
 import { formatDistance, straightLineKm } from '@repo/core/map';
 import type { Booking } from '@repo/core/types';
 import { formatDuration } from '@repo/core/utils';
@@ -61,6 +62,7 @@ function useCurrentPosition(wanted: boolean): Fix | null {
 }
 
 function DirectionsContent({ booking, onClose }: { booking: Booking; onClose: () => void }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const { scheme } = useTheme();
@@ -80,21 +82,21 @@ function DirectionsContent({ booking, onClose }: { booking: Booking; onClose: ()
 
   let line: string;
   if (!garagePoint) {
-    line = googleMapsLink(garage?.mapsUrl) ? 'This garage has not pinned its location yet. Google Maps opens its own listing.' : 'This garage has not pinned its location yet. Google Maps will search by its address.';
+    line = googleMapsLink(garage?.mapsUrl) ? t('This garage has not pinned its location yet. Google Maps opens its own listing.') : t('This garage has not pinned its location yet. Google Maps will search by its address.');
   } else if (!fix) {
-    line = 'Finding your location…';
+    line = t('Finding your location…');
   } else if (fix.state === 'denied') {
-    line = 'Allow location access to see how long the drive is.';
+    line = t('Allow location access to see how long the drive is.');
   } else if (fix.state === 'unavailable') {
-    line = "Couldn't find your location. Google Maps can still take you there.";
+    line = t("Couldn't find your location. Google Maps can still take you there.");
   } else if (travel.data) {
     const drive = describeDrive(travel.data);
-    line = drive.atGarage ? "You're at the garage." : `${drive.time} drive · ${drive.distance} from you`;
+    line = drive.atGarage ? t("You're at the garage.") : t('{time} drive · {distance} from you', { time: drive.time, distance: drive.distance });
   } else if (travel.isFetching) {
-    line = 'Working out the drive…';
+    line = t('Working out the drive…');
   } else {
     const km = straightLineKm({ lat: fix.lat, lng: fix.lng }, garagePoint);
-    line = km * 1000 < AT_GARAGE_M ? "You're at the garage." : `${formatDistance(km)} away in a straight line`;
+    line = km * 1000 < AT_GARAGE_M ? t("You're at the garage.") : t('{distance} away in a straight line', { distance: formatDistance(km) });
   }
 
   return (
@@ -102,7 +104,7 @@ function DirectionsContent({ booking, onClose }: { booking: Booking; onClose: ()
       <View style={styles.head}>
         <View style={styles.grow}>
           <T size={16} weight={600} lh={22}>
-            Directions
+            {t('Directions')}
           </T>
           <T size={13} lh={18} color={colors.textSecondary} style={styles.mt4}>
             {booking.vendorName}
@@ -113,7 +115,7 @@ function DirectionsContent({ booking, onClose }: { booking: Booking; onClose: ()
             </T>
           ) : null}
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={styles.close}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('Close')} onPress={onClose} style={styles.close}>
           <IconCircleX size={22} color={colors.textSecondary} />
         </Pressable>
       </View>
@@ -139,7 +141,7 @@ function DirectionsContent({ booking, onClose }: { booking: Booking; onClose: ()
       {mapsHref ? (
         <ScButton variant="cta" onPress={() => openLink(mapsHref)}>
           <IconNavigation size={18} color={colors.white} />
-          <Label color={colors.white}>Open in Google Maps</Label>
+          <Label color={colors.white}>{t('Open in Google Maps')}</Label>
         </ScButton>
       ) : null}
     </View>
@@ -148,8 +150,9 @@ function DirectionsContent({ booking, onClose }: { booking: Booking; onClose: ()
 
 /** BookingDirectionsSheet (apps/users/components/booking-directions-sheet.tsx). */
 export function BookingDirectionsSheet({ open, onClose, booking }: { open: boolean; onClose: () => void; booking: Booking }) {
+  const t = useT();
   return (
-    <ScSheet horizontalPadding={16} open={open} onClose={onClose} accessibilityLabel="Directions">
+    <ScSheet horizontalPadding={16} open={open} onClose={onClose} accessibilityLabel={t('Directions')}>
       {open ? <DirectionsContent booking={booking} onClose={onClose} /> : null}
     </ScSheet>
   );

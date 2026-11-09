@@ -1,5 +1,6 @@
 import type { GaragePull } from '@repo/core/api/garage';
 import { cardNumber, RARITY_LOOKS } from '@repo/core/garage';
+import { t, tn, useT } from '@repo/core/i18n';
 import { rewardRupees } from '@repo/core/rewards';
 import { Label, ScButton } from '@repo/native-ui/button';
 import { IconArrowRight, IconCards } from '@repo/native-ui/icons';
@@ -22,17 +23,20 @@ type Stage = 'back' | 'shaking' | 'turning' | 'front';
 
 /** What the pull finished, in words: a row, the series, or a duplicate's stamp progress. */
 export function pullNews(pull: GaragePull): string | null {
-  if (pull.seriesCompleted) return 'Series complete! Every car is in your Garage, and the Garage Legend badge is yours.';
+  if (pull.seriesCompleted) return t('Series complete! Every car is in your Garage, and the Garage Legend badge is yours.');
   if (pull.rowCompleted) {
     const r = pull.rowCompleted;
-    return r.voucherAmount !== null ? `Row ${r.row} complete — ${rewardRupees(r.voucherAmount)} off your next booking.` : `Row ${r.row} complete — ${r.stamps === 1 ? 'a bonus stamp' : `${r.stamps} bonus stamps`} on your Shine Card.`;
+    return r.voucherAmount !== null
+      ? t('Row {row} complete — {amount} off your next booking.', { row: r.row, amount: rewardRupees(r.voucherAmount) })
+      : tn(r.stamps, 'Row {row} complete — a bonus stamp on your Shine Card.', 'Row {row} complete — {count} bonus stamps on your Shine Card.', { row: r.row });
   }
-  if (pull.duplicate) return 'A duplicate. Every 3 duplicates make a bonus Shine Card stamp.';
+  if (pull.duplicate) return t('A duplicate. Every 3 duplicates make a bonus Shine Card stamp.');
   return null;
 }
 
 /** PullReveal (0057): face down, then a tap turns it over. Reduced motion: it simply appears, face up. */
 export function PullReveal({ pull, onRevealed, firstName = null, compact = false }: { pull: GaragePull; onRevealed?: () => void; firstName?: string | null; compact?: boolean }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const still = useReducedMotion();
@@ -94,7 +98,7 @@ export function PullReveal({ pull, onRevealed, firstName = null, compact = false
             <Rect width="100%" height="100%" fill="url(#reveal-burst)" />
           </Svg>
         </Animated.View>
-        <Pressable accessibilityRole="button" accessibilityLabel={stage === 'back' ? 'Reveal your new card' : undefined} disabled={stage !== 'back'} onPress={reveal}>
+        <Pressable accessibilityRole="button" accessibilityLabel={stage === 'back' ? t('Reveal your new card') : undefined} disabled={stage !== 'back'} onPress={reveal}>
           <Animated.View style={[StyleSheet.absoluteFill, frontStyle]}>
             <GarageCard car={pull.car} shine={stage === 'front'} />
           </Animated.View>
@@ -123,7 +127,7 @@ export function PullReveal({ pull, onRevealed, firstName = null, compact = false
             <View style={styles.actions}>
               <ScButton variant="outline" onPress={() => router.push('/profile/rewards/garage' as Href)}>
                 <IconCards size={18} color={colors.textPrimary} />
-                <Label>See your Garage</Label>
+                <Label>{t('See your Garage')}</Label>
                 <IconArrowRight size={16} color={colors.textPrimary} />
               </ScButton>
               <GarageShare car={pull.car} firstName={firstName} />
@@ -132,10 +136,10 @@ export function PullReveal({ pull, onRevealed, firstName = null, compact = false
         ) : (
           <>
             <T size={13} lh={18} align="center" color={colors.textSecondary}>
-              {pull.sourceLabel === 'Booking completed' ? 'Your booking earned a card for your Garage.' : `${pull.sourceLabel}: a card for your Garage.`}
+              {pull.sourceLabel === 'Booking completed' ? t('Your booking earned a card for your Garage.') : t('{source}: a card for your Garage.', { source: pull.sourceLabel })}
             </T>
             <ScButton variant="outline" fullWidth={false} disabled={stage !== 'back'} onPress={reveal}>
-              {stage === 'back' ? 'Reveal' : 'Revealing…'}
+              {stage === 'back' ? t('Reveal') : t('Revealing…')}
             </ScButton>
           </>
         )}

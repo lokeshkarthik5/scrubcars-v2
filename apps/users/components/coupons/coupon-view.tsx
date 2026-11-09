@@ -21,6 +21,7 @@ import { useAuthStore } from '@repo/core/stores/auth-store'
 import { CustomerShell } from '@/components/customer-shell'
 import { CouponTicket } from '@/components/coupons/coupon-ticket'
 import { couponClosedLine, couponUseByLine } from '@/lib/coupons'
+import { useT } from '@repo/core/i18n'
 
 /** Where a ready voucher is used: its garage's page, or the list of garages. */
 export function couponBookPath(
@@ -43,6 +44,7 @@ export function couponBookPath(
  * wrong codes, and a refetch is not a new answer.
  */
 export function CouponView({ code }: { code: string }) {
+  const t = useT()
   const router = useRouter()
   const params = useSearchParams()
   const queryClient = useQueryClient()
@@ -89,7 +91,7 @@ export function CouponView({ code }: { code: string }) {
       setAddError(
         error instanceof ApiError
           ? error.message
-          : "Couldn't add the coupon. Check your connection and try again."
+          : t("Couldn't add the coupon. Check your connection and try again.")
       )
     } finally {
       setAdding(false)
@@ -141,16 +143,16 @@ export function CouponView({ code }: { code: string }) {
         return (
           <EmptyState
             icon={<IconTicket size={32} stroke={1.5} />}
-            title="We couldn't open this coupon"
+            title={t("We couldn't open this coupon")}
             subtitle={error.message}
-            actionLabel="Find garages"
+            actionLabel={t('Find garages')}
             onAction={() => router.push('/garages')}
           />
         )
       }
       return (
         <ErrorState
-          message="Couldn't load this coupon. Check your connection."
+          message={t("Couldn't load this coupon. Check your connection.")}
           onRetry={() => void lookup.refetch()}
         />
       )
@@ -179,15 +181,15 @@ export function CouponView({ code }: { code: string }) {
           <ScCard className="flex flex-col gap-3">
             <p role="status" className="text-[14px] text-text-primary">
               {stamps
-                ? 'Added to your Shine Card.'
-                : 'Added to your Detlio account.'}
+                ? t('Added to your Shine Card.')
+                : t('Added to your Detlio account.')}
               {!stamps && added.expiresAt && (
                 <> {couponUseByLine(added.expiresAt)}.</>
               )}
             </p>
             {!stamps && (
               <p className="text-t5 text-text-secondary">
-                It comes off at checkout, once.
+                {t('It comes off at checkout, once.')}
               </p>
             )}
             {/* The page's one red action, now that the coupon is in. */}
@@ -196,18 +198,18 @@ export function CouponView({ code }: { code: string }) {
                 onClick={() => router.push('/profile/rewards')}
                 className="min-h-11"
               >
-                See your Shine Card
+                {t('See your Shine Card')}
               </ScButton>
             ) : (
               <ScButton onClick={() => book(added)} className="min-h-11">
-                Book a wash
+                {t('Book a wash')}
               </ScButton>
             )}
             <Link
               href="/profile/coupons"
               className="flex min-h-11 items-center justify-center text-t4 font-medium text-text-secondary hover:text-text-primary"
             >
-              See your coupons
+              {t('See your coupons')}
             </Link>
           </ScCard>
         ) : closed ? (
@@ -218,7 +220,7 @@ export function CouponView({ code }: { code: string }) {
                 href="/profile/coupons"
                 className="text-t4 font-medium text-text-primary underline underline-offset-2"
               >
-                Open my coupons
+                {t('Open my coupons')}
               </Link>
             )}
           </ScCard>
@@ -232,14 +234,14 @@ export function CouponView({ code }: { code: string }) {
               disabled={adding}
               className="min-h-11"
             >
-              {adding ? 'Adding…' : 'Add to my Detlio'}
+              {adding ? t('Adding…') : t('Add to my Detlio')}
             </ScButton>
             <p className="text-t5 text-text-muted">
               {user
                 ? stamps
-                  ? 'The stamps go on your Shine Card in Detlio Rewards.'
-                  : 'It goes into your account as a coupon only you can use, and comes off at checkout.'
-                : 'Sign in or create an account with your phone number, then it is added to your account.'}
+                  ? t('The stamps go on your Shine Card in Detlio Rewards.')
+                  : t('It goes into your account as a coupon only you can use, and comes off at checkout.')
+                : t('Sign in or create an account with your phone number, then it is added to your account.')}
             </p>
             {addError && (
               <p role="alert" className="text-t5 text-error">
