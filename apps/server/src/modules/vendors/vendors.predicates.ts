@@ -33,53 +33,33 @@ export interface ListedRow {
   /**
    * Whether customers see garages in this garage's place (0069): its city's
    * "Customers see garages here", or the Other towns setting for a garage in
-   * no city. Worked out by lib/cities.ts (garageCityStanding); the SQL is
-   * CITY_SHOWN below.
+   * no city, read by the garage's stored city_id (citiesService.rules()
+   * standingOf); the SQL is CITY_SHOWN below.
    */
   cityShown: boolean
 }
 
 // ─── Cities (0069) ───────────────────────────────────────────────────────────
 //
-// Which city a garage is in, in SQL, for every query over `FROM vendors v`.
-// The rule is lib/cities.ts cityOfGarage: with a pin, the nearest centre
-// whose reach holds it (PostGIS on the sphere, as every coverage test here);
-// with no pin, the city its own city field names (Madras is Chennai). The
-// cities table is a handful of rows, so a correlated subquery per garage
-// costs next to nothing and keeps one definition. Aliases `cty` and `ots`
-// are used so they cannot shadow anything the outer query names.
+// The garage's city is stored in `v.city_id` (NULL = Other towns) and kept
+// right by the database (triggers in drizzle/0069_cities_reach.sql, by
+// lib/cities.ts cityOfGarage's rule). Everything below reads it by primary
+// key, never by searching the cities per row: a nearest-centre search in
+// every row's subquery is what made the customer list take seconds on
+// PostgreSQL 16 (PR #122's CI). The Other towns switch is an uncorrelated
+// subquery, so it is read once per query (an InitPlan). Aliases `cty` and
+// `ots` are used so they cannot shadow anything the outer query names.
 
-/** A city name as compared (lib/cities.ts cityNameKey): trimmed, lower case, Madras as Chennai. */
-function cityNameKey(column: SQL): SQL {
-  return sql`(CASE WHEN lower(btrim(${column})) = 'madras' THEN 'chennai' ELSE lower(btrim(${column})) END)`
-}
-
-const CITY_CENTRE = sql`gis.ST_SetSRID(gis.ST_MakePoint(cty.lng, cty.lat), 4326)::gis.geography`
-
-/** The garage `v` is in the city `cty`. */
-const GARAGE_IN_CITY = sql`(CASE
-  WHEN v.geo IS NOT NULL THEN gis.ST_DWithin(v.geo, ${CITY_CENTRE}, cty.reach_km * 1000, false)
-  ELSE ${cityNameKey(sql`v.city`)} = ${cityNameKey(sql`cty.name`)}
-END)`
-
-/** Nearest centre first; the name breaks a tie, as cityOfGarage does. */
-const GARAGE_CITY_ORDER = sql`(CASE WHEN v.geo IS NOT NULL THEN gis.ST_Distance(v.geo, ${CITY_CENTRE}, false) ELSE 0 END), cty.name`
-
-/**
- * One value of the garage's city (an expression over `cty`), or NULL when
- * the garage is in no city. `pinnedOnly` leaves out the name match, for
- * "All over <city>", which only a pinned garage can offer (lib/cities.ts
- * wholeCityOf).
- */
-export function garageCityValue(expression: SQL, options: { pinnedOnly?: boolean } = {}): SQL {
+/** One value of the garage's city (an expression over `cty`), by its stored id; NULL in no city. */
+function garageCityValue(expression: SQL, options: { pinnedOnly?: boolean } = {}): SQL {
   const pinned = options.pinnedOnly ? sql` AND v.geo IS NOT NULL` : sql``
-  return sql`(SELECT ${expression} FROM cities cty WHERE ${GARAGE_IN_CITY}${pinned} ORDER BY ${GARAGE_CITY_ORDER} LIMIT 1)`
+  return sql`(SELECT ${expression} FROM cities cty WHERE cty.id = v.city_id${pinned})`
 }
 
 /** The garage's city's id, or NULL for Other towns. Against the alias `v`. */
-export const GARAGE_CITY_ID = garageCityValue(sql`cty.id`)
+export const GARAGE_CITY_ID = sql`v.city_id`
 
-/** The Other towns switch (admin_settings), shown unless set to `visible: false`. */
+/** The Other towns switch (admin_settings), shown unless set to `visible: false`. Uncorrelated: one read a query. */
 const OTHER_TOWNS_VISIBLE = sql`COALESCE((SELECT (ots.value->>'visible')::boolean FROM admin_settings ots WHERE ots.key = ${sql.raw(`'${OTHER_TOWNS_SETTING_KEY}'`)}), true)`
 
 /**
@@ -93,11 +73,11 @@ export const CITY_SHOWN = sql`(v.show_when_city_off OR COALESCE(${garageCityValu
 /**
  * Whether the point is inside the garage's city, for "All over <city>"
  * (lib/cities.ts cityCoversPoint): measured from the city's centre. NULL
- * when the garage (pinned) is in no city, so a caller can fall back to the
- * garage's radius with COALESCE.
+ * when the garage is unpinned or in no city, so a caller can fall back to
+ * the garage's radius with COALESCE.
  */
 export function garageCityCovers(point: SQL): SQL {
-  return garageCityValue(sql`gis.ST_DWithin(${CITY_CENTRE}, ${point}, cty.reach_km * 1000, false)`, {
+  return garageCityValue(sql`gis.ST_DWithin(cty.centre, ${point}, cty.reach_km * 1000, false)`, {
     pinnedOnly: true,
   })
 }
@@ -107,7 +87,7 @@ export function garageCityCovers(point: SQL): SQL {
  * for a whole-city garage's "Just outside their area"; NULL with no city.
  */
 export function garageCityOutsideM(point: SQL): SQL {
-  return garageCityValue(sql`gis.ST_Distance(${CITY_CENTRE}, ${point}, false) - cty.reach_km * 1000`, {
+  return garageCityValue(sql`gis.ST_Distance(cty.centre, ${point}, false) - cty.reach_km * 1000`, {
     pinnedOnly: true,
   })
 }
@@ -142,11 +122,14 @@ export function pickupCovers(point: SQL): SQL {
   return sql`COALESCE(CASE WHEN v.pickup_whole_city THEN ${garageCityCovers(point)} END, gis.ST_DWithin(v.geo, ${point}, COALESCE(v.pickup_radius_km, ${DEFAULT_PICKUP_RADIUS_KM}) * 1000, false))`
 }
 
-/** Whether "All over <city>" is what decides this garage's doorstep reach: on, and it has a city. */
-const DOORSTEP_WHOLE_CITY_APPLIES = sql`(v.doorstep_whole_city AND ${garageCityValue(sql`cty.id`, { pinnedOnly: true })} IS NOT NULL)`
+/**
+ * Whether "All over <city>" is what decides this garage's doorstep reach: on,
+ * pinned, and it has a city (the foreign key keeps city_id pointing at one).
+ */
+const DOORSTEP_WHOLE_CITY_APPLIES = sql`(v.doorstep_whole_city AND v.geo IS NOT NULL AND v.city_id IS NOT NULL)`
 
 /** The same for pickup & drop. */
-const PICKUP_WHOLE_CITY_APPLIES = sql`(v.pickup_whole_city AND ${garageCityValue(sql`cty.id`, { pinnedOnly: true })} IS NOT NULL)`
+const PICKUP_WHOLE_CITY_APPLIES = sql`(v.pickup_whole_city AND v.geo IS NOT NULL AND v.city_id IS NOT NULL)`
 
 /** One mode's reach measured against a point, for "Just outside" and requests. */
 export interface TravelReachSql {

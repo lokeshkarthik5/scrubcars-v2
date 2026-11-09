@@ -12,6 +12,7 @@ const { citiesService } = await import('./cities.service.js')
 const { citiesRepository } = await import('./cities.repository.js')
 const { areaSignupsService } = await import('../area-signups/area-signups.service.js')
 const { AppError } = await import('../../lib/errors.js')
+const { cityOfGarage } = await import('../../lib/cities.js')
 
 const restores: Array<() => void> = []
 function patch(target: object, key: string, value: unknown) {
@@ -33,19 +34,21 @@ const city = (id: string, name: string, lat: number, lng: number, reachKm: numbe
 const CHENNAI = city('c-chennai', 'Chennai', 13.0827, 80.2707, 50, true)
 const TIRUPUR = city('c-tirupur', 'Tirupur', 11.1085, 77.3411, 25, false)
 
+// `cityId` is what the database stores (0069's trigger, by cityOfGarage's
+// rule); the first test below checks each one is what the rule says.
 const live = { status: 'active', isVerified: true, bookingsPausedAt: null, deletedAt: null, showWhenCityOff: false }
 const GARAGES = [
   // Chennai, live.
-  { ...live, id: 'g1', lat: 13.0067, lng: 80.2573, city: 'Chennai' },
+  { ...live, id: 'g1', lat: 13.0067, lng: 80.2573, city: 'Chennai', cityId: 'c-chennai' },
   // Chennai, pending.
-  { ...live, id: 'g2', lat: 13.05, lng: 80.25, city: 'Chennai', status: 'pending' },
+  { ...live, id: 'g2', lat: 13.05, lng: 80.25, city: 'Chennai', cityId: 'c-chennai', status: 'pending' },
   // Tirupur is off: one hidden, one shown anyway.
-  { ...live, id: 'g3', lat: 11.12, lng: 77.35, city: 'Tirupur' },
-  { ...live, id: 'g4', lat: 11.1, lng: 77.34, city: 'Tirupur', showWhenCityOff: true },
+  { ...live, id: 'g3', lat: 11.12, lng: 77.35, city: 'Tirupur', cityId: 'c-tirupur' },
+  { ...live, id: 'g4', lat: 11.1, lng: 77.34, city: 'Tirupur', cityId: 'c-tirupur', showWhenCityOff: true },
   // No pin, says Madras: Chennai.
-  { ...live, id: 'g5', lat: null, lng: null, city: 'Madras' },
+  { ...live, id: 'g5', lat: null, lng: null, city: 'Madras', cityId: 'c-chennai' },
   // Sivakasi: Other towns.
-  { ...live, id: 'g6', lat: 9.4533, lng: 77.8024, city: 'Sivakasi' },
+  { ...live, id: 'g6', lat: 9.4533, lng: 77.8024, city: 'Sivakasi', cityId: null },
 ]
 
 function standIn(otherTowns: unknown = undefined) {
@@ -56,6 +59,12 @@ function standIn(otherTowns: unknown = undefined) {
 }
 
 describe('the Cities page', () => {
+  test("the stand-in garages' stored city is cityOfGarage's choice", () => {
+    for (const garage of GARAGES) {
+      expect(cityOfGarage(garage, [CHENNAI, TIRUPUR])?.id ?? null).toBe(garage.cityId)
+    }
+  })
+
   test('each city with its garages, live and hidden-if-off, and Other towns', async () => {
     standIn()
     const overview = await citiesService.overview()
@@ -91,14 +100,17 @@ describe('the Cities page', () => {
 })
 
 describe('the live rule other screens read', () => {
-  test('rules() names the city and why it hides a garage', async () => {
+  test("rules() names the garage's stored city and why it hides the garage", async () => {
     standIn()
     const rules = await citiesService.rules()
-    expect(rules.standingOf({ lat: 11.12, lng: 77.35, city: 'Tirupur', showWhenCityOff: false })).toEqual({
+    expect(rules.standingOf({ cityId: 'c-tirupur', showWhenCityOff: false })).toEqual({
       city: { id: 'c-tirupur', name: 'Tirupur' },
       cityShown: false,
       hiddenReason: 'Its city, Tirupur, is off for customers',
     })
-    expect(rules.standingOf({ lat: null, lng: null, city: 'Madras', showWhenCityOff: false }).city?.name).toBe('Chennai')
+    expect(rules.standingOf({ cityId: 'c-chennai', showWhenCityOff: false }).city?.name).toBe('Chennai')
+    // Other towns, shown (never set); and a stored id no longer in the list reads as Other towns.
+    expect(rules.standingOf({ cityId: null, showWhenCityOff: false })).toEqual({ city: null, cityShown: true, hiddenReason: null })
+    expect(rules.standingOf({ cityId: 'c-gone', showWhenCityOff: false }).city).toBeNull()
   })
 })

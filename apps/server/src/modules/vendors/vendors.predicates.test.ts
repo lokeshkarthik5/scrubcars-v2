@@ -8,6 +8,7 @@ import {
   CERTIFIED_GARAGE,
   CITY_SHOWN,
   doorstepCovers,
+  doorstepReach,
   GARAGE_CITY_ID,
   LISTED_TO_CUSTOMERS,
   NOT_IN_BIN,
@@ -17,6 +18,7 @@ import {
   isInBin,
   isListedToCustomers,
   pickupCovers,
+  pickupReach,
   vendorOpenForItsBookings,
   vendorPageOpen,
   vendorPagesOpen,
@@ -182,29 +184,53 @@ describe('the city clause (0069)', () => {
     )
   })
 
-  test('a pinned garage is in the nearest city whose reach holds its pin; an unpinned one goes by its city field, Madras as Chennai', () => {
-    const id = dialect.sqlToQuery(GARAGE_CITY_ID).sql
-    expect(id).toContain(
-      'WHEN v.geo IS NOT NULL THEN gis.ST_DWithin(v.geo, gis.ST_SetSRID(gis.ST_MakePoint(cty.lng, cty.lat), 4326)::gis.geography, cty.reach_km * 1000, false)'
+  test("the garage's city is its stored city_id, read by primary key, never searched for per row", () => {
+    // The rule that picks it (nearest centre whose reach holds the pin, else
+    // the city field, Madras as Chennai) is the database's trigger, checked
+    // against lib/cities.ts cityOfGarage in cities.trigger.test.ts and end to
+    // end in apps/e2e/specs/platform/garage-city.spec.ts.
+    expect(dialect.sqlToQuery(GARAGE_CITY_ID).sql).toBe('v.city_id')
+    expect(cityShown.sql).toBe(
+      "(v.show_when_city_off OR COALESCE((SELECT cty.customers_see FROM cities cty WHERE cty.id = v.city_id), COALESCE((SELECT (ots.value->>'visible')::boolean FROM admin_settings ots WHERE ots.key = 'other_towns_visible'), true)))"
     )
-    expect(id).toContain(
-      "ELSE (CASE WHEN lower(btrim(v.city)) = 'madras' THEN 'chennai' ELSE lower(btrim(v.city)) END) = (CASE WHEN lower(btrim(cty.name)) = 'madras' THEN 'chennai' ELSE lower(btrim(cty.name)) END)"
-    )
-    expect(id).toContain('ORDER BY (CASE WHEN v.geo IS NOT NULL THEN gis.ST_Distance(v.geo, ')
-    expect(id.endsWith('cty.name LIMIT 1)')).toBe(true)
+    const point = dialectPoint()
+    for (const fragment of [
+      cityShown.sql,
+      dialect.sqlToQuery(doorstepCovers(point)).sql,
+      dialect.sqlToQuery(pickupCovers(point)).sql,
+      dialect.sqlToQuery(doorstepReach(point).outsideM).sql,
+      dialect.sqlToQuery(doorstepReach(point).coverKm).sql,
+      dialect.sqlToQuery(pickupReach(point).outsideM).sql,
+      dialect.sqlToQuery(pickupReach(point).coverKm).sql,
+    ]) {
+      // No nearest-city search: no ORDER BY or LIMIT, no centre rebuilt from
+      // lat/lng, no name match; every cities read is by its id.
+      expect(fragment).not.toMatch(/ORDER BY|LIMIT|cty\.lat|cty\.lng|cty\.name|v\.city\b/)
+      for (const read of fragment.match(/FROM cities cty WHERE [^)]*/g) ?? []) {
+        expect(read.startsWith('FROM cities cty WHERE cty.id = v.city_id')).toBe(true)
+      }
+    }
   })
 
   test('"All over <city>" wins over the drawn area and the radius, and falls back to them with no city', () => {
     const point = dialectPoint()
     const doorstep = dialect.sqlToQuery(doorstepCovers(point)).sql
-    expect(doorstep.startsWith('COALESCE(CASE WHEN v.doorstep_whole_city THEN (SELECT gis.ST_DWithin(')).toBe(true)
-    expect(doorstep).toContain('AND v.geo IS NOT NULL ORDER BY')
+    expect(doorstep.startsWith(
+      'COALESCE(CASE WHEN v.doorstep_whole_city THEN (SELECT gis.ST_DWithin(cty.centre, gis.ST_SetSRID(gis.ST_MakePoint($1, $2), 4326)::gis.geography, cty.reach_km * 1000, false) FROM cities cty WHERE cty.id = v.city_id AND v.geo IS NOT NULL) END, CASE'
+    )).toBe(true)
     expect(doorstep).toContain('WHEN v.doorstep_area IS NOT NULL THEN gis.ST_Covers(v.doorstep_area, ')
     expect(doorstep).toContain('COALESCE(v.doorstep_radius_km, $')
     const pickup = dialect.sqlToQuery(pickupCovers(point)).sql
-    expect(pickup.startsWith('COALESCE(CASE WHEN v.pickup_whole_city THEN (SELECT gis.ST_DWithin(')).toBe(true)
+    expect(pickup.startsWith('COALESCE(CASE WHEN v.pickup_whole_city THEN (SELECT gis.ST_DWithin(cty.centre, ')).toBe(true)
     expect(pickup).toContain('COALESCE(v.pickup_radius_km, $')
     expect(pickup).not.toContain('doorstep')
+    // "Applies" needs no read at all: on, pinned, and a stored city.
+    expect(dialect.sqlToQuery(doorstepReach(point).coverKm).sql).toContain(
+      '(v.doorstep_whole_city AND v.geo IS NOT NULL AND v.city_id IS NOT NULL)'
+    )
+    expect(dialect.sqlToQuery(pickupReach(point).coverKm).sql).toContain(
+      '(v.pickup_whole_city AND v.geo IS NOT NULL AND v.city_id IS NOT NULL)'
+    )
   })
 })
 

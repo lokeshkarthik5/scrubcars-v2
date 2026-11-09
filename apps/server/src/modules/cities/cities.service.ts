@@ -1,12 +1,11 @@
 import {
+  cityById,
   cityNameKey,
-  cityOfGarage,
-  garageCityStanding,
+  cityStanding,
   OTHER_TOWNS_LABEL,
   parseOtherTownsVisible,
   type City,
   type GarageCityStanding,
-  type GaragePlace,
 } from '../../lib/cities.js'
 import { AppError } from '../../lib/errors.js'
 import { logger } from '../../lib/logger.js'
@@ -68,8 +67,12 @@ export interface CitiesOverview {
 export interface CityRules {
   cities: City[]
   otherTownsVisible: boolean
-  /** The garage's city, and whether its city lets customers see it. */
-  standingOf(garage: GaragePlace & { showWhenCityOff: boolean }): GarageCityStanding
+  /**
+   * The garage's city (its stored `vendors.city_id`, which the database
+   * keeps by lib/cities.ts cityOfGarage), and whether it lets customers see
+   * the garage.
+   */
+  standingOf(garage: { cityId: string | null; showWhenCityOff: boolean }): GarageCityStanding
 }
 
 async function assertNameFree(name: string, exceptId: string | null) {
@@ -108,7 +111,7 @@ export const citiesService = {
     return {
       cities: list,
       otherTownsVisible,
-      standingOf: (garage) => garageCityStanding(garage, list, otherTownsVisible),
+      standingOf: (garage) => cityStanding(cityById(garage.cityId, list), garage.showWhenCityOff, otherTownsVisible),
     }
   },
 
@@ -136,7 +139,7 @@ export const citiesService = {
       return entry
     }
     for (const garage of garages) {
-      const city = cityOfGarage(garage, list)
+      const city = cityById(garage.cityId, list)
       const cityShown = city ? city.customersSee : otherTownsVisible
       const entry = countOf(city?.id ?? null)
       entry.garagesTotal += 1
@@ -194,9 +197,9 @@ export const citiesService = {
 
   /**
    * Deletes a city. Its garages move to whichever city now holds them, or to
-   * Other towns, with no garage row changing (lib/cities.ts works a garage's
-   * city out on read). A whole-city doorstep or pickup garage left with no
-   * city keeps to its own radius.
+   * Other towns: the database recomputes every garage's city_id in the same
+   * statement (0069's trigger on cities). A whole-city doorstep or pickup
+   * garage left with no city keeps to its own radius.
    */
   async deleteCity(id: string, actor: Actor) {
     const deleted = await citiesRepository.deleteCity(id, actor)

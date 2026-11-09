@@ -44,8 +44,8 @@ export interface GarageForMatch {
   isVerified: boolean
   bookingsPausedAt: Date | null
   deletedAt: Date | null
-  /** What decides its city for the live rule (0069). */
-  city: string
+  /** Its stored city (0069), for the live rule. */
+  cityId: string | null
   showWhenCityOff: boolean
 }
 
@@ -175,7 +175,7 @@ export const leadsRepository = {
         isVerified: vendors.isVerified,
         bookingsPausedAt: vendors.bookingsPausedAt,
         deletedAt: vendors.deletedAt,
-        city: vendors.city,
+        cityId: vendors.cityId,
         showWhenCityOff: vendors.showWhenCityOff,
       })
       .from(vendors)

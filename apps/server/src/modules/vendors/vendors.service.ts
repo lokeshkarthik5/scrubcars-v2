@@ -50,7 +50,7 @@ import { vendorsRepository } from './vendors.repository.js'
 import { slotAlertsService } from '../slot-alerts/slot-alerts.service.js'
 import { areaSignupsService } from '../area-signups/area-signups.service.js'
 import { citiesService } from '../cities/cities.service.js'
-import { WHOLE_CITY_NEEDS_CITY, wholeCityOf } from '../../lib/cities.js'
+import { storedWholeCity, WHOLE_CITY_NEEDS_CITY } from '../../lib/cities.js'
 import { publicWholeCity, toPublicVendor, type PublicVendorFields } from './vendors.public.js'
 
 const log = logger.child({ module: 'vendors' })
@@ -156,7 +156,7 @@ export type VendorResponse = {
   /** The same for pickup & drop. */
   pickupWholeCity: boolean
   /**
-   * The city the garage's pin is in (0069, lib/cities.ts wholeCityOf), for the
+   * The city the garage's pin is in (0069, its stored city_id; lib/cities.ts storedWholeCity), for the
    * travel choice's "All over Chennai"; null when it is in none, and the
    * choice then says to pin it inside a city first. Only on the garage's own
    * reads that show that choice (GET /vendors/me, job types, profile).
@@ -539,7 +539,7 @@ function toVendorResponse(vendor: VendorRecord): VendorResponse {
 /** The garage's own vendor with the city its pin is in (0069), for its travel choice. */
 async function toVendorResponseWithCity(vendor: VendorRecord): Promise<VendorResponse> {
   const { cities } = await citiesService.rules()
-  const city = wholeCityOf(vendor, cities)
+  const city = storedWholeCity(vendor, cities)
   return { ...toVendorResponse(vendor), garageCity: city ? { name: city.name, reachKm: city.reachKm } : null }
 }
 
@@ -909,7 +909,7 @@ export async function vendorCardsFor(
       dropinEnabled: vendor.dropinEnabled,
       pickupEnabled: isPickupOffered(vendor),
       pickupRadiusKm: isPickupOffered(vendor) ? vendor.pickupRadiusKm : null,
-      ...publicWholeCity(vendor, wholeCityOf(vendor, cityRules.cities)),
+      ...publicWholeCity(vendor, storedWholeCity(vendor, cityRules.cities)),
       startingPrice: computeStartingPrice(vendor.services),
       rating: rating?.rating ?? null,
       reviewCount: rating?.reviewCount ?? 0,
@@ -1155,7 +1155,7 @@ export const vendorsService = {
     return {
       ...toPublicVendor(vendor, {
         tier: tiers.get(vendor.id) ?? null,
-        reachCity: wholeCityOf(vendor, cityRules.cities),
+        reachCity: storedWholeCity(vendor, cityRules.cities),
       }),
       photos: photos.map(toPhotoResponse),
       services: services.map((service) => toServiceResponse(service, service.images, 'public')),
@@ -1273,7 +1273,7 @@ export const vendorsService = {
     // "All over <city>" on (0069) needs the garage's pin inside a city.
     if (input.doorstepWholeCity === true || input.pickupWholeCity === true) {
       const { cities } = await citiesService.rules()
-      if (!wholeCityOf(vendor, cities)) {
+      if (!storedWholeCity(vendor, cities)) {
         throw new AppError(400, WHOLE_CITY_NEEDS_CITY, 'WHOLE_CITY_NEEDS_CITY')
       }
     }

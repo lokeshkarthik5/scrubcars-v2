@@ -629,10 +629,15 @@ export const vendors = pgTable(
     showWhenCityOff: boolean('show_when_city_off').default(false).notNull(),
     // "All over <city>" for doorstep and for pickup & drop (0069): the garage
     // comes to any address inside its city's reach, measured from the city's
-    // centre, instead of its own radius. Its city is worked out from the pin
-    // on read (lib/cities.ts); one with no city keeps to its radius.
+    // centre, instead of its own radius. One with no city keeps to its radius.
     doorstepWholeCity: boolean('doorstep_whole_city').default(false).notNull(),
     pickupWholeCity: boolean('pickup_whole_city').default(false).notNull(),
+    // The garage's city (0069), NULL for Other towns. Written only by the
+    // database: a trigger sets it on every write that touches lat, lng or
+    // city, and any change to `cities` recomputes every garage, both by
+    // lib/cities.ts cityOfGarage's rule (drizzle/0069_cities_reach.sql). Never
+    // set it from code; read it.
+    cityId: uuid('city_id').references(() => cities.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -648,6 +653,7 @@ export const vendors = pgTable(
       sql`${table.colourTagCallOn} is null or ${table.colourTag} = 'blue'`
     ),
     index('vendors_status_idx').on(table.status),
+    index('vendors_city_id_idx').on(table.cityId),
     index('vendors_deleted_at_idx')
       .on(table.deletedAt)
       .where(sql`${table.deletedAt} is not null`),
@@ -2125,11 +2131,13 @@ export const adminSettings = pgTable(
 )
 
 // The cities Detlio serves (0069), with the owner's switch "Customers see
-// garages here". A garage's city is never stored: it is the city whose reach
-// (straight-line km from the centre) holds its pin, the nearest centre if
-// several do, or for a garage with no pin the city its own city field names
-// (lib/cities.ts, and GARAGE_CITY in vendors.predicates.ts). So adding,
-// moving or deleting a city changes no garage row. Seeded with Chennai, on.
+// garages here". A garage's city is the city whose reach (straight-line km
+// from the centre) holds its pin, the nearest centre if several do, or for a
+// garage with no pin the city its own city field names (lib/cities.ts
+// cityOfGarage). The database stores it in vendors.city_id and keeps it
+// right with triggers: any insert, update or delete here recomputes every
+// garage. `centre` (a generated geography of lat/lng) exists in the database
+// only, like vendors.geo. Seeded with Chennai, on.
 // The name is unique in any case (a lower(btrim(name)) index in the
 // migration); "Madras" is refused while Chennai exists (cities.service).
 export const cities = pgTable(

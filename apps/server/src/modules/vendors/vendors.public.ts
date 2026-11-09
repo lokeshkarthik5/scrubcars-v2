@@ -134,7 +134,7 @@ export const PUBLIC_VENDOR_KEYS = [
 /**
  * The whole-city facts customers may see (0069): which of the two options
  * apply, and the city they cover. `city` is the city the garage's pin is in
- * (lib/cities.ts wholeCityOf), or null.
+ * (its stored city_id, lib/cities.ts storedWholeCity), or null.
  */
 export function publicWholeCity(
   vendor: Pick<

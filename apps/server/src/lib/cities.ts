@@ -8,18 +8,24 @@ import { straightLineKm } from './service-city.js'
  * off for customers, so a garage in a town Detlio is not ready for can be
  * onboarded and kept out of sight, and to let a doorstep or pickup garage say
  * it comes anywhere in its city instead of naming a radius. Both need the same
- * answer first: which city is this garage in. That answer is worked out here
- * from the garage's pin (or, with no pin, its own city field), never stored,
- * so moving a pin or adding a city takes effect on the next read with no
- * garage row changing.
+ * answer first: which city is this garage in. The rule is cityOfGarage here,
+ * from the garage's pin (or, with no pin, its own city field). The database
+ * applies the same rule and stores the answer in vendors.city_id: a trigger
+ * on every garage write that touches the pin or the city field, and a
+ * recompute of every garage on any change to `cities`
+ * (drizzle/0069_cities_reach.sql, garage_city_of). Reads go by that stored
+ * id (cityById, storedWholeCity, cityStanding), so the lists and the admin
+ * screens agree on one answer; cityOfGarage stays the definition, unit-tested
+ * here and checked against the database's choice end to end
+ * (apps/e2e/specs/platform/garage-city.spec.ts).
  *
  * Nothing here changes what customers see by default: Chennai is seeded with
  * its switch on, and a garage in no city ("Other towns") is shown unless
  * admin turns that off.
  *
  * Pure, so every rule is unit-tested without a database (cities.test.ts).
- * The SQL that applies the same rules to every garage at once is in
- * modules/vendors/vendors.predicates.ts (GARAGE_CITY and its helpers), and
+ * The SQL that reads the stored city for every garage at once is in
+ * modules/vendors/vendors.predicates.ts (CITY_SHOWN and its helpers), and
  * the words and limits the screens show are twinned in
  * packages/core/src/cities.ts (cities.parity.test.ts).
  */
@@ -118,6 +124,29 @@ export function cityOfGarage<C extends CityPlace>(garage: GaragePlace, cities: r
 }
 
 /**
+ * The city a garage's stored `vendors.city_id` names, or null for Other
+ * towns. The database wrote that id by cityOfGarage's rule; this only looks
+ * it up among the cities read with it.
+ */
+export function cityById<C extends CityPlace>(cityId: string | null, cities: readonly C[]): C | null {
+  if (cityId === null) return null
+  return cities.find((city) => city.id === cityId) ?? null
+}
+
+/**
+ * wholeCityOf over the stored city: the garage's city, for a pinned garage
+ * only. What the cards and the garage page say "All over <city>" covers, the
+ * same city the SQL's doorstepCovers / pickupCovers read.
+ */
+export function storedWholeCity<C extends CityPlace>(
+  garage: { lat: number | null; lng: number | null; cityId: string | null },
+  cities: readonly C[]
+): C | null {
+  if (!pinned({ ...garage, city: null })) return null
+  return cityById(garage.cityId, cities)
+}
+
+/**
  * Whether customers see garages in this place: the city's own switch, or,
  * for a garage in no city, the Other towns setting.
  */
@@ -157,9 +186,16 @@ export function garageCityStanding(
   cities: readonly City[],
   otherTownsVisible: boolean
 ): GarageCityStanding {
-  const city = cityOfGarage(garage, cities)
+  return cityStanding(cityOfGarage(garage, cities), garage.showWhenCityOff, otherTownsVisible)
+}
+
+/**
+ * The same standing for a city already known: the garage's stored city
+ * (cityById), which is how the server reads it (citiesService.rules()).
+ */
+export function cityStanding(city: City | null, showWhenCityOff: boolean, otherTownsVisible: boolean): GarageCityStanding {
   const cityShown = placeShown(city, otherTownsVisible)
-  const hidden = !cityLetsCustomersSee({ showWhenCityOff: garage.showWhenCityOff, cityShown })
+  const hidden = !cityLetsCustomersSee({ showWhenCityOff, cityShown })
   return {
     city: city ? { id: city.id, name: city.name } : null,
     cityShown,
@@ -201,7 +237,7 @@ export function wholeCityOf<C extends CityPlace>(garage: GaragePlace, cities: re
 /**
  * Whether a whole-city garage reaches a point: the point is inside its
  * city's reach, measured from the city's centre (not from the garage). The
- * SQL twin is cityCovers in vendors.predicates.ts.
+ * SQL twin is garageCityCovers in vendors.predicates.ts.
  */
 export function cityCoversPoint(city: CityPlace, point: { lat: number; lng: number }): boolean {
   return straightLineKm({ lat: city.lat, lng: city.lng }, point) <= city.reachKm

@@ -32,17 +32,15 @@ export const citiesRepository = {
   },
 
   /**
-   * Every garage not in the Bin with what decides its city and whether it is
-   * listed, for the Cities page's counts. One read; the counting is the
-   * service's, over lib/cities.ts.
+   * Every garage not in the Bin with its stored city (vendors.city_id) and
+   * what decides whether it is listed, for the Cities page's counts. One
+   * read; the counting is the service's.
    */
   listGarageFacts() {
     return db
       .select({
         id: vendors.id,
-        lat: vendors.lat,
-        lng: vendors.lng,
-        city: vendors.city,
+        cityId: vendors.cityId,
         status: vendors.status,
         isVerified: vendors.isVerified,
         bookingsPausedAt: vendors.bookingsPausedAt,
@@ -127,10 +125,10 @@ export const citiesRepository = {
   },
 
   /**
-   * Deletes a city and writes its audit row. No garage row changes: each
-   * garage's city is worked out on read, so its garages simply belong to
-   * whichever city now holds them, or to Other towns. False when it was
-   * already gone.
+   * Deletes a city and writes its audit row. The database moves its garages
+   * in the same statement (0069's trigger on cities recomputes every
+   * garage's city_id) to whichever city now holds them, or to Other towns.
+   * False when it was already gone.
    */
   async deleteCity(id: string, actor: Actor): Promise<boolean> {
     return db.transaction(async (tx) => {

@@ -91,7 +91,7 @@ export const coverageRepository = {
         isVerified: vendors.isVerified,
         bookingsPausedAt: vendors.bookingsPausedAt,
         deletedAt: vendors.deletedAt,
-        city: vendors.city,
+        cityId: vendors.cityId,
         showWhenCityOff: vendors.showWhenCityOff,
       })
       .from(vendors)
