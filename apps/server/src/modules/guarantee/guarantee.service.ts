@@ -476,9 +476,13 @@ export const guaranteeService = {
     }
   },
 
-  /** The garage (open to customers) and the original job a redo repeats. */
+  /**
+   * The garage (open to customers) and the original job a redo repeats. The
+   * redo belongs to a booking already made, so the city's switch (0069) does
+   * not stop it (findVendorForItsBookings).
+   */
   async redoContext(claim: ClaimRecord) {
-    const vendor = await vendorsRepository.findPublicVendorById(claim.vendorId)
+    const vendor = await vendorsRepository.findVendorForItsBookings(claim.vendorId)
     if (!vendor) throw garageUnavailable()
     const original = await guaranteeRepository.findClaimableBooking(claim.bookingId)
     if (!original) throw claimNotFound()

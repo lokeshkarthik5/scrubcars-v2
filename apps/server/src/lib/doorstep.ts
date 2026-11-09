@@ -15,3 +15,13 @@
  * through the twin in packages/core/src/doorstep.ts (doorstep.parity.test.ts).
  */
 export const DEFAULT_DOORSTEP_RADIUS_KM = 10
+
+/**
+ * The travel radius a garage or admin may set, in km. The top was 30 until
+ * the owner lifted it (10 Nov 2026: "we don't need that restriction"); 300
+ * keeps a typo of an extra zero from reading as a promise to drive across
+ * the state. A garage that goes anywhere in its city says "All over <city>"
+ * instead (0069, lib/cities.ts). Twinned in packages/core/src/doorstep.ts.
+ */
+export const MIN_DOORSTEP_RADIUS_KM = 1
+export const MAX_DOORSTEP_RADIUS_KM = 300

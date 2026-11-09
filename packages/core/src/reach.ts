@@ -10,6 +10,7 @@
 
 // Relative, not @repo/core/…: kept loadable by path like the other twins.
 import { insidePickupReach } from './pickup'
+import type { ReachCity } from './cities'
 import type { BookingType } from './types'
 
 /** What each tab offers the customer, as the API counts it. */
@@ -134,7 +135,14 @@ export function nextTabOffer(
  * own early check, insidePickupReach). Never without a location.
  */
 export function canCollectFrom(
-  garage: { pickupEnabled: boolean; lat: number | null; lng: number | null; pickupRadiusKm?: number | null },
+  garage: {
+    pickupEnabled: boolean
+    lat: number | null
+    lng: number | null
+    pickupRadiusKm?: number | null
+    pickupWholeCity?: boolean
+    reachCity?: ReachCity | null
+  },
   origin: { lat: number; lng: number } | null | undefined
 ): boolean {
   if (!garage.pickupEnabled || !origin) return false

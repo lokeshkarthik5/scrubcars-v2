@@ -8,12 +8,13 @@
 // Relative, not @repo/core/map: the server's parity test loads this file by
 // path, outside the workspace's aliases.
 import { straightLineKm } from './map'
+import { insideReachCity, type ReachCity } from './cities'
 
 /** How far a garage with no pickup radius collects from. */
 export const DEFAULT_PICKUP_RADIUS_KM = 10
 /** The radius a garage or admin may set. */
 export const MIN_PICKUP_RADIUS_KM = 1
-export const MAX_PICKUP_RADIUS_KM = 30
+export const MAX_PICKUP_RADIUS_KM = 300
 
 /** The garage's own tick, in its portal settings. */
 export const PICKUP_TERMS_GARAGE =
@@ -64,7 +65,7 @@ export function pickupReachLine(radiusKm: number | null): string {
 
 export type PickupRadiusInput = { ok: true; km: number | null } | { ok: false; message: string }
 
-/** The radius box: empty is the default, otherwise 1 to 30 km, decimals allowed. */
+/** The radius box: empty is the default, otherwise 1 to 300 km (MAX_PICKUP_RADIUS_KM), decimals allowed. */
 export function parsePickupRadius(value: string): PickupRadiusInput {
   const trimmed = value.trim()
   if (trimmed === '') return { ok: true, km: null }
@@ -337,16 +338,27 @@ export function pickupFeeLabel(fee: number | null | undefined): string {
 /**
  * Whether a pinned point is inside a garage's pickup reach, as far as the
  * app can tell: straight-line km from the garage's pin, against its radius
- * (empty is the 10 km default). The server's check is the one that counts
+ * (empty is the 10 km default), or for a garage that collects all over its
+ * city (0069) from the city's centre against the city's reach. The server's check is the one that counts
  * (OUTSIDE_PICKUP_RADIUS); this only lets checkout say so before Pay. A hair
  * of slack keeps a point on the very edge from being refused here and
  * accepted there. Unknown (no pin on either side) is not "outside".
  */
 export function insidePickupReach(
-  garage: { lat: number | null; lng: number | null; pickupRadiusKm?: number | null },
+  garage: {
+    lat: number | null
+    lng: number | null
+    pickupRadiusKm?: number | null
+    /** "All over <city>" (0069): measured from the city's centre against its reach instead. */
+    pickupWholeCity?: boolean
+    reachCity?: ReachCity | null
+  },
   point: { lat: number | null; lng: number | null }
 ): boolean | null {
   if (garage.lat == null || garage.lng == null || point.lat == null || point.lng == null) return null
+  if (garage.pickupWholeCity && garage.reachCity) {
+    return insideReachCity(garage.reachCity, { lat: point.lat, lng: point.lng })
+  }
   const radius = garage.pickupRadiusKm ?? DEFAULT_PICKUP_RADIUS_KM
   return straightLineKm({ lat: garage.lat, lng: garage.lng }, { lat: point.lat, lng: point.lng }) <= radius * 1.01
 }

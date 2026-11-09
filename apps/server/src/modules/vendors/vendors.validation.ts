@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { ADD_ON_LIMITS, MAX_BOOKING_LINES } from '../../lib/add-ons.js'
 import { isCalendarDate } from '../../lib/booking-ops.js'
+import { MAX_DOORSTEP_RADIUS_KM, MIN_DOORSTEP_RADIUS_KM } from '../../lib/doorstep.js'
 import { MAX_PICKUP_RADIUS_KM, MIN_PICKUP_RADIUS_KM } from '../../lib/pickup.js'
 import type { ServicePricingType } from '../../lib/pricing.js'
 
@@ -74,7 +75,7 @@ const vendorProfileFields = {
   // and the garage then covers DEFAULT_DOORSTEP_RADIUS_KM (lib/doorstep.ts):
   // Settings says "Leave empty to use 10 km", so emptying the field has to
   // reach the column rather than leave the old number in place.
-  doorstepRadiusKm: z.number().positive().max(100).nullable().optional(),
+  doorstepRadiusKm: z.number().positive().max(MAX_DOORSTEP_RADIUS_KM).nullable().optional(),
   email: z.string().trim().email().max(255).optional(),
   yearsInOperation: z.string().trim().max(20).optional(),
   mapsUrl: z.string().trim().url().max(2048).optional(),
@@ -141,7 +142,11 @@ export const updateJobTypesSchema = z
     // Sent with doorstepEnabled when the owner says how far they go in the
     // same breath (onboarding does), so the two land together. Optional: left
     // out, the garage covers DEFAULT_DOORSTEP_RADIUS_KM (lib/doorstep.ts).
-    doorstepRadiusKm: z.number().min(1).max(30).optional(),
+    doorstepRadiusKm: z.number().min(MIN_DOORSTEP_RADIUS_KM).max(MAX_DOORSTEP_RADIUS_KM).optional(),
+    // "All over <city>" (0069): the garage comes to any address inside its
+    // city's reach instead of its radius. On needs the garage's pin inside a
+    // city (400 WHOLE_CITY_NEEDS_CITY, "Pin the garage inside a city first").
+    doorstepWholeCity: z.boolean().optional(),
     // Pickup & drop (0037). Turning it on needs `pickupTermsAccepted: true`,
     // the owner's tick: "We are responsible for the customer's car from
     // pickup until it is returned" (lib/pickup.ts). Off never needs it.
@@ -154,16 +159,21 @@ export const updateJobTypesSchema = z
       .nullable()
       .optional(),
     pickupTermsAccepted: z.boolean().optional(),
+    // "All over <city>" for pickup & drop (0069), as doorstepWholeCity.
+    pickupWholeCity: z.boolean().optional(),
   })
   .refine(
     (data) =>
       data.dropinEnabled !== undefined ||
       data.doorstepEnabled !== undefined ||
+      data.doorstepRadiusKm !== undefined ||
+      data.doorstepWholeCity !== undefined ||
       data.pickupEnabled !== undefined ||
-      data.pickupRadiusKm !== undefined,
+      data.pickupRadiusKm !== undefined ||
+      data.pickupWholeCity !== undefined,
     {
       message:
-        'At least one of dropinEnabled, doorstepEnabled, pickupEnabled or pickupRadiusKm must be provided',
+        'At least one of dropinEnabled, doorstepEnabled, doorstepRadiusKm, doorstepWholeCity, pickupEnabled, pickupRadiusKm or pickupWholeCity must be provided',
     }
   )
 

@@ -80,6 +80,12 @@ interface LocationPickerProps {
    * 450 km away, which nothing else would have caught.
    */
   expectedCity?: string
+  /**
+   * Where the map opens when there is no pin yet: a city's centre (0069), so
+   * onboarding a garage in Tirupur starts over Tirupur, not over Chennai.
+   * Ignored once a pin is placed. Default DEFAULT_CENTER (Chennai).
+   */
+  initialCenter?: { lat: number; lng: number } | null
   className?: string
 }
 
@@ -102,6 +108,7 @@ export function LocationPicker({
   onChange,
   showSearch = true,
   expectedCity,
+  initialCenter,
   className,
 }: LocationPickerProps) {
   const [pin, setPin] = useState<{ lat: number; lng: number } | null>(
@@ -140,7 +147,20 @@ export function LocationPicker({
   const searchBoxRef = useRef<HTMLDivElement>(null)
 
 
-  const center: [number, number] = pin ? [pin.lng, pin.lat] : DEFAULT_CENTER
+  // A new city chosen while there is still no pin flies the map there
+  // (adjusted in render, as the overlays do, rather than one frame late).
+  const centreKey = initialCenter ? `${initialCenter.lat},${initialCenter.lng}` : ''
+  const [seenCentre, setSeenCentre] = useState(centreKey)
+  if (seenCentre !== centreKey) {
+    setSeenCentre(centreKey)
+    if (!pin && initialCenter) setFlyTo({ lat: initialCenter.lat, lng: initialCenter.lng })
+  }
+
+  const center: [number, number] = pin
+    ? [pin.lng, pin.lat]
+    : initialCenter
+      ? [initialCenter.lng, initialCenter.lat]
+      : DEFAULT_CENTER
 
   /**
    * Moves the pin and looks up what is there. The reverse call is what fills

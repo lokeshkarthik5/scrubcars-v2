@@ -2,6 +2,7 @@ import type { Tier } from '@repo/core/tiers'
 import type { OpeningDay } from '@repo/core/opening-hours'
 import type { PickupNext } from '@repo/core/pickup'
 import type { OutsideServiceCity } from '@repo/core/service-city'
+import type { ReachCity } from '@repo/core/cities'
 
 /**
  * How the car and the work meet. 'pickup' is pickup & drop: the garage
@@ -94,6 +95,14 @@ export interface Vendor {
    * checkout's early check; the server's check is the one that counts.
    */
   pickupRadiusKm?: number | null
+  /**
+   * "All over <city>" (0069): comes (doorstep) or collects (pickup) anywhere
+   * in `reachCity`, so its radius is not what decides. False and null on an
+   * older API.
+   */
+  doorstepWholeCity?: boolean
+  pickupWholeCity?: boolean
+  reachCity?: ReachCity | null
   serviceTags: string[]
   isVerified: boolean
   photos: string[]

@@ -1,5 +1,5 @@
 import { NOTE_EDIT_HOURS, noteEditRefusal, noteEditableUntil, type NoteEditRefusal } from '../../lib/booking-notes.js'
-import { AT_GARAGE_ADDRESS_MESSAGE, atGarageAddressRefused, garageAddressLine } from '../../lib/garage-address.js'
+import { AT_GARAGE_ADDRESS_MESSAGE, atGarageAddressMissing, atGarageAddressRefused, garageAddressLine } from '../../lib/garage-address.js'
 import { timingSafeEqual } from 'node:crypto'
 import { env } from '../../lib/env.js'
 import { leadsRepository } from '../leads/leads.repository.js'
@@ -62,7 +62,6 @@ import { analyticsService } from '../analytics/analytics.service.js'
 import { bookingsService } from '../bookings/bookings.service.js'
 import {
   createPresignedUpload,
-  deleteObject,
   keyFromPublicUrl,
 } from '../../lib/storage.js'
 import { membersRepository } from '../members/members.repository.js'
@@ -71,8 +70,11 @@ import type { AddMemberInput, UpdateMemberInput } from '../members/members.valid
 import { refundsService } from '../refunds/refunds.service.js'
 import { vendorInBin } from '../../lib/vendor-bin.js'
 import { isInBin, isListedToCustomers } from '../vendors/vendors.predicates.js'
+import { citiesService } from '../cities/cities.service.js'
+import { WHOLE_CITY_NEEDS_CITY, wholeCityOf, type GarageCityStanding } from '../../lib/cities.js'
+import { planBranchCopy } from '../../lib/branches.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
-import { vendorsService } from '../vendors/vendors.service.js'
+import { deleteGarageFileIfUnused, vendorsService } from '../vendors/vendors.service.js'
 import type { CreateAddOnInput, UpdateAddOnInput } from '../vendors/vendors.validation.js'
 import {
   adminRepository,
@@ -88,6 +90,7 @@ import type {
   BookingViewCountsQuery,
   CreateBookingNoteInput,
   WaiveJobPhotosInput,
+  CreateBranchInput,
   CreateVendorInput,
   GrantSuperAdminInput,
   ListBookingsQuery,
@@ -177,6 +180,43 @@ async function assertPhotoCapacity(vendorId: string) {
  * number is stored as written, null clears it, and left out (an older
  * panel) leaves what is stored.
  */
+/**
+ * What the panel shows about a garage's city (0069): which city (null is
+ * Other towns), whether that place is on for customers, the reason it hides
+ * the garage when it does, and the per-garage switches. Additive fields, so
+ * a panel from before them keeps working.
+ */
+function cityFields(
+  vendor: { showWhenCityOff: boolean; doorstepWholeCity: boolean; pickupWholeCity: boolean },
+  standing: GarageCityStanding
+) {
+  return {
+    garageCity: standing.city,
+    cityShown: standing.cityShown,
+    cityHiddenReason: standing.hiddenReason,
+    showWhenCityOff: vendor.showWhenCityOff,
+    doorstepWholeCity: vendor.doorstepWholeCity,
+    pickupWholeCity: vendor.pickupWholeCity,
+  }
+}
+
+/**
+ * Turning "All over <city>" on (0069) needs a garage pinned inside a city:
+ * checked against the pin the row will have after this write. Off, or left
+ * out, never needs it, so an older garage whose pin later left its city can
+ * still save anything else (it keeps to its radius meanwhile).
+ */
+async function assertWholeCityAllowed(
+  garage: { lat: number | null; lng: number | null; city: string },
+  input: { doorstepWholeCity?: boolean; pickupWholeCity?: boolean }
+) {
+  if (input.doorstepWholeCity !== true && input.pickupWholeCity !== true) return
+  const { cities } = await citiesService.rules()
+  if (!wholeCityOf(garage, cities)) {
+    throw new AppError(400, WHOLE_CITY_NEEDS_CITY, 'WHOLE_CITY_NEEDS_CITY')
+  }
+}
+
 function commissionColumn(rate: number | null | undefined): { commissionRate?: string | null } {
   if (rate === undefined) return {}
   return { commissionRate: rate === null ? null : rate.toFixed(2) }
@@ -819,6 +859,9 @@ export const adminService = {
       ])
     )
     const openCollection = await collectionListsService.openCollectionByVendor(missing)
+    // Cities (0069): each garage's city and whether that city (or Other
+    // towns) is on for customers, read once for the whole list.
+    const cityRules = await citiesService.rules()
     // Still the full array, every stage and the Bin included: the Bookings
     // garage filter reads this list too (and leaves the Bin out itself). The
     // panel's chips filter and count it on the client. A garage deleted
@@ -826,6 +869,7 @@ export const adminService = {
     return vendors.map(({ services, photos, workingHours, ...vendor }) => {
       const hasDoorstepArea = drawnAreas.has(vendor.id)
       const documentSummary = documentSummaryOf(vendor.id)
+      const standing = cityRules.standingOf(vendor)
       return {
         ...vendor,
         serviceCount: services.length,
@@ -835,8 +879,10 @@ export const adminService = {
         outsideServiceCity: outsideServiceCity(vendor),
         hasDoorstepArea,
         // The customer lists' own rule (vendors.predicates.ts), so "Live" in
-        // the panel is exactly the garages customers can find.
-        live: isListedToCustomers(vendor),
+        // the panel is exactly the garages customers can find, the city's
+        // switch included (0069).
+        live: isListedToCustomers({ ...vendor, cityShown: standing.cityShown }),
+        ...cityFields(vendor, standing),
         // On with the responsibility terms on file (lib/pickup.ts).
         pickupEnabled: isPickupOffered(vendor),
         documents: documentSummary,
@@ -879,6 +925,8 @@ export const adminService = {
       documentsOn ? vendorDocumentsRepository.listDocuments(id) : Promise.resolve([]),
     ])
     const documents = documentsOn ? summariseDocuments(documentRows, documentModesOf(vendor)) : null
+    // Cities (0069): the "City: Tirupur" line and why it hides the garage.
+    const standing = (await citiesService.rules()).standingOf(vendor)
     // The Garages list's checklist and missing keys (0059), for the
     // editor's status panel: the same rules on the same facts.
     const facts = {
@@ -898,6 +946,8 @@ export const adminService = {
       missing: vendorMissing({ ...facts, hasPayout: payoutIds.has(id) }),
       onboardedByName: vendor.onboardedByName ?? null,
       pickupEnabled: isPickupOffered(vendor),
+      live: isListedToCustomers({ ...vendor, cityShown: standing.cityShown }),
+      ...cityFields(vendor, standing),
       services: vendor.services.map(({ images, ...service }) => ({
         ...service,
         images: images.filter((image) => image.kind === 'image'),
@@ -979,6 +1029,12 @@ export const adminService = {
       })
     }
 
+    // "All over <city>" on needs the pin, as it will be, inside a city.
+    await assertWholeCityAllowed(
+      { lat: input.lat ?? vendor.lat, lng: input.lng ?? vendor.lng, city: input.city ?? vendor.city },
+      input
+    )
+
     const pinMoved =
       input.lat !== undefined &&
       input.lng !== undefined &&
@@ -1010,6 +1066,9 @@ export const adminService = {
       ...(input.doorstepRadiusKm !== undefined && {
         doorstepRadiusKm: input.doorstepRadiusKm,
       }),
+      ...(input.doorstepWholeCity !== undefined && { doorstepWholeCity: input.doorstepWholeCity }),
+      ...(input.pickupWholeCity !== undefined && { pickupWholeCity: input.pickupWholeCity }),
+      ...(input.showWhenCityOff !== undefined && { showWhenCityOff: input.showWhenCityOff }),
       // Staff placing a pin by hand is its own provenance, and it supersedes
       // whatever the vendor originally set. Moving it also counts as confirming
       // it — an admin who just dragged a marker onto a garage has done exactly
@@ -1372,6 +1431,9 @@ export const adminService = {
       })
     }
 
+    // "All over <city>" (0069) needs the new garage's pin inside a city.
+    await assertWholeCityAllowed({ lat: input.lat ?? null, lng: input.lng ?? null, city: input.city }, input)
+
     const [vendor] = await adminRepository.createVendor({
       ownerId: owner.id,
       businessName: input.businessName,
@@ -1387,6 +1449,8 @@ export const adminService = {
       pickupRadiusKm: null,
       ...pickupPatch,
       doorstepRadiusKm: input.doorstepRadiusKm ?? null,
+      doorstepWholeCity: input.doorstepWholeCity ?? false,
+      pickupWholeCity: input.pickupWholeCity ?? false,
       lat: input.lat ?? null,
       lng: input.lng ?? null,
       ...(input.lat !== undefined && { geoSource: 'admin' as const }),
@@ -1455,6 +1519,157 @@ export const adminService = {
 
     log.info({ vendorId: vendor.id, ownerId: owner.id }, 'admin:vendor-created')
     return vendor
+  },
+
+  /**
+   * "Add a branch…" (0069): a new garage for the same business, started from
+   * this one. The branch is its own garage: its own name, address, pin and
+   * city, Pending and not shown to customers until admin checks it and
+   * switches it on. It takes the booking modes (drop-in, doorstep, pickup &
+   * drop with their radii; "All over <city>" only where its own pin is in a
+   * city), the ticked services with their prices (lib/branches.ts: packages
+   * made only of them and the add-ons come along), the hours and the stored
+   * logo and photos when asked, and a vendor_admin seat for the same owner
+   * when asked, so the garage app's switcher shows both. Never the
+   * documents: each branch needs its own. One transaction, one audit row.
+   */
+  async createBranch(id: string, input: CreateBranchInput, actor: { sub: string; name: string }) {
+    const source = await assertWritableVendor(id)
+
+    // The modes come from the source: an at-garage branch needs the address
+    // customers drive to (0064), checked before anything is written.
+    if (
+      atGarageAddressMissing({
+        dropinEnabled: source.dropinEnabled,
+        address: input.address,
+        pincode: input.pincode,
+      })
+    ) {
+      throw new AppError(400, AT_GARAGE_ADDRESS_MESSAGE, 'ADDRESS_REQUIRED')
+    }
+
+    const [plainServices, addOns, packages, hours, photos, { cities }] = await Promise.all([
+      vendorsRepository.listServices(source.id),
+      vendorsRepository.listAddOns(source.id),
+      vendorsRepository.listPackages(source.id),
+      input.copyHours ? vendorsRepository.listWorkingHours(source.id) : Promise.resolve([]),
+      input.copyPhotos ? vendorsRepository.listPhotos(source.id) : Promise.resolve([]),
+      citiesService.rules(),
+    ])
+    const plan = planBranchCopy({
+      ticked: input.serviceIds,
+      services: [...plainServices, ...addOns],
+      packages: packages.map((pkg) => ({
+        id: pkg.id,
+        isActive: pkg.isActive,
+        memberIds: pkg.packageItems.map((item) => item.serviceId),
+      })),
+    })
+    if (!plan.ok) throw new AppError(409, plan.message, plan.code)
+
+    const byId = new Map([...plainServices, ...addOns, ...packages].map((service) => [service.id, service]))
+    // A service's own columns, prices included; never its id, garage,
+    // media or deletion.
+    const copyOf = (sourceId: string) => {
+      const service = byId.get(sourceId)!
+      return {
+        name: service.name,
+        description: service.description,
+        category: service.category,
+        pricingType: service.pricingType,
+        price: service.price,
+        priceHatchback: service.priceHatchback,
+        priceSedan: service.priceSedan,
+        priceSuv: service.priceSuv,
+        durationMins: service.durationMins,
+        commissionRate: service.commissionRate,
+        isActive: true,
+        isAddon: service.isAddon,
+      }
+    }
+
+    const lat = input.lat ?? null
+    const lng = input.lng ?? null
+    // "All over <city>" means the branch's own city, so it comes along only
+    // where the branch's pin is inside one.
+    const wholeCity = wholeCityOf({ lat, lng, city: input.city }, cities) !== null
+
+    const created = await adminRepository.createBranch({
+      vendor: {
+        ownerId: source.ownerId,
+        businessName: input.businessName,
+        phone: source.phone,
+        whatsapp: source.whatsapp,
+        email: source.email,
+        yearsInOperation: source.yearsInOperation,
+        address: input.address,
+        city: input.city,
+        pincode: input.pincode,
+        lat,
+        lng,
+        ...(lat !== null && { geoSource: 'admin' as const }),
+        // Pending and not shown: admin checks the branch, then switches on
+        // Show to customers.
+        status: 'pending',
+        isVerified: false,
+        dropinEnabled: source.dropinEnabled,
+        doorstepEnabled: source.doorstepEnabled,
+        doorstepRadiusKm: source.doorstepRadiusKm,
+        doorstepWholeCity: source.doorstepWholeCity && wholeCity,
+        // Pickup & drop with the same signed responsibility: it is the same
+        // business, and the record says who accepted it and when.
+        pickup: source.pickup,
+        pickupRadiusKm: source.pickupRadiusKm,
+        pickupTermsAcceptedAt: source.pickupTermsAcceptedAt,
+        pickupTermsAcceptedBy: source.pickupTermsAcceptedBy,
+        pickupWholeCity: source.pickupWholeCity && wholeCity,
+        slotIntervalMins: source.slotIntervalMins,
+        bays: source.bays,
+        jobsPerDay: source.jobsPerDay,
+        vehicleTypes: source.vehicleTypes,
+        ...(input.copyPhotos && { logoUrl: source.logoUrl, logoStorageKey: source.logoStorageKey }),
+      },
+      services: [...plan.serviceIds, ...plan.addOnIds].map((sourceId) => ({ sourceId, row: copyOf(sourceId) })),
+      packages: plan.packageIds.map((packageId) => ({
+        row: copyOf(packageId),
+        memberSourceIds: packages.find((pkg) => pkg.id === packageId)!.packageItems.map((item) => item.serviceId),
+      })),
+      hours: hours.map((day) => ({
+        dayOfWeek: day.dayOfWeek,
+        openTime: day.openTime,
+        closeTime: day.closeTime,
+        isClosed: day.isClosed,
+      })),
+      // The same stored objects: never uploaded again. The key is written
+      // out even for an older row that kept none, so removing one garage's
+      // copy can tell the object is still in use (garageFileInUse).
+      photos: photos.map((photo) => ({
+        url: photo.url,
+        storageKey: photo.storageKey ?? keyFromPublicUrl(photo.url),
+        sortOrder: photo.sortOrder,
+      })),
+      ownerSeat: input.sameOwner,
+      audit: {
+        actorSub: actor.sub,
+        actorName: actor.name,
+        summary: { garage: input.businessName, fromVendorId: source.id, from: source.businessName },
+        detail: {
+          city: input.city,
+          services: plan.serviceIds.length,
+          packages: plan.packageIds.length,
+          addOns: plan.addOnIds.length,
+          hours: hours.length,
+          photos: photos.length,
+          sameOwner: input.sameOwner,
+        },
+      },
+    })
+
+    log.info(
+      { vendorId: created.id, fromVendorId: source.id, services: plan.serviceIds.length, sameOwner: input.sameOwner },
+      'admin:branch-added'
+    )
+    return { id: created.id }
   },
 
   async listBookings(query: ListBookingsQuery, now = Date.now()) {
@@ -1917,7 +2132,7 @@ export const adminService = {
     })
 
     if (previousKey && previousKey !== storageKey) {
-      await deleteObject(previousKey)
+      await deleteGarageFileIfUnused(previousKey)
     }
 
     log.info({ vendorId: vendor.id }, 'admin:vendor-logo-updated')
@@ -1934,7 +2149,7 @@ export const adminService = {
 
     const key = vendor.logoStorageKey ?? keyFromPublicUrl(vendor.logoUrl ?? '')
     if (key) {
-      await deleteObject(key)
+      await deleteGarageFileIfUnused(key)
     }
 
     log.info({ vendorId: vendor.id }, 'admin:vendor-logo-removed')
@@ -1986,9 +2201,10 @@ export const adminService = {
 
     const [deleted] = await vendorsRepository.deletePhoto(vendor.id, photoId)
 
+    // Kept while a branch (0069) still shows the same file.
     const key = deleted.storageKey ?? keyFromPublicUrl(deleted.url)
     if (key) {
-      await deleteObject(key)
+      await deleteGarageFileIfUnused(key)
     }
 
     return deleted

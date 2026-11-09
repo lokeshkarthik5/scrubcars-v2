@@ -91,6 +91,8 @@ export const coverageRepository = {
         isVerified: vendors.isVerified,
         bookingsPausedAt: vendors.bookingsPausedAt,
         deletedAt: vendors.deletedAt,
+        city: vendors.city,
+        showWhenCityOff: vendors.showWhenCityOff,
       })
       .from(vendors)
       .where(vendorNotInBin())

@@ -46,7 +46,9 @@ import type {
 import {
   DEFAULT_DOORSTEP_RADIUS_KM,
   DOORSTEP_RADIUS_PLACEHOLDER,
+  MAX_DOORSTEP_RADIUS_KM,
 } from '@repo/core/doorstep'
+import { TravelChoiceField } from '@repo/ui/features/travel-choice'
 import { toast } from 'react-toastify'
 import { getGarageDocumentsConfig } from '@repo/core/api/documents'
 import { getPushConfig } from '@repo/core/api/push'
@@ -395,6 +397,23 @@ function VendorSettings() {
       setVendor(updated)
     })
 
+  // "All over <city>" for doorstep (0069) applies only while the pin is in
+  // a city; the server refuses it otherwise ("Pin the garage inside a city
+  // first"), which the toast then says.
+  const doorstepWholeCity = vendor?.doorstepWholeCity === true && vendor.garageCity != null
+  const saveDoorstepWholeCity = async (on: boolean) => {
+    setSaving('doorstep-whole-city')
+    try {
+      const updated = await updateVendorJobTypes({ doorstepWholeCity: on })
+      setVendor(updated)
+      toast.success('Saved successfully')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Something went wrong')
+    } finally {
+      setSaving(null)
+    }
+  }
+
   // Doorstep turns on without asking how far first: the radius is optional,
   // and a garage that leaves it empty covers the default 10 km from its pin
   // (set or changed under Location).
@@ -614,6 +633,21 @@ function VendorSettings() {
                 onChange={setPin}
                 expectedCity={profileForm.city}
               />
+              {/* "Up to N km" or "All over <city>" (0069): saved the moment it
+                  is picked, as the job type switches are. */}
+              {vendor?.doorstepEnabled && (
+                <TravelChoiceField
+                  label="How far you travel for doorstep jobs"
+                  wholeCity={doorstepWholeCity}
+                  onChange={(on) => void saveDoorstepWholeCity(on)}
+                  cityName={vendor.garageCity?.name ?? null}
+                  radiusKm={vendor.doorstepRadiusKm}
+                  defaultKm={DEFAULT_DOORSTEP_RADIUS_KM}
+                  disabled={saving === 'doorstep-whole-city'}
+                  wholeCityNote={(city) => `You go to any address in ${city}.`}
+                />
+              )}
+              {!doorstepWholeCity && (
               <ScInput
                 label="Doorstep travel radius (km)"
                 inputMode="decimal"
@@ -624,18 +658,23 @@ function VendorSettings() {
                   setDoorstepRadiusKm(e.target.value.replace(/[^\d.]/g, ''))
                 }
               />
+              )}
               {/* This is the garage's own number, not a radius the customer picks:
                   a doorstep search asks "who will come to me", so only the garage
                   can answer it. Optional: left empty, doorstep jobs reach the
                   default (the server's lib/doorstep.ts), and whether the
                   garage travels at all is the Doorstep switch under Hours. */}
+              {!doorstepWholeCity && (
               <p className="text-[11px] text-text-muted">
-                How far you&apos;ll travel for doorstep jobs. Leave empty to use{' '}
+                How far you&apos;ll travel for doorstep jobs, up to{' '}
+                <span className="font-numeric">{MAX_DOORSTEP_RADIUS_KM}</span>{' '}
+                km. Leave empty to use{' '}
                 <span className="font-numeric">
                   {DEFAULT_DOORSTEP_RADIUS_KM}
                 </span>{' '}
                 km.
               </p>
+              )}
               {/* The same line as under the Doorstep switch: the radius is
                   measured from the pin, so it does nothing until there is one. */}
               {vendor?.doorstepEnabled && vendor.lat === null && (

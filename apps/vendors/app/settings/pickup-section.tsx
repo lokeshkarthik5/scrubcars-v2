@@ -9,6 +9,8 @@ import { Notice } from '@repo/ui/sc/notice'
 import { SectionHeader } from '@repo/ui/sc/section-header'
 import { ScSwitch } from '@repo/ui/sc/switch'
 import { updateVendorJobTypes } from '@repo/core/api/vendors'
+import { collectsAnywhereLine } from '@repo/core/cities'
+import { TravelChoiceField } from '@repo/ui/features/travel-choice'
 import type { ApiVendorProfile } from '@repo/core/api/types'
 import {
   DEFAULT_PICKUP_RADIUS_KM,
@@ -54,13 +56,16 @@ export function PickupSection({
   const [radius, setRadius] = useState(
     vendor.pickupRadiusKm != null ? String(vendor.pickupRadiusKm) : ''
   )
-  const [saving, setSaving] = useState<'switch' | 'radius' | null>(null)
+  const [saving, setSaving] = useState<'switch' | 'radius' | 'whole' | null>(null)
 
   const parsed = parsePickupRadius(radius)
   const pinned = vendor.lat != null && vendor.lng != null
+  // "All over <city>" (0069): only while the pin is in a city.
+  const cityName = vendor.garageCity?.name ?? null
+  const wholeCity = vendor.pickupWholeCity === true && cityName !== null
 
   const save = async (
-    key: 'switch' | 'radius',
+    key: 'switch' | 'radius' | 'whole',
     input: Parameters<typeof updateVendorJobTypes>[0]
   ) => {
     setSaving(key)
@@ -133,7 +138,22 @@ export function PickupSection({
           </Notice>
         )}
 
-        {(enabled || turningOn) && (
+        {enabled && !turningOn && (
+          <div className="border-t border-border pt-3">
+            <TravelChoiceField
+              label="How far you collect from"
+              wholeCity={wholeCity}
+              onChange={(on) => void save('whole', { pickupWholeCity: on })}
+              cityName={cityName}
+              radiusKm={vendor.pickupRadiusKm}
+              defaultKm={DEFAULT_PICKUP_RADIUS_KM}
+              disabled={saving !== null}
+              wholeCityNote={(city) => `You collect from any address in ${city}.`}
+            />
+          </div>
+        )}
+
+        {(turningOn || (enabled && !wholeCity)) && (
           <div className="flex flex-col gap-2 border-t border-border pt-3">
             <ScInput
               id="settings-pickup-radius"
@@ -207,7 +227,9 @@ export function PickupSection({
           <>
             <p className="text-[12px] text-text-primary">
               <span className="font-numeric">
-                {pickupReachLine(vendor.pickupRadiusKm)}
+                {wholeCity && cityName
+                  ? collectsAnywhereLine(cityName)
+                  : pickupReachLine(vendor.pickupRadiusKm)}
               </span>
             </p>
             {vendor.pickupTermsAcceptedAt && (
@@ -222,7 +244,7 @@ export function PickupSection({
             <p className="text-[11px] text-text-muted">
               Customers can book pickup &amp; drop from the Detlio app soon.
             </p>
-            {radiusChanged && (
+            {radiusChanged && !wholeCity && (
               <ScButton
                 variant="outline"
                 size="md"

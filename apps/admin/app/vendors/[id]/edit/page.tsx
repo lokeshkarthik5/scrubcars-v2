@@ -5,6 +5,8 @@ import { PageHeader } from '@repo/ui/sc/page-header'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui/sc/tabs'
 import { useAdminDocumentsConfig } from '@repo/core/api/hooks/use-admin-documents'
+import { useAdminCities } from '@repo/core/api/hooks/use-admin-cities'
+import { cityOfPin } from '@repo/core/cities'
 import { cn } from '@repo/core/utils'
 import { GarageDocumentsSection } from '@/components/garage-documents-section'
 import { GarageCertificationSection } from '@/components/garage-certification-section'
@@ -56,6 +58,9 @@ export default function EditVendorPage({
   const query = use(searchParams)
   const backHref = safeBackHref(query.back)
   const g = useGarageDraft(id)
+  // The cities, for naming "All over <city>" from the saved pin (0069).
+  const citiesQuery = useAdminCities()
+  const cities = citiesQuery.data?.cities ?? []
   const {
     markListStale,
     afterInstantSave,
@@ -285,6 +290,8 @@ export default function EditVendorPage({
                 booking={bookingMode}
                 // As saved: a pin dragged but not saved is not one yet.
                 pinned={saved.pin != null}
+                // The city the saved pin is in, for "All over <city>" (0069).
+                pinCity={cityOfPin(saved.pin, cities)?.name ?? null}
                 paused={pausedAt != null}
                 // As saved, not as drafted: an unsaved Active is not live yet.
                 live={saved.status === 'active' && saved.isVerified}

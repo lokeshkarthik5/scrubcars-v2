@@ -622,6 +622,17 @@ export const vendors = pgTable(
     // complaint, say. The garage still sees its own tier. Internal: never on
     // a public payload.
     tierHidden: boolean('tier_hidden').default(false).notNull(),
+    // Cities (0069). "Show this garage anyway": admin keeps this garage in
+    // front of customers while its city (or Other towns) is switched off,
+    // say the one garage Detlio has already checked in a new town. Off by
+    // default, so a city's switch decides. See lib/cities.ts.
+    showWhenCityOff: boolean('show_when_city_off').default(false).notNull(),
+    // "All over <city>" for doorstep and for pickup & drop (0069): the garage
+    // comes to any address inside its city's reach, measured from the city's
+    // centre, instead of its own radius. Its city is worked out from the pin
+    // on read (lib/cities.ts); one with no city keeps to its radius.
+    doorstepWholeCity: boolean('doorstep_whole_city').default(false).notNull(),
+    pickupWholeCity: boolean('pickup_whole_city').default(false).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -2093,18 +2104,50 @@ export const vendorOnboardingMarks = pgTable(
 
 // Team-wide admin settings (0064), one row per key: the Garages list's
 // onboarding target ('garage_target') and the colour tags' names
-// ('colour_names'). Shapes and defaults in lib/admin-settings.ts.
+// ('colour_names'). Shapes and defaults in lib/admin-settings.ts. Cities
+// (0069) added 'other_towns_visible', `{ visible }` for garages in no city
+// (lib/cities.ts parseOtherTownsVisible; absent is shown).
 export const adminSettings = pgTable(
   'admin_settings',
   {
-    key: text('key').$type<'garage_target' | 'colour_names'>().primaryKey(),
+    key: text('key').$type<'garage_target' | 'colour_names' | 'other_towns_visible'>().primaryKey(),
     value: jsonb('value').$type<Record<string, unknown>>().notNull(),
     updatedByName: varchar('updated_by_name', { length: 100 }).notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
-    check('admin_settings_key_check', sql`${table.key} in ('garage_target', 'colour_names')`),
+    check(
+      'admin_settings_key_check',
+      sql`${table.key} in ('garage_target', 'colour_names', 'other_towns_visible')`
+    ),
     check('admin_settings_value_check', sql`jsonb_typeof(${table.value}) = 'object'`),
+  ]
+)
+
+// The cities Detlio serves (0069), with the owner's switch "Customers see
+// garages here". A garage's city is never stored: it is the city whose reach
+// (straight-line km from the centre) holds its pin, the nearest centre if
+// several do, or for a garage with no pin the city its own city field names
+// (lib/cities.ts, and GARAGE_CITY in vendors.predicates.ts). So adding,
+// moving or deleting a city changes no garage row. Seeded with Chennai, on.
+// The name is unique in any case (a lower(btrim(name)) index in the
+// migration); "Madras" is refused while Chennai exists (cities.service).
+export const cities = pgTable(
+  'cities',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: varchar('name', { length: 100 }).notNull(),
+    lat: doublePrecision('lat').notNull(),
+    lng: doublePrecision('lng').notNull(),
+    reachKm: integer('reach_km').default(50).notNull(),
+    customersSee: boolean('customers_see').default(true).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('cities_name_key').on(sql`lower(btrim(${table.name}))`),
+    check('cities_reach_km_check', sql`${table.reachKm} between 1 and 300`),
+    check('cities_centre_check', sql`${table.lat} between -90 and 90 and ${table.lng} between -180 and 180`),
   ]
 )
 

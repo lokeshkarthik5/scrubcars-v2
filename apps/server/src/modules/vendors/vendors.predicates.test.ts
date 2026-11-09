@@ -3,8 +3,12 @@ import { PgDialect } from 'drizzle-orm/pg-core'
 import { isCertified, type CertificationRow } from '../../lib/certification.js'
 import { isPickupOffered, type PickupSettings } from '../../lib/pickup.js'
 import { holdsSilver } from '../../lib/tiers.js'
+import { sql as sqlTag } from 'drizzle-orm'
 import {
   CERTIFIED_GARAGE,
+  CITY_SHOWN,
+  doorstepCovers,
+  GARAGE_CITY_ID,
   LISTED_TO_CUSTOMERS,
   NOT_IN_BIN,
   PICKUP_OFFERED,
@@ -12,6 +16,8 @@ import {
   silverAndAboveCondition,
   isInBin,
   isListedToCustomers,
+  pickupCovers,
+  vendorOpenForItsBookings,
   vendorPageOpen,
   vendorPagesOpen,
   type ListedRow,
@@ -21,37 +27,64 @@ const STATUSES = ['pending', 'active', 'suspended', 'archived'] as const
 
 const BINNED_AT = new Date('2026-10-14T12:42:00Z')
 
-/** Every garage the four facts can describe. */
+/** Every garage the six facts can describe. */
 const everyRow = (): ListedRow[] =>
   STATUSES.flatMap((status) =>
     [true, false].flatMap((isVerified) =>
       [null, new Date('2026-10-01T04:30:00Z')].flatMap((bookingsPausedAt) =>
-        [null, BINNED_AT].map((deletedAt) => ({
-          status,
-          isVerified,
-          bookingsPausedAt,
-          deletedAt,
-        }))
+        [null, BINNED_AT].flatMap((deletedAt) =>
+          [false, true].flatMap((showWhenCityOff) =>
+            [true, false].map((cityShown) => ({
+              status,
+              isVerified,
+              bookingsPausedAt,
+              deletedAt,
+              showWhenCityOff,
+              cityShown,
+            }))
+          )
+        )
       )
     )
   )
 
+const LIVE: ListedRow = {
+  status: 'active',
+  isVerified: true,
+  bookingsPausedAt: null,
+  deletedAt: null,
+  showWhenCityOff: false,
+  cityShown: true,
+}
+
 describe('isListedToCustomers', () => {
-  test('only an Active, verified garage that is not paused and not in the Bin is listed', () => {
+  test('only an Active, verified garage, not paused, not in the Bin, whose city lets customers see it, is listed', () => {
     const listed = everyRow().filter(isListedToCustomers)
     expect(listed).toEqual([
-      { status: 'active', isVerified: true, bookingsPausedAt: null, deletedAt: null },
+      { ...LIVE, showWhenCityOff: false, cityShown: true },
+      { ...LIVE, showWhenCityOff: true, cityShown: true },
+      { ...LIVE, showWhenCityOff: true, cityShown: false },
     ])
   })
 
   test('Active is not enough: unverified, paused or binned garages are not listed', () => {
-    const live = { status: 'active', isVerified: true, bookingsPausedAt: null, deletedAt: null }
-    expect(isListedToCustomers({ ...live, isVerified: false })).toBe(false)
-    expect(isListedToCustomers({ ...live, bookingsPausedAt: '2026-10-01T04:30:00Z' })).toBe(false)
+    expect(isListedToCustomers({ ...LIVE, isVerified: false })).toBe(false)
+    expect(isListedToCustomers({ ...LIVE, bookingsPausedAt: '2026-10-01T04:30:00Z' })).toBe(false)
     // The Bin wins over everything else being right, as it arrives from the
     // API (a string) or from the database (a Date).
-    expect(isListedToCustomers({ ...live, deletedAt: BINNED_AT })).toBe(false)
-    expect(isListedToCustomers({ ...live, deletedAt: BINNED_AT.toISOString() })).toBe(false)
+    expect(isListedToCustomers({ ...LIVE, deletedAt: BINNED_AT })).toBe(false)
+    expect(isListedToCustomers({ ...LIVE, deletedAt: BINNED_AT.toISOString() })).toBe(false)
+  })
+
+  test('a city switched off hides its garages, except one admin shows anyway (0069)', () => {
+    expect(isListedToCustomers({ ...LIVE, cityShown: false })).toBe(false)
+    expect(isListedToCustomers({ ...LIVE, cityShown: false, showWhenCityOff: true })).toBe(true)
+    // "Show this garage anyway" is never more than the city's half: it does
+    // not bring back a paused or unverified garage.
+    expect(isListedToCustomers({ ...LIVE, cityShown: false, showWhenCityOff: true, isVerified: false })).toBe(false)
+    expect(
+      isListedToCustomers({ ...LIVE, cityShown: false, showWhenCityOff: true, bookingsPausedAt: BINNED_AT })
+    ).toBe(false)
   })
 })
 
@@ -66,51 +99,67 @@ describe('the Bin', () => {
     const dialect = new PgDialect()
     expect(dialect.sqlToQuery(NOT_IN_BIN).sql).toBe('v.deleted_at IS NULL')
     // The garage page's lookup: the page rule, so pause is not in it, and
-    // the Bin is.
+    // the Bin is, and the city's switch (0069), read through CITY_SHOWN for
+    // this one row.
     const page = dialect.sqlToQuery(vendorPageOpen('e2e00000-0000-4000-8000-000000000301'))
+    const cityShown = dialect.sqlToQuery(CITY_SHOWN).sql
     expect(page.sql).toBe(
-      '("vendors"."id" = $1 and "vendors"."status" = $2 and "vendors"."is_verified" = $3 and "vendors"."deleted_at" is null)'
+      `("vendors"."id" = $1 and "vendors"."status" = $2 and "vendors"."is_verified" = $3 and "vendors"."deleted_at" is null and (SELECT ${cityShown} FROM vendors v WHERE v.id = "vendors"."id"))`
     )
     expect(page.params).toEqual(['e2e00000-0000-4000-8000-000000000301', 'active', true])
   })
 
-  test("Saved garages joins on the page's own rule: a garage in the Bin, suspended or unverified is left out, a paused one is not", () => {
-    const pages = new PgDialect().sqlToQuery(vendorPagesOpen())
+  test('an existing booking reads its garage without the city switch: Active, verified, not in the Bin', () => {
+    const own = new PgDialect().sqlToQuery(vendorOpenForItsBookings('e2e00000-0000-4000-8000-000000000301'))
+    expect(own.sql).toBe(
+      '("vendors"."id" = $1 and "vendors"."status" = $2 and "vendors"."is_verified" = $3 and "vendors"."deleted_at" is null)'
+    )
+  })
+
+  test("Saved garages joins on the page's own rule: a garage in the Bin, suspended, unverified or in a city that is off is left out, a paused one is not", () => {
+    const dialect = new PgDialect()
+    const pages = dialect.sqlToQuery(vendorPagesOpen())
     expect(pages.sql).toBe(
-      '("vendors"."status" = $1 and "vendors"."is_verified" = $2 and "vendors"."deleted_at" is null)'
+      `("vendors"."status" = $1 and "vendors"."is_verified" = $2 and "vendors"."deleted_at" is null and (SELECT ${dialect.sqlToQuery(CITY_SHOWN).sql} FROM vendors v WHERE v.id = "vendors"."id"))`
     )
     expect(pages.params).toEqual(['active', true])
-    // The same rule, read over every garage the four facts describe.
-    const open = (row: ListedRow) => row.status === 'active' && row.isVerified && row.deletedAt === null
+    // The same rule, read over every garage the facts describe.
+    const open = (row: ListedRow) =>
+      row.status === 'active' && row.isVerified && row.deletedAt === null && (row.showWhenCityOff || row.cityShown)
     const shown = everyRow().filter(open)
-    expect(shown).toHaveLength(2)
+    expect(shown).toHaveLength(6)
     expect(shown.every((row) => !isInBin(row) && row.status === 'active' && row.isVerified)).toBe(true)
     expect(shown.some((row) => row.bookingsPausedAt !== null)).toBe(true)
   })
 })
 
 describe('the SQL the customer lists run', () => {
-  const { sql, params } = new PgDialect().sqlToQuery(LISTED_TO_CUSTOMERS)
+  const dialect = new PgDialect()
+  const { sql, params } = dialect.sqlToQuery(LISTED_TO_CUSTOMERS)
+  const cityShown = dialect.sqlToQuery(CITY_SHOWN).sql
 
   // The twin above is what the tests can run; the SQL is what the lists run.
   // Pinned word for word, so neither can gain or lose a condition alone.
-  test('is the same four conditions as the twin', () => {
+  test('is the same five conditions as the twin', () => {
     expect(sql).toBe(
-      "(v.status = 'active' AND v.is_verified = true AND v.bookings_paused_at IS NULL AND v.deleted_at IS NULL)"
+      `(v.status = 'active' AND v.is_verified = true AND v.bookings_paused_at IS NULL AND v.deleted_at IS NULL AND ${cityShown})`
     )
     expect(params).toEqual([])
   })
 
   test('evaluated as the twin reads it, it agrees on every garage', () => {
-    // A tiny reading of exactly the four clauses above, so a row the SQL
-    // would list is a row the twin calls listed, and no other.
-    const clauses = sql.slice(1, -1).split(' AND ')
+    // A tiny reading of exactly the clauses above, so a row the SQL would
+    // list is a row the twin calls listed, and no other. The city clause is
+    // read as a whole: what it means is pinned below and in cities.test.ts.
+    const body = sql.slice(1, -1).replace(cityShown, 'CITY_SHOWN')
+    const clauses = body.split(' AND ')
     const sqlListed = (row: ListedRow) =>
       clauses.every((clause) => {
         if (clause === "v.status = 'active'") return row.status === 'active'
         if (clause === 'v.is_verified = true') return row.isVerified === true
         if (clause === 'v.bookings_paused_at IS NULL') return row.bookingsPausedAt === null
         if (clause === 'v.deleted_at IS NULL') return row.deletedAt === null
+        if (clause === 'CITY_SHOWN') return row.showWhenCityOff || row.cityShown
         throw new Error(`a condition the twin does not know: ${clause}`)
       })
     for (const row of everyRow()) {
@@ -118,6 +167,50 @@ describe('the SQL the customer lists run', () => {
     }
   })
 })
+
+describe('the city clause (0069)', () => {
+  const dialect = new PgDialect()
+  const cityShown = dialect.sqlToQuery(CITY_SHOWN)
+
+  test('"Show this garage anyway", else the city\'s switch, else Other towns (shown when never set)', () => {
+    expect(cityShown.params).toEqual([])
+    expect(cityShown.sql.startsWith('(v.show_when_city_off OR COALESCE((SELECT cty.customers_see FROM cities cty WHERE ')).toBe(
+      true
+    )
+    expect(cityShown.sql).toContain(
+      "COALESCE((SELECT (ots.value->>'visible')::boolean FROM admin_settings ots WHERE ots.key = 'other_towns_visible'), true)"
+    )
+  })
+
+  test('a pinned garage is in the nearest city whose reach holds its pin; an unpinned one goes by its city field, Madras as Chennai', () => {
+    const id = dialect.sqlToQuery(GARAGE_CITY_ID).sql
+    expect(id).toContain(
+      'WHEN v.geo IS NOT NULL THEN gis.ST_DWithin(v.geo, gis.ST_SetSRID(gis.ST_MakePoint(cty.lng, cty.lat), 4326)::gis.geography, cty.reach_km * 1000, false)'
+    )
+    expect(id).toContain(
+      "ELSE (CASE WHEN lower(btrim(v.city)) = 'madras' THEN 'chennai' ELSE lower(btrim(v.city)) END) = (CASE WHEN lower(btrim(cty.name)) = 'madras' THEN 'chennai' ELSE lower(btrim(cty.name)) END)"
+    )
+    expect(id).toContain('ORDER BY (CASE WHEN v.geo IS NOT NULL THEN gis.ST_Distance(v.geo, ')
+    expect(id.endsWith('cty.name LIMIT 1)')).toBe(true)
+  })
+
+  test('"All over <city>" wins over the drawn area and the radius, and falls back to them with no city', () => {
+    const point = dialectPoint()
+    const doorstep = dialect.sqlToQuery(doorstepCovers(point)).sql
+    expect(doorstep.startsWith('COALESCE(CASE WHEN v.doorstep_whole_city THEN (SELECT gis.ST_DWithin(')).toBe(true)
+    expect(doorstep).toContain('AND v.geo IS NOT NULL ORDER BY')
+    expect(doorstep).toContain('WHEN v.doorstep_area IS NOT NULL THEN gis.ST_Covers(v.doorstep_area, ')
+    expect(doorstep).toContain('COALESCE(v.doorstep_radius_km, $')
+    const pickup = dialect.sqlToQuery(pickupCovers(point)).sql
+    expect(pickup.startsWith('COALESCE(CASE WHEN v.pickup_whole_city THEN (SELECT gis.ST_DWithin(')).toBe(true)
+    expect(pickup).toContain('COALESCE(v.pickup_radius_km, $')
+    expect(pickup).not.toContain('doorstep')
+  })
+})
+
+function dialectPoint() {
+  return sqlTag`gis.ST_SetSRID(gis.ST_MakePoint(${80.25}, ${13.05}), 4326)::gis.geography`
+}
 
 describe('Gold (Detlio Certified)', () => {
   const { sql, params } = new PgDialect().sqlToQuery(CERTIFIED_GARAGE)

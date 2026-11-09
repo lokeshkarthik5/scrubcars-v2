@@ -57,11 +57,26 @@ export interface AdminVendor {
   pickupTermsAcceptedAt?: string | null
   pickupTermsAcceptedBy?: string | null
   /**
-   * Customers can find it: Active, verified, not paused and not in the Bin —
+   * Customers can find it: Active, verified, not paused, not in the Bin and
+   * its city on (0069) —
    * the customer lists' own rule, decided on the server so the two never
    * disagree. Absent from a server older than this field.
    */
   live?: boolean
+  /**
+   * Cities (0069): the city the garage is in (null is Other towns), whether
+   * that place is on for customers, and why it hides the garage when it does
+   * ("Its city, Tirupur, is off for customers"). Absent from an older API.
+   */
+  garageCity?: { id: string; name: string } | null
+  cityShown?: boolean
+  cityHiddenReason?: string | null
+  /** "Show this garage anyway": listed even while its city is off. */
+  showWhenCityOff?: boolean
+  /** "All over <city>" for doorstep and pickup & drop, instead of a radius. */
+  doorstepWholeCity?: boolean
+  pickupWholeCity?: boolean
+
   /**
    * In the Bin since then (see AdminVendorBin), or null. A garage in the Bin
    * is off the app for customers and its team until restored or deleted
@@ -253,6 +268,21 @@ export interface AdminVendorDetail {
   deletedByName?: string | null
   deletedReason?: string | null
   createdAt: string
+  /** Customers can find it (the list's Live), the city's switch included (0069). */
+  live?: boolean
+  /**
+   * Cities (0069): the city the garage is in (null is Other towns), whether
+   * that place is on for customers, and why it hides the garage when it does
+   * ("Its city, Tirupur, is off for customers"). Absent from an older API.
+   */
+  garageCity?: { id: string; name: string } | null
+  cityShown?: boolean
+  cityHiddenReason?: string | null
+  /** "Show this garage anyway": listed even while its city is off. */
+  showWhenCityOff?: boolean
+  /** "All over <city>" for doorstep and pickup & drop, instead of a radius. */
+  doorstepWholeCity?: boolean
+  pickupWholeCity?: boolean
   /** The garage list's checklist, for the editor's status panel (0059). Absent from an older API. */
   readiness?: ReadinessItem[]
   /** What the garage still owes us (0059), as on AdminVendor. Absent from an older API. */
@@ -348,6 +378,11 @@ export interface UpdateVendorInput {
   pickupAgreementSigned?: boolean
   pickupRadiusKm?: number | null
   doorstepRadiusKm?: number | null
+  /** "All over <city>" (0069). On needs the pin inside a city (400 WHOLE_CITY_NEEDS_CITY). */
+  doorstepWholeCity?: boolean
+  pickupWholeCity?: boolean
+  /** "Show this garage anyway" (0069): listed while its city is off. */
+  showWhenCityOff?: boolean
   /** Both or neither — the server rejects a half-set pair. */
   lat?: number
   lng?: number
@@ -752,6 +787,9 @@ export interface CreateVendorInput {
   pickupAgreementSigned?: boolean
   pickupRadiusKm?: number
   doorstepRadiusKm?: number
+  /** "All over <city>" (0069). On needs the pin inside a city. */
+  doorstepWholeCity?: boolean
+  pickupWholeCity?: boolean
   lat?: number
   lng?: number
   dropinEnabled?: boolean

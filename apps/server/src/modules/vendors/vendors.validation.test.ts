@@ -62,31 +62,38 @@ describe('doorstep radius on PATCH /vendors/me', () => {
     expect(updateVendorSchema.parse({ doorstepRadiusKm: null })).toEqual({ doorstepRadiusKm: null })
     expect(updateVendorSchema.parse({ doorstepRadiusKm: 6 })).toEqual({ doorstepRadiusKm: 6 })
     expect(updateVendorSchema.safeParse({ doorstepRadiusKm: 0 }).success).toBe(false)
+    expect(updateVendorSchema.safeParse({ doorstepRadiusKm: 300 }).success).toBe(true)
+    expect(updateVendorSchema.safeParse({ doorstepRadiusKm: 301 }).success).toBe(false)
   })
 })
 
 describe('updateJobTypesSchema', () => {
-  test('a doorstep distance travels with the switch, from 1 to 30 km', () => {
-    expect(
-      updateJobTypesSchema.safeParse({ doorstepEnabled: true, doorstepRadiusKm: 8 }).success
-    ).toBe(true)
-    expect(
-      updateJobTypesSchema.safeParse({ doorstepEnabled: true, doorstepRadiusKm: 31 }).success
-    ).toBe(false)
-    expect(
-      updateJobTypesSchema.safeParse({ doorstepEnabled: true, doorstepRadiusKm: 0.5 }).success
-    ).toBe(false)
+  test('a doorstep distance travels with the switch, from 1 to 300 km (the 30 km top lifted, 10 Nov 2026)', () => {
+    for (const km of [1, 8, 45, 300]) {
+      expect(updateJobTypesSchema.safeParse({ doorstepEnabled: true, doorstepRadiusKm: km }).success).toBe(true)
+    }
+    for (const km of [0.5, 301]) {
+      expect(updateJobTypesSchema.safeParse({ doorstepEnabled: true, doorstepRadiusKm: km }).success).toBe(false)
+    }
+  })
+
+  test('"All over <city>" for doorstep and pickup is a request on its own (0069)', () => {
+    expect(updateJobTypesSchema.parse({ doorstepWholeCity: true })).toEqual({ doorstepWholeCity: true })
+    expect(updateJobTypesSchema.parse({ pickupWholeCity: false })).toEqual({ pickupWholeCity: false })
+    expect(updateJobTypesSchema.parse({ doorstepRadiusKm: 45 })).toEqual({ doorstepRadiusKm: 45 })
+    expect(updateJobTypesSchema.safeParse({ doorstepWholeCity: 'yes' }).success).toBe(false)
   })
 })
 
 describe('pickup & drop on PATCH /vendors/me/job-types', () => {
-  test('on, off, the tick and a radius from 1 to 30 km (null for the default)', () => {
+  test('on, off, the tick and a radius from 1 to 300 km (null for the default)', () => {
     expect(
       updateJobTypesSchema.parse({ pickupEnabled: true, pickupTermsAccepted: true, pickupRadiusKm: 8 })
     ).toEqual({ pickupEnabled: true, pickupTermsAccepted: true, pickupRadiusKm: 8 })
     expect(updateJobTypesSchema.safeParse({ pickupEnabled: false }).success).toBe(true)
     expect(updateJobTypesSchema.safeParse({ pickupRadiusKm: null }).success).toBe(true)
-    expect(updateJobTypesSchema.safeParse({ pickupRadiusKm: 31 }).success).toBe(false)
+    expect(updateJobTypesSchema.safeParse({ pickupRadiusKm: 45 }).success).toBe(true)
+    expect(updateJobTypesSchema.safeParse({ pickupRadiusKm: 301 }).success).toBe(false)
     expect(updateJobTypesSchema.safeParse({ pickupRadiusKm: 0.5 }).success).toBe(false)
   })
 

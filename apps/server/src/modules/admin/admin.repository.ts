@@ -43,7 +43,9 @@ import {
   payments,
   receiptNumbers,
   serviceImages,
+  servicePackageItems,
   services,
+  userMemberMapping,
   users,
   vendorClosures,
   vendorPhotos,
@@ -534,6 +536,69 @@ export const adminRepository = {
   insertServices(rows: ServiceInsert[]) {
     if (rows.length === 0) return Promise.resolve([])
     return db.insert(services).values(rows).returning()
+  },
+
+  /**
+   * "Add a branch…" (0069) in one transaction: the new garage, the services,
+   * packages and add-ons chosen (packages pointing at the new copies of
+   * their members), the hours, the same stored logo and photos, the owner's
+   * seat when asked, and the audit row. All or nothing, so a failure never
+   * leaves half a branch behind.
+   */
+  async createBranch(plan: {
+    vendor: VendorInsert
+    services: Array<{ sourceId: string; row: Omit<ServiceInsert, 'vendorId'> }>
+    packages: Array<{ row: Omit<ServiceInsert, 'vendorId'>; memberSourceIds: string[] }>
+    hours: Array<Omit<WorkingHoursInsert, 'vendorId'>>
+    photos: Array<{ url: string; storageKey: string | null; sortOrder: number }>
+    ownerSeat: boolean
+    audit: { actorSub: string; actorName: string; summary: Record<string, unknown>; detail: Record<string, unknown> }
+  }): Promise<{ id: string }> {
+    return db.transaction(async (tx) => {
+      const [branch] = await tx.insert(vendors).values(plan.vendor).returning({ id: vendors.id })
+      const vendorId = branch!.id
+      const newIdOf = new Map<string, string>()
+      if (plan.services.length > 0) {
+        const inserted = await tx
+          .insert(services)
+          .values(plan.services.map(({ row }) => ({ ...row, vendorId })))
+          .returning({ id: services.id })
+        // RETURNING keeps the VALUES order, so the copies line up with their sources.
+        plan.services.forEach(({ sourceId }, index) => newIdOf.set(sourceId, inserted[index]!.id))
+      }
+      for (const pkg of plan.packages) {
+        const [created] = await tx
+          .insert(services)
+          .values({ ...pkg.row, vendorId })
+          .returning({ id: services.id })
+        const members = pkg.memberSourceIds.map((id) => newIdOf.get(id)).filter((id): id is string => Boolean(id))
+        if (members.length > 0) {
+          await tx
+            .insert(servicePackageItems)
+            .values(members.map((serviceId, sortOrder) => ({ packageId: created!.id, serviceId, sortOrder })))
+        }
+      }
+      if (plan.hours.length > 0) {
+        await tx.insert(vendorWorkingHours).values(plan.hours.map((row) => ({ ...row, vendorId })))
+      }
+      if (plan.photos.length > 0) {
+        await tx.insert(vendorPhotos).values(plan.photos.map((row) => ({ ...row, vendorId })))
+      }
+      if (plan.ownerSeat) {
+        await tx
+          .insert(userMemberMapping)
+          .values({ vendorId, userId: plan.vendor.ownerId, role: 'vendor_admin' })
+          .onConflictDoNothing({ target: [userMemberMapping.vendorId, userMemberMapping.userId] })
+      }
+      await tx.insert(adminAuditLog).values({
+        action: 'garage_branch_added',
+        actorSub: plan.audit.actorSub,
+        actorName: plan.audit.actorName,
+        summary: { ...plan.audit.summary, vendorId },
+        detail: plan.audit.detail,
+      })
+      return { id: vendorId }
+    })
   },
 
   // Every plain service of a vendor with its state, to reconcile the admin

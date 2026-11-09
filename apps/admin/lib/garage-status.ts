@@ -86,6 +86,11 @@ export interface GoLiveState {
   isVerified: boolean
   paused: boolean
   inBin: boolean
+  /**
+   * Why its city keeps it from customers (0069), as the server says it ("Its
+   * city, Tirupur, is off for customers"), or null/absent when it does not.
+   */
+  cityHiddenReason?: string | null
 }
 
 export interface StatusHeadline {
@@ -101,8 +106,8 @@ const plural = (n: number, one: string, many: string) =>
 
 /**
  * The panel's first card. Live is what the garage list calls Live: Active,
- * shown to customers, not paused, not in the Bin, and nothing blocking on its
- * checklist.
+ * shown to customers, not paused, not in the Bin, its city on (0069), and
+ * nothing blocking on its checklist.
  */
 export function statusHeadline(
   state: GoLiveState,
@@ -138,6 +143,14 @@ export function statusHeadline(
       live: false,
       title: 'Bookings paused',
       summary: ['Hidden from customers until resumed', ...parts].join(' · '),
+    }
+  }
+  // Ready in every other way, but its city (or Other towns) is off (0069).
+  if (state.cityHiddenReason) {
+    return {
+      live: false,
+      title: 'Customers can’t find it',
+      summary: [state.cityHiddenReason, ...parts].join(' · '),
     }
   }
   return {

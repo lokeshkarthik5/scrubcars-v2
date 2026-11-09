@@ -32,6 +32,7 @@ import {
   bookingParts,
   bookingsLine,
   editHref,
+  cityLabel,
   garageArea,
   garageNextStep,
   hasDocumentsToReview,
@@ -306,11 +307,24 @@ function GarageCell({
  * pinned in the wrong place.
  */
 function AreaCell({ v, narrow }: { v: AdminVendor; narrow?: boolean }) {
+  // Its city by the Cities rule (0069), and a note when that city keeps it
+  // from customers. Absent on an API from before cities.
+  const city = cityLabel(v)
   return (
     <div className={cn('min-w-0', narrow ? 'max-w-[72px]' : 'max-w-[92px]')}>
       <p className="truncate text-text-primary" title={garageArea(v)}>
         {garageArea(v)}
       </p>
+      {city && (
+        <p className="truncate text-[12px] text-text-muted" title={`City: ${city}`}>
+          City: {city}
+        </p>
+      )}
+      {v.cityHiddenReason && (
+        <p className="truncate text-[12px] text-warning" title={v.cityHiddenReason}>
+          City off
+        </p>
+      )}
       {v.outsideServiceCity && (
         <p className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 text-[12px] text-text-muted">
           <OutsideCityChip outside={v.outsideServiceCity} className="min-w-0" />

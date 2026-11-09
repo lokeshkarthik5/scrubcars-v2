@@ -18,16 +18,17 @@ import {
   vendorServiceAreas,
   vendorWorkingHours,
 } from '../../db/schema.js'
-import { DEFAULT_DOORSTEP_RADIUS_KM } from '../../lib/doorstep.js'
 import { containsPattern } from '../../lib/search.js'
-import { DEFAULT_PICKUP_RADIUS_KM } from '../../lib/pickup.js'
 import { NEW_GARAGE_SORT_RATING, RATING_RULES } from '../../lib/ratings.js'
 import { COUNTED_REVIEW } from '../reviews/reviews.predicates.js'
 import type { BookingType } from '../../lib/booking-types.js'
 import {
+  doorstepCovers,
   LISTED_TO_CUSTOMERS,
   PICKUP_OFFERED,
+  pickupCovers,
   silverAndAboveCondition,
+  vendorOpenForItsBookings,
   vendorPageOpen,
 } from './vendors.predicates.js'
 import type {
@@ -84,6 +85,17 @@ export const vendorsRepository = {
   findPublicVendorById(id: string) {
     return db.query.vendors.findFirst({
       where: vendorPageOpen(id),
+    })
+  },
+
+  /**
+   * The garage as its existing bookings need it (vendorOpenForItsBookings):
+   * the page rule without the city's switch, so a customer can still move a
+   * booking made before its city was switched off.
+   */
+  findVendorForItsBookings(id: string) {
+    return db.query.vendors.findFirst({
+      where: vendorOpenForItsBookings(id),
     })
   },
 
@@ -223,28 +235,21 @@ export const vendorsRepository = {
     if (bookingType === 'doorstep') {
       conditions.push(sql`v.doorstep_enabled = true`)
       // Doorstep asks "who will come to me", so the bound is the garage's own
-      // willingness to travel — not a radius the customer picked. A drawn
-      // polygon wins when there is one, since real coverage is rarely circular;
-      // otherwise the radius applies, and a garage that left it empty covers
-      // the default (lib/doorstep.ts). The booking-time check
-      // (bookingsRepository.isWithinDoorstepRadius) reads the same rule, so a
-      // garage listed here for an address can be booked to it.
-      if (point) {
-        conditions.push(sql`CASE
-          WHEN v.doorstep_area IS NOT NULL THEN gis.ST_Covers(v.doorstep_area, ${point})
-          ELSE gis.ST_DWithin(v.geo, ${point}, COALESCE(v.doorstep_radius_km, ${DEFAULT_DOORSTEP_RADIUS_KM}) * 1000, false)
-        END`)
-      }
+      // willingness to travel — not a radius the customer picked: all over
+      // its city when it said so (0069), else a drawn polygon when there is
+      // one, since real coverage is rarely circular, else the radius, and a
+      // garage that left it empty covers the default (lib/doorstep.ts). The
+      // booking-time check (bookingsRepository.isWithinDoorstepRadius) reads
+      // the same rule (doorstepCovers), so a garage listed here for an
+      // address can be booked to it.
+      if (point) conditions.push(doorstepCovers(point))
     } else if (bookingType === 'pickup') {
       conditions.push(PICKUP_OFFERED)
       // Pickup asks "who will collect my car", so, as for doorstep, the bound
-      // is the garage's own pickup radius from its pin, not a radius the
-      // customer picked. An empty radius is the default (lib/pickup.ts).
-      if (point) {
-        conditions.push(
-          sql`gis.ST_DWithin(v.geo, ${point}, COALESCE(v.pickup_radius_km, ${DEFAULT_PICKUP_RADIUS_KM}) * 1000, false)`
-        )
-      }
+      // is the garage's own: all over its city (0069), or its pickup radius
+      // from its pin (an empty radius is the default, lib/pickup.ts), never a
+      // radius the customer picked.
+      if (point) conditions.push(pickupCovers(point))
     } else if (point && params.radiusM) {
       // `false` selects sphere maths over spheroid: measurably faster, and
       // under 0.5% off at city scale. The spheroid stays for the distance we
@@ -413,6 +418,26 @@ export const vendorsRepository = {
 
   createVendor(data: VendorInsert) {
     return db.insert(vendors).values(data).returning()
+  },
+
+  /**
+   * Whether any garage still shows this stored file as its logo or a photo.
+   * A branch (0069) reuses its first garage's objects rather than uploading
+   * them again, so removing a photo or logo from one garage must leave the
+   * object in storage while another still points at it.
+   */
+  async garageFileInUse(key: string): Promise<boolean> {
+    // By key, or by a URL ending in it: older photo rows kept no key.
+    const tail = `/${key}`
+    const rows = await db.execute<{ used: number }>(sql`
+      SELECT 1 AS used FROM vendor_photos p
+       WHERE p.storage_key = ${key} OR right(p.url, ${tail.length}) = ${tail}
+      UNION ALL
+      SELECT 1 AS used FROM vendors v
+       WHERE v.logo_storage_key = ${key} OR right(v.logo_url, ${tail.length}) = ${tail}
+      LIMIT 1
+    `)
+    return Array.from(rows).length > 0
   },
 
   updateVendor(vendorId: string, data: VendorUpdate) {

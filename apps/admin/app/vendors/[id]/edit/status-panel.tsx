@@ -1,16 +1,21 @@
 'use client'
 
+import { useState } from 'react'
 import {
   IconAlertTriangle,
   IconChevronRight,
   IconCircleCheck,
+  IconGitBranch,
 } from '@tabler/icons-react'
+import Link from 'next/link'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScField } from '@repo/ui/sc/input'
 import { ScSegmented } from '@repo/ui/sc/segmented'
 import { ScSwitch } from '@repo/ui/sc/switch'
+import { OTHER_TOWNS_LABEL } from '@repo/core/cities'
 import { formatDay as formatDayOf } from '@repo/core/format'
 import { cn } from '@repo/core/utils'
+import { BranchSheet } from '@/components/branch-sheet'
 import { GarageMarksPanel } from '@/components/marks/editor-marks-panel'
 import { SavedNote } from '@/components/save-bar'
 import { PAGE_TAB_LABELS, parsePageTab, type PageTab } from '@/lib/garage-edit'
@@ -66,6 +71,7 @@ export function StatusPanel({
       isVerified: saved.isVerified,
       paused: pausedAt != null,
       inBin,
+      cityHiddenReason: g.city?.hiddenReason ?? null,
     },
     checklist.readiness
   )
@@ -138,7 +144,77 @@ export function StatusPanel({
       />
 
       <GoLive g={g} saved={saved} draft={draft} onOpenTab={onOpenTab} />
+
+      {!inBin && <AddBranch vendorId={vendorId} g={g} saved={saved} />}
     </div>
+  )
+}
+
+/**
+ * The garage's city (0069): "City: Tirupur", or Other towns, and when that
+ * place is off for customers, why, with "Show this garage anyway", which
+ * saves the moment it is pressed. Absent on an API from before cities.
+ */
+function CityStanding({ g }: { g: GarageDraftState }) {
+  const { city, cityBusy, cityNote, setShowWhenCityOff } = g
+  if (!city) return null
+  const placeOff = !city.cityShown
+  return (
+    <div className="flex flex-col gap-2 border-t border-border pt-3.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[13.5px] text-text-primary">
+          City: <span className="font-medium">{city.name ?? OTHER_TOWNS_LABEL}</span>
+        </span>
+        <SavedNote state={cityNote.state} />
+      </div>
+      {placeOff && (
+        <p className="text-[12.5px] text-text-secondary">
+          {city.name
+            ? `${city.name} is off for customers, so they don't see this garage.`
+            : `${OTHER_TOWNS_LABEL} are off for customers, so they don't see this garage.`}{' '}
+          <Link href="/cities" className="inline-flex min-h-11 items-center font-medium text-text-primary underline underline-offset-2">
+            Cities
+          </Link>
+        </p>
+      )}
+      {(placeOff || city.showWhenCityOff) && (
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-[13.5px] text-text-primary">Show this garage anyway</span>
+          <ScSwitch
+            label="Show this garage anyway"
+            checked={city.showWhenCityOff}
+            disabled={cityBusy}
+            onChange={(on) => void setShowWhenCityOff(on)}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** "Add a branch…": opens the sheet that starts a new garage from this one (0069). */
+function AddBranch({ vendorId, g, saved }: { vendorId: string; g: GarageDraftState; saved: GarageDraft }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <ScButton
+        type="button"
+        variant="outline"
+        onClick={() => setOpen(true)}
+        className="min-h-11 text-[13px]"
+      >
+        <IconGitBranch size={16} aria-hidden="true" />
+        Add a branch…
+      </ScButton>
+      <BranchSheet
+        open={open}
+        onClose={() => setOpen(false)}
+        vendorId={vendorId}
+        garageName={saved.form.businessName}
+        services={saved.services}
+        atGarage={g.atGarage}
+      />
+    </>
   )
 }
 
@@ -297,6 +373,8 @@ function GoLive({
           </p>
         )}
 
+        <CityStanding g={g} />
+
         <div className="flex flex-col gap-2.5 border-t border-border pt-3.5">
           <div className="flex items-center justify-between gap-2">
             <span className="text-[13.5px] text-text-primary">
@@ -353,8 +431,8 @@ function GoLive({
         </div>
 
         <p className="text-[12px] text-text-muted">
-          Live needs Active, shown to customers and nothing blocking. Stage and
-          Show to customers save with Save changes.
+          Live needs Active, shown to customers, its city on and nothing
+          blocking. Stage and Show to customers save with Save changes.
         </p>
       </section>
     </fieldset>

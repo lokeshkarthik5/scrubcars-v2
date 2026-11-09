@@ -12,11 +12,9 @@ import {
   vendorWorkingHours,
   zones,
 } from '../../db/schema.js'
-import { DEFAULT_DOORSTEP_RADIUS_KM } from '../../lib/doorstep.js'
-import { DEFAULT_PICKUP_RADIUS_KM } from '../../lib/pickup.js'
 import type { RequestMode, RequestStatus } from '../../lib/booking-requests.js'
 import { listCapacityHolders } from '../bookings/bookings.repository.js'
-import { LISTED_TO_CUSTOMERS, PICKUP_OFFERED } from '../vendors/vendors.predicates.js'
+import { doorstepReach, LISTED_TO_CUSTOMERS, PICKUP_OFFERED, pickupReach } from '../vendors/vendors.predicates.js'
 
 export type BookingRequestRecord = typeof bookingRequests.$inferSelect
 export type BookingRequestInsert = typeof bookingRequests.$inferInsert
@@ -65,31 +63,16 @@ type MeasuredRow = {
 /**
  * The SQL for one mode's reach: whether the garage covers the point, how far
  * past its reach the point is, and its radius. The booking checks' own rule
- * (bookingsRepository.isWithinDoorstepRadius / isWithinPickupRadius), and
- * the list's "just outside" measure (reachRepository.listJustOutside),
- * restated here only because it is a condition inside a larger query.
+ * and the list's "just outside" measure (doorstepReach / pickupReach in
+ * vendors.predicates.ts), so whole city (0069) counts here as everywhere.
  */
 function reachSql(mode: RequestMode, point: ReturnType<typeof geography>) {
-  if (mode === 'doorstep') {
-    return {
-      offers: sql`(v.doorstep_enabled = true)`,
-      covers: sql`(CASE
-        WHEN v.doorstep_area IS NOT NULL THEN gis.ST_Covers(v.doorstep_area, ${point})
-        ELSE gis.ST_DWithin(v.geo, ${point}, COALESCE(v.doorstep_radius_km, ${DEFAULT_DOORSTEP_RADIUS_KM}) * 1000, false)
-      END)`,
-      outside: sql`(CASE
-        WHEN v.doorstep_area IS NOT NULL THEN gis.ST_Distance(v.doorstep_area, ${point}, false)
-        ELSE gis.ST_Distance(v.geo, ${point}, false) - COALESCE(v.doorstep_radius_km, ${DEFAULT_DOORSTEP_RADIUS_KM}) * 1000
-      END)`,
-      cover: sql`(CASE WHEN v.doorstep_area IS NOT NULL THEN NULL
-        ELSE COALESCE(v.doorstep_radius_km, ${DEFAULT_DOORSTEP_RADIUS_KM}) END)`,
-    }
-  }
+  const reach = mode === 'doorstep' ? doorstepReach(point) : pickupReach(point)
   return {
-    offers: PICKUP_OFFERED,
-    covers: sql`gis.ST_DWithin(v.geo, ${point}, COALESCE(v.pickup_radius_km, ${DEFAULT_PICKUP_RADIUS_KM}) * 1000, false)`,
-    outside: sql`(gis.ST_Distance(v.geo, ${point}, false) - COALESCE(v.pickup_radius_km, ${DEFAULT_PICKUP_RADIUS_KM}) * 1000)`,
-    cover: sql`COALESCE(v.pickup_radius_km, ${DEFAULT_PICKUP_RADIUS_KM})`,
+    offers: mode === 'doorstep' ? sql`(v.doorstep_enabled = true)` : PICKUP_OFFERED,
+    covers: reach.covers,
+    outside: reach.outsideM,
+    cover: reach.coverKm,
   }
 }
 

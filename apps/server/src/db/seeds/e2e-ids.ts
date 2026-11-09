@@ -2062,3 +2062,58 @@ export const ADD_ONS = {
     addOnId: id(5814), addOnName: 'Boot mat wash', ownerId: id(5815), ownerPhone: '9000005815',
   },
 } as const
+
+/**
+ * Cities, branches and "All over the city" (0069; ids 6900–6949, phones
+ * 90000069xx). Every garage here sits far from Chennai, from every other
+ * fixture and from every spec's origin (around 15°–16° N, 77°–78° E: over
+ * 500 km from Madurai, where listing-radius looks for a list whose nearest
+ * garage is 100 km off or more), so a city switched off, or Other towns for a
+ * moment, hides no other spec's garage and nears no other spec's list.
+ *
+ *   - `hill`: a listed garage the admin spec puts a city around (`hillCity`,
+ *     5 km) and switches off; its customer's booking there must still open.
+ *   - `far`: a listed garage in no city, for the Other towns switch.
+ *   - `branch`: a garage with three services the admin spec adds a branch of.
+ *   - `wholeTown`: a city seeded here, and `whole`, a doorstep garage pinned
+ *     20 km north of its centre that comes all over it; `wholeCustomer` lives
+ *     20 km south (40 km from the garage, far past its 5 km radius).
+ */
+export const CITIES = {
+  customer: { id: id(6900), phone: '9000006900', name: 'Cities Kala', vehicleId: id(6901) },
+  hill: {
+    id: id(6902), name: 'Hilltown Car Spa', ownerId: id(6903), ownerPhone: '9000006903',
+    serviceId: id(6904), serviceName: 'Hilltown Foam Wash', pin: { lat: 16.0, lng: 77.5 },
+  },
+  /** The customer's booking at `hill`, two days ahead, confirmed and paid. */
+  hillBooking: id(6905),
+  hillCity: { name: 'E2E Hilltown', reachKm: 5 },
+  far: {
+    id: id(6906), name: 'Faraway Foam Wash', ownerId: id(6907), ownerPhone: '9000006907',
+    serviceId: id(6908), pin: { lat: 15.6, lng: 77.2 },
+  },
+  branch: {
+    id: id(6910), name: 'Revathi Auto Spa', ownerId: id(6911), ownerPhone: '9000006911',
+    pin: { lat: 15.4, lng: 77.0 },
+    services: [
+      { id: id(6912), name: 'Revathi Foam Wash', price: 450 },
+      { id: id(6913), name: 'Revathi Interior Clean', price: 900 },
+      { id: id(6914), name: 'Revathi Ceramic Coat', price: 7000 },
+    ],
+  },
+  /** The branch the admin spec adds, by its name. */
+  branchName: 'Revathi Auto Spa – E2E Branchtown',
+  branchTown: 'E2E Branchtown',
+  wholeTown: { id: id(6920), name: 'E2E Wholetown', centre: { lat: 15.0, lng: 78.0 }, reachKm: 60 },
+  whole: {
+    id: id(6921), name: 'Wholetown Doorstep Detailing', ownerId: id(6922), ownerPhone: '9000006922',
+    serviceId: id(6923), pin: { lat: 15.18, lng: 78.0 }, radiusKm: 5,
+  },
+  wholeCustomer: {
+    id: id(6924), phone: '9000006924', name: 'Wholetown Arun', vehicleId: id(6925),
+    /** Inside the city, 40 km from the garage. */
+    home: { id: id(6926), lat: 14.82, lng: 78.0 },
+    /** Past the city's 60 km reach (83 km from its centre). */
+    away: { id: id(6927), lat: 15.75, lng: 78.0 },
+  },
+} as const

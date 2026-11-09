@@ -19,6 +19,7 @@ export type NavIconName =
   | 'garages'
   | 'payouts'
   | 'coverage'
+  | 'cities'
   | 'offers'
   | 'rewards'
   | 'gifts'
@@ -87,6 +88,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/vendors', label: 'Garages', icon: 'garages', count: 'garages' },
       { href: '/payouts', label: 'Payouts', icon: 'payouts' },
       { href: '/coverage', label: 'Coverage', icon: 'coverage' },
+      // Which cities customers see garages in (0069), beside Coverage.
+      { href: '/cities', label: 'Cities', icon: 'cities' },
     ],
   },
   {

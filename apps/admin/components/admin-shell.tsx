@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import {
   IconAlertTriangle,
   IconBrandWhatsapp,
+  IconBuildingCommunity,
   IconBuildingStore,
   IconCalendar,
   IconCalendarEvent,
@@ -56,6 +57,7 @@ const ICONS: Record<NavIconName, typeof IconCalendar> = {
   garages: IconBuildingStore,
   payouts: IconWallet,
   coverage: IconMap,
+  cities: IconBuildingCommunity,
   offers: IconDiscount2,
   rewards: IconStar,
   gifts: IconGift,
