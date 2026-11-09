@@ -9,7 +9,7 @@ The owner approved every screen below in mockups between 8 and 9 November 2026. 
 | Bottom bar | `~/Desktop/Detlio-Dev/reference/mockups/red-glow/red-glow.src.html` | **F** (ring of light on the active tab) + **H silver** (other icons silver, pearl +). Ignore the other looks on that page. |
 | Map screen | `~/Desktop/Detlio-Dev/reference/mockups/map-glass/map-glass.src.html` | Chosen: `data-pin="prem"` premium marker (red dot, white ring, glass label "name / ₹price · km · ~min"), `data-fx="route"` (Route draw), `data-arc="arc"` (3D arc + red ground shadow), `data-mark="dot"`. Ignore: other effects (spring, reticle, spot, fly, beam, wave, halo), Light wall, Flat, the 3D "D." marker, the old box pin and pulse looks. |
 | Garages list, garage page, booking page | `~/Desktop/Detlio-Dev/reference/mockups/garage-list/garage-list.src.html` | Final state = `data-top="map" data-sw="key" data-ctl="sheet" data-red="b"`, list `data-card="show"`. Everything else in that file (tiles, Mercury, Headlight, Dial, Previous rail, clean type, one panel, Spec sheet, Glass card, the Top/Mode/Card/Red switches) is superseded — do not build it. Debug hashes in the file (`#still`, `#mid-…`) are mockup-only. |
-| Special moments for the other screens | `~/Desktop/Detlio-Dev/reference/mockups/moments/moments.html` | 13 approved moments (the light-up stars were dropped). |
+| Special moments for the other screens | `~/Desktop/Detlio-Dev/reference/mockups/moments/moments.html` | 13 approved moments (the light-up stars were dropped; moment 12, the receipt printing from a slot, was removed by the owner on 9 Nov). |
 | What today's booking details page shows | `~/Desktop/Detlio-Dev/reference/mockups/garage-list/inventory-booking-details.md` | Every status, card and sheet must survive. |
 
 **Rule: nothing on today's pages is removed** unless this document says so. Every state, empty state, error, sheet, sign-in path, notice and copy string keeps working; only the look and the listed additions change.
@@ -83,10 +83,10 @@ Built only from the parts above (mockup "booking page" section): opens from Book
 9. **Garage cards in metal** (rewards/Detlio Garage): brushed silver/gold finish, points count up like an odometer, level bar fills; the existing card flip and scratch card stay.
 10. **Code boxes that light up** (sign-in OTP): each typed digit lights the red light under its box; on the sixth a light sweeps across and the boxes merge into one tick.
 11. **Search**: results rise in; matched words underlined with the red light.
-12. **Receipt prints** out of a slot, line by line.
+12. ~~**Receipt prints** out of a slot, line by line.~~ **Removed by the owner on 9 Nov 2026**: the receipt is Detlio-styled instead (the finish: a dark card with the lit edge, the wordmark, overline section titles, figures in Space Grotesk 600, hairlines, the net amount a size up with one red light under it) and still, with no motion. Printing / the PDF stays the plain white paper document (web `print:` styles; native `lib/receipt-html.ts`, unchanged).
 13. **Updates**: new items carry a small red light that fades once seen.
 
-All other customer screens (Profile and its sub-pages, help/FAQ, legal, slot alerts, complaints, guarantee claim, reschedule/cancel sheets, final bill, extra work, suggested times, scratch card, pickup/delivery codes, receipt page, landing page list) get the finish only — same content and behaviour.
+All other customer screens (Profile and its sub-pages, help/FAQ, legal, slot alerts, complaints, guarantee claim, reschedule/cancel sheets, final bill, extra work, suggested times, scratch card, pickup/delivery codes, receipt page (see 12), landing page list) get the finish only — same content and behaviour.
 
 ## 8. Speed (owner: "make sure the loading time & everything is fast & smooth")
 Causes found in the code (9 Nov): ~10 requests start only after the garage page mounts; every GET pays a CORS preflight because the client always sends `Content-Type`; nothing from the list is reused; `/vendors/:id` runs ~11 queries with 7 sequential round trips (tier queries awaited one by one); the vendor is looked up 7 times per open; reviews are unbounded; the DB connection closes after 20s idle; no cache headers; `/bookings/[id]` polls with a bare interval even in hidden tabs. Indexes are fine; no migration needed.

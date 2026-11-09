@@ -1301,26 +1301,8 @@ html[data-vt='vt-booking-back']::view-transition-new(root) {
   padding-bottom: 1px;
 }
 
-/* 12 · The receipt prints out of a slot, line by line. Never on paper. */
-.mo-slot {
-  height: 10px;
-  border-radius: 5px;
-  background: #050506;
-  box-shadow:
-    inset 0 2px 4px #000,
-    0 1px 0 rgb(255 255 255 / 0.08);
-}
-@media screen {
-  .mo-print {
-    animation: mo-print 1.3s steps(14, end) 0.15s both;
-  }
-}
-@keyframes mo-print {
-  from {
-    clip-path: inset(0 0 100% 0);
-    transform: translateY(-24px);
-  }
-}
+/* 12 · (The receipt printing from a slot was removed by the owner on 9 Nov
+   2026: the receipt is in the finish instead, and still.) */
 
 /* 13 · Updates: a small red light on a new item, which fades once seen. */
 .mo-unread {
@@ -1359,8 +1341,7 @@ html[data-vt='vt-booking-back']::view-transition-new(root) {
   .mo-ticket,
   .mo-pull[data-refreshing] .mo-pull__car,
   .mo-gauge[data-play] :is(.mo-gauge__needle, .mo-gauge__fill),
-  .mo-fill-once,
-  .mo-print {
+  .mo-fill-once {
     animation: none;
   }
   .gp-hero__track,
