@@ -8,7 +8,9 @@ import { T } from '@repo/native-ui/text';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 import { toast } from '@repo/native-ui/toast';
 import { useState } from 'react';
-import { Image, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+
+import { ShutterImage } from '@/components/moments/shutter';
 
 import { errorText } from '@/lib/error-text';
 import { pickPhoto, uploadCarPhoto } from '@/lib/photo-upload';
@@ -23,6 +25,8 @@ export function CarConditionCard({ booking, onChanged }: { booking: Booking; onC
   const [uploading, setUploading] = useState<string | null>(null);
   const [viewing, setViewing] = useState<{ photo: JobPhoto; url: string; name: string; canRemove: boolean } | null>(null);
   const [removing, setRemoving] = useState(false);
+  // The slots a photo was just added to, which play the shutter once (moment 4).
+  const [shot, setShot] = useState<ReadonlySet<string>>(() => new Set());
   if (!windows) return null;
   const stages = (['before', 'after'] as const).filter((stage) => windows[stage].open || photosOf(booking.jobPhotos, 'customer', stage).length > 0);
   if (stages.length === 0) return null;
@@ -33,6 +37,7 @@ export function CarConditionCard({ booking, onChanged }: { booking: Booking; onC
     setUploading(`${stage}:${angle ?? 'extra'}`);
     try {
       await uploadCarPhoto(booking.id, stage, uri, angle);
+      setShot((keys) => new Set(keys).add(`${stage}:${angle ?? 'extra'}`));
       await onChanged();
     } catch (error) {
       toast.error(errorText(error, 'Your photo did not upload. Please try again.'));
@@ -76,9 +81,9 @@ export function CarConditionCard({ booking, onChanged }: { booking: Booking; onC
         const room = open ? windows.max - mine.length : 0;
         const slots = angleSlots(booking.jobPhotos, 'customer', stage);
         const extras = extraPhotos(booking.jobPhotos, 'customer', stage);
-        const thumb = (photo: JobPhoto, name: string) => (
+        const thumb = (photo: JobPhoto, name: string, key?: string) => (
           <Pressable accessibilityRole="imagebutton" accessibilityLabel={`View ${name}`} onPress={() => setViewing({ photo, url: photo.url, name, canRemove: open })}>
-            <Image source={{ uri: photo.url }} style={styles.thumb} />
+            <ShutterImage uri={photo.url} play={key !== undefined && shot.has(key)} style={styles.thumb} />
           </Pressable>
         );
         return (
@@ -97,7 +102,7 @@ export function CarConditionCard({ booking, onChanged }: { booking: Booking; onC
                 if (photo) {
                   return (
                     <View key={angle} style={styles.slot}>
-                      {thumb(photo, `your ${label.toLowerCase()} photo, ${stage} the work`)}
+                      {thumb(photo, `your ${label.toLowerCase()} photo, ${stage} the work`, `${stage}:${angle}`)}
                       <T size={10} lh={14} color={colors.textSecondary}>
                         {label}
                       </T>
@@ -151,8 +156,9 @@ const useStyles = createStyles((c) => ({
   stage: { gap: 6 },
   stageHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
   slots: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  slot: { width: 64, alignItems: 'center', gap: 2 },
-  thumb: { height: 64, width: 64, borderRadius: 10, backgroundColor: c.surface, borderWidth: 1, borderColor: c.border },
-  add: { height: 64, width: 64, borderRadius: 10, borderWidth: 1, borderStyle: 'dashed', borderColor: c.border, alignItems: 'center', justifyContent: 'center' },
+  // Five to a row: Front, Back, Left side, Right side, Interior (moment 4).
+  slot: { width: '18%', alignItems: 'center', gap: 2 },
+  thumb: { width: '100%', aspectRatio: 1, borderRadius: 10, backgroundColor: c.surface, borderWidth: 1, borderColor: c.border },
+  add: { width: '100%', aspectRatio: 1, borderRadius: 10, borderWidth: 1, borderStyle: 'dashed', borderColor: c.border, alignItems: 'center', justifyContent: 'center' },
   dim: { opacity: 0.6 },
 }));

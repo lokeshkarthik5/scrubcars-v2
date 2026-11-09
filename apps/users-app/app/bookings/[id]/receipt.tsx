@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PageHeader } from '@/components/page-header';
 import { receiptHtml } from '@/lib/receipt-html';
+import { ReceiptPrint } from '@/components/moments/receipt-print';
 
 // The paper is the same in both themes: it's a document.
 const INK = '#0A0A0B';
@@ -291,7 +292,10 @@ export default function ReceiptScreen() {
             </ScButton>
           </View>
         </View>
-        <ReceiptDocument receipt={state.receipt} />
+        {/* The slot the receipt prints out of, line by line (moment 12). */}
+        <ReceiptPrint>
+          <ReceiptDocument receipt={state.receipt} />
+        </ReceiptPrint>
       </ScrollView>
     </View>
   );

@@ -42,6 +42,7 @@ import { couponsForCheckout } from '@/lib/checkout-maths';
 import { errorText } from '@/lib/error-text';
 import { uploadAvatarPhoto } from '@/lib/photo-upload';
 import { NO_PIN_TEXT, type PinText, refillFromPin } from '@/lib/pin-autofill';
+import { NumberPlate } from '@/components/moments/number-plate';
 
 const OPTIONS: { value: Appearance; label: string }[] = [
   { value: 'system', label: 'System' },
@@ -164,7 +165,7 @@ export default function ProfileScreen() {
   }, [params.section]);
 
   const title = (
-    <T accessibilityRole="header" size={28} weight={300} lh={34} tracking={-0.025}>
+    <T accessibilityRole="header" variant="title">
       Profile
     </T>
   );
@@ -482,8 +483,14 @@ export default function ProfileScreen() {
                     </T>
                     <IconChevronRight size={14} color={colors.textMuted} />
                   </View>
-                  <T size={12} lh={16} color={colors.textSecondary} numberOfLines={1}>
-                    {v.plate ? `${v.plate} · History` : 'History'}
+                  {/* The plate as it looks on the car (moment 8). */}
+                  {v.plate ? (
+                    <View style={styles.plate}>
+                      <NumberPlate plate={v.plate} />
+                    </View>
+                  ) : null}
+                  <T variant="t5" weight={400} color={colors.textSecondary} numberOfLines={1} style={styles.history}>
+                    History
                   </T>
                 </View>
               </Pressable>
@@ -680,6 +687,8 @@ export default function ProfileScreen() {
 }
 
 const useStyles = createStyles((c) => ({
+  plate: { marginTop: 6 },
+  history: { marginTop: 4 },
   guest: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   login: { marginTop: 8 },
   appearance: { padding: 16 },

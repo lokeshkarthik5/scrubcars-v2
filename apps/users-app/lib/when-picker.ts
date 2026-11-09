@@ -61,3 +61,23 @@ export const istToday = (now: number): string => new Date(now + IST_OFFSET_MS).t
 export const istDay = (iso: string): string => istToday(new Date(iso).getTime());
 export const MONTHS = MONTH_NAMES;
 export const DAYS = DAY_NAMES;
+
+/**
+ * A time picked on a garage card's "Next free" row (`slot` in the booking link, customer
+ * UI round): kept, as an ISO start, only while it is still ahead of this clock. The
+ * booking opens on its day with it chosen; anything else in the link is no time at all.
+ */
+export function linkedSlot(param: string | null | undefined, now: number): string | null {
+  const at = param ? Date.parse(param) : Number.NaN;
+  return Number.isFinite(at) && at > now ? new Date(at).toISOString() : null;
+}
+
+/**
+ * Whether a chosen time has gone from its own day's list (someone else took it): only a
+ * day whose times are known can say so, and only for a time on that day.
+ */
+export function slotTaken(value: string | null, day: string | null, times: readonly string[] | null): boolean {
+  if (!value || !day || times === null || istDay(value) !== day) return false;
+  const at = Date.parse(value);
+  return !times.some((time) => Date.parse(time) === at);
+}

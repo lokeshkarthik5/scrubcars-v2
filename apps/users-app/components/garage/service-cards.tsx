@@ -6,6 +6,7 @@ import type { Service, ServicePackage, VehicleType } from '@repo/core/types';
 import { formatDuration } from '@repo/core/utils';
 import { VEHICLE_TIERS } from '@repo/core/vehicles';
 import { ScButton } from '@repo/native-ui/button';
+import { RedButton } from '@repo/native-ui/finish';
 import {
   IconBrush,
   IconCheck,
@@ -13,23 +14,24 @@ import {
   IconDroplets,
   IconMotorbike,
   IconPackage,
-  IconPlus,
   IconShieldCheck,
   IconSparkles,
   IconTool,
   type IconProps,
 } from '@repo/native-ui/icons';
-import { PressRow, ScCard } from '@repo/native-ui/primitives';
+
 import { ScSheet } from '@repo/native-ui/sheet';
 import { Figures, T } from '@repo/native-ui/text';
-import { createStyles, useColors, useTheme } from '@repo/native-ui/theme';
+import { createStyles, useColors, useFinish, useTheme } from '@repo/native-ui/theme';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useState, type ReactElement } from 'react';
-import { Image, Pressable, View } from 'react-native';
+import { useState, type ReactElement, type ReactNode } from 'react';
+import { Image, Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { ServiceMediaArea } from '@/components/service-media/service-media-area';
 import { addOnCountLabel, addOnTimeLabel, type AddOn } from '@/lib/add-ons';
 import { money, pricedForCar, servicePriceText } from '@/lib/price';
+
+import { RedLightAdd } from './red-light-add';
 
 export const isPackage = (item: Service | ServicePackage): item is ServicePackage => 'items' in item;
 
@@ -105,21 +107,42 @@ function CardLine({ description, size, clamp }: { description: string | null; si
   );
 }
 
-/** AddToBookingButton: graphite, never red, with the hub on; the same width in both states. */
-export function AddToBookingButton({ name, added, onToggle }: { name: string; added: boolean; onToggle: () => void }) {
+/**
+ * A service or package card on the garage page (§5, the web's gp-card): the list card's
+ * lit edge, brighter once picked, so what is in the booking reads at a glance.
+ */
+function PickCard({ picked, style, children }: { picked: boolean; style?: ViewStyle; children: ReactNode }) {
+  const colors = useColors();
   const styles = useStyles();
-  const Icon = added ? IconCheck : IconPlus;
+  const light = colors.scheme === 'light';
+  const rim: [string, string] = light
+    ? picked
+      ? [colors.outlineStrong, colors.border]
+      : [colors.border, colors.line]
+    : picked
+      ? ['rgba(255,255,255,0.55)', 'rgba(255,255,255,0.12)']
+      : ['rgba(255,255,255,0.14)', 'rgba(255,255,255,0.03)'];
+  const fill: [string, string] = light ? [colors.surface, colors.surface] : picked ? ['#1A1A1F', '#131316'] : ['#16161A', '#111114'];
   return (
-    <PressRow
-      accessibilityLabel={added ? `Remove ${name} from booking` : `Add ${name} to booking`}
-      onPress={onToggle}
-      style={[styles.add, added && styles.addOn]}
-    >
-      <Icon size={16} stroke={2.5} />
-      <T size={15} weight={500} lh={20}>
-        {added ? 'Added' : 'Add'}
+    <View style={[styles.pickCard, picked && !light && styles.pickedGlow]}>
+      <LinearGradient pointerEvents="none" colors={rim} style={[StyleSheet.absoluteFill, styles.pickRadius]} />
+      <LinearGradient pointerEvents="none" colors={fill} style={styles.pickFill} />
+      <View style={style}>{children}</View>
+    </View>
+  );
+}
+
+/** A clock and a duration, in the figures' face. */
+function Duration({ mins }: { mins: number }) {
+  const styles = useStyles();
+  const { fx } = useFinish();
+  return (
+    <View style={styles.duration}>
+      <IconClock size={12} color={fx.quietBright} />
+      <T num variant="t5" color={fx.quietBright}>
+        {formatDuration(mins)}
       </T>
-    </PressRow>
+    </View>
   );
 }
 
@@ -140,39 +163,34 @@ export function ServiceCard({
   onOpen: () => void;
   onToggle: () => void;
 }) {
-  const colors = useColors();
   const styles = useStyles();
+  const { fx } = useFinish();
   return (
-    <ScCard style={added ? styles.cardAdded : undefined}>
+    <PickCard picked={added} style={styles.serviceGrid}>
+      {/* Tapping anywhere on the card opens the details; Add stays a separate action. */}
       <Pressable accessibilityRole="button" accessibilityLabel={`View details for ${service.name}`} onPress={onOpen} style={styles.cardTop}>
         <ServiceThumb service={service} />
-        <View style={styles.flex}>
-          <T size={17} lh={22}>
+        <View style={[styles.flex, styles.serviceText]}>
+          <T variant="t3" weight={600} lh={19}>
             {service.name}
           </T>
-          <T size={15} style={styles.price}>
-            <Figures text={servicePriceText(service, carType)} size={15} />
-            {pricedForCar(service, carType) && carModel ? (
-              <T size={15} color={colors.dim}>{` for your ${carModel}`}</T>
-            ) : null}
-          </T>
-          <CardLine description={service.description} size={13} clamp={2} />
+          <CardLine description={service.description} size={11} clamp={2} />
+          {service.durationMins != null ? <Duration mins={service.durationMins} /> : null}
         </View>
       </Pressable>
-      <View style={[styles.cardBottom, styles.indent]}>
-        <View style={styles.duration}>
-          {service.durationMins != null ? (
-            <>
-              <IconClock size={13} stroke={2} color={colors.textSecondary} />
-              <T num size={12} weight={500} color={colors.textSecondary}>
-                {formatDuration(service.durationMins)}
-              </T>
-            </>
-          ) : null}
-        </View>
-        {!paused ? <AddToBookingButton name={service.name} added={added} onToggle={onToggle} /> : null}
+      <View style={styles.serviceSide}>
+        {/* The price for the customer's own car (F13). */}
+        <T num variant="t3" weight={600}>
+          <Figures text={servicePriceText(service, carType)} size={15} weight={600} />
+        </T>
+        {pricedForCar(service, carType) && carModel ? (
+          <T size={10} weight={500} lh={12} color={fx.quiet}>
+            for your {carModel}
+          </T>
+        ) : null}
+        {!paused ? <RedLightAdd name={service.name} added={added} onToggle={onToggle} style={styles.sideAdd} /> : null}
       </View>
-    </ScCard>
+    </PickCard>
   );
 }
 
@@ -193,61 +211,63 @@ export function PackageCard({
 }) {
   const colors = useColors();
   const styles = useStyles();
+  const { fx } = useFinish();
   return (
-    <ScCard style={added ? styles.cardAdded : undefined}>
+    <PickCard picked={added} style={styles.pkgPad}>
+      {/* Same affordance as a service card: the card opens the details, Add stays separate. */}
       <Pressable accessibilityRole="button" accessibilityLabel={`View details for ${pkg.name}`} onPress={onOpen}>
         <View style={styles.pkgHead}>
-          <T size={17} style={styles.flex}>
+          <T size={16} weight={600} lh={21} style={styles.flex}>
             {pkg.name}
           </T>
-          <View style={styles.pkgPrice}>
-            <T size={15}>
-              <Figures text={servicePriceText(pkg, carType)} size={15} />
-            </T>
-            {pkg.tierBreakdown === null && pkg.savings !== null ? (
-              <T num size={12} color={colors.textSecondary} style={styles.struck}>
-                {money(pkg.itemsTotal)}
+          {/* Silver, never red: a saving is a fact, not a button. */}
+          {pkg.savings !== null ? (
+            <View style={styles.save}>
+              <LinearGradient
+                colors={['#F6F7FA', '#C4C8D1', '#EEF0F4', '#A9AEBB']}
+                locations={[0, 0.4, 0.6, 1]}
+                start={{ x: 0, y: 0.2 }}
+                end={{ x: 1, y: 0.8 }}
+                style={[StyleSheet.absoluteFill, styles.saveFace]}
+              />
+              <T num variant="t5" weight={600} lh={12} color="#0A0A0B">
+                {`Save ${money(pkg.savings)}${pkg.tierBreakdown ? '+' : ''}`}
               </T>
-            ) : null}
-          </View>
+            </View>
+          ) : null}
         </View>
-        {pkg.savings !== null ? (
-          <View style={styles.save}>
-            <T size={12} lh={16}>
-              {'Save '}
-              <T num size={12} lh={16}>
-                {money(pkg.savings)}
-                {pkg.tierBreakdown ? '+' : ''}
-              </T>
-            </T>
-          </View>
-        ) : null}
-        <CardLine description={pkg.description} size={12} />
+        <CardLine description={pkg.description} size={13} />
         <View style={styles.pkgItems}>
           {pkg.items.map((item) => (
             <View key={item.serviceId} style={styles.pkgItem}>
-              <IconCheck size={13} stroke={2} color={colors.textSecondary} />
-              <T size={12} color={colors.textSecondary} style={styles.flex}>
+              <IconCheck size={14} color={colors.success} />
+              <T variant="t4" color={fx.soft} style={styles.flex}>
                 {item.name}
               </T>
             </View>
           ))}
         </View>
       </Pressable>
-      <View style={styles.cardBottom}>
-        <View style={styles.duration}>
+      <View style={[styles.pkgFoot, { borderTopColor: fx.hairline }]}>
+        <View style={styles.pkgPrice}>
+          <T num size={20} weight={600} lh={22}>
+            <Figures text={servicePriceText(pkg, carType)} size={20} weight={600} />
+          </T>
+          {/* The struck-through total only lines up with a single price. */}
+          {pkg.tierBreakdown === null && pkg.savings !== null ? (
+            <T num variant="t4" color={fx.quiet} style={styles.struck}>
+              {money(pkg.itemsTotal)}
+            </T>
+          ) : null}
           {pkg.durationMins != null ? (
-            <>
-              <IconClock size={13} stroke={2} color={colors.textSecondary} />
-              <T num size={12} weight={500} color={colors.textSecondary}>
-                {formatDuration(pkg.durationMins)}
-              </T>
-            </>
+            <View style={styles.fullRow}>
+              <Duration mins={pkg.durationMins} />
+            </View>
           ) : null}
         </View>
-        {!paused ? <AddToBookingButton name={pkg.name} added={added} onToggle={onToggle} /> : null}
+        {!paused ? <RedLightAdd name={pkg.name} added={added} onToggle={onToggle} /> : null}
       </View>
-    </ScCard>
+    </PickCard>
   );
 }
 
@@ -260,7 +280,7 @@ function WhatsIncluded({ points, note }: { points: string[]; note: string | null
   const foldable = points.length > sheetPoints(points, false).shown.length;
   return (
     <View style={styles.sheetBlock}>
-      <T size={11} weight={600} tracking={0.07} uppercase color={colors.textMuted}>
+      <T variant="over" color={colors.textMuted}>
         What&apos;s included
       </T>
       {shown.map((point, i) => (
@@ -317,9 +337,7 @@ export function ServiceSheet({
           <View style={styles.sheetTitleRow}>
             {media ? null : <IconTile service={details} size={48} />}
             <View style={styles.flex}>
-              <T size={20} lh={26}>
-                {details.name}
-              </T>
+              <T variant="t2">{details.name}</T>
               <View style={styles.sheetMeta}>
                 <View style={styles.categoryChip}>
                   <T size={11} weight={500} lh={15} color={colors.textSecondary}>
@@ -349,7 +367,7 @@ export function ServiceSheet({
           <WhatsIncluded points={parsed?.points ?? []} note={parsed?.note ?? null} />
           {isPackage(details) ? (
             <View style={styles.sheetBlock}>
-              <T size={11} weight={500} tracking={0.025} uppercase color={colors.textSecondary}>
+              <T variant="over" color={colors.textMuted}>
                 Services in this package
               </T>
               {details.items.map((item) => (
@@ -374,7 +392,7 @@ export function ServiceSheet({
           <View style={styles.priceBlock}>
             {details.pricingType === 'per_vehicle' ? (
               <>
-                <T size={11} weight={500} tracking={0.025} uppercase color={colors.textSecondary} style={styles.priceHead}>
+                <T variant="over" color={colors.textMuted} style={styles.priceHead}>
                   Price by vehicle
                 </T>
                 {VEHICLE_TIERS.map(({ value: type, label }) => {
@@ -423,10 +441,17 @@ export function ServiceSheet({
               </T>
             ) : null}
           </View>
+          {/* Solid red only while it adds: removing is the quieter action, as the card's Added is. */}
           {!paused ? (
-            <ScButton variant={added ? 'outline' : 'main'} onPress={onToggle} style={styles.sheetAction}>
-              {added ? 'Remove from booking' : 'Add to booking'}
-            </ScButton>
+            added ? (
+              <ScButton variant="outline" onPress={onToggle} style={styles.sheetAction}>
+                Remove from booking
+              </ScButton>
+            ) : (
+              <RedButton height={50} radius={16} onPress={onToggle} style={styles.sheetAction}>
+                Add to booking
+              </RedButton>
+            )
           ) : null}
         </>
       ) : null}
@@ -441,9 +466,7 @@ export function GarageAddOns({ addOns, carType }: { addOns: readonly AddOn[]; ca
   return (
     <View style={styles.addOns}>
       <View style={styles.sectionHead}>
-        <T size={17} weight={500}>
-          Add-ons
-        </T>
+        <T variant="t2">Add-ons</T>
         <T size={12} color={colors.textSecondary}>
           {addOnCountLabel(addOns.length)}
         </T>
@@ -487,32 +510,27 @@ const useStyles = createStyles((c) => ({
   tileFill: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
   tilePale: { backgroundColor: '#F2F2F5' },
   clip: { position: 'absolute', left: 4, bottom: 4, borderRadius: 6, backgroundColor: 'rgba(0,0,0,0.75)', paddingHorizontal: 4 },
-  add: {
-    height: 44,
-    minWidth: 104,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: c.outlineStrong,
-    paddingHorizontal: 16,
-  },
-  addOn: { backgroundColor: c.surfaceElevated },
-  cardAdded: { borderColor: c.outlineStrong },
-  cardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  price: { marginTop: 2 },
-  desc: { marginTop: 4 },
-  cardBottom: { marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  indent: { paddingLeft: 76 },
-  duration: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  pkgHead: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
-  pkgPrice: { alignItems: 'flex-end', flexShrink: 0 },
+  pickCard: { borderRadius: 18 },
+  pickRadius: { borderRadius: 18 },
+  pickFill: { position: 'absolute', top: 1, left: 1, right: 1, bottom: 1, borderRadius: 17 },
+  pickedGlow: { shadowColor: '#FFFFFF', shadowOffset: { width: 0, height: 8 }, shadowRadius: 14, shadowOpacity: 0.12 },
+  serviceGrid: { flexDirection: 'row', gap: 12, padding: 12 },
+  cardTop: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  serviceText: { gap: 3 },
+  serviceSide: { alignItems: 'flex-end', gap: 2 },
+  sideAdd: { marginTop: 'auto' },
+  desc: { marginTop: 1 },
+  duration: { marginTop: 2, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  pkgPad: { padding: 16 },
+  pkgHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  pkgFoot: { marginTop: 14, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, borderTopWidth: 1, paddingTop: 12 },
+  pkgPrice: { flex: 1, minWidth: 0, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 8, rowGap: 4 },
+  fullRow: { width: '100%' },
   struck: { textDecorationLine: 'line-through' },
-  save: { marginTop: 6, alignSelf: 'flex-start', borderRadius: 999, backgroundColor: c.disc, paddingHorizontal: 10, paddingVertical: 2 },
-  pkgItems: { marginTop: 8, gap: 4 },
-  pkgItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  save: { overflow: 'hidden', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5 },
+  saveFace: { borderRadius: 8 },
+  pkgItems: { marginTop: 12, gap: 6 },
+  pkgItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sheetPhoto: { height: 180, borderRadius: 14, backgroundColor: c.surfaceElevated, marginBottom: 12 },
   sheetTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   sheetMeta: { marginTop: 4, flexDirection: 'row', alignItems: 'center', gap: 8 },

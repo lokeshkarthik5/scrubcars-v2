@@ -14,6 +14,7 @@ import {
 } from '@expo-google-fonts/space-grotesk';
 import { ScButton } from '@repo/native-ui/button';
 import { T } from '@repo/native-ui/text';
+import { useReduceMotion } from '@repo/native-ui/motion';
 import { createStyles, ThemeProvider, useColors, useTheme } from '@repo/native-ui/theme';
 import { ToastHost } from '@repo/native-ui/toast';
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -92,6 +93,7 @@ const SCREEN_EVENTS: Record<string, 'home_view' | 'garage_list_view' | 'map_view
 function SessionGate() {
   const colors = useColors();
   const styles = useStyles();
+  const reduce = useReduceMotion();
   const status = useAuth((s) => s.status);
   const user = useAuth((s) => s.user);
   const pathname = usePathname();
@@ -162,6 +164,12 @@ function SessionGate() {
     <>
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.canvas } }}>
         <Stack.Screen name="(tabs)" />
+        {/* The card grows into its garage, and Book now into the booking page (§5, §6): the
+            web's container transform. Reanimated 4.7 keeps shared element transitions behind
+            a native build flag, so here it is the fast fade the screens scale up inside
+            (lib/open-motion); none at all under Reduce Motion. */}
+        <Stack.Screen name="garage/[id]" options={{ animation: reduce ? 'none' : 'fade', animationDuration: 220 }} />
+        <Stack.Screen name="book/[vendorId]" options={{ animation: reduce ? 'none' : 'fade', animationDuration: 220 }} />
       </Stack>
       {status === 'ready' ? <PaymentRecovery /> : null}
       <OfflineBanner />
@@ -224,7 +232,8 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <ThemeProvider storage={devicePrefs}>
+      {/* The customer UI round's finish (Nov 2026): this app only, as on the website. */}
+      <ThemeProvider storage={devicePrefs} finish>
         {unlocked ? <ThemedRoot /> : <AppLockGate onOpen={opened} />}
       </ThemeProvider>
     </SafeAreaProvider>

@@ -1,12 +1,12 @@
 import { ADD_ON_LIMITS, addOnTimeLabel } from '@repo/core/add-ons';
 import type { AddOn } from '@repo/core/api/add-ons';
 import type { VehicleType } from '@repo/core/types';
-import { IconCheck, IconPlus } from '@repo/native-ui/icons';
 import { HubCard } from '@repo/native-ui/primitives';
 import { Figures, T } from '@repo/native-ui/text';
 import { createStyles, useColors } from '@repo/native-ui/theme';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 
+import { RedLightAdd } from '@/components/garage/red-light-add';
 import { servicePriceText } from '@/lib/price';
 
 /** Checkout's Add-ons, right under "Your booking" (PR #107's checkout-add-ons.tsx, frame D). */
@@ -25,9 +25,7 @@ export function CheckoutAddOns({
   const styles = useStyles();
   return (
     <View style={styles.section}>
-      <T size={17} weight={500} lh={24}>
-        Add-ons
-      </T>
+      <T variant="t2">Add-ons</T>
       <T size={13} lh={18} color={colors.dim}>
         {"Optional. They go with the services you've chosen."}
       </T>
@@ -45,19 +43,8 @@ export function CheckoutAddOns({
                   <Figures size={13} text={`${servicePriceText(addOn as never, vehicleType)} · ${addOnTimeLabel(addOn.extraMins)}`} />
                 </T>
               </View>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityState={{ selected: added, disabled: full }}
-                accessibilityLabel={added ? `Remove ${addOn.name} from booking` : `Add ${addOn.name} to booking`}
-                disabled={full}
-                onPress={() => onToggle(addOn.id)}
-                style={[styles.toggle, added ? styles.on : styles.off, full && styles.dim]}
-              >
-                {added ? <IconCheck size={15} color={colors.textPrimary} /> : <IconPlus size={15} color={colors.textPrimary} />}
-                <T size={13} weight={500} lh={18}>
-                  {added ? 'Added' : 'Add'}
-                </T>
-              </Pressable>
+              {/* The garage page's red-light Add (§6), without the dot: there is no bar to fly to. */}
+              <RedLightAdd name={addOn.name} added={added} disabled={full} fly={false} onToggle={() => onToggle(addOn.id)} />
             </View>
           );
         })}
@@ -73,8 +60,4 @@ const useStyles = createStyles((c) => ({
   divided: { borderTopWidth: 1, borderTopColor: c.line },
   grow: { flex: 1, minWidth: 0 },
   sub: { marginTop: 2 },
-  toggle: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, borderWidth: 1, paddingHorizontal: 16 },
-  on: { borderColor: c.textPrimary },
-  off: { borderColor: c.stroke },
-  dim: { opacity: 0.5 },
 }));

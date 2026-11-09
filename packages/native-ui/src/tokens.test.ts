@@ -1,6 +1,17 @@
 import { describe, expect, test } from 'bun:test';
 
-import { darkTokens, lightTokens, parseAppearance, resolveScheme, tokensFor } from './tokens';
+import {
+  darkFinish,
+  darkTokens,
+  finishFor,
+  lightFinish,
+  lightTokens,
+  parseAppearance,
+  RED_LIGHT,
+  redButtonGradient,
+  resolveScheme,
+  tokensFor,
+} from './tokens';
 
 function luminance(hex: string) {
   const parts = [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16) / 255);
@@ -52,4 +63,37 @@ describe('the light table the owner approved', () => {
 
 test('both themes have the same names', () => {
   expect(Object.keys(lightTokens).sort()).toEqual(Object.keys(darkTokens).sort());
+});
+
+describe('the finish', () => {
+  test('one set of materials per theme, the same parts in both', () => {
+    expect(finishFor('dark')).toBe(darkFinish);
+    expect(finishFor('light')).toBe(lightFinish);
+    expect(Object.keys(lightFinish).sort()).toEqual(Object.keys(darkFinish).sort());
+  });
+
+  test('dark is the website\'s finish.css, value for value', () => {
+    expect(darkFinish.edgeFill).toEqual(['#17171B', '#111114']);
+    expect(darkFinish.graphite).toEqual(['#383840', '#26262D', '#1D1D23']);
+    expect(darkFinish.pearl).toEqual(['#FFFFFF', '#F1F1F3', '#D3D3D9']);
+    expect(darkFinish.topGlow).toBe('rgba(228,0,43,0.09)');
+  });
+
+  test('red is the same in both themes: the light, and the solid button top to bottom', () => {
+    expect(RED_LIGHT).toBe('#FF2D4A');
+    expect(redButtonGradient.colors).toEqual(['#FF3550', '#E4002B', '#C10025']);
+    expect(redButtonGradient.locations).toEqual([0, 0.55, 1]);
+  });
+
+  test('light keeps the light table\'s own look: no red glow, the chosen fill as the pearl', () => {
+    expect(lightFinish.topGlow).toBeNull();
+    expect(lightFinish.pearl[0]).toBe(lightTokens.chosenBg);
+    expect(contrast(lightFinish.pearlInk, lightTokens.chosenBg)).toBeGreaterThan(4.5);
+    expect(contrast(darkFinish.pearlInk, darkFinish.pearl[1])).toBeGreaterThan(4.5);
+  });
+
+  test('the graphite key\'s words read on it in both themes', () => {
+    expect(contrast(darkFinish.graphiteInk, darkFinish.graphite[1])).toBeGreaterThan(4.5);
+    expect(contrast(lightFinish.graphiteInk, lightFinish.graphite[1])).toBeGreaterThan(4.5);
+  });
 });

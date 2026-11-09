@@ -341,3 +341,137 @@ export function resolveScheme(appearance: Appearance, phone: string | null | und
 }
 
 export const tokensFor = (scheme: Scheme): Tokens => (scheme === 'light' ? lightTokens : darkTokens);
+
+// ─── The finish (customer UI round, Nov 2026) ────────────────────────────────
+
+/**
+ * The finish's materials (docs/ui-round-2026-11.md §1), as the customer website
+ * draws them in packages/ui/styles/finish.css. Dark is that file, value for value.
+ * Light keeps the same structure from the light table above, never a new look:
+ * fills are its surfaces, edges its hairlines, the pearl its chosen fill. The
+ * garage app never reads these (the finish is switched on per app, ThemeProvider).
+ */
+export interface FinishTokens {
+  /** A big surface (cards, the map card): its fill top to bottom, and its edge, lit from above. */
+  edgeFill: readonly [string, string];
+  edgeRim: readonly [string, string, string];
+  /** Something you press: lighter, with a soft shadow. */
+  raisedFill: readonly [string, string];
+  raisedRim: readonly [string, string];
+  /** Something you type into, and a switch's track: pressed into the screen. */
+  recessedFill: readonly [string, string];
+  recessedRim: readonly [string, string];
+  /** How dark the shadow under a raised or edged thing is. */
+  shadowOpacity: number;
+  /** Glass: the blur's tint, its wash over the blur, the panel's own colour under it, its edge. */
+  glassTint: 'dark' | 'light';
+  glassWash: readonly [string, string];
+  glassBase: string;
+  /** The heavier glass of a sheet, so its text reads over a busy list. */
+  glassSheet: string;
+  glassEdge: string;
+  /** The bar pinned over a scrolling list. */
+  glassPinned: string;
+  /** Pearl white (the chosen tile, the ↗ on a card, the + in the bar): its radial stops and its ink. */
+  pearl: readonly [string, string, string];
+  pearlInk: string;
+  /** The brushed graphite key of the mode switch, and the words on it. */
+  graphite: readonly [string, string, string];
+  graphiteInk: string;
+  /** Brushed silver: the Silver+ key when on. */
+  silver: readonly [string, string, string, string, string, string];
+  silverInk: string;
+  silverQuiet: string;
+  /** The quiet second line of a control and a card's captions (#8E8E98). */
+  quiet: string;
+  /** Captions a step brighter (#A8A8B2), and the lines under a figure (#D8D8DE). */
+  quietBright: string;
+  soft: string;
+  /** A hairline between rows inside a card (white/7). */
+  hairline: string;
+  /** The faint red glow at the top of a screen; none in light, where the web's screen blend adds nothing. */
+  topGlow: string | null;
+  /** A photo's shade, under the words laid on it. Photos keep dark shades in both themes. */
+  photoShade: readonly [string, string, string];
+}
+
+export const darkFinish: FinishTokens = {
+  edgeFill: ['#17171B', '#111114'],
+  edgeRim: ['rgba(255,255,255,0.2)', 'rgba(255,255,255,0.04)', 'rgba(255,255,255,0.08)'],
+  raisedFill: ['#1C1C21', '#121216'],
+  raisedRim: ['rgba(255,255,255,0.16)', 'rgba(255,255,255,0.03)'],
+  recessedFill: ['#0B0B0E', '#121216'],
+  recessedRim: ['rgba(0,0,0,0.7)', 'rgba(255,255,255,0.11)'],
+  shadowOpacity: 0.9,
+  glassTint: 'dark',
+  glassWash: ['rgba(255,255,255,0.12)', 'rgba(255,255,255,0.03)'],
+  glassBase: 'rgba(18,18,22,0.55)',
+  glassSheet: 'rgba(16,16,20,0.88)',
+  glassEdge: 'rgba(255,255,255,0.14)',
+  glassPinned: 'rgba(12,12,14,0.72)',
+  pearl: ['#FFFFFF', '#F1F1F3', '#D3D3D9'],
+  pearlInk: '#0A0A0B',
+  graphite: ['#383840', '#26262D', '#1D1D23'],
+  graphiteInk: '#FAFAFA',
+  silver: ['#F6F7FA', '#C4C8D1', '#EEF0F4', '#A9AEBB', '#E2E4EA', '#9AA0AD'],
+  silverInk: '#0A0A0B',
+  silverQuiet: '#4A4E58',
+  quiet: '#8E8E98',
+  quietBright: '#A8A8B2',
+  soft: '#D8D8DE',
+  hairline: 'rgba(255,255,255,0.07)',
+  topGlow: 'rgba(228,0,43,0.09)',
+  photoShade: ['rgba(0,0,0,0.28)', 'rgba(10,10,12,0)', 'rgba(10,10,12,0.94)'],
+};
+
+export const lightFinish: FinishTokens = {
+  edgeFill: [lightTokens.surface, lightTokens.surface],
+  edgeRim: [lightTokens.border, lightTokens.line, lightTokens.border],
+  raisedFill: [lightTokens.stage[0], lightTokens.stage[1]],
+  raisedRim: [lightTokens.border, lightTokens.stroke],
+  recessedFill: [lightTokens.track, lightTokens.surfaceElevated],
+  recessedRim: [lightTokens.stroke, lightTokens.surface],
+  shadowOpacity: 0.12,
+  glassTint: 'light',
+  glassWash: ['rgba(255,255,255,0.5)', 'rgba(255,255,255,0.2)'],
+  glassBase: 'rgba(255,255,255,0.62)',
+  glassSheet: 'rgba(247,247,248,0.9)',
+  glassEdge: lightTokens.navBorder,
+  glassPinned: 'rgba(247,247,248,0.82)',
+  // The light theme's chosen fill is its dark one (chosenBg), so the pearl is too.
+  pearl: [lightTokens.chosenBg, lightTokens.chosenBg, '#26262D'],
+  pearlInk: lightTokens.chosenText,
+  graphite: [lightTokens.surface, lightTokens.surface, lightTokens.stage[1]],
+  graphiteInk: lightTokens.textPrimary,
+  silver: darkFinish.silver,
+  silverInk: darkFinish.silverInk,
+  silverQuiet: darkFinish.silverQuiet,
+  quiet: lightTokens.textMuted,
+  quietBright: lightTokens.textSecondary,
+  soft: lightTokens.textSecondary,
+  hairline: lightTokens.line,
+  topGlow: null,
+  photoShade: darkFinish.photoShade,
+};
+
+export const finishFor = (scheme: Scheme): FinishTokens => (scheme === 'light' ? lightFinish : darkFinish);
+
+/** The red light: a small glowing bar under the chosen thing. The same in both themes. */
+export const RED_LIGHT = '#FF2D4A';
+
+/**
+ * The solid red button, the booking or payment action's only: top to bottom,
+ * as the web's .finish --gradient-cta (180deg, #ff3550 → #e4002b at 55% → #c10025).
+ */
+export const redButtonGradient = {
+  colors: ['#FF3550', '#E4002B', '#C10025'] as const,
+  locations: [0, 0.55, 1] as const,
+  start: { x: 0.5, y: 0 },
+  end: { x: 0.5, y: 1 },
+};
+
+/** The finish's one line weight for icons, in screen points, whatever the icon's size. The lit tab draws 1.9. */
+export const ICON_LINE = 1.6;
+
+/** The press: a springy dip to 0.96 and back. */
+export const FINISH_PRESSED_SCALE = 0.96;

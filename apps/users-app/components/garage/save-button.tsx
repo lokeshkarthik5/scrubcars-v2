@@ -2,6 +2,7 @@ import { ApiError } from '@repo/core/api/client';
 import { useSavedGarages, useToggleSavedGarage } from '@repo/core/api/hooks/use-favourites';
 import type { Vendor } from '@repo/core/types';
 import { ScButton } from '@repo/native-ui/button';
+import { Glass } from '@repo/native-ui/finish';
 import { IconHeart, IconHeartFilled } from '@repo/native-ui/icons';
 import { PressRow } from '@repo/native-ui/primitives';
 import { AFTER_SHEET_MS, ScSheet } from '@repo/native-ui/sheet';
@@ -21,7 +22,7 @@ export const saveGarageReturnPath = (vendorId: string) => `/garage/${vendorId}?s
  * SaveGarageButton: a dark disc on the photo in both themes, white when saved. It changes at
  * once and goes back if the server says no. Signed out, it asks to sign in first.
  */
-export function SaveGarageButton({ vendor }: { vendor: Vendor }) {
+export function SaveGarageButton({ vendor, glass = false }: { vendor: Vendor; glass?: boolean }) {
   const colors = useColors();
   const user = useAuth((s) => s.user);
   const saved = useSavedGarages({ enabled: !!user });
@@ -59,8 +60,10 @@ export function SaveGarageButton({ vendor }: { vendor: Vendor }) {
         // Signed in, until the saved list is in: a press then could undo a save it can't see.
         disabled={!!user && !saved.data}
         onPress={press}
-        style={styles.disc}
+        style={glass ? styles.glassDisc : styles.disc}
       >
+        {/* On glass over a photo (the finish's cards and the garage page's top bar). */}
+        {glass ? <Glass pointerEvents="none" radius={22} base="rgba(18,18,22,0.5)" style={StyleSheet.absoluteFill} /> : null}
         {isSaved ? <IconHeartFilled size={20} color="#FAFAFA" /> : <IconHeart size={20} stroke={2} color="#FAFAFA" />}
       </PressRow>
 
@@ -105,6 +108,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(0,0,0,0.45)',
   },
+  glassDisc: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   sheet: { gap: 16 },
   line: { marginTop: 4 },
   notNow: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
