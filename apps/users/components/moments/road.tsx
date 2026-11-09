@@ -58,11 +58,13 @@ export interface RoadStop {
  * garage's pin flashes like headlights when the booking is accepted, and is
  * a green tick once it is done. Four stops for a booking, six for pickup &
  * drop. Read as an ordered list of the steps, the one reached marked
- * current; the road itself is drawn, not read.
+ * current; the road itself is drawn, not read. Its list is named "Booking
+ * status", not "Booking progress": that is the full timeline's name lower on
+ * the same page, and two lists with one name can't be told apart.
  */
 export function ProgressRoad({
   stops,
-  label = 'Booking progress',
+  label = 'Booking status',
   flashAt,
   compact = false,
   className,

@@ -146,11 +146,13 @@ export function statusStops(steps: readonly string[], step: number, finished: bo
  * travelled lit and the car parked at the step reached. When the step changes while the
  * screen is open the car drives on to it; the garage's pin flashes like headlights when
  * the booking is accepted, and is a green tick once it is done. Read as a list of the
- * steps, the one reached marked; the road itself is drawn, not read.
+ * steps, the one reached marked; the road itself is drawn, not read. Its list is named
+ * "Booking status", not "Booking progress": that is the full timeline's name lower on the
+ * same screen, and two lists with one name can't be told apart.
  */
 export function ProgressRoad({
   stops,
-  label = 'Booking progress',
+  label = 'Booking status',
   flashAt,
   compact = false,
   style,

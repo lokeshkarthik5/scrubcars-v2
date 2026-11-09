@@ -422,7 +422,11 @@ export function ShowroomCard({
       </Link>
 
       {photos.length > 1 && (
-        <div className="absolute left-1/2 top-[130px] z-[2] flex -translate-x-1/2 gap-0.5">
+        // The dots sit over the middle of the card, right where a thumb
+        // lands to open the garage. On a touch screen a tap there opens the
+        // card (the photos change by swipe); a mouse can still click a dot,
+        // and the keyboard still reaches every one.
+        <div className="pointer-events-none absolute left-1/2 top-[130px] z-[2] flex -translate-x-1/2 gap-0.5 [@media(hover:hover)]:pointer-events-auto">
           {photos.map((src, i) => (
             <button
               key={src}

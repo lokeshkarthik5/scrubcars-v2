@@ -92,7 +92,8 @@ test.describe('the booking’s road @p0', () => {
 
   test('an accepted booking shows its road, the car at Accepted', async ({ page }) => {
     await page.goto(`/bookings/${BOOKINGS.historyUpcomingLater}`)
-    const road = page.getByRole('list', { name: 'Booking progress' })
+    // "Booking status": "Booking progress" is the full timeline further down.
+    const road = page.getByRole('list', { name: 'Booking status' })
     await expect(road).toBeVisible()
     await expect(road.getByRole('listitem')).toHaveText(['Requested', 'Accepted', 'In progress', 'Done'])
     await expect(road.locator('[aria-current="step"]')).toHaveText('Accepted')
