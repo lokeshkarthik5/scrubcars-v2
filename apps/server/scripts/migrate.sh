@@ -40,7 +40,10 @@ readonly ADVISORY_LOCK_KEY="83927401"
 # out. The apply itself re-checks under its advisory lock.
 APPLIED_FILE=""
 cleanup_applied() {
-  [[ -n "$APPLIED_FILE" ]] && rm -f "$APPLIED_FILE"
+  # Written so it ends true when there is no file (lint, help): an EXIT trap's
+  # last status becomes the script's, and `[[ -n "" ]] && ...` is false, which
+  # made `lint` print "passed" and still exit 1.
+  if [[ -n "$APPLIED_FILE" ]]; then rm -f "$APPLIED_FILE"; fi
 }
 trap cleanup_applied EXIT
 
