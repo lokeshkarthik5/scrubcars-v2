@@ -97,11 +97,11 @@ function SearchContent() {
 
   return (
     <CustomerShell showNav showBrand className="gap-4 py-4">
-      <div className="flex items-center gap-2 rounded-[10px] border border-border bg-surface px-3 py-2.5">
+      <div className="fx-recessed flex h-12 items-center gap-2.5 rounded-[16px] px-3.5">
         <IconSearch
-          size={18}
+          size={17}
           aria-hidden="true"
-          className="shrink-0 text-text-muted"
+          className="shrink-0 text-[#8E8E98]"
         />
         {/* A garage is found by its name, its area or any service it sells,
             so the box says both. The label is its own attribute: a
@@ -112,7 +112,7 @@ function SearchContent() {
           aria-label="Search garages or services"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="flex-1 bg-transparent text-t4 text-text-primary outline-none"
+          className="flex-1 bg-transparent text-t3 font-medium text-text-primary outline-none placeholder:text-[#8E8E98]"
         />
       </div>
 
@@ -188,9 +188,12 @@ function SearchContent() {
             <>
               {vendors.map((vendor, i) => (
                 <Reveal key={vendor.id} index={i}>
+                  {/* Results rise in; the words that found each garage carry
+                      the red light (moment 11). */}
                   <VendorCard
                     vendor={vendor}
                     action={<SaveGarageButton vendor={vendor} />}
+                    highlight={debouncedQuery}
                   />
                 </Reveal>
               ))}

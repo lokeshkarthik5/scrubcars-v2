@@ -20,6 +20,7 @@ import { TierMark } from '@repo/ui/features/tier-medal'
 import { HoursRing } from '@repo/ui/finish/hours-ring'
 import { usePrefersReducedMotion, useSeenOnce } from '@repo/ui/finish/motion'
 import { useCountUp } from '@repo/ui/finish/odometer'
+import { morphNavigate, rememberOpenedFromList } from '@/lib/view-transition'
 import { useDrift } from './drift'
 import { NextFreeRow } from './next-free-row'
 
@@ -217,6 +218,8 @@ export function ShowroomCard({
       data-seen={seen && !reduce ? '' : undefined}
       data-lean={leaning ? '' : undefined}
       data-holding={holding ? '' : undefined}
+      // Found by the garage page's Back, which folds into this card.
+      data-vt-card={vendor.id}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={cancelHold}
@@ -239,7 +242,21 @@ export function ShowroomCard({
             event.preventDefault()
             heldOpen.current = false
             swiped.current = false
+            return
           }
+          // A new tab or window is the browser's own business.
+          if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return
+          // The card grows into the garage page (§5), which folds back into
+          // it on Back; where the browser cannot, the plain switch.
+          event.preventDefault()
+          rememberOpenedFromList(vendor.id)
+          morphNavigate({
+            name: 'vt-garage',
+            direction: 'open',
+            from: cardRef.current,
+            to: () => document.querySelector<HTMLElement>('[data-vt-garage]'),
+            navigate: () => router.push(href),
+          })
         }}
         className="block select-none"
         draggable={false}

@@ -88,7 +88,7 @@ export function GarageAlbumView({
     <>
       <section
         aria-labelledby="garage-progress"
-        className="garage-hero flex flex-col gap-3 rounded-card px-4 py-4"
+        className="garage-hero mo-metal flex flex-col gap-3 rounded-card px-4 py-4"
       >
         <div className="flex items-end justify-between gap-3">
           <div>
@@ -124,8 +124,9 @@ export function GarageAlbumView({
           aria-valuenow={album.collected}
           aria-label="Cars collected"
         >
+          {/* Fills to the count once, from the left (moment 9). */}
           <div
-            className="garage-progress h-full rounded-full"
+            className="garage-progress mo-fill-once h-full rounded-full"
             style={{ width: `${Math.max(2, percent)}%` }}
           />
         </div>

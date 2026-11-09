@@ -262,8 +262,10 @@ export function ScSheet({
         ref={panelRef}
         // Focusable from script only, as ScModal's panel is.
         tabIndex={-1}
+        // `sc-sheet` is the customer website's glass (finish.css); the
+        // garage portal and admin have no rule for it and keep this look.
         className={cn(
-          'max-h-[88vh] w-full max-w-[428px] overflow-y-auto rounded-t-[22px] border-t border-border bg-brand-black pb-6 focus:outline-none',
+          'sc-sheet max-h-[88vh] w-full max-w-[428px] overflow-y-auto rounded-t-[22px] border-t border-border bg-brand-black pb-6 focus:outline-none',
           open ? 'sheet-in' : 'sheet-out',
           className
         )}

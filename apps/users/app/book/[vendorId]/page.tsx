@@ -1,14 +1,14 @@
 'use client'
 
-import { use, useCallback, useEffect, useRef, useState, Suspense } from 'react'
+import { use, useCallback, useEffect, useLayoutEffect, useRef, useState, Suspense } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   IconAlertCircle,
   IconArrowUpRight,
-  IconCheck,
   IconChevronRight,
+  IconClock,
   IconLoader2,
   IconLock,
   IconMapPin,
@@ -53,7 +53,17 @@ import { guaranteeCovers } from '@/lib/guarantee-cover'
 import { SlotAlertAsk } from '@/components/slot-alerts/slot-alert-ask'
 import { slotKeys, useAvailableSlots } from '@repo/core/api/hooks/use-slots'
 import { ScSwitch } from '@repo/ui/sc/switch'
-import { ScToggle } from '@repo/ui/sc/toggle'
+import { Odometer } from '@repo/ui/finish/odometer'
+import { RedLight } from '@repo/ui/finish/red-light'
+import { replay } from '@repo/ui/finish/motion'
+import { ModeSwitch } from '@/components/mode-switch'
+import { NumberPlate } from '@/components/moments/number-plate'
+import {
+  claimPicks,
+  markPicksForBack,
+  morphNavigate,
+  picksRemembered,
+} from '@/lib/view-transition'
 import type { AppliedDiscount } from '@repo/core/api/discounts'
 import {
   errorMessage,
@@ -836,6 +846,17 @@ function BookContent({ vendorId }: { vendorId: string }) {
       block: 'start',
     })
     target.focus({ preventScroll: true })
+    // Once there, the step nudges, so the eye finds what the button named
+    // (§6). The section it heads, or the step itself.
+    const nudged: HTMLElement = target.closest('section') ?? target
+    window.setTimeout(
+      () => {
+        nudged.classList.remove('bk-nudge')
+        void nudged.offsetWidth
+        nudged.classList.add('bk-nudge')
+      },
+      reduceMotion ? 0 : 380
+    )
   }
 
   // The picker let go of the chosen time (it ran out of notice, or the
@@ -1675,6 +1696,39 @@ function BookContent({ vendorId }: { vendorId: string }) {
     return () => observer.disconnect()
   }, [])
 
+  // The whole page, which the garage page's booking bar grew into; Back
+  // folds it into that bar again when the garage page is where it came from
+  // (its picks were kept for this, lib/view-transition.ts), and is the plain
+  // Back otherwise.
+  const pageRef = useRef<HTMLDivElement>(null)
+  // Opened by Book now just now: the picks are kept on this visit's history
+  // entry, the one after that garage page, so only this visit folds back.
+  useEffect(() => claimPicks(vendorId), [vendorId])
+  const goBack = () => {
+    if (!picksRemembered(vendorId)) {
+      router.back()
+      return
+    }
+    markPicksForBack(vendorId)
+    morphNavigate({
+      name: 'vt-booking',
+      direction: 'back',
+      from: pageRef.current,
+      to: () => document.querySelector<HTMLElement>('[data-fly-target]'),
+      navigate: () => router.back(),
+    })
+  }
+
+  // The moment nothing is missing, the grey button becomes the solid red
+  // Pay and pops once (§6). Before paint, so the pop starts with the colour.
+  const ctaRef = useRef<HTMLDivElement>(null)
+  const wasReady = useRef(false)
+  const ready = !nextStep && !paid
+  useLayoutEffect(() => {
+    if (ready && !wasReady.current) replay(ctaRef.current, 'data-pop')
+    wasReady.current = ready
+  }, [ready])
+
   // Checked after every hook above, which must run on every render.
   if (loadProblem) {
     return (
@@ -1721,13 +1775,22 @@ function BookContent({ vendorId }: { vendorId: string }) {
     !!appliedReward && appliedReward.code === suggestedCode
 
   return (
-    <AppShell className="gap-6 pt-0 pb-0">
+    // The booking page is one box the garage page's booking bar grows into
+    // (lib/view-transition.ts), and folds back into on Back.
+    <div
+      ref={pageRef}
+      data-vt-booking=""
+      className="mx-auto flex min-h-dvh w-full max-w-[428px] flex-col bg-brand-black"
+    >
+      <main className="flex flex-1 flex-col gap-6 px-4">
       {/* Sticky, not fixed: it keeps its place in the flow. Full-bleed via
-          -mx-4 against AppShell's px-4, and opaque so rows scroll under it.
+          -mx-4 against the page's px-4, and glass so rows scroll under it.
           Below the cookie bar while that is up (--consent-bar). */}
       <PageHeader
         title="Book your wash"
-        className="sticky top-(--consent-bar) z-30 -mx-4 bg-brand-black px-4"
+        onBack={goBack}
+        className="gp-top sticky top-(--consent-bar) z-30 -mx-4 px-4"
+        solid
       />
 
       {/* A returning customer can sign in first and use their saved car and
@@ -1748,7 +1811,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
         </p>
       )}
 
-      {/* The garage page says this where Book Now would be; a customer can
+      {/* The garage page says this where Book now would be; a customer can
           still land here from Book again or an old link. Neutral: there is
           nothing here for the customer to fix. The server refuses the
           booking either way (GARAGE_PAUSED). */}
@@ -1788,55 +1851,55 @@ function BookContent({ vendorId }: { vendorId: string }) {
           customer's own car from the first second (F1, F7), and the garage's
           rating and tier medal (0063) ride along (F4). Each line can be removed
           here, so dropping one never means going back a screen and losing
-          the time and any code. */}
+          the time and any code. The list card's edge (§6). */}
       {vendor && selectedServices.length > 0 && (
-        <section aria-label="Your booking" className="hub-card p-5">
-          <div className="flex items-start justify-between gap-3">
-            <h2
-              ref={summaryStepRef}
-              tabIndex={-1}
-              className="min-w-0 scroll-mt-20 text-t2 font-medium tracking-[-0.01em] text-text-primary outline-none"
-            >
-              {vendor.name}
-            </h2>
-            {hasStarScore(vendor) ? (
-              <span className="flex shrink-0 items-center gap-1 pt-0.5 text-t4 text-text-primary">
-                <IconStarFilled
-                  size={13}
-                  aria-hidden
-                  className="text-text-primary"
-                />
-                <span className="font-numeric">{vendor.rating.toFixed(1)}</span>
-                <span className="text-dim">
-                  (<span className="font-numeric">{vendor.reviewCount}</span>)
-                </span>
-                <span className="sr-only">
-                  {' '}
-                  stars from {vendor.reviewCount} reviews
-                </span>
-              </span>
-            ) : (
-              <span className="shrink-0 pt-0.5 text-t4 text-dim">
-                New on Detlio
-              </span>
-            )}
+        <section aria-label="Your booking" className="fx-edge rounded-[22px] p-4">
+          <div className="flex items-start justify-between gap-2.5 border-b border-white/[0.07] pb-3">
+            <div className="min-w-0">
+              <h2
+                ref={summaryStepRef}
+                tabIndex={-1}
+                className="min-w-0 scroll-mt-20 text-t2 font-semibold text-text-primary outline-none"
+              >
+                {vendor.name}
+              </h2>
+              <p className="mt-[3px] flex flex-wrap items-center gap-x-1.5 gap-y-1 text-t4 font-medium text-[#8E8E98]">
+                {hasStarScore(vendor) ? (
+                  <span className="inline-flex items-center gap-1 text-text-primary">
+                    <IconStarFilled
+                      size={13}
+                      aria-hidden
+                      className="text-warning"
+                    />
+                    <span className="font-numeric">{vendor.rating.toFixed(1)}</span>
+                    <span className="text-dim">
+                      (<span className="font-numeric">{vendor.reviewCount}</span>)
+                    </span>
+                    <span className="sr-only">
+                      {' '}
+                      stars from {vendor.reviewCount} reviews
+                    </span>
+                  </span>
+                ) : (
+                  <span>New on Detlio</span>
+                )}
+                {[vendor.area, vendor.distanceKm != null ? vendor.distance : null]
+                  .filter(Boolean)
+                  .map((part) => (
+                    <span key={part as string}>· {part}</span>
+                  ))}
+              </p>
+            </div>
+            {vendor.tier && <TierChip tier={vendor.tier} />}
           </div>
-          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-t4 text-dim">
-            {vendor.tier && (
-              <TierChip tier={vendor.tier} />
-            )}
-            {[vendor.area, vendor.distanceKm != null ? vendor.distance : null]
-              .filter(Boolean)
-              .join(' · ')}
-          </p>
 
-          <div className="mt-4 flex flex-col gap-2.5 border-t border-line pt-4">
+          <div className="mt-1 flex flex-col">
             {lines.map(({ service, amount }) => (
               <div
                 key={service.id}
-                className="flex items-start justify-between gap-3 text-t3"
+                className="flex items-start justify-between gap-3 py-[9px] text-t3 font-medium"
               >
-                <span className="flex min-w-0 items-start gap-1.5">
+                <span className="flex min-w-0 items-start gap-2">
                   {/* Counts services only: the only service has no cross, so
                       the customer can't end up with add-ons alone. */}
                   {(selectedServices.length > 1 || pickedAddOnIds.includes(service.id)) && (
@@ -1844,13 +1907,15 @@ function BookContent({ vendorId }: { vendorId: string }) {
                       type="button"
                       onClick={() => removeService(service.id)}
                       aria-label={`Remove ${service.name}`}
-                      // 44pt tall to the thumb, drawn as a small cross.
-                      className="-my-2.5 -ml-3 flex size-11 shrink-0 items-center justify-center text-text-muted transition-colors hover:text-text-primary"
+                      // 44pt tall to the thumb, drawn as a small tile.
+                      className="-my-2.5 -ml-2.5 flex size-11 shrink-0 items-center justify-center text-[#A8A8B2] transition-colors hover:text-text-primary"
                     >
-                      <IconX size={15} aria-hidden="true" />
+                      <span className="grid size-[22px] place-items-center rounded-[7px] bg-[#202027]">
+                        <IconX size={12} aria-hidden="true" />
+                      </span>
                     </button>
                   )}
-                  <span className="min-w-0 text-text-secondary">
+                  <span className="min-w-0 text-text-primary">
                     {service.name}
                     {pickedAddOnIds.includes(service.id) && <AddOnMark className="ml-1.5" />}
                     {vehicleTierLabel &&
@@ -1866,7 +1931,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                     error: red would read as something to tap. */}
                 <span
                   className={cn(
-                    'shrink-0',
+                    'shrink-0 font-numeric font-semibold',
                     amount == null && selectedVehicleType != null
                       ? 'text-error'
                       : 'text-text-primary'
@@ -1882,33 +1947,24 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 </span>
               </div>
             ))}
-            <p className="text-t4 text-dim">
-              {totalDuration !== null && (
-                <>
-                  <span className="font-numeric">
-                    {formatDuration(totalDuration)}
-                  </span>{' '}
-                  ·{' '}
-                </>
-              )}
-              {BOOKING_TYPE_LABELS[bookingType]}
+            <p className="mt-1 flex items-center gap-1.5 text-t5 font-medium text-[#A8A8B2]">
+              <IconClock size={12} aria-hidden className="shrink-0" />
+              <span>
+                {totalDuration !== null && (
+                  <>
+                    <span className="font-numeric">
+                      {formatDuration(totalDuration)}
+                    </span>{' '}
+                    ·{' '}
+                  </>
+                )}
+                {BOOKING_TYPE_LABELS[bookingType]}
+              </span>
             </p>
           </div>
         </section>
       )}
 
-      {/* Right under the booking (frame D), before the mode, time and car. */}
-      {vendor && selectedServices.length > 0 && !requestMode && garageAddOns.length > 0 && (
-        <CheckoutAddOns
-          addOns={garageAddOns}
-          picked={pickedAddOnIds}
-          vehicleType={selectedVehicleType ?? undefined}
-          onToggle={toggleAddOn}
-        />
-      )}
-
-      {/* At garage, Doorstep or Pickup & drop on one line, only when the
-          garage offers more than one. */}
       {/* Confirming a request the garage accepted (0062): what it said yes
           to, fixed, with the time left to confirm. */}
       {acceptedRequest && acceptedRequest.acceptedStartAt && acceptedRequest.confirmBy && (
@@ -1917,10 +1973,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
           className="flex flex-col gap-2 rounded-[18px] border border-[#1F5A3A] bg-[#0E2418] p-4"
           data-checkout-request=""
         >
-          <p className="text-t5 font-medium uppercase tracking-[0.12em] text-success">
+          <p className="text-over font-semibold uppercase text-success">
             Accepted request
           </p>
-          <h2 id="checkout-request" className="text-t2 font-medium text-text-primary">
+          <h2 id="checkout-request" className="text-t2 font-semibold text-text-primary">
             {acceptedRequest.garage.name} will{' '}
             {acceptedRequest.bookingType === 'pickup' ? 'collect your car' : 'come'}{' '}
             {istStartLabel(acceptedRequest.acceptedStartAt)}
@@ -1944,22 +2000,169 @@ function BookContent({ vendorId }: { vendorId: string }) {
         </Notice>
       )}
 
+      {/* At garage, Doorstep or Pickup & drop: the graphite switch, only
+          when the garage offers more than one. */}
       {!requestMode && modeOptions.length > 1 && (
         <section aria-labelledby="checkout-mode">
           <h2 id="checkout-mode" className="sr-only">
             Service type
           </h2>
-          <ScToggle
-            options={modeOptions}
+          <ModeSwitch
+            modes={modeOptions.map((option) => option.value)}
             value={bookingType}
             onChange={setChosenType}
-            className="whitespace-nowrap"
+            track={false}
           />
           {isPickup && (
-            <p className="mt-2 text-t4 leading-relaxed text-text-secondary">
+            <p className="mx-0.5 mt-2.5 text-t5 font-medium leading-relaxed text-[#8E8E98]">
               {vendor?.name ?? 'The garage'} collects your car from your
               address, works on it at the garage and brings it back.
             </p>
+          )}
+        </section>
+      )}
+
+      {/* Doorstep and pickup & drop: where to come (or collect the car from),
+          picked from the customer's saved addresses so the server can check
+          it against the garage's travel or pickup radius. Two-line tiles
+          with the red light on the chosen one. */}
+      {usesAddress && !requestMode && (
+        <section>
+          <h2
+            ref={addressStepRef}
+            tabIndex={-1}
+            className="mb-2.5 scroll-mt-20 text-t2 font-semibold text-text-primary outline-none"
+          >
+            {isPickup
+              ? 'Where should we collect your car?'
+              : 'Where should we come?'}
+          </h2>
+          {isPickup && addressOptions.length > 0 && (
+            <p className="-mt-1 mb-2.5 text-t5 font-medium text-[#8E8E98]">
+              The garage brings your car back to the same address.
+            </p>
+          )}
+          {addressOptions.length === 0 ? (
+            <div className="flex flex-col items-start gap-2 rounded-[22px] border border-warning/40 bg-warning-muted/20 p-4">
+              <p className="text-t3 text-text-primary">
+                Add an address to continue
+              </p>
+              <p className="text-t4 text-text-secondary">
+                {isPickup
+                  ? 'Pickup & drop needs the address your car is collected from.'
+                  : 'Doorstep service needs somewhere to go.'}
+              </p>
+              {/* In place, as with cars: sign-up no longer asks for an
+                  address, so this is where a new customer gives one. */}
+              <button
+                type="button"
+                onClick={() => setAddAddressOpen(true)}
+                className="fx-raised fx-press mt-1 inline-flex h-11 items-center gap-1.5 rounded-[14px] px-4 text-t4 font-semibold text-text-primary"
+              >
+                <IconPlus size={15} aria-hidden className="text-[#ff4d66]" /> Add an address
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {addressOptions.map((a) => {
+                const on = selectedAddress === a.id
+                return (
+                  <button
+                    key={a.id}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => pickAddress(a.id)}
+                    className="bk-opt flex min-h-14 items-center gap-3 rounded-[18px] px-3.5 py-2.5 text-left"
+                  >
+                    <span className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-[#22222A] text-[#C8C8D0]">
+                      <IconMapPin size={17} aria-hidden />
+                    </span>
+                    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                      <span className="text-[14px] font-semibold text-text-primary">
+                        {a.label}
+                        {a.id === DRAFT_ADDRESS && !isGuest && (
+                          <span className="font-medium text-text-muted"> · new</span>
+                        )}
+                      </span>
+                      <span
+                        className="truncate text-t5 font-medium text-[#8E8E98]"
+                        data-clarity-mask="true"
+                      >
+                        {a.address}
+                      </span>
+                      {/* Said on every address it applies to, so the customer
+                          can see which of theirs would work before tapping. */}
+                      {outsidePickup(a) && (
+                        <span className="mt-0.5 block text-t4 text-error">
+                          Outside this garage&apos;s pickup area
+                        </span>
+                      )}
+                    </span>
+                    <RedLight state={on ? 'on' : 'off'} className="absolute bottom-[5px] left-1/2 -ml-2.5" />
+                  </button>
+                )
+              })}
+
+              {addressOutside && (
+                <div
+                  role="status"
+                  className="flex flex-col gap-2 rounded-[18px] border border-warning/40 bg-warning-muted/20 p-4"
+                >
+                  <p className="text-t3 text-text-primary">
+                    This garage doesn&apos;t pick up from this address
+                  </p>
+                  <p className="text-t4 text-text-secondary">
+                    Try another address
+                    {otherMode
+                      ? `, or book ${BOOKED_AS[otherMode]} instead`
+                      : ''}
+                    .
+                  </p>
+                  {otherMode && (
+                    <button
+                      type="button"
+                      onClick={() => setChosenType(otherMode)}
+                      className="fx-raised fx-press mt-1 inline-flex h-11 items-center self-start rounded-[14px] px-4 text-t4 font-semibold text-text-primary"
+                    >
+                      Choose {BOOKING_TYPE_LABELS[otherMode]}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {addressNeedsPin && (
+                <div className="flex flex-col gap-2 rounded-[18px] border border-warning/40 bg-warning-muted/20 p-4">
+                  <p
+                    ref={pinStepRef}
+                    tabIndex={-1}
+                    className="scroll-mt-20 text-t3 text-text-primary outline-none"
+                  >
+                    Pin the exact spot
+                  </p>
+                  <p className="text-t4 text-text-secondary">
+                    {isPickup
+                      ? 'We need it to check this garage collects from you, and so the driver finds your car.'
+                      : 'We need it to check this garage travels to you.'}
+                    {pinningAddress ? ' Saving...' : ''}
+                  </p>
+                  <LocationPicker showSearch onChange={handlePinAddress} />
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setAddAddressOpen(true)}
+                className="flex min-h-11 items-center justify-center gap-1.5 rounded-[14px] border border-dashed border-white/[0.18] text-t4 font-semibold text-[#C8C8D0] transition-colors hover:text-text-primary"
+              >
+                {isGuest ? (
+                  'Change address'
+                ) : (
+                  <>
+                    <IconPlus size={15} aria-hidden className="text-[#ff4d66]" /> Add another address
+                  </>
+                )}
+              </button>
+            </div>
           )}
         </section>
       )}
@@ -1996,12 +2199,13 @@ function BookContent({ vendorId }: { vendorId: string }) {
         )}
       </section>
 
-      {/* The car, already picked (F1): the default one, or the one on Home. */}
+      {/* The car, already picked (F1): the default one, or the one on Home.
+          Two-line tiles with the red light, the plate as it looks. */}
       <section hidden={requestMode}>
         <h2
           ref={carStepRef}
           tabIndex={-1}
-          className="mb-3 scroll-mt-20 text-t2 font-medium tracking-[-0.01em] text-text-primary outline-none"
+          className="mb-2.5 scroll-mt-20 text-t2 font-semibold text-text-primary outline-none"
         >
           Car
         </h2>
@@ -2027,9 +2231,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
             <button
               type="button"
               onClick={() => setAddCarOpen(true)}
-              className="press mt-1 inline-flex h-11 items-center gap-1.5 rounded-pill border border-stroke px-4 text-t3 text-text-primary"
+              className="fx-raised fx-press mt-1 inline-flex h-11 items-center gap-1.5 rounded-[14px] px-4 text-t4 font-semibold text-text-primary"
             >
-              <IconPlus size={16} aria-hidden /> Add a car
+              <IconPlus size={15} aria-hidden className="text-[#ff4d66]" /> Add a car
             </button>
           </div>
         ) : (
@@ -2041,24 +2245,18 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 type="button"
                 aria-pressed={selectedVehicle === DRAFT_CAR}
                 onClick={() => setPickedVehicle(DRAFT_CAR)}
-                className={cn(
-                  'press flex min-h-[64px] min-w-0 flex-col justify-center rounded-[18px] border px-4 py-2.5 text-left transition-colors',
-                  selectedVehicle === DRAFT_CAR
-                    ? 'border-text-primary bg-white/[0.04]'
-                    : 'border-line bg-white/[0.02]'
-                )}
+                className="bk-opt flex min-h-14 min-w-0 flex-col justify-center gap-0.5 rounded-[18px] px-3.5 pb-3 pt-2.5 text-left"
               >
-                <span className="flex min-w-0 items-center gap-1.5 text-t3 text-text-primary">
-                  <span className="truncate">
-                    {draftCar.make.trim()} {draftCar.model.trim()}
-                  </span>
-                  {selectedVehicle === DRAFT_CAR && (
-                    <IconCheck size={15} stroke={2} aria-hidden className="shrink-0" />
-                  )}
+                <span className="truncate text-[14px] font-semibold text-text-primary">
+                  {draftCar.make.trim()} {draftCar.model.trim()}
                 </span>
-                <span className="truncate text-t4 text-dim">
+                <span className="truncate text-t5 font-medium text-[#8E8E98]">
                   {VEHICLE_TIERS.find((t) => t.value === draftCar.vehicleType)?.label} · new
                 </span>
+                <RedLight
+                  state={selectedVehicle === DRAFT_CAR ? 'on' : 'off'}
+                  className="absolute bottom-[5px] left-1/2 -ml-2.5"
+                />
               </button>
             )}
             {vehicles.map((v) => {
@@ -2067,35 +2265,23 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 <button
                   key={v.id}
                   type="button"
-                  // White, as chosen things are; red here is Pay's.
+                  // The red light, as chosen things have; red as a button
+                  // here is Pay's.
                   aria-pressed={on}
                   onClick={() => setPickedVehicle(v.id)}
-                  className={cn(
-                    'press flex min-h-[64px] min-w-0 flex-col justify-center rounded-[18px] border px-4 py-2.5 text-left transition-colors',
-                    on
-                      ? 'border-text-primary bg-white/[0.04]'
-                      : 'border-line bg-white/[0.02]'
-                  )}
+                  className="bk-opt flex min-h-14 min-w-0 flex-col justify-center gap-1 rounded-[18px] px-3.5 pb-3 pt-2.5 text-left"
                 >
-                  <span className="flex min-w-0 items-center gap-1.5 text-t3 text-text-primary">
-                    <span className="truncate">
-                      {v.make} {v.model}
+                  <span className="truncate text-[14px] font-semibold text-text-primary">
+                    {v.make} {v.model}
+                  </span>
+                  {v.plate ? (
+                    <NumberPlate plate={v.plate} size="sm" />
+                  ) : (
+                    <span className="truncate text-t5 font-medium text-[#8E8E98]">
+                      {VEHICLE_TIERS.find((t) => t.value === v.vehicleType)?.label}
                     </span>
-                    {on && (
-                      <IconCheck
-                        size={15}
-                        stroke={2}
-                        aria-hidden
-                        className="shrink-0"
-                      />
-                    )}
-                  </span>
-                  <span
-                    className="truncate font-numeric text-t4 text-dim"
-                    data-clarity-mask="true"
-                  >
-                    {v.plate}
-                  </span>
+                  )}
+                  <RedLight state={on ? 'on' : 'off'} className="absolute bottom-[5px] left-1/2 -ml-2.5" />
                 </button>
               )
             })}
@@ -2104,185 +2290,48 @@ function BookContent({ vendorId }: { vendorId: string }) {
             <button
               type="button"
               onClick={() => setAddCarOpen(true)}
-              className="press flex min-h-[64px] items-center justify-center gap-1.5 rounded-[18px] border border-dashed border-stroke text-t4 text-text-secondary transition-colors hover:text-text-primary"
+              className="flex min-h-14 items-center justify-center gap-1.5 rounded-[18px] border border-dashed border-white/[0.18] text-t4 font-semibold text-[#C8C8D0] transition-colors hover:text-text-primary"
             >
-              <IconPlus size={15} aria-hidden /> Add another car
+              <IconPlus size={15} aria-hidden className="text-[#ff4d66]" /> Add another car
             </button>
           </div>
         )}
       </section>
 
-      {/* Doorstep and pickup & drop: where to come (or collect the car from),
-          picked from the customer's saved addresses so the server can check
-          it against the garage's travel or pickup radius. */}
-      {usesAddress && !requestMode && (
-        <section>
-          <h2
-            ref={addressStepRef}
-            tabIndex={-1}
-            className="mb-3 scroll-mt-20 text-t2 font-medium tracking-[-0.01em] text-text-primary outline-none"
-          >
-            {isPickup
-              ? 'Where should we collect your car?'
-              : 'Where should we come?'}
-          </h2>
-          {isPickup && addressOptions.length > 0 && (
-            <p className="-mt-1 mb-3 text-t4 text-text-secondary">
-              The garage brings your car back to the same address.
-            </p>
-          )}
-          {addressOptions.length === 0 ? (
-            <div className="flex flex-col items-start gap-2 rounded-[22px] border border-warning/40 bg-warning-muted/20 p-4">
-              <p className="text-t3 text-text-primary">
-                Add an address to continue
-              </p>
-              <p className="text-t4 text-text-secondary">
-                {isPickup
-                  ? 'Pickup & drop needs the address your car is collected from.'
-                  : 'Doorstep service needs somewhere to go.'}
-              </p>
-              {/* In place, as with cars: sign-up no longer asks for an
-                  address, so this is where a new customer gives one. */}
-              <button
-                type="button"
-                onClick={() => setAddAddressOpen(true)}
-                className="press mt-1 inline-flex h-11 items-center gap-1.5 rounded-pill border border-stroke px-4 text-t3 text-text-primary"
-              >
-                <IconPlus size={16} aria-hidden /> Add an address
-              </button>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {addressOptions.map((a) => (
-                <button
-                  key={a.id}
-                  type="button"
-                  aria-pressed={selectedAddress === a.id}
-                  onClick={() => pickAddress(a.id)}
-                  className={cn(
-                    'press flex items-center gap-3 rounded-[18px] border px-4 py-3 text-left transition-colors',
-                    selectedAddress === a.id
-                      ? 'border-text-primary bg-white/[0.04]'
-                      : 'border-line bg-white/[0.02]'
-                  )}
-                >
-                  <span className="grid size-10 shrink-0 place-items-center rounded-full bg-white/[0.06]">
-                    <IconMapPin
-                      size={18}
-                      stroke={1.5}
-                      className="text-text-primary"
-                      aria-hidden
-                    />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-t3 text-text-primary">
-                      {a.label}
-                      {a.id === DRAFT_ADDRESS && !isGuest && (
-                        <span className="text-text-muted"> · new</span>
-                      )}
-                    </span>
-                    <span
-                      className="block truncate text-t4 text-text-secondary"
-                      data-clarity-mask="true"
-                    >
-                      {a.address}
-                    </span>
-                    {/* Said on every address it applies to, so the customer
-                        can see which of theirs would work before tapping. */}
-                    {outsidePickup(a) && (
-                      <span className="mt-0.5 block text-t4 text-error">
-                        Outside this garage&apos;s pickup area
-                      </span>
-                    )}
-                  </span>
-                </button>
-              ))}
-
-              {addressOutside && (
-                <div
-                  role="status"
-                  className="flex flex-col gap-2 rounded-[18px] border border-warning/40 bg-warning-muted/20 p-4"
-                >
-                  <p className="text-t3 text-text-primary">
-                    This garage doesn&apos;t pick up from this address
-                  </p>
-                  <p className="text-t4 text-text-secondary">
-                    Try another address
-                    {otherMode
-                      ? `, or book ${BOOKED_AS[otherMode]} instead`
-                      : ''}
-                    .
-                  </p>
-                  {otherMode && (
-                    <button
-                      type="button"
-                      onClick={() => setChosenType(otherMode)}
-                      className="press mt-1 inline-flex h-11 items-center self-start rounded-pill border border-stroke px-4 text-t3 text-text-primary"
-                    >
-                      Choose {BOOKING_TYPE_LABELS[otherMode]}
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {addressNeedsPin && (
-                <div className="flex flex-col gap-2 rounded-[18px] border border-warning/40 bg-warning-muted/20 p-4">
-                  <p
-                    ref={pinStepRef}
-                    tabIndex={-1}
-                    className="scroll-mt-20 text-t3 text-text-primary outline-none"
-                  >
-                    Pin the exact spot
-                  </p>
-                  <p className="text-t4 text-text-secondary">
-                    {isPickup
-                      ? 'We need it to check this garage collects from you, and so the driver finds your car.'
-                      : 'We need it to check this garage travels to you.'}
-                    {pinningAddress ? ' Saving...' : ''}
-                  </p>
-                  <LocationPicker showSearch onChange={handlePinAddress} />
-                </div>
-              )}
-
-              <button
-                type="button"
-                onClick={() => setAddAddressOpen(true)}
-                className="press flex min-h-12 items-center justify-center gap-1.5 rounded-[18px] border border-dashed border-stroke text-t4 text-text-secondary transition-colors hover:text-text-primary"
-              >
-                {isGuest ? (
-                  'Change address'
-                ) : (
-                  <>
-                    <IconPlus size={15} aria-hidden /> Add another address
-                  </>
-                )}
-              </button>
-            </div>
-          )}
-        </section>
+      {/* The add-ons, with the red-light Add (0068). */}
+      {vendor && selectedServices.length > 0 && !requestMode && garageAddOns.length > 0 && (
+        <CheckoutAddOns
+          addOns={garageAddOns}
+          picked={pickedAddOnIds}
+          vehicleType={selectedVehicleType ?? undefined}
+          onToggle={toggleAddOn}
+        />
       )}
 
       {/* Savings: the best reward already applied (F1), codes, and Detlio
           credit. Shown once there is a car to price against, or credit to
           use (the credit switch shows for a car still being typed too, since
-          credit is applied without one). Quiet chips: red on checkout is
-          Pay's alone. */}
+          credit is applied without one). Green offer chips: red on checkout
+          is Pay's alone. */}
       {selectedServices.length > 0 &&
         (savedVehicleId || creditOffered) &&
         !unpricedForVehicle && (
-          <section aria-labelledby="checkout-savings">
+          <section aria-labelledby="checkout-savings" className="flex flex-col gap-2">
             <h2
               id="checkout-savings"
-              className="mb-3 text-t2 font-medium tracking-[-0.01em] text-text-primary"
+              className="mb-0.5 text-t2 font-semibold text-text-primary"
             >
               Savings
             </h2>
-            <div className="hub-card flex flex-col px-5 py-1">
-              {/* Codes need a saved car to price against (the server's check). */}
-              {savedVehicleId && (appliedDiscount ? (
-                <div className="flex min-h-[60px] items-center justify-between gap-3 py-2">
-                  <div className="min-w-0">
-                    <p className="text-t3 text-text-primary">
+            {/* Codes need a saved car to price against (the server's check). */}
+            {savedVehicleId && (appliedDiscount ? (
+              <div className="fx-raised flex min-h-14 items-center justify-between gap-3 rounded-[18px] pl-2 pr-2">
+                <span className="flex min-w-0 items-center gap-3">
+                  <span className="bk-coupon-tile grid size-10 shrink-0 place-items-center rounded-[12px]">
+                    <IconPercentage size={18} aria-hidden />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-[14px] font-semibold text-text-primary">
                       {suggestionApplied && appliedReward
                         ? `Best for you: ${appliedReward.label}`
                         : appliedReward
@@ -2292,144 +2341,139 @@ function BookContent({ vendorId }: { vendorId: string }) {
                             : freeWashes.some((w) => w.code.toUpperCase() === appliedDiscount.code.toUpperCase())
                               ? 'Free wash applied'
                               : `${appliedDiscount.code} applied`}
-                    </p>
-                    <p className="text-t4 text-success">
+                    </span>
+                    <span className="block text-t5 font-medium text-success">
                       Saves{' '}
                       <span className="font-numeric">
                         {money(appliedDiscount.discountAmount)}
                       </span>
                       {suggestionApplied ? ' · applied' : ''}
-                    </p>
-                  </div>
-                  {/* Neutral: red on checkout is kept for Pay. */}
-                  <button
-                    type="button"
-                    onClick={handleRemovePromo}
-                    className="-mr-2 min-h-11 shrink-0 px-2 text-t3 text-text-primary"
-                  >
-                    Remove
-                  </button>
-                </div>
-              ) : (
-                <div className="py-1">
-                  <button
-                    type="button"
-                    onClick={() => setPromoOpen(true)}
-                    className="flex min-h-[52px] w-full items-center justify-between gap-3"
-                  >
-                    <span className="flex items-center gap-2.5">
-                      <span className="flex size-7 items-center justify-center rounded-full bg-success-muted text-success">
-                        <IconPercentage size={15} aria-hidden />
-                      </span>
-                      <span className="text-t3 text-text-primary">
-                        Coupons and offers
-                      </span>
                     </span>
-                    <span className="flex shrink-0 items-center gap-0.5 text-t4 text-text-primary">
-                      {offerChecking ? `Checking ${offerCode}…` : 'Apply'}
-                      <IconChevronRight size={15} aria-hidden />
-                    </span>
-                  </button>
-                  {/* The code from Home did not survive a change of car or
-                    services: said in the server's words, amber, with Remove
-                    beside it since the customer never typed it. */}
-                  {offerProblem && (
-                    <div className="mb-2 flex items-center justify-between gap-3">
-                      <p
-                        role="status"
-                        className="flex items-start gap-1.5 text-t4 text-error"
-                      >
-                        <IconAlertCircle
-                          size={15}
-                          className="mt-px shrink-0"
-                          aria-hidden="true"
-                        />
-                        <span>
-                          {offerCode} doesn&apos;t apply to this booking.{' '}
-                          {offerProblem}
-                        </span>
-                      </p>
-                      <button
-                        type="button"
-                        onClick={handleRemovePromo}
-                        aria-label={`Remove ${offerCode}`}
-                        className="-mr-2 min-h-11 shrink-0 px-2 text-t4 text-text-primary"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  )}
-                  {/* Detlio Rewards (0050) and printed coupons (0056): one tap,
-                    the same check as a typed code. */}
-                  {(rewardVouchers.length > 0 || myCoupons.length > 0 || freeWashes.length > 0) && (
-                    <div className="mb-3 flex flex-wrap gap-2">
-                      {freeWashes.map((wash) => (
-                        <button
-                          key={wash.code}
-                          type="button"
-                          disabled={applyPromo.isPending}
-                          onClick={() => handleApplyReward(wash.code)}
-                          className="flex min-h-11 items-center rounded-full border border-stroke px-3.5 text-t4 text-text-primary disabled:opacity-50"
-                        >
-                          Free wash · up to ₹{wash.amount}
-                        </button>
-                      ))}
-                      {rewardVouchers.slice(0, 4).map((voucher) => (
-                        <button
-                          key={voucher.id}
-                          type="button"
-                          disabled={applyPromo.isPending}
-                          onClick={() => handleApplyReward(voucher.code!)}
-                          className="flex min-h-11 items-center gap-1.5 rounded-full border border-stroke px-3.5 text-t4 text-text-primary disabled:opacity-50"
-                        >
-                          <span className="font-numeric">
-                            {rewardRupees(voucher.amount)} off
-                          </span>
-                          <span className="text-text-secondary">
-                            · {voucher.label}
-                          </span>
-                        </button>
-                      ))}
-                      {myCoupons.slice(0, 4).map((coupon) => (
-                        <button
-                          key={coupon.id}
-                          type="button"
-                          disabled={applyPromo.isPending}
-                          onClick={() => handleApplyReward(coupon.code)}
-                          className="flex min-h-11 items-center rounded-full border border-stroke px-3.5 text-t4 text-text-primary disabled:opacity-50"
-                        >
-                          {coupon.title}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-              {/* Detlio credit (0049): a switch, on by default. */}
-              {creditOffered && (
-                <div
-                  className={cn(
-                    'flex min-h-[60px] items-center justify-between gap-3',
-                    savedVehicleId && 'border-t border-line'
-                  )}
+                  </span>
+                </span>
+                {/* Neutral: red on checkout is kept for Pay. */}
+                <button
+                  type="button"
+                  onClick={handleRemovePromo}
+                  className="min-h-11 shrink-0 px-2 text-t4 font-semibold text-text-primary"
                 >
-                  <span className="min-w-0 text-t3 text-text-primary">
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setPromoOpen(true)}
+                  className="fx-raised fx-press flex min-h-14 w-full items-center justify-between gap-3 rounded-[18px] pl-2 pr-4"
+                >
+                  <span className="flex items-center gap-3">
+                    <span className="bk-coupon-tile grid size-10 place-items-center rounded-[12px]">
+                      <IconPercentage size={18} aria-hidden />
+                    </span>
+                    <span className="text-[14px] font-semibold text-text-primary">
+                      Coupons and offers
+                    </span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-0.5 text-t4 font-medium text-[#8E8E98]">
+                    {offerChecking ? `Checking ${offerCode}…` : 'Apply'}
+                    <IconChevronRight size={15} aria-hidden />
+                  </span>
+                </button>
+                {/* The code from Home did not survive a change of car or
+                  services: said in the server's words, amber, with Remove
+                  beside it since the customer never typed it. */}
+                {offerProblem && (
+                  <div className="flex items-center justify-between gap-3">
+                    <p
+                      role="status"
+                      className="flex items-start gap-1.5 text-t4 text-error"
+                    >
+                      <IconAlertCircle
+                        size={15}
+                        className="mt-px shrink-0"
+                        aria-hidden="true"
+                      />
+                      <span>
+                        {offerCode} doesn&apos;t apply to this booking.{' '}
+                        {offerProblem}
+                      </span>
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleRemovePromo}
+                      aria-label={`Remove ${offerCode}`}
+                      className="-mr-2 min-h-11 shrink-0 px-2 text-t4 text-text-primary"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
+                {/* Detlio Rewards (0050) and printed coupons (0056): one tap,
+                  the same check as a typed code. */}
+                {(rewardVouchers.length > 0 || myCoupons.length > 0 || freeWashes.length > 0) && (
+                  <div className="flex flex-wrap gap-2">
+                    {freeWashes.map((wash) => (
+                      <button
+                        key={wash.code}
+                        type="button"
+                        disabled={applyPromo.isPending}
+                        onClick={() => handleApplyReward(wash.code)}
+                        className="bk-offer-chip flex min-h-11 items-center rounded-[12px] px-3 text-t5 font-semibold disabled:opacity-50"
+                      >
+                        Free wash · up to ₹{wash.amount}
+                      </button>
+                    ))}
+                    {rewardVouchers.slice(0, 4).map((voucher) => (
+                      <button
+                        key={voucher.id}
+                        type="button"
+                        disabled={applyPromo.isPending}
+                        onClick={() => handleApplyReward(voucher.code!)}
+                        className="bk-offer-chip flex min-h-11 items-center gap-1.5 rounded-[12px] px-3 text-t5 font-semibold disabled:opacity-50"
+                      >
+                        <span className="font-numeric">
+                          {rewardRupees(voucher.amount)} off
+                        </span>
+                        <span>· {voucher.label}</span>
+                      </button>
+                    ))}
+                    {myCoupons.slice(0, 4).map((coupon) => (
+                      <button
+                        key={coupon.id}
+                        type="button"
+                        disabled={applyPromo.isPending}
+                        onClick={() => handleApplyReward(coupon.code)}
+                        className="bk-offer-chip flex min-h-11 items-center rounded-[12px] px-3 text-t5 font-semibold disabled:opacity-50"
+                      >
+                        {coupon.title}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            ))}
+            {/* Detlio credit (0049): a switch, on by default. */}
+            {creditOffered && (
+              <div className="flex min-h-14 items-center justify-between gap-3 rounded-[18px] border border-white/[0.07] bg-[#111114] px-3.5 py-2.5">
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  <span className="text-[14px] font-semibold text-text-primary">
                     Use{' '}
                     <span className="font-numeric">
                       {money(creditSplit.credit)}
                     </span>{' '}
                     Detlio credit
                   </span>
-                  <ScSwitch
-                    label="Use Detlio credit"
-                    checked={creditSwitchOn}
-                    disabled={loading}
-                    onChange={setCreditSwitchOn}
-                    className="-mr-2"
-                  />
-                </div>
-              )}
-            </div>
+                </span>
+                <ScSwitch
+                  label="Use Detlio credit"
+                  checked={creditSwitchOn}
+                  disabled={loading}
+                  onChange={setCreditSwitchOn}
+                  className="-mr-2"
+                />
+              </div>
+            )}
           </section>
         )}
 
@@ -2443,24 +2487,24 @@ function BookContent({ vendorId }: { vendorId: string }) {
           <h2 id="checkout-price" className="sr-only">
             Price
           </h2>
-          <div className="hub-card flex flex-col gap-3 p-5 text-t3">
+          <div className="fx-edge flex flex-col rounded-[22px] px-4 pb-4 pt-1.5 text-t4 font-medium">
             {/* Only once there is more than one line to add up. */}
             {lineCount > 1 && (
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-text-secondary">Subtotal</span>
-                <span className="font-numeric text-text-primary">
+              <div className="flex items-center justify-between gap-3 border-b border-white/[0.06] py-2.5">
+                <span className="text-[#C8C8D0]">Subtotal</span>
+                <span className="font-numeric font-semibold text-text-primary">
                   {subtotal == null || !selectedVehicle ? '—' : money(subtotal)}
                 </span>
               </div>
             )}
             {/* Pickup & drop's own line: free for now (owner decision). */}
             {isPickup && (
-              <div className="flex items-start justify-between gap-3">
-                <span className="min-w-0 text-text-secondary">
+              <div className="flex items-start justify-between gap-3 border-b border-white/[0.06] py-2.5">
+                <span className="min-w-0 text-[#C8C8D0]">
                   <span className="block">Pickup &amp; drop</span>
                   {selectedAddressRecord && (
                     <span
-                      className="block truncate text-t4 text-text-muted"
+                      className="block truncate text-t5 text-text-muted"
                       data-clarity-mask="true"
                     >
                       From and back to {selectedAddressRecord.address}
@@ -2474,43 +2518,37 @@ function BookContent({ vendorId }: { vendorId: string }) {
             )}
             {/* An accepted request's travel fee (0062): its own line. */}
             {travelFee > 0 && (
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-text-secondary">Travel fee</span>
-                <span className="font-numeric text-text-primary">{money(travelFee)}</span>
+              <div className="flex items-center justify-between gap-3 border-b border-white/[0.06] py-2.5">
+                <span className="text-[#C8C8D0]">Travel fee</span>
+                <span className="font-numeric font-semibold text-text-primary">{money(travelFee)}</span>
               </div>
             )}
             {appliedDiscount && (
-              <div className="flex items-center justify-between gap-3">
-                <span className="min-w-0 truncate text-text-secondary">
+              <div className="flex items-center justify-between gap-3 border-b border-white/[0.06] py-2.5 text-[#4ADE80]">
+                <span className="min-w-0 truncate">
                   Discount ({appliedDiscount.code})
                 </span>
-                <span className="shrink-0 font-numeric text-success">
+                <span className="shrink-0 font-numeric font-semibold">
                   −{money(appliedDiscount.discountAmount)}
                 </span>
               </div>
             )}
             {creditApplied && (
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-text-secondary">Detlio credit</span>
-                <span className="shrink-0 font-numeric text-success">
+              <div className="flex items-center justify-between gap-3 border-b border-white/[0.06] py-2.5 text-[#4ADE80]">
+                <span>Detlio credit</span>
+                <span className="shrink-0 font-numeric font-semibold">
                   −{money(creditSplit.credit)}
                 </span>
               </div>
             )}
-            <div
-              className={cn(
-                'flex items-center justify-between gap-3',
-                (lineCount > 1 ||
-                  isPickup ||
-                  travelFee > 0 ||
-                  appliedDiscount ||
-                  creditApplied) &&
-                  'border-t border-line pt-3'
-              )}
-            >
-              <span className="text-t2 text-text-primary">To pay</span>
-              <span className="font-numeric text-[20px] text-text-primary">
-                {toPay == null || !selectedVehicle ? '—' : money(toPay)}
+            <div className="flex items-baseline justify-between gap-3 pt-3.5">
+              <span className="text-t3 font-semibold text-text-primary">To pay</span>
+              <span className="text-[26px] font-semibold leading-none tracking-[-0.02em] text-text-primary">
+                {toPay == null || !selectedVehicle ? (
+                  <span className="font-numeric">—</span>
+                ) : (
+                  <Odometer value={money(toPay)} numeric={toPay} />
+                )}
               </span>
             </div>
           </div>
@@ -2542,8 +2580,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
           {/* Mirrors what the server enforces: CANCELLATION_CUTOFF_MS and
               MAX_RESCHEDULES in bookings.service.ts, and the no-show rule ops
               applies (markNoShow). */}
-          <p className="text-t5 leading-relaxed text-text-muted">
-            <span className="text-text-secondary">Cancellation policy:</span>{' '}
+          <p className="text-t5 font-medium leading-normal text-[#8E8E98]">
+            <span className="text-[#C8C8D0]">Cancellation policy:</span>{' '}
             Cancel any time until the garage accepts. Once it has, cancel or
             reschedule up to 2 hours before your slot. You can reschedule up to
             2 times; each new time goes back to the garage to accept, and if it
@@ -2599,7 +2637,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
             id="checkout-signed-in"
             ref={signInStepRef}
             tabIndex={-1}
-            className="scroll-mt-20 text-t2 font-medium tracking-[-0.01em] text-text-primary outline-none"
+            className="scroll-mt-20 text-t2 font-semibold text-text-primary outline-none"
           >
             {needsName ? (
               'Your name'
@@ -2637,7 +2675,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                     key={v.id}
                     type="button"
                     onClick={() => setPickedVehicle(v.id)}
-                    className="flex min-h-11 items-center rounded-full border border-stroke px-3.5 text-t4 text-text-primary"
+                    className="fx-raised fx-press flex min-h-11 items-center rounded-[12px] px-3.5 text-t4 font-medium text-text-primary"
                   >
                     Use saved: {v.make} {v.model}
                   </button>
@@ -2656,7 +2694,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                     key={a.id}
                     type="button"
                     onClick={() => pickAddress(a.id)}
-                    className="flex min-h-11 items-center rounded-full border border-stroke px-3.5 text-t4 text-text-primary"
+                    className="fx-raised fx-press flex min-h-11 items-center rounded-[12px] px-3.5 text-t4 font-medium text-text-primary"
                   >
                     Use saved: {a.label}
                   </button>
@@ -2710,13 +2748,13 @@ function BookContent({ vendorId }: { vendorId: string }) {
         onClose={() => setPromoOpen(false)}
         dismissible={!applyPromo.isPending}
         aria-label="Coupons and offers"
-        className="px-4"
+        className="px-[18px]"
       >
-        <h2 className="text-[20px] font-normal tracking-[-0.015em] text-text-primary">
+        <h2 className="text-t2 font-semibold text-text-primary">
           Coupons and offers
         </h2>
 
-        <div className="mt-4 flex items-center gap-2 rounded-[14px] border border-line bg-white/[0.03] px-3">
+        <div className="fx-recessed mt-4 flex items-center gap-2 rounded-[14px] px-3.5">
           <input
             id="promo-code"
             aria-label="Coupon code"
@@ -2729,14 +2767,14 @@ function BookContent({ vendorId }: { vendorId: string }) {
             value={promoInput}
             onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
             onKeyDown={(e) => e.key === 'Enter' && handleApplyPromo()}
-            className="min-w-0 flex-1 bg-transparent py-3.5 text-t3 uppercase text-text-primary outline-none placeholder:normal-case placeholder:text-text-muted"
+            className="min-w-0 flex-1 bg-transparent py-3.5 text-t3 font-medium uppercase text-text-primary outline-none placeholder:normal-case placeholder:text-[#8E8E98]"
           />
           {/* White, not red: the sheet's action is a text action (F5). */}
           <button
             type="button"
             disabled={!canApplyPromo || applyPromo.isPending}
             onClick={handleApplyPromo}
-            className="-mr-1 min-h-11 shrink-0 px-2 text-t3 font-medium text-text-primary transition-colors disabled:text-text-muted"
+            className="-mr-1 min-h-11 shrink-0 px-2 text-t3 font-semibold text-text-primary transition-colors disabled:text-text-muted"
           >
             {applyPromo.isPending ? 'Checking…' : 'Apply'}
           </button>
@@ -2765,10 +2803,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
           pay.
         </p>
       </ScSheet>
+      </main>
 
       <div
         ref={barRef}
-        className="fixed bottom-0 left-1/2 z-40 w-full max-w-[428px] -translate-x-1/2 border-t border-line bg-brand-black px-4 pt-3 pb-[calc(0.75rem_+_env(safe-area-inset-bottom))]"
+        className="bk-bar fixed bottom-0 left-1/2 z-40 w-full max-w-[428px] -translate-x-1/2 rounded-t-[24px] px-4 pt-3 pb-[calc(1rem_+_env(safe-area-inset-bottom))]"
       >
         {/* Says each step after payment out loud. On the page from the first
             render and only its text changes, so it is announced. */}
@@ -2792,10 +2831,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
             }
           />
         ) : paid ? (
-          // Graphite with a spinner, not the red pill: red means "this pays".
+          // Graphite with a spinner, not the red button: red means "this pays".
           <ScButton
             disabled
-            className="flex h-[52px] items-center justify-center gap-2 rounded-full bg-surface-elevated py-0 text-t3 font-medium text-text-primary ring-1 ring-inset ring-border hover:bg-surface-elevated disabled:cursor-wait disabled:opacity-100"
+            className="bk-cta-wait flex h-[52px] items-center justify-center gap-2 rounded-[16px] py-0 text-t4 font-semibold disabled:cursor-wait disabled:opacity-100"
           >
             <IconLoader2
               size={16}
@@ -2809,15 +2848,15 @@ function BookContent({ vendorId }: { vendorId: string }) {
             {/* The running total from the first second (F1): what, for which
                 car, and how much. */}
             {selectedServices.length > 0 && (
-              <div className="mb-2.5 flex items-baseline justify-between gap-3 text-t4">
-                <span className="min-w-0 truncate text-dim">
+              <div className="mb-2.5 flex items-baseline justify-between gap-3 text-t5 font-medium">
+                <span className="min-w-0 truncate text-[#A8A8B2]">
                   {bookingSummary}
                   {selectedCar ? ` · ${selectedCar.model}` : ''}
                 </span>
                 {subtotal != null && selectedVehicle && (
-                  <span className="shrink-0 text-dim">
+                  <span className="shrink-0 text-[#A8A8B2]">
                     {toPay != null && toPay !== subtotal ? 'To pay' : 'Total'}{' '}
-                    <span className="font-numeric text-t3 text-text-primary">
+                    <span className="font-numeric text-t3 font-semibold text-text-primary">
                       {money(toPay ?? subtotal)}
                     </span>
                   </span>
@@ -2826,7 +2865,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
             )}
             {/* Two promises right above Pay, where people hesitate (F4). */}
             {!nextStep && (
-              <ul className="mb-2.5 flex flex-col items-center gap-1 text-t4 text-text-secondary">
+              <ul className="mb-2.5 flex flex-col items-center gap-1 text-t5 font-medium text-[#C8C8D0]">
                 {guaranteeApplies && (
                   // Short, beside Pay; the full promise is on the claim screen.
                   <li
@@ -2834,20 +2873,18 @@ function BookContent({ vendorId }: { vendorId: string }) {
                     title={`${GUARANTEE_BADGE} — ${GUARANTEE_SUMMARY}`}
                   >
                     <IconShieldCheck
-                      size={15}
-                      stroke={1.5}
+                      size={13}
                       aria-hidden
-                      className="shrink-0 text-text-primary"
+                      className="shrink-0 text-[#4ADE80]"
                     />
                     Free redo within 48 hours if you&apos;re not happy
                   </li>
                 )}
                 <li className="flex items-center gap-1.5">
                   <IconRefresh
-                    size={15}
-                    stroke={1.5}
+                    size={13}
                     aria-hidden
-                    className="shrink-0 text-text-primary"
+                    className="shrink-0 text-[#4ADE80]"
                   />
                   Free cancel until the garage accepts
                 </li>
@@ -2862,6 +2899,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 className="mb-2 justify-center text-center"
               />
             )}
+            {/* Grey while a step is missing, naming it; a tap scrolls there
+                and nudges it. Once nothing is missing it is the solid red
+                Pay, which pops once as it arrives. */}
+            <div ref={ctaRef} className="bk-cta">
             <MainAction
               // Disabled only while a payment is opening. Before that it is
               // never a dead end: it names what is missing and goes there.
@@ -2875,20 +2916,20 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 nextStep ? () => goToStep(nextStep) : () => void handlePay()
               }
               className={cn(
-                'h-[52px] rounded-full py-0 text-t3 font-medium',
+                'h-[52px] rounded-[16px] py-0 text-t3 font-semibold',
                 // Grey until the booking is ready, so red only ever means
                 // "this pays" (F5's "not ready yet").
-                nextStep &&
-                  'bg-surface-elevated text-text-primary ring-1 ring-inset ring-border hover:bg-surface-elevated',
+                nextStep && 'bk-cta-wait hover:bg-transparent',
                 loading && 'disabled:cursor-wait disabled:opacity-100'
               )}
               hero={!nextStep}
               heroClassName={cn(
+                'h-[52px] rounded-[16px] text-t3 font-semibold',
                 loading && 'disabled:cursor-wait disabled:opacity-100'
               )}
               heroIcon={
                 !loading && (
-                  <IconArrowUpRight size={17} stroke={1.5} aria-hidden />
+                  <IconArrowUpRight size={16} stroke={1.8} aria-hidden />
                 )
               }
             >
@@ -2913,9 +2954,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 </>
               )}
             </MainAction>
+            </div>
             <p
               id="checkout-cta-hint"
-              className="mt-2 text-center text-t5 leading-snug text-text-muted"
+              className="mx-1 mt-2.5 text-center text-t5 font-medium leading-snug text-text-muted"
             >
               {nextStep === 'address' ? (
                 addressOptions.length === 0 ? (
@@ -2992,7 +3034,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
           </>
         )}
       </div>
-    </AppShell>
+    </div>
   )
 }
 

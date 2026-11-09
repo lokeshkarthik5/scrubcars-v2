@@ -21,7 +21,7 @@ import { MainAction } from '@/components/main-action'
 import { PageHeader } from '@/components/ui/page-header'
 import { WhenPicker } from '@/components/checkout/when-picker'
 import { STATUS_STEPS, bookingHeadline } from '@/lib/booking-status'
-import { formatWhen } from '@repo/core/format'
+import { formatClock, formatWhen } from '@repo/core/format'
 import { money } from '@/lib/money'
 import { onlineAmount } from '@/lib/booking-payment'
 import { currentMarketingContext, trackPurchase } from '@/lib/meta-pixel'
@@ -29,8 +29,10 @@ import { contactWindowState } from '@repo/core/contact-window'
 import { telHref, whatsAppHref } from '@repo/core/contact-links'
 import { ScInput } from '@repo/ui/sc/input'
 import { ScSheet } from '@repo/ui/sc/modal'
-import { SuccessBurst } from '@repo/ui/sc/success-burst'
 import { StatusStepper } from '@repo/ui/sc/status-stepper'
+import { Ignition } from '@/components/moments/ignition'
+import { ProgressRoad, statusStops, type RoadStop } from '@/components/moments/road'
+import { AnswerByRing } from '@/components/moments/answer-by-ring'
 import { Stars } from '@repo/ui/sc/stars'
 import { getBooking } from '@repo/core/api/bookings'
 import { createPaymentOrder, verifyPayment } from '@repo/core/api/payments'
@@ -52,7 +54,7 @@ import {
   canBookAgain,
   matchSavedAddress,
 } from '@repo/core/book-again'
-import { carWithGarage } from '@repo/core/pickup'
+import { carWithGarage, pickupTimeline } from '@repo/core/pickup'
 import { googleMapsLink } from '@repo/core/contact-links'
 import { cn } from '@repo/core/utils'
 import {
@@ -445,7 +447,7 @@ export default function BookingDetailPage({
       ? coarse(storedLocation)
       : null
   // The booking flow lands here with ?celebrate=1 straight after payment.
-  // Read once into state rather than watching the URL, so the burst plays a
+  // Read once into state rather than watching the URL, so Ignition plays a
   // single time and a refresh doesn't replay it (the param is stripped below).
   const [celebrating, setCelebrating] = useState(
     () => queryValue('celebrate') === '1'
@@ -847,16 +849,44 @@ export default function BookingDetailPage({
       whatsAppHref(contactGarage?.phone, garageMessage))
     : null
   const finished = booking.status === 'completed'
+  // The road is the progress bar (moment 2): the four steps as stops, or
+  // pickup & drop's six handover steps on the same road.
+  const pickupSteps = isPickup ? pickupTimeline(booking) : null
+  const roadStops: RoadStop[] | null =
+    headline.step === null || !showProgress
+      ? null
+      : pickupSteps
+        ? pickupSteps.map((step) => ({ label: step.label, state: step.state }))
+        : statusStops(STATUS_STEPS, headline.step, finished)
+  // While a paid booking waits, the garage's time to answer drains from a
+  // ring beside the status (moment 3), as long as there is a deadline ahead.
+  const answerBy =
+    awaitingGarage &&
+    booking.paymentStatus === 'paid' &&
+    !timeProposal &&
+    !missedByGarage &&
+    booking.responseDeadline &&
+    Date.parse(booking.responseDeadline.respondBy) > now
+      ? booking.responseDeadline
+      : null
 
   return (
     <CustomerShell showNav className="gap-4 py-2">
       {celebrating && (
-        <SuccessBurst
+        // Ignition, after paying (moment 1): the same words the burst said,
+        // with the booking's road, the car parked where it is.
+        <Ignition
           title={awaitingGarage ? 'Booking requested' : 'Booking confirmed'}
           subtitle={
             awaitingGarage
               ? `Waiting for ${booking.vendorName} to accept your ${booking.scheduledAt} slot.`
               : `${booking.serviceSummary} at ${booking.vendorName} · ${booking.scheduledAt}`
+          }
+          stops={roadStops ?? statusStops(STATUS_STEPS, awaitingGarage ? 0 : 1, false)}
+          caption={
+            awaitingGarage
+              ? `Requested${answerBy ? ` · they answer by ${formatClock(answerBy.respondBy)}` : ''}`
+              : null
           }
           onDone={() => {
             setCelebrating(false)
@@ -886,12 +916,15 @@ export default function BookingDetailPage({
             .filter(Boolean)
             .join(' · ')}
         </h2>
-        <h2
-          id="booking-status"
-          className="text-[28px] leading-[1.12] font-light tracking-[-0.025em] text-text-primary"
-        >
-          {statusTitle}
-        </h2>
+        <div className="flex items-start justify-between gap-3">
+          <h2
+            id="booking-status"
+            className="min-w-0 text-title font-semibold text-text-primary"
+          >
+            {statusTitle}
+          </h2>
+          {answerBy && <AnswerByRing deadline={answerBy} now={now} />}
+        </div>
         {cancelled
           ? cancelled.lines.map((line) => (
               <p key={line} className="text-t3 text-text-secondary">
@@ -925,34 +958,10 @@ export default function BookingDetailPage({
             new one and whether the garage has accepted it.
           </p>
         )}
-        {headline.step !== null && showProgress && (
-          <div aria-hidden className="mt-3">
-            <div className="grid grid-cols-4 gap-1.5">
-              {STATUS_STEPS.map((step, i) => (
-                <span
-                  key={step}
-                  className={cn(
-                    'h-[3px] rounded-full',
-                    i <= headline.step! ? 'bg-text-primary' : 'bg-white/[0.12]'
-                  )}
-                />
-              ))}
-            </div>
-            <div className="mt-1.5 grid grid-cols-4 gap-1.5 text-t5">
-              {STATUS_STEPS.map((step, i) => (
-                <span
-                  key={step}
-                  className={cn(
-                    i === 3 && 'text-right',
-                    i === headline.step ? 'text-text-primary' : 'text-dim'
-                  )}
-                >
-                  {step}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* The car drives to the next stop when the status changes (the
+            page polls); the garage's pin flashes on Accepted and is a green
+            tick when done. Hidden when moved, cancelled or missed. */}
+        {roadStops && <ProgressRoad stops={roadStops} flashAt={1} className="mt-6" />}
       </section>
 
       {/* ─── What needs the customer, right under the status ─────────────── */}

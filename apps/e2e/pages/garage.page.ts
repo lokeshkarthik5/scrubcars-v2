@@ -72,7 +72,7 @@ export class GaragePage {
   detailsCta = () =>
     this.page.getByRole('button', { name: /(Add to|Remove from) booking/ })
 
-  /** The sticky bar; present only once something is selected. */
+  /** Book now, on the glass booking bar; present only once something is selected. */
   bookButton = () => this.page.getByRole('button', { name: /^Book\b/ })
 
   book = () => this.bookButton().click()

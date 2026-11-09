@@ -24,6 +24,7 @@ import { isHomeHubEnabled } from '@/lib/home-hub'
 import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@/components/ui/card'
+import { NumberPlate } from '@/components/moments/number-plate'
 import { ScInput } from '@repo/ui/sc/input'
 import { TopBar } from '@repo/ui/sc/top-bar'
 import { Chip } from '@repo/ui/sc/chip'
@@ -679,12 +680,9 @@ export default function ProfilePage() {
                         aria-hidden="true"
                       />
                     </span>
-                    <span
-                      className="block text-t5 text-text-secondary"
-                      data-clarity-mask="true"
-                    >
-                      {v.plate ? `${v.plate} · History` : 'History'}
-                    </span>
+                    {/* The plate as it looks on the car (moment 8). */}
+                    {v.plate && <NumberPlate plate={v.plate} className="mt-1.5" />}
+                    <span className="mt-1 block text-t5 text-text-secondary">History</span>
                   </span>
                 </Link>
                 {v.isDefault ? (

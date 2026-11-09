@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { openStatus, type OpeningDay } from '@repo/core/opening-hours'
+import { hoursLeftShare, openStatus, type OpeningDay } from '@repo/core/opening-hours'
 import { cn } from '@repo/core/utils'
+import { HoursRing } from '@repo/ui/finish/hours-ring'
 
 /**
  * The current time, re-read on each minute boundary — so a garage page left
@@ -30,8 +31,13 @@ interface OpenStatusProps {
   hours: readonly OpeningDay[] | null | undefined
   /** Its upcoming holidays as IST dates; today being one reads "Closed today". */
   closures?: readonly string[]
-  /** `line` sits in text; `overlay` is a pill that reads on top of a photo. */
-  variant?: 'line' | 'overlay'
+  /**
+   * `line` sits in text; `overlay` is a pill that reads on top of a photo;
+   * `ring` is the garage page's line (customer UI round, §5): the
+   * opening-hours ring in place of the dot, drawn in once, and "closes"
+   * rather than "Open till".
+   */
+  variant?: 'line' | 'overlay' | 'ring'
   className?: string
 }
 
@@ -52,6 +58,20 @@ export function OpenStatus({
   const now = useMinuteClock()
   const status = openStatus(hours, now, closures)
   if (!status) return null
+
+  if (variant === 'ring') {
+    return (
+      <span className={cn('inline-flex min-w-0 items-center gap-[7px] text-t4 font-medium text-[#C8C8D0]', className)}>
+        <HoursRing share={status.isOpen ? hoursLeftShare(hours, now, closures) : null} play />
+        <span className="truncate">
+          <span className="text-text-primary">
+            {status.isOpen ? 'Open' : status.closedToday ? 'Closed today' : 'Closed'}
+          </span>
+          {status.detail && ` · ${status.detail}`}
+        </span>
+      </span>
+    )
+  }
 
   return (
     <span

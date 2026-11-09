@@ -25,10 +25,19 @@ export function NextFreeRow({
   vendor,
   mode,
   visible,
+  serviceIds,
+  className,
 }: {
   vendor: Vendor
   mode: BookingType
   visible: boolean
+  /**
+   * The services already picked, on the garage page: a time then opens the
+   * booking with them, as Book now would, rather than with the garage's
+   * first service.
+   */
+  serviceIds?: readonly string[]
+  className?: string
 }) {
   const next = useNextFree(vendor.id, mode, visible)
   const [picked, setPicked] = useState<string | null>(null)
@@ -40,7 +49,7 @@ export function NextFreeRow({
   const modeParam = bookingTypeParam(mode)
 
   return (
-    <div className="flex flex-col gap-2 px-3.5 pb-3.5 pt-0.5">
+    <div className={cn('flex flex-col gap-2 px-3.5 pb-3.5 pt-0.5', className)}>
       <p className="flex items-center gap-1.5">
         <IconClock size={14} aria-hidden className="text-success drop-shadow-[0_0_4px_rgb(34_197_94/0.5)]" />
         <span className="text-over font-semibold uppercase text-[#9A9AA3]">Next free</span>
@@ -50,6 +59,7 @@ export function NextFreeRow({
       <div className="flex gap-2">
         {free.times.map((time, i) => {
           const query = new URLSearchParams()
+          if (serviceIds && serviceIds.length > 0) query.set('service', serviceIds.join(','))
           if (modeParam) query.set('mode', modeParam)
           query.set('slot', time)
           return (

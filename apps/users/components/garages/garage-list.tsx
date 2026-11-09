@@ -64,6 +64,7 @@ import { MapPeek } from './map-peek'
 import { QuickLook } from './quick-look'
 import { RollingHint } from './rolling-hint'
 import { ShowroomCard } from './showroom-card'
+import { PullToRefresh } from '@/components/moments/pull-to-refresh'
 
 /**
  * The first page the landing page renders on the server: At garage, every
@@ -560,8 +561,10 @@ export function GarageList({
           <AtHomeLine onSwitch={() => switchTo('doorstep')} />
         )}
 
-        {/* Dimmed rather than replaced while a new filter loads. The delay
-            means a quick answer never dims at all; the return is immediate. */}
+        {/* Pull the list down to ask again now (moment 6). Dimmed rather
+            than replaced while a new filter loads. The delay means a quick
+            answer never dims at all; the return is immediate. */}
+        <PullToRefresh onRefresh={retry}>
         <div
           aria-busy={isRefreshing || undefined}
           className={cn(
@@ -667,6 +670,7 @@ export function GarageList({
           )}
           {ending}
         </div>
+        </PullToRefresh>
       </section>
 
       <GarageSeenWatcher mode={serviceMode} />

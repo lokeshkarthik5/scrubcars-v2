@@ -352,6 +352,155 @@
   }
 }
 
+/* ─── Stage 2: the finish on shared parts (customer UI round, §1, §7) ────── */
+
+@layer components {
+  /* Every card surface of the customer app takes the lit edge. In the
+     components layer, so a card's own border colour (a red hairline on a
+     booking that needs an answer) still wins as a utility. */
+  .finish .hub-card {
+    border: 1px solid transparent;
+    background:
+      linear-gradient(180deg, #17171b, #111114) padding-box,
+      linear-gradient(180deg, rgb(255 255 255 / 0.2), rgb(255 255 255 / 0.04) 38%, rgb(255 255 255 / 0.08)) border-box;
+    box-shadow: 0 22px 40px -24px rgb(0 0 0 / 0.95);
+  }
+}
+
+/* Every bottom sheet of the customer website is glass (§1, "Materials"):
+   it floats over the page, which shows through it, blurred. Unlayered, so
+   it is over the sheet's own flat fill. */
+.finish .sc-sheet {
+  border-top: 1px solid rgb(255 255 255 / 0.16);
+  border-radius: 28px 28px 0 0;
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.12), rgb(255 255 255 / 0.03)), rgb(16 16 20 / 0.88);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  backdrop-filter: blur(24px) saturate(1.6);
+}
+
+/* No sweep of light on any card either (the owner rejected the shine): the
+   Shine Card's and the collectible cards' sheens stay hidden. */
+.finish .shine-card::after,
+.finish .garage-card__sheen,
+.finish .premium-card__sheen {
+  display: none;
+  animation: none;
+}
+
+/* The sign-in code boxes (moment 10, sc/otp-input.tsx): recessed boxes, a
+   red light under each that switches on as its digit goes in; with the
+   sixth, a light sweeps across and the boxes join into one tick. Only here:
+   the garage portal's code screen keeps its look. The boxes stay in the
+   page while joined (focus stays on the last one, Backspace takes a digit
+   off and they part again), and a wrong code parts them at once. */
+.finish .otp-box {
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, #0b0b0e, #121216) padding-box,
+    linear-gradient(180deg, rgb(0 0 0 / 0.7), rgb(255 255 255 / 0.11)) border-box;
+  box-shadow: inset 0 2px 6px rgb(0 0 0 / 0.6);
+  transition:
+    transform 0.35s cubic-bezier(0.65, 0, 0.35, 1),
+    opacity 0.3s;
+}
+.finish .otp-box:focus {
+  border-color: transparent;
+  box-shadow:
+    inset 0 2px 6px rgb(0 0 0 / 0.6),
+    0 0 0 1.5px rgb(255 255 255 / 0.55);
+}
+.finish .otp-light {
+  display: block;
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  width: 14px;
+  height: 2.5px;
+  margin-left: -7px;
+  border-radius: 2px;
+  pointer-events: none;
+  background: var(--color-red-light);
+  opacity: 0.18;
+  transition:
+    opacity 0.2s,
+    box-shadow 0.2s;
+}
+.finish .otp-cell[data-lit] .otp-light {
+  opacity: 1;
+  box-shadow:
+    0 0 6px rgb(255 45 74 / 0.95),
+    0 0 14px rgb(228 0 43 / 0.6);
+}
+.finish .otp-sweep {
+  display: block;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 60px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgb(255 90 110 / 0.5), transparent);
+  opacity: 0;
+}
+.finish .otp-boxes[data-joined] .otp-sweep {
+  animation: otp-sweep 0.5s ease both;
+}
+@keyframes otp-sweep {
+  from {
+    opacity: 1;
+    transform: translateX(-60px);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(260px);
+  }
+}
+.finish .otp-boxes[data-joined] .otp-box {
+  opacity: 0;
+  transform: translateX(var(--otp-to-centre, 0px)) scale(0.6);
+  transition-delay: 0.25s;
+}
+.finish .otp-boxes[data-joined] .otp-light {
+  opacity: 0;
+}
+.finish .otp-tick {
+  display: grid;
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 52px;
+  height: 52px;
+  margin-left: -26px;
+  place-items: center;
+  border-radius: 50%;
+  pointer-events: none;
+  color: #fff;
+  opacity: 0;
+  transform: scale(0.4);
+  transition:
+    opacity 0.4s var(--ease-spring) 0.3s,
+    transform 0.4s var(--ease-spring) 0.3s;
+  background: linear-gradient(180deg, #383840, #1d1d23);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.25),
+    0 0 0 2px rgb(255 45 74 / 0.6),
+    0 0 22px rgb(228 0 43 / 0.5);
+}
+.finish .otp-boxes[data-joined] .otp-tick {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .finish :is(.otp-box, .otp-light, .otp-tick) {
+    transition: none;
+  }
+  .finish .otp-boxes[data-joined] .otp-sweep {
+    animation: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .finish :is(.fx-press, .fx-red-light) {
     transition: none;

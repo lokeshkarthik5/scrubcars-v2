@@ -13,22 +13,22 @@ interface TopBarProps {
   /** Centers the title between the back button and the right slot. */
   center?: boolean
   /**
-   * The Home hub's large light title (HUB_TITLE_CLASS) instead of the bold
-   * 18px one: the customer app's top-level screens while NEXT_PUBLIC_HOME_HUB
-   * is on. Not with `center`.
+   * The page title (HUB_TITLE_CLASS) instead of the bold 18px one: the
+   * customer app's top-level screens while NEXT_PUBLIC_HOME_HUB is on. Not
+   * with `center`.
    */
   large?: boolean
   className?: string
 }
 
 /**
- * The Home hub's page title: 34pt Inter Light, set tight, as on the approved
- * Updates screen. Large type does the work bold does at 18px, so the screen
- * reads calm rather than loud. Never truncated: at a line height of 1.08 a
- * clipped box would shave the tail off a "g".
+ * The customer app's page title on its top-level screens: the finish's type
+ * scale (customer UI round, Nov 2026, §1), 24/600 at −0.02em, the same
+ * weight as a garage's name on its page. It was 34pt Inter Light. Never
+ * truncated, so a long title wraps rather than losing its end.
  */
 export const HUB_TITLE_CLASS =
-  'text-[34px] leading-[1.08] font-light tracking-[-0.03em] text-text-primary'
+  'text-[24px] leading-[1.25] font-semibold tracking-[-0.02em] text-text-primary'
 
 // A 44px touch target around a 22px arrow. The negative margin gives back
 // the extra size, so the bar's height and the title's position don't move.

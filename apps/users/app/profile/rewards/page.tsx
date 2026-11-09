@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'react-toastify'
@@ -54,6 +54,33 @@ import { LevelBadge } from '@/components/rewards/level-badge'
 import { ScratchCardPanel } from '@/components/rewards/scratch-card'
 import { StampStars } from '@/components/rewards/stamp-stars'
 import { isHomeHubEnabled } from '@/lib/home-hub'
+import { useSeenOnce } from '@repo/ui/finish/motion'
+import { useCountUp } from '@repo/ui/finish/odometer'
+
+/**
+ * A level card's figure, counting up once from nothing as the card comes
+ * into view, like an odometer's wheels (moment 9). Read as the settled
+ * figure; the frames are drawn. `format` writes it ("₹1,200", "14").
+ */
+function CountUpFigure({
+  value,
+  format,
+  className,
+}: {
+  value: number
+  format: (n: number) => string
+  className?: string
+}) {
+  const ref = useRef<HTMLSpanElement>(null)
+  const seen = useSeenOnce(ref)
+  const frame = Number(useCountUp(value, 0, seen))
+  return (
+    <span ref={ref} className={cn('font-numeric', className)}>
+      <span className="sr-only">{format(value)}</span>
+      <span aria-hidden="true">{format(frame)}</span>
+    </span>
+  )
+}
 
 const VOUCHER_STATE_LABELS: Record<RewardVoucher['state'], string> = {
   available: 'Ready',
@@ -352,8 +379,8 @@ function RewardsBody({
               <p className="text-t5 text-text-secondary">
                 Saved with rewards
               </p>
-              <p className="mt-1 font-numeric text-[22px] font-semibold leading-none text-text-primary">
-                {rewardRupees(view.lifetime.saved)}
+              <p className="mt-1 text-[22px] font-semibold leading-none text-text-primary">
+                <CountUpFigure value={Math.round(Number(view.lifetime.saved))} format={rewardRupees} />
               </p>
             </div>
             <div className="rounded-[14px] border border-border bg-surface px-3.5 py-3">
@@ -362,15 +389,16 @@ function RewardsBody({
                   ? `Washes since ${view.lifetime.since}`
                   : 'Washes'}
               </p>
-              <p className="mt-1 font-numeric text-[22px] font-semibold leading-none text-text-primary">
-                {view.lifetime.washes.toLocaleString('en-IN')}
+              <p className="mt-1 text-[22px] font-semibold leading-none text-text-primary">
+                <CountUpFigure value={view.lifetime.washes} format={(n) => n.toLocaleString('en-IN')} />
               </p>
             </div>
           </div>
         )}
         <div
           className={cn(
-            'level-card flex flex-col gap-3 rounded-[14px] px-4 py-4',
+            // Brushed metal in the level's colour (moment 9).
+            'level-card mo-metal flex flex-col gap-3 rounded-[18px] px-4 py-4',
             `level-card--${level.level}`
           )}
         >
@@ -380,8 +408,8 @@ function RewardsBody({
               label={level.label}
               className="px-2.5 py-1 text-t4"
             />
-            <span className="font-numeric text-t5 text-text-secondary">
-              {level.bookings} in 12 months
+            <span className="text-t5 text-text-secondary">
+              <CountUpFigure value={level.bookings} format={String} /> in 12 months
             </span>
           </div>
           <p className="text-[14px] font-medium text-text-primary">
@@ -393,8 +421,9 @@ function RewardsBody({
                 className="h-[6px] w-full overflow-hidden rounded-full bg-white/10"
                 aria-hidden
               >
+                {/* Fills to the level once, from the left. */}
                 <div
-                  className="level-card__fill h-full rounded-full"
+                  className="level-card__fill mo-fill-once h-full rounded-full"
                   style={{ width: `${Math.max(4, Math.min(100, progress))}%` }}
                 />
               </div>

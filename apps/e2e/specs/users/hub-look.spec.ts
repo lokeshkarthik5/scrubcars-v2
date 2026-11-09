@@ -2,7 +2,7 @@
  * The Home hub's look on the rest of the customer app (NEXT_PUBLIC_HOME_HUB is
  * on in .env.e2e and in CI's build): the floating pill nav on every screen
  * that has a nav, with the right item lit, and the red hero pill on a
- * screen's one main action — the garage page's Book Now, checkout's Pay, a
+ * screen's one main action — the garage page's Book now, checkout's Pay, a
  * final bill's Pay, the add-car sheet's Save car and the add-address sheet's
  * Save address — solid red, with no shine (the customer UI round, Nov 2026,
  * took the sweep off every button).
@@ -102,15 +102,17 @@ test.describe('the floating nav, app-wide @p0', () => {
       .toBe(true)
   })
 
-  test("the top-level titles are the hub's large light ones", async ({ page }) => {
+  // On the finish's type scale (customer UI round, Nov 2026): the page
+  // title is 24/600. It was the hub's 34pt light.
+  test('the top-level titles are page titles on the type scale', async ({ page }) => {
     for (const [path, title] of [
       ['/bookings', 'Bookings'],
       ['/profile', 'Profile'],
     ]) {
       await page.goto(path)
       const heading = page.getByRole('heading', { level: 1, name: title })
-      await expect(heading).toHaveCSS('font-size', '34px')
-      await expect(heading).toHaveCSS('font-weight', '300')
+      await expect(heading).toHaveCSS('font-size', '24px')
+      await expect(heading).toHaveCSS('font-weight', '600')
     }
   })
 })
@@ -118,7 +120,7 @@ test.describe('the floating nav, app-wide @p0', () => {
 test.describe('one red hero action per screen @p0', () => {
   test.use({ storageState: asRole('customer-browse') })
 
-  test("the garage page's Book Now, once something is picked", async ({ page }) => {
+  test("the garage page's Book now, once something is picked", async ({ page }) => {
     const garage = new GaragePage(page)
     await garage.goto(VENDORS.main.id)
     await expect(page.getByText(SERVICES.wash.name).first()).toBeVisible()
@@ -127,7 +129,7 @@ test.describe('one red hero action per screen @p0', () => {
     await garage.add(SERVICES.wash.name)
     await expect(page.locator('.cta-hero')).toHaveCount(1)
     await expect(garage.bookButton()).toHaveClass(/cta-hero/)
-    await expect(garage.bookButton()).toHaveAccessibleName('Book Now')
+    await expect(garage.bookButton()).toHaveAccessibleName('Book now')
   })
 
   test("the garage page's Add buttons are not red beside it", async ({ page }) => {
@@ -135,9 +137,11 @@ test.describe('one red hero action per screen @p0', () => {
     await garage.goto(VENDORS.main.id)
     const add = garage.addButton(SERVICES.wash.name)
     await expect(add).toBeVisible()
-    // Graphite outline: Book Now's gradient is the page's one red.
+    // Graphite with a red light, never a red fill: Book now's gradient is
+    // the page's one solid red.
     await expect(add).not.toHaveCSS('background-color', 'rgb(228, 0, 43)')
     await expect(add).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+    await expect(add).not.toHaveClass(/cta-hero/)
   })
 
   test("checkout's Pay, once nothing is left to pick; the add-car sheet's Save car", async ({ page }) => {

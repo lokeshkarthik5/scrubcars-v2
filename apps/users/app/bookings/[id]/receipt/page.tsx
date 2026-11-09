@@ -222,7 +222,12 @@ export default function BookingReceiptPage({ params }: { params: Promise<{ id: s
         </p>
       </div>
 
-      <ReceiptDocument receipt={receipt} />
+      {/* The slot the receipt prints out of, line by line (moment 12):
+          the screen's only; the paper is never animated. */}
+      <span aria-hidden="true" className="mo-slot relative z-[1] mx-3 mt-4 block print:hidden" />
+      <div className="-mt-[5px] overflow-hidden px-2 print:mt-0 print:overflow-visible print:px-0">
+        <ReceiptDocument receipt={receipt} />
+      </div>
     </main>
   )
 }
@@ -278,7 +283,7 @@ function ReceiptDocument({ receipt }: { receipt: BookingReceipt }) {
   return (
     <article
       aria-label={`Payment receipt ${receipt.receiptNumber}`}
-      className="receipt-doc mt-4 flex flex-col gap-5 rounded-2xl bg-white px-5 py-6 text-brand-rich sm:px-10 sm:py-10 print:mt-0 print:rounded-none print:p-0"
+      className="receipt-doc mo-print flex flex-col gap-5 rounded-b-2xl bg-white px-5 py-6 text-brand-rich sm:px-10 sm:py-10 print:mt-0 print:rounded-none print:p-0"
     >
       {/* Stacked on a phone, where the address needs the full width; side by
           side from sm up, which includes the printed page. */}
