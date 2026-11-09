@@ -20,24 +20,93 @@ export interface Point {
 /** The peek's map: a square plane larger than the card, so its tilt never shows an edge. */
 export const PEEK_PLANE_PX = 520
 
+/** The zooms the peek may use: a neighbourhood down to the whole city. */
+export const PEEK_MAX_ZOOM = 15
+export const PEEK_MIN_ZOOM = 10
+
 /**
- * The zoom the peek is drawn at: the closest whole-ish zoom at which every
- * point sits inside the plane's middle `reach` (0–1) around `centre`, so
- * the dots spread over the card rather than bunch or fall off it. Kept to a
- * neighbourhood-to-city range (11–15).
+ * What the customer sees of the tilted plane: the card's size, where the
+ * plane's middle (the customer) is pinned on it, the CSS perspective and its
+ * eye, the tilt, and the margins a dot must keep clear of (the dark fade at
+ * the top, the two glass chips at the bottom, the rounded sides).
  */
-export function peekZoom(centre: LatLng, points: readonly LatLng[], reach = 0.36): number {
-  const at = (zoom: number) => worldPixel(centre, zoom)
-  for (let zoom = 15; zoom > 11; zoom -= 0.25) {
-    const c = at(zoom)
-    const fits = points.every((p) => {
-      const q = worldPixel(p, zoom)
-      return Math.abs(q.x - c.x) <= PEEK_PLANE_PX * reach && Math.abs(q.y - c.y) <= PEEK_PLANE_PX * reach
-    })
-    if (fits) return zoom
-  }
-  return 11
+export interface PeekFrame {
+  width: number
+  height: number
+  anchorY: number
+  eyeY: number
+  perspective: number
+  tilt: number
+  inset: { top: number; right: number; bottom: number; left: number }
 }
+
+/**
+ * Where a point lands on the card, or null when it is so far towards the
+ * viewer that it is behind the eye (the perspective has no picture of it).
+ */
+export function peekScreenPoint(
+  point: LatLng,
+  centre: LatLng,
+  zoom: number,
+  frame: PeekFrame,
+  drift = 0
+): Point | null {
+  const offset = planePoint(point, centre, zoom, { x: 0, y: 0 })
+  const z = offset.y * Math.sin((frame.tilt * Math.PI) / 180)
+  if (z >= frame.perspective * 0.8) return null
+  return tiltProject(
+    offset,
+    { x: frame.width / 2, y: frame.anchorY + drift },
+    frame.tilt,
+    frame.perspective,
+    { x: frame.width / 2, y: frame.eyeY }
+  )
+}
+
+/** Whether a projected point is inside the card's clear area (grown by `slack` px each side). */
+export function inPeekFrame(at: Point | null, frame: PeekFrame, slack = 0): at is Point {
+  return (
+    !!at &&
+    at.x >= frame.inset.left - slack &&
+    at.x <= frame.width - frame.inset.right + slack &&
+    at.y >= frame.inset.top - slack &&
+    at.y <= frame.height - frame.inset.bottom + slack
+  )
+}
+
+/**
+ * The zoom the peek is drawn at: the closest zoom (in quarter steps, within
+ * the neighbourhood-to-city range) at which every garage, projected through
+ * the tilt exactly as it is drawn, lands inside the card's clear area. Where
+ * no zoom shows them all (garages spread across the city), the closest zoom
+ * that shows the most of them, so the ones around the customer are there;
+ * the rest are off the card. With none that ever fit, the city view.
+ */
+export function peekZoom(centre: LatLng, points: readonly LatLng[], frame: PeekFrame): number {
+  const shownAt = (zoom: number) => {
+    let count = 0
+    for (const p of points) if (inPeekFrame(peekScreenPoint(p, centre, zoom, frame), frame)) count++
+    return count
+  }
+  let best = PEEK_MAX_ZOOM
+  let bestCount = -1
+  for (let zoom = PEEK_MAX_ZOOM; zoom >= PEEK_MIN_ZOOM; zoom -= 0.25) {
+    const count = shownAt(zoom)
+    if (count > bestCount) {
+      best = zoom
+      bestCount = count
+    }
+    if (count === points.length) break
+  }
+  if (bestCount <= 0) return points.length === 0 ? PEEK_MAX_ZOOM : PEEK_MIN_ZOOM
+  // Half a step further out, when that keeps every one of them: the dots
+  // then sit inside the card rather than along its edges.
+  const roomy = Math.max(PEEK_MIN_ZOOM, best - PEEK_ROOM)
+  return shownAt(roomy) >= bestCount ? roomy : best
+}
+
+/** How much further out than the tightest fit the peek is drawn. */
+const PEEK_ROOM = 0.5
 
 /** Where a point sits on the plane, in plane pixels, with `centre` at `anchor`. */
 export function planePoint(point: LatLng, centre: LatLng, zoom: number, anchor: Point): Point {

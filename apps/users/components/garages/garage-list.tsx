@@ -653,7 +653,7 @@ export function GarageList({
                       checkout open on the choice made here. The wrapper is
                       what Behaviour's "Saw a garage" watches. */}
                   {animateCards ? (
-                    <Reveal index={i}>
+                    <Reveal index={Math.min(i, 2)}>
                       <div data-garage-card="">{card(vendor)}</div>
                     </Reveal>
                   ) : (

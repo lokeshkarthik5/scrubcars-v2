@@ -8,15 +8,13 @@ import { Skeleton } from '@repo/ui/sc/skeleton'
  * on a blank screen. Most opens skip it entirely: a card's press already
  * started the garage's read, and the list's copy of the garage paints the
  * top of the page straight away (useGarage's placeholder). When a card is
- * growing into the page (lib/view-transition.ts), this is what it grows
- * into, so the morph never waits on the garage (`data-vt-garage`).
+ * growing into the page (lib/view-transition.ts), this is what is drawn
+ * inside the growing box at first (layout.tsx), so the morph never waits on
+ * the garage.
  */
 export default function GarageLoading() {
   return (
-    <div
-      data-vt-garage=""
-      className="mx-auto flex min-h-dvh w-full max-w-[428px] flex-col bg-brand-black"
-    >
+    <div className="mx-auto flex min-h-dvh w-full max-w-[428px] flex-col bg-brand-black">
       <main role="status" aria-busy="true" className="flex flex-1 flex-col">
         <span className="sr-only">Loading</span>
         <Skeleton className="h-[340px] w-full rounded-none" />

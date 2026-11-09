@@ -1,14 +1,17 @@
 import { describe, expect, test } from 'bun:test'
 import {
   ARC_STEPS,
-  PEEK_PLANE_PX,
+  PEEK_MIN_ZOOM,
   arcLift,
   groundCurve,
   pathThrough,
+  inPeekFrame,
+  peekScreenPoint,
   peekTilt,
   peekZoom,
   planePoint,
   tiltProject,
+  type PeekFrame,
 } from './map-3d'
 
 // Adyar, and garages around it.
@@ -16,22 +19,52 @@ const ADYAR = { lat: 13.0012, lng: 80.2565 }
 const NEAR = { lat: 13.0102, lng: 80.2465 }
 const MID = { lat: 13.0402, lng: 80.2565 }
 const FAR = { lat: 13.0827, lng: 80.2707 }
+// Further still: Tambaram, ~22 km south-west.
+const ACROSS = { lat: 12.9249, lng: 80.1 }
+
+/** The garages list's peek on a phone, settled open. */
+const FRAME: PeekFrame = {
+  width: 358,
+  height: 156,
+  anchorY: 72,
+  eyeY: 39,
+  perspective: 620,
+  tilt: 52,
+  inset: { top: 36, right: 16, bottom: 46, left: 16 },
+}
 
 describe('the map peek', () => {
-  test('zooms out until every garage is on the plane, within the city range', () => {
-    const close = peekZoom(ADYAR, [NEAR])
-    const wide = peekZoom(ADYAR, [NEAR, MID])
+  test('zooms out until every garage lands on the card, within the city range', () => {
+    const close = peekZoom(ADYAR, [NEAR], FRAME)
+    const wide = peekZoom(ADYAR, [NEAR, MID], FRAME)
     expect(close).toBeGreaterThan(wide)
     expect(close).toBeLessThanOrEqual(15)
-    // At the zoom chosen, the farther garage is inside the plane's middle.
-    const p = planePoint(MID, ADYAR, wide, { x: 0, y: 0 })
-    expect(Math.abs(p.y)).toBeLessThanOrEqual(PEEK_PLANE_PX * 0.36)
-    // A garage across the city: no further out than the city view.
-    expect(peekZoom(ADYAR, [FAR])).toBe(11)
+    // At the zoom chosen, both garages are drawn inside the card's clear area.
+    for (const g of [NEAR, MID]) expect(inPeekFrame(peekScreenPoint(g, ADYAR, wide, FRAME), FRAME)).toBe(true)
+    // Drawn half a zoom out from the tightest fit, so a little closer than
+    // that and one of them would be off the card.
+    const closer = [NEAR, MID].map((g) => inPeekFrame(peekScreenPoint(g, ADYAR, wide + 0.75, FRAME), FRAME))
+    expect(closer).toContain(false)
+  })
+
+  test('garages across the city: the nearest stay on the card, the rest are left off it', () => {
+    const zoom = peekZoom(ADYAR, [NEAR, MID, ACROSS], FRAME)
+    expect(zoom).toBeGreaterThanOrEqual(PEEK_MIN_ZOOM)
+    expect(inPeekFrame(peekScreenPoint(NEAR, ADYAR, zoom, FRAME), FRAME)).toBe(true)
+    expect(inPeekFrame(peekScreenPoint(MID, ADYAR, zoom, FRAME), FRAME)).toBe(true)
+    expect(inPeekFrame(peekScreenPoint(ACROSS, ADYAR, zoom, FRAME), FRAME)).toBe(false)
+    // Only garages that can never fit: the city view.
+    expect(peekZoom(ADYAR, [ACROSS], FRAME)).toBe(PEEK_MIN_ZOOM)
   })
 
   test('with no garages it stays at street level', () => {
-    expect(peekZoom(ADYAR, [])).toBe(15)
+    expect(peekZoom(ADYAR, [], FRAME)).toBe(15)
+  })
+
+  test('a point behind the eye has no picture, and is never on the card', () => {
+    const south = { lat: ADYAR.lat - 0.5, lng: ADYAR.lng }
+    expect(peekScreenPoint(south, ADYAR, 15, FRAME)).toBeNull()
+    expect(inPeekFrame(null, FRAME)).toBe(false)
   })
 
   test('the customer is the anchor; north is up and east is right', () => {

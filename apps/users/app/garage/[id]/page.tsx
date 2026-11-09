@@ -164,7 +164,7 @@ function PaneHeading({ id, title, count }: { id?: string; title: string; count: 
  *
  * Opened from a list card it is the card grown into the page (the container
  * transform, lib/view-transition.ts), and Back folds it into the card again.
- * The whole page is that one shared box (`data-vt-garage`).
+ * The whole page is that one shared box (layout.tsx, `data-vt-garage`).
  */
 export default function GaragePage({
   params,
@@ -433,7 +433,8 @@ export default function GaragePage({
     morphNavigate({
       name: 'vt-garage',
       direction: 'back',
-      from: pageRef.current,
+      // The box around the page (layout.tsx), the one the card grew into.
+      from: pageRef.current?.closest<HTMLElement>('[data-vt-garage]') ?? null,
       to: () => document.querySelector<HTMLElement>(`[data-vt-card="${id}"]`),
       navigate: () => router.back(),
     })
@@ -521,10 +522,7 @@ export default function GaragePage({
 
   if (!vendor) {
     return (
-      <div
-        data-vt-garage=""
-        className="mx-auto flex min-h-dvh w-full max-w-[428px] flex-col bg-brand-black"
-      >
+      <div className="mx-auto flex min-h-dvh w-full max-w-[428px] flex-col bg-brand-black">
         <main className="flex flex-1 flex-col items-center justify-center px-4 py-4">
           {garage.isError && !garage.isFetching ? (
             // A failed load said "Loading…" for ever. This one can be retried.
@@ -590,7 +588,6 @@ export default function GaragePage({
   return (
     <div
       ref={pageRef}
-      data-vt-garage={vendor.id}
       className="mx-auto flex min-h-dvh w-full max-w-[428px] flex-col bg-brand-black"
     >
       {/* Back and the heart float on the photo, on glass; past the hero a

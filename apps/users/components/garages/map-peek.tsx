@@ -10,11 +10,11 @@ import type { BookingType, Vendor } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
 import {
   PEEK_PLANE_PX,
+  inPeekFrame,
+  peekScreenPoint,
   peekTilt,
   peekZoom,
-  planePoint,
-  tiltProject,
-  type Point,
+  type PeekFrame,
 } from '@/lib/map-3d'
 import type { LatLng } from '@/lib/map-view'
 import { whenIdle } from '@/lib/when-idle'
@@ -30,11 +30,31 @@ const ANCHOR_Y = 72
 const PERSPECTIVE = 620
 const EYE_Y = CARD_HEIGHT * 0.25
 const HALF = PEEK_PLANE_PX / 2
+/** The tilt the peek settles at, before any scroll. */
+const OPEN_TILT = 52
+
+/**
+ * The card as the customer sees it once open, `width` wide: the clear area a
+ * dot must land in keeps below the dark fade at the top (a dot higher up is
+ * all but hidden by it) and above the two glass chips at the bottom.
+ */
+function peekFrame(width: number): PeekFrame {
+  return {
+    width,
+    height: CARD_HEIGHT,
+    anchorY: ANCHOR_Y,
+    eyeY: EYE_Y,
+    perspective: PERSPECTIVE,
+    tilt: OPEN_TILT,
+    inset: { top: 36, right: 16, bottom: 46, left: 16 },
+  }
+}
 
 /**
  * The map peek under the search (customer UI round, Nov 2026, §3): a small
- * dark map of the customer's area tilted back in 3D, every garage of the
- * current mode a red dot dropping in one after another, the customer a white
+ * dark map of the customer's area tilted back in 3D, the current mode's
+ * garages around them as red dots dropping in one after another (zoomed so
+ * they all land on the card; across a city too wide for it, the nearest), the customer a white
  * dot, the nearest garage tagged with its km, and "N garages near you" and
  * "Map ↗" on glass. The whole card opens /map on the same mode and category.
  * It tilts a little further, and the map drifts, as the list scrolls.
@@ -75,7 +95,15 @@ export function MapPeek({
     () => vendors.filter((v): v is Vendor & { lat: number; lng: number } => v.lat != null && v.lng != null),
     [vendors]
   )
-  const zoom = useMemo(() => peekZoom(centre, pinned), [centre, pinned])
+  // The zoom and the dots shown are fitted to the card as it settles (open,
+  // unscrolled), so the garages around the customer are all on it; garages
+  // that would land off the card (across the city) are left out.
+  const frame = useMemo(() => peekFrame(width), [width])
+  const zoom = useMemo(() => peekZoom(centre, pinned, frame), [centre, pinned, frame])
+  const shown = useMemo(
+    () => pinned.filter((v) => inPeekFrame(peekScreenPoint(v, centre, zoom, frame), frame, 8)),
+    [pinned, centre, zoom, frame]
+  )
   const nearestId = useMemo(() => {
     if (!origin) return null
     let best: { id: string; km: number } | null = null
@@ -143,13 +171,12 @@ export function MapPeek({
 
   const tilt = peekTilt(opened, scrollY)
   const drift = reduce ? 0 : Math.min(40, scrollY * 0.3)
-  const origin3d: Point = { x: width / 2, y: ANCHOR_Y + drift }
-  const eye: Point = { x: width / 2, y: EYE_Y }
-  const place = (point: LatLng) =>
-    tiltProject(planePoint(point, centre, zoom, { x: 0, y: 0 }), origin3d, tilt, PERSPECTIVE, eye)
+  const now = { ...frame, tilt }
+  const place = (point: LatLng) => peekScreenPoint(point, centre, zoom, now, drift)
 
   // Dots drop in north to south, the way the mockup reads.
-  const order = [...pinned].sort((a, b) => b.lat - a.lat)
+  const order = [...shown].sort((a, b) => b.lat - a.lat)
+  const me = origin ? place(origin) : null
   const dropped = reduce || opened > 0.5
 
   const query = new URLSearchParams({ bookingType: mode })
@@ -184,7 +211,9 @@ export function MapPeek({
       <span aria-hidden="true" className="pointer-events-none absolute inset-0">
         {order.map((vendor, i) => {
           const at = place(vendor)
+          if (!at) return null
           const near = vendor.id === nearestId
+          const settled = near ? peekScreenPoint(vendor, centre, zoom, frame) : null
           return (
             <span key={vendor.id} className="absolute size-0" style={{ left: at.x, top: at.y }}>
               <span
@@ -194,7 +223,18 @@ export function MapPeek({
                 <span className="map-peek__shadow" />
                 <span className="map-peek__dot" />
                 {near && vendor.distanceKm != null && (
-                  <span className="fx-glass absolute -top-[42px] left-0 -translate-x-1/2 whitespace-nowrap rounded-[10px] px-2 py-1.5 font-numeric text-[12px] font-semibold leading-none text-white">
+                  <span
+                    className={cn(
+                      'fx-glass absolute whitespace-nowrap rounded-[10px] px-2 py-1.5 font-numeric text-[12px] font-semibold leading-none text-white',
+                      // Over the dot; beside it, on the side away from the
+                      // customer's dot, when over it would be under the top fade.
+                      !settled || settled.y >= 52
+                        ? '-top-[42px] left-0 -translate-x-1/2'
+                        : settled.x < width / 2
+                          ? '-top-[18px] right-[10px]'
+                          : '-top-[18px] left-[10px]'
+                    )}
+                  >
                     {vendor.distanceKm.toFixed(1)} km
                   </span>
                 )}
@@ -202,8 +242,8 @@ export function MapPeek({
             </span>
           )
         })}
-        {origin && (
-          <span className="absolute size-0" style={{ left: place(origin).x, top: place(origin).y }}>
+        {me && (
+          <span className="absolute size-0" style={{ left: me.x, top: me.y }}>
             <span className={cn('map-peek__me', dropped && 'map-peek__me--in')} />
           </span>
         )}

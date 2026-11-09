@@ -16,22 +16,32 @@
  * allows as the fallback.
  */
 
+/**
+ * The entrances a morph stands in for (globals.css holds them while
+ * html[data-vt] is set): the route's fade-in, the list's arrival wave and the
+ * garage page's rising sections. Marked once a morph has played, so lifting
+ * the hold does not start them again.
+ */
+const HELD_ENTRANCES = '.page-enter, .reveal, .gp-sec'
+
 /** The two shared elements, one per pair of screens. */
 export type MorphName = 'vt-garage' | 'vt-booking'
 
 /**
- * How long to wait for the next screen's element before morphing without
- * it. The screen stays frozen on its old picture while the wait lasts. An
- * open goes to a page that draws its partner as soon as the route arrives
- * (garage/[id]/loading, the booking page's own box), so it can wait for the
- * route. A Back returns to a screen the router already has, so its partner
- * is drawn within a frame or two or not at all (the list scrolled or
- * re-fetched): a short wait, then it lets go.
+ * How long to wait for the next screen's element before letting go. While
+ * the wait lasts the browser paints nothing new (the screen holds its old
+ * picture), and a wait the browser thinks too long (4s in Chrome) aborts the
+ * transition with the screen frozen all the while, so it is kept short. An
+ * open goes to a page whose partner is drawn as soon as the route arrives
+ * (garage/[id]/layout around the page or its loading shape, prefetched with
+ * the card; the booking page's own box), a Back to a screen the router already has: either is there in a few
+ * frames when it is coming at all. When it is not (an open whose route was
+ * never prefetched, a list that scrolled or re-fetched), the morph is
+ * skipped and the switch is the plain, instant one.
  */
-const OPEN_ARRIVAL_MS = 1500
-const BACK_ARRIVAL_MS = 250
+export const ARRIVAL_MS = 200
 
-type ViewTransitionLike = { finished: Promise<void> }
+type ViewTransitionLike = { finished: Promise<void>; skipTransition?: () => void }
 type StartViewTransition = (update: () => Promise<void>) => ViewTransitionLike
 
 /** Whether this browser can morph, and the customer has not asked for less motion. */
@@ -41,24 +51,70 @@ export function canMorph(): boolean {
   return !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 }
 
-/** Resolves once `find` returns an element (the next screen has rendered), or after the timeout. */
-function arrival(find: () => HTMLElement | null, timeoutMs: number): Promise<HTMLElement | null> {
+/**
+ * Resolves with the next screen's element once `find` returns it, or with
+ * null after `timeoutMs`.
+ *
+ * It watches the DOM and a timer, never animation frames: while a view
+ * transition's update is pending the browser does not render, so
+ * requestAnimationFrame never fires and a wait built on it never ends (the
+ * transition then times out after 4s, the screen frozen the whole time).
+ */
+export function arrival(
+  find: () => HTMLElement | null,
+  timeoutMs: number,
+  root: Node | null = typeof document === 'undefined' ? null : document.documentElement
+): Promise<HTMLElement | null> {
   return new Promise((resolve) => {
-    const started = performance.now()
-    const look = () => {
-      const found = find()
-      if (found || performance.now() - started > timeoutMs) resolve(found)
-      else requestAnimationFrame(look)
+    const first = find()
+    if (first || !root || typeof MutationObserver === 'undefined') {
+      if (first || !root) resolve(first)
+      else setTimeout(() => resolve(find()), timeoutMs)
+      return
     }
-    requestAnimationFrame(look)
+    let done = false
+    const finish = (found: HTMLElement | null) => {
+      if (done) return
+      done = true
+      observer.disconnect()
+      clearTimeout(timer)
+      resolve(found)
+    }
+    const observer = new MutationObserver(() => {
+      const found = find()
+      if (found) finish(found)
+    })
+    // New elements, and attributes put on ones kept (the booking bar's mark).
+    observer.observe(root, { childList: true, subtree: true, attributes: true })
+    const timer = setTimeout(() => finish(find()), timeoutMs)
   })
+}
+
+/**
+ * Cuts a shared box taller than the screen (a whole page) to the screen for
+ * the length of the morph; returns the undo. The browser morphs the box's
+ * own rectangle: a page 3000px tall made the card shoot past the bottom of
+ * the screen in the first few frames, a dark wipe rather than a card
+ * growing, and Back fold a tower into the card. Cut to the screen, the card
+ * grows into exactly what the customer is about to see.
+ */
+function fitToScreen(el: HTMLElement): () => void {
+  if (el.offsetHeight <= window.innerHeight) return () => {}
+  const { maxHeight, overflow } = el.style
+  el.style.maxHeight = '100dvh'
+  el.style.overflow = 'clip'
+  return () => {
+    el.style.maxHeight = maxHeight
+    el.style.overflow = overflow
+  }
 }
 
 /**
  * Navigates with the container transform: `from` is the element on screen
  * now (the card, the booking bar, the page), `to` finds its partner on the
  * next screen once it has rendered. `direction` picks the open or the back
- * timing (540ms in, 420ms back). Falls back to `navigate()` alone.
+ * timing (540ms in, 420ms back). Falls back to `navigate()` alone, and to the
+ * instant switch when the partner is not there within ARRIVAL_MS.
  */
 export function morphNavigate({
   name,
@@ -73,28 +129,61 @@ export function morphNavigate({
   to: () => HTMLElement | null
   navigate: () => void
 }): void {
-  if (!from || !canMorph()) {
+  if (!from || !from.isConnected || !canMorph()) {
     navigate()
     return
   }
   const root = document.documentElement
+  // A whole page leaving (a Back) is photographed from its top, the part
+  // that folds into the card or the bar it came from.
+  if (from.offsetHeight > window.innerHeight && window.scrollY > 0) window.scrollTo(0, 0)
+  const unfitFrom = fitToScreen(from)
   root.dataset.vt = `${name}-${direction}`
   from.style.setProperty('view-transition-name', name)
   let target: HTMLElement | null = null
+  let unfitTarget = () => {}
+  let morphed = false
+  let transition: ViewTransitionLike | null = null
   const start = (document as unknown as { startViewTransition: StartViewTransition }).startViewTransition.bind(
     document
   )
-  const transition = start(async () => {
-    // The old screen has been photographed: the name moves to the new one.
+  try {
+    transition = start(async () => {
+      // The old screen has been photographed: the name moves to the new one.
+      from.style.removeProperty('view-transition-name')
+      navigate()
+      target = await arrival(to, ARRIVAL_MS)
+      if (target && target !== from) {
+        unfitTarget = fitToScreen(target)
+        target.style.setProperty('view-transition-name', name)
+        morphed = true
+      } else {
+        // No partner in time: no morph, the plain switch at once.
+        transition?.skipTransition?.()
+      }
+    })
+  } catch {
     from.style.removeProperty('view-transition-name')
-    navigate()
-    target = await arrival(to, direction === 'back' ? BACK_ARRIVAL_MS : OPEN_ARRIVAL_MS)
-    target?.style.setProperty('view-transition-name', name)
-  })
-  transition.finished.finally(() => {
-    target?.style.removeProperty('view-transition-name')
+    unfitFrom()
     delete root.dataset.vt
-  })
+    navigate()
+    return
+  }
+  transition.finished
+    .catch(() => undefined)
+    .finally(() => {
+      target?.style.removeProperty('view-transition-name')
+      from.style.removeProperty('view-transition-name')
+      unfitTarget()
+      unfitFrom()
+      // The route's fade-in and the list's arrival wave were held while the
+      // morph stood in for them (globals.css, html[data-vt]); they are over,
+      // so they must not start now that the hold is lifted.
+      if (morphed) {
+        for (const el of document.querySelectorAll(HELD_ENTRANCES)) el.setAttribute('data-vt-entered', '')
+      }
+      delete root.dataset.vt
+    })
 }
 
 /*

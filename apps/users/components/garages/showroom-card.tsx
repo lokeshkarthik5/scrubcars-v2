@@ -27,6 +27,15 @@ import { NextFreeRow } from './next-free-row'
 /** How long a press must be held for the quick look. */
 const HOLD_MS = 450
 
+/**
+ * The garages whose card has played its arrival (the figures counting up,
+ * the car driving the road, the hours ring) this session. Kept outside the
+ * component because the card is made again whenever the list is (Back from
+ * a garage, a new page of results): a card already seen comes back calm,
+ * settled, rather than playing it all again. A reload starts afresh.
+ */
+const played = new Set<string>()
+
 function everyMinute(onChange: () => void) {
   const timer = window.setInterval(onChange, 60_000)
   return () => window.clearInterval(timer)
@@ -87,6 +96,13 @@ export function ShowroomCard({
   const reduce = usePrefersReducedMotion()
   const cardRef = useRef<HTMLElement>(null)
   const seen = useSeenOnce(cardRef)
+  // Decided once, as the card is made: whether it has played before.
+  const [firstTime] = useState(() => !played.has(vendor.id))
+  useEffect(() => {
+    if (seen) played.add(vendor.id)
+  }, [seen, vendor.id])
+  // The arrival plays on the first sighting only.
+  const play = seen && firstTime
   useDrift(cardRef, !reduce)
   const location = useHydratedLocation()
   const [photo, setPhoto] = useState(0)
@@ -114,10 +130,10 @@ export function ShowroomCard({
     : vendor.serviceTags.slice(0, 2).join(', ')
   const subline = [vendor.area, what].filter(Boolean).join(' · ')
 
-  const rating = useCountUp(vendor.rating, 1, seen)
+  const rating = useCountUp(vendor.rating, 1, play)
   const distanceValue = km === null ? null : km < 1 ? Math.round(km * 1000) : km
-  const distance = useCountUp(distanceValue ?? 0, km !== null && km < 1 ? 0 : 1, seen)
-  const price = useCountUp(vendor.startingPrice, 0, seen)
+  const distance = useCountUp(distanceValue ?? 0, km !== null && km < 1 ? 0 : 1, play)
+  const price = useCountUp(vendor.startingPrice, 0, play)
 
   // The garage page starts loading the moment a finger lands on the card.
   const warm = () => {
@@ -215,7 +231,7 @@ export function ShowroomCard({
   return (
     <article
       ref={cardRef}
-      data-seen={seen && !reduce ? '' : undefined}
+      data-seen={play && !reduce ? '' : undefined}
       data-lean={leaning ? '' : undefined}
       data-holding={holding ? '' : undefined}
       // Found by the garage page's Back, which folds into this card.
@@ -296,7 +312,7 @@ export function ShowroomCard({
 
           {status && (
             <span className="fx-glass pointer-events-none absolute left-3 top-3 inline-flex h-[30px] max-w-[calc(100%-4.5rem)] items-center gap-1.5 rounded-pill px-2.5 text-t4 font-medium text-white">
-              <HoursRing share={status.isOpen ? hoursLeft : null} play={seen && !reduce} />
+              <HoursRing share={status.isOpen ? hoursLeft : null} play={play && !reduce} />
               <span className="truncate">
                 {status.isOpen ? 'Open' : status.closedToday ? 'Closed today' : 'Closed'}
                 {status.detail && <span className="text-white/75"> · {status.detail}</span>}

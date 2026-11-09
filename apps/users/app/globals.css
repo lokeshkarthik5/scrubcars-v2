@@ -381,11 +381,17 @@
  * being drawn twice: the small side's picture goes the moment the big one
  * starts covering it, so text never sits on text.
  */
-html[data-vt] .page-enter {
+html[data-vt] .page-enter,
+.page-enter[data-vt-entered],
+html[data-vt] .gp-sec,
+.gp-sec[data-vt-entered] {
   animation: none;
 }
-/* The list behind comes back already in place, not rising card by card. */
-html[data-vt] .reveal {
+/* The list behind comes back already in place, not rising card by card.
+   [data-vt-entered]: once a morph has played, the hold stays (lifting it
+   would start the arrival again and blink the screen). */
+html[data-vt] .reveal,
+.reveal[data-vt-entered] {
   opacity: 1;
   transform: none;
   animation: none;
@@ -396,17 +402,43 @@ html[data-vt] .reveal {
   animation-duration: 540ms;
   animation-timing-function: cubic-bezier(0.05, 0.7, 0.1, 1);
 }
+/* The growing (or folding) box is opaque: the page's own black, rounded like
+   the card or the bar at the small end. Inside it the two pictures never
+   show together: the one leaving fades out fully before the one arriving
+   fades in, so no text is ever drawn over other text (the owner rejected
+   overlapping text in a transition). Outside it is only the screen behind,
+   never both screens at once. */
 ::view-transition-image-pair(vt-garage),
 ::view-transition-image-pair(vt-booking) {
   isolation: isolate;
+  overflow: clip;
+  background-color: #0a0a0b;
 }
-/* Open: the card's picture goes as the page grows over it; the page is
-   simply there inside the growing box, top-aligned to the card's top. */
+::view-transition-old(vt-garage),
+::view-transition-new(vt-garage),
+::view-transition-old(vt-booking),
+::view-transition-new(vt-booking) {
+  mix-blend-mode: normal;
+}
+html[data-vt='vt-garage-open']::view-transition-image-pair(vt-garage) {
+  animation: vt-box-open 540ms cubic-bezier(0.05, 0.7, 0.1, 1) both;
+}
+html[data-vt='vt-booking-open']::view-transition-image-pair(vt-booking) {
+  animation: vt-box-open 520ms cubic-bezier(0.05, 0.7, 0.1, 1) both;
+}
+html[data-vt='vt-garage-back']::view-transition-image-pair(vt-garage) {
+  animation: vt-box-back 420ms cubic-bezier(0.3, 0, 0.1, 1) both;
+}
+html[data-vt='vt-booking-back']::view-transition-image-pair(vt-booking) {
+  animation: vt-box-back 380ms cubic-bezier(0.3, 0, 0.1, 1) both;
+}
+/* Open: the card's picture rides the growing box and is gone by 110ms; the
+   page then fades in inside it. */
 html[data-vt='vt-garage-open']::view-transition-old(vt-garage) {
-  animation: vt-out 140ms ease-out both;
+  animation: vt-out 110ms ease-out both;
 }
 html[data-vt='vt-garage-open']::view-transition-new(vt-garage) {
-  animation: none;
+  animation: vt-in 170ms ease-out 110ms both;
 }
 /* The list sinks and dims behind it. */
 html[data-vt='vt-garage-open']::view-transition-old(root) {
@@ -415,18 +447,19 @@ html[data-vt='vt-garage-open']::view-transition-old(root) {
 html[data-vt='vt-garage-open']::view-transition-new(root) {
   animation: vt-in 120ms ease-out 420ms both;
 }
-/* Back: the page folds into the card's rect and fades late; the real card
-   fades back in under it; the list rises back to full size. */
+/* Back: the page folds into the card's rect, its picture gone by 150ms; the
+   card's own picture fades in as the box lands; the list rises back to full
+   size around it. */
 html[data-vt$='-back']::view-transition-group(vt-garage),
 html[data-vt$='-back']::view-transition-group(vt-booking) {
   animation-duration: 420ms;
   animation-timing-function: cubic-bezier(0.3, 0, 0.1, 1);
 }
 html[data-vt='vt-garage-back']::view-transition-old(vt-garage) {
-  animation: vt-out-late 420ms both;
+  animation: vt-out 150ms ease-in both;
 }
 html[data-vt='vt-garage-back']::view-transition-new(vt-garage) {
-  animation: vt-in-late 420ms ease-out both;
+  animation: vt-in 170ms ease-out 170ms both;
 }
 html[data-vt='vt-garage-back']::view-transition-old(root) {
   animation: vt-out 120ms both;
@@ -435,12 +468,12 @@ html[data-vt='vt-garage-back']::view-transition-new(root) {
   animation: vt-rise 420ms cubic-bezier(0.3, 0, 0.1, 1) both;
 }
 /* The booking bar into the booking page: the bar's picture goes at once,
-   the page rises into the growing glass after a beat. */
+   the page rises into the growing box once the bar has gone. */
 html[data-vt='vt-booking-open']::view-transition-group(vt-booking) {
   animation-duration: 520ms;
 }
 html[data-vt='vt-booking-open']::view-transition-old(vt-booking) {
-  animation: vt-out 120ms both;
+  animation: vt-out 100ms both;
 }
 html[data-vt='vt-booking-open']::view-transition-new(vt-booking) {
   animation: vt-page-in 520ms cubic-bezier(0.05, 0.7, 0.1, 1) both;
@@ -455,14 +488,36 @@ html[data-vt='vt-booking-back']::view-transition-group(vt-booking) {
   animation-duration: 380ms;
 }
 html[data-vt='vt-booking-back']::view-transition-old(vt-booking) {
-  animation: vt-out 160ms both;
+  animation: vt-out 130ms ease-in both;
 }
 html[data-vt='vt-booking-back']::view-transition-new(vt-booking) {
-  animation: vt-in-late 380ms both;
+  animation: vt-in 160ms ease-out 170ms both;
 }
 html[data-vt='vt-booking-back']::view-transition-old(root),
 html[data-vt='vt-booking-back']::view-transition-new(root) {
   animation: none;
+}
+@keyframes vt-box-open {
+  from {
+    border-radius: 22px;
+  }
+  to {
+    border-radius: 0;
+  }
+}
+/* Lands as the card or the bar: rounded, and its black lets go at the very
+   end (the bar is glass), by which time the arriving picture is fully in. */
+@keyframes vt-box-back {
+  from {
+    border-radius: 0;
+  }
+  85% {
+    background-color: #0a0a0b;
+  }
+  to {
+    border-radius: 22px;
+    background-color: transparent;
+  }
 }
 @keyframes vt-out {
   to {
@@ -471,20 +526,6 @@ html[data-vt='vt-booking-back']::view-transition-new(root) {
 }
 @keyframes vt-in {
   from {
-    opacity: 0;
-  }
-}
-@keyframes vt-out-late {
-  62% {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
-}
-@keyframes vt-in-late {
-  0%,
-  50% {
     opacity: 0;
   }
 }
@@ -747,12 +788,17 @@ html[data-vt='vt-booking-back']::view-transition-new(root) {
  * The one road from you to the garage, used by the garage page, the booking
  * page's progress, the ticket card and the moment after paying. A hairline
  * from a white dot (you) to the garage's red pin; a small car drives along
- * it. The car rides a full-width carriage moved by transform, so it travels
- * by transform alone: translateX(share × 100%) of the road's own width.
+ * it. The car rides a carriage moved by transform alone: translateX(share ×
+ * the road's own width), the width read as 100cqw (each road is its own
+ * container). The carriage itself is empty and zero-wide: a full-width one
+ * pushed right by the same transform stuck out past the screen's edge, and a
+ * phone then widened the whole page to fit it (the fixed top bar and the
+ * booking bar slid off to the side).
  */
 .mo-road {
   position: relative;
   height: 1px;
+  container-type: inline-size;
 }
 .mo-road__line {
   position: absolute;
@@ -789,10 +835,10 @@ html[data-vt='vt-booking-back']::view-transition-new(root) {
 .mo-road__carriage {
   position: absolute;
   inset: 0 auto 0 0;
-  width: 100%;
+  width: 0;
   pointer-events: none;
   /* Parked just short of the garage's pin, as on the list card. */
-  transform: translateX(calc(var(--share, 1) * (100% - 30px)));
+  transform: translateX(calc(var(--share, 1) * (100cqw - 30px)));
   transition: transform 0.9s cubic-bezier(0.45, 0, 0.2, 1);
 }
 .mo-road__car {
@@ -824,6 +870,7 @@ html[data-vt='vt-booking-back']::view-transition-new(root) {
 .mo-track {
   position: relative;
   height: 1px;
+  container-type: inline-size;
   background: rgb(255 255 255 / 0.14);
 }
 .mo-track__fill {
@@ -900,7 +947,7 @@ html[data-vt='vt-booking-back']::view-transition-new(root) {
 }
 .mo-track .mo-road__carriage {
   top: 0;
-  transform: translateX(calc(var(--share, 0) * 100%));
+  transform: translateX(calc(var(--share, 0) * 100cqw));
 }
 .mo-track .mo-road__car {
   left: -8px;
