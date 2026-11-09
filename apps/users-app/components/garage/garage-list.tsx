@@ -5,7 +5,7 @@ import { useTierConfig } from '@repo/core/api/hooks/use-tiers';
 import { useVendorSearch } from '@repo/core/api/hooks/use-vendors';
 import { BOOKING_TYPE_LABELS, BOOKING_TYPES, bookingTypeParam } from '@repo/core/booking-types';
 import { CATEGORY_LABELS } from '@repo/core/categories';
-import { SERVICE_CITY } from '@repo/core/service-city';
+import { SERVICE_CITY, firstFarIndex, nearGarageCount } from '@repo/core/service-city';
 import { atGarageReach, canCollectFrom, nextTabOffer, outsideLine, skipTheDriveTitle, type NextTabOffer, type SkipTheDriveRow } from '@repo/core/reach';
 import { requestActionLabel } from '@repo/core/booking-requests';
 import { SILVER_KEY_LABEL, SILVER_KEY_QUIET } from '@repo/core/tiers';
@@ -331,6 +331,9 @@ export function GarageList({
   ) as Record<ServiceFilter, string | null>;
 
   const firstUnlocatedIndex = origin ? vendors.findIndex((v) => v.distanceKm === null) : -1;
+  // Where the near garages end and the ones in other towns begin (Tirupur,
+  // 387 km): listed after a line, never counted as "near you".
+  const firstFar = firstFarIndex(vendors, { located: !!origin, nearestFirst: effectiveSort === 'distance' });
   const atGarage =
     mode === 'dropin' && !isRefreshing
       ? atGarageReach(reach, !!origin)
@@ -394,7 +397,13 @@ export function GarageList({
   });
 
   const mapReady = !everyService.isLoading && !everyService.isError;
-  const peekCount = everyService.vendors.length;
+  // Only garages within reach (or inside Chennai, with no location) are
+  // "near you": the far towns further down the list are not.
+  const near = nearGarageCount(everyService.vendors, {
+    located: !!origin,
+    hasMore: everyService.hasMore,
+    nearestFirst: effectiveSort === 'distance',
+  });
   const listCount = isLoading ? null : `${vendors.length}${hasMore ? '+' : ''} ${garagesWord(vendors.length, hasMore)}`;
 
   const controls = (
@@ -461,6 +470,11 @@ export function GarageList({
 
   const cards = vendors.map((vendor, i) => (
     <Fragment key={vendor.id}>
+      {i === firstFar ? (
+        <T variant="t5" color={colors.textMuted} style={styles.unlocated}>
+          Further away — other towns
+        </T>
+      ) : null}
       {i === firstUnlocatedIndex ? (
         <T variant="t5" color={colors.textMuted} style={styles.unlocated}>
           Other garages — location not set yet
@@ -516,8 +530,15 @@ export function GarageList({
           category={categoryParam}
           scrollY={scrollY}
           countLabel={{
-            count: `${peekCount}${everyService.hasMore ? '+' : ''}`,
-            words: origin ? (peekCount === 1 && !everyService.hasMore ? 'garage near you' : 'garages near you') : 'garages in Chennai',
+            count: `${near.count}${near.more ? '+' : ''}`,
+            words:
+              near.count === 1 && !near.more
+                ? origin
+                  ? 'garage near you'
+                  : 'garage in Chennai'
+                : origin
+                  ? 'garages near you'
+                  : 'garages in Chennai',
           }}
         />
       ) : null}

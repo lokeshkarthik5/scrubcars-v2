@@ -42,7 +42,7 @@ import { SILVER_KEY_LABEL, SILVER_KEY_QUIET } from '@repo/core/tiers'
 import { useTierConfig } from '@repo/core/api/hooks/use-tiers'
 import { BOOKING_TYPES, BOOKING_TYPE_LABELS } from '@repo/core/booking-types'
 import { atGarageReach, canCollectFrom, nextTabOffer } from '@repo/core/reach'
-import { SERVICE_CITY } from '@repo/core/service-city'
+import { SERVICE_CITY, firstFarIndex, nearGarageCount } from '@repo/core/service-city'
 import type { BookingType, Vendor } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
 import { GraphiteSwitch } from '@repo/ui/finish/graphite-switch'
@@ -270,6 +270,12 @@ export function GarageList({
   const firstUnlocatedIndex = origin
     ? vendors.findIndex((v) => v.distanceKm === null)
     : -1
+  // Where the near garages end and the ones in other towns begin (Tirupur,
+  // 387 km): listed after a line, never counted as "near you".
+  const firstFar = firstFarIndex(vendors, {
+    located: !!origin,
+    nearestFirst: effectiveSort === 'distance',
+  })
 
   // The At garage tab's pieces (Skip the drive, or the small "at home" line).
   const atGarage =
@@ -385,7 +391,13 @@ export function GarageList({
       ...(category === 'all' ? {} : { category }),
     },
   }
-  const peekCount = everyService.vendors.length
+  // Only garages within reach (or inside Chennai, with no location) are
+  // "near you": the far towns further down the list are not.
+  const near = nearGarageCount(everyService.vendors, {
+    located: !!origin,
+    hasMore: everyService.hasMore,
+    nearestFirst: effectiveSort === 'distance',
+  })
   const listCount = isLoading ? null : garagesCount(vendors.length, hasMore)
   // The same count, rolling like an odometer as the mode or the service changes.
   const listCountRolling = isLoading ? null : (
@@ -424,12 +436,15 @@ export function GarageList({
           mode={serviceMode}
           category={category_}
           countLabel={{
-            count: `${peekCount}${everyService.hasMore ? '+' : ''}`,
-            words: origin
-              ? peekCount === 1 && !everyService.hasMore
-                ? 'garage near you'
-                : 'garages near you'
-              : 'garages in Chennai',
+            count: `${near.count}${near.more ? '+' : ''}`,
+            words:
+              near.count === 1 && !near.more
+                ? origin
+                  ? 'garage near you'
+                  : 'garage in Chennai'
+                : origin
+                  ? 'garages near you'
+                  : 'garages in Chennai',
           }}
         />
       )}
@@ -644,6 +659,11 @@ export function GarageList({
                       distance to, then those still waiting on a pin. Saying so
                       at the boundary beats letting distance-less cards trail
                       off the end of a "Nearest First" list unexplained. */}
+                  {i === firstFar && (
+                    <p className="pt-1 text-t5 text-text-muted">
+                      Further away — other towns
+                    </p>
+                  )}
                   {i === firstUnlocatedIndex && (
                     <p className="pt-1 text-t5 text-text-muted">
                       Other garages — location not set yet
