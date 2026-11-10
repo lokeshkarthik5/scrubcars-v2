@@ -107,7 +107,7 @@ function ProfileSetupForm() {
             // The glass card's field, as ScPhoneInput's `glass` tone draws it:
             // a solid surface would read as a hole in the frosted card. 16px
             // is the body size.
-            className="rounded-[12px] border-white/15 bg-white/[0.06] px-3.5 py-3.5 text-[16px]"
+            className="rounded-[12px] border-white/15 bg-white/[0.06] px-3.5 py-3.5 text-t3"
           />
         </div>
 
@@ -120,7 +120,7 @@ function ProfileSetupForm() {
           {loading ? 'Saving...' : cta}
         </ScButton>
 
-        <p className="mt-4 text-center text-[13px] leading-5 text-text-secondary">
+        <p className="mt-4 text-center text-t4 leading-5 text-text-secondary">
           We&apos;ll ask for an address only if you book doorstep or pickup &amp; drop.
         </p>
       </form>

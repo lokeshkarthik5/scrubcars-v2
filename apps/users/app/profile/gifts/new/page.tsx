@@ -104,7 +104,7 @@ export default function NewGiftPage() {
       <CustomerShell showNav showBrand className="gap-4 py-4">
         {header}
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
-          <p className="text-[15px] font-semibold text-text-primary">
+          <p className="text-t3 font-semibold text-text-primary">
             Sign in to gift a wash
           </p>
           <ScButton
@@ -223,7 +223,7 @@ export default function NewGiftPage() {
         <GiftShare gift={phase.gift} link={phase.link} />
         <Link
           href="/profile/gifts"
-          className="flex min-h-11 items-center justify-center text-[13px] font-medium text-text-secondary hover:text-text-primary"
+          className="flex min-h-11 items-center justify-center text-t4 font-medium text-text-secondary hover:text-text-primary"
         >
           Done
         </Link>
@@ -238,7 +238,7 @@ export default function NewGiftPage() {
         {phase.kind === 'confirming' ? (
           <p
             role="status"
-            className="flex items-center gap-2 py-8 text-[13px] text-text-secondary"
+            className="flex items-center gap-2 py-8 text-t4 text-text-secondary"
           >
             <IconLoader2
               size={16}
@@ -249,12 +249,12 @@ export default function NewGiftPage() {
           </p>
         ) : (
           <ScCard className="flex flex-col gap-3">
-            <p role="status" className="text-[13px] text-text-primary">
+            <p role="status" className="text-t4 text-text-primary">
               {phase.paid
                 ? "Your gift is paid, but we couldn't make its link just now."
                 : "Payment received. We couldn't confirm it here yet."}
             </p>
-            <p className="text-[12px] text-text-secondary">
+            <p className="text-t5 text-text-secondary">
               Your gift shows in Gifts you sent once the payment is confirmed,
               usually within a few minutes. Tap Get the link there to share it.
               You won&apos;t be charged again.
@@ -321,8 +321,8 @@ export default function NewGiftPage() {
               <span
                 className={
                   art === value
-                    ? 'text-[12px] font-semibold text-text-primary'
-                    : 'text-[12px] text-text-secondary'
+                    ? 'text-t5 font-semibold text-text-primary'
+                    : 'text-t5 text-text-secondary'
                 }
               >
                 {GIFT_ART_LABELS[value]}
@@ -369,7 +369,7 @@ export default function NewGiftPage() {
               className="font-numeric"
             />
             {otherAmount && amountProblem && (
-              <p className="text-[11px] text-error">{amountProblem}</p>
+              <p className="text-t5 text-error">{amountProblem}</p>
             )}
           </div>
         )}
@@ -398,14 +398,14 @@ export default function NewGiftPage() {
               setMessage(e.target.value.replace(/[\r\n]+/g, ' '))
             }
           />
-          <p className="text-right text-[11px] text-text-muted">
+          <p className="text-right text-t5 text-text-muted">
             <span className="font-numeric">{message.length}</span>/
             <span className="font-numeric">{MESSAGE_MAX}</span>
           </p>
         </div>
       </section>
 
-      <p className="text-[12px] text-text-secondary">
+      <p className="text-t5 text-text-secondary">
         They can use it on any booking on Detlio for{' '}
         <span className="font-numeric">{limits.validMonths}</span> months from
         today. You get a link to send them after paying. Up to{' '}
@@ -414,7 +414,7 @@ export default function NewGiftPage() {
       </p>
 
       {error && (
-        <p role="alert" className="text-[12px] text-error">
+        <p role="alert" className="text-t5 text-error">
           {error}
         </p>
       )}

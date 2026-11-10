@@ -24,12 +24,14 @@ const inter = Inter({
 })
 
 // The brand's face for figures — prices, durations, dates and times — exposed
-// as `font-numeric` (see globals.css). Only the two weights the brand allows:
-// a `font-semibold` figure resolves to the 700 rather than a synthesised 600.
-// latin-ext carries the rupee sign, which latin alone does not.
+// as `font-numeric` (see globals.css). The finish (customer UI round, Nov
+// 2026) sets every figure in Space Grotesk 600, so 600 is loaded beside the
+// 500 and 700 the older screens use, and a `font-semibold` figure is the real
+// cut rather than a synthesised one. latin-ext carries the rupee sign, which
+// latin alone does not.
 const spaceGrotesk = Space_Grotesk({
   subsets: ['latin', 'latin-ext'],
-  weight: ['500', '700'],
+  weight: ['500', '600', '700'],
   variable: '--font-space-grotesk',
 })
 
@@ -97,7 +99,9 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: SIGNED_IN_REDIRECT_SCRIPT }}
         />
       </head>
-      <body className="min-h-full font-sans">
+      {/* `finish`: the customer UI round's materials, type and icon weight
+          (packages/ui/styles/finish.css), switched on for this app alone. */}
+      <body className="finish min-h-full font-sans">
         <IosZoomGuard />
         {/* Suspense for their useSearchParams (all stay off pages whose
             address holds a code or a booking's id). The cookie question

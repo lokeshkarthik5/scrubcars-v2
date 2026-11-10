@@ -161,6 +161,24 @@ async function tryRefreshCookies(keepalive = false): Promise<boolean> {
   return refreshPromise
 }
 
+/**
+ * The headers a request goes out with. `Content-Type` only when there is a
+ * body to describe: on a GET it is not one of the CORS-safelisted values,
+ * so every read paid a preflight round trip before the request itself (the
+ * garage page's ten reads, twice over). The tenant header still makes a
+ * vendor app's reads preflight, which is the price of carrying the company.
+ */
+export function requestHeadersFor(
+  body: RequestInit['body'],
+  headers?: Record<string, string>
+): Record<string, string> {
+  return {
+    ...(body !== undefined && body !== null ? { 'Content-Type': 'application/json' } : {}),
+    ...(activeVendorId ? { 'X-Vendor-Id': activeVendorId } : {}),
+    ...headers,
+  }
+}
+
 export async function apiClient<T>(
   endpoint: string,
   options: ApiClientOptions = {}
@@ -180,11 +198,7 @@ export async function apiClient<T>(
     })
   }
 
-  const requestHeaders: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(activeVendorId ? { 'X-Vendor-Id': activeVendorId } : {}),
-    ...(headers as Record<string, string>),
-  }
+  const requestHeaders = requestHeadersFor(rest.body, headers as Record<string, string> | undefined)
 
   let response = await send(url.toString(), rest, requestHeaders)
 

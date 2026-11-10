@@ -22,6 +22,26 @@ export const rescheduleSlotsParamSchema = z.object({
   bookingId: z.string().uuid(),
 })
 
+// "Next free" for the garage list (lib/next-free.ts): the cards on screen,
+// one ask. Ids repeated or blank are dropped; the cap of NEXT_FREE_MAX_IDS is
+// the service's, so a long ask is refused in the API's own envelope
+// (TOO_MANY_GARAGES) rather than as a schema dump.
+export const nextFreeQuerySchema = z
+  .object({
+    ids: z.string().min(1),
+    bookingType: z.enum(['dropin', 'doorstep', 'pickup']).default('dropin'),
+  })
+  .transform(({ ids, bookingType }) => ({
+    bookingType,
+    ids: Array.from(new Set(ids.split(',').map((id) => id.trim()).filter(Boolean))),
+  }))
+  .pipe(
+    z.object({
+      bookingType: z.enum(['dropin', 'doorstep', 'pickup']),
+      ids: z.array(z.string().uuid()).min(1),
+    })
+  )
+
 export const resourceIdParamSchema = z.object({
   id: z.string().uuid(),
 })
@@ -629,6 +649,7 @@ export type ServiceImageUploadUrlInput = z.infer<
 export type CreatePackageInput = z.infer<typeof createPackageSchema>
 export type UpdatePackageInput = z.infer<typeof updatePackageSchema>
 export type SlotsQueryInput = z.infer<typeof slotsQuerySchema>
+export type NextFreeQuery = z.infer<typeof nextFreeQuerySchema>
 export type ListPublicVendorsQuery = z.infer<typeof listPublicVendorsQuerySchema>
 export type DoorstepAreaInput = z.infer<typeof doorstepAreaSchema>
 

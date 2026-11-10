@@ -33,7 +33,7 @@ export function WhatsIncluded({
     <section aria-labelledby={headingId} className="mt-3">
       <h3
         id={headingId}
-        className="text-[11px] font-semibold uppercase tracking-[0.07em] text-text-muted"
+        className="text-t5 font-semibold uppercase tracking-[0.07em] text-text-muted"
       >
         What&apos;s included
       </h3>
@@ -62,7 +62,7 @@ export function WhatsIncluded({
           aria-expanded={expanded}
           aria-controls={listId}
           onClick={() => setExpanded((open) => !open)}
-          className="-ml-1 mt-0.5 flex min-h-11 items-center px-1 text-[13px] font-semibold text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-primary/70"
+          className="-ml-1 mt-0.5 flex min-h-11 items-center px-1 text-t4 font-semibold text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-primary/70"
         >
           {expanded ? (
             'Show less'
@@ -75,7 +75,7 @@ export function WhatsIncluded({
         </button>
       )}
       {note && (
-        <p className="mt-2 whitespace-pre-line text-[13px] text-text-secondary [overflow-wrap:anywhere]">
+        <p className="mt-2 whitespace-pre-line text-t4 text-text-secondary [overflow-wrap:anywhere]">
           {note}
         </p>
       )}

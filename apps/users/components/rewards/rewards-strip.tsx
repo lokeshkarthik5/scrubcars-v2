@@ -27,7 +27,7 @@ export function RewardsStrip({ summary }: { summary: RewardsSummary }) {
     >
       {/* The Shine Card's count is on the car now (F2); this line is what
           else is waiting, written in full (F9). */}
-      <span className="min-w-0 text-[13px] leading-snug text-text-primary">
+      <span className="min-w-0 text-t4 leading-snug text-text-primary">
         <Figures text={extra ?? `${stampsToGoLine(card.toGo)}`} />
       </span>
       <span className="flex shrink-0 items-center gap-1.5">

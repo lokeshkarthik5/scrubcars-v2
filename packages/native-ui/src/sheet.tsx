@@ -1,4 +1,5 @@
 import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Animated,
@@ -16,7 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ScButton } from './button';
 import { Spinner } from './primitives';
 import { T } from './text';
-import { createStyles, useColors, useTheme } from './theme';
+import { createStyles, useColors, useFinish, useTheme } from './theme';
 import { ToastHost } from './toast';
 
 const DURATION = 220;
@@ -44,6 +45,7 @@ export function ScSheet({
   horizontalPadding?: number;
 }) {
   const { scheme } = useTheme();
+  const { on: finish, fx } = useFinish();
   const styles = useStyles();
   const [visible, setVisible] = useState(open);
   const progress = useRef(new Animated.Value(0)).current;
@@ -83,6 +85,7 @@ export function ScSheet({
             accessibilityLabel={accessibilityLabel}
             style={[
               styles.panel,
+              finish && [styles.glassPanel, { borderColor: fx.glassEdge }],
               { maxHeight: height * 0.88 },
               {
                 transform: [
@@ -91,6 +94,15 @@ export function ScSheet({
               },
             ]}
           >
+            {finish ? (
+              // Every sheet of the customer app is glass (finish.css .sc-sheet): the page
+              // shows through it, blurred, under the heavier glass that keeps words legible.
+              <>
+                <BlurView pointerEvents="none" intensity={50} tint={fx.glassTint} style={StyleSheet.absoluteFill} />
+                <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: fx.glassSheet }]} />
+                <LinearGradient pointerEvents="none" colors={[...fx.glassWash] as [string, string]} style={StyleSheet.absoluteFill} />
+              </>
+            ) : null}
             <View style={styles.handleRow}>
               <View style={styles.handle} />
             </View>
@@ -116,14 +128,18 @@ export function ScModal({
   children,
   dismissible = true,
   accessibilityLabel,
+  flush = false,
 }: {
   open: boolean;
   onClose: () => void;
   children: ReactNode;
   dismissible?: boolean;
   accessibilityLabel?: string;
+  /** No inner padding: the content runs to the panel's edge (the quick look's photo). */
+  flush?: boolean;
 }) {
   const styles = useStyles();
+  const { on: finish, fx } = useFinish();
   if (!open) return null;
   return (
     <Modal
@@ -141,7 +157,18 @@ export function ScModal({
         onPress={() => dismissible && onClose()}
       />
       <View style={styles.modalCentre} pointerEvents="box-none">
-        <View accessibilityViewIsModal accessibilityLabel={accessibilityLabel} style={styles.modalPanel}>
+        <View
+          accessibilityViewIsModal
+          accessibilityLabel={accessibilityLabel}
+          style={[styles.modalPanel, finish && [styles.modalGlass, { borderColor: fx.glassEdge }], flush && styles.modalFlush]}
+        >
+          {finish ? (
+            <>
+              <BlurView pointerEvents="none" intensity={50} tint={fx.glassTint} style={StyleSheet.absoluteFill} />
+              <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: fx.glassSheet }]} />
+              <LinearGradient pointerEvents="none" colors={[...fx.glassWash] as [string, string]} style={StyleSheet.absoluteFill} />
+            </>
+          ) : null}
           {children}
         </View>
       </View>
@@ -255,6 +282,8 @@ const useStyles = createStyles((c) => ({
     paddingTop: 16,
     paddingBottom: 20,
   },
+  modalGlass: { overflow: 'hidden', borderRadius: 26, backgroundColor: 'transparent' },
+  modalFlush: { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0, overflow: 'hidden' },
   end: { flex: 1, justifyContent: 'flex-end' },
   backdrop: { backgroundColor: c.sheetBackdrop },
   panel: {
@@ -263,6 +292,13 @@ const useStyles = createStyles((c) => ({
     borderTopWidth: 1,
     borderColor: c.border,
     backgroundColor: c.canvas,
+  },
+  glassPanel: {
+    overflow: 'hidden',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderTopWidth: 1,
+    backgroundColor: 'transparent',
   },
   handleRow: { alignItems: 'center', paddingVertical: 10 },
   handle: { width: 36, height: 4, borderRadius: 999, backgroundColor: c.border },

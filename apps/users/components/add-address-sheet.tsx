@@ -113,10 +113,10 @@ export function AddAddressSheet({
       aria-label="Add an address"
       className="px-4"
     >
-      <h2 className="text-[19px] font-semibold text-text-primary">
+      <h2 className="text-t2 font-semibold text-text-primary">
         Add an address
       </h2>
-      <p className="mt-1 text-[13px] text-text-secondary">
+      <p className="mt-1 text-t4 text-text-secondary">
         {pickup
           ? 'Drop the pin where the car will be. We use it to check the garage collects from you, and the driver uses it to find your car.'
           : 'Drop the pin where the car will be. We use it to check the garage travels to you.'}

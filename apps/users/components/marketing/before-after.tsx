@@ -49,10 +49,10 @@ export function BeforeAfter({ before, after, label }: BeforeAfterProps) {
         />
       </div>
 
-      <span className="pointer-events-none absolute left-3 top-3 rounded bg-black/60 px-2 py-1 text-[12px] font-medium text-brand-white">
+      <span className="pointer-events-none absolute left-3 top-3 rounded bg-black/60 px-2 py-1 text-t5 font-medium text-brand-white">
         Before
       </span>
-      <span className="pointer-events-none absolute right-3 top-3 rounded bg-black/60 px-2 py-1 text-[12px] font-medium text-brand-white">
+      <span className="pointer-events-none absolute right-3 top-3 rounded bg-black/60 px-2 py-1 text-t5 font-medium text-brand-white">
         After
       </span>
 

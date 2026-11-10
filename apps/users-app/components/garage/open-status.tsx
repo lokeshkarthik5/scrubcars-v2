@@ -1,4 +1,5 @@
-import { openStatus, type OpeningDay } from '@repo/core/opening-hours';
+import { hoursLeftShare, openStatus, type OpeningDay } from '@repo/core/opening-hours';
+import { HoursRing } from '@repo/native-ui/finish';
 import { T } from '@repo/native-ui/text';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 import { useEffect, useState } from 'react';
@@ -27,13 +28,27 @@ export function OpenStatus({
 }: {
   hours: readonly OpeningDay[] | null | undefined;
   closures?: readonly string[];
-  variant?: 'line' | 'overlay';
+  /** `ring`: the garage page's, the opening-hours ring before the words (§5). */
+  variant?: 'line' | 'overlay' | 'ring';
 }) {
   const colors = useColors();
   const styles = useStyles();
   const now = useMinuteClock();
   const status = openStatus(hours, now, closures);
   if (!status) return null;
+  if (variant === 'ring') {
+    return (
+      <View style={styles.row}>
+        <HoursRing share={status.isOpen ? hoursLeftShare(hours, now, closures) : null} play track={colors.scheme === 'light' ? colors.line : undefined} />
+        <T variant="t4" numberOfLines={1} color={colors.scheme === 'light' ? colors.textSecondary : '#C8C8D0'} style={styles.shrink}>
+          <T variant="t4" color={colors.textPrimary}>
+            {status.isOpen ? 'Open' : status.closedToday ? 'Closed today' : 'Closed'}
+          </T>
+          {status.detail ? ` · ${status.detail}` : ''}
+        </T>
+      </View>
+    );
+  }
   const overlay = variant === 'overlay';
   // Over a photo, the pill and its words stay dark in both themes.
   const word = overlay ? '#FAFAFA' : colors.textPrimary;

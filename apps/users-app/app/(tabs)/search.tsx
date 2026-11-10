@@ -2,6 +2,7 @@ import { useVendorSearch } from '@repo/core/api/hooks/use-vendors';
 import { useDebounced } from '@repo/core/hooks/use-debounced';
 import { IconAdjustments, IconSearch } from '@repo/native-ui/icons';
 import { ErrorState, PressRow, Spinner } from '@repo/native-ui/primitives';
+import { Rise } from '@repo/native-ui/motion';
 import { font, T } from '@repo/native-ui/text';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 import { useLocalSearchParams } from 'expo-router';
@@ -118,7 +119,12 @@ export default function SearchScreen() {
               No garages or services match your search.
             </T>
           ) : (
-            vendors.map((vendor) => <VendorCard key={vendor.id} vendor={vendor} />)
+            // Results rise in, the words that found them underlined with the red light (moment 11).
+            vendors.map((vendor, i) => (
+              <Rise key={vendor.id} index={Math.min(i, 8)}>
+                <VendorCard vendor={vendor} highlight={debouncedQuery.trim() || undefined} />
+              </Rise>
+            ))
           )}
           {isFetchingMore ? <Spinner /> : null}
         </View>

@@ -131,7 +131,7 @@ export default function CarCertificatePage({ params }: { params: Promise<{ id: s
       <main className="mx-auto flex min-h-dvh w-full max-w-[428px] flex-col bg-brand-black px-4 py-4">
         <TopBar showBack backHref={`/profile/cars/${id}`} title="Service history" />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
-          <p className="text-[15px] font-semibold text-text-primary">Sign in to see your car&apos;s certificate</p>
+          <p className="text-t3 font-semibold text-text-primary">Sign in to see your car&apos;s certificate</p>
           <ScButton
             className="mt-2 w-auto px-8"
             onClick={() => router.push(`/login?next=${encodeURIComponent(`/profile/cars/${id}/certificate`)}`)}
@@ -192,13 +192,13 @@ export default function CarCertificatePage({ params }: { params: Promise<{ id: s
         {printBlocked && (
           <p
             role="alert"
-            className="rounded-[10px] border border-warning bg-warning-muted px-3 py-2 text-[13px] text-warning"
+            className="rounded-[10px] border border-warning bg-warning-muted px-3 py-2 text-t4 text-warning"
           >
             Your browser can&apos;t print from here. Open this page in Chrome or Safari (⋮ › Open in browser) to save
             it as a PDF. You may need to sign in there.
           </p>
         )}
-        <p className="text-[12px] text-text-muted">
+        <p className="text-t5 text-text-muted">
           On Android, choose <strong>Save as PDF</strong> as the printer; on iPhone, tap <strong>Share</strong> on the
           print screen, then <strong>Save to Files</strong>.
         </p>
@@ -209,7 +209,7 @@ export default function CarCertificatePage({ params }: { params: Promise<{ id: s
               <IconLink size={16} aria-hidden="true" />
               Share link
             </h2>
-            <p className="mt-0.5 text-[12px] text-text-secondary">
+            <p className="mt-0.5 text-t5 text-text-secondary">
               Anyone with the link, or the QR code on the printout, can check this record is genuine. They see the
               car, garages, dates and services. Never your name, phone or address, or the full number plate.
             </p>
@@ -217,8 +217,8 @@ export default function CarCertificatePage({ params }: { params: Promise<{ id: s
 
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[13px] font-medium text-text-primary">Include before/after photos</p>
-              <p className="text-[11px] text-text-secondary">Off unless you turn it on.</p>
+              <p className="text-t4 font-medium text-text-primary">Include before/after photos</p>
+              <p className="text-t5 text-text-secondary">Off unless you turn it on.</p>
             </div>
             <ScSwitch
               checked={includePhotos}
@@ -260,19 +260,19 @@ export default function CarCertificatePage({ params }: { params: Promise<{ id: s
           ) : (
             <>
               {share?.state === 'expired' && (
-                <p className="text-[12px] text-warning">
+                <p className="text-t5 text-warning">
                   Your link ran out{share.expiresAt ? ` on ${istDate(share.expiresAt)}` : ''}. Make a new one to share
                   again.
                 </p>
               )}
               {share?.state === 'active' && !share.token && (
-                <p className="text-[12px] text-text-secondary">
+                <p className="text-t5 text-text-secondary">
                   Your link still works for whoever has it, but it can&apos;t be shown here. Make a new link to print a
                   QR code; the old one will stop working.
                 </p>
               )}
               <div>
-                <p className="text-[12px] font-medium text-text-primary">Link works for</p>
+                <p className="text-t5 font-medium text-text-primary">Link works for</p>
                 <div role="group" aria-label="Link works for" className="-mx-1 mt-1 flex gap-2 overflow-x-auto px-1 pb-1">
                   {SHARE_EXPIRY_OPTIONS.map((option) => (
                     <Chip
@@ -306,14 +306,14 @@ export default function CarCertificatePage({ params }: { params: Promise<{ id: s
             <div className="flex items-center gap-3 sm:flex-row-reverse sm:text-right">
               <QrCode value={url} size={104} label="QR code to check this certificate on Detlio" />
               <div className="min-w-0 max-w-[180px]">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-600">Check it is genuine</p>
-                <p className="mt-0.5 break-all font-numeric text-[11px] text-brand-rich">
+                <p className="text-t5 font-semibold uppercase tracking-wide text-neutral-600">Check it is genuine</p>
+                <p className="mt-0.5 break-all font-numeric text-t5 text-brand-rich">
                   {shortVerifyLink(origin, live.token!)}
                 </p>
               </div>
             </div>
           ) : (
-            <p className="max-w-[220px] text-[11px] leading-relaxed text-neutral-600 sm:text-right">
+            <p className="max-w-[220px] text-t5 leading-relaxed text-neutral-600 sm:text-right">
               Not shared. Share it from the Detlio app to add a QR code anyone can scan to check this record.
             </p>
           )
@@ -367,7 +367,7 @@ function LiveLink({
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="break-all rounded-[10px] border border-border px-3 py-2 font-numeric text-[12px] text-text-primary">
+      <p className="break-all rounded-[10px] border border-border px-3 py-2 font-numeric text-t5 text-text-primary">
         {shortLink}
       </p>
       <div className="flex gap-2">
@@ -380,7 +380,7 @@ function LiveLink({
           Copy link
         </ScButton>
       </div>
-      <p className="text-[11px] text-text-secondary">
+      <p className="text-t5 text-text-secondary">
         {viewsLine(share.viewCount, share.lastViewedAt)} ·{' '}
         {share.expiresAt ? `works until ${istDate(share.expiresAt)}` : 'works until you stop it'}
       </p>
@@ -416,14 +416,14 @@ function LiveLink({
           <button
             type="button"
             onClick={() => setConfirm('stop')}
-            className="min-h-11 px-1 text-[12px] font-semibold text-text-primary underline underline-offset-2"
+            className="min-h-11 px-1 text-t5 font-semibold text-text-primary underline underline-offset-2"
           >
             Stop sharing
           </button>
           <button
             type="button"
             onClick={() => setConfirm('renew')}
-            className="min-h-11 px-1 text-[12px] font-medium text-text-secondary underline underline-offset-2 hover:text-text-primary"
+            className="min-h-11 px-1 text-t5 font-medium text-text-secondary underline underline-offset-2 hover:text-text-primary"
           >
             New link
           </button>

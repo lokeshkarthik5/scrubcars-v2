@@ -38,8 +38,8 @@ export function ContinueBookingCard() {
         className="flex min-h-11 min-w-0 flex-1 items-center gap-3"
       >
         <span className="min-w-0 flex-1">
-          <span className="block text-[12px] text-text-muted">You started a booking</span>
-          <span className="block truncate text-[15px] text-text-primary">
+          <span className="block text-t5 text-text-muted">You started a booking</span>
+          <span className="block truncate text-t3 text-text-primary">
             Continue your booking at {draft.vendorName}
           </span>
         </span>

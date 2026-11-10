@@ -1,3 +1,4 @@
+import { matchSpans } from '@repo/core/moments';
 import { BOOKING_TYPE_LABELS, bookingTypeParam } from '@repo/core/booking-types';
 import { distanceAndDrive } from '@repo/core/drive-time';
 import { hasStarScore, NEW_GARAGE_LABEL, newGarageReviewsLine } from '@repo/core/ratings';
@@ -5,6 +6,7 @@ import { anywhereInCityLine } from '@repo/core/reach';
 import type { BookingType, Vendor } from '@repo/core/types';
 import { IconStarFilled } from '@repo/native-ui/icons';
 import { PressRow } from '@repo/native-ui/primitives';
+import { RED_LIGHT } from '@repo/native-ui/tokens';
 import { T } from '@repo/native-ui/text';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 import { type Href, router } from 'expo-router';
@@ -30,6 +32,29 @@ function ModeBadge({ label, tone }: { label: string; tone: 'garage' | 'doorstep'
 }
 
 /** VendorCard (packages/ui/src/features/vendor-card.tsx), with the approved "Known for" chip. */
+/**
+ * A search's words in a line of a result (moment 11, the website's Matched): the runs that
+ * matched underlined with the red light (core's matchSpans).
+ */
+function Matched({ text, query, size, weight }: { text: string; query?: string; size: number; weight?: 400 | 500 | 600 }) {
+  if (!query) return <>{text}</>;
+  return (
+    <>
+      {matchSpans(text, query).map((span, i) =>
+        span.match ? (
+          <T key={i} size={size} weight={weight} style={matchStyle}>
+            {span.text}
+          </T>
+        ) : (
+          span.text
+        )
+      )}
+    </>
+  );
+}
+
+const matchStyle = { textDecorationLine: 'underline', textDecorationColor: RED_LIGHT } as const;
+
 export function VendorCard({
   vendor,
   mode,
@@ -37,6 +62,7 @@ export function VendorCard({
   note,
   chips,
   footer,
+  highlight,
 }: {
   vendor: Vendor;
   mode?: BookingType;
@@ -44,6 +70,8 @@ export function VendorCard({
   note?: string | null;
   chips?: ReactNode;
   footer?: ReactNode;
+  /** The search that found it: its words are underlined in the name and the service. */
+  highlight?: string;
 }) {
   const colors = useColors();
   const styles = useStyles();
@@ -75,7 +103,7 @@ export function VendorCard({
           <View style={styles.nameRow}>
             <View style={styles.name}>
               <T size={15} weight={600} numberOfLines={1} style={styles.shrink}>
-                {vendor.name}
+                <Matched text={vendor.name} query={highlight} size={15} weight={600} />
               </T>
               {vendor.tier ? <TierMark tier={vendor.tier} /> : null}
             </View>
@@ -121,7 +149,7 @@ export function VendorCard({
             <T size={12} numberOfLines={1} color={colors.textSecondary}>
               {'Offers '}
               <T size={12} weight={500}>
-                {vendor.matchedService}
+                <Matched text={vendor.matchedService} query={highlight} size={12} weight={500} />
               </T>
             </T>
           ) : null}

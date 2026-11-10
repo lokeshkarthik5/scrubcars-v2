@@ -125,14 +125,14 @@ export function TimeProposalCard({
           className="mt-0.5 shrink-0 text-text-secondary"
         />
         <div className="min-w-0">
-          <h2 className="text-[17px] font-medium text-text-primary">
+          <h2 className="text-t2 font-medium text-text-primary">
             {booking.vendorName} can&apos;t do{' '}
             <span className="font-numeric">
               {formatClock(booking.scheduledAtIso)}
             </span>{' '}
             — pick another time
           </h2>
-          <p className="mt-0.5 text-[13px] text-text-secondary">
+          <p className="mt-0.5 text-t4 text-text-secondary">
             Pick one by{' '}
             <span className="font-numeric">
               {proposedTimeLabel(proposal.expiresAt)}
@@ -143,7 +143,7 @@ export function TimeProposalCard({
       </div>
 
       {proposal.note && (
-        <p className="text-[12px] text-text-secondary">
+        <p className="text-t5 text-text-secondary">
           <span className="font-medium text-text-primary">
             Garage&apos;s note:
           </span>{' '}
@@ -164,7 +164,7 @@ export function TimeProposalCard({
                 onClick={() => choose(option)}
                 aria-label={`Book ${proposedTimeLabel(option)}`}
                 className={cn(
-                  'press flex min-h-12 w-full items-center justify-between gap-3 rounded-[14px] border border-line bg-white/[0.03] px-4 text-left text-[15px] font-medium text-text-primary transition-colors disabled:opacity-60',
+                  'press flex min-h-12 w-full items-center justify-between gap-3 rounded-[14px] border border-line bg-white/[0.03] px-4 text-left text-t3 font-medium text-text-primary transition-colors disabled:opacity-60',
                   busy === option && 'border-text-primary'
                 )}
               >
@@ -178,14 +178,14 @@ export function TimeProposalCard({
                     aria-hidden
                   />
                 ) : (
-                  <span className="text-[13px] text-text-secondary">Pick</span>
+                  <span className="text-t4 text-text-secondary">Pick</span>
                 )}
               </button>
             </li>
           ))}
         </ul>
       ) : (
-        <p role="status" className="text-[13px] text-text-secondary">
+        <p role="status" className="text-t4 text-text-secondary">
           The times {booking.vendorName} suggested have all been taken. You can
           cancel for a full refund, or use Help with this booking.
         </p>
@@ -193,7 +193,7 @@ export function TimeProposalCard({
 
       {confirmDecline ? (
         <div className="rise-in flex flex-col gap-2 border-t border-border pt-3">
-          <p className="text-[13px] text-text-secondary">
+          <p className="text-t4 text-text-secondary">
             Cancel this booking?{' '}
             {paid
               ? 'Your payment will be refunded in full to your original payment method.'

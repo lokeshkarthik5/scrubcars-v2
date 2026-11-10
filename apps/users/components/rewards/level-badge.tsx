@@ -6,7 +6,7 @@ export function LevelBadge({ level, label, className }: { level: RewardLevel; la
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded-full border border-stroke px-2 py-0.5 text-[11px] font-medium text-text-primary',
+        'inline-flex items-center rounded-full border border-stroke px-2 py-0.5 text-t5 font-medium text-text-primary',
         `level-badge--${level}`,
         className
       )}

@@ -230,39 +230,37 @@ export function WhenPicker({
         aria-label={accessible}
         disabled={closed}
         onClick={() => selectDate(date)}
+        // The next-free look (§6): raised, and graphite with the red light
+        // once chosen; a closed day is there but dimmed.
         className={cn(
-          'press flex min-h-[60px] min-w-[54px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[16px] border transition-colors',
-          closed
-            ? 'cursor-not-allowed border-transparent bg-white/[0.02] text-text-muted opacity-50'
-            : on
-              ? 'border-transparent bg-[#F5F5F6] text-brand-black'
-              : 'border-line bg-white/[0.03] text-text-primary'
+          'bk-pick flex h-[60px] min-w-[52px] shrink-0 flex-col items-center justify-center gap-[3px] rounded-[14px] px-1.5 text-text-primary',
+          closed && 'cursor-not-allowed'
         )}
       >
         <span
           className={cn(
-            'text-[12px]',
-            on && !closed ? 'text-brand-black/60' : 'text-dim'
+            'text-t5 font-medium',
+            on && !closed ? 'text-[#E8E8EC]' : 'text-[#8E8E98]'
           )}
         >
           {label}
         </span>
-        <span className="font-numeric text-[17px] font-medium">{sub}</span>
+        <span className="font-numeric text-[17px] font-semibold leading-none">{sub}</span>
       </button>
     )
   }
 
   return (
     <div>
-      <h2 className="mb-3 text-[17px] font-medium tracking-[-0.01em] text-text-primary">
+      <h2 className="mb-2.5 text-t2 font-semibold text-text-primary">
         {title}
       </h2>
-      <div className="-mx-4 mb-3 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="-mx-4 mb-3 flex gap-2 overflow-x-auto px-4 pb-1 pt-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {!daysKnown
           ? week.map((d) => (
               <span
                 key={d.value}
-                className="h-[60px] w-[54px] shrink-0 rounded-[16px] shimmer"
+                className="h-[60px] w-[52px] shrink-0 rounded-[14px] shimmer"
               />
             ))
           : week.map((d, i) =>
@@ -288,27 +286,27 @@ export function WhenPicker({
             setShowCalendar(true)
           }}
           aria-label="Pick a later date"
-          className="press flex min-h-[60px] min-w-[54px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[16px] border border-line bg-white/[0.03] text-dim"
+          className="bk-pick flex h-[60px] min-w-[52px] shrink-0 flex-col items-center justify-center gap-[3px] rounded-[14px] px-1.5 text-[#C8C8D0]"
         >
-          <span className="text-[12px]">More</span>
-          <IconCalendar size={18} stroke={1.5} aria-hidden />
+          <IconCalendar size={17} aria-hidden />
+          <span className="text-t5 font-medium text-[#8E8E98]">More</span>
         </button>
       </div>
 
       {selectedDate && (
         <>
-          <p className="mb-3 text-[13px] text-dim">
+          <p className="mx-0.5 mb-3 text-t5 font-medium leading-[1.45] text-[#8E8E98]">
             {autoPick ? 'Earliest first. ' : ''}
             {noticeSentence(bookingType).replace(' at least', '')}
           </p>
           {slotsLoading ? (
             <div className="grid grid-cols-3 gap-2">
               {Array.from({ length: 6 }).map((_, i) => (
-                <span key={i} className="h-12 rounded-[14px] shimmer" />
+                <span key={i} className="h-11 rounded-[14px] shimmer" />
               ))}
             </div>
           ) : slots.length === 0 ? (
-            <p className="text-[13px] text-text-secondary">
+            <p className="rounded-[14px] bg-[#141418] p-3.5 text-t4 text-[#A8A8B2]">
               {isPaused
                 ? rescheduleOf
                   ? "This garage isn't taking changes right now. Your booking stays at its current time, or you can cancel it."
@@ -325,18 +323,19 @@ export function WhenPicker({
             </p>
           ) : (
             <>
-              <div className="grid grid-cols-3 gap-2">
-                {shown.map((time) => (
+              {/* Keyed by the day, so a new day's times slide in one after
+                  another; the pick carries the red light. */}
+              <div key={selectedDate} className="grid grid-cols-3 gap-2">
+                {shown.map((time, i) => (
                   <button
                     key={time}
                     type="button"
                     aria-pressed={value === time}
                     onClick={() => onChange(time)}
+                    style={{ '--i': i } as React.CSSProperties}
                     className={cn(
-                      'press min-h-12 rounded-[14px] border font-numeric text-[15px] transition-colors',
-                      value === time
-                        ? 'border-transparent bg-[#F5F5F6] font-medium text-brand-black'
-                        : 'border-line bg-white/[0.03] text-text-primary'
+                      'bk-pick bk-time-in h-11 rounded-[14px] font-numeric text-[14px]',
+                      value === time ? 'font-semibold text-white' : 'font-semibold text-[#E8E8EC]'
                     )}
                   >
                     {formatClock(time)}
@@ -347,10 +346,10 @@ export function WhenPicker({
                 <button
                   type="button"
                   onClick={() => setShowLater(true)}
-                  className="mx-auto mt-1 flex min-h-11 items-center gap-1 px-3 text-[13px] text-text-primary"
+                  className="mx-auto mt-1.5 flex min-h-11 items-center gap-1.5 px-3 text-t4 font-semibold text-[#E8E8EC]"
                 >
                   Show afternoon and evening
-                  <IconChevronDown size={15} stroke={1.5} aria-hidden />
+                  <IconChevronDown size={14} aria-hidden />
                 </button>
               )}
             </>
@@ -389,7 +388,7 @@ export function WhenPicker({
           </button>
           <span
             aria-live="polite"
-            className="text-[15px] font-medium text-text-primary"
+            className="text-t3 font-medium text-text-primary"
           >
             {MONTH_NAMES[calMonth.month]} {calMonth.year}
           </span>
@@ -410,7 +409,7 @@ export function WhenPicker({
         </div>
         <div aria-hidden="true" className="mb-1 grid grid-cols-7 text-center">
           {DAY_NAMES.map((d) => (
-            <span key={d} className="text-[12px] text-text-muted">
+            <span key={d} className="text-t5 text-text-muted">
               {d[0]}
             </span>
           ))}
@@ -442,7 +441,7 @@ export function WhenPicker({
                   setShowCalendar(false)
                 }}
                 className={cn(
-                  'flex h-11 items-center justify-center rounded-full font-numeric text-[15px] transition-colors',
+                  'flex h-11 items-center justify-center rounded-full font-numeric text-t3 transition-colors',
                   disabled
                     ? 'cursor-not-allowed text-text-muted opacity-30'
                     : key === customDate

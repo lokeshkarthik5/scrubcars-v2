@@ -36,14 +36,14 @@ export function GarageSlotAlerts({ vendorId }: { vendorId: string }) {
         className="mt-px shrink-0 text-text-secondary"
       />
       <div className="min-w-0 flex-1">
-        <p className="text-[13px] font-medium text-text-primary">
+        <p className="text-t4 font-medium text-text-primary">
           Waiting for a slot
         </p>
         <ul className="mt-1 flex flex-col gap-1">
           {here.map((alert) => (
             <li
               key={alert.id}
-              className="flex items-center justify-between gap-2 text-[12px] text-text-secondary"
+              className="flex items-center justify-between gap-2 text-t5 text-text-secondary"
             >
               <span className="min-w-0">{slotAlertSummary(alert)}</span>
               <button
@@ -60,7 +60,7 @@ export function GarageSlotAlerts({ vendorId }: { vendorId: string }) {
         </ul>
         <Link
           href="/profile/slot-alerts"
-          className="mt-1 inline-block text-[12px] text-text-secondary underline"
+          className="mt-1 inline-block text-t5 text-text-secondary underline"
         >
           All slot alerts
         </Link>

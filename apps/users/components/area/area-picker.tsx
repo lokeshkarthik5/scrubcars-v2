@@ -65,7 +65,7 @@ export function useNearMe(mode?: BookingType) {
 /** The friendly line under the chips, or at the top of the sheet. */
 export function NearMeBlocked() {
   return (
-    <p role="status" className="text-[13px] leading-snug text-text-secondary">
+    <p role="status" className="text-t4 leading-snug text-text-secondary">
       {NEAR_ME_BLOCKED_LINE}
     </p>
   )
@@ -129,7 +129,7 @@ export function AreaPicker({
             <h2 className="text-[20px] font-normal tracking-[-0.015em] text-text-primary">
               Where&apos;s your car?
             </h2>
-            <p className="mt-1 text-[13px] text-text-secondary">
+            <p className="mt-1 text-t4 text-text-secondary">
               Pick your area to see distances and drive times. No location
               permission needed.
             </p>
@@ -140,7 +140,7 @@ export function AreaPicker({
           <button
             type="button"
             onClick={askNearMe}
-            className="press flex min-h-12 items-center gap-3 rounded-[14px] border border-line bg-white/[0.03] px-4 text-left text-[15px] text-text-primary"
+            className="press flex min-h-12 items-center gap-3 rounded-[14px] border border-line bg-white/[0.03] px-4 text-left text-t3 text-text-primary"
           >
             <IconCurrentLocation size={18} aria-hidden className="shrink-0" />
             <span className="min-w-0 flex-1">Near me</span>
@@ -157,7 +157,7 @@ export function AreaPicker({
               placeholder="Search areas"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              className="min-w-0 flex-1 bg-transparent py-3 text-[16px] text-text-primary outline-none placeholder:text-text-muted"
+              className="min-w-0 flex-1 bg-transparent py-3 text-t3 text-text-primary outline-none placeholder:text-text-muted"
             />
           </label>
 
@@ -169,7 +169,7 @@ export function AreaPicker({
               selectChennai()
               close()
             }}
-            className="min-h-11 self-center px-3 text-[15px] text-text-primary underline underline-offset-2"
+            className="min-h-11 self-center px-3 text-t3 text-text-primary underline underline-offset-2"
           >
             All of Chennai
           </button>
@@ -212,7 +212,7 @@ function AreaList({
               aria-pressed={on}
               onClick={() => onChoose(zone)}
               className={cn(
-                'flex min-h-12 w-full items-center gap-3 border-b border-line px-1 text-left text-[15px] text-text-primary',
+                'flex min-h-12 w-full items-center gap-3 border-b border-line px-1 text-left text-t3 text-text-primary',
                 on && 'font-medium'
               )}
             >
@@ -224,7 +224,7 @@ function AreaList({
         )
       })}
       {found.length === 0 && (
-        <li className="py-4 text-[13px] text-text-secondary">
+        <li className="py-4 text-t4 text-text-secondary">
           No area called &ldquo;{query.trim()}&rdquo; yet. Try a nearby one, or
           All of Chennai.
         </li>

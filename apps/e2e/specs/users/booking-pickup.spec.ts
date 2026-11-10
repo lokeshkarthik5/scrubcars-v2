@@ -53,7 +53,7 @@ test.describe('pickup & drop booking', () => {
 
     // ── checkout ────────────────────────────────────────────────────────────
     const checkout = new CheckoutPage(page)
-    await expect(checkout.bookingType('Pickup & drop')).toHaveAttribute('aria-pressed', 'true')
+    await expect(checkout.bookingType('Pickup & drop')).toHaveAttribute('aria-checked', 'true')
 
     // Tomorrow is well past the 3 hours' notice pickup needs.
     await checkout.pickTomorrowSlot()

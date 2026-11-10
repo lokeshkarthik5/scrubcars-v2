@@ -283,7 +283,7 @@ function Story({
       </div>
       {stats.firstName && (
         <div className="mx-auto mt-3 flex w-full max-w-[360px] items-center justify-between gap-3">
-          <span className="text-[12px] text-text-secondary">
+          <span className="text-t5 text-text-secondary">
             Show my first name
           </span>
           <ScSwitch
@@ -293,7 +293,7 @@ function Story({
           />
         </div>
       )}
-      <p className="mx-auto mt-2 max-w-[360px] text-center text-[11px] text-text-muted">
+      <p className="mx-auto mt-2 max-w-[360px] text-center text-t5 text-text-muted">
         Images are made on your phone. They show your first name (if you leave
         it on), garage names and your numbers, nothing else.
       </p>
@@ -334,7 +334,7 @@ function WrappedCardView({
     >
       <div className="flex items-center justify-between">
         <BrandMark height={20} />
-        <span className="font-numeric text-[11px] font-semibold tracking-[0.12em] text-white/75">
+        <span className="font-numeric text-t5 font-semibold tracking-[0.12em] text-white/75">
           WRAPPED {year}
         </span>
       </div>
@@ -361,7 +361,7 @@ function WrappedCardView({
               {split.figure}
             </span>
             {split.unit && (
-              <span className="block text-[24px] font-semibold leading-tight">
+              <span className="block text-title font-semibold leading-tight">
                 {split.unit}
               </span>
             )}

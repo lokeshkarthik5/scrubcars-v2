@@ -105,7 +105,7 @@ function Body() {
         </T>
       </View>
       <View style={styles.boxes}>
-        <OtpInput onChange={setOtp} />
+        <OtpInput onChange={setOtp} invalid={Boolean(error)} />
       </View>
       {error ? (
         <View accessibilityRole="alert" style={styles.error}>

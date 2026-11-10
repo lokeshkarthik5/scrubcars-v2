@@ -1,30 +1,63 @@
 import { BOOKING_TYPE_LABELS } from '@repo/core/booking-types';
 import type { BookingType } from '@repo/core/types';
-import { ScSegmented } from '@repo/native-ui/primitives';
+import { GraphiteSwitch } from '@repo/native-ui/finish';
+import { IconBuildingStore, IconCarGarage, IconHome, type IconProps } from '@repo/native-ui/icons';
+import type { ReactElement } from 'react';
+import type { StyleProp, ViewStyle } from 'react-native';
 
 import { track } from '@/lib/shims/analytics';
 
-/** ModeSwitch (apps/users/components/mode-switch.tsx). No icons at phone width, as the web. */
+const ICONS: Record<BookingType, (props: IconProps) => ReactElement> = {
+  dropin: IconBuildingStore,
+  doorstep: IconHome,
+  pickup: IconCarGarage,
+};
+
+/** Each mode's quiet second line (§3): what it means in four words. */
+export const MODE_QUIET: Record<BookingType, string> = {
+  dropin: 'Drive it in',
+  doorstep: 'We come to you',
+  pickup: 'We collect it',
+};
+
+/**
+ * ModeSwitch (apps/users/components/mode-switch.tsx): the At garage / Doorstep / Pickup &
+ * drop switch on a garage's page and the booking page, the graphite switch of the garages
+ * list (customer UI round, §5, §6), with the same names, the quiet lines and only the
+ * modes given. A radiogroup named "Service mode"; on the garage page a tap to another mode
+ * records mode_switch, as it always has; checkout's never did (`track={false}`).
+ */
 export function ModeSwitch({
   modes,
   value,
   onChange,
+  track: tracked = true,
+  style,
 }: {
   modes: readonly BookingType[];
   value: BookingType;
   onChange: (mode: BookingType) => void;
+  track?: boolean;
+  style?: StyleProp<ViewStyle>;
 }) {
   return (
-    <ScSegmented
+    <GraphiteSwitch
       accessibilityLabel="Service mode"
+      style={style}
       value={value}
       onChange={(mode) => {
-        if (mode !== value) track('mode_switch', { mode });
+        if (tracked && mode !== value) track('mode_switch', { mode });
         onChange(mode);
       }}
-      minHeight={44}
-      labelSize={13}
-      options={modes.map((mode) => ({ value: mode, label: BOOKING_TYPE_LABELS[mode] }))}
+      options={modes.map((mode) => {
+        const Icon = ICONS[mode];
+        return {
+          value: mode,
+          label: BOOKING_TYPE_LABELS[mode],
+          quiet: MODE_QUIET[mode],
+          icon: (ink: string) => <Icon size={18} color={ink} />,
+        };
+      })}
     />
   );
 }

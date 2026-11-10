@@ -52,7 +52,7 @@ export default function GlobalError({
         >
           {/* A customer stuck on a crash may be mid-booking, so a person is one
               tap away. */}
-          <p className="pb-3 text-[12px] text-text-secondary">Still stuck? Our team can help.</p>
+          <p className="pb-3 text-t5 text-text-secondary">Still stuck? Our team can help.</p>
           <ContactButtons
             who="Detlio support"
             callHref={SUPPORT_TEL_HREF}

@@ -49,7 +49,7 @@ export function JobPhotosCard({
         if (ofStage.length === 0) return null
         return (
           <div key={stage} className="flex flex-col gap-1.5">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-text-secondary">
+            <p className="text-t5 font-medium uppercase tracking-wide text-text-secondary">
               {label}
             </p>
             <ul className="flex flex-wrap gap-2">
@@ -86,7 +86,7 @@ export function JobPhotosCard({
       >
         {open && (
           <div className="flex flex-col gap-3">
-            <p className="text-[13px] font-medium text-text-primary">
+            <p className="text-t4 font-medium text-text-primary">
               {open.label}
             </p>
             {/* eslint-disable-next-line @next/next/no-img-element */}

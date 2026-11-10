@@ -437,6 +437,31 @@ export async function listCapacityHolders(
   return rows
 }
 
+/**
+ * The same capacity holders for several garages over a range of days, in one
+ * read: the garage list's "Next free" (lib/next-free.ts) asks for up to 20
+ * garages a week ahead at once. Each day then keeps the rows that started
+ * that day or the day before, exactly as listCapacityHolders reads one day.
+ */
+export async function listCapacityHoldersForVendors(
+  vendorIds: string[],
+  from: Date,
+  to: Date
+): Promise<Array<BusyInterval & { vendorId: string }>> {
+  if (vendorIds.length === 0) return []
+  return db
+    .select({ vendorId: bookings.vendorId, start: bookings.scheduledAt, durationMins: bookings.durationMins })
+    .from(bookings)
+    .where(
+      and(
+        inArray(bookings.vendorId, vendorIds),
+        holdsCapacity(),
+        sql`${bookings.scheduledAt} >= ${from.toISOString()}::timestamptz`,
+        sql`${bookings.scheduledAt} < ${to.toISOString()}::timestamptz`
+      )
+    )
+}
+
 /** Why a garage would not take a booking at the moment it is written. */
 export type GarageRefusal = 'paused' | 'closed' | 'slot_full'
 
@@ -1941,6 +1966,11 @@ export const bookingsRepository = {
       .groupBy(sql`1`)
 
     return new Map(rows.map((row) => [row.date, row.count]))
+  },
+
+  /** See listCapacityHoldersForVendors: several garages, several days, one read. */
+  listCapacityHoldersForVendors(vendorIds: string[], from: Date, to: Date) {
+    return listCapacityHoldersForVendors(vendorIds, from, to)
   },
 
   /** See listCapacityHolders: the bookings taking up the garage's room that day. */

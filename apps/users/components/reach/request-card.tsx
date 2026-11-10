@@ -55,11 +55,11 @@ export function RequestCard({ request, now }: { request: CustomerRequest; now: n
         <>
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-warning">Request sent</p>
-              <h2 id={headingId} className="mt-1 text-[17px] font-medium text-text-primary">
+              <p className="text-t5 font-medium uppercase tracking-[0.12em] text-warning">Request sent</p>
+              <h2 id={headingId} className="mt-1 text-t2 font-medium text-text-primary">
                 Waiting for {request.garage.name}
               </h2>
-              <p className="text-[13px] text-text-secondary">
+              <p className="text-t4 text-text-secondary">
                 {services} · {request.window.label}
               </p>
             </div>
@@ -67,14 +67,14 @@ export function RequestCard({ request, now }: { request: CustomerRequest; now: n
               <span className="block font-numeric text-[22px] text-text-primary" aria-label="Time left for the garage">
                 {countdownLabel(Date.parse(request.respondBy) - now)}
               </span>
-              <span className="block text-[12px] text-text-muted">They reply by {istClock(request.respondBy)}</span>
+              <span className="block text-t5 text-text-muted">They reply by {istClock(request.respondBy)}</span>
             </p>
           </div>
-          <ol className="flex flex-col gap-2 border-l border-border pl-4 text-[13px]">
+          <ol className="flex flex-col gap-2 border-l border-border pl-4 text-t4">
             <li className="text-text-primary">Sent · {istClock(request.createdAt)}</li>
             <li className="text-text-primary">
               {request.garage.name} is deciding
-              <span className="block text-[12px] text-text-muted">
+              <span className="block text-t5 text-text-muted">
                 Detlio also calls them if there&apos;s no reply in {REQUEST_RULES.alertAfterMinutes} min.
               </span>
             </li>
@@ -85,7 +85,7 @@ export function RequestCard({ request, now }: { request: CustomerRequest; now: n
             </li>
           </ol>
           <div className="flex items-center justify-between gap-3 border-t border-line pt-3">
-            <span className="text-[13px] text-text-secondary">Cancel any time</span>
+            <span className="text-t4 text-text-secondary">Cancel any time</span>
             <ScButton
               variant="text"
               fullWidth={false}
@@ -100,8 +100,8 @@ export function RequestCard({ request, now }: { request: CustomerRequest; now: n
 
       {request.state === 'accepted' && request.acceptedStartAt && request.confirmBy && (
         <>
-          <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-success">Accepted</p>
-          <h2 id={headingId} className="text-[17px] font-medium text-text-primary">
+          <p className="text-t5 font-medium uppercase tracking-[0.12em] text-success">Accepted</p>
+          <h2 id={headingId} className="text-t2 font-medium text-text-primary">
             {request.garage.name} will {pickup ? 'collect your car' : 'come'} {istStartLabel(request.acceptedStartAt)}
           </h2>
           <dl className="flex flex-col gap-1.5 text-[14px]">
@@ -117,16 +117,16 @@ export function RequestCard({ request, now }: { request: CustomerRequest; now: n
             </div>
             <div className="flex justify-between gap-3 border-t border-line pt-2">
               <dt className="text-text-primary">To pay</dt>
-              <dd className="font-numeric text-[17px] text-text-primary">{money(requestTotal(request))}</dd>
+              <dd className="font-numeric text-t2 text-text-primary">{money(requestTotal(request))}</dd>
             </div>
           </dl>
-          <p className="flex items-center gap-1.5 text-[13px] text-success">
+          <p className="flex items-center gap-1.5 text-t4 text-success">
             <IconClockHour4 size={15} aria-hidden />
             Held for you until {istClock(request.confirmBy)} ({countdownLabel(Date.parse(request.confirmBy) - now)} left)
           </p>
           <Link
             href={confirmHref(request)}
-            className="press flex min-h-12 items-center justify-center rounded-full bg-brand-red-fill text-[15px] font-medium text-brand-white hover:bg-brand-red-fill-hover"
+            className="press flex min-h-12 items-center justify-center rounded-full bg-brand-red-fill text-t3 font-medium text-brand-white hover:bg-brand-red-fill-hover"
           >
             Confirm &amp; pay {money(requestTotal(request))}
           </Link>
@@ -138,15 +138,15 @@ export function RequestCard({ request, now }: { request: CustomerRequest; now: n
 
       {(request.state === 'no_garage' || request.state === 'lapsed') && (
         <>
-          <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-text-muted">Update</p>
-          <h2 id={headingId} className="text-[17px] font-medium text-text-primary">
+          <p className="text-t5 font-medium uppercase tracking-[0.12em] text-text-muted">Update</p>
+          <h2 id={headingId} className="text-t2 font-medium text-text-primary">
             {request.state === 'lapsed'
               ? `${request.garage.name}'s yes has expired`
               : request.tried.length > 1
                 ? 'No nearby garage could take it this time'
                 : `${request.garage.name} can't make it this time`}
           </h2>
-          <p className="flex items-start gap-2 text-[13px] text-text-secondary">
+          <p className="flex items-start gap-2 text-t4 text-text-secondary">
             <IconInfoCircle size={16} className="mt-px shrink-0" aria-hidden />
             {request.state === 'lapsed'
               ? 'It was not confirmed in time. Send a new request whenever you like.'
@@ -171,7 +171,7 @@ export function RequestCard({ request, now }: { request: CustomerRequest; now: n
 
       {request.state === 'booked' && (
         <>
-          <h2 id={headingId} className="flex items-center gap-2 text-[17px] font-medium text-text-primary">
+          <h2 id={headingId} className="flex items-center gap-2 text-t2 font-medium text-text-primary">
             <IconCircleCheck size={18} className="text-success" aria-hidden /> Booked with {request.garage.name}
           </h2>
           {request.bookingId && (
@@ -183,7 +183,7 @@ export function RequestCard({ request, now }: { request: CustomerRequest; now: n
       )}
 
       {request.state === 'cancelled' && (
-        <h2 id={headingId} className="text-[15px] text-text-secondary">
+        <h2 id={headingId} className="text-t3 text-text-secondary">
           {/* The garage took back its yes before they paid (0066). */}
           {request.withdrawnByGarage
             ? `${request.garage.name} can no longer come. Nothing was paid; send a new request any time.`

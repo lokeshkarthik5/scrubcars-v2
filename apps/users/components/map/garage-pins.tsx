@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 import { MapMarker, MarkerContent, useMap } from '@repo/ui/sc/map'
 import { PROGRAMMATIC_MOVE } from '@repo/ui/features/map-controller'
 import { cn } from '@repo/core/utils'
+import { distanceLabel, driveTimeLabel } from '@repo/core/drive-time'
 import type { Vendor } from '@repo/core/types'
 import {
   PIN_MAX_WIDTH_PX,
@@ -147,7 +148,8 @@ export function GaragePins({
     const padding = getPadding()
     if (isInFrame(map.project([targetLng, targetLat]), view, padding)) return
     map.easeTo(
-      { center: [targetLng, targetLat], offset: frameCentreOffset(padding), duration: 500 },
+      // The camera glides (§4: 560ms), never jumps.
+      { center: [targetLng, targetLat], offset: frameCentreOffset(padding), duration: 560 },
       PROGRAMMATIC_MOVE
     )
     // revealCount is the trigger: the same garage chosen again asks again.
@@ -178,7 +180,7 @@ export function GaragePins({
             <button
               type="button"
               aria-label={`${group.members.length} garages here. Zoom in`}
-              className="grid size-11 place-items-center rounded-full bg-brand-white font-numeric text-[15px] font-bold text-brand-black shadow-[0_2px_10px_rgba(0,0,0,0.5)] ring-4 ring-white/25"
+              className="grid size-11 place-items-center rounded-full bg-brand-white font-numeric text-t3 font-bold text-brand-black shadow-[0_2px_10px_rgba(0,0,0,0.5)] ring-4 ring-white/25"
             >
               {group.members.length}
             </button>
@@ -199,9 +201,12 @@ export function GaragePins({
 }
 
 /**
- * One garage: its short name over its starting price, in white on the dark
- * map so it reads at a glance, with a tail marking the exact spot. The chosen
- * garage's pin turns red (the map's one red) and lifts above the rest.
+ * One garage. Unchosen: its short name over its starting price on a small
+ * glass label, with a tail marking the exact spot. Chosen: the premium
+ * marker (customer UI round, Nov 2026, §4): a crisp red dot ringed in white
+ * on the spot itself, with a two-line glass label above it, "name" over
+ * "₹price · km · ~min" (the drive time by the list's own rule). The dot pops
+ * once and a ripple runs out from it as the route lands; it never pulses on.
  */
 function GaragePin({
   vendor,
@@ -224,9 +229,15 @@ function GaragePin({
   }, [selected])
 
   const price = vendor.startingPrice > 0 ? `₹${vendor.startingPrice}` : null
+  const facts = [
+    price,
+    vendor.distanceKm !== null ? distanceLabel(vendor.distanceKm) : null,
+    vendor.distanceKm !== null ? driveTimeLabel(vendor.distanceKm) : null,
+  ].filter(Boolean)
 
   return (
-    // Anchored at the bottom, so the tail's tip sits on the garage itself.
+    // Anchored at the bottom: the tail's tip, or the chosen dot's centre,
+    // sits on the garage itself.
     <MapMarker latitude={vendor.lat} longitude={vendor.lng} anchor="bottom" onClick={onSelect}>
       <MarkerContent>
         <button
@@ -236,26 +247,44 @@ function GaragePin({
           aria-pressed={selected}
           // The cap is PIN_MAX_WIDTH_PX, which the overlap test and the fit's
           // side padding are worked out from; inline so the three share one
-          // number.
-          style={{ maxWidth: PIN_MAX_WIDTH_PX }}
+          // number. The chosen label may run wider: it is never grouped.
+          style={selected ? undefined : { maxWidth: PIN_MAX_WIDTH_PX }}
           className={cn(
-            'relative mb-[6px] flex min-h-11 min-w-11 flex-col items-center justify-center rounded-[12px] px-2.5 py-1 leading-tight shadow-[0_2px_10px_rgba(0,0,0,0.5)] ring-1 transition-transform duration-150 motion-reduce:transition-none',
-            selected
-              ? '-translate-y-1 scale-110 bg-brand-red-fill text-brand-white ring-brand-red-fill'
-              : 'bg-brand-white text-brand-black ring-black/10'
+            'relative flex min-w-11 flex-col items-center',
+            selected ? '-mb-[9px] gap-[11px]' : 'mb-[6px]'
           )}
         >
-          <span className="block max-w-full truncate text-[11px] font-semibold">
-            {pinLabel(vendor.name)}
-          </span>
-          {price && <span className="font-numeric text-[13px] font-bold">{price}</span>}
-          <span
-            aria-hidden
-            className={cn(
-              'absolute -bottom-[5px] left-1/2 size-2.5 -translate-x-1/2 rotate-45',
-              selected ? 'bg-brand-red-fill' : 'bg-brand-white'
-            )}
-          />
+          {selected ? (
+            <>
+              {/* Keyed so it rises again for each garage chosen. */}
+              <span
+                key={vendor.id}
+                className="pin-label fx-glass flex flex-col items-center gap-px rounded-[14px] px-3 pb-2 pt-[7px] leading-tight text-white"
+              >
+                <span className="max-w-[210px] truncate text-t4 font-semibold">{pinLabel(vendor.name, 24)}</span>
+                {facts.length > 0 && (
+                  <span className="whitespace-nowrap font-numeric text-[11.5px] font-medium text-white/72">
+                    {facts.join(' · ')}
+                  </span>
+                )}
+              </span>
+              <span key={`${vendor.id}-dot`} aria-hidden className="pin-core relative size-[18px] rounded-full">
+                <span className="pin-ripple absolute -inset-2 rounded-full" />
+                <span className="pin-ripple pin-ripple--late absolute -inset-2 rounded-full" />
+              </span>
+            </>
+          ) : (
+            <span className="fx-glass relative flex min-h-11 min-w-11 max-w-full flex-col items-center justify-center rounded-[12px] px-2.5 py-1 leading-tight text-white">
+              <span className="block max-w-full truncate text-t5 font-semibold">
+                {pinLabel(vendor.name)}
+              </span>
+              {price && <span className="font-numeric text-t4 font-semibold">{price}</span>}
+              <span
+                aria-hidden
+                className="absolute -bottom-[6px] left-1/2 size-2.5 -translate-x-1/2 rotate-45 border-b border-r border-white/14 bg-[rgb(42_42_48/0.92)]"
+              />
+            </span>
+          )}
         </button>
       </MarkerContent>
     </MapMarker>

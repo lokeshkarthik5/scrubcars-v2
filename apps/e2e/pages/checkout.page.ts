@@ -14,10 +14,11 @@ export class CheckoutPage {
   goto = (vendorId: string, serviceIds: string[]) =>
     this.page.goto(`/book/${vendorId}?service=${serviceIds.join(',')}`)
 
-  /** The At garage / Doorstep / Pickup & drop toggle. Only rendered for a
-   *  garage offering two or more. */
+  /** The At garage / Doorstep / Pickup & drop switch, a radiogroup (the
+   *  graphite switch, customer UI round). Only rendered for a garage
+   *  offering two or more. */
   bookingType = (label: 'At garage' | 'Doorstep' | 'Pickup & drop') =>
-    this.page.getByRole('button', { name: label, exact: true })
+    this.page.getByRole('radio', { name: label, exact: true })
 
   /** Tomorrow, never today: it keeps the run independent of the wall clock and
    *  clear of the 2-hour cancel/reschedule cutoff. The chip reads "Tue 20"

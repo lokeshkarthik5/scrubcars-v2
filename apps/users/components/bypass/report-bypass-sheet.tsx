@@ -92,7 +92,7 @@ export function ReportBypassSheet({ open, onClose, booking, rewardOffered, rewar
           <div className="min-w-0">
             <h2 className="text-base font-semibold text-text-primary">{sent ? BYPASS_THANKS_TITLE : BYPASS_QUESTION}</h2>
             {!sent && (
-              <p className="mt-1 text-[12px] text-text-secondary">
+              <p className="mt-1 text-t5 text-text-secondary">
                 About booking <span className="font-numeric font-medium">{booking.reference}</span> ·{' '}
                 {booking.vendorName}
               </p>
@@ -116,7 +116,7 @@ export function ReportBypassSheet({ open, onClose, booking, rewardOffered, rewar
               <div className="min-w-0">
                 <p className="text-[14px] font-semibold text-text-primary">{BYPASS_THANKS_BODY}</p>
                 {rewardOffered && (
-                  <p className="mt-1 text-[12px] text-text-secondary">{bypassRewardLine(Number(rewardAmount))}</p>
+                  <p className="mt-1 text-t5 text-text-secondary">{bypassRewardLine(Number(rewardAmount))}</p>
                 )}
               </div>
             </div>
@@ -127,7 +127,7 @@ export function ReportBypassSheet({ open, onClose, booking, rewardOffered, rewar
         ) : (
           <form onSubmit={submit} className="flex flex-col gap-4">
             <fieldset className="flex flex-col gap-2">
-              <legend className="mb-2 text-[11px] font-medium text-text-secondary">What happened?</legend>
+              <legend className="mb-2 text-t5 font-medium text-text-secondary">What happened?</legend>
               <div className="flex flex-wrap gap-2">
                 {BYPASS_KINDS.map((value) => (
                   <Chip
@@ -153,20 +153,20 @@ export function ReportBypassSheet({ open, onClose, booking, rewardOffered, rewar
                 onChange={(e) => setNote(e.target.value)}
                 aria-describedby={error ? 'bypass-note-hint bypass-error' : 'bypass-note-hint'}
               />
-              <p id="bypass-note-hint" className="text-right text-[11px] text-text-muted">
+              <p id="bypass-note-hint" className="text-right text-t5 text-text-muted">
                 <span className="font-numeric">
                   {note.length}/{BYPASS_NUMBERS.noteMax}
                 </span>
               </p>
             </div>
 
-            <div className="flex flex-col gap-1 text-[12px] text-text-secondary">
+            <div className="flex flex-col gap-1 text-t5 text-text-secondary">
               <p>{BYPASS_ANONYMITY_LINE}</p>
               {rewardOffered && <p>{bypassRewardLine(Number(rewardAmount))}</p>}
             </div>
 
             {error && (
-              <p id="bypass-error" role="alert" className="text-[12px] text-error">
+              <p id="bypass-error" role="alert" className="text-t5 text-error">
                 {error}
               </p>
             )}

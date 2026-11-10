@@ -30,7 +30,7 @@ test.describe('doorstep booking', () => {
     // MAIN runs both modes, so the toggle renders. A garage with one mode
     // hides it entirely.
     await checkout.bookingType('Doorstep').click()
-    await expect(checkout.bookingType('Doorstep')).toHaveAttribute('aria-pressed', 'true')
+    await expect(checkout.bookingType('Doorstep')).toHaveAttribute('aria-checked', 'true')
 
     await checkout.pickTomorrowSlot()
 
@@ -96,7 +96,7 @@ test.describe('doorstep booking', () => {
 
     // The default mode. The customer comes to the garage, so there is nowhere
     // to travel to and nothing to ask.
-    await expect(checkout.bookingType('At garage')).toHaveAttribute('aria-pressed', 'true')
+    await expect(checkout.bookingType('At garage')).toHaveAttribute('aria-checked', 'true')
     await checkout.pickTomorrowSlot()
 
     await expect(checkout.addressStep()).toBeHidden()
@@ -116,7 +116,7 @@ test.describe('doorstep booking', () => {
 
     await expect(page).toHaveURL(/\/book\/.*[?&]mode=doorstep/)
     const checkout = new CheckoutPage(page)
-    await expect(checkout.bookingType('Doorstep')).toHaveAttribute('aria-pressed', 'true')
+    await expect(checkout.bookingType('Doorstep')).toHaveAttribute('aria-checked', 'true')
 
     await checkout.pickTomorrowSlot()
     await expect(checkout.addressStep()).toBeVisible()

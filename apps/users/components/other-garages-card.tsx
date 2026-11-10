@@ -42,7 +42,7 @@ export function OtherGaragesCard({ booking }: { booking: Booking }) {
         >
           Book another garage
         </h2>
-        <p className="mt-0.5 text-[12px] text-text-secondary">
+        <p className="mt-0.5 text-t5 text-text-secondary">
           Nearby garages that do this kind of job
           {vendors.length > 0 ? ', nearest first' : ''}.
         </p>
@@ -69,7 +69,7 @@ export function OtherGaragesCard({ booking }: { booking: Booking }) {
             aria-hidden="true"
             className="shrink-0 text-text-muted"
           />
-          <p className="text-[13px] text-text-secondary">
+          <p className="text-t4 text-text-secondary">
             {others.isError
               ? "Couldn't load garages near you."
               : 'No other garage nearby does this job right now.'}

@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { openStatus, type OpeningDay } from '@repo/core/opening-hours'
+import { hoursLeftShare, openStatus, type OpeningDay } from '@repo/core/opening-hours'
 import { cn } from '@repo/core/utils'
+import { HoursRing } from '@repo/ui/finish/hours-ring'
 
 /**
  * The current time, re-read on each minute boundary — so a garage page left
@@ -30,8 +31,13 @@ interface OpenStatusProps {
   hours: readonly OpeningDay[] | null | undefined
   /** Its upcoming holidays as IST dates; today being one reads "Closed today". */
   closures?: readonly string[]
-  /** `line` sits in text; `overlay` is a pill that reads on top of a photo. */
-  variant?: 'line' | 'overlay'
+  /**
+   * `line` sits in text; `overlay` is a pill that reads on top of a photo;
+   * `ring` is the garage page's line (customer UI round, §5): the
+   * opening-hours ring in place of the dot, drawn in once, and "closes"
+   * rather than "Open till".
+   */
+  variant?: 'line' | 'overlay' | 'ring'
   className?: string
 }
 
@@ -53,13 +59,27 @@ export function OpenStatus({
   const status = openStatus(hours, now, closures)
   if (!status) return null
 
+  if (variant === 'ring') {
+    return (
+      <span className={cn('inline-flex min-w-0 items-center gap-[7px] text-t4 font-medium text-[#C8C8D0]', className)}>
+        <HoursRing share={status.isOpen ? hoursLeftShare(hours, now, closures) : null} play />
+        <span className="truncate">
+          <span className="text-text-primary">
+            {status.isOpen ? 'Open' : status.closedToday ? 'Closed today' : 'Closed'}
+          </span>
+          {status.detail && ` · ${status.detail}`}
+        </span>
+      </span>
+    )
+  }
+
   return (
     <span
       className={cn(
         'inline-flex min-w-0 items-center gap-1.5',
         variant === 'overlay'
-          ? 'rounded-full bg-brand-black/75 px-2 py-0.5 text-[12px] leading-4 text-text-secondary backdrop-blur-sm'
-          : 'text-[13px] leading-[18px] text-text-secondary',
+          ? 'rounded-full bg-brand-black/75 px-2 py-0.5 text-t5 leading-4 text-text-secondary backdrop-blur-sm'
+          : 'text-t4 leading-[18px] text-text-secondary',
         className
       )}
     >
