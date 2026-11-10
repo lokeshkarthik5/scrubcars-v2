@@ -123,7 +123,13 @@ test.describe('garage bookings calendar @p0', () => {
         exact: true,
       })
       .click()
-    await expect(page.getByText('1 job', { exact: true })).toBeVisible()
+    // In the calendar: the Bookings switch above it has its own "1 job"
+    // (Later's count, next week's job) as a quiet second line.
+    await expect(
+      page
+        .getByRole('region', { name: 'Calendar' })
+        .getByText('1 job', { exact: true })
+    ).toBeVisible()
     await expect(page.locator(`#job-${CALENDAR.tomorrowAnswer}`)).toBeVisible()
     await expect(
       page.locator(`#job-${CALENDAR.tomorrowCancelled}`)

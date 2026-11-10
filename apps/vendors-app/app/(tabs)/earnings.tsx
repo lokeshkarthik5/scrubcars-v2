@@ -7,12 +7,12 @@ import { View } from 'react-native';
 import { AppShell, garageScreen } from '@/components/app-shell';
 import { ScButton } from '@repo/native-ui/button';
 import { ScBadge, DateField } from '@/components/form-controls';
+import { GraphiteSwitch } from '@repo/native-ui/finish';
 import { IconDownload, IconReceipt } from '@repo/native-ui/icons';
 import {
   EmptyState,
   LoadError,
   ScCard,
-  ScSegmented,
   Skeleton,
   SkeletonList,
   StatusChip,
@@ -310,7 +310,7 @@ function EarningsScreen() {
             </T>
           </ScButton>
         </View>
-        <ScSegmented accessibilityLabel="Period" value={preset} onChange={pick} options={PRESETS} />
+        <GraphiteSwitch accessibilityLabel="Period" value={preset} onChange={pick} options={PRESETS} />
         {preset === 'custom' ? (
           <View style={styles.dates}>
             <View style={styles.flex}>

@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react'
-import { ScSegmented } from '@repo/ui/sc/segmented'
+import { GraphiteSwitch } from '@repo/ui/finish/graphite-switch'
 import type { Booking } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
 import { JobRow } from '@/components/job-row'
@@ -103,11 +103,14 @@ export function BookingsCalendar({
   const closed = closedDay(selected, hours, closures)
 
   const viewSwitch = (
-    <ScSegmented
+    // The small graphite switch (mockup garage-calendar A): 36 tall, a 44px
+    // target, narrow enough to keep the month on one line beside it.
+    <GraphiteSwitch<CalendarView>
       aria-label="Calendar view"
+      size="sm"
       value={view}
       onChange={pickView}
-      className="shrink-0 [&_[role=radio]]:min-h-11 [&_[role=radio]]:px-3 [&_[role=radio]]:py-0 [&_[role=radio]]:text-[14px]"
+      className="shrink-0"
       options={(['month', 'day'] as const).map((key) => ({
         value: key,
         label: VIEW_LABELS[key],

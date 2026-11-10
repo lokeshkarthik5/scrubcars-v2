@@ -34,7 +34,7 @@ import {
 } from '@/lib/jobs';
 import { useGarageCalendar } from '@/lib/use-garage-calendar';
 import { IconChevronLeft, IconChevronRight } from '@repo/native-ui/icons';
-import { ScSegmented } from '@repo/native-ui/primitives';
+import { GraphiteSwitch } from '@repo/native-ui/finish';
 import { T } from '@repo/native-ui/text';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 
@@ -79,12 +79,14 @@ export function BookingsCalendar({ bookings, now }: { bookings: readonly Booking
 
   const viewSwitch = (
     <View style={styles.switch}>
-      <ScSegmented
+      {/* The small graphite switch, two 59-point halves as the web's: the month stays on one line. */}
+      <GraphiteSwitch<CalendarView>
         accessibilityLabel="Calendar view"
+        size="sm"
         value={view}
         onChange={pickView}
-        minHeight={44}
-        options={(['month', 'day'] as const).map((key) => ({ value: key, label: VIEW_LABELS[key], width: 64 }))}
+        style={styles.switchTrack}
+        options={(['month', 'day'] as const).map((key) => ({ value: key, label: VIEW_LABELS[key] }))}
       />
     </View>
   );
@@ -310,6 +312,7 @@ const useStyles = createStyles((colors) => ({
   monthTitle: { flexShrink: 1 },
   dayTitle: { flex: 1, minWidth: 0, gap: 2, paddingLeft: 4 },
   switch: { flexShrink: 0 },
+  switchTrack: { width: 124 },
   grid: {
     borderRadius: 20,
     borderWidth: 1,

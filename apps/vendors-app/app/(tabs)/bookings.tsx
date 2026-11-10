@@ -16,14 +16,17 @@ import {
 } from '@repo/native-ui/icons';
 import { JobRow } from '@/components/job-row';
 import { NewBookingCard } from '@/components/new-booking-card';
-import { CountBadge, EmptyState, LoadError, ScSegmented, SkeletonList } from '@repo/native-ui/primitives';
+import { GraphiteSwitch } from '@repo/native-ui/finish';
+import { EmptyState, LoadError, SkeletonList } from '@repo/native-ui/primitives';
 import { PushBanner } from '@/components/push-banner';
 import { T } from '@repo/native-ui/text';
 import {
   type BookingsTab,
   bookingsTabFromQuery,
+  bookingsTabLines,
   calendarDate,
   doneJobs,
+  doneTodayCount,
   laterDays,
   LIST_TABS,
   type ListTab,
@@ -119,6 +122,9 @@ function BookingsScreen() {
     later: later.reduce((sum, group) => sum + group.jobs.length, 0),
     done: done.length,
   };
+  // The second lines wait for the first read: until then "0 jobs" would be a guess.
+  const lines =
+    unknown || (!loaded && bookings.length === 0) ? null : bookingsTabLines(counts, doneTodayCount(done, now));
 
   const pickTab = useCallback((next: BookingsTab) => {
     setTab(next);
@@ -140,33 +146,24 @@ function BookingsScreen() {
     <AppShell showBrand brandRight={<GarageStatus />} gap={16} scrollRef={scroll}>
       <PushBanner />
 
-      <ScSegmented
+      <GraphiteSwitch<BookingsTab>
         accessibilityLabel="Bookings"
         value={tab}
         onChange={pickTab}
         options={[
           ...LIST_TABS.map((key) => ({
             value: key as BookingsTab,
-            label:
-              key === 'new' && !unknown && waiting.count > 0 ? (
-                <>
-                  <T size={16} weight={500} color={tab === key ? colors.textPrimary : colors.textSecondary}>
-                    {TAB_LABELS[key]}
-                  </T>
-                  <CountBadge count={waiting.count} small />
-                </>
-              ) : (
-                TAB_LABELS[key]
-              ),
+            label: TAB_LABELS[key],
+            quiet: lines?.[key],
+            // What waits on the garage, in red, where the red badge was.
+            quietTone: key === 'new' && waiting.count > 0 ? ('red' as const) : undefined,
           })),
-          // The calendar: an icon alone, a fixed width after Done.
+          // The calendar: its icon, with the word small under it.
           {
             value: 'calendar' as const,
-            label: (
-              <IconCalendarEvent size={22} stroke={1.6} color={tab === 'calendar' ? colors.textPrimary : colors.textSecondary} />
-            ),
-            accessibilityLabel: 'Calendar',
-            width: 52,
+            label: 'Calendar',
+            icon: (ink: string) => <IconCalendarEvent size={18} stroke={1.9} color={ink} />,
+            iconOnly: true,
           },
         ]}
       />
