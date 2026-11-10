@@ -388,9 +388,10 @@ export default function AdminDiscountsPage() {
                     <Meta label="Used" truncate>
                       {discount.heldCount > 0 ? (
                         <>
-                          {/* Held, not realized: this is the number the usage
-                              limit is checked against, so it must be the one an
-                              admin sees next to that limit. */}
+                          {/* Held, not realized: counted as the usage limit
+                              counts, so it is the one shown next to that limit;
+                              bookings marked Test are left out (owner, 10 Nov
+                              2026), which only the limit check still counts. */}
                           <span className="font-numeric">
                             {discount.heldCount}
                             {discount.totalUsageLimit

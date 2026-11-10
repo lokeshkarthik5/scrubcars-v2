@@ -5,8 +5,10 @@ import {
   collectedPaise,
   collectedPerPeriod,
   commissionByChain,
+  garageViewsWithBookings,
   itemsByChain,
   outcomeOf,
+  paidBookings,
   previousRange,
   rangeDays,
   rangeInstants,
@@ -336,5 +338,53 @@ describe('busyHoursGrid', () => {
     const grid = busyHoursGrid([{ weekday: 3, hour: 6, bookings: 1 }])
     expect(grid.firstHour).toBe(6)
     expect(grid.cells).toHaveLength(7 * 16)
+  })
+})
+
+describe('the Funnel tab\'s Paid step and garage bookings, from the bookings (owner, 10 Nov 2026)', () => {
+  const rows = [
+    row({ vendorId: 'marina', vendorName: 'Marina Auto Spa', bookingType: 'dropin' }),
+    row({ vendorId: 'marina', vendorName: 'Marina Auto Spa', bookingType: 'doorstep' }),
+    // Marked Test: in no figure, though its money was live.
+    row({ vendorId: 'marina', vendorName: 'Marina Auto Spa', bookingType: 'dropin', markedTest: true }),
+    // Never paid: not a step anyone finished.
+    row({ vendorId: 'adyar', vendorName: 'Adyar Wash', bookingType: 'dropin', paymentStatus: 'pending' }),
+    // Paid and since refunded still counts, as in every other figure.
+    row({ vendorId: 'adyar', vendorName: 'Adyar Wash', bookingType: 'dropin', paymentStatus: 'refunded' }),
+  ]
+
+  test('counts paid bookings, never a Test one', () => {
+    const all = paidBookings(rows)
+    expect(all.paid).toBe(3)
+    expect(all.byGarage).toEqual([
+      { vendorId: 'marina', name: 'Marina Auto Spa', bookings: 2 },
+      { vendorId: 'adyar', name: 'Adyar Wash', bookings: 1 },
+    ])
+  })
+
+  test('one booking type, as the tab\'s mode filter', () => {
+    expect(paidBookings(rows, 'dropin')).toEqual({
+      paid: 2,
+      byGarage: [
+        { vendorId: 'marina', name: 'Marina Auto Spa', bookings: 1 },
+        { vendorId: 'adyar', name: 'Adyar Wash', bookings: 1 },
+      ],
+    })
+    expect(paidBookings(rows, 'pickup')).toEqual({ paid: 0, byGarage: [] })
+  })
+
+  test('each garage\'s views beside its bookings, every garage with either', () => {
+    const merged = garageViewsWithBookings(
+      [
+        { vendorId: 'marina', name: 'Marina Auto Spa', views: 9 },
+        { vendorId: 'velachery', name: null, views: 4 },
+      ],
+      paidBookings(rows).byGarage
+    )
+    expect(merged).toEqual([
+      { vendorId: 'marina', name: 'Marina Auto Spa', views: 9, bookings: 2 },
+      { vendorId: 'velachery', name: null, views: 4, bookings: 0 },
+      { vendorId: 'adyar', name: 'Adyar Wash', views: 0, bookings: 1 },
+    ])
   })
 })

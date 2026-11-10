@@ -9,7 +9,10 @@ export const opsRepository = {
    * "Waiting since" is the later of the booking's creation and its payment:
    * equal for a normal checkout; the move time for a rescheduled booking (a
    * new row carrying the old payment); the payment time for one paid later.
-   * Unpaid bookings are left out — garages only see paid ones.
+   * Unpaid bookings are left out — garages only see paid ones — and so are
+   * bookings ops marked Test, as on admin's Today (today.repository.ts
+   * waitingWhere): the team's own tests are not a garage keeping a customer
+   * waiting (owner, 10 Nov 2026).
    */
   listPaidPendingBookings(after: Date) {
     return db
@@ -33,6 +36,7 @@ export const opsRepository = {
         and(
           eq(bookings.status, 'pending'),
           eq(payments.status, 'paid'),
+          isNull(bookings.markedTestAt),
           gt(bookings.scheduledAt, after)
         )
       )

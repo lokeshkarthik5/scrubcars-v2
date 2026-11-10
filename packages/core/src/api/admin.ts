@@ -2321,9 +2321,12 @@ export interface AdminDiscount {
   createdAt: string
   /** Audit rows — any at all blocks deletion. */
   redemptionCount: number
-  /** Live uses, paid or not — this is what the usage limits compare against. */
+  /**
+   * Live uses, paid or not, as the usage limits count them, but without
+   * bookings marked Test (the limit check still counts those).
+   */
   heldCount: number
-  /** Uses whose money actually landed. */
+  /** Uses whose money actually landed, bookings marked Test left out. */
   realizedCount: number
   /** Rupees saved, realized only. */
   totalSaved: string

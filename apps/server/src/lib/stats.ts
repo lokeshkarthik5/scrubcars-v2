@@ -123,6 +123,11 @@ export interface StatsChainRow {
    * commission, as the garage earns nothing on it. Optional: absent is false.
    */
   guaranteeRefund?: boolean
+  /**
+   * The latest row's booking type ('dropin', 'doorstep', 'pickup'), for the
+   * Funnel tab's mode filter. Optional: absent matches only "all".
+   */
+  bookingType?: string
 }
 
 /** A booking item, keyed by its chain. */
@@ -159,6 +164,46 @@ export function counted<T extends { markedTest: boolean }>(rows: T[]): T[] {
 /** A booking counts once its payment landed. */
 export function isPaid(row: Pick<StatsChainRow, 'paymentStatus'>): boolean {
   return moneyLanded(row.paymentStatus)
+}
+
+/**
+ * The Funnel tab's last step and each garage's bookings beside its views:
+ * the paid bookings themselves, by the rules of every other figure here
+ * (`counted`, `isPaid`, the day the booking was made), never the usage
+ * events. Owner, 10 Nov 2026: a test booking "should not add up for the
+ * stats". A booking_paid event carries no booking id, so one paid with live
+ * money and marked Test afterwards (or since deleted) would still count.
+ * `mode` keeps only that booking type, as the events' own filter did.
+ */
+export function paidBookings(
+  rows: Array<Pick<StatsChainRow, 'vendorId' | 'vendorName' | 'paymentStatus' | 'markedTest' | 'bookingType'>>,
+  mode?: string
+): { paid: number; byGarage: Array<{ vendorId: string; name: string; bookings: number }> } {
+  const paid = counted(rows).filter((row) => isPaid(row) && (!mode || row.bookingType === mode))
+  const byGarage = new Map<string, { vendorId: string; name: string; bookings: number }>()
+  for (const row of paid) {
+    const garage = byGarage.get(row.vendorId) ?? { vendorId: row.vendorId, name: row.vendorName, bookings: 0 }
+    garage.bookings += 1
+    byGarage.set(row.vendorId, garage)
+  }
+  return { paid: paid.length, byGarage: [...byGarage.values()] }
+}
+
+/**
+ * Each garage's page views (usage events) beside its paid bookings
+ * (`paidBookings`): every garage with either, named as it is now.
+ */
+export function garageViewsWithBookings(
+  views: Array<{ vendorId: string; name: string | null; views: number }>,
+  bookings: Array<{ vendorId: string; name: string; bookings: number }>
+): Array<{ vendorId: string; name: string | null; views: number; bookings: number }> {
+  const rows = new Map(views.map((row) => [row.vendorId, { ...row, bookings: 0 }]))
+  for (const row of bookings) {
+    const seen = rows.get(row.vendorId)
+    if (seen) seen.bookings = row.bookings
+    else rows.set(row.vendorId, { vendorId: row.vendorId, name: row.name, views: 0, bookings: row.bookings })
+  }
+  return [...rows.values()]
 }
 
 /**
