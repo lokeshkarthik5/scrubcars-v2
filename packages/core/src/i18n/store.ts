@@ -144,13 +144,14 @@ const useClientLayoutEffect =
 /**
  * The websites' root client provider calls this once: it reads the saved
  * choice after hydration and keeps `<html lang>` in step, so screen readers
- * and the browser's own text shaping know the page is Tamil.
+ * and the browser's own text shaping know the page is Tamil. `enabled: false`
+ * (the customer website while CUSTOMER_TAMIL is off) never reads it: English.
  */
-export function useDocumentLang(): void {
+export function useDocumentLang(enabled = true): void {
   const lang = useLang((s) => s.lang)
   useClientLayoutEffect(() => {
-    loadLang()
-  }, [])
+    if (enabled) loadLang()
+  }, [enabled])
   useEffect(() => {
     document.documentElement.lang = lang
   }, [lang])
