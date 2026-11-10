@@ -1,5 +1,6 @@
 import { prefetchGarage } from '@repo/core/api/hooks/use-vendors';
 import { bookingTypeParam } from '@repo/core/booking-types';
+import { anywhereInCityLine } from '@repo/core/reach';
 import { distanceLabel, driveTimeLabel } from '@repo/core/drive-time';
 import { useT, useTn } from '@repo/core/i18n';
 import { hoursLeftShare, openStatus } from '@repo/core/opening-hours';
@@ -29,6 +30,7 @@ import {
 import { RoadLine } from '@/components/moments/road';
 import { buzz, useCountUp } from '@/lib/motion';
 import { isApproximate, useLocationStore } from '@/lib/location';
+import { useGarageTownTag } from '@/lib/customer-place';
 
 import { GarageCover, GarageMonogram } from './cover';
 import { NextFreeRow } from './next-free-row';
@@ -91,6 +93,8 @@ export function ShowroomCard({
   const { fx } = useFinish();
   const ink = usePearlInk();
   const queryClient = useQueryClient();
+  // A garage in another town than the customer's city (0070); null in it.
+  const townTag = useGarageTownTag(vendor);
   const reduce = useReduceMotion();
   const { width: screen, height: screenHeight } = useWindowDimensions();
   const ref = useRef<ViewRef>(null);
@@ -101,6 +105,7 @@ export function ShowroomCard({
   const held = useRef(false);
 
   const modeParam = bookingTypeParam(mode);
+  const anywhere = anywhereInCityLine(vendor, mode);
   const href = modeParam ? `/garage/${vendor.id}?mode=${modeParam}` : `/garage/${vendor.id}`;
   const photos = vendor.photos;
   const stars = hasStarScore(vendor);
@@ -289,7 +294,7 @@ export function ShowroomCard({
           </Pearl>
         </View>
 
-        {chips || vendor.outsideServiceCity || (mode === 'dropin' && vendor.doorstepEnabled) ? (
+        {chips || anywhere || townTag || (mode === 'dropin' && vendor.doorstepEnabled) ? (
           <View style={styles.chips}>
             {mode === 'dropin' && vendor.doorstepEnabled ? (
               <Raised radius={999} style={styles.chip} innerStyle={styles.chipInner}>
@@ -299,9 +304,19 @@ export function ShowroomCard({
                 </T>
               </Raised>
             ) : null}
+            {/* "Comes anywhere in Chennai" (0069), as the web card. */}
+            {anywhere ? (
+              <Raised radius={999} style={styles.chip} innerStyle={styles.chipInner}>
+                <IconHome size={13} color={fx.quietBright} />
+                <T variant="t4" color={fx.soft}>
+                  {anywhere}
+                </T>
+              </Raised>
+            ) : null}
             {chips}
-            {/* A garage in another town says so on its card, so nobody books it thinking it is in Chennai. */}
-            {vendor.outsideServiceCity ? <OutsideCityChip outside={vendor.outsideServiceCity} /> : null}
+            {/* A garage in another town than the customer's city says so on its card ("Vellore · 125 km"), so
+                nobody books it thinking it is round the corner; one in their city says nothing (0070). */}
+            {townTag ? <OutsideCityChip text={townTag} /> : null}
           </View>
         ) : null}
       </Pressable>

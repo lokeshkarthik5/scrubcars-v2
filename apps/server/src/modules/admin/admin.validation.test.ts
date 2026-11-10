@@ -3,6 +3,7 @@ import {
   adminCancelBookingSchema,
   bookingViewCountsQuerySchema,
   createBookingNoteSchema,
+  createBranchSchema,
   createVendorSchema,
   listBookingsQuerySchema,
   markNoShowSchema,
@@ -211,7 +212,8 @@ describe('setServiceActiveSchema', () => {
 })
 
 describe('admin pickup radius', () => {
-  // The same 1–30 km the garage's own settings allow (lib/pickup.ts).
+  // The same 1–300 km the garage's own settings allow (lib/pickup.ts); the
+  // top was 30 until the owner lifted it (10 Nov 2026).
   const garage = {
     ownerName: 'Ravi',
     ownerPhone: '9000000001',
@@ -222,20 +224,66 @@ describe('admin pickup radius', () => {
     pincode: '600001',
   }
 
-  test('create takes 1 to 30 km and refuses anything outside it', () => {
-    for (const km of [1, 8, 30]) {
+  test('create takes 1 to 300 km and refuses anything outside it', () => {
+    for (const km of [1, 8, 30, 45, 300]) {
       expect(createVendorSchema.safeParse({ ...garage, pickupRadiusKm: km }).success).toBe(true)
     }
-    for (const km of [0.5, 31, 100]) {
+    for (const km of [0.5, 301, 1000]) {
       expect(createVendorSchema.safeParse({ ...garage, pickupRadiusKm: km }).success).toBe(false)
     }
   })
 
-  test('edit takes 1 to 30 km or null, and refuses anything outside it', () => {
-    expect(updateVendorSchema.safeParse({ pickupRadiusKm: 30 }).success).toBe(true)
+  test('edit takes 1 to 300 km or null, and refuses anything outside it', () => {
+    expect(updateVendorSchema.safeParse({ pickupRadiusKm: 45 }).success).toBe(true)
     expect(updateVendorSchema.safeParse({ pickupRadiusKm: null }).success).toBe(true)
-    expect(updateVendorSchema.safeParse({ pickupRadiusKm: 31 }).success).toBe(false)
+    expect(updateVendorSchema.safeParse({ pickupRadiusKm: 301 }).success).toBe(false)
     expect(updateVendorSchema.safeParse({ pickupRadiusKm: 0.5 }).success).toBe(false)
+  })
+
+  test('the doorstep radius takes up to 300 km too, and "All over <city>" and "Show this garage anyway" are switches (0069)', () => {
+    expect(createVendorSchema.safeParse({ ...garage, doorstepRadiusKm: 45, doorstepWholeCity: true }).success).toBe(true)
+    expect(createVendorSchema.safeParse({ ...garage, doorstepRadiusKm: 301 }).success).toBe(false)
+    expect(updateVendorSchema.parse({ showWhenCityOff: true, pickupWholeCity: false })).toEqual({
+      showWhenCityOff: true,
+      pickupWholeCity: false,
+    })
+    expect(updateVendorSchema.safeParse({ showWhenCityOff: 'yes' }).success).toBe(false)
+  })
+})
+
+describe('Add a branch (0069)', () => {
+  const branch = { businessName: 'Ravi Car Care – Tirupur', city: 'Tirupur', ownerPhone: '9840011203' }
+
+  test('copies hours and photos by default; no services unless ticked; the owner’s phone always', () => {
+    expect(createBranchSchema.parse(branch)).toEqual({
+      ...branch,
+      address: '',
+      pincode: '',
+      serviceIds: [],
+      copyHours: true,
+      copyPhotos: true,
+      actorName: '',
+    })
+    const { ownerPhone: _phone, ...noPhone } = branch
+    expect(createBranchSchema.safeParse(noPhone).success).toBe(false)
+  })
+
+  test('the owner’s phone is 10 digits, trimmed; a name is optional but never blank', () => {
+    expect(createBranchSchema.parse({ ...branch, ownerPhone: ' 9840011203 ' }).ownerPhone).toBe('9840011203')
+    expect(createBranchSchema.safeParse({ ...branch, ownerPhone: '+919840011203' }).success).toBe(false)
+    expect(createBranchSchema.safeParse({ ...branch, ownerPhone: '98400' }).success).toBe(false)
+    expect(createBranchSchema.parse({ ...branch, ownerName: ' Meena ' }).ownerName).toBe('Meena')
+    expect(createBranchSchema.safeParse({ ...branch, ownerName: ' ' }).success).toBe(false)
+    expect(createBranchSchema.safeParse({ ...branch, sameOwner: true }).success).toBe(false)
+  })
+
+  test('the pin goes in pairs, the pincode is six digits or none, and nothing else rides along', () => {
+    expect(createBranchSchema.safeParse({ ...branch, lat: 11.1 }).success).toBe(false)
+    expect(createBranchSchema.safeParse({ ...branch, lat: 11.1, lng: 77.3 }).success).toBe(true)
+    expect(createBranchSchema.safeParse({ ...branch, pincode: '6410' }).success).toBe(false)
+    expect(createBranchSchema.safeParse({ ...branch, isVerified: true }).success).toBe(false)
+    expect(createBranchSchema.safeParse({ ...branch, serviceIds: ['not-a-uuid'] }).success).toBe(false)
+    expect(createBranchSchema.safeParse({ ...branch, businessName: ' ' }).success).toBe(false)
   })
 })
 

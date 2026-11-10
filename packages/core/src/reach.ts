@@ -10,6 +10,7 @@
 
 // Relative, not @repo/core/…: kept loadable by path like the other twins.
 import { insidePickupReach } from './pickup'
+import { collectsAnywhereLine, comesAnywhereLine, type ReachCity } from './cities'
 import type { BookingType } from './types'
 import { t, tn } from './i18n/translate'
 
@@ -129,16 +130,60 @@ export function nextTabOffer(
 }
 
 /**
+ * Whether the At garage list has a garage to show, for the map's "See all
+ * garages" when nothing is within 50 km. The list leaves out garages over
+ * 150 km away (0070), so for a customer far from every garage that link
+ * would open an empty list. The At garage count applies the same limit, so
+ * it can tell; a count taken with a service chosen only undercounts the
+ * list, which has every service. Unknown figures say no: a link that might
+ * lead nowhere is not offered.
+ */
+export function atGarageListHasGarages(figures: ReachFigures | null | undefined): boolean {
+  return (figures?.dropin.count ?? 0) > 0
+}
+
+/**
  * "Can collect your car" on an at-garage card: the garage does pickup & drop
  * and the customer's location is inside its pickup radius (the checkout's
  * own early check, insidePickupReach). Never without a location.
  */
 export function canCollectFrom(
-  garage: { pickupEnabled: boolean; lat: number | null; lng: number | null; pickupRadiusKm?: number | null },
+  garage: {
+    pickupEnabled: boolean
+    lat: number | null
+    lng: number | null
+    pickupRadiusKm?: number | null
+    pickupWholeCity?: boolean
+    reachCity?: ReachCity | null
+  },
   origin: { lat: number; lng: number } | null | undefined
 ): boolean {
   if (!garage.pickupEnabled || !origin) return false
   return insidePickupReach(garage, origin) === true
+}
+
+/**
+ * "Comes anywhere in Chennai" (doorstep) or "Collects anywhere in Chennai"
+ * (pickup & drop) on the card and the garage page of a garage that covers
+ * its whole city (0069; owner, 10 Nov 2026), for the way of booking being
+ * looked at. The city is the payload's own (`reachCity`), never assumed;
+ * At garage, an older API or a garage with no city says nothing.
+ */
+export function anywhereInCityLine(
+  garage: {
+    doorstepEnabled: boolean
+    pickupEnabled: boolean
+    doorstepWholeCity?: boolean
+    pickupWholeCity?: boolean
+    reachCity?: ReachCity | null
+  },
+  mode: BookingType | null | undefined
+): string | null {
+  const city = garage.reachCity?.name
+  if (!city) return null
+  if (mode === 'doorstep' && garage.doorstepEnabled && garage.doorstepWholeCity) return comesAnywhereLine(city)
+  if (mode === 'pickup' && garage.pickupEnabled && garage.pickupWholeCity) return collectsAnywhereLine(city)
+  return null
 }
 
 /**

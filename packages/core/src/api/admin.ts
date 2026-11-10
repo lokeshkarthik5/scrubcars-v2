@@ -57,11 +57,26 @@ export interface AdminVendor {
   pickupTermsAcceptedAt?: string | null
   pickupTermsAcceptedBy?: string | null
   /**
-   * Customers can find it: Active, verified, not paused and not in the Bin —
+   * Customers can find it: Active, verified, not paused, not in the Bin and
+   * its city on (0069) —
    * the customer lists' own rule, decided on the server so the two never
    * disagree. Absent from a server older than this field.
    */
   live?: boolean
+  /**
+   * Cities (0069): the city the garage is in (null is Other towns), whether
+   * that place is on for customers, and why it hides the garage when it does
+   * ("Its city, Tirupur, is off for customers"). Absent from an older API.
+   */
+  garageCity?: { id: string; name: string } | null
+  cityShown?: boolean
+  cityHiddenReason?: string | null
+  /** "Show this garage anyway": listed even while its city is off. */
+  showWhenCityOff?: boolean
+  /** "All over <city>" for doorstep and pickup & drop, instead of a radius. */
+  doorstepWholeCity?: boolean
+  pickupWholeCity?: boolean
+
   /**
    * In the Bin since then (see AdminVendorBin), or null. A garage in the Bin
    * is off the app for customers and its team until restored or deleted
@@ -253,6 +268,21 @@ export interface AdminVendorDetail {
   deletedByName?: string | null
   deletedReason?: string | null
   createdAt: string
+  /** Customers can find it (the list's Live), the city's switch included (0069). */
+  live?: boolean
+  /**
+   * Cities (0069): the city the garage is in (null is Other towns), whether
+   * that place is on for customers, and why it hides the garage when it does
+   * ("Its city, Tirupur, is off for customers"). Absent from an older API.
+   */
+  garageCity?: { id: string; name: string } | null
+  cityShown?: boolean
+  cityHiddenReason?: string | null
+  /** "Show this garage anyway": listed even while its city is off. */
+  showWhenCityOff?: boolean
+  /** "All over <city>" for doorstep and pickup & drop, instead of a radius. */
+  doorstepWholeCity?: boolean
+  pickupWholeCity?: boolean
   /** The garage list's checklist, for the editor's status panel (0059). Absent from an older API. */
   readiness?: ReadinessItem[]
   /** What the garage still owes us (0059), as on AdminVendor. Absent from an older API. */
@@ -348,6 +378,11 @@ export interface UpdateVendorInput {
   pickupAgreementSigned?: boolean
   pickupRadiusKm?: number | null
   doorstepRadiusKm?: number | null
+  /** "All over <city>" (0069). On needs the pin inside a city (400 WHOLE_CITY_NEEDS_CITY). */
+  doorstepWholeCity?: boolean
+  pickupWholeCity?: boolean
+  /** "Show this garage anyway" (0069): listed while its city is off. */
+  showWhenCityOff?: boolean
   /** Both or neither — the server rejects a half-set pair. */
   lat?: number
   lng?: number
@@ -752,6 +787,9 @@ export interface CreateVendorInput {
   pickupAgreementSigned?: boolean
   pickupRadiusKm?: number
   doorstepRadiusKm?: number
+  /** "All over <city>" (0069). On needs the pin inside a city. */
+  doorstepWholeCity?: boolean
+  pickupWholeCity?: boolean
   lat?: number
   lng?: number
   dropinEnabled?: boolean
@@ -817,6 +855,12 @@ export interface AdminMe {
   username: string | null
   /** The owner's login: the only one that changes team logins. */
   isOwner: boolean
+  /**
+   * The owner's deletes (10 Nov 2026): the owner's login or the shared
+   * break-glass login. The panel shows the owner-only Delete buttons only
+   * then. False from an older API.
+   */
+  canDeleteAnything: boolean
   /** The session's subject (0065): whose typed booking notes are yours. Null from an older API. */
   sub: string | null
 }
@@ -836,6 +880,7 @@ export async function getAdminMe(): Promise<AdminMe> {
     name: me.name?.trim() || 'admin',
     username: me.username ?? null,
     isOwner: me.isOwner ?? false,
+    canDeleteAnything: me.canDeleteAnything ?? false,
     sub: me.sub ?? null,
   }
   setAdminSigner(full.name)
@@ -1408,6 +1453,15 @@ export interface AdminVendorDeletePreview {
     label: string
     detail: string
   }>
+  /**
+   * The owner's Delete forever (10 Nov 2026), absent from older servers:
+   * bookings it takes that anyone else's keeps for their money, each with
+   * what it leaves, payouts left on record (which keep a tombstone), and
+   * payouts that go with the garage, each line kept in the money record.
+   */
+  ownerTaken?: Array<{ id: string; reference: string; moneyLabel: string; lines: string[] }>
+  payoutsLeft?: number
+  payoutsDeleted?: number
   overCap: { chains: number; checkouts: number }
   selectionHash: string
 }
@@ -1968,6 +2022,16 @@ export interface DataResetChain {
    * look. Absent from older servers.
    */
   teamTest?: { label: string } | null
+  /**
+   * The owner's delete (10 Nov 2026), absent from older servers: taken by a
+   * rule only the owner has (real money not refunded, an order that may
+   * still be paid, a garage payout), whether it is still on, and what it
+   * leaves, a line each. A reason is needed when `reasonRequired`.
+   */
+  ownerOverride?: boolean
+  stillOn?: boolean
+  lines?: string[]
+  reasonRequired?: boolean
   selected: boolean
 }
 
@@ -2013,6 +2077,9 @@ export interface DataResetCounts {
   bypassReports?: number
   requests?: number
   teamTestPayments?: number
+  /** The owner's delete (10 Nov 2026): real payments not refunded, and payout lines whose payout stays. */
+  unrefundedPayments?: number
+  payoutLines?: number
 }
 
 export interface DataResetReceiptYear {
@@ -2051,8 +2118,13 @@ export interface DataResetPreview {
   receiptPlan: DataResetReceiptYear[]
   /** Deletable rows left unticked because the run is over its cap. */
   overCap: { chains: number; checkouts: number }
-  /** What to type: "DELETE 143 BOOKINGS". */
+  /** What to type: "DELETE 143 BOOKINGS", or the booking's reference when `confirmKind` says so. */
   confirmPhrase: string
+  /**
+   * 'reference' (the owner's delete of what anyone else's keeps, 10 Nov
+   * 2026): type the booking's reference ("AD200012"). Absent is 'phrase'.
+   */
+  confirmKind?: 'phrase' | 'reference'
   selectionHash: string
   lookups: {
     keyMode: DataResetConfig['keyMode']
@@ -2154,12 +2226,20 @@ export interface DeletedTestPayment {
   reason: string
   bookingReference: string
   rootBookingId: string
-  kind: 'booking' | 'final_bill' | 'extra_work'
+  /** 'payout' (10 Nov 2026): a garage payout's line on a booking the owner deleted. */
+  kind: 'booking' | 'final_bill' | 'extra_work' | 'payout'
   razorpayPaymentId: string | null
   razorpayOrderId: string | null
   gatewayMode: 'live' | 'test' | 'fake' | null
   amount: string
   refundedAmount: string
+  /**
+   * Where the money stands (0071), absent from older servers (read as
+   * 'refunded'), a line for the record, and Detlio credit given back.
+   */
+  state?: 'refunded' | 'not_refunded' | 'refund_pending' | 'credit_returned' | 'paid_out'
+  note?: string | null
+  creditReturned?: string
   refundIds: string[]
   receiptNumber: string | null
   garageName: string | null
@@ -2279,9 +2359,12 @@ export interface AdminDiscount {
   createdAt: string
   /** Audit rows — any at all blocks deletion. */
   redemptionCount: number
-  /** Live uses, paid or not — this is what the usage limits compare against. */
+  /**
+   * Live uses, paid or not, as the usage limits count them, but without
+   * bookings marked Test (the limit check still counts those).
+   */
   heldCount: number
-  /** Uses whose money actually landed. */
+  /** Uses whose money actually landed, bookings marked Test left out. */
   realizedCount: number
   /** Rupees saved, realized only. */
   totalSaved: string

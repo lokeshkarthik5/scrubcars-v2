@@ -646,9 +646,7 @@ export const customerWeb: Readonly<Record<string, string>> = {
   'Location is off for this site. Pick your area instead — distances work the same.': 'இந்தத் தளத்திற்கு லொக்கேஷன் அணைக்கப்பட்டுள்ளது. அதற்குப் பதிலாக உங்கள் பகுதியைத் தேர்வு செய்யவும் — தூரங்கள் அதே போலக் கணக்கிடப்படும்.',
   'Pick your area to see distances and drive times. No location permission needed.': 'தூரங்களையும் பயண நேரங்களையும் பார்க்க உங்கள் பகுதியைத் தேர்வு செய்யவும். லொக்கேஷன் அனுமதி தேவையில்லை.',
   'Chosen': 'தேர்வு செய்யப்பட்டது',
-  'Search areas': 'பகுதிகளைத் தேடவும்',
   'Areas': 'பகுதிகள்',
-  'No area called “{query}” yet. Try a nearby one, or All of Chennai.': '“{query}” என்ற பகுதி இன்னும் இல்லை. அருகில் உள்ள ஒன்றை முயற்சிக்கவும், அல்லது முழு சென்னை.',
   // ─── components/booking-directions-sheet ───────────────────────────────────
   'Open in Google Maps': 'Google Maps-ல் திறக்கவும்',
   'This garage has not pinned its location yet. Google Maps opens its own listing.': 'இந்த கேரேஜ் இன்னும் தன் லொக்கேஷனைப் பின் செய்யவில்லை. Google Maps தன் சொந்தப் பட்டியலைத் திறக்கும்.',
@@ -884,17 +882,13 @@ export const customerWeb: Readonly<Record<string, string>> = {
   // ─── components/garages ────────────────────────────────────────────────────
   'All services': 'எல்லா சர்வீஸ்களும்',
   'Choose a service': 'சர்வீஸைத் தேர்வு செய்யவும்',
-  'Location blocked — all of Chennai': 'லொக்கேஷன் தடுக்கப்பட்டது — முழு சென்னை',
   'Change area': 'பகுதியை மாற்றவும்',
   'Showing garages near you': 'உங்கள் அருகில் உள்ள கேரேஜ்கள் காட்டப்படுகின்றன',
-  'Choose location': 'லொக்கேஷனைத் தேர்வு செய்யவும்',
   'garages or services': 'கேரேஜ்கள் அல்லது சர்வீஸ்கள்',
   'foam wash': 'ஃபோம் வாஷ்',
   'ceramic coating': 'செராமிக் கோட்டிங்',
   'interior cleaning': 'இன்டீரியர் கிளீனிங்',
   'scratch removal': 'கீறல் நீக்கம்',
-  'garage in Chennai': 'சென்னையில் கேரேஜ்',
-  'garages in Chennai': 'சென்னையில் கேரேஜ்கள்',
   'Service: {service}, {count}. Change': 'சர்வீஸ்: {service}, {count}. மாற்றவும்',
   'Service: {service}. Change': 'சர்வீஸ்: {service}. மாற்றவும்',
   'Finding garages…': 'கேரேஜ்களைத் தேடுகிறது…',
@@ -908,9 +902,7 @@ export const customerWeb: Readonly<Record<string, string>> = {
   'No garages match these filters.': 'இந்த வடிகட்டிகளுக்கு எந்த கேரேஜும் பொருந்தவில்லை.',
   'Show every garage': 'எல்லா கேரேஜ்களையும் காட்டவும்',
   'Show all services': 'எல்லா சர்வீஸ்களையும் காட்டவும்',
-  'Show all of Chennai': 'முழு சென்னையையும் காட்டவும்',
   'Try At garage': 'கேரேஜில் என்பதை முயற்சிக்கவும்',
-  'Further away — other towns': 'தொலைவில் — மற்ற ஊர்கள்',
   'Other garages — location not set yet': 'மற்ற கேரேஜ்கள் — லொக்கேஷன் இன்னும் அமைக்கவில்லை',
   'Open the map: {count} {words}': 'மேப்பைத் திறக்கவும்: {count} {words}',
   'Next free': 'அடுத்த காலி நேரம்',
@@ -1543,4 +1535,7 @@ export const customerWeb: Readonly<Record<string, string>> = {
   'Thank you': 'நன்றி',
   // ─── lib/price.ts ──────────────────────────────────────────────────────────
   '{price} inspection': '{price} இன்ஸ்பெக்ஷன்',
+  // ─── The area sheet, per city (0070) ───
+  'No area called “{query}” yet. Try a nearby one, or All of {city}.':
+    '“{query}” என்ற பகுதி இன்னும் இல்லை. அருகில் உள்ள ஒன்றை முயற்சிக்கவும், அல்லது {city} முழுவதும்.',
 }

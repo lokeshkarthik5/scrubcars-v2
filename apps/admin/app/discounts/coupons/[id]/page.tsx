@@ -21,6 +21,7 @@ import { downloadCsv } from '@repo/core/csv'
 import { CATEGORY_LABELS } from '@repo/core/categories'
 import { Meta } from '@/components/meta'
 import {
+  DeleteCodeDialog,
   VoidBatchDialog,
   VoidCodeDialog,
 } from '@/components/coupons/void-dialogs'
@@ -38,6 +39,11 @@ import {
   redemptionsCsv,
   scannedFigure,
 } from '@/lib/coupons'
+import { useOwnerDeleteCouponBatch } from '@repo/core/api/hooks/use-admin-owner-delete'
+import {
+  OwnerDeleteButton,
+  useCanDeleteAnything,
+} from '@/components/owner-delete'
 
 function Figures({ batch }: { batch: AdminCouponBatch }) {
   const f = batch.figures
@@ -119,6 +125,9 @@ export default function CouponBatchPage({
   const batch = useCouponBatch(id)
   const redemptions = useCouponRedemptions(id)
   const [voiding, setVoiding] = useState<'batch' | 'code' | null>(null)
+  const [deletingCode, setDeletingCode] = useState(false)
+  const removeBatch = useOwnerDeleteCouponBatch()
+  const canDelete = useCanDeleteAnything()
   const [downloading, setDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
 
@@ -378,6 +387,52 @@ export default function CouponBatchPage({
             </ScButton>
           </div>
         </ScCard>
+      )}
+
+      {/* The owner's delete (10 Nov 2026), beside Void, voided or not. */}
+      {canDelete && (
+        <ScCard className="flex flex-col gap-3">
+          <h2 className="text-[15px] font-semibold text-text-primary">
+            Delete
+          </h2>
+          <p className="text-[12px] text-text-secondary">
+            Only the owner sees this. Void keeps a code or the batch on record;
+            this removes it.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <ScButton
+              variant="danger-outline"
+              fullWidth={false}
+              onClick={() => setDeletingCode(true)}
+              className="min-h-11 px-4 text-[13px]"
+            >
+              Delete a code…
+            </ScButton>
+            <OwnerDeleteButton
+              label="Delete batch…"
+              title={`Delete ${b.name}?`}
+              confirmLabel="Delete batch"
+              typeToConfirm={b.name}
+              done={`${b.name} deleted`}
+              body={
+                <p>
+                  Its <span className="font-numeric">{b.codeCount}</span> codes
+                  go for good, with the record of the{' '}
+                  <span className="font-numeric">{b.figures.redeemed}</span>{' '}
+                  redeemed. A code a customer added keeps working for them;
+                  bookings keep their discount figures; stamps it gave go.
+                </p>
+              }
+              onDelete={async () => {
+                await removeBatch.mutateAsync({ id: b.id, confirmText: b.name })
+                router.replace('/discounts/coupons')
+              }}
+            />
+          </div>
+        </ScCard>
+      )}
+      {canDelete && deletingCode && (
+        <DeleteCodeDialog batch={b} onClose={() => setDeletingCode(false)} />
       )}
 
       {voiding === 'batch' && (

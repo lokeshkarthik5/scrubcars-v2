@@ -287,19 +287,28 @@ describe('booking mode', () => {
     expect(bookingReachLine('garage', null, { drawnArea: true })).toBe('At the garage')
   })
 
-  test('the travel radius: empty is the default, else 1 to 30 km as the garage app takes it', () => {
+  test('the travel radius: empty is the default, else 1 to 300 km as the garage app takes it', () => {
     expect(parseRadiusInput('')).toEqual({ ok: true, km: null })
     expect(parseRadiusInput(' 8 ')).toEqual({ ok: true, km: 8 })
     expect(parseRadiusInput('30')).toEqual({ ok: true, km: 30 })
+    // The 30 km top was lifted (10 Nov 2026): 45 is fine now.
+    expect(parseRadiusInput('45')).toEqual({ ok: true, km: 45 })
+    expect(parseRadiusInput('300')).toEqual({ ok: true, km: 300 })
     // The garage app's onboarding takes decimals, so a 7.5 it saved is fine.
     expect(parseRadiusInput('7.5')).toEqual({ ok: true, km: 7.5 })
-    expect(parseRadiusInput('31')).toEqual({
+    expect(parseRadiusInput('301')).toEqual({
       ok: false,
-      message: 'Enter a distance from 1 to 30 km, or leave it empty.',
+      message: 'Enter a distance from 1 to 300 km, or leave it empty.',
     })
-    for (const bad of ['0', '0.5', '31', '30.1', 'ten', '-3', 'Infinity']) {
+    for (const bad of ['0', '0.5', '301', '300.1', 'ten', '-3', 'Infinity']) {
       expect(parseRadiusInput(bad).ok).toBe(false)
     }
+  })
+
+  test('"All over <city>" is what the status line says when it is on (0069)', () => {
+    expect(bookingReachLine('both', 8, { wholeCity: 'Chennai' })).toBe('At the garage · Doorstep anywhere in Chennai')
+    expect(bookingReachLine('doorstep', null, { drawnArea: true, wholeCity: 'Chennai' })).toBe('Doorstep anywhere in Chennai')
+    expect(bookingReachLine('doorstep', 8, { wholeCity: null })).toBe('Doorstep within 8 km')
   })
 })
 

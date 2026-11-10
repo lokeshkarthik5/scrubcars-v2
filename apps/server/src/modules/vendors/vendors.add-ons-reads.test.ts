@@ -1,7 +1,8 @@
 /**
  * Add-ons (0068) through the real service code, with only the database stood
  * in for: moving a paid booking whose add-on has since been switched off, and
- * the garage's Earnings list.
+ * the garage's Earnings list. Also the reschedule picker's hours and holidays
+ * at a garage whose city is off (0069).
  */
 import { afterEach, describe, expect, test } from 'bun:test'
 
@@ -50,13 +51,16 @@ describe('moving a paid booking', () => {
       durationMins: 55,
       items,
     }))
-    patch(vendorsRepository, 'findPublicVendorById', async () => ({
+    const garage = async () => ({
       id: GARAGE,
       bays: 2,
       jobsPerDay: null,
       slotIntervalMins: 30,
       bookingsPausedAt: null,
-    }))
+    })
+    patch(vendorsRepository, 'findPublicVendorById', garage)
+    // Moving a booking reads the garage without its city's switch (0069).
+    patch(vendorsRepository, 'findVendorForItsBookings', garage)
     patch(vendorsRepository, 'findWorkingHoursForDay', async () => ({
       openTime: '06:00:00',
       closeTime: '22:00:00',
@@ -116,5 +120,65 @@ describe('Earnings', () => {
     const earnings = await vendorsService.getEarnings(GARAGE, 'week')
     expect(earnings.jobs[0]?.serviceNames).toEqual(['Foam wash'])
     expect(Number(earnings.jobs[0]?.amount)).toBe(698)
+  })
+
+  test('a booking marked Test earns nothing, in the week tile or anywhere else (owner, 10 Nov 2026)', async () => {
+    const job = {
+      status: 'completed',
+      noShow: null,
+      bookingType: 'dropin',
+      scheduledAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+      amount: '698.00',
+      subtotalAmount: '698.00',
+      discountAmount: '0.00',
+      discountFundedBy: null,
+      items,
+      service: { name: 'Foam wash' },
+      user: { name: 'Meena' },
+      payment: { status: 'paid' },
+    }
+    patch(bookingsRepository, 'listBookingsForVendor', async () => [
+      { ...job, id: BOOKING, markedTestAt: null },
+      { ...job, id: id(5825), markedTestAt: new Date() },
+    ])
+    patch(reviewsRepository, 'listReviewsForVendor', async () => [])
+
+    const earnings = await vendorsService.getEarnings(GARAGE, 'week')
+    expect(earnings.jobs.map((job) => job.id)).toEqual([BOOKING])
+    expect(earnings.summary.jobsDone).toBe(1)
+    expect(Number(earnings.weekEarnings)).toBe(Number(earnings.summary.totalEarned))
+    expect(Number(earnings.weekEarnings)).toBe(Number(earnings.jobs[0]?.amount))
+  })
+})
+
+describe('the reschedule picker at a garage whose city is off (0069)', () => {
+  // As the real reads: the page rule (with the city's switch) finds nothing,
+  // the rule for existing bookings still finds the garage.
+  function standIn() {
+    patch(vendorsRepository, 'findPublicVendorById', async () => undefined)
+    patch(vendorsRepository, 'findVendorForItsBookings', async (vendorId: string) =>
+      vendorId === GARAGE ? { id: GARAGE } : undefined
+    )
+    patch(vendorsRepository, 'listWorkingHours', async () => [
+      { id: 'h1', vendorId: GARAGE, dayOfWeek: 0, openTime: '09:00:00', closeTime: '18:00:00', isClosed: true },
+    ])
+    patch(vendorsRepository, 'listClosures', async () => [{ id: 'c1', vendorId: GARAGE, date: DATE, reason: null }])
+  }
+
+  test('still gets the weekly hours, so closed days stay greyed out', async () => {
+    standIn()
+    const hours = await vendorsService.getPublicWorkingHours(GARAGE)
+    expect(hours).toEqual([{ id: 'h1', dayOfWeek: 0, openTime: '09:00:00', closeTime: '18:00:00', isClosed: true }])
+  })
+
+  test('still gets the holidays', async () => {
+    standIn()
+    expect(await vendorsService.getPublicClosures(GARAGE)).toEqual([DATE])
+  })
+
+  test('a garage that is not open even for its bookings is still a 404', async () => {
+    standIn()
+    const refusal = await vendorsService.getPublicWorkingHours(id(5829)).catch((error: unknown) => error)
+    expect((refusal as InstanceType<typeof AppError>).code).toBe('VENDOR_NOT_FOUND')
   })
 })

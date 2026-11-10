@@ -1,6 +1,7 @@
 @import '@repo/ui/styles/globals.css';
-/* The customer UI round's finish (Nov 2026): this app only. The vendor portal
-   and admin import the globals above and never this, so they do not change. */
+/* The customer UI round's finish (Nov 2026). Its look switches on with
+   `finish` on <body>, which only this app sets; the garage portal imports the
+   file too, for its bottom bar and switches alone (see the file's header). */
 @import '@repo/ui/styles/finish.css';
 
 /* Tailwind v4 discovers utility classes by scanning source files. The app's own
@@ -15,81 +16,6 @@
 @theme inline {
   --color-brand-rich: #141416;
   --color-brand-graphite: #272730;
-}
-
-/* ─── The bottom bar: F + H silver (customer UI round, Nov 2026) ───────────
- *
- * components/home/hub-nav.tsx. The tab you are on is a graphite orb with a
- * ring of light (the red-glow mockup's F, held still: the mockup's turning
- * light is a loop, and the finish allows none); the others are brushed
- * silver lines (H). Icons stroke with the bar's metal gradient (#hub-metal).
- */
-.hub-tab svg {
-  stroke: url(#hub-metal);
-  filter: drop-shadow(0 1px 0 rgb(0 0 0 / 0.8));
-}
-.hub-tab--on {
-  --icon-line: 1.9px;
-}
-.hub-orb {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-}
-.hub-orb > * {
-  border-radius: 50%;
-}
-.hub-orb__well {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at 50% 30%, #2c2c31 0%, #19191c 55%, #0e0e10 100%);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.09),
-    inset 0 -4px 8px rgb(0 0 0 / 0.55);
-}
-/* The ring: a crimson base with two hot spots, warm and pink at their edges,
-   cut to a thin band by the mask. */
-.hub-orb__ring,
-.hub-orb__bloom {
-  position: absolute;
-  background: conic-gradient(
-    from 300deg,
-    rgb(20 0 4 / 0.55) 0deg 28deg,
-    #7a0018 50deg,
-    #ff2a3d 66deg,
-    #ff7a3a 80deg,
-    #ffb070 90deg,
-    #fff1ea 99deg,
-    #fff 104deg,
-    #ffd0dc 111deg,
-    #ff5c8a 122deg,
-    #e8125a 136deg,
-    #7a0019 152deg,
-    rgb(20 0 4 / 0.55) 172deg 206deg,
-    #7a0018 226deg,
-    #ff4a3a 244deg,
-    #ff9466 258deg,
-    #fff4ef 272deg,
-    #ff9ab4 284deg,
-    #ff2d6f 296deg,
-    #7a0019 314deg,
-    rgb(20 0 4 / 0.55) 334deg 360deg
-  );
-}
-.hub-orb__ring {
-  inset: 0;
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 1.6px), #000 calc(100% - 1.1px));
-  mask: radial-gradient(farthest-side, transparent calc(100% - 1.6px), #000 calc(100% - 1.1px));
-}
-.hub-orb__bloom {
-  inset: -4%;
-  filter: blur(6px) brightness(1.6);
-  opacity: 0.75;
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 2.5px), #000 100%);
-  mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 2.5px), #000 100%);
 }
 
 /* ─── The garage list (customer UI round, Nov 2026) ──────────────────────────

@@ -5,6 +5,7 @@ import { IconMapPin } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
 import { fill, useT } from '@repo/core/i18n'
 import { msg, t } from '@repo/core/i18n/translate'
+import { GraphiteSwitch } from '@repo/ui/finish/graphite-switch'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
@@ -12,7 +13,6 @@ import { ScCard } from '@repo/ui/sc/card'
 import { ConfirmSheet } from '@repo/ui/sc/confirm-sheet'
 import { EmptyState } from '@repo/ui/sc/empty-state'
 import { LoadError } from '@repo/ui/sc/load-error'
-import { ScSegmented } from '@repo/ui/sc/segmented'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
 import { TopBar } from '@repo/ui/sc/top-bar'
 import type { GarageRequest } from '@repo/core/api/booking-requests'
@@ -76,7 +76,7 @@ export default function RequestsPage() {
           { hours: REQUEST_RULES.respondMinutes / 60 }
         )}
       </p>
-      <ScSegmented
+      <GraphiteSwitch
         aria-label={t('Which requests')}
         value={scope}
         onChange={setScope}

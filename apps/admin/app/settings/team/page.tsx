@@ -31,6 +31,8 @@ import {
 } from '@repo/core/admin-logins'
 import { formatRelative } from '@repo/core/format'
 import { displayPhone, teammatePhone, teammatePhoneProblem } from '@/lib/collection'
+import { useOwnerDeleteAdminLogin } from '@repo/core/api/hooks/use-admin-owner-delete'
+import { OwnerDeleteButton } from '@/components/owner-delete'
 
 /** A row's small buttons: the pill family, at the height of a list row. */
 const ROW_BUTTON = 'h-10 px-4 text-[13px]'
@@ -100,6 +102,7 @@ function LoginList({
   const reset = useResetAdminLoginPassword()
   const status = useSetAdminLoginStatus()
   const update = useUpdateAdminLogin()
+  const removeLogin = useOwnerDeleteAdminLogin()
 
   // Each sheet keeps its login while it closes, so the title doesn't blank.
   const [resetFor, setResetFor] = useState<AdminLogin | null>(null)
@@ -280,6 +283,24 @@ function LoginList({
                     </ScButton>
                   )}
                 </div>
+              )}
+              {/* The owner's delete (10 Nov 2026): never your own, never the owner's. */}
+              {!you && !login.isOwner && (
+                <OwnerDeleteButton
+                  label="Delete login…"
+                  title={`Delete ${login.name}’s login?`}
+                  confirmLabel="Delete login"
+                  typeToConfirm={login.username}
+                  done={`${login.name}’s login was deleted`}
+                  className={`self-start ${ROW_BUTTON}`}
+                  body={
+                    <p>
+                      They are signed out and can&apos;t sign in again. Everything they did stays signed with
+                      their name, and lists given to them keep it. Turn off keeps the login instead.
+                    </p>
+                  }
+                  onDelete={() => removeLogin.mutateAsync({ id: login.id, confirmText: login.username })}
+                />
               )}
             </li>
           )

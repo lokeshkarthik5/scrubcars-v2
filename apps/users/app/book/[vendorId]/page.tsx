@@ -39,7 +39,7 @@ import { ScInput } from '@repo/ui/sc/input'
 import { ErrorState } from '@repo/ui/sc/empty-state'
 import { ScSheet } from '@repo/ui/sc/modal'
 import { Notice } from '@repo/ui/sc/notice'
-import { OutsideCityLine } from '@repo/ui/features/outside-city'
+import { OutsideCityLine, useGarageTownLine } from '@repo/ui/features/outside-city'
 import { hasStarScore } from '@repo/core/ratings'
 import { useGuaranteeConfig } from '@repo/core/api/hooks/use-guarantee'
 import { GUARANTEE_BADGE, GUARANTEE_SUMMARY } from '@repo/core/guarantee'
@@ -108,7 +108,6 @@ import { track } from '@repo/core/analytics'
 import { CHECKOUT_GARAGE_STALE_MS, garageQuery } from '@repo/core/api/hooks/use-vendors'
 import { pickRequestedServices, unofferedMode } from '@repo/core/book-again'
 import { getVendor } from '@repo/core/api/vendors'
-import { outsideCityCheckoutLine } from '@repo/core/service-city'
 import {
   openRazorpayCheckout,
   RazorpayReportedError,
@@ -289,6 +288,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const fetchProfile = useUserStore((s) => s.fetchProfile)
 
   const [vendor, setVendor] = useState<Vendor | null>(null)
+  // The garage page's line once more above Pay, only for a garage outside
+  // the customer's city (0070).
+  const townLine = useGarageTownLine(vendor)
   const [selectedServices, setSelectedServices] = useState<Service[]>([])
   // The garage's add-ons, and those picked: services stay `selectedServices`,
   // so nothing that means "a service" can count an add-on (0068).
@@ -2888,10 +2890,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
             )}
             {/* Said once more right above Pay, for a garage in another town:
                 a fact, never a step. */}
-            {vendor?.outsideServiceCity && (
+            {townLine && (
               <OutsideCityLine
                 id="checkout-outside-city"
-                text={outsideCityCheckoutLine(vendor.outsideServiceCity)}
+                text={townLine}
                 className="mb-2 justify-center text-center"
               />
             )}
@@ -2904,7 +2906,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
               // never a dead end: it names what is missing and goes there.
               disabled={loading || savingDraft || finishingSignIn}
               aria-describedby={
-                vendor?.outsideServiceCity
+                townLine
                   ? 'checkout-outside-city checkout-cta-hint'
                   : 'checkout-cta-hint'
               }

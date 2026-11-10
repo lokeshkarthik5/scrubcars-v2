@@ -11,6 +11,8 @@ import { Toast } from '@repo/ui/sc/toast'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { useUserStore } from '@repo/core/stores/user-store'
 import { isCitywide, useLocationStore } from '@repo/core/stores/location-store'
+import { useCustomerPlace } from '@repo/core/hooks/use-customer-place'
+import { cityChipName } from '@repo/core/customer-city'
 import { parseBookingType } from '@repo/core/booking-types'
 import type { BookingType } from '@repo/core/types'
 import { GarageList } from './garage-list'
@@ -44,6 +46,10 @@ function GarageListContent() {
 
   const user = profile ?? authUser
   const citywide = isCitywide(location)
+  // The customer's city (0070): from where they are, or the city they
+  // picked, Chennai until either.
+  const { city } = useCustomerPlace()
+  const area = location && !citywide ? location.label : null
 
   useEffect(() => {
     if (authUser) void fetchProfile().catch(() => undefined)
@@ -54,8 +60,8 @@ function GarageListContent() {
     ? t('Finding you…')
     : citywide
       ? permission === 'denied'
-        ? t('Location blocked — all of Chennai')
-        : t('All of Chennai')
+        ? t('Location blocked — all of {city}', { city: city.name })
+        : t('All of {city}', { city: city.name })
       : location?.source === 'area'
         ? t('Change area')
         : (user?.area ?? t('Showing garages near you'))
@@ -69,13 +75,15 @@ function GarageListContent() {
           <BrandMark height={28} priority />
         </span>
         <div className="flex min-w-0 flex-col items-end gap-1">
-          {/* The same area sheet as the landing page's "More" (0062): an area
-              in one tap, "Near me" behind our explainer, never a cold prompt. */}
+          {/* The city chip (0070): the area picked, or the whole city. It
+              opens the same area sheet as the landing page's "More" (0062):
+              the city, an area in one tap, "Near me" behind our explainer,
+              never a cold prompt. */}
           <button
             type="button"
             onClick={() => setAreaOpen(true)}
             disabled={locating}
-            aria-label={t('Choose location')}
+            aria-label={cityChipName(city, area && t(area))}
             aria-describedby="garage-list-place"
             // max-w-full: a button sizes to its label, so without it a long
             // area name pushed the page wider than a 360px phone.
@@ -83,7 +91,7 @@ function GarageListContent() {
           >
             <IconMapPin size={15} aria-hidden className="shrink-0 text-text-primary" />
             <span className="truncate text-t3 font-semibold text-text-primary">
-              {locating ? t('Finding you…') : location && !citywide ? location.label : t('Chennai')}
+              {locating ? t('Finding you…') : area ? t(area) : city.name}
             </span>
             <IconChevronDown size={13} aria-hidden className="shrink-0 text-[#9A9AA3]" />
           </button>

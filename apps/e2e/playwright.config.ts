@@ -15,6 +15,14 @@ const API = 'http://localhost:8080'
 
 const CI = Boolean(process.env.CI)
 
+// Specs that flip a team-wide switch (Other towns hides every garage in no
+// city) cannot share the server with anything else: a project's `workers: 1`
+// only keeps that project to one worker, and the others still run beside it.
+// They live in specs/alone, which the main run leaves out; `E2E_ALONE=1`
+// (`bun run test:e2e:alone`) runs that folder and nothing else, on a database
+// of its own from global setup.
+const ALONE = process.env.E2E_ALONE === '1'
+
 /**
  * In CI the frontends are built and served, not run through `next dev`.
  * Dev-mode compile-on-first-hit is the single largest source of timeout flake
@@ -86,45 +94,55 @@ export default defineConfig({
     timezoneId: 'Asia/Kolkata',
   },
 
-  projects: [
-    {
-      name: 'users',
-      testDir: './specs/users',
-      // The customer app is built for a phone (max-w-[428px]); running it at a
-      // desktop viewport would test a layout no user sees.
-      use: { ...devices['Pixel 7'], baseURL: USERS },
-    },
-    {
-      name: 'vendors',
-      testDir: './specs/vendors',
-      use: { ...devices['Pixel 7'], baseURL: VENDORS },
-    },
-    {
-      name: 'admin',
-      testDir: './specs/admin',
-      // Admin is the one desktop surface — it renders PanelShell, not the
-      // mobile shell.
-      use: { ...devices['Desktop Chrome'], baseURL: ADMIN },
-    },
-    {
-      // Cross-app specs drive three origins at once and share booking rows
-      // between them, so they cannot run alongside themselves.
-      name: 'journeys',
-      testDir: './specs/journeys',
-      fullyParallel: false,
-      workers: 1,
-      use: { ...devices['Pixel 7'], baseURL: USERS },
-    },
-    {
-      // Session expiry, forced 429s and last-slot races all mutate global or
-      // per-IP state, so they get the machine to themselves.
-      name: 'platform',
-      testDir: './specs/platform',
-      fullyParallel: false,
-      workers: 1,
-      use: { ...devices['Pixel 7'], baseURL: USERS },
-    },
-  ],
+  projects: ALONE
+    ? [
+        {
+          name: 'alone',
+          testDir: './specs/alone',
+          fullyParallel: false,
+          workers: 1,
+          use: { ...devices['Desktop Chrome'], baseURL: ADMIN },
+        },
+      ]
+    : [
+        {
+          name: 'users',
+          testDir: './specs/users',
+          // The customer app is built for a phone (max-w-[428px]); running it at a
+          // desktop viewport would test a layout no user sees.
+          use: { ...devices['Pixel 7'], baseURL: USERS },
+        },
+        {
+          name: 'vendors',
+          testDir: './specs/vendors',
+          use: { ...devices['Pixel 7'], baseURL: VENDORS },
+        },
+        {
+          name: 'admin',
+          testDir: './specs/admin',
+          // Admin is the one desktop surface — it renders PanelShell, not the
+          // mobile shell.
+          use: { ...devices['Desktop Chrome'], baseURL: ADMIN },
+        },
+        {
+          // Cross-app specs drive three origins at once and share booking rows
+          // between them, so they cannot run alongside themselves.
+          name: 'journeys',
+          testDir: './specs/journeys',
+          fullyParallel: false,
+          workers: 1,
+          use: { ...devices['Pixel 7'], baseURL: USERS },
+        },
+        {
+          // Session expiry, forced 429s and last-slot races all mutate global or
+          // per-IP state, so they get the machine to themselves.
+          name: 'platform',
+          testDir: './specs/platform',
+          fullyParallel: false,
+          workers: 1,
+          use: { ...devices['Pixel 7'], baseURL: USERS },
+        },
+      ],
 
   webServer: [
     {

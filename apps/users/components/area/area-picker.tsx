@@ -8,9 +8,17 @@ import {
   IconSearch,
 } from '@tabler/icons-react'
 import { LocationPromptSheet } from '@repo/ui/features/location-prompt-sheet'
+import { GraphiteSwitch } from '@repo/ui/finish/graphite-switch'
 import { ScSheet } from '@repo/ui/sc/modal'
 import { track } from '@repo/core/analytics'
 import { useZones } from '@repo/core/api/hooks/use-zones'
+import { useCustomerPlace } from '@repo/core/hooks/use-customer-place'
+import {
+  CITY_SWITCH_MAX,
+  cityGaragesLine,
+  zoneInCity,
+  type CustomerCity,
+} from '@repo/core/customer-city'
 import { useLocationStore } from '@repo/core/stores/location-store'
 import { searchZones, type Zone } from '@repo/core/zones'
 import type { BookingType } from '@repo/core/types'
@@ -75,10 +83,17 @@ export function NearMeBlocked() {
 }
 
 /**
- * The area sheet: "Near me", then every zone with a search box, then "All of
- * Chennai". Opened by "More" on the landing page's chips and by the location
- * button at the top of the garage list and Home's Nearby card, so the
- * customer always picks a place the same way.
+ * The area sheet (mockup B, customer cities 0070): the city, "Near me", then
+ * the city's zones with a search box, then "All of <City>". Opened by "More"
+ * on the landing page's chips and by the city chip at the top of the garage
+ * list and Home's Nearby card, so the customer always picks a place the same
+ * way.
+ *
+ * With two or three cities on for customers, a graphite switch at the top
+ * picks which city's areas are listed; from four, a short list of rows does.
+ * Picking a city only changes the list below; picking an area or "All of
+ * <City>" is the choice, and closes the sheet. With one city there is no city
+ * row at all, and the sheet is as it was before cities.
  */
 export function AreaPicker({
   open,
@@ -92,7 +107,13 @@ export function AreaPicker({
 }) {
   const t = useT()
   const location = useLocationStore((s) => s.location)
-  const selectChennai = useLocationStore((s) => s.selectChennai)
+  const selectCity = useLocationStore((s) => s.selectCity)
+  const { city: customerCity, cities } = useCustomerPlace()
+  // The city whose areas are listed: the customer's own until they pick
+  // another in the row, which changes nothing else until an area is chosen.
+  const [viewedId, setViewedId] = useState<string | null>(null)
+  const viewed = cities.find((c) => c.id === viewedId) ?? customerCity
+  const manyCities = cities.length > 1
   const pickArea = useAreaPick(mode)
   const nearMe = useNearMe(mode)
   const [query, setQuery] = useState('')
@@ -102,6 +123,7 @@ export function AreaPicker({
 
   const close = () => {
     setQuery('')
+    setViewedId(null)
     setReopened(false)
     nearMe.dismissBlocked()
     // Closed without a place: not offered again by itself for a week, as
@@ -134,9 +156,22 @@ export function AreaPicker({
               {t("Where's your car?")}
             </h2>
             <p className="mt-1 text-t4 text-text-secondary">
-              {t('Pick your area to see distances and drive times. No location permission needed.')}
+              {manyCities
+                ? t('Pick your city and area to see distances and drive times. No location permission needed.')
+                : t('Pick your area to see distances and drive times. No location permission needed.')}
             </p>
           </div>
+
+          {manyCities && (
+            <CityChoice
+              cities={cities}
+              value={viewed}
+              onChange={(next) => {
+                setViewedId(next.id)
+                setQuery('')
+              }}
+            />
+          )}
 
           {nearMe.blocked && <NearMeBlocked />}
 
@@ -156,25 +191,31 @@ export function AreaPicker({
             <IconSearch size={16} aria-hidden className="shrink-0 text-text-secondary" />
             <input
               type="search"
-              aria-label={t('Search areas')}
-              placeholder={t('Search areas')}
+              aria-label={t('Search areas in {city}', { city: viewed.name })}
+              placeholder={t('Search areas in {city}', { city: viewed.name })}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               className="min-w-0 flex-1 bg-transparent py-3 text-t3 text-text-primary outline-none placeholder:text-text-muted"
             />
           </label>
 
-          <AreaList query={query} chosen={location?.source === 'area' ? location.zone : undefined} onChoose={choose} />
+          <AreaList
+            query={query}
+            city={viewed}
+            cities={cities}
+            chosen={location?.source === 'area' ? location.zone : undefined}
+            onChoose={choose}
+          />
 
           <button
             type="button"
             onClick={() => {
-              selectChennai()
+              selectCity(viewed)
               close()
             }}
             className="min-h-11 self-center px-3 text-t3 text-text-primary underline underline-offset-2"
           >
-            {t('All of Chennai')}
+            {t('All of {city}', { city: viewed.name })}
           </button>
         </div>
       </ScSheet>
@@ -190,21 +231,86 @@ export function AreaPicker({
 }
 
 /**
- * The zones, filtered by the search. Its own component so the zones are
- * only read (useZones) while the sheet is open: ScSheet renders nothing when
- * closed.
+ * Which city's areas the sheet lists: a graphite switch for two or three
+ * cities, each with a quiet "42 garages" (none for a small city), and a short
+ * list of rows from four, which a switch could not hold at phone width.
+ * Either way a radiogroup named "City".
+ */
+function CityChoice({
+  cities,
+  value,
+  onChange,
+}: {
+  cities: readonly CustomerCity[]
+  value: CustomerCity
+  onChange: (city: CustomerCity) => void
+}) {
+  const t = useT()
+  if (cities.length <= CITY_SWITCH_MAX) {
+    return (
+      <GraphiteSwitch
+        aria-label={t('City')}
+        value={value.id}
+        onChange={(id) => {
+          const next = cities.find((c) => c.id === id)
+          if (next) onChange(next)
+        }}
+        options={cities.map((c) => ({ value: c.id, label: c.name, quiet: cityGaragesLine(c) ?? undefined }))}
+      />
+    )
+  }
+  return (
+    <div role="radiogroup" aria-label={t('City')} className="flex flex-col">
+      {cities.map((c) => {
+        const on = c.id === value.id
+        const quiet = cityGaragesLine(c)
+        return (
+          <button
+            key={c.id}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            onClick={() => onChange(c)}
+            className={cn(
+              'flex min-h-12 w-full items-center gap-3 border-b border-line px-1 text-left text-t3 text-text-primary',
+              on && 'font-medium'
+            )}
+          >
+            <span className="min-w-0 flex-1">{c.name}</span>
+            {quiet && <span className="shrink-0 font-numeric text-t5 text-text-muted">{quiet}</span>}
+            {on && <IconCheck size={16} aria-hidden className="shrink-0" />}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+/**
+ * The city's zones, filtered by the search. Its own component so the zones
+ * are only read (useZones) while the sheet is open: ScSheet renders nothing
+ * when closed.
  */
 function AreaList({
   query,
+  city,
+  cities,
   chosen,
   onChoose,
 }: {
   query: string
+  city: CustomerCity
+  cities: readonly CustomerCity[]
   chosen: string | undefined
   onChoose: (zone: Zone) => void
 }) {
   const t = useT()
-  const found = searchZones(useZones(), query)
+  const inCity = useZones().filter((zone) => zoneInCity(zone, city, cities))
+  const found = searchZones(inCity, query)
+  // A city with no areas drawn yet lists none: "All of <City>" right below
+  // is the choice there, and "No area called …" with nothing typed would be
+  // nonsense.
+  if (inCity.length === 0) return null
   return (
     <ul aria-label={t('Areas')} className="flex flex-col">
       {found.map((zone) => {
@@ -229,7 +335,10 @@ function AreaList({
       })}
       {found.length === 0 && (
         <li className="py-4 text-t4 text-text-secondary">
-          {t('No area called “{query}” yet. Try a nearby one, or All of Chennai.', { query: query.trim() })}
+          {t('No area called “{query}” yet. Try a nearby one, or All of {city}.', {
+            query: query.trim(),
+            city: city.name,
+          })}
         </li>
       )}
     </ul>

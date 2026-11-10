@@ -29,20 +29,28 @@ import { browseCategory } from '@repo/core/analytics-events'
 import { track } from '@repo/core/analytics'
 import { InfiniteSentinel } from '@repo/ui/sc/infinite-sentinel'
 import {
+  cityCentreParams,
   coarse,
   isApproximate,
   isCitywide,
   shouldOfferLocationPrompt,
-  useHydratedLocation,
   useLocationStore,
 } from '@repo/core/stores/location-store'
+import { useCustomerPlace } from '@repo/core/hooks/use-customer-place'
 import { ScButton } from '@repo/ui/sc/button'
 import { CATEGORY_LABELS } from '@repo/core/categories'
 import { SILVER_KEY_LABEL, SILVER_KEY_QUIET } from '@repo/core/tiers'
 import { useTierConfig } from '@repo/core/api/hooks/use-tiers'
 import { BOOKING_TYPES, BOOKING_TYPE_LABELS } from '@repo/core/booking-types'
 import { atGarageReach, canCollectFrom, nextTabOffer } from '@repo/core/reach'
-import { SERVICE_CITY, firstFarIndex, nearGarageCount } from '@repo/core/service-city'
+import {
+  detlioInLine,
+  farEmptyLine,
+  firstFarIndex,
+  inCityHeading,
+  isSmallCity,
+  nearGarageCount,
+} from '@repo/core/customer-city'
 import type { BookingType, Vendor } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
 import { GraphiteSwitch } from '@repo/ui/finish/graphite-switch'
@@ -58,7 +66,7 @@ import {
   PickupExplainer,
   SkipTheDriveCard,
 } from './reach-parts'
-import { FreeWashPiece } from '@/components/reach/free-wash'
+import { FreeWashPiece, RecommendRow } from '@/components/reach/free-wash'
 import { FilterSheet, SERVICE_FILTERS, ServiceFilterIcon, serviceFilterLabel, type ServiceFilter } from './filter-sheet'
 import { MapPeek } from './map-peek'
 import { QuickLook } from './quick-look'
@@ -179,18 +187,25 @@ export function GarageList({
   const [pinned, setPinned] = useState(false)
 
   // Null until hydrated, so a server-rendered list (the landing page) and its
-  // first client render agree; the stored place follows a moment later.
-  const location = useHydratedLocation()
+  // first client render agree; the stored place follows a moment later. The
+  // customer's city (0070) comes from it: Chennai until they are elsewhere.
+  const { location, city, place } = useCustomerPlace()
   const permission = useLocationStore((s) => s.permission)
   const promptDismissedAt = useLocationStore((s) => s.promptDismissedAt)
   const refreshPermission = useLocationStore((s) => s.refreshPermission)
-  const selectChennai = useLocationStore((s) => s.selectChennai)
+  const selectCity = useLocationStore((s) => s.selectCity)
+  // Fewer than three garages in the customer's city: no counts anywhere,
+  // "In Madurai", and one quiet way to recommend a garage (mockup D).
+  const small = isSmallCity(city)
 
-  // "All of Chennai" sends no origin: the list is the whole city, not a
-  // distance from a downtown pin the customer never chose. A phone fix is
-  // rounded to ~110 m before it leaves the device; an area is its centre.
+  // A whole city ("All of Coimbatore") sends no origin: the list is the
+  // whole city, not a distance from a downtown pin the customer never chose.
+  // Its centre goes along only for the 150 km limit (cityCentreParams). A
+  // phone fix is rounded to ~110 m before it leaves the device; an area is
+  // its centre.
   const citywide = isCitywide(location)
   const origin = citywide || !location ? undefined : coarse(location)
+  const cityParams = cityCentreParams(location, city)
   const approximate = isApproximate(location)
 
   // Distance is the default once we know where the customer is.
@@ -204,6 +219,7 @@ export function GarageList({
     (!withCategory || category_ === undefined) &&
     !silverOnly &&
     !origin &&
+    cityParams.cityLat === undefined &&
     effectiveSort === LANDING_LIST_PARAMS.sort
 
   // Sorting, filtering and paging are all the server's job: the client holds
@@ -226,6 +242,7 @@ export function GarageList({
       silverAndAbove: silverOnly || undefined,
       lat: origin?.lat,
       lng: origin?.lng,
+      ...cityParams,
       sort: effectiveSort,
     },
     // A mode, chip or sort change keeps the current garages on screen until
@@ -246,6 +263,7 @@ export function GarageList({
       silverAndAbove: silverOnly || undefined,
       lat: origin?.lat,
       lng: origin?.lng,
+      ...cityParams,
       sort: effectiveSort,
     },
     {
@@ -260,8 +278,9 @@ export function GarageList({
         filter === 'all'
           ? everyService.vendors.length
           : everyService.vendors.filter((v) => offers(v, filter)).length
-      // A count the loaded garages cannot vouch for is left off, never 0.
-      return [filter, n > 0 ? `${n}${everyService.hasMore ? '+' : ''}` : null]
+      // A count the loaded garages cannot vouch for is left off, never 0;
+      // and a small city counts nothing at all.
+      return [filter, n > 0 && !small ? `${n}${everyService.hasMore ? '+' : ''}` : null]
     })
   ) as Record<ServiceFilter, string | null>
 
@@ -273,10 +292,12 @@ export function GarageList({
     ? vendors.findIndex((v) => v.distanceKm === null)
     : -1
   // Where the near garages end and the ones in other towns begin (Tirupur,
-  // 387 km): listed after a line, never counted as "near you".
+  // 387 km): listed after a line, never counted as "near you". "Near" is
+  // the customer's city's own reach (0070).
   const firstFar = firstFarIndex(vendors, {
     located: !!origin,
     nearestFirst: effectiveSort === 'distance',
+    city,
   })
 
   // The At garage tab's pieces (Skip the drive, or the small "at home" line).
@@ -393,20 +414,22 @@ export function GarageList({
       ...(category === 'all' ? {} : { category }),
     },
   }
-  // Only garages within reach (or inside Chennai, with no location) are
-  // "near you": the far towns further down the list are not.
+  // Only garages within reach (or inside the customer's city, with no
+  // location) are "near you": the far towns further down the list are not.
   const near = nearGarageCount(everyService.vendors, {
     located: !!origin,
     hasMore: everyService.hasMore,
     nearestFirst: effectiveSort === 'distance',
+    city,
   })
-  const listCount = isLoading ? null : garagesCount(t, vendors.length, hasMore)
+  const listCount = isLoading || small ? null : garagesCount(t, vendors.length, hasMore)
   // The same count, rolling like an odometer as the mode or the service changes.
-  const listCountRolling = isLoading
-    ? null
-    : fill(t(vendors.length === 1 && !hasMore ? '{count} garage' : '{count} garages'), {
-        count: <Odometer value={`${vendors.length}${hasMore ? '+' : ''}`} numeric={vendors.length} />,
-      })
+  const listCountRolling =
+    isLoading || small
+      ? null
+      : fill(t(vendors.length === 1 && !hasMore ? '{count} garage' : '{count} garages'), {
+          count: <Odometer value={`${vendors.length}${hasMore ? '+' : ''}`} numeric={vendors.length} />,
+        })
 
   return (
     <>
@@ -439,20 +462,24 @@ export function GarageList({
         <MapPeek
           vendors={everyService.vendors}
           origin={origin}
-          centre={origin ?? SERVICE_CITY.centre}
+          centre={origin ?? city.centre}
           mode={serviceMode}
           category={category_}
-          countLabel={{
-            count: `${near.count}${near.more ? '+' : ''}`,
-            words:
-              near.count === 1 && !near.more
-                ? origin
-                  ? t('garage near you')
-                  : t('garage in Chennai')
-                : origin
-                  ? t('garages near you')
-                  : t('garages in Chennai'),
-          }}
+          countLabel={
+            small
+              ? { count: null, words: detlioInLine(city) }
+              : {
+                  count: `${near.count}${near.more ? '+' : ''}`,
+                  words:
+                    near.count === 1 && !near.more
+                      ? origin
+                        ? t('garage near you')
+                        : t('garage in {city}', { city: city.name })
+                      : origin
+                        ? t('garages near you')
+                        : t('garages in {city}', { city: city.name }),
+                }
+          }
         />
       )}
 
@@ -493,7 +520,7 @@ export function GarageList({
             className="flex-1"
             tile={<ServiceFilterIcon filter={category} />}
             main={serviceFilterLabel(category)}
-            quiet={listCountRolling ?? t('Finding garages…')}
+            quiet={small ? undefined : (listCountRolling ?? t('Finding garages…'))}
             trailing={<IconChevronDown size={16} aria-hidden />}
           />
           {/* Not there at all while Detlio shows neither Silver nor Gold. */}
@@ -537,7 +564,9 @@ export function GarageList({
             <h2 className="min-w-0 text-t2 font-semibold text-text-primary">
               {serviceMode === 'dropin' && atGarage.skipTheDrive
                 ? t('Or drive to')
-                : t('Nearby garages')}
+                : small
+                  ? inCityHeading(city)
+                  : t('Nearby garages')}
             </h2>
             <div className="flex shrink-0 items-center gap-2">
               {/* The map peek is the way to the map; without it, this is. */}
@@ -620,7 +649,10 @@ export function GarageList({
                     ? t('No garage collects from your area yet.')
                     : serviceMode === 'doorstep' && !citywide
                       ? t('No garage travels to your area yet.')
-                      : t('No garages match these filters.')}
+                      : serviceMode === 'dropin' && category === 'all' && (origin || cityParams.cityLat !== undefined)
+                        ? // Nothing within 150 km (0070): why, and the way on.
+                          farEmptyLine(place)
+                        : t('No garages match these filters.')}
               </p>
               <div className="flex flex-wrap justify-center gap-2">
                 {silverOnly && (
@@ -645,9 +677,9 @@ export function GarageList({
                   <ScButton
                     variant="outline"
                     fullWidth={false}
-                    onClick={selectChennai}
+                    onClick={() => selectCity(city)}
                   >
-                    {t('Show all of Chennai')}
+                    {t('Show all of {city}', { city: city.name })}
                   </ScButton>
                 )}
                 {!silverOnly && serviceMode !== 'dropin' && (
@@ -671,7 +703,7 @@ export function GarageList({
                       off the end of a "Nearest First" list unexplained. */}
                   {i === firstFar && (
                     <p className="pt-1 text-t5 text-text-muted">
-                      {t('Further away — other towns')}
+                      {t('Further away · other towns')}
                     </p>
                   )}
                   {i === firstUnlocatedIndex && (
@@ -699,6 +731,10 @@ export function GarageList({
             </>
           )}
           {ending}
+          {/* A small city (0070, mockup D): under its garages, one quiet way
+              to tell us about another, to admin's leads. No "more coming":
+              nobody has promised that. */}
+          {small && !isLoading && !isError && !isRefreshing && <RecommendRow city={city} />}
         </div>
         </PullToRefresh>
       </section>

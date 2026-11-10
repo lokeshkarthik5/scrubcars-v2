@@ -1,12 +1,19 @@
 import type { Context } from 'hono'
-import type { AuthVariables } from '../../middleware/auth.middleware.js'
+import {
+  signedInAdmin,
+  type AuthVariables,
+} from '../../middleware/auth.middleware.js'
 import { leadsService } from '../leads/leads.service.js'
 import type {
   DismissRecommendationInput,
   FromRecommendationInput,
 } from '../leads/leads.validation.js'
 import { coverageService } from './coverage.service.js'
-import type { CreateZoneInput, UpdateZoneInput } from './coverage.validation.js'
+import type {
+  CreateZoneInput,
+  RemoveZoneAnywayInput,
+  UpdateZoneInput,
+} from './coverage.validation.js'
 
 type AdminContext = Context<{ Variables: AuthVariables }>
 
@@ -29,6 +36,23 @@ export async function updateZone(
   return c.json({
     success: true,
     data: await coverageService.updateZone(id, input),
+  })
+}
+
+// The owner's "Delete anyway" (10 Nov 2026): what it would take, then the delete.
+export async function zoneUse(c: AdminContext, id: string) {
+  return c.json({ success: true, data: await coverageService.zoneUse(id) })
+}
+
+export async function removeZoneAnyway(
+  c: AdminContext,
+  id: string,
+  input: RemoveZoneAnywayInput
+) {
+  const actor = { sub: signedInAdmin(c).sub, name: input.actorName }
+  return c.json({
+    success: true,
+    data: await coverageService.removeZoneAnyway(actor, id, input.confirmText),
   })
 }
 

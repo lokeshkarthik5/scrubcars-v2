@@ -250,3 +250,20 @@ describe('handoverLocked', () => {
     expect(handoverLocked('at_garage', null, 0)).toBe(false)
   })
 })
+
+describe('insidePickupReach, all over the city (0069)', () => {
+  const chennai = { name: 'Chennai', lat: 13.0827, lng: 80.2707, reachKm: 50 }
+  // ~40 km from the garage, inside Chennai's 50 km.
+  const garage = { lat: 13.3378, lng: 80.1947, pickupRadiusKm: 5 }
+  const tambaram = { lat: 12.9249, lng: 80.1 }
+
+  test('measured from the city centre when the garage collects all over it', () => {
+    expect(insidePickupReach(garage, tambaram)).toBe(false)
+    expect(insidePickupReach({ ...garage, pickupWholeCity: true, reachCity: chennai }, tambaram)).toBe(true)
+    expect(insidePickupReach({ ...garage, pickupWholeCity: true, reachCity: chennai }, { lat: 13.7, lng: 80.2 })).toBe(false)
+  })
+
+  test('the radius still decides with no city to cover', () => {
+    expect(insidePickupReach({ ...garage, pickupWholeCity: true, reachCity: null }, tambaram)).toBe(false)
+  })
+})

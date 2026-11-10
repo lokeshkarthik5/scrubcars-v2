@@ -8,6 +8,7 @@ import { NEW_GARAGE_LABEL, hasStarScore } from '@repo/core/ratings'
 import { BOOKING_TYPE_LABELS, bookingTypeParam } from '@repo/core/booking-types'
 import { distanceAndDrive } from '@repo/core/drive-time'
 import { straightLineKm } from '@repo/core/map'
+import { anywhereInCityLine } from '@repo/core/reach'
 import {
   isApproximate,
   isCitywide,
@@ -15,7 +16,7 @@ import {
 } from '@repo/core/stores/location-store'
 import type { BookingType, Vendor } from '@repo/core/types'
 import { TierMark } from '@repo/ui/features/tier-medal'
-import { OutsideCityChip } from '@repo/ui/features/outside-city'
+import { GarageTownChip } from '@repo/ui/features/outside-city'
 import { GarageCover, GarageMonogram } from '@repo/ui/features/garage-cover'
 import { matchSpans } from '@repo/core/moments'
 import { fill, useT } from '@repo/core/i18n'
@@ -130,6 +131,7 @@ export function VendorCard({
     ? distanceAndDrive(km, approxDistance ?? isApproximate(location))
     : null
   const modeParam = mode ? bookingTypeParam(mode) : null
+  const anywhere = anywhereInCityLine(vendor, mode)
 
   return (
     <div className="relative">
@@ -246,11 +248,10 @@ export function VendorCard({
               )}
             </div>
 
-            {/* A garage in another town says so on its card, so nobody opens
-                it, or books it, thinking it is in Chennai. */}
-            {vendor.outsideServiceCity && (
-              <OutsideCityChip outside={vendor.outsideServiceCity} className="mt-0.5 self-start" />
-            )}
+            {/* A garage in another town than the customer's city says so on
+                its card, so nobody opens it, or books it, thinking it is
+                round the corner; one in their city says nothing (0070). */}
+            <GarageTownChip garage={vendor} className="mt-0.5 self-start" />
 
             {/* Only on a search that found the garage by one of its services:
                 without it, "ceramic" listing a garage called "Marina Auto" reads
@@ -266,6 +267,9 @@ export function VendorCard({
                 })}
               </p>
             )}
+            {/* "Comes anywhere in Chennai" (0069): on a Doorstep or Pickup &
+                drop list, a garage that covers its whole city says so. */}
+            {anywhere && <p className="truncate text-[12px] text-text-secondary">{anywhere}</p>}
             {note && <p className="truncate text-[12px] text-text-muted">{note}</p>}
             {/* Distance and drive time on a line of their own, with any chips
                 after them, so the figures never push the price off a 360px

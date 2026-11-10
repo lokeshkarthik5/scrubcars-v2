@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'react-toastify'
-import { IconCheck, IconCircleCheck, IconGift, IconX } from '@tabler/icons-react'
+import { IconCheck, IconChevronRight, IconCircleCheck, IconGift, IconX } from '@tabler/icons-react'
 import { ScSheet } from '@repo/ui/sc/modal'
 import { ScButton } from '@repo/ui/sc/button'
 import { Chip } from '@repo/ui/sc/chip'
@@ -29,6 +29,8 @@ import { subscribeThisBrowser } from '@repo/core/push'
 import { useNow } from '@repo/core/hooks/use-now'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { isCitywide, useHydratedLocation } from '@repo/core/stores/location-store'
+import { useCustomerPlace } from '@repo/core/hooks/use-customer-place'
+import { recommendRowText, type CustomerCity } from '@repo/core/customer-city'
 import { zoneFor, type Zone } from '@repo/core/zones'
 import { cn } from '@repo/core/utils'
 import { CheckoutSignInCard, useCheckoutSignIn } from '@/components/checkout/checkout-sign-in'
@@ -76,8 +78,18 @@ function readCloses(slug: string) {
  * reach <Area>", Claim, ×) or, once the customer is on the area's list, the
  * slim line. Nothing when their area has a garage, or when they closed the
  * card (back after 7 days, at most 3 times).
+ *
+ * Only in a city the owner has marked "Growing here" (0070): the card says
+ * more garages are coming, and in a city with just a partner garage nobody
+ * has promised that. Chennai is growing, so nothing changes there.
  */
 export function FreeWashPiece({ placement }: { placement: 'top' | 'bottom' }) {
+  const { city } = useCustomerPlace()
+  if (!city.growing) return null
+  return <FreeWashPieceInGrowingCity placement={placement} />
+}
+
+function FreeWashPieceInGrowingCity({ placement }: { placement: 'top' | 'bottom' }) {
   const t = useT()
   const zone = useCustomerZone()
   const user = useAuthStore((s) => s.user)
@@ -393,14 +405,45 @@ export function FreeWashSheet({
 }
 
 /**
+ * A small city's one quiet row under its garages (0070, mockup D): "Know a
+ * great garage in Madurai? Recommend it". It opens the same recommend form
+ * as the free-wash sheet, which sends to admin's leads. No promise of more
+ * garages: that is "Growing here"'s to make.
+ */
+export function RecommendRow({ city }: { city: CustomerCity }) {
+  const [open, setOpen] = useState(false)
+  const words = recommendRowText(city)
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        data-recommend-row=""
+        className="fx-raised fx-press flex min-h-[52px] w-full items-center gap-3 rounded-[16px] px-4 text-left"
+      >
+        <span className="min-w-0 flex-1 text-t4 text-[#D0D0D6]">
+          {words.ask} <span className="font-semibold text-text-primary">{words.action}</span>
+        </span>
+        <IconChevronRight size={16} aria-hidden className="shrink-0 text-[#8E8E98]" />
+      </button>
+      <RecommendSheet open={open} onClose={() => setOpen(false)} zoneSlug={null} />
+    </>
+  )
+}
+
+/**
  * "Recommend a garage": its name, a Google Maps link or its phone, and why
  * (optional). A lead for the team; ₹100 of credit if it joins and the
  * customer books it there (placeholder amounts, owner to confirm). The
- * link, phone and note are masked for Clarity.
+ * link, phone and note are masked for Clarity. A guest signs in on the
+ * in-page card first (a small city's row can be the first thing they tap):
+ * a recommendation is tied to an account, so one person cannot send fifty.
  */
 export function RecommendForm({ zoneSlug, onDone }: { zoneSlug: string | null; onDone: () => void }) {
   const t = useT()
   const recommend = useRecommendGarage()
+  const user = useAuthStore((s) => s.user)
+  const signIn = useCheckoutSignIn()
   const [name, setName] = useState('')
   const [mapsLink, setMapsLink] = useState('')
   const [phone, setPhone] = useState('')
@@ -470,9 +513,24 @@ export function RecommendForm({ zoneSlug, onDone }: { zoneSlug: string | null; o
           {error}
         </p>
       )}
-      <ScButton variant="main" disabled={!ready || recommend.isPending} onClick={() => void submit()}>
-        {recommend.isPending ? t('Sending…') : t('Send recommendation')}
-      </ScButton>
+      {user ? (
+        <ScButton variant="main" disabled={!ready || recommend.isPending} onClick={() => void submit()}>
+          {recommend.isPending ? t('Sending…') : t('Send recommendation')}
+        </ScButton>
+      ) : (
+        <CheckoutSignInCard
+          signIn={signIn}
+          verifyLabel={t('Verify and send')}
+          onVerify={() => {
+            if (!ready) {
+              setError(t('Give the garage’s name, and a Google Maps link or their phone.'))
+              return
+            }
+            void signIn.verify().then((ok) => (ok ? submit() : undefined))
+          }}
+          busy={recommend.isPending}
+        />
+      )}
     </div>
   )
 }

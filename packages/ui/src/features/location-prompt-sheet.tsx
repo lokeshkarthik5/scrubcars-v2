@@ -5,6 +5,7 @@ import { ScButton } from '@repo/ui/sc/button'
 import { ScSheet } from '@repo/ui/sc/modal'
 import { useLocationStore } from '@repo/core/stores/location-store'
 import { msg, useT } from '@repo/core/i18n'
+import { useCustomerPlace } from '@repo/core/hooks/use-customer-place'
 
 /**
  * Asks for location in our own words before the browser asks in its.
@@ -51,7 +52,9 @@ export function LocationPromptSheet({
 }: LocationPromptSheetProps) {
   const t = useT()
   const requestGpsLocation = useLocationStore((s) => s.requestGpsLocation)
-  const selectChennai = useLocationStore((s) => s.selectChennai)
+  const selectCity = useLocationStore((s) => s.selectCity)
+  // The customer's city (0070): Chennai until they pick another.
+  const { city } = useCustomerPlace()
   const locating = useLocationStore((s) => s.locating)
   const permission = useLocationStore((s) => s.permission)
   const dismiss = useLocationStore((s) => s.dismissPrompt)
@@ -76,7 +79,7 @@ export function LocationPromptSheet({
   }
 
   const chooseCity = () => {
-    selectChennai()
+    selectCity(city)
     onClose()
   }
 
@@ -133,7 +136,7 @@ export function LocationPromptSheet({
             </ScButton>
           )}
           <ScButton variant={blocked ? 'main' : 'outline'} onClick={chooseCity}>
-            {t('All of Chennai')}
+            {t('All of {city}', { city: city.name })}
           </ScButton>
           {!blocked && (
             <ScButton variant="text" onClick={notNow}>

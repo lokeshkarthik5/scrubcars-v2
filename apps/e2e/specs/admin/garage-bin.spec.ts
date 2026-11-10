@@ -366,6 +366,22 @@ test.describe('delete forever @p0', () => {
     expect(audit).toEqual({ actor_name: 'E2E Admin', outcome: 'hard_delete' })
   })
 
+  test('only a super-admin reaches the Bin', async () => {
+    const customer = await loginViaApi(CUSTOMERS.binBrowse.phone)
+    const response = await customer.post(`${ADMIN_VENDORS}/${VENDORS.binPaid.id}/restore`, {
+      data: {},
+    })
+    expect(response.status()).toBe(403)
+    await customer.dispose()
+  })
+})
+
+// The owner's Delete forever takes chains kept for their money too (10 Nov
+// 2026); a teammate who is not the owner keeps the rule above: real money is
+// kept, and the garage with it as a tombstone.
+test.describe('delete forever, for anyone but the owner @p0', () => {
+  test.use({ storageState: asRole('admin-teammate') })
+
   test('a garage with live money is kept as a tombstone, and its live booking with it', async ({ page }) => {
     const garage = VENDORS.binTomb
     const preview = await page.request.get(`${ADMIN_VENDORS}/${garage.id}/delete-preview`)
@@ -428,14 +444,5 @@ test.describe('delete forever @p0', () => {
     expect((await page.request.get(`${ADMIN_VENDORS}/${garage.id}`)).status()).toBe(404)
     const list = await page.request.get(ADMIN_VENDORS)
     expect(((await list.json()).data as Array<{ id: string }>).some((v) => v.id === garage.id)).toBe(false)
-  })
-
-  test('only a super-admin reaches the Bin', async () => {
-    const customer = await loginViaApi(CUSTOMERS.binBrowse.phone)
-    const response = await customer.post(`${ADMIN_VENDORS}/${VENDORS.binPaid.id}/restore`, {
-      data: {},
-    })
-    expect(response.status()).toBe(403)
-    await customer.dispose()
   })
 })

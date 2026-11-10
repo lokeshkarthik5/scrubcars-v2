@@ -6,11 +6,14 @@ import { ScButton } from '@repo/ui/sc/button'
 import { ScCheckbox } from '@repo/ui/sc/checkbox'
 import { DEFAULT_PICKUP_RADIUS_KM, PICKUP_TERMS_ADMIN } from '@repo/core/pickup'
 import { cn } from '@repo/core/utils'
-import { clearAdminDoorstepArea } from '@repo/core/api/admin'
+import { ApiError } from '@repo/core/api/client'
+import { clearAdminDoorstepArea, updateAdminVendor } from '@repo/core/api/admin'
+import { collectsAnywhereLine, comesAnywhereLine } from '@repo/core/cities'
 import { errorMessage } from '@repo/core/api/hooks/use-discounts'
 import { useLiveBookingMode } from '@/components/booking-mode-card'
 import { RESPONSIBILITY, useLivePickup } from '@/components/pickup-card'
 import { SavedNote } from '@/components/save-bar'
+import { TravelChoiceField } from '@repo/ui/features/travel-choice'
 import { formatWhen } from '@/lib/bookings'
 import {
   DEFAULT_DOORSTEP_RADIUS_KM,
@@ -43,6 +46,7 @@ export function HowCustomersBook({
   vendorId,
   booking,
   pinned,
+  pinCity,
   paused,
   live,
   onAuthError,
@@ -53,6 +57,8 @@ export function HowCustomersBook({
   booking: NonNullable<GarageDraftState['bookingMode']>
   /** As saved: a pin dragged but not saved is not one yet. */
   pinned: boolean
+  /** The city the saved pin is in (0069), for "All over <city>"; null for none. */
+  pinCity: string | null
   paused: boolean
   /** Active and shown to customers, as saved. */
   live: boolean
@@ -78,6 +84,17 @@ export function HowCustomersBook({
     onAuthError,
     onSaved,
   })
+  const whole = useLiveWholeCity({
+    vendorId,
+    doorstep: booking.doorstepWholeCity,
+    pickup: booking.pickupWholeCity,
+    onAuthError,
+    onSaved,
+  })
+  // "All over <city>" applies only while the pin is in a city (the server's
+  // rule): the city's name when it does, else null.
+  const doorstepCity = whole.doorstep && pinCity ? pinCity : null
+  const pickupCity = whole.pickup && pinCity ? pinCity : null
   // Unticking the last of the two: said here, and not sent.
   const [needsOne, setNeedsOne] = useState(false)
 
@@ -100,7 +117,7 @@ export function HowCustomersBook({
       setClearError(errorMessage(err, "Couldn't clear the drawn area"))
     }
   }
-  const reach = bookingReachLine(mode.mode, mode.savedKm, { drawnArea })
+  const reach = bookingReachLine(mode.mode, mode.savedKm, { drawnArea, wholeCity: doorstepCity })
 
   const tick = (dropin: boolean, doorstep: boolean) => {
     const next = bookingModeOf(dropin, doorstep)
@@ -126,7 +143,7 @@ export function HowCustomersBook({
         </h2>
         {/* Always mounted, so the change is announced when it lands. */}
         <SavedNote
-          state={combined(mode.saveState, pickup.saveState)}
+          state={combined(combined(mode.saveState, pickup.saveState), whole.saveState)}
           idleText="Saves on tap"
         />
       </div>
@@ -141,9 +158,11 @@ export function HowCustomersBook({
         <Tile
           label="Doorstep"
           hint={
-            drawnArea
-              ? 'Team travels within its drawn area'
-              : `Team travels up to ${mode.savedKm ?? DEFAULT_DOORSTEP_RADIUS_KM} km`
+            doorstepCity
+              ? comesAnywhereLine(doorstepCity)
+              : drawnArea
+                ? 'Team travels within its drawn area'
+                : `Team travels up to ${mode.savedKm ?? DEFAULT_DOORSTEP_RADIUS_KM} km`
           }
           checked={doorstepOn}
           onChange={(on) => tick(garageOn, on)}
@@ -152,7 +171,9 @@ export function HowCustomersBook({
           label="Pickup & drop"
           hint={
             pickup.saved.enabled
-              ? `Collects up to ${pickup.saved.km ?? DEFAULT_PICKUP_RADIUS_KM} km`
+              ? pickupCity
+                ? collectsAnywhereLine(pickupCity)
+                : `Collects up to ${pickup.saved.km ?? DEFAULT_PICKUP_RADIUS_KM} km`
               : 'Needs the signed agreement'
           }
           checked={pickup.on}
@@ -218,32 +239,60 @@ export function HowCustomersBook({
       )}
 
       {doorstepOn && (
-        <KmRow
-          label="Travels up to"
-          hint={
-            drawnArea ? (
-              // Kept editable: if the garage clears its area, this is what
-              // applies from then on.
-              'Not used while the garage’s own drawn area is set.'
-            ) : (
-              <>
-                Optional. Empty means{' '}
-                <span className="font-numeric">
-                  {DEFAULT_DOORSTEP_RADIUS_KM}
-                </span>{' '}
-                km.
-              </>
-            )
-          }
-          value={mode.radius}
-          placeholder={DEFAULT_DOORSTEP_RADIUS_KM}
-          error={mode.radiusError}
-          onChange={mode.changeRadius}
-          onCommit={mode.commitRadius}
-        />
+        <div className="-mx-4 mt-4 border-t border-border px-4 pt-4">
+          <TravelChoiceField
+            label="How far the team travels"
+            wholeCity={whole.doorstep}
+            onChange={whole.setDoorstep}
+            cityName={pinCity}
+            radiusKm={mode.savedKm}
+            defaultKm={DEFAULT_DOORSTEP_RADIUS_KM}
+            disabled={whole.saving}
+          >
+            <KmRow
+              label="Travels up to"
+              hint={
+                drawnArea ? (
+                  // Kept editable: if the garage clears its area, this is what
+                  // applies from then on.
+                  'Not used while the garage’s own drawn area is set.'
+                ) : (
+                  <>
+                    Optional. Empty means{' '}
+                    <span className="font-numeric">
+                      {DEFAULT_DOORSTEP_RADIUS_KM}
+                    </span>{' '}
+                    km.
+                  </>
+                )
+              }
+              value={mode.radius}
+              placeholder={DEFAULT_DOORSTEP_RADIUS_KM}
+              error={mode.radiusError}
+              onChange={mode.changeRadius}
+              onCommit={mode.commitRadius}
+              flush
+            />
+          </TravelChoiceField>
+        </div>
       )}
 
-      {pickup.on && (
+      {pickup.on && pickup.saved.enabled && (
+        <div className="-mx-4 mt-4 border-t border-border px-4 pt-4">
+          <TravelChoiceField
+            label="How far it collects from"
+            wholeCity={whole.pickup}
+            onChange={whole.setPickup}
+            cityName={pinCity}
+            radiusKm={pickup.saved.km}
+            defaultKm={DEFAULT_PICKUP_RADIUS_KM}
+            disabled={whole.saving || pickup.saving}
+            wholeCityNote={(city) => `Collects from any address in ${city}, measured from the city's centre.`}
+          />
+        </div>
+      )}
+
+      {pickup.on && !pickupCity && (
         <KmRow
           label="Collects up to"
           hint={
@@ -313,9 +362,9 @@ export function HowCustomersBook({
         </div>
       )}
 
-      {(mode.error || pickup.error) && (
+      {(mode.error || pickup.error || whole.error) && (
         <p role="alert" className="mt-3 text-[13px] text-error">
-          {mode.error ?? pickup.error}
+          {mode.error ?? pickup.error ?? whole.error}
         </p>
       )}
 
@@ -421,6 +470,7 @@ function KmRow({
   disabled,
   onChange,
   onCommit,
+  flush = false,
   children,
 }: {
   label: string
@@ -431,11 +481,13 @@ function KmRow({
   disabled?: boolean
   onChange: (value: string) => void
   onCommit: () => void
+  /** Inside the travel choice, which draws the rule above it already. */
+  flush?: boolean
   children?: ReactNode
 }) {
   const id = useId()
   return (
-    <div className="-mx-4 mt-4 border-t border-border px-4 pt-4">
+    <div className={flush ? undefined : '-mx-4 mt-4 border-t border-border px-4 pt-4'}>
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <label
@@ -487,4 +539,72 @@ function KmRow({
       {children}
     </div>
   )
+}
+
+/**
+ * "All over <city>" for doorstep and pickup & drop (0069), saved the moment
+ * it is picked, as the tiles are. A refusal (the server's "Pin the garage
+ * inside a city first") puts the choice back and says why.
+ */
+function useLiveWholeCity({
+  vendorId,
+  doorstep: initialDoorstep,
+  pickup: initialPickup,
+  onAuthError,
+  onSaved,
+}: {
+  vendorId: string
+  doorstep: boolean
+  pickup: boolean
+  onAuthError: () => void
+  onSaved: () => void
+}) {
+  const [doorstep, setDoorstepState] = useState(initialDoorstep)
+  const [pickup, setPickupState] = useState(initialPickup)
+  const [saving, setSaving] = useState(false)
+  const [saveState, setSaveState] = useState<SaveState>('idle')
+  const [error, setError] = useState<string | null>(null)
+
+  const save = async (patch: { doorstepWholeCity?: boolean; pickupWholeCity?: boolean }, undo: () => void) => {
+    setSaving(true)
+    setSaveState('saving')
+    setError(null)
+    try {
+      await updateAdminVendor(vendorId, patch)
+      setSaveState('saved')
+      // Back to the quiet label, as the tiles' own "Saved" does.
+      setTimeout(() => setSaveState((state) => (state === 'saved' ? 'idle' : state)), 2500)
+      onSaved()
+    } catch (err) {
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+        onAuthError()
+        return
+      }
+      undo()
+      setSaveState('idle')
+      setError(errorMessage(err, 'Couldn’t save that. Check the connection and try again.'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return {
+    doorstep,
+    pickup,
+    saving,
+    saveState,
+    error,
+    setDoorstep: (on: boolean) => {
+      if (on === doorstep) return
+      const before = doorstep
+      setDoorstepState(on)
+      void save({ doorstepWholeCity: on }, () => setDoorstepState(before))
+    },
+    setPickup: (on: boolean) => {
+      if (on === pickup) return
+      const before = pickup
+      setPickupState(on)
+      void save({ pickupWholeCity: on }, () => setPickupState(before))
+    },
+  }
 }

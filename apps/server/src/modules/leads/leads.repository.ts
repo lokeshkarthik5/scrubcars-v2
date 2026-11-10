@@ -44,6 +44,9 @@ export interface GarageForMatch {
   isVerified: boolean
   bookingsPausedAt: Date | null
   deletedAt: Date | null
+  /** Its stored city (0069), for the live rule. */
+  cityId: string | null
+  showWhenCityOff: boolean
 }
 
 export const leadsRepository = {
@@ -172,6 +175,8 @@ export const leadsRepository = {
         isVerified: vendors.isVerified,
         bookingsPausedAt: vendors.bookingsPausedAt,
         deletedAt: vendors.deletedAt,
+        cityId: vendors.cityId,
+        showWhenCityOff: vendors.showWhenCityOff,
       })
       .from(vendors)
       .where(vendorNotInBin())

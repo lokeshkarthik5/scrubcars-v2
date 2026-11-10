@@ -1040,4 +1040,42 @@ export const garageWeb: Readonly<Record<string, string>> = {
     'வாடிக்கையாளர்கள் புக் செய்யக்கூடிய வாகன வகைகள் இவை; வாகனத்துக்கு ஏற்ற விலை உள்ள சர்வீஸ்களுக்கு நீங்கள் விலை வைக்கும் வகைகளும் இவையே.',
   'Opening dashboard...': 'டாஷ்போர்டைத் திறக்கிறது...',
   'Go to dashboard': 'டாஷ்போர்டுக்குச் செல்லவும்',
+  // ─── Bookings › Calendar (#125): Month and Day, the switch's quiet lines ───
+  Calendar: 'காலண்டர்',
+  'Calendar view': 'காலண்டர் பார்வை',
+  '{count} waiting': '{count} காத்திருக்கிறது',
+  '{count} today': 'இன்று {count}',
+  '{count} job': '{count} வேலை',
+  '{count} jobs': '{count} வேலைகள்',
+  '{count} done': '{count} முடிந்தது',
+  'No jobs': 'வேலை இல்லை',
+  'Today · {date}': 'இன்று · {date}',
+  '{jobs} · open {open} – {close}': '{jobs} · திறந்திருக்கும் நேரம் {open} – {close}',
+  'Nothing booked on this day.': 'இந்த நாளில் புக்கிங் எதுவும் இல்லை.',
+  'Nothing booked on this day yet.': 'இந்த நாளில் இன்னும் புக்கிங் எதுவும் இல்லை.',
+  'To answer': 'பதில் தேவை',
+  'Answer · {mins} min': 'பதில் · {mins} min',
+  '{count} bay': '{count} பே',
+  '{count} bays': '{count} பேக்கள்',
+  'On the road': 'வெளி வேலைகள்',
+  'Closes {time}': '{time}-க்கு மூடப்படும்',
+  Free: 'காலி',
+  'Closed · Weekly holiday': 'மூடப்பட்டது · வார விடுமுறை',
+  'Time off · {reason}': 'விடுமுறை · {reason}',
+  'Customers can’t book this day. Change it in Settings → {where}.':
+    'இந்த நாளில் வாடிக்கையாளர்கள் புக் செய்ய முடியாது. அமைப்புகள் → {where}-ல் மாற்றவும்.',
+  today: 'இன்று',
+  closed: 'மூடப்பட்டது',
+  '{count} to answer': 'பதில் தர {count}',
+  '{start} to {end}': '{start} முதல் {end} வரை',
+  // ─── "Up to N km" or "All over <city>" (0069), in Settings and onboarding ───
+  'How far you go': 'எவ்வளவு தூரம் வருவீர்கள்',
+  'How far you travel for doorstep jobs':
+    'வீட்டுக்கே வந்து செய்யும் வேலைகளுக்கு எவ்வளவு தூரம் வருவீர்கள்',
+  'You go to any address in {city}.': '{city}-ல் எந்த முகவரிக்கும் நீங்கள் வருவீர்கள்.',
+  "How far you'll travel for doorstep jobs, up to {max} km. Leave empty to use {km} km.":
+    'வீட்டுக்கே வந்து செய்யும் வேலைகளுக்கு நீங்கள் எவ்வளவு தூரம் வருவீர்கள், அதிகபட்சம் {max} km. காலியாக விட்டால் {km} km.',
+  'How far you collect from': 'எவ்வளவு தூரத்திலிருந்து காரை எடுப்பீர்கள்',
+  'You collect from any address in {city}.':
+    '{city}-ல் எந்த முகவரியிலிருந்தும் நீங்கள் காரை எடுப்பீர்கள்.',
 }

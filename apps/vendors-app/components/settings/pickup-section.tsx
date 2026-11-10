@@ -20,6 +20,8 @@ import { decimalOnly, formatAcceptedDay } from '@/lib/settings-logic';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 import { updateVendorJobTypes } from '@/lib/vendor-api';
 import { fill, useT } from '@repo/core/i18n';
+import { collectsAnywhereLine } from '@repo/core/cities';
+import { TravelChoiceField } from '@/components/travel-choice';
 
 /**
  * "Pickup & drop" (apps/vendors/app/settings/pickup-section.tsx): the garage collects the
@@ -42,12 +44,15 @@ export function PickupSection({
   const [turningOn, setTurningOn] = useState(false);
   const [accepted, setAccepted] = useState(false);
   const [radius, setRadius] = useState(vendor.pickupRadiusKm != null ? String(vendor.pickupRadiusKm) : '');
-  const [saving, setSaving] = useState<'switch' | 'radius' | null>(null);
+  const [saving, setSaving] = useState<'switch' | 'radius' | 'whole' | null>(null);
 
   const parsed = parsePickupRadius(radius);
   const pinned = vendor.lat != null && vendor.lng != null;
+  // "All over <city>" (0069): only while the pin is in a city.
+  const cityName = vendor.garageCity?.name ?? null;
+  const wholeCity = vendor.pickupWholeCity === true && cityName !== null;
 
-  const save = async (key: 'switch' | 'radius', input: Parameters<typeof updateVendorJobTypes>[0]) => {
+  const save = async (key: 'switch' | 'radius' | 'whole', input: Parameters<typeof updateVendorJobTypes>[0]) => {
     setSaving(key);
     try {
       const updated = await updateVendorJobTypes(input);
@@ -110,7 +115,22 @@ export function PickupSection({
           </Notice>
         ) : null}
 
-        {enabled || turningOn ? (
+        {enabled && !turningOn ? (
+          <View style={[styles.part, styles.divided]}>
+            <TravelChoiceField
+              label={t('How far you collect from')}
+              wholeCity={wholeCity}
+              onChange={(on) => void save('whole', { pickupWholeCity: on })}
+              cityName={cityName}
+              radiusKm={vendor.pickupRadiusKm}
+              defaultKm={DEFAULT_PICKUP_RADIUS_KM}
+              disabled={saving !== null}
+              wholeCityNote={(city) => t('You collect from any address in {city}.', { city })}
+            />
+          </View>
+        ) : null}
+
+        {turningOn || (enabled && !wholeCity) ? (
           <View style={[styles.part, styles.divided]}>
             <ScInput
               label={t('How far will you collect from? (km, optional)')}
@@ -174,7 +194,7 @@ export function PickupSection({
         {enabled && !turningOn ? (
           <>
             <T num size={12}>
-              {pickupReachLine(vendor.pickupRadiusKm)}
+              {wholeCity && cityName ? collectsAnywhereLine(cityName) : pickupReachLine(vendor.pickupRadiusKm)}
             </T>
             {vendor.pickupTermsAcceptedAt ? (
               <T size={11} color={colors.textMuted}>
@@ -190,7 +210,7 @@ export function PickupSection({
             <T size={11} color={colors.textMuted}>
               {t('Customers can book pickup & drop from the Detlio app soon.')}
             </T>
-            {radiusChanged ? (
+            {radiusChanged && !wholeCity ? (
               <ScButton variant="outline" disabled={saving !== null} onPress={() => void save('radius', { pickupRadiusKm: radiusKm })}>
                 {saving === 'radius' ? t('Saving...') : t('Save pickup distance')}
               </ScButton>

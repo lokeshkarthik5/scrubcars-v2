@@ -3,6 +3,7 @@ import { BOOKING_TYPE_LABELS, bookingTypeParam } from '@repo/core/booking-types'
 import { distanceAndDrive } from '@repo/core/drive-time';
 import { fill, useT } from '@repo/core/i18n';
 import { hasStarScore, NEW_GARAGE_LABEL, newGarageReviewsLine } from '@repo/core/ratings';
+import { anywhereInCityLine } from '@repo/core/reach';
 import type { BookingType, Vendor } from '@repo/core/types';
 import { IconStarFilled } from '@repo/native-ui/icons';
 import { PressRow } from '@repo/native-ui/primitives';
@@ -14,6 +15,7 @@ import type { ReactNode } from 'react';
 import { Image, View } from 'react-native';
 
 import { isApproximate, useLocationStore } from '@/lib/location';
+import { useGarageTownTag } from '@/lib/customer-place';
 
 import { GarageCover, GarageMonogram } from './cover';
 import { SaveGarageButton } from './save-button';
@@ -77,10 +79,13 @@ export function VendorCard({
   const colors = useColors();
   const styles = useStyles();
   const location = useLocationStore((s) => s.location);
+  // A garage in another town than the customer's city (0070); null in it.
+  const townTag = useGarageTownTag(vendor);
   const cover = vendor.photos[0] ?? null;
   const km = vendor.distanceKm;
   const distanceText = km !== null ? distanceAndDrive(km, isApproximate(location)) : null;
   const modeParam = mode ? bookingTypeParam(mode) : null;
+  const anywhere = anywhereInCityLine(vendor, mode);
 
   return (
     <View>
@@ -147,7 +152,7 @@ export function VendorCard({
               </>
             ) : null}
           </View>
-          {vendor.outsideServiceCity ? <OutsideCityChip outside={vendor.outsideServiceCity} /> : null}
+          {townTag ? <OutsideCityChip text={townTag} /> : null}
           {vendor.matchedService ? (
             <T size={12} numberOfLines={1} color={colors.textSecondary}>
               {fill(t('Offers {service}'), {
@@ -157,6 +162,11 @@ export function VendorCard({
                   </T>
                 ),
               })}
+            </T>
+          ) : null}
+          {anywhere ? (
+            <T size={12} numberOfLines={1} color={colors.textSecondary}>
+              {anywhere}
             </T>
           ) : null}
           {note ? (

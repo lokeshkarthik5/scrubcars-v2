@@ -7,6 +7,7 @@ import {
   outsideByKm,
 } from '../../lib/reach.js'
 import { zonesWithGarages } from '../../lib/zones.js'
+import { listScope } from '../../lib/discovery.js'
 import { freeWashesLeft, waitingCount, zoneIsLive } from '../../lib/area-signups.js'
 import type { ListPublicVendorsQuery } from '../vendors/vendors.validation.js'
 import {
@@ -140,10 +141,27 @@ export const reachService = {
       query.tier === 'silver' || query.certified ? ((await tiersService.silverFilterTiers()) ?? undefined) : undefined
     const filters = { category: query.category, tiers }
 
+    // At garage's own far-garage limit (0070), so its count is what that
+    // tab lists, whichever tab is asking: from the origin, else the whole
+    // city's centre.
+    const { farLimitKm } = listScope({
+      hasOrigin: origin !== undefined,
+      hasCityCentre: query.cityLat !== undefined && query.cityLng !== undefined,
+      bbox: query.bbox,
+      bookingType: 'dropin',
+      q: query.q,
+    })
+    const farFrom =
+      origin ??
+      (query.cityLat !== undefined && query.cityLng !== undefined
+        ? { lat: query.cityLat, lng: query.cityLng }
+        : undefined)
+    const far = farLimitKm !== null && farFrom ? { from: farFrom, limitM: farLimitKm * 1000 } : undefined
+
     let reach: ReachSummary | null = null
     if (listCarriesReach(query)) {
       try {
-        reach = toSummary(await reachRepository.summary(origin, filters))
+        reach = toSummary(await reachRepository.summary(origin, filters, far))
       } catch (error) {
         log.warn({ err: error }, 'reach:summary_failed')
       }

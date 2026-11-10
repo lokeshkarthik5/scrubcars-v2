@@ -13,7 +13,8 @@ import { ScBadge } from '@/components/form-controls';
 import { GuaranteeEvidence } from '@/components/guarantee-evidence';
 import { IconShieldCheck } from '@repo/native-ui/icons';
 import { ScTextarea } from '@repo/native-ui/inputs';
-import { EmptyState, LoadError, ScCard, ScSegmented, SkeletonList } from '@repo/native-ui/primitives';
+import { GraphiteSwitch } from '@repo/native-ui/finish';
+import { EmptyState, LoadError, ScCard, SkeletonList } from '@repo/native-ui/primitives';
 import { TopBar } from '@/components/rows';
 import { ScSheet } from '@repo/native-ui/sheet';
 import { T } from '@repo/native-ui/text';
@@ -102,7 +103,7 @@ function GuaranteeClaimsScreen() {
           <T size={12} color={colors.textSecondary}>
             {guaranteeIntro()}
           </T>
-          <ScSegmented
+          <GraphiteSwitch
             accessibilityLabel={t('Which claims')}
             value={scope}
             onChange={setScope}

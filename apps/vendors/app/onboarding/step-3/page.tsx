@@ -3,25 +3,32 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { fill, useT } from '@repo/core/i18n'
+import { useQuery } from '@tanstack/react-query'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
 import { ScInput } from '@repo/ui/sc/input'
 import { Chip } from '@repo/ui/sc/chip'
 import { SectionHeader } from '@repo/ui/sc/section-header'
-import { submitVendorOnboarding } from '@repo/core/api/vendors'
+import { getMyVendor, submitVendorOnboarding } from '@repo/core/api/vendors'
+import { TravelChoiceField } from '@repo/ui/features/travel-choice'
 import { toast } from 'react-toastify'
 import { useVendorOnboardingStore } from '@repo/core/stores/vendor-onboarding-store'
-import { DEFAULT_DOORSTEP_RADIUS_KM } from '@repo/core/doorstep'
+import {
+  DEFAULT_DOORSTEP_RADIUS_KM,
+  MAX_DOORSTEP_RADIUS_KM,
+  MIN_DOORSTEP_RADIUS_KM,
+} from '@repo/core/doorstep'
 import { cn } from '@repo/core/utils'
 import { OnboardingHeader } from '@/components/onboarding-header'
 
 const SLOT_INTERVALS = [30, 45, 60] as const
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-// The server's bounds: how far a garage can say it travels, and how many cars
-// it can have in at once.
-const MIN_RADIUS_KM = 1
-const MAX_RADIUS_KM = 30
+// The server's bounds: how far a garage can say it travels (1 to 300 km since
+// the 30 km top was lifted, @repo/core/doorstep), and how many cars it can
+// have in at once.
+const MIN_RADIUS_KM = MIN_DOORSTEP_RADIUS_KM
+const MAX_RADIUS_KM = MAX_DOORSTEP_RADIUS_KM
 const MAX_BAYS = 20
 
 type ServiceMode = 'garage' | 'doorstep'
@@ -42,13 +49,19 @@ export default function VendorOnboardingStep3() {
   // empty, the garage covers the default 10 km from its pin.
   const [mode, setMode] = useState<ServiceMode>('garage')
   const [radiusKm, setRadiusKm] = useState('')
+  // "All over <city>" (0069): offered once the garage, made in step 2, has a
+  // pin inside a city, which GET /vendors/me says.
+  const [wholeCity, setWholeCity] = useState(false)
+  const { data: garage } = useQuery({ queryKey: ['vendor', 'me', 'onboarding-city'], queryFn: getMyVendor })
+  const cityName = garage?.garageCity?.name ?? null
   const [bays, setBays] = useState('')
   const [jobsPerDay, setJobsPerDay] = useState('')
   const [loading, setLoading] = useState(false)
 
   const doorstep = mode === 'doorstep'
   const radius = Number(radiusKm)
-  const radiusGiven = doorstep && radiusKm.trim() !== ''
+  const allOver = doorstep && wholeCity && cityName !== null
+  const radiusGiven = doorstep && !allOver && radiusKm.trim() !== ''
   const radiusError =
     radiusGiven &&
     (!Number.isFinite(radius) ||
@@ -98,6 +111,7 @@ export default function VendorOnboardingStep3() {
         dropin: true,
         doorstep,
         doorstepRadiusKm,
+        doorstepWholeCity: allOver,
         bays: bays ? bayCount : null,
         jobsPerDay: jobsPerDay ? jobs : null,
         slotInterval,
@@ -228,6 +242,19 @@ export default function VendorOnboardingStep3() {
           ))}
         </div>
         {doorstep && (
+          <div className="rise-in flex flex-col gap-2">
+            <TravelChoiceField
+              label={t('How far you go')}
+              wholeCity={wholeCity}
+              onChange={setWholeCity}
+              cityName={cityName}
+              radiusKm={radiusKm.trim() && Number.isFinite(radius) ? radius : null}
+              defaultKm={DEFAULT_DOORSTEP_RADIUS_KM}
+              wholeCityNote={(city) => t('You go to any address in {city}.', { city })}
+            />
+          </div>
+        )}
+        {doorstep && !allOver && (
           <div className="rise-in">
             <ScInput
               id="onboarding-doorstep-radius"

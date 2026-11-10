@@ -12,7 +12,8 @@ import { ScButton } from '@repo/native-ui/button';
 import { FocusFrame } from '@/components/focus-frame';
 import { ScBadge } from '@/components/form-controls';
 import { IconMapPin } from '@repo/native-ui/icons';
-import { EmptyState, LoadError, ScCard, ScSegmented, SkeletonList } from '@repo/native-ui/primitives';
+import { GraphiteSwitch } from '@repo/native-ui/finish';
+import { EmptyState, LoadError, ScCard, SkeletonList } from '@repo/native-ui/primitives';
 import { TopBar } from '@/components/rows';
 import { ConfirmSheet } from '@repo/native-ui/sheet';
 import { T } from '@repo/native-ui/text';
@@ -95,7 +96,7 @@ function RequestsScreen() {
       <T size={12} color={colors.textSecondary}>
         {requestsIntro()}
       </T>
-      <ScSegmented
+      <GraphiteSwitch
         accessibilityLabel={t('Which requests')}
         value={scope}
         onChange={setScope}

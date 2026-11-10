@@ -1,7 +1,7 @@
 import { useT } from '@repo/core/i18n';
-import { Glass, Pearl, usePearlInk } from '@repo/native-ui/finish';
+import { Glass, NavOrb, Pearl, usePearlInk } from '@repo/native-ui/finish';
 import { IconCalendar, IconHome, IconMap2, IconPlus, IconUser, type IconProps } from '@repo/native-ui/icons';
-import { Pop, PressScale } from '@repo/native-ui/motion';
+import { PressScale } from '@repo/native-ui/motion';
 import { T } from '@repo/native-ui/text';
 import { createStyles, useColors, useFinish } from '@repo/native-ui/theme';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -9,7 +9,6 @@ import { type Href, router, usePathname } from 'expo-router';
 import type { ReactElement } from 'react';
 import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Circle, Defs, LinearGradient as SvgGradient, RadialGradient, Stop } from 'react-native-svg';
 
 import { useAuth } from '@/lib/auth';
 import { HUB_NAV_HREF, hubNavCurrent, type HubNavItem } from '@/lib/hub-nav';
@@ -39,50 +38,11 @@ const useStyles = createStyles((c) => ({
     shadowRadius: 18,
   },
   row: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12 },
+  // maxWidth: a longer Tamil label shrinks to fit rather than widening the tab.
   tab: { minHeight: 48, minWidth: 52, maxWidth: 76, alignItems: 'center', justifyContent: 'center', gap: 2 },
-  orb: { width: ORB, height: ORB, alignItems: 'center', justifyContent: 'center' },
   // Where the 21-point silver icon sits, so an orb and an icon line up across the bar.
   icon: { height: ORB, alignItems: 'center', justifyContent: 'center' },
 }));
-
-/**
- * The lit tab's orb (the red-glow mockup's F, held still): a graphite well with a thin
- * ring of light, crimson with two hot spots. It pops in once when the tab is reached and
- * never turns: the finish allows no loops.
- */
-function Orb({ children }: { children: ReactElement }) {
-  const styles = useStyles();
-  const r = ORB / 2;
-  return (
-    <Pop style={styles.orb}>
-      <Svg width={ORB + 8} height={ORB + 8} viewBox={`-4 -4 ${ORB + 8} ${ORB + 8}`} style={{ position: 'absolute', left: -4, top: -4 }}>
-        <Defs>
-          <RadialGradient id="orb-well" cx="50%" cy="30%" rx="60%" ry="60%" fx="50%" fy="30%">
-            <Stop offset="0" stopColor="#2C2C31" />
-            <Stop offset="0.55" stopColor="#19191C" />
-            <Stop offset="1" stopColor="#0E0E10" />
-          </RadialGradient>
-          <SvgGradient id="orb-ring" x1="0" y1="0" x2="1" y2="1">
-            <Stop offset="0" stopColor="#7A0018" />
-            <Stop offset="0.2" stopColor="#FF2A3D" />
-            <Stop offset="0.3" stopColor="#FFF1EA" />
-            <Stop offset="0.38" stopColor="#FF5C8A" />
-            <Stop offset="0.5" stopColor="#7A0019" />
-            <Stop offset="0.66" stopColor="#FF4A3A" />
-            <Stop offset="0.76" stopColor="#FFF4EF" />
-            <Stop offset="0.86" stopColor="#FF2D6F" />
-            <Stop offset="1" stopColor="#7A0019" />
-          </SvgGradient>
-        </Defs>
-        {/* The bloom: the same light, wider and soft. */}
-        <Circle cx={r} cy={r} r={r - 1.4} fill="none" stroke="url(#orb-ring)" strokeWidth={4.5} strokeOpacity={0.35} />
-        <Circle cx={r} cy={r} r={r} fill="url(#orb-well)" />
-        <Circle cx={r} cy={r} r={r - 0.7} fill="none" stroke="url(#orb-ring)" strokeWidth={1.4} />
-      </Svg>
-      {children}
-    </Pop>
-  );
-}
 
 function Tab({
   item,
@@ -110,9 +70,9 @@ function Tab({
       style={styles.tab}
     >
       {active ? (
-        <Orb key={item}>
+        <NavOrb key={item}>
           <Icon size={17} line={1.9} color="#FFFFFF" />
-        </Orb>
+        </NavOrb>
       ) : (
         <View style={styles.icon}>
           <Icon size={21} metal={silver} color={silver ? undefined : fx.quietBright} />

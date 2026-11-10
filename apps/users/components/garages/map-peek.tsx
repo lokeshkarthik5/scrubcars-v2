@@ -82,8 +82,11 @@ export function MapPeek({
   centre: LatLng
   mode: BookingType
   category?: string
-  /** "5 garages near you" */
-  countLabel: { count: string; words: string }
+  /**
+   * "12 garages near you"; with no count (a small city, 0070), the words
+   * alone: "Detlio in Madurai".
+   */
+  countLabel: { count: string | null; words: string }
 }) {
   const t = useT()
   const reduce = usePrefersReducedMotion()
@@ -188,7 +191,11 @@ export function MapPeek({
     <Link
       ref={cardRef}
       href={`/map?${query.toString()}`}
-      aria-label={t('Open the map: {count} {words}', { count: countLabel.count, words: countLabel.words })}
+      aria-label={
+        countLabel.count
+          ? t('Open the map: {count} {words}', { count: countLabel.count, words: countLabel.words })
+          : t('Open the map: {words}', { words: countLabel.words })
+      }
       className="map-peek fx-press relative block h-[156px] overflow-hidden rounded-[22px]"
     >
       <span
@@ -257,7 +264,7 @@ export function MapPeek({
         className="fx-glass absolute bottom-2.5 left-2.5 inline-flex h-[30px] items-center gap-1.5 rounded-pill px-3 text-t4 font-medium text-[#E8E8EC]"
       >
         <span className="size-[7px] rounded-full bg-red-light shadow-[0_0_8px_rgb(228_0_43/0.9)]" />
-        <Odometer value={countLabel.count} className="font-semibold text-white" />
+        {countLabel.count && <Odometer value={countLabel.count} className="font-semibold text-white" />}
         {countLabel.words}
       </span>
       <span

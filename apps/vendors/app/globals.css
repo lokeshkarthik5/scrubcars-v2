@@ -1,4 +1,10 @@
 @import '@repo/ui/styles/globals.css';
+/* The customer app's finish, for the floating bottom bar and the graphite
+   switches only (owner, 10 Nov 2026: the garage's bar and top tabs match the
+   customer app). Nothing here sets `finish` on <body>, so every rule of that
+   file that changes a shared component stays off and the portal's other
+   screens look as before; only the fx-* and hub-* classes are used. */
+@import '@repo/ui/styles/finish.css';
 
 /* Tailwind v4 discovers utility classes by scanning source files. The app's own
    files are found automatically; the shared component package is not, and

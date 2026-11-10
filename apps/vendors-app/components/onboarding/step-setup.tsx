@@ -1,6 +1,6 @@
 import { DEFAULT_DOORSTEP_RADIUS_KM, DOORSTEP_RADIUS_PLACEHOLDER } from '@repo/core/doorstep';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { AppShell } from '@/components/app-shell';
@@ -33,6 +33,8 @@ import { decimalOnly, digitsOnly } from '@/lib/settings-logic';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 import { PRESSED_SCALE } from '@repo/native-ui/tokens';
 import { setWorkingHoursForDays, updateSlotInterval, updateVendorJobTypes, updateVendorSettings } from '@/lib/vendor-api';
+import { getMyVendor } from '@/lib/garage-api';
+import { TravelChoiceField } from '@/components/travel-choice';
 
 import { OnboardingHeader, SectionTitle, useDraftSync } from './parts';
 import { fill, msg, useT } from '@repo/core/i18n';
@@ -56,23 +58,39 @@ export function StepSetup() {
   // the default 10 km from its pin.
   const [mode, setMode] = useState<ServiceMode>(saved.doorstep ? 'doorstep' : 'garage');
   const [radiusKm, setRadiusKm] = useState(saved.doorstepRadiusKm);
+  // "All over <city>" (0069): offered once the garage step 2 made has a pin inside a city, which
+  // GET /vendors/me says, as the portal's step 3 does.
+  const [wholeCity, setWholeCity] = useState(saved.doorstepWholeCity === true);
+  const [cityName, setCityName] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    getMyVendor()
+      .then((garage) => live && setCityName(garage.garageCity?.name ?? null))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
   const [bays, setBays] = useState(saved.bays);
   const [jobsPerDay, setJobsPerDay] = useState(saved.jobsPerDay);
   const [loading, setLoading] = useState(false);
 
   const doorstep = mode === 'doorstep';
-  useDraftSync({ slotInterval, openTime, closeTime, workingDays, doorstep, doorstepRadiusKm: radiusKm, bays, jobsPerDay });
+  const allOver = doorstep && wholeCity && cityName !== null;
+  useDraftSync({ slotInterval, openTime, closeTime, workingDays, doorstep, doorstepRadiusKm: radiusKm, doorstepWholeCity: wholeCity, bays, jobsPerDay });
 
-  const radiusError = radiusProblem(doorstep, radiusKm);
+  // All over the city takes no number, so a half-typed one never holds Continue.
+  const radiusError = allOver ? null : radiusProblem(doorstep, radiusKm);
   const baysError = baysProblem(bays);
   const jobsError = jobsProblem(jobsPerDay);
-  const blocked = step3Problem({ doorstep, doorstepRadiusKm: radiusKm, bays, jobsPerDay }) !== null;
+  const blocked =
+    step3Problem({ doorstep, doorstepRadiusKm: allOver ? '' : radiusKm, bays, jobsPerDay }) !== null;
 
   const handleContinue = async () => {
     if (blocked) return;
     setLoading(true);
     try {
-      const form = { doorstep, doorstepRadiusKm: radiusKm, bays, jobsPerDay };
+      const form = { doorstep, doorstepRadiusKm: radiusKm, doorstepWholeCity: allOver, bays, jobsPerDay };
       writeDraft({ slotInterval, openTime, closeTime, workingDays, ...form });
       const settings = step3Settings(form);
       // The same four calls, together, as submitVendorOnboarding(3).
@@ -167,6 +185,17 @@ export function StepSetup() {
           })}
         </View>
         {doorstep ? (
+          <TravelChoiceField
+            label={t('How far you go')}
+            wholeCity={wholeCity}
+            onChange={setWholeCity}
+            cityName={cityName}
+            radiusKm={radiusKm.trim() && Number.isFinite(Number(radiusKm)) ? Number(radiusKm) : null}
+            defaultKm={DEFAULT_DOORSTEP_RADIUS_KM}
+            wholeCityNote={(city) => t('You go to any address in {city}.', { city })}
+          />
+        ) : null}
+        {doorstep && !allOver ? (
           <View>
             <ScInput
               label={t('Up to how many km from your garage?')}

@@ -142,6 +142,15 @@ describe('statusHeadline', () => {
     )
   })
 
+  test('ready in every other way, a city that is off keeps it from customers, and says why (0069)', () => {
+    expect(statusHeadline({ ...live, cityHiddenReason: 'Its city, Tirupur, is off for customers' }, [])).toEqual({
+      live: false,
+      title: 'Customers can’t find it',
+      summary: 'Its city, Tirupur, is off for customers',
+    })
+    expect(statusHeadline({ ...live, cityHiddenReason: null }, []).live).toBe(true)
+  })
+
   test('with no checklist it still reads the stage and verification', () => {
     expect(statusHeadline(live, undefined).live).toBe(true)
     expect(statusHeadline({ ...live, isVerified: false }, undefined)).toEqual({

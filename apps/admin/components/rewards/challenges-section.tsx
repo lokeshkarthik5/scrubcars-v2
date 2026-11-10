@@ -41,6 +41,8 @@ import {
   challengeResultsCsv,
   emptyChallenge,
 } from '@/lib/rewards'
+import { useOwnerDeleteChallenge } from '@repo/core/api/hooks/use-admin-owner-delete'
+import { OwnerDeleteButton } from '@/components/owner-delete'
 
 const STATUS_VARIANT: Record<
   ChallengeStatus,
@@ -204,6 +206,7 @@ function ChallengeDetail({
   const detail = useAdminChallenge(id)
   const publish = usePublishChallenge(id)
   const end = useEndChallenge(id)
+  const removeChallenge = useOwnerDeleteChallenge()
   const [downloading, setDownloading] = useState(false)
   const [endOpen, setEndOpen] = useState(false)
   const [endError, setEndError] = useState('')
@@ -372,6 +375,25 @@ function ChallengeDetail({
           >
             {downloading ? 'Preparing…' : 'Download results (CSV)'}
           </ScButton>
+          {/* The owner's delete (10 Nov 2026); ending keeps the record. */}
+          <OwnerDeleteButton
+            label="Delete challenge…"
+            title={`Delete “${c.title}”?`}
+            confirmLabel="Delete challenge"
+            typeToConfirm={c.title}
+            done="Challenge deleted"
+            body={
+              <p>
+                It goes for good, with everyone&apos;s progress, its winners and
+                the bonus stamps it gave. Vouchers it already issued stay with
+                the customers. End keeps it on record instead.
+              </p>
+            }
+            onDelete={async () => {
+              await removeChallenge.mutateAsync({ id, confirmText: c.title })
+              onBack()
+            }}
+          />
         </div>
         <p className="text-[12px] text-text-muted">
           Publishing schedules it: customers see it from its start date and hear

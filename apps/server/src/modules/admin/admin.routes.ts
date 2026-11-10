@@ -48,9 +48,12 @@ import { adminBypassReportRoutes } from '../bypass-reports/bypass-reports.routes
 import { adminTodayRoutes } from '../today/today.routes.js'
 import { adminGarageBoardRoutes } from '../garage-board/garage-board.routes.js'
 import { adminCoverageRoutes } from '../coverage/coverage.routes.js'
+import { adminCityRoutes } from '../cities/cities.routes.js'
 import { adminLeadsRoutes } from '../leads/leads.routes.js'
 import { adminBookingRequestRoutes } from '../booking-requests/booking-requests.routes.js'
 import { adminPlacesRoutes } from '../places/places.routes.js'
+import { adminOwnerDeleteRoutes } from '../owner-delete/owner-delete.routes.js'
+import { adminCustomerRoutes } from '../admin-customers/admin-customers.routes.js'
 import * as adminController from './admin.controller.js'
 import {
   adminCancelBookingSchema,
@@ -60,6 +63,7 @@ import {
   vendorClosureParamSchema,
   bookingViewCountsQuerySchema,
   createBookingNoteSchema,
+  createBranchSchema,
   createVendorSchema,
   grantSuperAdminSchema,
   listBookingsQuerySchema,
@@ -162,6 +166,15 @@ adminRoutes.patch(
       c.req.valid('json')
     )
 )
+// "Add a branch…" (0069): a new Pending garage for the same business,
+// copying the services, hours and photos admin chose. Signed and audited.
+adminRoutes.post(
+  '/vendors/:id/branch',
+  ...adminMiddleware,
+  zValidator('param', vendorIdParamSchema),
+  adminSignedJson(createBranchSchema),
+  (c) => adminController.createBranch(c, c.req.valid('param').id, c.req.valid('json'))
+)
 adminRoutes.patch(
   '/vendors/:id/verify',
   ...adminMiddleware,
@@ -195,6 +208,12 @@ adminRoutes.route('/', adminGarageClosureRoutes)
 // the cookie's sake, like the Bin.
 adminRoutes.route('/', adminOnboardingMarkRoutes)
 adminRoutes.route('/', adminCollectionListRoutes)
+// The owner deletes anything (10 Nov 2026): /owner-delete/* hard deletes,
+// owner only. Its own module; mounted at the root for the cookie's sake.
+adminRoutes.route('/', adminOwnerDeleteRoutes)
+// The Customers page (10 Nov 2026): search, a customer's page, and the
+// owner's Delete customer account.
+adminRoutes.route('/customers', adminCustomerRoutes)
 
 // Pause / resume new bookings on a garage's behalf. POST rather than the
 // PATCH of verify/archive: these are actions with a body (the reason), not a
@@ -534,6 +553,9 @@ adminRoutes.route('/coverage', adminCoverageRoutes)
 adminRoutes.route('/leads', adminLeadsRoutes)
 adminRoutes.route('/requests', adminBookingRequestRoutes)
 adminRoutes.route('/places', adminPlacesRoutes)
+
+// Cities (0069): which cities customers see garages in, and Other towns.
+adminRoutes.route('/cities', adminCityRoutes)
 
 // Add garage's import from a poster, photo, PDF or Tally file, and the
 // owner-phone lookup. Nested here for the same cookie reason as discounts.

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { IconDownload, IconReceipt } from '@tabler/icons-react'
 import { fill, useT } from '@repo/core/i18n'
 import { msg } from '@repo/core/i18n/translate'
+import { GraphiteSwitch } from '@repo/ui/finish/graphite-switch'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScBadge } from '@repo/ui/sc/badge'
 import { StatusChip } from '@repo/ui/sc/status-chip'
@@ -13,7 +14,6 @@ import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
 import { EmptyState, ErrorState } from '@repo/ui/sc/empty-state'
 import { ScInput } from '@repo/ui/sc/input'
-import { ScSegmented } from '@repo/ui/sc/segmented'
 import { SectionHeader } from '@repo/ui/sc/section-header'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
 import { StatTile } from '@repo/ui/sc/stat-tile'
@@ -387,12 +387,11 @@ export default function VendorEarningsPage() {
             </ScButton>
           }
         />
-        <ScSegmented
+        <GraphiteSwitch
           aria-label={t('Period')}
           value={preset}
           onChange={pick}
           options={PRESETS.map((option) => ({ ...option, label: t(option.label) }))}
-          className="[&_[role=radio]]:min-h-12 [&_[role=radio]]:text-[15px]"
         />
         {preset === 'custom' && (
           <div className="grid grid-cols-2 gap-2">

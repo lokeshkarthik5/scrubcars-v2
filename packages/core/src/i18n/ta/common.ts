@@ -713,14 +713,9 @@ export const common: Readonly<Record<string, string>> = {
   'This week': 'இந்த வாரம்',
   Earlier: 'முன்பு',
   Chennai: 'சென்னை',
-  'Outside {city} · {town}': '{city}-க்கு வெளியே · {town}',
-  'Outside {city}': '{city}-க்கு வெளியே',
-  'This garage is outside {city}.': 'இந்த கேரேஜ் {city}-க்கு வெளியே உள்ளது.',
   'This garage is in {town}.': 'இந்த கேரேஜ் {town}-ல் உள்ளது.',
   'This garage is in {town}, about {km} km from {city}.':
     'இந்த கேரேஜ் {town}-ல் உள்ளது, {city}-லிருந்து சுமார் {km} km.',
-  'This garage is in {town}, not {city}.':
-    'இந்த கேரேஜ் {town}-ல் உள்ளது, {city}-ல் இல்லை.',
   'Asked me to book directly next time':
     'அடுத்த முறை நேரடியாக புக் செய்யச் சொன்னார்கள்',
   'Offered a lower price outside Detlio':
@@ -1098,4 +1093,13 @@ export const common: Readonly<Record<string, string>> = {
     'அடுத்த வாஷை detlio.com-ல் புக் செய்யுங்கள்',
   'Book on detlio.com': 'detlio.com-ல் புக் செய்யுங்கள்',
   'Current location': 'தற்போதைய இடம்',
+  // ─── The garage's travel choice (0069) and company switcher ───
+  'Up to {km} km': '{km} km வரை',
+  'All over {city}': '{city} முழுவதும்',
+  'the city': 'நகரம்',
+  "Any address in {city}, measured from the city's centre.":
+    '{city}-ல் எந்த முகவரியும், நகர மையத்திலிருந்து அளக்கப்படும்.',
+  'Pin the garage inside a city first to offer this.':
+    'இதைத் தர, முதலில் கேரேஜை ஒரு நகரத்துக்குள் பின் செய்யவும்.',
+  'Your garages': 'உங்கள் கேரேஜ்கள்',
 }

@@ -7,7 +7,9 @@ import { useT } from '@repo/core/i18n';
 import { zoneFor, type Zone } from '@repo/core/zones';
 import { ScButton } from '@repo/native-ui/button';
 import { Chip, ScSwitch } from '@repo/native-ui/chip';
-import { IconCheck, IconCircleCheck, IconGift, IconX } from '@repo/native-ui/icons';
+import { recommendRowText, type CustomerCity } from '@repo/core/customer-city';
+import { Raised } from '@repo/native-ui/finish';
+import { IconCheck, IconChevronRight, IconCircleCheck, IconGift, IconX } from '@repo/native-ui/icons';
 import { ScInput, ScTextarea } from '@repo/native-ui/inputs';
 import { ScSheet } from '@repo/native-ui/sheet';
 import { T } from '@repo/native-ui/text';
@@ -18,6 +20,7 @@ import { Pressable, ScrollView, View } from 'react-native';
 
 import { CheckoutSignInCard, useCheckoutSignIn } from '@/components/checkout/sign-in';
 import { useAuth } from '@/lib/auth';
+import { useCustomerPlace } from '@/lib/customer-place';
 import { devicePrefs } from '@/lib/device-prefs';
 import { isCitywide, useLocationStore } from '@/lib/location';
 import { usePushDevice } from '@/lib/push-device';
@@ -46,8 +49,18 @@ function useGreen() {
   return scheme === 'light' ? { border: '#A7DDBF', background: '#EAF7F0' } : { border: '#1F5A3A', background: '#0E2418' };
 }
 
-/** FreeWashPiece (apps/users/components/reach/free-wash.tsx): the card, or once on the list, a slim line. */
+/**
+ * FreeWashPiece (apps/users/components/reach/free-wash.tsx): the card, or once on the list, a
+ * slim line. Only in a city the owner marked "Growing here" (0070): the card says more garages
+ * are coming, which nobody has promised in a city with just a partner garage.
+ */
 export function FreeWashPiece({ placement }: { placement: 'top' | 'bottom' }) {
+  const { city } = useCustomerPlace();
+  if (!city.growing) return null;
+  return <FreeWashPieceInGrowingCity placement={placement} />;
+}
+
+function FreeWashPieceInGrowingCity({ placement }: { placement: 'top' | 'bottom' }) {
   const t = useT();
   const colors = useColors();
   const styles = useStyles();
@@ -297,12 +310,44 @@ export function FreeWashSheet({ open, onClose, initialZone }: { open: boolean; o
   );
 }
 
-/** RecommendForm: a lead for the team. */
+/**
+ * A small city's one quiet row under its garages (0070, mockup D), as on the web: "Know a great
+ * garage in Madurai? Recommend it", opening the recommend form (admin's leads).
+ */
+export function RecommendRow({ city }: { city: CustomerCity }) {
+  const colors = useColors();
+  const styles = useStyles();
+  const [open, setOpen] = useState(false);
+  const words = recommendRowText(city);
+  return (
+    <>
+      <Pressable accessibilityRole="button" onPress={() => setOpen(true)}>
+        <Raised radius={16} innerStyle={styles.recommendRow}>
+          <T size={14} lh={19} color={colors.textSecondary} style={styles.grow}>
+            {`${words.ask} `}
+            <T size={14} weight={600} lh={19}>
+              {words.action}
+            </T>
+          </T>
+          <IconChevronRight size={16} color={colors.textMuted} />
+        </Raised>
+      </Pressable>
+      <RecommendSheet open={open} onClose={() => setOpen(false)} zoneSlug={null} />
+    </>
+  );
+}
+
+/**
+ * RecommendForm: a lead for the team. A guest signs in on the in-page card first (a small
+ * city's row can be the first thing they tap): a recommendation is tied to an account.
+ */
 export function RecommendForm({ zoneSlug, onDone }: { zoneSlug: string | null; onDone: () => void }) {
   const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const recommend = useRecommendGarage();
+  const user = useAuth((s) => s.user);
+  const signIn = useCheckoutSignIn();
   const [name, setName] = useState('');
   const [mapsLink, setMapsLink] = useState('');
   const [phone, setPhone] = useState('');
@@ -340,9 +385,24 @@ export function RecommendForm({ zoneSlug, onDone }: { zoneSlug: string | null; o
           {error}
         </T>
       ) : null}
-      <ScButton variant="main" disabled={!ready || recommend.isPending} onPress={() => void submit()}>
-        {recommend.isPending ? t('Sending…') : t('Send recommendation')}
-      </ScButton>
+      {user ? (
+        <ScButton variant="main" disabled={!ready || recommend.isPending} onPress={() => void submit()}>
+          {recommend.isPending ? t('Sending…') : t('Send recommendation')}
+        </ScButton>
+      ) : (
+        <CheckoutSignInCard
+          signIn={signIn}
+          verifyLabel={t('Verify and send')}
+          onVerify={() => {
+            if (!ready) {
+              setError(t('Give the garage’s name, and a Google Maps link or their phone.'));
+              return;
+            }
+            void signIn.verify().then((ok) => (ok ? submit() : undefined));
+          }}
+          busy={recommend.isPending}
+        />
+      )}
     </View>
   );
 }
@@ -378,4 +438,5 @@ const useStyles = createStyles((c) => ({
   switchRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   ruled: { borderTopWidth: 1, borderTopColor: c.line },
   form: { gap: 16 },
+  recommendRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16 },
 }));

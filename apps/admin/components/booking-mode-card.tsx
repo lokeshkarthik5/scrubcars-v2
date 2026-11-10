@@ -7,6 +7,7 @@ import { ApiError } from '@repo/core/api/client'
 import { updateAdminVendor } from '@repo/core/api/admin'
 import { cn } from '@repo/core/utils'
 import { SavedNote } from '@/components/save-bar'
+import { TravelChoiceField } from '@repo/ui/features/travel-choice'
 import {
   BOOKING_MODE_OPTIONS,
   DEFAULT_DOORSTEP_RADIUS_KM,
@@ -57,6 +58,11 @@ interface BookingModeCardProps {
   live: boolean
   /** The garage drew its own doorstep area, which the radius then doesn't touch. */
   drawnArea?: boolean
+  /**
+   * "All over <city>" (0069): the choice, and the city the pin is in (null
+   * for none). Absent where the caller does not offer it.
+   */
+  wholeCity?: { on: boolean; onChange: (on: boolean) => void; cityName: string | null }
 }
 
 /**
@@ -82,12 +88,14 @@ export function BookingModeCard({
   paused,
   live,
   drawnArea = false,
+  wholeCity,
 }: BookingModeCardProps) {
   const radiusId = useId()
   const radiusHintId = useId()
   const radiusErrorId = useId()
   const hint = BOOKING_MODE_OPTIONS.find((option) => option.value === mode)?.hint
-  const reach = bookingReachLine(mode, reachKm, { drawnArea })
+  const wholeCityName = wholeCity?.on && wholeCity.cityName ? wholeCity.cityName : null
+  const reach = bookingReachLine(mode, reachKm, { drawnArea, wholeCity: wholeCityName })
   const travels = mode === 'doorstep' || mode === 'both'
 
   return (
@@ -118,7 +126,20 @@ export function BookingModeCard({
         {hint ?? 'Pick how customers can book this garage.'}
       </p>
 
-      {travels && (
+      {travels && wholeCity && (
+        <div className="-mx-4 mt-4 border-t border-border px-4 pt-4">
+          <TravelChoiceField
+            label="How far the team travels"
+            wholeCity={wholeCity.on}
+            onChange={wholeCity.onChange}
+            cityName={wholeCity.cityName}
+            radiusKm={reachKm}
+            defaultKm={DEFAULT_DOORSTEP_RADIUS_KM}
+          />
+        </div>
+      )}
+
+      {travels && !wholeCityName && (
         <div className="-mx-4 mt-4 border-t border-border px-4 pt-4">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">

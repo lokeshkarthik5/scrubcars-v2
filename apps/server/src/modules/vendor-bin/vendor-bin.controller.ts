@@ -1,5 +1,6 @@
 import type { Context } from 'hono'
-import type { AuthVariables } from '../../middleware/auth.middleware.js'
+import { canDeleteAnything } from '../../lib/admin-actor.js'
+import { signedInAdmin, type AuthVariables } from '../../middleware/auth.middleware.js'
 import { vendorBinService } from './vendor-bin.service.js'
 import type {
   BinVendorInput,
@@ -28,8 +29,9 @@ export async function restore(c: VendorBinContext, id: string, input: RestoreVen
   return c.json({ success: true, data })
 }
 
+// The owner's login also takes the bookings kept for their money (10 Nov 2026).
 export async function deletePreview(c: VendorBinContext, id: string) {
-  const data = await vendorBinService.deletePreview(id)
+  const data = await vendorBinService.deletePreview(id, new Date(), canDeleteAnything(signedInAdmin(c)))
   return c.json({ success: true, data })
 }
 
@@ -38,6 +40,12 @@ export async function deleteForever(
   id: string,
   input: DeleteVendorForeverInput
 ) {
-  const data = await vendorBinService.deleteForever(c.get('auth').sub, id, input)
+  const data = await vendorBinService.deleteForever(
+    c.get('auth').sub,
+    id,
+    input,
+    new Date(),
+    canDeleteAnything(signedInAdmin(c))
+  )
   return c.json({ success: true, data })
 }

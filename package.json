@@ -24,6 +24,7 @@
     "test": "turbo run test",
     "test:e2e": "bun run --filter @repo/e2e test:e2e",
     "test:e2e:p0": "bun run --filter @repo/e2e test:e2e:p0",
+    "test:e2e:alone": "bun run --filter @repo/e2e test:e2e:alone",
     "e2e:up": "bun run --filter @repo/e2e db:up",
     "e2e:down": "bun run --filter @repo/e2e db:down",
     "e2e:reset": "bun run --filter @repo/e2e db:reset"

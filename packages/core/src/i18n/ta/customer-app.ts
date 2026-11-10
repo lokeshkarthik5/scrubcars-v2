@@ -338,8 +338,6 @@ export const customerApp: Readonly<Record<string, string>> = {
   // components/area/area-picker.tsx
   'Location is off for Detlio. Pick your area instead — distances work the same.':
     'Detlio-வுக்கு லொக்கேஷன் ஆஃப். அதற்குப் பதிலாக உங்கள் பகுதியைத் தேர்ந்தெடுங்கள் — தூரங்கள் அதேபோல் காட்டப்படும்.',
-  'No area called “{trim}” yet. Try a nearby one, or All of Chennai.':
-    '“{trim}” என்ற பகுதி இன்னும் இல்லை. அருகிலுள்ள ஒன்றை, அல்லது சென்னை முழுவதையும் முயற்சிக்கவும்.',
   // components/booking/job-photos-card.tsx
   '{stage} photo {number} of {total}': '{stage} போட்டோ, {total}-இல் {number}',
   // components/booking/extra-work-card.tsx
@@ -604,4 +602,7 @@ export const customerApp: Readonly<Record<string, string>> = {
     'உங்கள் நேரம் {name}-க்கு முடியவில்லை, வேறு நேரங்களைப் பரிந்துரைத்தது, அதனால் இந்த புக்கிங் ரத்து செய்யப்பட்டது.',
   '{name} accepted this booking, then had to cancel it. Sorry about that.':
     '{name} இந்த புக்கிங்கை ஏற்று, பிறகு ரத்து செய்ய வேண்டியதாயிற்று. அதற்கு வருந்துகிறோம்.',
+  // ─── The area sheet, per city (0070) ───
+  'No area called “{trim}” yet. Try a nearby one, or All of {city}.':
+    '“{trim}” என்ற பகுதி இன்னும் இல்லை. அருகில் உள்ள ஒன்றை முயற்சிக்கவும், அல்லது {city} முழுவதும்.',
 }

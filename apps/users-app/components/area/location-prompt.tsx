@@ -5,6 +5,7 @@ import { T } from '@repo/native-ui/text';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 import { Linking, View } from 'react-native';
 
+import { useCustomerPlace } from '@/lib/customer-place';
 import { useLocationStore } from '@/lib/location';
 
 const REASONS = [
@@ -24,7 +25,9 @@ export function LocationPrompt({ onClose }: { onClose: () => void }) {
   const colors = useColors();
   const styles = useStyles();
   const requestGpsLocation = useLocationStore((s) => s.requestGpsLocation);
-  const selectChennai = useLocationStore((s) => s.selectChennai);
+  const selectCity = useLocationStore((s) => s.selectCity);
+  // The customer's city (0070): Chennai until they pick another.
+  const { city } = useCustomerPlace();
   const locating = useLocationStore((s) => s.locating);
   const permission = useLocationStore((s) => s.permission);
   const dismiss = useLocationStore((s) => s.dismissPrompt);
@@ -88,11 +91,11 @@ export function LocationPrompt({ onClose }: { onClose: () => void }) {
           <ScButton
             variant={blocked ? 'main' : 'outline'}
             onPress={() => {
-              selectChennai();
+              selectCity(city);
               onClose();
             }}
           >
-            {t('All of Chennai')}
+            {t('All of {city}', { city: city.name })}
           </ScButton>
           {!blocked ? (
             <ScButton variant="text" onPress={notNow}>

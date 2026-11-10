@@ -1,7 +1,9 @@
 import { useZones } from '@repo/core/api/hooks/use-zones';
 import { msg, useT } from '@repo/core/i18n';
+import { CITY_SWITCH_MAX, cityGaragesLine, zoneInCity, type CustomerCity } from '@repo/core/customer-city';
 import { searchZones, type Zone } from '@repo/core/zones';
 
+import { GraphiteSwitch } from '@repo/native-ui/finish';
 import { IconCheck, IconCurrentLocation, IconMapPin, IconSearch } from '@repo/native-ui/icons';
 import { PressRow } from '@repo/native-ui/primitives';
 import { ScSheet } from '@repo/native-ui/sheet';
@@ -10,6 +12,7 @@ import { createStyles, useColors } from '@repo/native-ui/theme';
 import { useState } from 'react';
 import { Pressable, TextInput, View } from 'react-native';
 
+import { useCustomerPlace } from '@/lib/customer-place';
 import { useLocationStore } from '@/lib/location';
 import { track } from '@/lib/shims/analytics';
 
@@ -18,11 +21,85 @@ import { LocationPrompt } from './location-prompt';
 /** The line said when "Near me" can't work: the phone has location blocked. */
 export const NEAR_ME_BLOCKED_LINE = msg('Location is off for Detlio. Pick your area instead — distances work the same.');
 
-function AreaList({ query, chosen, onChoose }: { query: string; chosen?: string; onChoose: (zone: Zone) => void }) {
+/**
+ * Which city's areas the sheet lists, as the web's CityChoice: the graphite switch for two or
+ * three cities, each with a quiet "42 garages" (none for a small city), rows from four. A
+ * radiogroup named "City" either way.
+ */
+function CityChoice({
+  cities,
+  value,
+  onChange,
+}: {
+  cities: readonly CustomerCity[];
+  value: CustomerCity;
+  onChange: (city: CustomerCity) => void;
+}) {
   const t = useT();
   const colors = useColors();
   const styles = useStyles();
-  const found = searchZones(useZones(), query);
+  if (cities.length <= CITY_SWITCH_MAX) {
+    return (
+      <GraphiteSwitch
+        accessibilityLabel={t('City')}
+        value={value.id}
+        onChange={(id) => {
+          const next = cities.find((c) => c.id === id);
+          if (next) onChange(next);
+        }}
+        options={cities.map((c) => ({ value: c.id, label: c.name, quiet: cityGaragesLine(c) ?? undefined }))}
+      />
+    );
+  }
+  return (
+    <View accessibilityRole="radiogroup" accessibilityLabel={t('City')}>
+      {cities.map((c) => {
+        const on = c.id === value.id;
+        const quiet = cityGaragesLine(c);
+        return (
+          <Pressable
+            key={c.id}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: on }}
+            onPress={() => onChange(c)}
+            style={styles.areaRow}
+          >
+            <T size={15} weight={on ? 500 : 400} style={styles.flex}>
+              {c.name}
+            </T>
+            {quiet ? (
+              <T num size={12} color={colors.textMuted}>
+                {quiet}
+              </T>
+            ) : null}
+            {on ? <IconCheck size={16} /> : null}
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+function AreaList({
+  query,
+  city,
+  cities,
+  chosen,
+  onChoose,
+}: {
+  query: string;
+  city: CustomerCity;
+  cities: readonly CustomerCity[];
+  chosen?: string;
+  onChoose: (zone: Zone) => void;
+}) {
+  const t = useT();
+  const colors = useColors();
+  const styles = useStyles();
+  const inCity = useZones().filter((zone) => zoneInCity(zone, city, cities));
+  const found = searchZones(inCity, query);
+  // A city with no areas drawn yet lists none: "All of <City>" right below is the choice.
+  if (inCity.length === 0) return null;
   return (
     <View accessibilityLabel={t('Areas')}>
       {found.map((zone) => {
@@ -48,27 +125,37 @@ function AreaList({ query, chosen, onChoose }: { query: string; chosen?: string;
       })}
       {found.length === 0 ? (
         <T size={13} color={colors.textSecondary} style={styles.none}>
-          {t('No area called “{trim}” yet. Try a nearby one, or All of Chennai.', { trim: query.trim() })}
+          {t('No area called “{trim}” yet. Try a nearby one, or All of {city}.', { trim: query.trim(), city: city.name })}
         </T>
       ) : null}
     </View>
   );
 }
 
-/** AreaPicker: "Near me", then every zone with a search box, then "All of Chennai". */
+/**
+ * AreaPicker (mockup B, customer cities 0070): the city (with two or more on), "Near me", then
+ * the city's zones with a search box, then "All of <City>". Picking a city only changes the
+ * list; an area or the whole city is the choice and closes the sheet. The web's AreaPicker.
+ */
 export function AreaPicker({ open, onClose }: { open: boolean; onClose: () => void }) {
   const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const location = useLocationStore((s) => s.location);
-  const selectChennai = useLocationStore((s) => s.selectChennai);
+  const selectCity = useLocationStore((s) => s.selectCity);
   const setArea = useLocationStore((s) => s.setArea);
+  const { city: customerCity, cities } = useCustomerPlace();
+  // The city whose areas are listed: the customer's own until another is picked in the row.
+  const [viewedId, setViewedId] = useState<string | null>(null);
+  const viewed = cities.find((c) => c.id === viewedId) ?? customerCity;
+  const manyCities = cities.length > 1;
   const [query, setQuery] = useState('');
   const [blocked, setBlocked] = useState(false);
   const [explaining, setExplaining] = useState(false);
 
   const close = () => {
     setQuery('');
+    setViewedId(null);
     setExplaining(false);
     setBlocked(false);
     // Closed without a place: not offered again by itself for a week.
@@ -104,9 +191,21 @@ export function AreaPicker({ open, onClose }: { open: boolean; onClose: () => vo
               {t("Where's your car?")}
             </T>
             <T size={13} color={colors.textSecondary} style={styles.sub}>
-              {t('Pick your area to see distances and drive times. No location permission needed.')}
+              {manyCities
+                ? t('Pick your city and area to see distances and drive times. No location permission needed.')
+                : t('Pick your area to see distances and drive times. No location permission needed.')}
             </T>
           </View>
+          {manyCities ? (
+            <CityChoice
+              cities={cities}
+              value={viewed}
+              onChange={(next) => {
+                setViewedId(next.id);
+                setQuery('');
+              }}
+            />
+          ) : null}
           {blocked ? (
             <T accessibilityLiveRegion="polite" size={13} lh={18} color={colors.textSecondary}>
               {t(NEAR_ME_BLOCKED_LINE)}
@@ -122,8 +221,8 @@ export function AreaPicker({ open, onClose }: { open: boolean; onClose: () => vo
           <View style={styles.search}>
             <IconSearch size={16} color={colors.textSecondary} />
             <TextInput
-              accessibilityLabel={t('Search areas')}
-              placeholder={t('Search areas')}
+              accessibilityLabel={t('Search areas in {city}', { city: viewed.name })}
+              placeholder={t('Search areas in {city}', { city: viewed.name })}
               placeholderTextColor={colors.textMuted}
               keyboardAppearance={colors.keyboard}
               value={query}
@@ -133,6 +232,8 @@ export function AreaPicker({ open, onClose }: { open: boolean; onClose: () => vo
           </View>
           <AreaList
             query={query}
+            city={viewed}
+            cities={cities}
             chosen={location?.source === 'area' ? location.zone : undefined}
             onChoose={(zone) => {
               setArea(zone);
@@ -142,13 +243,13 @@ export function AreaPicker({ open, onClose }: { open: boolean; onClose: () => vo
           <Pressable
             accessibilityRole="button"
             onPress={() => {
-              selectChennai();
+              selectCity(viewed);
               close();
             }}
             style={styles.city}
           >
             <T size={15} style={styles.underline}>
-              {t('All of Chennai')}
+              {t('All of {city}', { city: viewed.name })}
             </T>
           </Pressable>
         </View>

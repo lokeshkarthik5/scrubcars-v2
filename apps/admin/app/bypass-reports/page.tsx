@@ -25,6 +25,8 @@ import {
   strikesLabel,
 } from '@repo/core/bypass-reports'
 import { cn } from '@repo/core/utils'
+import { useOwnerDeleteBypassReport } from '@repo/core/api/hooks/use-admin-owner-delete'
+import { OwnerDeleteButton } from '@/components/owner-delete'
 import { BypassAnswerDialog } from '@/components/bypass-answer-dialog'
 import { Meta } from '@/components/meta'
 import { PhoneLink } from '@/components/phone-link'
@@ -69,6 +71,7 @@ function ReportCard({
   report: AdminBypassReport
   onAnswer: (action: 'confirm' | 'dismiss') => void
 }) {
+  const removeReport = useOwnerDeleteBypassReport()
   return (
     <ScCard
       className={cn(
@@ -208,6 +211,22 @@ function ReportCard({
           </ScButton>
         </div>
       )}
+      {/* The owner's delete (10 Nov 2026), whatever the answer was. */}
+      <OwnerDeleteButton
+        label="Delete report…"
+        title={`Delete the report on #${r.booking.reference}?`}
+        confirmLabel="Delete report"
+        done="Report deleted"
+        className="self-start"
+        body={
+          <p>
+            The report goes for good. A confirmed one stops counting as the
+            garage&apos;s strike; a reward it paid stays in the customer&apos;s
+            credit. Dismiss keeps it on record instead.
+          </p>
+        }
+        onDelete={() => removeReport.mutateAsync(r.id)}
+      />
     </ScCard>
   )
 }

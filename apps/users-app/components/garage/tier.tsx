@@ -4,7 +4,6 @@ import { IconCircleCheck, IconMapPin } from '@repo/native-ui/icons';
 import { ScSheet } from '@repo/native-ui/sheet';
 import { Figures, T } from '@repo/native-ui/text';
 import { createStyles, useColors, useTheme } from '@repo/native-ui/theme';
-import { outsideCityTag, type OutsideServiceCity } from '@repo/core/service-city';
 import { useId, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
@@ -112,15 +111,19 @@ export function TierSeal({ tier }: { tier: Tier }) {
   );
 }
 
-/** "Outside Chennai": calm, a graphite chip with only the pin in amber. */
-export function OutsideCityChip({ outside }: { outside: OutsideServiceCity }) {
+/**
+ * A garage in another town than the customer's city (0070): "Vellore · 125
+ * km". Calm, a graphite chip with only the pin in amber. The words are
+ * @repo/core/customer-city's (useGarageTownTag), as on the web.
+ */
+export function OutsideCityChip({ text }: { text: string }) {
   const colors = useColors();
   const styles = useStyles();
   return (
     <View style={styles.outside}>
       <IconMapPin size={12} color={colors.warning} />
       <T size={11} weight={500} lh={15} numberOfLines={1} color={colors.textSecondary} style={styles.lineText}>
-        {outsideCityTag(outside)}
+        <Figures text={text} size={11} color={colors.textSecondary} />
       </T>
     </View>
   );

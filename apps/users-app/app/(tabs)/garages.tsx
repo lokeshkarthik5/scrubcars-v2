@@ -1,5 +1,6 @@
 import { parseBookingType } from '@repo/core/booking-types';
 import { useT } from '@repo/core/i18n';
+import { cityChipName } from '@repo/core/customer-city';
 import type { BookingType } from '@repo/core/types';
 import { useUserStore } from '@repo/core/stores/user-store';
 import { Raised, TopGlow } from '@repo/native-ui/finish';
@@ -17,6 +18,7 @@ import { AreaPicker } from '@/components/area/area-picker';
 import { ContinueBookingCard } from '@/components/checkout/continue-booking';
 import { GarageList } from '@/components/garage/garage-list';
 import { useAuth } from '@/lib/auth';
+import { useCustomerPlace } from '@/lib/customer-place';
 import { isCitywide, useLocationStore } from '@/lib/location';
 
 /** GarageListScreen (apps/users/components/garages/garage-list-screen.tsx). */
@@ -40,6 +42,9 @@ export default function GaragesScreen() {
   const permission = useLocationStore((s) => s.permission);
   const locating = useLocationStore((s) => s.locating);
   const citywide = isCitywide(location);
+  // The customer's city (0070): from where they are, or the city they picked, Chennai until either.
+  const { city } = useCustomerPlace();
+  const area = location && !citywide ? location.label : null;
   const [areaOpen, setAreaOpen] = useState(false);
   const askArea = useCallback(() => setAreaOpen(true), []);
 
@@ -52,15 +57,15 @@ export default function GaragesScreen() {
     ? t('Finding you…')
     : citywide
       ? permission === 'denied'
-        ? t('Location blocked — all of Chennai')
-        : t('All of Chennai')
+        ? t('Location blocked — all of {city}', { city: city.name })
+        : t('All of {city}', { city: city.name })
       : location?.source === 'area'
         ? t('Change area')
         : (profile?.area ?? t('Showing garages near you'));
 
   const header = (
     <>
-      {/* The logo with its red dot lit, and where the list is measured from as one raised pill (§3). */}
+      {/* The logo with its red dot lit, and the city chip (0070): the area picked, or the whole city (§3). */}
       <View style={styles.brand}>
         <View>
           <BrandMark height={28} />
@@ -69,7 +74,7 @@ export default function GaragesScreen() {
         <View style={styles.place}>
           <PressScale
             accessibilityRole="button"
-            accessibilityLabel={t('Choose location')}
+            accessibilityLabel={cityChipName(city, area && t(area))}
             accessibilityHint={status}
             disabled={locating}
             onPress={() => setAreaOpen(true)}
@@ -77,7 +82,7 @@ export default function GaragesScreen() {
             <Raised radius={12} style={styles.pill} innerStyle={styles.pillInner}>
               <IconMapPin size={15} />
               <T variant="t3" weight={600} numberOfLines={1} style={styles.shrink}>
-                {locating ? t('Finding you…') : location && !citywide ? t(location.label) : t('Chennai')}
+                {locating ? t('Finding you…') : area ? t(area) : city.name}
               </T>
               <IconChevronDown size={13} color={fx.quiet} />
             </Raised>

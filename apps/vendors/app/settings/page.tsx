@@ -12,13 +12,14 @@ import {
   IconChevronRight,
   IconUsers,
 } from '@tabler/icons-react'
-import { fill, useLang, useT } from '@repo/core/i18n'
+import { fill, useT } from '@repo/core/i18n'
 import { t } from '@repo/core/i18n/translate'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui/sc/tabs'
+import { GraphiteTabsList, GraphiteTabsTrigger } from '@repo/ui/finish/graphite-tabs'
+import { Tabs, TabsContent } from '@repo/ui/sc/tabs'
 import {
   LocationPicker,
   type PickedLocation,
@@ -45,7 +46,11 @@ import type {
   ApiVendorProfile,
   ApiWorkingHours,
 } from '@repo/core/api/types'
-import { DEFAULT_DOORSTEP_RADIUS_KM } from '@repo/core/doorstep'
+import {
+  DEFAULT_DOORSTEP_RADIUS_KM,
+  MAX_DOORSTEP_RADIUS_KM,
+} from '@repo/core/doorstep'
+import { TravelChoiceField } from '@repo/ui/features/travel-choice'
 import { toast } from 'react-toastify'
 import { getGarageDocumentsConfig } from '@repo/core/api/documents'
 import { getPushConfig } from '@repo/core/api/push'
@@ -188,7 +193,6 @@ export default function VendorSettingsPage() {
 
 function VendorSettings() {
   const t = useT()
-  const lang = useLang((s) => s.lang)
   const searchParams = useSearchParams()
   const [vendor, setVendor] = useState<ApiVendorProfile | null>(null)
   const [profileForm, setProfileForm] = useState({
@@ -403,6 +407,23 @@ function VendorSettings() {
       setVendor(updated)
     })
 
+  // "All over <city>" for doorstep (0069) applies only while the pin is in
+  // a city; the server refuses it otherwise ("Pin the garage inside a city
+  // first"), which the toast then says.
+  const doorstepWholeCity = vendor?.doorstepWholeCity === true && vendor.garageCity != null
+  const saveDoorstepWholeCity = async (on: boolean) => {
+    setSaving('doorstep-whole-city')
+    try {
+      const updated = await updateVendorJobTypes({ doorstepWholeCity: on })
+      setVendor(updated)
+      toast.success(t('Saved successfully'))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t('Something went wrong'))
+    } finally {
+      setSaving(null)
+    }
+  }
+
   // Doorstep turns on without asking how far first: the radius is optional,
   // and a garage that leaves it empty covers the default 10 km from its pin
   // (set or changed under Location).
@@ -478,20 +499,13 @@ function VendorSettings() {
           not working, everything else — so each panel is a similar size and
           nothing important sits below three screens of other settings. */}
       <Tabs value={tab} onValueChange={(value) => setTab(value as SettingsTab)}>
-        {/* Tamil's five words are wider: in Tamil only, tighter padding, and
-            the strip scrolls rather than spilling if a phone is narrower still. */}
-        <TabsList
-          className={cn(
-            '[&_[role=tab]]:min-h-12 [&_[role=tab]]:text-[14px]',
-            lang === 'ta' && 'overflow-x-auto [&_[role=tab]]:px-1'
-          )}
-        >
-          <TabsTrigger value="profile">{t('Profile')}</TabsTrigger>
-          <TabsTrigger value="location">{t('Location')}</TabsTrigger>
-          <TabsTrigger value="hours">{t('Hours')}</TabsTrigger>
-          <TabsTrigger value="time-off">{t('Time off')}</TabsTrigger>
-          <TabsTrigger value="account">{t('Account')}</TabsTrigger>
-        </TabsList>
+        <GraphiteTabsList value={tab} aria-label={t('Settings')}>
+          <GraphiteTabsTrigger value="profile">{t('Profile')}</GraphiteTabsTrigger>
+          <GraphiteTabsTrigger value="location">{t('Location')}</GraphiteTabsTrigger>
+          <GraphiteTabsTrigger value="hours">{t('Hours')}</GraphiteTabsTrigger>
+          <GraphiteTabsTrigger value="time-off">{t('Time off')}</GraphiteTabsTrigger>
+          <GraphiteTabsTrigger value="account">{t('Account')}</GraphiteTabsTrigger>
+        </GraphiteTabsList>
 
         <TabsContent value="profile">
           <section className="flex flex-col gap-3">
@@ -632,6 +646,21 @@ function VendorSettings() {
                 onChange={setPin}
                 expectedCity={profileForm.city}
               />
+              {/* "Up to N km" or "All over <city>" (0069): saved the moment it
+                  is picked, as the job type switches are. */}
+              {vendor?.doorstepEnabled && (
+                <TravelChoiceField
+                  label={t('How far you travel for doorstep jobs')}
+                  wholeCity={doorstepWholeCity}
+                  onChange={(on) => void saveDoorstepWholeCity(on)}
+                  cityName={vendor.garageCity?.name ?? null}
+                  radiusKm={vendor.doorstepRadiusKm}
+                  defaultKm={DEFAULT_DOORSTEP_RADIUS_KM}
+                  disabled={saving === 'doorstep-whole-city'}
+                  wholeCityNote={(city) => t('You go to any address in {city}.', { city })}
+                />
+              )}
+              {!doorstepWholeCity && (
               <ScInput
                 label={t('Doorstep travel radius (km)')}
                 inputMode="decimal"
@@ -642,15 +671,22 @@ function VendorSettings() {
                   setDoorstepRadiusKm(e.target.value.replace(/[^\d.]/g, ''))
                 }
               />
+              )}
               {/* This is the garage's own number, not a radius the customer picks:
                   a doorstep search asks "who will come to me", so only the garage
                   can answer it. Optional: left empty, doorstep jobs reach the
                   default (the server's lib/doorstep.ts), and whether the
                   garage travels at all is the Doorstep switch under Hours. */}
+              {!doorstepWholeCity && (
               <p className="text-[11px] text-text-muted">
                 {fill(
-                  t("How far you'll travel for doorstep jobs. Leave empty to use {km} km."),
+                  t(
+                    "How far you'll travel for doorstep jobs, up to {max} km. Leave empty to use {km} km."
+                  ),
                   {
+                    max: (
+                      <span className="font-numeric">{MAX_DOORSTEP_RADIUS_KM}</span>
+                    ),
                     km: (
                       <span className="font-numeric">
                         {DEFAULT_DOORSTEP_RADIUS_KM}
@@ -659,6 +695,7 @@ function VendorSettings() {
                   }
                 )}
               </p>
+              )}
               {/* The same line as under the Doorstep switch: the radius is
                   measured from the pin, so it does nothing until there is one. */}
               {vendor?.doorstepEnabled && vendor.lat === null && (

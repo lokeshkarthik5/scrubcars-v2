@@ -7,7 +7,8 @@
  * booked it, from their own booking (GET /bookings/:id, toBookingResponse's
  * `vendor`), so nobody can find a garage here and then go round the app. So
  * this carries what the screens show before booking — name, logo, city and
- * pincode, the pin for the map, how it takes bookings and how far it goes,
+ * pincode, the pin for the map, how it takes bookings and how far it goes
+ * (with "All over <city>", 0069, the city's centre and reach, never more),
  * whether it is paused and why — and nothing else. A new column on `vendors`
  * stays private until someone adds it here on purpose.
  *
@@ -22,6 +23,7 @@
  * where the pin came from, bays and jobs per day. Admin and the garage's own
  * portal read the full row through their own endpoints.
  */
+import type { CityPlace } from '../../lib/cities.js'
 import { isPickupOffered } from '../../lib/pickup.js'
 import type { Tier } from '../../lib/tiers.js'
 import type { VendorRecord } from './vendors.repository.js'
@@ -42,9 +44,11 @@ export type PublicVendorSource = Pick<
   | 'dropinEnabled'
   | 'doorstepEnabled'
   | 'doorstepRadiusKm'
+  | 'doorstepWholeCity'
   | 'pickup'
   | 'pickupRadiusKm'
   | 'pickupTermsAcceptedAt'
+  | 'pickupWholeCity'
   | 'slotIntervalMins'
   | 'bookingsPausedAt'
   | 'bookingsPausedReason'
@@ -70,6 +74,20 @@ export type PublicVendorFields = {
   pickupEnabled: boolean
   /** How far it collects cars from; null is the 10 km default. */
   pickupRadiusKm: number | null
+  /**
+   * Comes anywhere in its city for doorstep (0069): said so, and its pin is
+   * in a city. The radius is then not what decides; `reachCity` is.
+   */
+  doorstepWholeCity: boolean
+  /** Collects anywhere in its city (0069), as doorstepWholeCity; only while pickup is on. */
+  pickupWholeCity: boolean
+  /**
+   * The city a whole-city garage covers, for "Comes anywhere in Chennai" and
+   * checkout's early "outside the area" check: its name, centre and reach.
+   * A city's centre, never the garage's address. Null when neither whole-city
+   * option applies.
+   */
+  reachCity: { name: string; lat: number; lng: number; reachKm: number } | null
   slotIntervalMins: number
   /**
    * Public on purpose: the garage page says "Not taking bookings right now",
@@ -103,6 +121,9 @@ export const PUBLIC_VENDOR_KEYS = [
   'doorstepRadiusKm',
   'pickupEnabled',
   'pickupRadiusKm',
+  'doorstepWholeCity',
+  'pickupWholeCity',
+  'reachCity',
   'slotIntervalMins',
   'bookingsPausedAt',
   'bookingsPausedReason',
@@ -110,9 +131,33 @@ export const PUBLIC_VENDOR_KEYS = [
   'tier',
 ] as const satisfies ReadonlyArray<keyof PublicVendorFields>
 
+/**
+ * The whole-city facts customers may see (0069): which of the two options
+ * apply, and the city they cover. `city` is the city the garage's pin is in
+ * (its stored city_id, lib/cities.ts storedWholeCity), or null.
+ */
+export function publicWholeCity(
+  vendor: Pick<
+    PublicVendorSource,
+    'doorstepWholeCity' | 'pickupWholeCity' | 'pickup' | 'pickupRadiusKm' | 'pickupTermsAcceptedAt'
+  >,
+  city: CityPlace | null
+): Pick<PublicVendorFields, 'doorstepWholeCity' | 'pickupWholeCity' | 'reachCity'> {
+  const doorstepWholeCity = vendor.doorstepWholeCity && city !== null
+  const pickupWholeCity = vendor.pickupWholeCity && city !== null && isPickupOffered(vendor)
+  return {
+    doorstepWholeCity,
+    pickupWholeCity,
+    reachCity:
+      city && (doorstepWholeCity || pickupWholeCity)
+        ? { name: city.name, lat: city.lat, lng: city.lng, reachKm: city.reachKm }
+        : null,
+  }
+}
+
 export function toPublicVendor(
   vendor: PublicVendorSource,
-  extras: { tier: Tier | null }
+  extras: { tier: Tier | null; reachCity?: CityPlace | null }
 ): PublicVendorFields {
   return {
     id: vendor.id,
@@ -130,6 +175,7 @@ export function toPublicVendor(
     doorstepRadiusKm: vendor.doorstepRadiusKm,
     pickupEnabled: isPickupOffered(vendor),
     pickupRadiusKm: vendor.pickupRadiusKm,
+    ...publicWholeCity(vendor, extras.reachCity ?? null),
     slotIntervalMins: vendor.slotIntervalMins,
     bookingsPausedAt: vendor.bookingsPausedAt?.toISOString() ?? null,
     bookingsPausedReason: vendor.bookingsPausedReason,

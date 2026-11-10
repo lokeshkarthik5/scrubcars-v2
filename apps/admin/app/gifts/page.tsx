@@ -33,6 +33,8 @@ import {
   giftsListHref,
   parseGiftFilter,
 } from '@/lib/gifts'
+import { useOwnerDeleteGift } from '@repo/core/api/hooks/use-admin-owner-delete'
+import { OwnerDeleteButton } from '@/components/owner-delete'
 
 /** "3 · ₹2,500": a count and its money, the count first. */
 function countAndAmount(count: number, amount: string) {
@@ -122,6 +124,7 @@ function SummaryTiles({ summary }: { summary: AdminGiftsSummary }) {
 }
 
 function GiftRow({ gift, onCancel }: { gift: AdminGift; onCancel: (gift: AdminGift) => void }) {
+  const removeGift = useOwnerDeleteGift()
   return (
     <ScCard className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -141,6 +144,25 @@ function GiftRow({ gift, onCancel }: { gift: AdminGift; onCancel: (gift: AdminGi
           >
             Cancel gift
           </ScButton>
+        )}
+        {/* The owner's delete (10 Nov 2026): only a gift nobody redeemed. */}
+        {!gift.redeemedAt && (
+          <OwnerDeleteButton
+            label="Delete gift…"
+            title={`Delete gift ${gift.number}?`}
+            confirmLabel="Delete gift"
+            typeToConfirm={gift.number}
+            done={`${gift.number} deleted`}
+            className="min-h-11 px-3 text-[12px]"
+            body={
+              <p>
+                The gift and its code go for good. Nothing is refunded: if it was paid and the money should
+                go back, refund it in Razorpay first. A redeemed gift can&apos;t be deleted, as its credit is
+                the customer&apos;s.
+              </p>
+            }
+            onDelete={() => removeGift.mutateAsync({ id: gift.id, confirmText: gift.number })}
+          />
         )}
       </div>
 

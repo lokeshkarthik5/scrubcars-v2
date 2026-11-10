@@ -3,12 +3,13 @@ import type { ApiVendorClosure, ApiVendorProfile, ApiWorkingHours } from '@repo/
 import { useQuery } from '@tanstack/react-query';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { type ReactNode, useEffect, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 
 import { AccountActions } from '@/components/account-actions';
 import { AppearanceCard } from '@/components/appearance-card';
 import { AppLockCard } from '@/components/app-lock-card';
 import { AppShell, garageScreen } from '@/components/app-shell';
+import { GraphiteSwitch } from '@repo/native-ui/finish';
 import { Label, ScButton } from '@repo/native-ui/button';
 import { IconBell, IconLogout, IconUsers } from '@repo/native-ui/icons';
 import { Skeleton, SkeletonList } from '@repo/native-ui/primitives';
@@ -48,7 +49,6 @@ const LABELS: Record<SettingsTab, string> = {
  */
 function SettingsScreen() {
   const t = useT();
-  const colors = useColors();
   const styles = useStyles();
   const params = useLocalSearchParams<{ tab?: string }>();
   const requested = initialTab(params.tab);
@@ -121,29 +121,15 @@ function SettingsScreen() {
     <AppShell>
       <TopBar title={t('Settings')} />
       <View style={styles.tabsBlock}>
-        <View accessibilityRole="tablist" style={styles.tabs}>
-          {SETTINGS_TABS.map((key) => (
-            <Pressable
-              key={key}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: tab === key }}
-              onPress={() => open(key)}
-              style={[styles.tab, tab === key && styles.tabOn]}
-            >
-              {/* Tamil is longer: one line, shrunk to fit its share of the strip. */}
-              <T
-                size={13}
-                weight={500}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.75}
-                color={tab === key ? colors.textPrimary : colors.textSecondary}
-              >
-                {t(LABELS[key])}
-              </T>
-            </Pressable>
-          ))}
-        </View>
+        <GraphiteSwitch
+          role="tab"
+          pinned
+          accessibilityLabel={t('Settings')}
+          options={SETTINGS_TABS.map((key) => ({ value: key, label: t(LABELS[key]) }))}
+          value={tab}
+          onChange={open}
+          style={styles.tabs}
+        />
         {panel('profile', <ProfileTab vendor={vendor} onSaved={setVendor} />)}
         {panel('location', vendor ? <LocationTab vendor={vendor} onSaved={setVendor} /> : null)}
         {panel(
@@ -223,9 +209,8 @@ export default garageScreen(SettingsScreen);
 
 const useStyles = createStyles((colors) => ({
   tabsBlock: { gap: 16 },
-  tabs: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: 12, padding: 4 },
-  tab: { flex: 1, minHeight: 48, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  tabOn: { backgroundColor: colors.surfaceElevated },
+  // The web's graphite tab strip: a 44-point key inside a 52-point track.
+  tabs: { height: 52 },
   // The web's TabsContent is a column with gap-5.
   panel: { gap: 20 },
   hidden: { display: 'none' },

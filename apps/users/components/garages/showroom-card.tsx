@@ -8,6 +8,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { IconArrowUpRight, IconHome, IconStarFilled } from '@tabler/icons-react'
 import { prefetchGarage } from '@repo/core/api/hooks/use-vendors'
 import { bookingTypeParam } from '@repo/core/booking-types'
+import { anywhereInCityLine } from '@repo/core/reach'
 import { distanceLabel, driveTimeLabel } from '@repo/core/drive-time'
 import { hoursLeftShare, openStatus } from '@repo/core/opening-hours'
 import { NEW_GARAGE_LABEL, hasStarScore } from '@repo/core/ratings'
@@ -15,7 +16,7 @@ import { isApproximate, useHydratedLocation } from '@repo/core/stores/location-s
 import type { BookingType, Vendor } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
 import { GarageCover, GarageMonogram } from '@repo/ui/features/garage-cover'
-import { OutsideCityChip } from '@repo/ui/features/outside-city'
+import { GarageTownChip } from '@repo/ui/features/outside-city'
 import { TierMark } from '@repo/ui/features/tier-medal'
 import { HoursRing } from '@repo/ui/finish/hours-ring'
 import { usePrefersReducedMotion, useSeenOnce } from '@repo/ui/finish/motion'
@@ -117,6 +118,7 @@ export function ShowroomCard({
   const [dragX, setDragX] = useState(0)
 
   const modeParam = bookingTypeParam(mode)
+  const anywhere = anywhereInCityLine(vendor, mode)
   const href = modeParam ? `/garage/${vendor.id}?mode=${modeParam}` : `/garage/${vendor.id}`
   const photos = vendor.photos
   const stars = hasStarScore(vendor)
@@ -409,7 +411,7 @@ export function ShowroomCard({
           </span>
         </div>
 
-        {(chips || vendor.outsideServiceCity || (mode === 'dropin' && vendor.doorstepEnabled)) && (
+        {(chips || anywhere || vendor.outsideServiceCity || (mode === 'dropin' && vendor.doorstepEnabled)) && (
           <div className="-mt-0.5 flex flex-wrap gap-1.5 px-3.5 pb-3">
             {mode === 'dropin' && vendor.doorstepEnabled && (
               <span className="fx-raised inline-flex h-[26px] items-center gap-1.5 rounded-pill px-2.5 text-t4 font-medium text-[#D4D4DA]">
@@ -417,10 +419,20 @@ export function ShowroomCard({
                 {t('Comes to you too')}
               </span>
             )}
+            {/* "Comes anywhere in Chennai" (0069): on Doorstep or Pickup &
+                drop, a garage that covers its whole city says so. */}
+            {anywhere && (
+              <span className="fx-raised inline-flex h-[26px] items-center gap-1.5 rounded-pill px-2.5 text-t4 font-medium text-[#D4D4DA]">
+                <IconHome size={13} aria-hidden className="text-[#A8A8B2]" />
+                {anywhere}
+              </span>
+            )}
             {chips}
-            {/* A garage in another town says so on its card, so nobody opens
-                it, or books it, thinking it is in Chennai. */}
-            {vendor.outsideServiceCity && <OutsideCityChip outside={vendor.outsideServiceCity} />}
+            {/* A garage in another town than the customer's city says so on
+                its card ("Vellore · 125 km"), so nobody opens it, or books
+                it, thinking it is round the corner; one in their city says
+                nothing (0070). */}
+            <GarageTownChip garage={vendor} />
           </div>
         )}
       </Link>

@@ -1,13 +1,19 @@
 import { msg } from '@repo/core/i18n/translate';
-import { ASSUMED_ORIGIN } from '@repo/core/map';
-import type { ActiveLocation, PermissionState } from '@repo/core/stores/location-store';
+import { cityLocation, type ActiveLocation, type PermissionState } from '@repo/core/stores/location-store';
 import * as Location from 'expo-location';
 import { create } from 'zustand';
 
 import { devicePrefs } from './device-prefs';
 
 export type { ActiveLocation } from '@repo/core/stores/location-store';
-export { coarse, isApproximate, isCitywide, isStale, shouldOfferLocationPrompt } from '@repo/core/stores/location-store';
+export {
+  cityCentreParams,
+  coarse,
+  isApproximate,
+  isCitywide,
+  isStale,
+  shouldOfferLocationPrompt,
+} from '@repo/core/stores/location-store';
 
 /**
  * Where the customer is, for sorting garages by distance: core's location store with the
@@ -39,7 +45,8 @@ interface LocationState extends Stored {
   locating: boolean;
   dismissPrompt: () => void;
   setArea: (zone: { slug: string; name: string; lat: number; lng: number }) => void;
-  selectChennai: () => void;
+  /** A whole city picked in the sheet (0070): its centre, named for it, with its id. */
+  selectCity: (city: { id: string; name: string; centre: { lat: number; lng: number } }) => void;
   refreshPermission: () => Promise<void>;
   requestGpsLocation: () => Promise<ActiveLocation | null>;
   /** Signing out or deleting: the next person, or a guest, starts with no place of this one's. */
@@ -72,14 +79,7 @@ export const useLocationStore = create<LocationState>()((set, get) => {
         zone: zone.slug,
         updatedAt: Date.now(),
       }),
-    selectChennai: () =>
-      setLocation({
-        lat: ASSUMED_ORIGIN.lat,
-        lng: ASSUMED_ORIGIN.lng,
-        label: ASSUMED_ORIGIN.label,
-        source: 'manual',
-        updatedAt: Date.now(),
-      }),
+    selectCity: (city) => setLocation(cityLocation(city)),
     reset: () => {
       set({ location: null, promptDismissedAt: null, locating: false });
       keep();

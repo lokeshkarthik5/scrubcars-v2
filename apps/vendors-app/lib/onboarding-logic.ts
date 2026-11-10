@@ -36,8 +36,10 @@ export const YEARS_OPTIONS = [
   msg('10+ years'),
 ];
 
-export const MIN_RADIUS_KM = 1;
-export const MAX_RADIUS_KM = 30;
+// The server's bounds (1 to 300 km since the 30 km top was lifted), from the
+// shared twin so the app, the portal and the API never disagree.
+export { MIN_DOORSTEP_RADIUS_KM as MIN_RADIUS_KM, MAX_DOORSTEP_RADIUS_KM as MAX_RADIUS_KM } from '@repo/core/doorstep';
+import { MAX_DOORSTEP_RADIUS_KM as MAX_RADIUS_KM, MIN_DOORSTEP_RADIUS_KM as MIN_RADIUS_KM } from '@repo/core/doorstep';
 
 export interface OnboardingDraft {
   businessName: string;
@@ -61,6 +63,8 @@ export interface OnboardingDraft {
   doorstep: boolean;
   /** How far the garage travels for doorstep jobs, as typed. Empty means the default. */
   doorstepRadiusKm: string;
+  /** "All over <city>" (0069), chosen instead of a radius. */
+  doorstepWholeCity?: boolean;
   bays: string;
   jobsPerDay: string;
   slotInterval: 30 | 45 | 60;
@@ -198,13 +202,19 @@ export const toggleDay = (days: number[], day: number) =>
 export const doorstepRadius = (d: Pick<OnboardingDraft, 'doorstep' | 'doorstepRadiusKm'>): number | null =>
   d.doorstep && d.doorstepRadiusKm.trim() !== '' ? Number(d.doorstepRadiusKm) : null;
 
-/** PATCH /vendors/me/job-types: doorstep and its distance land in one call. */
-export function step3JobTypes(d: Pick<OnboardingDraft, 'doorstep' | 'doorstepRadiusKm'>) {
-  const radius = doorstepRadius(d);
+/**
+ * PATCH /vendors/me/job-types: doorstep and its distance land in one call.
+ * "All over <city>" (0069) is sent only when chosen, so an older API never
+ * sees it; the radius then is not sent at all.
+ */
+export function step3JobTypes(d: Pick<OnboardingDraft, 'doorstep' | 'doorstepRadiusKm' | 'doorstepWholeCity'>) {
+  const wholeCity = d.doorstep && d.doorstepWholeCity === true;
+  const radius = wholeCity ? null : doorstepRadius(d);
   return {
     dropinEnabled: true,
     doorstepEnabled: d.doorstep,
     ...(d.doorstep && radius != null ? { doorstepRadiusKm: radius } : {}),
+    ...(wholeCity ? { doorstepWholeCity: true } : {}),
   };
 }
 

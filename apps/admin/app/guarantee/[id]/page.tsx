@@ -19,6 +19,8 @@ import { useAdminClaim, useDecideClaim } from '@repo/core/api/hooks/use-guarante
 import { CLAIM_STATUS_LABELS, GUARANTEE_RULES } from '@repo/core/guarantee'
 import { cn } from '@repo/core/utils'
 import { Meta } from '@/components/meta'
+import { OwnerDeleteButton, useCanDeleteAnything } from '@/components/owner-delete'
+import { useOwnerDeleteGuaranteeClaim } from '@repo/core/api/hooks/use-admin-owner-delete'
 import { SignedAs } from '@/components/signed-as'
 import { formatWhen } from '@/lib/bookings'
 import { DECISION_WORDS, claimClockLine, customerFiguresLine, customerFlags } from '@/lib/guarantee'
@@ -31,6 +33,8 @@ function ClaimDetail({ id }: { id: string }) {
   const back = params.get('back') ?? '/guarantee'
   const { data: claim, isPending, error, refetch } = useAdminClaim(id)
   const decide = useDecideClaim(id)
+  const removeClaim = useOwnerDeleteGuaranteeClaim()
+  const canDelete = useCanDeleteAnything()
   const [deciding, setDeciding] = useState<Decision | null>(null)
   const [reason, setReason] = useState('')
   const [note, setNote] = useState('')
@@ -220,6 +224,40 @@ function ClaimDetail({ id }: { id: string }) {
                 </ScButton>
               ))}
           </div>
+        </ScCard>
+      )}
+
+      {/* The owner's delete (10 Nov 2026): only once its free redo booking is
+          gone; that booking goes with its chain through Delete test booking. */}
+      {canDelete && (
+        <ScCard className="flex flex-col gap-2">
+          <h2 className="text-sm font-semibold text-text-primary">Delete</h2>
+          {claim.redoBooking ? (
+            <p className="text-[12px] text-text-secondary">
+              This claim has a free redo booking. Delete the redo booking first (mark it Test, then Delete test
+              booking on{' '}
+              <Link href={`/bookings/${claim.redoBooking.id}`} className="underline underline-offset-4">
+                its page
+              </Link>
+              ).
+            </p>
+          ) : (
+            <>
+              <p className="text-[12px] text-text-secondary">Only the owner sees this.</p>
+              <OwnerDeleteButton
+                label="Delete claim…"
+                title={`Delete the redo claim on #${claim.bookingRef}?`}
+                confirmLabel="Delete claim"
+                typeToConfirm={claim.bookingRef}
+                done="Claim deleted"
+                body={<p>The claim and the customer&apos;s photos go for good. The booking it was on stays.</p>}
+                onDelete={async () => {
+                  await removeClaim.mutateAsync({ id: claim.id, confirmText: claim.bookingRef })
+                  router.replace(back)
+                }}
+              />
+            </>
+          )}
         </ScCard>
       )}
 

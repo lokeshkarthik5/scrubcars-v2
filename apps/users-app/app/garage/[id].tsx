@@ -8,7 +8,7 @@ import { straightLineKm } from '@repo/core/map';
 import { resolveServiceAmount } from '@repo/core/pricing';
 import { hasStarScore, NEW_GARAGE_LABEL } from '@repo/core/ratings';
 import { knownDurationTotal } from '@repo/core/service-duration';
-import { outsideCityLine } from '@repo/core/service-city';
+import { anywhereInCityLine } from '@repo/core/reach';
 import { useUserStore } from '@repo/core/stores/user-store';
 import type { BookingType, Service, ServicePackage, Vendor } from '@repo/core/types';
 import { formatDuration } from '@repo/core/utils';
@@ -38,6 +38,7 @@ import { GarageSlotAlerts } from '@/components/slot-alerts/garage-slot-alerts';
 import { SaveGarageButton } from '@/components/garage/save-button';
 import { GarageAddOns, PackageCard, ServiceCard, ServiceSheet } from '@/components/garage/service-cards';
 import { OutsideCityLine, TierSeal } from '@/components/garage/tier';
+import { useGarageTownLine } from '@/lib/customer-place';
 import { getVendorAddOns } from '@/lib/add-ons';
 import { useAuth } from '@/lib/auth';
 import { browseCategory } from '@repo/core/analytics-events';
@@ -78,6 +79,8 @@ export default function GarageScreen() {
 
   const garage = useGarage(id);
   const vendor = garage.data?.vendor ?? null;
+  // Where the garage is, said only when it is not in the customer's city (0070).
+  const townLine = useGarageTownLine(vendor);
   const services = garage.data?.services ?? NO_SERVICES;
   const packages = garage.data?.packages ?? NO_PACKAGES;
   const [tab, setTab] = useState<Tab>('services');
@@ -192,6 +195,7 @@ export default function GarageScreen() {
       : null;
   const approximate = isApproximate(activeLocation);
   const modes = offeredBookingTypes(vendor);
+  const anywhere = anywhereInCityLine(vendor, mode);
   const paused = vendor.bookingsPaused;
   const showBar = paused || selectedServices.length > 0;
 
@@ -295,9 +299,9 @@ export default function GarageScreen() {
                   ) : null}
                   {vendor.tier ? <TierSeal tier={vendor.tier} /> : null}
                 </View>
-                {vendor.outsideServiceCity ? (
+                {townLine ? (
                   <View style={styles.outside}>
-                    <OutsideCityLine text={outsideCityLine(vendor.outsideServiceCity)} />
+                    <OutsideCityLine text={townLine} />
                   </View>
                 ) : null}
                 {/* You → the garage, while the page knows where you are. */}
@@ -308,6 +312,11 @@ export default function GarageScreen() {
                 <Rise index={1} delay={160} style={styles.section}>
                   <ModeSwitch modes={modes} value={mode} onChange={setChosenMode} />
                 </Rise>
+              ) : null}
+              {anywhere ? (
+                <T variant="t5" lh={18} color={fx.quiet} style={styles.pickupNote}>
+                  {anywhere}
+                </T>
               ) : null}
               {mode === 'pickup' ? (
                 <T variant="t5" lh={18} color={fx.quiet} style={styles.pickupNote}>

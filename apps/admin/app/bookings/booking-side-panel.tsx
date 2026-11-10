@@ -17,6 +17,7 @@ import {
 } from '@/components/booking-badges'
 import { CopyButton } from '@/components/copy-button'
 import { PhoneLink } from '@/components/phone-link'
+import { TestBookingActions } from '@/components/test-booking-actions'
 import { SidePanel, SidePanelFacts, SidePanelSection } from '@/components/table'
 import { bookingNextStep } from '@/lib/booking-next-step'
 import {
@@ -36,7 +37,9 @@ import { bookingHref } from './booking-columns'
  * A booking opened beside the list (mockup 03): what to do next and by
  * when, its badges, and the details the old card spread over eight labelled
  * fields — the Razorpay payment id among them, to copy — with the full page
- * one tap away. Actions that change a booking stay on its page.
+ * one tap away. Actions that change a booking stay on its page, but for the
+ * Test mark and Delete test booking (10 Nov 2026), which the team runs on
+ * many bookings after a test round.
  */
 export function BookingSidePanel({
   booking: b,
@@ -127,13 +130,16 @@ export function BookingSidePanel({
         </>
       }
       actions={
-        <ScButtonLink
-          href={bookingHref(b, listQuery)}
-          variant="secondary"
-          className="flex min-h-11 items-center gap-1.5 px-4 text-[13px]"
-        >
-          Open full page <IconExternalLink size={15} aria-hidden="true" />
-        </ScButtonLink>
+        <>
+          <ScButtonLink
+            href={bookingHref(b, listQuery)}
+            variant="secondary"
+            className="flex min-h-11 items-center gap-1.5 px-4 text-[13px]"
+          >
+            Open full page <IconExternalLink size={15} aria-hidden="true" />
+          </ScButtonLink>
+          <TestBookingActions booking={b} onDeleted={onClose} />
+        </>
       }
     >
       {step && (

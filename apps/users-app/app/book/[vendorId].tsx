@@ -38,7 +38,6 @@ import { resolveServiceAmount } from '@repo/core/pricing';
 import { hasStarScore } from '@repo/core/ratings';
 import { rewardRupees } from '@repo/core/rewards';
 import { knownDurationTotal } from '@repo/core/service-duration';
-import { outsideCityCheckoutLine } from '@repo/core/service-city';
 import { isLastingRefusal, livePendingCheckout, pendingCodeFor } from '@repo/core/stores/pending-checkout-store';
 import { useUserStore } from '@repo/core/stores/user-store';
 import type { Address, BookingType, Service, Vendor } from '@repo/core/types';
@@ -89,6 +88,7 @@ import { ModeSwitch } from '@/components/garage/mode-switch';
 import { NumberPlate } from '@/components/moments/number-plate';
 import { TierMark } from '@/components/garage/tier';
 import { OutsideCityLine } from '@/components/garage/tier';
+import { useGarageTownLine } from '@/lib/customer-place';
 import { AddCarSheet } from '@/components/home/add-car-sheet';
 import { LocationPicker, type PickedLocation } from '@/components/location-picker';
 import { SlotAlertAsk } from '@/components/slot-alerts/slot-alert-ask';
@@ -188,6 +188,8 @@ export default function BookScreen() {
   const fetchProfile = useUserStore((s) => s.fetchProfile);
 
   const [vendor, setVendor] = useState<Vendor | null>(null);
+  // The garage page's line once more above Pay, only for a garage outside the customer's city (0070).
+  const townLine = useGarageTownLine(vendor);
   const [selectedServices, setSelectedServices] = useState<Service[]>([]);
   const [categoryById, setCategoryById] = useState<Record<string, string>>({});
   const guaranteeOn = useGuaranteeConfig().data?.enabled === true;
@@ -1694,9 +1696,9 @@ export default function BookScreen() {
                 </View>
               </View>
             ) : null}
-            {vendor?.outsideServiceCity ? (
+            {townLine ? (
               <View style={styles.outsideLine}>
-                <OutsideCityLine text={outsideCityCheckoutLine(vendor.outsideServiceCity)} />
+                <OutsideCityLine text={townLine} />
               </View>
             ) : null}
             {/* Grey while a step is missing, naming it; a tap scrolls there and nudges it.

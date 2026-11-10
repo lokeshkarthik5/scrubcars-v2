@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { IconChevronRight, IconMapPin } from '@tabler/icons-react'
+import { useCustomerPlace } from '@repo/core/hooks/use-customer-place'
+import { detlioInLine, isSmallCity } from '@repo/core/customer-city'
 import { AreaPicker } from '@/components/area/area-picker'
 import { Figures } from '@repo/ui/sc/figures'
 import { formatDistance } from '@repo/core/map'
@@ -66,6 +68,10 @@ const shell =
 export function NearbyCard({ nearby, located }: { nearby: HomeData['nearby']; located: boolean }) {
   const t = useT()
   const [asking, setAsking] = useState(false)
+  // A city with fewer than three garages shows no count (0070, mockup D):
+  // "Detlio in Madurai", never a lonely "1 garage".
+  const { city } = useCustomerPlace()
+  const small = isSmallCity(city)
 
   if (!nearby) {
     if (located) return null
@@ -115,8 +121,14 @@ export function NearbyCard({ nearby, located }: { nearby: HomeData['nearby']; lo
       <span className="relative">
         <span className="block text-t4 text-dim">{t('Nearby garages')}</span>
         <span className="mt-[5px] mb-1 block text-[22px] tracking-[-0.022em] text-text-primary">
-          <span className="font-numeric">{nearby.count}</span>{' '}
-          {nearby.count === 1 ? t('garage') : t('garages')}
+          {small ? (
+            detlioInLine(city)
+          ) : (
+            <>
+              <span className="font-numeric">{nearby.count}</span>{' '}
+              {nearby.count === 1 ? t('garage') : t('garages')}
+            </>
+          )}
         </span>
         {/* Straight-line distance, which is what the server measures; never
             worded as a drive time it does not know. Under 1 km reads in
