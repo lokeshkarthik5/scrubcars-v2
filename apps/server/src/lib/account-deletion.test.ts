@@ -204,7 +204,7 @@ describe('adminDeletionCheck: the owner deletes from admin (10 Nov 2026)', () =>
       'ACCOUNT_HAS_UNREDEEMED_GIFT',
     ])
     expect(check.warnings[0]!.message).toBe(
-      'Booking #AB12CD34 is still on. It is cancelled first without telling the customer or the garage; a paid one becomes a refund owed on the Refunds page.'
+      'Booking #AB12CD34 is still on. It is cancelled first without telling the customer or the garage; a paid one becomes a refund owed on the Refunds page, to send by hand.'
     )
     expect(check.warnings[3]!.message).toBe('₹450 is still owed back to them (#AB12CD34 ₹450). It stays on the Refunds page.')
     expect(check.warnings[4]!.message).toBe("They have ₹200 of Detlio credit. It can't be used once the account is gone.")

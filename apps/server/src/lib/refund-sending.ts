@@ -16,8 +16,9 @@
  *     cancelled (the cancel route only allows it within the allowed time),
  *     Detlio cancelled, or a checkout's payment was captured and became no
  *     booking. Never a final-bill payment, never a part amount, never a
- *     booking with a complaint that is open or acknowledged: those wait for
- *     a person and the Refund now button. A daily cap
+ *     booking with a complaint that is open or acknowledged, never the money
+ *     of a deleted account: those wait for a person and the Refund now
+ *     button. A daily cap
  *     (AUTO_REFUND_DAILY_CAP_INR) stops it for the rest of the day.
  *
  * Clock-free: the caller passes `now`. Node's crypto is used for the
@@ -193,6 +194,12 @@ export type AutoRefundCause =
  *
  * A customer's cancel counts as "in the allowed time" because the cancel
  * route refuses one past the cutoff (CANCELLATION_WINDOW_PASSED).
+ *
+ * A deleted account's money has no cause either (owner, 10 Nov 2026: "Not
+ * automatically"). Deleting a customer's account from admin cancels their
+ * bookings as Detlio's decision, which would otherwise read as
+ * `detlio_cancelled`; the refund it leaves is owed on the Refunds page, for
+ * a person to send.
  */
 export function autoRefundCause(booking: {
   status: string
@@ -201,7 +208,10 @@ export function autoRefundCause(booking: {
   moved: boolean
   /** A refund instead of a redo on a completed booking (0051). */
   guaranteeRefund?: boolean
+  /** The customer's account is deleted (0066; from admin, 0069). */
+  accountDeleted?: boolean
 }): AutoRefundCause | null {
+  if (booking.accountDeleted) return null
   // Detlio decided it, with a typed name, after looking at both sides'
   // photos: as clear-cut as a cancellation Detlio made.
   if (booking.guaranteeRefund && booking.status === 'completed') return 'guarantee_refund'

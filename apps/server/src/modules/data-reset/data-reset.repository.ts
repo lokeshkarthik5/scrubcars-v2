@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, inArray, isNotNull, isNull, lt, or, sql, type SQL } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull, lt, notExists, or, sql, type SQL } from 'drizzle-orm'
 import type { PgColumn } from 'drizzle-orm/pg-core'
 import { db } from '../../db/index.js'
 import { returnedCreditExpiresAt } from '../../lib/gift-credit.js'
@@ -504,6 +504,7 @@ export function dataResetReads(conn: Conn) {
             recordedAt: vendorPayouts.createdAt,
             paidAt: vendorPayouts.paidAt,
             reference: vendorPayouts.reference,
+            total: vendorPayouts.amount,
             root: vendorPayoutItems.bookingId,
             amount: vendorPayoutItems.amount,
           })
@@ -516,6 +517,7 @@ export function dataResetReads(conn: Conn) {
             recordedAt: row.recordedAt,
             paidAt: row.paidAt,
             reference: row.reference,
+            amount: row.total,
             rootBookingIds: [],
             items: [],
           }
@@ -525,6 +527,33 @@ export function dataResetReads(conn: Conn) {
         }
       }
       return [...out.values()]
+    },
+
+    /**
+     * The garage's payouts with no line left on any booking: an earlier
+     * owner's delete of each booking it paid took the lines (and wrote them
+     * to the ledger). The owner's Delete forever takes these with the garage
+     * too (10 Nov 2026); nothing else reaches them.
+     */
+    async payoutsWithoutLinesOf(vendorId: string): Promise<ResetPayout[]> {
+      const rows = await conn
+        .select({
+          id: vendorPayouts.id,
+          recordedAt: vendorPayouts.createdAt,
+          paidAt: vendorPayouts.paidAt,
+          reference: vendorPayouts.reference,
+          amount: vendorPayouts.amount,
+        })
+        .from(vendorPayouts)
+        .where(
+          and(
+            eq(vendorPayouts.vendorId, vendorId),
+            notExists(
+              conn.select({ one: sql`1` }).from(vendorPayoutItems).where(eq(vendorPayoutItems.payoutId, vendorPayouts.id))
+            )
+          )
+        )
+      return rows.map((row) => ({ ...row, rootBookingIds: [], items: [] }))
     },
 
     async voidsByYear(years: string[]): Promise<Map<string, number>> {

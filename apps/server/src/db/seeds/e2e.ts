@@ -62,6 +62,8 @@ import {
   vendorDocumentFiles,
   vendorDocuments,
   vendorPayoutAccounts,
+  vendorPayoutItems,
+  vendorPayouts,
   vendorPhotos,
   vendorServiceAreas,
   vendorWorkingHours,
@@ -4195,6 +4197,62 @@ async function seedOwnerDeleteRows() {
     id: C.stamp, userId: O.customer.id, source: 'coupon', couponRedemptionId: C.redemption,
     earnedAt: daysAgo(2), expiresAt: daysAheadAt(300, 10),
   })
+
+  // A test garage in the Bin with a payout, which the owner's Delete forever
+  // erases completely (owner, 10 Nov 2026), payout and all. Its owner has no
+  // other garage, so afterwards they have no garage-app login at all.
+  const G = O.paidGarage
+  await db.insert(users).values([
+    { id: G.owner.id, name: G.owner.name, phone: G.owner.phone, isCustomer: false, isVendorOwner: true,
+      phoneVerified: true, status: 'active' as const },
+    { id: G.customer.id, name: G.customer.name, phone: G.customer.phone, isCustomer: true, isVendorOwner: false,
+      phoneVerified: true, status: 'active' as const },
+  ])
+  await db.insert(userVehicles).values({
+    id: G.customer.vehicleId, userId: G.customer.id, make: 'Hyundai', model: 'i20', color: 'White',
+    licensePlate: 'TN09OD0003', vehicleType: 'hatchback', isDefault: true,
+  })
+  await db.insert(vendors).values({
+    id: G.id, ownerId: G.owner.id, businessName: G.name, phone: G.owner.phone,
+    address: '10, Owner Road, Kelambakkam', city: 'Chennai', pincode: '603103',
+    lat: G.lat, lng: G.lng, geoSource: 'map_pin', geoConfirmedAt: now,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'], bays: 1, slotIntervalMins: 30, whatsapp: null,
+    status: 'active', isVerified: true, dropinEnabled: true, doorstepEnabled: false, createdAt: longAgo,
+    deletedAt: daysAgo(1), deletedByName: 'E2E seed', deletedReason: 'Test garage with a payout',
+  })
+  await db.insert(userMemberMapping).values({
+    vendorId: G.id, userId: G.owner.id, role: 'vendor_admin', status: 'active',
+  })
+  await db.insert(services).values({
+    id: G.serviceId, vendorId: G.id, name: 'Paid Garage Wash',
+    description: 'An exterior foam wash and dry.', category: 'car_wash', pricingType: 'flat',
+    price: '450.00', durationMins: 60, isActive: true,
+  })
+  const paidWash = { id: G.serviceId, name: 'Paid Garage Wash', amount: '450.00', durationMins: 60 }
+  const theirs = { userId: G.customer.id, vehicleId: G.customer.vehicleId, vendorId: G.id, items: [paidWash] }
+  await insertBooking({
+    ...theirs, id: O.bookings.paidLive, scheduledAt: daysAgo(6), status: 'completed', createdAt: daysAgo(7),
+    acceptedAt: daysAgo(7), startedAt: daysAgo(6), completedAt: daysAgo(6),
+    payment: { status: 'paid', txnId: 'pay_LiveOwnerDel10', gatewayMode: 'live', paidAt: daysAgo(7) },
+  })
+  await insertBooking({
+    ...theirs, id: O.bookings.paidFake, scheduledAt: daysAgo(5), status: 'completed', createdAt: daysAgo(6),
+    acceptedAt: daysAgo(6), startedAt: daysAgo(5), completedAt: daysAgo(5),
+    payment: { status: 'paid', txnId: 'pay_e2e_ownerdel_paid_fake', gatewayMode: 'fake', paidAt: daysAgo(6) },
+  })
+  await db.insert(vendorPayouts).values({
+    id: G.payout.id, vendorId: G.id, amount: G.payout.amount, method: 'bank', reference: G.payout.reference,
+    paidAt: daysAgo(3), coversFrom: daysAgo(7), coversUpTo: daysAgo(4), recordedBy: 'E2E seed',
+    recordedBySub: 'admin', createdAt: daysAgo(3),
+  })
+  await db.insert(vendorPayoutItems).values(
+    [O.bookings.paidLive, O.bookings.paidFake].map((bookingId, i) => ({
+      id: G.payoutItems[i], payoutId: G.payout.id, bookingId, bookingRef: bookingId.slice(0, 8).toUpperCase(),
+      kind: 'job' as const, payableFrom: daysAgo(5 - i), price: '450.00', detlioPromo: '0.00', garagePromo: '0.00',
+      refunds: '0.00', commission: '0.00', freePosition: i + 1, garageShare: G.payout.lines[i],
+      heldByGarage: '0.00', amount: G.payout.lines[i],
+    }))
+  )
 }
 
 async function main() {

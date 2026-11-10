@@ -151,12 +151,14 @@ function purgeView(
   vendor: VendorRecord,
   plan: ResetPlan,
   assets: Awaited<ReturnType<typeof vendorBinRepository.countAssets>>,
-  payoutsLeft: number
+  payoutsLeft: number,
+  owner: boolean
 ) {
   const keptChains = plan.chains.filter((chain) => chain.kept)
   const keptCheckouts = plan.checkouts.filter((checkout) => checkout.kept)
   // The owner's Delete forever (10 Nov 2026): the bookings it takes that
-  // anyone else's would keep for their money, each with what it leaves.
+  // anyone else's would keep for their money, each with what it leaves (a
+  // payout that goes with the garage among it; countLines says how many).
   const ownerTaken = plan.chains.filter((chain) => chain.selected && chain.ownerOverride)
   return {
     garage: garageView(vendor),
@@ -168,6 +170,9 @@ function purgeView(
       lines: chain.ownerLines,
     })),
     payoutsLeft,
+    // The owner's Delete forever takes the garage's payouts with it, each
+    // line written to the ledger (now, or by an earlier delete of its booking).
+    payoutsDeleted: owner ? plan.selectedPayoutIds.length : 0,
     bookings: { deleted: plan.counts.bookings, kept: keptChains.length },
     checkouts: { deleted: plan.selectedCheckoutIds.length, kept: keptCheckouts.length },
     // The logo is one file on the garage row, counted with its gallery.
@@ -365,7 +370,7 @@ export const vendorBinService = {
     )
     const assets = await vendorBinRepository.countAssets(id)
     const payoutsLeft = payoutsLeftBy(plan, await vendorBinRepository.payoutIdsOf(id))
-    return { inBin: isInBin(vendor), ...purgeView(vendor, plan, assets, payoutsLeft) }
+    return { inBin: isInBin(vendor), ...purgeView(vendor, plan, assets, payoutsLeft, owner) }
   },
 
   /**
@@ -392,10 +397,13 @@ export const vendorBinService = {
    *
    * The owner's login (`owner`, 10 Nov 2026) takes the chains anyone else's
    * keeps for their money too, by the rules of the owner's Delete test
-   * booking: their payments go to the ledger first (with the Bin's reason),
-   * credit spent goes back to the customer, and a payout stays on record
-   * with only the deleted bookings' lines gone (and keeps the garage as a
-   * tombstone, since it names it).
+   * booking: their payments go to the ledger first (with the Bin's reason)
+   * and credit spent goes back to the customer. Its payouts go with it
+   * (owner, 10 Nov 2026: "an owner of the admin panel can clear or delete
+   * anything"), each line written to the ledger first with the payout's
+   * date, reference and total, so a test garage with payouts goes outright.
+   * Only a payout that paid a booking that stays is left on record (and
+   * keeps the garage as a tombstone, since it names it).
    */
   async deleteForever(
     sub: string,
@@ -472,7 +480,8 @@ export const vendorBinService = {
             intentIds: plan.selectedIntentIds,
             payoutIds: plan.selectedPayoutIds,
             // The owner's Delete forever: what only the owner could take,
-            // payouts left on record and credit given back.
+            // payouts left on record (payoutIds above went with it, written
+            // to the ledger) and credit given back.
             ...(owner
               ? {
                   byOwner: true,

@@ -485,6 +485,13 @@ export function DeleteForeverSheet({
                   </p>
                 </div>
               )}
+              {(data.payoutsDeleted ?? 0) > 0 && (
+                <p className="text-[12px] text-text-secondary">
+                  {data.payoutsDeleted === 1
+                    ? 'Its payout goes too; each line on it is kept in the money record (Refunds → Deleted team tests).'
+                    : `Its ${data.payoutsDeleted} payouts go too; each line on them is kept in the money record (Refunds → Deleted team tests).`}
+                </p>
+              )}
               {(data.payoutsLeft ?? 0) > 0 && (
                 <p className="text-[12px] text-text-secondary">
                   Its payouts stay on record, so the garage is kept as a hidden record for them.

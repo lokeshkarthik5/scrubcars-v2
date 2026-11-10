@@ -2085,6 +2085,10 @@ export const ADD_ONS = {
  *   `leaving` signed up to it.
  * - keptReview, keptComplaint: on bookings.teammateLive, never deleted, so
  *   the teammate's checks never race the owner's deletes in another file.
+ * - paidGarage: a test garage in the Bin with a payout (owner, 10 Nov 2026:
+ *   the owner's Delete forever erases it completely). Two completed jobs
+ *   (bookings.paidLive with live money, bookings.paidFake with E2E money),
+ *   both on one payout; its owner has no other garage.
  */
 export const OWNER_DELETE = {
   teammate: { id: id(7300), username: 'e2e-teammate', name: 'E2E Teammate', password: 'teammate-e2e-password' },
@@ -2112,6 +2116,8 @@ export const OWNER_DELETE = {
     claimed: refId('de1e6906'),
     claimedRedo: refId('de1e6907'),
     redo: refId('de1e6908'),
+    paidLive: refId('de1e6910'),
+    paidFake: refId('de1e6911'),
   },
   /** The hour (IST, tomorrow) bookings.live holds; the garage has one bay. */
   liveHour: 11,
@@ -2135,6 +2141,14 @@ export const OWNER_DELETE = {
    * secret like any batch): code 0 redeemed by the customer for 2 bonus
    * stamps, code 1 never used.
    */
+  paidGarage: {
+    id: id(7350), name: 'Owner Delete Paid Garage', serviceId: id(7351), lat: 20.05, lng: 74.05,
+    owner: { id: id(7352), phone: '9000007352', name: 'Paid Garage Owner' },
+    customer: { id: id(7353), phone: '9000007353', name: 'Paid Garage Pavithra', vehicleId: id(7354) },
+    /** What it paid on each job: 420 + 380. */
+    payout: { id: id(7355), reference: 'UTR-OWNERDEL-7355', amount: '800.00', lines: ['420.00', '380.00'] },
+    payoutItems: [id(7356), id(7357)],
+  },
   coupons: {
     batchId: id(7340),
     name: 'E2E owner delete coupons',

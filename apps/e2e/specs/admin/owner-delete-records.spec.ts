@@ -13,12 +13,18 @@
  * through the real foreign keys), and redo claims (only once the redo
  * booking is gone). Each delete is audited; a second is a 404.
  *
+ * Deleting a customer's account leaves their paid booking a refund owed that
+ * nothing sends by itself (owner, 10 Nov 2026: "Not automatically"); and a
+ * test garage with a payout is erased completely by the owner's Delete
+ * forever, its payout with it, each line kept in the money record.
+ *
  * Only OWNER_DELETE's rows are deleted. The teammate's side (no buttons, 403)
  * is owner-delete-bookings.spec.ts's.
  */
+import { request as playwrightRequest } from '@playwright/test'
 import { test, expect, asRole } from '../../support/fixtures'
 import { API } from '../../support/auth'
-import { sql } from '../../support/db'
+import { forgetOtps, sql } from '../../support/db'
 import { ADMIN_LOGINS, OWNER_DELETE } from '../../support/seed-ids'
 import {
   couponKeys,
@@ -210,7 +216,7 @@ test.describe('the owner deletes anything, from the panel @p0', () => {
     const ref = O.bookings.leavingOpen.slice(0, 8).toUpperCase()
     await expect(
       sheet.getByText(
-        `Booking #${ref} is still on. It is cancelled first without telling the customer or the garage; a paid one becomes a refund owed on the Refunds page.`
+        `Booking #${ref} is still on. It is cancelled first without telling the customer or the garage; a paid one becomes a refund owed on the Refunds page, to send by hand.`
       )
     ).toBeVisible()
     const confirm = sheet.getByRole('button', { name: 'Delete account' })
@@ -242,6 +248,33 @@ test.describe('the owner deletes anything, from the panel @p0', () => {
       cancelled_by: 'admin',
       on_behalf: 'detlio',
     })
+    // Not refunded automatically (owner, 10 Nov 2026): the payment is still
+    // paid, nothing was sent or tried at Razorpay (a try is a refund record
+    // too), and it waits on the Refunds page for a person.
+    const [payment] = await sql<
+      { status: string; refunded_amount: string | null }[]
+    >`
+      select status, refunded_amount from payments where booking_id = ${O.bookings.leavingOpen}
+    `
+    expect(payment.status).toBe('paid')
+    expect(Number(payment.refunded_amount ?? 0)).toBe(0)
+    expect(
+      (
+        await sql`select 1 from refund_records where booking_id = ${O.bookings.leavingOpen}`
+      ).length
+    ).toBe(0)
+    const owed = await page.request.get(
+      `${API}/api/v1/admin/refunds?status=owed`
+    )
+    expect(owed.status()).toBe(200)
+    const list = (await owed.json()).data as Array<{
+      kind: string
+      id: string
+      amountOwed: string
+    }>
+    expect(
+      list.find((r) => r.kind === 'booking' && r.id === O.bookings.leavingOpen)
+    ).toMatchObject({ amountOwed: '450.00' })
     expect(
       await audited('customer_account_deleted', 'userId', O.leaving.id)
     ).toBe('E2E Admin')
@@ -496,5 +529,123 @@ test.describe('the owner deletes anything, at the API @p0', () => {
     expect(await audited('guarantee_claim_deleted', 'claimId', O.claim)).toBe(
       'E2E Admin'
     )
+  })
+})
+
+test.describe('a test garage with a payout, deleted forever by the owner @p0', () => {
+  const G = O.paidGarage
+
+  test('erased completely: the payout goes too, each line in the money record, and its owner has no garage left', async ({
+    page,
+  }) => {
+    await page.goto('/vendors?show=bin')
+    const card = page.getByRole('row', { name: G.name, exact: true })
+    await card.getByRole('button', { name: `Delete ${G.name} forever` }).click()
+    const sheet = page.getByRole('dialog', {
+      name: `Delete ${G.name} forever`,
+    })
+    // The live job's line says where its payout goes; the payout's own line
+    // says it goes too, and no hidden record is kept for it.
+    await expect(
+      sheet.getByText(
+        `(${G.payout.reference}), ₹420. The payout is deleted with the garage; the money record keeps it.`
+      )
+    ).toBeVisible()
+    await expect(
+      sheet.getByText(
+        'Its payout goes too; each line on it is kept in the money record (Refunds → Deleted team tests).'
+      )
+    ).toBeVisible()
+    await expect(
+      sheet.getByText(
+        'Its payouts stay on record, so the garage is kept as a hidden record for them.'
+      )
+    ).toHaveCount(0)
+    await sheet.getByLabel('Type the garage name to confirm').fill(G.name)
+    await sheet.getByRole('button', { name: 'Delete forever' }).click()
+    await expect(
+      page
+        .getByRole('status')
+        .filter({ hasText: `${G.name} was deleted forever.` })
+    ).toBeVisible()
+
+    // Gone outright: the garage, its bookings, its payout and its lines.
+    const count = async (query: Promise<{ n: string }[]>) =>
+      Number((await query)[0].n)
+    expect(
+      await count(
+        sql`select count(*)::text as n from vendors where id = ${G.id}`
+      )
+    ).toBe(0)
+    expect(
+      await count(sql`
+        select count(*)::text as n from bookings
+         where id in (${O.bookings.paidLive}, ${O.bookings.paidFake})
+      `)
+    ).toBe(0)
+    expect(
+      await count(
+        sql`select count(*)::text as n from vendor_payouts where id = ${G.payout.id}`
+      )
+    ).toBe(0)
+    expect(
+      await count(
+        sql`select count(*)::text as n from vendor_payout_items where payout_id = ${G.payout.id}`
+      )
+    ).toBe(0)
+    const [audit] = await sql<{ actor_name: string; outcome: string }[]>`
+      select actor_name, summary->>'outcome' as outcome from admin_audit_log
+       where action = 'garage_deleted' and summary->>'vendorId' = ${G.id}
+    `
+    expect(audit).toEqual({ actor_name: 'E2E Admin', outcome: 'hard_delete' })
+
+    // The money trail: each line of the payout (adding up to what it paid),
+    // with its date and reference, and the live payment, not refunded.
+    const lines = await sql<
+      { amount: string; state: string; note: string; reason: string }[]
+    >`
+      select amount::text, state, note, reason from deleted_test_payments
+       where kind = 'payout' and vendor_payout_id = ${G.payout.id}
+       order by amount desc
+    `
+    expect(lines.map((row) => [row.amount, row.state])).toEqual([
+      [G.payout.lines[0], 'paid_out'],
+      [G.payout.lines[1], 'paid_out'],
+    ])
+    for (const row of lines) {
+      expect(row.note).toContain(`Paid out to ${G.name} on `)
+      expect(
+        row.note.endsWith(
+          `(${G.payout.reference}); payout of ₹800 deleted with the garage`
+        )
+      ).toBe(true)
+      expect(row.reason).toBe(
+        `Deleted forever with the garage ${G.name}: Test garage with a payout`
+      )
+    }
+    const [payment] = await sql<{ state: string; amount: string }[]>`
+      select state, amount::text from deleted_test_payments
+       where kind = 'booking' and root_booking_id = ${O.bookings.paidLive}
+    `
+    expect(payment).toEqual({ state: 'not_refunded', amount: '450.00' })
+
+    // Its owner had no other garage: no seat, and no garage-app login.
+    expect(
+      await count(
+        sql`select count(*)::text as n from user_member_mapping where vendor_id = ${G.id}`
+      )
+    ).toBe(0)
+    await forgetOtps(G.owner.phone)
+    const ctx = await playwrightRequest.newContext({
+      storageState: { cookies: [], origins: [] },
+    })
+    const send = await ctx.post(`${API}/api/v1/auth/otp/send`, {
+      data: { phone: G.owner.phone, purpose: 'login', audience: 'vendor' },
+    })
+    expect({ status: send.status(), json: await send.json() }).toMatchObject({
+      status: 403,
+      json: { success: false, code: 'NOT_A_VENDOR' },
+    })
+    await ctx.dispose()
   })
 })

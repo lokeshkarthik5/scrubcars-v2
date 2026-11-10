@@ -224,7 +224,8 @@ export interface AdminDeletionCheck {
  * (the garage needs its owner; they are removed from it first). Everything
  * else that stops the customer becomes a warning in the team's words, saying
  * what happens to it: open bookings are ended quietly first (nobody is told;
- * a paid one becomes a refund owed by the usual rules), an open checkout is
+ * a paid one becomes a refund owed by the usual rules, never sent
+ * automatically: the owner's answer, 10 Nov 2026), an open checkout is
  * closed, and the rest stays where it is.
  */
 export function adminDeletionCheck(facts: AccountDeletionFacts): AdminDeletionCheck {
@@ -242,7 +243,7 @@ export function adminDeletionCheck(facts: AccountDeletionFacts): AdminDeletionCh
       code: 'ACCOUNT_HAS_OPEN_BOOKING',
       message: `${
         facts.openBookings.length === 1 ? `Booking ${refs[0]} is still on. It is` : `Bookings ${listed(refs)} are still on. They are`
-      } cancelled first without telling the customer or the garage; a paid one becomes a refund owed on the Refunds page.`,
+      } cancelled first without telling the customer or the garage; a paid one becomes a refund owed on the Refunds page, to send by hand.`,
     })
   }
   if (facts.openCheckout) {

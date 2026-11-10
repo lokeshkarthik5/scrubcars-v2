@@ -2215,7 +2215,7 @@ export const deletedTestPayments = pgTable(
     bookingReference: varchar('booking_reference', { length: 8 }).notNull(),
     bookingIds: uuid('booking_ids').array().notNull(),
     // 'payout' (0069): a garage payout's line on a booking the owner deleted;
-    // the payout itself stays on record.
+    // the payout stays on record, or goes with its garage (Delete forever).
     kind: text('kind').$type<'booking' | 'final_bill' | 'extra_work' | 'payout'>().notNull(),
     chargeId: uuid('charge_id'),
     razorpayPaymentId: varchar('razorpay_payment_id', { length: 255 }),

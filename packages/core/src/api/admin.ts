@@ -1418,10 +1418,12 @@ export interface AdminVendorDeletePreview {
   /**
    * The owner's Delete forever (10 Nov 2026), absent from older servers:
    * bookings it takes that anyone else's keeps for their money, each with
-   * what it leaves, and payouts left on record (which keep a tombstone).
+   * what it leaves, payouts left on record (which keep a tombstone), and
+   * payouts that go with the garage, each line kept in the money record.
    */
   ownerTaken?: Array<{ id: string; reference: string; moneyLabel: string; lines: string[] }>
   payoutsLeft?: number
+  payoutsDeleted?: number
   overCap: { chains: number; checkouts: number }
   selectionHash: string
 }

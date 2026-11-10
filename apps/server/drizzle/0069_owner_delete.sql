@@ -12,13 +12,18 @@
 --   - `state`: where the money stands. 'refunded' (every row before 0069),
 --     'not_refunded', 'refund_pending', 'credit_returned' (paid with Detlio
 --     credit alone, which goes back to the customer) and 'paid_out' (a garage
---     payout's line on the booking: the payout itself stays on record).
+--     payout's line on the booking: deleting one booking leaves the payout
+--     on record; the owner's Delete forever of a garage deletes its payouts
+--     too, owner 10 Nov 2026, so these rows are then their only record).
 --   - `note`: a line for the money record ("Paid out to Speed Wash on
 --     3 Nov 2026 (UTR123)").
 --   - `credit_returned`: Detlio credit spent on the payment that went back
 --     to the customer's credit balance with the delete.
 --   - `vendor_payout_id`: the payout a 'paid_out' row's line was on. No
---     foreign key, like the row's booking ids: the ledger outlives them.
+--     foreign key, like the row's booking ids: the ledger outlives them, and
+--     the payout may be deleted after (with its garage). A foreign key could
+--     only block that delete or SET NULL, which the append-only trigger
+--     refuses; the row's note keeps the payout's date and reference.
 --
 -- The kind gains 'payout', and the amount check is loosened to match: a
 -- payment is 0 or more (credit alone is 0 through Razorpay) and only a

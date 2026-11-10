@@ -34,8 +34,10 @@
  *   garage deleted forever (scope `garage`), real money, an order that may
  *   still be paid and a garage payout no longer keep a chain. Every real
  *   payment is written to the ledger first with whether it was refunded,
- *   the payout stays on record with only that booking's line gone, credit
- *   spent goes back to the customer, and the owner types the reference.
+ *   credit spent goes back to the customer, and the owner types the
+ *   reference. On one booking the payout stays on record with only that
+ *   booking's line gone; a garage deleted forever takes its payouts with it,
+ *   each line written to the ledger first.
  *
  * Pure and clock-free: the caller reads the rows, asks Razorpay, and passes
  * everything in. Node's crypto is used for the fingerprint, and nothing else
@@ -229,6 +231,11 @@ export interface ResetPayout {
   items?: Array<{ rootBookingId: string; amount: string }>
   paidAt?: Date
   reference?: string
+  /**
+   * What it paid in all: what the ledger says when the owner's Delete
+   * forever removes it with the garage (10 Nov 2026). Absent reads as unknown.
+   */
+  amount?: string
 }
 
 /** The rows that hang off one booking and go with it (ON DELETE CASCADE). */
@@ -655,7 +662,7 @@ export interface TeamTestPayment {
   note: string | null
   /** Detlio credit spent on it, which is back with the customer (now or earlier), in rupees. */
   creditReturned: string
-  /** The payout that stays on record (kind `payout`). */
+  /** The payout the line was on (kind `payout`); no FK: it may go with its garage. */
   vendorPayoutId: string | null
 }
 
@@ -803,7 +810,10 @@ export function teamTestVerdict(money: ChainMoney[]): TeamTestVerdict | null {
 // what was paid and not given back, and every payment is written to the
 // ledger first with where it stands. Credit spent on it goes back to the
 // customer's balance. A garage payout stays on record (the money really
-// moved); only the booking's line on it goes, and the ledger says so.
+// moved); only the booking's line on it goes, and the ledger says so. A
+// garage deleted forever by the owner takes its payouts too ("an owner of
+// the admin panel can clear or delete anything"), each line written to the
+// ledger first with the payout's date, reference and total.
 
 /** Booking statuses where it is still on: waiting, accepted or being worked on. */
 const STILL_ON: ReadonlySet<string> = new Set(['pending', 'confirmed', 'in_progress'])
@@ -838,6 +848,24 @@ export function paidOutNote(garageName: string, payout: Pick<ResetPayout, 'paidA
 }
 
 /**
+ * The ledger's line for a payout deleted with its garage (the owner's Delete
+ * forever, 10 Nov 2026): "Paid out to Speed Wash on 3 Nov 2026 (UTR123);
+ * payout of ₹800 deleted with the garage". At most 300 characters, as the
+ * column holds: a long garage name gives way, never the reference.
+ */
+export function removedPayoutNote(
+  garageName: string,
+  payout: Pick<ResetPayout, 'paidAt' | 'reference' | 'recordedAt' | 'amount'>
+): string {
+  const total = payout.amount ? ` of ${rupeesFromPaise(toPaise(payout.amount))}` : ''
+  const tail = `; payout${total} deleted with the garage`
+  const note = `${paidOutNote(garageName, payout)}${tail}`
+  if (note.length <= 300) return note
+  const name = `${garageName.slice(0, garageName.length - (note.length - 300) - 1)}…`
+  return `${paidOutNote(name, payout)}${tail}`
+}
+
+/**
  * What the owner's dry run says about one chain, a line each, in the order
  * the owner needs them: that it is still on, each real payment not given
  * back with its amount and Razorpay id, a refund still processing, the
@@ -848,7 +876,8 @@ export function ownerLinesFor(input: {
   stillOn: boolean
   money: ChainMoney[]
   openOrderIds: string[]
-  payouts: Array<{ payout: ResetPayout; amount: string | null }>
+  /** `removed`: it goes with the garage (the owner's Delete forever) instead of staying. */
+  payouts: Array<{ payout: ResetPayout; amount: string | null; removed?: boolean }>
   garageName: string
 }): string[] {
   const lines: string[] = []
@@ -886,10 +915,12 @@ export function ownerLinesFor(input: {
   for (const id of input.openOrderIds) {
     lines.push(`A Razorpay order (${id}) may still be paid. If it is, the payment will have no booking: refund it in Razorpay.`)
   }
-  for (const { payout, amount } of input.payouts) {
+  for (const { payout, amount, removed } of input.payouts) {
     const figure = amount ? `, ${rupeesFromPaise(toPaise(amount))}` : ''
     lines.push(
-      `${paidOutNote(input.garageName, payout)}${figure}. The payout stays on record; only this booking's line on it goes.`
+      removed
+        ? `${paidOutNote(input.garageName, payout)}${figure}. The payout is deleted with the garage; the money record keeps it.`
+        : `${paidOutNote(input.garageName, payout)}${figure}. The payout stays on record; only this booking's line on it goes.`
     )
   }
   return lines
@@ -1031,6 +1062,11 @@ export interface ChainPlan {
   ownerLines: string[]
   /** A payout covered it and stays on record: only its line goes (the owner's delete). */
   payoutKept: boolean
+  /**
+   * A payout covered it and goes too, written to the ledger first (the
+   * owner's Delete forever of its garage, 10 Nov 2026).
+   */
+  payoutRemoved: boolean
   /** Ticked: deleted by this run. */
   selected: boolean
 }
@@ -1088,6 +1124,11 @@ export interface ResetCounts {
    */
   unrefundedPayments?: number
   payoutLines?: number
+  /**
+   * The owner's Delete forever (10 Nov 2026): the lines of the garage's
+   * payouts that go with it, each written to the ledger first.
+   */
+  removedPayoutLines?: number
 }
 
 export type ReceiptYearMode = 'restart' | 'void'
@@ -1651,6 +1692,7 @@ export function planReset(input: PlanInput): ResetPlan {
       stillOn: STILL_ON.has(latest.status),
       ownerLines: [],
       payoutKept: false,
+      payoutRemoved: false,
       selected: false,
     })
   }
@@ -1679,9 +1721,10 @@ export function planReset(input: PlanInput): ResetPlan {
     if (!blocked) continue
     if (group.payouts.length > 0 && members.some((chain) => chain && chain.kept === null && ownerMay(chain.rootId))) {
       // The owner's delete (10 Nov 2026): a payout keeps nothing, since it
-      // stays on record whatever happens to the bookings it paid. A free
+      // stays on record (or, Delete forever, goes to the ledger). A free
       // redo still goes with the booking whose claim it answers, so a chain
       // whose partner is kept stays kept.
+      const taken: ChainPlan[] = []
       for (const chain of members) {
         if (!chain || chain.kept !== null) continue
         const partnerKept = partnersOf(chain.rootId).some((root) => {
@@ -1695,10 +1738,27 @@ export function planReset(input: PlanInput): ResetPlan {
           chain.ownerOverride = false
           continue
         }
-        chain.payoutKept = true
+        taken.push(chain)
         chain.ownerOverride = true
       }
-      for (const payout of group.payouts) detachedPayouts.add(payout.id)
+      // Delete forever by the owner (10 Nov 2026: "an owner of the admin
+      // panel can clear or delete anything"): the garage's own payouts go
+      // with it, each line written to the ledger first. A payout to another
+      // garage (for a free redo there, which goes with its booking), or one
+      // that paid a booking that stays, is left on record as on one
+      // booking's delete, with only the deleted bookings' lines gone.
+      const goesWithGarage = (payout: ResetPayout) =>
+        scope.kind === 'garage' &&
+        payout.rootBookingIds.every((root) => {
+          const chain = chainByRoot.get(root)
+          return chain !== undefined && chain.kept === null && chain.garageId === scope.vendorId
+        })
+      for (const payout of group.payouts) if (!goesWithGarage(payout)) detachedPayouts.add(payout.id)
+      for (const chain of taken) {
+        chain.payoutKept = group.payouts.some(
+          (payout) => detachedPayouts.has(payout.id) && payout.rootBookingIds.includes(chain.rootId)
+        )
+      }
       continue
     }
     for (const chain of members) {
@@ -1848,21 +1908,45 @@ export function planReset(input: PlanInput): ResetPlan {
   const selectedChainIds = chains.filter((c) => c.selected).map((c) => c.rootId)
   const selectedRoots = new Set(selectedChainIds)
   const selectedPayoutIds = groups
-    .filter((group) => group.roots.every((root) => selectedRoots.has(root)))
-    .flatMap((group) => group.payouts.map((payout) => payout.id))
-    .filter((id) => !detachedPayouts.has(id))
+    .flatMap((group) =>
+      // A group split by a payout left on record (the owner's delete): each
+      // other payout goes with the bookings it paid itself.
+      group.payouts.some((payout) => detachedPayouts.has(payout.id))
+        ? group.payouts.filter(
+            (payout) =>
+              !detachedPayouts.has(payout.id) && payout.rootBookingIds.every((root) => selectedRoots.has(root))
+          )
+        : group.roots.every((root) => selectedRoots.has(root))
+          ? group.payouts
+          : []
+    )
+    .map((payout) => payout.id)
     .sort()
   const keptPayouts = (input.payouts ?? []).filter(
     (payout) => detachedPayouts.has(payout.id) && payout.rootBookingIds.some((root) => selectedRoots.has(root))
   )
   const keptPayoutIds = keptPayouts.map((payout) => payout.id).sort()
-  const payoutLinesOf = (root: string) =>
-    keptPayouts
+  const linesOn = (payouts: ResetPayout[], root: string) =>
+    payouts
       .filter((payout) => payout.rootBookingIds.includes(root))
       .map((payout) => ({
         payout,
         amount: payout.items?.find((item) => item.rootBookingId === root)?.amount ?? null,
       }))
+  const payoutLinesOf = (root: string) => linesOn(keptPayouts, root)
+  // The owner's Delete forever takes the garage's payouts with it, each
+  // written to the ledger first (10 Nov 2026). Anyone else's delete of a
+  // garage removes only payouts of test money, as before, with no ledger.
+  const selectedPayouts = new Set(selectedPayoutIds)
+  const removedPayouts =
+    input.owner === true && scope.kind === 'garage'
+      ? (input.payouts ?? []).filter((payout) => selectedPayouts.has(payout.id))
+      : []
+  const removedLinesOf = (root: string) =>
+    linesOn(removedPayouts, root).map((line) => ({ ...line, removed: true }))
+  for (const chain of chains) {
+    if (chain.selected && removedLinesOf(chain.rootId).length > 0) chain.payoutRemoved = true
+  }
   // What the dry run says under each chain that may go: that it is still
   // on, and (the owner's delete) the money it leaves as it stands.
   for (const chain of chains) {
@@ -1871,7 +1955,11 @@ export function planReset(input: PlanInput): ResetPlan {
       stillOn: chain.stillOn,
       money: chain.ownerOverride || chain.teamTest ? (moneyOf.get(chain.rootId) ?? []) : [],
       openOrderIds: chain.ownerOverride ? (openOrdersOf.get(chain.rootId) ?? []) : [],
-      payouts: chain.payoutKept ? payoutLinesOf(chain.rootId) : [],
+      payouts: chain.payoutKept
+        ? payoutLinesOf(chain.rootId)
+        : chain.payoutRemoved
+          ? removedLinesOf(chain.rootId)
+          : [],
       garageName: chain.garageName,
     })
   }
@@ -1993,38 +2081,43 @@ export function planReset(input: PlanInput): ResetPlan {
         }
       })
   )
-  // A payout that stays on record, a row per deleted chain it paid (the
-  // owner's delete): what was paid on the chain, to whom and when.
-  const payoutRows: TeamTestPayment[] = chains
+  // A payout that stays on record, or (Delete forever) goes with the
+  // garage, a row per deleted chain it paid (the owner's delete): what was
+  // paid on the chain, to whom and when. A payout's rows add up to what it
+  // paid, less any lines an earlier delete already wrote down.
+  const payoutRowsOf = (chain: ChainPlan, lines: ReturnType<typeof linesOn>, removed: boolean): TeamTestPayment[] =>
+    lines
+      .filter(({ amount }) => amount !== null && toPaise(amount) !== 0)
+      .map(({ payout, amount }) => ({
+        rootId: chain.rootId,
+        reference: chain.reference,
+        bookingIds: chain.bookingIds,
+        kind: 'payout' as const,
+        chargeId: null,
+        razorpayPaymentId: null,
+        razorpayOrderId: null,
+        gatewayMode: null,
+        amount: fromPaise(toPaise(amount)),
+        refundedAmount: '0.00',
+        refunds: [],
+        receiptNumber: chain.receiptNumber,
+        vendorId: chain.garageId,
+        garageName: chain.garageName,
+        customerId: chain.customerId,
+        paidAt: payout.paidAt ?? payout.recordedAt,
+        bookedAt: chain.createdAt,
+        state: 'paid_out' as const,
+        note: removed ? removedPayoutNote(chain.garageName, payout) : paidOutNote(chain.garageName, payout).slice(0, 300),
+        creditReturned: '0.00',
+        vendorPayoutId: payout.id,
+      }))
+  const keptPayoutRows = chains
     .filter((chain) => chain.selected && chain.payoutKept)
-    .flatMap((chain) =>
-      payoutLinesOf(chain.rootId)
-        .filter(({ amount }) => amount !== null && toPaise(amount) !== 0)
-        .map(({ payout, amount }) => ({
-          rootId: chain.rootId,
-          reference: chain.reference,
-          bookingIds: chain.bookingIds,
-          kind: 'payout' as const,
-          chargeId: null,
-          razorpayPaymentId: null,
-          razorpayOrderId: null,
-          gatewayMode: null,
-          amount: fromPaise(toPaise(amount)),
-          refundedAmount: '0.00',
-          refunds: [],
-          receiptNumber: chain.receiptNumber,
-          vendorId: chain.garageId,
-          garageName: chain.garageName,
-          customerId: chain.customerId,
-          paidAt: payout.paidAt ?? payout.recordedAt,
-          bookedAt: chain.createdAt,
-          state: 'paid_out' as const,
-          note: paidOutNote(chain.garageName, payout),
-          creditReturned: '0.00',
-          vendorPayoutId: payout.id,
-        }))
-    )
-  const ledger = [...paymentRows, ...payoutRows]
+    .flatMap((chain) => payoutRowsOf(chain, payoutLinesOf(chain.rootId), false))
+  const removedPayoutRows = chains
+    .filter((chain) => chain.selected && chain.payoutRemoved)
+    .flatMap((chain) => payoutRowsOf(chain, linesOn(removedPayouts, chain.rootId), true))
+  const ledger = [...paymentRows, ...keptPayoutRows, ...removedPayoutRows]
   // Credit paid alone goes back with the delete, so it reads as refunded.
   const givenBack = (row: TeamTestPayment) => row.state === 'refunded' || row.state === 'credit_returned'
   counts.teamTestPayments = paymentRows.filter(givenBack).length
@@ -2032,7 +2125,8 @@ export function planReset(input: PlanInput): ResetPlan {
   // are some: every other run's counts (and its audit row) stay as before.
   const unrefundedPayments = paymentRows.filter((row) => !givenBack(row)).length
   if (unrefundedPayments > 0) counts.unrefundedPayments = unrefundedPayments
-  if (payoutRows.length > 0) counts.payoutLines = payoutRows.length
+  if (keptPayoutRows.length > 0) counts.payoutLines = keptPayoutRows.length
+  if (removedPayoutRows.length > 0) counts.removedPayoutLines = removedPayoutRows.length
 
   // Credit spent on a deleted chain goes back to the customer (the owner's
   // delete; anyone else's keeps a chain that spent credit).
@@ -2151,6 +2245,10 @@ export function countLines(counts: ResetCounts): string[] {
     [
       counts.payoutLines ?? 0,
       `${plural(counts.payoutLines ?? 0, 'garage payout line', 'garage payout lines')} (the payout stays on record)`,
+    ],
+    [
+      counts.removedPayoutLines ?? 0,
+      `${plural(counts.removedPayoutLines ?? 0, 'garage payout line', 'garage payout lines')} (the payout is deleted; kept in the money record)`,
     ],
   ]
   return lines.filter(([n]) => n > 0).map(([, text]) => text)

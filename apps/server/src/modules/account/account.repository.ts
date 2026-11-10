@@ -133,7 +133,9 @@ export const accountRepository = {
       // From admin: their bookings still on are cancelled as Detlio's own
       // decision, the ordinary admin cancel's columns and a note, but none of
       // its messages (nobody is told). A paid one is then a refund owed by
-      // lib/refunds.ts like any Detlio cancellation. An unpaid bill and an
+      // lib/refunds.ts like any Detlio cancellation, but never sent by the
+      // automatic mode (autoRefundCause: a deleted account's money waits for
+      // a person; owner, 10 Nov 2026: "Not automatically"). An unpaid bill and an
       // open time suggestion go with each, as the admin cancel does. An open
       // checkout is closed: a payment that lands anyway fails the checkout
       // and shows as a refund owed.

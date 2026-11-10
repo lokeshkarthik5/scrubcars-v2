@@ -209,8 +209,10 @@ export async function loadPlanInput(
   // Usage events (0040), likewise a cutoff run's only, counted not listed.
   const analyticsEvents = scope.kind === 'before_cutoff' ? await repo.analyticsEventsBefore(scope.cutoff) : 0
   // Garage payouts that paid any of these chains: they go only with every
-  // booking they paid.
+  // booking they paid. The owner's Delete forever also takes the garage's
+  // payouts with no line left (10 Nov 2026), so none is left naming it.
   const payouts = await repo.payoutsOfChains(keys)
+  if (scope.kind === 'garage' && owner) payouts.push(...(await repo.payoutsWithoutLinesOf(scope.vendorId)))
 
   const receipts = await repo.receipts(keys)
   const years = [...new Set(receipts.map((receipt) => receipt.financialYear))]

@@ -173,6 +173,11 @@ describe('the automatic mode', () => {
     expect(autoRefundCause({ ...base, cancelledBy: 'user', moved: true })).toBeNull()
     expect(autoRefundCause({ ...base, status: 'confirmed' })).toBeNull()
     expect(autoRefundCause({ ...base, cancelledBy: null })).toBeNull()
+    // A deleted account's money waits for a person (owner, 10 Nov 2026):
+    // deleting it from admin cancels as Detlio, which would read as clear-cut.
+    expect(autoRefundCause({ ...base, cancelledBy: 'admin', accountDeleted: true })).toBeNull()
+    expect(autoRefundCause({ ...base, cancelledBy: 'vendor', accountDeleted: true })).toBeNull()
+    expect(autoRefundCause({ ...base, cancelledBy: 'admin', accountDeleted: false })).toBe('detlio_cancelled')
   })
 
   test('sends a clear-cut whole payment, and a checkout paid with no booking', () => {
