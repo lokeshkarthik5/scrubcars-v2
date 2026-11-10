@@ -14,7 +14,8 @@ import { ScInput, ScTextarea } from '@repo/ui/sc/input'
 import { Reveal } from '@repo/ui/sc/reveal'
 import { SectionHeader } from '@repo/ui/sc/section-header'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui/sc/tabs'
+import { GraphiteTabsList, GraphiteTabsTrigger } from '@repo/ui/finish/graphite-tabs'
+import { Tabs, TabsContent } from '@repo/ui/sc/tabs'
 import { TopBar } from '@repo/ui/sc/top-bar'
 import { Chip } from '@repo/ui/sc/chip'
 import { useIsVendorAdmin } from '@repo/core/hooks/use-vendor-role'
@@ -230,10 +231,10 @@ export default function VendorServicesPage() {
         value={tab}
         onValueChange={(value) => setTab(value as 'services' | 'packages')}
       >
-        <TabsList>
-          <TabsTrigger value="services">Services</TabsTrigger>
-          <TabsTrigger value="packages">Packages</TabsTrigger>
-        </TabsList>
+        <GraphiteTabsList value={tab} aria-label="Services">
+          <GraphiteTabsTrigger value="services">Services</GraphiteTabsTrigger>
+          <GraphiteTabsTrigger value="packages">Packages</GraphiteTabsTrigger>
+        </GraphiteTabsList>
 
         <TabsContent value="packages">
           <PackagesPanel services={services} mediaConfig={mediaConfig} />

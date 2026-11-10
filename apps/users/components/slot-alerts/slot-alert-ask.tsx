@@ -91,10 +91,10 @@ export function SlotAlertAsk({
           className="mt-px shrink-0 text-text-primary"
         />
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-medium text-text-primary">
+          <p className="text-t4 font-medium text-text-primary">
             Waiting for a slot on {slotAlertSummary(waiting)}
           </p>
-          <p className="mt-0.5 text-[12px] text-text-secondary">
+          <p className="mt-0.5 text-t5 text-text-secondary">
             If one opens it shows in Updates, and as a notification if
             they&apos;re on. It isn&apos;t held for you.{' '}
             <Link
@@ -108,7 +108,7 @@ export function SlotAlertAsk({
             type="button"
             disabled={cancelAlert.isPending}
             onClick={() => cancelAlert.mutate(waiting.id)}
-            className="tap-target -ml-1 mt-1 px-1 text-[12px] font-medium text-text-secondary underline disabled:opacity-40"
+            className="tap-target -ml-1 mt-1 px-1 text-t5 font-medium text-text-secondary underline disabled:opacity-40"
           >
             Stop waiting
           </button>
@@ -122,7 +122,7 @@ export function SlotAlertAsk({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="tap-target mt-3 flex items-center gap-1.5 text-[12px] text-text-secondary"
+        className="tap-target mt-3 flex items-center gap-1.5 text-t5 text-text-secondary"
       >
         <IconBell size={14} stroke={1.6} aria-hidden="true" />
         None of these suit you?{' '}
@@ -160,10 +160,10 @@ export function SlotAlertAsk({
   return (
     <ScCard className="mt-3 flex flex-col gap-3">
       <div>
-        <h3 className="text-[13px] font-semibold text-text-primary">
+        <h3 className="text-t4 font-semibold text-text-primary">
           Notify me if a slot opens
         </h3>
-        <p className="mt-0.5 text-[12px] text-text-secondary">
+        <p className="mt-0.5 text-t5 text-text-secondary">
           If a time frees up on {day}, it shows in Updates, and as a
           notification if they&apos;re on. It isn&apos;t held: the first to book
           gets it.
@@ -189,7 +189,7 @@ export function SlotAlertAsk({
         ))}
       </div>
       {(hint || waitable.length < SLOT_ALERT_WINDOWS.length) && (
-        <p className="-mt-1 text-[11px] text-text-muted">
+        <p className="-mt-1 text-t5 text-text-muted">
           {hint && <span className="font-numeric">{hint}</span>}
           {hint && waitable.length < SLOT_ALERT_WINDOWS.length && ' · '}
           {waitable.length < SLOT_ALERT_WINDOWS.length &&
@@ -198,7 +198,7 @@ export function SlotAlertAsk({
       )}
 
       {problem && (
-        <p role="alert" className="text-[12px] text-warning">
+        <p role="alert" className="text-t5 text-warning">
           {problem}
         </p>
       )}

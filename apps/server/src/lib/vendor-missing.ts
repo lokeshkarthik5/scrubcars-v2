@@ -89,6 +89,8 @@ export interface MissingInput {
   doorstepRadiusKm: number | null
   /** The garage drew its own doorstep area, which then replaces the radius. */
   hasDoorstepArea: boolean
+  /** "All over <city>" for doorstep (0069), which also replaces the radius. */
+  doorstepWholeCity?: boolean
   bays: number | null
   /** Its weekly rows. A day with no row is closed, as slots.ts reads it. */
   workingHours: ReadonlyArray<{ isClosed: boolean }>
@@ -139,8 +141,9 @@ export function vendorMissing(v: MissingInput): MissingKey[] {
   if (v.photoCount === 0) missing.add('photos')
   if (!v.logoUrl) missing.add('logo')
   if (v.lat === null || v.lng === null) missing.add('map_pin')
-  // A drawn area replaces the radius, so it is not missing then.
-  if (v.doorstepEnabled && v.doorstepRadiusKm == null && !v.hasDoorstepArea)
+  // A drawn area replaces the radius, and so does "All over <city>" (0069),
+  // so it is not missing then.
+  if (v.doorstepEnabled && v.doorstepRadiusKm == null && !v.hasDoorstepArea && !v.doorstepWholeCity)
     missing.add('radius_default')
   if (!v.bays) missing.add('bays')
   if (!v.workingHours.some((day) => !day.isClosed)) missing.add('hours')

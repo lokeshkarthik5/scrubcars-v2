@@ -119,7 +119,7 @@ export function RaiseComplaintSheet({ open, onClose, booking }: RaiseComplaintSh
               {received ? 'Complaint received' : 'Raise a complaint'}
             </h2>
             {!received && (
-              <p className="mt-1 text-[12px] text-text-secondary">
+              <p className="mt-1 text-t5 text-text-secondary">
                 {booking ? (
                   <>
                     About booking <span className="font-numeric font-medium">{booking.reference}</span>{' '}
@@ -150,7 +150,7 @@ export function RaiseComplaintSheet({ open, onClose, booking }: RaiseComplaintSh
                 <p className="text-[14px] font-semibold text-text-primary">
                   <ReceivedLine number={received.number} />
                 </p>
-                <p className="mt-1 text-[12px] text-text-secondary">
+                <p className="mt-1 text-t5 text-text-secondary">
                   Quote <span className="font-numeric font-medium text-text-primary">{received.number}</span>{' '}
                   if you call or message us about it. You can follow it, and read our answer, in
                   Profile under My complaints.
@@ -161,7 +161,7 @@ export function RaiseComplaintSheet({ open, onClose, booking }: RaiseComplaintSh
               <Link
                 href="/profile#my-complaints"
                 onClick={close}
-                className="flex min-h-11 flex-1 items-center justify-center rounded-[10px] border border-border text-[13px] font-medium text-text-primary transition-colors hover:bg-surface"
+                className="flex min-h-11 flex-1 items-center justify-center rounded-[10px] border border-border text-t4 font-medium text-text-primary transition-colors hover:bg-surface"
               >
                 My complaints
               </Link>
@@ -173,7 +173,7 @@ export function RaiseComplaintSheet({ open, onClose, booking }: RaiseComplaintSh
         ) : (
           <form onSubmit={submit} className="flex flex-col gap-4">
             <fieldset className="flex flex-col gap-2">
-              <legend className="mb-2 text-[11px] font-medium text-text-secondary">What is it about?</legend>
+              <legend className="mb-2 text-t5 font-medium text-text-secondary">What is it about?</legend>
               <div className="flex flex-wrap gap-2">
                 {COMPLAINT_CATEGORIES.map((value) => (
                   <Chip
@@ -207,7 +207,7 @@ export function RaiseComplaintSheet({ open, onClose, booking }: RaiseComplaintSh
                 // sent, are read with the field.
                 aria-describedby={error ? 'complaint-message-hint complaint-error' : 'complaint-message-hint'}
               />
-              <p id="complaint-message-hint" className="flex justify-between text-[11px] text-text-muted">
+              <p id="complaint-message-hint" className="flex justify-between text-t5 text-text-muted">
                 <span>
                   {trimmed.length > 0 && trimmed.length < COMPLAINT_MESSAGE_MIN
                     ? `At least ${COMPLAINT_MESSAGE_MIN} characters`
@@ -219,14 +219,14 @@ export function RaiseComplaintSheet({ open, onClose, booking }: RaiseComplaintSh
               </p>
             </div>
 
-            <p className="text-[12px] text-text-secondary">
+            <p className="text-t5 text-text-secondary">
               You get a complaint number at once. We acknowledge every complaint within{' '}
               <span className="font-numeric">{COMPLAINT_ACKNOWLEDGE_HOURS}</span> hours and aim to
               resolve it within <span className="font-numeric">{COMPLAINT_RESOLVE_DAYS}</span> days.
             </p>
 
             {error && (
-              <p id="complaint-error" role="alert" className="text-[12px] text-error">
+              <p id="complaint-error" role="alert" className="text-t5 text-error">
                 {error}
               </p>
             )}

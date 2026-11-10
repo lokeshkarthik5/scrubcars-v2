@@ -5,11 +5,13 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   IconArrowsSort,
+  IconBuildingStore,
+  IconCarGarage,
   IconChevronDown,
+  IconHome,
   IconMap,
   IconSearch,
 } from '@tabler/icons-react'
-import { ModeSwitch } from '@/components/mode-switch'
 import {
   SortSheet,
   canSortByRating,
@@ -27,22 +29,35 @@ import { browseCategory } from '@repo/core/analytics-events'
 import { track } from '@repo/core/analytics'
 import { InfiniteSentinel } from '@repo/ui/sc/infinite-sentinel'
 import {
+  cityCentreParams,
   coarse,
   isApproximate,
   isCitywide,
   shouldOfferLocationPrompt,
-  useHydratedLocation,
   useLocationStore,
 } from '@repo/core/stores/location-store'
+import { useCustomerPlace } from '@repo/core/hooks/use-customer-place'
 import { ScButton } from '@repo/ui/sc/button'
-import { CATEGORY_FILTERS } from '@repo/core/categories'
-import { SILVER_FILTER_LABEL } from '@repo/core/tiers'
+import { CATEGORY_LABELS } from '@repo/core/categories'
+import { SILVER_KEY_LABEL, SILVER_KEY_QUIET } from '@repo/core/tiers'
 import { useTierConfig } from '@repo/core/api/hooks/use-tiers'
-import { TierMedalIcon } from '@repo/ui/features/tier-medal'
-import { BOOKING_TYPES } from '@repo/core/booking-types'
+import { BOOKING_TYPES, BOOKING_TYPE_LABELS } from '@repo/core/booking-types'
 import { atGarageReach, canCollectFrom, nextTabOffer } from '@repo/core/reach'
-import type { BookingType } from '@repo/core/types'
+import {
+  detlioInLine,
+  farEmptyLine,
+  firstFarIndex,
+  inCityHeading,
+  isSmallCity,
+  nearGarageCount,
+} from '@repo/core/customer-city'
+import type { BookingType, Vendor } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
+import { GraphiteSwitch } from '@repo/ui/finish/graphite-switch'
+import { Odometer } from '@repo/ui/finish/odometer'
+import { usePrefersReducedMotion } from '@repo/ui/finish/motion'
+import { SilverKey } from '@repo/ui/finish/silver-key'
+import { TwoLineControl } from '@repo/ui/finish/two-line-control'
 import {
   AtHomeLine,
   CanCollectChip,
@@ -51,11 +66,13 @@ import {
   PickupExplainer,
   SkipTheDriveCard,
 } from './reach-parts'
-import { FreeWashPiece } from '@/components/reach/free-wash'
-
-const CATEGORIES = CATEGORY_FILTERS
-
-type CategoryKey = (typeof CATEGORIES)[number]['key']
+import { FreeWashPiece, RecommendRow } from '@/components/reach/free-wash'
+import { FilterSheet, SERVICE_FILTERS, ServiceFilterIcon, serviceFilterLabel, type ServiceFilter } from './filter-sheet'
+import { MapPeek } from './map-peek'
+import { QuickLook } from './quick-look'
+import { RollingHint } from './rolling-hint'
+import { ShowroomCard } from './showroom-card'
+import { PullToRefresh } from '@/components/moments/pull-to-refresh'
 
 /**
  * The first page the landing page renders on the server: At garage, every
@@ -68,11 +85,38 @@ export const LANDING_LIST_PARAMS = {
   sort: 'relevance' as const,
 }
 
+const MODE_ICONS: Record<BookingType, typeof IconHome> = {
+  dropin: IconBuildingStore,
+  doorstep: IconHome,
+  pickup: IconCarGarage,
+}
+
+/** The mode switch's quiet second lines (§3). */
+const MODE_QUIET: Record<BookingType, string> = {
+  dropin: 'Drive it in',
+  doorstep: 'We come to you',
+  pickup: 'We collect it',
+}
+
+/** "5 garages", "20+ garages", "1 garage". */
+function garagesCount(count: number, more: boolean): string {
+  return `${count}${more ? '+' : ''} ${count === 1 && !more ? 'garage' : 'garages'}`
+}
+
+/** Whether a list card offers the service, from its tags (codes or their names). */
+function offers(vendor: Vendor, filter: Exclude<ServiceFilter, 'all'>): boolean {
+  const names = [filter, CATEGORY_LABELS[filter]].map((n) => n.toLowerCase())
+  return vendor.serviceTags.some((tag) => names.includes(tag.toLowerCase()))
+}
+
 /**
- * The customer's garage list: mode switch, search, category chips, sort, the
- * garages (an infinite list), and the "never empty" pieces around them
- * (customer reach, 0062: Skip the drive, Can collect your car, the pickup
- * explainer, Just outside their area, and the next tab at the bottom).
+ * The customer's garage list: search, the map peek, the graphite mode switch
+ * and the filter row (pinned to the top on glass while the list scrolls),
+ * sort, the garages (an infinite list of Showroom cards), and the "never
+ * empty" pieces around them (customer reach, 0062: Skip the drive, Can
+ * collect your car, the pickup explainer, Just outside their area, and the
+ * next tab at the bottom). The approved final state of the customer UI round
+ * (Nov 2026, docs/ui-round-2026-11.md §3).
  *
  * Shared by /garages (and /home while the hub is off) and the landing page,
  * which owns the mode so its area chips can name it, and renders the first
@@ -83,14 +127,18 @@ export function GarageList({
   mode,
   onModeChange,
   showSearch = true,
+  showMapPeek = showSearch,
   initialPage,
   onAskArea,
   animateCards = true,
+  cardVariant = 'showroom',
 }: {
   mode: BookingType
   onModeChange: (mode: BookingType) => void
   /** The search row; the landing page leaves it out to keep the first screen short. */
   showSearch?: boolean
+  /** The map peek under the search; with the search by default. */
+  showMapPeek?: boolean
   /** The landing page's server-rendered first page (LANDING_LIST_PARAMS). */
   initialPage?: VendorListResult
   /**
@@ -105,14 +153,21 @@ export function GarageList({
    * script wakes up.
    */
   animateCards?: boolean
+  /**
+   * The Showroom card, or the older compact one (VendorCard: no photo track,
+   * no facts row), kept for a list long enough to want four garages a
+   * screen. Showroom is the approved default.
+   */
+  cardVariant?: 'showroom' | 'compact'
 }) {
   const router = useRouter()
+  const reduce = usePrefersReducedMotion()
   const serviceMode = mode
-  const [category, setCategory] = useState<CategoryKey>('all')
+  const [category, setCategory] = useState<ServiceFilter>('all')
   // "Silver & above" (0063): a filter on the server, like the category, so
   // it holds across sorting and every page. Offered only while Detlio shows
   // Silver or Gold (GET /tiers): with both off there is nothing to find, and
-  // an older API that cannot say means no chip either.
+  // an older API that cannot say means no key either.
   const tierConfig = useTierConfig()
   const silverFilterOffered = tierConfig.data?.silverFilter === true
   const [silverChosen, setSilverChosen] = useState(false)
@@ -122,21 +177,33 @@ export function GarageList({
   // effect, so a location fix cannot race a tap on the sort sheet.
   const [chosenSort, setChosenSort] = useState<SortKey | null>(null)
   const [sortOpen, setSortOpen] = useState(false)
-  const topRef = useRef<HTMLDivElement>(null)
+  const [filterOpen, setFilterOpen] = useState(false)
+  const [quickLook, setQuickLook] = useState<Vendor | null>(null)
+  // The switch and the filter row pin to the top while the list scrolls; this
+  // sits just above them and says when they have.
+  const pinRef = useRef<HTMLDivElement>(null)
+  const [pinned, setPinned] = useState(false)
 
   // Null until hydrated, so a server-rendered list (the landing page) and its
-  // first client render agree; the stored place follows a moment later.
-  const location = useHydratedLocation()
+  // first client render agree; the stored place follows a moment later. The
+  // customer's city (0070) comes from it: Chennai until they are elsewhere.
+  const { location, city, place } = useCustomerPlace()
   const permission = useLocationStore((s) => s.permission)
   const promptDismissedAt = useLocationStore((s) => s.promptDismissedAt)
   const refreshPermission = useLocationStore((s) => s.refreshPermission)
-  const selectChennai = useLocationStore((s) => s.selectChennai)
+  const selectCity = useLocationStore((s) => s.selectCity)
+  // Fewer than three garages in the customer's city: no counts anywhere,
+  // "In Madurai", and one quiet way to recommend a garage (mockup D).
+  const small = isSmallCity(city)
 
-  // "All of Chennai" sends no origin: the list is the whole city, not a
-  // distance from a downtown pin the customer never chose. A phone fix is
-  // rounded to ~110 m before it leaves the device; an area is its centre.
+  // A whole city ("All of Coimbatore") sends no origin: the list is the
+  // whole city, not a distance from a downtown pin the customer never chose.
+  // Its centre goes along only for the 150 km limit (cityCentreParams). A
+  // phone fix is rounded to ~110 m before it leaves the device; an area is
+  // its centre.
   const citywide = isCitywide(location)
   const origin = citywide || !location ? undefined : coarse(location)
+  const cityParams = cityCentreParams(location, city)
   const approximate = isApproximate(location)
 
   // Distance is the default once we know where the customer is.
@@ -145,11 +212,12 @@ export function GarageList({
   const category_ = category === 'all' ? undefined : category
 
   // The server-rendered page applies only to the question it answered.
-  const asksLandingQuestion =
+  const asksLandingQuestion = (withCategory: boolean) =>
     serviceMode === LANDING_LIST_PARAMS.bookingType &&
-    category_ === undefined &&
+    (!withCategory || category_ === undefined) &&
     !silverOnly &&
     !origin &&
+    cityParams.cityLat === undefined &&
     effectiveSort === LANDING_LIST_PARAMS.sort
 
   // Sorting, filtering and paging are all the server's job: the client holds
@@ -172,15 +240,47 @@ export function GarageList({
       silverAndAbove: silverOnly || undefined,
       lat: origin?.lat,
       lng: origin?.lng,
+      ...cityParams,
       sort: effectiveSort,
     },
     // A mode, chip or sort change keeps the current garages on screen until
     // the new ones land, instead of collapsing the page to one line of text.
     {
       keepPrevious: true,
-      initialPage: asksLandingQuestion ? initialPage : undefined,
+      initialPage: asksLandingQuestion(true) ? initialPage : undefined,
     }
   )
+
+  // The same list with every service: the map peek's dots and the filter
+  // sheet's counts. With "All services" chosen it is the very query above
+  // (the same key), so it costs nothing; with a service chosen it is the one
+  // the list showed a moment before, already in the cache.
+  const everyService = useVendorSearch(
+    {
+      bookingType: serviceMode,
+      silverAndAbove: silverOnly || undefined,
+      lat: origin?.lat,
+      lng: origin?.lng,
+      ...cityParams,
+      sort: effectiveSort,
+    },
+    {
+      keepPrevious: true,
+      initialPage: asksLandingQuestion(false) ? initialPage : undefined,
+    }
+  )
+  const counts = Object.fromEntries(
+    SERVICE_FILTERS.map((filter) => {
+      if (everyService.isLoading) return [filter, null]
+      const n =
+        filter === 'all'
+          ? everyService.vendors.length
+          : everyService.vendors.filter((v) => offers(v, filter)).length
+      // A count the loaded garages cannot vouch for is left off, never 0;
+      // and a small city counts nothing at all.
+      return [filter, n > 0 && !small ? `${n}${everyService.hasMore ? '+' : ''}` : null]
+    })
+  ) as Record<ServiceFilter, string | null>
 
   // Where the located half ends. Only meaningful while an origin is known —
   // without one nothing has a distance, so there is no boundary to mark. A
@@ -189,6 +289,14 @@ export function GarageList({
   const firstUnlocatedIndex = origin
     ? vendors.findIndex((v) => v.distanceKm === null)
     : -1
+  // Where the near garages end and the ones in other towns begin (Tirupur,
+  // 387 km): listed after a line, never counted as "near you". "Near" is
+  // the customer's city's own reach (0070).
+  const firstFar = firstFarIndex(vendors, {
+    located: !!origin,
+    nearestFirst: effectiveSort === 'distance',
+    city,
+  })
 
   // The At garage tab's pieces (Skip the drive, or the small "at home" line).
   const atGarage =
@@ -237,26 +345,56 @@ export function GarageList({
     return () => clearTimeout(timer)
   }, [onAskArea, isLoading, vendors.length, storedLocation, permission, promptDismissedAt])
 
-  /** A tap that moves to another tab (never done by the list on its own). */
-  const switchTo = (next: BookingType) => {
+  // Pinned once the controls have reached the top of the screen.
+  useEffect(() => {
+    const marker = pinRef.current
+    if (!marker || typeof IntersectionObserver === 'undefined') return
+    const observer = new IntersectionObserver(([entry]) => {
+      setPinned(!entry.isIntersecting && entry.boundingClientRect.top < 0)
+    })
+    observer.observe(marker)
+    return () => observer.disconnect()
+  }, [])
+
+  /** The switch: a tap to another mode is a mode_switch, wherever it is made. */
+  const changeMode = (next: BookingType) => {
+    // Statistics → Behaviour's "switched tab": a tap to another one.
     if (next !== serviceMode) track('mode_switch', { mode: next })
     onModeChange(next)
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    topRef.current?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })
   }
 
-  const card = (vendor: (typeof vendors)[number]) => (
-    <VendorCard
-      vendor={vendor}
-      mode={serviceMode}
-      action={<SaveGarageButton vendor={vendor} />}
-      chips={
-        serviceMode === 'dropin' && canCollectFrom(vendor, origin) ? (
-          <CanCollectChip />
-        ) : undefined
-      }
-    />
-  )
+  /** A tap that moves to another tab (never done by the list on its own). */
+  const switchTo = (next: BookingType) => {
+    changeMode(next)
+    // To where the controls sit before they pin: the pinned bar itself is
+    // already "in view" wherever the page is.
+    pinRef.current?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
+  }
+
+  const card = (vendor: Vendor) => {
+    const chips =
+      serviceMode === 'dropin' && canCollectFrom(vendor, origin) ? <CanCollectChip /> : undefined
+    if (cardVariant === 'compact') {
+      return (
+        <VendorCard
+          vendor={vendor}
+          mode={serviceMode}
+          action={<SaveGarageButton vendor={vendor} />}
+          chips={chips}
+        />
+      )
+    }
+    return (
+      <ShowroomCard
+        vendor={vendor}
+        mode={serviceMode}
+        action={<SaveGarageButton vendor={vendor} className="fx-glass bg-[rgb(18_18_22/0.5)]" />}
+        chips={chips}
+        approxDistance={approximate}
+        onQuickLook={setQuickLook}
+      />
+    )
+  }
 
   const ending = listEnded && (
     <>
@@ -267,75 +405,123 @@ export function GarageList({
     </>
   )
 
+  const mapHref = {
+    pathname: '/map',
+    query: {
+      bookingType: serviceMode,
+      ...(category === 'all' ? {} : { category }),
+    },
+  }
+  // Only garages within reach (or inside the customer's city, with no
+  // location) are "near you": the far towns further down the list are not.
+  const near = nearGarageCount(everyService.vendors, {
+    located: !!origin,
+    hasMore: everyService.hasMore,
+    nearestFirst: effectiveSort === 'distance',
+    city,
+  })
+  const listCount = isLoading || small ? null : garagesCount(vendors.length, hasMore)
+  // The same count, rolling like an odometer as the mode or the service changes.
+  const listCountRolling = isLoading || small ? null : (
+    <>
+      <Odometer value={`${vendors.length}${hasMore ? '+' : ''}`} numeric={vendors.length} />{' '}
+      {vendors.length === 1 && !hasMore ? 'garage' : 'garages'}
+    </>
+  )
+
   return (
     <>
-      <div ref={topRef} className="scroll-mt-20">
-        <ModeSwitch
-          modes={BOOKING_TYPES}
-          value={serviceMode}
-          onChange={onModeChange}
-          className="[&_button]:min-h-11"
-        />
-      </div>
-
       {showSearch && (
         <button
           type="button"
           onClick={() => router.push('/search')}
-          className="flex items-center gap-2.5 rounded-[12px] border border-border bg-surface px-3.5 py-3 text-left"
+          aria-label="Search garages or services"
+          className="fx-recessed flex h-[50px] items-center gap-2.5 rounded-[16px] px-4 text-left"
         >
-          <IconSearch size={17} className="text-text-secondary" />
-          <span className="text-[13px] text-text-muted">
-            Search garages or services
+          <IconSearch size={18} aria-hidden className="shrink-0 text-[#A0A0AA]" />
+          <span aria-hidden="true" className="flex min-w-0 items-center gap-[0.3em] text-t3 text-[#9A9AA3]">
+            Search
+            <RollingHint
+              hints={['garages or services', 'foam wash', 'ceramic coating', 'interior cleaning', 'scratch removal']}
+            />
           </span>
         </button>
       )}
 
-      {/* The chosen category is a white chip, not a red one: red on this
-          screen is kept for things to press, and a solid red "All" was the
-          loudest thing above the fold before a single garage had loaded. */}
-      {/* py-2 -my-2: room inside the scroller for the chips' 44px touch
-          areas, which it would otherwise clip at its edge. */}
-      <div className="-mx-4 -my-2 flex gap-2 overflow-x-auto px-4 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {/* "Silver & above" comes first, a switch rather than one of the
-            categories: on, it narrows whichever category is chosen. White
-            when on, like the chosen category. Not there at all while Detlio
-            shows neither Silver nor Gold. */}
-        {silverFilterOffered && (
-          <>
-            <button
-              type="button"
-              aria-pressed={silverOnly}
-              onClick={() => setSilverChosen((on) => !on)}
-              className={cn(
-                'flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-4 text-[13px] font-medium transition-colors',
-                silverOnly
-                  ? 'bg-brand-white text-brand-black'
-                  : 'bg-surface text-text-primary'
-              )}
-            >
-              <TierMedalIcon tier="silver" size={15} />
-              {SILVER_FILTER_LABEL}
-            </button>
-            <span aria-hidden="true" className="my-1.5 w-px shrink-0 bg-border" />
-          </>
+      {/* After the list's own first answer, so it never stands between the
+          customer and the first garage; its streets load later still. */}
+      {showMapPeek && !everyService.isLoading && !everyService.isError && (
+        <MapPeek
+          vendors={everyService.vendors}
+          origin={origin}
+          centre={origin ?? city.centre}
+          mode={serviceMode}
+          category={category_}
+          countLabel={
+            small
+              ? { count: null, words: detlioInLine(city) }
+              : {
+                  count: `${near.count}${near.more ? '+' : ''}`,
+                  words:
+                    near.count === 1 && !near.more
+                      ? origin
+                        ? 'garage near you'
+                        : `garage in ${city.name}`
+                      : origin
+                        ? 'garages near you'
+                        : `garages in ${city.name}`,
+                }
+          }
+        />
+      )}
+
+      <div ref={pinRef} aria-hidden="true" className="-mb-4 h-0" />
+      <div
+        className={cn(
+          'sticky top-0 z-20 -mx-4 px-4 pb-2.5 pt-2.5 transition-[background-color,box-shadow,border-color] duration-200',
+          'border-b border-transparent',
+          pinned &&
+            'border-white/9 bg-[rgb(12_12_14/0.72)] shadow-[0_12px_24px_rgb(0_0_0/0.35)] backdrop-blur-[22px] backdrop-saturate-[1.6]'
         )}
-        {CATEGORIES.map((c) => (
-          <button
-            key={c.key}
-            type="button"
-            aria-pressed={category === c.key}
-            onClick={() => setCategory(c.key)}
-            className={cn(
-              'min-h-11 shrink-0 rounded-full px-4 text-[13px] font-medium transition-colors',
-              category === c.key
-                ? 'bg-brand-white text-brand-black'
-                : 'bg-surface text-text-primary'
-            )}
-          >
-            {c.label}
-          </button>
-        ))}
+      >
+        <GraphiteSwitch
+          aria-label="Service mode"
+          value={serviceMode}
+          onChange={changeMode}
+          pinned={pinned}
+          options={BOOKING_TYPES.map((value) => {
+            const Icon = MODE_ICONS[value]
+            return {
+              value,
+              label: BOOKING_TYPE_LABELS[value],
+              quiet: MODE_QUIET[value],
+              icon: <Icon aria-hidden />,
+            }
+          })}
+        />
+        <div className="mt-2 flex gap-2">
+          <TwoLineControl
+            onClick={() => setFilterOpen(true)}
+            aria-haspopup="dialog"
+            aria-label={`Service: ${serviceFilterLabel(category)}${listCount ? `, ${listCount}` : ''}. Change`}
+            pinned={pinned}
+            className="flex-1"
+            tile={<ServiceFilterIcon filter={category} />}
+            main={serviceFilterLabel(category)}
+            quiet={small ? undefined : (listCountRolling ?? 'Finding garages…')}
+            trailing={<IconChevronDown size={16} aria-hidden />}
+          />
+          {/* Not there at all while Detlio shows neither Silver nor Gold. */}
+          {silverFilterOffered && (
+            <SilverKey
+              on={silverOnly}
+              onToggle={() => setSilverChosen((on) => !on)}
+              label={SILVER_KEY_LABEL}
+              quiet={SILVER_KEY_QUIET}
+              pinned={pinned}
+            />
+          )}
+        </div>
       </div>
 
       {/* Pickup & drop, explained before its garages: who has the car, and
@@ -358,78 +544,81 @@ export function GarageList({
       {serviceMode !== 'pickup' && <FreeWashPiece placement="top" />}
 
       <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-3">
-          {/* min-w-0, not whitespace-nowrap: at 360px the heading and the
-              Map and Sort pills don't fit on one line, so the heading wraps
-              rather than pushing the page sideways. */}
-          <h2 className="min-w-0 text-[17px] font-medium text-text-primary">
-            {serviceMode === 'dropin' && atGarage.skipTheDrive
-              ? 'Or drive to'
-              : 'Nearby garages'}
-          </h2>
-          <div className="flex shrink-0 items-center gap-2">
-            <Link
-              href={{
-                pathname: '/map',
-                query: {
-                  bookingType: serviceMode,
-                  ...(category === 'all' ? {} : { category }),
-                },
-              }}
-              className="flex min-h-11 items-center gap-1.5 rounded-full border border-line px-3.5 text-[13px] text-text-secondary"
-            >
-              <IconMap size={14} aria-hidden="true" />
-              Map
-            </Link>
-            <button
-              type="button"
-              onClick={() => setSortOpen(true)}
-              className="flex min-h-11 items-center gap-1.5 rounded-full border border-line px-3.5 text-[13px] text-text-secondary"
-            >
-              <IconArrowsSort size={14} aria-hidden="true" />
-              {sortLabel(sort)}
-              <IconChevronDown size={14} aria-hidden="true" />
-            </button>
+        <div>
+          <div className="flex items-center justify-between gap-3">
+            {/* No count beside it: the count lives in the filter button. min-w-0,
+                not whitespace-nowrap, so at 360px the heading wraps rather than
+                pushing the page sideways. */}
+            <h2 className="min-w-0 text-t2 font-semibold text-text-primary">
+              {serviceMode === 'dropin' && atGarage.skipTheDrive
+                ? 'Or drive to'
+                : small
+                  ? inCityHeading(city)
+                  : 'Nearby garages'}
+            </h2>
+            <div className="flex shrink-0 items-center gap-2">
+              {/* The map peek is the way to the map; without it, this is. */}
+              {!showMapPeek && (
+                <Link
+                  href={mapHref}
+                  className="fx-raised fx-press flex h-10 items-center gap-1.5 rounded-[12px] px-3.5 text-t4 font-medium text-[#C8C8D0]"
+                >
+                  <IconMap size={15} aria-hidden="true" />
+                  Map
+                </Link>
+              )}
+              <button
+                type="button"
+                onClick={() => setSortOpen(true)}
+                aria-haspopup="dialog"
+                className="fx-raised fx-press flex h-10 items-center gap-1.5 rounded-[12px] px-3.5 text-t4 font-medium text-[#C8C8D0]"
+              >
+                <IconArrowsSort size={15} aria-hidden="true" className="text-[#8E8E98]" />
+                {sortLabel(sort)}
+              </button>
+            </div>
           </div>
+
+          {/* Where the distances are measured from, said once above the list.
+              Every garage is listed (0062: no cut-off), so this is the only
+              bound worth saying. */}
+          {origin && location && vendors.length > 0 && sort === 'distance' && (
+            <p className="mt-1 text-t5 font-medium text-[#9A9AA3]">
+              Nearest first from {location.label}
+              {approximate && ' (distances from the area’s centre)'}
+            </p>
+          )}
+
+          {/* Pickup & drop is bounded by each garage's own reach from where the
+              car is. Without a location the list cannot know that, so it says
+              checkout will. */}
+          {serviceMode === 'pickup' && !origin && vendors.length > 0 && (
+            <p className="mt-1 text-t5 text-text-muted">
+              Set your location to see only garages that collect from your area.
+              Checkout checks your address either way.
+            </p>
+          )}
         </div>
-
-        {/* Pickup & drop is bounded by each garage's own reach from where the
-            car is. Without a location the list cannot know that, so it says
-            checkout will. */}
-        {serviceMode === 'pickup' && !origin && vendors.length > 0 && (
-          <p className="text-[11px] text-text-muted">
-            Set your location to see only garages that collect from your area.
-            Checkout checks your address either way.
-          </p>
-        )}
-
-        {/* Where the distances are measured from, said once above the list.
-            Every garage is listed (0062: no cut-off), so this is the only
-            bound worth saying. */}
-        {origin && location && vendors.length > 0 && sort === 'distance' && (
-          <p className="text-[11px] text-text-muted">
-            Nearest first from {location.label}
-            {approximate && ' (distances from the area’s centre)'}
-          </p>
-        )}
 
         {atGarage.atHomeLine && (
           <AtHomeLine onSwitch={() => switchTo('doorstep')} />
         )}
 
-        {/* Dimmed rather than replaced while a new filter loads. The delay
-            means a quick answer never dims at all; the return is immediate. */}
+        {/* Pull the list down to ask again now (moment 6). Dimmed rather
+            than replaced while a new filter loads. The delay means a quick
+            answer never dims at all; the return is immediate. */}
+        <PullToRefresh onRefresh={retry}>
         <div
           aria-busy={isRefreshing || undefined}
           className={cn(
-            'flex flex-col gap-3 transition-opacity duration-200 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none',
+            'flex flex-col gap-3.5 transition-opacity duration-200 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none',
             isRefreshing && 'opacity-60 delay-150'
           )}
         >
           {/* An empty list mid-refresh has no answer yet — "No garages found"
               would be the previous filter's result. */}
           {isLoading || (isRefreshing && vendors.length === 0) ? (
-            <p className="py-8 text-center text-[13px] text-text-secondary">
+            <p className="py-8 text-center text-t4 text-text-secondary">
               Finding garages…
             </p>
           ) : isError ? (
@@ -442,14 +631,17 @@ export function GarageList({
           ) : vendors.length === 0 ? (
             // Never a dead end (F14): what was not found, and a way on.
             <div className="flex flex-col items-center gap-3 py-6 text-center">
-              <p className="text-[15px] text-text-secondary">
+              <p className="text-t3 text-text-secondary">
                 {silverOnly
-                  ? 'No Silver or Gold garages here yet. Turn off “Silver & above” to see every garage.'
+                  ? `No Silver or Gold garages here yet. Turn off “${SILVER_KEY_LABEL}” to see every garage.`
                   : serviceMode === 'pickup'
                     ? 'No garage collects from your area yet.'
                     : serviceMode === 'doorstep' && !citywide
                       ? 'No garage travels to your area yet.'
-                      : 'No garages match these filters.'}
+                      : serviceMode === 'dropin' && category === 'all' && (origin || cityParams.cityLat !== undefined)
+                        ? // Nothing within 150 km (0070): why, and the way on.
+                          farEmptyLine(place)
+                        : 'No garages match these filters.'}
               </p>
               <div className="flex flex-wrap justify-center gap-2">
                 {silverOnly && (
@@ -474,9 +666,9 @@ export function GarageList({
                   <ScButton
                     variant="outline"
                     fullWidth={false}
-                    onClick={selectChennai}
+                    onClick={() => selectCity(city)}
                   >
-                    Show all of Chennai
+                    Show all of {city.name}
                   </ScButton>
                 )}
                 {!silverOnly && serviceMode !== 'dropin' && (
@@ -498,8 +690,13 @@ export function GarageList({
                       distance to, then those still waiting on a pin. Saying so
                       at the boundary beats letting distance-less cards trail
                       off the end of a "Nearest First" list unexplained. */}
+                  {i === firstFar && (
+                    <p className="pt-1 text-t5 text-text-muted">
+                      Further away · other towns
+                    </p>
+                  )}
                   {i === firstUnlocatedIndex && (
-                    <p className="pt-1 text-[11px] text-text-muted">
+                    <p className="pt-1 text-t5 text-text-muted">
                       Other garages — location not set yet
                     </p>
                   )}
@@ -507,7 +704,7 @@ export function GarageList({
                       checkout open on the choice made here. The wrapper is
                       what Behaviour's "Saw a garage" watches. */}
                   {animateCards ? (
-                    <Reveal index={i}>
+                    <Reveal index={Math.min(i, 2)}>
                       <div data-garage-card="">{card(vendor)}</div>
                     </Reveal>
                   ) : (
@@ -523,10 +720,23 @@ export function GarageList({
             </>
           )}
           {ending}
+          {/* A small city (0070, mockup D): under its garages, one quiet way
+              to tell us about another, to admin's leads. No "more coming":
+              nobody has promised that. */}
+          {small && !isLoading && !isError && !isRefreshing && <RecommendRow city={city} />}
         </div>
+        </PullToRefresh>
       </section>
 
       <GarageSeenWatcher mode={serviceMode} />
+
+      <FilterSheet
+        open={filterOpen}
+        value={category}
+        counts={counts}
+        onChange={setCategory}
+        onClose={() => setFilterOpen(false)}
+      />
 
       <SortSheet
         open={sortOpen}
@@ -537,6 +747,8 @@ export function GarageList({
         // No "Top Rated" until a listed garage has a review to rank by.
         ratingAvailable={canSortByRating(vendors, sort, hasMore)}
       />
+
+      <QuickLook vendor={quickLook} mode={serviceMode} onClose={() => setQuickLook(null)} />
     </>
   )
 }

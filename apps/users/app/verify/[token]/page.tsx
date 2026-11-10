@@ -39,8 +39,8 @@ function Message({ title, children }: { title: string; children: React.ReactNode
     <Shell>
       <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
         <IconLinkOff size={32} stroke={1.5} aria-hidden="true" className="text-text-secondary" />
-        <h1 className="text-[17px] font-semibold text-text-primary">{title}</h1>
-        <div className="max-w-[340px] text-[13px] text-text-secondary">{children}</div>
+        <h1 className="text-t2 font-semibold text-text-primary">{title}</h1>
+        <div className="max-w-[340px] text-t4 text-text-secondary">{children}</div>
         <Link
           href="/"
           className="mt-2 flex min-h-11 items-center justify-center rounded-[10px] border border-border px-5 text-sm font-semibold text-text-primary"
@@ -94,7 +94,7 @@ export default async function VerifyCertificatePage({ params }: { params: Promis
         <IconCircleCheckFilled size={22} aria-hidden="true" className="mt-px shrink-0 text-success" />
         <div className="min-w-0">
           <p className="text-[14px] font-semibold text-text-primary">Genuine Detlio record</p>
-          <p className="text-[12px] text-text-secondary">
+          <p className="text-t5 text-text-secondary">
             Certificate <span className="font-numeric">{certificate.certificateNumber}</span>, read from Detlio on{' '}
             <span className="font-numeric">{certificateDateLabel(certificate.asOf)}</span>. It shows the car&apos;s
             record as it stands today, without the owner&apos;s details.
@@ -108,7 +108,7 @@ export default async function VerifyCertificatePage({ params }: { params: Promis
         photoSrc={sharedPhotoSrc}
         issuedLabel="Checked"
         verification={
-          <p className="max-w-[220px] text-[11px] leading-relaxed text-neutral-600 sm:text-right">
+          <p className="max-w-[220px] text-t5 leading-relaxed text-neutral-600 sm:text-right">
             Shared by the car&apos;s owner through Detlio. Owner&apos;s name, phone and address are never shown.
           </p>
         }

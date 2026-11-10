@@ -208,7 +208,7 @@ export function autoRefundCause(booking: {
   moved: boolean
   /** A refund instead of a redo on a completed booking (0051). */
   guaranteeRefund?: boolean
-  /** The customer's account is deleted (0066; from admin, 0069). */
+  /** The customer's account is deleted (0066; from admin, 0071). */
   accountDeleted?: boolean
 }): AutoRefundCause | null {
   if (booking.accountDeleted) return null

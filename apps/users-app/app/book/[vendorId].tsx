@@ -37,7 +37,6 @@ import { resolveServiceAmount } from '@repo/core/pricing';
 import { hasStarScore } from '@repo/core/ratings';
 import { rewardRupees } from '@repo/core/rewards';
 import { knownDurationTotal } from '@repo/core/service-duration';
-import { outsideCityCheckoutLine } from '@repo/core/service-city';
 import { isLastingRefusal, livePendingCheckout, pendingCodeFor } from '@repo/core/stores/pending-checkout-store';
 import { useUserStore } from '@repo/core/stores/user-store';
 import type { Address, BookingType, Service, Vendor } from '@repo/core/types';
@@ -59,17 +58,19 @@ import {
   IconStarFilled,
   IconX,
 } from '@repo/native-ui/icons';
-import { ErrorState, HubCard, Notice, ScSegmented, Spinner } from '@repo/native-ui/primitives';
+import { ErrorState, HubCard, Notice, Spinner } from '@repo/native-ui/primitives';
 import { ScInput } from '@repo/native-ui/inputs';
 import { ConfirmSheet, ScSheet } from '@repo/native-ui/sheet';
 import { Figures, T } from '@repo/native-ui/text';
-import { createStyles, useColors } from '@repo/native-ui/theme';
+import { createStyles, useColors, useFinish } from '@repo/native-ui/theme';
 import { toast } from '@repo/native-ui/toast';
+import { Glass, RedButton } from '@repo/native-ui/finish';
+import { EASE_SPRING, useOneShot, useReduceMotion } from '@repo/native-ui/motion';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { type ComponentRef, useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, TextInput, View } from 'react-native';
+import { type ComponentRef, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { Animated, Easing, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { LEGAL_PATHS } from '@/lib/help-legal';
@@ -80,9 +81,13 @@ import { CouponScanner } from '@/components/coupons/coupon-scanner';
 import { GuestCarForm } from '@/components/checkout/guest-car';
 import { PaymentReceivedPanel } from '@/components/checkout/payment-received-panel';
 import { CheckoutSignInCard, useCheckoutSignIn } from '@/components/checkout/sign-in';
+import { PickButton } from '@/components/checkout/pick-button';
 import { WhenPicker } from '@/components/checkout/when-picker';
+import { ModeSwitch } from '@/components/garage/mode-switch';
+import { NumberPlate } from '@/components/moments/number-plate';
 import { TierMark } from '@/components/garage/tier';
 import { OutsideCityLine } from '@/components/garage/tier';
+import { useGarageTownLine } from '@/lib/customer-place';
 import { AddCarSheet } from '@/components/home/add-car-sheet';
 import { LocationPicker, type PickedLocation } from '@/components/location-picker';
 import { SlotAlertAsk } from '@/components/slot-alerts/slot-alert-ask';
@@ -105,7 +110,7 @@ import { usePendingCheckout } from '@/lib/pending-checkout';
 import { checkPending, pendingKey, type PendingPayment, pendingPayment, setPaymentFlowOnScreen } from '@/lib/pending-payment';
 import { money, servicePriceText } from '@/lib/price';
 import { track } from '@/lib/shims/analytics';
-import { istDay } from '@/lib/when-picker';
+import { istDay, linkedSlot } from '@/lib/when-picker';
 
 type CheckoutStep = 'slot' | 'car' | 'address' | 'pin' | 'outside' | 'unpriced' | 'signin' | 'name';
 
@@ -118,6 +123,16 @@ const BOOKED_AS: Record<BookingType, string> = {
   pickup: 'pickup & drop',
 };
 
+/** The solid red Pay arriving: one small pop (bk-cta-pop), none under Reduce Motion. */
+function CtaPop({ children }: { children: ReactNode }) {
+  const p = useOneShot({ duration: 500, easing: EASE_SPRING });
+  return (
+    <Animated.View style={{ transform: [{ scale: p.interpolate({ inputRange: [0, 0.55, 1], outputRange: [0.96, 1.03, 1] }) }] }}>
+      {children}
+    </Animated.View>
+  );
+}
+
 /** apps/users/app/book/[vendorId]/page.tsx. Prices come from the server; what's charged is the server's sum. */
 export default function BookScreen() {
   const params = useLocalSearchParams<{
@@ -129,6 +144,7 @@ export default function BookScreen() {
     code?: string;
     date?: string;
     request?: string;
+    slot?: string;
   }>();
   const vendorId = String(params.vendorId);
   const serviceIdsParam = params.service ?? null;
@@ -141,6 +157,9 @@ export default function BookScreen() {
   const colors = useColors();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
+  const reduceMotion = useReduceMotion();
+  const { fx } = useFinish();
+  const promiseGreen = colors.scheme === 'light' ? colors.success : '#4ADE80';
 
   const authUser = useAuth((s) => s.user);
   const isGuest = !authUser;
@@ -166,13 +185,19 @@ export default function BookScreen() {
   const fetchProfile = useUserStore((s) => s.fetchProfile);
 
   const [vendor, setVendor] = useState<Vendor | null>(null);
+  // The garage page's line once more above Pay, only for a garage outside the customer's city (0070).
+  const townLine = useGarageTownLine(vendor);
   const [selectedServices, setSelectedServices] = useState<Service[]>([]);
   const [categoryById, setCategoryById] = useState<Record<string, string>>({});
   const guaranteeOn = useGuaranteeConfig().data?.enabled === true;
   const [servicesDropped, setServicesDropped] = useState(false);
   const [loadProblem, setLoadProblem] = useState<'gone' | 'failed' | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
-  const [pickedSlot, setSelectedSlot] = useState<string | null>(() => draftSlotStillAhead(restored?.slot ?? null, Date.now()));
+  // A time picked on a garage card's Next free row: the booking opens on its day with it
+  // chosen while it is still ahead, and lets it go with a word if it has been taken.
+  // Read once, on arrival, like the draft; the card's time wins, being the newer choice.
+  const [linked] = useState(() => linkedSlot(params.slot, Date.now()));
+  const [pickedSlot, setSelectedSlot] = useState<string | null>(() => linked ?? draftSlotStillAhead(restored?.slot ?? null, Date.now()));
   const selectedSlot = acceptedRequest?.acceptedStartAt ?? pickedSlot;
   const [restoredDay] = useState(() => (selectedSlot ? istDay(selectedSlot) : null));
 
@@ -192,10 +217,17 @@ export default function BookScreen() {
 
   const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const stepY = useRef<Partial<Record<'slot' | 'car' | 'address' | 'summary' | 'signin', number>>>({});
+  // The step the grey button named: scrolled to, it nudges once (§6, bk-nudge).
+  const nudge = useRef(new Animated.Value(0)).current;
+  const [nudged, setNudged] = useState<'slot' | 'car' | 'address' | 'summary' | 'signin' | null>(null);
   const mark = (step: 'slot' | 'car' | 'address' | 'summary' | 'signin') => ({
     onLayout: (e: { nativeEvent: { layout: { y: number } } }) => {
       stepY.current[step] = e.nativeEvent.layout.y;
     },
+    style:
+      nudged === step
+        ? { transform: [{ translateX: nudge.interpolate({ inputRange: [0, 0.2, 0.4, 0.6, 0.8, 1], outputRange: [0, -5, 5, -5, 5, 0] }) }] }
+        : undefined,
   });
 
   const [promoInput, setPromoInput] = useState('');
@@ -401,8 +433,17 @@ export default function BookScreen() {
   const goToStep = (step: CheckoutStep) => {
     const target = { slot: 'slot', car: 'car', address: 'address', pin: 'address', outside: 'address', unpriced: 'summary', signin: 'signin', name: 'signin' } as const;
     const y = stepY.current[target[step]];
-    if (y !== undefined) scrollRef.current?.scrollTo({ y: Math.max(0, y - 12), animated: true });
+    if (y !== undefined) scrollRef.current?.scrollTo({ y: Math.max(0, y - 12), animated: !reduceMotion });
+    if (reduceMotion) return;
+    setNudged(target[step]);
+    nudge.setValue(0);
+    Animated.timing(nudge, { toValue: 1, duration: 500, delay: 250, easing: Easing.bezier(0.36, 0.07, 0.19, 0.97), useNativeDriver: true }).start();
   };
+
+  const handleSlotTaken = useCallback(() => {
+    if (paidRef.current || bookingLockRef.current) return;
+    toast.info('That time was just taken; pick another.');
+  }, []);
 
   const handleSlotLapse = (scheduledAt: string) => {
     toast.info(`${formatClock(scheduledAt)} is now too soon to book. ${noticeSentence(bookingType)} Pick another time.`);
@@ -1019,7 +1060,7 @@ export default function BookScreen() {
         ) : null}
 
         {vendor && selectedServices.length > 0 ? (
-          <View {...mark('summary')}>
+          <Animated.View {...mark('summary')}>
             <HubCard style={styles.cardPad}>
               <View style={styles.between}>
                 <T size={17} weight={500} lh={24} tracking={-0.01} style={styles.shrink}>
@@ -1081,7 +1122,7 @@ export default function BookScreen() {
                 </T>
               </View>
             </HubCard>
-          </View>
+          </Animated.View>
         ) : null}
 
         {vendor && selectedServices.length > 0 && !requestMode && garageAddOns.length > 0 ? (
@@ -1112,9 +1153,9 @@ export default function BookScreen() {
 
         {!requestMode && modeOptions.length > 1 ? (
           <View>
-            <ScSegmented options={modeOptions} value={bookingType} onChange={setChosenType} />
+            <ModeSwitch modes={modeOptions.map((option) => option.value)} value={bookingType} onChange={setChosenType} track={false} />
             {isPickup ? (
-              <T size={13} lh={20} color={colors.textSecondary} style={styles.mt8}>
+              <T variant="t5" lh={18} color={colors.textMuted} style={styles.mt8}>
                 {`${vendor?.name ?? 'The garage'} collects your car from your address, works on it at the garage and brings it back.`}
               </T>
             ) : null}
@@ -1122,7 +1163,7 @@ export default function BookScreen() {
         ) : null}
 
         {!requestMode ? (
-          <View {...mark('slot')}>
+          <Animated.View {...mark('slot')}>
             <WhenPicker
               autoPick
               vendorId={vendorId}
@@ -1131,6 +1172,9 @@ export default function BookScreen() {
               onChange={pickSlot}
               bookingType={bookingType}
               onLapse={handleSlotLapse}
+              // Only while nothing is in flight: once Pay is pressed the customer's own booking
+              // can take the time off the refetched list, and that is not a time lost.
+              onTaken={linked && !paid && !loading ? handleSlotTaken : undefined}
               initialDate={dateParam ?? restoredDay}
               renderDayExtra={(state) => (
                 <SlotAlertAsk
@@ -1142,12 +1186,12 @@ export default function BookScreen() {
                 />
               )}
             />
-          </View>
+          </Animated.View>
         ) : null}
 
         {!requestMode ? (
-          <View {...mark('car')}>
-            <T size={17} weight={500} lh={24} tracking={-0.01} style={styles.heading}>
+          <Animated.View {...mark('car')}>
+            <T variant="t2" style={styles.heading}>
               Car
             </T>
             {isGuest ? (
@@ -1176,59 +1220,51 @@ export default function BookScreen() {
             ) : (
               <View style={styles.carGrid}>
                 {carDraftReady && draftCar ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: selectedVehicle === DRAFT_CAR }}
-                    onPress={() => setPickedVehicle(DRAFT_CAR)}
-                    style={[styles.carCell, selectedVehicle === DRAFT_CAR ? styles.choiceOn : styles.choiceOff]}
-                  >
-                    <View style={styles.carTop}>
-                      <T size={15} lh={20} numberOfLines={1} style={styles.shrink}>
+                  <View style={styles.carCell}>
+                    <PickButton radius={18} on={selectedVehicle === DRAFT_CAR} onPress={() => setPickedVehicle(DRAFT_CAR)} style={styles.carFace}>
+                      <T size={14} weight={600} lh={18} numberOfLines={1}>
                         {`${draftCar.make.trim()} ${draftCar.model.trim()}`}
                       </T>
-                      {selectedVehicle === DRAFT_CAR ? <IconCheck size={15} stroke={2} color={colors.textPrimary} /> : null}
-                    </View>
-                    <T size={13} lh={18} color={colors.dim} numberOfLines={1}>
-                      {`${VEHICLE_TIERS.find((t) => t.value === draftCar.vehicleType)?.label} · new`}
-                    </T>
-                  </Pressable>
+                      <T variant="t5" color={colors.textMuted} numberOfLines={1}>
+                        {`${VEHICLE_TIERS.find((t) => t.value === draftCar.vehicleType)?.label} · new`}
+                      </T>
+                    </PickButton>
+                  </View>
                 ) : null}
                 {vehicles.map((v) => {
                   const on = selectedVehicle === v.id;
+                  // The red light, as chosen things have; red as a button here is Pay's.
                   return (
-                    <Pressable
-                      key={v.id}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: on }}
-                      onPress={() => setPickedVehicle(v.id)}
-                      style={[styles.carCell, on ? styles.choiceOn : styles.choiceOff]}
-                    >
-                      <View style={styles.carTop}>
-                        <T size={15} lh={20} numberOfLines={1} style={styles.shrink}>
+                    <View key={v.id} style={styles.carCell}>
+                      <PickButton radius={18} on={on} accessibilityLabel={`${v.make} ${v.model}${v.plate ? `, ${v.plate}` : ''}`} onPress={() => setPickedVehicle(v.id)} style={styles.carFace}>
+                        <T size={14} weight={600} lh={18} numberOfLines={1}>
                           {`${v.make} ${v.model}`}
                         </T>
-                        {on ? <IconCheck size={15} stroke={2} color={colors.textPrimary} /> : null}
-                      </View>
-                      <T num size={13} lh={18} color={colors.dim} numberOfLines={1}>
-                        {v.plate}
-                      </T>
-                    </Pressable>
+                        {v.plate ? (
+                          <NumberPlate plate={v.plate} size="sm" />
+                        ) : (
+                          <T variant="t5" color={colors.textMuted} numberOfLines={1}>
+                            {VEHICLE_TIERS.find((t) => t.value === v.vehicleType)?.label}
+                          </T>
+                        )}
+                      </PickButton>
+                    </View>
                   );
                 })}
                 <Pressable accessibilityRole="button" onPress={() => setAddCarOpen(true)} style={[styles.carCell, styles.dashed]}>
-                  <IconPlus size={15} color={colors.textSecondary} />
-                  <T size={13} lh={18} color={colors.textSecondary}>
+                  <IconPlus size={15} color="#FF4D66" />
+                  <T variant="t4" weight={600} color={colors.textSecondary}>
                     Add another car
                   </T>
                 </Pressable>
               </View>
             )}
-          </View>
+          </Animated.View>
         ) : null}
 
         {usesAddress && !requestMode ? (
-          <View {...mark('address')}>
-            <T size={17} weight={500} lh={24} tracking={-0.01} style={styles.heading}>
+          <Animated.View {...mark('address')}>
+            <T variant="t2" style={styles.heading}>
               {isPickup ? 'Where should we collect your car?' : 'Where should we come?'}
             </T>
             {isPickup && addressOptions.length > 0 ? (
@@ -1254,31 +1290,32 @@ export default function BookScreen() {
             ) : (
               <View style={styles.addressList}>
                 {addressOptions.map((a) => (
-                  <Pressable
+                  <PickButton
                     key={a.id}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: selectedAddress === a.id }}
+                    radius={18}
+                    on={selectedAddress === a.id}
+                    accessibilityLabel={`${a.label}, ${a.address}`}
                     onPress={() => pickAddress(a.id)}
-                    style={[styles.addressRow, selectedAddress === a.id ? styles.choiceOn : styles.choiceOff]}
+                    style={styles.addressRow}
                   >
                     <View style={styles.pinDisc}>
-                      <IconMapPin size={18} stroke={1.5} color={colors.textPrimary} />
+                      <IconMapPin size={17} color={colors.textSecondary} />
                     </View>
                     <View style={styles.grow}>
-                      <T size={15} lh={20}>
+                      <T size={14} weight={600} lh={18}>
                         {a.label}
                         {a.id === DRAFT_ADDRESS && !isGuest ? <T size={15} lh={20} color={colors.textMuted}> · new</T> : null}
                       </T>
-                      <T size={13} lh={18} color={colors.textSecondary} numberOfLines={1}>
+                      <T variant="t5" color={colors.textMuted} numberOfLines={1}>
                         {a.address}
                       </T>
                       {outsidePickup(a) ? (
-                        <T size={13} lh={18} color={colors.error} style={styles.mt2}>
+                        <T variant="t4" weight={400} color={colors.error} style={styles.mt2}>
                           {"Outside this garage's pickup area"}
                         </T>
                       ) : null}
                     </View>
-                  </Pressable>
+                  </PickButton>
                 ))}
                 {addressOutside ? (
                   <View style={styles.warnCardSm}>
@@ -1309,19 +1346,19 @@ export default function BookScreen() {
                   </View>
                 ) : null}
                 <Pressable accessibilityRole="button" onPress={() => setAddAddressOpen(true)} style={[styles.addRow, styles.dashed]}>
-                  {!isGuest ? <IconPlus size={15} color={colors.textSecondary} /> : null}
-                  <T size={13} lh={18} color={colors.textSecondary}>
+                  {!isGuest ? <IconPlus size={15} color="#FF4D66" /> : null}
+                  <T variant="t4" weight={600} color={colors.textSecondary}>
                     {isGuest ? 'Change address' : 'Add another address'}
                   </T>
                 </Pressable>
               </View>
             )}
-          </View>
+          </Animated.View>
         ) : null}
 
         {selectedServices.length > 0 && (savedVehicleId || creditOffered) && !unpricedForVehicle ? (
           <View>
-            <T size={17} weight={500} lh={24} tracking={-0.01} style={styles.heading}>
+            <T variant="t2" style={styles.heading}>
               Savings
             </T>
             <HubCard style={styles.savings}>
@@ -1521,7 +1558,7 @@ export default function BookScreen() {
         ) : null}
 
         {isGuest && (signInOpen || nextStep === 'signin') ? (
-          <View {...mark('signin')}>
+          <Animated.View {...mark('signin')}>
             <CheckoutSignInCard
               signIn={signIn}
               busy={busy}
@@ -1534,11 +1571,11 @@ export default function BookScreen() {
                     : 'Verify'
               }
             />
-          </View>
+          </Animated.View>
         ) : null}
 
         {!isGuest && (needsName || signedInHere) ? (
-          <View {...mark('signin')}>
+          <Animated.View {...mark('signin')}>
             <HubCard style={styles.signedIn}>
               <T size={17} weight={500} lh={24} tracking={-0.01}>
                 {needsName ? 'Your name' : authUser?.name && authUser.name !== 'User' ? `Signed in as ${authUser.name}` : 'Signed in'}
@@ -1593,29 +1630,32 @@ export default function BookScreen() {
                 </T>
               ) : null}
             </HubCard>
-          </View>
+          </Animated.View>
         ) : null}
       </ScrollView>
 
-      <View style={[styles.bar, { paddingBottom: insets.bottom + 12 }]}>
+      <Glass radius={0} heavy edge={false} style={[styles.bar, { paddingBottom: insets.bottom + 12 }]}>
         {paid && paid.phase !== 'confirming' ? (
           <PaymentReceivedPanel paymentId={paid.paymentId} refundMessage={paid.phase === 'failed' ? paid.refundMessage : undefined} />
         ) : paid ? (
-          <ScButton variant="quiet" height={52} disabled>
+          // Graphite with a spinner, not the red button: red means "this pays".
+          <View style={styles.ctaWait}>
             <Spinner size={16} />
-            <Label>Payment received — confirming your booking…</Label>
-          </ScButton>
+            <T variant="t4" weight={600} color={colors.scheme === 'light' ? colors.textSecondary : '#C8C8D0'}>
+              Payment received — confirming your booking…
+            </T>
+          </View>
         ) : (
           <>
             {selectedServices.length > 0 ? (
               <View style={styles.barTop}>
-                <T size={13} lh={18} color={colors.dim} numberOfLines={1} style={styles.shrink}>
+                <T variant="t5" color={fx.quietBright} numberOfLines={1} style={styles.shrink}>
                   {`${bookingSummary}${selectedCar ? ` · ${selectedCar.model}` : ''}`}
                 </T>
                 {subtotal != null && selectedVehicle ? (
-                  <T size={13} lh={20} color={colors.dim}>
+                  <T variant="t5" color={fx.quietBright}>
                     {`${toPay != null && toPay !== subtotal ? 'To pay' : 'Total'} `}
-                    <T num size={15} lh={20}>
+                    <T num variant="t3" weight={600}>
                       {money(toPay ?? subtotal)}
                     </T>
                   </T>
@@ -1626,39 +1666,51 @@ export default function BookScreen() {
               <View style={styles.promises}>
                 {guaranteeApplies ? (
                   <View style={styles.promise} accessibilityLabel={GUARANTEE_BADGE}>
-                    <IconShieldCheck size={15} stroke={1.5} color={colors.textPrimary} />
-                    <T size={13} lh={18} color={colors.textSecondary}>
+                    <IconShieldCheck size={13} color={promiseGreen} />
+                    <T variant="t5" color={fx.soft}>
                       {"Free redo within 48 hours if you're not happy"}
                     </T>
                   </View>
                 ) : null}
                 <View style={styles.promise}>
-                  <IconRefresh size={15} stroke={1.5} color={colors.textPrimary} />
-                  <T size={13} lh={18} color={colors.textSecondary}>
+                  <IconRefresh size={13} color={promiseGreen} />
+                  <T variant="t5" color={fx.soft}>
                     Free cancel until the garage accepts
                   </T>
                 </View>
               </View>
             ) : null}
-            {vendor?.outsideServiceCity ? (
+            {townLine ? (
               <View style={styles.outsideLine}>
-                <OutsideCityLine text={outsideCityCheckoutLine(vendor.outsideServiceCity)} />
+                <OutsideCityLine text={townLine} />
               </View>
             ) : null}
+            {/* Grey while a step is missing, naming it; a tap scrolls there and nudges it.
+                Once nothing is missing it is the solid red Pay, which pops once as it arrives. */}
             {nextStep ? (
-              <ScButton variant="quiet" height={52} backgroundColor={colors.surfaceElevated} disabled={busy} onPress={() => goToStep(nextStep)}>
-                {payLabel}
-              </ScButton>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ disabled: busy }}
+                disabled={busy}
+                onPress={() => goToStep(nextStep)}
+                style={({ pressed }) => [styles.ctaWait, pressed && !reduceMotion && styles.ctaPressed]}
+              >
+                <T variant="t4" weight={600} color={colors.scheme === 'light' ? colors.textSecondary : '#C8C8D0'}>
+                  {payLabel}
+                </T>
+              </Pressable>
             ) : (
-              <ScButton variant="hero" height={52} disabled={busy} onPress={() => void handlePay()}>
-                <Label color={colors.white}>
-                  <Figures color={colors.white} size={15} text={payLabel} weight={600} />
-                </Label>
-                {!loading ? <IconArrowUpRight size={17} stroke={1.5} color={colors.white} /> : null}
-              </ScButton>
+              <CtaPop>
+                <RedButton height={52} radius={16} disabled={busy} onPress={() => void handlePay()} accessibilityLabel={payLabel}>
+                  <T variant="t3" weight={600} color={busy ? colors.textMuted : colors.white}>
+                    <Figures color={busy ? colors.textMuted : colors.white} size={15} text={payLabel} weight={600} />
+                  </T>
+                  {!loading ? <IconArrowUpRight size={16} line={1.8} color={busy ? colors.textMuted : colors.white} /> : null}
+                </RedButton>
+              </CtaPop>
             )}
             {hint ? (
-              <T size={12} lh={16} color={colors.textMuted} align="center" style={styles.mt8}>
+              <T variant="t5" color={colors.textMuted} align="center" style={styles.mt8}>
                 {hint}
               </T>
             ) : (
@@ -1685,7 +1737,7 @@ export default function BookScreen() {
             ) : null}
           </>
         )}
-      </View>
+      </Glass>
 
       <AddCarSheet open={addCarOpen} onClose={() => setAddCarOpen(false)} onAdded={(vehicle) => setPickedVehicle(vehicle.id)} />
       <AddAddressSheet
@@ -1824,14 +1876,15 @@ const useStyles = createStyles((c) => ({
   warnCard: { gap: 8, alignItems: 'flex-start', borderRadius: 22, borderWidth: 1, borderColor: c.scheme === 'dark' ? 'rgba(245,165,36,0.4)' : 'rgba(217,138,0,0.4)', backgroundColor: c.warningMuted, padding: 16 },
   warnCardSm: { gap: 8, borderRadius: 18, borderWidth: 1, borderColor: c.scheme === 'dark' ? 'rgba(245,165,36,0.4)' : 'rgba(217,138,0,0.4)', backgroundColor: c.warningMuted, padding: 16 },
   carGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  carCell: { width: '48.8%', minHeight: 64, borderRadius: 18, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 10, justifyContent: 'center' },
+  carCell: { width: '48.8%', minHeight: 56, borderRadius: 18 },
+  carFace: { minHeight: 56, alignItems: 'flex-start', justifyContent: 'center', gap: 4, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 12 },
   carTop: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   choiceOn: { borderColor: c.textPrimary, backgroundColor: c.fillChosen },
   choiceOff: { borderColor: c.line, backgroundColor: c.fillFaint },
   dashed: { borderWidth: 1, borderStyle: 'dashed', borderColor: c.stroke, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   addressNote: { marginTop: -4, marginBottom: 12 },
   addressList: { gap: 8 },
-  addressRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 18, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 12 },
+  addressRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', gap: 12, paddingHorizontal: 14, paddingVertical: 10 },
   pinDisc: { height: 40, width: 40, borderRadius: 20, backgroundColor: c.disc, alignItems: 'center', justifyContent: 'center' },
   addRow: { minHeight: 48, borderRadius: 18 },
   savings: { paddingHorizontal: 20, paddingVertical: 4 },
@@ -1855,7 +1908,27 @@ const useStyles = createStyles((c) => ({
   totalLine: { borderTopWidth: 1, borderTopColor: c.line, paddingTop: 12 },
   signedIn: { padding: 20, gap: 12 },
   useSaved: { gap: 8 },
-  bar: { borderTopWidth: 1, borderTopColor: c.line, backgroundColor: c.canvas, paddingHorizontal: 16, paddingTop: 12 },
+  bar: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderTopWidth: 1,
+    borderTopColor: c.scheme === 'light' ? c.border : 'rgba(255,255,255,0.14)',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  // Grey while a step is missing (bk-cta-wait).
+  ctaWait: {
+    height: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: c.scheme === 'light' ? c.border : 'rgba(255,255,255,0.1)',
+    backgroundColor: c.scheme === 'light' ? c.surfaceElevated : '#202026',
+  },
+  ctaPressed: { transform: [{ scale: 0.97 }] },
   barTop: { marginBottom: 10, flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 },
   promises: { marginBottom: 10, alignItems: 'center', gap: 4 },
   promise: { flexDirection: 'row', alignItems: 'center', gap: 6 },

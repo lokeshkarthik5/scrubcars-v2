@@ -71,7 +71,7 @@ export function ReportReviewButton({
           setOpen(true)
         }}
         aria-label={`Report ${reviewerName}'s review`}
-        className="min-h-11 px-1 text-[12px] font-medium text-text-secondary underline-offset-2 hover:underline"
+        className="min-h-11 px-1 text-t5 font-medium text-text-secondary underline-offset-2 hover:underline"
       >
         Report
       </button>
@@ -91,7 +91,7 @@ export function ReportReviewButton({
                   <h2 className="text-base font-semibold text-text-primary">
                     Sign in to report a review
                   </h2>
-                  <p className="mt-1 text-[13px] text-text-secondary">
+                  <p className="mt-1 text-t4 text-text-secondary">
                     Reports come from an account, so the team can follow up.
                     Signing in brings you back here.
                   </p>
@@ -106,7 +106,7 @@ export function ReportReviewButton({
                 <button
                   type="button"
                   onClick={close}
-                  className="min-h-11 text-[13px] font-medium text-text-secondary"
+                  className="min-h-11 text-t4 font-medium text-text-secondary"
                 >
                   Not now
                 </button>
@@ -117,7 +117,7 @@ export function ReportReviewButton({
                   <h2 className="text-base font-semibold text-text-primary">
                     Thanks, we&apos;ve got it
                   </h2>
-                  <p className="mt-1 text-[13px] text-text-secondary">
+                  <p className="mt-1 text-t4 text-text-secondary">
                     The team will look at this review. If it breaks our rules,
                     it comes down.
                   </p>
@@ -136,7 +136,7 @@ export function ReportReviewButton({
                   <h2 className="text-base font-semibold text-text-primary">
                     Report this review
                   </h2>
-                  <p className="mt-1 text-[13px] text-text-secondary">
+                  <p className="mt-1 text-t4 text-text-secondary">
                     Tell the team what is wrong: abusive, fake, or about another
                     garage.
                   </p>
@@ -150,7 +150,7 @@ export function ReportReviewButton({
                   onChange={(e) => setReason(e.target.value)}
                 />
                 {error && (
-                  <p role="alert" className="text-[12px] text-error">
+                  <p role="alert" className="text-t5 text-error">
                     {error}
                   </p>
                 )}
@@ -164,7 +164,7 @@ export function ReportReviewButton({
                 <button
                   type="button"
                   onClick={close}
-                  className="min-h-11 text-[13px] font-medium text-text-secondary"
+                  className="min-h-11 text-t4 font-medium text-text-secondary"
                 >
                   Not now
                 </button>

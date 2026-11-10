@@ -1,10 +1,17 @@
 'use client'
 
-import { keepPreviousData, queryOptions, useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  queryOptions,
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+  type InfiniteData,
+  type QueryClient,
+} from '@tanstack/react-query'
 import { ApiError } from '@repo/core/api/client'
 import { getVendorPackages } from '@repo/core/api/packages'
 import { getVendorReviews } from '@repo/core/api/reviews'
-import { getVendorServices } from '@repo/core/api/services'
 import { getVendorAddOns, type AddOn } from '@repo/core/api/add-ons'
 import {
   getPublicVendor,
@@ -14,7 +21,7 @@ import {
   type VendorListResult,
 } from '@repo/core/api/vendors'
 import type { ApiReachFigures } from '@repo/core/api/types'
-import { mapPublicVendor } from '@repo/core/api/mappers'
+import { mapPublicVendor, mapService } from '@repo/core/api/mappers'
 import type { Service, ServicePackage, Vendor } from '@repo/core/types'
 
 /**
@@ -152,30 +159,73 @@ export interface GarageData {
  * garage with its services missing reads as a garage that offers nothing.
  * A 404 is a real answer (the garage is not listed) and comes back as `null`
  * data; anything else is an error the page offers to retry.
+ *
+ * While it loads, the garage as the list or the map last showed it stands in
+ * (`isPlaceholderData`, with no catalogue yet), so the name, photo, rating
+ * and distance are on screen at once and only the services wait.
  */
 export function useGarage(id: string) {
-  return useQuery(garageQuery(id))
+  const queryClient = useQueryClient()
+  return useQuery({
+    ...garageQuery(id),
+    placeholderData: () => garagePlaceholder(queryClient, id),
+  })
+}
+
+/**
+ * The garage as a list or the map already has it (any page of any
+ * useVendorSearch), with an empty catalogue: what the garage page paints
+ * before its own read lands. Undefined when no list on this visit had it.
+ */
+export function garagePlaceholder(queryClient: QueryClient, id: string): GarageData | undefined {
+  const lists = queryClient.getQueriesData<InfiniteData<VendorListResult>>({
+    queryKey: [...vendorKeys.all, 'list'],
+  })
+  for (const [, data] of lists) {
+    for (const page of data?.pages ?? []) {
+      const vendor = page.vendors.find((v) => v.id === id)
+      if (vendor) return { vendor, services: [], packages: [], addOns: [] }
+    }
+  }
+  return undefined
+}
+
+/**
+ * Start the garage page's read before the page is open: on a card's
+ * pointer-down or hover, and on /garage/* while the session is still being
+ * checked. A read already fresh in the cache is not repeated.
+ */
+export function prefetchGarage(queryClient: QueryClient, id: string) {
+  return queryClient.prefetchQuery(garageQuery(id))
 }
 
 /**
  * The garage page's query, for a screen that needs the same answer without
  * mounting the page: checkout reads it with `fetchQuery`, so Book Now from
- * the garage page opens checkout on what is already cached (under a minute
- * old) instead of fetching the garage, its services and its packages again.
+ * the garage page opens checkout on what is already cached instead of
+ * fetching the garage, its services and its packages again.
+ *
+ * The services come inside the garage's own read (`/vendors/:id` carries the
+ * same rows `/vendors/:id/services` returns, mapped the same way), so the
+ * page costs one request fewer (speed fix 3, customer UI round).
  */
 export function garageQuery(id: string) {
   return queryOptions({
     queryKey: vendorKeys.garage(id),
     queryFn: async (): Promise<GarageData | null> => {
       try {
-        const [vendor, services, packages, addOns] = await Promise.all([
+        const [vendor, packages, addOns] = await Promise.all([
           getPublicVendor(id),
-          getVendorServices(id),
           getVendorPackages(id),
           // Extras only: a failure here must never lose the garage's page.
           getVendorAddOns(id).catch(() => [] as AddOn[]),
         ])
-        return { vendor: mapPublicVendor(vendor), services, packages, addOns }
+        return {
+          vendor: mapPublicVendor(vendor),
+          services: vendor.services.map((service) => mapService(service, id)),
+          packages,
+          addOns,
+        }
       } catch (error) {
         if (error instanceof ApiError && error.status === 404) return null
         throw error
@@ -185,16 +235,23 @@ export function garageQuery(id: string) {
   })
 }
 
+/** How long checkout takes the garage page's read as current: five minutes. */
+export const CHECKOUT_GARAGE_STALE_MS = 5 * 60_000
+
 /**
  * A garage's public reviews, beside its page. Kept five minutes: reviews
  * change slowly, and going back to a garage from checkout or a photo should
  * show them at once rather than fetch them again. A failed load is no
  * reviews, as it always was: the page is still one someone can book from.
  */
-export function useVendorReviews(id: string) {
+export function useVendorReviews(id: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: [...vendorKeys.all, 'reviews', id] as const,
     queryFn: () => getVendorReviews(id),
     staleTime: 5 * 60_000,
+    // The garage page asks only once the Reviews tab is opened (speed fix
+    // 8): the count is already on the garage, so the tab needs no list to
+    // say how many.
+    enabled: options?.enabled ?? true,
   })
 }

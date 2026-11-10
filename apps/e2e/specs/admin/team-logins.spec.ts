@@ -63,7 +63,7 @@ test.describe('your own login @p0', () => {
       isOwner: true,
       // Whose typed booking notes are whose (0065).
       sub: `admin:${ADMIN_LOGINS.e2e.id}`,
-      // The owner deletes anything (0069).
+      // The owner deletes anything (0071).
       canDeleteAnything: true,
     })
     await ctx.close()

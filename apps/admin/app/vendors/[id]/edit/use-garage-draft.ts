@@ -275,6 +275,9 @@ export function useGarageDraft(id: string) {
         pickupEnabled: boolean
         pickupTermsAcceptedAt: string | null
         pickupTermsAcceptedBy: string | null
+        /** "All over <city>" (0069); false on an older API. */
+        doorstepWholeCity: boolean
+        pickupWholeCity: boolean
       })
     | null
   >(null)
@@ -294,7 +297,13 @@ export function useGarageDraft(id: string) {
   // Each read of the checklist, numbered: only the latest one may land, so
   // an older answer arriving late never puts back a line just fixed.
   const checklistRead = useRef(0)
+  // The garage's city and what it means for customers (0069), as the server
+  // worked it out: refreshed with the checklist after every instant save
+  // (moving the pin can move it to another city). Null on an older API.
+  const [city, setCity] = useState<GarageCityState | null>(null)
+  const [cityBusy, setCityBusy] = useState(false)
   // The small "Saved" each part that saves on its own shows.
+  const cityNote = useSavedNote()
   const pauseNote = useSavedNote()
   const pinNote = useSavedNote()
   const mediaNote = useSavedNote()
@@ -446,6 +455,8 @@ export function useGarageDraft(id: string) {
             pickupRadiusKm: v.pickupRadiusKm,
             pickupTermsAcceptedAt: v.pickupTermsAcceptedAt ?? null,
             pickupTermsAcceptedBy: v.pickupTermsAcceptedBy ?? null,
+            doorstepWholeCity: v.doorstepWholeCity === true,
+            pickupWholeCity: v.pickupWholeCity === true,
           }
       )
       setGeoSource(v.geoSource)
@@ -468,6 +479,7 @@ export function useGarageDraft(id: string) {
       setClosures(v.closures ?? [])
       if (read === checklistRead.current) {
         setChecklist((prev) => mergeChecklist(prev, v))
+        setCity(cityStateOf(v))
       }
       setBin(
         v.deletedAt
@@ -507,6 +519,7 @@ export function useGarageDraft(id: string) {
       const v = await getAdminVendor(id)
       if (read !== checklistRead.current) return
       setChecklist((prev) => mergeChecklist(prev, v))
+      setCity(cityStateOf(v))
       setAtGarage(v.dropinEnabled)
     } catch {
       // The change itself landed; the panel catches up on the next save
@@ -641,6 +654,32 @@ export function useGarageDraft(id: string) {
           }
         : prev
     )
+
+  /**
+   * "Show this garage anyway" (0069): keeps it in front of customers while its
+   * city is off. Saved the moment it is pressed, like Pause: it changes what
+   * customers see straight away, so it does not wait for "Save changes".
+   */
+  const setShowWhenCityOff = async (on: boolean) => {
+    setCityBusy(true)
+    setError('')
+    cityNote.saving()
+    try {
+      await updateAdminVendor(id, { showWhenCityOff: on })
+      setCity((prev) => (prev ? { ...prev, showWhenCityOff: on } : prev))
+      afterInstantSave()
+      cityNote.saved()
+    } catch (err) {
+      cityNote.reset()
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+        router.replace('/login')
+        return
+      }
+      setError(err instanceof Error ? err.message : 'Couldn’t change it')
+    } finally {
+      setCityBusy(false)
+    }
+  }
 
   /**
    * Pause or resume new bookings straight away, like confirming a pin: it
@@ -968,6 +1007,10 @@ export function useGarageDraft(id: string) {
     markListStale,
     afterInstantSave,
     checklist,
+    city,
+    cityBusy,
+    cityNote,
+    setShowWhenCityOff,
     pauseNote,
     pinNote,
     mediaNote,
@@ -1043,3 +1086,23 @@ export function useGarageDraft(id: string) {
 }
 
 export type GarageDraftState = ReturnType<typeof useGarageDraft>
+
+/** The garage's city, as the editor shows it (0069). */
+export interface GarageCityState {
+  /** Null is Other towns. */
+  name: string | null
+  cityShown: boolean
+  hiddenReason: string | null
+  showWhenCityOff: boolean
+}
+
+/** The city fields from a read of the garage; null from an API before cities. */
+function cityStateOf(v: AdminVendorDetail): GarageCityState | null {
+  if (v.garageCity === undefined || v.cityShown === undefined) return null
+  return {
+    name: v.garageCity?.name ?? null,
+    cityShown: v.cityShown,
+    hiddenReason: v.cityHiddenReason ?? null,
+    showWhenCityOff: v.showWhenCityOff === true,
+  }
+}

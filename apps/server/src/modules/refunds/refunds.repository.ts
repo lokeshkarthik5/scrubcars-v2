@@ -88,7 +88,7 @@ const BILL_MAY_BE_OWED = and(
 const CUSTOMER_AND_GARAGE = {
   customerName: users.name,
   customerPhone: users.phone,
-  // A deleted account's money is never refunded automatically (0069).
+  // A deleted account's money is never refunded automatically (0071).
   customerDeletedAt: users.deletedAt,
   garageName: vendors.businessName,
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test'
 import {
   addDaysToDateKey,
   closureDateProblem,
+  closureListStart,
   computeAvailableSlots,
   dayStatus,
   effectiveBays,
@@ -356,5 +357,23 @@ describe('closureDateProblem', () => {
 
   it('refuses a day more than a year out', () => {
     expect(closureDateProblem('2027-09-02', NOW)).toBe('too_far_ahead')
+  })
+})
+
+describe('closureListStart', () => {
+  // 1 Sep 2026, 00:30 in India: still 31 Aug in UTC, so the IST day is what counts.
+  const NOW = new Date('2026-09-01T00:30:00+05:30').getTime()
+
+  it('reads from today when nothing earlier is asked for (the Settings list)', () => {
+    expect(closureListStart(undefined, NOW)).toBe('2026-09-01')
+  })
+
+  it("reads from an earlier day the calendar asks for: the first of the month on screen", () => {
+    expect(closureListStart('2026-07-27', NOW)).toBe('2026-07-27')
+    expect(closureListStart('2026-10-26', NOW)).toBe('2026-10-26')
+  })
+
+  it('never reaches further back than 400 days', () => {
+    expect(closureListStart('2020-01-01', NOW)).toBe('2025-07-28')
   })
 })

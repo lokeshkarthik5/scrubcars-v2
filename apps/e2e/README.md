@@ -8,7 +8,14 @@ Playwright end-to-end tests for the three frontends and the API.
 bun run e2e:up        # postgres + minio in docker
 bun run test:e2e      # everything
 bun run test:e2e:p0   # only the @p0 specs
+bun run test:e2e:alone  # specs/alone, by themselves (see below)
 ```
+
+`specs/alone` holds specs that flip a team-wide switch, such as Other towns,
+which hides every garage in no city. Nothing else may run while they do, and a
+project's `workers: 1` does not stop the other projects running beside it, so
+the main run leaves that folder out and `test:e2e:alone` (`E2E_ALONE=1`) runs
+it with nothing else. CI runs it as its own step after the main run.
 
 The suite resets and reseeds the database itself, then starts the API and all
 three frontends. Nothing else needs to be running first.

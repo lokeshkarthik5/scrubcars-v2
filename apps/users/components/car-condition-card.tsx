@@ -36,6 +36,11 @@ const STAGE_WORD: Record<JobPhoto['stage'], string> = {
  * Each photo is re-encoded in the browser before upload, which drops its
  * location and camera details (uploadMyCarPhoto → stripImageMetadata).
  * Nothing renders when neither stage is open and none were added.
+ *
+ * The slots sit five in a row (Front, Back, Left side, Right side,
+ * Interior); a photo added here blinks its tile shut and open like a camera
+ * shutter, then fades in (moment 4). Photos already there when the page
+ * opened just are.
  */
 export function CarConditionCard({
   booking,
@@ -53,6 +58,9 @@ export function CarConditionCard({
     canRemove: boolean
   } | null>(null)
   const [removing, setRemoving] = useState(false)
+  // The photos already on the booking when the card first drew: only ones
+  // added after that get the shutter.
+  const [onArrival] = useState(() => new Set(booking.jobPhotos.map((photo) => photo.id)))
 
   if (!windows) return null
   const stages = (['before', 'after'] as const).filter(
@@ -111,10 +119,10 @@ export function CarConditionCard({
   return (
     <ScCard className="flex flex-col gap-3">
       <div>
-        <h2 className="text-sm font-semibold text-text-primary">
+        <h2 className="text-t3 font-semibold text-text-primary">
           Your car&apos;s condition
         </h2>
-        <p className="mt-0.5 text-[12px] text-text-secondary">{intro}</p>
+        <p className="mt-0.5 text-t5 text-text-secondary">{intro}</p>
       </div>
 
       {stages.map((stage) => {
@@ -129,7 +137,10 @@ export function CarConditionCard({
             type="button"
             onClick={() => setViewing({ photo, name, canRemove: open })}
             aria-label={`View ${name}`}
-            className="block size-16 overflow-hidden rounded-[10px] bg-surface ring-1 ring-inset ring-border"
+            className={cn(
+              'relative block aspect-square w-full overflow-hidden rounded-[13px] bg-surface ring-1 ring-inset ring-white/10',
+              !onArrival.has(photo.id) && 'mo-shutter'
+            )}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -143,27 +154,27 @@ export function CarConditionCard({
         return (
           <div key={stage} className="flex flex-col gap-1.5">
             <div className="flex items-baseline justify-between gap-2">
-              <p className="text-[11px] font-medium uppercase tracking-wide text-text-secondary">
+              <p className="text-t5 font-medium uppercase tracking-wide text-text-secondary">
                 {stage === 'before' ? 'Before the work' : 'After the work'}
               </p>
-              <p className="font-numeric text-[11px] text-text-muted">
+              <p className="font-numeric text-t5 text-text-muted">
                 {mine.length}/{windows.max}
               </p>
             </div>
-            <ul className="flex flex-wrap gap-2">
+            <ul className="grid grid-cols-5 gap-1.5">
               {slots.map(({ angle, photo }) => {
                 const label = PHOTO_ANGLE_LABELS[angle]
                 if (photo) {
                   return (
                     <li
                       key={angle}
-                      className="flex w-16 flex-col items-center gap-0.5"
+                      className="flex min-w-0 flex-col items-center gap-1"
                     >
                       {thumb(
                         photo,
                         `your ${label.toLowerCase()} photo, ${word} the work`
                       )}
-                      <span className="text-[10px] text-text-secondary">
+                      <span className="w-full truncate text-center text-[10px] text-text-secondary">
                         {label}
                       </span>
                     </li>
@@ -174,13 +185,13 @@ export function CarConditionCard({
                 return (
                   <li
                     key={angle}
-                    className="flex w-16 flex-col items-center gap-0.5"
+                    className="flex min-w-0 flex-col items-center gap-1"
                   >
                     {/* The input inside its label: the whole tile opens the
                         camera (the back one, on a phone). */}
                     <label
                       className={cn(
-                        'flex size-16 cursor-pointer items-center justify-center rounded-[10px] border border-dashed border-border text-text-secondary transition-colors hover:border-text-secondary',
+                        'flex aspect-square w-full cursor-pointer items-center justify-center rounded-[14px] border border-dashed border-white/20 text-[#8E8E98] transition-colors hover:border-text-secondary',
                         uploading !== null && 'pointer-events-none opacity-60'
                       )}
                     >
@@ -207,17 +218,17 @@ export function CarConditionCard({
                         <IconCamera size={18} aria-hidden />
                       )}
                     </label>
-                    <span className="text-[10px] text-text-muted">{label}</span>
+                    <span className="w-full truncate text-center text-[10px] text-text-muted">{label}</span>
                   </li>
                 )
               })}
               {extras.map((photo, i) => (
                 <li
                   key={photo.id}
-                  className="flex w-16 flex-col items-center gap-0.5"
+                  className="flex min-w-0 flex-col items-center gap-1"
                 >
                   {thumb(photo, `your extra photo ${i + 1}, ${word} the work`)}
-                  <span className="text-[10px] text-text-secondary">
+                  <span className="w-full truncate text-center text-[10px] text-text-secondary">
                     {angleLabel(photo.angle)}
                   </span>
                 </li>

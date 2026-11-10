@@ -24,10 +24,13 @@ const ROW = {
   dropinEnabled: true,
   doorstepEnabled: true,
   doorstepRadiusKm: 6,
+  doorstepWholeCity: false,
   pickup: 'yes',
   pickupRadiusKm: 8,
   pickupTermsAcceptedAt: new Date('2026-10-17T05:00:00Z'),
   pickupTermsAcceptedBy: 'Lokesh',
+  pickupWholeCity: false,
+  showWhenCityOff: false,
   geoSource: 'map_pin',
   geoConfirmedAt: new Date('2026-10-01T05:00:00Z'),
   bays: 3,
@@ -64,6 +67,7 @@ const PRIVATE = [
   'deletedByName',
   'deletedReason',
   'tierHidden',
+  'showWhenCityOff',
 ]
 
 describe('toPublicVendor', () => {
@@ -95,6 +99,9 @@ describe('toPublicVendor', () => {
       doorstepRadiusKm: 6,
       pickupEnabled: true,
       pickupRadiusKm: 8,
+      doorstepWholeCity: false,
+      pickupWholeCity: false,
+      reachCity: null,
       slotIntervalMins: 30,
       bookingsPausedAt: null,
       bookingsPausedReason: null,
@@ -124,5 +131,28 @@ describe('toPublicVendor', () => {
         NOT_VERIFIED
       )
     ).toMatchObject({ bookingsPausedAt: '2026-10-10T04:30:00.000Z', bookingsPausedReason: 'Renovation' })
+  })
+
+  test('"All over <city>" (0069) shows only while the pin is in a city, with the city’s centre and reach', () => {
+    const chennai = { id: 'c1', name: 'Chennai', lat: 13.0827, lng: 80.2707, reachKm: 50 }
+    const whole = { ...ROW, doorstepWholeCity: true, pickupWholeCity: true }
+    expect(toPublicVendor(whole, { tier: null, reachCity: chennai })).toMatchObject({
+      doorstepWholeCity: true,
+      pickupWholeCity: true,
+      reachCity: { name: 'Chennai', lat: 13.0827, lng: 80.2707, reachKm: 50 },
+    })
+    // No city to cover: neither applies, and the radius decides as before.
+    expect(toPublicVendor(whole, { tier: null, reachCity: null })).toMatchObject({
+      doorstepWholeCity: false,
+      pickupWholeCity: false,
+      reachCity: null,
+    })
+    // Pickup off (no terms): only doorstep's applies.
+    expect(toPublicVendor({ ...whole, pickupTermsAcceptedAt: null }, { tier: null, reachCity: chennai })).toMatchObject({
+      doorstepWholeCity: true,
+      pickupWholeCity: false,
+    })
+    // Never the city row's own id.
+    expect(JSON.stringify(toPublicVendor(whole, { tier: null, reachCity: chennai }))).not.toContain('"c1"')
   })
 })

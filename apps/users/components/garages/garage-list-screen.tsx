@@ -2,7 +2,8 @@
 
 import { Suspense, useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { IconMapPin } from '@tabler/icons-react'
+import { IconChevronDown, IconMapPin } from '@tabler/icons-react'
+import { BrandMark } from '@repo/ui/sc/brand-mark'
 import { CustomerShell } from '@/components/customer-shell'
 import { AreaPicker } from '@/components/area/area-picker'
 import { ContinueBookingCard } from '@/components/checkout/continue-booking'
@@ -10,6 +11,8 @@ import { Toast } from '@repo/ui/sc/toast'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { useUserStore } from '@repo/core/stores/user-store'
 import { isCitywide, useLocationStore } from '@repo/core/stores/location-store'
+import { useCustomerPlace } from '@repo/core/hooks/use-customer-place'
+import { cityChipName } from '@repo/core/customer-city'
 import { parseBookingType } from '@repo/core/booking-types'
 import type { BookingType } from '@repo/core/types'
 import { GarageList } from './garage-list'
@@ -41,49 +44,66 @@ function GarageListContent() {
 
   const user = profile ?? authUser
   const citywide = isCitywide(location)
+  // The customer's city (0070): from where they are, or the city they
+  // picked, Chennai until either.
+  const { city } = useCustomerPlace()
+  const area = location && !citywide ? location.label : null
 
   useEffect(() => {
     if (authUser) void fetchProfile().catch(() => undefined)
   }, [authUser, fetchProfile])
 
+  // Under the place, in words: what the pill cannot say in one line.
+  const status = locating
+    ? 'Finding you…'
+    : citywide
+      ? permission === 'denied'
+        ? `Location blocked — all of ${city.name}`
+        : `All of ${city.name}`
+      : location?.source === 'area'
+        ? 'Change area'
+        : (user?.area ?? 'Showing garages near you')
+
   return (
-    <CustomerShell
-      showNav
-      showBrand
-      className="gap-4 py-4"
-      brandRight={
-        // The same area sheet as the landing page's "More" (0062): an area
-        // in one tap, "Near me" behind our explainer, never a cold prompt.
-        <button
-          type="button"
-          onClick={() => setAreaOpen(true)}
-          disabled={locating}
-          aria-label="Choose location"
-          // max-w-full: a button sizes to its longest line, so without it the
-          // one-line status pushed the page wider than a 360px phone instead
-          // of being cut short.
-          className="min-w-0 max-w-full text-right"
-        >
-          <div className="flex items-center justify-end gap-1.5">
-            <IconMapPin size={15} className="shrink-0 text-text-primary" />
-            <span className="text-[14px] font-semibold text-text-primary">
-              {location && !citywide ? location.label : 'Chennai'}
+    <CustomerShell showNav className="gap-4 py-4">
+      {/* The logo with its red dot lit, and where the list is measured from
+          as one raised pill (customer UI round, §3). */}
+      <header className="flex items-center justify-between gap-3">
+        <span className="brand-glow">
+          <BrandMark height={28} priority />
+        </span>
+        <div className="flex min-w-0 flex-col items-end gap-1">
+          {/* The city chip (0070): the area picked, or the whole city. It
+              opens the same area sheet as the landing page's "More" (0062):
+              the city, an area in one tap, "Near me" behind our explainer,
+              never a cold prompt. */}
+          <button
+            type="button"
+            onClick={() => setAreaOpen(true)}
+            disabled={locating}
+            aria-label={cityChipName(city, area)}
+            aria-describedby="garage-list-place"
+            // max-w-full: a button sizes to its label, so without it a long
+            // area name pushed the page wider than a 360px phone.
+            className="fx-raised fx-press flex h-10 min-w-0 max-w-full items-center gap-1.5 rounded-[12px] pl-2.5 pr-3"
+          >
+            <IconMapPin size={15} aria-hidden className="shrink-0 text-text-primary" />
+            <span className="truncate text-t3 font-semibold text-text-primary">
+              {locating ? 'Finding you…' : (area ?? city.name)}
             </span>
-          </div>
-          <p className="truncate text-[12px] text-text-secondary">
-            {locating
-              ? 'Finding you…'
-              : citywide
-                ? permission === 'denied'
-                  ? 'Location blocked — all of Chennai'
-                  : 'All of Chennai'
-                : location?.source === 'area'
-                  ? 'Change area'
-                  : (user?.area ?? 'Showing garages near you')}
+            <IconChevronDown size={13} aria-hidden className="shrink-0 text-[#9A9AA3]" />
+          </button>
+          {/* Said in the open only when it changes what the list can do; the
+              rest is the pill's description for a screen reader. */}
+          <p
+            id="garage-list-place"
+            className={permission === 'denied' && citywide ? 'truncate text-t5 text-text-secondary' : 'sr-only'}
+          >
+            {status}
           </p>
-        </button>
-      }
-    >
+        </div>
+      </header>
+
       <Toast
         message={`Welcome, ${user?.name ?? 'there'}! Find your first car wash.`}
         visible={showToast}

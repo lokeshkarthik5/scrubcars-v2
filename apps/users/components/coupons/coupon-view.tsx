@@ -186,7 +186,7 @@ export function CouponView({ code }: { code: string }) {
               )}
             </p>
             {!stamps && (
-              <p className="text-[12px] text-text-secondary">
+              <p className="text-t5 text-text-secondary">
                 It comes off at checkout, once.
               </p>
             )}
@@ -205,18 +205,18 @@ export function CouponView({ code }: { code: string }) {
             )}
             <Link
               href="/profile/coupons"
-              className="flex min-h-11 items-center justify-center text-[13px] font-medium text-text-secondary hover:text-text-primary"
+              className="flex min-h-11 items-center justify-center text-t4 font-medium text-text-secondary hover:text-text-primary"
             >
               See your coupons
             </Link>
           </ScCard>
         ) : closed ? (
           <ScCard className="flex flex-col gap-2">
-            <p className="text-[13px] text-text-secondary">{closed}</p>
+            <p className="text-t4 text-text-secondary">{closed}</p>
             {coupon.state === 'added' && (
               <Link
                 href="/profile/coupons"
-                className="text-[13px] font-medium text-text-primary underline underline-offset-2"
+                className="text-t4 font-medium text-text-primary underline underline-offset-2"
               >
                 Open my coupons
               </Link>
@@ -224,7 +224,7 @@ export function CouponView({ code }: { code: string }) {
           </ScCard>
         ) : (
           <div className="flex flex-col gap-2">
-            <p className="text-[12px] text-text-secondary">
+            <p className="text-t5 text-text-secondary">
               {couponUseByLine(coupon.validUntil)}
             </p>
             <ScButton
@@ -234,7 +234,7 @@ export function CouponView({ code }: { code: string }) {
             >
               {adding ? 'Adding…' : 'Add to my Detlio'}
             </ScButton>
-            <p className="text-[12px] text-text-muted">
+            <p className="text-t5 text-text-muted">
               {user
                 ? stamps
                   ? 'The stamps go on your Shine Card in Detlio Rewards.'
@@ -242,7 +242,7 @@ export function CouponView({ code }: { code: string }) {
                 : 'Sign in or create an account with your phone number, then it is added to your account.'}
             </p>
             {addError && (
-              <p role="alert" className="text-[12px] text-error">
+              <p role="alert" className="text-t5 text-error">
                 {addError}
               </p>
             )}

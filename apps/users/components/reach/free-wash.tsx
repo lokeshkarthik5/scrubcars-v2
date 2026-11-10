@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'react-toastify'
-import { IconCheck, IconCircleCheck, IconGift, IconX } from '@tabler/icons-react'
+import { IconCheck, IconChevronRight, IconCircleCheck, IconGift, IconX } from '@tabler/icons-react'
 import { ScSheet } from '@repo/ui/sc/modal'
 import { ScButton } from '@repo/ui/sc/button'
 import { Chip } from '@repo/ui/sc/chip'
@@ -29,6 +29,8 @@ import { subscribeThisBrowser } from '@repo/core/push'
 import { useNow } from '@repo/core/hooks/use-now'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { isCitywide, useHydratedLocation } from '@repo/core/stores/location-store'
+import { useCustomerPlace } from '@repo/core/hooks/use-customer-place'
+import { recommendRowText, type CustomerCity } from '@repo/core/customer-city'
 import { zoneFor, type Zone } from '@repo/core/zones'
 import { cn } from '@repo/core/utils'
 import { CheckoutSignInCard, useCheckoutSignIn } from '@/components/checkout/checkout-sign-in'
@@ -74,8 +76,18 @@ function readCloses(slug: string) {
  * reach <Area>", Claim, ×) or, once the customer is on the area's list, the
  * slim line. Nothing when their area has a garage, or when they closed the
  * card (back after 7 days, at most 3 times).
+ *
+ * Only in a city the owner has marked "Growing here" (0070): the card says
+ * more garages are coming, and in a city with just a partner garage nobody
+ * has promised that. Chennai is growing, so nothing changes there.
  */
 export function FreeWashPiece({ placement }: { placement: 'top' | 'bottom' }) {
+  const { city } = useCustomerPlace()
+  if (!city.growing) return null
+  return <FreeWashPieceInGrowingCity placement={placement} />
+}
+
+function FreeWashPieceInGrowingCity({ placement }: { placement: 'top' | 'bottom' }) {
   const zone = useCustomerZone()
   const user = useAuthStore((s) => s.user)
   const status = useAreaStatus({ enabled: !!user })
@@ -141,10 +153,10 @@ export function FreeWashPiece({ placement }: { placement: 'top' | 'bottom' }) {
         className="flex items-center gap-3 rounded-[18px] border border-[#1F5A3A] bg-[#0E2418] p-4"
       >
         <div className="min-w-0 flex-1">
-          <h2 id={`free-wash-${placement}`} className="text-[15px] font-medium text-text-primary">
+          <h2 id={`free-wash-${placement}`} className="text-t3 font-medium text-text-primary">
             {freeWashCardTitle(zone.name)}
           </h2>
-          <p className="text-[12px] text-text-secondary">
+          <p className="text-t5 text-text-secondary">
             No garage in your area yet · {waitingLine(zone.name, zone.waiting)}
           </p>
         </div>
@@ -173,11 +185,11 @@ export function FreeWashPiece({ placement }: { placement: 'top' | 'bottom' }) {
 export function OnTheListLine({ area, onRecommend }: { area: string; onRecommend: () => void }) {
   return (
     <div className="flex min-h-11 items-center justify-between gap-3 rounded-[14px] border border-border px-4" data-on-the-list="">
-      <p className="flex items-center gap-1.5 text-[13px] text-text-primary">
+      <p className="flex items-center gap-1.5 text-t4 text-text-primary">
         <IconCheck size={15} className="text-success" aria-hidden />
         On the list for {area}
       </p>
-      <button type="button" onClick={onRecommend} className="min-h-11 text-[13px] text-text-primary underline underline-offset-2">
+      <button type="button" onClick={onRecommend} className="min-h-11 text-t4 text-text-primary underline underline-offset-2">
         Recommend
       </button>
     </div>
@@ -274,7 +286,7 @@ export function FreeWashSheet({
           <div className="flex flex-col items-center gap-3 text-center">
             <IconCircleCheck size={44} className="text-success" aria-hidden />
             <h2 className="text-[20px] font-medium text-text-primary">You&apos;re on the list</h2>
-            <p className="text-[15px] text-text-secondary">
+            <p className="text-t3 text-text-secondary">
               We&apos;ll tell you the day Detlio opens in {done.area}.
               {done.freeWash ? ' Your free wash is saved.' : ''}
             </p>
@@ -293,7 +305,7 @@ export function FreeWashSheet({
           <>
             <div>
               <h2 className="text-[20px] font-medium text-text-primary">Which area are you in?</h2>
-              <p className="text-[13px] text-text-secondary">
+              <p className="text-t4 text-text-secondary">
                 We&apos;re not in your area yet. Tell us, and {gone ? 'we’ll tell you' : 'your first wash is on us'} when we
                 arrive.
               </p>
@@ -305,12 +317,12 @@ export function FreeWashSheet({
               <Chip label="Other…" selected={otherOpen} onClick={() => setOtherOpen((v) => !v)} />
             </div>
             {otherOpen && (
-              <label className="flex flex-col gap-1.5 text-[11px] font-medium text-text-secondary">
+              <label className="flex flex-col gap-1.5 text-t5 font-medium text-text-secondary">
                 Another area
                 <select
                   value={zoneSlug ?? ''}
                   onChange={(e) => setZoneSlug(e.target.value || null)}
-                  className="min-h-11 rounded-[10px] border border-border bg-surface px-3 text-[13px] text-text-primary"
+                  className="min-h-11 rounded-[10px] border border-border bg-surface px-3 text-t4 text-text-primary"
                 >
                   <option value="">Pick your area</option>
                   {waitingZones.map((z) => (
@@ -330,43 +342,43 @@ export function FreeWashSheet({
                   gone ? 'border-border' : 'border-[#1F5A3A] bg-[#0E2418]'
                 )}
               >
-                <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-success">
+                <p className="text-t5 font-medium uppercase tracking-[0.12em] text-success">
                   {gone ? 'Notify me' : 'Free wash'}
                 </p>
-                <h3 id="free-wash-offer" className="text-[17px] font-medium text-text-primary">
+                <h3 id="free-wash-offer" className="text-t2 font-medium text-text-primary">
                   {gone ? `Be told when we reach ${zone.name}` : 'Your first car wash, free'}
                 </h3>
-                <p className="text-[13px] text-text-secondary">
+                <p className="text-t4 text-text-secondary">
                   {gone
                     ? `The ${FREE_WASH_RULES.perZone} free washes for ${zone.name} are taken. We'll still tell you the day we open.`
                     : `Up to ₹${FREE_WASH_RULES.maxRupees}, the day Detlio opens in ${zone.name}, for ${FREE_WASH_RULES.validDays} days. Saved to your account; we'll tell you.`}
                 </p>
-                <p className="text-[12px] text-text-muted">{waitingLine(zone.name, zone.waiting)}</p>
+                <p className="text-t5 text-text-muted">{waitingLine(zone.name, zone.waiting)}</p>
               </section>
             )}
 
             <div className="flex flex-col divide-y divide-line">
               <div className="flex min-h-14 items-center justify-between gap-3">
-                <span className="text-[15px] text-text-primary">App notification</span>
+                <span className="text-t3 text-text-primary">App notification</span>
                 <ScSwitch label="App notification" checked={push} onChange={setPush} />
               </div>
               <div className="flex min-h-14 items-center justify-between gap-3">
                 <span className="min-w-0">
-                  <span className="block text-[15px] text-text-primary">WhatsApp</span>
-                  <span className="block text-[12px] text-text-muted">Saved for later; we don&apos;t send WhatsApp messages yet.</span>
+                  <span className="block text-t3 text-text-primary">WhatsApp</span>
+                  <span className="block text-t5 text-text-muted">Saved for later; we don&apos;t send WhatsApp messages yet.</span>
                 </span>
                 <ScSwitch label="WhatsApp" checked={whatsapp} onChange={setWhatsapp} />
               </div>
             </div>
 
             {error && (
-              <p role="alert" className="text-[13px] text-error">
+              <p role="alert" className="text-t4 text-error">
                 {error}
               </p>
             )}
 
             {!zone ? (
-              <p className="text-[13px] text-text-secondary">Pick your area.</p>
+              <p className="text-t4 text-text-secondary">Pick your area.</p>
             ) : user ? (
               <ScButton variant="main" size="lg" disabled={saving} onClick={() => void save()}>
                 {saving ? 'Saving…' : gone ? 'Notify me' : 'Save my free wash'}
@@ -387,13 +399,44 @@ export function FreeWashSheet({
 }
 
 /**
+ * A small city's one quiet row under its garages (0070, mockup D): "Know a
+ * great garage in Madurai? Recommend it". It opens the same recommend form
+ * as the free-wash sheet, which sends to admin's leads. No promise of more
+ * garages: that is "Growing here"'s to make.
+ */
+export function RecommendRow({ city }: { city: CustomerCity }) {
+  const [open, setOpen] = useState(false)
+  const words = recommendRowText(city)
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        data-recommend-row=""
+        className="fx-raised fx-press flex min-h-[52px] w-full items-center gap-3 rounded-[16px] px-4 text-left"
+      >
+        <span className="min-w-0 flex-1 text-t4 text-[#D0D0D6]">
+          {words.ask} <span className="font-semibold text-text-primary">{words.action}</span>
+        </span>
+        <IconChevronRight size={16} aria-hidden className="shrink-0 text-[#8E8E98]" />
+      </button>
+      <RecommendSheet open={open} onClose={() => setOpen(false)} zoneSlug={null} />
+    </>
+  )
+}
+
+/**
  * "Recommend a garage": its name, a Google Maps link or its phone, and why
  * (optional). A lead for the team; ₹100 of credit if it joins and the
  * customer books it there (placeholder amounts, owner to confirm). The
- * link, phone and note are masked for Clarity.
+ * link, phone and note are masked for Clarity. A guest signs in on the
+ * in-page card first (a small city's row can be the first thing they tap):
+ * a recommendation is tied to an account, so one person cannot send fifty.
  */
 export function RecommendForm({ zoneSlug, onDone }: { zoneSlug: string | null; onDone: () => void }) {
   const recommend = useRecommendGarage()
+  const user = useAuthStore((s) => s.user)
+  const signIn = useCheckoutSignIn()
   const [name, setName] = useState('')
   const [mapsLink, setMapsLink] = useState('')
   const [phone, setPhone] = useState('')
@@ -427,7 +470,7 @@ export function RecommendForm({ zoneSlug, onDone }: { zoneSlug: string | null; o
     <div className="flex flex-col gap-4" data-recommend-form="">
       <div>
         <h2 className="text-[20px] font-medium text-text-primary">Recommend a garage</h2>
-        <p className="text-[13px] text-text-secondary">
+        <p className="text-t4 text-text-secondary">
           ₹{REFERRAL_CREDIT.perGarageRupees} Detlio credit if they join and you book them (up to ₹
           {REFERRAL_CREDIT.maxPerCustomerRupees}).
         </p>
@@ -460,13 +503,28 @@ export function RecommendForm({ zoneSlug, onDone }: { zoneSlug: string | null; o
         onChange={(e) => setWhy(e.target.value)}
       />
       {error && (
-        <p role="alert" className="text-[13px] text-error">
+        <p role="alert" className="text-t4 text-error">
           {error}
         </p>
       )}
-      <ScButton variant="main" disabled={!ready || recommend.isPending} onClick={() => void submit()}>
-        {recommend.isPending ? 'Sending…' : 'Send recommendation'}
-      </ScButton>
+      {user ? (
+        <ScButton variant="main" disabled={!ready || recommend.isPending} onClick={() => void submit()}>
+          {recommend.isPending ? 'Sending…' : 'Send recommendation'}
+        </ScButton>
+      ) : (
+        <CheckoutSignInCard
+          signIn={signIn}
+          verifyLabel="Verify and send"
+          onVerify={() => {
+            if (!ready) {
+              setError('Give the garage’s name, and a Google Maps link or their phone.')
+              return
+            }
+            void signIn.verify().then((ok) => (ok ? submit() : undefined))
+          }}
+          busy={recommend.isPending}
+        />
+      )}
     </div>
   )
 }

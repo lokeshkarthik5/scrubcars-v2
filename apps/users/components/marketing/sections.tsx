@@ -41,6 +41,7 @@ import {
 import { cn } from '@repo/core/utils'
 import { BrandMark } from '@repo/ui/sc/brand-mark'
 import { OutsideCityChip } from '@repo/ui/features/outside-city'
+import { FALLBACK_CITY, outsideCityTag } from '@repo/core/customer-city'
 import { OPERATED_BY } from '@/lib/legal/common'
 import { BUSINESS } from '@/lib/legal/details'
 import { FOOTER_LEGAL_LINKS } from '@/lib/legal/routes'
@@ -150,7 +151,7 @@ function CtaLink({
 }) {
   const className_ = cn(
     'press inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg font-semibold transition-colors',
-    size === 'md' ? 'h-12 px-7 text-[15px]' : 'h-11 px-5 text-[14px]',
+    size === 'md' ? 'h-12 px-7 text-t3' : 'h-11 px-5 text-[14px]',
     variant === 'primary'
       ? 'bg-brand-red-fill text-brand-white hover:bg-brand-red-fill-hover'
       : 'border border-white/20 text-brand-white hover:bg-white/[0.06]',
@@ -194,7 +195,7 @@ function SectionIntro({
   return (
     <div className={cn('max-w-2xl', className)}>
       <p
-        className="mk-reveal text-[11px] font-medium uppercase leading-4 tracking-[0.16em] text-brand-red"
+        className="mk-reveal text-t5 font-medium uppercase leading-4 tracking-[0.16em] text-brand-red"
         style={stagger(0)}
       >
         {kicker}
@@ -204,7 +205,7 @@ function SectionIntro({
       </h2>
       {body && (
         <p
-          className="mk-reveal mt-4 text-pretty text-[16px] leading-relaxed text-text-secondary"
+          className="mk-reveal mt-4 text-pretty text-t3 leading-relaxed text-text-secondary"
           style={stagger(2)}
         >
           {body}
@@ -217,7 +218,7 @@ function SectionIntro({
 /** Marks placeholder material so nobody mistakes it for the real thing. */
 function SampleTag() {
   return (
-    <span className="inline-flex shrink-0 items-center rounded border border-white/20 px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wider text-text-secondary">
+    <span className="inline-flex shrink-0 items-center rounded border border-white/20 px-1.5 py-0.5 text-t5 font-medium uppercase tracking-wider text-text-secondary">
       Sample
     </span>
   )
@@ -231,7 +232,7 @@ function ComingSoonTag({ className }: { className?: string }) {
   return (
     <span
       className={cn(
-        'inline-flex shrink-0 items-center gap-1.5 rounded border border-white/20 px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wider text-text-secondary',
+        'inline-flex shrink-0 items-center gap-1.5 rounded border border-white/20 px-1.5 py-0.5 text-t5 font-medium uppercase tracking-wider text-text-secondary',
         className
       )}
     >
@@ -338,7 +339,7 @@ export function Hero({
         )}
       >
         <p
-          className="mk-load inline-flex items-center gap-2 text-[13px] font-medium text-text-secondary"
+          className="mk-load inline-flex items-center gap-2 text-t4 font-medium text-text-secondary"
           style={stagger(0)}
         >
           <span aria-hidden className="size-1.5 rounded-full bg-brand-red" />
@@ -350,7 +351,7 @@ export function Hero({
           {HERO.title[1]}
           <RedPeriod />
         </h1>
-        <p className="mt-5 max-w-xl text-pretty text-[16px] leading-relaxed text-text-secondary sm:text-[18px]">
+        <p className="mt-5 max-w-xl text-pretty text-t3 leading-relaxed text-text-secondary sm:text-t2">
           {HERO.body}
         </p>
         <div
@@ -387,7 +388,7 @@ export function Hero({
         id="ways"
         className={cn(CONTAINER, 'relative z-10 -mt-4 pb-8 sm:-mt-10 sm:pb-12')}
       >
-        <p className="text-center text-[11px] font-medium uppercase leading-4 tracking-[0.16em] text-brand-red">
+        <p className="text-center text-t5 font-medium uppercase leading-4 tracking-[0.16em] text-brand-red">
           {HERO.waysKicker}
         </p>
         <ul className="mx-auto mt-8 grid max-w-5xl gap-4 md:grid-cols-3">
@@ -408,7 +409,7 @@ export function Hero({
                 <h2 className="mt-6 text-[20px] font-semibold tracking-[-0.01em]">
                   {mode.title}
                 </h2>
-                <p className="mt-2 text-[15px] leading-relaxed text-text-secondary">
+                <p className="mt-2 text-t3 leading-relaxed text-text-secondary">
                   {mode.body}
                 </p>
               </li>
@@ -448,13 +449,13 @@ function OfferTag() {
           />
           {/* The guideline's deeper red (#C8102E, ch. 05): brand red
               #EF3240 is 3.9:1 on white, too faint for 11px text. */}
-          <span className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-[#C8102E]">
+          <span className="block text-t5 font-semibold uppercase tracking-[0.18em] text-[#C8102E]">
             {OFFER_TAG.label}
           </span>
-          <span className="mt-1 block text-[16px] font-bold leading-tight tracking-[-0.01em]">
+          <span className="mt-1 block text-t3 font-bold leading-tight tracking-[-0.01em]">
             {OFFER_TAG.title}
           </span>
-          <span className="mt-1 block text-[11px] leading-snug text-black/60">
+          <span className="mt-1 block text-t5 leading-snug text-black/60">
             {OFFER_TAG.detail}
           </span>
         </span>
@@ -510,7 +511,7 @@ export function Services() {
                   <h3 className="mt-6 text-[20px] font-semibold tracking-[-0.01em]">
                     {service.title}
                   </h3>
-                  <p className="mt-2 flex-1 text-[15px] leading-relaxed text-text-secondary">
+                  <p className="mt-2 flex-1 text-t3 leading-relaxed text-text-secondary">
                     {service.body}
                   </p>
                   <span className="mt-6 inline-flex items-center gap-1.5 text-[14px] font-medium text-brand-white">
@@ -540,7 +541,7 @@ export function HowItWorks() {
           {STEPS.map((step, index) => (
             <li key={step.title} className="relative" style={stagger(index)}>
               <div className="flex items-center gap-4">
-                <span className="mk-step-num text-[13px] font-medium tabular-nums tracking-[0.16em] text-text-muted">
+                <span className="mk-step-num text-t4 font-medium tabular-nums tracking-[0.16em] text-text-muted">
                   {String(index + 1).padStart(2, '0')}
                 </span>
                 <span aria-hidden className="relative h-px flex-1 bg-white/10">
@@ -550,7 +551,7 @@ export function HowItWorks() {
               <h3 className="mt-5 text-[20px] font-semibold tracking-[-0.01em]">
                 {step.title}
               </h3>
-              <p className="mt-2 text-[15px] leading-relaxed text-text-secondary">
+              <p className="mt-2 text-t3 leading-relaxed text-text-secondary">
                 {step.body}
               </p>
             </li>
@@ -596,7 +597,7 @@ export function Results({ results }: { results: Result[] }) {
               )}
               <div className="mt-4 flex items-start justify-between gap-3">
                 <div>
-                  <h3 className="text-[17px] font-semibold">{result.title}</h3>
+                  <h3 className="text-t2 font-semibold">{result.title}</h3>
                   <p className="mt-1 text-[14px] text-text-secondary">
                     {result.detail}
                   </p>
@@ -612,6 +613,14 @@ export function Results({ results }: { results: Result[] }) {
 }
 
 // ─── Live garages ───────────────────────────────────────────────────────────
+
+/**
+ * The town sign for a landing card (0070): relative to the first city, for
+ * a page rendered on the server for nobody in particular.
+ */
+function landingTownTag(garage: ApiVendorListItem): string | null {
+  return outsideCityTag({ ...garage, area: garage.city }, { city: FALLBACK_CITY, at: null })
+}
 
 /** "Others" says nothing about a garage, so it is left off the card. */
 function garageTags(garage: ApiVendorListItem) {
@@ -668,7 +677,7 @@ export function Garages({ garages }: { garages: ApiVendorListItem[] }) {
                 </div>
                 <div className="p-5">
                   <div className="flex items-start justify-between gap-3">
-                    <h3 className="text-[17px] font-semibold leading-snug">
+                    <h3 className="text-t2 font-semibold leading-snug">
                       {garage.businessName}
                     </h3>
                     {garage.startingPrice != null && (
@@ -680,7 +689,7 @@ export function Garages({ garages }: { garages: ApiVendorListItem[] }) {
                       </p>
                     )}
                   </div>
-                  <p className="mt-1.5 text-[13px] text-text-secondary">
+                  <p className="mt-1.5 text-t4 text-text-secondary">
                     {[
                       garage.city,
                       garage.doorstepEnabled && garage.lat != null
@@ -691,19 +700,18 @@ export function Garages({ garages }: { garages: ApiVendorListItem[] }) {
                       .join(' · ')}
                   </p>
                   {/* The same sign as the app's cards: a garage in another
-                      town says it is not in Chennai before anyone opens it. */}
-                  {garage.outsideServiceCity && (
-                    <OutsideCityChip
-                      outside={garage.outsideServiceCity}
-                      className="mt-2"
-                    />
+                      town says where before anyone opens it. Rendered on the
+                      server for nobody in particular, so relative to the
+                      first city (Chennai), as a first visit is. */}
+                  {landingTownTag(garage) && (
+                    <OutsideCityChip text={landingTownTag(garage)!} className="mt-2" />
                   )}
                   {garageTags(garage).length > 0 && (
                     <p className="mt-3 flex flex-wrap gap-1.5">
                       {garageTags(garage).map((tag) => (
                         <span
                           key={tag}
-                          className="rounded bg-white/[0.06] px-2 py-1 text-[12px] text-text-secondary"
+                          className="rounded bg-white/[0.06] px-2 py-1 text-t5 text-text-secondary"
                         >
                           {tag}
                         </span>
@@ -754,14 +762,14 @@ export function Testimonials({
                   </p>
                   {testimonial.sample && <SampleTag />}
                 </div>
-                <blockquote className="mt-5 flex-1 text-[16px] leading-relaxed text-brand-white">
+                <blockquote className="mt-5 flex-1 text-t3 leading-relaxed text-brand-white">
                   “{testimonial.quote}”
                 </blockquote>
                 <figcaption className="mt-6 border-t border-white/[0.06] pt-4">
                   <p className="text-[14px] font-semibold">
                     {testimonial.name}
                   </p>
-                  <p className="mt-0.5 text-[13px] text-text-secondary">
+                  <p className="mt-0.5 text-t4 text-text-secondary">
                     {testimonial.detail}
                   </p>
                 </figcaption>
@@ -791,8 +799,8 @@ function StoreMark({ store }: { store: (typeof APPS.stores)[number] }) {
     <span className="inline-flex h-14 w-48 items-center gap-3 rounded-lg bg-brand-white px-4 text-left text-brand-black shadow-[0_10px_40px_-10px_rgba(255,255,255,0.25)]">
       <IconDeviceMobile size={24} stroke={1.75} aria-hidden />
       <span className="flex flex-col leading-tight">
-        <span className="text-[11px] text-black/60">Coming soon to</span>
-        <span className="text-[16px] font-semibold tracking-[-0.01em]">
+        <span className="text-t5 text-black/60">Coming soon to</span>
+        <span className="text-t3 font-semibold tracking-[-0.01em]">
           {store.name}
         </span>
       </span>
@@ -824,7 +832,7 @@ export function AppShowcase() {
             body={APPS.body}
           />
           <p
-            className="mk-reveal mt-10 inline-flex items-center gap-2 text-[11px] font-medium uppercase leading-4 tracking-[0.16em] text-text-secondary"
+            className="mk-reveal mt-10 inline-flex items-center gap-2 text-t5 font-medium uppercase leading-4 tracking-[0.16em] text-text-secondary"
             style={stagger(3)}
           >
             <span aria-hidden className="size-1.5 rounded-full bg-brand-red" />
@@ -843,7 +851,7 @@ export function AppShowcase() {
           <Link
             href={APPS.web.href}
             className={cn(
-              'mt-6 inline-flex items-center gap-1.5 rounded-sm text-[15px] font-medium text-brand-white underline-offset-4 hover:underline',
+              'mt-6 inline-flex items-center gap-1.5 rounded-sm text-t3 font-medium text-brand-white underline-offset-4 hover:underline',
               FOCUS_RING
             )}
           >
@@ -908,8 +916,8 @@ export function Videos({ reels }: { reels: ReelContent[] }) {
               <Reel reel={reel} />
               <div className="mt-3 flex items-start justify-between gap-3">
                 <div>
-                  <h3 className="text-[16px] font-semibold">{reel.title}</h3>
-                  <p className="mt-0.5 text-[13px] text-text-secondary">
+                  <h3 className="text-t3 font-semibold">{reel.title}</h3>
+                  <p className="mt-0.5 text-t4 text-text-secondary">
                     {reel.detail}
                   </p>
                 </div>
@@ -938,13 +946,13 @@ export function Instagram() {
             className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_60%_80%_at_85%_50%,rgba(239,50,64,0.16),transparent_70%)]"
           />
           <div>
-            <p className="text-[11px] font-medium uppercase leading-4 tracking-[0.16em] text-brand-red">
+            <p className="text-t5 font-medium uppercase leading-4 tracking-[0.16em] text-brand-red">
               {INSTAGRAM.kicker}
             </p>
             <h2 className="mt-3 text-balance text-[30px] font-bold leading-[1.12] tracking-[-0.03em] sm:text-[44px]">
               {INSTAGRAM.title}
             </h2>
-            <p className="mt-4 max-w-lg text-pretty text-[16px] leading-relaxed text-text-secondary">
+            <p className="mt-4 max-w-lg text-pretty text-t3 leading-relaxed text-text-secondary">
               {INSTAGRAM.body}
             </p>
             <a
@@ -952,14 +960,14 @@ export function Instagram() {
               target="_blank"
               rel="noopener noreferrer"
               className={cn(
-                'press mt-8 inline-flex h-12 items-center gap-2 rounded-lg bg-brand-white px-6 text-[15px] font-semibold text-brand-black transition-colors hover:bg-white/90',
+                'press mt-8 inline-flex h-12 items-center gap-2 rounded-lg bg-brand-white px-6 text-t3 font-semibold text-brand-black transition-colors hover:bg-white/90',
                 FOCUS_RING
               )}
             >
               <IconBrandInstagram size={20} stroke={1.75} aria-hidden />
               {INSTAGRAM.cta}
             </a>
-            <p className="mt-4 max-w-lg text-[12px] leading-relaxed text-text-muted">
+            <p className="mt-4 max-w-lg text-t5 leading-relaxed text-text-muted">
               {INSTAGRAM.fine}
             </p>
           </div>
@@ -975,7 +983,7 @@ function Ticket() {
   return (
     <div aria-hidden className="relative mx-auto w-full max-w-[300px] rotate-3">
       <div className="relative rounded-lg bg-brand-white p-6 text-brand-black">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#C8102E]">
+        <p className="text-t5 font-semibold uppercase tracking-[0.18em] text-[#C8102E]">
           Giveaway
         </p>
         <p className="mt-2 text-[28px] font-bold leading-none tracking-[-0.02em]">
@@ -986,7 +994,7 @@ function Ticket() {
         </p>
         {/* Perforation. */}
         <div className="my-5 border-t-2 border-dashed border-black/15" />
-        <p className="flex items-center gap-2 text-[16px] font-semibold">
+        <p className="flex items-center gap-2 text-t3 font-semibold">
           <IconBrandInstagram size={20} stroke={1.75} />@{INSTAGRAM.handle}
         </p>
       </div>
@@ -1034,7 +1042,7 @@ export function Promises() {
                 <h3 className="mt-5 text-[20px] font-semibold tracking-[-0.01em]">
                   {promise.title}
                 </h3>
-                <p className="mt-2 text-[15px] leading-relaxed text-text-secondary">
+                <p className="mt-2 text-t3 leading-relaxed text-text-secondary">
                   {promise.body}
                 </p>
                 {/* The support promise is only as good as the way to reach
@@ -1114,7 +1122,7 @@ export function Perks() {
                 <h3 className="mt-6 text-[20px] font-semibold tracking-[-0.01em]">
                   {perk.title}
                 </h3>
-                <p className="mt-2 text-[15px] leading-relaxed text-text-secondary">
+                <p className="mt-2 text-t3 leading-relaxed text-text-secondary">
                   {perk.body}
                 </p>
               </li>
@@ -1143,7 +1151,7 @@ export function Faq() {
             <details key={faq.q} className="group">
               <summary
                 className={cn(
-                  'flex cursor-pointer list-none items-center justify-between gap-6 py-5 text-[17px] font-medium [&::-webkit-details-marker]:hidden',
+                  'flex cursor-pointer list-none items-center justify-between gap-6 py-5 text-t2 font-medium [&::-webkit-details-marker]:hidden',
                   FOCUS_RING
                 )}
               >
@@ -1155,7 +1163,7 @@ export function Faq() {
                   className="shrink-0 text-text-secondary transition-transform group-open:rotate-180"
                 />
               </summary>
-              <p className="pb-5 pr-10 text-[15px] leading-relaxed text-text-secondary">
+              <p className="pb-5 pr-10 text-t3 leading-relaxed text-text-secondary">
                 {faq.a}
               </p>
             </details>
@@ -1181,7 +1189,7 @@ export function FinalCta() {
           {FINAL_CTA.title}
           <RedPeriod />
         </h2>
-        <p className="mx-auto mt-4 max-w-md text-[16px] leading-relaxed text-text-secondary sm:text-[18px]">
+        <p className="mx-auto mt-4 max-w-md text-t3 leading-relaxed text-text-secondary sm:text-t2">
           {FINAL_CTA.body}
         </p>
         <CtaLink cta={FINAL_CTA.cta} className="mt-9" />
@@ -1282,7 +1290,7 @@ export function SiteFooter() {
       <div
         className={cn(
           CONTAINER,
-          'flex flex-col gap-2 border-t border-white/[0.06] py-6 text-[13px] leading-relaxed text-text-muted'
+          'flex flex-col gap-2 border-t border-white/[0.06] py-6 text-t4 leading-relaxed text-text-muted'
         )}
       >
         {/* Who runs Detlio and where, on every page that carries this

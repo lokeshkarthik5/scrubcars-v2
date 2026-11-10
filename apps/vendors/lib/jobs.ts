@@ -58,6 +58,17 @@ export function tabFromQuery(value: string | null): ListTab | null {
 }
 
 /**
+ * The Bookings switch: the four lists, then the calendar (an icon-only fifth
+ * segment). The calendar is not a list, so LIST_TABS stays the four.
+ */
+export type BookingsTab = ListTab | 'calendar'
+
+/** A `?tab=` from a link: `calendar`, or anything tabFromQuery reads. */
+export function bookingsTabFromQuery(value: string | null): BookingsTab | null {
+  return value === 'calendar' ? 'calendar' : tabFromQuery(value)
+}
+
+/**
  * Which list a job is on. Waiting for an answer: New. Under way, or
  * accepted for today (or a day already gone, still not started): Today.
  * Accepted for a later day: Later. Finished or cancelled: Done. A booking
@@ -232,6 +243,38 @@ export function doneJobs(bookings: readonly Booking[]): Booking[] {
         at(b.completedAtIso ?? b.scheduledAtIso) -
         at(a.completedAtIso ?? a.scheduledAtIso)
     )
+}
+
+/**
+ * How many of the Done list's jobs are today's: finished today, or (a
+ * cancelled or no-show booking, which has no finish time) booked for today.
+ * The same time the list orders them by, read on India's calendar.
+ */
+export function doneTodayCount(done: readonly Booking[], now: number): number {
+  const today = istDay(now)
+  return done.filter(
+    (b) => istDay(at(b.completedAtIso ?? b.scheduledAtIso)) === today
+  ).length
+}
+
+/**
+ * The Bookings switch's quiet second lines (owner, 10 Nov 2026; mockup
+ * garage-calendar A): Today "3 jobs", New "2 waiting" (in red on the
+ * switch, where the red number badge was), Later "5 jobs", Done "1 today".
+ * Done counts only today's (doneTodayCount): the whole list goes back for
+ * ever, and calling that "today" would be untrue.
+ */
+export function bookingsTabLines(
+  counts: Readonly<Record<ListTab, number>>,
+  doneToday: number
+): Record<ListTab, string> {
+  const jobs = (n: number) => (n === 1 ? '1 job' : `${n} jobs`)
+  return {
+    today: jobs(counts.today),
+    new: `${counts.new} waiting`,
+    later: jobs(counts.later),
+    done: `${doneToday} today`,
+  }
 }
 
 /** What the job is worth: its services at their booked prices (a free redo is ₹0). */

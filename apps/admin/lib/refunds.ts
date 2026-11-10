@@ -36,7 +36,7 @@ export function latestRefund(list: AdminRefund[], picked: AdminRefund): AdminRef
 /**
  * The team tests' ledger (0065) as a CSV: every real payment deleted with a
  * Test booking, what was refunded on it, who deleted it and why. Ids and
- * amounts only, as the API sends them. Since the owner's delete (0069) a row
+ * amounts only, as the API sends them. Since the owner's delete (0071) a row
  * may be money not refunded or a garage payout's line, so the last columns
  * say where each stands; an older API's rows read as refunded.
  */

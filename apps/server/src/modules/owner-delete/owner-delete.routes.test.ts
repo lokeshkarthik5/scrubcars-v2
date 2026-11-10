@@ -20,9 +20,9 @@ const { ownerDeleteService } = await import('./owner-delete.service.js')
 const { adminCustomersService } = await import('../admin-customers/admin-customers.service.js')
 const { coverageService } = await import('../coverage/coverage.service.js')
 
-const OWNER = 'e2e00000-0000-4000-8000-000000006901'
-const TEAMMATE = 'e2e00000-0000-4000-8000-000000006902'
-const ROW = 'e2e00000-0000-4000-8000-000000006990'
+const OWNER = 'e2e00000-0000-4000-8000-000000007101'
+const TEAMMATE = 'e2e00000-0000-4000-8000-000000007102'
+const ROW = 'e2e00000-0000-4000-8000-000000007190'
 
 const calls: Array<{ kind: string; args: unknown[] }> = []
 type Patchable = Record<string, unknown>

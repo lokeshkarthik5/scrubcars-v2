@@ -868,7 +868,7 @@ export const dataResetService = {
         gatewayMode: row.gatewayMode,
         amount: row.amount,
         refundedAmount: row.refundedAmount,
-        // The owner's delete (0069): where the money stands, a line for the
+        // The owner's delete (0071): where the money stands, a line for the
         // record and the credit given back. 'refunded' for every older row.
         state: row.state,
         note: row.note,

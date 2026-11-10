@@ -3,10 +3,12 @@ import { StyleSheet, useColorScheme, type ImageStyle, type TextStyle, type ViewS
 
 import {
   DEFAULT_APPEARANCE,
+  finishFor,
   parseAppearance,
   resolveScheme,
   tokensFor,
   type Appearance,
+  type FinishTokens,
   type Scheme,
   type Tokens,
 } from './tokens';
@@ -16,6 +18,8 @@ interface ThemeValue {
   colors: Tokens;
   appearance: Appearance;
   setAppearance: (next: Appearance) => void;
+  /** The customer UI round's finish is on (the customer app only; the garage app never sets it). */
+  finish: boolean;
 }
 
 const ThemeContext = createContext<ThemeValue>({
@@ -23,6 +27,7 @@ const ThemeContext = createContext<ThemeValue>({
   colors: tokensFor('dark'),
   appearance: DEFAULT_APPEARANCE,
   setAppearance: () => undefined,
+  finish: false,
 });
 
 /** Where the choice is kept: handed in, so this package needs no storage module. */
@@ -38,7 +43,20 @@ const STORAGE_KEY = 'detlio.appearance';
  * render, so the app never flashes the other theme. A change restyles every screen at
  * once: screens read their colours through useColors and useStyles, never at import.
  */
-export function ThemeProvider({ storage, children }: { storage: AppearanceStorage; children: ReactNode }) {
+export function ThemeProvider({
+  storage,
+  finish = false,
+  children,
+}: {
+  storage: AppearanceStorage;
+  /**
+   * The finish (docs/ui-round-2026-11.md §1), switched on by the customer app alone,
+   * as the website's `finish` class is by apps/users alone: the garage app passes
+   * nothing and looks exactly as before.
+   */
+  finish?: boolean;
+  children: ReactNode;
+}) {
   const phone = useColorScheme();
   const [appearance, setChoice] = useState<Appearance>(() => parseAppearance(storage.getItem(STORAGE_KEY)));
   const setAppearance = useCallback(
@@ -50,8 +68,8 @@ export function ThemeProvider({ storage, children }: { storage: AppearanceStorag
   );
   const scheme = resolveScheme(appearance, phone);
   const value = useMemo(
-    () => ({ scheme, colors: tokensFor(scheme), appearance, setAppearance }),
-    [scheme, appearance, setAppearance]
+    () => ({ scheme, colors: tokensFor(scheme), appearance, setAppearance, finish }),
+    [scheme, appearance, setAppearance, finish]
   );
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
@@ -65,6 +83,12 @@ export function ThemeScope({ scheme, children }: { scheme: Scheme; children: Rea
 
 export const useTheme = () => useContext(ThemeContext);
 export const useColors = () => useContext(ThemeContext).colors;
+
+/** Whether the finish is on here, and its materials for this theme. */
+export function useFinish(): { on: boolean; fx: FinishTokens; scheme: Scheme } {
+  const { finish, scheme } = useContext(ThemeContext);
+  return { on: finish, fx: finishFor(scheme), scheme };
+}
 
 /**
  * StyleSheet.create with the theme's colours: a screen's styles, one sheet per theme,

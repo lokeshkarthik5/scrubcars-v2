@@ -9,7 +9,7 @@
 -- (0065), which the Refunds page downloads as CSV. Before this file the
 -- ledger could only hold money all refunded, so it gains:
 --
---   - `state`: where the money stands. 'refunded' (every row before 0069),
+--   - `state`: where the money stands. 'refunded' (every row before 0071),
 --     'not_refunded', 'refund_pending', 'credit_returned' (paid with Detlio
 --     credit alone, which goes back to the customer) and 'paid_out' (a garage
 --     payout's line on the booking: deleting one booking leaves the payout

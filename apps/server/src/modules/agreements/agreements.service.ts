@@ -54,8 +54,14 @@ export async function agreementStandings(
   vendorIds: string[],
   now = new Date()
 ): Promise<Map<string, AgreementStanding>> {
-  const latest = await agreementsRepository.latest()
-  const accepted = latest ? await agreementsRepository.acceptedVersions(vendorIds) : new Map<string, number>()
+  // Read together rather than one after the other: the accepted versions are
+  // only wanted once there is an agreement, but asking for them alongside
+  // costs less than a second round trip on every garage read.
+  const [latest, acceptedVersions] = await Promise.all([
+    agreementsRepository.latest(),
+    agreementsRepository.acceptedVersions(vendorIds),
+  ])
+  const accepted = latest ? acceptedVersions : new Map<string, number>()
   return new Map(
     vendorIds.map((id) => [
       id,

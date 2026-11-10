@@ -41,7 +41,7 @@ export default function SlotAlertsPage() {
           large={isHomeHubEnabled()}
         />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
-          <p className="text-[15px] font-semibold text-text-primary">
+          <p className="text-t3 font-semibold text-text-primary">
             Sign in to see your slot alerts
           </p>
           <ScButton
@@ -100,14 +100,14 @@ export default function SlotAlertsPage() {
                   <div className="min-w-0 flex-1">
                     <Link
                       href={`/garage/${alert.vendorId}`}
-                      className="text-[13px] font-medium text-text-primary"
+                      className="text-t4 font-medium text-text-primary"
                     >
                       {alert.vendorName}
                     </Link>
-                    <p className="text-[12px] text-text-secondary">
+                    <p className="text-t5 text-text-secondary">
                       {slotAlertSummary(alert)}
                     </p>
-                    <p className="text-[11px] text-text-muted">
+                    <p className="text-t5 text-text-muted">
                       {BOOKING_TYPE_LABELS[alert.bookingType]}
                     </p>
                   </div>
@@ -116,7 +116,7 @@ export default function SlotAlertsPage() {
                     disabled={cancel.isPending}
                     onClick={() => cancel.mutate(alert.id)}
                     aria-label={`Stop waiting for ${alert.vendorName}, ${slotAlertSummary(alert)}`}
-                    className="tap-target shrink-0 px-2 text-[12px] font-medium text-text-primary underline disabled:opacity-40"
+                    className="tap-target shrink-0 px-2 text-t5 font-medium text-text-primary underline disabled:opacity-40"
                   >
                     Stop waiting
                   </button>
@@ -124,7 +124,7 @@ export default function SlotAlertsPage() {
               </Reveal>
             ))}
           </ul>
-          <p className="text-[11px] text-text-muted">
+          <p className="text-t5 text-text-muted">
             Up to {alerts.data?.max ?? 5} at once. If a time opens it shows in
             Updates, and as a notification if they&apos;re on. It isn&apos;t
             held: the first to book gets it.

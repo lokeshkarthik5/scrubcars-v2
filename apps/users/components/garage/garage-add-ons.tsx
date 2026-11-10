@@ -28,15 +28,15 @@ export function GarageAddOns({
       <div className="flex items-center justify-between">
         <h2
           id="garage-add-ons"
-          className="text-[17px] font-medium text-text-primary"
+          className="text-t2 font-medium text-text-primary"
         >
           Add-ons
         </h2>
-        <span className="text-[12px] text-text-secondary">
+        <span className="text-t5 text-text-secondary">
           {addOnCountLabel(addOns.length)}
         </span>
       </div>
-      <p className="text-[13px] leading-relaxed text-text-secondary">
+      <p className="text-t4 leading-relaxed text-text-secondary">
         Optional extras. Choose them at checkout, with any service. They
         can&apos;t be booked alone.
       </p>
@@ -47,15 +47,15 @@ export function GarageAddOns({
             className="flex items-center justify-between gap-3 py-3"
           >
             <div className="min-w-0">
-              <p className="flex flex-wrap items-center gap-1.5 text-[15px] text-text-primary">
+              <p className="flex flex-wrap items-center gap-1.5 text-t3 text-text-primary">
                 {addOn.name}
                 <AddOnMark />
               </p>
-              <p className="mt-0.5 text-[12px] text-text-secondary">
+              <p className="mt-0.5 text-t5 text-text-secondary">
                 <Figures text={addOnTimeLabel(addOn.extraMins)} />
               </p>
             </div>
-            <span className="shrink-0 text-[15px] text-text-primary">
+            <span className="shrink-0 text-t3 text-text-primary">
               <Figures text={servicePriceText(addOn, carType)} />
             </span>
           </li>

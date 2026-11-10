@@ -39,17 +39,17 @@ function ComplaintRow({ complaint }: { complaint: CustomerComplaint }) {
     <li>
       <ScCard className="flex flex-col gap-1.5">
         <div className="flex items-center gap-2">
-          <span className="font-numeric text-[13px] font-semibold text-text-primary">
+          <span className="font-numeric text-t4 font-semibold text-text-primary">
             {complaint.number}
           </span>
           <ScBadge variant={STATUS_BADGE[complaint.status]}>
             {withdrawn ? 'Withdrawn' : COMPLAINT_STATUS_LABELS[complaint.status]}
           </ScBadge>
-          <span className="ml-auto font-numeric text-[11px] text-text-muted">
+          <span className="ml-auto font-numeric text-t5 text-text-muted">
             {formatComplaintDate(complaint.receivedAt)}
           </span>
         </div>
-        <p className="text-[12px] text-text-secondary">
+        <p className="text-t5 text-text-secondary">
           {COMPLAINT_CATEGORY_LABELS[complaint.category]}
           {complaint.bookingRef && (
             <>
@@ -63,13 +63,13 @@ function ComplaintRow({ complaint }: { complaint: CustomerComplaint }) {
         {/* One the team logged from a call or a message: said, so a
             complaint they never typed here makes sense. */}
         {complaint.source !== 'app' && (
-          <p className="text-[12px] text-text-muted">
+          <p className="text-t5 text-text-muted">
             {COMPLAINT_SOURCE_CUSTOMER_LINES[complaint.source]}
           </p>
         )}
         {/* Their words as recorded: the copy of the complaint the rules ask
             them to be given. */}
-        <p className="line-clamp-3 whitespace-pre-wrap break-words text-[12px] text-text-primary">
+        <p className="line-clamp-3 whitespace-pre-wrap break-words text-t5 text-text-primary">
           {complaint.message}
         </p>
         {/* Nobody has answered it yet (0066): the customer can take it back. */}
@@ -78,7 +78,7 @@ function ComplaintRow({ complaint }: { complaint: CustomerComplaint }) {
             type="button"
             aria-label={`Withdraw complaint ${complaint.number}`}
             onClick={() => setConfirming(true)}
-            className="mt-1 min-h-11 self-start text-[12px] font-medium text-text-secondary underline underline-offset-2 transition-colors hover:text-text-primary"
+            className="mt-1 min-h-11 self-start text-t5 font-medium text-text-secondary underline underline-offset-2 transition-colors hover:text-text-primary"
           >
             Withdraw
           </button>
@@ -109,10 +109,10 @@ function ComplaintRow({ complaint }: { complaint: CustomerComplaint }) {
         />
         {answered && complaint.resolutionNote && (
           <div className="mt-1 rounded-[10px] border border-border bg-surface-elevated px-3 py-2">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">
+            <p className="text-t5 font-medium uppercase tracking-wide text-text-muted">
               Our answer
             </p>
-            <p className="mt-0.5 whitespace-pre-wrap break-words text-[12px] text-text-primary">
+            <p className="mt-0.5 whitespace-pre-wrap break-words text-t5 text-text-primary">
               {complaint.resolutionNote}
             </p>
           </div>
@@ -153,7 +153,7 @@ export function MyComplaints() {
         <button
           type="button"
           onClick={() => setRaising(true)}
-          className="min-h-11 px-1 text-[12px] font-medium text-text-secondary transition-colors hover:text-text-primary"
+          className="min-h-11 px-1 text-t5 font-medium text-text-secondary transition-colors hover:text-text-primary"
         >
           Raise a complaint
         </button>
@@ -161,24 +161,24 @@ export function MyComplaints() {
 
       {isPending ? (
         <ScCard>
-          <p className="text-[12px] text-text-secondary">Loading…</p>
+          <p className="text-t5 text-text-secondary">Loading…</p>
         </ScCard>
       ) : isError && complaints.length === 0 ? (
         <ScCard className="flex items-center justify-between gap-3">
-          <p className="text-[12px] text-text-secondary">
+          <p className="text-t5 text-text-secondary">
             Couldn&apos;t load your complaints.
           </p>
           <button
             type="button"
             onClick={() => void refetch()}
-            className="min-h-11 px-1 text-[12px] font-medium text-text-primary underline"
+            className="min-h-11 px-1 text-t5 font-medium text-text-primary underline"
           >
             Try again
           </button>
         </ScCard>
       ) : complaints.length === 0 ? (
         <ScCard>
-          <p className="text-[12px] text-text-secondary">
+          <p className="text-t5 text-text-secondary">
             None so far. About a booking? Use Help with this booking on its
             page.
           </p>

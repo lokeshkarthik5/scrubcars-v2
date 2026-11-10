@@ -44,7 +44,7 @@ export function ServiceSheetTop({
       <ScBadge variant="muted">{categoryLabel(service.category)}</ScBadge>
       {/* "Duration not set" (0064) shows nothing to customers. */}
       {service.durationMins != null && (
-        <span className="flex items-center gap-1.5 text-[11px] text-text-secondary">
+        <span className="flex items-center gap-1.5 text-t5 text-text-secondary">
           <IconClock size={12} />
           <span className="font-numeric font-medium">
             {formatDuration(service.durationMins)}
@@ -59,7 +59,7 @@ export function ServiceSheetTop({
       {hasMedia ? (
         <>
           <ServiceMediaArea service={service} garageName={garageName} />
-          <h2 className="mt-4 text-[17px] font-semibold text-text-primary">
+          <h2 className="mt-4 text-t2 font-semibold text-text-primary">
             {service.name}
           </h2>
           <div className="mt-2">{chips}</div>
@@ -68,7 +68,7 @@ export function ServiceSheetTop({
         <div className="flex items-center gap-3 pt-1">
           <ServiceIconTile service={service} size="sheet" />
           <div className="min-w-0 flex-1">
-            <h2 className="text-[19px] font-semibold leading-tight tracking-[-0.02em] text-text-primary">
+            <h2 className="text-t2 font-semibold leading-tight tracking-[-0.02em] text-text-primary">
               {service.name}
             </h2>
             <div className="mt-1.5">{chips}</div>
@@ -79,7 +79,7 @@ export function ServiceSheetTop({
       {points.length === 0 ? (
         // No points: the description as it has always read.
         <ClampedText
-          className="mt-3 text-[13px] text-text-secondary"
+          className="mt-3 text-t4 text-text-secondary"
           text={
             service.description ||
             (isPackage
@@ -90,7 +90,7 @@ export function ServiceSheetTop({
       ) : (
         intro && (
           <ClampedText
-            className="mt-3 text-[13px] text-text-secondary"
+            className="mt-3 text-t4 text-text-secondary"
             text={intro}
           />
         )

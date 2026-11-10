@@ -8,21 +8,27 @@ import { straightLineKm } from '@repo/core/map';
 import { resolveServiceAmount } from '@repo/core/pricing';
 import { hasStarScore, NEW_GARAGE_LABEL } from '@repo/core/ratings';
 import { knownDurationTotal } from '@repo/core/service-duration';
-import { outsideCityLine } from '@repo/core/service-city';
+import { anywhereInCityLine } from '@repo/core/reach';
 import { useUserStore } from '@repo/core/stores/user-store';
-import type { BookingType, Service, ServicePackage } from '@repo/core/types';
+import type { BookingType, Service, ServicePackage, Vendor } from '@repo/core/types';
 import { formatDuration } from '@repo/core/utils';
-import { ScButton } from '@repo/native-ui/button';
+import { Glass, Odometer, Raised, Recessed, RedButton } from '@repo/native-ui/finish';
 import { IconArrowLeft, IconArrowUpRight, IconMapPin, IconSearch, IconStarFilled } from '@repo/native-ui/icons';
-import { ErrorState, Notice, PressRow } from '@repo/native-ui/primitives';
+import { EASE_SETTLE, PressScale, Rise, SeenProvider, useReduceMotion, useSeenHost } from '@repo/native-ui/motion';
+import { ErrorState, Notice, SkeletonList } from '@repo/native-ui/primitives';
 import { Figures, font, T } from '@repo/native-ui/text';
-import { createStyles, useColors } from '@repo/native-ui/theme';
+import { createStyles, useColors, useFinish } from '@repo/native-ui/theme';
 import { useQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
+import { type ComponentRef, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Easing, Image, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { NextFreeRow } from '@/components/garage/next-free-row';
+import { FlyHost, useFlyTarget } from '@/components/garage/red-light-add';
+import { GarageRoad } from '@/components/moments/road';
+import { OpenMotion } from '@/components/open-motion';
 
 import { GarageCover, GarageMonogram } from '@/components/garage/cover';
 import { ModeSwitch } from '@/components/garage/mode-switch';
@@ -32,6 +38,7 @@ import { GarageSlotAlerts } from '@/components/slot-alerts/garage-slot-alerts';
 import { SaveGarageButton } from '@/components/garage/save-button';
 import { GarageAddOns, PackageCard, ServiceCard, ServiceSheet } from '@/components/garage/service-cards';
 import { OutsideCityLine, TierSeal } from '@/components/garage/tier';
+import { useGarageTownLine } from '@/lib/customer-place';
 import { getVendorAddOns } from '@/lib/add-ons';
 import { useAuth } from '@/lib/auth';
 import { browseCategory } from '@repo/core/analytics-events';
@@ -69,9 +76,13 @@ export default function GarageScreen() {
 
   const garage = useGarage(id);
   const vendor = garage.data?.vendor ?? null;
+  // Where the garage is, said only when it is not in the customer's city (0070).
+  const townLine = useGarageTownLine(vendor);
   const services = garage.data?.services ?? NO_SERVICES;
   const packages = garage.data?.packages ?? NO_PACKAGES;
-  const reviewsList = useVendorReviews(id).data ?? [];
+  const [tab, setTab] = useState<Tab>('services');
+  // Reviews load when their tab opens (speed fix 8): the count is already on the garage.
+  const reviewsList = useVendorReviews(id, { enabled: tab === 'reviews' }).data ?? [];
   const addOns = useQuery({ queryKey: ['vendors', 'add-ons', id], queryFn: () => getVendorAddOns(id), staleTime: 60_000 }).data ?? [];
   const workingHours = useVendorWorkingHours(id);
   const closures = useVendorClosures(id);
@@ -80,7 +91,6 @@ export default function GarageScreen() {
     vendor ? { lat: vendor.lat, lng: vendor.lng } : null
   );
 
-  const [tab, setTab] = useState<Tab>('services');
   const [chosenMode, setChosenMode] = useState<BookingType | null>(() => parseBookingType(params.mode));
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<string[]>([]);
@@ -133,6 +143,15 @@ export default function GarageScreen() {
   };
 
   const mode = resolveBookingType(chosenMode, vendor);
+  const { fx } = useFinish();
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const seen = useSeenHost();
+  const onScroll = Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
+    useNativeDriver: true,
+    listener: () => seen.notify(),
+  });
+  // Past the hero, the glass top bar with the name takes over.
+  const solid = scrollY.interpolate({ inputRange: [HERO_HEIGHT - 140, HERO_HEIGHT - 90], outputRange: [0, 1], extrapolate: 'clamp' });
   const back = () => (router.canGoBack() ? router.back() : router.replace('/garages' as Href));
 
   if (!vendor) {
@@ -173,6 +192,7 @@ export default function GarageScreen() {
       : null;
   const approximate = isApproximate(activeLocation);
   const modes = offeredBookingTypes(vendor);
+  const anywhere = anywhereInCityLine(vendor, mode);
   const paused = vendor.bookingsPaused;
   const showBar = paused || selectedServices.length > 0;
 
@@ -185,301 +205,571 @@ export default function GarageScreen() {
     );
   };
 
+  const barTotal =
+    selectedServices.length === 1
+      ? servicePriceText(selectedServices[0], carType)
+      : `${hasPerVehiclePricing ? 'from ' : ''}${money(selectedTotal)}`;
+
+  // The scroll's direct children, so the tabs can stick: [hero, body, tabs, pane].
   return (
-    <View style={[styles.page, { paddingTop: insets.top }]}>
-      <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets contentContainerStyle={{ paddingBottom: showBar ? 112 : insets.bottom + 24 }}>
-        <View style={styles.hero}>
-          {hero ? (
-            <Image source={{ uri: hero }} accessibilityLabel={vendor.name} resizeMode="cover" style={StyleSheet.absoluteFill} />
-          ) : (
-            <GarageCover vendor={vendor} size="hero" metaTop={64} />
-          )}
-          <LinearGradient pointerEvents="none" colors={['rgba(0,0,0,0.6)', 'rgba(0,0,0,0)']} style={styles.heroShade} />
-          <PressRow accessibilityLabel="Go back" onPress={back} style={styles.heroBack}>
-            <IconArrowLeft size={20} stroke={2} color="#FAFAFA" />
-          </PressRow>
-          <View style={styles.heroSave}>
-            <SaveGarageButton vendor={vendor} />
-          </View>
-          {vendor.logoUrl ? (
-            <View style={styles.heroLogo}>
-              <Image source={{ uri: vendor.logoUrl }} accessibilityLabel={`${vendor.name} logo`} resizeMode="cover" style={styles.fill} />
-            </View>
-          ) : (
-            <GarageMonogram vendor={vendor} size={56} radius={14} fontSize={20} style={styles.heroMonogram} />
-          )}
-        </View>
+    <FlyHost>
+      <SeenProvider value={seen.value}>
+      <View style={styles.page}>
+        <OpenMotion style={styles.fill}>
+          <Animated.ScrollView
+            keyboardShouldPersistTaps="handled"
+            automaticallyAdjustKeyboardInsets
+            stickyHeaderIndices={[2]}
+            scrollEventThrottle={16}
+            onScroll={onScroll}
+            contentContainerStyle={{ paddingBottom: showBar ? 120 : insets.bottom + 24 }}
+          >
+            <GarageHero vendor={vendor} scrollY={scrollY} />
 
-        <View style={styles.head}>
-          <View style={styles.titleBlock}>
-            <T accessibilityRole="header" size={28} weight={300} lh={31} tracking={-0.025}>
-              {vendor.name}
-            </T>
-            <OpenStatus hours={workingHours.data} closures={closures.data} />
-          </View>
-          <View style={styles.facts}>
-            {showStars ? (
-              <>
-                <IconStarFilled size={13} />
-                <T num size={13}>
-                  {vendor.rating.toFixed(1)}
+            <View style={styles.body}>
+              <Rise index={0} delay={160}>
+                <View style={styles.titleRow}>
+                  {vendor.logoUrl ? (
+                    <View style={styles.logo}>
+                      <Image source={{ uri: vendor.logoUrl }} accessibilityLabel={`${vendor.name} logo`} resizeMode="cover" style={styles.fill} />
+                    </View>
+                  ) : (
+                    <GarageMonogram vendor={vendor} size={56} radius={16} fontSize={17} />
+                  )}
+                  <View style={styles.flex}>
+                    <T accessibilityRole="header" variant="title">
+                      {vendor.name}
+                    </T>
+                    <View style={styles.openLine}>
+                      <OpenStatus variant="ring" hours={workingHours.data} closures={closures.data} />
+                    </View>
+                  </View>
+                </View>
+
+                {/* Score, distance and drive time are figures; the words between them stay Inter. */}
+                <View style={styles.facts}>
+                  {showStars ? (
+                    <View style={styles.fact}>
+                      <IconStarFilled size={13} color={colors.warningFill} />
+                      <T num variant="t4" weight={600}>
+                        {vendor.rating.toFixed(1)}
+                      </T>
+                      <T variant="t4" color={fx.quiet}>
+                        ({reviewCount} {reviewCount === 1 ? 'review' : 'reviews'})
+                      </T>
+                    </View>
+                  ) : (
+                    <T variant="t4" weight={600}>
+                      {NEW_GARAGE_LABEL}
+                    </T>
+                  )}
+                  {fromHere !== null ? (
+                    <View style={styles.fact}>
+                      <T num variant="t4" weight={600}>
+                        {travel.data ? distanceLabel(fromHere, approximate) : distanceAndDrive(fromHere, approximate)}
+                      </T>
+                      {/* A GPS customer's real road time, when routing answers, in place of the estimate. */}
+                      {travel.data ? (
+                        <T variant="t4" color={fx.quiet}>
+                          {'· '}
+                          <T num variant="t4" weight={600} color={colors.textPrimary}>
+                            {formatDuration(toMinutes(travel.data.durationS))}
+                          </T>{' '}
+                          drive
+                        </T>
+                      ) : null}
+                    </View>
+                  ) : null}
+                </View>
+
+                <View style={styles.chips}>
+                  {vendor.area ? (
+                    <Raised radius={12} style={styles.areaChip} innerStyle={styles.areaInner}>
+                      <IconMapPin size={14} color={fx.quietBright} />
+                      <T variant="t4" color={fx.soft}>
+                        {vendor.area}
+                      </T>
+                    </Raised>
+                  ) : null}
+                  {vendor.tier ? <TierSeal tier={vendor.tier} /> : null}
+                </View>
+                {townLine ? (
+                  <View style={styles.outside}>
+                    <OutsideCityLine text={townLine} />
+                  </View>
+                ) : null}
+                {/* You → the garage, while the page knows where you are. */}
+                {fromHere !== null ? <GarageRoad to={vendor.name} style={styles.road} /> : null}
+              </Rise>
+
+              {modes.length > 1 ? (
+                <Rise index={1} delay={160} style={styles.section}>
+                  <ModeSwitch modes={modes} value={mode} onChange={setChosenMode} />
+                </Rise>
+              ) : null}
+              {anywhere ? (
+                <T variant="t5" lh={18} color={fx.quiet} style={styles.pickupNote}>
+                  {anywhere}
                 </T>
-                <T size={13} color={colors.textSecondary}>
-                  ({reviewCount} {reviewCount === 1 ? 'review' : 'reviews'})
+              ) : null}
+              {mode === 'pickup' ? (
+                <T variant="t5" lh={18} color={fx.quiet} style={styles.pickupNote}>
+                  Free pickup &amp; drop: {vendor.name} collects your car from your address, works on it at the garage and brings it
+                  back.
                 </T>
-              </>
-            ) : (
-              <T size={13} weight={500}>
-                {NEW_GARAGE_LABEL}
+              ) : null}
+              {params.withdrawn === '1' ? (
+                <View style={styles.notice}>
+                  <Notice tone="neutral" title="The services you picked are no longer offered here.">
+                    Choose from what this garage offers now.
+                  </Notice>
+                </View>
+              ) : null}
+              <View style={styles.alerts}>
+                <GarageSlotAlerts vendorId={vendor.id} />
+              </View>
+              {/* The next free times, for the mode on the switch; a time opens the booking on it. */}
+              {!paused ? (
+                <Rise index={2} delay={160} style={styles.section}>
+                  <NextFreeRow vendor={vendor} mode={mode} visible serviceIds={selected} style={styles.nextFree} />
+                </Rise>
+              ) : null}
+            </View>
+
+            <GarageTabs tabs={visibleTabs} tab={tab} onTab={setTab} reviewCount={reviewCount} scrollY={scrollY} />
+
+            <Rise key={tab} style={styles.panel}>
+              {tab === 'services' ? (
+                <>
+                  <Recessed radius={16} style={styles.search} innerStyle={styles.searchInner}>
+                    <IconSearch size={17} color={fx.quiet} />
+                    <TextInput
+                      accessibilityLabel="Search services"
+                      placeholder="Search services..."
+                      placeholderTextColor={fx.quiet}
+                      keyboardAppearance={colors.keyboard}
+                      value={query}
+                      onChangeText={setQuery}
+                      style={styles.searchInput}
+                    />
+                  </Recessed>
+                  {filteredPackages.length > 0 ? (
+                    <View style={styles.group}>
+                      <PaneHeading title="Packages" count={`${filteredPackages.length} ${filteredPackages.length === 1 ? 'package' : 'packages'}`} />
+                      {filteredPackages.map((pkg, i) => (
+                        <Rise key={pkg.id} index={i}>
+                          <PackageCard
+                            pkg={pkg}
+                            added={selected.includes(pkg.id)}
+                            paused={paused}
+                            carType={carType}
+                            onOpen={() => open(pkg)}
+                            onToggle={() => toggle(pkg.id)}
+                          />
+                        </Rise>
+                      ))}
+                    </View>
+                  ) : null}
+                  <View style={styles.group}>
+                    <PaneHeading title="Services" count={`${filtered.length} ${filtered.length === 1 ? 'service' : 'services'}`} />
+                    {garage.isPlaceholderData ? (
+                      <SkeletonList count={3} height={96} />
+                    ) : filtered.length === 0 ? (
+                      <T variant="t4" weight={400} color={colors.textSecondary} align="center" style={styles.none}>
+                        {services.length === 0 ? 'No services available yet.' : 'No services match that search.'}
+                      </T>
+                    ) : (
+                      filtered.map((svc, i) => (
+                        <Rise key={svc.id} index={i}>
+                          <ServiceCard
+                            service={svc}
+                            added={selected.includes(svc.id)}
+                            paused={paused}
+                            carType={carType}
+                            carModel={myCar?.model ?? null}
+                            onOpen={() => open(svc)}
+                            onToggle={() => toggle(svc.id)}
+                          />
+                        </Rise>
+                      ))
+                    )}
+                  </View>
+                  {addOns.length > 0 ? <GarageAddOns addOns={addOns} carType={carType} /> : null}
+                </>
+              ) : null}
+
+              {tab === 'photos' ? (
+                vendor.photos.length > 0 ? (
+                  <View style={styles.grid}>
+                    {vendor.photos.map((url, i) => (
+                      <Rise key={url} index={i}>
+                        <Image
+                          source={{ uri: url }}
+                          accessibilityLabel={`${vendor.name} ${i + 1}`}
+                          resizeMode="cover"
+                          style={[styles.gridPhoto, { width: (width - 40) / 2, height: (width - 40) / 2 }]}
+                        />
+                      </Rise>
+                    ))}
+                  </View>
+                ) : (
+                  <T variant="t4" weight={400} color={colors.textSecondary} align="center" style={styles.none}>
+                    No photos yet.
+                  </T>
+                )
+              ) : null}
+
+              {tab === 'reviews' ? <ReviewsTab vendor={vendor} reviewCount={reviewCount} /> : null}
+            </Rise>
+          </Animated.ScrollView>
+        </OpenMotion>
+
+        {/* Back and the heart float on the photo, on glass; past the hero a glass bar with the
+            garage's name takes over. The name there is not a heading: the page's one heading is below. */}
+        <View pointerEvents="box-none" style={[styles.top, { paddingTop: insets.top, height: insets.top + 60 }]}>
+          <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: solid }]}>
+            <Glass radius={0} edge={false} base={fx.glassPinned} style={[StyleSheet.absoluteFill, styles.topGlass, { borderBottomColor: fx.glassEdge }]} />
+          </Animated.View>
+          <View pointerEvents="box-none" style={styles.topRow}>
+            <PressScale accessibilityRole="button" accessibilityLabel="Go back" onPress={back}>
+              {/* Dark glass in both themes: it sits on the photo first. */}
+              <Glass radius={12} base="rgba(18,18,22,0.5)" style={styles.round}>
+                <IconArrowLeft size={20} color="#FAFAFA" />
+              </Glass>
+            </PressScale>
+            <Animated.View
+              pointerEvents="none"
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+              style={[styles.flex, { opacity: solid, transform: [{ translateY: solid.interpolate({ inputRange: [0, 1], outputRange: [6, 0] }) }] }]}
+            >
+              <T variant="t3" weight={600} numberOfLines={1}>
+                {vendor.name}
               </T>
-            )}
-            {fromHere !== null ? (
-              <>
-                <T size={13} color={colors.textSecondary}>
-                  ·
-                </T>
-                <T num size={13} weight={500} color={colors.textSecondary}>
-                  {travel.data ? distanceLabel(fromHere, approximate) : distanceAndDrive(fromHere, approximate)}
-                </T>
-              </>
-            ) : null}
-            {fromHere !== null && travel.data ? (
-              <>
-                <T size={13} color={colors.textSecondary}>
-                  ·
-                </T>
-                <T size={13} color={colors.textSecondary}>
-                  <T num size={13} weight={500} color={colors.textSecondary}>
-                    {formatDuration(toMinutes(travel.data.durationS))}
-                  </T>{' '}
-                  drive
-                </T>
-              </>
-            ) : null}
+            </Animated.View>
+            <SaveGarageButton vendor={vendor} glass />
           </View>
-          {vendor.area ? (
-            <View style={styles.areaChip}>
-              <IconMapPin size={13} stroke={2} color={colors.textSecondary} />
-              <T size={12} lh={16} color={colors.textSecondary}>
-                {vendor.area}
+        </View>
+
+        {paused ? (
+          <View style={[styles.barWrap, { paddingBottom: insets.bottom + 14 }]}>
+            <Glass accessibilityLiveRegion="polite" radius={22} heavy style={styles.pausedBar}>
+              <T variant="t3" weight={600}>
+                Not taking bookings right now
               </T>
+              <T variant="t4" weight={400} color={colors.textSecondary} style={styles.pausedLine}>
+                {vendor.bookingsPausedReason || 'This garage has paused new bookings. Check back later, or pick another garage.'}
+              </T>
+            </Glass>
+          </View>
+        ) : selectedServices.length > 0 ? (
+          <BookingBar bottom={insets.bottom + 14}>
+            <View style={styles.flex}>
+              <T variant="t5" numberOfLines={1} color={fx.quietBright}>
+                {selectedServices.length === 1
+                  ? selectedServices[0].name
+                  : `${selectedServices.length} services${selectedDuration !== null ? ` · ${formatDuration(selectedDuration)}` : ''}`}
+              </T>
+              {/* The total rolls like an odometer as services come and go. */}
+              {/^[₹\d]/.test(barTotal) ? (
+                <Odometer value={barTotal} numeric={selectedTotal} size={20} lh={24} />
+              ) : (
+                <T size={20} weight={600} lh={24} numberOfLines={1}>
+                  <Figures size={20} weight={600} lh={24} text={barTotal} />
+                </T>
+              )}
             </View>
-          ) : null}
-          {vendor.tier ? <TierSeal tier={vendor.tier} /> : null}
-          {vendor.outsideServiceCity ? <OutsideCityLine text={outsideCityLine(vendor.outsideServiceCity)} /> : null}
-          {modes.length > 1 ? (
-            <View style={styles.modes}>
-              <ModeSwitch modes={modes} value={mode} onChange={setChosenMode} />
+            {/* The page's one main action, solid red. */}
+            <RedButton height={48} radius={15} onPress={book} accessibilityLabel="Book now">
+              <T variant="t3" weight={600} color="#FFFFFF">
+                Book now
+              </T>
+              <IconArrowUpRight size={16} line={1.8} color="#FFFFFF" />
+            </RedButton>
+          </BookingBar>
+        ) : null}
+
+        <ServiceSheet
+          garageName={vendor?.name ?? ''}
+          details={details}
+          open={detailsOpen}
+          onClose={() => setDetailsOpen(false)}
+          added={details ? selected.includes(details.id) : false}
+          paused={paused}
+          onToggle={() => {
+            if (details) toggle(details.id);
+            setDetailsOpen(false);
+          }}
+        />
+      </View>
+      </SeenProvider>
+    </FlyHost>
+  );
+}
+
+/** A pane's heading: its name and how many, over the cards. */
+function PaneHeading({ title, count }: { title: string; count: string }) {
+  const styles = useStyles();
+  const { fx } = useFinish();
+  return (
+    <View style={styles.sectionHead}>
+      <T variant="t2">{title}</T>
+      <T variant="t5" color={fx.quiet}>
+        {count}
+      </T>
+    </View>
+  );
+}
+
+const HERO_HEIGHT = 340;
+
+/**
+ * The garage page's tall hero (§5; apps/users/components/garage/garage-hero.tsx): every
+ * photo of the garage, swiped by hand, with dots that stretch, a shade into the page below
+ * and a slow drift as the page scrolls. Without a photo, the garage's designed cover.
+ */
+function GarageHero({ vendor, scrollY }: { vendor: Vendor; scrollY: Animated.Value }) {
+  const styles = useStyles();
+  const reduce = useReduceMotion();
+  const { width } = useWindowDimensions();
+  const [photo, setPhoto] = useState(0);
+  const strip = useRef<ComponentRef<typeof ScrollView>>(null);
+  const photos = vendor.photos;
+  const drift = reduce ? 0 : scrollY.interpolate({ inputRange: [-200, 0, HERO_HEIGHT], outputRange: [0, 0, HERO_HEIGHT * 0.35], extrapolate: 'clamp' });
+  return (
+    <View style={styles.hero}>
+      {photos.length > 0 ? (
+        <ScrollView
+          ref={strip}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          scrollEnabled={photos.length > 1}
+          onMomentumScrollEnd={(event) => setPhoto(Math.round(event.nativeEvent.contentOffset.x / width))}
+        >
+          {photos.map((src, i) => (
+            <View key={src} style={[styles.heroSlide, { width }]}>
+              <Animated.Image
+                source={{ uri: src }}
+                accessibilityLabel={i === 0 ? vendor.name : undefined}
+                resizeMode="cover"
+                style={[styles.heroPhoto, { width, transform: [{ translateY: drift }] }]}
+              />
             </View>
-          ) : null}
-          {mode === 'pickup' ? (
-            <T size={12} lh={20} color={colors.textSecondary}>
-              Free pickup &amp; drop: {vendor.name} collects your car from your address, works on it at the garage and brings it
-              back.
-            </T>
-          ) : null}
-          {params.withdrawn === '1' ? (
-            <Notice tone="neutral" title="The services you picked are no longer offered here.">
-              Choose from what this garage offers now.
-            </Notice>
-          ) : null}
+          ))}
+        </ScrollView>
+      ) : (
+        <GarageCover vendor={vendor} size="hero" metaTop={72} />
+      )}
+      <LinearGradient
+        pointerEvents="none"
+        colors={['rgba(0,0,0,0.45)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0)', styles.page.backgroundColor as string]}
+        locations={[0, 0.28, 0.6, 1]}
+        style={StyleSheet.absoluteFill}
+      />
+      {photos.length > 1 ? (
+        <View style={styles.heroDots}>
+          {photos.map((src, i) => (
+            <Pressable
+              key={src}
+              accessibilityRole="button"
+              accessibilityLabel={`Photo ${i + 1} of ${photos.length}`}
+              accessibilityState={{ selected: i === photo }}
+              hitSlop={10}
+              onPress={() => {
+                setPhoto(i);
+                strip.current?.scrollTo({ x: i * width, animated: !reduce });
+              }}
+              style={styles.dotTouch}
+            >
+              <View style={[styles.dot, i === photo && styles.dotOn]} />
+            </Pressable>
+          ))}
         </View>
+      ) : null}
+    </View>
+  );
+}
 
-        <View style={styles.alerts}>
-          <GarageSlotAlerts vendorId={vendor.id} />
-        </View>
-
-        <View accessibilityRole="tablist" accessibilityLabel="Garage sections" style={styles.tabs}>
-          {visibleTabs.map((t) => (
+/**
+ * Services / Photos / Reviews (N), with the red light as a line under the open one that
+ * flows to the next; sticky on glass once it reaches the top bar.
+ */
+function GarageTabs({
+  tabs,
+  tab,
+  onTab,
+  reviewCount,
+  scrollY,
+}: {
+  tabs: readonly { key: Tab; label: string }[];
+  tab: Tab;
+  onTab: (tab: Tab) => void;
+  reviewCount: number;
+  scrollY: Animated.Value;
+}) {
+  const styles = useStyles();
+  const colors = useColors();
+  const { fx } = useFinish();
+  const reduce = useReduceMotion();
+  const insets = useSafeAreaInsets();
+  const [places, setPlaces] = useState<Partial<Record<Tab, { x: number; width: number }>>>({});
+  const [y, setY] = useState(0);
+  const x = useRef(new Animated.Value(0)).current;
+  const w = useRef(new Animated.Value(1)).current;
+  const place = places[tab];
+  useEffect(() => {
+    if (!place) return;
+    if (reduce) {
+      x.setValue(place.x);
+      w.setValue(place.width / 100);
+      return;
+    }
+    Animated.parallel([
+      Animated.timing(x, { toValue: place.x, duration: 360, easing: EASE_SETTLE, useNativeDriver: true }),
+      Animated.timing(w, { toValue: place.width / 100, duration: 360, easing: EASE_SETTLE, useNativeDriver: true }),
+    ]).start();
+  }, [place, reduce, x, w]);
+  // Glass once stuck under the top bar: the page has scrolled the tabs up to it.
+  const top = insets.top + 60;
+  const stuck = scrollY.interpolate({ inputRange: [y - top - 1, y - top], outputRange: [0, 1], extrapolate: 'clamp' });
+  return (
+    // The spacer the top bar covers once the tabs stick, overlapping the content above until then.
+    <View pointerEvents="box-none" onLayout={(event) => setY(event.nativeEvent.layout.y + top)} style={[styles.tabsWrap, { marginTop: 24 - top }]}>
+      <View pointerEvents="none" style={{ height: top }} />
+      <View style={[styles.tabs, { borderBottomColor: fx.hairline }]}>
+        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: stuck }]}>
+          <Glass radius={0} edge={false} base={fx.glassPinned} style={StyleSheet.absoluteFill} />
+        </Animated.View>
+        <View accessibilityRole="tablist" accessibilityLabel="Garage sections" style={styles.tabRow}>
+          {tabs.map((t) => (
             <Pressable
               key={t.key}
               accessibilityRole="tab"
               accessibilityState={{ selected: tab === t.key }}
-              onPress={() => setTab(t.key)}
-              style={[styles.tab, { borderBottomColor: tab === t.key ? colors.textPrimary : 'transparent' }]}
+              accessibilityLabel={t.key === 'reviews' ? `${t.label}, ${reviewCount}` : t.label}
+              onPress={() => onTab(t.key)}
+              onLayout={(event) => {
+                const { x: left, width } = event.nativeEvent.layout;
+                setPlaces((all) => ({ ...all, [t.key]: { x: left, width } }));
+              }}
+              style={styles.tab}
             >
-              <T size={15} color={tab === t.key ? colors.textPrimary : colors.textSecondary}>
+              <T size={14} weight={600} lh={18} color={tab === t.key ? colors.textPrimary : fx.quiet}>
                 {t.label}
               </T>
+              {t.key === 'reviews' ? (
+                <T num variant="t5" weight={600} color={fx.quiet}>
+                  {reviewCount}
+                </T>
+              ) : null}
             </Pressable>
           ))}
+          {/* The light under the open tab: the red light, as a line. 100 wide, sized by transform only. */}
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.tabLine,
+              { transform: [{ translateX: x }, { translateX: -50 }, { scaleX: w }, { translateX: 50 }] },
+            ]}
+          >
+            <LinearGradient colors={['#E4002B', '#FF5A70']} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={StyleSheet.absoluteFill} />
+          </Animated.View>
         </View>
-
-        <View style={styles.panel}>
-          {tab === 'services' ? (
-            <>
-              <View style={styles.search}>
-                <IconSearch size={17} stroke={2} color={colors.textSecondary} />
-                <TextInput
-                  accessibilityLabel="Search services"
-                  placeholder="Search services..."
-                  placeholderTextColor={colors.textMuted}
-                  keyboardAppearance={colors.keyboard}
-                  value={query}
-                  onChangeText={setQuery}
-                  style={styles.searchInput}
-                />
-              </View>
-              {filteredPackages.length > 0 ? (
-                <>
-                  <View style={styles.sectionHead}>
-                    <T size={17} weight={500}>
-                      Packages
-                    </T>
-                    <T size={12} color={colors.textSecondary}>
-                      {filteredPackages.length} {filteredPackages.length === 1 ? 'package' : 'packages'}
-                    </T>
-                  </View>
-                  {filteredPackages.map((pkg) => (
-                    <PackageCard
-                      key={pkg.id}
-                      pkg={pkg}
-                      added={selected.includes(pkg.id)}
-                      paused={paused}
-                      carType={carType}
-                      onOpen={() => open(pkg)}
-                      onToggle={() => toggle(pkg.id)}
-                    />
-                  ))}
-                </>
-              ) : null}
-              <View style={styles.sectionHead}>
-                <T size={17} weight={500}>
-                  Services
-                </T>
-                <T size={12} color={colors.textSecondary}>
-                  {filtered.length} {filtered.length === 1 ? 'service' : 'services'}
-                </T>
-              </View>
-              {filtered.length === 0 ? (
-                <T size={13} color={colors.textSecondary} align="center" style={styles.none}>
-                  {services.length === 0 ? 'No services available yet.' : 'No services match that search.'}
-                </T>
-              ) : (
-                filtered.map((svc) => (
-                  <ServiceCard
-                    key={svc.id}
-                    service={svc}
-                    added={selected.includes(svc.id)}
-                    paused={paused}
-                    carType={carType}
-                    carModel={myCar?.model ?? null}
-                    onOpen={() => open(svc)}
-                    onToggle={() => toggle(svc.id)}
-                  />
-                ))
-              )}
-              {addOns.length > 0 ? <GarageAddOns addOns={addOns} carType={carType} /> : null}
-            </>
-          ) : null}
-
-          {tab === 'photos' ? (
-            vendor.photos.length > 0 ? (
-              <View style={styles.grid}>
-                {vendor.photos.map((url, i) => (
-                  <Image
-                    key={url}
-                    source={{ uri: url }}
-                    accessibilityLabel={`${vendor.name} ${i + 1}`}
-                    resizeMode="cover"
-                    style={[styles.gridPhoto, { width: (width - 40) / 2, height: (width - 40) / 2 }]}
-                  />
-                ))}
-              </View>
-            ) : (
-              <T size={13} color={colors.textSecondary} align="center" style={styles.none}>
-                No photos yet.
-              </T>
-            )
-          ) : null}
-
-          {tab === 'reviews' ? <ReviewsTab vendor={vendor} reviewCount={reviewCount} /> : null}
-        </View>
-      </ScrollView>
-
-      {paused ? (
-        <View accessibilityLiveRegion="polite" style={[styles.bar, styles.barColumn, { paddingBottom: insets.bottom + 12 }]}>
-          <T size={15} weight={600}>
-            Not taking bookings right now
-          </T>
-          <T size={13} color={colors.textSecondary} style={styles.pausedLine}>
-            {vendor.bookingsPausedReason || 'This garage has paused new bookings. Check back later, or pick another garage.'}
-          </T>
-        </View>
-      ) : selectedServices.length > 0 ? (
-        <View style={[styles.bar, { paddingBottom: insets.bottom + 12 }]}>
-          <View style={styles.flex}>
-            <T size={13} numberOfLines={1} color={colors.textSecondary}>
-              {selectedServices.length === 1
-                ? selectedServices[0].name
-                : `${selectedServices.length} services${selectedDuration !== null ? ` · ${formatDuration(selectedDuration)}` : ''}`}
-            </T>
-            <T size={17} lh={22} numberOfLines={1}>
-              <Figures
-                size={17}
-                lh={22}
-                text={
-                  selectedServices.length === 1
-                    ? servicePriceText(selectedServices[0], carType)
-                    : `${hasPerVehiclePricing ? 'from ' : ''}${money(selectedTotal)}`
-                }
-              />
-            </T>
-          </View>
-          <ScButton variant="hero" fullWidth={false} onPress={book}>
-            <T size={15} weight={500} lh={20} color={colors.white}>
-              Book Now
-            </T>
-            <IconArrowUpRight size={17} stroke={1.5} color={colors.white} />
-          </ScButton>
-        </View>
-      ) : null}
-
-      <ServiceSheet
-        garageName={vendor?.name ?? ''}
-        details={details}
-        open={detailsOpen}
-        onClose={() => setDetailsOpen(false)}
-        added={details ? selected.includes(details.id) : false}
-        paused={paused}
-        onToggle={() => {
-          if (details) toggle(details.id);
-          setDetailsOpen(false);
-        }}
-      />
+      </View>
     </View>
+  );
+}
+
+/** The glass booking bar, rising once something is picked; the flying dot lands on it. */
+function BookingBar({ bottom, children }: { bottom: number; children: ReactNode }) {
+  const styles = useStyles();
+  const reduce = useReduceMotion();
+  const target = useFlyTarget();
+  const rise = useRef(new Animated.Value(reduce ? 1 : 0)).current;
+  useEffect(() => {
+    if (reduce) return;
+    Animated.timing(rise, { toValue: 1, duration: 450, easing: Easing.bezier(0.34, 1.25, 0.64, 1), useNativeDriver: true }).start();
+  }, [reduce, rise]);
+  return (
+    <Animated.View
+      style={[
+        styles.barWrap,
+        { paddingBottom: bottom, transform: [{ translateY: rise.interpolate({ inputRange: [0, 1], outputRange: [140, 0] }) }] },
+      ]}
+    >
+      <View ref={target}>
+        <Glass radius={22} heavy style={styles.bar}>
+          {children}
+        </Glass>
+      </View>
+    </Animated.View>
   );
 }
 
 const useStyles = createStyles((c) => ({
   page: { flex: 1, backgroundColor: c.canvas },
   flex: { flex: 1, minWidth: 0 },
-  fill: { width: '100%', height: '100%' },
+  fill: { flex: 1, width: '100%', height: '100%' },
   state: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: c.canvas, padding: 16 },
   findAnother: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 12 },
   underline: { textDecorationLine: 'underline' },
-  hero: { height: 210, backgroundColor: c.surfaceElevated },
-  heroShade: { position: 'absolute', left: 0, right: 0, top: 0, height: 96 },
-  heroBack: { position: 'absolute', top: 12, left: 12, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.45)' },
-  heroSave: { position: 'absolute', top: 12, right: 12 },
-  heroLogo: { position: 'absolute', left: 16, bottom: 12, width: 56, height: 56, overflow: 'hidden', borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.7)', backgroundColor: c.surface },
-  heroMonogram: { position: 'absolute', left: 16, bottom: 12 },
-  head: { gap: 12, paddingHorizontal: 16, paddingTop: 16 },
-  titleBlock: { gap: 4 },
-  facts: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
-  areaChip: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, backgroundColor: c.surface, paddingHorizontal: 12, paddingVertical: 6 },
-  modes: { marginTop: 4 },
-  alerts: { paddingHorizontal: 16, marginTop: 12 },
-  tabs: { marginTop: 16, flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: c.border, paddingHorizontal: 16 },
-  tab: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderBottomWidth: 2, marginBottom: -1, paddingVertical: 10 },
-  panel: { gap: 12, paddingHorizontal: 16, paddingVertical: 16 },
-  search: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, borderWidth: 1, borderColor: c.border, backgroundColor: c.surface, paddingHorizontal: 14 },
-  searchInput: { flex: 1, minWidth: 0, paddingVertical: 12, fontFamily: font(400), fontSize: 13, color: c.textPrimary },
-  sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  hero: { height: HERO_HEIGHT, overflow: 'hidden', backgroundColor: c.scheme === 'light' ? c.surfaceElevated : '#141418' },
+  heroSlide: { height: HERO_HEIGHT, overflow: 'hidden' },
+  // Taller than the frame, so the drift never shows an edge.
+  heroPhoto: { position: 'absolute', top: -24, height: HERO_HEIGHT + 48 },
+  heroDots: { position: 'absolute', left: 0, right: 0, bottom: 36, flexDirection: 'row', justifyContent: 'center', gap: 2 },
+  dotTouch: { height: 24, paddingHorizontal: 2, justifyContent: 'center' },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.45)' },
+  dotOn: { width: 16, backgroundColor: '#FFFFFF' },
+  body: { marginTop: -28, borderTopLeftRadius: 28, borderTopRightRadius: 28, backgroundColor: c.canvas, paddingHorizontal: 16, paddingTop: 4 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  logo: { width: 56, height: 56, overflow: 'hidden', borderRadius: 16, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.75)', backgroundColor: c.surface },
+  openLine: { marginTop: 5 },
+  facts: { marginTop: 14, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 14, rowGap: 6 },
+  fact: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  chips: { marginTop: 12, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', gap: 8 },
+  areaChip: { height: 32 },
+  areaInner: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 10, paddingRight: 12 },
+  outside: { marginTop: 12 },
+  road: { marginTop: 18 },
+  section: { paddingTop: 20 },
+  pickupNote: { marginTop: 10 },
+  notice: { marginTop: 16 },
+  alerts: { marginTop: 16 },
+  nextFree: { paddingHorizontal: 0, paddingBottom: 0, paddingTop: 0 },
+  tabsWrap: { zIndex: 3 },
+  tabs: { height: 46, borderBottomWidth: 1, backgroundColor: c.canvas },
+  tabRow: { flex: 1, flexDirection: 'row', gap: 4, paddingHorizontal: 12 },
+  tab: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12 },
+  tabLine: {
+    position: 'absolute',
+    left: 0,
+    bottom: -1,
+    width: 100,
+    height: 2,
+    borderRadius: 2,
+    overflow: 'hidden',
+    shadowColor: '#FF2D4A',
+    shadowOffset: { width: 0, height: 0 },
+    shadowRadius: 5,
+    shadowOpacity: 0.8,
+  },
+  panel: { gap: 8, paddingHorizontal: 16, paddingTop: 16 },
+  search: { height: 48 },
+  searchInner: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14 },
+  searchInput: { flex: 1, minWidth: 0, paddingVertical: 12, fontFamily: font(500), fontSize: 15, color: c.textPrimary },
+  group: { paddingTop: 16, gap: 8 },
+  sectionHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 },
   none: { paddingVertical: 24 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  gridPhoto: { borderRadius: 10, backgroundColor: c.surface },
-  bar: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: 1, borderTopColor: c.border, backgroundColor: c.canvas, paddingHorizontal: 16, paddingTop: 12 },
-  barColumn: { flexDirection: 'column', alignItems: 'stretch', gap: 0 },
+  gridPhoto: { borderRadius: 16, backgroundColor: c.surface },
+  top: { position: 'absolute', left: 0, right: 0, top: 0 },
+  topGlass: { borderBottomWidth: 1 },
+  topRow: { height: 60, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 12 },
+  round: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  barWrap: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 12 },
+  bar: { height: 68, flexDirection: 'row', alignItems: 'center', gap: 12, paddingLeft: 18, paddingRight: 10 },
+  pausedBar: { paddingHorizontal: 18, paddingVertical: 14 },
   pausedLine: { marginTop: 2 },
 }));

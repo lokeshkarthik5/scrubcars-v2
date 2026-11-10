@@ -30,12 +30,10 @@ import {
   istDayBounds,
   type BusyInterval,
 } from '../../lib/slots.js'
-import { DEFAULT_DOORSTEP_RADIUS_KM } from '../../lib/doorstep.js'
 import { financialYearOf, formatReceiptSerial } from '../../lib/receipts.js'
-import { DEFAULT_PICKUP_RADIUS_KM } from '../../lib/pickup.js'
 import { calendarRange, garageRespondBy, type GarageCalendar } from '../../lib/response-deadline.js'
 import { DISCOUNT_HELD } from '../discounts/discounts.predicates.js'
-import { isInBin, vendorPageOpen } from '../vendors/vendors.predicates.js'
+import { doorstepCovers, isInBin, pickupCovers, vendorPageOpen } from '../vendors/vendors.predicates.js'
 
 type BookingStatus = (typeof bookingStatusEnum.enumValues)[number]
 
@@ -439,6 +437,31 @@ export async function listCapacityHolders(
   return rows
 }
 
+/**
+ * The same capacity holders for several garages over a range of days, in one
+ * read: the garage list's "Next free" (lib/next-free.ts) asks for up to 20
+ * garages a week ahead at once. Each day then keeps the rows that started
+ * that day or the day before, exactly as listCapacityHolders reads one day.
+ */
+export async function listCapacityHoldersForVendors(
+  vendorIds: string[],
+  from: Date,
+  to: Date
+): Promise<Array<BusyInterval & { vendorId: string }>> {
+  if (vendorIds.length === 0) return []
+  return db
+    .select({ vendorId: bookings.vendorId, start: bookings.scheduledAt, durationMins: bookings.durationMins })
+    .from(bookings)
+    .where(
+      and(
+        inArray(bookings.vendorId, vendorIds),
+        holdsCapacity(),
+        sql`${bookings.scheduledAt} >= ${from.toISOString()}::timestamptz`,
+        sql`${bookings.scheduledAt} < ${to.toISOString()}::timestamptz`
+      )
+    )
+}
+
 /** Why a garage would not take a booking at the moment it is written. */
 export type GarageRefusal = 'paused' | 'closed' | 'slot_full'
 
@@ -694,7 +717,9 @@ export const bookingsRepository = {
    * the question a doorstep booking asks is "will you come to me", and the
    * garage is the only party that can answer it.
    *
-   * Two shapes, in priority order:
+   * In priority order:
+   *   0. "All over <city>" (0069), when the garage said so and its pin is in
+   *      a city: any point inside that city's reach, from the city's centre.
    *   1. A drawn polygon (`doorstep_area`), when the vendor set one. Real
    *      coverage is rarely circular — a river or a highway cuts it.
    *   2. Otherwise `doorstep_radius_km`, the simple default.
@@ -703,28 +728,18 @@ export const bookingsRepository = {
    *      measures with the same default — a garage listed for an address
    *      must not then refuse to book it.
    *
-   * PostGIS calls are schema-qualified because the extension lives in `gis`;
-   * see drizzle/0019_add_geo.sql.
+   * The rule itself is doorstepCovers (vendors.predicates.ts), which the
+   * Doorstep list reads too. PostGIS calls are schema-qualified because the
+   * extension lives in `gis`; see drizzle/0019_add_geo.sql.
    */
   async isWithinDoorstepRadius(
     vendorId: string,
     lat: number,
     lng: number
   ): Promise<boolean> {
+    const point = sql`gis.ST_SetSRID(gis.ST_MakePoint(${lng}, ${lat}), 4326)::gis.geography`
     const rows = await db.execute<{ covered: boolean }>(sql`
-      SELECT CASE
-               WHEN v.doorstep_area IS NOT NULL
-               THEN gis.ST_Covers(
-                      v.doorstep_area,
-                      gis.ST_SetSRID(gis.ST_MakePoint(${lng}, ${lat}), 4326)::gis.geography
-                    )
-               ELSE gis.ST_DWithin(
-                      v.geo,
-                      gis.ST_SetSRID(gis.ST_MakePoint(${lng}, ${lat}), 4326)::gis.geography,
-                      COALESCE(v.doorstep_radius_km, ${DEFAULT_DOORSTEP_RADIUS_KM}) * 1000,
-                      false
-                    )
-             END AS covered
+      SELECT ${doorstepCovers(point)} AS covered
         FROM vendors v
        WHERE v.id = ${vendorId} AND v.geo IS NOT NULL
     `)
@@ -737,17 +752,15 @@ export const bookingsRepository = {
   /**
    * Will this garage collect a car from this point? Pickup & drop (0037)
    * asks the doorstep question with the garage's own pickup radius, measured
-   * from its pin; an empty radius is DEFAULT_PICKUP_RADIUS_KM. No drawn area:
-   * that is the doorstep crew's coverage, not the pickup driver's.
+   * from its pin; an empty radius is DEFAULT_PICKUP_RADIUS_KM. All over its
+   * city (0069) when it said so. No drawn area: that is the doorstep crew's
+   * coverage, not the pickup driver's. The rule is pickupCovers
+   * (vendors.predicates.ts), as the Pickup & drop list reads it.
    */
   async isWithinPickupRadius(vendorId: string, lat: number, lng: number): Promise<boolean> {
+    const point = sql`gis.ST_SetSRID(gis.ST_MakePoint(${lng}, ${lat}), 4326)::gis.geography`
     const rows = await db.execute<{ covered: boolean }>(sql`
-      SELECT gis.ST_DWithin(
-               v.geo,
-               gis.ST_SetSRID(gis.ST_MakePoint(${lng}, ${lat}), 4326)::gis.geography,
-               COALESCE(v.pickup_radius_km, ${DEFAULT_PICKUP_RADIUS_KM}) * 1000,
-               false
-             ) AS covered
+      SELECT ${pickupCovers(point)} AS covered
         FROM vendors v
        WHERE v.id = ${vendorId} AND v.geo IS NOT NULL
     `)
@@ -1953,6 +1966,11 @@ export const bookingsRepository = {
       .groupBy(sql`1`)
 
     return new Map(rows.map((row) => [row.date, row.count]))
+  },
+
+  /** See listCapacityHoldersForVendors: several garages, several days, one read. */
+  listCapacityHoldersForVendors(vendorIds: string[], from: Date, to: Date) {
+    return listCapacityHoldersForVendors(vendorIds, from, to)
   },
 
   /** See listCapacityHolders: the bookings taking up the garage's room that day. */

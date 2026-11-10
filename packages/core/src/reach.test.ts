@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  anywhereInCityLine,
+  atGarageListHasGarages,
   atGarageReach,
   canCollectFrom,
   distanceBand,
@@ -106,6 +108,19 @@ describe('the bottom of every tab', () => {
   })
 })
 
+describe('the map’s "See all garages" (0070)', () => {
+  test('offered while the At garage list has a garage, within the far limit', () => {
+    expect(atGarageListHasGarages(figures({ nearestKm: 120 }))).toBe(true)
+  })
+
+  test('never when the list would be empty, nor without figures', () => {
+    const none: ReachFigures = { ...figures({ nearestKm: null }), dropin: { count: 0, nearestKm: null } }
+    expect(atGarageListHasGarages(none)).toBe(false)
+    expect(atGarageListHasGarages(null)).toBe(false)
+    expect(atGarageListHasGarages(undefined)).toBe(false)
+  })
+})
+
 describe('Can collect your car', () => {
   const garage = { pickupEnabled: true, lat: 13.0, lng: 80.25, pickupRadiusKm: 5 }
   test('inside its pickup radius from the customer’s location', () => {
@@ -133,5 +148,33 @@ describe('a just-outside card’s line', () => {
 
   test('a drawn area has no single radius', () => {
     expect(outsideLine(null, 3.9)).toBe('3.9 km outside its area')
+  })
+})
+
+describe('"Comes anywhere in <city>" (0069)', () => {
+  const city = { name: 'Chennai', lat: 13.0827, lng: 80.2707, reachKm: 50 }
+  const garage = {
+    doorstepEnabled: true,
+    pickupEnabled: true,
+    doorstepWholeCity: true,
+    pickupWholeCity: true,
+    reachCity: city,
+  }
+
+  test('the line for the way of booking being looked at, with the garage’s own city', () => {
+    expect(anywhereInCityLine(garage, 'doorstep')).toBe('Comes anywhere in Chennai')
+    expect(anywhereInCityLine(garage, 'pickup')).toBe('Collects anywhere in Chennai')
+    expect(anywhereInCityLine({ ...garage, reachCity: { ...city, name: 'Tirupur' } }, 'doorstep')).toBe(
+      'Comes anywhere in Tirupur'
+    )
+  })
+
+  test('nothing at the garage, with no mode, off, by radius, with no city or from an older API', () => {
+    expect(anywhereInCityLine(garage, 'dropin')).toBeNull()
+    expect(anywhereInCityLine(garage, undefined)).toBeNull()
+    expect(anywhereInCityLine({ ...garage, doorstepEnabled: false }, 'doorstep')).toBeNull()
+    expect(anywhereInCityLine({ ...garage, pickupWholeCity: false }, 'pickup')).toBeNull()
+    expect(anywhereInCityLine({ ...garage, reachCity: null }, 'doorstep')).toBeNull()
+    expect(anywhereInCityLine({ doorstepEnabled: true, pickupEnabled: true }, 'doorstep')).toBeNull()
   })
 })

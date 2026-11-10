@@ -16,6 +16,7 @@ import { closeDb } from './support/db'
 import {
   ADD_ONS,
   ADMIN,
+  CALENDAR,
   CUSTOMERS,
   OWNER_DELETE,
   PRE_IOS,
@@ -75,6 +76,8 @@ async function globalSetup() {
   await saveState('vendor-preios', PRE_IOS.owner.phone, 'vendor')
   await saveState('customer-add-ons', ADD_ONS.customer.phone, 'customer')
   await saveState('vendor-add-ons', ADD_ONS.owner.phone, 'vendor')
+  // The garage's Bookings calendar (CALENDAR, 6200–6249).
+  await saveState('vendor-calendar', CALENDAR.owner.phone, 'vendor')
   await saveAdminState('admin')
   await saveAdminState('admin-shared', ADMIN)
   // A personal login that is not the owner (10 Nov 2026): the old rules.

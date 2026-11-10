@@ -1,4 +1,5 @@
 import type { CarTip, HomeData } from '@repo/core/api/home';
+import { detlioInLine, isSmallCity } from '@repo/core/customer-city';
 import { istDateKey } from '@repo/core/home-display';
 import { formatDistance } from '@repo/core/map';
 import { IconBulb, IconChevronRight, IconMapPin, IconX } from '@repo/native-ui/icons';
@@ -11,6 +12,7 @@ import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Svg, { Circle, G, Path } from 'react-native-svg';
 
 import { AreaPicker } from '@/components/area/area-picker';
+import { useCustomerPlace } from '@/lib/customer-place';
 import { devicePrefs } from '@/lib/device-prefs';
 
 /** The faint line map behind the words. */
@@ -70,6 +72,9 @@ export function NearbyCard({ nearby, located }: { nearby: HomeData['nearby']; lo
   const colors = useColors();
   const styles = useStyles();
   const [asking, setAsking] = useState(false);
+  // A city with fewer than three garages shows no count (0070, mockup D), as on the web.
+  const { city } = useCustomerPlace();
+  const small = isSmallCity(city);
   const eyebrow = (
     <T size={13} color={colors.dim}>
       Nearby garages
@@ -111,13 +116,19 @@ export function NearbyCard({ nearby, located }: { nearby: HomeData['nearby']; lo
 
   return (
     <Shell
-      label={`${nearby.count} ${nearby.count === 1 ? 'garage' : 'garages'} nearby`}
+      label={small ? detlioInLine(city) : `${nearby.count} ${nearby.count === 1 ? 'garage' : 'garages'} nearby`}
       onPress={() => router.navigate('/map' as Href)}
       icon={<IconChevronRight size={20} stroke={1.5} />}
     >
       {eyebrow}
       <T size={22} lh={26} tracking={-0.022} style={styles.big}>
-        <T num size={22} lh={26}>{nearby.count}</T> {nearby.count === 1 ? 'garage' : 'garages'}
+        {small ? (
+          detlioInLine(city)
+        ) : (
+          <>
+            <T num size={22} lh={26}>{nearby.count}</T> {nearby.count === 1 ? 'garage' : 'garages'}
+          </>
+        )}
       </T>
       <T size={13} color={colors.dim}>
         Within <T num size={13} color={colors.dim}>{nearby.radiusKm}</T> km

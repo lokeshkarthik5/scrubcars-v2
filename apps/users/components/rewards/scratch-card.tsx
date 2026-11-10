@@ -229,7 +229,7 @@ export function ScratchCardPanel({ card, compact = false }: { card: ScratchCardV
             ) : spec ? (
               <PrizeFace spec={spec} revealed={showPrize} />
             ) : (
-              <p className="grid h-full place-items-center px-4 text-center text-[13px] text-text-secondary">
+              <p className="grid h-full place-items-center px-4 text-center text-t4 text-text-secondary">
                 {waiting ? 'Revealing…' : 'A prize is waiting'}
               </p>
             )}
@@ -274,32 +274,32 @@ export function ScratchCardPanel({ card, compact = false }: { card: ScratchCardV
         <canvas ref={confettiRef} aria-hidden className="pointer-events-none absolute -left-3 -top-20 z-10 h-[calc(100%+6.5rem)] w-[calc(100%+1.5rem)]" />
       </div>
       {showPrize && prize?.fellBack && (
-        <p className="text-[11px] text-text-secondary">This month&apos;s prize budget is used up, so it&apos;s a bonus stamp.</p>
+        <p className="text-t5 text-text-secondary">This month&apos;s prize budget is used up, so it&apos;s a bonus stamp.</p>
       )}
 
       {!cleared ? (
         <div className="flex items-center justify-between gap-3">
-          <p className="text-[11px] text-text-muted">
+          <p className="text-t5 text-text-muted">
             Scratch by <span className="font-numeric">{rewardDay(card.lastDay)}</span>
             {card.vendorName ? ` · ${card.vendorName}` : ''}
           </p>
-          <button type="button" onClick={revealAll} className="text-[12px] font-medium text-text-primary underline underline-offset-4">
+          <button type="button" onClick={revealAll} className="text-t5 font-medium text-text-primary underline underline-offset-4">
             Reveal
           </button>
         </div>
       ) : prize && isMoneyPrize(prize.outcome) && voucherLastDay ? (
         <div className="flex items-center justify-between gap-3">
-          <p className="min-w-0 text-[12px] text-text-secondary">
+          <p className="min-w-0 text-t5 text-text-secondary">
             In your rewards. Use by <span className="font-numeric">{rewardDay(voucherLastDay)}</span>
           </p>
           {/* The moment's one red action. */}
-          <ScButton variant="hero" fullWidth={false} onClick={goToCheckout} className="h-10 shrink-0 gap-1.5 px-4 text-[13px]">
+          <ScButton variant="hero" fullWidth={false} onClick={goToCheckout} className="h-10 shrink-0 gap-1.5 px-4 text-t4">
             <span>Use at checkout</span>
             <IconArrowUpRight size={16} aria-hidden />
           </ScButton>
         </div>
       ) : garage ? (
-        <p className="flex items-center gap-1.5 text-[12px] text-text-primary">
+        <p className="flex items-center gap-1.5 text-t5 text-text-primary">
           <IconCircleCheckFilled size={16} className="shrink-0 text-[#DCE1EC]" aria-hidden />
           <span>
             {result?.garagePull ? `${result.garagePull.car.name} (${result.garagePull.car.rarityLabel}) is in your Garage. ` : 'A new car is in your Garage. '}
@@ -309,7 +309,7 @@ export function ScratchCardPanel({ card, compact = false }: { card: ScratchCardV
           </span>
         </p>
       ) : prize?.outcome === 'bonus_stamp' ? (
-        <p className="flex items-center gap-1.5 text-[12px] text-text-primary">
+        <p className="flex items-center gap-1.5 text-t5 text-text-primary">
           <IconCircleCheckFilled size={16} className="shrink-0 text-[#DCE1EC]" aria-hidden />
           {result?.shineVoucher ? (
             <span>
@@ -323,17 +323,17 @@ export function ScratchCardPanel({ card, compact = false }: { card: ScratchCardV
 
       {failed && (
         <div className="flex items-center justify-between gap-3">
-          <p role="alert" className="text-[12px] text-warning">
+          <p role="alert" className="text-t5 text-warning">
             {scratch.error instanceof Error ? scratch.error.message : "Couldn't reveal it. Try again."}
           </p>
-          <ScButton variant="secondary" className="flex h-8 w-auto shrink-0 items-center justify-center px-3 py-0 text-[12px]" onClick={revealAll}>
+          <ScButton variant="secondary" className="flex h-8 w-auto shrink-0 items-center justify-center px-3 py-0 text-t5" onClick={revealAll}>
             Try again
           </ScButton>
         </div>
       )}
       {showPrize && spec && <ShareCardImage spec={() => spec} fileName="detlio-prize" compact />}
       {compact && cleared && (
-        <Link href="/profile/rewards" className="text-[12px] text-text-secondary underline underline-offset-4">
+        <Link href="/profile/rewards" className="text-t5 text-text-secondary underline underline-offset-4">
           See your rewards
         </Link>
       )}

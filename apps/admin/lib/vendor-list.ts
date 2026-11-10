@@ -8,6 +8,7 @@
  * garage is Live are decided on the server (lib/vendor-readiness.ts and the
  * customer lists' own rule in vendors.predicates.ts). This only presents them.
  */
+import { OTHER_TOWNS_LABEL } from '@repo/core/cities'
 import type { AdminVendor, ReadinessItem } from '@repo/core/api/admin'
 import { formatDay } from '@repo/core/format'
 import {
@@ -592,6 +593,61 @@ export function parseTeam(value: string | null | undefined): TeamFilter | null {
   return value === 'with' || value === 'mine' ? value : null
 }
 
+// ─── The City filter (0069) ──────────────────────────────────────────────────
+
+/** `?city=-`: garages in no city, Other towns. Any other value is a city's id. */
+export const CITY_OTHER_TOWNS = '-'
+
+/** A `?city=` value, trimmed; null when empty. Ids are checked against the list. */
+export function parseCityFilter(value: string | null | undefined): string | null {
+  const text = value?.trim()
+  return text ? text.slice(0, 64) : null
+}
+
+/** The garage's city as the list says it; null on an API from before cities. */
+export function cityLabel(v: Pick<AdminVendor, 'garageCity'>): string | null {
+  if (v.garageCity === undefined) return null
+  return v.garageCity?.name ?? OTHER_TOWNS_LABEL
+}
+
+/** The City filter: one city by id, or Other towns. */
+export function matchesCity(v: Pick<AdminVendor, 'garageCity'>, filter: string | null): boolean {
+  if (!filter) return true
+  if (v.garageCity === undefined) return false
+  if (filter === CITY_OTHER_TOWNS) return v.garageCity === null
+  return v.garageCity?.id === filter
+}
+
+export interface CityOption {
+  value: string
+  label: string
+  count: number
+}
+
+/**
+ * The City filter's choices: each city a garage is in (A to Z), then Other
+ * towns, counted over the garages given. Only places that hold a garage:
+ * the Cities page lists every city.
+ */
+export function cityOptions(vendors: Array<Pick<AdminVendor, 'garageCity'>>): CityOption[] {
+  const byId = new Map<string, { label: string; count: number }>()
+  let others = 0
+  for (const v of vendors) {
+    if (v.garageCity === undefined) continue
+    if (v.garageCity === null) {
+      others += 1
+      continue
+    }
+    const entry = byId.get(v.garageCity.id) ?? { label: v.garageCity.name, count: 0 }
+    entry.count += 1
+    byId.set(v.garageCity.id, entry)
+  }
+  const cities = [...byId.entries()]
+    .map(([value, { label, count }]) => ({ value, label, count }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'en-IN', { sensitivity: 'base' }))
+  return others > 0 ? [...cities, { value: CITY_OTHER_TOWNS, label: OTHER_TOWNS_LABEL, count: others }] : cities
+}
+
 /** Everything the Garages list keeps in its URL. */
 export interface GarageListState {
   show: ListFilter
@@ -601,6 +657,8 @@ export interface GarageListState {
   team?: TeamFilter | null
   /** The colour chip (0064): a colour, or 'none'. */
   colour?: ColourFilter | null
+  /** The City filter (0069): a city's id, or CITY_OTHER_TOWNS. */
+  city?: string | null
 }
 
 /** The list's state from its URL. */
@@ -614,6 +672,7 @@ export function parseGarageList(params: {
     onboardedBy: parseOnboardedBy(params.get('onboardedBy')),
     team: parseTeam(params.get('team')),
     colour: parseColourFilter(params.get('colour')),
+    city: parseCityFilter(params.get('city')),
   }
 }
 
@@ -630,6 +689,7 @@ export function garageListHref(state: GarageListState): string {
   if (state.onboardedBy) query.set('onboardedBy', state.onboardedBy)
   if (state.team) query.set('team', state.team)
   if (state.colour) query.set('colour', state.colour)
+  if (state.city) query.set('city', state.city)
   const text = query.toString()
   return text ? `/vendors?${text}` : '/vendors'
 }

@@ -2,10 +2,11 @@ import { type HTMLAttributes } from 'react'
 import { cn } from '@repo/core/utils'
 
 /**
- * The customer app's card: Home's surface on every screen (the consistency
- * system's "cards and corners"): a soft graphite gradient, a hairline edge
- * and 22pt corners, instead of the flat grey 14pt card. A drop-in for
- * @repo/ui's ScCard, which the garage and admin apps keep.
+ * The customer app's card: one surface on every screen (the consistency
+ * system's "cards and corners"): graphite with an edge that catches the
+ * light (`fx-edge`, the finish) and 22pt corners, instead of the flat grey
+ * 14pt card. A drop-in for @repo/ui's ScCard, which the garage and admin
+ * apps keep.
  *
  * A card that brings its own background (an amber notice) keeps it: the
  * gradient would sit on top of a background colour and hide it.
@@ -18,9 +19,10 @@ export function ScCard({
   return (
     <div
       className={cn(
-        'rounded-[22px] border border-line px-4 py-4',
-        !ownBackground &&
-          'bg-gradient-to-b from-card-top to-card-bot shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]',
+        'rounded-[22px] px-4 py-4',
+        // The finish's lit edge (customer UI round, §1): bright on top,
+        // fading down, rather than a flat grey outline.
+        ownBackground ? 'border border-line' : 'fx-edge',
         className
       )}
       {...props}

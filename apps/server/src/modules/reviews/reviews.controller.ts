@@ -42,6 +42,10 @@ export async function listVendorReviews(
 ) {
   const reviews = await reviewsService.listVendorReviews(vendorId)
 
+  // As the garage's other public reads (vendors.controller PUBLIC_GARAGE_CACHE):
+  // the browser's cache only, for half a minute, then five more while it
+  // checks again. On success only.
+  c.header('Cache-Control', 'public, max-age=30, stale-while-revalidate=300')
   return c.json({
     success: true,
     data: reviews,

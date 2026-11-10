@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { IconChevronRight, IconMapPin } from '@tabler/icons-react'
+import { useCustomerPlace } from '@repo/core/hooks/use-customer-place'
+import { detlioInLine, isSmallCity } from '@repo/core/customer-city'
 import { AreaPicker } from '@/components/area/area-picker'
 import { Figures } from '@repo/ui/sc/figures'
 import { formatDistance } from '@repo/core/map'
@@ -64,6 +66,10 @@ const shell =
  */
 export function NearbyCard({ nearby, located }: { nearby: HomeData['nearby']; located: boolean }) {
   const [asking, setAsking] = useState(false)
+  // A city with fewer than three garages shows no count (0070, mockup D):
+  // "Detlio in Madurai", never a lonely "1 garage".
+  const { city } = useCustomerPlace()
+  const small = isSmallCity(city)
 
   if (!nearby) {
     if (located) return null
@@ -72,8 +78,8 @@ export function NearbyCard({ nearby, located }: { nearby: HomeData['nearby']; lo
         <button type="button" onClick={() => setAsking(true)} className={shell}>
           <LineMap />
           <span className="relative">
-            <span className="block text-[13px] text-dim">Nearby garages</span>
-            <span className="mt-[5px] mb-1 block text-[17px] tracking-[-0.012em] text-text-primary">
+            <span className="block text-t4 text-dim">Nearby garages</span>
+            <span className="mt-[5px] mb-1 block text-t2 tracking-[-0.012em] text-text-primary">
               Pick your area to see the nearest
             </span>
           </span>
@@ -94,11 +100,11 @@ export function NearbyCard({ nearby, located }: { nearby: HomeData['nearby']; lo
       <Link href="/garages" className={shell}>
         <LineMap />
         <span className="relative">
-          <span className="block text-[13px] text-dim">Nearby garages</span>
-          <span className="mt-[5px] mb-1 block text-[17px] tracking-[-0.012em] text-text-primary">
+          <span className="block text-t4 text-dim">Nearby garages</span>
+          <span className="mt-[5px] mb-1 block text-t2 tracking-[-0.012em] text-text-primary">
             No garages within <span className="font-numeric">{nearby.radiusKm}</span> km yet
           </span>
-          <span className="block text-[13px] text-dim">See all garages</span>
+          <span className="block text-t4 text-dim">See all garages</span>
         </span>
         <span aria-hidden className="relative grid size-10 shrink-0 place-items-center rounded-full bg-white/[0.08] backdrop-blur-sm">
           <IconChevronRight size={20} stroke={1.5} />
@@ -111,15 +117,21 @@ export function NearbyCard({ nearby, located }: { nearby: HomeData['nearby']; lo
     <Link href="/map" className={shell}>
       <LineMap />
       <span className="relative">
-        <span className="block text-[13px] text-dim">Nearby garages</span>
+        <span className="block text-t4 text-dim">Nearby garages</span>
         <span className="mt-[5px] mb-1 block text-[22px] tracking-[-0.022em] text-text-primary">
-          <span className="font-numeric">{nearby.count}</span>{' '}
-          {nearby.count === 1 ? 'garage' : 'garages'}
+          {small ? (
+            detlioInLine(city)
+          ) : (
+            <>
+              <span className="font-numeric">{nearby.count}</span>{' '}
+              {nearby.count === 1 ? 'garage' : 'garages'}
+            </>
+          )}
         </span>
         {/* Straight-line distance, which is what the server measures; never
             worded as a drive time it does not know. Under 1 km reads in
             metres ("400 m"), as everywhere else a distance is shown. */}
-        <span className="block text-[13px] text-dim">
+        <span className="block text-t4 text-dim">
           Within <span className="font-numeric">{nearby.radiusKm}</span> km
           {nearby.closestKm !== null && (
             <>

@@ -1,14 +1,17 @@
 'use client'
 
-import { IconCheck, IconPlus } from '@tabler/icons-react'
 import { ADD_ON_LIMITS, addOnTimeLabel } from '@repo/core/add-ons'
 import type { AddOn } from '@repo/core/api/add-ons'
-import { cn } from '@repo/core/utils'
 import { Figures } from '@repo/ui/sc/figures'
+import { RedLightAdd } from '@/components/garage/red-light-add'
 import { servicePriceText } from '@/lib/price'
 import type { VehicleType } from '@repo/core/types'
 
-/** Checkout's Add-ons, right under "Your booking" (frame D). */
+/**
+ * Checkout's Add-ons (0068), each with the red-light Add of the garage page
+ * (customer UI round, §6): a row per add-on, its price and the time it adds,
+ * and Add → Added with the light switched on.
+ */
 export function CheckoutAddOns({
   addOns,
   picked,
@@ -28,14 +31,14 @@ export function CheckoutAddOns({
     >
       <h2
         id="checkout-add-ons"
-        className="text-[17px] font-medium text-text-primary"
+        className="text-t2 font-semibold text-text-primary"
       >
         Add-ons
       </h2>
-      <p className="text-[13px] text-dim">
+      <p className="-mt-1 text-t5 font-medium text-[#8E8E98]">
         Optional. They go with the services you&apos;ve chosen.
       </p>
-      <ul className="hub-card flex flex-col divide-y divide-line px-4">
+      <ul className="flex flex-col gap-2">
         {addOns.map((addOn) => {
           const added = picked.includes(addOn.id)
           // The server's limit: nothing more to add, but an added one comes off.
@@ -43,40 +46,23 @@ export function CheckoutAddOns({
           return (
             <li
               key={addOn.id}
-              className="flex items-center justify-between gap-3 py-3"
+              className="flex items-center justify-between gap-2.5 rounded-[18px] border border-white/[0.07] bg-[#111114] py-2.5 pl-3.5 pr-2.5"
             >
-              <div className="min-w-0">
-                <p className="text-[15px] text-text-primary">{addOn.name}</p>
-                <p className="mt-0.5 text-[13px] text-text-secondary">
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <p className="text-[14px] font-semibold text-text-primary">{addOn.name}</p>
+                <p className="font-numeric text-t5 font-medium text-[#8E8E98]">
                   <Figures text={servicePriceText(addOn, vehicleType)} />
                   {' · '}
                   <Figures text={addOnTimeLabel(addOn.extraMins)} />
                 </p>
               </div>
-              <button
-                type="button"
-                aria-pressed={added}
+              <RedLightAdd
+                name={addOn.name}
+                added={added}
                 disabled={full}
-                aria-label={
-                  added
-                    ? `Remove ${addOn.name} from booking`
-                    : `Add ${addOn.name} to booking`
-                }
-                onClick={() => onToggle(addOn.id)}
-                className={cn(
-                  'press flex min-h-11 disabled:opacity-50 shrink-0 items-center gap-1 rounded-full border px-4 text-[13px] font-medium transition-colors',
-                  added
-                    ? 'border-text-primary text-text-primary'
-                    : 'border-white/20 text-text-primary'
-                )}
-              >
-                {added ? (
-                  <IconCheck size={15} aria-hidden="true" />
-                ) : (
-                  <IconPlus size={15} aria-hidden="true" />
-                )}
-                {added ? 'Added' : 'Add'}
-              </button>
+                fly={false}
+                onToggle={() => onToggle(addOn.id)}
+              />
             </li>
           )
         })}

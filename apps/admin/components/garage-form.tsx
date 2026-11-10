@@ -25,6 +25,8 @@ import {
 import { useInvalidateAdminVendors } from '@repo/core/api/hooks/use-admin-vendors'
 import { useAdminLogins } from '@repo/core/api/hooks/use-admin-logins'
 import { coverageKeys } from '@repo/core/api/hooks/use-admin-coverage'
+import { useAdminCities } from '@repo/core/api/hooks/use-admin-cities'
+import { cityNameKey, cityOfPin } from '@repo/core/cities'
 import { VENDOR_VEHICLE_TYPE_OPTIONS } from '@repo/core/vehicles'
 import { parsePickupRadius } from '@repo/core/pickup'
 import { cn } from '@repo/core/utils'
@@ -60,6 +62,8 @@ import { toServicePayload, type ServiceRow } from '@/lib/service-editor'
 import { rowsToSave, servicesSaveBlock } from '@/lib/service-rows'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+/** The City select's value for a town that is not one of the cities. */
+const ANOTHER_TOWN = '__another__'
 const SLOT_INTERVALS = [30, 45, 60] as const
 const STATUS_OPTIONS = [
   { value: 'pending' as const, label: 'Pending' },
@@ -132,6 +136,15 @@ export function GarageForm({
   const [doorstepRadius, setDoorstepRadius] = useState(
     initial?.doorstepRadius ?? ''
   )
+  // "All over <city>" (0069) for doorstep and pickup & drop, sent with
+  // Create only while the pin is in a city (the server's rule).
+  const [doorstepWholeCity, setDoorstepWholeCity] = useState(false)
+  const [pickupWholeCity, setPickupWholeCity] = useState(false)
+  // The cities, for the City select and to open the map over the chosen one.
+  const citiesQuery = useAdminCities()
+  const cities = citiesQuery.data?.cities ?? []
+  // "Another town…" picked by hand, so the box stays open while it is empty.
+  const [anotherTown, setAnotherTown] = useState(false)
   const [slotIntervalMins, setSlotIntervalMins] = useState<30 | 45 | 60>(30)
   const [workingDays, setWorkingDays] = useState<number[]>(
     initial?.workingDays ?? DEFAULT_WORKING_DAYS
@@ -178,6 +191,10 @@ export function GarageForm({
         : null
   // A doorstep-only garage needs no address or pincode (0064).
   const atGarage = bookingMode !== 'doorstep'
+  // The city typed or chosen, as one of the cities (by name, Madras as
+  // Chennai), and the city the pin is in, for "All over <city>".
+  const chosenCity = cities.find((city) => cityNameKey(city.name) === cityNameKey(form.city)) ?? null
+  const pinCity = cityOfPin(pin, cities)
   const fieldsProblem = garageFieldsProblem(form, atGarage)
   const missing = missingForCreate(form, services, atGarage)
 
@@ -220,6 +237,10 @@ export function GarageForm({
         // Empty means the default distance, so nothing is sent for it.
         doorstepRadiusKm:
           travels && radius.ok ? (radius.km ?? undefined) : undefined,
+        // Only while the pin is in a city; left out otherwise, so an API
+        // from before cities never sees them.
+        ...(travels && doorstepWholeCity && pinCity && { doorstepWholeCity: true }),
+        ...(pickupOn && pickupWholeCity && pinCity && { pickupWholeCity: true }),
         lat: pin?.lat,
         lng: pin?.lng,
         ...bookingModeFlags(bookingMode),
@@ -329,6 +350,11 @@ export function GarageForm({
         reachKm={radius.ok ? radius.km : null}
         radiusError={radiusBlock}
         live={!pendingOnly && status === 'active' && isVerified}
+        wholeCity={
+          citiesQuery.data?.available
+            ? { on: doorstepWholeCity, onChange: setDoorstepWholeCity, cityName: pinCity?.name ?? null }
+            : undefined
+        }
       />
       {bookingMark && <ImportNote mark={bookingMark} />}
       {markLine('doorstepRadiusKm')}
@@ -355,6 +381,11 @@ export function GarageForm({
           agreed={pickupAgreed}
           onAgreedChange={setPickupAgreed}
           pinned={pin != null}
+          wholeCity={
+            citiesQuery.data?.available
+              ? { on: pickupWholeCity, onChange: setPickupWholeCity, cityName: pinCity?.name ?? null }
+              : undefined
+          }
         />
       </section>
       {markLine('pickupRadiusKm')}
@@ -450,8 +481,30 @@ export function GarageForm({
   const locationSection = (
     <ScSection title="Location">
       {field('address', atGarage ? 'Address' : 'Address (optional)')}
+      {/* A city from the Cities list (0069), or a town that is not one yet. */}
+      {cities.length > 0 && (
+        <ScSelect
+          label="City"
+          // By name, the value the form sends as the garage's city.
+          value={chosenCity && !anotherTown ? chosenCity.name : ANOTHER_TOWN}
+          onChange={(event) => {
+            const picked = cities.find((city) => city.name === event.target.value)
+            setAnotherTown(!picked)
+            setForm((prev) => ({ ...prev, city: picked ? picked.name : '' }))
+          }}
+        >
+          {cities.map((city) => (
+            <option key={city.id} value={city.name}>
+              {city.name}
+            </option>
+          ))}
+          <option value={ANOTHER_TOWN}>Another town…</option>
+        </ScSelect>
+      )}
       <div className="grid grid-cols-2 gap-3">
-        {field('city', 'City')}
+        {cities.length === 0 || anotherTown || !chosenCity
+          ? field('city', cities.length > 0 ? 'Town' : 'City')
+          : null}
         {field('pincode', atGarage ? 'Pincode' : 'Pincode (optional)', {
           placeholder: '6 digits',
           inputMode: 'numeric',
@@ -478,6 +531,9 @@ export function GarageForm({
           value={pin ? { lat: pin.lat, lng: pin.lng } : null}
           onChange={setPin}
           expectedCity={form.city}
+          // Opens over the chosen city (0069), so a garage in Tirupur is
+          // placed from Tirupur, not from Chennai.
+          initialCenter={chosenCity ? { lat: chosenCity.lat, lng: chosenCity.lng } : null}
         />
       </div>
     </ScSection>

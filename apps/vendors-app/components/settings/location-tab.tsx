@@ -1,4 +1,4 @@
-import { DEFAULT_DOORSTEP_RADIUS_KM, DOORSTEP_RADIUS_PLACEHOLDER } from '@repo/core/doorstep';
+import { DEFAULT_DOORSTEP_RADIUS_KM, DOORSTEP_RADIUS_PLACEHOLDER, MAX_DOORSTEP_RADIUS_KM } from '@repo/core/doorstep';
 import type { ApiVendorProfile } from '@repo/core/api/types';
 import { useState } from 'react';
 import { View } from 'react-native';
@@ -20,7 +20,8 @@ import {
   radiusUnreadable,
 } from '@/lib/location-settings';
 import { createStyles, useColors } from '@repo/native-ui/theme';
-import { updateVendorSettings } from '@/lib/vendor-api';
+import { updateVendorJobTypes, updateVendorSettings } from '@/lib/vendor-api';
+import { TravelChoiceField } from '@/components/travel-choice';
 
 import { useSaving } from './use-saving';
 
@@ -42,6 +43,14 @@ export function LocationTab({
   const [radius, setRadius] = useState(() => radiusText(vendor));
   const { saving, run } = useSaving();
   const unpinned = vendor.lat === null;
+  // "All over <city>" (0069): only while the pin is in a city, which GET /vendors/me says.
+  const cityName = vendor.garageCity?.name ?? null;
+  const wholeCity = vendor.doorstepWholeCity === true && cityName !== null;
+
+  const saveWholeCity = (on: boolean) =>
+    void run('whole-city', async () => {
+      onSaved(await updateVendorJobTypes({ doorstepWholeCity: on }));
+    });
 
   const save = () => {
     if (!pin) return;
@@ -75,24 +84,46 @@ export function LocationTab({
           onChange={setPin}
           expectedCity={vendor.city}
         />
-        <ScInput
-          label="Doorstep travel radius (km)"
-          numeric
-          keyboardType="decimal-pad"
-          placeholder={DOORSTEP_RADIUS_PLACEHOLDER}
-          value={radius}
-          onChangeText={(text) => setRadius(radiusInput(text))}
-        />
-        {/* This is the garage's own number, not a radius the customer picks. Optional: left
-            empty, doorstep jobs reach the default, and whether the garage travels at all is the
-            Doorstep switch under Hours. */}
-        <T size={11} color={colors.textMuted}>
-          How far you&apos;ll travel for doorstep jobs. Leave empty to use{' '}
-          <T size={11} num color={colors.textMuted}>
-            {DEFAULT_DOORSTEP_RADIUS_KM}
-          </T>{' '}
-          km.
-        </T>
+        {/* "Up to N km" or "All over <city>" (0069), as on the portal: saved the moment it is
+            picked, like the job type switches. */}
+        {vendor.doorstepEnabled ? (
+          <TravelChoiceField
+            label="How far you travel for doorstep jobs"
+            wholeCity={wholeCity}
+            onChange={saveWholeCity}
+            cityName={cityName}
+            radiusKm={vendor.doorstepRadiusKm}
+            defaultKm={DEFAULT_DOORSTEP_RADIUS_KM}
+            disabled={saving === 'whole-city'}
+            wholeCityNote={(city) => `You go to any address in ${city}.`}
+          />
+        ) : null}
+        {!wholeCity ? (
+          <>
+            <ScInput
+              label="Doorstep travel radius (km)"
+              numeric
+              keyboardType="decimal-pad"
+              placeholder={DOORSTEP_RADIUS_PLACEHOLDER}
+              value={radius}
+              onChangeText={(text) => setRadius(radiusInput(text))}
+            />
+            {/* This is the garage's own number, not a radius the customer picks. Optional: left
+                empty, doorstep jobs reach the default, and whether the garage travels at all is the
+                Doorstep switch under Hours. */}
+            <T size={11} color={colors.textMuted}>
+              How far you&apos;ll travel for doorstep jobs, up to{' '}
+              <T size={11} num color={colors.textMuted}>
+                {MAX_DOORSTEP_RADIUS_KM}
+              </T>{' '}
+              km. Leave empty to use{' '}
+              <T size={11} num color={colors.textMuted}>
+                {DEFAULT_DOORSTEP_RADIUS_KM}
+              </T>{' '}
+              km.
+            </T>
+          </>
+        ) : null}
         {/* The same line as under the Doorstep switch: the radius is measured from the pin, so it
             does nothing until there is one. */}
         {vendor.doorstepEnabled && unpinned ? (

@@ -1,12 +1,15 @@
 /**
- * The city the pilot serves, and the words for a garage outside it.
+ * The city the pilot started in: where the map opens before it knows
+ * anything, and the customer's city until `GET /cities` says otherwise
+ * (FALLBACK_CITY in ./customer-city).
  *
- * Garages in other towns are part of the pilot, but nobody should book one
- * thinking it is in Chennai (owner decision, 2026-10-16). The server decides
- * which garages are outside (apps/server/src/lib/service-city.ts) and sends
- * `outsideServiceCity` on every public garage; this file only says it, the
- * same way on the card, the garage page and checkout. Calm and factual: where
- * the garage is, never a warning that something is wrong.
+ * The garage signs were words relative to Chennai built from
+ * `outsideServiceCity` ("Outside Chennai · Sivakasi"). Since cities (0070)
+ * they are relative to the customer's own city and place instead, and live
+ * with it in ./customer-city (outsideCityTag, outsideCityLine): a garage in the
+ * customer's city carries no sign at all. The server still sends
+ * `outsideServiceCity`, which app builds from before read; the type stays
+ * here for them.
  *
  * The centre and the reach are a twin of the server's SERVICE_CITY, kept equal
  * by apps/server/src/lib/service-city.parity.test.ts. No imports, so that test
@@ -17,16 +20,14 @@ export const SERVICE_CITY = {
   name: 'Chennai',
   /** Where the map opens before it knows anything (DEFAULT_CENTER is this). */
   centre: { lat: 13.0827, lng: 80.2707 },
-  /**
-   * The city's reach (CITY_REACH_KM on the server): the map's city mode's
-   * and Nearby mode's reach. Past it from the centre, a garage is outside.
-   */
+  /** The city's reach (CITY_REACH_KM on the server): the map's Nearby mode's reach. */
   radiusKm: 50,
 } as const
 
 /**
- * From the API: set on a pinned garage more than 50 km from the centre, and on
- * an unpinned one whose own city field names another town.
+ * From the API: set on a pinned garage more than 50 km from Chennai's centre,
+ * and on an unpinned one whose own city field names another town. The apps
+ * read it only for a garage from an API older than `garageCity` (0070).
  */
 export interface OutsideServiceCity {
   /** The garage's own town; null when its city field says Chennai. */
@@ -38,36 +39,12 @@ export interface OutsideServiceCity {
   km: number | null
 }
 
-const km = (value: number) => value.toLocaleString('en-IN')
-
-/** The chip on a garage card: "Outside Chennai · Sivakasi", or "Outside Chennai". */
-export function outsideCityTag(outside: OutsideServiceCity): string {
-  return outside.town
-    ? `Outside ${SERVICE_CITY.name} · ${outside.town}`
-    : `Outside ${SERVICE_CITY.name}`
-}
-
 /**
- * The garage page's line: "This garage is in Sivakasi, about 485 km from
- * Chennai." Straight-line km, hence "about", and never a drive time; with no
- * pin there is no distance, so just "This garage is in Sivakasi."
- *
- * With no town named, no figure either: that is a garage whose own city field
- * says Chennai, shown right above under a "Chennai" label, and a precise
- * "about 1,063 km" beside it would contradict the page (and is usually a pin
- * in the wrong place, which admin shows ops with the km). The same plain words
- * as checkout instead.
+ * Admin's garage list's chip (ops, not customers): "Outside Chennai ·
+ * Sivakasi", or "Outside Chennai". Ops still read where a garage sits
+ * against the city the pilot started in; customers see their own city's
+ * signs instead (./customer-city).
  */
-export function outsideCityLine(outside: OutsideServiceCity): string {
-  if (!outside.town) return `This garage is outside ${SERVICE_CITY.name}.`
-  return outside.km === null
-    ? `This garage is in ${outside.town}.`
-    : `This garage is in ${outside.town}, about ${km(outside.km)} km from ${SERVICE_CITY.name}.`
-}
-
-/** Checkout's line beside Pay: "This garage is in Sivakasi, not Chennai." */
-export function outsideCityCheckoutLine(outside: OutsideServiceCity): string {
-  return outside.town
-    ? `This garage is in ${outside.town}, not ${SERVICE_CITY.name}.`
-    : `This garage is outside ${SERVICE_CITY.name}.`
+export function outsideServiceCityTag(outside: OutsideServiceCity): string {
+  return outside.town ? `Outside ${SERVICE_CITY.name} · ${outside.town}` : `Outside ${SERVICE_CITY.name}`
 }

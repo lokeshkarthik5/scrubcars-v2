@@ -15,20 +15,25 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui/sc/tabs'
 import { TopBar } from '@repo/ui/sc/top-bar'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { useBookingsStore } from '@repo/core/stores/bookings-store'
-import { formatWhen } from '@repo/core/format'
+import { formatClock, formatDay, formatWhen } from '@repo/core/format'
+import { countdownBox, countdownParts, countdownWords } from '@repo/core/moments'
 import { useQuery } from '@tanstack/react-query'
 import { homeKeys } from '@repo/core/api/hooks/use-home'
 import { getUpdates } from '@repo/core/api/home'
 import { useNow } from '@repo/core/hooks/use-now'
 import {
   actionsByBooking,
+  STATUS_STEPS,
   answersByLine,
+  bookingHeadline,
   customerStatusChip,
 } from '@/lib/booking-status'
+import { ProgressRoad, statusStops } from '@/components/moments/road'
+import { PullToRefresh } from '@/components/moments/pull-to-refresh'
 import { money } from '@/lib/money'
 import { bookAgainPath, matchSavedAddress } from '@repo/core/book-again'
 import { BOOKING_TYPE_LABELS } from '@repo/core/booking-types'
-import { PICKUP_STAGE_NOW, pickupStageOf } from '@repo/core/pickup'
+import { PICKUP_STAGE_NOW, pickupStageOf, pickupTimeline } from '@repo/core/pickup'
 import { useUserStore } from '@repo/core/stores/user-store'
 import {
   DEFAULT_BOOKING_LIST_TAB,
@@ -76,6 +81,209 @@ const CARD_LINK = cn(
   'focus-visible:after:ring-2 focus-visible:after:ring-text-primary/70'
 )
 
+/** What every card of the list says about a booking, worked out once. */
+function cardFacts(booking: Booking, action: string | null, now: number) {
+  const chip = customerStatusChip(booking.status)
+  const refunded =
+    booking.status === 'cancelled' && booking.refund.status === 'refunded'
+  const unpaid =
+    booking.paymentMethod === 'online' &&
+    booking.paymentStatus === 'pending' &&
+    booking.status === 'pending'
+  const needs = action ?? (unpaid ? 'Pay to hold your slot' : null)
+  const waitingUntil =
+    !needs &&
+    booking.status === 'pending' &&
+    booking.responseDeadline &&
+    Date.parse(booking.responseDeadline.respondBy) > now
+      ? answersByLine(booking.responseDeadline.respondBy, now)
+      : null
+  // The card's words, said once: the service is the visible text, and the
+  // rest of the card sits outside the link.
+  const label = `${booking.serviceSummary} at ${booking.vendorName}, ${chip.label}${refunded ? ', Refunded' : ''}${needs ? `, ${needs}` : ''}, ${booking.scheduledAt}`
+  return { chip, refunded, needs, waitingUntil, label }
+}
+
+/** What it needs from the customer, with the small red light; else the quiet line. */
+function NeedsLine({
+  needs,
+  quiet,
+}: {
+  needs: string | null
+  quiet: string | null
+}) {
+  return needs ? (
+    <span className="flex min-w-0 items-center gap-1.5 text-text-primary">
+      <span
+        aria-hidden
+        className="size-1.5 shrink-0 rounded-full bg-[var(--color-red-light)] shadow-[0_0_6px_rgb(255_45_74/0.9)]"
+      />
+      {needs}
+    </span>
+  ) : (
+    <span className="min-w-0 text-dim">{quiet ?? ''}</span>
+  )
+}
+
+/**
+ * The ticket card (moment 5): the next booking at the top of Upcoming, as a
+ * ticket with notched edges, a live countdown in days, hours and minutes,
+ * and the small road for where it stands. The same link, words and actions
+ * as every booking card; only the look is a ticket's.
+ */
+function TicketCard({
+  booking,
+  action,
+  now,
+}: {
+  booking: Booking
+  action: string | null
+  now: number
+}) {
+  const { chip, needs, waitingUntil, label } = cardFacts(booking, action, now)
+  const headline = bookingHeadline(booking, now)
+  const pickup = booking.bookingType === 'pickup' ? pickupTimeline(booking) : null
+  const stops =
+    headline.step === null
+      ? null
+      : pickup
+        ? pickup.map((step) => ({ label: step.label, state: step.state }))
+        : statusStops(STATUS_STEPS, headline.step, booking.status === 'completed')
+  const parts = countdownParts(Date.parse(booking.scheduledAtIso), now)
+  const boxes: Array<[number, 'days' | 'hours' | 'minutes', string]> = [
+    [parts.days, 'days', 'days'],
+    [parts.hours, 'hours', 'hours'],
+    [parts.minutes, 'minutes', 'min'],
+  ]
+  return (
+    <div
+      className={cn(
+        'mo-ticket fx-edge relative flex flex-col rounded-[22px] px-4 pb-[18px] pt-4',
+        needs && 'border-brand-red/70'
+      )}
+      style={{ '--notch': '58%' } as React.CSSProperties}
+    >
+      <p className="text-over font-semibold uppercase text-[#8E8E98]">Next booking</p>
+      <p className="mt-1.5 text-t2 font-semibold text-text-primary">
+        {formatDay(booking.scheduledAtIso, now)} ·{' '}
+        <span className="font-numeric">{formatClock(booking.scheduledAtIso)}</span>
+      </p>
+      {/* Read as one line; the boxes are drawn. */}
+      <p className="sr-only">Starts in {countdownWords(parts)}</p>
+      <div aria-hidden="true" className="mt-3 flex gap-1.5">
+        {boxes.map(([value, unit, word]) => (
+          <span key={unit} className="fx-recessed min-w-[52px] rounded-[12px] py-2 text-center">
+            <b className="block font-numeric text-[20px] font-semibold leading-none text-text-primary">
+              {countdownBox(value, unit)}
+            </b>
+            <small className="text-over font-medium normal-case tracking-normal text-[#8E8E98]">{word}</small>
+          </span>
+        ))}
+      </div>
+      <div aria-hidden="true" className="mo-ticket__perf -mx-4 mb-3.5 mt-4" />
+      <div className="flex items-start justify-between gap-3 text-t4 text-[#A8A8B2]">
+        <p className="min-w-0">
+          <b className="font-semibold text-text-primary">{booking.vendorName}</b>
+          {' · '}
+          <Link href={`/bookings/${booking.id}`} aria-label={label} className={CARD_LINK}>
+            {booking.serviceSummary}
+          </Link>
+        </p>
+        <StatusChip tone={chip.tone} dot={false}>
+          {chip.label}
+        </StatusChip>
+      </div>
+      {/* The car, and where it is while a pickup job has it, as every
+          card says. */}
+      {(booking.vehicle?.model || pickupLine(booking)) && (
+        <p className="mt-1 text-t5 font-medium text-dim">
+          {[booking.vehicle?.model, pickupLine(booking)].filter(Boolean).join(' · ')}
+        </p>
+      )}
+      {stops && <ProgressRoad stops={stops} compact className="mb-1.5 mt-5" label="Where it stands" />}
+      <div className="mt-2 text-t4">
+        <NeedsLine
+          needs={needs}
+          quiet={
+            waitingUntil ??
+            (booking.paymentStatus === 'paid' ? 'Paid' : null)
+          }
+        />
+      </div>
+    </div>
+  )
+}
+
+/**
+ * A past booking in the compact list (moment 5): its service (the link),
+ * the day and the garage, what it cost and how it ended, and Book again.
+ */
+function PastRow({
+  booking,
+  addresses,
+  now,
+}: {
+  booking: Booking
+  addresses: Address[]
+  now: number
+}) {
+  const { chip, refunded, label } = cardFacts(booking, null, now)
+  return (
+    <div className="relative flex flex-col gap-1 rounded-[16px] border border-white/[0.06] bg-[#111114] py-3 pl-3.5 pr-3">
+      <div className="flex items-start justify-between gap-3">
+        <p className="min-w-0 truncate text-t4 font-semibold text-text-primary">
+          <Link href={`/bookings/${booking.id}`} aria-label={label} className={COMPACT_LINK}>
+            {booking.serviceSummary}
+          </Link>
+        </p>
+        <span className="flex shrink-0 items-center gap-1.5">
+          {refunded && (
+            <StatusChip tone="done" dot={false}>
+              Refunded
+            </StatusChip>
+          )}
+          <StatusChip tone={chip.tone} dot={false}>
+            {chip.label}
+          </StatusChip>
+        </span>
+      </div>
+      <div className="flex items-center justify-between gap-3 text-t5 font-medium text-[#8E8E98]">
+        <span className="min-w-0 truncate">
+          {[formatWhen(booking.scheduledAtIso, now), booking.vendorName].join(' · ')}
+        </span>
+        <span className="flex shrink-0 items-center gap-1.5">
+          {booking.discountAmount > 0 && (
+            <s className="font-numeric text-text-muted">{money(booking.subtotalPrice)}</s>
+          )}
+          <span className="font-numeric text-t4 font-semibold text-text-primary">
+            {money(booking.servicePrice)}
+          </span>
+        </span>
+      </div>
+      {/* Quiet text, not a button, 44px tall to the thumb while drawn
+          small. The name starts with the words on screen, so "tap Book
+          again" in voice control finds it. */}
+      <div className="-mb-2 flex justify-end">
+        <Link
+          href={bookAgainPath(booking, matchSavedAddress(booking, addresses))}
+          aria-label={`Book again: ${booking.serviceSummary} at ${booking.vendorName}`}
+          className="relative z-10 -mr-1 inline-flex min-h-11 items-center gap-1.5 rounded-[8px] px-2 text-t5 font-semibold text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-primary/70"
+        >
+          <IconRepeat size={14} aria-hidden="true" />
+          Book again
+        </Link>
+      </div>
+    </div>
+  )
+}
+
+/** The compact row's own stretched link, with its smaller corners. */
+const COMPACT_LINK = cn(
+  'focus-visible:outline-none',
+  "after:absolute after:-inset-px after:rounded-[16px] after:content-['']",
+  'focus-visible:after:ring-2 focus-visible:after:ring-text-primary/70'
+)
+
 function BookingCard({
   booking,
   tab,
@@ -91,22 +299,8 @@ function BookingCard({
   action: string | null
   now: number
 }) {
-  const chip = customerStatusChip(booking.status)
-  const refunded =
-    booking.status === 'cancelled' && booking.refund.status === 'refunded'
+  const { chip, refunded, needs, waitingUntil, label } = cardFacts(booking, action, now)
   const pickup = pickupLine(booking)
-  const unpaid =
-    booking.paymentMethod === 'online' &&
-    booking.paymentStatus === 'pending' &&
-    booking.status === 'pending'
-  const needs = action ?? (unpaid ? 'Pay to hold your slot' : null)
-  const waitingUntil =
-    !needs &&
-    booking.status === 'pending' &&
-    booking.responseDeadline &&
-    Date.parse(booking.responseDeadline.respondBy) > now
-      ? answersByLine(booking.responseDeadline.respondBy, now)
-      : null
 
   return (
     // A booking that needs an answer gets a red hairline and says what (F3).
@@ -117,12 +311,12 @@ function BookingCard({
       )}
     >
       <div className="flex items-start justify-between gap-3">
-        <p className="min-w-0 text-[17px] leading-snug text-text-primary">
+        <p className="min-w-0 text-t2 leading-snug text-text-primary">
           <Link
             href={`/bookings/${booking.id}`}
             // The card's words, said once: the service is the visible text,
             // and the rest of the card sits outside the link.
-            aria-label={`${booking.serviceSummary} at ${booking.vendorName}, ${chip.label}${refunded ? ', Refunded' : ''}${needs ? `, ${needs}` : ''}, ${booking.scheduledAt}`}
+            aria-label={label}
             className={CARD_LINK}
           >
             {booking.serviceSummary}
@@ -142,7 +336,7 @@ function BookingCard({
         </span>
       </div>
       {/* The garage, the car (on every card, F3) and when. */}
-      <p className="text-[13px] leading-snug text-dim">
+      <p className="text-t4 leading-snug text-dim">
         {[
           booking.vendorName,
           booking.vehicle?.model,
@@ -151,26 +345,19 @@ function BookingCard({
           .filter(Boolean)
           .join(' · ')}
       </p>
-      {pickup && <p className="text-[13px] text-dim">{pickup}</p>}
-      <div className="mt-1 flex items-center justify-between gap-3 text-[13px]">
-        {needs ? (
-          <span className="flex min-w-0 items-center gap-1.5 text-text-primary">
-            <span
-              aria-hidden
-              className="size-1.5 shrink-0 rounded-full bg-brand-red"
-            />
-            {needs}
-          </span>
-        ) : (
-          <span className="min-w-0 text-dim">
-            {waitingUntil ??
-              (booking.paymentStatus === 'paid'
-                ? 'Paid'
-                : booking.paymentStatus === 'refunded'
-                  ? 'Paid · refunded'
-                  : '')}
-          </span>
-        )}
+      {pickup && <p className="text-t4 text-dim">{pickup}</p>}
+      <div className="mt-1 flex items-center justify-between gap-3 text-t4">
+        <NeedsLine
+          needs={needs}
+          quiet={
+            waitingUntil ??
+            (booking.paymentStatus === 'paid'
+              ? 'Paid'
+              : booking.paymentStatus === 'refunded'
+                ? 'Paid · refunded'
+                : '')
+          }
+        />
         <span className="flex shrink-0 items-center gap-1.5">
           {/* The struck price is the only hint that a code was used; the
               full breakdown lives on the detail page. */}
@@ -179,7 +366,7 @@ function BookingCard({
               {money(booking.subtotalPrice)}
             </s>
           )}
-          <span className="font-numeric text-[15px] text-text-primary">
+          <span className="font-numeric text-t3 text-text-primary">
             {money(booking.servicePrice)}
           </span>
         </span>
@@ -194,7 +381,7 @@ function BookingCard({
           <Link
             href={bookAgainPath(booking, matchSavedAddress(booking, addresses))}
             aria-label={`Book again: ${booking.serviceSummary} at ${booking.vendorName}`}
-            className="relative z-10 -mr-2 inline-flex min-h-11 items-center gap-1.5 rounded-[8px] px-2 text-[13px] font-medium text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-primary/70"
+            className="relative z-10 -mr-2 inline-flex min-h-11 items-center gap-1.5 rounded-[8px] px-2 text-t4 font-medium text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-primary/70"
           >
             <IconRepeat size={15} aria-hidden="true" />
             Book again
@@ -269,10 +456,10 @@ function BookingsContent() {
       <CustomerShell showNav className="gap-4 py-4">
         <TopBar title="Bookings" large={isHomeHubEnabled()} />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
-          <p className="text-[15px] font-semibold text-text-primary">
+          <p className="text-t3 font-semibold text-text-primary">
             Login to view your bookings
           </p>
-          <p className="text-[13px] text-text-secondary">
+          <p className="text-t4 text-text-secondary">
             Sign in to see your booking history
           </p>
           <ScButton
@@ -320,7 +507,7 @@ function BookingsContent() {
           <h2 className="text-[20px] font-normal tracking-[-0.015em] text-text-primary">
             No upcoming bookings
           </h2>
-          <p className="text-[15px] text-text-secondary">
+          <p className="text-t3 text-text-secondary">
             Book a car wash or detailing at a garage near you.
           </p>
           {/* The empty list's way forward, as the one red pill (F5). */}
@@ -342,17 +529,34 @@ function BookingsContent() {
       )
     }
 
+    // Past: a compact list. Upcoming: the next booking as a ticket, the
+    // rest as cards under it.
+    if (which === 'past') {
+      return (
+        <div className="flex flex-col gap-1.5">
+          {list.map((booking, i) => (
+            <Reveal key={booking.id} index={i}>
+              <PastRow booking={booking} addresses={addresses} now={now} />
+            </Reveal>
+          ))}
+        </div>
+      )
+    }
+    const [next, ...later] = list
     return (
       <div className="flex flex-col gap-2">
-        {list.map((booking, i) => (
+        <TicketCard
+          booking={next}
+          action={actions.get(next.id) ?? null}
+          now={now}
+        />
+        {later.map((booking, i) => (
           <Reveal key={booking.id} index={i}>
             <BookingCard
               booking={booking}
               tab={which}
               addresses={addresses}
-              action={
-                which === 'upcoming' ? (actions.get(booking.id) ?? null) : null
-              }
+              action={actions.get(booking.id) ?? null}
               now={now}
             />
           </Reveal>
@@ -367,6 +571,16 @@ function BookingsContent() {
 
       {/* Real tabs, not the segmented control: each has its own list and its
           own empty state, so there is a panel for each to name. */}
+      {/* Pull the list down to ask again now (moment 6); it also
+          refreshes by itself on every visit, as before. */}
+      <PullToRefresh
+        onRefresh={() =>
+          Promise.all([fetchCustomerBookings(), updates.refetch()]).then(
+            () => setLoaded(true),
+            () => undefined
+          )
+        }
+      >
       <Tabs value={tab} onValueChange={changeTab}>
         <TabsList aria-label="Bookings">
           <TabsTrigger value="upcoming" className="min-h-11">
@@ -379,6 +593,7 @@ function BookingsContent() {
         <TabsContent value="upcoming">{panel('upcoming')}</TabsContent>
         <TabsContent value="past">{panel('past')}</TabsContent>
       </Tabs>
+      </PullToRefresh>
     </CustomerShell>
   )
 }

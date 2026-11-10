@@ -8,7 +8,7 @@ import { RequestServiceMinutes } from './request-sheet'
 describe('RequestServiceMinutes', () => {
   test('a set duration reads as minutes', () => {
     expect(renderToStaticMarkup(<RequestServiceMinutes durationMins={45} />)).toBe(
-      '<span class="block text-[12px] text-text-muted">45 min</span>'
+      '<span class="block text-t5 text-text-muted">45 min</span>'
     )
   })
 

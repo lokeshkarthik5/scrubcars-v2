@@ -34,7 +34,7 @@ export function GuestCarForm({
   return (
     <div className="flex flex-col gap-3">
       <div>
-        <p id="guest-car-type" className="mb-2 text-[13px] text-text-secondary">
+        <p id="guest-car-type" className="mb-2 text-t4 text-text-secondary">
           Body type — it sets the price
         </p>
         <div role="group" aria-labelledby="guest-car-type" className="flex flex-wrap gap-2">

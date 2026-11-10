@@ -32,6 +32,7 @@ import {
 } from '../leads/leads.service.js'
 import { clearZonesCache } from '../reach/reach.service.js'
 import { isListedToCustomers } from '../vendors/vendors.predicates.js'
+import { citiesService } from '../cities/cities.service.js'
 import { coverageRepository, type ZoneRecord } from './coverage.repository.js'
 import type { CreateZoneInput, UpdateZoneInput } from './coverage.validation.js'
 
@@ -153,13 +154,18 @@ export function garageStage(row: {
   isVerified: boolean
   bookingsPausedAt: Date | null
   deletedAt: Date | null
+  showWhenCityOff: boolean
+  cityShown: boolean
 }): GarageStage {
   if (isListedToCustomers(row)) return 'live'
   if (row.status === 'pending') return 'pending'
   if (row.status === 'suspended') return 'suspended'
   if (row.status === 'archived') return 'archived'
   if (!row.isVerified) return 'not_shown'
-  return 'paused'
+  if (row.bookingsPausedAt) return 'paused'
+  // Active, shown and taking bookings: only its city (0069) keeps it from
+  // customers, which to them is the same as not shown.
+  return 'not_shown'
 }
 
 const ZONE_PROBLEM_STATUS: Record<ZoneEditProblem, number> = {
@@ -218,26 +224,31 @@ export const coverageService = {
    * restates it), every lead, and which finder sources are connected.
    */
   async overview(now = new Date()): Promise<CoverageOverview> {
-    const [zones, garages, leads, recommendations] = await Promise.all([
+    const [zones, garages, leads, recommendations, cityRules] = await Promise.all([
       coverageRepository.listZones(),
       coverageRepository.listGarages(),
       leadsRepository.listAll(),
       leadsRepository.listRecommendations(),
+      citiesService.rules(),
     ])
     const sources = placesSources()
     const demand = await readDemand(zones, recommendations, now)
     return {
       zones: zones.map(toZone),
-      garages: garages.map((garage) => ({
-        id: garage.id,
-        name: garage.businessName,
-        phone: garage.phone,
-        lat: garage.lat,
-        lng: garage.lng,
-        zoneId: zoneFor(garage, zones)?.id ?? null,
-        live: isListedToCustomers(garage),
-        stage: garageStage(garage),
-      })),
+      garages: garages.map((garage) => {
+        // The city's switch (0069) is part of Live, as on the Garages list.
+        const listed = { ...garage, cityShown: cityRules.standingOf(garage).cityShown }
+        return {
+          id: garage.id,
+          name: garage.businessName,
+          phone: garage.phone,
+          lat: garage.lat,
+          lng: garage.lng,
+          zoneId: zoneFor(garage, zones)?.id ?? null,
+          live: isListedToCustomers(listed),
+          stage: garageStage(listed),
+        }
+      }),
       leads: leads.map(toLeadResponse),
       finder: { google: sources.google !== null, ola: sources.ola !== null },
       demand,
@@ -260,11 +271,15 @@ export const coverageService = {
     input: CreateZoneInput,
     now = new Date()
   ): Promise<CoverageZone> {
-    const zones = await coverageRepository.listZones()
+    const [zones, cities] = await Promise.all([
+      coverageRepository.listZones(),
+      citiesService.listCities(),
+    ])
     const name = cleanZoneName(input.name)
     const problem = zoneEditProblem(
       { id: null, name, target: input.target, lat: input.lat, lng: input.lng },
-      zones
+      zones,
+      cities
     )
     if (problem) throw zoneProblem(problem)
     const slug = newZoneSlug(name, new Set(zones.map((zone) => zone.slug)))
@@ -297,7 +312,10 @@ export const coverageService = {
     input: UpdateZoneInput,
     now = new Date()
   ): Promise<CoverageZone> {
-    const zones = await coverageRepository.listZones()
+    const [zones, cities] = await Promise.all([
+      coverageRepository.listZones(),
+      citiesService.listCities(),
+    ])
     const current = zones.find((zone) => zone.id === id)
     if (!current) throw zoneNotFound()
     const next = {
@@ -307,9 +325,10 @@ export const coverageService = {
       lat: input.lat ?? current.lat,
       lng: input.lng ?? current.lng,
     }
-    const problem = zoneEditProblem(next, zones)
+    const problem = zoneEditProblem(next, zones, cities)
     // An existing zone keeps working even if its centre was left outside
-    // the city by hand before: only a move is held to it.
+    // every city (by hand before, or its city deleted since): only a move is
+    // held to it.
     if (problem && !(problem === 'outside_city' && input.lat === undefined))
       throw zoneProblem(problem)
 

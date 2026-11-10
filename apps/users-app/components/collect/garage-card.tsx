@@ -36,6 +36,9 @@ function Photo({ car }: { car: Pick<GarageOwnedCar, 'photoId' | 'art'> }) {
   return source ? <Image source={source} accessibilityIgnoresInvertColors resizeMode="cover" style={[StyleSheet.absoluteFill, { width: '100%', height: '100%' }]} /> : null;
 }
 
+/** The customer UI round's finish: no shine or sweep on any card (docs/ui-round-2026-11.md §1). */
+const FINISH_NO_SHEEN = true;
+
 function Sheen({ rarity, u, on }: { rarity: GarageRarity; u: number; on: boolean }) {
   const still = useReducedMotion();
   const x = useSharedValue(0);
@@ -118,7 +121,8 @@ export function GarageCard({ car, shine = true, width }: { car: GarageOwnedCar; 
             <T size={C.foot.size * u} lh={3.2 * u} uppercase tracking={0.08} color={t.muted} style={{ position: 'absolute', left: C.pad * u, right: C.pad * u, top: C.foot.top * u }}>
               {`Series ${car.series} · Detlio Garage`}
             </T>
-            <Sheen rarity={car.rarity} u={u} on={shine} />
+            {/* No sweep of light on the cards (the finish: the owner rejected the shine); the brushed frame stays. */}
+            <Sheen rarity={car.rarity} u={u} on={shine && !FINISH_NO_SHEEN} />
           </View>
         </LinearGradient>
       )}

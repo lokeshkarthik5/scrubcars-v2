@@ -622,6 +622,22 @@ export const vendors = pgTable(
     // complaint, say. The garage still sees its own tier. Internal: never on
     // a public payload.
     tierHidden: boolean('tier_hidden').default(false).notNull(),
+    // Cities (0069). "Show this garage anyway": admin keeps this garage in
+    // front of customers while its city (or Other towns) is switched off,
+    // say the one garage Detlio has already checked in a new town. Off by
+    // default, so a city's switch decides. See lib/cities.ts.
+    showWhenCityOff: boolean('show_when_city_off').default(false).notNull(),
+    // "All over <city>" for doorstep and for pickup & drop (0069): the garage
+    // comes to any address inside its city's reach, measured from the city's
+    // centre, instead of its own radius. One with no city keeps to its radius.
+    doorstepWholeCity: boolean('doorstep_whole_city').default(false).notNull(),
+    pickupWholeCity: boolean('pickup_whole_city').default(false).notNull(),
+    // The garage's city (0069), NULL for Other towns. Written only by the
+    // database: a trigger sets it on every write that touches lat, lng or
+    // city, and any change to `cities` recomputes every garage, both by
+    // lib/cities.ts cityOfGarage's rule (drizzle/0069_cities_reach.sql). Never
+    // set it from code; read it.
+    cityId: uuid('city_id').references(() => cities.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -637,6 +653,7 @@ export const vendors = pgTable(
       sql`${table.colourTagCallOn} is null or ${table.colourTag} = 'blue'`
     ),
     index('vendors_status_idx').on(table.status),
+    index('vendors_city_id_idx').on(table.cityId),
     index('vendors_deleted_at_idx')
       .on(table.deletedAt)
       .where(sql`${table.deletedAt} is not null`),
@@ -2093,18 +2110,57 @@ export const vendorOnboardingMarks = pgTable(
 
 // Team-wide admin settings (0064), one row per key: the Garages list's
 // onboarding target ('garage_target') and the colour tags' names
-// ('colour_names'). Shapes and defaults in lib/admin-settings.ts.
+// ('colour_names'). Shapes and defaults in lib/admin-settings.ts. Cities
+// (0069) added 'other_towns_visible', `{ visible }` for garages in no city
+// (lib/cities.ts parseOtherTownsVisible; absent is shown).
 export const adminSettings = pgTable(
   'admin_settings',
   {
-    key: text('key').$type<'garage_target' | 'colour_names'>().primaryKey(),
+    key: text('key').$type<'garage_target' | 'colour_names' | 'other_towns_visible'>().primaryKey(),
     value: jsonb('value').$type<Record<string, unknown>>().notNull(),
     updatedByName: varchar('updated_by_name', { length: 100 }).notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
-    check('admin_settings_key_check', sql`${table.key} in ('garage_target', 'colour_names')`),
+    check(
+      'admin_settings_key_check',
+      sql`${table.key} in ('garage_target', 'colour_names', 'other_towns_visible')`
+    ),
     check('admin_settings_value_check', sql`jsonb_typeof(${table.value}) = 'object'`),
+  ]
+)
+
+// The cities Detlio serves (0069), with the owner's switch "Customers see
+// garages here". A garage's city is the city whose reach (straight-line km
+// from the centre) holds its pin, the nearest centre if several do, or for a
+// garage with no pin the city its own city field names (lib/cities.ts
+// cityOfGarage). The database stores it in vendors.city_id and keeps it
+// right with triggers: any insert, update or delete here recomputes every
+// garage. `centre` (a generated geography of lat/lng) exists in the database
+// only, like vendors.geo. Seeded with Chennai, on.
+// The name is unique in any case (a lower(btrim(name)) index in the
+// migration); "Madras" is refused while Chennai exists (cities.service).
+export const cities = pgTable(
+  'cities',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: varchar('name', { length: 100 }).notNull(),
+    lat: doublePrecision('lat').notNull(),
+    lng: doublePrecision('lng').notNull(),
+    reachKm: integer('reach_km').default(50).notNull(),
+    customersSee: boolean('customers_see').default(true).notNull(),
+    // "Growing here" (0070): the owner is actively bringing garages to this
+    // city, so its customers see the free-wash card and that more garages
+    // are joining. Off for a city with just a partner garage, where saying
+    // more are coming would be a promise nobody made. Chennai is on.
+    growing: boolean('growing').default(false).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('cities_name_key').on(sql`lower(btrim(${table.name}))`),
+    check('cities_reach_km_check', sql`${table.reachKm} between 1 and 300`),
+    check('cities_centre_check', sql`${table.lat} between -90 and 90 and ${table.lng} between -180 and 180`),
   ]
 )
 
@@ -2214,7 +2270,7 @@ export const deletedTestPayments = pgTable(
     rootBookingId: uuid('root_booking_id').notNull(),
     bookingReference: varchar('booking_reference', { length: 8 }).notNull(),
     bookingIds: uuid('booking_ids').array().notNull(),
-    // 'payout' (0069): a garage payout's line on a booking the owner deleted;
+    // 'payout' (0071): a garage payout's line on a booking the owner deleted;
     // the payout stays on record, or goes with its garage (Delete forever).
     kind: text('kind').$type<'booking' | 'final_bill' | 'extra_work' | 'payout'>().notNull(),
     chargeId: uuid('charge_id'),
@@ -2249,7 +2305,7 @@ export const deletedTestPayments = pgTable(
       .notNull()
       .references(() => adminAuditLog.id, { onDelete: 'restrict' }),
     deletedAt: timestamp('deleted_at', { withTimezone: true }).defaultNow().notNull(),
-    // The owner's delete (0069): where the money stands (every row before it
+    // The owner's delete (0071): where the money stands (every row before it
     // is 'refunded'), a line for the record, the Detlio credit that went back
     // to the customer, and the payout a 'paid_out' line was on (no FK).
     state: text('state')

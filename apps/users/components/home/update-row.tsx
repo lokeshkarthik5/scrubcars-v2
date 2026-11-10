@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
   IconShieldCheck,
@@ -34,6 +35,36 @@ import {
 import type { UpdateKind } from '@repo/core/api/home'
 import { updateTimeLabel } from '@repo/core/home-display'
 import { cn } from '@repo/core/utils'
+import { useSeenOnce } from '@repo/ui/finish/motion'
+
+/** How long a new item's light stays on once it is on screen. */
+const SEEN_AFTER_MS = 1600
+
+/**
+ * A new item's small red light (moment 13): on while the item is new, and
+ * fading once it has been on screen a moment, as a dashboard light does
+ * once read. It stays in the row (the "(new)" the row says is unchanged);
+ * only its glow goes. Under reduced motion it goes without the fade.
+ */
+function UnreadLight() {
+  const ref = useRef<HTMLSpanElement>(null)
+  const onScreen = useSeenOnce(ref, { threshold: 1 })
+  const [seen, setSeen] = useState(false)
+  useEffect(() => {
+    if (!onScreen) return
+    const timer = window.setTimeout(() => setSeen(true), SEEN_AFTER_MS)
+    return () => window.clearTimeout(timer)
+  }, [onScreen])
+  return (
+    <span
+      ref={ref}
+      aria-hidden
+      data-testid="unread-dot"
+      data-seen={seen ? '' : undefined}
+      className="mo-unread mt-[9px] mr-2 size-[7px] rounded-full"
+    />
+  )
+}
 
 const KIND_ICONS: Record<UpdateKind, typeof IconTool> = {
   notice: IconSpeakerphone,
@@ -137,7 +168,7 @@ export function UpdateRow({
       <span className="min-w-0 flex-1">
         <span
           className={cn(
-            'line-clamp-2 text-[17px] leading-[1.32] tracking-[-0.012em]',
+            'line-clamp-2 text-t2 leading-[1.32] tracking-[-0.012em]',
             row.unread ? 'text-text-primary' : 'text-[#E4E4E7]'
           )}
         >
@@ -145,12 +176,12 @@ export function UpdateRow({
           {row.unread && <span className="sr-only"> (new)</span>}
         </span>
         {meta && (
-          <span className="mt-1 line-clamp-2 block text-[13px] text-dim">
+          <span className="mt-1 line-clamp-2 block text-t4 text-dim">
             {meta}
           </span>
         )}
         {row.linkUrl && row.linkLabel && (
-          <span className="mt-1.5 inline-flex items-center gap-1 text-[13px] font-medium text-text-primary">
+          <span className="mt-1.5 inline-flex items-center gap-1 text-t4 font-medium text-text-primary">
             {row.linkLabel}
             <IconArrowUpRight size={14} stroke={1.6} aria-hidden />
           </span>
@@ -178,13 +209,7 @@ export function UpdateRow({
         </Link>
       )}
       <span className="flex shrink-0 items-start pt-[13px]">
-        {row.unread && (
-          <span
-            aria-hidden
-            data-testid="unread-dot"
-            className="mt-[9px] mr-2 size-[7px] rounded-full bg-brand-red"
-          />
-        )}
+        {row.unread && <UnreadLight />}
         {onDismiss && (
           <button
             type="button"

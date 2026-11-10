@@ -31,7 +31,7 @@ test.describe('book again @p0', () => {
 
     await expect(page).toHaveURL(REBOOK_DOORSTEP)
     const checkout = new CheckoutPage(page)
-    await expect(checkout.bookingType('Doorstep')).toHaveAttribute('aria-pressed', 'true')
+    await expect(checkout.bookingType('Doorstep')).toHaveAttribute('aria-checked', 'true')
     await expect(page.getByText(`${SERVICES.detail.name} + 1 more`)).toBeVisible()
     // Nothing was left out, so nothing says so.
     await expect(page.getByText('Some services are no longer offered')).toHaveCount(0)

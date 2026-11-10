@@ -34,7 +34,7 @@ describe("the team tests' ledger CSV (0065)", () => {
     )
   })
 
-  test("the owner's delete (0069): money not refunded and a payout line say where they stand", () => {
+  test("the owner's delete (0071): money not refunded and a payout line say where they stand", () => {
     const base = {
       id: 'row-2',
       deletedAt: '2026-11-10T10:00:00.000Z',

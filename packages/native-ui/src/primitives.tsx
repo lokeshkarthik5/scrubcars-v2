@@ -3,9 +3,10 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { ActivityIndicator, Animated, Image, Pressable, StyleSheet, View, type ViewProps } from 'react-native';
 
 import { ScButton } from './button';
+import { Edge, Raised, Recessed, RedLight } from './finish';
 import { IconAlertCircle, IconAlertTriangle, IconChevronRight, IconInfoCircle, IconStar, IconStarFilled } from './icons';
 import { T } from './text';
-import { createStyles, useColors, useTheme } from './theme';
+import { createStyles, useColors, useFinish, useTheme } from './theme';
 import { PRESSED_SCALE, type Tokens } from './tokens';
 
 const LOGO_RATIO = 316 / 90;
@@ -31,9 +32,21 @@ export function BrandMark({ height = 28 }: { height?: number }) {
   );
 }
 
-/** ScCard. */
+/**
+ * A card that sets its own border or fill (a red hairline on a booking that needs an
+ * answer, a tone's wash) keeps it under the finish, as a utility beside the web's
+ * lit edge wins: only a plain card takes the edge.
+ */
+function setsOwnSurface(style: ViewProps['style']): boolean {
+  const flat = StyleSheet.flatten(style) ?? {};
+  return flat.borderColor !== undefined || flat.backgroundColor !== undefined;
+}
+
+/** ScCard. Under the finish, the lit edge (finish.css: the app's ScCard). */
 export function ScCard({ style, ...props }: ViewProps) {
   const styles = useStyles();
+  const { on } = useFinish();
+  if (on && !setsOwnSurface(style)) return <Edge radius={14} style={[styles.cardFinish, style]} {...props} />;
   return <View style={[styles.card, style]} {...props} />;
 }
 
@@ -44,6 +57,15 @@ export function ScCard({ style, ...props }: ViewProps) {
 export function HubCard({ style, children, radius = 28, ...props }: ViewProps & { radius?: number }) {
   const colors = useColors();
   const styles = useStyles();
+  const { on } = useFinish();
+  // Under the finish every hub card takes the lit edge (finish.css `.finish .hub-card`).
+  if (on && !setsOwnSurface(style)) {
+    return (
+      <Edge radius={radius} style={style} {...props}>
+        {children}
+      </Edge>
+    );
+  }
   return (
     <View style={[styles.hubShadow, { borderRadius: radius }, style]} {...props}>
       <LinearGradient
@@ -68,6 +90,7 @@ export function PressRow({
   accessibilityLabel,
   disabled,
   hitSlop,
+  accessibilityState,
 }: {
   onPress: () => void;
   style?: ViewProps['style'];
@@ -75,12 +98,14 @@ export function PressRow({
   accessibilityLabel?: string;
   disabled?: boolean;
   hitSlop?: number;
+  /** A chosen card or row says so (`{ selected }`). */
+  accessibilityState?: { selected?: boolean };
 }) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
-      accessibilityState={disabled ? { disabled } : undefined}
+      accessibilityState={disabled || accessibilityState ? { ...accessibilityState, ...(disabled ? { disabled } : {}) } : undefined}
       disabled={disabled}
       hitSlop={hitSlop}
       onPress={onPress}
@@ -184,7 +209,12 @@ export function ScSegmented<V extends string>({
 }: {
   value: V;
   onChange: (value: V) => void;
-  options: { value: V; label: ReactNode; icon?: ReactNode }[];
+  /**
+   * `accessibilityLabel` names an option whose label is an icon alone, and
+   * `width` gives it a fixed width instead of an equal share (the garage's
+   * Calendar segment).
+   */
+  options: { value: V; label: ReactNode; icon?: ReactNode; accessibilityLabel?: string; width?: number }[];
   accessibilityLabel?: string;
   minHeight?: number;
   labelSize?: number;
@@ -193,6 +223,38 @@ export function ScSegmented<V extends string>({
 }) {
   const colors = useColors();
   const styles = useStyles();
+  const { on } = useFinish();
+  if (on) {
+    // The finish: a recessed track, the chosen option raised with the red light under it.
+    return (
+      <Recessed radius={14} accessibilityRole="radiogroup" accessibilityLabel={accessibilityLabel} innerStyle={styles.segmentedFinish}>
+        {options.map((option) => {
+          const selected = option.value === value;
+          return (
+            <Pressable
+              key={option.value}
+              accessibilityRole="radio"
+              accessibilityLabel={option.accessibilityLabel}
+              accessibilityState={{ checked: selected }}
+              onPress={() => onChange(option.value)}
+              style={[styles.segment, { minHeight }, option.width ? { flex: 0, width: option.width } : null]}
+            >
+              {selected ? <Raised radius={10} style={StyleSheet.absoluteFill} /> : null}
+              {option.icon}
+              {typeof option.label === 'string' ? (
+                <T size={labelSize} weight={selected ? 600 : 500} numberOfLines={1} color={selected ? colors.textPrimary : colors.textSecondary}>
+                  {option.label}
+                </T>
+              ) : (
+                option.label
+              )}
+              {selected ? <RedLight style={styles.segmentLight} /> : null}
+            </Pressable>
+          );
+        })}
+      </Recessed>
+    );
+  }
   return (
     <View accessibilityRole="radiogroup" accessibilityLabel={accessibilityLabel} style={[styles.segmented, trackColor ? { backgroundColor: trackColor } : null]}>
       {options.map((option) => {
@@ -201,9 +263,10 @@ export function ScSegmented<V extends string>({
           <Pressable
             key={option.value}
             accessibilityRole="radio"
+            accessibilityLabel={option.accessibilityLabel}
             accessibilityState={{ checked: selected }}
             onPress={() => onChange(option.value)}
-            style={[styles.segment, { minHeight }, selected && styles.segmentOn]}
+            style={[styles.segment, { minHeight }, option.width ? { flex: 0, width: option.width } : null, selected && styles.segmentOn]}
           >
             {option.icon}
             {typeof option.label === 'string' ? (
@@ -307,6 +370,9 @@ const useStyles = createStyles((c) => ({
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
+  cardFinish: { paddingHorizontal: 14, paddingVertical: 12 },
+  segmentedFinish: { flexDirection: 'row', padding: 4, gap: 4 },
+  segmentLight: { position: 'absolute', bottom: 4, alignSelf: 'center' },
   hubShadow: {
     shadowColor: '#0A0A0B',
     shadowOffset: { width: 0, height: 1 },

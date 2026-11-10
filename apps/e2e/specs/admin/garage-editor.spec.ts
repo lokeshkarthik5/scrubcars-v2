@@ -97,10 +97,11 @@ test.describe('admin garage editor', () => {
     await expect(card).toContainText('At the garage · Doorstep within 8 km')
     await expect(doorstep).toHaveAccessibleDescription('Team travels up to 8 km')
 
-    // Out of range is said, and not sent.
-    await km.fill('45')
+    // Out of range is said, and not sent. The top is 300 km since the
+    // owner lifted the 30 km cap (0069).
+    await km.fill('450')
     await km.press('Tab')
-    await expect(card).toContainText('Enter a distance from 1 to 30 km, or leave it empty.')
+    await expect(card).toContainText('Enter a distance from 1 to 300 km, or leave it empty.')
     expect((await bookingColumns()).doorstep_radius_km).toBe(8)
 
     // Unticking Doorstep takes the box and what was said about it away

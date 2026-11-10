@@ -23,6 +23,7 @@ describe('the grouped menu', () => {
       '/payouts',
       '/discounts',
       '/coverage',
+      '/cities',
       '/statistics',
       '/gifts',
       '/rewards',
@@ -36,6 +37,13 @@ describe('the grouped menu', () => {
     expect(activeItem('/alerts')?.label).toBe('Settings')
     expect(activeItem('/data-reset')?.label).toBe('Settings')
     expect(activeItem('/vendors/1/edit')?.label).toBe('Garages')
+  })
+
+  test('Cities sits beside Coverage in the Garages group (0069)', () => {
+    const garages = visibleGroups({}).find((group) => group.label === 'Garages')
+    const labels = garages?.items.map((item) => item.label) ?? []
+    expect(labels.indexOf('Cities')).toBe(labels.indexOf('Coverage') + 1)
+    expect(breadcrumb('/cities')).toEqual({ group: 'Garages', page: 'Cities' })
   })
 
   test('switched-off features hide from their group, and an empty group goes', () => {

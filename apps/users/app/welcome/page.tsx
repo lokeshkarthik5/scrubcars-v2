@@ -81,7 +81,7 @@ export default function WelcomePage() {
 
           <ScButton
             variant="main"
-            className="mt-7 rounded-full py-4 text-[15px]"
+            className="mt-7 rounded-full py-4 text-t3"
             onClick={handleNext}
           >
             {isLast ? 'Get Started' : 'Next'}

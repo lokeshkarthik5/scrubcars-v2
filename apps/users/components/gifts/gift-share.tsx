@@ -107,26 +107,26 @@ export function GiftShare({ gift, link }: { gift: ShareGift; link: GiftLink }) {
 
       <div className="flex flex-col gap-1.5">
         <PremiumCard spec={cardSpec(true)} />
-        <p className="text-center text-[11px] text-text-muted">
+        <p className="text-center text-t5 text-text-muted">
           {CARS_ILLUSTRATION_LINE}
         </p>
       </div>
 
       <div>
-        <h2 className="text-[17px] font-semibold text-text-primary">
+        <h2 className="text-t2 font-semibold text-text-primary">
           Your <span className="font-numeric">{giftRupees(gift.amount)}</span>{' '}
           gift for {gift.recipientName} is ready
         </h2>
-        <p className="mt-1 text-[13px] text-text-secondary">
+        <p className="mt-1 text-t4 text-text-secondary">
           Send them this link. Whoever opens it can add the gift to their Detlio
           credit, so send it only to {gift.recipientName}.
         </p>
       </div>
 
       <ScCard className="flex flex-col gap-1">
-        <p className="text-[11px] font-medium text-text-secondary">Gift link</p>
+        <p className="text-t5 font-medium text-text-secondary">Gift link</p>
         {/* Selectable, so it can still be copied by hand where the clipboard is blocked. */}
-        <p className="select-all break-all font-numeric text-[13px] text-text-primary">
+        <p className="select-all break-all font-numeric text-t4 text-text-primary">
           {url}
         </p>
       </ScCard>
@@ -183,29 +183,29 @@ export function GiftShare({ gift, link }: { gift: ShareGift; link: GiftLink }) {
             aria-label="Printable gift card"
             className="gift-print flex flex-col gap-3 rounded-[12px] border border-neutral-200 bg-white p-5 text-neutral-900"
           >
-            <p className="text-[17px] font-semibold">
+            <p className="text-t2 font-semibold">
               Detlio<span className="text-brand-red">.</span> gift
             </p>
-            <p className="text-[15px]">
+            <p className="text-t3">
               <span className="font-numeric text-[28px] font-bold">
                 {giftRupees(gift.amount)}
               </span>
               <span className="block">for {gift.recipientName}</span>
             </p>
             {gift.message && (
-              <p className="whitespace-pre-wrap break-words text-[13px] italic">
+              <p className="whitespace-pre-wrap break-words text-t4 italic">
                 “{gift.message}”
               </p>
             )}
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-600">
+              <p className="text-t5 font-semibold uppercase tracking-wide text-neutral-600">
                 Gift code
               </p>
               <p className="font-numeric text-[22px] font-bold tracking-[0.06em]">
                 {formatGiftCode(link.code)}
               </p>
             </div>
-            <p className="text-[12px] text-neutral-700">
+            <p className="text-t5 text-neutral-700">
               To use it, open{' '}
               <span className="break-all font-numeric">{url}</span>, or sign in
               to Detlio and type the code under Profile, Detlio credit.
@@ -213,7 +213,7 @@ export function GiftShare({ gift, link }: { gift: ShareGift; link: GiftLink }) {
                 ? ` Use by ${formatGiftDate(gift.expiresAt)}.`
                 : ''}
             </p>
-            <p className="text-[11px] text-neutral-600">
+            <p className="text-t5 text-neutral-600">
               <span className="font-numeric">{gift.number}</span>
             </p>
           </section>

@@ -2,10 +2,13 @@ import { describe, expect, test } from 'bun:test'
 import type { Booking } from '@repo/core/types'
 import {
   blockers,
+  bookingsTabFromQuery,
+  bookingsTabLines,
   calendarDate,
   customerNumberLine,
   distanceKm,
   doneJobs,
+  doneTodayCount,
   jobPrice,
   laterDays,
   listTabOf,
@@ -81,6 +84,16 @@ describe('tabFromQuery', () => {
     expect(tabFromQuery('later')).toBe('later')
     expect(tabFromQuery('nonsense')).toBeNull()
     expect(tabFromQuery(null)).toBeNull()
+  })
+})
+
+describe('bookingsTabFromQuery', () => {
+  test('reads the calendar, and every list link as before', () => {
+    expect(bookingsTabFromQuery('calendar')).toBe('calendar')
+    expect(bookingsTabFromQuery('incoming')).toBe('new')
+    expect(bookingsTabFromQuery('done')).toBe('done')
+    expect(bookingsTabFromQuery('nonsense')).toBeNull()
+    expect(bookingsTabFromQuery(null)).toBeNull()
   })
 })
 
@@ -183,6 +196,46 @@ describe('today and later', () => {
       'recent',
       'old',
     ])
+  })
+
+  test("Done's line counts today's jobs only, on India's calendar", () => {
+    const finishedToday = job({
+      id: 'finished',
+      status: 'completed',
+      completedAtIso: iso(-2 * HOUR),
+      scheduledAtIso: iso(-26 * HOUR),
+    })
+    const finishedYesterday = job({
+      id: 'yesterday',
+      status: 'completed',
+      completedAtIso: iso(-11 * HOUR),
+    })
+    // A cancellation has no finish time: its booked time says which day.
+    const cancelledToday = job({ id: 'cancelled', status: 'cancelled', scheduledAtIso: iso(HOUR) })
+    // 11:50 pm on 19 Oct in India: still today there.
+    const lateTonight = job({
+      id: 'late',
+      status: 'completed',
+      completedAtIso: '2026-10-19T18:20:00Z',
+    })
+    const done = doneJobs([finishedToday, finishedYesterday, cancelledToday, lateTonight])
+    expect(doneTodayCount(done, NOW)).toBe(3)
+    expect(doneTodayCount([], NOW)).toBe(0)
+  })
+
+  test("the Bookings switch's second lines", () => {
+    expect(bookingsTabLines({ today: 3, new: 2, later: 1, done: 40 }, 1)).toEqual({
+      today: '3 jobs',
+      new: '2 waiting',
+      later: '1 job',
+      done: '1 today',
+    })
+    expect(bookingsTabLines({ today: 1, new: 0, later: 0, done: 0 }, 0)).toEqual({
+      today: '1 job',
+      new: '0 waiting',
+      later: '0 jobs',
+      done: '0 today',
+    })
   })
 
   test('the date heading is the date, without a year, at the end of December too', () => {

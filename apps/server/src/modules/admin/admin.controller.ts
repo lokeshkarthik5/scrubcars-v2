@@ -14,6 +14,7 @@ import type {
   AdminCancelBookingInput,
   CreateBookingNoteInput,
   GrantSuperAdminInput,
+  CreateBranchInput,
   CreateVendorInput,
   ListBookingsQuery,
   BookingViewCountsQuery,
@@ -191,6 +192,11 @@ export async function deleteService(
 export async function createVendor(c: AdminContext, input: CreateVendorInput) {
   const vendor = await adminService.createVendor(input, c.get('auth').sub)
   return c.json({ success: true, data: vendor }, 201)
+}
+
+export async function createBranch(c: AdminContext, id: string, input: CreateBranchInput) {
+  const branch = await adminService.createBranch(id, input, { sub: c.get('auth').sub, name: input.actorName })
+  return c.json({ success: true, data: branch }, 201)
 }
 
 export async function getPilotStats(c: AdminContext, query: PilotStatsQuery) {

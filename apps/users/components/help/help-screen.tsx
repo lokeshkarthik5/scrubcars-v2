@@ -61,13 +61,13 @@ export function HelpScreen() {
         <p
           role="note"
           data-help-draft
-          className="rounded-[10px] border border-warning/40 bg-warning-muted px-3 py-2 text-[12px] font-medium text-warning"
+          className="rounded-[10px] border border-warning/40 bg-warning-muted px-3 py-2 text-t5 font-medium text-warning"
         >
           Draft: these answers are waiting for sign-off.
         </p>
       )}
 
-      <p className="text-[13px] leading-relaxed text-text-secondary">
+      <p className="text-t4 leading-relaxed text-text-secondary">
         {HELP_INTRO.body}
       </p>
 
@@ -83,14 +83,14 @@ export function HelpScreen() {
           aria-label={HELP_INTRO.searchLabel}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="min-h-6 flex-1 bg-transparent text-[13px] text-text-primary outline-none"
+          className="min-h-6 flex-1 bg-transparent text-t4 text-text-primary outline-none"
         />
       </div>
 
       {/* Said aloud as the list changes; seen only when nothing matched. */}
       <p
         aria-live="polite"
-        className={found === 0 ? 'text-[13px] text-text-secondary' : 'sr-only'}
+        className={found === 0 ? 'text-t4 text-text-secondary' : 'sr-only'}
       >
         {!searching
           ? ''
@@ -127,10 +127,10 @@ export function HelpScreen() {
 
       <ScCard className="flex flex-col gap-3">
         <div>
-          <h2 className="text-[15px] font-semibold text-text-primary">
+          <h2 className="text-t3 font-semibold text-text-primary">
             {HELP_STILL_NEED.title}
           </h2>
-          <p className="mt-1 text-[13px] text-text-secondary">
+          <p className="mt-1 text-t4 text-text-secondary">
             {HELP_STILL_NEED.body}
           </p>
         </div>
@@ -179,7 +179,7 @@ function Question({
           className="shrink-0 text-text-muted transition-transform group-open:rotate-180"
         />
       </summary>
-      <div className="flex flex-col gap-2 px-3.5 pb-3.5 text-[13px] leading-relaxed text-text-secondary">
+      <div className="flex flex-col gap-2 px-3.5 pb-3.5 text-t4 leading-relaxed text-text-secondary">
         {question.a.map((paragraph, index) => (
           <p key={index}>{paragraph}</p>
         ))}

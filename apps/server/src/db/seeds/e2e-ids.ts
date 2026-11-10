@@ -2158,3 +2158,110 @@ export const OWNER_DELETE = {
     stamp: id(7344),
   },
 } as const
+
+/**
+ * Cities, branches and "All over the city" (0069; ids 6900–6949, phones
+ * 90000069xx). Every garage here sits far from Chennai, from every other
+ * fixture and from every spec's origin (around 15°–16° N, 77°–78° E: over
+ * 500 km from Madurai, where listing-radius looks for a list whose nearest
+ * garage is 100 km off or more), so a city switched off, or Other towns for a
+ * moment, hides no other spec's garage and nears no other spec's list.
+ *
+ *   - `hill`: a listed garage the admin spec puts a city around (`hillCity`,
+ *     5 km) and switches off; its customer's booking there must still open.
+ *   - `far`: a listed garage in no city, for the Other towns switch.
+ *   - `branch`: a garage with three services and signed pickup & drop that
+ *     the admin spec adds two branches of: one on its owner's number (the
+ *     same login), one on `branchOtherOwner`'s, a number with no account
+ *     until the spec makes one (and removes it).
+ *   - `wholeTown`: a city seeded here, and `whole`, a doorstep garage pinned
+ *     20 km north of its centre that comes all over it; `wholeCustomer` lives
+ *     20 km south (40 km from the garage, far past its 5 km radius).
+ */
+export const CITIES = {
+  customer: { id: id(6900), phone: '9000006900', name: 'Cities Kala', vehicleId: id(6901) },
+  hill: {
+    id: id(6902), name: 'Hilltown Car Spa', ownerId: id(6903), ownerPhone: '9000006903',
+    serviceId: id(6904), serviceName: 'Hilltown Foam Wash', pin: { lat: 16.0, lng: 77.5 },
+  },
+  /** The customer's booking at `hill`, two days ahead, confirmed and paid. */
+  hillBooking: id(6905),
+  hillCity: { name: 'E2E Hilltown', reachKm: 5 },
+  far: {
+    id: id(6906), name: 'Faraway Foam Wash', ownerId: id(6907), ownerPhone: '9000006907',
+    serviceId: id(6908), pin: { lat: 15.6, lng: 77.2 },
+  },
+  branch: {
+    id: id(6910), name: 'Revathi Auto Spa', ownerId: id(6911), ownerPhone: '9000006911',
+    pin: { lat: 15.4, lng: 77.0 }, pickupRadiusKm: 12,
+    services: [
+      { id: id(6912), name: 'Revathi Foam Wash', price: 450 },
+      { id: id(6913), name: 'Revathi Interior Clean', price: 900 },
+      { id: id(6914), name: 'Revathi Ceramic Coat', price: 7000 },
+    ],
+  },
+  /** The branch the admin spec adds on the same login, by its name. */
+  branchName: 'Revathi Auto Spa – E2E Branchtown',
+  branchTown: 'E2E Branchtown',
+  /** The branch on another login, by its name, and its owner. */
+  otherBranchName: 'Revathi Auto Spa – E2E Othertown',
+  otherBranchTown: 'E2E Othertown',
+  branchOtherOwner: { phone: '9000006930', name: 'Meena Selvam' },
+  wholeTown: { id: id(6920), name: 'E2E Wholetown', centre: { lat: 15.0, lng: 78.0 }, reachKm: 60 },
+  whole: {
+    id: id(6921), name: 'Wholetown Doorstep Detailing', ownerId: id(6922), ownerPhone: '9000006922',
+    serviceId: id(6923), pin: { lat: 15.18, lng: 78.0 }, radiusKm: 5,
+  },
+  wholeCustomer: {
+    id: id(6924), phone: '9000006924', name: 'Wholetown Arun', vehicleId: id(6925),
+    /** Inside the city, 40 km from the garage. */
+    home: { id: id(6926), lat: 14.82, lng: 78.0 },
+    /** Past the city's 60 km reach (83 km from its centre). */
+    away: { id: id(6927), lat: 15.75, lng: 78.0 },
+  },
+} as const
+
+/**
+ * Customer cities (0070): `smallTown`, a second city switched on for
+ * customers with one at-garage garage, `small`, and "Growing here" off: the
+ * small city of mockup D (no counts, "In E2E Smalltown", the recommend row,
+ * no free-wash card). Pinned around 18° N, 76° E, over 250 km from every
+ * other fixture, so no other spec's list reaches it and the 150 km limit
+ * keeps Chennai's garages out of its own. Ids 7000–7009, phones 90000070xx.
+ * Only specs/users/customer-cities.spec.ts uses it, and it changes nothing.
+ */
+export const CUSTOMER_CITIES = {
+  smallTown: { id: id(7000), name: 'E2E Smalltown', centre: { lat: 18.0, lng: 76.0 }, reachKm: 30 },
+  small: {
+    id: id(7001), name: 'Smalltown Car Spa', ownerId: id(7002), ownerPhone: '9000007002',
+    serviceId: id(7003), serviceName: 'Smalltown Foam Wash', pin: { lat: 18.05, lng: 76.02 },
+  },
+} as const
+
+/**
+ * The garage's Bookings calendar (Month and Day; ids 6200–6249, phones
+ * 90000062xx): its own unlisted garage with two bays, open 9:00 am to
+ * 6:30 pm every day, its owner and one customer, and the jobs the calendar
+ * spec reads (specs/vendors/calendar.spec.ts), all placed by India's
+ * calendar from the day it is seeded:
+ *   today      done at 9:00 am, accepted at 3:00 pm (at the garage), and an
+ *              accepted doorstep job at 12:00 pm (the On the road lane);
+ *   tomorrow   one waiting for an answer at 11:00 am (three hours to answer),
+ *              and one cancelled at 4:00 pm that the calendar never shows;
+ *   in 3 days  time off, "Family function";
+ *   in 7 days  one accepted at 10:00 am.
+ * Every job is an hour (the wash's duration). Read-only: nothing changes them.
+ */
+export const CALENDAR = {
+  owner: { id: id(6200), phone: '9000006200', name: 'Calendar Owner Kavitha' },
+  customer: { id: id(6201), phone: '9000006201', name: 'Ganesh Calendar', vehicleId: id(6202) },
+  garage: { id: id(6203), name: 'Calendar Test Garage' },
+  wash: { id: id(6204), name: 'Calendar Foam Wash', price: '650.00', durationMins: 60 },
+  todayDone: id(6210),
+  todayAccepted: id(6211),
+  todayRoad: id(6212),
+  tomorrowAnswer: id(6213),
+  tomorrowCancelled: id(6214),
+  nextWeek: id(6215),
+  closure: { id: id(6220), inDays: 3, reason: 'Family function' },
+} as const

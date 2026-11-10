@@ -46,7 +46,7 @@ export function TipCard({ tip, now }: { tip: CarTip; now: Date }) {
   return (
     <section aria-label="Car care tip" className="hub-card p-5">
       <div className="flex h-5 items-center justify-between">
-        <span className="flex items-center gap-1.5 text-[13px] text-dim">
+        <span className="flex items-center gap-1.5 text-t4 text-dim">
           <IconBulb size={15} stroke={1.5} aria-hidden className="text-text-muted" />
           Car care tip{season ? ` · ${season}` : ''}
         </span>
@@ -59,8 +59,8 @@ export function TipCard({ tip, now }: { tip: CarTip; now: Date }) {
           <IconX size={20} stroke={1.5} aria-hidden />
         </button>
       </div>
-      <p className="mt-3 text-[17px] font-medium tracking-[-0.012em] text-text-primary">{tip.category}</p>
-      <p className="mt-1 text-[15px] leading-[1.42] text-[#A1A1AA]">{tip.text}</p>
+      <p className="mt-3 text-t2 font-medium tracking-[-0.012em] text-text-primary">{tip.category}</p>
+      <p className="mt-1 text-t3 leading-[1.42] text-[#A1A1AA]">{tip.text}</p>
     </section>
   )
 }
