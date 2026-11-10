@@ -84,7 +84,7 @@ export function BookingsCalendar({ bookings, now }: { bookings: readonly Booking
         value={view}
         onChange={pickView}
         minHeight={44}
-        options={(['month', 'day'] as const).map((key) => ({ value: key, label: VIEW_LABELS[key], width: 72 }))}
+        options={(['month', 'day'] as const).map((key) => ({ value: key, label: VIEW_LABELS[key], width: 64 }))}
       />
     </View>
   );
@@ -104,7 +104,7 @@ export function BookingsCalendar({ bookings, now }: { bookings: readonly Booking
             >
               <IconChevronLeft size={20} color={colors.textSecondary} />
             </Pressable>
-            <T accessibilityRole="header" size={18} weight={600} align="center" style={styles.monthTitle}>
+            <T accessibilityRole="header" size={17} weight={600} align="center" numberOfLines={1} style={styles.monthTitle}>
               {monthTitle(month)}
             </T>
             <Pressable
@@ -304,9 +304,10 @@ const useStyles = createStyles((colors) => ({
   section: { gap: 14 },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   monthNav: { flexDirection: 'row', alignItems: 'center', flexShrink: 1 },
-  arrow: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  // 36 wide (44 tall) so the month stays on one line beside the switch.
+  arrow: { width: 36, height: 44, alignItems: 'center', justifyContent: 'center' },
   off: { opacity: 0.3 },
-  monthTitle: { minWidth: 132 },
+  monthTitle: { flexShrink: 1 },
   dayTitle: { flex: 1, minWidth: 0, gap: 2, paddingLeft: 4 },
   switch: { flexShrink: 0 },
   grid: {

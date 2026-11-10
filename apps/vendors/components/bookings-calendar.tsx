@@ -107,7 +107,7 @@ export function BookingsCalendar({
       aria-label="Calendar view"
       value={view}
       onChange={pickView}
-      className="shrink-0 [&_[role=radio]]:min-h-11 [&_[role=radio]]:px-3.5 [&_[role=radio]]:py-0 [&_[role=radio]]:text-[14px]"
+      className="shrink-0 [&_[role=radio]]:min-h-11 [&_[role=radio]]:px-3 [&_[role=radio]]:py-0 [&_[role=radio]]:text-[14px]"
       options={(['month', 'day'] as const).map((key) => ({
         value: key,
         label: VIEW_LABELS[key],
@@ -119,19 +119,21 @@ export function BookingsCalendar({
     <section aria-label="Calendar" className="flex flex-col gap-3.5">
       {view === 'month' ? (
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center">
+          {/* One line on a 360px phone with the switch beside it: the
+              arrows are 36 wide (44 tall) and the month never wraps. */}
+          <div className="flex min-w-0 items-center">
             <button
               type="button"
               aria-label="Previous month"
               disabled={month <= bounds.first}
               onClick={() => moveMonth(-1)}
-              className="flex size-11 items-center justify-center text-text-secondary disabled:opacity-30"
+              className="flex h-11 w-9 shrink-0 items-center justify-center text-text-secondary disabled:opacity-30"
             >
               <IconChevronLeft size={20} aria-hidden="true" />
             </button>
             <h2
               aria-live="polite"
-              className="min-w-[138px] text-center text-[18px] font-semibold text-text-primary"
+              className="whitespace-nowrap text-center text-[17px] font-semibold text-text-primary"
             >
               {monthTitle(month)}
             </h2>
@@ -140,7 +142,7 @@ export function BookingsCalendar({
               aria-label="Next month"
               disabled={month >= bounds.last}
               onClick={() => moveMonth(1)}
-              className="flex size-11 items-center justify-center text-text-secondary disabled:opacity-30"
+              className="flex h-11 w-9 shrink-0 items-center justify-center text-text-secondary disabled:opacity-30"
             >
               <IconChevronRight size={20} aria-hidden="true" />
             </button>
