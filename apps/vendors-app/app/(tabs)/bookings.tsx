@@ -4,6 +4,7 @@ import { type ComponentRef, type ReactNode, useCallback, useEffect, useMemo, use
 import { Pressable, type ScrollView, View } from 'react-native';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
+import { BookingsCalendar } from '@/components/bookings-calendar';
 import { GarageStatus } from '@/components/garage-status';
 import {
   IconAlarm,
@@ -19,13 +20,14 @@ import { CountBadge, EmptyState, LoadError, ScSegmented, SkeletonList } from '@r
 import { PushBanner } from '@/components/push-banner';
 import { T } from '@repo/native-ui/text';
 import {
+  type BookingsTab,
+  bookingsTabFromQuery,
   calendarDate,
   doneJobs,
   laterDays,
   LIST_TABS,
   type ListTab,
   sortByUrgency,
-  tabFromQuery,
   todayView,
   waitingSummary,
 } from '@/lib/jobs';
@@ -65,8 +67,8 @@ function BookingsScreen() {
   const params = useLocalSearchParams<{ tab?: string; job?: string }>();
   // The list follows ?tab= whenever it changes (a link or a notification while
   // it is open), including the server's old names; a tap sets it at once.
-  const queryTab = tabFromQuery(params.tab ?? null) ?? 'today';
-  const [tab, setTab] = useState<ListTab>(queryTab);
+  const queryTab = bookingsTabFromQuery(params.tab ?? null) ?? 'today';
+  const [tab, setTab] = useState<BookingsTab>(queryTab);
   const [seenQueryTab, setSeenQueryTab] = useState(queryTab);
   if (queryTab !== seenQueryTab) {
     setSeenQueryTab(queryTab);
@@ -118,13 +120,15 @@ function BookingsScreen() {
     done: done.length,
   };
 
-  const pickTab = useCallback((next: ListTab) => {
+  const pickTab = useCallback((next: BookingsTab) => {
     setTab(next);
     router.setParams({ tab: next });
   }, []);
 
   const isEmpty =
-    tab === 'today'
+    tab === 'calendar'
+      ? false
+      : tab === 'today'
       ? counts.today === 0
       : tab === 'new'
         ? pending.length === 0
@@ -140,20 +144,31 @@ function BookingsScreen() {
         accessibilityLabel="Bookings"
         value={tab}
         onChange={pickTab}
-        options={LIST_TABS.map((key) => ({
-          value: key,
-          label:
-            key === 'new' && !unknown && waiting.count > 0 ? (
-              <>
-                <T size={16} weight={500} color={tab === key ? colors.textPrimary : colors.textSecondary}>
-                  {TAB_LABELS[key]}
-                </T>
-                <CountBadge count={waiting.count} small />
-              </>
-            ) : (
-              TAB_LABELS[key]
+        options={[
+          ...LIST_TABS.map((key) => ({
+            value: key as BookingsTab,
+            label:
+              key === 'new' && !unknown && waiting.count > 0 ? (
+                <>
+                  <T size={16} weight={500} color={tab === key ? colors.textPrimary : colors.textSecondary}>
+                    {TAB_LABELS[key]}
+                  </T>
+                  <CountBadge count={waiting.count} small />
+                </>
+              ) : (
+                TAB_LABELS[key]
+              ),
+          })),
+          // The calendar: an icon alone, a fixed width after Done.
+          {
+            value: 'calendar' as const,
+            label: (
+              <IconCalendarEvent size={22} stroke={1.6} color={tab === 'calendar' ? colors.textPrimary : colors.textSecondary} />
             ),
-        }))}
+            accessibilityLabel: 'Calendar',
+            width: 52,
+          },
+        ]}
       />
 
       {tab !== 'new' && waiting.count > 0 ? (
@@ -185,6 +200,8 @@ function BookingsScreen() {
           <SkeletonList count={3} height={112} />
         ) : unknown ? (
           <LoadError what="your bookings" onRetry={reload} retrying={retrying} />
+        ) : tab === 'calendar' ? (
+          <BookingsCalendar bookings={bookings} now={now} />
         ) : isEmpty ? (
           <>
             <EmptyState {...emptyStates(colors)[tab]} />

@@ -209,7 +209,12 @@ export function ScSegmented<V extends string>({
 }: {
   value: V;
   onChange: (value: V) => void;
-  options: { value: V; label: ReactNode; icon?: ReactNode }[];
+  /**
+   * `accessibilityLabel` names an option whose label is an icon alone, and
+   * `width` gives it a fixed width instead of an equal share (the garage's
+   * Calendar segment).
+   */
+  options: { value: V; label: ReactNode; icon?: ReactNode; accessibilityLabel?: string; width?: number }[];
   accessibilityLabel?: string;
   minHeight?: number;
   labelSize?: number;
@@ -229,9 +234,10 @@ export function ScSegmented<V extends string>({
             <Pressable
               key={option.value}
               accessibilityRole="radio"
+              accessibilityLabel={option.accessibilityLabel}
               accessibilityState={{ checked: selected }}
               onPress={() => onChange(option.value)}
-              style={[styles.segment, { minHeight }]}
+              style={[styles.segment, { minHeight }, option.width ? { flex: 0, width: option.width } : null]}
             >
               {selected ? <Raised radius={10} style={StyleSheet.absoluteFill} /> : null}
               {option.icon}
@@ -257,9 +263,10 @@ export function ScSegmented<V extends string>({
           <Pressable
             key={option.value}
             accessibilityRole="radio"
+            accessibilityLabel={option.accessibilityLabel}
             accessibilityState={{ checked: selected }}
             onPress={() => onChange(option.value)}
-            style={[styles.segment, { minHeight }, selected && styles.segmentOn]}
+            style={[styles.segment, { minHeight }, option.width ? { flex: 0, width: option.width } : null, selected && styles.segmentOn]}
           >
             {option.icon}
             {typeof option.label === 'string' ? (

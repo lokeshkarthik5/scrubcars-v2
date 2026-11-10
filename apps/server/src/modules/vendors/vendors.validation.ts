@@ -610,6 +610,17 @@ export const createClosureSchema = z.object({
   reason: z.string().trim().max(200).optional(),
 })
 
+// The garage's own holiday list (GET /me/closures): from today unless the
+// bookings calendar asks from an earlier day, to show the time off of a
+// month it pages back to. The service clamps how far back (lib/slots.ts).
+export const listClosuresQuerySchema = z.object({
+  from: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'from must be YYYY-MM-DD')
+    .refine(isCalendarDate, 'That date does not exist')
+    .optional(),
+})
+
 // The reason is optional and public: the garage page shows it under "Not
 // taking bookings right now".
 export const pauseBookingsSchema = z.object({
@@ -617,6 +628,7 @@ export const pauseBookingsSchema = z.object({
 })
 
 export type CreateClosureInput = z.infer<typeof createClosureSchema>
+export type ListClosuresQuery = z.infer<typeof listClosuresQuerySchema>
 export type PauseBookingsInput = z.infer<typeof pauseBookingsSchema>
 
 export type CreateVendorInput = z.infer<typeof createVendorSchema>

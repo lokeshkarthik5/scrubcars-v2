@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   createClosureSchema,
   createVendorSchema,
+  listClosuresQuerySchema,
   listPublicVendorsQuerySchema,
   updateJobTypesSchema,
   updateVendorSchema,
@@ -16,6 +17,15 @@ const NEW_GARAGE = {
   lat: 13.08,
   lng: 80.27,
 }
+
+describe('listClosuresQuerySchema', () => {
+  test('from is optional, and a real calendar day when given', () => {
+    expect(listClosuresQuerySchema.parse({})).toEqual({})
+    expect(listClosuresQuerySchema.parse({ from: '2026-10-26' })).toEqual({ from: '2026-10-26' })
+    expect(listClosuresQuerySchema.safeParse({ from: '2026-02-30' }).success).toBe(false)
+    expect(listClosuresQuerySchema.safeParse({ from: '26-10-2026' }).success).toBe(false)
+  })
+})
 
 describe('createClosureSchema', () => {
   test('takes a real calendar day and an optional reason', () => {

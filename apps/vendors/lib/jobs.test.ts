@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import type { Booking } from '@repo/core/types'
 import {
   blockers,
+  bookingsTabFromQuery,
   calendarDate,
   customerNumberLine,
   distanceKm,
@@ -81,6 +82,16 @@ describe('tabFromQuery', () => {
     expect(tabFromQuery('later')).toBe('later')
     expect(tabFromQuery('nonsense')).toBeNull()
     expect(tabFromQuery(null)).toBeNull()
+  })
+})
+
+describe('bookingsTabFromQuery', () => {
+  test('reads the calendar, and every list link as before', () => {
+    expect(bookingsTabFromQuery('calendar')).toBe('calendar')
+    expect(bookingsTabFromQuery('incoming')).toBe('new')
+    expect(bookingsTabFromQuery('done')).toBe('done')
+    expect(bookingsTabFromQuery('nonsense')).toBeNull()
+    expect(bookingsTabFromQuery(null)).toBeNull()
   })
 })
 

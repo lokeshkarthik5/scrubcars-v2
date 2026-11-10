@@ -58,6 +58,17 @@ export function tabFromQuery(value: string | null): ListTab | null {
 }
 
 /**
+ * The Bookings switch: the four lists, then the calendar (an icon-only fifth
+ * segment). The calendar is not a list, so LIST_TABS stays the four.
+ */
+export type BookingsTab = ListTab | 'calendar'
+
+/** A `?tab=` from a link: `calendar`, or anything tabFromQuery reads. */
+export function bookingsTabFromQuery(value: string | null): BookingsTab | null {
+  return value === 'calendar' ? 'calendar' : tabFromQuery(value)
+}
+
+/**
  * Which list a job is on. Waiting for an answer: New. Under way, or
  * accepted for today (or a day already gone, still not started): Today.
  * Accepted for a later day: Later. Finished or cancelled: Done. A booking
