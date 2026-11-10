@@ -98,7 +98,7 @@ export function ReviewerNote({ text }: { text: string }) {
       data-reviewer-note
       className="legal-note my-5 rounded-lg border border-warning/40 bg-warning-muted px-4 py-3 text-[14px] leading-relaxed text-text-primary"
     >
-      <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-warning">
+      <p className="mb-1 text-t5 font-semibold uppercase tracking-[0.12em] text-warning">
         Reviewer note
       </p>
       <p>
@@ -115,7 +115,7 @@ function Table({ block }: { block: Extract<LegalBlock, { kind: 'table' }> }) {
   return (
     <div className="my-6">
       <table role="table" className="legal-table w-full border-collapse text-left text-[14px] leading-relaxed">
-        <caption className="mb-2 text-left text-[13px] font-medium text-text-muted">
+        <caption className="mb-2 text-left text-t4 font-medium text-text-muted">
           <Inline text={block.caption} />
         </caption>
         <thead role="rowgroup">
@@ -125,7 +125,7 @@ function Table({ block }: { block: Extract<LegalBlock, { kind: 'table' }> }) {
                 key={head}
                 role="columnheader"
                 scope="col"
-                className="border-b border-border px-3 py-2 align-bottom text-[12px] font-semibold uppercase tracking-[0.06em] text-text-muted"
+                className="border-b border-border px-3 py-2 align-bottom text-t5 font-semibold uppercase tracking-[0.06em] text-text-muted"
               >
                 {head}
               </th>
@@ -196,7 +196,7 @@ function DraftBanner() {
     <div
       role="note"
       data-legal-draft
-      className="legal-draft border-b border-warning/40 bg-warning-muted px-4 py-3 text-center text-[13px] font-semibold text-warning"
+      className="legal-draft border-b border-warning/40 bg-warning-muted px-4 py-3 text-center text-t4 font-semibold text-warning"
     >
       Draft for legal review — not yet in force
     </div>
@@ -238,12 +238,12 @@ export function LegalPage({
       <main
         id="main"
         tabIndex={-1}
-        className="mx-auto outline-none w-full max-w-[70ch] flex-1 px-4 pt-10 pb-16 text-[15px] leading-[1.75] text-text-secondary sm:text-[16px]"
+        className="mx-auto outline-none w-full max-w-[70ch] flex-1 px-4 pt-10 pb-16 text-t3 leading-[1.75] text-text-secondary sm:text-t3"
       >
         <h1 className="text-balance text-[30px] font-bold leading-[1.15] tracking-[-0.02em] text-text-primary sm:text-[40px]">
           {doc.title}
         </h1>
-        <p className="mt-3 text-[13px] text-text-muted">
+        <p className="mt-3 text-t4 text-text-muted">
           Last updated: {LAST_UPDATED}
           {/* A separator on one line, a line break on a phone — never both,
               which would leave a "·" hanging at the end of the first line. */}
@@ -271,7 +271,7 @@ export function LegalPage({
             aria-label="On this page"
             className="legal-toc my-8 rounded-xl border border-border px-4 py-4"
           >
-            <p className="mb-2 text-[12px] font-semibold uppercase tracking-[0.12em] text-text-muted">
+            <p className="mb-2 text-t5 font-semibold uppercase tracking-[0.12em] text-text-muted">
               On this page
             </p>
             <ul className="space-y-1.5 text-[14px]">
@@ -301,7 +301,7 @@ export function LegalPage({
               <section key={sub.id} aria-labelledby={sub.id}>
                 <h3
                   id={sub.id}
-                  className="mt-8 scroll-mt-6 text-[17px] font-semibold text-text-primary"
+                  className="mt-8 scroll-mt-6 text-t2 font-semibold text-text-primary"
                 >
                   {sub.heading}
                 </h3>

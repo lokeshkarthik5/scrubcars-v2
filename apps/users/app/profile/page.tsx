@@ -24,6 +24,7 @@ import { isHomeHubEnabled } from '@/lib/home-hub'
 import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@/components/ui/card'
+import { NumberPlate } from '@/components/moments/number-plate'
 import { ScInput } from '@repo/ui/sc/input'
 import { TopBar } from '@repo/ui/sc/top-bar'
 import { Chip } from '@repo/ui/sc/chip'
@@ -176,10 +177,10 @@ export default function ProfilePage() {
       <CustomerShell showNav className="gap-4 py-4">
         <TopBar title="Profile" large={isHomeHubEnabled()} />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
-          <p className="text-[15px] font-semibold text-text-primary">
+          <p className="text-t3 font-semibold text-text-primary">
             Login to view your profile
           </p>
-          <p className="text-[13px] text-text-secondary">
+          <p className="text-t4 text-text-secondary">
             Sign in to manage your vehicles and addresses
           </p>
           <ScButton
@@ -420,12 +421,12 @@ export default function ProfilePage() {
           </span>
         </button>
         <div className="flex-1 min-w-0" data-clarity-mask="true">
-          <p className="text-[15px] font-semibold text-text-primary">
+          <p className="text-t3 font-semibold text-text-primary">
             {user?.name}
           </p>
-          <p className="text-[12px] text-text-secondary">+91 {user?.phone}</p>
+          <p className="text-t5 text-text-secondary">+91 {user?.phone}</p>
           {user?.area && (
-            <p className="text-[11px] text-text-muted">
+            <p className="text-t5 text-text-muted">
               {user.area} – {user.pincode}
             </p>
           )}
@@ -434,7 +435,7 @@ export default function ProfilePage() {
               type="button"
               onClick={handleAvatarRemove}
               disabled={avatarBusy}
-              className="tap-target mt-1 text-[11px] text-text-muted transition-colors hover:text-text-primary disabled:opacity-40"
+              className="tap-target mt-1 text-t5 text-text-muted transition-colors hover:text-text-primary disabled:opacity-40"
             >
               Remove photo
             </button>
@@ -452,21 +453,21 @@ export default function ProfilePage() {
       </ScCard>
 
       <Link href="/bookings">
-        <ScCard className="text-[13px] text-text-primary">My bookings</ScCard>
+        <ScCard className="text-t4 text-text-primary">My bookings</ScCard>
       </Link>
 
       {/* The garages saved with the heart. A plain link, like My bookings. */}
       <Link href="/profile/saved-garages">
-        <ScCard className="text-[13px] text-text-primary">Saved garages</ScCard>
+        <ScCard className="text-t4 text-text-primary">Saved garages</ScCard>
       </Link>
 
       {/* The days waited on with "Notify me if a slot opens" (0047), while
           there are any. */}
       {slotAlertCount > 0 && (
         <Link href="/profile/slot-alerts">
-          <ScCard className="flex items-center justify-between text-[13px] text-text-primary">
+          <ScCard className="flex items-center justify-between text-t4 text-text-primary">
             Slot alerts
-            <span className="font-numeric text-[12px] text-text-secondary">
+            <span className="font-numeric text-t5 text-text-secondary">
               {slotAlertCount}
             </span>
           </ScCard>
@@ -477,15 +478,15 @@ export default function ProfilePage() {
           coupons added. Always there: a coupon works with or without
           Rewards. */}
       <Link href="/profile/coupons">
-        <ScCard className="flex items-center justify-between gap-3 text-[13px] text-text-primary">
+        <ScCard className="flex items-center justify-between gap-3 text-t4 text-text-primary">
           <span className="min-w-0">
             Coupons
-            <span className="block text-[12px] text-text-secondary">
+            <span className="block text-t5 text-text-secondary">
               Have a coupon? Add it here
             </span>
           </span>
           {readyCoupons > 0 && (
-            <span className="font-numeric text-[12px] text-text-secondary">
+            <span className="font-numeric text-t5 text-text-secondary">
               {readyCoupons}
             </span>
           )}
@@ -495,11 +496,11 @@ export default function ProfilePage() {
       {/* Detlio Rewards (0050): the level badge and how far the Shine Card is. */}
       {rewardsOn && (
         <Link href="/profile/rewards">
-          <ScCard className="flex items-center justify-between gap-3 text-[13px] text-text-primary">
+          <ScCard className="flex items-center justify-between gap-3 text-t4 text-text-primary">
             <span className="min-w-0">
               Detlio Rewards
               {rewardsSummary.data && (
-                <span className="block text-[12px] text-text-secondary">
+                <span className="block text-t5 text-text-secondary">
                   <Figures
                     text={stampsToGoLine(rewardsSummary.data.card.toGo)}
                   />
@@ -528,17 +529,17 @@ export default function ProfilePage() {
       {giftsOn && (
         <>
           <Link href="/profile/credit">
-            <ScCard className="flex items-center justify-between gap-3 text-[13px] text-text-primary">
+            <ScCard className="flex items-center justify-between gap-3 text-t4 text-text-primary">
               Detlio credit
               {credit.data && (
-                <span className="font-numeric text-[13px] text-text-secondary">
+                <span className="font-numeric text-t4 text-text-secondary">
                   {giftRupees(credit.data.balance)}
                 </span>
               )}
             </ScCard>
           </Link>
           <Link href="/profile/gifts">
-            <ScCard className="text-[13px] text-text-primary">
+            <ScCard className="text-t4 text-text-primary">
               Gift a wash
             </ScCard>
           </Link>
@@ -548,7 +549,7 @@ export default function ProfilePage() {
       {/* Browser notifications on this device, and what to send (0044). */}
       {pushOn && (
         <Link href="/profile/notifications">
-          <ScCard className="text-[13px] text-text-primary">
+          <ScCard className="text-t4 text-text-primary">
             Notifications
           </ScCard>
         </Link>
@@ -564,7 +565,7 @@ export default function ProfilePage() {
             // Both section headers render a button reading "Add", which on its
             // own tells a screen reader nothing about what is being added.
             aria-label="Add vehicle"
-            className="-my-2.5 -mr-2 flex min-h-11 items-center gap-1 px-2 text-[13px] text-text-primary"
+            className="-my-2.5 -mr-2 flex min-h-11 items-center gap-1 px-2 text-t4 text-text-primary"
           >
             <IconPlus size={14} aria-hidden="true" />
             Add
@@ -606,7 +607,7 @@ export default function ProfilePage() {
               }
             />
             <div>
-              <p className="mb-2 text-[11px] font-medium text-text-secondary">
+              <p className="mb-2 text-t5 font-medium text-text-secondary">
                 Type
               </p>
               <div className="flex gap-2">
@@ -647,7 +648,7 @@ export default function ProfilePage() {
         <div className="flex flex-col gap-2">
           {vehicles.length === 0 && !showVehicleForm ? (
             <ScCard>
-              <p className="text-[12px] text-text-secondary">
+              <p className="text-t5 text-text-secondary">
                 No vehicles added yet.
               </p>
             </ScCard>
@@ -669,7 +670,7 @@ export default function ProfilePage() {
                     />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-0.5 text-[13px] font-medium text-text-primary">
+                    <span className="flex items-center gap-0.5 text-t4 font-medium text-text-primary">
                       <span className="truncate">
                         {v.make} {v.model}
                       </span>
@@ -679,12 +680,9 @@ export default function ProfilePage() {
                         aria-hidden="true"
                       />
                     </span>
-                    <span
-                      className="block text-[11px] text-text-secondary"
-                      data-clarity-mask="true"
-                    >
-                      {v.plate ? `${v.plate} · History` : 'History'}
-                    </span>
+                    {/* The plate as it looks on the car (moment 8). */}
+                    {v.plate && <NumberPlate plate={v.plate} className="mt-1.5" />}
+                    <span className="mt-1 block text-t5 text-text-secondary">History</span>
                   </span>
                 </Link>
                 {v.isDefault ? (
@@ -695,7 +693,7 @@ export default function ProfilePage() {
                     aria-label={`Make ${v.make} ${v.model} the default vehicle`}
                     onClick={() => makeVehicleDefault(v.id)}
                     disabled={promoting === v.id}
-                    className="-my-1 min-h-11 shrink-0 rounded-[6px] px-2 py-1 text-[11px] font-medium text-text-secondary transition-colors hover:text-text-primary disabled:opacity-40"
+                    className="-my-1 min-h-11 shrink-0 rounded-[6px] px-2 py-1 text-t5 font-medium text-text-secondary transition-colors hover:text-text-primary disabled:opacity-40"
                   >
                     {promoting === v.id ? 'Setting...' : 'Set default'}
                   </button>
@@ -732,7 +730,7 @@ export default function ProfilePage() {
             type="button"
             onClick={() => setShowAddressForm((a) => !a)}
             aria-label="Add address"
-            className="-my-2.5 -mr-2 flex min-h-11 items-center gap-1 px-2 text-[13px] text-text-primary"
+            className="-my-2.5 -mr-2 flex min-h-11 items-center gap-1 px-2 text-t4 text-text-primary"
           >
             <IconPlus size={14} aria-hidden="true" />
             Add
@@ -751,10 +749,10 @@ export default function ProfilePage() {
               }
             />
             <div className="flex flex-col gap-1.5">
-              <span className="text-[11px] font-medium text-text-secondary">
+              <span className="text-t5 font-medium text-text-secondary">
                 Pin the exact spot (optional)
               </span>
-              <p className="text-[11px] text-text-muted">
+              <p className="text-t5 text-text-muted">
                 Needed only for doorstep and pickup &amp; drop — we&apos;ll ask
                 before your first one if you skip it.
               </p>
@@ -848,7 +846,7 @@ export default function ProfilePage() {
         <div className="flex flex-col gap-2">
           {addresses.length === 0 && !showAddressForm ? (
             <ScCard>
-              <p className="text-[12px] text-text-secondary">
+              <p className="text-t5 text-text-secondary">
                 No addresses added yet.
               </p>
             </ScCard>
@@ -859,14 +857,14 @@ export default function ProfilePage() {
                   <IconMapPin size={18} className="text-text-primary" />
                 </div>
                 <div className="flex-1 min-w-0" data-clarity-mask="true">
-                  <p className="text-[13px] font-medium text-text-primary">
+                  <p className="text-t4 font-medium text-text-primary">
                     {a.label}
                   </p>
-                  <p className="text-[11px] text-text-secondary truncate">
+                  <p className="text-t5 text-text-secondary truncate">
                     {a.address}
                   </p>
                   {a.pincode && (
-                    <p className="text-[11px] text-text-muted">{a.pincode}</p>
+                    <p className="text-t5 text-text-muted">{a.pincode}</p>
                   )}
                 </div>
                 {a.isDefault ? (
@@ -877,7 +875,7 @@ export default function ProfilePage() {
                     aria-label={`Make ${a.label} the default address`}
                     onClick={() => makeAddressDefault(a.id)}
                     disabled={promoting === a.id}
-                    className="-my-1 min-h-11 shrink-0 rounded-[6px] px-2 py-1 text-[11px] font-medium text-text-secondary transition-colors hover:text-text-primary disabled:opacity-40"
+                    className="-my-1 min-h-11 shrink-0 rounded-[6px] px-2 py-1 text-t5 font-medium text-text-secondary transition-colors hover:text-text-primary disabled:opacity-40"
                   >
                     {promoting === a.id ? 'Setting...' : 'Set default'}
                   </button>
@@ -913,7 +911,7 @@ export default function ProfilePage() {
         <ScCard className="px-0 py-1">
           <Link
             href="/help"
-            className="flex items-center justify-between px-3.5 py-2.5 text-[13px] text-text-primary transition-colors hover:text-brand-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-white"
+            className="flex items-center justify-between px-3.5 py-2.5 text-t4 text-text-primary transition-colors hover:text-brand-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-white"
           >
             Help centre
             <IconChevronRight
@@ -941,7 +939,7 @@ export default function ProfilePage() {
               <li key={link.href}>
                 <Link
                   href={link.href}
-                  className="flex items-center justify-between px-3.5 py-2.5 text-[13px] text-text-primary transition-colors hover:text-brand-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-white"
+                  className="flex items-center justify-between px-3.5 py-2.5 text-t4 text-text-primary transition-colors hover:text-brand-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-white"
                 >
                   {link.label}
                   <IconChevronRight
@@ -954,7 +952,7 @@ export default function ProfilePage() {
             ))}
             <li>
               {/* Changes the choice the cookie bar asked for. */}
-              <CookieSettingsButton className="flex w-full items-center justify-between px-3.5 py-2.5 text-left text-[13px] text-text-primary transition-colors hover:text-brand-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-white">
+              <CookieSettingsButton className="flex w-full items-center justify-between px-3.5 py-2.5 text-left text-t4 text-text-primary transition-colors hover:text-brand-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-white">
                 Cookie settings
                 <IconChevronRight
                   size={16}
@@ -979,7 +977,7 @@ export default function ProfilePage() {
       <button
         type="button"
         onClick={() => setDeletingAccount(true)}
-        className="mx-auto mb-2 min-h-11 px-3 text-[13px] text-text-muted underline underline-offset-2 transition-colors hover:text-text-primary"
+        className="mx-auto mb-2 min-h-11 px-3 text-t4 text-text-muted underline underline-offset-2 transition-colors hover:text-text-primary"
       >
         Delete account
       </button>

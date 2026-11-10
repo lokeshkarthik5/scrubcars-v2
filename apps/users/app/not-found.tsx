@@ -13,7 +13,7 @@ export default function NotFound() {
     >
       {/* A dead link from a message or an old bookmark: a person can point
           the way. */}
-      <p className="pb-3 text-[12px] text-text-secondary">Looking for something? Our team can help.</p>
+      <p className="pb-3 text-t5 text-text-secondary">Looking for something? Our team can help.</p>
       <ContactButtons
         who="Detlio support"
         callHref={SUPPORT_TEL_HREF}

@@ -14,6 +14,7 @@ import type {
   CreateServiceInput,
   CreateVendorInput,
   ListPublicVendorsQuery,
+  NextFreeQuery,
   LogoUploadUrlInput,
   PauseBookingsInput,
   PhotoUploadUrlInput,
@@ -64,9 +65,33 @@ export async function listPublicVendors(
   })
 }
 
+/**
+ * The browser may keep a public garage read for half a minute and use it for
+ * five more while it checks again (speed fix 6, customer UI round): the
+ * garage page and checkout read the same garage over and over within a
+ * visit. The browser's own cache only: no `s-maxage`, so no shared cache
+ * between people holds a garage's page. Set on success only, so an error is
+ * never kept.
+ */
+const PUBLIC_GARAGE_CACHE = 'public, max-age=30, stale-while-revalidate=300'
+
+/** "Next free" times move on with the clock and with every booking: a minute. */
+const NEXT_FREE_CACHE = 'public, max-age=60'
+
+export async function getNextFree(c: VendorsContext, query: NextFreeQuery) {
+  const data = await vendorsService.nextFree(query.ids, query.bookingType)
+
+  c.header('Cache-Control', NEXT_FREE_CACHE)
+  return c.json({
+    success: true,
+    data,
+  })
+}
+
 export async function getPublicVendor(c: VendorsContext, vendorId: string) {
   const vendor = await vendorsService.getPublicVendor(vendorId)
 
+  c.header('Cache-Control', PUBLIC_GARAGE_CACHE)
   return c.json({
     success: true,
     data: vendor,
@@ -232,6 +257,7 @@ export async function resumeBookings(c: VendorsContext) {
 export async function getPublicClosures(c: VendorsContext, vendorId: string) {
   const closures = await vendorsService.getPublicClosures(vendorId)
 
+  c.header('Cache-Control', PUBLIC_GARAGE_CACHE)
   return c.json({
     success: true,
     data: closures,
@@ -365,7 +391,10 @@ export async function listPublicServices(c: VendorsContext, vendorId: string) {
 }
 
 export async function listPublicAddOns(c: VendorsContext, vendorId: string) {
-  return c.json({ success: true, data: await vendorsService.listPublicAddOns(vendorId) })
+  const addOns = await vendorsService.listPublicAddOns(vendorId)
+
+  c.header('Cache-Control', PUBLIC_GARAGE_CACHE)
+  return c.json({ success: true, data: addOns })
 }
 
 export async function listMyAddOns(c: VendorsContext) {
@@ -543,6 +572,7 @@ export async function getPublicWorkingHours(
 ) {
   const hours = await vendorsService.getPublicWorkingHours(vendorId)
 
+  c.header('Cache-Control', PUBLIC_GARAGE_CACHE)
   return c.json({
     success: true,
     data: hours,
@@ -564,6 +594,7 @@ export async function listPublicPackages(
 ) {
   const packages = await vendorsService.listPublicPackages(vendorId)
 
+  c.header('Cache-Control', PUBLIC_GARAGE_CACHE)
   return c.json({
     success: true,
     data: packages,

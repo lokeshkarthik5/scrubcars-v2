@@ -23,8 +23,8 @@ export function GarageEntry() {
     <Link href="/profile/rewards/garage" className="garage-entry flex flex-col gap-3 rounded-card border border-border px-4 py-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-[12px] text-text-secondary">Detlio Garage · {data.series.name}</p>
-          <h2 className="mt-0.5 text-[18px] font-semibold leading-tight text-text-primary">
+          <p className="text-t5 text-text-secondary">Detlio Garage · {data.series.name}</p>
+          <h2 className="mt-0.5 text-t2 font-semibold leading-tight text-text-primary">
             <span className="font-numeric">{collectedLine(data.collected, data.series.total)}</span> cars collected
           </h2>
         </div>
@@ -38,7 +38,7 @@ export function GarageEntry() {
           <GarageTile key={car.number} car={car} />
         ))}
       </div>
-      <p className="text-[12px] text-text-secondary">Every booking earns a card. Finish a row of five for {`₹${data.rowReward}`} off.</p>
+      <p className="text-t5 text-text-secondary">Every booking earns a card. Finish a row of five for {`₹${data.rowReward}`} off.</p>
     </Link>
   )
 }

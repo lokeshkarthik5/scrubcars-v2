@@ -40,6 +40,7 @@ import { Linking, Pressable, View } from 'react-native';
 import type { ReactElement } from 'react';
 
 import { rewriteSystemPath } from '@/lib/deep-link';
+import { UnreadLight } from '@/components/moments/unread-light';
 
 const KIND_ICONS: Record<UpdateKind, (props: IconProps) => ReactElement> = {
   notice: IconSpeakerphone,
@@ -146,7 +147,7 @@ export function UpdateRow({
         </View>
       </Pressable>
       <View style={styles.side}>
-        {row.unread ? <View accessibilityLabel="new" style={styles.dot} /> : null}
+        {row.unread ? <UnreadLight /> : null}
         {onDismiss ? (
           <Pressable accessibilityRole="button" accessibilityLabel={`Hide notice: ${row.title}`} onPress={onDismiss} style={styles.x}>
             <IconX size={18} stroke={1.5} color={colors.dim} />

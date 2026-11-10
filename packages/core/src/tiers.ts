@@ -99,6 +99,14 @@ export const TIER_KEPT_LINE = `Detlio checks these every day. A garage that stop
 /** The customer list's filter chip. */
 export const SILVER_FILTER_LABEL = 'Silver & above'
 
+/**
+ * The customer website's two-line key for the same filter (customer UI
+ * round, Nov 2026): "Silver+" over "Silver & Gold". The filter and its rule
+ * are unchanged; only the website's words for the key are shorter.
+ */
+export const SILVER_KEY_LABEL = 'Silver+'
+export const SILVER_KEY_QUIET = 'Silver & Gold'
+
 // ─── The garage's own ────────────────────────────────────────────────────────
 
 /** "You're Bronze. Next: Silver, 3 of 5 done." (the server's progressLine, word for word). */

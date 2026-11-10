@@ -2,6 +2,7 @@ import type { Context } from 'hono'
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 import { env } from '../../lib/env.js'
 import { AppError } from '../../lib/errors.js'
+import { accessTokenSeconds } from '../../lib/jwt.js'
 import type { TenantVariables } from '../../middleware/tenant.middleware.js'
 import { analyticsService } from '../analytics/analytics.service.js'
 import { authService } from './auth.service.js'
@@ -43,7 +44,10 @@ function setAccessCookie(c: AuthContext, token: string) {
     secure: !env.isDev,
     sameSite: COOKIE_SAME_SITE,
     path: '/api/v1',
-    maxAge: 15 * 60,
+    // The token's own lifetime (15 minutes in production). It was a fixed
+    // 15 here, which outlived nothing but also let a longer test lifetime
+    // (apps/e2e/.env.e2e) be cut short by the browser.
+    maxAge: accessTokenSeconds(),
   })
 }
 

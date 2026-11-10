@@ -193,7 +193,7 @@ export function ExtraWorkCard({
         {/* "Needs your answer" with the page's one red dot while any waits. */}
         {booking.extraWork.some((work) => work.state === 'awaiting') &&
           extraWorkOpen(booking) && (
-            <p className="mb-1 flex items-center gap-1.5 text-[13px] text-dim">
+            <p className="mb-1 flex items-center gap-1.5 text-t4 text-dim">
               <span
                 aria-hidden
                 className="size-1.5 rounded-full bg-brand-red"
@@ -201,7 +201,7 @@ export function ExtraWorkCard({
               Needs your answer
             </p>
           )}
-        <h2 className="flex items-center gap-2 text-[17px] font-medium text-text-primary">
+        <h2 className="flex items-center gap-2 text-t2 font-medium text-text-primary">
           <IconTool
             size={18}
             stroke={1.5}
@@ -210,7 +210,7 @@ export function ExtraWorkCard({
           />
           Extra work
         </h2>
-        <p className="mt-0.5 text-[13px] text-text-secondary">
+        <p className="mt-0.5 text-t4 text-text-secondary">
           Asked for by {booking.vendorName}. Nothing is done or charged unless
           you approve and pay here.
         </p>
@@ -254,15 +254,15 @@ export function ExtraWorkCard({
             )}
 
             <div className="flex items-start justify-between gap-3">
-              <p className="min-w-0 text-[17px] text-text-primary">
+              <p className="min-w-0 text-t2 text-text-primary">
                 {work.description}
               </p>
-              <span className="shrink-0 font-numeric text-[17px] text-text-primary">
+              <span className="shrink-0 font-numeric text-t2 text-text-primary">
                 {formatRupees(work.amount)}
               </span>
             </div>
             {work.note && (
-              <p className="text-[13px] text-text-secondary">
+              <p className="text-t4 text-text-secondary">
                 <span className="font-medium text-text-primary">
                   Garage&apos;s note:
                 </span>{' '}
@@ -285,7 +285,7 @@ export function ExtraWorkCard({
             </p>
 
             {settled ? (
-              <p className="flex items-center gap-1.5 text-[13px] font-medium text-success">
+              <p className="flex items-center gap-1.5 text-t4 font-medium text-success">
                 <IconCircleCheck size={16} aria-hidden />
                 Approved and paid on{' '}
                 <span className="font-numeric">
@@ -295,7 +295,7 @@ export function ExtraWorkCard({
             ) : payment?.phase === 'confirming' ? (
               <ScButton
                 disabled
-                className="flex items-center justify-center gap-2 rounded-full bg-surface-elevated py-4 text-[15px] text-text-primary ring-1 ring-inset ring-border hover:bg-surface-elevated disabled:cursor-wait disabled:opacity-100"
+                className="flex items-center justify-center gap-2 rounded-full bg-surface-elevated py-4 text-t3 text-text-primary ring-1 ring-inset ring-border hover:bg-surface-elevated disabled:cursor-wait disabled:opacity-100"
               >
                 <IconLoader2
                   size={16}
@@ -318,7 +318,7 @@ export function ExtraWorkCard({
                   <MainAction
                     disabled={opening !== null || declining !== null}
                     onClick={() => handlePay(work)}
-                    className="h-[52px] rounded-full py-0 text-[15px] font-medium"
+                    className="h-[52px] rounded-full py-0 text-t3 font-medium"
                     heroIcon={
                       opening !== work.id && (
                         <IconArrowUpRight size={17} stroke={1.5} aria-hidden />
@@ -365,7 +365,7 @@ export function ExtraWorkCard({
                 </ScButton>
               </div>
             ) : work.state !== 'awaiting' ? (
-              <p className="text-[13px] text-text-secondary">
+              <p className="text-t4 text-text-secondary">
                 {STATE_LINE[work.state]}
               </p>
             ) : null}

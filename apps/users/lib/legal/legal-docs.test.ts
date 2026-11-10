@@ -21,6 +21,7 @@ import { customerRefundLine } from '@repo/core/refunds'
 import { SUPPORT_PHONE_DISPLAY } from '@repo/core/support'
 import { PENDING_CHECKOUT_STORAGE_KEY } from '@repo/core/stores/pending-checkout-store'
 import { TIP_HIDDEN_KEY } from '../home-hub'
+import { OPENED_FROM_LIST_KEY, PICKS_KEY } from '../view-transition'
 import { BOOKING_DRAFT_KEY } from '@repo/core/booking-draft'
 import { cardClosesKey } from '@repo/core/area-signups'
 import { CLIENT_EVENTS } from '@repo/core/analytics-events'
@@ -159,6 +160,9 @@ describe('what the Home hub keeps', () => {
     expect(text).toContain(BOOKING_DRAFT_KEY)
     // The free-wash card's × (customer reach, part 2), per area.
     expect(text).toContain(cardClosesKey('<area>'))
+    // Back to the card and to the picks (customer UI round, stage 2).
+    expect(text).toContain(OPENED_FROM_LIST_KEY)
+    expect(text).toContain(PICKS_KEY)
   })
 
   // Customer reach, part 2 (0062): what a request, a sign-up and a

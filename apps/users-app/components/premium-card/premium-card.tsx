@@ -109,6 +109,9 @@ export function PremiumCard({ spec, size = 'card', animate = true, width: fixed 
   );
 }
 
+/** The customer UI round's finish: no shine or sweep on any card (docs/ui-round-2026-11.md §1). */
+const FINISH_NO_SHEEN = true;
+
 function Face({ spec, size, u, heightUnits, moving }: { spec: PremiumCardSpec; size: 'card' | 'mini' | 'thumb'; u: number; heightUnits: number; moving: boolean }) {
   const id = useId().replace(/[^a-zA-Z0-9_-]/g, '');
   const look = LOOKS[spec.look];
@@ -155,7 +158,8 @@ function Face({ spec, size, u, heightUnits, moving }: { spec: PremiumCardSpec; s
           {spec.tip}
         </T>
       ) : null}
-      {moving && !still ? (
+      {/* No sweep of light on the Shine Card under the finish (the owner rejected it). */}
+      {moving && !still && !FINISH_NO_SHEEN ? (
         <Animated.View pointerEvents="none" style={[{ position: 'absolute', top: '-30%', bottom: '-30%', left: '40%', width: 30 * u }, sheenStyle]}>
           <LinearGradient start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} colors={['transparent', 'rgba(255,255,255,0.22)', 'transparent']} style={StyleSheet.absoluteFill} />
         </Animated.View>

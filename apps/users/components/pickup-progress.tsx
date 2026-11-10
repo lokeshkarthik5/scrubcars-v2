@@ -82,14 +82,14 @@ export function PickupTimeline({
               </p>
               <p
                 className={cn(
-                  'mt-0.5 text-[12px] leading-tight',
+                  'mt-0.5 text-t5 leading-tight',
                   active ? 'text-text-secondary' : 'text-text-muted'
                 )}
               >
                 {step.caption}
               </p>
               {step.at && (
-                <p className="mt-0.5 font-numeric text-[11px] leading-tight text-text-muted">
+                <p className="mt-0.5 font-numeric text-t5 leading-tight text-text-muted">
                   {formatStepTime(step.at, now)}
                 </p>
               )}
@@ -132,11 +132,11 @@ export function PickupCodeCard({
           {card.title}
         </h2>
       </div>
-      <p className="text-[13px] text-text-secondary">{card.line}</p>
+      <p className="text-t4 text-text-secondary">{card.line}</p>
       <p className="font-numeric text-[36px] font-bold leading-none tracking-[0.3em] text-text-primary">
         {card.code}
       </p>
-      <p className="text-[11px] text-text-muted">
+      <p className="text-t5 text-text-muted">
         {card.kind === 'pickup'
           ? 'Share it only when you hand over your car. The garage enters it to mark your car picked up.'
           : 'Share it only once you have your car back. The garage enters it to finish the job.'}

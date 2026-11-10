@@ -27,6 +27,7 @@ import { useState, type ReactElement, type ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { errorText } from '@/lib/error-text';
+import { WashGauge } from '@/components/moments/wash-gauge';
 
 const NEXT_LABELS: Record<string, string> = { pending: 'Requested', confirmed: 'Next booking', in_progress: 'Being washed now' };
 
@@ -244,17 +245,8 @@ export function WashStatusTile({ car, now }: { car: HomeCar; now: Date }) {
     <>
       <Tile label="Last wash" icon={IconDroplet} onPress={() => setOpen(true)}>
         <View style={styles.meterSpace}>
-          <View style={styles.meter}>
-            {Array.from({ length: meter.steps }, (_, i) => (
-              <View
-                key={i}
-                style={[
-                  styles.step,
-                  { backgroundColor: meter.over ? colors.warningFill : i < meter.lit ? colors.meterOn : colors.meterOff },
-                ]}
-              />
-            ))}
-          </View>
+          {/* The dashboard start-up (moment 7): the needle sweeps once and settles. */}
+          <WashGauge daysSinceWash={days} intervalDays={wash.intervalDays} over={meter.over} />
         </View>
         <View style={styles.bigRow}>
           {days === null ? (

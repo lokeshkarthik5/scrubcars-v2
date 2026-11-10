@@ -48,8 +48,8 @@ export function ReachStatusCards() {
         >
           <IconGift size={20} className="shrink-0 text-success" aria-hidden />
           <span className="min-w-0 flex-1">
-            <span className="block text-[15px] font-medium text-text-primary">Your free wash is ready</span>
-            <span className="block text-[12px] text-text-secondary">
+            <span className="block text-t3 font-medium text-text-primary">Your free wash is ready</span>
+            <span className="block text-t5 text-text-secondary">
               Up to ₹{signup.freeWashReady!.amount} off a car wash in {signup.zone.name} · use by{' '}
               {DATE.format(new Date(signup.freeWashReady!.endsAt))}
             </span>
@@ -76,7 +76,7 @@ function WaitingListCard({ signup }: { signup: AreaSignup }) {
     <div className="flex min-h-12 items-center justify-between gap-3 rounded-[16px] border border-border px-4 py-2">
       <span className="min-w-0">
         <span className="block text-[14px] text-text-primary">On the list for {signup.zone.name}</span>
-        <span className="block text-[12px] text-text-muted">
+        <span className="block text-t5 text-text-muted">
           {signup.freeWash ? 'Free wash saved · ' : ''}
           {waitingLine(signup.zone.name, signup.waiting)}
         </span>
@@ -85,7 +85,7 @@ function WaitingListCard({ signup }: { signup: AreaSignup }) {
         type="button"
         aria-label={`Leave the list for ${signup.zone.name}`}
         onClick={() => setConfirming(true)}
-        className="min-h-11 shrink-0 px-1 text-[12px] font-medium text-text-secondary underline underline-offset-2 transition-colors hover:text-text-primary"
+        className="min-h-11 shrink-0 px-1 text-t5 font-medium text-text-secondary underline underline-offset-2 transition-colors hover:text-text-primary"
       >
         Leave
       </button>
@@ -143,10 +143,10 @@ function LaunchBanner({ signup }: { signup: AreaSignup }) {
     >
       <IconConfetti size={22} className="mt-0.5 shrink-0 text-success" aria-hidden />
       <div className="min-w-0 flex-1">
-        <h2 id={`launch-${signup.zone.slug}`} className="text-[15px] font-medium text-text-primary">
+        <h2 id={`launch-${signup.zone.slug}`} className="text-t3 font-medium text-text-primary">
           Detlio is now in {signup.zone.name}
         </h2>
-        <p className="text-[13px] text-text-secondary">
+        <p className="text-t4 text-text-secondary">
           {garages} {garages === 1 ? 'garage' : 'garages'} near you.
           {signup.freeWashReady ? ' Your free wash is ready to book.' : ''}
         </p>
@@ -193,8 +193,8 @@ function RequestStatusCard({ request, now }: { request: CustomerRequest; now: nu
       }
     >
       <span className="min-w-0 flex-1">
-        <span className="block text-[15px] font-medium text-text-primary">{title}</span>
-        <span className="block text-[12px] text-text-secondary">{line}</span>
+        <span className="block text-t3 font-medium text-text-primary">{title}</span>
+        <span className="block text-t5 text-text-secondary">{line}</span>
       </span>
       <IconChevronRight size={18} className="shrink-0 text-text-secondary" aria-hidden />
     </Link>

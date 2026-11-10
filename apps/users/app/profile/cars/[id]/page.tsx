@@ -61,7 +61,7 @@ const CARD_LINK = cn(
 
 /** Quiet text links in a card's foot: Receipt, Photos. 44px tall to the thumb. */
 const FOOT_LINK =
-  'relative z-10 inline-flex min-h-11 items-center gap-1.5 rounded-[8px] px-2 text-[12px] font-semibold text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-primary/70'
+  'relative z-10 inline-flex min-h-11 items-center gap-1.5 rounded-[8px] px-2 text-t5 font-semibold text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-primary/70'
 
 const money = (amount: string) => formatRupees(Number(amount))
 
@@ -106,7 +106,7 @@ export default function CarHistoryPage({
           large={isHomeHubEnabled()}
         />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
-          <p className="text-[15px] font-semibold text-text-primary">
+          <p className="text-t3 font-semibold text-text-primary">
             Sign in to see your car&apos;s history
           </p>
           <ScButton
@@ -159,7 +159,7 @@ export default function CarHistoryPage({
         />
       ) : (
         <>
-          <p className="-mt-2 flex items-center gap-1.5 text-[12px] text-text-secondary">
+          <p className="-mt-2 flex items-center gap-1.5 text-t5 text-text-secondary">
             <IconHistory size={14} aria-hidden="true" />
             Service history
             {data.car.licensePlate ? ` · ${data.car.licensePlate}` : ''}
@@ -187,10 +187,10 @@ export default function CarHistoryPage({
                 className="shrink-0 text-text-primary"
               />
               <span className="min-w-0 flex-1">
-                <span className="block text-[13px] font-semibold text-text-primary">
+                <span className="block text-t4 font-semibold text-text-primary">
                   Service history certificate
                 </span>
-                <span className="block text-[11px] text-text-secondary">
+                <span className="block text-t5 text-text-secondary">
                   Print it or share a link a buyer can check
                 </span>
               </span>
@@ -217,7 +217,7 @@ export default function CarHistoryPage({
             </div>
           )}
           {data.totals.since && (
-            <p className="-mt-2 text-[11px] text-text-secondary">
+            <p className="-mt-2 text-t5 text-text-secondary">
               <span className="font-numeric font-medium text-text-primary">
                 {money(data.totals.spentTotal)}
               </span>{' '}
@@ -251,7 +251,7 @@ export default function CarHistoryPage({
           {data.items.length === 0 ? (
             category ? (
               <ScCard>
-                <p className="text-[12px] text-text-secondary">
+                <p className="text-t5 text-text-secondary">
                   No {categoryLabel(category).toLowerCase()} jobs for this car
                   yet.
                 </p>
@@ -282,7 +282,7 @@ export default function CarHistoryPage({
           )}
 
           {data.cancelledCount > 0 && (
-            <p className="text-[11px] text-text-secondary">
+            <p className="text-t5 text-text-secondary">
               {data.cancelledCount === 1
                 ? '1 cancelled booking for this car isn’t listed here.'
                 : `${data.cancelledCount} cancelled bookings for this car aren’t listed here.`}{' '}
@@ -308,7 +308,7 @@ function HistoryCard({ item, now }: { item: CarHistoryItem; now: Date }) {
     <ScCard className="press relative flex flex-col gap-2">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[13px] font-semibold text-text-primary">
+          <p className="text-t4 font-semibold text-text-primary">
             <Link
               href={`/bookings/${item.bookingId}`}
               aria-label={`${services} at ${item.vendorName}, ${date}, ${money(item.amountPaid)}`}
@@ -317,16 +317,16 @@ function HistoryCard({ item, now }: { item: CarHistoryItem; now: Date }) {
               {services}
             </Link>
           </p>
-          <p className="truncate text-[11px] text-text-secondary">
+          <p className="truncate text-t5 text-text-secondary">
             {item.vendorName}
           </p>
         </div>
-        <span className="shrink-0 font-numeric text-[13px] font-bold text-text-primary">
+        <span className="shrink-0 font-numeric text-t4 font-bold text-text-primary">
           {money(item.amountPaid)}
         </span>
       </div>
       <div className="-mb-2 flex items-center justify-between border-t border-border pt-0.5">
-        <span className="font-numeric text-[11px] font-medium text-text-secondary">
+        <span className="font-numeric text-t5 font-medium text-text-secondary">
           {date}
         </span>
         <span className="-mr-2 flex items-center">
@@ -411,24 +411,24 @@ function ReminderCard({
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-semibold text-text-primary">
+          <p className="text-t4 font-semibold text-text-primary">
             {reminder.title}
           </p>
           <p
             className={cn(
-              'text-[12px]',
+              'text-t5',
               due ? 'text-warning' : 'text-text-secondary'
             )}
           >
             {reminderDueLine(reminder, now)}
           </p>
-          <p className="text-[11px] text-text-secondary">{reminder.reason}</p>
+          <p className="text-t5 text-text-secondary">{reminder.reason}</p>
         </div>
       </div>
       {booked ? (
         <Link
           href={`/bookings/${reminder.booked!.bookingId}`}
-          className="-my-1 inline-flex min-h-11 items-center gap-1 self-start text-[12px] font-semibold text-text-primary"
+          className="-my-1 inline-flex min-h-11 items-center gap-1 self-start text-t5 font-semibold text-text-primary"
         >
           See the booking
           <IconChevronRight size={14} aria-hidden="true" />
@@ -449,7 +449,7 @@ function ReminderCard({
               type="button"
               disabled={action.isPending}
               onClick={() => run('snooze')}
-              className="min-h-11 px-2 text-[12px] font-medium text-text-secondary transition-colors hover:text-text-primary disabled:opacity-40"
+              className="min-h-11 px-2 text-t5 font-medium text-text-secondary transition-colors hover:text-text-primary disabled:opacity-40"
             >
               Remind me in 2 weeks
             </button>
@@ -459,7 +459,7 @@ function ReminderCard({
             disabled={action.isPending}
             onClick={() => run('dismiss')}
             aria-label={`Dismiss reminder: ${reminder.title}`}
-            className="min-h-11 px-2 text-[12px] font-medium text-text-secondary transition-colors hover:text-text-primary disabled:opacity-40"
+            className="min-h-11 px-2 text-t5 font-medium text-text-secondary transition-colors hover:text-text-primary disabled:opacity-40"
           >
             Dismiss
           </button>

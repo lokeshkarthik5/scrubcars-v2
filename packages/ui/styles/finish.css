@@ -1,0 +1,514 @@
+/* ─── The finish (customer UI round, Nov 2026) ──────────────────────────────
+ *
+ * docs/ui-round-2026-11.md §1: one type scale, one icon weight, the
+ * materials (edges that catch the light, raised and recessed controls,
+ * glass, pearl), red in exactly two ways (a red light, and the solid red
+ * button for the booking or payment action) and one-shot motion.
+ *
+ * The customer website only. apps/users imports this after the shared
+ * globals and puts `finish` on <body>; apps/vendors and apps/admin never
+ * import it, so they look exactly as before. Every rule that changes a shared
+ * component's look is scoped under `.finish`; the fx-* materials are new
+ * class names nothing else uses. The primitives that use them are in
+ * packages/ui/src/finish.
+ */
+
+@theme inline {
+  /* The type scale. Weights stay their own classes (font-medium,
+     font-semibold): a size token that also set a weight would fight them in
+     the cascade. tailwind-merge knows these as sizes (@repo/core/utils cn). */
+  --text-title: 24px;
+  --text-title--line-height: 1.25;
+  --text-title--letter-spacing: -0.02em;
+  --text-t2: 18px;
+  --text-t2--line-height: 1.33;
+  --text-t2--letter-spacing: -0.01em;
+  --text-t3: 15px;
+  --text-t3--line-height: 1.45;
+  --text-t4: 13px;
+  --text-t4--line-height: 1.4;
+  --text-t5: 11px;
+  --text-t5--line-height: 1.35;
+  --text-over: 10px;
+  --text-over--line-height: 1.2;
+  --text-over--letter-spacing: 0.1em;
+
+  /* The red light: a small glowing bar under the chosen thing. */
+  --color-red-light: #ff2d4a;
+
+  /* Corners: big surfaces, controls, inside a control, small buttons. */
+  --radius-surface: 22px;
+  --radius-control: 18px;
+  --radius-inner: 14px;
+  --radius-small: 12px;
+
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-settle: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* The solid red button, the booking or payment action's only (§1, "Red,
+   exactly two ways"). Set on the app's <body> rather than in the theme: the
+   shared globals define this on :root outside any layer, and a value on
+   .finish is what every button under it inherits instead, the hub's hero
+   pill included. */
+.finish {
+  --gradient-cta: linear-gradient(180deg, #ff3550 0%, #e4002b 55%, #c10025 100%);
+}
+
+/* ─── Type ──────────────────────────────────────────────────────────────── */
+
+/* Figures line up in columns and do not jiggle while they count. */
+.finish .font-numeric {
+  font-variant-numeric: tabular-nums;
+}
+
+/* One icon line weight: every line icon draws a 1.6 px line whatever its
+   size, because the line no longer scales with the icon (non-scaling
+   stroke). Filled icons (Tabler's -filled set) have no line to set. The
+   active bottom tab draws 1.9 (.hub-tab). */
+.finish :is(svg.tabler-icon, svg.lucide):not([class*='-filled']) {
+  stroke-width: var(--icon-line, 1.6px);
+}
+.finish :is(svg.tabler-icon, svg.lucide):not([class*='-filled']) :is(path, line, circle, rect, polyline, polygon, ellipse) {
+  vector-effect: non-scaling-stroke;
+}
+
+/* ─── The faint red glow at the top of every screen ─────────────────────── */
+
+/* Over the page's own (opaque) canvas rather than under it, as light: the
+   screen blend only ever adds a little red to what is dark, never covers a
+   word, and every positioned bar and sheet paints above it. Fixed, like the
+   mockup's, so it stays at the top while the page scrolls under it. */
+.finish::before {
+  content: '';
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 0;
+  height: 46vh;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  background: radial-gradient(130% 70% at 50% -8%, rgb(228 0 43 / 0.09), transparent 62%);
+}
+
+/* ─── No shine on any button, anywhere (the owner rejected it) ──────────── */
+
+.finish .cta-hero::after {
+  display: none;
+  animation: none;
+}
+.finish .cta-hero {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.35),
+    inset 0 -2px 4px rgb(0 0 0 / 0.2),
+    0 10px 24px -8px rgb(228 0 43 / 0.6);
+}
+
+@layer components {
+  /* ─── Materials ─────────────────────────────────────────────────────────
+     Each is a background pair: the fill on the padding box and a gradient
+     on the border box, under a transparent 1px border, so the edge is lit
+     from above and fades down instead of being a flat grey line. */
+
+  /* A big surface: cards, the map card. */
+  .fx-edge {
+    border: 1px solid transparent;
+    background:
+      linear-gradient(180deg, #17171b, #111114) padding-box,
+      linear-gradient(180deg, rgb(255 255 255 / 0.2), rgb(255 255 255 / 0.04) 38%, rgb(255 255 255 / 0.08)) border-box;
+    box-shadow: 0 22px 40px -24px rgb(0 0 0 / 0.95);
+  }
+
+  /* Something you press: raised, lighter, with a soft shadow under it. */
+  .fx-raised {
+    border: 1px solid transparent;
+    background:
+      linear-gradient(180deg, #1c1c21, #121216) padding-box,
+      linear-gradient(180deg, rgb(255 255 255 / 0.16), rgb(255 255 255 / 0.03)) border-box;
+    box-shadow: 0 8px 18px -12px rgb(0 0 0 / 0.9);
+  }
+
+  /* Something you type into, and a switch's track: pressed into the screen. */
+  .fx-recessed {
+    border: 1px solid transparent;
+    background:
+      linear-gradient(180deg, #0b0b0e, #121216) padding-box,
+      linear-gradient(180deg, rgb(0 0 0 / 0.7), rgb(255 255 255 / 0.11)) border-box;
+    box-shadow: inset 0 2px 7px rgb(0 0 0 / 0.6);
+  }
+
+  /* Glass, for bars and sheets that float over content. */
+  .fx-glass {
+    background: linear-gradient(180deg, rgb(255 255 255 / 0.12), rgb(255 255 255 / 0.03)), rgb(18 18 22 / 0.55);
+    -webkit-backdrop-filter: blur(22px) saturate(1.6);
+    backdrop-filter: blur(22px) saturate(1.6);
+    border: 1px solid rgb(255 255 255 / 0.14);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.22),
+      inset 0 -1px 0 rgb(0 0 0 / 0.25),
+      0 10px 24px rgb(0 0 0 / 0.4);
+  }
+  /* The heavier glass of a sheet, so its text reads over a busy list. */
+  .fx-glass-sheet {
+    background: linear-gradient(180deg, rgb(255 255 255 / 0.12), rgb(255 255 255 / 0.03)), rgb(16 16 20 / 0.82);
+  }
+
+  /* Pearl white: the chosen tile, the ↗ on a card, the + in the bar. Still:
+     it never sweeps or shines. */
+  .fx-pearl {
+    color: #0a0a0b;
+    background: radial-gradient(circle at 50% 22%, #ffffff 0%, #f1f1f3 50%, #d3d3d9 100%);
+    box-shadow:
+      inset 0 1px 0 #ffffff,
+      inset 0 -2px 5px rgb(0 0 0 / 0.14),
+      0 6px 16px -8px rgb(0 0 0 / 0.6);
+  }
+
+  /* The red light: a small glowing bar under the chosen thing. Dim while it
+     waits (an Add not yet pressed), fully on once chosen. */
+  .fx-red-light {
+    display: block;
+    height: 2.5px;
+    width: 20px;
+    border-radius: 2px;
+    background: var(--color-red-light);
+    box-shadow:
+      0 0 6px rgb(255 45 74 / 0.95),
+      0 0 16px rgb(228 0 43 / 0.65);
+    transition:
+      opacity 0.3s,
+      transform 0.3s var(--ease-settle);
+  }
+  .fx-red-light[data-dim] {
+    opacity: 0.28;
+    box-shadow: none;
+  }
+  .fx-red-light[data-off] {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+
+  /* The solid red button: the booking or payment action, and nothing else. */
+  .fx-red-button {
+    color: #ffffff;
+    background: var(--gradient-cta);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.35),
+      inset 0 -2px 4px rgb(0 0 0 / 0.2),
+      0 10px 24px -8px rgb(228 0 43 / 0.6);
+  }
+  .fx-red-button:disabled {
+    color: var(--color-text-muted);
+    background: var(--color-surface-elevated);
+    box-shadow: none;
+  }
+
+  /* The brushed graphite key of the mode switch. */
+  .fx-graphite {
+    background:
+      repeating-linear-gradient(90deg, rgb(255 255 255 / 0.012) 0 1px, transparent 1px 3px),
+      linear-gradient(115deg, transparent 28%, rgb(255 255 255 / 0.08) 46%, transparent 62%),
+      linear-gradient(180deg, #383840 0%, #26262d 52%, #1d1d23 100%);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.28),
+      inset 0 -1px 0 rgb(0 0 0 / 0.45),
+      0 8px 16px rgb(0 0 0 / 0.55),
+      0 1px 2px rgb(0 0 0 / 0.7);
+  }
+
+  /* Brushed silver: the Silver+ key when on. */
+  .fx-silver {
+    color: #0a0a0b;
+    border: 1px solid transparent;
+    background:
+      repeating-linear-gradient(90deg, rgb(255 255 255 / 0.06) 0 1px, transparent 1px 3px) padding-box,
+      linear-gradient(115deg, #f6f7fa 0%, #c4c8d1 22%, #eef0f4 42%, #a9aebb 64%, #e2e4ea 82%, #9aa0ad 100%) padding-box,
+      linear-gradient(180deg, #ffffff, #8f95a2) border-box;
+    box-shadow:
+      inset 0 1px 0 #ffffff,
+      inset 0 -2px 5px rgb(0 0 0 / 0.2),
+      0 8px 18px -8px rgb(220 225 235 / 0.45);
+  }
+
+  /* ─── Motion ────────────────────────────────────────────────────────────
+     One-shot only, transform and opacity, exits faster than entrances; the
+     spring is for presses. Every class here is switched off under reduced
+     motion at the end of this file, and each starts from the element's own
+     look, so with the motion off the content is simply there. */
+
+  .fx-press {
+    transition: transform 0.2s var(--ease-spring);
+  }
+  .fx-press:active:not(:disabled) {
+    transform: scale(0.96);
+  }
+
+  .fx-rise {
+    animation: fx-rise 0.4s var(--ease-settle) both;
+    animation-delay: calc(var(--fx-i, 0) * 35ms + var(--fx-delay, 0ms));
+  }
+  @keyframes fx-rise {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.97);
+    }
+  }
+
+  .fx-deal {
+    animation: fx-deal 0.36s var(--ease-settle) both;
+    animation-delay: calc(var(--fx-i, 0) * 45ms);
+  }
+  @keyframes fx-deal {
+    from {
+      opacity: 0;
+      transform: translateY(12px) scale(0.985);
+    }
+  }
+
+  .fx-pop {
+    animation: fx-pop 0.42s var(--ease-spring) both;
+  }
+  @keyframes fx-pop {
+    from {
+      opacity: 0;
+      transform: scale(0.55);
+    }
+  }
+
+  /* A tossed coin: the Silver+ medal when it turns on. */
+  .fx-coin {
+    animation: fx-coin 0.8s cubic-bezier(0.3, 0.9, 0.3, 1);
+  }
+  @keyframes fx-coin {
+    45% {
+      transform: rotateY(300deg) scale(1.35);
+    }
+    to {
+      transform: rotateY(720deg) scale(1);
+    }
+  }
+
+  /* A glint that crosses once. Its element is absolutely placed over the key. */
+  .fx-glint {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(105deg, transparent 38%, rgb(255 255 255 / 0.95) 50%, transparent 62%);
+    mix-blend-mode: soft-light;
+    opacity: 0;
+    transform: translateX(-130%);
+  }
+  .fx-glint[data-go] {
+    animation: fx-glint 0.9s var(--ease-settle) 0.12s both;
+  }
+  @keyframes fx-glint {
+    from {
+      opacity: 1;
+      transform: translateX(-130%);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(130%);
+    }
+  }
+
+  /* The hours ring's arc, drawn in once when its card comes into view. */
+  .hours-ring-in {
+    animation: fx-ring 1s var(--ease-settle) 0.2s both;
+  }
+  @keyframes fx-ring {
+    from {
+      stroke-dashoffset: 1;
+    }
+  }
+
+  /* An odometer place: the old digit rolls out, the new one in. */
+  .fx-odo {
+    display: inline-flex;
+    overflow: hidden;
+    height: 1.15em;
+    line-height: 1.15em;
+    vertical-align: bottom;
+  }
+  .fx-odo > span {
+    display: inline-block;
+  }
+  .fx-odo-up {
+    animation: fx-odo-up 0.48s cubic-bezier(0.5, 0, 0.2, 1) both;
+  }
+  .fx-odo-down {
+    animation: fx-odo-down 0.48s cubic-bezier(0.5, 0, 0.2, 1) both;
+  }
+  @keyframes fx-odo-up {
+    from {
+      opacity: 0;
+      transform: translateY(100%);
+    }
+  }
+  @keyframes fx-odo-down {
+    from {
+      opacity: 0;
+      transform: translateY(-100%);
+    }
+  }
+}
+
+/* ─── Stage 2: the finish on shared parts (customer UI round, §1, §7) ────── */
+
+@layer components {
+  /* Every card surface of the customer app takes the lit edge. In the
+     components layer, so a card's own border colour (a red hairline on a
+     booking that needs an answer) still wins as a utility. */
+  .finish .hub-card {
+    border: 1px solid transparent;
+    background:
+      linear-gradient(180deg, #17171b, #111114) padding-box,
+      linear-gradient(180deg, rgb(255 255 255 / 0.2), rgb(255 255 255 / 0.04) 38%, rgb(255 255 255 / 0.08)) border-box;
+    box-shadow: 0 22px 40px -24px rgb(0 0 0 / 0.95);
+  }
+}
+
+/* Every bottom sheet of the customer website is glass (§1, "Materials"):
+   it floats over the page, which shows through it, blurred. Unlayered, so
+   it is over the sheet's own flat fill. */
+.finish .sc-sheet {
+  border-top: 1px solid rgb(255 255 255 / 0.16);
+  border-radius: 28px 28px 0 0;
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.12), rgb(255 255 255 / 0.03)), rgb(16 16 20 / 0.88);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  backdrop-filter: blur(24px) saturate(1.6);
+}
+
+/* No sweep of light on any card either (the owner rejected the shine): the
+   Shine Card's and the collectible cards' sheens stay hidden. */
+.finish .shine-card::after,
+.finish .garage-card__sheen,
+.finish .premium-card__sheen {
+  display: none;
+  animation: none;
+}
+
+/* The sign-in code boxes (moment 10, sc/otp-input.tsx): recessed boxes, a
+   red light under each that switches on as its digit goes in; with the
+   sixth, a light sweeps across and the boxes join into one tick. Only here:
+   the garage portal's code screen keeps its look. The boxes stay in the
+   page while joined (focus stays on the last one, Backspace takes a digit
+   off and they part again), and a wrong code parts them at once. */
+.finish .otp-box {
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, #0b0b0e, #121216) padding-box,
+    linear-gradient(180deg, rgb(0 0 0 / 0.7), rgb(255 255 255 / 0.11)) border-box;
+  box-shadow: inset 0 2px 6px rgb(0 0 0 / 0.6);
+  transition:
+    transform 0.35s cubic-bezier(0.65, 0, 0.35, 1),
+    opacity 0.3s;
+}
+.finish .otp-box:focus {
+  border-color: transparent;
+  box-shadow:
+    inset 0 2px 6px rgb(0 0 0 / 0.6),
+    0 0 0 1.5px rgb(255 255 255 / 0.55);
+}
+.finish .otp-light {
+  display: block;
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  width: 14px;
+  height: 2.5px;
+  margin-left: -7px;
+  border-radius: 2px;
+  pointer-events: none;
+  background: var(--color-red-light);
+  opacity: 0.18;
+  transition:
+    opacity 0.2s,
+    box-shadow 0.2s;
+}
+.finish .otp-cell[data-lit] .otp-light {
+  opacity: 1;
+  box-shadow:
+    0 0 6px rgb(255 45 74 / 0.95),
+    0 0 14px rgb(228 0 43 / 0.6);
+}
+.finish .otp-sweep {
+  display: block;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 60px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgb(255 90 110 / 0.5), transparent);
+  opacity: 0;
+}
+.finish .otp-boxes[data-joined] .otp-sweep {
+  animation: otp-sweep 0.5s ease both;
+}
+@keyframes otp-sweep {
+  from {
+    opacity: 1;
+    transform: translateX(-60px);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(260px);
+  }
+}
+.finish .otp-boxes[data-joined] .otp-box {
+  opacity: 0;
+  transform: translateX(var(--otp-to-centre, 0px)) scale(0.6);
+  transition-delay: 0.25s;
+}
+.finish .otp-boxes[data-joined] .otp-light {
+  opacity: 0;
+}
+.finish .otp-tick {
+  display: grid;
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 52px;
+  height: 52px;
+  margin-left: -26px;
+  place-items: center;
+  border-radius: 50%;
+  pointer-events: none;
+  color: #fff;
+  opacity: 0;
+  transform: scale(0.4);
+  transition:
+    opacity 0.4s var(--ease-spring) 0.3s,
+    transform 0.4s var(--ease-spring) 0.3s;
+  background: linear-gradient(180deg, #383840, #1d1d23);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.25),
+    0 0 0 2px rgb(255 45 74 / 0.6),
+    0 0 22px rgb(228 0 43 / 0.5);
+}
+.finish .otp-boxes[data-joined] .otp-tick {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .finish :is(.otp-box, .otp-light, .otp-tick) {
+    transition: none;
+  }
+  .finish .otp-boxes[data-joined] .otp-sweep {
+    animation: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .finish :is(.fx-press, .fx-red-light) {
+    transition: none;
+  }
+  .finish .fx-press:active:not(:disabled) {
+    transform: none;
+  }
+  .finish :is(.fx-rise, .fx-deal, .fx-pop, .fx-coin, .fx-glint[data-go], .fx-odo-up, .fx-odo-down, .hours-ring-in) {
+    animation: none;
+  }
+}

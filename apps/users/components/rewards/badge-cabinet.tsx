@@ -40,7 +40,7 @@ function BadgeButton({
       aria-label={`${label}: ${earned ? 'earned' : `locked, ${progress ? badgeProgressLine(progress) : ''}`}`}
     >
       <BadgeMedal badgeKey={badgeKey} earned={earned} size={size} />
-      <span className={cn('line-clamp-2 leading-tight', compact ? 'text-[10px]' : 'text-[11px]', earned ? 'text-text-primary' : 'text-text-muted')}>{label}</span>
+      <span className={cn('line-clamp-2 leading-tight', compact ? 'text-[10px]' : 'text-t5', earned ? 'text-text-primary' : 'text-text-muted')}>{label}</span>
     </button>
   )
 }
@@ -62,12 +62,12 @@ export function BadgeCabinet({ extras }: { extras: RewardExtras }) {
     <section aria-labelledby="badges" className="flex flex-col gap-2">
       <div className="flex items-baseline justify-between gap-3">
         <h2 id="badges" className="text-sm font-semibold text-text-primary">
-          Badges <span className="font-numeric text-[12px] font-normal text-text-secondary">· {extras.earnedCount} of {total}</span>
+          Badges <span className="font-numeric text-t5 font-normal text-text-secondary">· {extras.earnedCount} of {total}</span>
         </h2>
         <button
           type="button"
           onClick={() => setView({ kind: 'all' })}
-          className="flex min-h-9 items-center gap-1 text-[12px] font-medium text-text-primary"
+          className="flex min-h-9 items-center gap-1 text-t5 font-medium text-text-primary"
         >
           See all{' '}<span className="font-numeric">{total}</span>
           <IconChevronRight size={14} aria-hidden />
@@ -97,8 +97,8 @@ export function BadgeCabinet({ extras }: { extras: RewardExtras }) {
         {view?.kind === 'all' && (
           <div className="flex flex-col gap-3 px-4 pt-1">
             <div className="flex items-baseline justify-between gap-3 px-1">
-              <h3 className="text-[17px] font-semibold text-text-primary">All badges</h3>
-              <span className="font-numeric text-[12px] text-text-secondary">
+              <h3 className="text-t2 font-semibold text-text-primary">All badges</h3>
+              <span className="font-numeric text-t5 text-text-secondary">
                 {extras.earnedCount} of {total} earned
               </span>
             </div>
@@ -129,7 +129,7 @@ export function BadgeCabinet({ extras }: { extras: RewardExtras }) {
               <button
                 type="button"
                 onClick={() => setView({ kind: 'all' })}
-                className="flex min-h-9 items-center gap-0.5 self-start text-[12px] font-medium text-text-secondary"
+                className="flex min-h-9 items-center gap-0.5 self-start text-t5 font-medium text-text-secondary"
               >
                 <IconChevronLeft size={14} aria-hidden />
                 All badges
@@ -140,9 +140,9 @@ export function BadgeCabinet({ extras }: { extras: RewardExtras }) {
             ) : (
               <>
                 <BadgeMedal badgeKey="challenge" earned size={88} />
-                <h3 className="text-[18px] font-semibold text-text-primary">{view.selected.label}</h3>
-                <p className="text-[13px] text-text-secondary">Won in a Detlio challenge.</p>
-                <p className="text-[12px] text-text-muted">
+                <h3 className="text-t2 font-semibold text-text-primary">{view.selected.label}</h3>
+                <p className="text-t4 text-text-secondary">Won in a Detlio challenge.</p>
+                <p className="text-t5 text-text-muted">
                   Earned <span className="font-numeric">{rewardDate(view.selected.at)}</span>
                 </p>
               </>
@@ -158,10 +158,10 @@ function BadgeDetail({ badge }: { badge: CabinetBadge }) {
   return (
     <>
       <BadgeMedal badgeKey={badge.key} earned={!!badge.earned} size={88} />
-      <h3 className="text-[18px] font-semibold text-text-primary">{badge.label}</h3>
-      <p className="text-[13px] text-text-secondary">{badge.howTo}</p>
+      <h3 className="text-t2 font-semibold text-text-primary">{badge.label}</h3>
+      <p className="text-t4 text-text-secondary">{badge.howTo}</p>
       {badge.earned ? (
-        <p className="text-[12px] text-text-muted">
+        <p className="text-t5 text-text-muted">
           Earned <span className="font-numeric">{rewardDate(badge.earned.at)}</span>
         </p>
       ) : (
@@ -172,11 +172,11 @@ function BadgeDetail({ badge }: { badge: CabinetBadge }) {
               style={{ width: `${Math.max(4, Math.round((badge.progress.current / badge.progress.goal) * 100))}%` }}
             />
           </div>
-          <p className="font-numeric text-[12px] text-text-secondary">{badgeProgressLine(badge.progress)}</p>
+          <p className="font-numeric text-t5 text-text-secondary">{badgeProgressLine(badge.progress)}</p>
         </div>
       )}
       {bonusStampsLine(badge.bonusStamps) && (
-        <p className="text-[12px] text-text-secondary">
+        <p className="text-t5 text-text-secondary">
           <Figures text={`${bonusStampsLine(badge.bonusStamps)} on your Shine Card${badge.earned ? '' : ' when you earn it'}.`} />
         </p>
       )}

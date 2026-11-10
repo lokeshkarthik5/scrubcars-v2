@@ -2,6 +2,9 @@ import { describe, expect, test } from 'bun:test'
 import { DEFAULT_CENTER } from './map'
 import {
   SERVICE_CITY,
+  firstFarIndex,
+  isNearCustomer,
+  nearGarageCount,
   outsideCityCheckoutLine,
   outsideCityLine,
   outsideCityTag,
@@ -58,5 +61,58 @@ describe('the Outside Chennai sign', () => {
       SERVICE_CITY.centre.lng,
       SERVICE_CITY.centre.lat,
     ])
+  })
+})
+
+// The live list near Adyar on 10 Nov 2026: two Chennai garages, then three in
+// Tirupur and near Rajapalayam that the count used to call "near you".
+const ADYAR = [
+  { distanceKm: 2.4, outsideServiceCity: null },
+  { distanceKm: 13.5, outsideServiceCity: null },
+  { distanceKm: 387.3, outsideServiceCity: { town: 'Tirupur', km: 393 } },
+  { distanceKm: 474.8, outsideServiceCity: { town: 'Rajapalayam', km: 480 } },
+  { distanceKm: 491.2, outsideServiceCity: { town: 'Rajapalayam', km: 497 } },
+]
+
+describe('garages near you', () => {
+  test('only garages within the city reach count, far towns never do', () => {
+    expect(nearGarageCount(ADYAR, { located: true, hasMore: false, nearestFirst: true })).toEqual({
+      count: 2,
+      more: false,
+    })
+  })
+
+  test('the edge of the reach is near, just past it is not', () => {
+    expect(isNearCustomer({ distanceKm: 50 }, true)).toBe(true)
+    expect(isNearCustomer({ distanceKm: 50.1 }, true)).toBe(false)
+    // Located, but no pin: not known to be near.
+    expect(isNearCustomer({ distanceKm: null }, true)).toBe(false)
+  })
+
+  test('without a location, garages inside the city count', () => {
+    const noOrigin = ADYAR.map((g) => ({ ...g, distanceKm: null }))
+    expect(nearGarageCount(noOrigin, { located: false, hasMore: true, nearestFirst: false })).toEqual({
+      count: 2,
+      more: true,
+    })
+  })
+
+  test('no "+" once a nearest-first list has passed the reach', () => {
+    expect(nearGarageCount(ADYAR, { located: true, hasMore: true, nearestFirst: true }).more).toBe(false)
+    expect(nearGarageCount(ADYAR.slice(0, 2), { located: true, hasMore: true, nearestFirst: true }).more).toBe(true)
+    // The unpinned tail comes after every located garage.
+    expect(
+      nearGarageCount([...ADYAR.slice(0, 2), { distanceKm: null }], { located: true, hasMore: true, nearestFirst: true })
+        .more
+    ).toBe(false)
+    // Another sort cannot vouch for what later pages hold.
+    expect(nearGarageCount(ADYAR, { located: true, hasMore: true, nearestFirst: false }).more).toBe(true)
+  })
+
+  test('the Further away line sits above the first far garage', () => {
+    expect(firstFarIndex(ADYAR, { located: true, nearestFirst: true })).toBe(2)
+    expect(firstFarIndex(ADYAR.slice(0, 2), { located: true, nearestFirst: true })).toBe(-1)
+    expect(firstFarIndex(ADYAR, { located: false, nearestFirst: true })).toBe(-1)
+    expect(firstFarIndex(ADYAR, { located: true, nearestFirst: false })).toBe(-1)
   })
 })

@@ -51,7 +51,7 @@ export function GuaranteeCard({ booking }: { booking: Booking }) {
           <h2 className="text-sm font-semibold text-text-primary">
             Free redo · {GUARANTEE_NAME}
           </h2>
-          <p className="mt-0.5 text-[12px] text-text-secondary">
+          <p className="mt-0.5 text-t5 text-text-secondary">
             This booking redoes an earlier job at no charge. There is nothing to
             pay and no receipt for it.
           </p>
@@ -75,14 +75,14 @@ export function GuaranteeCard({ booking }: { booking: Booking }) {
             className="mt-0.5 shrink-0 text-text-primary"
           />
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-text-secondary">
+            <p className="text-t5 font-medium uppercase tracking-wide text-text-secondary">
               {GUARANTEE_NAME}
             </p>
             <h2 className="text-sm font-semibold text-text-primary">
               {claim.title}
             </h2>
             {claim.body && (
-              <p className="mt-0.5 text-[12px] text-text-secondary">
+              <p className="mt-0.5 text-t5 text-text-secondary">
                 {claim.body}
               </p>
             )}
@@ -96,7 +96,7 @@ export function GuaranteeCard({ booking }: { booking: Booking }) {
         {claim.redoBooking && (
           <Link
             href={`/bookings/${claim.redoBooking.id}`}
-            className="flex min-h-11 items-center justify-between rounded-[10px] border border-border px-3 text-[13px] text-text-primary"
+            className="flex min-h-11 items-center justify-between rounded-[10px] border border-border px-3 text-t4 text-text-primary"
           >
             <span>
               Free redo · {formatStepTime(claim.redoBooking.scheduledAt)}
@@ -107,7 +107,7 @@ export function GuaranteeCard({ booking }: { booking: Booking }) {
         {!claim.canBookRedo && (
           <Link
             href={claimPath}
-            className="text-[12px] text-text-secondary underline underline-offset-2"
+            className="text-t5 text-text-secondary underline underline-offset-2"
           >
             See your claim
           </Link>
@@ -117,7 +117,7 @@ export function GuaranteeCard({ booking }: { booking: Booking }) {
           <button
             type="button"
             onClick={() => setWithdrawing(true)}
-            className="min-h-11 self-start text-[12px] font-medium text-text-secondary underline underline-offset-2 transition-colors hover:text-text-primary"
+            className="min-h-11 self-start text-t5 font-medium text-text-secondary underline underline-offset-2 transition-colors hover:text-text-primary"
           >
             Withdraw claim
           </button>
@@ -163,7 +163,7 @@ export function GuaranteeCard({ booking }: { booking: Booking }) {
         {GUARANTEE_BUTTON}
       </ScButtonLink>
       {data.claimBy && (
-        <p className="text-center text-[12px] text-text-secondary">
+        <p className="text-center text-t5 text-text-secondary">
           Ask with photos of the problem by {formatStepTime(data.claimBy)}.
         </p>
       )}

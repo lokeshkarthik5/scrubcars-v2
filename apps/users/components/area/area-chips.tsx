@@ -45,7 +45,7 @@ export function AreaChips({ mode }: { mode: BookingType }) {
     >
       <h2
         id="where-is-your-car"
-        className="text-[11px] font-medium uppercase tracking-[0.12em] text-text-secondary"
+        className="text-t5 font-medium uppercase tracking-[0.12em] text-text-secondary"
       >
         Where&apos;s your car?
       </h2>

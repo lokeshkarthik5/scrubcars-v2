@@ -115,9 +115,9 @@ export function CouponScanner({ onCode, onClose }: { onCode: (code: string) => v
 
   return (
     <ScModal open onClose={onClose} aria-label="Scan a coupon" className="flex max-w-[420px] flex-col gap-3">
-      <h2 className="text-[15px] font-semibold text-text-primary">Scan a coupon</h2>
+      <h2 className="text-t3 font-semibold text-text-primary">Scan a coupon</h2>
       {problem ? (
-        <p role="alert" className="text-[13px] text-error">
+        <p role="alert" className="text-t4 text-error">
           {problem}
         </p>
       ) : (
@@ -126,7 +126,7 @@ export function CouponScanner({ onCode, onClose }: { onCode: (code: string) => v
             <video ref={videoRef} muted playsInline className="h-full w-full object-cover" aria-label="Camera" />
             <div aria-hidden="true" className="pointer-events-none absolute inset-[18%] rounded-[12px] border-2 border-white/80" />
           </div>
-          <p role="status" className="text-[12px] text-text-secondary">
+          <p role="status" className="text-t5 text-text-secondary">
             {hint ?? "Point the camera at the QR on the coupon."}
           </p>
         </>

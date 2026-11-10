@@ -56,12 +56,12 @@ export function GarageShare({
       </ScButton>
       {open && (
         <div className="flex flex-col gap-2.5 rounded-[12px] border border-border bg-surface p-3 text-left">
-          <p className="text-[12px] text-text-secondary">
+          <p className="text-t5 text-text-secondary">
             Your card as a picture for your story or feed, with “Collected on
             Detlio”.
           </p>
           {firstName && (
-            <label className="flex min-h-11 items-center gap-2.5 text-[13px] text-text-primary">
+            <label className="flex min-h-11 items-center gap-2.5 text-t4 text-text-primary">
               <input
                 type="checkbox"
                 checked={showName}
@@ -90,7 +90,7 @@ export function GarageShare({
                   )}
                   {SHARE_FORMATS[format].label}
                 </span>
-                <span className="font-numeric text-[11px] font-normal text-text-secondary">
+                <span className="font-numeric text-t5 font-normal text-text-secondary">
                   {format === 'story' ? '9:16' : '4:5'}
                 </span>
               </ScButton>

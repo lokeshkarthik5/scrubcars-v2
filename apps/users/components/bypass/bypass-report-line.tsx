@@ -31,7 +31,7 @@ export function BypassReportLine({ booking }: { booking: Booking }) {
 
   if (data.report) {
     return (
-      <p className="flex items-start gap-2 px-1 text-[12px] text-text-secondary" role="status">
+      <p className="flex items-start gap-2 px-1 text-t5 text-text-secondary" role="status">
         <IconFlag size={15} aria-hidden className="mt-px shrink-0 text-text-muted" />
         <span>
           {bypassReportStatusLine({
@@ -50,7 +50,7 @@ export function BypassReportLine({ booking }: { booking: Booking }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="-mx-1 flex min-h-11 items-center justify-between gap-3 rounded-[10px] px-1 text-left text-[13px] text-text-secondary transition-colors hover:text-text-primary"
+        className="-mx-1 flex min-h-11 items-center justify-between gap-3 rounded-[10px] px-1 text-left text-t4 text-text-secondary transition-colors hover:text-text-primary"
       >
         <span className="flex items-center gap-2">
           <IconFlag size={16} aria-hidden className="shrink-0 text-text-muted" />

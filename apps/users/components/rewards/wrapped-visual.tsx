@@ -118,7 +118,7 @@ export function WrappedVisual({ cardKey, monthIndex, level }: { cardKey: Wrapped
         >
           <span className="flex flex-col items-center" style={{ color: metal.ink }}>
             <IconStarFilled size={44} />
-            <span className="mt-1 text-[13px] font-semibold uppercase tracking-[0.16em]">{level.label}</span>
+            <span className="mt-1 text-t4 font-semibold uppercase tracking-[0.16em]">{level.label}</span>
           </span>
         </span>
       </div>

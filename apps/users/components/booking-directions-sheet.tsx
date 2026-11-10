@@ -154,8 +154,8 @@ function DirectionsContent({ booking, onClose }: { booking: Booking; onClose: ()
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-base font-semibold text-text-primary">Directions</h2>
-          <p className="mt-1 text-[13px] text-text-secondary">{booking.vendorName}</p>
-          {fullAddress && <p className="text-[12px] text-text-muted">{fullAddress}</p>}
+          <p className="mt-1 text-t4 text-text-secondary">{booking.vendorName}</p>
+          {fullAddress && <p className="text-t5 text-text-muted">{fullAddress}</p>}
         </div>
         {/* Every way out of this sheet otherwise leaves the app; this is the
             one that comes back to the booking. */}
@@ -188,7 +188,7 @@ function DirectionsContent({ booking, onClose }: { booking: Booking; onClose: ()
           href={mapsHref}
           target="_blank"
           rel="noopener noreferrer"
-          className="press flex w-full items-center justify-center gap-2 rounded-full bg-brand-red-fill py-4 text-[15px] font-semibold text-brand-white transition-colors hover:bg-brand-red-fill-hover"
+          className="press flex w-full items-center justify-center gap-2 rounded-full bg-brand-red-fill py-4 text-t3 font-semibold text-brand-white transition-colors hover:bg-brand-red-fill-hover"
         >
           <IconNavigation size={18} aria-hidden />
           Open in Google Maps
@@ -256,7 +256,7 @@ function TravelLine({
   }
 
   return (
-    <p aria-live="polite" className="text-[13px] text-text-secondary">
+    <p aria-live="polite" className="text-t4 text-text-secondary">
       {line}
     </p>
   )

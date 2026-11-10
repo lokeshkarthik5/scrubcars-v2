@@ -3,8 +3,8 @@ import type { ReactNode } from 'react';
 import { Pressable, type StyleProp, StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { T } from './text';
-import { createStyles, useColors } from './theme';
-import { ctaGradient, PRESSED_SCALE } from './tokens';
+import { createStyles, useColors, useFinish } from './theme';
+import { ctaGradient, PRESSED_SCALE, redButtonGradient } from './tokens';
 
 export type ButtonVariant = 'cta' | 'main' | 'hero' | 'outline' | 'quiet' | 'text' | 'danger-outline';
 export type ButtonSize = 'md' | 'lg';
@@ -40,6 +40,14 @@ const useStyles = createStyles((c) => ({
     shadowOpacity: 0.3,
     shadowRadius: 8,
   },
+  finishShadow: {
+    // 0 10px 24px -8px rgb(228 0 43 / 0.6)
+    shadowColor: '#E4002B',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.55,
+    shadowRadius: 12,
+  },
+  finishHighlight: { backgroundColor: 'rgba(255,255,255,0.35)' },
   clip: { overflow: 'hidden' },
   highlight: {
     position: 'absolute',
@@ -77,6 +85,7 @@ export function ScButton({
 }: ScButtonProps) {
   const colors = useColors();
   const styles = useStyles();
+  const { on: finish } = useFinish();
   const red = variant === 'main' || variant === 'hero';
   const greyed = disabled && (Boolean(disabledReason) || red || variant === 'cta');
   const gradient = red && !disabled;
@@ -123,7 +132,7 @@ export function ScButton({
       onPress={onPress}
       style={({ pressed }) => [
         fullWidth && styles.full,
-        gradient && styles.mainShadow,
+        gradient && (finish ? styles.finishShadow : styles.mainShadow),
         pressed && !disabled && { transform: [{ scale: PRESSED_SCALE }] },
         style,
       ]}
@@ -131,14 +140,24 @@ export function ScButton({
       <View style={[box, gradient && styles.clip]}>
         {gradient ? (
           <>
-            <LinearGradient
-              {...ctaGradient}
-              colors={[...ctaGradient.colors]}
-              locations={[...ctaGradient.locations]}
-              style={StyleSheet.absoluteFill}
-            />
-            {/* inset 0 1px 0 rgba(255,255,255,0.22) */}
-            <View style={styles.highlight} />
+            {finish ? (
+              // The finish's solid red, top to bottom, as .finish sets --gradient-cta.
+              <LinearGradient
+                {...redButtonGradient}
+                colors={[...redButtonGradient.colors]}
+                locations={[...redButtonGradient.locations]}
+                style={StyleSheet.absoluteFill}
+              />
+            ) : (
+              <LinearGradient
+                {...ctaGradient}
+                colors={[...ctaGradient.colors]}
+                locations={[...ctaGradient.locations]}
+                style={StyleSheet.absoluteFill}
+              />
+            )}
+            {/* inset 0 1px 0 rgba(255,255,255,0.22); 0.35 under the finish */}
+            <View style={[styles.highlight, finish && styles.finishHighlight]} />
           </>
         ) : null}
         {typeof children === 'string' ? <Label color={label}>{children}</Label> : children}

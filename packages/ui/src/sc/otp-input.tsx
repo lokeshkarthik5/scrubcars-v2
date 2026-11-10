@@ -55,39 +55,61 @@ export function OtpInput({ length = 6, onComplete, tone = 'solid', errorId }: Ot
     }
   }
 
+  // All six in and no error against them: the boxes join into one tick
+  // (the customer website's finish only; finish.css). A wrong code parts
+  // them again, so every digit can be seen and changed.
+  const joined = values.every(Boolean) && !errorId
+  const centre = (length - 1) / 2
+
   return (
     // data-clarity-mask: never recorded by Microsoft Clarity (customer app,
     // with consent).
     <div
       role="group"
       aria-label="Verification code"
-      className="flex justify-center gap-2"
+      className="otp-boxes relative flex justify-center gap-2"
+      data-joined={joined ? '' : undefined}
       data-clarity-mask="true"
     >
       {values.map((val, i) => (
-        <input
+        // Each box carries its red light, lit once its digit is in. The cell
+        // knows how far it is from the middle, where the boxes join.
+        <span
           key={i}
-          // Six unnamed boxes read as six blank fields; each says which digit.
-          aria-label={`Digit ${i + 1} of ${length}`}
-          aria-invalid={errorId ? true : undefined}
-          aria-describedby={errorId}
-          ref={(el) => { refs.current[i] = el }}
-          type="text"
-          inputMode="numeric"
-          maxLength={1}
-          value={val}
-          onChange={(e) => handleChange(i, e.target.value)}
-          onKeyDown={(e) => handleKeyDown(i, e)}
-          // Figures in the brand's numeric face. A filled box steps up to a
-          // grey edge and the focused one to white — six red outlines here
-          // used to outshout the red Verify button they lead to.
-          className={cn(
-            'h-[50px] w-11 rounded-[10px] border text-center font-numeric text-base font-bold text-text-primary outline-none transition-colors focus:border-text-primary',
-            tone === 'glass' ? 'border-white/15 bg-white/[0.06]' : 'border-border bg-surface',
-            val && (tone === 'glass' ? 'border-white/30' : 'border-text-muted/60')
-          )}
-        />
+          className="otp-cell relative"
+          data-lit={val ? '' : undefined}
+          style={{ '--otp-to-centre': `${(centre - i) * 52}px` } as React.CSSProperties}
+        >
+          <input
+            // Six unnamed boxes read as six blank fields; each says which digit.
+            aria-label={`Digit ${i + 1} of ${length}`}
+            aria-invalid={errorId ? true : undefined}
+            aria-describedby={errorId}
+            ref={(el) => { refs.current[i] = el }}
+            type="text"
+            inputMode="numeric"
+            maxLength={1}
+            value={val}
+            onChange={(e) => handleChange(i, e.target.value)}
+            onKeyDown={(e) => handleKeyDown(i, e)}
+            // Figures in the brand's numeric face. A filled box steps up to a
+            // grey edge and the focused one to white — six red outlines here
+            // used to outshout the red Verify button they lead to.
+            className={cn(
+              'otp-box h-[50px] w-11 rounded-[10px] border text-center font-numeric text-base font-bold text-text-primary outline-none transition-colors focus:border-text-primary',
+              tone === 'glass' ? 'border-white/15 bg-white/[0.06]' : 'border-border bg-surface',
+              val && (tone === 'glass' ? 'border-white/30' : 'border-text-muted/60')
+            )}
+          />
+          <span aria-hidden="true" className="otp-light hidden" />
+        </span>
       ))}
+      <span aria-hidden="true" className="otp-sweep hidden" />
+      <span aria-hidden="true" className="otp-tick hidden">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M5 12.5l4.2 4.2L19 7" />
+        </svg>
+      </span>
     </div>
   )
 }

@@ -78,7 +78,7 @@ export function PhotoViewer({
         >
           <IconX size={22} aria-hidden="true" />
         </button>
-        <p className="font-numeric text-[15px] font-medium text-white" aria-live="polite">
+        <p className="font-numeric text-t3 font-medium text-white" aria-live="polite">
           {index + 1} <span className="text-white/50">/</span> {photos.length}
         </p>
       </div>
@@ -119,7 +119,7 @@ export function PhotoViewer({
             ))}
           </div>
         )}
-        <p className="text-[16px] font-semibold text-white">{garageName}</p>
+        <p className="text-t3 font-semibold text-white">{garageName}</p>
         <p className="mt-0.5 text-[14px] text-white/60">{serviceName}</p>
       </div>
     </div>,

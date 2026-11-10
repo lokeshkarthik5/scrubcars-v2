@@ -55,7 +55,7 @@ export function PullRevealSheet({ pulls, focusId = null, firstName = null }: { p
     <ScSheet open={open && pull !== null} onClose={finish} aria-label="New car for your Garage">
       {pull && (
         <div key={pull.id} className="flex flex-col items-center gap-1 px-5 pb-2 pt-2">
-          <p className="text-[12px] uppercase tracking-[0.14em] text-text-secondary">New car for your Garage</p>
+          <p className="text-t5 uppercase tracking-[0.14em] text-text-secondary">New car for your Garage</p>
           <PullReveal pull={{ ...pull, seen: false }} onRevealed={() => setRevealed(true)} firstName={firstName} compact />
           {revealed && (
             <ScButton

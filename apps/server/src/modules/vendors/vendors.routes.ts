@@ -35,6 +35,7 @@ import {
   earningsQuerySchema,
   listPublicVendorsQuerySchema,
   logoUploadUrlSchema,
+  nextFreeQuerySchema,
   pauseBookingsSchema,
   photoUploadUrlSchema,
   reorderPhotosSchema,
@@ -88,6 +89,15 @@ vendorsRoutes.get(
   '/',
   zValidator('query', listPublicVendorsQuerySchema),
   (c) => vendorsController.listPublicVendors(c, c.req.valid('query'))
+)
+
+// "Next free" for the garage list's cards (customer UI round): up to 20
+// garages in one ask, public like the list. Registered before '/:id', which
+// would otherwise take "next-free" for an id.
+vendorsRoutes.get(
+  '/next-free',
+  zValidator('query', nextFreeQuerySchema),
+  (c) => vendorsController.getNextFree(c, c.req.valid('query'))
 )
 
 vendorsRoutes.post(
