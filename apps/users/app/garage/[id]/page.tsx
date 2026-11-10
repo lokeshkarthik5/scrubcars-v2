@@ -39,6 +39,7 @@ import {
   useToggleSavedGarage,
 } from '@repo/core/api/hooks/use-favourites'
 import { anywhereInCityLine } from '@repo/core/reach'
+import { outsideCityLine } from '@repo/core/service-city'
 import {
   bookingTypeParam,
   offeredBookingTypes,
