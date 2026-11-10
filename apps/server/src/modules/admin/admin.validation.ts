@@ -304,9 +304,13 @@ export const createBranchSchema = z
     copyHours: z.boolean().default(true),
     // The same stored logo and photos, never uploaded again.
     copyPhotos: z.boolean().default(true),
-    // A vendor_admin seat for the same owner, so the garage app's switcher
-    // shows both garages. Off: no login yet; admin sets one up in Team.
-    sameOwner: z.boolean().default(true),
+    // The branch owner's phone (owner, 10 Nov 2026): the source owner's own
+    // number is the same login, so the garage app's switcher shows both
+    // garages; another number is that person's own login, found or set up
+    // as Add a garage does. The owner always gets a vendor_admin seat.
+    ownerPhone: phoneSchema,
+    // Needed only when no account has the number yet (adminService checks).
+    ownerName: z.string().trim().min(1).max(255).optional(),
     actorName: signedActorName,
   })
   .strict()

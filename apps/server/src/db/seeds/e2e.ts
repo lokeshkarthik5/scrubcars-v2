@@ -4039,8 +4039,11 @@ async function seedCityRows() {
     garage(C.hill, 'Hilltown'),
     garage(C.far, 'Faraway'),
     // Pending and not shown, as a garage waiting for its branch might be:
-    // the branch is what the spec makes.
-    { ...garage(C.branch, 'Revathipuram'), status: 'pending', isVerified: false },
+    // the branch is what the spec makes. Pickup & drop signed, so the spec
+    // sees the agreement follow the login.
+    { ...garage(C.branch, 'Revathipuram'), status: 'pending', isVerified: false,
+      pickup: 'yes', pickupRadiusKm: C.branch.pickupRadiusKm, pickupTermsAcceptedAt: daysAgo(10),
+      pickupTermsAcceptedBy: 'admin: E2E Admin' },
     { ...garage(C.whole, 'Wholetown'), dropinEnabled: false, doorstepEnabled: true,
       doorstepRadiusKm: C.whole.radiusKm, doorstepWholeCity: true },
   ])

@@ -25,16 +25,31 @@ export interface BranchDraft {
   serviceIds: string[]
   copyHours: boolean
   copyPhotos: boolean
-  sameOwner: boolean
+  /** The branch owner's phone; starts as the source owner's (the same login). */
+  ownerPhone: string
+  /** Asked for only when the number is not the source owner's. */
+  ownerName: string
 }
 
 type CityOption = { id: string; name: string }
 
-/** Every box ticked, as the owner asked: all services, hours, photos and the same login. */
+/** Under the owner's phone (owner, 10 Nov 2026). */
+export const BRANCH_OWNER_HINT =
+  'Same number: same login, both garages show in the garage app. A different number gets its own login.'
+
+/** When the number is another login's and the source does pickup & drop. */
+export const BRANCH_PICKUP_UNSIGNED =
+  'Pickup & drop stays off until this garage signs its own agreement.'
+
+/**
+ * Every box ticked, as the owner asked: all services, hours, photos, and
+ * the source owner's number, so the same login.
+ */
 export function branchDraftFrom(
   garageName: string,
   serviceIds: string[],
-  cities: readonly CityOption[]
+  cities: readonly CityOption[],
+  ownerPhone: string
 ): BranchDraft {
   const first = cities[0]
   return {
@@ -48,8 +63,17 @@ export function branchDraftFrom(
     serviceIds,
     copyHours: true,
     copyPhotos: true,
-    sameOwner: true,
+    ownerPhone,
+    ownerName: '',
   }
+}
+
+/**
+ * The number is the source owner's, so the same login. The server decides
+ * by the account that has the number; trimmed here as its schema trims.
+ */
+export function isSameOwnerLogin(draft: Pick<BranchDraft, 'ownerPhone'>, sourceOwnerPhone: string): boolean {
+  return draft.ownerPhone.trim() === sourceOwnerPhone.trim()
 }
 
 /** The branch's city name as chosen or typed. */
@@ -78,7 +102,12 @@ export function withCity(
 }
 
 /** What stops the branch being added, in the sheet's words, or null. */
-export function branchProblem(draft: BranchDraft, cities: readonly CityOption[], atGarage: boolean): string | null {
+export function branchProblem(
+  draft: BranchDraft,
+  cities: readonly CityOption[],
+  atGarage: boolean,
+  sourceOwnerPhone: string
+): string | null {
   if (!draft.businessName.trim()) return 'Enter the branch’s name.'
   if (!branchCityName(draft, cities)) return 'Choose the branch’s city, or type its town.'
   const pincode = draft.pincode.trim()
@@ -86,11 +115,15 @@ export function branchProblem(draft: BranchDraft, cities: readonly CityOption[],
   if (atGarage && (!draft.address.trim() || !pincode)) {
     return 'Customers come to this garage, so the branch needs its address and pincode.'
   }
+  if (!/^\d{10}$/.test(draft.ownerPhone.trim())) return 'The owner’s phone number is 10 digits.'
+  if (!isSameOwnerLogin(draft, sourceOwnerPhone) && !draft.ownerName.trim()) {
+    return 'Enter the owner’s name: a different number gets its own login.'
+  }
   return null
 }
 
-/** The request the sheet sends. */
-export function branchInput(draft: BranchDraft, cities: readonly CityOption[]): BranchInput {
+/** The request the sheet sends; the name only with a different number. */
+export function branchInput(draft: BranchDraft, cities: readonly CityOption[], sourceOwnerPhone: string): BranchInput {
   return {
     businessName: draft.businessName.trim(),
     city: branchCityName(draft, cities),
@@ -100,7 +133,8 @@ export function branchInput(draft: BranchDraft, cities: readonly CityOption[]): 
     serviceIds: draft.serviceIds,
     copyHours: draft.copyHours,
     copyPhotos: draft.copyPhotos,
-    sameOwner: draft.sameOwner,
+    ownerPhone: draft.ownerPhone.trim(),
+    ...(!isSameOwnerLogin(draft, sourceOwnerPhone) && { ownerName: draft.ownerName.trim() }),
   }
 }
 

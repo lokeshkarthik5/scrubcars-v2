@@ -213,6 +213,8 @@ function AddBranch({ vendorId, g, saved }: { vendorId: string; g: GarageDraftSta
         garageName={saved.form.businessName}
         services={saved.services}
         atGarage={g.atGarage}
+        ownerPhone={saved.form.ownerPhone}
+        pickupOn={g.bookingMode?.pickupEnabled === true}
       />
     </>
   )

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { planBranchCopy, type BranchSourceService } from './branches.js'
+import { branchPickupTerms, planBranchCopy, planBranchOwner, type BranchSourceService } from './branches.js'
 
 const FOAM: BranchSourceService = { id: 's-foam', category: 'washing', isAddon: false, isActive: true }
 const POLISH: BranchSourceService = { id: 's-polish', category: 'polishing', isAddon: false, isActive: true }
@@ -45,5 +45,69 @@ describe('planBranchCopy', () => {
         code: 'SERVICE_NOT_FOUND',
       })
     }
+  })
+})
+
+describe('planBranchOwner (owner, 10 Nov 2026)', () => {
+  const SOURCE_OWNER = 'u-revathi'
+
+  test('the source owner’s own number: the same login, nothing to change', () => {
+    expect(
+      planBranchOwner({
+        sourceOwnerId: SOURCE_OWNER,
+        phone: '9000006911',
+        name: undefined,
+        account: { id: SOURCE_OWNER, isVendorOwner: true },
+      })
+    ).toEqual({ ok: true, sameLogin: true, owner: { kind: 'existing', userId: SOURCE_OWNER, makeVendorOwner: false } })
+  })
+
+  test('another account’s number: that login, made a garage owner if it is not one; no name needed', () => {
+    expect(
+      planBranchOwner({
+        sourceOwnerId: SOURCE_OWNER,
+        phone: '9840011203',
+        name: '',
+        account: { id: 'u-customer', isVendorOwner: false },
+      })
+    ).toEqual({ ok: true, sameLogin: false, owner: { kind: 'existing', userId: 'u-customer', makeVendorOwner: true } })
+  })
+
+  test('a number with no account: a new login with the name given, trimmed', () => {
+    expect(
+      planBranchOwner({ sourceOwnerId: SOURCE_OWNER, phone: '9000006930', name: ' Meena ', account: null })
+    ).toEqual({ ok: true, sameLogin: false, owner: { kind: 'new', name: 'Meena', phone: '9000006930' } })
+  })
+
+  test('a number with no account and no name is refused', () => {
+    for (const name of [undefined, null, '  ']) {
+      expect(planBranchOwner({ sourceOwnerId: SOURCE_OWNER, phone: '9000006930', name, account: undefined })).toMatchObject({
+        ok: false,
+        code: 'OWNER_NAME_REQUIRED',
+      })
+    }
+  })
+})
+
+describe('branchPickupTerms: the agreement follows the login', () => {
+  const signed = {
+    pickup: 'yes' as const,
+    pickupTermsAcceptedAt: new Date('2026-11-01T05:30:00Z'),
+    pickupTermsAcceptedBy: 'admin: Priya',
+  }
+
+  test('the same login keeps the signed responsibility as it is', () => {
+    expect(branchPickupTerms(signed, true)).toEqual(signed)
+  })
+
+  test('another login: off with no terms, until that garage signs its own', () => {
+    expect(branchPickupTerms(signed, false)).toEqual({ pickup: 'no', pickupTermsAcceptedAt: null, pickupTermsAcceptedBy: null })
+    expect(branchPickupTerms({ ...signed, pickup: 'nearby' }, false).pickup).toBe('no')
+  })
+
+  test('never answered stays never answered', () => {
+    const blank = { pickup: null, pickupTermsAcceptedAt: null, pickupTermsAcceptedBy: null }
+    expect(branchPickupTerms(blank, false)).toEqual(blank)
+    expect(branchPickupTerms(blank, true)).toEqual(blank)
   })
 })

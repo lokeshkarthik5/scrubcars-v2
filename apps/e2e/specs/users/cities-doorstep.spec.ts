@@ -3,18 +3,38 @@
  * E2E Wholetown's centre with a 5 km radius and comes all over the city.
  * Its customer lives 20 km south, 40 km from the garage: the garage is on
  * their Doorstep list and the booking's range check lets the address
- * through; an address past the city's reach is still refused. And the travel
- * radius takes 45 km now (the 30 km top was lifted).
+ * through; an address past the city's reach is still refused. The customer
+ * reads "Comes anywhere in E2E Wholetown" on its card and its page (owner,
+ * 10 Nov 2026), the city's name from the payload. And the travel radius
+ * takes 45 km now (the 30 km top was lifted).
  *
  * The city is seeded far from Chennai, so no other spec's Doorstep list
  * gains this garage. The rule itself is unit-tested in
  * apps/server/src/lib/cities.test.ts and the SQL in vendors.predicates.test.ts.
  */
+import type { Page } from '@playwright/test'
 import { test, expect } from '../../support/fixtures'
 import { API, loginViaApi } from '../../support/auth'
 import { CITIES } from '../../support/seed-ids'
 
 const C = CITIES
+
+/** Where the customer is, as the location store keeps a phone fix. */
+async function standAt(page: Page, point: { lat: number; lng: number }) {
+  // Registered after the fixture's own init script, so it is the one that stands.
+  await page.context().addInitScript((at) => {
+    window.localStorage.setItem(
+      'detlio-location',
+      JSON.stringify({
+        state: {
+          location: { ...at, label: 'Here', source: 'gps', updatedAt: Date.now() },
+          promptDismissedAt: Date.now(),
+        },
+        version: 0,
+      })
+    )
+  }, { lat: point.lat, lng: point.lng })
+}
 
 const doorstepList = async (request: import('@playwright/test').APIRequestContext, point: { lat: number; lng: number }) => {
   const res = await request.get(`${API}/api/v1/vendors`, {
@@ -73,6 +93,19 @@ test.describe('Doorstep all over the city @p0', () => {
     } finally {
       await customer.dispose()
     }
+  })
+
+  test('the customer reads “Comes anywhere in E2E Wholetown” on its Doorstep card and on its page', async ({ page }) => {
+    const line = `Comes anywhere in ${C.wholeTown.name}`
+    await standAt(page, C.wholeCustomer.home)
+    await page.goto('/garages?mode=doorstep')
+    const card = page.locator('[data-garage-card]').filter({ hasText: C.whole.name })
+    await expect(card.getByText(line, { exact: true })).toBeVisible()
+
+    await card.getByRole('link').first().click()
+    await expect(page).toHaveURL(new RegExp(`/garage/${C.whole.id}`))
+    await expect(page.getByRole('heading', { level: 1, name: C.whole.name })).toBeVisible()
+    await expect(page.getByText(line, { exact: true })).toBeVisible()
   })
 
   test('the garage saves a 45 km radius (the 30 km top is gone) and sees its city', async () => {

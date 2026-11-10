@@ -16,8 +16,14 @@
  * Never: documents (each branch needs its own), bookings, reviews, tiers,
  * marks or notes. The branch starts Pending and not shown to customers.
  *
+ * Who owns it, and whether the pickup & drop agreement comes along, follow
+ * the owner's phone number admin gives (owner decisions, 10 Nov 2026):
+ * planBranchOwner and branchPickupTerms below.
+ *
  * Pure, so the rules are unit-tested without a database (branches.test.ts).
  */
+
+import type { VendorPickupAnswer } from './pickup.js'
 
 export interface BranchSourceService {
   id: string
@@ -73,4 +79,92 @@ export function planBranchCopy(input: {
       ? input.services.filter((service) => service.isAddon && service.isActive).map((service) => service.id)
       : []
   return { ok: true, serviceIds, packageIds, addOnIds }
+}
+
+// ─── The owner's login ───────────────────────────────────────────────────────
+
+/**
+ * The branch's owner, as the transaction writes it: an account that already
+ * has the number (made a garage owner if it is not one yet), or a new one
+ * for that number, set up as Add a garage does (createOwner).
+ */
+export type BranchOwner =
+  | { kind: 'existing'; userId: string; makeVendorOwner: boolean }
+  | { kind: 'new'; name: string; phone: string }
+
+export type BranchOwnerPlan =
+  | {
+      ok: true
+      /** The source garage's own owner: one login, both garages in the garage app. */
+      sameLogin: boolean
+      owner: BranchOwner
+    }
+  | { ok: false; code: 'OWNER_NAME_REQUIRED'; message: string }
+
+/**
+ * Who owns the branch, from the owner's phone number admin gave. The source
+ * owner's own number is the same login, so the garage app's switcher shows
+ * both garages; any other number is that person's own login, found by the
+ * number or set up for it, and a new account needs a name. Either way the
+ * owner gets the branch's vendor_admin seat, so no branch is ever left with
+ * no one who can sign in to it.
+ */
+export function planBranchOwner(input: {
+  sourceOwnerId: string
+  /** Already 10 digits (the request schema's phone rule). */
+  phone: string
+  name: string | null | undefined
+  /** The account that has this number, if any. */
+  account: { id: string; isVendorOwner: boolean } | null | undefined
+}): BranchOwnerPlan {
+  const { account } = input
+  if (account) {
+    return {
+      ok: true,
+      sameLogin: account.id === input.sourceOwnerId,
+      owner: { kind: 'existing', userId: account.id, makeVendorOwner: !account.isVendorOwner },
+    }
+  }
+  const name = input.name?.trim()
+  if (!name) {
+    return {
+      ok: false,
+      code: 'OWNER_NAME_REQUIRED',
+      message: 'No Detlio account has this number yet. Enter the owner’s name to set one up.',
+    }
+  }
+  return { ok: true, sameLogin: false, owner: { kind: 'new', name, phone: input.phone } }
+}
+
+// ─── Pickup & drop's agreement ───────────────────────────────────────────────
+
+export interface BranchPickupTerms {
+  pickup: VendorPickupAnswer | null
+  pickupTermsAcceptedAt: Date | null
+  pickupTermsAcceptedBy: string | null
+}
+
+/**
+ * The agreement follows the login. The same login is the same business, so
+ * the branch keeps the source's signed responsibility (the record says who
+ * accepted it and when). Another login has signed nothing: pickup & drop is
+ * off ('no', with no terms on file) until that garage signs its own, which
+ * admin records with the editor's "The garage has agreed to this" tick, or
+ * the garage itself in its settings. The radius and "All over <city>" are
+ * kept by the caller, so turning it on later needs only the tick.
+ */
+export function branchPickupTerms(source: BranchPickupTerms, sameLogin: boolean): BranchPickupTerms {
+  if (sameLogin) {
+    return {
+      pickup: source.pickup,
+      pickupTermsAcceptedAt: source.pickupTermsAcceptedAt,
+      pickupTermsAcceptedBy: source.pickupTermsAcceptedBy,
+    }
+  }
+  return {
+    // Never answered stays never answered; any answer becomes off.
+    pickup: source.pickup === null ? null : 'no',
+    pickupTermsAcceptedAt: null,
+    pickupTermsAcceptedBy: null,
+  }
 }

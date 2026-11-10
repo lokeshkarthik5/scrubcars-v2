@@ -7,6 +7,7 @@ import { distanceAndDrive, distanceLabel } from '@repo/core/drive-time';
 import { straightLineKm } from '@repo/core/map';
 import { resolveServiceAmount } from '@repo/core/pricing';
 import { hasStarScore, NEW_GARAGE_LABEL } from '@repo/core/ratings';
+import { anywhereInCityLine } from '@repo/core/reach';
 import { knownDurationTotal } from '@repo/core/service-duration';
 import { outsideCityLine } from '@repo/core/service-city';
 import { useUserStore } from '@repo/core/stores/user-store';
@@ -173,6 +174,7 @@ export default function GarageScreen() {
       : null;
   const approximate = isApproximate(activeLocation);
   const modes = offeredBookingTypes(vendor);
+  const anywhere = anywhereInCityLine(vendor, mode);
   const paused = vendor.bookingsPaused;
   const showBar = paused || selectedServices.length > 0;
 
@@ -271,6 +273,11 @@ export default function GarageScreen() {
             <View style={styles.modes}>
               <ModeSwitch modes={modes} value={mode} onChange={setChosenMode} />
             </View>
+          ) : null}
+          {anywhere ? (
+            <T size={12} color={colors.textSecondary}>
+              {anywhere}
+            </T>
           ) : null}
           {mode === 'pickup' ? (
             <T size={12} lh={20} color={colors.textSecondary}>

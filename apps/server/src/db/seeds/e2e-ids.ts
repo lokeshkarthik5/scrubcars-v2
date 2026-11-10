@@ -2074,7 +2074,10 @@ export const ADD_ONS = {
  *   - `hill`: a listed garage the admin spec puts a city around (`hillCity`,
  *     5 km) and switches off; its customer's booking there must still open.
  *   - `far`: a listed garage in no city, for the Other towns switch.
- *   - `branch`: a garage with three services the admin spec adds a branch of.
+ *   - `branch`: a garage with three services and signed pickup & drop that
+ *     the admin spec adds two branches of: one on its owner's number (the
+ *     same login), one on `branchOtherOwner`'s, a number with no account
+ *     until the spec makes one (and removes it).
  *   - `wholeTown`: a city seeded here, and `whole`, a doorstep garage pinned
  *     20 km north of its centre that comes all over it; `wholeCustomer` lives
  *     20 km south (40 km from the garage, far past its 5 km radius).
@@ -2094,16 +2097,20 @@ export const CITIES = {
   },
   branch: {
     id: id(6910), name: 'Revathi Auto Spa', ownerId: id(6911), ownerPhone: '9000006911',
-    pin: { lat: 15.4, lng: 77.0 },
+    pin: { lat: 15.4, lng: 77.0 }, pickupRadiusKm: 12,
     services: [
       { id: id(6912), name: 'Revathi Foam Wash', price: 450 },
       { id: id(6913), name: 'Revathi Interior Clean', price: 900 },
       { id: id(6914), name: 'Revathi Ceramic Coat', price: 7000 },
     ],
   },
-  /** The branch the admin spec adds, by its name. */
+  /** The branch the admin spec adds on the same login, by its name. */
   branchName: 'Revathi Auto Spa – E2E Branchtown',
   branchTown: 'E2E Branchtown',
+  /** The branch on another login, by its name, and its owner. */
+  otherBranchName: 'Revathi Auto Spa – E2E Othertown',
+  otherBranchTown: 'E2E Othertown',
+  branchOtherOwner: { phone: '9000006930', name: 'Meena Selvam' },
   wholeTown: { id: id(6920), name: 'E2E Wholetown', centre: { lat: 15.0, lng: 78.0 }, reachKm: 60 },
   whole: {
     id: id(6921), name: 'Wholetown Doorstep Detailing', ownerId: id(6922), ownerPhone: '9000006922',

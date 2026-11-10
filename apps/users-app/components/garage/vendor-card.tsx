@@ -1,6 +1,7 @@
 import { BOOKING_TYPE_LABELS, bookingTypeParam } from '@repo/core/booking-types';
 import { distanceAndDrive } from '@repo/core/drive-time';
 import { hasStarScore, NEW_GARAGE_LABEL, newGarageReviewsLine } from '@repo/core/ratings';
+import { anywhereInCityLine } from '@repo/core/reach';
 import type { BookingType, Vendor } from '@repo/core/types';
 import { IconStarFilled } from '@repo/native-ui/icons';
 import { PressRow } from '@repo/native-ui/primitives';
@@ -51,6 +52,7 @@ export function VendorCard({
   const km = vendor.distanceKm;
   const distanceText = km !== null ? distanceAndDrive(km, isApproximate(location)) : null;
   const modeParam = mode ? bookingTypeParam(mode) : null;
+  const anywhere = anywhereInCityLine(vendor, mode);
 
   return (
     <View>
@@ -121,6 +123,11 @@ export function VendorCard({
               <T size={12} weight={500}>
                 {vendor.matchedService}
               </T>
+            </T>
+          ) : null}
+          {anywhere ? (
+            <T size={12} numberOfLines={1} color={colors.textSecondary}>
+              {anywhere}
             </T>
           ) : null}
           {note ? (

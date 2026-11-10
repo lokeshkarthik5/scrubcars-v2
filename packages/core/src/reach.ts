@@ -10,7 +10,7 @@
 
 // Relative, not @repo/core/…: kept loadable by path like the other twins.
 import { insidePickupReach } from './pickup'
-import type { ReachCity } from './cities'
+import { collectsAnywhereLine, comesAnywhereLine, type ReachCity } from './cities'
 import type { BookingType } from './types'
 
 /** What each tab offers the customer, as the API counts it. */
@@ -147,6 +147,30 @@ export function canCollectFrom(
 ): boolean {
   if (!garage.pickupEnabled || !origin) return false
   return insidePickupReach(garage, origin) === true
+}
+
+/**
+ * "Comes anywhere in Chennai" (doorstep) or "Collects anywhere in Chennai"
+ * (pickup & drop) on the card and the garage page of a garage that covers
+ * its whole city (0069; owner, 10 Nov 2026), for the way of booking being
+ * looked at. The city is the payload's own (`reachCity`), never assumed;
+ * At garage, an older API or a garage with no city says nothing.
+ */
+export function anywhereInCityLine(
+  garage: {
+    doorstepEnabled: boolean
+    pickupEnabled: boolean
+    doorstepWholeCity?: boolean
+    pickupWholeCity?: boolean
+    reachCity?: ReachCity | null
+  },
+  mode: BookingType | null | undefined
+): string | null {
+  const city = garage.reachCity?.name
+  if (!city) return null
+  if (mode === 'doorstep' && garage.doorstepEnabled && garage.doorstepWholeCity) return comesAnywhereLine(city)
+  if (mode === 'pickup' && garage.pickupEnabled && garage.pickupWholeCity) return collectsAnywhereLine(city)
+  return null
 }
 
 /**

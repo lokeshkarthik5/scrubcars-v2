@@ -14,10 +14,13 @@ import { errorMessage } from '@repo/core/api/hooks/use-discounts'
 import { SignedAs } from '@/components/signed-as'
 import {
   ANOTHER_TOWN,
+  BRANCH_OWNER_HINT,
+  BRANCH_PICKUP_UNSIGNED,
   branchDraftFrom,
   branchInput,
   branchPriceLabel,
   branchProblem,
+  isSameOwnerLogin,
   withCity,
   type BranchDraft,
 } from '@/lib/branch'
@@ -29,8 +32,13 @@ import type { ServiceRow } from '@/lib/service-editor'
  * picks its city (or types a town that is not a city yet), places it, and
  * chooses what comes along: the services with their prices (each package
  * made only of ticked services, and the add-ons, come too), the opening
- * hours, the same logo and photos, and the same owner login so the garage
- * app's switcher shows both. Documents never come: each branch needs its own.
+ * hours, and the same logo and photos. Documents never come: each branch
+ * needs its own.
+ *
+ * The owner's phone starts as this garage owner's (owner, 10 Nov 2026):
+ * kept, it is the same login and the garage app's switcher shows both; a
+ * different number is that person's own login, so the sheet asks their
+ * name, and pickup & drop waits for that garage's own agreement.
  *
  * The branch is added Pending and not shown to customers; the editor opens
  * on it next, to check it and switch on Show to customers.
@@ -42,6 +50,8 @@ export function BranchSheet({
   garageName,
   services,
   atGarage,
+  ownerPhone,
+  pickupOn,
 }: {
   open: boolean
   onClose: () => void
@@ -51,6 +61,10 @@ export function BranchSheet({
   services: ServiceRow[]
   /** Customers come to the garage: the branch then needs its address. */
   atGarage: boolean
+  /** This garage owner's phone, as saved: the same login when kept. */
+  ownerPhone: string
+  /** This garage offers pickup & drop (signed). */
+  pickupOn: boolean
 }) {
   const router = useRouter()
   const citiesQuery = useAdminCities()
@@ -61,7 +75,10 @@ export function BranchSheet({
   const create = useCreateBranch(vendorId)
 
   // Starts afresh on each opening, once the cities are known.
-  const current = draft ?? (open && citiesQuery.data ? branchDraftFrom(garageName, saved.map((row) => row.id), cities) : null)
+  const current =
+    draft ??
+    (open && citiesQuery.data ? branchDraftFrom(garageName, saved.map((row) => row.id), cities, ownerPhone) : null)
+  const otherLogin = current !== null && !isSameOwnerLogin(current, ownerPhone)
   const chosenCity = current && current.cityChoice !== ANOTHER_TOWN
     ? cities.find((city) => city.id === current.cityChoice) ?? null
     : null
@@ -76,13 +93,13 @@ export function BranchSheet({
 
   const submit = () => {
     if (!current) return
-    const problem = branchProblem(current, cities, atGarage)
+    const problem = branchProblem(current, cities, atGarage, ownerPhone)
     if (problem) {
       setError(problem)
       return
     }
     setError(null)
-    create.mutate(branchInput(current, cities), {
+    create.mutate(branchInput(current, cities, ownerPhone), {
       onSuccess: ({ id }) => {
         toast.success('Branch added. Check its details, then switch on Show to customers.')
         setDraft(null)
@@ -218,15 +235,33 @@ export function BranchSheet({
               checked={current.copyPhotos}
               onChange={(copyPhotos) => update({ ...current, copyPhotos })}
             />
-            <ScCheckbox
-              label="Same owner login (both garages in the garage app)"
-              checked={current.sameOwner}
-              onChange={(sameOwner) => update({ ...current, sameOwner })}
-            />
-            {!current.sameOwner && (
-              <p className="text-[12px] text-text-muted">No login yet. Set one up later in the branch&apos;s Team.</p>
-            )}
             <p className="mt-1 text-[12px] text-text-muted">Documents are not copied: each branch needs its own.</p>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <ScField
+              label="Owner’s phone number"
+              value={current.ownerPhone}
+              onChange={(phone) => update({ ...current, ownerPhone: phone })}
+              inputMode="numeric"
+              maxLength={10}
+              placeholder="10 digits"
+              autoComplete="off"
+              className="font-numeric"
+            />
+            <p className="text-[12px] text-text-muted">{BRANCH_OWNER_HINT}</p>
+            {otherLogin && (
+              <>
+                <ScField
+                  label="Owner’s name"
+                  value={current.ownerName}
+                  onChange={(ownerName) => update({ ...current, ownerName })}
+                  maxLength={255}
+                  autoComplete="off"
+                />
+                {pickupOn && <p className="text-[12px] text-text-muted">{BRANCH_PICKUP_UNSIGNED}</p>}
+              </>
+            )}
           </div>
         </>
       )}

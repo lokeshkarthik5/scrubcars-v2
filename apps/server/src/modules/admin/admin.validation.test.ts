@@ -252,9 +252,9 @@ describe('admin pickup radius', () => {
 })
 
 describe('Add a branch (0069)', () => {
-  const branch = { businessName: 'Ravi Car Care – Tirupur', city: 'Tirupur' }
+  const branch = { businessName: 'Ravi Car Care – Tirupur', city: 'Tirupur', ownerPhone: '9840011203' }
 
-  test('copies everything by default: hours, photos and the owner’s login; no services unless ticked', () => {
+  test('copies hours and photos by default; no services unless ticked; the owner’s phone always', () => {
     expect(createBranchSchema.parse(branch)).toEqual({
       ...branch,
       address: '',
@@ -262,9 +262,19 @@ describe('Add a branch (0069)', () => {
       serviceIds: [],
       copyHours: true,
       copyPhotos: true,
-      sameOwner: true,
       actorName: '',
     })
+    const { ownerPhone: _phone, ...noPhone } = branch
+    expect(createBranchSchema.safeParse(noPhone).success).toBe(false)
+  })
+
+  test('the owner’s phone is 10 digits, trimmed; a name is optional but never blank', () => {
+    expect(createBranchSchema.parse({ ...branch, ownerPhone: ' 9840011203 ' }).ownerPhone).toBe('9840011203')
+    expect(createBranchSchema.safeParse({ ...branch, ownerPhone: '+919840011203' }).success).toBe(false)
+    expect(createBranchSchema.safeParse({ ...branch, ownerPhone: '98400' }).success).toBe(false)
+    expect(createBranchSchema.parse({ ...branch, ownerName: ' Meena ' }).ownerName).toBe('Meena')
+    expect(createBranchSchema.safeParse({ ...branch, ownerName: ' ' }).success).toBe(false)
+    expect(createBranchSchema.safeParse({ ...branch, sameOwner: true }).success).toBe(false)
   })
 
   test('the pin goes in pairs, the pincode is six digits or none, and nothing else rides along', () => {

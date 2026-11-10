@@ -25,6 +25,7 @@ import {
   type BookingListCursor,
   type BookingSearch,
 } from '../../lib/booking-ops.js'
+import type { BranchOwner } from '../../lib/branches.js'
 import { containsPattern } from '../../lib/search.js'
 import { NOT_IN_BIN } from '../vendors/vendors.predicates.js'
 import type { BookingView } from './admin.validation.js'
@@ -539,23 +540,51 @@ export const adminRepository = {
   },
 
   /**
-   * "Add a branch…" (0069) in one transaction: the new garage, the services,
-   * packages and add-ons chosen (packages pointing at the new copies of
-   * their members), the hours, the same stored logo and photos, the owner's
-   * seat when asked, and the audit row. All or nothing, so a failure never
-   * leaves half a branch behind.
+   * "Add a branch…" (0069) in one transaction: the owner's account (found,
+   * or set up for a new number as createOwner does), the new garage, the
+   * services, packages and add-ons chosen (packages pointing at the new
+   * copies of their members), the hours, the same stored logo and photos,
+   * the owner's vendor_admin seat, and the audit row. All or nothing, so a
+   * failure never leaves half a branch behind, a garage with no seat, or an
+   * account with no garage.
    */
   async createBranch(plan: {
-    vendor: VendorInsert
+    owner: BranchOwner
+    vendor: Omit<VendorInsert, 'ownerId'>
     services: Array<{ sourceId: string; row: Omit<ServiceInsert, 'vendorId'> }>
     packages: Array<{ row: Omit<ServiceInsert, 'vendorId'>; memberSourceIds: string[] }>
     hours: Array<Omit<WorkingHoursInsert, 'vendorId'>>
     photos: Array<{ url: string; storageKey: string | null; sortOrder: number }>
-    ownerSeat: boolean
     audit: { actorSub: string; actorName: string; summary: Record<string, unknown>; detail: Record<string, unknown> }
-  }): Promise<{ id: string }> {
+  }): Promise<{ id: string; ownerId: string }> {
     return db.transaction(async (tx) => {
-      const [branch] = await tx.insert(vendors).values(plan.vendor).returning({ id: vendors.id })
+      let ownerId: string
+      if (plan.owner.kind === 'existing') {
+        ownerId = plan.owner.userId
+        if (plan.owner.makeVendorOwner) {
+          await tx.update(users).set({ isVendorOwner: true }).where(eq(users.id, ownerId))
+        }
+      } else {
+        // createOwner's row. Should the number have been taken since it was
+        // looked up, that account is the owner, made a garage owner, as
+        // createVendor does for a number that already has one.
+        const [owner] = await tx
+          .insert(users)
+          .values({
+            name: plan.owner.name,
+            phone: plan.owner.phone,
+            isCustomer: false,
+            isVendorOwner: true,
+            phoneVerified: true,
+          })
+          .onConflictDoUpdate({ target: users.phone, set: { isVendorOwner: true } })
+          .returning({ id: users.id })
+        ownerId = owner!.id
+      }
+      const [branch] = await tx
+        .insert(vendors)
+        .values({ ...plan.vendor, ownerId })
+        .returning({ id: vendors.id })
       const vendorId = branch!.id
       const newIdOf = new Map<string, string>()
       if (plan.services.length > 0) {
@@ -584,12 +613,11 @@ export const adminRepository = {
       if (plan.photos.length > 0) {
         await tx.insert(vendorPhotos).values(plan.photos.map((row) => ({ ...row, vendorId })))
       }
-      if (plan.ownerSeat) {
-        await tx
-          .insert(userMemberMapping)
-          .values({ vendorId, userId: plan.vendor.ownerId, role: 'vendor_admin' })
-          .onConflictDoNothing({ target: [userMemberMapping.vendorId, userMemberMapping.userId] })
-      }
+      // The owner's seat, as createOwnerMembership writes it.
+      await tx
+        .insert(userMemberMapping)
+        .values({ vendorId, userId: ownerId, role: 'vendor_admin' })
+        .onConflictDoNothing({ target: [userMemberMapping.vendorId, userMemberMapping.userId] })
       await tx.insert(adminAuditLog).values({
         action: 'garage_branch_added',
         actorSub: plan.audit.actorSub,
@@ -597,7 +625,7 @@ export const adminRepository = {
         summary: { ...plan.audit.summary, vendorId },
         detail: plan.audit.detail,
       })
-      return { id: vendorId }
+      return { id: vendorId, ownerId }
     })
   },
 

@@ -78,7 +78,13 @@ export interface BranchInput {
   serviceIds: string[]
   copyHours: boolean
   copyPhotos: boolean
-  sameOwner: boolean
+  /**
+   * The branch owner's phone: the source owner's own number is the same
+   * login (both garages in the garage app); another is that person's login.
+   */
+  ownerPhone: string
+  /** Needed when no account has that number yet. */
+  ownerName?: string
 }
 
 /**

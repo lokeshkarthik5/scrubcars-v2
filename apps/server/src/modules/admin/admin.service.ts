@@ -72,7 +72,7 @@ import { vendorInBin } from '../../lib/vendor-bin.js'
 import { isInBin, isListedToCustomers } from '../vendors/vendors.predicates.js'
 import { citiesService } from '../cities/cities.service.js'
 import { WHOLE_CITY_NEEDS_CITY, wholeCityOf, type GarageCityStanding } from '../../lib/cities.js'
-import { planBranchCopy } from '../../lib/branches.js'
+import { branchPickupTerms, planBranchCopy, planBranchOwner } from '../../lib/branches.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { deleteGarageFileIfUnused, vendorsService } from '../vendors/vendors.service.js'
 import type { CreateAddOnInput, UpdateAddOnInput } from '../vendors/vendors.validation.js'
@@ -1529,9 +1529,15 @@ export const adminService = {
    * drop with their radii; "All over <city>" only where its own pin is in a
    * city), the ticked services with their prices (lib/branches.ts: packages
    * made only of them and the add-ons come along), the hours and the stored
-   * logo and photos when asked, and a vendor_admin seat for the same owner
-   * when asked, so the garage app's switcher shows both. Never the
-   * documents: each branch needs its own. One transaction, one audit row.
+   * logo and photos when asked. Never the documents: each branch needs its
+   * own. One transaction, one audit row.
+   *
+   * The owner follows the phone number admin gives (owner, 10 Nov 2026,
+   * planBranchOwner): the source owner's own number is the same login, so
+   * the garage app's switcher shows both garages; another number is that
+   * person's own login, found or set up as createVendor does, and the
+   * branch's phone. Either way the owner gets the vendor_admin seat. The
+   * pickup & drop agreement follows the login (branchPickupTerms).
    */
   async createBranch(id: string, input: CreateBranchInput, actor: { sub: string; name: string }) {
     const source = await assertWritableVendor(id)
@@ -1588,6 +1594,18 @@ export const adminService = {
       }
     }
 
+    // Who owns it, before anything is written. The account itself is
+    // found or set up inside the transaction, so a failure leaves neither
+    // a garage with no seat nor an account with no garage.
+    const ownerPlan = planBranchOwner({
+      sourceOwnerId: source.ownerId,
+      phone: input.ownerPhone,
+      name: input.ownerName,
+      account: await adminRepository.findUserByPhone(input.ownerPhone),
+    })
+    if (!ownerPlan.ok) throw new AppError(400, ownerPlan.message, ownerPlan.code)
+    const { sameLogin } = ownerPlan
+
     const lat = input.lat ?? null
     const lng = input.lng ?? null
     // "All over <city>" means the branch's own city, so it comes along only
@@ -1595,12 +1613,15 @@ export const adminService = {
     const wholeCity = wholeCityOf({ lat, lng, city: input.city }, cities) !== null
 
     const created = await adminRepository.createBranch({
+      owner: ownerPlan.owner,
       vendor: {
-        ownerId: source.ownerId,
         businessName: input.businessName,
-        phone: source.phone,
-        whatsapp: source.whatsapp,
-        email: source.email,
+        // The same login keeps the business's contacts; another login's
+        // branch is reached on its owner's number, and the source owner's
+        // WhatsApp and email are not theirs.
+        phone: sameLogin ? source.phone : input.ownerPhone,
+        whatsapp: sameLogin ? source.whatsapp : null,
+        email: sameLogin ? source.email : null,
         yearsInOperation: source.yearsInOperation,
         address: input.address,
         city: input.city,
@@ -1616,12 +1637,10 @@ export const adminService = {
         doorstepEnabled: source.doorstepEnabled,
         doorstepRadiusKm: source.doorstepRadiusKm,
         doorstepWholeCity: source.doorstepWholeCity && wholeCity,
-        // Pickup & drop with the same signed responsibility: it is the same
-        // business, and the record says who accepted it and when.
-        pickup: source.pickup,
+        // Pickup & drop: the reach always comes along; the signed
+        // responsibility only with the same login (branchPickupTerms).
+        ...branchPickupTerms(source, sameLogin),
         pickupRadiusKm: source.pickupRadiusKm,
-        pickupTermsAcceptedAt: source.pickupTermsAcceptedAt,
-        pickupTermsAcceptedBy: source.pickupTermsAcceptedBy,
         pickupWholeCity: source.pickupWholeCity && wholeCity,
         slotIntervalMins: source.slotIntervalMins,
         bays: source.bays,
@@ -1648,7 +1667,6 @@ export const adminService = {
         storageKey: photo.storageKey ?? keyFromPublicUrl(photo.url),
         sortOrder: photo.sortOrder,
       })),
-      ownerSeat: input.sameOwner,
       audit: {
         actorSub: actor.sub,
         actorName: actor.name,
@@ -1660,13 +1678,15 @@ export const adminService = {
           addOns: plan.addOnIds.length,
           hours: hours.length,
           photos: photos.length,
-          sameOwner: input.sameOwner,
+          // The same login, or the branch's own; never the number.
+          login: sameLogin ? 'same' : 'new',
+          accountCreated: ownerPlan.owner.kind === 'new',
         },
       },
     })
 
     log.info(
-      { vendorId: created.id, fromVendorId: source.id, services: plan.serviceIds.length, sameOwner: input.sameOwner },
+      { vendorId: created.id, fromVendorId: source.id, ownerId: created.ownerId, services: plan.serviceIds.length, sameLogin },
       'admin:branch-added'
     )
     return { id: created.id }

@@ -8,6 +8,7 @@ import { NEW_GARAGE_LABEL, hasStarScore } from '@repo/core/ratings'
 import { BOOKING_TYPE_LABELS, bookingTypeParam } from '@repo/core/booking-types'
 import { distanceAndDrive } from '@repo/core/drive-time'
 import { straightLineKm } from '@repo/core/map'
+import { anywhereInCityLine } from '@repo/core/reach'
 import {
   isApproximate,
   isCitywide,
@@ -101,6 +102,7 @@ export function VendorCard({
     ? distanceAndDrive(km, approxDistance ?? isApproximate(location))
     : null
   const modeParam = mode ? bookingTypeParam(mode) : null
+  const anywhere = anywhereInCityLine(vendor, mode)
 
   return (
     <div className="relative">
@@ -225,6 +227,9 @@ export function VendorCard({
                 <span className="font-medium text-text-primary">{vendor.matchedService}</span>
               </p>
             )}
+            {/* "Comes anywhere in Chennai" (0069): on a Doorstep or Pickup &
+                drop list, a garage that covers its whole city says so. */}
+            {anywhere && <p className="truncate text-[12px] text-text-secondary">{anywhere}</p>}
             {note && <p className="truncate text-[12px] text-text-muted">{note}</p>}
             {/* Distance and drive time on a line of their own, with any chips
                 after them, so the figures never push the price off a 360px
