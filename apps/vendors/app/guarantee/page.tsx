@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { IconShieldCheck } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
+import { GraphiteSwitch } from '@repo/ui/finish/graphite-switch'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
@@ -10,7 +11,6 @@ import { ScCard } from '@repo/ui/sc/card'
 import { EmptyState } from '@repo/ui/sc/empty-state'
 import { ScTextarea } from '@repo/ui/sc/input'
 import { ScModal } from '@repo/ui/sc/modal'
-import { ScSegmented } from '@repo/ui/sc/segmented'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
 import { TopBar } from '@repo/ui/sc/top-bar'
 import { GuaranteeEvidence } from '@repo/ui/features/guarantee-photos'
@@ -70,7 +70,7 @@ export default function GuaranteeClaimsPage() {
             of your opening hours, or the redo is approved. Jobs without your
             before and after photos are approved at once.
           </p>
-          <ScSegmented
+          <GraphiteSwitch
             aria-label="Which claims"
             value={scope}
             onChange={setScope}

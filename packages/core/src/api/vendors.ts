@@ -246,9 +246,15 @@ export async function getVendorClosures(id: string): Promise<string[]> {
   return apiClient<string[]>(`/vendors/${id}/closures`, { auth: false })
 }
 
-/** GET /vendors/me/closures — today's and later holidays */
-export async function getMyClosures(): Promise<ApiVendorClosure[]> {
-  return apiClient<ApiVendorClosure[]>('/vendors/me/closures')
+/**
+ * GET /vendors/me/closures — today's and later holidays, or from an earlier
+ * day (`from`, YYYY-MM-DD) for a month the bookings calendar pages back to.
+ * An older server ignores `from` and answers from today.
+ */
+export async function getMyClosures(from?: string): Promise<ApiVendorClosure[]> {
+  return apiClient<ApiVendorClosure[]>('/vendors/me/closures', {
+    ...(from && { params: { from } }),
+  })
 }
 
 /**

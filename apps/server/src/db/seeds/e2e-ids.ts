@@ -2141,3 +2141,31 @@ export const CUSTOMER_CITIES = {
     serviceId: id(7003), serviceName: 'Smalltown Foam Wash', pin: { lat: 18.05, lng: 76.02 },
   },
 } as const
+
+/**
+ * The garage's Bookings calendar (Month and Day; ids 6200–6249, phones
+ * 90000062xx): its own unlisted garage with two bays, open 9:00 am to
+ * 6:30 pm every day, its owner and one customer, and the jobs the calendar
+ * spec reads (specs/vendors/calendar.spec.ts), all placed by India's
+ * calendar from the day it is seeded:
+ *   today      done at 9:00 am, accepted at 3:00 pm (at the garage), and an
+ *              accepted doorstep job at 12:00 pm (the On the road lane);
+ *   tomorrow   one waiting for an answer at 11:00 am (three hours to answer),
+ *              and one cancelled at 4:00 pm that the calendar never shows;
+ *   in 3 days  time off, "Family function";
+ *   in 7 days  one accepted at 10:00 am.
+ * Every job is an hour (the wash's duration). Read-only: nothing changes them.
+ */
+export const CALENDAR = {
+  owner: { id: id(6200), phone: '9000006200', name: 'Calendar Owner Kavitha' },
+  customer: { id: id(6201), phone: '9000006201', name: 'Ganesh Calendar', vehicleId: id(6202) },
+  garage: { id: id(6203), name: 'Calendar Test Garage' },
+  wash: { id: id(6204), name: 'Calendar Foam Wash', price: '650.00', durationMins: 60 },
+  todayDone: id(6210),
+  todayAccepted: id(6211),
+  todayRoad: id(6212),
+  tomorrowAnswer: id(6213),
+  tomorrowCancelled: id(6214),
+  nextWeek: id(6215),
+  closure: { id: id(6220), inDays: 3, reason: 'Family function' },
+} as const

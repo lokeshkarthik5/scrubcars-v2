@@ -1,4 +1,5 @@
-import { ScCard, ScSegmented } from '@repo/native-ui/primitives';
+import { GraphiteSwitch } from '@repo/native-ui/finish';
+import { ScCard } from '@repo/native-ui/primitives';
 import { T } from '@repo/native-ui/text';
 import { createStyles, useColors, useTheme } from '@repo/native-ui/theme';
 import type { Appearance } from '@repo/native-ui/tokens';
@@ -26,12 +27,13 @@ export function AppearanceCard() {
       <T size={14} lh={20} color={colors.textSecondary} style={styles.note}>
         How the app looks on this phone. System follows your phone&apos;s setting.
       </T>
-      <ScSegmented
+      <GraphiteSwitch
+        pinned
         accessibilityLabel="Appearance"
         options={APPEARANCES}
         value={appearance}
         onChange={setAppearance}
-        trackColor={colors.canvas}
+        style={styles.switch}
       />
     </ScCard>
   );
@@ -39,4 +41,6 @@ export function AppearanceCard() {
 
 const useStyles = createStyles(() => ({
   note: { marginTop: 4, marginBottom: 12 },
+  // The garage's graphite switch, at the tab strips' height.
+  switch: { height: 52 },
 }));

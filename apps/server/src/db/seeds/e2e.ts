@@ -126,6 +126,7 @@ import {
   TIERS,
   PRE_IOS,
   ADD_ONS,
+  CALENDAR,
 } from './e2e-ids.js'
 import { hashPassword } from '../../lib/passwords.js'
 
@@ -3804,6 +3805,78 @@ async function seedAddOnRows() {
 }
 
 /**
+ * The garage's Bookings calendar (CALENDAR, ids 6200–6249, phones
+ * 90000062xx): see CALENDAR for what each row is for. Times are built from
+ * India's date, not the seeding machine's, so "today" is the day the
+ * calendar opens on even when the seed runs late at night in UTC.
+ */
+async function seedCalendarRows() {
+  const C = CALENDAR
+  const istAt = (offsetDays: number, clock: string) =>
+    new Date(`${istDate(offsetDays)}T${clock}:00+05:30`)
+  await db.insert(users).values([
+    { id: C.owner.id, name: C.owner.name, phone: C.owner.phone, isCustomer: false, isVendorOwner: true,
+      phoneVerified: true, status: 'active' as const },
+    { id: C.customer.id, name: C.customer.name, phone: C.customer.phone, isCustomer: true, isVendorOwner: false,
+      phoneVerified: true, status: 'active' as const },
+  ])
+  await db.insert(vendors).values({
+    id: C.garage.id, ownerId: C.owner.id, businessName: C.garage.name, phone: '9000006205',
+    address: '6, Calendar Street, Adyar', city: 'Chennai', pincode: '600020', lat: 13.0061, lng: 80.2565,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'], isVerified: false, doorstepEnabled: true, dropinEnabled: true,
+    slotIntervalMins: 30, status: 'pending', bays: 2,
+  })
+  await db.insert(userMemberMapping).values({
+    vendorId: C.garage.id, userId: C.owner.id, role: 'vendor_admin', status: 'active',
+  })
+  await db.insert(vendorWorkingHours).values(hoursFor(C.garage.id, '09:00:00', '18:30:00'))
+  await db.insert(vendorClosures).values({
+    id: C.closure.id, vendorId: C.garage.id, date: istDate(C.closure.inDays), reason: C.closure.reason,
+  })
+  await db.insert(services).values({
+    id: C.wash.id, vendorId: C.garage.id, name: C.wash.name, description: 'An exterior foam wash and dry.',
+    category: 'car_wash', pricingType: 'flat', price: C.wash.price, durationMins: C.wash.durationMins, isActive: true,
+  })
+  await db.insert(userVehicles).values({
+    id: C.customer.vehicleId, userId: C.customer.id, make: 'Maruti', model: 'Baleno', color: 'Blue',
+    licensePlate: 'TN05BH4419', vehicleType: 'hatchback', isDefault: true,
+  })
+
+  const items = [{ id: C.wash.id, name: C.wash.name, amount: C.wash.price, durationMins: C.wash.durationMins }]
+  const common = { userId: C.customer.id, vendorId: C.garage.id, vehicleId: C.customer.vehicleId, items }
+  const paid = (txnId: string) => ({ status: 'paid' as const, txnId, gatewayMode: 'fake' as const })
+  await insertBooking({
+    ...common, id: C.todayDone, scheduledAt: istAt(0, '09:00'), status: 'completed', createdAt: daysAgo(2),
+    acceptedAt: daysAgo(2), startedAt: istAt(0, '09:00'), completedAt: istAt(0, '10:00'),
+    payment: paid('pay_e2e_calendar_done'),
+  })
+  await insertBooking({
+    ...common, id: C.todayAccepted, scheduledAt: istAt(0, '15:00'), status: 'confirmed', createdAt: daysAgo(1),
+    acceptedAt: daysAgo(1), payment: paid('pay_e2e_calendar_accepted'),
+  })
+  await insertBooking({
+    ...common, id: C.todayRoad, scheduledAt: istAt(0, '12:00'), status: 'confirmed', createdAt: daysAgo(1),
+    acceptedAt: daysAgo(1), payment: paid('pay_e2e_calendar_road'),
+    doorstep: { address: '14, Beach Road, Besant Nagar', lat: 13.0002, lng: 80.2668 },
+  })
+  await insertBooking({
+    ...common, id: C.tomorrowAnswer, scheduledAt: istAt(1, '11:00'), status: 'pending', createdAt: hoursAgo(1),
+    payment: paid('pay_e2e_calendar_answer'),
+    // Three hours to answer: no run's cron reaches it (AUTO_CANCEL_UNANSWERED is on).
+    respondBy: new Date(now.getTime() + 3 * HOUR),
+  })
+  await insertBooking({
+    ...common, id: C.tomorrowCancelled, scheduledAt: istAt(1, '16:00'), status: 'cancelled', createdAt: daysAgo(1),
+    payment: { ...paid('pay_e2e_calendar_cancelled'), status: 'refunded', refund: { ref: 'rfnd_e2e_calendar', at: hoursAgo(2) } },
+    cancellation: { by: 'user', reason: 'Plans changed', at: hoursAgo(3) },
+  })
+  await insertBooking({
+    ...common, id: C.nextWeek, scheduledAt: istAt(7, '10:00'), status: 'confirmed', createdAt: daysAgo(1),
+    acceptedAt: daysAgo(1), payment: paid('pay_e2e_calendar_next_week'),
+  })
+}
+
+/**
  * Pre-iOS accounts round (0066; PREIOS, ids 5100–5199, phones 90000051xx):
  * its people, its two unverified garages far from every other fixture, and
  * the rows its specs act on (see PREIOS). Each spec acts on its own rows.
@@ -4192,6 +4265,8 @@ async function main() {
   console.log('[e2e-seed] cities, branches and all over the city…')
   await seedCityRows()
   await seedCustomerCityRows()
+  console.log('[e2e-seed] garage bookings calendar…')
+  await seedCalendarRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }

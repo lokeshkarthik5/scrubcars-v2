@@ -13,9 +13,9 @@ import {
   type ViewProps,
   type ViewStyle,
 } from 'react-native';
-import Svg, { Circle, Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
+import Svg, { Circle, Defs, LinearGradient as SvgGradient, RadialGradient, Rect, Stop } from 'react-native-svg';
 
-import { EASE_SETTLE, PressScale, useReduceMotion } from './motion';
+import { EASE_SETTLE, Pop, PressScale, useReduceMotion } from './motion';
 import { T } from './text';
 import { useColors, useFinish } from './theme';
 import { RED_LIGHT, redButtonGradient } from './tokens';
@@ -349,6 +349,49 @@ export function TopGlow() {
   );
 }
 
+// ─── The bottom bar's orb ─────────────────────────────────────────────────────
+
+const ORB = 30;
+
+/**
+ * The lit tab's orb on the floating bar (the red-glow mockup's F, held still; the web's
+ * `hub-orb` in finish.css): a graphite well with a thin ring of light, crimson with two
+ * hot spots. It pops in once when the tab is reached and never turns: the finish allows
+ * no loops. One copy for the customer's HubNav and the garage's BottomNav.
+ */
+export function NavOrb({ children }: { children: ReactNode }) {
+  const r = ORB / 2;
+  return (
+    <Pop style={styles.orb}>
+      <Svg width={ORB + 8} height={ORB + 8} viewBox={`-4 -4 ${ORB + 8} ${ORB + 8}`} style={styles.orbArt}>
+        <Defs>
+          <RadialGradient id="orb-well" cx="50%" cy="30%" rx="60%" ry="60%" fx="50%" fy="30%">
+            <Stop offset="0" stopColor="#2C2C31" />
+            <Stop offset="0.55" stopColor="#19191C" />
+            <Stop offset="1" stopColor="#0E0E10" />
+          </RadialGradient>
+          <SvgGradient id="orb-ring" x1="0" y1="0" x2="1" y2="1">
+            <Stop offset="0" stopColor="#7A0018" />
+            <Stop offset="0.2" stopColor="#FF2A3D" />
+            <Stop offset="0.3" stopColor="#FFF1EA" />
+            <Stop offset="0.38" stopColor="#FF5C8A" />
+            <Stop offset="0.5" stopColor="#7A0019" />
+            <Stop offset="0.66" stopColor="#FF4A3A" />
+            <Stop offset="0.76" stopColor="#FFF4EF" />
+            <Stop offset="0.86" stopColor="#FF2D6F" />
+            <Stop offset="1" stopColor="#7A0019" />
+          </SvgGradient>
+        </Defs>
+        {/* The bloom: the same light, wider and soft. */}
+        <Circle cx={r} cy={r} r={r - 1.4} fill="none" stroke="url(#orb-ring)" strokeWidth={4.5} strokeOpacity={0.35} />
+        <Circle cx={r} cy={r} r={r} fill="url(#orb-well)" />
+        <Circle cx={r} cy={r} r={r - 0.7} fill="none" stroke="url(#orb-ring)" strokeWidth={1.4} />
+      </Svg>
+      {children}
+    </Pop>
+  );
+}
+
 // ─── Controls ────────────────────────────────────────────────────────────────
 
 export interface GraphiteOption<V extends string> {
@@ -356,21 +399,32 @@ export interface GraphiteOption<V extends string> {
   label: string;
   /** The quiet second line ("Drive it in"); hidden while the switch is pinned. */
   quiet?: string;
+  /** The quiet line in the red tone: something waiting (the garage's "2 waiting" under New). */
+  quietTone?: 'red';
   icon?: (color: string) => ReactNode;
+  /**
+   * The icon alone on the top line, the label drawn small under it where a quiet line
+   * would be (the garage's Calendar). The label still names the radio.
+   */
+  iconOnly?: boolean;
 }
 
 /**
  * The graphite mode switch (§1, §3): a recessed track with a raised brushed-graphite
  * key that slides to the choice with a small liquid stretch (it reaches across both
  * places, then settles), and a red light under it once it has landed. Two-line options
- * are 56 tall; `pinned` shrinks them to 44 and hides the quiet line. A radiogroup, each
- * radio named by its label with the quiet line as its hint.
+ * are 56 tall; `pinned` shrinks them to 44 and hides the quiet line. `size="sm"` is the
+ * small one-line switch beside a heading (the garage calendar's Month | Day): 36 tall in a
+ * 42 track, still a 44-point target, as the web's. A radiogroup, each radio named by its
+ * label with the quiet line as its hint.
  */
 export function GraphiteSwitch<V extends string>({
   value,
   onChange,
   options,
   pinned = false,
+  size = 'md',
+  role = 'radio',
   accessibilityLabel,
   style,
 }: {
@@ -378,10 +432,17 @@ export function GraphiteSwitch<V extends string>({
   onChange: (value: V) => void;
   options: GraphiteOption<V>[];
   pinned?: boolean;
+  size?: 'md' | 'sm';
+  /**
+   * 'tab' when each option opens its own panel (the garage's Services and Settings):
+   * a tablist of tabs marked selected, as the web's Radix tabs are. Same look.
+   */
+  role?: 'radio' | 'tab';
   accessibilityLabel: string;
   style?: StyleProp<ViewStyle>;
 }) {
   const { fx } = useFinish();
+  const colors = useColors();
   const reduce = useReduceMotion();
   const { width: screen } = useWindowDimensions();
   const [trackWidth, setTrackWidth] = useState(0);
@@ -422,29 +483,33 @@ export function GraphiteSwitch<V extends string>({
     []
   );
 
-  const segment = trackWidth > 0 ? (trackWidth - 8) / options.length : 0;
+  const small = size === 'sm';
+  const pad = small ? 3 : 4;
+  const keyRadius = small ? 11 : 14;
+  const segment = trackWidth > 0 ? (trackWidth - pad * 2) / options.length : 0;
   const from = move.from * segment;
   const to = move.to * segment;
   const span = Math.abs(to - from) + segment;
   // A tight three-way switch drops its icons below 400 points, as the web's does.
   const showIcons = options.length <= 2 || screen >= 400;
-  const height = pinned ? 44 : 56;
+  const height = small ? 42 : pinned ? 44 : 56;
 
   return (
     <Recessed
-      radius={18}
-      accessibilityRole="radiogroup"
+      radius={small ? 14 : 18}
+      accessibilityRole={role === 'tab' ? 'tablist' : 'radiogroup'}
       accessibilityLabel={accessibilityLabel}
       onLayout={(event: LayoutChangeEvent) => setTrackWidth(event.nativeEvent.layout.width)}
       style={[{ height }, style]}
-      innerStyle={styles.switchRow}
+      innerStyle={[styles.switchRow, small && { padding: pad }]}
     >
       {segment > 0 ? (
         <Animated.View
           pointerEvents="none"
           style={[
             styles.key,
-            { width: segment, borderRadius: 14 },
+            small && { top: pad, bottom: pad, left: pad },
+            { width: segment, borderRadius: keyRadius },
             {
               transform: [
                 { translateX: p.interpolate({ inputRange: [0, 0.42, 1], outputRange: [from, (from + to) / 2, to] }) },
@@ -457,35 +522,64 @@ export function GraphiteSwitch<V extends string>({
           <LinearGradient
             colors={[...fx.graphite]}
             locations={[0, 0.52, 1]}
-            style={[StyleSheet.absoluteFill, { borderRadius: 14 }]}
+            style={[StyleSheet.absoluteFill, { borderRadius: keyRadius }]}
           />
-          <View style={[styles.keyHighlight, { borderRadius: 14 }]} />
-          <RedLight state={lit ? 'on' : 'off'} style={[styles.keyLight, { bottom: pinned ? 3 : 4 }]} />
+          <View style={[styles.keyHighlight, { borderRadius: keyRadius }]} />
+          <RedLight
+            state={lit ? 'on' : 'off'}
+            width={small ? 16 : 20}
+            style={[styles.keyLight, small ? { bottom: 3, marginLeft: -8 } : { bottom: pinned ? 3 : 4 }]}
+          />
         </Animated.View>
       ) : null}
       {options.map((option, i) => {
         const selected = i === index;
         const ink = selected ? fx.graphiteInk : fx.quiet;
+        // An icon-only option's label sits where a quiet line would, gone when pinned.
+        const labelUnder = Boolean(option.iconOnly && option.icon);
         return (
           <Pressable
             key={option.value}
-            accessibilityRole="radio"
-            accessibilityState={{ checked: selected }}
+            accessibilityRole={role}
+            accessibilityState={role === 'tab' ? { selected } : { checked: selected }}
             accessibilityLabel={option.label}
-            accessibilityHint={option.quiet}
+            accessibilityHint={labelUnder ? undefined : option.quiet}
             onPress={() => {
               if (option.value !== value) onChange(option.value);
             }}
-            style={[styles.option, { paddingBottom: pinned ? 4 : 6 }]}
+            hitSlop={small ? { top: 4, bottom: 4 } : undefined}
+            style={[styles.option, small ? { paddingHorizontal: 10 } : { paddingBottom: pinned ? 4 : 6 }]}
           >
-            <View style={styles.optionTop}>
-              {showIcons && option.icon ? option.icon(ink) : null}
-              <T size={14} weight={selected ? 600 : 500} lh={18} numberOfLines={1} color={ink}>
-                {option.label}
-              </T>
-            </View>
-            {option.quiet && !pinned ? (
-              <T variant="t5" numberOfLines={1} color={selected ? fx.quietBright : fx.quiet}>
+            {labelUnder ? (
+              <>
+                {option.icon?.(ink)}
+                {!pinned ? (
+                  <T variant="t5" weight={selected ? 600 : 500} numberOfLines={1} color={selected ? fx.quietBright : fx.quiet}>
+                    {option.label}
+                  </T>
+                ) : null}
+              </>
+            ) : (
+              <View style={styles.optionTop}>
+                {showIcons && option.icon ? option.icon(ink) : null}
+                <T
+                  size={small || (role === 'tab' && options.length > 3) ? 13 : 14}
+                  weight={selected ? 600 : 500}
+                  lh={18}
+                  numberOfLines={1}
+                  color={ink}
+                >
+                  {option.label}
+                </T>
+              </View>
+            )}
+            {option.quiet && !labelUnder && !pinned ? (
+              <T
+                variant="t5"
+                weight={option.quietTone === 'red' ? 600 : undefined}
+                numberOfLines={1}
+                color={option.quietTone === 'red' ? colors.redText : selected ? fx.quietBright : fx.quiet}
+              >
                 {option.quiet}
               </T>
             ) : null}
@@ -848,6 +942,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.35)',
   },
   glow: { position: 'absolute', top: 0, left: 0 },
+  orb: { width: ORB, height: ORB, alignItems: 'center', justifyContent: 'center' },
+  orbArt: { position: 'absolute', left: -4, top: -4 },
   switchRow: { flexDirection: 'row', padding: 4 },
   key: {
     position: 'absolute',
