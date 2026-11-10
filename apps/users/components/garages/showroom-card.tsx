@@ -8,6 +8,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { IconArrowUpRight, IconHome, IconStarFilled } from '@tabler/icons-react'
 import { prefetchGarage } from '@repo/core/api/hooks/use-vendors'
 import { bookingTypeParam } from '@repo/core/booking-types'
+import { anywhereInCityLine } from '@repo/core/reach'
 import { distanceLabel, driveTimeLabel } from '@repo/core/drive-time'
 import { hoursLeftShare, openStatus } from '@repo/core/opening-hours'
 import { NEW_GARAGE_LABEL, hasStarScore } from '@repo/core/ratings'
@@ -115,6 +116,7 @@ export function ShowroomCard({
   const [dragX, setDragX] = useState(0)
 
   const modeParam = bookingTypeParam(mode)
+  const anywhere = anywhereInCityLine(vendor, mode)
   const href = modeParam ? `/garage/${vendor.id}?mode=${modeParam}` : `/garage/${vendor.id}`
   const photos = vendor.photos
   const stars = hasStarScore(vendor)
@@ -405,12 +407,20 @@ export function ShowroomCard({
           </span>
         </div>
 
-        {(chips || vendor.outsideServiceCity || (mode === 'dropin' && vendor.doorstepEnabled)) && (
+        {(chips || anywhere || vendor.outsideServiceCity || (mode === 'dropin' && vendor.doorstepEnabled)) && (
           <div className="-mt-0.5 flex flex-wrap gap-1.5 px-3.5 pb-3">
             {mode === 'dropin' && vendor.doorstepEnabled && (
               <span className="fx-raised inline-flex h-[26px] items-center gap-1.5 rounded-pill px-2.5 text-t4 font-medium text-[#D4D4DA]">
                 <IconHome size={13} aria-hidden className="text-[#A8A8B2]" />
                 Comes to you too
+              </span>
+            )}
+            {/* "Comes anywhere in Chennai" (0069): on Doorstep or Pickup &
+                drop, a garage that covers its whole city says so. */}
+            {anywhere && (
+              <span className="fx-raised inline-flex h-[26px] items-center gap-1.5 rounded-pill px-2.5 text-t4 font-medium text-[#D4D4DA]">
+                <IconHome size={13} aria-hidden className="text-[#A8A8B2]" />
+                {anywhere}
               </span>
             )}
             {chips}

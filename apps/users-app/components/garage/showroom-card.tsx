@@ -1,5 +1,6 @@
 import { prefetchGarage } from '@repo/core/api/hooks/use-vendors';
 import { bookingTypeParam } from '@repo/core/booking-types';
+import { anywhereInCityLine } from '@repo/core/reach';
 import { distanceLabel, driveTimeLabel } from '@repo/core/drive-time';
 import { hoursLeftShare, openStatus } from '@repo/core/opening-hours';
 import { hasStarScore, NEW_GARAGE_LABEL } from '@repo/core/ratings';
@@ -101,6 +102,7 @@ export function ShowroomCard({
   const held = useRef(false);
 
   const modeParam = bookingTypeParam(mode);
+  const anywhere = anywhereInCityLine(vendor, mode);
   const href = modeParam ? `/garage/${vendor.id}?mode=${modeParam}` : `/garage/${vendor.id}`;
   const photos = vendor.photos;
   const stars = hasStarScore(vendor);
@@ -289,13 +291,22 @@ export function ShowroomCard({
           </Pearl>
         </View>
 
-        {chips || townTag || (mode === 'dropin' && vendor.doorstepEnabled) ? (
+        {chips || anywhere || townTag || (mode === 'dropin' && vendor.doorstepEnabled) ? (
           <View style={styles.chips}>
             {mode === 'dropin' && vendor.doorstepEnabled ? (
               <Raised radius={999} style={styles.chip} innerStyle={styles.chipInner}>
                 <IconHome size={13} color={fx.quietBright} />
                 <T variant="t4" color={fx.soft}>
                   Comes to you too
+                </T>
+              </Raised>
+            ) : null}
+            {/* "Comes anywhere in Chennai" (0069), as the web card. */}
+            {anywhere ? (
+              <Raised radius={999} style={styles.chip} innerStyle={styles.chipInner}>
+                <IconHome size={13} color={fx.quietBright} />
+                <T variant="t4" color={fx.soft}>
+                  {anywhere}
                 </T>
               </Raised>
             ) : null}
