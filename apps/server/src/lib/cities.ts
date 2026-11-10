@@ -54,9 +54,57 @@ export interface CityPlace {
   reachKm: number
 }
 
-/** A city with its "Customers see garages here" switch. */
+/** A city with its "Customers see garages here" and "Growing here" switches. */
 export interface City extends CityPlace {
   customersSee: boolean
+  /**
+   * "Growing here" (0070): the owner is bringing more garages to this city,
+   * so its customers see the free-wash card and that more are joining. Off,
+   * the customer apps promise nothing beyond the garages already there.
+   */
+  growing: boolean
+}
+
+/**
+ * A city as the customer apps read it (`GET /cities`, 0070): one switched on
+ * for customers, where it is, how far it reaches, whether it is growing, and
+ * how many garages customers can find there. The apps work out the
+ * customer's own city from it (packages/core/src/customer-city.ts), and stop
+ * counting garages in a city with fewer than three.
+ */
+export interface CustomerCity {
+  id: string
+  name: string
+  centre: { lat: number; lng: number }
+  reachKm: number
+  growing: boolean
+  /** Garages listed to customers whose stored city is this one (the garage list's own rule). */
+  garageCount: number
+}
+
+/**
+ * The cities customers may pick, in the order the apps list them: only those
+ * switched on, the oldest first. The first is the customer's city until they
+ * say otherwise, so Chennai, the first city Detlio served, stays the default
+ * while it is on, whatever cities are added after it. Ties on the moment
+ * (cities added in one statement) go to the name.
+ */
+export function customerCities(
+  cities: ReadonlyArray<City & { createdAt: Date }>,
+  garageCounts: ReadonlyMap<string, number>
+): CustomerCity[] {
+  return cities
+    .filter((city) => city.customersSee)
+    .slice()
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.name.localeCompare(b.name))
+    .map((city) => ({
+      id: city.id,
+      name: city.name,
+      centre: { lat: city.lat, lng: city.lng },
+      reachKm: city.reachKm,
+      growing: city.growing,
+      garageCount: garageCounts.get(city.id) ?? 0,
+    }))
 }
 
 /** The garage facts that decide its city. */

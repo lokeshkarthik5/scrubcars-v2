@@ -1,10 +1,11 @@
 /**
- * How far the garage list reaches: every listed garage, nearest first, with
- * no cut-off (customer reach, 0062: "the list is never empty"; before it,
- * 50 km). Home's Nearby count and the map's Nearby mode keep the city's 50 km
- * (CITY_REACH_KM). No radius for a typed search; doorstep bounded by each
- * garage's own reach, which is 10 km for a garage that left it empty, at
- * checkout as in the list.
+ * How far the garage list reaches: every listed garage within 150 km,
+ * nearest first (customer reach, 0062: no 50 km cut-off; customer cities,
+ * 0070: nothing past FAR_LIMIT_KM without a search, so Madurai is not shown
+ * Chennai's garages). Home's Nearby count and the map's Nearby mode keep the
+ * city's 50 km (CITY_REACH_KM). No radius or limit for a typed search;
+ * doorstep bounded by each garage's own reach, which is 10 km for a garage
+ * that left it empty, at checkout as in the list.
  *
  * Distances from ORIGIN in the seed: MAIN 0, the fillers 7.8–24.8 km (Filler
  * 12 the furthest), the scheduling garages 32–37 km, INSPECT 42.2 km, REFUNDS
@@ -70,6 +71,8 @@ async function allPages(
 const FROM_ORIGIN = { lat: ORIGIN.lat, lng: ORIGIN.lng }
 /** Madurai: 350 km from the nearest seeded garage. */
 const MADURAI = { lat: 9.925, lng: 78.12 }
+/** West of Vellore: HOME_PROMO 79 km off, nothing within 50 km, Chennai over 150 km. */
+const AMBUR_WEST = { lat: 12.92, lng: 78.4 }
 const ids = (items: Listed[]) => items.map((item) => item.id)
 
 /**
@@ -140,16 +143,31 @@ test.describe('the list with no cut-off (0062) @p0', () => {
     }).toPass({ timeout: 15_000 })
   })
 
-  test('nothing within 50 km: still every garage, nearest first, never an empty list', async ({ request }) => {
+  test('nothing within 50 km: every garage within 150 km, nearest first, and no radius said', async ({ request }) => {
     const body = await list(request, {
-      ...MADURAI,
+      ...AMBUR_WEST,
       bookingType: 'dropin',
       includeUnlocated: 'false',
     })
-    expect(body.items.length).toBeGreaterThan(0)
+    expect(ids(body.items)).toContain(VENDORS.homePromo.id)
     expect(body.items[0].distanceKm).toBeGreaterThan(50)
+    expect(body.items.every((item) => item.distanceKm !== null && item.distanceKm <= 150)).toBe(true)
+    // The 150 km limit is not a radius: no screen says "within 150 km".
     expect(body.radiusKm).toBeNull()
     expect(body.appliedRadiusKm).toBeNull()
+  })
+
+  test('past 150 km a garage is left out (0070), and a typed search still finds it', async ({ request }) => {
+    const body = await list(request, { ...MADURAI, bookingType: 'dropin', includeUnlocated: 'false', limit: 50 })
+    expect(body.items.every((item) => item.distanceKm !== null && item.distanceKm <= 150)).toBe(true)
+    expect(ids(body.items)).not.toContain(VENDORS.main.id)
+    // A whole city picked: measured from its centre, nothing sorted from it.
+    const city = await list(request, { cityLat: MADURAI.lat, cityLng: MADURAI.lng, bookingType: 'dropin', limit: 50 })
+    expect(ids(city.items)).not.toContain(VENDORS.main.id)
+    expect(city.items.every((item) => item.distanceKm === null)).toBe(true)
+    // Searching for it by name finds it, 420 km away.
+    const found = await list(request, { ...MADURAI, q: VENDORS.main.name })
+    expect(found.items.find((item) => item.id === VENDORS.main.id)?.distanceKm).toBeGreaterThan(150)
   })
 
   test('a typed search has no radius: a garage is found by its name wherever it is', async ({
@@ -314,24 +332,44 @@ test.describe('the list on screen @p0', () => {
     await expect(page.getByRole('link', { name: new RegExp(VENDORS.refunds.name) })).toHaveCount(0)
   })
 
-  test('nothing within 50 km: the list still shows every garage, with how far each is', async ({ page }) => {
-    await standAt(page, MADURAI)
+  test('nothing within 50 km: the list still shows the garages within 150 km, with how far each is', async ({ page }) => {
+    await standAt(page, AMBUR_WEST)
     await page.goto('/garages')
 
-    // Never an empty list (0062), and never a far garage passed off as near:
-    // every card says its distance and drive time.
+    // Never a far garage passed off as near: every card says its distance
+    // and drive time.
     await expect(page.locator('[data-garage-card]').first()).toBeVisible()
-    await expect(page.locator('[data-garage-card] [data-distance]').first()).toHaveText(/^\d{3}\.\d km · ~\d+ h/)
+    await expect(page.locator('[data-garage-card] [data-distance]').first()).toHaveText(/^\d{2,3}\.\d km · ~\d+ h/)
     await expect(page.getByText('No garages within 50 km of you yet.')).toHaveCount(0)
   })
 
-  test('nothing within 50 km: the map says so and leads to every garage', async ({ page }) => {
+  test('nothing within 150 km: the list says why, and that a search finds any garage', async ({ page }) => {
     await standAt(page, MADURAI)
+    await page.goto('/garages')
+    await expect(
+      page.getByText('No garages within 150 km of you yet. Search finds a garage by its name, wherever it is.')
+    ).toBeVisible()
+  })
+
+  test('nothing within 50 km: the map says so and leads to the garages further away', async ({ page }) => {
+    await standAt(page, AMBUR_WEST)
     await page.goto('/map')
 
     await expect(page.getByText('No garages within 50 km of you yet.')).toBeVisible()
     const all = page.getByRole('link', { name: 'See all garages' })
     await expect(all).toBeVisible()
     await expect(all).toHaveAttribute('href', '/garages')
+    // And the list it opens has them, never the "within 150 km" empty line.
+    await all.click()
+    await expect(page).toHaveURL(/\/garages$/)
+    await expect(page.locator('[data-garage-card]').first()).toBeVisible()
+  })
+
+  test('nothing within 150 km: the map offers no list it would open empty', async ({ page }) => {
+    await standAt(page, MADURAI)
+    await page.goto('/map')
+
+    await expect(page.getByText('No garages within 50 km of you yet.')).toBeVisible()
+    await expect(page.getByRole('link', { name: 'See all garages' })).toHaveCount(0)
   })
 })

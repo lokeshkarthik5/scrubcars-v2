@@ -4,7 +4,9 @@
  * every other fixture) and switches it off: the garage leaves the customer
  * list and its page is the usual not-found, while its customer's booking
  * there still opens and can still be moved. "Show this garage anyway" on its
- * edit page brings it back. The city is removed again after, by name.
+ * edit page brings it back. "Growing here" (0070) is switched on and off for
+ * that city, each time saved and audited. The city is removed again after,
+ * by name.
  *
  * The rules (which city a garage is in, every switch combination) are
  * unit-tested in apps/server/src/lib/cities.test.ts and the SQL pinned in
@@ -49,6 +51,11 @@ test.describe.serial('Cities @p0', () => {
     await expect(chennai.getByRole('link', { name: 'Add a garage here' })).toHaveAttribute(
       'href',
       '/vendors/new?city=Chennai'
+    )
+    // "Growing here" (0070): Chennai is growing, as 0070 sets it.
+    await expect(chennai.getByRole('switch', { name: 'Growing here: Chennai' })).toHaveAttribute('aria-checked', 'true')
+    await expect(chennai).toContainText(
+      'Customers here see the free-wash card and that more garages are joining. Leave off for a city with just a partner garage.'
     )
     // The one city the seed adds: its doorstep garage, live.
     await expect(page.getByRole('article', { name: C.wholeTown.name })).toContainText('1 of 1 garage live')
@@ -141,5 +148,29 @@ test.describe.serial('Cities @p0', () => {
       .toBe(true)
     expect((await request.get(`${API}/api/v1/vendors/${C.hill.id}`)).status()).toBe(200)
     expect(await listedIds(request)).toContain(C.hill.id)
+  })
+
+  test('“Growing here” switches on and off for a city, saved and audited each time', async ({ page }) => {
+    await page.goto('/cities')
+    const row = page.getByRole('article', { name: C.hillCity.name })
+    const growing = row.getByRole('switch', { name: `Growing here: ${C.hillCity.name}` })
+    // A new city starts off: one partner garage promises nothing.
+    await expect(growing).toHaveAttribute('aria-checked', 'false')
+
+    await growing.click()
+    await expect(growing).toHaveAttribute('aria-checked', 'true')
+    await expect
+      .poll(async () => (await sql`select growing from cities where lower(btrim(name)) = lower(${C.hillCity.name})`)[0]?.growing)
+      .toBe(true)
+    const [on] = await sql`select actor_name, summary, detail from admin_audit_log where action = 'city_growing' order by created_at desc limit 1`
+    expect(on).toMatchObject({ actor_name: 'E2E Admin', summary: { city: C.hillCity.name }, detail: { growing: true } })
+
+    await growing.click()
+    await expect(growing).toHaveAttribute('aria-checked', 'false')
+    await expect
+      .poll(async () => (await sql`select growing from cities where lower(btrim(name)) = lower(${C.hillCity.name})`)[0]?.growing)
+      .toBe(false)
+    const [off] = await sql`select actor_name, summary from admin_audit_log where action = 'city_not_growing' order by created_at desc limit 1`
+    expect(off).toMatchObject({ actor_name: 'E2E Admin', summary: { city: C.hillCity.name } })
   })
 })

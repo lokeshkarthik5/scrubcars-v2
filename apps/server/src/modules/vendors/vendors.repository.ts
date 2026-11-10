@@ -31,6 +31,7 @@ import {
   vendorOpenForItsBookings,
   vendorPageOpen,
   vendorPagesOpen,
+  withinFarLimit,
 } from './vendors.predicates.js'
 import type {
   serviceCategoryEnum,
@@ -177,6 +178,14 @@ export const vendorsRepository = {
   async listPublicVendorPage(params: {
     origin?: { lat: number; lng: number }
     radiusM?: number
+    /**
+     * The far-garage limit (0070, FAR_LIMIT_KM in lib/discovery.ts): leave
+     * out garages more than `limitM` from `from` (the customer's location,
+     * or their city's centre). A pinned garage by its pin; one with no pin
+     * by its city's centre when it is in a city, and kept when it is in
+     * none, since where it is is not known.
+     */
+    far?: { from: { lat: number; lng: number }; limitM: number }
     bbox?: { minLng: number; minLat: number; maxLng: number; maxLat: number }
     bookingType?: BookingType
     category?: ServiceCategory
@@ -295,6 +304,13 @@ export const vendorsRepository = {
       // under 0.5% off at city scale. The spheroid stays for the distance we
       // actually show the customer, below.
       conditions.push(sql`gis.ST_DWithin(v.geo, ${point}, ${params.radiusM}, false)`)
+    }
+
+    if (params.far) {
+      const from = sql`gis.ST_SetSRID(gis.ST_MakePoint(${params.far.from.lng}, ${params.far.from.lat}), 4326)::gis.geography`
+      // The one rule (vendors.predicates.ts), which the reach figures read
+      // too, so "N garages" and the list agree.
+      conditions.push(withinFarLimit(from, params.far.limitM))
     }
 
     if (bbox && !unlocated) {

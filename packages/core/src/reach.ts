@@ -130,6 +130,19 @@ export function nextTabOffer(
 }
 
 /**
+ * Whether the At garage list has a garage to show, for the map's "See all
+ * garages" when nothing is within 50 km. The list leaves out garages over
+ * 150 km away (0070), so for a customer far from every garage that link
+ * would open an empty list. The At garage count applies the same limit, so
+ * it can tell; a count taken with a service chosen only undercounts the
+ * list, which has every service. Unknown figures say no: a link that might
+ * lead nowhere is not offered.
+ */
+export function atGarageListHasGarages(figures: ReachFigures | null | undefined): boolean {
+  return (figures?.dropin.count ?? 0) > 0
+}
+
+/**
  * "Can collect your car" on an at-garage card: the garage does pickup & drop
  * and the customer's location is inside its pickup radius (the checkout's
  * own early check, insidePickupReach). Never without a location.

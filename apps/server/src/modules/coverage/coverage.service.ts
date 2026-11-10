@@ -255,11 +255,15 @@ export const coverageService = {
     input: CreateZoneInput,
     now = new Date()
   ): Promise<CoverageZone> {
-    const zones = await coverageRepository.listZones()
+    const [zones, cities] = await Promise.all([
+      coverageRepository.listZones(),
+      citiesService.listCities(),
+    ])
     const name = cleanZoneName(input.name)
     const problem = zoneEditProblem(
       { id: null, name, target: input.target, lat: input.lat, lng: input.lng },
-      zones
+      zones,
+      cities
     )
     if (problem) throw zoneProblem(problem)
     const slug = newZoneSlug(name, new Set(zones.map((zone) => zone.slug)))
@@ -292,7 +296,10 @@ export const coverageService = {
     input: UpdateZoneInput,
     now = new Date()
   ): Promise<CoverageZone> {
-    const zones = await coverageRepository.listZones()
+    const [zones, cities] = await Promise.all([
+      coverageRepository.listZones(),
+      citiesService.listCities(),
+    ])
     const current = zones.find((zone) => zone.id === id)
     if (!current) throw zoneNotFound()
     const next = {
@@ -302,9 +309,10 @@ export const coverageService = {
       lat: input.lat ?? current.lat,
       lng: input.lng ?? current.lng,
     }
-    const problem = zoneEditProblem(next, zones)
+    const problem = zoneEditProblem(next, zones, cities)
     // An existing zone keeps working even if its centre was left outside
-    // the city by hand before: only a move is held to it.
+    // every city (by hand before, or its city deleted since): only a move is
+    // held to it.
     if (problem && !(problem === 'outside_city' && input.lat === undefined))
       throw zoneProblem(problem)
 

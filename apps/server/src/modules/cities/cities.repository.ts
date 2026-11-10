@@ -2,6 +2,7 @@ import { asc, eq, isNull, ne, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import { adminAuditLog, adminSettings, cities, vendors } from '../../db/schema.js'
 import { OTHER_TOWNS_SETTING_KEY, parseOtherTownsVisible } from '../../lib/cities.js'
+import { LISTED_TO_CUSTOMERS } from '../vendors/vendors.predicates.js'
 
 export type CityRecord = typeof cities.$inferSelect
 type Actor = { sub: string; name: string }
@@ -51,6 +52,22 @@ export const citiesRepository = {
       .where(isNull(vendors.deletedAt))
   },
 
+  /**
+   * How many garages customers can find in each city, by the stored
+   * vendors.city_id: the garage list's own rule (LISTED_TO_CUSTOMERS), so a
+   * city's count is exactly the garages its customers are shown. Garages in
+   * no city are not counted (no key).
+   */
+  async listedGarageCounts(): Promise<Map<string, number>> {
+    const rows = await db.execute<{ city_id: string; count: number | string }>(sql`
+      SELECT v.city_id, count(*) AS count
+        FROM vendors v
+       WHERE ${LISTED_TO_CUSTOMERS} AND v.city_id IS NOT NULL
+       GROUP BY v.city_id
+    `)
+    return new Map(Array.from(rows).map((row) => [row.city_id, Number(row.count)]))
+  },
+
   /** Another city than `exceptId` (or any) whose name has this key, for the duplicate check. */
   async listOtherCityNames(exceptId: string | null): Promise<Array<{ id: string; name: string }>> {
     return db
@@ -61,7 +78,7 @@ export const citiesRepository = {
 
   /** Adds a city and its audit row, together. */
   async createCity(
-    values: { name: string; lat: number; lng: number; reachKm: number; customersSee: boolean },
+    values: { name: string; lat: number; lng: number; reachKm: number; customersSee: boolean; growing: boolean },
     actor: Actor
   ): Promise<CityRecord> {
     return db.transaction(async (tx) => {
@@ -71,7 +88,13 @@ export const citiesRepository = {
         actorSub: actor.sub,
         actorName: actor.name,
         summary: citySummary(city!),
-        detail: { lat: city!.lat, lng: city!.lng, reachKm: city!.reachKm, customersSee: city!.customersSee },
+        detail: {
+          lat: city!.lat,
+          lng: city!.lng,
+          reachKm: city!.reachKm,
+          customersSee: city!.customersSee,
+          growing: city!.growing,
+        },
       })
       return city!
     })
@@ -80,12 +103,13 @@ export const citiesRepository = {
   /**
    * Changes a city under its row lock, with an audit row saying what moved
    * from what. Turning "Customers see garages here" on or off is its own
-   * action (city_shown / city_hidden), as the tier switches are. Undefined
-   * when the city is gone.
+   * action (city_shown / city_hidden), as the tier switches are, and so is
+   * "Growing here" (city_growing / city_not_growing, 0070). Undefined when
+   * the city is gone.
    */
   async updateCity(
     id: string,
-    patch: Partial<Pick<CityRecord, 'name' | 'lat' | 'lng' | 'reachKm' | 'customersSee'>>,
+    patch: Partial<Pick<CityRecord, 'name' | 'lat' | 'lng' | 'reachKm' | 'customersSee' | 'growing'>>,
     actor: Actor
   ): Promise<CityRecord | undefined> {
     return db.transaction(async (tx) => {
@@ -101,7 +125,8 @@ export const citiesRepository = {
         .where(eq(cities.id, id))
         .returning()
       const switched = changed.includes('customersSee')
-      const edited = changed.filter((key) => key !== 'customersSee')
+      const growingSwitched = changed.includes('growing')
+      const edited = changed.filter((key) => key !== 'customersSee' && key !== 'growing')
       if (switched) {
         await tx.insert(adminAuditLog).values({
           action: after!.customersSee ? 'city_shown' : 'city_hidden',
@@ -109,6 +134,15 @@ export const citiesRepository = {
           actorName: actor.name,
           summary: citySummary(after!),
           detail: { customersSee: after!.customersSee },
+        })
+      }
+      if (growingSwitched) {
+        await tx.insert(adminAuditLog).values({
+          action: after!.growing ? 'city_growing' : 'city_not_growing',
+          actorSub: actor.sub,
+          actorName: actor.name,
+          summary: citySummary(after!),
+          detail: { growing: after!.growing },
         })
       }
       if (edited.length > 0) {
@@ -140,7 +174,13 @@ export const citiesRepository = {
         actorSub: actor.sub,
         actorName: actor.name,
         summary: citySummary(before),
-        detail: { lat: before.lat, lng: before.lng, reachKm: before.reachKm, customersSee: before.customersSee },
+        detail: {
+          lat: before.lat,
+          lng: before.lng,
+          reachKm: before.reachKm,
+          customersSee: before.customersSee,
+          growing: before.growing,
+        },
       })
       return true
     })

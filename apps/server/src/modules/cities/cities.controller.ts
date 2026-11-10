@@ -5,6 +5,19 @@ import type { CreateCityInput, OtherTownsInput, UpdateCityInput } from './cities
 
 type AdminContext = Context<{ Variables: AuthVariables }>
 
+/**
+ * `GET /cities`: the cities customers may pick, public and the same for
+ * everyone. Caches keep it a minute, as the service does, not five as GET
+ * /zones: a city switched off, or one no longer "Growing here", must stop
+ * reaching customers soon, and a city write clears only this instance's
+ * copy, never the edge's or a browser's.
+ */
+export async function listForCustomers(c: Context) {
+  const cities = await citiesService.customerCities()
+  c.header('Cache-Control', 'public, max-age=60, s-maxage=60')
+  return c.json({ success: true, data: { cities } })
+}
+
 export async function overview(c: AdminContext) {
   return c.json({ success: true, data: await citiesService.overview() })
 }

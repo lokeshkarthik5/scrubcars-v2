@@ -4,6 +4,7 @@ import { IconMapPin, IconRoute, IconSparkles } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScSheet } from '@repo/ui/sc/modal'
 import { useLocationStore } from '@repo/core/stores/location-store'
+import { useCustomerPlace } from '@repo/core/hooks/use-customer-place'
 
 /**
  * Asks for location in our own words before the browser asks in its.
@@ -49,7 +50,9 @@ export function LocationPromptSheet({
   onEnabled,
 }: LocationPromptSheetProps) {
   const requestGpsLocation = useLocationStore((s) => s.requestGpsLocation)
-  const selectChennai = useLocationStore((s) => s.selectChennai)
+  const selectCity = useLocationStore((s) => s.selectCity)
+  // The customer's city (0070): Chennai until they pick another.
+  const { city } = useCustomerPlace()
   const locating = useLocationStore((s) => s.locating)
   const permission = useLocationStore((s) => s.permission)
   const dismiss = useLocationStore((s) => s.dismissPrompt)
@@ -74,7 +77,7 @@ export function LocationPromptSheet({
   }
 
   const chooseCity = () => {
-    selectChennai()
+    selectCity(city)
     onClose()
   }
 
@@ -127,7 +130,7 @@ export function LocationPromptSheet({
             </ScButton>
           )}
           <ScButton variant={blocked ? 'main' : 'outline'} onClick={chooseCity}>
-            All of Chennai
+            All of {city.name}
           </ScButton>
           {!blocked && (
             <ScButton variant="text" onClick={notNow}>

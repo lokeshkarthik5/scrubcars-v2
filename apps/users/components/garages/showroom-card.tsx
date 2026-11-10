@@ -15,7 +15,7 @@ import { isApproximate, useHydratedLocation } from '@repo/core/stores/location-s
 import type { BookingType, Vendor } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
 import { GarageCover, GarageMonogram } from '@repo/ui/features/garage-cover'
-import { OutsideCityChip } from '@repo/ui/features/outside-city'
+import { GarageTownChip } from '@repo/ui/features/outside-city'
 import { TierMark } from '@repo/ui/features/tier-medal'
 import { HoursRing } from '@repo/ui/finish/hours-ring'
 import { usePrefersReducedMotion, useSeenOnce } from '@repo/ui/finish/motion'
@@ -414,9 +414,11 @@ export function ShowroomCard({
               </span>
             )}
             {chips}
-            {/* A garage in another town says so on its card, so nobody opens
-                it, or books it, thinking it is in Chennai. */}
-            {vendor.outsideServiceCity && <OutsideCityChip outside={vendor.outsideServiceCity} />}
+            {/* A garage in another town than the customer's city says so on
+                its card ("Vellore · 125 km"), so nobody opens it, or books
+                it, thinking it is round the corner; one in their city says
+                nothing (0070). */}
+            <GarageTownChip garage={vendor} />
           </div>
         )}
       </Link>

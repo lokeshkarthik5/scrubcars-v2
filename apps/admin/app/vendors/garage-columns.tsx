@@ -20,6 +20,7 @@ import {
 import { Figures } from '@repo/ui/sc/figures'
 import { StatusChip } from '@repo/ui/sc/status-chip'
 import { OutsideCityChip } from '@repo/ui/features/outside-city'
+import { outsideServiceCityTag } from '@repo/core/service-city'
 import type { AdminVendor } from '@repo/core/api/admin'
 import { cn } from '@repo/core/utils'
 import { ColourCell } from '@/components/garages/colour-tags'
@@ -327,7 +328,7 @@ function AreaCell({ v, narrow }: { v: AdminVendor; narrow?: boolean }) {
       )}
       {v.outsideServiceCity && (
         <p className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 text-[12px] text-text-muted">
-          <OutsideCityChip outside={v.outsideServiceCity} className="min-w-0" />
+          <OutsideCityChip text={outsideServiceCityTag(v.outsideServiceCity)} className="min-w-0" />
           {v.outsideServiceCity.km !== null && (
             <span className="shrink-0 whitespace-nowrap">
               <span className="font-numeric">

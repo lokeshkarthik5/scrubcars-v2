@@ -52,10 +52,16 @@ import { vendorsRepository } from './vendors.repository.js'
 import { slotAlertsService } from '../slot-alerts/slot-alerts.service.js'
 import { areaSignupsService } from '../area-signups/area-signups.service.js'
 import { citiesService } from '../cities/cities.service.js'
-import { storedWholeCity, WHOLE_CITY_NEEDS_CITY } from '../../lib/cities.js'
+import { cityById, storedWholeCity, WHOLE_CITY_NEEDS_CITY, type CityPlace } from '../../lib/cities.js'
 import { publicWholeCity, toPublicVendor, type PublicVendorFields } from './vendors.public.js'
 
 const log = logger.child({ module: 'vendors' })
+
+/** A garage's stored city as public payloads carry it (0070): its id and name only. */
+function cityNameOf(cityId: string | null, cities: readonly CityPlace[]): { id: string; name: string } | null {
+  const city = cityById(cityId, cities)
+  return city ? { id: city.id, name: city.name } : null
+}
 
 // How many finished jobs the Earnings screen lists.
 const RECENT_EARNINGS_JOBS = 10
@@ -211,6 +217,14 @@ export type PublicVendorResponse = PublicVendorFields & {
    * in the city, and when it has no pin and says Chennai (unknown).
    */
   outsideServiceCity: OutsideServiceCity | null
+  /**
+   * The garage's own city (0070): its stored vendors.city_id, by the cities
+   * rule (lib/cities.ts cityOfGarage), or null in no city (Other towns). The
+   * customer apps compare it with the customer's city: a garage in it
+   * carries no sign at all. Named for what it is beside `city`, the town the
+   * garage typed.
+   */
+  garageCity: { id: string; name: string } | null
 }
 
 export type VendorListItemResponse = {
@@ -277,6 +291,8 @@ export type VendorListItemResponse = {
    * Sivakasi" chip. The same rule as the garage page; see outsideServiceCity.
    */
   outsideServiceCity: OutsideServiceCity | null
+  /** The garage's own city (0070), as on the garage page (PublicVendorResponse). */
+  garageCity: { id: string; name: string } | null
   /**
    * The card's medal (0063): Bronze, Silver or Gold as customers may see it,
    * or null. Only this (vendors.public.ts says why).
@@ -930,6 +946,7 @@ export async function vendorCardsFor(
       // clause reads.
       matchedService: q ? matchedServiceName(q, vendor) : null,
       outsideServiceCity: outsideServiceCity(vendor),
+      garageCity: cityNameOf(vendor.cityId, cityRules.cities),
       tier: tiers.get(vendor.id) ?? null,
     }
   })
@@ -1055,14 +1072,26 @@ export const vendorsService = {
 
     // The radius (the same on every page) and whether the unpinned tail
     // follows: lib/discovery.ts, where the rules are unit-tested.
-    const { radiusKm, includeUnlocated } = listScope({
+    const { radiusKm, includeUnlocated, farLimitKm } = listScope({
       hasOrigin: origin !== undefined,
+      hasCityCentre: query.cityLat !== undefined && query.cityLng !== undefined,
       bbox: query.bbox,
       bookingType: query.bookingType,
       q: query.q,
       radiusKm: query.radiusKm,
       includeUnlocated: query.includeUnlocated,
     })
+
+    // Garages over 150 km away are left out without a search (0070), from
+    // the customer's location, else their whole city's centre. Both halves
+    // of the list, so every page and the tail agree.
+    const farFrom =
+      origin ??
+      (query.cityLat !== undefined && query.cityLng !== undefined
+        ? { lat: query.cityLat, lng: query.cityLng }
+        : undefined)
+    const far =
+      farLimitKm !== null && farFrom ? { from: farFrom, limitM: farLimitKm * 1000 } : undefined
 
     // "Silver & above" (0063; `certified=true` from before it means the
     // same): the tiers admin has switched on, or no filter at all while
@@ -1079,6 +1108,7 @@ export const vendorsService = {
       page = await vendorsRepository.listPublicVendorPage({
         origin,
         radiusM: radiusKm === null ? undefined : radiusKm * 1000,
+        far,
         bbox: query.bbox,
         bookingType: query.bookingType,
         category: query.category,
@@ -1093,6 +1123,7 @@ export const vendorsService = {
       // The located half is exhausted, so this page continues into the tail.
       if (page.length < limit && includeUnlocated) {
         const tail = await vendorsRepository.listPublicVendorPage({
+          far,
           bookingType: query.bookingType,
           category: query.category,
           tiers: silverFilter,
@@ -1111,6 +1142,7 @@ export const vendorsService = {
     } else if (includeUnlocated) {
       // ── Unlocated tail, continued ──────────────────────────────────────────
       page = await vendorsRepository.listPublicVendorPage({
+        far,
         bookingType: query.bookingType,
         category: query.category,
         tiers: silverFilter,
@@ -1166,6 +1198,7 @@ export const vendorsService = {
       isNew: rating?.isNew ?? true,
       knownFor: rating?.knownFor ?? null,
       outsideServiceCity: outsideServiceCity(vendor),
+      garageCity: cityNameOf(vendor.cityId, cityRules.cities),
     }
   },
 

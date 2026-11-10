@@ -32,11 +32,16 @@ export const createCitySchema = z
     lng: lngSchema,
     reachKm: reachSchema.default(DEFAULT_CITY_REACH_KM),
     customersSee: z.boolean().default(true),
+    // "Growing here" (0070): off for a new city until the owner says so.
+    growing: z.boolean().default(false),
     actorName: signedActorName,
   })
   .strict()
 
-/** Edit a city, or flip "Customers see garages here". Only what is sent changes. */
+/**
+ * Edit a city, or flip "Customers see garages here" or "Growing here". Only
+ * what is sent changes.
+ */
 export const updateCitySchema = z
   .object({
     name: nameSchema.optional(),
@@ -44,6 +49,7 @@ export const updateCitySchema = z
     lng: lngSchema.optional(),
     reachKm: reachSchema.optional(),
     customersSee: z.boolean().optional(),
+    growing: z.boolean().optional(),
     actorName: signedActorName,
   })
   .strict()
@@ -55,7 +61,8 @@ export const updateCitySchema = z
       data.name !== undefined ||
       data.lat !== undefined ||
       data.reachKm !== undefined ||
-      data.customersSee !== undefined,
+      data.customersSee !== undefined ||
+      data.growing !== undefined,
     { message: 'Nothing to change' }
   )
 

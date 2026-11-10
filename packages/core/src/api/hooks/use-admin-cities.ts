@@ -68,7 +68,7 @@ export function useCreateCity() {
 export function useUpdateCity() {
   const apply = useApplyOverview()
   return useMutation({
-    mutationFn: ({ id, ...input }: Partial<CityInput> & { id: string; customersSee?: boolean }) =>
+    mutationFn: ({ id, ...input }: Partial<CityInput> & { id: string; customersSee?: boolean; growing?: boolean }) =>
       updateCity(id, input),
     onSuccess: apply,
   })

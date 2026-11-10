@@ -2,9 +2,11 @@ import {
   cityById,
   cityNameKey,
   cityStanding,
+  customerCities,
   OTHER_TOWNS_LABEL,
   parseOtherTownsVisible,
   type City,
+  type CustomerCity,
   type GarageCityStanding,
 } from '../../lib/cities.js'
 import { AppError } from '../../lib/errors.js'
@@ -20,9 +22,24 @@ const log = logger.child({ module: 'cities' })
  * A city's switch, reach or centre changes which garages customers can find
  * in one go, as a garage's own status change does: the waiting customers'
  * "a garage has come to your area" check runs (0062), in the background.
+ * The customers' list of cities is read again on this instance at once.
  */
 function listingMayHaveChanged() {
+  clearCustomerCitiesCache()
   areaSignupsService.launchSoon()
+}
+
+/**
+ * The customers' cities change rarely (an admin action) and their garage
+ * counts slowly, so one read a minute per instance at most, as GET /zones
+ * (reach.service listZones). A change made on this instance clears it.
+ */
+const CUSTOMER_CITIES_TTL_MS = 60_000
+let customerCitiesCache: { at: number; cities: CustomerCity[] } | null = null
+
+/** For tests, and after a city change: read the customers' cities again. */
+export function clearCustomerCitiesCache() {
+  customerCitiesCache = null
 }
 
 type Actor = { sub: string; name: string }
@@ -39,6 +56,7 @@ function toCity(row: CityRecord): City {
     lng: row.lng,
     reachKm: row.reachKm,
     customersSee: row.customersSee,
+    growing: row.growing,
   }
 }
 
@@ -115,6 +133,27 @@ export const citiesService = {
     }
   },
 
+  /**
+   * `GET /cities` (0070): the cities switched on for customers, the default
+   * first, each with how many garages customers can find there. Cached a
+   * minute.
+   */
+  async customerCities(now = Date.now()): Promise<CustomerCity[]> {
+    if (customerCitiesCache && now - customerCitiesCache.at < CUSTOMER_CITIES_TTL_MS) {
+      return customerCitiesCache.cities
+    }
+    const [rows, counts] = await Promise.all([
+      citiesRepository.listCities(),
+      citiesRepository.listedGarageCounts(),
+    ])
+    const list = customerCities(
+      rows.map((row) => ({ ...toCity(row), createdAt: row.createdAt })),
+      counts
+    )
+    customerCitiesCache = { at: now, cities: list }
+    return list
+  },
+
   /** Every city, A–Z, for the garage forms' city select (no counts). */
   async listCities(): Promise<City[]> {
     return (await citiesRepository.listCities()).map(toCity)
@@ -164,7 +203,14 @@ export const citiesService = {
     await assertNameFree(input.name, null)
     const city = await citiesRepository
       .createCity(
-        { name: input.name, lat: input.lat, lng: input.lng, reachKm: input.reachKm, customersSee: input.customersSee },
+        {
+          name: input.name,
+          lat: input.lat,
+          lng: input.lng,
+          reachKm: input.reachKm,
+          customersSee: input.customersSee,
+          growing: input.growing,
+        },
         actor
       )
       .catch(nameTakenOnWrite(input.name))
@@ -185,12 +231,13 @@ export const citiesService = {
           ...(input.lat !== undefined && input.lng !== undefined && { lat: input.lat, lng: input.lng }),
           ...(input.reachKm !== undefined && { reachKm: input.reachKm }),
           ...(input.customersSee !== undefined && { customersSee: input.customersSee }),
+          ...(input.growing !== undefined && { growing: input.growing }),
         },
         actor
       )
       .catch(nameTakenOnWrite(input.name ?? existing.name))
     if (!updated) throw cityNotFound()
-    log.info({ cityId: id, customersSee: updated.customersSee }, 'cities:updated')
+    log.info({ cityId: id, customersSee: updated.customersSee, growing: updated.growing }, 'cities:updated')
     listingMayHaveChanged()
     return citiesService.overview()
   },

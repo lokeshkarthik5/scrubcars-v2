@@ -353,6 +353,13 @@ export const listPublicVendorsQuerySchema = z
     // lib/discovery.ts) is the most a caller may ask for. A typed search
     // (`q`) ignores it: no radius applies.
     radiusKm: z.coerce.number().positive().max(50).optional(),
+    // The centre of the customer's city (0070), sent when they picked a whole
+    // city ("All of Coimbatore") and so send no origin: the far-garage limit
+    // (FAR_LIMIT_KM, lib/discovery.ts) is measured from it. Nothing is
+    // sorted or measured from it, since nobody stands at a city's centre;
+    // with an origin, the origin decides and this is ignored.
+    cityLat: z.coerce.number().finite().min(-90).max(90).optional(),
+    cityLng: z.coerce.number().finite().min(-180).max(180).optional(),
     bbox: bboxSchema.optional(),
     sort: vendorSortSchema.optional(),
     /**
@@ -388,6 +395,9 @@ export const listPublicVendorsQuerySchema = z
   })
   .refine((data) => (data.lat === undefined) === (data.lng === undefined), {
     message: 'lat and lng must be provided together',
+  })
+  .refine((data) => (data.cityLat === undefined) === (data.cityLng === undefined), {
+    message: 'cityLat and cityLng must be provided together',
   })
   .refine((data) => !(data.bbox && data.radiusKm), {
     message: 'Pass either bbox or radiusKm, not both',

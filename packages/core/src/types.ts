@@ -112,12 +112,17 @@ export interface Vendor {
    */
   matchedService: string | null
   /**
-   * Where the garage is when that is not Chennai: its town and how far out,
-   * for the "Outside Chennai" chip, the page's line and checkout's (km null
-   * when it has no pin). Null in the city, when an unpinned garage's town is
-   * unknown, and from a server older than the sign.
+   * The old Chennai-relative sign: its town and how far out of Chennai. Read
+   * only for a garage from an API older than `garageCity`.
    */
   outsideServiceCity: OutsideServiceCity | null
+  /**
+   * The garage's own city by the cities rule (0070), null in no city
+   * ("Other towns"), undefined from an older API. The signs compare it with
+   * the customer's city (@repo/core/customer-city): a garage in it carries
+   * none.
+   */
+  garageCity?: { id: string; name: string } | null
   /**
    * The garage's medal (0063): Bronze, Silver or Gold, the highest tier it
    * holds that Detlio shows customers; null for none, and from a server

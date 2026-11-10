@@ -36,15 +36,20 @@ export const MAP_STYLES = {
 export const MAP_THEME = 'dark' as const
 
 /**
- * Fallback map centre: where an empty map opens, and the point "All of
- * Chennai" in the header remembers. The service city's centre, so the map's
- * city view and the "Outside Chennai" sign measure from the same point.
+ * Fallback map centre: where an empty map opens before the customer's city
+ * is known (0070: the map opens on their city's centre where it is,
+ * cityCenter below). The service city's centre, Chennai, the first city.
  * Lists do not search from it.
  */
 export const DEFAULT_CENTER: [number, number] = [
   SERVICE_CITY.centre.lng,
   SERVICE_CITY.centre.lat,
 ]
+
+/** A city's centre as the map takes it ([lng, lat]): where the map opens on the customer's city. */
+export function cityCenter(city: { centre: { lat: number; lng: number } }): [number, number] {
+  return [city.centre.lng, city.centre.lat]
+}
 
 /** The same point, in the lat/lng shape the vendor list takes. */
 export const ASSUMED_ORIGIN = {
