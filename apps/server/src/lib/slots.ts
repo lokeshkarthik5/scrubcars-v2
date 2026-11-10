@@ -248,6 +248,30 @@ export function closureDateProblem(
   return null
 }
 
+/**
+ * How far back the garage's own list of holidays can reach. The bookings
+ * calendar (garage portal) asks from the first day of the month on screen,
+ * so a month the garage looks back on shows its time off too; a year and a
+ * bit covers every month it can page back to without reading the table whole.
+ */
+export const MAX_CLOSURE_DAYS_BACK = 400
+
+/**
+ * The first day the garage's holiday list reads from: today by default (the
+ * Settings list), or an earlier day the calendar asked for, never further
+ * back than MAX_CLOSURE_DAYS_BACK.
+ */
+export function closureListStart(
+  from: string | undefined,
+  now: number = Date.now()
+): string {
+  const today = todayDateKey(now)
+  if (!from) return today
+  const earliest = addDaysToDateKey(today, -MAX_CLOSURE_DAYS_BACK)
+  // Date keys compare correctly as strings, as in closureDateProblem.
+  return from < earliest ? earliest : from
+}
+
 // ─── Capacity ───────────────────────────────────────────────────────────────
 
 /** An existing booking that holds capacity: when it starts and how long. */

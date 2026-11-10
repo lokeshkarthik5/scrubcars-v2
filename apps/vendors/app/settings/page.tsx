@@ -16,7 +16,8 @@ import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui/sc/tabs'
+import { GraphiteTabsList, GraphiteTabsTrigger } from '@repo/ui/finish/graphite-tabs'
+import { Tabs, TabsContent } from '@repo/ui/sc/tabs'
 import {
   LocationPicker,
   type PickedLocation,
@@ -489,13 +490,13 @@ function VendorSettings() {
           not working, everything else — so each panel is a similar size and
           nothing important sits below three screens of other settings. */}
       <Tabs value={tab} onValueChange={(value) => setTab(value as SettingsTab)}>
-        <TabsList className="[&_[role=tab]]:min-h-12 [&_[role=tab]]:text-[14px]">
-          <TabsTrigger value="profile">Profile</TabsTrigger>
-          <TabsTrigger value="location">Location</TabsTrigger>
-          <TabsTrigger value="hours">Hours</TabsTrigger>
-          <TabsTrigger value="time-off">Time off</TabsTrigger>
-          <TabsTrigger value="account">Account</TabsTrigger>
-        </TabsList>
+        <GraphiteTabsList value={tab} aria-label="Settings">
+          <GraphiteTabsTrigger value="profile">Profile</GraphiteTabsTrigger>
+          <GraphiteTabsTrigger value="location">Location</GraphiteTabsTrigger>
+          <GraphiteTabsTrigger value="hours">Hours</GraphiteTabsTrigger>
+          <GraphiteTabsTrigger value="time-off">Time off</GraphiteTabsTrigger>
+          <GraphiteTabsTrigger value="account">Account</GraphiteTabsTrigger>
+        </GraphiteTabsList>
 
         <TabsContent value="profile">
           <section className="flex flex-col gap-3">

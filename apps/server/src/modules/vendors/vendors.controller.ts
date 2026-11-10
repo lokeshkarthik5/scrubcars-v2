@@ -7,6 +7,7 @@ import { reachService } from '../reach/reach.service.js'
 import { vendorsService } from './vendors.service.js'
 import type {
   CreateClosureInput,
+  ListClosuresQuery,
   CreatePhotoInput,
   CreatePackageInput,
   DoorstepAreaInput,
@@ -203,8 +204,14 @@ export async function setDoorstepArea(
   })
 }
 
-export async function listMyClosures(c: VendorsContext) {
-  const closures = await vendorsService.listMyClosures(getVendorId(c))
+export async function listMyClosures(
+  c: VendorsContext,
+  query: ListClosuresQuery
+) {
+  const closures = await vendorsService.listMyClosures(
+    getVendorId(c),
+    query.from
+  )
 
   return c.json({
     success: true,

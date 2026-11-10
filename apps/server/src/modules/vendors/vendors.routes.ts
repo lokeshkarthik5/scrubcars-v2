@@ -27,6 +27,7 @@ import { garageReviewRoutes } from '../reviews/reviews.routes.js'
 import * as vendorsController from './vendors.controller.js'
 import {
   createClosureSchema,
+  listClosuresQuerySchema,
   createPhotoSchema,
   createPackageSchema,
   createServiceAreaSchema,
@@ -217,7 +218,8 @@ vendorsRoutes.put(
 vendorsRoutes.get(
   '/me/closures',
   ...tenantMiddleware,
-  vendorsController.listMyClosures
+  zValidator('query', listClosuresQuerySchema),
+  (c) => vendorsController.listMyClosures(c, c.req.valid('query'))
 )
 vendorsRoutes.post(
   '/me/closures',

@@ -9,6 +9,7 @@ import {
   MIN_NOTICE_MS,
   addDaysToDateKey,
   closureDateProblem,
+  closureListStart,
   getDayOfWeekFromDate,
   slotsForDay,
   todayDateKey,
@@ -1344,17 +1345,25 @@ export const vendorsService = {
   // customers — cancelling them for the garage would be a decision nobody
   // asked it to make.
 
-  async listMyClosures(vendorId: string): Promise<ClosureResponse[]> {
+  /**
+   * The garage's holidays from today, or from an earlier day when the
+   * bookings calendar asks (`from`, clamped by closureListStart) so a month
+   * it pages back to shows its time off.
+   */
+  async listMyClosures(
+    vendorId: string,
+    from?: string
+  ): Promise<ClosureResponse[]> {
     const vendor = await getTenantVendor(vendorId)
-    const today = todayDateKey()
-    const closures = await vendorsRepository.listClosures(vendor.id, today)
+    const start = closureListStart(from)
+    const closures = await vendorsRepository.listClosures(vendor.id, start)
 
     if (closures.length === 0) return []
 
     const last = closures[closures.length - 1].date
     const counts = await bookingsRepository.countActiveBookingsByDate(
       vendor.id,
-      today,
+      start,
       addDaysToDateKey(last, 1)
     )
 

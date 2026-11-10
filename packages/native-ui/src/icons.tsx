@@ -17,6 +17,8 @@ export interface IconProps {
   /**
    * Under the finish, the line in screen points whatever the size (1.6, the lit
    * tab's 1.9), as the website's non-scaling stroke; `stroke` is then ignored.
+   * Given outside the finish (the garage app's floating bar, whose web twin sets
+   * its own line), it is that line all the same.
    */
   line?: number;
   /** The bottom bar's brushed metal (#hub-metal): white at the top to grey below. */
@@ -34,7 +36,7 @@ function icon(nodes: Node[], filled = false) {
     const { on: finish } = useFinish();
     const tint = metal ? 'url(#icon-metal)' : (color ?? fallback);
     // The drawing is 24 units across, so a line of `line` points is line × 24 / size units.
-    const width = finish ? ((line ?? ICON_LINE) * 24) / size : stroke;
+    const width = finish || line !== undefined ? ((line ?? ICON_LINE) * 24) / size : stroke;
     const paint = filled
       ? { fill: tint }
       : {
