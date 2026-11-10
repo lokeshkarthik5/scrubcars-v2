@@ -4,6 +4,7 @@ import { use, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { IconDownload, IconShare } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
+import { BrandMark } from '@repo/ui/sc/brand-mark'
 import { ScButton } from '@repo/ui/sc/button'
 import { TopBar } from '@repo/ui/sc/top-bar'
 import { ApiError } from '@repo/core/api/client'
@@ -141,12 +142,12 @@ export default function BookingReceiptPage({ params }: { params: Promise<{ id: s
       <main className="mx-auto flex min-h-dvh w-full max-w-[428px] flex-col bg-brand-black px-4 py-4">
         <TopBar showBack backHref={`/bookings/${id}`} title="Receipt" />
         {state.kind === 'loading' ? (
-          <p role="status" className="pt-4 text-[13px] text-text-secondary">
+          <p role="status" className="pt-4 text-t4 text-text-secondary">
             Loading your receipt…
           </p>
         ) : (
           <div className="flex flex-col gap-4 pt-4">
-            <p className="text-[13px] text-text-secondary">
+            <p className="text-t4 text-text-secondary">
               {state.kind === 'unavailable' || state.kind === 'pending'
                 ? state.message
                 : 'Could not load this receipt. It may have been removed or you may not have access.'}
@@ -206,7 +207,7 @@ export default function BookingReceiptPage({ params }: { params: Promise<{ id: s
         {printBlocked && (
           <p
             role="alert"
-            className="mt-3 rounded-[10px] border border-warning bg-warning-muted/20 px-3 py-2 text-[13px] text-warning"
+            className="mt-3 rounded-[10px] border border-warning bg-warning-muted/20 px-3 py-2 text-t4 text-warning"
           >
             Your browser can&apos;t print from here. Open this page in Chrome or Safari (⋮ › Open
             in browser) to save it as a PDF. You may need to sign in there.
@@ -214,7 +215,7 @@ export default function BookingReceiptPage({ params }: { params: Promise<{ id: s
         )}
         {/* iPhones have no "Save as PDF" printer: Safari saves a PDF from
             the Share button on its print screen. So both phones get a line. */}
-        <p className="mt-2 text-[12px] text-text-muted">
+        <p className="mt-2 text-t5 text-text-muted">
           Download PDF opens your phone&apos;s print screen. On Android, choose{' '}
           <strong>Save as PDF</strong> as the printer; on iPhone, tap <strong>Share</strong> at the
           top, then <strong>Save to Files</strong>. A shared link only opens for you when signed
@@ -227,50 +228,78 @@ export default function BookingReceiptPage({ params }: { params: Promise<{ id: s
   )
 }
 
+/*
+ * The receipt on screen is in the finish (docs/ui-round-2026-11.md §1): a
+ * dark card with the lit edge, overline section titles, figures in Space
+ * Grotesk 600 and hairlines; still, with no motion. On paper it is the plain
+ * white document it always was: every screen-only look below has a `print:`
+ * twin putting back the paper's size, weight and spacing, and PRINT_CSS
+ * turns every word black and every rule light grey.
+ */
+
+/** Overline: a section's small label (10/600 uppercase; the paper's 11). */
+const OVERLINE =
+  'text-over font-semibold uppercase text-[#8E8E98] print:text-t5 print:tracking-wide'
+
+/** A hairline between sections. */
+const RULE = 'border-t border-white/[0.07]'
+
 /** A label and its value on one row; the value right-aligned. */
 function Row({
   label,
   value,
   strong = false,
   numeric = true,
+  tone,
 }: {
   label: React.ReactNode
   value: React.ReactNode
   strong?: boolean
   /** The value is a figure, date or id (Space Grotesk), not words. */
   numeric?: boolean
+  /** Money going back to the customer reads green, as elsewhere in the app. */
+  tone?: 'refund'
 }) {
   return (
     <div
-      className={`flex items-baseline justify-between gap-4 py-1 ${strong ? 'text-[15px] font-bold' : 'text-[13px]'}`}
+      className={`flex items-baseline justify-between gap-4 py-1 ${strong ? 'text-t3 font-semibold print:font-bold' : 'text-t4'}`}
     >
-      <span className="min-w-0 break-words">{label}</span>
+      <span className={`min-w-0 break-words ${strong ? 'text-text-primary' : 'text-[#D8D8DE]'}`}>
+        {label}
+      </span>
       {/* Never narrower than its longest word: an amount stays on one line,
           while a long date can wrap on a narrow phone. */}
-      <span className={`text-right ${numeric ? 'font-numeric' : ''}`}>{value}</span>
+      <span
+        className={`text-right ${numeric ? `font-numeric font-semibold ${strong ? 'print:font-bold' : 'print:font-normal'}` : ''} ${tone === 'refund' ? 'text-success' : 'text-text-primary'}`}
+      >
+        {value}
+      </span>
     </div>
   )
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="border-t border-neutral-200 pt-4 break-inside-avoid">
-      <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-600">
-        {title}
-      </h2>
+    <section className={`${RULE} pt-4 break-inside-avoid`}>
+      <h2 className={`mb-2 ${OVERLINE}`}>{title}</h2>
       {children}
     </section>
   )
 }
 
+/** A dashed hairline inside a section, above a subtotal. */
+function SubRule() {
+  return <div className="mt-1 border-t border-dashed border-white/[0.1]" />
+}
+
 /** A detail under a line: a payment id, a date, how a refund went back. */
 function Detail({ children }: { children: React.ReactNode }) {
-  return <p className="text-[12px] text-neutral-600">{children}</p>
+  return <p className="text-t5 text-[#8E8E98]">{children}</p>
 }
 
 /**
- * The receipt itself: white paper whatever the app's theme, so what is on
- * screen is what prints and what the saved PDF looks like.
+ * The receipt itself. On screen, a card in the finish; printed (and saved as
+ * a PDF), white paper with black type, whatever the screen shows.
  */
 function ReceiptDocument({ receipt }: { receipt: BookingReceipt }) {
   const { issuer, booking, bookingPayment, finalBill } = receipt
@@ -278,15 +307,20 @@ function ReceiptDocument({ receipt }: { receipt: BookingReceipt }) {
   return (
     <article
       aria-label={`Payment receipt ${receipt.receiptNumber}`}
-      className="receipt-doc mt-4 flex flex-col gap-5 rounded-2xl bg-white px-5 py-6 text-brand-rich sm:px-10 sm:py-10 print:mt-0 print:rounded-none print:p-0"
+      className="receipt-doc fx-edge mt-4 flex flex-col gap-5 rounded-[22px] px-5 py-6 text-text-primary sm:px-10 sm:py-10 print:mt-0 print:rounded-none print:border-0 print:bg-white print:bg-none print:p-0 print:shadow-none"
     >
       {/* Stacked on a phone, where the address needs the full width; side by
           side from sm up, which includes the printed page. */}
       <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          {/* The wordmark in type: the logo artwork is white, for the app's
-              dark screens, and would vanish on paper. */}
-          <p className="text-[26px] font-bold leading-none tracking-tight">
+          {/* On screen, the real wordmark (white, with its red dot). Its
+              artwork would vanish on white paper, so the paper has it in
+              type: issuer.name is always "Detlio" (RECEIPT_ISSUER), so the
+              two say the same. */}
+          <span className="block print:hidden">
+            <BrandMark height={26} />
+          </span>
+          <p className="hidden text-[26px] font-bold leading-none tracking-tight print:block">
             {issuer.name}
             <span className="text-brand-red" aria-hidden>
               .
@@ -295,34 +329,32 @@ function ReceiptDocument({ receipt }: { receipt: BookingReceipt }) {
           {/* The business behind the brand, so the customer knows who they
               paid; "Detlio" alone is a brand, not a business. */}
           {issuer.tradeName && (
-            <p className="mt-2 text-[12px]">Operated by {issuer.tradeName}</p>
+            <p className="mt-3 text-t5 text-[#D8D8DE] print:mt-2">Operated by {issuer.tradeName}</p>
           )}
-          {issuer.address && <p className="text-[12px] text-neutral-600">{issuer.address}</p>}
-          <p className="mt-1 text-[12px] text-neutral-600">{issuer.website}</p>
+          {issuer.address && <p className="text-t5 text-[#8E8E98]">{issuer.address}</p>}
+          <p className="mt-1 text-t5 text-[#8E8E98]">{issuer.website}</p>
         </div>
         <div className="sm:shrink-0 sm:text-right">
-          <h1 className="text-[15px] font-semibold">Payment receipt</h1>
-          <p className="mt-1 font-numeric text-[13px] font-medium">{receipt.receiptNumber}</p>
-          <p className="text-[12px] text-neutral-600">
+          <h1 className="text-t3 font-semibold">Payment receipt</h1>
+          <p className="mt-1 font-numeric text-t4 font-semibold print:font-medium">
+            {receipt.receiptNumber}
+          </p>
+          <p className="text-t5 text-[#8E8E98]">
             Issued <span className="font-numeric">{receipt.issuedOn}</span>
           </p>
         </div>
       </header>
 
-      <div className="grid gap-4 border-t border-neutral-200 pt-4 sm:grid-cols-2">
+      <div className={`grid gap-4 ${RULE} pt-4 sm:grid-cols-2`}>
         <div className="min-w-0">
-          <h2 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-600">
-            Customer
-          </h2>
-          <p className="text-[13px] font-medium">{receipt.customer.name}</p>
-          <p className="font-numeric text-[13px]">{receipt.customer.phone}</p>
+          <h2 className={`mb-1 ${OVERLINE}`}>Customer</h2>
+          <p className="text-t4 font-medium">{receipt.customer.name}</p>
+          <p className="font-numeric text-t4">{receipt.customer.phone}</p>
         </div>
         <div className="min-w-0">
-          <h2 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-600">
-            Garage
-          </h2>
-          <p className="text-[13px] font-medium">{receipt.garage.name}</p>
-          <p className="text-[13px] text-neutral-600">{receipt.garage.address}</p>
+          <h2 className={`mb-1 ${OVERLINE}`}>Garage</h2>
+          <p className="text-t4 font-medium">{receipt.garage.name}</p>
+          <p className="text-t4 text-[#A8A8B2]">{receipt.garage.address}</p>
         </div>
       </div>
 
@@ -353,7 +385,7 @@ function ReceiptDocument({ receipt }: { receipt: BookingReceipt }) {
         {receipt.travelFee && <Row label="Travel fee" value={formatReceiptAmount(receipt.travelFee)} />}
         {receipt.discount && (
           <>
-            <div className="mt-1 border-t border-dashed border-neutral-200" />
+            <SubRule />
             <Row label="Subtotal" value={formatReceiptAmount(receipt.subtotal)} />
             <Row
               label={`${receipt.discount.label ?? 'Discount'}${receipt.discount.code ? ` (${receipt.discount.code})` : ''}`}
@@ -361,7 +393,7 @@ function ReceiptDocument({ receipt }: { receipt: BookingReceipt }) {
             />
           </>
         )}
-        <div className="mt-1 border-t border-dashed border-neutral-200" />
+        <SubRule />
         <Row label="Paid at booking" value={formatReceiptAmount(bookingPayment.amount)} strong />
         <Detail>{bookingPayment.method}</Detail>
         {/* Gift a wash (0049): how the booking's payment was split. */}
@@ -399,7 +431,7 @@ function ReceiptDocument({ receipt }: { receipt: BookingReceipt }) {
               value={formatReceiptAmount(line.amount)}
             />
           ))}
-          <div className="mt-1 border-t border-dashed border-neutral-200" />
+          <SubRule />
           <Row label="Bill total" value={formatReceiptAmount(finalBill.total)} />
           {/* Worded and split as on the booking page's final-bill card: what
               was paid at booking matches the Services section above, and
@@ -465,6 +497,7 @@ function ReceiptDocument({ receipt }: { receipt: BookingReceipt }) {
                       : 'Refund'
                 }
                 value={formatReceiptAmount(refund.amount, true)}
+                tone="refund"
               />
               <Detail>
                 {refund.method}
@@ -488,13 +521,29 @@ function ReceiptDocument({ receipt }: { receipt: BookingReceipt }) {
       <Section title="Total">
         <Row label="Total paid" value={formatReceiptAmount(receipt.totalPaid)} />
         {receipt.refunds.length > 0 && (
-          <Row label="Refunded" value={formatReceiptAmount(receipt.totalRefunded, true)} />
+          <Row
+            label="Refunded"
+            value={formatReceiptAmount(receipt.totalRefunded, true)}
+            tone="refund"
+          />
         )}
-        <Row label="Net amount paid" value={formatReceiptAmount(receipt.netPaid)} strong />
+        {/* The figure the receipt is for: a size up on screen, with the
+            page's one red light under it. On paper, the bold line it was. */}
+        <div className="mt-2 flex items-baseline justify-between gap-4 border-t border-white/[0.07] pt-3 print:mt-0 print:border-0 print:py-1">
+          <span className="min-w-0 break-words text-t3 font-semibold print:font-bold">
+            Net amount paid
+          </span>
+          <span className="flex flex-col items-end">
+            <span className="text-right font-numeric text-t2 font-semibold print:text-t3 print:font-bold">
+              {formatReceiptAmount(receipt.netPaid)}
+            </span>
+            <span aria-hidden className="fx-red-light mt-1.5 print:hidden" />
+          </span>
+        </div>
       </Section>
 
-      <footer className="border-t border-neutral-200 pt-4 text-[12px] text-neutral-600">
-        <p className="font-medium text-brand-rich">{RECEIPT_NOT_TAX_INVOICE}</p>
+      <footer className={`${RULE} pt-4 text-t5 text-[#8E8E98]`}>
+        <p className="font-medium text-text-primary">{RECEIPT_NOT_TAX_INVOICE}</p>
         <p className="mt-1">
           Questions about this receipt? Call Detlio support on{' '}
           <span className="whitespace-nowrap font-numeric">{issuer.supportPhone}</span>

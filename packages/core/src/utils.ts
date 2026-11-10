@@ -1,5 +1,19 @@
 import { clsx, type ClassValue } from 'clsx'
-import { twMerge } from 'tailwind-merge'
+import { extendTailwindMerge } from 'tailwind-merge'
+
+/**
+ * The customer app's type scale (packages/ui/styles/finish.css: text-title,
+ * text-t2 … text-t5) named as font sizes. Without this, tailwind-merge reads
+ * an unknown `text-t4` as a text colour, and `cn('text-t4',
+ * 'text-text-secondary')` quietly drops the size.
+ */
+const twMerge = extendTailwindMerge({
+  extend: {
+    classGroups: {
+      'font-size': [{ text: ['title', 't2', 't3', 't4', 't5', 'over'] }],
+    },
+  },
+})
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))

@@ -219,7 +219,7 @@ export function CheckoutSignInCard({
               Code sent by SMS
             </T>
           </View>
-          <OtpInput length={OTP_LENGTH} onChange={signIn.setOtp} resetKey={signIn.codeKey} />
+          <OtpInput length={OTP_LENGTH} onChange={signIn.setOtp} resetKey={signIn.codeKey} invalid={Boolean(shownError)} />
           {signIn.isNew ? (
             <ScInput
               label="Your name (for the garage)"

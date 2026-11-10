@@ -101,7 +101,7 @@ export default function UpdatesScreen() {
             </T>
           </Pressable>
         </View>
-        <T accessibilityRole="header" size={28} weight={300} lh={34} tracking={-0.025} style={styles.title}>
+        <T accessibilityRole="header" variant="title" style={styles.title}>
           Updates
         </T>
         {updates.isPending ? (

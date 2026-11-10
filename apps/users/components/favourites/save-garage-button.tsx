@@ -96,7 +96,7 @@ export function SaveGarageButton({ vendor, className }: { vendor: Vendor; classN
             <div className="flex flex-col gap-4">
               <div>
                 <h2 className="text-base font-semibold text-text-primary">Sign in to save garages</h2>
-                <p className="mt-1 text-[13px] text-text-secondary">
+                <p className="mt-1 text-t4 text-text-secondary">
                   Saved garages are kept on your account, under Profile. Signing in brings you back to{' '}
                   {vendor.name} with it saved.
                 </p>
@@ -112,7 +112,7 @@ export function SaveGarageButton({ vendor, className }: { vendor: Vendor; classN
               <button
                 type="button"
                 onClick={() => setAskSignIn(false)}
-                className="min-h-11 text-[13px] font-medium text-text-secondary"
+                className="min-h-11 text-t4 font-medium text-text-secondary"
               >
                 Not now
               </button>

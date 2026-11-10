@@ -584,6 +584,7 @@ export const PRIVACY: LegalDoc = {
             ['detlio:tip-hidden-on (local storage)', 'The day you hid the car care tip on Home', 'Until you clear it in your browser; the tip comes back the next day'],
             ['detlio_consent (cookie)', 'Your answer to the cookie question: analytics and marketing cookies allowed, or only essential ones. Change it in Cookie settings.', '1 year'],
             ['detlio:visit and detlio:garage-seen (session storage)', 'Detlio\'s own measurement of a visit (section 3): a random visit ID, and whether a garage has been shown yet. Never sent anywhere but our own servers.', 'Until you close the tab'],
+            ['detlio:vt-garage and detlio:vt-picks (session storage)', 'Which garage you opened from the list, and the services you picked there before Book now, so going back shows them again. Never sent anywhere.', 'Until you close the tab'],
             ['_clck (cookie, set by Microsoft Clarity)', 'Analytics: a random ID that lets Clarity recognise this browser on each visit to detlio.com', '1 year'],
             ['_clsk (cookie, set by Microsoft Clarity)', 'Analytics: joins the pages of one visit into one recording', '1 day'],
             ['_fbp (cookie, set by Meta\'s pixel)', 'Advertising: a random ID that lets Meta recognise this browser on each visit to detlio.com, to measure our ads', '90 days, renewed on each visit'],

@@ -69,22 +69,22 @@ export function CouponTicket(props: CouponTicketProps) {
         <span className="font-numeric text-[26px] font-bold leading-none text-text-primary">
           {figure.text}
         </span>
-        <span className="text-[11px] text-text-secondary">{figure.under}</span>
+        <span className="text-t5 text-text-secondary">{figure.under}</span>
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-1.5 px-4 py-3.5">
-        <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">
+        <p className="text-t5 font-medium uppercase tracking-wide text-text-muted">
           Detlio coupon
         </p>
-        <Heading className="text-[15px] font-semibold leading-snug text-text-primary">
+        <Heading className="text-t3 font-semibold leading-snug text-text-primary">
           {props.title}
         </Heading>
-        <ul className="flex flex-col gap-0.5 text-[12px] text-text-secondary">
+        <ul className="flex flex-col gap-0.5 text-t5 text-text-secondary">
           {props.conditions.map((line) => (
             <li key={line}>{line}</li>
           ))}
         </ul>
         {props.code && (
-          <p className="font-numeric text-[12px] tracking-wide text-text-primary">
+          <p className="font-numeric text-t5 tracking-wide text-text-primary">
             {props.code}
           </p>
         )}

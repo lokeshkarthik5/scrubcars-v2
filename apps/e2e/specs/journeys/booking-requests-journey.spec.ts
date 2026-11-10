@@ -160,7 +160,9 @@ test.describe('requests to a garage just outside its area @p0', () => {
     await expect(customer.getByRole('region', { name: new RegExp(`${VENDORS.reqFirst.name} will come`) })).toBeVisible()
     const price = customer.getByRole('region', { name: 'Price' })
     await expect(price.getByText('Travel fee')).toBeVisible()
-    await expect(price.getByText('₹1,900')).toBeVisible()
+    // "To pay" rolls like an odometer: the figure is written once for screen
+    // readers and once as the hidden rolling digits, so the read one is taken.
+    await expect(price.getByText('₹1,900', { exact: true }).first()).toBeVisible()
     await expect(customer.getByRole('button', { name: 'Pay ₹1,900' })).toBeVisible()
     await customer.getByRole('button', { name: 'Pay ₹1,900' }).click()
     await customer.waitForURL(/\/bookings\/[0-9a-f-]+/)

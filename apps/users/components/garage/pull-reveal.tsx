@@ -142,7 +142,7 @@ export function PullReveal({
       <div aria-live="polite" className="flex w-full flex-col items-center gap-2 text-center">
         {current === 'front' ? (
           <>
-            <p className="text-[12px] uppercase tracking-[0.14em]" style={{ color: look.pill }}>
+            <p className="text-t5 uppercase tracking-[0.14em]" style={{ color: look.pill }}>
               {pull.car.rarityLabel} · <span className="font-numeric">{cardNumber(pull.car.number, pull.car.total)}</span>
             </p>
             <h3 className="text-[22px] font-semibold leading-tight text-text-primary">{pull.car.name}</h3>
@@ -150,7 +150,7 @@ export function PullReveal({
             {news && (
               <p
                 className={cn(
-                  'rounded-[12px] border px-3 py-2 text-[13px]',
+                  'rounded-[12px] border px-3 py-2 text-t4',
                   pull.rowCompleted || pull.seriesCompleted ? 'border-[#F7D06B]/40 bg-[#F7D06B]/10 text-text-primary' : 'border-line text-text-secondary'
                 )}
               >
@@ -171,7 +171,7 @@ export function PullReveal({
           </>
         ) : (
           <>
-            <p className="text-[13px] text-text-secondary">{pull.sourceLabel === 'Booking completed' ? 'Your booking earned a card for your Garage.' : `${pull.sourceLabel}: a card for your Garage.`}</p>
+            <p className="text-t4 text-text-secondary">{pull.sourceLabel === 'Booking completed' ? 'Your booking earned a card for your Garage.' : `${pull.sourceLabel}: a card for your Garage.`}</p>
             <ScButton variant="secondary" onClick={reveal} disabled={current !== 'back'} className="min-h-11 px-6">
               {current === 'back' ? 'Reveal' : 'Revealing…'}
             </ScButton>

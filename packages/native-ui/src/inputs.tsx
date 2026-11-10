@@ -1,8 +1,12 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { type ComponentRef, useEffect, useRef, useState } from 'react';
-import { Pressable, TextInput, type TextInputProps, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, TextInput, type TextInputProps, View } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 
+import { Recessed, RedLight } from './finish';
+import { EASE_SETTLE, EASE_SPRING, useReduceMotion } from './motion';
 import { font, T } from './text';
-import { createStyles, useColors } from './theme';
+import { createStyles, useColors, useFinish } from './theme';
 
 /** Pasted "+91 98765 43210" or "098765...": ten digits (core's normaliseIndianMobile, handed in). */
 export type NormalisePhone = (text: string) => string;
@@ -16,6 +20,28 @@ export function ScInput({
 }: TextInputProps & { label?: string; numeric?: boolean }) {
   const colors = useColors();
   const styles = useStyles();
+  const { on: finish } = useFinish();
+  if (finish) {
+    // Under the finish a field is recessed: pressed into the screen, lit from below.
+    return (
+      <View style={styles.field}>
+        {label ? (
+          <T size={11} weight={500} color={colors.textSecondary}>
+            {label}
+          </T>
+        ) : null}
+        <Recessed radius={12}>
+          <TextInput
+            placeholderTextColor={colors.textMuted}
+            keyboardAppearance={colors.keyboard}
+            style={[styles.solid, styles.recessedInput, numeric && styles.numeric, style]}
+            accessibilityLabel={props.accessibilityLabel ?? label}
+            {...props}
+          />
+        </Recessed>
+      </View>
+    );
+  }
   return (
     <View style={styles.field}>
       {label ? (
@@ -101,17 +127,23 @@ export function OtpInput({
   length = 6,
   onChange,
   resetKey,
+  invalid = false,
 }: {
   length?: number;
   onChange: (otp: string) => void;
   /** Change it to empty the boxes. */
   resetKey?: number;
+  /** The code was refused: the boxes part again, so the digits can be seen and fixed. */
+  invalid?: boolean;
 }) {
   const colors = useColors();
   const styles = useStyles();
+  const { on: finish } = useFinish();
   const [value, setValue] = useState('');
   const [focused, setFocused] = useState(false);
   const input = useRef<ComponentRef<typeof TextInput>>(null);
+  // All six in and nothing said against them: the boxes join into one tick.
+  const joined = finish && value.length === length && !invalid;
 
   useEffect(() => {
     setValue('');
@@ -129,6 +161,11 @@ export function OtpInput({
       {Array.from({ length }, (_, index) => {
         const digit = value[index] ?? '';
         const current = focused && index === Math.min(value.length, length - 1);
+        if (finish) {
+          return (
+            <CodeBox key={index} index={index} length={length} digit={digit} current={current} joined={joined} />
+          );
+        }
         return (
           <View
             key={index}
@@ -144,6 +181,7 @@ export function OtpInput({
           </View>
         );
       })}
+      {finish ? <CodeJoin joined={joined} length={length} /> : null}
       <TextInput
         ref={input}
         accessibilityLabel="Verification code"
@@ -168,8 +206,130 @@ export function OtpInput({
   );
 }
 
+/** How far apart the code boxes sit: a box and the gap after it. */
+const BOX_STEP = 52;
+
+/**
+ * One code box under the finish (moment 10, the website's otp-cell): recessed, with a
+ * red light under it that switches on as its digit goes in. With the sixth digit the
+ * boxes slide into the middle and fade as one tick takes their place; Backspace, or a
+ * wrong code emptying them, parts them again at once.
+ */
+function CodeBox({ index, length, digit, current, joined }: { index: number; length: number; digit: string; current: boolean; joined: boolean }) {
+  const colors = useColors();
+  const reduce = useReduceMotion();
+  const join = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (reduce || !joined) {
+      join.setValue(joined ? 1 : 0);
+      return;
+    }
+    const run = Animated.timing(join, { toValue: 1, duration: 350, delay: 250, easing: EASE_SETTLE, useNativeDriver: true });
+    run.start();
+    return () => run.stop();
+  }, [joined, reduce, join]);
+  const toCentre = ((length - 1) / 2 - index) * BOX_STEP;
+  return (
+    <Animated.View
+      style={{
+        opacity: join.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+        transform: [
+          { translateX: join.interpolate({ inputRange: [0, 1], outputRange: [0, toCentre] }) },
+          { scale: join.interpolate({ inputRange: [0, 1], outputRange: [1, 0.6] }) },
+        ],
+      }}
+    >
+      <Recessed radius={12} style={[codeStyles.box, current && { borderWidth: 1.5, borderColor: colors.scheme === 'light' ? colors.outlineStrong : 'rgba(255,255,255,0.55)' }]} innerStyle={codeStyles.boxInner}>
+        <T num size={16} weight={700} lh={20} color={colors.textPrimary}>
+          {digit}
+        </T>
+        <RedLight state={digit ? 'on' : 'dim'} width={14} style={codeStyles.light} />
+      </Recessed>
+    </Animated.View>
+  );
+}
+
+/** The light that sweeps across as the sixth digit goes in, and the tick the boxes join into. */
+function CodeJoin({ joined, length }: { joined: boolean; length: number }) {
+  const reduce = useReduceMotion();
+  const sweep = useRef(new Animated.Value(0)).current;
+  const tick = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!joined) {
+      sweep.setValue(0);
+      tick.setValue(0);
+      return;
+    }
+    if (reduce) {
+      tick.setValue(1);
+      return;
+    }
+    const run = Animated.parallel([
+      Animated.timing(sweep, { toValue: 1, duration: 500, useNativeDriver: true }),
+      Animated.timing(tick, { toValue: 1, duration: 400, delay: 300, easing: EASE_SPRING, useNativeDriver: true }),
+    ]);
+    run.start();
+    return () => run.stop();
+  }, [joined, reduce, sweep, tick]);
+  const width = length * BOX_STEP;
+  return (
+    <View pointerEvents="none" style={[codeStyles.join, { width }]}>
+      <Animated.View
+        style={[
+          codeStyles.sweep,
+          {
+            opacity: sweep.interpolate({ inputRange: [0, 0.05, 1], outputRange: [0, 1, 0] }),
+            transform: [{ translateX: sweep.interpolate({ inputRange: [0, 1], outputRange: [-60, width] }) }],
+          },
+        ]}
+      >
+        <LinearGradient
+          colors={['rgba(255,90,110,0)', 'rgba(255,90,110,0.5)', 'rgba(255,90,110,0)']}
+          start={{ x: 0, y: 0.5 }}
+          end={{ x: 1, y: 0.5 }}
+          style={StyleSheet.absoluteFill}
+        />
+      </Animated.View>
+      <Animated.View
+        style={[
+          codeStyles.tick,
+          { opacity: tick, transform: [{ scale: tick.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] }) }] },
+        ]}
+      >
+        <LinearGradient colors={['#383840', '#1D1D23']} style={[StyleSheet.absoluteFill, codeStyles.tickFace]} />
+        <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+          <Path d="M5 12.5l4.2 4.2L19 7" />
+        </Svg>
+      </Animated.View>
+    </View>
+  );
+}
+
+const codeStyles = StyleSheet.create({
+  box: { width: 44, height: 50 },
+  boxInner: { alignItems: 'center', justifyContent: 'center' },
+  light: { position: 'absolute', bottom: 6, alignSelf: 'center' },
+  join: { position: 'absolute', top: 0, bottom: 0, alignSelf: 'center', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  sweep: { position: 'absolute', top: 0, bottom: 0, left: 0, width: 60 },
+  tick: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255,45,74,0.6)',
+    shadowColor: '#E4002B',
+    shadowOffset: { width: 0, height: 0 },
+    shadowRadius: 11,
+    shadowOpacity: 0.5,
+  },
+  tickFace: { borderRadius: 26 },
+});
+
 const useStyles = createStyles((c) => ({
   field: { gap: 6 },
+  recessedInput: { borderWidth: 0, backgroundColor: 'transparent', fontFamily: font(500), fontSize: 15 },
   solid: {
     letterSpacing: 0,
     borderRadius: 10,

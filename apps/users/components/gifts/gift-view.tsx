@@ -158,7 +158,7 @@ export function GiftView({ code }: { code: string }) {
         {/* The stored card (0055); an old link's #card= fragment is ignored. */}
         <div className="flex flex-col gap-1.5">
           <PremiumCard spec={cardSpec(true)} />
-          <p className="text-center text-[11px] text-text-muted">
+          <p className="text-center text-t5 text-text-muted">
             {CARS_ILLUSTRATION_LINE}
           </p>
         </div>
@@ -168,7 +168,7 @@ export function GiftView({ code }: { code: string }) {
             <span className="font-numeric">{giftRupees(gift.amount)}</span>{' '}
             Detlio gift for {gift.recipientName}
           </h1>
-          <p className="text-[13px] text-text-secondary">
+          <p className="text-t4 text-text-secondary">
             From {gift.fromName}
           </p>
         </div>
@@ -203,7 +203,7 @@ export function GiftView({ code }: { code: string }) {
                 </>
               )}
             </p>
-            <p className="text-[12px] text-text-secondary">
+            <p className="text-t5 text-text-secondary">
               It comes off your next booking at checkout.
             </p>
             {/* The page's one red action, now that the gift is in. */}
@@ -212,19 +212,19 @@ export function GiftView({ code }: { code: string }) {
             </ScButtonLink>
             <Link
               href="/profile/credit"
-              className="flex min-h-11 items-center justify-center text-[13px] font-medium text-text-secondary hover:text-text-primary"
+              className="flex min-h-11 items-center justify-center text-t4 font-medium text-text-secondary hover:text-text-primary"
             >
               See your Detlio credit
             </Link>
           </ScCard>
         ) : closed ? (
           <ScCard>
-            <p className="text-[13px] text-text-secondary">{closed}</p>
+            <p className="text-t4 text-text-secondary">{closed}</p>
           </ScCard>
         ) : (
           <div className="flex flex-col gap-2">
             {gift.expiresAt && (
-              <p className="text-[12px] text-text-secondary">
+              <p className="text-t5 text-text-secondary">
                 Use by{' '}
                 <span className="font-numeric">
                   {formatGiftDate(gift.expiresAt)}
@@ -238,13 +238,13 @@ export function GiftView({ code }: { code: string }) {
             >
               {redeeming ? 'Redeeming…' : 'Redeem on Detlio'}
             </ScButton>
-            <p className="text-[12px] text-text-muted">
+            <p className="text-t5 text-text-muted">
               {user
                 ? 'The gift becomes Detlio credit on your account, used at checkout on your next booking.'
                 : 'Sign in or create an account with your phone number, then the gift becomes Detlio credit on it.'}
             </p>
             {redeemError && (
-              <p role="alert" className="text-[12px] text-error">
+              <p role="alert" className="text-t5 text-error">
                 {redeemError}
               </p>
             )}

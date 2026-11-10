@@ -7,19 +7,26 @@ import { cn } from '@repo/core/utils'
 
 /**
  * An inner screen's header (the consistency system's second kind): a back
- * arrow and a 20pt left-aligned title in sentence case — "Book your wash",
- * "Booking". Tab screens keep TopBar's large title.
+ * arrow and a left-aligned title in sentence case — "Book your wash",
+ * "Booking" — at T2 (18/600) on the finish's type scale. Tab screens keep
+ * TopBar's page title.
  */
 export function PageHeader({
   title,
   backHref,
+  onBack,
   right,
+  solid = false,
   className,
 }: {
   title: string
   /** Where the arrow goes; without one it goes back in history. */
   backHref?: string
+  /** What the arrow does instead of going back (the booking page folds into its bar). */
+  onBack?: () => void
   right?: React.ReactNode
+  /** Glass under it (`gp-top`'s), for a header stuck over a page that scrolls. */
+  solid?: boolean
   className?: string
 }) {
   const router = useRouter()
@@ -27,7 +34,10 @@ export function PageHeader({
   const backClass =
     '-m-[11px] flex size-11 shrink-0 items-center justify-center text-text-primary'
   return (
-    <header className={cn('flex min-h-14 items-center gap-4 py-2', className)}>
+    <header
+      data-solid={solid ? '' : undefined}
+      className={cn('flex min-h-14 items-center gap-4 py-2', className)}
+    >
       {backHref ? (
         <Link href={backHref} aria-label="Go back" className={backClass}>
           {arrow}
@@ -35,14 +45,14 @@ export function PageHeader({
       ) : (
         <button
           type="button"
-          onClick={() => router.back()}
+          onClick={() => (onBack ? onBack() : router.back())}
           aria-label="Go back"
           className={backClass}
         >
           {arrow}
         </button>
       )}
-      <h1 className="min-w-0 flex-1 text-[20px] leading-tight font-normal tracking-[-0.015em] text-text-primary">
+      <h1 className="min-w-0 flex-1 text-t2 font-semibold text-text-primary">
         {title}
       </h1>
       {right && <div className="shrink-0">{right}</div>}

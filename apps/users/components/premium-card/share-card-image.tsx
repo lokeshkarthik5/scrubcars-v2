@@ -55,7 +55,7 @@ export function ShareCardImage({
       type="button"
       aria-expanded={open}
       onClick={() => setOpen((on) => !on)}
-      className="flex min-h-10 items-center gap-1.5 text-[12px] font-medium text-text-primary underline underline-offset-4"
+      className="flex min-h-10 items-center gap-1.5 text-t5 font-medium text-text-primary underline underline-offset-4"
     >
       <IconBrandInstagram size={16} aria-hidden="true" />
       Share
@@ -72,9 +72,9 @@ export function ShareCardImage({
       {toggle}
       {open && (
         <div className="flex flex-col gap-2.5 rounded-[12px] border border-border bg-surface p-3">
-          <p className="text-[12px] text-text-secondary">The card as a picture, for your story or feed. No codes or links go in it.</p>
+          <p className="text-t5 text-text-secondary">The card as a picture, for your story or feed. No codes or links go in it.</p>
           {firstName && (
-            <label className="flex min-h-9 items-center gap-2.5 text-[13px] text-text-primary">
+            <label className="flex min-h-9 items-center gap-2.5 text-t4 text-text-primary">
               <input
                 type="checkbox"
                 checked={showName}
@@ -97,7 +97,7 @@ export function ShareCardImage({
                   {busy === format && <IconLoader2 size={14} className="animate-spin" aria-hidden="true" />}
                   {SHARE_FORMATS[format].label}
                 </span>
-                <span className="font-numeric text-[11px] font-normal text-text-secondary">
+                <span className="font-numeric text-t5 font-normal text-text-secondary">
                   {format === 'story' ? '9:16' : '4:5'}
                 </span>
               </ScButton>

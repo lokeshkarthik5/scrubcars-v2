@@ -10,11 +10,11 @@ import { bookAgainPath, canBookAgain, matchSavedAddress } from '@repo/core/book-
 import { BOOKING_TYPE_LABELS, bookingReference, CONFIRMED_CHANGE_CUTOFF_MINS } from '@repo/core/booking-types';
 import { googleMapsLink, telHref, whatsAppHref } from '@repo/core/contact-links';
 import { contactWindowState } from '@repo/core/contact-window';
-import { formatWhen } from '@repo/core/format';
+import { formatWhen, formatClock } from '@repo/core/format';
 import { useNow } from '@repo/core/hooks/use-now';
 import { finalBillMayChange, formatStepTime } from '@repo/core/job-records';
 import { confirmPayment, FALLBACK_REFUND_MESSAGE, realClock } from '@repo/core/payment-confirmation';
-import { carWithGarage } from '@repo/core/pickup';
+import { carWithGarage, pickupTimeline } from '@repo/core/pickup';
 import { customerRefundLine } from '@repo/core/refunds';
 import { customerWaitingNote } from '@repo/core/response-deadline';
 import { useBookingsStore } from '@repo/core/stores/bookings-store';
@@ -46,7 +46,9 @@ import { JobPhotosCard } from '@/components/booking/job-photos-card';
 import { OtherGaragesCard } from '@/components/booking/other-garages-card';
 import { PickupCodeCard, PickupTimeline, StatusStepper } from '@/components/booking/progress';
 import { BypassReportLine } from '@/components/booking/report-bypass';
-import { SuccessBurst } from '@/components/booking/success-burst';
+import { AnswerByRing } from '@/components/moments/answer-by-ring';
+import { Ignition } from '@/components/moments/ignition';
+import { ProgressRoad, statusStops, type RoadStop } from '@/components/moments/road';
 import { ReviewCard, ReviewDone } from '@/components/booking/review-card';
 import { TimeProposalCard } from '@/components/booking/time-proposal-card';
 import { PaymentReceivedPanel } from '@/components/checkout/payment-received-panel';
@@ -397,6 +399,26 @@ export default function BookingDetailScreen() {
   const garageWhatsApp = contactOpen ? (whatsAppHref(contactGarage?.whatsapp, garageMessage) ?? whatsAppHref(contactGarage?.phone, garageMessage)) : null;
   const finished = booking.status === 'completed';
   const waitingNote = awaitingGarage && booking.paymentStatus === 'paid' && !timeProposal && !missedByGarage ? customerWaitingNote(booking.responseDeadline, now) : null;
+  // The road is the progress bar (moment 2): the four steps as stops, or pickup & drop's
+  // six handover steps on the same road. Hidden when moved, cancelled or missed.
+  const pickupSteps = isPickup ? pickupTimeline(booking) : null;
+  const roadStops: RoadStop[] | null =
+    headline.step === null || !showProgress
+      ? null
+      : pickupSteps
+        ? pickupSteps.map((step) => ({ label: step.label, state: step.state }))
+        : statusStops(STATUS_STEPS, headline.step, finished);
+  // While a paid booking waits, the garage's time to answer drains from a ring beside the
+  // status (moment 3), as long as there is a deadline ahead.
+  const answerBy =
+    awaitingGarage &&
+    booking.paymentStatus === 'paid' &&
+    !timeProposal &&
+    !missedByGarage &&
+    booking.responseDeadline &&
+    Date.parse(booking.responseDeadline.respondBy) > now
+      ? booking.responseDeadline
+      : null;
   const earlierRefund = !cancelled ? customerRefundLine(booking.refund, 'earlier_bill') : null;
 
   return (
@@ -407,9 +429,12 @@ export default function BookingDetailScreen() {
           <T size={13} lh={18} color={colors.dim}>
             {[booking.vendorName, BOOKING_TYPE_LABELS[booking.bookingType], booking.vehicle?.model].filter(Boolean).join(' · ')}
           </T>
-          <T accessibilityRole="header" size={28} weight={300} lh={32} tracking={-0.025}>
-            {statusTitle}
-          </T>
+          <View style={styles.statusHead}>
+            <T accessibilityRole="header" variant="title" style={styles.statusTitle}>
+              {statusTitle}
+            </T>
+            {answerBy ? <AnswerByRing deadline={answerBy} now={now} /> : null}
+          </View>
           {cancelled
             ? cancelled.lines.map((line) => (
                 <T key={line} size={15} lh={22} color={colors.textSecondary}>
@@ -436,22 +461,9 @@ export default function BookingDetailScreen() {
               This booking was moved to a new time. Open your bookings to see the new one and whether the garage has accepted it.
             </T>
           ) : null}
-          {headline.step !== null && showProgress ? (
-            <View style={styles.meter}>
-              <View style={styles.bars}>
-                {STATUS_STEPS.map((step, i) => (
-                  <View key={step} style={[styles.bar, i <= headline.step! ? styles.barOn : styles.barOff]} />
-                ))}
-              </View>
-              <View style={styles.bars}>
-                {STATUS_STEPS.map((step, i) => (
-                  <T key={step} size={12} lh={16} align={i === 3 ? 'right' : undefined} color={i === headline.step ? colors.textPrimary : colors.dim} style={styles.barLabel}>
-                    {step}
-                  </T>
-                ))}
-              </View>
-            </View>
-          ) : null}
+          {/* The car drives to the next stop when the status changes (the screen polls); the
+              garage's pin flashes on Accepted and is a green tick when done. */}
+          {roadStops ? <ProgressRoad stops={roadStops} flashAt={1} style={styles.road} /> : null}
         </View>
 
         {timeProposal ? (
@@ -813,9 +825,13 @@ export default function BookingDetailScreen() {
 
       {gettingThere ? <BookingDirectionsSheet open={showDirections} onClose={() => setShowDirections(false)} booking={booking} /> : null}
       {celebrating ? (
-        <SuccessBurst
+        // Ignition, after paying (moment 1): the same words the burst said, with the
+        // booking's road, the car parked where it is.
+        <Ignition
           title={awaitingGarage ? 'Booking requested' : 'Booking confirmed'}
           subtitle={awaitingGarage ? `Waiting for ${booking.vendorName} to accept your ${booking.scheduledAt} slot.` : `${booking.serviceSummary} at ${booking.vendorName} · ${booking.scheduledAt}`}
+          stops={roadStops ?? statusStops(STATUS_STEPS, awaitingGarage ? 0 : 1, false)}
+          caption={awaitingGarage ? `Requested${answerBy ? ` · they answer by ${formatClock(answerBy.respondBy)}` : ''}` : null}
           onDone={() => setCelebrating(false)}
         />
       ) : null}
@@ -868,12 +884,9 @@ const useStyles = createStyles((c) => ({
   loading: { paddingHorizontal: 16, gap: 12 },
   loadError: { paddingHorizontal: 16, paddingTop: 16 },
   status: { gap: 4, paddingBottom: 4 },
-  meter: { marginTop: 12, gap: 6 },
-  bars: { flexDirection: 'row', gap: 6 },
-  bar: { flex: 1, height: 3, borderRadius: 2 },
-  barOn: { backgroundColor: c.textPrimary },
-  barOff: { backgroundColor: c.meterOff },
-  barLabel: { flex: 1 },
+  statusHead: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
+  statusTitle: { flex: 1, minWidth: 0 },
+  road: { marginTop: 24 },
   gap12: { gap: 12 },
   gap8: { gap: 8 },
   grow: { flex: 1, minWidth: 0 },

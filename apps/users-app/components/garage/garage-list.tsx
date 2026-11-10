@@ -4,58 +4,59 @@ import { RequestSheet } from '@/components/reach/request-sheet';
 import { useTierConfig } from '@repo/core/api/hooks/use-tiers';
 import { useVendorSearch } from '@repo/core/api/hooks/use-vendors';
 import { BOOKING_TYPE_LABELS, BOOKING_TYPES, bookingTypeParam } from '@repo/core/booking-types';
-import { CATEGORY_FILTERS } from '@repo/core/categories';
+import { CATEGORY_LABELS } from '@repo/core/categories';
+import { SERVICE_CITY, firstFarIndex, nearGarageCount } from '@repo/core/service-city';
 import { atGarageReach, canCollectFrom, nextTabOffer, outsideLine, skipTheDriveTitle, type NextTabOffer, type SkipTheDriveRow } from '@repo/core/reach';
 import { requestActionLabel } from '@repo/core/booking-requests';
-import { SILVER_FILTER_LABEL } from '@repo/core/tiers';
-import type { BookingType } from '@repo/core/types';
+import { SILVER_KEY_LABEL, SILVER_KEY_QUIET } from '@repo/core/tiers';
+import type { BookingType, Vendor } from '@repo/core/types';
 import type { JustOutsideVendor } from '@repo/core/api/vendors';
 import { ScButton } from '@repo/native-ui/button';
+import { Glass, GraphiteSwitch, Odometer, Raised, Recessed, SilverKey, TwoLineControl } from '@repo/native-ui/finish';
 import {
   IconArrowRight,
   IconArrowsSort,
+  IconBuildingStore,
   IconCamera,
+  IconCarGarage,
   IconChevronDown,
   IconChevronRight,
+  IconHome,
   IconKey,
-  IconMap,
   IconSearch,
   IconShieldCheck,
+  type IconProps,
 } from '@repo/native-ui/icons';
+import { PressScale, Rise, SeenProvider, useReduceMotion, useSeenHost } from '@repo/native-ui/motion';
 import { ErrorState, HubCard, PressRow, Spinner } from '@repo/native-ui/primitives';
 import { T } from '@repo/native-ui/text';
-import { createStyles, useColors } from '@repo/native-ui/theme';
+import { createStyles, useColors, useFinish } from '@repo/native-ui/theme';
 import { type Href, router } from 'expo-router';
-import { Fragment, useEffect, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { type ComponentRef, Fragment, type ReactElement, type ReactNode, useEffect, useRef, useState } from 'react';
+import {
+  Animated,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+  Platform,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useNavClearance } from '@/components/hub-nav';
+import { PullCar } from '@/components/moments/pull-car';
 import { coarse, isApproximate, isCitywide, shouldOfferLocationPrompt, useLocationStore } from '@/lib/location';
 
-import { ModeSwitch } from './mode-switch';
+import { FilterSheet, SERVICE_FILTERS, ServiceFilterIcon, serviceFilterLabel, type ServiceFilter } from './filter-sheet';
+import { MapPeek } from './map-peek';
+import { QuickLook } from './quick-look';
+import { RollingHint } from './rolling-hint';
+import { ShowroomCard } from './showroom-card';
 import { canSortByRating, sortLabel, SortSheet, type SortKey } from './sort-sheet';
 import { TierMedalIcon } from './tier';
 import { VendorCard } from './vendor-card';
-
-type CategoryKey = (typeof CATEGORY_FILTERS)[number]['key'];
-
-/** A white chip, not a red one: red is kept for things to press. */
-function FilterPill({ label, on, onPress, icon }: { label: string; on: boolean; onPress: () => void; icon?: React.ReactNode }) {
-  const colors = useColors();
-  const styles = useStyles();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected: on }}
-      onPress={onPress}
-      style={[styles.pill, { backgroundColor: on ? colors.chosenBg : colors.surface }]}
-    >
-      {icon}
-      <T size={13} weight={500} lh={18} color={on ? colors.chosenText : colors.textPrimary}>
-        {label}
-      </T>
-    </Pressable>
-  );
-}
 
 function SkipTheDriveCard({
   rows,
@@ -212,32 +213,75 @@ function NextTabFooter({ offer, onSwitch }: { offer: NextTabOffer | null; onSwit
   );
 }
 
+/** The mode switch's quiet second lines and icons (§3). */
+const MODE_QUIET: Record<BookingType, string> = {
+  dropin: 'Drive it in',
+  doorstep: 'We come to you',
+  pickup: 'We collect it',
+};
+const MODE_ICONS: Record<BookingType, (props: IconProps) => ReactElement> = {
+  dropin: IconBuildingStore,
+  doorstep: IconHome,
+  pickup: IconCarGarage,
+};
+
+/** "5 garages", "20+ garages", "1 garage". */
+function garagesWord(count: number, more: boolean): string {
+  return count === 1 && !more ? 'garage' : 'garages';
+}
+
+/** Whether a list card offers the service, from its tags (codes or their names). */
+function offers(vendor: Vendor, filter: Exclude<ServiceFilter, 'all'>): boolean {
+  const names = [filter, CATEGORY_LABELS[filter]].map((n) => n.toLowerCase());
+  return vendor.serviceTags.some((tag) => names.includes(tag.toLowerCase()));
+}
+
+/** A card where the list put it, so its photos can drift with the scroll from there. */
+function Placed({ listTop, children }: { listTop: number; children: (top: number) => ReactNode }) {
+  const [y, setY] = useState(0);
+  return <View onLayout={(event) => setY(event.nativeEvent.layout.y)}>{children(listTop + y)}</View>;
+}
+
 /**
- * GarageList (apps/users/components/garages/garage-list.tsx): mode switch, search, chips,
- * sort, the garages and the "never empty" pieces around them. `useList` hands the screen
- * what it needs for infinite scroll, since the screen owns the ScrollView.
+ * GarageList (apps/users/components/garages/garage-list.tsx, customer UI round §3): the
+ * recessed search with its rolling hint, the map peek, the graphite mode switch and the
+ * filter row (pinned to the top on glass while the list scrolls), sort, the garages as
+ * Showroom cards, and the "never empty" pieces around them. It owns the screen's scroll,
+ * so the controls can stick and the cards can drift; `header` is what sits above it all
+ * (the brand row, a booking left half way).
  */
 export function GarageList({
   mode,
   onModeChange,
   onAskArea,
-  bindLoadMore,
-  scrollToTop,
+  header,
 }: {
   mode: BookingType;
   onModeChange: (mode: BookingType) => void;
   onAskArea: () => void;
-  bindLoadMore: (loadMore: () => void) => void;
-  scrollToTop: () => void;
+  header: ReactNode;
 }) {
   const colors = useColors();
   const styles = useStyles();
-  const [category, setCategory] = useState<CategoryKey>('all');
+  const { fx } = useFinish();
+  const reduce = useReduceMotion();
+  const insets = useSafeAreaInsets();
+  const clearance = useNavClearance();
+  const [category, setCategory] = useState<ServiceFilter>('all');
   const silverFilterOffered = useTierConfig().data?.silverFilter === true;
   const [silverChosen, setSilverChosen] = useState(false);
   const silverOnly = silverChosen && silverFilterOffered;
   const [chosenSort, setChosenSort] = useState<SortKey | null>(null);
   const [sortOpen, setSortOpen] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [quickLook, setQuickLook] = useState<Vendor | null>(null);
+  const [pinned, setPinned] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [listTop, setListTop] = useState(0);
+  const controlsY = useRef<number | null>(null);
+  const scroll = useRef<ComponentRef<typeof Animated.ScrollView>>(null);
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const seen = useSeenHost();
 
   const location = useLocationStore((s) => s.location);
   const permission = useLocationStore((s) => s.permission);
@@ -263,9 +307,33 @@ export function GarageList({
     },
     { keepPrevious: true }
   );
-  bindLoadMore(loadMore);
+
+  // The same list with every service: the map peek's dots and the filter sheet's counts.
+  // With "All services" chosen it is the very query above (the same key), so it costs
+  // nothing; with a service chosen it is the one the list showed a moment before.
+  const everyService = useVendorSearch(
+    {
+      bookingType: mode,
+      silverAndAbove: silverOnly || undefined,
+      lat: origin?.lat,
+      lng: origin?.lng,
+      sort: effectiveSort,
+    },
+    { keepPrevious: true }
+  );
+  const counts = Object.fromEntries(
+    SERVICE_FILTERS.map((filter) => {
+      if (everyService.isLoading) return [filter, null];
+      const n = filter === 'all' ? everyService.vendors.length : everyService.vendors.filter((v) => offers(v, filter)).length;
+      // A count the loaded garages cannot vouch for is left off, never 0.
+      return [filter, n > 0 ? `${n}${everyService.hasMore ? '+' : ''}` : null];
+    })
+  ) as Record<ServiceFilter, string | null>;
 
   const firstUnlocatedIndex = origin ? vendors.findIndex((v) => v.distanceKm === null) : -1;
+  // Where the near garages end and the ones in other towns begin (Tirupur,
+  // 387 km): listed after a line, never counted as "near you".
+  const firstFar = firstFarIndex(vendors, { located: !!origin, nearestFirst: effectiveSort === 'distance' });
   const atGarage =
     mode === 'dropin' && !isRefreshing
       ? atGarageReach(reach, !!origin)
@@ -294,91 +362,225 @@ export function GarageList({
     return () => clearTimeout(timer);
   }, [onAskArea, isLoading, vendors.length, location, permission, promptDismissedAt]);
 
-  const switchTo = (next: BookingType) => {
+  /** The switch: a tap to another mode is a mode_switch, wherever it is made. */
+  const changeMode = (next: BookingType) => {
+    if (next !== mode) track('mode_switch', { mode: next });
     onModeChange(next);
-    scrollToTop();
   };
 
-  return (
-    <>
-      <ModeSwitch modes={BOOKING_TYPES} value={mode} onChange={onModeChange} />
+  /** A tap that moves to another tab: back up to where the controls sit before they pin. */
+  const switchTo = (next: BookingType) => {
+    changeMode(next);
+    scroll.current?.scrollTo({ y: Math.max(0, (controlsY.current ?? 0) - 1), animated: !reduce });
+  };
 
-      <PressRow onPress={() => router.navigate('/search' as Href)} style={styles.searchBar}>
-        <IconSearch size={17} color={colors.textSecondary} />
-        <T size={13} color={colors.textMuted}>
-          Search garages or services
-        </T>
-      </PressRow>
+  // Pull to refresh (moment 6): the little car rolls in as the list is pulled, and the
+  // list asks again. Held until the answer lands, so the car has somewhere to drive to.
+  const refresh = () => {
+    setRefreshing(true);
+    Promise.resolve(retry())
+      .catch(() => undefined)
+      .finally(() => setRefreshing(false));
+  };
 
-      {mode !== 'pickup' ? <FreeWashPiece placement="top" /> : null}
+  const onScroll = Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
+    useNativeDriver: true,
+    listener: ({ nativeEvent: e }: NativeSyntheticEvent<NativeScrollEvent>) => {
+      seen.notify();
+      const at = controlsY.current;
+      if (at !== null) {
+        const now = e.contentOffset.y > at;
+        setPinned((was) => (was === now ? was : now));
+      }
+      if (e.layoutMeasurement.height + e.contentOffset.y >= e.contentSize.height - 400) loadMore();
+    },
+  });
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.chipScroll}
-        contentContainerStyle={styles.chipRow}
-      >
+  const mapReady = !everyService.isLoading && !everyService.isError;
+  // Only garages within reach (or inside Chennai, with no location) are
+  // "near you": the far towns further down the list are not.
+  const near = nearGarageCount(everyService.vendors, {
+    located: !!origin,
+    hasMore: everyService.hasMore,
+    nearestFirst: effectiveSort === 'distance',
+  });
+  const listCount = isLoading ? null : `${vendors.length}${hasMore ? '+' : ''} ${garagesWord(vendors.length, hasMore)}`;
+
+  const controls = (
+    <View
+      key="controls"
+      onLayout={(event) => {
+        // Its place in the list before it pins; a pinned bar's own layout says nothing.
+        if (!pinned) controlsY.current = event.nativeEvent.layout.y;
+      }}
+      style={[styles.controls, pinned && { borderBottomColor: fx.glassEdge }]}
+    >
+      {pinned ? <Glass pointerEvents="none" radius={0} edge={false} base={fx.glassPinned} style={StyleSheet.absoluteFill} /> : null}
+      <GraphiteSwitch
+        accessibilityLabel="Service mode"
+        value={mode}
+        onChange={changeMode}
+        pinned={pinned}
+        options={BOOKING_TYPES.map((value) => {
+          const Icon = MODE_ICONS[value];
+          return {
+            value,
+            label: BOOKING_TYPE_LABELS[value],
+            quiet: MODE_QUIET[value],
+            icon: (ink: string) => <Icon size={18} color={ink} />,
+          };
+        })}
+      />
+      <View style={styles.filterRow}>
+        <TwoLineControl
+          onPress={() => setFilterOpen(true)}
+          accessibilityLabel={`Service: ${serviceFilterLabel(category)}${listCount ? `, ${listCount}` : ''}. Change`}
+          pinned={pinned}
+          style={styles.flex}
+          tile={(ink) => <ServiceFilterIcon filter={category} color={ink} />}
+          main={serviceFilterLabel(category)}
+          quiet={
+            isLoading ? (
+              'Finding garages…'
+            ) : (
+              <View style={styles.countLine}>
+                <Odometer value={`${vendors.length}${hasMore ? '+' : ''}`} numeric={vendors.length} size={11} weight={500} lh={15} color={fx.quiet} />
+                <T variant="t5" color={fx.quiet}>
+                  {` ${garagesWord(vendors.length, hasMore)}`}
+                </T>
+              </View>
+            )
+          }
+          trailing={<IconChevronDown size={16} color={fx.quiet} />}
+        />
+        {/* Not there at all while Detlio shows neither Silver nor Gold. */}
         {silverFilterOffered ? (
-          <>
-            <FilterPill
-              label={SILVER_FILTER_LABEL}
-              on={silverOnly}
-              onPress={() => setSilverChosen((on) => !on)}
-              icon={<TierMedalIcon tier="silver" size={15} />}
-            />
-            <View style={styles.chipDivider} />
-          </>
+          <SilverKey
+            on={silverOnly}
+            onToggle={() => setSilverChosen((on) => !on)}
+            label={SILVER_KEY_LABEL}
+            quiet={SILVER_KEY_QUIET}
+            pinned={pinned}
+            medal={<TierMedalIcon tier="silver" size={18} />}
+          />
         ) : null}
-        {CATEGORY_FILTERS.map((c) => (
-          <FilterPill key={c.key} label={c.label} on={category === c.key} onPress={() => setCategory(c.key)} />
-        ))}
-      </ScrollView>
+      </View>
+    </View>
+  );
 
+  const cards = vendors.map((vendor, i) => (
+    <Fragment key={vendor.id}>
+      {i === firstFar ? (
+        <T variant="t5" color={colors.textMuted} style={styles.unlocated}>
+          Further away — other towns
+        </T>
+      ) : null}
+      {i === firstUnlocatedIndex ? (
+        <T variant="t5" color={colors.textMuted} style={styles.unlocated}>
+          Other garages — location not set yet
+        </T>
+      ) : null}
+      <Placed listTop={listTop}>
+        {(top) => (
+          <Rise index={Math.min(i, 6)}>
+            <ShowroomCard
+              vendor={vendor}
+              mode={mode}
+              approxDistance={approximate}
+              onQuickLook={setQuickLook}
+              scrollY={scrollY}
+              top={top}
+              chips={
+                mode === 'dropin' && canCollectFrom(vendor, origin) ? (
+                  <View style={styles.collect}>
+                    <T size={12} weight={500} lh={16} color={colors.collectText}>
+                      Can collect your car
+                    </T>
+                  </View>
+                ) : undefined
+              }
+            />
+          </Rise>
+        )}
+      </Placed>
+    </Fragment>
+  ));
+
+  // The scroll's direct children: what is above the controls, the controls (which stick),
+  // and the rest.
+  const above = (
+    <View key="above" style={styles.stack}>
+      {header}
+      <PressScale accessibilityRole="button" accessibilityLabel="Search garages or services" onPress={() => router.navigate('/search' as Href)}>
+        <Recessed radius={16} style={styles.search} innerStyle={styles.searchInner}>
+          <IconSearch size={18} color={fx.quiet} />
+          <T variant="t3" weight={400} color={fx.quiet}>
+            Search
+          </T>
+          <RollingHint hints={SEARCH_HINTS} color={fx.quiet} />
+        </Recessed>
+      </PressScale>
+      {/* After the list's own first answer, so it never stands between the customer and the first garage. */}
+      {mapReady ? (
+        <MapPeek
+          vendors={everyService.vendors}
+          origin={origin}
+          centre={origin ?? SERVICE_CITY.centre}
+          mode={mode}
+          category={categoryParam}
+          scrollY={scrollY}
+          countLabel={{
+            count: `${near.count}${near.more ? '+' : ''}`,
+            words:
+              near.count === 1 && !near.more
+                ? origin
+                  ? 'garage near you'
+                  : 'garage in Chennai'
+                : origin
+                  ? 'garages near you'
+                  : 'garages in Chennai',
+          }}
+        />
+      ) : null}
+    </View>
+  );
+
+  const below = (
+    <View key="below" style={styles.stack}>
       {mode === 'pickup' ? <PickupExplainer /> : null}
       {atGarage.skipTheDrive ? (
         <SkipTheDriveCard rows={atGarage.skipTheDrive} nearestKm={atGarage.nearestKm} onSwitch={switchTo} />
       ) : null}
+      {mode !== 'pickup' ? <FreeWashPiece placement="top" /> : null}
 
       <View style={styles.section}>
-        <View style={styles.headRow}>
-          <T size={17} weight={500} style={styles.flex}>
-            {mode === 'dropin' && atGarage.skipTheDrive ? 'Or drive to' : 'Nearby garages'}
-          </T>
-          <View style={styles.headActions}>
-            <PressRow
-              onPress={() =>
-                router.navigate(
-                  `/map?bookingType=${mode}${category === 'all' ? '' : `&category=${category}`}` as Href
-                )
-              }
-              style={styles.headPill}
-            >
-              <IconMap size={14} stroke={2} color={colors.textSecondary} />
-              <T size={13} lh={18} color={colors.textSecondary}>
-                Map
-              </T>
-            </PressRow>
-            <PressRow onPress={() => setSortOpen(true)} style={styles.headPill}>
-              <IconArrowsSort size={14} stroke={2} color={colors.textSecondary} />
-              <T size={13} lh={18} numberOfLines={1} color={colors.textSecondary}>
-                {sortLabel(sort)}
-              </T>
-              <IconChevronDown size={14} stroke={2} color={colors.textSecondary} />
-            </PressRow>
+        <View>
+          <View style={styles.headRow}>
+            {/* No count beside it: the count lives in the filter button. */}
+            <T variant="t2" accessibilityRole="header" style={styles.flex}>
+              {mode === 'dropin' && atGarage.skipTheDrive ? 'Or drive to' : 'Nearby garages'}
+            </T>
+            <PressScale accessibilityRole="button" onPress={() => setSortOpen(true)}>
+              <Raised radius={12} style={styles.sort} innerStyle={styles.sortInner}>
+                <IconArrowsSort size={15} color={fx.quiet} />
+                <T variant="t4" numberOfLines={1} color={fx.soft}>
+                  {sortLabel(sort)}
+                </T>
+              </Raised>
+            </PressScale>
           </View>
+          {origin && location && vendors.length > 0 && sort === 'distance' ? (
+            <T variant="t5" color={fx.quiet} style={styles.caption}>
+              Nearest first from {location.label}
+              {approximate ? ' (distances from the area’s centre)' : ''}
+            </T>
+          ) : null}
+          {mode === 'pickup' && !origin && vendors.length > 0 ? (
+            <T variant="t5" color={colors.textMuted} style={styles.caption}>
+              Set your location to see only garages that collect from your area. Checkout checks your address either way.
+            </T>
+          ) : null}
         </View>
-
-        {mode === 'pickup' && !origin && vendors.length > 0 ? (
-          <T size={11} color={colors.textMuted}>
-            Set your location to see only garages that collect from your area. Checkout checks your address either way.
-          </T>
-        ) : null}
-        {origin && location && vendors.length > 0 && sort === 'distance' ? (
-          <T size={11} color={colors.textMuted}>
-            Nearest first from {location.label}
-            {approximate ? ' (distances from the area’s centre)' : ''}
-          </T>
-        ) : null}
         {atGarage.atHomeLine ? (
           <Pressable accessibilityRole="button" onPress={() => switchTo('doorstep')} style={styles.atHome}>
             <T size={13} color={colors.textSecondary}>
@@ -388,18 +590,21 @@ export function GarageList({
           </Pressable>
         ) : null}
 
-        <View style={[styles.list, isRefreshing && styles.refreshing]}>
+        <View
+          onLayout={(event) => setListTop(event.nativeEvent.layout.y)}
+          style={[styles.list, isRefreshing && styles.refreshing]}
+        >
           {isLoading || (isRefreshing && vendors.length === 0) ? (
-            <T size={13} color={colors.textSecondary} align="center" style={styles.finding}>
+            <T variant="t4" color={colors.textSecondary} align="center" style={styles.finding}>
               Finding garages…
             </T>
           ) : isError ? (
             <ErrorState message="Couldn't load garages. Check your connection." onRetry={retry} />
           ) : vendors.length === 0 ? (
             <View style={styles.none}>
-              <T size={15} color={colors.textSecondary} align="center">
+              <T variant="t3" weight={400} color={colors.textSecondary} align="center">
                 {silverOnly
-                  ? 'No Silver or Gold garages here yet. Turn off “Silver & above” to see every garage.'
+                  ? `No Silver or Gold garages here yet. Turn off “${SILVER_KEY_LABEL}” to see every garage.`
                   : mode === 'pickup'
                     ? 'No garage collects from your area yet.'
                     : mode === 'doorstep' && !citywide
@@ -430,28 +635,7 @@ export function GarageList({
               </View>
             </View>
           ) : (
-            vendors.map((vendor, i) => (
-              <Fragment key={vendor.id}>
-                {i === firstUnlocatedIndex ? (
-                  <T size={11} color={colors.textMuted} style={styles.unlocated}>
-                    Other garages — location not set yet
-                  </T>
-                ) : null}
-                <VendorCard
-                  vendor={vendor}
-                  mode={mode}
-                  chips={
-                    mode === 'dropin' && canCollectFrom(vendor, origin) ? (
-                      <View style={styles.collect}>
-                        <T size={12} weight={500} lh={16} color={colors.collectText}>
-                          Can collect your car
-                        </T>
-                      </View>
-                    ) : undefined
-                  }
-                />
-              </Fragment>
-            ))
+            cards
           )}
           {isFetchingMore ? <Spinner /> : null}
           {listEnded && justOutside.length > 0 ? (
@@ -461,7 +645,28 @@ export function GarageList({
           {listEnded && mode === 'pickup' ? <FreeWashPiece placement="bottom" /> : null}
         </View>
       </View>
+    </View>
+  );
 
+  return (
+    <SeenProvider value={seen.value}>
+      <PullCar scrollY={scrollY} refreshing={refreshing} top={insets.top} />
+      <Animated.ScrollView
+        ref={scroll}
+        style={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        stickyHeaderIndices={[1]}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={Platform.OS === 'ios' && !reduce ? 'transparent' : undefined} />}
+        contentContainerStyle={{ paddingTop: 16, paddingBottom: clearance }}
+      >
+        {above}
+        {controls}
+        {below}
+      </Animated.ScrollView>
+
+      <FilterSheet open={filterOpen} value={category} counts={counts} onChange={setCategory} onClose={() => setFilterOpen(false)} />
       <SortSheet
         open={sortOpen}
         value={sort}
@@ -470,27 +675,29 @@ export function GarageList({
         locationUnavailable={citywide}
         ratingAvailable={canSortByRating(vendors, sort, hasMore)}
       />
-    </>
+      <QuickLook vendor={quickLook} mode={mode} onClose={() => setQuickLook(null)} />
+    </SeenProvider>
   );
 }
 
+const SEARCH_HINTS = ['garages or services', 'foam wash', 'ceramic coating', 'interior cleaning', 'scratch removal'];
+
 const useStyles = createStyles((c) => ({
   flex: { flex: 1, minWidth: 0 },
-  pill: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingHorizontal: 16 },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: c.border,
-    backgroundColor: c.surface,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+  scroll: { flex: 1 },
+  stack: { gap: 16, paddingHorizontal: 16 },
+  search: { height: 50 },
+  searchInner: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16 },
+  controls: {
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 10,
+    marginBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: 'transparent',
   },
-  chipScroll: { marginHorizontal: -16, flexGrow: 0 },
-  chipRow: { gap: 8, paddingHorizontal: 16 },
-  chipDivider: { width: 1, marginVertical: 6, backgroundColor: c.border },
+  filterRow: { marginTop: 8, flexDirection: 'row', gap: 8 },
+  countLine: { flexDirection: 'row', alignItems: 'flex-end' },
   skip: { gap: 12, borderRadius: 18, borderWidth: 1, borderColor: c.skipBorder, backgroundColor: c.skipBg, padding: 16 },
   skipTitle: { marginTop: 6 },
   skipRow: {
@@ -512,16 +719,17 @@ const useStyles = createStyles((c) => ({
   safe: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 6, backgroundColor: c.successMuted, paddingHorizontal: 8, paddingVertical: 4 },
   section: { gap: 12 },
   headRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  headActions: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 },
-  headPill: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, borderWidth: 1, borderColor: c.line, paddingHorizontal: 14 },
+  sort: { height: 40 },
+  sortInner: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14 },
+  caption: { marginTop: 4 },
   atHome: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start' },
-  list: { gap: 12 },
+  list: { gap: 14 },
   refreshing: { opacity: 0.6 },
   finding: { paddingVertical: 32 },
   none: { alignItems: 'center', gap: 12, paddingVertical: 24 },
   noneActions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 },
   unlocated: { paddingTop: 4 },
-  collect: { borderRadius: 6, backgroundColor: c.collectBg, paddingHorizontal: 8, paddingVertical: 2 },
+  collect: { borderRadius: 999, backgroundColor: c.collectBg, paddingHorizontal: 10, paddingVertical: 4 },
   outside: { gap: 12, paddingTop: 8 },
   outsideActions: { marginTop: 8, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   seePrices: { minHeight: 44, justifyContent: 'center', borderRadius: 999, borderWidth: 1, borderColor: c.stroke, paddingHorizontal: 16 },

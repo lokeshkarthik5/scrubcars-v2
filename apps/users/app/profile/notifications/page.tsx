@@ -84,7 +84,7 @@ export default function NotificationsPage() {
           large={isHomeHubEnabled()}
         />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
-          <p className="text-[15px] font-semibold text-text-primary">
+          <p className="text-t3 font-semibold text-text-primary">
             Sign in to set up notifications
           </p>
           <ScButton
@@ -147,10 +147,10 @@ export default function NotificationsPage() {
                       className="flex items-center gap-3 px-3.5 py-2"
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="text-[13px] text-text-primary">
+                        <p className="text-t4 text-text-primary">
                           {item.title}
                         </p>
-                        <p className="text-[11px] text-text-secondary">
+                        <p className="text-t5 text-text-secondary">
                           {item.description}
                         </p>
                       </div>
@@ -164,7 +164,7 @@ export default function NotificationsPage() {
                   ))}
                 </ul>
               </ScCard>
-              <p className="text-[11px] text-text-muted">
+              <p className="text-t5 text-text-muted">
                 For every device you turn notifications on for. A notification
                 says the garage, the service and the time, never your number or
                 address. Your bookings&apos; news is in Updates too.

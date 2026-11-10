@@ -71,3 +71,55 @@ export function outsideCityCheckoutLine(outside: OutsideServiceCity): string {
     ? `This garage is in ${outside.town}, not ${SERVICE_CITY.name}.`
     : `This garage is outside ${SERVICE_CITY.name}.`
 }
+
+/** What the "near you" count and the "Further away" line need from a garage. */
+interface PlacedGarage {
+  distanceKm: number | null
+  outsideServiceCity?: OutsideServiceCity | null
+}
+
+/**
+ * Whether a garage counts as near the customer: within the city's reach of
+ * them (50 km) once they have shared where they are, or inside the city when
+ * they have not. A garage in another town (387 km away in Tirupur, say) is
+ * still listed, nearest first, but is never part of "5 garages near you".
+ */
+export function isNearCustomer(garage: PlacedGarage, located: boolean): boolean {
+  if (located) return garage.distanceKm !== null && garage.distanceKm <= SERVICE_CITY.radiusKm
+  return !garage.outsideServiceCity
+}
+
+/**
+ * "5 garages near you" / "5 garages in Chennai": how many of the loaded
+ * garages are near, and whether more near ones may be on a page not loaded
+ * yet (the "+"). On a nearest-first list that has already reached a garage
+ * past the reach, or the tail with no pin, every near garage is loaded, so
+ * there is no "+" however long the list goes on.
+ */
+export function nearGarageCount(
+  garages: readonly PlacedGarage[],
+  options: { located: boolean; hasMore: boolean; nearestFirst: boolean }
+): { count: number; more: boolean } {
+  const count = garages.filter((g) => isNearCustomer(g, options.located)).length
+  const last = garages[garages.length - 1]
+  const pastTheNear =
+    options.located &&
+    options.nearestFirst &&
+    last !== undefined &&
+    (last.distanceKm === null || last.distanceKm > SERVICE_CITY.radiusKm)
+  return { count, more: options.hasMore && !pastTheNear }
+}
+
+/**
+ * Where a nearest-first list crosses from near garages to far ones, for the
+ * "Further away" line above the first far card; -1 when there is no such
+ * point (no location, another sort, or nothing far). Garages with no pin
+ * have their own line and are not "far".
+ */
+export function firstFarIndex(
+  garages: readonly PlacedGarage[],
+  options: { located: boolean; nearestFirst: boolean }
+): number {
+  if (!options.located || !options.nearestFirst) return -1
+  return garages.findIndex((g) => g.distanceKm !== null && g.distanceKm > SERVICE_CITY.radiusKm)
+}

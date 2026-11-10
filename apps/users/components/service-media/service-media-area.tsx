@@ -15,7 +15,7 @@ import { ServiceVideo } from './service-video'
  */
 function MediaTag({ garageName }: { garageName: string }) {
   return (
-    <span className="flex max-w-full items-center gap-1.5 rounded-[8px] border border-white/10 bg-black/65 px-2.5 py-1 text-[13px] text-white backdrop-blur-sm">
+    <span className="flex max-w-full items-center gap-1.5 rounded-[8px] border border-white/10 bg-black/65 px-2.5 py-1 text-t4 text-white backdrop-blur-sm">
       <IconBuildingStore size={15} stroke={1.6} aria-hidden="true" />
       {/* "From A.J Auto Garage", the name in the stronger weight. */}
       <span className="truncate">

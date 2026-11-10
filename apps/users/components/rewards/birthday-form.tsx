@@ -17,7 +17,7 @@ export function BirthdayForm({ birthday, perkFrom }: { birthday: { month: number
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-[13px] text-text-secondary">
+      <p className="text-t4 text-text-secondary">
         {perkFrom ? `From ${perkFrom}, a wash on us in your birthday month.` : 'Your birthday, for birthday treats.'} Only the day and month.
       </p>
       <div className="grid grid-cols-[1fr_88px] gap-2">
@@ -53,7 +53,7 @@ export function BirthdayForm({ birthday, perkFrom }: { birthday: { month: number
       <div className="flex gap-2">
         <ScButton
           variant="secondary"
-          className="flex h-9 w-auto items-center justify-center px-4 py-0 text-[13px]"
+          className="flex h-9 w-auto items-center justify-center px-4 py-0 text-t4"
           disabled={!changed || !month || !day || save.isPending}
           onClick={() =>
             save.mutate({ month, day }, {
@@ -67,7 +67,7 @@ export function BirthdayForm({ birthday, perkFrom }: { birthday: { month: number
         {birthday && (
           <button
             type="button"
-            className="text-[12px] text-text-secondary underline underline-offset-4"
+            className="text-t5 text-text-secondary underline underline-offset-4"
             disabled={save.isPending}
             onClick={() =>
               save.mutate(null, {

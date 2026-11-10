@@ -67,7 +67,7 @@ export function RightTile({
         >
           <span className="flex min-h-0 flex-1 items-end pb-3">
             {tile.notice && (
-              <span className="-mr-1.5 flex min-w-0 items-start gap-[5px] text-[12px] leading-snug text-[#E4E4E7]">
+              <span className="-mr-1.5 flex min-w-0 items-start gap-[5px] text-t5 leading-snug text-[#E4E4E7]">
                 <IconSpeakerphone
                   size={14}
                   stroke={1.5}
@@ -82,10 +82,10 @@ export function RightTile({
             <span className="font-numeric text-[40px] leading-[0.9] font-medium tracking-[-0.045em] text-text-primary">
               {time}
             </span>
-            <span className="text-[13px] text-dim">{meridiem}</span>
+            <span className="text-t4 text-dim">{meridiem}</span>
           </span>
           {/* Two short lines rather than one cut off (F9). */}
-          <span className="mt-[9px] text-[13px] leading-snug text-dim">
+          <span className="mt-[9px] text-t4 leading-snug text-dim">
             {unpaid ? (
               <b className="font-medium text-text-primary">
                 Pay to hold your slot
@@ -118,7 +118,7 @@ export function RightTile({
             <span className="font-numeric">{total}</span>{' '}
             {total === 1 ? 'photo' : 'photos'}
           </span>
-          <span className="mt-2 line-clamp-2 text-[13px] leading-snug text-dim">
+          <span className="mt-2 line-clamp-2 text-t4 leading-snug text-dim">
             {tile.vendorName} · {bookingDayLabel(tile.at)}
           </span>
         </Tile>
@@ -141,7 +141,7 @@ export function RightTile({
             <span className="text-[22px] leading-[1.12] tracking-[-0.022em] text-text-primary">
               Pick a service
             </span>
-            <span className="mt-2 line-clamp-2 text-[13px] leading-snug text-dim">
+            <span className="mt-2 line-clamp-2 text-t4 leading-snug text-dim">
               {tile.vendorName} changed its services
             </span>
           </Tile>
@@ -158,7 +158,7 @@ export function RightTile({
           <span className="line-clamp-2 pr-1.5 text-[22px] leading-[1.12] tracking-[-0.022em] text-text-primary">
             {tile.serviceLabel}
           </span>
-          <span className="mt-2 line-clamp-2 text-[13px] leading-snug text-dim">
+          <span className="mt-2 line-clamp-2 text-t4 leading-snug text-dim">
             {tile.vendorName} ·{' '}
             <span className="font-numeric">{bookAgainPrice(tile)}</span>
           </span>
@@ -174,10 +174,10 @@ export function RightTile({
           onClick={onBook}
         >
           <span className="flex-1" />
-          <span className="line-clamp-3 text-[15px] leading-[1.3] text-text-primary">
+          <span className="line-clamp-3 text-t3 leading-[1.3] text-text-primary">
             {tile.vendorName} isn&apos;t taking bookings right now
           </span>
-          <span className="mt-2 truncate text-[13px] font-medium text-text-primary">
+          <span className="mt-2 truncate text-t4 font-medium text-text-primary">
             See other garages
           </span>
         </Tile>
@@ -195,7 +195,7 @@ export function RightTile({
           <span className="text-[22px] leading-[1.12] tracking-[-0.022em] text-text-primary">
             Nothing booked
           </span>
-          <span className="mt-2 truncate text-[13px] text-dim">
+          <span className="mt-2 truncate text-t4 text-dim">
             Pick a garage
           </span>
         </Tile>

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { openStatus, type OpeningDay } from './opening-hours'
+import { hoursLeftShare, openStatus, type OpeningDay } from './opening-hours'
 
 // Every clock here is fixed and written in IST, so the answers do not depend
 // on when or where the suite runs. 5 Oct 2026 is a Monday.
@@ -71,5 +71,21 @@ describe('openStatus', () => {
       closedToday: true,
       detail: null,
     })
+  })
+})
+
+describe('hoursLeftShare', () => {
+  test('the share of today still ahead, from opening to closing', () => {
+    // 9 AM–7 PM is ten hours; at 2 PM five are left.
+    expect(hoursLeftShare(WEEK, at('2026-10-05', '14:00'))).toBeCloseTo(0.5)
+    expect(hoursLeftShare(WEEK, at('2026-10-05', '09:00'))).toBe(1)
+    expect(hoursLeftShare(WEEK, at('2026-10-05', '18:30'))).toBeCloseTo(0.05)
+  })
+
+  test('nothing when it is not open now: before opening, off day, holiday, unknown', () => {
+    expect(hoursLeftShare(WEEK, at('2026-10-05', '08:00'))).toBeNull()
+    expect(hoursLeftShare(WEEK, at('2026-10-04', '12:00'))).toBeNull()
+    expect(hoursLeftShare(WEEK, at('2026-10-05', '12:00'), ['2026-10-05'])).toBeNull()
+    expect(hoursLeftShare(null, at('2026-10-05', '12:00'))).toBeNull()
   })
 })

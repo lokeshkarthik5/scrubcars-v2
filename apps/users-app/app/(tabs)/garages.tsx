@@ -1,23 +1,29 @@
 import { parseBookingType } from '@repo/core/booking-types';
 import type { BookingType } from '@repo/core/types';
 import { useUserStore } from '@repo/core/stores/user-store';
-import { IconMapPin } from '@repo/native-ui/icons';
+import { Raised, TopGlow } from '@repo/native-ui/finish';
+import { IconChevronDown, IconMapPin } from '@repo/native-ui/icons';
+import { PressScale } from '@repo/native-ui/motion';
+import { BrandMark } from '@repo/native-ui/primitives';
 import { T } from '@repo/native-ui/text';
-import { useColors } from '@repo/native-ui/theme';
+import { createStyles, useColors, useFinish } from '@repo/native-ui/theme';
 import { useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AreaPicker } from '@/components/area/area-picker';
 import { ContinueBookingCard } from '@/components/checkout/continue-booking';
 import { GarageList } from '@/components/garage/garage-list';
-import { CustomerShell } from '@/components/screen';
 import { useAuth } from '@/lib/auth';
 import { isCitywide, useLocationStore } from '@/lib/location';
 
 /** GarageListScreen (apps/users/components/garages/garage-list-screen.tsx). */
 export default function GaragesScreen() {
   const colors = useColors();
+  const styles = useStyles();
+  const { fx } = useFinish();
+  const insets = useSafeAreaInsets();
   const { mode: modeParam } = useLocalSearchParams<{ mode?: string }>();
   const [mode, setMode] = useState<BookingType>(() => parseBookingType(modeParam) ?? 'dropin');
   // A tab stays mounted: the next "Book a wash" says its mode here.
@@ -34,63 +40,86 @@ export default function GaragesScreen() {
   const citywide = isCitywide(location);
   const [areaOpen, setAreaOpen] = useState(false);
   const askArea = useCallback(() => setAreaOpen(true), []);
-  const loadMore = useRef<() => void>(() => undefined);
-  const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
 
   useEffect(() => {
     if (user) void useUserStore.getState().fetchProfile().catch(() => undefined);
   }, [user]);
 
-  return (
-    <CustomerShell
-      showBrand
-      scrollRef={scroll}
-      onEnd={() => loadMore.current()}
-      brandRight={
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Choose location"
-          disabled={locating}
-          onPress={() => setAreaOpen(true)}
-          style={styles.area}
-        >
-          <View style={styles.areaTop}>
-            <IconMapPin size={15} />
-            <T size={14} weight={600} numberOfLines={1} style={styles.shrink}>
-              {location && !citywide ? location.label : 'Chennai'}
+  // Under the place, in words: what the pill cannot say in one line.
+  const status = locating
+    ? 'Finding you…'
+    : citywide
+      ? permission === 'denied'
+        ? 'Location blocked — all of Chennai'
+        : 'All of Chennai'
+      : location?.source === 'area'
+        ? 'Change area'
+        : (profile?.area ?? 'Showing garages near you');
+
+  const header = (
+    <>
+      {/* The logo with its red dot lit, and where the list is measured from as one raised pill (§3). */}
+      <View style={styles.brand}>
+        <View>
+          <BrandMark height={28} />
+          <View pointerEvents="none" style={styles.brandGlow} />
+        </View>
+        <View style={styles.place}>
+          <PressScale
+            accessibilityRole="button"
+            accessibilityLabel="Choose location"
+            accessibilityHint={status}
+            disabled={locating}
+            onPress={() => setAreaOpen(true)}
+          >
+            <Raised radius={12} style={styles.pill} innerStyle={styles.pillInner}>
+              <IconMapPin size={15} />
+              <T variant="t3" weight={600} numberOfLines={1} style={styles.shrink}>
+                {locating ? 'Finding you…' : location && !citywide ? location.label : 'Chennai'}
+              </T>
+              <IconChevronDown size={13} color={fx.quiet} />
+            </Raised>
+          </PressScale>
+          {/* Said in the open only when it changes what the list can do. */}
+          {permission === 'denied' && citywide ? (
+            <T variant="t5" numberOfLines={1} color={colors.textSecondary} align="right">
+              {status}
             </T>
-          </View>
-          <T size={12} numberOfLines={1} color={colors.textSecondary} align="right">
-            {locating
-              ? 'Finding you…'
-              : citywide
-                ? permission === 'denied'
-                  ? 'Location blocked — all of Chennai'
-                  : 'All of Chennai'
-                : location?.source === 'area'
-                  ? 'Change area'
-                  : (profile?.area ?? 'Showing garages near you')}
-          </T>
-        </Pressable>
-      }
-    >
+          ) : null}
+        </View>
+      </View>
       <ContinueBookingCard />
-      <GarageList
-        mode={mode}
-        onModeChange={setMode}
-        onAskArea={askArea}
-        bindLoadMore={(fn) => {
-          loadMore.current = fn;
-        }}
-        scrollToTop={() => scroll.current?.scrollTo({ y: 0, animated: true })}
-      />
+    </>
+  );
+
+  return (
+    <View style={[styles.page, { paddingTop: insets.top }]}>
+      <TopGlow />
+      <GarageList mode={mode} onModeChange={setMode} onAskArea={askArea} header={header} />
       <AreaPicker open={areaOpen} onClose={() => setAreaOpen(false)} />
-    </CustomerShell>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  area: { minWidth: 0, maxWidth: '100%', alignItems: 'flex-end' },
-  areaTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 6 },
+const useStyles = createStyles((c) => ({
+  page: { flex: 1, backgroundColor: c.canvas },
+  brand: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  // A soft red light under the wordmark's full stop, at its bottom right.
+  brandGlow: {
+    position: 'absolute',
+    right: -2,
+    bottom: 2,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: 'rgba(228,0,43,0.35)',
+    shadowColor: '#E4002B',
+    shadowOffset: { width: 0, height: 0 },
+    shadowRadius: 8,
+    shadowOpacity: 0.9,
+  },
+  place: { flexShrink: 1, minWidth: 0, alignItems: 'flex-end', gap: 4 },
+  pill: { height: 40, maxWidth: '100%' },
+  pillInner: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 10, paddingRight: 12 },
   shrink: { flexShrink: 1 },
-});
+}));

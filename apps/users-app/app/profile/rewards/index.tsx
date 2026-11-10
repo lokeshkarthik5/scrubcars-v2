@@ -29,6 +29,7 @@ import { LevelBadge } from '@/components/rewards/level-badge';
 import { ScratchCardPanel } from '@/components/rewards/scratch-card';
 import { StampStars } from '@/components/rewards/stamp-stars';
 import { useAuth } from '@/lib/auth';
+import { BrushedLines, CountUpFigure, FillOnce } from '@/components/moments/metal';
 
 const VOUCHER_STATE_LABELS: Record<RewardVoucher['state'], string> = { available: 'Ready', spent: 'Used', expired: 'Ran out', cancelled: 'Withdrawn' };
 const LEVEL_TINTS: Partial<Record<RewardLevel, string>> = { gold: '227,182,82', platinum: '196,215,235', diamond: '165,210,255', icon: '240,220,170' };
@@ -208,17 +209,17 @@ function Body({ view, extras, focusBadge, focusChallenge, garage, birthdayPerkFr
               <T size={11} lh={15} color={colors.textSecondary}>
                 Saved with rewards
               </T>
-              <T num size={22} weight={600} lh={26} style={styles.mt4}>
-                {rewardRupees(view.lifetime.saved)}
-              </T>
+              <View style={styles.mt4}>
+                <CountUpFigure value={Math.round(Number(view.lifetime.saved))} format={rewardRupees} size={22} lh={26} />
+              </View>
             </View>
             <View style={styles.tile}>
               <T size={11} lh={15} color={colors.textSecondary}>
                 {view.lifetime.since ? `Washes since ${view.lifetime.since}` : 'Washes'}
               </T>
-              <T num size={22} weight={600} lh={26} style={styles.mt4}>
-                {view.lifetime.washes.toLocaleString('en-IN')}
-              </T>
+              <View style={styles.mt4}>
+                <CountUpFigure value={view.lifetime.washes} format={(n) => n.toLocaleString('en-IN')} size={22} lh={26} />
+              </View>
             </View>
           </View>
         ) : null}
@@ -366,15 +367,25 @@ function LevelCard({ view, progress, tint, ladderOpen, toggle, level, streak }: 
   const styles = useStyles();
   return (
     <LinearGradient start={{ x: 0, y: 0 }} end={{ x: 0.6, y: 1 }} colors={['#1C1D23', '#141519', '#101114']} locations={[0, 0.6, 1]} style={[styles.level, { borderColor: `rgba(${tint},0.18)` }]}>
+      {/* Brushed metal in the level's colour (moment 9). */}
+      <BrushedLines />
       <View style={styles.between}>
         <LevelBadge level={level.level} label={level.label} large />
-        <T num size={12} lh={16} color={colors.textSecondary}>{`${level.bookings} in 12 months`}</T>
+        <View style={styles.bookingsLine}>
+          <CountUpFigure value={level.bookings} format={String} size={12} weight={400} lh={16} color={colors.textSecondary} />
+          <T size={12} lh={16} color={colors.textSecondary}>
+            {' in 12 months'}
+          </T>
+        </View>
       </View>
       <FigureLine size={14} weight={500} lh={20} text={levelLine(level)} />
       {level.next ? (
         <View style={styles.gap6}>
           <View style={styles.bar}>
-            <LinearGradient start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} colors={[`rgba(${tint},0.55)`, `rgb(${tint})`]} style={[styles.fill, { width: `${Math.max(4, Math.min(100, progress))}%` }]} />
+            {/* Fills to the level once, from the left. */}
+            <FillOnce style={[styles.fill, { width: `${Math.max(4, Math.min(100, progress))}%` }]}>
+              <LinearGradient start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} colors={[`rgba(${tint},0.55)`, `rgb(${tint})`]} style={styles.fillFace} />
+            </FillOnce>
           </View>
           <View style={styles.between}>
             <T size={11} lh={15} color={colors.textMuted}>
@@ -507,9 +518,11 @@ const useStyles = createStyles((c) => ({
   stars: { alignItems: 'center', paddingVertical: 6 },
   tiles: { flexDirection: 'row', gap: 8 },
   tile: { flex: 1, borderRadius: 14, borderWidth: 1, borderColor: c.border, backgroundColor: c.surface, paddingHorizontal: 14, paddingVertical: 12 },
-  level: { gap: 12, borderRadius: 14, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 16 },
+  level: { gap: 12, overflow: 'hidden', borderRadius: 14, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 16 },
   bar: { height: 6, borderRadius: 3, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.1)' },
-  fill: { height: '100%', borderRadius: 3 },
+  fill: { height: '100%', borderRadius: 3, overflow: 'hidden' },
+  fillFace: { flex: 1 },
+  bookingsLine: { flexDirection: 'row', alignItems: 'center' },
   rule: { borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)', paddingTop: 12 },
   dots: { flexDirection: 'row', gap: 4 },
   dot: { width: 10, height: 10, borderRadius: 5 },

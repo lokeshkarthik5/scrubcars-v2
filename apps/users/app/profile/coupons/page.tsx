@@ -45,7 +45,7 @@ export default function CouponsPage() {
       <CustomerShell showNav showBrand className="gap-4 py-4">
         {header}
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
-          <p className="text-[15px] font-semibold text-text-primary">
+          <p className="text-t3 font-semibold text-text-primary">
             Sign in to add a coupon
           </p>
           <ScButton
@@ -88,7 +88,7 @@ export default function CouponsPage() {
       <section aria-labelledby="my-coupons" className="flex flex-col gap-3">
         <h2
           id="my-coupons"
-          className="text-[15px] font-semibold text-text-primary"
+          className="text-t3 font-semibold text-text-primary"
         >
           Your coupons
         </h2>
@@ -121,7 +121,7 @@ export default function CouponsPage() {
                   stamps={coupon.stamps}
                   dimmed={coupon.state !== 'ready' && coupon.state !== 'added'}
                 >
-                  <p className="text-[12px] text-text-secondary">
+                  <p className="text-t5 text-text-secondary">
                     {myCouponStateLine(coupon)}
                   </p>
                   {coupon.state === 'ready' && (
@@ -129,7 +129,7 @@ export default function CouponsPage() {
                       variant="secondary"
                       fullWidth={false}
                       onClick={() => use(coupon)}
-                      className="mt-1 min-h-11 w-fit px-4 text-[13px]"
+                      className="mt-1 min-h-11 w-fit px-4 text-t4"
                     >
                       Use now
                     </ScButton>

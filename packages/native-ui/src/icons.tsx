@@ -1,6 +1,7 @@
-import Svg, { Circle, Path, Rect } from 'react-native-svg';
+import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 
-import { useColors } from './theme';
+import { useColors, useFinish } from './theme';
+import { ICON_LINE } from './tokens';
 
 /**
  * The web's Tabler icons, the same drawings (from @tabler/icons-react 3.46.0, MIT).
@@ -13,6 +14,13 @@ export interface IconProps {
   stroke?: number;
   /** Left out, it is the theme's main text colour. */
   color?: string;
+  /**
+   * Under the finish, the line in screen points whatever the size (1.6, the lit
+   * tab's 1.9), as the website's non-scaling stroke; `stroke` is then ignored.
+   */
+  line?: number;
+  /** The bottom bar's brushed metal (#hub-metal): white at the top to grey below. */
+  metal?: boolean;
 }
 
 type Node =
@@ -21,20 +29,34 @@ type Node =
   | ['rect', { x: string; y: string; width: string; height: string; rx?: string }];
 
 function icon(nodes: Node[], filled = false) {
-  return function Icon({ size = 24, stroke = 2, color }: IconProps) {
+  return function Icon({ size = 24, stroke = 2, color, line, metal }: IconProps) {
     const fallback = useColors().textPrimary;
-    const tint = color ?? fallback;
+    const { on: finish } = useFinish();
+    const tint = metal ? 'url(#icon-metal)' : (color ?? fallback);
+    // The drawing is 24 units across, so a line of `line` points is line × 24 / size units.
+    const width = finish ? ((line ?? ICON_LINE) * 24) / size : stroke;
     const paint = filled
       ? { fill: tint }
       : {
           fill: 'none',
           stroke: tint,
-          strokeWidth: stroke,
+          strokeWidth: width,
           strokeLinecap: 'round' as const,
           strokeLinejoin: 'round' as const,
         };
     return (
       <Svg width={size} height={size} viewBox="0 0 24 24" {...paint}>
+        {metal ? (
+          // In the icon's own 24-unit grid, not each path's box: a straight line's box has no
+          // height, and a box-sized gradient would paint nothing on it.
+          <Defs>
+            <LinearGradient id="icon-metal" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="24">
+              <Stop offset="0" stopColor="#FFFFFF" />
+              <Stop offset="0.55" stopColor="#D9D9DE" />
+              <Stop offset="1" stopColor="#9C9CA6" />
+            </LinearGradient>
+          </Defs>
+        ) : null}
         {nodes.map((node, index) => {
           if (node[0] === 'path') return <Path key={index} {...node[1]} />;
           if (node[0] === 'circle') return <Circle key={index} {...node[1]} />;
@@ -166,3 +188,7 @@ export const IconVideo = icon([["path", {"d": "M15 10l4.553 -2.276a1 1 0 0 1 1.4
 export const IconVideoPlus = icon([["path", {"d": "M15 10l4.553 -2.276a1 1 0 0 1 1.447 .894v6.764a1 1 0 0 1 -1.447 .894l-4.553 -2.276v-4"}], ["path", {"d": "M3 8a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2l0 -8"}], ["path", {"d": "M7 12l4 0"}], ["path", {"d": "M9 10l0 4"}]]);
 export const IconPlayerPlayFilled = icon([["path", {"d": "M6 4v16a1 1 0 0 0 1.524 .852l13 -8a1 1 0 0 0 0 -1.704l-13 -8a1 1 0 0 0 -1.524 .852z"}]], true);
 export const IconBellRinging = icon([["path", {"d": "M10 5a2 2 0 1 1 4 0a7 7 0 0 1 4 6v3a4 4 0 0 0 2 3h-16a4 4 0 0 0 2 -3v-3a7 7 0 0 1 4 -6"}], ["path", {"d": "M9 17v1a3 3 0 0 0 6 0v-1"}], ["path", {"d": "M21 6.727a11.05 11.05 0 0 0 -2.794 -3.727"}], ["path", {"d": "M3 6.727a11.05 11.05 0 0 1 2.792 -3.727"}]]);
+export const IconLayoutGrid = icon([["path", {"d": "M4 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4"}], ["path", {"d": "M14 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4"}], ["path", {"d": "M4 15a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4"}], ["path", {"d": "M14 15a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4"}]]);
+export const IconWand = icon([["path", {"d": "M6 21l15 -15l-3 -3l-15 15l3 3"}], ["path", {"d": "M15 6l3 3"}], ["path", {"d": "M9 3a2 2 0 0 0 2 2a2 2 0 0 0 -2 2a2 2 0 0 0 -2 -2a2 2 0 0 0 2 -2"}], ["path", {"d": "M19 13a2 2 0 0 0 2 2a2 2 0 0 0 -2 2a2 2 0 0 0 -2 -2a2 2 0 0 0 2 -2"}]]);
+export const IconDots = icon([["path", {"d": "M4 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"}], ["path", {"d": "M11 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"}], ["path", {"d": "M18 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"}]]);
+export const IconChevronUp = icon([["path", {"d": "M6 15l6 -6l6 6"}]]);

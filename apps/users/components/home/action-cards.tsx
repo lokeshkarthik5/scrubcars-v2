@@ -53,7 +53,7 @@ function Eyebrow({
 }) {
   return (
     <div className="flex h-5 items-center justify-between gap-3">
-      <span className="flex min-w-0 items-center gap-1.5 text-[13px] text-dim">
+      <span className="flex min-w-0 items-center gap-1.5 text-t4 text-dim">
         <IconBuildingStore
           size={15}
           stroke={1.5}
@@ -73,7 +73,7 @@ function Eyebrow({
  */
 function NeedsYou({ vendorName }: { vendorName: string }) {
   return (
-    <p className="flex min-w-0 items-center gap-1.5 text-[13px] text-dim">
+    <p className="flex min-w-0 items-center gap-1.5 text-t4 text-dim">
       <span
         aria-hidden
         className="size-1.5 shrink-0 rounded-full bg-brand-red"
@@ -119,7 +119,7 @@ export function BillDueCard({
       <p className="mt-2 text-[20px] leading-tight tracking-[-0.015em] text-text-primary">
         Pay your final bill
       </p>
-      <p className="mt-1 text-[15px] text-dim">
+      <p className="mt-1 text-t3 text-dim">
         {card.serviceName} ·{' '}
         <span className="font-numeric text-text-primary">{amount}</span> ·{' '}
         {raisedLabel(card.raisedAt, now)}
@@ -147,7 +147,7 @@ export function BillDueCard({
       {card.moreDue > 0 && (
         <Link
           href="/updates"
-          className="mt-1 inline-flex min-h-11 items-center text-[13px] text-text-muted underline underline-offset-2"
+          className="mt-1 inline-flex min-h-11 items-center text-t4 text-text-muted underline underline-offset-2"
         >
           +{card.moreDue} more to pay
         </Link>
@@ -175,7 +175,7 @@ export function TimeProposalHomeCard({ card }: { card: ProposalCard }) {
         <span className="font-numeric">{formatClock(card.scheduledAt)}</span> —
         pick another time
       </p>
-      <p className="mt-1 text-[15px] text-dim">
+      <p className="mt-1 text-t3 text-dim">
         {card.options.length === 1 ? '1 time' : `${card.options.length} times`}{' '}
         offered · answer by{' '}
         <span className="font-numeric">{formatWhen(card.expiresAt)}</span>
@@ -215,7 +215,7 @@ export function ExtraWorkHomeCard({
         Approve extra work
       </p>
       {/* The whole description (F9), then the amount. */}
-      <p className="mt-1 text-[15px] text-dim">
+      <p className="mt-1 text-t3 text-dim">
         {card.description} ·{' '}
         <span className="font-numeric text-text-primary">{amount}</span> ·{' '}
         {raisedLabel(card.raisedAt, now)}
@@ -232,7 +232,7 @@ export function ExtraWorkHomeCard({
       {card.moreDue > 0 && (
         <Link
           href="/updates"
-          className="mt-1 inline-flex min-h-11 items-center text-[13px] text-text-muted underline underline-offset-2"
+          className="mt-1 inline-flex min-h-11 items-center text-t4 text-text-muted underline underline-offset-2"
         >
           +{card.moreDue} more to answer
         </Link>
@@ -256,10 +256,10 @@ export function GarageClosedCard({ card }: { card: ClosedCard }) {
       className="hub-card p-5"
     >
       <Eyebrow vendorName={card.vendorName} icon={IconCalendarOff} />
-      <p className="mt-3.5 text-[17px] font-medium tracking-[-0.012em] text-text-primary">
+      <p className="mt-3.5 text-t2 font-medium tracking-[-0.012em] text-text-primary">
         Closed on {bookingDayLabel(card.scheduledAt)}
       </p>
-      <p className="mt-1 text-[13px] text-dim">
+      <p className="mt-1 text-t4 text-dim">
         {card.reason === 'holiday' ? 'A holiday' : 'Its weekly day off'}, the
         day of your <span className="font-numeric">{formatClock(at)}</span>{' '}
         booking.
@@ -298,7 +298,7 @@ export function OutlineLink({
       href={href}
       onClick={onClick}
       className={cn(
-        'press inline-flex h-11 items-center justify-center rounded-pill border border-stroke bg-white/[0.015] px-5 text-[15px] font-medium tracking-[-0.005em] text-text-primary',
+        'press inline-flex h-11 items-center justify-center rounded-pill border border-stroke bg-white/[0.015] px-5 text-t3 font-medium tracking-[-0.005em] text-text-primary',
         className
       )}
     >
@@ -335,10 +335,10 @@ export function RateWashCard({
         <div className="min-w-0 flex-1 pt-3">
           {/* Two lines at most: a long garage name wraps rather than losing
               the question mark. */}
-          <p className="line-clamp-2 text-[15px] font-medium tracking-[-0.01em] text-text-primary">
+          <p className="line-clamp-2 text-t3 font-medium tracking-[-0.01em] text-text-primary">
             How was your wash at {card.vendorName}?
           </p>
-          <p className="text-[13px] text-dim">{card.vehicleName} · Rate it</p>
+          <p className="text-t4 text-dim">{card.vehicleName} · Rate it</p>
         </div>
         <button
           type="button"
@@ -384,7 +384,7 @@ export function ComplaintAnswerCard({ card }: { card: ComplaintCard }) {
       className="hub-card p-5"
     >
       <div className="flex h-5 items-center justify-between gap-3">
-        <span className="font-numeric text-[13px] text-dim">{card.number}</span>
+        <span className="font-numeric text-t4 text-dim">{card.number}</span>
         <IconMessageCheck
           size={20}
           stroke={1.5}
@@ -394,10 +394,10 @@ export function ComplaintAnswerCard({ card }: { card: ComplaintCard }) {
       </div>
       <div className="mt-3.5 flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[17px] font-medium tracking-[-0.012em] text-text-primary">
+          <p className="text-t2 font-medium tracking-[-0.012em] text-text-primary">
             Complaint resolved
           </p>
-          <p className="mt-1 truncate text-[13px] text-dim">
+          <p className="mt-1 truncate text-t4 text-dim">
             We&apos;ve answered it.
           </p>
         </div>
@@ -439,7 +439,7 @@ export function ServiceReminderHomeCard({
         <div className="min-w-0 flex-1 pt-4">
           <Link
             href={`/profile/cars/${card.vehicleId}`}
-            className="flex h-5 min-w-0 items-center gap-1.5 text-[13px] text-dim"
+            className="flex h-5 min-w-0 items-center gap-1.5 text-t4 text-dim"
           >
             <IconCar
               size={15}
@@ -449,10 +449,10 @@ export function ServiceReminderHomeCard({
             />
             <span className="truncate">{card.vehicleName}</span>
           </Link>
-          <p className="mt-3 text-[17px] font-medium tracking-[-0.012em] text-text-primary">
+          <p className="mt-3 text-t2 font-medium tracking-[-0.012em] text-text-primary">
             {card.title}
           </p>
-          <p className="mt-1 text-[13px] text-dim">
+          <p className="mt-1 text-t4 text-dim">
             {reminderDueLine({ ...card, booked: null }, now)} · {card.reason}
           </p>
         </div>
@@ -476,7 +476,7 @@ export function ServiceReminderHomeCard({
           disabled={busy}
           onClick={onSnooze}
           aria-label="Remind me in 2 weeks"
-          className="inline-flex h-11 items-center px-3 text-[15px] text-dim disabled:opacity-40"
+          className="inline-flex h-11 items-center px-3 text-t3 text-dim disabled:opacity-40"
         >
           In 2 weeks
         </button>

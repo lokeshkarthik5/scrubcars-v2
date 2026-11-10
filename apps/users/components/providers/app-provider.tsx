@@ -3,6 +3,8 @@
 import { useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
+import { useQueryClient } from '@tanstack/react-query'
+import { prefetchGarage } from '@repo/core/api/hooks/use-vendors'
 import { setUnauthorizedHandler } from '@repo/core/api/client'
 import { APP_VERSION } from '@repo/core/version'
 import { useAuthStore } from '@repo/core/stores/auth-store'
@@ -55,6 +57,9 @@ function matchesRoute(pathname: string, routes: string[]) {
   )
 }
 
+/** A garage page's id, from its path. */
+const GARAGE_PAGE = /^\/garage\/([0-9a-f-]{36})(?:\/|$)/i
+
 function getRouteAccess(pathname: string): RouteAccess {
   // Exact match: matchesRoute would treat every path as under '/'.
   if (MARKETING_ROUTES.includes(pathname)) return 'marketing'
@@ -75,6 +80,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       restoreSession: s.restoreSession,
     }))
   )
+
+  // A garage page's garage needs no session: its read starts here, while the
+  // session is still being checked below, instead of after it (speed fix 7,
+  // customer UI round). The page's own query then finds it in the cache.
+  const queryClient = useQueryClient()
+  useEffect(() => {
+    const garage = GARAGE_PAGE.exec(pathname)
+    if (garage) void prefetchGarage(queryClient, garage[1])
+  }, [pathname, queryClient])
 
   // Printed once per load so a bug report can name the build it came from.
   useEffect(() => {

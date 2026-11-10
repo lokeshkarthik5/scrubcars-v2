@@ -132,7 +132,7 @@ export function CouponCodeBox({
         <p
           role={result.ok ? 'status' : 'alert'}
           className={
-            result.ok ? 'text-[12px] text-success' : 'text-[12px] text-error'
+            result.ok ? 'text-t5 text-success' : 'text-t5 text-error'
           }
         >
           {result.text}

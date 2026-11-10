@@ -4,12 +4,15 @@ import { formatClock } from '@repo/core/format';
 import { useNow } from '@repo/core/hooks/use-now';
 import type { BookingType } from '@repo/core/types';
 import { IconCalendar, IconChevronDown, IconChevronLeft, IconChevronRight } from '@repo/native-ui/icons';
+import { Rise } from '@repo/native-ui/motion';
 import { Skeleton } from '@repo/native-ui/primitives';
 import { ScSheet } from '@repo/native-ui/sheet';
 import { T } from '@repo/native-ui/text';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
+
+import { PickButton } from './pick-button';
 
 import {
   addDaysToKey,
@@ -19,6 +22,7 @@ import {
   istToday,
   MONTHS,
   type SlotDayState,
+  slotTaken,
   splitByMorning,
   weekOf,
 } from '@/lib/when-picker';
@@ -38,6 +42,7 @@ export function WhenPicker({
   initialDate = null,
   title = 'When?',
   renderDayExtra,
+  onTaken,
 }: {
   vendorId: string;
   serviceIds: string[];
@@ -50,6 +55,8 @@ export function WhenPicker({
   initialDate?: string | null;
   title?: string;
   renderDayExtra?: (state: SlotDayState) => ReactNode;
+  /** The chosen time is no longer on its day's list (a card's Next free time, just taken). */
+  onTaken?: (scheduledAt: string) => void;
 }) {
   const colors = useColors();
   const styles = useStyles();
@@ -109,6 +116,17 @@ export function WhenPicker({
     }
   }, [value, bookingType, now, onChange, onLapse]);
 
+  // A time chosen before the day's list was known, gone from it once it is: let it go.
+  // Read against the day's whole list, not the notice-filtered one: a time that has only
+  // become too soon is the lapse path's to clear, with its own reason, and nobody took it.
+  const dayTimes = selectedDate && slotsQuery.isSuccess && !slotsLoading ? (slotsQuery.data?.slots ?? []).map((slot) => slot.time) : null;
+  const taken = Boolean(onTaken) && slotTaken(value, selectedDate, dayTimes);
+  useEffect(() => {
+    if (!taken || !value) return;
+    onChange(null);
+    onTaken?.(value);
+  }, [taken, value, onChange, onTaken]);
+
   const selectDate = (date: string) => {
     setChosenDate(date);
     setShowLater(false);
@@ -122,23 +140,23 @@ export function WhenPicker({
   const chip = (date: string, label: string, sub: string, accessible: string) => {
     const closed = isDayClosed(date);
     const on = selectedDate === date;
+    // Today/weekday over the date, graphite with the red light once picked (§6, bk-pick).
     return (
-      <Pressable
+      <PickButton
         key={date}
-        accessibilityRole="button"
-        accessibilityLabel={accessible}
-        accessibilityState={{ selected: on, disabled: closed }}
+        on={on && !closed}
         disabled={closed}
+        accessibilityLabel={accessible}
         onPress={() => selectDate(date)}
-        style={[styles.day, closed ? styles.dayClosed : on ? styles.dayOn : styles.dayIdle]}
+        style={styles.day}
       >
-        <T size={12} lh={16} color={on && !closed ? colors.chosenText : closed ? colors.textMuted : colors.dim}>
+        <T variant="t5" color={closed ? colors.textMuted : on ? colors.textSecondary : colors.dim}>
           {label}
         </T>
-        <T num size={17} weight={500} lh={22} color={closed ? colors.textMuted : on ? colors.chosenText : colors.textPrimary}>
+        <T num size={17} weight={600} lh={22} color={closed ? colors.textMuted : colors.textPrimary}>
           {sub}
         </T>
-      </Pressable>
+      </PickButton>
     );
   };
 
@@ -147,7 +165,7 @@ export function WhenPicker({
 
   return (
     <View>
-      <T size={17} weight={500} lh={24} style={styles.title}>
+      <T variant="t2" style={styles.title}>
         {title}
       </T>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.days} contentContainerStyle={styles.daysRow}>
@@ -168,21 +186,21 @@ export function WhenPicker({
               `${dateChipOf(customDate).dayName} ${dateChipOf(customDate).day} ${dateChipOf(customDate).monthName}`
             )
           : null}
-        <Pressable
-          accessibilityRole="button"
+        <PickButton
+          on={false}
           accessibilityLabel="Pick a later date"
           onPress={() => {
             const [y, m] = (customDate ?? calendarMin).split('-').map(Number);
             setCalMonth({ year: y, month: m - 1 });
             setShowCalendar(true);
           }}
-          style={[styles.day, styles.dayIdle]}
+          style={styles.day}
         >
-          <T size={12} lh={16} color={colors.dim}>
+          <T variant="t5" color={colors.dim}>
             More
           </T>
-          <IconCalendar size={18} stroke={1.5} color={colors.textPrimary} />
-        </Pressable>
+          <IconCalendar size={18} color={colors.textPrimary} />
+        </PickButton>
       </ScrollView>
 
       {selectedDate ? (
@@ -218,30 +236,27 @@ export function WhenPicker({
           ) : (
             <>
               <View style={styles.grid}>
-                {shown.map((time) => {
+                {/* The times slide in, one after another, each time the day changes. */}
+                {shown.map((time, i) => {
                   const on = value === time;
                   return (
-                    <Pressable
-                      key={time}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: on }}
-                      onPress={() => onChange(time)}
-                      style={[styles.cell, styles.time, on ? styles.dayOn : styles.dayIdle]}
-                    >
-                      <T num size={15} weight={on ? 500 : 400} lh={20} color={on ? colors.chosenText : colors.textPrimary}>
-                        {formatClock(time)}
-                      </T>
-                    </Pressable>
+                    <Rise key={`${selectedDate}-${time}`} index={i} style={styles.cell}>
+                      <PickButton on={on} accessibilityLabel={formatClock(time)} onPress={() => onChange(time)} style={styles.time}>
+                        <T num variant="t3" weight={600} color={colors.textPrimary}>
+                          {formatClock(time)}
+                        </T>
+                      </PickButton>
+                    </Rise>
                   );
                 })}
               </View>
               {collapse ? (
-                <Pressable accessibilityRole="button" onPress={() => setShowLater(true)} style={styles.more}>
-                  <T size={13} lh={18}>
+                <PickButton on={false} onPress={() => setShowLater(true)} style={styles.more}>
+                  <T variant="t4" weight={600}>
                     Show afternoon and evening
                   </T>
-                  <IconChevronDown size={15} stroke={1.5} color={colors.textPrimary} />
-                </Pressable>
+                  <IconChevronDown size={15} color={colors.textPrimary} />
+                </PickButton>
               ) : null}
             </>
           )}
@@ -325,7 +340,7 @@ const useStyles = createStyles((c) => ({
   title: { marginBottom: 12 },
   days: { marginHorizontal: -16, marginBottom: 12 },
   daysRow: { gap: 8, paddingHorizontal: 16, paddingBottom: 4 },
-  day: { minHeight: 60, minWidth: 54, borderRadius: 16, borderWidth: 1, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  day: { minHeight: 60, minWidth: 54, gap: 2 },
   dayGhost: { width: 54 },
   dayClosed: { borderColor: 'transparent', backgroundColor: c.fillFaint, opacity: 0.5 },
   dayOn: { borderColor: 'transparent', backgroundColor: c.chosenBg },
@@ -333,8 +348,8 @@ const useStyles = createStyles((c) => ({
   note: { marginBottom: 12 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   cell: { width: '31.8%' },
-  time: { minHeight: 48, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  more: { alignSelf: 'center', marginTop: 4, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12 },
+  time: { minHeight: 48 },
+  more: { alignSelf: 'center', marginTop: 8, minHeight: 44, flexDirection: 'row', gap: 4, paddingHorizontal: 14 },
   calHead: { marginBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   calArrow: { height: 44, width: 44, alignItems: 'center', justifyContent: 'center' },
   calWeek: { flexDirection: 'row', flexWrap: 'wrap' },

@@ -78,7 +78,7 @@ export function BookingHelpSheet({ open, onClose, booking }: BookingHelpSheetPro
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <h2 className="text-base font-semibold text-text-primary">Help with this booking</h2>
-              <p className="mt-1 text-[12px] text-text-secondary">
+              <p className="mt-1 text-t5 text-text-secondary">
                 Booking <span className="font-numeric font-medium">{reference}</span> ·{' '}
                 {booking.vendorName} · <span className="font-numeric">{booking.scheduledAt}</span>
               </p>
@@ -97,8 +97,8 @@ export function BookingHelpSheet({ open, onClose, booking }: BookingHelpSheetPro
           {(garageCall || garageWhatsApp) && (
             <section className="flex flex-col gap-2">
               <div>
-                <h3 className="text-[13px] font-semibold text-text-primary">{booking.vendorName}</h3>
-                <p className="text-[12px] text-text-secondary">
+                <h3 className="text-t4 font-semibold text-text-primary">{booking.vendorName}</h3>
+                <p className="text-t5 text-text-secondary">
                   {booking.bookingType === 'doorstep'
                     ? 'For timings, finding your place, or questions about the work.'
                     : booking.bookingType === 'pickup'
@@ -116,8 +116,8 @@ export function BookingHelpSheet({ open, onClose, booking }: BookingHelpSheetPro
 
           {garageHidden && (
             <section className="flex flex-col gap-1">
-              <h3 className="text-[13px] font-semibold text-text-primary">{booking.vendorName}</h3>
-              <p className="flex items-start gap-1.5 text-[12px] text-text-secondary">
+              <h3 className="text-t4 font-semibold text-text-primary">{booking.vendorName}</h3>
+              <p className="flex items-start gap-1.5 text-t5 text-text-secondary">
                 <IconPhoneOff size={14} className="mt-px shrink-0" aria-hidden />
                 <span>
                   {garageNumberHiddenLine(garageHidden)}{' '}
@@ -131,8 +131,8 @@ export function BookingHelpSheet({ open, onClose, booking }: BookingHelpSheetPro
 
           <section className="flex flex-col gap-2">
             <div>
-              <h3 className="text-[13px] font-semibold text-text-primary">Detlio team</h3>
-              <p className="text-[12px] text-text-secondary">
+              <h3 className="text-t4 font-semibold text-text-primary">Detlio team</h3>
+              <p className="text-t5 text-text-secondary">
                 For payments and refunds, or if something isn&apos;t right. We&apos;ll take it
                 up with the garage for you.
               </p>
@@ -148,8 +148,8 @@ export function BookingHelpSheet({ open, onClose, booking }: BookingHelpSheetPro
 
           <section className="flex flex-col gap-2">
             <div>
-              <h3 className="text-[13px] font-semibold text-text-primary">Make a complaint</h3>
-              <p className="text-[12px] text-text-secondary">
+              <h3 className="text-t4 font-semibold text-text-primary">Make a complaint</h3>
+              <p className="text-t5 text-text-secondary">
                 In writing, with a complaint number to quote. We reply within{' '}
                 <span className="font-numeric">{COMPLAINT_ACKNOWLEDGE_HOURS}</span> hours.
               </p>
@@ -165,8 +165,8 @@ export function BookingHelpSheet({ open, onClose, booking }: BookingHelpSheetPro
           {bypass?.canReport && (
             <section className="flex flex-col gap-2">
               <div>
-                <h3 className="text-[13px] font-semibold text-text-primary">{BYPASS_QUESTION}</h3>
-                <p className="text-[12px] text-text-secondary">
+                <h3 className="text-t4 font-semibold text-text-primary">{BYPASS_QUESTION}</h3>
+                <p className="text-t5 text-text-secondary">
                   Tell us in confidence. The garage is never told who reported it.
                 </p>
               </div>
@@ -184,7 +184,7 @@ export function BookingHelpSheet({ open, onClose, booking }: BookingHelpSheetPro
           <Link
             href="/help"
             onClick={onClose}
-            className="-mx-1 flex min-h-11 items-center justify-between gap-3 rounded-[10px] px-1 text-[13px] text-text-secondary transition-colors hover:text-text-primary"
+            className="-mx-1 flex min-h-11 items-center justify-between gap-3 rounded-[10px] px-1 text-t4 text-text-secondary transition-colors hover:text-text-primary"
           >
             <span>
               Common questions: <span className="font-medium text-text-primary">Help centre</span>

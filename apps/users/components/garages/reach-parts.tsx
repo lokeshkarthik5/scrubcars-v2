@@ -4,6 +4,7 @@ import Link from 'next/link'
 import {
   IconArrowRight,
   IconCamera,
+  IconCarGarage,
   IconChevronRight,
   IconKey,
   IconShieldCheck,
@@ -45,13 +46,13 @@ export function SkipTheDriveCard({
       className="flex flex-col gap-3 rounded-[18px] border border-[#2B4A7A] bg-[#0E1A2E] p-4"
     >
       <div>
-        <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-[#8FB4F0]">
+        <p className="text-t5 font-medium uppercase tracking-[0.12em] text-[#8FB4F0]">
           Skip the drive
         </p>
-        <h2 id="skip-the-drive" className="mt-1.5 text-[17px] font-medium text-text-primary">
+        <h2 id="skip-the-drive" className="mt-1.5 text-t2 font-medium text-text-primary">
           {skipTheDriveTitle(nearestKm)}
         </h2>
-        <p className="mt-0.5 text-[13px] text-text-secondary">Get it done without driving:</p>
+        <p className="mt-0.5 text-t4 text-text-secondary">Get it done without driving:</p>
       </div>
       <ul className="flex flex-col gap-2">
         {rows.map((row) => (
@@ -62,8 +63,8 @@ export function SkipTheDriveCard({
               className="press flex min-h-14 w-full items-center gap-3 rounded-[14px] border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-left"
             >
               <span className="min-w-0 flex-1">
-                <span className="block text-[15px] text-text-primary">{row.title}</span>
-                <span className="block text-[12px] text-text-secondary">{row.detail}</span>
+                <span className="block text-t3 text-text-primary">{row.title}</span>
+                <span className="block text-t5 text-text-secondary">{row.detail}</span>
               </span>
               <IconChevronRight size={18} aria-hidden className="shrink-0 text-text-secondary" />
             </button>
@@ -80,7 +81,7 @@ export function AtHomeLine({ onSwitch }: { onSwitch: () => void }) {
     <button
       type="button"
       onClick={onSwitch}
-      className="flex min-h-11 items-center gap-1 self-start text-[13px] text-text-secondary"
+      className="flex min-h-11 items-center gap-1 self-start text-t4 text-text-secondary"
     >
       or have it done at home
       <IconArrowRight size={14} aria-hidden />
@@ -88,10 +89,14 @@ export function AtHomeLine({ onSwitch }: { onSwitch: () => void }) {
   )
 }
 
-/** "Can collect your car" on an at-garage card whose pickup reaches the customer. */
+/**
+ * "Can collect your car" on an at-garage card whose pickup reaches the
+ * customer: a raised chip with the pickup car, beside "Comes to you too".
+ */
 export function CanCollectChip() {
   return (
-    <span className="rounded-md bg-[#13233D] px-2 py-0.5 text-[12px] font-medium text-[#8FB4F0]">
+    <span className="fx-raised inline-flex h-[26px] items-center gap-1.5 rounded-pill px-2.5 text-t4 font-medium text-[#D4D4DA]">
+      <IconCarGarage size={13} aria-hidden className="text-[#A8A8B2]" />
       Can collect your car
     </span>
   )
@@ -114,15 +119,15 @@ export function PickupExplainer() {
   ]
   return (
     <section aria-labelledby="pickup-explainer" className="hub-card flex flex-col gap-3 p-4">
-      <h2 id="pickup-explainer" className="text-[17px] font-medium text-text-primary">
+      <h2 id="pickup-explainer" className="text-t2 font-medium text-text-primary">
         They collect, you relax
       </h2>
       <ol className="flex flex-col gap-2.5">
         {steps.map((step, i) => (
-          <li key={step} className="flex gap-3 text-[13px] leading-snug text-text-secondary">
+          <li key={step} className="flex gap-3 text-t4 leading-snug text-text-secondary">
             <span
               aria-hidden
-              className="grid size-5 shrink-0 place-items-center rounded-full bg-white/[0.08] font-numeric text-[11px] text-text-primary"
+              className="grid size-5 shrink-0 place-items-center rounded-full bg-white/[0.08] font-numeric text-t5 text-text-primary"
             >
               {i + 1}
             </span>
@@ -131,15 +136,15 @@ export function PickupExplainer() {
         ))}
       </ol>
       <ul aria-label="Why it is safe" className="flex flex-wrap gap-1.5">
-        <li className="flex items-center gap-1 rounded-md bg-success-muted px-2 py-1 text-[12px] text-success">
+        <li className="flex items-center gap-1 rounded-md bg-success-muted px-2 py-1 text-t5 text-success">
           <IconShieldCheck size={13} aria-hidden />
           Garage responsible for your car
         </li>
-        <li className="flex items-center gap-1 rounded-md bg-success-muted px-2 py-1 text-[12px] text-success">
+        <li className="flex items-center gap-1 rounded-md bg-success-muted px-2 py-1 text-t5 text-success">
           <IconKey size={13} aria-hidden />
           Handover codes both ways
         </li>
-        <li className="flex items-center gap-1 rounded-md bg-success-muted px-2 py-1 text-[12px] text-success">
+        <li className="flex items-center gap-1 rounded-md bg-success-muted px-2 py-1 text-t5 text-success">
           <IconCamera size={13} aria-hidden />
           Add your own photos before pickup
         </li>
@@ -165,10 +170,10 @@ export function JustOutsideSection({
   return (
     <section aria-labelledby="just-outside" className="flex flex-col gap-3 pt-2">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 id="just-outside" className="text-[17px] font-medium text-text-primary">
+        <h2 id="just-outside" className="text-t2 font-medium text-text-primary">
           Just outside their area
         </h2>
-        <span className="text-[12px] text-text-muted">by distance</span>
+        <span className="text-t5 text-text-muted">by distance</span>
       </div>
       {items.map((item) => (
         <div key={item.vendor.id} data-garage-card="" data-just-outside="">
@@ -176,7 +181,7 @@ export function JustOutsideSection({
             vendor={item.vendor}
             mode={mode}
             chips={
-              <span className="text-[12px] font-medium text-warning">
+              <span className="text-t5 font-medium text-warning">
                 {outsideLine(item.coverKm, item.outsideKm)}
               </span>
             }
@@ -223,8 +228,8 @@ export function NextTabFooter({
       className="press mt-1 flex min-h-14 w-full items-center gap-3 rounded-[16px] border border-dashed border-stroke px-4 text-left"
     >
       <span className="min-w-0 flex-1">
-        <span className="block text-[12px] text-text-muted">Nothing here suits you?</span>
-        <span className="block text-[15px] text-text-primary">{offer.label}</span>
+        <span className="block text-t5 text-text-muted">Nothing here suits you?</span>
+        <span className="block text-t3 text-text-primary">{offer.label}</span>
       </span>
       <IconArrowRight size={18} aria-hidden className="shrink-0 text-text-secondary" />
     </button>

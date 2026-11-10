@@ -37,7 +37,7 @@ export function HomeHeader({
   return (
     <header className="flex items-center justify-between pt-1.5 pb-3.5">
       <div className="flex min-w-0 items-center gap-3">
-        <span className="relative grid size-10 shrink-0 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-[#2E2E34] to-[#1C1C20] text-[15px] font-medium text-text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+        <span className="relative grid size-10 shrink-0 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-[#2E2E34] to-[#1C1C20] text-t3 font-medium text-text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
           {avatarUrl ? (
             <Image
               src={avatarUrl}
@@ -51,8 +51,8 @@ export function HomeHeader({
           )}
         </span>
         <span className="min-w-0">
-          <span className="block text-[13px] text-dim">{greetingFor(now)}</span>
-          <span className="block truncate text-[17px] tracking-[-0.01em] text-text-primary">
+          <span className="block text-t4 text-dim">{greetingFor(now)}</span>
+          <span className="block truncate text-t2 tracking-[-0.01em] text-text-primary">
             {firstName}
           </span>
         </span>

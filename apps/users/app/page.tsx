@@ -62,7 +62,7 @@ export default async function LandingPage() {
         brandRight={
           <Link
             href="/login"
-            className="inline-flex min-h-11 items-center px-1 text-[15px] text-text-primary"
+            className="inline-flex min-h-11 items-center px-1 text-t3 text-text-primary"
           >
             Sign in
           </Link>
@@ -75,7 +75,7 @@ export default async function LandingPage() {
               Car wash &amp; detailing near you,{' '}
               <span className="text-brand-red">today.</span>
             </h1>
-            <p className="mt-2 text-[15px] leading-snug text-text-secondary">
+            <p className="mt-2 text-t3 leading-snug text-text-secondary">
               Real prices from Chennai garages. Book in 1 minute.
             </p>
           </div>

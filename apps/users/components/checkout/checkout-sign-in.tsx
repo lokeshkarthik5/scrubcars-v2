@@ -222,11 +222,11 @@ export function CheckoutSignInCard({
           id="checkout-sign-in"
           ref={headingRef}
           tabIndex={-1}
-          className="scroll-mt-20 text-[17px] font-medium tracking-[-0.01em] text-text-primary outline-none"
+          className="scroll-mt-20 text-t2 font-medium tracking-[-0.01em] text-text-primary outline-none"
         >
           Your phone number
         </h2>
-        <p className="mt-0.5 text-[13px] text-text-secondary">
+        <p className="mt-0.5 text-t4 text-text-secondary">
           For your booking updates. No password: we text you a code.
         </p>
       </div>
@@ -258,19 +258,19 @@ export function CheckoutSignInCard({
       ) : (
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-[15px] text-text-primary" data-clarity-mask="true">
+            <p className="text-t3 text-text-primary" data-clarity-mask="true">
               {formatPhone(signIn.phone)}
             </p>
             <button
               type="button"
               onClick={signIn.editNumber}
               disabled={signIn.verifying || busy}
-              className="min-h-11 px-2 text-[13px] text-text-secondary underline underline-offset-2"
+              className="min-h-11 px-2 text-t4 text-text-secondary underline underline-offset-2"
             >
               Change number
             </button>
           </div>
-          <p className="flex items-center gap-1.5 text-[13px] text-success">
+          <p className="flex items-center gap-1.5 text-t4 text-success">
             <IconCheck size={14} aria-hidden /> Code sent by SMS
           </p>
           <OtpInput
@@ -292,7 +292,7 @@ export function CheckoutSignInCard({
               onChange={(event) => signIn.setName(event.target.value)}
             />
           )}
-          <div className="flex items-center justify-between gap-3 text-[12px] text-text-secondary">
+          <div className="flex items-center justify-between gap-3 text-t5 text-text-secondary">
             <span>
               {expirySeconds !== null &&
                 (expirySeconds > 0 ? (
@@ -337,14 +337,14 @@ export function CheckoutSignInCard({
         <p
           id="checkout-sign-in-error"
           role="alert"
-          className="flex items-start gap-1.5 text-[13px] text-error"
+          className="flex items-start gap-1.5 text-t4 text-error"
         >
           <IconAlertCircle size={15} className="mt-px shrink-0" aria-hidden="true" />
           {shownError}
         </p>
       )}
 
-      <p className="text-[12px] text-text-muted">
+      <p className="text-t5 text-text-muted">
         New to Detlio? Your account is made when you verify. By continuing you
         agree to our{' '}
         <a href={LEGAL_PATHS.terms} target="_blank" rel="noopener" className="underline underline-offset-2">

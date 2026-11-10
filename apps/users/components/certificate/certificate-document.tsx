@@ -33,7 +33,7 @@ export const CERTIFICATE_PRINT_CSS = `
 function GarageMark({ garage }: { garage: CertificateJob['garage'] }) {
   if (!garage.tier) return null
   return (
-    <span className="inline-flex items-center gap-1 text-[11px] font-medium">
+    <span className="inline-flex items-center gap-1 text-t5 font-medium">
       <TierMedalIcon tier={garage.tier} size={13} />
       {tierMedalName(garage.tier)}
     </span>
@@ -50,7 +50,7 @@ function photosLine(photos: CertificateJob['photos']): string {
 function Field({ label, value, numeric = false }: { label: string; value: ReactNode; numeric?: boolean }) {
   return (
     <div className="min-w-0">
-      <dt className="text-[11px] font-semibold uppercase tracking-wide text-neutral-600">{label}</dt>
+      <dt className="text-t5 font-semibold uppercase tracking-wide text-neutral-600">{label}</dt>
       <dd className={`mt-0.5 text-[14px] font-medium ${numeric ? 'font-numeric' : ''}`}>{value}</dd>
     </div>
   )
@@ -91,11 +91,11 @@ export function CertificateDocument({
               .
             </span>
           </p>
-          <h1 className="mt-3 text-[20px] font-semibold leading-tight sm:text-[24px]">Service History</h1>
-          <p className="mt-1 text-[12px] text-neutral-600">
+          <h1 className="mt-3 text-[20px] font-semibold leading-tight sm:text-title">Service History</h1>
+          <p className="mt-1 text-t5 text-neutral-600">
             Certificate <span className="font-numeric font-medium text-brand-rich">{certificate.certificateNumber}</span>
           </p>
-          <p className="text-[12px] text-neutral-600">
+          <p className="text-t5 text-neutral-600">
             {issuedLabel} <span className="font-numeric">{certificateDateLabel(certificate.asOf)}</span>
           </p>
         </div>
@@ -125,17 +125,17 @@ export function CertificateDocument({
 
       <section aria-label="Summary" className="grid grid-cols-3 gap-2 border-t border-neutral-200 pt-4">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-600">Jobs through Detlio</p>
+          <p className="text-t5 font-semibold uppercase tracking-wide text-neutral-600">Jobs through Detlio</p>
           <p className="mt-0.5 font-numeric text-[20px] font-bold">{totals.jobs}</p>
         </div>
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-600">First service</p>
+          <p className="text-t5 font-semibold uppercase tracking-wide text-neutral-600">First service</p>
           <p className="mt-0.5 font-numeric text-[14px] font-medium">
             {totals.firstServiceOn ? certificateDateLabel(totals.firstServiceOn) : '—'}
           </p>
         </div>
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-600">Latest service</p>
+          <p className="text-t5 font-semibold uppercase tracking-wide text-neutral-600">Latest service</p>
           <p className="mt-0.5 font-numeric text-[14px] font-medium">
             {totals.lastServiceOn ? certificateDateLabel(totals.lastServiceOn) : '—'}
           </p>
@@ -143,11 +143,11 @@ export function CertificateDocument({
       </section>
 
       <section aria-labelledby="certificate-jobs" className="border-t border-neutral-200 pt-4">
-        <h2 id="certificate-jobs" className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-600">
+        <h2 id="certificate-jobs" className="mb-2 text-t5 font-semibold uppercase tracking-wide text-neutral-600">
           Jobs, newest first
         </h2>
         {jobs.length === 0 ? (
-          <p className="text-[13px] text-neutral-600">No completed jobs through Detlio yet.</p>
+          <p className="text-t4 text-neutral-600">No completed jobs through Detlio yet.</p>
         ) : (
           <ol aria-label={`Jobs on this ${carName}, newest first`} className="flex flex-col">
             {jobs.map((job, index) => {
@@ -158,14 +158,14 @@ export function CertificateDocument({
                   key={`${job.date}-${index}`}
                   className="grid grid-cols-[88px_minmax(0,1fr)] gap-x-3 gap-y-1 border-t border-dashed border-neutral-200 py-3 first:border-t-0 first:pt-0 sm:grid-cols-[104px_minmax(0,1fr)_auto]"
                 >
-                  <p className="font-numeric text-[13px] font-medium">{date}</p>
+                  <p className="font-numeric text-t4 font-medium">{date}</p>
                   <div className="min-w-0">
                     <p className="text-[14px] font-semibold">{job.services.join(', ') || 'Service'}</p>
-                    <p className="flex flex-wrap items-center gap-x-2 text-[12px] text-neutral-700">
+                    <p className="flex flex-wrap items-center gap-x-2 text-t5 text-neutral-700">
                       <span>{job.garage.name}</span>
                       <GarageMark garage={job.garage} />
                     </p>
-                    <p className="text-[11px] text-neutral-600">{photosLine(job.photos)}</p>
+                    <p className="text-t5 text-neutral-600">{photosLine(job.photos)}</p>
                   </div>
                   {pair && (
                     <div className="col-start-2 flex gap-2 sm:col-start-3 sm:row-start-1">
@@ -199,7 +199,7 @@ export function CertificateDocument({
       </section>
 
       <footer className="flex flex-col gap-4 border-t border-neutral-200 pt-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0 text-[11px] leading-relaxed text-neutral-600 sm:max-w-[60%]">
+        <div className="min-w-0 text-t5 leading-relaxed text-neutral-600 sm:max-w-[60%]">
           <p>{CERTIFICATE_SCOPE_NOTE}</p>
           <p className="mt-1">
             This is a record of work booked through Detlio, not an inspection report. It says nothing about the

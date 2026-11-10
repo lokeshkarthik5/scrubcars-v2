@@ -18,6 +18,29 @@ import type { BookingType, Vendor } from '@repo/core/types'
 import { TierMark } from '@repo/ui/features/tier-medal'
 import { OutsideCityChip } from '@repo/ui/features/outside-city'
 import { GarageCover, GarageMonogram } from '@repo/ui/features/garage-cover'
+import { matchSpans } from '@repo/core/moments'
+
+/**
+ * Text with the words a search matched marked (`mo-match`: the customer
+ * website draws a red-light underline under them; elsewhere a mark is plain
+ * text). Without a query it is the text as it is.
+ */
+function Matched({ text, query }: { text: string; query?: string }) {
+  if (!query) return <>{text}</>
+  return (
+    <>
+      {matchSpans(text, query).map((span, i) =>
+        span.match ? (
+          <mark key={i} className="mo-match bg-transparent text-inherit">
+            {span.text}
+          </mark>
+        ) : (
+          <span key={i}>{span.text}</span>
+        )
+      )}
+    </>
+  )
+}
 
 function ModeBadge({ label, tone }: { label: string; tone: 'garage' | 'doorstep' }) {
   return (
@@ -42,6 +65,7 @@ export function VendorCard({
   footer,
   approxDistance,
   measureFromLocation = false,
+  highlight,
 }: {
   vendor: Vendor
   /**
@@ -78,6 +102,8 @@ export function VendorCard({
    * never shows a distance the list was not sorted by.
    */
   measureFromLocation?: boolean
+  /** A search's words, marked where the name or the matched service has them. */
+  highlight?: string
 }) {
   // The logo has its own badge now, so the cover is gallery-only — reusing the
   // logo as a full-bleed cover would show the same image twice on the card.
@@ -157,7 +183,9 @@ export function VendorCard({
                   name gives way first (truncates), so it never pushes the
                   booking badges off a 360px card. */}
               <h3 className="flex min-w-0 flex-1 items-center gap-1 text-[15px] font-semibold text-text-primary">
-                <span className="truncate">{vendor.name}</span>
+                <span className="truncate">
+                  <Matched text={vendor.name} query={highlight} />
+                </span>
                 {vendor.tier && <TierMark tier={vendor.tier} />}
               </h3>
               <div className="flex shrink-0 gap-1.5">
@@ -224,7 +252,9 @@ export function VendorCard({
             {vendor.matchedService && (
               <p className="truncate text-[12px] text-text-secondary">
                 Offers{' '}
-                <span className="font-medium text-text-primary">{vendor.matchedService}</span>
+                <span className="font-medium text-text-primary">
+                  <Matched text={vendor.matchedService} query={highlight} />
+                </span>
               </p>
             )}
             {/* "Comes anywhere in Chennai" (0069): on a Doorstep or Pickup &

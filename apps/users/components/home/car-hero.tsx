@@ -97,9 +97,9 @@ export function CarHero({
       >
         <div className="car-hero__head">
           <div>
-            <p className="text-[13px] text-dim">Get started</p>
+            <p className="text-t4 text-dim">Get started</p>
             <h2 className="car-hero__title">Add your car</h2>
-            <p className="max-w-[268px] text-[15px] leading-[1.42] text-[#A1A1AA]">
+            <p className="max-w-[268px] text-t3 leading-[1.42] text-[#A1A1AA]">
               So garages quote the right price, and you&apos;ll see when
               it&apos;s due.
             </p>
@@ -145,7 +145,7 @@ export function CarHero({
         )}
       >
         <div className="min-w-0">
-          <p className="text-[13px] text-dim">Your car</p>
+          <p className="text-t4 text-dim">Your car</p>
           <h2 className="car-hero__title">
             {cars.length > 1 ? (
               // The name switches the car: a tap, not a swipe.
@@ -169,7 +169,7 @@ export function CarHero({
             )}
           </h2>
           {carLine(car) && (
-            <p className="truncate text-[13px] text-dim">{carLine(car)}</p>
+            <p className="truncate text-t4 text-dim">{carLine(car)}</p>
           )}
         </div>
       </div>
@@ -219,7 +219,7 @@ export function CarHero({
           className="car-hero__shine"
         >
           <span className="flex min-w-0 flex-col gap-1.5">
-            <span className="text-[13px] text-dim">Shine Card</span>
+            <span className="text-t4 text-dim">Shine Card</span>
             <span aria-hidden className="flex gap-1.5">
               {Array.from({ length: shine.goal }, (_, i) => (
                 <i
@@ -232,7 +232,7 @@ export function CarHero({
               ))}
             </span>
           </span>
-          <span className="max-w-[200px] text-right text-[13px] leading-snug text-text-primary">
+          <span className="max-w-[200px] text-right text-t4 leading-snug text-text-primary">
             <Figures text={shineLine(shine.toGo, shine.rewardAmount)} />
           </span>
         </Link>
@@ -281,10 +281,10 @@ export function CarHero({
               )}
             >
               <span className="min-w-0">
-                <span className="block truncate text-[15px] text-text-primary">
+                <span className="block truncate text-t3 text-text-primary">
                   {each.make} {each.model}
                 </span>
-                <span className="block truncate text-[13px] text-dim">
+                <span className="block truncate text-t4 text-dim">
                   {carLine(each)}
                 </span>
               </span>
@@ -300,7 +300,7 @@ export function CarHero({
           ))}
           <Link
             href="/profile#vehicles"
-            className="flex min-h-11 items-center justify-center text-[15px] text-text-primary"
+            className="flex min-h-11 items-center justify-center text-t3 text-text-primary"
           >
             Add or edit cars
           </Link>

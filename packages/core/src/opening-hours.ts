@@ -160,3 +160,23 @@ export function openStatus(
   // opening in the coming week falls on a holiday.
   return { isOpen: false, closedToday, detail: null }
 }
+
+/**
+ * How much of today's opening hours is still ahead, 0–1: the hours ring on
+ * the garage cards (customer UI round). Null whenever the garage is not open
+ * right now (closed, a holiday, hours unknown or of a shape openStatus will
+ * not read), so a ring is only ever drawn beside an "Open".
+ */
+export function hoursLeftShare(
+  hours: readonly OpeningDay[] | null | undefined,
+  now: Date = new Date(),
+  closures: readonly string[] = []
+): number | null {
+  if (!openStatus(hours, now, closures)?.isOpen || !hours) return null
+  const { day, minutes } = wallClock(now)
+  const row = hours.find((h) => h.dayOfWeek === day)
+  if (!row) return null
+  const open = toMinutes(row.openTime)
+  const close = toMinutes(row.closeTime)
+  return Math.min(1, Math.max(0, (close - minutes) / (close - open)))
+}

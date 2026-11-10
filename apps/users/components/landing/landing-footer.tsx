@@ -14,7 +14,7 @@ const LINKS = [
 ] as const
 
 const LINK =
-  'inline-flex min-h-11 items-center text-[13px] text-text-secondary underline-offset-2 hover:text-text-primary hover:underline'
+  'inline-flex min-h-11 items-center text-t4 text-text-secondary underline-offset-2 hover:text-text-primary hover:underline'
 
 /**
  * The landing page's compact footer: the story (/about and its sections),
@@ -33,8 +33,8 @@ export function LandingFooter() {
         ))}
         <CookieSettingsButton className={LINK} />
       </nav>
-      <p className="text-[12px] leading-relaxed text-text-muted">{OPERATED_BY}</p>
-      <p className="text-[12px] text-text-muted">
+      <p className="text-t5 leading-relaxed text-text-muted">{OPERATED_BY}</p>
+      <p className="text-t5 text-text-muted">
         © {new Date().getFullYear()} Detlio. All rights reserved.
       </p>
     </footer>

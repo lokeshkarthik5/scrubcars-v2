@@ -19,7 +19,7 @@ function helpSituation(refundMessage: string | undefined, waitingOn: WaitingOn):
 }
 
 const SECONDARY =
-  'flex min-h-11 flex-1 items-center justify-center gap-2 rounded-[10px] border border-border bg-surface px-3 text-[13px] font-medium text-text-primary transition-colors'
+  'flex min-h-11 flex-1 items-center justify-center gap-2 rounded-[10px] border border-border bg-surface px-3 text-t4 font-medium text-text-primary transition-colors'
 
 interface PaymentReceivedPanelProps {
   /** Razorpay's payment id: the one thing the team needs to find it. */
@@ -85,13 +85,13 @@ export function PaymentReceivedPanel({
   return (
     <div ref={ref} tabIndex={-1} className="flex flex-col gap-3 focus:outline-none">
       {refundMessage ? (
-        <p className="flex items-start gap-1.5 text-[13px] leading-5 text-text-primary">
+        <p className="flex items-start gap-1.5 text-t4 leading-5 text-text-primary">
           {/* Amber, as errors are everywhere: nothing here is to be pressed. */}
           <IconAlertCircle size={16} className="mt-0.5 shrink-0 text-error" aria-hidden="true" />
           <span>{text}</span>
         </p>
       ) : (
-        <p className="text-[13px] leading-5 text-text-primary">{text}</p>
+        <p className="text-t4 leading-5 text-text-primary">{text}</p>
       )}
       <div className="flex gap-2">
         <a

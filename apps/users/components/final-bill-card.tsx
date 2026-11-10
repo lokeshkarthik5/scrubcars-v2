@@ -184,8 +184,8 @@ export function FinalBillCard({
       id="final-bill"
       className="flex scroll-mt-4 flex-col gap-3 px-4 py-4"
     >
-      <h2 className="text-[17px] font-medium text-text-primary">Final bill</h2>
-      <p className="-mt-2 text-[12px] text-text-secondary">
+      <h2 className="text-t2 font-medium text-text-primary">Final bill</h2>
+      <p className="-mt-2 text-t5 text-text-secondary">
         From {booking.vendorName}, after inspecting your car.
       </p>
 
@@ -193,7 +193,7 @@ export function FinalBillCard({
         {bill.lines.map((line, i) => (
           <li
             key={i}
-            className="flex items-start justify-between gap-3 text-[13px]"
+            className="flex items-start justify-between gap-3 text-t4"
           >
             <span className="min-w-0 text-text-secondary">
               {line.description}
@@ -205,7 +205,7 @@ export function FinalBillCard({
         ))}
       </ul>
 
-      <div className="flex flex-col gap-1.5 border-t border-border pt-3 text-[13px]">
+      <div className="flex flex-col gap-1.5 border-t border-border pt-3 text-t4">
         <div className="flex items-center justify-between">
           <span className="text-text-secondary">Total</span>
           <span className="font-numeric font-medium text-text-primary">
@@ -228,7 +228,7 @@ export function FinalBillCard({
             </span>
           </div>
         )}
-        <div className="flex items-center justify-between border-t border-border pt-2 text-[15px] font-semibold text-text-primary">
+        <div className="flex items-center justify-between border-t border-border pt-2 text-t3 font-semibold text-text-primary">
           {/* Settled, the figure is what was paid here, not a balance. */}
           <span>{settled ? 'Paid in the app' : 'To pay'}</span>
           <span className="font-numeric font-bold">
@@ -238,7 +238,7 @@ export function FinalBillCard({
       </div>
 
       {bill.note && (
-        <p className="text-[12px] text-text-secondary">
+        <p className="text-t5 text-text-secondary">
           <span className="font-medium text-text-primary">
             Garage&apos;s note:
           </span>{' '}
@@ -263,7 +263,7 @@ export function FinalBillCard({
       </p>
 
       {bill.status === 'not_needed' ? (
-        <p className="flex items-start gap-1.5 text-[13px] text-text-primary">
+        <p className="flex items-start gap-1.5 text-t4 text-text-primary">
           <IconCircleCheck
             size={16}
             className="mt-0.5 shrink-0 text-success"
@@ -275,7 +275,7 @@ export function FinalBillCard({
           </span>
         </p>
       ) : settled ? (
-        <p className="flex items-center gap-1.5 text-[13px] font-medium text-success">
+        <p className="flex items-center gap-1.5 text-t4 font-medium text-success">
           <IconCircleCheck size={16} aria-hidden />
           Paid on{' '}
           <span className="font-numeric">
@@ -287,7 +287,7 @@ export function FinalBillCard({
         // gets tapped again and again on a phone.
         <ScButton
           disabled
-          className="flex items-center justify-center gap-2 rounded-full bg-surface-elevated py-4 text-[15px] text-text-primary ring-1 ring-inset ring-border hover:bg-surface-elevated disabled:cursor-wait disabled:opacity-100"
+          className="flex items-center justify-center gap-2 rounded-full bg-surface-elevated py-4 text-t3 text-text-primary ring-1 ring-inset ring-border hover:bg-surface-elevated disabled:cursor-wait disabled:opacity-100"
         >
           <IconLoader2
             size={16}
@@ -310,7 +310,7 @@ export function FinalBillCard({
         <MainAction
           disabled={opening}
           onClick={handlePay}
-          className="rounded-full py-4 text-[15px]"
+          className="rounded-full py-4 text-t3"
           heroIcon={
             !opening && <IconArrowUpRight size={17} stroke={1.5} aria-hidden />
           }

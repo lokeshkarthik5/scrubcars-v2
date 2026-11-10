@@ -29,9 +29,11 @@ async function expectGarageList(page: Page) {
   await expect(
     page.getByRole('button', { name: 'Search garages or services' })
   ).toBeVisible()
+  // The service filter is one button now (customer UI round): every service
+  // until one is chosen in its sheet (garage-filters.spec.ts).
   await expect(
-    page.getByRole('button', { name: 'All', exact: true })
-  ).toHaveAttribute('aria-pressed', 'true')
+    page.getByRole('button', { name: /^Service: All services/ })
+  ).toBeVisible()
   await expect(
     page.getByRole('heading', { name: VENDORS.main.name }).first()
   ).toBeVisible()
