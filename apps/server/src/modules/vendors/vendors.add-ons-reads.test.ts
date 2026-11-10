@@ -117,4 +117,32 @@ describe('Earnings', () => {
     expect(earnings.jobs[0]?.serviceNames).toEqual(['Foam wash'])
     expect(Number(earnings.jobs[0]?.amount)).toBe(698)
   })
+
+  test('a booking marked Test earns nothing, in the week tile or anywhere else (owner, 10 Nov 2026)', async () => {
+    const job = {
+      status: 'completed',
+      noShow: null,
+      bookingType: 'dropin',
+      scheduledAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+      amount: '698.00',
+      subtotalAmount: '698.00',
+      discountAmount: '0.00',
+      discountFundedBy: null,
+      items,
+      service: { name: 'Foam wash' },
+      user: { name: 'Meena' },
+      payment: { status: 'paid' },
+    }
+    patch(bookingsRepository, 'listBookingsForVendor', async () => [
+      { ...job, id: BOOKING, markedTestAt: null },
+      { ...job, id: id(5825), markedTestAt: new Date() },
+    ])
+    patch(reviewsRepository, 'listReviewsForVendor', async () => [])
+
+    const earnings = await vendorsService.getEarnings(GARAGE, 'week')
+    expect(earnings.jobs.map((job) => job.id)).toEqual([BOOKING])
+    expect(earnings.summary.jobsDone).toBe(1)
+    expect(Number(earnings.weekEarnings)).toBe(Number(earnings.summary.totalEarned))
+    expect(Number(earnings.weekEarnings)).toBe(Number(earnings.jobs[0]?.amount))
+  })
 })

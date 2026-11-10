@@ -485,14 +485,16 @@ export const refundsRepository = {
 
   /**
    * What was refunded in a window: every row whose latest refund was
-   * recorded at or after `since`, with its running total.
+   * recorded at or after `since`, with its running total. Not on a booking
+   * marked Test, which the pilot numbers leave out (0032).
    */
   async listRefundedSince(since: Date) {
     const [onPayments, onCheckouts, onBills] = await Promise.all([
       db
         .select({ refundedAmount: payments.refundedAmount })
         .from(payments)
-        .where(gte(payments.refundedAt, since)),
+        .innerJoin(bookings, eq(bookings.id, payments.bookingId))
+        .where(and(gte(payments.refundedAt, since), isNull(bookings.markedTestAt))),
       db
         .select({ refundedAmount: bookingIntents.refundedAmount })
         .from(bookingIntents)
@@ -500,7 +502,8 @@ export const refundsRepository = {
       db
         .select({ refundedAmount: bookingCharges.refundedAmount })
         .from(bookingCharges)
-        .where(gte(bookingCharges.refundedAt, since)),
+        .innerJoin(bookings, eq(bookings.id, bookingCharges.bookingId))
+        .where(and(gte(bookingCharges.refundedAt, since), isNull(bookings.markedTestAt))),
     ])
     return [...onPayments, ...onCheckouts, ...onBills]
   },

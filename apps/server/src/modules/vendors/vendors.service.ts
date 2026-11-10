@@ -2146,8 +2146,11 @@ export const vendorsService = {
     // Every booking that earns the garage its payout: finished jobs, and
     // customer no-shows on a payment Detlio kept (the garage held the slot,
     // so it is paid as if the job happened). Garage no-shows and other
-    // cancellations earn nothing. The rule is lib/earnings.ts.
+    // cancellations earn nothing. The rule is lib/earnings.ts. A booking
+    // marked Test earns nothing here either, as on the Earnings statement
+    // (owner, 10 Nov 2026: it "should not add up"); it stays in the list.
     const earning = bookings.flatMap((booking) => {
+      if (booking.markedTestAt) return []
       const kind = earningKind(booking)
       return kind ? [{ ...booking, kind }] : []
     })
