@@ -424,6 +424,7 @@ export function GraphiteSwitch<V extends string>({
   options,
   pinned = false,
   size = 'md',
+  role = 'radio',
   accessibilityLabel,
   style,
 }: {
@@ -432,6 +433,11 @@ export function GraphiteSwitch<V extends string>({
   options: GraphiteOption<V>[];
   pinned?: boolean;
   size?: 'md' | 'sm';
+  /**
+   * 'tab' when each option opens its own panel (the garage's Services and Settings):
+   * a tablist of tabs marked selected, as the web's Radix tabs are. Same look.
+   */
+  role?: 'radio' | 'tab';
   accessibilityLabel: string;
   style?: StyleProp<ViewStyle>;
 }) {
@@ -491,7 +497,7 @@ export function GraphiteSwitch<V extends string>({
   return (
     <Recessed
       radius={small ? 14 : 18}
-      accessibilityRole="radiogroup"
+      accessibilityRole={role === 'tab' ? 'tablist' : 'radiogroup'}
       accessibilityLabel={accessibilityLabel}
       onLayout={(event: LayoutChangeEvent) => setTrackWidth(event.nativeEvent.layout.width)}
       style={[{ height }, style]}
@@ -534,8 +540,8 @@ export function GraphiteSwitch<V extends string>({
         return (
           <Pressable
             key={option.value}
-            accessibilityRole="radio"
-            accessibilityState={{ checked: selected }}
+            accessibilityRole={role}
+            accessibilityState={role === 'tab' ? { selected } : { checked: selected }}
             accessibilityLabel={option.label}
             accessibilityHint={labelUnder ? undefined : option.quiet}
             onPress={() => {
@@ -556,7 +562,13 @@ export function GraphiteSwitch<V extends string>({
             ) : (
               <View style={styles.optionTop}>
                 {showIcons && option.icon ? option.icon(ink) : null}
-                <T size={small ? 13 : 14} weight={selected ? 600 : 500} lh={18} numberOfLines={1} color={ink}>
+                <T
+                  size={small || (role === 'tab' && options.length > 3) ? 13 : 14}
+                  weight={selected ? 600 : 500}
+                  lh={18}
+                  numberOfLines={1}
+                  color={ink}
+                >
                   {option.label}
                 </T>
               </View>
