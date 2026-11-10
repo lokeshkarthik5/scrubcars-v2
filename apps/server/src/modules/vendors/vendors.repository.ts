@@ -163,6 +163,27 @@ export const vendorsRepository = {
   },
 
   /**
+   * Whether the At garage list (every service) has a garage to show for the
+   * point: one listed to customers within `limitM` by the list's own
+   * far-garage rule (withinFarLimit, so an unpinned garage counts by its
+   * city's centre, and one in no city always). Home's "See all garages"
+   * (0070) is offered only when it does.
+   */
+  async anyListedWithin(origin: { lat: number; lng: number }, limitM: number): Promise<boolean> {
+    const point = sql`gis.ST_SetSRID(gis.ST_MakePoint(${origin.lng}, ${origin.lat}), 4326)::gis.geography`
+    const [row] = await db.execute<{ found: boolean }>(sql`
+      SELECT EXISTS (
+        SELECT 1
+          FROM vendors v
+         WHERE ${LISTED_TO_CUSTOMERS}
+           AND v.dropin_enabled = true
+           AND ${withinFarLimit(point, limitM)}
+      ) AS found
+    `)
+    return row?.found === true
+  },
+
+  /**
    * One page of public vendor ids, already filtered, sorted and bounded.
    *
    * Filtering and sorting are in SQL rather than in JS over the whole table,

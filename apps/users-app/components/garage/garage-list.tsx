@@ -351,9 +351,11 @@ export function GarageList({
   const firstFar = firstFarIndex(vendors, { located: !!origin, nearestFirst: effectiveSort === 'distance', city });
   const atGarage =
     mode === 'dropin' && !isRefreshing
-      ? atGarageReach(reach, !!origin)
+      ? atGarageReach(reach, !!origin, { counted: !small })
       : { skipTheDrive: null, atHomeLine: false, nearestKm: null };
   const listEnded = !isLoading && !isError && !hasMore && !isRefreshing;
+  // An empty At garage list with every service, from a place: nothing within 150 km (0070), not a filter.
+  const farEmpty = !silverOnly && mode === 'dropin' && category === 'all' && (!!origin || cityParams.cityLat !== undefined);
   const justOutside = (mode === 'doorstep' || mode === 'pickup') && listEnded ? (outside ?? []) : [];
   const nextOffer = nextTabOffer(mode, reach);
 
@@ -629,11 +631,17 @@ export function GarageList({
                     ? t('No garage collects from your area yet.')
                     : mode === 'doorstep' && !citywide
                       ? t('No garage travels to your area yet.')
-                      : mode === 'dropin' && category === 'all' && (origin || cityParams.cityLat !== undefined)
+                      : farEmpty
                         ? farEmptyLine(place)
                         : t('No garages match these filters.')}
               </T>
               <View style={styles.noneActions}>
+                {/* Nothing within 150 km (0070): another city, in the area sheet. */}
+                {farEmpty ? (
+                  <ScButton variant="outline" fullWidth={false} onPress={onAskArea}>
+                    {t('Choose a city')}
+                  </ScButton>
+                ) : null}
                 {silverOnly ? (
                   <ScButton variant="outline" fullWidth={false} onPress={() => setSilverChosen(false)}>
                     {t('Show every garage')}

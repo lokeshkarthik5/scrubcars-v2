@@ -1,4 +1,4 @@
-import { DEFAULT_DOORSTEP_RADIUS_KM, DOORSTEP_RADIUS_PLACEHOLDER, MAX_DOORSTEP_RADIUS_KM } from '@repo/core/doorstep';
+import { DEFAULT_DOORSTEP_RADIUS_KM, MAX_DOORSTEP_RADIUS_KM } from '@repo/core/doorstep';
 import type { ApiVendorProfile } from '@repo/core/api/types';
 import { useState } from 'react';
 import { View } from 'react-native';
@@ -105,7 +105,7 @@ export function LocationTab({
               label={t('Doorstep travel radius (km)')}
               numeric
               keyboardType="decimal-pad"
-              placeholder={DOORSTEP_RADIUS_PLACEHOLDER}
+              placeholder={t('Default {km} km', { km: DEFAULT_DOORSTEP_RADIUS_KM })}
               value={radius}
               onChangeText={(text) => setRadius(radiusInput(text))}
             />

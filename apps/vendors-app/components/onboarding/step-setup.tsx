@@ -1,4 +1,4 @@
-import { DEFAULT_DOORSTEP_RADIUS_KM, DOORSTEP_RADIUS_PLACEHOLDER } from '@repo/core/doorstep';
+import { DEFAULT_DOORSTEP_RADIUS_KM } from '@repo/core/doorstep';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
@@ -201,7 +201,7 @@ export function StepSetup() {
               label={t('Up to how many km from your garage?')}
               numeric
               keyboardType="number-pad"
-              placeholder={DOORSTEP_RADIUS_PLACEHOLDER}
+              placeholder={t('Default {km} km', { km: DEFAULT_DOORSTEP_RADIUS_KM })}
               accessibilityHint={t('From {min} to {max} kilometres', { min: MIN_RADIUS_KM, max: MAX_RADIUS_KM })}
               value={radiusKm}
               onChangeText={(text) => setRadiusKm(decimalOnly(text))}

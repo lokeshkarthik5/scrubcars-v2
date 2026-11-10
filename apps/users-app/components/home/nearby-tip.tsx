@@ -99,6 +99,28 @@ export function NearbyCard({ nearby, located }: { nearby: HomeData['nearby']; lo
     );
   }
 
+  // Nothing within 150 km either (0070): the list would open empty, so the way on is another city.
+  if (nearby.count === 0 && nearby.farEmpty) {
+    return (
+      <>
+        <Shell
+          label={`${t('No Detlio garages near you yet')}. ${t('Choose a city')}`}
+          onPress={() => setAsking(true)}
+          icon={<IconMapPin size={20} stroke={1.5} />}
+        >
+          {eyebrow}
+          <T size={17} tracking={-0.012} style={styles.big}>
+            {t('No Detlio garages near you yet')}
+          </T>
+          <T size={13} color={colors.dim}>
+            {t('Choose a city')}
+          </T>
+        </Shell>
+        <AreaPicker open={asking} onClose={() => setAsking(false)} />
+      </>
+    );
+  }
+
   if (nearby.count === 0) {
     return (
       <Shell
