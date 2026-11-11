@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { IconChevronRight, IconShieldCheck } from '@tabler/icons-react'
+import { useT } from '@repo/core/i18n'
 import { ScCard } from '@repo/ui/sc/card'
 import { useGarageClaims, useGuaranteeConfig } from '@repo/core/api/hooks/use-guarantee'
 
@@ -11,6 +12,7 @@ import { useGarageClaims, useGuaranteeConfig } from '@repo/core/api/hooks/use-gu
  * page. Nothing while the guarantee is off; the server refuses operators.
  */
 export function GuaranteeHomeCard() {
+  const t = useT()
   const config = useGuaranteeConfig()
   const on = config.data?.enabled === true
   const claims = useGarageClaims('open', on)
@@ -22,11 +24,18 @@ export function GuaranteeHomeCard() {
       <ScCard className="flex items-center gap-3 transition-colors hover:bg-surface-elevated">
         <IconShieldCheck size={22} aria-hidden="true" className="shrink-0 text-text-primary" />
         <div className="min-w-0 flex-1">
-          <h2 className="text-[14px] font-semibold text-text-primary">Free redo claims</h2>
+          <h2 className="text-[14px] font-semibold text-text-primary">
+            {t('Free redo claims')}
+          </h2>
           <p className="text-[12px] text-text-secondary">
             {toAnswer > 0
-              ? `${toAnswer} to answer within ${claims.data.reviewHours} hours of opening — no answer approves the redo.`
-              : 'Before and after photos on every job are your defence if a customer claims.'}
+              ? t(
+                  '{count} to answer within {hours} hours of opening — no answer approves the redo.',
+                  { count: toAnswer, hours: claims.data.reviewHours }
+                )
+              : t(
+                  'Before and after photos on every job are your defence if a customer claims.'
+                )}
           </p>
         </div>
         <IconChevronRight size={18} aria-hidden="true" className="shrink-0 text-text-secondary" />

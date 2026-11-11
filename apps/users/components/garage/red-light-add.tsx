@@ -4,6 +4,7 @@ import { useRef } from 'react'
 import { IconPlus } from '@tabler/icons-react'
 import { cn } from '@repo/core/utils'
 import { usePrefersReducedMotion } from '@repo/ui/finish/motion'
+import { useT } from '@repo/core/i18n'
 
 /**
  * Sends a small white dot from a just-added button to the booking bar
@@ -64,13 +65,14 @@ export function RedLightAdd({
   fly?: boolean
   className?: string
 }) {
+  const t = useT()
   const ref = useRef<HTMLButtonElement>(null)
   const reduce = usePrefersReducedMotion()
   return (
     <button
       ref={ref}
       type="button"
-      aria-label={added ? `Remove ${name} from booking` : `Add ${name} to booking`}
+      aria-label={added ? t('Remove {name} from booking', { name }) : t('Add {name} to booking', { name })}
       aria-pressed={added}
       disabled={disabled}
       onClick={() => {
@@ -99,7 +101,7 @@ export function RedLightAdd({
       ) : (
         <IconPlus size={15} stroke={2.2} aria-hidden="true" className="gp-add__plus shrink-0" />
       )}
-      {added ? 'Added' : 'Add'}
+      {added ? t('Added') : t('Add')}
       <span aria-hidden="true" className="gp-add__light" />
     </button>
   )

@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { IconAlertCircle, IconBrandWhatsapp } from '@tabler/icons-react'
 import { paymentHelpMessage, type PaymentHelpSituation } from '@repo/core/payment-confirmation'
 import { supportWhatsAppHref } from '@repo/core/support'
+import { useT } from '@repo/core/i18n'
+import { t } from '@repo/core/i18n/translate'
 
 /** What a payment is waiting on; the refund cases come from `refundMessage`. */
 type WaitingOn = Exclude<PaymentHelpSituation, 'refund' | 'bill_refund'>
@@ -49,10 +51,10 @@ export function paymentReceivedText(
   refundMessage?: string,
   waitingOn: WaitingOn = 'missing_booking'
 ): string {
-  if (refundMessage) return `${refundMessage} Payment ID ${paymentId}.`
+  if (refundMessage) return t('{refundMessage} Payment ID {paymentId}.', { refundMessage, paymentId })
   return waitingOn === 'bill_not_marked_paid'
-    ? `We've received your payment (ID ${paymentId}). We're confirming it against your bill — it shows here as paid in a minute, or WhatsApp us with this payment ID.`
-    : `We've received your payment (ID ${paymentId}). We're confirming your booking — check My bookings in a minute, or WhatsApp us with this payment ID.`
+    ? t("We've received your payment (ID {paymentId}). We're confirming it against your bill — it shows here as paid in a minute, or WhatsApp us with this payment ID.", { paymentId })
+    : t("We've received your payment (ID {paymentId}). We're confirming your booking — check My bookings in a minute, or WhatsApp us with this payment ID.", { paymentId })
 }
 
 /**
@@ -74,6 +76,7 @@ export function PaymentReceivedPanel({
   refundMessage,
   waitingOn = 'missing_booking',
 }: PaymentReceivedPanelProps) {
+  const t = useT()
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -100,14 +103,14 @@ export function PaymentReceivedPanel({
           )}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label="WhatsApp Detlio support with this payment ID"
+          aria-label={t('WhatsApp Detlio support with this payment ID')}
           className={`${SECONDARY} hover:border-[#25D366]`}
         >
           <IconBrandWhatsapp size={16} className="text-[#25D366]" aria-hidden />
-          WhatsApp us
+          {t('WhatsApp us')}
         </a>
         <Link href="/bookings" className={`${SECONDARY} hover:border-text-secondary`}>
-          My bookings
+          {t('My bookings')}
         </Link>
       </div>
     </div>

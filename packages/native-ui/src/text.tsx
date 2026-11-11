@@ -1,5 +1,6 @@
 import { Text, type TextProps, type TextStyle } from 'react-native';
 
+import { useUiLang } from './lang';
 import { useColors, useFinish } from './theme';
 
 export type Weight = 300 | 400 | 500 | 600 | 700;
@@ -55,7 +56,15 @@ interface TProps extends TextProps {
   uppercase?: boolean;
 }
 
-/** All text in the app. Sizes and weights are read off the web component it copies. */
+/**
+ * All text in the app. Sizes and weights are read off the web component it copies.
+ *
+ * Tamil needs no font of its own: Inter has no Tamil letters, and iOS and Android
+ * both fall back to their system Tamil face (Android's Typeface keeps the system
+ * fallback behind a loaded font, at the same weight). Its vowel signs reach above
+ * and below the line, though, so in Tamil a line is never tighter than 1.5 × size,
+ * the body's own, or the tight steps of the type scale would clip them.
+ */
 export function T({
   variant,
   size: sizeGiven,
@@ -71,6 +80,7 @@ export function T({
 }: TProps) {
   const colors = useColors();
   const { on: finish } = useFinish();
+  const tamil = useUiLang() === 'ta';
   const step = variant ? TYPE_SCALE[variant] : null;
   const size = sizeGiven ?? step?.size ?? 15;
   const weight = weightGiven ?? step?.weight ?? 400;
@@ -83,7 +93,7 @@ export function T({
         {
           fontFamily: font(weight, num),
           fontSize: size,
-          lineHeight: lh ?? Math.round(size * 1.5),
+          lineHeight: tamil ? Math.max(lh ?? 0, Math.round(size * 1.5)) : (lh ?? Math.round(size * 1.5)),
           color: color ?? colors.textPrimary,
           ...(tracking !== undefined ? { letterSpacing: tracking * size } : {}),
           ...(align ? { textAlign: align } : {}),

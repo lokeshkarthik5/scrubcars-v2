@@ -5,6 +5,7 @@
  * (add-ons.parity.test.ts). The display words live here.
  */
 import { formatServiceSummary } from './utils'
+import { msg, t } from './i18n/translate'
 
 export const ADD_ON_CATEGORY = 'others' as const
 
@@ -27,8 +28,7 @@ export const MAX_SERVICE_LINES = 10
 export const MAX_BOOKING_LINES = MAX_SERVICE_LINES + ADD_ON_LIMITS.perBooking
 
 export const ADD_ONS_ALONE_CODE = 'ADD_ONS_NEED_A_SERVICE'
-export const ADD_ONS_ALONE_MESSAGE =
-  'Add-ons go with a service. Add a service first.'
+export const ADD_ONS_ALONE_MESSAGE = msg('Add-ons go with a service. Add a service first.')
 
 /** Lines with nothing but add-ons: never bookable. An empty list is not this. */
 export function onlyAddOns(
@@ -63,10 +63,16 @@ export function lineCapRefusal(
   lines: ReadonlyArray<{ isAddon?: boolean | null }>
 ): { code: string; message: string } | null {
   if (serviceLinesOf(lines).length > MAX_SERVICE_LINES) {
-    return { code: 'TOO_MANY_SERVICES', message: `A booking can include at most ${MAX_SERVICE_LINES} services` }
+    return {
+      code: 'TOO_MANY_SERVICES',
+      message: t('A booking can include at most {count} services', { count: MAX_SERVICE_LINES }),
+    }
   }
   if (addOnLinesOf(lines).length > ADD_ON_LIMITS.perBooking) {
-    return { code: 'TOO_MANY_ADD_ONS', message: `A booking can include at most ${ADD_ON_LIMITS.perBooking} add-ons` }
+    return {
+      code: 'TOO_MANY_ADD_ONS',
+      message: t('A booking can include at most {count} add-ons', { count: ADD_ON_LIMITS.perBooking }),
+    }
   }
   return null
 }
@@ -83,12 +89,12 @@ export function addOnPaise(
 
 /** "+10 min", or "No extra time" when an add-on adds none. */
 export function addOnTimeLabel(extraMins: number): string {
-  return extraMins > 0 ? `+${extraMins} min` : 'No extra time'
+  return extraMins > 0 ? `+${extraMins} min` : t('No extra time')
 }
 
 /** "1 add-on", "2 add-ons". */
 export function addOnCountLabel(count: number): string {
-  return count === 1 ? '1 add-on' : `${count} add-ons`
+  return count === 1 ? t('1 add-on') : t('{count} add-ons', { count })
 }
 
 /**

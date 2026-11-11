@@ -1,5 +1,6 @@
 import { ApiError } from '@repo/core/api/client';
 import { useCancelSlotAlert, useSetSlotAlert, useSlotAlerts } from '@repo/core/api/hooks/use-slot-alerts';
+import { useT } from '@repo/core/i18n';
 import {
   inSlotAlertWindow,
   SLOT_ALERT_WINDOW_HINTS,
@@ -39,6 +40,7 @@ export function SlotAlertAsk({
   /** Where signing in comes back to. */
   backTo: string;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const user = useAuth((s) => s.user);
@@ -64,12 +66,12 @@ export function SlotAlertAsk({
         <IconCircleCheck size={20} stroke={1.6} color={colors.textPrimary} />
         <View style={styles.grow}>
           <T size={13} weight={500} lh={18}>
-            {`Waiting for a slot on ${slotAlertSummary(waiting)}`}
+            {t('Waiting for a slot on {when}', { when: slotAlertSummary(waiting) })}
           </T>
           <T size={12} lh={16} color={colors.textSecondary} style={styles.sub}>
-            {"If one opens it shows in Updates, and as a notification if they're on. It isn't held for you. "}
+            {`${t("If one opens it shows in Updates, and as a notification if they're on. It isn't held for you.")} `}
             <T size={12} weight={500} lh={16} style={styles.underline} onPress={() => router.push('/profile/slot-alerts' as Href)}>
-              Slot alerts
+              {t('Slot alerts')}
             </T>
           </T>
           <Pressable
@@ -79,7 +81,7 @@ export function SlotAlertAsk({
             style={styles.stop}
           >
             <T size={12} weight={500} lh={16} color={colors.textSecondary} style={styles.underline}>
-              Stop waiting
+              {t('Stop waiting')}
             </T>
           </Pressable>
         </View>
@@ -92,9 +94,9 @@ export function SlotAlertAsk({
       <Pressable accessibilityRole="button" onPress={() => setOpen(true)} style={styles.ask}>
         <IconBell size={14} stroke={1.6} color={colors.textSecondary} />
         <T size={12} lh={16} color={colors.textSecondary}>
-          {'None of these suit you? '}
+          {`${t('None of these suit you?')} `}
           <T size={12} weight={500} lh={16} style={styles.underline}>
-            Notify me if one opens
+            {t('Notify me if one opens')}
           </T>
         </T>
       </Pressable>
@@ -111,7 +113,7 @@ export function SlotAlertAsk({
     setAlert.mutate(
       { vendorId, date: state.date, window: part, bookingType, serviceIds },
       {
-        onError: (err) => setProblem(err instanceof ApiError ? err.message : "Couldn't set that up. Check your connection and try again."),
+        onError: (err) => setProblem(err instanceof ApiError ? err.message : t("Couldn't set that up. Check your connection and try again.")),
       }
     );
   };
@@ -122,17 +124,17 @@ export function SlotAlertAsk({
     <ScCard style={styles.card}>
       <View>
         <T size={13} weight={600} lh={18}>
-          Notify me if a slot opens
+          {t('Notify me if a slot opens')}
         </T>
         <T size={12} lh={16} color={colors.textSecondary} style={styles.sub}>
-          {`If a time frees up on ${day}, it shows in Updates, and as a notification if they're on. It isn't held: the first to book gets it.`}
+          {t("If a time frees up on {day}, it shows in Updates, and as a notification if they're on. It isn't held: the first to book gets it.", { day })}
         </T>
       </View>
       <View style={styles.chips}>
         {SLOT_ALERT_WINDOWS.map((option) => (
           <Chip
             key={option}
-            label={SLOT_ALERT_WINDOW_LABELS[option]}
+            label={t(SLOT_ALERT_WINDOW_LABELS[option])}
             selected={part === option}
             disabled={hasFreeTime(option)}
             onPress={() => {
@@ -144,7 +146,7 @@ export function SlotAlertAsk({
       </View>
       {hint || crossed ? (
         <T size={11} lh={15} color={colors.textMuted}>
-          {[hint, crossed ? 'Crossed out: a time is free then. Pick it above.' : ''].filter(Boolean).join(' · ')}
+          {[hint, crossed ? t('Crossed out: a time is free then. Pick it above.') : ''].filter(Boolean).join(' · ')}
         </T>
       ) : null}
       {problem ? (
@@ -153,7 +155,7 @@ export function SlotAlertAsk({
         </T>
       ) : null}
       <ScButton variant="outline" disabled={setAlert.isPending} onPress={submit}>
-        {user ? 'Notify me' : 'Sign in to get notified'}
+        {user ? t('Notify me') : t('Sign in to get notified')}
       </ScButton>
     </ScCard>
   );

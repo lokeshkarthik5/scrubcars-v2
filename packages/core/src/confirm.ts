@@ -1,3 +1,5 @@
+import { t } from './i18n/translate'
+
 /**
  * The typed confirmation for what can't be undone (ConfirmSheet's `typed`
  * level): the person types a name or a word before the button wakes up.
@@ -10,5 +12,5 @@ export function typedConfirmMatches(typed: string, expected: string): boolean {
 
 /** The disabled button's reason until it matches: 'Type "DELETE" to confirm.' */
 export function typedConfirmHint(expected: string): string {
-  return `Type "${expected.trim()}" to confirm.`
+  return t('Type "{word}" to confirm.', { word: expected.trim() })
 }

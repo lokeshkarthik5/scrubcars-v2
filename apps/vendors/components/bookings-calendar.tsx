@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react'
 import { GraphiteSwitch } from '@repo/ui/finish/graphite-switch'
+import { msg, useT } from '@repo/core/i18n'
 import type { Booking } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
 import { JobRow } from '@/components/job-row'
@@ -34,7 +35,11 @@ import {
 } from '@/lib/calendar'
 import { useGarageCalendar } from '@/lib/use-garage-calendar'
 
-const VIEW_LABELS: Record<CalendarView, string> = { month: 'Month', day: 'Day' }
+// English, shown as `t(…)`.
+const VIEW_LABELS: Record<CalendarView, string> = {
+  month: msg('Month'),
+  day: msg('Day'),
+}
 
 function rememberedView(): CalendarView {
   try {
@@ -67,6 +72,7 @@ export function BookingsCalendar({
   bookings: readonly Booking[]
   now: number
 }) {
+  const t = useT()
   const today = istDateKey(now)
   const [view, setView] = useState<CalendarView>(rememberedView)
   const [selected, setSelected] = useState(today)
@@ -106,20 +112,20 @@ export function BookingsCalendar({
     // The small graphite switch (mockup garage-calendar A): 36 tall, a 44px
     // target, narrow enough to keep the month on one line beside it.
     <GraphiteSwitch<CalendarView>
-      aria-label="Calendar view"
+      aria-label={t('Calendar view')}
       size="sm"
       value={view}
       onChange={pickView}
       className="shrink-0"
       options={(['month', 'day'] as const).map((key) => ({
         value: key,
-        label: VIEW_LABELS[key],
+        label: t(VIEW_LABELS[key]),
       }))}
     />
   )
 
   return (
-    <section aria-label="Calendar" className="flex flex-col gap-3.5">
+    <section aria-label={t('Calendar')} className="flex flex-col gap-3.5">
       {view === 'month' ? (
         <div className="flex items-center justify-between gap-2">
           {/* One line on a 360px phone with the switch beside it: the
@@ -127,7 +133,7 @@ export function BookingsCalendar({
           <div className="flex min-w-0 items-center">
             <button
               type="button"
-              aria-label="Previous month"
+              aria-label={t('Previous month')}
               disabled={month <= bounds.first}
               onClick={() => moveMonth(-1)}
               className="flex h-11 w-9 shrink-0 items-center justify-center text-text-secondary disabled:opacity-30"
@@ -142,7 +148,7 @@ export function BookingsCalendar({
             </h2>
             <button
               type="button"
-              aria-label="Next month"
+              aria-label={t('Next month')}
               disabled={month >= bounds.last}
               onClick={() => moveMonth(1)}
               className="flex h-11 w-9 shrink-0 items-center justify-center text-text-secondary disabled:opacity-30"
@@ -194,8 +200,8 @@ export function BookingsCalendar({
           {jobs.length === 0 && !closed && (
             <p className="rounded-[20px] border border-dashed border-border px-4 py-[18px] text-center text-[14px] text-text-secondary">
               {selected < today
-                ? 'Nothing booked on this day.'
-                : 'Nothing booked on this day yet.'}
+                ? t('Nothing booked on this day.')
+                : t('Nothing booked on this day yet.')}
             </p>
           )}
           {jobs.map((job) => (
@@ -309,19 +315,20 @@ function MonthGrid({
 
 /** What the dots and the hatching mean, under the grid. */
 function Legend() {
+  const t = useT()
   return (
     <ul className="flex flex-wrap gap-x-3.5 gap-y-1.5 px-1 text-[12px] text-text-secondary">
       <li className="flex items-center gap-1.5">
         <Dot kind="answer" className="size-[7px]" />
-        To answer
+        {t('To answer')}
       </li>
       <li className="flex items-center gap-1.5">
         <Dot kind="accepted" className="size-[7px]" />
-        Accepted
+        {t('Accepted')}
       </li>
       <li className="flex items-center gap-1.5">
         <Dot kind="done" className="size-[7px]" />
-        Done
+        {t('Done')}
       </li>
       <li className="flex items-center gap-1.5">
         <span
@@ -329,7 +336,7 @@ function Legend() {
           className="h-[9px] w-3 rounded-[3px] border border-border"
           style={HATCH}
         />
-        Closed
+        {t('Closed')}
       </li>
     </ul>
   )

@@ -9,6 +9,7 @@
 // Relative, not @repo/core/map: the server's parity test loads this file by
 // path, outside the workspace's aliases.
 import { straightLineKm } from './map'
+import { t } from './i18n/translate'
 
 /** A city's reach from its centre, in km, as admin may set it. */
 export const CITY_REACH_MIN_KM = 1
@@ -84,12 +85,12 @@ export type TravelChoice = 'radius' | 'whole_city'
 /** "Up to 10 km": the radius answer, with the number the garage typed (or the default). */
 export function travelRadiusLabel(km: number | null | undefined, defaultKm: number): string {
   const value = km ?? defaultKm
-  return `Up to ${String(Number(value.toFixed(1)))} km`
+  return t('Up to {km} km', { km: String(Number(value.toFixed(1))) })
 }
 
 /** "All over Chennai". */
 export function wholeCityLabel(cityName: string): string {
-  return `All over ${cityName}`
+  return t('All over {city}', { city: cityName })
 }
 
 /** Under the whole-city answer when the garage has no city to cover. */
@@ -97,12 +98,12 @@ export const WHOLE_CITY_UNAVAILABLE = `${WHOLE_CITY_NEEDS_CITY} to offer this.`
 
 /** "Comes anywhere in Chennai": the customer's line for a whole-city doorstep garage. */
 export function comesAnywhereLine(cityName: string): string {
-  return `Comes anywhere in ${cityName}`
+  return t('Comes anywhere in {city}', { city: cityName })
 }
 
 /** "Collects anywhere in Chennai": the same for pickup & drop. */
 export function collectsAnywhereLine(cityName: string): string {
-  return `Collects anywhere in ${cityName}`
+  return t('Collects anywhere in {city}', { city: cityName })
 }
 
 /** The city a whole-city garage covers, as public garage payloads carry it. */

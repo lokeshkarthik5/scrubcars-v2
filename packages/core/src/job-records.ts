@@ -1,4 +1,5 @@
 import { APP_TIMEZONE } from '@repo/core/utils'
+import { t } from './i18n/translate'
 
 /**
  * Display rules for a job's records — step times, photos and the final bill —
@@ -67,16 +68,16 @@ export function jobStepTimes(
 ): string[] {
   const pickup = booking.pickup
   return [
-    booking.acceptedAtIso && `Accepted ${formatStepTime(booking.acceptedAtIso, now)}`,
-    pickup?.pickedUpAtIso && `Picked up ${formatStepTime(pickup.pickedUpAtIso, now)}`,
-    pickup?.atGarageAtIso && `At garage ${formatStepTime(pickup.atGarageAtIso, now)}`,
-    booking.startedAtIso && `Started ${formatStepTime(booking.startedAtIso, now)}`,
+    booking.acceptedAtIso && t('Accepted {time}', { time: formatStepTime(booking.acceptedAtIso, now) }),
+    pickup?.pickedUpAtIso && t('Picked up {time}', { time: formatStepTime(pickup.pickedUpAtIso, now) }),
+    pickup?.atGarageAtIso && t('At garage {time}', { time: formatStepTime(pickup.atGarageAtIso, now) }),
+    booking.startedAtIso && t('Started {time}', { time: formatStepTime(booking.startedAtIso, now) }),
     pickup?.outForDeliveryAtIso &&
-      `Out for delivery ${formatStepTime(pickup.outForDeliveryAtIso, now)}`,
+      t('Out for delivery {time}', { time: formatStepTime(pickup.outForDeliveryAtIso, now) }),
     // Delivered is the completion of a pickup job: said once, as Delivered.
     pickup?.deliveredAtIso
-      ? `Delivered ${formatStepTime(pickup.deliveredAtIso, now)}`
-      : booking.completedAtIso && `Completed ${formatStepTime(booking.completedAtIso, now)}`,
+      ? t('Delivered {time}', { time: formatStepTime(pickup.deliveredAtIso, now) })
+      : booking.completedAtIso && t('Completed {time}', { time: formatStepTime(booking.completedAtIso, now) }),
   ].filter((line): line is string => Boolean(line))
 }
 
@@ -156,12 +157,12 @@ export function finalBillMayChange(
 export function finalBillStatusLabel(status: 'due' | 'paid' | 'cancelled' | 'not_needed'): string {
   switch (status) {
     case 'due':
-      return 'Due'
+      return t('Due')
     case 'paid':
-      return 'Paid'
+      return t('Paid')
     case 'not_needed':
-      return 'Nothing due'
+      return t('Nothing due')
     case 'cancelled':
-      return 'Replaced'
+      return t('Replaced')
   }
 }

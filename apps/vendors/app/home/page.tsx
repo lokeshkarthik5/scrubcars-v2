@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { IconChevronRight, IconInbox } from '@tabler/icons-react'
+import { fill, useT, useTn } from '@repo/core/i18n'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { LoadError } from '@repo/ui/sc/load-error'
 import { Notice } from '@repo/ui/sc/notice'
@@ -56,6 +57,7 @@ async function weekEarnings(): Promise<number> {
  * tile a way into its list.
  */
 export default function VendorHomePage() {
+  const t = useT()
   const vendor = useAuthStore((s) => s.vendor)
   const { bookings, loaded, failed, retrying, reload } = useVendorBookings()
   const now = useNow(10_000)
@@ -124,20 +126,21 @@ export default function VendorHomePage() {
       brandRight={<GarageStatus />}
       className="gap-5 py-4"
     >
-      <h1 className="sr-only">Home</h1>
+      <h1 className="sr-only">{t('Home')}</h1>
 
       {/* Ordered by what actually blocks the garage. An unpinned garage cannot
           be shown to customers at all, so telling them "under review" first
           would be misleading — there is nothing to review until they act. */}
       {needsLocation ? (
-        <Notice href="/settings?tab=location" title="Set your garage location">
-          Customers can&apos;t find you until your garage is on the map, and we
-          can&apos;t show you to customers without it. Tap to pin it.
+        <Notice href="/settings?tab=location" title={t('Set your garage location')}>
+          {t(
+            "Customers can't find you until your garage is on the map, and we can't show you to customers without it. Tap to pin it."
+          )}
         </Notice>
       ) : (
         !isVerified && (
-          <Notice tone="neutral" title="Not shown to customers yet">
-            Detlio is checking your garage. You&apos;ll be told once customers can find you.
+          <Notice tone="neutral" title={t('Not shown to customers yet')}>
+            {t("Detlio is checking your garage. You'll be told once customers can find you.")}
           </Notice>
         )
       )}
@@ -149,14 +152,16 @@ export default function VendorHomePage() {
           week later. Only an admin can resume (Settings is theirs). */}
       {paused &&
         (isVendorAdmin ? (
-          <Notice href="/settings?tab=time-off" title="New bookings are paused">
-            Customers can&apos;t find or book you. Bookings you already have
-            stay as they are. Tap to resume in Settings.
+          <Notice href="/settings?tab=time-off" title={t('New bookings are paused')}>
+            {t(
+              "Customers can't find or book you. Bookings you already have stay as they are. Tap to resume in Settings."
+            )}
           </Notice>
         ) : (
-          <Notice title="New bookings are paused">
-            Customers can&apos;t find or book this garage. Bookings already made
-            stay as they are.
+          <Notice title={t('New bookings are paused')}>
+            {t(
+              "Customers can't find or book this garage. Bookings already made stay as they are."
+            )}
           </Notice>
         ))}
 
@@ -168,7 +173,7 @@ export default function VendorHomePage() {
             id="home-waiting"
             className="flex items-center gap-2 text-[18px] font-semibold text-text-primary"
           >
-            Waiting for your answer
+            {t('Waiting for your answer')}
             {waiting.count > 0 && (
               <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-brand-red-fill px-1.5 font-numeric text-[13px] font-semibold leading-6 text-brand-white">
                 {waiting.count}
@@ -179,7 +184,7 @@ export default function VendorHomePage() {
             href="/bookings?tab=new"
             className="-my-2 flex min-h-12 items-center gap-0.5 text-[15px] font-medium text-text-secondary transition-colors hover:text-text-primary"
           >
-            See all
+            {t('See all')}
             <IconChevronRight size={18} aria-hidden="true" />
           </Link>
         </div>
@@ -188,14 +193,14 @@ export default function VendorHomePage() {
           <SkeletonList count={2} itemClassName="h-64" />
         ) : jobsUnknown ? (
           <LoadError
-            what="your bookings"
+            what={t('your bookings')}
             onRetry={reload}
             retrying={retrying}
           />
         ) : pending.length === 0 ? (
           <p className="flex items-center gap-3 rounded-[20px] border border-border bg-surface px-4 py-4 text-[15px] text-text-secondary">
             <IconInbox size={22} aria-hidden="true" className="shrink-0" />
-            No new bookings. They show here the moment a customer pays.
+            {t('No new bookings. They show here the moment a customer pays.')}
           </p>
         ) : (
           <>
@@ -212,9 +217,9 @@ export default function VendorHomePage() {
                 href="/bookings?tab=new"
                 className="flex min-h-12 items-center justify-center rounded-full border border-white/20 text-[15px] font-medium text-text-primary transition-colors hover:bg-surface"
               >
-                See all{' '}
-                <span className="mx-1 font-numeric">{pending.length}</span> new
-                bookings
+                {fill(t('See all {count} new bookings'), {
+                  count: <span className="mx-1 font-numeric">{pending.length}</span>,
+                })}
               </Link>
             )}
           </>
@@ -229,18 +234,20 @@ export default function VendorHomePage() {
           href="/bookings?tab=today"
           aria-label={
             jobsUnknown
-              ? "Today's jobs: unknown. Open Today"
-              : `Today's jobs: ${today.working.length + today.next.length}. Open Today`
+              ? t("Today's jobs: unknown. Open Today")
+              : t("Today's jobs: {count}. Open Today", {
+                  count: today.working.length + today.next.length,
+                })
           }
           className="press block"
         >
           <StatTile
-            label="Today's jobs"
+            label={t("Today's jobs")}
             className="h-full"
             value={jobsUnknown ? '–' : today.working.length + today.next.length}
             hint={
               today.working.length > 0
-                ? `${today.working.length} under way`
+                ? t('{count} under way', { count: today.working.length })
                 : undefined
             }
           />
@@ -249,11 +256,15 @@ export default function VendorHomePage() {
           <Link
             href="/earnings"
             className="press block"
-            aria-label={`This week: ${week === null ? 'not loaded' : formatINR(week)}. Open Earnings`}
+            aria-label={
+              week === null
+                ? t('This week: not loaded. Open Earnings')
+                : t('This week: {amount}. Open Earnings', { amount: formatINR(week) })
+            }
           >
             {/* A dash, never ₹0, until the figure arrives (or when it fails). */}
             <StatTile
-              label="This week"
+              label={t('This week')}
               className="h-full"
               value={week === null ? '–' : formatINR(week)}
             />
@@ -265,23 +276,29 @@ export default function VendorHomePage() {
           href="/reviews"
           aria-label={
             reviews === null
-              ? 'Average rating: not loaded. See reviews'
+              ? t('Average rating: not loaded. See reviews')
               : reviewCount === 0
-                ? 'Average rating: no reviews yet. See reviews'
+                ? t('Average rating: no reviews yet. See reviews')
                 : newGarage
-                  ? `Average rating: ${NEW_GARAGE_LABEL}, ${reviewCountLabel(reviewCount)}. See reviews`
-                  : `Average rating ${formatRating(avgRating)} from ${reviewCountLabel(reviewCount)}. See reviews`
+                  ? t('Average rating: {label}, {reviews}. See reviews', {
+                      label: t(NEW_GARAGE_LABEL),
+                      reviews: reviewCountLabel(reviewCount),
+                    })
+                  : t('Average rating {rating} from {reviews}. See reviews', {
+                      rating: formatRating(avgRating),
+                      reviews: reviewCountLabel(reviewCount),
+                    })
           }
           className="press block"
         >
           <StatTile
-            label="Avg rating"
+            label={t('Avg rating')}
             className="h-full"
             value={
               reviews === null ? (
                 '–'
               ) : reviewCount > 0 && newGarage ? (
-                <span className="text-[15px]">{NEW_GARAGE_LABEL}</span>
+                <span className="text-[15px]">{t(NEW_GARAGE_LABEL)}</span>
               ) : (
                 <span className="flex items-center gap-1.5">
                   {formatRating(avgRating)}
@@ -291,7 +308,7 @@ export default function VendorHomePage() {
             }
             hint={
               reviewsFailed
-                ? "Couldn't load"
+                ? t("Couldn't load")
                 : reviews === null
                   ? undefined
                   : reviewCountLabel(reviewCount)
@@ -313,13 +330,13 @@ export default function VendorHomePage() {
         href="/account"
         className="press flex min-h-12 items-center justify-between rounded-[16px] border border-border bg-surface px-4 py-2 text-[15px] text-text-primary"
       >
-        Your account
+        {t('Your account')}
         <IconChevronRight size={18} aria-hidden="true" className="shrink-0 text-text-muted" />
       </Link>
 
       {/* The agreement's non-solicitation term (0052): a reminder for every seat. */}
       <p className="px-1 text-[13px] text-text-secondary">
-        {GARAGE_NON_SOLICITATION_LINE}
+        {t(GARAGE_NON_SOLICITATION_LINE)}
       </p>
     </AppShell>
   )
@@ -331,6 +348,8 @@ export default function VendorHomePage() {
  * the count can't be read (an API without the route yet).
  */
 function RequestsHomeCard() {
+  const t = useT()
+  const tn = useTn()
   const count = useGarageRequestCount()
   const waiting = count.data?.waiting ?? 0
   if (waiting <= 0) return null
@@ -341,14 +360,18 @@ function RequestsHomeCard() {
     >
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2 text-[15px] font-semibold text-text-primary">
-          Requests
+          {t('Requests')}
           <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-brand-red-fill px-1.5 font-numeric text-[13px] font-semibold leading-6 text-brand-white">
             {waiting}
           </span>
         </span>
         <span className="block text-[13px] text-text-secondary">
-          {waiting} {waiting === 1 ? 'request' : 'requests'} waiting · answer
-          within {REQUEST_RULES.respondMinutes / 60} h
+          {tn(
+            waiting,
+            '{count} request waiting · answer within {hours} h',
+            '{count} requests waiting · answer within {hours} h',
+            { hours: REQUEST_RULES.respondMinutes / 60 }
+          )}
         </span>
       </span>
       <IconChevronRight size={18} aria-hidden="true" className="shrink-0" />

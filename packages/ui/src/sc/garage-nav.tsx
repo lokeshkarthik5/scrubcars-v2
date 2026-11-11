@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useIsVendorAdmin } from '@repo/core/hooks/use-vendor-role'
+import { useT } from '@repo/core/i18n'
 import { cn } from '@repo/core/utils'
 import { garageNavItems } from './bottom-nav'
 
@@ -24,6 +25,7 @@ import { garageNavItems } from './bottom-nav'
  * since the light alone says nothing to a screen reader.
  */
 export function GarageNav() {
+  const t = useT()
   const pathname = usePathname()
   const isVendorAdmin = useIsVendorAdmin()
   const items = garageNavItems(isVendorAdmin)
@@ -49,7 +51,7 @@ export function GarageNav() {
         </defs>
       </svg>
       <nav
-        aria-label="Main"
+        aria-label={t('Main')}
         className="fx-glass fixed left-1/2 z-40 grid h-16 -translate-x-1/2 items-center rounded-pill px-2"
         style={{
           bottom: 'calc(20px + env(safe-area-inset-bottom))',
@@ -86,8 +88,15 @@ export function GarageNav() {
               ) : (
                 <Icon size={21} aria-hidden />
               )}
-              <span className={cn('text-t5 leading-none', active ? 'font-semibold' : 'font-medium')}>
-                {label}
+              {/* A longer Tamil word ends in an ellipsis inside its fifth of the pill,
+                  clipped sideways only so its tall marks are never cut. */}
+              <span
+                className={cn(
+                  'min-w-0 max-w-full overflow-x-clip text-ellipsis whitespace-nowrap px-0.5 text-t5 leading-none',
+                  active ? 'font-semibold' : 'font-medium'
+                )}
+              >
+                {t(label)}
               </span>
             </Link>
           )

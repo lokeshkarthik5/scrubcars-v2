@@ -7,6 +7,7 @@ import {
   type AddOn,
   type AddOnInput,
 } from '@repo/core/api/add-ons'
+import { useT } from '@repo/core/i18n'
 import { ScButton } from '@repo/ui/sc/button'
 import { Chip } from '@repo/ui/sc/chip'
 import { ScInput } from '@repo/ui/sc/input'
@@ -89,11 +90,12 @@ export function AddOnSheet({
   onClose: () => void
   onSaved: (saved: AddOn) => void
 }) {
+  const t = useT()
   return (
     <ScSheet
       open={open}
       onClose={onClose}
-      aria-label={addOn ? 'Edit add-on' : 'Add an add-on'}
+      aria-label={addOn ? t('Edit add-on') : t('Add an add-on')}
     >
       {/* Keyed so each opening starts from what it is editing. */}
       {open && (
@@ -110,6 +112,7 @@ function AddOnForm({
   addOn: AddOn | null
   onSaved: (saved: AddOn) => void
 }) {
+  const t = useT()
   const [form, setForm] = useState<Form>(() => formFrom(addOn))
   const [saving, setSaving] = useState(false)
   const set = (patch: Partial<Form>) =>
@@ -125,7 +128,7 @@ function AddOnForm({
           : await garageAddOnsApi.create(input)
       )
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Something went wrong')
+      toast.error(err instanceof Error ? err.message : t('Something went wrong'))
     } finally {
       setSaving(false)
     }
@@ -134,26 +137,26 @@ function AddOnForm({
   return (
     <div className="flex flex-col gap-3 p-5">
       <h2 className="text-[17px] font-medium text-text-primary">
-        {addOn ? 'Edit add-on' : 'Add an add-on'}
+        {addOn ? t('Edit add-on') : t('Add an add-on')}
       </h2>
       <ScInput
         id="add-on-name"
-        label="Add-on name"
+        label={t('Add-on name')}
         value={form.name}
         onChange={(e) => set({ name: e.target.value })}
       />
       <div>
         <p className="mb-2 text-[11px] font-medium text-text-secondary">
-          Pricing
+          {t('Pricing')}
         </p>
         <div className="flex flex-wrap gap-2">
           <Chip
-            label="Flat"
+            label={t('Flat')}
             selected={form.pricingType === 'flat'}
             onClick={() => set({ pricingType: 'flat' })}
           />
           <Chip
-            label="Per vehicle"
+            label={t('Per vehicle')}
             selected={form.pricingType === 'per_vehicle'}
             onClick={() => set({ pricingType: 'per_vehicle' })}
           />
@@ -162,7 +165,7 @@ function AddOnForm({
       {form.pricingType === 'flat' ? (
         <ScInput
           id="add-on-price"
-          label="Price (₹)"
+          label={t('Price (₹)')}
           type="number"
           className="font-numeric"
           value={form.price}
@@ -171,21 +174,21 @@ function AddOnForm({
       ) : (
         <div className="grid grid-cols-3 gap-2">
           <ScInput
-            label="Hatchback (₹)"
+            label={t('Hatchback (₹)')}
             type="number"
             className="font-numeric"
             value={form.priceHatchback}
             onChange={(e) => set({ priceHatchback: e.target.value })}
           />
           <ScInput
-            label="Sedan (₹)"
+            label={t('Sedan (₹)')}
             type="number"
             className="font-numeric"
             value={form.priceSedan}
             onChange={(e) => set({ priceSedan: e.target.value })}
           />
           <ScInput
-            label="SUV (₹)"
+            label={t('SUV (₹)')}
             type="number"
             className="font-numeric"
             value={form.priceSuv}
@@ -196,25 +199,25 @@ function AddOnForm({
       <div>
         <ScInput
           id="add-on-mins"
-          label="Extra minutes (optional)"
+          label={t('Extra minutes (optional)')}
           type="number"
           className="font-numeric"
           value={form.extraMins}
           onChange={(e) => set({ extraMins: e.target.value })}
         />
         <p className="mt-1.5 text-[11px] text-text-muted">
-          Added to the job&apos;s time. Leave empty if it adds none.
+          {t("Added to the job's time. Leave empty if it adds none.")}
         </p>
       </div>
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-[13px] text-text-primary">Offered to customers</p>
+          <p className="text-[13px] text-text-primary">{t('Offered to customers')}</p>
           <p className="text-[11px] text-text-muted">
-            Works with any of your services.
+            {t('Works with any of your services.')}
           </p>
         </div>
         <ScSwitch
-          label="Offered to customers"
+          label={t('Offered to customers')}
           checked={form.isActive}
           onChange={(isActive) => set({ isActive })}
         />
@@ -225,7 +228,7 @@ function AddOnForm({
         disabled={!ready(form) || saving}
         onClick={() => void submit()}
       >
-        {saving ? 'Saving...' : addOn ? 'Update add-on' : 'Add add-on'}
+        {saving ? t('Saving...') : addOn ? t('Update add-on') : t('Add add-on')}
       </ScButton>
     </div>
   )

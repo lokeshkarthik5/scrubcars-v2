@@ -16,8 +16,10 @@ import { cityChipName } from '@repo/core/customer-city'
 import { parseBookingType } from '@repo/core/booking-types'
 import type { BookingType } from '@repo/core/types'
 import { GarageList } from './garage-list'
+import { useT } from '@repo/core/i18n'
 
 function GarageListContent() {
+  const t = useT()
   const searchParams = useSearchParams()
   const authUser = useAuthStore((s) => s.user)
   const profile = useUserStore((s) => s.profile)
@@ -55,14 +57,14 @@ function GarageListContent() {
 
   // Under the place, in words: what the pill cannot say in one line.
   const status = locating
-    ? 'Finding you…'
+    ? t('Finding you…')
     : citywide
       ? permission === 'denied'
-        ? `Location blocked — all of ${city.name}`
-        : `All of ${city.name}`
+        ? t('Location blocked — all of {city}', { city: city.name })
+        : t('All of {city}', { city: city.name })
       : location?.source === 'area'
-        ? 'Change area'
-        : (user?.area ?? 'Showing garages near you')
+        ? t('Change area')
+        : (user?.area ?? t('Showing garages near you'))
 
   return (
     <CustomerShell showNav className="gap-4 py-4">
@@ -81,7 +83,7 @@ function GarageListContent() {
             type="button"
             onClick={() => setAreaOpen(true)}
             disabled={locating}
-            aria-label={cityChipName(city, area)}
+            aria-label={cityChipName(city, area && t(area))}
             aria-describedby="garage-list-place"
             // max-w-full: a button sizes to its label, so without it a long
             // area name pushed the page wider than a 360px phone.
@@ -89,7 +91,7 @@ function GarageListContent() {
           >
             <IconMapPin size={15} aria-hidden className="shrink-0 text-text-primary" />
             <span className="truncate text-t3 font-semibold text-text-primary">
-              {locating ? 'Finding you…' : (area ?? city.name)}
+              {locating ? t('Finding you…') : area ? t(area) : city.name}
             </span>
             <IconChevronDown size={13} aria-hidden className="shrink-0 text-[#9A9AA3]" />
           </button>
@@ -105,7 +107,11 @@ function GarageListContent() {
       </header>
 
       <Toast
-        message={`Welcome, ${user?.name ?? 'there'}! Find your first car wash.`}
+        message={
+          user?.name
+            ? t('Welcome, {name}! Find your first car wash.', { name: user.name })
+            : t('Welcome! Find your first car wash.')
+        }
         visible={showToast}
         onDismiss={() => setToastDismissed(true)}
       />

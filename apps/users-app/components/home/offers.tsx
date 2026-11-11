@@ -1,6 +1,7 @@
 import { useDismissOffer } from '@repo/core/api/hooks/use-home';
 import type { HomeOffer } from '@repo/core/api/home';
 import { offerFigureOf, offerMetaLines } from '@repo/core/home-display';
+import { useT } from '@repo/core/i18n';
 import { formatOfferFigure, stripOfferCode, type OfferFigureSize } from '@repo/core/offer-figure';
 import { IconArrowUpRight, IconBuildingStore, IconSparkles, IconX } from '@repo/native-ui/icons';
 import { PressRow } from '@repo/native-ui/primitives';
@@ -24,17 +25,18 @@ function Coupon({ offer, hasCar, muted, onSelect, onDismiss, width }: {
   onDismiss: () => void;
   width: number;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const fig = formatOfferFigure(offerFigureOf(offer));
   const code = offer.code.trim();
   const meta = offerMetaLines(offer, { hasCar }).map((line) => stripOfferCode(line, code)).filter(Boolean);
   const Eyebrow = offer.vendorId ? IconBuildingStore : IconSparkles;
-  const label = offer.vendorId ? (offer.vendorName ?? 'Garage') : 'Detlio';
+  const label = offer.vendorId ? (offer.vendorName ?? t('Garage')) : 'Detlio';
   return (
     <View style={[styles.ticket, { width, opacity: muted ? 0.72 : 1 }]}>
       <PressRow
-        accessibilityLabel={[`${offer.title} at ${label}`, code && `code ${code}`, ...meta, 'use offer'].filter(Boolean).join(', ')}
+        accessibilityLabel={[t('{title} at {name}', { title: offer.title, name: label }), code && t('code {code}', { code }), ...meta, t('use offer')].filter(Boolean).join(', ')}
         onPress={onSelect}
         style={styles.hit}
       >
@@ -42,7 +44,7 @@ function Coupon({ offer, hasCar, muted, onSelect, onDismiss, width }: {
           <View style={styles.eyebrow}>
             <Eyebrow size={15} stroke={1.5} color={colors.dim} />
             <T size={13} numberOfLines={1} color={colors.dim} style={styles.shrink}>
-              {label} · Offer
+              {t('{label} · Offer', { label })}
             </T>
           </View>
           <T size={20} lh={24} tracking={-0.022} numberOfLines={2} style={styles.title}>
@@ -70,7 +72,7 @@ function Coupon({ offer, hasCar, muted, onSelect, onDismiss, width }: {
           ) : null}
         </View>
       </PressRow>
-      <Pressable accessibilityRole="button" accessibilityLabel="Hide offer" onPress={onDismiss} style={styles.dismiss}>
+      <Pressable accessibilityRole="button" accessibilityLabel={t('Hide offer')} onPress={onDismiss} style={styles.dismiss}>
         <IconX size={18} stroke={1.5} color={colors.dim} />
       </Pressable>
     </View>
@@ -96,6 +98,7 @@ export function HomeOffers({
   muted: boolean;
   onNeedCar: (go: (carId: string) => void) => void;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const dismiss = useDismissOffer();
@@ -115,7 +118,7 @@ export function HomeOffers({
     <View>
       <ScrollView
         horizontal
-        accessibilityLabel="Offers"
+        accessibilityLabel={t('Offers')}
         showsHorizontalScrollIndicator={false}
         decelerationRate="fast"
         snapToInterval={width + GAP}

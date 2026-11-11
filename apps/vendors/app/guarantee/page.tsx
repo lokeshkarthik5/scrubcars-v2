@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { IconShieldCheck } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
+import { useT } from '@repo/core/i18n'
 import { GraphiteSwitch } from '@repo/ui/finish/graphite-switch'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScBadge } from '@repo/ui/sc/badge'
@@ -38,6 +39,7 @@ import { formatStepTime } from '@repo/core/job-records'
  * defence. Only this garage's claims ever reach the page (resolveTenant).
  */
 export default function GuaranteeClaimsPage() {
+  const t = useT()
   const isVendorAdmin = useIsVendorAdmin()
   const config = useGuaranteeConfig()
   const on = config.data?.enabled === true
@@ -52,31 +54,33 @@ export default function GuaranteeClaimsPage() {
 
   return (
     <AppShell showNav navType="vendor" className="gap-4 py-4">
-      <TopBar showBack backHref="/home" title="Free redo claims" />
+      <TopBar showBack backHref="/home" title={t('Free redo claims')} />
       {!isVendorAdmin ? (
         <p className="text-[13px] text-text-secondary">
-          Only the garage owner can see and answer redo claims.
+          {t('Only the garage owner can see and answer redo claims.')}
         </p>
       ) : !config.isLoading && !on ? (
         <p className="text-[13px] text-text-secondary">
-          Free redo claims are not switched on yet.
+          {t('Free redo claims are not switched on yet.')}
         </p>
       ) : (
         <>
           <p className="text-[12px] text-text-secondary">
-            A customer can ask for a free redo within{' '}
-            {GUARANTEE_RULES.claimWindowHours} hours of a wash or detailing,
-            with photos. Answer within {GUARANTEE_RULES.garageReviewHours} hours
-            of your opening hours, or the redo is approved. Jobs without your
-            before and after photos are approved at once.
+            {t(
+              'A customer can ask for a free redo within {claimHours} hours of a wash or detailing, with photos. Answer within {answerHours} hours of your opening hours, or the redo is approved. Jobs without your before and after photos are approved at once.',
+              {
+                claimHours: GUARANTEE_RULES.claimWindowHours,
+                answerHours: GUARANTEE_RULES.garageReviewHours,
+              }
+            )}
           </p>
           <GraphiteSwitch
-            aria-label="Which claims"
+            aria-label={t('Which claims')}
             value={scope}
             onChange={setScope}
             options={[
-              { value: 'open', label: 'Open' },
-              { value: 'closed', label: 'Closed' },
+              { value: 'open', label: t('Open') },
+              { value: 'closed', label: t('Closed') },
             ]}
           />
           {claims.isLoading || config.isLoading ? (
@@ -84,8 +88,8 @@ export default function GuaranteeClaimsPage() {
           ) : (claims.data?.items.length ?? 0) === 0 ? (
             <EmptyState
               icon={<IconShieldCheck size={28} stroke={1.5} />}
-              title={scope === 'open' ? 'No open claims' : 'No closed claims'}
-              subtitle="Claims customers make on your jobs show here."
+              title={scope === 'open' ? t('No open claims') : t('No closed claims')}
+              subtitle={t('Claims customers make on your jobs show here.')}
             />
           ) : (
             <div className="flex flex-col gap-3">
@@ -101,6 +105,7 @@ export default function GuaranteeClaimsPage() {
 }
 
 function ClaimCard({ claim }: { claim: GarageClaim }) {
+  const t = useT()
   const answer = useAnswerClaim()
   const [disputing, setDisputing] = useState(false)
   const [note, setNote] = useState('')
@@ -109,12 +114,12 @@ function ClaimCard({ claim }: { claim: GarageClaim }) {
   const accept = async () => {
     try {
       await answer.mutateAsync({ claimId: claim.id, answer: 'accept' })
-      toast.success('Accepted. The customer picks a time for the redo.')
+      toast.success(t('Accepted. The customer picks a time for the redo.'))
     } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
-          : 'Could not answer. Please try again.'
+          : t('Could not answer. Please try again.')
       )
     }
   }
@@ -127,12 +132,12 @@ function ClaimCard({ claim }: { claim: GarageClaim }) {
         note: note.trim(),
       })
       setDisputing(false)
-      toast.success('Sent to Detlio to decide.')
+      toast.success(t('Sent to Detlio to decide.'))
     } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
-          : 'Could not send. Please try again.'
+          : t('Could not send. Please try again.')
       )
     }
   }
@@ -148,9 +153,9 @@ function ClaimCard({ claim }: { claim: GarageClaim }) {
             {claim.customerFirstName} · {claim.service}
           </p>
           <p className="text-[12px] text-text-secondary">
-            Booking #{claim.bookingRef}
+            {t('Booking #{reference}', { reference: claim.bookingRef })}
             {claim.completedAt && (
-              <> · done {formatStepTime(claim.completedAt)}</>
+              <> · {t('done {time}', { time: formatStepTime(claim.completedAt) })}</>
             )}
           </p>
         </div>
@@ -158,13 +163,13 @@ function ClaimCard({ claim }: { claim: GarageClaim }) {
           variant={claim.canAnswer ? 'pending' : 'muted'}
           className="shrink-0"
         >
-          {CLAIM_STATUS_LABELS[claim.status]}
+          {t(CLAIM_STATUS_LABELS[claim.status])}
         </ScBadge>
       </div>
 
       <div>
         <p className="text-[12px] font-medium text-text-primary">
-          {claim.issues.map((issue) => issue.label).join(', ')}
+          {claim.issues.map((issue) => t(issue.label)).join(', ')}
         </p>
         {claim.otherText && (
           <p className="mt-0.5 text-[12px] text-text-secondary">
@@ -176,52 +181,53 @@ function ClaimCard({ claim }: { claim: GarageClaim }) {
       <GuaranteeEvidence
         customerPhotos={claim.customerPhotos}
         garagePhotos={claim.garagePhotos}
-        garageTitle="Your before and after photos"
+        garageTitle={t('Your before and after photos')}
       />
 
       {claim.route === 'auto' && (
         <p className="text-[12px] text-text-secondary">
-          Approved at once: there were no before and after photos on this job.
+          {t('Approved at once: there were no before and after photos on this job.')}
         </p>
       )}
       {claim.route === 'detlio' &&
         claim.status === 'needs_detlio' &&
         !claim.garageResponse && (
           <p className="text-[12px] text-text-secondary">
-            Detlio is reviewing this claim. Nothing for you to do yet.
+            {t('Detlio is reviewing this claim. Nothing for you to do yet.')}
           </p>
         )}
       {claim.garageResponse === 'disputed' && claim.garageNote && (
         <p className="text-[12px] text-text-secondary">
-          You disputed it: “{claim.garageNote}”
+          {t('You disputed it: “{note}”', { note: claim.garageNote })}
         </p>
       )}
       {claim.garageResponse === 'timed_out' && (
         <p className="text-[12px] text-text-secondary">
-          There was no answer in time, so the redo was approved.
+          {t('There was no answer in time, so the redo was approved.')}
         </p>
       )}
       {claim.decisionReason && (
         <p className="text-[12px] text-text-secondary">
-          Detlio: “{claim.decisionReason}”
+          {t('Detlio: “{reason}”', { reason: claim.decisionReason })}
         </p>
       )}
       {claim.status === 'refund_approved' && (
         <p className="text-[12px] text-text-secondary">
-          Detlio approved a refund instead of a redo. Nothing is paid out on
-          this job.
+          {t('Detlio approved a refund instead of a redo. Nothing is paid out on this job.')}
         </p>
       )}
       {claim.redoBooking && (
         <p className="text-[12px] text-text-primary">
-          Free redo booked for {formatStepTime(claim.redoBooking.scheduledAt)} —
-          it is on your Bookings page.
+          {t('Free redo booked for {time} — it is on your Bookings page.', {
+            time: formatStepTime(claim.redoBooking.scheduledAt),
+          })}
         </p>
       )}
       {claim.status === 'redo_approved' && claim.redoBookBy && (
         <p className="text-[12px] text-text-secondary">
-          The customer picks a free redo time by{' '}
-          {formatStepTime(claim.redoBookBy)}.
+          {t('The customer picks a free redo time by {time}.', {
+            time: formatStepTime(claim.redoBookBy),
+          })}
         </p>
       )}
 
@@ -229,10 +235,12 @@ function ClaimCard({ claim }: { claim: GarageClaim }) {
         <div className="flex flex-col gap-2">
           {left && (
             <p className="text-[12px] font-medium text-warning">
-              Answer within {left} of now
               {claim.garageRespondBy
-                ? ` (by ${formatStepTime(claim.garageRespondBy)})`
-                : ''}
+                ? t('Answer within {left} of now (by {time})', {
+                    left,
+                    time: formatStepTime(claim.garageRespondBy),
+                  })
+                : t('Answer within {left} of now', { left })}
             </p>
           )}
           <div className="flex gap-2">
@@ -243,7 +251,7 @@ function ClaimCard({ claim }: { claim: GarageClaim }) {
               disabled={answer.isPending}
               className="flex-1"
             >
-              Accept — free redo
+              {t('Accept — free redo')}
             </ScButton>
             {claim.canDispute && (
               <ScButton
@@ -253,7 +261,7 @@ function ClaimCard({ claim }: { claim: GarageClaim }) {
                 disabled={answer.isPending}
                 className="flex-1"
               >
-                Dispute
+                {t('Dispute')}
               </ScButton>
             )}
           </div>
@@ -264,18 +272,20 @@ function ClaimCard({ claim }: { claim: GarageClaim }) {
         open={disputing}
         onClose={() => setDisputing(false)}
         dismissible={!answer.isPending}
-        aria-label="Dispute this claim"
+        aria-label={t('Dispute this claim')}
       >
         <div className="flex flex-col gap-3">
           <h2 className="text-[15px] font-semibold text-text-primary">
-            Dispute this claim
+            {t('Dispute this claim')}
           </h2>
           <p className="text-[12px] text-text-secondary">
-            Say why the job was done properly. Detlio compares both sides&apos;
-            photos and decides within {GUARANTEE_RULES.detlioDecideHours} hours.
+            {t(
+              "Say why the job was done properly. Detlio compares both sides' photos and decides within {hours} hours.",
+              { hours: GUARANTEE_RULES.detlioDecideHours }
+            )}
           </p>
           <ScTextarea
-            label="Why"
+            label={t('Why')}
             rows={4}
             maxLength={GUARANTEE_RULES.garageNoteMax}
             value={note}
@@ -289,7 +299,7 @@ function ClaimCard({ claim }: { claim: GarageClaim }) {
               disabled={answer.isPending}
               className="flex-1"
             >
-              Back
+              {t('Back')}
             </ScButton>
             <ScButton
               variant="main"
@@ -298,7 +308,7 @@ function ClaimCard({ claim }: { claim: GarageClaim }) {
               disabled={note.trim().length < 5 || answer.isPending}
               className="flex-1"
             >
-              Send to Detlio
+              {t('Send to Detlio')}
             </ScButton>
           </div>
         </div>

@@ -1,5 +1,6 @@
 import { garageLive, useGarageAlbum, useGaragePulls } from '@repo/core/api/hooks/use-garage';
 import { useRewardsConfig } from '@repo/core/api/hooks/use-rewards';
+import { useT } from '@repo/core/i18n';
 import { ScButton } from '@repo/native-ui/button';
 import { IconCards } from '@repo/native-ui/icons';
 import { EmptyState, ErrorState, Skeleton } from '@repo/native-ui/primitives';
@@ -16,6 +17,7 @@ import { useAuth } from '@/lib/auth';
 
 /** apps/users/app/profile/rewards/garage/page.tsx. */
 export default function GarageScreen() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
@@ -27,19 +29,19 @@ export default function GarageScreen() {
   const pulls = useGaragePulls(on && !!user);
   return (
     <View style={[styles.page, { paddingTop: insets.top }]}>
-      <PageHeader title="Detlio Garage" backTo="/profile/rewards" />
+      <PageHeader title={t('Detlio Garage')} backTo="/profile/rewards" />
       {!user ? (
         <View style={styles.center}>
           <T size={15} weight={600} align="center">
-            Sign in to see your Garage
+            {t('Sign in to see your Garage')}
           </T>
           <ScButton variant="main" fullWidth={false} paddingX={32} onPress={() => router.push(`/login?next=${encodeURIComponent('/profile/rewards/garage')}` as Href)}>
-            Sign in
+            {t('Sign in')}
           </ScButton>
         </View>
       ) : !config.isPending && !on ? (
         <View style={styles.center}>
-          <EmptyState icon={<IconCards size={32} stroke={1.5} color={colors.textSecondary} />} title="The Garage isn't open right now" subtitle="Your rewards are still on the Rewards page." />
+          <EmptyState icon={<IconCards size={32} stroke={1.5} color={colors.textSecondary} />} title={t("The Garage isn't open right now")} subtitle={t('Your rewards are still on the Rewards page.')} />
           <ScButton variant="outline" fullWidth={false} onPress={() => router.push('/profile/rewards' as Href)}>
             Detlio Rewards
           </ScButton>
@@ -52,7 +54,7 @@ export default function GarageScreen() {
               <Skeleton height={160} />
             </>
           ) : album.isError || !album.data ? (
-            <ErrorState message="Couldn't load your Garage. Check your connection." onRetry={() => void album.refetch()} />
+            <ErrorState message={t("Couldn't load your Garage. Check your connection.")} onRetry={() => void album.refetch()} />
           ) : (
             <>
               <GarageAlbumView album={album.data} firstName={firstNameOf(user.name)} />

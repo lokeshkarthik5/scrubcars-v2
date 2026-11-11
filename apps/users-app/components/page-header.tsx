@@ -1,3 +1,4 @@
+import { useT } from '@repo/core/i18n';
 import { TopGlow } from '@repo/native-ui/finish';
 import { IconArrowLeft } from '@repo/native-ui/icons';
 import { T } from '@repo/native-ui/text';
@@ -7,6 +8,7 @@ import { Pressable, View } from 'react-native';
 
 /** PageHeader (apps/users/components/ui/page-header.tsx): back, and the page's name. */
 export function PageHeader({ title, backTo = '/home' }: { title: string; backTo?: string }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   return (
@@ -17,7 +19,7 @@ export function PageHeader({ title, backTo = '/home' }: { title: string; backTo?
       </View>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Back"
+        accessibilityLabel={t('Back')}
         onPress={() => (router.canGoBack() ? router.back() : router.replace(backTo as Href))}
         style={styles.back}
       >

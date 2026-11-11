@@ -19,6 +19,7 @@ import { SectionHeader } from '../rows';
 import { AddOnSheet } from './add-on-sheet';
 import { Figures } from './figures';
 import { RowAction } from './row-action';
+import { useT } from '@repo/core/i18n';
 
 /**
  * Add-ons under Services (add-ons frame A): small extras that go with any service. Rows are the
@@ -26,6 +27,7 @@ import { RowAction } from './row-action';
  * keeps meaning services. Draws nothing when the server has no add-on routes (an older API).
  */
 export function AddOnsSection({ addRequest }: { addRequest: number }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const [addOns, setAddOns] = useState<AddOn[] | null>(null);
@@ -44,7 +46,7 @@ export function AddOnsSection({ addRequest }: { addRequest: number }) {
           return;
         }
         setAddOns([]);
-        toast.error('Failed to load add-ons');
+        toast.error(t('Failed to load add-ons'));
       });
   }, []);
 
@@ -62,16 +64,16 @@ export function AddOnsSection({ addRequest }: { addRequest: number }) {
     try {
       const updated = await garageAddOnsApi.update(addOn.id, { isActive });
       setAddOns((current) => (current ?? []).map((a) => (a.id === addOn.id ? updated : a)));
-      toast.success('Saved successfully');
+      toast.success(t('Saved successfully'));
     } catch (err) {
-      toast.error(errorText(err, 'Something went wrong'));
+      toast.error(errorText(err, t('Something went wrong')));
     }
   };
 
   return (
     <View style={styles.section}>
       <View style={styles.head}>
-        <SectionHeader title="Add-ons" />
+        <SectionHeader title={t('Add-ons')} />
         {list.length > 0 ? (
           <T num size={12} color={colors.textMuted}>
             {list.length}
@@ -79,13 +81,13 @@ export function AddOnsSection({ addRequest }: { addRequest: number }) {
         ) : null}
       </View>
       <T size={13} color={colors.textSecondary}>
-        {ADD_ONS_INTRO}
+        {t(ADD_ONS_INTRO)}
       </T>
       <ScButton variant="outline" onPress={() => setSheet('new')}>
         <View style={styles.addRow}>
           <IconPlus size={16} />
           <T size={14} weight={500}>
-            Add add-on
+            {t('Add add-on')}
           </T>
         </View>
       </ScButton>
@@ -103,14 +105,14 @@ export function AddOnsSection({ addRequest }: { addRequest: number }) {
                   <Figures text={addOnTimeLabel(addOn.extraMins)} />
                 </T>
               </View>
-              <ScBadge variant={addOn.isActive ? 'success' : 'muted'}>{addOn.isActive ? 'Active' : 'Inactive'}</ScBadge>
+              <ScBadge variant={addOn.isActive ? 'success' : 'muted'}>{addOn.isActive ? t('Active') : t('Inactive')}</ScBadge>
             </View>
             <View style={styles.actions}>
-              <RowAction onPress={() => setSheet(addOn)}>Edit</RowAction>
+              <RowAction onPress={() => setSheet(addOn)}>{t('Edit')}</RowAction>
               <RowAction onPress={() => void setActive(addOn, !addOn.isActive)}>
-                {addOn.isActive ? 'Disable' : 'Enable'}
+                {addOn.isActive ? t('Disable') : t('Enable')}
               </RowAction>
-              <RowAction onPress={() => setDeleting(addOn)}>Delete</RowAction>
+              <RowAction onPress={() => setDeleting(addOn)}>{t('Delete')}</RowAction>
             </View>
           </ScCard>
         ))}
@@ -126,7 +128,7 @@ export function AddOnsSection({ addRequest }: { addRequest: number }) {
             return rows.some((a) => a.id === saved.id) ? rows.map((a) => (a.id === saved.id ? saved : a)) : [...rows, saved];
           });
           setSheet(null);
-          toast.success('Saved successfully');
+          toast.success(t('Saved successfully'));
         }}
       />
 
@@ -134,17 +136,17 @@ export function AddOnsSection({ addRequest }: { addRequest: number }) {
         open={deleting !== null}
         onClose={() => setDeleting(null)}
         level="firm"
-        title={deleting ? `Delete ${deleting.name}?` : 'Delete this add-on?'}
-        body={ADD_ON_DELETE_BODY}
-        confirmLabel="Delete add-on"
+        title={deleting ? t('Delete {name}?', { name: deleting.name }) : t('Delete this add-on?')}
+        body={t(ADD_ON_DELETE_BODY)}
+        confirmLabel={t('Delete add-on')}
         onConfirm={async () => {
           if (!deleting) return;
           try {
             await garageAddOnsApi.remove(deleting.id);
             setAddOns((current) => (current ?? []).filter((a) => a.id !== deleting.id));
-            toast.success('Saved successfully');
+            toast.success(t('Saved successfully'));
           } catch (err) {
-            toast.error(errorText(err, 'Something went wrong'));
+            toast.error(errorText(err, t('Something went wrong')));
           }
           setDeleting(null);
         }}

@@ -12,6 +12,7 @@ import type { CustomerRequest } from '@repo/core/api/booking-requests'
 import { countdownLabel, istClock } from '@repo/core/booking-requests'
 import { useNow } from '@repo/core/hooks/use-now'
 import { waitingLine } from '@repo/core/area-signups'
+import { useT, useTn } from '@repo/core/i18n'
 
 const DATE = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' })
 
@@ -24,6 +25,7 @@ const DATE = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', 
  * such route yet).
  */
 export function ReachStatusCards() {
+  const t = useT()
   const status = useAreaStatus()
   const now = useNow(1000)
   const data = status.data
@@ -48,10 +50,9 @@ export function ReachStatusCards() {
         >
           <IconGift size={20} className="shrink-0 text-success" aria-hidden />
           <span className="min-w-0 flex-1">
-            <span className="block text-t3 font-medium text-text-primary">Your free wash is ready</span>
+            <span className="block text-t3 font-medium text-text-primary">{t('Your free wash is ready')}</span>
             <span className="block text-t5 text-text-secondary">
-              Up to ₹{signup.freeWashReady!.amount} off a car wash in {signup.zone.name} · use by{' '}
-              {DATE.format(new Date(signup.freeWashReady!.endsAt))}
+              {t('Up to ₹{amount} off a car wash in {name} · use by {value}', { amount: signup.freeWashReady!.amount, name: signup.zone.name, value: DATE.format(new Date(signup.freeWashReady!.endsAt)) })}
             </span>
           </span>
           <IconChevronRight size={18} className="shrink-0 text-text-secondary" aria-hidden />
@@ -69,25 +70,26 @@ export function ReachStatusCards() {
  * messages about the area. A free wash saved there goes with it, said first.
  */
 function WaitingListCard({ signup }: { signup: AreaSignup }) {
+  const t = useT()
   const leave = useLeaveAreaList()
   const [confirming, setConfirming] = useState(false)
   const [error, setError] = useState<string | undefined>()
   return (
     <div className="flex min-h-12 items-center justify-between gap-3 rounded-[16px] border border-border px-4 py-2">
       <span className="min-w-0">
-        <span className="block text-[14px] text-text-primary">On the list for {signup.zone.name}</span>
+        <span className="block text-[14px] text-text-primary">{t('On the list for {name}', { name: signup.zone.name })}</span>
         <span className="block text-t5 text-text-muted">
-          {signup.freeWash ? 'Free wash saved · ' : ''}
+          {signup.freeWash ? `${t('Free wash saved')} · ` : ''}
           {waitingLine(signup.zone.name, signup.waiting)}
         </span>
       </span>
       <button
         type="button"
-        aria-label={`Leave the list for ${signup.zone.name}`}
+        aria-label={t('Leave the list for {name}', { name: signup.zone.name })}
         onClick={() => setConfirming(true)}
         className="min-h-11 shrink-0 px-1 text-t5 font-medium text-text-secondary underline underline-offset-2 transition-colors hover:text-text-primary"
       >
-        Leave
+        {t('Leave')}
       </button>
       <ConfirmSheet
         open={confirming}
@@ -98,21 +100,21 @@ function WaitingListCard({ signup }: { signup: AreaSignup }) {
         onConfirm={async () => {
           try {
             await leave.mutateAsync(signup.zone.slug)
-            toast.success(`You left the list for ${signup.zone.name}`)
+            toast.success(t('You left the list for {name}', { name: signup.zone.name }))
             setConfirming(false)
           } catch (err) {
-            setError(err instanceof Error ? err.message : 'Could not leave the list')
+            setError(err instanceof Error ? err.message : t('Could not leave the list'))
           }
         }}
         level="light"
-        title={`Leave the list for ${signup.zone.name}?`}
+        title={t('Leave the list for {name}?', { name: signup.zone.name })}
         body={
           signup.freeWash
-            ? "We'll stop sending you news about this area, and your saved free wash goes with it."
-            : "We'll stop sending you news about this area. You can join again any time."
+            ? t("We'll stop sending you news about this area, and your saved free wash goes with it.")
+            : t("We'll stop sending you news about this area. You can join again any time.")
         }
-        confirmLabel="Leave the list"
-        cancelLabel="Stay on it"
+        confirmLabel={t('Leave the list')}
+        cancelLabel={t('Stay on it')}
         busy={leave.isPending}
         error={error}
       />
@@ -122,6 +124,8 @@ function WaitingListCard({ signup }: { signup: AreaSignup }) {
 
 /** "Detlio is now in <Area>": shown once (marked seen as it shows), closable. */
 function LaunchBanner({ signup }: { signup: AreaSignup }) {
+  const tn = useTn()
+  const t = useT()
   const seen = useMarkBannerSeen()
   const told = useRef(false)
   const [closed, setClosed] = useState(false)
@@ -144,19 +148,19 @@ function LaunchBanner({ signup }: { signup: AreaSignup }) {
       <IconConfetti size={22} className="mt-0.5 shrink-0 text-success" aria-hidden />
       <div className="min-w-0 flex-1">
         <h2 id={`launch-${signup.zone.slug}`} className="text-t3 font-medium text-text-primary">
-          Detlio is now in {signup.zone.name}
+          {t('Detlio is now in {name}', { name: signup.zone.name })}
         </h2>
         <p className="text-t4 text-text-secondary">
-          {garages} {garages === 1 ? 'garage' : 'garages'} near you.
-          {signup.freeWashReady ? ' Your free wash is ready to book.' : ''}
+          {tn(garages, '{count} garage near you.', '{count} garages near you.')}
+          {signup.freeWashReady ? ` ${t('Your free wash is ready to book.')}` : ''}
         </p>
         <Link href="/garages" className="mt-2 inline-flex min-h-11 items-center text-[14px] text-text-primary underline">
-          See them
+          {t('See them')}
         </Link>
       </div>
       <button
         type="button"
-        aria-label="Close the launch banner"
+        aria-label={t('Close the launch banner')}
         onClick={() => {
           track('banner_close', { banner: 'launch' })
           setClosed(true)
@@ -171,17 +175,21 @@ function LaunchBanner({ signup }: { signup: AreaSignup }) {
 }
 
 function RequestStatusCard({ request, now }: { request: CustomerRequest; now: number }) {
+  const t = useT()
   const [title, line] =
     request.state === 'accepted' && request.confirmBy
-      ? [`Accepted: confirm by ${istClock(request.confirmBy)}`, `${request.garage.name} said yes · ${request.window.label}`]
+      ? [
+          t('Accepted: confirm by {time}', { time: istClock(request.confirmBy) }),
+          t('{name} said yes · {window}', { name: request.garage.name, window: request.window.label }),
+        ]
       : request.state === 'waiting'
         ? [
-            'Your request',
-            `${request.garage.name} · waiting · ${countdownLabel(Date.parse(request.respondBy) - now)} left`,
+            t('Your request'),
+            t('{name} · waiting · {countdownLabel} left', { name: request.garage.name, countdownLabel: countdownLabel(Date.parse(request.respondBy) - now) }),
           ]
         : request.state === 'lapsed'
-          ? ['Your request expired', `${request.garage.name}'s yes ran out · send a new one`]
-          : ["Your request didn't find a garage", 'See what to do next']
+          ? [t('Your request expired'), t("{name}'s yes ran out · send a new one", { name: request.garage.name })]
+          : [t("Your request didn't find a garage"), t('See what to do next')]
   return (
     <Link
       href="/requests"

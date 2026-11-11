@@ -14,6 +14,7 @@ import { Label, ScButton } from '@repo/native-ui/button';
 import { IconBell, IconLogout, IconUsers } from '@repo/native-ui/icons';
 import { Skeleton, SkeletonList } from '@repo/native-ui/primitives';
 import { LinkRow, SectionHeader, TopBar } from '@/components/rows';
+import { LanguageRow } from '@/components/language-row';
 import { HoursTab } from '@/components/settings/hours-tab';
 import { LocationTab } from '@/components/settings/location-tab';
 import { ProfileTab } from '@/components/settings/profile-tab';
@@ -28,13 +29,14 @@ import { getMyVendor, getWorkingHours } from '@/lib/garage-api';
 import { initialTab, SETTINGS_TABS, type SettingsTab } from '@/lib/settings-logic';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 import { getMyClosures } from '@/lib/vendor-api';
+import { msg, useT } from '@repo/core/i18n';
 
 const LABELS: Record<SettingsTab, string> = {
-  profile: 'Profile',
-  location: 'Location',
-  hours: 'Hours',
-  'time-off': 'Time off',
-  account: 'Account',
+  profile: msg('Profile'),
+  location: msg('Location'),
+  hours: msg('Hours'),
+  'time-off': msg('Time off'),
+  account: msg('Account'),
 };
 
 /**
@@ -46,6 +48,7 @@ const LABELS: Record<SettingsTab, string> = {
  * so a company switch loads afresh.
  */
 function SettingsScreen() {
+  const t = useT();
   const styles = useStyles();
   const params = useLocalSearchParams<{ tab?: string }>();
   const requested = initialTab(params.tab);
@@ -86,7 +89,7 @@ function SettingsScreen() {
         setHours(hoursData);
       })
       .catch((err) => {
-        if (!cancelled && !isSignedOut()) toast.error(errorText(err, 'Failed to load settings'));
+        if (!cancelled && !isSignedOut()) toast.error(errorText(err, t('Failed to load settings')));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -99,7 +102,7 @@ function SettingsScreen() {
   if (loading) {
     return (
       <AppShell>
-        <TopBar title="Settings" />
+        <TopBar title={t('Settings')} />
         {/* The tab strip, then a form's worth of card. */}
         <SkeletonList count={2} height={44} />
         <Skeleton height={320} />
@@ -116,13 +119,13 @@ function SettingsScreen() {
 
   return (
     <AppShell>
-      <TopBar title="Settings" />
+      <TopBar title={t('Settings')} />
       <View style={styles.tabsBlock}>
         <GraphiteSwitch
           role="tab"
           pinned
-          accessibilityLabel="Settings"
-          options={SETTINGS_TABS.map((key) => ({ value: key, label: LABELS[key] }))}
+          accessibilityLabel={t('Settings')}
+          options={SETTINGS_TABS.map((key) => ({ value: key, label: t(LABELS[key]) }))}
           value={tab}
           onChange={open}
           style={styles.tabs}
@@ -150,6 +153,7 @@ function SettingsScreen() {
 }
 
 function AccountTab() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const signOut = useAuth((s) => s.signOut);
@@ -166,20 +170,21 @@ function AccountTab() {
       {push.data?.enabled ? (
         <LinkRow
           icon={<IconBell size={18} />}
-          title="Notifications"
-          description="New-booking alerts on this phone or computer"
+          title={t('Notifications')}
+          description={t('New-booking alerts on this phone or computer')}
           onPress={() => router.push('/settings/notifications' as Href)}
         />
       ) : null}
       <LinkRow
         icon={<IconUsers size={18} />}
-        title="Team"
-        description="Add admins and operators, and set what they can do"
+        title={t('Team')}
+        description={t('Add admins and operators, and set what they can do')}
         onPress={() => router.push('/settings/members' as Href)}
       />
+      <LanguageRow />
       <AccountActions />
       <View style={styles.section}>
-        <SectionHeader title="Support" />
+        <SectionHeader title={t('Support')} />
         <SupportCard />
       </View>
       <ScButton
@@ -191,7 +196,7 @@ function AccountTab() {
         }}
       >
         <IconLogout size={18} />
-        <Label>Log out</Label>
+        <Label>{t('Log out')}</Label>
       </ScButton>
       <T num size={12} color={colors.textMuted} align="center" style={styles.version}>
         {`Detlio for Garages ${APP_VERSION}`}

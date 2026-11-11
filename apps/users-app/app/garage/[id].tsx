@@ -42,6 +42,7 @@ import { useGarageTownLine } from '@/lib/customer-place';
 import { getVendorAddOns } from '@/lib/add-ons';
 import { useAuth } from '@/lib/auth';
 import { browseCategory } from '@repo/core/analytics-events';
+import { fill, msg, useT, useTn } from '@repo/core/i18n';
 import { track } from '@/lib/shims/analytics';
 import { useBookingCar } from '@/lib/booking-car';
 import { coarse, isApproximate, isCitywide, useLocationStore } from '@/lib/location';
@@ -49,15 +50,17 @@ import { money, pricedForCar, servicePriceText } from '@/lib/price';
 
 type Tab = 'services' | 'photos' | 'reviews';
 const TABS: readonly { key: Tab; label: string }[] = [
-  { key: 'services', label: 'Services' },
-  { key: 'photos', label: 'Photos' },
-  { key: 'reviews', label: 'Reviews' },
+  { key: 'services', label: msg('Services') },
+  { key: 'photos', label: msg('Photos') },
+  { key: 'reviews', label: msg('Reviews') },
 ];
 const NO_SERVICES: Service[] = [];
 const NO_PACKAGES: ServicePackage[] = [];
 
 /** apps/users/app/garage/[id]/page.tsx. */
 export default function GarageScreen() {
+  const tn = useTn();
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
@@ -158,21 +161,21 @@ export default function GarageScreen() {
     return (
       <View style={[styles.state, { paddingTop: insets.top }]}>
         {garage.isError && !garage.isFetching ? (
-          <ErrorState message="Couldn't load this garage. Check your connection." onRetry={() => void garage.refetch()} />
+          <ErrorState message={t("Couldn't load this garage. Check your connection.")} onRetry={() => void garage.refetch()} />
         ) : garage.data === null ? (
           <>
             <T size={13} color={colors.textSecondary} align="center">
-              This garage isn&apos;t taking bookings on Detlio.
+              {t("This garage isn't taking bookings on Detlio.")}
             </T>
             <Pressable accessibilityRole="link" onPress={() => router.replace('/garages' as Href)} style={styles.findAnother}>
               <T size={13} weight={600} style={styles.underline}>
-                Find another garage
+                {t('Find another garage')}
               </T>
             </Pressable>
           </>
         ) : (
           <T size={13} color={colors.textSecondary}>
-            Loading…
+            {t('Loading…')}
           </T>
         )}
       </View>
@@ -184,7 +187,7 @@ export default function GarageScreen() {
   const hasPerVehiclePricing = selectedServices.some((s) => s.pricingType === 'per_vehicle' && !pricedForCar(s, carType));
   const reviewCount = vendor.reviewCount || reviewsList.length;
   const showStars = hasStarScore({ reviewCount, isNew: vendor.isNew });
-  const visibleTabs = TABS.filter((t) => t.key !== 'reviews' || reviewCount > 0);
+  const visibleTabs = TABS.filter((item) => item.key !== 'reviews' || reviewCount > 0);
   const hero = vendor.photos[0] ?? null;
   const fromHere =
     activeLocation && !isCitywide(activeLocation) && vendor.lat != null && vendor.lng != null
@@ -208,7 +211,7 @@ export default function GarageScreen() {
   const barTotal =
     selectedServices.length === 1
       ? servicePriceText(selectedServices[0], carType)
-      : `${hasPerVehiclePricing ? 'from ' : ''}${money(selectedTotal)}`;
+      : hasPerVehiclePricing ? t('from {amount}', { amount: money(selectedTotal) }) : money(selectedTotal);
 
   // The scroll's direct children, so the tabs can stick: [hero, body, tabs, pane].
   return (
@@ -231,7 +234,7 @@ export default function GarageScreen() {
                 <View style={styles.titleRow}>
                   {vendor.logoUrl ? (
                     <View style={styles.logo}>
-                      <Image source={{ uri: vendor.logoUrl }} accessibilityLabel={`${vendor.name} logo`} resizeMode="cover" style={styles.fill} />
+                      <Image source={{ uri: vendor.logoUrl }} accessibilityLabel={t('{name} logo', { name: vendor.name })} resizeMode="cover" style={styles.fill} />
                     </View>
                   ) : (
                     <GarageMonogram vendor={vendor} size={56} radius={16} fontSize={17} />
@@ -255,12 +258,12 @@ export default function GarageScreen() {
                         {vendor.rating.toFixed(1)}
                       </T>
                       <T variant="t4" color={fx.quiet}>
-                        ({reviewCount} {reviewCount === 1 ? 'review' : 'reviews'})
+                        ({tn(reviewCount, '{count} review', '{count} reviews')})
                       </T>
                     </View>
                   ) : (
                     <T variant="t4" weight={600}>
-                      {NEW_GARAGE_LABEL}
+                      {t(NEW_GARAGE_LABEL)}
                     </T>
                   )}
                   {fromHere !== null ? (
@@ -272,10 +275,13 @@ export default function GarageScreen() {
                       {travel.data ? (
                         <T variant="t4" color={fx.quiet}>
                           {'· '}
-                          <T num variant="t4" weight={600} color={colors.textPrimary}>
-                            {formatDuration(toMinutes(travel.data.durationS))}
-                          </T>{' '}
-                          drive
+                          {fill(t('{time} drive'), {
+                            time: (
+                              <T num variant="t4" weight={600} color={colors.textPrimary}>
+                                {formatDuration(toMinutes(travel.data.durationS))}
+                              </T>
+                            ),
+                          })}
                         </T>
                       ) : null}
                     </View>
@@ -314,14 +320,13 @@ export default function GarageScreen() {
               ) : null}
               {mode === 'pickup' ? (
                 <T variant="t5" lh={18} color={fx.quiet} style={styles.pickupNote}>
-                  Free pickup &amp; drop: {vendor.name} collects your car from your address, works on it at the garage and brings it
-                  back.
+                  {t('Free pickup & drop: {name} collects your car from your address, works on it at the garage and brings it back.', { name: vendor.name })}
                 </T>
               ) : null}
               {params.withdrawn === '1' ? (
                 <View style={styles.notice}>
-                  <Notice tone="neutral" title="The services you picked are no longer offered here.">
-                    Choose from what this garage offers now.
+                  <Notice tone="neutral" title={t('The services you picked are no longer offered here.')}>
+                    {t('Choose from what this garage offers now.')}
                   </Notice>
                 </View>
               ) : null}
@@ -344,8 +349,8 @@ export default function GarageScreen() {
                   <Recessed radius={16} style={styles.search} innerStyle={styles.searchInner}>
                     <IconSearch size={17} color={fx.quiet} />
                     <TextInput
-                      accessibilityLabel="Search services"
-                      placeholder="Search services..."
+                      accessibilityLabel={t('Search services')}
+                      placeholder={t('Search services...')}
                       placeholderTextColor={fx.quiet}
                       keyboardAppearance={colors.keyboard}
                       value={query}
@@ -355,7 +360,7 @@ export default function GarageScreen() {
                   </Recessed>
                   {filteredPackages.length > 0 ? (
                     <View style={styles.group}>
-                      <PaneHeading title="Packages" count={`${filteredPackages.length} ${filteredPackages.length === 1 ? 'package' : 'packages'}`} />
+                      <PaneHeading title={t('Packages')} count={tn(filteredPackages.length, '{count} package', '{count} packages')} />
                       {filteredPackages.map((pkg, i) => (
                         <Rise key={pkg.id} index={i}>
                           <PackageCard
@@ -371,12 +376,12 @@ export default function GarageScreen() {
                     </View>
                   ) : null}
                   <View style={styles.group}>
-                    <PaneHeading title="Services" count={`${filtered.length} ${filtered.length === 1 ? 'service' : 'services'}`} />
+                    <PaneHeading title={t('Services')} count={tn(filtered.length, '{count} service', '{count} services')} />
                     {garage.isPlaceholderData ? (
                       <SkeletonList count={3} height={96} />
                     ) : filtered.length === 0 ? (
                       <T variant="t4" weight={400} color={colors.textSecondary} align="center" style={styles.none}>
-                        {services.length === 0 ? 'No services available yet.' : 'No services match that search.'}
+                        {services.length === 0 ? t('No services available yet.') : t('No services match that search.')}
                       </T>
                     ) : (
                       filtered.map((svc, i) => (
@@ -414,7 +419,7 @@ export default function GarageScreen() {
                   </View>
                 ) : (
                   <T variant="t4" weight={400} color={colors.textSecondary} align="center" style={styles.none}>
-                    No photos yet.
+                    {t('No photos yet.')}
                   </T>
                 )
               ) : null}
@@ -431,7 +436,7 @@ export default function GarageScreen() {
             <Glass radius={0} edge={false} base={fx.glassPinned} style={[StyleSheet.absoluteFill, styles.topGlass, { borderBottomColor: fx.glassEdge }]} />
           </Animated.View>
           <View pointerEvents="box-none" style={styles.topRow}>
-            <PressScale accessibilityRole="button" accessibilityLabel="Go back" onPress={back}>
+            <PressScale accessibilityRole="button" accessibilityLabel={t('Go back')} onPress={back}>
               {/* Dark glass in both themes: it sits on the photo first. */}
               <Glass radius={12} base="rgba(18,18,22,0.5)" style={styles.round}>
                 <IconArrowLeft size={20} color="#FAFAFA" />
@@ -455,10 +460,10 @@ export default function GarageScreen() {
           <View style={[styles.barWrap, { paddingBottom: insets.bottom + 14 }]}>
             <Glass accessibilityLiveRegion="polite" radius={22} heavy style={styles.pausedBar}>
               <T variant="t3" weight={600}>
-                Not taking bookings right now
+                {t('Not taking bookings right now')}
               </T>
               <T variant="t4" weight={400} color={colors.textSecondary} style={styles.pausedLine}>
-                {vendor.bookingsPausedReason || 'This garage has paused new bookings. Check back later, or pick another garage.'}
+                {vendor.bookingsPausedReason || t('This garage has paused new bookings. Check back later, or pick another garage.')}
               </T>
             </Glass>
           </View>
@@ -468,7 +473,7 @@ export default function GarageScreen() {
               <T variant="t5" numberOfLines={1} color={fx.quietBright}>
                 {selectedServices.length === 1
                   ? selectedServices[0].name
-                  : `${selectedServices.length} services${selectedDuration !== null ? ` · ${formatDuration(selectedDuration)}` : ''}`}
+                  : `${t('{count} services', { count: selectedServices.length })}${selectedDuration !== null ? ` · ${formatDuration(selectedDuration)}` : ''}`}
               </T>
               {/* The total rolls like an odometer as services come and go. */}
               {/^[₹\d]/.test(barTotal) ? (
@@ -480,9 +485,9 @@ export default function GarageScreen() {
               )}
             </View>
             {/* The page's one main action, solid red. */}
-            <RedButton height={48} radius={15} onPress={book} accessibilityLabel="Book now">
+            <RedButton height={48} radius={15} onPress={book} accessibilityLabel={t('Book now')}>
               <T variant="t3" weight={600} color="#FFFFFF">
-                Book now
+                {t('Book now')}
               </T>
               <IconArrowUpRight size={16} line={1.8} color="#FFFFFF" />
             </RedButton>
@@ -529,6 +534,7 @@ const HERO_HEIGHT = 340;
  * and a slow drift as the page scrolls. Without a photo, the garage's designed cover.
  */
 function GarageHero({ vendor, scrollY }: { vendor: Vendor; scrollY: Animated.Value }) {
+  const t = useT();
   const styles = useStyles();
   const reduce = useReduceMotion();
   const { width } = useWindowDimensions();
@@ -573,7 +579,7 @@ function GarageHero({ vendor, scrollY }: { vendor: Vendor; scrollY: Animated.Val
             <Pressable
               key={src}
               accessibilityRole="button"
-              accessibilityLabel={`Photo ${i + 1} of ${photos.length}`}
+              accessibilityLabel={t('Photo {number} of {total}', { number: i + 1, total: photos.length })}
               accessibilityState={{ selected: i === photo }}
               hitSlop={10}
               onPress={() => {
@@ -608,6 +614,7 @@ function GarageTabs({
   reviewCount: number;
   scrollY: Animated.Value;
 }) {
+  const t = useT();
   const styles = useStyles();
   const colors = useColors();
   const { fx } = useFinish();
@@ -641,24 +648,34 @@ function GarageTabs({
         <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: stuck }]}>
           <Glass radius={0} edge={false} base={fx.glassPinned} style={StyleSheet.absoluteFill} />
         </Animated.View>
-        <View accessibilityRole="tablist" accessibilityLabel="Garage sections" style={styles.tabRow}>
-          {tabs.map((t) => (
+        <View accessibilityRole="tablist" accessibilityLabel={t('Garage sections')} style={styles.tabRow}>
+          {tabs.map((item) => (
             <Pressable
-              key={t.key}
+              key={item.key}
               accessibilityRole="tab"
-              accessibilityState={{ selected: tab === t.key }}
-              accessibilityLabel={t.key === 'reviews' ? `${t.label}, ${reviewCount}` : t.label}
-              onPress={() => onTab(t.key)}
+              accessibilityState={{ selected: tab === item.key }}
+              accessibilityLabel={item.key === 'reviews' ? `${t(item.label)}, ${reviewCount}` : t(item.label)}
+              onPress={() => onTab(item.key)}
               onLayout={(event) => {
                 const { x: left, width } = event.nativeEvent.layout;
-                setPlaces((all) => ({ ...all, [t.key]: { x: left, width } }));
+                setPlaces((all) => ({ ...all, [item.key]: { x: left, width } }));
               }}
               style={styles.tab}
             >
-              <T size={14} weight={600} lh={18} color={tab === t.key ? colors.textPrimary : fx.quiet}>
-                {t.label}
+              {/* One line: a longer (Tamil) name shrinks to fit rather than push the row off screen. */}
+              <T
+                size={14}
+                weight={600}
+                lh={18}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.8}
+                color={tab === item.key ? colors.textPrimary : fx.quiet}
+                style={styles.tabLabel}
+              >
+                {t(item.label)}
               </T>
-              {t.key === 'reviews' ? (
+              {item.key === 'reviews' ? (
                 <T num variant="t5" weight={600} color={fx.quiet}>
                   {reviewCount}
                 </T>
@@ -741,7 +758,8 @@ const useStyles = createStyles((c) => ({
   tabsWrap: { zIndex: 3 },
   tabs: { height: 46, borderBottomWidth: 1, backgroundColor: c.canvas },
   tabRow: { flex: 1, flexDirection: 'row', gap: 4, paddingHorizontal: 12 },
-  tab: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12 },
+  tab: { minHeight: 44, flexShrink: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12 },
+  tabLabel: { flexShrink: 1, minWidth: 0 },
   tabLine: {
     position: 'absolute',
     left: 0,

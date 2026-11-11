@@ -1,5 +1,6 @@
 import { useGuaranteeConfig } from '@repo/core/api/hooks/use-guarantee';
-import { SUPPORT_TEL_HREF, supportWhatsAppHref } from '@repo/core/support';
+import { useT, useTn } from '@repo/core/i18n';
+import { SUPPORT_PHONE_DISPLAY, SUPPORT_TEL_HREF, supportWhatsAppHref } from '@repo/core/support';
 import { ScButton } from '@repo/native-ui/button';
 import { IconChevronDown, IconSearch } from '@repo/native-ui/icons';
 import { ScCard } from '@repo/native-ui/primitives';
@@ -63,6 +64,8 @@ function Question({ question, open: forced }: { question: HelpQuestion; open: bo
 
 /** HelpScreen (apps/users/components/help/help-screen.tsx). */
 export default function HelpScreen() {
+  const tn = useTn();
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
@@ -83,21 +86,21 @@ export default function HelpScreen() {
 
   return (
     <View style={[styles.page, { paddingTop: insets.top }]}>
-      <PageHeader title={HELP_INTRO.title} backTo="/profile" />
+      <PageHeader title={t(HELP_INTRO.title)} backTo="/profile" />
       <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 24 }]}>
         {HELP_DRAFT ? (
           <T size={12} lh={16} color={colors.warning}>
-            Draft: these answers are waiting for sign-off.
+            {t('Draft: these answers are waiting for sign-off.')}
           </T>
         ) : null}
         <T size={13} lh={18} color={colors.textSecondary}>
-          {HELP_INTRO.body}
+          {t(HELP_INTRO.body)}
         </T>
         <View style={styles.search}>
           <IconSearch size={18} color={colors.textMuted} />
           <TextInput
-            accessibilityLabel={HELP_INTRO.searchLabel}
-            placeholder={HELP_INTRO.searchPlaceholder}
+            accessibilityLabel={t(HELP_INTRO.searchLabel)}
+            placeholder={t(HELP_INTRO.searchPlaceholder)}
             placeholderTextColor={colors.textMuted}
             keyboardAppearance={colors.keyboard}
             value={query}
@@ -108,7 +111,7 @@ export default function HelpScreen() {
         </View>
         {searching ? (
           <T accessibilityLiveRegion="polite" size={13} lh={18} color={colors.textSecondary}>
-            {found === 0 ? HELP_INTRO.noResults : `${found} answer${found === 1 ? '' : 's'} found`}
+            {found === 0 ? t(HELP_INTRO.noResults) : tn(found, '{count} answer found', '{count} answers found')}
           </T>
         ) : null}
         {groups.map((group) => (
@@ -128,17 +131,17 @@ export default function HelpScreen() {
         <ScCard style={styles.still}>
           <View>
             <T size={14} weight={600} lh={20}>
-              {HELP_STILL_NEED.title}
+              {t(HELP_STILL_NEED.title)}
             </T>
             <T size={13} lh={18} color={colors.textSecondary} style={styles.mt2}>
-              {HELP_STILL_NEED.body}
+              {t(HELP_STILL_NEED.body, { phone: SUPPORT_PHONE_DISPLAY })}
             </T>
           </View>
-          <ContactButtons who="Detlio support" callHref={SUPPORT_TEL_HREF} whatsApp={supportWhatsAppHref('Hi Detlio, I have a question.')} />
+          <ContactButtons who={t('Detlio support')} callHref={SUPPORT_TEL_HREF} whatsApp={supportWhatsAppHref('Hi Detlio, I have a question.')} />
           <View style={styles.pair}>
             <View style={styles.grow}>
               <ScButton variant="outline" height={44} paddingX={8} onPress={() => openHelpLink(HELP_STILL_NEED.contact.href)}>
-                {HELP_STILL_NEED.contact.label}
+                {t(HELP_STILL_NEED.contact.label)}
               </ScButton>
             </View>
             <View style={styles.grow}>
@@ -151,7 +154,7 @@ export default function HelpScreen() {
                   else router.push(`/login?next=${encodeURIComponent('/help')}` as Href);
                 }}
               >
-                {HELP_STILL_NEED.complaint.label}
+                {t(HELP_STILL_NEED.complaint.label)}
               </ScButton>
             </View>
           </View>

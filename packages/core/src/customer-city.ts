@@ -15,6 +15,7 @@
  * imports only, so that test can load this file by path.
  */
 import { cityNameKey, cityOfPin } from './cities'
+import { t } from './i18n/translate'
 import { straightLineKm } from './map'
 import { SERVICE_CITY, type OutsideServiceCity } from './service-city'
 
@@ -135,7 +136,9 @@ export function customerPoint(location: CityLocation | null | undefined): { lat:
  * an area or a place picked, "Your area: RS Puram, Coimbatore. Change".
  */
 export function cityChipName(city: CustomerCity, area: string | null): string {
-  return area ? `Your area: ${area}, ${city.name}. Change` : `Your city: ${city.name}. Change`
+  return area
+    ? t('Your area: {area}, {city}. Change', { area, city: city.name })
+    : t('Your city: {city}. Change', { city: city.name })
 }
 
 /**
@@ -144,7 +147,7 @@ export function cityChipName(city: CustomerCity, area: string | null): string {
  */
 export function cityGaragesLine(city: CustomerCity): string | null {
   if (city.garageCount === null || isSmallCity(city)) return null
-  return `${city.garageCount} garages`
+  return t('{count} garages', { count: city.garageCount.toLocaleString('en-IN') })
 }
 
 /** The cities' switch takes up to three; from four, the sheet lists them as rows. */
@@ -152,17 +155,17 @@ export const CITY_SWITCH_MAX = 3
 
 /** "Know a great garage in Madurai? Recommend it": the small city's one quiet row. */
 export function recommendRowText(city: CustomerCity): { ask: string; action: string } {
-  return { ask: `Know a great garage in ${city.name}?`, action: 'Recommend it' }
+  return { ask: t('Know a great garage in {city}?', { city: city.name }), action: t('Recommend it') }
 }
 
 /** The map strip's words for a small city: "Detlio in Madurai", never a count. */
 export function detlioInLine(city: CustomerCity): string {
-  return `Detlio in ${city.name}`
+  return t('Detlio in {city}', { city: city.name })
 }
 
 /** The list heading for a small city: "In Madurai". */
 export function inCityHeading(city: CustomerCity): string {
-  return `In ${city.name}`
+  return t('In {city}', { city: city.name })
 }
 
 /**
@@ -274,8 +277,8 @@ export function outsideCityTag(garage: PlacedGarage, place: CustomerPlace): stri
   if (garageInCity(garage, place.city)) return null
   const town = garageTown(garage, place.city)
   const km = garageKm(garage, place)
-  if (town) return km === null ? town : `${town} · ${kmText(km)} km`
-  return km === null ? null : `${kmText(km)} km away`
+  if (town) return km === null ? town : t('{town} · {km} km', { town, km: kmText(km) })
+  return km === null ? null : t('{km} km away', { km: kmText(km) })
 }
 
 /**
@@ -288,11 +291,18 @@ export function outsideCityLine(garage: PlacedGarage, place: CustomerPlace): str
   if (garageInCity(garage, place.city)) return null
   const town = garageTown(garage, place.city)
   const km = garageKm(garage, place)
-  const from = place.at ? 'you' : place.city.name
+  // "from you" and "from Chennai" are two sentences: Tamil puts them differently.
+  const city = place.city.name
   if (town) {
-    return km === null ? `This garage is in ${town}.` : `This garage is in ${town}, about ${kmText(km)} km from ${from}.`
+    if (km === null) return t('This garage is in {town}.', { town })
+    return place.at
+      ? t('This garage is in {town}, about {km} km from you.', { town, km: kmText(km) })
+      : t('This garage is in {town}, about {km} km from {city}.', { town, km: kmText(km), city })
   }
-  return km === null ? null : `This garage is about ${kmText(km)} km from ${from}.`
+  if (km === null) return null
+  return place.at
+    ? t('This garage is about {km} km from you.', { km: kmText(km) })
+    : t('This garage is about {km} km from {city}.', { km: kmText(km), city })
 }
 
 // ─── Near the customer ───────────────────────────────────────────────────────
@@ -355,6 +365,12 @@ export function firstFarIndex(
  * server's; this only says why it is empty and the way on.
  */
 export function farEmptyLine(place: CustomerPlace): string {
-  const where = place.at ? 'you' : place.city.name
-  return `No garages within ${FAR_LIMIT_KM} km of ${where} yet. Search finds a garage by its name, wherever it is.`
+  return place.at
+    ? t('No garages within {km} km of you yet. Search finds a garage by its name, wherever it is.', {
+        km: FAR_LIMIT_KM,
+      })
+    : t('No garages within {km} km of {city} yet. Search finds a garage by its name, wherever it is.', {
+        km: FAR_LIMIT_KM,
+        city: place.city.name,
+      })
 }

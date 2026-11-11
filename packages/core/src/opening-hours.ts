@@ -1,4 +1,5 @@
 import { APP_TIMEZONE } from '@repo/core/utils'
+import { t } from './i18n/translate'
 
 /**
  * One day of a garage's week, as the API sends it.
@@ -127,7 +128,7 @@ export function openStatus(
     return {
       isOpen: true,
       closedToday: false,
-      detail: `closes ${formatClock(current.row.closeTime)}`,
+      detail: t('closes {time}', { time: formatClock(current.row.closeTime) }),
     }
   }
 
@@ -145,14 +146,14 @@ export function openStatus(
     const at = formatClock(next.row.openTime)
     const detail =
       offset === 0
-        ? `opens ${at}`
+        ? t('opens {time}', { time: at })
         : offset === 1
-          ? `opens ${at} tomorrow`
+          ? t('opens {time} tomorrow', { time: at })
           : offset === 7
             ? // Today's weekday again: without "next", "opens Mon 9 AM" read
               // on a Monday evening looks like this morning.
-              `opens next ${WEEKDAYS[day]} ${at}`
-            : `opens ${WEEKDAYS[day]} ${at}`
+              t('opens next {day} {time}', { day: WEEKDAYS[day], time: at })
+            : t('opens {day} {time}', { day: WEEKDAYS[day], time: at })
     return { isOpen: false, closedToday, detail }
   }
 

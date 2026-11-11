@@ -5,6 +5,7 @@ import { File, FileMode, Paths, UploadType } from 'expo-file-system';
 
 import { uniqueCacheName } from './cache-names';
 import { TUS_FAILED_MESSAGE, TusHttpError, type TusIO, tusUpload } from './tus-upload';
+import { t } from '@repo/core/i18n/translate';
 
 /**
  * The garage's side of packages/core/src/api/service-media.ts (garageMediaApi and
@@ -32,7 +33,7 @@ export async function uploadServicePhoto(serviceId: string, bytes: Uint8Array): 
     body: bytes as unknown as BodyInit,
     headers: { 'Content-Type': 'image/jpeg' },
   });
-  if (!put.ok) throw new Error('Upload failed. Please try again.');
+  if (!put.ok) throw new Error(t('Upload failed. Please try again.'));
   // The answer is the whole service (or package); the block needs its media.
   const service = await apiClient<{ media?: ServiceMedia[] }>(`/vendors/me/services/${serviceId}/images`, {
     method: 'POST',
@@ -158,7 +159,7 @@ export async function uploadVideoFile(
       onProgress: ({ bytesSent, totalBytes }) => onProgress(totalBytes > 0 ? bytesSent / totalBytes : 0),
     });
   } catch {
-    throw new Error(TUS_FAILED_MESSAGE);
+    throw new Error(t(TUS_FAILED_MESSAGE));
   }
-  if (res.status < 200 || res.status >= 300) throw new Error(TUS_FAILED_MESSAGE);
+  if (res.status < 200 || res.status >= 300) throw new Error(t(TUS_FAILED_MESSAGE));
 }

@@ -1,6 +1,7 @@
 import type { CarTip, HomeData } from '@repo/core/api/home';
 import { detlioInLine, isSmallCity } from '@repo/core/customer-city';
 import { istDateKey } from '@repo/core/home-display';
+import { fill, msg, useT, useTn } from '@repo/core/i18n';
 import { formatDistance } from '@repo/core/map';
 import { IconBulb, IconChevronRight, IconMapPin, IconX } from '@repo/native-ui/icons';
 import { Disc, HubCard, PressRow } from '@repo/native-ui/primitives';
@@ -69,6 +70,8 @@ function Shell({ onPress, label, children, icon }: { onPress: () => void; label:
 
 /** NearbyCard: how many garages within 50 km, or the area sheet when none's been chosen. */
 export function NearbyCard({ nearby, located }: { nearby: HomeData['nearby']; located: boolean }) {
+  const tn = useTn();
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const [asking, setAsking] = useState(false);
@@ -77,7 +80,7 @@ export function NearbyCard({ nearby, located }: { nearby: HomeData['nearby']; lo
   const small = isSmallCity(city);
   const eyebrow = (
     <T size={13} color={colors.dim}>
-      Nearby garages
+      {t('Nearby garages')}
     </T>
   );
 
@@ -85,10 +88,10 @@ export function NearbyCard({ nearby, located }: { nearby: HomeData['nearby']; lo
     if (located) return null;
     return (
       <>
-        <Shell label="Pick your area to see the nearest" onPress={() => setAsking(true)} icon={<IconMapPin size={20} stroke={1.5} />}>
+        <Shell label={t('Pick your area to see the nearest')} onPress={() => setAsking(true)} icon={<IconMapPin size={20} stroke={1.5} />}>
           {eyebrow}
           <T size={17} tracking={-0.012} style={styles.big}>
-            Pick your area to see the nearest
+            {t('Pick your area to see the nearest')}
           </T>
         </Shell>
         <AreaPicker open={asking} onClose={() => setAsking(false)} />
@@ -99,16 +102,16 @@ export function NearbyCard({ nearby, located }: { nearby: HomeData['nearby']; lo
   if (nearby.count === 0) {
     return (
       <Shell
-        label="No garages nearby. See all garages"
+        label={t('No garages nearby. See all garages')}
         onPress={() => router.navigate('/garages' as Href)}
         icon={<IconChevronRight size={20} stroke={1.5} />}
       >
         {eyebrow}
         <T size={17} tracking={-0.012} style={styles.big}>
-          No garages within <T num size={17}>{nearby.radiusKm}</T> km yet
+          {fill(t('No garages within {km} km yet'), { km: <T num size={17}>{nearby.radiusKm}</T> })}
         </T>
         <T size={13} color={colors.dim}>
-          See all garages
+          {t('See all garages')}
         </T>
       </Shell>
     );
@@ -116,26 +119,21 @@ export function NearbyCard({ nearby, located }: { nearby: HomeData['nearby']; lo
 
   return (
     <Shell
-      label={small ? detlioInLine(city) : `${nearby.count} ${nearby.count === 1 ? 'garage' : 'garages'} nearby`}
+      label={small ? detlioInLine(city) : tn(nearby.count, '{count} garage nearby', '{count} garages nearby')}
       onPress={() => router.navigate('/map' as Href)}
       icon={<IconChevronRight size={20} stroke={1.5} />}
     >
       {eyebrow}
       <T size={22} lh={26} tracking={-0.022} style={styles.big}>
-        {small ? (
-          detlioInLine(city)
-        ) : (
-          <>
-            <T num size={22} lh={26}>{nearby.count}</T> {nearby.count === 1 ? 'garage' : 'garages'}
-          </>
-        )}
+        {small
+          ? detlioInLine(city)
+          : fill(tn(nearby.count, '{number} garage', '{number} garages'), { number: <T num size={22} lh={26}>{nearby.count}</T> })}
       </T>
       <T size={13} color={colors.dim}>
-        Within <T num size={13} color={colors.dim}>{nearby.radiusKm}</T> km
+        {fill(t('Within {km} km'), { km: <T num size={13} color={colors.dim}>{nearby.radiusKm}</T> })}
         {nearby.closestKm !== null ? (
           <>
-            {' · nearest '}
-            <Figures text={formatDistance(nearby.closestKm)} size={13} color={colors.dim} />
+            {fill(` ${t('· nearest {distance}')}`, { distance: <Figures text={formatDistance(nearby.closestKm)} size={13} color={colors.dim} /> })}
           </>
         ) : null}
       </T>
@@ -145,32 +143,33 @@ export function NearbyCard({ nearby, located }: { nearby: HomeData['nearby']; lo
 
 const SEASON_LABELS: Record<CarTip['season'], string | null> = {
   all_year: null,
-  summer: 'Summer',
-  pre_monsoon: 'Before the rains',
-  monsoon: 'Monsoon',
+  summer: msg('Summer'),
+  pre_monsoon: msg('Before the rains'),
+  monsoon: msg('Monsoon'),
 };
 
 const TIP_HIDDEN_KEY = 'detlio.tipHiddenOn';
 
 /** TipCard: one a day, on an IST day. × hides it until tomorrow, on this phone only. */
 export function TipCard({ tip, now }: { tip: CarTip; now: Date }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const [hidden, setHidden] = useState(() => devicePrefs.getItem(TIP_HIDDEN_KEY) === istDateKey(now));
   if (hidden) return null;
   const season = SEASON_LABELS[tip.season];
   return (
-    <HubCard accessibilityLabel="Car care tip" style={styles.tip}>
+    <HubCard accessibilityLabel={t('Car care tip')} style={styles.tip}>
       <View style={styles.tipHead}>
         <View style={styles.tipLabel}>
           <IconBulb size={15} stroke={1.5} color={colors.textMuted} />
           <T size={13} color={colors.dim}>
-            Car care tip{season ? ` · ${season}` : ''}
+            {season ? t('Car care tip · {season}', { season: t(season) }) : t('Car care tip')}
           </T>
         </View>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Hide tip until tomorrow"
+          accessibilityLabel={t('Hide tip until tomorrow')}
           onPress={() => {
             devicePrefs.setItem(TIP_HIDDEN_KEY, istDateKey(now));
             setHidden(true);

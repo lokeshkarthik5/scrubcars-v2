@@ -15,6 +15,7 @@ import {
 import { GUARANTEE_BUTTON, GUARANTEE_NAME } from '@repo/core/guarantee'
 import { formatStepTime } from '@repo/core/job-records'
 import type { Booking } from '@repo/core/types'
+import { useT } from '@repo/core/i18n'
 
 /**
  * Detlio Guarantee (0051) on the booking page: on a completed job inside its
@@ -26,6 +27,7 @@ import type { Booking } from '@repo/core/types'
  * cannot take a claim.
  */
 export function GuaranteeCard({ booking }: { booking: Booking }) {
+  const t = useT()
   const config = useGuaranteeConfig()
   const on = config.data?.enabled === true
   const completed = booking.status === 'completed'
@@ -49,11 +51,10 @@ export function GuaranteeCard({ booking }: { booking: Booking }) {
         />
         <div>
           <h2 className="text-sm font-semibold text-text-primary">
-            Free redo · {GUARANTEE_NAME}
+            {t('Free redo · {name}', { name: GUARANTEE_NAME })}
           </h2>
           <p className="mt-0.5 text-t5 text-text-secondary">
-            This booking redoes an earlier job at no charge. There is nothing to
-            pay and no receipt for it.
+            {t('This booking redoes an earlier job at no charge. There is nothing to pay and no receipt for it.')}
           </p>
         </div>
       </ScCard>
@@ -90,7 +91,7 @@ export function GuaranteeCard({ booking }: { booking: Booking }) {
         </div>
         {claim.canBookRedo && (
           <ScButtonLink href={claimPath} fullWidth>
-            Pick a time for your free redo
+            {t('Pick a time for your free redo')}
           </ScButtonLink>
         )}
         {claim.redoBooking && (
@@ -99,7 +100,7 @@ export function GuaranteeCard({ booking }: { booking: Booking }) {
             className="flex min-h-11 items-center justify-between rounded-[10px] border border-border px-3 text-t4 text-text-primary"
           >
             <span>
-              Free redo · {formatStepTime(claim.redoBooking.scheduledAt)}
+              {t('Free redo · {scheduledAt}', { scheduledAt: formatStepTime(claim.redoBooking.scheduledAt) })}
             </span>
             <IconChevronRight size={16} aria-hidden />
           </Link>
@@ -109,7 +110,7 @@ export function GuaranteeCard({ booking }: { booking: Booking }) {
             href={claimPath}
             className="text-t5 text-text-secondary underline underline-offset-2"
           >
-            See your claim
+            {t('See your claim')}
           </Link>
         )}
         {/* While nobody has answered it (0066). */}
@@ -119,7 +120,7 @@ export function GuaranteeCard({ booking }: { booking: Booking }) {
             onClick={() => setWithdrawing(true)}
             className="min-h-11 self-start text-t5 font-medium text-text-secondary underline underline-offset-2 transition-colors hover:text-text-primary"
           >
-            Withdraw claim
+            {t('Withdraw claim')}
           </button>
         )}
         <ConfirmSheet
@@ -131,17 +132,17 @@ export function GuaranteeCard({ booking }: { booking: Booking }) {
           onConfirm={async () => {
             try {
               await withdraw.mutateAsync(claim.id)
-              toast.success('Claim withdrawn')
+              toast.success(t('Claim withdrawn'))
               setWithdrawing(false)
             } catch (err) {
-              setWithdrawError(err instanceof Error ? err.message : 'Could not withdraw the claim')
+              setWithdrawError(err instanceof Error ? err.message : t('Could not withdraw the claim'))
             }
           }}
           level="light"
-          title="Withdraw your free redo claim?"
-          body="We'll close it and no redo is arranged. A booking takes one claim, so you can't claim on it again."
-          confirmLabel="Withdraw claim"
-          cancelLabel="Keep it"
+          title={t('Withdraw your free redo claim?')}
+          body={t("We'll close it and no redo is arranged. A booking takes one claim, so you can't claim on it again.")}
+          confirmLabel={t('Withdraw claim')}
+          cancelLabel={t('Keep it')}
           busy={withdraw.isPending}
           error={withdrawError}
         />
@@ -160,11 +161,11 @@ export function GuaranteeCard({ booking }: { booking: Booking }) {
         className="gap-2"
       >
         <IconShieldCheck size={18} aria-hidden />
-        {GUARANTEE_BUTTON}
+        {t(GUARANTEE_BUTTON)}
       </ScButtonLink>
       {data.claimBy && (
         <p className="text-center text-t5 text-text-secondary">
-          Ask with photos of the problem by {formatStepTime(data.claimBy)}.
+          {t('Ask with photos of the problem by {claimBy}.', { claimBy: formatStepTime(data.claimBy) })}
         </p>
       )}
     </ScCard>

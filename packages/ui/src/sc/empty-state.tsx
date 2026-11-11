@@ -1,5 +1,8 @@
+'use client'
+
 import { IconAlertCircle } from '@tabler/icons-react'
 import { ScButton } from './button'
+import { useT } from '@repo/core/i18n'
 
 interface EmptyStateProps {
   icon?: React.ReactNode
@@ -31,21 +34,22 @@ export function EmptyState({
 }
 
 export function ErrorState({
-  message = 'Something went wrong',
+  message,
   onRetry,
 }: {
   message?: string
   onRetry?: () => void
 }) {
+  const t = useT()
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
       {/* Amber, not red: red means "press this", and the press here is the
           neutral Retry below. */}
       <IconAlertCircle size={32} className="text-error" />
-      <p className="text-[13px] text-text-secondary">{message}</p>
+      <p className="text-[13px] text-text-secondary">{message ?? t('Something went wrong')}</p>
       {onRetry && (
         <ScButton variant="secondary" className="max-w-[160px]" onClick={onRetry}>
-          Retry
+          {t('Retry')}
         </ScButton>
       )}
     </div>

@@ -1,3 +1,4 @@
+import { msg, t, useT } from '@repo/core/i18n';
 import { IconCircleX } from '@repo/native-ui/icons';
 import { ScSheet } from '@repo/native-ui/sheet';
 import { T } from '@repo/native-ui/text';
@@ -7,14 +8,14 @@ import { Pressable, View } from 'react-native';
 export type SortKey = 'distance' | 'relevance' | 'rating' | 'price_asc' | 'price_desc';
 
 export const SORT_OPTIONS: { value: SortKey; label: string }[] = [
-  { value: 'distance', label: 'Nearest First' },
-  { value: 'relevance', label: 'Relevance' },
-  { value: 'rating', label: 'Top Rated' },
-  { value: 'price_asc', label: 'Cost: Low to High' },
-  { value: 'price_desc', label: 'Cost: High to Low' },
+  { value: 'distance', label: msg('Nearest First') },
+  { value: 'relevance', label: msg('Relevance') },
+  { value: 'rating', label: msg('Top Rated') },
+  { value: 'price_asc', label: msg('Cost: Low to High') },
+  { value: 'price_desc', label: msg('Cost: High to Low') },
 ];
 
-export const sortLabel = (value: SortKey) => SORT_OPTIONS.find((o) => o.value === value)?.label ?? 'Relevance';
+export const sortLabel = (value: SortKey) => t(SORT_OPTIONS.find((o) => o.value === value)?.label ?? 'Relevance');
 
 /** Until a listed garage has a review, "Top Rated" sorts by a number nobody has. */
 export function canSortByRating(vendors: readonly { reviewCount: number }[], currentSort: SortKey, hasMore: boolean) {
@@ -37,15 +38,16 @@ export function SortSheet({
   locationUnavailable?: boolean;
   ratingAvailable: boolean;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   return (
-    <ScSheet open={open} onClose={onClose} accessibilityLabel="Sort by">
+    <ScSheet open={open} onClose={onClose} accessibilityLabel={t('Sort by')}>
       <View style={styles.head}>
         <T size={17} weight={600}>
-          Sort by
+          {t('Sort by')}
         </T>
-        <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={styles.close}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('Close')} onPress={onClose} style={styles.close}>
           <IconCircleX size={22} color={colors.textSecondary} />
         </Pressable>
       </View>
@@ -65,10 +67,10 @@ export function SortSheet({
             style={[styles.row, i < all.length - 1 && styles.rowLine, disabled && styles.off]}
           >
             <View>
-              <T size={15}>{opt.label}</T>
+              <T size={15}>{t(opt.label)}</T>
               {disabled ? (
                 <T size={11} color={colors.textMuted}>
-                  Turn on location to use this
+                  {t('Turn on location to use this')}
                 </T>
               ) : null}
             </View>

@@ -1,6 +1,7 @@
 import { ACCOUNT_DELETION_CONFIRM, ACCOUNT_DELETION_WORDS } from '@repo/core/account-deletion';
 import { type AccountDeletionPreview, deleteMyAccount, getAccountDeletionPreview } from '@repo/core/api/account';
 import { typedConfirmMatches } from '@repo/core/confirm';
+import { useT } from '@repo/core/i18n';
 import { ScButton } from '@repo/native-ui/button';
 import { ScInput } from '@repo/native-ui/inputs';
 import { ScSheet } from '@repo/native-ui/sheet';
@@ -15,6 +16,7 @@ type Phase = { kind: 'checking' } | { kind: 'failed'; message: string } | { kind
 
 /** DeleteAccountSheet (apps/users/components/profile/delete-account-sheet.tsx): the server decides. */
 export function DeleteAccountSheet({ open, onClose, onDeleted }: { open: boolean; onClose: () => void; onDeleted: () => void }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const [phase, setPhase] = useState<Phase>({ kind: 'checking' });
@@ -33,7 +35,7 @@ export function DeleteAccountSheet({ open, onClose, onDeleted }: { open: boolean
         if (!cancelled) setPhase({ kind: 'ready', preview });
       })
       .catch((err: unknown) => {
-        if (!cancelled) setPhase({ kind: 'failed', message: errorText(err, 'Could not check your account.') });
+        if (!cancelled) setPhase({ kind: 'failed', message: errorText(err, t('Could not check your account.')) });
       });
     return () => {
       cancelled = true;
@@ -54,7 +56,7 @@ export function DeleteAccountSheet({ open, onClose, onDeleted }: { open: boolean
       await deleteMyAccount();
       setPhase({ kind: 'deleted' });
     } catch (err) {
-      setError(errorText(err, 'Could not delete your account.'));
+      setError(errorText(err, t('Could not delete your account.')));
     } finally {
       setBusy(false);
     }
@@ -65,33 +67,33 @@ export function DeleteAccountSheet({ open, onClose, onDeleted }: { open: boolean
   const bullets = (lines: readonly string[]) =>
     lines.map((line) => (
       <T key={line} size={13} lh={18} color={colors.textSecondary}>
-        {`•  ${line}`}
+        {`•  ${t(line)}`}
       </T>
     ));
 
   return (
-    <ScSheet horizontalPadding={16} open={open} onClose={close} dismissible={!busy} accessibilityLabel="Delete account">
+    <ScSheet horizontalPadding={16} open={open} onClose={close} dismissible={!busy} accessibilityLabel={t('Delete account')}>
       <View style={styles.column}>
         {phase.kind === 'deleted' ? (
           <>
             <T size={19} weight={600} lh={26}>
-              {words.doneTitle}
+              {t(words.doneTitle)}
             </T>
             <T size={13} lh={18} color={colors.textSecondary} accessibilityLiveRegion="polite">
-              {words.doneBody}
+              {t(words.doneBody)}
             </T>
             <ScButton variant="main" onPress={onDeleted}>
-              Done
+              {t('Done')}
             </ScButton>
           </>
         ) : (
           <>
             <T size={19} weight={600} lh={26}>
-              {words.title}
+              {t(words.title)}
             </T>
             {phase.kind === 'checking' ? (
               <T size={13} lh={18} color={colors.textSecondary}>
-                Checking your account…
+                {t('Checking your account…')}
               </T>
             ) : null}
             {phase.kind === 'failed' ? (
@@ -102,7 +104,7 @@ export function DeleteAccountSheet({ open, onClose, onDeleted }: { open: boolean
             {phase.kind === 'ready' && !phase.preview.canDelete ? (
               <>
                 <T size={13} lh={18} color={colors.textSecondary}>
-                  {words.blockedIntro}
+                  {t(words.blockedIntro)}
                 </T>
                 <View style={styles.list}>
                   {phase.preview.blockers.map((blocker) => (
@@ -119,20 +121,20 @@ export function DeleteAccountSheet({ open, onClose, onDeleted }: { open: boolean
               <>
                 <View style={styles.list}>
                   <T size={13} weight={600} lh={18}>
-                    {words.deletedHeading}
+                    {t(words.deletedHeading)}
                   </T>
                   {bullets(words.deleted)}
                 </View>
                 <View style={styles.list}>
                   <T size={13} weight={600} lh={18}>
-                    {words.keptHeading}
+                    {t(words.keptHeading)}
                   </T>
                   {bullets(words.kept)}
                 </View>
                 <T size={13} lh={18} color={colors.textSecondary}>
-                  {words.final}
+                  {t(words.final)}
                 </T>
-                <ScInput label={`Type ${ACCOUNT_DELETION_CONFIRM} to confirm`} value={typed} onChangeText={setTyped} editable={!busy} autoComplete="off" autoCapitalize="characters" autoCorrect={false} spellCheck={false} />
+                <ScInput label={t('Type {word} to confirm', { word: ACCOUNT_DELETION_CONFIRM })} value={typed} onChangeText={setTyped} editable={!busy} autoComplete="off" autoCapitalize="characters" autoCorrect={false} spellCheck={false} />
               </>
             ) : null}
             {error ? (
@@ -143,11 +145,11 @@ export function DeleteAccountSheet({ open, onClose, onDeleted }: { open: boolean
             <View style={styles.actions}>
               {canDelete ? (
                 <ScButton variant="danger-outline" disabled={busy || !typedConfirmMatches(typed, ACCOUNT_DELETION_CONFIRM)} onPress={() => void remove()}>
-                  {busy ? 'Deleting…' : 'Delete my account'}
+                  {busy ? t('Deleting…') : t('Delete my account')}
                 </ScButton>
               ) : null}
               <ScButton variant="outline" disabled={busy} onPress={close}>
-                {canDelete ? 'Keep my account' : 'Close'}
+                {canDelete ? t('Keep my account') : t('Close')}
               </ScButton>
             </View>
           </>

@@ -6,6 +6,8 @@ import {
   formatClock,
   type DeadlineState,
 } from '@repo/core/format'
+import { t, tn } from '@repo/core/i18n/translate'
+import { useT } from '@repo/core/i18n'
 import { cn } from '@repo/core/utils'
 
 const SLOW_TICK_MS = 15_000
@@ -25,7 +27,10 @@ interface DeadlineChipProps {
   missedLabel?: string
   /** Called once, when it runs out while on screen. */
   onExpire?: () => void
-  /** What the time is for, in the spoken label: "22 minutes left to answer". */
+  /**
+   * What the time is for, in the spoken label: "22 minutes left to answer". In
+   * English: the chip translates it (and its verb, "Answer by 9:30 am").
+   */
   action?: string
   className?: string
 }
@@ -35,8 +40,8 @@ function spoken(minutes: number): string {
   const hours = Math.floor(minutes / 60)
   const rest = minutes % 60
   const parts = [
-    hours > 0 && `${hours} ${hours === 1 ? 'hour' : 'hours'}`,
-    (rest > 0 || hours === 0) && `${rest} ${rest === 1 ? 'minute' : 'minutes'}`,
+    hours > 0 && tn(hours, '{count} hour', '{count} hours'),
+    (rest > 0 || hours === 0) && tn(rest, '{count} minute', '{count} minutes'),
   ].filter(Boolean)
   return parts.join(' ')
 }
@@ -51,10 +56,11 @@ function ariaLabel(
   if (state.kind === 'missed') return missedLabel
   if (state.kind === 'closed') {
     const verb = action.replace(/^to /, '')
-    return `${verb.charAt(0).toUpperCase()}${verb.slice(1)} by ${formatClock(deadline)}`
+    const Verb = `${verb.charAt(0).toUpperCase()}${verb.slice(1)}`
+    return t('{verb} by {time}', { verb: t(Verb), time: formatClock(deadline) })
   }
   const minutes = Math.ceil((Date.parse(deadline) - now) / MINUTE_MS)
-  return `${spoken(minutes)} left ${action}`
+  return t('{time} left {action}', { time: spoken(minutes), action: t(action) })
 }
 
 /**
@@ -69,11 +75,13 @@ export function DeadlineChip({
   shopOpen = true,
   startedAt,
   urgentMins = 5,
-  missedLabel = 'Missed',
+  missedLabel: missedLabelGiven,
   onExpire,
   action = 'to answer',
   className,
 }: DeadlineChipProps) {
+  const t = useT()
+  const missedLabel = missedLabelGiven ?? t('Missed')
   const [now, setNow] = useState(() => Date.now())
   const state = deadlineState(deadline, {
     now,

@@ -1,5 +1,6 @@
 import { apiClient } from '@repo/core/api/client';
 import { getAvatarUploadUrl, setAvatar } from '@repo/core/api/users';
+import { t } from '@repo/core/i18n/translate';
 import type { PhotoAngle } from '@repo/core/job-photo-standards';
 import type { JobPhoto, User } from '@repo/core/types';
 import * as ImagePicker from 'expo-image-picker';
@@ -13,7 +14,7 @@ import { prepareForUpload, type PreparedPhoto } from './photo-prepare';
  */
 async function put(uploadUrl: string, prepared: PreparedPhoto) {
   const response = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': 'image/jpeg' }, body: prepared.bytes as unknown as BodyInit });
-  if (!response.ok) throw new Error('Your photo did not upload. Please try again.');
+  if (!response.ok) throw new Error(t('Your photo did not upload. Please try again.'));
 }
 
 /** The camera, as the web's `capture`; a phone without one (the simulator) picks from its photos. */
@@ -51,7 +52,7 @@ export async function uploadClaimPhoto(bookingId: string, uri: string): Promise<
 }
 
 export async function uploadAvatarPhoto(uri: string): Promise<User> {
-  const prepared = await prepareForUpload(uri, 'This photo');
+  const prepared = await prepareForUpload(uri, t('This photo'));
   const { uploadUrl, publicUrl } = await getAvatarUploadUrl('image/jpeg');
   await put(uploadUrl, prepared);
   return setAvatar(publicUrl);

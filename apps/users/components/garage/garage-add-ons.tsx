@@ -6,6 +6,7 @@ import { Figures } from '@repo/ui/sc/figures'
 import { AddOnMark } from '@repo/ui/sc/add-on-mark'
 import { servicePriceText } from '@/lib/price'
 import type { VehicleType } from '@repo/core/types'
+import { useT } from '@repo/core/i18n'
 
 /**
  * The garage's add-ons, under its services (frame C). Marked, and with no Add
@@ -19,6 +20,7 @@ export function GarageAddOns({
   addOns: readonly AddOn[]
   carType: VehicleType | null
 }) {
+  const t = useT()
   return (
     <section
       aria-labelledby="garage-add-ons"
@@ -30,15 +32,14 @@ export function GarageAddOns({
           id="garage-add-ons"
           className="text-t2 font-medium text-text-primary"
         >
-          Add-ons
+          {t('Add-ons')}
         </h2>
         <span className="text-t5 text-text-secondary">
           {addOnCountLabel(addOns.length)}
         </span>
       </div>
       <p className="text-t4 leading-relaxed text-text-secondary">
-        Optional extras. Choose them at checkout, with any service. They
-        can&apos;t be booked alone.
+        {t("Optional extras. Choose them at checkout, with any service. They can't be booked alone.")}
       </p>
       <ul className="hub-card flex flex-col divide-y divide-line px-4">
         {addOns.map((addOn) => (

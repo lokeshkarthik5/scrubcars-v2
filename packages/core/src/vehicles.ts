@@ -1,4 +1,5 @@
 import type { VehicleType } from '@repo/core/types'
+import { msg } from './i18n/translate'
 
 /**
  * The vehicle tiers the platform can actually book and price.
@@ -14,9 +15,9 @@ import type { VehicleType } from '@repo/core/types'
  * a new price column on `services`, not just a new entry in this array.
  */
 export const VEHICLE_TIERS: Array<{ value: VehicleType; label: string }> = [
-  { value: 'hatchback', label: 'Hatchback' },
-  { value: 'sedan', label: 'Sedan' },
-  { value: 'suv', label: 'SUV / MUV' },
+  { value: 'hatchback', label: msg('Hatchback') },
+  { value: 'sedan', label: msg('Sedan') },
+  { value: 'suv', label: msg('SUV / MUV') },
 ]
 
 /**

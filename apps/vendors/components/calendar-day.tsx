@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import type { OpeningDay } from '@repo/core/opening-hours'
+import { fill, useT } from '@repo/core/i18n'
 import type { Booking } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
 import { ClosedCard, Dot, HATCH } from '@/components/calendar-parts'
@@ -122,6 +123,7 @@ function StripDay({
   closed: boolean
   onPick: (day: string) => void
 }) {
+  const t = useT()
   const summary = daySummary(jobs)
   const note = stripNote(day, today, summary, closed)
   const isToday = day === today
@@ -153,7 +155,7 @@ function StripDay({
               : 'text-text-muted'
         )}
       >
-        {isToday ? 'Today' : weekdayShort(day)}
+        {isToday ? t('Today') : weekdayShort(day)}
       </span>
       <span
         className={cn(
@@ -164,16 +166,19 @@ function StripDay({
         {dayOfMonth(day)}
       </span>
       <span className="flex h-4 items-center gap-1 text-[11px]">
-        {note?.kind === 'closed' && 'Closed'}
+        {note?.kind === 'closed' && t('Closed')}
         {note?.kind === 'done' && (
           <span className="text-tone-done-text">
-            <span className="font-numeric">{note.count}</span> done
+            {fill(t('{count} done'), {
+              count: <span className="font-numeric">{note.count}</span>,
+            })}
           </span>
         )}
         {note?.kind === 'today' && (
           <span className="text-text-primary">
-            <span className="font-numeric">{note.count}</span>{' '}
-            {note.count === 1 ? 'job' : 'jobs'}
+            {fill(note.count === 1 ? t('{count} job') : t('{count} jobs'), {
+              count: <span className="font-numeric">{note.count}</span>,
+            })}
           </span>
         )}
         {note?.kind === 'count' && (
@@ -228,6 +233,7 @@ function Timeline({
   room: GarageRoom
   closed: boolean
 }) {
+  const t = useT()
   const { bays } = room
   const hours = dayHours(day, weekly)
   const line = timelineFor(hours, jobs)
@@ -280,17 +286,19 @@ function Timeline({
             className="text-center"
             style={{ gridColumn: `span ${garage.length}` }}
           >
-            At the garage{' '}
+            {t('At the garage')}{' '}
             <span className="font-normal text-text-muted">
-              · <span className="font-numeric">{bayCount}</span>{' '}
-              {bayCount === 1 ? 'bay' : 'bays'}
+              ·{' '}
+              {fill(bayCount === 1 ? t('{count} bay') : t('{count} bays'), {
+                count: <span className="font-numeric">{bayCount}</span>,
+              })}
             </span>
           </span>
           <span
             className="text-center"
             style={{ gridColumn: `span ${road.length}` }}
           >
-            On the road
+            {t('On the road')}
           </span>
         </div>
 
@@ -322,7 +330,7 @@ function Timeline({
                 height: px(line.endMin) - px(hours.closeMin),
               }}
             >
-              Closes {minuteClock(hours.closeMin)}
+              {t('Closes {time}', { time: minuteClock(hours.closeMin) })}
             </div>
           )}
 
@@ -411,11 +419,12 @@ function Block({
   trueHeight: number
   room: number
 }) {
+  const t = useT()
   const b = job.booking
   const height = Math.max(trueHeight, Math.min(44, room))
   const tone = BLOCK_TONE[job.kind]
   const status =
-    job.kind === 'answer' ? answerLine(b, now) : KIND_LABELS[job.kind]
+    job.kind === 'answer' ? answerLine(b, now) : t(KIND_LABELS[job.kind])
   const service = b.items[0]?.name ?? b.serviceSummary
   return (
     <Link
@@ -465,13 +474,14 @@ function Block({
 
 /** A stretch of free time in a lane: "Free 1:00 – 3:30". */
 function FreeBox({ gap, top }: { gap: Gap; top: number }) {
+  const t = useT()
   const height = ((gap.endMin - gap.startMin) * HOUR_PX) / 60 - 2
   return (
     <div
       className="absolute inset-x-0 flex flex-col items-center justify-center gap-0.5 rounded-[10px] border border-dashed border-white/15 text-[11px] text-text-muted"
       style={{ top: top + 1, height }}
     >
-      <span className="font-semibold text-text-secondary">Free</span>
+      <span className="font-semibold text-text-secondary">{t('Free')}</span>
       <span className="font-numeric">
         {shortClock(gap.startMin)} – {shortClock(gap.endMin)}
       </span>

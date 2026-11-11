@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from 'react'
 import { toast } from 'react-toastify'
+import { msg, t } from '@repo/core/i18n/translate'
 import { showUndoToast } from '@repo/ui/sc/undo-toast'
 import {
   onBeforeSessionChange,
@@ -45,22 +46,25 @@ export const UNDO_MS = 5_000
 export type DeferredStatus = StepStatus
 
 const MESSAGES: Record<DeferredStatus, string> = {
-  confirmed: 'Booking accepted',
-  in_progress: 'Job started',
-  completed: 'Job completed',
-  picked_up: 'Picked up',
-  at_garage: 'At garage',
-  out_for_delivery: 'Out for delivery',
+  confirmed: msg('Booking accepted'),
+  in_progress: msg('Job started'),
+  completed: msg('Job completed'),
+  picked_up: msg('Picked up'),
+  at_garage: msg('At garage'),
+  out_for_delivery: msg('Out for delivery'),
 }
 
-/** What the screen says while a step waits behind its Undo, or is on its way. */
+/**
+ * What the screen says while a step waits behind its Undo, or is on its way.
+ * English: the screen says `t(DEFERRED_WORDS[status])`.
+ */
 export const DEFERRED_WORDS: Record<DeferredStatus, string> = {
-  confirmed: 'Accepting the booking…',
-  in_progress: 'Starting the job…',
-  completed: 'Completing the job…',
-  picked_up: 'Marking picked up…',
-  at_garage: 'Marking at garage…',
-  out_for_delivery: 'Marking out for delivery…',
+  confirmed: msg('Accepting the booking…'),
+  in_progress: msg('Starting the job…'),
+  completed: msg('Completing the job…'),
+  picked_up: msg('Marking picked up…'),
+  at_garage: msg('Marking at garage…'),
+  out_for_delivery: msg('Marking out for delivery…'),
 }
 
 /** The request a step makes, under the garage it was pressed for. */
@@ -104,7 +108,7 @@ const queue = createStepQueue({
     // Refused (photos removed meanwhile, extra work asked): say why, and
     // re-read so the job shows what the server holds.
     toast.error(
-      error instanceof Error ? error.message : 'Could not update this job'
+      error instanceof Error ? error.message : t('Could not update this job')
     )
     void useBookingsStore
       .getState()
@@ -159,12 +163,12 @@ export function changeStatusWithUndo(
     ...(code !== undefined ? { code } : {}),
   })
   if (!queued) return
-  showUndoToast(MESSAGES[status], {
+  showUndoToast(t(MESSAGES[status]), {
     durationMs: UNDO_MS,
     toastId: undoToastId(bookingId),
     onUndo: () => {
       if (!queue.undo(bookingId))
-        toast.info('Already saved: it can no longer be undone.')
+        toast.info(t('Already saved: it can no longer be undone.'))
     },
   })
 }

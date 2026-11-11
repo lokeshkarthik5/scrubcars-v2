@@ -1,3 +1,5 @@
+import { msg, t } from './i18n/translate'
+
 /**
  * Gold (0063; built as Detlio Certified, 0048) for the apps: the numbers
  * behind it and Detlio's quality checks' words. The rules are the server's
@@ -27,8 +29,8 @@ export const CERTIFICATION_THRESHOLDS = {
 export type QualityCheckKind = 'mystery_visit' | 'inspection'
 
 export const QUALITY_CHECK_KIND_LABELS: Record<QualityCheckKind, string> = {
-  mystery_visit: 'Mystery visit',
-  inspection: 'Inspection',
+  mystery_visit: msg('Mystery visit'),
+  inspection: msg('Inspection'),
 }
 
 export type QualityCheckStatus = 'passed' | 'failed' | 'expired' | 'none'
@@ -47,13 +49,13 @@ export function garageCheckLine(check: { status: QualityCheckStatus; passedOn: s
   switch (check.status) {
     case 'passed':
       return check.passedOn
-        ? `Passed Detlio’s quality check on ${dateKeyLabel(check.passedOn)}`
-        : 'Passed Detlio’s quality check'
+        ? t('Passed Detlio’s quality check on {date}', { date: dateKeyLabel(check.passedOn) })
+        : t('Passed Detlio’s quality check')
     case 'failed':
-      return 'Detlio’s last quality check did not pass. We’ll tell you what to put right.'
+      return t('Detlio’s last quality check did not pass. We’ll tell you what to put right.')
     case 'expired':
-      return 'Detlio’s quality check is due again (it counts for 6 months).'
+      return t('Detlio’s quality check is due again (it counts for 6 months).')
     default:
-      return 'Detlio visits in person once you meet the standards below.'
+      return t('Detlio visits in person once you meet the standards below.')
   }
 }

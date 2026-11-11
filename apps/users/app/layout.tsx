@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 import type { Metadata, Viewport } from 'next'
-import { Inter, Space_Grotesk } from 'next/font/google'
+import { Inter, Noto_Sans_Tamil, Space_Grotesk } from 'next/font/google'
 import { ToastContainer } from 'react-toastify'
 import { Analytics } from '@/components/analytics'
 import { Clarity } from '@/components/clarity'
@@ -33,6 +33,18 @@ const spaceGrotesk = Space_Grotesk({
   subsets: ['latin', 'latin-ext'],
   weight: ['500', '600', '700'],
   variable: '--font-space-grotesk',
+})
+
+// Tamil, when it is chosen on Profile → Language. Inter has no Tamil letters,
+// so the font stack (--font-sans in packages/ui's globals.css) goes on to
+// this one for them alone: Latin stays Inter, figures Space Grotesk. The
+// variable cut covers every weight the UI uses in one file, the tamil subset
+// carries only Tamil, and it is not preloaded: an English page never fetches
+// it.
+const notoSansTamil = Noto_Sans_Tamil({
+  subsets: ['tamil'],
+  variable: '--font-noto-tamil',
+  preload: false,
 })
 
 const TITLE = 'Detlio'
@@ -88,8 +100,9 @@ export default function RootLayout({
 }>) {
   return (
     <html
+      // English until the client reads the choice (AppProvider, useDocumentLang).
       lang="en"
-      className={`${inter.variable} ${spaceGrotesk.variable} h-full`}
+      className={`${inter.variable} ${spaceGrotesk.variable} ${notoSansTamil.variable} h-full`}
     >
       <head>
         {/* Sends a returning customer from the homepage to /home before it

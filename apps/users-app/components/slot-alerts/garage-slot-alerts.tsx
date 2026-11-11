@@ -1,4 +1,5 @@
 import { useCancelSlotAlert, useSlotAlerts } from '@repo/core/api/hooks/use-slot-alerts';
+import { useT } from '@repo/core/i18n';
 import { slotAlertSummary } from '@repo/core/slot-alerts';
 import { IconBell } from '@repo/native-ui/icons';
 import { ScCard } from '@repo/native-ui/primitives';
@@ -11,6 +12,7 @@ import { useAuth } from '@/lib/auth';
 
 /** GarageSlotAlerts: the days the customer is waiting on here. */
 export function GarageSlotAlerts({ vendorId }: { vendorId: string }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const user = useAuth((s) => s.user);
@@ -19,11 +21,11 @@ export function GarageSlotAlerts({ vendorId }: { vendorId: string }) {
   const here = (alerts.data?.items ?? []).filter((alert) => alert.vendorId === vendorId);
   if (!user || here.length === 0) return null;
   return (
-    <ScCard style={styles.card} accessibilityLabel="Your slot alerts here">
+    <ScCard style={styles.card} accessibilityLabel={t('Your slot alerts here')}>
       <IconBell size={18} stroke={1.6} color={colors.textSecondary} />
       <View style={styles.grow}>
         <T size={13} weight={500} lh={18}>
-          Waiting for a slot
+          {t('Waiting for a slot')}
         </T>
         <View style={styles.list}>
           {here.map((alert) => (
@@ -33,20 +35,20 @@ export function GarageSlotAlerts({ vendorId }: { vendorId: string }) {
               </T>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`Stop waiting for ${slotAlertSummary(alert)}`}
+                accessibilityLabel={t('Stop waiting for {when}', { when: slotAlertSummary(alert) })}
                 disabled={cancel.isPending}
                 onPress={() => cancel.mutate(alert.id)}
                 hitSlop={14}
               >
                 <T size={12} weight={500} lh={16} style={styles.underline}>
-                  Stop waiting
+                  {t('Stop waiting')}
                 </T>
               </Pressable>
             </View>
           ))}
         </View>
         <T size={12} lh={16} color={colors.textSecondary} accessibilityRole="link" style={[styles.underline, styles.all]} onPress={() => router.push('/profile/slot-alerts' as Href)}>
-          All slot alerts
+          {t('All slot alerts')}
         </T>
       </View>
     </ScCard>

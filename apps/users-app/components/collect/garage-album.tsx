@@ -1,6 +1,7 @@
 import type { GarageAlbum, GarageAlbumCar, GarageOwnedCar } from '@repo/core/api/garage';
 import { useGarageAlbum } from '@repo/core/api/hooks/use-garage';
 import { cardNumber, collectedLine, duplicatesLine, GARAGE_RARITIES, RARITY_LABELS, RARITY_LOOKS, type GarageRarity } from '@repo/core/garage';
+import { fill, useT } from '@repo/core/i18n';
 import { rewardDate, rewardRupees } from '@repo/core/rewards';
 import { Chip } from '@repo/native-ui/chip';
 import { IconChevronRight, IconCircleCheckFilled, IconInfoCircle } from '@repo/native-ui/icons';
@@ -48,6 +49,7 @@ export function GarageEntry() {
 }
 
 function EntryBody({ series, collected, total, percent, reward, shown, styles }: { series: string; collected: number; total: number; percent: number; reward: string | number; shown: GarageAlbumCar[]; styles: ReturnType<typeof useStyles> }) {
+  const t = useT();
   const colors = useColors();
   return (
     <LinearGradient start={{ x: 0, y: 0 }} end={{ x: 0.6, y: 1 }} colors={['#1F2026', '#15161A', '#101114']} locations={[0, 0.6, 1]} style={styles.entry}>
@@ -55,10 +57,13 @@ function EntryBody({ series, collected, total, percent, reward, shown, styles }:
         <View style={styles.shrink}>
           <T size={12} lh={16} color={colors.textSecondary}>{`Detlio Garage · ${series}`}</T>
           <T size={18} weight={600} lh={24}>
-            <T num size={18} weight={600}>
-              {collectedLine(collected, total)}
-            </T>
-            {' cars collected'}
+            {fill(t('{count} cars collected'), {
+              count: (
+                <T num size={18} weight={600}>
+                  {collectedLine(collected, total)}
+                </T>
+              ),
+            })}
           </T>
         </View>
         <IconChevronRight size={18} color={colors.textSecondary} />
@@ -71,13 +76,14 @@ function EntryBody({ series, collected, total, percent, reward, shown, styles }:
           </View>
         ))}
       </View>
-      <FigureLine size={12} lh={16} color={colors.textSecondary} text={`Every booking earns a card. Finish a row of five for ₹${reward} off.`} />
+      <FigureLine size={12} lh={16} color={colors.textSecondary} text={t('Every booking earns a card. Finish a row of five for ₹{reward} off.', { reward })} />
     </LinearGradient>
   );
 }
 
 /** GarageAlbumView (apps/users/components/garage/garage-album.tsx). */
 export function GarageAlbumView({ album, firstName }: { album: GarageAlbum; firstName: string | null }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const [filter, setFilter] = useState<Filter>('all');
@@ -92,7 +98,7 @@ export function GarageAlbumView({ album, firstName }: { album: GarageAlbum; firs
   );
   const byNumber = new Map(album.cars.map((c) => [c.number, c]));
   const tile = (car: GarageAlbumCar, share: object) => (
-    <Pressable key={car.number} accessibilityRole="button" accessibilityLabel={car.owned ? `${car.name}, ${car.rarityLabel}, number ${car.number}${car.count > 1 ? `, ${car.count} copies` : ''}` : `Number ${car.number}, ${car.rarityLabel}, not collected yet`} onPress={() => setOpen(car)} style={share}>
+    <Pressable key={car.number} accessibilityRole="button" accessibilityLabel={car.owned ? (car.count > 1 ? t('{name}, {rarity}, number {number}, {count} copies', { name: car.name, rarity: t(car.rarityLabel), number: car.number, count: car.count }) : t('{name}, {rarity}, number {number}', { name: car.name, rarity: t(car.rarityLabel), number: car.number })) : t('Number {number}, {rarity}, not collected yet', { number: car.number, rarity: t(car.rarityLabel) })} onPress={() => setOpen(car)} style={share}>
       <GarageTile car={car} />
     </Pressable>
   );
@@ -102,10 +108,10 @@ export function GarageAlbumView({ album, firstName }: { album: GarageAlbum; firs
         <Hero album={album} percent={percent} rowsDone={rowsDone} total={total} />
       </ThemeScope>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} accessibilityLabel="Filter by rarity">
-        <Chip label={`All ${album.collected}`} selected={filter === 'all'} onPress={() => setFilter('all')} />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} accessibilityLabel={t('Filter by rarity')}>
+        <Chip label={t('All {count}', { count: album.collected })} selected={filter === 'all'} onPress={() => setFilter('all')} />
         {GARAGE_RARITIES.map((r) => (
-          <Chip key={r} label={`${RARITY_LABELS[r]} ${counts[r].owned}`} selected={filter === r} onPress={() => setFilter(r)} />
+          <Chip key={r} label={`${t(RARITY_LABELS[r])} ${counts[r].owned}`} selected={filter === r} onPress={() => setFilter(r)} />
         ))}
       </ScrollView>
 
@@ -115,11 +121,11 @@ export function GarageAlbumView({ album, firstName }: { album: GarageAlbum; firs
             <View key={row.row} style={styles.rowBlock}>
               <View style={styles.rowHead}>
                 <T size={13} weight={600} lh={18}>
-                  {`Row ${row.row} `}
-                  <T num size={13} lh={18} color={colors.textSecondary}>{`· ${row.collected} of ${row.total}`}</T>
+                  {`${t('Row {row}', { row: row.row })} `}
+                  <T num size={13} lh={18} color={colors.textSecondary}>{`· ${t('{count} of {total}', { count: row.collected, total: row.total })}`}</T>
                 </T>
                 <T size={11} lh={15} color={row.complete ? (colors.scheme === 'light' ? '#A67C0F' : '#F7D06B') : colors.textMuted}>
-                  {row.complete ? (row.reward?.voucher ? `Done · ${rewardRupees(album.rowReward)} off given` : 'Done · bonus stamps given') : `${rewardRupees(album.rowReward)} off when complete`}
+                  {row.complete ? (row.reward?.voucher ? t('Done · {amount} off given', { amount: rewardRupees(album.rowReward) }) : t('Done · bonus stamps given')) : t('{amount} off when complete', { amount: rewardRupees(album.rowReward) })}
                 </T>
               </View>
               <View style={styles.five}>{row.numbers.map((n) => tile(byNumber.get(n)!, styles.fifth))}</View>
@@ -128,7 +134,7 @@ export function GarageAlbumView({ album, firstName }: { album: GarageAlbum; firs
         </View>
       ) : (
         <View style={styles.rowBlock}>
-          <FigureLine size={12} lh={16} color={colors.textSecondary} text={`${counts[filter].owned} of ${counts[filter].all} ${RARITY_LABELS[filter]} cards`} />
+          <FigureLine size={12} lh={16} color={colors.textSecondary} text={t('{count} of {total} {rarity} cards', { count: counts[filter].owned, total: counts[filter].all, rarity: t(RARITY_LABELS[filter]) })} />
           <View style={styles.four}>{album.cars.filter((c) => c.rarity === filter).map((car) => tile(car, styles.fourth))}</View>
         </View>
       )}
@@ -137,16 +143,23 @@ export function GarageAlbumView({ album, firstName }: { album: GarageAlbum; firs
         <Pressable accessibilityRole="button" accessibilityState={{ expanded: how }} onPress={() => setHow((on) => !on)} style={styles.howHead}>
           <IconInfoCircle size={16} />
           <T size={13} weight={500} lh={18}>
-            How the Garage works
+            {t('How the Garage works')}
           </T>
         </Pressable>
         {how ? (
           <View style={styles.howList}>
             {[
-              'Every booking that earns a Shine Card stamp also earns one Garage card. Some scratch cards, challenges and badges give cards too.',
-              `Odds for each card: Common ${album.odds.common}%, Rare ${album.odds.rare}%, Epic ${album.odds.epic}%, Legendary ${album.odds.legendary}%. A Rare or better is certain within ${album.pity.rare} cards, a Legendary within ${album.pity.legendary}.`,
-              `Every ${album.duplicates.perStar} duplicates make a bonus Shine Card stamp. Finish a row of 5 for ${rewardRupees(album.rowReward)} off your next booking.`,
-              "Cars shown for illustration only. Not affiliated with any car maker. Card names are Detlio's own.",
+              t('Every booking that earns a Shine Card stamp also earns one Garage card. Some scratch cards, challenges and badges give cards too.'),
+              t('Odds for each card: Common {common}%, Rare {rare}%, Epic {epic}%, Legendary {legendary}%. A Rare or better is certain within {pityRare} cards, a Legendary within {pityLegendary}.', {
+                common: album.odds.common,
+                rare: album.odds.rare,
+                epic: album.odds.epic,
+                legendary: album.odds.legendary,
+                pityRare: album.pity.rare,
+                pityLegendary: album.pity.legendary,
+              }),
+              t('Every {count} duplicates make a bonus Shine Card stamp. Finish a row of 5 for {amount} off your next booking.', { count: album.duplicates.perStar, amount: rewardRupees(album.rowReward) }),
+              t("Cars shown for illustration only. Not affiliated with any car maker. Card names are Detlio's own."),
             ].map((line) => (
               <View key={line} style={styles.bullet}>
                 <T size={12} lh={16} color={colors.textSecondary}>
@@ -161,7 +174,7 @@ export function GarageAlbumView({ album, firstName }: { album: GarageAlbum; firs
         ) : null}
       </View>
 
-      <ScSheet horizontalPadding={16} open={open !== null} onClose={() => setOpen(null)} accessibilityLabel={open?.owned ? open.name : 'A card not collected yet'}>
+      <ScSheet horizontalPadding={16} open={open !== null} onClose={() => setOpen(null)} accessibilityLabel={open?.owned ? open.name : t('A card not collected yet')}>
         {open ? open.owned ? <OwnedDetail car={open} firstName={firstName} /> : <MissingDetail car={open} /> : null}
       </ScSheet>
     </>
@@ -169,39 +182,40 @@ export function GarageAlbumView({ album, firstName }: { album: GarageAlbum; firs
 }
 
 function Hero({ album, percent, rowsDone, total }: { album: GarageAlbum; percent: number; rowsDone: number; total: number }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   return (
     <LinearGradient start={{ x: 0, y: 0 }} end={{ x: 0.6, y: 1 }} colors={['#1F2026', '#15161A', '#101114']} locations={[0, 0.6, 1]} style={styles.entry}>
       <View style={styles.heroTop}>
         <View>
-          <T size={12} lh={16} color={colors.textSecondary}>{`${album.series.name} · supercar cards`}</T>
+          <T size={12} lh={16} color={colors.textSecondary}>{t('{series} · supercar cards', { series: album.series.name })}</T>
           <T num size={30} weight={600} lh={36} tracking={-0.03}>
             {collectedLine(album.collected, total)}
           </T>
           <T size={13} lh={18} color={colors.textSecondary}>
-            cars collected
+            {t('cars collected')}
           </T>
         </View>
         <View style={styles.heroRight}>
           <T num size={20} weight={600} lh={24}>{`${rowsDone}/${album.rows.length}`}</T>
           <T size={11} lh={15} color={colors.textSecondary}>
-            rows complete
+            {t('rows complete')}
           </T>
         </View>
       </View>
-      <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: total, now: album.collected }} accessibilityLabel="Cars collected">
+      <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: total, now: album.collected }} accessibilityLabel={t('Cars collected')}>
         <Progress percent={percent} />
       </View>
       <View style={styles.heroFacts}>
-        <FigureLine size={12} lh={16} color={colors.textSecondary} text={`Each row of 5: ${rewardRupees(album.rowReward)} off`} />
+        <FigureLine size={12} lh={16} color={colors.textSecondary} text={t('Each row of 5: {amount} off', { amount: rewardRupees(album.rowReward) })} />
         <FigureLine size={12} lh={16} color={colors.textSecondary} text={duplicatesLine(album.duplicates.waiting, album.duplicates.perStar)} />
       </View>
       {album.completedAt ? (
         <View style={styles.complete}>
           <IconCircleCheckFilled size={16} color="#F7D06B" />
           <T size={13} lh={18} style={styles.shrink}>
-            {`Series complete on ${rewardDate(album.completedAt)}. You are a Garage Legend.`}
+            {t('Series complete on {day}. You are a Garage Legend.', { day: rewardDate(album.completedAt) })}
           </T>
         </View>
       ) : null}
@@ -210,6 +224,7 @@ function Hero({ album, percent, rowsDone, total }: { album: GarageAlbum; percent
 }
 
 function OwnedDetail({ car, firstName }: { car: GarageOwnedCar; firstName: string | null }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const look = RARITY_LOOKS[car.rarity];
@@ -219,13 +234,13 @@ function OwnedDetail({ car, firstName }: { car: GarageOwnedCar; firstName: strin
         <GarageCard car={car} />
       </View>
       <T size={12} lh={16} uppercase tracking={0.14} color={colors.scheme === 'light' ? colors.textSecondary : look.pill}>
-        {`${car.rarityLabel} · ${cardNumber(car.number, car.total)}`}
+        {`${t(car.rarityLabel)} · ${cardNumber(car.number, car.total)}`}
       </T>
       <T size={20} weight={600} lh={26} align="center">
         {car.name}
       </T>
       <IllustrationLine />
-      <FigureLine size={12} lh={16} color={colors.textSecondary} text={`${car.count > 1 ? `You have ${car.count} of these` : 'You have 1 of these'}${car.firstPulledAt ? ` · first on ${rewardDate(car.firstPulledAt)}` : ''}`} />
+      <FigureLine size={12} lh={16} color={colors.textSecondary} text={`${car.count > 1 ? t('You have {count} of these', { count: car.count }) : t('You have 1 of these')}${car.firstPulledAt ? ` · ${t('first on {day}', { day: rewardDate(car.firstPulledAt) })}` : ''}`} />
       <View style={styles.stretch}>
         <GarageShare car={car} firstName={firstName} />
       </View>
@@ -234,6 +249,7 @@ function OwnedDetail({ car, firstName }: { car: GarageOwnedCar; firstName: strin
 }
 
 function MissingDetail({ car }: { car: Exclude<GarageAlbumCar, GarageOwnedCar> }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   return (
@@ -242,13 +258,13 @@ function MissingDetail({ car }: { car: Exclude<GarageAlbumCar, GarageOwnedCar> }
         <GarageTile car={car} />
       </View>
       <T size={12} lh={16} uppercase tracking={0.14} color={colors.scheme === 'light' ? colors.textSecondary : RARITY_LOOKS[car.rarity].pill}>
-        {`${car.rarityLabel} · ${cardNumber(car.number, car.total)}`}
+        {`${t(car.rarityLabel)} · ${cardNumber(car.number, car.total)}`}
       </T>
       <T size={18} weight={600} lh={24} align="center">
-        Not in your Garage yet
+        {t('Not in your Garage yet')}
       </T>
       <T size={13} lh={18} align="center" color={colors.textSecondary}>
-        Every booking paid through Detlio earns a card. This one could be next.
+        {t('Every booking paid through Detlio earns a card. This one could be next.')}
       </T>
     </View>
   );

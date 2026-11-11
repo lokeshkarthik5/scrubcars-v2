@@ -17,6 +17,8 @@ import { useAuthStore } from '@repo/core/stores/auth-store'
 import { IconBellOff } from '@tabler/icons-react'
 import { CustomerShell } from '@/components/customer-shell'
 import { isHomeHubEnabled } from '@/lib/home-hub'
+import { useT } from '@repo/core/i18n'
+import { msg } from '@repo/core/i18n/translate'
 
 type Switches = { bookingUpdates: boolean; reminders: boolean }
 
@@ -27,14 +29,14 @@ const SWITCHES: Array<{
 }> = [
   {
     key: 'bookingUpdates',
-    title: 'Booking updates',
+    title: msg('Booking updates'),
     description:
-      'Accepted, other times suggested, extra work, your car on its way back, refunds',
+      msg('Accepted, other times suggested, extra work, your car on its way back, refunds'),
   },
   {
     key: 'reminders',
-    title: 'Reminders',
-    description: 'The evening before a booking, and about an hour before it',
+    title: msg('Reminders'),
+    description: msg('The evening before a booking, and about an hour before it'),
   },
 ]
 
@@ -48,6 +50,7 @@ const SWITCHES: Array<{
  * shows no link otherwise, and this page says so if opened directly.
  */
 export default function NotificationsPage() {
+  const t = useT()
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
   const ready = useAuthStore((s) => s.isSessionReady)
@@ -68,7 +71,7 @@ export default function NotificationsPage() {
       setSaved(await setPushPreferences({ [key]: on }))
     } catch {
       setSaved(before)
-      toast.error("Couldn't save that. Try again.")
+      toast.error(t("Couldn't save that. Try again."))
     } finally {
       setSaving(null)
     }
@@ -78,14 +81,14 @@ export default function NotificationsPage() {
     return (
       <CustomerShell showNav showBrand className="gap-4 py-4">
         <TopBar
-          title="Notifications"
+          title={t('Notifications')}
           showBack
           backHref="/profile"
           large={isHomeHubEnabled()}
         />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
           <p className="text-t3 font-semibold text-text-primary">
-            Sign in to set up notifications
+            {t('Sign in to set up notifications')}
           </p>
           <ScButton
             variant="main"
@@ -96,7 +99,7 @@ export default function NotificationsPage() {
               )
             }
           >
-            Sign in
+            {t('Sign in')}
           </ScButton>
         </div>
       </CustomerShell>
@@ -106,7 +109,7 @@ export default function NotificationsPage() {
   return (
     <CustomerShell showNav showBrand className="gap-4 py-4">
       <TopBar
-        title="Notifications"
+        title={t('Notifications')}
         showBack
         backHref="/profile"
         large={isHomeHubEnabled()}
@@ -115,9 +118,9 @@ export default function NotificationsPage() {
       {device.loaded && device.config && !device.config.enabled ? (
         <EmptyState
           icon={<IconBellOff size={32} stroke={1.5} />}
-          title="Notifications aren't available yet"
-          subtitle="Everything about your bookings is in Updates."
-          actionLabel="Open Updates"
+          title={t("Notifications aren't available yet")}
+          subtitle={t('Everything about your bookings is in Updates.')}
+          actionLabel={t('Open Updates')}
           onAction={() => router.push('/updates')}
         />
       ) : (
@@ -125,7 +128,7 @@ export default function NotificationsPage() {
           <PushDeviceCard
             device={device}
             appName="Detlio"
-            description="News about your bookings, even with Detlio closed"
+            description={t('News about your bookings, even with Detlio closed')}
           />
 
           {device.config?.enabled && (
@@ -137,7 +140,7 @@ export default function NotificationsPage() {
                 id="notification-kinds"
                 className="text-sm font-semibold text-text-primary"
               >
-                What to send
+                {t('What to send')}
               </h2>
               <ScCard className="px-0 py-1">
                 <ul className="divide-y divide-border">
@@ -148,14 +151,14 @@ export default function NotificationsPage() {
                     >
                       <div className="min-w-0 flex-1">
                         <p className="text-t4 text-text-primary">
-                          {item.title}
+                          {t(item.title)}
                         </p>
                         <p className="text-t5 text-text-secondary">
-                          {item.description}
+                          {t(item.description)}
                         </p>
                       </div>
                       <ScSwitch
-                        label={item.title}
+                        label={t(item.title)}
                         checked={switches[item.key]}
                         disabled={saving !== null}
                         onChange={(on) => void setSwitch(item.key, on)}
@@ -165,9 +168,7 @@ export default function NotificationsPage() {
                 </ul>
               </ScCard>
               <p className="text-t5 text-text-muted">
-                For every device you turn notifications on for. A notification
-                says the garage, the service and the time, never your number or
-                address. Your bookings&apos; news is in Updates too.
+                {t("For every device you turn notifications on for. A notification says the garage, the service and the time, never your number or address. Your bookings' news is in Updates too.")}
               </p>
             </section>
           )}

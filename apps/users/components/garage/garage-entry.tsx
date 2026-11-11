@@ -5,6 +5,7 @@ import { IconChevronRight } from '@tabler/icons-react'
 import { useGarageAlbum } from '@repo/core/api/hooks/use-garage'
 import { collectedLine } from '@repo/core/garage'
 import { GarageTile } from './garage-card'
+import { fill, useT } from '@repo/core/i18n'
 
 /**
  * The Rewards page's way into the Garage (0057): the progress and the three
@@ -12,6 +13,7 @@ import { GarageTile } from './garage-card'
  * caller checks the config) or the album has not loaded.
  */
 export function GarageEntry() {
+  const t = useT()
   const album = useGarageAlbum(true)
   const data = album.data
   if (!data) return null
@@ -23,9 +25,9 @@ export function GarageEntry() {
     <Link href="/profile/rewards/garage" className="garage-entry flex flex-col gap-3 rounded-card border border-border px-4 py-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-t5 text-text-secondary">Detlio Garage · {data.series.name}</p>
+          <p className="text-t5 text-text-secondary">{t('Detlio Garage · {name}', { name: data.series.name })}</p>
           <h2 className="mt-0.5 text-t2 font-semibold leading-tight text-text-primary">
-            <span className="font-numeric">{collectedLine(data.collected, data.series.total)}</span> cars collected
+            {fill(t('{collectedLine} cars collected'), { collectedLine: <span className="font-numeric">{collectedLine(data.collected, data.series.total)}</span> })}
           </h2>
         </div>
         <IconChevronRight size={18} className="text-text-secondary" aria-hidden="true" />
@@ -38,7 +40,7 @@ export function GarageEntry() {
           <GarageTile key={car.number} car={car} />
         ))}
       </div>
-      <p className="text-t5 text-text-secondary">Every booking earns a card. Finish a row of five for {`₹${data.rowReward}`} off.</p>
+      <p className="text-t5 text-text-secondary">{t('Every booking earns a card. Finish a row of five for {value} off.', { value: `₹${data.rowReward}` })}</p>
     </Link>
   )
 }

@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { ScSegmented } from '@repo/ui/sc/segmented'
+import { useT } from '@repo/core/i18n'
 import { WHOLE_CITY_UNAVAILABLE, travelRadiusLabel, wholeCityLabel, type TravelChoice } from '@repo/core/cities'
 
 /**
@@ -22,7 +23,7 @@ export function TravelChoiceField({
   radiusKm,
   defaultKm,
   disabled,
-  wholeCityNote = (city) => `Any address in ${city}, measured from the city's centre.`,
+  wholeCityNote,
   children,
 }: {
   /** The radiogroup's accessible name: "How far it travels", "How far it collects from". */
@@ -40,6 +41,7 @@ export function TravelChoiceField({
   /** The km box, shown under the choice while "Up to N km" is picked. */
   children?: ReactNode
 }) {
+  const t = useT()
   const value: TravelChoice = wholeCity && cityName ? 'whole_city' : 'radius'
   return (
     <div className="flex flex-col gap-2.5">
@@ -51,14 +53,17 @@ export function TravelChoiceField({
           { value: 'radius', label: travelRadiusLabel(radiusKm, defaultKm), disabled },
           {
             value: 'whole_city',
-            label: wholeCityLabel(cityName ?? 'the city'),
+            label: wholeCityLabel(cityName ?? t('the city')),
             disabled: disabled || !cityName,
           },
         ]}
         className="border border-border bg-brand-black p-[3px] [&>button]:min-h-11 [&>button]:text-[13px]"
       />
-      {!cityName && <p className="text-[12px] text-text-muted">{WHOLE_CITY_UNAVAILABLE}</p>}
-      {wholeCity && cityName && <p className="text-[12.5px] text-text-muted">{wholeCityNote(cityName)}</p>}
+      {!cityName && <p className="text-[12px] text-text-muted">{t(WHOLE_CITY_UNAVAILABLE)}</p>}
+      {wholeCity && cityName && <p className="text-[12.5px] text-text-muted">{wholeCityNote
+            ? wholeCityNote(cityName)
+            : t("Any address in {city}, measured from the city's centre.", { city: cityName })}
+        </p>}
       {value === 'radius' && children}
     </div>
   )

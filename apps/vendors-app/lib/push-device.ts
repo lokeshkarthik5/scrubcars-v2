@@ -14,6 +14,7 @@ import { registerPushDevice, removePushDevice, sendPushDeviceTest } from './push
 import { createPushController, type PermissionState } from './push-controller';
 import { errorText } from './error-text';
 import { pushTestErrorOutcome, pushTestResultOutcome, TEST_FALLBACK, TEST_NOT_ON, type PushTestOutcome } from './push-test';
+import { t } from '@repo/core/i18n/translate';
 
 const toState = (result: { status: string }): PermissionState =>
   result.status === 'granted' ? 'granted' : result.status === 'denied' ? 'denied' : 'undetermined';
@@ -121,15 +122,15 @@ export function usePushDevice(): PushDevice {
       if (result === 'on') {
         setDevices(count ?? 0);
         changed();
-        toast.success('Notifications are on for this device');
+        toast.success(t('Notifications are on for this device'));
       } else if (result === 'no_project') {
-        toast.error("This build of the app can't get alerts.");
+        toast.error(t("This build of the app can't get alerts."));
       } else {
-        toast.error('Notifications are blocked for this app.');
+        toast.error(t('Notifications are blocked for this app.'));
       }
       setPermission(await Notifications.getPermissionsAsync().then(toState));
     } catch (error) {
-      toast.error(errorText(error, "Couldn't turn notifications on. Try again."));
+      toast.error(errorText(error, t("Couldn't turn notifications on. Try again.")));
     } finally {
       setBusy(false);
     }
@@ -140,9 +141,9 @@ export function usePushDevice(): PushDevice {
     try {
       await controller.turnOff();
       changed();
-      toast.success('Notifications are off for this device');
+      toast.success(t('Notifications are off for this device'));
     } catch (error) {
-      toast.error(errorText(error, "Couldn't turn notifications off. Try again."));
+      toast.error(errorText(error, t("Couldn't turn notifications off. Try again.")));
     } finally {
       setBusy(false);
     }
@@ -165,13 +166,13 @@ export function usePushDevice(): PushDevice {
       const token = controller.tokenFor(vendorId);
       if (!token) {
         setSubscribed(false);
-        toast.error(TEST_NOT_ON);
+        toast.error(t(TEST_NOT_ON));
         return;
       }
       const { result } = await sendPushDeviceTest(token);
       show(pushTestResultOutcome(result));
     } catch (error) {
-      const fallback = errorText(error, TEST_FALLBACK);
+      const fallback = errorText(error, t(TEST_FALLBACK));
       show(
         error instanceof ApiError
           ? pushTestErrorOutcome(error, fallback)

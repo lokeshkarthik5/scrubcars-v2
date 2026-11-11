@@ -1,5 +1,6 @@
 import type { MyCoupon } from '@repo/core/api/coupons';
 import { useMyCoupons } from '@repo/core/api/hooks/use-coupons';
+import { useT } from '@repo/core/i18n';
 import { ScButton } from '@repo/native-ui/button';
 import { IconTicket } from '@repo/native-ui/icons';
 import { EmptyState, ErrorState, Skeleton } from '@repo/native-ui/primitives';
@@ -18,6 +19,7 @@ import { usePendingCheckout } from '@/lib/pending-checkout';
 
 /** apps/users/app/profile/coupons/page.tsx. */
 export default function CouponsScreen() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
@@ -28,13 +30,13 @@ export default function CouponsScreen() {
   if (!user) {
     return (
       <View style={[styles.page, { paddingTop: insets.top }]}>
-        <PageHeader title="Coupons" backTo="/profile" />
+        <PageHeader title={t('Coupons')} backTo="/profile" />
         <View style={styles.center}>
           <T size={15} weight={600} align="center">
-            Sign in to add a coupon
+            {t('Sign in to add a coupon')}
           </T>
           <ScButton variant="main" fullWidth={false} paddingX={32} onPress={() => router.push(`/login?next=${encodeURIComponent('/profile/coupons')}` as Href)}>
-            Sign in
+            {t('Sign in')}
           </ScButton>
         </View>
       </View>
@@ -49,19 +51,19 @@ export default function CouponsScreen() {
 
   return (
     <View style={[styles.page, { paddingTop: insets.top }]}>
-      <PageHeader title="Coupons" backTo="/profile" />
+      <PageHeader title={t('Coupons')} backTo="/profile" />
       <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 24 }]}>
         <CouponCodeBox />
         <View style={styles.section}>
           <T size={14} weight={600} lh={20}>
-            Your coupons
+            {t('Your coupons')}
           </T>
           {coupons.isPending ? (
             <Skeleton height={120} />
           ) : coupons.isError ? (
-            <ErrorState message="Couldn't load your coupons. Check your connection." onRetry={() => void coupons.refetch()} />
+            <ErrorState message={t("Couldn't load your coupons. Check your connection.")} onRetry={() => void coupons.refetch()} />
           ) : list.length === 0 ? (
-            <EmptyState icon={<IconTicket size={32} stroke={1.5} color={colors.textSecondary} />} title="No coupons yet" subtitle="Got a Detlio coupon on a card or a flyer? Type its code above, or scan its QR with your phone's camera." />
+            <EmptyState icon={<IconTicket size={32} stroke={1.5} color={colors.textSecondary} />} title={t('No coupons yet')} subtitle={t("Got a Detlio coupon on a card or a flyer? Type its code above, or scan its QR with your phone's camera.")} />
           ) : (
             list.map((coupon) => (
               <CouponTicket
@@ -79,7 +81,7 @@ export default function CouponsScreen() {
                 </T>
                 {coupon.state === 'ready' ? (
                   <ScButton variant="outline" height={40} fullWidth={false} onPress={() => use(coupon)} style={styles.use}>
-                    Use now
+                    {t('Use now')}
                   </ScButton>
                 ) : null}
               </CouponTicket>

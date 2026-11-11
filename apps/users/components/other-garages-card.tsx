@@ -9,6 +9,7 @@ import { VendorCard } from '@repo/ui/features/vendor-card'
 import { getOtherGarages } from '@repo/core/api/bookings'
 import { bookingTypeParam } from '@repo/core/booking-types'
 import type { Booking } from '@repo/core/types'
+import { useT } from '@repo/core/i18n'
 
 /**
  * "Book another garage" (0042), under a booking its garage did not accept in
@@ -20,6 +21,7 @@ import type { Booking } from '@repo/core/types'
  * the page's news.
  */
 export function OtherGaragesCard({ booking }: { booking: Booking }) {
+  const t = useT()
   const others = useQuery({
     queryKey: ['bookings', booking.id, 'other-garages'],
     queryFn: () => getOtherGarages(booking.id),
@@ -40,11 +42,12 @@ export function OtherGaragesCard({ booking }: { booking: Booking }) {
           id="other-garages-title"
           className="text-sm font-semibold text-text-primary"
         >
-          Book another garage
+          {t('Book another garage')}
         </h2>
         <p className="mt-0.5 text-t5 text-text-secondary">
-          Nearby garages that do this kind of job
-          {vendors.length > 0 ? ', nearest first' : ''}.
+          {vendors.length > 0
+            ? t('Nearby garages that do this kind of job, nearest first.')
+            : t('Nearby garages that do this kind of job.')}
         </p>
       </div>
 
@@ -71,14 +74,14 @@ export function OtherGaragesCard({ booking }: { booking: Booking }) {
           />
           <p className="text-t4 text-text-secondary">
             {others.isError
-              ? "Couldn't load garages near you."
-              : 'No other garage nearby does this job right now.'}
+              ? t("Couldn't load garages near you.")
+              : t('No other garage nearby does this job right now.')}
           </p>
         </ScCard>
       )}
 
       <ScButtonLink href={listHref} variant="secondary" fullWidth>
-        See all garages
+        {t('See all garages')}
       </ScButtonLink>
     </section>
   )

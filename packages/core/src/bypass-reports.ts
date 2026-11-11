@@ -1,3 +1,5 @@
+import { msg, t } from './i18n/translate'
+
 /**
  * "Did the garage ask you to book directly?" (0052) for the apps: the words
  * the customer, the garage portal and admin show, and the numbers behind
@@ -31,11 +33,11 @@ export const BYPASS_KINDS: readonly BypassKind[] = [
 ]
 
 export const BYPASS_KIND_LABELS: Record<BypassKind, string> = {
-  book_directly: 'Asked me to book directly next time',
-  lower_price: 'Offered a lower price outside Detlio',
-  pay_directly: 'Asked me to pay cash or UPI directly',
-  gave_number: 'Gave their number for future bookings',
-  other: 'Something else',
+  book_directly: msg('Asked me to book directly next time'),
+  lower_price: msg('Offered a lower price outside Detlio'),
+  pay_directly: msg('Asked me to pay cash or UPI directly'),
+  gave_number: msg('Gave their number for future bookings'),
+  other: msg('Something else'),
 }
 
 export type BypassStatus = 'new' | 'confirmed' | 'dismissed'
@@ -44,22 +46,22 @@ export type BypassRewardStatus = 'none' | 'owed' | 'granted'
 // ─── The customer's words ────────────────────────────────────────────────────
 
 /** The question, on the booking page and in Help. */
-export const BYPASS_QUESTION = 'Did the garage ask you to book directly or pay outside Detlio?'
+export const BYPASS_QUESTION = msg('Did the garage ask you to book directly or pay outside Detlio?')
 
 /** The short version, for a link. */
-export const BYPASS_QUESTION_SHORT = 'Did the garage ask you to book directly?'
+export const BYPASS_QUESTION_SHORT = msg('Did the garage ask you to book directly?')
 
 /** Under the form: who sees it. */
-export const BYPASS_ANONYMITY_LINE = 'The garage is never told who reported it.'
+export const BYPASS_ANONYMITY_LINE = msg('The garage is never told who reported it.')
 
 /** Under the form, only while Detlio credit is on. */
 export function bypassRewardLine(rewardRupees: number = BYPASS_NUMBERS.rewardRupees): string {
-  return `If we confirm it, we add ₹${rewardRupees} to your Detlio credit (once per garage).`
+  return t('If we confirm it, we add ₹{amount} to your Detlio credit (once per garage).', { amount: rewardRupees })
 }
 
 /** After sending. */
-export const BYPASS_THANKS_TITLE = 'Thanks for telling us'
-export const BYPASS_THANKS_BODY = 'We’ll look into it. The garage is never told who reported it.'
+export const BYPASS_THANKS_TITLE = msg('Thanks for telling us')
+export const BYPASS_THANKS_BODY = msg('We’ll look into it. The garage is never told who reported it.')
 
 /** What a customer reads about a report they made, by where it stands. */
 export function bypassReportStatusLine(report: {
@@ -68,18 +70,19 @@ export function bypassReportStatusLine(report: {
   rewardRupees?: number
 }): string {
   const amount = report.rewardRupees ?? BYPASS_NUMBERS.rewardRupees
-  if (report.status === 'new') return 'You reported this booking. We’re looking into it.'
-  if (report.status === 'dismissed') return 'You reported this booking. We looked into it — thank you for telling us.'
-  if (report.reward === 'granted') return `We confirmed your report — ₹${amount} added to your Detlio credit. Thank you.`
-  if (report.reward === 'owed') return `We confirmed your report. Your ₹${amount} reward is on its way. Thank you.`
-  return 'We confirmed your report. Thank you for telling us.'
+  if (report.status === 'new') return t('You reported this booking. We’re looking into it.')
+  if (report.status === 'dismissed') return t('You reported this booking. We looked into it — thank you for telling us.')
+  if (report.reward === 'granted') return t('We confirmed your report — ₹{amount} added to your Detlio credit. Thank you.', { amount })
+  if (report.reward === 'owed') return t('We confirmed your report. Your ₹{amount} reward is on its way. Thank you.', { amount })
+  return t('We confirmed your report. Thank you for telling us.')
 }
 
 // ─── The garage's words ──────────────────────────────────────────────────────
 
 /** The garage portal's reminder, in the agreement/terms style: calm, one line. */
-export const GARAGE_NON_SOLICITATION_LINE =
+export const GARAGE_NON_SOLICITATION_LINE = msg(
   'Asking Detlio customers to book directly breaks your agreement and can lead to suspension.'
+)
 
 // ─── Admin's words ───────────────────────────────────────────────────────────
 

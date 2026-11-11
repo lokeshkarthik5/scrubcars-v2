@@ -33,6 +33,7 @@ import { AddAddressSheet } from '@/components/add-address-sheet'
 import { CheckoutSignInCard, useCheckoutSignIn } from '@/components/checkout/checkout-sign-in'
 import { GuestCarForm, draftCarReady } from '@/components/checkout/guest-car'
 import { saveGuestAddress, saveGuestCar } from './guest-save'
+import { useT } from '@repo/core/i18n'
 
 const GUEST_CAR = 'guest-car'
 const GUEST_ADDRESS = 'guest-address'
@@ -68,6 +69,7 @@ export function RequestSheet({
   garage: JustOutsideVendor
   mode: RequestMode
 }) {
+  const t = useT()
   const vendor = garage.vendor
   const user = useAuthStore((s) => s.user)
   const vehicles = useUserStore((s) => s.vehicles)
@@ -141,8 +143,9 @@ export function RequestSheet({
   const toggleService = (id: string) =>
     setServiceIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]))
 
-  const label = mode === 'pickup' ? 'Request a pickup' : 'Request a visit'
-  const carLabel = VEHICLE_TIERS.find((t) => t.value === vehicleType)?.label.toUpperCase()
+  const label = mode === 'pickup' ? t('Request a pickup') : t('Request a visit')
+  const tierLabel = VEHICLE_TIERS.find((tier) => tier.value === vehicleType)?.label
+  const carLabel = tierLabel ? t(tierLabel).toUpperCase() : undefined
 
   /** Sends the request: the guest's car and address saved first, once each. */
   const send = async (ids?: { vehicleId: string; addressId: string }) => {
@@ -175,7 +178,7 @@ export function RequestSheet({
       setSent(created)
     } catch (err) {
       setError(
-        err instanceof ApiError || err instanceof Error ? err.message : "Couldn't send the request. Try again."
+        err instanceof ApiError || err instanceof Error ? err.message : t("Couldn't send the request. Try again.")
       )
     } finally {
       setSending(false)
@@ -200,15 +203,14 @@ export function RequestSheet({
   }
 
   return (
-    <ScSheet open={open} onClose={close} aria-label={`Request ${vendor.name}`}>
+    <ScSheet open={open} onClose={close} aria-label={t('Request {name}', { name: vendor.name })}>
       <div className="flex flex-col gap-5 px-5 pt-2" data-request-sheet="">
         {sent ? (
           <div className="flex flex-col items-center gap-3 py-4 text-center" role="status">
             <IconCircleCheck size={44} className="text-success" aria-hidden />
-            <h2 className="text-[20px] font-medium text-text-primary">Request sent</h2>
+            <h2 className="text-[20px] font-medium text-text-primary">{t('Request sent')}</h2>
             <p className="text-t3 text-text-secondary">
-              Waiting for {sent.garage.name}. They reply by {istClock(sent.respondBy)}, or we ask the next garage.
-              Nothing to pay yet.
+              {t('Waiting for {name}. They reply by {istClock}, or we ask the next garage. Nothing to pay yet.', { name: sent.garage.name, istClock: istClock(sent.respondBy) })}
             </p>
             <div className="flex w-full flex-col gap-2 pt-2">
               <Link
@@ -216,28 +218,28 @@ export function RequestSheet({
                 onClick={close}
                 className="press flex min-h-12 items-center justify-center rounded-full bg-brand-white text-t3 font-medium text-brand-black"
               >
-                See your request
+                {t('See your request')}
               </Link>
               <ScButton variant="text" onClick={close}>
-                Done
+                {t('Done')}
               </ScButton>
             </div>
           </div>
         ) : (
           <>
             <div>
-              <h2 className="text-[20px] font-medium text-text-primary">Request {vendor.name}</h2>
+              <h2 className="text-[20px] font-medium text-text-primary">{t('Request {name}', { name: vendor.name })}</h2>
               <p className="text-t4 text-text-secondary">
-                {mode === 'pickup' ? 'They collect your car and bring it back' : 'To your home'} ·{' '}
-                {garage.coverKm !== null ? `covers ${garage.coverKm} km, ` : ''}
-                {garage.outsideKm} km outside
+                {mode === 'pickup' ? t('They collect your car and bring it back') : t('To your home')} ·{' '}
+                {garage.coverKm !== null ? `${t('covers {km} km', { km: garage.coverKm })}, ` : ''}
+                {t('{outsideKm} km outside', { outsideKm: garage.outsideKm })}
               </p>
             </div>
 
             {(guest || carChoice === GUEST_CAR) && (
               <section aria-labelledby="request-car" className="flex flex-col gap-2">
                 <h3 id="request-car" className="text-t5 font-medium uppercase tracking-[0.12em] text-text-muted">
-                  Your car
+                  {t('Your car')}
                 </h3>
                 <GuestCarForm car={guestCar} onChange={setGuestCar} />
               </section>
@@ -245,7 +247,7 @@ export function RequestSheet({
             {!guest && vehicles.length > 1 && (
               <section aria-labelledby="request-saved-car" className="flex flex-col gap-2">
                 <h3 id="request-saved-car" className="text-t5 font-medium uppercase tracking-[0.12em] text-text-muted">
-                  Which car
+                  {t('Which car')}
                 </h3>
                 <div className="flex flex-wrap gap-2" data-clarity-mask="true">
                   {vehicles.map((v) => (
@@ -260,18 +262,18 @@ export function RequestSheet({
                 onClick={() => setCarChoice(GUEST_CAR)}
                 className="flex min-h-11 items-center gap-1.5 self-start text-t4 text-text-secondary underline"
               >
-                <IconPlus size={14} aria-hidden /> Add your car
+                <IconPlus size={14} aria-hidden /> {t('Add your car')}
               </button>
             )}
 
             <section aria-labelledby="request-services" className="flex flex-col gap-2">
               <h3 id="request-services" className="text-t5 font-medium uppercase tracking-[0.12em] text-text-muted">
-                Service{carLabel ? ` · your ${carLabel}` : ''}
+                {carLabel ? t('Service · your {car}', { car: carLabel }) : t('Service')}
               </h3>
               {garageData.isLoading ? (
-                <p className="text-t4 text-text-secondary">Loading services…</p>
+                <p className="text-t4 text-text-secondary">{t('Loading services…')}</p>
               ) : services.length === 0 ? (
-                <p className="text-t4 text-text-secondary">This garage has no services to ask for yet.</p>
+                <p className="text-t4 text-text-secondary">{t('This garage has no services to ask for yet.')}</p>
               ) : (
                 <ul className="flex flex-col gap-2">
                   {services.map((service) => {
@@ -302,7 +304,7 @@ export function RequestSheet({
                               <RequestServiceMinutes durationMins={service.durationMins} />
                             </span>
                             <span className="shrink-0 font-numeric text-t3 text-text-primary">
-                              {vehicleType ? (amount === null ? 'Not priced' : `₹${amount.toLocaleString('en-IN')}`) : `from ₹${service.price.toLocaleString('en-IN')}`}
+                              {vehicleType ? (amount === null ? t('Not priced') : `₹${amount.toLocaleString('en-IN')}`) : t('from {price}', { price: `₹${service.price.toLocaleString('en-IN')}` })}
                             </span>
                           </button>
                         </li>
@@ -312,24 +314,24 @@ export function RequestSheet({
               )}
               {unpriced && (
                 <p role="alert" className="text-t4 text-error">
-                  One of these isn&apos;t priced for your car at this garage. Remove it to send the request.
+                  {t("One of these isn't priced for your car at this garage. Remove it to send the request.")}
                 </p>
               )}
             </section>
 
             <section aria-labelledby="request-when" className="flex flex-col gap-2">
               <h3 id="request-when" className="text-t5 font-medium uppercase tracking-[0.12em] text-text-muted">
-                When
+                {t('When')}
               </h3>
               {chosen.length === 0 ? (
-                <p className="text-t4 text-text-secondary">Pick a service to see when they can come.</p>
+                <p className="text-t4 text-text-secondary">{t('Pick a service to see when they can come.')}</p>
               ) : windows.isLoading ? (
-                <p className="text-t4 text-text-secondary">Checking their hours…</p>
+                <p className="text-t4 text-text-secondary">{t('Checking their hours…')}</p>
               ) : windows.isError || !windows.data ? (
-                <p className="text-t4 text-error">Couldn&apos;t load their hours. Close and try again.</p>
+                <p className="text-t4 text-error">{t("Couldn't load their hours. Close and try again.")}</p>
               ) : (
                 <>
-                  <div role="group" aria-label="Time window" className="flex flex-wrap gap-2">
+                  <div role="group" aria-label={t('Time window')} className="flex flex-wrap gap-2">
                     {windows.data.quick.map((w) => (
                       <Chip
                         key={`${w.date}-${w.part}`}
@@ -343,7 +345,7 @@ export function RequestSheet({
                       />
                     ))}
                     <Chip
-                      label="Pick a day"
+                      label={t('Pick a day')}
                       selected={pickingDay}
                       onClick={() => {
                         setPickingDay(true)
@@ -353,7 +355,7 @@ export function RequestSheet({
                   </div>
                   {pickingDay && (
                     <div className="flex flex-col gap-2">
-                      <div role="group" aria-label="Day" className="-mx-5 flex gap-2 overflow-x-auto px-5 py-1">
+                      <div role="group" aria-label={t('Day')} className="-mx-5 flex gap-2 overflow-x-auto px-5 py-1">
                         {windows.data.days.map((d) => (
                           <Chip
                             key={d.date}
@@ -368,13 +370,13 @@ export function RequestSheet({
                         ))}
                       </div>
                       {pickedDay && (
-                        <div role="group" aria-label="Part of the day" className="flex gap-2">
+                        <div role="group" aria-label={t('Part of the day')} className="flex gap-2">
                           {(['morning', 'afternoon'] as const).map((part) => {
                             const day = windows.data!.days.find((d) => d.date === pickedDay)
                             return (
                               <Chip
                                 key={part}
-                                label={WINDOW_PART_LABELS[part]}
+                                label={t(WINDOW_PART_LABELS[part])}
                                 disabled={!day?.[part]}
                                 selected={window?.date === pickedDay && window.part === part}
                                 onClick={() => setWindow({ date: pickedDay, part })}
@@ -386,7 +388,7 @@ export function RequestSheet({
                     </div>
                   )}
                   <p className="text-t5 text-text-muted">
-                    A window, not an exact time: the garage picks a start inside it.
+                    {t('A window, not an exact time: the garage picks a start inside it.')}
                   </p>
                 </>
               )}
@@ -394,7 +396,7 @@ export function RequestSheet({
 
             <section aria-labelledby="request-where" className="flex flex-col gap-2">
               <h3 id="request-where" className="text-t5 font-medium uppercase tracking-[0.12em] text-text-muted">
-                Where
+                {t('Where')}
               </h3>
               <div className="flex flex-col gap-2" data-clarity-mask="true">
                 {!guest &&
@@ -409,13 +411,13 @@ export function RequestSheet({
                         addressChoice === a.id ? 'border-brand-white' : 'border-border'
                       )}
                     >
-                      <span className="text-t3 text-text-primary">{a.label || 'Address'}</span>
+                      <span className="text-t3 text-text-primary">{a.label || t('Address')}</span>
                       <span className="truncate text-t5 text-text-muted">{a.address}</span>
                     </button>
                   ))}
                 {guestAddress && (guest || addressChoice === GUEST_ADDRESS) && (
                   <div className="flex min-h-14 flex-col justify-center rounded-[14px] border border-brand-white px-4 py-2">
-                    <span className="text-t3 text-text-primary">{guestAddress.label || 'Address'}</span>
+                    <span className="text-t3 text-text-primary">{guestAddress.label || t('Address')}</span>
                     <span className="truncate text-t5 text-text-muted">{guestAddress.address}</span>
                   </div>
                 )}
@@ -425,15 +427,15 @@ export function RequestSheet({
                 onClick={() => setAddAddressOpen(true)}
                 className="flex min-h-11 items-center gap-1.5 self-start text-t4 text-text-secondary underline"
               >
-                <IconPlus size={14} aria-hidden /> {guestAddress || pinned.length > 0 ? 'Use another address' : 'Add your address'}
+                <IconPlus size={14} aria-hidden /> {guestAddress || pinned.length > 0 ? t('Use another address') : t('Add your address')}
               </button>
             </section>
 
-            <ul aria-label="What happens next" className="flex flex-col gap-1.5">
+            <ul aria-label={t('What happens next')} className="flex flex-col gap-1.5">
               {REQUEST_PROMISES.map((line) => (
                 <li key={line} className="flex items-start gap-2 text-t4 text-text-secondary">
                   <IconCheck size={15} className="mt-0.5 shrink-0 text-success" aria-hidden />
-                  {line}
+                  {t(line)}
                 </li>
               ))}
             </ul>
@@ -448,21 +450,21 @@ export function RequestSheet({
               ready ? (
                 <CheckoutSignInCard
                   signIn={signIn}
-                  verifyLabel="Verify and send request"
+                  verifyLabel={t('Verify and send request')}
                   onVerify={() => void verifyAndSend()}
                   busy={sending}
                 />
               ) : (
                 <p className="text-t4 text-text-secondary">
-                  Pick a service, your car, a time and your address. Then sign in with your number to send it.
+                  {t('Pick a service, your car, a time and your address. Then sign in with your number to send it.')}
                 </p>
               )
             ) : (
               <ScButton variant="main" size="lg" disabled={!ready || sending} onClick={() => void send()}>
-                {sending ? 'Sending…' : 'Send request'}
+                {sending ? t('Sending…') : t('Send request')}
               </ScButton>
             )}
-            <p className="pb-2 text-center text-t5 text-text-muted">{label}: free to ask, no payment until they say yes.</p>
+            <p className="pb-2 text-center text-t5 text-text-muted">{t('{label}: free to ask, no payment until they say yes.', { label })}</p>
           </>
         )}
       </div>

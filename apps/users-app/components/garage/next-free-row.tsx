@@ -1,5 +1,6 @@
 import { useNextFree } from '@repo/core/api/hooks/use-next-free';
 import { bookingTypeParam } from '@repo/core/booking-types';
+import { useT } from '@repo/core/i18n';
 import { nextFreeDayLabel, nextFreeTimeLabels, upcomingNextFree } from '@repo/core/next-free';
 import type { BookingType, Vendor } from '@repo/core/types';
 import { Raised, RedLight } from '@repo/native-ui/finish';
@@ -36,6 +37,7 @@ export function NextFreeRow({
   serviceIds?: readonly string[];
   style?: StyleProp<ViewStyle>;
 }) {
+  const t = useT();
   const styles = useStyles();
   const colors = useColors();
   const { fx } = useFinish();
@@ -44,7 +46,8 @@ export function NextFreeRow({
   const free = upcomingNextFree(next.data);
   if (!free) return null;
 
-  const day = nextFreeDayLabel(free);
+  // formatDay stays English (screens compare it); "Today" is shown through t.
+  const day = t(nextFreeDayLabel(free));
   const labels = nextFreeTimeLabels(free);
   const modeParam = bookingTypeParam(mode);
 
@@ -53,7 +56,7 @@ export function NextFreeRow({
       <View style={styles.head}>
         <IconClock size={14} color={colors.success} />
         <T variant="over" color={fx.quiet}>
-          Next free
+          {t('Next free')}
         </T>
         <T variant="over" weight={400} color={fx.quiet}>
           ·
@@ -81,7 +84,7 @@ export function NextFreeRow({
             <Rise key={time} index={i} play={visible} style={styles.cell}>
               <PressScale
                 accessibilityRole="button"
-                accessibilityLabel={`Book ${vendor.name}, ${day} at ${labels[i]}`}
+                accessibilityLabel={t('Book {name}, {day} at {time}', { name: vendor.name, day, time: labels[i] })}
                 onPress={() => {
                   setPicked(time);
                   router.push(`/book/${vendor.id}?${query.toString()}` as Href);

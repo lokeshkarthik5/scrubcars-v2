@@ -114,6 +114,7 @@ import {
 } from '@repo/core/razorpay'
 import { useUserStore } from '@repo/core/stores/user-store'
 import { useAuthStore } from '@repo/core/stores/auth-store'
+import { fill, msg, useT, useTn } from '@repo/core/i18n'
 import {
   isLastingRefusal,
   livePendingCheckout,
@@ -214,12 +215,14 @@ function istDay(iso: string): string {
 
 /** "a doorstep visit", as the mode-withdrawn notice ends its sentence. */
 const BOOKED_AS: Record<BookingType, string> = {
-  dropin: 'at the garage',
-  doorstep: 'a doorstep visit',
-  pickup: 'pickup & drop',
+  dropin: msg('at the garage'),
+  doorstep: msg('a doorstep visit'),
+  pickup: msg('pickup & drop'),
 }
 
 function BookContent({ vendorId }: { vendorId: string }) {
+  const t = useT()
+  const tn = useTn()
   const router = useRouter()
   const searchParams = useSearchParams()
   // Comma-separated, in the order they were added on the garage page.
@@ -581,7 +584,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const modeOptions = vendor
     ? offeredBookingTypes(vendor).map((value) => ({
         value,
-        label: BOOKING_TYPE_LABELS[value],
+        label: t(BOOKING_TYPE_LABELS[value]),
       }))
     : []
 
@@ -688,9 +691,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const otherMode = vendor
     ? (offeredBookingTypes(vendor).find((type) => type !== 'pickup') ?? null)
     : null
-  const outsideAdvice = `This garage doesn't pick up from this address. Try another address${
-    otherMode ? ` or choose ${BOOKING_TYPE_LABELS[otherMode]}` : ''
-  }.`
+  const outsideAdvice = otherMode
+    ? t("This garage doesn't pick up from this address. Try another address or choose {mode}.", {
+        mode: t(BOOKING_TYPE_LABELS[otherMode]),
+      })
+    : t("This garage doesn't pick up from this address. Try another address.")
   /**
    * Why a doorstep or pickup & drop booking cannot be paid for yet, if it
    * cannot.
@@ -759,6 +764,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const vehicleTierLabel = VEHICLE_TIERS.find(
     (tier) => tier.value === selectedVehicleType
   )?.label
+  const vehicleTierWords = vehicleTierLabel ? t(vehicleTierLabel) : null
 
   // One priced line per service, in the customer's order. `amount` is null for
   // a per-vehicle service the garage has not priced for this car — the server
@@ -806,21 +812,21 @@ function BookContent({ vendorId }: { vendorId: string }) {
               : null))
 
   const stepLabels: Record<CheckoutStep, string> = {
-    slot: 'Pick a time',
+    slot: t('Pick a time'),
     // "Choose" only when there is something to choose between; the step
     // itself says "Add a car" when the customer has none.
-    car: vehicles.length === 0 ? 'Add your car' : 'Choose your car',
-    address: addressOptions.length === 0 ? 'Add your address' : 'Choose an address',
-    pin: 'Pin your address on the map',
-    outside: 'Choose another address',
-    unpriced: 'Remove the unpriced service',
+    car: vehicles.length === 0 ? t('Add your car') : t('Choose your car'),
+    address: addressOptions.length === 0 ? t('Add your address') : t('Choose an address'),
+    pin: t('Pin your address on the map'),
+    outside: t('Choose another address'),
+    unpriced: t('Remove the unpriced service'),
     signin:
       signIn.phase === 'phone'
-        ? 'Enter your number to pay'
+        ? t('Enter your number to pay')
         : signIn.readyToVerify
-          ? 'Tap Verify and pay above'
-          : 'Enter the code we sent',
-    name: 'Add your name',
+          ? t('Tap Verify and pay above')
+          : t('Enter the code we sent'),
+    name: t('Add your name'),
   }
 
   // Scrolls to the step and puts focus on it, so a keyboard or screen-reader
@@ -884,13 +890,16 @@ function BookContent({ vendorId }: { vendorId: string }) {
     }
   }
   useEffect(() => {
-    if (linkedSlotTaken) toast.error('That time was just taken; pick another.')
-  }, [linkedSlotTaken])
+    if (linkedSlotTaken) toast.error(t('That time was just taken; pick another.'))
+  }, [linkedSlotTaken, t])
 
   const handleSlotLapse = (scheduledAt: string) => {
     const label = formatClock(scheduledAt)
     toast.info(
-      `${label} is now too soon to book. ${noticeSentence(bookingType)} Pick another time.`
+      t('{time} is now too soon to book. {notice} Pick another time.', {
+        time: label,
+        notice: noticeSentence(bookingType),
+      })
     )
     goToStep('slot')
   }
@@ -965,7 +974,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
           toast.error(
             error instanceof Error
               ? error.message
-              : "This can't be used on this booking."
+              : t("This can't be used on this booking.")
           )
         },
       }
@@ -1140,7 +1149,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
     applyPromo.error &&
     applyPromo.variables?.serviceIds.join(',') === serviceKey &&
     applyPromo.variables?.vehicleId === selectedVehicle
-      ? errorMessage(applyPromo.error, "This code isn't valid.")
+      ? errorMessage(applyPromo.error, t("This code isn't valid."))
       : ''
 
   // Home's code, refused for this cart and car: said on the coupon row itself,
@@ -1174,10 +1183,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
       useUserStore.setState((state) => ({
         addresses: state.addresses.map((a) => (a.id === saved.id ? saved : a)),
       }))
-      toast.success('Location saved')
+      toast.success(t('Location saved'))
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : 'Could not save that location'
+        err instanceof Error ? err.message : t('Could not save that location')
       )
     } finally {
       setPinningAddress(false)
@@ -1257,7 +1266,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
         return
       }
       if (!order.orderId) {
-        throw new Error('Could not start the payment. Please try again.')
+        throw new Error(t('Could not start the payment. Please try again.'))
       }
 
       await openRazorpayCheckout({
@@ -1339,7 +1348,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
           }
         },
         onDismiss: () => {
-          toast.info('Payment cancelled. Nothing was booked.')
+          toast.info(t('Payment cancelled. Nothing was booked.'))
         },
         onFailure: (message) => {
           // Razorpay refused the payment (a declined card, a failed UPI).
@@ -1369,9 +1378,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
         void queryClient.invalidateQueries({ queryKey: slotKeys.all })
         toast.error(
           error.code === 'SLOT_TOO_SOON' && isPickup
-            ? `That time is too soon now. ${noticeSentence('pickup')} Pick a later time.`
+            ? t('That time is too soon now. {notice} Pick a later time.', {
+                notice: noticeSentence('pickup'),
+              })
             : error.code === 'SLOT_FULL'
-              ? 'That time was just taken; pick another.'
+              ? t('That time was just taken; pick another.')
               : error.message
         )
         goToStep('slot')
@@ -1383,11 +1394,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
         // Reloading it moves the switch to a mode it still offers, and the
         // notice at the top says so; nothing was charged.
         toast.error(
-          `This garage has stopped offering pickup & drop.${
-            otherMode
-              ? ` You can book ${BOOKED_AS[otherMode]} instead, or pick another garage.`
-              : ' Pick another garage.'
-          }`
+          otherMode
+            ? t('This garage has stopped offering pickup & drop. You can book {mode} instead, or pick another garage.', {
+                mode: t(BOOKED_AS[otherMode]),
+              })
+            : t('This garage has stopped offering pickup & drop. Pick another garage.')
         )
         void getVendor(vendorId).then((v) => v && setVendor(v))
       } else if (
@@ -1407,8 +1418,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
       ) {
         toast.error(
           isPickup
-            ? 'Choose the address we should collect your car from.'
-            : 'Choose the address we should come to.'
+            ? t('Choose the address we should collect your car from.')
+            : t('Choose the address we should come to.')
         )
         goToStep('address')
       } else if (
@@ -1419,8 +1430,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
         // again, so the pin step shows for the one that has none.
         toast.error(
           isPickup
-            ? 'Pin your address on the map so the garage can find your car.'
-            : 'Pin your address on the map so the garage can find you.'
+            ? t('Pin your address on the map so the garage can find your car.')
+            : t('Pin your address on the map so the garage can find you.')
         )
         void getAddresses()
           .then((fresh) => {
@@ -1529,7 +1540,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
       toast.error(
         error instanceof Error
           ? error.message
-          : "Couldn't save your car and address. Try again."
+          : t("Couldn't save your car and address. Try again.")
       )
       return null
     } finally {
@@ -1573,7 +1584,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
         offerCheckedFor.current = null
       }
       toast.error(
-        `${code} doesn't apply to this booking. Check the total, then tap Pay.`
+        t("{code} doesn't apply to this booking. Check the total, then tap Pay.", { code })
       )
       return null
     }
@@ -1735,24 +1746,24 @@ function BookContent({ vendorId }: { vendorId: string }) {
   if (loadProblem) {
     return (
       <AppShell className="gap-4 pt-0">
-        <PageHeader title="Book your wash" />
+        <PageHeader title={t('Book your wash')} />
         {loadProblem === 'gone' ? (
           // The garage page's own words for a garage that is not listed:
           // unverified, archived, or never was.
           <div className="flex flex-col items-center gap-3 py-12 text-center">
             <p className="text-t3 text-text-secondary">
-              This garage isn&apos;t taking bookings on Detlio.
+              {t("This garage isn't taking bookings on Detlio.")}
             </p>
             <Link
               href="/garages"
               className="flex min-h-11 items-center px-3 text-t3 font-medium text-text-primary underline underline-offset-2"
             >
-              Find another garage
+              {t('Find another garage')}
             </Link>
           </div>
         ) : (
           <ErrorState
-            message="Couldn't load this garage. Check your connection."
+            message={t("Couldn't load this garage. Check your connection.")}
             onRetry={() => {
               setLoadProblem(null)
               setLoadAttempt((n) => n + 1)
@@ -1789,7 +1800,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
           -mx-4 against the page's px-4, and glass so rows scroll under it.
           Below the cookie bar while that is up (--consent-bar). */}
       <PageHeader
-        title="Book your wash"
+        title={t('Book your wash')}
         onBack={goBack}
         className="gp-top sticky top-(--consent-bar) z-30 -mx-4 px-4"
         solid
@@ -1799,7 +1810,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
           addresses (0062); everyone else signs in at the end, at Pay. */}
       {isGuest && !signInOpen && nextStep !== 'signin' && (
         <p className="-mt-3 text-t4 text-text-secondary">
-          Have an account?{' '}
+          {t('Have an account?')}{' '}
           <button
             type="button"
             onClick={() => {
@@ -1808,7 +1819,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
             }}
             className="min-h-11 font-medium text-text-primary underline underline-offset-2"
           >
-            Sign in
+            {t('Sign in')}
           </button>
         </p>
       )}
@@ -1821,10 +1832,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
         <Notice
           role="status"
           tone="neutral"
-          title="Not taking bookings right now"
+          title={t('Not taking bookings right now')}
         >
           {vendor.bookingsPausedReason ||
-            'This garage has paused new bookings. Check back later, or pick another garage.'}
+            t('This garage has paused new bookings. Check back later, or pick another garage.')}
         </Notice>
       )}
 
@@ -1832,9 +1843,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
         <Notice
           role="status"
           tone="neutral"
-          title={`${BOOKING_TYPE_LABELS[modeWithdrawn]} isn't offered here now`}
+          title={t("{mode} isn't offered here now", { mode: t(BOOKING_TYPE_LABELS[modeWithdrawn]) })}
         >
-          {`This booking will be ${BOOKED_AS[bookingType]}.`}
+          {t('This booking will be {mode}.', { mode: t(BOOKED_AS[bookingType]) })}
         </Notice>
       )}
 
@@ -1842,10 +1853,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
         <Notice
           role="status"
           tone="neutral"
-          title="Some services are no longer offered"
+          title={t('Some services are no longer offered')}
         >
-          This garage has stopped offering some of the services you picked, so
-          they&apos;ve been left out.
+          {t("This garage has stopped offering some of the services you picked, so they've been left out.")}
         </Notice>
       )}
 
@@ -1855,7 +1865,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
           here, so dropping one never means going back a screen and losing
           the time and any code. The list card's edge (§6). */}
       {vendor && selectedServices.length > 0 && (
-        <section aria-label="Your booking" className="fx-edge rounded-[22px] p-4">
+        <section aria-label={t('Your booking')} className="fx-edge rounded-[22px] p-4">
           <div className="flex items-start justify-between gap-2.5 border-b border-white/[0.07] pb-3">
             <div className="min-w-0">
               <h2
@@ -1878,12 +1888,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
                       (<span className="font-numeric">{vendor.reviewCount}</span>)
                     </span>
                     <span className="sr-only">
-                      {' '}
-                      stars from {vendor.reviewCount} reviews
+                      {t('stars from {reviewCount} reviews', { reviewCount: vendor.reviewCount })}
                     </span>
                   </span>
                 ) : (
-                  <span>New on Detlio</span>
+                  <span>{t('New on Detlio')}</span>
                 )}
                 {[vendor.area, vendor.distanceKm != null ? vendor.distance : null]
                   .filter(Boolean)
@@ -1908,7 +1917,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                     <button
                       type="button"
                       onClick={() => removeService(service.id)}
-                      aria-label={`Remove ${service.name}`}
+                      aria-label={t('Remove {name}', { name: service.name })}
                       // 44pt tall to the thumb, drawn as a small tile.
                       className="-my-2.5 -ml-2.5 flex size-11 shrink-0 items-center justify-center text-[#A8A8B2] transition-colors hover:text-text-primary"
                     >
@@ -1924,7 +1933,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                       service.pricingType === 'per_vehicle' && (
                         <span className="text-text-muted">
                           {' '}
-                          · {vehicleTierLabel}
+                          · {vehicleTierWords}
                         </span>
                       )}
                   </span>
@@ -1940,7 +1949,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                   )}
                 >
                   {amount == null && selectedVehicleType != null ? (
-                    'Not priced'
+                    t('Not priced')
                   ) : (
                     <Figures
                       text={servicePriceText(service, selectedVehicleType)}
@@ -1960,7 +1969,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                     ·{' '}
                   </>
                 )}
-                {BOOKING_TYPE_LABELS[bookingType]}
+                {t(BOOKING_TYPE_LABELS[bookingType])}
               </span>
             </p>
           </div>
@@ -1976,29 +1985,33 @@ function BookContent({ vendorId }: { vendorId: string }) {
           data-checkout-request=""
         >
           <p className="text-over font-semibold uppercase text-success">
-            Accepted request
+            {t('Accepted request')}
           </p>
           <h2 id="checkout-request" className="text-t2 font-semibold text-text-primary">
-            {acceptedRequest.garage.name} will{' '}
-            {acceptedRequest.bookingType === 'pickup' ? 'collect your car' : 'come'}{' '}
-            {istStartLabel(acceptedRequest.acceptedStartAt)}
+            {acceptedRequest.bookingType === 'pickup'
+              ? t('{name} will collect your car {when}', {
+                  name: acceptedRequest.garage.name,
+                  when: istStartLabel(acceptedRequest.acceptedStartAt),
+                })
+              : t('{name} will come {when}', {
+                  name: acceptedRequest.garage.name,
+                  when: istStartLabel(acceptedRequest.acceptedStartAt),
+                })}
           </h2>
           <p className="text-t4 text-text-secondary" data-clarity-mask="true">
             {selectedVehicleLabel ? `${selectedVehicleLabel} · ` : ''}
             {selectedAddressRecord?.label || selectedAddressRecord?.address || ''}
           </p>
           <p className="text-t4 text-success">
-            Held for you until {istClock(acceptedRequest.confirmBy)}. The car,
-            address and time are what the garage said yes to.
+            {t('Held for you until {istClock}. The car, address and time are what the garage said yes to.', { istClock: istClock(acceptedRequest.confirmBy) })}
           </p>
         </section>
       )}
       {requestParam && authUser && myRequest.data && !acceptedRequest && (
-        <Notice tone="neutral" title="This request is no longer open">
-          It was answered, cancelled or ran out of time.{' '}
-          <Link href="/requests" className="underline">
-            See your requests
-          </Link>
+        <Notice tone="neutral" title={t('This request is no longer open')}>
+          {fill(t('It was answered, cancelled or ran out of time. {part}'), { part: <Link href="/requests" className="underline">
+            {t('See your requests')}
+          </Link> })}
         </Notice>
       )}
 
@@ -2007,7 +2020,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
       {!requestMode && modeOptions.length > 1 && (
         <section aria-labelledby="checkout-mode">
           <h2 id="checkout-mode" className="sr-only">
-            Service type
+            {t('Service type')}
           </h2>
           <ModeSwitch
             modes={modeOptions.map((option) => option.value)}
@@ -2017,8 +2030,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
           />
           {isPickup && (
             <p className="mx-0.5 mt-2.5 text-t5 font-medium leading-relaxed text-[#8E8E98]">
-              {vendor?.name ?? 'The garage'} collects your car from your
-              address, works on it at the garage and brings it back.
+              {t('{value} collects your car from your address, works on it at the garage and brings it back.', { value: vendor?.name ?? t('The garage') })}
             </p>
           )}
         </section>
@@ -2036,23 +2048,23 @@ function BookContent({ vendorId }: { vendorId: string }) {
             className="mb-2.5 scroll-mt-20 text-t2 font-semibold text-text-primary outline-none"
           >
             {isPickup
-              ? 'Where should we collect your car?'
-              : 'Where should we come?'}
+              ? t('Where should we collect your car?')
+              : t('Where should we come?')}
           </h2>
           {isPickup && addressOptions.length > 0 && (
             <p className="-mt-1 mb-2.5 text-t5 font-medium text-[#8E8E98]">
-              The garage brings your car back to the same address.
+              {t('The garage brings your car back to the same address.')}
             </p>
           )}
           {addressOptions.length === 0 ? (
             <div className="flex flex-col items-start gap-2 rounded-[22px] border border-warning/40 bg-warning-muted/20 p-4">
               <p className="text-t3 text-text-primary">
-                Add an address to continue
+                {t('Add an address to continue')}
               </p>
               <p className="text-t4 text-text-secondary">
                 {isPickup
-                  ? 'Pickup & drop needs the address your car is collected from.'
-                  : 'Doorstep service needs somewhere to go.'}
+                  ? t('Pickup & drop needs the address your car is collected from.')
+                  : t('Doorstep service needs somewhere to go.')}
               </p>
               {/* In place, as with cars: sign-up no longer asks for an
                   address, so this is where a new customer gives one. */}
@@ -2061,7 +2073,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 onClick={() => setAddAddressOpen(true)}
                 className="fx-raised fx-press mt-1 inline-flex h-11 items-center gap-1.5 rounded-[14px] px-4 text-t4 font-semibold text-text-primary"
               >
-                <IconPlus size={15} aria-hidden className="text-[#ff4d66]" /> Add an address
+                <IconPlus size={15} aria-hidden className="text-[#ff4d66]" /> {t('Add an address')}
               </button>
             </div>
           ) : (
@@ -2083,7 +2095,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                       <span className="text-[14px] font-semibold text-text-primary">
                         {a.label}
                         {a.id === DRAFT_ADDRESS && !isGuest && (
-                          <span className="font-medium text-text-muted"> · new</span>
+                          <span className="font-medium text-text-muted"> {t('· new')}</span>
                         )}
                       </span>
                       <span
@@ -2096,7 +2108,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                           can see which of theirs would work before tapping. */}
                       {outsidePickup(a) && (
                         <span className="mt-0.5 block text-t4 text-error">
-                          Outside this garage&apos;s pickup area
+                          {t("Outside this garage's pickup area")}
                         </span>
                       )}
                     </span>
@@ -2111,14 +2123,12 @@ function BookContent({ vendorId }: { vendorId: string }) {
                   className="flex flex-col gap-2 rounded-[18px] border border-warning/40 bg-warning-muted/20 p-4"
                 >
                   <p className="text-t3 text-text-primary">
-                    This garage doesn&apos;t pick up from this address
+                    {t("This garage doesn't pick up from this address")}
                   </p>
                   <p className="text-t4 text-text-secondary">
-                    Try another address
                     {otherMode
-                      ? `, or book ${BOOKED_AS[otherMode]} instead`
-                      : ''}
-                    .
+                      ? t('Try another address, or book {mode} instead.', { mode: t(BOOKED_AS[otherMode]) })
+                      : t('Try another address.')}
                   </p>
                   {otherMode && (
                     <button
@@ -2126,7 +2136,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                       onClick={() => setChosenType(otherMode)}
                       className="fx-raised fx-press mt-1 inline-flex h-11 items-center self-start rounded-[14px] px-4 text-t4 font-semibold text-text-primary"
                     >
-                      Choose {BOOKING_TYPE_LABELS[otherMode]}
+                      {t('Choose {mode}', { mode: t(BOOKING_TYPE_LABELS[otherMode]) })}
                     </button>
                   )}
                 </div>
@@ -2139,13 +2149,13 @@ function BookContent({ vendorId }: { vendorId: string }) {
                     tabIndex={-1}
                     className="scroll-mt-20 text-t3 text-text-primary outline-none"
                   >
-                    Pin the exact spot
+                    {t('Pin the exact spot')}
                   </p>
                   <p className="text-t4 text-text-secondary">
                     {isPickup
-                      ? 'We need it to check this garage collects from you, and so the driver finds your car.'
-                      : 'We need it to check this garage travels to you.'}
-                    {pinningAddress ? ' Saving...' : ''}
+                      ? t('We need it to check this garage collects from you, and so the driver finds your car.')
+                      : t('We need it to check this garage travels to you.')}
+                    {pinningAddress ? ` ${t('Saving...')}` : ''}
                   </p>
                   <LocationPicker showSearch onChange={handlePinAddress} />
                 </div>
@@ -2157,10 +2167,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 className="flex min-h-11 items-center justify-center gap-1.5 rounded-[14px] border border-dashed border-white/[0.18] text-t4 font-semibold text-[#C8C8D0] transition-colors hover:text-text-primary"
               >
                 {isGuest ? (
-                  'Change address'
+                  t('Change address')
                 ) : (
                   <>
-                    <IconPlus size={15} aria-hidden className="text-[#ff4d66]" /> Add another address
+                    <IconPlus size={15} aria-hidden className="text-[#ff4d66]" /> {t('Add another address')}
                   </>
                 )}
               </button>
@@ -2174,7 +2184,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
       <section
         ref={slotStepRef}
         tabIndex={-1}
-        aria-label="Date and time"
+        aria-label={t('Date and time')}
         className="scroll-mt-20 outline-none"
         hidden={requestMode}
       >
@@ -2209,7 +2219,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
           tabIndex={-1}
           className="mb-2.5 scroll-mt-20 text-t2 font-semibold text-text-primary outline-none"
         >
-          Car
+          {t('Car')}
         </h2>
         {isGuest ? (
           // A guest (0062): the body type sets the price; the names follow.
@@ -2224,18 +2234,17 @@ function BookContent({ vendorId }: { vendorId: string }) {
         ) : vehicles.length === 0 && !carDraftReady ? (
           <div className="flex flex-col items-start gap-2 rounded-[22px] border border-warning/40 bg-warning-muted/20 p-4">
             <p className="text-t3 text-text-primary">
-              Add a car to continue
+              {t('Add a car to continue')}
             </p>
             <p className="text-t4 text-text-secondary">
-              We need to know which car we&apos;re washing — pricing can differ
-              by type.
+              {t("We need to know which car we're washing — pricing can differ by type.")}
             </p>
             <button
               type="button"
               onClick={() => setAddCarOpen(true)}
               className="fx-raised fx-press mt-1 inline-flex h-11 items-center gap-1.5 rounded-[14px] px-4 text-t4 font-semibold text-text-primary"
             >
-              <IconPlus size={15} aria-hidden className="text-[#ff4d66]" /> Add a car
+              <IconPlus size={15} aria-hidden className="text-[#ff4d66]" /> {t('Add a car')}
             </button>
           </div>
         ) : (
@@ -2253,7 +2262,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                   {draftCar.make.trim()} {draftCar.model.trim()}
                 </span>
                 <span className="truncate text-t5 font-medium text-[#8E8E98]">
-                  {VEHICLE_TIERS.find((t) => t.value === draftCar.vehicleType)?.label} · new
+                  {t('{label} · new', { label: t(VEHICLE_TIERS.find((tier) => tier.value === draftCar.vehicleType)?.label ?? '') })}
                 </span>
                 <RedLight
                   state={selectedVehicle === DRAFT_CAR ? 'on' : 'off'}
@@ -2280,7 +2289,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                     <NumberPlate plate={v.plate} size="sm" />
                   ) : (
                     <span className="truncate text-t5 font-medium text-[#8E8E98]">
-                      {VEHICLE_TIERS.find((t) => t.value === v.vehicleType)?.label}
+                      {t(VEHICLE_TIERS.find((tier) => tier.value === v.vehicleType)?.label ?? '')}
                     </span>
                   )}
                   <RedLight state={on ? 'on' : 'off'} className="absolute bottom-[5px] left-1/2 -ml-2.5" />
@@ -2294,7 +2303,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
               onClick={() => setAddCarOpen(true)}
               className="flex min-h-14 items-center justify-center gap-1.5 rounded-[18px] border border-dashed border-white/[0.18] text-t4 font-semibold text-[#C8C8D0] transition-colors hover:text-text-primary"
             >
-              <IconPlus size={15} aria-hidden className="text-[#ff4d66]" /> Add another car
+              <IconPlus size={15} aria-hidden className="text-[#ff4d66]" /> {t('Add another car')}
             </button>
           </div>
         )}
@@ -2323,7 +2332,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
               id="checkout-savings"
               className="mb-0.5 text-t2 font-semibold text-text-primary"
             >
-              Savings
+              {t('Savings')}
             </h2>
             {/* Codes need a saved car to price against (the server's check). */}
             {savedVehicleId && (appliedDiscount ? (
@@ -2335,21 +2344,20 @@ function BookContent({ vendorId }: { vendorId: string }) {
                   <span className="min-w-0">
                     <span className="block truncate text-[14px] font-semibold text-text-primary">
                       {suggestionApplied && appliedReward
-                        ? `Best for you: ${appliedReward.label}`
+                        ? t('Best for you: {label}', { label: appliedReward.label })
                         : appliedReward
-                          ? `${appliedReward.label} applied`
+                          ? t('{label} applied', { label: appliedReward.label })
                           : appliedCoupon
-                            ? `Coupon applied: ${appliedCoupon.title}`
+                            ? t('Coupon applied: {title}', { title: appliedCoupon.title })
                             : freeWashes.some((w) => w.code.toUpperCase() === appliedDiscount.code.toUpperCase())
-                              ? 'Free wash applied'
-                              : `${appliedDiscount.code} applied`}
+                              ? t('Free wash applied')
+                              : t('{label} applied', { label: appliedDiscount.code })}
                     </span>
                     <span className="block text-t5 font-medium text-success">
-                      Saves{' '}
-                      <span className="font-numeric">
+                      {fill(t('Saves {money}'), { money: <span className="font-numeric">
                         {money(appliedDiscount.discountAmount)}
-                      </span>
-                      {suggestionApplied ? ' · applied' : ''}
+                      </span> })}
+                      {suggestionApplied ? ` · ${t('applied')}` : ''}
                     </span>
                   </span>
                 </span>
@@ -2359,7 +2367,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                   onClick={handleRemovePromo}
                   className="min-h-11 shrink-0 px-2 text-t4 font-semibold text-text-primary"
                 >
-                  Remove
+                  {t('Remove')}
                 </button>
               </div>
             ) : (
@@ -2374,11 +2382,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
                       <IconPercentage size={18} aria-hidden />
                     </span>
                     <span className="text-[14px] font-semibold text-text-primary">
-                      Coupons and offers
+                      {t('Coupons and offers')}
                     </span>
                   </span>
                   <span className="flex shrink-0 items-center gap-0.5 text-t4 font-medium text-[#8E8E98]">
-                    {offerChecking ? `Checking ${offerCode}…` : 'Apply'}
+                    {offerChecking ? t('Checking {code}…', { code: offerCode }) : t('Apply')}
                     <IconChevronRight size={15} aria-hidden />
                   </span>
                 </button>
@@ -2397,17 +2405,16 @@ function BookContent({ vendorId }: { vendorId: string }) {
                         aria-hidden="true"
                       />
                       <span>
-                        {offerCode} doesn&apos;t apply to this booking.{' '}
-                        {offerProblem}
+                        {t("{offerCode} doesn't apply to this booking. {offerProblem}", { offerCode: offerCode ?? '', offerProblem: offerProblem ?? '' })}
                       </span>
                     </p>
                     <button
                       type="button"
                       onClick={handleRemovePromo}
-                      aria-label={`Remove ${offerCode}`}
+                      aria-label={t('Remove {name}', { name: offerCode ?? '' })}
                       className="-mr-2 min-h-11 shrink-0 px-2 text-t4 text-text-primary"
                     >
-                      Remove
+                      {t('Remove')}
                     </button>
                   </div>
                 )}
@@ -2423,7 +2430,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                         onClick={() => handleApplyReward(wash.code)}
                         className="bk-offer-chip flex min-h-11 items-center rounded-[12px] px-3 text-t5 font-semibold disabled:opacity-50"
                       >
-                        Free wash · up to ₹{wash.amount}
+                        {t('Free wash · up to ₹{amount}', { amount: wash.amount })}
                       </button>
                     ))}
                     {rewardVouchers.slice(0, 4).map((voucher) => (
@@ -2435,7 +2442,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                         className="bk-offer-chip flex min-h-11 items-center gap-1.5 rounded-[12px] px-3 text-t5 font-semibold disabled:opacity-50"
                       >
                         <span className="font-numeric">
-                          {rewardRupees(voucher.amount)} off
+                          {t('{rewardRupees} off', { rewardRupees: rewardRupees(voucher.amount) })}
                         </span>
                         <span>· {voucher.label}</span>
                       </button>
@@ -2460,15 +2467,13 @@ function BookContent({ vendorId }: { vendorId: string }) {
               <div className="flex min-h-14 items-center justify-between gap-3 rounded-[18px] border border-white/[0.07] bg-[#111114] px-3.5 py-2.5">
                 <span className="flex min-w-0 flex-col gap-0.5">
                   <span className="text-[14px] font-semibold text-text-primary">
-                    Use{' '}
-                    <span className="font-numeric">
+                    {fill(t('Use {money} Detlio credit'), { money: <span className="font-numeric">
                       {money(creditSplit.credit)}
-                    </span>{' '}
-                    Detlio credit
+                    </span> })}
                   </span>
                 </span>
                 <ScSwitch
-                  label="Use Detlio credit"
+                  label={t('Use Detlio credit')}
                   checked={creditSwitchOn}
                   disabled={loading}
                   onChange={setCreditSwitchOn}
@@ -2487,13 +2492,13 @@ function BookContent({ vendorId }: { vendorId: string }) {
           className="flex flex-col gap-3"
         >
           <h2 id="checkout-price" className="sr-only">
-            Price
+            {t('Price')}
           </h2>
           <div className="fx-edge flex flex-col rounded-[22px] px-4 pb-4 pt-1.5 text-t4 font-medium">
             {/* Only once there is more than one line to add up. */}
             {lineCount > 1 && (
               <div className="flex items-center justify-between gap-3 border-b border-white/[0.06] py-2.5">
-                <span className="text-[#C8C8D0]">Subtotal</span>
+                <span className="text-[#C8C8D0]">{t('Subtotal')}</span>
                 <span className="font-numeric font-semibold text-text-primary">
                   {subtotal == null || !selectedVehicle ? '—' : money(subtotal)}
                 </span>
@@ -2503,13 +2508,13 @@ function BookContent({ vendorId }: { vendorId: string }) {
             {isPickup && (
               <div className="flex items-start justify-between gap-3 border-b border-white/[0.06] py-2.5">
                 <span className="min-w-0 text-[#C8C8D0]">
-                  <span className="block">Pickup &amp; drop</span>
+                  <span className="block">{t('Pickup & drop')}</span>
                   {selectedAddressRecord && (
                     <span
                       className="block truncate text-t5 text-text-muted"
                       data-clarity-mask="true"
                     >
-                      From and back to {selectedAddressRecord.address}
+                      {t('From and back to {address}', { address: selectedAddressRecord.address })}
                     </span>
                   )}
                 </span>
@@ -2521,14 +2526,14 @@ function BookContent({ vendorId }: { vendorId: string }) {
             {/* An accepted request's travel fee (0062): its own line. */}
             {travelFee > 0 && (
               <div className="flex items-center justify-between gap-3 border-b border-white/[0.06] py-2.5">
-                <span className="text-[#C8C8D0]">Travel fee</span>
+                <span className="text-[#C8C8D0]">{t('Travel fee')}</span>
                 <span className="font-numeric font-semibold text-text-primary">{money(travelFee)}</span>
               </div>
             )}
             {appliedDiscount && (
               <div className="flex items-center justify-between gap-3 border-b border-white/[0.06] py-2.5 text-[#4ADE80]">
                 <span className="min-w-0 truncate">
-                  Discount ({appliedDiscount.code})
+                  {t('Discount ({code})', { code: appliedDiscount.code })}
                 </span>
                 <span className="shrink-0 font-numeric font-semibold">
                   −{money(appliedDiscount.discountAmount)}
@@ -2537,14 +2542,14 @@ function BookContent({ vendorId }: { vendorId: string }) {
             )}
             {creditApplied && (
               <div className="flex items-center justify-between gap-3 border-b border-white/[0.06] py-2.5 text-[#4ADE80]">
-                <span>Detlio credit</span>
+                <span>{t('Detlio credit')}</span>
                 <span className="shrink-0 font-numeric font-semibold">
                   −{money(creditSplit.credit)}
                 </span>
               </div>
             )}
             <div className="flex items-baseline justify-between gap-3 pt-3.5">
-              <span className="text-t3 font-semibold text-text-primary">To pay</span>
+              <span className="text-t3 font-semibold text-text-primary">{t('To pay')}</span>
               <span className="text-[26px] font-semibold leading-none tracking-[-0.02em] text-text-primary">
                 {toPay == null || !selectedVehicle ? (
                   <span className="font-numeric">—</span>
@@ -2564,7 +2569,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 className="mt-px shrink-0 text-text-secondary"
                 aria-hidden="true"
               />
-              <span>{PICKUP_RESPONSIBILITY_LINE}</span>
+              <span>{t(PICKUP_RESPONSIBILITY_LINE)}</span>
             </p>
           )}
 
@@ -2574,8 +2579,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
             (service) => service.pricingType === 'on_inspection'
           ) && (
             <p className="text-t4 leading-relaxed text-text-secondary">
-              You pay the inspection fee now. If the work costs more, the garage
-              sends the final bill in the app and you pay the rest here.
+              {t('You pay the inspection fee now. If the work costs more, the garage sends the final bill in the app and you pay the rest here.')}
             </p>
           )}
 
@@ -2583,14 +2587,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
               MAX_RESCHEDULES in bookings.service.ts, and the no-show rule ops
               applies (markNoShow). */}
           <p className="text-t5 font-medium leading-normal text-[#8E8E98]">
-            <span className="text-[#C8C8D0]">Cancellation policy:</span>{' '}
-            Cancel any time until the garage accepts. Once it has, cancel or
-            reschedule up to 2 hours before your slot. You can reschedule up to
-            2 times; each new time goes back to the garage to accept, and if it
-            can&apos;t take it, the booking is cancelled. If you don&apos;t turn
-            up for an accepted booking, it isn&apos;t refunded.
+            {fill(t("{part} Cancel any time until the garage accepts. Once it has, cancel or reschedule up to 2 hours before your slot. You can reschedule up to 2 times; each new time goes back to the garage to accept, and if it can't take it, the booking is cancelled. If you don't turn up for an accepted booking, it isn't refunded."), { part: <span className="text-[#C8C8D0]">{t('Cancellation policy:')}</span> })}
             {isPickup &&
-              ' Once the garage has collected your car, the booking can’t be cancelled or moved in the app.'}
+              ` ${t('Once the garage has collected your car, the booking can’t be cancelled or moved in the app.')}`}
           </p>
 
           {/* Coupons, rewards and credit belong to an account, so they show
@@ -2599,8 +2598,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
           {selectedVehicle && !savedVehicleId && (
             <p className="text-t4 leading-relaxed text-text-secondary">
               {offerCode
-                ? `Code ${offerCode} is checked when you pay.`
-                : 'Have a coupon? You can apply it once you’re signed in.'}
+                ? t('Code {code} is checked when you pay.', { code: offerCode })
+                : t('Have a coupon? You can apply it once you’re signed in.')}
             </p>
           )}
         </section>
@@ -2619,13 +2618,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
           // (handleVerify), so its button must not promise a payment.
           verifyLabel={
             nextStep === 'signin' && signIn.isNew && toPay != null && toPay > 0 ? (
-              <>
-                Verify and pay <span className="font-numeric">{money(toPay)}</span>
-              </>
+              fill(t('Verify and pay {amount}'), { amount: <span className="font-numeric">{money(toPay)}</span> })
             ) : nextStep === 'signin' ? (
-              'Verify and continue'
+              t('Verify and continue')
             ) : (
-              'Verify'
+              t('Verify')
             )
           }
         />
@@ -2642,23 +2639,23 @@ function BookContent({ vendorId }: { vendorId: string }) {
             className="scroll-mt-20 text-t2 font-semibold text-text-primary outline-none"
           >
             {needsName ? (
-              'Your name'
+              t('Your name')
             ) : authUser?.name && authUser.name !== 'User' ? (
               <>
-                Signed in as{' '}
+                {t('Signed in as')}{' '}
                 {/* A name: hidden from Clarity, like every name on screen. */}
                 <span data-clarity-mask="true">{authUser.name}</span>
               </>
             ) : (
-              'Signed in'
+              t('Signed in')
             )}
           </h2>
           {needsName && (
             <ScInput
               data-clarity-mask="true"
               id="checkout-profile-name"
-              label="Your name (for the garage)"
-              placeholder="Your name"
+              label={t('Your name (for the garage)')}
+              placeholder={t('Your name')}
               autoComplete="name"
               autoCapitalize="words"
               maxLength={255}
@@ -2669,7 +2666,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
           {selectedVehicle === DRAFT_CAR && vehicles.length > 0 && (
             <div className="flex flex-col gap-2">
               <p className="text-t4 text-text-secondary">
-                We&apos;ll save the car you entered. Or use a saved one:
+                {t("We'll save the car you entered. Or use a saved one:")}
               </p>
               <div className="flex flex-wrap gap-2">
                 {vehicles.map((v) => (
@@ -2679,7 +2676,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                     onClick={() => setPickedVehicle(v.id)}
                     className="fx-raised fx-press flex min-h-11 items-center rounded-[12px] px-3.5 text-t4 font-medium text-text-primary"
                   >
-                    Use saved: {v.make} {v.model}
+                    {t('Use saved: {make} {model}', { make: v.make, model: v.model })}
                   </button>
                 ))}
               </div>
@@ -2688,7 +2685,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
           {selectedAddress === DRAFT_ADDRESS && addresses.length > 0 && (
             <div className="flex flex-col gap-2">
               <p className="text-t4 text-text-secondary">
-                We&apos;ll save the address you entered. Or use a saved one:
+                {t("We'll save the address you entered. Or use a saved one:")}
               </p>
               <div className="flex flex-wrap gap-2">
                 {addresses.map((a) => (
@@ -2698,7 +2695,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                     onClick={() => pickAddress(a.id)}
                     className="fx-raised fx-press flex min-h-11 items-center rounded-[12px] px-3.5 text-t4 font-medium text-text-primary"
                   >
-                    Use saved: {a.label}
+                    {t('Use saved: {label}', { label: a.label })}
                   </button>
                 ))}
               </div>
@@ -2706,7 +2703,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
           )}
           {!needsName && selectedVehicle !== DRAFT_CAR && selectedAddress !== DRAFT_ADDRESS && (
             <p className="text-t4 text-text-secondary">
-              You&apos;re signed in. Pay below to send your booking to the garage.
+              {t("You're signed in. Pay below to send your booking to the garage.")}
             </p>
           )}
         </section>
@@ -2749,23 +2746,23 @@ function BookContent({ vendorId }: { vendorId: string }) {
         open={promoOpen}
         onClose={() => setPromoOpen(false)}
         dismissible={!applyPromo.isPending}
-        aria-label="Coupons and offers"
+        aria-label={t('Coupons and offers')}
         className="px-[18px]"
       >
         <h2 className="text-t2 font-semibold text-text-primary">
-          Coupons and offers
+          {t('Coupons and offers')}
         </h2>
 
         <div className="fx-recessed mt-4 flex items-center gap-2 rounded-[14px] px-3.5">
           <input
             id="promo-code"
-            aria-label="Coupon code"
+            aria-label={t('Coupon code')}
             aria-invalid={promoError ? true : undefined}
             aria-describedby={promoError ? 'promo-code-error' : undefined}
             autoFocus
             autoCapitalize="characters"
             autoComplete="off"
-            placeholder="Enter coupon code"
+            placeholder={t('Enter coupon code')}
             value={promoInput}
             onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
             onKeyDown={(e) => e.key === 'Enter' && handleApplyPromo()}
@@ -2778,7 +2775,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
             onClick={handleApplyPromo}
             className="-mr-1 min-h-11 shrink-0 px-2 text-t3 font-semibold text-text-primary transition-colors disabled:text-text-muted"
           >
-            {applyPromo.isPending ? 'Checking…' : 'Apply'}
+            {applyPromo.isPending ? t('Checking…') : t('Apply')}
           </button>
         </div>
 
@@ -2801,8 +2798,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
         )}
 
         <p className="mt-4 text-t4 text-text-muted">
-          Have a code from Detlio? Enter it above to see your savings before you
-          pay.
+          {t('Have a code from Detlio? Enter it above to see your savings before you pay.')}
         </p>
       </ScSheet>
       </main>
@@ -2815,7 +2811,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
             render and only its text changes, so it is announced. */}
         <p role="status" className="sr-only">
           {paid?.phase === 'confirming'
-            ? 'Payment received. Confirming your booking.'
+            ? t('Payment received. Confirming your booking.')
             : paid
               ? paymentReceivedText(
                   paid.paymentId,
@@ -2843,7 +2839,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
               className="shrink-0 animate-spin"
               aria-hidden="true"
             />
-            Payment received — confirming your booking…
+            {t('Payment received — confirming your booking…')}
           </ScButton>
         ) : (
           <>
@@ -2857,7 +2853,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 </span>
                 {subtotal != null && selectedVehicle && (
                   <span className="shrink-0 text-[#A8A8B2]">
-                    {toPay != null && toPay !== subtotal ? 'To pay' : 'Total'}{' '}
+                    {toPay != null && toPay !== subtotal ? t('To pay') : t('Total')}{' '}
                     <span className="font-numeric text-t3 font-semibold text-text-primary">
                       {money(toPay ?? subtotal)}
                     </span>
@@ -2872,14 +2868,14 @@ function BookContent({ vendorId }: { vendorId: string }) {
                   // Short, beside Pay; the full promise is on the claim screen.
                   <li
                     className="flex items-center gap-1.5"
-                    title={`${GUARANTEE_BADGE} — ${GUARANTEE_SUMMARY}`}
+                    title={`${t(GUARANTEE_BADGE)} — ${t(GUARANTEE_SUMMARY)}`}
                   >
                     <IconShieldCheck
                       size={13}
                       aria-hidden
                       className="shrink-0 text-[#4ADE80]"
                     />
-                    Free redo within 48 hours if you&apos;re not happy
+                    {t("Free redo within 48 hours if you're not happy")}
                   </li>
                 )}
                 <li className="flex items-center gap-1.5">
@@ -2888,7 +2884,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                     aria-hidden
                     className="shrink-0 text-[#4ADE80]"
                   />
-                  Free cancel until the garage accepts
+                  {t('Free cancel until the garage accepts')}
                 </li>
               </ul>
             )}
@@ -2918,7 +2914,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 nextStep ? () => goToStep(nextStep) : () => void handlePay()
               }
               className={cn(
-                'h-[52px] rounded-[16px] py-0 text-t3 font-semibold',
+                // At least 52px, growing to two lines rather than spilling
+                // when a step's name is long (Tamil).
+                'h-auto min-h-[52px] rounded-[16px] py-1.5 text-center text-t3 leading-tight font-semibold',
                 // Grey until the booking is ready, so red only ever means
                 // "this pays" (F5's "not ready yet").
                 nextStep && 'bk-cta-wait hover:bg-transparent',
@@ -2936,23 +2934,23 @@ function BookContent({ vendorId }: { vendorId: string }) {
               }
             >
               {loading ? (
-                'Processing payment...'
+                t('Processing payment...')
               ) : savingDraft ? (
-                'Saving your car…'
+                t('Saving your car…')
               ) : !nextStep && applyPromo.isPending ? (
                 // Pay waits for the code being checked (see handleConfirm).
-                'Checking…'
+                t('Checking…')
               ) : nextStep ? (
                 stepLabels[nextStep]
               ) : toPay == null ? (
-                'Confirm booking'
+                t('Confirm booking')
               ) : freeBooking ? (
-                'Book your free wash'
+                t('Book your free wash')
               ) : toPay === 0 ? (
-                'Book with credit'
+                t('Book with credit')
               ) : (
                 <>
-                  Pay <span className="font-numeric">{money(toPay)}</span>
+                  {fill(t('Pay {money}'), { money: <span className="font-numeric">{money(toPay)}</span> })}
                 </>
               )}
             </MainAction>
@@ -2964,39 +2962,40 @@ function BookContent({ vendorId }: { vendorId: string }) {
               {nextStep === 'address' ? (
                 addressOptions.length === 0 ? (
                   isPickup ? (
-                    'Add the address we should collect your car from.'
+                    t('Add the address we should collect your car from.')
                   ) : (
-                    'Add the address we should come to.'
+                    t('Add the address we should come to.')
                   )
                 ) : isPickup ? (
-                  'Pick the address we should collect your car from.'
+                  t('Pick the address we should collect your car from.')
                 ) : (
-                  'Pick the address we should come to.'
+                  t('Pick the address we should come to.')
                 )
               ) : nextStep === 'pin' ? (
                 isPickup ? (
-                  'We need the exact spot to check this garage collects from you.'
+                  t('We need the exact spot to check this garage collects from you.')
                 ) : (
-                  'We need the exact spot to check this garage travels to you.'
+                  t('We need the exact spot to check this garage travels to you.')
                 )
               ) : nextStep === 'outside' ? (
                 outsideAdvice
               ) : nextStep === 'signin' ? (
-                'Sign in with your number to pay. No password: we text you a code.'
+                t('Sign in with your number to pay. No password: we text you a code.')
               ) : nextStep === 'name' ? (
-                'The garage sees your name on your booking.'
+                t('The garage sees your name on your booking.')
               ) : nextStep === 'unpriced' ? (
-                `${unpricedLines.map((line) => line.service.name).join(', ')} ${
-                  unpricedLines.length === 1 ? 'is' : 'are'
-                } not priced for your vehicle type. Remove ${
-                  unpricedLines.length === 1 ? 'it' : 'them'
-                }, pick another car, or contact the garage.`
+                tn(
+                  unpricedLines.length,
+                  '{names} is not priced for your vehicle type. Remove it, pick another car, or contact the garage.',
+                  '{names} are not priced for your vehicle type. Remove them, pick another car, or contact the garage.',
+                  { names: unpricedLines.map((line) => line.service.name).join(', ') }
+                )
               ) : nextStep ? (
-                'You pay now. Your booking is confirmed once the garage accepts it.'
+                t('You pay now. Your booking is confirmed once the garage accepts it.')
               ) : freeBooking ? (
-                'Your free wash covers it: nothing to pay. Your booking is confirmed once the garage accepts it.'
+                t('Your free wash covers it: nothing to pay. Your booking is confirmed once the garage accepts it.')
               ) : toPay === 0 ? (
-                'Paid with your Detlio credit. Your booking is confirmed once the garage accepts it.'
+                t('Paid with your Detlio credit. Your booking is confirmed once the garage accepts it.')
               ) : (
                 // Who takes the money, said where people hesitate (F4).
                 <>
@@ -3005,33 +3004,28 @@ function BookContent({ vendorId }: { vendorId: string }) {
                     aria-hidden
                     className="mr-1 inline align-[-1px]"
                   />
-                  Secure payment by Razorpay · UPI, cards, net banking. Your
-                  booking is confirmed once the garage accepts it.
+                  {t('Secure payment by Razorpay · UPI, cards, net banking. Your booking is confirmed once the garage accepts it.')}
                 </>
               )}
             </p>
             {/* Beside Pay, as Razorpay and the E-Commerce Rules expect. New
                 tabs, so the time, car and code picked here are still here. */}
             <p className="mt-1 text-center text-t5 text-text-muted">
-              By paying you agree to the{' '}
-              <a
+              {fill(t('By paying you agree to the {part} and the {part2}.'), { part: <a
                 href={LEGAL_PATHS.terms}
                 target="_blank"
                 rel="noopener"
                 className="inline-flex min-h-6 items-center underline underline-offset-2 hover:text-text-primary"
               >
-                Terms
-              </a>{' '}
-              and the{' '}
-              <a
+                {t('Terms')}
+              </a>, part2: <a
                 href={LEGAL_PATHS.refunds}
                 target="_blank"
                 rel="noopener"
                 className="inline-flex min-h-6 items-center underline underline-offset-2 hover:text-text-primary"
               >
-                Cancellation &amp; Refund Policy
-              </a>
-              .
+                {t('Cancellation & Refund Policy')}
+              </a> })}
             </p>
           </>
         )}

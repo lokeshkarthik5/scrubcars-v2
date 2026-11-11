@@ -1,4 +1,5 @@
 import { invalidateHome } from '@repo/core/api/hooks/use-home';
+import { useT } from '@repo/core/i18n';
 import { ScButton } from '@repo/native-ui/button';
 import { ScSheet } from '@repo/native-ui/sheet';
 import { T } from '@repo/native-ui/text';
@@ -21,6 +22,7 @@ const RECHECK_MS = 10_000;
  * over it.
  */
 export function PaymentRecovery() {
+  const t = useT();
   const colors = useColors();
   const queryClient = useQueryClient();
   const [failed, setFailed] = useState<{ title: string; message: string } | null>(null);
@@ -37,13 +39,13 @@ export function PaymentRecovery() {
           const outcome = await checkPending(payment);
           if (outcome.kind === 'booked' && payment.kind === 'gift') {
             void queryClient.invalidateQueries();
-            toast.success('Your gift is paid. Get its link in Gifts you sent.');
+            toast.success(t('Your gift is paid. Get its link in Gifts you sent.'));
             router.push('/profile/gifts' as Href);
           } else if (outcome.kind === 'booked') {
             if (payment.kind === 'intent') clearBookingDraft();
             void invalidateHome(queryClient);
             void queryClient.invalidateQueries();
-            toast.success(payment.kind === 'intent' ? 'Your payment went through. The booking is with the garage.' : 'Your payment went through.');
+            toast.success(payment.kind === 'intent' ? t('Your payment went through. The booking is with the garage.') : t('Your payment went through.'));
             router.push(`/bookings/${outcome.bookingId}` as Href);
           } else if (outcome.kind === 'failed') {
             setFailed({ title: failedTitle(payment.kind), message: outcome.message });
@@ -67,7 +69,7 @@ export function PaymentRecovery() {
   }, [queryClient]);
 
   return (
-    <ScSheet horizontalPadding={16} open={failed !== null} onClose={() => setFailed(null)} accessibilityLabel="Your payment">
+    <ScSheet horizontalPadding={16} open={failed !== null} onClose={() => setFailed(null)} accessibilityLabel={t('Your payment')}>
       <T size={20} lh={28} tracking={-0.015}>
         {failed?.title ?? ''}
       </T>
@@ -76,7 +78,7 @@ export function PaymentRecovery() {
       </T>
       <View style={{ marginTop: 20 }}>
         <ScButton variant="main" onPress={() => setFailed(null)}>
-          OK
+          {t('OK')}
         </ScButton>
       </View>
     </ScSheet>

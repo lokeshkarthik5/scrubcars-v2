@@ -32,6 +32,7 @@ import {
 } from '@/lib/coverage-area';
 import { errorText } from '@/lib/error-text';
 import { mapAvailable, regionFor } from '@/lib/location-picker-logic';
+import { useT } from '@repo/core/i18n';
 
 /** The web's h-64. */
 const MAP_HEIGHT = 256;
@@ -95,6 +96,7 @@ export function CoverageArea({
   /** Shown when no area is drawn, to say what applies instead. */
   fallbackRadiusKm?: number | null;
 }) {
+  const t = useT();
   const colors = useColors();
   const { scheme } = useTheme();
   const styles = useStyles();
@@ -144,9 +146,9 @@ export function CoverageArea({
       const ring = savePayload(corners);
       await setDoorstepArea(ring);
       setSavedCount(savedCornerCount(ring));
-      toast.success(savedToast(corners));
+      toast.success(t(savedToast(corners)));
     } catch (err) {
-      toast.error(errorText(err, COVERAGE_SAVE_FAILED));
+      toast.error(errorText(err, t(COVERAGE_SAVE_FAILED)));
     } finally {
       setSaving(false);
     }
@@ -159,9 +161,9 @@ export function CoverageArea({
       await setDoorstepArea(null);
       setCorners([]);
       setSavedCount(0);
-      toast.success(COVERAGE_CLEARED);
+      toast.success(t(COVERAGE_CLEARED));
     } catch (err) {
-      toast.error(errorText(err, COVERAGE_SAVE_FAILED));
+      toast.error(errorText(err, t(COVERAGE_SAVE_FAILED)));
     } finally {
       setSaving(false);
     }
@@ -169,12 +171,12 @@ export function CoverageArea({
 
   return (
     <View style={styles.section}>
-      <SectionHeader title="Doorstep coverage area" />
+      <SectionHeader title={t('Doorstep coverage area')} />
       <ScCard style={styles.section}>
         {mapShown ? (
           <>
             <T size={12} color={colors.textSecondary}>
-              {AREA_INTRO}
+              {t(AREA_INTRO)}
             </T>
             <View style={styles.editor}>
               <T size={11} color={colors.textMuted}>
@@ -237,7 +239,7 @@ export function CoverageArea({
                   onPress={() => setCorners(undoCorner)}
                   style={styles.flex}
                 >
-                  Undo corner
+                  {t('Undo corner')}
                 </RectButton>
                 <RectButton
                   tone="secondary"
@@ -249,7 +251,7 @@ export function CoverageArea({
                 >
                   <IconTrash size={14} color={colors.textPrimary} />
                   <T size={12} weight={600} lh={18}>
-                    Clear
+                    {t('Clear')}
                   </T>
                 </RectButton>
               </View>
@@ -268,13 +270,13 @@ export function CoverageArea({
         ) : (
           <>
             <T size={12} color={colors.textSecondary}>
-              {AREA_UNAVAILABLE_NOTE}
+              {t(AREA_UNAVAILABLE_NOTE)}
             </T>
             <T size={11} color={colors.textMuted}>
-              {loading ? 'Checking for a saved coverage area…' : savedStatus(savedCount, fallbackRadiusKm)}
+              {loading ? t('Checking for a saved coverage area…') : savedStatus(savedCount, fallbackRadiusKm)}
             </T>
             <RectButton tone="secondary" disabled={saving || loading} onPress={() => void clearSaved()}>
-              {saving ? 'Saving…' : 'Clear area and use radius'}
+              {saving ? t('Saving…') : t('Clear area and use radius')}
             </RectButton>
           </>
         )}

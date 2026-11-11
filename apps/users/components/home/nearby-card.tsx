@@ -9,6 +9,7 @@ import { AreaPicker } from '@/components/area/area-picker'
 import { Figures } from '@repo/ui/sc/figures'
 import { formatDistance } from '@repo/core/map'
 import type { HomeData } from '@repo/core/api/home'
+import { fill, useT } from '@repo/core/i18n'
 
 /** The faint line map behind the words, as drawn in the approved mockup. */
 function LineMap() {
@@ -65,6 +66,7 @@ const shell =
  * telling a customer who already shared it to turn it on.
  */
 export function NearbyCard({ nearby, located }: { nearby: HomeData['nearby']; located: boolean }) {
+  const t = useT()
   const [asking, setAsking] = useState(false)
   // A city with fewer than three garages shows no count (0070, mockup D):
   // "Detlio in Madurai", never a lonely "1 garage".
@@ -78,9 +80,9 @@ export function NearbyCard({ nearby, located }: { nearby: HomeData['nearby']; lo
         <button type="button" onClick={() => setAsking(true)} className={shell}>
           <LineMap />
           <span className="relative">
-            <span className="block text-t4 text-dim">Nearby garages</span>
+            <span className="block text-t4 text-dim">{t('Nearby garages')}</span>
             <span className="mt-[5px] mb-1 block text-t2 tracking-[-0.012em] text-text-primary">
-              Pick your area to see the nearest
+              {t('Pick your area to see the nearest')}
             </span>
           </span>
           <span aria-hidden className="relative grid size-10 shrink-0 place-items-center rounded-full bg-white/[0.08] backdrop-blur-sm">
@@ -100,11 +102,11 @@ export function NearbyCard({ nearby, located }: { nearby: HomeData['nearby']; lo
       <Link href="/garages" className={shell}>
         <LineMap />
         <span className="relative">
-          <span className="block text-t4 text-dim">Nearby garages</span>
+          <span className="block text-t4 text-dim">{t('Nearby garages')}</span>
           <span className="mt-[5px] mb-1 block text-t2 tracking-[-0.012em] text-text-primary">
-            No garages within <span className="font-numeric">{nearby.radiusKm}</span> km yet
+            {fill(t('No garages within {radiusKm} km yet'), { radiusKm: <span className="font-numeric">{nearby.radiusKm}</span> })}
           </span>
-          <span className="block text-t4 text-dim">See all garages</span>
+          <span className="block text-t4 text-dim">{t('See all garages')}</span>
         </span>
         <span aria-hidden className="relative grid size-10 shrink-0 place-items-center rounded-full bg-white/[0.08] backdrop-blur-sm">
           <IconChevronRight size={20} stroke={1.5} />
@@ -117,14 +119,14 @@ export function NearbyCard({ nearby, located }: { nearby: HomeData['nearby']; lo
     <Link href="/map" className={shell}>
       <LineMap />
       <span className="relative">
-        <span className="block text-t4 text-dim">Nearby garages</span>
+        <span className="block text-t4 text-dim">{t('Nearby garages')}</span>
         <span className="mt-[5px] mb-1 block text-[22px] tracking-[-0.022em] text-text-primary">
           {small ? (
             detlioInLine(city)
           ) : (
             <>
               <span className="font-numeric">{nearby.count}</span>{' '}
-              {nearby.count === 1 ? 'garage' : 'garages'}
+              {nearby.count === 1 ? t('garage') : t('garages')}
             </>
           )}
         </span>
@@ -132,11 +134,10 @@ export function NearbyCard({ nearby, located }: { nearby: HomeData['nearby']; lo
             worded as a drive time it does not know. Under 1 km reads in
             metres ("400 m"), as everywhere else a distance is shown. */}
         <span className="block text-t4 text-dim">
-          Within <span className="font-numeric">{nearby.radiusKm}</span> km
+          {fill(t('Within {radiusKm} km'), { radiusKm: <span className="font-numeric">{nearby.radiusKm}</span> })}
           {nearby.closestKm !== null && (
             <>
-              {' '}
-              · nearest <Figures text={formatDistance(nearby.closestKm)} />
+              {' '}{t('· nearest')} <Figures text={formatDistance(nearby.closestKm)} />
             </>
           )}
         </span>

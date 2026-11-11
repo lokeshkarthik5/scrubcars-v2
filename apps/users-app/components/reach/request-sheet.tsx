@@ -5,6 +5,7 @@ import { garageQuery } from '@repo/core/api/hooks/use-vendors';
 import { createAddress, createVehicle } from '@repo/core/api/users';
 import type { JustOutsideVendor } from '@repo/core/api/vendors';
 import { dayChipLabel, istClock, REQUEST_PROMISES, type RequestMode, WINDOW_PART_LABELS, type WindowPart } from '@repo/core/booking-requests';
+import { useT } from '@repo/core/i18n';
 import { resolveServiceAmount } from '@repo/core/pricing';
 import { effectiveDurationMins, hasDuration } from '@repo/core/service-duration';
 import { useUserStore } from '@repo/core/stores/user-store';
@@ -59,6 +60,7 @@ async function saveGuestAddress(address: DraftAddress): Promise<string> {
 
 /** RequestSheet (apps/users/components/reach/request-sheet.tsx). */
 export function RequestSheet({ open, onClose, garage, mode }: { open: boolean; onClose: () => void; garage: JustOutsideVendor; mode: RequestMode }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const vendor = garage.vendor;
@@ -113,8 +115,9 @@ export function RequestSheet({ open, onClose, garage, mode }: { open: boolean; o
   const addressReady = guest ? guestAddress !== null : addressChoice !== null;
   const ready = chosen.length > 0 && !unpriced && carReady && addressReady && window !== null;
   const toggleService = (id: string) => setServiceIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
-  const label = mode === 'pickup' ? 'Request a pickup' : 'Request a visit';
-  const carLabel = VEHICLE_TIERS.find((t) => t.value === vehicleType)?.label.toUpperCase();
+  const label = mode === 'pickup' ? t('Request a pickup') : t('Request a visit');
+  const carTier = VEHICLE_TIERS.find((tier) => tier.value === vehicleType)?.label;
+  const carLabel = carTier ? t(carTier).toUpperCase() : undefined;
 
   const send = async () => {
     if (!window) return;
@@ -137,7 +140,7 @@ export function RequestSheet({ open, onClose, garage, mode }: { open: boolean; o
       setSent(await create.mutateAsync({ vendorId: vendor.id, bookingType: mode, serviceIds, vehicleId, addressId, window }));
       track('request_sent', { vendorId: vendor.id, mode });
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : errorText(err, "Couldn't send the request. Try again."));
+      setError(err instanceof ApiError ? err.message : errorText(err, t("Couldn't send the request. Try again.")));
     } finally {
       setSending(false);
     }
@@ -164,15 +167,15 @@ export function RequestSheet({ open, onClose, garage, mode }: { open: boolean; o
   );
 
   return (
-    <ScSheet horizontalPadding={16} open={open} onClose={close} accessibilityLabel={`Request ${vendor.name}`}>
+    <ScSheet horizontalPadding={16} open={open} onClose={close} accessibilityLabel={t('Request {name}', { name: vendor.name })}>
       {sent ? (
         <View style={styles.sent}>
           <IconCircleCheck size={44} color={colors.success} />
           <T size={20} weight={500} lh={28}>
-            Request sent
+            {t('Request sent')}
           </T>
           <T size={15} lh={22} color={colors.textSecondary} align="center">
-            {`Waiting for ${sent.garage.name}. They reply by ${istClock(sent.respondBy)}, or we ask the next garage. Nothing to pay yet.`}
+            {t("Waiting for {name}. They reply by {time}, or we ask the next garage. Nothing to pay yet.", { name: sent.garage.name, time: istClock(sent.respondBy) })}
           </T>
           <View style={styles.sentActions}>
             <ScButton
@@ -185,10 +188,10 @@ export function RequestSheet({ open, onClose, garage, mode }: { open: boolean; o
                 router.push('/requests' as Href);
               }}
             >
-              See your request
+              {t('See your request')}
             </ScButton>
             <ScButton variant="text" height={44} onPress={close}>
-              Done
+              {t('Done')}
             </ScButton>
           </View>
         </View>
@@ -196,22 +199,22 @@ export function RequestSheet({ open, onClose, garage, mode }: { open: boolean; o
         <View style={styles.form}>
           <View>
             <T size={20} weight={500} lh={28}>
-              {`Request ${vendor.name}`}
+              {t('Request {name}', { name: vendor.name })}
             </T>
             <T size={13} lh={18} color={colors.textSecondary}>
-              {`${mode === 'pickup' ? 'They collect your car and bring it back' : 'To your home'} · ${garage.coverKm !== null ? `covers ${garage.coverKm} km, ` : ''}${garage.outsideKm} km outside`}
+              {`${mode === 'pickup' ? t('They collect your car and bring it back') : t('To your home')} · ${garage.coverKm !== null ? t('covers {km} km, {outside} km outside', { km: garage.coverKm, outside: garage.outsideKm }) : t('{outside} km outside', { outside: garage.outsideKm })}`}
             </T>
           </View>
 
           {guest || carChoice === GUEST_CAR ? (
             <View style={styles.section}>
-              {heading('Your car')}
+              {heading(t('Your car'))}
               <GuestCarForm car={guestCar} onChange={setGuestCar} />
             </View>
           ) : null}
           {!guest && vehicles.length > 1 ? (
             <View style={styles.section}>
-              {heading('Which car')}
+              {heading(t('Which car'))}
               <View style={styles.chips}>
                 {vehicles.map((v) => (
                   <Chip key={v.id} label={`${v.make} ${v.model}`} selected={carChoice === v.id} onPress={() => setCarChoice(v.id)} />
@@ -223,20 +226,20 @@ export function RequestSheet({ open, onClose, garage, mode }: { open: boolean; o
             <Pressable accessibilityRole="button" onPress={() => setCarChoice(GUEST_CAR)} style={styles.addLink}>
               <IconPlus size={14} color={colors.textSecondary} />
               <T size={13} lh={18} color={colors.textSecondary} style={styles.underline}>
-                Add your car
+                {t('Add your car')}
               </T>
             </Pressable>
           ) : null}
 
           <View style={styles.section}>
-            {heading(`Service${carLabel ? ` · your ${carLabel}` : ''}`)}
+            {heading(carLabel ? t('Service · your {car}', { car: carLabel }) : t('Service'))}
             {garageData.isLoading ? (
               <T size={13} lh={18} color={colors.textSecondary}>
-                Loading services…
+                {t('Loading services…')}
               </T>
             ) : services.length === 0 ? (
               <T size={13} lh={18} color={colors.textSecondary}>
-                This garage has no services to ask for yet.
+                {t('This garage has no services to ask for yet.')}
               </T>
             ) : (
               <View style={styles.section}>
@@ -263,7 +266,7 @@ export function RequestSheet({ open, onClose, garage, mode }: { open: boolean; o
                         ) : null}
                       </View>
                       <T num size={15} lh={20}>
-                        {vehicleType ? (amount === null ? 'Not priced' : `₹${amount.toLocaleString('en-IN')}`) : `from ₹${service.price.toLocaleString('en-IN')}`}
+                        {vehicleType ? (amount === null ? t('Not priced') : `₹${amount.toLocaleString('en-IN')}`) : t('from ₹{price}', { price: service.price.toLocaleString('en-IN') })}
                       </T>
                     </Pressable>
                   );
@@ -272,24 +275,24 @@ export function RequestSheet({ open, onClose, garage, mode }: { open: boolean; o
             )}
             {unpriced ? (
               <T accessibilityRole="alert" size={13} lh={18} color={colors.error}>
-                {"One of these isn't priced for your car at this garage. Remove it to send the request."}
+                {t("One of these isn't priced for your car at this garage. Remove it to send the request.")}
               </T>
             ) : null}
           </View>
 
           <View style={styles.section}>
-            {heading('When')}
+            {heading(t('When'))}
             {chosen.length === 0 ? (
               <T size={13} lh={18} color={colors.textSecondary}>
-                Pick a service to see when they can come.
+                {t('Pick a service to see when they can come.')}
               </T>
             ) : windows.isLoading ? (
               <T size={13} lh={18} color={colors.textSecondary}>
-                Checking their hours…
+                {t('Checking their hours…')}
               </T>
             ) : windows.isError || !windows.data ? (
               <T size={13} lh={18} color={colors.error}>
-                {"Couldn't load their hours. Close and try again."}
+                {t("Couldn't load their hours. Close and try again.")}
               </T>
             ) : (
               <>
@@ -307,7 +310,7 @@ export function RequestSheet({ open, onClose, garage, mode }: { open: boolean; o
                     />
                   ))}
                   <Chip
-                    label="Pick a day"
+                    label={t('Pick a day')}
                     selected={pickingDay}
                     onPress={() => {
                       setPickingDay(true);
@@ -338,7 +341,7 @@ export function RequestSheet({ open, onClose, garage, mode }: { open: boolean; o
                           return (
                             <Chip
                               key={part}
-                              label={WINDOW_PART_LABELS[part]}
+                              label={t(WINDOW_PART_LABELS[part])}
                               disabled={!day?.[part]}
                               selected={window?.date === pickedDay && window.part === part}
                               onPress={() => setWindow({ date: pickedDay, part })}
@@ -350,14 +353,14 @@ export function RequestSheet({ open, onClose, garage, mode }: { open: boolean; o
                   </View>
                 ) : null}
                 <T size={12} lh={16} color={colors.textMuted}>
-                  A window, not an exact time: the garage picks a start inside it.
+                  {t('A window, not an exact time: the garage picks a start inside it.')}
                 </T>
               </>
             )}
           </View>
 
           <View style={styles.section}>
-            {heading('Where')}
+            {heading(t('Where'))}
             {!guest
               ? pinned.map((a) => (
                   <Pressable
@@ -368,7 +371,7 @@ export function RequestSheet({ open, onClose, garage, mode }: { open: boolean; o
                     style={[styles.address, addressChoice === a.id ? styles.serviceOn : styles.serviceOff]}
                   >
                     <T size={15} lh={20}>
-                      {a.label || 'Address'}
+                      {a.label || t('Address')}
                     </T>
                     <T size={12} lh={16} color={colors.textMuted} numberOfLines={1}>
                       {a.address}
@@ -379,7 +382,7 @@ export function RequestSheet({ open, onClose, garage, mode }: { open: boolean; o
             {guestAddress && (guest || addressChoice === GUEST_ADDRESS) ? (
               <View style={[styles.address, styles.serviceOn]}>
                 <T size={15} lh={20}>
-                  {guestAddress.label || 'Address'}
+                  {guestAddress.label || t('Address')}
                 </T>
                 <T size={12} lh={16} color={colors.textMuted} numberOfLines={1}>
                   {guestAddress.address}
@@ -389,7 +392,7 @@ export function RequestSheet({ open, onClose, garage, mode }: { open: boolean; o
             <Pressable accessibilityRole="button" onPress={() => setAddAddressOpen(true)} style={styles.addLink}>
               <IconPlus size={14} color={colors.textSecondary} />
               <T size={13} lh={18} color={colors.textSecondary} style={styles.underline}>
-                {guestAddress || pinned.length > 0 ? 'Use another address' : 'Add your address'}
+                {guestAddress || pinned.length > 0 ? t('Use another address') : t('Add your address')}
               </T>
             </Pressable>
           </View>
@@ -399,7 +402,7 @@ export function RequestSheet({ open, onClose, garage, mode }: { open: boolean; o
               <View key={line} style={styles.promise}>
                 <IconCheck size={15} color={colors.success} />
                 <T size={13} lh={18} color={colors.textSecondary} style={styles.grow}>
-                  {line}
+                  {t(line)}
                 </T>
               </View>
             ))}
@@ -411,19 +414,19 @@ export function RequestSheet({ open, onClose, garage, mode }: { open: boolean; o
           ) : null}
           {guest ? (
             ready ? (
-              <CheckoutSignInCard signIn={signIn} verifyLabel="Verify and send request" onVerify={() => void verifyAndSend()} busy={sending} />
+              <CheckoutSignInCard signIn={signIn} verifyLabel={t('Verify and send request')} onVerify={() => void verifyAndSend()} busy={sending} />
             ) : (
               <T size={13} lh={18} color={colors.textSecondary}>
-                Pick a service, your car, a time and your address. Then sign in with your number to send it.
+                {t('Pick a service, your car, a time and your address. Then sign in with your number to send it.')}
               </T>
             )
           ) : (
             <ScButton variant="main" size="lg" disabled={!ready || sending} onPress={() => void send()}>
-              {sending ? 'Sending…' : 'Send request'}
+              {sending ? t('Sending…') : t('Send request')}
             </ScButton>
           )}
           <T size={12} lh={16} color={colors.textMuted} align="center" style={styles.foot}>
-            {`${label}: free to ask, no payment until they say yes.`}
+            {t('{action}: free to ask, no payment until they say yes.', { action: label })}
           </T>
         </View>
       )}

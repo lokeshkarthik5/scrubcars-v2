@@ -25,6 +25,7 @@ import { setVendorWorkingHours, updateSlotInterval, updateVendorJobTypes, update
 
 import { PickupSection } from './pickup-section';
 import { useSaving } from './use-saving';
+import { msg, useT } from '@repo/core/i18n';
 
 /**
  * Settings > Hours (apps/vendors/app/settings/page.tsx): weekly hours, slot interval,
@@ -42,6 +43,7 @@ export function HoursTab({
   onVendorChange: (vendor: ApiVendorProfile) => void;
   onOpenLocation: () => void;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const [workingHours, setWorkingHours] = useState<WorkingHoursForm[]>(() => mapWorkingHours(hours));
@@ -81,7 +83,7 @@ export function HoursTab({
   return (
     <>
       <View style={styles.section}>
-        <SectionHeader title="Working hours" />
+        <SectionHeader title={t('Working hours')} />
         <View style={styles.rows}>
           {workingHours.map((day) => (
             <ScCard key={day.dayOfWeek} style={styles.dayCard}>
@@ -105,19 +107,26 @@ export function HoursTab({
               {/* Says what the day is, and is pressed when it is closed. */}
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`${DAYS[day.dayOfWeek]} closed all day`}
+                accessibilityLabel={t('{day} closed all day', { day: DAYS[day.dayOfWeek]! })}
                 accessibilityState={{ selected: day.isClosed }}
                 onPress={() => setDay(day.dayOfWeek, { isClosed: !day.isClosed })}
                 style={[styles.toggle, day.isClosed && styles.toggleOn]}
               >
-                <T size={14} weight={500} color={day.isClosed ? colors.textPrimary : colors.textSecondary}>
-                  {day.isClosed ? 'Closed' : 'Open'}
+                <T
+                  size={14}
+                  weight={500}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}
+                  color={day.isClosed ? colors.textPrimary : colors.textSecondary}
+                >
+                  {day.isClosed ? t('Closed') : t('Open')}
                 </T>
               </Pressable>
             </ScCard>
           ))}
           <ScButton variant="main" size="lg" disabled={saving === 'working-hours'} onPress={() => void saveWorkingHours()}>
-            {saving === 'working-hours' ? 'Saving...' : 'Save working hours'}
+            {saving === 'working-hours' ? t('Saving...') : t('Save working hours')}
           </ScButton>
         </View>
       </View>
@@ -125,9 +134,9 @@ export function HoursTab({
       {vendor ? (
         <View style={styles.section}>
           <View>
-            <SectionHeader title="Slot interval" />
+            <SectionHeader title={t('Slot interval')} />
             <T size={12} color={colors.textSecondary} style={styles.subtitle}>
-              How far apart the start times customers can pick are.
+              {t('How far apart the start times customers can pick are.')}
             </T>
           </View>
           <ScCard>
@@ -148,10 +157,10 @@ export function HoursTab({
 
       {vendor ? (
         <View style={styles.section}>
-          <SectionHeader title="Capacity" />
+          <SectionHeader title={t('Capacity')} />
           <ScCard style={styles.section}>
             <ScInput
-              label="How many cars can you work on at the same time?"
+              label={t('How many cars can you work on at the same time?')}
               numeric
               keyboardType="number-pad"
               maxLength={2}
@@ -159,18 +168,17 @@ export function HoursTab({
               onChangeText={(text) => setCapacity({ ...capacity, bays: digitsOnly(text, 2) })}
             />
             <ScInput
-              label="Most jobs in a day (optional)"
+              label={t('Most jobs in a day (optional)')}
               numeric
               keyboardType="number-pad"
               maxLength={3}
-              placeholder="No limit"
+              placeholder={t('No limit')}
               value={capacity.jobsPerDay}
               onChangeText={(text) => setCapacity({ ...capacity, jobsPerDay: digitsOnly(text, 3) })}
             />
             {/* What the numbers do, in one line: customers are only offered a time when a car can go in. */}
             <T size={11} color={colors.textMuted}>
-              Customers are only offered times when you have room for one more car. Leave the daily limit blank for no
-              limit.
+              {t('Customers are only offered times when you have room for one more car. Leave the daily limit blank for no limit.')}
             </T>
             {capacityError ? (
               <T accessibilityRole="alert" size={12} color={colors.warning}>
@@ -179,7 +187,7 @@ export function HoursTab({
             ) : null}
             {/* Secondary: "Save working hours" above is this tab's main action. */}
             <ScButton variant="outline" disabled={!!capacityError || saving === 'capacity'} onPress={() => void saveCapacity()}>
-              {saving === 'capacity' ? 'Saving...' : 'Save capacity'}
+              {saving === 'capacity' ? t('Saving...') : t('Save capacity')}
             </ScButton>
           </ScCard>
         </View>
@@ -187,12 +195,12 @@ export function HoursTab({
 
       {vendor ? (
         <View style={styles.section}>
-          <SectionHeader title="Job types" />
+          <SectionHeader title={t('Job types')} />
           <ScCard style={styles.section}>
             {(
               [
-                { field: 'dropinEnabled', label: 'Drop In', description: 'Customers visit your garage' },
-                { field: 'doorstepEnabled', label: 'Doorstep', description: 'You travel to the customer' },
+                { field: 'dropinEnabled', label: msg('Drop In'), description: msg('Customers visit your garage') },
+                { field: 'doorstepEnabled', label: msg('Doorstep'), description: msg('You travel to the customer') },
               ] as const
             ).map(({ field, label, description }) => {
               const enabled = vendor[field];
@@ -201,15 +209,15 @@ export function HoursTab({
                   <View style={styles.switchRow}>
                     <View style={styles.flex}>
                       <T size={13} weight={500}>
-                        {label}
+                        {t(label)}
                       </T>
                       <T size={11} color={colors.textSecondary}>
-                        {description}
+                        {t(description)}
                       </T>
                     </View>
                     {/* Saves the moment it is tapped. */}
                     <ScSwitch
-                      label={label}
+                      label={t(label)}
                       checked={enabled}
                       disabled={saving === `job-type-${field}`}
                       onChange={(next) => void saveJobType(field, next)}
@@ -220,11 +228,11 @@ export function HoursTab({
                   {field === 'doorstepEnabled' && enabled && vendor.lat === null ? (
                     <View style={styles.pinNote}>
                       <T accessibilityRole="alert" size={12} color={colors.warning}>
-                        {"Customers can't find you for doorstep jobs until your garage is pinned."}
+                        {t("Customers can't find you for doorstep jobs until your garage is pinned.")}
                       </T>
                       <Pressable accessibilityRole="link" onPress={onOpenLocation} style={styles.pinLink}>
                         <T size={12} weight={500} style={styles.underline}>
-                          Pin it under Location
+                          {t('Pin it under Location')}
                         </T>
                       </Pressable>
                     </View>
@@ -250,9 +258,12 @@ const useStyles = createStyles((colors) => ({
   dayCard: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 },
   dayName: { width: 36 },
   time: { flex: 1, minWidth: 0 },
+  // 64 wide, as the web's; up to 92 for Tamil's longer word, which also shrinks a little to fit.
   toggle: {
     minHeight: 48,
-    width: 64,
+    minWidth: 64,
+    maxWidth: 92,
+    paddingHorizontal: 6,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 10,

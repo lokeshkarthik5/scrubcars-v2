@@ -1,4 +1,5 @@
 import { setPushPreferences } from '@repo/core/api/push';
+import { msg, useT, useTn } from '@repo/core/i18n';
 import { Label, ScButton } from '@repo/native-ui/button';
 import { ScSwitch } from '@repo/native-ui/chip';
 import { IconBellOff, IconBellRinging } from '@repo/native-ui/icons';
@@ -18,12 +19,14 @@ import { usePushDevice } from '@/lib/push-device';
 type Switches = { bookingUpdates: boolean; reminders: boolean };
 
 const SWITCHES: { key: keyof Switches; title: string; description: string }[] = [
-  { key: 'bookingUpdates', title: 'Booking updates', description: 'Accepted, other times suggested, extra work, your car on its way back, refunds' },
-  { key: 'reminders', title: 'Reminders', description: 'The evening before a booking, and about an hour before it' },
+  { key: 'bookingUpdates', title: msg('Booking updates'), description: msg('Accepted, other times suggested, extra work, your car on its way back, refunds') },
+  { key: 'reminders', title: msg('Reminders'), description: msg('The evening before a booking, and about an hour before it') },
 ];
 
 /** apps/users/app/profile/notifications/page.tsx, with the phone's own permission box. */
 export default function NotificationsScreen() {
+  const tn = useTn();
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
@@ -41,7 +44,7 @@ export default function NotificationsScreen() {
       setSaved(await setPushPreferences({ [key]: on }));
     } catch {
       setSaved(before);
-      toast.error("Couldn't save that. Try again.");
+      toast.error(t("Couldn't save that. Try again."));
     } finally {
       setSaving(null);
     }
@@ -49,21 +52,21 @@ export default function NotificationsScreen() {
 
   return (
     <View style={[styles.page, { paddingTop: insets.top }]}>
-      <PageHeader title="Notifications" backTo="/profile" />
+      <PageHeader title={t('Notifications')} backTo="/profile" />
       {!user ? (
         <View style={styles.center}>
           <T size={15} weight={600} align="center">
-            Sign in to set up notifications
+            {t('Sign in to set up notifications')}
           </T>
           <ScButton variant="main" fullWidth={false} paddingX={32} onPress={() => router.push(`/login?next=${encodeURIComponent('/profile/notifications')}` as Href)}>
-            Sign in
+            {t('Sign in')}
           </ScButton>
         </View>
       ) : device.loaded && device.enabled === false ? (
         <View style={styles.center}>
-          <EmptyState icon={<IconBellOff size={32} stroke={1.5} color={colors.textSecondary} />} title="Notifications aren't available yet" subtitle="Everything about your bookings is in Updates." />
+          <EmptyState icon={<IconBellOff size={32} stroke={1.5} color={colors.textSecondary} />} title={t("Notifications aren't available yet")} subtitle={t('Everything about your bookings is in Updates.')} />
           <ScButton variant="outline" fullWidth={false} onPress={() => router.push('/updates' as Href)}>
-            Open Updates
+            {t('Open Updates')}
           </ScButton>
         </View>
       ) : (
@@ -72,14 +75,14 @@ export default function NotificationsScreen() {
             <View style={styles.deviceRow}>
               <View style={styles.grow}>
                 <T size={15} weight={500} lh={20}>
-                  This phone
+                  {t('This phone')}
                 </T>
                 <T size={12} lh={16} color={colors.textSecondary}>
-                  News about your bookings, even with Detlio closed
+                  {t('News about your bookings, even with Detlio closed')}
                 </T>
               </View>
               <ScSwitch
-                label="Notifications on this phone"
+                label={t('Notifications on this phone')}
                 checked={device.subscribed}
                 disabled={device.busy || (device.denied && !device.subscribed)}
                 onChange={(on) => void (on ? device.turnOn() : device.turnOff())}
@@ -87,22 +90,22 @@ export default function NotificationsScreen() {
             </View>
             {device.subscribed && device.devices !== null && device.devices > 1 ? (
               <T size={12} lh={16} color={colors.textSecondary}>
-                {`Also on for ${device.devices - 1} other ${device.devices === 2 ? 'device' : 'devices'}`}
+                {tn(device.devices - 1, 'Also on for {count} other device', 'Also on for {count} other devices')}
               </T>
             ) : null}
             {device.subscribed && !device.testHidden ? (
               <ScButton variant="outline" disabled={device.busy} onPress={() => void device.sendTest()}>
                 <IconBellRinging size={16} color={colors.textPrimary} />
-                <Label>Send me a test notification</Label>
+                <Label>{t('Send me a test notification')}</Label>
               </ScButton>
             ) : null}
             {device.denied ? (
               <View style={styles.denied}>
                 <T size={12} lh={16} color={colors.warning}>
-                  Notifications are blocked for Detlio in this phone’s settings.
+                  {t('Notifications are blocked for Detlio in this phone’s settings.')}
                 </T>
                 <ScButton variant="outline" height={44} onPress={() => void Linking.openSettings()}>
-                  Open settings
+                  {t('Open settings')}
                 </ScButton>
               </View>
             ) : null}
@@ -110,25 +113,25 @@ export default function NotificationsScreen() {
           {device.enabled ? (
             <View style={styles.kinds}>
               <T size={14} weight={600} lh={20}>
-                What to send
+                {t('What to send')}
               </T>
               <ScCard style={styles.list}>
                 {SWITCHES.map((item, index) => (
                   <View key={item.key} style={[styles.switchRow, index > 0 && styles.divided]}>
                     <View style={styles.grow}>
                       <T size={13} lh={18}>
-                        {item.title}
+                        {t(item.title)}
                       </T>
                       <T size={11} lh={15} color={colors.textSecondary}>
-                        {item.description}
+                        {t(item.description)}
                       </T>
                     </View>
-                    <ScSwitch label={item.title} checked={switches[item.key]} disabled={saving !== null} onChange={(on) => void setSwitch(item.key, on)} />
+                    <ScSwitch label={t(item.title)} checked={switches[item.key]} disabled={saving !== null} onChange={(on) => void setSwitch(item.key, on)} />
                   </View>
                 ))}
               </ScCard>
               <T size={11} lh={15} color={colors.textMuted}>
-                {"For every device you turn notifications on for. A notification says the garage, the service and the time, never your number or address. Your bookings' news is in Updates too."}
+                {t("For every device you turn notifications on for. A notification says the garage, the service and the time, never your number or address. Your bookings' news is in Updates too.")}
               </T>
             </View>
           ) : null}

@@ -63,8 +63,10 @@ const AddCarSheet = dynamic(
 import { TipCard } from './tip-card'
 import { UpdatesBlock } from './updates-block'
 import { WashStatusTile } from './wash-status-tile'
+import { useT } from '@repo/core/i18n'
 
 function HomeHubContent() {
+  const t = useT()
   const router = useRouter()
   const searchParams = useSearchParams()
   const queryClient = useQueryClient()
@@ -165,9 +167,13 @@ function HomeHubContent() {
     // every customer screen with the hub on (CustomerShell).
     <CustomerShell showNav className="pt-3">
       <div className="flex flex-col gap-3">
-        <h1 className="sr-only">Home</h1>
+        <h1 className="sr-only">{t('Home')}</h1>
         <Toast
-          message={`Welcome, ${firstName || 'there'}! Find your first car wash.`}
+          message={
+            firstName
+              ? t('Welcome, {name}! Find your first car wash.', { name: firstName })
+              : t('Welcome! Find your first car wash.')
+          }
           visible={showToast}
           onDismiss={() => setToastDismissed(true)}
         />
@@ -195,7 +201,7 @@ function HomeHubContent() {
           // Not "nothing here": that is a fact about the account, and saying
           // it when the request failed would be untrue.
           <ErrorState
-            message="Couldn't load your Home. Check your connection."
+            message={t("Couldn't load your Home. Check your connection.")}
             onRetry={() => void home.refetch()}
           />
         ) : (

@@ -1,5 +1,6 @@
 import type { Booking, Review } from '@repo/core/types'
 import { APP_TIMEZONE } from '@repo/core/utils'
+import { t } from './i18n/translate'
 
 // The earnings computations that used to live here moved to the server, behind
 // GET /vendors/me/earnings and a vendor_admin check. They read
@@ -59,9 +60,9 @@ export function greetingFor(now: Date): string {
       timeZone: APP_TIMEZONE,
     }).format(now)
   )
-  if (hour >= 5 && hour < 12) return 'Good morning'
-  if (hour >= 12 && hour < 17) return 'Good afternoon'
-  return 'Good evening'
+  if (hour >= 5 && hour < 12) return t('Good morning')
+  if (hour >= 12 && hour < 17) return t('Good afternoon')
+  return t('Good evening')
 }
 
 /**
@@ -79,6 +80,6 @@ export function formatRating(average: number): string {
 
 /** "1 review", "3 reviews", or "No reviews yet" — never "1 reviews". */
 export function reviewCountLabel(count: number): string {
-  if (count === 0) return 'No reviews yet'
-  return `${count} review${count === 1 ? '' : 's'}`
+  if (count === 0) return t('No reviews yet')
+  return count === 1 ? t('1 review') : t('{count} reviews', { count })
 }

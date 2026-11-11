@@ -23,6 +23,7 @@ import {
   TimeProposalHomeCard,
 } from './action-cards'
 import { UpdateList, UpdateRow } from './update-row'
+import { useT } from '@repo/core/i18n'
 
 function GroupLabel({ children }: { children: React.ReactNode }) {
   return <h2 className="px-1 pt-[22px] pb-2.5 text-t3 text-[#A1A1AA]">{children}</h2>
@@ -39,6 +40,7 @@ function GroupLabel({ children }: { children: React.ReactNode }) {
  * what changed, until they tap Mark all read.
  */
 export function UpdatesScreen() {
+  const t = useT()
   const updates = useUpdates()
   const markSeen = useMarkUpdatesSeen()
   const dismissNotice = useDismissNotice()
@@ -97,7 +99,7 @@ export function UpdatesScreen() {
       <div className="flex min-h-[60px] items-center justify-between">
         <Link
           href="/home"
-          aria-label="Back to Home"
+          aria-label={t('Back to Home')}
           className="grid size-11 place-items-center rounded-full border border-line text-text-primary"
         >
           <IconArrowLeft size={20} stroke={1.5} aria-hidden />
@@ -114,10 +116,10 @@ export function UpdatesScreen() {
           }}
           className="-mr-2 min-h-11 px-2 text-t3 text-[#A1A1AA] disabled:opacity-50"
         >
-          Mark all read
+          {t('Mark all read')}
         </button>
       </div>
-      <h1 className={cn('px-1 pt-1', HUB_TITLE_CLASS)}>Updates</h1>
+      <h1 className={cn('px-1 pt-1', HUB_TITLE_CLASS)}>{t('Updates')}</h1>
 
       {updates.isPending ? (
         <div className="mt-6 flex flex-col gap-3">
@@ -125,12 +127,12 @@ export function UpdatesScreen() {
           <div className="h-48 rounded-card shimmer" />
         </div>
       ) : !data || !now ? (
-        <ErrorState message="Couldn't load your updates. Check your connection." onRetry={() => void updates.refetch()} />
+        <ErrorState message={t("Couldn't load your updates. Check your connection.")} onRetry={() => void updates.refetch()} />
       ) : (
         <>
           {data.todo.length > 0 && (
-            <section aria-label="To do">
-              <GroupLabel>To do</GroupLabel>
+            <section aria-label={t('To do')}>
+              <GroupLabel>{t('To do')}</GroupLabel>
               <div className="flex flex-col gap-3">{data.todo.map(todoCard)}</div>
             </section>
           )}
@@ -139,7 +141,7 @@ export function UpdatesScreen() {
               (a bill to pay) comes first, as on the approved screen. */}
           {data.pinnedNotice && (
             <div className={data.todo.length > 0 ? 'mt-3' : 'mt-6'}>
-              <UpdateList label="Notice from Detlio">
+              <UpdateList label={t('Notice from Detlio')}>
                 <UpdateRow
                   pinned
                   now={now}
@@ -150,7 +152,7 @@ export function UpdatesScreen() {
                     at: data.pinnedNotice.startsAt,
                     unread: unread(data.pinnedNotice.unread),
                     bookingId: null,
-                    from: 'Detlio team',
+                    from: t('Detlio team'),
                     linkUrl: data.pinnedNotice.linkUrl,
                     linkLabel: data.pinnedNotice.linkLabel,
                   }}
@@ -171,7 +173,7 @@ export function UpdatesScreen() {
                     row={{
                       ...item,
                       unread: unread(item.unread),
-                      from: item.kind === 'notice' ? 'Detlio team' : null,
+                      from: item.kind === 'notice' ? t('Detlio team') : null,
                     }}
                     onDismiss={item.noticeId ? () => dismissNotice.mutate(item.noticeId!) : undefined}
                   />
@@ -182,10 +184,10 @@ export function UpdatesScreen() {
 
           {data.items.length === 0 && data.todo.length === 0 && !data.pinnedNotice ? (
             <p className="mt-10 px-6 text-center text-t3 text-[#A1A1AA]">
-              Nothing yet. Your bookings, bills and notes from the Detlio team will show here.
+              {t('Nothing yet. Your bookings, bills and notes from the Detlio team will show here.')}
             </p>
           ) : (
-            <p className="mt-[18px] text-center text-t4 text-dim">The last 30 days.</p>
+            <p className="mt-[18px] text-center text-t4 text-dim">{t('The last 30 days.')}</p>
           )}
         </>
       )}

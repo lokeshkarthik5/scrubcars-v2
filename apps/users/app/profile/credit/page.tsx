@@ -19,6 +19,7 @@ import { GiftsUnavailable } from '@/components/gifts/gifts-unavailable'
 import { RedeemCodeBox } from '@/components/gifts/redeem-code-box'
 import { isHomeHubEnabled } from '@/lib/home-hub'
 import { formatGiftDate, giftRupees, signedRupees } from '@/lib/gifts'
+import { fill, useT } from '@repo/core/i18n'
 
 /**
  * Profile → Detlio credit (0049): what the customer can spend at checkout,
@@ -28,6 +29,7 @@ import { formatGiftDate, giftRupees, signedRupees } from '@/lib/gifts'
  * its own, oldest expiry first.
  */
 export default function CreditPage() {
+  const t = useT()
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
   const ready = useAuthStore((s) => s.isSessionReady)
@@ -37,7 +39,7 @@ export default function CreditPage() {
 
   const header = (
     <TopBar
-      title="Detlio credit"
+      title={t('Detlio credit')}
       showBack
       backHref="/profile"
       large={isHomeHubEnabled()}
@@ -50,7 +52,7 @@ export default function CreditPage() {
         {header}
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
           <p className="text-t3 font-semibold text-text-primary">
-            Sign in to see your Detlio credit
+            {t('Sign in to see your Detlio credit')}
           </p>
           <ScButton
             variant="main"
@@ -61,7 +63,7 @@ export default function CreditPage() {
               )
             }
           >
-            Sign in
+            {t('Sign in')}
           </ScButton>
         </div>
       </CustomerShell>
@@ -91,36 +93,32 @@ export default function CreditPage() {
         </div>
       ) : credit.isError || !view ? (
         <ErrorState
-          message="Couldn't load your credit. Check your connection."
+          message={t("Couldn't load your credit. Check your connection.")}
           onRetry={() => void credit.refetch()}
         />
       ) : (
         <>
           <ScCard className="flex flex-col gap-1 py-4">
-            <p className="text-t5 text-text-secondary">Balance</p>
+            <p className="text-t5 text-text-secondary">{t('Balance')}</p>
             <p className="font-numeric text-[40px] font-bold leading-none tracking-tight text-text-primary">
               {giftRupees(view.balance)}
             </p>
             {view.nextExpiry && (
               <p className="mt-2 text-t5 text-text-secondary">
-                <span className="font-numeric">
+                {fill(t('{giftRupees} expires on {at}'), { giftRupees: <span className="font-numeric">
                   {giftRupees(view.nextExpiry.amount)}
-                </span>{' '}
-                expires on{' '}
-                <span className="font-numeric">
+                </span>, at: <span className="font-numeric">
                   {formatGiftDate(view.nextExpiry.at)}
-                </span>
+                </span> })}
               </p>
             )}
             {soon > 0 && (
               <p className="text-t5 text-warning">
-                <span className="font-numeric">{giftRupees(soon)}</span> expires
-                in the next 30 days
+                {fill(t('{giftRupees} expires in the next 30 days'), { giftRupees: <span className="font-numeric">{giftRupees(soon)}</span> })}
               </p>
             )}
             <p className="mt-2 text-t5 text-text-muted">
-              Used on your next booking at checkout, after any coupon. You can
-              turn it off there.
+              {t('Used on your next booking at checkout, after any coupon. You can turn it off there.')}
             </p>
           </ScCard>
 
@@ -128,7 +126,7 @@ export default function CreditPage() {
 
           <Link href="/profile/gifts/new">
             <ScCard className="flex items-center justify-between text-t4 text-text-primary">
-              Gift a wash
+              {t('Gift a wash')}
               <IconChevronRight
                 size={16}
                 className="text-text-muted"
@@ -145,12 +143,12 @@ export default function CreditPage() {
               id="credit-history"
               className="text-sm font-semibold text-text-primary"
             >
-              History
+              {t('History')}
             </h2>
             {view.entries.length === 0 ? (
               <ScCard>
                 <p className="text-t5 text-text-secondary">
-                  Nothing yet. A gift you redeem shows here.
+                  {t('Nothing yet. A gift you redeem shows here.')}
                 </p>
               </ScCard>
             ) : (

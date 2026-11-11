@@ -1,5 +1,6 @@
 import { useMyRequests } from '@repo/core/api/hooks/use-booking-requests';
 import { useNow } from '@repo/core/hooks/use-now';
+import { useT } from '@repo/core/i18n';
 import { ScButton } from '@repo/native-ui/button';
 import { IconSend } from '@repo/native-ui/icons';
 import { EmptyState, ErrorState, Skeleton } from '@repo/native-ui/primitives';
@@ -15,6 +16,7 @@ import { useAuth } from '@/lib/auth';
 
 /** apps/users/app/requests/page.tsx. */
 export default function RequestsScreen() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
@@ -24,21 +26,21 @@ export default function RequestsScreen() {
   const items = requests.data ?? [];
   return (
     <View style={[styles.page, { paddingTop: insets.top }]}>
-      <PageHeader title="Your requests" />
+      <PageHeader title={t('Your requests')} />
       <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 24 }]}>
         {requests.isPending ? (
           <Skeleton height={132} />
         ) : requests.isError && items.length === 0 ? (
-          <ErrorState message="Couldn't load your requests. Check your connection." onRetry={() => void requests.refetch()} />
+          <ErrorState message={t("Couldn't load your requests. Check your connection.")} onRetry={() => void requests.refetch()} />
         ) : items.length === 0 ? (
           <View style={styles.none}>
             <EmptyState
               icon={<IconSend size={28} stroke={1.5} color={colors.textSecondary} />}
-              title="No requests"
-              subtitle="Ask a garage just outside its area to come to you, from the Doorstep or Pickup & drop list."
+              title={t('No requests')}
+              subtitle={t('Ask a garage just outside its area to come to you, from the Doorstep or Pickup & drop list.')}
             />
             <ScButton variant="outline" fullWidth={false} onPress={() => router.push('/garages?mode=doorstep' as Href)}>
-              See who comes to you
+              {t('See who comes to you')}
             </ScButton>
           </View>
         ) : (

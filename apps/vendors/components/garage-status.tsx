@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
 import { IconBellOff } from '@tabler/icons-react'
+import { useT } from '@repo/core/i18n'
 import { usePushDevice } from '@repo/ui/features/push-notifications'
 import {
   getVendorClosures,
@@ -49,6 +50,7 @@ export function useShopOpen(): boolean | null {
  * with two or more garages: the switcher above already says which one.
  */
 export function GarageStatus() {
+  const t = useT()
   const vendor = useAuthStore((s) => s.vendor)
   const vendorCount = useAuthStore((s) => s.vendors.length)
   const activeVendorId = useAuthStore((s) => s.activeVendorId)
@@ -77,7 +79,7 @@ export function GarageStatus() {
         <span className="truncate">
           {vendorCount > 1 ? '' : vendor.businessName}
           {open !== null &&
-            `${vendorCount > 1 ? '' : ' · '}${open ? 'Open' : 'Closed'}`}
+            `${vendorCount > 1 ? '' : ' · '}${open ? t('Open') : t('Closed')}`}
         </span>
       </p>
       {alertsOff && (
@@ -86,7 +88,7 @@ export function GarageStatus() {
           className="-my-2 flex min-h-11 items-center gap-1 text-[13px] font-medium text-warning"
         >
           <IconBellOff size={14} aria-hidden="true" />
-          Alerts: Off
+          {t('Alerts: Off')}
         </Link>
       )}
     </div>

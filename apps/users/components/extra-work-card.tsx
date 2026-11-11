@@ -34,6 +34,8 @@ import {
   PaymentReceivedPanel,
   paymentReceivedText,
 } from '@/components/payment-received-panel'
+import { fill, useT } from '@repo/core/i18n'
+import { msg } from '@repo/core/i18n/translate'
 
 function paidOn(iso: string): string {
   return new Date(iso).toLocaleDateString('en-IN', {
@@ -51,10 +53,10 @@ interface WorkPayment {
 }
 
 const STATE_LINE: Record<Exclude<ExtraWork['state'], 'awaiting'>, string> = {
-  paid: 'Approved and paid',
-  declined: 'You declined it',
-  withdrawn: 'The garage withdrew it',
-  closed: 'Closed with the booking',
+  paid: msg('Approved and paid'),
+  declined: msg('You declined it'),
+  withdrawn: msg('The garage withdrew it'),
+  closed: msg('Closed with the booking'),
 }
 
 interface ExtraWorkCardProps {
@@ -77,6 +79,7 @@ export function ExtraWorkCard({
   onUpdated,
   customer,
 }: ExtraWorkCardProps) {
+  const t = useT()
   const [payments, setPayments] = useState<Record<string, WorkPayment>>({})
   const [opening, setOpening] = useState<string | null>(null)
   const [declining, setDeclining] = useState<string | null>(null)
@@ -96,7 +99,7 @@ export function ExtraWorkCard({
       const order = await payFinalBill(booking.id, work.id)
       await openRazorpayCheckout({
         order,
-        description: `Extra work at ${booking.vendorName}`,
+        description: t('Extra work at {vendorName}', { vendorName: booking.vendorName }),
         customer,
         onSuccess: async (response) => {
           const paymentId = response.razorpay_payment_id
@@ -129,7 +132,7 @@ export function ExtraWorkCard({
             const updated = await getBooking(booking.id)
             if (updated) onUpdated(updated)
             record(work.id, { paymentId, phase: 'paid' })
-            toast.success(`Approved. ${booking.vendorName} can go ahead.`)
+            toast.success(t('Approved. {vendorName} can go ahead.', { vendorName: booking.vendorName }))
           } else {
             record(work.id, {
               paymentId,
@@ -142,7 +145,7 @@ export function ExtraWorkCard({
         },
         onDismiss: () => {
           toast.info(
-            'Payment cancelled. You can approve it any time from this page.'
+            t('Payment cancelled. You can approve it any time from this page.')
           )
         },
         onFailure: (message) => {
@@ -167,12 +170,12 @@ export function ExtraWorkCard({
     setDeclining(work.id)
     try {
       await declineExtraWork(booking.id, work.id)
-      toast.success(`Declined. ${booking.vendorName} can see your answer.`)
+      toast.success(t('Declined. {vendorName} can see your answer.', { vendorName: booking.vendorName }))
     } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
-          : 'Something went wrong. Please try again.'
+          : t('Something went wrong. Please try again.')
       )
     } finally {
       const fresh = await getBooking(booking.id)
@@ -198,7 +201,7 @@ export function ExtraWorkCard({
                 aria-hidden
                 className="size-1.5 rounded-full bg-brand-red"
               />
-              Needs your answer
+              {t('Needs your answer')}
             </p>
           )}
         <h2 className="flex items-center gap-2 text-t2 font-medium text-text-primary">
@@ -208,11 +211,10 @@ export function ExtraWorkCard({
             aria-hidden
             className="text-text-secondary"
           />
-          Extra work
+          {t('Extra work')}
         </h2>
         <p className="mt-0.5 text-t4 text-text-secondary">
-          Asked for by {booking.vendorName}. Nothing is done or charged unless
-          you approve and pay here.
+          {t('Asked for by {vendorName}. Nothing is done or charged unless you approve and pay here.', { vendorName: booking.vendorName })}
         </p>
       </div>
 
@@ -227,7 +229,7 @@ export function ExtraWorkCard({
         return (
           <article
             key={work.id}
-            aria-label={`Extra work: ${work.description}`}
+            aria-label={t('Extra work: {description}', { description: work.description })}
             className="flex flex-col gap-2.5 border-t border-border pt-3 first-of-type:border-t-0 first-of-type:pt-0"
           >
             {work.photos.length > 0 && (
@@ -238,7 +240,7 @@ export function ExtraWorkCard({
                     href={photo.url}
                     target="_blank"
                     rel="noreferrer"
-                    aria-label={`Open photo ${index + 1} of ${work.photos.length} of ${work.description}`}
+                    aria-label={t('Open photo {value} of {length} of {description}', { value: index + 1, length: work.photos.length, description: work.description })}
                     className="shrink-0"
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element -- R2 photo, sized here */}
@@ -264,7 +266,7 @@ export function ExtraWorkCard({
             {work.note && (
               <p className="text-t4 text-text-secondary">
                 <span className="font-medium text-text-primary">
-                  Garage&apos;s note:
+                  {t("Garage's note:")}
                 </span>{' '}
                 {work.note}
               </p>
@@ -272,9 +274,9 @@ export function ExtraWorkCard({
 
             <p role="status" className="sr-only">
               {payment?.phase === 'confirming'
-                ? 'Payment received. Confirming the extra work.'
+                ? t('Payment received. Confirming the extra work.')
                 : settled && payment
-                  ? 'Extra work approved and paid.'
+                  ? t('Extra work approved and paid.')
                   : showPanel && payment
                     ? paymentReceivedText(
                         payment.paymentId,
@@ -287,10 +289,9 @@ export function ExtraWorkCard({
             {settled ? (
               <p className="flex items-center gap-1.5 text-t4 font-medium text-success">
                 <IconCircleCheck size={16} aria-hidden />
-                Approved and paid on{' '}
-                <span className="font-numeric">
+                {fill(t('Approved and paid on {paidOn}'), { paidOn: <span className="font-numeric">
                   {paidOn(work.paidAt ?? new Date().toISOString())}
-                </span>
+                </span> })}
               </p>
             ) : payment?.phase === 'confirming' ? (
               <ScButton
@@ -302,7 +303,7 @@ export function ExtraWorkCard({
                   className="shrink-0 animate-spin"
                   aria-hidden="true"
                 />
-                Payment received — confirming…
+                {t('Payment received — confirming…')}
               </ScButton>
             ) : showPanel && payment ? (
               <PaymentReceivedPanel
@@ -326,13 +327,12 @@ export function ExtraWorkCard({
                     }
                   >
                     {opening === work.id ? (
-                      'Opening payment...'
+                      t('Opening payment...')
                     ) : (
                       <>
-                        Approve &amp; pay{' '}
-                        <span className="font-numeric font-bold">
+                        {fill(t('Approve & pay {amount}'), { amount: <span className="font-numeric font-bold">
                           {formatRupees(work.amount)}
-                        </span>
+                        </span> })}
                       </>
                     )}
                   </MainAction>
@@ -343,13 +343,12 @@ export function ExtraWorkCard({
                     onClick={() => handlePay(work)}
                   >
                     {opening === work.id ? (
-                      'Opening payment...'
+                      t('Opening payment...')
                     ) : (
                       <>
-                        Approve &amp; pay{' '}
-                        <span className="font-numeric font-bold">
+                        {fill(t('Approve & pay {amount}'), { amount: <span className="font-numeric font-bold">
                           {formatRupees(work.amount)}
-                        </span>
+                        </span> })}
                       </>
                     )}
                   </ScButton>
@@ -359,14 +358,14 @@ export function ExtraWorkCard({
                   variant="text"
                   disabled={opening !== null || declining !== null}
                   onClick={() => handleDecline(work)}
-                  aria-label={`No thanks to ${work.description}`}
+                  aria-label={t('No thanks to {description}', { description: work.description })}
                 >
-                  {declining === work.id ? 'Declining...' : 'No thanks'}
+                  {declining === work.id ? t('Declining...') : t('No thanks')}
                 </ScButton>
               </div>
             ) : work.state !== 'awaiting' ? (
               <p className="text-t4 text-text-secondary">
-                {STATE_LINE[work.state]}
+                {t(STATE_LINE[work.state])}
               </p>
             ) : null}
           </article>

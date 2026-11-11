@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { IconLock, IconTrash } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
+import { useT } from '@repo/core/i18n'
+import { msg, t } from '@repo/core/i18n/translate'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
@@ -26,16 +28,21 @@ import { useIsVendorAdmin } from '@repo/core/hooks/use-vendor-role'
 import { onVendorSwitch, useAuthStore } from '@repo/core/stores/auth-store'
 import type { VendorRole } from '@repo/core/api/types'
 
+// English, shown as `t(…)`.
+/** Said from an effect, so it reads the language in use without being one of the effect's dependencies. */
+const loadFailed = () => t('Failed to load members')
+
 const ROLE_OPTIONS: { value: VendorRole; label: string }[] = [
-  { value: 'vendor_operator', label: 'Operator — jobs only' },
-  { value: 'vendor_admin', label: 'Admin — full access' },
+  { value: 'vendor_operator', label: msg('Operator — jobs only') },
+  { value: 'vendor_admin', label: msg('Admin — full access') },
 ]
 
 function roleLabel(role: VendorRole) {
-  return role === 'vendor_admin' ? 'Admin' : 'Operator'
+  return role === 'vendor_admin' ? msg('Admin') : msg('Operator')
 }
 
 export default function VendorMembersPage() {
+  const t = useT()
   const router = useRouter()
   const isVendorAdmin = useIsVendorAdmin()
   const isOwner = useAuthStore((s) => s.isOwner)
@@ -53,7 +60,7 @@ export default function VendorMembersPage() {
     try {
       setMembers(await getMembers())
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to load members')
+      toast.error(err instanceof Error ? err.message : loadFailed())
     } finally {
       setLoading(false)
     }
@@ -77,7 +84,7 @@ export default function VendorMembersPage() {
       })
       .catch((err: unknown) => {
         toast.error(
-          err instanceof Error ? err.message : 'Failed to load members'
+          err instanceof Error ? err.message : loadFailed()
         )
       })
       .finally(() => {
@@ -93,7 +100,7 @@ export default function VendorMembersPage() {
 
   const handleAdd = async () => {
     if (phone.length !== 10) {
-      toast.error('Enter a 10-digit phone number')
+      toast.error(t('Enter a 10-digit phone number'))
       return
     }
 
@@ -104,9 +111,9 @@ export default function VendorMembersPage() {
       setName('')
       setRole('vendor_operator')
       await load()
-      toast.success('Member added')
+      toast.success(t('Member added'))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to add member')
+      toast.error(err instanceof Error ? err.message : t('Failed to add member'))
     } finally {
       setAdding(false)
     }
@@ -119,7 +126,7 @@ export default function VendorMembersPage() {
       await load()
       toast.success(done)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Something went wrong')
+      toast.error(err instanceof Error ? err.message : t('Something went wrong'))
     } finally {
       setBusyId(null)
     }
@@ -127,14 +134,14 @@ export default function VendorMembersPage() {
 
   return (
     <AppShell showNav navType="vendor" className="gap-5 py-4">
-      <TopBar title="Team" showBack backHref="/settings" />
+      <TopBar title={t('Team')} showBack backHref="/settings" />
 
       <section className="flex flex-col gap-3">
-        <SectionHeader title="Add a team member" />
+        <SectionHeader title={t('Add a team member')} />
         <ScCard className="flex flex-col gap-3">
           <ScInput
             id="member-phone"
-            label="Phone"
+            label={t('Phone')}
             value={phone}
             inputMode="numeric"
             className="font-numeric"
@@ -144,27 +151,27 @@ export default function VendorMembersPage() {
           />
           <ScInput
             id="member-name"
-            label="Name (optional)"
+            label={t('Name (optional)')}
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
           <ScSelect
             id="member-role"
-            label="Role"
+            label={t('Role')}
             value={role}
             onChange={(e) => setRole(e.target.value as VendorRole)}
           >
             {ROLE_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
-                {option.label}
+                {t(option.label)}
               </option>
             ))}
           </ScSelect>
           {/* No invite step: being added grants access on their next login. */}
           <p className="text-[11px] text-text-secondary">
-            They get access the next time they log in with this number.
-            Operators can work on jobs but cannot see earnings or change
-            settings.
+            {t(
+              'They get access the next time they log in with this number. Operators can work on jobs but cannot see earnings or change settings.'
+            )}
           </p>
           <ScButton
             variant="main"
@@ -172,14 +179,14 @@ export default function VendorMembersPage() {
             onClick={handleAdd}
             disabled={adding}
           >
-            {adding ? 'Adding...' : 'Add member'}
+            {adding ? t('Adding...') : t('Add member')}
           </ScButton>
         </ScCard>
       </section>
 
       <section className="flex flex-col gap-3">
         <SectionHeader
-          title="Members"
+          title={t('Members')}
           action={
             !loading && members.length > 0 ? (
               <span className="font-numeric text-[12px] text-text-muted">
@@ -206,13 +213,13 @@ export default function VendorMembersPage() {
                     </div>
                     <div className="flex shrink-0 items-center gap-1.5">
                       {member.status === 'suspended' && (
-                        <ScBadge variant="danger">Suspended</ScBadge>
+                        <ScBadge variant="danger">{t('Suspended')}</ScBadge>
                       )}
                       {member.isOwner ? (
-                        <ScBadge variant="success">Owner</ScBadge>
+                        <ScBadge variant="success">{t('Owner')}</ScBadge>
                       ) : (
                         <ScBadge variant="pending">
-                          {roleLabel(member.role)}
+                          {t(roleLabel(member.role))}
                         </ScBadge>
                       )}
                     </div>
@@ -228,13 +235,12 @@ export default function VendorMembersPage() {
                         aria-hidden="true"
                         className="shrink-0"
                       />
-                      The owner cannot be changed or removed. Transfer ownership
-                      first.
+                      {t('The owner cannot be changed or removed. Transfer ownership first.')}
                     </p>
                   ) : (
                     <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
                       <ScSelect
-                        aria-label={`Role for ${member.name}`}
+                        aria-label={t('Role for {name}', { name: member.name })}
                         value={member.role}
                         disabled={busyId === member.id}
                         className="min-h-11 w-auto"
@@ -245,13 +251,13 @@ export default function VendorMembersPage() {
                               updateMember(member.id, {
                                 role: e.target.value as VendorRole,
                               }),
-                            'Role updated'
+                            t('Role updated')
                           )
                         }
                       >
                         {ROLE_OPTIONS.map((option) => (
                           <option key={option.value} value={option.value}>
-                            {roleLabel(option.value)}
+                            {t(roleLabel(option.value))}
                           </option>
                         ))}
                       </ScSelect>
@@ -273,12 +279,12 @@ export default function VendorMembersPage() {
                                     : 'active',
                               }),
                             member.status === 'active'
-                              ? 'Member suspended'
-                              : 'Member restored'
+                              ? t('Member suspended')
+                              : t('Member restored')
                           )
                         }
                       >
-                        {member.status === 'active' ? 'Suspend' : 'Restore'}
+                        {member.status === 'active' ? t('Suspend') : t('Restore')}
                       </ScButton>
 
                       <ScButton
@@ -291,12 +297,12 @@ export default function VendorMembersPage() {
                           run(
                             member.id,
                             () => removeMember(member.id),
-                            'Member removed'
+                            t('Member removed')
                           )
                         }
                       >
                         <IconTrash size={14} stroke={1.5} aria-hidden="true" />{' '}
-                        Remove
+                        {t('Remove')}
                       </ScButton>
 
                       {isOwner && member.status === 'active' && (
@@ -309,7 +315,10 @@ export default function VendorMembersPage() {
                           onClick={() => {
                             if (
                               !window.confirm(
-                                `Make ${member.name} the owner? You stay an admin, but you cannot undo this yourself.`
+                                t(
+                                  'Make {name} the owner? You stay an admin, but you cannot undo this yourself.',
+                                  { name: member.name }
+                                )
                               )
                             ) {
                               return
@@ -320,11 +329,11 @@ export default function VendorMembersPage() {
                                 await transferOwnership(member.userId)
                                 await useAuthStore.getState().refreshVendors()
                               },
-                              'Ownership transferred'
+                              t('Ownership transferred')
                             )
                           }}
                         >
-                          Make owner
+                          {t('Make owner')}
                         </ScButton>
                       )}
                     </div>

@@ -1,5 +1,6 @@
 import type { MyCoupon, PublicCoupon } from '@repo/core/api/coupons'
 import { formatGiftDate } from '@/lib/gifts'
+import { t } from '@repo/core/i18n/translate'
 
 /**
  * Whether a page's address holds a coupon code: the coupon page itself
@@ -14,24 +15,28 @@ export function carriesCouponCode(pathname: string | null, next: string | null):
 
 /** "Use by 31 Dec 2026", in Chennai. */
 export function couponUseByLine(iso: string): string {
-  return `Use by ${formatGiftDate(iso)}`
+  return t('Use by {date}', { date: formatGiftDate(iso) })
 }
 
 /** What the coupon page says instead of "Add to my Detlio", or null when it can be added. */
 export function couponClosedLine(coupon: Pick<PublicCoupon, 'state' | 'validFrom' | 'validUntil'>): string | null {
   switch (coupon.state) {
     case 'added':
-      return "It's in your account. Find it in Profile → Coupons."
+      return t("It's in your account. Find it in Profile → Coupons.")
     case 'redeemed':
-      return 'This coupon has already been used.'
+      return t('This coupon has already been used.')
     case 'used_up':
-      return 'This coupon has been fully claimed.'
+      return t('This coupon has been fully claimed.')
     case 'expired':
-      return `This coupon expired on ${formatGiftDate(coupon.validUntil)}.`
+      return t('This coupon expired on {date}.', {
+        date: formatGiftDate(coupon.validUntil),
+      })
     case 'not_started':
-      return `This coupon can be added from ${formatGiftDate(coupon.validFrom)}.`
+      return t('This coupon can be added from {date}.', {
+        date: formatGiftDate(coupon.validFrom),
+      })
     case 'void':
-      return 'This coupon is no longer valid.'
+      return t('This coupon is no longer valid.')
     default:
       return null
   }
@@ -41,15 +46,19 @@ export function couponClosedLine(coupon: Pick<PublicCoupon, 'state' | 'validFrom
 export function myCouponStateLine(coupon: Pick<MyCoupon, 'state' | 'kind' | 'expiresAt' | 'stamps'>): string {
   switch (coupon.state) {
     case 'added':
-      return 'Added to your Shine Card.'
+      return t('Added to your Shine Card.')
     case 'ready':
-      return coupon.expiresAt ? `${couponUseByLine(coupon.expiresAt)}. It comes off at checkout.` : 'It comes off at checkout.'
+      return coupon.expiresAt
+        ? t('Use by {date}. It comes off at checkout.', { date: formatGiftDate(coupon.expiresAt) })
+        : t('It comes off at checkout.')
     case 'used':
-      return 'Used on a booking. If that booking is cancelled, it comes back.'
+      return t('Used on a booking. If that booking is cancelled, it comes back.')
     case 'expired':
-      return coupon.expiresAt ? `Expired on ${formatGiftDate(coupon.expiresAt)}.` : 'Expired.'
+      return coupon.expiresAt
+        ? t('Expired on {date}.', { date: formatGiftDate(coupon.expiresAt) })
+        : t('Expired.')
     case 'cancelled':
-      return 'This coupon was withdrawn by Detlio.'
+      return t('This coupon was withdrawn by Detlio.')
   }
 }
 

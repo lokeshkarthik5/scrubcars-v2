@@ -4,6 +4,7 @@ import {
   DEFAULT_SERVICE_DURATION_MINS,
   effectiveDurationMins,
 } from '@repo/core/service-duration'
+import { msg, t, tn } from '@repo/core/i18n/translate'
 import type { Booking } from '@repo/core/types'
 import { istDay, needsAnswer } from './jobs'
 
@@ -134,7 +135,7 @@ export function monthTitle(month: string): string {
 export function dayHeading(day: string, today: string): string {
   const month = MONTHS_LONG[Number(day.slice(5, 7)) - 1].slice(0, 3)
   const date = `${weekdayShort(day)} ${dayOfMonth(day)} ${month}`
-  return day === today ? `Today · ${date}` : date
+  return day === today ? t('Today · {date}', { date }) : date
 }
 
 /**
@@ -293,7 +294,7 @@ export function dayDots(summary: DaySummary): CalendarKind[] {
 }
 
 export function jobsCount(count: number): string {
-  return count === 1 ? '1 job' : `${count} jobs`
+  return tn(count, '{count} job', '{count} jobs')
 }
 
 // ─── Opening hours and closed days ──────────────────────────────────────────
@@ -340,14 +341,18 @@ export function closedDay(
 
 /** "Closed · Weekly holiday", "Time off · Family function". */
 export function closedTitle(closed: ClosedDay): string {
-  if (closed.kind === 'weekly') return 'Closed · Weekly holiday'
-  return closed.reason ? `Time off · ${closed.reason}` : 'Time off'
+  if (closed.kind === 'weekly') return t('Closed · Weekly holiday')
+  return closed.reason
+    ? t('Time off · {reason}', { reason: closed.reason })
+    : t('Time off')
 }
 
 /** Where the day off is changed: weekly hours, or the time off list. */
 export function closedNote(closed: ClosedDay): string {
-  const where = closed.kind === 'weekly' ? 'Hours' : 'Time off'
-  return `Customers can’t book this day. Change it in Settings → ${where}.`
+  const where = closed.kind === 'weekly' ? t('Hours') : t('Time off')
+  return t('Customers can’t book this day. Change it in Settings → {where}.', {
+    where,
+  })
 }
 
 export interface DayHours {
@@ -389,10 +394,14 @@ export function daySubtitle(
   hours: DayHours,
   closed: ClosedDay | null
 ): string {
-  const jobs = count === 0 ? 'No jobs' : jobsCount(count)
+  const jobs = count === 0 ? t('No jobs') : jobsCount(count)
   if (closed) return `${jobs} · ${closedTitle(closed)}`
   if (!hours.known) return jobs
-  return `${jobs} · open ${minuteClock(hours.openMin)} – ${minuteClock(hours.closeMin)}`
+  return t('{jobs} · open {open} – {close}', {
+    jobs,
+    open: minuteClock(hours.openMin),
+    close: minuteClock(hours.closeMin),
+  })
 }
 
 // ─── The Day view's timeline ────────────────────────────────────────────────
@@ -610,12 +619,12 @@ export function nowMinute(now: number): number {
 
 // ─── Words ──────────────────────────────────────────────────────────────────
 
-/** A job's state on the calendar, in the legend's words. */
+/** A job's state on the calendar, in the legend's words (English, shown as `t(…)`). */
 export const KIND_LABELS: Record<CalendarKind, string> = {
-  answer: 'To answer',
-  accepted: 'Accepted',
-  working: 'In progress',
-  done: 'Done',
+  answer: msg('To answer'),
+  accepted: msg('Accepted'),
+  working: msg('In progress'),
+  done: msg('Done'),
 }
 
 /**
@@ -629,10 +638,12 @@ export function answerLine(b: Booking, now: number): string {
   if (deadline && !Number.isNaN(by)) {
     const left = by - now
     if (left > 0 && left <= deadline.windowMins * 60_000) {
-      return `Answer · ${Math.max(1, Math.ceil(left / 60_000))} min`
+      return t('Answer · {mins} min', {
+        mins: Math.max(1, Math.ceil(left / 60_000)),
+      })
     }
   }
-  return KIND_LABELS.answer
+  return t(KIND_LABELS.answer)
 }
 
 function dateWords(day: string, long: boolean): string {
@@ -656,19 +667,25 @@ export function dayButtonLabel(
   }
 ): string {
   const parts = [dateWords(day, opts.long ?? false)]
-  if (day === opts.today) parts.push('today')
-  if (opts.closed) parts.push('closed')
+  if (day === opts.today) parts.push(t('today'))
+  if (opts.closed) parts.push(t('closed'))
   if (opts.summary.total > 0) parts.push(jobsCount(opts.summary.total))
-  if (opts.summary.answer > 0) parts.push(`${opts.summary.answer} to answer`)
+  if (opts.summary.answer > 0)
+    parts.push(t('{count} to answer', { count: opts.summary.answer }))
   return parts.join(', ')
 }
 
 /** A timeline block's name: who, when, and its state. */
 export function blockLabel(job: CalendarJob, now: number): string {
-  const who = job.booking.customerName || 'Customer'
-  const when = `${minuteClock(job.startMin)} to ${minuteClock(job.endMin)}`
+  const who = job.booking.customerName || t('Customer')
+  const when = t('{start} to {end}', {
+    start: minuteClock(job.startMin),
+    end: minuteClock(job.endMin),
+  })
   const state =
-    job.kind === 'answer' ? answerLine(job.booking, now) : KIND_LABELS[job.kind]
+    job.kind === 'answer'
+      ? answerLine(job.booking, now)
+      : t(KIND_LABELS[job.kind])
   return `${who}, ${when}, ${state}`
 }
 

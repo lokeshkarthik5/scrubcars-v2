@@ -8,6 +8,7 @@ import {
   IconNavigation,
   IconPhoneOff,
 } from '@tabler/icons-react'
+import { fill, useT } from '@repo/core/i18n'
 import { ContactButtons } from '@repo/ui/sc/contact-buttons'
 import { BOOKING_TYPE_LABELS, bookingReference } from '@repo/core/booking-types'
 import { directionsHref, telHref, whatsAppHref } from '@repo/core/contact-links'
@@ -59,12 +60,13 @@ export function JobContact({
   /** Off where the page's header has its own Call and WhatsApp (the job page). */
   callButtons?: boolean
 }) {
+  const t = useT()
   const doorstep = booking.bookingType === 'doorstep'
   const pickup = booking.bookingType === 'pickup'
   const open = OPEN_STATUSES.has(booking.status)
   const windowState = contactWindowState(booking.contactWindow, now)
   const ended = ENDED_STATUSES.has(booking.status)
-  const who = booking.customerName || 'the customer'
+  const who = booking.customerName || t('the customer')
   const firstName = booking.customerName?.trim().split(/\s+/)[0]
   const location =
     (doorstep || pickup) && open ? booking.jobLocation : undefined
@@ -88,7 +90,7 @@ export function JobContact({
         // car is the garage's responsibility from the moment it is collected.
         <span className="flex w-fit items-center gap-1.5 rounded-full border border-border bg-surface-elevated px-2.5 py-1 text-[15px] font-medium text-text-primary">
           <IconCar size={16} aria-hidden />
-          {BOOKING_TYPE_LABELS.pickup}
+          {t(BOOKING_TYPE_LABELS.pickup)}
         </span>
       ) : (
         <span className="flex items-center gap-1.5 text-[15px] font-medium text-text-primary">
@@ -97,7 +99,7 @@ export function JobContact({
           ) : (
             <IconMapPin size={16} aria-hidden />
           )}
-          {BOOKING_TYPE_LABELS[booking.bookingType]}
+          {t(BOOKING_TYPE_LABELS[booking.bookingType])}
         </span>
       )}
 
@@ -106,7 +108,7 @@ export function JobContact({
           <div>
             {pickup && (
               <p className="text-[13px] text-text-secondary">
-                Collect from and return to
+                {t('Collect from and return to')}
               </p>
             )}
             <p className="text-[15px] text-text-primary">{location.address}</p>
@@ -114,7 +116,7 @@ export function JobContact({
                 still gets Maps close, but the exact gate is worth a call. */}
             {(location.lat === null || location.lng === null) && (
               <p className="mt-0.5 text-[13px] text-text-secondary">
-                No map pin on this address. Call to confirm the spot.
+                {t('No map pin on this address. Call to confirm the spot.')}
               </p>
             )}
           </div>
@@ -125,11 +127,11 @@ export function JobContact({
               href={mapsHref}
               target="_blank"
               rel="noopener noreferrer"
-              aria-label={`Open in Maps for ${who}`}
+              aria-label={t('Open in Maps for {who}', { who })}
               className="flex min-h-12 items-center justify-center gap-1.5 rounded-[10px] border border-border bg-surface px-3 text-[15px] font-medium text-text-primary transition-colors hover:border-text-secondary"
             >
               <IconNavigation size={16} aria-hidden />
-              Open in Maps
+              {t('Open in Maps')}
             </a>
           )}
         </div>
@@ -171,10 +173,13 @@ export function JobContact({
               aria-hidden
             />
             <span>
-              Need to reach the customer?{' '}
-              <span className="font-medium text-text-primary underline underline-offset-2">
-                Contact Detlio support
-              </span>
+              {fill(t('Need to reach the customer? {link}'), {
+                link: (
+                  <span className="font-medium text-text-primary underline underline-offset-2">
+                    {t('Contact Detlio support')}
+                  </span>
+                ),
+              })}
             </span>
           </a>
         </div>

@@ -1,3 +1,5 @@
+import { msg, t } from './i18n/translate'
+
 /**
  * Achievements (0054) for the apps: the badges' names, how each is earned,
  * the goal, and the defaults the team can change in admin. The twin of
@@ -70,26 +72,26 @@ export interface BadgeInfo {
 
 /** The cabinet, in order. */
 export const BADGE_CATALOG: readonly BadgeInfo[] = [
-  { key: 'first_shine', label: 'First Shine', howTo: 'Complete your first booking through Detlio.', goal: 1 },
-  { key: 'washes_5', label: '5 Washes Club', howTo: 'Complete 5 bookings through Detlio.', goal: 5 },
-  { key: 'washes_25', label: '25 Washes Club', howTo: 'Complete 25 bookings through Detlio.', goal: 25 },
-  { key: 'washes_50', label: '50 Washes Club', howTo: 'Complete 50 bookings through Detlio.', goal: 50 },
-  { key: 'washes_100', label: '100 Washes Club', howTo: 'Complete 100 bookings through Detlio.', goal: 100 },
-  { key: 'streak_3', label: '3-Month Streak', howTo: 'Book in 3 calendar months in a row.', goal: 3 },
-  { key: 'streak_6', label: '6-Month Streak', howTo: 'Book in 6 calendar months in a row.', goal: 6 },
-  { key: 'streak_12', label: '12-Month Streak', howTo: 'Book in 12 calendar months in a row.', goal: 12 },
-  { key: 'monsoon_shine', label: 'Monsoon Shine', howTo: 'Book 2 washes between 1 June and 30 September.', goal: 2 },
-  { key: 'early_bird', label: 'Early Bird', howTo: 'Book 5 washes that start before 8 am.', goal: 5 },
-  { key: 'night_owl', label: 'Night Owl', howTo: 'Book 5 washes that start at 7 pm or later.', goal: 5 },
-  { key: 'explorer', label: 'Explorer', howTo: 'Book at 3 different garages.', goal: 3 },
-  { key: 'loyal_regular', label: 'Loyal Regular', howTo: 'Book 10 times at the same garage.', goal: 10 },
-  { key: 'pickup_pro', label: 'Pickup Pro', howTo: 'Complete 3 pickup & drop bookings.', goal: 3 },
-  { key: 'doorstep_devotee', label: 'Doorstep Devotee', howTo: 'Complete 5 doorstep bookings.', goal: 5 },
-  { key: 'reviewer', label: 'Reviewer', howTo: 'Review 5 of your bookings.', goal: 5 },
-  { key: 'ambassador', label: 'Ambassador', howTo: 'Invite 3 friends who book through Detlio.', goal: 3 },
-  { key: 'detailing_devotee', label: 'Detailing Devotee', howTo: 'Complete 3 detailing jobs.', goal: 3 },
-  { key: 'coating_club', label: 'Coating Club', howTo: 'Complete a coating job.', goal: 1 },
-  { key: 'garage_legend', label: 'Garage Legend', howTo: 'Collect every car in a Detlio Garage series.', goal: 1 },
+  { key: 'first_shine', label: msg('First Shine'), howTo: msg('Complete your first booking through Detlio.'), goal: 1 },
+  { key: 'washes_5', label: msg('5 Washes Club'), howTo: msg('Complete 5 bookings through Detlio.'), goal: 5 },
+  { key: 'washes_25', label: msg('25 Washes Club'), howTo: msg('Complete 25 bookings through Detlio.'), goal: 25 },
+  { key: 'washes_50', label: msg('50 Washes Club'), howTo: msg('Complete 50 bookings through Detlio.'), goal: 50 },
+  { key: 'washes_100', label: msg('100 Washes Club'), howTo: msg('Complete 100 bookings through Detlio.'), goal: 100 },
+  { key: 'streak_3', label: msg('3-Month Streak'), howTo: msg('Book in 3 calendar months in a row.'), goal: 3 },
+  { key: 'streak_6', label: msg('6-Month Streak'), howTo: msg('Book in 6 calendar months in a row.'), goal: 6 },
+  { key: 'streak_12', label: msg('12-Month Streak'), howTo: msg('Book in 12 calendar months in a row.'), goal: 12 },
+  { key: 'monsoon_shine', label: msg('Monsoon Shine'), howTo: msg('Book 2 washes between 1 June and 30 September.'), goal: 2 },
+  { key: 'early_bird', label: msg('Early Bird'), howTo: msg('Book 5 washes that start before 8 am.'), goal: 5 },
+  { key: 'night_owl', label: msg('Night Owl'), howTo: msg('Book 5 washes that start at 7 pm or later.'), goal: 5 },
+  { key: 'explorer', label: msg('Explorer'), howTo: msg('Book at 3 different garages.'), goal: 3 },
+  { key: 'loyal_regular', label: msg('Loyal Regular'), howTo: msg('Book 10 times at the same garage.'), goal: 10 },
+  { key: 'pickup_pro', label: msg('Pickup Pro'), howTo: msg('Complete 3 pickup & drop bookings.'), goal: 3 },
+  { key: 'doorstep_devotee', label: msg('Doorstep Devotee'), howTo: msg('Complete 5 doorstep bookings.'), goal: 5 },
+  { key: 'reviewer', label: msg('Reviewer'), howTo: msg('Review 5 of your bookings.'), goal: 5 },
+  { key: 'ambassador', label: msg('Ambassador'), howTo: msg('Invite 3 friends who book through Detlio.'), goal: 3 },
+  { key: 'detailing_devotee', label: msg('Detailing Devotee'), howTo: msg('Complete 3 detailing jobs.'), goal: 3 },
+  { key: 'coating_club', label: msg('Coating Club'), howTo: msg('Complete a coating job.'), goal: 1 },
+  { key: 'garage_legend', label: msg('Garage Legend'), howTo: msg('Collect every car in a Detlio Garage series.'), goal: 1 },
 ]
 
 /** The badges as the settings say: stored values over the defaults. */
@@ -104,10 +106,10 @@ export function achievementSettings(settings: { achievements?: Partial<Record<Ba
 /** "A bonus stamp", "2 bonus stamps", or nothing. */
 export function bonusStampsLine(n: number): string | null {
   if (n <= 0) return null
-  return n === 1 ? 'A bonus stamp' : `${n} bonus stamps`
+  return n === 1 ? t('A bonus stamp') : t('{count} bonus stamps', { count: n })
 }
 
 /** "3 of 5" for a locked badge. */
 export function badgeProgressLine(progress: { current: number; goal: number }): string {
-  return `${Math.min(progress.current, progress.goal)} of ${progress.goal}`
+  return t('{done} of {count}', { done: Math.min(progress.current, progress.goal), count: progress.goal })
 }

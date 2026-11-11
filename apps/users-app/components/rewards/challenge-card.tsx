@@ -1,4 +1,5 @@
 import type { CustomerChallenge } from '@repo/core/api/reward-extras';
+import { useT } from '@repo/core/i18n';
 import { challengeWinsLine } from '@repo/core/rewards';
 import { IconCheck, IconTrophy } from '@repo/native-ui/icons';
 import { PressRow } from '@repo/native-ui/primitives';
@@ -20,6 +21,7 @@ export function ChallengeBar({ count, goal, won }: { count: number; goal: number
 
 /** ChallengeCard. */
 export function ChallengeCard({ challenge, highlight = false }: { challenge: CustomerChallenge; highlight?: boolean }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   return (
@@ -41,7 +43,7 @@ export function ChallengeCard({ challenge, highlight = false }: { challenge: Cus
         </T>
       ) : null}
       <ChallengeBar count={challenge.count} goal={challenge.goal} won={challenge.won} />
-      <FigureLine size={12} lh={16} color={challenge.won ? colors.textPrimary : colors.textSecondary} text={challenge.won ? `You won: ${challenge.reward}` : challenge.line} />
+      <FigureLine size={12} lh={16} color={challenge.won ? colors.textPrimary : colors.textSecondary} text={challenge.won ? t('You won: {reward}', { reward: challenge.reward }) : challenge.line} />
     </View>
   );
 }

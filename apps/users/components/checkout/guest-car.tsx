@@ -5,6 +5,7 @@ import { ScInput } from '@repo/ui/sc/input'
 import type { DraftCar } from '@repo/core/booking-draft'
 import { VEHICLE_TIERS } from '@repo/core/vehicles'
 import type { VehicleType } from '@repo/core/types'
+import { useT } from '@repo/core/i18n'
 
 /** A draft car with both names given: ready to be saved at sign-in. */
 export function draftCarReady(car: DraftCar | null): car is DraftCar {
@@ -26,6 +27,7 @@ export function GuestCarForm({
   car: DraftCar | null
   onChange: (car: DraftCar) => void
 }) {
+  const t = useT()
   const current: DraftCar = car ?? { vehicleType: 'sedan', make: '', model: '' }
   const typeChosen = car !== null
 
@@ -35,13 +37,13 @@ export function GuestCarForm({
     <div className="flex flex-col gap-3">
       <div>
         <p id="guest-car-type" className="mb-2 text-t4 text-text-secondary">
-          Body type — it sets the price
+          {t('Body type — it sets the price')}
         </p>
         <div role="group" aria-labelledby="guest-car-type" className="flex flex-wrap gap-2">
           {VEHICLE_TIERS.map((tier) => (
             <Chip
               key={tier.value}
-              label={tier.label}
+              label={t(tier.label)}
               selected={typeChosen && current.vehicleType === tier.value}
               onClick={() => setType(tier.value)}
             />
@@ -51,8 +53,8 @@ export function GuestCarForm({
       <div className="grid grid-cols-2 gap-2">
         <ScInput
           id="guest-car-make"
-          label="Make"
-          placeholder="e.g. Maruti"
+          label={t('Make')}
+          placeholder={t('e.g. Maruti')}
           autoComplete="off"
           maxLength={100}
           value={current.make}
@@ -60,8 +62,8 @@ export function GuestCarForm({
         />
         <ScInput
           id="guest-car-model"
-          label="Model"
-          placeholder="e.g. Swift"
+          label={t('Model')}
+          placeholder={t('e.g. Swift')}
           autoComplete="off"
           maxLength={100}
           value={current.model}

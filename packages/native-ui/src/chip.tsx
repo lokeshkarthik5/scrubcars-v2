@@ -3,6 +3,7 @@ import { Pressable, View } from 'react-native';
 import { IconCheck } from './icons';
 import { T } from './text';
 import { createStyles } from './theme';
+import { useT } from './lang';
 
 /** Chip (packages/ui/src/sc/chip.tsx): chosen is a white fill, the same as the date and time pickers. */
 export function Chip({
@@ -64,11 +65,12 @@ export function ScSwitch({
 
 /** ScBadge's 'muted': the mark on an add-on's line. */
 export function AddOnMark() {
+  const t = useT();
   const styles = useStyles();
   return (
     <View style={styles.badge}>
       <T size={11} weight={500} lh={15} style={styles.badgeLabel}>
-        Add-on
+        {t('Add-on')}
       </T>
     </View>
   );

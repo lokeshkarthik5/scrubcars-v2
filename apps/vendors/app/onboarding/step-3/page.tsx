@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { fill, useT } from '@repo/core/i18n'
 import { useQuery } from '@tanstack/react-query'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScButton } from '@repo/ui/sc/button'
@@ -15,7 +16,6 @@ import { toast } from 'react-toastify'
 import { useVendorOnboardingStore } from '@repo/core/stores/vendor-onboarding-store'
 import {
   DEFAULT_DOORSTEP_RADIUS_KM,
-  DOORSTEP_RADIUS_PLACEHOLDER,
   MAX_DOORSTEP_RADIUS_KM,
   MIN_DOORSTEP_RADIUS_KM,
 } from '@repo/core/doorstep'
@@ -34,6 +34,7 @@ const MAX_BAYS = 20
 type ServiceMode = 'garage' | 'doorstep'
 
 export default function VendorOnboardingStep3() {
+  const t = useT()
   const router = useRouter()
   const update = useVendorOnboardingStore((s) => s.update)
   const [slotInterval, setSlotInterval] = useState<30 | 45 | 60>(30)
@@ -66,18 +67,21 @@ export default function VendorOnboardingStep3() {
     (!Number.isFinite(radius) ||
       radius < MIN_RADIUS_KM ||
       radius > MAX_RADIUS_KM)
-      ? `Enter how far you'll go, from ${MIN_RADIUS_KM} to ${MAX_RADIUS_KM} km, or leave it empty.`
+      ? t("Enter how far you'll go, from {min} to {max} km, or leave it empty.", {
+          min: MIN_RADIUS_KM,
+          max: MAX_RADIUS_KM,
+        })
       : null
   const bayCount = Number(bays)
   const baysError =
     bays.trim() !== '' &&
     (!Number.isInteger(bayCount) || bayCount < 1 || bayCount > MAX_BAYS)
-      ? `Cars at the same time must be between 1 and ${MAX_BAYS}.`
+      ? t('Cars at the same time must be between 1 and {max}.', { max: MAX_BAYS })
       : null
   const jobs = Number(jobsPerDay)
   const jobsError =
     jobsPerDay.trim() !== '' && (!Number.isInteger(jobs) || jobs < 1)
-      ? 'Jobs in a day must be 1 or more, or left blank.'
+      ? t('Jobs in a day must be 1 or more, or left blank.')
       : null
 
   const toggleDay = (day: number) =>
@@ -119,7 +123,7 @@ export default function VendorOnboardingStep3() {
       router.push('/onboarding/step-4')
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : 'Failed to save. Please try again.'
+        err instanceof Error ? err.message : t('Failed to save. Please try again.')
       )
     } finally {
       setLoading(false)
@@ -130,15 +134,15 @@ export default function VendorOnboardingStep3() {
     <AppShell className="gap-5 py-4">
       <OnboardingHeader
         step={3}
-        title="Garage setup"
-        subtitle="When you work, and how many cars you can take."
+        title={t('Garage setup')}
+        subtitle={t('When you work, and how many cars you can take.')}
         backHref="/onboarding/step-2"
       />
 
       <section className="flex flex-col gap-3">
         <SectionHeader
-          title="Slot interval"
-          subtitle="How far apart the start times customers can pick are."
+          title={t('Slot interval')}
+          subtitle={t('How far apart the start times customers can pick are.')}
         />
         <div className="flex gap-2">
           {SLOT_INTERVALS.map((mins) => (
@@ -153,7 +157,7 @@ export default function VendorOnboardingStep3() {
       </section>
 
       <section className="flex flex-col gap-3">
-        <SectionHeader title="Working days" />
+        <SectionHeader title={t('Working days')} />
         <div className="flex flex-wrap gap-2">
           {DAYS.map((label, day) => (
             <Chip
@@ -168,19 +172,19 @@ export default function VendorOnboardingStep3() {
 
       <section className="flex flex-col gap-3">
         <SectionHeader
-          title="Working hours"
-          subtitle="Applied to every working day. You can set each day in Settings later."
+          title={t('Working hours')}
+          subtitle={t('Applied to every working day. You can set each day in Settings later.')}
         />
         <div className="grid grid-cols-2 gap-2">
           <ScInput
-            label="Open time"
+            label={t('Open time')}
             type="time"
             className="font-numeric"
             value={openTime}
             onChange={(e) => setOpenTime(e.target.value)}
           />
           <ScInput
-            label="Close time"
+            label={t('Close time')}
             type="time"
             className="font-numeric"
             value={closeTime}
@@ -192,7 +196,7 @@ export default function VendorOnboardingStep3() {
       <section className="flex flex-col gap-3">
         <SectionHeader
           id="service-mode-heading"
-          title="How do customers get serviced?"
+          title={t('How do customers get serviced?')}
         />
         {/* Two radios rather than chips: exactly one answer is always true,
             and the doorstep one carries its own distance. */}
@@ -203,8 +207,8 @@ export default function VendorOnboardingStep3() {
         >
           {(
             [
-              { value: 'garage', label: 'They come to my garage' },
-              { value: 'doorstep', label: 'I also go to them' },
+              { value: 'garage', label: t('They come to my garage') },
+              { value: 'doorstep', label: t('I also go to them') },
             ] as const
           ).map((option) => (
             <button
@@ -240,13 +244,13 @@ export default function VendorOnboardingStep3() {
         {doorstep && (
           <div className="rise-in flex flex-col gap-2">
             <TravelChoiceField
-              label="How far you go"
+              label={t('How far you go')}
               wholeCity={wholeCity}
               onChange={setWholeCity}
               cityName={cityName}
               radiusKm={radiusKm.trim() && Number.isFinite(radius) ? radius : null}
               defaultKm={DEFAULT_DOORSTEP_RADIUS_KM}
-              wholeCityNote={(city) => `You go to any address in ${city}.`}
+              wholeCityNote={(city) => t('You go to any address in {city}.', { city })}
             />
           </div>
         )}
@@ -254,12 +258,12 @@ export default function VendorOnboardingStep3() {
           <div className="rise-in">
             <ScInput
               id="onboarding-doorstep-radius"
-              label="Up to how many km from your garage?"
+              label={t('Up to how many km from your garage?')}
               type="number"
               inputMode="numeric"
               min={MIN_RADIUS_KM}
               max={MAX_RADIUS_KM}
-              placeholder={DOORSTEP_RADIUS_PLACEHOLDER}
+              placeholder={t('Default {km} km', { km: DEFAULT_DOORSTEP_RADIUS_KM })}
               className="font-numeric"
               value={radiusKm}
               onChange={(e) => setRadiusKm(e.target.value)}
@@ -270,21 +274,25 @@ export default function VendorOnboardingStep3() {
               </p>
             )}
             <p className="mt-1 text-[11px] text-text-muted">
-              Optional. Leave it empty to use{' '}
-              <span className="font-numeric">{DEFAULT_DOORSTEP_RADIUS_KM}</span>{' '}
-              km. Customers further away won&apos;t see you for doorstep jobs.
-              You can draw an exact area later in Settings.
+              {fill(
+                t(
+                  "Optional. Leave it empty to use {km} km. Customers further away won't see you for doorstep jobs. You can draw an exact area later in Settings."
+                ),
+                {
+                  km: <span className="font-numeric">{DEFAULT_DOORSTEP_RADIUS_KM}</span>,
+                }
+              )}
             </p>
           </div>
         )}
       </section>
 
       <section className="flex flex-col gap-3">
-        <SectionHeader title="Capacity" />
+        <SectionHeader title={t('Capacity')} />
         <ScCard className="flex flex-col gap-3">
           <ScInput
             id="onboarding-bays"
-            label="How many cars can you work on at the same time?"
+            label={t('How many cars can you work on at the same time?')}
             type="number"
             inputMode="numeric"
             min={1}
@@ -296,11 +304,11 @@ export default function VendorOnboardingStep3() {
           />
           <ScInput
             id="onboarding-jobs-per-day"
-            label="Most jobs in a day (optional)"
+            label={t('Most jobs in a day (optional)')}
             type="number"
             inputMode="numeric"
             min={1}
-            placeholder="No limit"
+            placeholder={t('No limit')}
             className="font-numeric"
             value={jobsPerDay}
             onChange={(e) => setJobsPerDay(e.target.value)}
@@ -311,8 +319,7 @@ export default function VendorOnboardingStep3() {
             </p>
           )}
           <p className="text-[11px] text-text-muted">
-            Customers are only offered times when you have room for one more
-            car.
+            {t('Customers are only offered times when you have room for one more car.')}
           </p>
         </ScCard>
       </section>
@@ -324,7 +331,7 @@ export default function VendorOnboardingStep3() {
         disabled={loading || !!radiusError || !!baysError || !!jobsError}
         onClick={handleContinue}
       >
-        Continue
+        {t('Continue')}
       </ScButton>
     </AppShell>
   )

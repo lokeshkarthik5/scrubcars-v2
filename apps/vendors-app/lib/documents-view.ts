@@ -9,6 +9,7 @@ import {
 import type { StatusTone } from '@repo/native-ui/primitives';
 
 import { MAX_SOURCE_BYTES } from './photo-limits';
+import { msg, t } from '@repo/core/i18n/translate';
 
 /**
  * The words and little rules of Settings > Documents (apps/vendors/app/settings/documents/page.tsx),
@@ -16,21 +17,25 @@ import { MAX_SOURCE_BYTES } from './photo-limits';
  * (vendor-documents.ts: pickedFilesProblem, hints, labels). What is REQUIRED is the
  * server's answer for this garage (`required` on each document, `summary`): a
  * doorstep-only garage's shop photo is optional (PR #106), so nothing here keeps a list.
+ * The constants and hints stay English (msg) for the screen's t(); the lines built here come
+ * out in the language in use.
  */
-export const DOCUMENTS_OFF_TITLE = 'Documents aren’t open yet';
-export const DOCUMENTS_OFF_BODY = 'Detlio will tell you when you can upload them here.';
-export const DOCUMENTS_INTRO =
-  'Detlio checks these. When the required ones are approved, your documents count as checked, one of the steps to Silver. Only you and the Detlio team can open them.';
+export const DOCUMENTS_OFF_TITLE = msg('Documents aren’t open yet');
+export const DOCUMENTS_OFF_BODY = msg('Detlio will tell you when you can upload them here.');
+export const DOCUMENTS_INTRO = msg(
+  'Detlio checks these. When the required ones are approved, your documents count as checked, one of the steps to Silver. Only you and the Detlio team can open them.'
+);
 /** Under a doorstep-only garage's shop photo, in place of the usual hint (PR #106). */
-export const SHOP_PHOTO_OPTIONAL_HINT =
-  'Optional. You work at customers’ doorsteps, so there may be no shop front. Add a photo of one if you have it.';
-export const DOCUMENTS_ROW_WITH_SHOP = 'Your ID, bank proof and shop photo, one of the steps to Silver';
-export const DOCUMENTS_ROW_DOORSTEP_ONLY = 'Your ID and bank proof, one of the steps to Silver';
-export const DOCUMENTS_CHECKED_TITLE = 'Documents checked';
-export const DOCUMENTS_CHECKED_BODY = 'That step to Silver is done.';
-export const UPLOAD_FAILED = 'Upload failed. Please try again.';
-export const REMOVE_FAILED = 'Couldn’t remove it. Please try again.';
-export const OPEN_FAILED = 'Couldn’t open the file';
+export const SHOP_PHOTO_OPTIONAL_HINT = msg(
+  'Optional. You work at customers’ doorsteps, so there may be no shop front. Add a photo of one if you have it.'
+);
+export const DOCUMENTS_ROW_WITH_SHOP = msg('Your ID, bank proof and shop photo, one of the steps to Silver');
+export const DOCUMENTS_ROW_DOORSTEP_ONLY = msg('Your ID and bank proof, one of the steps to Silver');
+export const DOCUMENTS_CHECKED_TITLE = msg('Documents checked');
+export const DOCUMENTS_CHECKED_BODY = msg('That step to Silver is done.');
+export const UPLOAD_FAILED = msg('Upload failed. Please try again.');
+export const REMOVE_FAILED = msg('Couldn’t remove it. Please try again.');
+export const OPEN_FAILED = msg('Couldn’t open the file');
 
 /** How a garage takes bookings: the facts that decide whether it has a shop. */
 export interface DocumentModes {
@@ -117,7 +122,7 @@ export function dayLabel(date: string): string {
 
 /** "Front" and "Back" when there are two files, "File" when there is one. */
 export function fileSideLabel(fileCount: number, side: 'front' | 'back'): string {
-  return side === 'front' ? (fileCount > 1 ? 'Front' : 'File') : 'Back';
+  return side === 'front' ? (fileCount > 1 ? t('Front') : t('File')) : t('Back');
 }
 
 /** The front first, then the back: the API doesn't promise an order. */
@@ -127,26 +132,29 @@ export function sideOrdered<T extends { side: 'front' | 'back' }>(files: T[]): T
 
 /** What a View button says to a screen reader. */
 export function viewLabel(docLabel: string, fileCount: number, side: 'front' | 'back'): string {
-  return `View ${docLabel}${fileCount > 1 ? `, ${side}` : ''}`;
+  return fileCount > 1
+    ? t('View {doc}, {side}', { doc: docLabel, side: side === 'front' ? t('front') : t('back') })
+    : t('View {doc}', { doc: docLabel });
 }
 
 /** The chosen files, as listed before they are sent: "Front: scan.pdf". */
 export function pickedLine(index: number, count: number, name: string): string {
-  return `${count > 1 ? (index === 0 ? 'Front: ' : 'Back: ') : ''}${name}`;
+  if (count < 2) return name;
+  return index === 0 ? t('Front: {name}', { name }) : t('Back: {name}', { name });
 }
 
 /** The line under Upload / Replace. */
 export function uploadHint(doc: { type: string; status: string }): string {
   return (
-    'A photo or PDF, up to 10 MB.' +
+    t('A photo or PDF, up to 10 MB.') +
     // Only an ID card has two sides; a shop photo doesn't.
-    (doc.type === 'owner_id' ? ' Two files if it has a front and a back.' : '') +
-    (doc.status === 'approved' ? ' Replacing it sends it back for review.' : '')
+    (doc.type === 'owner_id' ? ` ${t('Two files if it has a front and a back.')}` : '') +
+    (doc.status === 'approved' ? ` ${t('Replacing it sends it back for review.')}` : '')
   );
 }
 
 export function removePrompt(label: string): string {
-  return `Remove ${inSentence(label)}? It goes back to Not uploaded and its files are deleted.`;
+  return t('Remove {doc}? It goes back to Not uploaded and its files are deleted.', { doc: inSentence(label) });
 }
 
 /** A file the person chose, from the Files app, the library or the camera. */

@@ -1,5 +1,6 @@
 import { useCreateInvite } from '@repo/core/api/hooks/use-rewards';
 import type { MyRewards } from '@repo/core/api/rewards';
+import { useT } from '@repo/core/i18n';
 import { rewardRupees } from '@repo/core/rewards';
 import { Label, ScButton } from '@repo/native-ui/button';
 import { IconCopy, IconShare } from '@repo/native-ui/icons';
@@ -14,6 +15,7 @@ const WEB = 'https://detlio.com';
 
 /** InviteCard: the customer's own link, shared from their phone. Detlio sends nothing itself. */
 export function InviteCard({ invite }: { invite: MyRewards['invite'] }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const create = useCreateInvite();
@@ -24,22 +26,22 @@ export function InviteCard({ invite }: { invite: MyRewards['invite'] }) {
     if (!url) return;
     try {
       await Clipboard.setStringAsync(url);
-      toast.success('Link copied');
+      toast.success(t('Link copied'));
     } catch {
-      toast.info("Couldn't copy the link. Press and hold it to copy it instead.");
+      toast.info(t("Couldn't copy the link. Press and hold it to copy it instead."));
     }
   };
   const share = () => {
     if (!url) return;
-    Share.share({ title: 'Detlio', message: `Book your car wash on Detlio and get ${rewardRupees(invite.amount)} off your first booking: ${url}` }).catch(() => undefined);
+    Share.share({ title: 'Detlio', message: t('Book your car wash on Detlio and get {amount} off your first booking: {url}', { amount: rewardRupees(invite.amount), url: url ?? '' }) }).catch(() => undefined);
   };
   return (
     <ScCard style={styles.card}>
       <View>
         <T size={14} weight={600} lh={20}>
-          Invite a friend
+          {t('Invite a friend')}
         </T>
-        <FigureLine size={13} lh={18} color={colors.textSecondary} text={`You both get ${rewardRupees(invite.amount)} off when their first booking of ${rewardRupees(invite.minAmount)} or more is done.`} />
+        <FigureLine size={13} lh={18} color={colors.textSecondary} text={t('You both get {amount} off when their first booking of {min} or more is done.', { amount: rewardRupees(invite.amount), min: rewardRupees(invite.minAmount) })} />
       </View>
       {url ? (
         <>
@@ -52,23 +54,23 @@ export function InviteCard({ invite }: { invite: MyRewards['invite'] }) {
             <View style={styles.half}>
               <ScButton variant="outline" onPress={share}>
                 <IconShare size={16} color={colors.textPrimary} />
-                <Label>Share</Label>
+                <Label>{t('Share')}</Label>
               </ScButton>
             </View>
             <View style={styles.half}>
               <ScButton variant="outline" onPress={() => void copy()}>
                 <IconCopy size={16} color={colors.textPrimary} />
-                <Label>Copy link</Label>
+                <Label>{t('Copy link')}</Label>
               </ScButton>
             </View>
           </View>
         </>
       ) : (
         <ScButton variant="outline" disabled={create.isPending} onPress={() => create.mutate()}>
-          {create.isPending ? 'Making your link…' : 'Get your invite link'}
+          {create.isPending ? t('Making your link…') : t('Get your invite link')}
         </ScButton>
       )}
-      <FigureLine size={11} lh={15} color={colors.textMuted} text={`${invite.rewardedThisYear} rewarded this year (up to ${invite.maxPerYear}; ${left} left)${invite.pending > 0 ? ` · ${invite.pending} waiting for a first booking` : ''}. For people new to Detlio only.`} />
+      <FigureLine size={11} lh={15} color={colors.textMuted} text={`${t('{count} rewarded this year (up to {max}; {left} left)', { count: invite.rewardedThisYear, max: invite.maxPerYear, left })}${invite.pending > 0 ? ` · ${t('{count} waiting for a first booking', { count: invite.pending })}` : ''}. ${t('For people new to Detlio only.')}`} />
     </ScCard>
   );
 }

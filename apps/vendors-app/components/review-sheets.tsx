@@ -19,6 +19,7 @@ import { ScTextarea } from '@repo/native-ui/inputs';
 import { ScSheet } from '@repo/native-ui/sheet';
 import { T } from '@repo/native-ui/text';
 import { toast } from '@repo/native-ui/toast';
+import { useT } from '@repo/core/i18n';
 
 /** A sheet stays mounted through its exit: keep what it showed while it slides away. */
 function useLastReview(review: ReviewRow | null) {
@@ -50,6 +51,7 @@ export function ReplySheet({
   /** The review moved on under the sheet (hidden, window closed, changed): read the list again. */
   onStale: () => void;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const shown = useLastReview(review);
@@ -75,11 +77,11 @@ export function ReplySheet({
     setError('');
     try {
       const reply = await replyToReview(shown.id, text.trim());
-      toast.success(editing ? 'Reply saved' : 'Reply posted');
+      toast.success(editing ? t('Reply saved') : t('Reply posted'));
       onSaved(shown.id, reply);
       onClose();
     } catch (err) {
-      setError(errorText(err, "Couldn't save your reply. Try again."));
+      setError(errorText(err, t("Couldn't save your reply. Try again.")));
       if (err instanceof ApiError && err.code && STALE.has(err.code)) onStale();
     } finally {
       setBusy(false);
@@ -91,13 +93,13 @@ export function ReplySheet({
       open={open}
       onClose={onClose}
       dismissible={!busy}
-      accessibilityLabel={editing ? 'Change your reply' : 'Reply to this review'}
+      accessibilityLabel={editing ? t('Change your reply') : t('Reply to this review')}
       horizontalPadding={20}
     >
       <View style={styles.body}>
         <View style={styles.gap4}>
           <T accessibilityRole="header" size={17} weight={600}>
-            {editing ? 'Change your reply' : `Reply to ${shown.name}`}
+            {editing ? t('Change your reply') : t('Reply to {name}', { name: shown.name })}
           </T>
           <T size={13} color={colors.textSecondary}>
             {replyWindowLine(shown.reply)}
@@ -110,7 +112,7 @@ export function ReplySheet({
         ) : null}
         <View style={styles.gap4}>
           <ScTextarea
-            label="Your reply"
+            label={t('Your reply')}
             rows={4}
             maxLength={RATING_RULES.replyMaxLength}
             value={text}
@@ -127,10 +129,10 @@ export function ReplySheet({
           </T>
         ) : null}
         <ScButton disabled={!ready || busy} onPress={() => void save()}>
-          {busy ? 'Saving…' : editing ? 'Save reply' : 'Post reply'}
+          {busy ? t('Saving…') : editing ? t('Save reply') : t('Post reply')}
         </ScButton>
         <ScButton variant="text" disabled={busy} onPress={onClose}>
-          Not now
+          {t('Not now')}
         </ScButton>
       </View>
     </ScSheet>
@@ -154,6 +156,7 @@ export function ReportSheet({
   /** The server has the report (or already had it): the row says so. */
   onReported: (reviewId: string) => void;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const shown = useLastReview(review);
@@ -183,7 +186,7 @@ export function ReportSheet({
     } catch (err) {
       setState('idle');
       if (err instanceof ApiError && err.code === 'REVIEW_ALREADY_REPORTED') onReported(shown.id);
-      setError(errorText(err, "Couldn't send the report. Try again."));
+      setError(errorText(err, t("Couldn't send the report. Try again.")));
     }
   };
 
@@ -192,35 +195,35 @@ export function ReportSheet({
       open={open}
       onClose={onClose}
       dismissible={!sending}
-      accessibilityLabel="Report this review"
+      accessibilityLabel={t('Report this review')}
       horizontalPadding={20}
     >
       {state === 'sent' ? (
         <View style={styles.body}>
           <View accessibilityRole="alert" style={styles.gap4}>
             <T accessibilityRole="header" size={17} weight={600}>
-              {"Thanks, we've got it"}
+              {t("Thanks, we've got it")}
             </T>
             <T size={13} color={colors.textSecondary}>
-              The team will look at this review. If it breaks our rules, it comes down.
+              {t('The team will look at this review. If it breaks our rules, it comes down.')}
             </T>
           </View>
           <ScButton variant="outline" onPress={onClose}>
-            Done
+            {t('Done')}
           </ScButton>
         </View>
       ) : (
         <View style={styles.body}>
           <View style={styles.gap4}>
             <T accessibilityRole="header" size={17} weight={600}>
-              Report this review
+              {t('Report this review')}
             </T>
             <T size={13} color={colors.textSecondary}>
-              Tell the team what is wrong: abusive, fake, or about another garage.
+              {t('Tell the team what is wrong: abusive, fake, or about another garage.')}
             </T>
           </View>
           <ScTextarea
-            label="What's wrong with it?"
+            label={t("What's wrong with it?")}
             rows={3}
             maxLength={RATING_RULES.reportReasonMaxLength}
             value={reason}
@@ -233,10 +236,10 @@ export function ReportSheet({
             </T>
           ) : null}
           <ScButton disabled={!reportReady(reason) || sending} onPress={() => void send()}>
-            {sending ? 'Sending…' : 'Send report'}
+            {sending ? t('Sending…') : t('Send report')}
           </ScButton>
           <ScButton variant="text" disabled={sending} onPress={onClose}>
-            Not now
+            {t('Not now')}
           </ScButton>
         </View>
       )}

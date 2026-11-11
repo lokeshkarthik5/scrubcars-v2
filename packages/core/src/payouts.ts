@@ -5,6 +5,7 @@
  * nothing here works out money, it only words and files it.
  */
 import type { PayoutLine, PayoutLineStatus, PayoutMethod } from './api/admin'
+import { msg, t } from './i18n/translate'
 
 const IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1000
 const HOUR_MS = 60 * 60 * 1000
@@ -34,29 +35,31 @@ export function rupeesLabel(amount: number): string {
 export function commissionLabel(line: Pick<PayoutLine, 'commission'>, audience: 'garage' | 'admin' = 'garage'): string {
   const { freePosition, freeOf, rates, amount } = line.commission
   if (freePosition !== null) {
-    return `Free — booking ${freePosition} of ${audience === 'garage' ? 'your' : 'its'} first ${freeOf}`
+    return audience === 'garage'
+      ? t('Free — booking {n} of your first {count}', { n: freePosition, count: freeOf })
+      : `Free — booking ${freePosition} of its first ${freeOf}`
   }
   if (rates.length === 0) return '—'
   return `${rates.map(percentLabel).join(' + ')} · ${rupeesLabel(amount)}`
 }
 
 export const LINE_STATUS_LABEL: Record<PayoutLineStatus, string> = {
-  due: 'Due',
-  paid: 'Paid',
-  owed_back: 'Owed to Detlio',
-  nothing_due: 'Nothing to pay',
+  due: msg('Due'),
+  paid: msg('Paid'),
+  owed_back: msg('Owed to Detlio'),
+  nothing_due: msg('Nothing to pay'),
 }
 
 export const PAYOUT_METHOD_LABEL: Record<PayoutMethod, string> = {
-  bank: 'Bank transfer',
-  upi: 'UPI',
-  other: 'Other',
+  bank: msg('Bank transfer'),
+  upi: msg('UPI'),
+  other: msg('Other'),
 }
 
 /** What earned it, as a line's tag says. */
 export function lineKindLabel(kind: PayoutLine['kind']): string | null {
-  if (kind === 'customer_no_show') return 'Customer no-show'
-  if (kind === null) return 'Refunded after payout'
+  if (kind === 'customer_no_show') return t('Customer no-show')
+  if (kind === null) return t('Refunded after payout')
   return null
 }
 

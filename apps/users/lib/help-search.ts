@@ -17,14 +17,17 @@ export interface SearchableGroup<Q extends SearchableQuestion> {
   questions: Q[]
 }
 
-/** Lower case, letters and digits only, one space between words. */
+/**
+ * Lower case, letters and digits only, one space between words. Letters of
+ * any script, with their vowel signs, so a Tamil answer is searched in Tamil.
+ */
 function words(text: string): string[] {
   return text
     .toLowerCase()
     .normalize('NFKD')
     .replace(/[̀-ͯ]/g, '')
     .replace(/&/g, ' and ')
-    .split(/[^a-z0-9]+/)
+    .split(/[^\p{L}\p{M}\p{N}]+/u)
     .filter(Boolean)
 }
 

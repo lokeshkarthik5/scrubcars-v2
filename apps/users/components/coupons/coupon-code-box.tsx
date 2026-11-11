@@ -20,6 +20,7 @@ import {
   CouponScanner,
   canScanCoupons,
 } from '@/components/coupons/coupon-scanner'
+import { useT } from '@repo/core/i18n'
 
 /**
  * "Have a coupon?": the code off a printed coupon, typed (dashes, spaces
@@ -33,6 +34,7 @@ export function CouponCodeBox({
 }: {
   onAdded?: (coupon: MyCoupon | null) => void
 }) {
+  const t = useT()
   const queryClient = useQueryClient()
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
@@ -66,7 +68,7 @@ export function CouponCodeBox({
       setCode('')
       setResult({
         ok: true,
-        text: coupon ? `Added: ${coupon.title}.` : 'Coupon added.',
+        text: coupon ? t('Added: {title}.', { title: coupon.title }) : t('Coupon added.'),
       })
       void invalidateCoupons(queryClient)
       onAdded?.(coupon)
@@ -76,7 +78,7 @@ export function CouponCodeBox({
         text:
           error instanceof ApiError
             ? error.message
-            : "Couldn't add that coupon. Check your connection and try again.",
+            : t("Couldn't add that coupon. Check your connection and try again."),
       })
     } finally {
       setBusy(false)
@@ -94,7 +96,7 @@ export function CouponCodeBox({
       >
         <ScInput
           data-clarity-mask="true"
-          label="Have a coupon?"
+          label={t('Have a coupon?')}
           placeholder="DTL-7K4QM-92MXA"
           autoComplete="off"
           autoCapitalize="characters"
@@ -111,7 +113,7 @@ export function CouponCodeBox({
             disabled={!code.trim() || busy}
             className="min-h-11 flex-1"
           >
-            {busy ? 'Adding…' : 'Add coupon'}
+            {busy ? t('Adding…') : t('Add coupon')}
           </ScButton>
           {canScan && (
             <ScButton
@@ -123,7 +125,7 @@ export function CouponCodeBox({
               className="min-h-11 gap-1.5 px-4"
             >
               <IconScan size={16} aria-hidden="true" />
-              Scan
+              {t('Scan')}
             </ScButton>
           )}
         </div>

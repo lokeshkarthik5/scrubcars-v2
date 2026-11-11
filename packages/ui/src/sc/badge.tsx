@@ -1,4 +1,5 @@
 import { cn } from '@repo/core/utils'
+import { t } from '@repo/core/i18n/translate'
 
 type BadgeVariant = 'success' | 'pending' | 'muted' | 'active' | 'accent' | 'danger'
 
@@ -45,23 +46,26 @@ export function ScBadge({ children, variant = 'muted', className }: ScBadgeProps
 /** Onboarding stage shown in the admin panel (`vendors.status`). */
 export function vendorAdminStatusBadge(status: string) {
   const map: Record<string, { label: string; variant: BadgeVariant }> = {
-    active: { label: 'Active', variant: 'success' },
-    pending: { label: 'Pending', variant: 'pending' },
-    suspended: { label: 'Suspended', variant: 'danger' },
-    archived: { label: 'Archived', variant: 'muted' },
+    active: { label: t('Active'), variant: 'success' },
+    pending: { label: t('Pending'), variant: 'pending' },
+    suspended: { label: t('Suspended'), variant: 'danger' },
+    archived: { label: t('Archived'), variant: 'muted' },
   }
   return map[status] ?? { label: status, variant: 'muted' as const }
 }
 
-/** A booking's status as the garage and the admin panel name it. */
+/**
+ * A booking's status as the garage and the admin panel name it, in the language
+ * in use (the screens calling these re-render with it through useT).
+ */
 export function bookingStatusBadge(status: string) {
   const map: Record<string, { label: string; variant: BadgeVariant }> = {
-    pending: { label: 'New', variant: 'accent' },
-    confirmed: { label: 'Confirmed', variant: 'success' },
-    in_progress: { label: 'In progress', variant: 'active' },
-    completed: { label: 'Completed', variant: 'success' },
-    cancelled: { label: 'Cancelled', variant: 'muted' },
-    rescheduled: { label: 'Rescheduled', variant: 'muted' },
+    pending: { label: t('New'), variant: 'accent' },
+    confirmed: { label: t('Confirmed'), variant: 'success' },
+    in_progress: { label: t('In progress'), variant: 'active' },
+    completed: { label: t('Completed'), variant: 'success' },
+    cancelled: { label: t('Cancelled'), variant: 'muted' },
+    rescheduled: { label: t('Rescheduled'), variant: 'muted' },
   }
   return map[status] ?? { label: status, variant: 'muted' as const }
 }
@@ -78,7 +82,7 @@ export function bookingStatusBadge(status: string) {
  */
 export function customerBookingStatusBadge(status: string) {
   if (status === 'pending') {
-    return { label: 'Requested', variant: 'pending' as const }
+    return { label: t('Requested'), variant: 'pending' as const }
   }
   return bookingStatusBadge(status)
 }

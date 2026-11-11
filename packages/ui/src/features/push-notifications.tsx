@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { IconBellRinging, IconDeviceMobile } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
 import { ApiError } from '@repo/core/api/client'
+import { fill, t, useT } from '@repo/core/i18n'
 import {
   getPushConfig,
   getPushStatus,
@@ -52,7 +53,7 @@ export interface PushDevice {
 }
 
 function problem(error: unknown, fallback: string): string {
-  if (error instanceof PushSetupError) return error.message
+  if (error instanceof PushSetupError) return t(error.message)
   if (error instanceof ApiError) return error.message
   return fallback
 }
@@ -109,11 +110,11 @@ export function usePushDevice(app: PushApp, scopeKey?: string | null): PushDevic
       const status = await savePushSubscription(app, subscription)
       setSubscribed(true)
       setDevices(status.devices)
-      toast.success('Notifications are on for this device')
+      toast.success(t('Notifications are on for this device'))
       return true
     } catch (error) {
       setSupport(detectPushSupport())
-      toast.error(problem(error, "Couldn't turn notifications on. Try again."))
+      toast.error(problem(error, t("Couldn't turn notifications on. Try again.")))
       return false
     } finally {
       setBusy(false)
@@ -130,9 +131,9 @@ export function usePushDevice(app: PushApp, scopeKey?: string | null): PushDevic
       }
       await unsubscribeThisBrowser()
       setSubscribed(false)
-      toast.success('Notifications are off for this device')
+      toast.success(t('Notifications are off for this device'))
     } catch (error) {
-      toast.error(problem(error, "Couldn't turn notifications off. Try again."))
+      toast.error(problem(error, t("Couldn't turn notifications off. Try again.")))
     } finally {
       setBusy(false)
     }
@@ -144,17 +145,17 @@ export function usePushDevice(app: PushApp, scopeKey?: string | null): PushDevic
       const current = await currentPushSubscription()
       if (!current) {
         setSubscribed(false)
-        toast.error('Turn notifications on first')
+        toast.error(t('Turn notifications on first'))
         return
       }
       const { result } = await sendTestPush(app, current.endpoint)
-      if (result === 'sent') toast.success('Sent. It should show in a few seconds.')
+      if (result === 'sent') toast.success(t('Sent. It should show in a few seconds.'))
       else if (result === 'expired') {
         setSubscribed(false)
-        toast.error('This device stopped taking notifications. Turn them on again.')
-      } else toast.error("The browser's push service didn't take it. Try again in a minute.")
+        toast.error(t('This device stopped taking notifications. Turn them on again.'))
+      } else toast.error(t("The browser's push service didn't take it. Try again in a minute."))
     } catch (error) {
-      toast.error(problem(error, "Couldn't send a test notification."))
+      toast.error(problem(error, t("Couldn't send a test notification.")))
     } finally {
       setBusy(false)
     }
@@ -165,25 +166,28 @@ export function usePushDevice(app: PushApp, scopeKey?: string | null): PushDevic
 
 /** What to tell someone whose browser cannot be switched on here. */
 export function PushSupportNotice({ support, appName }: { support: PushSupport; appName: string }) {
+  const t = useT()
   if (support === 'ios_install') {
     return (
-      <Notice tone="neutral" title={`On iPhone, add ${appName} to your Home Screen first`}>
-        In Safari, tap Share, then Add to Home Screen. Open {appName} from the new icon and turn notifications on
-        here. Needs iOS 16.4 or later.
+      <Notice tone="neutral" title={t('On iPhone, add {app} to your Home Screen first', { app: appName })}>
+        {t(
+          'In Safari, tap Share, then Add to Home Screen. Open {app} from the new icon and turn notifications on here. Needs iOS 16.4 or later.',
+          { app: appName }
+        )}
       </Notice>
     )
   }
   if (support === 'denied') {
     return (
-      <Notice title="Notifications are blocked for this site">
-        Allow them in your browser&apos;s site settings, then come back to this page.
+      <Notice title={t('Notifications are blocked for this site')}>
+        {t("Allow them in your browser's site settings, then come back to this page.")}
       </Notice>
     )
   }
   if (support === 'unsupported') {
     return (
-      <Notice tone="neutral" title="This browser can't show notifications">
-        Try Chrome, Edge, Firefox or Samsung Internet, or Safari from the Home Screen on iPhone.
+      <Notice tone="neutral" title={t("This browser can't show notifications")}>
+        {t('Try Chrome, Edge, Firefox or Samsung Internet, or Safari from the Home Screen on iPhone.')}
       </Notice>
     )
   }
@@ -205,11 +209,12 @@ export function PushDeviceCard({
   /** What turning it on gets this person. */
   description: string
 }) {
+  const t = useT()
   if (!device.loaded) return <Skeleton className="h-[88px] rounded-[14px]" />
   if (!device.config) {
     return (
-      <Notice tone="neutral" title="Couldn't load your notification settings">
-        Check your connection and open this page again.
+      <Notice tone="neutral" title={t("Couldn't load your notification settings")}>
+        {t('Check your connection and open this page again.')}
       </Notice>
     )
   }
@@ -225,11 +230,11 @@ export function PushDeviceCard({
             <IconDeviceMobile size={18} aria-hidden="true" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-[13px] font-semibold text-text-primary">Notifications on this device</p>
+            <p className="text-[13px] font-semibold text-text-primary">{t('Notifications on this device')}</p>
             <p className="text-[11px] text-text-secondary">{description}</p>
           </div>
           <ScSwitch
-            label="Notifications on this device"
+            label={t('Notifications on this device')}
             checked={device.subscribed}
             disabled={device.busy || (!canSwitch && !device.subscribed)}
             onChange={(on) => void (on ? device.turnOn() : device.turnOff())}
@@ -237,14 +242,16 @@ export function PushDeviceCard({
         </div>
         {others > 0 && (
           <p className="text-[11px] text-text-muted">
-            Also on for <span className="font-numeric">{others}</span> other {others === 1 ? 'device' : 'devices'}.
+            {fill(others === 1 ? t('Also on for {count} other device.') : t('Also on for {count} other devices.'), {
+              count: <span className="font-numeric">{others}</span>,
+            })}
           </p>
         )}
         {device.subscribed && (
           <ScButton variant="secondary" disabled={device.busy} onClick={() => void device.sendTest()}>
             <span className="flex items-center justify-center gap-2">
               <IconBellRinging size={16} aria-hidden="true" />
-              Send me a test notification
+              {t('Send me a test notification')}
             </span>
           </ScButton>
         )}

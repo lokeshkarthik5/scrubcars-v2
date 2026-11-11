@@ -1,4 +1,5 @@
 import type { OpeningDay } from '@repo/core/opening-hours';
+import { fill, useT } from '@repo/core/i18n';
 import type { Booking } from '@repo/core/types';
 import { type Href, router } from 'expo-router';
 import { Pressable, ScrollView, View } from 'react-native';
@@ -119,6 +120,7 @@ function StripDay({
   closed: boolean;
   onPick: (day: string) => void;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const summary = daySummary(jobs);
@@ -144,7 +146,7 @@ function StripDay({
         weight={isToday ? 600 : 400}
         color={isToday ? colors.tones.new.text : closed ? ink : colors.textMuted}
       >
-        {isToday ? 'Today' : weekdayShort(day)}
+        {isToday ? t('Today') : weekdayShort(day)}
       </T>
       <T num size={18} lh={22} weight={isToday || selected ? 700 : 600} color={ink}>
         {dayOfMonth(day)}
@@ -152,23 +154,29 @@ function StripDay({
       <View style={styles.note}>
         {note?.kind === 'closed' ? (
           <T size={11} lh={14} color={ink}>
-            Closed
+            {t('Closed')}
           </T>
         ) : null}
         {note?.kind === 'done' ? (
           <T size={11} lh={14} color={colors.tones.done.text}>
-            <T num size={11} lh={14} color={colors.tones.done.text}>
-              {note.count}
-            </T>
-            {' done'}
+            {fill(t('{count} done'), {
+              count: (
+                <T num size={11} lh={14} color={colors.tones.done.text}>
+                  {note.count}
+                </T>
+              ),
+            })}
           </T>
         ) : null}
         {note?.kind === 'today' ? (
           <T size={11} lh={14}>
-            <T num size={11} lh={14}>
-              {note.count}
-            </T>
-            {note.count === 1 ? ' job' : ' jobs'}
+            {fill(note.count === 1 ? t('{count} job') : t('{count} jobs'), {
+              count: (
+                <T num size={11} lh={14}>
+                  {note.count}
+                </T>
+              ),
+            })}
           </T>
         ) : null}
         {note?.kind === 'count' ? (
@@ -217,6 +225,7 @@ function Timeline({
   room: GarageRoom;
   closed: boolean;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const { bays } = room;
@@ -250,19 +259,22 @@ function Timeline({
           {/* Detlio doesn't put bookings in bays, so the lanes say none. */}
           <View style={[styles.headCell, { flex: garage.length }]}>
             <T size={12} weight={600} color={colors.textSecondary} align="center" numberOfLines={1}>
-              {'At the garage '}
+              {`${t('At the garage')} `}
               <T size={12} color={colors.textMuted}>
                 {'· '}
-                <T num size={12} color={colors.textMuted}>
-                  {bayCount}
-                </T>
-                {bayCount === 1 ? ' bay' : ' bays'}
+                {fill(bayCount === 1 ? t('{count} bay') : t('{count} bays'), {
+                  count: (
+                    <T num size={12} color={colors.textMuted}>
+                      {bayCount}
+                    </T>
+                  ),
+                })}
               </T>
             </T>
           </View>
           <View style={[styles.headCell, { flex: road.length }]}>
             <T size={12} weight={600} color={colors.textSecondary} align="center" numberOfLines={1}>
-              On the road
+              {t('On the road')}
             </T>
           </View>
         </View>
@@ -283,7 +295,7 @@ function Timeline({
             >
               <Hatch />
               <T size={11} lh={14} color={colors.dim}>
-                {`Closes ${minuteClock(hours.closeMin)}`}
+                {t('Closes {time}', { time: minuteClock(hours.closeMin) })}
               </T>
             </View>
           ) : null}
@@ -341,12 +353,13 @@ function Block({
   trueHeight: number;
   room: number;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const b = job.booking;
   const height = Math.max(trueHeight, Math.min(44, room));
   const tone = blockTone(colors, job.kind);
-  const status = job.kind === 'answer' ? answerLine(b, now) : KIND_LABELS[job.kind];
+  const status = job.kind === 'answer' ? answerLine(b, now) : t(KIND_LABELS[job.kind]);
   const service = b.items[0]?.name ?? b.serviceSummary;
   return (
     <Pressable
@@ -397,13 +410,14 @@ function Block({
 
 /** A stretch of free time in a lane: "Free 1:00 – 3:30". */
 function FreeBox({ gap, top }: { gap: Gap; top: number }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const height = ((gap.endMin - gap.startMin) * HOUR_PX) / 60 - 2;
   return (
     <View pointerEvents="none" style={[styles.free, { top: top + 1, height }]}>
       <T size={11} lh={14} weight={600} color={colors.textSecondary}>
-        Free
+        {t('Free')}
       </T>
       <T num size={11} lh={14} color={colors.textMuted}>
         {`${shortClock(gap.startMin)} – ${shortClock(gap.endMin)}`}

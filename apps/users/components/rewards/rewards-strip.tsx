@@ -6,6 +6,7 @@ import type { RewardsSummary } from '@repo/core/api/rewards'
 import { rewardRupees, stampsToGoLine } from '@repo/core/rewards'
 import { Figures } from '@repo/ui/sc/figures'
 import { LevelBadge } from './level-badge'
+import { useT, useTn } from '@repo/core/i18n'
 
 /**
  * Home's one line under the car (Detlio Rewards, 0050): how far the Shine
@@ -13,12 +14,14 @@ import { LevelBadge } from './level-badge'
  * Not a card above the car: Home's two-card rule is untouched.
  */
 export function RewardsStrip({ summary }: { summary: RewardsSummary }) {
+  const t = useT()
+  const tn = useTn()
   const { card, level } = summary
   const extra =
     summary.scratchWaiting > 0
-      ? `${summary.scratchWaiting} scratch ${summary.scratchWaiting === 1 ? 'card' : 'cards'} waiting`
+      ? tn(summary.scratchWaiting, '{count} scratch card waiting', '{count} scratch cards waiting')
       : summary.vouchersAvailable > 0
-        ? `${rewardRupees(summary.vouchers[0]?.amount)} off ready to use`
+        ? t('{rewardRupees} off ready to use', { rewardRupees: rewardRupees(summary.vouchers[0]?.amount) })
         : null
   return (
     <Link

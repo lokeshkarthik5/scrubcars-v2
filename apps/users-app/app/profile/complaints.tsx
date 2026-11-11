@@ -1,3 +1,4 @@
+import { useT } from '@repo/core/i18n';
 import { ScButton } from '@repo/native-ui/button';
 import { T } from '@repo/native-ui/text';
 import { createStyles } from '@repo/native-ui/theme';
@@ -11,12 +12,13 @@ import { useAuth } from '@/lib/auth';
 
 /** "See our answer": the same complaints list the Profile page shows, on its own. */
 export default function ComplaintsScreen() {
+  const t = useT();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const user = useAuth((s) => s.user);
   return (
     <View style={[styles.page, { paddingTop: insets.top }]}>
-      <PageHeader title="Your complaints" backTo="/profile" />
+      <PageHeader title={t('Your complaints')} backTo="/profile" />
       {user ? (
         <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 24 }]}>
           <MyComplaints />
@@ -24,10 +26,10 @@ export default function ComplaintsScreen() {
       ) : (
         <View style={styles.center}>
           <T size={15} weight={600} align="center">
-            Sign in to see your complaints
+            {t('Sign in to see your complaints')}
           </T>
           <ScButton variant="main" fullWidth={false} paddingX={32} onPress={() => router.push(`/login?next=${encodeURIComponent('/profile/complaints')}` as Href)}>
-            Sign in
+            {t('Sign in')}
           </ScButton>
         </View>
       )}

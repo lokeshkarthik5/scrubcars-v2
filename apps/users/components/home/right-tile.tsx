@@ -13,21 +13,25 @@ import { formatClock, formatDay } from '@repo/core/format'
 import { formatRupees } from '@repo/core/job-records'
 import { PICKUP_STAGE_NOW } from '@repo/core/pickup'
 import { Tile } from './tile'
+import { fill, msg, useT } from '@repo/core/i18n'
+import { t } from '@repo/core/i18n/translate'
 
 const NEXT_LABELS: Record<string, string> = {
-  pending: 'Requested',
-  confirmed: 'Next booking',
-  in_progress: 'Being washed now',
+  pending: msg('Requested'),
+  confirmed: msg('Next booking'),
+  in_progress: msg('Being washed now'),
 }
 
 /** "Hub Promo · ₹450", "· Inspection fee ₹299", or "· Price at checkout". */
 function bookAgainPrice(
   tile: Extract<HomeRightTile, { kind: 'book_again' }>
 ): string {
-  if (tile.price === null) return 'Price at checkout'
+  if (tile.price === null) return t('Price at checkout')
   const amount = formatRupees(Number(tile.price))
   // Only the inspection fee is known ahead; the work is priced at the garage.
-  return tile.pricedOnInspection ? `Inspection fee ${amount}` : amount
+  return tile.pricedOnInspection
+    ? t('Inspection fee {amount}', { amount })
+    : amount
 }
 
 /**
@@ -48,6 +52,7 @@ export function RightTile({
   tile: HomeRightTile
   onBook?: () => void
 }) {
+  const t = useT()
   switch (tile.kind) {
     case 'next_booking': {
       const [time, meridiem] = formatClock(tile.scheduledAt).split(' ')
@@ -57,12 +62,12 @@ export function RightTile({
       // ("Car collected", "On its way back") says more than the status does.
       const stage =
         tile.pickupStage && tile.pickupStage !== 'booked'
-          ? PICKUP_STAGE_NOW[tile.pickupStage]
+          ? t(PICKUP_STAGE_NOW[tile.pickupStage])
           : null
       return (
         <Tile
           href={`/bookings/${tile.bookingId}`}
-          label={stage ?? NEXT_LABELS[tile.status] ?? 'Next booking'}
+          label={stage ?? (NEXT_LABELS[tile.status] ? t(NEXT_LABELS[tile.status]!) : t('Next booking'))}
           icon={IconCalendarEvent}
         >
           <span className="flex min-h-0 flex-1 items-end pb-3">
@@ -88,15 +93,15 @@ export function RightTile({
           <span className="mt-[9px] text-t4 leading-snug text-dim">
             {unpaid ? (
               <b className="font-medium text-text-primary">
-                Pay to hold your slot
+                {t('Pay to hold your slot')}
               </b>
             ) : (
               <>
                 <b className="block font-medium text-text-primary">
-                  {formatDay(tile.scheduledAt)}
+                  {t(formatDay(tile.scheduledAt))}
                 </b>
                 <span className="block">
-                  {BOOKING_TYPE_LABELS[tile.bookingType]}
+                  {t(BOOKING_TYPE_LABELS[tile.bookingType])}
                 </span>
               </>
             )}
@@ -110,13 +115,14 @@ export function RightTile({
       return (
         <Tile
           href={`/bookings/${tile.bookingId}`}
-          label="Before & after"
+          label={t('Before & after')}
           icon={IconPhoto}
         >
           <span className="flex-1" />
           <span className="text-[22px] leading-[1.12] tracking-[-0.022em] text-text-primary">
-            <span className="font-numeric">{total}</span>{' '}
-            {total === 1 ? 'photo' : 'photos'}
+            {fill(t(total === 1 ? '{count} photo' : '{count} photos'), {
+              count: <span className="font-numeric">{total}</span>,
+            })}
           </span>
           <span className="mt-2 line-clamp-2 text-t4 leading-snug text-dim">
             {tile.vendorName} · {bookingDayLabel(tile.at)}
@@ -133,16 +139,16 @@ export function RightTile({
         return (
           <Tile
             href={withdrawnPathFor(tile)}
-            label="Book again"
+            label={t('Book again')}
             icon={IconRepeat}
             onClick={onBook}
           >
             <span className="flex-1" />
             <span className="text-[22px] leading-[1.12] tracking-[-0.022em] text-text-primary">
-              Pick a service
+              {t('Pick a service')}
             </span>
             <span className="mt-2 line-clamp-2 text-t4 leading-snug text-dim">
-              {tile.vendorName} changed its services
+              {t('{vendorName} changed its services', { vendorName: tile.vendorName })}
             </span>
           </Tile>
         )
@@ -150,7 +156,7 @@ export function RightTile({
       return (
         <Tile
           href={bookAgainPathFor(tile)}
-          label="Book again"
+          label={t('Book again')}
           icon={IconRepeat}
           onClick={onBook}
         >
@@ -169,16 +175,16 @@ export function RightTile({
       return (
         <Tile
           href="/garages"
-          label="Book again"
+          label={t('Book again')}
           icon={IconBuildingStore}
           onClick={onBook}
         >
           <span className="flex-1" />
           <span className="line-clamp-3 text-t3 leading-[1.3] text-text-primary">
-            {tile.vendorName} isn&apos;t taking bookings right now
+            {t("{vendorName} isn't taking bookings right now", { vendorName: tile.vendorName })}
           </span>
           <span className="mt-2 truncate text-t4 font-medium text-text-primary">
-            See other garages
+            {t('See other garages')}
           </span>
         </Tile>
       )
@@ -187,16 +193,16 @@ export function RightTile({
       return (
         <Tile
           href="/garages"
-          label="Next booking"
+          label={t('Next booking')}
           icon={IconCalendarEvent}
           onClick={onBook}
         >
           <span className="flex-1" />
           <span className="text-[22px] leading-[1.12] tracking-[-0.022em] text-text-primary">
-            Nothing booked
+            {t('Nothing booked')}
           </span>
           <span className="mt-2 truncate text-t4 text-dim">
-            Pick a garage
+            {t('Pick a garage')}
           </span>
         </Tile>
       )

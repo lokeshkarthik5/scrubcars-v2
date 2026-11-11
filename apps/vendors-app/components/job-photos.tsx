@@ -25,23 +25,25 @@ import { AFTER_SHEET_MS, ScModal, ScSheet } from '@repo/native-ui/sheet';
 import { T } from '@repo/native-ui/text';
 import { toast } from '@repo/native-ui/toast';
 import { errorText } from '@/lib/error-text';
+import { msg, useT } from '@repo/core/i18n';
 
-const LABELS: Record<JobPhoto['stage'], string> = { before: 'Before photos', after: 'After photos' };
+const LABELS: Record<JobPhoto['stage'], string> = { before: msg('Before photos'), after: msg('After photos') };
 
 const REQUIRED_HINTS: Record<JobPhoto['stage'], string> = {
-  before: `Walk round the car before you start: at least ${MIN_GARAGE_PHOTOS} photos, any marks up close.`,
-  after: `The finished work, before the car goes back: at least ${MIN_GARAGE_PHOTOS} photos.`,
+  before: msg('Walk round the car before you start: at least {count} photos, any marks up close.'),
+  after: msg('The finished work, before the car goes back: at least {count} photos.'),
 };
 
 const HINTS: Record<JobPhoto['stage'], string> = {
-  before: 'Optional. The car as it came in, if anything is already marked.',
-  after: 'Optional. The finished work, before the car goes back.',
+  before: msg('Optional. The car as it came in, if anything is already marked.'),
+  after: msg('Optional. The finished work, before the car goes back.'),
 };
 
 const PICKUP_HINTS: Record<JobPhoto['stage'], string> = {
-  before:
-    'Recommended: the car as you collect it, every side and any marks. They are your record of how it was handed over.',
-  after: 'Optional. The finished work, before the car goes back.',
+  before: msg(
+    'Recommended: the car as you collect it, every side and any marks. They are your record of how it was handed over.'
+  ),
+  after: msg('Optional. The finished work, before the car goes back.'),
 };
 
 const capitalise = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
@@ -77,6 +79,7 @@ export function JobPhotos({
   onChanged: () => void;
   readOnly?: boolean;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const [uploading, setUploading] = useState<Slot | null>(null);
@@ -95,12 +98,24 @@ export function JobPhotos({
   const extras = extraPhotos(booking.jobPhotos, 'garage', stage);
   const customers = photosOf(booking.jobPhotos, 'customer', stage);
   const room = readOnly ? 0 : MAX_JOB_PHOTOS_PER_STAGE - own.length;
-  const who = booking.customerName ?? 'this customer';
-  const stageWord = stage === 'before' ? 'before' : 'after';
+  const who = booking.customerName ?? t('this customer');
+  const before = stage === 'before';
   const counter = required
-    ? `${Math.min(own.length, MIN_GARAGE_PHOTOS)} of ${MIN_GARAGE_PHOTOS}`
+    ? t('{done} of {count}', { done: Math.min(own.length, MIN_GARAGE_PHOTOS), count: MIN_GARAGE_PHOTOS })
     : `${own.length}/${MAX_JOB_PHOTOS_PER_STAGE}`;
-  const hint = required ? REQUIRED_HINTS[stage] : (booking.bookingType === 'pickup' ? PICKUP_HINTS : HINTS)[stage];
+  const hint = required
+    ? t(REQUIRED_HINTS[stage], { count: MIN_GARAGE_PHOTOS })
+    : t((booking.bookingType === 'pickup' ? PICKUP_HINTS : HINTS)[stage]);
+  // The photo's name in a sentence: "left side before photo for Ravi".
+  const angleName = (angle: PhotoAngle) => t(PHOTO_ANGLE_LABELS[angle]).toLowerCase();
+  const photoName = (angle: PhotoAngle) =>
+    before
+      ? t('{angle} before photo for {who}', { angle: angleName(angle), who })
+      : t('{angle} after photo for {who}', { angle: angleName(angle), who });
+  const addName = (angle: PhotoAngle) =>
+    before
+      ? t('Add {angle} before photo for {who}', { angle: angleName(angle), who })
+      : t('Add {angle} after photo for {who}', { angle: angleName(angle), who });
 
   const upload = async (uris: string[], slot: Slot) => {
     if (uris.length === 0) return;
@@ -111,7 +126,7 @@ export function JobPhotos({
           const prepared = await prepareForUpload(uri);
           await uploadJobPhoto(booking.id, stage, prepared.bytes, slot === 'extra' ? undefined : slot);
         } catch (error) {
-          toast.error(errorText(error, 'Upload failed'));
+          toast.error(errorText(error, t('Upload failed')));
         }
       }
     } finally {
@@ -143,7 +158,7 @@ export function JobPhotos({
       closeViewer();
       onChanged();
     } catch (error) {
-      toast.error(errorText(error, 'Could not remove this photo'));
+      toast.error(errorText(error, t('Could not remove this photo')));
     } finally {
       setRemovingId(null);
     }
@@ -154,7 +169,7 @@ export function JobPhotos({
   const thumb = (photo: JobPhoto, name: string, isOwn: boolean) => (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`View ${name}`}
+      accessibilityLabel={t('View {photo}', { photo: name })}
       onPress={() => setViewing({ photo, name, own: isOwn })}
       style={styles.thumb}
     >
@@ -166,14 +181,20 @@ export function JobPhotos({
   const small = slots.slice(2);
   const nextAngle = readOnly ? null : (big.find((slot) => !slot.photo)?.angle ?? null);
   const shortLabel = (angle: PhotoAngle) =>
-    angle === 'interior' ? 'Inside' : PHOTO_ANGLE_LABELS[angle].replace(' side', '');
+    angle === 'interior'
+      ? t('Inside')
+      : angle === 'left'
+        ? t('Left')
+        : angle === 'right'
+          ? t('Right')
+          : t(PHOTO_ANGLE_LABELS[angle]);
   const busyAny = uploading !== null;
 
   return (
     <View style={styles.column}>
       <View style={styles.head}>
         <T accessibilityRole="header" size={20} weight={600}>
-          {LABELS[stage]}
+          {t(LABELS[stage])}
         </T>
         <View style={[styles.pill, required && own.length >= MIN_GARAGE_PHOTOS && styles.pillDone]}>
           <T
@@ -194,25 +215,25 @@ export function JobPhotos({
       ) : null}
       {!required && !readOnly && own.length < MIN_GARAGE_PHOTOS ? (
         <T size={13} color={colors.textSecondary}>
-          Photos protect you if a customer complains, and count toward Gold.
+          {t('Photos protect you if a customer complains, and count toward Gold.')}
         </T>
       ) : null}
       {readOnly && own.length > 0 ? (
         <T size={13} color={colors.textSecondary}>
-          {stage === 'before' ? 'Closed once the job was completed.' : 'Closed an hour after the job was completed.'}
+          {before ? t('Closed once the job was completed.') : t('Closed an hour after the job was completed.')}
         </T>
       ) : null}
 
       <View style={styles.bigRow}>
         {big.map(({ angle, photo }) => {
-          const label = PHOTO_ANGLE_LABELS[angle];
+          const label = t(PHOTO_ANGLE_LABELS[angle]);
           if (photo) {
-            const name = `${label.toLowerCase()} ${stageWord} photo for ${who}`;
+            const name = photoName(angle);
             return (
               <View key={angle} style={styles.bigCell}>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={`View ${name}`}
+                  accessibilityLabel={t('View {photo}', { photo: name })}
                   onPress={() => setViewing({ photo, name, own: true })}
                   style={styles.bigPhoto}
                 >
@@ -235,13 +256,13 @@ export function JobPhotos({
             <Pressable
               key={angle}
               accessibilityRole="button"
-              accessibilityLabel={`Add ${label.toLowerCase()} ${stageWord} photo for ${who}`}
+              accessibilityLabel={addName(angle)}
               disabled={busyAny}
               onPress={() => tap(angle)}
               style={[styles.bigCell, styles.bigTile, isNext ? styles.bigNext : styles.bigIdle, busyAny && styles.dim]}
             >
               {uploading === angle ? (
-                <ActivityIndicator color={colors.textPrimary} accessibilityLabel="Uploading" />
+                <ActivityIndicator color={colors.textPrimary} accessibilityLabel={t('Uploading')} />
               ) : (
                 <IconCamera size={30} color={isNext ? colors.textPrimary : colors.textSecondary} />
               )}
@@ -256,11 +277,11 @@ export function JobPhotos({
       <View style={styles.smallRow}>
         {small.map(({ angle, photo }) => {
           if (photo) {
-            const label = PHOTO_ANGLE_LABELS[angle];
+            const label = t(PHOTO_ANGLE_LABELS[angle]);
             return (
               <View key={angle} style={styles.thumbCell}>
                 <View>
-                  {thumb(photo, `${label.toLowerCase()} ${stageWord} photo for ${who}`, true)}
+                  {thumb(photo, photoName(angle), true)}
                   <View style={styles.smallCheck}>
                     <IconCheck size={12} stroke={3} color={colors.chosenText} />
                   </View>
@@ -276,7 +297,7 @@ export function JobPhotos({
             <Pressable
               key={angle}
               accessibilityRole="button"
-              accessibilityLabel={`Add ${PHOTO_ANGLE_LABELS[angle].toLowerCase()} ${stageWord} photo for ${who}`}
+              accessibilityLabel={addName(angle)}
               disabled={busyAny}
               onPress={() => tap(angle)}
               style={[styles.smallChip, busyAny && styles.dim]}
@@ -289,9 +310,15 @@ export function JobPhotos({
 
         {extras.map((photo, i) => (
           <View key={photo.id} style={styles.thumbCell}>
-            {thumb(photo, `extra ${stageWord} photo ${i + 1} for ${who}`, true)}
+            {thumb(
+              photo,
+              before
+                ? t('extra before photo {n} for {who}', { n: i + 1, who })
+                : t('extra after photo {n} for {who}', { n: i + 1, who }),
+              true
+            )}
             <T size={13} color={colors.textSecondary}>
-              Extra
+              {t('Extra')}
             </T>
           </View>
         ))}
@@ -299,7 +326,7 @@ export function JobPhotos({
         {room > 0 ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`Add ${stageWord} photos for ${who}`}
+            accessibilityLabel={before ? t('Add before photos for {who}', { who }) : t('Add after photos for {who}', { who })}
             disabled={busyAny}
             onPress={() => tap('extra')}
             style={[styles.smallChip, busyAny && styles.dim]}
@@ -309,18 +336,24 @@ export function JobPhotos({
             ) : (
               <IconCameraPlus size={18} />
             )}
-            <T size={16}>More</T>
+            <T size={16}>{t('More')}</T>
           </Pressable>
         ) : null}
       </View>
 
       {customers.length > 0 ? (
         <View style={styles.customers}>
-          <T size={13} color={colors.textSecondary}>{`From ${who}`}</T>
+          <T size={13} color={colors.textSecondary}>{t('From {who}', { who })}</T>
           <View style={styles.smallRow}>
             {customers.map((photo, i) => (
               <View key={photo.id} style={styles.thumbCell}>
-                {thumb(photo, `customer's ${stageWord} photo ${i + 1}`, false)}
+                {thumb(
+                  photo,
+                  before
+                    ? t("customer's before photo {n}", { n: i + 1 })
+                    : t("customer's after photo {n}", { n: i + 1 }),
+                  false
+                )}
                 <T size={13} color={colors.textSecondary}>
                   {angleLabel(photo.angle)}
                 </T>
@@ -334,7 +367,7 @@ export function JobPhotos({
         open={viewing !== null}
         onClose={closeViewer}
         dismissible={removingId === null}
-        accessibilityLabel={viewing ? capitalise(viewing.name) : 'Job photo'}
+        accessibilityLabel={viewing ? capitalise(viewing.name) : t('Job photo')}
       >
         {viewing ? (
           <View style={styles.viewer}>
@@ -351,22 +384,24 @@ export function JobPhotos({
             {confirming ? (
               <>
                 <T size={15}>
-                  {`Remove this ${stageWord} photo? It is your record of the job if the customer questions the work later.`}
+                  {before
+                    ? t('Remove this before photo? It is your record of the job if the customer questions the work later.')
+                    : t('Remove this after photo? It is your record of the job if the customer questions the work later.')}
                 </T>
                 <View style={styles.viewerRow}>
                   <View style={styles.half}>
                     <ScButton variant="outline" disabled={removingId !== null} onPress={() => setConfirming(false)}>
-                      Keep
+                      {t('Keep')}
                     </ScButton>
                   </View>
                   <View style={styles.half}>
                     <ScButton
                       variant="danger-outline"
                       disabled={removingId !== null}
-                      accessibilityLabel={`Remove ${viewing.name}`}
+                      accessibilityLabel={t('Remove {name}', { name: viewing.name })}
                       onPress={() => void handleRemove(viewing.photo.id)}
                     >
-                      {removingId === viewing.photo.id ? 'Removing…' : 'Remove'}
+                      {removingId === viewing.photo.id ? t('Removing…') : t('Remove')}
                     </ScButton>
                   </View>
                 </View>
@@ -375,13 +410,13 @@ export function JobPhotos({
               <View style={styles.viewerRow}>
                 <View style={styles.half}>
                   <ScButton variant="outline" onPress={closeViewer}>
-                    Close
+                    {t('Close')}
                   </ScButton>
                 </View>
                 {!readOnly && viewing.own ? (
                   <View style={styles.half}>
                     <ScButton variant="outline" onPress={() => setConfirming(true)}>
-                      Remove photo
+                      {t('Remove photo')}
                     </ScButton>
                   </View>
                 ) : null}
@@ -394,9 +429,9 @@ export function JobPhotos({
       <CameraCapture
         open={camera !== null}
         title={
-          camera && camera !== 'extra' ? `${LABELS[stage]} · ${PHOTO_ANGLE_LABELS[camera]}` : LABELS[stage]
+          camera && camera !== 'extra' ? `${t(LABELS[stage])} · ${t(PHOTO_ANGLE_LABELS[camera])}` : t(LABELS[stage])
         }
-        label={camera && camera !== 'extra' ? PHOTO_ANGLE_LABELS[camera] : undefined}
+        label={camera && camera !== 'extra' ? t(PHOTO_ANGLE_LABELS[camera]) : undefined}
         hint={hint}
         counter={counter}
         onClose={() => setCamera(null)}
@@ -408,7 +443,7 @@ export function JobPhotos({
       />
 
       {/* More: the web's file input offers camera or gallery; here, the same two. */}
-      <ScSheet open={choosingMore} onClose={() => setChoosingMore(false)} accessibilityLabel="Add photos" horizontalPadding={16}>
+      <ScSheet open={choosingMore} onClose={() => setChoosingMore(false)} accessibilityLabel={t('Add photos')} horizontalPadding={16}>
         <View style={styles.moreSheet}>
           <ScButton
             variant="outline"
@@ -417,7 +452,7 @@ export function JobPhotos({
               setTimeout(() => setCamera('extra'), AFTER_SHEET_MS);
             }}
           >
-            Take a photo
+            {t('Take a photo')}
           </ScButton>
           <ScButton
             variant="outline"
@@ -426,7 +461,7 @@ export function JobPhotos({
               setTimeout(() => void fromLibrary(Math.max(0, room)).then((uris) => upload(uris, 'extra')), AFTER_SHEET_MS);
             }}
           >
-            Choose from library
+            {t('Choose from library')}
           </ScButton>
         </View>
       </ScSheet>

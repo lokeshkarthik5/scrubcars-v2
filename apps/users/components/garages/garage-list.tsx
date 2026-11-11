@@ -73,6 +73,7 @@ import { QuickLook } from './quick-look'
 import { RollingHint } from './rolling-hint'
 import { ShowroomCard } from './showroom-card'
 import { PullToRefresh } from '@/components/moments/pull-to-refresh'
+import { fill, msg, useT, type Translate } from '@repo/core/i18n'
 
 /**
  * The first page the landing page renders on the server: At garage, every
@@ -93,14 +94,14 @@ const MODE_ICONS: Record<BookingType, typeof IconHome> = {
 
 /** The mode switch's quiet second lines (§3). */
 const MODE_QUIET: Record<BookingType, string> = {
-  dropin: 'Drive it in',
-  doorstep: 'We come to you',
-  pickup: 'We collect it',
+  dropin: msg('Drive it in'),
+  doorstep: msg('We come to you'),
+  pickup: msg('We collect it'),
 }
 
-/** "5 garages", "20+ garages", "1 garage". */
-function garagesCount(count: number, more: boolean): string {
-  return `${count}${more ? '+' : ''} ${count === 1 && !more ? 'garage' : 'garages'}`
+/** "5 garages", "20+ garages", "1 garage" (the last word comes through `t`). */
+function garagesCount(t: Translate, count: number, more: boolean): string {
+  return t(count === 1 && !more ? '{count} garage' : '{count} garages', { count: `${count}${more ? '+' : ''}` })
 }
 
 /** Whether a list card offers the service, from its tags (codes or their names). */
@@ -160,6 +161,7 @@ export function GarageList({
    */
   cardVariant?: 'showroom' | 'compact'
 }) {
+  const t = useT()
   const router = useRouter()
   const reduce = usePrefersReducedMotion()
   const serviceMode = mode
@@ -420,14 +422,14 @@ export function GarageList({
     nearestFirst: effectiveSort === 'distance',
     city,
   })
-  const listCount = isLoading || small ? null : garagesCount(vendors.length, hasMore)
+  const listCount = isLoading || small ? null : garagesCount(t, vendors.length, hasMore)
   // The same count, rolling like an odometer as the mode or the service changes.
-  const listCountRolling = isLoading || small ? null : (
-    <>
-      <Odometer value={`${vendors.length}${hasMore ? '+' : ''}`} numeric={vendors.length} />{' '}
-      {vendors.length === 1 && !hasMore ? 'garage' : 'garages'}
-    </>
-  )
+  const listCountRolling =
+    isLoading || small
+      ? null
+      : fill(t(vendors.length === 1 && !hasMore ? '{count} garage' : '{count} garages'), {
+          count: <Odometer value={`${vendors.length}${hasMore ? '+' : ''}`} numeric={vendors.length} />,
+        })
 
   return (
     <>
@@ -435,14 +437,20 @@ export function GarageList({
         <button
           type="button"
           onClick={() => router.push('/search')}
-          aria-label="Search garages or services"
+          aria-label={t('Search garages or services')}
           className="fx-recessed flex h-[50px] items-center gap-2.5 rounded-[16px] px-4 text-left"
         >
           <IconSearch size={18} aria-hidden className="shrink-0 text-[#A0A0AA]" />
           <span aria-hidden="true" className="flex min-w-0 items-center gap-[0.3em] text-t3 text-[#9A9AA3]">
-            Search
+            {t('Search')}
             <RollingHint
-              hints={['garages or services', 'foam wash', 'ceramic coating', 'interior cleaning', 'scratch removal']}
+              hints={[
+                t('garages or services'),
+                t('foam wash'),
+                t('ceramic coating'),
+                t('interior cleaning'),
+                t('scratch removal'),
+              ]}
             />
           </span>
         </button>
@@ -465,11 +473,11 @@ export function GarageList({
                   words:
                     near.count === 1 && !near.more
                       ? origin
-                        ? 'garage near you'
-                        : `garage in ${city.name}`
+                        ? t('garage near you')
+                        : t('garage in {city}', { city: city.name })
                       : origin
-                        ? 'garages near you'
-                        : `garages in ${city.name}`,
+                        ? t('garages near you')
+                        : t('garages in {city}', { city: city.name }),
                 }
           }
         />
@@ -485,7 +493,7 @@ export function GarageList({
         )}
       >
         <GraphiteSwitch
-          aria-label="Service mode"
+          aria-label={t('Service mode')}
           value={serviceMode}
           onChange={changeMode}
           pinned={pinned}
@@ -493,8 +501,8 @@ export function GarageList({
             const Icon = MODE_ICONS[value]
             return {
               value,
-              label: BOOKING_TYPE_LABELS[value],
-              quiet: MODE_QUIET[value],
+              label: t(BOOKING_TYPE_LABELS[value]),
+              quiet: t(MODE_QUIET[value]),
               icon: <Icon aria-hidden />,
             }
           })}
@@ -503,12 +511,16 @@ export function GarageList({
           <TwoLineControl
             onClick={() => setFilterOpen(true)}
             aria-haspopup="dialog"
-            aria-label={`Service: ${serviceFilterLabel(category)}${listCount ? `, ${listCount}` : ''}. Change`}
+            aria-label={
+              listCount
+                ? t('Service: {service}, {count}. Change', { service: serviceFilterLabel(category), count: listCount })
+                : t('Service: {service}. Change', { service: serviceFilterLabel(category) })
+            }
             pinned={pinned}
             className="flex-1"
             tile={<ServiceFilterIcon filter={category} />}
             main={serviceFilterLabel(category)}
-            quiet={small ? undefined : (listCountRolling ?? 'Finding garages…')}
+            quiet={small ? undefined : (listCountRolling ?? t('Finding garages…'))}
             trailing={<IconChevronDown size={16} aria-hidden />}
           />
           {/* Not there at all while Detlio shows neither Silver nor Gold. */}
@@ -516,8 +528,8 @@ export function GarageList({
             <SilverKey
               on={silverOnly}
               onToggle={() => setSilverChosen((on) => !on)}
-              label={SILVER_KEY_LABEL}
-              quiet={SILVER_KEY_QUIET}
+              label={t(SILVER_KEY_LABEL)}
+              quiet={t(SILVER_KEY_QUIET)}
               pinned={pinned}
             />
           )}
@@ -551,10 +563,10 @@ export function GarageList({
                 pushing the page sideways. */}
             <h2 className="min-w-0 text-t2 font-semibold text-text-primary">
               {serviceMode === 'dropin' && atGarage.skipTheDrive
-                ? 'Or drive to'
+                ? t('Or drive to')
                 : small
                   ? inCityHeading(city)
-                  : 'Nearby garages'}
+                  : t('Nearby garages')}
             </h2>
             <div className="flex shrink-0 items-center gap-2">
               {/* The map peek is the way to the map; without it, this is. */}
@@ -564,7 +576,7 @@ export function GarageList({
                   className="fx-raised fx-press flex h-10 items-center gap-1.5 rounded-[12px] px-3.5 text-t4 font-medium text-[#C8C8D0]"
                 >
                   <IconMap size={15} aria-hidden="true" />
-                  Map
+                  {t('Map')}
                 </Link>
               )}
               <button
@@ -584,8 +596,8 @@ export function GarageList({
               bound worth saying. */}
           {origin && location && vendors.length > 0 && sort === 'distance' && (
             <p className="mt-1 text-t5 font-medium text-[#9A9AA3]">
-              Nearest first from {location.label}
-              {approximate && ' (distances from the area’s centre)'}
+              {t('Nearest first from {label}', { label: location.label })}
+              {approximate && ` ${t('(distances from the area’s centre)')}`}
             </p>
           )}
 
@@ -594,8 +606,7 @@ export function GarageList({
               checkout will. */}
           {serviceMode === 'pickup' && !origin && vendors.length > 0 && (
             <p className="mt-1 text-t5 text-text-muted">
-              Set your location to see only garages that collect from your area.
-              Checkout checks your address either way.
+              {t('Set your location to see only garages that collect from your area. Checkout checks your address either way.')}
             </p>
           )}
         </div>
@@ -619,13 +630,13 @@ export function GarageList({
               would be the previous filter's result. */}
           {isLoading || (isRefreshing && vendors.length === 0) ? (
             <p className="py-8 text-center text-t4 text-text-secondary">
-              Finding garages…
+              {t('Finding garages…')}
             </p>
           ) : isError ? (
             // Not "No garages found": that is a fact about the area, and
             // saying it when the request failed sends people away for good.
             <ErrorState
-              message="Couldn't load garages. Check your connection."
+              message={t("Couldn't load garages. Check your connection.")}
               onRetry={retry}
             />
           ) : vendors.length === 0 ? (
@@ -633,15 +644,15 @@ export function GarageList({
             <div className="flex flex-col items-center gap-3 py-6 text-center">
               <p className="text-t3 text-text-secondary">
                 {silverOnly
-                  ? `No Silver or Gold garages here yet. Turn off “${SILVER_KEY_LABEL}” to see every garage.`
+                  ? t('No Silver or Gold garages here yet. Turn off “{label}” to see every garage.', { label: t(SILVER_KEY_LABEL) })
                   : serviceMode === 'pickup'
-                    ? 'No garage collects from your area yet.'
+                    ? t('No garage collects from your area yet.')
                     : serviceMode === 'doorstep' && !citywide
-                      ? 'No garage travels to your area yet.'
+                      ? t('No garage travels to your area yet.')
                       : serviceMode === 'dropin' && category === 'all' && (origin || cityParams.cityLat !== undefined)
                         ? // Nothing within 150 km (0070): why, and the way on.
                           farEmptyLine(place)
-                        : 'No garages match these filters.'}
+                        : t('No garages match these filters.')}
               </p>
               <div className="flex flex-wrap justify-center gap-2">
                 {silverOnly && (
@@ -650,7 +661,7 @@ export function GarageList({
                     fullWidth={false}
                     onClick={() => setSilverChosen(false)}
                   >
-                    Show every garage
+                    {t('Show every garage')}
                   </ScButton>
                 )}
                 {!silverOnly && category !== 'all' && (
@@ -659,7 +670,7 @@ export function GarageList({
                     fullWidth={false}
                     onClick={() => setCategory('all')}
                   >
-                    Show all services
+                    {t('Show all services')}
                   </ScButton>
                 )}
                 {!silverOnly && origin && serviceMode !== 'dropin' && (
@@ -668,7 +679,7 @@ export function GarageList({
                     fullWidth={false}
                     onClick={() => selectCity(city)}
                   >
-                    Show all of {city.name}
+                    {t('Show all of {city}', { city: city.name })}
                   </ScButton>
                 )}
                 {!silverOnly && serviceMode !== 'dropin' && (
@@ -677,7 +688,7 @@ export function GarageList({
                     fullWidth={false}
                     onClick={() => switchTo('dropin')}
                   >
-                    Try At garage
+                    {t('Try At garage')}
                   </ScButton>
                 )}
               </div>
@@ -692,12 +703,12 @@ export function GarageList({
                       off the end of a "Nearest First" list unexplained. */}
                   {i === firstFar && (
                     <p className="pt-1 text-t5 text-text-muted">
-                      Further away · other towns
+                      {t('Further away · other towns')}
                     </p>
                   )}
                   {i === firstUnlocatedIndex && (
                     <p className="pt-1 text-t5 text-text-muted">
-                      Other garages — location not set yet
+                      {t('Other garages — location not set yet')}
                     </p>
                   )}
                   {/* The mode travels with the tap, so the garage page and

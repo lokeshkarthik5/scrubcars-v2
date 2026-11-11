@@ -11,6 +11,7 @@ import { CustomerShell } from '@/components/customer-shell'
 import { RequestCard } from '@/components/reach/request-card'
 import { FreeWashPiece } from '@/components/reach/free-wash'
 import { isHomeHubEnabled } from '@/lib/home-hub'
+import { useT } from '@repo/core/i18n'
 
 /**
  * Your requests (customer reach, part 2, 0062): every request to a garage
@@ -19,6 +20,7 @@ import { isHomeHubEnabled } from '@/lib/home-hub'
  * request open here. Signed-in customers only (CUSTOMER_ROUTES).
  */
 export default function RequestsPage() {
+  const t = useT()
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
   const requests = useMyRequests({ enabled: !!user })
@@ -28,17 +30,17 @@ export default function RequestsPage() {
 
   return (
     <CustomerShell showNav showBrand className="gap-4 py-4">
-      <TopBar title="Your requests" showBack backHref="/home" large={isHomeHubEnabled()} />
+      <TopBar title={t('Your requests')} showBack backHref="/home" large={isHomeHubEnabled()} />
       {requests.isPending ? (
         <SkeletonCard />
       ) : requests.isError && items.length === 0 ? (
-        <ErrorState message="Couldn't load your requests. Check your connection." onRetry={() => void requests.refetch()} />
+        <ErrorState message={t("Couldn't load your requests. Check your connection.")} onRetry={() => void requests.refetch()} />
       ) : items.length === 0 ? (
         <EmptyState
           icon={<IconSend size={28} stroke={1.5} />}
-          title="No requests"
-          subtitle="Ask a garage just outside its area to come to you, from the Doorstep or Pickup & drop list."
-          actionLabel="See who comes to you"
+          title={t('No requests')}
+          subtitle={t('Ask a garage just outside its area to come to you, from the Doorstep or Pickup & drop list.')}
+          actionLabel={t('See who comes to you')}
           onAction={() => router.push('/garages?mode=doorstep')}
         />
       ) : (

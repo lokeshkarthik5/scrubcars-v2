@@ -9,6 +9,7 @@ import { ScButton } from '@repo/native-ui/button';
 import { IconCheck, IconChevronDown } from '@repo/native-ui/icons';
 import { ScSheet } from '@repo/native-ui/sheet';
 import { T } from '@repo/native-ui/text';
+import { useT } from '@repo/core/i18n';
 
 /** ScCheckbox (packages/ui/src/sc/checkbox.tsx): ticked is white, with a 44px row to hit. */
 export function ScCheckbox({
@@ -97,6 +98,7 @@ export function ScSelect<V extends string>({
   onChange: (value: V) => void;
   disabled?: boolean;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const [open, setOpen] = useState(false);
@@ -120,7 +122,7 @@ export function ScSelect<V extends string>({
         </T>
         <IconChevronDown size={16} color={colors.textSecondary} />
       </Pressable>
-      <ScSheet open={open} onClose={() => setOpen(false)} accessibilityLabel={label ?? 'Choose'}>
+      <ScSheet open={open} onClose={() => setOpen(false)} accessibilityLabel={label ?? t('Choose')}>
         <View style={styles.options}>
           {options.map((o) => (
             <Pressable
@@ -185,6 +187,7 @@ function PickerField({
   maximumDate?: Date;
   minuteInterval?: 1 | 5 | 10 | 15 | 20 | 30;
 }) {
+  const t = useT();
   const colors = useColors();
   const { scheme } = useTheme();
   const styles = useStyles();
@@ -199,7 +202,7 @@ function PickerField({
       ) : null}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={label ? `${label}: ${display || placeholder || 'not set'}` : display}
+        accessibilityLabel={label ? `${label}: ${display || placeholder || t('not set')}` : display}
         disabled={disabled}
         onPress={() => {
           setDraft(value);
@@ -211,7 +214,7 @@ function PickerField({
           {display || placeholder || ''}
         </T>
       </Pressable>
-      <ScSheet open={open} onClose={() => setOpen(false)} accessibilityLabel={label ?? 'Choose'} horizontalPadding={16}>
+      <ScSheet open={open} onClose={() => setOpen(false)} accessibilityLabel={label ?? t('Choose')} horizontalPadding={16}>
         <View style={styles.pickerBody}>
           <View style={styles.pickerCentre}>
           <DateTimePicker
@@ -231,7 +234,7 @@ function PickerField({
               setOpen(false);
             }}
           >
-            Done
+            {t('Done')}
           </ScButton>
         </View>
       </ScSheet>
@@ -246,7 +249,7 @@ export function DateField({
   onChange,
   min,
   max,
-  placeholder = 'Choose a date',
+  placeholder,
   disabled,
 }: {
   label?: string;
@@ -257,12 +260,13 @@ export function DateField({
   placeholder?: string;
   disabled?: boolean;
 }) {
+  const t = useT();
   return (
     <PickerField
       label={label}
       mode="date"
       display={value}
-      placeholder={placeholder}
+      placeholder={placeholder ?? t('Choose a date')}
       disabled={disabled}
       value={value ? fromDateKey(value) : min ? fromDateKey(min) : new Date()}
       minimumDate={min ? fromDateKey(min) : undefined}

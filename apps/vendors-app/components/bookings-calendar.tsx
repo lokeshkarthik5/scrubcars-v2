@@ -1,3 +1,4 @@
+import { msg, useT } from '@repo/core/i18n';
 import type { Booking } from '@repo/core/types';
 import { LinearGradient } from 'expo-linear-gradient';
 import { type ReactNode, useCallback, useMemo, useState } from 'react';
@@ -38,7 +39,8 @@ import { GraphiteSwitch } from '@repo/native-ui/finish';
 import { T } from '@repo/native-ui/text';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 
-const VIEW_LABELS: Record<CalendarView, string> = { month: 'Month', day: 'Day' };
+// English, shown as `t(…)`.
+const VIEW_LABELS: Record<CalendarView, string> = { month: msg('Month'), day: msg('Day') };
 
 /**
  * BookingsCalendar (apps/vendors/components/bookings-calendar.tsx): Month, a grid
@@ -46,6 +48,7 @@ const VIEW_LABELS: Record<CalendarView, string> = { month: 'Month', day: 'Day' }
  * over a timeline. The last Month / Day choice is kept on this phone.
  */
 export function BookingsCalendar({ bookings, now }: { bookings: readonly Booking[]; now: number }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const today = istDateKey(now);
@@ -81,24 +84,24 @@ export function BookingsCalendar({ bookings, now }: { bookings: readonly Booking
     <View style={styles.switch}>
       {/* The small graphite switch, two 59-point halves as the web's: the month stays on one line. */}
       <GraphiteSwitch<CalendarView>
-        accessibilityLabel="Calendar view"
+        accessibilityLabel={t('Calendar view')}
         size="sm"
         value={view}
         onChange={pickView}
         style={styles.switchTrack}
-        options={(['month', 'day'] as const).map((key) => ({ value: key, label: VIEW_LABELS[key] }))}
+        options={(['month', 'day'] as const).map((key) => ({ value: key, label: t(VIEW_LABELS[key]) }))}
       />
     </View>
   );
 
   return (
-    <View accessibilityLabel="Calendar" style={styles.section}>
+    <View accessibilityLabel={t('Calendar')} style={styles.section}>
       {view === 'month' ? (
         <View style={styles.head}>
           <View style={styles.monthNav}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Previous month"
+              accessibilityLabel={t('Previous month')}
               accessibilityState={{ disabled: month <= bounds.first }}
               disabled={month <= bounds.first}
               onPress={() => moveMonth(-1)}
@@ -111,7 +114,7 @@ export function BookingsCalendar({ bookings, now }: { bookings: readonly Booking
             </T>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Next month"
+              accessibilityLabel={t('Next month')}
               accessibilityState={{ disabled: month >= bounds.last }}
               disabled={month >= bounds.last}
               onPress={() => moveMonth(1)}
@@ -164,7 +167,7 @@ export function BookingsCalendar({ bookings, now }: { bookings: readonly Booking
           {jobs.length === 0 && !closed ? (
             <View style={styles.empty}>
               <T size={14} color={colors.textSecondary} align="center">
-                {selected < today ? 'Nothing booked on this day.' : 'Nothing booked on this day yet.'}
+                {selected < today ? t('Nothing booked on this day.') : t('Nothing booked on this day yet.')}
               </T>
             </View>
           ) : null}
@@ -276,6 +279,7 @@ function MonthGrid({
 
 /** What the dots and the hatching mean, under the grid. */
 function Legend() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const item = (key: string, mark: ReactNode, words: string) => (
@@ -288,15 +292,15 @@ function Legend() {
   );
   return (
     <View style={styles.legend}>
-      {item('answer', <Dot kind="answer" size={7} />, 'To answer')}
-      {item('accepted', <Dot kind="accepted" size={7} />, 'Accepted')}
-      {item('done', <Dot kind="done" size={7} />, 'Done')}
+      {item('answer', <Dot kind="answer" size={7} />, t('To answer'))}
+      {item('accepted', <Dot kind="accepted" size={7} />, t('Accepted'))}
+      {item('done', <Dot kind="done" size={7} />, t('Done'))}
       {item(
         'closed',
         <View style={styles.legendHatch}>
           <Hatch />
         </View>,
-        'Closed'
+        t('Closed')
       )}
     </View>
   );

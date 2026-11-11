@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { toast } from 'react-toastify'
+import { useT } from '@repo/core/i18n'
 import { ConfirmSheet } from '@repo/ui/sc/confirm-sheet'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScTextarea } from '@repo/ui/sc/input'
@@ -32,6 +33,7 @@ export function CancelAcceptedBooking({
   now: number
   onChanged: () => void
 }) {
+  const t = useT()
   const writeVendorBooking = useBookingsStore((s) => s.writeVendorBooking)
   const [open, setOpen] = useState(false)
   const [reason, setReason] = useState('')
@@ -39,7 +41,7 @@ export function CancelAcceptedBooking({
 
   if (!canGarageCancel(booking)) return null
 
-  const who = booking.customerName || 'The customer'
+  const who = booking.customerName || t('The customer')
   const late = isLateGarageCancel(new Date(booking.scheduledAtIso), new Date(now))
   const paid = booking.paymentStatus === 'paid'
 
@@ -51,19 +53,21 @@ export function CancelAcceptedBooking({
   const cancel = async () => {
     const text = reason.trim()
     if (text.length < GARAGE_CANCEL_REASON_MIN) {
-      setError('Say why you are cancelling, so Detlio can help the customer.')
+      setError(t('Say why you are cancelling, so Detlio can help the customer.'))
       return
     }
     setError(undefined)
     try {
       await writeVendorBooking(booking.id, () => garageCancelBooking(booking.id, text))
-      toast.success('Booking cancelled')
+      toast.success(t('Booking cancelled'))
       setReason('')
       setOpen(false)
       onChanged()
     } catch (err) {
       // Started or cancelled meanwhile: said in the sheet, and the job re-read.
-      setError(err instanceof Error ? err.message : 'Could not cancel this booking')
+      setError(
+        err instanceof Error ? err.message : t('Could not cancel this booking')
+      )
       onChanged()
     }
   }
@@ -73,31 +77,39 @@ export function CancelAcceptedBooking({
       <ScButton
         variant="outline"
         size="md"
-        aria-label={`Cancel booking for ${booking.customerName || 'the customer'}`}
+        aria-label={t('Cancel booking for {name}', {
+          name: booking.customerName || t('the customer'),
+        })}
         onClick={() => setOpen(true)}
       >
-        Cancel booking
+        {t('Cancel booking')}
       </ScButton>
       <ConfirmSheet
         open={open}
         onClose={close}
         onConfirm={cancel}
         level="firm"
-        title="Cancel this booking?"
+        title={t('Cancel this booking?')}
         body={
           <div className="flex flex-col gap-3">
             <p className="text-[15px] text-text-secondary">
               {paid
-                ? `${who} gets a full refund, and we tell them you had to cancel.`
-                : `We tell ${who} you had to cancel.`}
+                ? t('{who} gets a full refund, and we tell them you had to cancel.', { who })
+                : t('We tell {who} you had to cancel.', { who })}
             </p>
             <p className={late ? 'text-[15px] text-warning' : 'text-[15px] text-text-secondary'}>
               {late
-                ? `This is within ${GARAGE_CANCEL_LATE_HOURS} hours of the booking, so it counts as a missed booking for your medal.`
-                : `More than ${GARAGE_CANCEL_LATE_HOURS} hours before the booking, it counts like a booking you couldn't take.`}
+                ? t(
+                    'This is within {hours} hours of the booking, so it counts as a missed booking for your medal.',
+                    { hours: GARAGE_CANCEL_LATE_HOURS }
+                  )
+                : t(
+                    "More than {hours} hours before the booking, it counts like a booking you couldn't take.",
+                    { hours: GARAGE_CANCEL_LATE_HOURS }
+                  )}
             </p>
             <ScTextarea
-              label="Why are you cancelling?"
+              label={t('Why are you cancelling?')}
               rows={3}
               maxLength={GARAGE_CANCEL_REASON_MAX}
               value={reason}
@@ -105,8 +117,8 @@ export function CancelAcceptedBooking({
             />
           </div>
         }
-        confirmLabel="Cancel booking"
-        cancelLabel="Keep booking"
+        confirmLabel={t('Cancel booking')}
+        cancelLabel={t('Keep booking')}
         error={error}
       />
     </section>

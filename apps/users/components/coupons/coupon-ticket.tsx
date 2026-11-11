@@ -3,6 +3,7 @@ import { ScCard } from '@/components/ui/card'
 import { formatOfferFigure } from '@repo/core/offer-figure'
 import type { CouponReward } from '@repo/core/coupons'
 import { cn } from '@repo/core/utils'
+import { t, useT } from '@repo/core/i18n'
 
 interface CouponTicketProps {
   reward: CouponReward
@@ -30,7 +31,7 @@ function figureOf(props: CouponTicketProps): { text: string; under: string } {
           kind: 'amount',
           rupees: props.amountOff ?? 0,
         }).text,
-        under: 'off',
+        under: t('off'),
       }
     case 'percent':
       return {
@@ -38,14 +39,14 @@ function figureOf(props: CouponTicketProps): { text: string; under: string } {
           kind: 'percent',
           value: props.percentOff ?? 0,
         }).text,
-        under: 'off',
+        under: t('off'),
       }
     case 'free_wash':
-      return { text: 'FREE', under: 'car wash' }
+      return { text: t('FREE'), under: t('car wash') }
     case 'stamps':
       return {
         text: `+${props.stamps ?? 0}`,
-        under: props.stamps === 1 ? 'stamp' : 'stamps',
+        under: props.stamps === 1 ? t('stamp') : t('stamps'),
       }
   }
 }
@@ -56,6 +57,7 @@ function figureOf(props: CouponTicketProps): { text: string; under: string } {
  * typed by anyone). Quiet on purpose: the page's one red button is below it.
  */
 export function CouponTicket(props: CouponTicketProps) {
+  const t = useT()
   const figure = figureOf(props)
   const Heading = props.as ?? 'h2'
   return (
@@ -73,7 +75,7 @@ export function CouponTicket(props: CouponTicketProps) {
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-1.5 px-4 py-3.5">
         <p className="text-t5 font-medium uppercase tracking-wide text-text-muted">
-          Detlio coupon
+          {t('Detlio coupon')}
         </p>
         <Heading className="text-t3 font-semibold leading-snug text-text-primary">
           {props.title}

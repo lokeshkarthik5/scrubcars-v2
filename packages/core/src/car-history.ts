@@ -1,4 +1,5 @@
 import type { ServiceReminder } from '@repo/core/api/car-history'
+import { t, tn } from './i18n/translate'
 
 /**
  * How a car's history page and its reminder card say things. Pure, with the
@@ -54,14 +55,14 @@ export function reminderDueLine(
   now: Date
 ): string {
   if (reminder.state === 'booked' && reminder.booked) {
-    return `Booked for ${dueDayLabel(istKey(new Date(reminder.booked.scheduledAt)), now)}`
+    return t('Booked for {day}', { day: dueDayLabel(istKey(new Date(reminder.booked.scheduledAt)), now) })
   }
   const days = reminder.daysLeft ?? 0
-  if (days < 0) return `${-days} day${days === -1 ? '' : 's'} overdue`
-  if (days === 0) return 'Due today'
-  if (days === 1) return 'Due tomorrow'
-  if (days <= 7) return `Due in ${days} days`
-  return `Due ${dueDayLabel(reminder.dueOn, now)}`
+  if (days < 0) return tn(-days, '{count} day overdue', '{count} days overdue')
+  if (days === 0) return t('Due today')
+  if (days === 1) return t('Due tomorrow')
+  if (days <= 7) return t('Due in {count} days', { count: days })
+  return t('Due {day}', { day: dueDayLabel(reminder.dueOn, now) })
 }
 
 /** Snoozing only means something once it is close: due within a week, or overdue. */
@@ -76,10 +77,10 @@ export function reminderBookHref(reminder: { bookCategory: string }): string {
 
 /** "Exterior Wash, Interior Vacuum". */
 export function servicesLine(services: Array<{ name: string }>): string {
-  return services.length === 0 ? 'Service' : services.map((service) => service.name).join(', ')
+  return services.length === 0 ? t('Service') : services.map((service) => service.name).join(', ')
 }
 
 /** "3 washes", "1 wash". Every job is a wash in the app's words, as Rate your wash asks of any job. */
 export function washCount(count: number): string {
-  return `${count} wash${count === 1 ? '' : 'es'}`
+  return tn(count, '{count} wash', '{count} washes')
 }

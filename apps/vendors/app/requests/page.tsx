@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { IconMapPin } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
+import { fill, useT } from '@repo/core/i18n'
+import { msg, t } from '@repo/core/i18n/translate'
 import { GraphiteSwitch } from '@repo/ui/finish/graphite-switch'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScBadge } from '@repo/ui/sc/badge'
@@ -33,20 +35,20 @@ import { formatINR } from '@repo/core/format'
 import { useNow } from '@repo/core/hooks/use-now'
 import { cn } from '@repo/core/utils'
 
-/** The car type as the garage prices it. */
+/** The car type as the garage prices it (English, shown as `t(…)`). */
 const CAR_TYPE: Record<string, string> = {
-  hatchback: 'Hatchback',
-  sedan: 'Sedan',
-  suv: 'SUV',
+  hatchback: msg('Hatchback'),
+  sedan: msg('Sedan'),
+  suv: msg('SUV'),
 }
 
-/** How a closed request ended, in a word. */
+/** How a closed request ended, in a word (English, shown as `t(…)`). */
 const CLOSED_WORD: Record<string, string> = {
-  converted: 'Booked',
-  forwarded: 'Passed on',
-  declined: 'Declined',
-  expired: 'Expired',
-  cancelled: 'Cancelled',
+  converted: msg('Booked'),
+  forwarded: msg('Passed on'),
+  declined: msg('Declined'),
+  expired: msg('Expired'),
+  cancelled: msg('Cancelled'),
 }
 
 /**
@@ -59,6 +61,7 @@ const CLOSED_WORD: Record<string, string> = {
  * what one earns shows to the owner seat only.
  */
 export default function RequestsPage() {
+  const t = useT()
   const [scope, setScope] = useState<'open' | 'closed'>('open')
   const requests = useGarageRequests(scope)
   const now = useNow(1000)
@@ -66,34 +69,37 @@ export default function RequestsPage() {
 
   return (
     <AppShell showNav navType="vendor" className="gap-4 py-4">
-      <TopBar showBack backHref="/home" title="Requests" />
+      <TopBar showBack backHref="/home" title={t('Requests')} />
       <p className="text-[12px] text-text-secondary">
-        Customers just outside your area ask you to come. Nothing is paid until
-        you say yes. Answer within {REQUEST_RULES.respondMinutes / 60} hours, or
-        we ask the next garage.
+        {t(
+          'Customers just outside your area ask you to come. Nothing is paid until you say yes. Answer within {hours} hours, or we ask the next garage.',
+          { hours: REQUEST_RULES.respondMinutes / 60 }
+        )}
       </p>
       <GraphiteSwitch
-        aria-label="Which requests"
+        aria-label={t('Which requests')}
         value={scope}
         onChange={setScope}
         options={[
-          { value: 'open', label: 'Open' },
-          { value: 'closed', label: 'Closed' },
+          { value: 'open', label: t('Open') },
+          { value: 'closed', label: t('Closed') },
         ]}
       />
       {requests.isLoading ? (
         <SkeletonList count={2} itemClassName="h-[320px]" />
       ) : requests.isError && !requests.data ? (
         <LoadError
-          what="your requests"
+          what={t('your requests')}
           onRetry={() => void requests.refetch()}
           retrying={requests.isFetching}
         />
       ) : items.length === 0 ? (
         <EmptyState
           icon={<IconMapPin size={28} stroke={1.5} />}
-          title="No requests right now"
-          subtitle="Customers just outside your area can ask you to come. Their requests show here."
+          title={t('No requests right now')}
+          subtitle={t(
+            'Customers just outside your area can ask you to come. Their requests show here.'
+          )}
         />
       ) : (
         <div className="flex flex-col gap-3">
@@ -112,7 +118,7 @@ export default function RequestsPage() {
           )}
           {scope === 'open' && (
             <p className="text-center text-[12px] text-text-secondary">
-              Saying yes often earns you more requests from this area.
+              {t('Saying yes often earns you more requests from this area.')}
             </p>
           )}
         </div>
@@ -121,9 +127,10 @@ export default function RequestsPage() {
   )
 }
 
-/** "Premium Car Wash · Sedan". */
+/** "Premium Car Wash · Sedan", in the language in use. */
 function servicesLine(request: GarageRequest) {
-  return `${request.items.map((item) => item.name).join(' + ')} · ${CAR_TYPE[request.vehicleType] ?? request.vehicleType}`
+  const carType = CAR_TYPE[request.vehicleType]
+  return `${request.items.map((item) => item.name).join(' + ')} · ${carType ? t(carType) : request.vehicleType}`
 }
 
 /** "Tomorrow 9–12 · Velachery". */
@@ -140,6 +147,7 @@ function WaitingRequestCard({
   request: GarageRequest
   now: number
 }) {
+  const t = useT()
   const titleId = `request-${request.id}-title`
   const [fee, setFee] = useState<TravelFee>(0)
   const [startAt, setStartAt] = useState<string | null>(null)
@@ -161,14 +169,16 @@ function WaitingRequestCard({
       })
       toast.success(
         accepted.confirmBy
-          ? `Accepted. The customer has until ${istClock(accepted.confirmBy)} to confirm.`
-          : 'Accepted.'
+          ? t('Accepted. The customer has until {time} to confirm.', {
+              time: istClock(accepted.confirmBy),
+            })
+          : t('Accepted.')
       )
     } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
-          : 'Could not accept. Please try again.'
+          : t('Could not accept. Please try again.')
       )
     }
   }
@@ -178,14 +188,14 @@ function WaitingRequestCard({
       const result = await decline.mutateAsync(request.id)
       toast.success(
         result.outcome === 'passed_on'
-          ? 'Passed to the next garage'
-          : 'Request closed'
+          ? t('Passed to the next garage')
+          : t('Request closed')
       )
     } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
-          : 'Could not answer. Please try again.'
+          : t('Could not answer. Please try again.')
       )
     }
   }
@@ -201,12 +211,12 @@ function WaitingRequestCard({
       <div className="flex items-start justify-between gap-3">
         <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-warning">
           {request.passedOn
-            ? 'Passed on to you'
-            : 'New request · outside your area'}
+            ? t('Passed on to you')
+            : t('New request · outside your area')}
         </p>
         <p
           className="shrink-0 font-numeric text-[13px] font-semibold text-warning"
-          aria-label={`Time left to answer: ${countdownLabel(leftMs)}`}
+          aria-label={t('Time left to answer: {time}', { time: countdownLabel(leftMs) })}
         >
           {countdownLabel(leftMs)}
         </p>
@@ -222,15 +232,17 @@ function WaitingRequestCard({
           {whenWhereLine(request)}
         </p>
         <p className="text-[13px] text-text-secondary">
-          {request.beyond} · {request.distanceKm} km from you
+          {request.beyond} · {t('{km} km from you', { km: request.distanceKm })}
         </p>
         {request.earn !== null && (
           <p className="mt-1 text-[13px] text-text-primary">
-            You earn{' '}
-            <span className="font-numeric font-semibold">
-              {formatINR(request.earn)}
-            </span>{' '}
-            + any travel fee
+            {fill(t('You earn {amount} + any travel fee'), {
+              amount: (
+                <span className="font-numeric font-semibold">
+                  {formatINR(request.earn)}
+                </span>
+              ),
+            })}
           </p>
         )}
       </div>
@@ -243,11 +255,11 @@ function WaitingRequestCard({
 
       <div className="flex flex-col gap-2">
         <p id={`${titleId}-fee`} className="text-[12px] text-text-secondary">
-          Travel fee (the customer sees it before paying)
+          {t('Travel fee (the customer sees it before paying)')}
         </p>
         <div
           role="radiogroup"
-          aria-label="Travel fee"
+          aria-label={t('Travel fee')}
           className="grid grid-cols-3 gap-2"
         >
           {REQUEST_RULES.travelFees.map((value) => (
@@ -273,20 +285,20 @@ function WaitingRequestCard({
 
       <div className="flex flex-col gap-2">
         <p className="text-[12px] text-text-secondary">
-          Start time, inside {request.window.label.toLowerCase()}
+          {t('Start time, inside {window}', { window: request.window.label.toLowerCase() })}
         </p>
         {startTimes.isLoading ? (
           <p className="text-[13px] text-text-secondary">
-            Finding your free times…
+            {t('Finding your free times…')}
           </p>
         ) : starts.length === 0 ? (
           <p className="text-[13px] text-text-secondary">
-            No free start time left in this window
+            {t('No free start time left in this window')}
           </p>
         ) : (
           <div
             role="radiogroup"
-            aria-label="Start time"
+            aria-label={t('Start time')}
             className="flex flex-wrap gap-2"
           >
             {starts.map((iso) => (
@@ -318,7 +330,7 @@ function WaitingRequestCard({
           disabled={busy}
           className="flex-1"
         >
-          Can&apos;t
+          {t("Can't")}
         </ScButton>
         <ScButton
           variant="main"
@@ -326,12 +338,12 @@ function WaitingRequestCard({
           disabled={busy || !chosen}
           className="flex-1"
         >
-          Accept
+          {t('Accept')}
         </ScButton>
       </div>
       {!chosen && starts.length > 0 && (
         <p className="text-[12px] text-text-secondary">
-          Pick a start time to accept.
+          {t('Pick a start time to accept.')}
         </p>
       )}
     </ScCard>
@@ -339,6 +351,7 @@ function WaitingRequestCard({
 }
 
 function AcceptedRequestCard({ request }: { request: GarageRequest }) {
+  const t = useT()
   const titleId = `request-${request.id}-title`
   const withdraw = useWithdrawRequest()
   const [confirming, setConfirming] = useState(false)
@@ -358,27 +371,28 @@ function AcceptedRequestCard({ request }: { request: GarageRequest }) {
           {servicesLine(request)}
         </h2>
         <ScBadge variant="success" className="shrink-0">
-          Accepted
+          {t('Accepted')}
         </ScBadge>
       </div>
       <p className="text-[13px] text-text-primary">
-        Accepted · starts{' '}
-        {request.acceptedStartAt ? istStartLabel(request.acceptedStartAt) : '—'}{' '}
-        · travel fee {formatINR(request.travelFee ?? 0)} · customer confirms by{' '}
-        {request.confirmBy ? istClock(request.confirmBy) : '—'}
+        {t('Accepted · starts {start} · travel fee {fee} · customer confirms by {time}', {
+          start: request.acceptedStartAt ? istStartLabel(request.acceptedStartAt) : '—',
+          fee: formatINR(request.travelFee ?? 0),
+          time: request.confirmBy ? istClock(request.confirmBy) : '—',
+        })}
       </p>
       <p className="text-[12px] text-text-secondary">
-        It becomes a booking on your Bookings page once the customer pays.
+        {t('It becomes a booking on your Bookings page once the customer pays.')}
       </p>
       {/* Until the customer pays (0066): the yes can be taken back. */}
       {request.canWithdraw !== false && (
         <ScButton
           variant="outline"
           size="md"
-          aria-label={`Withdraw your yes to ${servicesLine(request)}`}
+          aria-label={t('Withdraw your yes to {request}', { request: servicesLine(request) })}
           onClick={() => setConfirming(true)}
         >
-          Withdraw
+          {t('Withdraw')}
         </ScButton>
       )}
       <ConfirmSheet
@@ -390,18 +404,20 @@ function AcceptedRequestCard({ request }: { request: GarageRequest }) {
         onConfirm={async () => {
           try {
             await withdraw.mutateAsync(request.id)
-            toast.success('Withdrawn. We told the customer.')
+            toast.success(t('Withdrawn. We told the customer.'))
             setConfirming(false)
           } catch (err) {
             // The customer is paying right now, or it moved on: said here.
-            setError(err instanceof Error ? err.message : 'Could not withdraw it')
+            setError(err instanceof Error ? err.message : t('Could not withdraw it'))
           }
         }}
         level="firm"
-        title="Withdraw your yes?"
-        body="The customer hasn't paid yet. We tell them you can no longer come, and they can ask again."
-        confirmLabel="Withdraw"
-        cancelLabel="Keep it"
+        title={t('Withdraw your yes?')}
+        body={t(
+          "The customer hasn't paid yet. We tell them you can no longer come, and they can ask again."
+        )}
+        confirmLabel={t('Withdraw')}
+        cancelLabel={t('Keep it')}
         busy={withdraw.isPending}
         error={error}
       />
@@ -410,6 +426,7 @@ function AcceptedRequestCard({ request }: { request: GarageRequest }) {
 }
 
 function ClosedRequestCard({ request }: { request: GarageRequest }) {
+  const t = useT()
   const titleId = `request-${request.id}-title`
   return (
     <ScCard
@@ -429,7 +446,11 @@ function ClosedRequestCard({ request }: { request: GarageRequest }) {
           variant={request.status === 'converted' ? 'success' : 'muted'}
           className="shrink-0"
         >
-          {request.withdrawn ? 'Withdrawn' : (CLOSED_WORD[request.status] ?? request.status)}
+          {request.withdrawn
+            ? t('Withdrawn')
+            : CLOSED_WORD[request.status]
+              ? t(CLOSED_WORD[request.status]!)
+              : request.status}
         </ScBadge>
       </div>
       <p className="text-[13px] text-text-secondary">
@@ -453,6 +474,7 @@ function ReachSketch({
   distanceKm: number
   outsideKm: number
 }) {
+  const t = useT()
   const width = 300
   const height = 96
   const cy = height / 2
@@ -468,7 +490,14 @@ function ReachSketch({
       viewBox={`0 0 ${width} ${height}`}
       className="h-24 w-full rounded-[12px] bg-surface-elevated"
       role="img"
-      aria-label={`Your reach ${coverKm === null ? '(your area)' : `${coverKm} km`}, the customer ${distanceKm} km from you`}
+      aria-label={
+        coverKm === null
+          ? t('Your reach (your area), the customer {km} km from you', { km: distanceKm })
+          : t('Your reach {cover} km, the customer {km} km from you', {
+              cover: coverKm,
+              km: distanceKm,
+            })
+      }
     >
       <circle
         cx={cx}
@@ -489,10 +518,10 @@ function ReachSketch({
       />
       <circle cx={dot} cy={cy} r={5} fill="#E4002B" />
       <text x={cx} y={cy + 18} textAnchor="middle" fontSize="10" fill="#9CA3AF">
-        you · {coverKm === null ? 'area' : `${coverKm} km`}
+        {t('you')} · {coverKm === null ? t('area') : `${coverKm} km`}
       </text>
       <text x={dot} y={cy - 10} textAnchor="end" fontSize="10" fill="#9CA3AF">
-        customer
+        {t('customer')}
       </text>
     </svg>
   )

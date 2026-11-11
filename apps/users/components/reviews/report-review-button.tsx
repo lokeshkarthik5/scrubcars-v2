@@ -10,6 +10,7 @@ import { ApiError } from '@repo/core/api/client'
 import { reportReview } from '@repo/core/api/reviews'
 import { RATING_RULES } from '@repo/core/ratings'
 import { useAuthStore } from '@repo/core/stores/auth-store'
+import { useT } from '@repo/core/i18n'
 
 /**
  * "Report" under a review on the garage page (0065; the iOS app needs it for
@@ -27,6 +28,7 @@ export function ReportReviewButton({
   /** Where signing in brings them back to: the garage page. */
   garagePath: string
 }) {
+  const t = useT()
   const user = useAuthStore((s) => s.user)
   const [open, setOpen] = useState(false)
   const [reason, setReason] = useState('')
@@ -49,7 +51,7 @@ export function ReportReviewButton({
         err instanceof ApiError &&
           (err.code === 'REVIEW_ALREADY_REPORTED' || err.code === 'REVIEW_OWN')
           ? err.message
-          : "Couldn't send the report. Try again."
+          : t("Couldn't send the report. Try again.")
       )
     }
   }
@@ -70,10 +72,10 @@ export function ReportReviewButton({
           setState('idle')
           setOpen(true)
         }}
-        aria-label={`Report ${reviewerName}'s review`}
+        aria-label={t("Report {reviewerName}'s review", { reviewerName })}
         className="min-h-11 px-1 text-t5 font-medium text-text-secondary underline-offset-2 hover:underline"
       >
-        Report
+        {t('Report')}
       </button>
 
       {open &&
@@ -82,18 +84,17 @@ export function ReportReviewButton({
             open={open}
             onClose={close}
             dismissible={state !== 'sending'}
-            aria-label="Report this review"
+            aria-label={t('Report this review')}
             className="px-4 pt-1"
           >
             {!user ? (
               <div className="flex flex-col gap-4">
                 <div>
                   <h2 className="text-base font-semibold text-text-primary">
-                    Sign in to report a review
+                    {t('Sign in to report a review')}
                   </h2>
                   <p className="mt-1 text-t4 text-text-secondary">
-                    Reports come from an account, so the team can follow up.
-                    Signing in brings you back here.
+                    {t('Reports come from an account, so the team can follow up. Signing in brings you back here.')}
                   </p>
                 </div>
                 <ScButtonLink
@@ -101,25 +102,24 @@ export function ReportReviewButton({
                   fullWidth
                   className="min-h-12"
                 >
-                  Sign in
+                  {t('Sign in')}
                 </ScButtonLink>
                 <button
                   type="button"
                   onClick={close}
                   className="min-h-11 text-t4 font-medium text-text-secondary"
                 >
-                  Not now
+                  {t('Not now')}
                 </button>
               </div>
             ) : state === 'sent' ? (
               <div className="flex flex-col gap-4">
                 <div role="status">
                   <h2 className="text-base font-semibold text-text-primary">
-                    Thanks, we&apos;ve got it
+                    {t("Thanks, we've got it")}
                   </h2>
                   <p className="mt-1 text-t4 text-text-secondary">
-                    The team will look at this review. If it breaks our rules,
-                    it comes down.
+                    {t('The team will look at this review. If it breaks our rules, it comes down.')}
                   </p>
                 </div>
                 <ScButton
@@ -127,23 +127,22 @@ export function ReportReviewButton({
                   onClick={close}
                   className="min-h-11"
                 >
-                  Done
+                  {t('Done')}
                 </ScButton>
               </div>
             ) : (
               <div className="flex flex-col gap-4">
                 <div>
                   <h2 className="text-base font-semibold text-text-primary">
-                    Report this review
+                    {t('Report this review')}
                   </h2>
                   <p className="mt-1 text-t4 text-text-secondary">
-                    Tell the team what is wrong: abusive, fake, or about another
-                    garage.
+                    {t('Tell the team what is wrong: abusive, fake, or about another garage.')}
                   </p>
                 </div>
                 <ScTextarea
                   id={`report-review-${reviewId}`}
-                  label="What's wrong with it?"
+                  label={t("What's wrong with it?")}
                   rows={3}
                   maxLength={RATING_RULES.reportReasonMaxLength}
                   value={reason}
@@ -159,14 +158,14 @@ export function ReportReviewButton({
                   disabled={!ready || state === 'sending'}
                   className="min-h-12"
                 >
-                  {state === 'sending' ? 'Sending…' : 'Send report'}
+                  {state === 'sending' ? t('Sending…') : t('Send report')}
                 </ScButton>
                 <button
                   type="button"
                   onClick={close}
                   className="min-h-11 text-t4 font-medium text-text-secondary"
                 >
-                  Not now
+                  {t('Not now')}
                 </button>
               </div>
             )}

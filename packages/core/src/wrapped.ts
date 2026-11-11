@@ -7,6 +7,7 @@
  */
 
 import { rewardRupees } from './rewards'
+import { msg, t, tn } from './i18n/translate'
 
 export interface WrappedStats {
   year: number
@@ -35,9 +36,7 @@ export interface WrappedCard {
   extra: string[]
 }
 
-function plural(n: number, one: string, many: string): string {
-  return `${n.toLocaleString('en-IN')} ${n === 1 ? one : many}`
-}
+
 
 /** "₹1,240" */
 function rupees(amount: string): string {
@@ -54,65 +53,75 @@ export function wrappedCards(stats: WrappedStats, options: { showName: boolean }
   const cards: WrappedCard[] = [
     {
       key: 'washes',
-      eyebrow: name ? `${name}'s ${stats.year} with Detlio` : `My ${stats.year} with Detlio`,
-      big: plural(stats.washes, 'wash', 'washes'),
-      caption: stats.washes === 1 ? 'One booking, done right.' : 'Booked, done and shining.',
+      eyebrow: name
+        ? t("{name}'s {year} with Detlio", { name, year: stats.year })
+        : t('My {year} with Detlio', { year: stats.year }),
+      big: tn(stats.washes, '{count} wash', '{count} washes'),
+      caption: stats.washes === 1 ? t('One booking, done right.') : t('Booked, done and shining.'),
       extra: [],
     },
   ]
   if (Number(stats.saved) >= 1) {
     cards.push({
       key: 'saved',
-      eyebrow: 'Saved with Detlio Rewards',
+      eyebrow: t('Saved with Detlio Rewards'),
       big: rupees(stats.saved),
-      caption: 'Stamps, scratch cards and rewards, spent well.',
+      caption: t('Stamps, scratch cards and rewards, spent well.'),
       extra: [],
     })
   }
   if (stats.favouriteGarage) {
     cards.push({
       key: 'garage',
-      eyebrow: 'Favourite garage',
+      eyebrow: t('Favourite garage'),
       big: stats.favouriteGarage.name,
-      caption: `${plural(stats.favouriteGarage.washes, 'visit', 'visits')} this year.`,
+      caption: tn(stats.favouriteGarage.washes, '{count} visit this year.', '{count} visits this year.'),
       extra: [],
     })
   }
   if (stats.busiestMonth) {
     cards.push({
       key: 'month',
-      eyebrow: 'Busiest month',
+      eyebrow: t('Busiest month'),
       big: stats.busiestMonth.label,
       caption:
         stats.longestStreak >= 2
-          ? `${plural(stats.busiestMonth.washes, 'wash', 'washes')} that month, and a ${stats.longestStreak}-month streak.`
-          : `${plural(stats.busiestMonth.washes, 'wash', 'washes')} that month.`,
+          ? tn(
+              stats.busiestMonth.washes,
+              '{count} wash that month, and a {streak}-month streak.',
+              '{count} washes that month, and a {streak}-month streak.',
+              { streak: stats.longestStreak }
+            )
+          : tn(stats.busiestMonth.washes, '{count} wash that month.', '{count} washes that month.'),
       extra: [],
     })
   }
   cards.push({
     key: 'level',
-    eyebrow: 'Level reached',
-    big: stats.level.label,
-    caption: stats.badges.count === 0 ? 'Badges are next.' : `${plural(stats.badges.count, 'badge', 'badges')} earned.`,
+    eyebrow: t('Level reached'),
+    big: t(stats.level.label),
+    caption:
+      stats.badges.count === 0
+        ? t('Badges are next.')
+        : tn(stats.badges.count, '{count} badge earned.', '{count} badges earned.'),
     extra: stats.badges.names.slice(0, 3),
   })
   cards.push({
     key: 'shine',
-    eyebrow: 'Days your car shone',
-    big: plural(stats.shineDays, 'day', 'days'),
-    caption: 'Counting the week after every wash.',
+    eyebrow: t('Days your car shone'),
+    big: tn(stats.shineDays, '{count} day', '{count} days'),
+    caption: t('Counting the week after every wash.'),
     extra: [],
   })
   cards.push({
     key: 'closing',
-    eyebrow: `That was ${stats.year}`,
-    big: 'Keep shining',
-    caption: 'Book your next wash on detlio.com',
+    eyebrow: t('That was {year}', { year: stats.year }),
+    big: t('Keep shining'),
+    caption: t('Book your next wash on detlio.com'),
     extra: [],
   })
   return cards
 }
 
 /** The line every shared image carries. */
-export const WRAPPED_SHARE_LINE = 'Book on detlio.com'
+export const WRAPPED_SHARE_LINE = msg('Book on detlio.com')

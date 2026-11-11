@@ -24,6 +24,7 @@ import { updateVendorJobTypes, updateVendorSettings } from '@/lib/vendor-api';
 import { TravelChoiceField } from '@/components/travel-choice';
 
 import { useSaving } from './use-saving';
+import { fill, useT } from '@repo/core/i18n';
 
 /**
  * Settings > Location (apps/vendors/app/settings/page.tsx): the garage's pin and how far it
@@ -37,6 +38,7 @@ export function LocationTab({
   vendor: ApiVendorProfile;
   onSaved: (vendor: ApiVendorProfile) => void;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const [pin, setPin] = useState<PickedLocation | null>(() => pinFromVendor(vendor));
@@ -55,7 +57,7 @@ export function LocationTab({
   const save = () => {
     if (!pin) return;
     if (radiusUnreadable(radius)) {
-      toast.error('Enter the distance as a number, like 12 or 7.5');
+      toast.error(t('Enter the distance as a number, like 12 or 7.5'));
       return;
     }
     void run('location', async () => {
@@ -69,14 +71,13 @@ export function LocationTab({
   return (
     <View style={styles.section}>
       <View style={styles.header}>
-        <SectionHeader title="Garage location" />
-        {unpinned ? <ScBadge variant="danger">Not set</ScBadge> : null}
+        <SectionHeader title={t('Garage location')} />
+        {unpinned ? <ScBadge variant="danger">{t('Not set')}</ScBadge> : null}
       </View>
       <ScCard style={styles.section}>
         {unpinned ? (
           <T accessibilityRole="alert" size={12} color={colors.warning}>
-            Customers can&apos;t find you until your garage is pinned on the map, and we can&apos;t verify you
-            without it.
+            {t("Customers can't find you until your garage is pinned on the map, and we can't verify you without it.")}
           </T>
         ) : null}
         <LocationPicker
@@ -88,20 +89,20 @@ export function LocationTab({
             picked, like the job type switches. */}
         {vendor.doorstepEnabled ? (
           <TravelChoiceField
-            label="How far you travel for doorstep jobs"
+            label={t('How far you travel for doorstep jobs')}
             wholeCity={wholeCity}
             onChange={saveWholeCity}
             cityName={cityName}
             radiusKm={vendor.doorstepRadiusKm}
             defaultKm={DEFAULT_DOORSTEP_RADIUS_KM}
             disabled={saving === 'whole-city'}
-            wholeCityNote={(city) => `You go to any address in ${city}.`}
+            wholeCityNote={(city) => t('You go to any address in {city}.', { city })}
           />
         ) : null}
         {!wholeCity ? (
           <>
             <ScInput
-              label="Doorstep travel radius (km)"
+              label={t('Doorstep travel radius (km)')}
               numeric
               keyboardType="decimal-pad"
               placeholder={DOORSTEP_RADIUS_PLACEHOLDER}
@@ -112,15 +113,18 @@ export function LocationTab({
                 empty, doorstep jobs reach the default, and whether the garage travels at all is the
                 Doorstep switch under Hours. */}
             <T size={11} color={colors.textMuted}>
-              How far you&apos;ll travel for doorstep jobs, up to{' '}
-              <T size={11} num color={colors.textMuted}>
-                {MAX_DOORSTEP_RADIUS_KM}
-              </T>{' '}
-              km. Leave empty to use{' '}
-              <T size={11} num color={colors.textMuted}>
-                {DEFAULT_DOORSTEP_RADIUS_KM}
-              </T>{' '}
-              km.
+              {fill(t("How far you'll travel for doorstep jobs, up to {max} km. Leave empty to use {km} km."), {
+                max: (
+                  <T size={11} num color={colors.textMuted}>
+                    {MAX_DOORSTEP_RADIUS_KM}
+                  </T>
+                ),
+                km: (
+                  <T size={11} num color={colors.textMuted}>
+                    {DEFAULT_DOORSTEP_RADIUS_KM}
+                  </T>
+                ),
+              })}
             </T>
           </>
         ) : null}
@@ -128,11 +132,11 @@ export function LocationTab({
             does nothing until there is one. */}
         {vendor.doorstepEnabled && unpinned ? (
           <T size={12} color={colors.warning}>
-            Customers can&apos;t find you for doorstep jobs until your garage is pinned.
+            {t("Customers can't find you for doorstep jobs until your garage is pinned.")}
           </T>
         ) : null}
         <ScButton variant="main" size="lg" disabled={!pin || saving === 'location'} onPress={save}>
-          {saving === 'location' ? 'Saving...' : 'Save location'}
+          {saving === 'location' ? t('Saving...') : t('Save location')}
         </ScButton>
       </ScCard>
 

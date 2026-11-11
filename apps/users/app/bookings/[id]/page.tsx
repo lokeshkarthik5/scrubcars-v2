@@ -115,12 +115,14 @@ import { OtherGaragesCard } from '@/components/other-garages-card'
 import { JobPhotosCard } from '@/components/job-photos-card'
 import { CarConditionCard } from '@/components/car-condition-card'
 import { GuaranteeCard } from '@/components/guarantee/guarantee-card'
+import { fill, useT } from '@repo/core/i18n'
 import {
   PaymentReceivedPanel,
   paymentReceivedText,
 } from '@/components/payment-received-panel'
 import { PickupCodeCard, PickupTimeline } from '@/components/pickup-progress'
 import { BypassReportLine } from '@/components/bypass/bypass-report-line'
+import { t } from '@repo/core/i18n/translate'
 
 // Sheets closed on arrival are loaded after the page, not with it: they are
 // out of the first load's JavaScript, and on the page well before anyone can
@@ -142,16 +144,16 @@ function cancelRefundNote(booking: Booking): string {
   // A free wash that covered it all (0062): nothing to refund, and the free
   // wash can be used again while it is valid.
   if (booking.servicePrice <= 0 && (booking.creditPaid ?? 0) <= 0) {
-    return 'Nothing was charged, so there is nothing to refund. Your free wash comes back while it lasts.'
+    return t('Nothing was charged, so there is nothing to refund. Your free wash comes back while it lasts.')
   }
   const credit = Math.min(booking.creditPaid ?? 0, booking.servicePrice)
   const online = Math.round((booking.servicePrice - credit) * 100) / 100
   if (credit <= 0) {
-    return `Our team will refund your payment to your original payment method within ${BANK_DAYS}.`
+    return t('Our team will refund your payment to your original payment method within {bankDays}.', { bankDays: t(BANK_DAYS) })
   }
-  const creditLine = `${formatRupees(credit)} goes back to your Detlio credit.`
+  const creditLine = t('{credit} goes back to your Detlio credit.', { credit: formatRupees(credit) })
   if (online <= 0) return creditLine
-  return `Our team will refund the ${formatRupees(online)} you paid online to your original payment method within ${BANK_DAYS}. ${creditLine}`
+  return t('Our team will refund the {online} you paid online to your original payment method within {bankDays}. {creditLine}', { online: formatRupees(online), bankDays: t(BANK_DAYS), creditLine })
 }
 
 const OPEN_STATUSES: ReadonlySet<Booking['status']> = new Set([
@@ -177,9 +179,9 @@ const OPEN_STATUSES: ReadonlySet<Booking['status']> = new Set([
 function cancelledPanel(booking: Booking): { title: string; lines: string[] } {
   if (booking.noShow === 'customer') {
     return {
-      title: 'Marked as a no-show',
+      title: t('Marked as a no-show'),
       lines: [
-        "The garage held your slot, so this payment isn't refunded. If this is wrong, use Help with this booking.",
+        t("The garage held your slot, so this payment isn't refunded. If this is wrong, use Help with this booking."),
       ],
     }
   }
@@ -188,15 +190,15 @@ function cancelledPanel(booking: Booking): { title: string; lines: string[] } {
 
   if (booking.noShow === 'garage') {
     return {
-      title: "The garage couldn't serve this booking",
+      title: t("The garage couldn't serve this booking"),
       lines: [
         refund ??
           // A server older than refunds sends no refund, only the payment.
           (booking.paymentStatus === 'refunded'
-            ? 'Your payment has been refunded.'
+            ? t('Your payment has been refunded.')
             : booking.paymentStatus === 'paid'
-              ? 'Our team will refund your payment.'
-              : 'Nothing was charged online for it.'),
+              ? t('Our team will refund your payment.')
+              : t('Nothing was charged online for it.')),
       ],
     }
   }
@@ -226,12 +228,12 @@ function cancelledPanel(booking: Booking): { title: string; lines: string[] } {
   if (booking.cancelledBy === 'admin') {
     const onBehalf =
       booking.cancelledOnBehalfOf === 'garage'
-        ? "Cancelled at the garage's request."
+        ? t("Cancelled at the garage's request.")
         : booking.cancelledOnBehalfOf === 'customer'
-          ? 'Cancelled at your request.'
+          ? t('Cancelled at your request.')
           : null
     return {
-      title: 'Cancelled by Detlio',
+      title: t('Cancelled by Detlio'),
       lines: withRefund([onBehalf, reason]),
     }
   }
@@ -241,17 +243,17 @@ function cancelledPanel(booking: Booking): { title: string; lines: string[] } {
   if (booking.cancelledBy === 'vendor' && booking.timeProposal) {
     if (booking.timeProposal.status === 'declined') {
       return {
-        title: "None of the garage's times worked",
+        title: t("None of the garage's times worked"),
         lines: withRefund([
-          'You cancelled this booking instead of picking another time.',
+          t('You cancelled this booking instead of picking another time.'),
         ]),
       }
     }
     if (booking.timeProposal.status === 'expired') {
       return {
-        title: 'No time was picked in time',
+        title: t('No time was picked in time'),
         lines: withRefund([
-          `${booking.vendorName} couldn't do your time and suggested others, so this booking was cancelled.`,
+          t("{vendorName} couldn't do your time and suggested others, so this booking was cancelled.", { vendorName: booking.vendorName }),
         ]),
       }
     }
@@ -260,9 +262,9 @@ function cancelledPanel(booking: Booking): { title: string; lines: string[] } {
   // The garage called it off after accepting it (0066).
   if (booking.cancelledBy === 'vendor' && booking.garageCancelled) {
     return {
-      title: 'Cancelled by the garage',
+      title: t('Cancelled by the garage'),
       lines: withRefund([
-        `${booking.vendorName} accepted this booking, then had to cancel it. Sorry about that.`,
+        t('{vendorName} accepted this booking, then had to cancel it. Sorry about that.', { vendorName: booking.vendorName }),
       ]),
     }
   }
@@ -270,15 +272,15 @@ function cancelledPanel(booking: Booking): { title: string; lines: string[] } {
   if (booking.cancelledBy === 'vendor') {
     return {
       // The garage, never "vendor": the customer app's word for it (F10).
-      title: 'Declined by the garage',
-      lines: withRefund([reason ?? 'The garage could not take this booking.']),
+      title: t('Declined by the garage'),
+      lines: withRefund([reason ?? t('The garage could not take this booking.')]),
     }
   }
 
   return {
     title:
-      booking.cancelledBy === 'user' ? 'Cancelled by you' : 'Booking cancelled',
-    lines: withRefund([reason ?? 'This booking was cancelled.']),
+      booking.cancelledBy === 'user' ? t('Cancelled by you') : t('Booking cancelled'),
+    lines: withRefund([reason ?? t('This booking was cancelled.')]),
   }
 }
 
@@ -289,6 +291,7 @@ export default function BookingDetailPage({
   params: Promise<{ id: string }>
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
+  const t = useT()
   const { id } = use(params)
   // The query this page was opened with. Read from Next's searchParams, not
   // window.location: on a client-side navigation (a Link from Home) the new
@@ -530,7 +533,7 @@ export default function BookingDetailPage({
       const order = await createPaymentOrder(booking.id)
       await openRazorpayCheckout({
         order,
-        description: `${booking.serviceSummary} at ${booking.vendorName}`,
+        description: t('{serviceSummary} at {vendorName}', { serviceSummary: booking.serviceSummary, vendorName: booking.vendorName }),
         customer: {
           name: profile?.name,
           phone: profile?.phone,
@@ -589,7 +592,7 @@ export default function BookingDetailPage({
             if (updated) setBooking(updated)
             setPaid({ paymentId, phase: 'booked' })
             void invalidateHome(queryClient)
-            toast.success('Payment successful')
+            toast.success(t('Payment successful'))
           } else {
             if (outcome.kind === 'failed')
               track('pay_failed', {
@@ -606,7 +609,7 @@ export default function BookingDetailPage({
         },
         onDismiss: () => {
           toast.info(
-            'Payment cancelled. You can pay anytime from booking details.'
+            t('Payment cancelled. You can pay anytime from booking details.')
           )
         },
         onFailure: (message) => {
@@ -640,7 +643,7 @@ export default function BookingDetailPage({
       void invalidateHome(queryClient)
       // A reward voucher spent on it comes back (0050).
       void invalidateRewards(queryClient)
-      toast.success('Booking cancelled')
+      toast.success(t('Booking cancelled'))
     } catch (error) {
       if (error instanceof ApiError && error.code === 'CAR_WITH_GARAGE') {
         // The garage collected the car while this page was open: show it,
@@ -649,11 +652,11 @@ export default function BookingDetailPage({
         const fresh = await getBooking(id).catch(() => null)
         if (fresh) setBooking(fresh)
         toast.error(
-          'The garage has already collected your car, so this booking can’t be cancelled here. Use Help with this booking.'
+          t('The garage has already collected your car, so this booking can’t be cancelled here. Use Help with this booking.')
         )
       } else {
         toast.error(
-          error instanceof Error ? error.message : 'Failed to cancel booking'
+          error instanceof Error ? error.message : t('Failed to cancel booking')
         )
       }
     } finally {
@@ -673,7 +676,7 @@ export default function BookingDetailPage({
       // A move goes back to the garage: say so, rather than "rescheduled",
       // which reads as done.
       toast.success(
-        `New time sent to ${booking.vendorName}. Waiting for them to accept.`
+        t('New time sent to {vendorName}. Waiting for them to accept.', { vendorName: booking.vendorName })
       )
       router.push(`/bookings/${created.id}`)
     } catch (error) {
@@ -702,7 +705,7 @@ export default function BookingDetailPage({
         if (fresh) setBooking(fresh)
       }
       toast.error(
-        error instanceof Error ? error.message : 'Failed to reschedule booking'
+        error instanceof Error ? error.message : t('Failed to reschedule booking')
       )
     } finally {
       setRescheduling(false)
@@ -719,10 +722,10 @@ export default function BookingDetailPage({
       track('review_submit', { vendorId: booking?.vendorId })
       // Home's "Rate your wash" is answered.
       void invalidateHome(queryClient)
-      toast.success('Review submitted. Thanks!')
+      toast.success(t('Review submitted. Thanks!'))
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : 'Failed to submit review'
+        error instanceof Error ? error.message : t('Failed to submit review')
       )
     } finally {
       setSubmitting(false)
@@ -754,10 +757,9 @@ export default function BookingDetailPage({
   if (loadError) {
     return (
       <CustomerShell showNav className="py-2">
-        <PageHeader title="Booking" />
+        <PageHeader title={t('Booking')} />
         <p className="pt-4 text-t3 text-text-secondary">
-          Could not load this booking. It may have been removed or you may not
-          have access.
+          {t('Could not load this booking. It may have been removed or you may not have access.')}
         </p>
       </CustomerShell>
     )
@@ -766,7 +768,7 @@ export default function BookingDetailPage({
   if (!booking) {
     return (
       <CustomerShell showNav className="gap-4 py-2">
-        <PageHeader title="Booking" />
+        <PageHeader title={t('Booking')} />
         <div aria-busy="true" className="flex flex-col gap-3">
           <div className="h-[132px] rounded-card shimmer" />
           <div className="h-[220px] rounded-card shimmer" />
@@ -876,16 +878,18 @@ export default function BookingDetailPage({
         // Ignition, after paying (moment 1): the same words the burst said,
         // with the booking's road, the car parked where it is.
         <Ignition
-          title={awaitingGarage ? 'Booking requested' : 'Booking confirmed'}
+          title={awaitingGarage ? t('Booking requested') : t('Booking confirmed')}
           subtitle={
             awaitingGarage
-              ? `Waiting for ${booking.vendorName} to accept your ${booking.scheduledAt} slot.`
-              : `${booking.serviceSummary} at ${booking.vendorName} · ${booking.scheduledAt}`
+              ? t('Waiting for {vendorName} to accept your {scheduledAt} slot.', { vendorName: booking.vendorName, scheduledAt: booking.scheduledAt })
+              : t('{serviceSummary} at {vendorName} · {scheduledAt}', { serviceSummary: booking.serviceSummary, vendorName: booking.vendorName, scheduledAt: booking.scheduledAt })
           }
           stops={roadStops ?? statusStops(STATUS_STEPS, awaitingGarage ? 0 : 1, false)}
           caption={
             awaitingGarage
-              ? `Requested${answerBy ? ` · they answer by ${formatClock(answerBy.respondBy)}` : ''}`
+              ? answerBy
+                ? t('Requested · they answer by {time}', { time: formatClock(answerBy.respondBy) })
+                : t('Requested')
               : null
           }
           onDone={() => {
@@ -896,7 +900,7 @@ export default function BookingDetailPage({
         />
       )}
 
-      <PageHeader title={`Booking #${bookingReference(booking.id)}`} />
+      <PageHeader title={t('Booking #{bookingReference}', { bookingReference: bookingReference(booking.id) })} />
 
       {/* Status first (F3): where the booking stands in plain words, the
           time that matters, and a thin four-step bar. The full timeline is
@@ -910,7 +914,7 @@ export default function BookingDetailPage({
         <h2 className="text-t4 font-normal text-dim">
           {[
             booking.vendorName,
-            BOOKING_TYPE_LABELS[booking.bookingType],
+            t(BOOKING_TYPE_LABELS[booking.bookingType]),
             booking.vehicle?.model,
           ]
             .filter(Boolean)
@@ -947,15 +951,12 @@ export default function BookingDetailPage({
           )}
         {missedByGarage && (
           <p className="text-t3 text-text-secondary">
-            Your booking time has passed without the garage accepting, so this
-            booking won&apos;t go ahead. Cancel it or pick a new time below, or
-            use Help with this booking about your payment.
+            {t("Your booking time has passed without the garage accepting, so this booking won't go ahead. Cancel it or pick a new time below, or use Help with this booking about your payment.")}
           </p>
         )}
         {booking.status === 'rescheduled' && (
           <p className="text-t3 text-text-secondary">
-            This booking was moved to a new time. Open your bookings to see the
-            new one and whether the garage has accepted it.
+            {t('This booking was moved to a new time. Open your bookings to see the new one and whether the garage has accepted it.')}
           </p>
         )}
         {/* The car drives to the next stop when the status changes (the
@@ -1002,7 +1003,7 @@ export default function BookingDetailPage({
         .map(([chargeId, payment]) => (
           <ScCard key={chargeId} className="flex flex-col gap-3">
             <h2 className="text-t2 font-medium text-text-primary">
-              Your earlier bill payment
+              {t('Your earlier bill payment')}
             </h2>
             {payment.phase === 'confirming' ? (
               <p
@@ -1014,7 +1015,7 @@ export default function BookingDetailPage({
                   className="shrink-0 animate-spin"
                   aria-hidden="true"
                 />
-                Payment received — confirming…
+                {t('Payment received — confirming…')}
               </p>
             ) : (
               <PaymentReceivedPanel
@@ -1070,13 +1071,12 @@ export default function BookingDetailPage({
           }
         >
           {paying ? (
-            'Opening payment...'
+            t('Opening payment...')
           ) : (
             <>
-              Pay{' '}
-              <span className="font-numeric">
+              {fill(t('Pay {money}'), { money: <span className="font-numeric">
                 {money(booking.servicePrice)}
-              </span>
+              </span> })}
             </>
           )}
         </MainAction>
@@ -1093,7 +1093,7 @@ export default function BookingDetailPage({
             className="shrink-0 animate-spin"
             aria-hidden="true"
           />
-          Payment received — confirming your booking…
+          {t('Payment received — confirming your booking…')}
         </ScButton>
       )}
 
@@ -1115,13 +1115,13 @@ export default function BookingDetailPage({
         // #rate: Home's "Rate your wash" stars land here, the rating chosen.
         <ScCard id="rate" className="scroll-mt-4">
           <h2 className="mb-3 text-t2 font-medium text-text-primary">
-            {submittedReview ? 'Your review' : 'How was it?'}
+            {submittedReview ? t('Your review') : t('How was it?')}
           </h2>
           {submittedReview ? (
             <div className="flex flex-col gap-2">
               <Stars rating={submittedReview.rating} size={18} />
               <p className="text-t3 text-text-secondary">
-                Thanks for your review.
+                {t('Thanks for your review.')}
               </p>
               {submittedReview.comment && (
                 <p className="text-t3 text-text-primary">
@@ -1141,8 +1141,8 @@ export default function BookingDetailPage({
               {rating > 0 && (
                 <div className="rise-in mt-3 flex flex-col gap-3">
                   <ScInput
-                    aria-label="Tell us about your experience"
-                    placeholder="Tell us about your experience"
+                    aria-label={t('Tell us about your experience')}
+                    placeholder={t('Tell us about your experience')}
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
                   />
@@ -1153,7 +1153,7 @@ export default function BookingDetailPage({
                     onClick={handleSubmitReview}
                     className="press flex h-[52px] w-full items-center justify-center rounded-pill border border-stroke text-t3 font-medium text-text-primary disabled:opacity-50"
                   >
-                    {submitting ? 'Submitting...' : 'Submit review'}
+                    {submitting ? t('Submitting...') : t('Submit review')}
                   </button>
                 </div>
               )}
@@ -1168,7 +1168,7 @@ export default function BookingDetailPage({
           variant="hero"
           fullWidth
         >
-          <span>Book again</span>
+          <span>{t('Book again')}</span>
           <IconArrowUpRight size={17} stroke={1.5} aria-hidden />
         </ScButtonLink>
       )}
@@ -1183,7 +1183,7 @@ export default function BookingDetailPage({
             id="scratch-card"
             className="text-t2 font-medium text-text-primary"
           >
-            You earned a stamp and a scratch card
+            {t('You earned a stamp and a scratch card')}
           </h2>
           <ScratchCardPanel card={scratchCard} compact />
         </section>
@@ -1196,7 +1196,7 @@ export default function BookingDetailPage({
             id="garage-card"
             className="text-t2 font-medium text-text-primary"
           >
-            A new car for your Garage
+            {t('A new car for your Garage')}
           </h2>
           <PullReveal
             pull={bookingPull}
@@ -1220,14 +1220,14 @@ export default function BookingDetailPage({
 
       {/* ─── The details, as short rows (F3) ───────────────────────────── */}
       <section
-        aria-label="Booking details"
+        aria-label={t('Booking details')}
         className="hub-card flex flex-col px-5"
       >
         <Row
           label={
             booking.items.length > 1
-              ? 'Services'
-              : (booking.items[0]?.name ?? 'Service')
+              ? t('Services')
+              : (booking.items[0]?.name ?? t('Service'))
           }
         >
           {booking.items.length > 1 ? (
@@ -1248,13 +1248,17 @@ export default function BookingDetailPage({
         </Row>
         {/* An accepted request's travel fee (0062): its own line. */}
         {(booking.travelFee ?? 0) > 0 && (
-          <Row label="Travel fee">
+          <Row label={t('Travel fee')}>
             <span className="font-numeric">{money(booking.travelFee ?? 0)}</span>
           </Row>
         )}
         {booking.discountAmount > 0 && (
           <Row
-            label={`Discount${booking.discountCode ? ` (${booking.discountCode})` : ''}`}
+            label={
+              booking.discountCode
+                ? t('Discount ({code})', { code: booking.discountCode })
+                : t('Discount')
+            }
           >
             <span className="font-numeric text-success">
               −{money(booking.discountAmount)}
@@ -1266,15 +1270,15 @@ export default function BookingDetailPage({
             booking.paymentStatus === 'paid'
               ? // A free wash that covered it all (0062): nothing was paid.
                 booking.servicePrice === 0 && (booking.creditPaid ?? 0) === 0
-                ? 'Nothing to pay'
+                ? t('Nothing to pay')
                 : (booking.creditPaid ?? 0) >= booking.servicePrice
-                ? 'Paid'
-                : 'Paid online'
+                ? t('Paid')
+                : t('Paid online')
               : booking.paymentStatus === 'refunded'
-                ? 'Refunded'
+                ? t('Refunded')
                 : booking.paymentMethod === 'online'
-                  ? 'To be paid online'
-                  : 'Cash'
+                  ? t('To be paid online')
+                  : t('Cash')
           }
         >
           {/* "Paid online" and "To be paid online" are the online part: the
@@ -1290,40 +1294,40 @@ export default function BookingDetailPage({
         </Row>
         {/* Gift a wash (0049): the part Detlio credit paid. */}
         {(booking.creditPaid ?? 0) > 0 && (
-          <Row label="Paid with Detlio credit">
+          <Row label={t('Paid with Detlio credit')}>
             <span className="font-numeric">
               {money(booking.creditPaid ?? 0)}
             </span>
           </Row>
         )}
-        <Row label="When">{formatWhen(booking.scheduledAtIso, now)}</Row>
-        <Row label={isPickup ? 'Collected from' : 'Where'}>
+        <Row label={t('When')}>{formatWhen(booking.scheduledAtIso, now)}</Row>
+        <Row label={isPickup ? t('Collected from') : t('Where')}>
           {/* Where the garage comes to (or collects from), so a wrong
               address is caught before anyone sets off. */}
           {booking.jobLocation?.address ??
             ([contactGarage?.address, contactGarage?.city]
               .filter(Boolean)
               .join(', ') ||
-              BOOKING_TYPE_LABELS[booking.bookingType])}
+              t(BOOKING_TYPE_LABELS[booking.bookingType]))}
         </Row>
         {booking.vehicle && (
-          <Row label="Car">
+          <Row label={t('Car')}>
             {booking.vehicle.make} {booking.vehicle.model}
           </Row>
         )}
         {/* Once a payment has gone through (refunded since or not). A link,
             not a button: the receipt is a record, not a next step. */}
-        <Row label="Receipt" last>
+        <Row label={t('Receipt')} last>
           {booking.receiptAvailable ? (
             <Link
               href={`/bookings/${booking.id}/receipt`}
               className="-my-2 inline-flex min-h-11 items-center gap-0.5 text-text-primary"
             >
-              View receipt
+              {t('View receipt')}
               <IconChevronRight size={16} stroke={1.5} aria-hidden />
             </Link>
           ) : (
-            <span className="text-dim">After payment</span>
+            <span className="text-dim">{t('After payment')}</span>
           )}
         </Row>
       </section>
@@ -1333,7 +1337,7 @@ export default function BookingDetailPage({
         <ScCard className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <h2 className="text-t3 font-medium text-text-primary">
-              Getting there
+              {t('Getting there')}
             </h2>
             {gettingThere.address && (
               <p className="mt-0.5 text-t4 text-text-secondary">
@@ -1345,13 +1349,12 @@ export default function BookingDetailPage({
             {travel.data && (
               <p className="mt-1 text-t4 text-text-secondary">
                 {describeDrive(travel.data).atGarage ? (
-                  "You're at the garage."
+                  t("You're at the garage.")
                 ) : (
                   <>
-                    <span className="font-numeric text-text-primary">
+                    {fill(t('{time} drive from you'), { time: <span className="font-numeric text-text-primary">
                       {describeDrive(travel.data).time}
-                    </span>{' '}
-                    drive from you
+                    </span> })}
                   </>
                 )}
               </p>
@@ -1363,20 +1366,20 @@ export default function BookingDetailPage({
             className="press flex h-11 shrink-0 items-center gap-1.5 rounded-pill border border-stroke px-4 text-t3 text-text-primary"
           >
             <IconNavigation size={16} aria-hidden />
-            Directions
+            {t('Directions')}
           </button>
         </ScCard>
       )}
 
       {/* Reaching people: the garage directly during the contact window,
           and Help (F8). */}
-      <section aria-label="Contact" className="hub-card flex flex-col px-5">
+      <section aria-label={t('Contact')} className="hub-card flex flex-col px-5">
         {garageCall && (
           <a
             href={garageCall}
             className="flex min-h-[56px] items-center justify-between gap-3 border-b border-line text-t3 text-text-primary"
           >
-            Call {booking.vendorName}
+            {t('Call {vendorName}', { vendorName: booking.vendorName })}
             <IconChevronRight
               size={16}
               stroke={1.5}
@@ -1392,7 +1395,7 @@ export default function BookingDetailPage({
             rel="noopener"
             className="flex min-h-[56px] items-center justify-between gap-3 border-b border-line text-t3 text-text-primary"
           >
-            WhatsApp the garage
+            {t('WhatsApp the garage')}
             <IconChevronRight
               size={16}
               stroke={1.5}
@@ -1409,7 +1412,7 @@ export default function BookingDetailPage({
           }}
           className="flex min-h-[56px] items-center justify-between gap-3 text-left text-t3 text-text-primary"
         >
-          Help with this booking
+          {t('Help with this booking')}
           <IconChevronRight
             size={16}
             stroke={1.5}
@@ -1427,7 +1430,7 @@ export default function BookingDetailPage({
       {!cancelled && customerRefundLine(booking.refund, 'earlier_bill') && (
         <ScCard>
           <h2 className="mb-1 text-t3 font-medium text-text-primary">
-            Refund
+            {t('Refund')}
           </h2>
           <p className="text-t3 text-text-secondary">
             {customerRefundLine(booking.refund, 'earlier_bill')}
@@ -1449,16 +1452,16 @@ export default function BookingDetailPage({
           className="flex h-[52px] items-center justify-center gap-2 rounded-pill border-stroke py-0 text-t3 font-medium"
         >
           <IconRepeat size={18} aria-hidden />
-          Book again
+          {t('Book again')}
         </ScButtonLink>
       )}
 
       {/* Says each step after payment out loud. */}
       <p role="status" className="sr-only">
         {paid?.phase === 'confirming'
-          ? 'Payment received. Confirming your booking.'
+          ? t('Payment received. Confirming your booking.')
           : paymentSettled
-            ? 'Payment confirmed.'
+            ? t('Payment confirmed.')
             : paid
               ? paymentReceivedText(
                   paid.paymentId,
@@ -1471,13 +1474,10 @@ export default function BookingDetailPage({
       {carAway && OPEN_STATUSES.has(booking.status) && (
         <ScCard>
           <h2 className="mb-1 text-t3 font-medium text-text-primary">
-            Your car is with the garage
+            {t('Your car is with the garage')}
           </h2>
           <p className="text-t3 text-text-secondary">
-            {booking.vendorName} has collected your car, so this booking
-            can&apos;t be cancelled or moved in the app. To change anything, or
-            if something isn&apos;t right, use Help with this booking to reach
-            the garage or our team, or raise a complaint there.
+            {t("{vendorName} has collected your car, so this booking can't be cancelled or moved in the app. To change anything, or if something isn't right, use Help with this booking to reach the garage or our team, or raise a complaint there.", { vendorName: booking.vendorName })}
           </p>
         </ScCard>
       )}
@@ -1486,18 +1486,18 @@ export default function BookingDetailPage({
           text action behind a confirm step (F5, F8). */}
       {canChange && (
         <section
-          aria-label="Change this booking"
+          aria-label={t('Change this booking')}
           className="hub-card flex flex-col gap-3 p-5"
         >
           <p className="text-t4 text-text-secondary">
             {lockedIn
-              ? `Your slot is less than 2 hours away, so it can't be moved here. Use Help with this booking to reach ${booking.vendorName} or our team.`
+              ? t("Your slot is less than 2 hours away, so it can't be moved here. Use Help with this booking to reach {vendorName} or our team.", { vendorName: booking.vendorName })
               : booking.status === 'confirmed'
-                ? `You can reschedule twice in all · ${booking.remainingReschedules} of 2 left. Your booking goes back to Requested until ${booking.vendorName} accepts the new time.`
-                : `You can reschedule twice in all · ${booking.remainingReschedules} of 2 left. ${booking.vendorName} will need to accept the new time.`}
+                ? t('You can reschedule twice in all · {remainingReschedules} of 2 left. Your booking goes back to Requested until {vendorName} accepts the new time.', { remainingReschedules: booking.remainingReschedules, vendorName: booking.vendorName })
+                : t('You can reschedule twice in all · {remainingReschedules} of 2 left. {vendorName} will need to accept the new time.', { remainingReschedules: booking.remainingReschedules, vendorName: booking.vendorName })}
             {isPickup &&
               !lockedIn &&
-              ' You can move it until the garage collects your car.'}
+              ` ${t('You can move it until the garage collects your car.')}`}
           </p>
           <button
             type="button"
@@ -1509,28 +1509,26 @@ export default function BookingDetailPage({
             className="press flex h-[52px] w-full items-center justify-center rounded-pill border border-stroke text-t3 font-medium text-text-primary disabled:cursor-not-allowed disabled:border-transparent disabled:bg-surface-elevated disabled:text-text-muted"
           >
             {booking.remainingReschedules <= 0
-              ? 'No reschedules left'
+              ? t('No reschedules left')
               : lockedIn
-                ? 'Too close to your slot to move'
-                : 'Reschedule'}
+                ? t('Too close to your slot to move')
+                : t('Reschedule')}
           </button>
 
           {lockedIn ? (
             // Shown instead of a control the server would refuse.
             <p className="text-t4 text-text-secondary">
-              Your slot is less than 2 hours away and {booking.vendorName} has
-              accepted it, so it can&apos;t be cancelled here. Use Help with
-              this booking to reach the garage or our team.
+              {t("Your slot is less than 2 hours away and {vendorName} has accepted it, so it can't be cancelled here. Use Help with this booking to reach the garage or our team.", { vendorName: booking.vendorName })}
             </p>
           ) : showCancelConfirm ? (
             <div className="rise-in flex flex-col gap-3 border-t border-line pt-3">
               <p className="text-t3 text-text-primary">
                 {booking.status === 'pending'
-                  ? `${booking.vendorName} hasn't accepted yet, so you can cancel any time. This cannot be undone.`
-                  : 'Cancel this booking? This cannot be undone.'}
+                  ? t("{vendorName} hasn't accepted yet, so you can cancel any time. This cannot be undone.", { vendorName: booking.vendorName })
+                  : t('Cancel this booking? This cannot be undone.')}
               </p>
               <ScInput
-                placeholder="Reason (optional)"
+                placeholder={t('Reason (optional)')}
                 value={cancelReason}
                 onChange={(e) => setCancelReason(e.target.value)}
               />
@@ -1547,7 +1545,7 @@ export default function BookingDetailPage({
                   onClick={() => setShowCancelConfirm(false)}
                   className="press flex h-[52px] flex-1 items-center justify-center rounded-pill border border-stroke text-t3 font-medium text-text-primary disabled:opacity-50"
                 >
-                  Keep booking
+                  {t('Keep booking')}
                 </button>
                 <button
                   type="button"
@@ -1555,7 +1553,7 @@ export default function BookingDetailPage({
                   onClick={handleCancelBooking}
                   className="press flex h-[52px] flex-1 items-center justify-center rounded-pill border border-error/50 text-t3 font-medium text-error disabled:opacity-50"
                 >
-                  {cancelling ? 'Cancelling...' : 'Confirm cancel'}
+                  {cancelling ? t('Cancelling...') : t('Confirm cancel')}
                 </button>
               </div>
             </div>
@@ -1566,7 +1564,7 @@ export default function BookingDetailPage({
               onClick={() => setShowCancelConfirm(true)}
               className="min-h-11 w-full text-center text-t3 font-medium text-error"
             >
-              Cancel booking
+              {t('Cancel booking')}
             </button>
           )}
         </section>
@@ -1576,7 +1574,7 @@ export default function BookingDetailPage({
       {showProgress && (
         <ScCard>
           <h2 className="mb-3 text-t3 font-medium text-text-primary">
-            Progress
+            {t('Progress')}
           </h2>
           {isPickup ? (
             <PickupTimeline booking={booking} now={now} />
@@ -1619,20 +1617,18 @@ export default function BookingDetailPage({
         }
         onClose={() => setShowReschedule(false)}
         dismissible={!rescheduling}
-        aria-label="Reschedule booking"
+        aria-label={t('Reschedule booking')}
         className="px-4 pt-1"
       >
         <div>
           <h2 className="text-[20px] font-normal tracking-[-0.015em] text-text-primary">
-            Reschedule booking
+            {t('Reschedule booking')}
           </h2>
           <p className="mb-4 mt-1 text-t4 text-text-secondary">
-            You can reschedule only twice · {booking.remainingReschedules} of 2
-            left. Pick a new time; {booking.vendorName} will be asked to accept
-            it.
+            {t('You can reschedule only twice · {remainingReschedules} of 2 left. Pick a new time; {vendorName} will be asked to accept it.', { remainingReschedules: booking.remainingReschedules, vendorName: booking.vendorName })}
           </p>
           <WhenPicker
-            title="New time"
+            title={t('New time')}
             vendorId={booking.vendorId}
             // Every service on the booking: a move has to fit the whole job.
             serviceIds={booking.items.map((item) => item.serviceId)}
@@ -1640,7 +1636,7 @@ export default function BookingDetailPage({
             onChange={setRescheduleSlot}
             onLapse={() =>
               toast.info(
-                'That time is now too soon to book. Pick another time.'
+                t('That time is now too soon to book. Pick another time.')
               )
             }
             bookingType={booking.bookingType}
@@ -1654,7 +1650,7 @@ export default function BookingDetailPage({
               onClick={() => setShowReschedule(false)}
               className="press flex h-[52px] flex-1 items-center justify-center rounded-pill border border-stroke text-t3 font-medium text-text-primary disabled:opacity-50"
             >
-              Cancel
+              {t('Cancel')}
             </button>
             {/* The sheet's one action: red once a time is picked, grey until
                 then (F5's "not ready yet"). */}
@@ -1665,7 +1661,7 @@ export default function BookingDetailPage({
               className="h-[52px] flex-1 rounded-pill py-0 text-t3 font-medium disabled:opacity-100 disabled:border-transparent disabled:bg-surface-elevated disabled:text-text-muted"
             >
               <span>
-                {rescheduling ? 'Rescheduling...' : 'Confirm reschedule'}
+                {rescheduling ? t('Rescheduling...') : t('Confirm reschedule')}
               </span>
             </ScButton>
           </div>

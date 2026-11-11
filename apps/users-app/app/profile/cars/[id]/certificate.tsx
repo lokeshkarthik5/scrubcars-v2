@@ -22,6 +22,7 @@ import { PageHeader } from '@/components/page-header';
 import { useAuth } from '@/lib/auth';
 import { certificateHtml, SEAL_SVG } from '@/lib/certificate-pdf';
 import { escapeHtml } from '@/lib/receipt-html';
+import { useT } from '@repo/core/i18n';
 
 const WEB = 'https://detlio.com';
 
@@ -31,6 +32,7 @@ const istDate = (iso: string) => certificateDateLabel(new Date(new Date(iso).get
 
 /** apps/users/app/profile/cars/[id]/certificate/page.tsx. Print / Save as PDF goes through the phone's print sheet. */
 export default function CarCertificateScreen() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
@@ -53,7 +55,7 @@ export default function CarCertificateScreen() {
         toast.success(done);
         after?.();
       },
-      onError: (err) => toast.error(err instanceof Error ? err.message : 'Something went wrong'),
+      onError: (err) => toast.error(err instanceof Error ? err.message : t('Something went wrong')),
     });
   const setPhotos = (on: boolean) => {
     if (on && !askPhotos) {
@@ -61,12 +63,12 @@ export default function CarCertificateScreen() {
       return;
     }
     setAskPhotos(false);
-    if (share) run({ kind: 'photos', includePhotos: on }, on ? 'Photos added to your link' : 'Photos removed from your link');
+    if (share) run({ kind: 'photos', includePhotos: on }, on ? t('Photos added to your link') : t('Photos removed from your link'));
     else setLocalPhotos(on);
   };
-  const makeLink = () => run({ kind: 'share', includePhotos, expiresInDays: expiry }, share ? 'New link made' : 'Link ready to share', () => setConfirm(null));
+  const makeLink = () => run({ kind: 'share', includePhotos, expiresInDays: expiry }, share ? t('New link made') : t('Link ready to share'), () => setConfirm(null));
 
-  const page = (children: React.ReactNode, title = 'Service history') => (
+  const page = (children: React.ReactNode, title = t('Service history')) => (
     <View style={[styles.page, { paddingTop: insets.top }]}>
       <PageHeader title={title} backTo={`/profile/cars/${id}`} />
       {children}
@@ -76,10 +78,10 @@ export default function CarCertificateScreen() {
     return page(
       <View style={styles.center}>
         <T size={15} weight={600} align="center">
-          Sign in to see your car&apos;s certificate
+          {t("Sign in to see your car's certificate")}
         </T>
         <ScButton variant="main" fullWidth={false} paddingX={32} onPress={() => router.push(`/login?next=${encodeURIComponent(`/profile/cars/${id}/certificate`)}` as Href)}>
-          Sign in
+          {t('Sign in')}
         </ScButton>
       </View>
     );
@@ -94,14 +96,14 @@ export default function CarCertificateScreen() {
         </View>
       ) : notFound ? (
         <View style={styles.center}>
-          <EmptyState icon={<IconCar size={32} stroke={1.5} color={colors.textSecondary} />} title="This car isn't in your garage" subtitle="It may have been removed. Your cars are in Profile." />
+          <EmptyState icon={<IconCar size={32} stroke={1.5} color={colors.textSecondary} />} title={t("This car isn't in your garage")} subtitle={t('It may have been removed. Your cars are in Profile.')} />
           <ScButton variant="outline" fullWidth={false} onPress={() => router.navigate('/profile?section=vehicles' as Href)}>
-            Go to Profile
+            {t('Go to Profile')}
           </ScButton>
         </View>
       ) : (
         <View style={styles.body}>
-          <ErrorState message="Couldn't load this certificate. Check your connection." onRetry={() => void query.refetch()} />
+          <ErrorState message={t("Couldn't load this certificate. Check your connection.")} onRetry={() => void query.refetch()} />
         </View>
       )
     );
@@ -129,79 +131,81 @@ export default function CarCertificateScreen() {
     <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 24 }]}>
       <ScButton variant="main" onPress={() => void print()}>
         <IconPrinter size={18} color={colors.white} />
-        <Label color={colors.white}>Print / Save as PDF</Label>
+        <Label color={colors.white}>{t('Print / Save as PDF')}</Label>
       </ScButton>
       <T size={12} lh={16} color={colors.textMuted}>
-        On Android, choose Save as PDF as the printer; on iPhone, tap Share on the print screen, then Save to Files.
+        {t('On Android, choose Save as PDF as the printer; on iPhone, tap Share on the print screen, then Save to Files.')}
       </T>
 
-      <ScCard accessibilityLabel="Share link" style={styles.card}>
+      <ScCard accessibilityLabel={t('Share link')} style={styles.card}>
         <View>
           <View style={styles.title}>
             <IconLink size={16} />
             <T size={14} weight={600} lh={20}>
-              Share link
+              {t('Share link')}
             </T>
           </View>
           <T size={12} lh={16} color={colors.textSecondary} style={styles.mt2}>
-            Anyone with the link, or the QR code on the printout, can check this record is genuine. They see the car, garages, dates and services. Never your name, phone or address, or the full number plate.
+            {t('Anyone with the link, or the QR code on the printout, can check this record is genuine. They see the car, garages, dates and services. Never your name, phone or address, or the full number plate.')}
           </T>
         </View>
         <View style={styles.between}>
           <View style={styles.grow}>
             <T size={13} weight={500} lh={18}>
-              Include before/after photos
+              {t('Include before/after photos')}
             </T>
             <T size={11} lh={15} color={colors.textSecondary}>
-              Off unless you turn it on.
+              {t('Off unless you turn it on.')}
             </T>
           </View>
-          <ScSwitch checked={includePhotos} disabled={action.isPending} onChange={setPhotos} label="Include before/after photos" />
+          <ScSwitch checked={includePhotos} disabled={action.isPending} onChange={setPhotos} label={t('Include before/after photos')} />
         </View>
         {askPhotos ? (
-          <Notice title="Photos may show your number plate">
+          <Notice title={t('Photos may show your number plate')}>
             <View style={styles.gap8}>
               <T size={13} lh={18} color={colors.textSecondary}>
                 {PHOTO_PLATE_WARNING}
               </T>
               <View style={styles.row}>
                 <ScButton variant="outline" fullWidth={false} paddingX={16} onPress={() => setPhotos(true)}>
-                  Include photos
+                  {t('Include photos')}
                 </ScButton>
                 <ScButton variant="outline" fullWidth={false} paddingX={16} onPress={() => setAskPhotos(false)}>
-                  Not now
+                  {t('Not now')}
                 </ScButton>
               </View>
             </View>
           </Notice>
         ) : null}
         {live && url && short ? (
-          <LiveLink share={live} url={url} shortLink={short} busy={action.isPending} confirm={confirm} setConfirm={setConfirm} onStop={() => run({ kind: 'stop' }, 'Stopped sharing', () => setConfirm(null))} onRenew={makeLink} />
+          <LiveLink share={live} url={url} shortLink={short} busy={action.isPending} confirm={confirm} setConfirm={setConfirm} onStop={() => run({ kind: 'stop' }, t('Stopped sharing'), () => setConfirm(null))} onRenew={makeLink} />
         ) : (
           <>
             {share?.state === 'expired' ? (
               <T size={12} lh={16} color={colors.warning}>
-                {`Your link ran out${share.expiresAt ? ` on ${istDate(share.expiresAt)}` : ''}. Make a new one to share again.`}
+                {share.expiresAt
+                  ? t('Your link ran out on {day}. Make a new one to share again.', { day: istDate(share.expiresAt) })
+                  : t('Your link ran out. Make a new one to share again.')}
               </T>
             ) : null}
             {share?.state === 'active' && !share.token ? (
               <T size={12} lh={16} color={colors.textSecondary}>
-                Your link still works for whoever has it, but it can&apos;t be shown here. Make a new link to print a QR code; the old one will stop working.
+                {t("Your link still works for whoever has it, but it can't be shown here. Make a new link to print a QR code; the old one will stop working.")}
               </T>
             ) : null}
             <View>
               <T size={12} weight={500} lh={16}>
-                Link works for
+                {t('Link works for')}
               </T>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
                 {SHARE_EXPIRY_OPTIONS.map((option) => (
-                  <Chip key={option.label} label={option.days === null ? 'Until you stop it' : option.label} selected={expiry === option.days} onPress={() => setExpiry(option.days)} />
+                  <Chip key={option.label} label={option.days === null ? t('Until you stop it') : option.label} selected={expiry === option.days} onPress={() => setExpiry(option.days)} />
                 ))}
               </ScrollView>
             </View>
             <ScButton variant="outline" disabled={action.isPending} onPress={makeLink}>
               <IconLink size={16} color={colors.textPrimary} />
-              <Label>{share ? 'Make a new link' : 'Share link'}</Label>
+              <Label>{share ? t('Make a new link') : t('Share link')}</Label>
             </ScButton>
           </>
         )}
@@ -231,19 +235,20 @@ export default function CarCertificateScreen() {
         }
       />
     </ScrollView>,
-    'Service history certificate'
+    t('Service history certificate')
   );
 }
 
 function LiveLink({ share, url, shortLink, busy, confirm, setConfirm, onStop, onRenew }: { share: CertificateShare; url: string; shortLink: string; busy: boolean; confirm: 'stop' | 'renew' | null; setConfirm: (value: 'stop' | 'renew' | null) => void; onStop: () => void; onRenew: () => void }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const copy = async () => {
     try {
       await Clipboard.setStringAsync(url);
-      toast.success('Link copied');
+      toast.success(t('Link copied'));
     } catch {
-      toast.info("Couldn't copy the link. Press and hold it to copy it instead.");
+      toast.info(t("Couldn't copy the link. Press and hold it to copy it instead."));
     }
   };
   return (
@@ -255,33 +260,33 @@ function LiveLink({ share, url, shortLink, busy, confirm, setConfirm, onStop, on
       </View>
       <View style={styles.row}>
         <View style={styles.grow}>
-          <ScButton variant="outline" onPress={() => Share.share({ title: 'Detlio Service History', message: url }).catch(() => undefined)}>
+          <ScButton variant="outline" onPress={() => Share.share({ title: t('Detlio Service History'), message: url }).catch(() => undefined)}>
             <IconShare size={16} color={colors.textPrimary} />
-            <Label>Share</Label>
+            <Label>{t('Share')}</Label>
           </ScButton>
         </View>
         <View style={styles.grow}>
           <ScButton variant="outline" onPress={() => void copy()}>
             <IconCopy size={16} color={colors.textPrimary} />
-            <Label>Copy link</Label>
+            <Label>{t('Copy link')}</Label>
           </ScButton>
         </View>
       </View>
       <T size={11} lh={15} color={colors.textSecondary}>
-        {`${viewsLine(share.viewCount, share.lastViewedAt)} · ${share.expiresAt ? `works until ${istDate(share.expiresAt)}` : 'works until you stop it'}`}
+        {`${viewsLine(share.viewCount, share.lastViewedAt)} · ${share.expiresAt ? t('works until {day}', { day: istDate(share.expiresAt) }) : t('works until you stop it')}`}
       </T>
       {confirm ? (
-        <Notice title={confirm === 'stop' ? 'Stop sharing?' : 'Make a new link?'}>
+        <Notice title={confirm === 'stop' ? t('Stop sharing?') : t('Make a new link?')}>
           <View style={styles.gap8}>
             <T size={13} lh={18} color={colors.textSecondary}>
-              {confirm === 'stop' ? 'The link and the QR code on any printout stop working at once.' : 'The current link and the QR code on any printout stop working. Print the certificate again for the new one.'}
+              {confirm === 'stop' ? t('The link and the QR code on any printout stop working at once.') : t('The current link and the QR code on any printout stop working. Print the certificate again for the new one.')}
             </T>
             <View style={styles.row}>
               <ScButton variant="outline" fullWidth={false} paddingX={16} disabled={busy} onPress={confirm === 'stop' ? onStop : onRenew}>
-                {confirm === 'stop' ? 'Stop sharing' : 'Make a new link'}
+                {confirm === 'stop' ? t('Stop sharing') : t('Make a new link')}
               </ScButton>
               <ScButton variant="outline" fullWidth={false} paddingX={16} onPress={() => setConfirm(null)}>
-                Cancel
+                {t('Cancel')}
               </ScButton>
             </View>
           </View>
@@ -290,12 +295,12 @@ function LiveLink({ share, url, shortLink, busy, confirm, setConfirm, onStop, on
         <View style={styles.row}>
           <Pressable accessibilityRole="button" onPress={() => setConfirm('stop')} style={styles.textLink}>
             <T size={12} weight={600} lh={16} style={styles.underline}>
-              Stop sharing
+              {t('Stop sharing')}
             </T>
           </Pressable>
           <Pressable accessibilityRole="button" onPress={() => setConfirm('renew')} style={styles.textLink}>
             <T size={12} weight={500} lh={16} color={colors.textSecondary} style={styles.underline}>
-              New link
+              {t('New link')}
             </T>
           </Pressable>
         </View>

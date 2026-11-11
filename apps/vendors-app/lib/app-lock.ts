@@ -2,6 +2,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 
 import { canOfferLock, lockDecision, type LockDecision } from './app-lock-rules';
 import { devicePrefs } from './device-prefs';
+import { t } from '@repo/core/i18n/translate';
 
 /**
  * Face ID or fingerprint before the session is read. Off by default, kept on this phone, and
@@ -36,7 +37,7 @@ export const lockOffered = async () => canOfferLock(await phoneCan());
 /** True when the person proved it's them; a cancel is false, and they can try again. */
 export async function askToUnlock(): Promise<boolean> {
   try {
-    const result = await LocalAuthentication.authenticateAsync({ promptMessage: 'Unlock Detlio' });
+    const result = await LocalAuthentication.authenticateAsync({ promptMessage: t('Unlock Detlio') });
     return result.success;
   } catch {
     return false;

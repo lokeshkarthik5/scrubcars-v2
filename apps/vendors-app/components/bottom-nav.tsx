@@ -9,13 +9,14 @@ import { Glass, NavOrb } from '@repo/native-ui/finish';
 import { IconCalendar, IconChartBar, IconHome, IconSettings, IconTool, type IconProps } from '@repo/native-ui/icons';
 import { T } from '@repo/native-ui/text';
 import { createStyles, useColors, useFinish } from '@repo/native-ui/theme';
+import { msg, useT } from '@repo/core/i18n';
 
 const ITEMS: { href: string; label: string; icon: (props: IconProps) => ReactElement; adminOnly?: boolean }[] = [
-  { href: '/home', label: 'Home', icon: IconHome },
-  { href: '/bookings', label: 'Bookings', icon: IconCalendar },
-  { href: '/services', label: 'Services', icon: IconTool, adminOnly: true },
-  { href: '/earnings', label: 'Earnings', icon: IconChartBar, adminOnly: true },
-  { href: '/settings', label: 'Settings', icon: IconSettings, adminOnly: true },
+  { href: '/home', label: msg('Home'), icon: IconHome },
+  { href: '/bookings', label: msg('Bookings'), icon: IconCalendar },
+  { href: '/services', label: msg('Services'), icon: IconTool, adminOnly: true },
+  { href: '/earnings', label: msg('Earnings'), icon: IconChartBar, adminOnly: true },
+  { href: '/settings', label: msg('Settings'), icon: IconSettings, adminOnly: true },
 ];
 
 const NAV_HEIGHT = 64;
@@ -38,6 +39,7 @@ export function useNavClearance() {
  * that belongs in the bar.
  */
 export function BottomNav() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const { fx, scheme } = useFinish();
@@ -68,7 +70,7 @@ export function BottomNav() {
               <Pressable
                 key={href}
                 accessibilityRole="tab"
-                accessibilityLabel={label}
+                accessibilityLabel={t(label)}
                 accessibilityState={{ selected: active }}
                 onPress={() => {
                   if (!active) router.navigate(href as Href);
@@ -84,13 +86,17 @@ export function BottomNav() {
                     <Icon size={21} line={1.6} metal={silver} color={silver ? undefined : fx.quietBright} />
                   </View>
                 )}
+                {/* Tamil is longer: one line, shrunk to fit its fifth of the pill. */}
                 <T
                   variant="t5"
                   weight={active ? 600 : 500}
                   lh={11}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.75}
                   color={active ? colors.textPrimary : silver ? '#B4B4BC' : fx.quietBright}
                 >
-                  {label}
+                  {t(label)}
                 </T>
               </Pressable>
             );

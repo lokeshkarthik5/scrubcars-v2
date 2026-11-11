@@ -1,22 +1,27 @@
 import { closeRing, type CoverageRing } from '@repo/core/api/coverage';
 import { DEFAULT_DOORSTEP_RADIUS_KM } from '@repo/core/doorstep';
+import { msg, t } from '@repo/core/i18n/translate';
 
 /**
  * The pure parts of the doorstep coverage editor (packages/ui/src/features/coverage-editor.tsx):
  * the ring the server holds against the corners the owner taps, the line of words under the
  * heading, what the buttons say and when they work. Free of react-native so `bun test` can load it.
+ * The constants stay English (msg) for the screen's t(); the lines built here come out in the
+ * language in use.
  */
 
 /** An area needs a triangle or better; the server needs these three plus the repeated closing point. */
 export const MIN_CORNERS = 3;
 
-export const AREA_INTRO =
-  "Optional. Draw the exact area you'll travel to — useful when a river, highway or city boundary means a plain radius gets it wrong.";
-export const COVERAGE_SAVED = 'Coverage area saved';
-export const COVERAGE_CLEARED = 'Coverage area cleared';
-export const COVERAGE_SAVE_FAILED = 'Could not save the area';
-export const AREA_UNAVAILABLE_NOTE =
-  "The coverage area can't be drawn in this version of the app. Draw it on the web, or clear it here to use your radius.";
+export const AREA_INTRO = msg(
+  "Optional. Draw the exact area you'll travel to — useful when a river, highway or city boundary means a plain radius gets it wrong."
+);
+export const COVERAGE_SAVED = msg('Coverage area saved');
+export const COVERAGE_CLEARED = msg('Coverage area cleared');
+export const COVERAGE_SAVE_FAILED = msg('Could not save the area');
+export const AREA_UNAVAILABLE_NOTE = msg(
+  "The coverage area can't be drawn in this version of the app. Draw it on the web, or clear it here to use your radius."
+);
 
 /** The corners as tapped, [lng, lat] like the server's ring, without the closing repeat. */
 export type Corners = CoverageRing;
@@ -49,8 +54,8 @@ export const savePayload = (corners: Corners): CoverageRing | null =>
 export const saveBlocked = (corners: Corners) => corners.length > 0 && corners.length < MIN_CORNERS;
 
 export function saveLabel(corners: Corners, saving: boolean): string {
-  if (saving) return 'Saving…';
-  return isArea(corners) ? 'Save coverage area' : 'Clear area and use radius';
+  if (saving) return t('Saving…');
+  return isArea(corners) ? t('Save coverage area') : t('Clear area and use radius');
 }
 
 export const savedToast = (corners: Corners) => (isArea(corners) ? COVERAGE_SAVED : COVERAGE_CLEARED);
@@ -59,12 +64,15 @@ export const savedToast = (corners: Corners) => (isArea(corners) ? COVERAGE_SAVE
 export function cornerMessage(count: number, fallbackRadiusKm?: number | null): string {
   if (count === 0) {
     return fallbackRadiusKm
-      ? `Tap the map to draw the area you travel to. Until you do, your ${fallbackRadiusKm} km radius applies.`
+      ? t('Tap the map to draw the area you travel to. Until you do, your {km} km radius applies.', { km: fallbackRadiusKm })
       : // No radius set: the default applies, the same one the server measures with.
-        `Tap the map to draw the area you travel to. Until you do, the default ${DEFAULT_DOORSTEP_RADIUS_KM} km radius applies.`;
+        t('Tap the map to draw the area you travel to. Until you do, the default {km} km radius applies.', {
+          km: DEFAULT_DOORSTEP_RADIUS_KM,
+        });
   }
-  if (count < MIN_CORNERS) return `${count} of ${MIN_CORNERS} corners — an area needs at least three.`;
-  return `${count} corners. Tap to add more, or save.`;
+  // MIN_CORNERS is 3, written into the sentence.
+  if (count < MIN_CORNERS) return t('{count} of 3 corners — an area needs at least three.', { count });
+  return t('{count} corners. Tap to add more, or save.', { count });
 }
 
 /** Corners in a saved ring (its closing repeat is not a corner), for the no-map status line. */
@@ -72,8 +80,8 @@ export const savedCornerCount = (ring: CoverageRing | null | undefined) => corne
 
 /** Without a map: what is on file, and what applies instead when nothing is. */
 export function savedStatus(count: number, fallbackRadiusKm?: number | null): string {
-  if (count > 0) return `A coverage area with ${count} corners is saved.`;
+  if (count > 0) return t('A coverage area with {count} corners is saved.', { count });
   return fallbackRadiusKm
-    ? `No coverage area is drawn. Your ${fallbackRadiusKm} km radius applies.`
-    : `No coverage area is drawn. The default ${DEFAULT_DOORSTEP_RADIUS_KM} km radius applies.`;
+    ? t('No coverage area is drawn. Your {km} km radius applies.', { km: fallbackRadiusKm })
+    : t('No coverage area is drawn. The default {km} km radius applies.', { km: DEFAULT_DOORSTEP_RADIUS_KM });
 }

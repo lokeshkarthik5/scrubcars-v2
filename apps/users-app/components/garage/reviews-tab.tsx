@@ -1,6 +1,7 @@
 import { useVendorReviews } from '@repo/core/api/hooks/use-vendors';
 import { ApiError } from '@repo/core/api/client';
 import { getVendorReviewSummary, reportReview } from '@repo/core/api/reviews';
+import { useT, useTn } from '@repo/core/i18n';
 import { hasStarScore, NEW_GARAGE_LABEL, newGarageReviewsLine, RATING_RULES } from '@repo/core/ratings';
 import type { Review, Vendor } from '@repo/core/types';
 import { ScButton } from '@repo/native-ui/button';
@@ -18,6 +19,7 @@ import { useAuth } from '@/lib/auth';
 
 /** ReportReviewButton (apps/users/components/reviews/report-review-button.tsx): Apple 1.2. */
 function ReportReview({ review, garagePath }: { review: Review; garagePath: string }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const user = useAuth((s) => s.user);
@@ -40,7 +42,7 @@ function ReportReview({ review, garagePath }: { review: Review; garagePath: stri
       setError(
         err instanceof ApiError && (err.code === 'REVIEW_ALREADY_REPORTED' || err.code === 'REVIEW_OWN')
           ? err.message
-          : "Couldn't send the report. Try again."
+          : t("Couldn't send the report. Try again.")
       );
     }
   };
@@ -50,7 +52,7 @@ function ReportReview({ review, garagePath }: { review: Review; garagePath: stri
   const notNow = (
     <Pressable accessibilityRole="button" onPress={close} style={styles.notNow}>
       <T size={13} weight={500} color={colors.textSecondary}>
-        Not now
+        {t('Not now')}
       </T>
     </Pressable>
   );
@@ -59,7 +61,7 @@ function ReportReview({ review, garagePath }: { review: Review; garagePath: stri
     <>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`Report ${review.userName}'s review`}
+        accessibilityLabel={t("Report {name}'s review", { name: review.userName })}
         onPress={() => {
           setReason('');
           setError('');
@@ -69,18 +71,18 @@ function ReportReview({ review, garagePath }: { review: Review; garagePath: stri
         style={styles.reportHit}
       >
         <T size={12} weight={500} color={colors.textSecondary}>
-          Report
+          {t('Report')}
         </T>
       </Pressable>
-      <ScSheet open={open} onClose={close} dismissible={state !== 'sending'} accessibilityLabel="Report this review" horizontalPadding={16}>
+      <ScSheet open={open} onClose={close} dismissible={state !== 'sending'} accessibilityLabel={t('Report this review')} horizontalPadding={16}>
         {!user ? (
           <View style={styles.sheet}>
             <View>
               <T size={16} weight={600}>
-                Sign in to report a review
+                {t('Sign in to report a review')}
               </T>
               <T size={13} color={colors.textSecondary} style={styles.sheetLine}>
-                Reports come from an account, so the team can follow up. Signing in brings you back here.
+                {t('Reports come from an account, so the team can follow up. Signing in brings you back here.')}
               </T>
             </View>
             <ScButton
@@ -89,7 +91,7 @@ function ReportReview({ review, garagePath }: { review: Review; garagePath: stri
                 setTimeout(() => router.push(`/login?next=${encodeURIComponent(garagePath)}` as Href), AFTER_SHEET_MS);
               }}
             >
-              Sign in
+              {t('Sign in')}
             </ScButton>
             {notNow}
           </View>
@@ -97,28 +99,28 @@ function ReportReview({ review, garagePath }: { review: Review; garagePath: stri
           <View style={styles.sheet}>
             <View accessibilityLiveRegion="polite">
               <T size={16} weight={600}>
-                Thanks, we&apos;ve got it
+                {t("Thanks, we've got it")}
               </T>
               <T size={13} color={colors.textSecondary} style={styles.sheetLine}>
-                The team will look at this review. If it breaks our rules, it comes down.
+                {t('The team will look at this review. If it breaks our rules, it comes down.')}
               </T>
             </View>
             <ScButton variant="outline" onPress={close}>
-              Done
+              {t('Done')}
             </ScButton>
           </View>
         ) : (
           <View style={styles.sheet}>
             <View>
               <T size={16} weight={600}>
-                Report this review
+                {t('Report this review')}
               </T>
               <T size={13} color={colors.textSecondary} style={styles.sheetLine}>
-                Tell the team what is wrong: abusive, fake, or about another garage.
+                {t('Tell the team what is wrong: abusive, fake, or about another garage.')}
               </T>
             </View>
             <ScTextarea
-              label="What's wrong with it?"
+              label={t("What's wrong with it?")}
               rows={3}
               maxLength={RATING_RULES.reportReasonMaxLength}
               value={reason}
@@ -130,7 +132,7 @@ function ReportReview({ review, garagePath }: { review: Review; garagePath: stri
               </T>
             ) : null}
             <ScButton disabled={!ready || state === 'sending'} onPress={() => void send()}>
-              {state === 'sending' ? 'Sending…' : 'Send report'}
+              {state === 'sending' ? t('Sending…') : t('Send report')}
             </ScButton>
             {notNow}
           </View>
@@ -196,6 +198,8 @@ function TagCounts({ vendorId }: { vendorId: string }) {
 
 /** The Reviews tab of apps/users/app/garage/[id]/page.tsx. */
 export function ReviewsTab({ vendor, reviewCount }: { vendor: Vendor; reviewCount: number }) {
+  const tn = useTn();
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const reviews = useVendorReviews(vendor.id).data ?? [];
@@ -212,14 +216,14 @@ export function ReviewsTab({ vendor, reviewCount }: { vendor: Vendor; reviewCoun
             <View>
               <Stars rating={vendor.rating} size={16} />
               <T size={11} color={colors.textSecondary}>
-                {reviewCount} {reviewCount === 1 ? 'review' : 'reviews'}
+                {tn(reviewCount, '{count} review', '{count} reviews')}
               </T>
             </View>
           </View>
         ) : (
           <View>
             <T size={15} weight={600}>
-              {NEW_GARAGE_LABEL}
+              {t(NEW_GARAGE_LABEL)}
             </T>
             {soFar ? (
               <T size={11} color={colors.textSecondary}>
@@ -233,7 +237,7 @@ export function ReviewsTab({ vendor, reviewCount }: { vendor: Vendor; reviewCoun
       <TagCounts vendorId={vendor.id} />
       {reviews.length === 0 ? (
         <T size={13} color={colors.textSecondary} align="center" style={styles.none}>
-          No reviews yet.
+          {t('No reviews yet.')}
         </T>
       ) : null}
       {reviews.map((review) => (
@@ -253,7 +257,7 @@ export function ReviewsTab({ vendor, reviewCount }: { vendor: Vendor; reviewCoun
               </T>
               {review.bookingContext ? (
                 <T size={11} lh={15} color={colors.textMuted}>
-                  {`Booked on Detlio · ${review.bookingContext}`}
+                  {`${t('Booked on Detlio')} · ${review.bookingContext}`}
                 </T>
               ) : null}
             </View>
@@ -267,7 +271,7 @@ export function ReviewsTab({ vendor, reviewCount }: { vendor: Vendor; reviewCoun
           {review.reply ? (
             <View style={styles.reply}>
               <T size={12} weight={600}>
-                Reply from {vendor.name}
+                {t('Reply from {name}', { name: vendor.name })}
               </T>
               <T size={13} color={colors.textSecondary} style={styles.replyText}>
                 {review.reply.text}

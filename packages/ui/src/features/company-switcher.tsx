@@ -4,11 +4,12 @@ import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import { IconCheck, IconChevronDown } from '@tabler/icons-react'
 import { useAuthStore } from '@repo/core/stores/auth-store'
+import { msg, useT } from '@repo/core/i18n'
 import { cn } from '@repo/core/utils'
 
 const ROLE_LABEL: Record<string, string> = {
-  vendor_admin: 'Admin',
-  vendor_operator: 'Operator',
+  vendor_admin: msg('Admin'),
+  vendor_operator: msg('Operator'),
 }
 
 /**
@@ -24,6 +25,7 @@ const ROLE_LABEL: Record<string, string> = {
  * remounts the screens, so each reloads that garage's data.
  */
 export function CompanySwitcher({ className }: { className?: string }) {
+  const t = useT()
   const vendors = useAuthStore((s) => s.vendors)
   const activeVendorId = useAuthStore((s) => s.activeVendorId)
   const setActiveVendor = useAuthStore((s) => s.setActiveVendor)
@@ -59,7 +61,7 @@ export function CompanySwitcher({ className }: { className?: string }) {
         type="button"
         onClick={() => setOpen((value) => !value)}
         className="flex min-h-11 max-w-[190px] items-center gap-1.5 rounded-[10px] border border-border bg-surface px-2.5"
-        aria-label={`Garage: ${active.businessName}. Switch garage`}
+        aria-label={t('Garage: {name}. Switch garage', { name: active.businessName })}
         aria-haspopup="listbox"
         aria-expanded={open}
       >
@@ -73,7 +75,7 @@ export function CompanySwitcher({ className }: { className?: string }) {
       {open && (
         <div
           role="listbox"
-          aria-label="Your garages"
+          aria-label={t('Your garages')}
           className="absolute right-0 z-50 mt-1 w-[248px] overflow-hidden rounded-[10px] border border-border bg-surface shadow-lg"
         >
           {vendors.map((vendor) => {
@@ -97,8 +99,8 @@ export function CompanySwitcher({ className }: { className?: string }) {
                   </span>
                   <span className="block text-[11px] text-text-secondary">
                     {vendor.isOwner
-                      ? 'Owner'
-                      : ROLE_LABEL[vendor.role ?? ''] ?? 'Member'}
+                      ? t('Owner')
+                      : t(ROLE_LABEL[vendor.role ?? ''] ?? 'Member')}
                   </span>
                 </span>
                 {isActive && (

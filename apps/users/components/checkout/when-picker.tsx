@@ -30,6 +30,7 @@ import {
   splitByMorning,
   weekOf,
 } from '@/lib/when-picker'
+import { useT } from '@repo/core/i18n'
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTH_NAMES = [
@@ -91,9 +92,10 @@ export function WhenPicker({
   autoPick = false,
   rescheduleOf,
   initialDate = null,
-  title = 'When?',
+  title,
   renderDayExtra,
 }: WhenPickerProps) {
+  const t = useT()
   const now = useNow()
   const today = new Date(now).toLocaleDateString('en-CA', {
     timeZone: APP_TIMEZONE,
@@ -253,7 +255,7 @@ export function WhenPicker({
   return (
     <div>
       <h2 className="mb-2.5 text-t2 font-semibold text-text-primary">
-        {title}
+        {title ?? t('When?')}
       </h2>
       <div className="-mx-4 mb-3 flex gap-2 overflow-x-auto px-4 pb-1 pt-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {!daysKnown
@@ -266,9 +268,9 @@ export function WhenPicker({
           : week.map((d, i) =>
               chip(
                 d.value,
-                i === 0 ? 'Today' : d.dayName,
+                i === 0 ? t('Today') : d.dayName,
                 String(d.day),
-                `${i === 0 ? 'Today, ' : ''}${d.dayName} ${d.day} ${d.monthName}${i === 1 ? ', tomorrow' : ''}`
+                `${i === 0 ? `${t('Today')}, ` : ''}${d.dayName} ${d.day} ${d.monthName}${i === 1 ? `, ${t('tomorrow')}` : ''}`
               )
             )}
         {customDate &&
@@ -285,19 +287,19 @@ export function WhenPicker({
             setCalMonth({ year: y, month: m - 1 })
             setShowCalendar(true)
           }}
-          aria-label="Pick a later date"
+          aria-label={t('Pick a later date')}
           className="bk-pick flex h-[60px] min-w-[52px] shrink-0 flex-col items-center justify-center gap-[3px] rounded-[14px] px-1.5 text-[#C8C8D0]"
         >
           <IconCalendar size={17} aria-hidden />
-          <span className="text-t5 font-medium text-[#8E8E98]">More</span>
+          <span className="text-t5 font-medium text-[#8E8E98]">{t('More')}</span>
         </button>
       </div>
 
       {selectedDate && (
         <>
           <p className="mx-0.5 mb-3 text-t5 font-medium leading-[1.45] text-[#8E8E98]">
-            {autoPick ? 'Earliest first. ' : ''}
-            {noticeSentence(bookingType).replace(' at least', '')}
+            {autoPick ? `${t('Earliest first.')} ` : ''}
+            {noticeSentence(bookingType, { atLeast: false })}
           </p>
           {slotsLoading ? (
             <div className="grid grid-cols-3 gap-2">
@@ -309,17 +311,17 @@ export function WhenPicker({
             <p className="rounded-[14px] bg-[#141418] p-3.5 text-t4 text-[#A8A8B2]">
               {isPaused
                 ? rescheduleOf
-                  ? "This garage isn't taking changes right now. Your booking stays at its current time, or you can cancel it."
-                  : "This garage isn't taking new bookings right now."
+                  ? t("This garage isn't taking changes right now. Your booking stays at its current time, or you can cancel it.")
+                  : t("This garage isn't taking new bookings right now.")
                 : isHoliday
-                  ? 'The garage is closed for a holiday on this day. Pick another day.'
+                  ? t('The garage is closed for a holiday on this day. Pick another day.')
                   : isClosedDay
-                    ? 'The garage is closed on this day. Pick another day.'
+                    ? t('The garage is closed on this day. Pick another day.')
                     : tooLongForTheDay
-                      ? "These services need more time than this garage's day allows. Remove one, or pick another day."
+                      ? t("These services need more time than this garage's day allows. Remove one, or pick another day.")
                       : allBooked
-                        ? 'All times on this day are booked. Pick another day.'
-                        : `No times left on this day. ${noticeSentence(bookingType)} Pick another day.`}
+                        ? t('All times on this day are booked. Pick another day.')
+                        : t('No times left on this day. {notice} Pick another day.', { notice: noticeSentence(bookingType) })}
             </p>
           ) : (
             <>
@@ -348,7 +350,7 @@ export function WhenPicker({
                   onClick={() => setShowLater(true)}
                   className="mx-auto mt-1.5 flex min-h-11 items-center gap-1.5 px-3 text-t4 font-semibold text-[#E8E8EC]"
                 >
-                  Show afternoon and evening
+                  {t('Show afternoon and evening')}
                   <IconChevronDown size={14} aria-hidden />
                 </button>
               )}
@@ -368,7 +370,7 @@ export function WhenPicker({
       <ScSheet
         open={showCalendar}
         onClose={() => setShowCalendar(false)}
-        aria-label="Pick a date"
+        aria-label={t('Pick a date')}
         className="px-4"
       >
         <div className="mb-3 flex items-center justify-between">
@@ -382,7 +384,7 @@ export function WhenPicker({
               )
             }
             className="-ml-3 flex size-11 items-center justify-center rounded-lg text-text-secondary hover:text-text-primary"
-            aria-label="Previous month"
+            aria-label={t('Previous month')}
           >
             <IconChevronLeft size={20} aria-hidden="true" />
           </button>
@@ -402,7 +404,7 @@ export function WhenPicker({
               )
             }
             className="-mr-3 flex size-11 items-center justify-center rounded-lg text-text-secondary hover:text-text-primary"
-            aria-label="Next month"
+            aria-label={t('Next month')}
           >
             <IconChevronRight size={20} aria-hidden="true" />
           </button>

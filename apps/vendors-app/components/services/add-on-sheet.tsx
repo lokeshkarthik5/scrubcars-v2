@@ -16,6 +16,7 @@ import { sanitizeDecimal, sanitizeDigits } from '@/lib/service-form';
 import { ScSwitch } from '../rows';
 import { ChipRow } from './pricing-block';
 import { FieldLabel } from './section-title';
+import { useT } from '@repo/core/i18n';
 
 /**
  * The add-on form (add-ons frame B), a sheet: the service form's labels. No category, description,
@@ -32,8 +33,9 @@ export function AddOnSheet({
   onClose: () => void;
   onSaved: (saved: AddOn) => void;
 }) {
+  const t = useT();
   return (
-    <ScSheet open={open} onClose={onClose} accessibilityLabel={addOn ? 'Edit add-on' : 'Add an add-on'} horizontalPadding={20}>
+    <ScSheet open={open} onClose={onClose} accessibilityLabel={addOn ? t('Edit add-on') : t('Add an add-on')} horizontalPadding={20}>
       {/* Keyed so each opening starts from what it is editing. */}
       {open ? <AddOnFormBody key={addOn?.id ?? 'new'} addOn={addOn} onSaved={onSaved} /> : null}
     </ScSheet>
@@ -41,6 +43,7 @@ export function AddOnSheet({
 }
 
 function AddOnFormBody({ addOn, onSaved }: { addOn: AddOn | null; onSaved: (saved: AddOn) => void }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const [form, setForm] = useState<AddOnForm>(() => formFromAddOn(addOn));
@@ -53,7 +56,7 @@ function AddOnFormBody({ addOn, onSaved }: { addOn: AddOn | null; onSaved: (save
       const input = addOnInput(form);
       onSaved(addOn ? await garageAddOnsApi.update(addOn.id, input) : await garageAddOnsApi.create(input));
     } catch (err) {
-      toast.error(errorText(err, 'Something went wrong'));
+      toast.error(errorText(err, t('Something went wrong')));
     } finally {
       setSaving(false);
     }
@@ -62,15 +65,15 @@ function AddOnFormBody({ addOn, onSaved }: { addOn: AddOn | null; onSaved: (save
   return (
     <View style={styles.body}>
       <T accessibilityRole="header" size={17} weight={500}>
-        {addOn ? 'Edit add-on' : 'Add an add-on'}
+        {addOn ? t('Edit add-on') : t('Add an add-on')}
       </T>
-      <ScInput label="Add-on name" value={form.name} onChangeText={(name) => set({ name })} />
+      <ScInput label={t('Add-on name')} value={form.name} onChangeText={(name) => set({ name })} />
       <View style={styles.group}>
-        <FieldLabel>Pricing</FieldLabel>
+        <FieldLabel>{t('Pricing')}</FieldLabel>
         <ChipRow>
-          <Chip label="Flat" selected={form.pricingType === 'flat'} onPress={() => set({ pricingType: 'flat' })} />
+          <Chip label={t('Flat')} selected={form.pricingType === 'flat'} onPress={() => set({ pricingType: 'flat' })} />
           <Chip
-            label="Per vehicle"
+            label={t('Per vehicle')}
             selected={form.pricingType === 'per_vehicle'}
             onPress={() => set({ pricingType: 'per_vehicle' })}
           />
@@ -78,7 +81,7 @@ function AddOnFormBody({ addOn, onSaved }: { addOn: AddOn | null; onSaved: (save
       </View>
       {form.pricingType === 'flat' ? (
         <ScInput
-          label="Price (₹)"
+          label={t('Price (₹)')}
           keyboardType="decimal-pad"
           numeric
           value={form.price}
@@ -88,7 +91,7 @@ function AddOnFormBody({ addOn, onSaved }: { addOn: AddOn | null; onSaved: (save
         <View style={styles.tiers}>
           <View style={styles.tier}>
             <ScInput
-              label="Hatchback (₹)"
+              label={t('Hatchback (₹)')}
               keyboardType="decimal-pad"
               numeric
               value={form.priceHatchback}
@@ -97,7 +100,7 @@ function AddOnFormBody({ addOn, onSaved }: { addOn: AddOn | null; onSaved: (save
           </View>
           <View style={styles.tier}>
             <ScInput
-              label="Sedan (₹)"
+              label={t('Sedan (₹)')}
               keyboardType="decimal-pad"
               numeric
               value={form.priceSedan}
@@ -106,7 +109,7 @@ function AddOnFormBody({ addOn, onSaved }: { addOn: AddOn | null; onSaved: (save
           </View>
           <View style={styles.tier}>
             <ScInput
-              label="SUV (₹)"
+              label={t('SUV (₹)')}
               keyboardType="decimal-pad"
               numeric
               value={form.priceSuv}
@@ -117,27 +120,27 @@ function AddOnFormBody({ addOn, onSaved }: { addOn: AddOn | null; onSaved: (save
       )}
       <View style={styles.group}>
         <ScInput
-          label="Extra minutes (optional)"
+          label={t('Extra minutes (optional)')}
           keyboardType="number-pad"
           numeric
           value={form.extraMins}
           onChangeText={(text) => set({ extraMins: sanitizeDigits(text) })}
         />
         <T size={11} color={colors.textMuted}>
-          Added to the job's time. Leave empty if it adds none.
+          {t("Added to the job's time. Leave empty if it adds none.")}
         </T>
       </View>
       <View style={styles.switchRow}>
         <View style={styles.flex}>
-          <T size={13}>Offered to customers</T>
+          <T size={13}>{t('Offered to customers')}</T>
           <T size={11} color={colors.textMuted}>
-            Works with any of your services.
+            {t('Works with any of your services.')}
           </T>
         </View>
-        <ScSwitch label="Offered to customers" checked={form.isActive} onChange={(isActive) => set({ isActive })} />
+        <ScSwitch label={t('Offered to customers')} checked={form.isActive} onChange={(isActive) => set({ isActive })} />
       </View>
       <ScButton variant="main" size="lg" disabled={!addOnReady(form) || saving} onPress={() => void submit()}>
-        {saving ? 'Saving...' : addOn ? 'Update add-on' : 'Add add-on'}
+        {saving ? t('Saving...') : addOn ? t('Update add-on') : t('Add add-on')}
       </ScButton>
     </View>
   );

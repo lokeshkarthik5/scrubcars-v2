@@ -1,4 +1,5 @@
 import type { ServiceCategory } from '@repo/core/types'
+import { msg, t } from './i18n/translate'
 
 // The single source of truth for category labels.
 //
@@ -8,12 +9,12 @@ import type { ServiceCategory } from '@repo/core/types'
 // year. With the exhaustive key, adding a value to ServiceCategory breaks the
 // build here until it gets a label.
 export const CATEGORY_LABELS: Record<ServiceCategory, string> = {
-  car_wash: 'Car wash',
-  detailing: 'Detailing',
-  coating: 'Coating',
-  scratch_removal: 'Scratch removal',
-  others: 'Others',
-  package: 'Package',
+  car_wash: msg('Car wash'),
+  detailing: msg('Detailing'),
+  coating: msg('Coating'),
+  scratch_removal: msg('Scratch removal'),
+  others: msg('Others'),
+  package: msg('Package'),
 }
 
 // Categories a vendor may pick on the plain "add a service" form. 'package' is
@@ -32,15 +33,19 @@ export const CATEGORY_FILTERS: Array<{
   key: ServiceCategory | 'all'
   label: string
 }> = [
-  { key: 'all', label: 'All' },
-  { key: 'package', label: 'Packages' },
-  { key: 'car_wash', label: 'Car Wash' },
-  { key: 'detailing', label: 'Detailing' },
-  { key: 'coating', label: 'Coating' },
-  { key: 'scratch_removal', label: 'Scratch Removal' },
-  { key: 'others', label: 'Others' },
+  { key: 'all', label: msg('All') },
+  { key: 'package', label: msg('Packages') },
+  { key: 'car_wash', label: msg('Car Wash') },
+  { key: 'detailing', label: msg('Detailing') },
+  { key: 'coating', label: msg('Coating') },
+  { key: 'scratch_removal', label: msg('Scratch Removal') },
+  { key: 'others', label: msg('Others') },
 ]
 
+/**
+ * The category's name in the language in use. The constants above stay
+ * English (they are the keys); a screen showing one of them says t(label).
+ */
 export function categoryLabel(category: string): string {
-  return CATEGORY_LABELS[category as ServiceCategory] ?? category
+  return t(CATEGORY_LABELS[category as ServiceCategory] ?? category)
 }

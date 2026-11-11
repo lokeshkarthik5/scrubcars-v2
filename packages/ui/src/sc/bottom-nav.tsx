@@ -17,6 +17,7 @@ import {
   IconUser,
 } from '@tabler/icons-react'
 import { useIsVendorAdmin } from '@repo/core/hooks/use-vendor-role'
+import { msg, useT } from '@repo/core/i18n'
 import { cn } from '@repo/core/utils'
 
 export type NavType = 'customer' | 'vendor' | 'admin'
@@ -35,21 +36,21 @@ const customerItems: NavItem[] = [
   // map's List) sees the same tab lit as on /home, and tapping it there stays
   // on /garages (see below). With the hub on, customers never see this bar:
   // the app draws its floating nav instead (apps/users CustomerShell).
-  { href: '/home', label: 'Home', icon: IconHome, alsoActiveOn: ['/garages'] },
-  { href: '/search', label: 'Search', icon: IconSearch },
-  { href: '/bookings', label: 'Bookings', icon: IconCalendar },
-  { href: '/profile', label: 'Profile', icon: IconUser },
+  { href: '/home', label: msg('Home'), icon: IconHome, alsoActiveOn: ['/garages'] },
+  { href: '/search', label: msg('Search'), icon: IconSearch },
+  { href: '/bookings', label: msg('Bookings'), icon: IconCalendar },
+  { href: '/profile', label: msg('Profile'), icon: IconUser },
 ]
 
 // The garage's five tabs. AppShell draws them on the floating glass bar
 // (garage-nav.tsx) since the owner's "Yes, restyle them" (10 Nov 2026); this
 // flat bar keeps the list for anything that still asks for type="vendor".
 const vendorItems: NavItem[] = [
-  { href: '/home', label: 'Home', icon: IconHome },
-  { href: '/bookings', label: 'Bookings', icon: IconCalendar },
-  { href: '/services', label: 'Services', icon: IconTool },
-  { href: '/earnings', label: 'Earnings', icon: IconChartBar },
-  { href: '/settings', label: 'Settings', icon: IconSettings },
+  { href: '/home', label: msg('Home'), icon: IconHome },
+  { href: '/bookings', label: msg('Bookings'), icon: IconCalendar },
+  { href: '/services', label: msg('Services'), icon: IconTool },
+  { href: '/earnings', label: msg('Earnings'), icon: IconChartBar },
+  { href: '/settings', label: msg('Settings'), icon: IconSettings },
 ]
 
 // On a phone this is the admin's only menu (PanelShell hides the header nav
@@ -94,6 +95,7 @@ export function garageNavItems(isVendorAdmin: boolean): NavItem[] {
 }
 
 export function BottomNav({ type = 'customer' }: { type?: NavType }) {
+  const t = useT()
   const pathname = usePathname()
   const isVendorAdmin = useIsVendorAdmin()
   const items = type === 'vendor' ? garageNavItems(isVendorAdmin) : itemsByType[type]
@@ -137,14 +139,17 @@ export function BottomNav({ type = 'customer' }: { type?: NavType }) {
               />
               {/* 11px, the smallest size for words to read. The admin's
                   seven tabs stay at 10px: at 11px "Complaints" and
-                  "Statistics" no longer fit a 360px phone side by side. */}
+                  "Statistics" no longer fit a 360px phone side by side.
+                  A longer Tamil word wraps under itself rather than
+                  pushing the next tab. */}
               <span
                 className={cn(
+                  'max-w-full text-center',
                   type === 'admin' ? 'text-[10px] font-medium' : 'text-[11px] font-medium',
                   active ? 'text-text-primary' : 'text-text-muted'
                 )}
               >
-                {label}
+                {t(label)}
               </span>
             </Link>
           )

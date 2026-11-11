@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useDismissNotice } from '@repo/core/api/hooks/use-home'
 import type { HomeData } from '@repo/core/api/home'
 import { UpdateList, UpdateRow } from './update-row'
+import { useT } from '@repo/core/i18n'
 
 /**
  * Home's Updates: the pinned notice to everyone, then the newest two rows,
@@ -19,6 +20,7 @@ export function UpdatesBlock({
   updates: NonNullable<HomeData['updates']>
   now: Date
 }) {
+  const t = useT()
   const dismiss = useDismissNotice()
   const { pinnedNotice, items } = updates
   if (!pinnedNotice && items.length === 0) return null
@@ -27,13 +29,13 @@ export function UpdatesBlock({
     <section aria-labelledby="home-updates" className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between px-1 pt-4">
         <h2 id="home-updates" className="text-t2 font-medium tracking-[-0.012em] text-text-primary">
-          Updates
+          {t('Updates')}
         </h2>
         <Link href="/updates" className="-my-3 py-3 text-t3 text-[#A1A1AA]">
-          See all
+          {t('See all')}
         </Link>
       </div>
-      <UpdateList label="Latest updates">
+      <UpdateList label={t('Latest updates')}>
         {pinnedNotice && (
           <UpdateRow
             pinned
@@ -45,7 +47,7 @@ export function UpdatesBlock({
               at: pinnedNotice.startsAt,
               unread: false,
               bookingId: null,
-              from: 'Detlio team',
+              from: t('Detlio team'),
               linkUrl: pinnedNotice.linkUrl,
               linkLabel: pinnedNotice.linkLabel,
             }}
@@ -56,7 +58,7 @@ export function UpdatesBlock({
           <UpdateRow
             key={item.id}
             now={now}
-            row={{ ...item, from: item.kind === 'notice' ? 'Detlio team' : null }}
+            row={{ ...item, from: item.kind === 'notice' ? t('Detlio team') : null }}
             onDismiss={item.noticeId ? () => dismiss.mutate(item.noticeId!) : undefined}
           />
         ))}

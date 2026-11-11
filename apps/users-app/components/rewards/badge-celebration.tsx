@@ -1,6 +1,7 @@
 import { bonusStampsLine } from '@repo/core/achievements';
 import { useMarkBadgesSeen } from '@repo/core/api/hooks/use-reward-extras';
 import type { BadgeToCelebrate } from '@repo/core/api/reward-extras';
+import { useT, useTn } from '@repo/core/i18n';
 import { ScButton } from '@repo/native-ui/button';
 import { ScSheet } from '@repo/native-ui/sheet';
 import { FigureLine, T } from '@repo/native-ui/text';
@@ -34,6 +35,8 @@ function PoppingMedal({ badge }: { badge: BadgeToCelebrate }) {
 
 /** BadgeCelebration: a sheet per unseen badge, up to three, then all are marked seen. */
 export function BadgeCelebration({ badges, focusId = null }: { badges: BadgeToCelebrate[]; focusId?: string | null }) {
+  const tn = useTn();
+  const t = useT();
   const colors = useColors();
   const seen = useMarkBadgesSeen();
   const [queue, setQueue] = useState<BadgeToCelebrate[]>([]);
@@ -72,12 +75,12 @@ export function BadgeCelebration({ badges, focusId = null }: { badges: BadgeToCe
   const bonus = badge ? bonusStampsLine(badge.bonusStamps) : null;
 
   return (
-    <ScSheet horizontalPadding={16} open={open && badge !== null} onClose={finish} accessibilityLabel="Badge earned">
+    <ScSheet horizontalPadding={16} open={open && badge !== null} onClose={finish} accessibilityLabel={t('Badge earned')}>
       {badge ? (
         <View key={badge.id} style={{ alignItems: 'center', gap: 12, paddingHorizontal: 8, paddingTop: 12, paddingBottom: 8 }}>
           <PoppingMedal badge={badge} />
           <T size={12} lh={16} uppercase tracking={0.12} color={colors.textSecondary}>
-            Badge earned
+            {t('Badge earned')}
           </T>
           <T size={22} weight={600} lh={28} align="center" accessibilityLiveRegion="polite">
             {badge.label}
@@ -87,17 +90,17 @@ export function BadgeCelebration({ badges, focusId = null }: { badges: BadgeToCe
           </T>
           {more === 0 && inCabinet > 0 ? (
             <T size={12} lh={16} align="center" color={colors.textMuted}>
-              {`And ${inCabinet} more ${inCabinet === 1 ? 'badge' : 'badges'} in your cabinet.`}
+              {tn(inCabinet, 'And {count} more badge in your cabinet.', 'And {count} more badges in your cabinet.')}
             </T>
           ) : null}
           {bonus ? (
             <View style={{ borderRadius: 999, borderWidth: 1, borderColor: colors.line, paddingHorizontal: 12, paddingVertical: 4 }}>
-              <FigureLine size={12} text={`${bonus} added to your Shine Card`} />
+              <FigureLine size={12} text={t('{bonus} added to your Shine Card', { bonus })} />
             </View>
           ) : null}
           <View style={{ alignSelf: 'stretch', marginTop: 8 }}>
             <ScButton variant="outline" onPress={next}>
-              {more > 0 ? `Next badge (${more} more)` : 'Nice'}
+              {more > 0 ? t('Next badge ({count} more)', { count: more }) : t('Nice')}
             </ScButton>
           </View>
         </View>

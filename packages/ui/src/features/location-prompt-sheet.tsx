@@ -4,6 +4,7 @@ import { IconMapPin, IconRoute, IconSparkles } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScSheet } from '@repo/ui/sc/modal'
 import { useLocationStore } from '@repo/core/stores/location-store'
+import { msg, useT } from '@repo/core/i18n'
 import { useCustomerPlace } from '@repo/core/hooks/use-customer-place'
 
 /**
@@ -29,18 +30,18 @@ interface LocationPromptSheetProps {
 const REASONS = [
   {
     icon: IconRoute,
-    title: 'Real distances',
-    body: 'See how far each garage actually is, not just its area.',
+    title: msg('Real distances'),
+    body: msg('See how far each garage actually is, not just its area.'),
   },
   {
     icon: IconSparkles,
-    title: 'Nearest first',
-    body: 'Sort by what is closest instead of scrolling to find it.',
+    title: msg('Nearest first'),
+    body: msg('Sort by what is closest instead of scrolling to find it.'),
   },
   {
     icon: IconMapPin,
-    title: 'Doorstep that reaches you',
-    body: 'Only show garages that travel to your address.',
+    title: msg('Doorstep that reaches you'),
+    body: msg('Only show garages that travel to your address.'),
   },
 ]
 
@@ -49,6 +50,7 @@ export function LocationPromptSheet({
   onClose,
   onEnabled,
 }: LocationPromptSheetProps) {
+  const t = useT()
   const requestGpsLocation = useLocationStore((s) => s.requestGpsLocation)
   const selectCity = useLocationStore((s) => s.selectCity)
   // The customer's city (0070): Chennai until they pick another.
@@ -82,7 +84,7 @@ export function LocationPromptSheet({
   }
 
   return (
-    <ScSheet open={open} onClose={notNow} aria-label="Enable location">
+    <ScSheet open={open} onClose={notNow} aria-label={t('Enable location')}>
       <div className="flex flex-col gap-5 px-5 pb-2 pt-1">
         {/* Graphite and white throughout, so the one red on the sheet is
             Enable location, the thing it is asking the customer to do. */}
@@ -91,12 +93,16 @@ export function LocationPromptSheet({
             <IconMapPin size={24} className="text-text-primary" />
           </span>
           <h2 className="text-[20px] font-normal tracking-[-0.015em] text-text-primary">
-            {blocked ? 'Location is blocked' : 'Find garages near you'}
+            {blocked ? t('Location is blocked') : t('Find garages near you')}
           </h2>
           <p className="text-[15px] text-text-secondary">
             {blocked
-              ? 'Your browser is blocking location for this site. You can turn it back on in the address bar, under site settings.'
-              : 'Share your location and we’ll show the closest garages first, with real distances.'}
+              ? t(
+                  'Your browser is blocking location for this site. You can turn it back on in the address bar, under site settings.'
+                )
+              : t(
+                  'Share your location and we’ll show the closest garages first, with real distances.'
+                )}
           </p>
         </div>
 
@@ -109,10 +115,10 @@ export function LocationPromptSheet({
                 </span>
                 <span className="min-w-0">
                   <span className="block text-[15px] font-medium text-text-primary">
-                    {title}
+                    {t(title)}
                   </span>
                   <span className="block text-[13px] text-text-secondary">
-                    {body}
+                    {t(body)}
                   </span>
                 </span>
               </li>
@@ -126,15 +132,15 @@ export function LocationPromptSheet({
         <div className="flex flex-col gap-2">
           {!blocked && (
             <ScButton variant="main" onClick={enable} disabled={locating}>
-              {locating ? 'Finding you…' : 'Enable location'}
+              {locating ? t('Finding you…') : t('Enable location')}
             </ScButton>
           )}
           <ScButton variant={blocked ? 'main' : 'outline'} onClick={chooseCity}>
-            All of {city.name}
+            {t('All of {city}', { city: city.name })}
           </ScButton>
           {!blocked && (
             <ScButton variant="text" onClick={notNow}>
-              Not now
+              {t('Not now')}
             </ScButton>
           )}
         </div>
@@ -143,8 +149,9 @@ export function LocationPromptSheet({
           // Sets expectations for the dialog that appears next, so the browser
           // prompt reads as the consequence of tapping rather than an ambush.
           <p className="text-center text-[12px] text-text-muted">
-            Enable location asks your browser. We only use it to sort garages —
-            it is never shared.
+            {t(
+              'Enable location asks your browser. We only use it to sort garages — it is never shared.'
+            )}
           </p>
         )}
       </div>

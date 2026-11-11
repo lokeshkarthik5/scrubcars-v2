@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScModal } from '@repo/ui/sc/modal'
 import { codeFromScan } from '@repo/core/coupons'
+import { msg, useT } from '@repo/core/i18n'
 
 /** The parts of the Barcode Detection API used here (not in TypeScript's DOM types yet). */
 interface DetectedBarcode {
@@ -45,6 +46,7 @@ export async function canScanCoupons(): Promise<boolean> {
  * sheet closes or a code is read; nothing is recorded or uploaded.
  */
 export function CouponScanner({ onCode, onClose }: { onCode: (code: string) => void; onClose: () => void }) {
+  const t = useT()
   const videoRef = useRef<HTMLVideoElement>(null)
   const [problem, setProblem] = useState<string | null>(null)
   const [hint, setHint] = useState<string | null>(null)
@@ -67,7 +69,7 @@ export function CouponScanner({ onCode, onClose }: { onCode: (code: string) => v
 
     void (async () => {
       if (!Detector) {
-        setProblem("This browser can't scan. Type the code instead.")
+        setProblem(msg("This browser can't scan. Type the code instead."))
         return
       }
       try {
@@ -93,7 +95,7 @@ export function CouponScanner({ onCode, onClose }: { onCode: (code: string) => v
                 return
               }
             }
-            if (found.length > 0) setHint("That QR isn't a Detlio coupon.")
+            if (found.length > 0) setHint(msg("That QR isn't a Detlio coupon."))
           } catch {
             // A frame that could not be read; the next one may.
           }
@@ -104,8 +106,8 @@ export function CouponScanner({ onCode, onClose }: { onCode: (code: string) => v
         const name = error instanceof DOMException ? error.name : ''
         setProblem(
           name === 'NotAllowedError'
-            ? 'Camera access is off for Detlio. Allow it in your browser, or type the code instead.'
-            : "Couldn't open the camera. Type the code instead."
+            ? msg('Camera access is off for Detlio. Allow it in your browser, or type the code instead.')
+            : msg("Couldn't open the camera. Type the code instead.")
         )
       }
     })()
@@ -114,25 +116,25 @@ export function CouponScanner({ onCode, onClose }: { onCode: (code: string) => v
   }, [])
 
   return (
-    <ScModal open onClose={onClose} aria-label="Scan a coupon" className="flex max-w-[420px] flex-col gap-3">
-      <h2 className="text-t3 font-semibold text-text-primary">Scan a coupon</h2>
+    <ScModal open onClose={onClose} aria-label={t('Scan a coupon')} className="flex max-w-[420px] flex-col gap-3">
+      <h2 className="text-t3 font-semibold text-text-primary">{t('Scan a coupon')}</h2>
       {problem ? (
         <p role="alert" className="text-t4 text-error">
-          {problem}
+          {t(problem)}
         </p>
       ) : (
         <>
           <div className="relative aspect-square w-full overflow-hidden rounded-[12px] bg-black">
-            <video ref={videoRef} muted playsInline className="h-full w-full object-cover" aria-label="Camera" />
+            <video ref={videoRef} muted playsInline className="h-full w-full object-cover" aria-label={t('Camera')} />
             <div aria-hidden="true" className="pointer-events-none absolute inset-[18%] rounded-[12px] border-2 border-white/80" />
           </div>
           <p role="status" className="text-t5 text-text-secondary">
-            {hint ?? "Point the camera at the QR on the coupon."}
+            {hint ? t(hint) : t('Point the camera at the QR on the coupon.')}
           </p>
         </>
       )}
       <ScButton variant="secondary" onClick={onClose} className="min-h-11">
-        Close
+        {t('Close')}
       </ScButton>
     </ScModal>
   )

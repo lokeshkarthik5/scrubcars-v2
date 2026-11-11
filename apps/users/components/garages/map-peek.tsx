@@ -18,6 +18,7 @@ import {
 } from '@/lib/map-3d'
 import type { LatLng } from '@/lib/map-view'
 import { whenIdle } from '@/lib/when-idle'
+import { useT } from '@repo/core/i18n'
 
 const PeekBasemap = dynamic(() => import('./peek-basemap').then((m) => m.PeekBasemap), {
   ssr: false,
@@ -87,6 +88,7 @@ export function MapPeek({
    */
   countLabel: { count: string | null; words: string }
 }) {
+  const t = useT()
   const reduce = usePrefersReducedMotion()
   const cardRef = useRef<HTMLAnchorElement>(null)
   const [width, setWidth] = useState(358)
@@ -189,7 +191,11 @@ export function MapPeek({
     <Link
       ref={cardRef}
       href={`/map?${query.toString()}`}
-      aria-label={`Open the map: ${countLabel.count ? `${countLabel.count} ` : ''}${countLabel.words}`}
+      aria-label={
+        countLabel.count
+          ? t('Open the map: {count} {words}', { count: countLabel.count, words: countLabel.words })
+          : t('Open the map: {words}', { words: countLabel.words })
+      }
       className="map-peek fx-press relative block h-[156px] overflow-hidden rounded-[22px]"
     >
       <span
@@ -265,7 +271,7 @@ export function MapPeek({
         aria-hidden="true"
         className="fx-glass absolute bottom-2.5 right-2.5 inline-flex h-[30px] items-center gap-1 rounded-pill pl-3 pr-2.5 text-t4 font-semibold text-white"
       >
-        Map
+        {t('Map')}
         <IconArrowUpRight size={14} />
       </span>
     </Link>

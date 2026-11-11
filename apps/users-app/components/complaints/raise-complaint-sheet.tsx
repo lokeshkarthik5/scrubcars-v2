@@ -1,6 +1,7 @@
 import { ApiError } from '@repo/core/api/client';
 import type { CustomerComplaint } from '@repo/core/api/complaints';
 import { useRaiseComplaint } from '@repo/core/api/hooks/use-complaints';
+import { useT } from '@repo/core/i18n';
 import {
   COMPLAINT_ACKNOWLEDGE_HOURS,
   COMPLAINT_CATEGORIES,
@@ -34,6 +35,7 @@ export function RaiseComplaintSheet({
   onClose: () => void;
   booking: { id: string; reference: string; vendorName: string } | null;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const raise = useRaiseComplaint();
@@ -63,26 +65,26 @@ export function RaiseComplaintSheet({
           setReceived(complaint);
           track('complaint_submit', { step: booking ? 'booking' : 'contact' });
         },
-        onError: (err) => setError(err instanceof ApiError ? err.message : "Couldn't send your complaint. Check your connection and try again."),
+        onError: (err) => setError(err instanceof ApiError ? err.message : t("Couldn't send your complaint. Check your connection and try again.")),
       }
     );
   };
 
   return (
-    <ScSheet horizontalPadding={16} open={open} onClose={close} dismissible={!raise.isPending} accessibilityLabel={received ? 'Complaint received' : 'Raise a complaint'}>
+    <ScSheet horizontalPadding={16} open={open} onClose={close} dismissible={!raise.isPending} accessibilityLabel={received ? t('Complaint received') : t('Raise a complaint')}>
       <View style={styles.column}>
         <View style={styles.head}>
           <View style={styles.grow}>
             <T size={16} weight={600} lh={22}>
-              {received ? 'Complaint received' : 'Raise a complaint'}
+              {received ? t('Complaint received') : t('Raise a complaint')}
             </T>
             {!received ? (
               <T size={12} lh={16} color={colors.textSecondary} style={styles.mt4}>
-                {booking ? `About booking ${booking.reference} · ${booking.vendorName}` : 'Tell us what went wrong. If it is about a booking, raising it from the booking’s Help is quicker.'}
+                {booking ? t('About booking {reference} · {name}', { reference: booking.reference, name: booking.vendorName }) : t('Tell us what went wrong. If it is about a booking, raising it from the booking’s Help is quicker.')}
               </T>
             ) : null}
           </View>
-          <Pressable accessibilityRole="button" accessibilityLabel="Close" disabled={raise.isPending} onPress={close} style={styles.close}>
+          <Pressable accessibilityRole="button" accessibilityLabel={t('Close')} disabled={raise.isPending} onPress={close} style={styles.close}>
             <IconCircleX size={22} color={colors.textSecondary} />
           </Pressable>
         </View>
@@ -95,7 +97,7 @@ export function RaiseComplaintSheet({
                   <Figures size={14} weight={600} text={complaintReceivedLine(received.number)} />
                 </T>
                 <T size={12} lh={16} color={colors.textSecondary} style={styles.mt4}>
-                  {`Quote ${received.number} if you call or message us about it. You can follow it, and read our answer, in Profile under My complaints.`}
+                  {t('Quote {number} if you call or message us about it. You can follow it, and read our answer, in Profile under My complaints.', { number: received.number })}
                 </T>
               </View>
             </View>
@@ -110,12 +112,12 @@ export function RaiseComplaintSheet({
                     setTimeout(() => router.navigate('/profile?section=complaints' as Href), AFTER_SHEET_MS);
                   }}
                 >
-                  My complaints
+                  {t('My complaints')}
                 </ScButton>
               </View>
               <View style={styles.grow}>
                 <ScButton variant="outline" height={44} onPress={close}>
-                  Done
+                  {t('Done')}
                 </ScButton>
               </View>
             </View>
@@ -124,13 +126,13 @@ export function RaiseComplaintSheet({
           <View style={styles.part}>
             <View style={styles.part8}>
               <T size={11} weight={500} lh={15} color={colors.textSecondary}>
-                What is it about?
+                {t('What is it about?')}
               </T>
               <View style={styles.chips}>
                 {COMPLAINT_CATEGORIES.map((value) => (
                   <Chip
                     key={value}
-                    label={COMPLAINT_CATEGORY_LABELS[value]}
+                    label={t(COMPLAINT_CATEGORY_LABELS[value])}
                     selected={category === value}
                     onPress={() => {
                       setCategory(value);
@@ -142,10 +144,10 @@ export function RaiseComplaintSheet({
             </View>
             <View>
               <ScTextarea
-                label="What happened?"
+                label={t('What happened?')}
                 rows={5}
                 maxLength={COMPLAINT_MESSAGE_MAX}
-                placeholder="What went wrong, and what you would like us to do"
+                placeholder={t('What went wrong, and what you would like us to do')}
                 value={message}
                 onChangeText={(text) => {
                   setMessage(text);
@@ -154,7 +156,7 @@ export function RaiseComplaintSheet({
               />
               <View style={styles.hint}>
                 <T size={11} lh={15} color={colors.textMuted}>
-                  {trimmed.length > 0 && trimmed.length < COMPLAINT_MESSAGE_MIN ? `At least ${COMPLAINT_MESSAGE_MIN} characters` : ''}
+                  {trimmed.length > 0 && trimmed.length < COMPLAINT_MESSAGE_MIN ? t('At least {count} characters', { count: COMPLAINT_MESSAGE_MIN }) : ''}
                 </T>
                 <T num size={11} lh={15} color={colors.textMuted}>
                   {`${message.length}/${COMPLAINT_MESSAGE_MAX}`}
@@ -162,7 +164,7 @@ export function RaiseComplaintSheet({
               </View>
             </View>
             <T size={12} lh={16} color={colors.textSecondary}>
-              <Figures size={12} color={colors.textSecondary} text={`You get a complaint number at once. We acknowledge every complaint within ${COMPLAINT_ACKNOWLEDGE_HOURS} hours and aim to resolve it within ${COMPLAINT_RESOLVE_DAYS} days.`} />
+              <Figures size={12} color={colors.textSecondary} text={t('You get a complaint number at once. We acknowledge every complaint within {hours} hours and aim to resolve it within {days} days.', { hours: COMPLAINT_ACKNOWLEDGE_HOURS, days: COMPLAINT_RESOLVE_DAYS })} />
             </T>
             {error ? (
               <T accessibilityRole="alert" size={12} lh={16} color={colors.error}>
@@ -170,7 +172,7 @@ export function RaiseComplaintSheet({
               </T>
             ) : null}
             <ScButton variant="main" height={44} disabled={!canSubmit} onPress={submit}>
-              {raise.isPending ? 'Sending…' : 'Submit complaint'}
+              {raise.isPending ? t('Sending…') : t('Submit complaint')}
             </ScButton>
           </View>
         )}

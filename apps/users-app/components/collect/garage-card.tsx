@@ -1,5 +1,6 @@
 import type { GarageAlbumCar, GarageOwnedCar } from '@repo/core/api/garage';
 import { cardNumber, copiesLabel, ILLUSTRATION_LINE, RARITY_LOOKS, type GarageRarity } from '@repo/core/garage';
+import { useT } from '@repo/core/i18n';
 import { IconDroplet, IconMapPin } from '@repo/native-ui/icons';
 import { T } from '@repo/native-ui/text';
 import { useColors } from '@repo/native-ui/theme';
@@ -63,8 +64,9 @@ function Sheen({ rarity, u, on }: { rarity: GarageRarity; u: number; on: boolean
 
 /** GarageCard (apps/users/components/garage/garage-card.tsx): the whole card, from its width alone. */
 export function GarageCard({ car, shine = true, width }: { car: GarageOwnedCar; shine?: boolean; width?: number }) {
+  const t = useT();
   const photo = cardPhoto(car.photoId);
-  const t = TONE_LOOKS[photo.tone];
+  const tone = TONE_LOOKS[photo.tone];
   const look = RARITY_LOOKS[car.rarity];
   const copies = copiesLabel(car.count);
   return (
@@ -72,10 +74,10 @@ export function GarageCard({ car, shine = true, width }: { car: GarageOwnedCar; 
       {(u) => (
         <LinearGradient start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} colors={metal(car.rarity)} locations={[0, 0.28, 0.52, 0.78, 1]} style={{ flex: 1, borderRadius: C.radius * u, padding: C.frame * u, shadowColor: car.rarity === 'epic' || car.rarity === 'legendary' ? look.glow : '#000', shadowRadius: 12, shadowOpacity: 0.6, shadowOffset: { width: 0, height: 4 } }}>
           <View style={{ flex: 1, overflow: 'hidden', borderRadius: 3.6 * u, borderWidth: Math.max(0.5, 0.3 * u), borderColor: photo.tone === 'light' ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.1)' }}>
-            <LinearGradient colors={t.ground} locations={[0, 0.55, 1]} style={StyleSheet.absoluteFill} />
+            <LinearGradient colors={tone.ground} locations={[0, 0.55, 1]} style={StyleSheet.absoluteFill} />
             <View style={{ position: 'absolute', left: 0, right: 0, top: 0, height: C.photo.height * u, overflow: 'hidden' }}>
               <Photo car={car} />
-              <LinearGradient colors={[`${t.ground[1]}00`, `${t.ground[1]}00`, t.ground[1]]} locations={[0, 0.72, 1]} style={StyleSheet.absoluteFill} />
+              <LinearGradient colors={[`${tone.ground[1]}00`, `${tone.ground[1]}00`, tone.ground[1]]} locations={[0, 0.72, 1]} style={StyleSheet.absoluteFill} />
             </View>
             <LinearGradient colors={['rgba(0,0,0,0.55)', 'transparent']} style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 22 * u }} />
             <View style={{ position: 'absolute', left: C.pad * u, right: C.pad * u, top: 5.6 * u, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -94,12 +96,12 @@ export function GarageCard({ car, shine = true, width }: { car: GarageOwnedCar; 
                 </T>
               </View>
               {copies ? (
-                <T num size={3 * u} lh={4 * u} weight={600} color={t.sub}>
+                <T num size={3 * u} lh={4 * u} weight={600} color={tone.sub}>
                   {copies}
                 </T>
               ) : null}
             </View>
-            <T size={C.name.size * u} lh={C.name.line * u} weight={700} tracking={-0.035} numberOfLines={1} color={t.ink} style={{ position: 'absolute', left: C.pad * u, right: C.pad * u, top: C.name.top * u }}>
+            <T size={C.name.size * u} lh={C.name.line * u} weight={700} tracking={-0.035} numberOfLines={1} color={tone.ink} style={{ position: 'absolute', left: C.pad * u, right: C.pad * u, top: C.name.top * u }}>
               {car.name}
             </T>
             <View style={{ position: 'absolute', left: C.pad * u, right: C.pad * u, top: C.chips.top * u, flexDirection: 'row', flexWrap: 'wrap', gap: C.chips.gap * u }}>
@@ -107,19 +109,19 @@ export function GarageCard({ car, shine = true, width }: { car: GarageOwnedCar; 
                 { Icon: IconDroplet, text: car.colour },
                 { Icon: IconMapPin, text: car.setting },
               ].map(({ Icon, text }) => (
-                <View key={text} style={{ flexDirection: 'row', alignItems: 'center', gap: u, height: C.chips.height * u, paddingHorizontal: 2.2 * u, borderRadius: 999, backgroundColor: t.chipBg, borderWidth: Math.max(0.5, 0.28 * u), borderColor: t.chipEdge }}>
-                  <Icon size={3 * u} stroke={2} color={t.sub} />
-                  <T size={C.chips.size * u} lh={C.chips.height * u} weight={500} numberOfLines={1} color={t.chipText}>
+                <View key={text} style={{ flexDirection: 'row', alignItems: 'center', gap: u, height: C.chips.height * u, paddingHorizontal: 2.2 * u, borderRadius: 999, backgroundColor: tone.chipBg, borderWidth: Math.max(0.5, 0.28 * u), borderColor: tone.chipEdge }}>
+                  <Icon size={3 * u} stroke={2} color={tone.sub} />
+                  <T size={C.chips.size * u} lh={C.chips.height * u} weight={500} numberOfLines={1} color={tone.chipText}>
                     {text}
                   </T>
                 </View>
               ))}
             </View>
-            <T size={C.lore.size * u} lh={C.lore.line * u} numberOfLines={C.lore.lines} color={t.sub} style={{ position: 'absolute', left: C.pad * u, right: C.pad * u, top: C.lore.top * u, fontStyle: 'italic' }}>
+            <T size={C.lore.size * u} lh={C.lore.line * u} numberOfLines={C.lore.lines} color={tone.sub} style={{ position: 'absolute', left: C.pad * u, right: C.pad * u, top: C.lore.top * u, fontStyle: 'italic' }}>
               {car.lore}
             </T>
-            <T size={C.foot.size * u} lh={3.2 * u} uppercase tracking={0.08} color={t.muted} style={{ position: 'absolute', left: C.pad * u, right: C.pad * u, top: C.foot.top * u }}>
-              {`Series ${car.series} · Detlio Garage`}
+            <T size={C.foot.size * u} lh={3.2 * u} uppercase tracking={0.08} color={tone.muted} style={{ position: 'absolute', left: C.pad * u, right: C.pad * u, top: C.foot.top * u }}>
+              {t('Series {series} · Detlio Garage', { series: car.series })}
             </T>
             {/* No sweep of light on the cards (the finish: the owner rejected the shine); the brushed frame stays. */}
             <Sheen rarity={car.rarity} u={u} on={shine && !FINISH_NO_SHEEN} />
@@ -131,10 +133,11 @@ export function GarageCard({ car, shine = true, width }: { car: GarageOwnedCar; 
 }
 
 export function IllustrationLine({ small = false }: { small?: boolean }) {
+  const t = useT();
   const colors = useColors();
   return (
     <T size={small ? 9 : 11} lh={small ? 12 : 15} align="center" color={colors.textMuted}>
-      {ILLUSTRATION_LINE}
+      {t(ILLUSTRATION_LINE)}
     </T>
   );
 }
@@ -176,6 +179,7 @@ export function GarageTile({ car }: { car: GarageAlbumCar }) {
 
 /** The back of a card: the same for every rarity, so the flip gives nothing away. */
 export function GarageCardBack({ width }: { width?: number }) {
+  const t = useT();
   return (
     <Sized aspect={C.height} fixed={width}>
       {(u) => (
@@ -191,7 +195,7 @@ export function GarageCardBack({ width }: { width?: number }) {
               Detlio<T size={9 * u} weight={700} color="#E4002B">.</T>
             </T>
             <T size={3.2 * u} lh={4 * u} weight={600} uppercase tracking={0.4} align="center" color="#9EA3AD" style={{ position: 'absolute', left: 0, right: 0, top: 74 * u }}>
-              Garage
+              {t('Garage')}
             </T>
           </View>
         </LinearGradient>
@@ -202,9 +206,10 @@ export function GarageCardBack({ width }: { width?: number }) {
 
 /** The picture a share makes: "Collected on Detlio", the card, the line, the pill. */
 export function GarageSharePicture({ car, format, firstName }: { car: GarageOwnedCar; format: 'story' | 'post'; firstName: string | null }) {
+  const t = useT();
   const k = 1 / 3;
   const layout = format === 'story' ? { h: 1920, card: 760, top: 400, heading: 250, pillGap: 120, pill: 96, font: 38, kicker: 30, big: 76, line: 26, lineGap: 58 } : { h: 1350, card: 620, top: 196, heading: 118, pillGap: 74, pill: 80, font: 32, kicker: 26, big: 60, line: 22, lineGap: 40 };
-  const kicker = `${firstName ? `${firstName}’s Garage` : 'Detlio Garage'} · ${car.rarityLabel}`;
+  const kicker = `${firstName ? t('{name}’s Garage', { name: firstName }) : 'Detlio Garage'} · ${t(car.rarityLabel)}`;
   const cardHeight = (layout.card * k * C.height) / 100;
   return (
     <LinearGradient colors={['#1C1D22', '#050506']} style={{ width: 1080 * k, height: layout.h * k, alignItems: 'center' }}>
@@ -212,13 +217,13 @@ export function GarageSharePicture({ car, format, firstName }: { car: GarageOwne
         {kicker}
       </T>
       <T size={layout.big * k} lh={layout.big * k * 1.2} weight={700} color="#F5F6F8" style={{ position: 'absolute', top: (layout.heading - 50) * k }}>
-        Collected on Detlio
+        {t('Collected on Detlio')}
       </T>
       <View style={{ marginTop: layout.top * k }}>
         <GarageCard car={car} shine={false} width={layout.card * k} />
       </View>
       <T size={layout.line * k} lh={layout.line * k * 1.3} weight={500} color="rgba(200,204,212,0.75)" style={{ position: 'absolute', top: layout.top * k + cardHeight + (layout.lineGap - 20) * k }}>
-        {ILLUSTRATION_LINE}
+        {t(ILLUSTRATION_LINE)}
       </T>
       <SharePill height={layout.pill * k} font={layout.font * k} marginTop={layout.pillGap * k} />
     </LinearGradient>

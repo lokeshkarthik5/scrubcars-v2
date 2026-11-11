@@ -1,6 +1,7 @@
 import type { HomeActionCard } from '@repo/core/api/home';
 import { useDismissNotice, useDismissReviewPrompt, useMarkUpdatesSeen, useUpdates } from '@repo/core/api/hooks/use-home';
 import { groupUpdates } from '@repo/core/home-display';
+import { useT } from '@repo/core/i18n';
 import { IconArrowLeft } from '@repo/native-ui/icons';
 import { ErrorState, HubCard, Skeleton } from '@repo/native-ui/primitives';
 import { T } from '@repo/native-ui/text';
@@ -26,6 +27,7 @@ function GroupLabel({ children }: { children: string }) {
 
 /** UpdatesScreen (apps/users/components/home/updates-screen.tsx). */
 export default function UpdatesScreen() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
@@ -81,7 +83,7 @@ export default function UpdatesScreen() {
         }
       >
         <View style={styles.top}>
-          <Pressable accessibilityRole="link" accessibilityLabel="Back to Home" onPress={() => (router.canGoBack() ? router.back() : router.replace('/home' as Href))} style={styles.back}>
+          <Pressable accessibilityRole="link" accessibilityLabel={t('Back to Home')} onPress={() => (router.canGoBack() ? router.back() : router.replace('/home' as Href))} style={styles.back}>
             <IconArrowLeft size={22} stroke={1.5} />
           </Pressable>
           <Pressable
@@ -97,12 +99,12 @@ export default function UpdatesScreen() {
             style={styles.mark}
           >
             <T size={13} weight={500} lh={18} color={!data || !anyUnread || cleared ? colors.textMuted : colors.textPrimary}>
-              Mark all read
+              {t('Mark all read')}
             </T>
           </Pressable>
         </View>
         <T accessibilityRole="header" variant="title" style={styles.title}>
-          Updates
+          {t('Updates')}
         </T>
         {updates.isPending ? (
           <View style={styles.stack}>
@@ -110,12 +112,12 @@ export default function UpdatesScreen() {
             <Skeleton height={124} radius={28} />
           </View>
         ) : !data || !now ? (
-          <ErrorState message="Couldn't load your updates. Check your connection." onRetry={() => void updates.refetch()} />
+          <ErrorState message={t("Couldn't load your updates. Check your connection.")} onRetry={() => void updates.refetch()} />
         ) : (
           <>
             {data.todo.length > 0 ? (
               <View>
-                <GroupLabel>To do</GroupLabel>
+                <GroupLabel>{t('To do')}</GroupLabel>
                 <View style={styles.stack}>{data.todo.map(todoCard)}</View>
               </View>
             ) : null}
@@ -132,7 +134,7 @@ export default function UpdatesScreen() {
                     at: data.pinnedNotice.startsAt,
                     unread: unread(data.pinnedNotice.unread),
                     bookingId: null,
-                    from: 'Detlio team',
+                    from: t('Detlio team'),
                     linkUrl: data.pinnedNotice.linkUrl,
                     linkLabel: data.pinnedNotice.linkLabel,
                   }}
@@ -142,14 +144,14 @@ export default function UpdatesScreen() {
             ) : null}
             {groupUpdates(data.items, now).map((group) => (
               <View key={group.name}>
-                <GroupLabel>{group.name}</GroupLabel>
+                <GroupLabel>{t(group.name)}</GroupLabel>
                 <HubCard radius={22} style={styles.list}>
                   {group.items.map((item, index) => (
                     <UpdateRow
                       key={item.id}
                       first={index === 0}
                       now={now}
-                      row={{ ...item, unread: unread(item.unread), from: item.kind === 'notice' ? 'Detlio team' : null }}
+                      row={{ ...item, unread: unread(item.unread), from: item.kind === 'notice' ? t('Detlio team') : null }}
                       onDismiss={item.noticeId ? () => dismissNotice.mutate(item.noticeId!) : undefined}
                     />
                   ))}
@@ -157,7 +159,7 @@ export default function UpdatesScreen() {
               </View>
             ))}
             <T size={13} lh={18} color={colors.dim} align="center">
-              {data.items.length === 0 && data.todo.length === 0 && !data.pinnedNotice ? 'Nothing yet. Your bookings, bills and notes from the Detlio team will show here.' : 'The last 30 days.'}
+              {data.items.length === 0 && data.todo.length === 0 && !data.pinnedNotice ? t('Nothing yet. Your bookings, bills and notes from the Detlio team will show here.') : t('The last 30 days.')}
             </T>
           </>
         )}

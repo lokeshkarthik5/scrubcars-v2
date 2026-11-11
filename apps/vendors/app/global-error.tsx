@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { Inter } from 'next/font/google'
+import { useT } from '@repo/core/i18n'
 import { CrashScreen } from '@repo/ui/sc/crash-screen'
 import { reportError } from '@/lib/monitoring'
 import './globals.css'
@@ -26,6 +27,7 @@ export default function GlobalError({
   reset: () => void
   unstable_retry?: () => void
 }) {
+  const t = useT()
   useEffect(() => {
     reportError(error)
   }, [error])
@@ -33,13 +35,15 @@ export default function GlobalError({
   return (
     <html lang="en" className={`${inter.variable} h-full`}>
       <body className="min-h-full bg-brand-black font-sans">
-        <title>Something went wrong · Detlio</title>
+        <title>{`${t('Something went wrong')} · Detlio`}</title>
         <CrashScreen
-          title="Something went wrong"
-          message="This page hit a problem on our side. Try again, or start over from home."
+          title={t('Something went wrong')}
+          message={t(
+            'This page hit a problem on our side. Try again, or start over from home.'
+          )}
           onRetry={unstable_retry ?? reset}
           homeHref="/home"
-          homeLabel="Go to your dashboard"
+          homeLabel={t('Go to your dashboard')}
           reference={error.digest}
         />
       </body>

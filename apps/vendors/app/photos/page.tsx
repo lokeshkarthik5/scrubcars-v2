@@ -10,6 +10,8 @@ import {
   IconUpload,
 } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
+import { useT } from '@repo/core/i18n'
+import { t } from '@repo/core/i18n/translate'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
@@ -32,7 +34,11 @@ import {
 const ACCEPTED = 'image/jpeg,image/png,image/webp'
 const MAX_BYTES = 5 * 1024 * 1024 // 5 MB
 
+/** Said from an effect, so it reads the language in use without being one of the effect's dependencies. */
+const loadFailed = () => t('Failed to load photos')
+
 export default function VendorPhotosPage() {
+  const t = useT()
   const isVendorAdmin = useIsVendorAdmin()
   const roleRouter = useRouter()
 
@@ -65,7 +71,7 @@ export default function VendorPhotosPage() {
           router.replace('/login')
           return
         }
-        toast.error('Failed to load photos')
+        toast.error(loadFailed())
       })
       .finally(() => setLoading(false))
   }, [router])
@@ -74,20 +80,20 @@ export default function VendorPhotosPage() {
     const file = files?.[0]
     if (!file) return
     if (!ACCEPTED.includes(file.type)) {
-      toast.error('Unsupported type (use JPEG, PNG or WebP)')
+      toast.error(t('Unsupported type (use JPEG, PNG or WebP)'))
       return
     }
     if (file.size > MAX_BYTES) {
-      toast.error('Logo too large (max 5 MB)')
+      toast.error(t('Logo too large (max 5 MB)'))
       return
     }
     setLogoBusy(true)
     try {
       const vendor = await uploadVendorLogo(file)
       setLogoUrl(vendor.logoUrl)
-      toast.success('Logo updated')
+      toast.success(t('Logo updated'))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Upload failed')
+      toast.error(err instanceof Error ? err.message : t('Upload failed'))
     } finally {
       setLogoBusy(false)
       if (logoRef.current) logoRef.current.value = ''
@@ -100,7 +106,7 @@ export default function VendorPhotosPage() {
       await deleteVendorLogo()
       setLogoUrl(null)
     } catch {
-      toast.error('Failed to remove logo')
+      toast.error(t('Failed to remove logo'))
     } finally {
       setLogoBusy(false)
     }
@@ -112,18 +118,20 @@ export default function VendorPhotosPage() {
     try {
       for (const file of Array.from(files)) {
         if (!ACCEPTED.includes(file.type)) {
-          toast.error(`${file.name}: unsupported type (use JPEG, PNG or WebP)`)
+          toast.error(
+            t('{name}: unsupported type (use JPEG, PNG or WebP)', { name: file.name })
+          )
           continue
         }
         if (file.size > MAX_BYTES) {
-          toast.error(`${file.name}: too large (max 5 MB)`)
+          toast.error(t('{name}: too large (max 5 MB)', { name: file.name }))
           continue
         }
         const created = await uploadVendorPhoto(file)
         setPhotos((prev) => [...prev, created])
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Upload failed')
+      toast.error(err instanceof Error ? err.message : t('Upload failed'))
     } finally {
       setUploading(false)
       if (fileRef.current) fileRef.current.value = ''
@@ -136,7 +144,7 @@ export default function VendorPhotosPage() {
       await deleteVendorPhoto(id)
       setPhotos((prev) => prev.filter((p) => p.id !== id))
     } catch {
-      toast.error('Failed to delete photo')
+      toast.error(t('Failed to delete photo'))
     } finally {
       setDeletingId(null)
     }
@@ -144,7 +152,7 @@ export default function VendorPhotosPage() {
 
   return (
     <AppShell showNav navType="vendor" className="gap-5 py-4">
-      <TopBar showBack backHref="/settings" title="Garage photos" />
+      <TopBar showBack backHref="/settings" title={t('Garage photos')} />
 
       <input
         ref={logoRef}
@@ -164,15 +172,15 @@ export default function VendorPhotosPage() {
 
       <section className="flex flex-col gap-3">
         <SectionHeader
-          title="Logo"
-          subtitle="Shown next to your garage in customer listings."
+          title={t('Logo')}
+          subtitle={t('Shown next to your garage in customer listings.')}
         />
         <ScCard className="flex items-center gap-4">
           <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[12px] bg-surface-elevated">
             {logoUrl ? (
               <Image
                 src={logoUrl}
-                alt="Logo"
+                alt={t('Logo')}
                 fill
                 sizes="64px"
                 className="object-cover"
@@ -188,7 +196,7 @@ export default function VendorPhotosPage() {
               disabled={logoBusy}
               onClick={() => logoRef.current?.click()}
             >
-              {logoBusy ? 'Working…' : logoUrl ? 'Change logo' : 'Add logo'}
+              {logoBusy ? t('Working…') : logoUrl ? t('Change logo') : t('Add logo')}
             </ScButton>
             {/* A quiet text button: removing the logo is not what this
                 screen is for, and red is kept for Add photos below. */}
@@ -199,7 +207,7 @@ export default function VendorPhotosPage() {
                 onClick={handleRemoveLogo}
                 className="min-h-11 text-[12px] font-medium text-text-secondary underline-offset-2 hover:text-text-primary hover:underline disabled:opacity-50"
               >
-                Remove logo
+                {t('Remove logo')}
               </button>
             )}
           </div>
@@ -208,8 +216,8 @@ export default function VendorPhotosPage() {
 
       <section className="flex flex-col gap-3">
         <SectionHeader
-          title="Photos"
-          subtitle="JPEG, PNG or WebP · up to 5 MB each. These show on your public listing."
+          title={t('Photos')}
+          subtitle={t('JPEG, PNG or WebP · up to 5 MB each. These show on your public listing.')}
           action={
             photos.length > 0 ? (
               <span className="font-numeric text-[12px] text-text-muted">
@@ -228,7 +236,7 @@ export default function VendorPhotosPage() {
           className="flex items-center justify-center gap-2"
         >
           <IconUpload size={18} aria-hidden="true" />
-          {uploading ? 'Uploading…' : 'Add photos'}
+          {uploading ? t('Uploading…') : t('Add photos')}
         </ScButton>
 
         {loading ? (
@@ -237,7 +245,7 @@ export default function VendorPhotosPage() {
             aria-busy="true"
             className="grid grid-cols-2 gap-2"
           >
-            <span className="sr-only">Loading</span>
+            <span className="sr-only">{t('Loading')}</span>
             {Array.from({ length: 4 }, (_, i) => (
               <Skeleton key={i} className="aspect-square rounded-[12px]" />
             ))}
@@ -246,10 +254,10 @@ export default function VendorPhotosPage() {
           <div className="flex flex-col items-center gap-2 rounded-[14px] border border-dashed border-border py-12 text-center">
             <IconPhoto size={28} stroke={1.5} className="text-text-muted" />
             <p className="text-sm font-semibold text-text-primary">
-              No photos yet
+              {t('No photos yet')}
             </p>
             <p className="text-[12px] text-text-secondary">
-              Add photos of your garage and work
+              {t('Add photos of your garage and work')}
             </p>
           </div>
         ) : (
@@ -263,7 +271,7 @@ export default function VendorPhotosPage() {
                 <Image
                   src={photo.url}
                   // Numbered, so a screen reader can tell the photos apart.
-                  alt={`Garage photo ${i + 1}`}
+                  alt={t('Garage photo {n}', { n: i + 1 })}
                   fill
                   sizes="(max-width: 428px) 50vw, 200px"
                   className="object-cover"
@@ -274,8 +282,8 @@ export default function VendorPhotosPage() {
                   type="button"
                   disabled={deletingId === photo.id}
                   onClick={() => handleDelete(photo.id)}
-                  aria-label="Delete photo"
-                  title="Delete photo"
+                  aria-label={t('Delete photo')}
+                  title={t('Delete photo')}
                   className="absolute right-0 top-0 flex size-11 items-center justify-center text-white disabled:opacity-50"
                 >
                   <span className="flex size-8 items-center justify-center rounded-full bg-black/60 transition-colors hover:bg-black/80">

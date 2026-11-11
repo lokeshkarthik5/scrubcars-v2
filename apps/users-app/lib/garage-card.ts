@@ -1,6 +1,7 @@
 import type { GarageOwnedCar } from '@repo/core/api/garage'
 import { CARD_CARS, cardCarById, cardCarSrc, type CardCar, type CardCarTone, type CardCarWidth } from '@repo/core/card-cars'
 import { RARITY_LOOKS, type GarageRarity } from '@repo/core/garage'
+import { msg } from '@repo/core/i18n/translate'
 
 /**
  * The Detlio Garage's card (0057): every number of its layout, shared by
@@ -72,6 +73,6 @@ export function frameGradient(rarity: GarageRarity): string {
 
 /** What a share says: never anything personal but the first name when the sharer ticks it. */
 export const GARAGE_SHARE = {
-  collected: 'Collected on Detlio',
-  book: 'Book on detlio.com',
+  collected: msg('Collected on Detlio'),
+  book: msg('Book on detlio.com'),
 } as const

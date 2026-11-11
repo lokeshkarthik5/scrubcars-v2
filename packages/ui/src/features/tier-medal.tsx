@@ -3,6 +3,7 @@
 import { useId, useState } from 'react'
 import { IconCircleCheck } from '@tabler/icons-react'
 import { cn } from '@repo/core/utils'
+import { useT } from '@repo/core/i18n'
 import {
   TIER_KEPT_LINE,
   TIER_LABELS,
@@ -77,6 +78,7 @@ export function TierMark({ tier, className }: { tier: Tier; className?: string }
  * certificate): the medal and "Gold".
  */
 export function TierChip({ tier, className }: { tier: Tier; className?: string }) {
+  const t = useT()
   const metal = METALS[tier]
   return (
     <span
@@ -88,8 +90,8 @@ export function TierChip({ tier, className }: { tier: Tier; className?: string }
       )}
     >
       <TierMedalIcon tier={tier} size={12} />
-      {TIER_LABELS[tier]}
-      <span className="sr-only"> garage</span>
+      {t(TIER_LABELS[tier])}
+      <span className="sr-only"> {t('garage')}</span>
     </span>
   )
 }
@@ -100,6 +102,7 @@ export function TierChip({ tier, className }: { tier: Tier; className?: string }
  * words (a tier meets every one below it too).
  */
 export function TierSeal({ tier, className }: { tier: Tier; className?: string }) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const metal = METALS[tier]
   const name = tierMedalName(tier)
@@ -121,36 +124,36 @@ export function TierSeal({ tier, className }: { tier: Tier; className?: string }
           onClick={() => setOpen(true)}
           className="tap-target text-[12px] font-medium text-text-secondary underline underline-offset-2 hover:text-text-primary"
         >
-          What this means
+          {t('What this means')}
         </button>
       </div>
-      <p className="text-[11px] text-text-muted">{TIER_NOTES[tier]}</p>
+      <p className="text-[11px] text-text-muted">{t(TIER_NOTES[tier])}</p>
 
-      <ScSheet open={open} onClose={() => setOpen(false)} aria-label={`${name}: what this means`} className="px-4 pt-1">
+      <ScSheet open={open} onClose={() => setOpen(false)} aria-label={t('{name}: what this means', { name })} className="px-4 pt-1">
         <div className="flex items-center gap-2 pt-2">
           <TierMedalIcon tier={tier} size={24} />
           <h2 className="text-[17px] font-semibold text-text-primary">{name}</h2>
         </div>
-        <p className="mt-1.5 text-[13px] text-text-secondary">Detlio shows this medal on a garage that:</p>
+        <p className="mt-1.5 text-[13px] text-text-secondary">{t('Detlio shows this medal on a garage that:')}</p>
         {tierStandards(tier).map((group) => (
-          <section key={group.tier} className="mt-3" aria-label={`${TIER_LABELS[group.tier]} standards`}>
+          <section key={group.tier} className="mt-3" aria-label={t('{tier} standards', { tier: t(TIER_LABELS[group.tier]) })}>
             {tier !== 'bronze' && (
               <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.07em] text-text-muted">
                 <TierMedalIcon tier={group.tier} size={12} />
-                {TIER_LABELS[group.tier]}
+                {t(TIER_LABELS[group.tier])}
               </p>
             )}
             <ul className="flex flex-col gap-2.5">
               {group.lines.map((line) => (
                 <li key={line} className="flex items-start gap-2 text-[13px] leading-snug text-text-primary">
                   <IconCircleCheck size={16} aria-hidden="true" className="mt-px shrink-0 text-success" />
-                  <span>{line}</span>
+                  <span>{t(line)}</span>
                 </li>
               ))}
             </ul>
           </section>
         ))}
-        <p className="mt-3 text-[12px] text-text-muted">{TIER_KEPT_LINE}</p>
+        <p className="mt-3 text-[12px] text-text-muted">{t(TIER_KEPT_LINE)}</p>
       </ScSheet>
     </div>
   )

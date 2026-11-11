@@ -1,4 +1,5 @@
 import { removePushSubscription, type PushApp } from '@repo/core/api/push'
+import { msg } from './i18n/translate'
 
 /**
  * Browser notifications in the browser (0044): can this one take them, and
@@ -83,10 +84,10 @@ export class PushSetupError extends Error {
   constructor(public reason: 'denied' | 'dismissed' | 'unsupported') {
     super(
       reason === 'denied'
-        ? 'Notifications are blocked for this site in your browser settings.'
+        ? msg('Notifications are blocked for this site in your browser settings.')
         : reason === 'dismissed'
-          ? 'Notifications were not allowed.'
-          : "This browser can't show notifications."
+          ? msg('Notifications were not allowed.')
+          : msg("This browser can't show notifications.")
     )
     this.name = 'PushSetupError'
   }

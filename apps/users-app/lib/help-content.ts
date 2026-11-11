@@ -35,6 +35,7 @@ import {
 } from '@repo/core/booking-types'
 import { COMPLAINT_ACKNOWLEDGE_HOURS, COMPLAINT_RESOLVE_DAYS } from '@repo/core/complaints'
 import { GUARANTEE_RULES } from '@repo/core/guarantee'
+import { msg } from '@repo/core/i18n/translate'
 import { DEFAULT_PICKUP_RADIUS_KM, MAX_CODE_ATTEMPTS, PICKUP_RESPONSIBILITY_LINE } from '@repo/core/pickup'
 import { RECEIPT_NOT_TAX_INVOICE } from '@repo/core/receipts'
 import { BANK_DAYS } from '@repo/core/refunds'
@@ -82,14 +83,14 @@ const TWICE = MAX_RESCHEDULES === 2 ? 'twice' : `${MAX_RESCHEDULES} times`
 
 const REFUND_POLICY: HelpLink = { label: 'Cancellation & Refund Policy', href: LEGAL_PATHS.refunds }
 const MY_BOOKINGS: HelpLink = { label: 'My bookings', href: '/bookings' }
-const CONTACT: HelpLink = { label: 'Contact us', href: LEGAL_PATHS.contact }
+const CONTACT: HelpLink = { label: msg('Contact us'), href: LEGAL_PATHS.contact }
 
 export const HELP_INTRO = {
-  title: 'Help centre',
-  body: 'Answers to the questions we hear most. For a booking, the quickest help is Help with this booking on the booking page.',
-  searchLabel: 'Search help',
-  searchPlaceholder: 'Search, e.g. refund, reschedule, pickup',
-  noResults: 'No answers match that. Try another word, or ask us below.',
+  title: msg('Help centre'),
+  body: msg('Answers to the questions we hear most. For a booking, the quickest help is Help with this booking on the booking page.'),
+  searchLabel: msg('Search help'),
+  searchPlaceholder: msg('Search, e.g. refund, reschedule, pickup'),
+  noResults: msg('No answers match that. Try another word, or ask us below.'),
 }
 
 export const HELP_GROUPS: HelpGroup[] = [
@@ -402,8 +403,8 @@ export function helpGroupsFor(features: { guarantee: boolean }): HelpGroup[] {
 
 /** The end of the page: still stuck, here is a person. */
 export const HELP_STILL_NEED = {
-  title: 'Still need help?',
-  body: `Call or WhatsApp our team on ${SUPPORT_PHONE_DISPLAY}, or put it in writing with a complaint number.`,
+  title: msg('Still need help?'),
+  body: msg('Call or WhatsApp our team on {phone}, or put it in writing with a complaint number.'),
   contact: CONTACT,
-  complaint: { label: 'Raise a complaint', href: `${LEGAL_PATHS.contact}#raise-complaint` },
+  complaint: { label: msg('Raise a complaint'), href: `${LEGAL_PATHS.contact}#raise-complaint` },
 }

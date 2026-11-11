@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { toast } from 'react-toastify'
+import { fill, useT } from '@repo/core/i18n'
 import { ConfirmSheet } from '@repo/ui/sc/confirm-sheet'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
@@ -67,6 +68,7 @@ function endSessionHere() {
 }
 
 function CloseGarage({ garageName }: { garageName: string }) {
+  const t = useT()
   const [request, setRequest] = useState<ClosureRequest | null | undefined>(undefined)
   const [asking, setAsking] = useState(false)
   const [reason, setReason] = useState('')
@@ -93,7 +95,7 @@ function CloseGarage({ garageName }: { garageName: string }) {
 
   const send = async () => {
     if (reason.trim().length < 3) {
-      setError('Say why you want to close the garage.')
+      setError(t('Say why you want to close the garage.'))
       return
     }
     setBusy(true)
@@ -102,9 +104,9 @@ function CloseGarage({ garageName }: { garageName: string }) {
       setRequest(await requestGarageClosure(reason.trim()))
       setAsking(false)
       setReason('')
-      toast.success('Request sent. Detlio will call you.')
+      toast.success(t('Request sent. Detlio will call you.'))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not send the request')
+      setError(err instanceof Error ? err.message : t('Could not send the request'))
     } finally {
       setBusy(false)
     }
@@ -112,40 +114,51 @@ function CloseGarage({ garageName }: { garageName: string }) {
 
   return (
     <section className="flex flex-col gap-3">
-      <SectionHeader title="Close my garage" />
+      <SectionHeader title={t('Close my garage')} />
       <ScCard className="flex flex-col gap-3">
         {request ? (
           <>
             <p role="status" className="text-[14px] text-text-primary">
-              You asked to close {garageName} on {DATE.format(new Date(request.createdAt))}. Detlio will call you
-              before anything changes.
+              {t('You asked to close {garage} on {date}. Detlio will call you before anything changes.', {
+                garage: garageName,
+                date: DATE.format(new Date(request.createdAt)),
+              })}
             </p>
             <p className="text-[13px] text-text-secondary">“{request.reason}”</p>
             <ScButton variant="outline" size="md" onClick={() => setCancelling(true)}>
-              Cancel the request
+              {t('Cancel the request')}
             </ScButton>
           </>
         ) : (
           <>
             <p className="text-[13px] text-text-secondary">
-              Stopping for good? Ask Detlio to close {garageName}. We call you first; your bookings still to come are
-              cancelled and refunded, and the garage leaves Detlio. You can cancel the request until we act.
+              {t(
+                'Stopping for good? Ask Detlio to close {garage}. We call you first; your bookings still to come are cancelled and refunded, and the garage leaves Detlio. You can cancel the request until we act.',
+                { garage: garageName }
+              )}
             </p>
             <ScButton variant="danger-outline" size="md" onClick={() => setAsking(true)}>
-              Close my garage
+              {t('Close my garage')}
             </ScButton>
           </>
         )}
       </ScCard>
 
-      <ScSheet open={asking} onClose={() => !busy && setAsking(false)} dismissible={!busy} aria-label="Close my garage">
+      <ScSheet
+        open={asking}
+        onClose={() => !busy && setAsking(false)}
+        dismissible={!busy}
+        aria-label={t('Close my garage')}
+      >
         <div className="flex flex-col gap-3 px-5 pt-1">
-          <h2 className="text-[17px] font-semibold text-text-primary">Close {garageName}?</h2>
+          <h2 className="text-[17px] font-semibold text-text-primary">
+            {t('Close {garage}?', { garage: garageName })}
+          </h2>
           <p className="text-[14px] text-text-secondary">
-            This asks Detlio to close the garage. Nothing changes until we call you.
+            {t('This asks Detlio to close the garage. Nothing changes until we call you.')}
           </p>
           <ScTextarea
-            label="Why are you closing?"
+            label={t('Why are you closing?')}
             rows={3}
             maxLength={500}
             value={reason}
@@ -158,10 +171,10 @@ function CloseGarage({ garageName }: { garageName: string }) {
           )}
           <div className="mt-2 flex flex-col gap-2.5">
             <ScButton variant="danger-outline" onClick={() => void send()} disabled={busy}>
-              {busy ? 'Sending…' : 'Send request'}
+              {busy ? t('Sending…') : t('Send request')}
             </ScButton>
             <ScButton variant="outline" onClick={() => setAsking(false)} disabled={busy}>
-              Keep the garage open
+              {t('Keep the garage open')}
             </ScButton>
           </div>
         </div>
@@ -175,36 +188,42 @@ function CloseGarage({ garageName }: { garageName: string }) {
             await cancelGarageClosure()
             setRequest(null)
             setCancelling(false)
-            toast.success('Request cancelled. Your garage stays open.')
+            toast.success(t('Request cancelled. Your garage stays open.'))
           } catch (err) {
-            toast.error(err instanceof Error ? err.message : 'Could not cancel the request')
+            toast.error(
+              err instanceof Error ? err.message : t('Could not cancel the request')
+            )
             setCancelling(false)
             setRequest(await getMyClosureRequest().catch(() => null))
           }
         }}
         level="light"
-        title="Keep your garage open?"
-        body="This cancels your request to close the garage."
-        confirmLabel="Cancel the request"
-        cancelLabel="Back"
+        title={t('Keep your garage open?')}
+        body={t('This cancels your request to close the garage.')}
+        confirmLabel={t('Cancel the request')}
+        cancelLabel={t('Back')}
       />
     </section>
   )
 }
 
 function LeaveGarage({ garageName }: { garageName: string }) {
+  const t = useT()
   const [confirming, setConfirming] = useState(false)
   const [error, setError] = useState<string | undefined>()
 
   return (
     <section className="flex flex-col gap-3">
-      <SectionHeader title="Leave this garage" />
+      <SectionHeader title={t('Leave this garage')} />
       <ScCard className="flex flex-col gap-3">
         <p className="text-[13px] text-text-secondary">
-          Stop working with {garageName} on Detlio. You lose access to its bookings; the owner can add you again.
+          {t(
+            'Stop working with {garage} on Detlio. You lose access to its bookings; the owner can add you again.',
+            { garage: garageName }
+          )}
         </p>
         <ScButton variant="outline" size="md" onClick={() => setConfirming(true)}>
-          Leave {garageName}
+          {t('Leave {garage}', { garage: garageName })}
         </ScButton>
       </ScCard>
       <ConfirmSheet
@@ -216,7 +235,7 @@ function LeaveGarage({ garageName }: { garageName: string }) {
         onConfirm={async () => {
           try {
             await leaveGarage()
-            toast.success(`You left ${garageName}`)
+            toast.success(t('You left {garage}', { garage: garageName }))
             // Another garage of theirs stays; none left, they sign out (on
             // the server too: the session itself is still good, and would
             // otherwise land them on the sign-up steps).
@@ -230,14 +249,14 @@ function LeaveGarage({ garageName }: { garageName: string }) {
             await store.restoreSession()
             window.location.href = '/home'
           } catch (err) {
-            setError(err instanceof Error ? err.message : 'Could not leave the garage')
+            setError(err instanceof Error ? err.message : t('Could not leave the garage'))
           }
         }}
         level="firm"
-        title={`Leave ${garageName}?`}
-        body="You'll no longer see its bookings or act for it."
-        confirmLabel="Leave garage"
-        cancelLabel="Stay"
+        title={t('Leave {garage}?', { garage: garageName })}
+        body={t("You'll no longer see its bookings or act for it.")}
+        confirmLabel={t('Leave garage')}
+        cancelLabel={t('Stay')}
         error={error}
       />
     </section>
@@ -245,6 +264,7 @@ function LeaveGarage({ garageName }: { garageName: string }) {
 }
 
 function DeleteMyAccount() {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const [preview, setPreview] = useState<AccountDeletionPreview | null>(null)
   const [typed, setTyped] = useState('')
@@ -259,7 +279,7 @@ function DeleteMyAccount() {
     try {
       setPreview(await getAccountDeletionPreview())
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not check your account')
+      setError(err instanceof Error ? err.message : t('Could not check your account'))
     }
   }
 
@@ -268,36 +288,42 @@ function DeleteMyAccount() {
     setError(null)
     try {
       await deleteMyAccount()
-      toast.success('Your account is deleted')
+      toast.success(t('Your account is deleted'))
       endSessionHere()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not delete your account')
+      setError(err instanceof Error ? err.message : t('Could not delete your account'))
       setBusy(false)
     }
   }
 
   return (
     <section className="flex flex-col gap-3">
-      <SectionHeader title="Delete my account" />
+      <SectionHeader title={t('Delete my account')} />
       <ScCard className="flex flex-col gap-3">
         <p className="text-[13px] text-text-secondary">
-          Deletes your login on Detlio: your name, number and every garage you can open here. Jobs you did stay on the
-          garages&apos; records, without your name.
+          {t(
+            "Deletes your login on Detlio: your name, number and every garage you can open here. Jobs you did stay on the garages' records, without your name."
+          )}
         </p>
         <ScButton variant="danger-outline" size="md" onClick={() => void start()}>
-          Delete my account
+          {t('Delete my account')}
         </ScButton>
       </ScCard>
-      <ScSheet open={open} onClose={() => !busy && setOpen(false)} dismissible={!busy} aria-label="Delete my account">
+      <ScSheet
+        open={open}
+        onClose={() => !busy && setOpen(false)}
+        dismissible={!busy}
+        aria-label={t('Delete my account')}
+      >
         <div className="flex flex-col gap-3 px-5 pt-1">
-          <h2 className="text-[17px] font-semibold text-text-primary">Delete your account?</h2>
+          <h2 className="text-[17px] font-semibold text-text-primary">{t('Delete your account?')}</h2>
           {!preview && !error && (
             <p role="status" className="text-[14px] text-text-secondary">
-              Checking your account…
+              {t('Checking your account…')}
             </p>
           )}
           {preview && !preview.canDelete && (
-            <ul aria-label="Before you can delete" className="flex flex-col gap-2">
+            <ul aria-label={t('Before you can delete')} className="flex flex-col gap-2">
               {preview.blockers.map((blocker) => (
                 <li
                   key={blocker.code}
@@ -311,11 +337,13 @@ function DeleteMyAccount() {
           {preview?.canDelete && (
             <>
               <p className="text-[14px] text-text-secondary">
-                You leave every garage, and you&apos;re signed out on every device. This can&apos;t be undone.
+                {t("You leave every garage, and you're signed out on every device. This can't be undone.")}
               </p>
               <label className="flex flex-col gap-1.5 text-[13px] text-text-secondary">
                 <span>
-                  Type <span className="font-semibold text-text-primary">{ACCOUNT_DELETION_CONFIRM}</span> to confirm
+                  {fill(t('Type {word} to confirm'), {
+                    word: <span className="font-semibold text-text-primary">{ACCOUNT_DELETION_CONFIRM}</span>,
+                  })}
                 </span>
                 <input
                   value={typed}
@@ -340,11 +368,11 @@ function DeleteMyAccount() {
                 onClick={() => void remove()}
                 disabled={busy || !typedConfirmMatches(typed, ACCOUNT_DELETION_CONFIRM)}
               >
-                {busy ? 'Deleting…' : 'Delete my account'}
+                {busy ? t('Deleting…') : t('Delete my account')}
               </ScButton>
             )}
             <ScButton variant="outline" onClick={() => setOpen(false)} disabled={busy}>
-              {preview?.canDelete ? 'Keep my account' : 'Close'}
+              {preview?.canDelete ? t('Keep my account') : t('Close')}
             </ScButton>
           </div>
         </div>

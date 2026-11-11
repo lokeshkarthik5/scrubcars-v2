@@ -8,6 +8,7 @@ import { PRESSED_SCALE } from '@repo/native-ui/tokens';
 import { IconArrowLeft, IconBrandWhatsapp, IconChevronRight, IconPhone } from '@repo/native-ui/icons';
 import { PressRow, ScCard } from '@repo/native-ui/primitives';
 import { T } from '@repo/native-ui/text';
+import { useT } from '@repo/core/i18n';
 
 /** SectionHeader. */
 export function SectionHeader({ title }: { title: string }) {
@@ -20,11 +21,12 @@ export function SectionHeader({ title }: { title: string }) {
 
 /** TopBar: a back arrow in a 44px target, and the screen's title. */
 export function TopBar({ title, onBack }: { title: string; onBack?: () => void }) {
+  const t = useT();
   const styles = useStyles();
   return (
     <View style={styles.topBar}>
       {onBack ? (
-        <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={onBack} style={styles.back}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('Go back')} onPress={onBack} style={styles.back}>
           <IconArrowLeft size={22} stroke={1.5} />
         </Pressable>
       ) : null}
@@ -45,6 +47,7 @@ export function ContactButtons({
   whatsAppHref: string | null;
   who: string;
 }) {
+  const t = useT();
   const styles = useStyles();
   if (!callHref && !whatsAppHref) return null;
   return (
@@ -52,20 +55,20 @@ export function ContactButtons({
       {callHref ? (
         <Pressable
           accessibilityRole="link"
-          accessibilityLabel={`Call ${who}`}
+          accessibilityLabel={t('Call {who}', { who })}
           onPress={() => openLink(callHref)}
           style={styles.contactLink}
         >
           <IconPhone size={16} />
           <T size={13} weight={500}>
-            Call
+            {t('Call')}
           </T>
         </Pressable>
       ) : null}
       {whatsAppHref ? (
         <Pressable
           accessibilityRole="link"
-          accessibilityLabel={`WhatsApp ${who}`}
+          accessibilityLabel={t('WhatsApp {who}', { who })}
           onPress={() => openLink(whatsAppHref)}
           style={styles.contactLink}
         >

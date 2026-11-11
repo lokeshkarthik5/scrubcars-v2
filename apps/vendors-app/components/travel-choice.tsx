@@ -1,4 +1,5 @@
 import { WHOLE_CITY_UNAVAILABLE, travelRadiusLabel, wholeCityLabel, type TravelChoice } from '@repo/core/cities';
+import { useT } from '@repo/core/i18n';
 import type { ReactNode } from 'react';
 import { View } from 'react-native';
 
@@ -35,6 +36,7 @@ export function TravelChoiceField({
   /** The km box, shown while "Up to N km" is picked. */
   children?: ReactNode;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const value: TravelChoice = wholeCity && cityName ? 'whole_city' : 'radius';
@@ -52,17 +54,19 @@ export function TravelChoiceField({
         }}
         options={[
           { value: 'radius', label: travelRadiusLabel(radiusKm, defaultKm) },
-          { value: 'whole_city', label: wholeCityLabel(cityName ?? 'the city') },
+          { value: 'whole_city', label: wholeCityLabel(cityName ?? t('the city')) },
         ]}
       />
       {!cityName ? (
         <T size={12} color={colors.textMuted}>
-          {WHOLE_CITY_UNAVAILABLE}
+          {t(WHOLE_CITY_UNAVAILABLE)}
         </T>
       ) : null}
       {wholeCity && cityName ? (
         <T size={12} color={colors.textMuted}>
-          {wholeCityNote ? wholeCityNote(cityName) : `Any address in ${cityName}, measured from the city's centre.`}
+          {wholeCityNote
+            ? wholeCityNote(cityName)
+            : t("Any address in {city}, measured from the city's centre.", { city: cityName })}
         </T>
       ) : null}
       {value === 'radius' ? children : null}

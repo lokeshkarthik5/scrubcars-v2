@@ -16,11 +16,12 @@ import { useDebounced } from '@repo/core/hooks/use-debounced'
 import { useGuaranteeConfig } from '@repo/core/api/hooks/use-guarantee'
 import { CustomerShell } from '@/components/customer-shell'
 import { countQuestions, searchHelp } from '@/lib/help-search'
+import { useT, useTn } from '@repo/core/i18n'
 import {
   HELP_DRAFT,
-  HELP_INTRO,
+  HELP_GROUPS,
+  helpCopy,
   helpGroupsFor,
-  HELP_STILL_NEED,
   type HelpQuestion,
 } from './content'
 
@@ -34,12 +35,27 @@ import {
  * looked for. No red here: nothing on this screen is the one main action.
  */
 export function HelpScreen() {
+  const t = useT()
+  const tn = useTn()
   const [query, setQuery] = useState('')
   const searched = useDebounced(query, 150)
   const searching = searched.trim().length > 0
   // The Detlio Guarantee's answer only while it is on (0051).
   const guaranteeOn = useGuaranteeConfig().data?.enabled === true
-  const groups = searchHelp(helpGroupsFor({ guarantee: guaranteeOn }), searched)
+  // The page in the language chosen. In Tamil a search also matches the
+  // English words, since many type "refund" or "pickup" either way.
+  const { intro, groups: shown, stillNeed } = helpCopy(t)
+  const inLang = searchHelp(helpGroupsFor({ guarantee: guaranteeOn }, shown), searched)
+  const inEnglish = searchHelp(helpGroupsFor({ guarantee: guaranteeOn }, HELP_GROUPS), searched)
+  const matched = new Set(
+    [...inLang, ...inEnglish].flatMap((group) => group.questions.map((question) => question.id))
+  )
+  const groups = helpGroupsFor({ guarantee: guaranteeOn }, shown)
+    .map((group) => ({
+      ...group,
+      questions: group.questions.filter((question) => matched.has(question.id)),
+    }))
+    .filter((group) => group.questions.length > 0)
   const found = countQuestions(groups)
 
   // /help#cancel opens that answer, once after the first paint (the hash is
@@ -55,7 +71,7 @@ export function HelpScreen() {
 
   return (
     <CustomerShell showNav className="gap-4 py-4">
-      <TopBar showBack title={HELP_INTRO.title} />
+      <TopBar showBack title={intro.title} />
 
       {HELP_DRAFT && (
         <p
@@ -63,12 +79,12 @@ export function HelpScreen() {
           data-help-draft
           className="rounded-[10px] border border-warning/40 bg-warning-muted px-3 py-2 text-t5 font-medium text-warning"
         >
-          Draft: these answers are waiting for sign-off.
+          {t('Draft: these answers are waiting for sign-off.')}
         </p>
       )}
 
       <p className="text-t4 leading-relaxed text-text-secondary">
-        {HELP_INTRO.body}
+        {intro.body}
       </p>
 
       <div className="flex items-center gap-2 rounded-[10px] border border-border bg-surface px-3 py-2.5">
@@ -79,8 +95,8 @@ export function HelpScreen() {
         />
         <input
           type="search"
-          placeholder={HELP_INTRO.searchPlaceholder}
-          aria-label={HELP_INTRO.searchLabel}
+          placeholder={intro.searchPlaceholder}
+          aria-label={intro.searchLabel}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className="min-h-6 flex-1 bg-transparent text-t4 text-text-primary outline-none"
@@ -95,8 +111,8 @@ export function HelpScreen() {
         {!searching
           ? ''
           : found === 0
-            ? HELP_INTRO.noResults
-            : `${found} answer${found === 1 ? '' : 's'} found`}
+            ? intro.noResults
+            : tn(found, '{count} answer found', '{count} answers found')}
       </p>
 
       {groups.map((group) => (
@@ -128,14 +144,14 @@ export function HelpScreen() {
       <ScCard className="flex flex-col gap-3">
         <div>
           <h2 className="text-t3 font-semibold text-text-primary">
-            {HELP_STILL_NEED.title}
+            {stillNeed.title}
           </h2>
           <p className="mt-1 text-t4 text-text-secondary">
-            {HELP_STILL_NEED.body}
+            {stillNeed.body}
           </p>
         </div>
         <ContactButtons
-          who="Detlio support"
+          who={t('Detlio support')}
           callHref={SUPPORT_TEL_HREF}
           whatsAppHref={supportWhatsAppHref('Hi Detlio, I have a question.')}
         />
@@ -143,18 +159,18 @@ export function HelpScreen() {
         <div className="flex flex-col gap-2 sm:flex-row">
           <ScButtonLink
             variant="secondary"
-            href={HELP_STILL_NEED.contact.href}
+            href={stillNeed.contact.href}
             className="flex-1"
           >
-            {HELP_STILL_NEED.contact.label}
+            {stillNeed.contact.label}
           </ScButtonLink>
           <ScButtonLink
             variant="secondary"
-            href={HELP_STILL_NEED.complaint.href}
+            href={stillNeed.complaint.href}
             className="flex-1"
           >
             <IconMessageReport size={18} aria-hidden />
-            {HELP_STILL_NEED.complaint.label}
+            {stillNeed.complaint.label}
           </ScButtonLink>
         </div>
       </ScCard>

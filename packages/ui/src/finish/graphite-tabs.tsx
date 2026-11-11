@@ -90,6 +90,8 @@ export function GraphiteTabsList({
         // Five tabs on a 360px phone: the labels drop to 13px, as the flat
         // strip had them, so none crowds the key.
         count > 3 && '[&_[role=tab]]:text-[13px]',
+        // Tamil's words are wider: a size down again with four or more tabs.
+        count > 3 && '[&_[role=tab]:lang(ta)]:text-[12px]',
         className
       )}
       style={{ gridTemplateColumns: `repeat(${count}, minmax(0, 1fr))` }}
@@ -110,6 +112,7 @@ export function GraphiteTabsList({
 export function GraphiteTabsTrigger({
   className,
   value,
+  children,
   ...props
 }: React.ComponentProps<typeof TabsPrimitive.Trigger>) {
   return (
@@ -118,13 +121,20 @@ export function GraphiteTabsTrigger({
       data-value={value}
       value={value}
       className={cn(
-        'relative z-[1] flex min-h-11 items-center justify-center whitespace-nowrap rounded-[14px] px-1 pb-1 text-[14px] font-medium text-[#8E8E98] transition-colors duration-200',
+        'relative z-[1] flex min-h-11 min-w-0 items-center justify-center whitespace-nowrap rounded-[14px] px-1 pb-1 text-[14px] font-medium text-[#8E8E98] transition-colors duration-200',
         'hover:text-text-secondary data-[state=active]:font-semibold data-[state=active]:text-text-primary',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-primary/70',
         'disabled:pointer-events-none disabled:opacity-40',
         className
       )}
       {...props}
-    />
+    >
+      {/* One line inside its own tab: a label too long for it (Tamil at
+          390px) ends in an ellipsis rather than running into the next.
+          Clipped sideways only, so tall Tamil marks are never cut. */}
+      <span className="min-w-0 overflow-x-clip text-ellipsis whitespace-nowrap">
+        {children}
+      </span>
+    </TabsPrimitive.Trigger>
   )
 }

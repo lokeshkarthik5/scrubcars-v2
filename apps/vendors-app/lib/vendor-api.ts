@@ -8,6 +8,7 @@ import type {
   ApiWorkingHours,
 } from '@repo/core/api/types';
 import type { Booking } from '@repo/core/types';
+import { t } from '@repo/core/i18n/translate';
 
 /**
  * The garage's own side of packages/core/src/api/vendors.ts, whose module imports
@@ -125,7 +126,7 @@ const putBytes = async (uploadUrl: string, bytes: Uint8Array) => {
     body: bytes as unknown as BodyInit,
     headers: { 'Content-Type': 'image/jpeg' },
   });
-  if (!sent.ok) throw new Error('Upload failed. Please try again.');
+  if (!sent.ok) throw new Error(t('Upload failed. Please try again.'));
 };
 
 export const setVendorLogo = (url: string) =>

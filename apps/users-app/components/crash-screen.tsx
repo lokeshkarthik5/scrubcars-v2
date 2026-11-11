@@ -1,3 +1,4 @@
+import { useT } from '@repo/core/i18n';
 import { SUPPORT_TEL_HREF, SUPPORT_WHATSAPP_HREF } from '@repo/core/support';
 import { ScButton } from '@repo/native-ui/button';
 import { T } from '@repo/native-ui/text';
@@ -11,6 +12,7 @@ import { captureError } from '@/lib/sentry';
 
 /** CrashScreen with apps/users/app/error.tsx's words: reported, then a way out. */
 export function CrashScreen({ error, retry }: ErrorBoundaryProps) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const [reference, setReference] = useState<string | undefined>();
@@ -18,28 +20,28 @@ export function CrashScreen({ error, retry }: ErrorBoundaryProps) {
   return (
     <View style={styles.page}>
       <T accessibilityRole="header" size={20} weight={600} lh={28} align="center">
-        Something went wrong
+        {t('Something went wrong')}
       </T>
       <T size={15} lh={22} color={colors.textSecondary} align="center">
-        This page hit a problem on our side. Try again, or start over from home.
+        {t('This page hit a problem on our side. Try again, or start over from home.')}
       </T>
       <View style={styles.actions}>
         <ScButton variant="main" onPress={() => void retry()}>
-          Try again
+          {t('Try again')}
         </ScButton>
         <ScButton variant="outline" onPress={() => router.replace('/')}>
-          Go to home
+          {t('Go to home')}
         </ScButton>
       </View>
       <T size={12} lh={16} color={colors.textSecondary} align="center">
-        Still stuck? Our team can help.
+        {t('Still stuck? Our team can help.')}
       </T>
       {reference ? (
         <T num selectable size={11} lh={15} color={colors.textMuted} align="center">
-          {`Reference ${reference.slice(0, 12)}`}
+          {t('Reference {reference}', { reference: reference.slice(0, 12) })}
         </T>
       ) : null}
-      <ContactButtons who="Detlio support" callHref={SUPPORT_TEL_HREF} whatsApp={SUPPORT_WHATSAPP_HREF} />
+      <ContactButtons who={t('Detlio support')} callHref={SUPPORT_TEL_HREF} whatsApp={SUPPORT_WHATSAPP_HREF} />
     </View>
   );
 }

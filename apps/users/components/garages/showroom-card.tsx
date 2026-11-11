@@ -24,6 +24,7 @@ import { useCountUp } from '@repo/ui/finish/odometer'
 import { morphNavigate, rememberOpenedFromList } from '@/lib/view-transition'
 import { useDrift } from './drift'
 import { NextFreeRow } from './next-free-row'
+import { tn, useT } from '@repo/core/i18n'
 
 /** How long a press must be held for the quick look. */
 const HOLD_MS = 450
@@ -92,6 +93,7 @@ export function ShowroomCard({
   approxDistance?: boolean
   onQuickLook?: (vendor: Vendor) => void
 }) {
+  const t = useT()
   const router = useRouter()
   const queryClient = useQueryClient()
   const reduce = usePrefersReducedMotion()
@@ -128,7 +130,7 @@ export function ShowroomCard({
   const hoursLeft = now ? hoursLeftShare(vendor.openingHours, now, vendor.closures) : null
   const knownFor = vendor.knownFor?.label
   const what = knownFor
-    ? `Known for ${knownFor.toLowerCase()}`
+    ? t('Known for {knownFor}', { knownFor: knownFor.toLowerCase() })
     : vendor.serviceTags.slice(0, 2).join(', ')
   const subline = [vendor.area, what].filter(Boolean).join(' · ')
 
@@ -220,13 +222,15 @@ export function ShowroomCard({
   // figures that count: "4.6 stars, 12 reviews. 6.2 km · ~20 min. From ₹499."
   const spoken = (
     <p className="sr-only">
-      {stars ? `${vendor.rating.toFixed(1)} stars, ${vendor.reviewCount} reviews. ` : `${NEW_GARAGE_LABEL}. `}
+      {stars
+        ? `${t('{rating} stars, {count} reviews.', { rating: vendor.rating.toFixed(1), count: vendor.reviewCount })} `
+        : `${t(NEW_GARAGE_LABEL)}. `}
       {km !== null && (
         <>
           <span data-distance="">{`${distanceLabel(km, approx)} · ${driveTimeLabel(km)}`}</span>.{' '}
         </>
       )}
-      {vendor.startingPrice > 0 && `From ₹${vendor.startingPrice}.`}
+      {vendor.startingPrice > 0 && t('From ₹{startingPrice}.', { startingPrice: vendor.startingPrice })}
     </p>
   )
 
@@ -316,7 +320,7 @@ export function ShowroomCard({
             <span className="fx-glass pointer-events-none absolute left-3 top-3 inline-flex h-[30px] max-w-[calc(100%-4.5rem)] items-center gap-1.5 rounded-pill px-2.5 text-t4 font-medium text-white">
               <HoursRing share={status.isOpen ? hoursLeft : null} play={play && !reduce} />
               <span className="truncate">
-                {status.isOpen ? 'Open' : status.closedToday ? 'Closed today' : 'Closed'}
+                {status.isOpen ? t('Open') : status.closedToday ? t('Closed today') : t('Closed')}
                 {status.detail && <span className="text-white/75"> · {status.detail}</span>}
               </span>
             </span>
@@ -346,7 +350,7 @@ export function ShowroomCard({
                 {vendor.tier && <TierMark tier={vendor.tier} />}
                 {!stars && (
                   <span className="fx-pearl shrink-0 rounded-[6px] px-1.5 py-1 text-[9.5px] font-semibold uppercase leading-none tracking-[0.08em]">
-                    New
+                    {t('New')}
                   </span>
                 )}
               </div>
@@ -382,7 +386,7 @@ export function ShowroomCard({
                   {rating}
                 </b>
                 <span>
-                  {vendor.reviewCount} {vendor.reviewCount === 1 ? 'review' : 'reviews'}
+                  {tn(vendor.reviewCount, '{count} review', '{count} reviews')}
                 </span>
               </Fact>
             )}
@@ -392,13 +396,13 @@ export function ShowroomCard({
                   {approx && '~'}
                   {distance} {km < 1 ? 'm' : 'km'}
                 </b>
-                <span>{driveTimeLabel(km)} drive</span>
+                <span>{t('{driveTimeLabel} drive', { driveTimeLabel: driveTimeLabel(km) })}</span>
               </Fact>
             )}
             {vendor.startingPrice > 0 && (
               <Fact>
                 <b>₹{price}</b>
-                <span>starting price</span>
+                <span>{t('starting price')}</span>
               </Fact>
             )}
           </div>
@@ -412,7 +416,7 @@ export function ShowroomCard({
             {mode === 'dropin' && vendor.doorstepEnabled && (
               <span className="fx-raised inline-flex h-[26px] items-center gap-1.5 rounded-pill px-2.5 text-t4 font-medium text-[#D4D4DA]">
                 <IconHome size={13} aria-hidden className="text-[#A8A8B2]" />
-                Comes to you too
+                {t('Comes to you too')}
               </span>
             )}
             {/* "Comes anywhere in Chennai" (0069): on Doorstep or Pickup &
@@ -443,7 +447,7 @@ export function ShowroomCard({
             <button
               key={src}
               type="button"
-              aria-label={`Photo ${i + 1} of ${photos.length}`}
+              aria-label={t('Photo {value} of {length}', { value: i + 1, length: photos.length })}
               aria-current={i === photo ? 'true' : undefined}
               onClick={() => setPhoto(i)}
               className="grid h-6 place-items-center px-0.5"

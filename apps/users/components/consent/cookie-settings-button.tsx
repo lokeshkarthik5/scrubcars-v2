@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { openConsentSettings } from '@/lib/consent'
+import { useT } from '@repo/core/i18n'
 
 /**
  * "Cookie settings": opens the cookie question (ConsentBanner) again, so the
@@ -10,14 +11,15 @@ import { openConsentSettings } from '@/lib/consent'
  */
 export function CookieSettingsButton({
   className,
-  children = 'Cookie settings',
+  children,
 }: {
   className?: string
   children?: ReactNode
 }) {
+  const t = useT()
   return (
     <button type="button" onClick={openConsentSettings} className={className}>
-      {children}
+      {children ?? t('Cookie settings')}
     </button>
   )
 }

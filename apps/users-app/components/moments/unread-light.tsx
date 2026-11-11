@@ -1,3 +1,4 @@
+import { useT } from '@repo/core/i18n';
 import { useReduceMotion, useSeenOnce, type ViewRef } from '@repo/native-ui/motion';
 import { RED_LIGHT } from '@repo/native-ui/tokens';
 import { useEffect, useRef } from 'react';
@@ -13,6 +14,7 @@ const SEEN_AFTER_MS = 1600;
  * Under Reduce Motion it goes without the fade.
  */
 export function UnreadLight() {
+  const t = useT();
   const reduce = useReduceMotion();
   const ref = useRef<ViewRef>(null);
   const onScreen = useSeenOnce(ref, 1);
@@ -28,7 +30,7 @@ export function UnreadLight() {
   return (
     <Animated.View
       ref={ref}
-      accessibilityLabel="new"
+      accessibilityLabel={t('new')}
       style={[
         styles.light,
         { opacity: light, transform: [{ scale: light.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) }] },

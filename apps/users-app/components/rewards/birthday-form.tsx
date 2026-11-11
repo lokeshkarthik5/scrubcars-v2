@@ -1,4 +1,5 @@
 import { useSetBirthday } from '@repo/core/api/hooks/use-rewards';
+import { useT } from '@repo/core/i18n';
 import { ScButton } from '@repo/native-ui/button';
 import { Chip } from '@repo/native-ui/chip';
 import { ScSheet } from '@repo/native-ui/sheet';
@@ -14,6 +15,7 @@ export const daysInMonth = (month: number) => (month ? new Date(Date.UTC(2024, m
 
 /** BirthdayForm: month and day, no year. The web's dropdowns as a chip sheet. */
 export function BirthdayForm({ birthday, perkFrom }: { birthday: { month: number; day: number } | null; perkFrom: string | null }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const save = useSetBirthday();
@@ -22,7 +24,7 @@ export function BirthdayForm({ birthday, perkFrom }: { birthday: { month: number
   const [choosing, setChoosing] = useState<'month' | 'day' | null>(null);
   const changed = month !== (birthday?.month ?? 0) || day !== (birthday?.day ?? 0);
   const pick = (label: string, kind: 'month' | 'day', wide: boolean) => (
-    <Pressable accessibilityRole="button" accessibilityLabel={kind === 'month' ? 'Month' : 'Day'} onPress={() => setChoosing(kind)} style={[styles.select, wide ? styles.grow : styles.day]}>
+    <Pressable accessibilityRole="button" accessibilityLabel={kind === 'month' ? t('Month') : t('Day')} onPress={() => setChoosing(kind)} style={[styles.select, wide ? styles.grow : styles.day]}>
       <T num={kind === 'day'} size={14} lh={20}>
         {label}
       </T>
@@ -31,11 +33,11 @@ export function BirthdayForm({ birthday, perkFrom }: { birthday: { month: number
   return (
     <View style={styles.column}>
       <T size={13} lh={18} color={colors.textSecondary}>
-        {`${perkFrom ? `From ${perkFrom}, a wash on us in your birthday month.` : 'Your birthday, for birthday treats.'} Only the day and month.`}
+        {perkFrom ? t('From {level}, a wash on us in your birthday month. Only the day and month.', { level: t(perkFrom) }) : t('Your birthday, for birthday treats. Only the day and month.')}
       </T>
       <View style={styles.row}>
-        {pick(month ? MONTHS[month - 1] : 'Month', 'month', true)}
-        {pick(day ? String(day) : 'Day', 'day', false)}
+        {pick(month ? MONTHS[month - 1] : t('Month'), 'month', true)}
+        {pick(day ? String(day) : t('Day'), 'day', false)}
       </View>
       <View style={styles.actions}>
         <ScButton
@@ -48,13 +50,13 @@ export function BirthdayForm({ birthday, perkFrom }: { birthday: { month: number
             save.mutate(
               { month, day },
               {
-                onSuccess: () => toast.success('Birthday saved'),
-                onError: (error) => toast.error(error instanceof Error ? error.message : "Couldn't save it"),
+                onSuccess: () => toast.success(t('Birthday saved')),
+                onError: (error) => toast.error(error instanceof Error ? error.message : t("Couldn't save it")),
               }
             )
           }
         >
-          Save
+          {t('Save')}
         </ScButton>
         {birthday ? (
           <Pressable
@@ -70,12 +72,12 @@ export function BirthdayForm({ birthday, perkFrom }: { birthday: { month: number
             }
           >
             <T size={12} lh={16} color={colors.textSecondary} style={styles.underline}>
-              Remove
+              {t('Remove')}
             </T>
           </Pressable>
         ) : null}
       </View>
-      <ScSheet horizontalPadding={16} open={choosing !== null} onClose={() => setChoosing(null)} accessibilityLabel={choosing === 'month' ? 'Month' : 'Day'}>
+      <ScSheet horizontalPadding={16} open={choosing !== null} onClose={() => setChoosing(null)} accessibilityLabel={choosing === 'month' ? t('Month') : t('Day')}>
         <ScrollView style={styles.sheet} contentContainerStyle={styles.chips}>
           {choosing === 'month'
             ? MONTHS.map((name, i) => (
