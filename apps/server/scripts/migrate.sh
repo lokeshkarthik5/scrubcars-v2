@@ -40,7 +40,10 @@ readonly ADVISORY_LOCK_KEY="83927401"
 # out. The apply itself re-checks under its advisory lock.
 APPLIED_FILE=""
 cleanup_applied() {
-  [[ -n "$APPLIED_FILE" ]] && rm -f "$APPLIED_FILE"
+  # An if, not `[[ … ]] && rm`: with no file (lint never reads the database)
+  # the test is false, and as the EXIT trap's last status it turned a passing
+  # lint into exit 1.
+  if [[ -n "$APPLIED_FILE" ]]; then rm -f "$APPLIED_FILE"; fi
 }
 trap cleanup_applied EXIT
 

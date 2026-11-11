@@ -6,6 +6,7 @@
   "scripts": {
     "test:e2e": "playwright test",
     "test:e2e:p0": "playwright test --grep @p0",
+    "test:e2e:alone": "E2E_ALONE=1 playwright test",
     "test:e2e:ui": "playwright test --ui",
     "db:up": "docker compose up -d --wait",
     "db:down": "docker compose down -v",

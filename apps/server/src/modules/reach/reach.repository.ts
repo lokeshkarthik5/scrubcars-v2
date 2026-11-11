@@ -1,12 +1,14 @@
 import { asc, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import { zones, zoneSignups, type serviceCategoryEnum } from '../../db/schema.js'
-import { DEFAULT_DOORSTEP_RADIUS_KM } from '../../lib/doorstep.js'
-import { DEFAULT_PICKUP_RADIUS_KM } from '../../lib/pickup.js'
 import { JUST_OUTSIDE_KM } from '../../lib/reach.js'
 import {
+  doorstepCovers,
+  doorstepReach,
   LISTED_TO_CUSTOMERS,
   PICKUP_OFFERED,
+  pickupCovers,
+  pickupReach,
   silverAndAboveCondition,
 } from '../vendors/vendors.predicates.js'
 
@@ -37,25 +39,6 @@ function filterConditions(filters: ReachFilters) {
   }
   if (filters.tiers && filters.tiers.length > 0) conditions.push(silverAndAboveCondition(filters.tiers))
   return conditions
-}
-
-/**
- * Whether a doorstep garage comes to the point: its drawn area when it has
- * one, else its radius (or the default) from its pin. The Doorstep list's
- * and the booking check's own rule (listPublicVendorPage,
- * bookingsRepository.isWithinDoorstepRadius), restated in SQL here only
- * because it is a condition inside a larger query.
- */
-function doorstepCovers(point: ReturnType<typeof geography>) {
-  return sql`(CASE
-    WHEN v.doorstep_area IS NOT NULL THEN gis.ST_Covers(v.doorstep_area, ${point})
-    ELSE gis.ST_DWithin(v.geo, ${point}, COALESCE(v.doorstep_radius_km, ${DEFAULT_DOORSTEP_RADIUS_KM}) * 1000, false)
-  END)`
-}
-
-/** Whether a pickup garage collects from the point: its pickup radius from its pin. */
-function pickupCovers(point: ReturnType<typeof geography>) {
-  return sql`gis.ST_DWithin(v.geo, ${point}, COALESCE(v.pickup_radius_km, ${DEFAULT_PICKUP_RADIUS_KM}) * 1000, false)`
 }
 
 /** A garage's "from" price: the card's own rule (computeStartingPrice), in SQL. */
@@ -148,8 +131,11 @@ export const reachRepository = {
    * `outside_m` is measured on the sphere, as the coverage tests are, so a
    * garage left out of the covering list always has a positive figure here.
    * `distance_m` is the spheroid distance the cards show everywhere else.
-   * `cover_km` is null for a doorstep garage with a drawn area (it has no
-   * single radius).
+   * `cover_km` is null for a doorstep garage with a drawn area, and for a
+   * garage that comes all over its city (0069): neither has a single radius
+   * from its pin. A whole-city garage's `outside_m` is how far past its
+   * city's reach the customer is, measured from the city's centre, as its
+   * coverage is.
    */
   async listJustOutside(params: {
     origin: Point
@@ -160,30 +146,13 @@ export const reachRepository = {
     const point = geography(params.origin)
     const reachM = JUST_OUTSIDE_KM * 1000
     const conditions = [...filterConditions(params.filters), sql`v.geo IS NOT NULL`]
-    let cover
-    let outside
-    if (params.bookingType === 'doorstep') {
-      conditions.push(sql`v.doorstep_enabled = true`)
-      conditions.push(sql`NOT ${doorstepCovers(point)}`)
-      conditions.push(sql`(CASE
-        WHEN v.doorstep_area IS NOT NULL THEN gis.ST_DWithin(v.doorstep_area, ${point}, ${reachM}, false)
-        ELSE gis.ST_DWithin(v.geo, ${point}, COALESCE(v.doorstep_radius_km, ${DEFAULT_DOORSTEP_RADIUS_KM}) * 1000 + ${reachM}, false)
-      END)`)
-      cover = sql`CASE WHEN v.doorstep_area IS NOT NULL THEN NULL
-        ELSE COALESCE(v.doorstep_radius_km, ${DEFAULT_DOORSTEP_RADIUS_KM}) END`
-      outside = sql`CASE
-        WHEN v.doorstep_area IS NOT NULL THEN gis.ST_Distance(v.doorstep_area, ${point}, false)
-        ELSE gis.ST_Distance(v.geo, ${point}, false) - COALESCE(v.doorstep_radius_km, ${DEFAULT_DOORSTEP_RADIUS_KM}) * 1000
-      END`
-    } else {
-      conditions.push(PICKUP_OFFERED)
-      conditions.push(sql`NOT ${pickupCovers(point)}`)
-      conditions.push(
-        sql`gis.ST_DWithin(v.geo, ${point}, COALESCE(v.pickup_radius_km, ${DEFAULT_PICKUP_RADIUS_KM}) * 1000 + ${reachM}, false)`
-      )
-      cover = sql`COALESCE(v.pickup_radius_km, ${DEFAULT_PICKUP_RADIUS_KM})`
-      outside = sql`gis.ST_Distance(v.geo, ${point}, false) - COALESCE(v.pickup_radius_km, ${DEFAULT_PICKUP_RADIUS_KM}) * 1000`
-    }
+    const reach = params.bookingType === 'doorstep' ? doorstepReach(point) : pickupReach(point)
+    conditions.push(params.bookingType === 'doorstep' ? sql`v.doorstep_enabled = true` : PICKUP_OFFERED)
+    conditions.push(sql`NOT ${reach.covers}`)
+    // At most JUST_OUTSIDE_KM past its own reach, whichever reach that is.
+    conditions.push(sql`${reach.outsideM} <= ${reachM}`)
+    const cover = reach.coverKm
+    const outside = reach.outsideM
 
     const rows = await db.execute<{
       id: string

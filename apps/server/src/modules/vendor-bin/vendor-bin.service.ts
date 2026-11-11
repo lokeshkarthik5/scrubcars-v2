@@ -16,7 +16,8 @@ import { logger } from '../../lib/logger.js'
 import { alertOps } from '../../lib/ops-alerts.js'
 import { deleteDocumentObjects } from '../../lib/document-storage.js'
 import { removeJobPhotoObjects } from '../../lib/job-photo-storage.js'
-import { deleteObject, isStorageConfigured, keyFromPublicUrl } from '../../lib/storage.js'
+import { isStorageConfigured, keyFromPublicUrl } from '../../lib/storage.js'
+import { deleteGarageFileIfUnused } from '../vendors/vendors.service.js'
 import {
   BIN_CANCELLATION,
   garageNameMatches,
@@ -186,7 +187,9 @@ function removeGarageFiles(files: {
   const keys = [files.logoKey, ...files.galleryKeys].filter((key): key is string => Boolean(key))
   if (keys.length === 0 || !isStorageConfigured()) return
   runInBackground('vendor_bin_files', async () => {
-    for (const key of keys) await deleteObject(key)
+    // A branch (0069) may show the same stored logo or photo: those stay
+    // until the last garage showing them goes (deleteGarageFileIfUnused).
+    for (const key of keys) await deleteGarageFileIfUnused(key)
     log.info({ files: keys.length }, 'vendor_bin:files_removed')
   })
 }

@@ -2,12 +2,10 @@ import { randomInt } from 'node:crypto'
 import { and, asc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import { discounts, garageRecommendations, zoneSignups, zones } from '../../db/schema.js'
-import { DEFAULT_DOORSTEP_RADIUS_KM } from '../../lib/doorstep.js'
-import { DEFAULT_PICKUP_RADIUS_KM } from '../../lib/pickup.js'
 import { FREE_WASH_RULES } from '../../lib/area-signups.js'
 import { DISCOUNT_HELD } from '../discounts/discounts.predicates.js'
 import { insertReferralRewardLot } from '../gift-credit/gift-credit.repository.js'
-import { LISTED_TO_CUSTOMERS, PICKUP_OFFERED } from '../vendors/vendors.predicates.js'
+import { doorstepCovers, LISTED_TO_CUSTOMERS, PICKUP_OFFERED, pickupCovers } from '../vendors/vendors.predicates.js'
 
 export type ZoneRecord = typeof zones.$inferSelect
 export type ZoneSignupRecord = typeof zoneSignups.$inferSelect
@@ -291,18 +289,12 @@ export const areaSignupsRepository = {
     const at = sql`gis.ST_SetSRID(gis.ST_MakePoint(${point.lng}, ${point.lat}), 4326)::gis.geography`
     const rows = await db.execute<{ name: string; mode: 'doorstep' | 'pickup' }>(sql`
       SELECT v.business_name AS name,
-             CASE WHEN v.doorstep_enabled = true AND (CASE
-                    WHEN v.doorstep_area IS NOT NULL THEN gis.ST_Covers(v.doorstep_area, ${at})
-                    ELSE gis.ST_DWithin(v.geo, ${at}, COALESCE(v.doorstep_radius_km, ${DEFAULT_DOORSTEP_RADIUS_KM}) * 1000, false)
-                  END) THEN 'doorstep' ELSE 'pickup' END AS mode
+             CASE WHEN v.doorstep_enabled = true AND ${doorstepCovers(at)} THEN 'doorstep' ELSE 'pickup' END AS mode
         FROM vendors v
        WHERE ${LISTED_TO_CUSTOMERS} AND v.geo IS NOT NULL
          AND (
-           (v.doorstep_enabled = true AND (CASE
-              WHEN v.doorstep_area IS NOT NULL THEN gis.ST_Covers(v.doorstep_area, ${at})
-              ELSE gis.ST_DWithin(v.geo, ${at}, COALESCE(v.doorstep_radius_km, ${DEFAULT_DOORSTEP_RADIUS_KM}) * 1000, false)
-            END))
-           OR (${PICKUP_OFFERED} AND gis.ST_DWithin(v.geo, ${at}, COALESCE(v.pickup_radius_km, ${DEFAULT_PICKUP_RADIUS_KM}) * 1000, false))
+           (v.doorstep_enabled = true AND ${doorstepCovers(at)})
+           OR (${PICKUP_OFFERED} AND ${pickupCovers(at)})
          )
        ORDER BY gis.ST_Distance(v.geo, ${at}) ASC, v.id ASC
        LIMIT 1

@@ -38,6 +38,7 @@ import {
   useSavedGarages,
   useToggleSavedGarage,
 } from '@repo/core/api/hooks/use-favourites'
+import { anywhereInCityLine } from '@repo/core/reach'
 import { outsideCityLine } from '@repo/core/service-city'
 import {
   bookingTypeParam,
@@ -573,6 +574,7 @@ export default function GaragePage({
   const approximate = isApproximate(activeLocation)
   // The switch only when there is a choice to make: two or three modes.
   const modes = offeredBookingTypes(vendor)
+  const anywhere = anywhereInCityLine(vendor, mode)
   // A paused garage's page still loads — someone may have it saved, or be
   // checking on it — but nothing on it can be added to a booking, and the bar
   // where Book now would be says why.
@@ -716,6 +718,12 @@ export default function GaragePage({
             <section className="gp-sec pt-5" style={{ '--i': 1 } as React.CSSProperties}>
               <ModeSwitch modes={modes} value={mode} onChange={changeMode} />
             </section>
+          )}
+
+          {/* "Comes anywhere in Chennai" (0069): the garage covers its whole
+              city for the way of booking chosen. Quiet, like the line below. */}
+          {anywhere && (
+            <p className="mt-2.5 text-t5 font-medium leading-relaxed text-[#8E8E98]">{anywhere}</p>
           )}
 
           {/* What the choice means, before any service is added: the garage

@@ -5,6 +5,7 @@ import {
   parseBookingListCursor,
 } from '../../lib/booking-ops.js'
 import { AT_GARAGE_ADDRESS_MESSAGE, atGarageAddressMissing } from '../../lib/garage-address.js'
+import { MAX_DOORSTEP_RADIUS_KM } from '../../lib/doorstep.js'
 import { MAX_PICKUP_RADIUS_KM, MIN_PICKUP_RADIUS_KM } from '../../lib/pickup.js'
 
 const phoneSchema = z
@@ -149,7 +150,11 @@ export const createVendorSchema = z.object({
   pickupRadiusKm: z.number().min(MIN_PICKUP_RADIUS_KM).max(MAX_PICKUP_RADIUS_KM).optional(),
   // How far this garage travels for doorstep work. Distinct from
   // pickupRadiusKm, which is pickup-and-drop of the vehicle.
-  doorstepRadiusKm: z.number().positive().max(100).optional(),
+  doorstepRadiusKm: z.number().positive().max(MAX_DOORSTEP_RADIUS_KM).optional(),
+  // "All over <city>" (0069) instead of a radius, for doorstep and for
+  // pickup & drop. On needs the pin inside a city (adminService).
+  doorstepWholeCity: z.boolean().optional(),
+  pickupWholeCity: z.boolean().optional(),
   dropinEnabled: z.boolean().optional(),
   doorstepEnabled: z.boolean().optional(),
   slotIntervalMins: z
@@ -230,7 +235,13 @@ export const updateVendorSchema = z.object({
     .max(MAX_PICKUP_RADIUS_KM)
     .nullable()
     .optional(),
-  doorstepRadiusKm: z.number().positive().max(100).nullable().optional(),
+  doorstepRadiusKm: z.number().positive().max(MAX_DOORSTEP_RADIUS_KM).nullable().optional(),
+  // "All over <city>" (0069), as on create. On needs the pin inside a city.
+  doorstepWholeCity: z.boolean().optional(),
+  pickupWholeCity: z.boolean().optional(),
+  // "Show this garage anyway" (0069): listed even while its city, or Other
+  // towns, is switched off for customers.
+  showWhenCityOff: z.boolean().optional(),
   // Staff correcting a pin on the map. Both or neither — a half-set pair is
   // never anything but a bug.
   lat: z.number().finite().min(-90).max(90).optional(),
@@ -274,6 +285,40 @@ export const updateVendorSchema = z.object({
   .refine((data) => (data.lat === undefined) === (data.lng === undefined), {
     message: 'lat and lng must be provided together',
   })
+
+// "Add a branch…" (0069): a new garage for the same business, started from
+// this one (lib/branches.ts decides what comes along). The address and the
+// pin are the branch's own; an at-garage branch needs the address and
+// pincode (adminService checks, since the modes come from the source).
+export const createBranchSchema = z
+  .object({
+    businessName: z.string().trim().min(1).max(255),
+    city: z.string().trim().min(1).max(100),
+    address: z.string().trim().default(''),
+    pincode: optionalPincodeSchema.default(''),
+    lat: z.number().finite().min(-90).max(90).optional(),
+    lng: z.number().finite().min(-180).max(180).optional(),
+    // The source's live plain services to copy, with their prices. Packages
+    // made only of these, and the garage's add-ons, come along.
+    serviceIds: z.array(z.string().uuid()).max(50).default([]),
+    copyHours: z.boolean().default(true),
+    // The same stored logo and photos, never uploaded again.
+    copyPhotos: z.boolean().default(true),
+    // The branch owner's phone (owner, 10 Nov 2026): the source owner's own
+    // number is the same login, so the garage app's switcher shows both
+    // garages; another number is that person's own login, found or set up
+    // as Add a garage does. The owner always gets a vendor_admin seat.
+    ownerPhone: phoneSchema,
+    // Needed only when no account has the number yet (adminService checks).
+    ownerName: z.string().trim().min(1).max(255).optional(),
+    actorName: signedActorName,
+  })
+  .strict()
+  .refine((data) => (data.lat === undefined) === (data.lng === undefined), {
+    message: 'lat and lng must be provided together',
+  })
+
+export type CreateBranchInput = z.infer<typeof createBranchSchema>
 
 // Pausing a garage on its behalf — the owner asked ops to, or ops has a
 // reason of its own. The reason is shown on the garage page.

@@ -191,6 +191,12 @@ export async function updateVendorJobTypes(data: {
    */
   doorstepRadiusKm?: number
   /**
+   * "All over <city>" (0069) instead of a radius. On needs the garage's pin
+   * inside a city (400 WHOLE_CITY_NEEDS_CITY).
+   */
+  doorstepWholeCity?: boolean
+  pickupWholeCity?: boolean
+  /**
    * Pickup & drop. Turning it on needs `pickupTermsAccepted: true`, the
    * owner's tick (PICKUP_TERMS_GARAGE); off never does. A null radius is the
    * 10 km default.
@@ -513,6 +519,9 @@ export async function submitVendorOnboarding(
         ...(data.doorstep && data.doorstepRadiusKm != null
           ? { doorstepRadiusKm: data.doorstepRadiusKm as number }
           : {}),
+        // "All over <city>" (0069), sent only when chosen, so an older API
+        // never sees it.
+        ...(data.doorstep && data.doorstepWholeCity === true ? { doorstepWholeCity: true } : {}),
       }),
       updateSlotInterval(data.slotInterval as 30 | 45 | 60),
       setWorkingHoursForDays(

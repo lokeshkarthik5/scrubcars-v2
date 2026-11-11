@@ -70,8 +70,10 @@ import {
   vehicleServiceReminders,
   leads,
   garageClosureRequests,
+  cities,
 } from '../schema.js'
 import {
+  CITIES,
   PREIOS,
   BOOKING_INTENTS,
   BOOKINGS,
@@ -4065,6 +4067,84 @@ async function seedPreiosRows() {
   })
 }
 
+/**
+ * Cities, branches and "All over the city" (0069; CITIES, ids 6900–6949,
+ * phones 90000069xx): far from Chennai and every other fixture, each spec
+ * acting on its own garage. `wholeTown` is the one city seeded here (0069
+ * seeds Chennai); the admin spec adds and removes `hillCity` itself.
+ */
+async function seedCityRows() {
+  const C = CITIES
+  const people = [
+    { id: C.customer.id, name: C.customer.name, phone: C.customer.phone, isCustomer: true, isVendorOwner: false },
+    { id: C.wholeCustomer.id, name: C.wholeCustomer.name, phone: C.wholeCustomer.phone, isCustomer: true, isVendorOwner: false },
+    { id: C.hill.ownerId, name: 'Hilltown Owner', phone: C.hill.ownerPhone, isCustomer: false, isVendorOwner: true },
+    { id: C.far.ownerId, name: 'Faraway Owner', phone: C.far.ownerPhone, isCustomer: false, isVendorOwner: true },
+    { id: C.branch.ownerId, name: 'Revathi', phone: C.branch.ownerPhone, isCustomer: false, isVendorOwner: true },
+    { id: C.whole.ownerId, name: 'Wholetown Owner', phone: C.whole.ownerPhone, isCustomer: false, isVendorOwner: true },
+  ]
+  await db.insert(users).values(people.map((p) => ({ ...p, phoneVerified: true, status: 'active' as const })))
+  await db.insert(userVehicles).values([
+    { id: C.customer.vehicleId, userId: C.customer.id, make: 'Maruti', model: 'Baleno', color: 'Blue',
+      licensePlate: 'TN57CT0001', vehicleType: 'hatchback', isDefault: true },
+    { id: C.wholeCustomer.vehicleId, userId: C.wholeCustomer.id, make: 'Tata', model: 'Nexon', color: 'Grey',
+      licensePlate: 'TN59WT0001', vehicleType: 'suv', isDefault: true },
+  ])
+  await db.insert(userAddresses).values([
+    { id: C.wholeCustomer.home.id, userId: C.wholeCustomer.id, label: 'Home', address: '4, Temple Street, Wholetown',
+      city: 'Wholetown', lat: C.wholeCustomer.home.lat, lng: C.wholeCustomer.home.lng, geoSource: 'map_pin', isDefault: true },
+    { id: C.wholeCustomer.away.id, userId: C.wholeCustomer.id, label: 'Farm', address: '9, Hill Road, Beyond',
+      city: 'Beyond', lat: C.wholeCustomer.away.lat, lng: C.wholeCustomer.away.lng, geoSource: 'map_pin', isDefault: false },
+  ])
+  await db.insert(cities).values({
+    id: C.wholeTown.id, name: C.wholeTown.name, lat: C.wholeTown.centre.lat, lng: C.wholeTown.centre.lng,
+    reachKm: C.wholeTown.reachKm, customersSee: true,
+  })
+
+  const garage = (g: { id: string; name: string; ownerId: string; ownerPhone: string; pin: { lat: number; lng: number } }, town: string) => ({
+    id: g.id, ownerId: g.ownerId, businessName: g.name, phone: g.ownerPhone,
+    address: `1, Main Road, ${town}`, city: town, pincode: '624001',
+    lat: g.pin.lat, lng: g.pin.lng, geoSource: 'map_pin' as const, geoConfirmedAt: now,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'], bays: 3, slotIntervalMins: 30, whatsapp: null,
+    status: 'active' as const, isVerified: true, dropinEnabled: true, doorstepEnabled: false, createdAt: daysAgo(20),
+  })
+  await db.insert(vendors).values([
+    garage(C.hill, 'Hilltown'),
+    garage(C.far, 'Faraway'),
+    // Pending and not shown, as a garage waiting for its branch might be:
+    // the branch is what the spec makes. Pickup & drop signed, so the spec
+    // sees the agreement follow the login.
+    { ...garage(C.branch, 'Revathipuram'), status: 'pending', isVerified: false,
+      pickup: 'yes', pickupRadiusKm: C.branch.pickupRadiusKm, pickupTermsAcceptedAt: daysAgo(10),
+      pickupTermsAcceptedBy: 'admin: E2E Admin' },
+    { ...garage(C.whole, 'Wholetown'), dropinEnabled: false, doorstepEnabled: true,
+      doorstepRadiusKm: C.whole.radiusKm, doorstepWholeCity: true },
+  ])
+  for (const g of [C.hill, C.far, C.branch, C.whole]) {
+    await db.insert(userMemberMapping).values({ vendorId: g.id, userId: g.ownerId, role: 'vendor_admin', status: 'active' })
+    await db.insert(vendorWorkingHours).values(hoursFor(g.id, '06:00:00', '22:00:00'))
+  }
+  const wash = (id: string, vendorId: string, name: string, price: number, category: 'car_wash' | 'detailing' | 'coating' = 'car_wash') => ({
+    id, vendorId, name, description: 'A careful job, done the same way each time.', category,
+    pricingType: 'flat' as const, price: price.toFixed(2), durationMins: 60, isActive: true,
+  })
+  await db.insert(services).values([
+    wash(C.hill.serviceId, C.hill.id, C.hill.serviceName, 499),
+    wash(C.far.serviceId, C.far.id, 'Faraway Foam Wash', 399),
+    wash(C.whole.serviceId, C.whole.id, 'Wholetown Doorstep Wash', 699),
+    wash(C.branch.services[0].id, C.branch.id, C.branch.services[0].name, C.branch.services[0].price),
+    wash(C.branch.services[1].id, C.branch.id, C.branch.services[1].name, C.branch.services[1].price, 'detailing'),
+    wash(C.branch.services[2].id, C.branch.id, C.branch.services[2].name, C.branch.services[2].price, 'coating'),
+  ])
+
+  await insertBooking({
+    id: C.hillBooking, userId: C.customer.id, vehicleId: C.customer.vehicleId, vendorId: C.hill.id,
+    items: [{ id: C.hill.serviceId, name: C.hill.serviceName, amount: '499.00', durationMins: 60 }],
+    scheduledAt: daysAheadAt(2, 11), status: 'confirmed', createdAt: daysAgo(1), acceptedAt: daysAgo(1),
+    payment: { status: 'paid', txnId: 'pay_e2e_cities_hill', gatewayMode: 'fake' },
+  })
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set')
 
@@ -4149,6 +4229,8 @@ async function main() {
   await seedPreiosRows()
   console.log('[e2e-seed] garage add-ons…')
   await seedAddOnRows()
+  console.log('[e2e-seed] cities, branches and all over the city…')
+  await seedCityRows()
   console.log('[e2e-seed] garage bookings calendar…')
   await seedCalendarRows()
   console.log('[e2e-seed] done')

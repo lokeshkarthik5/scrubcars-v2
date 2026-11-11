@@ -1,5 +1,6 @@
 'use client'
 
+import { SERVICE_CITY } from '@repo/core/service-city'
 import { Suspense, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -82,7 +83,10 @@ function NewVendor() {
   // 29 Oct): the form stayed up. So Back sets the state itself and rewrites
   // the address, and the browser's own back and forward re-read it.
   const params = useSearchParams()
-  const byHandParam = params.get('by') === 'hand'
+  // Cities' "Add a garage here" (0069): ?city=<name> opens Fill in by hand
+  // with that city chosen and the map over it.
+  const cityParam = params.get('city')?.trim().slice(0, 100) || null
+  const byHandParam = params.get('by') === 'hand' || cityParam !== null
   const [byHand, setByHand] = useState(byHandParam)
   // Follows the address whenever it does change (adjusted during render,
   // React's pattern for state derived from an input, not in an effect).
@@ -92,8 +96,10 @@ function NewVendor() {
     setByHand(byHandParam)
   }
   useEffect(() => {
-    const sync = () =>
-      setByHand(new URLSearchParams(window.location.search).get('by') === 'hand')
+    const sync = () => {
+      const query = new URLSearchParams(window.location.search)
+      setByHand(query.get('by') === 'hand' || Boolean(query.get('city')?.trim()))
+    }
     window.addEventListener('popstate', sync)
     return () => window.removeEventListener('popstate', sync)
   }, [])
@@ -148,12 +154,18 @@ function NewVendor() {
       <div className="mx-auto w-full max-w-[640px] space-y-5">
         <PageHeader
           title="Add garage"
-          subtitle="Fill in by hand"
+          subtitle={cityParam ? `Fill in by hand · in ${cityParam}` : 'Fill in by hand'}
           onBack={leaveByHand}
         />
         {/* To every garage, not the Live default: a new garage is usually
-            not live yet, and it is the first card there, newest first. */}
-        <GarageForm layout="tabs" afterCreate={listHref('all')} />
+            not live yet, and it is the first card there, newest first. The
+            city is the one Cities sent (0069), else Chennai, the first city. */}
+        <GarageForm
+          key={cityParam ?? ''}
+          layout="tabs"
+          initial={{ text: { city: cityParam ?? SERVICE_CITY.name } }}
+          afterCreate={listHref('all')}
+        />
       </div>
     )
   }

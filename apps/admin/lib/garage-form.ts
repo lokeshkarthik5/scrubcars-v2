@@ -4,6 +4,7 @@
  * how many of those are still empty. Pure, so it is tested here
  * (garage-form.test.ts) rather than in a page.
  */
+import { SERVICE_CITY } from '@repo/core/service-city'
 import type { BookingMode } from './garage-edit'
 import type { ServiceRow } from './service-editor'
 import { missingServiceFields } from './service-rows'
@@ -123,7 +124,8 @@ export function missingLine(count: number): string | null {
 /**
  * Add garage filled in from a lead (Coverage's "Onboard", 0064): its name,
  * its phone when that is a ten-digit number the form takes, its Maps link
- * and its pin. Chennai, where every zone is. The rest is typed as usual.
+ * and its pin. Chennai (SERVICE_CITY), where every zone is: the default
+ * when nothing else says. The rest is typed as usual.
  */
 export function garageInitialFromLead(lead: {
   name: string
@@ -137,7 +139,7 @@ export function garageInitialFromLead(lead: {
       businessName: lead.name,
       phone: lead.phone && /^\d{10}$/.test(lead.phone) ? lead.phone : '',
       mapsUrl: lead.mapsUrl ?? '',
-      city: 'Chennai',
+      city: SERVICE_CITY.name,
     },
     ...(lead.lat !== null && lead.lng !== null && { pin: { lat: lead.lat, lng: lead.lng } }),
   }

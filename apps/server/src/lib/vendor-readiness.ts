@@ -66,6 +66,9 @@ export interface ReadinessInput {
   doorstepRadiusKm: number | null
   /** The garage drew its own doorstep area, which then replaces the radius. */
   hasDoorstepArea: boolean
+  /** "All over <city>" (0069), which replaces the radius for that mode. */
+  doorstepWholeCity?: boolean
+  pickupWholeCity?: boolean
   /** Pickup & drop: the stored answer, radius and terms (lib/pickup.ts). */
   pickup: VendorPickupAnswer | null
   pickupRadiusKm: number | null
@@ -274,8 +277,9 @@ export function vendorReadiness(v: ReadinessInput): ReadinessItem[] {
 
   // ─── Optional ─────────────────────────────────────────────────────────────
 
-  // A drawn area replaces the radius, so it is not missing then.
-  if (v.doorstepEnabled && v.doorstepRadiusKm == null && !v.hasDoorstepArea) {
+  // A drawn area replaces the radius, and so does "All over <city>" (0069),
+  // so it is not missing then.
+  if (v.doorstepEnabled && v.doorstepRadiusKm == null && !v.hasDoorstepArea && !v.doorstepWholeCity) {
     items.push({
       key: 'no_doorstep_radius',
       severity: 'optional',
@@ -286,7 +290,7 @@ export function vendorReadiness(v: ReadinessInput): ReadinessItem[] {
     })
   }
 
-  if (pickupOn && v.pickupRadiusKm == null) {
+  if (pickupOn && v.pickupRadiusKm == null && !v.pickupWholeCity) {
     items.push({
       key: 'no_pickup_radius',
       severity: 'optional',

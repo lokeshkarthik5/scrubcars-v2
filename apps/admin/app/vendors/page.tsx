@@ -82,6 +82,8 @@ import {
   isInBin,
   isMissing,
   isMoreFilter,
+  matchesCity,
+  cityOptions,
   isStageFilter,
   matchesOnboardedBy,
   matchesSearch,
@@ -123,7 +125,7 @@ function VendorsList() {
   // Everything the list shows lives in the URL, so Back from a garage
   // returns to it: the chip, the search, Missing, Onboarded by and the team.
   const state = parseGarageList(params)
-  const { show, q, missing, onboardedBy: onboardedFilter, team, colour } = state
+  const { show, q, missing, onboardedBy: onboardedFilter, team, colour, city: cityFilter } = state
   // What a row's links carry as `back`: this list, as it is now.
   const back = garageListHref(state)
 
@@ -215,7 +217,8 @@ function VendorsList() {
       matchesShow(v, show) &&
       matchesSearch(v, q) &&
       matchesOnboardedBy(v, onboardedFilter) &&
-      matchesTeam(v, team, mine)
+      matchesTeam(v, team, mine) &&
+      matchesCity(v, cityFilter)
   )
   // Every garage that matches: no paging, the list is the whole set. The
   // colour chips count over what Missing leaves, as Missing counts over the
@@ -231,6 +234,12 @@ function VendorsList() {
       ? vendors.filter((v) => !isInBin(v) && mine.has(v.id)).length
       : null,
   }
+  // The City filter (0069): only from an API that says each garage's city.
+  const hasCity = vendors.some((v) => v.garageCity !== undefined)
+  const cityChoices = useMemo(
+    () => cityOptions(vendors.filter((v) => !isInBin(v))),
+    [vendors]
+  )
   const onboardedChoices = useMemo(
     () =>
       onboardedByOptions(
@@ -451,8 +460,8 @@ function VendorsList() {
       : []),
   ]
 
-  const filtersOn = [onboardedFilter, team].filter(Boolean).length
-  const anyFilter = Boolean(q || missing || onboardedFilter || team || colour)
+  const filtersOn = [onboardedFilter, team, cityFilter].filter(Boolean).length
+  const anyFilter = Boolean(q || missing || onboardedFilter || team || colour || cityFilter)
 
   return (
     <>
@@ -664,6 +673,25 @@ function VendorsList() {
                   className="min-h-11 rounded-[8px] text-[12.5px] md:min-h-9"
                 />
               </>
+            )}
+            {hasCity && !inBin && (
+              <select
+                aria-label="City"
+                value={cityFilter ?? ''}
+                onChange={(event) => setParams({ city: event.target.value || null })}
+                className={cn(FILTER_SELECT, cityFilter && 'border-text-primary text-text-primary')}
+              >
+                <option value="">City: any</option>
+                {cityChoices.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label} ({option.count})
+                  </option>
+                ))}
+                {/* A city from a link that holds no garage now. */}
+                {cityFilter && !cityChoices.some((o) => o.value === cityFilter) && (
+                  <option value={cityFilter}>That city (0)</option>
+                )}
+              </select>
             )}
             {hasOnboarded && !inBin && (
               <select

@@ -114,12 +114,14 @@ test('the garage is created with the optional fields left out when empty', () =>
   });
 });
 
-test('step 3: the radius is 1 to 30 km or empty, only when doorstep is on', () => {
-  expect(radiusProblem(false, '99')).toBeNull();
+test('step 3: the radius is 1 to 300 km or empty, only when doorstep is on', () => {
+  expect(radiusProblem(false, '999')).toBeNull();
   expect(radiusProblem(true, '')).toBeNull();
   expect(radiusProblem(true, '15')).toBeNull();
-  expect(radiusProblem(true, '0.5')).toContain('from 1 to 30 km');
-  expect(radiusProblem(true, '31')).not.toBeNull();
+  // The 30 km top was lifted (10 Nov 2026).
+  expect(radiusProblem(true, '45')).toBeNull();
+  expect(radiusProblem(true, '0.5')).toContain('from 1 to 300 km');
+  expect(radiusProblem(true, '301')).not.toBeNull();
   expect(radiusProblem(true, 'x')).not.toBeNull();
 });
 
@@ -132,8 +134,9 @@ test('step 3: bays 1 to 20, jobs a whole number from 1, both may be blank', () =
   expect(jobsProblem('')).toBeNull();
   expect(jobsProblem('40')).toBeNull();
   expect(jobsProblem('0')).toBe('Jobs in a day must be 1 or more, or left blank.');
-  expect(step3Problem({ doorstep: true, doorstepRadiusKm: '50', bays: '', jobsPerDay: '' })).toContain('1 to 30');
-  expect(step3Problem({ doorstep: false, doorstepRadiusKm: '50', bays: '', jobsPerDay: '' })).toBeNull();
+  expect(step3Problem({ doorstep: true, doorstepRadiusKm: '500', bays: '', jobsPerDay: '' })).toContain('1 to 300');
+  expect(step3Problem({ doorstep: true, doorstepRadiusKm: '50', bays: '', jobsPerDay: '' })).toBeNull();
+  expect(step3Problem({ doorstep: false, doorstepRadiusKm: '500', bays: '', jobsPerDay: '' })).toBeNull();
 });
 
 test('step 3: working days toggle in order', () => {
@@ -154,6 +157,18 @@ test('step 3: the job-types call carries the radius only for doorstep with one g
     doorstepRadiusKm: 12,
   });
   expect(doorstepRadius({ doorstep: true, doorstepRadiusKm: ' ' })).toBeNull();
+});
+
+test('step 3: "All over <city>" goes instead of the radius, and only for doorstep (0069)', () => {
+  expect(step3JobTypes({ doorstep: true, doorstepRadiusKm: '12', doorstepWholeCity: true })).toEqual({
+    dropinEnabled: true,
+    doorstepEnabled: true,
+    doorstepWholeCity: true,
+  });
+  expect(step3JobTypes({ doorstep: false, doorstepRadiusKm: '', doorstepWholeCity: true })).toEqual({
+    dropinEnabled: true,
+    doorstepEnabled: false,
+  });
 });
 
 test('step 3: capacity is sent only when something was typed', () => {

@@ -297,7 +297,10 @@ export function bookingModeFlags(mode: BookingMode) {
  * decision and is true only with #42 merged, so this PR merges after it.
  */
 export const DEFAULT_DOORSTEP_RADIUS_KM = 10
-export const MAX_DOORSTEP_RADIUS_KM = 30
+// The top the garage app takes too: 300 since the owner lifted the 30 km
+// cap (10 Nov 2026). The server's own limit, twinned in @repo/core/doorstep.
+export { MAX_DOORSTEP_RADIUS_KM } from '@repo/core/doorstep'
+import { MAX_DOORSTEP_RADIUS_KM as MAX_DOORSTEP_KM } from '@repo/core/doorstep'
 
 /**
  * What a customer can book, as the card's status line: "At the garage ·
@@ -311,14 +314,17 @@ export const MAX_DOORSTEP_RADIUS_KM = 30
 export function bookingReachLine(
   mode: BookingMode | null,
   radiusKm: number | null,
-  { drawnArea = false }: { drawnArea?: boolean } = {}
+  { drawnArea = false, wholeCity = null }: { drawnArea?: boolean; wholeCity?: string | null } = {}
 ): string | null {
   if (!mode) return null
   const parts: string[] = []
   if (mode !== 'doorstep') parts.push('At the garage')
   if (mode !== 'garage') {
     parts.push(
-      drawnArea
+      // "All over <city>" (0069) wins over the drawn area and the radius.
+      wholeCity
+        ? `Doorstep anywhere in ${wholeCity}`
+        : drawnArea
         ? 'Doorstep within the area the garage drew'
         : radiusKm == null
           ? `Doorstep within ${DEFAULT_DOORSTEP_RADIUS_KM} km (default)`
@@ -332,7 +338,7 @@ export type RadiusInput = { ok: true; km: number | null } | { ok: false; message
 
 /**
  * The "Travels up to" box: empty is the default, otherwise a distance from 1
- * to 30 km, decimals allowed — exactly what the garage app's onboarding
+ * to 300 km, decimals allowed — exactly what the garage app's onboarding
  * accepts, so a radius the garage set there (7.5 km, say) is never called
  * wrong here.
  */
@@ -340,8 +346,8 @@ export function parseRadiusInput(value: string): RadiusInput {
   const trimmed = value.trim()
   if (trimmed === '') return { ok: true, km: null }
   const km = Number(trimmed)
-  if (!Number.isFinite(km) || km < 1 || km > MAX_DOORSTEP_RADIUS_KM) {
-    return { ok: false, message: `Enter a distance from 1 to ${MAX_DOORSTEP_RADIUS_KM} km, or leave it empty.` }
+  if (!Number.isFinite(km) || km < 1 || km > MAX_DOORSTEP_KM) {
+    return { ok: false, message: `Enter a distance from 1 to ${MAX_DOORSTEP_KM} km, or leave it empty.` }
   }
   return { ok: true, km }
 }

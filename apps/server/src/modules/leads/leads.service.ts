@@ -38,6 +38,7 @@ import { leadZoneId } from '../../lib/zone-edits.js'
 import { zoneFor } from '../../lib/zones.js'
 import { geoService } from '../geo/geo.service.js'
 import { isListedToCustomers } from '../vendors/vendors.predicates.js'
+import { citiesService } from '../cities/cities.service.js'
 import {
   leadsRepository,
   type Conn,
@@ -283,10 +284,11 @@ export const leadsService = {
    * A garage's zone is worked out from its pin by the zones' one rule.
    */
   async knownPlaces(zones?: Zones): Promise<KnownPlace[]> {
-    const [allZones, leadRows, garages] = await Promise.all([
+    const [allZones, leadRows, garages, cityRules] = await Promise.all([
       zones ? Promise.resolve(zones) : leadsRepository.listZones(),
       leadsRepository.listAll(),
       leadsRepository.listGaragesForMatch(),
+      citiesService.rules(),
     ])
     return [
       ...leadRows.map((lead): KnownPlace => ({
@@ -313,7 +315,9 @@ export const leadsService = {
         lat: garage.lat,
         lng: garage.lng,
         zoneId: zoneFor(garage, allZones)?.id ?? null,
-        status: isListedToCustomers(garage) ? 'live' : 'not_live',
+        status: isListedToCustomers({ ...garage, cityShown: cityRules.standingOf(garage).cityShown })
+          ? 'live'
+          : 'not_live',
         assignedName: null,
         notInterestedReason: null,
       })),

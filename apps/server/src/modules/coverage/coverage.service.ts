@@ -27,6 +27,7 @@ import {
 } from '../leads/leads.service.js'
 import { clearZonesCache } from '../reach/reach.service.js'
 import { isListedToCustomers } from '../vendors/vendors.predicates.js'
+import { citiesService } from '../cities/cities.service.js'
 import { coverageRepository, type ZoneRecord } from './coverage.repository.js'
 import type { CreateZoneInput, UpdateZoneInput } from './coverage.validation.js'
 
@@ -148,13 +149,18 @@ export function garageStage(row: {
   isVerified: boolean
   bookingsPausedAt: Date | null
   deletedAt: Date | null
+  showWhenCityOff: boolean
+  cityShown: boolean
 }): GarageStage {
   if (isListedToCustomers(row)) return 'live'
   if (row.status === 'pending') return 'pending'
   if (row.status === 'suspended') return 'suspended'
   if (row.status === 'archived') return 'archived'
   if (!row.isVerified) return 'not_shown'
-  return 'paused'
+  if (row.bookingsPausedAt) return 'paused'
+  // Active, shown and taking bookings: only its city (0069) keeps it from
+  // customers, which to them is the same as not shown.
+  return 'not_shown'
 }
 
 const ZONE_PROBLEM_STATUS: Record<ZoneEditProblem, number> = {
@@ -202,26 +208,31 @@ export const coverageService = {
    * restates it), every lead, and which finder sources are connected.
    */
   async overview(now = new Date()): Promise<CoverageOverview> {
-    const [zones, garages, leads, recommendations] = await Promise.all([
+    const [zones, garages, leads, recommendations, cityRules] = await Promise.all([
       coverageRepository.listZones(),
       coverageRepository.listGarages(),
       leadsRepository.listAll(),
       leadsRepository.listRecommendations(),
+      citiesService.rules(),
     ])
     const sources = placesSources()
     const demand = await readDemand(zones, recommendations, now)
     return {
       zones: zones.map(toZone),
-      garages: garages.map((garage) => ({
-        id: garage.id,
-        name: garage.businessName,
-        phone: garage.phone,
-        lat: garage.lat,
-        lng: garage.lng,
-        zoneId: zoneFor(garage, zones)?.id ?? null,
-        live: isListedToCustomers(garage),
-        stage: garageStage(garage),
-      })),
+      garages: garages.map((garage) => {
+        // The city's switch (0069) is part of Live, as on the Garages list.
+        const listed = { ...garage, cityShown: cityRules.standingOf(garage).cityShown }
+        return {
+          id: garage.id,
+          name: garage.businessName,
+          phone: garage.phone,
+          lat: garage.lat,
+          lng: garage.lng,
+          zoneId: zoneFor(garage, zones)?.id ?? null,
+          live: isListedToCustomers(listed),
+          stage: garageStage(listed),
+        }
+      }),
       leads: leads.map(toLeadResponse),
       finder: { google: sources.google !== null, ola: sources.ola !== null },
       demand,

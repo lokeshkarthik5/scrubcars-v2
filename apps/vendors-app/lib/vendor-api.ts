@@ -60,9 +60,12 @@ export const updateVendorJobTypes = (data: {
   dropinEnabled?: boolean;
   doorstepEnabled?: boolean;
   doorstepRadiusKm?: number;
+  /** "All over <city>" (0069). On needs the pin inside a city. */
+  doorstepWholeCity?: boolean;
   pickupEnabled?: boolean;
   pickupRadiusKm?: number | null;
   pickupTermsAccepted?: boolean;
+  pickupWholeCity?: boolean;
 }) => apiClient<ApiVendorProfile>('/vendors/me/job-types', { method: 'PATCH', body: JSON.stringify(data) });
 
 export const updateSlotInterval = (slotIntervalMins: 30 | 45 | 60) =>

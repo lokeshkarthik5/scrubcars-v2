@@ -52,7 +52,9 @@ import { ratingsFor } from '../reviews/reviews.service.js'
 import { vendorsRepository } from './vendors.repository.js'
 import { slotAlertsService } from '../slot-alerts/slot-alerts.service.js'
 import { areaSignupsService } from '../area-signups/area-signups.service.js'
-import { toPublicVendor, type PublicVendorFields } from './vendors.public.js'
+import { citiesService } from '../cities/cities.service.js'
+import { storedWholeCity, WHOLE_CITY_NEEDS_CITY } from '../../lib/cities.js'
+import { publicWholeCity, toPublicVendor, type PublicVendorFields } from './vendors.public.js'
 
 const log = logger.child({ module: 'vendors' })
 
@@ -152,6 +154,17 @@ export type VendorResponse = {
   /** When the responsibility terms were last accepted; null if never. */
   pickupTermsAcceptedAt: string | null
   doorstepRadiusKm: number | null
+  /** "All over <city>" for doorstep (0069): stored answer; it applies while the pin is in a city. */
+  doorstepWholeCity: boolean
+  /** The same for pickup & drop. */
+  pickupWholeCity: boolean
+  /**
+   * The city the garage's pin is in (0069, its stored city_id; lib/cities.ts storedWholeCity), for the
+   * travel choice's "All over Chennai"; null when it is in none, and the
+   * choice then says to pin it inside a city first. Only on the garage's own
+   * reads that show that choice (GET /vendors/me, job types, profile).
+   */
+  garageCity?: { name: string; reachKm: number } | null
   geoSource: GeoSource
   /** Set when an admin confirmed the pin on a map. Null means nobody has. */
   geoConfirmedAt: string | null
@@ -218,6 +231,10 @@ export type VendorListItemResponse = {
    * it is for "Can collect your car" (0062). Null too when it does not collect.
    */
   pickupRadiusKm: number | null
+  /** "All over <city>" (0069), as on the garage page (vendors.public.ts publicWholeCity). */
+  doorstepWholeCity: boolean
+  pickupWholeCity: boolean
+  reachCity: PublicVendorFields['reachCity']
   startingPrice: number | null
   // The counted reviews' score (0065, lib/ratings.ts): null for a new garage
   // (fewer than 3 counted reviews), which shows "New on Detlio" instead.
@@ -504,6 +521,8 @@ function toVendorResponse(vendor: VendorRecord): VendorResponse {
     pickupEnabled: isPickupOffered(vendor),
     pickupTermsAcceptedAt: vendor.pickupTermsAcceptedAt?.toISOString() ?? null,
     doorstepRadiusKm: vendor.doorstepRadiusKm,
+    doorstepWholeCity: vendor.doorstepWholeCity,
+    pickupWholeCity: vendor.pickupWholeCity,
     geoSource: vendor.geoSource,
     geoConfirmedAt: vendor.geoConfirmedAt?.toISOString() ?? null,
     bays: vendor.bays,
@@ -518,6 +537,26 @@ function toVendorResponse(vendor: VendorRecord): VendorResponse {
     bookingsPausedReason: vendor.bookingsPausedReason,
     createdAt: vendor.createdAt.toISOString(),
   }
+}
+
+/** The garage's own vendor with the city its pin is in (0069), for its travel choice. */
+async function toVendorResponseWithCity(vendor: VendorRecord): Promise<VendorResponse> {
+  const { cities } = await citiesService.rules()
+  const city = storedWholeCity(vendor, cities)
+  return { ...toVendorResponse(vendor), garageCity: city ? { name: city.name, reachKm: city.reachKm } : null }
+}
+
+/**
+ * Removes a garage's logo or gallery object from storage, unless another
+ * garage still shows it: a branch (0069) reuses its first garage's stored
+ * logo and photos, so the object goes only with the last garage using it.
+ */
+export async function deleteGarageFileIfUnused(key: string) {
+  if (await vendorsRepository.garageFileInUse(key)) {
+    log.info({ key }, 'vendor:file_kept_shared')
+    return
+  }
+  await deleteObject(key)
 }
 
 function toClosureResponse(
@@ -834,7 +873,7 @@ export async function vendorCardsFor(
   )
 
   const today = todayDateKey()
-  const [ratings, closures, tiers] = await Promise.all([
+  const [ratings, closures, tiers, cityRules] = await Promise.all([
     ratingsFor(rows.map((vendor) => vendor.id)),
     vendorsRepository.listClosuresForVendors(
       rows.map((vendor) => vendor.id),
@@ -842,6 +881,8 @@ export async function vendorCardsFor(
       addDaysToDateKey(today, LISTING_CLOSURE_DAYS_AHEAD)
     ),
     tiersService.customerTiers(rows.map((vendor) => vendor.id)),
+    // "All over <city>" (0069) on the cards: one read of the cities.
+    citiesService.rules(),
   ])
   const closuresByVendor = new Map<string, string[]>()
   for (const closure of closures) {
@@ -871,6 +912,7 @@ export async function vendorCardsFor(
       dropinEnabled: vendor.dropinEnabled,
       pickupEnabled: isPickupOffered(vendor),
       pickupRadiusKm: isPickupOffered(vendor) ? vendor.pickupRadiusKm : null,
+      ...publicWholeCity(vendor, storedWholeCity(vendor, cityRules.cities)),
       startingPrice: computeStartingPrice(vendor.services),
       rating: rating?.rating ?? null,
       reviewCount: rating?.reviewCount ?? 0,
@@ -1103,17 +1145,21 @@ export const vendorsService = {
       throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
     }
 
-    const [photos, services, ratings, tiers] = await Promise.all([
+    const [photos, services, ratings, tiers, cityRules] = await Promise.all([
       vendorsRepository.listPhotos(vendor.id),
       vendorsRepository.listServices(vendor.id, true),
       ratingsFor([vendor.id]),
       tiersService.customerTiers([vendor.id]),
+      citiesService.rules(),
     ])
 
     const rating = ratings.get(vendor.id)
 
     return {
-      ...toPublicVendor(vendor, { tier: tiers.get(vendor.id) ?? null }),
+      ...toPublicVendor(vendor, {
+        tier: tiers.get(vendor.id) ?? null,
+        reachCity: storedWholeCity(vendor, cityRules.cities),
+      }),
       photos: photos.map(toPhotoResponse),
       services: services.map((service) => toServiceResponse(service, service.images, 'public')),
       rating: rating?.rating ?? null,
@@ -1126,7 +1172,7 @@ export const vendorsService = {
 
   async getMyVendor(vendorId: string) {
     const vendor = await getTenantVendor(vendorId)
-    return toVendorResponse(vendor)
+    return toVendorResponseWithCity(vendor)
   },
 
   async createVendor(ownerId: string, input: CreateVendorInput) {
@@ -1180,7 +1226,7 @@ export const vendorsService = {
           }
         : {}),
     })
-    return toVendorResponse(updated)
+    return toVendorResponseWithCity(updated)
   },
 
   async getDoorstepArea(vendorId: string) {
@@ -1225,6 +1271,14 @@ export const vendorsService = {
     // At the garage needs the address customers drive to (0064).
     if (atGarageAddressRefused(vendor, { dropinEnabled: input.dropinEnabled })) {
       throw addressRequired()
+    }
+
+    // "All over <city>" on (0069) needs the garage's pin inside a city.
+    if (input.doorstepWholeCity === true || input.pickupWholeCity === true) {
+      const { cities } = await citiesService.rules()
+      if (!storedWholeCity(vendor, cities)) {
+        throw new AppError(400, WHOLE_CITY_NEEDS_CITY, 'WHOLE_CITY_NEEDS_CITY')
+      }
     }
 
     // Pickup & drop (0037): turning it on records the owner's tick that the
@@ -1273,13 +1327,15 @@ export const vendorsService = {
       ...(input.doorstepRadiusKm !== undefined && {
         doorstepRadiusKm: input.doorstepRadiusKm,
       }),
+      ...(input.doorstepWholeCity !== undefined && { doorstepWholeCity: input.doorstepWholeCity }),
+      ...(input.pickupWholeCity !== undefined && { pickupWholeCity: input.pickupWholeCity }),
       ...pickupPatch,
     }
     // Turning off what is already off leaves nothing to write.
-    if (Object.keys(patch).length === 0) return toVendorResponse(vendor)
+    if (Object.keys(patch).length === 0) return toVendorResponseWithCity(vendor)
 
     const [updated] = await vendorsRepository.updateVendor(vendor.id, patch)
-    return toVendorResponse(updated)
+    return toVendorResponseWithCity(updated)
   },
 
   // ─── Holidays and pausing ──────────────────────────────────────────────────
@@ -1498,7 +1554,7 @@ export const vendorsService = {
 
     // Remove the old logo object once the new one is saved.
     if (previousKey && previousKey !== storageKey) {
-      await deleteObject(previousKey)
+      await deleteGarageFileIfUnused(previousKey)
     }
 
     log.info({ vendorId: vendor.id }, 'vendor:logo-updated')
@@ -1515,7 +1571,7 @@ export const vendorsService = {
 
     const key = vendor.logoStorageKey ?? keyFromPublicUrl(vendor.logoUrl ?? '')
     if (key) {
-      await deleteObject(key)
+      await deleteGarageFileIfUnused(key)
     }
 
     log.info({ vendorId: vendor.id }, 'vendor:logo-removed')
@@ -1607,10 +1663,11 @@ export const vendorsService = {
 
     const [deleted] = await vendorsRepository.deletePhoto(vendor.id, photoId)
 
-    // Best-effort remove the underlying object so storage doesn't leak.
+    // Best-effort remove the underlying object so storage doesn't leak,
+    // unless a branch (0069) still shows the same file.
     const key = deleted.storageKey ?? keyFromPublicUrl(deleted.url)
     if (key) {
-      await deleteObject(key)
+      await deleteGarageFileIfUnused(key)
     }
 
     return toPhotoResponse(deleted)
@@ -2086,7 +2143,10 @@ export const vendorsService = {
       throw new AppError(404, 'Service not found', 'SERVICE_NOT_FOUND')
     }
 
-    const vendor = await vendorsRepository.findPublicVendorById(vendorId)
+    // The booking already exists, so the city's switch (0069) does not
+    // apply: the customer can move it whether or not new customers can find
+    // the garage.
+    const vendor = await vendorsRepository.findVendorForItsBookings(vendorId)
     if (!vendor) {
       throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
     }
@@ -2106,6 +2166,12 @@ export const vendorsService = {
   /**
    * The garage's holidays over the next couple of months, as IST date keys,
    * so the customer's picker can grey them out like weekly off days.
+   *
+   * Read without the city's switch (0069), like the reschedule times: the
+   * reschedule sheet's picker asks for these, and a customer who booked
+   * before the city went off must still see which days are closed. Holidays
+   * and hours say nothing a booking customer can't already see, and a garage
+   * in the Bin or not live is still a 404.
    */
   /**
    * "Next free" for the garage list's cards (lib/next-free.ts): for each id,
@@ -2165,7 +2231,7 @@ export const vendorsService = {
   },
 
   async getPublicClosures(vendorId: string): Promise<string[]> {
-    const vendor = await vendorsRepository.findPublicVendorById(vendorId)
+    const vendor = await vendorsRepository.findVendorForItsBookings(vendorId)
 
     if (!vendor) {
       throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
@@ -2180,8 +2246,9 @@ export const vendorsService = {
     return closures.map((closure) => closure.date)
   },
 
+  /** Read without the city's switch, as getPublicClosures and for the same reason. */
   async getPublicWorkingHours(vendorId: string) {
-    const vendor = await vendorsRepository.findPublicVendorById(vendorId)
+    const vendor = await vendorsRepository.findVendorForItsBookings(vendorId)
 
     if (!vendor) {
       throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')

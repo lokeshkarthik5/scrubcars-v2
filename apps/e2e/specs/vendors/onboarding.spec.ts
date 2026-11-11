@@ -61,13 +61,14 @@ test('a new owner signs up and is taken through all four steps @p0', async ({ pa
   await expect(page).toHaveURL(/\/onboarding\/step-3/)
 
   // The doorstep distance is optional (the default 10 km applies when it is
-  // left empty), but one given must be in range before Continue lets it through.
+  // left empty), but one given must be in range (1 to 300 km since the 30 km
+  // top was lifted, 0069) before Continue lets it through.
   await page.getByRole('radio', { name: 'I also go to them' }).click()
   const continueStep3 = page.getByRole('button', { name: /Continue/i })
   const radius = page.getByLabel('Up to how many km from your garage?')
   await expect(radius).toHaveAttribute('placeholder', 'Default 10 km')
   await expect(continueStep3).toBeEnabled()
-  await radius.fill('45')
+  await radius.fill('301')
   await expect(continueStep3).toBeDisabled()
   await radius.fill('8')
   await page.getByLabel('How many cars can you work on at the same time?').fill('2')

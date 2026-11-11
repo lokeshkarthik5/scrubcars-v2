@@ -267,30 +267,42 @@ test.describe('remove and undo in admin @p0', () => {
   test('Coverage: a dismissed recommendation restored to act on', async ({
     page,
   }) => {
+    // Dismissed, as seeded: a retry after a restore would find no Dismissed.
+    await sql`
+      update garage_recommendations
+         set status = 'declined', lead_id = null, handled_by = 'E2E seed', handled_at = now() - interval '1 day'
+       where id = ${P.dismissed.id}
+    `
     await page.goto('/coverage?zone=none')
     const drawer = page.getByRole('dialog', { name: 'Not in a zone' })
+    // Exact: "Recommendations for …" is also the tail of "Dismissed
+    // recommendations for …", and a substring match finds the name in the
+    // dismissed list before the restore has happened.
     const dismissedList = drawer.getByRole('list', {
       name: 'Dismissed recommendations for Not in a zone',
+      exact: true,
+    })
+    const activeList = drawer.getByRole('list', {
+      name: 'Recommendations for Not in a zone',
+      exact: true,
     })
     await drawer.getByRole('button', { name: /^Dismissed · / }).click()
     await expect(dismissedList.getByText(P.dismissed.name)).toBeVisible()
     await drawer.getByRole('button', { name: /^Hide dismissed · / }).click()
     await expect(dismissedList).toHaveCount(0)
     await drawer.getByRole('button', { name: /^Dismissed · / }).click()
-    await drawer
-      .getByRole('list', {
-        name: 'Dismissed recommendations for Not in a zone',
-      })
+    await dismissedList
       .getByRole('button', { name: `Restore ${P.dismissed.name}` })
       .click()
-    await expect(
-      drawer
-        .getByRole('list', { name: 'Recommendations for Not in a zone' })
-        .getByText(P.dismissed.name)
-    ).toBeVisible()
-    const [rec] = await sql<{ status: string; handled_by: string | null }[]>`
-      select status, handled_by from garage_recommendations where id = ${P.dismissed.id}
-    `
-    expect(rec).toEqual({ status: 'new', handled_by: null })
+    await expect(activeList.getByText(P.dismissed.name)).toBeVisible()
+    await expect(dismissedList.getByText(P.dismissed.name)).toHaveCount(0)
+    await expect
+      .poll(async () => {
+        const [rec] = await sql<{ status: string; handled_by: string | null }[]>`
+          select status, handled_by from garage_recommendations where id = ${P.dismissed.id}
+        `
+        return rec
+      })
+      .toEqual({ status: 'new', handled_by: null })
   })
 })
