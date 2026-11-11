@@ -2064,6 +2064,102 @@ export const ADD_ONS = {
 } as const
 
 /**
+ * The owner deletes anything (10 Nov 2026; ids 7300–7399, phones 90000073xx
+ * and bookings `de1e69xx` only): a second personal admin login that is not
+ * the owner (`teammate`, minted as the 'admin-teammate' session, for the
+ * "anyone else keeps the old rules" checks) and one the owner deletes
+ * (`doomedLogin`); a listed garage far from every other fixture with its own
+ * owner and two customers; and the rows the owner deletes.
+ *
+ * - bookings.live: `customer`'s accepted at-garage job tomorrow, paid with
+ *   live money and not marked Test. The owner marks it from the bookings
+ *   list and deletes it; its slot is free again after.
+ * - bookings.teammateLive: marked Test, live money not refunded: the
+ *   teammate gets the old refusal (refund it first).
+ * - bookings.reviewed: a completed job with `review`, a job photo and a
+ *   "book directly" report; bookings.discounted: a completed job that used
+ *   `discount` (so the code is in use).
+ * - leaving: a customer with a booking still on (bookings.leavingOpen),
+ *   whose account the owner deletes from the Customers page.
+ * - zone: a zone of its own, far from everything, with `customer` and
+ *   `leaving` signed up to it.
+ * - keptReview, keptComplaint: on bookings.teammateLive, never deleted, so
+ *   the teammate's checks never race the owner's deletes in another file.
+ * - paidGarage: a test garage in the Bin with a payout (owner, 10 Nov 2026:
+ *   the owner's Delete forever erases it completely). Two completed jobs
+ *   (bookings.paidLive with live money, bookings.paidFake with E2E money),
+ *   both on one payout; its owner has no other garage.
+ */
+export const OWNER_DELETE = {
+  teammate: { id: id(7300), username: 'e2e-teammate', name: 'E2E Teammate', password: 'teammate-e2e-password' },
+  doomedLogin: { id: id(7301), username: 'e2e-doomed', name: 'Doomed E2E', password: 'doomed-e2e-password' },
+  customer: { id: id(7302), phone: '9000007302', name: 'Owner Test Oviya', vehicleId: id(7303) },
+  leaving: { id: id(7304), phone: '9000007304', name: 'Leaving Lavanya', vehicleId: id(7305) },
+  owner: { id: id(7306), phone: '9000007306', name: 'Owner Delete Garage Owner' },
+  /**
+   * Pinned near Nashik (20° N, 74° E), over 700 km from every other fixture,
+   * so it never sits beside another garage in a nearest-first list (the list
+   * sorts on sphere distance and shows the spheroid's, so two garages a few
+   * hundred metres apart in distance from ORIGIN can swap places).
+   */
+  garage: {
+    id: id(7310), name: 'Owner Delete Car Spa', serviceId: id(7311), serviceName: 'Owner Delete Wash',
+    lat: 20.0, lng: 74.0,
+  },
+  bookings: {
+    live: refId('de1e6901'),
+    teammateLive: refId('de1e6902'),
+    reviewed: refId('de1e6903'),
+    discounted: refId('de1e6904'),
+    leavingOpen: refId('de1e6905'),
+    /** Each has a redo claim: one whose redo booking is gone, one whose redo is still there. */
+    claimed: refId('de1e6906'),
+    claimedRedo: refId('de1e6907'),
+    redo: refId('de1e6908'),
+    paidLive: refId('de1e6910'),
+    paidFake: refId('de1e6911'),
+  },
+  /** The hour (IST, tomorrow) bookings.live holds; the garage has one bay. */
+  liveHour: 11,
+  review: id(7320),
+  complaint: id(7321),
+  /** On bookings.teammateLive, never deleted: what the teammate looks at. */
+  keptReview: id(7331),
+  keptComplaint: id(7332),
+  discount: { id: id(7322), code: 'OWNERDEL50' },
+  notice: id(7323),
+  jobPhoto: id(7324),
+  bypassReport: id(7325),
+  gift: id(7326),
+  challenge: { id: id(7327), title: 'E2E owner delete challenge' },
+  zone: { id: id(7330), slug: 'e2e-owner-delete', name: 'E2E Owner Delete Zone', lat: 10.0, lng: 77.0 },
+  /** Redo claims: its redo booking gone (deletable), and still there (409 GUARANTEE_REDO_EXISTS). */
+  claim: id(7333),
+  claimWithRedo: id(7334),
+  /**
+   * A printed coupon batch of two codes (seq 0 and 1, derived under the E2E
+   * secret like any batch): code 0 redeemed by the customer for 2 bonus
+   * stamps, code 1 never used.
+   */
+  paidGarage: {
+    id: id(7350), name: 'Owner Delete Paid Garage', serviceId: id(7351), lat: 20.05, lng: 74.05,
+    owner: { id: id(7352), phone: '9000007352', name: 'Paid Garage Owner' },
+    customer: { id: id(7353), phone: '9000007353', name: 'Paid Garage Pavithra', vehicleId: id(7354) },
+    /** What it paid on each job: 420 + 380. */
+    payout: { id: id(7355), reference: 'UTR-OWNERDEL-7355', amount: '800.00', lines: ['420.00', '380.00'] },
+    payoutItems: [id(7356), id(7357)],
+  },
+  coupons: {
+    batchId: id(7340),
+    name: 'E2E owner delete coupons',
+    redeemedCode: id(7341),
+    freeCode: id(7342),
+    redemption: id(7343),
+    stamp: id(7344),
+  },
+} as const
+
+/**
  * Cities, branches and "All over the city" (0069; ids 6900–6949, phones
  * 90000069xx). Every garage here sits far from Chennai, from every other
  * fixture and from every spec's origin (around 15°–16° N, 77°–78° E: over

@@ -1,6 +1,13 @@
 import { and, asc, eq, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
-import { vendors, zoneSignups, zones } from '../../db/schema.js'
+import {
+  adminAuditLog,
+  garageRecommendations,
+  leads,
+  vendors,
+  zoneSignups,
+  zones,
+} from '../../db/schema.js'
 import { vendorNotInBin } from '../vendors/vendors.predicates.js'
 import type { Conn } from '../leads/leads.repository.js'
 
@@ -117,6 +124,55 @@ export const coverageRepository = {
       .from(zoneSignups)
       .where(eq(zoneSignups.zoneId, zoneId))
       .then(([row]) => row?.count ?? 0)
+  },
+
+  /**
+   * The owner's "Delete anyway" (10 Nov 2026): takes everything off a zone
+   * so its row can go. Leads and recommendations are set to no zone (pinned
+   * leads are then re-zoned by the caller); customers' sign-ups go, with any
+   * free wash they held (the code itself stays, unlinked). Returns the counts.
+   */
+  async detachZone(zoneId: string, conn: Conn) {
+    const movedLeads = await conn
+      .update(leads)
+      .set({ zoneId: null })
+      .where(eq(leads.zoneId, zoneId))
+      .returning({ id: leads.id })
+    const recommendations = await conn
+      .update(garageRecommendations)
+      .set({ zoneId: null })
+      .where(eq(garageRecommendations.zoneId, zoneId))
+      .returning({ id: garageRecommendations.id })
+    const signups = await conn
+      .delete(zoneSignups)
+      .where(eq(zoneSignups.zoneId, zoneId))
+      .returning({ userId: zoneSignups.userId })
+    return {
+      leads: movedLeads.length,
+      recommendations: recommendations.length,
+      signups: signups.length,
+    }
+  },
+
+  /** Deletes a zone whatever requests name it (they keep its slug, as sent). False when it is not there. */
+  async deleteZoneAnyway(zoneId: string, conn: Conn): Promise<boolean> {
+    const rows = await conn
+      .delete(zones)
+      .where(eq(zones.id, zoneId))
+      .returning({ id: zones.id })
+    return rows.length > 0
+  },
+
+  async insertAudit(
+    entry: {
+      action: string
+      actorSub: string
+      actorName: string
+      summary: Record<string, unknown>
+    },
+    conn: Conn
+  ) {
+    await conn.insert(adminAuditLog).values({ ...entry, detail: {} })
   },
 
   transaction<T>(

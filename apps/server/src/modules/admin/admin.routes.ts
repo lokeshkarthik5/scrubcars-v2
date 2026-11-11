@@ -52,6 +52,8 @@ import { adminCityRoutes } from '../cities/cities.routes.js'
 import { adminLeadsRoutes } from '../leads/leads.routes.js'
 import { adminBookingRequestRoutes } from '../booking-requests/booking-requests.routes.js'
 import { adminPlacesRoutes } from '../places/places.routes.js'
+import { adminOwnerDeleteRoutes } from '../owner-delete/owner-delete.routes.js'
+import { adminCustomerRoutes } from '../admin-customers/admin-customers.routes.js'
 import * as adminController from './admin.controller.js'
 import {
   adminCancelBookingSchema,
@@ -206,6 +208,12 @@ adminRoutes.route('/', adminGarageClosureRoutes)
 // the cookie's sake, like the Bin.
 adminRoutes.route('/', adminOnboardingMarkRoutes)
 adminRoutes.route('/', adminCollectionListRoutes)
+// The owner deletes anything (10 Nov 2026): /owner-delete/* hard deletes,
+// owner only. Its own module; mounted at the root for the cookie's sake.
+adminRoutes.route('/', adminOwnerDeleteRoutes)
+// The Customers page (10 Nov 2026): search, a customer's page, and the
+// owner's Delete customer account.
+adminRoutes.route('/customers', adminCustomerRoutes)
 
 // Pause / resume new bookings on a garage's behalf. POST rather than the
 // PATCH of verify/archive: these are actions with a body (the reason), not a

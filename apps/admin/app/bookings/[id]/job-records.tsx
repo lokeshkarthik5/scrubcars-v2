@@ -27,6 +27,8 @@ import { finalBillStatusLabel } from '@repo/core/job-records'
 import { CopyButton } from '@/components/copy-button'
 import { SignedAs } from '@/components/signed-as'
 import { formatRupees, formatWhen } from '@/lib/bookings'
+import { useOwnerDeleteJobPhoto } from '@repo/core/api/hooks/use-admin-owner-delete'
+import { OwnerDeleteButton } from '@/components/owner-delete'
 
 const STATUS_VARIANT: Record<
   AdminFinalBill['status'],
@@ -295,6 +297,7 @@ export function JobPhotosSection({
 }) {
   const [waiving, setWaiving] = useState(false)
   const undoWaiver = useUndoAdminJobPhotosWaiver()
+  const removePhoto = useOwnerDeleteJobPhoto()
   const photos = booking.photos ?? []
   const standard = booking.photoStandard
   const waiver = booking.photosWaiver ?? null
@@ -415,6 +418,23 @@ export function JobPhotosSection({
                     <p className="font-numeric text-[12px] leading-[14px] text-text-muted">
                       {formatWhen(photo.createdAt)}
                     </p>
+                    {/* The owner's delete of one photo (10 Nov 2026). */}
+                    <OwnerDeleteButton
+                      label="Delete…"
+                      title={`Delete this ${label.toLowerCase()} photo?`}
+                      confirmLabel="Delete photo"
+                      done="Photo deleted"
+                      className="min-h-11 px-2 text-[12px]"
+                      body={
+                        <p>
+                          The {angleLabel(photo.angle).toLowerCase()} photo by{' '}
+                          {who} goes for good, for the garage and the customer
+                          too. It can matter in a dispute, so only delete one
+                          taken by mistake.
+                        </p>
+                      }
+                      onDelete={() => removePhoto.mutateAsync(photo.id)}
+                    />
                   </li>
                 )
               })}

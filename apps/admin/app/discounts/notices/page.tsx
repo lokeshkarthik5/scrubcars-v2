@@ -18,6 +18,8 @@ import type { AdminNotice, NoticeState } from '@repo/core/api/admin'
 import { istDateTimeLabel, istWindowLabel } from '@repo/core/ist-input'
 import { DiscountsTabs } from '@/components/discounts-tabs'
 import { Meta } from '@/components/meta'
+import { useOwnerDeleteNotice } from '@repo/core/api/hooks/use-admin-owner-delete'
+import { OwnerDeleteButton } from '@/components/owner-delete'
 
 const SECTIONS: {
   state: NoticeState
@@ -47,6 +49,7 @@ export default function AdminNoticesPage() {
   const { data: notices = [], isPending, error, refetch } = useAdminNotices()
   // Its failure is said in the sheet (below), from the call's own promise.
   const endNotice = useEndNotice()
+  const removeNotice = useOwnerDeleteNotice()
 
   useEffect(() => {
     if (isAuthError(error)) router.replace('/login')
@@ -205,7 +208,7 @@ export default function AdminNoticesPage() {
                         >
                           <IconPencil size={14} aria-hidden="true" /> Edit
                         </ScButtonLink>
-                        {/* No delete, as the API has none: ending keeps the record. */}
+                        {/* Ending keeps the record; only the owner deletes (below). */}
                         {notice.state !== 'ended' && (
                           <ScButton
                             fullWidth={false}
@@ -221,6 +224,22 @@ export default function AdminNoticesPage() {
                             End now
                           </ScButton>
                         )}
+                        {/* The owner's delete (10 Nov 2026); ending keeps the record. */}
+                        <OwnerDeleteButton
+                          label="Delete…"
+                          title={`Delete “${notice.title}”?`}
+                          confirmLabel="Delete notice"
+                          done="Notice deleted"
+                          className={`ml-auto ${ROW_ACTION}`}
+                          body={
+                            <p>
+                              It goes from this list for good, and from
+                              customers&apos; Home and Updates if it is showing.
+                              End keeps it on record instead.
+                            </p>
+                          }
+                          onDelete={() => removeNotice.mutateAsync(notice.id)}
+                        />
                       </div>
                     </ScCard>
                   </Reveal>

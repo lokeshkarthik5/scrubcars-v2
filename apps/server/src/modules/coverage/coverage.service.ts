@@ -15,6 +15,11 @@ import {
   zoneRemovalBlock,
   type ZoneDemand,
 } from '../../lib/zone-demand.js'
+import {
+  typedConfirmMatches,
+  zoneDeleteLines,
+  type ZoneUse,
+} from '../../lib/owner-delete.js'
 import { zoneFor } from '../../lib/zones.js'
 import { areaSignupsRepository } from '../area-signups/area-signups.repository.js'
 import { bookingRequestsRepository } from '../booking-requests/booking-requests.repository.js'
@@ -201,6 +206,17 @@ function asZoneWriteError(err: unknown): never {
   throw err
 }
 
+/** What a zone in use holds, counted the way the refusal counts it. */
+async function zoneUseOf(zone: ZoneRecord): Promise<ZoneUse> {
+  const [leads, signups, requests, recommendations] = await Promise.all([
+    leadsRepository.countInZone(zone.id),
+    coverageRepository.countSignupsInZone(zone.id),
+    bookingRequestsRepository.countInZone(zone.slug),
+    leadsRepository.countRecommendationsInZone(zone.id),
+  ])
+  return { leads, signups, requests, recommendations }
+}
+
 export const coverageService = {
   /**
    * The Coverage page in one read: every zone, every garage not in the Bin
@@ -349,18 +365,7 @@ export const coverageService = {
   async removeZone(id: string, now = new Date()): Promise<{ removed: true }> {
     const zone = await coverageRepository.findZone(id)
     if (!zone) throw zoneNotFound()
-    const [leads, signups, requests, recommendations] = await Promise.all([
-      leadsRepository.countInZone(id),
-      coverageRepository.countSignupsInZone(id),
-      bookingRequestsRepository.countInZone(zone.slug),
-      leadsRepository.countRecommendationsInZone(id),
-    ])
-    const blocked = zoneRemovalBlock(zone.name, {
-      leads,
-      signups,
-      requests,
-      recommendations,
-    })
+    const blocked = zoneRemovalBlock(zone.name, await zoneUseOf(zone))
     if (blocked) throw new AppError(409, blocked, 'ZONE_IN_USE')
     const inUse = () =>
       new AppError(
@@ -388,5 +393,72 @@ export const coverageService = {
     clearZonesCache()
     log.info('coverage:zone_removed')
     return { removed: true }
+  },
+
+  /** What the owner's "Delete anyway" would take from a zone, a line each. */
+  async zoneUse(id: string) {
+    const zone = await coverageRepository.findZone(id)
+    if (!zone) throw zoneNotFound()
+    const use = await zoneUseOf(zone)
+    return {
+      zone: { id: zone.id, name: zone.name },
+      use,
+      lines: zoneDeleteLines(use),
+    }
+  },
+
+  /**
+   * Deletes a zone in use (the owner, 10 Nov 2026; everyone else gets 409
+   * ZONE_IN_USE from removeZone): leads and recommendations are left with no
+   * zone (a pinned lead then goes to the zone its pin is in), customers'
+   * sign-ups go, and requests keep the zone's name as sent. The zone's name
+   * is typed to confirm. One transaction with its audit row.
+   */
+  async removeZoneAnyway(
+    actor: { sub: string; name: string },
+    id: string,
+    confirmText: string,
+    now = new Date()
+  ): Promise<{
+    removed: true
+    detached: { leads: number; recommendations: number; signups: number }
+  }> {
+    const zone = await coverageRepository.findZone(id)
+    if (!zone) throw zoneNotFound()
+    if (!typedConfirmMatches(confirmText, zone.name)) {
+      throw new AppError(
+        400,
+        `Type ${zone.name} exactly as shown to confirm.`,
+        'CONFIRM_TEXT_MISMATCH'
+      )
+    }
+    const detached = await coverageRepository.transaction(async (tx) => {
+      const counts = await coverageRepository.detachZone(id, tx)
+      if (!(await coverageRepository.deleteZoneAnyway(id, tx)))
+        throw zoneNotFound()
+      const rezoned = await rezoneLeads(tx, now)
+      await coverageRepository.insertAudit(
+        {
+          action: 'zone_deleted_in_use',
+          actorSub: actor.sub,
+          actorName: actor.name,
+          summary: {
+            zoneId: id,
+            zone: zone.name,
+            slug: zone.slug,
+            ...counts,
+            rezoned,
+          },
+        },
+        tx
+      )
+      return counts
+    })
+    clearZonesCache()
+    log.warn(
+      { zoneId: id, by: actor.name, ...detached },
+      'coverage:zone_removed_anyway'
+    )
+    return { removed: true, detached }
   },
 }

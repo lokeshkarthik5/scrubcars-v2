@@ -84,7 +84,9 @@ describe('delete test booking routes', () => {
     const res = await call(`/admin/bookings/${BOOKING}/test-delete/preview`, {}, token)
     expect(res.status).toBe(200)
     expect(res.body.data.selectionHash).toBe(HASH)
-    expect(calls.at(-1)).toEqual({ kind: 'preview', args: [BOOKING, { unknownIds: [] }] })
+    // The shared env login is the owner's break-glass door: the owner's
+    // loosened rules (10 Nov 2026) apply to its dry run.
+    expect(calls.at(-1)).toEqual({ kind: 'preview', args: [BOOKING, { unknownIds: [] }, expect.any(Date), true] })
     expect((await call('/admin/bookings/not-a-uuid/test-delete/preview', {}, token)).status).toBe(400)
     expect((await call(`/admin/bookings/${BOOKING}/test-delete/preview`, { scope: 'x' }, token)).status).toBe(400)
   })
@@ -106,8 +108,10 @@ describe('delete test booking routes', () => {
       token
     )
     expect(done.status).toBe(200)
-    // The shared env login signs as admin, whatever was typed.
+    // The shared env login signs as admin, whatever was typed, and deletes
+    // by the owner's rules.
     expect(done.body.data.by).toBe('admin')
+    expect(calls.at(-1)!.args[4]).toBe(true)
     expect((await call(`/admin/bookings/${BOOKING}/test-delete`, { selectionHash: HASH, confirmText: 'x' })).status).toBe(401)
   })
 })

@@ -31,6 +31,9 @@ import {
   zoneSignups,
 } from '../../db/schema.js'
 
+/** The booking is not marked Test (0032): for the usage figures, never a limit. */
+const NOT_TEST = sql`${bookings.markedTestAt} is null`
+
 export const discountsRepository = {
   findByCode(code: string) {
     return db.query.discounts.findFirst({
@@ -169,18 +172,24 @@ export const discountsRepository = {
    * Usage figures in one grouped pass — never a count query per row.
    *
    * `redemptionCount` is the size of the audit trail (what gates deletion),
-   * `heldCount` is what the limits compare against, and `realizedCount` /
+   * `heldCount` is uses held as the limits count them, and `realizedCount` /
    * `totalSaved` are money that actually landed. Pass a `discountId` to scope
    * the aggregate to one row instead of grouping the whole table.
+   *
+   * The three figures leave out bookings marked Test (owner, 10 Nov 2026: a
+   * test booking "should not add up"), as the coupon figures do. The limit
+   * check itself (countHeld) still counts them: like slots, it never reads
+   * the Test mark, so a code's limit can be reached a little before "Used"
+   * says so when the team tested with it.
    */
   async usageByDiscount(discountId?: string) {
     const rows = await db
       .select({
         discountId: discountRedemptions.discountId,
         redemptionCount: count(),
-        heldCount: sql<number>`count(*) filter (where ${DISCOUNT_HELD})`,
-        realizedCount: sql<number>`count(*) filter (where ${DISCOUNT_REALIZED})`,
-        totalSaved: sql<string>`coalesce(sum(${discountRedemptions.discountAmount}) filter (where ${DISCOUNT_REALIZED}), 0)`,
+        heldCount: sql<number>`count(*) filter (where ${DISCOUNT_HELD} and ${NOT_TEST})`,
+        realizedCount: sql<number>`count(*) filter (where ${DISCOUNT_REALIZED} and ${NOT_TEST})`,
+        totalSaved: sql<string>`coalesce(sum(${discountRedemptions.discountAmount}) filter (where ${DISCOUNT_REALIZED} and ${NOT_TEST}), 0)`,
       })
       .from(discountRedemptions)
       .innerJoin(bookings, eq(bookings.id, discountRedemptions.bookingId))

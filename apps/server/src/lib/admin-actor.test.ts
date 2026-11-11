@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'bun:test'
-import { BREAK_GLASS_SUBJECT, personalAdminSubject, personalLoginId, userIdFromSubject } from './admin-actor.js'
+import {
+  BREAK_GLASS_SUBJECT,
+  canDeleteAnything,
+  personalAdminSubject,
+  personalLoginId,
+  userIdFromSubject,
+} from './admin-actor.js'
 
 const ID = 'e2e00000-0000-4000-8000-000000004100'
 
@@ -19,5 +25,17 @@ describe('admin subjects', () => {
     expect(userIdFromSubject(ID)).toBe(ID)
     expect(userIdFromSubject(BREAK_GLASS_SUBJECT)).toBeNull()
     expect(userIdFromSubject(personalAdminSubject(ID))).toBeNull()
+  })
+})
+
+describe('who may delete anything (owner, 10 Nov 2026)', () => {
+  test('the owner\'s login and the shared break-glass login may', () => {
+    expect(canDeleteAnything({ kind: 'personal', isOwner: true })).toBe(true)
+    expect(canDeleteAnything({ kind: 'shared', isOwner: false })).toBe(true)
+  })
+
+  test('another personal login or a member admin may not', () => {
+    expect(canDeleteAnything({ kind: 'personal', isOwner: false })).toBe(false)
+    expect(canDeleteAnything({ kind: 'member', isOwner: false })).toBe(false)
   })
 })

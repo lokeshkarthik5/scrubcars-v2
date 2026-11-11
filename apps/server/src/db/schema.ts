@@ -2270,7 +2270,9 @@ export const deletedTestPayments = pgTable(
     rootBookingId: uuid('root_booking_id').notNull(),
     bookingReference: varchar('booking_reference', { length: 8 }).notNull(),
     bookingIds: uuid('booking_ids').array().notNull(),
-    kind: text('kind').$type<'booking' | 'final_bill' | 'extra_work'>().notNull(),
+    // 'payout' (0071): a garage payout's line on a booking the owner deleted;
+    // the payout stays on record, or goes with its garage (Delete forever).
+    kind: text('kind').$type<'booking' | 'final_bill' | 'extra_work' | 'payout'>().notNull(),
     chargeId: uuid('charge_id'),
     razorpayPaymentId: varchar('razorpay_payment_id', { length: 255 }),
     razorpayOrderId: varchar('razorpay_order_id', { length: 255 }),
@@ -2303,20 +2305,38 @@ export const deletedTestPayments = pgTable(
       .notNull()
       .references(() => adminAuditLog.id, { onDelete: 'restrict' }),
     deletedAt: timestamp('deleted_at', { withTimezone: true }).defaultNow().notNull(),
+    // The owner's delete (0071): where the money stands (every row before it
+    // is 'refunded'), a line for the record, the Detlio credit that went back
+    // to the customer, and the payout a 'paid_out' line was on (no FK).
+    state: text('state')
+      .$type<'refunded' | 'not_refunded' | 'refund_pending' | 'credit_returned' | 'paid_out'>()
+      .default('refunded')
+      .notNull(),
+    note: varchar('note', { length: 300 }),
+    creditReturned: decimal('credit_returned', { precision: 10, scale: 2 }).default('0').notNull(),
+    vendorPayoutId: uuid('vendor_payout_id'),
   },
   (table) => [
     index('deleted_test_payments_deleted_at_idx').on(table.deletedAt),
     index('deleted_test_payments_payment_idx')
       .on(table.razorpayPaymentId)
       .where(sql`${table.razorpayPaymentId} is not null`),
-    check('deleted_test_payments_kind_check', sql`${table.kind} in ('booking', 'final_bill', 'extra_work')`),
+    check('deleted_test_payments_kind_check', sql`${table.kind} in ('booking', 'final_bill', 'extra_work', 'payout')`),
+    check(
+      'deleted_test_payments_state_check',
+      sql`${table.state} in ('refunded', 'not_refunded', 'refund_pending', 'credit_returned', 'paid_out')`
+    ),
+    check(
+      'deleted_test_payments_payout_check',
+      sql`(${table.kind} = 'payout') = (${table.state} = 'paid_out') and (${table.kind} <> 'payout' or ${table.vendorPayoutId} is not null)`
+    ),
     check(
       'deleted_test_payments_gateway_mode_check',
       sql`${table.gatewayMode} is null or ${table.gatewayMode} in ('live', 'test', 'fake')`
     ),
     check(
       'deleted_test_payments_amount_check',
-      sql`${table.amount} > 0 and ${table.refundedAmount} >= ${table.amount}`
+      sql`${table.refundedAmount} >= 0 and ${table.creditReturned} >= 0 and case when ${table.kind} = 'payout' then ${table.amount} <> 0 else ${table.amount} >= 0 and (${table.amount} > 0 or ${table.creditReturned} > 0) and (${table.state} <> 'refunded' or ${table.refundedAmount} >= ${table.amount}) end`
     ),
     check('deleted_test_payments_reason_check', sql`char_length(btrim(${table.reason})) >= 3`),
     check('deleted_test_payments_refunds_check', sql`jsonb_typeof(${table.refunds}) = 'array'`),

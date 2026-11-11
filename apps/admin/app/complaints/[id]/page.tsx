@@ -33,7 +33,12 @@ import {
 import { cn } from '@repo/core/utils'
 import { CopyButton } from '@/components/copy-button'
 import { Meta } from '@/components/meta'
+import {
+  OwnerDeleteButton,
+  useCanDeleteAnything,
+} from '@/components/owner-delete'
 import { PhoneLink } from '@/components/phone-link'
+import { useOwnerDeleteComplaint } from '@repo/core/api/hooks/use-admin-owner-delete'
 import { formatWhen } from '@/lib/bookings'
 import { useAdminBooking } from '@repo/core/api/hooks/use-admin-bookings'
 import { JobPhotosSection } from '@/app/bookings/[id]/job-records'
@@ -511,7 +516,52 @@ function ComplaintDetail({ id }: { id: string }) {
       <InternalNote key={c.id} c={c} />
 
       {c.source !== 'app' && <LoggedInError key={`error-${c.id}`} c={c} />}
+
+      <DeleteComplaint c={c} onDeleted={() => router.replace(back)} />
     </>
+  )
+}
+
+/**
+ * The owner's Delete complaint (10 Nov 2026): outright, where the team has
+ * "Logged in error", which keeps it. Its number is typed to confirm; the
+ * numbering carries on from the last one. Shown only to the owner.
+ */
+function DeleteComplaint({
+  c,
+  onDeleted,
+}: {
+  c: AdminComplaint
+  onDeleted: () => void
+}) {
+  const remove = useOwnerDeleteComplaint()
+  const canDelete = useCanDeleteAnything()
+  if (!canDelete) return null
+  return (
+    <ScSection title="Delete">
+      <p className="text-[12px] text-text-secondary">
+        Only the owner sees this. Logged in error keeps a complaint on record;
+        this removes it.
+      </p>
+      <OwnerDeleteButton
+        label="Delete complaint…"
+        title={`Delete complaint ${c.number}?`}
+        confirmLabel="Delete complaint"
+        typeToConfirm={c.number}
+        done={`${c.number} deleted`}
+        body={
+          <p>
+            {c.customer?.name ?? 'The customer'}&apos;s complaint and the
+            team&apos;s note go for good. It leaves their My complaints and
+            every count. The next complaint still gets the next number.
+          </p>
+        }
+        onDelete={async () => {
+          await remove.mutateAsync({ id: c.id, confirmText: c.number })
+          onDeleted()
+        }}
+      />
+    </ScSection>
   )
 }
 

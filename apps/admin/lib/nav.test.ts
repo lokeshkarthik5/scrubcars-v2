@@ -17,6 +17,7 @@ describe('the grouped menu', () => {
       '/vendors',
       '/bookings',
       '/requests',
+      '/customers',
       '/complaints',
       '/refunds',
       '/payouts',

@@ -23,6 +23,7 @@ import {
   vendorOnboardingMarks,
   vendorQualityChecks,
   vendorPayoutAccounts,
+  vendorPayouts,
   vendorPhotos,
   vendors,
   vendorServiceAreas,
@@ -91,6 +92,19 @@ function reads(conn: Conn) {
           and(eq(bookings.vendorId, vendorId), inArray(bookings.status, [...UPCOMING_STATUSES]))
         )
         .orderBy(asc(bookings.scheduledAt), asc(bookings.id))
+      return rows.map((row) => row.id)
+    },
+
+    /**
+     * Every payout recorded to the garage. One that is not deleted with its
+     * bookings stays on record (the owner's delete, 10 Nov 2026) and names
+     * the garage ON DELETE RESTRICT, so the garage then stays as a tombstone.
+     */
+    async payoutIdsOf(vendorId: string): Promise<string[]> {
+      const rows = await conn
+        .select({ id: vendorPayouts.id })
+        .from(vendorPayouts)
+        .where(eq(vendorPayouts.vendorId, vendorId))
       return rows.map((row) => row.id)
     },
 
