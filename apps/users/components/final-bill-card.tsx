@@ -31,6 +31,7 @@ import {
   PaymentReceivedPanel,
   paymentReceivedText,
 } from '@/components/payment-received-panel'
+import { fill, useT } from '@repo/core/i18n'
 
 function paidOn(iso: string): string {
   return new Date(iso).toLocaleDateString('en-IN', {
@@ -85,6 +86,7 @@ export function FinalBillCard({
   onUpdated,
   customer,
 }: FinalBillCardProps) {
+  const t = useT()
   const [opening, setOpening] = useState(false)
   // Set once Razorpay reports the bill paid, and never cleared. The page's
   // copy (`paid`) is the lasting one; this closes the gap before it renders.
@@ -98,7 +100,7 @@ export function FinalBillCard({
       const order = await payFinalBill(booking.id, bill.id)
       await openRazorpayCheckout({
         order,
-        description: `Final bill at ${booking.vendorName}`,
+        description: t('Final bill at {vendorName}', { vendorName: booking.vendorName }),
         customer,
         onSuccess: async (response) => {
           const paymentId = response.razorpay_payment_id
@@ -132,7 +134,7 @@ export function FinalBillCard({
             const updated = await getBooking(booking.id)
             if (updated) onUpdated(updated)
             setPaid({ paymentId, phase: 'paid' })
-            toast.success('Final bill paid')
+            toast.success(t('Final bill paid'))
           } else {
             setPaid({
               paymentId,
@@ -148,7 +150,7 @@ export function FinalBillCard({
         },
         onDismiss: () => {
           toast.info(
-            'Payment cancelled. You can pay the bill any time from this page.'
+            t('Payment cancelled. You can pay the bill any time from this page.')
           )
         },
         onFailure: (message) => {
@@ -184,9 +186,9 @@ export function FinalBillCard({
       id="final-bill"
       className="flex scroll-mt-4 flex-col gap-3 px-4 py-4"
     >
-      <h2 className="text-t2 font-medium text-text-primary">Final bill</h2>
+      <h2 className="text-t2 font-medium text-text-primary">{t('Final bill')}</h2>
       <p className="-mt-2 text-t5 text-text-secondary">
-        From {booking.vendorName}, after inspecting your car.
+        {t('From {vendorName}, after inspecting your car.', { vendorName: booking.vendorName })}
       </p>
 
       <ul className="flex flex-col gap-1.5">
@@ -207,13 +209,13 @@ export function FinalBillCard({
 
       <div className="flex flex-col gap-1.5 border-t border-border pt-3 text-t4">
         <div className="flex items-center justify-between">
-          <span className="text-text-secondary">Total</span>
+          <span className="text-text-secondary">{t('Total')}</span>
           <span className="font-numeric font-medium text-text-primary">
             {formatRupees(bill.total)}
           </span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-text-secondary">Paid at booking</span>
+          <span className="text-text-secondary">{t('Paid at booking')}</span>
           <span className="font-numeric font-medium text-text-primary">
             −{formatRupees(bill.paidBefore - discount)}
           </span>
@@ -221,7 +223,7 @@ export function FinalBillCard({
         {discount > 0 && (
           <div className="flex items-center justify-between text-success">
             <span>
-              Discount{booking.discountCode ? ` (${booking.discountCode})` : ''}
+              {t('Discount')}{booking.discountCode ? ` (${booking.discountCode})` : ''}
             </span>
             <span className="font-numeric font-medium">
               −{formatRupees(discount)}
@@ -230,7 +232,7 @@ export function FinalBillCard({
         )}
         <div className="flex items-center justify-between border-t border-border pt-2 text-t3 font-semibold text-text-primary">
           {/* Settled, the figure is what was paid here, not a balance. */}
-          <span>{settled ? 'Paid in the app' : 'To pay'}</span>
+          <span>{settled ? t('Paid in the app') : t('To pay')}</span>
           <span className="font-numeric font-bold">
             {formatRupees(bill.amountDue)}
           </span>
@@ -240,7 +242,7 @@ export function FinalBillCard({
       {bill.note && (
         <p className="text-t5 text-text-secondary">
           <span className="font-medium text-text-primary">
-            Garage&apos;s note:
+            {t("Garage's note:")}
           </span>{' '}
           {bill.note}
         </p>
@@ -250,9 +252,9 @@ export function FinalBillCard({
           change is read out (see the same region on the booking page). */}
       <p role="status" className="sr-only">
         {paid?.phase === 'confirming'
-          ? 'Payment received. Confirming your bill.'
+          ? t('Payment received. Confirming your bill.')
           : settled && paid
-            ? 'Final bill paid.'
+            ? t('Final bill paid.')
             : showPanel && paid
               ? paymentReceivedText(
                   paid.paymentId,
@@ -270,17 +272,15 @@ export function FinalBillCard({
             aria-hidden
           />
           <span>
-            Nothing more to pay. The work came to no more than you paid at
-            booking.
+            {t('Nothing more to pay. The work came to no more than you paid at booking.')}
           </span>
         </p>
       ) : settled ? (
         <p className="flex items-center gap-1.5 text-t4 font-medium text-success">
           <IconCircleCheck size={16} aria-hidden />
-          Paid on{' '}
-          <span className="font-numeric">
+          {fill(t('Paid on {paidOn}'), { paidOn: <span className="font-numeric">
             {paidOn(bill.paidAt ?? new Date().toISOString())}
-          </span>
+          </span> })}
         </p>
       ) : paid?.phase === 'confirming' ? (
         // Graphite with a spinner, not red: a red button that does nothing
@@ -294,7 +294,7 @@ export function FinalBillCard({
             className="shrink-0 animate-spin"
             aria-hidden="true"
           />
-          Payment received — confirming…
+          {t('Payment received — confirming…')}
         </ScButton>
       ) : showPanel && paid ? (
         <PaymentReceivedPanel
@@ -316,13 +316,12 @@ export function FinalBillCard({
           }
         >
           {opening ? (
-            'Opening payment...'
+            t('Opening payment...')
           ) : (
             <>
-              Pay{' '}
-              <span className="font-numeric font-bold">
+              {fill(t('Pay {amountDue}'), { amountDue: <span className="font-numeric font-bold">
                 {formatRupees(bill.amountDue)}
-              </span>
+              </span> })}
             </>
           )}
         </MainAction>

@@ -6,6 +6,7 @@ import { useSlotAlerts } from '@repo/core/api/hooks/use-slot-alerts';
 import { getPushConfig } from '@repo/core/api/push';
 import { createAddress, createVehicle, deleteAddress, deleteVehicle, setDefaultAddress, setDefaultVehicle } from '@repo/core/api/users';
 import { firstNameOf, initialOf } from '@repo/core/home-display';
+import { CUSTOMER_TAMIL, LANGUAGE_NAMES, LANGUAGE_OPTIONS, msg, useLang, useT, useTn } from '@repo/core/i18n';
 import { formatRupees } from '@repo/core/job-records';
 import { stampsToGoLine } from '@repo/core/rewards';
 import { SUPPORT_PHONE_DISPLAY, SUPPORT_TEL_HREF, SUPPORT_WHATSAPP_HREF } from '@repo/core/support';
@@ -16,6 +17,7 @@ import { ScButton, Label } from '@repo/native-ui/button';
 import { Chip } from '@repo/native-ui/chip';
 import { IconCamera, IconCar, IconChevronRight, IconLogout, IconMapPin, IconPencil, IconPlus, IconTrash } from '@repo/native-ui/icons';
 import { ScInput } from '@repo/native-ui/inputs';
+import { LanguageSheet } from '@repo/native-ui/language-sheet';
 import { HubCard, PressRow, ScCard, ScSegmented } from '@repo/native-ui/primitives';
 import { Figures, T } from '@repo/native-ui/text';
 import { createStyles, useColors, useTheme } from '@repo/native-ui/theme';
@@ -45,17 +47,17 @@ import { NO_PIN_TEXT, type PinText, refillFromPin } from '@/lib/pin-autofill';
 import { NumberPlate } from '@/components/moments/number-plate';
 
 const OPTIONS: { value: Appearance; label: string }[] = [
-  { value: 'system', label: 'System' },
-  { value: 'light', label: 'Light' },
-  { value: 'dark', label: 'Dark' },
+  { value: 'system', label: msg('System') },
+  { value: 'light', label: msg('Light') },
+  { value: 'dark', label: msg('Dark') },
 ];
 
 const LEGAL_LINKS = [
-  { label: 'Terms of Use', path: '/terms' },
-  { label: 'Privacy Policy', path: '/privacy' },
-  { label: 'Cancellation & Refunds', path: '/refund-policy' },
-  { label: 'Service delivery', path: '/service-delivery' },
-  { label: 'Contact & grievances', path: '/contact' },
+  { label: msg('Terms of Use'), path: '/terms' },
+  { label: msg('Privacy Policy'), path: '/privacy' },
+  { label: msg('Cancellation & Refunds'), path: '/refund-policy' },
+  { label: msg('Service delivery'), path: '/service-delivery' },
+  { label: msg('Contact & grievances'), path: '/contact' },
 ];
 
 const emptyVehicleForm = { make: '', model: '', licensePlate: '', vehicleType: 'sedan' as VehicleType };
@@ -63,27 +65,43 @@ const emptyAddressForm = { label: '', address: '', city: '', pincode: '', pin: n
 
 /** Approved addition: how the app looks on this phone. */
 function AppearanceCard() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const { appearance, setAppearance } = useTheme();
   return (
     <HubCard radius={22} style={styles.appearance}>
       <T size={15} weight={500}>
-        Appearance
+        {t('Appearance')}
       </T>
       <T size={13} lh={18} color={colors.textSecondary} style={styles.appearanceNote}>
-        How the app looks on this phone. System follows your phone&apos;s setting.
+        {t("How the app looks on this phone. System follows your phone's setting.")}
       </T>
-      <ScSegmented options={OPTIONS} value={appearance} onChange={setAppearance} />
+      <ScSegmented options={OPTIONS.map((option) => ({ ...option, label: t(option.label) }))} value={appearance} onChange={setAppearance} />
     </HubCard>
   );
 }
 
-function Row({ label, sub, href, count, trailing }: { label: string; sub?: string; href: string; count?: string | number | null; trailing?: ReactNode }) {
+function Row({
+  label,
+  sub,
+  href,
+  onPress,
+  count,
+  trailing,
+}: {
+  label: string;
+  sub?: string;
+  href?: string;
+  /** In place of `href`: a row that opens a sheet (Language). */
+  onPress?: () => void;
+  count?: string | number | null;
+  trailing?: ReactNode;
+}) {
   const colors = useColors();
   const styles = useStyles();
   return (
-    <PressRow onPress={() => router.navigate(href as Href)}>
+    <PressRow onPress={onPress ?? (() => router.navigate(href as Href))}>
       <HubCard radius={18} style={styles.rowCard}>
         <View style={styles.flex}>
           <T size={15} lh={20}>
@@ -107,8 +125,42 @@ function Row({ label, sub, href, count, trailing }: { label: string; sub?: strin
   );
 }
 
+/**
+ * The web's Language row (apps/users/components/profile/language-row.tsx): English or
+ * தமிழ் (Tamil), on this phone, signed in or not; the choice on the right in its own
+ * language. It applies at once, everywhere. Hidden while customer Tamil is off (CUSTOMER_TAMIL).
+ */
+function LanguageRow() {
+  if (!CUSTOMER_TAMIL) return null;
+  return <LanguageRowShown />;
+}
+
+function LanguageRowShown() {
+  const t = useT();
+  const colors = useColors();
+  const lang = useLang((s) => s.lang);
+  const setLang = useLang((s) => s.setLang);
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Row
+        label={t('Language')}
+        onPress={() => setOpen(true)}
+        trailing={
+          <T size={13} lh={18} color={colors.textSecondary}>
+            {LANGUAGE_NAMES[lang]}
+          </T>
+        }
+      />
+      <LanguageSheet open={open} onClose={() => setOpen(false)} options={LANGUAGE_OPTIONS} value={lang} onChange={setLang} />
+    </>
+  );
+}
+
 /** apps/users/app/profile/page.tsx. */
 export default function ProfileScreen() {
+  const tn = useTn();
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const params = useLocalSearchParams<{ section?: string }>();
@@ -166,7 +218,7 @@ export default function ProfileScreen() {
 
   const title = (
     <T accessibilityRole="header" variant="title">
-      Profile
+      {t('Profile')}
     </T>
   );
 
@@ -176,15 +228,16 @@ export default function ProfileScreen() {
         {title}
         <View style={styles.guest}>
           <T size={15} weight={600} align="center">
-            Login to view your profile
+            {t('Login to view your profile')}
           </T>
           <T size={13} align="center" color={colors.textSecondary}>
-            Sign in to manage your vehicles and addresses
+            {t('Sign in to manage your vehicles and addresses')}
           </T>
           <ScButton variant="main" fullWidth={false} paddingX={32} onPress={() => router.push('/login?next=%2Fprofile' as Href)} style={styles.login}>
-            Login
+            {t('Login')}
           </ScButton>
         </View>
+        <LanguageRow />
         <AppearanceCard />
       </CustomerShell>
     );
@@ -203,9 +256,9 @@ export default function ProfileScreen() {
       const updated = await uploadAvatarPhoto(uri);
       useUserStore.setState((s) => ({ profile: s.profile ? { ...s.profile, avatarUrl: updated.avatarUrl } : updated }));
       void invalidateHome(queryClient);
-      toast.success('Photo updated');
+      toast.success(t('Photo updated'));
     } catch (err) {
-      toast.error(errorText(err, 'Upload failed'));
+      toast.error(errorText(err, t('Upload failed')));
     } finally {
       setAvatarBusy(false);
     }
@@ -216,9 +269,9 @@ export default function ProfileScreen() {
     try {
       await removeAvatar();
       void invalidateHome(queryClient);
-      toast.success('Photo removed');
+      toast.success(t('Photo removed'));
     } catch (err) {
-      toast.error(errorText(err, 'Failed to remove photo'));
+      toast.error(errorText(err, t('Failed to remove photo')));
     } finally {
       setAvatarBusy(false);
     }
@@ -239,9 +292,9 @@ export default function ProfileScreen() {
       void invalidateHome(queryClient);
       setVehicleForm(emptyVehicleForm);
       setShowVehicleForm(false);
-      toast.success('Vehicle added');
+      toast.success(t('Vehicle added'));
     } catch (err) {
-      toast.error(errorText(err, 'Failed to add vehicle'));
+      toast.error(errorText(err, t('Failed to add vehicle')));
     } finally {
       setSaving(null);
     }
@@ -250,7 +303,7 @@ export default function ProfileScreen() {
   const submitAddress = async () => {
     if (!addressForm.label || !addressForm.address || !addressForm.city || !addressForm.pincode) return;
     if (!/^\d{6}$/.test(addressForm.pincode)) {
-      toast.error('Enter a valid 6-digit pincode');
+      toast.error(t('Enter a valid 6-digit pincode'));
       return;
     }
     setSaving('address');
@@ -268,9 +321,9 @@ export default function ProfileScreen() {
       setAddressForm(emptyAddressForm);
       addressPinText.current = NO_PIN_TEXT;
       setShowAddressForm(false);
-      toast.success('Address added');
+      toast.success(t('Address added'));
     } catch (err) {
-      toast.error(errorText(err, 'Failed to add address'));
+      toast.error(errorText(err, t('Failed to add address')));
     } finally {
       setSaving(null);
     }
@@ -282,9 +335,9 @@ export default function ProfileScreen() {
       await setDefaultVehicle(id);
       useUserStore.setState((s) => ({ vehicles: s.vehicles.map((v) => ({ ...v, isDefault: v.id === id })) }));
       void invalidateHome(queryClient);
-      toast.success('Default vehicle updated');
+      toast.success(t('Default vehicle updated'));
     } catch (err) {
-      toast.error(errorText(err, 'Failed to set default vehicle'));
+      toast.error(errorText(err, t('Failed to set default vehicle')));
     } finally {
       setPromoting(null);
     }
@@ -295,9 +348,9 @@ export default function ProfileScreen() {
     try {
       await setDefaultAddress(id);
       useUserStore.setState((s) => ({ addresses: s.addresses.map((a) => ({ ...a, isDefault: a.id === id })) }));
-      toast.success('Default address updated');
+      toast.success(t('Default address updated'));
     } catch (err) {
-      toast.error(errorText(err, 'Failed to set default address'));
+      toast.error(errorText(err, t('Failed to set default address')));
     } finally {
       setPromoting(null);
     }
@@ -311,9 +364,9 @@ export default function ProfileScreen() {
       // The server may have made another car the default.
       void useUserStore.getState().fetchVehicles().catch(() => undefined);
       void invalidateHome(queryClient);
-      toast.success('Vehicle removed');
+      toast.success(t('Vehicle removed'));
     } catch (err) {
-      toast.error(errorText(err, 'Failed to remove vehicle'));
+      toast.error(errorText(err, t('Failed to remove vehicle')));
     } finally {
       setDeleting(null);
     }
@@ -325,9 +378,9 @@ export default function ProfileScreen() {
       await deleteAddress(id);
       useUserStore.setState((s) => ({ addresses: s.addresses.filter((a) => a.id !== id) }));
       void useUserStore.getState().fetchAddresses().catch(() => undefined);
-      toast.success('Address removed');
+      toast.success(t('Address removed'));
     } catch (err) {
-      toast.error(errorText(err, 'Failed to remove address'));
+      toast.error(errorText(err, t('Failed to remove address')));
     } finally {
       setDeleting(null);
     }
@@ -342,7 +395,7 @@ export default function ProfileScreen() {
   const defaultBadge = (
     <View style={styles.defaultBadge}>
       <T size={11} weight={500} lh={15} color={colors.success}>
-        Default
+        {t('Default')}
       </T>
     </View>
   );
@@ -354,7 +407,7 @@ export default function ProfileScreen() {
       <Pressable accessibilityRole="button" accessibilityLabel={a11y} onPress={onAdd} style={styles.add}>
         <IconPlus size={14} color={colors.textPrimary} />
         <T size={12} weight={500} lh={16}>
-          Add
+          {t('Add')}
         </T>
       </Pressable>
     </View>
@@ -364,7 +417,7 @@ export default function ProfileScreen() {
     <CustomerShell gap={12} scrollRef={scrollRef}>
       {title}
       <HubCard radius={22} style={styles.head}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Change profile photo" disabled={avatarBusy} onPress={() => void pickAvatar()} style={styles.avatar}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('Change profile photo')} disabled={avatarBusy} onPress={() => void pickAvatar()} style={styles.avatar}>
           <LinearGradient colors={[colors.avatarFrom, colors.avatarTo]} style={styles.avatarFill}>
             {profile?.avatarUrl ? (
               <Image source={{ uri: profile.avatarUrl }} style={styles.avatarImage} />
@@ -393,49 +446,50 @@ export default function ProfileScreen() {
           {profile?.avatarUrl ? (
             <Pressable accessibilityRole="button" disabled={avatarBusy} onPress={() => void handleAvatarRemove()} hitSlop={10} style={styles.removePhoto}>
               <T size={12} lh={16} color={colors.textSecondary} style={styles.underline}>
-                Remove photo
+                {t('Remove photo')}
               </T>
             </Pressable>
           ) : null}
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Edit name and email" onPress={() => setEditingProfile(true)} style={styles.icon}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('Edit name and email')} onPress={() => setEditingProfile(true)} style={styles.icon}>
           <IconPencil size={16} color={colors.textSecondary} />
         </Pressable>
       </HubCard>
 
-      <Row label="My bookings" href="/bookings" />
-      <Row label="Saved garages" href="/profile/saved-garages" />
-      {slotAlertCount > 0 ? <Row label="Slot alerts" href="/profile/slot-alerts" count={slotAlertCount} /> : null}
-      <Row label="Coupons" sub="Have a coupon? Add it here" href="/profile/coupons" count={readyCoupons || null} />
+      <Row label={t('My bookings')} href="/bookings" />
+      <Row label={t('Saved garages')} href="/profile/saved-garages" />
+      {slotAlertCount > 0 ? <Row label={t('Slot alerts')} href="/profile/slot-alerts" count={slotAlertCount} /> : null}
+      <Row label={t('Coupons')} sub={t('Have a coupon? Add it here')} href="/profile/coupons" count={readyCoupons || null} />
       {rewardsOn ? (
         <Row
           label="Detlio Rewards"
-          sub={rewardsSummary.data ? `${stampsToGoLine(rewardsSummary.data.card.toGo)}${rewardsSummary.data.extras && rewardsSummary.data.extras.badgesEarned > 0 ? ` · ${rewardsSummary.data.extras.badgesEarned} ${rewardsSummary.data.extras.badgesEarned === 1 ? 'badge' : 'badges'}` : ''}` : undefined}
+          sub={rewardsSummary.data ? `${stampsToGoLine(rewardsSummary.data.card.toGo)}${rewardsSummary.data.extras && rewardsSummary.data.extras.badgesEarned > 0 ? ` · ${tn(rewardsSummary.data.extras.badgesEarned, '{count} badge', '{count} badges')}` : ''}` : undefined}
           href="/profile/rewards"
           trailing={rewardsSummary.data ? <LevelBadge level={rewardsSummary.data.level.level} label={rewardsSummary.data.level.label} /> : null}
         />
       ) : null}
-      {giftsOn ? <Row label="Detlio credit" href="/profile/credit" count={credit.data ? formatRupees(Number(credit.data.balance)) : null} /> : null}
-      {giftsOn ? <Row label="Gift a wash" href="/profile/gifts" /> : null}
-      {notifications ? <Row label="Notifications" href="/profile/notifications" /> : null}
+      {giftsOn ? <Row label={t('Detlio credit')} href="/profile/credit" count={credit.data ? formatRupees(Number(credit.data.balance)) : null} /> : null}
+      {giftsOn ? <Row label={t('Gift a wash')} href="/profile/gifts" /> : null}
+      {notifications ? <Row label={t('Notifications')} href="/profile/notifications" /> : null}
+      <LanguageRow />
       <AppearanceCard />
       <AppLockCard />
 
       <View onLayout={(e) => (sections.current.vehicles = e.nativeEvent.layout.y)} style={styles.section}>
-        {sectionHead('Vehicles', 'Add vehicle', () => setShowVehicleForm((v) => !v))}
+        {sectionHead(t('Vehicles'), t('Add vehicle'), () => setShowVehicleForm((v) => !v))}
         {showVehicleForm ? (
           <ScCard style={styles.form}>
             <View style={styles.pair}>
               <View style={styles.flex}>
-                <ScInput label="Make" placeholder="e.g. Maruti" autoCorrect={false} value={vehicleForm.make} onChangeText={(make) => setVehicleForm((f) => ({ ...f, make }))} />
+                <ScInput label={t('Make')} placeholder={t('e.g. Maruti')} autoCorrect={false} value={vehicleForm.make} onChangeText={(make) => setVehicleForm((f) => ({ ...f, make }))} />
               </View>
               <View style={styles.flex}>
-                <ScInput label="Model" placeholder="e.g. Swift" autoCorrect={false} value={vehicleForm.model} onChangeText={(model) => setVehicleForm((f) => ({ ...f, model }))} />
+                <ScInput label={t('Model')} placeholder={t('e.g. Swift')} autoCorrect={false} value={vehicleForm.model} onChangeText={(model) => setVehicleForm((f) => ({ ...f, model }))} />
               </View>
             </View>
             <ScInput
-              label="License plate (optional)"
-              placeholder="e.g. TN 01 AB 1234"
+              label={t('License plate (optional)')}
+              placeholder={t('e.g. TN 01 AB 1234')}
               autoCapitalize="characters"
               autoCorrect={false}
               value={vehicleForm.licensePlate}
@@ -443,23 +497,23 @@ export default function ProfileScreen() {
             />
             <View style={styles.typeBlock}>
               <T size={11} weight={500} lh={15} color={colors.textSecondary}>
-                Type
+                {t('Type')}
               </T>
               <View style={styles.chips}>
-                {VEHICLE_TIERS.map((t) => (
-                  <Chip key={t.value} label={t.label} selected={vehicleForm.vehicleType === t.value} onPress={() => setVehicleForm((f) => ({ ...f, vehicleType: t.value as VehicleType }))} />
+                {VEHICLE_TIERS.map((tier) => (
+                  <Chip key={tier.value} label={t(tier.label)} selected={vehicleForm.vehicleType === tier.value} onPress={() => setVehicleForm((f) => ({ ...f, vehicleType: tier.value as VehicleType }))} />
                 ))}
               </View>
             </View>
             <View style={styles.pair}>
               <View style={styles.flex}>
                 <ScButton variant="main" disabled={!vehicleForm.make || !vehicleForm.model || saving === 'vehicle'} onPress={() => void submitVehicle()}>
-                  {saving === 'vehicle' ? 'Saving...' : 'Save vehicle'}
+                  {saving === 'vehicle' ? t('Saving...') : t('Save vehicle')}
                 </ScButton>
               </View>
               <View style={styles.flex}>
                 <ScButton variant="outline" onPress={() => setShowVehicleForm(false)}>
-                  Cancel
+                  {t('Cancel')}
                 </ScButton>
               </View>
             </View>
@@ -468,13 +522,13 @@ export default function ProfileScreen() {
         {vehicles.length === 0 && !showVehicleForm ? (
           <ScCard>
             <T size={13} lh={18} color={colors.textSecondary}>
-              No vehicles added yet.
+              {t('No vehicles added yet.')}
             </T>
           </ScCard>
         ) : (
           vehicles.map((v) => (
             <ScCard key={v.id} style={styles.itemCard}>
-              <Pressable accessibilityRole="link" accessibilityLabel={`${v.make} ${v.model}: history`} onPress={() => router.push(`/profile/cars/${v.id}` as Href)} style={styles.itemLink}>
+              <Pressable accessibilityRole="link" accessibilityLabel={t('{make} {model}: history', { make: v.make, model: v.model })} onPress={() => router.push(`/profile/cars/${v.id}` as Href)} style={styles.itemLink}>
                 <IconCar size={18} color={colors.textSecondary} />
                 <View style={styles.flex}>
                   <View style={styles.nameRow}>
@@ -490,23 +544,23 @@ export default function ProfileScreen() {
                     </View>
                   ) : null}
                   <T variant="t5" weight={400} color={colors.textSecondary} numberOfLines={1} style={styles.history}>
-                    History
+                    {t('History')}
                   </T>
                 </View>
               </Pressable>
               {v.isDefault ? (
                 defaultBadge
               ) : (
-                <Pressable accessibilityRole="button" accessibilityLabel={`Make ${v.make} ${v.model} the default vehicle`} disabled={promoting === v.id} onPress={() => void makeVehicleDefault(v.id)} style={styles.setDefault}>
+                <Pressable accessibilityRole="button" accessibilityLabel={t('Make {make} {model} the default vehicle', { make: v.make, model: v.model })} disabled={promoting === v.id} onPress={() => void makeVehicleDefault(v.id)} style={styles.setDefault}>
                   <T size={11} weight={500} lh={15} color={colors.textSecondary} style={styles.underline}>
-                    {promoting === v.id ? 'Setting...' : 'Set default'}
+                    {promoting === v.id ? t('Setting...') : t('Set default')}
                   </T>
                 </Pressable>
               )}
-              <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${v.make} ${v.model}`} onPress={() => setEditingVehicle(v.id)} style={styles.icon}>
+              <Pressable accessibilityRole="button" accessibilityLabel={t('Edit {make} {model}', { make: v.make, model: v.model })} onPress={() => setEditingVehicle(v.id)} style={styles.icon}>
                 <IconPencil size={16} color={colors.textSecondary} />
               </Pressable>
-              <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${v.make} ${v.model}`} disabled={deleting === v.id} onPress={() => void removeVehicle(v.id)} style={styles.icon}>
+              <Pressable accessibilityRole="button" accessibilityLabel={t('Remove {make} {model}', { make: v.make, model: v.model })} disabled={deleting === v.id} onPress={() => void removeVehicle(v.id)} style={styles.icon}>
                 <IconTrash size={16} color={colors.textSecondary} />
               </Pressable>
             </ScCard>
@@ -515,16 +569,16 @@ export default function ProfileScreen() {
       </View>
 
       <View style={styles.section}>
-        {sectionHead('Addresses', 'Add address', () => setShowAddressForm((a) => !a))}
+        {sectionHead(t('Addresses'), t('Add address'), () => setShowAddressForm((a) => !a))}
         {showAddressForm ? (
           <ScCard style={styles.form}>
-            <ScInput label="Label" placeholder="e.g. Home, Work" value={addressForm.label} onChangeText={(label) => setAddressForm((f) => ({ ...f, label }))} />
+            <ScInput label={t('Label')} placeholder={t('e.g. Home, Work')} value={addressForm.label} onChangeText={(label) => setAddressForm((f) => ({ ...f, label }))} />
             <View style={styles.typeBlock}>
               <T size={11} weight={500} lh={15} color={colors.textSecondary}>
-                Pin the exact spot (optional)
+                {t('Pin the exact spot (optional)')}
               </T>
               <T size={11} lh={15} color={colors.textMuted}>
-                {"Needed only for doorstep and pickup & drop — we'll ask before your first one if you skip it."}
+                {t("Needed only for doorstep and pickup & drop — we'll ask before your first one if you skip it.")}
               </T>
               <LocationPicker
                 showSearch
@@ -536,14 +590,14 @@ export default function ProfileScreen() {
                 }}
               />
             </View>
-            <ScInput label="Address" placeholder="Street, area" value={addressForm.address} onChangeText={(address) => setAddressForm((f) => ({ ...f, address }))} />
+            <ScInput label={t('Address')} placeholder={t('Street, area')} value={addressForm.address} onChangeText={(address) => setAddressForm((f) => ({ ...f, address }))} />
             <View style={styles.pair}>
               <View style={styles.flex}>
-                <ScInput label="City" placeholder="e.g. Chennai" value={addressForm.city} onChangeText={(city) => setAddressForm((f) => ({ ...f, city }))} />
+                <ScInput label={t('City')} placeholder={t('e.g. Chennai')} value={addressForm.city} onChangeText={(city) => setAddressForm((f) => ({ ...f, city }))} />
               </View>
               <View style={styles.flex}>
                 <ScInput
-                  label="Pincode"
+                  label={t('Pincode')}
                   keyboardType="number-pad"
                   maxLength={6}
                   placeholder="600001"
@@ -559,12 +613,12 @@ export default function ProfileScreen() {
                   disabled={!addressForm.label || !addressForm.address || !addressForm.city || !addressForm.pincode || saving === 'address'}
                   onPress={() => void submitAddress()}
                 >
-                  {saving === 'address' ? 'Saving...' : 'Save address'}
+                  {saving === 'address' ? t('Saving...') : t('Save address')}
                 </ScButton>
               </View>
               <View style={styles.flex}>
                 <ScButton variant="outline" onPress={() => setShowAddressForm(false)}>
-                  Cancel
+                  {t('Cancel')}
                 </ScButton>
               </View>
             </View>
@@ -573,7 +627,7 @@ export default function ProfileScreen() {
         {addresses.length === 0 && !showAddressForm ? (
           <ScCard>
             <T size={13} lh={18} color={colors.textSecondary}>
-              No addresses added yet.
+              {t('No addresses added yet.')}
             </T>
           </ScCard>
         ) : (
@@ -598,16 +652,16 @@ export default function ProfileScreen() {
               {a.isDefault ? (
                 defaultBadge
               ) : (
-                <Pressable accessibilityRole="button" accessibilityLabel={`Make ${a.label} the default address`} disabled={promoting === a.id} onPress={() => void makeAddressDefault(a.id)} style={styles.setDefault}>
+                <Pressable accessibilityRole="button" accessibilityLabel={t('Make {label} the default address', { label: a.label })} disabled={promoting === a.id} onPress={() => void makeAddressDefault(a.id)} style={styles.setDefault}>
                   <T size={11} weight={500} lh={15} color={colors.textSecondary} style={styles.underline}>
-                    {promoting === a.id ? 'Setting...' : 'Set default'}
+                    {promoting === a.id ? t('Setting...') : t('Set default')}
                   </T>
                 </Pressable>
               )}
-              <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${a.label} address`} onPress={() => setEditingAddress(a.id)} style={styles.icon}>
+              <Pressable accessibilityRole="button" accessibilityLabel={t('Edit {label} address', { label: a.label })} onPress={() => setEditingAddress(a.id)} style={styles.icon}>
                 <IconPencil size={16} color={colors.textSecondary} />
               </Pressable>
-              <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${a.label} address`} disabled={deleting === a.id} onPress={() => void removeAddress(a.id)} style={styles.icon}>
+              <Pressable accessibilityRole="button" accessibilityLabel={t('Remove {label} address', { label: a.label })} disabled={deleting === a.id} onPress={() => void removeAddress(a.id)} style={styles.icon}>
                 <IconTrash size={16} color={colors.textSecondary} />
               </Pressable>
             </ScCard>
@@ -617,12 +671,12 @@ export default function ProfileScreen() {
 
       <View style={styles.section}>
         <T size={14} weight={600} lh={20}>
-          Support
+          {t('Support')}
         </T>
         <ScCard style={styles.linkCard}>
           <Pressable accessibilityRole="link" onPress={() => router.push('/help' as Href)} style={styles.linkRow}>
             <T size={13} lh={18}>
-              Help centre
+              {t('Help centre')}
             </T>
             <IconChevronRight size={16} color={colors.textMuted} />
           </Pressable>
@@ -630,13 +684,13 @@ export default function ProfileScreen() {
         <ScCard style={styles.support}>
           <View>
             <T size={13} weight={500} lh={18}>
-              Need help?
+              {t('Need help?')}
             </T>
             <T size={12} lh={16} color={colors.textSecondary}>
-              {`Reach our team at ${SUPPORT_PHONE_DISPLAY}`}
+              {t('Reach our team at {phone}', { phone: SUPPORT_PHONE_DISPLAY })}
             </T>
           </View>
-          <ContactButtons who="Detlio support" callHref={SUPPORT_TEL_HREF} whatsApp={SUPPORT_WHATSAPP_HREF} />
+          <ContactButtons who={t('Detlio support')} callHref={SUPPORT_TEL_HREF} whatsApp={SUPPORT_WHATSAPP_HREF} />
         </ScCard>
       </View>
 
@@ -646,13 +700,13 @@ export default function ProfileScreen() {
 
       <View style={styles.section}>
         <T size={14} weight={600} lh={20}>
-          Legal
+          {t('Legal')}
         </T>
         <ScCard style={styles.linkCard}>
           {LEGAL_LINKS.map((link, index) => (
             <Pressable key={link.path} accessibilityRole="link" onPress={() => void WebBrowser.openBrowserAsync(`https://detlio.com${link.path}`)} style={[styles.linkRow, index > 0 && styles.linkLine]}>
               <T size={13} lh={18}>
-                {link.label}
+                {t(link.label)}
               </T>
               <IconChevronRight size={16} color={colors.textMuted} />
             </Pressable>
@@ -662,11 +716,11 @@ export default function ProfileScreen() {
 
       <ScButton variant="outline" onPress={() => void signOut().then(() => router.push('/login' as Href))}>
         <IconLogout size={18} color={colors.textPrimary} />
-        <Label>Log out</Label>
+        <Label>{t('Log out')}</Label>
       </ScButton>
       <Pressable accessibilityRole="button" onPress={() => setDeletingAccount(true)} style={styles.delete}>
         <T size={13} lh={18} color={colors.error} align="center">
-          Delete account
+          {t('Delete account')}
         </T>
       </Pressable>
 

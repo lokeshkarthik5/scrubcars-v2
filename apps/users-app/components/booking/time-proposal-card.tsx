@@ -2,6 +2,7 @@ import { chooseProposedTime, declineProposedTimes } from '@repo/core/api/booking
 import { ApiError } from '@repo/core/api/client';
 import { formatClock } from '@repo/core/format';
 import { bookingDayLabel } from '@repo/core/home-display';
+import { useT } from '@repo/core/i18n';
 import type { Booking, TimeProposal } from '@repo/core/types';
 import { ScButton } from '@repo/native-ui/button';
 import { IconCalendarQuestion } from '@repo/native-ui/icons';
@@ -30,6 +31,7 @@ export function TimeProposalCard({
   onDeclined: (cancelled: Booking) => void;
   onStale: () => void;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const [busy, setBusy] = useState<string | null>(null);
@@ -42,7 +44,7 @@ export function TimeProposalCard({
     setBusy(slot);
     try {
       const moved = await chooseProposedTime(booking.id, slot);
-      toast.success(`Booked for ${proposedTimeLabel(slot)}. ${booking.vendorName} has accepted it.`);
+      toast.success(t('Booked for {time}. {name} has accepted it.', { time: proposedTimeLabel(slot), name: booking.vendorName }));
       onMoved(moved);
     } catch (error) {
       if (error instanceof ApiError && error.code === 'TIME_PROPOSAL_SLOT_GONE') {
@@ -52,7 +54,7 @@ export function TimeProposalCard({
         toast.error(error.message);
         onStale();
       } else {
-        toast.error(errorText(error, 'Something went wrong. Please try again.'));
+        toast.error(errorText(error, t('Something went wrong. Please try again.')));
       }
     } finally {
       setBusy(null);
@@ -64,10 +66,10 @@ export function TimeProposalCard({
     setBusy('decline');
     try {
       const cancelled = await declineProposedTimes(booking.id);
-      toast.success('Booking cancelled. Your payment will be refunded in full.');
+      toast.success(t('Booking cancelled. Your payment will be refunded in full.'));
       onDeclined(cancelled);
     } catch (error) {
-      toast.error(errorText(error, 'Something went wrong. Please try again.'));
+      toast.error(errorText(error, t('Something went wrong. Please try again.')));
       if (error instanceof ApiError && error.code === 'TIME_PROPOSAL_CLOSED') onStale();
     } finally {
       setBusy(null);
@@ -82,17 +84,17 @@ export function TimeProposalCard({
         <IconCalendarQuestion size={20} stroke={1.5} color={colors.textSecondary} />
         <View style={styles.grow}>
           <T size={17} weight={500} lh={24}>
-            <Figures size={17} weight={500} text={`${booking.vendorName} can't do ${formatClock(booking.scheduledAtIso)} — pick another time`} />
+            <Figures size={17} weight={500} text={t("{name} can't do {time} — pick another time", { name: booking.vendorName, time: formatClock(booking.scheduledAtIso) })} />
           </T>
           <T size={13} lh={18} color={colors.textSecondary} style={styles.sub}>
-            <Figures size={13} color={colors.textSecondary} text={`Pick one by ${proposedTimeLabel(proposal.expiresAt)}. It's accepted as soon as you pick it.`} />
+            <Figures size={13} color={colors.textSecondary} text={t("Pick one by {time}. It's accepted as soon as you pick it.", { time: proposedTimeLabel(proposal.expiresAt) })} />
           </T>
         </View>
       </View>
       {proposal.note ? (
         <T size={12} lh={16} color={colors.textSecondary}>
           <T size={12} weight={500} lh={16}>
-            {"Garage's note: "}
+            {`${t("Garage's note:")} `}
           </T>
           {proposal.note}
         </T>
@@ -103,7 +105,7 @@ export function TimeProposalCard({
             <Pressable
               key={option}
               accessibilityRole="button"
-              accessibilityLabel={`Book ${proposedTimeLabel(option)}`}
+              accessibilityLabel={t('Book {time}', { time: proposedTimeLabel(option) })}
               disabled={busy !== null}
               onPress={() => void choose(option)}
               style={[styles.option, busy === option && styles.optionBusy]}
@@ -115,7 +117,7 @@ export function TimeProposalCard({
                 <Spinner size={16} />
               ) : (
                 <T size={13} lh={18} color={colors.textSecondary}>
-                  Pick
+                  {t('Pick')}
                 </T>
               )}
             </Pressable>
@@ -123,30 +125,30 @@ export function TimeProposalCard({
         </View>
       ) : (
         <T size={13} lh={18} color={colors.textSecondary}>
-          {`The times ${booking.vendorName} suggested have all been taken. You can cancel for a full refund, or use Help with this booking.`}
+          {t('The times {name} suggested have all been taken. You can cancel for a full refund, or use Help with this booking.', { name: booking.vendorName })}
         </T>
       )}
       {confirmDecline ? (
         <View style={styles.confirm}>
           <T size={13} lh={18} color={colors.textSecondary}>
-            {`Cancel this booking? ${paid ? 'Your payment will be refunded in full to your original payment method.' : 'Nothing was paid, so there is nothing to refund.'}`}
+            {paid ? t('Cancel this booking? Your payment will be refunded in full to your original payment method.') : t('Cancel this booking? Nothing was paid, so there is nothing to refund.')}
           </T>
           <View style={styles.row}>
             <View style={styles.grow}>
               <ScButton variant="outline" disabled={busy !== null} onPress={() => setConfirmDecline(false)}>
-                Keep it
+                {t('Keep it')}
               </ScButton>
             </View>
             <View style={styles.grow}>
               <ScButton variant="danger-outline" disabled={busy !== null} onPress={() => void decline()}>
-                {busy === 'decline' ? 'Cancelling...' : 'Yes, cancel'}
+                {busy === 'decline' ? t('Cancelling...') : t('Yes, cancel')}
               </ScButton>
             </View>
           </View>
         </View>
       ) : (
         <ScButton variant="text" disabled={busy !== null} height={44} onPress={() => setConfirmDecline(true)}>
-          None of these work — cancel for a full refund
+          {t('None of these work — cancel for a full refund')}
         </ScButton>
       )}
     </ScCard>

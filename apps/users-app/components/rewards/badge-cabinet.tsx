@@ -1,5 +1,6 @@
 import { badgeProgressLine, bonusStampsLine } from '@repo/core/achievements';
 import type { CabinetBadge, RewardExtras } from '@repo/core/api/reward-extras';
+import { useT } from '@repo/core/i18n';
 import { rewardDate } from '@repo/core/rewards';
 import { IconChevronLeft, IconChevronRight } from '@repo/native-ui/icons';
 import { ScSheet } from '@repo/native-ui/sheet';
@@ -16,12 +17,13 @@ type Selected = { kind: 'badge'; badge: CabinetBadge } | { kind: 'challenge'; la
 type SheetView = { kind: 'all' } | { kind: 'one'; selected: Selected; fromAll: boolean };
 
 function BadgeButton({ label, badgeKey, earned, progress, onOpen, size, compact = false }: { label: string; badgeKey: CabinetBadge['key'] | 'challenge'; earned: boolean; progress?: CabinetBadge['progress']; onOpen: () => void; size: number; compact?: boolean }) {
+  const t = useT();
   const colors = useColors();
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={`${label}: ${earned ? 'earned' : `locked, ${progress ? badgeProgressLine(progress) : ''}`}`} onPress={onOpen} style={{ width: '100%', alignItems: 'center', gap: 6, paddingVertical: 4 }}>
+    <Pressable accessibilityRole="button" accessibilityLabel={earned ? t('{label}: earned', { label: t(label) }) : t('{label}: locked, {progress}', { label: t(label), progress: progress ? badgeProgressLine(progress) : '' })} onPress={onOpen} style={{ width: '100%', alignItems: 'center', gap: 6, paddingVertical: 4 }}>
       <BadgeMedal badgeKey={badgeKey} earned={earned} size={size} />
       <T size={compact ? 10 : 11} lh={compact ? 12 : 14} numberOfLines={2} align="center" color={earned ? colors.textPrimary : colors.textMuted}>
-        {label}
+        {t(label)}
       </T>
     </Pressable>
   );
@@ -29,6 +31,7 @@ function BadgeButton({ label, badgeKey, earned, progress, onOpen, size, compact 
 
 /** BadgeCabinet (apps/users/components/rewards/badge-cabinet.tsx). */
 export function BadgeCabinet({ extras }: { extras: RewardExtras }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const [view, setView] = useState<SheetView | null>(null);
@@ -39,11 +42,11 @@ export function BadgeCabinet({ extras }: { extras: RewardExtras }) {
     <View style={styles.section}>
       <View style={styles.head}>
         <T size={14} weight={600} lh={20}>
-          {'Badges '}
-          <T num size={12} lh={20} color={colors.textSecondary}>{`· ${extras.earnedCount} of ${total}`}</T>
+          {`${t('Badges')} `}
+          <T num size={12} lh={20} color={colors.textSecondary}>{`· ${t('{count} of {total}', { count: extras.earnedCount, total })}`}</T>
         </T>
         <Pressable accessibilityRole="button" onPress={() => setView({ kind: 'all' })} style={styles.more}>
-          <FigureLine size={12} weight={500} text={`See all ${total}`} />
+          <FigureLine size={12} weight={500} text={t('See all {total}', { total })} />
           <IconChevronRight size={14} />
         </Pressable>
       </View>
@@ -59,14 +62,14 @@ export function BadgeCabinet({ extras }: { extras: RewardExtras }) {
         ))}
       </View>
 
-      <ScSheet horizontalPadding={16} open={view !== null} onClose={() => setView(null)} accessibilityLabel={view?.kind === 'all' ? 'All badges' : 'Badge'}>
+      <ScSheet horizontalPadding={16} open={view !== null} onClose={() => setView(null)} accessibilityLabel={view?.kind === 'all' ? t('All badges') : t('Badge')}>
         {view?.kind === 'all' ? (
           <ScrollView style={styles.scroll} contentContainerStyle={styles.all}>
             <View style={styles.head}>
               <T size={17} weight={600} lh={24}>
-                All badges
+                {t('All badges')}
               </T>
-              <T num size={12} lh={16} color={colors.textSecondary}>{`${extras.earnedCount} of ${total} earned`}</T>
+              <T num size={12} lh={16} color={colors.textSecondary}>{t('{count} of {total} earned', { count: extras.earnedCount, total })}</T>
             </View>
             <View style={styles.grid}>
               {extras.badges.map((badge) => (
@@ -88,7 +91,7 @@ export function BadgeCabinet({ extras }: { extras: RewardExtras }) {
               <Pressable accessibilityRole="button" onPress={() => setView({ kind: 'all' })} style={styles.backRow}>
                 <IconChevronLeft size={14} color={colors.textSecondary} />
                 <T size={12} weight={500} color={colors.textSecondary}>
-                  All badges
+                  {t('All badges')}
                 </T>
               </Pressable>
             ) : null}
@@ -101,9 +104,9 @@ export function BadgeCabinet({ extras }: { extras: RewardExtras }) {
                   {view.selected.label}
                 </T>
                 <T size={13} lh={18} align="center" color={colors.textSecondary}>
-                  Won in a Detlio challenge.
+                  {t('Won in a Detlio challenge.')}
                 </T>
-                <FigureLine size={12} color={colors.textMuted} text={`Earned ${rewardDate(view.selected.at)}`} />
+                <FigureLine size={12} color={colors.textMuted} text={t('Earned {day}', { day: rewardDate(view.selected.at) })} />
               </>
             )}
           </View>
@@ -114,6 +117,7 @@ export function BadgeCabinet({ extras }: { extras: RewardExtras }) {
 }
 
 function BadgeDetail({ badge }: { badge: CabinetBadge }) {
+  const t = useT();
   const colors = useColors();
   const bonus = bonusStampsLine(badge.bonusStamps);
   return (
@@ -126,7 +130,7 @@ function BadgeDetail({ badge }: { badge: CabinetBadge }) {
         {badge.howTo}
       </T>
       {badge.earned ? (
-        <FigureLine size={12} color={colors.textMuted} text={`Earned ${rewardDate(badge.earned.at)}`} />
+        <FigureLine size={12} color={colors.textMuted} text={t('Earned {day}', { day: rewardDate(badge.earned.at) })} />
       ) : (
         <View style={{ width: 240, gap: 6 }}>
           <View style={{ height: 4, borderRadius: 2, overflow: 'hidden', backgroundColor: colors.fillSoft }}>
@@ -137,7 +141,7 @@ function BadgeDetail({ badge }: { badge: CabinetBadge }) {
           </T>
         </View>
       )}
-      {bonus ? <FigureLine size={12} color={colors.textSecondary} text={`${bonus} on your Shine Card${badge.earned ? '' : ' when you earn it'}.`} /> : null}
+      {bonus ? <FigureLine size={12} color={colors.textSecondary} text={badge.earned ? t('{bonus} on your Shine Card.', { bonus }) : t('{bonus} on your Shine Card when you earn it.', { bonus })} /> : null}
     </>
   );
 }

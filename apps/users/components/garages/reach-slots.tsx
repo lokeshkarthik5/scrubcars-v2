@@ -6,6 +6,7 @@ import { requestActionLabel } from '@repo/core/booking-requests'
 import type { BookingType } from '@repo/core/types'
 import { FreeWashPiece } from '@/components/reach/free-wash'
 import { RequestSheet } from '@/components/reach/request-sheet'
+import { useT } from '@repo/core/i18n'
 
 /**
  * Customer reach, part 2 (0062), in the places part 1 left for it, so the
@@ -24,6 +25,7 @@ export function RequestActionSlot({
   garage: JustOutsideVendor
   mode: Extract<BookingType, 'doorstep' | 'pickup'>
 }) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const label = requestActionLabel(mode)
   return (
@@ -31,7 +33,7 @@ export function RequestActionSlot({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label={`${label} from ${garage.vendor.name}`}
+        aria-label={t('{label} from {name}', { label, name: garage.vendor.name })}
         className="press flex min-h-11 items-center rounded-full bg-brand-white px-4 text-[14px] font-medium text-brand-black"
       >
         {label}

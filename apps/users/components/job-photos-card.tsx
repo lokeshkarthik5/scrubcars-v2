@@ -6,10 +6,11 @@ import { ScCard } from '@/components/ui/card'
 import { ScModal } from '@repo/ui/sc/modal'
 import { BeforeAfterCompare } from '@repo/ui/features/before-after'
 import type { JobPhoto } from '@repo/core/types'
+import { msg, useT } from '@repo/core/i18n'
 
 const STAGES: Array<{ stage: JobPhoto['stage']; label: string }> = [
-  { stage: 'before', label: 'Before' },
-  { stage: 'after', label: 'After' },
+  { stage: 'before', label: msg('Before') },
+  { stage: 'after', label: msg('After') },
 ]
 
 /**
@@ -32,6 +33,7 @@ export function JobPhotosCard({
   photos: JobPhoto[]
   completed?: boolean
 }) {
+  const t = useT()
   const [open, setOpen] = useState<{ photo: JobPhoto; label: string } | null>(
     null
   )
@@ -42,9 +44,10 @@ export function JobPhotosCard({
   return (
     // #job-photos: a car's history links straight to them.
     <ScCard id="job-photos" className="flex scroll-mt-4 flex-col gap-3">
-      <h2 className="text-sm font-semibold text-text-primary">Job photos</h2>
+      <h2 className="text-sm font-semibold text-text-primary">{t('Job photos')}</h2>
       {completed && <BeforeAfterCompare photos={all} />}
-      {STAGES.map(({ stage, label }) => {
+      {STAGES.map(({ stage, label: english }) => {
+        const label = t(english)
         const ofStage = photos.filter((photo) => photo.stage === stage)
         if (ofStage.length === 0) return null
         return (
@@ -54,13 +57,13 @@ export function JobPhotosCard({
             </p>
             <ul className="flex flex-wrap gap-2">
               {ofStage.map((photo, i) => {
-                const name = `${label} photo ${i + 1} of ${ofStage.length}`
+                const name = t('{label} photo {number} of {total}', { label, number: i + 1, total: ofStage.length })
                 return (
                   <li key={photo.id}>
                     <button
                       type="button"
                       onClick={() => setOpen({ photo, label: name })}
-                      aria-label={`View ${name.toLowerCase()}`}
+                      aria-label={t('View {name}', { name: name.toLowerCase() })}
                       className="block size-16 overflow-hidden rounded-[10px] bg-surface ring-1 ring-inset ring-border"
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -81,7 +84,7 @@ export function JobPhotosCard({
       <ScModal
         open={open !== null}
         onClose={() => setOpen(null)}
-        aria-label={open?.label ?? 'Job photo'}
+        aria-label={open?.label ?? t('Job photo')}
         className="max-w-[420px] px-3"
       >
         {open && (
@@ -100,7 +103,7 @@ export function JobPhotosCard({
               onClick={() => setOpen(null)}
               className="min-h-11"
             >
-              Close
+              {t('Close')}
             </ScButton>
           </div>
         )}

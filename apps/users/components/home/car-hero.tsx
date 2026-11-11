@@ -22,6 +22,8 @@ import { cn } from '@repo/core/utils'
 import { rewardRupees } from '@repo/core/rewards'
 import { ScSheet } from '@repo/ui/sc/modal'
 import { Figures } from '@repo/ui/sc/figures'
+import { useT } from '@repo/core/i18n'
+import { msg, t, tn } from '@repo/core/i18n/translate'
 
 interface CarHeroProps {
   cars: HomeCar[]
@@ -43,16 +45,16 @@ interface CarHeroProps {
 }
 
 const TYPE_LABEL: Record<HomeCar['vehicleType'], string> = {
-  hatchback: 'Hatchback',
-  sedan: 'Sedan',
-  suv: 'SUV',
+  hatchback: msg('Hatchback'),
+  sedan: msg('Sedan'),
+  suv: msg('SUV'),
 }
 
 /** "TN 09 BX 4821 · White SUV". */
 export function carLine(
   car: Pick<HomeCar, 'licensePlate' | 'color' | 'vehicleType'>
 ): string {
-  const kind = [car.color, TYPE_LABEL[car.vehicleType]]
+  const kind = [car.color, t(TYPE_LABEL[car.vehicleType])]
     .filter(Boolean)
     .join(' ')
   return [car.licensePlate, kind].filter(Boolean).join(' · ')
@@ -60,10 +62,10 @@ export function carLine(
 
 /** "2 more washes = ₹349 off", or "₹349 off ready" once the card is full. */
 export function shineLine(toGo: number, rewardAmount: string | number): string {
-  const reward = `${rewardRupees(rewardAmount)} off`
+  const reward = t('{rewardRupees} off', { rewardRupees: rewardRupees(rewardAmount) })
   return toGo <= 0
-    ? `${reward} ready`
-    : `${toGo} more ${toGo === 1 ? 'wash' : 'washes'} = ${reward}`
+    ? t('{reward} ready', { reward })
+    : tn(toGo, '{count} more wash = {reward}', '{count} more washes = {reward}', { reward })
 }
 
 /**
@@ -84,12 +86,13 @@ export function CarHero({
   onAddCar,
   shine = null,
 }: CarHeroProps) {
+  const t = useT()
   const [choosing, setChoosing] = useState(false)
 
   if (cars.length === 0) {
     return (
       <section
-        aria-label="Your car"
+        aria-label={t('Your car')}
         className={cn(
           'hub-card car-hero car-hero--empty',
           short && 'car-hero--short'
@@ -97,11 +100,10 @@ export function CarHero({
       >
         <div className="car-hero__head">
           <div>
-            <p className="text-t4 text-dim">Get started</p>
-            <h2 className="car-hero__title">Add your car</h2>
+            <p className="text-t4 text-dim">{t('Get started')}</p>
+            <h2 className="car-hero__title">{t('Add your car')}</h2>
             <p className="max-w-[268px] text-t3 leading-[1.42] text-[#A1A1AA]">
-              So garages quote the right price, and you&apos;ll see when
-              it&apos;s due.
+              {t("So garages quote the right price, and you'll see when it's due.")}
             </p>
           </div>
         </div>
@@ -113,11 +115,11 @@ export function CarHero({
               onClick={onAddCar}
               className="car-hero__outline"
             >
-              Add car
+              {t('Add car')}
             </button>
           ) : (
             <ScButton variant="hero" onClick={onAddCar}>
-              <span>Add car</span>
+              <span>{t('Add car')}</span>
               <IconPlus size={17} stroke={1.5} aria-hidden />
             </ScButton>
           )}
@@ -131,7 +133,7 @@ export function CarHero({
 
   return (
     <section
-      aria-label="Your car"
+      aria-label={t('Your car')}
       className={cn(
         'hub-card car-hero',
         short && 'car-hero--short',
@@ -145,7 +147,7 @@ export function CarHero({
         )}
       >
         <div className="min-w-0">
-          <p className="text-t4 text-dim">Your car</p>
+          <p className="text-t4 text-dim">{t('Your car')}</p>
           <h2 className="car-hero__title">
             {cars.length > 1 ? (
               // The name switches the car: a tap, not a swipe.
@@ -153,7 +155,7 @@ export function CarHero({
                 type="button"
                 onClick={() => setChoosing(true)}
                 aria-haspopup="dialog"
-                aria-label={`${name}, switch car`}
+                aria-label={t('{name}, switch car', { name })}
                 className="-mx-1 inline-flex max-w-full items-center gap-1.5 rounded-[10px] px-1 text-left"
               >
                 <span className="truncate">{name}</span>
@@ -182,7 +184,7 @@ export function CarHero({
           coating or detailing reminder (0046). A 40pt disc, 44pt target. */}
       <Link
         href={`/profile/cars/${car.id}`}
-        aria-label={`History of your ${name}`}
+        aria-label={t('History of your {name}', { name })}
         className={cn(
           'absolute top-[18px] z-[2] grid size-11 place-items-center rounded-full text-text-primary',
           cars.length === 1 ? 'right-[60px]' : 'right-3'
@@ -200,7 +202,7 @@ export function CarHero({
       {cars.length === 1 && (
         <Link
           href="/profile#vehicles"
-          aria-label="Add or edit cars"
+          aria-label={t('Add or edit cars')}
           className="absolute top-[18px] right-3 z-[2] grid size-11 place-items-center rounded-full text-text-primary"
         >
           <span
@@ -215,11 +217,11 @@ export function CarHero({
       {shine && (
         <Link
           href="/profile/rewards"
-          aria-label={`Shine Card: ${shine.onCard} of ${shine.goal} stamps. ${shineLine(shine.toGo, shine.rewardAmount)}.`}
+          aria-label={t('Shine Card: {onCard} of {goal} stamps. {shineLine}.', { onCard: shine.onCard, goal: shine.goal, shineLine: shineLine(shine.toGo, shine.rewardAmount) })}
           className="car-hero__shine"
         >
           <span className="flex min-w-0 flex-col gap-1.5">
-            <span className="text-t4 text-dim">Shine Card</span>
+            <span className="text-t4 text-dim">{t('Shine Card')}</span>
             <span aria-hidden className="flex gap-1.5">
               {Array.from({ length: shine.goal }, (_, i) => (
                 <i
@@ -244,11 +246,11 @@ export function CarHero({
             onClick={() => onBookWash(car)}
             className="car-hero__outline"
           >
-            Book a wash
+            {t('Book a wash')}
           </button>
         ) : (
           <ScButton variant="hero" onClick={() => onBookWash(car)}>
-            <span>Book a wash</span>
+            <span>{t('Book a wash')}</span>
             <IconArrowUpRight size={17} stroke={1.5} aria-hidden />
           </ScButton>
         )}
@@ -257,11 +259,11 @@ export function CarHero({
       <ScSheet
         open={choosing}
         onClose={() => setChoosing(false)}
-        aria-label="Choose a car"
+        aria-label={t('Choose a car')}
         className="px-4"
       >
         <h2 className="text-[20px] font-normal tracking-[-0.015em] text-text-primary">
-          Your cars
+          {t('Your cars')}
         </h2>
         <div className="mt-4 flex flex-col gap-2">
           {cars.map((each, i) => (
@@ -302,7 +304,7 @@ export function CarHero({
             href="/profile#vehicles"
             className="flex min-h-11 items-center justify-center text-t3 text-text-primary"
           >
-            Add or edit cars
+            {t('Add or edit cars')}
           </Link>
         </div>
       </ScSheet>

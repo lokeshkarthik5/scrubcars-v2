@@ -1,3 +1,4 @@
+import { msg, useT } from '@repo/core/i18n';
 import { formatStepTime } from '@repo/core/job-records';
 import { pickupCodeCard, pickupTimeline, type PickupTimelineBooking } from '@repo/core/pickup';
 import type { Booking } from '@repo/core/types';
@@ -44,18 +45,18 @@ function Step({ state, last, label, caption, time }: { state: StepState; last: b
 export type StepKey = 'requested' | 'confirmed' | 'in_progress' | 'completed';
 
 const STEPS: { key: StepKey; label: Partial<Record<StepState, string>> & { upcoming: string }; caption: Record<StepState, string> }[] = [
-  { key: 'requested', label: { upcoming: 'Requested' }, caption: { done: 'Sent to the garage', current: 'Sent to the garage', upcoming: 'Sent to the garage' } },
+  { key: 'requested', label: { upcoming: msg('Requested') }, caption: { done: msg('Sent to the garage'), current: msg('Sent to the garage'), upcoming: msg('Sent to the garage') } },
   {
     key: 'confirmed',
-    label: { current: 'Waiting for garage', upcoming: 'Accepted' },
-    caption: { done: 'Your slot is reserved', current: 'Shows here as soon as the garage accepts', upcoming: 'The garage accepts your slot' },
+    label: { current: msg('Waiting for garage'), upcoming: msg('Accepted') },
+    caption: { done: msg('Your slot is reserved'), current: msg('Shows here as soon as the garage accepts'), upcoming: msg('The garage accepts your slot') },
   },
   {
     key: 'in_progress',
-    label: { upcoming: 'In progress' },
-    caption: { done: 'Work started on your car', current: 'Work has started on your car', upcoming: 'Starts at your booked time' },
+    label: { upcoming: msg('In progress') },
+    caption: { done: msg('Work started on your car'), current: msg('Work has started on your car'), upcoming: msg('Starts at your booked time') },
   },
-  { key: 'completed', label: { upcoming: 'Done' }, caption: { done: 'Your car is ready', current: 'Your car is ready', upcoming: 'Marked here when the work is done' } },
+  { key: 'completed', label: { upcoming: msg('Done') }, caption: { done: msg('Your car is ready'), current: msg('Your car is ready'), upcoming: msg('Marked here when the work is done') } },
 ];
 
 const PROGRESS: Record<string, { doneThrough: number; current: number | null }> = {
@@ -67,9 +68,10 @@ const PROGRESS: Record<string, { doneThrough: number; current: number | null }> 
 
 /** StatusStepper (packages/ui/src/sc/status-stepper.tsx). */
 export function StatusStepper({ status, times }: { status: string; times?: Partial<Record<StepKey, string>> }) {
+  const t = useT();
   const progress = PROGRESS[status] ?? PROGRESS.pending;
   return (
-    <View accessibilityLabel="Booking progress">
+    <View accessibilityLabel={t('Booking progress')}>
       {STEPS.map((step, i) => {
         const state: StepState = i <= progress.doneThrough ? 'done' : i === progress.current ? 'current' : 'upcoming';
         return (
@@ -77,8 +79,8 @@ export function StatusStepper({ status, times }: { status: string; times?: Parti
             key={step.key}
             state={state}
             last={i === STEPS.length - 1}
-            label={step.label[state] ?? step.label.upcoming}
-            caption={step.caption[state]}
+            label={t(step.label[state] ?? step.label.upcoming)}
+            caption={t(step.caption[state])}
             time={state !== 'upcoming' ? times?.[step.key] : undefined}
           />
         );
@@ -89,10 +91,11 @@ export function StatusStepper({ status, times }: { status: string; times?: Parti
 
 /** PickupTimeline (apps/users/components/pickup-progress.tsx). */
 export function PickupTimeline({ booking, now }: { booking: PickupTimelineBooking; now: number }) {
+  const t = useT();
   const steps = pickupTimeline(booking);
   if (!steps) return null;
   return (
-    <View accessibilityLabel="Pickup progress">
+    <View accessibilityLabel={t('Pickup progress')}>
       {steps.map((step, i) => (
         <Step key={step.key} state={step.state} last={i === steps.length - 1} label={step.label} caption={step.caption} time={step.at ? formatStepTime(step.at, now) : undefined} />
       ))}
@@ -102,6 +105,7 @@ export function PickupTimeline({ booking, now }: { booking: PickupTimelineBookin
 
 /** PickupCodeCard: the code is on screen and nowhere else, never logged. */
 export function PickupCodeCard({ booking }: { booking: Pick<Booking, 'status' | 'pickup'> }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const card = pickupCodeCard(booking);
@@ -122,8 +126,8 @@ export function PickupCodeCard({ booking }: { booking: Pick<Booking, 'status' | 
       </T>
       <T size={11} lh={15} color={colors.textMuted}>
         {card.kind === 'pickup'
-          ? 'Share it only when you hand over your car. The garage enters it to mark your car picked up.'
-          : 'Share it only once you have your car back. The garage enters it to finish the job.'}
+          ? t('Share it only when you hand over your car. The garage enters it to mark your car picked up.')
+          : t('Share it only once you have your car back. The garage enters it to finish the job.')}
       </T>
     </ScCard>
   );

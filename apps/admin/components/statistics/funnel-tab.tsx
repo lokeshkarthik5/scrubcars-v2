@@ -37,9 +37,9 @@ const NewRepeatChart = dynamic(
 
 const HOW_WE_COUNT = [
   'Visits and their steps come from Detlio’s own usage events, sent by the customer app: no cookies and no third party. A visit is one browser tab, from opening Detlio to closing it.',
-  'Each step counts the visits that did it at least once. Paid counts bookings paid in the period, recorded by the API when the payment lands, so it does not depend on the customer’s browser.',
-  'Browsers set to Do Not Track or Global Privacy Control send nothing, but their payments still count as paid, so the last step can read a little high. Payments with Razorpay’s test keys are left out.',
-  'A booking type keeps only the steps that say one: the garage page, checkout, slot, Pay and paid. Visits and devices are every visit.',
+  'Each step counts the visits that did it at least once. Paid counts the bookings themselves, made in the period and paid, as on the other tabs: bookings marked Test are left out, and a booking deleted since is gone. It does not depend on the customer’s browser. A garage’s bookings beside its views count the same way.',
+  'Browsers set to Do Not Track or Global Privacy Control send nothing, but their bookings still count as paid, so the last step can read a little high.',
+  'A booking type keeps only the steps that say one: the garage page, checkout, slot, Pay, and paid bookings of that type. Visits and devices are every visit.',
   'Returning customers and new against repeat come from bookings, not events, for every booking type, with bookings marked Test left out. A booking counts once its payment landed.',
   'Usage events are kept for 180 days.',
 ]

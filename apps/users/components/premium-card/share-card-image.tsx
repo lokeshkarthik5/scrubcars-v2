@@ -6,6 +6,7 @@ import { IconBrandInstagram, IconLoader2 } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
 import { cn } from '@repo/core/utils'
 import { SHARE_FORMATS, type PremiumCardSpec, type ShareFormat } from '@/lib/premium-card'
+import { useT } from '@repo/core/i18n'
 
 /**
  * "Share to Instagram": the card as a picture, drawn on the phone
@@ -31,6 +32,7 @@ export function ShareCardImage({
   compact?: boolean
   className?: string
 }) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const [showName, setShowName] = useState(false)
   const [busy, setBusy] = useState<ShareFormat | null>(null)
@@ -42,9 +44,9 @@ export function ShareCardImage({
       // Loaded on tap: the drawing code is only needed by those who share.
       const { sharePremiumCard } = await import('@/lib/premium-card-image')
       const outcome = await sharePremiumCard(spec(showName), format, fileName)
-      if (outcome === 'downloaded') toast.success('Picture saved. Share it from your photos.')
+      if (outcome === 'downloaded') toast.success(t('Picture saved. Share it from your photos.'))
     } catch {
-      toast.error("Couldn't make the picture. Try again.")
+      toast.error(t("Couldn't make the picture. Try again."))
     } finally {
       setBusy(null)
     }
@@ -58,12 +60,12 @@ export function ShareCardImage({
       className="flex min-h-10 items-center gap-1.5 text-t5 font-medium text-text-primary underline underline-offset-4"
     >
       <IconBrandInstagram size={16} aria-hidden="true" />
-      Share
+      {t('Share')}
     </button>
   ) : (
     <ScButton variant="secondary" aria-expanded={open} onClick={() => setOpen((on) => !on)} className="flex min-h-11 items-center justify-center gap-2">
       <IconBrandInstagram size={18} aria-hidden="true" />
-      Share to Instagram
+      {t('Share to Instagram')}
     </ScButton>
   )
 
@@ -72,7 +74,7 @@ export function ShareCardImage({
       {toggle}
       {open && (
         <div className="flex flex-col gap-2.5 rounded-[12px] border border-border bg-surface p-3">
-          <p className="text-t5 text-text-secondary">The card as a picture, for your story or feed. No codes or links go in it.</p>
+          <p className="text-t5 text-text-secondary">{t('The card as a picture, for your story or feed. No codes or links go in it.')}</p>
           {firstName && (
             <label className="flex min-h-9 items-center gap-2.5 text-t4 text-text-primary">
               <input
@@ -81,7 +83,7 @@ export function ShareCardImage({
                 onChange={(e) => setShowName(e.target.checked)}
                 className="size-4 accent-[#FAFAFA]"
               />
-              Show “{firstName}” on the picture
+              {t('Show “{firstName}” on the picture', { firstName })}
             </label>
           )}
           <div className="grid grid-cols-2 gap-2">

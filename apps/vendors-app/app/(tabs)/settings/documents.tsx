@@ -23,6 +23,7 @@ import {
   DOCUMENTS_OFF_TITLE,
 } from '@/lib/documents-view';
 import { createStyles, useColors } from '@repo/native-ui/theme';
+import { fill, useT } from '@repo/core/i18n';
 
 // The web's back arrow goes to /settings; in the tab bar `back` would land on Home instead.
 const goBack = () => router.navigate('/settings');
@@ -36,6 +37,7 @@ const goBack = () => router.navigate('/settings');
  * signed links (DocumentCard), and nothing of them is kept on the phone.
  */
 function DocumentsScreen() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const isVendorAdmin = useIsVendorAdmin();
@@ -101,44 +103,48 @@ function DocumentsScreen() {
 
   return (
     <AppShell>
-      <TopBar title="Documents" onBack={goBack} />
+      <TopBar title={t('Documents')} onBack={goBack} />
 
       {failed ? (
         <View accessibilityRole="alert" style={styles.error}>
           <T size={13} color={colors.error}>
-            Couldn’t load your documents.
+            {t('Couldn’t load your documents.')}
           </T>
           <ScButton variant="outline" fullWidth={false} onPress={() => void load()} paddingX={16}>
-            Try again
+            {t('Try again')}
           </ScButton>
         </View>
       ) : enabled === false ? (
-        <Notice tone="neutral" title={DOCUMENTS_OFF_TITLE}>
-          {DOCUMENTS_OFF_BODY}
+        <Notice tone="neutral" title={t(DOCUMENTS_OFF_TITLE)}>
+          {t(DOCUMENTS_OFF_BODY)}
         </Notice>
       ) : !data ? (
         <SkeletonList count={4} height={128} />
       ) : (
         <>
           <View style={styles.intro}>
-            <SectionHeader title="Your documents" />
+            <SectionHeader title={t('Your documents')} />
             <T size={12} color={colors.textSecondary}>
-              {DOCUMENTS_INTRO}
+              {t(DOCUMENTS_INTRO)}
             </T>
             {data.summary.verified ? (
-              <Notice tone="neutral" title={DOCUMENTS_CHECKED_TITLE}>
-                {DOCUMENTS_CHECKED_BODY}
+              <Notice tone="neutral" title={t(DOCUMENTS_CHECKED_TITLE)}>
+                {t(DOCUMENTS_CHECKED_BODY)}
               </Notice>
             ) : (
               <T size={13} weight={500}>
-                <T num size={13} weight={500}>
-                  {data.summary.approvedRequired}
-                </T>
-                {' of '}
-                <T num size={13} weight={500}>
-                  {data.summary.required}
-                </T>
-                {' required approved'}
+                {fill(t('{done} of {count} required approved'), {
+                  done: (
+                    <T num size={13} weight={500}>
+                      {data.summary.approvedRequired}
+                    </T>
+                  ),
+                  count: (
+                    <T num size={13} weight={500}>
+                      {data.summary.required}
+                    </T>
+                  ),
+                })}
               </T>
             )}
           </View>

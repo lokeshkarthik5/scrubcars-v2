@@ -14,6 +14,7 @@ import { T } from '@repo/native-ui/text';
 import { otpFlow } from '@/lib/otp-flow';
 import { session } from '@/lib/session';
 import { createStyles, useColors } from '@repo/native-ui/theme';
+import { fill, useT } from '@repo/core/i18n';
 
 /** Detlio's Privacy Policy, as the web's sign-in links it. */
 const PRIVACY_POLICY_URL = 'https://detlio.com/privacy';
@@ -28,11 +29,12 @@ export default function LoginScreen() {
 }
 
 function LoginFooter() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   return (
     <T size={12} lh={16} color={colors.textMuted} align="center" style={styles.legal}>
-      {'How we use your data is set out in our\n'}
+      {`${t('How we use your data is set out in our')}\n`}
       <T
         accessibilityRole="link"
         size={12}
@@ -41,13 +43,14 @@ function LoginFooter() {
         style={styles.link}
         onPress={() => void WebBrowser.openBrowserAsync(PRIVACY_POLICY_URL)}
       >
-        Privacy Policy
+        {t('Privacy Policy')}
       </T>
     </T>
   );
 }
 
 function LoginForm() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const [phone, setPhone] = useState('');
@@ -77,7 +80,7 @@ function LoginForm() {
       otpFlow.set({ phone, purpose: sent.purpose, expiresAt, resendAt });
       router.push('/verify-otp' as Href);
     } catch (err) {
-      setError(otpErrorMessage(err, 'Failed to send OTP'));
+      setError(otpErrorMessage(err, t('Failed to send OTP')));
       setRetryAt(retryMoment(err, Date.now()));
     } finally {
       setLoading(false);
@@ -88,7 +91,7 @@ function LoginForm() {
 
   return (
     <>
-      <AuthHeading title="Detlio for Partners" subtitle="Log in with the number registered for your garage." />
+      <AuthHeading title="Detlio for Partners" subtitle={t('Log in with the number registered for your garage.')} />
       <View style={styles.form}>
         <ScPhoneInput normalise={normaliseIndianMobile} value={phone} onChange={changePhone} onSubmit={() => void submit()} />
         {shownError ? (
@@ -104,21 +107,24 @@ function LoginForm() {
         <ScButton variant="cta" glass disabled={disabled} onPress={() => void submit()}>
           <Label color={disabled ? colors.textSecondary : colors.textPrimary}>
             {loading ? (
-              'Sending...'
+              t('Sending...')
             ) : waitSeconds > 0 && waitSeconds < 60 ? (
               <>
-                {'Send OTP in '}
-                <T num size={15} weight={600} lh={20} color={colors.textSecondary}>
-                  {formatCountdown(waitSeconds)}
-                </T>
+                {fill(t('Send OTP in {time}'), {
+                  time: (
+                    <T num size={15} weight={600} lh={20} color={colors.textSecondary}>
+                      {formatCountdown(waitSeconds)}
+                    </T>
+                  ),
+                })}
               </>
             ) : (
-              'Send OTP'
+              t('Send OTP')
             )}
           </Label>
         </ScButton>
         <T size={13} lh={20} color={colors.textSecondary} align="center">
-          New to Detlio? You can set up your garage once your number is verified.
+          {t('New to Detlio? You can set up your garage once your number is verified.')}
         </T>
       </View>
     </>

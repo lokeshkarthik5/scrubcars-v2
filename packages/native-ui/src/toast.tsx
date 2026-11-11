@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IconAlertCircle, IconCheck, IconInfoCircle, IconX } from './icons';
 import { T } from './text';
 import { createStyles, useColors } from './theme';
+import { useT } from './lang';
 
 /**
  * The web's toasts (react-toastify as each app's layout sets it up: top centre,
@@ -98,6 +99,7 @@ const subscribe = (listener: () => void) => {
 
 /** Mounted once at the root, and again inside a sheet (a native modal covers the root). */
 export function ToastHost() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const KIND_ICON = {
@@ -126,13 +128,13 @@ export function ToastHost() {
             {item.undo ? (
               <Pressable accessibilityRole="button" hitSlop={8} onPress={item.undo.onPress} style={styles.undo}>
                 <T size={14} weight={600} style={styles.undoText}>
-                  {item.undo.label}
+                  {t(item.undo.label)}
                 </T>
               </Pressable>
             ) : (
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Close"
+                accessibilityLabel={t('Close')}
                 hitSlop={12}
                 onPress={() => dismiss(item.id)}
               >

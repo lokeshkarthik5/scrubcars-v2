@@ -38,6 +38,7 @@ import { createStyles, useColors } from '@repo/native-ui/theme';
 
 import { Num } from './figures';
 import { useTileStyles, VideoSlot, VideoStatusLine } from './media-video';
+import { fill, useT } from '@repo/core/i18n';
 
 type Source = 'camera' | 'library';
 
@@ -69,6 +70,7 @@ export function ServiceMediaEditor({
   /** Null while loading: photos only until it says video is on. */
   config: MediaConfig | null;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const tileStyles = useTileStyles();
@@ -124,11 +126,11 @@ export function ServiceMediaEditor({
     setBusy('photo');
     let preparedUri: string | null = null;
     try {
-      const prepared = await prepareForUpload(asset.uri, 'That photo');
+      const prepared = await prepareForUpload(asset.uri, t('That photo'));
       preparedUri = prepared.uri;
       onMediaChange(await uploadServicePhoto(serviceId, prepared.bytes));
     } catch (err) {
-      fail(err, 'The photo did not upload. Try again.');
+      fail(err, t('The photo did not upload. Try again.'));
     } finally {
       // The picker's copy of the original (location still on it) goes whatever happened.
       discardCached([asset.uri, preparedUri]);
@@ -142,7 +144,7 @@ export function ServiceMediaEditor({
       if (source === 'camera') {
         const permission = await ImagePicker.requestCameraPermissionsAsync();
         if (!permission.granted) {
-          setError('Allow the camera in Settings to take a photo, or choose one from the library.');
+          setError(t('Allow the camera in Settings to take a photo, or choose one from the library.'));
           return;
         }
         result = await ImagePicker.launchCameraAsync({ mediaTypes: 'images', exif: false });
@@ -150,7 +152,7 @@ export function ServiceMediaEditor({
         result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: 'images', exif: false });
       }
     } catch (err) {
-      fail(err, 'The photo did not upload. Try again.');
+      fail(err, t('The photo did not upload. Try again.'));
       return;
     }
     if (!result.canceled && result.assets[0]) await addPhoto(result.assets[0]);
@@ -208,7 +210,7 @@ export function ServiceMediaEditor({
           // Left as processing; the server gives up on it after two hours.
         }
       }
-      fail(err, 'The video did not upload. Try again.');
+      fail(err, t('The video did not upload. Try again.'));
     }
   };
 
@@ -217,7 +219,7 @@ export function ServiceMediaEditor({
     try {
       result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: 'videos', allowsMultipleSelection: false });
     } catch (err) {
-      fail(err, 'The video did not upload. Try again.');
+      fail(err, t('The video did not upload. Try again.'));
       return;
     }
     if (!result.canceled && result.assets[0]) await sendVideo(result.assets[0]);
@@ -230,7 +232,7 @@ export function ServiceMediaEditor({
       onMediaChange(await removeServiceMedia(serviceId, item.id));
       if (item.kind === 'video') setVideo({ step: 'idle' });
     } catch (err) {
-      fail(err, 'That did not go. Try again.');
+      fail(err, t('That did not go. Try again.'));
     } finally {
       setBusy(null);
     }
@@ -246,21 +248,21 @@ export function ServiceMediaEditor({
       <View key={photo.id} style={[tileStyles.tile, tileStyles.filled]}>
         <Image
           source={{ uri: photo.url }}
-          accessibilityLabel={`Photo ${i + 1} of ${serviceName}`}
+          accessibilityLabel={t('Photo {n} of {service}', { n: i + 1, service: serviceName })}
           resizeMode="cover"
           style={StyleSheet.absoluteFill}
         />
         {photo.source === 'ai' ? (
           <View style={styles.sample}>
             <T size={11} weight={500} lh={16} color={colors.white}>
-              Sample
+              {t('Sample')}
             </T>
           </View>
         ) : null}
         {/* A 44px target in the corner; the disc stays small so it covers less of the photo. */}
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Remove photo ${i + 1} of ${serviceName}`}
+          accessibilityLabel={t('Remove photo {n} of {service}', { n: i + 1, service: serviceName })}
           disabled={busy !== null}
           onPress={() => void remove(photo)}
           style={[styles.removeHit, busy !== null && { opacity: 0.5 }]}
@@ -275,15 +277,15 @@ export function ServiceMediaEditor({
       <Pressable
         key={`empty-${i}`}
         accessibilityRole="button"
-        accessibilityLabel={`Add a photo of ${serviceName}`}
-        accessibilityHint={consent ? undefined : 'Tick the box above first'}
+        accessibilityLabel={t('Add a photo of {service}', { service: serviceName })}
+        accessibilityHint={consent ? undefined : t('Tick the box above first')}
         disabled={addDisabled}
         onPress={askForPhoto}
         style={[tileStyles.tile, tileStyles.empty, addDisabled && { opacity: 0.4 }]}
       >
         <IconPhotoPlus size={22} stroke={1.6} color={colors.textSecondary} />
         <T size={12} weight={500} lh={16} color={colors.textSecondary} align="center">
-          {busy === 'photo' && i === 0 ? 'Adding…' : 'Add photo'}
+          {busy === 'photo' && i === 0 ? t('Adding…') : t('Add photo')}
         </T>
       </Pressable>
     )),
@@ -305,19 +307,15 @@ export function ServiceMediaEditor({
 
   return (
     // Named for its service: a screen lists several of these.
-    <View accessibilityLabel={`Photos and video of ${serviceName}`} style={styles.column}>
+    <View accessibilityLabel={t('Photos and video of {service}', { service: serviceName })} style={styles.column}>
       <View style={styles.head}>
         <T size={13} weight={500} color={colors.textSecondary}>
-          Photos and video
+          {t('Photos and video')}
         </T>
         <T size={12} color={colors.textMuted} style={styles.headHint}>
-          Up to <Num>{maxPhotos}</Num> photos
-          {videoOn ? (
-            <>
-              {' '}
-              and <Num>1</Num> video
-            </>
-          ) : null}
+          {videoOn
+            ? fill(t('Up to {photos} photos and {videos} video'), { photos: <Num>{maxPhotos}</Num>, videos: <Num>1</Num> })
+            : fill(t('Up to {photos} photos'), { photos: <Num>{maxPhotos}</Num> })}
         </T>
       </View>
 
@@ -333,9 +331,9 @@ export function ServiceMediaEditor({
         </View>
         <T size={13} lh={18} color={colors.textSecondary} style={styles.flex}>
           <T size={13} lh={18} weight={600}>
-            Before adding:
+            {t('Before adding:')}
           </T>{' '}
-          {CONSENT_TEXT}
+          {t(CONSENT_TEXT)}
         </T>
       </Pressable>
 
@@ -381,11 +379,11 @@ export function ServiceMediaEditor({
       ) : null}
 
       <T size={12} lh={16} color={colors.textMuted}>
-        Upload the original file from the phone’s gallery — not a WhatsApp forward — for the sharpest result.
+        {t('Upload the original file from the phone’s gallery — not a WhatsApp forward — for the sharpest result.')}
       </T>
 
       {/* The web's file box offers the camera or the gallery; here, the same two. */}
-      <ScSheet open={choosing} onClose={() => setChoosing(false)} accessibilityLabel="Add a photo" horizontalPadding={16}>
+      <ScSheet open={choosing} onClose={() => setChoosing(false)} accessibilityLabel={t('Add a photo')} horizontalPadding={16}>
         <View style={styles.choices}>
           <ScButton
             variant="outline"
@@ -394,7 +392,7 @@ export function ServiceMediaEditor({
               setTimeout(() => void pickPhoto('camera'), AFTER_SHEET_MS);
             }}
           >
-            Take a photo
+            {t('Take a photo')}
           </ScButton>
           <ScButton
             variant="outline"
@@ -403,7 +401,7 @@ export function ServiceMediaEditor({
               setTimeout(() => void pickPhoto('library'), AFTER_SHEET_MS);
             }}
           >
-            Choose from library
+            {t('Choose from library')}
           </ScButton>
         </View>
       </ScSheet>

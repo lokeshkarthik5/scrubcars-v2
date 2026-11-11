@@ -7,7 +7,7 @@ import { APP_VERSION } from './app-config';
 import { devicePrefs } from './device-prefs';
 
 /**
- * Whether Garage Book is on (0069): the app-config answer's `garageBook`, which is the
+ * Whether Garage Book is on (0072): the app-config answer's `garageBook`, which is the
  * server's GARAGE_BOOK switch. Off, or no answer from an older API, the app is exactly as
  * it was: today's tabs and screens. The last answer is kept on the phone so the bar does
  * not flash from the old one to the new on every start.

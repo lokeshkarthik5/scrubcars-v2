@@ -1,4 +1,5 @@
 import { useNow } from '@repo/core/hooks/use-now';
+import { fill, useT } from '@repo/core/i18n';
 import { formatCountdown, otpDeadlines, otpErrorMessage, retryAt as retryMoment, secondsUntil } from '@repo/core/otp';
 import { normaliseIndianMobile } from '@repo/core/phone';
 import { safeNextPath } from '@repo/core/redirect';
@@ -21,6 +22,7 @@ const TERMS_URL = 'https://detlio.com/terms';
 const PRIVACY_URL = 'https://detlio.com/privacy';
 
 function Legal() {
+  const t = useT();
   const colors = useColors();
   const link = (url: string, words: string) => (
     <T
@@ -36,16 +38,13 @@ function Legal() {
   );
   return (
     <T size={12} lh={16} color={colors.textMuted} align="center" style={styles.legal}>
-      {'By continuing, you agree to our '}
-      {link(TERMS_URL, 'Terms')}
-      {'.\nOur '}
-      {link(PRIVACY_URL, 'Privacy Policy')}
-      {' explains how we use your data.'}
+      {fill(t('By continuing, you agree to our {terms}.\nOur {privacy} explains how we use your data.'), { terms: link(TERMS_URL, t('Terms')), privacy: link(PRIVACY_URL, t('Privacy Policy')) })}
     </T>
   );
 }
 
 function Form() {
+  const t = useT();
   const colors = useColors();
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
@@ -75,7 +74,7 @@ function Form() {
       otpFlow.set({ phone, purpose: sent.purpose, expiresAt, resendAt });
       router.push('/verify-otp' as Href);
     } catch (err) {
-      setError(otpErrorMessage(err, 'Failed to send OTP'));
+      setError(otpErrorMessage(err, t('Failed to send OTP')));
       setRetryAt(retryMoment(err, Date.now()));
     } finally {
       setLoading(false);
@@ -86,7 +85,7 @@ function Form() {
 
   return (
     <>
-      <AuthHeading title="Welcome to Detlio" subtitle="Log in or sign up with your mobile number." />
+      <AuthHeading title={t('Welcome to Detlio')} subtitle={t('Log in or sign up with your mobile number.')} />
       <View style={styles.form}>
         <ScPhoneInput value={phone} onChange={changePhone} onSubmit={() => void submit()} normalise={normaliseIndianMobile} />
         {shownError ? (
@@ -102,21 +101,22 @@ function Form() {
         <ScButton variant="cta" glass disabled={disabled} onPress={() => void submit()}>
           <Label color={disabled ? colors.textSecondary : colors.white}>
             {loading ? (
-              'Sending...'
+              t('Sending...')
             ) : waitSeconds > 0 && waitSeconds < 60 ? (
-              <>
-                {'Send OTP in '}
-                <T num size={15} weight={600} lh={20} color={colors.textSecondary}>
-                  {formatCountdown(waitSeconds)}
-                </T>
-              </>
+              fill(t('Send OTP in {time}'), {
+                time: (
+                  <T num size={15} weight={600} lh={20} color={colors.textSecondary}>
+                    {formatCountdown(waitSeconds)}
+                  </T>
+                ),
+              })
             ) : (
-              'Send OTP'
+              t('Send OTP')
             )}
           </Label>
         </ScButton>
         <T size={13} lh={20} color={colors.textSecondary} align="center">
-          New to Detlio? Your account is created when you verify your number.
+          {t('New to Detlio? Your account is created when you verify your number.')}
         </T>
       </View>
     </>

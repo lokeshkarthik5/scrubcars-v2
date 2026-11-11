@@ -2,14 +2,16 @@ import { Link } from 'expo-router';
 import { Text, View } from 'react-native';
 
 import { createStyles } from '@repo/native-ui/theme';
+import { useT } from '@repo/core/i18n';
 
 export default function NotFoundScreen() {
+  const t = useT();
   const styles = useStyles();
   return (
     <View style={styles.page}>
-      <Text style={styles.title}>This screen doesn't exist.</Text>
+      <Text style={styles.title}>{t("This screen doesn't exist.")}</Text>
       <Link href="/" style={styles.link}>
-        Go to the start
+        {t('Go to the start')}
       </Link>
     </View>
   );

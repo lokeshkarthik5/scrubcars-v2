@@ -1,4 +1,5 @@
 import { useSavedGarages } from '@repo/core/api/hooks/use-favourites';
+import { useT } from '@repo/core/i18n';
 import { ScButton } from '@repo/native-ui/button';
 import { IconHeart } from '@repo/native-ui/icons';
 import { EmptyState, ErrorState, Skeleton } from '@repo/native-ui/primitives';
@@ -14,6 +15,7 @@ import { useAuth } from '@/lib/auth';
 
 /** apps/users/app/profile/saved-garages/page.tsx. */
 export default function SavedGaragesScreen() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
@@ -22,14 +24,14 @@ export default function SavedGaragesScreen() {
   const vendors = saved.data?.vendors ?? [];
   return (
     <View style={[styles.page, { paddingTop: insets.top }]}>
-      <PageHeader title="Saved garages" backTo="/profile" />
+      <PageHeader title={t('Saved garages')} backTo="/profile" />
       {!user ? (
         <View style={styles.center}>
           <T size={15} weight={600} align="center">
-            Sign in to see your saved garages
+            {t('Sign in to see your saved garages')}
           </T>
           <ScButton variant="main" fullWidth={false} paddingX={32} onPress={() => router.push(`/login?next=${encodeURIComponent('/profile/saved-garages')}` as Href)}>
-            Sign in
+            {t('Sign in')}
           </ScButton>
         </View>
       ) : (
@@ -40,16 +42,16 @@ export default function SavedGaragesScreen() {
               <Skeleton height={220} />
             </>
           ) : saved.isError && vendors.length === 0 ? (
-            <ErrorState message="Couldn't load your saved garages. Check your connection." onRetry={() => void saved.refetch()} />
+            <ErrorState message={t("Couldn't load your saved garages. Check your connection.")} onRetry={() => void saved.refetch()} />
           ) : vendors.length === 0 ? (
             <View style={styles.none}>
-              <EmptyState icon={<IconHeart size={32} stroke={1.5} color={colors.textSecondary} />} title="No saved garages yet" subtitle="Tap the heart on a garage to keep it here." />
+              <EmptyState icon={<IconHeart size={32} stroke={1.5} color={colors.textSecondary} />} title={t('No saved garages yet')} subtitle={t('Tap the heart on a garage to keep it here.')} />
               <ScButton variant="outline" fullWidth={false} onPress={() => router.push('/garages' as Href)}>
-                Find garages
+                {t('Find garages')}
               </ScButton>
             </View>
           ) : (
-            vendors.map((vendor) => <VendorCard key={vendor.id} vendor={vendor} note={vendor.bookingsPaused ? 'Not taking bookings right now' : null} />)
+            vendors.map((vendor) => <VendorCard key={vendor.id} vendor={vendor} note={vendor.bookingsPaused ? t('Not taking bookings right now') : null} />)
           )}
         </ScrollView>
       )}

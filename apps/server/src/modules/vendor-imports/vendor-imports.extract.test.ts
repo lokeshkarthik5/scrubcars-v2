@@ -168,7 +168,7 @@ describe('holdToCreateRules', () => {
     const imp = base()
     imp.draft.email = 'ravi at gmail'
     imp.draft.yearsInOperation = 'Ten years, since the year 2016'
-    imp.draft.doorstepRadiusKm = 45
+    imp.draft.doorstepRadiusKm = 450
     const { draft, fields } = holdToCreateRules(imp)
     expect(draft.email).toBeNull()
     expect(fields.email).toEqual({ confidence: 'missing', reason: '“ravi at gmail” is not an email address.' })
@@ -177,7 +177,7 @@ describe('holdToCreateRules', () => {
     expect(draft.doorstepRadiusKm).toBeNull()
     expect(fields.doorstepRadiusKm).toEqual({
       confidence: 'check',
-      reason: 'Written as 45 km. Detlio takes 1 to 30 km, so the 10 km default is used.',
+      reason: 'Written as 450 km. Detlio takes 1 to 300 km, so the 10 km default is used.',
     })
   })
 

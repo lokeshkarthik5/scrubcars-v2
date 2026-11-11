@@ -37,7 +37,7 @@ describe('GET /app-config', () => {
     expect(res.headers.get('cache-control')).toBe('no-store')
     expect(body).toEqual({
       success: true,
-      // garageBook (0069): added; GARAGE_BOOK is off unless set.
+      // garageBook (0072): added; GARAGE_BOOK is off unless set.
       data: { minVersion: null, latestVersion: null, updateRequired: false, storeUrl: null, garageBook: false },
     })
   })
@@ -55,7 +55,7 @@ describe('GET /app-config', () => {
     })
   })
 
-  test('says whether Garage Book is on, for the garage app (0069)', async () => {
+  test('says whether Garage Book is on, for the garage app (0072)', async () => {
     const before = envValues.garageBook
     envValues.garageBook = true
     const { body } = await get('?app=garage&platform=ios&version=1.0.0')

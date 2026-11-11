@@ -1,30 +1,39 @@
 import type { GarageClaim } from '@repo/core/api/guarantee';
 import { GUARANTEE_RULES, timeLeftLabel } from '@repo/core/guarantee';
 import type { JobPhoto } from '@repo/core/types';
+import { interpolate, msg, t } from '@repo/core/i18n/translate';
 
 /**
  * The words and small decisions of the free redo claims inbox, the parts of
  * apps/vendors/app/guarantee/page.tsx and packages/ui/src/features/guarantee-photos.tsx
- * that are not drawing. Pure, so they can be tested; the clock is a parameter.
+ * that are not drawing. Pure, so they can be tested; the clock is a parameter. The constants stay
+ * English (msg) for the screen's t(); the lines built here come out in the language in use.
  */
 
-export const OWNER_ONLY = 'Only the garage owner can see and answer redo claims.';
-export const NOT_SWITCHED_ON = 'Free redo claims are not switched on yet.';
-export const ACCEPTED_TOAST = 'Accepted. The customer picks a time for the redo.';
-export const DISPUTED_TOAST = 'Sent to Detlio to decide.';
-export const ACCEPT_FAILED = 'Could not answer. Please try again.';
-export const DISPUTE_FAILED = 'Could not send. Please try again.';
+export const OWNER_ONLY = msg('Only the garage owner can see and answer redo claims.');
+export const NOT_SWITCHED_ON = msg('Free redo claims are not switched on yet.');
+export const ACCEPTED_TOAST = msg('Accepted. The customer picks a time for the redo.');
+export const DISPUTED_TOAST = msg('Sent to Detlio to decide.');
+export const ACCEPT_FAILED = msg('Could not answer. Please try again.');
+export const DISPUTE_FAILED = msg('Could not send. Please try again.');
 
-/** The paragraph under the title. */
-export const GUARANTEE_INTRO =
-  `A customer can ask for a free redo within ${GUARANTEE_RULES.claimWindowHours} hours of a wash or detailing, ` +
-  `with photos. Answer within ${GUARANTEE_RULES.garageReviewHours} hours of your opening hours, or the redo is ` +
-  'approved. Jobs without your before and after photos are approved at once.';
+const INTRO = msg(
+  'A customer can ask for a free redo within {claimHours} hours of a wash or detailing, with photos. Answer within {reviewHours} hours of your opening hours, or the redo is approved. Jobs without your before and after photos are approved at once.'
+);
+const INTRO_VARS = {
+  claimHours: GUARANTEE_RULES.claimWindowHours,
+  reviewHours: GUARANTEE_RULES.garageReviewHours,
+};
+const DISPUTE = msg("Say why the job was done properly. Detlio compares both sides' photos and decides within {hours} hours.");
+const DISPUTE_VARS = { hours: GUARANTEE_RULES.detlioDecideHours };
 
-/** Under "Dispute this claim". */
-export const DISPUTE_INTRO =
-  `Say why the job was done properly. Detlio compares both sides' photos and decides within ` +
-  `${GUARANTEE_RULES.detlioDecideHours} hours.`;
+/** The paragraph under the title (the English; the screen shows guaranteeIntro()). */
+export const GUARANTEE_INTRO = interpolate(INTRO, INTRO_VARS);
+export const guaranteeIntro = () => t(INTRO, INTRO_VARS);
+
+/** Under "Dispute this claim" (the English; the screen shows disputeIntro()). */
+export const DISPUTE_INTRO = interpolate(DISPUTE, DISPUTE_VARS);
+export const disputeIntro = () => t(DISPUTE, DISPUTE_VARS);
 
 /** The shortest reason Send to Detlio takes, after trimming. */
 export const DISPUTE_MIN_CHARS = 5;
@@ -47,8 +56,8 @@ export function answerByLine(
 ): string | null {
   const left = timeLeftLabel(claim.garageRespondBy, now);
   if (!left) return null;
-  const by = claim.garageRespondBy ? ` (by ${formatTime(claim.garageRespondBy)})` : '';
-  return `Answer within ${left} of now${by}`;
+  const by = claim.garageRespondBy ? ` ${t('(by {time})', { time: formatTime(claim.garageRespondBy) })}` : '';
+  return t('Answer within {left} of now', { left }) + by;
 }
 
 /** The first line of a card: "Asha · Premium Car Wash". */
@@ -60,7 +69,8 @@ export function claimSubtitle(
   claim: Pick<GarageClaim, 'bookingRef' | 'completedAt'>,
   formatTime: (iso: string) => string
 ): string {
-  return `Booking #${claim.bookingRef}${claim.completedAt ? ` · done ${formatTime(claim.completedAt)}` : ''}`;
+  const done = claim.completedAt ? ` · ${t('done {time}', { time: formatTime(claim.completedAt) })}` : '';
+  return t('Booking #{ref}', { ref: claim.bookingRef }) + done;
 }
 
 export interface ClaimNote {
@@ -73,31 +83,33 @@ export interface ClaimNote {
 export function claimNotes(claim: GarageClaim, formatTime: (iso: string) => string): ClaimNote[] {
   const notes: ClaimNote[] = [];
   if (claim.route === 'auto') {
-    notes.push({ text: 'Approved at once: there were no before and after photos on this job.' });
+    notes.push({ text: t('Approved at once: there were no before and after photos on this job.') });
   }
   if (claim.route === 'detlio' && claim.status === 'needs_detlio' && !claim.garageResponse) {
-    notes.push({ text: 'Detlio is reviewing this claim. Nothing for you to do yet.' });
+    notes.push({ text: t('Detlio is reviewing this claim. Nothing for you to do yet.') });
   }
   if (claim.garageResponse === 'disputed' && claim.garageNote) {
-    notes.push({ text: `You disputed it: “${claim.garageNote}”` });
+    notes.push({ text: t('You disputed it: “{note}”', { note: claim.garageNote }) });
   }
   if (claim.garageResponse === 'timed_out') {
-    notes.push({ text: 'There was no answer in time, so the redo was approved.' });
+    notes.push({ text: t('There was no answer in time, so the redo was approved.') });
   }
   if (claim.decisionReason) {
-    notes.push({ text: `Detlio: “${claim.decisionReason}”` });
+    notes.push({ text: t('Detlio: “{reason}”', { reason: claim.decisionReason }) });
   }
   if (claim.status === 'refund_approved') {
-    notes.push({ text: 'Detlio approved a refund instead of a redo. Nothing is paid out on this job.' });
+    notes.push({ text: t('Detlio approved a refund instead of a redo. Nothing is paid out on this job.') });
   }
   if (claim.redoBooking) {
     notes.push({
-      text: `Free redo booked for ${formatTime(claim.redoBooking.scheduledAt)} — it is on your Bookings page.`,
+      text: t('Free redo booked for {time} — it is on your Bookings page.', {
+        time: formatTime(claim.redoBooking.scheduledAt),
+      }),
       primary: true,
     });
   }
   if (claim.status === 'redo_approved' && claim.redoBookBy) {
-    notes.push({ text: `The customer picks a free redo time by ${formatTime(claim.redoBookBy)}.` });
+    notes.push({ text: t('The customer picks a free redo time by {time}.', { time: formatTime(claim.redoBookBy) }) });
   }
   return notes;
 }

@@ -4,6 +4,7 @@ import { createStyles, useColors } from '@repo/native-ui/theme';
 
 import { SectionHeader } from '../rows';
 import { T } from '@repo/native-ui/text';
+import { useT } from '@repo/core/i18n';
 
 /** SectionHeader with its `action` slot: "Cancel edit" while editing, or the list's count. */
 export function SectionTitle({
@@ -19,6 +20,7 @@ export function SectionTitle({
   /** Beside the heading when not editing: the Services form's "Add add-on". */
   action?: React.ReactNode;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   return (
@@ -27,7 +29,7 @@ export function SectionTitle({
       {onCancel ? (
         <Pressable accessibilityRole="button" onPress={onCancel} hitSlop={6} style={styles.cancel}>
           <T size={13} weight={500} color={colors.textSecondary}>
-            Cancel edit
+            {t('Cancel edit')}
           </T>
         </Pressable>
       ) : action ? (

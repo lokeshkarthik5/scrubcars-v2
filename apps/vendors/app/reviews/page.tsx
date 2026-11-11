@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { IconStar } from '@tabler/icons-react'
+import { fill, useT } from '@repo/core/i18n'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScCard } from '@repo/ui/sc/card'
 import { EmptyState } from '@repo/ui/sc/empty-state'
@@ -17,6 +18,7 @@ import { formatRating } from '@repo/core/vendor-stats'
 import { NEW_GARAGE_LABEL, RATING_RULES, isNewGarage } from '@repo/core/ratings'
 
 export default function VendorReviewsPage() {
+  const t = useT()
   const [reviews, setReviews] = useState<Review[]>([])
   // Placeholders until the reviews arrive, rather than "no reviews" for a
   // moment on a garage that has plenty.
@@ -52,7 +54,7 @@ export default function VendorReviewsPage() {
 
   return (
     <AppShell showNav navType="vendor" className="gap-5 py-4">
-      <TopBar showBack title="Reviews" />
+      <TopBar showBack title={t('Reviews')} />
 
       {/* The summary waits for the list too: a 0 and five empty stars for a
           moment, on a garage with plenty of reviews, reads as a bad score. */}
@@ -62,16 +64,22 @@ export default function VendorReviewsPage() {
       ) : reviews.length > 0 && newGarage ? (
         <ScCard className="flex flex-col gap-1 px-4 py-4">
           <p className="text-[17px] font-semibold text-text-primary">
-            {NEW_GARAGE_LABEL}
+            {t(NEW_GARAGE_LABEL)}
           </p>
           <p className="text-[12px] text-text-secondary">
-            <span className="font-numeric">{reviews.length}</span>{' '}
-            {reviews.length === 1 ? 'review' : 'reviews'} so far. Customers see
-            your score from{' '}
-            <span className="font-numeric">
-              {RATING_RULES.minCountedReviews}
-            </span>{' '}
-            reviews.
+            {fill(
+              reviews.length === 1
+                ? t('{count} review so far. Customers see your score from {min} reviews.')
+                : t('{count} reviews so far. Customers see your score from {min} reviews.'),
+              {
+                count: <span className="font-numeric">{reviews.length}</span>,
+                min: (
+                  <span className="font-numeric">
+                    {RATING_RULES.minCountedReviews}
+                  </span>
+                ),
+              }
+            )}
           </p>
         </ScCard>
       ) : reviews.length > 0 ? (
@@ -82,8 +90,9 @@ export default function VendorReviewsPage() {
           <div className="flex flex-col gap-1">
             <Stars rating={avgRating} size={18} />
             <p className="text-[12px] text-text-secondary">
-              <span className="font-numeric">{reviews.length}</span>{' '}
-              {reviews.length === 1 ? 'review' : 'reviews'}
+              {fill(reviews.length === 1 ? t('{count} review') : t('{count} reviews'), {
+                count: <span className="font-numeric">{reviews.length}</span>,
+              })}
             </p>
           </div>
         </ScCard>
@@ -95,7 +104,7 @@ export default function VendorReviewsPage() {
         <SkeletonList count={3} itemClassName="h-[92px]" />
       ) : failed ? (
         <LoadError
-          what="your reviews"
+          what={t('your reviews')}
           retrying={retrying}
           onRetry={() => {
             setRetrying(true)
@@ -105,8 +114,8 @@ export default function VendorReviewsPage() {
       ) : reviews.length === 0 ? (
         <EmptyState
           icon={<IconStar size={28} stroke={1.5} />}
-          title="No reviews yet"
-          subtitle="Reviews will appear after your first completed job"
+          title={t('No reviews yet')}
+          subtitle={t('Reviews will appear after your first completed job')}
         />
       ) : (
         <div className="flex flex-col gap-2">
@@ -146,7 +155,7 @@ export default function VendorReviewsPage() {
                 {review.reply && (
                   <div className="mt-2 rounded-[10px] border-l-2 border-text-primary bg-surface px-3 py-2">
                     <p className="text-[12px] font-semibold text-text-primary">
-                      Your reply
+                      {t('Your reply')}
                     </p>
                     <p className="mt-0.5 text-[13px] text-text-secondary">
                       {review.reply.text}

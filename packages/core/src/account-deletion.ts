@@ -1,3 +1,5 @@
+import { msg } from './i18n/translate'
+
 /**
  * Deleting an account in the app (0066): the words both apps show. The
  * server decides (apps/server/src/lib/account-deletion.ts): it keeps the
@@ -8,24 +10,25 @@
 /** The word typed before "Delete my account" works. */
 export const ACCOUNT_DELETION_CONFIRM = 'DELETE'
 
+/** English keys: a screen shows t(ACCOUNT_DELETION_WORDS.title) and so on. */
 export const ACCOUNT_DELETION_WORDS = {
-  title: 'Delete your account?',
-  blockedIntro: 'Your account can be deleted once these are done:',
-  deletedHeading: 'Deleted now',
+  title: msg('Delete your account?'),
+  blockedIntro: msg('Your account can be deleted once these are done:'),
+  deletedHeading: msg('Deleted now'),
   deleted: [
-    'Your name, phone number, email and profile photo',
-    'Your saved cars’ number plates and colours, and your saved addresses',
-    'The addresses on your past bookings',
-    'Saved garages, slot alerts, area lists, requests to garages and notifications on your devices',
-    'Every sign-in, on every device',
+    msg('Your name, phone number, email and profile photo'),
+    msg('Your saved cars’ number plates and colours, and your saved addresses'),
+    msg('The addresses on your past bookings'),
+    msg('Saved garages, slot alerts, area lists, requests to garages and notifications on your devices'),
+    msg('Every sign-in, on every device'),
   ],
-  keptHeading: 'Kept',
+  keptHeading: msg('Kept'),
   kept: [
-    'Your bookings, receipts, payments and refunds, without your name or number: the law says we keep money records',
-    'Your reviews, shown as “Former customer”',
-    'Complaints you made, with the name and number you gave then, as our record of how we answered them',
+    msg('Your bookings, receipts, payments and refunds, without your name or number: the law says we keep money records'),
+    msg('Your reviews, shown as “Former customer”'),
+    msg('Complaints you made, with the name and number you gave then, as our record of how we answered them'),
   ],
-  final: 'This can’t be undone. You can sign up again later with the same number, as a new account.',
-  doneTitle: 'Your account is deleted',
-  doneBody: 'You’re signed out on every device. Thanks for using Detlio.',
+  final: msg('This can’t be undone. You can sign up again later with the same number, as a new account.'),
+  doneTitle: msg('Your account is deleted'),
+  doneBody: msg('You’re signed out on every device. Thanks for using Detlio.'),
 } as const

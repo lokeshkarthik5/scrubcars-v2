@@ -1,5 +1,6 @@
 import { useScratchCard } from '@repo/core/api/hooks/use-rewards';
 import type { ScratchCardView, ScratchResult } from '@repo/core/api/rewards';
+import { useT } from '@repo/core/i18n';
 import { rewardDay, rewardRupees } from '@repo/core/rewards';
 import { livePendingCheckout } from '@repo/core/stores/pending-checkout-store';
 import { Label, ScButton } from '@repo/native-ui/button';
@@ -38,6 +39,7 @@ function starPath(cx: number, cy: number, r: number) {
 
 /** The foil: silver with a fine grain, a few stars and the hint; scratched strokes are cut out of it. */
 function Foil({ width, height, strokes }: { width: number; height: number; strokes: Array<{ x: number; y: number }> }) {
+  const t = useT();
   return (
     <Svg width={width} height={height} style={StyleSheet.absoluteFill}>
       <Defs>
@@ -60,10 +62,10 @@ function Foil({ width, height, strokes }: { width: number; height: number; strok
           <Path key={`${fx}-${fy}`} d={starPath(fx * width, fy * height, r)} fill="rgba(255,255,255,0.5)" />
         ))}
         <SvgText x={width / 2} y={height / 2 - 4} fontSize={15} fontWeight="600" fill="#2A2B31" textAnchor="middle">
-          Scratch here
+          {t('Scratch here')}
         </SvgText>
         <SvgText x={width / 2} y={height / 2 + 16} fontSize={11} fontWeight="500" fill="rgba(42,43,49,0.7)" textAnchor="middle">
-          A Detlio reward is under the foil
+          {t('A Detlio reward is under the foil')}
         </SvgText>
       </G>
     </Svg>
@@ -72,6 +74,7 @@ function Foil({ width, height, strokes }: { width: number; height: number; strok
 
 /** ScratchCardPanel (apps/users/components/rewards/scratch-card.tsx). The prize is the server's. */
 export function ScratchCardPanel({ card, compact = false }: { card: ScratchCardView; compact?: boolean }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const userId = useAuth((s) => s.user?.id ?? null);
@@ -205,7 +208,7 @@ export function ScratchCardPanel({ card, compact = false }: { card: ScratchCardV
             ) : (
               <View style={[StyleSheet.absoluteFill, styles.centre]}>
                 <T size={13} lh={18} align="center" color="#A1A5AD">
-                  {waiting ? 'Revealing…' : 'A prize is waiting'}
+                  {waiting ? t('Revealing…') : t('A prize is waiting')}
                 </T>
               </View>
             )}
@@ -221,26 +224,26 @@ export function ScratchCardPanel({ card, compact = false }: { card: ScratchCardV
       </View>
       {showPrize && prize?.fellBack ? (
         <T size={11} lh={15} color={colors.textSecondary}>
-          This month&apos;s prize budget is used up, so it&apos;s a bonus stamp.
+          {t("This month's prize budget is used up, so it's a bonus stamp.")}
         </T>
       ) : null}
 
       {!cleared ? (
         <View style={styles.between}>
-          <FigureLine size={11} lh={15} color={colors.textMuted} text={`Scratch by ${rewardDay(card.lastDay)}${card.vendorName ? ` · ${card.vendorName}` : ''}`} />
+          <FigureLine size={11} lh={15} color={colors.textMuted} text={`${t('Scratch by {day}', { day: rewardDay(card.lastDay) })}${card.vendorName ? ` · ${card.vendorName}` : ''}`} />
           <Pressable accessibilityRole="button" onPress={revealAll}>
             <T size={12} weight={500} lh={16} style={styles.underline}>
-              Reveal
+              {t('Reveal')}
             </T>
           </Pressable>
         </View>
       ) : prize && isMoneyPrize(prize.outcome) && voucherLastDay ? (
         <View style={styles.between}>
           <View style={styles.shrink}>
-            <FigureLine size={12} lh={16} color={colors.textSecondary} text={`In your rewards. Use by ${rewardDay(voucherLastDay)}`} />
+            <FigureLine size={12} lh={16} color={colors.textSecondary} text={t('In your rewards. Use by {day}', { day: rewardDay(voucherLastDay) })} />
           </View>
           <ScButton variant="hero" fullWidth={false} height={40} paddingX={16} onPress={goToCheckout}>
-            <Label color={colors.white}>Use at checkout</Label>
+            <Label color={colors.white}>{t('Use at checkout')}</Label>
             <IconArrowUpRight size={16} color={colors.white} />
           </ScButton>
         </View>
@@ -248,26 +251,26 @@ export function ScratchCardPanel({ card, compact = false }: { card: ScratchCardV
         <Pressable accessibilityRole="link" onPress={() => router.push('/profile/rewards/garage' as Href)} style={styles.done}>
           <IconCircleCheckFilled size={16} color={colors.meterOn} />
           <T size={12} lh={16} style={styles.shrink}>
-            {result?.garagePull ? `${result.garagePull.car.name} (${result.garagePull.car.rarityLabel}) is in your Garage. ` : 'A new car is in your Garage. '}
+            {result?.garagePull ? `${t('{name} ({rarity}) is in your Garage.', { name: result.garagePull.car.name, rarity: t(result.garagePull.car.rarityLabel) })} ` : `${t('A new car is in your Garage.')} `}
             <T size={12} lh={16} style={styles.underline}>
-              See it
+              {t('See it')}
             </T>
           </T>
         </Pressable>
       ) : prize?.outcome === 'bonus_stamp' ? (
         <View style={styles.done}>
           <IconCircleCheckFilled size={16} color={colors.meterOn} />
-          {result?.shineVoucher ? <FigureLine size={12} lh={16} text={`Added to your Shine Card, and it's full: ${rewardRupees(result.shineVoucher.amount)} off is ready.`} /> : <T size={12} lh={16}>Added to your Shine Card</T>}
+          {result?.shineVoucher ? <FigureLine size={12} lh={16} text={t("Added to your Shine Card, and it's full: {amount} off is ready.", { amount: rewardRupees(result.shineVoucher.amount) })} /> : <T size={12} lh={16}>{t('Added to your Shine Card')}</T>}
         </View>
       ) : null}
 
       {failed ? (
         <View style={styles.between}>
           <T accessibilityRole="alert" size={12} lh={16} color={colors.warning} style={styles.shrink}>
-            {scratch.error instanceof Error ? scratch.error.message : "Couldn't reveal it. Try again."}
+            {scratch.error instanceof Error ? scratch.error.message : t("Couldn't reveal it. Try again.")}
           </T>
           <ScButton variant="outline" fullWidth={false} height={32} paddingX={12} onPress={revealAll}>
-            Try again
+            {t('Try again')}
           </ScButton>
         </View>
       ) : null}
@@ -275,7 +278,7 @@ export function ScratchCardPanel({ card, compact = false }: { card: ScratchCardV
       {compact && cleared ? (
         <Pressable accessibilityRole="link" onPress={() => router.push('/profile/rewards' as Href)}>
           <T size={12} lh={16} color={colors.textSecondary} style={styles.underline}>
-            See your rewards
+            {t('See your rewards')}
           </T>
         </Pressable>
       ) : null}

@@ -125,8 +125,12 @@ test.describe('notices @p0', () => {
       const ended = page.getByRole('region', { name: /^Ended/ })
       await expect(ended.getByText(liveTitle)).toBeVisible()
       await expect(ended.getByText(laterTitle)).toBeVisible()
-      // Never a delete: ended notices stay on the list.
-      await expect(page.getByRole('button', { name: /delete/i })).toHaveCount(0)
+      // Ending never deletes: ended notices stay on the list, with nothing
+      // left to end. Only the owner (this session) has Delete… beside each
+      // (owner-delete-records.spec.ts).
+      await expect(ended.getByRole('button', { name: /^End now/ })).toHaveCount(
+        0
+      )
 
       const rows = await sql<
         { title: string; is_active: boolean; ends_at: Date; starts_at: Date }[]

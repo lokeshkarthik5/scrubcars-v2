@@ -27,9 +27,13 @@ import type { BookingType } from './booking-types.js'
 
 /** How far a garage with no pickup radius collects from. As doorstep's default. */
 export const DEFAULT_PICKUP_RADIUS_KM = 10
-/** The radius a garage or admin may set, as for doorstep's travel radius. */
+/**
+ * The radius a garage or admin may set, as for doorstep's travel radius: 300
+ * since the owner lifted the 30 km top (10 Nov 2026). A garage that collects
+ * anywhere in its city says "All over <city>" instead (0069).
+ */
 export const MIN_PICKUP_RADIUS_KM = 1
-export const MAX_PICKUP_RADIUS_KM = 30
+export const MAX_PICKUP_RADIUS_KM = 300
 
 /** The garage's own tick in its portal settings. */
 export const PICKUP_TERMS_GARAGE =

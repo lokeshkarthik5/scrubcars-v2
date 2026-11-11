@@ -1,5 +1,6 @@
 import { ApiError } from '@repo/core/api/client';
 import { useSavedGarages, useToggleSavedGarage } from '@repo/core/api/hooks/use-favourites';
+import { useT } from '@repo/core/i18n';
 import type { Vendor } from '@repo/core/types';
 import { ScButton } from '@repo/native-ui/button';
 import { Glass } from '@repo/native-ui/finish';
@@ -23,6 +24,7 @@ export const saveGarageReturnPath = (vendorId: string) => `/garage/${vendorId}?s
  * once and goes back if the server says no. Signed out, it asks to sign in first.
  */
 export function SaveGarageButton({ vendor, glass = false }: { vendor: Vendor; glass?: boolean }) {
+  const t = useT();
   const colors = useColors();
   const user = useAuth((s) => s.user);
   const saved = useSavedGarages({ enabled: !!user });
@@ -45,8 +47,8 @@ export function SaveGarageButton({ vendor, glass = false }: { vendor: Vendor; gl
             err instanceof ApiError && err.code === 'FAVOURITES_LIMIT'
               ? err.message
               : save
-                ? "Couldn't save this garage. Try again."
-                : "Couldn't remove this garage. Try again."
+                ? t("Couldn't save this garage. Try again.")
+                : t("Couldn't remove this garage. Try again.")
           );
         },
       }
@@ -56,7 +58,7 @@ export function SaveGarageButton({ vendor, glass = false }: { vendor: Vendor; gl
   return (
     <>
       <PressRow
-        accessibilityLabel={isSaved ? `Remove ${vendor.name} from saved garages` : `Save ${vendor.name}`}
+        accessibilityLabel={isSaved ? t('Remove {name} from saved garages', { name: vendor.name }) : t('Save {name}', { name: vendor.name })}
         // Signed in, until the saved list is in: a press then could undo a save it can't see.
         disabled={!!user && !saved.data}
         onPress={press}
@@ -67,15 +69,14 @@ export function SaveGarageButton({ vendor, glass = false }: { vendor: Vendor; gl
         {isSaved ? <IconHeartFilled size={20} color="#FAFAFA" /> : <IconHeart size={20} stroke={2} color="#FAFAFA" />}
       </PressRow>
 
-      <ScSheet open={askSignIn} onClose={() => setAskSignIn(false)} accessibilityLabel="Sign in to save garages" horizontalPadding={16}>
+      <ScSheet open={askSignIn} onClose={() => setAskSignIn(false)} accessibilityLabel={t('Sign in to save garages')} horizontalPadding={16}>
         <View style={styles.sheet}>
           <View>
             <T size={16} weight={600}>
-              Sign in to save garages
+              {t('Sign in to save garages')}
             </T>
             <T size={13} color={colors.textSecondary} style={styles.line}>
-              Saved garages are kept on your account, under Profile. Signing in brings you back to {vendor.name} with it
-              saved.
+              {t('Saved garages are kept on your account, under Profile. Signing in brings you back to {name} with it saved.', { name: vendor.name })}
             </T>
           </View>
           <ScButton
@@ -86,11 +87,11 @@ export function SaveGarageButton({ vendor, glass = false }: { vendor: Vendor; gl
               setTimeout(() => router.push(`/login?next=${encodeURIComponent(saveGarageReturnPath(vendor.id))}` as Href), AFTER_SHEET_MS);
             }}
           >
-            Sign in
+            {t('Sign in')}
           </ScButton>
           <Pressable accessibilityRole="button" onPress={() => setAskSignIn(false)} style={styles.notNow}>
             <T size={13} weight={500} color={colors.textSecondary}>
-              Not now
+              {t('Not now')}
             </T>
           </Pressable>
         </View>

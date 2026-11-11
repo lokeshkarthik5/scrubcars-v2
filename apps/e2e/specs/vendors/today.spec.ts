@@ -149,4 +149,38 @@ test.describe('garage Today view and job page @p0', () => {
     await expect(page).toHaveURL(/\/bookings\?tab=today$/)
     await expect(page.getByRole('region', { name: 'Now' })).toBeVisible()
   })
+
+  test("the bar and the switch in the customer app's look: the tab you are on, and each list's count", async ({
+    page,
+  }) => {
+    await page.goto('/bookings')
+
+    // The floating bar says which tab is lit, since the orb alone says
+    // nothing to a screen reader, and still goes where it went.
+    const bar = page.getByRole('navigation', { name: 'Main' })
+    const bookings = bar.getByRole('link', { name: 'Bookings', exact: true })
+    const services = bar.getByRole('link', { name: 'Services', exact: true })
+    await expect(bookings).toHaveAttribute('aria-current', 'page')
+    await expect(services).not.toHaveAttribute('aria-current', 'page')
+    await services.click()
+    await expect(page).toHaveURL(/\/services$/)
+    await expect(services).toHaveAttribute('aria-current', 'page')
+    await expect(bookings).not.toHaveAttribute('aria-current', 'page')
+    await bookings.click()
+    await expect(page).toHaveURL(/\/bookings$/)
+
+    // Each list keeps its one-word name; its count is the quiet second
+    // line, read as the radio's description: today's two jobs (the one
+    // under way and the one next) and the one booking to answer.
+    const lists = page.getByRole('radiogroup', { name: 'Bookings' })
+    await expect(
+      lists.getByRole('radio', { name: 'Today', exact: true })
+    ).toHaveAccessibleDescription('2 jobs')
+    await expect(
+      lists.getByRole('radio', { name: 'New', exact: true })
+    ).toHaveAccessibleDescription('1 waiting')
+    await expect(
+      lists.getByRole('radio', { name: 'Calendar', exact: true })
+    ).toBeVisible()
+  })
 })

@@ -4,9 +4,8 @@ import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 
-import { Glass, Pearl, usePearlInk } from '@repo/native-ui/finish';
+import { Glass, NavOrb, Pearl, usePearlInk } from '@repo/native-ui/finish';
 import { IconCalendar, IconHome, IconLayoutGrid, IconPlus, IconUsers, type IconProps } from '@repo/native-ui/icons';
-import { LitOrb } from '@repo/native-ui/lit-orb';
 import { PressScale } from '@repo/native-ui/motion';
 import { T } from '@repo/native-ui/text';
 import { createStyles, useColors, useFinish } from '@repo/native-ui/theme';
@@ -15,12 +14,6 @@ type Place = 'home' | 'jobs' | 'customers' | 'business';
 
 const NAV_HEIGHT = 64;
 const NAV_GAP = 20;
-
-/** How much a scrolling screen leaves clear at its end while the bar floats over it. */
-export function useBookNavClearance() {
-  const insets = useSafeAreaInsets();
-  return NAV_HEIGHT + NAV_GAP + insets.bottom + 16;
-}
 
 const under = (path: string, route: string) => path === route || path.startsWith(`${route}/`);
 
@@ -69,9 +62,9 @@ function Tab({
       style={styles.tab}
     >
       {active ? (
-        <LitOrb key={place}>
+        <NavOrb key={place}>
           <Icon size={17} line={1.9} color="#FFFFFF" />
-        </LitOrb>
+        </NavOrb>
       ) : (
         <View style={styles.icon}>
           <Icon size={21} metal={silver} color={silver ? undefined : fx.quietBright} />

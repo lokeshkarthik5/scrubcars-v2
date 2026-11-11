@@ -2,6 +2,7 @@
 
 import { IconBrandWhatsapp, IconPhone } from '@tabler/icons-react'
 import { cn } from '@repo/core/utils'
+import { useT } from '@repo/core/i18n'
 
 const LINK =
   'flex min-h-11 flex-1 items-center justify-center gap-2 rounded-[10px] border border-border bg-surface px-3 text-[13px] font-medium text-text-primary transition-colors'
@@ -24,6 +25,7 @@ interface ContactButtonsProps {
  * of the secondary actions, since red stays for the screen's one main action.
  */
 export function ContactButtons({ callHref, whatsAppHref, who, className }: ContactButtonsProps) {
+  const t = useT()
   if (!callHref && !whatsAppHref) return null
 
   return (
@@ -31,11 +33,11 @@ export function ContactButtons({ callHref, whatsAppHref, who, className }: Conta
       {callHref && (
         <a
           href={callHref}
-          aria-label={`Call ${who}`}
+          aria-label={t('Call {who}', { who })}
           className={cn(LINK, 'hover:border-text-secondary')}
         >
           <IconPhone size={16} aria-hidden />
-          Call
+          {t('Call')}
         </a>
       )}
       {whatsAppHref && (
@@ -43,7 +45,7 @@ export function ContactButtons({ callHref, whatsAppHref, who, className }: Conta
           href={whatsAppHref}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label={`WhatsApp ${who}`}
+          aria-label={t('WhatsApp {who}', { who })}
           className={cn(LINK, 'hover:border-[#25D366]')}
         >
           <IconBrandWhatsapp size={16} className="text-[#25D366]" aria-hidden />

@@ -303,8 +303,11 @@ export function bookingEventProps(
 
 /**
  * The steps from a visit to a paid booking. Each but the last counts the
- * visits that did it at least once; the last counts bookings paid (the API's
- * own event), since a payment is recorded where it lands, not in a visit.
+ * visits that did it at least once; the last counts bookings paid, from the
+ * bookings themselves (lib/stats.ts paidBookings: Test bookings left out,
+ * by the day the booking was made), since a payment is recorded where it
+ * lands, not in a visit, and a booking_paid event can't be told apart once
+ * its booking is marked Test.
  */
 export const FUNNEL_STEPS = [
   { key: 'visits', event: null, label: 'Visits' },
@@ -312,7 +315,7 @@ export const FUNNEL_STEPS = [
   { key: 'checkout', event: 'checkout_start', label: 'Started checkout' },
   { key: 'slot', event: 'slot_select', label: 'Picked a slot' },
   { key: 'pay', event: 'pay_click', label: 'Pressed Pay' },
-  { key: 'paid', event: 'booking_paid', label: 'Paid' },
+  { key: 'paid', event: null, label: 'Paid' },
 ] as const
 
 export type FunnelStepKey = (typeof FUNNEL_STEPS)[number]['key']
@@ -366,7 +369,7 @@ export function summariseEventFunnel(counts: Record<FunnelStepKey, number>): Fun
   return { steps, biggestDrop }
 }
 
-/** One garage's page views against its paid bookings, both from events. */
+/** One garage's page views (events) against its paid bookings (the bookings themselves). */
 export interface GarageViewsRow {
   vendorId: string
   name: string | null

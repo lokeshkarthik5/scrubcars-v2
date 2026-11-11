@@ -9,6 +9,7 @@ import { nextFreeDayLabel, nextFreeTimeLabels, upcomingNextFree } from '@repo/co
 import type { BookingType, Vendor } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
 import { RedLight } from '@repo/ui/finish/red-light'
+import { useT } from '@repo/core/i18n'
 
 /**
  * A card's "Next free" row (§3, §9): "NEXT FREE · TODAY" and the next three
@@ -39,12 +40,14 @@ export function NextFreeRow({
   serviceIds?: readonly string[]
   className?: string
 }) {
+  const t = useT()
   const next = useNextFree(vendor.id, mode, visible)
   const [picked, setPicked] = useState<string | null>(null)
   const free = upcomingNextFree(next.data)
   if (!free) return null
 
-  const day = nextFreeDayLabel(free)
+  // formatDay stays English (screens compare it); "Today" is shown through t.
+  const day = t(nextFreeDayLabel(free))
   const labels = nextFreeTimeLabels(free)
   const modeParam = bookingTypeParam(mode)
 
@@ -52,7 +55,7 @@ export function NextFreeRow({
     <div className={cn('flex flex-col gap-2 px-3.5 pb-3.5 pt-0.5', className)}>
       <p className="flex items-center gap-1.5">
         <IconClock size={14} aria-hidden className="text-success drop-shadow-[0_0_4px_rgb(34_197_94/0.5)]" />
-        <span className="text-over font-semibold uppercase text-[#9A9AA3]">Next free</span>
+        <span className="text-over font-semibold uppercase text-[#9A9AA3]">{t('Next free')}</span>
         <span aria-hidden="true" className="text-over text-[#8E8E98]">·</span>
         <span className="text-over font-semibold uppercase text-[#E8E8EC]">{day}</span>
       </p>
@@ -68,7 +71,7 @@ export function NextFreeRow({
               data-slot=""
               href={`/book/${vendor.id}?${query.toString()}`}
               onClick={() => setPicked(time)}
-              aria-label={`Book ${vendor.name}, ${day} at ${labels[i]}`}
+              aria-label={t('Book {name}, {day} at {labels}', { name: vendor.name, day, labels: labels[i] })}
               style={{ '--fx-i': i } as React.CSSProperties}
               className={cn(
                 'showroom__slot fx-press relative flex h-11 flex-1 items-center justify-center whitespace-nowrap rounded-[12px] px-1.5 font-numeric text-t4 font-semibold',

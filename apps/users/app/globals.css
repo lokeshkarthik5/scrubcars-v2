@@ -1,6 +1,7 @@
 @import '@repo/ui/styles/globals.css';
-/* The customer UI round's finish (Nov 2026): this app only. The vendor portal
-   and admin import the globals above and never this, so they do not change. */
+/* The customer UI round's finish (Nov 2026). Its look switches on with
+   `finish` on <body>, which only this app sets; the garage portal imports the
+   file too, for its bottom bar and switches alone (see the file's header). */
 @import '@repo/ui/styles/finish.css';
 
 /* Tailwind v4 discovers utility classes by scanning source files. The app's own
@@ -16,10 +17,6 @@
   --color-brand-rich: #141416;
   --color-brand-graphite: #272730;
 }
-
-/* The bottom bar's orb and silver icons (F + H) live in the shared finish
-   (packages/ui/styles/finish.css), so the garage portal's Garage Book bar
-   draws the same ones. */
 
 /* ─── The garage list (customer UI round, Nov 2026) ──────────────────────────
  *

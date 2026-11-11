@@ -28,6 +28,7 @@ import { garageBookRoutes } from '../garage-book/garage-book.routes.js'
 import * as vendorsController from './vendors.controller.js'
 import {
   createClosureSchema,
+  listClosuresQuerySchema,
   createPhotoSchema,
   createPackageSchema,
   createServiceAreaSchema,
@@ -201,7 +202,7 @@ vendorsRoutes.route('/me/requests', garageBookingRequestRoutes)
 // same reason as the team screen.
 vendorsRoutes.route('/me/reviews', garageReviewRoutes)
 
-// Garage Book (0069): the garage's own book — walk-ins, its own customers,
+// Garage Book (0072): the garage's own book — walk-ins, its own customers,
 // reminders, money owed, stats. Widened to operators in its own file, with
 // every money figure left out for them; Money owed, Stats and the Excel are
 // the owner seat's. Every route a 404 while GARAGE_BOOK is off.
@@ -224,7 +225,8 @@ vendorsRoutes.put(
 vendorsRoutes.get(
   '/me/closures',
   ...tenantMiddleware,
-  vendorsController.listMyClosures
+  zValidator('query', listClosuresQuerySchema),
+  (c) => vendorsController.listMyClosures(c, c.req.valid('query'))
 )
 vendorsRoutes.post(
   '/me/closures',

@@ -1,5 +1,5 @@
 /**
- * Garage Book's rules (0069, modules/garage-book; SPEC.md in the owner's
+ * Garage Book's rules (0072, modules/garage-book; SPEC.md in the owner's
  * reference folder, OK'd 9 Nov 2026). Pure, with the clock passed in. The
  * apps hold the same rules and words in packages/core/src/garage-book.ts
  * (garage-book.parity.test.ts keeps them in step).

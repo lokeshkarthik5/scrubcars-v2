@@ -1,5 +1,6 @@
 import { useVendorSearch } from '@repo/core/api/hooks/use-vendors';
 import { useDebounced } from '@repo/core/hooks/use-debounced';
+import { msg, useT } from '@repo/core/i18n';
 import { IconAdjustments, IconSearch } from '@repo/native-ui/icons';
 import { ErrorState, PressRow, Spinner } from '@repo/native-ui/primitives';
 import { Rise } from '@repo/native-ui/motion';
@@ -16,13 +17,14 @@ import { coarse, isCitywide, useLocationStore } from '@/lib/location';
 import { track } from '@/lib/shims/analytics';
 
 const SORT_CHIPS: { label: string; value: SortKey }[] = [
-  { label: 'Nearest', value: 'distance' },
-  { label: 'Rating', value: 'rating' },
-  { label: 'Price', value: 'price_asc' },
+  { label: msg('Nearest'), value: 'distance' },
+  { label: msg('Rating'), value: 'rating' },
+  { label: msg('Price'), value: 'price_asc' },
 ];
 
 /** apps/users/app/search/page.tsx. */
 export default function SearchScreen() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const { category } = useLocalSearchParams<{ category?: string }>();
@@ -59,8 +61,8 @@ export default function SearchScreen() {
       <View style={styles.box}>
         <IconSearch size={18} color={colors.textMuted} />
         <TextInput
-          accessibilityLabel="Search garages or services"
-          placeholder="Search garages or services"
+          accessibilityLabel={t('Search garages or services')}
+          placeholder={t('Search garages or services')}
           placeholderTextColor={colors.textMuted}
           keyboardAppearance={colors.keyboard}
           returnKeyType="search"
@@ -80,7 +82,7 @@ export default function SearchScreen() {
               style={[styles.chip, { backgroundColor: active ? colors.chosenBg : colors.surface }]}
             >
               <T size={13} weight={500} lh={18} color={active ? colors.chosenText : colors.textPrimary}>
-                {chip.label}
+                {t(chip.label)}
               </T>
             </PressRow>
           );
@@ -88,7 +90,7 @@ export default function SearchScreen() {
         <PressRow onPress={() => setSortOpen(true)} style={styles.filter}>
           <IconAdjustments size={14} stroke={2} color={colors.textSecondary} />
           <T size={13} lh={18} color={colors.textSecondary}>
-            Filter
+            {t('Filter')}
           </T>
         </PressRow>
       </ScrollView>
@@ -97,26 +99,25 @@ export default function SearchScreen() {
         <View style={styles.counts}>
           {!awaitingFirstAnswer && !isError ? (
             <T size={11} color={colors.textSecondary}>
-              {vendors.length}
-              {hasMore ? '+' : ''} garage{vendors.length === 1 && !hasMore ? '' : 's'} found
+              {vendors.length === 1 && !hasMore ? t('{count} garage found', { count: vendors.length }) : t('{count} garages found', { count: `${vendors.length}${hasMore ? '+' : ''}` })}
             </T>
           ) : null}
           {sort !== 'relevance' ? (
             <T size={11} color={colors.textSecondary} style={styles.sorted}>
-              Sorted by {sortLabel(sort)}
+              {t('Sorted by {sortLabel}', { sortLabel: sortLabel(sort) })}
             </T>
           ) : null}
         </View>
         <View style={styles.list}>
           {awaitingFirstAnswer ? (
             <T size={13} color={colors.textSecondary} align="center" style={styles.pad}>
-              Searching…
+              {t('Searching…')}
             </T>
           ) : isError ? (
-            <ErrorState message="Couldn't load garages. Check your connection." onRetry={retry} />
+            <ErrorState message={t("Couldn't load garages. Check your connection.")} onRetry={retry} />
           ) : vendors.length === 0 ? (
             <T size={13} color={colors.textSecondary} align="center" style={styles.pad}>
-              No garages or services match your search.
+              {t('No garages or services match your search.')}
             </T>
           ) : (
             // Results rise in, the words that found them underlined with the red light (moment 11).

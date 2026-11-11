@@ -2,6 +2,7 @@ import { useAvailableSlots, useVendorClosures, useVendorWorkingHours } from '@re
 import { BOOKING_DAYS_AHEAD, meetsNotice, noticeSentence } from '@repo/core/booking-types';
 import { formatClock } from '@repo/core/format';
 import { useNow } from '@repo/core/hooks/use-now';
+import { useT } from '@repo/core/i18n';
 import type { BookingType } from '@repo/core/types';
 import { IconCalendar, IconChevronDown, IconChevronLeft, IconChevronRight } from '@repo/native-ui/icons';
 import { Rise } from '@repo/native-ui/motion';
@@ -40,7 +41,7 @@ export function WhenPicker({
   autoPick = false,
   rescheduleOf,
   initialDate = null,
-  title = 'When?',
+  title,
   renderDayExtra,
   onTaken,
 }: {
@@ -58,6 +59,7 @@ export function WhenPicker({
   /** The chosen time is no longer on its day's list (a card's Next free time, just taken). */
   onTaken?: (scheduledAt: string) => void;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const now = useNow();
@@ -166,7 +168,7 @@ export function WhenPicker({
   return (
     <View>
       <T variant="t2" style={styles.title}>
-        {title}
+        {title ?? t('When?')}
       </T>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.days} contentContainerStyle={styles.daysRow}>
         {!daysKnown
@@ -176,7 +178,7 @@ export function WhenPicker({
               </View>
             ))
           : week.map((d, i) =>
-              chip(d.value, i === 0 ? 'Today' : d.dayName, String(d.day), `${i === 0 ? 'Today, ' : ''}${d.dayName} ${d.day} ${d.monthName}${i === 1 ? ', tomorrow' : ''}`)
+              chip(d.value, i === 0 ? t('Today') : d.dayName, String(d.day), `${i === 0 ? `${t('Today')}, ` : ''}${d.dayName} ${d.day} ${d.monthName}${i === 1 ? `, ${t('tomorrow')}` : ''}`)
             )}
         {customDate
           ? chip(
@@ -188,7 +190,7 @@ export function WhenPicker({
           : null}
         <PickButton
           on={false}
-          accessibilityLabel="Pick a later date"
+          accessibilityLabel={t('Pick a later date')}
           onPress={() => {
             const [y, m] = (customDate ?? calendarMin).split('-').map(Number);
             setCalMonth({ year: y, month: m - 1 });
@@ -197,7 +199,7 @@ export function WhenPicker({
           style={styles.day}
         >
           <T variant="t5" color={colors.dim}>
-            More
+            {t('More')}
           </T>
           <IconCalendar size={18} color={colors.textPrimary} />
         </PickButton>
@@ -206,8 +208,8 @@ export function WhenPicker({
       {selectedDate ? (
         <>
           <T size={13} lh={18} color={colors.dim} style={styles.note}>
-            {autoPick ? 'Earliest first. ' : ''}
-            {noticeSentence(bookingType).replace(' at least', '')}
+            {autoPick ? `${t('Earliest first.')} ` : ''}
+            {noticeSentence(bookingType, { atLeast: false })}
           </T>
           {slotsLoading ? (
             <View style={styles.grid}>
@@ -221,17 +223,17 @@ export function WhenPicker({
             <T size={13} lh={18} color={colors.textSecondary}>
               {isPaused
                 ? rescheduleOf
-                  ? "This garage isn't taking changes right now. Your booking stays at its current time, or you can cancel it."
-                  : "This garage isn't taking new bookings right now."
+                  ? t("This garage isn't taking changes right now. Your booking stays at its current time, or you can cancel it.")
+                  : t("This garage isn't taking new bookings right now.")
                 : isHoliday
-                  ? 'The garage is closed for a holiday on this day. Pick another day.'
+                  ? t('The garage is closed for a holiday on this day. Pick another day.')
                   : isClosedDay
-                    ? 'The garage is closed on this day. Pick another day.'
+                    ? t('The garage is closed on this day. Pick another day.')
                     : tooLongForTheDay
-                      ? "These services need more time than this garage's day allows. Remove one, or pick another day."
+                      ? t("These services need more time than this garage's day allows. Remove one, or pick another day.")
                       : allBooked
-                        ? 'All times on this day are booked. Pick another day.'
-                        : `No times left on this day. ${noticeSentence(bookingType)} Pick another day.`}
+                        ? t('All times on this day are booked. Pick another day.')
+                        : t('No times left on this day. {notice} Pick another day.', { notice: noticeSentence(bookingType) })}
             </T>
           ) : (
             <>
@@ -253,7 +255,7 @@ export function WhenPicker({
               {collapse ? (
                 <PickButton on={false} onPress={() => setShowLater(true)} style={styles.more}>
                   <T variant="t4" weight={600}>
-                    Show afternoon and evening
+                    {t('Show afternoon and evening')}
                   </T>
                   <IconChevronDown size={15} color={colors.textPrimary} />
                 </PickButton>
@@ -271,11 +273,11 @@ export function WhenPicker({
         </>
       ) : null}
 
-      <ScSheet horizontalPadding={16} open={showCalendar} onClose={() => setShowCalendar(false)} accessibilityLabel="Pick a date">
+      <ScSheet horizontalPadding={16} open={showCalendar} onClose={() => setShowCalendar(false)} accessibilityLabel={t('Pick a date')}>
         <View style={styles.calHead}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Previous month"
+            accessibilityLabel={t('Previous month')}
             onPress={() => setCalMonth((c) => (c.month === 0 ? { year: c.year - 1, month: 11 } : { year: c.year, month: c.month - 1 }))}
             style={styles.calArrow}
           >
@@ -286,7 +288,7 @@ export function WhenPicker({
           </T>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Next month"
+            accessibilityLabel={t('Next month')}
             onPress={() => setCalMonth((c) => (c.month === 11 ? { year: c.year + 1, month: 0 } : { year: c.year, month: c.month + 1 }))}
             style={styles.calArrow}
           >

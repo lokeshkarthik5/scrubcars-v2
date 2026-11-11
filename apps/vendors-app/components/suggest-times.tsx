@@ -17,6 +17,7 @@ import { ScSheet } from '@repo/native-ui/sheet';
 import { T } from '@repo/native-ui/text';
 import { toast } from '@repo/native-ui/toast';
 import { errorText } from '@/lib/error-text';
+import { fill, useT } from '@repo/core/i18n';
 
 /** Mirrors the server (lib/time-proposals.ts) so the sheet refuses first. */
 const MAX_TIMES = 3;
@@ -43,11 +44,12 @@ export function SuggestTimes({
   onChanged: () => void;
   style?: StyleProp<ViewStyle>;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const proposal = booking.timeProposal?.status === 'open' ? booking.timeProposal : null;
   const ranOut = booking.status === 'pending' && booking.timeProposal?.status === 'expired';
-  const who = booking.customerName ?? 'the customer';
+  const who = booking.customerName ?? t('the customer');
   const [open, setOpen] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
 
@@ -56,9 +58,9 @@ export function SuggestTimes({
     setWithdrawing(true);
     try {
       await withdrawTimeProposal(booking.id);
-      toast.success('Suggested times withdrawn. Accept or reject the booking as usual.');
+      toast.success(t('Suggested times withdrawn. Accept or reject the booking as usual.'));
     } catch (error) {
-      toast.error(errorText(error, 'Could not withdraw the times'));
+      toast.error(errorText(error, t('Could not withdraw the times')));
     } finally {
       setWithdrawing(false);
       onChanged();
@@ -70,7 +72,7 @@ export function SuggestTimes({
       <View style={[styles.waiting, style]}>
         <View style={styles.waitingHead}>
           <IconCalendarQuestion size={18} stroke={1.5} />
-          <T size={15} weight={500} style={styles.flex}>{`Waiting for ${who} to pick a time`}</T>
+          <T size={15} weight={500} style={styles.flex}>{t('Waiting for {who} to pick a time', { who })}</T>
         </View>
         <View style={styles.options}>
           {proposal.options.map((option) => (
@@ -80,15 +82,18 @@ export function SuggestTimes({
           ))}
         </View>
         <T size={13} color={colors.textSecondary}>
-          {`If ${who} doesn't pick one by ${timeLabel(proposal.expiresAt)}, the booking is cancelled and refunded in full.`}
+          {t("If {who} doesn't pick one by {time}, the booking is cancelled and refunded in full.", {
+            who,
+            time: timeLabel(proposal.expiresAt),
+          })}
         </T>
         <ScButton
           variant="outline"
           disabled={withdrawing}
           onPress={handleWithdraw}
-          accessibilityLabel={`Withdraw suggested times for ${who}`}
+          accessibilityLabel={t('Withdraw suggested times for {who}', { who })}
         >
-          {withdrawing ? 'Withdrawing…' : 'Withdraw times'}
+          {withdrawing ? t('Withdrawing…') : t('Withdraw times')}
         </ScButton>
       </View>
     );
@@ -97,7 +102,7 @@ export function SuggestTimes({
   if (ranOut) {
     return (
       <T size={15} color={colors.textSecondary}>
-        {`${who} didn't pick one of your times in time, so this booking is being cancelled and refunded.`}
+        {t("{who} didn't pick one of your times in time, so this booking is being cancelled and refunded.", { who })}
       </T>
     );
   }
@@ -109,10 +114,10 @@ export function SuggestTimes({
       <ScButton
         variant="outline"
         onPress={() => setOpen(true)}
-        accessibilityLabel={`Other time: suggest another time for ${who}`}
+        accessibilityLabel={t('Other time: suggest another time for {who}', { who })}
         style={style}
       >
-        Other time
+        {t('Other time')}
       </ScButton>
       {open ? (
         <SuggestTimesSheet
@@ -137,9 +142,10 @@ function SuggestTimesSheet({
   onClose: () => void;
   onSent: () => void;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
-  const who = booking.customerName ?? 'the customer';
+  const who = booking.customerName ?? t('the customer');
   const [days] = useState(() => {
     const booked = new Date(booking.scheduledAtIso);
     return dayKeys(booked.getTime() > Date.now() ? booked : new Date());
@@ -159,17 +165,17 @@ function SuggestTimesSheet({
   const dayNote = times.error
     ? times.error instanceof Error
       ? times.error.message
-      : 'Could not load the times'
+      : t('Could not load the times')
     : !times.data
       ? null
       : times.data.paused
-        ? "You've paused new bookings, so there are no times to offer."
+        ? t("You've paused new bookings, so there are no times to offer.")
         : times.data.isClosed
-          ? 'Closed this day.'
+          ? t('Closed this day.')
           : times.data.slots.length === 0
             ? times.data.allBooked
-              ? 'Every time this day is booked up.'
-              : 'No times left this day.'
+              ? t('Every time this day is booked up.')
+              : t('No times left this day.')
             : null;
 
   const toggle = (time: string) =>
@@ -186,10 +192,10 @@ function SuggestTimesSheet({
     setSending(true);
     try {
       await suggestTimes(booking.id, picked, note.trim() || undefined);
-      toast.success(`Times sent. ${who} picks one in the Detlio app.`);
+      toast.success(t('Times sent. {who} picks one in the Detlio app.', { who }));
       onSent();
     } catch (error) {
-      toast.error(errorText(error, 'Could not send the times'));
+      toast.error(errorText(error, t('Could not send the times')));
     } finally {
       setSending(false);
     }
@@ -200,24 +206,28 @@ function SuggestTimesSheet({
       open
       onClose={onClose}
       dismissible={!sending}
-      accessibilityLabel={`Suggest another time for ${who}`}
+      accessibilityLabel={t('Suggest another time for {who}', { who })}
       horizontalPadding={16}
     >
       <T accessibilityRole="header" size={16} weight={600}>
-        Suggest another time
+        {t('Suggest another time')}
       </T>
       <T size={14} color={colors.textSecondary} style={styles.mt1}>
-        {`Can't do ${timeLabel(booking.scheduledAtIso)}? Pick up to ${MAX_TIMES} times you can do. ${who} picks one in the app and it's booked straight away.`}
+        {t("Can't do {time}? Pick up to {max} times you can do. {who} picks one in the app and it's booked straight away.", {
+          time: timeLabel(booking.scheduledAtIso),
+          max: MAX_TIMES,
+          who,
+        })}
       </T>
 
-      <Eyebrow>Day</Eyebrow>
+      <Eyebrow>{t('Day')}</Eyebrow>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dayRow} style={styles.mt2}>
         {days.map((key) => (
           <Chip key={key} label={dayChipLabel(key)} selected={key === day} onPress={() => setDay(key)} />
         ))}
       </ScrollView>
 
-      <Eyebrow>Time</Eyebrow>
+      <Eyebrow>{t('Time')}</Eyebrow>
       <View style={styles.timeRow}>
         {slots === null && !dayNote ? (
           <Spinner />
@@ -241,11 +251,13 @@ function SuggestTimesSheet({
       {picked.length > 0 ? (
         <View>
           <T size={11} weight={500} tracking={0.025} uppercase color={colors.textSecondary} style={styles.mt4}>
-            {'Offering '}
-            <T num size={11} weight={500} color={colors.textSecondary}>
-              {picked.length}
-            </T>
-            {` of ${MAX_TIMES}`}
+            {fill(t('Offering {count} of {max}', { max: MAX_TIMES }), {
+              count: (
+                <T num size={11} weight={500} color={colors.textSecondary}>
+                  {picked.length}
+                </T>
+              ),
+            })}
           </T>
           <View style={styles.offered}>
             {[...picked].sort().map((time) => (
@@ -259,7 +271,7 @@ function SuggestTimesSheet({
 
       <View style={styles.mt4}>
         <ScTextarea
-          label="Note for the customer (optional)"
+          label={t('Note for the customer (optional)')}
           rows={2}
           maxLength={NOTE_MAX}
           value={note}
@@ -268,13 +280,13 @@ function SuggestTimesSheet({
       </View>
 
       <T size={13} color={colors.textSecondary} style={styles.mt3}>
-        {`If ${who} doesn't answer in time (at most 12 hours), the booking is cancelled and refunded in full.`}
+        {t("If {who} doesn't answer in time (at most 12 hours), the booking is cancelled and refunded in full.", { who })}
       </T>
 
       <View style={styles.actions}>
         <View style={styles.flex}>
           <ScButton variant="outline" size="lg" disabled={sending} onPress={onClose}>
-            Cancel
+            {t('Cancel')}
           </ScButton>
         </View>
         <View style={styles.flex}>
@@ -282,10 +294,10 @@ function SuggestTimesSheet({
             variant="main"
             size="lg"
             disabled={picked.length === 0 || sending}
-            disabledReason={picked.length === 0 && !sending ? 'Pick at least one time' : undefined}
+            disabledReason={picked.length === 0 && !sending ? t('Pick at least one time') : undefined}
             onPress={handleSend}
           >
-            {sending ? 'Sending…' : picked.length > 1 ? `Send ${picked.length} times` : 'Send time'}
+            {sending ? t('Sending…') : picked.length > 1 ? t('Send {count} times', { count: picked.length }) : t('Send time')}
           </ScButton>
         </View>
       </View>

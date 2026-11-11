@@ -25,7 +25,14 @@ import {
   type ResetRefund,
   TEAM_TEST_LABEL,
   chainGroups,
+  confirmMatches,
+  istDay,
+  ledgerStateOf,
+  ownerLinesFor,
+  referenceMatches,
+  removedPayoutNote,
   rupeesFromPaise,
+  STILL_ON_LINE,
 } from './data-reset.js'
 
 // Fixed clock: the cutoff is launch day, 1 Oct 2026 09:00 IST.
@@ -1087,6 +1094,10 @@ describe('team tests: real money, all refunded (0065)', () => {
         customerId: uuid(800),
         paidAt: before(10),
         bookedAt: b.createdAt,
+        state: 'refunded',
+        note: null,
+        creditReturned: '0.00',
+        vendorPayoutId: null,
       },
     ])
     expect(plan.counts.teamTestPayments).toBe(1)
@@ -1321,5 +1332,368 @@ describe('the rest of what a deleted booking leaves (0065)', () => {
     )
     expect(plan.counts).toMatchObject({ bypassReports: 1, requests: 2 })
     expect(countLines(plan.counts)).toEqual(expect.arrayContaining(['1 “book directly” report', '2 visit requests']))
+  })
+})
+
+describe('the owner deletes anything marked Test (10 Nov 2026)', () => {
+  // A booking marked Test, as the owner's Delete test booking reads it.
+  const marked = (n: number, overrides: Partial<ResetBooking> = {}, payment: Partial<NonNullable<ResetBooking['payment']>> = {}) =>
+    booking(n, {
+      markedTestAt: before(1),
+      payment: {
+        status: 'paid',
+        gatewayTxnId: `pay_Live${n}`,
+        gatewayMode: 'live',
+        amount: '450.00',
+        refundedAmount: null,
+        paidAt: before(10),
+        ...payment,
+      },
+      ...overrides,
+    })
+  const run = (b: ResetBooking, owner: boolean, extra: Partial<PlanInput> = {}) =>
+    planReset(input({ scope: { kind: 'chains', bookingIds: [b.id] }, bookings: [b], owner, ...extra }))
+  const reference = (b: ResetBooking) => b.id.slice(0, 8).toUpperCase()
+
+  test('live money not refunded: kept for anyone else, taken by the owner and written to the ledger as not refunded', () => {
+    const b = marked(1, { status: 'confirmed' })
+    expect(run(b, false).chains[0]).toMatchObject({ kept: 'refund_first', selected: false })
+
+    const plan = run(b, true)
+    expect(plan.chains[0]).toMatchObject({ kept: null, selected: true, teamTest: true, ownerOverride: true, stillOn: true })
+    expect(plan.ledger).toEqual([
+      expect.objectContaining({
+        kind: 'booking',
+        razorpayPaymentId: 'pay_Live1',
+        amount: '450.00',
+        refundedAmount: '0.00',
+        state: 'not_refunded',
+        creditReturned: '0.00',
+      }),
+    ])
+    expect(plan.chains[0].ownerLines).toEqual([
+      STILL_ON_LINE,
+      "₹450 was really paid and has not been refunded (Razorpay pay_Live1). Deleting doesn't refund it — refund it in Razorpay first if the money should go back.",
+    ])
+    expect(plan.counts).toMatchObject({ teamTestPayments: 0, unrefundedPayments: 1 })
+    expect(countLines(plan.counts)).toContain('1 real payment (not refunded; kept in the money record)')
+    // The owner types the booking's reference, not the phrase.
+    expect(plan.confirmKind).toBe('reference')
+    expect(plan.confirmPhrase).toBe(reference(b))
+    // Its receipt number is voided, never restarted: a real receipt was issued.
+  })
+
+  test('the owner still needs the Test mark', () => {
+    // Money is said first, as for anyone; a test-money booking says the mark.
+    expect(run(marked(1, { markedTestAt: null }), true).chains[0]).toMatchObject({ kept: 'live', selected: false })
+    expect(run(booking(16), true).chains[0]).toMatchObject({ kept: 'not_marked', selected: false })
+  })
+
+  test('an open booking paid in test mode: anyone may delete it, and the dry run says it is still on', () => {
+    const b = booking(2, { markedTestAt: before(1), status: 'pending' })
+    const plan = run(b, false)
+    expect(plan.chains[0]).toMatchObject({ kept: null, selected: true, ownerOverride: false, stillOn: true })
+    expect(plan.chains[0].ownerLines).toEqual([STILL_ON_LINE])
+    expect(plan.confirmKind).toBe('phrase')
+  })
+
+  test('cash: kept for anyone else, taken by the owner as not refunded', () => {
+    const b = marked(3, { paymentMethod: 'cash' }, { status: 'collected', gatewayTxnId: null, gatewayMode: null })
+    expect(run(b, false).chains[0].kept).toBe('cash')
+    const plan = run(b, true)
+    expect(plan.chains[0]).toMatchObject({ kept: null, selected: true })
+    expect(plan.ledger[0]).toMatchObject({ state: 'not_refunded', razorpayPaymentId: null })
+    expect(plan.chains[0].ownerLines).toContain("₹450 was paid in cash to the garage. Deleting doesn't give it back.")
+  })
+
+  test('Detlio credit: kept for anyone else; the owner gives it back to the customer', () => {
+    const b = marked(4, {}, { gatewayTxnId: 'pay_TEST4', gatewayMode: 'test', amount: '150.00', creditAmount: '300.00' })
+    expect(run(b, false).chains[0].kept).toBe('unknown')
+    const plan = run(b, true)
+    expect(plan.chains[0]).toMatchObject({ kept: null, selected: true })
+    expect(plan.creditReturns).toEqual([{ rootId: b.id, customerId: uuid(800), amount: '300.00' }])
+    // ₹150 in Razorpay test mode never moved: the row is the credit given
+    // back, not a real payment left unrefunded.
+    expect(plan.ledger[0]).toMatchObject({
+      creditReturned: '300.00',
+      state: 'credit_returned',
+      gatewayMode: 'test',
+      note: 'Razorpay part was test money; only the Detlio credit was real',
+    })
+    expect(plan.counts).toMatchObject({ teamTestPayments: 1 })
+    expect(plan.counts.unrefundedPayments).toBeUndefined()
+    expect(countLines(plan.counts)).not.toContain('1 real payment (not refunded; kept in the money record)')
+    expect(plan.chains[0].ownerLines.some((line) => line.includes('really paid'))).toBe(false)
+    expect(plan.chains[0].ownerLines).toContain(
+      "₹300 of Detlio credit was spent on it. It goes back to the customer's credit balance."
+    )
+    // Credit already given back (a cancelled booking) is not given twice.
+    const returned = run(marked(5, {}, { gatewayTxnId: null, gatewayMode: null, amount: '0.00', creditAmount: '200.00', creditReturned: true }), true)
+    expect(returned.creditReturns).toEqual([])
+    expect(returned.ledger[0]).toMatchObject({ state: 'credit_returned', amount: '0.00', creditReturned: '200.00' })
+  })
+
+  test('a Razorpay refund still processing: kept for anyone else, recorded as refund pending by the owner', () => {
+    const b = marked(6, {}, { status: 'refunded', refundedAmount: '450.00' })
+    const pending: ResetRefund = {
+      kind: 'booking', targetId: b.id, amount: '450.00', refundRef: 'rfnd_Pend6', source: 'razorpay',
+      gatewayStatus: 'pending', recordedBy: 'Mathew', recordedAt: before(1),
+    }
+    expect(run(b, false, { refunds: [pending] }).chains[0].kept).toBe('refund_pending')
+    const plan = run(b, true, { refunds: [pending] })
+    expect(plan.chains[0].selected).toBe(true)
+    expect(plan.ledger[0]).toMatchObject({ state: 'refund_pending', refundedAmount: '450.00' })
+    expect(plan.chains[0].ownerLines).toContain(
+      'Razorpay is still processing a refund of ₹450 (Razorpay pay_Live6). It carries on, and the money record keeps it.'
+    )
+  })
+
+  test('an order that may still be paid: kept for anyone else; the owner is told to refund a late payment by hand', () => {
+    const b = booking(7, {
+      markedTestAt: before(1),
+      status: 'pending',
+      payment: { status: 'pending', gatewayTxnId: 'order_Live7', gatewayMode: 'live', amount: '450.00', refundedAmount: null },
+    })
+    expect(run(b, false).chains[0].kept).toBe('open_order')
+    const plan = run(b, true)
+    expect(plan.chains[0]).toMatchObject({ kept: null, selected: true, ownerOverride: true })
+    expect(plan.ledger).toEqual([])
+    expect(plan.chains[0].ownerLines).toContain(
+      'A Razorpay order (order_Live7) may still be paid. If it is, the payment will have no booking: refund it in Razorpay.'
+    )
+  })
+
+  test('paid out: the payout stays on record, only this booking\'s line goes, and the ledger says to whom and when', () => {
+    const b = booking(8, { markedTestAt: before(1), garageName: 'Speed Wash' })
+    const other = booking(9, { markedTestAt: null })
+    const payout: ResetPayout = {
+      id: uuid(708),
+      recordedAt: before(3),
+      paidAt: new Date('2026-09-23T06:30:00.000Z'),
+      reference: 'UTR123',
+      rootBookingIds: [b.id, other.id],
+      items: [
+        { rootBookingId: b.id, amount: '380.00' },
+        { rootBookingId: other.id, amount: '420.00' },
+      ],
+    }
+    const extra = { bookings: [b, other], payouts: [payout] }
+    expect(run(b, false, extra).chains.find((c) => c.rootId === b.id)!.kept).toBe('paid_out')
+
+    const plan = run(b, true, extra)
+    const chain = plan.chains.find((c) => c.rootId === b.id)!
+    expect(chain).toMatchObject({ kept: null, selected: true, payoutKept: true, ownerOverride: true })
+    expect(plan.selectedPayoutIds).toEqual([])
+    expect(plan.keptPayoutIds).toEqual([uuid(708)])
+    expect(plan.ledger).toEqual([
+      expect.objectContaining({
+        kind: 'payout',
+        amount: '380.00',
+        state: 'paid_out',
+        // The day in Chennai ("23 Sept 2026" in this runtime's en-IN).
+        note: `Paid out to Speed Wash on ${istDay(new Date('2026-09-23T06:30:00.000Z'))} (UTR123)`,
+        vendorPayoutId: uuid(708),
+      }),
+    ])
+    expect(plan.counts.payoutLines).toBe(1)
+    expect(chain.ownerLines.at(-1)).toEndWith("₹380. The payout stays on record; only this booking's line on it goes.")
+    expect(plan.confirmKind).toBe('reference')
+  })
+
+  test('a free redo still goes with its booking: both together for the owner, as for anyone', () => {
+    const first = marked(10)
+    const redo = booking(11, { payment: { status: 'paid', gatewayTxnId: null, gatewayMode: null, amount: '0.00', refundedAmount: null } })
+    const plan = planReset(
+      input({
+        scope: { kind: 'chains', bookingIds: [first.id] },
+        bookings: [first, redo],
+        redoLinks: [{ bookingId: first.id, redoBookingId: redo.id }],
+        owner: true,
+      })
+    )
+    expect(plan.selectedChainIds.sort()).toEqual([first.id, redo.id].sort())
+  })
+
+  test('the owner never changes a Start pilot clean run', () => {
+    const b = marked(12)
+    const plan = planReset(input({ scope: { kind: 'marked_test' }, bookings: [b], owner: true }))
+    expect(plan.chains[0]).toMatchObject({ kept: 'refund_first', selected: false })
+  })
+
+  test('a garage deleted forever by the owner takes its real money too, with ledger rows', () => {
+    const scope = { kind: 'garage' as const, vendorId: uuid(900) }
+    const live = booking(13, {
+      payment: { status: 'paid', gatewayTxnId: 'pay_Live13', gatewayMode: 'live', amount: '499.00', refundedAmount: null },
+    })
+    expect(planReset(input({ scope, bookings: [live] })).chains[0].kept).toBe('live')
+    const plan = planReset(input({ scope, bookings: [live], owner: true, receipts: [receipt(live.id, 4)] }))
+    expect(plan.chains[0]).toMatchObject({ kept: null, selected: true })
+    expect(plan.ledger[0]).toMatchObject({ state: 'not_refunded', razorpayPaymentId: 'pay_Live13' })
+    // A real receipt was issued: its year voids, never restarts.
+    expect(plan.receiptPlan[0].mode).toBe('void')
+    // The Bin's own confirmation (the garage's name) stays.
+    expect(plan.confirmKind).toBe('phrase')
+  })
+
+  describe('a garage with payouts, deleted forever by the owner (owner, 10 Nov 2026: erased completely)', () => {
+    const scope = { kind: 'garage' as const, vendorId: uuid(900) }
+    const paidAt = new Date('2026-10-20T06:30:00.000Z')
+    const live = booking(16, {
+      garageName: 'Speed Wash',
+      payment: { status: 'paid', gatewayTxnId: 'pay_Live16', gatewayMode: 'live', amount: '499.00', refundedAmount: null },
+    })
+    const test2 = booking(17, { garageName: 'Speed Wash' })
+    const payout: ResetPayout = {
+      id: uuid(716),
+      recordedAt: before(1),
+      paidAt,
+      reference: 'UTR716',
+      amount: '800.00',
+      rootBookingIds: [live.id, test2.id],
+      items: [
+        { rootBookingId: live.id, amount: '450.00' },
+        { rootBookingId: test2.id, amount: '350.00' },
+      ],
+    }
+    const extra = { scope, bookings: [live, test2], payouts: [payout] }
+
+    test('anyone else keeps the paid-out bookings, and so the payout', () => {
+      const plan = planReset(input(extra))
+      expect(plan.chains.map((chain) => chain.kept)).toEqual(['live', 'paid_out'])
+      expect(plan.selectedPayoutIds).toEqual([])
+      expect(plan.ledger).toEqual([])
+    })
+
+    test('the owner deletes the payout with the garage, each line written to the ledger first', () => {
+      const plan = planReset(input({ ...extra, owner: true }))
+      expect(plan.chains.every((chain) => chain.kept === null && chain.selected)).toBe(true)
+      expect(plan.chains.every((chain) => chain.payoutRemoved && !chain.payoutKept)).toBe(true)
+      expect(plan.selectedPayoutIds).toEqual([uuid(716)])
+      expect(plan.keptPayoutIds).toEqual([])
+      const note = `Paid out to Speed Wash on ${istDay(paidAt)} (UTR716); payout of ₹800 deleted with the garage`
+      expect(plan.ledger.filter((row) => row.kind === 'payout')).toEqual([
+        expect.objectContaining({ rootId: live.id, amount: '450.00', state: 'paid_out', paidAt, note, vendorPayoutId: uuid(716) }),
+        expect.objectContaining({ rootId: test2.id, amount: '350.00', state: 'paid_out', paidAt, note, vendorPayoutId: uuid(716) }),
+      ])
+      // The lines add up to what the payout paid: the money trail is whole.
+      const lines = plan.ledger.filter((row) => row.kind === 'payout').reduce((sum, row) => sum + Number(row.amount), 0)
+      expect(lines).toBe(800)
+      expect(plan.counts).toMatchObject({ payouts: 1, removedPayoutLines: 2 })
+      expect(plan.counts.payoutLines).toBeUndefined()
+      expect(countLines(plan.counts)).toContain('2 garage payout lines (the payout is deleted; kept in the money record)')
+      // The dry run says so under the booking that took real money.
+      const chain = plan.chains.find((c) => c.rootId === live.id)!
+      expect(chain.ownerOverride).toBe(true)
+      expect(chain.ownerLines.at(-1)).toBe(
+        `Paid out to Speed Wash on ${istDay(paidAt)} (UTR716), ₹450. The payout is deleted with the garage; the money record keeps it.`
+      )
+    })
+
+    test('a payout of test money only: anyone else deletes it with no ledger rows; the owner writes them', () => {
+      const a = booking(18)
+      const b = booking(19)
+      const onlyTest: ResetPayout = { ...payout, id: uuid(718), rootBookingIds: [a.id, b.id], items: [
+        { rootBookingId: a.id, amount: '200.00' },
+        { rootBookingId: b.id, amount: '300.00' },
+      ] }
+      const others = planReset(input({ scope, bookings: [a, b], payouts: [onlyTest] }))
+      expect(others.selectedPayoutIds).toEqual([uuid(718)])
+      expect(others.ledger).toEqual([])
+      expect(others.counts.removedPayoutLines).toBeUndefined()
+      const owners = planReset(input({ scope, bookings: [a, b], payouts: [onlyTest], owner: true }))
+      expect(owners.selectedPayoutIds).toEqual([uuid(718)])
+      expect(owners.ledger.map((row) => [row.kind, row.amount])).toEqual([
+        ['payout', '200.00'],
+        ['payout', '300.00'],
+      ])
+    })
+
+    test('a payout whose lines an earlier delete already took goes too, with nothing more to write', () => {
+      const empty: ResetPayout = { ...payout, id: uuid(719), rootBookingIds: [], items: [] }
+      const plan = planReset(input({ ...extra, payouts: [payout, empty], owner: true }))
+      expect(plan.selectedPayoutIds).toEqual([uuid(716), uuid(719)])
+      expect(plan.ledger.filter((row) => row.vendorPayoutId === uuid(719))).toEqual([])
+    })
+
+    test('a payout to another garage, for a free redo there, is left on record as on one booking\'s delete', () => {
+      // The live booking's free redo was done at another garage and paid
+      // out there: it goes with its booking, but that garage's payout stays
+      // with only the redo's line gone.
+      const redo = booking(20, { vendorId: uuid(901), garageName: 'Other Wash' })
+      const theirs: ResetPayout = {
+        id: uuid(720),
+        recordedAt: before(1),
+        paidAt,
+        reference: 'UTR720',
+        amount: '900.00',
+        rootBookingIds: [redo.id, uuid(21)],
+        items: [
+          { rootBookingId: redo.id, amount: '300.00' },
+          { rootBookingId: uuid(21), amount: '600.00' },
+        ],
+      }
+      const plan = planReset(
+        input({
+          ...extra,
+          bookings: [live, test2, redo],
+          payouts: [payout, theirs],
+          owner: true,
+          redoLinks: [{ bookingId: live.id, redoBookingId: redo.id }],
+        })
+      )
+      expect(plan.selectedChainIds.sort()).toEqual([live.id, test2.id, redo.id].sort())
+      expect(plan.selectedPayoutIds).toEqual([uuid(716)])
+      expect(plan.keptPayoutIds).toEqual([uuid(720)])
+      expect(plan.chains.find((c) => c.rootId === redo.id)).toMatchObject({ payoutKept: true, payoutRemoved: false })
+      expect(plan.ledger.find((row) => row.vendorPayoutId === uuid(720))).toMatchObject({
+        rootId: redo.id,
+        amount: '300.00',
+        note: `Paid out to Other Wash on ${istDay(paidAt)} (UTR720)`,
+      })
+      expect(plan.counts).toMatchObject({ payoutLines: 1, removedPayoutLines: 2 })
+    })
+
+    test('the payout deleted is in the fingerprint', () => {
+      const withPayout = planReset(input({ ...extra, owner: true }))
+      const without = planReset(input({ ...extra, payouts: [], owner: true }))
+      expect(withPayout.selectionHash).not.toBe(without.selectionHash)
+    })
+
+    test('the ledger note fits its column, a long garage name giving way', () => {
+      const note = removedPayoutNote('G'.repeat(255), { recordedAt: paidAt, paidAt, reference: 'R'.repeat(80), amount: '1000.00' })
+      expect(note.length).toBe(300)
+      expect(note).toEndWith(`(${'R'.repeat(80)}); payout of ₹1,000 deleted with the garage`)
+    })
+  })
+
+  test('the fingerprint changes when the owner takes it, so a dry run by anyone else can\'t confirm it', () => {
+    const b = booking(14, { markedTestAt: before(1), status: 'confirmed' })
+    expect(run(b, true).selectionHash).toBe(run(b, false).selectionHash)
+    const live = marked(15)
+    expect(run(live, true).selectionHash).not.toBe(run(live, false).selectionHash)
+  })
+
+  test('typing the reference: a # and the case are forgiven', () => {
+    expect(referenceMatches(' #ad200012 ', 'AD200012')).toBe(true)
+    expect(referenceMatches('AD20001', 'AD200012')).toBe(false)
+    expect(confirmMatches('DELETE 1 BOOKING', { confirmKind: 'phrase', confirmPhrase: 'DELETE 1 BOOKING' })).toBe(true)
+    expect(confirmMatches('delete 1 booking', { confirmKind: 'phrase', confirmPhrase: 'DELETE 1 BOOKING' })).toBe(false)
+  })
+
+  test('a payout\'s day is the day in Chennai', () => {
+    expect(istDay(new Date('2026-11-02T20:00:00.000Z'))).toMatch(/^3 Nov/)
+  })
+
+  test('where one payment stands', () => {
+    const base = { amountPaise: 45000, refundedPaise: 0, refunds: [], creditPaise: 0, cash: false, money: 'live' as const }
+    expect(ledgerStateOf(base)).toBe('not_refunded')
+    expect(ledgerStateOf({ ...base, refundedPaise: 45000 })).toBe('refunded')
+    expect(ledgerStateOf({ ...base, amountPaise: 0, creditPaise: 20000 })).toBe('credit_returned')
+    // Credit beside test money: the credit was the only real money.
+    expect(ledgerStateOf({ ...base, money: 'test', creditPaise: 10000 })).toBe('credit_returned')
+    expect(ledgerStateOf({ ...base, money: 'fake', creditPaise: 10000 })).toBe('credit_returned')
+    // Credit beside live money not refunded is still money not refunded.
+    expect(ledgerStateOf({ ...base, creditPaise: 10000 })).toBe('not_refunded')
+    expect(ownerLinesFor({ stillOn: false, money: [], openOrderIds: [], payouts: [], garageName: 'G' })).toEqual([])
   })
 })

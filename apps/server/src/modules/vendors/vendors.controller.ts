@@ -8,6 +8,7 @@ import { reachService } from '../reach/reach.service.js'
 import { vendorsService } from './vendors.service.js'
 import type {
   CreateClosureInput,
+  ListClosuresQuery,
   CreatePhotoInput,
   CreatePackageInput,
   DoorstepAreaInput,
@@ -104,7 +105,7 @@ export async function getMyVendor(c: VendorsContext) {
 
   return c.json({
     success: true,
-    // Garage Book (0069): whether the apps show the book's tabs. Added, so
+    // Garage Book (0072): whether the apps show the book's tabs. Added, so
     // every existing field is as it was.
     data: { ...vendor, garageBook: { enabled: env.garageBook } },
   })
@@ -206,8 +207,14 @@ export async function setDoorstepArea(
   })
 }
 
-export async function listMyClosures(c: VendorsContext) {
-  const closures = await vendorsService.listMyClosures(getVendorId(c))
+export async function listMyClosures(
+  c: VendorsContext,
+  query: ListClosuresQuery
+) {
+  const closures = await vendorsService.listMyClosures(
+    getVendorId(c),
+    query.from
+  )
 
   return c.json({
     success: true,

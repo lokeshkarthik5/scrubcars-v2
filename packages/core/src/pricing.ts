@@ -1,4 +1,5 @@
 import type { PricingType, Service, VehicleType } from '@repo/core/types'
+import { t } from './i18n/translate'
 
 export const PRICING_TYPES: Array<{ value: PricingType; label: string; hint: string }> = [
   { value: 'flat', label: 'Flat', hint: 'One fixed price' },
@@ -64,11 +65,11 @@ export function formatServicePrice(
 ): string {
   switch (service.pricingType) {
     case 'on_inspection':
-      return `₹${service.price} inspection`
+      return t('₹{price} inspection', { price: service.price })
     case 'per_vehicle': {
       if (vehicleType) {
         const amount = tierPriceFor(service, vehicleType)
-        return amount == null ? 'Price on request' : `₹${amount}`
+        return amount == null ? t('Price on request') : `₹${amount}`
       }
       const tiers = [
         service.priceHatchback,
@@ -76,7 +77,7 @@ export function formatServicePrice(
         service.priceSuv,
       ].filter((t): t is number => t != null)
 
-      if (tiers.length === 0) return `from ₹${service.price}`
+      if (tiers.length === 0) return t('from ₹{price}', { price: service.price })
 
       const low = Math.min(...tiers)
       const high = Math.max(...tiers)

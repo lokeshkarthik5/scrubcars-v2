@@ -9,6 +9,7 @@ import { Chip } from '@repo/ui/sc/chip'
 import { ScInput } from '@repo/ui/sc/input'
 import { ScSheet } from '@repo/ui/sc/modal'
 import { createVehicle } from '@repo/core/api/users'
+import { useT } from '@repo/core/i18n'
 import { useUserStore } from '@repo/core/stores/user-store'
 import { VEHICLE_TIERS } from '@repo/core/vehicles'
 import type { Vehicle, VehicleType } from '@repo/core/types'
@@ -45,6 +46,7 @@ interface AddCarSheetProps {
  * lifecycle.
  */
 export function AddCarSheet({ open, onClose, onAdded, hero = false }: AddCarSheetProps) {
+  const t = useT()
   const [form, setForm] = useState(EMPTY)
   const vehicles = useUserStore((s) => s.vehicles)
   const { attach: attachShine, className: shineClassName } = useHeroShine<HTMLButtonElement>(hero)
@@ -66,10 +68,10 @@ export function AddCarSheet({ open, onClose, onAdded, hero = false }: AddCarShee
       setForm(EMPTY)
       onAdded?.(created)
       onClose()
-      toast.success('Car added')
+      toast.success(t('Car added'))
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Failed to add car')
+      toast.error(error instanceof Error ? error.message : t('Failed to add car'))
     },
   })
 
@@ -86,25 +88,25 @@ export function AddCarSheet({ open, onClose, onAdded, hero = false }: AddCarShee
       open={open}
       onClose={close}
       dismissible={!save.isPending}
-      aria-label="Add a car"
+      aria-label={t('Add a car')}
       className="px-4"
     >
-      <h2 className="text-[19px] font-semibold text-text-primary">Add a car</h2>
+      <h2 className="text-[19px] font-semibold text-text-primary">{t('Add a car')}</h2>
 
       <div className="mt-4 flex flex-col gap-3">
         <div className="grid grid-cols-2 gap-2">
           <ScInput
             id="car-make"
-            label="Make"
-            placeholder="e.g. Maruti"
+            label={t('Make')}
+            placeholder={t('e.g. Maruti')}
             autoFocus
             value={form.make}
             onChange={(e) => setForm({ ...form, make: e.target.value })}
           />
           <ScInput
             id="car-model"
-            label="Model"
-            placeholder="e.g. Swift"
+            label={t('Model')}
+            placeholder={t('e.g. Swift')}
             value={form.model}
             onChange={(e) => setForm({ ...form, model: e.target.value })}
           />
@@ -112,8 +114,8 @@ export function AddCarSheet({ open, onClose, onAdded, hero = false }: AddCarShee
 
         <ScInput
           id="car-plate"
-          label="License plate (optional)"
-          placeholder="e.g. TN 01 AB 1234"
+          label={t('License plate (optional)')}
+          placeholder={t('e.g. TN 01 AB 1234')}
           value={form.licensePlate}
           onChange={(e) =>
             setForm({ ...form, licensePlate: e.target.value.toUpperCase() })
@@ -122,13 +124,13 @@ export function AddCarSheet({ open, onClose, onAdded, hero = false }: AddCarShee
 
         <div>
           <p className="mb-2 text-[11px] font-medium text-text-secondary">
-            Type
+            {t('Type')}
           </p>
           <div className="flex flex-wrap gap-2">
             {VEHICLE_TIERS.map((tier) => (
               <Chip
                 key={tier.value}
-                label={tier.label}
+                label={t(tier.label)}
                 selected={form.vehicleType === tier.value}
                 onClick={() => setForm({ ...form, vehicleType: tier.value })}
               />
@@ -137,7 +139,7 @@ export function AddCarSheet({ open, onClose, onAdded, hero = false }: AddCarShee
           {/* The tier is what the garage priced against, so it decides the
               amount charged for a per-vehicle service. */}
           <p className="mt-2 text-[11px] text-text-muted">
-            Pricing can differ by car type.
+            {t('Pricing can differ by car type.')}
           </p>
         </div>
 
@@ -157,18 +159,18 @@ export function AddCarSheet({ open, onClose, onAdded, hero = false }: AddCarShee
               disabled={!isValid || save.isPending}
               onClick={() => save.mutate()}
             >
-              <span>{save.isPending ? 'Saving…' : 'Save car'}</span>
+              <span>{save.isPending ? t('Saving…') : t('Save car')}</span>
             </ScButton>
           ) : (
             <ScButton
               disabled={!isValid || save.isPending}
               onClick={() => save.mutate()}
             >
-              {save.isPending ? 'Saving…' : 'Save car'}
+              {save.isPending ? t('Saving…') : t('Save car')}
             </ScButton>
           )}
           <ScButton variant="secondary" disabled={save.isPending} onClick={close}>
-            Cancel
+            {t('Cancel')}
           </ScButton>
         </div>
       </div>

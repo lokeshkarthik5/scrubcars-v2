@@ -3,6 +3,7 @@ import { useRewardExtras } from '@repo/core/api/hooks/use-reward-extras';
 import { rewardsEnabled, useMyRewards, useRewardsConfig } from '@repo/core/api/hooks/use-rewards';
 import type { RewardExtras } from '@repo/core/api/reward-extras';
 import type { MyRewards, RewardVoucher } from '@repo/core/api/rewards';
+import { fill, msg, useT, useTn } from '@repo/core/i18n';
 import { levelLine, rewardDate, rewardDay, rewardRupees, stampsToGoLine, streakLine, type RewardLevel } from '@repo/core/rewards';
 import { ScButton } from '@repo/native-ui/button';
 import { IconCake, IconCar, IconCheck, IconChevronDown, IconChevronRight, IconCopy, IconGift, IconSparkles, IconStar, IconStarFilled, IconTicket, IconTrophy, IconUsers } from '@repo/native-ui/icons';
@@ -31,12 +32,13 @@ import { StampStars } from '@/components/rewards/stamp-stars';
 import { useAuth } from '@/lib/auth';
 import { BrushedLines, CountUpFigure, FillOnce } from '@/components/moments/metal';
 
-const VOUCHER_STATE_LABELS: Record<RewardVoucher['state'], string> = { available: 'Ready', spent: 'Used', expired: 'Ran out', cancelled: 'Withdrawn' };
+const VOUCHER_STATE_LABELS: Record<RewardVoucher['state'], string> = { available: msg('Ready'), spent: msg('Used'), expired: msg('Ran out'), cancelled: msg('Withdrawn') };
 const LEVEL_TINTS: Partial<Record<RewardLevel, string>> = { gold: '227,182,82', platinum: '196,215,235', diamond: '165,210,255', icon: '240,220,170' };
 const tintOf = (level: RewardLevel) => LEVEL_TINTS[level] ?? '220,225,236';
 
 /** apps/users/app/profile/rewards/page.tsx: the good stuff first. Every number is the API's. */
 export default function RewardsScreen() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
@@ -56,17 +58,17 @@ export default function RewardsScreen() {
       {!user ? (
         <View style={styles.center}>
           <T size={15} weight={600} align="center">
-            Sign in to see your rewards
+            {t('Sign in to see your rewards')}
           </T>
           <ScButton variant="main" fullWidth={false} paddingX={32} onPress={() => router.push(`/login?next=${encodeURIComponent('/profile/rewards')}` as Href)}>
-            Sign in
+            {t('Sign in')}
           </ScButton>
         </View>
       ) : !config.isPending && !on ? (
         <View style={styles.center}>
-          <EmptyState icon={<IconStar size={32} stroke={1.5} color={colors.textSecondary} />} title="Rewards aren't available right now" subtitle="You can still book a wash as usual." />
+          <EmptyState icon={<IconStar size={32} stroke={1.5} color={colors.textSecondary} />} title={t("Rewards aren't available right now")} subtitle={t('You can still book a wash as usual.')} />
           <ScButton variant="outline" fullWidth={false} onPress={() => router.push('/garages' as Href)}>
-            Find garages
+            {t('Find garages')}
           </ScButton>
         </View>
       ) : config.isPending || rewards.isPending ? (
@@ -76,7 +78,7 @@ export default function RewardsScreen() {
         </View>
       ) : rewards.isError || !view ? (
         <View style={styles.body}>
-          <ErrorState message="Couldn't load your rewards. Check your connection." onRetry={() => void rewards.refetch()} />
+          <ErrorState message={t("Couldn't load your rewards. Check your connection.")} onRetry={() => void rewards.refetch()} />
         </View>
       ) : (
         <Body
@@ -103,6 +105,7 @@ export default function RewardsScreen() {
 }
 
 function Body({ view, extras, focusBadge, focusChallenge, garage, birthdayPerkFrom, refresh, bottom }: { view: MyRewards; extras: RewardExtras | null; focusBadge: string | null; focusChallenge: string | null; garage: boolean; birthdayPerkFrom: string | null; refresh: React.ReactElement<React.ComponentProps<typeof RefreshControl>>; bottom: number }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const { card, level, streak } = view;
@@ -143,18 +146,18 @@ function Body({ view, extras, focusBadge, focusChallenge, garage, birthdayPerkFr
     <View style={styles.section}>
       <View style={styles.head}>
         <T size={14} weight={600} lh={20}>
-          Your rewards
+          {t('Your rewards')}
         </T>
         {available.length > 0 ? (
           <T size={11} lh={15} color={colors.textMuted}>
-            One per booking, at checkout
+            {t('One per booking, at checkout')}
           </T>
         ) : null}
       </View>
       {available.length === 0 ? (
         <ScCard style={styles.pad12}>
           <T size={12} lh={16} color={colors.textSecondary}>
-            Nothing to use yet. Fill your Shine Card or scratch a card to win one.
+            {t('Nothing to use yet. Fill your Shine Card or scratch a card to win one.')}
           </T>
         </ScCard>
       ) : (
@@ -163,7 +166,7 @@ function Body({ view, extras, focusBadge, focusChallenge, garage, birthdayPerkFr
             <VoucherRow key={v.id} voucher={v} />
           ))}
           <T size={11} lh={15} color={colors.textMuted}>
-            Not with another code; works with Detlio credit. Given back if the booking is cancelled.
+            {t('Not with another code; works with Detlio credit. Given back if the booking is cancelled.')}
           </T>
         </>
       )}
@@ -175,7 +178,7 @@ function Body({ view, extras, focusBadge, focusChallenge, garage, birthdayPerkFr
       {scratchCards.length > 0 ? (
         <View style={styles.section}>
           <T size={14} weight={600} lh={20}>
-            {waitingCount === 0 ? 'Your scratch card' : waitingCount === 1 ? 'A scratch card for you' : `${waitingCount} scratch cards for you`}
+            {waitingCount === 0 ? t('Your scratch card') : waitingCount === 1 ? t('A scratch card for you') : t('{count} scratch cards for you', { count: waitingCount })}
           </T>
           {scratchCards.map((c) => (
             <ScratchCardPanel key={c.id} card={c} />
@@ -201,13 +204,13 @@ function Body({ view, extras, focusBadge, focusChallenge, garage, birthdayPerkFr
 
       <View style={styles.section}>
         <T size={14} weight={600} lh={20}>
-          Your level
+          {t('Your level')}
         </T>
         {view.lifetime.washes > 0 ? (
           <View style={styles.tiles}>
             <View style={styles.tile}>
               <T size={11} lh={15} color={colors.textSecondary}>
-                Saved with rewards
+                {t('Saved with rewards')}
               </T>
               <View style={styles.mt4}>
                 <CountUpFigure value={Math.round(Number(view.lifetime.saved))} format={rewardRupees} size={22} lh={26} />
@@ -215,7 +218,7 @@ function Body({ view, extras, focusBadge, focusChallenge, garage, birthdayPerkFr
             </View>
             <View style={styles.tile}>
               <T size={11} lh={15} color={colors.textSecondary}>
-                {view.lifetime.since ? `Washes since ${view.lifetime.since}` : 'Washes'}
+                {view.lifetime.since ? t('Washes since {since}', { since: view.lifetime.since }) : t('Washes')}
               </T>
               <View style={styles.mt4}>
                 <CountUpFigure value={view.lifetime.washes} format={(n) => n.toLocaleString('en-IN')} size={22} lh={26} />
@@ -231,7 +234,7 @@ function Body({ view, extras, focusBadge, focusChallenge, garage, birthdayPerkFr
       {extras && extras.challenges.length > 0 ? (
         <View style={styles.section} onLayout={(e) => (challengesY.current = e.nativeEvent.layout.y)}>
           <T size={14} weight={600} lh={20}>
-            {extras.challenges.length === 1 ? 'Challenge' : 'Challenges'}
+            {extras.challenges.length === 1 ? t('Challenge') : t('Challenges')}
           </T>
           {extras.challenges.map((challenge) => (
             <ChallengeCard key={challenge.id} challenge={challenge} highlight={challenge.id === focusChallenge} />
@@ -246,14 +249,16 @@ function Body({ view, extras, focusBadge, focusChallenge, garage, birthdayPerkFr
           <IconSparkles size={20} stroke={1.6} color={colors.textPrimary} />
           <View style={styles.grow}>
             <T size={14} weight={600} lh={20}>
-              {'Your '}
-              <T num size={14} weight={600}>
-                {String(extras.wrapped.years[0])}
-              </T>
-              {' Detlio Wrapped'}
+              {fill(t('Your {year} Detlio Wrapped'), {
+                year: (
+                  <T num size={14} weight={600}>
+                    {String(extras.wrapped.years[0])}
+                  </T>
+                ),
+              })}
             </T>
             <T size={12} lh={16} color={colors.textSecondary}>
-              Your year in washes, garages and shine.
+              {t('Your year in washes, garages and shine.')}
             </T>
           </View>
           <IconChevronRight size={18} color={colors.textSecondary} />
@@ -263,13 +268,14 @@ function Body({ view, extras, focusBadge, focusChallenge, garage, birthdayPerkFr
       <InviteCard invite={view.invite} />
       {view.referredBy ? (
         <T size={12} lh={16} color={colors.textSecondary}>
-          {`You joined through ${view.referredBy.firstName}'s invite.${view.referredBy.status === 'pending' ? ' Your reward comes with your first booking.' : ''}`}
+          {t("You joined through {name}'s invite.", { name: view.referredBy.firstName })}
+          {view.referredBy.status === 'pending' ? ` ${t('Your reward comes with your first booking.')}` : ''}
         </T>
       ) : null}
 
       <View style={styles.section}>
         <T size={14} weight={600} lh={20}>
-          Birthday
+          {t('Birthday')}
         </T>
         <ScCard style={styles.pad12}>
           <BirthdayForm birthday={view.birthday} perkFrom={birthdayPerkFrom} />
@@ -279,7 +285,7 @@ function Body({ view, extras, focusBadge, focusChallenge, garage, birthdayPerkFr
       {past.length > 0 ? (
         <View style={styles.section}>
           <T size={14} weight={600} lh={20}>
-            Used and past rewards
+            {t('Used and past rewards')}
           </T>
           <ScCard style={styles.list}>
             {past.map((v, i) => (
@@ -292,7 +298,7 @@ function Body({ view, extras, focusBadge, focusChallenge, garage, birthdayPerkFr
                     {rewardDate(v.issuedAt)}
                   </T>
                 </View>
-                <FigureLine size={12} lh={16} color={colors.textSecondary} text={`${rewardRupees(v.amount)} · ${VOUCHER_STATE_LABELS[v.state]}`} />
+                <FigureLine size={12} lh={16} color={colors.textSecondary} text={`${rewardRupees(v.amount)} · ${t(VOUCHER_STATE_LABELS[v.state])}`} />
               </View>
             ))}
           </ScCard>
@@ -301,12 +307,12 @@ function Body({ view, extras, focusBadge, focusChallenge, garage, birthdayPerkFr
 
       <View style={styles.section}>
         <T size={14} weight={600} lh={20}>
-          History
+          {t('History')}
         </T>
         {view.history.length === 0 ? (
           <ScCard>
             <T size={12} lh={16} color={colors.textSecondary}>
-              Your first completed booking through Detlio starts your card.
+              {t('Your first completed booking through Detlio starts your card.')}
             </T>
           </ScCard>
         ) : (
@@ -339,6 +345,8 @@ function Body({ view, extras, focusBadge, focusChallenge, garage, birthdayPerkFr
 
 /** The brushed-metal Shine Card: always dark, as on the web. */
 function ShineCard({ view }: { view: MyRewards }) {
+  const t = useT();
+  const tn = useTn();
   const colors = useColors();
   const styles = useStyles();
   const { card, level } = view;
@@ -353,16 +361,17 @@ function ShineCard({ view }: { view: MyRewards }) {
         </View>
         <LevelBadge level={level.level} label={level.label} />
       </View>
-      <View accessibilityRole="image" accessibilityLabel={`${card.onCard} of ${card.goal} stamps`} style={styles.stars}>
+      <View accessibilityRole="image" accessibilityLabel={t('{count} of {goal} stamps', { count: card.onCard, goal: card.goal })} style={styles.stars}>
         <StampStars onCard={card.onCard} goal={card.goal} size={30} remember />
       </View>
-      <FigureLine size={12} lh={16} color={colors.textSecondary} text={`${card.goal} stamps make ${rewardRupees(card.rewardAmount)} off. One for every booking of ${rewardRupees(view.invite.minAmount)} or more paid through Detlio.`} />
-      {card.nextExpiry ? <FigureLine size={11} lh={15} color={colors.textMuted} text={`${card.nextExpiry.count} ${card.nextExpiry.count === 1 ? 'stamp ends' : 'stamps end'} after ${rewardDay(card.nextExpiry.lastDay)}`} /> : null}
+      <FigureLine size={12} lh={16} color={colors.textSecondary} text={t('{goal} stamps make {amount} off. One for every booking of {min} or more paid through Detlio.', { goal: card.goal, amount: rewardRupees(card.rewardAmount), min: rewardRupees(view.invite.minAmount) })} />
+      {card.nextExpiry ? <FigureLine size={11} lh={15} color={colors.textMuted} text={tn(card.nextExpiry.count, '{count} stamp ends after {day}', '{count} stamps end after {day}', { day: rewardDay(card.nextExpiry.lastDay) })} /> : null}
     </LinearGradient>
   );
 }
 
 function LevelCard({ view, progress, tint, ladderOpen, toggle, level, streak }: { view: MyRewards; progress: number; tint: string; ladderOpen: boolean; toggle: () => void; level: MyRewards['level']; streak: MyRewards['streak'] }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   return (
@@ -374,7 +383,7 @@ function LevelCard({ view, progress, tint, ladderOpen, toggle, level, streak }: 
         <View style={styles.bookingsLine}>
           <CountUpFigure value={level.bookings} format={String} size={12} weight={400} lh={16} color={colors.textSecondary} />
           <T size={12} lh={16} color={colors.textSecondary}>
-            {' in 12 months'}
+            {` ${t('in 12 months')}`}
           </T>
         </View>
       </View>
@@ -399,13 +408,13 @@ function LevelCard({ view, progress, tint, ladderOpen, toggle, level, streak }: 
       ) : null}
       {level.noShowDrops > 0 ? (
         <T size={11} lh={15} color={colors.warning}>
-          A missed booking took one level off for 12 months.
+          {t('A missed booking took one level off for 12 months.')}
         </T>
       ) : null}
       <View style={[styles.between, styles.rule]}>
         <View style={styles.grow}>
           <FigureLine size={12} lh={16} text={streakLine(streak)} />
-          <FigureLine size={11} lh={15} color={colors.textMuted} text={`${streak.monthsNeeded} months in a row earn ${streak.bonusStamps === 1 ? 'a bonus stamp' : `${streak.bonusStamps} bonus stamps`}.`} />
+          <FigureLine size={11} lh={15} color={colors.textMuted} text={streak.bonusStamps === 1 ? t('{months} months in a row earn a bonus stamp.', { months: streak.monthsNeeded }) : t('{months} months in a row earn {count} bonus stamps.', { months: streak.monthsNeeded, count: streak.bonusStamps })} />
         </View>
         <View style={styles.dots}>
           {Array.from({ length: streak.monthsNeeded }, (_, i) => (
@@ -416,7 +425,7 @@ function LevelCard({ view, progress, tint, ladderOpen, toggle, level, streak }: 
       <View style={styles.rule}>
         <Pressable accessibilityRole="button" accessibilityState={{ expanded: ladderOpen }} onPress={toggle} style={styles.ladderHead}>
           <T size={12} weight={500} lh={16}>
-            All levels and what they unlock
+            {t('All levels and what they unlock')}
           </T>
           {ladderOpen ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
         </Pressable>
@@ -427,11 +436,11 @@ function LevelCard({ view, progress, tint, ladderOpen, toggle, level, streak }: 
                 <View style={[styles.stepMark, step.reached ? styles.stepOn : styles.stepOff]}>{step.reached ? <IconCheck size={12} stroke={2.5} color="#0A0A0B" /> : null}</View>
                 <View style={styles.grow}>
                   <T size={13} weight={step.current ? 600 : 400} lh={18}>
-                    {step.label}
-                    <T num size={12} lh={18} color={colors.textMuted}>{` · ${step.minBookings === 0 ? 'everyone' : `${step.minBookings} washes`}`}</T>
+                    {t(step.label)}
+                    <T num size={12} lh={18} color={colors.textMuted}>{` · ${step.minBookings === 0 ? t('everyone') : t('{count} washes', { count: step.minBookings })}`}</T>
                     {step.current ? (
                       <T size={12} lh={18} color={colors.textSecondary}>
-                        {' · you'}
+                        {` ${t('· you')}`}
                       </T>
                     ) : null}
                   </T>
@@ -460,15 +469,16 @@ const VOUCHER_MARKS: Record<RewardVoucher['kind'], { icon: typeof IconCar; tone:
 };
 
 function VoucherRow({ voucher }: { voucher: RewardVoucher }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const copy = async () => {
     if (!voucher.code) return;
     try {
       await Clipboard.setStringAsync(voucher.code);
-      toast.success('Code copied');
+      toast.success(t('Code copied'));
     } catch {
-      toast.info(`Your code is ${voucher.code}`);
+      toast.info(t('Your code is {code}', { code: voucher.code }));
     }
   };
   const mark = VOUCHER_MARKS[voucher.kind] ?? VOUCHER_MARKS.adjustment;
@@ -483,16 +493,16 @@ function VoucherRow({ voucher }: { voucher: RewardVoucher }) {
       <View style={styles.grow}>
         {freeWash ? (
           <T size={18} weight={600} lh={24}>
-            Free wash
+            {t('Free wash')}
           </T>
         ) : (
-          <FigureLine size={18} weight={600} lh={24} text={`${rewardRupees(voucher.amount)} off`} />
+          <FigureLine size={18} weight={600} lh={24} text={t('{amount} off', { amount: rewardRupees(voucher.amount) })} />
         )}
-        {freeWash ? <FigureLine size={12} lh={16} color={colors.textSecondary} text={`Up to ${rewardRupees(voucher.amount)} · scratch card`} /> : <T size={12} lh={16} color={colors.textSecondary}>{voucher.label}</T>}
-        <FigureLine size={11} lh={15} color={colors.textMuted} text={`Use by ${rewardDay(voucher.lastDay)}`} />
+        {freeWash ? <FigureLine size={12} lh={16} color={colors.textSecondary} text={t('Up to {amount} · scratch card', { amount: rewardRupees(voucher.amount) })} /> : <T size={12} lh={16} color={colors.textSecondary}>{voucher.label}</T>}
+        <FigureLine size={11} lh={15} color={colors.textMuted} text={t('Use by {day}', { day: rewardDay(voucher.lastDay) })} />
       </View>
       {voucher.code ? (
-        <Pressable accessibilityRole="button" accessibilityLabel={`Copy code ${voucher.code}`} onPress={() => void copy()} style={styles.codeChip}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('Copy code {code}', { code: voucher.code })} onPress={() => void copy()} style={styles.codeChip}>
           <T num size={12} lh={16}>
             {voucher.code}
           </T>

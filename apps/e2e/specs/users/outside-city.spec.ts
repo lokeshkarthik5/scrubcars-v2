@@ -1,13 +1,20 @@
 /**
- * The "Outside Chennai" sign (owner decision, 2026-10-16): garages in other
- * towns are part of the pilot, and each one says plainly that it is not in
- * Chennai, on its card, on its page and at checkout, so nobody books one by
- * mistake. A sign only: such a garage is listed and booked as any other.
+ * The town sign (owner decision, 2026-10-16; relative to the customer's own
+ * city since customer cities, 0070): garages in other towns are part of the
+ * pilot, and each one says plainly where it is, on its card, on its page and
+ * at checkout, so nobody books one by mistake. A garage in the customer's
+ * city says nothing at all ("Outside Chennai should not actually show",
+ * owner, 10 Nov 2026). A sign only: such a garage is listed and booked as
+ * any other.
  *
  * VENDORS.homePromo is pinned in Vellore, 124.7 km from ORIGIN (the Chennai
- * centre); MAIN sits on ORIGIN. VENDORS.refunds says Chennai but is pinned
- * 52.6 km out, just past the 50 km line, so its sign names no town and its
- * page gives no figure.
+ * centre) and in no city; MAIN sits on ORIGIN, in Chennai. VENDORS.refunds
+ * says Chennai but is pinned 52.6 km out, just past Chennai's reach, so it is
+ * in no city and its sign gives the distance with no town ("Chennai · 53 km"
+ * would say nothing to a Chennai customer).
+ *
+ * The API still sends the old Chennai-relative `outsideServiceCity`, which
+ * app builds from before cities read; it is checked as it was.
  *
  * Read-only, apart from two unpinned garages made and removed in their own
  * test.
@@ -20,14 +27,15 @@ import { sql } from '../../support/db'
 import { SERVICES, STAFF, VENDORS } from '../../support/seed-ids'
 
 type Outside = { town: string | null; km: number | null } | null
-type Listed = { id: string; outsideServiceCity: Outside }
+type GarageCity = { id: string; name: string } | null
+type Listed = { id: string; outsideServiceCity: Outside; garageCity: GarageCity }
 
 async function garage(request: APIRequestContext, id: string) {
   const response = await request.get(`${API}/api/v1/vendors/${id}`)
   expect(response.status()).toBe(200)
   const body = await response.json()
   expect(body.success).toBe(true)
-  return body.data as { id: string; outsideServiceCity: Outside }
+  return body.data as { id: string; outsideServiceCity: Outside; garageCity: GarageCity }
 }
 
 /** A typed search, with no location: no radius, every town. */
@@ -44,7 +52,7 @@ async function search(
   return body.data.items as Listed[]
 }
 
-test.describe('outside Chennai, in the API @p0', () => {
+test.describe('a garage in another town, in the API @p0', () => {
   test('a garage in another town carries its town and how far out it is', async ({
     request,
   }) => {
@@ -68,6 +76,15 @@ test.describe('outside Chennai, in the API @p0', () => {
     )
     expect(listed).toBeDefined()
     expect(listed!.outsideServiceCity).toBeNull()
+  })
+
+  test('each garage says its own city (0070): Chennai for MAIN, none for Vellore', async ({ request }) => {
+    expect((await garage(request, VENDORS.main.id)).garageCity).toMatchObject({ name: 'Chennai' })
+    expect((await garage(request, VENDORS.homePromo.id)).garageCity).toBeNull()
+    const listed = (await search(request, VENDORS.main.name)).find((item) => item.id === VENDORS.main.id)
+    expect(listed?.garageCity).toMatchObject({ name: 'Chennai' })
+    const vellore = (await search(request, VENDORS.homePromo.name)).find((item) => item.id === VENDORS.homePromo.id)
+    expect(vellore?.garageCity).toBeNull()
   })
 
   test('past 50 km with a city that says Chennai: outside, with no town named', async ({
@@ -123,12 +140,15 @@ test.describe('outside Chennai, in the API @p0', () => {
   })
 })
 
-test.describe('outside Chennai, on screen @p0', () => {
+test.describe('a garage in another town, on screen @p0', () => {
   // Signed in for checkout; no location (the fixtures dismiss the prompt with
-  // none stored), so a search reaches every town.
+  // none stored), so the customer's city is Chennai, the first city, and a
+  // search reaches every town.
   test.use({ storageState: asRole('customer-browse') })
 
-  const SIGN = 'Outside Chennai · Vellore'
+  // From Chennai's centre, with no place shared.
+  const SIGN = 'Vellore · 125 km'
+  const LINE = 'This garage is in Vellore, about 125 km from Chennai.'
 
   test('the card says so in a search made without a location', async ({
     page,
@@ -157,23 +177,20 @@ test.describe('outside Chennai, on screen @p0', () => {
       .first()
     await expect(main).toBeVisible()
     await expect(main).not.toContainText('Outside Chennai')
+    await expect(main).not.toContainText(/· \d+ km/)
   })
 
   test('the garage page says where it is, in a plain line', async ({
     page,
   }) => {
     await page.goto(`/garage/${VENDORS.homePromo.id}`)
-    await expect(
-      page.getByText('This garage is in Vellore, about 125 km from Chennai.')
-    ).toBeVisible()
+    await expect(page.getByText(LINE)).toBeVisible()
 
-    // A garage whose own city says Chennai, pinned just past the line: the
-    // plain words, and no figure to set against the "Chennai" above them.
+    // A garage whose own city says Chennai, pinned just past the city's
+    // reach: how far, with no town ("in Chennai" would be the wrong fact).
     await page.goto(`/garage/${VENDORS.refunds.id}`)
-    await expect(
-      page.getByText('This garage is outside Chennai.')
-    ).toBeVisible()
-    await expect(page.getByText(/km from Chennai/)).toHaveCount(0)
+    await expect(page.getByText('This garage is about 53 km from Chennai.')).toBeVisible()
+    await expect(page.getByText('Outside Chennai')).toHaveCount(0)
 
     await page.goto(`/garage/${VENDORS.main.id}`)
     await expect(
@@ -188,16 +205,14 @@ test.describe('outside Chennai, on screen @p0', () => {
     await page.goto(
       `/book/${VENDORS.homePromo.id}?service=${SERVICES.homePromoWash.id}`
     )
-    await expect(
-      page.getByText('This garage is in Vellore, not Chennai.')
-    ).toBeVisible()
+    await expect(page.getByText(LINE)).toBeVisible()
 
     // Informational: the main action is there and live, asking for the next
     // step as it would for any garage. It carries the line in its
     // description, for a screen reader that jumps straight to it.
     const cta = new CheckoutPage(page).cta()
     await expect(cta).toHaveAccessibleDescription(
-      /^This garage is in Vellore, not Chennai\./
+      /^This garage is in Vellore, about 125 km from Chennai\./
     )
     await expect(cta).toHaveText(/^Pick a time/)
     await expect(cta).toBeEnabled()

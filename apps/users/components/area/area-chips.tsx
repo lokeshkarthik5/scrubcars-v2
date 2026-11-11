@@ -8,6 +8,7 @@ import { useHydratedLocation } from '@repo/core/stores/location-store'
 import type { BookingType } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
 import { AreaPicker, NearMeBlocked, useAreaPick, useNearMe } from './area-picker'
+import { useT } from '@repo/core/i18n'
 
 const CHIP =
   'press flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-4 text-[14px] transition-colors'
@@ -23,6 +24,7 @@ const CHIP =
  * render agree.
  */
 export function AreaChips({ mode }: { mode: BookingType }) {
+  const t = useT()
   const zones = useZones()
   const location = useHydratedLocation()
   const pickArea = useAreaPick(mode)
@@ -47,7 +49,7 @@ export function AreaChips({ mode }: { mode: BookingType }) {
         id="where-is-your-car"
         className="text-t5 font-medium uppercase tracking-[0.12em] text-text-secondary"
       >
-        Where&apos;s your car?
+        {t("Where's your car?")}
       </h2>
       {nearMe.blocked && <NearMeBlocked />}
       <div className="flex flex-wrap gap-2">
@@ -63,7 +65,7 @@ export function AreaChips({ mode }: { mode: BookingType }) {
           )}
         >
           <IconCurrentLocation size={15} aria-hidden className="shrink-0" />
-          Near me
+          {t('Near me')}
         </button>
         {priority.map((zone) => {
           const on = chosenSlug === zone.slug
@@ -99,7 +101,7 @@ export function AreaChips({ mode }: { mode: BookingType }) {
               : 'border-line bg-white/[0.03] text-text-primary'
           )}
         >
-          {chosenElsewhere ?? 'More'}
+          {chosenElsewhere ?? t('More')}
           <IconChevronDown size={14} aria-hidden className="shrink-0" />
         </button>
       </div>

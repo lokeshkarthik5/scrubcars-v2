@@ -45,7 +45,7 @@ import type {
 } from './garage-book.validation.js'
 
 /**
- * Garage Book (0069). Who may see what is decided here, once:
+ * Garage Book (0072). Who may see what is decided here, once:
  *
  *   - `owner` (vendor_admin) sees money; staff (vendor_operator) never do.
  *     Every figure in paise, and every Detlio booking amount, is left out

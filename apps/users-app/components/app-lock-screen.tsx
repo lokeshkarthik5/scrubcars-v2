@@ -1,3 +1,4 @@
+import { useT } from '@repo/core/i18n';
 import { ScButton } from '@repo/native-ui/button';
 import { BrandMark } from '@repo/native-ui/primitives';
 import { T } from '@repo/native-ui/text';
@@ -36,15 +37,16 @@ export function AppLockGate({ onOpen }: { onOpen: () => void }) {
 }
 
 function Locked({ onUnlock }: { onUnlock: () => void }) {
+  const t = useT();
   const colors = useColors();
   return (
     <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16, backgroundColor: '#0A0A0B', paddingHorizontal: 24 }}>
       <BrandMark height={32} />
       <T size={15} lh={22} align="center" color={colors.textSecondary}>
-        Detlio is locked on this phone.
+        {t('Detlio is locked on this phone.')}
       </T>
       <ScButton variant="main" fullWidth={false} paddingX={32} onPress={onUnlock}>
-        Unlock
+        {t('Unlock')}
       </ScButton>
     </View>
   );

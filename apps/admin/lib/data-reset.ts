@@ -161,6 +161,24 @@ export function phraseTyped(typed: string, phrase: string): boolean {
   return typed.trim().replace(/\s+/g, ' ') === phrase
 }
 
+/**
+ * The typed confirmation as the dry run asks for it: the phrase, or (the
+ * owner's delete of what anyone else's keeps, 10 Nov 2026) the booking's
+ * reference, "AD200012" or "#ad200012". The server's confirmMatches twin.
+ */
+export function confirmationTyped(
+  typed: string,
+  preview: Pick<DataResetPreview, 'confirmPhrase' | 'confirmKind'>
+): boolean {
+  if (preview.confirmKind === 'reference') {
+    return (
+      typed.trim().replace(/^#/, '').toUpperCase() ===
+      preview.confirmPhrase.toUpperCase()
+    )
+  }
+  return phraseTyped(typed, preview.confirmPhrase)
+}
+
 /** "143 bookings", "1 checkout": a count with its noun. */
 export function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`

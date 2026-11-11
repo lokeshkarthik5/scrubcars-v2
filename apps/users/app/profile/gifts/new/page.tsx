@@ -46,6 +46,7 @@ import {
   type GiftArt,
 } from '@/lib/gifts'
 import { giftCardSpec } from '@/lib/premium-card'
+import { fill, useT } from '@repo/core/i18n'
 
 const NAME_MAX = 60
 const MESSAGE_MAX = 200
@@ -69,6 +70,7 @@ type Phase =
  * one before, so it is made once here and never again on its own).
  */
 export default function NewGiftPage() {
+  const t = useT()
   const router = useRouter()
   const queryClient = useQueryClient()
   const user = useAuthStore((s) => s.user)
@@ -89,7 +91,7 @@ export default function NewGiftPage() {
   const { attach: attachPayShine, className: payShineClass } =
     useHeroShine<HTMLButtonElement>()
 
-  const title = phase.kind === 'shared' ? 'Share your gift' : 'Gift a wash'
+  const title = phase.kind === 'shared' ? t('Share your gift') : t('Gift a wash')
   const header = (
     <TopBar
       title={title}
@@ -105,7 +107,7 @@ export default function NewGiftPage() {
         {header}
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
           <p className="text-t3 font-semibold text-text-primary">
-            Sign in to gift a wash
+            {t('Sign in to gift a wash')}
           </p>
           <ScButton
             variant="main"
@@ -116,7 +118,7 @@ export default function NewGiftPage() {
               )
             }
           >
-            Sign in
+            {t('Sign in')}
           </ScButton>
         </div>
       </CustomerShell>
@@ -165,7 +167,7 @@ export default function NewGiftPage() {
       })
       await openRazorpayCheckout({
         order,
-        description: `Detlio gift for ${name}`,
+        description: t('Detlio gift for {name}', { name }),
         customer: { name: profile?.name, phone: profile?.phone },
         onSuccess: async (response) => {
           setPhase({ kind: 'confirming' })
@@ -199,7 +201,7 @@ export default function NewGiftPage() {
           }
         },
         onDismiss: () => {
-          toast.info('Payment cancelled. Nothing was charged.')
+          toast.info(t('Payment cancelled. Nothing was charged.'))
         },
         onFailure: (failure) => {
           toast.error(failure)
@@ -225,7 +227,7 @@ export default function NewGiftPage() {
           href="/profile/gifts"
           className="flex min-h-11 items-center justify-center text-t4 font-medium text-text-secondary hover:text-text-primary"
         >
-          Done
+          {t('Done')}
         </Link>
       </CustomerShell>
     )
@@ -245,26 +247,24 @@ export default function NewGiftPage() {
               className="shrink-0 animate-spin"
               aria-hidden="true"
             />
-            Payment received. Getting your gift ready…
+            {t('Payment received. Getting your gift ready…')}
           </p>
         ) : (
           <ScCard className="flex flex-col gap-3">
             <p role="status" className="text-t4 text-text-primary">
               {phase.paid
-                ? "Your gift is paid, but we couldn't make its link just now."
-                : "Payment received. We couldn't confirm it here yet."}
+                ? t("Your gift is paid, but we couldn't make its link just now.")
+                : t("Payment received. We couldn't confirm it here yet.")}
             </p>
             <p className="text-t5 text-text-secondary">
-              Your gift shows in Gifts you sent once the payment is confirmed,
-              usually within a few minutes. Tap Get the link there to share it.
-              You won&apos;t be charged again.
+              {t("Your gift shows in Gifts you sent once the payment is confirmed, usually within a few minutes. Tap Get the link there to share it. You won't be charged again.")}
             </p>
             <ScButton
               variant="secondary"
               className="min-h-11"
               onClick={() => router.push('/profile/gifts')}
             >
-              Go to Gifts you sent
+              {t('Go to Gifts you sent')}
             </ScButton>
           </ScCard>
         )}
@@ -293,7 +293,7 @@ export default function NewGiftPage() {
           id="gift-design"
           className="text-sm font-semibold text-text-primary"
         >
-          Card
+          {t('Card')}
         </h2>
         <div
           role="radiogroup"
@@ -325,7 +325,7 @@ export default function NewGiftPage() {
                     : 'text-t5 text-text-secondary'
                 }
               >
-                {GIFT_ART_LABELS[value]}
+                {t(GIFT_ART_LABELS[value])}
               </span>
             </button>
           ))}
@@ -337,7 +337,7 @@ export default function NewGiftPage() {
           id="gift-amount"
           className="text-sm font-semibold text-text-primary"
         >
-          Amount
+          {t('Amount')}
         </h2>
         <div className="flex flex-wrap gap-2">
           {limits.presets.map((value) => (
@@ -350,7 +350,7 @@ export default function NewGiftPage() {
             />
           ))}
           <Chip
-            label="Other amount"
+            label={t('Other amount')}
             selected={preset === 'other'}
             onClick={() => setPreset('other')}
           />
@@ -359,7 +359,7 @@ export default function NewGiftPage() {
           <div className="flex flex-col gap-1">
             <ScInput
               data-clarity-mask="true"
-              label={`Amount (${giftRupees(limits.min)} to ${giftRupees(limits.max)})`}
+              label={t('Amount ({giftRupees} to {giftRupees2})', { giftRupees: giftRupees(limits.min), giftRupees2: giftRupees(limits.max) })}
               inputMode="numeric"
               placeholder={String(limits.min)}
               value={otherAmount}
@@ -377,11 +377,11 @@ export default function NewGiftPage() {
 
       <section aria-labelledby="gift-for" className="flex flex-col gap-3">
         <h2 id="gift-for" className="text-sm font-semibold text-text-primary">
-          Who it&apos;s for
+          {t("Who it's for")}
         </h2>
         <ScInput
           data-clarity-mask="true"
-          label="Their name"
+          label={t('Their name')}
           autoComplete="off"
           maxLength={NAME_MAX}
           value={recipientName}
@@ -390,7 +390,7 @@ export default function NewGiftPage() {
         <div className="flex flex-col gap-1">
           <ScTextarea
             data-clarity-mask="true"
-            label="Message (optional)"
+            label={t('Message (optional)')}
             rows={3}
             maxLength={MESSAGE_MAX}
             value={message}
@@ -406,11 +406,7 @@ export default function NewGiftPage() {
       </section>
 
       <p className="text-t5 text-text-secondary">
-        They can use it on any booking on Detlio for{' '}
-        <span className="font-numeric">{limits.validMonths}</span> months from
-        today. You get a link to send them after paying. Up to{' '}
-        <span className="font-numeric">{giftRupees(limits.dailyLimit)}</span> of
-        gifts a day.
+        {fill(t('They can use it on any booking on Detlio for {validMonths} months from today. You get a link to send them after paying. Up to {giftRupees} of gifts a day.'), { validMonths: <span className="font-numeric">{limits.validMonths}</span>, giftRupees: <span className="font-numeric">{giftRupees(limits.dailyLimit)}</span> })}
       </p>
 
       {error && (
@@ -429,16 +425,15 @@ export default function NewGiftPage() {
         {/* The label sits above the band of light only as an element of its own. */}
         <span>
           {paying ? (
-            'Opening payment…'
+            t('Opening payment…')
           ) : amount !== null && !amountProblem ? (
             <>
-              Pay{' '}
-              <span className="font-numeric font-bold">
+              {fill(t('Pay {giftRupees}'), { giftRupees: <span className="font-numeric font-bold">
                 {giftRupees(amount)}
-              </span>
+              </span> })}
             </>
           ) : (
-            'Pay'
+            t('Pay')
           )}
         </span>
       </ScButton>

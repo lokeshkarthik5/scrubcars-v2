@@ -2,15 +2,17 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { IconBell } from '@tabler/icons-react'
 import { initialOf } from '@repo/core/home-display'
+import { useT } from '@repo/core/i18n'
+import { t } from '@repo/core/i18n/translate'
 
 /** "Good morning" before noon, "Good afternoon" until 5 pm, then "Good evening", in Chennai. */
 export function greetingFor(now: Date): string {
   const hour = new Date(now.getTime() + 330 * 60_000).getUTCHours()
   return hour < 12
-    ? 'Good morning'
+    ? t('Good morning')
     : hour < 17
-      ? 'Good afternoon'
-      : 'Good evening'
+      ? t('Good afternoon')
+      : t('Good evening')
 }
 
 interface HomeHeaderProps {
@@ -34,6 +36,7 @@ export function HomeHeader({
   hasUnread,
   now,
 }: HomeHeaderProps) {
+  const t = useT()
   return (
     <header className="flex items-center justify-between pt-1.5 pb-3.5">
       <div className="flex min-w-0 items-center gap-3">
@@ -59,7 +62,7 @@ export function HomeHeader({
       </div>
       <Link
         href="/updates"
-        aria-label={hasUnread ? 'Updates, new' : 'Updates'}
+        aria-label={hasUnread ? t('Updates, new') : t('Updates')}
         className="relative grid size-11 place-items-center rounded-full border border-line bg-white/[0.02] text-text-primary"
       >
         <IconBell size={21} stroke={1.5} aria-hidden />

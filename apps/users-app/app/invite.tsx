@@ -1,5 +1,6 @@
 import { openInvite, type InviteOpened } from '@repo/core/api/rewards';
 import { rewardsEnabled, useClaimInvite, useRewardsConfig } from '@repo/core/api/hooks/use-rewards';
+import { useT } from '@repo/core/i18n';
 import { rewardRupees } from '@repo/core/rewards';
 import { ScButton } from '@repo/native-ui/button';
 import { IconStar } from '@repo/native-ui/icons';
@@ -19,6 +20,7 @@ import { forgetInvite, readStoredInvite, storeInvite } from '@/lib/invite';
 
 /** InviteView (apps/users/components/rewards/invite-view.tsx). The code is held in memory, never in a route. */
 export default function InviteScreen() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
@@ -38,7 +40,7 @@ export default function InviteScreen() {
         setInvite(opened);
         if (!readStoredInvite(code)) storeInvite({ code, token: opened.token });
       })
-      .catch((error: unknown) => setFailed(error instanceof Error ? error.message : "This invite link isn't valid."));
+      .catch((error: unknown) => setFailed(error instanceof Error ? error.message : t("This invite link isn't valid.")));
   }, [on, code, invite]);
 
   useEffect(() => {
@@ -57,7 +59,7 @@ export default function InviteScreen() {
     <View style={styles.none}>
       <EmptyState icon={<IconStar size={32} stroke={1.5} color={colors.textSecondary} />} title={title} subtitle={subtitle} />
       <ScButton variant="outline" fullWidth={false} onPress={() => router.replace('/garages' as Href)}>
-        Find garages
+        {t('Find garages')}
       </ScButton>
     </View>
   );
@@ -66,9 +68,9 @@ export default function InviteScreen() {
       <PageHeader title="Detlio" backTo="/home" />
       <View style={styles.body}>
         {!code ? (
-          empty("This invite link isn't valid.")
+          empty(t("This invite link isn't valid."))
         ) : !config.isPending && !on ? (
-          empty("Invites aren't available right now", 'You can still book a wash on Detlio.')
+          empty(t("Invites aren't available right now"), t('You can still book a wash on Detlio.'))
         ) : failed ? (
           empty(failed)
         ) : !invite ? (
@@ -84,6 +86,7 @@ export default function InviteScreen() {
 }
 
 function Card({ invite, signedIn, claim }: { invite: InviteOpened; signedIn: boolean; claim: ReturnType<typeof useClaimInvite> }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   return (
@@ -91,37 +94,37 @@ function Card({ invite, signedIn, claim }: { invite: InviteOpened; signedIn: boo
       <T size={12} lh={16} color={colors.textSecondary}>
         Detlio Rewards
       </T>
-      <T size={24} weight={600} lh={30}>{`${invite.referrerFirstName} invited you to Detlio`}</T>
-      <FigureLine size={14} lh={20} color={colors.textSecondary} text={`Get ${rewardRupees(invite.amount)} off when your first booking of ${rewardRupees(invite.minAmount)} or more is done. ${invite.referrerFirstName} gets ${rewardRupees(invite.amount)} off too.`} />
+      <T size={24} weight={600} lh={30}>{t('{name} invited you to Detlio', { name: invite.referrerFirstName })}</T>
+      <FigureLine size={14} lh={20} color={colors.textSecondary} text={t('Get {amount} off when your first booking of {min} or more is done. {name} gets {amount} off too.', { amount: rewardRupees(invite.amount), min: rewardRupees(invite.minAmount), name: invite.referrerFirstName })} />
       {!signedIn ? (
         <ScButton variant="main" onPress={() => router.push(`/login?next=${encodeURIComponent('/invite')}` as Href)}>
-          Sign up to join
+          {t('Sign up to join')}
         </ScButton>
       ) : claim.isPending ? (
         <T size={13} lh={18} color={colors.textSecondary}>
-          Adding the invite to your account…
+          {t('Adding the invite to your account…')}
         </T>
       ) : claim.isSuccess ? (
         <>
           <T size={13} lh={18} color={colors.success}>
-            You&apos;re in. Book your first wash to get your reward.
+            {t("You're in. Book your first wash to get your reward.")}
           </T>
           <ScButton variant="main" onPress={() => router.replace('/garages' as Href)}>
-            Book a wash
+            {t('Book a wash')}
           </ScButton>
         </>
       ) : claim.isError ? (
         <>
           <T size={13} lh={18} color={colors.warning}>
-            {claim.error instanceof Error ? claim.error.message : "Couldn't add the invite."}
+            {claim.error instanceof Error ? claim.error.message : t("Couldn't add the invite.")}
           </T>
           <ScButton variant="outline" onPress={() => router.replace('/garages' as Href)}>
-            Find garages
+            {t('Find garages')}
           </ScButton>
         </>
       ) : null}
       <T size={11} lh={15} color={colors.textMuted}>
-        For people new to Detlio. One invite per person.
+        {t('For people new to Detlio. One invite per person.')}
       </T>
     </LinearGradient>
   );

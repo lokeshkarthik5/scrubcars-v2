@@ -1,3 +1,4 @@
+import { useT } from '@repo/core/i18n';
 import { IconCheck } from '@repo/native-ui/icons';
 import { T } from '@repo/native-ui/text';
 import { createStyles, useColors } from '@repo/native-ui/theme';
@@ -44,6 +45,7 @@ function Piece({ x, r, delay, color }: { x: number; r: string; delay: number; co
  * A view, not a Modal: iOS drops a modal shown while Razorpay's window is still leaving.
  */
 export function SuccessBurst({ title, subtitle, durationMs = 2200, onDone }: { title: string; subtitle?: string; durationMs?: number; onDone: () => void }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const fade = useRef(new Animated.Value(0)).current;
@@ -61,7 +63,7 @@ export function SuccessBurst({ title, subtitle, durationMs = 2200, onDone }: { t
 
   return (
       <Animated.View style={[StyleSheet.absoluteFill, styles.page, { opacity: fade }]}>
-        <Pressable accessibilityLabel="Close" style={StyleSheet.absoluteFill} onPress={() => doneRef.current()} />
+        <Pressable accessibilityLabel={t('Close')} style={StyleSheet.absoluteFill} onPress={() => doneRef.current()} />
         <View style={styles.burst} pointerEvents="none">
           <Animated.View style={[styles.ring, { transform: [{ scale: pop }] }]}>
             <IconCheck size={40} stroke={3.2} color={colors.success} />

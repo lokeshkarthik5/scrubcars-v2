@@ -18,7 +18,7 @@ import {
 } from '../../db/schema.js'
 
 /**
- * Garage Book's reads and writes (0069). Every read is scoped to the garage
+ * Garage Book's reads and writes (0072). Every read is scoped to the garage
  * resolveTenant produced; a Detlio customer is "a user with a paid booking at
  * this garage" and is read from bookings, never copied. Raw SQL for the
  * grouped reads; dates come back from postgres-js as Date or text, so every

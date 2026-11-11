@@ -1,3 +1,5 @@
+import { t, tn } from './i18n/translate'
+
 /**
  * The arithmetic behind the customer app's special moments (customer UI
  * round, Nov 2026, §7): the ticket's countdown, the "they answer by" ring,
@@ -38,15 +40,16 @@ export function countdownParts(target: number, now: number): CountdownParts {
  * read): "2 days, 1 hour and 14 minutes", "45 minutes", "Starting now".
  */
 export function countdownWords(parts: CountdownParts): string {
-  if (parts.past) return 'Starting now'
-  const plural = (n: number, unit: string) => `${n} ${unit}${n === 1 ? '' : 's'}`
+  if (parts.past) return t('Starting now')
   const words = [
-    parts.days > 0 ? plural(parts.days, 'day') : null,
-    parts.hours > 0 ? plural(parts.hours, 'hour') : null,
-    parts.minutes > 0 ? plural(parts.minutes, 'minute') : null,
+    parts.days > 0 ? tn(parts.days, '{count} day', '{count} days') : null,
+    parts.hours > 0 ? tn(parts.hours, '{count} hour', '{count} hours') : null,
+    parts.minutes > 0 ? tn(parts.minutes, '{count} minute', '{count} minutes') : null,
   ].filter((word): word is string => word !== null)
-  if (words.length === 0) return 'Starting now'
-  return words.length === 1 ? words[0] : `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`
+  if (words.length === 0) return t('Starting now')
+  return words.length === 1
+    ? words[0]
+    : t('{list} and {last}', { list: words.slice(0, -1).join(', '), last: words[words.length - 1] })
 }
 
 /** A box's figure: two places for hours and minutes ("01"), the days as they are. */

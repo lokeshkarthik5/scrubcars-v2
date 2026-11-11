@@ -15,6 +15,7 @@ import {
   type ComplaintStatus,
 } from '@repo/core/complaints'
 import { RaiseComplaintSheet } from '@/components/complaints/raise-complaint-sheet'
+import { fill, useT } from '@repo/core/i18n'
 
 /**
  * The status as a badge. Waiting on the team is the neutral outline (nothing
@@ -29,6 +30,7 @@ const STATUS_BADGE: Record<ComplaintStatus, 'pending' | 'success' | 'muted'> = {
 }
 
 function ComplaintRow({ complaint }: { complaint: CustomerComplaint }) {
+  const t = useT()
   const withdrawn = Boolean(complaint.withdrawnAt)
   const answered =
     (complaint.status === 'resolved' || complaint.status === 'closed') && !withdrawn
@@ -43,19 +45,17 @@ function ComplaintRow({ complaint }: { complaint: CustomerComplaint }) {
             {complaint.number}
           </span>
           <ScBadge variant={STATUS_BADGE[complaint.status]}>
-            {withdrawn ? 'Withdrawn' : COMPLAINT_STATUS_LABELS[complaint.status]}
+            {withdrawn ? t('Withdrawn') : t(COMPLAINT_STATUS_LABELS[complaint.status])}
           </ScBadge>
           <span className="ml-auto font-numeric text-t5 text-text-muted">
             {formatComplaintDate(complaint.receivedAt)}
           </span>
         </div>
         <p className="text-t5 text-text-secondary">
-          {COMPLAINT_CATEGORY_LABELS[complaint.category]}
+          {t(COMPLAINT_CATEGORY_LABELS[complaint.category])}
           {complaint.bookingRef && (
             <>
-              {' '}
-              · booking{' '}
-              <span className="font-numeric">#{complaint.bookingRef}</span>
+              {' '}{fill(t('· booking {ref}'), { ref: <span className="font-numeric">#{complaint.bookingRef}</span> })}
             </>
           )}
           {complaint.garageName && <> · {complaint.garageName}</>}
@@ -64,7 +64,7 @@ function ComplaintRow({ complaint }: { complaint: CustomerComplaint }) {
             complaint they never typed here makes sense. */}
         {complaint.source !== 'app' && (
           <p className="text-t5 text-text-muted">
-            {COMPLAINT_SOURCE_CUSTOMER_LINES[complaint.source]}
+            {t(COMPLAINT_SOURCE_CUSTOMER_LINES[complaint.source])}
           </p>
         )}
         {/* Their words as recorded: the copy of the complaint the rules ask
@@ -76,11 +76,11 @@ function ComplaintRow({ complaint }: { complaint: CustomerComplaint }) {
         {complaint.canWithdraw && (
           <button
             type="button"
-            aria-label={`Withdraw complaint ${complaint.number}`}
+            aria-label={t('Withdraw complaint {number}', { number: complaint.number })}
             onClick={() => setConfirming(true)}
             className="mt-1 min-h-11 self-start text-t5 font-medium text-text-secondary underline underline-offset-2 transition-colors hover:text-text-primary"
           >
-            Withdraw
+            {t('Withdraw')}
           </button>
         )}
         <ConfirmSheet
@@ -92,25 +92,25 @@ function ComplaintRow({ complaint }: { complaint: CustomerComplaint }) {
           onConfirm={async () => {
             try {
               await withdraw.mutateAsync(complaint.id)
-              toast.success('Complaint withdrawn')
+              toast.success(t('Complaint withdrawn'))
               setConfirming(false)
             } catch (err) {
               // Answered meanwhile: said here; the list is re-read.
-              setError(err instanceof Error ? err.message : 'Could not withdraw it')
+              setError(err instanceof Error ? err.message : t('Could not withdraw it'))
             }
           }}
           level="light"
-          title={`Withdraw complaint ${complaint.number}?`}
-          body="We'll close it without answering. You can raise a new one any time."
-          confirmLabel="Withdraw complaint"
-          cancelLabel="Keep it"
+          title={t('Withdraw complaint {number}?', { number: complaint.number })}
+          body={t("We'll close it without answering. You can raise a new one any time.")}
+          confirmLabel={t('Withdraw complaint')}
+          cancelLabel={t('Keep it')}
           busy={withdraw.isPending}
           error={error}
         />
         {answered && complaint.resolutionNote && (
           <div className="mt-1 rounded-[10px] border border-border bg-surface-elevated px-3 py-2">
             <p className="text-t5 font-medium uppercase tracking-wide text-text-muted">
-              Our answer
+              {t('Our answer')}
             </p>
             <p className="mt-0.5 whitespace-pre-wrap break-words text-t5 text-text-primary">
               {complaint.resolutionNote}
@@ -128,6 +128,7 @@ function ComplaintRow({ complaint }: { complaint: CustomerComplaint }) {
  * not about a booking starts here too.
  */
 export function MyComplaints() {
+  const t = useT()
   const {
     data: complaints = [],
     isPending,
@@ -147,7 +148,7 @@ export function MyComplaints() {
           id="my-complaints-heading"
           className="text-sm font-semibold text-text-primary"
         >
-          My complaints
+          {t('My complaints')}
         </h2>
         {/* Neutral, not red: nothing on Profile asks to be pressed. */}
         <button
@@ -155,37 +156,36 @@ export function MyComplaints() {
           onClick={() => setRaising(true)}
           className="min-h-11 px-1 text-t5 font-medium text-text-secondary transition-colors hover:text-text-primary"
         >
-          Raise a complaint
+          {t('Raise a complaint')}
         </button>
       </div>
 
       {isPending ? (
         <ScCard>
-          <p className="text-t5 text-text-secondary">Loading…</p>
+          <p className="text-t5 text-text-secondary">{t('Loading…')}</p>
         </ScCard>
       ) : isError && complaints.length === 0 ? (
         <ScCard className="flex items-center justify-between gap-3">
           <p className="text-t5 text-text-secondary">
-            Couldn&apos;t load your complaints.
+            {t("Couldn't load your complaints.")}
           </p>
           <button
             type="button"
             onClick={() => void refetch()}
             className="min-h-11 px-1 text-t5 font-medium text-text-primary underline"
           >
-            Try again
+            {t('Try again')}
           </button>
         </ScCard>
       ) : complaints.length === 0 ? (
         <ScCard>
           <p className="text-t5 text-text-secondary">
-            None so far. About a booking? Use Help with this booking on its
-            page.
+            {t('None so far. About a booking? Use Help with this booking on its page.')}
           </p>
         </ScCard>
       ) : (
         <ul
-          aria-label="My complaints, newest first"
+          aria-label={t('My complaints, newest first')}
           className="flex flex-col gap-2"
         >
           {complaints.map((complaint) => (

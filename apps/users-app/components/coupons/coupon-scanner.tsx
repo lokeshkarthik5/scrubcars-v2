@@ -1,4 +1,5 @@
 import { codeFromScan } from '@repo/core/coupons';
+import { useT } from '@repo/core/i18n';
 import { ScButton } from '@repo/native-ui/button';
 import { ScModal } from '@repo/native-ui/sheet';
 import { T } from '@repo/native-ui/text';
@@ -12,6 +13,7 @@ import { Linking, View } from 'react-native';
  * place of the browser's. Only a Detlio coupon's code leaves here, never the rest of the QR.
  */
 export function CouponScanner({ onCode, onClose }: { onCode: (code: string) => void; onClose: () => void }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const [permission, requestPermission] = useCameraPermissions();
@@ -24,18 +26,18 @@ export function CouponScanner({ onCode, onClose }: { onCode: (code: string) => v
 
   const blocked = permission !== null && !permission.granted && !permission.canAskAgain;
   return (
-    <ScModal open onClose={onClose} accessibilityLabel="Scan a coupon">
+    <ScModal open onClose={onClose} accessibilityLabel={t('Scan a coupon')}>
       <View style={styles.column}>
         <T size={16} weight={600} lh={22}>
-          Scan a coupon
+          {t('Scan a coupon')}
         </T>
         {blocked ? (
           <>
             <T accessibilityRole="alert" size={13} lh={18} color={colors.textSecondary}>
-              Camera access is off for Detlio. Allow it in your phone’s settings, or type the code instead.
+              {t('Camera access is off for Detlio. Allow it in your phone’s settings, or type the code instead.')}
             </T>
             <ScButton variant="outline" height={44} onPress={() => void Linking.openSettings()}>
-              Open settings
+              {t('Open settings')}
             </ScButton>
           </>
         ) : (
@@ -53,19 +55,19 @@ export function CouponScanner({ onCode, onClose }: { onCode: (code: string) => v
                       done.current = true;
                       onCode(code);
                     } else {
-                      setHint("That QR isn't a Detlio coupon.");
+                      setHint(t("That QR isn't a Detlio coupon."));
                     }
                   }}
                 />
               ) : null}
             </View>
             <T size={13} lh={18} color={colors.textSecondary} align="center" accessibilityLiveRegion="polite">
-              {hint ?? 'Point the camera at the QR on the coupon.'}
+              {hint ?? t('Point the camera at the QR on the coupon.')}
             </T>
           </>
         )}
         <ScButton variant="outline" height={44} onPress={onClose}>
-          Close
+          {t('Close')}
         </ScButton>
       </View>
     </ScModal>

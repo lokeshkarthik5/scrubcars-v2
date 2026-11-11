@@ -13,6 +13,8 @@ import { CATEGORY_LABELS } from '@repo/core/categories'
 import type { ServiceCategory } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
 import { ScSheet } from '@repo/ui/sc/modal'
+import { useT } from '@repo/core/i18n'
+import { t } from '@repo/core/i18n/translate'
 
 export type ServiceFilter = ServiceCategory | 'all'
 
@@ -39,9 +41,9 @@ const ICONS: Record<ServiceFilter, typeof IconDroplet> = {
 
 /** "All services", "Packages", "Car wash" … as the filter button and its sheet say them. */
 export function serviceFilterLabel(filter: ServiceFilter): string {
-  if (filter === 'all') return 'All services'
-  if (filter === 'package') return 'Packages'
-  return CATEGORY_LABELS[filter]
+  if (filter === 'all') return t('All services')
+  if (filter === 'package') return t('Packages')
+  return t(CATEGORY_LABELS[filter])
 }
 
 export function ServiceFilterIcon({ filter, size = 18 }: { filter: ServiceFilter; size?: number }) {
@@ -70,14 +72,15 @@ export function FilterSheet({
   onChange: (value: ServiceFilter) => void
   onClose: () => void
 }) {
+  const t = useT()
   return (
     <ScSheet
       open={open}
       onClose={onClose}
-      aria-label="Choose a service"
+      aria-label={t('Choose a service')}
       className="fx-glass mx-2.5 mb-2.5 w-[calc(100%-20px)] rounded-[26px] border border-white/14 bg-[rgb(16_16_20/0.82)] px-2.5 pb-3"
     >
-      <h2 className="mx-2.5 mb-2 text-t3 font-semibold text-text-primary">Service</h2>
+      <h2 className="mx-2.5 mb-2 text-t3 font-semibold text-text-primary">{t('Service')}</h2>
       <div className="grid grid-cols-2 gap-2 px-0.5 pb-1">
         {SERVICE_FILTERS.map((filter, i) => {
           const selected = filter === value

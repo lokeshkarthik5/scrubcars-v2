@@ -14,6 +14,7 @@ import { IconCamera, IconCar, IconChevronRight } from '@repo/native-ui/icons';
 import { StatusChip } from '@repo/native-ui/primitives';
 import { listServicesLine } from '@/lib/add-on-lines';
 import { T } from '@repo/native-ui/text';
+import { msg, useT } from '@repo/core/i18n';
 
 /**
  * JobRow (apps/vendors/components/job-row.tsx): one short row per job, the time big
@@ -30,10 +31,11 @@ export function JobRow({
   showStep?: boolean;
   emphasis?: boolean;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const deferred = useDeferredStatus(b.id);
-  const who = b.customerName || 'the customer';
+  const who = b.customerName || t('the customer');
   const step = showStep && !deferred ? nextStep(b) : null;
   const startsIn = b.status === 'confirmed' ? new Date(b.scheduledAtIso).getTime() - now : null;
   const [clock, meridiem] = formatClock(b.scheduledAtIso).split(' ');
@@ -43,7 +45,7 @@ export function JobRow({
 
   return (
     <Pressable
-      accessibilityLabel={`Job for ${who}`}
+      accessibilityLabel={t('Job for {who}', { who })}
       onPress={open}
       style={[styles.row, emphasis ? styles.emphasis : styles.plain]}
     >
@@ -73,11 +75,11 @@ export function JobRow({
             </T>
           ) : null}
           <T size={15} color={colors.textSecondary} numberOfLines={1}>
-            {`${listServicesLine(b)} · ${BOOKING_TYPE_LABELS[b.bookingType]}`}
+            {`${listServicesLine(b)} · ${t(BOOKING_TYPE_LABELS[b.bookingType])}`}
           </T>
           {dayOff && b.status !== 'completed' ? (
             <T size={14} color={colors.textSecondary} style={styles.label}>
-              {cancelledLabel(b)}
+              {t(cancelledLabel(b))}
             </T>
           ) : null}
         </View>
@@ -94,25 +96,25 @@ export function JobRow({
             <ScButton
               variant={emphasis ? 'main' : 'outline'}
               size={emphasis ? 'lg' : 'md'}
-              accessibilityLabel={`${nextStepLabel(step)} for ${who}`}
+              accessibilityLabel={t('{step} for {who}', { step: t(nextStepLabel(step)), who })}
               onPress={() => changeStatusWithUndo(b.id, step.kind === 'start' ? 'in_progress' : 'completed')}
             >
-              {nextStepLabel(step)}
+              {t(nextStepLabel(step))}
             </ScButton>
           ) : step.kind === 'wait' ? (
             <T size={14} color={colors.textSecondary}>
-              {step.text}
+              {t(step.text)}
             </T>
           ) : (
             <ScButton
               variant={emphasis ? 'main' : 'outline'}
               size={emphasis ? 'lg' : 'md'}
-              accessibilityLabel={`${nextStepLabel(step)} for ${who}`}
+              accessibilityLabel={t('{step} for {who}', { step: t(nextStepLabel(step)), who })}
               onPress={open}
             >
               {step.kind === 'photos' ? <IconCamera size={20} color={stepTint} /> : null}
               {step.kind === 'pickup' ? <IconCar size={20} color={stepTint} /> : null}
-              <Label color={stepTint}>{nextStepLabel(step)}</Label>
+              <Label color={stepTint}>{t(nextStepLabel(step))}</Label>
             </ScButton>
           )}
         </View>
@@ -122,12 +124,12 @@ export function JobRow({
 }
 
 const DEFERRED_CHIP: Record<NonNullable<ReturnType<typeof useDeferredStatus>>, string> = {
-  confirmed: 'Accepted',
-  in_progress: 'In progress',
-  completed: 'Done',
-  picked_up: 'Picked up',
-  at_garage: 'At garage',
-  out_for_delivery: 'Out for delivery',
+  confirmed: msg('Accepted'),
+  in_progress: msg('In progress'),
+  completed: msg('Done'),
+  picked_up: msg('Picked up'),
+  at_garage: msg('At garage'),
+  out_for_delivery: msg('Out for delivery'),
 };
 
 function RowChip({
@@ -141,9 +143,10 @@ function RowChip({
   startsIn: number | null;
   deferred: ReturnType<typeof useDeferredStatus>;
 }) {
+  const t = useT();
   const styles = useStyles();
   if (deferred) {
-    return <StatusChip tone={deferred === 'completed' ? 'done' : 'progress'}>{DEFERRED_CHIP[deferred]}</StatusChip>;
+    return <StatusChip tone={deferred === 'completed' ? 'done' : 'progress'}>{t(DEFERRED_CHIP[deferred])}</StatusChip>;
   }
   // An accepted job about to start says when, the way a garage plans its next hour.
   if (startsIn !== null && startsIn > 0 && startsIn <= 3 * 60 * 60 * 1000) {
@@ -155,7 +158,7 @@ function RowChip({
       </View>
     );
   }
-  return <StatusChip tone={bookingStatusTone(b.status)}>{statusLabel(b)}</StatusChip>;
+  return <StatusChip tone={bookingStatusTone(b.status)}>{t(statusLabel(b))}</StatusChip>;
 }
 
 const useStyles = createStyles((colors) => ({

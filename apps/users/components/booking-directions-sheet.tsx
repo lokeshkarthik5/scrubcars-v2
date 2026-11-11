@@ -10,6 +10,7 @@ import { formatDistance, straightLineKm } from '@repo/core/map'
 import { coarse, useLocationStore, type ActiveLocation } from '@repo/core/stores/location-store'
 import type { Booking } from '@repo/core/types'
 import { formatDuration } from '@repo/core/utils'
+import { fill, useT } from '@repo/core/i18n'
 
 // Loaded when the sheet opens, not with the booking page: see the module.
 const BookingDirectionsMap = dynamic(() => import('./booking-directions-map'), {
@@ -49,8 +50,9 @@ interface BookingDirectionsSheetProps {
  * Google Maps for the turn-by-turn.
  */
 export function BookingDirectionsSheet({ open, onClose, booking }: BookingDirectionsSheetProps) {
+  const t = useT()
   return (
-    <ScSheet open={open} onClose={onClose} aria-label="Directions" className="px-4 pt-1">
+    <ScSheet open={open} onClose={onClose} aria-label={t('Directions')} className="px-4 pt-1">
       {/* Mounted only while open, so the location is asked for when the
           customer opens the sheet, never just because the page loaded. */}
       <DirectionsContent booking={booking} onClose={onClose} />
@@ -120,6 +122,7 @@ function useCurrentPosition(wanted: boolean): Fix | null {
 }
 
 function DirectionsContent({ booking, onClose }: { booking: Booking; onClose: () => void }) {
+  const t = useT()
   const garage = booking.garage
   const garageLat = garage?.lat ?? null
   const garageLng = garage?.lng ?? null
@@ -153,7 +156,7 @@ function DirectionsContent({ booking, onClose }: { booking: Booking; onClose: ()
     <div className="flex flex-col gap-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-base font-semibold text-text-primary">Directions</h2>
+          <h2 className="text-base font-semibold text-text-primary">{t('Directions')}</h2>
           <p className="mt-1 text-t4 text-text-secondary">{booking.vendorName}</p>
           {fullAddress && <p className="text-t5 text-text-muted">{fullAddress}</p>}
         </div>
@@ -162,7 +165,7 @@ function DirectionsContent({ booking, onClose }: { booking: Booking; onClose: ()
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close"
+          aria-label={t('Close')}
           className="-mr-2 -mt-1 flex size-11 shrink-0 items-center justify-center"
         >
           <IconCircleX size={22} className="text-text-secondary" />
@@ -191,7 +194,7 @@ function DirectionsContent({ booking, onClose }: { booking: Booking; onClose: ()
           className="press flex w-full items-center justify-center gap-2 rounded-full bg-brand-red-fill py-4 text-t3 font-semibold text-brand-white transition-colors hover:bg-brand-red-fill-hover"
         >
           <IconNavigation size={18} aria-hidden />
-          Open in Google Maps
+          {t('Open in Google Maps')}
         </a>
       )}
     </div>
@@ -217,40 +220,38 @@ function TravelLine({
   travel: { distanceM: number; durationS: number } | null
   routing: boolean
 }) {
+  const t = useT()
   let line: React.ReactNode
   if (!garagePoint) {
     line = ownMapsLink
-      ? 'This garage has not pinned its location yet. Google Maps opens its own listing.'
-      : 'This garage has not pinned its location yet. Google Maps will search by its address.'
+      ? t('This garage has not pinned its location yet. Google Maps opens its own listing.')
+      : t('This garage has not pinned its location yet. Google Maps will search by its address.')
   } else if (!fix) {
-    line = 'Finding your location…'
+    line = t('Finding your location…')
   } else if (fix.state === 'denied') {
-    line = 'Allow location access to see how long the drive is.'
+    line = t('Allow location access to see how long the drive is.')
   } else if (fix.state === 'unavailable') {
-    line = "Couldn't find your location. Google Maps can still take you there."
+    line = t("Couldn't find your location. Google Maps can still take you there.")
   } else if (travel) {
     const drive = describeDrive(travel)
     line = drive.atGarage ? (
-      "You're at the garage."
+      t("You're at the garage.")
     ) : (
       <>
-        <span className="font-numeric font-bold text-text-primary">{drive.time}</span> drive ·{' '}
-        <span className="font-numeric font-medium text-text-primary">{drive.distance}</span> from
-        you
+        {fill(t('{time} drive · {distance} from you'), { time: <span className="font-numeric font-bold text-text-primary">{drive.time}</span>, distance: <span className="font-numeric font-medium text-text-primary">{drive.distance}</span> })}
       </>
     )
   } else if (routing) {
-    line = 'Working out the drive…'
+    line = t('Working out the drive…')
   } else {
     // Routing unavailable: a distance, never dressed up as a time.
     const km = straightLineKm({ lat: fix.lat, lng: fix.lng }, garagePoint)
     line =
       km * 1000 < AT_GARAGE_M ? (
-        "You're at the garage."
+        t("You're at the garage.")
       ) : (
         <>
-          <span className="font-numeric font-medium text-text-primary">{formatDistance(km)}</span>{' '}
-          away in a straight line
+          {fill(t('{km} away in a straight line'), { km: <span className="font-numeric font-medium text-text-primary">{formatDistance(km)}</span> })}
         </>
       )
   }

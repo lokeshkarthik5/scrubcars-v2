@@ -1,5 +1,6 @@
 import { formatRupees } from '@repo/core/job-records';
 import { getBooking } from '@repo/core/api/bookings';
+import { useT } from '@repo/core/i18n';
 import type { Booking, FinalBill } from '@repo/core/types';
 import { Label, ScButton } from '@repo/native-ui/button';
 import { IconArrowUpRight, IconCircleCheck } from '@repo/native-ui/icons';
@@ -39,6 +40,7 @@ export function FinalBillCard({
   onUpdated: (booking: Booking) => void;
   customer?: { name?: string; phone?: string };
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const [opening, setOpening] = useState(false);
@@ -61,25 +63,25 @@ export function FinalBillCard({
           setPaid({ paymentId, phase: 'confirming' });
         },
       });
-      if (result.kind === 'checking') toast.info("We're still checking your last payment. There's no need to pay again.");
+      if (result.kind === 'checking') toast.info(t("We're still checking your last payment. There's no need to pay again."));
       else if (result.kind === 'settled') {
         const updated = await getBooking(booking.id);
         if (updated) onUpdated(updated);
-        toast.success('Final bill paid');
-      } else if (result.kind === 'cancelled') toast.info('Payment cancelled. You can pay the bill any time from this page.');
+        toast.success(t('Final bill paid'));
+      } else if (result.kind === 'cancelled') toast.info(t('Payment cancelled. You can pay the bill any time from this page.'));
       else if (result.kind === 'failed-to-pay') toast.error(result.message);
       else if (result.outcome.kind === 'booked') {
         const updated = await getBooking(booking.id);
         if (updated) onUpdated(updated);
         setPaid({ paymentId: result.paymentId, phase: 'paid' });
-        toast.success('Final bill paid');
+        toast.success(t('Final bill paid'));
       } else {
         const refundMessage = result.outcome.kind === 'failed' ? result.outcome.message : undefined;
         setPaid({ paymentId: result.paymentId, phase: result.outcome.kind, refundMessage });
         if (refundMessage) toast.error(refundMessage);
       }
     } catch (error) {
-      toast.error(errorText(error, 'Could not start the payment. Please try again.'));
+      toast.error(errorText(error, t('Could not start the payment. Please try again.')));
     } finally {
       setOpening(false);
     }
@@ -92,10 +94,10 @@ export function FinalBillCard({
   return (
     <ScCard style={styles.card}>
       <T size={17} weight={500} lh={24}>
-        Final bill
+        {t('Final bill')}
       </T>
       <T size={12} lh={16} color={colors.textSecondary} style={styles.from}>
-        {`From ${booking.vendorName}, after inspecting your car.`}
+        {t('From {name}, after inspecting your car.', { name: booking.vendorName })}
       </T>
       <View style={styles.lines}>
         {bill.lines.map((line, i) => (
@@ -112,7 +114,7 @@ export function FinalBillCard({
       <View style={styles.sums}>
         <View style={styles.row}>
           <T size={13} lh={18} color={colors.textSecondary}>
-            Total
+            {t('Total')}
           </T>
           <T num size={13} weight={500} lh={18}>
             {formatRupees(bill.total)}
@@ -120,7 +122,7 @@ export function FinalBillCard({
         </View>
         <View style={styles.row}>
           <T size={13} lh={18} color={colors.textSecondary}>
-            Paid at booking
+            {t('Paid at booking')}
           </T>
           <T num size={13} weight={500} lh={18}>
             {`−${formatRupees(bill.paidBefore - discount)}`}
@@ -129,7 +131,7 @@ export function FinalBillCard({
         {discount > 0 ? (
           <View style={styles.row}>
             <T size={13} lh={18} color={colors.success}>
-              {`Discount${booking.discountCode ? ` (${booking.discountCode})` : ''}`}
+              {booking.discountCode ? t('Discount ({code})', { code: booking.discountCode }) : t('Discount')}
             </T>
             <T num size={13} weight={500} lh={18} color={colors.success}>
               {`−${formatRupees(discount)}`}
@@ -138,7 +140,7 @@ export function FinalBillCard({
         ) : null}
         <View style={[styles.row, styles.due]}>
           <T size={15} weight={600} lh={20}>
-            {settled ? 'Paid in the app' : 'To pay'}
+            {settled ? t('Paid in the app') : t('To pay')}
           </T>
           <T num size={15} weight={700} lh={20}>
             {formatRupees(bill.amountDue)}
@@ -148,7 +150,7 @@ export function FinalBillCard({
       {bill.note ? (
         <T size={12} lh={16} color={colors.textSecondary}>
           <T size={12} weight={500} lh={16}>
-            {"Garage's note: "}
+            {`${t("Garage's note:")} `}
           </T>
           {bill.note}
         </T>
@@ -157,32 +159,32 @@ export function FinalBillCard({
         <View style={styles.okLine}>
           <IconCircleCheck size={16} color={colors.success} />
           <T size={13} lh={18} style={styles.grow}>
-            Nothing more to pay. The work came to no more than you paid at booking.
+            {t('Nothing more to pay. The work came to no more than you paid at booking.')}
           </T>
         </View>
       ) : settled ? (
         <View style={styles.okLine}>
           <IconCircleCheck size={16} color={colors.success} />
           <T size={13} weight={500} lh={18} color={colors.success}>
-            <Figures size={13} weight={500} color={colors.success} text={`Paid on ${paidOn(bill.paidAt ?? new Date().toISOString())}`} />
+            <Figures size={13} weight={500} color={colors.success} text={t('Paid on {day}', { day: paidOn(bill.paidAt ?? new Date().toISOString()) })} />
           </T>
         </View>
       ) : paid?.phase === 'confirming' ? (
         <ScButton variant="quiet" height={52} disabled>
           <Spinner size={16} />
-          <Label>Payment received — confirming…</Label>
+          <Label>{t('Payment received — confirming…')}</Label>
         </ScButton>
       ) : showPanel && paid ? (
         <PaymentReceivedPanel paymentId={paid.paymentId} refundMessage={paid.phase === 'failed' ? paid.refundMessage : undefined} waitingOn="bill_not_marked_paid" />
       ) : booking.status === 'cancelled' ? null : checking && !opening ? (
         <ScButton variant="quiet" height={52} disabled>
           <Spinner size={16} />
-          <Label>Checking your payment…</Label>
+          <Label>{t('Checking your payment…')}</Label>
         </ScButton>
       ) : (
         <ScButton variant="hero" disabled={opening} onPress={() => void handlePay()}>
           <Label color={colors.white}>
-            <Figures color={colors.white} size={15} weight={700} text={opening ? 'Opening payment...' : `Pay ${formatRupees(bill.amountDue)}`} />
+            <Figures color={colors.white} size={15} weight={700} text={opening ? t('Opening payment...') : t('Pay {amount}', { amount: formatRupees(bill.amountDue) })} />
           </Label>
           {!opening ? <IconArrowUpRight size={17} stroke={1.5} color={colors.white} /> : null}
         </ScButton>

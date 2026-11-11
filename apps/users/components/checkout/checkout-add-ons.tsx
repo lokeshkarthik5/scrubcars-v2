@@ -6,6 +6,7 @@ import { Figures } from '@repo/ui/sc/figures'
 import { RedLightAdd } from '@/components/garage/red-light-add'
 import { servicePriceText } from '@/lib/price'
 import type { VehicleType } from '@repo/core/types'
+import { useT } from '@repo/core/i18n'
 
 /**
  * Checkout's Add-ons (0068), each with the red-light Add of the garage page
@@ -23,6 +24,7 @@ export function CheckoutAddOns({
   vehicleType: VehicleType | undefined
   onToggle: (addOnId: string) => void
 }) {
+  const t = useT()
   return (
     <section
       aria-labelledby="checkout-add-ons"
@@ -33,10 +35,10 @@ export function CheckoutAddOns({
         id="checkout-add-ons"
         className="text-t2 font-semibold text-text-primary"
       >
-        Add-ons
+        {t('Add-ons')}
       </h2>
       <p className="-mt-1 text-t5 font-medium text-[#8E8E98]">
-        Optional. They go with the services you&apos;ve chosen.
+        {t("Optional. They go with the services you've chosen.")}
       </p>
       <ul className="flex flex-col gap-2">
         {addOns.map((addOn) => {

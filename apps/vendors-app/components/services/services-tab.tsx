@@ -28,6 +28,7 @@ import { DeleteSheet } from './delete-sheet';
 import { ChipRow, PricingBlock } from './pricing-block';
 import { FieldLabel, SectionTitle } from './section-title';
 import { useSaver } from './use-saver';
+import { useT } from '@repo/core/i18n';
 
 /**
  * The Services tab (apps/vendors/app/services/page.tsx): the add / edit form, then
@@ -54,6 +55,7 @@ export function ServicesTab({
   /** The form is above the list; bring it into view when Edit fills it. */
   onEditStarted: () => void;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const { saving, run } = useSaver();
@@ -105,7 +107,7 @@ export function ServicesTab({
     <View style={styles.column}>
       <View style={styles.section}>
         <SectionTitle
-          title={editingId ? 'Edit service' : 'Add a service'}
+          title={editingId ? t('Edit service') : t('Add a service')}
           onCancel={editingId ? reset : undefined}
           // The real tab has no "add service" button, only this form, so "Add add-on" sits in the
           // heading's slot. A quiet link: the screen's one red is Add service.
@@ -118,26 +120,26 @@ export function ServicesTab({
             >
               <IconPlus size={15} color={colors.textSecondary} />
               <T size={13} weight={500} color={colors.textSecondary}>
-                Add add-on
+                {t('Add add-on')}
               </T>
             </Pressable>
           }
         />
         <ScCard style={styles.form}>
-          <ScInput label="Service name" value={form.name} onChangeText={(name) => change({ name })} />
+          <ScInput label={t('Service name')} value={form.name} onChangeText={(name) => change({ name })} />
           <ScTextarea
-            label="Description (optional)"
+            label={t('Description (optional)')}
             rows={2}
             value={form.description}
             onChangeText={(description) => change({ description })}
           />
           <View style={styles.group}>
-            <FieldLabel>Category</FieldLabel>
+            <FieldLabel>{t('Category')}</FieldLabel>
             <ChipRow>
               {SERVICE_CATEGORY_OPTIONS.map((cat) => (
                 <Chip
                   key={cat.value}
-                  label={cat.label}
+                  label={t(cat.label)}
                   selected={form.category === cat.value}
                   onPress={() => change({ category: cat.value })}
                 />
@@ -145,10 +147,10 @@ export function ServicesTab({
             </ChipRow>
           </View>
 
-          <PricingBlock form={form} onChange={change} flatLabel="Price (₹)" />
+          <PricingBlock form={form} onChange={change} flatLabel={t('Price (₹)')} />
 
           <ScInput
-            label="Duration (mins)"
+            label={t('Duration (mins)')}
             keyboardType="number-pad"
             numeric
             value={form.durationMins}
@@ -160,18 +162,18 @@ export function ServicesTab({
             disabled={!canSubmitService(form) || saving === 'service'}
             onPress={() => void submit()}
           >
-            {saving === 'service' ? 'Saving...' : editingId ? 'Update service' : 'Add service'}
+            {saving === 'service' ? t('Saving...') : editingId ? t('Update service') : t('Add service')}
           </ScButton>
         </ScCard>
       </View>
 
       <View style={styles.section}>
-        <SectionTitle title="Your services" count={services.length} />
+        <SectionTitle title={t('Your services')} count={services.length} />
         {services.length === 0 ? (
           <EmptyState
             icon={<IconTool size={28} stroke={1.5} color={colors.textMuted} />}
-            title="No services yet"
-            subtitle="Add what you offer above. Customers can book a service once it is active."
+            title={t('No services yet')}
+            subtitle={t('Add what you offer above. Customers can book a service once it is active.')}
           />
         ) : (
           <View style={styles.list}>

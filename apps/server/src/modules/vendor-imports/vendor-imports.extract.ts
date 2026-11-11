@@ -1,5 +1,6 @@
 import { AiUnavailableError, type DocumentClient, type DocumentFile } from '../../lib/ai.js'
 import { AppError } from '../../lib/errors.js'
+import { DEFAULT_DOORSTEP_RADIUS_KM, MAX_DOORSTEP_RADIUS_KM, MIN_DOORSTEP_RADIUS_KM } from '../../lib/doorstep.js'
 import {
   DRAFT_FIELDS,
   NoteBook,
@@ -146,12 +147,16 @@ export function holdToCreateRules({ draft: source, fields }: GarageImport): Gara
     draft.pincode = null
   }
 
-  // The editor's range, stricter than Create's 100: what the garage app
-  // itself allows. Outside it, the 10 km default stands, and it is said.
-  if (draft.doorstepRadiusKm !== null && (draft.doorstepRadiusKm < 1 || draft.doorstepRadiusKm > 30)) {
+  // The editor's range, what the garage app itself allows (1 to 300 km
+  // since the 30 km top was lifted). Outside it, the 10 km default stands,
+  // and it is said.
+  if (
+    draft.doorstepRadiusKm !== null &&
+    (draft.doorstepRadiusKm < MIN_DOORSTEP_RADIUS_KM || draft.doorstepRadiusKm > MAX_DOORSTEP_RADIUS_KM)
+  ) {
     notes.check(
       'doorstepRadiusKm',
-      `Written as ${draft.doorstepRadiusKm} km. Detlio takes 1 to 30 km, so the 10 km default is used.`
+      `Written as ${draft.doorstepRadiusKm} km. Detlio takes ${MIN_DOORSTEP_RADIUS_KM} to ${MAX_DOORSTEP_RADIUS_KM} km, so the ${DEFAULT_DOORSTEP_RADIUS_KM} km default is used.`
     )
     draft.doorstepRadiusKm = null
   }

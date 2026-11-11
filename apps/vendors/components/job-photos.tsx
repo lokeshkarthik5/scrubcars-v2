@@ -8,6 +8,8 @@ import {
   IconLoader2,
 } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
+import { useT } from '@repo/core/i18n'
+import { msg } from '@repo/core/i18n/translate'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScModal } from '@repo/ui/sc/modal'
 import { deleteJobPhoto, uploadJobPhoto } from '@repo/core/api/job-records'
@@ -25,28 +27,39 @@ import type { Booking, JobPhoto } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
 import { resizeForUpload } from '@/lib/resize-image'
 
+// English, shown as `t(…)`.
 const LABELS: Record<JobPhoto['stage'], string> = {
-  before: 'Before photos',
-  after: 'After photos',
+  before: msg('Before photos'),
+  after: msg('After photos'),
 }
 
-/** What each stage asks for while the standard is on (0045). */
+/** What each stage asks for while the standard is on (0045); `{count}` is MIN_GARAGE_PHOTOS. */
 const REQUIRED_HINTS: Record<JobPhoto['stage'], string> = {
-  before: `Walk round the car before you start: at least ${MIN_GARAGE_PHOTOS} photos, any marks up close.`,
-  after: `The finished work, before the car goes back: at least ${MIN_GARAGE_PHOTOS} photos.`,
+  before: msg('Walk round the car before you start: at least {count} photos, any marks up close.'),
+  after: msg('The finished work, before the car goes back: at least {count} photos.'),
 }
 
 const HINTS: Record<JobPhoto['stage'], string> = {
-  before: 'Optional. The car as it came in, if anything is already marked.',
-  after: 'Optional. The finished work, before the car goes back.',
+  before: msg('Optional. The car as it came in, if anything is already marked.'),
+  after: msg('Optional. The finished work, before the car goes back.'),
 }
 
 // Pickup & drop: the car is in the garage's care from the moment it is
 // collected, so its before photos are taken at the customer's door.
 const PICKUP_HINTS: Record<JobPhoto['stage'], string> = {
-  before:
-    'Recommended: the car as you collect it, every side and any marks. They are your record of how it was handed over.',
-  after: 'Optional. The finished work, before the car goes back.',
+  before: msg(
+    'Recommended: the car as you collect it, every side and any marks. They are your record of how it was handed over.'
+  ),
+  after: msg('Optional. The finished work, before the car goes back.'),
+}
+
+/** The small chips' words: the angle without " side", and Inside for the interior. */
+const SHORT_LABELS: Record<PhotoAngle, string> = {
+  front: msg('Front'),
+  back: msg('Back'),
+  left: msg('Left'),
+  right: msg('Right'),
+  interior: msg('Inside'),
 }
 
 const capitalise = (text: string) =>
@@ -89,6 +102,7 @@ export function JobPhotos({
   onChanged,
   readOnly = false,
 }: JobPhotosProps) {
+  const t = useT()
   // The slot uploading now ('extra' for the More tile), if any.
   const [uploading, setUploading] = useState<PhotoAngle | 'extra' | null>(null)
   const [removingId, setRemovingId] = useState<string | null>(null)
@@ -102,8 +116,15 @@ export function JobPhotos({
   const extras = extraPhotos(booking.jobPhotos, 'garage', stage)
   const customers = photosOf(booking.jobPhotos, 'customer', stage)
   const room = readOnly ? 0 : MAX_JOB_PHOTOS_PER_STAGE - own.length
-  const who = booking.customerName ?? 'this customer'
-  const stageWord = stage === 'before' ? 'before' : 'after'
+  const who = booking.customerName ?? t('this customer')
+  const before = stage === 'before'
+  // "front before photo for Ravi": each stage its own sentence, so Tamil can
+  // order it its own way.
+  const angleName = (angle: PhotoAngle) => t(PHOTO_ANGLE_LABELS[angle]).toLowerCase()
+  const photoName = (angle: PhotoAngle) =>
+    before
+      ? t('{angle} before photo for {who}', { angle: angleName(angle), who })
+      : t('{angle} after photo for {who}', { angle: angleName(angle), who })
 
   const upload = async (files: File[], angle: PhotoAngle | undefined) => {
     if (files.length === 0) return
@@ -114,7 +135,7 @@ export function JobPhotos({
           const prepared = await resizeForUpload(file)
           await uploadJobPhoto(booking.id, stage, prepared, angle)
         } catch (error) {
-          toast.error(error instanceof Error ? error.message : 'Upload failed')
+          toast.error(error instanceof Error ? error.message : t('Upload failed'))
         }
       }
     } finally {
@@ -136,7 +157,7 @@ export function JobPhotos({
       onChanged()
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : 'Could not remove this photo'
+        error instanceof Error ? error.message : t('Could not remove this photo')
       )
     } finally {
       setRemovingId(null)
@@ -149,7 +170,7 @@ export function JobPhotos({
     <button
       type="button"
       onClick={() => setViewing({ photo, name, own: isOwn })}
-      aria-label={`View ${name}`}
+      aria-label={t('View {photo}', { photo: name })}
       className="block size-16 overflow-hidden rounded-[12px] bg-surface ring-1 ring-inset ring-border"
     >
       {/* A plain <img>: the photo is already sized for the screen, and the
@@ -167,10 +188,7 @@ export function JobPhotos({
   const nextAngle = readOnly
     ? null
     : (big.find((slot) => !slot.photo)?.angle ?? null)
-  const shortLabel = (angle: PhotoAngle) =>
-    angle === 'interior'
-      ? 'Inside'
-      : PHOTO_ANGLE_LABELS[angle].replace(' side', '')
+  const shortLabel = (angle: PhotoAngle) => t(SHORT_LABELS[angle])
 
   const camera = (
     angle: PhotoAngle | undefined,
@@ -194,8 +212,12 @@ export function JobPhotos({
         className="sr-only"
         aria-label={
           angle
-            ? `Add ${PHOTO_ANGLE_LABELS[angle].toLowerCase()} ${stageWord} photo for ${who}`
-            : `Add ${stageWord} photos for ${who}`
+            ? before
+              ? t('Add {angle} before photo for {who}', { angle: angleName(angle), who })
+              : t('Add {angle} after photo for {who}', { angle: angleName(angle), who })
+            : before
+              ? t('Add before photos for {who}', { who })
+              : t('Add after photos for {who}', { who })
         }
         disabled={uploading !== null}
         onChange={(event) => {
@@ -215,7 +237,7 @@ export function JobPhotos({
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-[20px] font-semibold text-text-primary">
-          {LABELS[stage]}
+          {t(LABELS[stage])}
         </h2>
         <p
           className={cn(
@@ -226,35 +248,38 @@ export function JobPhotos({
           )}
         >
           {required
-            ? `${Math.min(own.length, MIN_GARAGE_PHOTOS)} of ${MIN_GARAGE_PHOTOS}`
+            ? t('{done} of {count}', {
+                done: Math.min(own.length, MIN_GARAGE_PHOTOS),
+                count: MIN_GARAGE_PHOTOS,
+              })
             : `${own.length}/${MAX_JOB_PHOTOS_PER_STAGE}`}
         </p>
       </div>
       {own.length === 0 && !readOnly && (
         <p className="text-[14px] text-text-secondary">
           {required
-            ? REQUIRED_HINTS[stage]
-            : (booking.bookingType === 'pickup' ? PICKUP_HINTS : HINTS)[stage]}
+            ? t(REQUIRED_HINTS[stage], { count: MIN_GARAGE_PHOTOS })
+            : t((booking.bookingType === 'pickup' ? PICKUP_HINTS : HINTS)[stage])}
         </p>
       )}
       {/* While the standard is optional (the pilot default), a nudge rather
           than a block: why the photos are worth taking. */}
       {!required && !readOnly && own.length < MIN_GARAGE_PHOTOS && (
         <p className="text-[13px] text-text-secondary">
-          Photos protect you if a customer complains, and count toward Gold.
+          {t('Photos protect you if a customer complains, and count toward Gold.')}
         </p>
       )}
       {readOnly && own.length > 0 && (
         <p className="text-[13px] text-text-secondary">
           {stage === 'before'
-            ? 'Closed once the job was completed.'
-            : 'Closed an hour after the job was completed.'}
+            ? t('Closed once the job was completed.')
+            : t('Closed an hour after the job was completed.')}
         </p>
       )}
 
       <ul className="grid grid-cols-2 gap-3">
         {big.map(({ angle, photo }) => {
-          const label = PHOTO_ANGLE_LABELS[angle]
+          const label = t(PHOTO_ANGLE_LABELS[angle])
           if (photo) {
             return (
               <li key={angle} className="relative">
@@ -263,11 +288,11 @@ export function JobPhotos({
                   onClick={() =>
                     setViewing({
                       photo,
-                      name: `${label.toLowerCase()} ${stageWord} photo for ${who}`,
+                      name: photoName(angle),
                       own: true,
                     })
                   }
-                  aria-label={`View ${label.toLowerCase()} ${stageWord} photo for ${who}`}
+                  aria-label={t('View {photo}', { photo: photoName(angle) })}
                   className="block aspect-[4/3] w-full overflow-hidden rounded-[16px] bg-surface ring-1 ring-inset ring-border"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -323,15 +348,11 @@ export function JobPhotos({
       <ul className="flex flex-wrap gap-2">
         {small.map(({ angle, photo }) => {
           if (photo) {
-            const label = PHOTO_ANGLE_LABELS[angle]
+            const label = t(PHOTO_ANGLE_LABELS[angle])
             return (
               <li key={angle} className="flex flex-col items-center gap-1">
                 <span className="relative">
-                  {thumb(
-                    photo,
-                    `${label.toLowerCase()} ${stageWord} photo for ${who}`,
-                    true
-                  )}
+                  {thumb(photo, photoName(angle), true)}
                   <span
                     aria-hidden="true"
                     className="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full bg-success text-brand-black"
@@ -368,8 +389,14 @@ export function JobPhotos({
 
         {extras.map((photo, i) => (
           <li key={photo.id} className="flex flex-col items-center gap-1">
-            {thumb(photo, `extra ${stageWord} photo ${i + 1} for ${who}`, true)}
-            <span className="text-[13px] text-text-secondary">Extra</span>
+            {thumb(
+              photo,
+              before
+                ? t('extra before photo {n} for {who}', { n: i + 1, who })
+                : t('extra after photo {n} for {who}', { n: i + 1, who }),
+              true
+            )}
+            <span className="text-[13px] text-text-secondary">{t('Extra')}</span>
           </li>
         ))}
 
@@ -384,7 +411,7 @@ export function JobPhotos({
                 ) : (
                   <IconCameraPlus size={18} aria-hidden />
                 )}
-                More
+                {t('More')}
               </span>,
               'block'
             )}
@@ -396,14 +423,20 @@ export function JobPhotos({
           their side. Theirs to add or remove, never the garage's. */}
       {customers.length > 0 && (
         <div className="flex flex-col gap-1 pt-1">
-          <p className="text-[13px] text-text-secondary">{`From ${who}`}</p>
+          <p className="text-[13px] text-text-secondary">{t('From {who}', { who })}</p>
           <ul className="flex flex-wrap gap-2">
             {customers.map((photo, i) => (
               <li
                 key={photo.id}
                 className="flex w-16 flex-col items-center gap-0.5"
               >
-                {thumb(photo, `customer's ${stageWord} photo ${i + 1}`, false)}
+                {thumb(
+                  photo,
+                  before
+                    ? t("customer's before photo {n}", { n: i + 1 })
+                    : t("customer's after photo {n}", { n: i + 1 }),
+                  false
+                )}
                 <span className="text-[13px] text-text-secondary">
                   {angleLabel(photo.angle)}
                 </span>
@@ -417,7 +450,7 @@ export function JobPhotos({
         open={viewing !== null}
         onClose={closeViewer}
         dismissible={removingId === null}
-        aria-label={viewing ? capitalise(viewing.name) : 'Job photo'}
+        aria-label={viewing ? capitalise(viewing.name) : t('Job photo')}
         className="max-w-[420px] px-3"
       >
         {viewing && (
@@ -431,7 +464,13 @@ export function JobPhotos({
             {confirming ? (
               <>
                 <p className="text-[15px] text-text-primary">
-                  {`Remove this ${stageWord} photo? It is your record of the job if the customer questions the work later.`}
+                  {before
+                    ? t(
+                        'Remove this before photo? It is your record of the job if the customer questions the work later.'
+                      )
+                    : t(
+                        'Remove this after photo? It is your record of the job if the customer questions the work later.'
+                      )}
                 </p>
                 <div className="flex gap-2">
                   <ScButton
@@ -440,23 +479,23 @@ export function JobPhotos({
                     disabled={removingId !== null}
                     onClick={() => setConfirming(false)}
                   >
-                    Keep
+                    {t('Keep')}
                   </ScButton>
                   <ScButton
                     variant="danger-outline"
                     size="md"
                     disabled={removingId !== null}
                     onClick={() => handleRemove(viewing.photo.id)}
-                    aria-label={`Remove ${viewing.name}`}
+                    aria-label={t('Remove {photo}', { photo: viewing.name })}
                   >
-                    {removingId === viewing.photo.id ? 'Removing…' : 'Remove'}
+                    {removingId === viewing.photo.id ? t('Removing…') : t('Remove')}
                   </ScButton>
                 </div>
               </>
             ) : (
               <div className="flex gap-2">
                 <ScButton variant="outline" size="md" onClick={closeViewer}>
-                  Close
+                  {t('Close')}
                 </ScButton>
                 {!readOnly && viewing.own && (
                   <ScButton
@@ -464,7 +503,7 @@ export function JobPhotos({
                     size="md"
                     onClick={() => setConfirming(true)}
                   >
-                    Remove photo
+                    {t('Remove photo')}
                   </ScButton>
                 )}
               </div>

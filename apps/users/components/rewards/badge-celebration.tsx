@@ -8,6 +8,7 @@ import type { BadgeToCelebrate } from '@repo/core/api/reward-extras'
 import { useMarkBadgesSeen } from '@repo/core/api/hooks/use-reward-extras'
 import { bonusStampsLine } from '@repo/core/achievements'
 import { BadgeMedal } from './badge-medal'
+import { useT, useTn } from '@repo/core/i18n'
 
 /** A sheet shows at most this many; any more wait in the cabinet, already counted as seen. */
 const SHOWN_AT_ONCE = 3
@@ -20,6 +21,8 @@ const SHOWN_AT_ONCE = 3
  * prefers-reduced-motion (globals.css); the words arrive either way.
  */
 export function BadgeCelebration({ badges, focusId = null }: { badges: BadgeToCelebrate[]; focusId?: string | null }) {
+  const tn = useTn()
+  const t = useT()
   const seen = useMarkBadgesSeen()
   // The list is fixed when the sheet opens, so a refetch underneath never reshuffles it.
   const [queue, setQueue] = useState<BadgeToCelebrate[]>([])
@@ -65,30 +68,30 @@ export function BadgeCelebration({ badges, focusId = null }: { badges: BadgeToCe
   const bonus = badge ? bonusStampsLine(badge.bonusStamps) : null
 
   return (
-    <ScSheet open={open && badge !== null} onClose={finish} aria-label="Badge earned">
+    <ScSheet open={open && badge !== null} onClose={finish} aria-label={t('Badge earned')}>
       {badge && (
         <div key={badge.id} className="flex flex-col items-center gap-3 px-6 pb-2 pt-3 text-center">
           <div className="badge-celebrate relative grid size-[150px] place-items-center">
             <span aria-hidden className="badge-celebrate__glow" />
             <BadgeMedal badgeKey={badge.key} earned size={104} className="badge-celebrate__medal" />
           </div>
-          <p className="text-t5 uppercase tracking-[0.12em] text-text-secondary">Badge earned</p>
+          <p className="text-t5 uppercase tracking-[0.12em] text-text-secondary">{t('Badge earned')}</p>
           <h2 className="text-[22px] font-semibold leading-tight text-text-primary" aria-live="polite">
             {badge.label}
           </h2>
           <p className="text-t4 text-text-secondary">{badge.howTo}</p>
           {more === 0 && inCabinet > 0 && (
             <p className="text-t5 text-text-muted">
-              And {inCabinet} more {inCabinet === 1 ? 'badge' : 'badges'} in your cabinet.
+              {tn(inCabinet, 'And {count} more badge in your cabinet.', 'And {count} more badges in your cabinet.')}
             </p>
           )}
           {bonus && (
             <p className="rounded-full border border-line px-3 py-1 text-t5 text-text-primary">
-              <Figures text={`${bonus} added to your Shine Card`} />
+              <Figures text={t('{bonus} added to your Shine Card', { bonus })} />
             </p>
           )}
           <ScButton variant="secondary" className="mt-2" onClick={next}>
-            {more > 0 ? `Next badge (${more} more)` : 'Nice'}
+            {more > 0 ? t('Next badge ({more} more)', { more }) : t('Nice')}
           </ScButton>
         </div>
       )}

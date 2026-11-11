@@ -31,6 +31,7 @@ import { Num } from './figures';
 import { ChipRow, PricingBlock } from './pricing-block';
 import { FieldLabel, SectionTitle } from './section-title';
 import { useSaver } from './use-saver';
+import { fill, useT } from '@repo/core/i18n';
 
 /**
  * The Packages tab (apps/vendors/app/services/packages-panel.tsx): the builder, then
@@ -48,6 +49,7 @@ export function PackagesPanel({
   /** The builder is above the list; bring it into view when Edit fills it. */
   onEditStarted: () => void;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const [packages, setPackages] = useState<ServicePackage[]>([]);
@@ -68,7 +70,7 @@ export function PackagesPanel({
     getMyPackages()
       .then(setPackages)
       .catch(() => {
-        toast.error('Failed to load packages');
+        toast.error(t('Failed to load packages'));
         setFailed(true);
       })
       .finally(() => setLoading(false));
@@ -119,14 +121,14 @@ export function PackagesPanel({
     });
 
   if (loading) return <SkeletonList count={2} height={112} />;
-  if (failed) return <LoadError what="your packages" onRetry={load} />;
+  if (failed) return <LoadError what={t('your packages')} onRetry={load} />;
 
   if (selectable.length < 2) {
     return (
       <EmptyState
         icon={<IconPackage size={28} stroke={1.5} color={colors.textMuted} />}
-        title="Packages need two services"
-        subtitle="Add at least 2 active services before building a package."
+        title={t('Packages need two services')}
+        subtitle={t('Add at least 2 active services before building a package.')}
       />
     );
   }
@@ -134,11 +136,11 @@ export function PackagesPanel({
   return (
     <View style={styles.column}>
       <View style={styles.section}>
-        <SectionTitle title={editingId ? 'Edit package' : 'Build a package'} onCancel={editingId ? reset : undefined} />
+        <SectionTitle title={editingId ? t('Edit package') : t('Build a package')} onCancel={editingId ? reset : undefined} />
         <ScCard style={styles.form}>
-          <ScInput label="Package name" value={form.name} onChangeText={(name) => change({ name })} />
+          <ScInput label={t('Package name')} value={form.name} onChangeText={(name) => change({ name })} />
           <ScTextarea
-            label="Description (optional)"
+            label={t('Description (optional)')}
             rows={2}
             value={form.description}
             onChangeText={(description) => change({ description })}
@@ -146,7 +148,10 @@ export function PackagesPanel({
 
           <View style={styles.group}>
             <FieldLabel>
-              Services included (<Num>{form.serviceIds.length}</Num> selected · minimum <Num>2</Num>)
+              {fill(t('Services included ({count} selected · minimum {min})'), {
+                count: <Num>{form.serviceIds.length}</Num>,
+                min: <Num>2</Num>,
+              })}
             </FieldLabel>
             <ChipRow>
               {selectable.map((svc) => (
@@ -160,11 +165,11 @@ export function PackagesPanel({
             </ChipRow>
           </View>
 
-          <PricingBlock form={form} onChange={change} flatLabel="Package price (₹)" />
+          <PricingBlock form={form} onChange={change} flatLabel={t('Package price (₹)')} />
 
           <View>
             <ScInput
-              label="Duration (mins)"
+              label={t('Duration (mins)')}
               keyboardType="number-pad"
               numeric
               value={form.durationMins}
@@ -177,7 +182,9 @@ export function PackagesPanel({
                 style={styles.suggest}
               >
                 <T size={12} weight={500} style={styles.underline}>
-                  Services add up to <Num weight={500}>{preview.suggestedDuration}</Num> min — use that
+                  {fill(t('Services add up to {mins} min — use that'), {
+                    mins: <Num weight={500}>{preview.suggestedDuration}</Num>,
+                  })}
                 </T>
               </Pressable>
             ) : null}
@@ -188,15 +195,17 @@ export function PackagesPanel({
             // form. Savings in green, as the customer's own discount line is.
             <View style={styles.preview}>
               <T size={11} lh={16} color={colors.textSecondary}>
-                Bought separately: <Num>₹{preview.itemsTotal}</Num>
+                {fill(t('Bought separately: {amount}'), { amount: <Num>₹{preview.itemsTotal}</Num> })}
               </T>
               {preview.previewSavings > 0 ? (
                 <T size={12} lh={18} weight={500} color={colors.success}>
-                  Customers save <Num weight={500}>₹{preview.previewSavings}</Num>
+                  {fill(t('Customers save {amount}'), { amount: <Num weight={500}>₹{preview.previewSavings}</Num> })}
                 </T>
               ) : (
                 <T size={11} lh={16} color={colors.textMuted}>
-                  Price the package below <Num>₹{preview.itemsTotal}</Num> to show a savings badge.
+                  {fill(t('Price the package below {amount} to show a savings badge.'), {
+                    amount: <Num>₹{preview.itemsTotal}</Num>,
+                  })}
                 </T>
               )}
             </View>
@@ -208,18 +217,18 @@ export function PackagesPanel({
             disabled={!canSubmitPackage(form) || saving === 'package'}
             onPress={() => void submit()}
           >
-            {saving === 'package' ? 'Saving...' : editingId ? 'Update package' : 'Create package'}
+            {saving === 'package' ? t('Saving...') : editingId ? t('Update package') : t('Create package')}
           </ScButton>
         </ScCard>
       </View>
 
       <View style={styles.section}>
-        <SectionTitle title="Your packages" count={packages.length} />
+        <SectionTitle title={t('Your packages')} count={packages.length} />
         {packages.length === 0 ? (
           <EmptyState
             icon={<IconPackage size={28} stroke={1.5} color={colors.textMuted} />}
-            title="No packages yet"
-            subtitle="Bundle 2 or more services to create one."
+            title={t('No packages yet')}
+            subtitle={t('Bundle 2 or more services to create one.')}
           />
         ) : (
           <View style={styles.list}>
@@ -240,13 +249,16 @@ export function PackagesPanel({
                     </T>
                     {pkg.savings !== null ? (
                       <T size={11} lh={16} weight={500} color={colors.success} style={styles.included}>
-                        Saves <Num weight={500}>₹{pkg.savings}</Num> vs <Num weight={500}>₹{pkg.itemsTotal}</Num> separately
+                        {fill(t('Saves {amount} vs {total} separately'), {
+                          amount: <Num weight={500}>₹{pkg.savings}</Num>,
+                          total: <Num weight={500}>₹{pkg.itemsTotal}</Num>,
+                        })}
                       </T>
                     ) : null}
                     {/* Amber: a problem to fix, not a button. */}
                     {pkg.hasInactiveItems ? (
                       <T size={11} lh={16} color={colors.warning} style={styles.included}>
-                        Contains a disabled service — customers still see it listed.
+                        {t('Contains a disabled service — customers still see it listed.')}
                       </T>
                     ) : null}
                   </>

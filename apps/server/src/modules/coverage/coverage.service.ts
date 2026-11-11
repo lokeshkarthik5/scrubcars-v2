@@ -15,6 +15,11 @@ import {
   zoneRemovalBlock,
   type ZoneDemand,
 } from '../../lib/zone-demand.js'
+import {
+  typedConfirmMatches,
+  zoneDeleteLines,
+  type ZoneUse,
+} from '../../lib/owner-delete.js'
 import { zoneFor } from '../../lib/zones.js'
 import { areaSignupsRepository } from '../area-signups/area-signups.repository.js'
 import { bookingRequestsRepository } from '../booking-requests/booking-requests.repository.js'
@@ -27,6 +32,7 @@ import {
 } from '../leads/leads.service.js'
 import { clearZonesCache } from '../reach/reach.service.js'
 import { isListedToCustomers } from '../vendors/vendors.predicates.js'
+import { citiesService } from '../cities/cities.service.js'
 import { coverageRepository, type ZoneRecord } from './coverage.repository.js'
 import type { CreateZoneInput, UpdateZoneInput } from './coverage.validation.js'
 
@@ -148,13 +154,18 @@ export function garageStage(row: {
   isVerified: boolean
   bookingsPausedAt: Date | null
   deletedAt: Date | null
+  showWhenCityOff: boolean
+  cityShown: boolean
 }): GarageStage {
   if (isListedToCustomers(row)) return 'live'
   if (row.status === 'pending') return 'pending'
   if (row.status === 'suspended') return 'suspended'
   if (row.status === 'archived') return 'archived'
   if (!row.isVerified) return 'not_shown'
-  return 'paused'
+  if (row.bookingsPausedAt) return 'paused'
+  // Active, shown and taking bookings: only its city (0069) keeps it from
+  // customers, which to them is the same as not shown.
+  return 'not_shown'
 }
 
 const ZONE_PROBLEM_STATUS: Record<ZoneEditProblem, number> = {
@@ -195,6 +206,17 @@ function asZoneWriteError(err: unknown): never {
   throw err
 }
 
+/** What a zone in use holds, counted the way the refusal counts it. */
+async function zoneUseOf(zone: ZoneRecord): Promise<ZoneUse> {
+  const [leads, signups, requests, recommendations] = await Promise.all([
+    leadsRepository.countInZone(zone.id),
+    coverageRepository.countSignupsInZone(zone.id),
+    bookingRequestsRepository.countInZone(zone.slug),
+    leadsRepository.countRecommendationsInZone(zone.id),
+  ])
+  return { leads, signups, requests, recommendations }
+}
+
 export const coverageService = {
   /**
    * The Coverage page in one read: every zone, every garage not in the Bin
@@ -202,26 +224,31 @@ export const coverageService = {
    * restates it), every lead, and which finder sources are connected.
    */
   async overview(now = new Date()): Promise<CoverageOverview> {
-    const [zones, garages, leads, recommendations] = await Promise.all([
+    const [zones, garages, leads, recommendations, cityRules] = await Promise.all([
       coverageRepository.listZones(),
       coverageRepository.listGarages(),
       leadsRepository.listAll(),
       leadsRepository.listRecommendations(),
+      citiesService.rules(),
     ])
     const sources = placesSources()
     const demand = await readDemand(zones, recommendations, now)
     return {
       zones: zones.map(toZone),
-      garages: garages.map((garage) => ({
-        id: garage.id,
-        name: garage.businessName,
-        phone: garage.phone,
-        lat: garage.lat,
-        lng: garage.lng,
-        zoneId: zoneFor(garage, zones)?.id ?? null,
-        live: isListedToCustomers(garage),
-        stage: garageStage(garage),
-      })),
+      garages: garages.map((garage) => {
+        // The city's switch (0069) is part of Live, as on the Garages list.
+        const listed = { ...garage, cityShown: cityRules.standingOf(garage).cityShown }
+        return {
+          id: garage.id,
+          name: garage.businessName,
+          phone: garage.phone,
+          lat: garage.lat,
+          lng: garage.lng,
+          zoneId: zoneFor(garage, zones)?.id ?? null,
+          live: isListedToCustomers(listed),
+          stage: garageStage(listed),
+        }
+      }),
       leads: leads.map(toLeadResponse),
       finder: { google: sources.google !== null, ola: sources.ola !== null },
       demand,
@@ -244,11 +271,15 @@ export const coverageService = {
     input: CreateZoneInput,
     now = new Date()
   ): Promise<CoverageZone> {
-    const zones = await coverageRepository.listZones()
+    const [zones, cities] = await Promise.all([
+      coverageRepository.listZones(),
+      citiesService.listCities(),
+    ])
     const name = cleanZoneName(input.name)
     const problem = zoneEditProblem(
       { id: null, name, target: input.target, lat: input.lat, lng: input.lng },
-      zones
+      zones,
+      cities
     )
     if (problem) throw zoneProblem(problem)
     const slug = newZoneSlug(name, new Set(zones.map((zone) => zone.slug)))
@@ -281,7 +312,10 @@ export const coverageService = {
     input: UpdateZoneInput,
     now = new Date()
   ): Promise<CoverageZone> {
-    const zones = await coverageRepository.listZones()
+    const [zones, cities] = await Promise.all([
+      coverageRepository.listZones(),
+      citiesService.listCities(),
+    ])
     const current = zones.find((zone) => zone.id === id)
     if (!current) throw zoneNotFound()
     const next = {
@@ -291,9 +325,10 @@ export const coverageService = {
       lat: input.lat ?? current.lat,
       lng: input.lng ?? current.lng,
     }
-    const problem = zoneEditProblem(next, zones)
+    const problem = zoneEditProblem(next, zones, cities)
     // An existing zone keeps working even if its centre was left outside
-    // the city by hand before: only a move is held to it.
+    // every city (by hand before, or its city deleted since): only a move is
+    // held to it.
     if (problem && !(problem === 'outside_city' && input.lat === undefined))
       throw zoneProblem(problem)
 
@@ -330,18 +365,7 @@ export const coverageService = {
   async removeZone(id: string, now = new Date()): Promise<{ removed: true }> {
     const zone = await coverageRepository.findZone(id)
     if (!zone) throw zoneNotFound()
-    const [leads, signups, requests, recommendations] = await Promise.all([
-      leadsRepository.countInZone(id),
-      coverageRepository.countSignupsInZone(id),
-      bookingRequestsRepository.countInZone(zone.slug),
-      leadsRepository.countRecommendationsInZone(id),
-    ])
-    const blocked = zoneRemovalBlock(zone.name, {
-      leads,
-      signups,
-      requests,
-      recommendations,
-    })
+    const blocked = zoneRemovalBlock(zone.name, await zoneUseOf(zone))
     if (blocked) throw new AppError(409, blocked, 'ZONE_IN_USE')
     const inUse = () =>
       new AppError(
@@ -369,5 +393,72 @@ export const coverageService = {
     clearZonesCache()
     log.info('coverage:zone_removed')
     return { removed: true }
+  },
+
+  /** What the owner's "Delete anyway" would take from a zone, a line each. */
+  async zoneUse(id: string) {
+    const zone = await coverageRepository.findZone(id)
+    if (!zone) throw zoneNotFound()
+    const use = await zoneUseOf(zone)
+    return {
+      zone: { id: zone.id, name: zone.name },
+      use,
+      lines: zoneDeleteLines(use),
+    }
+  },
+
+  /**
+   * Deletes a zone in use (the owner, 10 Nov 2026; everyone else gets 409
+   * ZONE_IN_USE from removeZone): leads and recommendations are left with no
+   * zone (a pinned lead then goes to the zone its pin is in), customers'
+   * sign-ups go, and requests keep the zone's name as sent. The zone's name
+   * is typed to confirm. One transaction with its audit row.
+   */
+  async removeZoneAnyway(
+    actor: { sub: string; name: string },
+    id: string,
+    confirmText: string,
+    now = new Date()
+  ): Promise<{
+    removed: true
+    detached: { leads: number; recommendations: number; signups: number }
+  }> {
+    const zone = await coverageRepository.findZone(id)
+    if (!zone) throw zoneNotFound()
+    if (!typedConfirmMatches(confirmText, zone.name)) {
+      throw new AppError(
+        400,
+        `Type ${zone.name} exactly as shown to confirm.`,
+        'CONFIRM_TEXT_MISMATCH'
+      )
+    }
+    const detached = await coverageRepository.transaction(async (tx) => {
+      const counts = await coverageRepository.detachZone(id, tx)
+      if (!(await coverageRepository.deleteZoneAnyway(id, tx)))
+        throw zoneNotFound()
+      const rezoned = await rezoneLeads(tx, now)
+      await coverageRepository.insertAudit(
+        {
+          action: 'zone_deleted_in_use',
+          actorSub: actor.sub,
+          actorName: actor.name,
+          summary: {
+            zoneId: id,
+            zone: zone.name,
+            slug: zone.slug,
+            ...counts,
+            rezoned,
+          },
+        },
+        tx
+      )
+      return counts
+    })
+    clearZonesCache()
+    log.warn(
+      { zoneId: id, by: actor.name, ...detached },
+      'coverage:zone_removed_anyway'
+    )
+    return { removed: true, detached }
   },
 }

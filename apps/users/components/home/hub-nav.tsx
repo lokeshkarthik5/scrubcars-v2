@@ -13,12 +13,13 @@ import { useAuthStore } from '@repo/core/stores/auth-store'
 import { cn } from '@repo/core/utils'
 import { LitOrb, MetalGradient } from '@repo/ui/finish/lit-orb'
 import { HUB_NAV_HREF, hubNavCurrent, type HubNavItem } from '@/lib/hub-nav'
+import { msg, useT } from '@repo/core/i18n'
 
 const TABS = [
-  { item: 'home', label: 'Home', icon: IconHome },
-  { item: 'map', label: 'Map', icon: IconMap2 },
-  { item: 'bookings', label: 'Bookings', icon: IconCalendar },
-  { item: 'profile', label: 'Profile', icon: IconUser },
+  { item: 'home', label: msg('Home'), icon: IconHome },
+  { item: 'map', label: msg('Map'), icon: IconMap2 },
+  { item: 'bookings', label: msg('Bookings'), icon: IconCalendar },
+  { item: 'profile', label: msg('Profile'), icon: IconUser },
 ] as const satisfies ReadonlyArray<{
   item: HubNavItem
   label: string
@@ -53,6 +54,7 @@ export function HubNav({
    */
   scrim?: boolean
 }) {
+  const t = useT()
   const pathname = usePathname()
   // A visitor only once the session has been checked: until then nobody is
   // known to be signed out (see hubNavCurrent).
@@ -68,7 +70,7 @@ export function HubNav({
       <Link
         key={item}
         href={HUB_NAV_HREF[item]}
-        aria-label={label}
+        aria-label={t(label)}
         aria-current={active ? 'page' : undefined}
         className={cn(
           'hub-tab flex min-h-12 min-w-[52px] flex-col items-center justify-center gap-0.5 rounded-[14px]',
@@ -80,8 +82,15 @@ export function HubNav({
         ) : (
           <Icon size={21} aria-hidden />
         )}
-        <span className={cn('text-t5 leading-none', active ? 'font-semibold' : 'font-medium')}>
-          {label}
+        {/* Tamil's labels are longer: a size smaller, on one line, so the
+            four tabs and the pearl button still fit the bar. */}
+        <span
+          className={cn(
+            'whitespace-nowrap text-center text-t5 leading-none [:lang(ta)_&]:text-[10px]',
+            active ? 'font-semibold' : 'font-medium'
+          )}
+        >
+          {t(label)}
         </span>
       </Link>
     )
@@ -102,7 +111,7 @@ export function HubNav({
           which would wipe out the calendar's rings and the map's folds. */}
       <MetalGradient />
       <nav
-        aria-label="Main"
+        aria-label={t('Main')}
         className="fx-glass fixed left-1/2 z-40 flex h-16 w-[min(340px,calc(100%-32px))] -translate-x-1/2 items-center justify-between rounded-pill px-3"
         style={{ bottom: 'calc(20px + env(safe-area-inset-bottom))' }}
       >
@@ -113,7 +122,7 @@ export function HubNav({
             place, so it is never lit. */}
         <Link
           href={HUB_NAV_HREF.new}
-          aria-label="New booking"
+          aria-label={t('New booking')}
           className="fx-pearl fx-press grid size-12 place-items-center rounded-full"
         >
           <IconPlus size={20} aria-hidden />

@@ -7,6 +7,7 @@ import { bookingReference } from '@repo/core/booking-types'
 import { BYPASS_QUESTION_SHORT, bypassReportStatusLine } from '@repo/core/bypass-reports'
 import type { Booking } from '@repo/core/types'
 import { ReportBypassSheet } from './report-bypass-sheet'
+import { useT } from '@repo/core/i18n'
 
 /**
  * Whether a booking may be one to report, before asking the server: from
@@ -25,6 +26,7 @@ export function mayBeReportable(booking: Pick<Booking, 'status' | 'acceptedAtIso
  * once reported, where the report stands. Nothing at all otherwise.
  */
 export function BypassReportLine({ booking }: { booking: Booking }) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const { data } = useBypassStatus(booking.id, mayBeReportable(booking))
   if (!data) return null
@@ -54,7 +56,7 @@ export function BypassReportLine({ booking }: { booking: Booking }) {
       >
         <span className="flex items-center gap-2">
           <IconFlag size={16} aria-hidden className="shrink-0 text-text-muted" />
-          {BYPASS_QUESTION_SHORT}
+          {t(BYPASS_QUESTION_SHORT)}
         </span>
         <IconChevronRight size={16} className="shrink-0 text-text-muted" aria-hidden />
       </button>

@@ -1,5 +1,6 @@
 import { useBookingGuarantee, useGuaranteeConfig, useWithdrawClaim } from '@repo/core/api/hooks/use-guarantee';
 import { GUARANTEE_BUTTON, GUARANTEE_NAME } from '@repo/core/guarantee';
+import { useT } from '@repo/core/i18n';
 import { formatStepTime } from '@repo/core/job-records';
 import type { Booking } from '@repo/core/types';
 import { ScButton } from '@repo/native-ui/button';
@@ -17,6 +18,7 @@ import { errorText } from '@/lib/error-text';
 
 /** GuaranteeCard (apps/users/components/guarantee/guarantee-card.tsx). */
 export function GuaranteeCard({ booking }: { booking: Booking }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const config = useGuaranteeConfig();
@@ -33,10 +35,10 @@ export function GuaranteeCard({ booking }: { booking: Booking }) {
         <IconShieldCheck size={20} color={colors.textPrimary} />
         <View style={styles.grow}>
           <T size={14} weight={600} lh={20}>
-            {`Free redo · ${GUARANTEE_NAME}`}
+            {`${t('Free redo')} · ${t(GUARANTEE_NAME)}`}
           </T>
           <T size={12} lh={16} color={colors.textSecondary} style={styles.mt2}>
-            This booking redoes an earlier job at no charge. There is nothing to pay and no receipt for it.
+            {t('This booking redoes an earlier job at no charge. There is nothing to pay and no receipt for it.')}
           </T>
         </View>
       </ScCard>
@@ -53,7 +55,7 @@ export function GuaranteeCard({ booking }: { booking: Booking }) {
           <IconShieldCheck size={20} color={colors.textPrimary} />
           <View style={styles.grow}>
             <T size={11} weight={500} lh={15} color={colors.textSecondary}>
-              {GUARANTEE_NAME}
+              {t(GUARANTEE_NAME)}
             </T>
             <T size={15} weight={500} lh={20}>
               {claim.title}
@@ -67,13 +69,13 @@ export function GuaranteeCard({ booking }: { booking: Booking }) {
         </View>
         {claim.canBookRedo ? (
           <ScButton variant="main" onPress={() => router.push(claimPath)}>
-            Pick a time for your free redo
+            {t('Pick a time for your free redo')}
           </ScButton>
         ) : null}
         {claim.redoBooking ? (
           <Pressable accessibilityRole="link" onPress={() => router.push(`/bookings/${claim.redoBooking!.id}` as Href)} style={styles.link}>
             <T size={13} lh={18} style={styles.grow}>
-              <Figures size={13} text={`Free redo · ${formatStepTime(claim.redoBooking.scheduledAt)}`} />
+              <Figures size={13} text={`${t('Free redo')} · ${formatStepTime(claim.redoBooking.scheduledAt)}`} />
             </T>
             <IconChevronRight size={16} color={colors.textMuted} />
           </Pressable>
@@ -81,14 +83,14 @@ export function GuaranteeCard({ booking }: { booking: Booking }) {
         {!claim.canBookRedo ? (
           <Pressable accessibilityRole="link" onPress={() => router.push(claimPath)} style={styles.link}>
             <T size={13} weight={500} lh={18} style={styles.underline}>
-              See your claim
+              {t('See your claim')}
             </T>
           </Pressable>
         ) : null}
         {claim.canWithdraw ? (
           <Pressable accessibilityRole="button" onPress={() => setWithdrawing(true)} style={styles.link}>
             <T size={12} weight={500} lh={16} color={colors.textSecondary} style={styles.underline}>
-              Withdraw claim
+              {t('Withdraw claim')}
             </T>
           </Pressable>
         ) : null}
@@ -101,17 +103,17 @@ export function GuaranteeCard({ booking }: { booking: Booking }) {
           onConfirm={async () => {
             try {
               await withdraw.mutateAsync(claim.id);
-              toast.success('Claim withdrawn');
+              toast.success(t('Claim withdrawn'));
               setWithdrawing(false);
             } catch (err) {
-              setWithdrawError(errorText(err, 'Could not withdraw the claim'));
+              setWithdrawError(errorText(err, t('Could not withdraw the claim')));
             }
           }}
           level="light"
-          title="Withdraw your free redo claim?"
-          body="We'll close it and no redo is arranged. A booking takes one claim, so you can't claim on it again."
-          confirmLabel="Withdraw claim"
-          cancelLabel="Keep it"
+          title={t('Withdraw your free redo claim?')}
+          body={t("We'll close it and no redo is arranged. A booking takes one claim, so you can't claim on it again.")}
+          confirmLabel={t('Withdraw claim')}
+          cancelLabel={t('Keep it')}
           busy={withdraw.isPending}
           error={withdrawError}
         />
@@ -122,11 +124,11 @@ export function GuaranteeCard({ booking }: { booking: Booking }) {
   return (
     <ScCard style={styles.card}>
       <ScButton variant="outline" onPress={() => router.push(claimPath)}>
-        {GUARANTEE_BUTTON}
+        {t(GUARANTEE_BUTTON)}
       </ScButton>
       {data.claimBy ? (
         <T size={12} lh={16} color={colors.textSecondary} align="center">
-          <Figures size={12} color={colors.textSecondary} text={`Ask with photos of the problem by ${formatStepTime(data.claimBy)}.`} />
+          <Figures size={12} color={colors.textSecondary} text={t('Ask with photos of the problem by {time}.', { time: formatStepTime(data.claimBy) })} />
         </T>
       ) : null}
     </ScCard>

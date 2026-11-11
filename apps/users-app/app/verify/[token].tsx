@@ -1,6 +1,7 @@
 import { ApiError, apiClient } from '@repo/core/api/client';
 import type { PublicCertificate } from '@repo/core/api/certificates';
 import { API_BASE_URL } from '@repo/core/api/client';
+import { useT } from '@repo/core/i18n';
 import { certificateDateLabel, isCertificateTokenShaped } from '@repo/core/service-history-certificate';
 import { ScButton } from '@repo/native-ui/button';
 import { IconCircleCheckFilled, IconLinkOff } from '@repo/native-ui/icons';
@@ -31,6 +32,7 @@ async function lookup(token: string): Promise<Lookup> {
 
 /** apps/users/app/verify/[token]/page.tsx: anyone can check a shared certificate. Never cached. */
 export default function VerifyScreen() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
@@ -46,43 +48,43 @@ export default function VerifyScreen() {
         {body}
       </T>
       <ScButton variant="outline" fullWidth={false} onPress={() => router.replace('/' as Href)}>
-        Go to Detlio
+        {t('Go to Detlio')}
       </ScButton>
     </View>
   );
   const data = result.data;
   return (
     <View style={[styles.page, { paddingTop: insets.top }]}>
-      <PageHeader title="Check a Service History" backTo="/" />
+      <PageHeader title={t('Check a Service History')} backTo="/" />
       {result.isPending ? (
         <View style={styles.body}>
           <Skeleton height={160} />
         </View>
       ) : !data || data.kind === 'unavailable' ? (
-        message('Couldn’t check this certificate', "Detlio isn't answering right now. Please try again in a few minutes.")
+        message(t('Couldn’t check this certificate'), t("Detlio isn't answering right now. Please try again in a few minutes."))
       ) : data.kind === 'not_shared' ? (
-        message('This certificate is no longer shared', "The car's owner may have stopped sharing it, or the link has run out or was copied wrongly. Ask the owner for a new link.")
+        message(t('This certificate is no longer shared'), t("The car's owner may have stopped sharing it, or the link has run out or was copied wrongly. Ask the owner for a new link."))
       ) : data.kind === 'rate_limited' ? (
-        message('Too many checks just now', 'Please wait a minute and open the link again.')
+        message(t('Too many checks just now'), t('Please wait a minute and open the link again.'))
       ) : (
         <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 24 }]}>
           <View accessibilityLiveRegion="polite" style={styles.genuine}>
             <IconCircleCheckFilled size={22} color={colors.success} />
             <View style={styles.grow}>
               <T size={14} weight={600} lh={20}>
-                Genuine Detlio record
+                {t('Genuine Detlio record')}
               </T>
-              <FigureLine size={12} lh={16} color={colors.textSecondary} text={`Certificate ${data.certificate.certificateNumber}, read from Detlio on ${certificateDateLabel(data.certificate.asOf)}. It shows the car's record as it stands today, without the owner's details.`} />
+              <FigureLine size={12} lh={16} color={colors.textSecondary} text={t("Certificate {number}, read from Detlio on {day}. It shows the car's record as it stands today, without the owner's details.", { number: data.certificate.certificateNumber, day: certificateDateLabel(data.certificate.asOf) })} />
             </View>
           </View>
           <CertificateDocument
             certificate={data.certificate}
             showPhotos={data.certificate.includesPhotos}
             photoSource={(path) => ({ uri: `${API_BASE_URL.replace(/\/$/, '')}${path}` })}
-            issuedLabel="Checked"
+            issuedLabel={t('Checked')}
             verification={
               <T size={11} lh={17} color="#525252">
-                Shared by the car&apos;s owner through Detlio. Owner&apos;s name, phone and address are never shown.
+                {t("Shared by the car's owner through Detlio. Owner's name, phone and address are never shown.")}
               </T>
             }
           />

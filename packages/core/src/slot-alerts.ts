@@ -1,4 +1,5 @@
 import type { BookingType } from '@repo/core/types'
+import { msg, t } from './i18n/translate'
 
 /**
  * "Notify me if a slot opens" (0047): the words and numbers the customer
@@ -19,10 +20,10 @@ export const SLOT_ALERT_WINDOW_HOURS: Record<Exclude<SlotAlertWindow, 'any'>, { 
 
 /** The choice's name. */
 export const SLOT_ALERT_WINDOW_LABELS: Record<SlotAlertWindow, string> = {
-  any: 'Any time',
-  morning: 'Morning',
-  afternoon: 'Afternoon',
-  evening: 'Evening',
+  any: msg('Any time'),
+  morning: msg('Morning'),
+  afternoon: msg('Afternoon'),
+  evening: msg('Evening'),
 }
 
 /** Its hours, as the app writes times (SLOT_ALERT_WINDOW_HOURS). */
@@ -60,7 +61,7 @@ export function slotAlertDayLabel(date: string): string {
 /** "Sat 24 Oct · Morning, 6 AM–12 PM", or "Sat 24 Oct · Any time". */
 export function slotAlertSummary(alert: { date: string; window: SlotAlertWindow }): string {
   const hint = SLOT_ALERT_WINDOW_HINTS[alert.window]
-  return `${slotAlertDayLabel(alert.date)} · ${SLOT_ALERT_WINDOW_LABELS[alert.window]}${hint ? `, ${hint}` : ''}`
+  return `${slotAlertDayLabel(alert.date)} · ${t(SLOT_ALERT_WINDOW_LABELS[alert.window])}${hint ? `, ${hint}` : ''}`
 }
 
 /** One waiting alert, as GET /users/me/slot-alerts gives it. */

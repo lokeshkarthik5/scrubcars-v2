@@ -260,6 +260,17 @@ jobs:
             bun run test:e2e -- --shard="$shard"
           fi
 
+      - name: E2E (specs that run alone)
+        # specs/alone flip team-wide switches (Other towns hides every garage
+        # in no city), so they cannot share the server with the run above.
+        # This is a second run on the first machine only, after the main one
+        # has finished: global setup reseeds the database and the servers
+        # start again. Every spec in that folder is @p0, so pull requests and
+        # main run the same thing.
+        if: matrix.shard == 1
+        working-directory: apps/e2e
+        run: bun run test:e2e:alone
+
       - name: Upload report
         if: failure()
         uses: actions/upload-artifact@v4

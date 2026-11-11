@@ -20,6 +20,8 @@ import {
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { trackRegistration } from '@/lib/meta-pixel'
 import { LEGAL_PATHS } from '@/lib/legal/routes'
+import { fill, useT } from '@repo/core/i18n'
+import { t } from '@repo/core/i18n/translate'
 
 /** The code's length: the server sends six digits (lib/otp.ts), as /verify-otp asks. */
 export const OTP_LENGTH = 6
@@ -81,7 +83,7 @@ export function useCheckoutSignIn() {
       track('otp_sent')
       return true
     } catch (err) {
-      setError(otpErrorMessage(err, 'Failed to send the code'))
+      setError(otpErrorMessage(err, t('Failed to send the code')))
       setRetryAt(retryMoment(err, Date.now()))
       return false
     } finally {
@@ -101,7 +103,7 @@ export function useCheckoutSignIn() {
       setOtp('')
       setCodeKey((k) => k + 1)
     } catch (err) {
-      setError(otpErrorMessage(err, 'Failed to resend the code'))
+      setError(otpErrorMessage(err, t('Failed to resend the code')))
       const at = retryMoment(err, Date.now())
       if (at) setResendAt(at)
     } finally {
@@ -137,7 +139,7 @@ export function useCheckoutSignIn() {
       if (isNew) trackRegistration()
       return true
     } catch (err) {
-      setError(otpErrorMessage(err, 'Verification failed'))
+      setError(otpErrorMessage(err, t('Verification failed')))
       return false
     } finally {
       setVerifying(false)
@@ -199,6 +201,7 @@ export function CheckoutSignInCard({
   busy: boolean
   headingRef?: React.Ref<HTMLHeadingElement>
 }) {
+  const t = useT()
   const now = useNow(1000)
   const waitSeconds = signIn.retryAt ? secondsUntil(signIn.retryAt, now) : 0
   const expirySeconds = signIn.expiresAt ? secondsUntil(signIn.expiresAt, now) : null
@@ -224,10 +227,10 @@ export function CheckoutSignInCard({
           tabIndex={-1}
           className="scroll-mt-20 text-t2 font-medium tracking-[-0.01em] text-text-primary outline-none"
         >
-          Your phone number
+          {t('Your phone number')}
         </h2>
         <p className="mt-0.5 text-t4 text-text-secondary">
-          For your booking updates. No password: we text you a code.
+          {t('For your booking updates. No password: we text you a code.')}
         </p>
       </div>
 
@@ -245,13 +248,13 @@ export function CheckoutSignInCard({
             disabled={!signIn.phoneValid || signIn.sending || waitSeconds > 0}
           >
             {signIn.sending ? (
-              'Sending…'
+              t('Sending…')
             ) : waitSeconds > 0 && waitSeconds < 60 ? (
               <>
-                Send code in <span className="font-numeric">{formatCountdown(waitSeconds)}</span>
+                {fill(t('Send code in {waitSeconds}'), { waitSeconds: <span className="font-numeric">{formatCountdown(waitSeconds)}</span> })}
               </>
             ) : (
-              'Send code'
+              t('Send code')
             )}
           </ScButton>
         </form>
@@ -267,11 +270,11 @@ export function CheckoutSignInCard({
               disabled={signIn.verifying || busy}
               className="min-h-11 px-2 text-t4 text-text-secondary underline underline-offset-2"
             >
-              Change number
+              {t('Change number')}
             </button>
           </div>
           <p className="flex items-center gap-1.5 text-t4 text-success">
-            <IconCheck size={14} aria-hidden /> Code sent by SMS
+            <IconCheck size={14} aria-hidden /> {t('Code sent by SMS')}
           </p>
           <OtpInput
             key={signIn.codeKey}
@@ -283,8 +286,8 @@ export function CheckoutSignInCard({
             <ScInput
               data-clarity-mask="true"
               id="checkout-name"
-              label="Your name (for the garage)"
-              placeholder="Your name"
+              label={t('Your name (for the garage)')}
+              placeholder={t('Your name')}
               autoComplete="name"
               autoCapitalize="words"
               maxLength={255}
@@ -297,13 +300,12 @@ export function CheckoutSignInCard({
               {expirySeconds !== null &&
                 (expirySeconds > 0 ? (
                   <>
-                    Code expires in{' '}
-                    <span className="font-numeric text-text-primary">
+                    {fill(t('Code expires in {expirySeconds}'), { expirySeconds: <span className="font-numeric text-text-primary">
                       {formatCountdown(expirySeconds)}
-                    </span>
+                    </span> })}
                   </>
                 ) : (
-                  'Code expired — send a new one'
+                  t('Code expired — send a new one')
                 ))}
             </span>
             <button
@@ -313,13 +315,13 @@ export function CheckoutSignInCard({
               className="min-h-11 px-1 font-medium text-text-primary underline disabled:text-text-muted disabled:no-underline"
             >
               {signIn.sending ? (
-                'Sending…'
+                t('Sending…')
               ) : resendSeconds > 0 ? (
                 <>
-                  Resend in <span className="font-numeric">{formatCountdown(resendSeconds)}</span>
+                  {fill(t('Resend in {resendSeconds}'), { resendSeconds: <span className="font-numeric">{formatCountdown(resendSeconds)}</span> })}
                 </>
               ) : (
-                'Resend code'
+                t('Resend code')
               )}
             </button>
           </div>
@@ -328,7 +330,7 @@ export function CheckoutSignInCard({
             disabled={!signIn.readyToVerify || signIn.verifying || busy}
             onClick={onVerify}
           >
-            {signIn.verifying ? 'Verifying…' : busy ? 'One moment…' : verifyLabel}
+            {signIn.verifying ? t('Verifying…') : busy ? t('One moment…') : verifyLabel}
           </ScButton>
         </div>
       )}
@@ -345,16 +347,11 @@ export function CheckoutSignInCard({
       )}
 
       <p className="text-t5 text-text-muted">
-        New to Detlio? Your account is made when you verify. By continuing you
-        agree to our{' '}
-        <a href={LEGAL_PATHS.terms} target="_blank" rel="noopener" className="underline underline-offset-2">
-          Terms
-        </a>
-        ; our{' '}
-        <a href={LEGAL_PATHS.privacy} target="_blank" rel="noopener" className="underline underline-offset-2">
-          Privacy Policy
-        </a>{' '}
-        explains how we use your data.
+        {fill(t('New to Detlio? Your account is made when you verify. By continuing you agree to our {part}; our {part2} explains how we use your data.'), { part: <a href={LEGAL_PATHS.terms} target="_blank" rel="noopener" className="underline underline-offset-2">
+          {t('Terms')}
+        </a>, part2: <a href={LEGAL_PATHS.privacy} target="_blank" rel="noopener" className="underline underline-offset-2">
+          {t('Privacy Policy')}
+        </a> })}
       </p>
     </section>
   )

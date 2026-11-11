@@ -1,4 +1,5 @@
 import { CATEGORY_LABELS } from '@repo/core/categories';
+import { t, useT } from '@repo/core/i18n';
 import type { ServiceCategory } from '@repo/core/types';
 import { Pearl, Raised } from '@repo/native-ui/finish';
 import {
@@ -43,9 +44,9 @@ const ICONS: Record<ServiceFilter, (props: IconProps) => ReactElement> = {
 
 /** "All services", "Packages", "Car wash" … as the filter button and its sheet say them. */
 export function serviceFilterLabel(filter: ServiceFilter): string {
-  if (filter === 'all') return 'All services';
-  if (filter === 'package') return 'Packages';
-  return CATEGORY_LABELS[filter];
+  if (filter === 'all') return t('All services');
+  if (filter === 'package') return t('Packages');
+  return t(CATEGORY_LABELS[filter]);
 }
 
 export function ServiceFilterIcon({
@@ -83,12 +84,13 @@ export function FilterSheet({
   onChange: (value: ServiceFilter) => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const styles = useStyles();
   const { fx } = useFinish();
   return (
-    <ScSheet open={open} onClose={onClose} accessibilityLabel="Choose a service" horizontalPadding={10}>
+    <ScSheet open={open} onClose={onClose} accessibilityLabel={t('Choose a service')} horizontalPadding={10}>
       <T variant="t3" weight={600} style={styles.title}>
-        Service
+        {t('Service')}
       </T>
       <View style={styles.grid}>
         {SERVICE_FILTERS.map((filter, i) => {
@@ -117,7 +119,7 @@ export function FilterSheet({
               <PressScale
                 accessibilityRole="button"
                 accessibilityState={{ selected }}
-                accessibilityLabel={`${serviceFilterLabel(filter)}${counts[filter] ? `, ${counts[filter]} garages` : ''}`}
+                accessibilityLabel={`${serviceFilterLabel(filter)}${counts[filter] ? `, ${t('{count} garages', { count: counts[filter] })}` : ''}`}
                 onPress={() => {
                   onChange(filter);
                   setTimeout(onClose, CLOSE_AFTER_MS);

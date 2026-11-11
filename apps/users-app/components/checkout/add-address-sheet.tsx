@@ -1,4 +1,5 @@
 import { createAddress } from '@repo/core/api/users';
+import { msg, useT } from '@repo/core/i18n';
 import { useUserStore } from '@repo/core/stores/user-store';
 import type { Address } from '@repo/core/types';
 import { ScButton } from '@repo/native-ui/button';
@@ -17,7 +18,7 @@ import type { DraftAddress } from '@/lib/booking-draft';
 import { errorText } from '@/lib/error-text';
 import { NO_PIN_TEXT, type PinText, refillFromPin } from '@/lib/pin-autofill';
 
-const LABELS = ['Home', 'Office', 'Other'] as const;
+const LABELS = [msg('Home'), msg('Office'), msg('Other')] as const;
 const EMPTY = { label: 'Home' as string, address: '', city: '', pin: null as PickedLocation | null };
 
 /** AddAddressSheet (apps/users/components/add-address-sheet.tsx). */
@@ -35,6 +36,7 @@ export function AddAddressSheet({
   /** A guest: kept on the phone until sign-in. */
   onSaveLocal?: (address: DraftAddress) => void;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const [form, setForm] = useState(EMPTY);
@@ -58,9 +60,9 @@ export function AddAddressSheet({
       pinText.current = NO_PIN_TEXT;
       onAdded?.(created);
       onClose();
-      toast.success('Address added');
+      toast.success(t('Address added'));
     },
-    onError: (error) => toast.error(errorText(error, 'Failed to add address')),
+    onError: (error) => toast.error(errorText(error, t('Failed to add address'))),
   });
 
   const isValid = form.pin !== null && form.address.trim().length > 0 && form.city.trim().length > 0;
@@ -72,19 +74,19 @@ export function AddAddressSheet({
   };
 
   return (
-    <ScSheet horizontalPadding={16} open={open} onClose={close} dismissible={!save.isPending} accessibilityLabel="Add an address">
+    <ScSheet horizontalPadding={16} open={open} onClose={close} dismissible={!save.isPending} accessibilityLabel={t('Add an address')}>
       <T size={19} weight={600} lh={26}>
-        Add an address
+        {t('Add an address')}
       </T>
       <T size={13} lh={18} color={colors.textSecondary} style={styles.sub}>
         {pickup
-          ? 'Drop the pin where the car will be. We use it to check the garage collects from you, and the driver uses it to find your car.'
-          : 'Drop the pin where the car will be. We use it to check the garage travels to you.'}
+          ? t('Drop the pin where the car will be. We use it to check the garage collects from you, and the driver uses it to find your car.')
+          : t('Drop the pin where the car will be. We use it to check the garage travels to you.')}
       </T>
       <View style={styles.form}>
         <View style={styles.chips}>
           {LABELS.map((label) => (
-            <Chip key={label} label={label} selected={form.label === label} onPress={() => setForm({ ...form, label })} />
+            <Chip key={label} label={t(label)} selected={form.label === label} onPress={() => setForm({ ...form, label })} />
           ))}
         </View>
         <LocationPicker
@@ -97,15 +99,15 @@ export function AddAddressSheet({
           }}
         />
         <ScInput
-          label="Address"
-          placeholder="Flat, building, street"
+          label={t('Address')}
+          placeholder={t('Flat, building, street')}
           autoComplete="street-address"
           value={form.address}
           onChangeText={(address) => setForm((f) => ({ ...f, address }))}
         />
         <ScInput
-          label="City"
-          placeholder="e.g. Chennai"
+          label={t('City')}
+          placeholder={t('e.g. Chennai')}
           autoComplete="off"
           value={form.city}
           onChangeText={(city) => setForm((f) => ({ ...f, city }))}
@@ -134,12 +136,12 @@ export function AddAddressSheet({
                 save.mutate(form.pin);
               }}
             >
-              {save.isPending ? 'Saving…' : 'Save address'}
+              {save.isPending ? t('Saving…') : t('Save address')}
             </ScButton>
           </View>
           <View style={styles.grow}>
             <ScButton variant="outline" disabled={save.isPending} onPress={close}>
-              Cancel
+              {t('Cancel')}
             </ScButton>
           </View>
         </View>

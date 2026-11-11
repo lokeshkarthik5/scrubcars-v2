@@ -18,6 +18,8 @@ import { ShareCardImage } from '@/components/premium-card/share-card-image'
 import { JACKPOT_CONFETTI_COLORS, burstConfetti } from '@/lib/confetti'
 import { prizeCardSpec, type PremiumCardSpec } from '@/lib/premium-card'
 import { isMoneyPrize, prizeTier, voucherEndsAt } from '@/lib/scratch-prize'
+import { fill, useT } from '@repo/core/i18n'
+import { t } from '@repo/core/i18n/translate'
 
 /** The share of the foil scratched off before the rest falls away (the card is tall: a third is plenty). */
 const CLEAR_AT = 0.35
@@ -72,10 +74,10 @@ function paintFoil(canvas: HTMLCanvasElement) {
   ctx.font = '600 15px Inter, system-ui, sans-serif'
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
-  ctx.fillText('Scratch here', width / 2, height / 2 - 8)
+  ctx.fillText(t('Scratch here'), width / 2, height / 2 - 8)
   ctx.fillStyle = 'rgba(42,43,49,0.7)'
   ctx.font = '500 11px Inter, system-ui, sans-serif'
-  ctx.fillText('A Detlio reward is under the foil', width / 2, height / 2 + 12)
+  ctx.fillText(t('A Detlio reward is under the foil'), width / 2, height / 2 + 12)
 }
 
 /**
@@ -108,6 +110,7 @@ function PrizeFace({ spec, revealed }: { spec: PremiumCardSpec; revealed: boolea
  * for Instagram (never the voucher's code).
  */
 export function ScratchCardPanel({ card, compact = false }: { card: ScratchCardView; compact?: boolean }) {
+  const t = useT()
   const router = useRouter()
   const userId = useAuthStore((s) => s.user?.id ?? null)
   const rememberOffer = usePendingCheckoutStore((s) => s.rememberOffer)
@@ -230,13 +233,13 @@ export function ScratchCardPanel({ card, compact = false }: { card: ScratchCardV
               <PrizeFace spec={spec} revealed={showPrize} />
             ) : (
               <p className="grid h-full place-items-center px-4 text-center text-t4 text-text-secondary">
-                {waiting ? 'Revealing…' : 'A prize is waiting'}
+                {waiting ? t('Revealing…') : t('A prize is waiting')}
               </p>
             )}
             {/* What the picture says, for a screen reader. */}
             {showPrize && garage && (
               <p className="sr-only">
-                A Garage card{result?.garagePull ? `: ${result.garagePull.car.name}, ${result.garagePull.car.rarityLabel}` : ''}.
+                {t('A Garage card')}{result?.garagePull ? `: ${result.garagePull.car.name}, ${result.garagePull.car.rarityLabel}` : ''}.
               </p>
             )}
             {showPrize && spec && (
@@ -274,27 +277,27 @@ export function ScratchCardPanel({ card, compact = false }: { card: ScratchCardV
         <canvas ref={confettiRef} aria-hidden className="pointer-events-none absolute -left-3 -top-20 z-10 h-[calc(100%+6.5rem)] w-[calc(100%+1.5rem)]" />
       </div>
       {showPrize && prize?.fellBack && (
-        <p className="text-t5 text-text-secondary">This month&apos;s prize budget is used up, so it&apos;s a bonus stamp.</p>
+        <p className="text-t5 text-text-secondary">{t("This month's prize budget is used up, so it's a bonus stamp.")}</p>
       )}
 
       {!cleared ? (
         <div className="flex items-center justify-between gap-3">
           <p className="text-t5 text-text-muted">
-            Scratch by <span className="font-numeric">{rewardDay(card.lastDay)}</span>
+            {fill(t('Scratch by {rewardDay}'), { rewardDay: <span className="font-numeric">{rewardDay(card.lastDay)}</span> })}
             {card.vendorName ? ` · ${card.vendorName}` : ''}
           </p>
           <button type="button" onClick={revealAll} className="text-t5 font-medium text-text-primary underline underline-offset-4">
-            Reveal
+            {t('Reveal')}
           </button>
         </div>
       ) : prize && isMoneyPrize(prize.outcome) && voucherLastDay ? (
         <div className="flex items-center justify-between gap-3">
           <p className="min-w-0 text-t5 text-text-secondary">
-            In your rewards. Use by <span className="font-numeric">{rewardDay(voucherLastDay)}</span>
+            {fill(t('In your rewards. Use by {rewardDay}'), { rewardDay: <span className="font-numeric">{rewardDay(voucherLastDay)}</span> })}
           </p>
           {/* The moment's one red action. */}
           <ScButton variant="hero" fullWidth={false} onClick={goToCheckout} className="h-10 shrink-0 gap-1.5 px-4 text-t4">
-            <span>Use at checkout</span>
+            <span>{t('Use at checkout')}</span>
             <IconArrowUpRight size={16} aria-hidden />
           </ScButton>
         </div>
@@ -302,9 +305,11 @@ export function ScratchCardPanel({ card, compact = false }: { card: ScratchCardV
         <p className="flex items-center gap-1.5 text-t5 text-text-primary">
           <IconCircleCheckFilled size={16} className="shrink-0 text-[#DCE1EC]" aria-hidden />
           <span>
-            {result?.garagePull ? `${result.garagePull.car.name} (${result.garagePull.car.rarityLabel}) is in your Garage. ` : 'A new car is in your Garage. '}
+            {result?.garagePull
+              ? t('{name} ({rarity}) is in your Garage.', { name: result.garagePull.car.name, rarity: result.garagePull.car.rarityLabel })
+              : t('A new car is in your Garage.')}{' '}
             <Link href="/profile/rewards/garage" className="underline underline-offset-4">
-              See it
+              {t('See it')}
             </Link>
           </span>
         </p>
@@ -313,10 +318,12 @@ export function ScratchCardPanel({ card, compact = false }: { card: ScratchCardV
           <IconCircleCheckFilled size={16} className="shrink-0 text-[#DCE1EC]" aria-hidden />
           {result?.shineVoucher ? (
             <span>
-              Added to your Shine Card, and it&apos;s full: <Figures text={`${rewardRupees(result.shineVoucher.amount)} off`} /> is ready.
+              {fill(t("Added to your Shine Card, and it's full: {amount} is ready."), {
+                amount: <Figures text={t('{amount} off', { amount: rewardRupees(result.shineVoucher.amount) })} />,
+              })}
             </span>
           ) : (
-            'Added to your Shine Card'
+            t('Added to your Shine Card')
           )}
         </p>
       ) : null}
@@ -324,17 +331,17 @@ export function ScratchCardPanel({ card, compact = false }: { card: ScratchCardV
       {failed && (
         <div className="flex items-center justify-between gap-3">
           <p role="alert" className="text-t5 text-warning">
-            {scratch.error instanceof Error ? scratch.error.message : "Couldn't reveal it. Try again."}
+            {scratch.error instanceof Error ? scratch.error.message : t("Couldn't reveal it. Try again.")}
           </p>
           <ScButton variant="secondary" className="flex h-8 w-auto shrink-0 items-center justify-center px-3 py-0 text-t5" onClick={revealAll}>
-            Try again
+            {t('Try again')}
           </ScButton>
         </div>
       )}
       {showPrize && spec && <ShareCardImage spec={() => spec} fileName="detlio-prize" compact />}
       {compact && cleared && (
         <Link href="/profile/rewards" className="text-t5 text-text-secondary underline underline-offset-4">
-          See your rewards
+          {t('See your rewards')}
         </Link>
       )}
     </div>

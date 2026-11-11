@@ -425,7 +425,7 @@ export const env = {
    */
   guaranteeEnabled: (process.env.GUARANTEE_ENABLED ?? '').trim().toLowerCase() === 'on',
 
-  // ─── Garage Book (modules/garage-book, 0069) ───────────────────────────────
+  // ─── Garage Book (modules/garage-book, 0072) ───────────────────────────────
   /**
    * The garage's own book (walk-ins, its own customers, reminders, money
    * owed, stats): GARAGE_BOOK=on. Off unless set to exactly `on`. While off

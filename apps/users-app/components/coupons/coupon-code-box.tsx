@@ -2,6 +2,7 @@ import { ApiError } from '@repo/core/api/client';
 import { type MyCoupon, redeemCoupon } from '@repo/core/api/coupons';
 import { invalidateCoupons } from '@repo/core/api/hooks/use-coupons';
 import { couponCodeProblem, formatCouponCode, parseCouponCode, type RedeemChannel } from '@repo/core/coupons';
+import { useT } from '@repo/core/i18n';
 import { ScButton } from '@repo/native-ui/button';
 import { ScInput } from '@repo/native-ui/inputs';
 import { ScCard } from '@repo/native-ui/primitives';
@@ -17,6 +18,7 @@ import { CouponScanner } from './coupon-scanner';
 
 /** CouponCodeBox (apps/users/components/coupons/coupon-code-box.tsx). */
 export function CouponCodeBox({ onAdded }: { onAdded?: (coupon: MyCoupon | null) => void }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const queryClient = useQueryClient();
@@ -38,11 +40,11 @@ export function CouponCodeBox({ onAdded }: { onAdded?: (coupon: MyCoupon | null)
       const { coupon } = await redeemCoupon(raw, channel);
       track('coupon_redeem', { source: channel });
       setCode('');
-      setResult({ ok: true, text: coupon ? `Added: ${coupon.title}.` : 'Coupon added.' });
+      setResult({ ok: true, text: coupon ? t('Added: {title}.', { title: coupon.title }) : t('Coupon added.') });
       void invalidateCoupons(queryClient);
       onAdded?.(coupon);
     } catch (error) {
-      setResult({ ok: false, text: error instanceof ApiError ? error.message : "Couldn't add that coupon. Check your connection and try again." });
+      setResult({ ok: false, text: error instanceof ApiError ? error.message : t("Couldn't add that coupon. Check your connection and try again.") });
     } finally {
       setBusy(false);
     }
@@ -51,7 +53,7 @@ export function CouponCodeBox({ onAdded }: { onAdded?: (coupon: MyCoupon | null)
   return (
     <ScCard style={styles.card}>
       <ScInput
-        label="Have a coupon?"
+        label={t('Have a coupon?')}
         placeholder="DTL-7K4QM-92MXA"
         autoComplete="off"
         autoCapitalize="characters"
@@ -65,11 +67,11 @@ export function CouponCodeBox({ onAdded }: { onAdded?: (coupon: MyCoupon | null)
       <View style={styles.row}>
         <View style={styles.grow}>
           <ScButton variant="outline" height={44} disabled={!code.trim() || busy} onPress={() => void add(code.trim(), 'typed')}>
-            {busy ? 'Adding…' : 'Add coupon'}
+            {busy ? t('Adding…') : t('Add coupon')}
           </ScButton>
         </View>
         <ScButton variant="outline" height={44} fullWidth={false} disabled={busy} onPress={() => setScanning(true)}>
-          Scan
+          {t('Scan')}
         </ScButton>
       </View>
       {result ? (

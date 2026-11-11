@@ -36,6 +36,7 @@ import type { UpdateKind } from '@repo/core/api/home'
 import { updateTimeLabel } from '@repo/core/home-display'
 import { cn } from '@repo/core/utils'
 import { useSeenOnce } from '@repo/ui/finish/motion'
+import { useT } from '@repo/core/i18n'
 
 /** How long a new item's light stays on once it is on screen. */
 const SEEN_AFTER_MS = 1600
@@ -143,6 +144,7 @@ export function UpdateRow({
   pinned?: boolean
   onDismiss?: () => void
 }) {
+  const t = useT()
   const Icon = KIND_ICONS[row.kind]
   // One way to write a time on every screen (F10): "6:00 pm", not "6:00 PM".
   const when = updateTimeLabel(row.at, now).replace(
@@ -173,7 +175,7 @@ export function UpdateRow({
           )}
         >
           {row.title}
-          {row.unread && <span className="sr-only"> (new)</span>}
+          {row.unread && <span className="sr-only"> {t('(new)')}</span>}
         </span>
         {meta && (
           <span className="mt-1 line-clamp-2 block text-t4 text-dim">
@@ -213,7 +215,7 @@ export function UpdateRow({
         {onDismiss && (
           <button
             type="button"
-            aria-label={`Hide notice: ${row.title}`}
+            aria-label={t('Hide notice: {title}', { title: row.title })}
             onClick={onDismiss}
             className="grid size-11 place-items-center text-dim"
           >

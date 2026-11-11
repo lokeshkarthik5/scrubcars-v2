@@ -18,6 +18,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { msg, useT } from "@repo/core/i18n";
 import { X, Minus, Plus, Locate, Maximize, Loader2 } from "lucide-react";
 
 import { cn } from "@repo/core/utils";
@@ -612,11 +613,12 @@ function DefaultMarkerIcon() {
 }
 
 function PopupCloseButton({ onClick }: { onClick: () => void }) {
+  const t = useT();
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-label="Close popup"
+      aria-label={t("Close popup")}
       className="focus-visible:ring-ring hover:bg-muted text-foreground absolute top-0 right-0 z-10 inline-flex size-11 cursor-pointer items-center justify-center rounded-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset"
     >
       <X className="size-3.5" />
@@ -840,10 +842,12 @@ function ControlButton({
   children: React.ReactNode;
   disabled?: boolean;
 }) {
+  const t = useT();
   return (
     <button
       onClick={onClick}
-      aria-label={label}
+      // The labels below are English keys, translated here.
+      aria-label={t(label)}
       type="button"
       className={cn(
         "flex size-11 items-center justify-center transition-colors",
@@ -930,10 +934,10 @@ function MapControls({
     >
       {showZoom && (
         <ControlGroup>
-          <ControlButton onClick={handleZoomIn} label="Zoom in">
+          <ControlButton onClick={handleZoomIn} label={msg("Zoom in")}>
             <Plus className="size-4" />
           </ControlButton>
-          <ControlButton onClick={handleZoomOut} label="Zoom out">
+          <ControlButton onClick={handleZoomOut} label={msg("Zoom out")}>
             <Minus className="size-4" />
           </ControlButton>
         </ControlGroup>
@@ -947,7 +951,7 @@ function MapControls({
         <ControlGroup>
           <ControlButton
             onClick={handleLocate}
-            label="Find my location"
+            label={msg("Find my location")}
             disabled={waitingForLocation}
           >
             {waitingForLocation ? (
@@ -960,7 +964,7 @@ function MapControls({
       )}
       {showFullscreen && (
         <ControlGroup>
-          <ControlButton onClick={handleFullscreen} label="Toggle fullscreen">
+          <ControlButton onClick={handleFullscreen} label={msg("Toggle fullscreen")}>
             <Maximize className="size-4" />
           </ControlButton>
         </ControlGroup>
@@ -995,7 +999,7 @@ function CompassButton({ onClick }: { onClick: () => void }) {
   }, [map]);
 
   return (
-    <ControlButton onClick={onClick} label="Reset bearing to north">
+    <ControlButton onClick={onClick} label={msg("Reset bearing to north")}>
       <svg
         ref={compassRef}
         viewBox="0 0 24 24"

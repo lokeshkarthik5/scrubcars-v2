@@ -1,4 +1,5 @@
 import { ApiError } from '@repo/core/api/client'
+import { msg, t } from './i18n/translate'
 
 /**
  * Turning "Razorpay says paid" into "here is your booking", without ever
@@ -111,8 +112,9 @@ export async function confirmPayment(deps: ConfirmPaymentDeps): Promise<PaymentO
 }
 
 /** Said when a failed checkout comes back without words of its own. */
-export const FALLBACK_REFUND_MESSAGE =
+export const FALLBACK_REFUND_MESSAGE = msg(
   'This payment could not be turned into a booking. A refund is being processed.'
+)
 
 /** One look at a checkout (GET /booking-intents/:id), as confirmPayment reads it. */
 export function intentPollResult(intent: {
@@ -124,7 +126,8 @@ export function intentPollResult(intent: {
     return { kind: 'booked', bookingId: intent.bookingId }
   }
   if (intent.status === 'failed') {
-    return { kind: 'failed', message: intent.message || FALLBACK_REFUND_MESSAGE }
+    // A server's words have no Tamil yet and show as sent; ours are translated.
+    return { kind: 'failed', message: t(intent.message || FALLBACK_REFUND_MESSAGE) }
   }
   return { kind: 'pending' }
 }
@@ -134,12 +137,14 @@ export function intentPollResult(intent: {
  * The server says the same (FINAL_BILL_REFUND_DUE); this is for a poll that
  * finds it out on its own.
  */
-export const FINAL_BILL_REPLACED_MESSAGE =
+export const FINAL_BILL_REPLACED_MESSAGE = msg(
   'The garage changed this bill while you were paying, so this payment will be refunded. Please check the new bill.'
+)
 
 /** The same, when Detlio cancelled the booking while the customer paid its bill. */
-export const FINAL_BILL_CANCELLED_MESSAGE =
+export const FINAL_BILL_CANCELLED_MESSAGE = msg(
   'This booking was cancelled while you were paying, so this payment will be refunded.'
+)
 
 /**
  * One look at a final bill being paid, as confirmPayment reads it: the bill
@@ -157,7 +162,7 @@ export function finalBillPollResult(
     return {
       kind: 'failed',
       message:
-        bookingStatus === 'cancelled' ? FINAL_BILL_CANCELLED_MESSAGE : FINAL_BILL_REPLACED_MESSAGE,
+        t(bookingStatus === 'cancelled' ? FINAL_BILL_CANCELLED_MESSAGE : FINAL_BILL_REPLACED_MESSAGE),
     }
   }
   if (live.status === 'paid') return { kind: 'booked', bookingId }
@@ -215,12 +220,14 @@ export const realClock = {
 }
 
 /** Said when extra work's payment landed after it was withdrawn or declined (0041). */
-export const EXTRA_WORK_CLOSED_MESSAGE =
+export const EXTRA_WORK_CLOSED_MESSAGE = msg(
   'This extra work was withdrawn or declined while you were paying, so this payment will be refunded.'
+)
 
 /** The same, when the booking was cancelled while the customer paid for extra work. */
-export const EXTRA_WORK_CANCELLED_MESSAGE =
+export const EXTRA_WORK_CANCELLED_MESSAGE = msg(
   'This booking was cancelled while you were paying for the extra work, so this payment will be refunded.'
+)
 
 /**
  * One look at extra work being paid, as confirmPayment reads it: the request
@@ -237,7 +244,7 @@ export function extraWorkPollResult(
   if (!work || work.state === 'declined' || work.state === 'withdrawn' || work.state === 'closed') {
     return {
       kind: 'failed',
-      message: bookingStatus === 'cancelled' ? EXTRA_WORK_CANCELLED_MESSAGE : EXTRA_WORK_CLOSED_MESSAGE,
+      message: t(bookingStatus === 'cancelled' ? EXTRA_WORK_CANCELLED_MESSAGE : EXTRA_WORK_CLOSED_MESSAGE),
     }
   }
   if (work.state === 'paid') return { kind: 'booked', bookingId }

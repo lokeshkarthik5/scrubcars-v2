@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { pullProgress } from '@repo/core/moments'
 import { cn } from '@repo/core/utils'
 import { RoadCar } from './road'
+import { useT } from '@repo/core/i18n'
 
 /** How long the car takes to drive off: the list waits at least this long. */
 const DRIVE_OFF_MS = 800
@@ -29,6 +30,7 @@ export function PullToRefresh({
   children: ReactNode
   className?: string
 }) {
+  const t = useT()
   const [travel, setTravel] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
   const start = useRef<{ y: number; x: number } | null>(null)
@@ -96,13 +98,13 @@ export function PullToRefresh({
               ready && !refreshing ? 'opacity-100' : 'opacity-0'
             )}
           >
-            Release to refresh
+            {t('Release to refresh')}
           </span>
         </div>
       )}
       {/* Said once, when it starts. */}
       <span role="status" className="sr-only">
-        {refreshing ? 'Refreshing' : ''}
+        {refreshing ? t('Refreshing') : ''}
       </span>
       <div
         className="mo-pull__list"

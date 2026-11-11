@@ -17,6 +17,7 @@ import { CustomerShell } from '@/components/customer-shell'
 import { GarageAlbumView, firstNameOf } from '@/components/garage/garage-album'
 import { PullRevealSheet } from '@/components/garage/pull-reveal-sheet'
 import { isHomeHubEnabled } from '@/lib/home-hub'
+import { useT } from '@repo/core/i18n'
 
 /**
  * Profile → Detlio Rewards → Garage (0057): the album of the live series.
@@ -35,6 +36,7 @@ export default function GaragePage() {
 }
 
 function GarageScreen() {
+  const t = useT()
   const router = useRouter()
   const params = useSearchParams()
   const user = useAuthStore((s) => s.user)
@@ -45,7 +47,7 @@ function GarageScreen() {
   const pulls = useGaragePulls(on && !!user)
   const header = (
     <TopBar
-      title="Detlio Garage"
+      title={t('Detlio Garage')}
       showBack
       backHref="/profile/rewards"
       large={isHomeHubEnabled()}
@@ -58,7 +60,7 @@ function GarageScreen() {
         {header}
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
           <p className="text-t3 font-semibold text-text-primary">
-            Sign in to see your Garage
+            {t('Sign in to see your Garage')}
           </p>
           <ScButton
             variant="main"
@@ -69,7 +71,7 @@ function GarageScreen() {
               )
             }
           >
-            Sign in
+            {t('Sign in')}
           </ScButton>
         </div>
       </CustomerShell>
@@ -81,9 +83,9 @@ function GarageScreen() {
         {header}
         <EmptyState
           icon={<IconCards size={32} stroke={1.5} />}
-          title="The Garage isn't open right now"
-          subtitle="Your rewards are still on the Rewards page."
-          actionLabel="Detlio Rewards"
+          title={t("The Garage isn't open right now")}
+          subtitle={t('Your rewards are still on the Rewards page.')}
+          actionLabel={t('Detlio Rewards')}
           onAction={() => router.push('/profile/rewards')}
         />
       </CustomerShell>
@@ -99,7 +101,7 @@ function GarageScreen() {
         </div>
       ) : album.isError || !album.data ? (
         <ErrorState
-          message="Couldn't load your Garage. Check your connection."
+          message={t("Couldn't load your Garage. Check your connection.")}
           onRetry={() => void album.refetch()}
         />
       ) : (

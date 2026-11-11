@@ -16,6 +16,7 @@ import {
 import { cn } from '@repo/core/utils'
 import { WashGauge } from '@repo/ui/finish/wash-gauge'
 import { TileIcon } from './tile'
+import { useT } from '@repo/core/i18n'
 
 /**
  * Last wash: days since the car was washed through Detlio, on a gauge from
@@ -30,6 +31,7 @@ import { TileIcon } from './tile'
  * the figure and the line under it say the same in words.
  */
 export function WashStatusTile({ car, now }: { car: HomeCar; now: Date }) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const { wash } = car
   const meter = washMeter(wash)
@@ -44,7 +46,7 @@ export function WashStatusTile({ car, now }: { car: HomeCar; now: Date }) {
         className="hub-card press flex min-h-[164px] min-w-0 flex-col pt-3.5 pr-3.5 pb-[18px] pl-5 text-left"
       >
         <span className="flex items-center justify-between">
-          <span className="text-t4 text-dim">Last wash</span>
+          <span className="text-t4 text-dim">{t('Last wash')}</span>
           <TileIcon icon={IconDroplet} />
         </span>
         <span className="flex flex-1 items-end pr-1.5 pb-2.5">
@@ -57,7 +59,7 @@ export function WashStatusTile({ car, now }: { car: HomeCar; now: Date }) {
             </span>
           ) : days === 0 ? (
             <span className="text-[22px] leading-none tracking-[-0.022em] text-text-primary">
-              Today
+              {t('Today')}
             </span>
           ) : (
             <>
@@ -65,7 +67,7 @@ export function WashStatusTile({ car, now }: { car: HomeCar; now: Date }) {
                 {days}
               </span>
               <span className="text-t4 text-dim">
-                {days === 1 ? 'day ago' : 'days ago'}
+                {days === 1 ? t('day ago') : t('days ago')}
               </span>
             </>
           )}
@@ -95,7 +97,7 @@ export function WashStatusTile({ car, now }: { car: HomeCar; now: Date }) {
             {line.rest}
           </span>
         </span>
-        <span className="sr-only">. Change how often to wash this car.</span>
+        <span className="sr-only">{`. ${t('Change how often to wash this car.')}`}</span>
       </button>
 
       <WashIntervalSheet car={car} open={open} onClose={() => setOpen(false)} />
@@ -113,6 +115,7 @@ function WashIntervalSheet({
   open: boolean
   onClose: () => void
 }) {
+  const t = useT()
   const save = useUpdateWashInterval()
   const current: WashIntervalDays | null = car.wash.isDefaultInterval
     ? null
@@ -132,7 +135,7 @@ function WashIntervalSheet({
           toast.error(
             error instanceof Error
               ? error.message
-              : "Couldn't save that. Try again."
+              : t("Couldn't save that. Try again.")
           ),
       }
     )
@@ -165,20 +168,20 @@ function WashIntervalSheet({
       open={open}
       onClose={onClose}
       dismissible={!save.isPending}
-      aria-label="How often to wash"
+      aria-label={t('How often to wash')}
       className="px-4"
     >
       <h2 className="text-t2 font-medium text-text-primary">
-        How often to wash
+        {t('How often to wash')}
       </h2>
       <p className="mt-1 text-t4 text-text-secondary">
-        {car.make} {car.model}. {WASH_INTERVAL_DEFAULT_NOTE}
+        {car.make} {car.model}. {t(WASH_INTERVAL_DEFAULT_NOTE)}
       </p>
       <div className="mt-4 flex flex-col gap-2">
         {WASH_INTERVAL_CHOICES.map((days) =>
-          option(days, `Every ${days} days`)
+          option(days, t('Every {days} days', { days }))
         )}
-        {option(null, 'Default')}
+        {option(null, t('Default'))}
       </div>
     </ScSheet>
   )

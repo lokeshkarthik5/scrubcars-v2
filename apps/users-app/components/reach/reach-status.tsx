@@ -5,6 +5,7 @@ import { useAreaStatus, useLeaveAreaList, useMarkBannerSeen } from '@repo/core/a
 import { waitingLine } from '@repo/core/area-signups';
 import { countdownLabel, istClock } from '@repo/core/booking-requests';
 import { useNow } from '@repo/core/hooks/use-now';
+import { useT, useTn } from '@repo/core/i18n';
 import { IconChevronRight, IconConfetti, IconGift, IconX } from '@repo/native-ui/icons';
 import { ConfirmSheet } from '@repo/native-ui/sheet';
 import { T } from '@repo/native-ui/text';
@@ -21,6 +22,7 @@ const dateLabel = (iso: string) => new Date(iso).toLocaleDateString('en-IN', { d
 
 /** ReachStatusCards (apps/users/components/reach/reach-status.tsx): requests, the area's list, a free wash ready, launch day. */
 export function ReachStatusCards() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const user = useAuth((s) => s.user);
@@ -44,10 +46,10 @@ export function ReachStatusCards() {
           <IconGift size={20} color={colors.success} />
           <View style={styles.grow}>
             <T size={15} weight={500} lh={20}>
-              Your free wash is ready
+              {t('Your free wash is ready')}
             </T>
             <T size={12} lh={16} color={colors.textSecondary}>
-              {`Up to ₹${signup.freeWashReady!.amount} off a car wash in ${signup.zone.name} · use by ${dateLabel(signup.freeWashReady!.endsAt)}`}
+              {t('Up to ₹{amount} off a car wash in {area} · use by {day}', { amount: signup.freeWashReady!.amount, area: signup.zone.name, day: dateLabel(signup.freeWashReady!.endsAt) })}
             </T>
           </View>
           <IconChevronRight size={18} color={colors.textSecondary} />
@@ -61,6 +63,7 @@ export function ReachStatusCards() {
 }
 
 function WaitingListCard({ signup }: { signup: AreaSignup }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const leave = useLeaveAreaList();
@@ -70,15 +73,15 @@ function WaitingListCard({ signup }: { signup: AreaSignup }) {
     <View style={styles.list}>
       <View style={styles.grow}>
         <T size={14} lh={18}>
-          {`On the list for ${signup.zone.name}`}
+          {t('On the list for {area}', { area: signup.zone.name })}
         </T>
         <T size={12} lh={16} color={colors.textMuted}>
-          {`${signup.freeWash ? 'Free wash saved · ' : ''}${waitingLine(signup.zone.name, signup.waiting)}`}
+          {`${signup.freeWash ? `${t('Free wash saved ·')} ` : ''}${waitingLine(signup.zone.name, signup.waiting)}`}
         </T>
       </View>
-      <Pressable accessibilityRole="button" accessibilityLabel={`Leave the list for ${signup.zone.name}`} onPress={() => setConfirming(true)} style={styles.leave}>
+      <Pressable accessibilityRole="button" accessibilityLabel={t('Leave the list for {area}', { area: signup.zone.name })} onPress={() => setConfirming(true)} style={styles.leave}>
         <T size={12} weight={500} lh={16} color={colors.textSecondary} style={styles.underline}>
-          Leave
+          {t('Leave')}
         </T>
       </Pressable>
       <ConfirmSheet
@@ -90,17 +93,17 @@ function WaitingListCard({ signup }: { signup: AreaSignup }) {
         onConfirm={async () => {
           try {
             await leave.mutateAsync(signup.zone.slug);
-            toast.success(`You left the list for ${signup.zone.name}`);
+            toast.success(t('You left the list for {area}', { area: signup.zone.name }));
             setConfirming(false);
           } catch (err) {
-            setError(errorText(err, 'Could not leave the list'));
+            setError(errorText(err, t('Could not leave the list')));
           }
         }}
         level="light"
-        title={`Leave the list for ${signup.zone.name}?`}
-        body={signup.freeWash ? "We'll stop sending you news about this area, and your saved free wash goes with it." : "We'll stop sending you news about this area. You can join again any time."}
-        confirmLabel="Leave the list"
-        cancelLabel="Stay on it"
+        title={t('Leave the list for {area}?', { area: signup.zone.name })}
+        body={signup.freeWash ? t("We'll stop sending you news about this area, and your saved free wash goes with it.") : t("We'll stop sending you news about this area. You can join again any time.")}
+        confirmLabel={t('Leave the list')}
+        cancelLabel={t('Stay on it')}
         busy={leave.isPending}
         error={error}
       />
@@ -109,6 +112,8 @@ function WaitingListCard({ signup }: { signup: AreaSignup }) {
 }
 
 function LaunchBanner({ signup }: { signup: AreaSignup }) {
+  const tn = useTn();
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const seen = useMarkBannerSeen();
@@ -126,20 +131,21 @@ function LaunchBanner({ signup }: { signup: AreaSignup }) {
       <IconConfetti size={22} color={colors.success} />
       <View style={styles.grow}>
         <T size={15} weight={500} lh={20}>
-          {`Detlio is now in ${signup.zone.name}`}
+          {t('Detlio is now in {area}', { area: signup.zone.name })}
         </T>
         <T size={13} lh={18} color={colors.textSecondary}>
-          {`${garages} ${garages === 1 ? 'garage' : 'garages'} near you.${signup.freeWashReady ? ' Your free wash is ready to book.' : ''}`}
+          {tn(garages, '{count} garage near you.', '{count} garages near you.')}
+          {signup.freeWashReady ? ` ${t('Your free wash is ready to book.')}` : ''}
         </T>
         <Pressable accessibilityRole="link" onPress={() => router.push('/garages' as Href)} style={styles.see}>
           <T size={14} lh={18} style={styles.underline}>
-            See them
+            {t('See them')}
           </T>
         </Pressable>
       </View>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Close the launch banner"
+        accessibilityLabel={t('Close the launch banner')}
         onPress={() => {
           setClosed(true);
           seen.mutate(signup.zone.slug);
@@ -153,16 +159,17 @@ function LaunchBanner({ signup }: { signup: AreaSignup }) {
 }
 
 function RequestStatusCard({ request, now }: { request: CustomerRequest; now: number }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const [title, line] =
     request.state === 'accepted' && request.confirmBy
-      ? [`Accepted: confirm by ${istClock(request.confirmBy)}`, `${request.garage.name} said yes · ${request.window.label}`]
+      ? [t('Accepted: confirm by {time}', { time: istClock(request.confirmBy) }), t('{name} said yes · {window}', { name: request.garage.name, window: request.window.label })]
       : request.state === 'waiting'
-        ? ['Your request', `${request.garage.name} · waiting · ${countdownLabel(Date.parse(request.respondBy) - now)} left`]
+        ? [t('Your request'), t('{name} · waiting · {time} left', { name: request.garage.name, time: countdownLabel(Date.parse(request.respondBy) - now) })]
         : request.state === 'lapsed'
-          ? ['Your request expired', `${request.garage.name}'s yes ran out · send a new one`]
-          : ["Your request didn't find a garage", 'See what to do next'];
+          ? [t('Your request expired'), t("{name}'s yes ran out · send a new one", { name: request.garage.name })]
+          : [t("Your request didn't find a garage"), t('See what to do next')];
   return (
     <Pressable accessibilityRole="link" onPress={() => router.push('/requests' as Href)} style={[styles.row, request.state === 'accepted' ? styles.green : styles.plain]}>
       <View style={styles.grow}>

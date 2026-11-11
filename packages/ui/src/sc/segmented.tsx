@@ -25,6 +25,10 @@ export interface ScSegmentedOption<T extends string> {
   label: ReactNode
   icon?: ReactNode
   disabled?: boolean
+  /** The option's name when its label is an icon alone (the garage's Calendar). */
+  'aria-label'?: string
+  /** Sizing for one option, such as a fixed width instead of an equal share. */
+  className?: string
 }
 
 interface ScSegmentedProps<T extends string> {
@@ -101,6 +105,7 @@ export function ScSegmented<T extends string>({
             type="button"
             role="radio"
             aria-checked={selected}
+            aria-label={option['aria-label']}
             disabled={option.disabled}
             // Only one option is tabbable (the selected one, see tabStop), so
             // Tab moves past the group rather than through every choice in it.
@@ -121,7 +126,8 @@ export function ScSegmented<T extends string>({
               // the red Add and Book buttons it was competing with.
               selected
                 ? 'bg-surface-elevated text-text-primary shadow-sm'
-                : 'text-text-secondary'
+                : 'text-text-secondary',
+              option.className
             )}
           >
             {option.icon}

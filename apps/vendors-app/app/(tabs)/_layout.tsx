@@ -9,7 +9,7 @@ import { useColors } from '@repo/native-ui/theme';
 export default function TabsLayout() {
   const colors = useColors();
   const book = useGarageBookOn();
-  // Walk-ins saved with no signal go as soon as there is one (Garage Book, 0069).
+  // Walk-ins saved with no signal go as soon as there is one (Garage Book, 0072).
   useSendWaitingWalkIns(book);
   return (
     <Tabs

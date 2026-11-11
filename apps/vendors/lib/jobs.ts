@@ -7,6 +7,7 @@ import {
   photoGateMessage,
   photosOf,
 } from '@repo/core/job-photo-standards'
+import { msg, t, tn } from '@repo/core/i18n/translate'
 import { PICKUP_STEP_LABELS, type PickupNext } from '@repo/core/pickup'
 import type { Booking } from '@repo/core/types'
 
@@ -55,6 +56,17 @@ export function tabFromQuery(value: string | null): ListTab | null {
     default:
       return null
   }
+}
+
+/**
+ * The Bookings switch: the four lists, then the calendar (an icon-only fifth
+ * segment). The calendar is not a list, so LIST_TABS stays the four.
+ */
+export type BookingsTab = ListTab | 'calendar'
+
+/** A `?tab=` from a link: `calendar`, or anything tabFromQuery reads. */
+export function bookingsTabFromQuery(value: string | null): BookingsTab | null {
+  return value === 'calendar' ? 'calendar' : tabFromQuery(value)
 }
 
 /**
@@ -234,6 +246,38 @@ export function doneJobs(bookings: readonly Booking[]): Booking[] {
     )
 }
 
+/**
+ * How many of the Done list's jobs are today's: finished today, or (a
+ * cancelled or no-show booking, which has no finish time) booked for today.
+ * The same time the list orders them by, read on India's calendar.
+ */
+export function doneTodayCount(done: readonly Booking[], now: number): number {
+  const today = istDay(now)
+  return done.filter(
+    (b) => istDay(at(b.completedAtIso ?? b.scheduledAtIso)) === today
+  ).length
+}
+
+/**
+ * The Bookings switch's quiet second lines (owner, 10 Nov 2026; mockup
+ * garage-calendar A): Today "3 jobs", New "2 waiting" (in red on the
+ * switch, where the red number badge was), Later "5 jobs", Done "1 today".
+ * Done counts only today's (doneTodayCount): the whole list goes back for
+ * ever, and calling that "today" would be untrue.
+ */
+export function bookingsTabLines(
+  counts: Readonly<Record<ListTab, number>>,
+  doneToday: number
+): Record<ListTab, string> {
+  const jobs = (n: number) => tn(n, '{count} job', '{count} jobs')
+  return {
+    today: jobs(counts.today),
+    new: t('{count} waiting', { count: counts.new }),
+    later: jobs(counts.later),
+    done: t('{count} today', { count: doneToday }),
+  }
+}
+
 /** What the job is worth: its services at their booked prices (a free redo is ₹0). */
 export function jobPrice(b: Booking): number {
   if (b.guaranteeRedo) return 0
@@ -260,13 +304,13 @@ export function serviceOnlyLine(b: Booking): string {
 /** "Rahul V.": first name and the surname's initial, for tight rows. */
 export function shortName(name: string | undefined): string {
   const parts = (name ?? '').trim().split(/\s+/).filter(Boolean)
-  if (parts.length === 0) return 'Customer'
+  if (parts.length === 0) return t('Customer')
   if (parts.length === 1) return parts[0]
   return `${parts[0]} ${parts[parts.length - 1].charAt(0).toUpperCase()}.`
 }
 
 export function firstName(name: string | undefined): string {
-  return (name ?? '').trim().split(/\s+/)[0] || 'the customer'
+  return (name ?? '').trim().split(/\s+/)[0] || t('the customer')
 }
 
 /** Straight-line km from the garage's pin to a doorstep or pickup address, to a tenth under 10 km. */
@@ -303,12 +347,14 @@ export function customerNumberLine(b: Booking, now: number): string | null {
   const state = contactWindowState(b.contactWindow, now)
   if (state === 'open') return null
   if (state === 'after' || !b.contactWindow)
-    return "Customer's number is hidden after the job."
+    return t("Customer's number is hidden after the job.")
   const opens = b.contactWindow.opensAt
   const day = formatDay(opens, now)
-  const when =
-    day === 'Today' ? '' : day === 'Tomorrow' ? ' tomorrow' : ` on ${day}`
-  return `Customer's number shows from ${formatClock(opens)}${when}`
+  const time = formatClock(opens)
+  if (day === 'Today') return t("Customer's number shows from {time}", { time })
+  if (day === 'Tomorrow')
+    return t("Customer's number shows from {time} tomorrow", { time })
+  return t("Customer's number shows from {time} on {day}", { time, day })
 }
 
 /** The garage's photos of one stage, and how many the standard asks for (0 when it doesn't). */
@@ -355,7 +401,9 @@ export function nextStep(b: Booking): NextStep | null {
     if (b.completeBlockedByExtraWork) {
       return {
         kind: 'wait',
-        text: `Waiting for ${firstName(b.customerName)} to answer the extra work`,
+        text: t('Waiting for {name} to answer the extra work', {
+          name: firstName(b.customerName),
+        }),
       }
     }
     if (b.photoStandard?.finishBlocked)
@@ -368,16 +416,20 @@ export function nextStep(b: Booking): NextStep | null {
 /** The row's button words for a step. */
 export function nextStepLabel(step: NextStep): string {
   switch (step.kind) {
-    case 'photos':
-      return `${step.stage === 'before' ? 'Before' : 'After'} photos ${Math.min(step.have, step.need)}/${step.need}`
+    case 'photos': {
+      const vars = { have: Math.min(step.have, step.need), need: step.need }
+      return step.stage === 'before'
+        ? t('Before photos {have}/{need}', vars)
+        : t('After photos {have}/{need}', vars)
+    }
     case 'start':
-      return 'Start job'
+      return t('Start job')
     case 'complete':
-      return 'Complete job'
+      return t('Complete job')
     case 'pickup':
       return step.step === 'start_work'
-        ? 'Start job'
-        : `Next: ${PICKUP_STEP_LABELS[step.step]}`
+        ? t('Start job')
+        : t('Next: {step}', { step: t(PICKUP_STEP_LABELS[step.step]) })
     case 'wait':
       return step.text
   }
@@ -396,18 +448,20 @@ export function blockers(b: Booking, action: 'start' | 'complete'): string[] {
       : b.photoStandard?.finishBlocked
   if (photoBlock) lines.push(photoGateMessage(photoBlock))
   if (action === 'complete' && b.completeBlockedByExtraWork) {
-    lines.push(`${firstName(b.customerName)} to answer the extra work`)
+    lines.push(
+      t('{name} to answer the extra work', { name: firstName(b.customerName) })
+    )
   }
   return lines
 }
 
-/** The job page's progress line for a job at the garage or the door. */
+/** The job page's progress line for a job at the garage or the door (shown as `t(label)`). */
 export const PROGRESS_STEPS = [
-  'Accepted',
-  'Before',
-  'Working',
-  'After',
-  'Done',
+  msg('Accepted'),
+  msg('Before'),
+  msg('Working'),
+  msg('After'),
+  msg('Done'),
 ] as const
 
 /**

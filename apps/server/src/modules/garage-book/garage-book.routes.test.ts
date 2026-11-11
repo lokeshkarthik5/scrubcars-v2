@@ -1,5 +1,5 @@
 /**
- * Garage Book (0069) through the real routes and the real auth and tenant
+ * Garage Book (0072) through the real routes and the real auth and tenant
  * middleware. Only the database is stood in for (the seat lookups and the
  * book's repository, put back afterwards).
  *

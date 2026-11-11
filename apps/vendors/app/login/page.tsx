@@ -1,6 +1,7 @@
 'use client'
 
 import { Suspense } from 'react'
+import { useT } from '@repo/core/i18n'
 import { PhoneLogin } from '@repo/ui/auth/phone-login'
 
 /**
@@ -12,6 +13,7 @@ import { PhoneLogin } from '@repo/ui/auth/phone-login'
 const PRIVACY_POLICY_URL = 'https://detlio.com/privacy'
 
 export default function VendorLoginPage() {
+  const t = useT()
   return (
     <Suspense>
       {/* The customer app's glass stage, worded for a garage. The number
@@ -22,9 +24,11 @@ export default function VendorLoginPage() {
         verifyHref="/verify-otp"
         showBack={false}
         backdrop="/onboarding-car.jpg"
-        title="Detlio for Partners"
-        subtitle="Log in with the number registered for your garage."
-        newNumberNote="New to Detlio? You can set up your garage once your number is verified."
+        title={t('Detlio for Partners')}
+        subtitle={t('Log in with the number registered for your garage.')}
+        newNumberNote={t(
+          'New to Detlio? You can set up your garage once your number is verified.'
+        )}
         privacyHref={PRIVACY_POLICY_URL}
       />
     </Suspense>

@@ -18,6 +18,7 @@ import {
   type FitPadding,
   type LatLng,
 } from '@/lib/map-view'
+import { useT } from '@repo/core/i18n'
 
 /**
  * The garages on the map: one pin each, overlapping pins drawn as a count
@@ -58,6 +59,7 @@ export function GaragePins({
    */
   reveal?: { id: string; n: number } | null
 }) {
+  const t = useT()
   const { map } = useMap()
 
   // The zoom the bubbles were worked out for. From MapLibre's own events
@@ -162,7 +164,7 @@ export function GaragePins({
           <MarkerContent>
             <span
               role="img"
-              aria-label="You"
+              aria-label={t('You')}
               className="block size-3.5 rounded-full border-2 border-brand-black bg-brand-white shadow-[0_0_0_4px_rgba(255,255,255,0.25)]"
             />
           </MarkerContent>
@@ -179,7 +181,7 @@ export function GaragePins({
           <MarkerContent>
             <button
               type="button"
-              aria-label={`${group.members.length} garages here. Zoom in`}
+              aria-label={t('{length} garages here. Zoom in', { length: group.members.length })}
               className="grid size-11 place-items-center rounded-full bg-brand-white font-numeric text-t3 font-bold text-brand-black shadow-[0_2px_10px_rgba(0,0,0,0.5)] ring-4 ring-white/25"
             >
               {group.members.length}
@@ -217,6 +219,7 @@ function GaragePin({
   selected: boolean
   onSelect: () => void
 }) {
+  const t = useT()
   const ref = useRef<HTMLButtonElement>(null)
 
   // Markers are siblings positioned by MapLibre, so later ones paint over
@@ -243,7 +246,7 @@ function GaragePin({
         <button
           ref={ref}
           type="button"
-          aria-label={price ? `${vendor.name}, from ${price}` : vendor.name}
+          aria-label={price ? t('{name}, from {price}', { name: vendor.name, price }) : vendor.name}
           aria-pressed={selected}
           // The cap is PIN_MAX_WIDTH_PX, which the overlap test and the fit's
           // side padding are worked out from; inline so the three share one

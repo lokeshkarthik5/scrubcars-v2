@@ -1,6 +1,7 @@
 import { formatStepTime } from '@repo/core/job-records'
 import { BANK_DAYS, customerRefundLine } from '@repo/core/refunds'
 import type { BookingRefund, ResponseDeadline } from '@repo/core/types'
+import { t } from './i18n/translate'
 
 /**
  * How the garage response deadline (0042) reads in the garage portal and
@@ -34,14 +35,19 @@ export function garageCountdown(deadline: ResponseDeadline, now: number): Garage
   const left = at - now
   if (left <= 0) {
     return deadline.enforced
-      ? { kind: 'passed', text: 'Not accepted in time — cancelled and refunded', amber: false, enforced: true }
-      : { kind: 'passed', text: `Accept as soon as you can — it was due by ${formatStepTime(deadline.respondBy, now)}`, amber: false, enforced: false }
+      ? { kind: 'passed', text: t('Not accepted in time — cancelled and refunded'), amber: false, enforced: true }
+      : {
+          kind: 'passed',
+          text: t('Accept as soon as you can — it was due by {time}', { time: formatStepTime(deadline.respondBy, now) }),
+          amber: false,
+          enforced: false,
+        }
   }
   if (left > deadline.windowMins * MINUTE_MS) {
-    return { kind: 'by', text: `Accept by ${formatStepTime(deadline.respondBy, now)}`, amber: false }
+    return { kind: 'by', text: t('Accept by {time}', { time: formatStepTime(deadline.respondBy, now) }), amber: false }
   }
   const minutes = Math.max(1, Math.ceil(left / MINUTE_MS))
-  return { kind: 'within', text: `Accept within ${minutes} min`, amber: left <= RESPONSE_AMBER_MS }
+  return { kind: 'within', text: t('Accept within {count} min', { count: minutes }), amber: left <= RESPONSE_AMBER_MS }
 }
 
 /**
@@ -52,8 +58,8 @@ export function garageCountdown(deadline: ResponseDeadline, now: number): Garage
  * garage is just late).
  */
 export function customerWaitingLine(vendorName: string, deadline: ResponseDeadline | null, now: number): string {
-  if (!deadline || new Date(deadline.respondBy).getTime() <= now) return `Waiting for ${vendorName} to accept`
-  return `Waiting for ${vendorName} to accept — by ${formatStepTime(deadline.respondBy, now)}`
+  if (!deadline || new Date(deadline.respondBy).getTime() <= now) return t('Waiting for {garage} to accept', { garage: vendorName })
+  return t('Waiting for {garage} to accept — by {time}', { garage: vendorName, time: formatStepTime(deadline.respondBy, now) })
 }
 
 /**
@@ -64,13 +70,13 @@ export function customerWaitingLine(vendorName: string, deadline: ResponseDeadli
 export function customerWaitingNote(deadline: ResponseDeadline | null, now: number): string | null {
   if (!deadline?.enforced) return null
   return new Date(deadline.respondBy).getTime() <= now
-    ? "The garage didn't accept in time, so this booking is being cancelled and your payment refunded in full."
-    : "If they don't, this booking is cancelled and your payment refunded in full."
+    ? t("The garage didn't accept in time, so this booking is being cancelled and your payment refunded in full.")
+    : t("If they don't, this booking is cancelled and your payment refunded in full.")
 }
 
 /** The cancelled booking's heading when the garage did not accept in time. */
 export function notAcceptedTitle(vendorName: string): string {
-  return `${vendorName} didn't accept in time`
+  return t("{garage} didn't accept in time", { garage: vendorName })
 }
 
 /**
@@ -82,7 +88,7 @@ export function notAcceptedRefundLine(refund: BookingRefund | undefined): string
   // Not with Detlio credit in it (0049): that part goes back to the credit,
   // not the bank, and the usual line says which is which.
   if (refund?.status === 'owed' && !refund.started && refund.amountRefunded === 0 && !refund.credit) {
-    return `Your full refund is on its way (${BANK_DAYS}).`
+    return t('Your full refund is on its way ({days}).', { days: t(BANK_DAYS) })
   }
   return customerRefundLine(refund)
 }

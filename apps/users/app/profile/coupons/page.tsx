@@ -15,6 +15,7 @@ import { CouponTicket } from '@/components/coupons/coupon-ticket'
 import { couponBookPath } from '@/components/coupons/coupon-view'
 import { isHomeHubEnabled } from '@/lib/home-hub'
 import { myCouponStateLine } from '@/lib/coupons'
+import { useT } from '@repo/core/i18n'
 
 /**
  * Profile → Coupons (0056): "Have a coupon?" (type the code off a printed
@@ -25,6 +26,7 @@ import { myCouponStateLine } from '@/lib/coupons'
  * while it is still valid.
  */
 export default function CouponsPage() {
+  const t = useT()
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
   const ready = useAuthStore((s) => s.isSessionReady)
@@ -33,7 +35,7 @@ export default function CouponsPage() {
 
   const header = (
     <TopBar
-      title="Coupons"
+      title={t('Coupons')}
       showBack
       backHref="/profile"
       large={isHomeHubEnabled()}
@@ -46,7 +48,7 @@ export default function CouponsPage() {
         {header}
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
           <p className="text-t3 font-semibold text-text-primary">
-            Sign in to add a coupon
+            {t('Sign in to add a coupon')}
           </p>
           <ScButton
             variant="main"
@@ -57,7 +59,7 @@ export default function CouponsPage() {
               )
             }
           >
-            Sign in
+            {t('Sign in')}
           </ScButton>
         </div>
       </CustomerShell>
@@ -90,7 +92,7 @@ export default function CouponsPage() {
           id="my-coupons"
           className="text-t3 font-semibold text-text-primary"
         >
-          Your coupons
+          {t('Your coupons')}
         </h2>
         {!ready || coupons.isPending ? (
           <div className="flex flex-col gap-3" aria-busy="true">
@@ -98,14 +100,14 @@ export default function CouponsPage() {
           </div>
         ) : coupons.isError ? (
           <ErrorState
-            message="Couldn't load your coupons. Check your connection."
+            message={t("Couldn't load your coupons. Check your connection.")}
             onRetry={() => void coupons.refetch()}
           />
         ) : list.length === 0 ? (
           <EmptyState
             icon={<IconTicket size={32} stroke={1.5} />}
-            title="No coupons yet"
-            subtitle="Got a Detlio coupon on a card or a flyer? Type its code above, or scan its QR with your phone's camera."
+            title={t('No coupons yet')}
+            subtitle={t("Got a Detlio coupon on a card or a flyer? Type its code above, or scan its QR with your phone's camera.")}
           />
         ) : (
           <ul className="flex flex-col gap-3">
@@ -131,7 +133,7 @@ export default function CouponsPage() {
                       onClick={() => use(coupon)}
                       className="mt-1 min-h-11 w-fit px-4 text-t4"
                     >
-                      Use now
+                      {t('Use now')}
                     </ScButton>
                   )}
                 </CouponTicket>

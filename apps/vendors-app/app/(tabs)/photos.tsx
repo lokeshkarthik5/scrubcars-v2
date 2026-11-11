@@ -37,6 +37,7 @@ import {
   uploadVendorLogo,
   uploadVendorPhoto,
 } from '@/lib/vendor-api';
+import { useT } from '@repo/core/i18n';
 
 const GAP = 8;
 // The web's back arrow goes to /settings; in the tab bar `back` would land on Home instead.
@@ -48,6 +49,7 @@ const goBack = () => router.navigate('/settings');
  * home. Every image is re-encoded as a JPEG by photo-prepare.ts, which drops its location.
  */
 function PhotosScreen() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const isVendorAdmin = useIsVendorAdmin();
@@ -80,7 +82,7 @@ function PhotosScreen() {
           router.replace('/login');
           return;
         }
-        toast.error(PHOTOS_LOAD_FAILED);
+        toast.error(t(PHOTOS_LOAD_FAILED));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -96,7 +98,7 @@ function PhotosScreen() {
     if (!asset) return;
     // The picker's copy of the original (location still on it) is deleted whatever happens next:
     // refused, unreadable, failed or sent.
-    const problem = logoProblem({ name: asset.fileName ?? 'Logo', mimeType: asset.mimeType, size: asset.fileSize });
+    const problem = logoProblem({ name: asset.fileName ?? t('Logo'), mimeType: asset.mimeType, size: asset.fileSize });
     if (problem) {
       discardCached([asset.uri]);
       toast.error(problem);
@@ -105,13 +107,13 @@ function PhotosScreen() {
     setLogoBusy(true);
     let preparedUri: string | null = null;
     try {
-      const prepared = await prepareForUpload(asset.uri, 'This logo');
+      const prepared = await prepareForUpload(asset.uri, t('This logo'));
       preparedUri = prepared.uri;
       const vendor = await uploadVendorLogo(prepared.bytes);
       setLogoUrl(vendor.logoUrl);
-      toast.success('Logo updated');
+      toast.success(t('Logo updated'));
     } catch (err) {
-      toast.error(errorText(err, UPLOAD_FAILED));
+      toast.error(errorText(err, t(UPLOAD_FAILED)));
     } finally {
       discardCached([asset.uri, preparedUri]);
       setLogoBusy(false);
@@ -124,7 +126,7 @@ function PhotosScreen() {
       await deleteVendorLogo();
       setLogoUrl(null);
     } catch {
-      toast.error(LOGO_REMOVE_FAILED);
+      toast.error(t(LOGO_REMOVE_FAILED));
     } finally {
       setLogoBusy(false);
     }
@@ -140,7 +142,7 @@ function PhotosScreen() {
     setUploading(true);
     try {
       for (const [index, asset] of result.assets.entries()) {
-        const name = asset.fileName ?? `Photo ${index + 1}`;
+        const name = asset.fileName ?? t('Photo {n}', { n: index + 1 });
         const problem = photoProblem({ name, mimeType: asset.mimeType, size: asset.fileSize });
         if (problem) {
           discardCached([asset.uri]);
@@ -160,7 +162,7 @@ function PhotosScreen() {
     } catch (err) {
       // The pictures after the one that failed were never read: their copies go too.
       discardCached(result.assets.map((a) => a.uri));
-      toast.error(errorText(err, UPLOAD_FAILED));
+      toast.error(errorText(err, t(UPLOAD_FAILED)));
     } finally {
       setUploading(false);
     }
@@ -172,7 +174,7 @@ function PhotosScreen() {
       await deleteVendorPhoto(id);
       setPhotos((prev) => prev.filter((p) => p.id !== id));
     } catch {
-      toast.error(PHOTO_DELETE_FAILED);
+      toast.error(t(PHOTO_DELETE_FAILED));
     } finally {
       setDeletingId(null);
     }
@@ -180,28 +182,28 @@ function PhotosScreen() {
 
   return (
     <AppShell>
-      <TopBar title="Garage photos" onBack={goBack} />
+      <TopBar title={t('Garage photos')} onBack={goBack} />
 
       <View style={styles.section}>
         <View style={styles.heading}>
           <T accessibilityRole="header" size={15} weight={600}>
-            Logo
+            {t('Logo')}
           </T>
           <T size={12} color={colors.textSecondary}>
-            {LOGO_SUBTITLE}
+            {t(LOGO_SUBTITLE)}
           </T>
         </View>
         <ScCard style={styles.logoCard}>
           <View style={styles.logo}>
             {logoUrl ? (
-              <Image accessibilityLabel="Logo" source={{ uri: logoUrl }} resizeMode="cover" style={styles.fill} />
+              <Image accessibilityLabel={t('Logo')} source={{ uri: logoUrl }} resizeMode="cover" style={styles.fill} />
             ) : (
               <IconBuildingStore size={26} color={colors.textMuted} />
             )}
           </View>
           <View style={styles.logoActions}>
             <ScButton variant="outline" disabled={logoBusy} onPress={() => void handleLogo()}>
-              {logoBusy ? 'Working…' : logoUrl ? 'Change logo' : 'Add logo'}
+              {logoBusy ? t('Working…') : logoUrl ? t('Change logo') : t('Add logo')}
             </ScButton>
             {/* A quiet text button: removing the logo is not what this screen is for. */}
             {logoUrl ? (
@@ -212,7 +214,7 @@ function PhotosScreen() {
                 style={[styles.removeLogo, logoBusy && { opacity: 0.5 }]}
               >
                 <T size={12} weight={500} color={colors.textSecondary} style={styles.underline}>
-                  Remove logo
+                  {t('Remove logo')}
                 </T>
               </Pressable>
             ) : null}
@@ -224,7 +226,7 @@ function PhotosScreen() {
         <View style={styles.heading}>
           <View style={styles.row}>
             <T accessibilityRole="header" size={15} weight={600}>
-              Photos
+              {t('Photos')}
             </T>
             {photos.length > 0 ? (
               <T num size={12} color={colors.textMuted}>
@@ -233,14 +235,14 @@ function PhotosScreen() {
             ) : null}
           </View>
           <T size={12} color={colors.textSecondary}>
-            {PHOTOS_SUBTITLE}
+            {t(PHOTOS_SUBTITLE)}
           </T>
         </View>
 
         {/* The screen's one main action. */}
         <ScButton variant="main" size="lg" disabled={uploading} onPress={() => void handleFiles()}>
           <IconUpload size={18} color={colors.white} />
-          <Label color={colors.white}>{uploading ? 'Uploading…' : 'Add photos'}</Label>
+          <Label color={colors.white}>{uploading ? t('Uploading…') : t('Add photos')}</Label>
         </ScButton>
 
         <View style={styles.grid} onLayout={(event) => setGridWidth(event.nativeEvent.layout.width)}>
@@ -256,17 +258,17 @@ function PhotosScreen() {
             <View style={styles.empty}>
               <IconPhoto size={28} stroke={1.5} color={colors.textMuted} />
               <T size={14} weight={600}>
-                No photos yet
+                {t('No photos yet')}
               </T>
               <T size={12} color={colors.textSecondary}>
-                Add photos of your garage and work
+                {t('Add photos of your garage and work')}
               </T>
             </View>
           ) : (
             photos.map((photo, i) => (
               <View key={photo.id} style={[styles.tile, { width: tile, height: tile }]}>
                 <Image
-                  accessibilityLabel={`Garage photo ${i + 1}`}
+                  accessibilityLabel={t('Garage photo {n}', { n: i + 1 })}
                   source={{ uri: photo.url }}
                   resizeMode="cover"
                   style={styles.fill}
@@ -274,7 +276,7 @@ function PhotosScreen() {
                 {/* A full 44px target in the corner; the dark disc keeps it legible on any photo. */}
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Delete photo"
+                  accessibilityLabel={t('Delete photo')}
                   disabled={deletingId === photo.id}
                   onPress={() => void handleDelete(photo.id)}
                   style={[styles.trash, deletingId === photo.id && { opacity: 0.5 }]}

@@ -2,7 +2,7 @@ import type { CreateAddOnInput, UpdateAddOnInput } from '../vendors/vendors.vali
 import type { Context } from 'hono'
 import { deleteCookie, setCookie } from 'hono/cookie'
 import { env } from '../../lib/env.js'
-import { userIdFromSubject } from '../../lib/admin-actor.js'
+import { canDeleteAnything, userIdFromSubject } from '../../lib/admin-actor.js'
 import { signedInAdmin, type AuthVariables } from '../../middleware/auth.middleware.js'
 import { membersService } from '../members/members.service.js'
 import { adminService } from './admin.service.js'
@@ -14,6 +14,7 @@ import type {
   AdminCancelBookingInput,
   CreateBookingNoteInput,
   GrantSuperAdminInput,
+  CreateBranchInput,
   CreateVendorInput,
   ListBookingsQuery,
   BookingViewCountsQuery,
@@ -83,6 +84,9 @@ export async function getMe(c: AdminContext) {
       name: actor.name,
       username: actor.username,
       isOwner: actor.isOwner,
+      // The owner's deletes (10 Nov 2026): the owner or the break-glass
+      // login. The panel shows the owner-only Delete buttons only then.
+      canDeleteAnything: canDeleteAnything(actor),
       sub: c.get('auth').sub,
     },
   })
@@ -188,6 +192,11 @@ export async function deleteService(
 export async function createVendor(c: AdminContext, input: CreateVendorInput) {
   const vendor = await adminService.createVendor(input, c.get('auth').sub)
   return c.json({ success: true, data: vendor }, 201)
+}
+
+export async function createBranch(c: AdminContext, id: string, input: CreateBranchInput) {
+  const branch = await adminService.createBranch(id, input, { sub: c.get('auth').sub, name: input.actorName })
+  return c.json({ success: true, data: branch }, 201)
 }
 
 export async function getPilotStats(c: AdminContext, query: PilotStatsQuery) {

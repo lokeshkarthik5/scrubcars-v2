@@ -1,3 +1,4 @@
+import { t, useT } from '@repo/core/i18n';
 import { roadStopAt } from '@repo/core/moments';
 import { RED_LIGHT } from '@repo/native-ui/tokens';
 import { useReduceMotion, useSeenOnce, type ViewRef } from '@repo/native-ui/motion';
@@ -108,7 +109,8 @@ export function RoadLine({
  * The road from you to the garage on the garage page (§5): drawn in once when it comes
  * into view, with "You" and the garage's name under its two ends.
  */
-export function GarageRoad({ from = 'You', to, style }: { from?: string; to: string; style?: StyleProp<ViewStyle> }) {
+export function GarageRoad({ from, to, style }: { from?: string; to: string; style?: StyleProp<ViewStyle> }) {
+  const t = useT();
   const styles = useStyles();
   const { fx } = useFinish();
   const ref = useRef<ViewRef>(null);
@@ -118,7 +120,7 @@ export function GarageRoad({ from = 'You', to, style }: { from?: string; to: str
       <RoadLine play={seen} />
       <View style={styles.ends}>
         <T variant="t5" color={fx.quiet}>
-          {from}
+          {from ?? t('You')}
         </T>
         <T variant="t5" color={fx.quiet} numberOfLines={1} style={styles.shrink}>
           {to}
@@ -136,7 +138,7 @@ export interface RoadStop {
 /** The four steps (STATUS_STEPS) as stops, from the headline's step. */
 export function statusStops(steps: readonly string[], step: number, finished: boolean): RoadStop[] {
   return steps.map((label, i) => ({
-    label,
+    label: t(label),
     state: finished || i < step ? 'done' : i === step ? 'current' : 'upcoming',
   }));
 }
@@ -152,7 +154,7 @@ export function statusStops(steps: readonly string[], step: number, finished: bo
  */
 export function ProgressRoad({
   stops,
-  label = 'Booking status',
+  label,
   flashAt,
   compact = false,
   style,
@@ -165,6 +167,7 @@ export function ProgressRoad({
   compact?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
+  const t = useT();
   const styles = useStyles();
   const colors = useColors();
   const { fx } = useFinish();
@@ -280,13 +283,13 @@ export function ProgressRoad({
           </View>
         ) : null}
       </View>
-      <View accessibilityRole="list" accessibilityLabel={label} style={[styles.labels, compact && styles.hidden]}>
+      <View accessibilityRole="list" accessibilityLabel={label ?? t('Booking status')} style={[styles.labels, compact && styles.hidden]}>
         {stops.map((stop, i) => (
           <T
             key={stop.label}
             accessibilityRole="text"
             accessibilityState={i === at ? { selected: true } : undefined}
-            accessibilityLabel={i === at ? `${stop.label}, current step` : stop.label}
+            accessibilityLabel={i === at ? t('{step}, current step', { step: stop.label }) : stop.label}
             variant="t5"
             numberOfLines={1}
             align={i === 0 ? 'left' : i === stops.length - 1 ? 'right' : 'center'}

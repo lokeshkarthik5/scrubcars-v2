@@ -9,7 +9,7 @@ import { PageHeader } from '@repo/ui/sc/page-header'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
 
 /**
- * A garage's Garage Book, read-only (0069; owner decision 4: Detlio staff
+ * A garage's Garage Book, read-only (0072; owner decision 4: Detlio staff
  * can see all of it). Every opening is logged by the API before it reads
  * the book. Nothing here can be changed: the garage keeps its own book.
  */

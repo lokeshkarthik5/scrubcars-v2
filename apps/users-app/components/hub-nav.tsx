@@ -1,6 +1,6 @@
-import { Glass, Pearl, usePearlInk } from '@repo/native-ui/finish';
+import { useT } from '@repo/core/i18n';
+import { Glass, NavOrb, Pearl, usePearlInk } from '@repo/native-ui/finish';
 import { IconCalendar, IconHome, IconMap2, IconPlus, IconUser, type IconProps } from '@repo/native-ui/icons';
-import { LitOrb } from '@repo/native-ui/lit-orb';
 import { PressScale } from '@repo/native-ui/motion';
 import { T } from '@repo/native-ui/text';
 import { createStyles, useColors, useFinish } from '@repo/native-ui/theme';
@@ -38,7 +38,8 @@ const useStyles = createStyles((c) => ({
     shadowRadius: 18,
   },
   row: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12 },
-  tab: { minHeight: 48, minWidth: 52, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  // maxWidth: a longer Tamil label shrinks to fit rather than widening the tab.
+  tab: { minHeight: 48, minWidth: 52, maxWidth: 76, alignItems: 'center', justifyContent: 'center', gap: 2 },
   // Where the 21-point silver icon sits, so an orb and an icon line up across the bar.
   icon: { height: ORB, alignItems: 'center', justifyContent: 'center' },
 }));
@@ -69,15 +70,16 @@ function Tab({
       style={styles.tab}
     >
       {active ? (
-        <LitOrb key={item}>
+        <NavOrb key={item}>
           <Icon size={17} line={1.9} color="#FFFFFF" />
-        </LitOrb>
+        </NavOrb>
       ) : (
         <View style={styles.icon}>
           <Icon size={21} metal={silver} color={silver ? undefined : fx.quietBright} />
         </View>
       )}
-      <T variant="t5" weight={active ? 600 : 500} lh={11} color={active ? colors.textPrimary : silver ? '#B4B4BC' : fx.quietBright}>
+      {/* One line: a longer Tamil label shrinks to fit rather than wrapping out of the pill. */}
+      <T variant="t5" weight={active ? 600 : 500} lh={11} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} color={active ? colors.textPrimary : silver ? '#B4B4BC' : fx.quietBright}>
         {label}
       </T>
     </Pressable>
@@ -90,6 +92,7 @@ function Tab({
  * the others brushed silver, the + pearl and never shining. Labels in T5.
  */
 export function HubNav() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const ink = usePearlInk();
@@ -107,16 +110,16 @@ export function HubNav() {
       )}
       <Glass radius={999} accessibilityRole="tablist" style={[styles.nav, { bottom: Math.max(NAV_GAP, insets.bottom) }]}>
         <View style={styles.row}>
-          <Tab item="home" label="Home" icon={IconHome} current={current} />
-          <Tab item="map" label="Map" icon={IconMap2} current={current} />
+          <Tab item="home" label={t('Home')} icon={IconHome} current={current} />
+          <Tab item="map" label={t('Map')} icon={IconMap2} current={current} />
           {/* Where every booking starts. Pearl, not red: a screen's one red is its own main action. */}
-          <PressScale accessibilityRole="button" accessibilityLabel="New booking" onPress={() => router.navigate(HUB_NAV_HREF.new as Href)}>
+          <PressScale accessibilityRole="button" accessibilityLabel={t('New booking')} onPress={() => router.navigate(HUB_NAV_HREF.new as Href)}>
             <Pearl size={48}>
               <IconPlus size={20} color={ink} />
             </Pearl>
           </PressScale>
-          <Tab item="bookings" label="Bookings" icon={IconCalendar} current={current} />
-          <Tab item="profile" label="Profile" icon={IconUser} current={current} />
+          <Tab item="bookings" label={t('Bookings')} icon={IconCalendar} current={current} />
+          <Tab item="profile" label={t('Profile')} icon={IconUser} current={current} />
         </View>
       </Glass>
     </>

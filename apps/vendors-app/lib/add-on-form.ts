@@ -1,5 +1,6 @@
 import { ADD_ON_LIMITS } from '@repo/core/add-ons';
 import type { AddOn, AddOnInput } from '@repo/core/api/add-ons';
+import { msg } from '@repo/core/i18n/translate';
 
 /**
  * The add-on form (apps/vendors/app/services/add-on-sheet.tsx): the service form's labels, in a
@@ -62,6 +63,8 @@ export function addOnInput(form: AddOnForm): AddOnInput {
 export const routesMissing = (error: unknown): boolean =>
   typeof error === 'object' && error !== null && (error as { status?: number }).status === 404;
 
-export const ADD_ONS_INTRO = "Small extras that go with any of your services. Customers can't book them alone.";
+export const ADD_ONS_INTRO = msg("Small extras that go with any of your services. Customers can't book them alone.");
 export const ADD_ON_DELETE_BODY =
-  "Customers can't add it any more, and it can't be undone. Past bookings keep it. To stop it for a while, Disable it instead.";
+  msg(
+    "Customers can't add it any more, and it can't be undone. Past bookings keep it. To stop it for a while, Disable it instead."
+  );

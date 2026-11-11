@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { fill, useT } from '@repo/core/i18n'
+import { tn } from '@repo/core/i18n/translate'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
 import { ScInput } from '@repo/ui/sc/input'
@@ -42,9 +44,11 @@ function formatDay(key: string) {
 }
 
 function bookingsSentence(count: number) {
-  return count === 1
-    ? 'You have 1 booking that day — reschedule or cancel it with the customer.'
-    : `You have ${count} bookings that day — reschedule or cancel them with the customers.`
+  return tn(
+    count,
+    'You have {count} booking that day — reschedule or cancel it with the customer.',
+    'You have {count} bookings that day — reschedule or cancel them with the customers.'
+  )
 }
 
 /**
@@ -63,6 +67,7 @@ export function PauseSection({
   vendor: ApiVendorProfile
   onChange: (vendor: ApiVendorProfile) => void
 }) {
+  const t = useT()
   const [reason, setReason] = useState(vendor.bookingsPausedReason ?? '')
   const [busy, setBusy] = useState(false)
   // `!=`, not `!==`: a server older than pausing sends no field at all, and
@@ -78,42 +83,44 @@ export function PauseSection({
       setReason(updated.bookingsPausedReason ?? '')
       toast.success(done)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Something went wrong')
+      toast.error(err instanceof Error ? err.message : t('Something went wrong'))
     } finally {
       setBusy(false)
     }
   }
 
   const pause = () =>
-    run(() => pauseBookings(reason.trim() || undefined), 'New bookings paused')
+    run(
+      () => pauseBookings(reason.trim() || undefined),
+      t('New bookings paused')
+    )
 
   const toggle = () =>
-    paused ? run(resumeBookings, 'Taking bookings again') : pause()
+    paused ? run(resumeBookings, t('Taking bookings again')) : pause()
 
   return (
     <section className="flex flex-col gap-3">
-      <SectionHeader title="Pause new bookings" />
+      <SectionHeader title={t('Pause new bookings')} />
       <ScCard className="flex flex-col gap-3">
         <p className="text-[11px] text-text-secondary">
-          Customers can&apos;t book you while this is on. Bookings you already
-          have stay as they are.
+          {t("Customers can't book you while this is on. Bookings you already have stay as they are.")}
         </p>
         <ScInput
           id="settings-pause-reason"
-          label="Reason (optional, customers see this)"
-          placeholder="e.g. Closed for renovation"
+          label={t('Reason (optional, customers see this)')}
+          placeholder={t('e.g. Closed for renovation')}
           maxLength={200}
           value={reason}
           onChange={(e) => setReason(e.target.value)}
         />
         <div className="flex min-h-11 items-center justify-between gap-3">
           <p className="text-[13px] font-medium text-text-primary">
-            Pause new bookings
+            {t('Pause new bookings')}
           </p>
           {/* Amber when on: a paused garage is a state to notice, not an
               action to take. */}
           <ScSwitch
-            label="Pause new bookings"
+            label={t('Pause new bookings')}
             tone="warning"
             checked={paused}
             disabled={busy}
@@ -124,23 +131,25 @@ export function PauseSection({
         {paused && (
           <>
             <p className="text-[12px] text-text-primary">
-              Paused since{' '}
-              <span className="font-numeric font-medium">
-                {new Date(vendor.bookingsPausedAt as string).toLocaleDateString(
-                  'en-IN',
-                  {
-                    weekday: 'short',
-                    day: 'numeric',
-                    month: 'short',
-                    timeZone: APP_TIMEZONE,
-                  }
-                )}
-              </span>
-              .
+              {fill(t('Paused since {date}.'), {
+                date: (
+                  <span className="font-numeric font-medium">
+                    {new Date(vendor.bookingsPausedAt as string).toLocaleDateString(
+                      'en-IN',
+                      {
+                        weekday: 'short',
+                        day: 'numeric',
+                        month: 'short',
+                        timeZone: APP_TIMEZONE,
+                      }
+                    )}
+                  </span>
+                ),
+              })}
               {savedReason && (
                 <span className="text-text-secondary">
                   {' '}
-                  Customers see: “{savedReason}”
+                  {t('Customers see: “{reason}”', { reason: savedReason })}
                 </span>
               )}
             </p>
@@ -154,7 +163,7 @@ export function PauseSection({
                 disabled={busy || reason.trim() === savedReason}
                 onClick={pause}
               >
-                Update reason
+                {t('Update reason')}
               </ScButton>
               <ScButton
                 variant="main"
@@ -163,7 +172,7 @@ export function PauseSection({
                 disabled={busy}
                 onClick={toggle}
               >
-                {busy ? 'Saving...' : 'Resume bookings'}
+                {busy ? t('Saving...') : t('Resume bookings')}
               </ScButton>
             </div>
           </>
@@ -188,6 +197,7 @@ export function HolidaysSection({
   loadFailed?: boolean
   onChange: (closures: ApiVendorClosure[]) => void
 }) {
+  const t = useT()
   const today = todayKey()
   const [date, setDate] = useState('')
   const [reason, setReason] = useState('')
@@ -218,9 +228,9 @@ export function HolidaysSection({
       )
       setDate('')
       setReason('')
-      toast.success('Holiday added')
+      toast.success(t('Holiday added'))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Something went wrong')
+      toast.error(err instanceof Error ? err.message : t('Something went wrong'))
     } finally {
       setBusy(null)
     }
@@ -232,9 +242,9 @@ export function HolidaysSection({
       await removeClosure(closure.id)
       onChange(closures.filter((c) => c.id !== closure.id))
       if (onThatDay?.date === closure.date) setOnThatDay(null)
-      toast.success('Holiday removed')
+      toast.success(t('Holiday removed'))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Something went wrong')
+      toast.error(err instanceof Error ? err.message : t('Something went wrong'))
     } finally {
       setBusy(null)
     }
@@ -242,15 +252,14 @@ export function HolidaysSection({
 
   return (
     <section className="flex flex-col gap-3">
-      <SectionHeader title="Holidays" />
+      <SectionHeader title={t('Holidays')} />
       <ScCard className="flex flex-col gap-3">
         <p className="text-[12px] text-text-secondary">
-          Days you&apos;re closed on top of your weekly hours. Customers
-          can&apos;t pick them.
+          {t("Days you're closed on top of your weekly hours. Customers can't pick them.")}
         </p>
         <ScInput
           id="settings-holiday-date"
-          label="Date"
+          label={t('Date')}
           type="date"
           min={today}
           max={addDays(today, MAX_DAYS_AHEAD)}
@@ -260,8 +269,8 @@ export function HolidaysSection({
         />
         <ScInput
           id="settings-holiday-reason"
-          label="Reason (optional)"
-          placeholder="e.g. Diwali"
+          label={t('Reason (optional)')}
+          placeholder={t('e.g. Diwali')}
           maxLength={200}
           value={reason}
           onChange={(e) => setReason(e.target.value)}
@@ -274,7 +283,7 @@ export function HolidaysSection({
           disabled={!date || busy === 'add'}
           onClick={add}
         >
-          {busy === 'add' ? 'Saving...' : 'Add holiday'}
+          {busy === 'add' ? t('Saving...') : t('Add holiday')}
         </ScButton>
 
         {onThatDay && (
@@ -284,7 +293,7 @@ export function HolidaysSection({
           >
             {onThatDay.bookings.map((b) => (
               <span key={b.id} className="block">
-                {b.customerName ?? 'Customer'} ·{' '}
+                {b.customerName ?? t('Customer')} ·{' '}
                 <span className="font-numeric">{b.scheduledAt}</span>
               </span>
             ))}
@@ -293,7 +302,7 @@ export function HolidaysSection({
 
         {loadFailed && (
           <p role="alert" className="text-[12px] text-warning">
-            Couldn&apos;t load your holidays. Reload the page to see them.
+            {t("Couldn't load your holidays. Reload the page to see them.")}
           </p>
         )}
 
@@ -312,24 +321,29 @@ export function HolidaysSection({
                   )}
                   {closure.activeBookingCount > 0 && (
                     <p className="text-[11px] text-warning">
-                      <span className="font-numeric">
-                        {closure.activeBookingCount}
-                      </span>{' '}
-                      {closure.activeBookingCount === 1
-                        ? 'booking'
-                        : 'bookings'}{' '}
-                      still on this day
+                      {fill(
+                        closure.activeBookingCount === 1
+                          ? t('{count} booking still on this day')
+                          : t('{count} bookings still on this day'),
+                        {
+                          count: (
+                            <span className="font-numeric">
+                              {closure.activeBookingCount}
+                            </span>
+                          ),
+                        }
+                      )}
                     </p>
                   )}
                 </div>
                 <button
                   type="button"
-                  aria-label={`Remove holiday on ${formatDay(closure.date)}`}
+                  aria-label={t('Remove holiday on {date}', { date: formatDay(closure.date) })}
                   disabled={busy === closure.id}
                   onClick={() => remove(closure)}
                   className="min-h-11 px-2 text-[12px] font-medium text-text-secondary hover:text-text-primary disabled:opacity-50"
                 >
-                  Remove
+                  {t('Remove')}
                 </button>
               </li>
             ))}

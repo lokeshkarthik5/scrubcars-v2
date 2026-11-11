@@ -28,24 +28,32 @@ import {
   withReply,
 } from '@/lib/reviews-view';
 import { createStyles, useColors } from '@repo/native-ui/theme';
+import { fill, useT, useTn } from '@repo/core/i18n';
 
 const goBack = () => (router.canGoBack() ? router.back() : router.replace('/home'));
 
 /** "3 reviews", with the figure in the brand's numeric face. */
 function CountLine({ count, suffix = '' }: { count: number; suffix?: string }) {
+  const tn = useTn();
   const colors = useColors();
   return (
     <T size={12} color={colors.textSecondary}>
-      <T num size={12} color={colors.textSecondary}>
-        {count}
-      </T>
-      {` ${count === 1 ? 'review' : 'reviews'}${suffix}`}
+      {fill(tn(count, '{num} review', '{num} reviews'), {
+        num: (
+          <T num size={12} color={colors.textSecondary}>
+            {count}
+          </T>
+        ),
+      })}
+      {suffix}
     </T>
   );
 }
 
 /** The summary card (mockup frame H): the score, or "New on Detlio", and what customers say. */
 function SummaryCard({ data }: { data: ReviewsData }) {
+  const t = useT();
+  const tn = useTn();
   const colors = useColors();
   const styles = useStyles();
   const view = summaryView(data);
@@ -57,17 +65,28 @@ function SummaryCard({ data }: { data: ReviewsData }) {
       {view.kind === 'new' ? (
         <View style={styles.newGarage}>
           <T size={17} weight={600}>
-            {NEW_GARAGE_LABEL}
+            {t(NEW_GARAGE_LABEL)}
           </T>
           <T size={12} color={colors.textSecondary}>
-            <T num size={12} color={colors.textSecondary}>
-              {view.count}
-            </T>
-            {` ${view.count === 1 ? 'review' : 'reviews'} so far. Customers see your score from `}
-            <T num size={12} color={colors.textSecondary}>
-              {RATING_RULES.minCountedReviews}
-            </T>
-            {' reviews.'}
+            {fill(
+              tn(
+                view.count,
+                '{num} review so far. Customers see your score from {min} reviews.',
+                '{num} reviews so far. Customers see your score from {min} reviews.'
+              ),
+              {
+                num: (
+                  <T num size={12} color={colors.textSecondary}>
+                    {view.count}
+                  </T>
+                ),
+                min: (
+                  <T num size={12} color={colors.textSecondary}>
+                    {RATING_RULES.minCountedReviews}
+                  </T>
+                ),
+              }
+            )}
           </T>
         </View>
       ) : (
@@ -85,27 +104,31 @@ function SummaryCard({ data }: { data: ReviewsData }) {
         <View style={styles.tagBlock}>
           {tags.top.length > 0 ? (
             <T size={13} lh={20} color={colors.textSecondary}>
-              {'Top: '}
-              <T size={13} lh={20} weight={600}>
-                {tags.top.join(', ')}
-              </T>
+              {fill(t('Top: {tags}'), {
+                tags: (
+                  <T size={13} lh={20} weight={600}>
+                    {tags.top.map((tag) => t(tag)).join(', ')}
+                  </T>
+                ),
+              })}
             </T>
           ) : null}
           {tags.workOn.length > 0 ? (
             <T size={13} lh={20} color={colors.textSecondary}>
-              {'To work on: '}
-              {tags.workOn.map((tag, i) => (
-                <T key={tag.label} size={13} lh={20} color={colors.textSecondary}>
-                  {i > 0 ? ', ' : ''}
-                  <T size={13} lh={20} weight={600}>
-                    {tag.label}
+              {fill(t('To work on: {tags}'), {
+                tags: tags.workOn.map((tag, i) => (
+                  <T key={tag.label} size={13} lh={20} color={colors.textSecondary}>
+                    {i > 0 ? ', ' : ''}
+                    <T size={13} lh={20} weight={600}>
+                      {t(tag.label)}
+                    </T>
+                    {' '}
+                    <T num size={13} lh={20} color={colors.textSecondary}>
+                      {`(${tag.count})`}
+                    </T>
                   </T>
-                  {' '}
-                  <T num size={13} lh={20} color={colors.textSecondary}>
-                    {`(${tag.count})`}
-                  </T>
-                </T>
-              ))}
+                )),
+              })}
             </T>
           ) : null}
         </View>
@@ -120,7 +143,7 @@ function PillButton({ label, onPress }: { label: string; onPress: () => void }) 
   return (
     <View style={styles.flex}>
       <ScButton variant="outline" onPress={onPress}>
-        <T size={14} weight={600} lh={20} numberOfLines={1}>
+        <T size={14} weight={600} lh={20} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
           {label}
         </T>
       </ScButton>
@@ -139,6 +162,7 @@ function ReviewCard({
   onReply: () => void;
   onReport: () => void;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const canReply = canAct && review.canReply;
@@ -176,14 +200,14 @@ function ReviewCard({
       {review.reply ? (
         <View style={styles.reply}>
           <T size={12} weight={600}>
-            Your reply
+            {t('Your reply')}
           </T>
           <T size={13} color={colors.textSecondary} style={styles.replyText}>
             {review.reply.text}
           </T>
           {canReply && review.reply.editableUntil ? (
             <T size={11} color={colors.textMuted} style={styles.replyText}>
-              {`You can change it until ${istMomentLabel(review.reply.editableUntil)}`}
+              {t('You can change it until {time}', { time: istMomentLabel(review.reply.editableUntil) })}
             </T>
           ) : null}
         </View>
@@ -193,14 +217,14 @@ function ReviewCard({
           {canReply || canReport ? (
             <View style={styles.pills}>
               {canReply ? (
-                <PillButton label={review.reply ? 'Change reply' : 'Reply publicly'} onPress={onReply} />
+                <PillButton label={review.reply ? t('Change reply') : t('Reply publicly')} onPress={onReply} />
               ) : null}
-              {canReport ? <PillButton label="Report to Detlio" onPress={onReport} /> : null}
+              {canReport ? <PillButton label={t('Report to Detlio')} onPress={onReport} /> : null}
             </View>
           ) : null}
           {reportedNote ? (
             <T size={12} color={colors.textMuted}>
-              Reported to Detlio. The team will look at it.
+              {t('Reported to Detlio. The team will look at it.')}
             </T>
           ) : null}
         </View>
@@ -216,6 +240,7 @@ function ReviewCard({
  * and has nothing to act on, as the server refuses them.
  */
 function ReviewsScreen() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const vendorId = useAuth((s) => s.vendor?.id);
@@ -261,7 +286,7 @@ function ReviewsScreen() {
 
   return (
     <AppShell>
-      <TopBar title="Reviews" onBack={goBack} />
+      <TopBar title={t('Reviews')} onBack={goBack} />
 
       {/* The summary waits for the list too: a 0 and five empty stars for a moment, on a
           garage with plenty of reviews, reads as a bad score. */}
@@ -271,12 +296,12 @@ function ReviewsScreen() {
       {!loaded ? (
         <SkeletonList count={3} height={92} />
       ) : failed || !data ? (
-        <LoadError what="your reviews" retrying={query.isRefetching} onRetry={() => void refetch()} />
+        <LoadError what={t('your reviews')} retrying={query.isRefetching} onRetry={() => void refetch()} />
       ) : data.reviews.length === 0 ? (
         <EmptyState
           icon={<IconStar size={28} stroke={1.5} color={colors.textSecondary} />}
-          title="No reviews yet"
-          subtitle="Reviews will appear after your first completed job"
+          title={t('No reviews yet')}
+          subtitle={t('Reviews will appear after your first completed job')}
         />
       ) : (
         <View style={styles.list}>

@@ -1,6 +1,8 @@
-import { and, asc, count, desc, eq, inArray, isNotNull, isNull, lt, or, sql, type SQL } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull, lt, notExists, or, sql, type SQL } from 'drizzle-orm'
 import type { PgColumn } from 'drizzle-orm/pg-core'
 import { db } from '../../db/index.js'
+import { returnedCreditExpiresAt } from '../../lib/gift-credit.js'
+import { lockCredit } from '../gift-credit/gift-credit.repository.js'
 import {
   adminAuditLog,
   analyticsEvents,
@@ -16,6 +18,7 @@ import {
   complaints,
   deletedTestPayments,
   discountRedemptions,
+  giftCreditEntries,
   guaranteeClaimPhotos,
   guaranteeClaims,
   jobPhotos,
@@ -148,6 +151,7 @@ export function dataResetReads(conn: Conn) {
             paymentCredit: payments.creditAmount,
             paymentRefunded: payments.refundedAmount,
             paymentPaidAt: payments.paidAt,
+            paymentCreditReturnedAt: payments.creditReturnedAt,
           })
           .from(bookings)
           .innerJoin(users, eq(users.id, bookings.userId))
@@ -181,6 +185,7 @@ export function dataResetReads(conn: Conn) {
                     creditAmount: row.paymentCredit ?? '0.00',
                     refundedAmount: row.paymentRefunded,
                     paidAt: row.paymentPaidAt,
+                    creditReturned: row.paymentCreditReturnedAt !== null,
                   },
           })
         }
@@ -497,18 +502,58 @@ export function dataResetReads(conn: Conn) {
           .select({
             id: vendorPayouts.id,
             recordedAt: vendorPayouts.createdAt,
+            paidAt: vendorPayouts.paidAt,
+            reference: vendorPayouts.reference,
+            total: vendorPayouts.amount,
             root: vendorPayoutItems.bookingId,
+            amount: vendorPayoutItems.amount,
           })
           .from(vendorPayouts)
           .innerJoin(vendorPayoutItems, eq(vendorPayoutItems.payoutId, vendorPayouts.id))
           .where(inArray(vendorPayouts.id, slice))
         for (const row of rows) {
-          const payout = out.get(row.id) ?? { id: row.id, recordedAt: row.recordedAt, rootBookingIds: [] }
+          const payout = out.get(row.id) ?? {
+            id: row.id,
+            recordedAt: row.recordedAt,
+            paidAt: row.paidAt,
+            reference: row.reference,
+            amount: row.total,
+            rootBookingIds: [],
+            items: [],
+          }
           payout.rootBookingIds.push(row.root)
+          payout.items!.push({ rootBookingId: row.root, amount: row.amount })
           out.set(row.id, payout)
         }
       }
       return [...out.values()]
+    },
+
+    /**
+     * The garage's payouts with no line left on any booking: an earlier
+     * owner's delete of each booking it paid took the lines (and wrote them
+     * to the ledger). The owner's Delete forever takes these with the garage
+     * too (10 Nov 2026); nothing else reaches them.
+     */
+    async payoutsWithoutLinesOf(vendorId: string): Promise<ResetPayout[]> {
+      const rows = await conn
+        .select({
+          id: vendorPayouts.id,
+          recordedAt: vendorPayouts.createdAt,
+          paidAt: vendorPayouts.paidAt,
+          reference: vendorPayouts.reference,
+          amount: vendorPayouts.amount,
+        })
+        .from(vendorPayouts)
+        .where(
+          and(
+            eq(vendorPayouts.vendorId, vendorId),
+            notExists(
+              conn.select({ one: sql`1` }).from(vendorPayoutItems).where(eq(vendorPayoutItems.payoutId, vendorPayouts.id))
+            )
+          )
+        )
+      return rows.map((row) => ({ ...row, rootBookingIds: [], items: [] }))
     },
 
     async voidsByYear(years: string[]): Promise<Map<string, number>> {
@@ -689,8 +734,52 @@ export function dataResetWrites(tx: Tx) {
           deletedByName: by.actorName,
           deletedBySub: by.actorSub,
           auditId: by.auditId,
+          state: row.state,
+          note: row.note,
+          creditReturned: row.creditReturned,
+          vendorPayoutId: row.vendorPayoutId,
         }))
       )
+    },
+
+    /**
+     * The deleted bookings' lines on payouts that stay on record (the
+     * owner's delete, 10 Nov 2026). Before the bookings: an item names its
+     * booking ON DELETE RESTRICT. The payout keeps its amount: the money was
+     * sent, and the ledger row says what this line was.
+     */
+    async deletePayoutItemsOf(bookingIds: string[]) {
+      for (const slice of batches(bookingIds)) {
+        await tx.delete(vendorPayoutItems).where(inArray(vendorPayoutItems.bookingId, slice))
+      }
+    },
+
+    /**
+     * Detlio credit spent on a deleted chain, back to the customer (the
+     * owner's delete): a `refund` lot under the customer's credit lock, with
+     * the latest expiry of the lots it was spent from (never under 30 days),
+     * as returnBookingCredit gives it back. The lot names no booking, since
+     * the booking is going; its reason says which.
+     */
+    async returnCredit(input: { customerId: string; rootId: string; reference: string; amount: string; now: Date }) {
+      await lockCredit(tx, input.customerId)
+      const lots = await tx.execute<{ expires_at: Date | string }>(sql`
+        select l.expires_at
+          from gift_credit_entries d
+          join gift_credit_entries l on l.id = d.lot_id
+         where d.booking_id = ${input.rootId}
+           and d.kind = 'debit'
+      `)
+      await tx.insert(giftCreditEntries).values({
+        userId: input.customerId,
+        kind: 'refund',
+        amount: input.amount,
+        expiresAt: returnedCreditExpiresAt(
+          lots.map((lot) => new Date(lot.expires_at)),
+          input.now
+        ),
+        reason: `Credit back from deleted test booking #${input.reference}`,
+      })
     },
 
     /**

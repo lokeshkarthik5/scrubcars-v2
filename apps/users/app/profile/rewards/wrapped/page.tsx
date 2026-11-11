@@ -43,6 +43,7 @@ import {
   splitBig,
   wrappedBackground,
 } from '@/lib/wrapped-image'
+import { useT } from '@repo/core/i18n'
 
 /**
  * Detlio Wrapped (0054): the customer's year as story cards. Tap the right
@@ -59,6 +60,7 @@ export default function WrappedPage() {
 }
 
 function WrappedScreen() {
+  const t = useT()
   const router = useRouter()
   const params = useSearchParams()
   const user = useAuthStore((s) => s.user)
@@ -83,7 +85,7 @@ function WrappedScreen() {
   const back = (
     <Link
       href="/profile/rewards"
-      aria-label="Close"
+      aria-label={t('Close')}
       className="grid size-10 place-items-center rounded-full text-text-primary hover:bg-surface"
     >
       <IconX size={20} />
@@ -116,15 +118,15 @@ function WrappedScreen() {
           wrapped.error.code === 'WRAPPED_NOT_AVAILABLE'
         ) ? (
           <ErrorState
-            message="Couldn't load your Wrapped. Check your connection."
+            message={t("Couldn't load your Wrapped. Check your connection.")}
             onRetry={() => void wrapped.refetch()}
           />
         ) : (
           <EmptyState
             icon={<IconSparkles size={32} stroke={1.5} />}
-            title="Your Detlio Wrapped isn't here yet"
-            subtitle="It opens on 1 December, with every wash of your year."
-            actionLabel="Back to rewards"
+            title={t("Your Detlio Wrapped isn't here yet")}
+            subtitle={t('It opens on 1 December, with every wash of your year.')}
+            actionLabel={t('Back to rewards')}
             onAction={() => router.push('/profile/rewards')}
           />
         )}
@@ -151,6 +153,7 @@ function Story({
   year: number
   close: React.ReactNode
 }) {
+  const t = useT()
   const [showName, setShowName] = useState(true)
   const [index, setIndex] = useState(0)
   const [sharing, setSharing] = useState(false)
@@ -192,9 +195,9 @@ function Story({
         level: stats.level,
       })
       if (outcome !== 'cancelled') event.mutate({ year, kind: 'shared' })
-      if (outcome === 'downloaded') toast.success('Image saved')
+      if (outcome === 'downloaded') toast.success(t('Image saved'))
     } catch {
-      toast.error("Couldn't make the image. Try again.")
+      toast.error(t("Couldn't make the image. Try again."))
     } finally {
       setSharing(false)
     }
@@ -221,7 +224,7 @@ function Story({
 
       <section
         aria-roledescription="story"
-        aria-label={`Detlio Wrapped ${year}, card ${index + 1} of ${cards.length}`}
+        aria-label={t('Detlio Wrapped {year}, card {value} of {length}', { year, value: index + 1, length: cards.length })}
         className="wrapped-story wrapped-story-size relative mx-auto mt-3 aspect-[9/16] overflow-hidden rounded-[24px] border border-white/10"
         style={{ background: wrappedBackground(card.key) }}
         onPointerDown={(e) => {
@@ -256,7 +259,7 @@ function Story({
           type="button"
           onClick={() => go(-1)}
           disabled={index === 0}
-          aria-label="Previous card"
+          aria-label={t('Previous card')}
           className="grid size-11 place-items-center rounded-full border border-border text-text-primary disabled:opacity-30"
         >
           <IconChevronLeft size={20} />
@@ -269,13 +272,13 @@ function Story({
           disabled={sharing}
         >
           <IconShare size={18} aria-hidden />
-          {sharing ? 'Making the image…' : 'Share this card'}
+          {sharing ? t('Making the image…') : t('Share this card')}
         </ScButton>
         <button
           type="button"
           onClick={() => go(1)}
           disabled={index === cards.length - 1}
-          aria-label="Next card"
+          aria-label={t('Next card')}
           className="grid size-11 place-items-center rounded-full border border-border text-text-primary disabled:opacity-30"
         >
           <IconChevronRight size={20} />
@@ -284,18 +287,17 @@ function Story({
       {stats.firstName && (
         <div className="mx-auto mt-3 flex w-full max-w-[360px] items-center justify-between gap-3">
           <span className="text-t5 text-text-secondary">
-            Show my first name
+            {t('Show my first name')}
           </span>
           <ScSwitch
             checked={showName}
             onChange={setShowName}
-            label="Show my first name on the cards"
+            label={t('Show my first name on the cards')}
           />
         </div>
       )}
       <p className="mx-auto mt-2 max-w-[360px] text-center text-t5 text-text-muted">
-        Images are made on your phone. They show your first name (if you leave
-        it on), garage names and your numbers, nothing else.
+        {t('Images are made on your phone. They show your first name (if you leave it on), garage names and your numbers, nothing else.')}
       </p>
     </Frame>
   )
@@ -325,6 +327,7 @@ function WrappedCardView({
   year: number
   stats: WrappedStats
 }) {
+  const t = useT()
   const split = splitBig(card.big)
   const metal = levelMetal(stats.level.key)
   return (
@@ -335,7 +338,7 @@ function WrappedCardView({
       <div className="flex items-center justify-between">
         <BrandMark height={20} />
         <span className="font-numeric text-t5 font-semibold tracking-[0.12em] text-white/75">
-          WRAPPED {year}
+          {t('WRAPPED {year}', { year })}
         </span>
       </div>
       <span
@@ -346,7 +349,7 @@ function WrappedCardView({
         }}
       >
         <IconStarFilled size={11} aria-hidden />
-        {stats.level.label} level
+        {t('{label} level', { label: stats.level.label })}
       </span>
 
       <div className="mt-6 flex flex-col">
@@ -378,7 +381,7 @@ function WrappedCardView({
         )}
         <p className="mt-2 text-[14px] text-white/85">{card.caption}</p>
         {card.key === 'level' && card.extra.length > 0 && (
-          <ul className="mt-3 flex gap-3" aria-label="Badges earned">
+          <ul className="mt-3 flex gap-3" aria-label={t('Badges earned')}>
             {badgeKeysFor(card.extra).map((b) => (
               <li
                 key={b.name}

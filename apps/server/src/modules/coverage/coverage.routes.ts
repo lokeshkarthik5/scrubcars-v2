@@ -4,6 +4,7 @@ import { z } from 'zod'
 import {
   adminSignedJson,
   authMiddleware,
+  requireOwner,
   requireSuperAdmin,
   type AuthVariables,
 } from '../../middleware/auth.middleware.js'
@@ -12,7 +13,11 @@ import {
   fromRecommendationSchema,
 } from '../leads/leads.validation.js'
 import * as controller from './coverage.controller.js'
-import { createZoneSchema, updateZoneSchema } from './coverage.validation.js'
+import {
+  createZoneSchema,
+  removeZoneAnywaySchema,
+  updateZoneSchema,
+} from './coverage.validation.js'
 
 /**
  * Coverage (0064): Chennai's zones with the team's garages and leads.
@@ -23,6 +28,9 @@ import { createZoneSchema, updateZoneSchema } from './coverage.validation.js'
  *   PATCH  /zones/:id    rename, priority, target, move the centre
  *   DELETE /zones/:id    remove a zone nothing points at (leads, sign-ups,
  *                        requests, recommendations)
+ *   GET    /zones/:id/use      what is in it (owner only, 10 Nov 2026)
+ *   DELETE /zones/:id/anyway   the owner's Delete anyway: detaches what
+ *                        points at it, then removes it { confirmText: name }
  *   POST   /recommendations/:id/duplicates  what a lead made of it looks like
  *   POST   /recommendations/:id/lead        Make lead (or link to a lead)
  *   POST   /recommendations/:id/dismiss     Dismiss
@@ -55,6 +63,24 @@ adminCoverageRoutes.patch(
 
 adminCoverageRoutes.delete('/zones/:id', ...adminMiddleware, idParam, (c) =>
   controller.removeZone(c, c.req.valid('param').id)
+)
+
+adminCoverageRoutes.get(
+  '/zones/:id/use',
+  ...adminMiddleware,
+  requireOwner,
+  idParam,
+  (c) => controller.zoneUse(c, c.req.valid('param').id)
+)
+
+adminCoverageRoutes.delete(
+  '/zones/:id/anyway',
+  ...adminMiddleware,
+  requireOwner,
+  idParam,
+  adminSignedJson(removeZoneAnywaySchema),
+  (c) =>
+    controller.removeZoneAnyway(c, c.req.valid('param').id, c.req.valid('json'))
 )
 
 adminCoverageRoutes.post(

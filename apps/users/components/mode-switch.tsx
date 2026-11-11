@@ -5,6 +5,7 @@ import { GraphiteSwitch } from '@repo/ui/finish/graphite-switch'
 import { track } from '@repo/core/analytics'
 import { BOOKING_TYPE_LABELS } from '@repo/core/booking-types'
 import type { BookingType } from '@repo/core/types'
+import { msg, useT } from '@repo/core/i18n'
 
 const ICONS: Record<BookingType, typeof IconHome> = {
   dropin: IconBuildingStore,
@@ -14,9 +15,9 @@ const ICONS: Record<BookingType, typeof IconHome> = {
 
 /** Each mode's quiet second line (§3): what it means in four words. */
 export const MODE_QUIET: Record<BookingType, string> = {
-  dropin: 'Drive it in',
-  doorstep: 'We come to you',
-  pickup: 'We collect it',
+  dropin: msg('Drive it in'),
+  doorstep: msg('We come to you'),
+  pickup: msg('We collect it'),
 }
 
 /**
@@ -43,9 +44,10 @@ export function ModeSwitch({
   track?: boolean
   className?: string
 }) {
+  const t = useT()
   return (
     <GraphiteSwitch
-      aria-label="Service mode"
+      aria-label={t('Service mode')}
       className={className}
       value={value}
       onChange={(mode) => {
@@ -57,8 +59,8 @@ export function ModeSwitch({
         const Icon = ICONS[mode]
         return {
           value: mode,
-          label: BOOKING_TYPE_LABELS[mode],
-          quiet: MODE_QUIET[mode],
+          label: t(BOOKING_TYPE_LABELS[mode]),
+          quiet: t(MODE_QUIET[mode]),
           icon: <Icon aria-hidden />,
         }
       })}

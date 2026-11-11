@@ -21,7 +21,7 @@ import {
 } from './garage-book.validation.js'
 
 /**
- * Garage Book (0069): the garage's own book, at /api/v1/vendors/me/book.
+ * Garage Book (0072): the garage's own book, at /api/v1/vendors/me/book.
  * Every route a 404 before auth while GARAGE_BOOK is off.
  *
  * Two seats. Any member (`seat`) adds and finishes jobs, sees customers and

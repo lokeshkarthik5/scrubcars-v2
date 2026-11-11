@@ -4,6 +4,7 @@ import { useCarHistory, useServiceReminderAction } from '@repo/core/api/hooks/us
 import { canSnoozeReminder, historyDateLabel, reminderBookHref, reminderDueLine, servicesLine, sinceLabel, washCount } from '@repo/core/car-history';
 import { formatRupees } from '@repo/core/job-records';
 import { categoryLabel } from '@repo/core/categories';
+import { useT, useTn } from '@repo/core/i18n';
 import type { ServiceCategory } from '@repo/core/types';
 import { ScButton } from '@repo/native-ui/button';
 import { Chip } from '@repo/native-ui/chip';
@@ -25,13 +26,14 @@ import { usePendingCheckout } from '@/lib/pending-checkout';
 const money = (amount: string) => formatRupees(Number(amount));
 
 function HistoryCard({ item, now }: { item: CarHistoryItem; now: Date }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const date = historyDateLabel(item.doneAt, now);
   const services = servicesLine(item.services);
   const photos = item.photos.before + item.photos.after;
   return (
-    <Pressable accessibilityRole="link" accessibilityLabel={`${services} at ${item.vendorName}, ${date}, ${money(item.amountPaid)}`} onPress={() => router.push(`/bookings/${item.bookingId}` as Href)}>
+    <Pressable accessibilityRole="link" accessibilityLabel={`${t('{services} at {name}', { services, name: item.vendorName })}, ${date}, ${money(item.amountPaid)}`} onPress={() => router.push(`/bookings/${item.bookingId}` as Href)}>
       <ScCard style={styles.history}>
         <View style={styles.between}>
           <View style={styles.grow}>
@@ -51,16 +53,16 @@ function HistoryCard({ item, now }: { item: CarHistoryItem; now: Date }) {
             {date}
           </T>
           {item.receiptAvailable ? (
-            <Pressable accessibilityRole="link" accessibilityLabel={`Receipt: ${services}, ${date}`} onPress={() => router.push(`/bookings/${item.bookingId}/receipt` as Href)} style={styles.footLink}>
+            <Pressable accessibilityRole="link" accessibilityLabel={t('Receipt: {services}, {date}', { services, date })} onPress={() => router.push(`/bookings/${item.bookingId}/receipt` as Href)} style={styles.footLink}>
               <T size={12} weight={600} lh={16}>
-                Receipt
+                {t('Receipt')}
               </T>
             </Pressable>
           ) : null}
           {photos > 0 ? (
-            <Pressable accessibilityRole="link" accessibilityLabel={`Before and after photos: ${services}, ${date}`} onPress={() => router.push(`/bookings/${item.bookingId}?then=photos` as Href)} style={styles.footLink}>
+            <Pressable accessibilityRole="link" accessibilityLabel={t('Before and after photos: {services}, {date}', { services, date })} onPress={() => router.push(`/bookings/${item.bookingId}?then=photos` as Href)} style={styles.footLink}>
               <T size={12} weight={600} lh={16}>
-                Photos
+                {t('Photos')}
               </T>
             </Pressable>
           ) : null}
@@ -71,6 +73,7 @@ function HistoryCard({ item, now }: { item: CarHistoryItem; now: Date }) {
 }
 
 function ReminderCard({ reminder, now, onBook }: { reminder: ServiceReminder; now: Date; onBook: () => void }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const action = useServiceReminderAction();
@@ -78,14 +81,14 @@ function ReminderCard({ reminder, now, onBook }: { reminder: ServiceReminder; no
     action.mutate(
       { reminderId: reminder.id, action: kind },
       {
-        onSuccess: () => toast.success(kind === 'dismiss' ? 'Reminder dismissed' : 'Snoozed for 2 weeks'),
-        onError: (err) => toast.error(errorText(err, 'Something went wrong')),
+        onSuccess: () => toast.success(kind === 'dismiss' ? t('Reminder dismissed') : t('Snoozed for 2 weeks')),
+        onError: (err) => toast.error(errorText(err, t('Something went wrong'))),
       }
     );
   const booked = reminder.state === 'booked' && reminder.booked;
   const due = reminder.state === 'due' || reminder.state === 'overdue';
   return (
-    <ScCard accessibilityLabel={`Reminder: ${reminder.title}`} style={styles.reminder}>
+    <ScCard accessibilityLabel={t('Reminder: {title}', { title: reminder.title })} style={styles.reminder}>
       <View style={styles.row}>
         {booked ? <IconCalendarCheck size={18} color={colors.textPrimary} /> : <IconSparkles size={18} color={colors.textPrimary} />}
         <View style={styles.grow}>
@@ -102,7 +105,7 @@ function ReminderCard({ reminder, now, onBook }: { reminder: ServiceReminder; no
       </View>
       {booked ? (
         <ScButton variant="outline" height={44} onPress={() => router.push(`/bookings/${reminder.booked!.bookingId}` as Href)}>
-          See the booking
+          {t('See the booking')}
         </ScButton>
       ) : (
         <View style={styles.actions}>
@@ -115,18 +118,18 @@ function ReminderCard({ reminder, now, onBook }: { reminder: ServiceReminder; no
               router.push(reminderBookHref(reminder) as Href);
             }}
           >
-            Book
+            {t('Book')}
           </ScButton>
           {canSnoozeReminder(reminder) ? (
             <Pressable accessibilityRole="button" disabled={action.isPending} onPress={() => run('snooze')} style={styles.footLink}>
               <T size={12} weight={500} lh={16} color={colors.textSecondary}>
-                Remind me in 2 weeks
+                {t('Remind me in 2 weeks')}
               </T>
             </Pressable>
           ) : null}
-          <Pressable accessibilityRole="button" accessibilityLabel={`Dismiss reminder: ${reminder.title}`} disabled={action.isPending} onPress={() => run('dismiss')} style={styles.footLink}>
+          <Pressable accessibilityRole="button" accessibilityLabel={t('Dismiss reminder: {title}', { title: reminder.title })} disabled={action.isPending} onPress={() => run('dismiss')} style={styles.footLink}>
             <T size={12} weight={500} lh={16} color={colors.textSecondary}>
-              Dismiss
+              {t('Dismiss')}
             </T>
           </Pressable>
         </View>
@@ -137,6 +140,8 @@ function ReminderCard({ reminder, now, onBook }: { reminder: ServiceReminder; no
 
 /** apps/users/app/profile/cars/[id]/page.tsx.  */
 export default function CarHistoryScreen() {
+  const tn = useTn();
+  const t = useT();
   const params = useLocalSearchParams<{ id: string }>();
   const id = String(params.id);
   const colors = useColors();
@@ -152,7 +157,7 @@ export default function CarHistoryScreen() {
   };
   const data = history.data;
   const notFound = history.error instanceof ApiError && history.error.status === 404;
-  const carName = data ? `${data.car.make} ${data.car.model}` : 'Car history';
+  const carName = data ? `${data.car.make} ${data.car.model}` : t('Car history');
 
   return (
     <View style={[styles.page, { paddingTop: insets.top }]}>
@@ -160,10 +165,10 @@ export default function CarHistoryScreen() {
       {!user ? (
         <View style={styles.center}>
           <T size={15} weight={600} align="center">
-            {"Sign in to see your car's history"}
+            {t("Sign in to see your car's history")}
           </T>
           <ScButton variant="main" fullWidth={false} paddingX={32} onPress={() => router.push(`/login?next=${encodeURIComponent(`/profile/cars/${id}`)}` as Href)}>
-            Sign in
+            {t('Sign in')}
           </ScButton>
         </View>
       ) : (
@@ -175,17 +180,17 @@ export default function CarHistoryScreen() {
             </>
           ) : notFound ? (
             <View style={styles.none}>
-              <EmptyState icon={<IconCar size={32} stroke={1.5} color={colors.textSecondary} />} title="This car isn't in your garage" subtitle="It may have been removed. Your cars are in Profile." />
+              <EmptyState icon={<IconCar size={32} stroke={1.5} color={colors.textSecondary} />} title={t("This car isn't in your garage")} subtitle={t('It may have been removed. Your cars are in Profile.')} />
               <ScButton variant="outline" fullWidth={false} onPress={() => router.navigate('/profile?section=vehicles' as Href)}>
-                Go to Profile
+                {t('Go to Profile')}
               </ScButton>
             </View>
           ) : !data ? (
-            <ErrorState message="Couldn't load this car's history. Check your connection." onRetry={() => void history.refetch()} />
+            <ErrorState message={t("Couldn't load this car's history. Check your connection.")} onRetry={() => void history.refetch()} />
           ) : (
             <>
               <T size={13} lh={18} color={colors.textSecondary}>
-                {`Service history${data.car.licensePlate ? ` · ${data.car.licensePlate}` : ''}`}
+                {`${t('Service history')}${data.car.licensePlate ? ` · ${data.car.licensePlate}` : ''}`}
               </T>
               {data.reminder ? <ReminderCard reminder={data.reminder} now={now} onBook={chooseThisCar} /> : null}
               {data.categories.length > 0 ? (
@@ -193,10 +198,10 @@ export default function CarHistoryScreen() {
                   <IconFileInvoice size={20} color={colors.textPrimary} />
                   <View style={styles.grow}>
                     <T size={13} weight={600} lh={18}>
-                      Service history certificate
+                      {t('Service history certificate')}
                     </T>
                     <T size={11} lh={15} color={colors.textSecondary}>
-                      Print it or share a link a buyer can check
+                      {t('Print it or share a link a buyer can check')}
                     </T>
                   </View>
                   <IconChevronRight size={16} color={colors.textSecondary} />
@@ -206,7 +211,7 @@ export default function CarHistoryScreen() {
                 <View style={styles.tiles}>
                   <ScCard style={styles.tile}>
                     <T size={12} lh={16} color={colors.textSecondary}>
-                      Washes this year
+                      {t('Washes this year')}
                     </T>
                     <T num size={20} weight={600} lh={26}>
                       {String(data.totals.washesThisYear)}
@@ -214,7 +219,7 @@ export default function CarHistoryScreen() {
                   </ScCard>
                   <ScCard style={styles.tile}>
                     <T size={12} lh={16} color={colors.textSecondary}>
-                      Spent this year
+                      {t('Spent this year')}
                     </T>
                     <T num size={20} weight={600} lh={26}>
                       {money(data.totals.spentThisYear)}
@@ -224,12 +229,12 @@ export default function CarHistoryScreen() {
               ) : null}
               {data.totals.since ? (
                 <T size={12} lh={16} color={colors.textSecondary}>
-                  <Figures size={12} color={colors.textSecondary} text={`${money(data.totals.spentTotal)} on ${washCount(data.totals.washesTotal)} since ${sinceLabel(data.totals.since)}`} />
+                  <Figures size={12} color={colors.textSecondary} text={t('{amount} on {washes} since {since}', { amount: money(data.totals.spentTotal), washes: washCount(data.totals.washesTotal), since: sinceLabel(data.totals.since) })} />
                 </T>
               ) : null}
               {data.categories.length > 1 ? (
                 <View style={styles.chips}>
-                  <Chip label="All" selected={category === null} onPress={() => setCategory(null)} />
+                  <Chip label={t('All')} selected={category === null} onPress={() => setCategory(null)} />
                   {data.categories.map((each) => (
                     <Chip key={each} label={categoryLabel(each)} selected={category === each} onPress={() => setCategory(each)} />
                   ))}
@@ -239,12 +244,12 @@ export default function CarHistoryScreen() {
                 category ? (
                   <ScCard>
                     <T size={13} lh={18} color={colors.textSecondary}>
-                      {`No ${categoryLabel(category).toLowerCase()} jobs for this car yet.`}
+                      {t('No {category} jobs for this car yet.', { category: categoryLabel(category).toLowerCase() })}
                     </T>
                   </ScCard>
                 ) : (
                   <View style={styles.none}>
-                    <EmptyState icon={<IconHistory size={32} stroke={1.5} color={colors.textSecondary} />} title="No washes yet" subtitle="Every job done on this car will be listed here, with its receipt and photos." />
+                    <EmptyState icon={<IconHistory size={32} stroke={1.5} color={colors.textSecondary} />} title={t('No washes yet')} subtitle={t('Every job done on this car will be listed here, with its receipt and photos.')} />
                     <ScButton
                       variant="outline"
                       fullWidth={false}
@@ -253,7 +258,7 @@ export default function CarHistoryScreen() {
                         router.push('/garages' as Href);
                       }}
                     >
-                      Book a wash
+                      {t('Book a wash')}
                     </ScButton>
                   </View>
                 )
@@ -262,9 +267,9 @@ export default function CarHistoryScreen() {
               )}
               {data.cancelledCount > 0 ? (
                 <T size={12} lh={16} color={colors.textMuted}>
-                  {`${data.cancelledCount === 1 ? '1 cancelled booking for this car isn’t listed here.' : `${data.cancelledCount} cancelled bookings for this car aren’t listed here.`} `}
+                  {`${tn(data.cancelledCount, '1 cancelled booking for this car isn’t listed here.', '{count} cancelled bookings for this car aren’t listed here.')} `}
                   <T size={12} lh={16} color={colors.textMuted} style={styles.underline} onPress={() => router.push('/bookings?tab=past' as Href)}>
-                    See My bookings
+                    {t('See My bookings')}
                   </T>
                 </T>
               ) : null}

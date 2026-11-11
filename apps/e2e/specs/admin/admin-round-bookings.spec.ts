@@ -3,7 +3,7 @@
  * booking was made under it (in the side panel and on the page too), and
  * Delete test booking, which takes the booking's whole chain with its note
  * and the complaint about it after the typed phrase, and refuses a booking
- * with real money on it, saying why.
+ * with real money on it, saying why, to anyone but the owner (10 Nov 2026).
  *
  * Only CUSTOMERS.adminRound's bookings at VENDORS.roundA are read or
  * deleted (BOOKINGS.round*). Delete test booking works whether or not Start
@@ -121,6 +121,33 @@ test.describe('the admin round: bookings @p0', () => {
     })
   })
 
+  test('a booking that is not there is a 404, and a customer gets no further than an admin check', async ({
+    page,
+  }) => {
+    const missing = await page.request.post(
+      `${API}/api/v1/admin/bookings/00000000-0000-4000-8000-0000000fffff/test-delete/preview`,
+      { data: {} }
+    )
+    expect(missing.status()).toBe(404)
+
+    const customer = await loginViaApi(CUSTOMERS.adminRound.phone)
+    const response = await customer.post(
+      `${API}/api/v1/admin/bookings/${BOOKINGS.roundLive}/test-delete/preview`,
+      {
+        data: {},
+      }
+    )
+    expect(response.status()).toBe(403)
+    await customer.dispose()
+  })
+})
+
+// The owner deletes a Test booking whatever its money (10 Nov 2026,
+// owner-delete-bookings.spec.ts); a teammate who is not the owner keeps the
+// rules above.
+test.describe('the admin round: real money, for anyone but the owner @p0', () => {
+  test.use({ storageState: asRole('admin-teammate') })
+
   test('a Test booking paid with real money is kept, and says why', async ({
     page,
   }) => {
@@ -162,25 +189,5 @@ test.describe('the admin round: bookings @p0', () => {
     expect(refused.status()).toBe(409)
     expect(await refused.json()).toMatchObject({ code: 'TEST_BOOKING_KEPT' })
     expect(await bookingExists(id)).toBe(true)
-  })
-
-  test('a booking that is not there is a 404, and a customer gets no further than an admin check', async ({
-    page,
-  }) => {
-    const missing = await page.request.post(
-      `${API}/api/v1/admin/bookings/00000000-0000-4000-8000-0000000fffff/test-delete/preview`,
-      { data: {} }
-    )
-    expect(missing.status()).toBe(404)
-
-    const customer = await loginViaApi(CUSTOMERS.adminRound.phone)
-    const response = await customer.post(
-      `${API}/api/v1/admin/bookings/${BOOKINGS.roundLive}/test-delete/preview`,
-      {
-        data: {},
-      }
-    )
-    expect(response.status()).toBe(403)
-    await customer.dispose()
   })
 })

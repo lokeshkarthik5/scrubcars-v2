@@ -9,11 +9,13 @@ import { createStyles, useColors } from '@repo/native-ui/theme';
 
 import { IconAlarm } from '@repo/native-ui/icons';
 import { T } from '@repo/native-ui/text';
+import { useT } from '@repo/core/i18n';
 
 const MINUTE_MS = 60 * 1000;
 
 /** AnswerDeadline: how long is left to answer, big, with a bar that drains. Ticks every 10 s. */
 export function AnswerDeadline({ deadline }: { deadline: ResponseDeadline }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const now = useNow(10_000);
@@ -57,7 +59,7 @@ export function AnswerDeadline({ deadline }: { deadline: ResponseDeadline }) {
                 {state.label}
               </T>
               <T size={16} weight={500} lh={20} color={tint}>
-                to answer
+                {t('to answer')}
               </T>
             </>
           ) : (
@@ -66,7 +68,7 @@ export function AnswerDeadline({ deadline }: { deadline: ResponseDeadline }) {
                 {state.label}
               </T>
               <T size={16} weight={500} lh={20} color={tint}>
-                left to answer
+                {t('left to answer')}
               </T>
             </>
           )}

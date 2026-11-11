@@ -1,3 +1,5 @@
+import { msg, t } from './i18n/translate'
+
 /**
  * Garage documents for the apps: what each one is, what to upload, how its
  * status reads and when the documents count as checked (one of Silver's
@@ -67,47 +69,48 @@ export function isRetiredDocument(type: DocumentType): boolean {
 }
 
 export const DOCUMENT_LABELS: Record<DocumentType, string> = {
-  shop_photo: 'Shop photo',
-  owner_id: 'Owner ID',
-  bank_proof: 'Bank proof',
-  agreement: 'Signed agreement (old, on paper)',
-  gst_certificate: 'GST certificate',
-  trade_licence: 'Trade licence',
+  shop_photo: msg('Shop photo'),
+  owner_id: msg('Owner ID'),
+  bank_proof: msg('Bank proof'),
+  agreement: msg('Signed agreement (old, on paper)'),
+  gst_certificate: msg('GST certificate'),
+  trade_licence: msg('Trade licence'),
 }
 
 /** Under each document's name: what to upload, in the garage owner's words. */
 export const DOCUMENT_HINTS: Record<DocumentType, string> = {
-  shop_photo: 'A photo of the shop front with your name board showing.',
-  owner_id: 'Your PAN card, or your Aadhaar card with the number masked. Front and back if it has two sides.',
-  bank_proof: 'A cancelled cheque, or the passbook or statement page that shows the account we pay you into.',
-  agreement: 'The paper agreement from before you could agree in the app. Kept for the record.',
-  gst_certificate: 'Only if your garage is registered for GST.',
-  trade_licence: 'Your trade licence from the corporation or panchayat, if you have one.',
+  shop_photo: msg('A photo of the shop front with your name board showing.'),
+  owner_id: msg('Your PAN card, or your Aadhaar card with the number masked. Front and back if it has two sides.'),
+  bank_proof: msg('A cancelled cheque, or the passbook or statement page that shows the account we pay you into.'),
+  agreement: msg('The paper agreement from before you could agree in the app. Kept for the record.'),
+  gst_certificate: msg('Only if your garage is registered for GST.'),
+  trade_licence: msg('Your trade licence from the corporation or panchayat, if you have one.'),
 }
 
 /**
  * Under a doorstep-only garage's shop photo, in place of the usual hint: it
  * has no shop, so this one is optional.
  */
-export const SHOP_PHOTO_OPTIONAL_HINT =
+export const SHOP_PHOTO_OPTIONAL_HINT = msg(
   'Optional. You work at customers’ doorsteps, so there may be no shop front. Add a photo of one if you have it.'
+)
 
 /** The hint under a document, which for the shop photo depends on whether it is required. */
 export function documentHint(type: DocumentType, required: boolean): string {
-  return type === 'shop_photo' && !required ? SHOP_PHOTO_OPTIONAL_HINT : DOCUMENT_HINTS[type]
+  return t(type === 'shop_photo' && !required ? SHOP_PHOTO_OPTIONAL_HINT : DOCUMENT_HINTS[type])
 }
 
 /** The one extra line on Owner ID: an Aadhaar number must never be readable. */
-export const AADHAAR_MASK_NOTE = 'Cover the first 8 digits of an Aadhaar number'
+export const AADHAAR_MASK_NOTE = msg('Cover the first 8 digits of an Aadhaar number')
 
 export type DocumentStatus = 'pending' | 'approved' | 'rejected'
 
 /** A document's chip: missing (never uploaded) and the three stored states. */
 export const DOCUMENT_STATUS_LABELS: Record<DocumentStatus | 'missing', string> = {
-  missing: 'Not uploaded',
-  pending: 'Waiting for review',
-  approved: 'Approved',
-  rejected: 'Rejected',
+  missing: msg('Not uploaded'),
+  pending: msg('Waiting for review'),
+  approved: msg('Approved'),
+  rejected: msg('Rejected'),
 }
 
 /** What the browser checks before asking for an upload link; the server checks again. */
@@ -135,7 +138,7 @@ export function documentsVerified(
 
 /** "3 of 4 required approved". */
 export function progressLine(summary: { approvedRequired: number; required: number }): string {
-  return `${summary.approvedRequired} of ${summary.required} required approved`
+  return t('{done} of {count} required approved', { done: summary.approvedRequired, count: summary.required })
 }
 
 /**
@@ -143,21 +146,21 @@ export function progressLine(summary: { approvedRequired: number; required: numb
  * sent, or null: one or two files, each a photo or PDF up to 10 MB.
  */
 export function pickedFilesProblem(files: ReadonlyArray<{ type: string; size: number }>): string | null {
-  if (files.length === 0) return 'Pick a file.'
-  if (files.length > MAX_FILES_PER_DOCUMENT) return 'Two files at most: the front and the back.'
+  if (files.length === 0) return t('Pick a file.')
+  if (files.length > MAX_FILES_PER_DOCUMENT) return t('Two files at most: the front and the back.')
   for (const file of files) {
     if (!(DOCUMENT_CONTENT_TYPES as readonly string[]).includes(file.type)) {
-      return 'Use a photo (JPEG, PNG or WebP) or a PDF.'
+      return t('Use a photo (JPEG, PNG or WebP) or a PDF.')
     }
-    if (file.size <= 0) return 'That file is empty.'
-    if (file.size > MAX_DOCUMENT_BYTES) return 'Files can be up to 10 MB.'
+    if (file.size <= 0) return t('That file is empty.')
+    if (file.size > MAX_DOCUMENT_BYTES) return t('Files can be up to 10 MB.')
   }
   return null
 }
 
 /** "PDF · 1.2 MB", "Photo · 640 KB": how a file is named on screen, never by its name. */
 export function fileLine(file: { contentType: string; sizeBytes: number }): string {
-  const kind = file.contentType === 'application/pdf' ? 'PDF' : 'Photo'
+  const kind = file.contentType === 'application/pdf' ? 'PDF' : t('Photo')
   const size =
     file.sizeBytes >= 1024 * 1024
       ? `${(file.sizeBytes / (1024 * 1024)).toFixed(1)} MB`

@@ -41,6 +41,7 @@ import {
 import { cn } from '@repo/core/utils'
 import { BrandMark } from '@repo/ui/sc/brand-mark'
 import { OutsideCityChip } from '@repo/ui/features/outside-city'
+import { FALLBACK_CITY, outsideCityTag } from '@repo/core/customer-city'
 import { OPERATED_BY } from '@/lib/legal/common'
 import { BUSINESS } from '@/lib/legal/details'
 import { FOOTER_LEGAL_LINKS } from '@/lib/legal/routes'
@@ -613,6 +614,14 @@ export function Results({ results }: { results: Result[] }) {
 
 // ─── Live garages ───────────────────────────────────────────────────────────
 
+/**
+ * The town sign for a landing card (0070): relative to the first city, for
+ * a page rendered on the server for nobody in particular.
+ */
+function landingTownTag(garage: ApiVendorListItem): string | null {
+  return outsideCityTag({ ...garage, area: garage.city }, { city: FALLBACK_CITY, at: null })
+}
+
 /** "Others" says nothing about a garage, so it is left off the card. */
 function garageTags(garage: ApiVendorListItem) {
   return garage.serviceTags
@@ -691,12 +700,11 @@ export function Garages({ garages }: { garages: ApiVendorListItem[] }) {
                       .join(' · ')}
                   </p>
                   {/* The same sign as the app's cards: a garage in another
-                      town says it is not in Chennai before anyone opens it. */}
-                  {garage.outsideServiceCity && (
-                    <OutsideCityChip
-                      outside={garage.outsideServiceCity}
-                      className="mt-2"
-                    />
+                      town says where before anyone opens it. Rendered on the
+                      server for nobody in particular, so relative to the
+                      first city (Chennai), as a first visit is. */}
+                  {landingTownTag(garage) && (
+                    <OutsideCityChip text={landingTownTag(garage)!} className="mt-2" />
                   )}
                   {garageTags(garage).length > 0 && (
                     <p className="mt-3 flex flex-wrap gap-1.5">

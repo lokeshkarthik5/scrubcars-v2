@@ -48,9 +48,11 @@ import { serviceOnlyLine } from '@/lib/add-on-lines';
 import { openLink } from '@/lib/open-link';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 import { useVendorBookings } from '@/lib/use-vendor-bookings';
+import { fill, msg, useT } from '@repo/core/i18n';
 
 /** apps/vendors/app/bookings/[id]/page.tsx: one job, one screen, one next step. */
 function JobScreen() {
+  const t = useT();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { bookings, loaded, failed, retrying, reload } = useVendorBookings();
   const now = useNow(10_000);
@@ -63,9 +65,12 @@ function JobScreen() {
         {!loaded ? (
           <SkeletonList count={3} height={128} />
         ) : failed ? (
-          <LoadError what="this job" onRetry={reload} retrying={retrying} />
+          <LoadError what={t('this job')} onRetry={reload} retrying={retrying} />
         ) : (
-          <EmptyState title="This job isn't on your list" subtitle="It may belong to another garage, or the link is old." />
+          <EmptyState
+            title={t("This job isn't on your list")}
+            subtitle={t('It may belong to another garage, or the link is old.')}
+          />
         )}
       </AppShell>
     );
@@ -75,11 +80,12 @@ function JobScreen() {
 }
 
 function BackLink() {
+  const t = useT();
   const styles = useStyles();
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel="Back to bookings"
+      accessibilityLabel={t('Back to bookings')}
       onPress={() => router.navigate('/bookings' as Href)}
       style={styles.round}
     >
@@ -89,11 +95,12 @@ function BackLink() {
 }
 
 function Job({ booking: b, now, onChanged }: { booking: Booking; now: number; onChanged: () => void }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const deferred = useDeferredStatus(b.id);
   const [beforeOpen, setBeforeOpen] = useState(false);
-  const who = b.customerName || 'the customer';
+  const who = b.customerName || t('the customer');
   const ended = b.status === 'cancelled' || b.status === 'rescheduled';
   const contactOpen = !ended && contactWindowState(b.contactWindow, now) === 'open';
   const callHref = contactOpen ? telHref(b.customerPhone) : null;
@@ -141,7 +148,7 @@ function Job({ booking: b, now, onChanged }: { booking: Booking; now: number; on
         {callHref ? (
           <Pressable
             accessibilityRole="link"
-            accessibilityLabel={`Call ${who}`}
+            accessibilityLabel={t('Call {who}', { who })}
             onPress={() => openLink(callHref)}
             style={styles.round}
           >
@@ -151,7 +158,7 @@ function Job({ booking: b, now, onChanged }: { booking: Booking; now: number; on
         {chatHref ? (
           <Pressable
             accessibilityRole="link"
-            accessibilityLabel={`WhatsApp ${who}`}
+            accessibilityLabel={t('WhatsApp {who}', { who })}
             onPress={() => openLink(chatHref)}
             style={styles.round}
           >
@@ -173,11 +180,11 @@ function Job({ booking: b, now, onChanged }: { booking: Booking; now: number; on
             <View style={styles.flex} />
           )}
           <StatusChip tone={bookingStatusTone(shownStatus)} size="md">
-            {statusLabel({ ...b, status: shownStatus })}
+            {t(statusLabel({ ...b, status: shownStatus }))}
           </StatusChip>
         </View>
         <T size={16} color={colors.textSecondary}>
-          {`${serviceOnlyLine(b)} · ${BOOKING_TYPE_LABELS[b.bookingType]}`}
+          {`${serviceOnlyLine(b)} · ${t(BOOKING_TYPE_LABELS[b.bookingType])}`}
         </T>
         <JobAddOnLines items={b.items} size={14} />
         {stepTimes.length > 0 ? (
@@ -196,7 +203,7 @@ function Job({ booking: b, now, onChanged }: { booking: Booking; now: number; on
           <JobPhotos booking={b} stage={stage} onChanged={onChanged} readOnly={!photosOpen(b, stage, now)} />
           {b.photoStandard?.required && b.photoStandard.waived ? (
             <T size={13} color={colors.textSecondary} style={styles.waived}>
-              {"Detlio waived the photos for this job: Start and Complete don't wait for them."}
+              {t("Detlio waived the photos for this job: Start and Complete don't wait for them.")}
             </T>
           ) : null}
           {stage === 'after' ? (
@@ -208,10 +215,13 @@ function Job({ booking: b, now, onChanged }: { booking: Booking; now: number; on
                 style={styles.foldHead}
               >
                 <T size={15} weight={500}>
-                  {'Before photos · '}
-                  <T num size={15} weight={500}>
-                    {photoCount(b, 'before').have}
-                  </T>
+                  {fill(t('Before photos · {count}'), {
+                    count: (
+                      <T num size={15} weight={500}>
+                        {photoCount(b, 'before').have}
+                      </T>
+                    ),
+                  })}
                 </T>
                 <IconChevronDown size={18} color={colors.textSecondary} />
               </Pressable>
@@ -260,7 +270,7 @@ function Job({ booking: b, now, onChanged }: { booking: Booking; now: number; on
       {ended ? (
         <View style={styles.card}>
           <T size={16} weight={500}>
-            {cancelledLabel(b)}
+            {t(cancelledLabel(b))}
           </T>
           {b.cancellationReason && !b.notAcceptedInTime ? (
             <T size={15} color={colors.textSecondary} style={styles.mt}>
@@ -279,7 +289,7 @@ function Job({ booking: b, now, onChanged }: { booking: Booking; now: number; on
   );
 }
 
-const STEP_STATE_WORDS = { done: 'done', current: 'now', upcoming: 'to come' } as const;
+const STEP_STATE_WORDS = { done: msg('done'), current: msg('now'), upcoming: msg('to come') } as const;
 
 function Progress({
   booking: b,
@@ -288,6 +298,7 @@ function Progress({
   booking: Booking;
   deferred: ReturnType<typeof useDeferredStatus>;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const pickup = b.bookingType === 'pickup' ? pickupTimeline(b) : null;
@@ -296,15 +307,15 @@ function Progress({
     : PROGRESS_STEPS.map((label, i) => {
         const current =
           deferred === 'completed' ? PROGRESS_STEPS.length : deferred === 'in_progress' ? 2 : (progressIndex(b) ?? 0);
-        return { label, state: i < current ? 'done' : i === current ? 'current' : 'upcoming' } as const;
+        return { label: t(label), state: i < current ? 'done' : i === current ? 'current' : 'upcoming' } as const;
       });
   return (
-    <View accessibilityLabel="Job progress" style={styles.progress}>
+    <View accessibilityLabel={t('Job progress')} style={styles.progress}>
       {steps.map((step, i) => (
         <View
           key={step.label}
           accessible
-          accessibilityLabel={`${step.label}: ${STEP_STATE_WORDS[step.state]}`}
+          accessibilityLabel={`${step.label}: ${t(STEP_STATE_WORDS[step.state])}`}
           // Each step's line runs back under the dot before it, as the web's z-10.
           style={[styles.step, { zIndex: steps.length - i }]}
         >
@@ -356,9 +367,10 @@ function DockedStep({
   deferred: ReturnType<typeof useDeferredStatus>;
   onChanged: () => void;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
-  const who = b.customerName || 'the customer';
+  const who = b.customerName || t('the customer');
   const action = b.status === 'confirmed' ? 'start' : 'complete';
   const missing = blockers(b, action);
 
@@ -366,7 +378,7 @@ function DockedStep({
     return (
       <View accessibilityLiveRegion="polite" style={styles.waiting}>
         <T size={16} weight={500}>
-          {DEFERRED_WORDS[deferred]}
+          {t(DEFERRED_WORDS[deferred])}
         </T>
       </View>
     );
@@ -378,12 +390,12 @@ function DockedStep({
   return (
     <View style={styles.dock}>
       {blocked ? (
-        <View accessibilityLabel="Still to do" style={styles.missing}>
+        <View accessibilityLabel={t('Still to do')} style={styles.missing}>
           {missing.map((line) => (
             <View key={line} style={styles.missingRow}>
               <IconCircle size={22} stroke={2.2} color={colors.warning} />
               <T size={16} style={styles.flex}>
-                {line}
+                {t(line)}
               </T>
             </View>
           ))}
@@ -393,11 +405,11 @@ function DockedStep({
         variant="main"
         size="lg"
         disabled={blocked}
-        accessibilityLabel={`${action === 'start' ? 'Start' : 'Complete'} job for ${who}`}
+        accessibilityLabel={action === 'start' ? t('Start job for {who}', { who }) : t('Complete job for {who}', { who })}
         onPress={() => changeStatusWithUndo(b.id, action === 'start' ? 'in_progress' : 'completed')}
       >
         {blocked ? <IconLock size={20} color={colors.textSecondary} /> : null}
-        <Label color={blocked ? colors.textSecondary : colors.white}>{action === 'start' ? 'Start job' : 'Complete job'}</Label>
+        <Label color={blocked ? colors.textSecondary : colors.white}>{action === 'start' ? t('Start job') : t('Complete job')}</Label>
       </ScButton>
     </View>
   );

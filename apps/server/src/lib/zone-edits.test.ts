@@ -4,8 +4,13 @@ import {
   leadZoneId,
   leadZoneMoves,
   newZoneSlug,
+  ZONE_EDIT_MESSAGES,
   zoneEditProblem,
 } from './zone-edits.js'
+
+const CHENNAI = { id: 'c-chennai', name: 'Chennai', lat: 13.0827, lng: 80.2707, reachKm: 50 }
+const COIMBATORE = { id: 'c-cbe', name: 'Coimbatore', lat: 11.0168, lng: 76.9558, reachKm: 30 }
+const CITIES = [CHENNAI]
 
 const ZONES = [
   {
@@ -28,40 +33,54 @@ describe('zoneEditProblem', () => {
   }
 
   test('a fine edit, its own name kept', () => {
-    expect(zoneEditProblem(zone, ZONES)).toBeNull()
+    expect(zoneEditProblem(zone, ZONES, CITIES)).toBeNull()
     expect(
-      zoneEditProblem({ ...zone, name: '  anna   NAGAR ' }, ZONES)
+      zoneEditProblem({ ...zone, name: '  anna   NAGAR ' }, ZONES, CITIES)
     ).toBeNull()
   })
 
   test('names: length, letters, taken by another zone in any case', () => {
-    expect(zoneEditProblem({ ...zone, name: 'A' }, ZONES)).toBe('name_length')
-    expect(zoneEditProblem({ ...zone, name: 'x'.repeat(61) }, ZONES)).toBe(
+    expect(zoneEditProblem({ ...zone, name: 'A' }, ZONES, CITIES)).toBe('name_length')
+    expect(zoneEditProblem({ ...zone, name: 'x'.repeat(61) }, ZONES, CITIES)).toBe(
       'name_length'
     )
-    expect(zoneEditProblem({ ...zone, name: '!!' }, ZONES)).toBe('name_letters')
-    expect(zoneEditProblem({ ...zone, name: 'KILPAUK' }, ZONES)).toBe(
+    expect(zoneEditProblem({ ...zone, name: '!!' }, ZONES, CITIES)).toBe('name_letters')
+    expect(zoneEditProblem({ ...zone, name: 'KILPAUK' }, ZONES, CITIES)).toBe(
       'name_taken'
     )
     expect(
-      zoneEditProblem({ ...zone, id: null, name: 'Anna Nagar' }, ZONES)
+      zoneEditProblem({ ...zone, id: null, name: 'Anna Nagar' }, ZONES, CITIES)
     ).toBe('name_taken')
   })
 
   test('the target is a whole number from 1 to 1000', () => {
-    expect(zoneEditProblem({ ...zone, target: 0 }, ZONES)).toBe('target')
-    expect(zoneEditProblem({ ...zone, target: 2.5 }, ZONES)).toBe('target')
-    expect(zoneEditProblem({ ...zone, target: 1001 }, ZONES)).toBe('target')
-    expect(zoneEditProblem({ ...zone, target: 1000 }, ZONES)).toBeNull()
+    expect(zoneEditProblem({ ...zone, target: 0 }, ZONES, CITIES)).toBe('target')
+    expect(zoneEditProblem({ ...zone, target: 2.5 }, ZONES, CITIES)).toBe('target')
+    expect(zoneEditProblem({ ...zone, target: 1001 }, ZONES, CITIES)).toBe('target')
+    expect(zoneEditProblem({ ...zone, target: 1000 }, ZONES, CITIES)).toBeNull()
   })
 
-  test('the centre stays within 50 km of Chennai', () => {
+  test('the centre stays inside a city: Chennai’s 50 km while it is the only one', () => {
     expect(
-      zoneEditProblem({ ...zone, lat: 12.8, lng: 80.02 }, ZONES)
+      zoneEditProblem({ ...zone, lat: 12.8, lng: 80.02 }, ZONES, CITIES)
     ).toBeNull()
-    expect(zoneEditProblem({ ...zone, lat: 12.97, lng: 77.59 }, ZONES)).toBe(
+    expect(zoneEditProblem({ ...zone, lat: 12.97, lng: 77.59 }, ZONES, CITIES)).toBe(
       'outside_city'
     ) // Bengaluru
+  })
+
+  test('a zone may be drawn in any city that exists, and nowhere else (0070)', () => {
+    const rsPuram = { ...zone, id: null, name: 'RS Puram', lat: 11.0089, lng: 76.9497 }
+    // Coimbatore not added yet: refused, and the words say what to do.
+    expect(zoneEditProblem(rsPuram, ZONES, CITIES)).toBe('outside_city')
+    expect(ZONE_EDIT_MESSAGES.outside_city).toBe('The centre must be inside one of your cities. Add the city first.')
+    // Added (on for customers or not, the rule only asks where it is).
+    expect(zoneEditProblem(rsPuram, ZONES, [CHENNAI, COIMBATORE])).toBeNull()
+    // Chennai's zones still fit beside it, and a point in neither is refused.
+    expect(zoneEditProblem(zone, ZONES, [CHENNAI, COIMBATORE])).toBeNull()
+    expect(zoneEditProblem({ ...zone, lat: 12.97, lng: 77.59 }, ZONES, [CHENNAI, COIMBATORE])).toBe('outside_city')
+    // No cities at all: nowhere to draw.
+    expect(zoneEditProblem(zone, ZONES, [])).toBe('outside_city')
   })
 })
 

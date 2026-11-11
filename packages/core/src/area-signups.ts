@@ -1,3 +1,5 @@
+import { t } from './i18n/translate'
+
 /**
  * "Not in your area yet" (customer reach, part 2, 0062): the free-wash
  * sign-up's numbers and words for the customer app, and the rule for when
@@ -71,7 +73,7 @@ export function parseCardCloses(raw: string | null): CardCloses | null {
 
 /** "Free wash when we reach Velachery". */
 export function freeWashCardTitle(area: string): string {
-  return `Free wash when we reach ${area}`
+  return t('Free wash when we reach {area}', { area })
 }
 
 /**
@@ -80,8 +82,8 @@ export function freeWashCardTitle(area: string): string {
  */
 export function waitingLine(area: string, waiting: number | null | undefined): string {
   return waiting != null && waiting >= FREE_WASH_RULES.honestCountFrom
-    ? `${waiting} waiting here`
-    : `Be the first in ${area}`
+    ? t('{count} waiting here', { count: waiting })
+    : t('Be the first in {area}', { area })
 }
 
 /** Whether the area's free washes are all given: the sheet then offers "Notify me" only. */
@@ -91,5 +93,7 @@ export function freeWashesGone(freeWashesLeft: number | null | undefined): boole
 
 /** The recommend ask, right after signing up. */
 export function recommendAsk(): string {
-  return `Know a good garage here? ₹${REFERRAL_CREDIT.perGarageRupees} credit if they join and you book them`
+  return t('Know a good garage here? ₹{amount} credit if they join and you book them', {
+    amount: REFERRAL_CREDIT.perGarageRupees,
+  })
 }

@@ -8,18 +8,20 @@ import type { Service } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
 import { PhotoViewer } from './photo-viewer'
 import { ServiceVideo } from './service-video'
+import { useT } from '@repo/core/i18n'
 
 /**
  * The label over a picture's top-left corner: "From <garage>". Only the
  * garage's own photos and video are ever shown to a customer.
  */
 function MediaTag({ garageName }: { garageName: string }) {
+  const t = useT()
   return (
     <span className="flex max-w-full items-center gap-1.5 rounded-[8px] border border-white/10 bg-black/65 px-2.5 py-1 text-t4 text-white backdrop-blur-sm">
       <IconBuildingStore size={15} stroke={1.6} aria-hidden="true" />
       {/* "From A.J Auto Garage", the name in the stronger weight. */}
       <span className="truncate">
-        <span className="text-white/75">From</span>{' '}
+        <span className="text-white/75">{t('From')}</span>{' '}
         <span className="font-medium">{garageName}</span>
       </span>
     </span>
@@ -41,6 +43,7 @@ export function ServiceMediaArea({
   service: Pick<Service, 'media' | 'name'>
   garageName: string
 }) {
+  const t = useT()
   const [viewing, setViewing] = useState<number | null>(null)
   const media = customerMedia(service.media)
   const video = media.find((item) => item.kind === 'video') ?? null
@@ -65,7 +68,7 @@ export function ServiceMediaArea({
           <button
             type="button"
             onClick={() => setViewing(0)}
-            aria-label={`Open photo 1 of ${service.name}`}
+            aria-label={t('Open photo 1 of {name}', { name: service.name })}
             className="relative aspect-video w-full overflow-hidden rounded-[14px] border border-border bg-surface-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-primary/70"
           >
             <Image
@@ -91,7 +94,7 @@ export function ServiceMediaArea({
                 key={photo.id}
                 type="button"
                 onClick={() => setViewing(index)}
-                aria-label={`Open photo ${index + 1} of ${service.name}`}
+                aria-label={t('Open photo {value} of {name}', { value: index + 1, name: service.name })}
                 className={cn(
                   'relative aspect-[2/1] overflow-hidden rounded-[10px] border border-border bg-surface-elevated',
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-primary/70'

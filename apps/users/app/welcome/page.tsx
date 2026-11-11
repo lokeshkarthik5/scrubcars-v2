@@ -7,23 +7,25 @@ import { AppShell } from '@repo/ui/sc/app-shell'
 import { BrandMark } from '@repo/ui/sc/brand-mark'
 import { ScButton } from '@repo/ui/sc/button'
 import { cn } from '@repo/core/utils'
+import { msg, useT } from '@repo/core/i18n'
 
 const SLIDES = [
   {
-    title: 'Pristine Care for\nYour Machine',
-    body: "Access the region's top rated auto spas. On-demand reservations, real-time queues, and premium detailing.",
+    title: msg('Pristine Care for\nYour Machine'),
+    body: msg("Access the region's top rated auto spas. On-demand reservations, real-time queues, and premium detailing."),
   },
   {
-    title: 'Book a Slot in\nSeconds',
-    body: 'Pick a garage, choose your services, and lock a time that fits your day. No calls, no waiting.',
+    title: msg('Book a Slot in\nSeconds'),
+    body: msg('Pick a garage, choose your services, and lock a time that fits your day. No calls, no waiting.'),
   },
   {
-    title: 'At the Garage or\nAt Your Door',
-    body: 'Drop in to a detailing bay or have a detailer come to you. Track every booking end to end.',
+    title: msg('At the Garage or\nAt Your Door'),
+    body: msg('Drop in to a detailing bay or have a detailer come to you. Track every booking end to end.'),
   },
 ]
 
 export default function WelcomePage() {
+  const t = useT()
   const router = useRouter()
   const [slide, setSlide] = useState(0)
   const active = SLIDES[slide]
@@ -57,10 +59,10 @@ export default function WelcomePage() {
 
         <div className="mt-auto">
           <h2 className="whitespace-pre-line text-[30px] font-bold leading-[1.15] tracking-tight text-text-primary">
-            {active.title}
+            {t(active.title)}
           </h2>
           <p className="mt-3 text-[14px] leading-relaxed text-text-secondary">
-            {active.body}
+            {t(active.body)}
           </p>
 
           <div className="mt-6 flex items-center gap-1.5">
@@ -68,7 +70,7 @@ export default function WelcomePage() {
               <button
                 key={s.title}
                 type="button"
-                aria-label={`Go to slide ${i + 1}`}
+                aria-label={t('Go to slide {number}', { number: i + 1 })}
                 onClick={() => setSlide(i)}
                 className={cn(
                   'h-1 rounded-full transition-all',
@@ -84,7 +86,7 @@ export default function WelcomePage() {
             className="mt-7 rounded-full py-4 text-t3"
             onClick={handleNext}
           >
-            {isLast ? 'Get Started' : 'Next'}
+            {isLast ? t('Get Started') : t('Next')}
           </ScButton>
         </div>
       </div>

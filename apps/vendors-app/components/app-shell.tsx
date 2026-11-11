@@ -3,10 +3,9 @@ import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/lib/auth';
-import { useGarageBookOn } from '@/lib/garage-book';
-import { useBookNavClearance } from './book/book-nav';
 import { createStyles } from '@repo/native-ui/theme';
 
+import { useNavClearance } from './bottom-nav';
 import { CompanySwitcher } from './company-switcher';
 import { BrandMark } from '@repo/native-ui/primitives';
 import { SupportSessionBanner, useSupportSession } from './support-session-banner';
@@ -47,7 +46,8 @@ function VendorShellHeader() {
 
 /**
  * AppShell (packages/ui/src/sc/app-shell.tsx): the screen's column, under the
- * garage header and the brand row. The bottom nav comes from the tab layout.
+ * garage header and the brand row. The bottom nav comes from the tab layout and floats
+ * over the screen, as the web's does (FLOATING_NAV_CLEARANCE).
  */
 export function AppShell({
   children,
@@ -63,7 +63,10 @@ export function AppShell({
   brandRight?: ReactNode;
   /** The web's gap-*: Home's gap-5, Bookings' gap-4. */
   gap?: number;
-  /** A tab screen sits above the nav; a screen off the tabs reaches the edge. */
+  /**
+   * A tab screen scrolls under the floating nav, so its end stays clear of it; a screen
+   * off the tabs reaches the edge.
+   */
   hasNav?: boolean;
   scrollRef?: RefObject<ComponentRef<typeof ScrollView> | null>;
   /** Docked under the scroll, above the keyboard: the job's one next step. */
@@ -71,10 +74,7 @@ export function AppShell({
 }) {
   const styles = useStyles();
   const insets = useSafeAreaInsets();
-  // Garage Book's bar floats over the screen (0069): a tab screen scrolls clear of it.
-  const book = useGarageBookOn();
-  const floating = useBookNavClearance();
-  const navGap = hasNav && book ? floating : 16;
+  const navClearance = useNavClearance();
   return (
     // The inset is outside the scroll, so content never runs under the status bar.
     <KeyboardAvoidingView
@@ -91,7 +91,11 @@ export function AppShell({
         automaticallyAdjustKeyboardInsets={!footer}
         contentContainerStyle={[
           styles.content,
-          { gap, paddingTop: 16, paddingBottom: footer ? 16 : hasNav ? navGap : insets.bottom + 16 },
+          {
+            gap,
+            paddingTop: 16,
+            paddingBottom: footer ? 16 : hasNav ? navClearance : insets.bottom + 16,
+          },
         ]}
       >
         <VendorShellHeader />

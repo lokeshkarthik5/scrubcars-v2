@@ -13,6 +13,7 @@ import { useRefreshOnFocus } from '@/lib/use-refresh-on-focus';
 import { IconChevronRight, IconCircleCheck, IconCircleDashed } from '@repo/native-ui/icons';
 import { ScCard } from '@repo/native-ui/primitives';
 import { T } from '@repo/native-ui/text';
+import { fill, useT } from '@repo/core/i18n';
 
 const METALS: Record<Tier, { light: string; dark: string; ribbon: string }> = {
   bronze: { light: '#E0A672', dark: '#8A5528', ribbon: '#6B4424' },
@@ -50,6 +51,7 @@ function Eyebrow({ children }: { children: string }) {
 }
 
 function StepList({ steps, label }: { steps: TierStep[]; label: string }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   return (
@@ -81,7 +83,7 @@ function StepList({ steps, label }: { steps: TierStep[]; label: string }) {
                 </T>
                 <T size={12} color={colors.textSecondary}>
                   {step.value}
-                  {!step.met ? <T size={12} color={colors.textMuted}>{` · Needs: ${step.target}`}</T> : null}
+                  {!step.met ? <T size={12} color={colors.textMuted}>{` · ${t('Needs: {target}', { target: step.target })}`}</T> : null}
                 </T>
               </View>
               {link ? (
@@ -92,7 +94,7 @@ function StepList({ steps, label }: { steps: TierStep[]; label: string }) {
                   style={styles.stepLink}
                 >
                   <T size={12} weight={500} style={styles.underline}>
-                    {link.label}
+                    {t(link.label)}
                   </T>
                   <IconChevronRight size={14} />
                 </Pressable>
@@ -107,6 +109,7 @@ function StepList({ steps, label }: { steps: TierStep[]; label: string }) {
 
 /** TierCard: the garage's medal and what the next one takes; nothing until loaded or on failure. */
 export function TierCard({ vendorId }: { vendorId: string | undefined }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const { data } = useGarageTier(vendorId);
@@ -118,31 +121,34 @@ export function TierCard({ vendorId }: { vendorId: string | undefined }) {
   const percent = next && next.total > 0 ? Math.round((next.done / next.total) * 100) : 100;
 
   return (
-    <ScCard accessibilityLabel="Your tier" style={styles.card}>
+    <ScCard accessibilityLabel={t('Your tier')} style={styles.card}>
       <View style={styles.head}>
         <View style={[styles.medal, !data.tier && styles.medalNone]}>
           <TierMedalIcon tier={data.tier ?? 'bronze'} size={26} grey={!data.tier} />
         </View>
         <View style={styles.flex}>
-          <Eyebrow>Your tier</Eyebrow>
+          <Eyebrow>{t('Your tier')}</Eyebrow>
           <T size={16} weight={600}>
-            {data.tier ? `You're ${TIER_LABELS[data.tier]}` : 'No tier yet'}
+            {data.tier ? t("You're {tier}", { tier: t(TIER_LABELS[data.tier]) }) : t('No tier yet')}
           </T>
           <T size={12} color={colors.textSecondary}>
             {next ? (
               <Fragment>
-                {`Next: ${TIER_LABELS[next.tier]}, `}
-                <T num size={12} color={colors.textSecondary}>
-                  {next.done}
-                </T>
-                {' of '}
-                <T num size={12} color={colors.textSecondary}>
-                  {next.total}
-                </T>
-                {' done'}
+                {fill(t('Next: {tier}, {done} of {total} done', { tier: t(TIER_LABELS[next.tier]) }), {
+                  done: (
+                    <T num size={12} color={colors.textSecondary}>
+                      {next.done}
+                    </T>
+                  ),
+                  total: (
+                    <T num size={12} color={colors.textSecondary}>
+                      {next.total}
+                    </T>
+                  ),
+                })}
               </Fragment>
             ) : (
-              'That’s the top tier. Keep meeting the standards to keep it.'
+              t('That’s the top tier. Keep meeting the standards to keep it.')
             )}
           </T>
         </View>
@@ -151,7 +157,7 @@ export function TierCard({ vendorId }: { vendorId: string | undefined }) {
       {next ? (
         <View
           accessibilityRole="progressbar"
-          accessibilityLabel={`Progress to ${TIER_LABELS[next.tier]}`}
+          accessibilityLabel={t('Progress to {tier}', { tier: t(TIER_LABELS[next.tier]) })}
           accessibilityValue={{ min: 0, max: next.total, now: next.done }}
           style={styles.track}
         >
@@ -162,26 +168,33 @@ export function TierCard({ vendorId }: { vendorId: string | undefined }) {
       {data.atRisk ? (
         <View style={styles.risk}>
           <T size={12} color={colors.warning}>
-            {`You don’t meet every ${TIER_LABELS[data.atRisk.tier]} standard right now. Put it right by `}
-            <T num size={12} color={colors.warning}>
-              {dateKeyLabel(data.atRisk.keepsUntil)}
-            </T>
-            {` to keep ${TIER_LABELS[data.atRisk.tier]}.`}
+            {fill(
+              t('You don’t meet every {tier} standard right now. Put it right by {date} to keep {tier}.', {
+                tier: t(TIER_LABELS[data.atRisk.tier]),
+              }),
+              {
+                date: (
+                  <T num size={12} color={colors.warning}>
+                    {dateKeyLabel(data.atRisk.keepsUntil)}
+                  </T>
+                ),
+              }
+            )}
           </T>
         </View>
       ) : null}
 
-      {keep.length > 0 && data.tier ? <StepList steps={keep} label={`To keep ${TIER_LABELS[data.tier]}`} /> : null}
-      {next ? <StepList steps={next.steps} label={`Steps to ${TIER_LABELS[next.tier]}`} /> : null}
+      {keep.length > 0 && data.tier ? <StepList steps={keep} label={t('To keep {tier}', { tier: t(TIER_LABELS[data.tier]) })} /> : null}
+      {next ? <StepList steps={next.steps} label={t('Steps to {tier}', { tier: t(TIER_LABELS[next.tier]) })} /> : null}
 
       {next?.tier === 'gold' ? (
         <T size={12} color={colors.textMuted}>
-          When every step is done, Detlio visits in person and awards Gold.
+          {t('When every step is done, Detlio visits in person and awards Gold.')}
         </T>
       ) : null}
       {data.tier ? (
         <T size={12} color={colors.textMuted}>
-          {TIER_GARAGE_LINES[data.tier]}
+          {t(TIER_GARAGE_LINES[data.tier])}
         </T>
       ) : null}
     </ScCard>

@@ -1,3 +1,4 @@
+import type { ReachCity } from '@repo/core/cities'
 import type { Tier } from '@repo/core/tiers'
 import type { ConditionPhotos, PhotoStandard, ServiceMedia } from '@repo/core/types'
 import type { PickupNext } from '@repo/core/pickup'
@@ -117,6 +118,13 @@ export interface ApiVendorListItem {
   pickupEnabled?: boolean
   /** How far it collects from (null: the 10 km default). Absent from an API before 0062. */
   pickupRadiusKm?: number | null
+  /**
+   * "All over <city>" (0069): comes, or collects, anywhere in its city, and
+   * the city it covers (name, centre, reach). Absent from an older API.
+   */
+  doorstepWholeCity?: boolean
+  pickupWholeCity?: boolean
+  reachCity?: ReachCity | null
   startingPrice: number | null
   /** The counted reviews' score (0065): null for a new garage. */
   rating: number | null
@@ -151,6 +159,11 @@ export interface ApiVendorListItem {
    * Absent on older servers.
    */
   outsideServiceCity?: OutsideServiceCity | null
+  /**
+   * The garage's own city by the cities rule (0070), null in no city. Absent
+   * on older servers.
+   */
+  garageCity?: { id: string; name: string } | null
   /** The medal customers see (0063): Bronze, Silver, Gold or null. Absent on older servers. */
   tier?: Tier | null
 }
@@ -219,6 +232,10 @@ export interface ApiPublicVendor {
   pickupRadiusKm?: number | null
   /** How far it travels for doorstep work; null is the default. Absent from older servers. */
   doorstepRadiusKm?: number | null
+  /** "All over <city>" (0069), as on a list item. Absent from an older API. */
+  doorstepWholeCity?: boolean
+  pickupWholeCity?: boolean
+  reachCity?: ReachCity | null
   /** As the garage wrote it ("5", "10+"). Absent from older servers. */
   yearsInOperation?: string | null
   slotIntervalMins: number
@@ -237,6 +254,8 @@ export interface ApiPublicVendor {
   bookingsPausedReason?: string | null
   /** As on a list item: set only outside Chennai. Absent on older servers. */
   outsideServiceCity?: OutsideServiceCity | null
+  /** As on a list item: the garage's own city (0070). Absent on older servers. */
+  garageCity?: { id: string; name: string } | null
   /** As on a list item: the medal customers see (0063). Absent on older servers. */
   tier?: Tier | null
 }
@@ -256,6 +275,15 @@ export interface VendorProfileExtras {
   pickupTermsAcceptedAt?: string | null
   /** How far this garage travels for doorstep work. Null means "nowhere yet". */
   doorstepRadiusKm: number | null
+  /** "All over <city>" for doorstep and pickup & drop (0069). Absent from an older API. */
+  doorstepWholeCity?: boolean
+  pickupWholeCity?: boolean
+  /**
+   * The city the garage's pin is in, for "All over Chennai" (0069); null when
+   * it is in none. Absent from an older API, and from writes other than the
+   * profile and job types.
+   */
+  garageCity?: { name: string; reachKm: number } | null
   geoSource: 'unset' | 'gps' | 'map_pin' | 'geocoded' | 'admin'
   /** Set when an admin confirmed the pin on a map. Null means nobody has. */
   geoConfirmedAt: string | null
@@ -296,7 +324,7 @@ export interface ApiVendorProfile extends VendorProfileExtras {
   slotIntervalMins: number
   status: string
   createdAt: string
-  /** Garage Book (0069): whether the garage apps show the book (GARAGE_BOOK on the server). Absent from an older API. */
+  /** Garage Book (0072): whether the garage apps show the book (GARAGE_BOOK on the server). Absent from an older API. */
   garageBook?: { enabled: boolean }
 }
 

@@ -13,7 +13,8 @@ import { ScBadge } from '@/components/form-controls';
 import { GuaranteeEvidence } from '@/components/guarantee-evidence';
 import { IconShieldCheck } from '@repo/native-ui/icons';
 import { ScTextarea } from '@repo/native-ui/inputs';
-import { EmptyState, LoadError, ScCard, ScSegmented, SkeletonList } from '@repo/native-ui/primitives';
+import { GraphiteSwitch } from '@repo/native-ui/finish';
+import { EmptyState, LoadError, ScCard, SkeletonList } from '@repo/native-ui/primitives';
 import { TopBar } from '@/components/rows';
 import { ScSheet } from '@repo/native-ui/sheet';
 import { T } from '@repo/native-ui/text';
@@ -32,15 +33,16 @@ import {
   claimSubtitle,
   claimTitle,
   DISPUTE_FAILED,
-  DISPUTE_INTRO,
+  disputeIntro,
   disputeNote,
   DISPUTED_TOAST,
-  GUARANTEE_INTRO,
+  guaranteeIntro,
   NOT_SWITCHED_ON,
   OWNER_ONLY,
 } from '@/lib/guarantee-view';
 import { useItemFocus } from '@/lib/use-item-focus';
 import { createStyles, useColors } from '@repo/native-ui/theme';
+import { useT } from '@repo/core/i18n';
 
 /**
  * apps/vendors/app/guarantee/page.tsx: free redo claims (Detlio Guarantee, 0051), for the
@@ -50,6 +52,7 @@ import { createStyles, useColors } from '@repo/native-ui/theme';
  * approves the redo, and a job with no before/after photos is approved at once.
  */
 function GuaranteeClaimsScreen() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const isVendorAdmin = useIsVendorAdmin();
@@ -84,40 +87,40 @@ function GuaranteeClaimsScreen() {
   return (
     <AppShell gap={16} scrollRef={scroll}>
       <TopBar
-        title="Free redo claims"
+        title={t('Free redo claims')}
         onBack={() => (router.canGoBack() ? router.back() : router.replace('/home'))}
       />
       {!isVendorAdmin ? (
         <T size={13} color={colors.textSecondary}>
-          {OWNER_ONLY}
+          {t(OWNER_ONLY)}
         </T>
       ) : !config.isLoading && !on ? (
         <T size={13} color={colors.textSecondary}>
-          {NOT_SWITCHED_ON}
+          {t(NOT_SWITCHED_ON)}
         </T>
       ) : (
         <>
           <T size={12} color={colors.textSecondary}>
-            {GUARANTEE_INTRO}
+            {guaranteeIntro()}
           </T>
-          <ScSegmented
-            accessibilityLabel="Which claims"
+          <GraphiteSwitch
+            accessibilityLabel={t('Which claims')}
             value={scope}
             onChange={setScope}
             options={[
-              { value: 'open', label: 'Open' },
-              { value: 'closed', label: 'Closed' },
+              { value: 'open', label: t('Open') },
+              { value: 'closed', label: t('Closed') },
             ]}
           />
           {claims.isLoading || config.isLoading ? (
             <SkeletonList count={2} height={220} />
           ) : claims.isError && !claims.data ? (
-            <LoadError what="your claims" onRetry={() => void claims.refetch()} retrying={claims.isFetching} />
+            <LoadError what={t('your claims')} onRetry={() => void claims.refetch()} retrying={claims.isFetching} />
           ) : (claims.data?.items.length ?? 0) === 0 ? (
             <EmptyState
               icon={<IconShieldCheck size={28} stroke={1.5} color={colors.textSecondary} />}
-              title={scope === 'open' ? 'No open claims' : 'No closed claims'}
-              subtitle="Claims customers make on your jobs show here."
+              title={scope === 'open' ? t('No open claims') : t('No closed claims')}
+              subtitle={t('Claims customers make on your jobs show here.')}
             />
           ) : (
             <View style={styles.list} onLayout={onListLayout}>
@@ -144,6 +147,7 @@ function lookupOf(query: ReturnType<typeof useGarageClaimsInbox>): ScopeLookup {
 }
 
 function ClaimCard({ claim, now }: { claim: GarageClaim; now: number }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const answer = useAnswerClaim();
@@ -156,9 +160,9 @@ function ClaimCard({ claim, now }: { claim: GarageClaim; now: number }) {
   const accept = async () => {
     try {
       await answer.mutateAsync({ claimId: claim.id, answer: 'accept' });
-      toast.success(ACCEPTED_TOAST);
+      toast.success(t(ACCEPTED_TOAST));
     } catch (error) {
-      toast.error(errorText(error, ACCEPT_FAILED));
+      toast.error(errorText(error, t(ACCEPT_FAILED)));
     }
   };
 
@@ -166,9 +170,9 @@ function ClaimCard({ claim, now }: { claim: GarageClaim; now: number }) {
     try {
       await answer.mutateAsync({ claimId: claim.id, answer: 'dispute', note: disputeNote(note) });
       setDisputing(false);
-      toast.success(DISPUTED_TOAST);
+      toast.success(t(DISPUTED_TOAST));
     } catch (error) {
-      toast.error(errorText(error, DISPUTE_FAILED));
+      toast.error(errorText(error, t(DISPUTE_FAILED)));
     }
   };
 
@@ -185,13 +189,13 @@ function ClaimCard({ claim, now }: { claim: GarageClaim; now: number }) {
         </View>
         {/* shrink-0 on the web; a long status ("Redo approved — customer to pick a time") wraps here. */}
         <View style={styles.badge}>
-          <ScBadge variant={claim.canAnswer ? 'pending' : 'muted'}>{CLAIM_STATUS_LABELS[claim.status]}</ScBadge>
+          <ScBadge variant={claim.canAnswer ? 'pending' : 'muted'}>{t(CLAIM_STATUS_LABELS[claim.status])}</ScBadge>
         </View>
       </View>
 
       <View>
         <T size={12} weight={500}>
-          {claim.issues.map((issue) => issue.label).join(', ')}
+          {claim.issues.map((issue) => t(issue.label)).join(', ')}
         </T>
         {claim.otherText ? (
           <T size={12} color={colors.textSecondary} style={styles.other}>
@@ -203,7 +207,7 @@ function ClaimCard({ claim, now }: { claim: GarageClaim; now: number }) {
       <GuaranteeEvidence
         customerPhotos={claim.customerPhotos}
         garagePhotos={claim.garagePhotos}
-        garageTitle="Your before and after photos"
+        garageTitle={t('Your before and after photos')}
       />
 
       {notes.map((line) => (
@@ -228,7 +232,7 @@ function ClaimCard({ claim, now }: { claim: GarageClaim; now: number }) {
               onPress={() => void accept()}
               disabled={answer.isPending}
             >
-              Accept — free redo
+              {t('Accept — free redo')}
             </ScButton>
             {claim.canDispute ? (
               <ScButton
@@ -239,7 +243,7 @@ function ClaimCard({ claim, now }: { claim: GarageClaim; now: number }) {
                 onPress={() => setDisputing(true)}
                 disabled={answer.isPending}
               >
-                Dispute
+                {t('Dispute')}
               </ScButton>
             ) : null}
           </View>
@@ -250,18 +254,18 @@ function ClaimCard({ claim, now }: { claim: GarageClaim; now: number }) {
         open={disputing}
         onClose={() => setDisputing(false)}
         dismissible={!answer.isPending}
-        accessibilityLabel="Dispute this claim"
+        accessibilityLabel={t('Dispute this claim')}
         horizontalPadding={16}
       >
         <View style={styles.dispute}>
           <T accessibilityRole="header" size={15} weight={600}>
-            Dispute this claim
+            {t('Dispute this claim')}
           </T>
           <T size={12} color={colors.textSecondary}>
-            {DISPUTE_INTRO}
+            {disputeIntro()}
           </T>
           <ScTextarea
-            label="Why"
+            label={t('Why')}
             rows={4}
             maxLength={GUARANTEE_RULES.garageNoteMax}
             value={note}
@@ -276,7 +280,7 @@ function ClaimCard({ claim, now }: { claim: GarageClaim; now: number }) {
               onPress={() => setDisputing(false)}
               disabled={answer.isPending}
             >
-              Back
+              {t('Back')}
             </ScButton>
             <ScButton
               variant="main"
@@ -286,7 +290,7 @@ function ClaimCard({ claim, now }: { claim: GarageClaim; now: number }) {
               onPress={() => void dispute()}
               disabled={!canSendDispute(note) || answer.isPending}
             >
-              Send to Detlio
+              {t('Send to Detlio')}
             </ScButton>
           </View>
         </View>

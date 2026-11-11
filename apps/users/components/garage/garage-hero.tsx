@@ -5,6 +5,7 @@ import Image from 'next/image'
 import type { Vendor } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
 import { GarageCover } from '@repo/ui/features/garage-cover'
+import { useT } from '@repo/core/i18n'
 
 /**
  * The garage page's tall hero (§5): every photo of the garage, swiped by
@@ -19,6 +20,7 @@ import { GarageCover } from '@repo/ui/features/garage-cover'
  * dots are the keyboard's way through them.
  */
 export function GarageHero({ vendor }: { vendor: Vendor }) {
+  const t = useT()
   const photos = vendor.photos
   const [photo, setPhoto] = useState(0)
   const [dragX, setDragX] = useState(0)
@@ -89,7 +91,7 @@ export function GarageHero({ vendor }: { vendor: Vendor }) {
             <button
               key={src}
               type="button"
-              aria-label={`Photo ${i + 1} of ${photos.length}`}
+              aria-label={t('Photo {value} of {length}', { value: i + 1, length: photos.length })}
               aria-current={i === photo ? 'true' : undefined}
               onClick={() => setPhoto(i)}
               className="grid h-6 place-items-center px-0.5"

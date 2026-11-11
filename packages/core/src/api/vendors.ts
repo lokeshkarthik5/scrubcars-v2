@@ -40,6 +40,14 @@ export interface VendorListParams {
    * search (`q`) has no radius at all.
    */
   radiusKm?: number
+  /**
+   * The centre of the customer's city when they picked a whole city and so
+   * send no origin (0070): the server leaves out garages over 150 km from it
+   * (FAR_LIMIT_KM). Ignored with an origin, which the limit is measured from
+   * instead. Both or neither.
+   */
+  cityLat?: number
+  cityLng?: number
   /** Viewport for the map view's "search as I move the map". */
   bbox?: string
   sort?: VendorSort
@@ -100,6 +108,8 @@ export async function getVendors(
       lat: params?.lat,
       lng: params?.lng,
       radiusKm: params?.radiusKm,
+      cityLat: params?.cityLat,
+      cityLng: params?.cityLng,
       bbox: params?.bbox,
       sort: params?.sort,
       includeUnlocated: params?.includeUnlocated,
@@ -191,6 +201,12 @@ export async function updateVendorJobTypes(data: {
    */
   doorstepRadiusKm?: number
   /**
+   * "All over <city>" (0069) instead of a radius. On needs the garage's pin
+   * inside a city (400 WHOLE_CITY_NEEDS_CITY).
+   */
+  doorstepWholeCity?: boolean
+  pickupWholeCity?: boolean
+  /**
    * Pickup & drop. Turning it on needs `pickupTermsAccepted: true`, the
    * owner's tick (PICKUP_TERMS_GARAGE); off never does. A null radius is the
    * 10 km default.
@@ -230,9 +246,15 @@ export async function getVendorClosures(id: string): Promise<string[]> {
   return apiClient<string[]>(`/vendors/${id}/closures`, { auth: false })
 }
 
-/** GET /vendors/me/closures — today's and later holidays */
-export async function getMyClosures(): Promise<ApiVendorClosure[]> {
-  return apiClient<ApiVendorClosure[]>('/vendors/me/closures')
+/**
+ * GET /vendors/me/closures — today's and later holidays, or from an earlier
+ * day (`from`, YYYY-MM-DD) for a month the bookings calendar pages back to.
+ * An older server ignores `from` and answers from today.
+ */
+export async function getMyClosures(from?: string): Promise<ApiVendorClosure[]> {
+  return apiClient<ApiVendorClosure[]>('/vendors/me/closures', {
+    ...(from && { params: { from } }),
+  })
 }
 
 /**
@@ -507,6 +529,9 @@ export async function submitVendorOnboarding(
         ...(data.doorstep && data.doorstepRadiusKm != null
           ? { doorstepRadiusKm: data.doorstepRadiusKm as number }
           : {}),
+        // "All over <city>" (0069), sent only when chosen, so an older API
+        // never sees it.
+        ...(data.doorstep && data.doorstepWholeCity === true ? { doorstepWholeCity: true } : {}),
       }),
       updateSlotInterval(data.slotInterval as 30 | 45 | 60),
       setWorkingHoursForDays(

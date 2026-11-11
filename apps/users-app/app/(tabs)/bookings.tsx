@@ -5,6 +5,7 @@ import { BOOKING_TYPE_LABELS } from '@repo/core/booking-types';
 import { formatClock, formatDay, formatWhen } from '@repo/core/format';
 import { countdownBox, countdownParts, countdownWords } from '@repo/core/moments';
 import { useNow } from '@repo/core/hooks/use-now';
+import { t, useT } from '@repo/core/i18n';
 import { type BookingListTab, DEFAULT_BOOKING_LIST_TAB, parseBookingListTab, splitBookingList } from '@repo/core/my-bookings';
 import { PICKUP_STAGE_NOW, pickupStageOf, pickupTimeline } from '@repo/core/pickup';
 import { useBookingsStore } from '@repo/core/stores/bookings-store';
@@ -41,7 +42,7 @@ function pickupLine(booking: Booking): string | null {
         deliveredAt: booking.pickup?.deliveredAtIso,
       })
     : 'booked';
-  return stage === 'booked' ? BOOKING_TYPE_LABELS.pickup : `${BOOKING_TYPE_LABELS.pickup} · ${PICKUP_STAGE_NOW[stage]}`;
+  return stage === 'booked' ? t(BOOKING_TYPE_LABELS.pickup) : `${t(BOOKING_TYPE_LABELS.pickup)} · ${t(PICKUP_STAGE_NOW[stage])}`;
 }
 
 /** What every card of a booking says: its chip, what it needs, and its whole name for a screen reader. */
@@ -49,12 +50,12 @@ function cardFacts(booking: Booking, action: string | null, now: number) {
   const chip = customerStatusChip(booking.status);
   const refunded = booking.status === 'cancelled' && booking.refund.status === 'refunded';
   const unpaid = booking.paymentMethod === 'online' && booking.paymentStatus === 'pending' && booking.status === 'pending';
-  const needs = action ?? (unpaid ? 'Pay to hold your slot' : null);
+  const needs = action ?? (unpaid ? t('Pay to hold your slot') : null);
   const waitingUntil =
     !needs && booking.status === 'pending' && booking.responseDeadline && Date.parse(booking.responseDeadline.respondBy) > now
       ? answersByLine(booking.responseDeadline.respondBy, now)
       : null;
-  const label = `${booking.serviceSummary} at ${booking.vendorName}, ${chip.label}${refunded ? ', Refunded' : ''}${needs ? `, ${needs}` : ''}`;
+  const label = `${t('{services} at {name}', { services: booking.serviceSummary, name: booking.vendorName })}, ${chip.label}${refunded ? `, ${t('Refunded')}` : ''}${needs ? `, ${needs}` : ''}`;
   return { chip, refunded, needs, waitingUntil, label };
 }
 
@@ -65,6 +66,7 @@ function cardFacts(booking: Booking, action: string | null, now: number) {
  * every booking card; only the look is a ticket's. Rises in once.
  */
 function TicketCard({ booking, action, now }: { booking: Booking; action: string | null; now: number }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const { fx } = useFinish();
@@ -86,10 +88,10 @@ function TicketCard({ booking, action, now }: { booking: Booking; action: string
   const carLine = [booking.vehicle?.model, pickupLine(booking)].filter(Boolean).join(' · ');
   return (
     <Rise>
-      <Pressable accessibilityRole="link" accessibilityLabel={`${label}. Starts in ${countdownWords(parts)}`} onPress={() => router.push(`/bookings/${booking.id}` as Href)}>
+      <Pressable accessibilityRole="link" accessibilityLabel={t('{label}. Starts in {time}', { label, time: countdownWords(parts) })} onPress={() => router.push(`/bookings/${booking.id}` as Href)}>
         <Edge radius={22} style={[styles.ticket, needs ? styles.ticketNeeds : null]}>
           <T variant="over" color={fx.quiet}>
-            Next booking
+            {t('Next booking')}
           </T>
           <T variant="t2" style={styles.ticketWhen}>
             {`${formatDay(booking.scheduledAtIso, now)} · `}
@@ -131,7 +133,7 @@ function TicketCard({ booking, action, now }: { booking: Booking; action: string
               {carLine}
             </T>
           ) : null}
-          {stops ? <ProgressRoad stops={stops} compact label="Where it stands" style={styles.ticketRoad} /> : null}
+          {stops ? <ProgressRoad stops={stops} compact label={t('Where it stands')} style={styles.ticketRoad} /> : null}
           <View style={styles.mt8}>
             {needs ? (
               <View style={styles.needs}>
@@ -142,7 +144,7 @@ function TicketCard({ booking, action, now }: { booking: Booking; action: string
               </View>
             ) : (waitingUntil ?? (booking.paymentStatus === 'paid' ? 'Paid' : null)) ? (
               <T variant="t4" weight={400} color={colors.dim}>
-                {waitingUntil ?? 'Paid'}
+                {waitingUntil ?? t('Paid')}
               </T>
             ) : null}
           </View>
@@ -154,6 +156,7 @@ function TicketCard({ booking, action, now }: { booking: Booking; action: string
 
 /** A past booking in the compact list (moment 5): its service, the day and the garage, the price, and Book again. */
 function PastRow({ booking, addresses, now, index }: { booking: Booking; addresses: Address[]; now: number; index: number }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const { fx } = useFinish();
@@ -167,7 +170,7 @@ function PastRow({ booking, addresses, now, index }: { booking: Booking; address
               {booking.serviceSummary}
             </T>
             <View style={styles.chips}>
-              {refunded ? <StatusChip tone="done" dot={false}>Refunded</StatusChip> : null}
+              {refunded ? <StatusChip tone="done" dot={false}>{t('Refunded')}</StatusChip> : null}
               <StatusChip tone={chip.tone} dot={false}>{chip.label}</StatusChip>
             </View>
           </View>
@@ -190,13 +193,13 @@ function PastRow({ booking, addresses, now, index }: { booking: Booking; address
         <View style={styles.pastAgain}>
           <Pressable
             accessibilityRole="link"
-            accessibilityLabel={`Book again: ${booking.serviceSummary} at ${booking.vendorName}`}
+            accessibilityLabel={t('Book again: {services} at {name}', { services: booking.serviceSummary, name: booking.vendorName })}
             onPress={() => router.push(bookAgainPath(booking, matchSavedAddress(booking, addresses)) as Href)}
             style={styles.again}
           >
             <IconRepeat size={14} />
             <T variant="t5" weight={600}>
-              Book again
+              {t('Book again')}
             </T>
           </Pressable>
         </View>
@@ -207,13 +210,14 @@ function PastRow({ booking, addresses, now, index }: { booking: Booking; address
 
 /** BookingCard (apps/users/app/bookings/page.tsx). */
 function BookingCard({ booking, tab, addresses, action, now }: { booking: Booking; tab: BookingListTab; addresses: Address[]; action: string | null; now: number }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const chip = customerStatusChip(booking.status);
   const refunded = booking.status === 'cancelled' && booking.refund.status === 'refunded';
   const pickup = pickupLine(booking);
   const unpaid = booking.paymentMethod === 'online' && booking.paymentStatus === 'pending' && booking.status === 'pending';
-  const needs = action ?? (unpaid ? 'Pay to hold your slot' : null);
+  const needs = action ?? (unpaid ? t('Pay to hold your slot') : null);
   const waitingUntil =
     !needs && booking.status === 'pending' && booking.responseDeadline && Date.parse(booking.responseDeadline.respondBy) > now
       ? answersByLine(booking.responseDeadline.respondBy, now)
@@ -221,7 +225,7 @@ function BookingCard({ booking, tab, addresses, action, now }: { booking: Bookin
   return (
     <Pressable
       accessibilityRole="link"
-      accessibilityLabel={`${booking.serviceSummary} at ${booking.vendorName}, ${chip.label}${refunded ? ', Refunded' : ''}${needs ? `, ${needs}` : ''}`}
+      accessibilityLabel={`${t('{services} at {name}', { services: booking.serviceSummary, name: booking.vendorName })}, ${chip.label}${refunded ? `, ${t('Refunded')}` : ''}${needs ? `, ${needs}` : ''}`}
       onPress={() => router.push(`/bookings/${booking.id}` as Href)}
     >
       <ScCard style={[styles.card, needs ? styles.cardNeeds : null]}>
@@ -230,7 +234,7 @@ function BookingCard({ booking, tab, addresses, action, now }: { booking: Bookin
             {booking.serviceSummary}
           </T>
           <View style={styles.chips}>
-            {refunded ? <StatusChip tone="done" dot={false}>Refunded</StatusChip> : null}
+            {refunded ? <StatusChip tone="done" dot={false}>{t('Refunded')}</StatusChip> : null}
             <StatusChip tone={chip.tone} dot={false}>{chip.label}</StatusChip>
           </View>
         </View>
@@ -252,7 +256,7 @@ function BookingCard({ booking, tab, addresses, action, now }: { booking: Bookin
             </View>
           ) : (
             <T size={13} lh={18} color={colors.dim} style={styles.grow}>
-              {waitingUntil ?? (booking.paymentStatus === 'paid' ? 'Paid' : booking.paymentStatus === 'refunded' ? 'Paid · refunded' : '')}
+              {waitingUntil ?? (booking.paymentStatus === 'paid' ? t('Paid') : booking.paymentStatus === 'refunded' ? t('Paid · refunded') : '')}
             </T>
           )}
           <View style={styles.price}>
@@ -270,13 +274,13 @@ function BookingCard({ booking, tab, addresses, action, now }: { booking: Bookin
           <View style={styles.againRow}>
             <Pressable
               accessibilityRole="link"
-              accessibilityLabel={`Book again: ${booking.serviceSummary} at ${booking.vendorName}`}
+              accessibilityLabel={t('Book again: {services} at {name}', { services: booking.serviceSummary, name: booking.vendorName })}
               onPress={() => router.push(bookAgainPath(booking, matchSavedAddress(booking, addresses)) as Href)}
               style={styles.again}
             >
               <IconRepeat size={15} />
               <T size={13} weight={500} lh={18}>
-                Book again
+                {t('Book again')}
               </T>
             </Pressable>
           </View>
@@ -288,6 +292,7 @@ function BookingCard({ booking, tab, addresses, action, now }: { booking: Bookin
 
 /** apps/users/app/bookings/page.tsx. */
 export default function BookingsScreen() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const params = useLocalSearchParams<{ tab?: string }>();
@@ -326,17 +331,17 @@ export default function BookingsScreen() {
     return (
       <CustomerShell>
         <T accessibilityRole="header" variant="title">
-          Bookings
+          {t('Bookings')}
         </T>
         <View style={styles.center}>
           <T size={15} weight={600} align="center">
-            Login to view your bookings
+            {t('Login to view your bookings')}
           </T>
           <T size={13} align="center" color={colors.textSecondary}>
-            Sign in to see your booking history
+            {t('Sign in to see your booking history')}
           </T>
           <ScButton variant="main" fullWidth={false} paddingX={32} onPress={() => router.push('/login?next=%2Fbookings' as Href)} style={styles.login}>
-            Login
+            {t('Login')}
           </ScButton>
         </View>
       </CustomerShell>
@@ -362,19 +367,19 @@ export default function BookingsScreen() {
   return (
     <CustomerShell refreshing={refreshing} onRefresh={refresh}>
       <T accessibilityRole="header" variant="title">
-        Bookings
+        {t('Bookings')}
       </T>
       <ScSegmented
         options={[
-          { value: 'upcoming', label: 'Upcoming' },
-          { value: 'past', label: 'Past' },
+          { value: 'upcoming', label: t('Upcoming') },
+          { value: 'past', label: t('Past') },
         ]}
         value={tab}
         onChange={(value) => setTab(value as BookingListTab)}
       />
       {loadFailed && !loaded && customerBookings.length === 0 ? (
         <ErrorState
-          message="Couldn't load your bookings. Check your connection."
+          message={t("Couldn't load your bookings. Check your connection.")}
           onRetry={() => {
             setLoadFailed(false);
             setAttempt((n) => n + 1);
@@ -389,18 +394,18 @@ export default function BookingsScreen() {
         tab === 'upcoming' ? (
           <View style={styles.none}>
             <T size={20} lh={28} tracking={-0.015} align="center">
-              No upcoming bookings
+              {t('No upcoming bookings')}
             </T>
             <T size={15} lh={22} color={colors.textSecondary} align="center">
-              Book a car wash or detailing at a garage near you.
+              {t('Book a car wash or detailing at a garage near you.')}
             </T>
             <ScButton variant="main" fullWidth={false} onPress={() => router.push('/search' as Href)} style={styles.find}>
-              <Label color={colors.white}>Find garages</Label>
+              <Label color={colors.white}>{t('Find garages')}</Label>
               <IconArrowUpRight size={17} stroke={1.5} color={colors.white} />
             </ScButton>
           </View>
         ) : (
-          <EmptyState title="No past bookings yet" subtitle="Bookings that are done or cancelled show here." />
+          <EmptyState title={t('No past bookings yet')} subtitle={t('Bookings that are done or cancelled show here.')} />
         )
       ) : (
         // Past: a compact list. Upcoming: the next booking as a ticket, the rest as cards under it.

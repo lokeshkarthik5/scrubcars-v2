@@ -31,13 +31,13 @@ import {
 import { formatClock } from '@repo/core/format';
 import { GUARANTEE_BADGE } from '@repo/core/guarantee';
 import { useNow } from '@repo/core/hooks/use-now';
+import { fill, msg, useT, useTn } from '@repo/core/i18n';
 import { confirmPayment, intentPollResult, realClock } from '@repo/core/payment-confirmation';
 import { insidePickupReach, PICKUP_RESPONSIBILITY_LINE, pickupFeeLabel } from '@repo/core/pickup';
 import { resolveServiceAmount } from '@repo/core/pricing';
 import { hasStarScore } from '@repo/core/ratings';
 import { rewardRupees } from '@repo/core/rewards';
 import { knownDurationTotal } from '@repo/core/service-duration';
-import { outsideCityCheckoutLine } from '@repo/core/service-city';
 import { isLastingRefusal, livePendingCheckout, pendingCodeFor } from '@repo/core/stores/pending-checkout-store';
 import { useUserStore } from '@repo/core/stores/user-store';
 import type { Address, BookingType, Service, Vendor } from '@repo/core/types';
@@ -88,6 +88,7 @@ import { ModeSwitch } from '@/components/garage/mode-switch';
 import { NumberPlate } from '@/components/moments/number-plate';
 import { TierMark } from '@/components/garage/tier';
 import { OutsideCityLine } from '@/components/garage/tier';
+import { useGarageTownLine } from '@/lib/customer-place';
 import { AddCarSheet } from '@/components/home/add-car-sheet';
 import { LocationPicker, type PickedLocation } from '@/components/location-picker';
 import { SlotAlertAsk } from '@/components/slot-alerts/slot-alert-ask';
@@ -118,9 +119,9 @@ const DRAFT_CAR = 'draft-car';
 const DRAFT_ADDRESS = 'draft-address';
 
 const BOOKED_AS: Record<BookingType, string> = {
-  dropin: 'at the garage',
-  doorstep: 'a doorstep visit',
-  pickup: 'pickup & drop',
+  dropin: msg('at the garage'),
+  doorstep: msg('a doorstep visit'),
+  pickup: msg('pickup & drop'),
 };
 
 /** The solid red Pay arriving: one small pop (bk-cta-pop), none under Reduce Motion. */
@@ -135,6 +136,8 @@ function CtaPop({ children }: { children: ReactNode }) {
 
 /** apps/users/app/book/[vendorId]/page.tsx. Prices come from the server; what's charged is the server's sum. */
 export default function BookScreen() {
+  const tn = useTn();
+  const t = useT();
   const params = useLocalSearchParams<{
     vendorId: string;
     service?: string;
@@ -185,6 +188,8 @@ export default function BookScreen() {
   const fetchProfile = useUserStore((s) => s.fetchProfile);
 
   const [vendor, setVendor] = useState<Vendor | null>(null);
+  // The garage page's line once more above Pay, only for a garage outside the customer's city (0070).
+  const townLine = useGarageTownLine(vendor);
   const [selectedServices, setSelectedServices] = useState<Service[]>([]);
   const [categoryById, setCategoryById] = useState<Record<string, string>>({});
   const guaranteeOn = useGuaranteeConfig().data?.enabled === true;
@@ -377,7 +382,9 @@ export default function BookScreen() {
     (refusedAddressIds.includes(address.id) || (!(address.lat === 0 && address.lng === 0) && insidePickupReach(vendor, address) === false));
   const addressOutside = !requestMode && selectedAddressRecord != null && !addressNeedsPin && outsidePickup(selectedAddressRecord);
   const otherMode = vendor ? (offeredBookingTypes(vendor).find((type) => type !== 'pickup') ?? null) : null;
-  const outsideAdvice = `This garage doesn't pick up from this address. Try another address${otherMode ? ` or choose ${BOOKING_TYPE_LABELS[otherMode]}` : ''}.`;
+  const outsideAdvice = otherMode
+    ? t("This garage doesn't pick up from this address. Try another address or choose {mode}.", { mode: t(BOOKING_TYPE_LABELS[otherMode]) })
+    : t("This garage doesn't pick up from this address. Try another address.");
   const addressBlocker: 'address' | 'pin' | 'outside' | null = !usesAddress
     ? null
     : selectedAddress == null
@@ -418,14 +425,14 @@ export default function BookScreen() {
       : (addressBlocker ?? (unpricedForVehicle ? 'unpriced' : isGuest ? 'signin' : needsName && profileName.trim().length === 0 ? 'name' : null));
 
   const stepLabels: Record<CheckoutStep, string> = {
-    slot: 'Pick a time',
-    car: vehicles.length === 0 ? 'Add your car' : 'Choose your car',
-    address: addressOptions.length === 0 ? 'Add your address' : 'Choose an address',
-    pin: 'Pin your address on the map',
-    outside: 'Choose another address',
-    unpriced: 'Remove the unpriced service',
-    signin: signIn.phase === 'phone' ? 'Enter your number to pay' : signIn.readyToVerify ? 'Tap Verify and pay above' : 'Enter the code we sent',
-    name: 'Add your name',
+    slot: t('Pick a time'),
+    car: vehicles.length === 0 ? t('Add your car') : t('Choose your car'),
+    address: addressOptions.length === 0 ? t('Add your address') : t('Choose an address'),
+    pin: t('Pin your address on the map'),
+    outside: t('Choose another address'),
+    unpriced: t('Remove the unpriced service'),
+    signin: signIn.phase === 'phone' ? t('Enter your number to pay') : signIn.readyToVerify ? t('Tap Verify and pay above') : t('Enter the code we sent'),
+    name: t('Add your name'),
   };
 
   const goToStep = (step: CheckoutStep) => {
@@ -440,11 +447,11 @@ export default function BookScreen() {
 
   const handleSlotTaken = useCallback(() => {
     if (paidRef.current || bookingLockRef.current) return;
-    toast.info('That time was just taken; pick another.');
+    toast.info(t('That time was just taken; pick another.'));
   }, []);
 
   const handleSlotLapse = (scheduledAt: string) => {
-    toast.info(`${formatClock(scheduledAt)} is now too soon to book. ${noticeSentence(bookingType)} Pick another time.`);
+    toast.info(t('{time} is now too soon to book. {notice} Pick another time.', { time: formatClock(scheduledAt), notice: noticeSentence(bookingType) }));
     goToStep('slot');
   };
 
@@ -477,7 +484,7 @@ export default function BookScreen() {
         },
         onError: (error) => {
           setAppliedPromo(null);
-          toast.error(errorText(error, "This can't be used on this booking."));
+          toast.error(errorText(error, t("This can't be used on this booking.")));
         },
       }
     );
@@ -580,7 +587,7 @@ export default function BookScreen() {
       setPromoOpen(false);
       if (coupon?.code) handleApplyReward(coupon.code);
     } catch (error) {
-      toast.error(errorText(error, "Couldn't add that coupon. Check your connection and try again."));
+      toast.error(errorText(error, t("Couldn't add that coupon. Check your connection and try again.")));
     } finally {
       setScanBusy(false);
     }
@@ -601,7 +608,7 @@ export default function BookScreen() {
 
   const promoError =
     applyPromo.error && applyPromo.variables?.serviceIds.join(',') === serviceKey && applyPromo.variables?.vehicleId === selectedVehicle
-      ? errorMessage(applyPromo.error, "This code isn't valid.")
+      ? errorMessage(applyPromo.error, t("This code isn't valid."))
       : '';
   const offerChecking = !!offerCode && applyPromo.isPending && applyPromo.variables?.code === offerCode;
   const offerProblem = offerCode && !appliedDiscount && !offerChecking && applyPromo.variables?.code === offerCode ? promoError : '';
@@ -612,9 +619,9 @@ export default function BookScreen() {
     try {
       const saved = await updateAddress(selectedAddress, { lat: picked.lat, lng: picked.lng, geoSource: picked.source });
       useUserStore.setState((state) => ({ addresses: state.addresses.map((a) => (a.id === saved.id ? saved : a)) }));
-      toast.success('Location saved');
+      toast.success(t('Location saved'));
     } catch (err) {
-      toast.error(errorText(err, 'Could not save that location'));
+      toast.error(errorText(err, t('Could not save that location')));
     } finally {
       setPinningAddress(false);
     }
@@ -685,11 +692,11 @@ export default function BookScreen() {
         afterBooked(order.bookingId);
         return;
       }
-      if (!order.orderId) throw new Error('Could not start the payment. Please try again.');
+      if (!order.orderId) throw new Error(t('Could not start the payment. Please try again.'));
       // The server's figure is what's charged: a different one is shown before Razorpay opens.
       const agreed = await confirmOrderTotal(order.amount, toPay, (rupees) => new Promise((resolve) => setTotalCheck({ rupees, resolve })));
       if (!agreed) {
-        toast.info('Nothing was booked or charged.');
+        toast.info(t('Nothing was booked or charged.'));
         return;
       }
       // Written before the window opens: if the app dies in it, the webhook settles and this finds out.
@@ -706,7 +713,7 @@ export default function BookScreen() {
       );
       if (result.kind === 'cancelled') {
         pendingPayment.clear(payKey);
-        toast.info('Payment cancelled. Nothing was booked.');
+        toast.info(t('Payment cancelled. Nothing was booked.'));
         return;
       }
       if (result.kind === 'failed') {
@@ -754,15 +761,17 @@ export default function BookScreen() {
         void queryClient.invalidateQueries({ queryKey: slotKeys.all });
         toast.error(
           error.code === 'SLOT_TOO_SOON' && isPickup
-            ? `That time is too soon now. ${noticeSentence('pickup')} Pick a later time.`
+            ? t('That time is too soon now. {notice} Pick a later time.', { notice: noticeSentence('pickup') })
             : error.code === 'SLOT_FULL'
-              ? 'That time was just taken; pick another.'
+              ? t('That time was just taken; pick another.')
               : error.message
         );
         goToStep('slot');
       } else if (error instanceof ApiError && error.code === 'PICKUP_NOT_OFFERED') {
         toast.error(
-          `This garage has stopped offering pickup & drop.${otherMode ? ` You can book ${BOOKED_AS[otherMode]} instead, or pick another garage.` : ' Pick another garage.'}`
+          otherMode
+            ? t('This garage has stopped offering pickup & drop. You can book {mode} instead, or pick another garage.', { mode: t(BOOKED_AS[otherMode]) })
+            : t('This garage has stopped offering pickup & drop. Pick another garage.')
         );
         void getVendor(vendorId).then((v) => v && setVendor(v));
       } else if (error instanceof ApiError && error.code === 'OUTSIDE_PICKUP_RADIUS') {
@@ -770,10 +779,10 @@ export default function BookScreen() {
         toast.error(outsideAdvice);
         goToStep('address');
       } else if (error instanceof ApiError && error.code === 'ADDRESS_REQUIRED') {
-        toast.error(isPickup ? 'Choose the address we should collect your car from.' : 'Choose the address we should come to.');
+        toast.error(isPickup ? t('Choose the address we should collect your car from.') : t('Choose the address we should come to.'));
         goToStep('address');
       } else if (error instanceof ApiError && error.code === 'ADDRESS_LOCATION_REQUIRED') {
-        toast.error(isPickup ? 'Pin your address on the map so the garage can find your car.' : 'Pin your address on the map so the garage can find you.');
+        toast.error(isPickup ? t('Pin your address on the map so the garage can find your car.') : t('Pin your address on the map so the garage can find you.'));
         void getAddresses()
           .then((fresh) => {
             useUserStore.setState({ addresses: fresh });
@@ -784,7 +793,7 @@ export default function BookScreen() {
         void invalidateGiftData(queryClient);
         toast.error(error.message);
       } else {
-        toast.error(errorText(error, 'Could not start the payment. Please try again.'));
+        toast.error(errorText(error, t('Could not start the payment. Please try again.')));
       }
     } finally {
       setPaymentFlowOnScreen(false);
@@ -845,7 +854,7 @@ export default function BookScreen() {
       }
       return { vehicleId, addressId, carSaved };
     } catch (error) {
-      toast.error(errorText(error, "Couldn't save your car and address. Try again."));
+      toast.error(errorText(error, t("Couldn't save your car and address. Try again.")));
       return null;
     } finally {
       setSavingDraft(false);
@@ -868,7 +877,7 @@ export default function BookScreen() {
       } else {
         offerCheckedFor.current = null;
       }
-      toast.error(`${code} doesn't apply to this booking. Check the total, then tap Pay.`);
+      toast.error(t("{code} doesn't apply to this booking. Check the total, then tap Pay.", { code }));
       return null;
     }
   };
@@ -938,21 +947,21 @@ export default function BookScreen() {
   if (loadProblem) {
     return (
       <View style={[styles.page, { paddingTop: insets.top }]}>
-        <Header title="Book your wash" />
+        <Header title={t('Book your wash')} />
         {loadProblem === 'gone' ? (
           <View style={styles.gone}>
             <T size={15} lh={22} color={colors.textSecondary} align="center">
-              {"This garage isn't taking bookings on Detlio."}
+              {t("This garage isn't taking bookings on Detlio.")}
             </T>
             <Pressable accessibilityRole="link" onPress={() => router.replace('/garages' as Href)} style={styles.goneLink}>
               <T size={15} weight={500} lh={20} style={styles.underline}>
-                Find another garage
+                {t('Find another garage')}
               </T>
             </Pressable>
           </View>
         ) : (
           <ErrorState
-            message="Couldn't load this garage. Check your connection."
+            message={t("Couldn't load this garage. Check your connection.")}
             onRetry={() => {
               setLoadProblem(null);
               setLoadAttempt((n) => n + 1);
@@ -973,50 +982,55 @@ export default function BookScreen() {
     nextStep === 'address'
       ? addressOptions.length === 0
         ? isPickup
-          ? 'Add the address we should collect your car from.'
-          : 'Add the address we should come to.'
+          ? t('Add the address we should collect your car from.')
+          : t('Add the address we should come to.')
         : isPickup
-          ? 'Pick the address we should collect your car from.'
-          : 'Pick the address we should come to.'
+          ? t('Pick the address we should collect your car from.')
+          : t('Pick the address we should come to.')
       : nextStep === 'pin'
         ? isPickup
-          ? 'We need the exact spot to check this garage collects from you.'
-          : 'We need the exact spot to check this garage travels to you.'
+          ? t('We need the exact spot to check this garage collects from you.')
+          : t('We need the exact spot to check this garage travels to you.')
         : nextStep === 'outside'
           ? outsideAdvice
           : nextStep === 'signin'
-            ? 'Sign in with your number to pay. No password: we text you a code.'
+            ? t('Sign in with your number to pay. No password: we text you a code.')
             : nextStep === 'name'
-              ? 'The garage sees your name on your booking.'
+              ? t('The garage sees your name on your booking.')
               : nextStep === 'unpriced'
-                ? `${unpricedLines.map((line) => line.service.name).join(', ')} ${unpricedLines.length === 1 ? 'is' : 'are'} not priced for your vehicle type. Remove ${unpricedLines.length === 1 ? 'it' : 'them'}, pick another car, or contact the garage.`
+                ? tn(
+                    unpricedLines.length,
+                    '{services} is not priced for your vehicle type. Remove it, pick another car, or contact the garage.',
+                    '{services} are not priced for your vehicle type. Remove them, pick another car, or contact the garage.',
+                    { services: unpricedLines.map((line) => line.service.name).join(', ') }
+                  )
                 : nextStep
-                  ? 'You pay now. Your booking is confirmed once the garage accepts it.'
+                  ? t('You pay now. Your booking is confirmed once the garage accepts it.')
                   : freeBooking
-                    ? 'Your free wash covers it: nothing to pay. Your booking is confirmed once the garage accepts it.'
+                    ? t('Your free wash covers it: nothing to pay. Your booking is confirmed once the garage accepts it.')
                     : toPay === 0
-                      ? 'Paid with your Detlio credit. Your booking is confirmed once the garage accepts it.'
+                      ? t('Paid with your Detlio credit. Your booking is confirmed once the garage accepts it.')
                       : null;
 
   const payLabel = loading
-    ? 'Processing payment...'
+    ? t('Processing payment...')
     : savingDraft
-      ? 'Saving your car…'
+      ? t('Saving your car…')
       : !nextStep && applyPromo.isPending
-        ? 'Checking…'
+        ? t('Checking…')
         : nextStep
           ? stepLabels[nextStep]
           : toPay == null
-            ? 'Confirm booking'
+            ? t('Confirm booking')
             : freeBooking
-              ? 'Book your free wash'
+              ? t('Book your free wash')
               : toPay === 0
-                ? 'Book with credit'
-                : `Pay ${money(toPay)}`;
+                ? t('Book with credit')
+                : t('Pay {amount}', { amount: money(toPay) });
 
   return (
     <View style={[styles.page, { paddingTop: insets.top }]}>
-      <Header title="Book your wash" />
+      <Header title={t('Book your wash')} />
       <ScrollView
         ref={scrollRef}
         keyboardShouldPersistTaps="handled"
@@ -1025,7 +1039,7 @@ export default function BookScreen() {
       >
         {isGuest && !signInOpen && nextStep !== 'signin' ? (
           <T size={13} lh={18} color={colors.textSecondary} style={styles.haveAccount}>
-            {'Have an account? '}
+            {`${t('Have an account?')} `}
             <T
               size={13}
               weight={500}
@@ -1036,24 +1050,24 @@ export default function BookScreen() {
                 setTimeout(() => goToStep('signin'), 50);
               }}
             >
-              Sign in
+              {t('Sign in')}
             </T>
           </T>
         ) : null}
 
         {vendor?.bookingsPaused ? (
-          <Notice tone="neutral" title="Not taking bookings right now">
-            {vendor.bookingsPausedReason || 'This garage has paused new bookings. Check back later, or pick another garage.'}
+          <Notice tone="neutral" title={t('Not taking bookings right now')}>
+            {vendor.bookingsPausedReason || t('This garage has paused new bookings. Check back later, or pick another garage.')}
           </Notice>
         ) : null}
         {modeWithdrawn ? (
-          <Notice tone="neutral" title={`${BOOKING_TYPE_LABELS[modeWithdrawn]} isn't offered here now`}>
-            {`This booking will be ${BOOKED_AS[bookingType]}.`}
+          <Notice tone="neutral" title={t("{mode} isn't offered here now", { mode: t(BOOKING_TYPE_LABELS[modeWithdrawn]) })}>
+            {t('This booking will be {mode}.', { mode: t(BOOKED_AS[bookingType]) })}
           </Notice>
         ) : null}
         {servicesDropped ? (
-          <Notice tone="neutral" title="Some services are no longer offered">
-            {"This garage has stopped offering some of the services you picked, so they've been left out."}
+          <Notice tone="neutral" title={t('Some services are no longer offered')}>
+            {t("This garage has stopped offering some of the services you picked, so they've been left out.")}
           </Notice>
         ) : null}
 
@@ -1065,7 +1079,7 @@ export default function BookScreen() {
                   {vendor.name}
                 </T>
                 {hasStarScore(vendor) ? (
-                  <View style={styles.stars} accessibilityLabel={`${vendor.rating.toFixed(1)} stars from ${vendor.reviewCount} reviews`}>
+                  <View style={styles.stars} accessibilityLabel={t('{rating} stars from {count} reviews', { rating: vendor.rating.toFixed(1), count: vendor.reviewCount })}>
                     <IconStarFilled size={13} color={colors.textPrimary} />
                     <T num size={13} lh={18}>
                       {vendor.rating.toFixed(1)}
@@ -1076,7 +1090,7 @@ export default function BookScreen() {
                   </View>
                 ) : (
                   <T size={13} lh={18} color={colors.dim}>
-                    New on Detlio
+                    {t('New on Detlio')}
                   </T>
                 )}
               </View>
@@ -1094,7 +1108,7 @@ export default function BookScreen() {
                     <View key={service.id} style={styles.lineRow}>
                       <View style={styles.lineName}>
                         {selectedServices.length > 1 || addOn ? (
-                          <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${service.name}`} onPress={() => removeService(service.id)} style={styles.remove}>
+                          <Pressable accessibilityRole="button" accessibilityLabel={t('Remove {name}', { name: service.name })} onPress={() => removeService(service.id)} style={styles.remove}>
                             <IconX size={15} color={colors.textMuted} />
                           </Pressable>
                         ) : null}
@@ -1102,21 +1116,21 @@ export default function BookScreen() {
                           <T size={15} lh={22} color={colors.textSecondary}>
                             {service.name}
                             {vehicleTierLabel && service.pricingType === 'per_vehicle' ? (
-                              <T size={15} lh={22} color={colors.textMuted}>{` · ${vehicleTierLabel}`}</T>
+                              <T size={15} lh={22} color={colors.textMuted}>{` · ${t(vehicleTierLabel)}`}</T>
                             ) : null}
                           </T>
                           {addOn ? <AddOnMark /> : null}
                         </View>
                       </View>
                       <T size={15} lh={22} color={unpriced ? colors.error : colors.textPrimary}>
-                        {unpriced ? 'Not priced' : <Figures size={15} text={servicePriceText(service, selectedVehicleType)} />}
+                        {unpriced ? t('Not priced') : <Figures size={15} text={servicePriceText(service, selectedVehicleType)} />}
                       </T>
                     </View>
                   );
                 })}
                 <T size={13} lh={18} color={colors.dim}>
                   {totalDuration !== null ? <><T num size={13} lh={18} color={colors.dim}>{formatDuration(totalDuration)}</T>{' · '}</> : null}
-                  {BOOKING_TYPE_LABELS[bookingType]}
+                  {t(BOOKING_TYPE_LABELS[bookingType])}
                 </T>
               </View>
             </HubCard>
@@ -1130,22 +1144,24 @@ export default function BookScreen() {
         {acceptedRequest && acceptedRequest.acceptedStartAt && acceptedRequest.confirmBy ? (
           <View style={styles.accepted}>
             <T size={11} weight={500} lh={15} uppercase tracking={0.12} color={colors.success}>
-              Accepted request
+              {t('Accepted request')}
             </T>
             <T size={17} weight={500} lh={24}>
-              {`${acceptedRequest.garage.name} will ${acceptedRequest.bookingType === 'pickup' ? 'collect your car' : 'come'} ${istStartLabel(acceptedRequest.acceptedStartAt)}`}
+              {acceptedRequest.bookingType === 'pickup'
+                ? t('{name} will collect your car {when}', { name: acceptedRequest.garage.name, when: istStartLabel(acceptedRequest.acceptedStartAt) })
+                : t('{name} will come {when}', { name: acceptedRequest.garage.name, when: istStartLabel(acceptedRequest.acceptedStartAt) })}
             </T>
             <T size={13} lh={18} color={colors.textSecondary}>
               {`${selectedVehicleLabel ? `${selectedVehicleLabel} · ` : ''}${selectedAddressRecord?.label || selectedAddressRecord?.address || ''}`}
             </T>
             <T size={13} lh={18} color={colors.success}>
-              {`Held for you until ${istClock(acceptedRequest.confirmBy)}. The car, address and time are what the garage said yes to.`}
+              {t('Held for you until {time}. The car, address and time are what the garage said yes to.', { time: istClock(acceptedRequest.confirmBy) })}
             </T>
           </View>
         ) : null}
         {requestParam && authUser && myRequest.data && !acceptedRequest ? (
-          <Notice tone="neutral" title="This request is no longer open">
-            It was answered, cancelled or ran out of time.
+          <Notice tone="neutral" title={t('This request is no longer open')}>
+            {t('It was answered, cancelled or ran out of time.')}
           </Notice>
         ) : null}
 
@@ -1154,7 +1170,7 @@ export default function BookScreen() {
             <ModeSwitch modes={modeOptions.map((option) => option.value)} value={bookingType} onChange={setChosenType} track={false} />
             {isPickup ? (
               <T variant="t5" lh={18} color={colors.textMuted} style={styles.mt8}>
-                {`${vendor?.name ?? 'The garage'} collects your car from your address, works on it at the garage and brings it back.`}
+                {t('{name} collects your car from your address, works on it at the garage and brings it back.', { name: vendor?.name ?? t('The garage') })}
               </T>
             ) : null}
           </View>
@@ -1190,7 +1206,7 @@ export default function BookScreen() {
         {!requestMode ? (
           <Animated.View {...mark('car')}>
             <T variant="t2" style={styles.heading}>
-              Car
+              {t('Car')}
             </T>
             {isGuest ? (
               <GuestCarForm
@@ -1203,15 +1219,15 @@ export default function BookScreen() {
             ) : vehicles.length === 0 && !carDraftReady ? (
               <View style={styles.warnCard}>
                 <T size={15} lh={22}>
-                  Add a car to continue
+                  {t('Add a car to continue')}
                 </T>
                 <T size={13} lh={18} color={colors.textSecondary}>
-                  {"We need to know which car we're washing — pricing can differ by type."}
+                  {t("We need to know which car we're washing — pricing can differ by type.")}
                 </T>
                 <View style={styles.mt4}>
                   <ScButton variant="outline" fullWidth={false} height={44} paddingX={16} onPress={() => setAddCarOpen(true)}>
                     <IconPlus size={16} color={colors.textPrimary} />
-                    <Label>Add a car</Label>
+                    <Label>{t('Add a car')}</Label>
                   </ScButton>
                 </View>
               </View>
@@ -1224,7 +1240,7 @@ export default function BookScreen() {
                         {`${draftCar.make.trim()} ${draftCar.model.trim()}`}
                       </T>
                       <T variant="t5" color={colors.textMuted} numberOfLines={1}>
-                        {`${VEHICLE_TIERS.find((t) => t.value === draftCar.vehicleType)?.label} · new`}
+                        {t('{type} · new', { type: t(VEHICLE_TIERS.find((tier) => tier.value === draftCar.vehicleType)?.label ?? '') })}
                       </T>
                     </PickButton>
                   </View>
@@ -1242,7 +1258,7 @@ export default function BookScreen() {
                           <NumberPlate plate={v.plate} size="sm" />
                         ) : (
                           <T variant="t5" color={colors.textMuted} numberOfLines={1}>
-                            {VEHICLE_TIERS.find((t) => t.value === v.vehicleType)?.label}
+                            {t(VEHICLE_TIERS.find((tier) => tier.value === v.vehicleType)?.label ?? '')}
                           </T>
                         )}
                       </PickButton>
@@ -1252,7 +1268,7 @@ export default function BookScreen() {
                 <Pressable accessibilityRole="button" onPress={() => setAddCarOpen(true)} style={[styles.carCell, styles.dashed]}>
                   <IconPlus size={15} color="#FF4D66" />
                   <T variant="t4" weight={600} color={colors.textSecondary}>
-                    Add another car
+                    {t('Add another car')}
                   </T>
                 </Pressable>
               </View>
@@ -1263,25 +1279,25 @@ export default function BookScreen() {
         {usesAddress && !requestMode ? (
           <Animated.View {...mark('address')}>
             <T variant="t2" style={styles.heading}>
-              {isPickup ? 'Where should we collect your car?' : 'Where should we come?'}
+              {isPickup ? t('Where should we collect your car?') : t('Where should we come?')}
             </T>
             {isPickup && addressOptions.length > 0 ? (
               <T size={13} lh={18} color={colors.textSecondary} style={styles.addressNote}>
-                The garage brings your car back to the same address.
+                {t('The garage brings your car back to the same address.')}
               </T>
             ) : null}
             {addressOptions.length === 0 ? (
               <View style={styles.warnCard}>
                 <T size={15} lh={22}>
-                  Add an address to continue
+                  {t('Add an address to continue')}
                 </T>
                 <T size={13} lh={18} color={colors.textSecondary}>
-                  {isPickup ? 'Pickup & drop needs the address your car is collected from.' : 'Doorstep service needs somewhere to go.'}
+                  {isPickup ? t('Pickup & drop needs the address your car is collected from.') : t('Doorstep service needs somewhere to go.')}
                 </T>
                 <View style={styles.mt4}>
                   <ScButton variant="outline" fullWidth={false} height={44} paddingX={16} onPress={() => setAddAddressOpen(true)}>
                     <IconPlus size={16} color={colors.textPrimary} />
-                    <Label>Add an address</Label>
+                    <Label>{t('Add an address')}</Label>
                   </ScButton>
                 </View>
               </View>
@@ -1302,14 +1318,14 @@ export default function BookScreen() {
                     <View style={styles.grow}>
                       <T size={14} weight={600} lh={18}>
                         {a.label}
-                        {a.id === DRAFT_ADDRESS && !isGuest ? <T size={15} lh={20} color={colors.textMuted}> · new</T> : null}
+                        {a.id === DRAFT_ADDRESS && !isGuest ? <T size={15} lh={20} color={colors.textMuted}> {t('· new')}</T> : null}
                       </T>
                       <T variant="t5" color={colors.textMuted} numberOfLines={1}>
                         {a.address}
                       </T>
                       {outsidePickup(a) ? (
                         <T variant="t4" weight={400} color={colors.error} style={styles.mt2}>
-                          {"Outside this garage's pickup area"}
+                          {t("Outside this garage's pickup area")}
                         </T>
                       ) : null}
                     </View>
@@ -1318,15 +1334,15 @@ export default function BookScreen() {
                 {addressOutside ? (
                   <View style={styles.warnCardSm}>
                     <T size={15} lh={22}>
-                      {"This garage doesn't pick up from this address"}
+                      {t("This garage doesn't pick up from this address")}
                     </T>
                     <T size={13} lh={18} color={colors.textSecondary}>
-                      {`Try another address${otherMode ? `, or book ${BOOKED_AS[otherMode]} instead` : ''}.`}
+                      {otherMode ? t('Try another address, or book {mode} instead.', { mode: t(BOOKED_AS[otherMode]) }) : t('Try another address.')}
                     </T>
                     {otherMode ? (
                       <View style={styles.mt4}>
                         <ScButton variant="outline" fullWidth={false} height={44} paddingX={16} onPress={() => setChosenType(otherMode)}>
-                          {`Choose ${BOOKING_TYPE_LABELS[otherMode]}`}
+                          {t('Choose {mode}', { mode: t(BOOKING_TYPE_LABELS[otherMode]) })}
                         </ScButton>
                       </View>
                     ) : null}
@@ -1335,10 +1351,11 @@ export default function BookScreen() {
                 {addressNeedsPin ? (
                   <View style={styles.warnCardSm}>
                     <T size={15} lh={22}>
-                      Pin the exact spot
+                      {t('Pin the exact spot')}
                     </T>
                     <T size={13} lh={18} color={colors.textSecondary}>
-                      {`${isPickup ? 'We need it to check this garage collects from you, and so the driver finds your car.' : 'We need it to check this garage travels to you.'}${pinningAddress ? ' Saving...' : ''}`}
+                      {isPickup ? t('We need it to check this garage collects from you, and so the driver finds your car.') : t('We need it to check this garage travels to you.')}
+                      {pinningAddress ? ` ${t('Saving...')}` : ''}
                     </T>
                     <LocationPicker showSearch onChange={(picked) => void handlePinAddress(picked)} />
                   </View>
@@ -1346,7 +1363,7 @@ export default function BookScreen() {
                 <Pressable accessibilityRole="button" onPress={() => setAddAddressOpen(true)} style={[styles.addRow, styles.dashed]}>
                   {!isGuest ? <IconPlus size={15} color="#FF4D66" /> : null}
                   <T variant="t4" weight={600} color={colors.textSecondary}>
-                    {isGuest ? 'Change address' : 'Add another address'}
+                    {isGuest ? t('Change address') : t('Add another address')}
                   </T>
                 </Pressable>
               </View>
@@ -1357,7 +1374,7 @@ export default function BookScreen() {
         {selectedServices.length > 0 && (savedVehicleId || creditOffered) && !unpricedForVehicle ? (
           <View>
             <T variant="t2" style={styles.heading}>
-              Savings
+              {t('Savings')}
             </T>
             <HubCard style={styles.savings}>
               {savedVehicleId ? (
@@ -1366,22 +1383,22 @@ export default function BookScreen() {
                     <View style={styles.grow}>
                       <T size={15} lh={22}>
                         {suggestionApplied && appliedReward
-                          ? `Best for you: ${appliedReward.label}`
+                          ? t('Best for you: {label}', { label: appliedReward.label })
                           : appliedReward
-                            ? `${appliedReward.label} applied`
+                            ? t('{label} applied', { label: appliedReward.label })
                             : appliedCoupon
-                              ? `Coupon applied: ${appliedCoupon.title}`
+                              ? t('Coupon applied: {title}', { title: appliedCoupon.title })
                               : freeWashes.some((w) => w.code.toUpperCase() === appliedDiscount.code.toUpperCase())
-                                ? 'Free wash applied'
-                                : `${appliedDiscount.code} applied`}
+                                ? t('Free wash applied')
+                                : t('{label} applied', { label: appliedDiscount.code })}
                       </T>
                       <T size={13} lh={18} color={colors.success}>
-                        <Figures size={13} text={`Saves ${money(appliedDiscount.discountAmount)}${suggestionApplied ? ' · applied' : ''}`} />
+                        <Figures size={13} text={suggestionApplied ? t('Saves {amount} · applied', { amount: money(appliedDiscount.discountAmount) }) : t('Saves {amount}', { amount: money(appliedDiscount.discountAmount) })} />
                       </T>
                     </View>
                     <Pressable accessibilityRole="button" onPress={handleRemovePromo} style={styles.removePromo}>
                       <T size={15} lh={20}>
-                        Remove
+                        {t('Remove')}
                       </T>
                     </Pressable>
                   </View>
@@ -1393,12 +1410,12 @@ export default function BookScreen() {
                           <IconPercentage size={15} color={colors.success} />
                         </View>
                         <T size={15} lh={22}>
-                          Coupons and offers
+                          {t('Coupons and offers')}
                         </T>
                       </View>
                       <View style={styles.promoRight}>
                         <T size={13} lh={18}>
-                          {offerChecking ? `Checking ${offerCode}…` : 'Apply'}
+                          {offerChecking ? t('Checking {code}…', { code: offerCode }) : t('Apply')}
                         </T>
                         <IconChevronRight size={15} color={colors.textPrimary} />
                       </View>
@@ -1408,12 +1425,12 @@ export default function BookScreen() {
                         <View style={styles.problemLine}>
                           <IconAlertCircle size={15} color={colors.error} />
                           <T size={13} lh={18} color={colors.error} style={styles.grow}>
-                            {`${offerCode} doesn't apply to this booking. ${offerProblem}`}
+                            {t("{code} doesn't apply to this booking. {problem}", { code: offerCode ?? '', problem: offerProblem })}
                           </T>
                         </View>
-                        <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${offerCode}`} onPress={handleRemovePromo} style={styles.removePromo}>
+                        <Pressable accessibilityRole="button" accessibilityLabel={t('Remove {name}', { name: offerCode ?? '' })} onPress={handleRemovePromo} style={styles.removePromo}>
                           <T size={13} lh={18}>
-                            Remove
+                            {t('Remove')}
                           </T>
                         </Pressable>
                       </View>
@@ -1423,14 +1440,14 @@ export default function BookScreen() {
                         {freeWashes.map((wash) => (
                           <Pressable key={wash.code} accessibilityRole="button" disabled={applyPromo.isPending} onPress={() => handleApplyReward(wash.code)} style={[styles.pill, applyPromo.isPending && styles.dim]}>
                             <T size={13} lh={18}>
-                              {`Free wash · up to ₹${wash.amount}`}
+                              {t('Free wash · up to ₹{amount}', { amount: wash.amount })}
                             </T>
                           </Pressable>
                         ))}
                         {rewardVouchers.slice(0, 4).map((voucher) => (
                           <Pressable key={voucher.id} accessibilityRole="button" disabled={applyPromo.isPending} onPress={() => handleApplyReward(voucher.code!)} style={[styles.pill, applyPromo.isPending && styles.dim]}>
                             <T size={13} lh={18}>
-                              <T num size={13} lh={18}>{`${rewardRupees(voucher.amount)} off`}</T>
+                              <T num size={13} lh={18}>{t('{amount} off', { amount: rewardRupees(voucher.amount) })}</T>
                               <T size={13} lh={18} color={colors.textSecondary}>{` · ${voucher.label}`}</T>
                             </T>
                           </Pressable>
@@ -1450,9 +1467,9 @@ export default function BookScreen() {
               {creditOffered ? (
                 <View style={[styles.savingRow, savedVehicleId ? styles.topLine : null]}>
                   <T size={15} lh={22} style={styles.grow}>
-                    <Figures size={15} text={`Use ${money(creditSplit.credit)} Detlio credit`} />
+                    <Figures size={15} text={t('Use {amount} Detlio credit', { amount: money(creditSplit.credit) })} />
                   </T>
-                  <ScSwitch label="Use Detlio credit" checked={creditSwitchOn} disabled={loading} onChange={setCreditSwitchOn} />
+                  <ScSwitch label={t('Use Detlio credit')} checked={creditSwitchOn} disabled={loading} onChange={setCreditSwitchOn} />
                 </View>
               ) : null}
             </HubCard>
@@ -1465,7 +1482,7 @@ export default function BookScreen() {
               {lineCount > 1 ? (
                 <View style={styles.priceRow}>
                   <T size={15} lh={22} color={colors.textSecondary}>
-                    Subtotal
+                    {t('Subtotal')}
                   </T>
                   <T num size={15} lh={22}>
                     {subtotal == null || !selectedVehicle ? '—' : money(subtotal)}
@@ -1476,11 +1493,11 @@ export default function BookScreen() {
                 <View style={styles.priceRow}>
                   <View style={styles.shrink}>
                     <T size={15} lh={22} color={colors.textSecondary}>
-                      Pickup & drop
+                      {t('Pickup & drop')}
                     </T>
                     {selectedAddressRecord ? (
                       <T size={13} lh={18} color={colors.textMuted} numberOfLines={1}>
-                        {`From and back to ${selectedAddressRecord.address}`}
+                        {t('From and back to {address}', { address: selectedAddressRecord.address })}
                       </T>
                     ) : null}
                   </View>
@@ -1492,7 +1509,7 @@ export default function BookScreen() {
               {travelFee > 0 ? (
                 <View style={styles.priceRow}>
                   <T size={15} lh={22} color={colors.textSecondary}>
-                    Travel fee
+                    {t('Travel fee')}
                   </T>
                   <T num size={15} lh={22}>
                     {money(travelFee)}
@@ -1502,7 +1519,7 @@ export default function BookScreen() {
               {appliedDiscount ? (
                 <View style={styles.priceRow}>
                   <T size={15} lh={22} color={colors.textSecondary} numberOfLines={1} style={styles.shrink}>
-                    {`Discount (${appliedDiscount.code})`}
+                    {t('Discount ({code})', { code: appliedDiscount.code })}
                   </T>
                   <T num size={15} lh={22} color={colors.success}>
                     {`−${money(appliedDiscount.discountAmount)}`}
@@ -1512,7 +1529,7 @@ export default function BookScreen() {
               {creditApplied ? (
                 <View style={styles.priceRow}>
                   <T size={15} lh={22} color={colors.textSecondary}>
-                    Detlio credit
+                    {t('Detlio credit')}
                   </T>
                   <T num size={15} lh={22} color={colors.success}>
                     {`−${money(creditSplit.credit)}`}
@@ -1521,7 +1538,7 @@ export default function BookScreen() {
               ) : null}
               <View style={[styles.priceRow, (lineCount > 1 || isPickup || travelFee > 0 || appliedDiscount || creditApplied) && styles.totalLine]}>
                 <T size={17} lh={24}>
-                  To pay
+                  {t('To pay')}
                 </T>
                 <T num size={20} lh={28}>
                   {toPay == null || !selectedVehicle ? '—' : money(toPay)}
@@ -1538,18 +1555,19 @@ export default function BookScreen() {
             ) : null}
             {selectedServices.some((service) => service.pricingType === 'on_inspection') ? (
               <T size={13} lh={20} color={colors.textSecondary}>
-                You pay the inspection fee now. If the work costs more, the garage sends the final bill in the app and you pay the rest here.
+                {t('You pay the inspection fee now. If the work costs more, the garage sends the final bill in the app and you pay the rest here.')}
               </T>
             ) : null}
             <T size={12} lh={18} color={colors.textMuted}>
               <T size={12} lh={18} color={colors.textSecondary}>
-                {'Cancellation policy: '}
+                {`${t('Cancellation policy:')} `}
               </T>
-              {`Cancel any time until the garage accepts. Once it has, cancel or reschedule up to 2 hours before your slot. You can reschedule up to 2 times; each new time goes back to the garage to accept, and if it can't take it, the booking is cancelled. If you don't turn up for an accepted booking, it isn't refunded.${isPickup ? ' Once the garage has collected your car, the booking can’t be cancelled or moved in the app.' : ''}`}
+              {t("Cancel any time until the garage accepts. Once it has, cancel or reschedule up to 2 hours before your slot. You can reschedule up to 2 times; each new time goes back to the garage to accept, and if it can't take it, the booking is cancelled. If you don't turn up for an accepted booking, it isn't refunded.")}
+              {isPickup ? ` ${t('Once the garage has collected your car, the booking can’t be cancelled or moved in the app.')}` : ''}
             </T>
             {selectedVehicle && !savedVehicleId ? (
               <T size={13} lh={20} color={colors.textSecondary}>
-                {offerCode ? `Code ${offerCode} is checked when you pay.` : 'Have a coupon? You can apply it once you’re signed in.'}
+                {offerCode ? t('Code {code} is checked when you pay.', { code: offerCode }) : t('Have a coupon? You can apply it once you’re signed in.')}
               </T>
             ) : null}
           </View>
@@ -1563,10 +1581,10 @@ export default function BookScreen() {
               onVerify={() => void handleVerify()}
               verifyLabel={
                 nextStep === 'signin' && signIn.isNew && toPay != null && toPay > 0
-                  ? `Verify and pay ${money(toPay)}`
+                  ? t('Verify and pay {amount}', { amount: money(toPay) })
                   : nextStep === 'signin'
-                    ? 'Verify and continue'
-                    : 'Verify'
+                    ? t('Verify and continue')
+                    : t('Verify')
               }
             />
           </Animated.View>
@@ -1576,12 +1594,12 @@ export default function BookScreen() {
           <Animated.View {...mark('signin')}>
             <HubCard style={styles.signedIn}>
               <T size={17} weight={500} lh={24} tracking={-0.01}>
-                {needsName ? 'Your name' : authUser?.name && authUser.name !== 'User' ? `Signed in as ${authUser.name}` : 'Signed in'}
+                {needsName ? t('Your name') : authUser?.name && authUser.name !== 'User' ? t('Signed in as {name}', { name: authUser.name }) : t('Signed in')}
               </T>
               {needsName ? (
                 <ScInput
-                  label="Your name (for the garage)"
-                  placeholder="Your name"
+                  label={t('Your name (for the garage)')}
+                  placeholder={t('Your name')}
                   autoComplete="name"
                   autoCapitalize="words"
                   autoCorrect={false}
@@ -1593,13 +1611,13 @@ export default function BookScreen() {
               {selectedVehicle === DRAFT_CAR && vehicles.length > 0 ? (
                 <View style={styles.useSaved}>
                   <T size={13} lh={18} color={colors.textSecondary}>
-                    {"We'll save the car you entered. Or use a saved one:"}
+                    {t("We'll save the car you entered. Or use a saved one:")}
                   </T>
                   <View style={styles.pillsFlat}>
                     {vehicles.map((v) => (
                       <Pressable key={v.id} accessibilityRole="button" onPress={() => setPickedVehicle(v.id)} style={styles.pill}>
                         <T size={13} lh={18}>
-                          {`Use saved: ${v.make} ${v.model}`}
+                          {t('Use saved: {make} {model}', { make: v.make, model: v.model })}
                         </T>
                       </Pressable>
                     ))}
@@ -1609,13 +1627,13 @@ export default function BookScreen() {
               {selectedAddress === DRAFT_ADDRESS && addresses.length > 0 ? (
                 <View style={styles.useSaved}>
                   <T size={13} lh={18} color={colors.textSecondary}>
-                    {"We'll save the address you entered. Or use a saved one:"}
+                    {t("We'll save the address you entered. Or use a saved one:")}
                   </T>
                   <View style={styles.pillsFlat}>
                     {addresses.map((a) => (
                       <Pressable key={a.id} accessibilityRole="button" onPress={() => pickAddress(a.id)} style={styles.pill}>
                         <T size={13} lh={18}>
-                          {`Use saved: ${a.label}`}
+                          {t('Use saved: {label}', { label: a.label })}
                         </T>
                       </Pressable>
                     ))}
@@ -1624,7 +1642,7 @@ export default function BookScreen() {
               ) : null}
               {!needsName && selectedVehicle !== DRAFT_CAR && selectedAddress !== DRAFT_ADDRESS ? (
                 <T size={13} lh={18} color={colors.textSecondary}>
-                  {"You're signed in. Pay below to send your booking to the garage."}
+                  {t("You're signed in. Pay below to send your booking to the garage.")}
                 </T>
               ) : null}
             </HubCard>
@@ -1640,7 +1658,7 @@ export default function BookScreen() {
           <View style={styles.ctaWait}>
             <Spinner size={16} />
             <T variant="t4" weight={600} color={colors.scheme === 'light' ? colors.textSecondary : '#C8C8D0'}>
-              Payment received — confirming your booking…
+              {t('Payment received — confirming your booking…')}
             </T>
           </View>
         ) : (
@@ -1652,7 +1670,7 @@ export default function BookScreen() {
                 </T>
                 {subtotal != null && selectedVehicle ? (
                   <T variant="t5" color={fx.quietBright}>
-                    {`${toPay != null && toPay !== subtotal ? 'To pay' : 'Total'} `}
+                    {toPay != null && toPay !== subtotal ? t('To pay') : t('Total')}{' '}
                     <T num variant="t3" weight={600}>
                       {money(toPay ?? subtotal)}
                     </T>
@@ -1663,24 +1681,24 @@ export default function BookScreen() {
             {!nextStep ? (
               <View style={styles.promises}>
                 {guaranteeApplies ? (
-                  <View style={styles.promise} accessibilityLabel={GUARANTEE_BADGE}>
+                  <View style={styles.promise} accessibilityLabel={t(GUARANTEE_BADGE)}>
                     <IconShieldCheck size={13} color={promiseGreen} />
                     <T variant="t5" color={fx.soft}>
-                      {"Free redo within 48 hours if you're not happy"}
+                      {t("Free redo within 48 hours if you're not happy")}
                     </T>
                   </View>
                 ) : null}
                 <View style={styles.promise}>
                   <IconRefresh size={13} color={promiseGreen} />
                   <T variant="t5" color={fx.soft}>
-                    Free cancel until the garage accepts
+                    {t('Free cancel until the garage accepts')}
                   </T>
                 </View>
               </View>
             ) : null}
-            {vendor?.outsideServiceCity ? (
+            {townLine ? (
               <View style={styles.outsideLine}>
-                <OutsideCityLine text={outsideCityCheckoutLine(vendor.outsideServiceCity)} />
+                <OutsideCityLine text={townLine} />
               </View>
             ) : null}
             {/* Grey while a step is missing, naming it; a tap scrolls there and nudges it.
@@ -1715,22 +1733,25 @@ export default function BookScreen() {
               <View style={styles.secure}>
                 <IconLock size={12} color={colors.textMuted} />
                 <T size={12} lh={16} color={colors.textMuted}>
-                  Secure payment by Razorpay · UPI, cards, net banking. Your booking is confirmed once the garage accepts it.
+                  {t('Secure payment by Razorpay · UPI, cards, net banking. Your booking is confirmed once the garage accepts it.')}
                 </T>
               </View>
             )}
             {/* Beside Pay, as Razorpay and the E-Commerce Rules expect. */}
             {!hint ? (
               <T size={12} lh={16} align="center" color={colors.textMuted} style={styles.mt8}>
-                {'By paying you agree to the '}
-                <T size={12} lh={16} color={colors.textMuted} onPress={() => void WebBrowser.openBrowserAsync(`https://detlio.com${LEGAL_PATHS.terms}`)} style={{ textDecorationLine: 'underline' }}>
-                  Terms
-                </T>
-                {' and the '}
-                <T size={12} lh={16} color={colors.textMuted} onPress={() => void WebBrowser.openBrowserAsync(`https://detlio.com${LEGAL_PATHS.refunds}`)} style={{ textDecorationLine: 'underline' }}>
-                  Cancellation &amp; Refund Policy
-                </T>
-                .
+                {fill(t('By paying you agree to the {terms} and the {policy}.'), {
+                  terms: (
+                    <T size={12} lh={16} color={colors.textMuted} onPress={() => void WebBrowser.openBrowserAsync(`https://detlio.com${LEGAL_PATHS.terms}`)} style={{ textDecorationLine: 'underline' }}>
+                      {t('Terms')}
+                    </T>
+                  ),
+                  policy: (
+                    <T size={12} lh={16} color={colors.textMuted} onPress={() => void WebBrowser.openBrowserAsync(`https://detlio.com${LEGAL_PATHS.refunds}`)} style={{ textDecorationLine: 'underline' }}>
+                      {t('Cancellation & Refund Policy')}
+                    </T>
+                  ),
+                })}
               </T>
             ) : null}
           </>
@@ -1753,18 +1774,18 @@ export default function BookScreen() {
         }
       />
 
-      <ScSheet horizontalPadding={16} open={promoOpen} onClose={() => setPromoOpen(false)} dismissible={!applyPromo.isPending} accessibilityLabel="Coupons and offers">
+      <ScSheet horizontalPadding={16} open={promoOpen} onClose={() => setPromoOpen(false)} dismissible={!applyPromo.isPending} accessibilityLabel={t('Coupons and offers')}>
         <T size={20} lh={28} tracking={-0.015}>
-          Coupons and offers
+          {t('Coupons and offers')}
         </T>
         <View style={styles.promoBox}>
           <TextInput
-            accessibilityLabel="Coupon code"
+            accessibilityLabel={t('Coupon code')}
             autoFocus
             autoCapitalize="characters"
             autoComplete="off"
             autoCorrect={false}
-            placeholder="Enter coupon code"
+            placeholder={t('Enter coupon code')}
             placeholderTextColor={colors.textMuted}
             keyboardAppearance={colors.keyboard}
             value={promoInput}
@@ -1774,7 +1795,7 @@ export default function BookScreen() {
           />
           <Pressable accessibilityRole="button" disabled={!canApplyPromo || applyPromo.isPending} onPress={handleApplyPromo} style={styles.promoApply}>
             <T size={15} weight={500} lh={20} color={canApplyPromo && !applyPromo.isPending ? colors.textPrimary : colors.textMuted}>
-              {applyPromo.isPending ? 'Checking…' : 'Apply'}
+              {applyPromo.isPending ? t('Checking…') : t('Apply')}
             </T>
           </Pressable>
         </View>
@@ -1787,11 +1808,11 @@ export default function BookScreen() {
           </View>
         ) : null}
         <T size={13} lh={18} color={colors.textMuted} style={styles.promoNote}>
-          Have a code from Detlio? Enter it above to see your savings before you pay.
+          {t('Have a code from Detlio? Enter it above to see your savings before you pay.')}
         </T>
         <View style={styles.scanRow}>
           <ScButton variant="outline" height={44} disabled={applyPromo.isPending || scanBusy} onPress={() => setScanning(true)}>
-            {scanBusy ? 'Adding…' : 'Scan a coupon'}
+            {scanBusy ? t('Adding…') : t('Scan a coupon')}
           </ScButton>
         </View>
         {scanning ? (
@@ -1808,10 +1829,10 @@ export default function BookScreen() {
       <ConfirmSheet
         open={totalCheck !== null}
         level="firm"
-        title="The total has changed"
-        body={totalCheck ? `The total to pay is now ${formatRupees(totalCheck.rupees)}. Nothing has been charged.` : undefined}
-        confirmLabel={totalCheck ? `Pay ${formatRupees(totalCheck.rupees)}` : 'Pay'}
-        cancelLabel="Don't pay"
+        title={t('The total has changed')}
+        body={totalCheck ? t('The total to pay is now {amount}. Nothing has been charged.', { amount: formatRupees(totalCheck.rupees) }) : undefined}
+        confirmLabel={totalCheck ? t('Pay {amount}', { amount: formatRupees(totalCheck.rupees) }) : t('Pay')}
+        cancelLabel={t("Don't pay")}
         onConfirm={() => {
           totalCheck?.resolve(true);
           setTotalCheck(null);
@@ -1821,16 +1842,16 @@ export default function BookScreen() {
           setTotalCheck(null);
         }}
       />
-      <ScSheet horizontalPadding={16} open={unsettled} onClose={() => setUnsettled(false)} accessibilityLabel="Your last payment">
+      <ScSheet horizontalPadding={16} open={unsettled} onClose={() => setUnsettled(false)} accessibilityLabel={t('Your last payment')}>
         <T size={20} lh={28} tracking={-0.015}>
-          Your last payment isn&apos;t settled yet
+          {t("Your last payment isn't settled yet")}
         </T>
         <T size={15} lh={22} color={colors.textSecondary} style={styles.mt8}>
-          If you finished paying, it shows up here in a minute, so there&apos;s no need to pay again. If you closed the payment without paying, you can start over.
+          {t("If you finished paying, it shows up here in a minute, so there's no need to pay again. If you closed the payment without paying, you can start over.")}
         </T>
         <View style={styles.unsettled}>
           <ScButton variant="main" onPress={() => setUnsettled(false)}>
-            Wait a minute
+            {t('Wait a minute')}
           </ScButton>
           <ScButton
             variant="outline"
@@ -1841,7 +1862,7 @@ export default function BookScreen() {
               setUnsettled(false);
             }}
           >
-            I didn&apos;t pay. Start over
+            {t("I didn't pay. Start over")}
           </ScButton>
         </View>
       </ScSheet>

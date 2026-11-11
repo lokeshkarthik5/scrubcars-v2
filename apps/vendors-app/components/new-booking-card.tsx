@@ -26,6 +26,7 @@ import { serviceOnlyLine } from '@/lib/add-on-lines';
 import { RejectBookingSheet } from './reject-booking';
 import { SuggestTimes } from './suggest-times';
 import { T } from '@repo/native-ui/text';
+import { useT } from '@repo/core/i18n';
 
 /**
  * NewBookingCard (apps/vendors/components/new-booking-card.tsx): a new booking,
@@ -46,12 +47,13 @@ export function NewBookingCard({
   /** Where the card sits, for a notification that scrolls to it. */
   onLayout?: (event: LayoutChangeEvent) => void;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const [rejecting, setRejecting] = useState(false);
   const deferred = useDeferredStatus(b.id);
   const accepting = deferred === 'confirmed';
-  const who = b.customerName || 'the customer';
+  const who = b.customerName || t('the customer');
   const passed = slotPassed(b, now);
   const lost = responseRunOut(b, now);
   const waitingOnCustomer = proposalOpen(b);
@@ -66,10 +68,10 @@ export function NewBookingCard({
   const cantDo = (
     <ScButton
       variant="outline"
-      accessibilityLabel={`Can't do: reject booking for ${who}`}
+      accessibilityLabel={t("Can't do: reject booking for {who}", { who })}
       onPress={() => setRejecting(true)}
     >
-      {"Can't do"}
+      {t("Can't do")}
     </ScButton>
   );
   const secondRow = (
@@ -84,7 +86,7 @@ export function NewBookingCard({
   );
 
   return (
-    <View accessibilityLabel={`New booking from ${who}`} onLayout={onLayout} style={styles.card}>
+    <View accessibilityLabel={t('New booking from {who}', { who })} onLayout={onLayout} style={styles.card}>
       {b.responseDeadline && !waitingOnCustomer && (!passed || lost) ? (
         <AnswerDeadline deadline={b.responseDeadline} />
       ) : null}
@@ -92,7 +94,7 @@ export function NewBookingCard({
       <View style={styles.inner}>
         {!onPage ? (
           <PressRow
-            accessibilityLabel={`Details of the booking for ${who}`}
+            accessibilityLabel={t('Details of the booking for {who}', { who })}
             onPress={() => router.push(`/bookings/${b.id}` as Href)}
             style={styles.details}
           >
@@ -130,7 +132,7 @@ export function NewBookingCard({
           <View style={styles.redo}>
             <IconRefresh size={14} />
             <T size={13} weight={500}>
-              Free redo · nothing to collect
+              {t('Free redo · nothing to collect')}
             </T>
           </View>
         ) : null}
@@ -141,7 +143,7 @@ export function NewBookingCard({
               <TypeIcon size={18} color={colors.textSecondary} />
             </View>
             <T size={15} lh={22} color={colors.textSecondary} style={styles.shrink}>
-              {BOOKING_TYPE_LABELS[b.bookingType]}
+              {t(BOOKING_TYPE_LABELS[b.bookingType])}
               {b.jobLocation && !onPage ? ` · ${b.jobLocation.address}` : ''}
               {km !== null ? (
                 <T num size={15} lh={22} color={colors.textSecondary}>
@@ -159,14 +161,14 @@ export function NewBookingCard({
 
         {b.rescheduledFromId && !passed ? (
           <T size={15} color={colors.textSecondary}>
-            The customer moved this booking to a new time. Accept it if you can do it.
+            {t('The customer moved this booking to a new time. Accept it if you can do it.')}
           </T>
         ) : null}
 
         {accepting ? (
           <View accessibilityLiveRegion="polite" style={styles.accepting}>
             <T size={16} weight={500}>
-              {DEFERRED_WORDS.confirmed}
+              {t(DEFERRED_WORDS.confirmed)}
             </T>
           </View>
         ) : waitingOnCustomer ? (
@@ -174,15 +176,15 @@ export function NewBookingCard({
         ) : lost ? null : passed ? (
           <View style={styles.passed}>
             <T size={15} color={colors.textSecondary}>
-              {"This slot's time has passed without being accepted. Reject it so the customer can be refunded."}
+              {t("This slot's time has passed without being accepted. Reject it so the customer can be refunded.")}
             </T>
             {secondRow}
           </View>
         ) : (
           <View style={styles.actions}>
-            <ScButton variant="main" size="lg" accessibilityLabel={`Accept booking for ${who}`} onPress={accept}>
+            <ScButton variant="main" size="lg" accessibilityLabel={t('Accept booking for {who}', { who })} onPress={accept}>
               <IconCheck size={22} stroke={2.4} color={colors.white} />
-              <Label color={colors.white}>Accept</Label>
+              <Label color={colors.white}>{t('Accept')}</Label>
             </ScButton>
             {secondRow}
           </View>

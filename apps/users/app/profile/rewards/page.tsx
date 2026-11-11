@@ -56,6 +56,7 @@ import { StampStars } from '@/components/rewards/stamp-stars'
 import { isHomeHubEnabled } from '@/lib/home-hub'
 import { useSeenOnce } from '@repo/ui/finish/motion'
 import { useCountUp } from '@repo/ui/finish/odometer'
+import { fill, msg, useT, useTn } from '@repo/core/i18n'
 
 /**
  * A level card's figure, counting up once from nothing as the card comes
@@ -83,10 +84,10 @@ function CountUpFigure({
 }
 
 const VOUCHER_STATE_LABELS: Record<RewardVoucher['state'], string> = {
-  available: 'Ready',
-  spent: 'Used',
-  expired: 'Ran out',
-  cancelled: 'Withdrawn',
+  available: msg('Ready'),
+  spent: msg('Used'),
+  expired: msg('Ran out'),
+  cancelled: msg('Withdrawn'),
 }
 
 /**
@@ -109,6 +110,7 @@ export default function RewardsPage() {
 }
 
 function RewardsScreen() {
+  const t = useT()
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
   const ready = useAuthStore((s) => s.isSessionReady)
@@ -120,7 +122,7 @@ function RewardsScreen() {
 
   const header = (
     <TopBar
-      title="Detlio Rewards"
+      title={t('Detlio Rewards')}
       showBack
       backHref="/profile"
       large={isHomeHubEnabled()}
@@ -133,7 +135,7 @@ function RewardsScreen() {
         {header}
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
           <p className="text-t3 font-semibold text-text-primary">
-            Sign in to see your rewards
+            {t('Sign in to see your rewards')}
           </p>
           <ScButton
             variant="main"
@@ -144,7 +146,7 @@ function RewardsScreen() {
               )
             }
           >
-            Sign in
+            {t('Sign in')}
           </ScButton>
         </div>
       </CustomerShell>
@@ -157,9 +159,9 @@ function RewardsScreen() {
         {header}
         <EmptyState
           icon={<IconStar size={32} stroke={1.5} />}
-          title="Rewards aren't available right now"
-          subtitle="You can still book a wash as usual."
-          actionLabel="Find garages"
+          title={t("Rewards aren't available right now")}
+          subtitle={t('You can still book a wash as usual.')}
+          actionLabel={t('Find garages')}
           onAction={() => router.push('/garages')}
         />
       </CustomerShell>
@@ -178,7 +180,7 @@ function RewardsScreen() {
         </div>
       ) : rewards.isError || !view ? (
         <ErrorState
-          message="Couldn't load your rewards. Check your connection."
+          message={t("Couldn't load your rewards. Check your connection.")}
           onRetry={() => void rewards.refetch()}
         />
       ) : (
@@ -214,6 +216,8 @@ function RewardsBody({
   garage: boolean
   birthdayPerkFrom: string | null
 }) {
+  const tn = useTn()
+  const t = useT()
   const { card, level, streak } = view
   // A challenge's push opens the page on it.
   useEffect(() => {
@@ -259,7 +263,7 @@ function RewardsBody({
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-t5 text-text-secondary">Shine Card</p>
+          <p className="text-t5 text-text-secondary">{t('Shine Card')}</p>
           <h2
             id="shine-card"
             className="mt-0.5 text-t2 font-semibold leading-tight text-text-primary"
@@ -271,20 +275,20 @@ function RewardsBody({
       </div>
       <div
         className="flex justify-center gap-3 py-1.5"
-        aria-label={`${card.onCard} of ${card.goal} stamps`}
+        aria-label={t('{onCard} of {goal} stamps', { onCard: card.onCard, goal: card.goal })}
         role="img"
       >
         <StampStars onCard={card.onCard} goal={card.goal} size={30} remember />
       </div>
       <p className="text-t5 text-text-secondary">
         <Figures
-          text={`${card.goal} stamps make ${rewardRupees(card.rewardAmount)} off. One for every booking of ${rewardRupees(view.invite.minAmount)} or more paid through Detlio.`}
+          text={t('{goal} stamps make {rewardRupees} off. One for every booking of {rewardRupees2} or more paid through Detlio.', { goal: card.goal, rewardRupees: rewardRupees(card.rewardAmount), rewardRupees2: rewardRupees(view.invite.minAmount) })}
         />
       </p>
       {card.nextExpiry && (
         <p className="text-t5 text-text-muted">
           <Figures
-            text={`${card.nextExpiry.count} ${card.nextExpiry.count === 1 ? 'stamp ends' : 'stamps end'} after ${rewardDay(card.nextExpiry.lastDay)}`}
+            text={tn(card.nextExpiry.count, '{count} stamp ends after {day}', '{count} stamps end after {day}', { day: rewardDay(card.nextExpiry.lastDay) })}
           />
         </p>
       )}
@@ -295,19 +299,18 @@ function RewardsBody({
     <section aria-labelledby="vouchers" className="flex flex-col gap-2">
       <div className="flex items-baseline justify-between gap-3">
         <h2 id="vouchers" className="text-sm font-semibold text-text-primary">
-          Your rewards
+          {t('Your rewards')}
         </h2>
         {available.length > 0 && (
           <span className="text-t5 text-text-muted">
-            One per booking, at checkout
+            {t('One per booking, at checkout')}
           </span>
         )}
       </div>
       {available.length === 0 ? (
         <ScCard className="py-3">
           <p className="text-t5 text-text-secondary">
-            Nothing to use yet. Fill your Shine Card or scratch a card to win
-            one.
+            {t('Nothing to use yet. Fill your Shine Card or scratch a card to win one.')}
           </p>
         </ScCard>
       ) : (
@@ -316,8 +319,7 @@ function RewardsBody({
             <VoucherRow key={v.id} voucher={v} />
           ))}
           <p className="text-t5 text-text-muted">
-            Not with another code; works with Detlio credit. Given back if the
-            booking is cancelled.
+            {t('Not with another code; works with Detlio credit. Given back if the booking is cancelled.')}
           </p>
         </>
       )}
@@ -336,11 +338,11 @@ function RewardsBody({
             className="text-sm font-semibold text-text-primary"
           >
             {waitingCount === 0 ? (
-              'Your scratch card'
+              t('Your scratch card')
             ) : waitingCount === 1 ? (
-              'A scratch card for you'
+              t('A scratch card for you')
             ) : (
-              <Figures text={`${waitingCount} scratch cards for you`} />
+              <Figures text={t('{waitingCount} scratch cards for you', { waitingCount })} />
             )}
           </h2>
           {scratchCards.map((c) => (
@@ -371,13 +373,13 @@ function RewardsBody({
       {/* Level, with what it took: the lifetime figures as two tiles. */}
       <section aria-labelledby="level" className="flex flex-col gap-2">
         <h2 id="level" className="text-sm font-semibold text-text-primary">
-          Your level
+          {t('Your level')}
         </h2>
         {view.lifetime.washes > 0 && (
           <div className="grid grid-cols-2 gap-2">
             <div className="rounded-[14px] border border-border bg-surface px-3.5 py-3">
               <p className="text-t5 text-text-secondary">
-                Saved with rewards
+                {t('Saved with rewards')}
               </p>
               <p className="mt-1 text-[22px] font-semibold leading-none text-text-primary">
                 <CountUpFigure value={Math.round(Number(view.lifetime.saved))} format={rewardRupees} />
@@ -386,8 +388,8 @@ function RewardsBody({
             <div className="rounded-[14px] border border-border bg-surface px-3.5 py-3">
               <p className="text-t5 text-text-secondary">
                 {view.lifetime.since
-                  ? `Washes since ${view.lifetime.since}`
-                  : 'Washes'}
+                  ? t('Washes since {since}', { since: view.lifetime.since })
+                  : t('Washes')}
               </p>
               <p className="mt-1 text-[22px] font-semibold leading-none text-text-primary">
                 <CountUpFigure value={view.lifetime.washes} format={(n) => n.toLocaleString('en-IN')} />
@@ -409,7 +411,7 @@ function RewardsBody({
               className="px-2.5 py-1 text-t4"
             />
             <span className="text-t5 text-text-secondary">
-              <CountUpFigure value={level.bookings} format={String} /> in 12 months
+              <CountUpFigure value={level.bookings} format={String} /> {t('in 12 months')}
             </span>
           </div>
           <p className="text-[14px] font-medium text-text-primary">
@@ -435,7 +437,7 @@ function RewardsBody({
           )}
           {level.noShowDrops > 0 && (
             <p className="text-t5 text-warning">
-              A missed booking took one level off for 12 months.
+              {t('A missed booking took one level off for 12 months.')}
             </p>
           )}
           {/* The monthly streak, as this cycle's months. */}
@@ -446,7 +448,7 @@ function RewardsBody({
               </p>
               <p className="text-t5 text-text-muted">
                 <Figures
-                  text={`${streak.monthsNeeded} months in a row earn ${streak.bonusStamps === 1 ? 'a bonus stamp' : `${streak.bonusStamps} bonus stamps`}.`}
+                  text={tn(streak.bonusStamps, '{months} months in a row earn a bonus stamp.', '{months} months in a row earn {count} bonus stamps.', { months: streak.monthsNeeded })}
                 />
               </p>
             </div>
@@ -466,7 +468,7 @@ function RewardsBody({
           </div>
           <details className="level-ladder group border-t border-white/10 pt-2">
             <summary className="flex min-h-9 cursor-pointer list-none items-center justify-between text-t5 font-medium text-text-primary">
-              All levels and what they unlock
+              {t('All levels and what they unlock')}
               <IconChevronRight
                 size={14}
                 className="transition-transform group-open:rotate-90"
@@ -510,12 +512,11 @@ function RewardsBody({
                         ·{' '}
                         {step.minBookings === 0
                           ? 'everyone'
-                          : `${step.minBookings} washes`}
+                          : t('{minBookings} washes', { minBookings: step.minBookings })}
                       </span>
                       {step.current && (
                         <span className="text-t5 text-text-secondary">
-                          {' '}
-                          · you
+                          {' '}{t('· you')}
                         </span>
                       )}
                     </p>
@@ -541,7 +542,7 @@ function RewardsBody({
             id="challenges"
             className="text-sm font-semibold text-text-primary"
           >
-            {extras.challenges.length === 1 ? 'Challenge' : 'Challenges'}
+            {extras.challenges.length === 1 ? t('Challenge') : t('Challenges')}
           </h2>
           {extras.challenges.map((challenge) => (
             <ChallengeCard
@@ -571,12 +572,10 @@ function RewardsBody({
             />
             <span className="min-w-0">
               <span className="block text-[14px] font-semibold text-text-primary">
-                Your{' '}
-                <span className="font-numeric">{extras.wrapped.years[0]}</span>{' '}
-                Detlio Wrapped
+                {fill(t('Your {years} Detlio Wrapped'), { years: <span className="font-numeric">{extras.wrapped.years[0]}</span> })}
               </span>
               <span className="block text-t5 text-text-secondary">
-                Your year in washes, garages and shine.
+                {t('Your year in washes, garages and shine.')}
               </span>
             </span>
           </span>
@@ -591,15 +590,15 @@ function RewardsBody({
       <InviteCard invite={view.invite} />
       {view.referredBy && (
         <p className="text-t5 text-text-secondary">
-          You joined through {view.referredBy.firstName}&apos;s invite.
+          {t("You joined through {firstName}'s invite.", { firstName: view.referredBy.firstName })}
           {view.referredBy.status === 'pending' &&
-            ' Your reward comes with your first booking.'}
+            ` ${t('Your reward comes with your first booking.')}`}
         </p>
       )}
 
       <section aria-labelledby="birthday" className="flex flex-col gap-2">
         <h2 id="birthday" className="text-sm font-semibold text-text-primary">
-          Birthday
+          {t('Birthday')}
         </h2>
         <ScCard className="py-3">
           <BirthdayForm birthday={view.birthday} perkFrom={birthdayPerkFrom} />
@@ -612,7 +611,7 @@ function RewardsBody({
             id="past-rewards"
             className="text-sm font-semibold text-text-primary"
           >
-            Used and past rewards
+            {t('Used and past rewards')}
           </h2>
           <ScCard className="px-0 py-1">
             <ul className="divide-y divide-border">
@@ -631,7 +630,7 @@ function RewardsBody({
                     <span className="font-numeric">
                       {rewardRupees(v.amount)}
                     </span>{' '}
-                    · {VOUCHER_STATE_LABELS[v.state]}
+                    · {t(VOUCHER_STATE_LABELS[v.state])}
                   </span>
                 </li>
               ))}
@@ -648,12 +647,12 @@ function RewardsBody({
           id="rewards-history"
           className="text-sm font-semibold text-text-primary"
         >
-          History
+          {t('History')}
         </h2>
         {view.history.length === 0 ? (
           <ScCard>
             <p className="text-t5 text-text-secondary">
-              Your first completed booking through Detlio starts your card.
+              {t('Your first completed booking through Detlio starts your card.')}
             </p>
           </ScCard>
         ) : (
@@ -708,13 +707,14 @@ const VOUCHER_MARKS: Record<
 }
 
 function VoucherRow({ voucher }: { voucher: RewardVoucher }) {
+  const t = useT()
   const copy = async () => {
     if (!voucher.code) return
     try {
       await navigator.clipboard.writeText(voucher.code)
-      toast.success('Code copied')
+      toast.success(t('Code copied'))
     } catch {
-      toast.info(`Your code is ${voucher.code}`)
+      toast.info(t('Your code is {code}', { code: voucher.code }))
     }
   }
   const mark = VOUCHER_MARKS[voucher.kind] ?? VOUCHER_MARKS.adjustment
@@ -734,23 +734,22 @@ function VoucherRow({ voucher }: { voucher: RewardVoucher }) {
       <div className="min-w-0 flex-1">
         <p className="text-t2 font-semibold leading-tight text-text-primary">
           {freeWash ? (
-            'Free wash'
+            t('Free wash')
           ) : (
-            <Figures text={`${rewardRupees(voucher.amount)} off`} />
+            <Figures text={t('{rewardRupees} off', { rewardRupees: rewardRupees(voucher.amount) })} />
           )}
         </p>
         <p className="text-t5 leading-snug text-text-secondary">
           {freeWash ? (
             <Figures
-              text={`Up to ${rewardRupees(voucher.amount)} · scratch card`}
+              text={t('Up to {rewardRupees} · scratch card', { rewardRupees: rewardRupees(voucher.amount) })}
             />
           ) : (
             voucher.label
           )}
         </p>
         <p className="text-t5 text-text-muted">
-          Use by{' '}
-          <span className="font-numeric">{rewardDay(voucher.lastDay)}</span>
+          {fill(t('Use by {rewardDay}'), { rewardDay: <span className="font-numeric">{rewardDay(voucher.lastDay)}</span> })}
         </p>
       </div>
       {voucher.code && (
@@ -758,7 +757,7 @@ function VoucherRow({ voucher }: { voucher: RewardVoucher }) {
           type="button"
           onClick={() => void copy()}
           className="flex shrink-0 items-center gap-1 rounded-full border border-line px-2.5 py-1 font-numeric text-t5 text-text-primary"
-          aria-label={`Copy code ${voucher.code}`}
+          aria-label={t('Copy code {code}', { code: voucher.code })}
         >
           {voucher.code}
           <IconCopy size={14} aria-hidden />

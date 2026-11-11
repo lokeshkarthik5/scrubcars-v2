@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useT } from '@repo/core/i18n'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
@@ -17,6 +18,7 @@ import { useVendorOnboardingStore } from '@repo/core/stores/vendor-onboarding-st
 import { OnboardingHeader } from '@/components/onboarding-header'
 
 export default function VendorOnboardingStep2() {
+  const t = useT()
   const router = useRouter()
   const onboarding = useVendorOnboardingStore()
   const update = useVendorOnboardingStore((s) => s.update)
@@ -54,11 +56,11 @@ export default function VendorOnboardingStep2() {
 
   const handleContinue = async () => {
     if (!pin) {
-      toast.error('Set your garage location on the map')
+      toast.error(t('Set your garage location on the map'))
       return
     }
     if (!/^\d{6}$/.test(pincode)) {
-      toast.error('Enter a valid 6-digit pincode')
+      toast.error(t('Enter a valid 6-digit pincode'))
       return
     }
     setLoading(true)
@@ -81,7 +83,7 @@ export default function VendorOnboardingStep2() {
       router.push('/onboarding/step-3')
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : 'Failed to save. Please try again.'
+        err instanceof Error ? err.message : t('Failed to save. Please try again.')
       )
     } finally {
       setLoading(false)
@@ -92,14 +94,16 @@ export default function VendorOnboardingStep2() {
     <AppShell className="gap-5 py-4">
       <OnboardingHeader
         step={2}
-        title="Your garage location"
+        title={t('Your garage location')}
         backHref="/onboarding/step-1"
       />
 
       <section className="flex flex-col gap-3">
         <SectionHeader
-          title="Pin your garage"
-          subtitle="This is how customers find you and how we work out who is nearby, so place it exactly at your gate."
+          title={t('Pin your garage')}
+          subtitle={t(
+            'This is how customers find you and how we work out who is nearby, so place it exactly at your gate.'
+          )}
         />
         <LocationPicker
           value={pin ? { lat: pin.lat, lng: pin.lng } : null}
@@ -110,20 +114,20 @@ export default function VendorOnboardingStep2() {
 
       <ScCard className="flex flex-col gap-4">
         <ScTextarea
-          label="Full address"
+          label={t('Full address')}
           rows={3}
           value={address}
           onChange={(e) => setAddress(e.target.value)}
         />
 
         <ScInput
-          label="City"
+          label={t('City')}
           value={city}
           onChange={(e) => setCity(e.target.value)}
         />
 
         <ScInput
-          label="Pincode"
+          label={t('Pincode')}
           inputMode="numeric"
           maxLength={6}
           placeholder="600001"
@@ -135,7 +139,7 @@ export default function VendorOnboardingStep2() {
         />
 
         <ScInput
-          label="Google Maps link (optional)"
+          label={t('Google Maps link (optional)')}
           inputMode="url"
           placeholder="https://maps.app.goo.gl/…"
           value={mapsUrl}
@@ -156,7 +160,7 @@ export default function VendorOnboardingStep2() {
         }
         onClick={handleContinue}
       >
-        Continue
+        {t('Continue')}
       </ScButton>
     </AppShell>
   )

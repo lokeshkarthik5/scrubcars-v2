@@ -12,6 +12,7 @@ import { googleMapsLink, telHref, whatsAppHref } from '@repo/core/contact-links'
 import { contactWindowState } from '@repo/core/contact-window';
 import { formatWhen, formatClock } from '@repo/core/format';
 import { useNow } from '@repo/core/hooks/use-now';
+import { fill, useT } from '@repo/core/i18n';
 import { finalBillMayChange, formatStepTime } from '@repo/core/job-records';
 import { confirmPayment, FALLBACK_REFUND_MESSAGE, realClock } from '@repo/core/payment-confirmation';
 import { carWithGarage, pickupTimeline } from '@repo/core/pickup';
@@ -112,6 +113,7 @@ function ContactRow({ label, onPress, last }: { label: string; onPress: () => vo
 
 /** apps/users/app/bookings/[id]/page.tsx.  */
 export default function BookingDetailScreen() {
+  const t = useT();
   const params = useLocalSearchParams<{ id: string; celebrate?: string; then?: string; rate?: string }>();
   const id = String(params.id);
   const colors = useColors();
@@ -244,9 +246,9 @@ export default function BookingDetailScreen() {
       if (!profile) await fetchProfile();
       const started = await startBookingPayment(booking);
       if (started.kind !== 'order') {
-        if (started.kind === 'checking') toast.info("We're still checking your last payment. There's no need to pay again.");
+        if (started.kind === 'checking') toast.info(t("We're still checking your last payment. There's no need to pay again."));
         else if (started.kind === 'failed') toast.error(started.message);
-        else toast.success('Your payment went through.');
+        else toast.success(t('Your payment went through.'));
         const fresh = await getBooking(booking.id).catch(() => null);
         if (fresh) setBooking(fresh);
         return;
@@ -255,7 +257,7 @@ export default function BookingDetailScreen() {
       const result = await openCheckout(started.order, { description: `${booking.serviceSummary} at ${booking.vendorName}`, name: profile?.name, phone: profile?.phone });
       if (result.kind === 'cancelled') {
         pendingPayment.clear(payKey);
-        toast.info('Payment cancelled. You can pay anytime from booking details.');
+        toast.info(t('Payment cancelled. You can pay anytime from booking details.'));
         return;
       }
       if (result.kind === 'failed') {
@@ -274,7 +276,7 @@ export default function BookingDetailScreen() {
         poll: async () => {
           const fresh = await getBooking(booking.id);
           if (fresh?.paymentStatus !== 'paid') return { kind: 'pending' };
-          return fresh.status === 'cancelled' ? { kind: 'failed', message: fresh.cancellationReason ?? FALLBACK_REFUND_MESSAGE } : { kind: 'booked', bookingId: booking.id };
+          return fresh.status === 'cancelled' ? { kind: 'failed', message: fresh.cancellationReason ?? t(FALLBACK_REFUND_MESSAGE) } : { kind: 'booked', bookingId: booking.id };
         },
         ...realClock,
       });
@@ -284,12 +286,12 @@ export default function BookingDetailScreen() {
         if (updated) setBooking(updated);
         setPaid({ paymentId: result.paymentId, phase: 'booked' });
         void invalidateHome(queryClient);
-        toast.success('Payment successful');
+        toast.success(t('Payment successful'));
       } else {
         setPaid({ paymentId: result.paymentId, phase: outcome.kind, refundMessage: outcome.kind === 'failed' ? outcome.message : undefined });
       }
     } catch (error) {
-      toast.error(errorText(error, 'Could not start the payment. Please try again.'));
+      toast.error(errorText(error, t('Could not start the payment. Please try again.')));
     } finally {
       setPaymentFlowOnScreen(false);
       setPaying(false);
@@ -306,15 +308,15 @@ export default function BookingDetailScreen() {
       setCancelReason('');
       void invalidateHome(queryClient);
       void invalidateRewards(queryClient);
-      toast.success('Booking cancelled');
+      toast.success(t('Booking cancelled'));
     } catch (error) {
       if (error instanceof ApiError && error.code === 'CAR_WITH_GARAGE') {
         setShowCancelConfirm(false);
         const fresh = await getBooking(id).catch(() => null);
         if (fresh) setBooking(fresh);
-        toast.error('The garage has already collected your car, so this booking can’t be cancelled here. Use Help with this booking.');
+        toast.error(t('The garage has already collected your car, so this booking can’t be cancelled here. Use Help with this booking.'));
       } else {
-        toast.error(errorText(error, 'Failed to cancel booking'));
+        toast.error(errorText(error, t('Failed to cancel booking')));
       }
     } finally {
       setCancelling(false);
@@ -329,7 +331,7 @@ export default function BookingDetailScreen() {
       setShowReschedule(false);
       setRescheduleSlot(null);
       void invalidateHome(queryClient);
-      toast.success(`New time sent to ${booking.vendorName}. Waiting for them to accept.`);
+      toast.success(t('New time sent to {name}. Waiting for them to accept.', { name: booking.vendorName }));
       router.replace(`/bookings/${created.id}` as Href);
     } catch (error) {
       const code = error instanceof ApiError ? error.code : undefined;
@@ -341,7 +343,7 @@ export default function BookingDetailScreen() {
         const fresh = await getBooking(id).catch(() => null);
         if (fresh) setBooking(fresh);
       }
-      toast.error(errorText(error, 'Failed to reschedule booking'));
+      toast.error(errorText(error, t('Failed to reschedule booking')));
     } finally {
       setRescheduling(false);
     }
@@ -355,9 +357,9 @@ export default function BookingDetailScreen() {
   if (loadError) {
     return (
       <View style={[styles.page, { paddingTop: insets.top }]}>
-        <PageHeader title="Booking" backTo="/bookings" />
+        <PageHeader title={t('Booking')} backTo="/bookings" />
         <T size={15} lh={22} color={colors.textSecondary} style={styles.loadError}>
-          Could not load this booking. It may have been removed or you may not have access.
+          {t('Could not load this booking. It may have been removed or you may not have access.')}
         </T>
       </View>
     );
@@ -365,7 +367,7 @@ export default function BookingDetailScreen() {
   if (!booking) {
     return (
       <View style={[styles.page, { paddingTop: insets.top }]}>
-        <PageHeader title="Booking" backTo="/bookings" />
+        <PageHeader title={t('Booking')} backTo="/bookings" />
         <View style={styles.loading}>
           <Skeleton height={132} />
           <Skeleton height={220} />
@@ -423,11 +425,11 @@ export default function BookingDetailScreen() {
 
   return (
     <View style={[styles.page, { paddingTop: insets.top }]}>
-      <PageHeader title={`Booking #${bookingReference(booking.id)}`} backTo="/bookings" />
+      <PageHeader title={t('Booking #{reference}', { reference: bookingReference(booking.id) })} backTo="/bookings" />
       <ScrollView ref={scrollRef} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 24 }]}>
         <View style={styles.status}>
           <T size={13} lh={18} color={colors.dim}>
-            {[booking.vendorName, BOOKING_TYPE_LABELS[booking.bookingType], booking.vehicle?.model].filter(Boolean).join(' · ')}
+            {[booking.vendorName, t(BOOKING_TYPE_LABELS[booking.bookingType]), booking.vehicle?.model].filter(Boolean).join(' · ')}
           </T>
           <View style={styles.statusHead}>
             <T accessibilityRole="header" variant="title" style={styles.statusTitle}>
@@ -453,12 +455,12 @@ export default function BookingDetailScreen() {
           ) : null}
           {missedByGarage ? (
             <T size={15} lh={22} color={colors.textSecondary}>
-              {"Your booking time has passed without the garage accepting, so this booking won't go ahead. Cancel it or pick a new time below, or use Help with this booking about your payment."}
+              {t("Your booking time has passed without the garage accepting, so this booking won't go ahead. Cancel it or pick a new time below, or use Help with this booking about your payment.")}
             </T>
           ) : null}
           {booking.status === 'rescheduled' ? (
             <T size={15} lh={22} color={colors.textSecondary}>
-              This booking was moved to a new time. Open your bookings to see the new one and whether the garage has accepted it.
+              {t('This booking was moved to a new time. Open your bookings to see the new one and whether the garage has accepted it.')}
             </T>
           ) : null}
           {/* The car drives to the next stop when the status changes (the screen polls); the
@@ -495,13 +497,13 @@ export default function BookingDetailScreen() {
           .map(([chargeId, payment]) => (
             <ScCard key={chargeId} style={styles.gap12}>
               <T size={17} weight={500} lh={24}>
-                Your earlier bill payment
+                {t('Your earlier bill payment')}
               </T>
               {payment.phase === 'confirming' ? (
                 <View style={styles.confirming}>
                   <Spinner size={16} />
                   <T size={15} lh={20}>
-                    Payment received — confirming…
+                    {t('Payment received — confirming…')}
                   </T>
                 </View>
               ) : (
@@ -543,12 +545,12 @@ export default function BookingDetailScreen() {
         {unpaid && checkingPayment && !paying ? (
           <ScButton variant="quiet" height={52} disabled>
             <Spinner size={16} />
-            <Label>Checking your payment…</Label>
+            <Label>{t('Checking your payment…')}</Label>
           </ScButton>
         ) : unpaid ? (
           <ScButton variant="hero" height={52} disabled={paying} onPress={() => void handlePayNow()}>
             <Label color={colors.white}>
-              <Figures color={colors.white} size={15} weight={600} text={paying ? 'Opening payment...' : `Pay ${money(booking.servicePrice)}`} />
+              <Figures color={colors.white} size={15} weight={600} text={paying ? t('Opening payment...') : t('Pay {amount}', { amount: money(booking.servicePrice) })} />
             </Label>
             {!paying ? <IconArrowUpRight size={17} stroke={1.5} color={colors.white} /> : null}
           </ScButton>
@@ -556,7 +558,7 @@ export default function BookingDetailScreen() {
         {paid?.phase === 'confirming' ? (
           <ScButton variant="quiet" height={52} disabled>
             <Spinner size={16} />
-            <Label>Payment received — confirming your booking…</Label>
+            <Label>{t('Payment received — confirming your booking…')}</Label>
           </ScButton>
         ) : null}
         {showPaymentPanel && paid ? (
@@ -573,7 +575,7 @@ export default function BookingDetailScreen() {
 
         {finished && canBookAgain(booking) && !billDue ? (
           <ScButton variant="hero" onPress={() => router.push(bookAgainPath(booking, matchSavedAddress(booking, addresses)) as Href)}>
-            <Label color={colors.white}>Book again</Label>
+            <Label color={colors.white}>{t('Book again')}</Label>
             <IconArrowUpRight size={17} stroke={1.5} color={colors.white} />
           </ScButton>
         ) : null}
@@ -583,7 +585,7 @@ export default function BookingDetailScreen() {
         {finished && scratchCard ? (
           <View style={styles.earned}>
             <T size={17} weight={500} lh={24}>
-              You earned a stamp and a scratch card
+              {t('You earned a stamp and a scratch card')}
             </T>
             <ScratchCardPanel card={scratchCard} compact />
           </View>
@@ -591,7 +593,7 @@ export default function BookingDetailScreen() {
         {finished && bookingPull ? (
           <View style={styles.earned}>
             <T size={17} weight={500} lh={24}>
-              A new car for your Garage
+              {t('A new car for your Garage')}
             </T>
             <PullReveal pull={bookingPull} onRevealed={() => (!bookingPull.seen ? markPullSeen.mutate([bookingPull.id]) : undefined)} />
           </View>
@@ -609,7 +611,7 @@ export default function BookingDetailScreen() {
         />
 
         <HubCard style={styles.details}>
-          <Row label={booking.items.length > 1 ? 'Services' : (booking.items[0]?.name ?? 'Service')}>
+          <Row label={booking.items.length > 1 ? t('Services') : (booking.items[0]?.name ?? t('Service'))}>
             {booking.items.length > 1 ? (
               <View style={styles.itemList}>
                 {booking.items.map((item) => (
@@ -629,12 +631,12 @@ export default function BookingDetailScreen() {
             )}
           </Row>
           {(booking.travelFee ?? 0) > 0 ? (
-            <Row label="Travel fee">
+            <Row label={t('Travel fee')}>
               <Amount value={money(booking.travelFee ?? 0)} />
             </Row>
           ) : null}
           {booking.discountAmount > 0 ? (
-            <Row label={`Discount${booking.discountCode ? ` (${booking.discountCode})` : ''}`}>
+            <Row label={booking.discountCode ? t('Discount ({code})', { code: booking.discountCode }) : t('Discount')}>
               <Amount value={`−${money(booking.discountAmount)}`} color={colors.success} />
             </Row>
           ) : null}
@@ -642,26 +644,26 @@ export default function BookingDetailScreen() {
             <Amount value={money(paymentRowAmount(booking))} />
           </Row>
           {(booking.creditPaid ?? 0) > 0 ? (
-            <Row label="Paid with Detlio credit">
+            <Row label={t('Paid with Detlio credit')}>
               <Amount value={money(booking.creditPaid ?? 0)} />
             </Row>
           ) : null}
-          <Row label="When">{formatWhen(booking.scheduledAtIso, now)}</Row>
-          <Row label={isPickup ? 'Collected from' : 'Where'}>
-            {booking.jobLocation?.address ?? ([contactGarage?.address, contactGarage?.city].filter(Boolean).join(', ') || BOOKING_TYPE_LABELS[booking.bookingType])}
+          <Row label={t('When')}>{formatWhen(booking.scheduledAtIso, now)}</Row>
+          <Row label={isPickup ? t('Collected from') : t('Where')}>
+            {booking.jobLocation?.address ?? ([contactGarage?.address, contactGarage?.city].filter(Boolean).join(', ') || t(BOOKING_TYPE_LABELS[booking.bookingType]))}
           </Row>
-          {booking.vehicle ? <Row label="Car">{`${booking.vehicle.make} ${booking.vehicle.model}`}</Row> : null}
-          <Row label="Receipt" last>
+          {booking.vehicle ? <Row label={t('Car')}>{`${booking.vehicle.make} ${booking.vehicle.model}`}</Row> : null}
+          <Row label={t('Receipt')} last>
             {booking.receiptAvailable ? (
               <Pressable accessibilityRole="link" onPress={() => router.push(`/bookings/${booking.id}/receipt` as Href)} style={styles.receiptLink}>
                 <T size={15} lh={20}>
-                  View receipt
+                  {t('View receipt')}
                 </T>
                 <IconChevronRight size={16} stroke={1.5} color={colors.textPrimary} />
               </Pressable>
             ) : (
               <T size={15} lh={20} color={colors.dim} align="right">
-                After payment
+                {t('After payment')}
               </T>
             )}
           </Row>
@@ -671,7 +673,7 @@ export default function BookingDetailScreen() {
           <ScCard style={styles.getting}>
             <View style={styles.grow}>
               <T size={15} weight={500} lh={20}>
-                Getting there
+                {t('Getting there')}
               </T>
               {gettingThere.address ? (
                 <T size={13} lh={18} color={colors.textSecondary} style={styles.mt2}>
@@ -681,14 +683,15 @@ export default function BookingDetailScreen() {
               {travel.data ? (
                 <T size={13} lh={18} color={colors.textSecondary} style={styles.mt4}>
                   {describeDrive(travel.data).atGarage ? (
-                    "You're at the garage."
+                    t("You're at the garage.")
                   ) : (
-                    <>
-                      <T num size={13} lh={18}>
-                        {describeDrive(travel.data).time}
-                      </T>
-                      {' drive from you'}
-                    </>
+                    fill(t('{time} drive from you'), {
+                      time: (
+                        <T num size={13} lh={18}>
+                          {describeDrive(travel.data).time}
+                        </T>
+                      ),
+                    })
                   )}
                 </T>
               ) : null}
@@ -696,16 +699,16 @@ export default function BookingDetailScreen() {
             <Pressable accessibilityRole="button" onPress={() => setShowDirections(true)} style={styles.directions}>
               <IconNavigation size={16} color={colors.textPrimary} />
               <T size={15} lh={20}>
-                Directions
+                {t('Directions')}
               </T>
             </Pressable>
           </ScCard>
         ) : null}
 
         <HubCard style={styles.details}>
-          {garageCall ? <ContactRow label={`Call ${booking.vendorName}`} onPress={() => openLink(garageCall)} /> : null}
-          {garageWhatsApp ? <ContactRow label="WhatsApp the garage" onPress={() => openLink(garageWhatsApp)} /> : null}
-          <ContactRow label="Help with this booking" onPress={() => setShowHelp(true)} last />
+          {garageCall ? <ContactRow label={t('Call {name}', { name: booking.vendorName })} onPress={() => openLink(garageCall)} /> : null}
+          {garageWhatsApp ? <ContactRow label={t('WhatsApp the garage')} onPress={() => openLink(garageWhatsApp)} /> : null}
+          <ContactRow label={t('Help with this booking')} onPress={() => setShowHelp(true)} last />
         </HubCard>
 
         <BypassReportLine booking={booking} />
@@ -713,7 +716,7 @@ export default function BookingDetailScreen() {
         {earlierRefund ? (
           <ScCard>
             <T size={15} weight={500} lh={20} style={styles.mb4}>
-              Refund
+              {t('Refund')}
             </T>
             <T size={15} lh={22} color={colors.textSecondary}>
               {earlierRefund}
@@ -726,17 +729,17 @@ export default function BookingDetailScreen() {
         {!finished && canBookAgain(booking) ? (
           <ScButton variant="outline" height={52} onPress={() => router.push(bookAgainPath(booking, matchSavedAddress(booking, addresses)) as Href)}>
             <IconRepeat size={18} color={colors.textPrimary} />
-            <Label>Book again</Label>
+            <Label>{t('Book again')}</Label>
           </ScButton>
         ) : null}
 
         {carAway && OPEN_STATUSES.has(booking.status) ? (
           <ScCard>
             <T size={15} weight={500} lh={20} style={styles.mb4}>
-              Your car is with the garage
+              {t('Your car is with the garage')}
             </T>
             <T size={15} lh={22} color={colors.textSecondary}>
-              {`${booking.vendorName} has collected your car, so this booking can't be cancelled or moved in the app. To change anything, or if something isn't right, use Help with this booking to reach the garage or our team, or raise a complaint there.`}
+              {t("{name} has collected your car, so this booking can't be cancelled or moved in the app. To change anything, or if something isn't right, use Help with this booking to reach the garage or our team, or raise a complaint there.", { name: booking.vendorName })}
             </T>
           </ScCard>
         ) : null}
@@ -744,13 +747,12 @@ export default function BookingDetailScreen() {
         {canChange ? (
           <HubCard style={styles.change}>
             <T size={13} lh={18} color={colors.textSecondary}>
-              {`${
-                lockedIn
-                  ? `Your slot is less than 2 hours away, so it can't be moved here. Use Help with this booking to reach ${booking.vendorName} or our team.`
-                  : booking.status === 'confirmed'
-                    ? `You can reschedule twice in all · ${booking.remainingReschedules} of 2 left. Your booking goes back to Requested until ${booking.vendorName} accepts the new time.`
-                    : `You can reschedule twice in all · ${booking.remainingReschedules} of 2 left. ${booking.vendorName} will need to accept the new time.`
-              }${isPickup && !lockedIn ? ' You can move it until the garage collects your car.' : ''}`}
+              {lockedIn
+                ? t("Your slot is less than 2 hours away, so it can't be moved here. Use Help with this booking to reach {name} or our team.", { name: booking.vendorName })
+                : booking.status === 'confirmed'
+                  ? t('You can reschedule twice in all · {count} of 2 left. Your booking goes back to Requested until {name} accepts the new time.', { count: booking.remainingReschedules, name: booking.vendorName })
+                  : t('You can reschedule twice in all · {count} of 2 left. {name} will need to accept the new time.', { count: booking.remainingReschedules, name: booking.vendorName })}
+              {isPickup && !lockedIn ? ` ${t('You can move it until the garage collects your car.')}` : ''}
             </T>
             <ScButton
               variant="outline"
@@ -761,18 +763,18 @@ export default function BookingDetailScreen() {
                 setShowReschedule(true);
               }}
             >
-              {booking.remainingReschedules <= 0 ? 'No reschedules left' : lockedIn ? 'Too close to your slot to move' : 'Reschedule'}
+              {booking.remainingReschedules <= 0 ? t('No reschedules left') : lockedIn ? t('Too close to your slot to move') : t('Reschedule')}
             </ScButton>
             {lockedIn ? (
               <T size={13} lh={18} color={colors.textSecondary}>
-                {`Your slot is less than 2 hours away and ${booking.vendorName} has accepted it, so it can't be cancelled here. Use Help with this booking to reach the garage or our team.`}
+                {t("Your slot is less than 2 hours away and {name} has accepted it, so it can't be cancelled here. Use Help with this booking to reach the garage or our team.", { name: booking.vendorName })}
               </T>
             ) : showCancelConfirm ? (
               <View style={styles.cancelBox}>
                 <T size={15} lh={22}>
-                  {booking.status === 'pending' ? `${booking.vendorName} hasn't accepted yet, so you can cancel any time. This cannot be undone.` : 'Cancel this booking? This cannot be undone.'}
+                  {booking.status === 'pending' ? t("{name} hasn't accepted yet, so you can cancel any time. This cannot be undone.", { name: booking.vendorName }) : t('Cancel this booking? This cannot be undone.')}
                 </T>
-                <ScInput placeholder="Reason (optional)" value={cancelReason} onChangeText={setCancelReason} />
+                <ScInput placeholder={t('Reason (optional)')} value={cancelReason} onChangeText={setCancelReason} />
                 {booking.paymentMethod === 'online' && booking.paymentStatus === 'paid' ? (
                   <T size={13} lh={18} color={colors.textMuted}>
                     {cancelRefundNote(booking)}
@@ -781,12 +783,12 @@ export default function BookingDetailScreen() {
                 <View style={styles.row8}>
                   <View style={styles.grow}>
                     <ScButton variant="outline" height={52} paddingX={8} disabled={cancelling} onPress={() => setShowCancelConfirm(false)}>
-                      Keep booking
+                      {t('Keep booking')}
                     </ScButton>
                   </View>
                   <View style={styles.grow}>
                     <ScButton variant="danger-outline" height={52} paddingX={8} disabled={cancelling} onPress={() => void handleCancelBooking()}>
-                      {cancelling ? 'Cancelling...' : 'Confirm cancel'}
+                      {cancelling ? t('Cancelling...') : t('Confirm cancel')}
                     </ScButton>
                   </View>
                 </View>
@@ -794,7 +796,7 @@ export default function BookingDetailScreen() {
             ) : (
               <Pressable accessibilityRole="button" onPress={() => setShowCancelConfirm(true)} style={styles.cancelLink}>
                 <T size={15} weight={500} lh={20} color={colors.error} align="center">
-                  Cancel booking
+                  {t('Cancel booking')}
                 </T>
               </Pressable>
             )}
@@ -804,7 +806,7 @@ export default function BookingDetailScreen() {
         {showProgress ? (
           <ScCard>
             <T size={15} weight={500} lh={20} style={styles.mb12}>
-              Progress
+              {t('Progress')}
             </T>
             {isPickup ? (
               <PickupTimeline booking={booking} now={now} />
@@ -828,10 +830,10 @@ export default function BookingDetailScreen() {
         // Ignition, after paying (moment 1): the same words the burst said, with the
         // booking's road, the car parked where it is.
         <Ignition
-          title={awaitingGarage ? 'Booking requested' : 'Booking confirmed'}
-          subtitle={awaitingGarage ? `Waiting for ${booking.vendorName} to accept your ${booking.scheduledAt} slot.` : `${booking.serviceSummary} at ${booking.vendorName} · ${booking.scheduledAt}`}
+          title={awaitingGarage ? t('Booking requested') : t('Booking confirmed')}
+          subtitle={awaitingGarage ? t('Waiting for {name} to accept your {when} slot.', { name: booking.vendorName, when: booking.scheduledAt }) : t('{services} at {name} · {when}', { services: booking.serviceSummary, name: booking.vendorName, when: booking.scheduledAt })}
           stops={roadStops ?? statusStops(STATUS_STEPS, awaitingGarage ? 0 : 1, false)}
-          caption={awaitingGarage ? `Requested${answerBy ? ` · they answer by ${formatClock(answerBy.respondBy)}` : ''}` : null}
+          caption={awaitingGarage ? (answerBy ? t('Requested · they answer by {time}', { time: formatClock(answerBy.respondBy) }) : t('Requested')) : null}
           onDone={() => setCelebrating(false)}
         />
       ) : null}
@@ -842,33 +844,33 @@ export default function BookingDetailScreen() {
         open={showReschedule && canChange && booking.remainingReschedules > 0 && !lockedIn}
         onClose={() => setShowReschedule(false)}
         dismissible={!rescheduling}
-        accessibilityLabel="Reschedule booking"
+        accessibilityLabel={t('Reschedule booking')}
       >
         <T size={20} lh={28} tracking={-0.015}>
-          Reschedule booking
+          {t('Reschedule booking')}
         </T>
         <T size={13} lh={18} color={colors.textSecondary} style={styles.rescheduleSub}>
-          {`You can reschedule only twice · ${booking.remainingReschedules} of 2 left. Pick a new time; ${booking.vendorName} will be asked to accept it.`}
+          {t('You can reschedule only twice · {count} of 2 left. Pick a new time; {name} will be asked to accept it.', { count: booking.remainingReschedules, name: booking.vendorName })}
         </T>
         <WhenPicker
-          title="New time"
+          title={t('New time')}
           vendorId={booking.vendorId}
           serviceIds={booking.items.map((item) => item.serviceId)}
           value={rescheduleSlot}
           onChange={setRescheduleSlot}
-          onLapse={() => toast.info('That time is now too soon to book. Pick another time.')}
+          onLapse={() => toast.info(t('That time is now too soon to book. Pick another time.'))}
           bookingType={booking.bookingType}
           rescheduleOf={booking.id}
         />
         <View style={[styles.row8, styles.mt20]}>
           <View style={styles.grow}>
             <ScButton variant="outline" height={52} disabled={rescheduling} onPress={() => setShowReschedule(false)}>
-              Cancel
+              {t('Cancel')}
             </ScButton>
           </View>
           <View style={styles.grow}>
             <ScButton variant={rescheduleSlot ? 'hero' : 'quiet'} height={52} paddingX={8} disabled={!rescheduleSlot || rescheduling} onPress={() => void handleReschedule()}>
-              {rescheduling ? 'Rescheduling...' : 'Confirm reschedule'}
+              {rescheduling ? t('Rescheduling...') : t('Confirm reschedule')}
             </ScButton>
           </View>
         </View>

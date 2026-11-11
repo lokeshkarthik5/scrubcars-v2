@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, type ReactNode } from 'react'
-import { IconDownload } from '@tabler/icons-react'
+import { IconAlertTriangle, IconDownload } from '@tabler/icons-react'
 import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCheckbox } from '@repo/ui/sc/checkbox'
@@ -21,7 +21,7 @@ import {
 } from '@repo/core/api/hooks/use-admin-data-reset'
 import { cn } from '@repo/core/utils'
 import { downloadCsv, formatRupees, formatWhen, todayIst } from '@/lib/bookings'
-import { dataResetCsv, phraseTyped, plural } from '@/lib/data-reset'
+import { confirmationTyped, dataResetCsv, plural } from '@/lib/data-reset'
 import { SignedAs } from '@/components/signed-as'
 
 /**
@@ -155,6 +155,22 @@ export function ChainRow({
           <p className="mt-0.5 font-medium text-text-primary">
             {chain.teamTest.label}.
           </p>
+        )}
+        {/* The owner's delete (10 Nov 2026), and a booking still on: what
+            deleting it leaves, said plainly, a line each. */}
+        {!kept && (chain.lines?.length ?? 0) > 0 && (
+          <ul className="mt-1 flex flex-col gap-1 text-[12px] leading-snug text-text-primary">
+            {chain.lines!.map((line) => (
+              <li key={line} className="flex gap-1.5">
+                <IconAlertTriangle
+                  size={14}
+                  aria-hidden="true"
+                  className="mt-px shrink-0 text-warning"
+                />
+                <span>{line}</span>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
     </ListRow>
@@ -466,9 +482,15 @@ export function ConfirmDelete({
   const [phrase, setPhrase] = useState('')
   // A ticked booking that took real money, all refunded, goes as a team
   // test (0065): its payments are kept in the money record with the reason.
+  // So does one the owner deletes with money not given back or a payout on
+  // it (10 Nov 2026).
   const teamTests = preview.chains.filter(
-    (chain) => chain.selected && chain.teamTest
+    (chain) => chain.selected && (chain.teamTest || chain.reasonRequired)
   ).length
+  const ownerTaken = preview.chains.some(
+    (chain) => chain.selected && chain.ownerOverride
+  )
+  const byReference = preview.confirmKind === 'reference'
   const [reason, setReason] = useState('')
   const reasonGiven = teamTests === 0 || reason.trim().length >= 3
   const [error, setError] = useState<{
@@ -476,8 +498,8 @@ export function ConfirmDelete({
     stale: boolean
   } | null>(null)
 
-  const ready =
-    backup && reasonGiven && phraseTyped(phrase, preview.confirmPhrase)
+  const typed = confirmationTyped(phrase, preview)
+  const ready = backup && reasonGiven && typed
 
   const submit = () => {
     if (!ready || execute.isPending) return
@@ -533,25 +555,40 @@ export function ConfirmDelete({
         <div className="flex flex-col gap-1">
           <ScInput
             id="team-test-reason"
-            label="Why is this a team test?"
-            placeholder="Owner checked the live payment keys"
+            label={
+              ownerTaken
+                ? 'Why is it being deleted?'
+                : 'Why is this a team test?'
+            }
+            placeholder={
+              ownerTaken
+                ? 'End-to-end test with accepting'
+                : 'Owner checked the live payment keys'
+            }
             maxLength={300}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             className="min-h-11"
           />
           <p className="text-[12px] text-text-muted">
-            {teamTests === 1
-              ? 'This booking took a real payment, all refunded.'
-              : `${teamTests} of these bookings took a real payment, all refunded.`}{' '}
-            Its payment record and refunds are kept, with this reason.
+            {ownerTaken
+              ? 'Every payment and payout on it is kept in the money record as it stands, refunded or not, with this reason.'
+              : `${
+                  teamTests === 1
+                    ? 'This booking took a real payment, all refunded.'
+                    : `${teamTests} of these bookings took a real payment, all refunded.`
+                } Its payment record and refunds are kept, with this reason.`}
           </p>
         </div>
       )}
       <div className="flex flex-col gap-1">
         <ScInput
           id="reset-phrase"
-          label={`Type ${preview.confirmPhrase} to confirm`}
+          label={
+            byReference
+              ? `Type the booking reference ${preview.confirmPhrase} to confirm`
+              : `Type ${preview.confirmPhrase} to confirm`
+          }
           autoComplete="off"
           autoCapitalize="characters"
           spellCheck={false}
@@ -594,15 +631,18 @@ export function ConfirmDelete({
             : `Still to do: ${[
                 !backup && 'the backup tick',
                 !reasonGiven && 'the reason',
-                !phraseTyped(phrase, preview.confirmPhrase) &&
-                  'the typed words',
+                !typed && (byReference ? 'the reference' : 'the typed words'),
               ]
                 .filter(Boolean)
                 .join(', ')}`
         }
         className="min-h-11"
       >
-        {execute.isPending ? 'Deleting…' : deleteLabel(preview.confirmPhrase)}
+        {execute.isPending
+          ? 'Deleting…'
+          : byReference
+            ? `Delete booking #${preview.confirmPhrase}`
+            : deleteLabel(preview.confirmPhrase)}
       </ScButton>
     </div>
   )

@@ -2,6 +2,7 @@
 
 import { cn } from '@repo/core/utils'
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useT } from '@repo/core/i18n'
 
 interface OtpInputProps {
   length?: number
@@ -13,6 +14,7 @@ interface OtpInputProps {
 }
 
 export function OtpInput({ length = 6, onComplete, tone = 'solid', errorId }: OtpInputProps) {
+  const t = useT()
   const [values, setValues] = useState<string[]>(Array(length).fill(''))
   const refs = useRef<(HTMLInputElement | null)[]>([])
 
@@ -66,7 +68,7 @@ export function OtpInput({ length = 6, onComplete, tone = 'solid', errorId }: Ot
     // with consent).
     <div
       role="group"
-      aria-label="Verification code"
+      aria-label={t('Verification code')}
       className="otp-boxes relative flex justify-center gap-2"
       data-joined={joined ? '' : undefined}
       data-clarity-mask="true"
@@ -82,7 +84,7 @@ export function OtpInput({ length = 6, onComplete, tone = 'solid', errorId }: Ot
         >
           <input
             // Six unnamed boxes read as six blank fields; each says which digit.
-            aria-label={`Digit ${i + 1} of ${length}`}
+            aria-label={t('Digit {n} of {length}', { n: i + 1, length })}
             aria-invalid={errorId ? true : undefined}
             aria-describedby={errorId}
             ref={(el) => { refs.current[i] = el }}

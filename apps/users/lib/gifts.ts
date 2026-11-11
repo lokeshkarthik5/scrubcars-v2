@@ -1,6 +1,7 @@
 import type { GiftBuyDesign, GiftDesign, GiftState } from '@repo/core/api/gifts'
 import { formatRupees } from '@repo/core/job-records'
 import { istDateLabel } from '@repo/core/payouts'
+import { msg, t } from '@repo/core/i18n/translate'
 
 /**
  * Gift a wash (0049) in the customer app: the pure parts, so the money and
@@ -47,7 +48,10 @@ export function formatGiftCode(code: string): string {
  * Whole rupees from `min` to `max`; the server checks the same.
  */
 export function giftAmountProblem(amount: number | null, limits: { min: number; max: number }): string | null {
-  const range = `Choose a whole amount from ${formatRupees(limits.min)} to ${formatRupees(limits.max)}.`
+  const range = t('Choose a whole amount from {min} to {max}.', {
+    min: formatRupees(limits.min),
+    max: formatRupees(limits.max),
+  })
   if (amount === null || !Number.isFinite(amount)) return range
   if (!Number.isInteger(amount) || amount < limits.min || amount > limits.max) return range
   return null
@@ -91,13 +95,13 @@ export function whatsAppShareUrl(text: string): string {
   return `https://wa.me/?text=${encodeURIComponent(text)}`
 }
 
-/** A gift's state as the buyer and the recipient read it. */
+/** A gift's state as the buyer and the recipient read it (English: show it with t()). */
 export const GIFT_STATE_LABELS: Record<GiftState, string> = {
-  pending: 'Not paid',
-  available: 'Not redeemed yet',
-  redeemed: 'Redeemed',
-  expired: 'Expired',
-  cancelled: 'Cancelled',
+  pending: msg('Not paid'),
+  available: msg('Not redeemed yet'),
+  redeemed: msg('Redeemed'),
+  expired: msg('Expired'),
+  cancelled: msg('Cancelled'),
 }
 
 /**
@@ -109,12 +113,12 @@ export const GIFT_ARTS = ['shine', 'midnight', 'pearl', 'birthday', 'diwali', 't
 export type GiftArt = (typeof GIFT_ARTS)[number]
 
 export const GIFT_ART_LABELS: Record<GiftArt, string> = {
-  shine: 'Shine',
-  midnight: 'Midnight',
-  pearl: 'Pearl',
-  birthday: 'Birthday',
-  diwali: 'Diwali',
-  thank_you: 'Thank you',
+  shine: msg('Shine'),
+  midnight: msg('Midnight'),
+  pearl: msg('Pearl'),
+  birthday: msg('Birthday'),
+  diwali: msg('Diwali'),
+  thank_you: msg('Thank you'),
 }
 
 /**

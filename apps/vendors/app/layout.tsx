@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Inter, Space_Grotesk } from 'next/font/google'
+import { Inter, Noto_Sans_Tamil, Space_Grotesk } from 'next/font/google'
 import { ToastContainer } from 'react-toastify'
 import { QueryProvider } from '@repo/ui/providers/query-provider'
 import { IosZoomGuard } from '@repo/ui/sc/ios-zoom-guard'
@@ -26,6 +26,15 @@ const spaceGrotesk = Space_Grotesk({
   variable: '--font-space-grotesk',
 })
 
+// Tamil, when it is chosen under Settings → Account or Your account, loaded
+// as the customer website loads it: the stack goes on to it for Tamil letters
+// alone, and an English page never fetches it.
+const notoSansTamil = Noto_Sans_Tamil({
+  subsets: ['tamil'],
+  variable: '--font-noto-tamil',
+  preload: false,
+})
+
 export const metadata: Metadata = {
   title: 'Detlio for Partners',
   description: 'Manage your garage on Detlio',
@@ -48,7 +57,11 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${spaceGrotesk.variable} h-full`}>
+    // English until the client reads the choice (AppProvider, useDocumentLang).
+    <html
+      lang="en"
+      className={`${inter.variable} ${spaceGrotesk.variable} ${notoSansTamil.variable} h-full`}
+    >
       <body className="min-h-full font-sans">
         <IosZoomGuard />
         {/* Outside AppProvider: the auth gate returns null while it resolves,
@@ -56,7 +69,7 @@ export default function RootLayout({
         <QueryProvider>
           <AppProvider>
             <VendorScope>
-              {/* Garage Book's bar on every page while the book is on (0069). */}
+              {/* Garage Book's bar on every page while the book is on (0072). */}
               <BookNavProvider>{children}</BookNavProvider>
             </VendorScope>
           </AppProvider>

@@ -2,7 +2,7 @@ import { apiClient, apiDownload } from './client'
 import type { BookFilter, JobPayment, JobStatus } from '../garage-book'
 
 /**
- * Garage Book's API (0069): /vendors/me/book. Money figures (`*Paise`,
+ * Garage Book's API (0072): /vendors/me/book. Money figures (`*Paise`,
  * `amount`) are present for the owner seat only; staff get them left out,
  * so every one is optional here. A Detlio customer's `phone` is always null.
  */

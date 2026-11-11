@@ -18,6 +18,7 @@ import {
   EditVehicleSheet,
 } from '@/components/profile/edit-sheets'
 import { DeleteAccountSheet } from '@/components/profile/delete-account-sheet'
+import { LanguageRow } from '@/components/profile/language-row'
 import { MyComplaints } from '@/components/complaints/my-complaints'
 import { CustomerShell } from '@/components/customer-shell'
 import { isHomeHubEnabled } from '@/lib/home-hub'
@@ -75,6 +76,7 @@ import {
 import { LEGAL_LINKS } from '@/lib/legal/routes'
 import { clearBookingDraft } from '@repo/core/booking-draft'
 import { CookieSettingsButton } from '@/components/consent/cookie-settings-button'
+import { tn, useT } from '@repo/core/i18n'
 
 type VehicleType = 'sedan' | 'suv' | 'hatchback'
 
@@ -101,6 +103,7 @@ const emptyAddressForm = {
 }
 
 export default function ProfilePage() {
+  const t = useT()
   const authUser = useAuthStore((s) => s.user)
   const logout = useAuthStore((s) => s.logout)
   const profile = useUserStore((s) => s.profile)
@@ -175,22 +178,24 @@ export default function ProfilePage() {
   if (!authUser) {
     return (
       <CustomerShell showNav className="gap-4 py-4">
-        <TopBar title="Profile" large={isHomeHubEnabled()} />
+        <TopBar title={t('Profile')} large={isHomeHubEnabled()} />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
           <p className="text-t3 font-semibold text-text-primary">
-            Login to view your profile
+            {t('Login to view your profile')}
           </p>
           <p className="text-t4 text-text-secondary">
-            Sign in to manage your vehicles and addresses
+            {t('Sign in to manage your vehicles and addresses')}
           </p>
           <ScButton
             variant="main"
             className="mt-2 w-auto px-8"
             onClick={() => (window.location.href = '/login')}
           >
-            Login
+            {t('Login')}
           </ScButton>
         </div>
+        {/* English or Tamil needs no account, as on the customer app. */}
+        <LanguageRow />
       </CustomerShell>
     )
   }
@@ -221,15 +226,15 @@ export default function ProfilePage() {
     e.target.value = ''
     if (!file) return
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      toast.error('Use a JPEG, PNG or WebP image')
+      toast.error(t('Use a JPEG, PNG or WebP image'))
       return
     }
     setAvatarBusy(true)
     try {
       await uploadAvatar(file)
-      toast.success('Photo updated')
+      toast.success(t('Photo updated'))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Upload failed')
+      toast.error(err instanceof Error ? err.message : t('Upload failed'))
     } finally {
       setAvatarBusy(false)
     }
@@ -239,9 +244,9 @@ export default function ProfilePage() {
     setAvatarBusy(true)
     try {
       await removeAvatar()
-      toast.success('Photo removed')
+      toast.success(t('Photo removed'))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to remove photo')
+      toast.error(err instanceof Error ? err.message : t('Failed to remove photo'))
     } finally {
       setAvatarBusy(false)
     }
@@ -262,9 +267,9 @@ export default function ProfilePage() {
       void invalidateHome(queryClient)
       setVehicleForm(emptyVehicleForm)
       setShowVehicleForm(false)
-      toast.success('Vehicle added')
+      toast.success(t('Vehicle added'))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to add vehicle')
+      toast.error(err instanceof Error ? err.message : t('Failed to add vehicle'))
     } finally {
       setSaving(null)
     }
@@ -279,7 +284,7 @@ export default function ProfilePage() {
     )
       return
     if (!/^\d{6}$/.test(addressForm.pincode)) {
-      toast.error('Enter a valid 6-digit pincode')
+      toast.error(t('Enter a valid 6-digit pincode'))
       return
     }
     setSaving('address')
@@ -299,9 +304,9 @@ export default function ProfilePage() {
       setAddressForm(emptyAddressForm)
       addressPinText.current = NO_PIN_TEXT
       setShowAddressForm(false)
-      toast.success('Address added')
+      toast.success(t('Address added'))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to add address')
+      toast.error(err instanceof Error ? err.message : t('Failed to add address'))
     } finally {
       setSaving(null)
     }
@@ -319,10 +324,10 @@ export default function ProfilePage() {
         vehicles: s.vehicles.map((v) => ({ ...v, isDefault: v.id === id })),
       }))
       void invalidateHome(queryClient)
-      toast.success('Default vehicle updated')
+      toast.success(t('Default vehicle updated'))
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : 'Failed to set default vehicle'
+        err instanceof Error ? err.message : t('Failed to set default vehicle')
       )
     } finally {
       setPromoting(null)
@@ -336,10 +341,10 @@ export default function ProfilePage() {
       useUserStore.setState((s) => ({
         addresses: s.addresses.map((a) => ({ ...a, isDefault: a.id === id })),
       }))
-      toast.success('Default address updated')
+      toast.success(t('Default address updated'))
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : 'Failed to set default address'
+        err instanceof Error ? err.message : t('Failed to set default address')
       )
     } finally {
       setPromoting(null)
@@ -354,10 +359,10 @@ export default function ProfilePage() {
         vehicles: s.vehicles.filter((v) => v.id !== id),
       }))
       void invalidateHome(queryClient)
-      toast.success('Vehicle removed')
+      toast.success(t('Vehicle removed'))
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : 'Failed to remove vehicle'
+        err instanceof Error ? err.message : t('Failed to remove vehicle')
       )
     } finally {
       setDeleting(null)
@@ -371,10 +376,10 @@ export default function ProfilePage() {
       useUserStore.setState((s) => ({
         addresses: s.addresses.filter((a) => a.id !== id),
       }))
-      toast.success('Address removed')
+      toast.success(t('Address removed'))
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : 'Failed to remove address'
+        err instanceof Error ? err.message : t('Failed to remove address')
       )
     } finally {
       setDeleting(null)
@@ -383,7 +388,7 @@ export default function ProfilePage() {
 
   return (
     <CustomerShell showNav className="gap-4 py-4">
-      <TopBar title="Profile" large={isHomeHubEnabled()} />
+      <TopBar title={t('Profile')} large={isHomeHubEnabled()} />
 
       <ScCard className="flex items-center gap-3">
         <input
@@ -397,7 +402,7 @@ export default function ProfilePage() {
           type="button"
           onClick={() => avatarInputRef.current?.click()}
           disabled={avatarBusy}
-          aria-label="Change profile photo"
+          aria-label={t('Change profile photo')}
           className="relative h-12 w-12 shrink-0 disabled:opacity-60"
         >
           {user?.avatarUrl ? (
@@ -437,14 +442,14 @@ export default function ProfilePage() {
               disabled={avatarBusy}
               className="tap-target mt-1 text-t5 text-text-muted transition-colors hover:text-text-primary disabled:opacity-40"
             >
-              Remove photo
+              {t('Remove photo')}
             </button>
           )}
         </div>
         {/* Name and email (0066); the phone is the sign-in. */}
         <button
           type="button"
-          aria-label="Edit name and email"
+          aria-label={t('Edit name and email')}
           onClick={() => setEditingProfile(true)}
           className="-my-2 -mr-2 flex size-11 shrink-0 items-center justify-center text-text-muted transition-colors hover:text-text-primary"
         >
@@ -453,12 +458,12 @@ export default function ProfilePage() {
       </ScCard>
 
       <Link href="/bookings">
-        <ScCard className="text-t4 text-text-primary">My bookings</ScCard>
+        <ScCard className="text-t4 text-text-primary">{t('My bookings')}</ScCard>
       </Link>
 
       {/* The garages saved with the heart. A plain link, like My bookings. */}
       <Link href="/profile/saved-garages">
-        <ScCard className="text-t4 text-text-primary">Saved garages</ScCard>
+        <ScCard className="text-t4 text-text-primary">{t('Saved garages')}</ScCard>
       </Link>
 
       {/* The days waited on with "Notify me if a slot opens" (0047), while
@@ -466,7 +471,7 @@ export default function ProfilePage() {
       {slotAlertCount > 0 && (
         <Link href="/profile/slot-alerts">
           <ScCard className="flex items-center justify-between text-t4 text-text-primary">
-            Slot alerts
+            {t('Slot alerts')}
             <span className="font-numeric text-t5 text-text-secondary">
               {slotAlertCount}
             </span>
@@ -480,9 +485,9 @@ export default function ProfilePage() {
       <Link href="/profile/coupons">
         <ScCard className="flex items-center justify-between gap-3 text-t4 text-text-primary">
           <span className="min-w-0">
-            Coupons
+            {t('Coupons')}
             <span className="block text-t5 text-text-secondary">
-              Have a coupon? Add it here
+              {t('Have a coupon? Add it here')}
             </span>
           </span>
           {readyCoupons > 0 && (
@@ -498,7 +503,7 @@ export default function ProfilePage() {
         <Link href="/profile/rewards">
           <ScCard className="flex items-center justify-between gap-3 text-t4 text-text-primary">
             <span className="min-w-0">
-              Detlio Rewards
+              {t('Detlio Rewards')}
               {rewardsSummary.data && (
                 <span className="block text-t5 text-text-secondary">
                   <Figures
@@ -508,7 +513,7 @@ export default function ProfilePage() {
                   {rewardsSummary.data.extras &&
                     rewardsSummary.data.extras.badgesEarned > 0 && (
                       <Figures
-                        text={` · ${rewardsSummary.data.extras.badgesEarned} ${rewardsSummary.data.extras.badgesEarned === 1 ? 'badge' : 'badges'}`}
+                        text={` · ${tn(rewardsSummary.data.extras.badgesEarned, '{count} badge', '{count} badges')}`}
                       />
                     )}
                 </span>
@@ -530,7 +535,7 @@ export default function ProfilePage() {
         <>
           <Link href="/profile/credit">
             <ScCard className="flex items-center justify-between gap-3 text-t4 text-text-primary">
-              Detlio credit
+              {t('Detlio credit')}
               {credit.data && (
                 <span className="font-numeric text-t4 text-text-secondary">
                   {giftRupees(credit.data.balance)}
@@ -540,7 +545,7 @@ export default function ProfilePage() {
           </Link>
           <Link href="/profile/gifts">
             <ScCard className="text-t4 text-text-primary">
-              Gift a wash
+              {t('Gift a wash')}
             </ScCard>
           </Link>
         </>
@@ -550,25 +555,28 @@ export default function ProfilePage() {
       {pushOn && (
         <Link href="/profile/notifications">
           <ScCard className="text-t4 text-text-primary">
-            Notifications
+            {t('Notifications')}
           </ScCard>
         </Link>
       )}
 
+      {/* English or தமிழ் (Tamil), on this browser. */}
+      <LanguageRow />
+
       {/* #vehicles: Home's pencil on the car opens here. */}
       <section id="vehicles" className="scroll-mt-4">
         <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-text-primary">Vehicles</h2>
+          <h2 className="text-sm font-semibold text-text-primary">{t('Vehicles')}</h2>
           <button
             type="button"
             onClick={() => setShowVehicleForm((v) => !v)}
             // Both section headers render a button reading "Add", which on its
             // own tells a screen reader nothing about what is being added.
-            aria-label="Add vehicle"
+            aria-label={t('Add vehicle')}
             className="-my-2.5 -mr-2 flex min-h-11 items-center gap-1 px-2 text-t4 text-text-primary"
           >
             <IconPlus size={14} aria-hidden="true" />
-            Add
+            {t('Add')}
           </button>
         </div>
 
@@ -577,8 +585,8 @@ export default function ProfilePage() {
             <div className="grid grid-cols-2 gap-2">
               <ScInput
                 data-clarity-mask="true"
-                label="Make"
-                placeholder="e.g. Maruti"
+                label={t('Make')}
+                placeholder={t('e.g. Maruti')}
                 value={vehicleForm.make}
                 onChange={(e) =>
                   setVehicleForm({ ...vehicleForm, make: e.target.value })
@@ -586,8 +594,8 @@ export default function ProfilePage() {
               />
               <ScInput
                 data-clarity-mask="true"
-                label="Model"
-                placeholder="e.g. Swift"
+                label={t('Model')}
+                placeholder={t('e.g. Swift')}
                 value={vehicleForm.model}
                 onChange={(e) =>
                   setVehicleForm({ ...vehicleForm, model: e.target.value })
@@ -596,8 +604,8 @@ export default function ProfilePage() {
             </div>
             <ScInput
               data-clarity-mask="true"
-              label="License plate (optional)"
-              placeholder="e.g. TN 01 AB 1234"
+              label={t('License plate (optional)')}
+              placeholder={t('e.g. TN 01 AB 1234')}
               value={vehicleForm.licensePlate}
               onChange={(e) =>
                 setVehicleForm({
@@ -608,16 +616,16 @@ export default function ProfilePage() {
             />
             <div>
               <p className="mb-2 text-t5 font-medium text-text-secondary">
-                Type
+                {t('Type')}
               </p>
               <div className="flex gap-2">
-                {VEHICLE_TYPES.map((t) => (
+                {VEHICLE_TYPES.map((type) => (
                   <Chip
-                    key={t.value}
-                    label={t.label}
-                    selected={vehicleForm.vehicleType === t.value}
+                    key={type.value}
+                    label={t(type.label)}
+                    selected={vehicleForm.vehicleType === type.value}
                     onClick={() =>
-                      setVehicleForm({ ...vehicleForm, vehicleType: t.value })
+                      setVehicleForm({ ...vehicleForm, vehicleType: type.value })
                     }
                   />
                 ))}
@@ -633,13 +641,13 @@ export default function ProfilePage() {
                 }
                 onClick={submitVehicle}
               >
-                {saving === 'vehicle' ? 'Saving...' : 'Save vehicle'}
+                {saving === 'vehicle' ? t('Saving...') : t('Save vehicle')}
               </ScButton>
               <ScButton
                 variant="secondary"
                 onClick={() => setShowVehicleForm(false)}
               >
-                Cancel
+                {t('Cancel')}
               </ScButton>
             </div>
           </ScCard>
@@ -649,7 +657,7 @@ export default function ProfilePage() {
           {vehicles.length === 0 && !showVehicleForm ? (
             <ScCard>
               <p className="text-t5 text-text-secondary">
-                No vehicles added yet.
+                {t('No vehicles added yet.')}
               </p>
             </ScCard>
           ) : (
@@ -659,7 +667,7 @@ export default function ProfilePage() {
                     and its next coating or detailing reminder. */}
                 <Link
                   href={`/profile/cars/${v.id}`}
-                  aria-label={`${v.make} ${v.model}: history`}
+                  aria-label={t('{make} {model}: history', { make: v.make, model: v.model })}
                   className="flex min-h-11 min-w-0 flex-1 items-center gap-3"
                 >
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-surface-elevated">
@@ -682,25 +690,25 @@ export default function ProfilePage() {
                     </span>
                     {/* The plate as it looks on the car (moment 8). */}
                     {v.plate && <NumberPlate plate={v.plate} className="mt-1.5" />}
-                    <span className="mt-1 block text-t5 text-text-secondary">History</span>
+                    <span className="mt-1 block text-t5 text-text-secondary">{t('History')}</span>
                   </span>
                 </Link>
                 {v.isDefault ? (
-                  <ScBadge variant="success">Default</ScBadge>
+                  <ScBadge variant="success">{t('Default')}</ScBadge>
                 ) : (
                   <button
                     type="button"
-                    aria-label={`Make ${v.make} ${v.model} the default vehicle`}
+                    aria-label={t('Make {make} {model} the default vehicle', { make: v.make, model: v.model })}
                     onClick={() => makeVehicleDefault(v.id)}
                     disabled={promoting === v.id}
                     className="-my-1 min-h-11 shrink-0 rounded-[6px] px-2 py-1 text-t5 font-medium text-text-secondary transition-colors hover:text-text-primary disabled:opacity-40"
                   >
-                    {promoting === v.id ? 'Setting...' : 'Set default'}
+                    {promoting === v.id ? t('Setting...') : t('Set default')}
                   </button>
                 )}
                 <button
                   type="button"
-                  aria-label={`Edit ${v.make} ${v.model}`}
+                  aria-label={t('Edit {make} {model}', { make: v.make, model: v.model })}
                   onClick={() => setEditingVehicle(v.id)}
                   className="-my-2 -ml-1 flex size-11 shrink-0 items-center justify-center text-text-muted transition-colors hover:text-text-primary"
                 >
@@ -708,7 +716,7 @@ export default function ProfilePage() {
                 </button>
                 <button
                   type="button"
-                  aria-label={`Remove ${v.make} ${v.model}`}
+                  aria-label={t('Remove {make} {model}', { make: v.make, model: v.model })}
                   onClick={() => removeVehicle(v.id)}
                   disabled={deleting === v.id}
                   // 44px around the 16px bin, mostly out into the card's
@@ -725,15 +733,15 @@ export default function ProfilePage() {
 
       <section>
         <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-text-primary">Addresses</h2>
+          <h2 className="text-sm font-semibold text-text-primary">{t('Addresses')}</h2>
           <button
             type="button"
             onClick={() => setShowAddressForm((a) => !a)}
-            aria-label="Add address"
+            aria-label={t('Add address')}
             className="-my-2.5 -mr-2 flex min-h-11 items-center gap-1 px-2 text-t4 text-text-primary"
           >
             <IconPlus size={14} aria-hidden="true" />
-            Add
+            {t('Add')}
           </button>
         </div>
 
@@ -741,8 +749,8 @@ export default function ProfilePage() {
           <ScCard className="mb-2 flex flex-col gap-3">
             <ScInput
               data-clarity-mask="true"
-              label="Label"
-              placeholder="e.g. Home, Work"
+              label={t('Label')}
+              placeholder={t('e.g. Home, Work')}
               value={addressForm.label}
               onChange={(e) =>
                 setAddressForm({ ...addressForm, label: e.target.value })
@@ -750,11 +758,10 @@ export default function ProfilePage() {
             />
             <div className="flex flex-col gap-1.5">
               <span className="text-t5 font-medium text-text-secondary">
-                Pin the exact spot (optional)
+                {t('Pin the exact spot (optional)')}
               </span>
               <p className="text-t5 text-text-muted">
-                Needed only for doorstep and pickup &amp; drop — we&apos;ll ask
-                before your first one if you skip it.
+                {t("Needed only for doorstep and pickup & drop — we'll ask before your first one if you skip it.")}
               </p>
               {/* GPS-first for customers: they are usually standing at the
                   address they are saving, unlike a garage owner onboarding. */}
@@ -787,8 +794,8 @@ export default function ProfilePage() {
             </div>
             <ScInput
               data-clarity-mask="true"
-              label="Address"
-              placeholder="Street, area"
+              label={t('Address')}
+              placeholder={t('Street, area')}
               value={addressForm.address}
               onChange={(e) =>
                 setAddressForm({ ...addressForm, address: e.target.value })
@@ -797,8 +804,8 @@ export default function ProfilePage() {
             <div className="grid grid-cols-2 gap-2">
               <ScInput
                 data-clarity-mask="true"
-                label="City"
-                placeholder="e.g. Chennai"
+                label={t('City')}
+                placeholder={t('e.g. Chennai')}
                 value={addressForm.city}
                 onChange={(e) =>
                   setAddressForm({ ...addressForm, city: e.target.value })
@@ -806,7 +813,7 @@ export default function ProfilePage() {
               />
               <ScInput
                 data-clarity-mask="true"
-                label="Pincode"
+                label={t('Pincode')}
                 inputMode="numeric"
                 maxLength={6}
                 placeholder="600001"
@@ -831,13 +838,13 @@ export default function ProfilePage() {
                 }
                 onClick={submitAddress}
               >
-                {saving === 'address' ? 'Saving...' : 'Save address'}
+                {saving === 'address' ? t('Saving...') : t('Save address')}
               </ScButton>
               <ScButton
                 variant="secondary"
                 onClick={() => setShowAddressForm(false)}
               >
-                Cancel
+                {t('Cancel')}
               </ScButton>
             </div>
           </ScCard>
@@ -847,7 +854,7 @@ export default function ProfilePage() {
           {addresses.length === 0 && !showAddressForm ? (
             <ScCard>
               <p className="text-t5 text-text-secondary">
-                No addresses added yet.
+                {t('No addresses added yet.')}
               </p>
             </ScCard>
           ) : (
@@ -868,21 +875,21 @@ export default function ProfilePage() {
                   )}
                 </div>
                 {a.isDefault ? (
-                  <ScBadge variant="success">Default</ScBadge>
+                  <ScBadge variant="success">{t('Default')}</ScBadge>
                 ) : (
                   <button
                     type="button"
-                    aria-label={`Make ${a.label} the default address`}
+                    aria-label={t('Make {label} the default address', { label: a.label })}
                     onClick={() => makeAddressDefault(a.id)}
                     disabled={promoting === a.id}
                     className="-my-1 min-h-11 shrink-0 rounded-[6px] px-2 py-1 text-t5 font-medium text-text-secondary transition-colors hover:text-text-primary disabled:opacity-40"
                   >
-                    {promoting === a.id ? 'Setting...' : 'Set default'}
+                    {promoting === a.id ? t('Setting...') : t('Set default')}
                   </button>
                 )}
                 <button
                   type="button"
-                  aria-label={`Edit ${a.label} address`}
+                  aria-label={t('Edit {label} address', { label: a.label })}
                   onClick={() => setEditingAddress(a.id)}
                   className="-my-2 -ml-1 flex size-11 shrink-0 items-center justify-center text-text-muted transition-colors hover:text-text-primary"
                 >
@@ -890,7 +897,7 @@ export default function ProfilePage() {
                 </button>
                 <button
                   type="button"
-                  aria-label={`Remove ${a.label} address`}
+                  aria-label={t('Remove {label} address', { label: a.label })}
                   onClick={() => removeAddress(a.id)}
                   disabled={deleting === a.id}
                   // 44px around the 16px bin, mostly out into the card's
@@ -906,14 +913,14 @@ export default function ProfilePage() {
       </section>
 
       <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-semibold">Support</h2>
+        <h2 className="text-sm font-semibold">{t('Support')}</h2>
         {/* The answers first: most questions do not need a call. */}
         <ScCard className="px-0 py-1">
           <Link
             href="/help"
             className="flex items-center justify-between px-3.5 py-2.5 text-t4 text-text-primary transition-colors hover:text-brand-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-white"
           >
-            Help centre
+            {t('Help centre')}
             <IconChevronRight
               size={16}
               className="text-text-muted"
@@ -931,7 +938,7 @@ export default function ProfilePage() {
           action, so nothing is red. */}
       <section aria-labelledby="profile-legal">
         <h2 id="profile-legal" className="mb-2 text-sm font-semibold">
-          Legal
+          {t('Legal')}
         </h2>
         <ScCard className="px-0 py-1">
           <ul className="divide-y divide-border">
@@ -953,7 +960,7 @@ export default function ProfilePage() {
             <li>
               {/* Changes the choice the cookie bar asked for. */}
               <CookieSettingsButton className="flex w-full items-center justify-between px-3.5 py-2.5 text-left text-t4 text-text-primary transition-colors hover:text-brand-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-white">
-                Cookie settings
+                {t('Cookie settings')}
                 <IconChevronRight
                   size={16}
                   className="text-text-muted"
@@ -968,7 +975,7 @@ export default function ProfilePage() {
       <ScButton variant="secondary" onClick={handleLogout}>
         <span className="flex items-center justify-center gap-2">
           <IconLogout size={18} />
-          Log out
+          {t('Log out')}
         </span>
       </ScButton>
 
@@ -979,7 +986,7 @@ export default function ProfilePage() {
         onClick={() => setDeletingAccount(true)}
         className="mx-auto mb-2 min-h-11 px-3 text-t4 text-text-muted underline underline-offset-2 transition-colors hover:text-text-primary"
       >
-        Delete account
+        {t('Delete account')}
       </button>
 
       {editingProfile && user && (

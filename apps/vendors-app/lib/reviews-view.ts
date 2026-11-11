@@ -9,11 +9,13 @@ import {
 } from '@repo/core/ratings';
 import { istDateLabel } from '@repo/core/payouts';
 import { formatServiceSummary } from '@repo/core/utils';
+import { t } from '@repo/core/i18n/translate';
 
 /**
  * The garage's Reviews screen, as data: the owner's own list (GET /vendors/me/reviews, with
  * reply and report state) and the public one an operator reads (GET /reviews/vendors/:id)
- * come out as the same rows. Pure, so the rules can be tested.
+ * come out as the same rows. Pure, so the rules can be tested. Tag labels stay English
+ * (REVIEW_TAG_LABELS) for the screen's t(); the lines built here come out in the language in use.
  */
 
 /** GET /vendors/me/reviews (apps/server/src/modules/reviews/reviews.service.ts listForGarage). */
@@ -97,7 +99,7 @@ export function fromGarageList(api: GarageReviewsApi): ReviewsData {
       rating: review.rating,
       comment: review.comment ?? '',
       createdAt: review.createdAt,
-      name: review.user?.name ?? 'Customer',
+      name: review.user?.name ?? t('Customer'),
       context: contextOf(review.booking),
       reply: review.reply
         ? {
@@ -127,7 +129,7 @@ export function fromPublicList(
       rating: review.rating,
       comment: review.comment ?? '',
       createdAt: review.createdAt,
-      name: review.user?.name ?? 'Customer',
+      name: review.user?.name ?? t('Customer'),
       context: contextOf(review.booking),
       reply: review.reply
         ? { text: review.reply.text, repliedAt: review.reply.repliedAt, editableUntil: null, editable: false }
@@ -195,11 +197,14 @@ export const reviewDateLabel = (createdAt: string) => istDateLabel(createdAt);
 /** What the reply sheet says about when the reply can still be changed. */
 export function replyWindowLine(reply: ReviewReply | null): string {
   if (!reply) {
-    return `Everyone who reads this review sees your reply. You can change it for ${RATING_RULES.replyEditHours} hours after you post it, then it stays.`;
+    return t(
+      'Everyone who reads this review sees your reply. You can change it for {hours} hours after you post it, then it stays.',
+      { hours: RATING_RULES.replyEditHours }
+    );
   }
   return reply.editableUntil
-    ? `You can change this reply until ${istMomentLabel(reply.editableUntil)}.`
-    : 'You can change this reply for a short while after you post it.';
+    ? t('You can change this reply until {time}.', { time: istMomentLabel(reply.editableUntil) })
+    : t('You can change this reply for a short while after you post it.');
 }
 
 /** Whether Post reply can be pressed: some text, within the limit, and different from what is posted. */

@@ -1,5 +1,6 @@
 import { apiClient } from '@repo/core/api/client';
 import type { DocumentStatus, DocumentType } from '@repo/core/vendor-documents';
+import { t } from '@repo/core/i18n/translate';
 
 /**
  * The garage's own side of packages/core/src/api/documents.ts, whose module imports
@@ -95,7 +96,7 @@ export async function uploadGarageDocument(input: {
       body: file.bytes as unknown as BodyInit,
       headers: { 'Content-Type': file.contentType },
     });
-    if (!put.ok) throw new Error('Upload failed. Please try again.');
+    if (!put.ok) throw new Error(t('Upload failed. Please try again.'));
     sent.push({ side: index === 0 ? 'front' : 'back', key });
   }
   return apiClient<GarageDocument>(BASE, {
