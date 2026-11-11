@@ -74,6 +74,7 @@ import {
 } from '../schema.js'
 import {
   CITIES,
+  CUSTOMER_CITIES,
   PREIOS,
   BOOKING_INTENTS,
   BOOKINGS,
@@ -4145,6 +4146,38 @@ async function seedCityRows() {
   })
 }
 
+/**
+ * Customer cities (0070; CUSTOMER_CITIES, ids 7000–7009, phones 90000070xx):
+ * E2E Smalltown, on for customers and not growing, with one listed
+ * at-garage garage in it, far from every other fixture.
+ */
+async function seedCustomerCityRows() {
+  const C = CUSTOMER_CITIES
+  await db.insert(users).values({
+    id: C.small.ownerId, name: 'Smalltown Owner', phone: C.small.ownerPhone,
+    isCustomer: false, isVendorOwner: true, phoneVerified: true, status: 'active',
+  })
+  await db.insert(cities).values({
+    id: C.smallTown.id, name: C.smallTown.name, lat: C.smallTown.centre.lat, lng: C.smallTown.centre.lng,
+    reachKm: C.smallTown.reachKm, customersSee: true, growing: false,
+  })
+  // The city's trigger (0069) stores the garage's city from its pin.
+  await db.insert(vendors).values({
+    id: C.small.id, ownerId: C.small.ownerId, businessName: C.small.name, phone: C.small.ownerPhone,
+    address: '2, Market Road, Smalltown', city: 'Smalltown', pincode: '413001',
+    lat: C.small.pin.lat, lng: C.small.pin.lng, geoSource: 'map_pin', geoConfirmedAt: now,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'], bays: 2, slotIntervalMins: 30, whatsapp: null,
+    status: 'active', isVerified: true, dropinEnabled: true, doorstepEnabled: false, createdAt: daysAgo(15),
+  })
+  await db.insert(userMemberMapping).values({ vendorId: C.small.id, userId: C.small.ownerId, role: 'vendor_admin', status: 'active' })
+  await db.insert(vendorWorkingHours).values(hoursFor(C.small.id, '06:00:00', '22:00:00'))
+  await db.insert(services).values({
+    id: C.small.serviceId, vendorId: C.small.id, name: C.small.serviceName,
+    description: 'A careful job, done the same way each time.', category: 'car_wash',
+    pricingType: 'flat', price: '449.00', durationMins: 60, isActive: true,
+  })
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set')
 
@@ -4231,6 +4264,7 @@ async function main() {
   await seedAddOnRows()
   console.log('[e2e-seed] cities, branches and all over the city…')
   await seedCityRows()
+  await seedCustomerCityRows()
   console.log('[e2e-seed] garage bookings calendar…')
   await seedCalendarRows()
   console.log('[e2e-seed] done')

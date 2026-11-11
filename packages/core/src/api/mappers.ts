@@ -132,6 +132,8 @@ export function mapVendorListItem(item: ApiVendorListItem): Vendor {
     photos: item.photos,
     matchedService: item.matchedService ?? null,
     outsideServiceCity: item.outsideServiceCity ?? null,
+    // Absent from an API before 0070: left undefined, so the signs know to fall back.
+    ...(item.garageCity !== undefined ? { garageCity: item.garageCity } : {}),
     tier: item.tier ?? null,
   }
 }
@@ -181,6 +183,7 @@ export function mapPublicVendor(vendor: ApiPublicVendor): Vendor {
     // Not a search result, so nothing was matched.
     matchedService: null,
     outsideServiceCity: vendor.outsideServiceCity ?? null,
+    ...(vendor.garageCity !== undefined ? { garageCity: vendor.garageCity } : {}),
     tier: vendor.tier ?? null,
   }
 }

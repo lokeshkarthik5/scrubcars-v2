@@ -2126,6 +2126,23 @@ export const CITIES = {
 } as const
 
 /**
+ * Customer cities (0070): `smallTown`, a second city switched on for
+ * customers with one at-garage garage, `small`, and "Growing here" off: the
+ * small city of mockup D (no counts, "In E2E Smalltown", the recommend row,
+ * no free-wash card). Pinned around 18° N, 76° E, over 250 km from every
+ * other fixture, so no other spec's list reaches it and the 150 km limit
+ * keeps Chennai's garages out of its own. Ids 7000–7009, phones 90000070xx.
+ * Only specs/users/customer-cities.spec.ts uses it, and it changes nothing.
+ */
+export const CUSTOMER_CITIES = {
+  smallTown: { id: id(7000), name: 'E2E Smalltown', centre: { lat: 18.0, lng: 76.0 }, reachKm: 30 },
+  small: {
+    id: id(7001), name: 'Smalltown Car Spa', ownerId: id(7002), ownerPhone: '9000007002',
+    serviceId: id(7003), serviceName: 'Smalltown Foam Wash', pin: { lat: 18.05, lng: 76.02 },
+  },
+} as const
+
+/**
  * The garage's Bookings calendar (Month and Day; ids 6200–6249, phones
  * 90000062xx): its own unlisted garage with two bays, open 9:00 am to
  * 6:30 pm every day, its owner and one customer, and the jobs the calendar

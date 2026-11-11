@@ -24,6 +24,12 @@ export interface AdminCity extends PlaceCounts {
   lng: number
   reachKm: number
   customersSee: boolean
+  /**
+   * "Growing here" (0070): customers in this city see the free-wash card and
+   * that more garages are joining. Absent from an API before it, and the
+   * page then leaves the switch out.
+   */
+  growing?: boolean
   createdAt: string
   updatedAt: string
 }
@@ -51,7 +57,10 @@ export async function createCity(input: CityInput & { customersSee?: boolean }) 
 }
 
 /** PATCH /admin/cities/:id — only what is sent changes. */
-export async function updateCity(id: string, input: Partial<CityInput> & { customersSee?: boolean }) {
+export async function updateCity(
+  id: string,
+  input: Partial<CityInput> & { customersSee?: boolean; growing?: boolean }
+) {
   return apiClient<CitiesOverview>(`/admin/cities/${id}`, { method: 'PATCH', body: signedBody(input) })
 }
 

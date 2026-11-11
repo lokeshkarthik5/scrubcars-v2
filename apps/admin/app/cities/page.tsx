@@ -74,6 +74,22 @@ export default function CitiesPage() {
       }
     )
 
+  // "Growing here" (0070) is a plain switch: it only changes what customers
+  // in the city are told, never which garages they can find, so no confirm.
+  const setGrowing = (city: AdminCity, growing: boolean) =>
+    update.mutate(
+      { id: city.id, growing },
+      {
+        onSuccess: () =>
+          toast.success(
+            growing
+              ? `Customers in ${city.name} now see that more garages are joining.`
+              : `Customers in ${city.name} see just the garages there.`
+          ),
+        onError: (err) => toast.error(errorMessage(err, `Couldn't change ${city.name}`)),
+      }
+    )
+
   const confirmOff = async () => {
     if (!switchingOff) return
     setSheetError(undefined)
@@ -150,6 +166,7 @@ export default function CitiesPage() {
                     city={city}
                     busy={update.isPending && update.variables?.id === city.id}
                     onSwitch={(on) => (on ? turnOn(city) : setSwitchingOff({ kind: 'city', city }))}
+                    onGrowing={(on) => setGrowing(city, on)}
                     onEdit={() => setEditing(city)}
                     onDelete={() => setDeleting(city)}
                   />
@@ -226,12 +243,14 @@ function CityRow({
   city,
   busy,
   onSwitch,
+  onGrowing,
   onEdit,
   onDelete,
 }: {
   city: AdminCity
   busy: boolean
   onSwitch: (on: boolean) => void
+  onGrowing: (on: boolean) => void
   onEdit: () => void
   onDelete: () => void
 }) {
@@ -264,6 +283,24 @@ function CityRow({
           />
         </div>
       </div>
+      {/* Left out against an API from before 0070, which cannot save it. */}
+      {city.growing !== undefined && (
+        <div className="flex items-start gap-3 border-t border-border pt-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-[13px] font-medium text-text-primary">Growing here</p>
+            <p className="mt-0.5 text-[12px] text-text-secondary">
+              Customers here see the free-wash card and that more garages are joining. Leave off for a city
+              with just a partner garage.
+            </p>
+          </div>
+          <ScSwitch
+            checked={city.growing}
+            onChange={onGrowing}
+            disabled={busy}
+            label={`Growing here: ${city.name}`}
+          />
+        </div>
+      )}
       <div className="flex flex-wrap gap-2">
         <ScButtonLink
           href={addGarageHref(city.name)}

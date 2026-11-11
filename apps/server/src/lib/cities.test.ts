@@ -16,9 +16,9 @@ import {
 import { straightLineKm } from './service-city.js'
 
 // Chennai as 0069 seeds it, and two towns with garages in the pilot.
-const CHENNAI: City = { id: 'c-chennai', name: 'Chennai', lat: 13.0827, lng: 80.2707, reachKm: 50, customersSee: true }
-const TIRUPUR: City = { id: 'c-tirupur', name: 'Tirupur', lat: 11.1085, lng: 77.3411, reachKm: 25, customersSee: false }
-const VELLORE: City = { id: 'c-vellore', name: 'Vellore', lat: 12.9165, lng: 79.1325, reachKm: 40, customersSee: true }
+const CHENNAI: City = { id: 'c-chennai', name: 'Chennai', lat: 13.0827, lng: 80.2707, reachKm: 50, customersSee: true, growing: true }
+const TIRUPUR: City = { id: 'c-tirupur', name: 'Tirupur', lat: 11.1085, lng: 77.3411, reachKm: 25, customersSee: false, growing: false }
+const VELLORE: City = { id: 'c-vellore', name: 'Vellore', lat: 12.9165, lng: 79.1325, reachKm: 40, customersSee: true, growing: false }
 const CITIES = [CHENNAI, TIRUPUR, VELLORE]
 
 const ADYAR = { lat: 13.0067, lng: 80.2573 }
@@ -49,7 +49,7 @@ describe('cityOfGarage', () => {
   })
 
   test('between two cities whose reaches overlap, the nearest centre wins', () => {
-    const near = { id: 'c-near', name: 'Zed Nagar', lat: 13.0, lng: 80.25, reachKm: 30, customersSee: true }
+    const near = { id: 'c-near', name: 'Zed Nagar', lat: 13.0, lng: 80.25, reachKm: 30, customersSee: true, growing: false }
     // Adyar is ~1.3 km from this made-up centre and ~9 km from Chennai's.
     expect(cityOfGarage({ ...ADYAR, city: 'Chennai' }, [CHENNAI, near])?.id).toBe('c-near')
     expect(cityOfGarage({ ...ADYAR, city: 'Chennai' }, [near, CHENNAI])?.id).toBe('c-near')

@@ -159,6 +159,11 @@ export interface ApiVendorListItem {
    * Absent on older servers.
    */
   outsideServiceCity?: OutsideServiceCity | null
+  /**
+   * The garage's own city by the cities rule (0070), null in no city. Absent
+   * on older servers.
+   */
+  garageCity?: { id: string; name: string } | null
   /** The medal customers see (0063): Bronze, Silver, Gold or null. Absent on older servers. */
   tier?: Tier | null
 }
@@ -249,6 +254,8 @@ export interface ApiPublicVendor {
   bookingsPausedReason?: string | null
   /** As on a list item: set only outside Chennai. Absent on older servers. */
   outsideServiceCity?: OutsideServiceCity | null
+  /** As on a list item: the garage's own city (0070). Absent on older servers. */
+  garageCity?: { id: string; name: string } | null
   /** As on a list item: the medal customers see (0063). Absent on older servers. */
   tier?: Tier | null
 }

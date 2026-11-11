@@ -1,11 +1,11 @@
 import { track } from '@/lib/shims/analytics';
-import { FreeWashPiece } from '@/components/reach/free-wash';
+import { FreeWashPiece, RecommendRow } from '@/components/reach/free-wash';
 import { RequestSheet } from '@/components/reach/request-sheet';
 import { useTierConfig } from '@repo/core/api/hooks/use-tiers';
 import { useVendorSearch } from '@repo/core/api/hooks/use-vendors';
 import { BOOKING_TYPE_LABELS, BOOKING_TYPES, bookingTypeParam } from '@repo/core/booking-types';
 import { CATEGORY_LABELS } from '@repo/core/categories';
-import { SERVICE_CITY, firstFarIndex, nearGarageCount } from '@repo/core/service-city';
+import { detlioInLine, farEmptyLine, firstFarIndex, inCityHeading, isSmallCity, nearGarageCount } from '@repo/core/customer-city';
 import { atGarageReach, canCollectFrom, nextTabOffer, outsideLine, skipTheDriveTitle, type NextTabOffer, type SkipTheDriveRow } from '@repo/core/reach';
 import { requestActionLabel } from '@repo/core/booking-requests';
 import { SILVER_KEY_LABEL, SILVER_KEY_QUIET } from '@repo/core/tiers';
@@ -47,7 +47,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useNavClearance } from '@/components/hub-nav';
 import { PullCar } from '@/components/moments/pull-car';
-import { coarse, isApproximate, isCitywide, shouldOfferLocationPrompt, useLocationStore } from '@/lib/location';
+import { useCustomerPlace } from '@/lib/customer-place';
+import { cityCentreParams, coarse, isApproximate, isCitywide, shouldOfferLocationPrompt, useLocationStore } from '@/lib/location';
 
 import { FilterSheet, SERVICE_FILTERS, ServiceFilterIcon, serviceFilterLabel, type ServiceFilter } from './filter-sheet';
 import { MapPeek } from './map-peek';
@@ -287,10 +288,16 @@ export function GarageList({
   const permission = useLocationStore((s) => s.permission);
   const promptDismissedAt = useLocationStore((s) => s.promptDismissedAt);
   const refreshPermission = useLocationStore((s) => s.refreshPermission);
-  const selectChennai = useLocationStore((s) => s.selectChennai);
+  const selectCity = useLocationStore((s) => s.selectCity);
+  // The customer's city (0070): Chennai until they are elsewhere. Fewer than three garages in
+  // it: no counts anywhere, "In Madurai", and one quiet way to recommend a garage (mockup D).
+  const { city, place } = useCustomerPlace();
+  const small = isSmallCity(city);
 
+  // A whole city sends no origin, only its centre for the 150 km limit (cityCentreParams).
   const citywide = isCitywide(location);
   const origin = citywide || !location ? undefined : coarse(location);
+  const cityParams = cityCentreParams(location, city);
   const approximate = isApproximate(location);
   const sort: SortKey = chosenSort ?? (origin ? 'distance' : 'relevance');
   const effectiveSort = origin ? sort : sort === 'distance' ? 'relevance' : sort;
@@ -303,6 +310,7 @@ export function GarageList({
       silverAndAbove: silverOnly || undefined,
       lat: origin?.lat,
       lng: origin?.lng,
+      ...cityParams,
       sort: effectiveSort,
     },
     { keepPrevious: true }
@@ -317,6 +325,7 @@ export function GarageList({
       silverAndAbove: silverOnly || undefined,
       lat: origin?.lat,
       lng: origin?.lng,
+      ...cityParams,
       sort: effectiveSort,
     },
     { keepPrevious: true }
@@ -325,15 +334,15 @@ export function GarageList({
     SERVICE_FILTERS.map((filter) => {
       if (everyService.isLoading) return [filter, null];
       const n = filter === 'all' ? everyService.vendors.length : everyService.vendors.filter((v) => offers(v, filter)).length;
-      // A count the loaded garages cannot vouch for is left off, never 0.
-      return [filter, n > 0 ? `${n}${everyService.hasMore ? '+' : ''}` : null];
+      // A count the loaded garages cannot vouch for is left off, never 0; a small city counts nothing.
+      return [filter, n > 0 && !small ? `${n}${everyService.hasMore ? '+' : ''}` : null];
     })
   ) as Record<ServiceFilter, string | null>;
 
   const firstUnlocatedIndex = origin ? vendors.findIndex((v) => v.distanceKm === null) : -1;
   // Where the near garages end and the ones in other towns begin (Tirupur,
-  // 387 km): listed after a line, never counted as "near you".
-  const firstFar = firstFarIndex(vendors, { located: !!origin, nearestFirst: effectiveSort === 'distance' });
+  // 387 km): listed after a line, never counted as "near you". "Near" is the city's own reach.
+  const firstFar = firstFarIndex(vendors, { located: !!origin, nearestFirst: effectiveSort === 'distance', city });
   const atGarage =
     mode === 'dropin' && !isRefreshing
       ? atGarageReach(reach, !!origin)
@@ -397,14 +406,15 @@ export function GarageList({
   });
 
   const mapReady = !everyService.isLoading && !everyService.isError;
-  // Only garages within reach (or inside Chennai, with no location) are
+  // Only garages within reach (or inside the customer's city, with no location) are
   // "near you": the far towns further down the list are not.
   const near = nearGarageCount(everyService.vendors, {
     located: !!origin,
     hasMore: everyService.hasMore,
     nearestFirst: effectiveSort === 'distance',
+    city,
   });
-  const listCount = isLoading ? null : `${vendors.length}${hasMore ? '+' : ''} ${garagesWord(vendors.length, hasMore)}`;
+  const listCount = isLoading || small ? null : `${vendors.length}${hasMore ? '+' : ''} ${garagesWord(vendors.length, hasMore)}`;
 
   const controls = (
     <View
@@ -440,7 +450,7 @@ export function GarageList({
           tile={(ink) => <ServiceFilterIcon filter={category} color={ink} />}
           main={serviceFilterLabel(category)}
           quiet={
-            isLoading ? (
+            small ? undefined : isLoading ? (
               'Finding garages…'
             ) : (
               <View style={styles.countLine}>
@@ -472,7 +482,7 @@ export function GarageList({
     <Fragment key={vendor.id}>
       {i === firstFar ? (
         <T variant="t5" color={colors.textMuted} style={styles.unlocated}>
-          Further away — other towns
+          Further away · other towns
         </T>
       ) : null}
       {i === firstUnlocatedIndex ? (
@@ -525,21 +535,25 @@ export function GarageList({
         <MapPeek
           vendors={everyService.vendors}
           origin={origin}
-          centre={origin ?? SERVICE_CITY.centre}
+          centre={origin ?? city.centre}
           mode={mode}
           category={categoryParam}
           scrollY={scrollY}
-          countLabel={{
-            count: `${near.count}${near.more ? '+' : ''}`,
-            words:
-              near.count === 1 && !near.more
-                ? origin
-                  ? 'garage near you'
-                  : 'garage in Chennai'
-                : origin
-                  ? 'garages near you'
-                  : 'garages in Chennai',
-          }}
+          countLabel={
+            small
+              ? { count: null, words: detlioInLine(city) }
+              : {
+                  count: `${near.count}${near.more ? '+' : ''}`,
+                  words:
+                    near.count === 1 && !near.more
+                      ? origin
+                        ? 'garage near you'
+                        : `garage in ${city.name}`
+                      : origin
+                        ? 'garages near you'
+                        : `garages in ${city.name}`,
+                }
+          }
         />
       ) : null}
     </View>
@@ -558,7 +572,7 @@ export function GarageList({
           <View style={styles.headRow}>
             {/* No count beside it: the count lives in the filter button. */}
             <T variant="t2" accessibilityRole="header" style={styles.flex}>
-              {mode === 'dropin' && atGarage.skipTheDrive ? 'Or drive to' : 'Nearby garages'}
+              {mode === 'dropin' && atGarage.skipTheDrive ? 'Or drive to' : small ? inCityHeading(city) : 'Nearby garages'}
             </T>
             <PressScale accessibilityRole="button" onPress={() => setSortOpen(true)}>
               <Raised radius={12} style={styles.sort} innerStyle={styles.sortInner}>
@@ -609,7 +623,9 @@ export function GarageList({
                     ? 'No garage collects from your area yet.'
                     : mode === 'doorstep' && !citywide
                       ? 'No garage travels to your area yet.'
-                      : 'No garages match these filters.'}
+                      : mode === 'dropin' && category === 'all' && (origin || cityParams.cityLat !== undefined)
+                        ? farEmptyLine(place)
+                        : 'No garages match these filters.'}
               </T>
               <View style={styles.noneActions}>
                 {silverOnly ? (
@@ -623,8 +639,8 @@ export function GarageList({
                   </ScButton>
                 ) : null}
                 {!silverOnly && origin && mode !== 'dropin' ? (
-                  <ScButton variant="outline" fullWidth={false} onPress={selectChennai}>
-                    Show all of Chennai
+                  <ScButton variant="outline" fullWidth={false} onPress={() => selectCity(city)}>
+                    {`Show all of ${city.name}`}
                   </ScButton>
                 ) : null}
                 {!silverOnly && mode !== 'dropin' ? (
@@ -643,6 +659,9 @@ export function GarageList({
           ) : null}
           {listEnded && mode !== 'pickup' ? <NextTabFooter offer={nextOffer} onSwitch={switchTo} /> : null}
           {listEnded && mode === 'pickup' ? <FreeWashPiece placement="bottom" /> : null}
+          {/* A small city (0070, mockup D): under its garages, one quiet way to tell us about
+              another, to admin's leads. No "more coming": nobody has promised that. */}
+          {small && !isLoading && !isError && !isRefreshing ? <RecommendRow city={city} /> : null}
         </View>
       </View>
     </View>

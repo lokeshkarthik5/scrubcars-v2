@@ -350,7 +350,7 @@ beforeAll(() => {
   patch(c, 'listGarages', async () => garages)
   // Cities (0069): Chennai on, as 0069 seeds it, so Live reads as before.
   patch(citiesRepository, 'listCities', async () => [
-    { id: 'c-chennai', name: 'Chennai', lat: 13.0827, lng: 80.2707, reachKm: 50, customersSee: true, createdAt: new Date(), updatedAt: new Date() },
+    { id: 'c-chennai', name: 'Chennai', lat: 13.0827, lng: 80.2707, reachKm: 50, customersSee: true, growing: true, createdAt: new Date(), updatedAt: new Date() },
   ])
   patch(citiesRepository, 'otherTownsValue', async () => undefined)
   patch(c, 'listSignups', async () => signups)

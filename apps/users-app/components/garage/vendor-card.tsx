@@ -14,6 +14,7 @@ import type { ReactNode } from 'react';
 import { Image, View } from 'react-native';
 
 import { isApproximate, useLocationStore } from '@/lib/location';
+import { useGarageTownTag } from '@/lib/customer-place';
 
 import { GarageCover, GarageMonogram } from './cover';
 import { SaveGarageButton } from './save-button';
@@ -76,6 +77,8 @@ export function VendorCard({
   const colors = useColors();
   const styles = useStyles();
   const location = useLocationStore((s) => s.location);
+  // A garage in another town than the customer's city (0070); null in it.
+  const townTag = useGarageTownTag(vendor);
   const cover = vendor.photos[0] ?? null;
   const km = vendor.distanceKm;
   const distanceText = km !== null ? distanceAndDrive(km, isApproximate(location)) : null;
@@ -144,7 +147,7 @@ export function VendorCard({
               </>
             ) : null}
           </View>
-          {vendor.outsideServiceCity ? <OutsideCityChip outside={vendor.outsideServiceCity} /> : null}
+          {townTag ? <OutsideCityChip text={townTag} /> : null}
           {vendor.matchedService ? (
             <T size={12} numberOfLines={1} color={colors.textSecondary}>
               {'Offers '}

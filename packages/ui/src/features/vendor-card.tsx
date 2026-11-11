@@ -16,7 +16,7 @@ import {
 } from '@repo/core/stores/location-store'
 import type { BookingType, Vendor } from '@repo/core/types'
 import { TierMark } from '@repo/ui/features/tier-medal'
-import { OutsideCityChip } from '@repo/ui/features/outside-city'
+import { GarageTownChip } from '@repo/ui/features/outside-city'
 import { GarageCover, GarageMonogram } from '@repo/ui/features/garage-cover'
 import { matchSpans } from '@repo/core/moments'
 
@@ -240,11 +240,10 @@ export function VendorCard({
               )}
             </div>
 
-            {/* A garage in another town says so on its card, so nobody opens
-                it, or books it, thinking it is in Chennai. */}
-            {vendor.outsideServiceCity && (
-              <OutsideCityChip outside={vendor.outsideServiceCity} className="mt-0.5 self-start" />
-            )}
+            {/* A garage in another town than the customer's city says so on
+                its card, so nobody opens it, or books it, thinking it is
+                round the corner; one in their city says nothing (0070). */}
+            <GarageTownChip garage={vendor} className="mt-0.5 self-start" />
 
             {/* Only on a search that found the garage by one of its services:
                 without it, "ceramic" listing a garage called "Marina Auto" reads

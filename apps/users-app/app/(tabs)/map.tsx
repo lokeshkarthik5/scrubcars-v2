@@ -1,8 +1,10 @@
 import { useVendorSearch } from '@repo/core/api/hooks/use-vendors';
 import { BOOKING_TYPE_LABELS, bookingTypeParam, parseBookingType } from '@repo/core/booking-types';
 import { categoryLabel } from '@repo/core/categories';
+import { atGarageListHasGarages } from '@repo/core/reach';
 import { distanceAndDrive, distanceLabel, driveTimeLabel } from '@repo/core/drive-time';
-import { DEFAULT_CENTER, straightLineKm } from '@repo/core/map';
+import { garageInCity, garageTown, isSmallCity, outsideCityTag } from '@repo/core/customer-city';
+import { straightLineKm } from '@repo/core/map';
 import { hasStarScore, NEW_GARAGE_LABEL } from '@repo/core/ratings';
 import { SERVICE_CITY } from '@repo/core/service-city';
 import type { BookingType, Vendor } from '@repo/core/types';
@@ -35,13 +37,15 @@ import { OpenStatus } from '@/components/garage/open-status';
 import { RouteArc } from '@/components/map/route-arc';
 import { OutsideCityChip } from '@/components/garage/tier';
 import { useNavClearance } from '@/components/hub-nav';
+import { useCustomerPlace } from '@/lib/customer-place';
 import { coarse, isApproximate, isCitywide, useLocationStore } from '@/lib/location';
 import { mapAvailable } from '@/lib/location-picker-logic';
 import { framingBounds, groupPins, hasMovedMeaningfully, pinLabel, regionToBounds, regionZoom, type LatLngBounds } from '@/lib/map-view';
 
 const PAGE_LIMIT = 50;
+// Nearby mode's reach from the customer (the list's most, 50 km). City mode uses the customer's
+// city's own centre and reach (0070), as the web map does.
 const CITY_RADIUS_KM = SERVICE_CITY.radiusKm;
-const CITY_CENTRE = SERVICE_CITY.centre;
 const CARD_GAP = 12;
 
 const boundsToParam = (b: LatLngBounds) => `${b.minLng},${b.minLat},${b.maxLng},${b.maxLat}`;
@@ -73,6 +77,10 @@ function MapVendorCard({
   const approx = useLocationStore((s) => isApproximate(s.location));
   const modeParam = bookingTypeParam(mode);
   const distance = vendor.distanceKm !== null ? distanceAndDrive(vendor.distanceKm, approx) : null;
+  // A garage in another town than the customer's city names its town; the km is the card's own
+  // distance beside it. One in their city says nothing (0070), as on the web.
+  const { place } = useCustomerPlace();
+  const townTag = garageInCity(vendor, place.city) ? null : (garageTown(vendor, place.city) ?? outsideCityTag(vendor, place));
   const badge = mode === 'pickup' ? BOOKING_TYPE_LABELS.pickup : vendor.doorstepEnabled ? BOOKING_TYPE_LABELS.doorstep : null;
   const photo = vendor.photos[0];
   const step = useRef(new Animated.Value(selected ? 1 : 0)).current;
@@ -151,10 +159,10 @@ function MapVendorCard({
                 {vendor.serviceTags.map(categoryLabel).join(' · ')}
               </T>
             ) : null}
-            {vendor.outsideServiceCity ? (
+            {townTag ? (
               <View style={styles.cardOutside}>
                 <View style={styles.shrink}>
-                  <OutsideCityChip outside={vendor.outsideServiceCity} />
+                  <OutsideCityChip text={townTag} />
                 </View>
                 {distance ? (
                   <T num variant="t5" weight={400} color={colors.textSecondary}>
@@ -330,6 +338,8 @@ export default function MapScreen() {
   const locating = useLocationStore((s) => s.locating);
   const requestGpsLocation = useLocationStore((s) => s.requestGpsLocation);
   const origin = !location || isCitywide(location) ? undefined : coarse(location);
+  const { city: myCity } = useCustomerPlace();
+  const small = isSmallCity(myCity);
 
   const [areaBounds, setAreaBounds] = useState<LatLngBounds | null>(null);
   const [region, setRegion] = useState<Region | null>(null);
@@ -349,12 +359,14 @@ export default function MapScreen() {
   const nearby = origin !== undefined && areaBounds === null;
   const city = origin === undefined && areaBounds === null;
 
-  const { vendors: found, radiusKm, isLoading } = useVendorSearch({
+  const { vendors: found, radiusKm, reach, isLoading } = useVendorSearch({
     bookingType,
     category,
     bbox: areaBounds ? boundsToParam(areaBounds) : undefined,
     lat: origin?.lat,
     lng: origin?.lng,
+    // City mode: the server leaves out garages over 150 km from the city's centre (0070).
+    ...(city ? { cityLat: myCity.centre.lat, cityLng: myCity.centre.lng } : {}),
     radiusKm: nearby ? CITY_RADIUS_KM : undefined,
     sort: origin ? 'distance' : 'relevance',
     includeUnlocated: false,
@@ -365,11 +377,11 @@ export default function MapScreen() {
     if (!city) return found;
     return found
       .filter(hasPin)
-      .map((vendor) => ({ vendor, km: straightLineKm(CITY_CENTRE, vendor) }))
-      .filter(({ km }) => km <= CITY_RADIUS_KM)
+      .map((vendor) => ({ vendor, km: straightLineKm(myCity.centre, vendor) }))
+      .filter(({ km }) => km <= myCity.reachKm)
       .sort((a, b) => a.km - b.km)
       .map(({ vendor }) => vendor);
-  }, [city, found]);
+  }, [city, found, myCity]);
 
   const selectedId = chosenId && vendors.some((v) => v.id === chosenId) ? chosenId : (vendors[0]?.id ?? null);
   const selectedIndex = vendors.findIndex((v) => v.id === selectedId);
@@ -387,7 +399,7 @@ export default function MapScreen() {
       key = `nearby:${origin.lat},${origin.lng}:${recentred}`;
       target = pins.length > 0 ? framingBounds([origin, ...pins], 3) : framingBounds([origin], 12);
     } else if (city && pins.length > 0) {
-      key = 'city';
+      key = `city:${myCity.id}`;
       target = framingBounds(pins, 3);
     }
     if (!key || !target || fitted.current === key) return;
@@ -467,7 +479,8 @@ export default function MapScreen() {
   const goBack = () => (router.canGoBack() ? router.back() : router.navigate('/home' as Href));
 
   const mapShown = mapAvailable(Platform.OS, Constants.expoConfig?.android?.config?.googleMaps?.apiKey);
-  const center = location ? { latitude: location.lat, longitude: location.lng } : { latitude: DEFAULT_CENTER[1], longitude: DEFAULT_CENTER[0] };
+  // Opens on the customer's city's centre while there is no place (0070).
+  const center = location ? { latitude: location.lat, longitude: location.lng } : { latitude: myCity.centre.lat, longitude: myCity.centre.lng };
   const chosen = vendors.find((v) => v.id === selectedId);
   const light = scheme === 'light';
   const ink = light ? colors.textPrimary : '#FFFFFF';
@@ -615,7 +628,9 @@ export default function MapScreen() {
                       ? `No garages within ${radiusKm} km of you yet.`
                       : 'No garages in this area. Try zooming out or moving the map.'}
               </T>
-              {nearby && bookingType === 'dropin' ? (
+              {/* The list has the garages further away, but not those over 150 km (0070):
+                  offered only when the At garage count says it has any. */}
+              {nearby && bookingType === 'dropin' && atGarageListHasGarages(reach) ? (
                 <Pressable accessibilityRole="link" onPress={() => router.navigate('/garages' as Href)} style={styles.seeAll}>
                   <T variant="t4" weight={600} style={styles.underline}>
                     See all garages
@@ -630,18 +645,25 @@ export default function MapScreen() {
                 <PressScale accessibilityRole="button" onPress={() => setListOpen(true)}>
                   <Glass radius={999} style={styles.pullUp}>
                     <IconChevronUp size={18} color={ink} />
-                    <T variant="t4" weight={600} color={ink}>
-                      <T num variant="t4" weight={600} color={ink}>
-                        {vendors.length}
-                      </T>{' '}
-                      {nearby
-                        ? vendors.length === 1
-                          ? 'garage near you'
-                          : 'garages near you'
-                        : vendors.length === 1
-                          ? 'garage here'
-                          : 'garages here'}
-                    </T>
+                    {/* A small city counts nothing (0070): just the list. */}
+                    {small ? (
+                      <T variant="t4" weight={600} color={ink}>
+                        Garages here
+                      </T>
+                    ) : (
+                      <T variant="t4" weight={600} color={ink}>
+                        <T num variant="t4" weight={600} color={ink}>
+                          {vendors.length}
+                        </T>{' '}
+                        {nearby
+                          ? vendors.length === 1
+                            ? 'garage near you'
+                            : 'garages near you'
+                          : vendors.length === 1
+                            ? 'garage here'
+                            : 'garages here'}
+                      </T>
+                    )}
                   </Glass>
                 </PressScale>
                 {vendors.length > 1 ? (

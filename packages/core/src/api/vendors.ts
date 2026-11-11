@@ -40,6 +40,14 @@ export interface VendorListParams {
    * search (`q`) has no radius at all.
    */
   radiusKm?: number
+  /**
+   * The centre of the customer's city when they picked a whole city and so
+   * send no origin (0070): the server leaves out garages over 150 km from it
+   * (FAR_LIMIT_KM). Ignored with an origin, which the limit is measured from
+   * instead. Both or neither.
+   */
+  cityLat?: number
+  cityLng?: number
   /** Viewport for the map view's "search as I move the map". */
   bbox?: string
   sort?: VendorSort
@@ -100,6 +108,8 @@ export async function getVendors(
       lat: params?.lat,
       lng: params?.lng,
       radiusKm: params?.radiusKm,
+      cityLat: params?.cityLat,
+      cityLng: params?.cityLng,
       bbox: params?.bbox,
       sort: params?.sort,
       includeUnlocated: params?.includeUnlocated,

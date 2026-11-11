@@ -50,7 +50,8 @@ export function MapPeek({
   centre: LatLng;
   mode: BookingType;
   category?: string;
-  countLabel: { count: string; words: string };
+  /** "12 garages near you"; with no count (a small city, 0070), the words alone: "Detlio in Madurai". */
+  countLabel: { count: string | null; words: string };
   /** The list's scroll, for the drift. */
   scrollY: Animated.Value;
 }) {
@@ -114,7 +115,7 @@ export function MapPeek({
   return (
     <PressScale
       accessibilityRole="link"
-      accessibilityLabel={`Open the map: ${countLabel.count} ${countLabel.words}`}
+      accessibilityLabel={`Open the map: ${countLabel.count ? `${countLabel.count} ` : ''}${countLabel.words}`}
       onPress={() => router.navigate(`/map?${query.toString()}` as Href)}
       style={styles.card}
     >
@@ -198,13 +199,15 @@ export function MapPeek({
         />
         <Glass radius={999} style={[styles.chip, styles.count]}>
           <View style={styles.redDot} />
-          <Odometer
-            value={countLabel.count}
-            size={13}
-            weight={600}
-            color={scheme === 'light' ? undefined : '#FFFFFF'}
-            lh={18}
-          />
+          {countLabel.count ? (
+            <Odometer
+              value={countLabel.count}
+              size={13}
+              weight={600}
+              color={scheme === 'light' ? undefined : '#FFFFFF'}
+              lh={18}
+            />
+          ) : null}
           <T variant="t4" color={scheme === 'light' ? undefined : '#E8E8EC'}>
             {countLabel.words}
           </T>

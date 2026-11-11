@@ -20,7 +20,7 @@ import { Notice } from '@repo/ui/sc/notice'
 import { Reveal } from '@repo/ui/sc/reveal'
 import { Stars } from '@repo/ui/sc/stars'
 import { TierSeal } from '@repo/ui/features/tier-medal'
-import { OutsideCityLine } from '@repo/ui/features/outside-city'
+import { OutsideCityLine, useGarageTownLine } from '@repo/ui/features/outside-city'
 import { GarageMonogram } from '@repo/ui/features/garage-cover'
 import { Odometer } from '@repo/ui/finish/odometer'
 import { usePrefersReducedMotion } from '@repo/ui/finish/motion'
@@ -39,7 +39,6 @@ import {
   useToggleSavedGarage,
 } from '@repo/core/api/hooks/use-favourites'
 import { anywhereInCityLine } from '@repo/core/reach'
-import { outsideCityLine } from '@repo/core/service-city'
 import {
   bookingTypeParam,
   offeredBookingTypes,
@@ -206,6 +205,9 @@ export default function GaragePage({
   // page someone can book from.
   const garage = useGarage(id)
   const vendor: Vendor | null = garage.data?.vendor ?? null
+  // Where the garage is, said only when it is not in the customer's city
+  // (0070): "This garage is in Vellore, about 125 km from you."
+  const townLine = useGarageTownLine(vendor)
   // The garage as the list or the map showed it, while its own read is on
   // the way (useGarage's placeholder): the hero, the name, the rating and the
   // distance paint at once; only the catalogue waits, as a skeleton rather
@@ -704,11 +706,9 @@ export default function GaragePage({
 
             {/* Garages in other towns are part of the pilot; this says
                 plainly where one is before anything is picked, so nobody
-                books it thinking it is in Chennai. Information, not a
-                warning. */}
-            {vendor.outsideServiceCity && (
-              <OutsideCityLine text={outsideCityLine(vendor.outsideServiceCity)} className="mt-3" />
-            )}
+                books it thinking it is round the corner. Nothing for a
+                garage in the customer's city. Information, not a warning. */}
+            {townLine && <OutsideCityLine text={townLine} className="mt-3" />}
 
             {/* You → the garage, while the page knows where you are. */}
             {fromHere !== null && <GarageRoad to={vendor.name} className="mt-[18px]" />}

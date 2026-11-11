@@ -92,6 +92,18 @@ export function garageCityOutsideM(point: SQL): SQL {
   })
 }
 
+/**
+ * Whether the garage is within the far-garage limit (0070, FAR_LIMIT_KM in
+ * lib/discovery.ts) of a point (a geography): a pinned garage by its pin, one
+ * with no pin by its city's centre when it is in a city, and true when it is
+ * in none (where it is is not known, so it is not left out on a guess).
+ * Sphere maths, as the list's radius. Against the alias `v`.
+ */
+export function withinFarLimit(from: SQL, limitM: number): SQL {
+  return sql`(CASE WHEN v.geo IS NOT NULL THEN gis.ST_DWithin(v.geo, ${from}, ${limitM}, false)
+    ELSE COALESCE(${garageCityValue(sql`gis.ST_DWithin(cty.centre, ${from}, ${limitM}, false)`)}, true) END)`
+}
+
 // ─── Who comes to the customer ───────────────────────────────────────────────
 
 /**

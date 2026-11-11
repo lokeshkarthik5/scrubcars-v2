@@ -2149,6 +2149,11 @@ export const cities = pgTable(
     lng: doublePrecision('lng').notNull(),
     reachKm: integer('reach_km').default(50).notNull(),
     customersSee: boolean('customers_see').default(true).notNull(),
+    // "Growing here" (0070): the owner is actively bringing garages to this
+    // city, so its customers see the free-wash card and that more garages
+    // are joining. Off for a city with just a partner garage, where saying
+    // more are coming would be a promise nobody made. Chennai is on.
+    growing: boolean('growing').default(false).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },

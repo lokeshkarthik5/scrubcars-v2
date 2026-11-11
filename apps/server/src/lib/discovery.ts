@@ -15,15 +15,29 @@
  * for drop-in.
  *
  * The garage list itself no longer stops here (customer reach, 0062: "the
- * list is never empty"): with a location it is every listed garage, nearest
- * first, paginated, unless the caller asks for a radius (the map's Nearby
- * mode does, with this one).
+ * list is never empty"): with a location it is every listed garage within
+ * FAR_LIMIT_KM (0070), nearest first, paginated, unless the caller asks for a
+ * radius (the map's Nearby mode does, with this one).
  */
 export const CITY_REACH_KM = 50
+
+/**
+ * How far away a garage may be and still be in the customer's list without
+ * a search, in km (owner, 10 Nov 2026). A customer in Madurai does not want
+ * Chennai's garages, 420 km off, as their list; typing a garage's name still
+ * finds it anywhere. Measured from the customer's location, or from their
+ * city's centre when they picked a whole city. At garage only (and the
+ * list of every mode): doorstep and pickup & drop already end at each
+ * garage's own reach. The client twin is FAR_LIMIT_KM in
+ * packages/core/src/customer-city.ts (cities.parity.test.ts).
+ */
+export const FAR_LIMIT_KM = 150
 
 export interface ListScopeQuery {
   /** Whether the customer sent a location. */
   hasOrigin: boolean
+  /** Whether the customer sent their city's centre (a whole city picked, no location). */
+  hasCityCentre?: boolean
   /** The map's viewport, when the map is asking. */
   bbox?: unknown
   bookingType?: 'dropin' | 'doorstep' | 'pickup'
@@ -43,6 +57,12 @@ export interface ListScope {
   radiusKm: number | null
   /** Whether garages with no pin follow the located ones. */
   includeUnlocated: boolean
+  /**
+   * The far-garage limit in km (FAR_LIMIT_KM), from the origin or else the
+   * city's centre, or null when it does not apply: no place sent, a typed
+   * search, the map's viewport, or doorstep and pickup & drop.
+   */
+  farLimitKm: number | null
 }
 
 /** Doorstep and pickup: the garage comes to the customer, as far as it says. */
@@ -62,10 +82,20 @@ export function listScope(query: ListScopeQuery): ListScope {
     !comesToCustomer(query.bookingType) &&
     query.q === undefined
 
+  // The far-garage limit (0070) applies where a radius could, and from a
+  // whole city's centre too. It is not a radius: the list's `radiusKm` stays
+  // what the caller asked for, so no screen says "within 150 km".
+  const usesFarLimit =
+    (query.hasOrigin || query.hasCityCentre === true) &&
+    query.bbox === undefined &&
+    !comesToCustomer(query.bookingType) &&
+    query.q === undefined
+
   return {
     // No default bound (0062): a located customer sees every garage, nearest
     // first. An explicit radius is taken as a real constraint.
     radiusKm: usesRadius ? (query.radiusKm ?? null) : null,
+    farLimitKm: usesFarLimit ? FAR_LIMIT_KM : null,
     // On by default, because hiding unpinned garages is the worse failure:
     // many are still unpinned, and a geo filter they cannot satisfy would
     // show "no garages" for a city full of them. Two places cannot use them.

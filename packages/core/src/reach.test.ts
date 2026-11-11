@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import {
   anywhereInCityLine,
+  atGarageListHasGarages,
   atGarageReach,
   canCollectFrom,
   distanceBand,
@@ -104,6 +105,19 @@ describe('the bottom of every tab', () => {
     expect(nextTabOffer('doorstep', figures({ pickup: 0 }))).toBeNull()
     expect(nextTabOffer('pickup', figures({ doorstep: 3, pickup: 3 }))).toBeNull()
     expect(nextTabOffer('dropin', null)).toBeNull()
+  })
+})
+
+describe('the map’s "See all garages" (0070)', () => {
+  test('offered while the At garage list has a garage, within the far limit', () => {
+    expect(atGarageListHasGarages(figures({ nearestKm: 120 }))).toBe(true)
+  })
+
+  test('never when the list would be empty, nor without figures', () => {
+    const none: ReachFigures = { ...figures({ nearestKm: null }), dropin: { count: 0, nearestKm: null } }
+    expect(atGarageListHasGarages(none)).toBe(false)
+    expect(atGarageListHasGarages(null)).toBe(false)
+    expect(atGarageListHasGarages(undefined)).toBe(false)
   })
 })
 

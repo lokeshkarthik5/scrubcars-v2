@@ -10,6 +10,7 @@ import {
   pickupCovers,
   pickupReach,
   silverAndAboveCondition,
+  withinFarLimit,
 } from '../vendors/vendors.predicates.js'
 
 type ServiceCategory = (typeof serviceCategoryEnum.enumValues)[number]
@@ -86,10 +87,19 @@ export const reachRepository = {
    * come to them, with the lowest "from" price). The list's own rules, so a
    * count is exactly what that tab lists: with no origin, every pinned
    * doorstep or pickup garage (as the tab lists them), and every at-garage
-   * one, pinned or not.
+   * one, pinned or not, within the far-garage limit when the list has one.
    */
-  async summary(origin: Point | undefined, filters: ReachFilters): Promise<ReachRow> {
+  async summary(
+    origin: Point | undefined,
+    filters: ReachFilters,
+    far?: { from: Point; limitM: number }
+  ): Promise<ReachRow> {
     const point = origin ? geography(origin) : null
+    // At garage counts what the list shows, so the far-garage limit (0070)
+    // the list applies is applied here too.
+    const dropin = far
+      ? sql`(v.dropin_enabled = true AND ${withinFarLimit(geography(far.from), far.limitM)})`
+      : sql`v.dropin_enabled = true`
     const doorstep = point
       ? sql`(v.doorstep_enabled = true AND v.geo IS NOT NULL AND ${doorstepCovers(point)})`
       : sql`(v.doorstep_enabled = true AND v.geo IS NOT NULL)`
@@ -97,12 +107,12 @@ export const reachRepository = {
       ? sql`(${PICKUP_OFFERED} AND v.geo IS NOT NULL AND ${pickupCovers(point)})`
       : sql`(${PICKUP_OFFERED} AND v.geo IS NOT NULL)`
     const nearest = point
-      ? sql`min(gis.ST_Distance(v.geo, ${point})) FILTER (WHERE v.dropin_enabled = true AND v.geo IS NOT NULL)`
+      ? sql`min(gis.ST_Distance(v.geo, ${point})) FILTER (WHERE ${dropin} AND v.geo IS NOT NULL)`
       : sql`NULL::double precision`
 
     const [row] = await db.execute<ReachRow>(sql`
       SELECT
-        count(*) FILTER (WHERE v.dropin_enabled = true) AS dropin_count,
+        count(*) FILTER (WHERE ${dropin}) AS dropin_count,
         ${nearest} AS dropin_nearest_m,
         count(*) FILTER (WHERE ${doorstep}) AS doorstep_count,
         min(${STARTING_PRICE}) FILTER (WHERE ${doorstep}) AS doorstep_from,

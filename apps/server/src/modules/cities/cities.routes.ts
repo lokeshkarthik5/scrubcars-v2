@@ -31,6 +31,21 @@ import {
  */
 export const adminCityRoutes = new Hono<{ Variables: AuthVariables }>()
 
+/**
+ * The customers' cities (0070). Mounted at /api/v1/cities, public: the
+ * customer apps' city chip and "Where's your car?" sheet read it, signed in
+ * or not.
+ *
+ *   GET    /              the cities switched on for customers, the default
+ *                         first, each with its centre, reach, "Growing here"
+ *                         and how many garages customers can find there
+ *
+ * Unknown query parameters are ignored, as GET /zones does.
+ */
+export const publicCityRoutes = new Hono()
+
+publicCityRoutes.get('/', controller.listForCustomers)
+
 const adminMiddleware = [authMiddleware, requireSuperAdmin] as const
 const idParam = zValidator('param', cityIdParamSchema)
 
