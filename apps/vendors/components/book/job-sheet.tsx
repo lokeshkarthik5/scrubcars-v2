@@ -6,6 +6,7 @@ import { toast } from 'react-toastify'
 import type { OwnJob } from '@repo/core/api/garage-book'
 import { useUpdateWalkIn } from '@repo/core/api/hooks/use-garage-book'
 import { carName, jobTime, plateText, rupees, type JobPayment } from '@repo/core/garage-book'
+import { msg, useT } from '@repo/core/i18n'
 import { cn } from '@repo/core/utils'
 import { NumberPlate } from '@repo/ui/finish/number-plate'
 import { ScSheet } from '@repo/ui/sc/modal'
@@ -13,8 +14,8 @@ import { Overline, Seg, raised } from './parts'
 
 const PAYMENTS = [
   { value: 'upi', label: 'UPI' },
-  { value: 'cash', label: 'Cash' },
-  { value: 'later', label: 'Pay later' },
+  { value: 'cash', label: msg('Cash') },
+  { value: 'later', label: msg('Pay later') },
 ] as const
 
 /**
@@ -33,6 +34,7 @@ export function JobSheet({
   onClose: () => void
   onDone: (job: OwnJob) => void
 }) {
+  const t = useT()
   const update = useUpdateWalkIn()
   const [confirmCancel, setConfirmCancel] = useState(false)
   if (!job) return null
@@ -43,18 +45,18 @@ export function JobSheet({
       { id: job.id, patch },
       {
         onSuccess: (next) => after?.(next),
-        onError: (error) => toast.error(error instanceof Error ? error.message : "Couldn't save that. Try again."),
+        onError: (error) => toast.error(error instanceof Error ? error.message : t("Couldn't save that. Try again.")),
       }
     )
 
   return (
-    <ScSheet open={open} onClose={onClose} aria-label={`${job.name}'s job`} className="px-4">
+    <ScSheet open={open} onClose={onClose} aria-label={t("{name}'s job", { name: job.name })} className="px-4">
       <div className="flex flex-col gap-4 pb-2">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <Overline>Walk-in · {jobTime(job.scheduledAt)}</Overline>
+            <Overline>{t('Walk-in · {time}', { time: jobTime(job.scheduledAt) })}</Overline>
             <h2 className="mt-1 truncate text-t2 font-semibold text-text-primary">{job.name}</h2>
-            <p className="text-t4 text-[#A8A8B2]">{carName(job.car) || 'Car not noted'}</p>
+            <p className="text-t4 text-[#A8A8B2]">{carName(job.car) || t('Car not noted')}</p>
           </div>
           {plate && <NumberPlate plate={plate} size="sm" />}
         </div>
@@ -71,7 +73,7 @@ export function JobSheet({
           ))}
           {job.totalPaise !== undefined && (
             <li className="flex justify-between pt-2 text-t3 font-semibold text-text-primary">
-              <span>Total</span>
+              <span>{t('Total')}</span>
               <span className="font-numeric">{rupees(job.totalPaise)}</span>
             </li>
           )}
@@ -79,15 +81,15 @@ export function JobSheet({
 
         {job.status !== 'done' && job.status !== 'cancelled' && (
           <div className="flex flex-col gap-2">
-            <span className="text-t4 font-semibold text-[#D4D4DA]">Payment</span>
-            <Seg<JobPayment> label="Payment" value={job.payment} options={PAYMENTS} onChange={(payment) => change({ payment })} />
+            <span className="text-t4 font-semibold text-[#D4D4DA]">{t('Payment')}</span>
+            <Seg<JobPayment> label={msg('Payment')} value={job.payment} options={PAYMENTS} onChange={(payment) => change({ payment })} />
           </div>
         )}
 
         <div className="grid grid-cols-2 gap-2">
           {job.status === 'booked' && (
             <button type="button" disabled={update.isPending} onClick={() => change({ status: 'in_progress' })} className={cn(raised, 'h-12 rounded-control text-t3 font-semibold text-text-primary')}>
-              Start
+              {t('Start')}
             </button>
           )}
           {(job.status === 'booked' || job.status === 'in_progress') && (
@@ -102,13 +104,13 @@ export function JobSheet({
               }
               className={cn(raised, 'h-12 rounded-control text-t3 font-semibold text-text-primary', job.status === 'in_progress' && 'col-span-2')}
             >
-              Mark done
+              {t('Mark done')}
             </button>
           )}
         </div>
 
         <Link href={`/book/customers/${encodeURIComponent(job.customerId)}`} className="text-center text-t4 font-medium text-[#A8A8B2]">
-          Open {job.name.split(' ')[0]}&apos;s page
+          {t("Open {name}'s page", { name: job.name.split(' ')[0] ?? '' })}
         </Link>
 
         {job.status !== 'done' && job.status !== 'cancelled' && (
@@ -118,7 +120,7 @@ export function JobSheet({
             onClick={() => (confirmCancel ? change({ status: 'cancelled' }, onClose) : setConfirmCancel(true))}
             className="min-h-11 text-t4 font-medium text-[#FF8A95]"
           >
-            {confirmCancel ? 'Tap again to cancel this job' : 'Cancel this job'}
+            {confirmCancel ? t('Tap again to cancel this job') : t('Cancel this job')}
           </button>
         )}
       </div>

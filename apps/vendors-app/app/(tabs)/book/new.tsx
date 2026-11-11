@@ -13,6 +13,7 @@ import {
   type WhenChoice,
 } from '@repo/core/garage-book';
 import { useDebounced } from '@repo/core/hooks/use-debounced';
+import { msg, useT, useTn } from '@repo/core/i18n';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { type Href, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
@@ -30,15 +31,15 @@ import { useIsVendorAdmin } from '@/lib/auth';
 import { saveWalkIn, useWalkInQueue } from '@/lib/book-offline';
 
 const WHEN = [
-  { value: 'now', label: 'Now' },
-  { value: 'later', label: 'Later today' },
-  { value: 'pick', label: 'Pick a time' },
+  { value: 'now', label: msg('Now') },
+  { value: 'later', label: msg('Later today') },
+  { value: 'pick', label: msg('Pick a time') },
 ] as const;
 
 const PAYMENTS = [
   { value: 'upi', label: 'UPI' },
-  { value: 'cash', label: 'Cash' },
-  { value: 'later', label: 'Pay later' },
+  { value: 'cash', label: msg('Cash') },
+  { value: 'later', label: msg('Pay later') },
 ] as const;
 
 /**
@@ -46,6 +47,8 @@ const PAYMENTS = [
  * with its client id and sent later, and Today shows it as waiting.
  */
 function NewWalkInScreen() {
+  const t = useT();
+  const tn = useTn();
   const styles = useStyles();
   const colors = useColors();
   const isOwner = useIsVendorAdmin();
@@ -125,7 +128,7 @@ function NewWalkInScreen() {
       id: clientId,
       clientId,
       customerId: match?.id ?? `own:${clientId}`,
-      name: match?.name ?? (name.trim() || plateText(typed) || 'Walk-in'),
+      name: match?.name ?? (name.trim() || plateText(typed) || t('Walk-in')),
       scheduledAt: timing.scheduledAt,
       status: timing.status,
       doneAt: null,
@@ -138,10 +141,10 @@ function NewWalkInScreen() {
     setSaving(true);
     try {
       const { job, queued } = await saveWalkIn(input, preview);
-      if (queued) toast.info('No signal. Saved on this phone; it sends when you are back online.');
+      if (queued) toast.info(t('No signal. Saved on this phone; it sends when you are back online.'));
       router.replace(`/home?added=${encodeURIComponent(queued ? job.clientId : job.id)}` as Href);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Couldn't save the job. Try again.");
+      toast.error(error instanceof Error ? error.message : t("Couldn't save the job. Try again."));
     } finally {
       setSaving(false);
     }
@@ -155,7 +158,9 @@ function NewWalkInScreen() {
         <View style={styles.bar}>
           <View style={styles.flex}>
             <T variant="over" color={colors.textMuted}>
-              {isOwner ? `Total · ${count} ${count === 1 ? 'service' : 'services'}` : `${count} ${count === 1 ? 'service' : 'services'}`}
+              {isOwner
+                ? t('Total · {services}', { services: tn(count, '{count} service', '{count} services') })
+                : tn(count, '{count} service', '{count} services')}
             </T>
             {isOwner ? (
               <T num size={22} weight={600}>
@@ -164,20 +169,20 @@ function NewWalkInScreen() {
             ) : null}
           </View>
           <RedButton onPress={() => void save()} disabled={!ready || saving} height={52} radius={18} style={styles.save}>
-            {saving ? 'Saving…' : 'Save job'}
+            {saving ? t('Saving…') : t('Save job')}
           </RedButton>
         </View>
       }
     >
       <BackHeader
-        title="New walk-in job"
+        title={t('New walk-in job')}
         close
         right={
           offline ? (
             <View style={styles.noSignal}>
               <View style={styles.amberDot} />
               <T size={11} weight={500} color="#F5C46B">
-                No signal
+                {t('No signal')}
               </T>
             </View>
           ) : null
@@ -186,7 +191,7 @@ function NewWalkInScreen() {
 
       <View style={styles.group}>
         <T variant="t4" weight={600} color="#D4D4DA">
-          Number plate or phone
+          {t('Number plate or phone')}
         </T>
         <BookInput
           height={52}
@@ -196,10 +201,10 @@ function NewWalkInScreen() {
             setChosen(null);
             setCleared(true);
           }}
-          placeholder="TN 09 AB 4521 or 98400 12345"
+          placeholder={t('TN 09 AB 4521 or 98400 12345')}
           autoCapitalize="characters"
           autoCorrect={false}
-          accessibilityLabel="Number plate or phone"
+          accessibilityLabel={t('Number plate or phone')}
         />
         {plateText(typed) && !looksLikePhone && /\d/.test(typed) ? <Plate plate={typed} /> : null}
         {match ? (
@@ -215,37 +220,37 @@ function NewWalkInScreen() {
           <CustomerMatch row={suggestion} chosen={false} onPress={() => setChosen(suggestion)} />
         ) : typed.trim().length >= 3 ? (
           <View style={styles.pair}>
-            <BookInput value={name} onChangeText={setName} placeholder="Customer's name" accessibilityLabel="Customer's name" style={styles.flex} />
-            <BookInput value={car} onChangeText={setCar} placeholder="Car (Hyundai Creta)" accessibilityLabel="Car" style={styles.flex} />
+            <BookInput value={name} onChangeText={setName} placeholder={t("Customer's name")} accessibilityLabel={t("Customer's name")} style={styles.flex} />
+            <BookInput value={car} onChangeText={setCar} placeholder={t('Car (Hyundai Creta)')} accessibilityLabel={t('Car')} style={styles.flex} />
           </View>
         ) : null}
       </View>
 
       <View style={styles.group}>
         <T variant="t4" weight={600} color="#D4D4DA">
-          Services, from your price list
+          {t('Services, from your price list')}
         </T>
         <View style={styles.grid}>
           {(services.data ?? []).map((service) => (
             <PickTile
               key={service.id}
               title={service.name}
-              sub={[rupees(service.pricePaise), service.durationMins ? `${service.durationMins} min` : null].filter(Boolean).join(' · ')}
+              sub={[rupees(service.pricePaise), service.durationMins ? t('{mins} min', { mins: service.durationMins }) : null].filter(Boolean).join(' · ')}
               on={picked.includes(service.id)}
               onPress={() => setPicked((list) => (list.includes(service.id) ? list.filter((id) => id !== service.id) : [...list, service.id]))}
             />
           ))}
-          <PickTile title="+ Other" sub="Type a job and price" on={other !== null} onPress={() => setOther((value) => (value ? null : { label: '', rupees: '' }))} />
+          <PickTile title={t('+ Other')} sub={t('Type a job and price')} on={other !== null} onPress={() => setOther((value) => (value ? null : { label: '', rupees: '' }))} />
         </View>
         {other ? (
           <View style={styles.pair}>
-            <BookInput value={other.label} onChangeText={(label) => setOther({ ...other, label })} placeholder="Headlight polish" accessibilityLabel="The job" style={styles.flex} />
+            <BookInput value={other.label} onChangeText={(label) => setOther({ ...other, label })} placeholder={t('Headlight polish')} accessibilityLabel={t('The job')} style={styles.flex} />
             <BookInput
               value={other.rupees}
               onChangeText={(text) => setOther({ ...other, rupees: text.replace(/[^\d.]/g, '') })}
-              placeholder="₹ price"
+              placeholder={t('₹ price')}
               keyboardType="numeric"
-              accessibilityLabel="Price in rupees"
+              accessibilityLabel={t('Price in rupees')}
               style={styles.price}
             />
           </View>
@@ -254,10 +259,10 @@ function NewWalkInScreen() {
 
       <View style={styles.group}>
         <T variant="t4" weight={600} color="#D4D4DA">
-          When
+          {t('When')}
         </T>
         <Seg<WhenChoice>
-          label="When"
+          label={msg('When')}
           value={when}
           options={WHEN}
           onChange={(next) => {
@@ -268,7 +273,7 @@ function NewWalkInScreen() {
         {when === 'pick' ? (
           <Pressable accessibilityRole="button" onPress={() => setShowPicker(true)}>
             <T variant="t3" color={colors.textSecondary}>
-              {time ? time.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }) : 'Tap to pick a time'}
+              {time ? time.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }) : t('Tap to pick a time')}
             </T>
           </Pressable>
         ) : null}
@@ -287,33 +292,35 @@ function NewWalkInScreen() {
 
       <View style={styles.group}>
         <T variant="t4" weight={600} color="#D4D4DA">
-          Payment
+          {t('Payment')}
         </T>
-        <Seg<JobPayment> label="Payment" value={payment} options={PAYMENTS} onChange={setPayment} />
+        <Seg<JobPayment> label={msg('Payment')} value={payment} options={PAYMENTS} onChange={setPayment} />
       </View>
 
       <Edge radius={18} innerStyle={styles.remind}>
         <View style={styles.flex}>
           <T variant="t3" weight={600}>
-            Remind to wash again
+            {t('Remind to wash again')}
           </T>
           <T size={12} color={colors.textSecondary}>
-            {remind ? `${remindLine(interval, new Date())} · from your WhatsApp` : 'Off for this job'}
+            {remind ? t('{when} · from your WhatsApp', { when: remindLine(interval, new Date()) }) : t('Off for this job')}
           </T>
         </View>
-        <Switch checked={remind} onChange={setRemind} label="Remind to wash again" />
+        <Switch checked={remind} onChange={setRemind} label={t('Remind to wash again')} />
       </Edge>
 
       <Footnote>
         {offline
-          ? 'No signal: the job is saved on this phone and sent as soon as you are back online.'
-          : 'Saved jobs show on Today straight away. Walk-ins never change your Detlio slots.'}
+          ? t('No signal: the job is saved on this phone and sent as soon as you are back online.')
+          : t('Saved jobs show on Today straight away. Walk-ins never change your Detlio slots.')}
       </Footnote>
     </BookScreen>
   );
 }
 
 function CustomerMatch({ row, chosen, onPress }: { row: BookCustomerRow; chosen: boolean; onPress: () => void }) {
+  const t = useT();
+  const tn = useTn();
   const styles = useStyles();
   const colors = useColors();
   const firstCar = row.cars[0];
@@ -326,7 +333,7 @@ function CustomerMatch({ row, chosen, onPress }: { row: BookCustomerRow; chosen:
             {`${row.name}${firstCar && carName(firstCar) ? ` · ${carName(firstCar)}` : ''}`}
           </T>
           <T size={12} color={colors.textSecondary} numberOfLines={1}>
-            {`Your customer · ${row.visits} ${row.visits === 1 ? 'visit' : 'visits'}${row.lastVisitAt ? ` · last ${shortDate(row.lastVisitAt)}` : ''}${chosen ? '' : ' · tap to use'}`}
+            {`${tn(row.visits, 'Your customer · {count} visit', 'Your customer · {count} visits')}${row.lastVisitAt ? ` · ${t('last {date}', { date: shortDate(row.lastVisitAt) })}` : ''}${chosen ? '' : ` · ${t('tap to use')}`}`}
           </T>
         </View>
         <RedLight state={chosen ? 'on' : 'dim'} width={18} />

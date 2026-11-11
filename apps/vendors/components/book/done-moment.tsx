@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { useT } from '@repo/core/i18n'
 import { usePrefersReducedMotion } from '@repo/ui/finish/motion'
 
 /**
@@ -10,6 +11,7 @@ import { usePrefersReducedMotion } from '@repo/ui/finish/motion'
  * the words show, briefly, and nothing moves.
  */
 export function DoneMoment({ name, line, amount, onEnd }: { name: string; line: string; amount: string | null; onEnd: () => void }) {
+  const t = useT()
   const reduce = usePrefersReducedMotion()
   useEffect(() => {
     if (!reduce) return
@@ -36,7 +38,7 @@ export function DoneMoment({ name, line, amount, onEnd }: { name: string; line: 
           </svg>
         </div>
         <div>
-          <p className="text-t3 font-semibold text-text-primary">Done · {name}</p>
+          <p className="text-t3 font-semibold text-text-primary">{t('Done · {name}', { name })}</p>
           <p className="mt-0.5 text-t4 text-[#A8A8B2]">{line}</p>
         </div>
       </div>

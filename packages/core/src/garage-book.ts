@@ -5,6 +5,7 @@
  * exactly the same. Pure, with the clock passed in.
  */
 import { formatINR } from './format'
+import { msg, t, tn } from './i18n/translate'
 import { formatIndianPlate } from './moments'
 
 // ─── Rules shared with the server (garage-book.parity.test.ts) ────────────────
@@ -51,11 +52,11 @@ export function hasLink(text: string): boolean {
 
 export function messageRefusal(message: string): string | null {
   const text = message.trim()
-  if (text.length === 0) return 'Write the message first.'
+  if (text.length === 0) return t('Write the message first.')
   if (text.length > GARAGE_BOOK_LIMITS.messageMax) {
-    return `Keep the message under ${GARAGE_BOOK_LIMITS.messageMax} letters.`
+    return t('Keep the message under {max} letters.', { max: GARAGE_BOOK_LIMITS.messageMax })
   }
-  if (hasLink(text)) return 'The message can’t have a link. Write your phone number instead.'
+  if (hasLink(text)) return t('The message can’t have a link. Write your phone number instead.')
   return null
 }
 
@@ -237,7 +238,29 @@ export function walkInTime(choice: WhenChoice, now: Date, picked?: string | null
 export function remindLine(days: number, now: Date): string {
   const key = addDays(istDateKey(now), days)
   const { m, d } = partsOf(key)
-  return `In ${days} days · ${d} ${MONTH[m - 1]}`
+  return t('In {days} days · {date}', { days, date: `${d} ${MONTH[m - 1]}` })
+}
+
+/** How a walk-in is paid, as a job's line writes it: "UPI", "CASH", "Pay later". */
+export function payWord(payment: JobPayment | (string & {})): string {
+  if (payment === 'later') return t('Pay later')
+  if (payment === 'cash') return t('CASH')
+  return payment.toUpperCase()
+}
+
+const STATUS_WORDS: Readonly<Record<string, string>> = {
+  booked: msg('booked'),
+  'in progress': msg('in progress'),
+  done: msg('done'),
+  cancelled: msg('cancelled'),
+  pending: msg('pending'),
+  confirmed: msg('confirmed'),
+  completed: msg('completed'),
+}
+
+/** A status as a customer's history writes it, lower case ("in progress"); a word it doesn't know shows as it is. */
+export function statusWord(word: string): string {
+  return Object.prototype.hasOwnProperty.call(STATUS_WORDS, word) ? t(STATUS_WORDS[word]!) : word
 }
 
 /** The tone a job's status line is drawn in. */
@@ -250,19 +273,22 @@ export function ownJobStatus(job: {
   visitNumber?: number
   totalPaise?: number
 }): { text: string; tone: StatusTone } | null {
-  const pay = job.payment === 'later' ? 'Pay later' : job.payment.toUpperCase()
+  const pay = payWord(job.payment)
   if (job.status === 'done') {
     if (job.payment === 'later') {
       const amount = rupees(job.totalPaise)
-      return { text: amount ? `Done · ${amount} owed` : 'Done · Pay later', tone: 'owed' }
+      return { text: amount ? t('Done · {amount} owed', { amount }) : t('Done · Pay later'), tone: 'owed' }
     }
-    return { text: `Done · ${pay}`, tone: 'done' }
+    return { text: t('Done · {pay}', { pay }), tone: 'done' }
   }
   if (job.status === 'in_progress') {
-    const visit = job.visitNumber && job.visitNumber > 1 ? ` · ${ordinal(job.visitNumber)} visit` : ` · ${pay}`
-    return { text: `In progress${visit}`, tone: 'working' }
+    const text =
+      job.visitNumber && job.visitNumber > 1
+        ? t('In progress · {nth} visit', { nth: ordinal(job.visitNumber) })
+        : t('In progress · {pay}', { pay })
+    return { text, tone: 'working' }
   }
-  if (job.payment === 'later') return { text: 'Pay later · adds to money owed', tone: 'owed' }
+  if (job.payment === 'later') return { text: t('Pay later · adds to money owed'), tone: 'owed' }
   return null
 }
 
@@ -270,10 +296,15 @@ export function ownJobStatus(job: {
 export function detlioJobStatus(job: { status: string; paymentMethod: string; amount?: string }): { text: string; tone: StatusTone } | null {
   const amount = job.amount ? formatINR(Number(job.amount)) : null
   if (job.status === 'completed') {
-    return { text: amount ? `Done · ${amount} ${job.paymentMethod === 'online' ? 'paid online' : 'cash'}` : 'Done', tone: 'done' }
+    const text = !amount
+      ? t('Done')
+      : job.paymentMethod === 'online'
+        ? t('Done · {amount} paid online', { amount })
+        : t('Done · {amount} cash', { amount })
+    return { text, tone: 'done' }
   }
-  if (job.status === 'in_progress') return { text: 'In progress', tone: 'working' }
-  if (job.status === 'pending') return { text: 'Waiting for your answer', tone: 'owed' }
+  if (job.status === 'in_progress') return { text: t('In progress'), tone: 'working' }
+  if (job.status === 'pending') return { text: t('Waiting for your answer'), tone: 'owed' }
   return null
 }
 
@@ -299,10 +330,16 @@ export function reminderReason(entry: {
   lastVisitAt: string | null
   sentAt: string | null
 }): string {
-  if (entry.sentAt) return `Wash · sent ${formatTimeShort(entry.sentAt)}`
-  const days = entry.daysSince === null ? '' : ` · ${entry.daysSince} days`
-  if (entry.source === 'detlio') return `Wash${days} · Detlio sends it`
-  return entry.lastVisitAt ? `Wash${days} since ${shortDate(entry.lastVisitAt)}` : `Wash${days}`
+  if (entry.sentAt) return t('Wash · sent {time}', { time: formatTimeShort(entry.sentAt) })
+  const days = entry.daysSince
+  if (entry.source === 'detlio') {
+    return days === null ? t('Wash · Detlio sends it') : t('Wash · {days} days · Detlio sends it', { days })
+  }
+  if (entry.lastVisitAt) {
+    const date = shortDate(entry.lastVisitAt)
+    return days === null ? t('Wash since {date}', { date }) : t('Wash · {days} days since {date}', { days, date })
+  }
+  return days === null ? t('Wash') : t('Wash · {days} days', { days })
 }
 
 function formatTimeShort(iso: string): string {
@@ -318,24 +355,31 @@ export function customerTag(row: {
   owesPaise?: number
   lastVisitAt: string | null
 }): { text: string; tone: 'due' | 'owed' | 'quiet' } {
-  if (row.due.state === 'due_today' || row.due.state === 'overdue') return { text: 'Due today', tone: 'due' }
-  if (row.owesPaise && row.owesPaise > 0) return { text: `${rupees(row.owesPaise)} owed`, tone: 'owed' }
-  if (row.viaDetlio) return { text: 'Via Detlio', tone: 'quiet' }
-  if (row.due.state === 'due_soon') return { text: 'Due soon', tone: 'due' }
-  return { text: row.lastVisitAt ? `Last ${shortDate(row.lastVisitAt)}` : 'New', tone: 'quiet' }
+  if (row.due.state === 'due_today' || row.due.state === 'overdue') return { text: t('Due today'), tone: 'due' }
+  if (row.owesPaise && row.owesPaise > 0) return { text: t('{amount} owed', { amount: rupees(row.owesPaise) ?? '' }), tone: 'owed' }
+  if (row.viaDetlio) return { text: t('Via Detlio'), tone: 'quiet' }
+  if (row.due.state === 'due_soon') return { text: t('Due soon'), tone: 'due' }
+  return { text: row.lastVisitAt ? t('Last {date}', { date: shortDate(row.lastVisitAt) }) : t('New'), tone: 'quiet' }
 }
 
 /** "Due in 2 days.", "Due today.", "3 days late." and "Every 30 days" under a car's gauge. */
 export function washWords(wash: { daysSinceWash: number | null; intervalDays: number; dueOn: string | null; dueState: string }, now: Date) {
-  const every = `Every ${wash.intervalDays} days`
-  if (wash.daysSinceWash === null || !wash.dueOn) return { lead: 'No visit yet.', rest: ` ${every}` }
+  const every = t('Every {days} days', { days: wash.intervalDays })
+  if (wash.daysSinceWash === null || !wash.dueOn) return { lead: t('No visit yet.'), rest: ` ${every}` }
   const today = istDateKey(now)
   const left = Math.round((Date.parse(`${wash.dueOn}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000)
-  const lead = left > 1 ? `Due in ${left} days.` : left === 1 ? 'Due tomorrow.' : left === 0 ? 'Due today.' : `${-left} days late.`
+  const lead =
+    left > 1
+      ? t('Due in {days} days.', { days: left })
+      : left === 1
+        ? t('Due tomorrow.')
+        : left === 0
+          ? t('Due today.')
+          : t('{days} days late.', { days: -left })
   return { lead, rest: ` ${every}` }
 }
 
-/** The friendly WhatsApp for money owed: no link, just the amount and thanks. */
+/** The friendly WhatsApp for money owed: no link, just the amount and thanks. Sent to the customer, so English. */
 export function owedMessage(values: { name: string; garage: string; amountPaise: number }): string {
   const first = values.name.trim().split(/\s+/)[0] || 'there'
   return `Hi ${first}, a friendly reminder from ${values.garage}: ${rupees(values.amountPaise)} is pending for your car's service. You can pay by UPI or cash. Thank you!`
@@ -343,6 +387,6 @@ export function owedMessage(values: { name: string; garage: string; amountPaise:
 
 /** "3 customers · oldest from 1 Nov". */
 export function owedSummary(count: number, oldestAt: string | null): string {
-  const people = `${count} ${count === 1 ? 'customer' : 'customers'}`
-  return oldestAt ? `${people} · oldest from ${shortDate(oldestAt)}` : people
+  const people = tn(count, '{count} customer', '{count} customers')
+  return oldestAt ? t('{people} · oldest from {date}', { people, date: shortDate(oldestAt) }) : people
 }

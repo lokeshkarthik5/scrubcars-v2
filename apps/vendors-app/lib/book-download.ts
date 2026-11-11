@@ -1,4 +1,5 @@
 import { downloadBook } from '@repo/core/api/garage-book';
+import { t } from '@repo/core/i18n';
 import * as Sharing from 'expo-sharing';
 
 import { discardAfterShare, newPrivateFile } from './private-cache';
@@ -16,7 +17,7 @@ export async function shareBook(fileName: string): Promise<boolean> {
   const file = newPrivateFile(XLSX, fileName);
   try {
     file.write(new Uint8Array(bytes));
-    await Sharing.shareAsync(file.uri, { mimeType: XLSX, UTI: 'org.openxmlformats.spreadsheetml.sheet', dialogTitle: 'Your book' });
+    await Sharing.shareAsync(file.uri, { mimeType: XLSX, UTI: 'org.openxmlformats.spreadsheetml.sheet', dialogTitle: t('Your book') });
   } finally {
     discardAfterShare(file);
   }

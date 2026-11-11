@@ -3,16 +3,17 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { IconCalendar, IconHome, IconLayoutGrid, IconPlus, IconUsers } from '@tabler/icons-react'
+import { msg, useT } from '@repo/core/i18n'
 import { cn } from '@repo/core/utils'
 import { LitOrb, MetalGradient } from '@repo/ui/finish/lit-orb'
 
 type Place = 'home' | 'jobs' | 'customers' | 'business'
 
 const TABS = [
-  { place: 'home', label: 'Home', href: '/home', icon: IconHome },
-  { place: 'jobs', label: 'Jobs', href: '/book/jobs', icon: IconCalendar },
-  { place: 'customers', label: 'Customers', href: '/book/customers', icon: IconUsers },
-  { place: 'business', label: 'Business', href: '/book/business', icon: IconLayoutGrid },
+  { place: 'home', label: msg('Home'), href: '/home', icon: IconHome },
+  { place: 'jobs', label: msg('Jobs'), href: '/book/jobs', icon: IconCalendar },
+  { place: 'customers', label: msg('Customers'), href: '/book/customers', icon: IconUsers },
+  { place: 'business', label: msg('Business'), href: '/book/business', icon: IconLayoutGrid },
 ] as const
 
 const under = (path: string, route: string) => path === route || path.startsWith(`${route}/`)
@@ -40,6 +41,7 @@ export function bookPlace(path: string | null): Place | null {
  * adds a walk-in. The same bar as the customer app's HubNav, the same parts.
  */
 export function BookNav() {
+  const t = useT()
   const pathname = usePathname()
   const current = bookPlace(pathname)
   const [home, jobs, customers, business] = TABS
@@ -50,15 +52,24 @@ export function BookNav() {
       <Link
         key={place}
         href={href}
-        aria-label={label}
+        aria-label={t(label)}
         aria-current={active ? 'page' : undefined}
         className={cn(
-          'hub-tab flex min-h-12 min-w-[56px] flex-col items-center justify-center gap-0.5 rounded-[14px]',
+          'hub-tab flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-[14px]',
           active ? 'hub-tab--on text-text-primary' : 'text-[#B4B4BC] hover:text-text-primary'
         )}
       >
         {active ? <LitOrb icon={Icon} /> : <Icon size={21} aria-hidden />}
-        <span className={cn('text-t5 leading-none', active ? 'font-semibold' : 'font-medium')}>{label}</span>
+        {/* A longer Tamil word ends in an ellipsis inside its tab, clipped sideways
+            only so its tall marks are never cut (GarageNav does the same). */}
+        <span
+          className={cn(
+            'min-w-0 max-w-full overflow-x-clip text-ellipsis whitespace-nowrap px-0.5 text-t5 leading-none',
+            active ? 'font-semibold' : 'font-medium'
+          )}
+        >
+          {t(label)}
+        </span>
       </Link>
     )
   }
@@ -71,14 +82,14 @@ export function BookNav() {
       />
       <MetalGradient />
       <nav
-        aria-label="Garage app"
+        aria-label={t('Garage app')}
         className="fx-glass fixed left-1/2 z-40 flex h-16 w-[min(340px,calc(100%-32px))] -translate-x-1/2 items-center justify-between rounded-pill px-2.5"
         style={{ bottom: 'calc(20px + env(safe-area-inset-bottom))' }}
       >
         {tab(home)}
         {tab(jobs)}
         {/* Adds a walk-in. Pearl, not red: a screen's one red is its own main action. */}
-        <Link href="/book/new" aria-label="Add a walk-in job" className="fx-pearl fx-press grid size-12 shrink-0 place-items-center rounded-full">
+        <Link href="/book/new" aria-label={t('Add a walk-in job')} className="fx-pearl fx-press grid size-12 shrink-0 place-items-center rounded-full">
           <IconPlus size={20} stroke={2.1} aria-hidden />
         </Link>
         {tab(customers)}

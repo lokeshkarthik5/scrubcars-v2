@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useBookStats } from '@repo/core/api/hooks/use-garage-book'
 import { WEEK_LETTERS, busiestIndex, monthName, recentMonths, rupees, type BookFilter } from '@repo/core/garage-book'
 import { useIsVendorAdmin } from '@repo/core/hooks/use-vendor-role'
+import { msg, useT, useTn } from '@repo/core/i18n'
 import { cn } from '@repo/core/utils'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
 import { BackHeader, BookScreen, LoadFailed, Overline, Seg, Tile, raised } from '@/components/book/parts'
@@ -15,6 +16,8 @@ import { BackHeader, BookScreen, LoadFailed, Overline, Seg, Tile, raised } from 
  * customers paid; the payout is on Payouts.
  */
 export default function StatsPage() {
+  const t = useT()
+  const tn = useTn()
   const isOwner = useIsVendorAdmin()
   const now = new Date()
   const months = recentMonths(now)
@@ -30,11 +33,11 @@ export default function StatsPage() {
   return (
     <BookScreen>
       <BackHeader
-        title="Stats"
+        title={t('Stats')}
         back="/book/business"
         right={
           <label className={cn(raised, 'relative flex h-10 items-center rounded-small pr-2 pl-3.5 text-t4 font-semibold text-text-primary')}>
-            <span className="sr-only">Month</span>
+            <span className="sr-only">{t('Month')}</span>
             <select value={month} onChange={(event) => setMonth(event.target.value)} className="appearance-none bg-transparent pr-5 outline-none">
               {months.map((m) => (
                 <option key={m} value={m} className="bg-[#17171b]">
@@ -49,34 +52,37 @@ export default function StatsPage() {
         }
       />
       <Seg<BookFilter>
-        label="Show money from"
+        label={msg('Show money from')}
         value={filter}
         onChange={setFilter}
         options={[
-          { value: 'all', label: 'All' },
+          { value: 'all', label: msg('All') },
           { value: 'detlio', label: 'Detlio' },
-          { value: 'own', label: 'My own' },
+          { value: 'own', label: msg('My own') },
         ]}
       />
       {!isOwner ? (
-        <p className="fx-edge rounded-control px-4 py-4 text-t4 text-[#A8A8B2]">Only the garage&apos;s owner sees Stats.</p>
+        <p className="fx-edge rounded-control px-4 py-4 text-t4 text-[#A8A8B2]">{t("Only the garage's owner sees Stats.")}</p>
       ) : !data ? (
-        stats.isError ? <LoadFailed what="Stats" onRetry={() => void stats.refetch()} /> : <SkeletonList count={3} itemClassName="h-28" />
+        stats.isError ? <LoadFailed what={t('Stats')} onRetry={() => void stats.refetch()} /> : <SkeletonList count={3} itemClassName="h-28" />
       ) : (
         <>
           <div className="fx-edge flex flex-col gap-3 rounded-surface p-4">
             <div>
-              <Overline>{month === months[0] ? 'This month so far' : monthName(month, now)}</Overline>
+              <Overline>{month === months[0] ? t('This month so far') : monthName(month, now)}</Overline>
               <p className="mt-0.5 font-numeric text-[34px] font-semibold leading-[42px] tracking-[-0.02em] text-text-primary">{rupees(data.takenPaise)}</p>
               {data.changePercent !== null && (
                 <p className={cn('text-[12px]', data.changePercent >= 0 ? 'text-[#4ADE80]' : 'text-[#FF8A95]')}>
-                  {data.changePercent >= 0 ? '↑' : '↓'} {Math.abs(data.changePercent)}% on last month, same days
+                  {t('{arrow} {percent}% on last month, same days', {
+                    arrow: data.changePercent >= 0 ? '↑' : '↓',
+                    percent: Math.abs(data.changePercent),
+                  })}
                 </p>
               )}
             </div>
             {filter === 'all' && total > 0 && (
               <>
-                <div role="img" aria-label={`Detlio ${rupees(data.split.detlioPaise)}, your own ${rupees(data.split.ownPaise)}`} className="flex h-2 gap-[3px]">
+                <div role="img" aria-label={t('Detlio {detlio}, your own {own}', { detlio: rupees(data.split.detlioPaise) ?? '', own: rupees(data.split.ownPaise) ?? '' })} className="flex h-2 gap-[3px]">
                   {detlioShare > 0 && <span className="rounded-[4px] bg-[#ff2d4a] shadow-[0_0_8px_rgb(255_45_74/0.8)]" style={{ width: `${detlioShare}%` }} />}
                   {detlioShare < 100 && <span className="flex-1 rounded-[4px] bg-[linear-gradient(180deg,#f2f2f5,#a5a5ae)]" />}
                 </div>
@@ -85,22 +91,22 @@ export default function StatsPage() {
                     Detlio <b className="font-numeric font-semibold text-text-primary">{rupees(data.split.detlioPaise)}</b>
                   </span>
                   <span>
-                    Your own <b className="font-numeric font-semibold text-text-primary">{rupees(data.split.ownPaise)}</b>
+                    {t('Your own')} <b className="font-numeric font-semibold text-text-primary">{rupees(data.split.ownPaise)}</b>
                   </span>
                 </div>
               </>
             )}
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <Tile label="Came back" value={data.cameBackPercent === null ? '–' : `${data.cameBackPercent}%`} sub="of last month's customers" />
-            <Tile label="New customers" value={data.newCustomers} sub={data.newFromDetlio > 0 ? `${data.newFromDetlio} found you on Detlio` : 'this month'} />
-            {data.profitPaise !== null && <Tile label="Profit" value={rupees(data.profitPaise)} />}
-            <Tile label="Owed to you" value={rupees(data.owedPaise)} sub={`${data.owedCustomers} ${data.owedCustomers === 1 ? 'customer' : 'customers'}`} />
+            <Tile label={t('Came back')} value={data.cameBackPercent === null ? '–' : `${data.cameBackPercent}%`} sub={t("of last month's customers")} />
+            <Tile label={t('New customers')} value={data.newCustomers} sub={data.newFromDetlio > 0 ? t('{count} found you on Detlio', { count: data.newFromDetlio }) : t('this month')} />
+            {data.profitPaise !== null && <Tile label={t('Profit')} value={rupees(data.profitPaise)} />}
+            <Tile label={t('Owed to you')} value={rupees(data.owedPaise)} sub={tn(data.owedCustomers, '{count} customer', '{count} customers')} />
           </div>
           <div className="fx-edge rounded-surface px-4 py-3.5">
             <div className="flex items-baseline justify-between">
-              <Overline>Busiest days</Overline>
-              <span className="text-[11px] text-[#A8A8B2]">last 4 weeks</span>
+              <Overline>{t('Busiest days')}</Overline>
+              <span className="text-[11px] text-[#A8A8B2]">{t('last 4 weeks')}</span>
             </div>
             <div className="mt-2.5 flex gap-2">
               {data.busiestDays.map((n, i) => (
@@ -121,7 +127,7 @@ export default function StatsPage() {
               ))}
             </div>
           </div>
-          <p className="text-[12px] leading-[17px] text-[#A8A8B2]">Detlio figures are what customers paid for jobs done; your payout is on Payouts.</p>
+          <p className="text-[12px] leading-[17px] text-[#A8A8B2]">{t('Detlio figures are what customers paid for jobs done; your payout is on Payouts.')}</p>
         </>
       )}
     </BookScreen>

@@ -1,4 +1,5 @@
 import { formatClock, formatINR, formatWhen } from '@repo/core/format';
+import { useT } from '@repo/core/i18n';
 import { answerByRing } from '@repo/core/moments';
 import type { Booking } from '@repo/core/types';
 import { useState } from 'react';
@@ -23,6 +24,7 @@ import { go, Overline, RaisedButton } from './parts';
  * and decline sheet as Bookings › New. Money is the owner's.
  */
 export function RequestCard({ booking: b, now, more, onChanged }: { booking: Booking; now: number; more: number; onChanged: () => void }) {
+  const t = useT();
   const styles = useStyles();
   const colors = useColors();
   const [declining, setDeclining] = useState(false);
@@ -32,16 +34,16 @@ export function RequestCard({ booking: b, now, more, onChanged }: { booking: Boo
   const what = [serviceOnlyLine(b), b.customerName, b.vehicle?.model].filter(Boolean).join(' · ');
   const label =
     ring.minutesLeft !== null
-      ? `${ring.minutesLeft} minutes left to answer`
+      ? t('{minutes} minutes left to answer', { minutes: ring.minutesLeft })
       : b.responseDeadline
-        ? `Answer by ${formatClock(b.responseDeadline.respondBy)}`
-        : 'New request';
+        ? t('Answer by {time}', { time: formatClock(b.responseDeadline.respondBy) })
+        : t('New request');
   return (
     <Edge radius={22} innerStyle={styles.card}>
       <View style={styles.top}>
-        <AnswerRing fraction={ring.fraction} label={ring.minutesLeft !== null ? `${ring.minutesLeft}m` : 'New'} accessibilityLabel={label} />
+        <AnswerRing fraction={ring.fraction} label={ring.minutesLeft !== null ? t('{minutes}m', { minutes: ring.minutesLeft }) : t('New')} accessibilityLabel={label} />
         <Pressable accessibilityRole="link" onPress={() => go(`/bookings/${b.id}`)} style={styles.flex}>
-          <Overline red>New Detlio request</Overline>
+          <Overline red>{t('New Detlio request')}</Overline>
           <T variant="t2" numberOfLines={1} style={styles.when}>
             {formatWhen(b.scheduledAtIso, now)}
           </T>
@@ -56,14 +58,14 @@ export function RequestCard({ booking: b, now, more, onChanged }: { booking: Boo
         ) : null}
       </View>
       <View style={styles.buttons}>
-        <RaisedButton label="Decline" onPress={() => setDeclining(true)} disabled={accepting} style={styles.flex} />
+        <RaisedButton label={t('Decline')} onPress={() => setDeclining(true)} disabled={accepting} style={styles.flex} />
         <RedButton onPress={() => changeStatusWithUndo(b.id, 'confirmed')} disabled={accepting} height={48} radius={18} style={styles.flex}>
-          {accepting ? 'Accepting…' : 'Accept'}
+          {accepting ? t('Accepting…') : t('Accept')}
         </RedButton>
       </View>
       {more > 0 ? (
         <T variant="t4" color={colors.textSecondary} align="center" onPress={() => go('/bookings?tab=new')}>
-          {`See all ${more + 1} new requests`}
+          {t('See all {count} new requests', { count: more + 1 })}
         </T>
       ) : null}
       <RejectBookingSheet booking={b} open={declining} onClose={() => setDeclining(false)} onDone={onChanged} />

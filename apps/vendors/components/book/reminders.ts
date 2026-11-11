@@ -3,6 +3,7 @@
 import { toast } from 'react-toastify'
 import { ApiError } from '@repo/core/api/client'
 import type { useSendReminder } from '@repo/core/api/hooks/use-garage-book'
+import { t } from '@repo/core/i18n'
 
 /**
  * Sends one reminder. An own customer: WhatsApp opens on this device with
@@ -19,17 +20,17 @@ export function openReminder(send: ReturnType<typeof useSendReminder>, customerI
         if (tab) tab.location.href = sent.url
         else window.location.href = sent.url
       } else {
-        toast.success(`Detlio will remind ${name.split(' ')[0]} in the Detlio app.`)
+        toast.success(t('Detlio will remind {name} in the Detlio app.', { name: name.split(' ')[0] ?? '' }))
       }
     },
     onError: (error) => {
       tab?.close()
       toast.error(
         error instanceof ApiError && error.code === 'REMINDER_TOO_SOON'
-          ? 'Detlio reminded them this week already. One a week at most.'
+          ? t('Detlio reminded them this week already. One a week at most.')
           : error instanceof Error
             ? error.message
-            : "Couldn't send that. Try again."
+            : t("Couldn't send that. Try again.")
       )
     },
   })

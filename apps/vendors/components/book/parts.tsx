@@ -13,6 +13,7 @@ import {
   ownJobStatus,
   type StatusTone,
 } from '@repo/core/garage-book'
+import { useT } from '@repo/core/i18n'
 import { cn } from '@repo/core/utils'
 import { RedLight } from '@repo/ui/finish/red-light'
 import { AppShell } from '@repo/ui/sc/app-shell'
@@ -78,9 +79,12 @@ export function BackHeader({
   right?: ReactNode
   close?: boolean
 }) {
+  const t = useT()
   return (
-    <div className="flex items-center gap-2.5">
-      <Link href={back} aria-label={close ? 'Close' : 'Back'} className={cn(raised, 'grid size-10 shrink-0 place-items-center rounded-small')}>
+    // Wraps: a control on the right drops under a title too long to share
+    // its line (a long Tamil title is one word, which cannot break).
+    <div className="flex flex-wrap items-center gap-2.5">
+      <Link href={back} aria-label={close ? t('Close') : t('Back')} className={cn(raised, 'grid size-10 shrink-0 place-items-center rounded-small')}>
         {close ? (
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
             <path d="M6 6l12 12M18 6l-12 12" />
@@ -89,7 +93,7 @@ export function BackHeader({
           <IconChevronLeft size={20} aria-hidden />
         )}
       </Link>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-min flex-1">
         <h1 className="text-title font-semibold text-text-primary">{title}</h1>
         {sub && <p className="text-t4 text-[#A8A8B2]">{sub}</p>}
       </div>
@@ -98,7 +102,10 @@ export function BackHeader({
   )
 }
 
-/** All / Detlio / My own, and the other recessed switches (When, Payment). */
+/**
+ * All / Detlio / My own, and the other recessed switches (When, Payment).
+ * The label and each option's label are English (msg), translated here.
+ */
 export function Seg<V extends string>({
   label,
   value,
@@ -110,11 +117,12 @@ export function Seg<V extends string>({
   options: ReadonlyArray<{ value: V; label: string; count?: number }>
   onChange: (value: V) => void
 }) {
+  const t = useT()
   return (
-    <div role="group" aria-label={label} className="gb-seg fx-recessed">
+    <div role="group" aria-label={t(label)} className="gb-seg fx-recessed">
       {options.map((option) => (
         <button key={option.value} type="button" aria-pressed={option.value === value} onClick={() => onChange(option.value)}>
-          {option.label}
+          {t(option.label)}
           {option.count !== undefined && <span className="gb-n font-numeric font-semibold">{option.count}</span>}
         </button>
       ))}
@@ -163,14 +171,15 @@ export function JobCard({
   onOpen?: () => void
   drop?: boolean
 }) {
-  const status = job.source === 'own' && job.pending ? { text: 'Waiting to send · no signal', tone: 'owed' as const } : jobStatus(job)
+  const t = useT()
+  const status = job.source === 'own' && job.pending ? { text: t('Waiting to send · no signal'), tone: 'owed' as const } : jobStatus(job)
   const body = (
     <>
       <span className="w-12 shrink-0 font-numeric text-[17px] font-semibold leading-[22px] text-text-primary">{jobTime(job.scheduledAt)}</span>
       <span className="min-w-0 flex-1">
         <span className="flex items-center justify-between gap-2 text-t3 font-semibold text-text-primary">
           <span className="truncate">{job.name}</span>
-          {job.source === 'detlio' ? <Tag detlio /> : <Tag>Walk-in</Tag>}
+          {job.source === 'detlio' ? <Tag detlio /> : <Tag>{t('Walk-in')}</Tag>}
         </span>
         <span className="mt-0.5 block truncate text-t4 text-[#A8A8B2]">{jobLine(job)}</span>
         {status && <StatusLine {...status} />}
@@ -210,6 +219,7 @@ export function PickTile({ title, sub, on, onClick }: { title: string; sub: stri
   )
 }
 
+/** `label` is already translated. */
 export function Switch({ checked, onChange, label }: { checked: boolean; onChange: (next: boolean) => void; label: string }) {
   return (
     <button type="button" role="switch" aria-checked={checked} aria-label={label} onClick={() => onChange(!checked)} className="gb-switch fx-recessed">
@@ -250,13 +260,14 @@ export function Footnote({ children }: { children: ReactNode }) {
   return <p className="text-[12px] leading-[17px] text-[#A8A8B2]">{children}</p>
 }
 
-/** A failed load said plainly, with Try again. */
+/** A failed load said plainly, with Try again. `what` is already translated. */
 export function LoadFailed({ what, onRetry }: { what: string; onRetry: () => void }) {
+  const t = useT()
   return (
     <div className="fx-edge flex items-center justify-between gap-3 rounded-control px-4 py-3 text-t4 text-[#A8A8B2]">
-      <span>Couldn&apos;t load {what}.</span>
+      <span>{t("Couldn't load {what}.", { what })}</span>
       <button type="button" onClick={onRetry} className={cn(raised, 'h-10 rounded-small px-3 text-t4 font-semibold text-text-primary')}>
-        Try again
+        {t('Try again')}
       </button>
     </div>
   )

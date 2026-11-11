@@ -9,6 +9,7 @@ import { IconCalendar, IconHome, IconLayoutGrid, IconPlus, IconUsers, type IconP
 import { PressScale } from '@repo/native-ui/motion';
 import { T } from '@repo/native-ui/text';
 import { createStyles, useColors, useFinish } from '@repo/native-ui/theme';
+import { msg, useT } from '@repo/core/i18n';
 
 type Place = 'home' | 'jobs' | 'customers' | 'business';
 
@@ -46,6 +47,7 @@ function Tab({
   icon: (props: IconProps) => ReactElement;
   current: Place | null;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const { fx, scheme } = useFinish();
@@ -54,7 +56,7 @@ function Tab({
   return (
     <Pressable
       accessibilityRole="tab"
-      accessibilityLabel={label}
+      accessibilityLabel={t(label)}
       accessibilityState={{ selected: active }}
       onPress={() => {
         if (!active) router.navigate(href as Href);
@@ -70,8 +72,8 @@ function Tab({
           <Icon size={21} metal={silver} color={silver ? undefined : fx.quietBright} />
         </View>
       )}
-      <T variant="t5" weight={active ? 600 : 500} lh={11} color={active ? colors.textPrimary : silver ? '#B4B4BC' : fx.quietBright}>
-        {label}
+      <T variant="t5" numberOfLines={1} weight={active ? 600 : 500} lh={11} color={active ? colors.textPrimary : silver ? '#B4B4BC' : fx.quietBright}>
+        {t(label)}
       </T>
     </Pressable>
   );
@@ -83,6 +85,7 @@ function Tab({
  * (F), the others brushed silver (H); the pearl + adds a walk-in.
  */
 export function BookNav() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const ink = usePearlInk();
@@ -94,15 +97,15 @@ export function BookNav() {
       <LinearGradient pointerEvents="none" colors={[colors.scrimClear, colors.scrim]} style={styles.scrim} />
       <Glass radius={999} accessibilityRole="tablist" style={[styles.nav, { bottom: Math.max(NAV_GAP, insets.bottom) }]}>
         <View style={styles.row}>
-          <Tab place="home" href="/home" label="Home" icon={IconHome} current={current} />
-          <Tab place="jobs" href="/book/jobs" label="Jobs" icon={IconCalendar} current={current} />
-          <PressScale accessibilityRole="button" accessibilityLabel="Add a walk-in job" onPress={() => router.push('/book/new' as Href)}>
+          <Tab place="home" href="/home" label={msg('Home')} icon={IconHome} current={current} />
+          <Tab place="jobs" href="/book/jobs" label={msg('Jobs')} icon={IconCalendar} current={current} />
+          <PressScale accessibilityRole="button" accessibilityLabel={t('Add a walk-in job')} onPress={() => router.push('/book/new' as Href)}>
             <Pearl size={48}>
               <IconPlus size={20} color={ink} />
             </Pearl>
           </PressScale>
-          <Tab place="customers" href="/book/customers" label="Customers" icon={IconUsers} current={current} />
-          <Tab place="business" href="/book/business" label="Business" icon={IconLayoutGrid} current={current} />
+          <Tab place="customers" href="/book/customers" label={msg('Customers')} icon={IconUsers} current={current} />
+          <Tab place="business" href="/book/business" label={msg('Business')} icon={IconLayoutGrid} current={current} />
         </View>
       </Glass>
     </>
@@ -124,6 +127,7 @@ const useStyles = createStyles((c) => ({
     shadowRadius: 18,
   },
   row: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 10 },
-  tab: { minHeight: 48, minWidth: 56, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  // maxWidth: a longer Tamil label ends in an ellipsis rather than widening the tab.
+  tab: { minHeight: 48, minWidth: 52, maxWidth: 68, alignItems: 'center', justifyContent: 'center', gap: 2 },
   icon: { height: 30, alignItems: 'center', justifyContent: 'center' },
 }));

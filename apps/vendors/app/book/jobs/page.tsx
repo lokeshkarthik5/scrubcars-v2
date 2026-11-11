@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { IconCalendarEvent } from '@tabler/icons-react'
 import { useBookDay } from '@repo/core/api/hooks/use-garage-book'
 import { dayLabel, dayStrip, istDateKey, rupees, type BookFilter } from '@repo/core/garage-book'
+import { useT, useTn } from '@repo/core/i18n'
 import { cn } from '@repo/core/utils'
 import { RedLight } from '@repo/ui/finish/red-light'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
@@ -19,6 +20,8 @@ import { BookScreen, LoadFailed, Overline, raised } from '@/components/book/part
  * Upcoming, Completed, Cancelled) is still one tap away.
  */
 function JobsScreen() {
+  const t = useT()
+  const tn = useTn()
   const router = useRouter()
   const params = useSearchParams()
   const today = istDateKey(new Date())
@@ -30,14 +33,14 @@ function JobsScreen() {
   return (
     <BookScreen>
       <div className="flex items-center justify-between">
-        <h1 className="text-title font-semibold text-text-primary">Jobs</h1>
+        <h1 className="text-title font-semibold text-text-primary">{t('Jobs')}</h1>
         <Link href="/bookings" className={cn(raised, 'flex h-10 items-center gap-1.5 rounded-small px-3 text-t4 font-semibold text-text-primary')}>
           <IconCalendarEvent size={18} aria-hidden />
-          Detlio bookings
+          {t('Detlio bookings')}
         </Link>
       </div>
 
-      <div role="group" aria-label="Day" className="flex gap-1.5">
+      <div role="group" aria-label={t('Day')} className="flex gap-1.5">
         {dayStrip(today).map((d) => {
           const on = d.key === date
           return (
@@ -70,7 +73,7 @@ function JobsScreen() {
             return (
               <div className="flex items-baseline justify-between">
                 <Overline>
-                  {dayLabel(date)} · {shown.length} {shown.length === 1 ? 'job' : 'jobs'}
+                  {dayLabel(date)} · {tn(shown.length, '{count} job', '{count} jobs')}
                 </Overline>
                 {total !== null && shown.length > 0 && <span className="font-numeric text-t4 font-semibold text-[#A8A8B2]">{rupees(total)}</span>}
               </div>
@@ -78,7 +81,7 @@ function JobsScreen() {
           }}
         />
       ) : day.isError ? (
-        <LoadFailed what="the jobs" onRetry={() => void day.refetch()} />
+        <LoadFailed what={t('the jobs')} onRetry={() => void day.refetch()} />
       ) : (
         <SkeletonList count={4} itemClassName="h-20" />
       )}

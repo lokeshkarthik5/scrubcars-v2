@@ -7,6 +7,7 @@ import { useBookCustomers } from '@repo/core/api/hooks/use-garage-book'
 import type { BookCustomerRow } from '@repo/core/api/garage-book'
 import { carName, customerTag, plateText, type BookFilter } from '@repo/core/garage-book'
 import { useDebounced } from '@repo/core/hooks/use-debounced'
+import { msg, useT, useTn } from '@repo/core/i18n'
 import { cn } from '@repo/core/utils'
 import { NumberPlate } from '@repo/ui/finish/number-plate'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
@@ -19,6 +20,8 @@ import { BookScreen, Disc, Footnote, IconWell, LoadFailed, Seg, Tag, raised } fr
  * Detlio" and never show a phone number.
  */
 export default function CustomersPage() {
+  const t = useT()
+  const tn = useTn()
   const [filter, setFilter] = useState<BookFilter>('all')
   const [q, setQ] = useState('')
   const search = useDebounced(q.trim(), 250)
@@ -28,21 +31,21 @@ export default function CustomersPage() {
   return (
     <BookScreen>
       <h1 className="flex items-baseline gap-2 text-title font-semibold text-text-primary">
-        Customers
+        {t('Customers')}
         {data && <span className="font-numeric text-[16px] font-semibold text-[#A8A8B2]">{data.counts.all}</span>}
       </h1>
       <label className="fx-recessed flex h-12 items-center gap-2.5 rounded-control px-3.5">
         <IconSearch size={20} className="text-[#8E8E98]" aria-hidden />
-        <span className="sr-only">Search customers</span>
+        <span className="sr-only">{t('Search customers')}</span>
         <input
           type="search"
           value={q}
           onChange={(event) => setQ(event.target.value)}
-          placeholder="Name, phone or car number"
+          placeholder={t('Name, phone or car number')}
           className="min-w-0 flex-1 border-0 bg-transparent text-t3 text-text-primary outline-none placeholder:text-[#8A8A94]"
         />
       </label>
-      <Seg<BookFilter> label="Show customers" value={filter} options={FILTERS(data?.counts)} onChange={setFilter} />
+      <Seg<BookFilter> label={msg('Show customers')} value={filter} options={FILTERS(data?.counts)} onChange={setFilter} />
 
       {data && data.dueCount > 0 && (
         <div className="fx-edge flex items-center gap-3 rounded-surface px-3.5 py-3">
@@ -51,12 +54,12 @@ export default function CustomersPage() {
           </IconWell>
           <div className="min-w-0 flex-1">
             <p className="text-t3 font-semibold text-text-primary">
-              {data.dueCount} {data.dueCount === 1 ? 'customer is' : 'customers are'} due
+              {tn(data.dueCount, '{count} customer is due', '{count} customers are due')}
             </p>
-            <p className="mt-0.5 text-[12px] text-[#A8A8B2]">Remind them from your own WhatsApp</p>
+            <p className="mt-0.5 text-[12px] text-[#A8A8B2]">{t('Remind them from your own WhatsApp')}</p>
           </div>
           <Link href="/book/reminders" className={cn(raised, 'flex h-10 shrink-0 items-center rounded-small px-3 text-t4 font-semibold text-text-primary')}>
-            Remind
+            {t('Remind')}
           </Link>
         </div>
       )}
@@ -64,7 +67,11 @@ export default function CustomersPage() {
       {data ? (
         data.customers.length === 0 ? (
           <p className="fx-edge rounded-control px-4 py-4 text-t4 text-[#A8A8B2]">
-            {search ? 'No one matches that.' : filter === 'detlio' ? 'No Detlio customers yet.' : 'No customers yet. Add a walk-in with + and they’re here.'}
+            {search
+              ? t('No one matches that.')
+              : filter === 'detlio'
+                ? t('No Detlio customers yet.')
+                : t('No customers yet. Add a walk-in with + and they’re here.')}
           </p>
         ) : (
           <ul className="flex flex-col">
@@ -74,24 +81,26 @@ export default function CustomersPage() {
           </ul>
         )
       ) : list.isError ? (
-        <LoadFailed what="your customers" onRetry={() => void list.refetch()} />
+        <LoadFailed what={t('your customers')} onRetry={() => void list.refetch()} />
       ) : (
         <SkeletonList count={5} itemClassName="h-16" />
       )}
 
       <Footnote>
-        Customers you bring in are yours, and Detlio never shows them to other garages. Detlio customers show without a phone
-        number; tap Remind and Detlio sends it in the Detlio app.
+        {t(
+          'Customers you bring in are yours, and Detlio never shows them to other garages. Detlio customers show without a phone number; tap Remind and Detlio sends it in the Detlio app.'
+        )}
       </Footnote>
     </BookScreen>
   )
 }
 
 function CustomerRow({ row }: { row: BookCustomerRow }) {
+  const t = useT()
   const tag = customerTag(row)
   const car = row.cars[0]
   const plate = plateText(car?.plate)
-  const sub = row.cars.length > 1 ? `${row.cars.length} cars` : car ? car.model || carName(car) : ''
+  const sub = row.cars.length > 1 ? t('{count} cars', { count: row.cars.length }) : car ? car.model || carName(car) : ''
   return (
     <li>
       <Link href={`/book/customers/${encodeURIComponent(row.id)}`} className="flex items-center gap-3 border-b border-[#1d1d23] py-3">

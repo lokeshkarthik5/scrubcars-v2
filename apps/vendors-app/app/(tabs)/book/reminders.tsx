@@ -1,6 +1,7 @@
 import type { ReminderEntry } from '@repo/core/api/garage-book';
 import { useBookReminders, useSaveReminderMessage, useSendReminder } from '@repo/core/api/hooks/use-garage-book';
 import { carName, fillReminder, GARAGE_BOOK_LIMITS, messageRefusal, reminderReason } from '@repo/core/garage-book';
+import { msg, useT } from '@repo/core/i18n';
 import { useState } from 'react';
 import { Pressable, TextInput, View } from 'react-native';
 
@@ -20,29 +21,31 @@ type View_ = 'today' | 'week' | 'rules';
 
 /** Reminders (S4; the web's app/book/reminders/page.tsx). */
 function RemindersScreen() {
+  const t = useT();
   const [view, setView] = useState<View_>('today');
   const reminders = useBookReminders();
   const send = useSendReminder();
+  // Filled into the message the customer gets, which stays English.
   const garage = useAuth((s) => s.vendor?.businessName) ?? 'your garage';
   const data = reminders.data;
   const list = data ? (view === 'week' ? data.week : data.due) : [];
   const example = data?.due[0] ?? data?.week[0];
   return (
     <BookScreen>
-      <BackHeader title="Reminders" />
+      <BackHeader title={t('Reminders')} />
       <Seg<View_>
-        label="Show reminders"
+        label={msg('Show reminders')}
         value={view}
         onChange={setView}
         options={[
-          { value: 'today', label: 'Today', count: data?.due.filter((r) => !r.sentAt).length },
-          { value: 'week', label: 'This week', count: data?.week.length },
-          { value: 'rules', label: 'Rules' },
+          { value: 'today', label: msg('Today'), count: data?.due.filter((r) => !r.sentAt).length },
+          { value: 'week', label: msg('This week'), count: data?.week.length },
+          { value: 'rules', label: msg('Rules') },
         ]}
       />
       {!data ? (
         reminders.isError ? (
-          <LoadError what="reminders" onRetry={() => void reminders.refetch()} />
+          <LoadError what={t('reminders')} onRetry={() => void reminders.refetch()} />
         ) : (
           <SkeletonList count={4} height={64} />
         )
@@ -52,14 +55,14 @@ function RemindersScreen() {
         <>
           <Pressable accessibilityRole="button" onPress={() => setView('rules')}>
             <Edge radius={22} innerStyle={{ paddingHorizontal: 16, paddingVertical: 14 }}>
-              <Overline>The message · you can edit it</Overline>
+              <Overline>{t('The message · you can edit it')}</Overline>
               <T size={14} lh={21} style={{ marginTop: 6 }}>
                 {fillReminder(data.message, { name: example?.name ?? 'Suresh', car: carName(example?.car) || null, garage, phone: null })}
               </T>
             </Edge>
           </Pressable>
           {list.length === 0 ? (
-            <Empty>{view === 'week' ? 'No one comes due this week.' : 'No one is due today.'}</Empty>
+            <Empty>{view === 'week' ? t('No one comes due this week.') : t('No one is due today.')}</Empty>
           ) : (
             <View>
               {list.map((entry) => (
@@ -73,8 +76,9 @@ function RemindersScreen() {
             </View>
           )}
           <Footnote>
-            WhatsApp opens on your phone with the message ready, and you press Send. Free. Detlio customers get your reminder as a Detlio app notification,
-            also free.
+            {t(
+              'WhatsApp opens on your phone with the message ready, and you press Send. Free. Detlio customers get your reminder as a Detlio app notification, also free.'
+            )}
           </Footnote>
         </>
       )}
@@ -83,6 +87,7 @@ function RemindersScreen() {
 }
 
 function ReminderRow({ entry, busy, onSend }: { entry: ReminderEntry; busy: boolean; onSend: () => void }) {
+  const t = useT();
   const styles = useStyles();
   const colors = useColors();
   return (
@@ -101,13 +106,13 @@ function ReminderRow({ entry, busy, onSend }: { entry: ReminderEntry; busy: bool
       {entry.sentAt ? (
         <Raised radius={12} style={styles.button} innerStyle={styles.sent}>
           <T size={13} weight={600}>
-            Sent ✓
+            {t('Sent ✓')}
           </T>
           <RedLight width={28} style={{ marginTop: 3 }} />
         </Raised>
       ) : (
         <RaisedButton
-          label={!entry.canSend ? 'No mobile' : entry.channel === 'whatsapp' ? 'WhatsApp' : 'Via Detlio'}
+          label={!entry.canSend ? t('No mobile') : entry.channel === 'whatsapp' ? 'WhatsApp' : t('Via Detlio')}
           height={40}
           radius={12}
           disabled={!entry.canSend || busy}
@@ -120,6 +125,7 @@ function ReminderRow({ entry, busy, onSend }: { entry: ReminderEntry; busy: bool
 }
 
 function Rules({ message, interval }: { message: string; interval: number }) {
+  const t = useT();
   const styles = useStyles();
   const colors = useColors();
   const [text, setText] = useState(message);
@@ -131,11 +137,11 @@ function Rules({ message, interval }: { message: string; interval: number }) {
   return (
     <View style={{ gap: 12 }}>
       <T variant="t4" weight={600} color="#D4D4DA">
-        The message
+        {t('The message')}
       </T>
       <Recessed radius={18} innerStyle={styles.messageBox}>
         <TextInput
-          accessibilityLabel="The message"
+          accessibilityLabel={t('The message')}
           multiline
           maxLength={GARAGE_BOOK_LIMITS.messageMax}
           value={text}
@@ -143,25 +149,32 @@ function Rules({ message, interval }: { message: string; interval: number }) {
           style={[styles.message, { color: colors.textPrimary }]}
         />
       </Recessed>
-      <Footnote>{'{name} becomes their first name, {car} their car, {garage} your garage and {phone} your number. No links.'}</Footnote>
+      <Footnote>
+        {t('{name} becomes their first name, {car} their car, {garage} your garage and {phone} your number. No links.', {
+          name: '{name}',
+          car: '{car}',
+          garage: '{garage}',
+          phone: '{phone}',
+        })}
+      </Footnote>
       {refusal && text.trim() !== '' ? (
         <T size={12} weight={600} color="#FF8A95">
           {refusal}
         </T>
       ) : null}
       <T variant="t4" weight={600} color="#D4D4DA">
-        Remind to wash again after (days)
+        {t('Remind to wash again after (days)')}
       </T>
-      <BookInput value={days} onChangeText={(t) => setDays(t.replace(/\D/g, '').slice(0, 3))} keyboardType="number-pad" accessibilityLabel="Days" style={{ width: 112 }} />
+      <BookInput value={days} onChangeText={(text) => setDays(text.replace(/\D/g, '').slice(0, 3))} keyboardType="number-pad" accessibilityLabel={t('Days')} style={{ width: 112 }} />
       <RaisedButton
-        label={save.isPending ? 'Saving…' : 'Save'}
+        label={save.isPending ? t('Saving…') : t('Save')}
         disabled={Boolean(refusal) || !daysOk || save.isPending}
         onPress={() =>
           save.mutate(
             { message: text.trim(), defaultIntervalDays: daysNumber },
             {
-              onSuccess: () => toast.success('Saved'),
-              onError: (error) => toast.error(error instanceof Error ? error.message : "Couldn't save. Try again."),
+              onSuccess: () => toast.success(t('Saved')),
+              onError: (error) => toast.error(error instanceof Error ? error.message : t("Couldn't save. Try again.")),
             }
           )
         }

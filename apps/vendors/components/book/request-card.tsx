@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { formatINR, formatClock, formatWhen } from '@repo/core/format'
 import { useIsVendorAdmin } from '@repo/core/hooks/use-vendor-role'
+import { fill, useT } from '@repo/core/i18n'
 import { answerByRing } from '@repo/core/moments'
 import type { Booking } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
@@ -20,6 +21,7 @@ import { Overline, raised } from './parts'
  * Bookings › New. Money is the owner's.
  */
 export function RequestCard({ booking: b, now, more, onChanged }: { booking: Booking; now: number; more: number; onChanged: () => void }) {
+  const t = useT()
   const [declining, setDeclining] = useState(false)
   const accepting = useDeferredStatus(b.id) === 'confirmed'
   const isOwner = useIsVendorAdmin()
@@ -27,13 +29,13 @@ export function RequestCard({ booking: b, now, more, onChanged }: { booking: Boo
   const what = [serviceOnlyLine(b), b.customerName, b.vehicle?.model].filter(Boolean).join(' · ')
   const label =
     ring.minutesLeft !== null
-      ? `${ring.minutesLeft} minutes left to answer`
+      ? t('{minutes} minutes left to answer', { minutes: ring.minutesLeft })
       : b.responseDeadline
-        ? `Answer by ${formatClock(b.responseDeadline.respondBy)}`
-        : 'New request'
+        ? t('Answer by {time}', { time: formatClock(b.responseDeadline.respondBy) })
+        : t('New request')
 
   return (
-    <section aria-label="New Detlio request" className="fx-edge flex flex-col gap-3.5 rounded-surface px-4 pt-3.5 pb-4">
+    <section aria-label={t('New Detlio request')} className="fx-edge flex flex-col gap-3.5 rounded-surface px-4 pt-3.5 pb-4">
       <div className="flex items-center gap-3.5">
         <div role="img" aria-label={label} className="relative size-[52px] shrink-0">
           <svg width="52" height="52" viewBox="0 0 52 52" className="-rotate-90" aria-hidden>
@@ -52,12 +54,17 @@ export function RequestCard({ booking: b, now, more, onChanged }: { booking: Boo
               strokeDashoffset={1 - ring.fraction}
             />
           </svg>
-          <span className="absolute inset-0 grid place-items-center font-numeric text-[14px] font-semibold text-text-primary">
-            {ring.minutesLeft !== null ? `${ring.minutesLeft}m` : 'New'}
+          <span
+            className={cn(
+              'absolute inset-0 grid place-items-center font-numeric font-semibold text-text-primary',
+              ring.minutesLeft === null && t('New').length > 4 ? 'text-[10px]' : 'text-[14px]'
+            )}
+          >
+            {ring.minutesLeft !== null ? t('{minutes}m', { minutes: ring.minutesLeft }) : t('New')}
           </span>
         </div>
         <Link href={`/bookings/${b.id}`} className="min-w-0 flex-1">
-          <Overline tone="red">New Detlio request</Overline>
+          <Overline tone="red">{t('New Detlio request')}</Overline>
           <p className="mt-1 truncate text-t2 font-semibold text-text-primary">{formatWhen(b.scheduledAtIso, now)}</p>
           <p className="mt-0.5 truncate text-t4 text-[#A8A8B2]">{what}</p>
         </Link>
@@ -65,7 +72,7 @@ export function RequestCard({ booking: b, now, more, onChanged }: { booking: Boo
       </div>
       <div className="grid grid-cols-2 gap-2">
         <button type="button" onClick={() => setDeclining(true)} disabled={accepting} className={cn(raised, 'h-12 rounded-control text-t3 font-semibold text-text-primary')}>
-          Decline
+          {t('Decline')}
         </button>
         <button
           type="button"
@@ -73,12 +80,12 @@ export function RequestCard({ booking: b, now, more, onChanged }: { booking: Boo
           disabled={accepting}
           className="fx-red-button fx-press h-12 rounded-control text-t3 font-semibold"
         >
-          {accepting ? 'Accepting…' : 'Accept'}
+          {accepting ? t('Accepting…') : t('Accept')}
         </button>
       </div>
       {more > 0 && (
         <Link href="/bookings?tab=new" className="text-center text-t4 font-medium text-[#A8A8B2]">
-          See all <span className="font-numeric">{more + 1}</span> new requests
+          {fill(t('See all {count} new requests'), { count: <span className="font-numeric">{more + 1}</span> })}
         </Link>
       )}
       <RejectBookingSheet booking={b} open={declining} onClose={() => setDeclining(false)} onDone={onChanged} />

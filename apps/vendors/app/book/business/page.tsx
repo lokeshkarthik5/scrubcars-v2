@@ -17,6 +17,7 @@ import { downloadBook } from '@repo/core/api/garage-book'
 import { useBookOwed, useBookReminders, useBookServices, useBookStats } from '@repo/core/api/hooks/use-garage-book'
 import { monthName, rupees } from '@repo/core/garage-book'
 import { useIsVendorAdmin } from '@repo/core/hooks/use-vendor-role'
+import { useT, useTn } from '@repo/core/i18n'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { cn } from '@repo/core/utils'
 import { BookScreen, IconWell, Overline, raised } from '@/components/book/parts'
@@ -32,8 +33,11 @@ type Icon = ComponentType<{ size?: number; className?: string; stroke?: string |
  * the tools that carry no money.
  */
 export default function BusinessPage() {
+  const t = useT()
+  const tn = useTn()
   const isOwner = useIsVendorAdmin()
-  const garage = useAuthStore((s) => s.vendor?.businessName) ?? 'your garage'
+  const businessName = useAuthStore((s) => s.vendor?.businessName)
+  const garage = businessName ?? t('your garage')
   const now = new Date()
   const stats = useBookStats(undefined, 'all', isOwner)
   const owed = useBookOwed(isOwner)
@@ -49,11 +53,11 @@ export default function BusinessPage() {
       const url = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }))
       const link = document.createElement('a')
       link.href = url
-      link.download = `${garage.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-book.xlsx`
+      link.download = `${(businessName ?? 'your garage').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-book.xlsx`
       link.click()
       setTimeout(() => URL.revokeObjectURL(url), 10_000)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Couldn't download your book. Try again.")
+      toast.error(error instanceof Error ? error.message : t("Couldn't download your book. Try again."))
     } finally {
       setDownloading(false)
     }
@@ -61,14 +65,18 @@ export default function BusinessPage() {
 
   const tools: Array<{ group: string; items: Array<{ icon: Icon; title: string; line: string; href: string; tone?: string }> }> = [
     {
-      group: 'Money and customers',
+      group: t('Money and customers'),
       items: [
         ...(isOwner
           ? [
               {
                 icon: IconBook,
-                title: 'Money owed',
-                line: owed.data ? (owed.data.totalPaise > 0 ? `${rupees(owed.data.totalPaise)} · ${owed.data.customers.length} ${owed.data.customers.length === 1 ? 'customer' : 'customers'}` : 'No one owes you') : ' ',
+                title: t('Money owed'),
+                line: owed.data
+                  ? owed.data.totalPaise > 0
+                    ? `${rupees(owed.data.totalPaise)} · ${tn(owed.data.customers.length, '{count} customer', '{count} customers')}`
+                    : t('No one owes you')
+                  : ' ',
                 href: '/book/owed',
                 tone: owed.data && owed.data.totalPaise > 0 ? 'text-[#FF8A95]' : undefined,
               },
@@ -76,36 +84,36 @@ export default function BusinessPage() {
           : []),
         {
           icon: IconBell,
-          title: 'Reminders',
-          line: dueToday === undefined ? ' ' : dueToday > 0 ? `${dueToday} due today` : 'No one due today',
+          title: t('Reminders'),
+          line: dueToday === undefined ? ' ' : dueToday > 0 ? t('{count} due today', { count: dueToday }) : t('No one due today'),
           href: '/book/reminders',
           tone: dueToday ? 'text-[#F5A524]' : undefined,
         },
-        ...(isOwner ? [{ icon: IconStar, title: 'Reviews', line: 'Your rating and replies', href: '/reviews' }] : []),
+        ...(isOwner ? [{ icon: IconStar, title: t('Reviews'), line: t('Your rating and replies'), href: '/reviews' }] : []),
       ],
     },
     ...(isOwner
       ? [
           {
-            group: 'With Detlio',
+            group: t('With Detlio'),
             items: [
-              { icon: IconBuildingBank, title: 'Payouts', line: 'Earnings and payouts', href: '/earnings' },
-              { icon: IconTool, title: 'Services & prices', line: services.data ? `${services.data.filter((s) => !s.isAddon).length} services` : ' ', href: '/services' },
+              { icon: IconBuildingBank, title: t('Payouts'), line: t('Earnings and payouts'), href: '/earnings' },
+              { icon: IconTool, title: t('Services & prices'), line: services.data ? t('{count} services', { count: services.data.filter((s) => !s.isAddon).length }) : ' ', href: '/services' },
             ],
           },
         ]
-      : [{ group: 'You', items: [{ icon: IconUser, title: 'Your account', line: 'Leave, log out', href: '/account' }] }]),
+      : [{ group: t('You'), items: [{ icon: IconUser, title: t('Your account'), line: t('Leave, log out'), href: '/account' }] }]),
   ]
 
   return (
     <BookScreen className="gap-5">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-title font-semibold text-text-primary">Business</h1>
-          <p className="text-t4 text-[#A8A8B2]">Everything to run {garage}</p>
+          <h1 className="text-title font-semibold text-text-primary">{t('Business')}</h1>
+          <p className="text-t4 text-[#A8A8B2]">{t('Everything to run {garage}', { garage })}</p>
         </div>
         {isOwner && (
-          <Link href="/settings" aria-label="Settings" className={cn(raised, 'hub-tab grid size-10 shrink-0 place-items-center rounded-small')}>
+          <Link href="/settings" aria-label={t('Settings')} className={cn(raised, 'hub-tab grid size-10 shrink-0 place-items-center rounded-small')}>
             <IconSettings size={20} aria-hidden />
           </Link>
         )}
@@ -114,12 +122,15 @@ export default function BusinessPage() {
       {isOwner && (
         <Link href="/book/stats" className="fx-edge fx-press flex items-center gap-3 rounded-surface p-4">
           <span className="min-w-0 flex-1">
-            <Overline>Stats · {monthName(stats.data?.month ?? now.toISOString().slice(0, 7), now)}</Overline>
+            <Overline>{t('Stats · {month}', { month: monthName(stats.data?.month ?? now.toISOString().slice(0, 7), now) })}</Overline>
             <span className="mt-0.5 block font-numeric text-[28px] font-semibold leading-9 text-text-primary">{stats.data ? rupees(stats.data.takenPaise) : '–'}</span>
             <span className="block text-[12px] text-[#A8A8B2]">
               {stats.data?.changePercent !== null && stats.data?.changePercent !== undefined
-                ? `${stats.data.changePercent >= 0 ? '↑' : '↓'} ${Math.abs(stats.data.changePercent)}% on last month, same days`
-                : 'Your own and Detlio, this month'}
+                ? t('{arrow} {percent}% on last month, same days', {
+                    arrow: stats.data.changePercent >= 0 ? '↑' : '↓',
+                    percent: Math.abs(stats.data.changePercent),
+                  })
+                : t('Your own and Detlio, this month')}
             </span>
           </span>
           {stats.data && <Spark counts={stats.data.busiestDays} />}
@@ -150,8 +161,8 @@ export default function BusinessPage() {
       {isOwner && (
         <button type="button" onClick={download} disabled={downloading} className={cn(raised, 'flex items-center gap-3 rounded-control px-3.5 py-3 text-left')}>
           <span className="flex-1">
-            <span className="block text-t3 font-semibold text-text-primary">{downloading ? 'Getting your book…' : 'Download my book'}</span>
-            <span className="block text-[12px] text-[#A8A8B2]">Customers, jobs and money as Excel</span>
+            <span className="block text-t3 font-semibold text-text-primary">{downloading ? t('Getting your book…') : t('Download my book')}</span>
+            <span className="block text-[12px] text-[#A8A8B2]">{t('Customers, jobs and money as Excel')}</span>
           </span>
           <IconChevronRight size={20} className="text-[#8E8E98]" aria-hidden />
         </button>

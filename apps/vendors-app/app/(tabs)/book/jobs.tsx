@@ -1,5 +1,6 @@
 import { useBookDay } from '@repo/core/api/hooks/use-garage-book';
 import { dayLabel, dayStrip, istDateKey, rupees, type BookFilter } from '@repo/core/garage-book';
+import { useT, useTn } from '@repo/core/i18n';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 
@@ -17,6 +18,8 @@ import { useWaitingWalkIns } from '@/lib/book-offline';
 
 /** Jobs (S2; the web's app/book/jobs/page.tsx): a day strip, the filter, every job of the day. */
 function JobsScreen() {
+  const t = useT();
+  const tn = useTn();
   const styles = useStyles();
   const colors = useColors();
   const today = istDateKey(new Date());
@@ -29,11 +32,11 @@ function JobsScreen() {
     <BookScreen>
       <View style={styles.head}>
         <T accessibilityRole="header" variant="title">
-          Jobs
+          {t('Jobs')}
         </T>
-        <RaisedButton label="Detlio bookings" height={40} radius={12} icon={<IconCalendarEvent size={18} />} onPress={() => go('/bookings')} />
+        <RaisedButton label={t('Detlio bookings')} height={40} radius={12} icon={<IconCalendarEvent size={18} />} onPress={() => go('/bookings')} />
       </View>
-      <View accessibilityLabel="Day" style={styles.strip}>
+      <View accessibilityLabel={t('Day')} style={styles.strip}>
         {dayStrip(today).map((d) => {
           const on = d.key === date;
           return (
@@ -64,7 +67,7 @@ function JobsScreen() {
             }, 0);
             return (
               <View style={styles.summary}>
-                <Overline>{`${dayLabel(date)} · ${shown.length} ${shown.length === 1 ? 'job' : 'jobs'}`}</Overline>
+                <Overline>{`${dayLabel(date)} · ${tn(shown.length, '{count} job', '{count} jobs')}`}</Overline>
                 {total !== null && shown.length > 0 ? (
                   <T num size={13} weight={600} color={colors.textSecondary}>
                     {rupees(total) ?? ''}
@@ -75,7 +78,7 @@ function JobsScreen() {
           }}
         />
       ) : day.isError ? (
-        <LoadError what="the jobs" onRetry={() => void day.refetch()} />
+        <LoadError what={t('the jobs')} onRetry={() => void day.refetch()} />
       ) : (
         <SkeletonList count={4} height={80} />
       )}

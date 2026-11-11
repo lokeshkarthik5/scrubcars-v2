@@ -25,20 +25,21 @@ import {
 } from '@repo/core/garage-book'
 import { useDebounced } from '@repo/core/hooks/use-debounced'
 import { useIsVendorAdmin } from '@repo/core/hooks/use-vendor-role'
+import { msg, useT, useTn } from '@repo/core/i18n'
 import { RedLight } from '@repo/ui/finish/red-light'
 import { NumberPlate } from '@repo/ui/finish/number-plate'
 import { BackHeader, BookScreen, Disc, Footnote, PickTile, Seg, Switch } from '@/components/book/parts'
 
 const WHEN = [
-  { value: 'now', label: 'Now' },
-  { value: 'later', label: 'Later today' },
-  { value: 'pick', label: 'Pick a time' },
+  { value: 'now', label: msg('Now') },
+  { value: 'later', label: msg('Later today') },
+  { value: 'pick', label: msg('Pick a time') },
 ] as const
 
 const PAYMENTS = [
   { value: 'upi', label: 'UPI' },
-  { value: 'cash', label: 'Cash' },
-  { value: 'later', label: 'Pay later' },
+  { value: 'cash', label: msg('Cash') },
+  { value: 'later', label: msg('Pay later') },
 ] as const
 
 function subscribeOnline(onChange: () => void) {
@@ -63,6 +64,8 @@ function useOnline() {
  * saving; the app saves on the phone instead.
  */
 function NewWalkInScreen() {
+  const t = useT()
+  const tn = useTn()
   const router = useRouter()
   const params = useSearchParams()
   const isOwner = useIsVendorAdmin()
@@ -121,7 +124,7 @@ function NewWalkInScreen() {
 
   const save = () => {
     if (!online) {
-      toast.error('No signal. Save it when you are back online.')
+      toast.error(t('No signal. Save it when you are back online.'))
       return
     }
     const timing = walkInTime(when, new Date(), when === 'pick' ? time : null)
@@ -148,21 +151,21 @@ function NewWalkInScreen() {
     }
     add.mutate(input, {
       onSuccess: (job) => router.push(`/home?added=${job.id}`),
-      onError: (error) => toast.error(error instanceof Error ? error.message : "Couldn't save the job. Try again."),
+      onError: (error) => toast.error(error instanceof Error ? error.message : t("Couldn't save the job. Try again.")),
     })
   }
 
   return (
     <BookScreen nav={false} className="gap-[18px] pb-32">
       <BackHeader
-        title="New walk-in job"
+        title={t('New walk-in job')}
         back="/home"
         close
         right={
           !online && (
             <span className="gb-tag-o h-[26px] gap-1.5 text-[#F5C46B]">
               <span className="size-1.5 rounded-full bg-[#F5A524]" />
-              No signal
+              {t('No signal')}
             </span>
           )
         }
@@ -170,7 +173,7 @@ function NewWalkInScreen() {
 
       <div className="flex flex-col gap-2">
         <label htmlFor="walkin-who" className="text-t4 font-semibold text-[#D4D4DA]">
-          Number plate or phone
+          {t('Number plate or phone')}
         </label>
         <div className="fx-recessed flex h-[52px] items-center gap-2.5 rounded-control px-3">
           {plateText(typed) && !looksLikePhone && /\d/.test(typed) && <NumberPlate plate={typed} size="sm" />}
@@ -182,7 +185,7 @@ function NewWalkInScreen() {
               setChosen(null)
               setCleared(true)
             }}
-            placeholder="TN 09 AB 4521 or 98400 12345"
+            placeholder={t('TN 09 AB 4521 or 98400 12345')}
             autoComplete="off"
             className="min-w-0 flex-1 border-0 bg-transparent text-t3 text-text-primary outline-none placeholder:text-[#8A8A94]"
           />
@@ -202,17 +205,17 @@ function NewWalkInScreen() {
           typed.trim().length >= 3 && (
             <div className="grid grid-cols-2 gap-2">
               <input
-                aria-label="Customer's name"
+                aria-label={t("Customer's name")}
                 value={name}
                 onChange={(event) => setName(event.target.value)}
-                placeholder="Customer's name"
+                placeholder={t("Customer's name")}
                 className="fx-recessed h-12 min-w-0 rounded-control px-3 text-t3 text-text-primary outline-none placeholder:text-[#8A8A94]"
               />
               <input
-                aria-label="Car"
+                aria-label={t('Car')}
                 value={car}
                 onChange={(event) => setCar(event.target.value)}
-                placeholder="Car (Hyundai Creta)"
+                placeholder={t('Car (Hyundai Creta)')}
                 className="fx-recessed h-12 min-w-0 rounded-control px-3 text-t3 text-text-primary outline-none placeholder:text-[#8A8A94]"
               />
             </div>
@@ -221,34 +224,34 @@ function NewWalkInScreen() {
       </div>
 
       <div className="flex flex-col gap-2">
-        <span className="text-t4 font-semibold text-[#D4D4DA]">Services, from your price list</span>
+        <span className="text-t4 font-semibold text-[#D4D4DA]">{t('Services, from your price list')}</span>
         <div className="grid grid-cols-2 gap-2">
           {(services.data ?? []).map((service) => (
             <PickTile
               key={service.id}
               title={service.name}
-              sub={[rupees(service.pricePaise), service.durationMins ? `${service.durationMins} min` : null].filter(Boolean).join(' · ')}
+              sub={[rupees(service.pricePaise), service.durationMins ? t('{mins} min', { mins: service.durationMins }) : null].filter(Boolean).join(' · ')}
               on={picked.includes(service.id)}
               onClick={() => setPicked((list) => (list.includes(service.id) ? list.filter((id) => id !== service.id) : [...list, service.id]))}
             />
           ))}
-          <PickTile title="+ Other" sub="Type a job and price" on={other !== null} onClick={() => setOther((value) => (value ? null : { label: '', rupees: '' }))} />
+          <PickTile title={t('+ Other')} sub={t('Type a job and price')} on={other !== null} onClick={() => setOther((value) => (value ? null : { label: '', rupees: '' }))} />
         </div>
         {other && (
           <div className="grid grid-cols-[1fr_120px] gap-2">
             <input
-              aria-label="The job"
+              aria-label={t('The job')}
               value={other.label}
               onChange={(event) => setOther({ ...other, label: event.target.value })}
-              placeholder="Headlight polish"
+              placeholder={t('Headlight polish')}
               className="fx-recessed h-12 min-w-0 rounded-control px-3 text-t3 text-text-primary outline-none placeholder:text-[#8A8A94]"
             />
             <input
-              aria-label="Price in rupees"
+              aria-label={t('Price in rupees')}
               inputMode="numeric"
               value={other.rupees}
               onChange={(event) => setOther({ ...other, rupees: event.target.value.replace(/[^\d.]/g, '') })}
-              placeholder="₹ price"
+              placeholder={t('₹ price')}
               className="fx-recessed h-12 min-w-0 rounded-control px-3 font-numeric text-t3 text-text-primary outline-none placeholder:text-[#8A8A94]"
             />
           </div>
@@ -256,12 +259,12 @@ function NewWalkInScreen() {
       </div>
 
       <div className="flex flex-col gap-2">
-        <span className="text-t4 font-semibold text-[#D4D4DA]">When</span>
-        <Seg<WhenChoice> label="When" value={when} options={WHEN} onChange={setWhen} />
+        <span className="text-t4 font-semibold text-[#D4D4DA]">{t('When')}</span>
+        <Seg<WhenChoice> label={msg('When')} value={when} options={WHEN} onChange={setWhen} />
         {when === 'pick' && (
           <input
             type="time"
-            aria-label="Time"
+            aria-label={t('Time')}
             value={time}
             onChange={(event) => setTime(event.target.value)}
             className="fx-recessed h-12 rounded-control px-3 font-numeric text-t3 text-text-primary outline-none"
@@ -270,28 +273,30 @@ function NewWalkInScreen() {
       </div>
 
       <div className="flex flex-col gap-2">
-        <span className="text-t4 font-semibold text-[#D4D4DA]">Payment</span>
-        <Seg<JobPayment> label="Payment" value={payment} options={PAYMENTS} onChange={setPayment} />
+        <span className="text-t4 font-semibold text-[#D4D4DA]">{t('Payment')}</span>
+        <Seg<JobPayment> label={msg('Payment')} value={payment} options={PAYMENTS} onChange={setPayment} />
       </div>
 
       <div className="fx-edge flex items-center gap-3 rounded-control px-3.5 py-3">
         <span className="min-w-0 flex-1">
-          <span className="block text-t3 font-semibold text-text-primary">Remind to wash again</span>
-          <span className="block text-[12px] text-[#A8A8B2]">{remind ? `${remindLine(interval, new Date())} · from your WhatsApp` : 'Off for this job'}</span>
+          <span className="block text-t3 font-semibold text-text-primary">{t('Remind to wash again')}</span>
+          <span className="block text-[12px] text-[#A8A8B2]">{remind ? t('{when} · from your WhatsApp', { when: remindLine(interval, new Date()) }) : t('Off for this job')}</span>
         </span>
-        <Switch checked={remind} onChange={setRemind} label="Remind to wash again" />
+        <Switch checked={remind} onChange={setRemind} label={t('Remind to wash again')} />
       </div>
 
       <Footnote>
         {online
-          ? 'Saved jobs show on Today straight away. Walk-ins never change your Detlio slots.'
-          : 'No signal: the website can’t save without the internet. The Detlio for Garages app saves it on your phone and sends it later.'}
+          ? t('Saved jobs show on Today straight away. Walk-ins never change your Detlio slots.')
+          : t('No signal: the website can’t save without the internet. The Detlio for Garages app saves it on your phone and sends it later.')}
       </Footnote>
 
       <div className="fx-glass fixed bottom-0 left-1/2 z-50 flex w-full max-w-[428px] -translate-x-1/2 items-center gap-3 rounded-none border-x-0 border-b-0 px-4 pt-3 pb-[calc(16px+env(safe-area-inset-bottom))]">
         <span className="min-w-0 flex-1">
           <span className="block text-over font-semibold uppercase text-[#8E8E98]">
-            {isOwner ? `Total · ${count} ${count === 1 ? 'service' : 'services'}` : `${count} ${count === 1 ? 'service' : 'services'}`}
+            {isOwner
+              ? t('Total · {services}', { services: tn(count, '{count} service', '{count} services') })
+              : tn(count, '{count} service', '{count} services')}
           </span>
           {isOwner && <span className="font-numeric text-[22px] font-semibold text-text-primary">{rupees(totalPaise)}</span>}
         </span>
@@ -301,7 +306,7 @@ function NewWalkInScreen() {
           disabled={!ready || add.isPending || !online}
           className="fx-red-button fx-press h-[52px] rounded-control px-7 text-t3 font-semibold"
         >
-          {add.isPending ? 'Saving…' : 'Save job'}
+          {add.isPending ? t('Saving…') : t('Save job')}
         </button>
       </div>
     </BookScreen>
@@ -309,6 +314,8 @@ function NewWalkInScreen() {
 }
 
 function CustomerMatch({ row, chosen, onPick }: { row: BookCustomerRow; chosen: boolean; onPick: () => void }) {
+  const t = useT()
+  const tn = useTn()
   const firstCar = row.cars[0]
   return (
     <button type="button" aria-pressed={chosen} onClick={onPick} className="fx-edge fx-press flex items-center gap-3 rounded-control px-3 py-2.5 text-left">
@@ -319,9 +326,9 @@ function CustomerMatch({ row, chosen, onPick }: { row: BookCustomerRow; chosen: 
           {firstCar && carName(firstCar) ? ` · ${carName(firstCar)}` : ''}
         </span>
         <span className="block truncate text-[12px] text-[#A8A8B2]">
-          Your customer · {row.visits} {row.visits === 1 ? 'visit' : 'visits'}
-          {row.lastVisitAt ? ` · last ${shortDate(row.lastVisitAt)}` : ''}
-          {chosen ? '' : ' · tap to use'}
+          {tn(row.visits, 'Your customer · {count} visit', 'Your customer · {count} visits')}
+          {row.lastVisitAt ? ` · ${t('last {date}', { date: shortDate(row.lastVisitAt) })}` : ''}
+          {chosen ? '' : ` · ${t('tap to use')}`}
         </span>
       </span>
       <RedLight state={chosen ? 'on' : 'dim'} className="w-[18px]" />

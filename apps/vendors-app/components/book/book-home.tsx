@@ -1,5 +1,6 @@
 import { useBookDay } from '@repo/core/api/hooks/use-garage-book';
 import { istDateKey, rupees, rupeesShort, showClosingCard, type BookFilter } from '@repo/core/garage-book';
+import { useT } from '@repo/core/i18n';
 import type { Booking } from '@repo/core/types';
 import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
@@ -18,6 +19,7 @@ import { RequestCard } from './request-card';
 
 /** Home with Garage Book on (B1; the web's components/book/book-home.tsx). */
 export function BookHome({ pending, now, onChanged }: { pending: Booking[]; now: number; onChanged: () => void }) {
+  const t = useT();
   const [filter, setFilter] = useState<BookFilter>('all');
   const { added } = useLocalSearchParams<{ added?: string }>();
   const day = useBookDay(undefined);
@@ -29,18 +31,22 @@ export function BookHome({ pending, now, onChanged }: { pending: Booking[]; now:
       {data ? (
         <>
           <View style={{ flexDirection: 'row', gap: 8 }}>
-            <Tile label="Today's jobs" value={data.counts.all + waiting.length} sub={`${data.counts.detlio} Detlio · ${data.counts.own + waiting.length} your own`} />
+            <Tile
+              label={t("Today's jobs")}
+              value={data.counts.all + waiting.length}
+              sub={t('{detlio} Detlio · {own} your own', { detlio: data.counts.detlio, own: data.counts.own + waiting.length })}
+            />
             {data.taken ? (
               <Tile
-                label="Taken today"
+                label={t('Taken today')}
                 value={<Odometer value={rupees(data.taken.totalPaise) ?? '₹0'} numeric={data.taken.totalPaise} size={24} lh={30} />}
-                sub={`${rupeesShort(data.taken.ownPaise)} own · ${rupeesShort(data.taken.detlioPaise)} Detlio`}
+                sub={t('{own} own · {detlio} Detlio', { own: rupeesShort(data.taken.ownPaise), detlio: rupeesShort(data.taken.detlioPaise) })}
               />
             ) : (
               <Tile
-                label="Done today"
+                label={t('Done today')}
                 value={data.jobs.filter((job) => (job.source === 'own' ? job.status === 'done' : job.status === 'completed')).length}
-                sub="Detlio and your own"
+                sub={t('Detlio and your own')}
               />
             )}
           </View>
@@ -53,13 +59,13 @@ export function BookHome({ pending, now, onChanged }: { pending: Booking[]; now:
             dropId={added ?? null}
             header={
               <T accessibilityRole="header" variant="t2">
-                Today
+                {t('Today')}
               </T>
             }
           />
         </>
       ) : day.isError ? (
-        <LoadError what="today's jobs" onRetry={() => void day.refetch()} />
+        <LoadError what={t("today's jobs")} onRetry={() => void day.refetch()} />
       ) : (
         <SkeletonList count={3} height={80} />
       )}

@@ -1,5 +1,6 @@
 import type { BookDay } from '@repo/core/api/garage-book';
 import { dayLabel, rupees } from '@repo/core/garage-book';
+import { useT, useTn } from '@repo/core/i18n';
 import { useEffect, useRef, type ReactNode } from 'react';
 import { Animated, Easing, Modal, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
@@ -37,7 +38,8 @@ export function AnswerRing({ fraction, label, accessibilityLabel }: { fraction: 
       </Svg>
       <View style={StyleSheet.absoluteFill}>
         <View style={styles.ringLabel}>
-          <T num size={14} weight={600}>
+          {/* A word (New, or its Tamil) is set smaller than the minutes figure, to stay in the ring. */}
+          <T num size={label.length > 4 ? 10 : 14} weight={600} numberOfLines={1}>
             {label}
           </T>
         </View>
@@ -71,6 +73,7 @@ export function DropIn({ play, children }: { play: boolean; children: ReactNode 
  * card fades. Once; under Reduce Motion only the words, briefly.
  */
 export function DoneMoment({ name, line, amount, onEnd }: { name: string; line: string; amount: string | null; onEnd: () => void }) {
+  const t = useT();
   const styles = useStyles();
   const colors = useColors();
   const reduce = useReduceMotion();
@@ -135,7 +138,7 @@ export function DoneMoment({ name, line, amount, onEnd }: { name: string; line: 
                   strokeDashoffset={tick.interpolate({ inputRange: [0, 1], outputRange: [40, 0] })}
                 />
               </Svg>
-              <T variant="t3" weight={600} align="center">{`Done · ${name}`}</T>
+              <T variant="t3" weight={600} align="center">{t('Done · {name}', { name })}</T>
               <T variant="t4" weight={400} color={colors.textSecondary} align="center">
                 {line}
               </T>
@@ -149,6 +152,8 @@ export function DoneMoment({ name, line, amount, onEnd }: { name: string; line: 
 
 /** Moment 4, closing time: the day's takings, cash, UPI and Detlio filling in, and who still owes. Owner only. */
 export function ClosingCard({ day }: { day: BookDay }) {
+  const t = useT();
+  const tn = useTn();
   const styles = useStyles();
   const colors = useColors();
   if (!day.taken || !day.closing) return null;
@@ -157,19 +162,19 @@ export function ClosingCard({ day }: { day: BookDay }) {
   const paidBack = taken.ownPaise - taken.cashPaise - taken.upiPaise;
   return (
     <Edge radius={22} innerStyle={styles.closing}>
-      <Overline>{`Today · ${dayLabel(day.date)} · all jobs done`}</Overline>
+      <Overline>{t('Today · {date} · all jobs done', { date: dayLabel(day.date) })}</Overline>
       <T num size={36} weight={600} lh={40} tracking={-0.02}>
         {rupees(taken.totalPaise) ?? '₹0'}
       </T>
-      <FillBar label="Cash" paise={taken.cashPaise} share={taken.cashPaise / max} index={0} />
+      <FillBar label={t('Cash')} paise={taken.cashPaise} share={taken.cashPaise / max} index={0} />
       <FillBar label="UPI" paise={taken.upiPaise} share={taken.upiPaise / max} index={1} />
       <FillBar label="Detlio" paise={taken.detlioPaise} share={taken.detlioPaise / max} index={2} red />
       <T size={12} color={colors.textSecondary}>
-        {`${closing.jobsDone} ${closing.jobsDone === 1 ? 'job' : 'jobs'} done${paidBack > 0 ? ` · ${rupees(paidBack)} paid back` : ''}`}
+        {`${tn(closing.jobsDone, '{count} job done', '{count} jobs done')}${paidBack > 0 ? ` · ${t('{amount} paid back', { amount: rupees(paidBack) ?? '' })}` : ''}`}
       </T>
       {closing.owing.length > 0 ? (
         <View style={styles.owing}>
-          <Overline>Still owes</Overline>
+          <Overline>{t('Still owes')}</Overline>
           {closing.owing.map((row) => (
             <T key={row.customerId} variant="t4" weight={400} onPress={() => go(`/book/customers/${encodeURIComponent(row.customerId)}`)}>
               {`${row.name}  `}

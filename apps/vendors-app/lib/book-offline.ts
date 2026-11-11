@@ -1,5 +1,6 @@
 import { addWalkIn, type NewWalkIn, type OwnJob } from '@repo/core/api/garage-book';
 import { BOOK_KEY } from '@repo/core/api/hooks/use-garage-book';
+import { t } from '@repo/core/i18n';
 import { File, Paths } from 'expo-file-system';
 import { useEffect } from 'react';
 import { AppState } from 'react-native';
@@ -133,7 +134,12 @@ export async function sendWaiting(): Promise<void> {
         // The server refused it (a service since removed, say): it will never go, so say so
         // and let it go rather than retry it for ever.
         useWalkInQueue.getState().remove(item.input.clientId);
-        toast.error(`${item.preview.name}'s walk-in couldn't be saved: ${error instanceof Error ? error.message : 'try again'}`);
+        toast.error(
+          t("{name}'s walk-in couldn't be saved: {reason}", {
+            name: item.preview.name,
+            reason: error instanceof Error ? error.message : t('try again'),
+          })
+        );
       }
     }
     void queryClient.invalidateQueries({ queryKey: BOOK_KEY });

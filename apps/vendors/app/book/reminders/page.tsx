@@ -5,6 +5,7 @@ import { toast } from 'react-toastify'
 import type { ReminderEntry } from '@repo/core/api/garage-book'
 import { useBookReminders, useSaveReminderMessage, useSendReminder } from '@repo/core/api/hooks/use-garage-book'
 import { carName, fillReminder, GARAGE_BOOK_LIMITS, messageRefusal, reminderReason } from '@repo/core/garage-book'
+import { msg, useT } from '@repo/core/i18n'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { cn } from '@repo/core/utils'
 import { RedLight } from '@repo/ui/finish/red-light'
@@ -21,9 +22,11 @@ type View = 'today' | 'week' | 'rules'
  * the red light once done. This week shows who comes due next.
  */
 export default function RemindersPage() {
+  const t = useT()
   const [view, setView] = useState<View>('today')
   const reminders = useBookReminders()
   const send = useSendReminder()
+  // Filled into the message the customer gets, which stays English.
   const garage = useAuthStore((s) => s.vendor?.businessName) ?? 'your garage'
   const data = reminders.data
   const list = data ? (view === 'week' ? data.week : data.due) : []
@@ -31,25 +34,25 @@ export default function RemindersPage() {
 
   return (
     <BookScreen>
-      <BackHeader title="Reminders" back="/book/customers" />
+      <BackHeader title={t('Reminders')} back="/book/customers" />
       <Seg<View>
-        label="Show reminders"
+        label={msg('Show reminders')}
         value={view}
         onChange={setView}
         options={[
-          { value: 'today', label: 'Today', count: data?.due.filter((r) => !r.sentAt).length },
-          { value: 'week', label: 'This week', count: data?.week.length },
-          { value: 'rules', label: 'Rules' },
+          { value: 'today', label: msg('Today'), count: data?.due.filter((r) => !r.sentAt).length },
+          { value: 'week', label: msg('This week'), count: data?.week.length },
+          { value: 'rules', label: msg('Rules') },
         ]}
       />
       {!data ? (
-        reminders.isError ? <LoadFailed what="reminders" onRetry={() => void reminders.refetch()} /> : <SkeletonList count={4} itemClassName="h-16" />
+        reminders.isError ? <LoadFailed what={t('reminders')} onRetry={() => void reminders.refetch()} /> : <SkeletonList count={4} itemClassName="h-16" />
       ) : view === 'rules' ? (
         <Rules message={data.message} interval={data.defaultIntervalDays} />
       ) : (
         <>
           <button type="button" onClick={() => setView('rules')} className="fx-edge rounded-surface px-4 py-3.5 text-left">
-            <Overline>The message · you can edit it</Overline>
+            <Overline>{t('The message · you can edit it')}</Overline>
             <p className="mt-1.5 text-[14px] leading-[21px] text-text-primary">
               {fillReminder(data.message, {
                 name: example?.name ?? 'Suresh',
@@ -61,7 +64,7 @@ export default function RemindersPage() {
           </button>
           {list.length === 0 ? (
             <p className="fx-edge rounded-control px-4 py-4 text-t4 text-[#A8A8B2]">
-              {view === 'week' ? 'No one comes due this week.' : 'No one is due today.'}
+              {view === 'week' ? t('No one comes due this week.') : t('No one is due today.')}
             </p>
           ) : (
             <div>
@@ -71,8 +74,9 @@ export default function RemindersPage() {
             </div>
           )}
           <Footnote>
-            WhatsApp opens on your phone with the message ready, and you press Send. Free. Detlio customers get your reminder as a Detlio app
-            notification, also free.
+            {t(
+              'WhatsApp opens on your phone with the message ready, and you press Send. Free. Detlio customers get your reminder as a Detlio app notification, also free.'
+            )}
           </Footnote>
         </>
       )}
@@ -81,6 +85,7 @@ export default function RemindersPage() {
 }
 
 function ReminderRow({ entry, busy, onSend }: { entry: ReminderEntry; busy: boolean; onSend: () => void }) {
+  const t = useT()
   return (
     <div className="flex items-center gap-3 border-b border-[#1d1d23] py-3">
       <span className="min-w-0 flex-1">
@@ -92,7 +97,7 @@ function ReminderRow({ entry, busy, onSend }: { entry: ReminderEntry; busy: bool
       </span>
       {entry.sentAt ? (
         <span className={cn(raised, 'flex h-10 w-24 shrink-0 flex-col items-center justify-center rounded-small text-t4 font-semibold text-text-primary')}>
-          Sent ✓
+          {t('Sent ✓')}
           <RedLight className="mt-[3px] w-7" />
         </span>
       ) : (
@@ -102,7 +107,7 @@ function ReminderRow({ entry, busy, onSend }: { entry: ReminderEntry; busy: bool
           disabled={!entry.canSend || busy}
           className={cn(raised, 'h-10 w-24 shrink-0 rounded-small text-t4 font-semibold text-text-primary disabled:text-[#8E8E98]')}
         >
-          {!entry.canSend ? 'No mobile' : entry.channel === 'whatsapp' ? 'WhatsApp' : 'Via Detlio'}
+          {!entry.canSend ? t('No mobile') : entry.channel === 'whatsapp' ? 'WhatsApp' : t('Via Detlio')}
         </button>
       )}
     </div>
@@ -110,6 +115,7 @@ function ReminderRow({ entry, busy, onSend }: { entry: ReminderEntry; busy: bool
 }
 
 function Rules({ message, interval }: { message: string; interval: number }) {
+  const t = useT()
   const [text, setText] = useState(message)
   const [days, setDays] = useState(String(interval))
   const save = useSaveReminderMessage()
@@ -119,7 +125,7 @@ function Rules({ message, interval }: { message: string; interval: number }) {
   return (
     <div className="flex flex-col gap-3">
       <label htmlFor="reminder-message" className="text-t4 font-semibold text-[#D4D4DA]">
-        The message
+        {t('The message')}
       </label>
       <textarea
         id="reminder-message"
@@ -130,11 +136,16 @@ function Rules({ message, interval }: { message: string; interval: number }) {
         className="fx-recessed resize-none rounded-control px-3.5 py-3 text-[14px] leading-[21px] text-text-primary outline-none"
       />
       <Footnote>
-        {'{name}'} becomes their first name, {'{car}'} their car, {'{garage}'} your garage and {'{phone}'} your number. No links.
+        {t('{name} becomes their first name, {car} their car, {garage} your garage and {phone} your number. No links.', {
+          name: '{name}',
+          car: '{car}',
+          garage: '{garage}',
+          phone: '{phone}',
+        })}
       </Footnote>
       {refusal && text.trim() !== '' && <p className="text-[12px] font-semibold text-[#FF8A95]">{refusal}</p>}
       <label htmlFor="reminder-days" className="text-t4 font-semibold text-[#D4D4DA]">
-        Remind to wash again after (days)
+        {t('Remind to wash again after (days)')}
       </label>
       <input
         id="reminder-days"
@@ -150,14 +161,14 @@ function Rules({ message, interval }: { message: string; interval: number }) {
           save.mutate(
             { message: text.trim(), defaultIntervalDays: daysNumber },
             {
-              onSuccess: () => toast.success('Saved'),
-              onError: (error) => toast.error(error instanceof Error ? error.message : "Couldn't save. Try again."),
+              onSuccess: () => toast.success(t('Saved')),
+              onError: (error) => toast.error(error instanceof Error ? error.message : t("Couldn't save. Try again.")),
             }
           )
         }
         className={cn(raised, 'h-12 rounded-control text-t3 font-semibold text-text-primary')}
       >
-        {save.isPending ? 'Saving…' : 'Save'}
+        {save.isPending ? t('Saving…') : t('Save')}
       </button>
     </div>
   )

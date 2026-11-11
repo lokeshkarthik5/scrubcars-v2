@@ -1,6 +1,7 @@
 import type { OwnJob } from '@repo/core/api/garage-book';
 import { useUpdateWalkIn } from '@repo/core/api/hooks/use-garage-book';
 import { carName, jobTime, plateText, rupees, type JobPayment } from '@repo/core/garage-book';
+import { msg, useT } from '@repo/core/i18n';
 import { useState } from 'react';
 import { View } from 'react-native';
 
@@ -13,12 +14,13 @@ import { go, Overline, Plate, RaisedButton, Seg } from './parts';
 
 const PAYMENTS = [
   { value: 'upi', label: 'UPI' },
-  { value: 'cash', label: 'Cash' },
-  { value: 'later', label: 'Pay later' },
+  { value: 'cash', label: msg('Cash') },
+  { value: 'later', label: msg('Pay later') },
 ] as const;
 
 /** A walk-in's sheet (the web's components/book/job-sheet.tsx): what, payment, Start, Mark done (moment 3), Cancel. */
 export function JobSheet({ job, open, onClose, onDone }: { job: OwnJob | null; open: boolean; onClose: () => void; onDone: (job: OwnJob) => void }) {
+  const t = useT();
   const styles = useStyles();
   const colors = useColors();
   const update = useUpdateWalkIn();
@@ -31,20 +33,20 @@ export function JobSheet({ job, open, onClose, onDone }: { job: OwnJob | null; o
       { id: job.id, patch },
       {
         onSuccess: (next) => after?.(next),
-        onError: (error) => toast.error(error instanceof Error ? error.message : "Couldn't save that. Try again."),
+        onError: (error) => toast.error(error instanceof Error ? error.message : t("Couldn't save that. Try again.")),
       }
     );
   return (
-    <ScSheet open={open} onClose={onClose} accessibilityLabel={`${job.name}'s job`} horizontalPadding={16}>
+    <ScSheet open={open} onClose={onClose} accessibilityLabel={t("{name}'s job", { name: job.name })} horizontalPadding={16}>
       <View style={styles.body}>
         <View style={styles.head}>
           <View style={styles.flex}>
-            <Overline>{`Walk-in · ${jobTime(job.scheduledAt)}`}</Overline>
+            <Overline>{t('Walk-in · {time}', { time: jobTime(job.scheduledAt) })}</Overline>
             <T variant="t2" numberOfLines={1} style={styles.name}>
               {job.name}
             </T>
             <T variant="t4" weight={400} color={colors.textSecondary}>
-              {carName(job.car) || 'Car not noted'}
+              {carName(job.car) || t('Car not noted')}
             </T>
           </View>
           {plate ? <Plate plate={plate} /> : null}
@@ -63,7 +65,7 @@ export function JobSheet({ job, open, onClose, onDone }: { job: OwnJob | null; o
           {job.totalPaise !== undefined ? (
             <View style={[styles.line, styles.total]}>
               <T variant="t3" weight={600}>
-                Total
+                {t('Total')}
               </T>
               <T num variant="t3" weight={600}>
                 {rupees(job.totalPaise) ?? ''}
@@ -73,24 +75,24 @@ export function JobSheet({ job, open, onClose, onDone }: { job: OwnJob | null; o
         </View>
         {job.pending ? (
           <T variant="t4" weight={400} color="#FF8A95">
-            Saved on this phone. It sends when you are back online.
+            {t('Saved on this phone. It sends when you are back online.')}
           </T>
         ) : null}
         {live ? (
           <View style={styles.group}>
             <T variant="t4" weight={600} color="#D4D4DA">
-              Payment
+              {t('Payment')}
             </T>
-            <Seg<JobPayment> label="Payment" value={job.payment} options={PAYMENTS} onChange={(payment) => change({ payment })} />
+            <Seg<JobPayment> label={msg('Payment')} value={job.payment} options={PAYMENTS} onChange={(payment) => change({ payment })} />
           </View>
         ) : null}
         {live ? (
           <View style={styles.row}>
             {job.status === 'booked' ? (
-              <RaisedButton label="Start" disabled={update.isPending} onPress={() => change({ status: 'in_progress' })} style={styles.flex} />
+              <RaisedButton label={t('Start')} disabled={update.isPending} onPress={() => change({ status: 'in_progress' })} style={styles.flex} />
             ) : null}
             <RaisedButton
-              label="Mark done"
+              label={t('Mark done')}
               disabled={update.isPending}
               onPress={() =>
                 change({ status: 'done' }, (next) => {
@@ -112,7 +114,7 @@ export function JobSheet({ job, open, onClose, onDone }: { job: OwnJob | null; o
               go(`/book/customers/${encodeURIComponent(job.customerId)}`);
             }}
           >
-            {`Open ${job.name.split(' ')[0]}'s page`}
+            {t("Open {name}'s page", { name: job.name.split(' ')[0] ?? '' })}
           </T>
         ) : null}
         {live ? (
@@ -123,7 +125,7 @@ export function JobSheet({ job, open, onClose, onDone }: { job: OwnJob | null; o
             style={styles.cancel}
             onPress={() => (confirmCancel ? change({ status: 'cancelled' }, onClose) : setConfirmCancel(true))}
           >
-            {confirmCancel ? 'Tap again to cancel this job' : 'Cancel this job'}
+            {confirmCancel ? t('Tap again to cancel this job') : t('Cancel this job')}
           </T>
         ) : null}
       </View>

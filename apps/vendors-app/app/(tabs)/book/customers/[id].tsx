@@ -1,5 +1,6 @@
 import { useBookCustomer, useSendReminder, useUpdateBookCustomer } from '@repo/core/api/hooks/use-garage-book';
-import { carName, monthYear, plateText, rupees, shortDate, washWords } from '@repo/core/garage-book';
+import { carName, monthYear, payWord, plateText, rupees, shortDate, statusWord, washWords } from '@repo/core/garage-book';
+import { useT } from '@repo/core/i18n';
 import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { TextInput, View } from 'react-native';
@@ -19,6 +20,7 @@ import { useIsVendorAdmin } from '@/lib/auth';
 
 /** One customer (S3; the web's app/book/customers/[id]/page.tsx): plate, wash gauge, history, note. */
 function CustomerScreen({ id }: { id: string }) {
+  const t = useT();
   const styles = useStyles();
   const colors = useColors();
   const isOwner = useIsVendorAdmin();
@@ -32,15 +34,17 @@ function CustomerScreen({ id }: { id: string }) {
   if (!c) {
     return (
       <BookScreen>
-        <BackHeader title="Customer" />
-        {customer.isError ? <LoadError what="this customer" onRetry={() => void customer.refetch()} /> : <SkeletonList count={3} height={96} />}
+        <BackHeader title={t('Customer')} />
+        {customer.isError ? <LoadError what={t('this customer')} onRetry={() => void customer.refetch()} /> : <SkeletonList count={3} height={96} />}
       </BookScreen>
     );
   }
 
   const sub = c.viaDetlio
-    ? `Via Detlio · since ${monthYear(c.since)}`
-    : [c.phone ? `+91 ${c.phone.slice(0, 5)} ${c.phone.slice(5)}` : null, `your customer since ${monthYear(c.since)}`].filter(Boolean).join(' · ');
+    ? t('Via Detlio · since {month}', { month: monthYear(c.since) })
+    : [c.phone ? `+91 ${c.phone.slice(0, 5)} ${c.phone.slice(5)}` : null, t('your customer since {month}', { month: monthYear(c.since) })]
+        .filter(Boolean)
+        .join(' · ');
 
   return (
     <BookScreen>
@@ -53,7 +57,7 @@ function CustomerScreen({ id }: { id: string }) {
             <View style={styles.carText}>
               {plate ? <Plate plate={plate} /> : null}
               <T size={14} weight={600}>
-                {[carName(car), car.colour].filter(Boolean).join(' · ') || 'Car'}
+                {[carName(car), car.colour].filter(Boolean).join(' · ') || t('Car')}
               </T>
               <T size={12} color={colors.textSecondary}>
                 <T size={12} weight={500}>
@@ -70,7 +74,7 @@ function CustomerScreen({ id }: { id: string }) {
                     {String(car.wash.daysSinceWash)}
                   </T>
                   <T size={11} color={colors.textSecondary}>
-                    {car.wash.daysSinceWash === 1 ? 'day ago' : 'days ago'}
+                    {car.wash.daysSinceWash === 1 ? t('day ago') : t('days ago')}
                   </T>
                 </View>
               ) : null}
@@ -79,27 +83,27 @@ function CustomerScreen({ id }: { id: string }) {
         );
       })}
       <View style={styles.row}>
-        <Tile label="Visits" value={c.visits} />
-        {isOwner ? <Tile label="Spent" value={rupees(c.spentPaise) ?? '–'} /> : null}
-        {isOwner ? <Tile label="Owes" value={rupees(c.owesPaise) ?? '₹0'} /> : null}
+        <Tile label={t('Visits')} value={c.visits} />
+        {isOwner ? <Tile label={t('Spent')} value={rupees(c.spentPaise) ?? '–'} /> : null}
+        {isOwner ? <Tile label={t('Owes')} value={rupees(c.owesPaise) ?? '₹0'} /> : null}
       </View>
       <View style={styles.row}>
         <RaisedButton
-          label={c.viaDetlio ? 'Remind via Detlio' : c.phone ? 'Remind' : 'Add a phone to remind'}
+          label={c.viaDetlio ? t('Remind via Detlio') : c.phone ? t('Remind') : t('Add a phone to remind')}
           icon={<IconBrandWhatsapp size={18} />}
           disabled={send.isPending || (!c.viaDetlio && !c.phone)}
           onPress={() => sendReminder(send, c.id, c.name)}
           style={styles.flex}
         />
         {!c.viaDetlio ? (
-          <RaisedButton label="New job" icon={<IconPlus size={18} />} onPress={() => go(`/book/new?customer=${encodeURIComponent(c.id)}`)} style={styles.flex} />
+          <RaisedButton label={t('New job')} icon={<IconPlus size={18} />} onPress={() => go(`/book/new?customer=${encodeURIComponent(c.id)}`)} style={styles.flex} />
         ) : null}
       </View>
       <View>
-        <Overline>History · Detlio and yours</Overline>
+        <Overline>{t('History · Detlio and yours')}</Overline>
         {c.history.length === 0 ? (
           <T variant="t4" weight={400} color={colors.textSecondary} style={styles.none}>
-            No visits yet.
+            {t('No visits yet.')}
           </T>
         ) : (
           c.history.map((h) => (
@@ -110,14 +114,14 @@ function CustomerScreen({ id }: { id: string }) {
               <View style={styles.flex}>
                 <View style={styles.histName}>
                   <T size={14} weight={600} numberOfLines={1} style={styles.shrink}>
-                    {h.lines.join(', ') || 'Job'}
+                    {h.lines.join(', ') || t('Job')}
                   </T>
-                  {h.source === 'detlio' ? <Tag detlio /> : <Tag>walk-in</Tag>}
+                  {h.source === 'detlio' ? <Tag detlio /> : <Tag>{t('walk-in')}</Tag>}
                 </View>
                 <T size={12} color={colors.textSecondary}>
                   {h.source === 'detlio'
-                    ? `Detlio booking · ${h.status}`
-                    : `Walk-in · ${h.payment === 'later' ? 'Pay later' : h.payment.toUpperCase()}${h.status !== 'done' ? ` · ${h.status.replace('_', ' ')}` : ''}`}
+                    ? t('Detlio booking · {status}', { status: statusWord(h.status) })
+                    : `${t('Walk-in · {pay}', { pay: payWord(h.payment) })}${h.status !== 'done' ? ` · ${statusWord(h.status.replace('_', ' '))}` : ''}`}
                 </T>
               </View>
               {h.amountPaise !== undefined ? (
@@ -130,9 +134,9 @@ function CustomerScreen({ id }: { id: string }) {
         )}
       </View>
       <Recessed radius={18} innerStyle={styles.note}>
-        <Overline>Your note · only your team sees it</Overline>
+        <Overline>{t('Your note · only your team sees it')}</Overline>
         <TextInput
-          accessibilityLabel="Your note"
+          accessibilityLabel={t('Your note')}
           multiline
           maxLength={500}
           value={note ?? c.note ?? ''}
@@ -142,12 +146,12 @@ function CustomerScreen({ id }: { id: string }) {
             save.mutate(
               { id: c.id, patch: { note: note.trim() || null } },
               {
-                onSuccess: () => toast.success('Note saved'),
-                onError: (error) => toast.error(error instanceof Error ? error.message : "Couldn't save the note."),
+                onSuccess: () => toast.success(t('Note saved')),
+                onError: (error) => toast.error(error instanceof Error ? error.message : t("Couldn't save the note.")),
               }
             );
           }}
-          placeholder="Likes tyre shine. Pays on UPI."
+          placeholder={t('Likes tyre shine. Pays on UPI.')}
           placeholderTextColor="#8A8A94"
           style={[styles.noteInput, { color: colors.textPrimary }]}
         />

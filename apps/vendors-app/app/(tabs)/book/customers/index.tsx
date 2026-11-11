@@ -2,6 +2,7 @@ import type { BookCustomerRow } from '@repo/core/api/garage-book';
 import { useBookCustomers } from '@repo/core/api/hooks/use-garage-book';
 import { carName, customerTag, plateText, type BookFilter } from '@repo/core/garage-book';
 import { useDebounced } from '@repo/core/hooks/use-debounced';
+import { msg, useT, useTn } from '@repo/core/i18n';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 
@@ -18,6 +19,8 @@ import { BookInput, Disc, Empty, Footnote, go, IconWell, Plate, RaisedButton, Se
 
 /** Customers (B2; the web's app/book/customers/page.tsx). Detlio customers never show a phone. */
 function CustomersScreen() {
+  const t = useT();
+  const tn = useTn();
   const styles = useStyles();
   const colors = useColors();
   const [filter, setFilter] = useState<BookFilter>('all');
@@ -29,7 +32,7 @@ function CustomersScreen() {
     <BookScreen>
       <View style={styles.title}>
         <T accessibilityRole="header" variant="title">
-          Customers
+          {t('Customers')}
         </T>
         {data ? (
           <T num size={16} weight={600} color={colors.textSecondary}>
@@ -40,28 +43,34 @@ function CustomersScreen() {
       <BookInput
         value={q}
         onChangeText={setQ}
-        placeholder="Name, phone or car number"
-        accessibilityLabel="Search customers"
+        placeholder={t('Name, phone or car number')}
+        accessibilityLabel={t('Search customers')}
         leading={<IconSearch size={20} color="#8E8E98" />}
       />
-      <Seg<BookFilter> label="Show customers" value={filter} options={FILTERS(data?.counts)} onChange={setFilter} />
+      <Seg<BookFilter> label={msg('Show customers')} value={filter} options={FILTERS(data?.counts)} onChange={setFilter} />
       {data && data.dueCount > 0 ? (
         <Edge radius={22} innerStyle={styles.due}>
           <IconWell>
             <IconBell size={19} color="#F5A524" />
           </IconWell>
           <View style={styles.flex}>
-            <T variant="t3" weight={600}>{`${data.dueCount} ${data.dueCount === 1 ? 'customer is' : 'customers are'} due`}</T>
+            <T variant="t3" weight={600}>{tn(data.dueCount, '{count} customer is due', '{count} customers are due')}</T>
             <T size={12} color={colors.textSecondary}>
-              Remind them from your own WhatsApp
+              {t('Remind them from your own WhatsApp')}
             </T>
           </View>
-          <RaisedButton label="Remind" height={40} radius={12} onPress={() => go('/book/reminders')} />
+          <RaisedButton label={t('Remind')} height={40} radius={12} onPress={() => go('/book/reminders')} />
         </Edge>
       ) : null}
       {data ? (
         data.customers.length === 0 ? (
-          <Empty>{search ? 'No one matches that.' : filter === 'detlio' ? 'No Detlio customers yet.' : 'No customers yet. Add a walk-in with + and they’re here.'}</Empty>
+          <Empty>
+            {search
+              ? t('No one matches that.')
+              : filter === 'detlio'
+                ? t('No Detlio customers yet.')
+                : t('No customers yet. Add a walk-in with + and they’re here.')}
+          </Empty>
         ) : (
           <View>
             {data.customers.map((row) => (
@@ -70,25 +79,27 @@ function CustomersScreen() {
           </View>
         )
       ) : list.isError ? (
-        <LoadError what="your customers" onRetry={() => void list.refetch()} />
+        <LoadError what={t('your customers')} onRetry={() => void list.refetch()} />
       ) : (
         <SkeletonList count={5} height={64} />
       )}
       <Footnote>
-        Customers you bring in are yours, and Detlio never shows them to other garages. Detlio customers show without a phone number; tap Remind and
-        Detlio sends it in the Detlio app.
+        {t(
+          'Customers you bring in are yours, and Detlio never shows them to other garages. Detlio customers show without a phone number; tap Remind and Detlio sends it in the Detlio app.'
+        )}
       </Footnote>
     </BookScreen>
   );
 }
 
 function CustomerRow({ row }: { row: BookCustomerRow }) {
+  const t = useT();
   const styles = useStyles();
   const colors = useColors();
   const tag = customerTag(row);
   const car = row.cars[0];
   const plate = plateText(car?.plate);
-  const sub = row.cars.length > 1 ? `${row.cars.length} cars` : car ? car.model || carName(car) : '';
+  const sub = row.cars.length > 1 ? t('{count} cars', { count: row.cars.length }) : car ? car.model || carName(car) : '';
   return (
     <Pressable accessibilityRole="link" onPress={() => go(`/book/customers/${encodeURIComponent(row.id)}`)} style={styles.row}>
       <Disc name={row.name} />

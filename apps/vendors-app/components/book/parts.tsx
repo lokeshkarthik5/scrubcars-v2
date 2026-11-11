@@ -1,5 +1,6 @@
 import type { BookJob } from '@repo/core/api/garage-book';
 import { carName, detlioJobStatus, initials, jobTime, ownJobStatus, type StatusTone } from '@repo/core/garage-book';
+import { t as translateNow, useT } from '@repo/core/i18n';
 import { formatIndianPlate, washGaugeAngle, washGaugeShare } from '@repo/core/moments';
 import { type Href, router } from 'expo-router';
 import type { ReactNode } from 'react';
@@ -52,13 +53,14 @@ export function BackHeader({
   close?: boolean;
   onBack?: () => void;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   return (
     <View style={styles.header}>
       <PressScale
         accessibilityRole="button"
-        accessibilityLabel={close ? 'Close' : 'Back'}
+        accessibilityLabel={close ? t('Close') : t('Back')}
         onPress={onBack ?? (() => (router.canGoBack() ? router.back() : go('/home')))}
       >
         <Raised radius={12} style={styles.square}>
@@ -80,7 +82,10 @@ export function BackHeader({
   );
 }
 
-/** All / Detlio / My own, and the other recessed switches (When, Payment). */
+/**
+ * All / Detlio / My own, and the other recessed switches (When, Payment). The label and each
+ * option's label are English (msg), translated here.
+ */
 export function Seg<V extends string>({
   label,
   value,
@@ -92,16 +97,17 @@ export function Seg<V extends string>({
   options: ReadonlyArray<{ value: V; label: string; count?: number }>;
   onChange: (value: V) => void;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   return (
-    <Recessed radius={18} accessibilityLabel={label} innerStyle={styles.seg}>
+    <Recessed radius={18} accessibilityLabel={t(label)} innerStyle={styles.seg}>
       {options.map((option) => {
         const on = option.value === value;
         const label = (
           <View style={styles.segLabel}>
             <T size={13} weight={on ? 600 : 500} color={on ? colors.textPrimary : colors.textSecondary}>
-              {option.label}
+              {t(option.label)}
             </T>
             {option.count !== undefined ? (
               <T num size={13} weight={600} color={on ? colors.textSecondary : colors.textMuted}>
@@ -156,7 +162,7 @@ export function jobLine(job: BookJob): string {
 }
 
 export function jobStatus(job: BookJob) {
-  if (job.source === 'own' && job.pending) return { text: 'Waiting to send · no signal', tone: 'owed' as const };
+  if (job.source === 'own' && job.pending) return { text: translateNow('Waiting to send · no signal'), tone: 'owed' as const };
   return job.source === 'own'
     ? ownJobStatus({ status: job.status, payment: job.payment, visitNumber: job.visitNumber, totalPaise: job.totalPaise })
     : detlioJobStatus({ status: job.status, paymentMethod: job.paymentMethod, amount: job.amount });
@@ -164,6 +170,7 @@ export function jobStatus(job: BookJob) {
 
 /** One job on Today and Jobs: time, who, DETLIO or Walk-in, what, and how it stands. */
 export function JobCard({ job, onPress }: { job: BookJob; onPress: () => void }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const status = jobStatus(job);
@@ -178,7 +185,7 @@ export function JobCard({ job, onPress }: { job: BookJob; onPress: () => void })
             <T variant="t3" weight={600} numberOfLines={1} style={styles.shrink}>
               {job.name}
             </T>
-            {job.source === 'detlio' ? <Tag detlio /> : <Tag>Walk-in</Tag>}
+            {job.source === 'detlio' ? <Tag detlio /> : <Tag>{t('Walk-in')}</Tag>}
           </View>
           <T variant="t4" weight={400} color={colors.textSecondary} numberOfLines={1} style={styles.jobLine}>
             {jobLine(job)}
@@ -347,8 +354,9 @@ export const useStyles = createStyles((c) => ({
   header: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   square: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   seg: { flexDirection: 'row', padding: 4, gap: 4 },
-  segCell: { flex: 1, height: 38, alignItems: 'center', justifyContent: 'center' },
-  segLabel: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  // At least 38; a longer Tamil option wraps to two lines inside it.
+  segCell: { flex: 1, minHeight: 38, paddingVertical: 4, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center' },
+  segLabel: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', columnGap: 4 },
   segOn: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   segOnInner: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   segLight: { position: 'absolute', bottom: 4, alignSelf: 'center' },

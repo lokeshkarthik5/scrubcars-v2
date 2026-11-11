@@ -1,5 +1,6 @@
 import { useBookStats } from '@repo/core/api/hooks/use-garage-book';
 import { WEEK_LETTERS, busiestIndex, monthName, recentMonths, rupees, type BookFilter } from '@repo/core/garage-book';
+import { msg, useT, useTn } from '@repo/core/i18n';
 import { useState } from 'react';
 import { View } from 'react-native';
 
@@ -17,6 +18,8 @@ import { useIsVendorAdmin } from '@/lib/auth';
 
 /** Stats (B4, the owner's; the web's app/book/stats/page.tsx). Profit waits for Expenses (stage 2). */
 function StatsScreen() {
+  const t = useT();
+  const tn = useTn();
   const styles = useStyles();
   const colors = useColors();
   const isOwner = useIsVendorAdmin();
@@ -34,40 +37,43 @@ function StatsScreen() {
   return (
     <BookScreen>
       <BackHeader
-        title="Stats"
+        title={t('Stats')}
         right={<RaisedButton label={monthName(month, now)} height={40} radius={12} icon={<IconChevronDown size={16} />} onPress={() => setPicking(true)} />}
       />
       <Seg<BookFilter>
-        label="Show money from"
+        label={msg('Show money from')}
         value={filter}
         onChange={setFilter}
         options={[
-          { value: 'all', label: 'All' },
+          { value: 'all', label: msg('All') },
           { value: 'detlio', label: 'Detlio' },
-          { value: 'own', label: 'My own' },
+          { value: 'own', label: msg('My own') },
         ]}
       />
       {!isOwner ? (
-        <Empty>Only the garage’s owner sees Stats.</Empty>
+        <Empty>{t('Only the garage’s owner sees Stats.')}</Empty>
       ) : !data ? (
-        stats.isError ? <LoadError what="Stats" onRetry={() => void stats.refetch()} /> : <SkeletonList count={3} height={112} />
+        stats.isError ? <LoadError what={t('Stats')} onRetry={() => void stats.refetch()} /> : <SkeletonList count={3} height={112} />
       ) : (
         <>
           <Edge radius={22} innerStyle={styles.big}>
             <View>
-              <Overline>{month === months[0] ? 'This month so far' : monthName(month, now)}</Overline>
+              <Overline>{month === months[0] ? t('This month so far') : monthName(month, now)}</Overline>
               <T num size={34} weight={600} lh={42} tracking={-0.02}>
                 {rupees(data.takenPaise) ?? '₹0'}
               </T>
               {data.changePercent !== null ? (
                 <T size={12} color={data.changePercent >= 0 ? '#4ADE80' : '#FF8A95'}>
-                  {`${data.changePercent >= 0 ? '↑' : '↓'} ${Math.abs(data.changePercent)}% on last month, same days`}
+                  {t('{arrow} {percent}% on last month, same days', {
+                    arrow: data.changePercent >= 0 ? '↑' : '↓',
+                    percent: Math.abs(data.changePercent),
+                  })}
                 </T>
               ) : null}
             </View>
             {filter === 'all' && total > 0 ? (
               <>
-                <View accessible accessibilityLabel={`Detlio ${rupees(data.split.detlioPaise)}, your own ${rupees(data.split.ownPaise)}`} style={styles.split}>
+                <View accessible accessibilityLabel={t('Detlio {detlio}, your own {own}', { detlio: rupees(data.split.detlioPaise) ?? '', own: rupees(data.split.ownPaise) ?? '' })} style={styles.split}>
                   {detlioShare > 0 ? <View style={[styles.splitRed, { flex: detlioShare }]} /> : null}
                   {detlioShare < 1 ? <View style={[styles.splitSilver, { flex: 1 - detlioShare }]} /> : null}
                 </View>
@@ -79,7 +85,7 @@ function StatsScreen() {
                     </T>
                   </T>
                   <T size={12} color="#C8C8D0">
-                    {'Your own '}
+                    {`${t('Your own')} `}
                     <T num size={12} weight={600}>
                       {rupees(data.split.ownPaise) ?? ''}
                     </T>
@@ -89,16 +95,31 @@ function StatsScreen() {
             ) : null}
           </Edge>
           <View style={styles.tiles}>
-            <Tile label="Came back" value={data.cameBackPercent === null ? '–' : `${data.cameBackPercent}%`} sub="of last month's customers" style={styles.tile} />
-            <Tile label="New customers" value={data.newCustomers} sub={data.newFromDetlio > 0 ? `${data.newFromDetlio} found you on Detlio` : 'this month'} style={styles.tile} />
-            {data.profitPaise !== null ? <Tile label="Profit" value={rupees(data.profitPaise) ?? ''} style={styles.tile} /> : null}
-            <Tile label="Owed to you" value={rupees(data.owedPaise) ?? '₹0'} sub={`${data.owedCustomers} ${data.owedCustomers === 1 ? 'customer' : 'customers'}`} style={styles.tile} />
+            <Tile
+              label={t('Came back')}
+              value={data.cameBackPercent === null ? '–' : `${data.cameBackPercent}%`}
+              sub={t("of last month's customers")}
+              style={styles.tile}
+            />
+            <Tile
+              label={t('New customers')}
+              value={data.newCustomers}
+              sub={data.newFromDetlio > 0 ? t('{count} found you on Detlio', { count: data.newFromDetlio }) : t('this month')}
+              style={styles.tile}
+            />
+            {data.profitPaise !== null ? <Tile label={t('Profit')} value={rupees(data.profitPaise) ?? ''} style={styles.tile} /> : null}
+            <Tile
+              label={t('Owed to you')}
+              value={rupees(data.owedPaise) ?? '₹0'}
+              sub={tn(data.owedCustomers, '{count} customer', '{count} customers')}
+              style={styles.tile}
+            />
           </View>
           <Edge radius={22} innerStyle={styles.busy}>
             <View style={styles.busyHead}>
-              <Overline>Busiest days</Overline>
+              <Overline>{t('Busiest days')}</Overline>
               <T size={11} color={colors.textSecondary}>
-                last 4 weeks
+                {t('last 4 weeks')}
               </T>
             </View>
             <View style={styles.bars}>
@@ -114,10 +135,10 @@ function StatsScreen() {
               ))}
             </View>
           </Edge>
-          <Footnote>Detlio figures are what customers paid for jobs done; your payout is on Payouts.</Footnote>
+          <Footnote>{t('Detlio figures are what customers paid for jobs done; your payout is on Payouts.')}</Footnote>
         </>
       )}
-      <ScSheet open={picking} onClose={() => setPicking(false)} accessibilityLabel="Month" horizontalPadding={16}>
+      <ScSheet open={picking} onClose={() => setPicking(false)} accessibilityLabel={t('Month')} horizontalPadding={16}>
         <View style={{ gap: 8, paddingBottom: 8 }}>
           {months.map((m) => (
             <RaisedButton

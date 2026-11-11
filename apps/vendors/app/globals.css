@@ -35,7 +35,10 @@
   position: relative;
   flex: 1;
   min-width: 0;
-  height: 38px;
+  /* At least 38px; a longer Tamil option wraps to two lines inside it. */
+  min-height: 38px;
+  padding: 4px 6px;
+  line-height: 1.25;
   border-radius: 14px;
   border: 1px solid transparent;
   background: none;

@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import type { BookDay } from '@repo/core/api/garage-book'
 import { dayLabel, rupees } from '@repo/core/garage-book'
+import { useT, useTn } from '@repo/core/i18n'
 import { Overline } from './parts'
 
 /**
@@ -12,6 +13,8 @@ import { Overline } from './parts'
  * no money, so they never get it.
  */
 export function ClosingCard({ day }: { day: BookDay }) {
+  const t = useT()
+  const tn = useTn()
   if (!day.taken || !day.closing) return null
   const { taken, closing } = day
   const max = Math.max(1, taken.cashPaise, taken.upiPaise, taken.detlioPaise)
@@ -37,19 +40,20 @@ export function ClosingCard({ day }: { day: BookDay }) {
     </div>
   )
   return (
-    <section aria-label="Today, closed" className="fx-edge flex flex-col gap-3.5 rounded-surface p-4">
-      <Overline>Today · {dayLabel(day.date)} · all jobs done</Overline>
+    <section aria-label={t('Today, closed')} className="fx-edge flex flex-col gap-3.5 rounded-surface p-4">
+      <Overline>{t('Today · {date} · all jobs done', { date: dayLabel(day.date) })}</Overline>
       <p className="font-numeric text-[36px] font-semibold leading-10 tracking-[-0.02em] text-text-primary">{rupees(taken.totalPaise)}</p>
-      {bar('Cash', taken.cashPaise, 0)}
+      {bar(t('Cash'), taken.cashPaise, 0)}
       {bar('UPI', taken.upiPaise, 1)}
       {bar('Detlio', taken.detlioPaise, 2, true)}
       <p className="text-[12px] text-[#A8A8B2]">
-        {closing.jobsDone} {closing.jobsDone === 1 ? 'job' : 'jobs'} done
-        {taken.ownPaise - taken.cashPaise - taken.upiPaise > 0 && ` · ${rupees(taken.ownPaise - taken.cashPaise - taken.upiPaise)} paid back`}
+        {tn(closing.jobsDone, '{count} job done', '{count} jobs done')}
+        {taken.ownPaise - taken.cashPaise - taken.upiPaise > 0 &&
+          ` · ${t('{amount} paid back', { amount: rupees(taken.ownPaise - taken.cashPaise - taken.upiPaise) ?? '' })}`}
       </p>
       {closing.owing.length > 0 && (
         <div className="flex flex-col gap-1">
-          <Overline>Still owes</Overline>
+          <Overline>{t('Still owes')}</Overline>
           {closing.owing.map((row) => (
             <Link key={row.customerId} href={`/book/customers/${encodeURIComponent(row.customerId)}`} className="flex justify-between text-t4">
               <span className="text-text-primary">{row.name}</span>

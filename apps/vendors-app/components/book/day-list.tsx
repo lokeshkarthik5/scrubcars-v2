@@ -1,5 +1,6 @@
 import type { BookDay, BookJob, OwnJob } from '@repo/core/api/garage-book';
-import { rupees, type BookFilter } from '@repo/core/garage-book';
+import { payWord, rupees, type BookFilter } from '@repo/core/garage-book';
+import { msg, useT } from '@repo/core/i18n';
 import { useCallback, useState, type ReactNode } from 'react';
 import { View } from 'react-native';
 
@@ -9,9 +10,9 @@ import { Empty, go, JobCard, jobLine, Seg } from './parts';
 
 export const FILTERS = (counts: { all: number; detlio: number; own: number } | undefined) =>
   [
-    { value: 'all', label: 'All', count: counts?.all },
+    { value: 'all', label: msg('All'), count: counts?.all },
     { value: 'detlio', label: 'Detlio', count: counts?.detlio },
-    { value: 'own', label: 'My own', count: counts?.own },
+    { value: 'own', label: msg('My own'), count: counts?.own },
   ] as const;
 
 export function filterJobs<T extends { source: 'own' | 'detlio' }>(jobs: T[], filter: BookFilter): T[] {
@@ -36,6 +37,7 @@ export function DayList({
   header?: ReactNode;
   summary?: (shown: BookJob[]) => ReactNode;
 }) {
+  const t = useT();
   const [openId, setOpenId] = useState<string | null>(null);
   const [done, setDone] = useState<OwnJob | null>(null);
   const endDone = useCallback(() => setDone(null), []);
@@ -48,12 +50,18 @@ export function DayList({
     <>
       <View style={{ gap: 8 }}>
         {header}
-        <Seg<BookFilter> label="Show jobs" value={filter} options={FILTERS(counts)} onChange={onFilter} />
+        <Seg<BookFilter> label={msg('Show jobs')} value={filter} options={FILTERS(counts)} onChange={onFilter} />
       </View>
       {summary?.(shown)}
       <View style={{ gap: 8 }}>
         {shown.length === 0 ? (
-          <Empty>{filter === 'own' ? 'No walk-ins. Tap + to add one.' : filter === 'detlio' ? 'No Detlio jobs this day.' : 'No jobs this day. Tap + to add a walk-in.'}</Empty>
+          <Empty>
+            {filter === 'own'
+              ? t('No walk-ins. Tap + to add one.')
+              : filter === 'detlio'
+                ? t('No Detlio jobs this day.')
+                : t('No jobs this day. Tap + to add a walk-in.')}
+          </Empty>
         ) : (
           shown.map((job) =>
             job.source === 'detlio' ? (
@@ -70,7 +78,7 @@ export function DayList({
       {done ? (
         <DoneMoment
           name={done.name}
-          line={`${jobLine(done)} · ${done.payment === 'later' ? 'Pay later' : done.payment.toUpperCase()}`}
+          line={`${jobLine(done)} · ${payWord(done.payment)}`}
           amount={rupees(done.totalPaise)}
           onEnd={endDone}
         />
