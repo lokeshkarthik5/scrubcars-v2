@@ -81,6 +81,9 @@ export function reduceMotionNow(): boolean {
 
 type Check = () => void;
 
+/** How often waiting views measure themselves while the screen scrolls. */
+const SEEN_EVERY_MS = 100;
+
 const SeenContext = createContext<{ add: (check: Check) => () => void } | null>(null);
 
 /**
@@ -102,7 +105,26 @@ export function useSeenHost() {
     }),
     []
   );
-  const notify = useCallback(() => checks.current.forEach((check) => check()), []);
+  // At most every 100ms, and once more after the scroll stops: each check measures a
+  // view on the native side, and calling them all on every scroll frame (60 a second,
+  // several cards waiting) kept the JS thread busy right when a fling needs it.
+  const last = useRef(0);
+  const trailing = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const run = useCallback(() => {
+    last.current = Date.now();
+    checks.current.forEach((check) => check());
+  }, []);
+  const notify = useCallback(() => {
+    if (trailing.current) clearTimeout(trailing.current);
+    if (Date.now() - last.current >= SEEN_EVERY_MS) run();
+    trailing.current = setTimeout(run, SEEN_EVERY_MS);
+  }, [run]);
+  useEffect(
+    () => () => {
+      if (trailing.current) clearTimeout(trailing.current);
+    },
+    []
+  );
   return { value, notify };
 }
 
