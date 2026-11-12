@@ -1,4 +1,5 @@
 import { formatINR } from '@repo/core/format';
+import { t } from '@repo/core/i18n/translate';
 import { tierPriceFor } from '@repo/core/pricing';
 import type { Service, VehicleType } from '@repo/core/types';
 
@@ -14,16 +15,16 @@ export function servicePriceText(
 ): string {
   switch (service.pricingType) {
     case 'on_inspection':
-      return `${money(service.price)} inspection`;
+      return t('{amount} inspection', { amount: money(service.price) });
     case 'per_vehicle': {
       if (vehicleType) {
         const amount = tierPriceFor(service, vehicleType);
-        return amount == null ? 'Price on request' : money(amount);
+        return amount == null ? t('Price on request') : money(amount);
       }
       const tiers = [service.priceHatchback, service.priceSedan, service.priceSuv].filter(
         (t): t is number => t != null
       );
-      if (tiers.length === 0) return `from ${money(service.price)}`;
+      if (tiers.length === 0) return t('from {amount}', { amount: money(service.price) });
       const low = Math.min(...tiers);
       const high = Math.max(...tiers);
       return low === high ? money(low) : `${money(low)}–${money(high)}`;

@@ -1,3 +1,5 @@
+import { msg, tn } from './i18n/translate'
+
 /**
  * The rating's words and numbers for the apps (0065). The rules live in the
  * API, apps/server/src/lib/ratings.ts, whose twin this is
@@ -37,14 +39,14 @@ export const REVIEW_TAGS = [
 export type ReviewTag = (typeof REVIEW_TAGS)[number]
 
 export const REVIEW_TAG_LABELS: Record<ReviewTag, string> = {
-  on_time: 'On time',
-  spotless_finish: 'Spotless finish',
-  friendly: 'Friendly',
-  good_value: 'Good value',
-  missed_spots: 'Missed spots',
-  late: 'Late',
-  damp_interior: 'Damp/wet interior',
-  rude: 'Rude',
+  on_time: msg('On time'),
+  spotless_finish: msg('Spotless finish'),
+  friendly: msg('Friendly'),
+  good_value: msg('Good value'),
+  missed_spots: msg('Missed spots'),
+  late: msg('Late'),
+  damp_interior: msg('Damp/wet interior'),
+  rude: msg('Rude'),
 }
 
 /** The tags a review with these stars may carry: good ones for 4-5, problems for 1-3. */
@@ -53,12 +55,12 @@ export function tagsForRating(rating: number): readonly ReviewTag[] {
 }
 
 /** What a garage card says in place of stars for a new garage. */
-export const NEW_GARAGE_LABEL = 'New on Detlio'
+export const NEW_GARAGE_LABEL = msg('New on Detlio')
 
 /** "2 reviews so far" under "New on Detlio"; nothing with none. */
 export function newGarageReviewsLine(count: number): string | null {
   if (count <= 0) return null
-  return `${count} ${count === 1 ? 'review' : 'reviews'} so far`
+  return tn(count, '{count} review so far', '{count} reviews so far')
 }
 
 /**

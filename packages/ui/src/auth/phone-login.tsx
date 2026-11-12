@@ -11,6 +11,7 @@ import { TopBar } from '@repo/ui/sc/top-bar'
 import { sendOtp } from '@repo/core/api/auth'
 import type { AuthAudience } from '@repo/core/api/types'
 import { useNow } from '@repo/core/hooks/use-now'
+import { fill, useT } from '@repo/core/i18n'
 import {
   formatCountdown,
   otpDeadlines,
@@ -90,13 +91,14 @@ export function PhoneLogin({
   verifyHref,
   showBack = true,
   backdrop,
-  title = 'Welcome to Detlio',
-  subtitle = 'Log in or sign up with your mobile number.',
-  newNumberNote = 'New to Detlio? Your account is created when you verify your number.',
+  title,
+  subtitle,
+  newNumberNote,
   termsHref,
   privacyHref,
   onOtpSent,
 }: PhoneLoginProps) {
+  const t = useT()
   const router = useRouter()
   const searchParams = useSearchParams()
   // Checked here, where it enters: it is stashed for after the OTP and then
@@ -150,14 +152,19 @@ export function PhoneLogin({
       }
       router.push(verifyHref)
     } catch (err) {
-      setError(otpErrorMessage(err, 'Failed to send OTP'))
+      setError(otpErrorMessage(err, t('Failed to send OTP')))
       setRetryAt(retryMoment(err, Date.now()))
     } finally {
       setLoading(false)
     }
   }
 
-  const header = <AuthHeading title={title} subtitle={subtitle} />
+  const header = (
+    <AuthHeading
+      title={title ?? t('Welcome to Detlio')}
+      subtitle={subtitle ?? t('Log in or sign up with your mobile number.')}
+    />
+  )
 
   // A real form, so the keyboard's Go key submits — the CTA can sit under the
   // keyboard on a short phone. The number is the only thing on this screen, so
@@ -198,23 +205,25 @@ export function PhoneLogin({
         }
       >
         {loading ? (
-          'Sending...'
+          t('Sending...')
         ) : waitSeconds > 0 && waitSeconds < 60 ? (
           // A short wait counts down where the customer will tap next, as
           // the verify screen's Resend button does. The hourly wait is
           // minutes long and is said once, in the alert above.
           <>
-            Send OTP in <span className="font-numeric">{formatCountdown(waitSeconds)}</span>
+            {fill(t('Send OTP in {time}'), {
+              time: <span className="font-numeric">{formatCountdown(waitSeconds)}</span>,
+            })}
           </>
         ) : (
-          'Send OTP'
+          t('Send OTP')
         )}
       </ScButton>
 
       {/* One screen signs in and signs up — the OTP flow registers a new
           number — so say so, rather than offer a separate sign-up path. */}
       <p className="text-center text-[13px] leading-5 text-text-secondary">
-        {newNumberNote}
+        {newNumberNote ?? t('New to Detlio? Your account is created when you verify your number.')}
       </p>
     </form>
   )
@@ -222,16 +231,19 @@ export function PhoneLogin({
   const terms =
     termsHref && privacyHref ? (
       <p className="pb-2 text-center text-[12px] text-text-muted">
-        By continuing, you agree to our <LegalLink href={termsHref}>Terms</LegalLink>.
+        {fill(t('By continuing, you agree to our {terms}.'), {
+          terms: <LegalLink href={termsHref}>{t('Terms')}</LegalLink>,
+        })}
         <br />
-        Our <LegalLink href={privacyHref}>Privacy Policy</LegalLink> explains how we use
-        your data.
+        {fill(t('Our {privacy} explains how we use your data.'), {
+          privacy: <LegalLink href={privacyHref}>{t('Privacy Policy')}</LegalLink>,
+        })}
       </p>
     ) : privacyHref ? (
       <p className="pb-2 text-center text-[12px] text-text-muted">
-        How we use your data is set out in our
+        {t('How we use your data is set out in our')}
         <br />
-        <LegalLink href={privacyHref}>Privacy Policy</LegalLink>
+        <LegalLink href={privacyHref}>{t('Privacy Policy')}</LegalLink>
       </p>
     ) : null
 

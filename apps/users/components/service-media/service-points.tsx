@@ -8,6 +8,7 @@ import {
   sheetPoints,
 } from '@repo/core/service-points'
 import { cn } from '@repo/core/utils'
+import { fill, useT } from '@repo/core/i18n'
 
 /**
  * "What's included" in a service's sheet: the description's points, each
@@ -22,6 +23,7 @@ export function WhatsIncluded({
   points: string[]
   note: string | null
 }) {
+  const t = useT()
   const [expanded, setExpanded] = useState(false)
   const headingId = useId()
   const listId = useId()
@@ -35,7 +37,7 @@ export function WhatsIncluded({
         id={headingId}
         className="text-t5 font-semibold uppercase tracking-[0.07em] text-text-muted"
       >
-        What&apos;s included
+        {t("What's included")}
       </h3>
       <ul id={listId} className="mt-1 flex flex-col">
         {shown.map((point, i) => (
@@ -65,11 +67,11 @@ export function WhatsIncluded({
           className="-ml-1 mt-0.5 flex min-h-11 items-center px-1 text-t4 font-semibold text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-primary/70"
         >
           {expanded ? (
-            'Show less'
+            t('Show less')
           ) : (
             // One inline run, so the flex button keeps the space.
             <span>
-              <span className="font-numeric">+{more}</span> more
+              {fill(t('{count} more'), { count: <span className="font-numeric">+{more}</span> })}
             </span>
           )}
         </button>

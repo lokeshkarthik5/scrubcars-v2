@@ -7,6 +7,7 @@ import { Recessed, RedLight } from './finish';
 import { EASE_SETTLE, EASE_SPRING, useReduceMotion } from './motion';
 import { font, T } from './text';
 import { createStyles, useColors, useFinish } from './theme';
+import { useT } from './lang';
 
 /** Pasted "+91 98765 43210" or "098765...": ten digits (core's normaliseIndianMobile, handed in). */
 export type NormalisePhone = (text: string) => string;
@@ -84,6 +85,7 @@ export function ScPhoneInput({
   onSubmit?: () => void;
   normalise: NormalisePhone;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   return (
@@ -97,7 +99,7 @@ export function ScPhoneInput({
         </T>
       </View>
       <TextInput
-        accessibilityLabel="Phone number"
+        accessibilityLabel={t('Phone number')}
         autoComplete="tel-national"
         autoFocus
         keyboardAppearance={colors.keyboard}
@@ -107,7 +109,7 @@ export function ScPhoneInput({
           if (digits.length <= 10) onChange(digits);
         }}
         onSubmitEditing={onSubmit}
-        placeholder="Phone number"
+        placeholder={t('Phone number')}
         placeholderTextColor="#7D7D85"
         returnKeyType="go"
         selectionColor={colors.textPrimary}
@@ -136,6 +138,7 @@ export function OtpInput({
   /** The code was refused: the boxes part again, so the digits can be seen and fixed. */
   invalid?: boolean;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const { on: finish } = useFinish();
@@ -184,7 +187,7 @@ export function OtpInput({
       {finish ? <CodeJoin joined={joined} length={length} /> : null}
       <TextInput
         ref={input}
-        accessibilityLabel="Verification code"
+        accessibilityLabel={t('Verification code')}
         autoComplete="one-time-code"
         autoFocus
         caretHidden

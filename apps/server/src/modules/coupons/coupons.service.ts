@@ -52,6 +52,16 @@ function keys(): CouponKeys {
   return cachedKeys.keys
 }
 
+/**
+ * A typed code's stored hash under the secret in force, or null when it
+ * isn't a well-formed code. For the owner's delete of one printed code
+ * (modules/owner-delete), which finds it the way Void does.
+ */
+export function couponLookupHash(typed: string): string | null {
+  const parsed = parseCouponCode(typed)
+  return parsed.ok ? couponCodeHash(keys().lookupKey, parsed.code) : null
+}
+
 const num = (value: string | null): number | null => (value === null ? null : Number(value))
 
 /** A batch's reward and conditions, as the words read them. */

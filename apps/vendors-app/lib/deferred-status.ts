@@ -17,6 +17,7 @@ import {
   type StepStatus,
 } from './jobs';
 import { errorText } from './error-text';
+import { msg, t } from '@repo/core/i18n/translate';
 
 /**
  * Accept, Start, Complete and pickup's steps behind a 5-second Undo. A copy of
@@ -31,21 +32,22 @@ export const UNDO_MS = 5_000;
 export type DeferredStatus = StepStatus;
 
 const MESSAGES: Record<DeferredStatus, string> = {
-  confirmed: 'Booking accepted',
-  in_progress: 'Job started',
-  completed: 'Job completed',
-  picked_up: 'Picked up',
-  at_garage: 'At garage',
-  out_for_delivery: 'Out for delivery',
+  confirmed: msg('Booking accepted'),
+  in_progress: msg('Job started'),
+  completed: msg('Job completed'),
+  picked_up: msg('Picked up'),
+  at_garage: msg('At garage'),
+  out_for_delivery: msg('Out for delivery'),
 };
 
+/** English (msg): the screen says t(DEFERRED_WORDS[status]). */
 export const DEFERRED_WORDS: Record<DeferredStatus, string> = {
-  confirmed: 'Accepting the booking…',
-  in_progress: 'Starting the job…',
-  completed: 'Completing the job…',
-  picked_up: 'Marking picked up…',
-  at_garage: 'Marking at garage…',
-  out_for_delivery: 'Marking out for delivery…',
+  confirmed: msg('Accepting the booking…'),
+  in_progress: msg('Starting the job…'),
+  completed: msg('Completing the job…'),
+  picked_up: msg('Marking picked up…'),
+  at_garage: msg('Marking at garage…'),
+  out_for_delivery: msg('Marking out for delivery…'),
 };
 
 function sendStep(step: Step) {
@@ -78,7 +80,7 @@ const queue = createStepQueue({
   },
   onFailed: (_step, error) => {
     // Refused (photos removed meanwhile, the time ran out): say why, and re-read.
-    toast.error(errorText(error, 'Could not update this job'));
+    toast.error(errorText(error, t('Could not update this job')));
     void readFreshBookings().catch(() => undefined);
   },
 });
@@ -109,11 +111,11 @@ export function changeStatusWithUndo(bookingId: string, status: DeferredStatus, 
     ...(code !== undefined ? { code } : {}),
   });
   if (!queued) return;
-  showUndoToast(MESSAGES[status], {
+  showUndoToast(t(MESSAGES[status]), {
     durationMs: UNDO_MS,
     toastId: undoToastId(bookingId),
     onUndo: () => {
-      if (!queue.undo(bookingId)) toast.info('Already saved: it can no longer be undone.');
+      if (!queue.undo(bookingId)) toast.info(t('Already saved: it can no longer be undone.'));
     },
   });
 }

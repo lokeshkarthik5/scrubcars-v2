@@ -47,6 +47,7 @@ import {
 } from './zone-demand'
 import { HotBadge, ZoneBar } from './zone-list'
 import { AssignSelect, type Assignee } from './lead-dialogs'
+import { ZoneOwnerTools } from './zone-owner-tools'
 
 const FILTERS: Array<{ value: CallFilter; label: string }> = [
   { value: 'all', label: 'All' },
@@ -520,6 +521,7 @@ export function ZoneDrawer({
             <ZoneDemandCard zone={zone} demand={demand} hotRule={hotRule} />
           </div>
         )}
+        {zone && <ZoneOwnerTools zone={zone} onDeleted={onClose} />}
       </div>
     </ScSheet>
   )

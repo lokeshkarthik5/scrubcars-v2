@@ -4,6 +4,7 @@ import type { InputHTMLAttributes } from 'react'
 import { IconChevronDown } from '@tabler/icons-react'
 import { normaliseIndianMobile } from '@repo/core/phone'
 import { cn } from '@repo/core/utils'
+import { useT } from '@repo/core/i18n'
 
 interface ScPhoneInputProps {
   value: string
@@ -35,7 +36,7 @@ export function ScPhoneInput({
   value,
   onChange,
   label,
-  placeholder = 'Phone number',
+  placeholder,
   onCountryClick,
   tone = 'solid',
   autoFocus,
@@ -43,6 +44,7 @@ export function ScPhoneInput({
   errorId,
   className,
 }: ScPhoneInputProps) {
+  const t = useT()
   // The chevron promises a picker, so it shows only once there is one. On the
   // inert label it read as a dropdown that did nothing when tapped.
   const code = (
@@ -102,10 +104,10 @@ export function ScPhoneInput({
           enterKeyHint={enterKeyHint}
           // Sign-in screens draw no label above the field, and a placeholder
           // is no name once a digit is typed.
-          aria-label={label ? undefined : 'Phone number'}
+          aria-label={label ? undefined : t('Phone number')}
           aria-invalid={errorId ? true : undefined}
           aria-describedby={errorId}
-          placeholder={placeholder}
+          placeholder={placeholder ?? t('Phone number')}
           value={value}
           onChange={(e) => {
             const digits = normaliseIndianMobile(e.target.value)

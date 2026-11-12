@@ -6,6 +6,7 @@ import { ScSheet } from '@repo/ui/sc/modal'
 import type { GaragePull } from '@repo/core/api/garage'
 import { useMarkGaragePullsSeen } from '@repo/core/api/hooks/use-garage'
 import { PullReveal } from './pull-reveal'
+import { useT } from '@repo/core/i18n'
 
 /** A sheet reveals at most this many in a row; any more are in the album, counted as seen. */
 const SHOWN_AT_ONCE = 3
@@ -17,6 +18,7 @@ const SHOWN_AT_ONCE = 3
  * push's tap (?pull=<id>) puts that one first.
  */
 export function PullRevealSheet({ pulls, focusId = null, firstName = null }: { pulls: GaragePull[]; focusId?: string | null; firstName?: string | null }) {
+  const t = useT()
   const seen = useMarkGaragePullsSeen()
   const [queue, setQueue] = useState<GaragePull[]>([])
   const [waiting, setWaiting] = useState<string[]>([])
@@ -52,10 +54,10 @@ export function PullRevealSheet({ pulls, focusId = null, firstName = null }: { p
   const [revealed, setRevealed] = useState(false)
 
   return (
-    <ScSheet open={open && pull !== null} onClose={finish} aria-label="New car for your Garage">
+    <ScSheet open={open && pull !== null} onClose={finish} aria-label={t('New car for your Garage')}>
       {pull && (
         <div key={pull.id} className="flex flex-col items-center gap-1 px-5 pb-2 pt-2">
-          <p className="text-t5 uppercase tracking-[0.14em] text-text-secondary">New car for your Garage</p>
+          <p className="text-t5 uppercase tracking-[0.14em] text-text-secondary">{t('New car for your Garage')}</p>
           <PullReveal pull={{ ...pull, seen: false }} onRevealed={() => setRevealed(true)} firstName={firstName} compact />
           {revealed && (
             <ScButton
@@ -67,7 +69,7 @@ export function PullRevealSheet({ pulls, focusId = null, firstName = null }: { p
                 else finish()
               }}
             >
-              {more > 0 ? `Next card (${more} more)` : 'Done'}
+              {more > 0 ? t('Next card ({more} more)', { more }) : t('Done')}
             </ScButton>
           )}
         </div>

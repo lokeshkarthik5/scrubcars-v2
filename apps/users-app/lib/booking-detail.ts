@@ -1,3 +1,4 @@
+import { t } from '@repo/core/i18n/translate';
 import { BANK_DAYS, customerRefundLine, withoutRefundPromise } from '@repo/core/refunds';
 import { formatRupees } from '@repo/core/job-records';
 import { notAcceptedRefundLine, notAcceptedTitle } from '@repo/core/response-deadline';
@@ -6,31 +7,31 @@ import type { Booking } from '@repo/core/types';
 /** The words of apps/users/app/bookings/[id]/page.tsx that decide what's said about money. */
 export function cancelRefundNote(booking: Pick<Booking, 'servicePrice' | 'creditPaid'>): string {
   if (booking.servicePrice <= 0 && (booking.creditPaid ?? 0) <= 0) {
-    return 'Nothing was charged, so there is nothing to refund. Your free wash comes back while it lasts.';
+    return t('Nothing was charged, so there is nothing to refund. Your free wash comes back while it lasts.');
   }
   const credit = Math.min(booking.creditPaid ?? 0, booking.servicePrice);
   const online = Math.round((booking.servicePrice - credit) * 100) / 100;
-  if (credit <= 0) return `Our team will refund your payment to your original payment method within ${BANK_DAYS}.`;
-  const creditLine = `${formatRupees(credit)} goes back to your Detlio credit.`;
+  if (credit <= 0) return t('Our team will refund your payment to your original payment method within {days}.', { days: t(BANK_DAYS) });
+  const creditLine = t('{amount} goes back to your Detlio credit.', { amount: formatRupees(credit) });
   if (online <= 0) return creditLine;
-  return `Our team will refund the ${formatRupees(online)} you paid online to your original payment method within ${BANK_DAYS}. ${creditLine}`;
+  return `${t('Our team will refund the {amount} you paid online to your original payment method within {days}.', { amount: formatRupees(online), days: t(BANK_DAYS) })} ${creditLine}`;
 }
 
 export function cancelledPanel(booking: Booking): { title: string; lines: string[] } {
   if (booking.noShow === 'customer') {
-    return { title: 'Marked as a no-show', lines: ["The garage held your slot, so this payment isn't refunded. If this is wrong, use Help with this booking."] };
+    return { title: t('Marked as a no-show'), lines: [t("The garage held your slot, so this payment isn't refunded. If this is wrong, use Help with this booking.")] };
   }
   const refund = customerRefundLine(booking.refund);
   if (booking.noShow === 'garage') {
     return {
-      title: "The garage couldn't serve this booking",
+      title: t("The garage couldn't serve this booking"),
       lines: [
         refund ??
           (booking.paymentStatus === 'refunded'
-            ? 'Your payment has been refunded.'
+            ? t('Your payment has been refunded.')
             : booking.paymentStatus === 'paid'
-              ? 'Our team will refund your payment.'
-              : 'Nothing was charged online for it.'),
+              ? t('Our team will refund your payment.')
+              : t('Nothing was charged online for it.')),
       ],
     };
   }
@@ -42,24 +43,24 @@ export function cancelledPanel(booking: Booking): { title: string; lines: string
   const reason = refund ? withoutRefundPromise(booking.cancellationReason) : booking.cancellationReason;
   if (booking.cancelledBy === 'admin') {
     const onBehalf =
-      booking.cancelledOnBehalfOf === 'garage' ? "Cancelled at the garage's request." : booking.cancelledOnBehalfOf === 'customer' ? 'Cancelled at your request.' : null;
-    return { title: 'Cancelled by Detlio', lines: withRefund([onBehalf, reason]) };
+      booking.cancelledOnBehalfOf === 'garage' ? t("Cancelled at the garage's request.") : booking.cancelledOnBehalfOf === 'customer' ? t('Cancelled at your request.') : null;
+    return { title: t('Cancelled by Detlio'), lines: withRefund([onBehalf, reason]) };
   }
   if (booking.cancelledBy === 'vendor' && booking.timeProposal) {
     if (booking.timeProposal.status === 'declined') {
-      return { title: "None of the garage's times worked", lines: withRefund(['You cancelled this booking instead of picking another time.']) };
+      return { title: t("None of the garage's times worked"), lines: withRefund([t('You cancelled this booking instead of picking another time.')]) };
     }
     if (booking.timeProposal.status === 'expired') {
-      return { title: 'No time was picked in time', lines: withRefund([`${booking.vendorName} couldn't do your time and suggested others, so this booking was cancelled.`]) };
+      return { title: t('No time was picked in time'), lines: withRefund([t("{name} couldn't do your time and suggested others, so this booking was cancelled.", { name: booking.vendorName })]) };
     }
   }
   if (booking.cancelledBy === 'vendor' && booking.garageCancelled) {
-    return { title: 'Cancelled by the garage', lines: withRefund([`${booking.vendorName} accepted this booking, then had to cancel it. Sorry about that.`]) };
+    return { title: t('Cancelled by the garage'), lines: withRefund([t('{name} accepted this booking, then had to cancel it. Sorry about that.', { name: booking.vendorName })]) };
   }
   if (booking.cancelledBy === 'vendor') {
-    return { title: 'Declined by the garage', lines: withRefund([reason ?? 'The garage could not take this booking.']) };
+    return { title: t('Declined by the garage'), lines: withRefund([reason ?? t('The garage could not take this booking.')]) };
   }
-  return { title: booking.cancelledBy === 'user' ? 'Cancelled by you' : 'Booking cancelled', lines: withRefund([reason ?? 'This booking was cancelled.']) };
+  return { title: booking.cancelledBy === 'user' ? t('Cancelled by you') : t('Booking cancelled'), lines: withRefund([reason ?? t('This booking was cancelled.')]) };
 }
 
 /**
@@ -76,9 +77,9 @@ export function paymentRowAmount(booking: Pick<Booking, 'paymentStatus' | 'servi
 
 export function paymentRowLabel(booking: Pick<Booking, 'paymentStatus' | 'paymentMethod' | 'servicePrice' | 'creditPaid'>): string {
   if (booking.paymentStatus === 'paid') {
-    if (booking.servicePrice === 0 && (booking.creditPaid ?? 0) === 0) return 'Nothing to pay';
-    return (booking.creditPaid ?? 0) >= booking.servicePrice ? 'Paid' : 'Paid online';
+    if (booking.servicePrice === 0 && (booking.creditPaid ?? 0) === 0) return t('Nothing to pay');
+    return (booking.creditPaid ?? 0) >= booking.servicePrice ? t('Paid') : t('Paid online');
   }
-  if (booking.paymentStatus === 'refunded') return 'Refunded';
-  return booking.paymentMethod === 'online' ? 'To be paid online' : 'Cash';
+  if (booking.paymentStatus === 'refunded') return t('Refunded');
+  return booking.paymentMethod === 'online' ? t('To be paid online') : t('Cash');
 }

@@ -1,3 +1,4 @@
+import { msg, t } from '@repo/core/i18n/translate';
 /**
  * A resumable (tus 1.0.0) upload to a link Cloudflare Stream already created: the
  * server asks Stream for it with the file's length (apps/server/src/lib/stream.ts,
@@ -21,7 +22,7 @@ export const TUS_CHUNK_BYTES = 16 * 1024 * 1024;
 /** The web's retry delays: now, then 3, 10 and 20 seconds. */
 export const TUS_RETRY_DELAYS = [0, 3000, 10000, 20000];
 
-export const TUS_FAILED_MESSAGE = 'The video did not finish uploading. Try again.';
+export const TUS_FAILED_MESSAGE = msg('The video did not finish uploading. Try again.');
 
 /** A reply with a status the server chose (as opposed to no reply at all). */
 export class TusHttpError extends Error {
@@ -69,7 +70,7 @@ export async function tusUpload(options: {
   let known = false;
   report(0);
   while (!known || offset < size) {
-    if (options.cancelled?.()) throw new Error(TUS_FAILED_MESSAGE);
+    if (options.cancelled?.()) throw new Error(t(TUS_FAILED_MESSAGE));
     try {
       // The offset is asked for first, and again after any failure: a chunk may have
       // arrived although its answer did not.
@@ -91,7 +92,7 @@ export async function tusUpload(options: {
     } catch (error) {
       const delay = delays[attempt];
       if (!isRetriable(error) || delay === undefined || options.cancelled?.()) {
-        throw new Error(TUS_FAILED_MESSAGE);
+        throw new Error(t(TUS_FAILED_MESSAGE));
       }
       attempt += 1;
       known = false;

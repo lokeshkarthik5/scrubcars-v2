@@ -28,6 +28,7 @@ import {
 } from '@repo/core/service-media'
 import type { ServiceMedia } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
+import { fill, msg, useT } from '@repo/core/i18n'
 
 /** How often a processing video is checked while the block is open. */
 const POLL_MS = 4000
@@ -93,6 +94,7 @@ export function ServiceMediaEditor({
   config: MediaConfig | null
   extra?: ReactNode
 }) {
+  const t = useT()
   const [consent, setConsent] = useState(false)
   const [busy, setBusy] = useState<'photo' | 'remove' | null>(null)
   const [video, setVideo] = useState<VideoWork>({ step: 'idle' })
@@ -152,18 +154,19 @@ export function ServiceMediaEditor({
     if (!file) return
     setError(null)
     if (!PHOTO_TYPES.split(',').includes(file.type)) {
-      setError('Use a JPEG, PNG or WebP photo.')
+      // English in state, translated where it is shown (a server's message has no Tamil yet).
+      setError(msg('Use a JPEG, PNG or WebP photo.'))
       return
     }
     if (file.size > MAX_PHOTO_BYTES) {
-      setError('That photo is over 5 MB. Pick a smaller one.')
+      setError(msg('That photo is over 5 MB. Pick a smaller one.'))
       return
     }
     setBusy('photo')
     try {
       onMediaChange(await api.uploadPhoto(serviceId, file))
     } catch (err) {
-      fail(err, 'The photo did not upload. Try again.')
+      fail(err, msg('The photo did not upload. Try again.'))
     } finally {
       setBusy(null)
     }
@@ -176,11 +179,11 @@ export function ServiceMediaEditor({
     setError(null)
 
     if (!file.type.startsWith('video/')) {
-      setVideo({ step: 'refused', message: 'That file is not a video.', durationSecs: null })
+      setVideo({ step: 'refused', message: msg('That file is not a video.'), durationSecs: null })
       return
     }
     if (file.size > MAX_VIDEO_BYTES) {
-      setVideo({ step: 'refused', message: 'That file is over 2 GB.', durationSecs: null })
+      setVideo({ step: 'refused', message: msg('That file is over 2 GB.'), durationSecs: null })
       return
     }
 
@@ -224,7 +227,7 @@ export function ServiceMediaEditor({
           // Left as processing; the server gives up on it after two hours.
         }
       }
-      fail(err, 'The video did not upload. Try again.')
+      fail(err, msg('The video did not upload. Try again.'))
     }
   }
 
@@ -235,7 +238,7 @@ export function ServiceMediaEditor({
       onMediaChange(await api.remove(serviceId, item.id))
       if (item.kind === 'video') setVideo({ step: 'idle' })
     } catch (err) {
-      fail(err, 'That did not go. Try again.')
+      fail(err, msg('That did not go. Try again.'))
     } finally {
       setBusy(null)
     }
@@ -247,17 +250,18 @@ export function ServiceMediaEditor({
 
   return (
     // Named for its service: a screen lists several of these.
-    <div role="group" aria-label={`Photos and video of ${serviceName}`} className="flex flex-col gap-3">
+    <div role="group" aria-label={t('Photos and video of {service}', { service: serviceName })} className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between gap-3">
-        <p className="text-[13px] font-medium text-text-secondary">Photos and video</p>
+        <p className="text-[13px] font-medium text-text-secondary">{t('Photos and video')}</p>
         <p className="text-[12px] text-text-muted">
-          Up to <span className="font-numeric">{maxPhotos}</span> photos
-          {videoOn && (
-            <>
-              {' '}
-              and <span className="font-numeric">1</span> video
-            </>
-          )}
+          {videoOn
+            ? fill(t('Up to {photos} photos and {videos} video'), {
+                photos: <span className="font-numeric">{maxPhotos}</span>,
+                videos: <span className="font-numeric">1</span>,
+              })
+            : fill(t('Up to {photos} photos'), {
+                photos: <span className="font-numeric">{maxPhotos}</span>,
+              })}
         </p>
       </div>
 
@@ -280,7 +284,7 @@ export function ServiceMediaEditor({
           {consent && <IconCheck size={16} stroke={3} />}
         </span>
         <span className="text-[13px] leading-snug text-text-secondary">
-          <span className="font-semibold text-text-primary">Before adding:</span> {CONSENT_TEXT}
+          <span className="font-semibold text-text-primary">{t('Before adding:')}</span> {t(CONSENT_TEXT)}
         </span>
       </label>
 
@@ -294,14 +298,14 @@ export function ServiceMediaEditor({
           <div key={photo.id} className={cn(TILE, 'bg-surface-elevated')}>
             <Image
               src={photo.url}
-              alt={`Photo ${i + 1} of ${serviceName}`}
+              alt={t('Photo {n} of {service}', { n: i + 1, service: serviceName })}
               fill
               sizes="96px"
               className="object-cover"
             />
             {photo.source === 'ai' && (
               <span className="absolute bottom-1 left-1 rounded-[6px] bg-black/70 px-1.5 py-0.5 text-[11px] font-medium text-text-primary">
-                Sample
+                {t('Sample')}
               </span>
             )}
             {/* A 44px target in the corner; the disc stays small so it covers
@@ -310,7 +314,7 @@ export function ServiceMediaEditor({
               type="button"
               disabled={busy !== null}
               onClick={() => remove(photo)}
-              aria-label={`Remove photo ${i + 1} of ${serviceName}`}
+              aria-label={t('Remove photo {n} of {service}', { n: i + 1, service: serviceName })}
               className="absolute right-0 top-0 flex size-11 items-center justify-center text-white disabled:opacity-50"
             >
               <span className="flex size-7 items-center justify-center rounded-full bg-black/70 transition-colors hover:bg-black/85">
@@ -326,13 +330,13 @@ export function ServiceMediaEditor({
             type="button"
             disabled={addDisabled}
             onClick={() => photoInput.current?.click()}
-            aria-label={`Add a photo of ${serviceName}`}
-            title={consent ? undefined : 'Tick the box above first'}
+            aria-label={t('Add a photo of {service}', { service: serviceName })}
+            title={consent ? undefined : t('Tick the box above first')}
             className={EMPTY_TILE}
           >
             <IconPhotoPlus size={22} stroke={1.6} aria-hidden="true" />
             <span className="text-[12px] font-medium">
-              {busy === 'photo' && i === 0 ? 'Adding…' : 'Add photo'}
+              {busy === 'photo' && i === 0 ? t('Adding…') : t('Add photo')}
             </span>
           </button>
         ))}
@@ -365,13 +369,12 @@ export function ServiceMediaEditor({
 
       {error && (
         <p role="alert" className="text-[13px] text-error">
-          {error}
+          {t(error)}
         </p>
       )}
 
       <p className="text-[12px] leading-snug text-text-muted">
-        Upload the original file from the phone’s gallery — not a WhatsApp forward — for the
-        sharpest result.
+        {t('Upload the original file from the phone’s gallery — not a WhatsApp forward — for the sharpest result.')}
       </p>
 
       {extra}
@@ -381,7 +384,7 @@ export function ServiceMediaEditor({
         type="file"
         accept={PHOTO_TYPES}
         hidden
-        aria-label={`Photo file for ${serviceName}`}
+        aria-label={t('Photo file for {service}', { service: serviceName })}
         onChange={(e) => pickPhoto(e.target.files)}
       />
       {videoOn && (
@@ -390,7 +393,7 @@ export function ServiceMediaEditor({
           type="file"
           accept="video/*"
           hidden
-          aria-label={`Video file for ${serviceName}`}
+          aria-label={t('Video file for {service}', { service: serviceName })}
           onChange={(e) => pickVideo(e.target.files)}
         />
       )}
@@ -411,6 +414,7 @@ function VideoSlot({
   disabled: boolean
   onAdd: () => void
 }) {
+  const t = useT()
   // Refused on the phone: amber, with the clip's length when known.
   if (work.step === 'refused') {
     return (
@@ -418,7 +422,7 @@ function VideoSlot({
         type="button"
         disabled={disabled}
         onClick={onAdd}
-        aria-label={`Add a different video of ${serviceName}`}
+        aria-label={t('Add a different video of {service}', { service: serviceName })}
         className={cn(
           TILE,
           'flex flex-col items-center justify-center gap-2 border border-dashed border-error bg-error-muted text-error disabled:opacity-60'
@@ -440,7 +444,7 @@ function VideoSlot({
     return (
       <div
         role="status"
-        aria-label={work.step === 'checking' ? 'Checking the video' : `Uploading, ${pct}%`}
+        aria-label={work.step === 'checking' ? t('Checking the video') : t('Uploading, {percent}%', { percent: pct })}
         className={cn(TILE, 'flex items-center justify-center bg-surface-elevated')}
       >
         <Ring fraction={work.step === 'uploading' ? work.fraction : null} />
@@ -455,14 +459,14 @@ function VideoSlot({
         type="button"
         disabled={disabled}
         onClick={onAdd}
-        aria-label={`Add a video of ${serviceName}`}
-        title={disabled ? 'Tick the box above first' : undefined}
+        aria-label={t('Add a video of {service}', { service: serviceName })}
+        title={disabled ? t('Tick the box above first') : undefined}
         className={EMPTY_TILE}
       >
         <IconVideoPlus size={22} stroke={1.6} aria-hidden="true" />
-        <span className="text-[12px] font-medium leading-tight">Add video</span>
+        <span className="text-[12px] font-medium leading-tight">{t('Add video')}</span>
         <span className="text-[11px] leading-tight text-text-muted">
-          up to <span className="font-numeric">60</span> sec
+          {fill(t('up to {seconds} sec'), { seconds: <span className="font-numeric">60</span> })}
         </span>
       </button>
     )
@@ -476,7 +480,7 @@ function VideoSlot({
           'flex items-center justify-center border border-dashed border-error bg-error-muted text-error'
         )}
       >
-        <IconAlertTriangle size={24} stroke={1.8} aria-label="Video failed" />
+        <IconAlertTriangle size={24} stroke={1.8} aria-label={t('Video failed')} />
       </div>
     )
   }
@@ -487,7 +491,7 @@ function VideoSlot({
         {/* Stream serves its own sized poster; nothing to optimise. */}
         <Image
           src={video.posterUrl}
-          alt={`Video of ${serviceName}`}
+          alt={t('Video of {service}', { service: serviceName })}
           fill
           unoptimized
           sizes="96px"
@@ -512,7 +516,7 @@ function VideoSlot({
   return (
     <div
       role="status"
-      aria-label="Video processing"
+      aria-label={t('Video processing')}
       className={cn(TILE, 'flex items-center justify-center bg-surface-elevated')}
     >
       <Ring fraction={null} />
@@ -567,22 +571,23 @@ function VideoStatusLine({
   onReplace: () => void
   onRemove: () => void
 }) {
+  const t = useT()
   if (work.step === 'refused') {
     return (
       <p role="alert" className="flex items-start gap-2 text-[13px] text-error">
         <IconVideo size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
-        {work.message}
+        {t(work.message)}
       </p>
     )
   }
   if (work.step === 'checking') {
-    return <p className="text-[13px] text-text-secondary">Checking the video…</p>
+    return <p className="text-[13px] text-text-secondary">{t('Checking the video…')}</p>
   }
   if (work.step === 'uploading') {
     return (
       <p className="flex items-center gap-2 text-[13px] text-text-secondary">
         <IconVideo size={16} aria-hidden="true" />
-        <span className="font-semibold text-text-primary">Uploading…</span>
+        <span className="font-semibold text-text-primary">{t('Uploading…')}</span>
         <span className="font-numeric">{Math.round(work.fraction * 100)}%</span>
       </p>
     )
@@ -591,7 +596,7 @@ function VideoStatusLine({
 
   const earlierNote = keepsEarlier ? (
     <p className="text-[12px] leading-snug text-text-muted">
-      Customers see the earlier video until the new one is ready.
+      {t('Customers see the earlier video until the new one is ready.')}
     </p>
   ) : null
 
@@ -600,8 +605,8 @@ function VideoStatusLine({
       <div className="flex flex-col gap-1">
         <p className="flex items-center gap-2 text-[13px] text-text-secondary">
           <IconVideo size={16} aria-hidden="true" />
-          <span className="font-semibold text-text-primary">Processing…</span>
-          ready in about a minute
+          <span className="font-semibold text-text-primary">{t('Processing…')}</span>
+          {t('ready in about a minute')}
         </p>
         {earlierNote}
       </div>
@@ -614,19 +619,19 @@ function VideoStatusLine({
         type="button"
         disabled={busy || !canReplace}
         onClick={onReplace}
-        title={canReplace ? undefined : 'Tick the box above first'}
+        title={canReplace ? undefined : t('Tick the box above first')}
         className="min-h-11 px-2 text-[13px] font-semibold text-text-primary disabled:opacity-40"
       >
-        Replace
+        {t('Replace')}
       </button>
       <button
         type="button"
         disabled={busy}
         onClick={onRemove}
-        aria-label="Remove video"
+        aria-label={t('Remove video')}
         className="min-h-11 pl-2 text-[13px] font-semibold text-text-primary disabled:opacity-40"
       >
-        Remove
+        {t('Remove')}
       </button>
     </span>
   )
@@ -637,13 +642,13 @@ function VideoStatusLine({
         <div className="flex items-start gap-2">
           <p role="alert" className="flex items-start gap-2 pt-3 text-[13px] text-error">
             <IconVideo size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
-            {video.videoError ?? 'This video could not be processed — try uploading it again'}
+            {video.videoError ?? t('This video could not be processed — try uploading it again')}
           </p>
           {actions}
         </div>
         {keepsEarlier && (
           <p className="text-[12px] leading-snug text-text-muted">
-            Customers still see the earlier video. Remove this one to go back to it.
+            {t('Customers still see the earlier video. Remove this one to go back to it.')}
           </p>
         )}
       </div>
@@ -663,7 +668,7 @@ function VideoStatusLine({
       )}
       <span className="flex items-center gap-1">
         <IconCheck size={14} stroke={2.5} className="text-success" aria-hidden="true" />
-        Ready
+        {t('Ready')}
       </span>
       {actions}
     </div>

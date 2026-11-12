@@ -8,6 +8,7 @@ import { Figures } from '@repo/ui/sc/figures'
 import type { MyRewards } from '@repo/core/api/rewards'
 import { useCreateInvite } from '@repo/core/api/hooks/use-rewards'
 import { rewardRupees } from '@repo/core/rewards'
+import { useT } from '@repo/core/i18n'
 
 /**
  * Invite a friend: the customer's own link, shared from their phone. Both
@@ -15,6 +16,7 @@ import { rewardRupees } from '@repo/core/rewards'
  * completes. Detlio sends nothing itself.
  */
 export function InviteCard({ invite }: { invite: MyRewards['invite'] }) {
+  const t = useT()
   const create = useCreateInvite()
   const code = invite.code ?? create.data?.code ?? null
   const url = code
@@ -26,10 +28,10 @@ export function InviteCard({ invite }: { invite: MyRewards['invite'] }) {
     if (!url) return
     try {
       await navigator.clipboard.writeText(url)
-      toast.success('Link copied')
+      toast.success(t('Link copied'))
     } catch {
       toast.info(
-        "Couldn't copy the link. Press and hold it to copy it instead."
+        t("Couldn't copy the link. Press and hold it to copy it instead.")
       )
     }
   }
@@ -53,11 +55,11 @@ export function InviteCard({ invite }: { invite: MyRewards['invite'] }) {
     <ScCard className="flex flex-col gap-3 py-4">
       <div>
         <h2 className="text-sm font-semibold text-text-primary">
-          Invite a friend
+          {t('Invite a friend')}
         </h2>
         <p className="mt-1 text-t4 text-text-secondary">
           <Figures
-            text={`You both get ${rewardRupees(invite.amount)} off when their first booking of ${rewardRupees(invite.minAmount)} or more is done.`}
+            text={t('You both get {rewardRupees} off when their first booking of {rewardRupees2} or more is done.', { rewardRupees: rewardRupees(invite.amount), rewardRupees2: rewardRupees(invite.minAmount) })}
           />
         </p>
       </div>
@@ -73,7 +75,7 @@ export function InviteCard({ invite }: { invite: MyRewards['invite'] }) {
               className="flex min-h-11 items-center justify-center gap-2"
             >
               <IconShare size={16} aria-hidden />
-              Share
+              {t('Share')}
             </ScButton>
             <ScButton
               variant="secondary"
@@ -81,7 +83,7 @@ export function InviteCard({ invite }: { invite: MyRewards['invite'] }) {
               className="flex min-h-11 items-center justify-center gap-2"
             >
               <IconCopy size={16} aria-hidden />
-              Copy link
+              {t('Copy link')}
             </ScButton>
           </div>
         </>
@@ -92,12 +94,25 @@ export function InviteCard({ invite }: { invite: MyRewards['invite'] }) {
           disabled={create.isPending}
           className="flex min-h-11 items-center justify-center"
         >
-          {create.isPending ? 'Making your link…' : 'Get your invite link'}
+          {create.isPending ? t('Making your link…') : t('Get your invite link')}
         </ScButton>
       )}
       <p className="text-t5 text-text-muted">
         <Figures
-          text={`${invite.rewardedThisYear} rewarded this year (up to ${invite.maxPerYear}; ${left} left)${invite.pending > 0 ? ` · ${invite.pending} waiting for a first booking` : ''}. For people new to Detlio only.`}
+          text={
+            invite.pending > 0
+              ? t('{rewarded} rewarded this year (up to {max}; {left} left) · {pending} waiting for a first booking. For people new to Detlio only.', {
+                  rewarded: invite.rewardedThisYear,
+                  max: invite.maxPerYear,
+                  left,
+                  pending: invite.pending,
+                })
+              : t('{rewarded} rewarded this year (up to {max}; {left} left). For people new to Detlio only.', {
+                  rewarded: invite.rewardedThisYear,
+                  max: invite.maxPerYear,
+                  left,
+                })
+          }
         />
       </p>
     </ScCard>

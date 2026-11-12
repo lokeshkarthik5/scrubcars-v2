@@ -8,16 +8,19 @@
 // Relative, not @repo/core/map: the server's parity test loads this file by
 // path, outside the workspace's aliases.
 import { straightLineKm } from './map'
+import { msg, t } from './i18n/translate'
+import { insideReachCity, type ReachCity } from './cities'
 
 /** How far a garage with no pickup radius collects from. */
 export const DEFAULT_PICKUP_RADIUS_KM = 10
 /** The radius a garage or admin may set. */
 export const MIN_PICKUP_RADIUS_KM = 1
-export const MAX_PICKUP_RADIUS_KM = 30
+export const MAX_PICKUP_RADIUS_KM = 300
 
 /** The garage's own tick, in its portal settings. */
-export const PICKUP_TERMS_GARAGE =
+export const PICKUP_TERMS_GARAGE = msg(
   "We are responsible for the customer's car from pickup until it is returned"
+)
 /** The admin's tick, for a garage onboarded or edited from admin. */
 export const PICKUP_TERMS_ADMIN = 'The garage has agreed to this (signed agreement)'
 
@@ -45,11 +48,11 @@ export function handoverLocked(
 
 /** What each step is called on the garage's button and in step times. */
 export const PICKUP_STEP_LABELS: Record<PickupNext, string> = {
-  picked_up: 'Picked up',
-  at_garage: 'At garage',
-  start_work: 'In progress',
-  out_for_delivery: 'Out for delivery',
-  delivered: 'Delivered',
+  picked_up: msg('Picked up'),
+  at_garage: msg('At garage'),
+  start_work: msg('In progress'),
+  out_for_delivery: msg('Out for delivery'),
+  delivered: msg('Delivered'),
 }
 
 /**
@@ -58,13 +61,13 @@ export const PICKUP_STEP_LABELS: Record<PickupNext, string> = {
  */
 export function pickupReachLine(radiusKm: number | null): string {
   return radiusKm == null
-    ? `Pickup within ${DEFAULT_PICKUP_RADIUS_KM} km (default)`
-    : `Pickup within ${radiusKm} km`
+    ? t('Pickup within {km} km (default)', { km: DEFAULT_PICKUP_RADIUS_KM })
+    : t('Pickup within {km} km', { km: radiusKm })
 }
 
 export type PickupRadiusInput = { ok: true; km: number | null } | { ok: false; message: string }
 
-/** The radius box: empty is the default, otherwise 1 to 30 km, decimals allowed. */
+/** The radius box: empty is the default, otherwise 1 to 300 km (MAX_PICKUP_RADIUS_KM), decimals allowed. */
 export function parsePickupRadius(value: string): PickupRadiusInput {
   const trimmed = value.trim()
   if (trimmed === '') return { ok: true, km: null }
@@ -72,7 +75,11 @@ export function parsePickupRadius(value: string): PickupRadiusInput {
   if (!Number.isFinite(km) || km < MIN_PICKUP_RADIUS_KM || km > MAX_PICKUP_RADIUS_KM) {
     return {
       ok: false,
-      message: `Enter a distance from ${MIN_PICKUP_RADIUS_KM} to ${MAX_PICKUP_RADIUS_KM} km, or leave it empty for ${DEFAULT_PICKUP_RADIUS_KM} km.`,
+      message: t('Enter a distance from {min} to {max} km, or leave it empty for {default} km.', {
+        min: MIN_PICKUP_RADIUS_KM,
+        max: MAX_PICKUP_RADIUS_KM,
+        default: DEFAULT_PICKUP_RADIUS_KM,
+      }),
     }
   }
   return { ok: true, km }
@@ -112,12 +119,12 @@ export const PICKUP_STAGES: readonly PickupStage[] = [
 
 /** The timeline's step names. */
 export const PICKUP_STAGE_LABELS: Record<PickupStage, string> = {
-  booked: 'Booked',
-  picked_up: 'Picked up',
-  at_garage: 'At garage',
-  in_progress: 'Being worked on',
-  out_for_delivery: 'Out for delivery',
-  delivered: 'Delivered',
+  booked: msg('Booked'),
+  picked_up: msg('Picked up'),
+  at_garage: msg('At garage'),
+  in_progress: msg('Being worked on'),
+  out_for_delivery: msg('Out for delivery'),
+  delivered: msg('Delivered'),
 }
 
 /**
@@ -126,11 +133,11 @@ export const PICKUP_STAGE_LABELS: Record<PickupStage, string> = {
  * booking's own status says it ("Requested", "Next booking").
  */
 export const PICKUP_STAGE_NOW: Record<Exclude<PickupStage, 'booked'>, string> = {
-  picked_up: 'Car collected',
-  at_garage: 'At the garage',
-  in_progress: 'Being worked on',
-  out_for_delivery: 'On its way back',
-  delivered: 'Car returned',
+  picked_up: msg('Car collected'),
+  at_garage: msg('At the garage'),
+  in_progress: msg('Being worked on'),
+  out_for_delivery: msg('On its way back'),
+  delivered: msg('Car returned'),
 }
 
 /** The facts the stage is read from, as either side names them. */
@@ -219,34 +226,34 @@ export function pickupTimeline(booking: PickupTimelineBooking): PickupTimelineSt
 
   const captions: Record<PickupStage, Record<PickupTimelineStep['state'], string>> = {
     booked: {
-      done: `${garage} accepted your booking`,
-      current: `Waiting for ${garage} to accept`,
-      upcoming: `Waiting for ${garage} to accept`,
+      done: msg('{garage} accepted your booking'),
+      current: msg('Waiting for {garage} to accept'),
+      upcoming: msg('Waiting for {garage} to accept'),
     },
     picked_up: {
-      done: 'The garage has your car',
-      current: 'The garage comes to your address at your booked time',
-      upcoming: 'The garage collects your car from your address',
+      done: msg('The garage has your car'),
+      current: msg('The garage comes to your address at your booked time'),
+      upcoming: msg('The garage collects your car from your address'),
     },
     at_garage: {
-      done: 'Your car reached the garage',
-      current: 'On the way to the garage',
-      upcoming: 'Your car is taken to the garage',
+      done: msg('Your car reached the garage'),
+      current: msg('On the way to the garage'),
+      upcoming: msg('Your car is taken to the garage'),
     },
     in_progress: {
-      done: 'The work on your car is done',
-      current: 'Work starts once your car is at the garage',
-      upcoming: 'The garage works on your car',
+      done: msg('The work on your car is done'),
+      current: msg('Work starts once your car is at the garage'),
+      upcoming: msg('The garage works on your car'),
     },
     out_for_delivery: {
-      done: 'Your car is on its way back',
-      current: 'Shows here when your car leaves the garage',
-      upcoming: 'The garage brings your car back',
+      done: msg('Your car is on its way back'),
+      current: msg('Shows here when your car leaves the garage'),
+      upcoming: msg('The garage brings your car back'),
     },
     delivered: {
-      done: 'Your car is back with you',
-      current: 'On its way back to you',
-      upcoming: 'Your car is back with you',
+      done: msg('Your car is back with you'),
+      current: msg('On its way back to you'),
+      upcoming: msg('Your car is back with you'),
     },
   }
 
@@ -267,11 +274,14 @@ export function pickupTimeline(booking: PickupTimelineBooking): PickupTimelineSt
   return PICKUP_STAGES.map((key, index) => {
     const state: PickupTimelineStep['state'] =
       index <= doneThrough ? 'done' : index === currentIndex ? 'current' : 'upcoming'
-    const caption =
-      key === 'in_progress' && working ? 'Work has started on your car' : captions[key][state]
+    // The captions are English keys, the garage's name filled in as it is translated.
+    const caption = t(
+      key === 'in_progress' && working ? 'Work has started on your car' : captions[key][state],
+      { garage }
+    )
     return {
       key,
-      label: PICKUP_STAGE_LABELS[key],
+      label: t(PICKUP_STAGE_LABELS[key]),
       caption,
       state,
       at: state === 'upcoming' ? undefined : times[key],
@@ -301,8 +311,8 @@ export function pickupCodeCard(
       ? {
           kind: 'pickup',
           code: pickup.pickupCode,
-          title: 'Pickup code',
-          line: 'Give this code to the garage when they collect your car:',
+          title: t('Pickup code'),
+          line: t('Give this code to the garage when they collect your car:'),
         }
       : null
   }
@@ -310,8 +320,8 @@ export function pickupCodeCard(
     return {
       kind: 'delivery',
       code: pickup.deliveryCode,
-      title: 'Delivery code',
-      line: 'Give this code when your car is returned:',
+      title: t('Delivery code'),
+      line: t('Give this code when your car is returned:'),
     }
   }
   return null
@@ -337,16 +347,27 @@ export function pickupFeeLabel(fee: number | null | undefined): string {
 /**
  * Whether a pinned point is inside a garage's pickup reach, as far as the
  * app can tell: straight-line km from the garage's pin, against its radius
- * (empty is the 10 km default). The server's check is the one that counts
+ * (empty is the 10 km default), or for a garage that collects all over its
+ * city (0069) from the city's centre against the city's reach. The server's check is the one that counts
  * (OUTSIDE_PICKUP_RADIUS); this only lets checkout say so before Pay. A hair
  * of slack keeps a point on the very edge from being refused here and
  * accepted there. Unknown (no pin on either side) is not "outside".
  */
 export function insidePickupReach(
-  garage: { lat: number | null; lng: number | null; pickupRadiusKm?: number | null },
+  garage: {
+    lat: number | null
+    lng: number | null
+    pickupRadiusKm?: number | null
+    /** "All over <city>" (0069): measured from the city's centre against its reach instead. */
+    pickupWholeCity?: boolean
+    reachCity?: ReachCity | null
+  },
   point: { lat: number | null; lng: number | null }
 ): boolean | null {
   if (garage.lat == null || garage.lng == null || point.lat == null || point.lng == null) return null
+  if (garage.pickupWholeCity && garage.reachCity) {
+    return insideReachCity(garage.reachCity, { lat: point.lat, lng: point.lng })
+  }
   const radius = garage.pickupRadiusKm ?? DEFAULT_PICKUP_RADIUS_KM
   return straightLineKm({ lat: garage.lat, lng: garage.lng }, { lat: point.lat, lng: point.lng }) <= radius * 1.01
 }

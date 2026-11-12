@@ -1,3 +1,4 @@
+import { useT } from '@repo/core/i18n';
 import { toast } from '@repo/native-ui/toast';
 import * as Sharing from 'expo-sharing';
 import { type ComponentRef, type ReactNode, useEffect, useRef, useState } from 'react';
@@ -36,6 +37,7 @@ export function sharePicture(node: ReactNode, size: { width: number; height: num
 }
 
 export function ShareHost() {
+  const t = useT();
   const job = useJob((s) => s.job);
   const ref = useRef<ComponentRef<typeof View>>(null);
   const [ready, setReady] = useState(false);
@@ -59,7 +61,7 @@ export function ShareHost() {
         else await Share.share({ url: uri });
         job.done(true);
       } catch {
-        toast.error("Couldn't make the picture. Try again.");
+        toast.error(t("Couldn't make the picture. Try again."));
         job.done(false);
       } finally {
         useJob.setState({ job: null });

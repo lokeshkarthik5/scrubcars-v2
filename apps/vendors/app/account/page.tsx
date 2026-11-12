@@ -1,6 +1,7 @@
 'use client'
 
 import { IconLogout } from '@tabler/icons-react'
+import { useT } from '@repo/core/i18n'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
@@ -13,6 +14,7 @@ import { useUserStore } from '@repo/core/stores/user-store'
 import { useVendorOnboardingStore } from '@repo/core/stores/vendor-onboarding-store'
 import { AccountActions } from '@/components/account-actions'
 import { ActiveGarage } from '@/components/active-garage'
+import { LanguageRow } from '@/components/language-row'
 
 /**
  * Your account (0066), for every seat: who is signed in, and the ways out.
@@ -21,6 +23,7 @@ import { ActiveGarage } from '@/components/active-garage'
  * "Close my garage" is here too, as on Settings → Account.
  */
 export default function AccountPage() {
+  const t = useT()
   const user = useAuthStore((s) => s.user)
   const logout = useAuthStore((s) => s.logout)
 
@@ -34,7 +37,7 @@ export default function AccountPage() {
 
   return (
     <AppShell showNav navType="vendor" showBrand brandRight={<ActiveGarage />} className="gap-5 py-4">
-      <TopBar title="Your account" showBack backHref="/home" />
+      <TopBar title={t('Your account')} showBack backHref="/home" />
 
       {user && (
         <ScCard className="flex flex-col gap-0.5">
@@ -43,17 +46,20 @@ export default function AccountPage() {
         </ScCard>
       )}
 
+      {/* English or தமிழ் (Tamil): every seat's, so an operator can choose too. */}
+      <LanguageRow />
+
       <AccountActions />
 
       <section className="flex flex-col gap-3">
-        <SectionHeader title="Support" />
+        <SectionHeader title={t('Support')} />
         <SupportCard />
       </section>
 
       <ScButton variant="outline" size="md" onClick={() => void handleLogout()} className="mb-4">
         <span className="flex items-center justify-center gap-2">
           <IconLogout size={18} aria-hidden="true" />
-          Log out
+          {t('Log out')}
         </span>
       </ScButton>
     </AppShell>

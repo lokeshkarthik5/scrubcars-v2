@@ -196,9 +196,10 @@ test.describe('never an empty list, on screen @p0', () => {
     await expect(tab(page, 'Doorstep')).toHaveAttribute('aria-checked', 'true')
   })
 
-  test('the list’s location button opens the area sheet: an area in one tap, no permission asked', async ({ page }) => {
+  test('the list’s city chip opens the area sheet: an area in one tap, no permission asked', async ({ page }) => {
     await page.goto('/garages')
-    await page.getByRole('button', { name: 'Choose location' }).click()
+    // The city chip (0070): no place yet, so the first city, Chennai.
+    await page.getByRole('button', { name: 'Your city: Chennai. Change' }).click()
 
     const sheet = page.getByRole('dialog', { name: "Where's your car?" })
     await expect(sheet).toBeVisible()
@@ -209,7 +210,8 @@ test.describe('never an empty list, on screen @p0', () => {
     await sheet.getByRole('button', { name: 'Anna Nagar' }).click()
 
     await expect(sheet).toBeHidden()
-    await expect(page.getByRole('button', { name: 'Choose location' })).toContainText('Anna Nagar')
+    const chip = page.getByRole('button', { name: 'Your area: Anna Nagar, Chennai. Change' })
+    await expect(chip).toContainText('Anna Nagar')
     await expect(page.getByText('Nearest first from Anna Nagar')).toBeVisible()
     // From an area's centre, every distance is approximate.
     await expect(page.locator('[data-distance]').first()).toHaveText(/^~[\d.]+ (km|m) · ~/)

@@ -18,11 +18,7 @@ import {
 import { formatStepTime } from '@repo/core/job-records'
 import type { Booking, JobPhoto } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
-
-const STAGE_WORD: Record<JobPhoto['stage'], string> = {
-  before: 'before',
-  after: 'after',
-}
+import { useT } from '@repo/core/i18n'
 
 /**
  * "Your car's condition" (0045): the customer's own photos of their car, on
@@ -50,6 +46,7 @@ export function CarConditionCard({
   /** Re-read the booking once a photo is added or removed. */
   onChanged: () => Promise<void> | void
 }) {
+  const t = useT()
   const windows = booking.conditionPhotos
   const [uploading, setUploading] = useState<string | null>(null)
   const [viewing, setViewing] = useState<{
@@ -84,7 +81,7 @@ export function CarConditionCard({
       toast.error(
         error instanceof Error
           ? error.message
-          : 'Your photo did not upload. Please try again.'
+          : t('Your photo did not upload. Please try again.')
       )
     } finally {
       setUploading(null)
@@ -99,7 +96,7 @@ export function CarConditionCard({
       await onChanged()
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Couldn't remove this photo"
+        error instanceof Error ? error.message : t("Couldn't remove this photo")
       )
     } finally {
       setRemoving(false)
@@ -107,20 +104,21 @@ export function CarConditionCard({
   }
 
   const intro = windows.before.open
-    ? `Optional: add up to ${windows.max} photos of your car before the work starts, close up on any scratches or dents. The garage sees them too, and they stay with this booking.`
+    ? t('Optional: add up to {max} photos of your car before the work starts, close up on any scratches or dents. The garage sees them too, and they stay with this booking.', { max: windows.max })
     : windows.after.open
-      ? `Your car is done. Add up to ${windows.max} photos of how it came back${
-          windows.after.closesAt
-            ? `, until ${formatStepTime(windows.after.closesAt)}`
-            : ''
-        }.`
-      : 'Your photos of your car, kept with this booking.'
+      ? windows.after.closesAt
+        ? t('Your car is done. Add up to {max} photos of how it came back, until {time}.', {
+            max: windows.max,
+            time: formatStepTime(windows.after.closesAt),
+          })
+        : t('Your car is done. Add up to {max} photos of how it came back.', { max: windows.max })
+      : t('Your photos of your car, kept with this booking.')
 
   return (
     <ScCard className="flex flex-col gap-3">
       <div>
         <h2 className="text-t3 font-semibold text-text-primary">
-          Your car&apos;s condition
+          {t("Your car's condition")}
         </h2>
         <p className="mt-0.5 text-t5 text-text-secondary">{intro}</p>
       </div>
@@ -131,12 +129,13 @@ export function CarConditionCard({
         const room = open ? windows.max - mine.length : 0
         const slots = angleSlots(booking.jobPhotos, 'customer', stage)
         const extras = extraPhotos(booking.jobPhotos, 'customer', stage)
-        const word = STAGE_WORD[stage]
+        // Whole phrases, so Tamil can order them its own way.
+        const before = stage === 'before'
         const thumb = (photo: JobPhoto, name: string) => (
           <button
             type="button"
             onClick={() => setViewing({ photo, name, canRemove: open })}
-            aria-label={`View ${name}`}
+            aria-label={t('View {name}', { name })}
             className={cn(
               'relative block aspect-square w-full overflow-hidden rounded-[13px] bg-surface ring-1 ring-inset ring-white/10',
               !onArrival.has(photo.id) && 'mo-shutter'
@@ -155,7 +154,7 @@ export function CarConditionCard({
           <div key={stage} className="flex flex-col gap-1.5">
             <div className="flex items-baseline justify-between gap-2">
               <p className="text-t5 font-medium uppercase tracking-wide text-text-secondary">
-                {stage === 'before' ? 'Before the work' : 'After the work'}
+                {stage === 'before' ? t('Before the work') : t('After the work')}
               </p>
               <p className="font-numeric text-t5 text-text-muted">
                 {mine.length}/{windows.max}
@@ -163,7 +162,7 @@ export function CarConditionCard({
             </div>
             <ul className="grid grid-cols-5 gap-1.5">
               {slots.map(({ angle, photo }) => {
-                const label = PHOTO_ANGLE_LABELS[angle]
+                const label = t(PHOTO_ANGLE_LABELS[angle])
                 if (photo) {
                   return (
                     <li
@@ -172,7 +171,9 @@ export function CarConditionCard({
                     >
                       {thumb(
                         photo,
-                        `your ${label.toLowerCase()} photo, ${word} the work`
+                        before
+                          ? t('your {angle} photo, before the work', { angle: label.toLowerCase() })
+                          : t('your {angle} photo, after the work', { angle: label.toLowerCase() })
                       )}
                       <span className="w-full truncate text-center text-[10px] text-text-secondary">
                         {label}
@@ -200,7 +201,11 @@ export function CarConditionCard({
                         accept="image/*"
                         capture="environment"
                         className="sr-only"
-                        aria-label={`Add a ${label.toLowerCase()} photo of your car, ${word} the work`}
+                        aria-label={
+                          before
+                            ? t('Add a {angle} photo of your car, before the work', { angle: label.toLowerCase() })
+                            : t('Add a {angle} photo of your car, after the work', { angle: label.toLowerCase() })
+                        }
                         disabled={uploading !== null}
                         onChange={(event) => {
                           const file = event.currentTarget.files?.[0]
@@ -227,7 +232,12 @@ export function CarConditionCard({
                   key={photo.id}
                   className="flex min-w-0 flex-col items-center gap-1"
                 >
-                  {thumb(photo, `your extra photo ${i + 1}, ${word} the work`)}
+                  {thumb(
+                    photo,
+                    before
+                      ? t('your extra photo {number}, before the work', { number: i + 1 })
+                      : t('your extra photo {number}, after the work', { number: i + 1 })
+                  )}
                   <span className="w-full truncate text-center text-[10px] text-text-secondary">
                     {angleLabel(photo.angle)}
                   </span>
@@ -242,7 +252,7 @@ export function CarConditionCard({
         open={viewing !== null}
         onClose={() => setViewing(null)}
         dismissible={!removing}
-        aria-label={viewing ? `Your photo: ${viewing.name}` : 'Your photo'}
+        aria-label={viewing ? t('Your photo: {name}', { name: viewing.name }) : t('Your photo')}
         className="max-w-[420px] px-3"
       >
         {viewing && (
@@ -259,7 +269,7 @@ export function CarConditionCard({
                 onClick={() => setViewing(null)}
                 className="min-h-11"
               >
-                Close
+                {t('Close')}
               </ScButton>
               {viewing.canRemove && (
                 <ScButton
@@ -268,7 +278,7 @@ export function CarConditionCard({
                   onClick={() => remove(viewing.photo)}
                   className="min-h-11"
                 >
-                  {removing ? 'Removing…' : 'Remove'}
+                  {removing ? t('Removing…') : t('Remove')}
                 </ScButton>
               )}
             </div>

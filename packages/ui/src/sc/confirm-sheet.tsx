@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { typedConfirmHint, typedConfirmMatches } from '@repo/core/confirm'
+import { fill, useT } from '@repo/core/i18n'
 import { ScButton } from './button'
 import { ScSheet } from './modal'
 
@@ -48,11 +49,12 @@ export function ConfirmSheet({
   title,
   body,
   confirmLabel,
-  cancelLabel = 'Keep it',
+  cancelLabel,
   typeToConfirm = '',
   busy = false,
   error,
 }: ConfirmSheetProps) {
+  const t = useT()
   const [pending, setPending] = useState(false)
   const [typed, setTyped] = useState('')
   const [wasOpen, setWasOpen] = useState(open)
@@ -123,11 +125,13 @@ export function ConfirmSheet({
               htmlFor={inputId}
               className="block text-[13px] text-text-secondary"
             >
-              Type{' '}
-              <span className="font-semibold text-text-primary">
-                {typeToConfirm.trim()}
-              </span>{' '}
-              to confirm
+              {fill(t('Type {word} to confirm'), {
+                word: (
+                  <span className="font-semibold text-text-primary">
+                    {typeToConfirm.trim()}
+                  </span>
+                ),
+              })}
             </label>
             <input
               id={inputId}
@@ -172,7 +176,7 @@ export function ConfirmSheet({
             onClick={onClose}
             disabled={working}
           >
-            {cancelLabel}
+            {cancelLabel ?? t('Keep it')}
           </ScButton>
         </div>
       </div>

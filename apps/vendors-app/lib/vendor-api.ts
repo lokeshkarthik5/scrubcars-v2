@@ -8,6 +8,7 @@ import type {
   ApiWorkingHours,
 } from '@repo/core/api/types';
 import type { Booking } from '@repo/core/types';
+import { t } from '@repo/core/i18n/translate';
 
 /**
  * The garage's own side of packages/core/src/api/vendors.ts, whose module imports
@@ -60,9 +61,12 @@ export const updateVendorJobTypes = (data: {
   dropinEnabled?: boolean;
   doorstepEnabled?: boolean;
   doorstepRadiusKm?: number;
+  /** "All over <city>" (0069). On needs the pin inside a city. */
+  doorstepWholeCity?: boolean;
   pickupEnabled?: boolean;
   pickupRadiusKm?: number | null;
   pickupTermsAccepted?: boolean;
+  pickupWholeCity?: boolean;
 }) => apiClient<ApiVendorProfile>('/vendors/me/job-types', { method: 'PATCH', body: JSON.stringify(data) });
 
 export const updateSlotInterval = (slotIntervalMins: 30 | 45 | 60) =>
@@ -87,7 +91,9 @@ export async function setWorkingHoursForDays(openDays: number[], openTime: strin
   await setVendorWorkingHours(days);
 }
 
-export const getMyClosures = () => apiClient<ApiVendorClosure[]>('/vendors/me/closures');
+/** From today, or from an earlier day for a month the bookings calendar pages back to. */
+export const getMyClosures = (from?: string) =>
+  apiClient<ApiVendorClosure[]>('/vendors/me/closures', { ...(from && { params: { from } }) });
 
 /** Comes back with the bookings already on that day: the owner sorts them out with the customers. */
 export async function addClosure(data: { date: string; reason?: string }) {
@@ -120,7 +126,7 @@ const putBytes = async (uploadUrl: string, bytes: Uint8Array) => {
     body: bytes as unknown as BodyInit,
     headers: { 'Content-Type': 'image/jpeg' },
   });
-  if (!sent.ok) throw new Error('Upload failed. Please try again.');
+  if (!sent.ok) throw new Error(t('Upload failed. Please try again.'));
 };
 
 export const setVendorLogo = (url: string) =>

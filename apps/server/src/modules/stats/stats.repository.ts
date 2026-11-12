@@ -86,6 +86,7 @@ export function statsReads(tx: Tx) {
         bills_paid: string | null
         refunds_recorded: string | null
         marked_test: boolean
+        booking_type: string
         response_missed: boolean
         guarantee_refund: boolean
       }>(sql`
@@ -129,6 +130,7 @@ export function statsReads(tx: Tx) {
                    and rr.gateway_status is distinct from 'failed'
                ) as refunds_recorded,
                c.marked_test_at is not null as marked_test,
+               c.booking_type,
                c.response_missed_at is not null as response_missed,
                c.guarantee_refund_at is not null as guarantee_refund
           from chains c
@@ -155,6 +157,7 @@ export function statsReads(tx: Tx) {
         billsPaid: row.bills_paid,
         refundsRecorded: row.refunds_recorded,
         markedTest: row.marked_test,
+        bookingType: row.booking_type,
         responseMissed: row.response_missed,
         guaranteeRefund: row.guarantee_refund,
       }))
@@ -367,40 +370,33 @@ export function statsReads(tx: Tx) {
     },
 
     /**
-     * Each garage's page views (distinct visits) and paid bookings (the
-     * API's booking_paid), with its name as it is now; a garage deleted
-     * since has none.
+     * Each garage's page views (distinct visits), with its name as it is
+     * now; a garage deleted since has none. Its paid bookings come from the
+     * bookings themselves (lib/stats.ts paidBookings), never booking_paid.
      */
     async garageViews(
       start: Date,
       end: Date,
       mode?: string
-    ): Promise<Array<{ vendorId: string; name: string | null; views: number; bookings: number }>> {
+    ): Promise<Array<{ vendorId: string; name: string | null; views: number }>> {
       const rows = await tx.execute<{
         vendor_id: string
         name: string | null
         views: number
-        bookings: number
       }>(sql`
         select e.props->>'vendorId' as vendor_id,
                v.business_name as name,
-               (count(distinct e.visit_id) filter (where e.name = 'garage_view'))::int as views,
-               (count(*) filter (where e.name = 'booking_paid'))::int as bookings
+               count(distinct e.visit_id)::int as views
           from analytics_events e
           left join vendors v on v.id::text = e.props->>'vendorId'
-         where e.name in ('garage_view', 'booking_paid')
+         where e.name = 'garage_view'
            and e.occurred_at >= ${at(start)}
            and e.occurred_at < ${at(end)}
            and e.props->>'vendorId' is not null
            ${mode ? sql`and e.props->>'mode' = ${mode}` : sql``}
          group by 1, 2
       `)
-      return rows.map((row) => ({
-        vendorId: row.vendor_id,
-        name: row.name,
-        views: row.views,
-        bookings: row.bookings,
-      }))
+      return rows.map((row) => ({ vendorId: row.vendor_id, name: row.name, views: row.views }))
     },
 
     /** Distinct visits by device class. */

@@ -12,6 +12,7 @@ import { useAuthStore } from '@repo/core/stores/auth-store'
 import type { Vendor } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
 import { saveGarageReturnPath } from '@/lib/saved-garages'
+import { useT } from '@repo/core/i18n'
 
 /**
  * The heart on a garage: on the list's cards and on the garage page's photo,
@@ -24,6 +25,7 @@ import { saveGarageReturnPath } from '@/lib/saved-garages'
  * heart saved (`?save=1`, which the garage page acts on).
  */
 export function SaveGarageButton({ vendor, className }: { vendor: Vendor; className?: string }) {
+  const t = useT()
   const user = useAuthStore((s) => s.user)
   const ready = useAuthStore((s) => s.isSessionReady)
   const saved = useSavedGarages({ enabled: !!user })
@@ -52,8 +54,8 @@ export function SaveGarageButton({ vendor, className }: { vendor: Vendor; classN
             err instanceof ApiError && err.code === 'FAVOURITES_LIMIT'
               ? err.message
               : save
-                ? "Couldn't save this garage. Try again."
-                : "Couldn't remove this garage. Try again."
+                ? t("Couldn't save this garage. Try again.")
+                : t("Couldn't remove this garage. Try again.")
           )
         },
       }
@@ -74,7 +76,7 @@ export function SaveGarageButton({ vendor, className }: { vendor: Vendor; classN
         // is in: a press before then could undo a save it cannot see.
         disabled={!ready || (!!user && !saved.data)}
         aria-pressed={isSaved}
-        aria-label={isSaved ? `Remove ${vendor.name} from saved garages` : `Save ${vendor.name}`}
+        aria-label={isSaved ? t('Remove {name} from saved garages', { name: vendor.name }) : t('Save {name}', { name: vendor.name })}
         className={cn(
           // 44px: the disc is the whole target.
           'press flex size-11 items-center justify-center rounded-full bg-black/45 text-brand-white backdrop-blur-sm',
@@ -90,15 +92,14 @@ export function SaveGarageButton({ vendor, className }: { vendor: Vendor; classN
           <ScSheet
             open={askSignIn}
             onClose={() => setAskSignIn(false)}
-            aria-label="Sign in to save garages"
+            aria-label={t('Sign in to save garages')}
             className="px-4 pt-1"
           >
             <div className="flex flex-col gap-4">
               <div>
-                <h2 className="text-base font-semibold text-text-primary">Sign in to save garages</h2>
+                <h2 className="text-base font-semibold text-text-primary">{t('Sign in to save garages')}</h2>
                 <p className="mt-1 text-t4 text-text-secondary">
-                  Saved garages are kept on your account, under Profile. Signing in brings you back to{' '}
-                  {vendor.name} with it saved.
+                  {t('Saved garages are kept on your account, under Profile. Signing in brings you back to {name} with it saved.', { name: vendor.name })}
                 </p>
               </div>
               {/* The sheet's one red: signing in is what it asks. */}
@@ -107,14 +108,14 @@ export function SaveGarageButton({ vendor, className }: { vendor: Vendor; classN
                 fullWidth
                 className="min-h-12"
               >
-                Sign in
+                {t('Sign in')}
               </ScButtonLink>
               <button
                 type="button"
                 onClick={() => setAskSignIn(false)}
                 className="min-h-11 text-t4 font-medium text-text-secondary"
               >
-                Not now
+                {t('Not now')}
               </button>
             </div>
           </ScSheet>,

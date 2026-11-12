@@ -2,6 +2,7 @@ import type { HomeActionCard } from '@repo/core/api/home';
 import { reminderBookHref, reminderDueLine } from '@repo/core/car-history';
 import { formatClock, formatWhen } from '@repo/core/format';
 import { bookingDayLabel } from '@repo/core/home-display';
+import { fill, t, useT, useTn } from '@repo/core/i18n';
 import { formatRupees } from '@repo/core/job-records';
 import { ScButton } from '@repo/native-ui/button';
 import {
@@ -31,17 +32,18 @@ export const bookingActionPath = (bookingId: string, then?: 'pay' | 'reschedule'
 
 function raisedLabel(iso: string, now: Date): string {
   const day = bookingDayLabel(iso);
-  return day === bookingDayLabel(now.toISOString()) ? 'Today' : day;
+  return day === bookingDayLabel(now.toISOString()) ? t('Today') : day;
 }
 
 function NeedsYou({ vendorName }: { vendorName: string }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   return (
     <View style={styles.needs}>
       <View style={styles.dot} />
       <T size={13} numberOfLines={1} color={colors.dim} style={styles.shrink}>
-        Needs you · {vendorName}
+        {t('Needs you · {vendorName}', { vendorName })}
       </T>
     </View>
   );
@@ -81,6 +83,7 @@ function MoreLink({ words }: { words: string }) {
 }
 
 export function BillDueCard({ card, now }: { card: Card<'bill_due'>; now: Date }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const amount = formatRupees(Number(card.amountDue));
@@ -88,42 +91,44 @@ export function BillDueCard({ card, now }: { card: Card<'bill_due'>; now: Date }
     <HubCard style={styles.card}>
       <NeedsYou vendorName={card.vendorName} />
       <T size={20} lh={24} tracking={-0.015} style={styles.title}>
-        Pay your final bill
+        {t('Pay your final bill')}
       </T>
       <T size={15} color={colors.dim} style={styles.line}>
         {card.serviceName} · <T num size={15}>{amount}</T> · {raisedLabel(card.raisedAt, now)}
       </T>
-      <Pill href={bookingActionPath(card.bookingId, 'pay')} label={`Pay ${amount}`}>
+      <Pill href={bookingActionPath(card.bookingId, 'pay')} label={t('Pay {amount}', { amount })}>
         <PillWords>
-          Pay <T num size={15} weight={500} lh={20} color={colors.white}>{amount}</T>
+          {fill(t('Pay {amount}'), { amount: <T num size={15} weight={500} lh={20} color={colors.white}>{amount}</T> })}
         </PillWords>
       </Pill>
-      {card.moreDue > 0 ? <MoreLink words={`+${card.moreDue} more to pay`} /> : null}
+      {card.moreDue > 0 ? <MoreLink words={t('+{count} more to pay', { count: card.moreDue })} /> : null}
     </HubCard>
   );
 }
 
 export function TimeProposalHomeCard({ card }: { card: Card<'time_proposal'> }) {
+  const tn = useTn();
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   return (
     <HubCard style={styles.card}>
       <NeedsYou vendorName={card.vendorName} />
       <T size={20} lh={24} tracking={-0.015} style={styles.title}>
-        Can&apos;t do <T num size={20} lh={24}>{formatClock(card.scheduledAt)}</T> — pick another time
+        {fill(t("Can't do {time} — pick another time"), { time: <T num size={20} lh={24}>{formatClock(card.scheduledAt)}</T> })}
       </T>
       <T size={15} color={colors.dim} style={styles.line}>
-        {card.options.length === 1 ? '1 time' : `${card.options.length} times`} offered · answer by{' '}
-        <T num size={15} color={colors.dim}>{formatWhen(card.expiresAt)}</T>
+        {fill(tn(card.options.length, '1 time offered · answer by {when}', '{count} times offered · answer by {when}'), { when: <T num size={15} color={colors.dim}>{formatWhen(card.expiresAt)}</T> })}
       </T>
       <Pill href={bookingActionPath(card.bookingId, 'times')}>
-        <PillWords>Pick a time</PillWords>
+        <PillWords>{t('Pick a time')}</PillWords>
       </Pill>
     </HubCard>
   );
 }
 
 export function ExtraWorkHomeCard({ card, now }: { card: Card<'extra_work_due'>; now: Date }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const amount = formatRupees(Number(card.amount));
@@ -131,15 +136,15 @@ export function ExtraWorkHomeCard({ card, now }: { card: Card<'extra_work_due'>;
     <HubCard style={styles.card}>
       <NeedsYou vendorName={card.vendorName} />
       <T size={20} lh={24} tracking={-0.015} style={styles.title}>
-        Approve extra work
+        {t('Approve extra work')}
       </T>
       <T size={15} color={colors.dim} style={styles.line}>
         {card.description} · <T num size={15}>{amount}</T> · {raisedLabel(card.raisedAt, now)}
       </T>
-      <Pill href={bookingActionPath(card.bookingId, 'extra')} label={`Review and approve ${amount}`}>
-        <PillWords>Review &amp; approve</PillWords>
+      <Pill href={bookingActionPath(card.bookingId, 'extra')} label={t('Review and approve {amount}', { amount })}>
+        <PillWords>{t('Review & approve')}</PillWords>
       </Pill>
-      {card.moreDue > 0 ? <MoreLink words={`+${card.moreDue} more to answer`} /> : null}
+      {card.moreDue > 0 ? <MoreLink words={t('+{count} more to answer', { count: card.moreDue })} /> : null}
     </HubCard>
   );
 }
@@ -161,27 +166,29 @@ function Eyebrow({ vendorName }: { vendorName: string }) {
 }
 
 export function GarageClosedCard({ card }: { card: Card<'garage_closed'> }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   return (
     <HubCard style={styles.card}>
       <Eyebrow vendorName={card.vendorName} />
       <T size={17} weight={500} tracking={-0.012} style={styles.softTitle}>
-        Closed on {bookingDayLabel(card.scheduledAt)}
+        {t('Closed on {bookingDayLabel}', { bookingDayLabel: bookingDayLabel(card.scheduledAt) })}
       </T>
       <T size={13} color={colors.dim} style={styles.line}>
-        {card.reason === 'holiday' ? 'A holiday' : 'Its weekly day off'}, the day of your{' '}
-        <T num size={13} color={colors.dim}>{formatClock(new Date(card.scheduledAt))}</T> booking.
-        {card.canChangeTime ? ' Pick another time, or ask us for help.' : ' Ask us for help with it.'}
+        {fill(card.reason === 'holiday' ? t('A holiday, the day of your {time} booking.') : t('Its weekly day off, the day of your {time} booking.'), {
+          time: <T num size={13} color={colors.dim}>{formatClock(new Date(card.scheduledAt))}</T>,
+        })}
+        {card.canChangeTime ? ` ${t('Pick another time, or ask us for help.')}` : ` ${t('Ask us for help with it.')}`}
       </T>
       <View style={styles.row}>
         {card.canChangeTime ? (
           <ScButton variant="quiet" fullWidth={false} onPress={() => go(bookingActionPath(card.bookingId, 'reschedule'))}>
-            Change time
+            {t('Change time')}
           </ScButton>
         ) : null}
         <ScButton variant="quiet" fullWidth={false} onPress={() => go(bookingActionPath(card.bookingId, 'help'))}>
-          Get help
+          {t('Get help')}
         </ScButton>
       </View>
     </HubCard>
@@ -189,20 +196,22 @@ export function GarageClosedCard({ card }: { card: Card<'garage_closed'> }) {
 }
 
 export function RateWashCard({ card, onDismiss, dismissing }: { card: Card<'rate'>; onDismiss: () => void; dismissing?: boolean }) {
+  const tn = useTn();
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   return (
-    <HubCard accessibilityLabel="Rate your wash" style={styles.rate}>
+    <HubCard accessibilityLabel={t('Rate your wash')} style={styles.rate}>
       <View style={styles.rateHead}>
         <View style={styles.rateWords}>
           <T size={15} weight={500} tracking={-0.01} numberOfLines={2}>
-            How was your wash at {card.vendorName}?
+            {t('How was your wash at {vendorName}?', { vendorName: card.vendorName })}
           </T>
           <T size={13} color={colors.dim}>
-            {card.vehicleName} · Rate it
+            {t('{vehicleName} · Rate it', { vehicleName: card.vehicleName })}
           </T>
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Hide Rate your wash" disabled={dismissing} onPress={onDismiss} style={styles.x}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('Hide Rate your wash')} disabled={dismissing} onPress={onDismiss} style={styles.x}>
           <IconX size={20} stroke={1.5} color={colors.dim} />
         </Pressable>
       </View>
@@ -211,7 +220,7 @@ export function RateWashCard({ card, onDismiss, dismissing }: { card: Card<'rate
           <Pressable
             key={stars}
             accessibilityRole="button"
-            accessibilityLabel={`Rate ${stars} star${stars === 1 ? '' : 's'}`}
+            accessibilityLabel={tn(stars, 'Rate {count} star', 'Rate {count} stars')}
             onPress={() => go(`/bookings/${card.bookingId}?rate=${stars}`)}
             style={styles.x}
           >
@@ -224,10 +233,11 @@ export function RateWashCard({ card, onDismiss, dismissing }: { card: Card<'rate
 }
 
 export function ComplaintAnswerCard({ card }: { card: Card<'complaint_resolved'> }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   return (
-    <HubCard accessibilityLabel={`Complaint ${card.number} resolved`} style={styles.card}>
+    <HubCard accessibilityLabel={t('Complaint {number} resolved', { number: card.number })} style={styles.card}>
       <View style={styles.eyebrow}>
         <T num size={13} color={colors.dim}>
           {card.number}
@@ -237,14 +247,14 @@ export function ComplaintAnswerCard({ card }: { card: Card<'complaint_resolved'>
       <View style={styles.complaint}>
         <View style={styles.shrink}>
           <T size={17} weight={500} tracking={-0.012}>
-            Complaint resolved
+            {t('Complaint resolved')}
           </T>
           <T size={13} numberOfLines={1} color={colors.dim} style={styles.line}>
-            We&apos;ve answered it.
+            {t("We've answered it.")}
           </T>
         </View>
         <ScButton variant="quiet" fullWidth={false} onPress={() => go('/profile/complaints')}>
-          See our answer
+          {t('See our answer')}
         </ScButton>
       </View>
     </HubCard>
@@ -266,6 +276,7 @@ export function ServiceReminderHomeCard({
   onDismiss: () => void;
   busy?: boolean;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   return (
@@ -285,7 +296,7 @@ export function ServiceReminderHomeCard({
             {reminderDueLine({ ...card, booked: null }, now)} · {card.reason}
           </T>
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Dismiss reminder: ${card.title}`} disabled={busy} onPress={onDismiss} style={styles.x}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('Dismiss reminder: {title}', { title: card.title })} disabled={busy} onPress={onDismiss} style={styles.x}>
           <IconX size={20} stroke={1.5} color={colors.dim} />
         </Pressable>
       </View>
@@ -300,12 +311,12 @@ export function ServiceReminderHomeCard({
         >
           <IconSparkles size={16} stroke={1.5} />
           <T size={15} weight={500} lh={20}>
-            Book
+            {t('Book')}
           </T>
         </ScButton>
-        <Pressable accessibilityRole="button" accessibilityLabel="Remind me in 2 weeks" disabled={busy} onPress={onSnooze} style={styles.snooze}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('Remind me in 2 weeks')} disabled={busy} onPress={onSnooze} style={styles.snooze}>
           <T size={15} color={colors.dim}>
-            In 2 weeks
+            {t('In 2 weeks')}
           </T>
         </Pressable>
       </View>

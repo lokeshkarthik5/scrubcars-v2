@@ -11,6 +11,7 @@ import {
   IconPhoneOff,
   IconRefresh,
 } from '@tabler/icons-react'
+import { useT } from '@repo/core/i18n'
 import { ScButton } from '@repo/ui/sc/button'
 import { BOOKING_TYPE_LABELS } from '@repo/core/booking-types'
 import { formatINR, formatWhen } from '@repo/core/format'
@@ -62,11 +63,12 @@ export function NewBookingCard({
   /** On the job's own page, which already says who, when and the number. */
   onPage?: boolean
 }) {
+  const t = useT()
   const [rejecting, setRejecting] = useState(false)
   // Accept waits five seconds behind Undo (0066), like Start and Complete.
   const deferred = useDeferredStatus(b.id)
   const accepting = deferred === 'confirmed'
-  const who = b.customerName || 'the customer'
+  const who = b.customerName || t('the customer')
   const passed = slotPassed(b, now)
   const lost = responseRunOut(b, now)
   const waitingOnCustomer = proposalOpen(b)
@@ -84,7 +86,7 @@ export function NewBookingCard({
   return (
     <article
       id={`job-${b.id}`}
-      aria-label={`New booking from ${who}`}
+      aria-label={t('New booking from {who}', { who })}
       className="scroll-mt-4 rounded-[20px] border border-border bg-surface"
     >
       {b.responseDeadline && !waitingOnCustomer && (!passed || lost) && (
@@ -96,7 +98,7 @@ export function NewBookingCard({
         {!onPage && (
           <Link
             href={`/bookings/${b.id}`}
-            aria-label={`Details of the booking for ${who}`}
+            aria-label={t('Details of the booking for {who}', { who })}
             className="press -m-2 flex flex-col gap-1 rounded-[14px] p-2"
           >
             <p className="font-numeric text-[24px] font-bold leading-tight tracking-tight text-text-primary">
@@ -128,7 +130,7 @@ export function NewBookingCard({
         {b.guaranteeRedo && (
           <p className="inline-flex w-fit items-center gap-1.5 rounded-full border border-border px-3 py-1 text-[13px] font-medium text-text-primary">
             <IconRefresh size={14} aria-hidden="true" />
-            Free redo · nothing to collect
+            {t('Free redo · nothing to collect')}
           </p>
         )}
 
@@ -159,7 +161,7 @@ export function NewBookingCard({
               />
             )}
             <span className="min-w-0">
-              {BOOKING_TYPE_LABELS[b.bookingType]}
+              {t(BOOKING_TYPE_LABELS[b.bookingType])}
               {/* Its own element, so the address reads (and is found) as
                   itself. On the job's page the address block below has it. */}
               {b.jobLocation && !onPage && (
@@ -182,8 +184,9 @@ export function NewBookingCard({
 
         {b.rescheduledFromId && !passed && (
           <p className="text-[15px] text-text-secondary">
-            The customer moved this booking to a new time. Accept it if you can
-            do it.
+            {t(
+              'The customer moved this booking to a new time. Accept it if you can do it.'
+            )}
           </p>
         )}
 
@@ -192,7 +195,7 @@ export function NewBookingCard({
             role="status"
             className="flex min-h-14 items-center justify-center text-[16px] font-medium text-text-primary"
           >
-            {DEFERRED_WORDS.confirmed}
+            {t(DEFERRED_WORDS.confirmed)}
           </p>
         ) : waitingOnCustomer ? (
           // Times suggested instead of an answer (0041): what was offered,
@@ -203,8 +206,9 @@ export function NewBookingCard({
           // the refund, or other times can still be offered.
           <div className="flex flex-col gap-3">
             <p className="text-[15px] text-text-secondary">
-              This slot&apos;s time has passed without being accepted. Reject it
-              so the customer can be refunded.
+              {t(
+                "This slot's time has passed without being accepted. Reject it so the customer can be refunded."
+              )}
             </p>
             <div className="grid grid-cols-2 gap-2">
               {b.canSuggestTimes && (
@@ -214,10 +218,10 @@ export function NewBookingCard({
                 variant="outline"
                 size="md"
                 className={cn(!b.canSuggestTimes && 'col-span-2')}
-                aria-label={`Can't do: reject booking for ${who}`}
+                aria-label={t("Can't do: reject booking for {who}", { who })}
                 onClick={() => setRejecting(true)}
               >
-                Can&apos;t do
+                {t("Can't do")}
               </ScButton>
             </div>
           </div>
@@ -227,11 +231,11 @@ export function NewBookingCard({
               variant="main"
               size="lg"
               disabled={accepting}
-              aria-label={`Accept booking for ${who}`}
+              aria-label={t('Accept booking for {who}', { who })}
               onClick={accept}
             >
               <IconCheck size={22} stroke={2.4} aria-hidden="true" />
-              Accept
+              {t('Accept')}
             </ScButton>
             <div className="grid grid-cols-2 gap-2">
               {b.canSuggestTimes && (
@@ -241,10 +245,10 @@ export function NewBookingCard({
                 variant="outline"
                 size="md"
                 className={cn(!b.canSuggestTimes && 'col-span-2')}
-                aria-label={`Can't do: reject booking for ${who}`}
+                aria-label={t("Can't do: reject booking for {who}", { who })}
                 onClick={() => setRejecting(true)}
               >
-                Can&apos;t do
+                {t("Can't do")}
               </ScButton>
             </div>
           </div>

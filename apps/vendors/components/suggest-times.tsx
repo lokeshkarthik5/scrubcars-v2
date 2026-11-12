@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { IconCalendarQuestion, IconLoader2 } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
+import { fill, useT } from '@repo/core/i18n'
 import { ScButton } from '@repo/ui/sc/button'
 import { Chip } from '@repo/ui/sc/chip'
 import { ScTextarea } from '@repo/ui/sc/input'
@@ -67,12 +68,13 @@ export function SuggestTimes({
   onChanged,
   className,
 }: SuggestTimesProps) {
+  const t = useT()
   const proposal =
     booking.timeProposal?.status === 'open' ? booking.timeProposal : null
   // Ran out unanswered, and not yet cancelled by the next sweep (minutes).
   const ranOut =
     booking.status === 'pending' && booking.timeProposal?.status === 'expired'
-  const who = booking.customerName ?? 'the customer'
+  const who = booking.customerName ?? t('the customer')
   const [open, setOpen] = useState(false)
   const [withdrawing, setWithdrawing] = useState(false)
 
@@ -82,11 +84,13 @@ export function SuggestTimes({
     try {
       await withdrawTimeProposal(booking.id)
       toast.success(
-        'Suggested times withdrawn. Accept or reject the booking as usual.'
+        t('Suggested times withdrawn. Accept or reject the booking as usual.')
       )
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : 'Could not withdraw the times'
+        error instanceof Error
+          ? error.message
+          : t('Could not withdraw the times')
       )
     } finally {
       setWithdrawing(false)
@@ -99,7 +103,7 @@ export function SuggestTimes({
       <div className={cn('flex flex-col gap-2', className)}>
         <p className="flex items-center gap-1.5 text-[15px] font-medium text-text-primary">
           <IconCalendarQuestion size={18} stroke={1.5} aria-hidden />
-          {`Waiting for ${who} to pick a time`}
+          {t('Waiting for {who} to pick a time', { who })}
         </p>
         <ul className="flex flex-col gap-0.5">
           {proposal.options.map((option) => (
@@ -112,16 +116,19 @@ export function SuggestTimes({
           ))}
         </ul>
         <p className="text-[13px] text-text-secondary">
-          {`If ${who} doesn't pick one by ${timeLabel(proposal.expiresAt)}, the booking is cancelled and refunded in full.`}
+          {t(
+            "If {who} doesn't pick one by {time}, the booking is cancelled and refunded in full.",
+            { who, time: timeLabel(proposal.expiresAt) }
+          )}
         </p>
         <ScButton
           variant="outline"
           size="md"
           disabled={withdrawing}
           onClick={handleWithdraw}
-          aria-label={`Withdraw suggested times for ${who}`}
+          aria-label={t('Withdraw suggested times for {who}', { who })}
         >
-          {withdrawing ? 'Withdrawing…' : 'Withdraw times'}
+          {withdrawing ? t('Withdrawing…') : t('Withdraw times')}
         </ScButton>
       </div>
     )
@@ -130,7 +137,10 @@ export function SuggestTimes({
   if (ranOut) {
     return (
       <p className={cn('text-[15px] text-text-secondary', className)}>
-        {`${who} didn't pick one of your times in time, so this booking is being cancelled and refunded.`}
+        {t(
+          "{who} didn't pick one of your times in time, so this booking is being cancelled and refunded.",
+          { who }
+        )}
       </p>
     )
   }
@@ -144,10 +154,10 @@ export function SuggestTimes({
         variant="outline"
         size="md"
         onClick={() => setOpen(true)}
-        aria-label={`Other time: suggest another time for ${who}`}
+        aria-label={t('Other time: suggest another time for {who}', { who })}
         className={className}
       >
-        Other time
+        {t('Other time')}
       </ScButton>
       {open && (
         <SuggestTimesSheet
@@ -172,7 +182,8 @@ function SuggestTimesSheet({
   onClose: () => void
   onSent: () => void
 }) {
-  const who = booking.customerName ?? 'the customer'
+  const t = useT()
+  const who = booking.customerName ?? t('the customer')
   // The days on offer, worked out once when the sheet opens: from the
   // booked day, or today when that has passed.
   const [days] = useState(() => {
@@ -195,17 +206,17 @@ function SuggestTimesSheet({
   const dayNote = times.error
     ? times.error instanceof Error
       ? times.error.message
-      : 'Could not load the times'
+      : t('Could not load the times')
     : !times.data
       ? null
       : times.data.paused
-        ? "You've paused new bookings, so there are no times to offer."
+        ? t("You've paused new bookings, so there are no times to offer.")
         : times.data.isClosed
-          ? 'Closed this day.'
+          ? t('Closed this day.')
           : times.data.slots.length === 0
             ? times.data.allBooked
-              ? 'Every time this day is booked up.'
-              : 'No times left this day.'
+              ? t('Every time this day is booked up.')
+              : t('No times left this day.')
             : null
 
   const toggle = (time: string) =>
@@ -222,11 +233,11 @@ function SuggestTimesSheet({
     setSending(true)
     try {
       await suggestTimes(booking.id, picked, note.trim() || undefined)
-      toast.success(`Times sent. ${who} picks one in the Detlio app.`)
+      toast.success(t('Times sent. {who} picks one in the Detlio app.', { who }))
       onSent()
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : 'Could not send the times'
+        error instanceof Error ? error.message : t('Could not send the times')
       )
     } finally {
       setSending(false)
@@ -238,20 +249,23 @@ function SuggestTimesSheet({
       open
       onClose={onClose}
       dismissible={!sending}
-      aria-label={`Suggest another time for ${who}`}
+      aria-label={t('Suggest another time for {who}', { who })}
       className="px-4"
     >
       <h2 className="text-base font-semibold text-text-primary">
-        Suggest another time
+        {t('Suggest another time')}
       </h2>
       {/* Whole sentences from template strings: a name glued into JSX text
           lost its space after it in the built page ("Arjun Rameshpicks"). */}
       <p className="mt-1 text-[14px] text-text-secondary">
-        {`Can't do ${timeLabel(booking.scheduledAtIso)}? Pick up to ${MAX_TIMES} times you can do. ${who} picks one in the app and it's booked straight away.`}
+        {t(
+          "Can't do {time}? Pick up to {max} times you can do. {who} picks one in the app and it's booked straight away.",
+          { time: timeLabel(booking.scheduledAtIso), max: MAX_TIMES, who }
+        )}
       </p>
 
       <p className="mt-4 text-[11px] font-medium uppercase tracking-wide text-text-secondary">
-        Day
+        {t('Day')}
       </p>
       <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
         {days.map((key) => (
@@ -265,14 +279,14 @@ function SuggestTimesSheet({
       </div>
 
       <p className="mt-4 text-[11px] font-medium uppercase tracking-wide text-text-secondary">
-        Time
+        {t('Time')}
       </p>
       <div className="mt-2 flex min-h-11 flex-wrap gap-2">
         {slots === null && !dayNote ? (
           <IconLoader2
             size={18}
             className="animate-spin text-text-muted"
-            aria-label="Loading times"
+            aria-label={t('Loading times')}
           />
         ) : dayNote ? (
           <p className="text-[12px] text-text-secondary">{dayNote}</p>
@@ -294,8 +308,10 @@ function SuggestTimesSheet({
       {picked.length > 0 && (
         <div className="mt-4">
           <p className="text-[11px] font-medium uppercase tracking-wide text-text-secondary">
-            Offering <span className="font-numeric">{picked.length}</span> of{' '}
-            {MAX_TIMES}
+            {fill(t('Offering {count} of {max}'), {
+              count: <span className="font-numeric">{picked.length}</span>,
+              max: MAX_TIMES,
+            })}
           </p>
           <ul className="mt-1 flex flex-col gap-0.5">
             {[...picked].sort().map((time) => (
@@ -312,7 +328,7 @@ function SuggestTimesSheet({
 
       <div className="mt-4">
         <ScTextarea
-          label="Note for the customer (optional)"
+          label={t('Note for the customer (optional)')}
           rows={2}
           maxLength={NOTE_MAX}
           value={note}
@@ -321,7 +337,10 @@ function SuggestTimesSheet({
       </div>
 
       <p className="mt-3 text-[13px] text-text-secondary">
-        {`If ${who} doesn't answer in time (at most 12 hours), the booking is cancelled and refunded in full.`}
+        {t(
+          "If {who} doesn't answer in time (at most 12 hours), the booking is cancelled and refunded in full.",
+          { who }
+        )}
       </p>
 
       <div className="mt-5 flex gap-2">
@@ -331,7 +350,7 @@ function SuggestTimesSheet({
           disabled={sending}
           onClick={onClose}
         >
-          Cancel
+          {t('Cancel')}
         </ScButton>
         <ScButton
           variant="main"
@@ -339,16 +358,16 @@ function SuggestTimesSheet({
           disabled={picked.length === 0 || sending}
           disabledReason={
             picked.length === 0 && !sending
-              ? 'Pick at least one time'
+              ? t('Pick at least one time')
               : undefined
           }
           onClick={handleSend}
         >
           {sending
-            ? 'Sending…'
+            ? t('Sending…')
             : picked.length > 1
-              ? `Send ${picked.length} times`
-              : 'Send time'}
+              ? t('Send {count} times', { count: picked.length })
+              : t('Send time')}
         </ScButton>
       </div>
     </ScSheet>

@@ -33,6 +33,10 @@ import {
   nextStepRank,
   onboardedByOptions,
   ONBOARDED_NOT_SET,
+  CITY_OTHER_TOWNS,
+  cityLabel,
+  cityOptions,
+  matchesCity,
   parseGarageList,
   parseMissing,
   parseOnboardedBy,
@@ -555,6 +559,7 @@ describe('the table filters in the URL', () => {
       onboardedBy: '-',
       team: 'with',
       colour: 'amber',
+      city: null,
     })
     // A colour from an old or bad link is no filter.
     expect(
@@ -563,6 +568,38 @@ describe('the table filters in the URL', () => {
     // The editor's back arrow takes it as it is.
     expect(safeBackHref(href)).toBe(href)
     expect(garageListHref({ show: 'pending' })).toBe(listHref('pending'))
+  })
+})
+
+describe('the City filter (0069)', () => {
+  const chennai = { garageCity: { id: 'c1', name: 'Chennai' } }
+  const tirupur = { garageCity: { id: 'c2', name: 'Tirupur' } }
+  const nowhere = { garageCity: null }
+
+  test('one city by id, or Other towns; nothing on an API from before cities', () => {
+    expect(matchesCity(chennai, 'c1')).toBe(true)
+    expect(matchesCity(tirupur, 'c1')).toBe(false)
+    expect(matchesCity(nowhere, CITY_OTHER_TOWNS)).toBe(true)
+    expect(matchesCity(chennai, CITY_OTHER_TOWNS)).toBe(false)
+    expect(matchesCity({}, null)).toBe(true)
+    expect(matchesCity({}, 'c1')).toBe(false)
+    expect(cityLabel(nowhere)).toBe('Other towns')
+    expect(cityLabel(tirupur)).toBe('Tirupur')
+    expect(cityLabel({})).toBeNull()
+  })
+
+  test('the choices: each city holding a garage, A to Z, then Other towns, with counts', () => {
+    expect(cityOptions([tirupur, chennai, chennai, nowhere, {}])).toEqual([
+      { value: 'c1', label: 'Chennai', count: 2 },
+      { value: 'c2', label: 'Tirupur', count: 1 },
+      { value: CITY_OTHER_TOWNS, label: 'Other towns', count: 1 },
+    ])
+  })
+
+  test('kept in the link, so Back returns to it', () => {
+    const href = garageListHref({ show: 'all', city: 'c2' })
+    expect(href).toBe('/vendors?show=all&city=c2')
+    expect(parseGarageList(new URLSearchParams('city=c2')).city).toBe('c2')
   })
 })
 

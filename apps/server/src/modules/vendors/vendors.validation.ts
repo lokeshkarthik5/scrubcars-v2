@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { ADD_ON_LIMITS, MAX_BOOKING_LINES } from '../../lib/add-ons.js'
 import { isCalendarDate } from '../../lib/booking-ops.js'
+import { MAX_DOORSTEP_RADIUS_KM, MIN_DOORSTEP_RADIUS_KM } from '../../lib/doorstep.js'
 import { MAX_PICKUP_RADIUS_KM, MIN_PICKUP_RADIUS_KM } from '../../lib/pickup.js'
 import type { ServicePricingType } from '../../lib/pricing.js'
 
@@ -94,7 +95,7 @@ const vendorProfileFields = {
   // and the garage then covers DEFAULT_DOORSTEP_RADIUS_KM (lib/doorstep.ts):
   // Settings says "Leave empty to use 10 km", so emptying the field has to
   // reach the column rather than leave the old number in place.
-  doorstepRadiusKm: z.number().positive().max(100).nullable().optional(),
+  doorstepRadiusKm: z.number().positive().max(MAX_DOORSTEP_RADIUS_KM).nullable().optional(),
   email: z.string().trim().email().max(255).optional(),
   yearsInOperation: z.string().trim().max(20).optional(),
   mapsUrl: z.string().trim().url().max(2048).optional(),
@@ -161,7 +162,11 @@ export const updateJobTypesSchema = z
     // Sent with doorstepEnabled when the owner says how far they go in the
     // same breath (onboarding does), so the two land together. Optional: left
     // out, the garage covers DEFAULT_DOORSTEP_RADIUS_KM (lib/doorstep.ts).
-    doorstepRadiusKm: z.number().min(1).max(30).optional(),
+    doorstepRadiusKm: z.number().min(MIN_DOORSTEP_RADIUS_KM).max(MAX_DOORSTEP_RADIUS_KM).optional(),
+    // "All over <city>" (0069): the garage comes to any address inside its
+    // city's reach instead of its radius. On needs the garage's pin inside a
+    // city (400 WHOLE_CITY_NEEDS_CITY, "Pin the garage inside a city first").
+    doorstepWholeCity: z.boolean().optional(),
     // Pickup & drop (0037). Turning it on needs `pickupTermsAccepted: true`,
     // the owner's tick: "We are responsible for the customer's car from
     // pickup until it is returned" (lib/pickup.ts). Off never needs it.
@@ -174,16 +179,21 @@ export const updateJobTypesSchema = z
       .nullable()
       .optional(),
     pickupTermsAccepted: z.boolean().optional(),
+    // "All over <city>" for pickup & drop (0069), as doorstepWholeCity.
+    pickupWholeCity: z.boolean().optional(),
   })
   .refine(
     (data) =>
       data.dropinEnabled !== undefined ||
       data.doorstepEnabled !== undefined ||
+      data.doorstepRadiusKm !== undefined ||
+      data.doorstepWholeCity !== undefined ||
       data.pickupEnabled !== undefined ||
-      data.pickupRadiusKm !== undefined,
+      data.pickupRadiusKm !== undefined ||
+      data.pickupWholeCity !== undefined,
     {
       message:
-        'At least one of dropinEnabled, doorstepEnabled, pickupEnabled or pickupRadiusKm must be provided',
+        'At least one of dropinEnabled, doorstepEnabled, doorstepRadiusKm, doorstepWholeCity, pickupEnabled, pickupRadiusKm or pickupWholeCity must be provided',
     }
   )
 
@@ -343,6 +353,13 @@ export const listPublicVendorsQuerySchema = z
     // lib/discovery.ts) is the most a caller may ask for. A typed search
     // (`q`) ignores it: no radius applies.
     radiusKm: z.coerce.number().positive().max(50).optional(),
+    // The centre of the customer's city (0070), sent when they picked a whole
+    // city ("All of Coimbatore") and so send no origin: the far-garage limit
+    // (FAR_LIMIT_KM, lib/discovery.ts) is measured from it. Nothing is
+    // sorted or measured from it, since nobody stands at a city's centre;
+    // with an origin, the origin decides and this is ignored.
+    cityLat: z.coerce.number().finite().min(-90).max(90).optional(),
+    cityLng: z.coerce.number().finite().min(-180).max(180).optional(),
     bbox: bboxSchema.optional(),
     sort: vendorSortSchema.optional(),
     /**
@@ -378,6 +395,9 @@ export const listPublicVendorsQuerySchema = z
   })
   .refine((data) => (data.lat === undefined) === (data.lng === undefined), {
     message: 'lat and lng must be provided together',
+  })
+  .refine((data) => (data.cityLat === undefined) === (data.cityLng === undefined), {
+    message: 'cityLat and cityLng must be provided together',
   })
   .refine((data) => !(data.bbox && data.radiusKm), {
     message: 'Pass either bbox or radiusKm, not both',
@@ -610,6 +630,17 @@ export const createClosureSchema = z.object({
   reason: z.string().trim().max(200).optional(),
 })
 
+// The garage's own holiday list (GET /me/closures): from today unless the
+// bookings calendar asks from an earlier day, to show the time off of a
+// month it pages back to. The service clamps how far back (lib/slots.ts).
+export const listClosuresQuerySchema = z.object({
+  from: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'from must be YYYY-MM-DD')
+    .refine(isCalendarDate, 'That date does not exist')
+    .optional(),
+})
+
 // The reason is optional and public: the garage page shows it under "Not
 // taking bookings right now".
 export const pauseBookingsSchema = z.object({
@@ -617,6 +648,7 @@ export const pauseBookingsSchema = z.object({
 })
 
 export type CreateClosureInput = z.infer<typeof createClosureSchema>
+export type ListClosuresQuery = z.infer<typeof listClosuresQuerySchema>
 export type PauseBookingsInput = z.infer<typeof pauseBookingsSchema>
 
 export type CreateVendorInput = z.infer<typeof createVendorSchema>

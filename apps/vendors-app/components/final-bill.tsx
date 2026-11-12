@@ -17,6 +17,8 @@ import { ScSheet } from '@repo/native-ui/sheet';
 import { T } from '@repo/native-ui/text';
 import { toast } from '@repo/native-ui/toast';
 import { errorText } from '@/lib/error-text';
+import { t } from '@repo/core/i18n/translate';
+import { fill, useT } from '@repo/core/i18n';
 
 const MAX_LINES = 20;
 const MAX_DESCRIPTION = 80;
@@ -44,9 +46,9 @@ const bookedSummary = (booking: Booking) =>
   serviceLinesOf(booking.items).map((item) => `${item.name} ${formatRupees(item.amount)}`).join(' · ');
 
 function formProblem(lines: Line[], total: number): string | null {
-  if (lines.some((line) => !line.description.trim())) return 'Describe every line.';
+  if (lines.some((line) => !line.description.trim())) return t('Describe every line.');
   if (lines.some((line) => line.description.trim().length > MAX_DESCRIPTION)) {
-    return `Keep each line under ${MAX_DESCRIPTION} characters.`;
+    return t('Keep each line under {max} characters.', { max: MAX_DESCRIPTION });
   }
   if (
     lines.some((line) => {
@@ -54,14 +56,15 @@ function formProblem(lines: Line[], total: number): string | null {
       return !Number.isFinite(n) || n <= 0 || Math.abs(n * 100 - Math.round(n * 100)) > 1e-6;
     })
   ) {
-    return 'Give every line an amount in rupees.';
+    return t('Give every line an amount in rupees.');
   }
-  if (total < 1) return 'The bill must come to at least ₹1.';
+  if (total < 1) return t('The bill must come to at least ₹1.');
   return null;
 }
 
 /** FinalBillPanel (apps/vendors/components/final-bill.tsx). */
 export function FinalBillPanel({ booking, onChanged }: { booking: Booking; onChanged: () => void }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const bill = booking.finalBill;
@@ -69,7 +72,7 @@ export function FinalBillPanel({ booking, onChanged }: { booking: Booking; onCha
   const [lines, setLines] = useState<Line[]>(() => linesFrom(bill, booking));
   const [note, setNote] = useState(bill?.note ?? '');
   const [sending, setSending] = useState(false);
-  const who = booking.customerName ?? 'this customer';
+  const who = booking.customerName ?? t('this customer');
   const isVendorAdmin = useIsVendorAdmin();
 
   if (!bill && !booking.canRaiseFinalBill) return null;
@@ -101,12 +104,15 @@ export function FinalBillPanel({ booking, onChanged }: { booking: Booking; onCha
       setOpen(false);
       toast.success(
         figures.amountDue > 0
-          ? `Final bill saved. ${who} can pay ${formatRupees(figures.amountDue)} from their booking in the Detlio app.`
-          : 'Final bill saved. Nothing more to pay.'
+          ? t('Final bill saved. {who} can pay {amount} from their booking in the Detlio app.', {
+              who,
+              amount: formatRupees(figures.amountDue),
+            })
+          : t('Final bill saved. Nothing more to pay.')
       );
       onChanged();
     } catch (error) {
-      toast.error(errorText(error, 'Could not send the bill'));
+      toast.error(errorText(error, t('Could not send the bill')));
       onChanged();
     } finally {
       setSending(false);
@@ -122,7 +128,7 @@ export function FinalBillPanel({ booking, onChanged }: { booking: Booking; onCha
           icon={<IconReceipt size={22} stroke={1.6} color={colors.textSecondary} />}
           title={
             <>
-              Final bill
+              {t('Final bill')}
               {isVendorAdmin ? (
                 <>
                   {' · '}
@@ -138,7 +144,7 @@ export function FinalBillPanel({ booking, onChanged }: { booking: Booking; onCha
               <StatusChip tone={STATUS_TONE[bill.status]}>{finalBillStatusLabel(bill.status)}</StatusChip>
               {bill.amountDue > 0 ? (
                 <T size={15} color={colors.textSecondary}>
-                  {bill.status === 'paid' ? 'Paid in app' : 'Customer pays'}
+                  {bill.status === 'paid' ? t('Paid in app') : t('Customer pays')}
                   {isVendorAdmin ? (
                     <>
                       {' '}
@@ -151,15 +157,15 @@ export function FinalBillPanel({ booking, onChanged }: { booking: Booking; onCha
               ) : null}
             </View>
           }
-          accessibilityLabel={replaceable ? `Replace final bill for ${who}` : undefined}
+          accessibilityLabel={replaceable ? t('Replace final bill for {who}', { who }) : undefined}
           onOpen={replaceable ? openForm : undefined}
         />
       ) : (
         <JobSheetRow
           icon={<IconReceipt size={22} stroke={1.6} color={colors.textSecondary} />}
-          title="Raise final bill"
-          detail="Not sent yet · the job is priced on inspection"
-          accessibilityLabel={`Raise final bill for ${who}`}
+          title={t('Raise final bill')}
+          detail={t('Not sent yet · the job is priced on inspection')}
+          accessibilityLabel={t('Raise final bill for {who}', { who })}
           onOpen={openForm}
         />
       )}
@@ -168,25 +174,31 @@ export function FinalBillPanel({ booking, onChanged }: { booking: Booking; onCha
         open={open}
         onClose={() => setOpen(false)}
         dismissible={!sending}
-        accessibilityLabel={`Final bill for ${who}`}
+        accessibilityLabel={t('Final bill for {who}', { who })}
         horizontalPadding={16}
       >
         <T accessibilityRole="header" size={16} weight={600}>
-          Final bill
+          {t('Final bill')}
         </T>
         <T size={12} color={colors.textSecondary} style={styles.mt1}>
-          {`The bill is for the whole job: the services booked, plus the work and parts. ${
+          {`${t('The bill is for the whole job: the services booked, plus the work and parts.')} ${
             paidBefore > 0
-              ? `${who} paid ${formatRupees(paidBefore)} at booking and pays anything above that in the Detlio app.`
-              : `${who} pays it in the Detlio app.`
+              ? t('{who} paid {amount} at booking and pays anything above that in the Detlio app.', {
+                  who,
+                  amount: formatRupees(paidBefore),
+                })
+              : t('{who} pays it in the Detlio app.', { who })
           }`}
         </T>
         {paidBefore > 0 && booking.items.length > 0 ? (
           <T size={12} color={colors.textSecondary} style={styles.mt1}>
-            {'Paid at booking for: '}
-            <T num size={12} color={colors.textSecondary}>
-              {bookedSummary(booking)}
-            </T>
+            {fill(t('Paid at booking for: {services}'), {
+              services: (
+                <T num size={12} color={colors.textSecondary}>
+                  {bookedSummary(booking)}
+                </T>
+              ),
+            })}
           </T>
         ) : null}
 
@@ -195,8 +207,8 @@ export function FinalBillPanel({ booking, onChanged }: { booking: Booking; onCha
             <View key={i} style={styles.line}>
               <View style={styles.flex}>
                 <ScInput
-                  label={`Line ${i + 1}`}
-                  placeholder="e.g. Rear bumper dent repair"
+                  label={t('Line {n}', { n: i + 1 })}
+                  placeholder={t('e.g. Rear bumper dent repair')}
                   maxLength={MAX_DESCRIPTION}
                   value={line.description}
                   onChangeText={(description) => updateLine(i, { description })}
@@ -204,8 +216,8 @@ export function FinalBillPanel({ booking, onChanged }: { booking: Booking; onCha
               </View>
               <View style={styles.amount}>
                 <ScInput
-                  label="Amount (₹)"
-                  accessibilityLabel={`Line ${i + 1} amount in rupees`}
+                  label={t('Amount (₹)')}
+                  accessibilityLabel={t('Line {n} amount in rupees', { n: i + 1 })}
                   keyboardType="decimal-pad"
                   placeholder="0"
                   numeric
@@ -216,7 +228,7 @@ export function FinalBillPanel({ booking, onChanged }: { booking: Booking; onCha
               {lines.length > 1 ? (
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={`Remove line ${i + 1}`}
+                  accessibilityLabel={t('Remove line {n}', { n: i + 1 })}
                   onPress={() => setLines((current) => current.filter((_, j) => j !== i))}
                   style={styles.trash}
                 >
@@ -235,19 +247,19 @@ export function FinalBillPanel({ booking, onChanged }: { booking: Booking; onCha
           >
             <IconPlus size={15} />
             <T size={15} weight={500}>
-              Add line
+              {t('Add line')}
             </T>
           </Pressable>
         ) : null}
 
         <View style={styles.mt2}>
-          <ScTextarea label="Note for the customer (optional)" rows={2} maxLength={500} value={note} onChangeText={setNote} />
+          <ScTextarea label={t('Note for the customer (optional)')} rows={2} maxLength={500} value={note} onChangeText={setNote} />
         </View>
 
         <View accessibilityLiveRegion="polite" style={styles.totals}>
           <View style={styles.totalRow}>
             <T size={13} color={colors.textSecondary}>
-              Total
+              {t('Total')}
             </T>
             <T num size={13} weight={500}>
               {formatRupees(figures.total)}
@@ -255,7 +267,7 @@ export function FinalBillPanel({ booking, onChanged }: { booking: Booking; onCha
           </View>
           <View style={styles.totalRow}>
             <T size={13} color={colors.textSecondary}>
-              Paid at booking
+              {t('Paid at booking')}
             </T>
             <T num size={13} weight={500}>
               {`−${formatRupees(paidBefore)}`}
@@ -263,7 +275,7 @@ export function FinalBillPanel({ booking, onChanged }: { booking: Booking; onCha
           </View>
           <View style={styles.totalRow}>
             <T size={15} weight={600}>
-              {figures.amountDue > 0 ? 'Customer pays in the app' : 'Nothing more to pay'}
+              {figures.amountDue > 0 ? t('Customer pays in the app') : t('Nothing more to pay')}
             </T>
             <T num size={15} weight={600}>
               {formatRupees(figures.amountDue)}
@@ -280,12 +292,12 @@ export function FinalBillPanel({ booking, onChanged }: { booking: Booking; onCha
         <View style={styles.actions}>
           <View style={styles.half}>
             <ScButton variant="outline" size="lg" disabled={sending} onPress={() => setOpen(false)}>
-              Cancel
+              {t('Cancel')}
             </ScButton>
           </View>
           <View style={styles.half}>
             <ScButton variant="main" size="lg" disabled={Boolean(problem) || sending} onPress={() => void handleSend()}>
-              {sending ? 'Sending…' : bill ? 'Send new bill' : 'Send final bill'}
+              {sending ? t('Sending…') : bill ? t('Send new bill') : t('Send final bill')}
             </ScButton>
           </View>
         </View>

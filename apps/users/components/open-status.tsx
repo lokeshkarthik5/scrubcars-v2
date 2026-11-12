@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { hoursLeftShare, openStatus, type OpeningDay } from '@repo/core/opening-hours'
 import { cn } from '@repo/core/utils'
 import { HoursRing } from '@repo/ui/finish/hours-ring'
+import { useT } from '@repo/core/i18n'
 
 /**
  * The current time, re-read on each minute boundary — so a garage page left
@@ -55,6 +56,7 @@ export function OpenStatus({
   variant = 'line',
   className,
 }: OpenStatusProps) {
+  const t = useT()
   const now = useMinuteClock()
   const status = openStatus(hours, now, closures)
   if (!status) return null
@@ -65,7 +67,7 @@ export function OpenStatus({
         <HoursRing share={status.isOpen ? hoursLeftShare(hours, now, closures) : null} play />
         <span className="truncate">
           <span className="text-text-primary">
-            {status.isOpen ? 'Open' : status.closedToday ? 'Closed today' : 'Closed'}
+            {status.isOpen ? t('Open') : status.closedToday ? t('Closed today') : t('Closed')}
           </span>
           {status.detail && ` · ${status.detail}`}
         </span>
@@ -94,10 +96,10 @@ export function OpenStatus({
       <span className="truncate">
         <span className="font-medium text-text-primary">
           {status.isOpen
-            ? 'Open'
+            ? t('Open')
             : status.closedToday
-              ? 'Closed today'
-              : 'Closed'}
+              ? t('Closed today')
+              : t('Closed')}
         </span>
         {status.detail && ` · ${status.detail}`}
       </span>

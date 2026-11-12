@@ -6,6 +6,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useQueryClient } from '@tanstack/react-query'
 import { prefetchGarage } from '@repo/core/api/hooks/use-vendors'
 import { setUnauthorizedHandler } from '@repo/core/api/client'
+import { useDocumentLang } from '@repo/core/i18n'
 import { APP_VERSION } from '@repo/core/version'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { useBookingsStore } from '@repo/core/stores/bookings-store'
@@ -89,6 +90,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const garage = GARAGE_PAGE.exec(pathname)
     if (garage) void prefetchGarage(queryClient, garage[1])
   }, [pathname, queryClient])
+
+  // English or Tamil, as chosen on this browser (the Language row): read
+  // once the page has hydrated, and mirrored on <html lang>.
+  useDocumentLang()
 
   // Printed once per load so a bug report can name the build it came from.
   useEffect(() => {

@@ -1,6 +1,7 @@
 import { ApiError } from '@repo/core/api/client';
 import { lookupGift, redeemGift, type PublicGift, type RedeemResult } from '@repo/core/api/gifts';
 import { giftKeys, giftsEnabled, invalidateGiftData, useGiftsConfig } from '@repo/core/api/hooks/use-gifts';
+import { t, useT } from '@repo/core/i18n';
 import { ScButton } from '@repo/native-ui/button';
 import { IconGift } from '@repo/native-ui/icons';
 import { EmptyState, ErrorState, ScCard, Skeleton } from '@repo/native-ui/primitives';
@@ -24,11 +25,11 @@ import { CARS_ILLUSTRATION_LINE, firstName, giftCardSpec } from '@/lib/premium-c
 function closedLine(gift: PublicGift): string | null {
   switch (gift.state) {
     case 'redeemed':
-      return 'This gift has already been redeemed.';
+      return t('This gift has already been redeemed.');
     case 'expired':
-      return gift.expiresAt ? `This gift expired on ${formatGiftDate(gift.expiresAt)}.` : 'This gift has expired.';
+      return gift.expiresAt ? t('This gift expired on {day}.', { day: formatGiftDate(gift.expiresAt) }) : t('This gift has expired.');
     case 'cancelled':
-      return 'This gift was cancelled.';
+      return t('This gift was cancelled.');
     default:
       return null;
   }
@@ -39,6 +40,7 @@ function closedLine(gift: PublicGift): string | null {
  * (lib/deep-link.ts), never in a route, and is looked up once: the API counts wrong codes.
  */
 export default function GiftScreen() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
@@ -73,7 +75,7 @@ export default function GiftScreen() {
       heldLinkCode.clear();
       void invalidateGiftData(queryClient);
     } catch (error) {
-      setRedeemError(error instanceof ApiError ? error.message : "Couldn't redeem the gift. Check your connection and try again.");
+      setRedeemError(error instanceof ApiError ? error.message : t("Couldn't redeem the gift. Check your connection and try again."));
     } finally {
       setRedeeming(false);
     }
@@ -81,7 +83,7 @@ export default function GiftScreen() {
 
   const body = () => {
     if (!code) {
-      return <EmptyState icon={<IconGift size={32} stroke={1.5} color={colors.textSecondary} />} title="We couldn't open this gift" subtitle="Open its link again, or type its code in Profile → Detlio credit." />;
+      return <EmptyState icon={<IconGift size={32} stroke={1.5} color={colors.textSecondary} />} title={t("We couldn't open this gift")} subtitle={t('Open its link again, or type its code in Profile → Detlio credit.')} />;
     }
     if (config.isPending || (on && lookup.isPending)) {
       return (
@@ -97,14 +99,14 @@ export default function GiftScreen() {
       if (error instanceof ApiError && (error.status === 404 || error.status === 429)) {
         return (
           <View style={styles.none}>
-            <EmptyState icon={<IconGift size={32} stroke={1.5} color={colors.textSecondary} />} title="We couldn't open this gift" subtitle={error.message} />
+            <EmptyState icon={<IconGift size={32} stroke={1.5} color={colors.textSecondary} />} title={t("We couldn't open this gift")} subtitle={error.message} />
             <ScButton variant="outline" fullWidth={false} onPress={() => router.replace('/garages' as Href)}>
-              Find garages
+              {t('Find garages')}
             </ScButton>
           </View>
         );
       }
-      return <ErrorState message="Couldn't load this gift. Check your connection." onRetry={() => void lookup.refetch()} />;
+      return <ErrorState message={t("Couldn't load this gift. Check your connection.")} onRetry={() => void lookup.refetch()} />;
     }
     const gift = lookup.data;
     if (!gift) return null;
@@ -115,12 +117,12 @@ export default function GiftScreen() {
         <View style={styles.gap6}>
           <PremiumCard spec={cardSpec(true)} />
           <T size={11} lh={15} align="center" color={colors.textMuted}>
-            {CARS_ILLUSTRATION_LINE}
+            {t(CARS_ILLUSTRATION_LINE)}
           </T>
         </View>
         <View style={styles.gap4}>
-          <FigureLine size={20} weight={600} lh={26} text={`${giftRupees(gift.amount)} Detlio gift for ${gift.recipientName}`} />
-          <T size={13} lh={18} color={colors.textSecondary}>{`From ${gift.fromName}`}</T>
+          <FigureLine size={20} weight={600} lh={26} text={t('{amount} Detlio gift for {name}', { amount: giftRupees(gift.amount), name: gift.recipientName })} />
+          <T size={13} lh={18} color={colors.textSecondary}>{t('From {name}', { name: gift.fromName })}</T>
         </View>
         {gift.message ? (
           <ScCard>
@@ -129,16 +131,16 @@ export default function GiftScreen() {
         ) : null}
         {redeemed ? (
           <ScCard style={styles.gap12}>
-            <FigureLine size={14} lh={20} text={`${giftRupees(redeemed.amount)} added to your Detlio credit. Balance ${giftRupees(redeemed.balance)}.${redeemed.expiresAt ? ` Use by ${formatGiftDate(redeemed.expiresAt)}.` : ''}`} />
+            <FigureLine size={14} lh={20} text={`${t('{amount} added to your Detlio credit. Balance {balance}.', { amount: giftRupees(redeemed.amount), balance: giftRupees(redeemed.balance) })}${redeemed.expiresAt ? ` ${t('Use by {day}.', { day: formatGiftDate(redeemed.expiresAt) })}` : ''}`} />
             <T size={12} lh={16} color={colors.textSecondary}>
-              It comes off your next booking at checkout.
+              {t('It comes off your next booking at checkout.')}
             </T>
             <ScButton variant="main" onPress={() => router.replace('/garages' as Href)}>
-              Book a wash
+              {t('Book a wash')}
             </ScButton>
             <Pressable accessibilityRole="link" onPress={() => router.replace('/profile/credit' as Href)} style={styles.link}>
               <T size={13} weight={500} lh={18} color={colors.textSecondary}>
-                See your Detlio credit
+                {t('See your Detlio credit')}
               </T>
             </Pressable>
           </ScCard>
@@ -150,12 +152,12 @@ export default function GiftScreen() {
           </ScCard>
         ) : (
           <View style={styles.gap8}>
-            {gift.expiresAt ? <FigureLine size={12} lh={16} color={colors.textSecondary} text={`Use by ${formatGiftDate(gift.expiresAt)}`} /> : null}
+            {gift.expiresAt ? <FigureLine size={12} lh={16} color={colors.textSecondary} text={t('Use by {day}', { day: formatGiftDate(gift.expiresAt) })} /> : null}
             <ScButton variant="main" disabled={redeeming} onPress={() => void redeem()}>
-              {redeeming ? 'Redeeming…' : 'Redeem on Detlio'}
+              {redeeming ? t('Redeeming…') : t('Redeem on Detlio')}
             </ScButton>
             <T size={12} lh={16} color={colors.textMuted}>
-              {user ? 'The gift becomes Detlio credit on your account, used at checkout on your next booking.' : 'Sign in or create an account with your phone number, then the gift becomes Detlio credit on it.'}
+              {user ? t('The gift becomes Detlio credit on your account, used at checkout on your next booking.') : t('Sign in or create an account with your phone number, then the gift becomes Detlio credit on it.')}
             </T>
             {redeemError ? (
               <T accessibilityRole="alert" size={12} lh={16} color={colors.error}>
@@ -170,7 +172,7 @@ export default function GiftScreen() {
   };
   return (
     <View style={[styles.page, { paddingTop: insets.top }]}>
-      <PageHeader title="A Detlio gift" backTo="/home" />
+      <PageHeader title={t('A Detlio gift')} backTo="/home" />
       <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 24 }]}>{body()}</ScrollView>
     </View>
   );

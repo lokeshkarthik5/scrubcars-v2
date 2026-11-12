@@ -4,21 +4,28 @@ import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import { IconCheck, IconChevronDown } from '@tabler/icons-react'
 import { useAuthStore } from '@repo/core/stores/auth-store'
+import { msg, useT } from '@repo/core/i18n'
 import { cn } from '@repo/core/utils'
 
 const ROLE_LABEL: Record<string, string> = {
-  vendor_admin: 'Admin',
-  vendor_operator: 'Operator',
+  vendor_admin: msg('Admin'),
+  vendor_operator: msg('Operator'),
 }
 
 /**
- * In-page company switcher for people who belong to more than one garage.
+ * In-page company switcher for people who belong to more than one garage —
+ * an owner with a branch in another city (0069), say.
  *
  * Renders nothing at all for the single-company case, which is almost everyone
  * — a switcher with one option is a control that only ever tells you what you
- * already knew.
+ * already knew. The same names, order and words as the garage app's
+ * (apps/vendors-app/components/company-switcher.tsx): the garages in the order
+ * the API lists them, each with its logo (or first letter) and Owner, Admin,
+ * Operator or Member. Switching sets the active garage; VendorScope then
+ * remounts the screens, so each reloads that garage's data.
  */
 export function CompanySwitcher({ className }: { className?: string }) {
+  const t = useT()
   const vendors = useAuthStore((s) => s.vendors)
   const activeVendorId = useAuthStore((s) => s.activeVendorId)
   const setActiveVendor = useAuthStore((s) => s.setActiveVendor)
@@ -31,9 +38,17 @@ export function CompanySwitcher({ className }: { className?: string }) {
     function onPointerDown(event: MouseEvent) {
       if (!containerRef.current?.contains(event.target as Node)) setOpen(false)
     }
+    // Escape closes, as the app's menu closes on Back.
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(false)
+    }
 
     document.addEventListener('mousedown', onPointerDown)
-    return () => document.removeEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
   }, [open])
 
   if (vendors.length < 2) return null
@@ -46,6 +61,7 @@ export function CompanySwitcher({ className }: { className?: string }) {
         type="button"
         onClick={() => setOpen((value) => !value)}
         className="flex min-h-11 max-w-[190px] items-center gap-1.5 rounded-[10px] border border-border bg-surface px-2.5"
+        aria-label={t('Garage: {name}. Switch garage', { name: active.businessName })}
         aria-haspopup="listbox"
         aria-expanded={open}
       >
@@ -59,6 +75,7 @@ export function CompanySwitcher({ className }: { className?: string }) {
       {open && (
         <div
           role="listbox"
+          aria-label={t('Your garages')}
           className="absolute right-0 z-50 mt-1 w-[248px] overflow-hidden rounded-[10px] border border-border bg-surface shadow-lg"
         >
           {vendors.map((vendor) => {
@@ -82,8 +99,8 @@ export function CompanySwitcher({ className }: { className?: string }) {
                   </span>
                   <span className="block text-[11px] text-text-secondary">
                     {vendor.isOwner
-                      ? 'Owner'
-                      : ROLE_LABEL[vendor.role ?? ''] ?? 'Member'}
+                      ? t('Owner')
+                      : t(ROLE_LABEL[vendor.role ?? ''] ?? 'Member')}
                   </span>
                 </span>
                 {isActive && (

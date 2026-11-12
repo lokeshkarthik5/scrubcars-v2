@@ -401,7 +401,11 @@ async function readMoney(target: Target, conn?: Conn): Promise<Money | null> {
         refundedColumn: row.refundedAmount,
         refundable: isBookingPaymentRefundable(booking, row),
         garageName: row.garageName,
-        cause: autoRefundCause({ ...booking, cancelledBy: row.cancelledBy }),
+        cause: autoRefundCause({
+          ...booking,
+          cancelledBy: row.cancelledBy,
+          accountDeleted: row.customerDeletedAt !== null,
+        }),
         since: owedSince(row.paidAt, row.guaranteeRefundAt ?? row.noShowMarkedAt ?? row.cancelledAt),
         item: fromBookingPayment(row),
       }
@@ -419,7 +423,8 @@ async function readMoney(target: Target, conn?: Conn): Promise<Money | null> {
         refundedColumn: row.refundedAmount,
         refundable,
         garageName: row.garageName,
-        cause: refundable ? 'paid_no_booking' : null,
+        // Not a deleted account's (owner, 10 Nov 2026): a person sends it.
+        cause: refundable && row.customerDeletedAt === null ? 'paid_no_booking' : null,
         since: row.createdAt,
         item: fromCheckout(row),
       }
@@ -1363,7 +1368,14 @@ export const refundsService = {
   async sweepAutoRefunds(options: { dryRun: boolean }) {
     if (!env.autoRefunds) return { enabled: false as const }
     const now = Date.now()
-    const candidates = toItems(await refundsRepository.listMaybeOwed())
+    // A deleted account's money waits for a person (owner, 10 Nov 2026: not
+    // automatically), so it never takes one of the run's tries.
+    const owed = await refundsRepository.listMaybeOwed()
+    const candidates = toItems({
+      bookingPayments: owed.bookingPayments.filter((row) => row.customerDeletedAt === null),
+      checkouts: owed.checkouts.filter((row) => row.customerDeletedAt === null),
+      bills: owed.bills,
+    })
       .filter(
         (item) =>
           item.kind !== 'bill' &&

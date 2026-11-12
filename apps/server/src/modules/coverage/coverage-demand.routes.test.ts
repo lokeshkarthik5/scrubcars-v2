@@ -21,6 +21,7 @@ const { adminLoginsRepository } =
 const { leadsRepository } = await import('../leads/leads.repository.js')
 const { leadsService } = await import('../leads/leads.service.js')
 const { coverageRepository } = await import('./coverage.repository.js')
+const { citiesRepository } = await import('../cities/cities.repository.js')
 const { bookingRequestsRepository } =
   await import('../booking-requests/booking-requests.repository.js')
 const { areaSignupsRepository } =
@@ -89,6 +90,8 @@ const garages = [
     isVerified: false,
     bookingsPausedAt: null,
     deletedAt: null,
+    city: 'Chennai',
+    showWhenCityOff: false,
   },
 ]
 
@@ -345,6 +348,11 @@ beforeAll(() => {
     return zones.length < before ? 'deleted' : 'missing'
   })
   patch(c, 'listGarages', async () => garages)
+  // Cities (0069): Chennai on, as 0069 seeds it, so Live reads as before.
+  patch(citiesRepository, 'listCities', async () => [
+    { id: 'c-chennai', name: 'Chennai', lat: 13.0827, lng: 80.2707, reachKm: 50, customersSee: true, growing: true, createdAt: new Date(), updatedAt: new Date() },
+  ])
+  patch(citiesRepository, 'otherTownsValue', async () => undefined)
   patch(c, 'listSignups', async () => signups)
   patch(
     c,

@@ -1,3 +1,6 @@
+'use client'
+
+import { fill, useT } from '@repo/core/i18n'
 import { ProgressBar } from '@repo/ui/sc/progress-bar'
 import { TopBar } from '@repo/ui/sc/top-bar'
 import { OnboardingSignOut } from './onboarding-sign-out'
@@ -20,6 +23,7 @@ export function OnboardingHeader({
   /** The step before. Absent on step 1. */
   backHref?: string
 }) {
+  const t = useT()
   return (
     <div className="flex flex-col gap-4">
       {backHref ? (
@@ -33,8 +37,10 @@ export function OnboardingHeader({
       <ProgressBar progress={step * 25} />
       <div>
         <p className="text-[11px] font-medium text-text-secondary">
-          Step <span className="font-numeric">{step}</span> of{' '}
-          <span className="font-numeric">4</span>
+          {fill(t('Step {step} of {total}'), {
+            step: <span className="font-numeric">{step}</span>,
+            total: <span className="font-numeric">4</span>,
+          })}
         </p>
         <h1 className="mt-1 text-[20px] font-semibold leading-7 tracking-tight text-text-primary">
           {title}

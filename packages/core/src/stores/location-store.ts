@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { useHydrated } from '@repo/core/hooks/use-hydrated'
-import { ASSUMED_ORIGIN } from '@repo/core/map'
+import { msg } from '../i18n/translate'
 
 /**
  * Where the customer is, for sorting garages by distance.
@@ -19,10 +19,11 @@ import { ASSUMED_ORIGIN } from '@repo/core/map'
  */
 
 /**
- * Where the location came from. `area` (0062) is a Chennai zone the customer
- * picked from the "Where's your car?" chips: its centre, with no permission
- * asked, so distances from it are shown with "~". `manual` is "All of
- * Chennai", which is no place at all (see isCitywide).
+ * Where the location came from. `area` (0062) is a zone the customer picked
+ * from the "Where's your car?" sheet: its centre, with no permission asked,
+ * so distances from it are shown with "~". `manual` is a whole city, "All of
+ * Coimbatore" (0070; before cities, always "All of Chennai"), which is no
+ * place at all (see isCitywide).
  */
 export type LocationSource = 'gps' | 'address' | 'manual' | 'area'
 
@@ -36,6 +37,12 @@ export interface ActiveLocation {
   updatedAt: number
   /** The zone's slug, for an `area` location (which chip is chosen). */
   zone?: string
+  /**
+   * The city picked, for a `manual` location (0070). A `manual` location
+   * kept from before cities has none and means Chennai
+   * (customerCityOf in @repo/core/customer-city).
+   */
+  cityId?: string
 }
 
 export type PermissionState = 'unknown' | 'prompt' | 'granted' | 'denied'
@@ -59,8 +66,12 @@ interface LocationState {
    * permission prompt (0062). Persisted like any other location.
    */
   setArea: (zone: { slug: string; name: string; lat: number; lng: number }) => void
-  /** Browse the whole city. Not a pin, so lists are not sorted from downtown. */
-  selectChennai: () => void
+  /**
+   * Browse a whole city: its centre, named for it, with its id (0070). Not a
+   * pin, so lists are not sorted from downtown; only the far-garage limit is
+   * measured from the centre.
+   */
+  selectCity: (city: { id: string; name: string; centre: { lat: number; lng: number } }) => void
   clearLocation: () => void
   setPermission: (permission: PermissionState) => void
   /**
@@ -69,6 +80,21 @@ interface LocationState {
    */
   requestGpsLocation: () => Promise<ActiveLocation | null>
   refreshPermission: () => Promise<void>
+}
+
+/**
+ * A whole city as a stored place (0070): its centre and name, `manual`, with
+ * the city's id. The web and the native store both make it here.
+ */
+export function cityLocation(city: { id: string; name: string; centre: { lat: number; lng: number } }): ActiveLocation {
+  return {
+    lat: city.centre.lat,
+    lng: city.centre.lng,
+    label: city.name,
+    source: 'manual',
+    cityId: city.id,
+    updatedAt: Date.now(),
+  }
 }
 
 /** A fix older than this is worth refreshing opportunistically. */
@@ -96,16 +122,7 @@ export const useLocationStore = create<LocationState>()(
             updatedAt: Date.now(),
           },
         }),
-      selectChennai: () =>
-        set({
-          location: {
-            lat: ASSUMED_ORIGIN.lat,
-            lng: ASSUMED_ORIGIN.lng,
-            label: ASSUMED_ORIGIN.label,
-            source: 'manual',
-            updatedAt: Date.now(),
-          },
-        }),
+      selectCity: (city) => set({ location: cityLocation(city) }),
       clearLocation: () => set({ location: null }),
       setPermission: (permission) => set({ permission }),
 
@@ -136,7 +153,8 @@ export const useLocationStore = create<LocationState>()(
               const location: ActiveLocation = {
                 lat: position.coords.latitude,
                 lng: position.coords.longitude,
-                label: 'Current location',
+                // English as stored: a screen shows t(location.label).
+                label: msg('Current location'),
                 source: 'gps',
                 updatedAt: Date.now(),
               }
@@ -177,9 +195,10 @@ export const useLocationStore = create<LocationState>()(
 )
 
 /**
- * "All of Chennai" — no phone fix, or the header choice. Lists then omit an
+ * A whole city ("All of Coimbatore") or no place at all. Lists then omit an
  * origin, so doorstep is not filtered to one downtown point and distances are
- * not measured from somewhere the customer never stood.
+ * not measured from somewhere the customer never stood; the garage list sends
+ * the city's centre for the far-garage limit only (cityCentreParams).
  */
 export function isCitywide(location: ActiveLocation | null): boolean {
   return location === null || location.source === 'manual'
@@ -246,4 +265,18 @@ export function useHydratedLocation(): ActiveLocation | null {
   const hydrated = useHydrated()
   const location = useLocationStore((s) => s.location)
   return hydrated ? location : null
+}
+
+/**
+ * The list's `cityLat`/`cityLng` (0070) for a whole city picked: its centre,
+ * for the far-garage limit only. Nothing for a real place (the origin is
+ * sent instead) and nothing with no place at all, so a first visit asks the
+ * same question the landing page rendered on the server.
+ */
+export function cityCentreParams(
+  location: ActiveLocation | null,
+  city: { centre: { lat: number; lng: number } }
+): { cityLat?: number; cityLng?: number } {
+  if (location?.source !== 'manual') return {}
+  return { cityLat: Number(city.centre.lat.toFixed(3)), cityLng: Number(city.centre.lng.toFixed(3)) }
 }

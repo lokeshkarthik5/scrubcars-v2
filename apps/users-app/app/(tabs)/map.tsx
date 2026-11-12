@@ -1,8 +1,11 @@
 import { useVendorSearch } from '@repo/core/api/hooks/use-vendors';
 import { BOOKING_TYPE_LABELS, bookingTypeParam, parseBookingType } from '@repo/core/booking-types';
 import { categoryLabel } from '@repo/core/categories';
+import { atGarageListHasGarages } from '@repo/core/reach';
 import { distanceAndDrive, distanceLabel, driveTimeLabel } from '@repo/core/drive-time';
-import { DEFAULT_CENTER, straightLineKm } from '@repo/core/map';
+import { fill, useT } from '@repo/core/i18n';
+import { garageInCity, garageTown, isSmallCity, outsideCityTag } from '@repo/core/customer-city';
+import { straightLineKm } from '@repo/core/map';
 import { hasStarScore, NEW_GARAGE_LABEL } from '@repo/core/ratings';
 import { SERVICE_CITY } from '@repo/core/service-city';
 import type { BookingType, Vendor } from '@repo/core/types';
@@ -35,13 +38,15 @@ import { OpenStatus } from '@/components/garage/open-status';
 import { RouteArc } from '@/components/map/route-arc';
 import { OutsideCityChip } from '@/components/garage/tier';
 import { useNavClearance } from '@/components/hub-nav';
+import { useCustomerPlace } from '@/lib/customer-place';
 import { coarse, isApproximate, isCitywide, useLocationStore } from '@/lib/location';
 import { mapAvailable } from '@/lib/location-picker-logic';
 import { framingBounds, groupPins, hasMovedMeaningfully, pinLabel, regionToBounds, regionZoom, type LatLngBounds } from '@/lib/map-view';
 
 const PAGE_LIMIT = 50;
+// Nearby mode's reach from the customer (the list's most, 50 km). City mode uses the customer's
+// city's own centre and reach (0070), as the web map does.
 const CITY_RADIUS_KM = SERVICE_CITY.radiusKm;
-const CITY_CENTRE = SERVICE_CITY.centre;
 const CARD_GAP = 12;
 
 const boundsToParam = (b: LatLngBounds) => `${b.minLng},${b.minLat},${b.maxLng},${b.maxLat}`;
@@ -66,6 +71,7 @@ function MapVendorCard({
   width: number;
   onChoose: () => void;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const ink = usePearlInk();
@@ -73,7 +79,11 @@ function MapVendorCard({
   const approx = useLocationStore((s) => isApproximate(s.location));
   const modeParam = bookingTypeParam(mode);
   const distance = vendor.distanceKm !== null ? distanceAndDrive(vendor.distanceKm, approx) : null;
-  const badge = mode === 'pickup' ? BOOKING_TYPE_LABELS.pickup : vendor.doorstepEnabled ? BOOKING_TYPE_LABELS.doorstep : null;
+  // A garage in another town than the customer's city names its town; the km is the card's own
+  // distance beside it. One in their city says nothing (0070), as on the web.
+  const { place } = useCustomerPlace();
+  const townTag = garageInCity(vendor, place.city) ? null : (garageTown(vendor, place.city) ?? outsideCityTag(vendor, place));
+  const badge = mode === 'pickup' ? t(BOOKING_TYPE_LABELS.pickup) : vendor.doorstepEnabled ? t(BOOKING_TYPE_LABELS.doorstep) : null;
   const photo = vendor.photos[0];
   const step = useRef(new Animated.Value(selected ? 1 : 0)).current;
   useEffect(() => {
@@ -142,7 +152,7 @@ function MapVendorCard({
                 </View>
               ) : (
                 <T variant="t5" style={styles.cardNew}>
-                  {NEW_GARAGE_LABEL}
+                  {t(NEW_GARAGE_LABEL)}
                 </T>
               )}
             </View>
@@ -151,10 +161,10 @@ function MapVendorCard({
                 {vendor.serviceTags.map(categoryLabel).join(' · ')}
               </T>
             ) : null}
-            {vendor.outsideServiceCity ? (
+            {townTag ? (
               <View style={styles.cardOutside}>
                 <View style={styles.shrink}>
-                  <OutsideCityChip outside={vendor.outsideServiceCity} />
+                  <OutsideCityChip text={townTag} />
                 </View>
                 {distance ? (
                   <T num variant="t5" weight={400} color={colors.textSecondary}>
@@ -169,10 +179,13 @@ function MapVendorCard({
             )}
             {vendor.startingPrice > 0 ? (
               <T variant="t4" weight={400} color={colors.textSecondary} style={styles.cardPrice}>
-                <T num size={17} weight={600} lh={22}>
-                  ₹{vendor.startingPrice}
-                </T>{' '}
-                onwards
+                {fill(t('{price} onwards'), {
+                  price: (
+                    <T num size={17} weight={600} lh={22}>
+                      ₹{vendor.startingPrice}
+                    </T>
+                  ),
+                })}
               </T>
             ) : null}
           </View>
@@ -266,6 +279,7 @@ function Ripple() {
 
 /** A row of the pull-up list: photo, name, area, and how far, how long, how much. */
 function MapListRow({ vendor, selected, onChoose }: { vendor: Vendor; selected: boolean; onChoose: () => void }) {
+  const t = useT();
   const styles = useStyles();
   const colors = useColors();
   const approx = useLocationStore((s) => isApproximate(s.location));
@@ -289,7 +303,7 @@ function MapListRow({ vendor, selected, onChoose }: { vendor: Vendor; selected: 
           {vendor.name}
         </T>
         <T variant="t4" weight={400} numberOfLines={1} color={colors.textSecondary}>
-          {[vendor.area, hasStarScore(vendor) ? `★ ${vendor.rating.toFixed(1)}` : NEW_GARAGE_LABEL].filter(Boolean).join(' · ')}
+          {[vendor.area, hasStarScore(vendor) ? `★ ${vendor.rating.toFixed(1)}` : t(NEW_GARAGE_LABEL)].filter(Boolean).join(' · ')}
         </T>
       </View>
       <View style={styles.listFacts}>
@@ -315,6 +329,7 @@ function MapListRow({ vendor, selected, onChoose }: { vendor: Vendor; selected: 
 
 /** apps/users/app/map/page.tsx on react-native-maps: Apple Maps on iOS, Google on Android. */
 export default function MapScreen() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const { scheme } = useTheme();
@@ -330,6 +345,8 @@ export default function MapScreen() {
   const locating = useLocationStore((s) => s.locating);
   const requestGpsLocation = useLocationStore((s) => s.requestGpsLocation);
   const origin = !location || isCitywide(location) ? undefined : coarse(location);
+  const { city: myCity } = useCustomerPlace();
+  const small = isSmallCity(myCity);
 
   const [areaBounds, setAreaBounds] = useState<LatLngBounds | null>(null);
   const [region, setRegion] = useState<Region | null>(null);
@@ -349,12 +366,14 @@ export default function MapScreen() {
   const nearby = origin !== undefined && areaBounds === null;
   const city = origin === undefined && areaBounds === null;
 
-  const { vendors: found, radiusKm, isLoading } = useVendorSearch({
+  const { vendors: found, radiusKm, reach, isLoading } = useVendorSearch({
     bookingType,
     category,
     bbox: areaBounds ? boundsToParam(areaBounds) : undefined,
     lat: origin?.lat,
     lng: origin?.lng,
+    // City mode: the server leaves out garages over 150 km from the city's centre (0070).
+    ...(city ? { cityLat: myCity.centre.lat, cityLng: myCity.centre.lng } : {}),
     radiusKm: nearby ? CITY_RADIUS_KM : undefined,
     sort: origin ? 'distance' : 'relevance',
     includeUnlocated: false,
@@ -365,11 +384,11 @@ export default function MapScreen() {
     if (!city) return found;
     return found
       .filter(hasPin)
-      .map((vendor) => ({ vendor, km: straightLineKm(CITY_CENTRE, vendor) }))
-      .filter(({ km }) => km <= CITY_RADIUS_KM)
+      .map((vendor) => ({ vendor, km: straightLineKm(myCity.centre, vendor) }))
+      .filter(({ km }) => km <= myCity.reachKm)
       .sort((a, b) => a.km - b.km)
       .map(({ vendor }) => vendor);
-  }, [city, found]);
+  }, [city, found, myCity]);
 
   const selectedId = chosenId && vendors.some((v) => v.id === chosenId) ? chosenId : (vendors[0]?.id ?? null);
   const selectedIndex = vendors.findIndex((v) => v.id === selectedId);
@@ -387,7 +406,7 @@ export default function MapScreen() {
       key = `nearby:${origin.lat},${origin.lng}:${recentred}`;
       target = pins.length > 0 ? framingBounds([origin, ...pins], 3) : framingBounds([origin], 12);
     } else if (city && pins.length > 0) {
-      key = 'city';
+      key = `city:${myCity.id}`;
       target = framingBounds(pins, 3);
     }
     if (!key || !target || fitted.current === key) return;
@@ -467,7 +486,8 @@ export default function MapScreen() {
   const goBack = () => (router.canGoBack() ? router.back() : router.navigate('/home' as Href));
 
   const mapShown = mapAvailable(Platform.OS, Constants.expoConfig?.android?.config?.googleMaps?.apiKey);
-  const center = location ? { latitude: location.lat, longitude: location.lng } : { latitude: DEFAULT_CENTER[1], longitude: DEFAULT_CENTER[0] };
+  // Opens on the customer's city's centre while there is no place (0070).
+  const center = location ? { latitude: location.lat, longitude: location.lng } : { latitude: myCity.centre.lat, longitude: myCity.centre.lng };
   const chosen = vendors.find((v) => v.id === selectedId);
   const light = scheme === 'light';
   const ink = light ? colors.textPrimary : '#FFFFFF';
@@ -497,7 +517,7 @@ export default function MapScreen() {
           pxPerLng={region ? width / region.longitudeDelta : 0}
         />
         {origin ? (
-          <Marker coordinate={{ latitude: origin.lat, longitude: origin.lng }} anchor={{ x: 0.5, y: 0.5 }} accessibilityLabel="You">
+          <Marker coordinate={{ latitude: origin.lat, longitude: origin.lng }} anchor={{ x: 0.5, y: 0.5 }} accessibilityLabel={t('You')}>
             <View style={styles.meHalo}>
               <View style={styles.meDot} />
             </View>
@@ -511,7 +531,7 @@ export default function MapScreen() {
               anchor={{ x: 0.5, y: 1 }}
               accessibilityLabel={
                 group.members[0].startingPrice > 0
-                  ? `${group.members[0].name}, from ₹${group.members[0].startingPrice}`
+                  ? t('{name}, from ₹{price}', { name: group.members[0].name, price: group.members[0].startingPrice })
                   : group.members[0].name
               }
               onPress={() => choose(group.members[0])}
@@ -523,7 +543,7 @@ export default function MapScreen() {
               key={`${group.key}-${scheme}`}
               coordinate={{ latitude: group.lat, longitude: group.lng }}
               anchor={{ x: 0.5, y: 0.5 }}
-              accessibilityLabel={`${group.members.length} garages here. Zoom in`}
+              accessibilityLabel={t('{count} garages here. Zoom in', { count: group.members.length })}
               onPress={() => {
                 appMovesUntil.current = Date.now() + 1500;
                 mapRef.current?.fitToCoordinates(
@@ -556,7 +576,7 @@ export default function MapScreen() {
       </MapView> : (
         <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.noMap]}>
           <T size={13} lh={18} align="center" color={colors.textSecondary}>
-            The map isn&apos;t available in this version of the app. Garages near you are listed here.
+            {t("The map isn't available in this version of the app. Garages near you are listed here.")}
           </T>
         </View>
       )}
@@ -564,7 +584,7 @@ export default function MapScreen() {
       <View pointerEvents="box-none" style={[StyleSheet.absoluteFill, { paddingTop: insets.top + 8 }]}>
         {/* The glass top bar: Back, the pull-up list, and Centre on my location. */}
         <View pointerEvents="box-none" style={styles.top}>
-          <RoundButton label="Back" onPress={goBack}>
+          <RoundButton label={t('Back')} onPress={goBack}>
             <IconChevronLeft size={20} color={ink} />
           </RoundButton>
           <View pointerEvents="box-none" style={styles.topRight}>
@@ -577,11 +597,11 @@ export default function MapScreen() {
               <Glass radius={999} style={styles.list}>
                 <IconList size={16} color={ink} />
                 <T variant="t4" weight={600} color={ink}>
-                  List
+                  {t('List')}
                 </T>
               </Glass>
             </PressScale>
-            <RoundButton label="Centre on my location" disabled={locating} onPress={() => void centreOnMe()}>
+            <RoundButton label={t('Centre on my location')} disabled={locating} onPress={() => void centreOnMe()}>
               <IconCurrentLocation size={18} color={ink} />
             </RoundButton>
           </View>
@@ -593,7 +613,7 @@ export default function MapScreen() {
             <PressRow onPress={searchThisArea} style={styles.searchArea}>
               <IconRefresh size={15} color={colors.chosenText} />
               <T variant="t4" weight={600} color={colors.chosenText}>
-                Search this area
+                {t('Search this area')}
               </T>
             </PressRow>
           </View>
@@ -602,23 +622,25 @@ export default function MapScreen() {
         <View pointerEvents="box-none" style={[styles.results, { paddingBottom: clearance - 8 }]}>
           {isLoading ? (
             <T variant="t5" weight={400} align="center" color={colors.textSecondary}>
-              {nearby ? 'Finding garages near you…' : 'Looking in this area…'}
+              {nearby ? t('Finding garages near you…') : t('Looking in this area…')}
             </T>
           ) : vendors.length === 0 ? (
             <Glass radius={22} style={styles.empty}>
               <T variant="t4" weight={400} align="center" color={colors.textSecondary}>
                 {bookingType === 'pickup'
-                  ? 'No garages pick up near you yet — try At garage or Doorstep.'
+                  ? t('No garages pick up near you yet — try At garage or Doorstep.')
                   : bookingType === 'doorstep'
-                    ? 'No garages travel to this area yet.'
+                    ? t('No garages travel to this area yet.')
                     : nearby && radiusKm !== null
-                      ? `No garages within ${radiusKm} km of you yet.`
-                      : 'No garages in this area. Try zooming out or moving the map.'}
+                      ? t('No garages within {km} km of you yet.', { km: radiusKm })
+                      : t('No garages in this area. Try zooming out or moving the map.')}
               </T>
-              {nearby && bookingType === 'dropin' ? (
+              {/* The list has the garages further away, but not those over 150 km (0070):
+                  offered only when the At garage count says it has any. */}
+              {nearby && bookingType === 'dropin' && atGarageListHasGarages(reach) ? (
                 <Pressable accessibilityRole="link" onPress={() => router.navigate('/garages' as Href)} style={styles.seeAll}>
                   <T variant="t4" weight={600} style={styles.underline}>
-                    See all garages
+                    {t('See all garages')}
                   </T>
                 </Pressable>
               ) : null}
@@ -630,25 +652,32 @@ export default function MapScreen() {
                 <PressScale accessibilityRole="button" onPress={() => setListOpen(true)}>
                   <Glass radius={999} style={styles.pullUp}>
                     <IconChevronUp size={18} color={ink} />
-                    <T variant="t4" weight={600} color={ink}>
-                      <T num variant="t4" weight={600} color={ink}>
-                        {vendors.length}
-                      </T>{' '}
-                      {nearby
-                        ? vendors.length === 1
-                          ? 'garage near you'
-                          : 'garages near you'
-                        : vendors.length === 1
-                          ? 'garage here'
-                          : 'garages here'}
-                    </T>
+                    {/* A small city counts nothing (0070): just the list. */}
+                    {small ? (
+                      <T variant="t4" weight={600} color={ink}>
+                        {t('Garages here')}
+                      </T>
+                    ) : (
+                      <T variant="t4" weight={600} color={ink}>
+                        <T num variant="t4" weight={600} color={ink}>
+                          {vendors.length}
+                        </T>{' '}
+                        {nearby
+                          ? vendors.length === 1
+                            ? t('garage near you')
+                            : t('garages near you')
+                          : vendors.length === 1
+                            ? t('garage here')
+                            : t('garages here')}
+                      </T>
+                    )}
                   </Glass>
                 </PressScale>
                 {vendors.length > 1 ? (
                   <Glass radius={999} style={styles.pager}>
                     <Pressable
                       accessibilityRole="button"
-                      accessibilityLabel="Previous garage"
+                      accessibilityLabel={t('Previous garage')}
                       disabled={selectedIndex <= 0}
                       onPress={() => step(-1)}
                       hitSlop={7}
@@ -657,19 +686,22 @@ export default function MapScreen() {
                       <IconChevronLeft size={17} color={ink} />
                     </Pressable>
                     <T accessibilityLiveRegion="polite" variant="t4" weight={600} color={ink} style={styles.pagerText}>
-                      <T num variant="t4" weight={600} color={ink}>
-                        {selectedIndex + 1}
-                      </T>
-                      <T variant="t4" color={colors.textSecondary}>
-                        {' of '}
-                      </T>
-                      <T num variant="t4" weight={600} color={ink}>
-                        {vendors.length}
-                      </T>
+                      {fill(t('{number} of {total}'), {
+                        number: (
+                          <T num variant="t4" weight={600} color={ink}>
+                            {selectedIndex + 1}
+                          </T>
+                        ),
+                        total: (
+                          <T num variant="t4" weight={600} color={ink}>
+                            {vendors.length}
+                          </T>
+                        ),
+                      })}
                     </T>
                     <Pressable
                       accessibilityRole="button"
-                      accessibilityLabel="Next garage"
+                      accessibilityLabel={t('Next garage')}
                       disabled={selectedIndex >= vendors.length - 1}
                       onPress={() => step(1)}
                       hitSlop={7}
@@ -709,7 +741,7 @@ export default function MapScreen() {
               </View>
               {vendors.length === PAGE_LIMIT ? (
                 <T variant="t5" weight={400} align="center" color={colors.textMuted}>
-                  {nearby ? `Showing the nearest ${PAGE_LIMIT}.` : `Showing the first ${PAGE_LIMIT} — zoom in to narrow it down.`}
+                  {nearby ? t('Showing the nearest {count}.', { count: PAGE_LIMIT }) : t('Showing the first {count} — zoom in to narrow it down.', { count: PAGE_LIMIT })}
                 </T>
               ) : null}
             </>
@@ -717,24 +749,24 @@ export default function MapScreen() {
         </View>
       </View>
 
-      <ScSheet open={listOpen} onClose={() => setListOpen(false)} accessibilityLabel="Garages on the map" horizontalPadding={10}>
+      <ScSheet open={listOpen} onClose={() => setListOpen(false)} accessibilityLabel={t('Garages on the map')} horizontalPadding={10}>
         <View style={styles.sheetHead}>
           <View style={styles.flex}>
             <T variant="t2" accessibilityRole="header">
-              {nearby ? 'Garages near you' : 'Garages here'}
+              {nearby ? t('Garages near you') : t('Garages here')}
             </T>
             <T variant="t4" weight={400} color={colors.textSecondary}>
               <T num variant="t4" weight={400} color={colors.textSecondary}>
                 {vendors.length}
               </T>{' '}
-              {origin ? 'nearest first' : 'on the map'}
+              {origin ? t('nearest first') : t('on the map')}
             </T>
           </View>
           <PressScale accessibilityRole="button" onPress={() => setListOpen(false)}>
             <Glass radius={999} style={styles.pullUp}>
               <IconMap size={16} color={ink} />
               <T variant="t4" weight={600} color={ink}>
-                Map
+                {t('Map')}
               </T>
             </Glass>
           </PressScale>
@@ -770,11 +802,12 @@ function RoundButton({ label, onPress, disabled, children }: { label: string; on
 
 /** A step to the card either side, on the strip's edge. */
 function EdgeButton({ side, onPress, ink }: { side: 'prev' | 'next'; onPress: () => void; ink: string }) {
+  const t = useT();
   const styles = useStyles();
   return (
     <PressScale
       accessibilityRole="button"
-      accessibilityLabel={side === 'prev' ? 'Previous garage' : 'Next garage'}
+      accessibilityLabel={side === 'prev' ? t('Previous garage') : t('Next garage')}
       onPress={onPress}
       style={[styles.edge, side === 'prev' ? styles.edgePrev : styles.edgeNext]}
     >

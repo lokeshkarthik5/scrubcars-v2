@@ -1,5 +1,6 @@
 import { submitReview } from '@repo/core/api/reviews';
 import { invalidateHome } from '@repo/core/api/hooks/use-home';
+import { useT, useTn } from '@repo/core/i18n';
 import { REVIEW_TAG_LABELS, type ReviewTag, tagsForRating } from '@repo/core/ratings';
 import type { Booking, Review } from '@repo/core/types';
 import { ScButton } from '@repo/native-ui/button';
@@ -19,6 +20,8 @@ import { track } from '@/lib/shims/analytics';
 
 /** Frame L: stars, tags that change with them, an optional note. */
 export function ReviewCard({ booking, initialRating = 0, onSaved }: { booking: Booking; initialRating?: number; onSaved: (review: Review) => void }) {
+  const tn = useTn();
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const queryClient = useQueryClient();
@@ -41,9 +44,9 @@ export function ReviewCard({ booking, initialRating = 0, onSaved }: { booking: B
       onSaved(review);
       track('review_submit', { vendorId: booking.vendorId });
       void invalidateHome(queryClient);
-      toast.success('Review submitted. Thanks!');
+      toast.success(t('Review submitted. Thanks!'));
     } catch (error) {
-      toast.error(errorText(error, 'Failed to submit review'));
+      toast.error(errorText(error, t('Failed to submit review')));
     } finally {
       setSubmitting(false);
     }
@@ -52,11 +55,11 @@ export function ReviewCard({ booking, initialRating = 0, onSaved }: { booking: B
   return (
     <ScCard style={styles.card}>
       <T size={17} weight={500} lh={24}>
-        {`How was ${booking.vendorName}?`}
+        {t('How was {name}?', { name: booking.vendorName })}
       </T>
-      <View style={styles.stars} accessibilityRole="adjustable" accessibilityLabel="Your rating" accessibilityValue={{ text: `${rating} of 5` }}>
+      <View style={styles.stars} accessibilityRole="adjustable" accessibilityLabel={t('Your rating')} accessibilityValue={{ text: t('{rating} of 5', { rating }) }}>
         {[1, 2, 3, 4, 5].map((n) => (
-          <Pressable key={n} accessibilityRole="button" accessibilityLabel={`${n} star${n === 1 ? '' : 's'}`} hitSlop={6} onPress={() => pick(n)}>
+          <Pressable key={n} accessibilityRole="button" accessibilityLabel={tn(n, '{count} star', '{count} stars')} hitSlop={6} onPress={() => pick(n)}>
             <IconStarFilled size={32} color={n <= rating ? colors.textPrimary : colors.border} />
           </Pressable>
         ))}
@@ -65,22 +68,22 @@ export function ReviewCard({ booking, initialRating = 0, onSaved }: { booking: B
         <>
           <View style={styles.section}>
             <T size={13} lh={18} color={colors.textSecondary}>
-              What stood out? (optional)
+              {t('What stood out? (optional)')}
             </T>
             <View style={styles.chips}>
               {tagsForRating(rating).map((tag) => (
                 <Chip
                   key={tag}
-                  label={REVIEW_TAG_LABELS[tag]}
+                  label={t(REVIEW_TAG_LABELS[tag])}
                   selected={tags.includes(tag)}
-                  onPress={() => setTags((current) => (current.includes(tag) ? current.filter((t) => t !== tag) : [...current, tag]))}
+                  onPress={() => setTags((current) => (current.includes(tag) ? current.filter((x) => x !== tag) : [...current, tag]))}
                 />
               ))}
             </View>
           </View>
-          <ScTextarea label="Tell others more (optional)" rows={3} maxLength={1000} value={comment} onChangeText={setComment} />
+          <ScTextarea label={t('Tell others more (optional)')} rows={3} maxLength={1000} value={comment} onChangeText={setComment} />
           <ScButton variant="outline" disabled={submitting} onPress={() => void submit()}>
-            {submitting ? 'Posting…' : 'Post review'}
+            {submitting ? t('Posting…') : t('Post review')}
           </ScButton>
         </>
       ) : null}
@@ -90,16 +93,17 @@ export function ReviewCard({ booking, initialRating = 0, onSaved }: { booking: B
 
 /** A review already left. */
 export function ReviewDone({ review }: { review: Review }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   return (
     <ScCard style={styles.card}>
       <T size={17} weight={500} lh={24}>
-        Your review
+        {t('Your review')}
       </T>
       <Stars rating={review.rating} size={18} />
       <T size={15} lh={22} color={colors.textSecondary}>
-        Thanks for your review.
+        {t('Thanks for your review.')}
       </T>
       {review.comment ? (
         <T size={15} lh={22}>

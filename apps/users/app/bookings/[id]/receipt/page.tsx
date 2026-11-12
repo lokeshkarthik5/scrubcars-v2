@@ -16,6 +16,7 @@ import {
   receiptFileTitle,
 } from '@repo/core/receipts'
 import type { BookingReceipt } from '@repo/core/types'
+import { fill, useT } from '@repo/core/i18n'
 
 /**
  * Printing is how the receipt becomes a PDF: every phone and desktop browser
@@ -55,6 +56,7 @@ type LoadState =
 const PRINT_OPEN_WAIT_MS = 1000
 
 export default function BookingReceiptPage({ params }: { params: Promise<{ id: string }> }) {
+  const t = useT()
   const { id } = use(params)
   const [state, setState] = useState<LoadState>({ kind: 'loading' })
   // Bumped by "Try again" to load the receipt once more.
@@ -131,26 +133,26 @@ export default function BookingReceiptPage({ params }: { params: Promise<{ id: s
     }
     try {
       await navigator.clipboard.writeText(url)
-      toast.success('Link copied')
+      toast.success(t('Link copied'))
     } catch {
-      toast.info("Couldn't copy the link. Use Download PDF to keep a copy instead.")
+      toast.info(t("Couldn't copy the link. Use Download PDF to keep a copy instead."))
     }
   }
 
   if (state.kind !== 'ready') {
     return (
       <main className="mx-auto flex min-h-dvh w-full max-w-[428px] flex-col bg-brand-black px-4 py-4">
-        <TopBar showBack backHref={`/bookings/${id}`} title="Receipt" />
+        <TopBar showBack backHref={`/bookings/${id}`} title={t('Receipt')} />
         {state.kind === 'loading' ? (
           <p role="status" className="pt-4 text-t4 text-text-secondary">
-            Loading your receipt…
+            {t('Loading your receipt…')}
           </p>
         ) : (
           <div className="flex flex-col gap-4 pt-4">
             <p className="text-t4 text-text-secondary">
               {state.kind === 'unavailable' || state.kind === 'pending'
                 ? state.message
-                : 'Could not load this receipt. It may have been removed or you may not have access.'}
+                : t('Could not load this receipt. It may have been removed or you may not have access.')}
             </p>
             {state.kind === 'pending' && (
               <ScButton
@@ -161,14 +163,14 @@ export default function BookingReceiptPage({ params }: { params: Promise<{ id: s
                 }}
                 className="min-h-11"
               >
-                Try again
+                {t('Try again')}
               </ScButton>
             )}
             <Link
               href={`/bookings/${id}`}
               className="flex min-h-11 items-center justify-center rounded-[10px] border border-border text-sm font-semibold text-text-primary"
             >
-              Back to booking
+              {t('Back to booking')}
             </Link>
           </div>
         )}
@@ -185,7 +187,7 @@ export default function BookingReceiptPage({ params }: { params: Promise<{ id: s
       {/* Everything the customer uses to get the receipt out of the app.
           None of it belongs on the paper. */}
       <div className="print:hidden">
-        <TopBar showBack backHref={`/bookings/${receipt.booking.id}`} title="Receipt" center />
+        <TopBar showBack backHref={`/bookings/${receipt.booking.id}`} title={t('Receipt')} center />
         <div className="flex gap-2">
           {/* The page's one main action: what most people opened it for. */}
           <ScButton
@@ -193,7 +195,7 @@ export default function BookingReceiptPage({ params }: { params: Promise<{ id: s
             className="flex min-h-11 items-center justify-center gap-2"
           >
             <IconDownload size={18} aria-hidden />
-            Download PDF
+            {t('Download PDF')}
           </ScButton>
           <ScButton
             variant="secondary"
@@ -201,7 +203,7 @@ export default function BookingReceiptPage({ params }: { params: Promise<{ id: s
             className="flex min-h-11 items-center justify-center gap-2"
           >
             <IconShare size={18} aria-hidden />
-            Share
+            {t('Share')}
           </ScButton>
         </div>
         {printBlocked && (
@@ -209,17 +211,13 @@ export default function BookingReceiptPage({ params }: { params: Promise<{ id: s
             role="alert"
             className="mt-3 rounded-[10px] border border-warning bg-warning-muted/20 px-3 py-2 text-t4 text-warning"
           >
-            Your browser can&apos;t print from here. Open this page in Chrome or Safari (⋮ › Open
-            in browser) to save it as a PDF. You may need to sign in there.
+            {t("Your browser can't print from here. Open this page in Chrome or Safari (⋮ › Open in browser) to save it as a PDF. You may need to sign in there.")}
           </p>
         )}
         {/* iPhones have no "Save as PDF" printer: Safari saves a PDF from
             the Share button on its print screen. So both phones get a line. */}
         <p className="mt-2 text-t5 text-text-muted">
-          Download PDF opens your phone&apos;s print screen. On Android, choose{' '}
-          <strong>Save as PDF</strong> as the printer; on iPhone, tap <strong>Share</strong> at the
-          top, then <strong>Save to Files</strong>. A shared link only opens for you when signed
-          in, so send the PDF to anyone else.
+          {fill(t("Download PDF opens your phone's print screen. On Android, choose {part} as the printer; on iPhone, tap {part2} at the top, then {part3}. A shared link only opens for you when signed in, so send the PDF to anyone else."), { part: <strong>{t('Save as PDF')}</strong>, part2: <strong>{t('Share')}</strong>, part3: <strong>{t('Save to Files')}</strong> })}
         </p>
       </div>
 

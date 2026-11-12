@@ -16,6 +16,7 @@ import { digitsOnly, type ProfileForm, profileFromVendor, profilePayload } from 
 
 import { IconFileCertificate, IconFileText, IconPhoto } from './settings-icons';
 import { useSaving } from './use-saving';
+import { useT } from '@repo/core/i18n';
 
 /** Settings > Profile (apps/vendors/app/settings/page.tsx), with its three link rows. */
 export function ProfileTab({
@@ -25,6 +26,7 @@ export function ProfileTab({
   vendor: ApiVendorProfile | null;
   onSaved: (vendor: ApiVendorProfile) => void;
 }) {
+  const t = useT();
   const [form, setForm] = useState<ProfileForm>(
     vendor ? profileFromVendor(vendor) : { businessName: '', phone: '', address: '', city: '', pincode: '' }
   );
@@ -57,21 +59,21 @@ export function ProfileTab({
     <>
       <View style={styles.section}>
         <View style={styles.header}>
-          <SectionHeader title="Profile" />
+          <SectionHeader title={t('Profile')} />
           {vendor ? (
             <ScBadge variant={vendor.isVerified ? 'success' : 'pending'}>
-              {vendor.isVerified ? 'Shown to customers' : 'Not shown to customers yet'}
+              {vendor.isVerified ? t('Shown to customers') : t('Not shown to customers yet')}
             </ScBadge>
           ) : null}
         </View>
         <ScCard style={styles.section}>
           <ScInput
-            label="Business name"
+            label={t('Business name')}
             value={form.businessName}
             onChangeText={(businessName) => setForm({ ...form, businessName })}
           />
           <ScInput
-            label="Phone"
+            label={t('Phone')}
             numeric
             keyboardType="number-pad"
             textContentType="telephoneNumber"
@@ -80,14 +82,14 @@ export function ProfileTab({
             onChangeText={(text) => setForm({ ...form, phone: digitsOnly(text, 10) })}
           />
           <ScInput
-            label="Address"
+            label={t('Address')}
             textContentType="fullStreetAddress"
             value={form.address}
             onChangeText={(address) => setForm({ ...form, address })}
           />
-          <ScInput label="City" value={form.city} onChangeText={(city) => setForm({ ...form, city })} />
+          <ScInput label={t('City')} value={form.city} onChangeText={(city) => setForm({ ...form, city })} />
           <ScInput
-            label="Pincode"
+            label={t('Pincode')}
             numeric
             keyboardType="number-pad"
             maxLength={6}
@@ -96,30 +98,30 @@ export function ProfileTab({
             onChangeText={(text) => setForm({ ...form, pincode: digitsOnly(text, 6) })}
           />
           <ScButton variant="main" size="lg" disabled={saving === 'profile'} onPress={() => void save()}>
-            {saving === 'profile' ? 'Saving...' : 'Save profile'}
+            {saving === 'profile' ? t('Saving...') : t('Save profile')}
           </ScButton>
         </ScCard>
       </View>
 
       <LinkRow
         icon={<IconPhoto size={18} />}
-        title="Garage photos"
-        description="Add photos customers see on your listing"
+        title={t('Garage photos')}
+        description={t('Add photos customers see on your listing')}
         onPress={() => router.push('/photos' as Href)}
       />
       {documentsOn ? (
         <LinkRow
           icon={<IconFileCertificate size={18} />}
-          title="Documents"
+          title={t('Documents')}
           // A doorstep-only garage (no pickup either) has no shop, so no shop photo is asked for.
-          description={documentsRowDescription(vendor)}
+          description={t(documentsRowDescription(vendor))}
           onPress={() => router.push('/settings/documents' as Href)}
         />
       ) : null}
       <LinkRow
         icon={<IconFileText size={18} />}
-        title="Garage agreement"
-        description="Read and accept the Detlio garage agreement, for Bronze"
+        title={t('Garage agreement')}
+        description={t('Read and accept the Detlio garage agreement, for Bronze')}
         onPress={() => router.push('/agreement' as Href)}
       />
     </>

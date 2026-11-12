@@ -10,10 +10,12 @@ import {
   statementCsvRows,
   type EarningsRangePreset,
 } from '@repo/core/payouts';
+import { msg, t } from '@repo/core/i18n/translate';
 
 /**
  * The words and rules of the Earnings screen, from apps/vendors/app/earnings/page.tsx.
- * Pure, so they can be tested; the screen only lays them out.
+ * Pure, so they can be tested; the screen only lays them out. The period names stay English
+ * (msg) for the screen's t(); the lines built here come out in the language in use.
  */
 export type Preset = EarningsRangePreset | 'custom';
 export interface DateRange {
@@ -22,10 +24,10 @@ export interface DateRange {
 }
 
 export const PRESETS: Array<{ value: Preset; label: string }> = [
-  { value: 'last30', label: '30 days' },
-  { value: 'thisMonth', label: 'This month' },
-  { value: 'lastMonth', label: 'Last month' },
-  { value: 'custom', label: 'Dates' },
+  { value: 'last30', label: msg('30 days') },
+  { value: 'thisMonth', label: msg('This month') },
+  { value: 'lastMonth', label: msg('Last month') },
+  { value: 'custom', label: msg('Dates') },
 ];
 
 /** The range a quick period stands for; "Dates" keeps the one on screen. */
@@ -49,9 +51,10 @@ export function changeRangeDate(range: DateRange, key: 'from' | 'to', value: str
 
 /** "Couldn't load those dates. Showing 1 Oct 2026 to 30 Oct 2026." */
 export function datesFailedLine(shown: DateRange): string {
-  return `Couldn't load those dates. Showing ${istDateLabel(`${shown.from}T12:00:00+05:30`)} to ${istDateLabel(
-    `${shown.to}T12:00:00+05:30`
-  )}.`;
+  return t("Couldn't load those dates. Showing {from} to {to}.", {
+    from: istDateLabel(`${shown.from}T12:00:00+05:30`),
+    to: istDateLabel(`${shown.to}T12:00:00+05:30`),
+  });
 }
 
 /** The two balance tiles' words. */
@@ -61,15 +64,15 @@ export function balanceTiles(statement: Pick<EarningsStatement, 'summary' | 'cyc
   return {
     owesDetlio,
     due: {
-      label: owesDetlio ? 'You owe Detlio' : 'Due now',
+      label: owesDetlio ? t('You owe Detlio') : t('Due now'),
       value: rupeesLabel(Math.abs(summary.balanceDue)),
       hint: owesDetlio
-        ? 'Comes off your next payout'
+        ? t('Comes off your next payout')
         : summary.oldestUnpaidAt
-          ? `Oldest from ${istDateLabel(summary.oldestUnpaidAt)}`
-          : `Paid within ${cycleHours} hours`,
+          ? t('Oldest from {date}', { date: istDateLabel(summary.oldestUnpaidAt) })
+          : t('Paid within {hours} hours', { hours: cycleHours }),
     },
-    paid: { label: 'Paid this month', value: rupeesLabel(summary.paidThisMonth) },
+    paid: { label: t('Paid this month'), value: rupeesLabel(summary.paidThisMonth) },
   };
 }
 
@@ -78,11 +81,14 @@ export function balanceFootnote(statement: Pick<EarningsStatement, 'summary' | '
   const { cycleHours, summary } = statement;
   const free =
     summary.freeBookings.used < summary.freeBookings.of
-      ? ` Your first ${summary.freeBookings.of} bookings are free: ${summary.freeBookings.used} used so far.`
+      ? ` ${t('Your first {count} bookings are free: {used} used so far.', {
+          count: summary.freeBookings.of,
+          used: summary.freeBookings.used,
+        })}`
       : '';
   return (
-    `Detlio pays your share within ${cycleHours} hours of each job, by bank transfer or UPI. ` +
-    'Commission is 8% on washes, packages and others, 5% on detailing, coating and scratch removal.' +
+    `${t('Detlio pays your share within {hours} hours of each job, by bank transfer or UPI.', { hours: cycleHours })} ` +
+    t('Commission is 8% on washes, packages and others, 5% on detailing, coating and scratch removal.') +
     free
   );
 }
@@ -94,6 +100,17 @@ export interface Segment {
   num?: boolean;
   /** Primary text colour rather than secondary. */
   strong?: boolean;
+}
+
+/**
+ * A translated sentence as segments: its `{name}`s become the given figures, the words
+ * between them plain, so Tamil can put each figure where Tamil puts it.
+ */
+function segmentsOf(text: string, parts: Readonly<Record<string, Segment>>): Segment[] {
+  return text
+    .split(/\{(\w+)\}/)
+    .map((piece, index) => (index % 2 === 1 ? (parts[piece] ?? { text: `{${piece}}` }) : { text: piece }))
+    .filter((segment) => segment.text !== '');
 }
 
 export interface FigureRow {
@@ -108,35 +125,35 @@ export interface FigureRow {
 
 /** A booking's breakdown, in the web's order, leaving out what is nothing. */
 export function lineFigureRows(line: GarageStatementLine): FigureRow[] {
-  const rows: FigureRow[] = [{ key: 'price', label: 'Price', value: rupeesLabel(line.price) }];
+  const rows: FigureRow[] = [{ key: 'price', label: t('Price'), value: rupeesLabel(line.price) }];
   if ((line.travelFee ?? 0) > 0) {
     // An accepted request's travel fee: part of the price, the garage's whole, no commission.
     rows.push({
       key: 'travel',
-      label: 'Travel fee (yours, no commission)',
+      label: t('Travel fee (yours, no commission)'),
       value: rupeesLabel(line.travelFee ?? 0),
     });
   }
   if (line.detlioPromo > 0) {
     // Detlio pays for its own promos: shown so the garage sees why the customer paid less.
-    rows.push({ key: 'detlio-promo', label: 'Detlio promo (paid by Detlio)', value: rupeesLabel(line.detlioPromo) });
+    rows.push({ key: 'detlio-promo', label: t('Detlio promo (paid by Detlio)'), value: rupeesLabel(line.detlioPromo) });
   }
   if (line.garagePromo > 0) {
-    rows.push({ key: 'garage-promo', label: 'Your promo', value: `−${rupeesLabel(line.garagePromo)}` });
+    rows.push({ key: 'garage-promo', label: t('Your promo'), value: `−${rupeesLabel(line.garagePromo)}` });
   }
   if (line.refunds > 0) {
-    rows.push({ key: 'refunds', label: 'Refunded', value: `−${rupeesLabel(line.refunds)}` });
+    rows.push({ key: 'refunds', label: t('Refunded'), value: `−${rupeesLabel(line.refunds)}` });
   }
   const free = line.commission.freePosition !== null;
   rows.push({
     key: 'commission',
-    label: 'Detlio commission',
+    label: t('Detlio commission'),
     value: free ? commissionLabel(line) : `−${commissionLabel(line)}`,
     free,
   });
-  rows.push({ key: 'share', label: 'Your share', value: rupeesLabel(line.share), strong: true });
+  rows.push({ key: 'share', label: t('Your share'), value: rupeesLabel(line.share), strong: true });
   if (line.heldByGarage > 0) {
-    rows.push({ key: 'cash', label: 'Cash you collected', value: `−${rupeesLabel(line.heldByGarage)}` });
+    rows.push({ key: 'cash', label: t('Cash you collected'), value: `−${rupeesLabel(line.heldByGarage)}` });
   }
   return rows;
 }
@@ -145,7 +162,7 @@ export function lineFigureRows(line: GarageStatementLine): FigureRow[] {
 export const lineKindBadge = (line: Pick<PayoutLine, 'kind'>) => lineKindLabel(line.kind);
 
 /** The card's heading: "Foam wash + Interior clean", or "Booking". */
-export const lineTitle = (line: Pick<PayoutLine, 'services'>) => line.services.join(' + ') || 'Booking';
+export const lineTitle = (line: Pick<PayoutLine, 'services'>) => line.services.join(' + ') || t('Booking');
 
 /** "Priya · 17 Oct 2026 · #AB12". */
 export function lineMeta(line: Pick<PayoutLine, 'customerFirstName' | 'payableFrom' | 'reference'>): Segment[] {
@@ -159,21 +176,26 @@ export function lineMeta(line: Pick<PayoutLine, 'customerFirstName' | 'payableFr
 
 /** One payout against a booking: "Paid ₹300 on 17 Oct 2026, ref UTR1" or "Taken back …". */
 export function payoutNote(payout: PayoutLine['payouts'][number]): Segment[] {
-  return [
-    { text: `${payout.amount < 0 ? 'Taken back' : 'Paid'} ${rupeesLabel(Math.abs(payout.amount))} on ` },
-    { text: istDateLabel(payout.paidAt), num: true },
-    { text: ', ref ' },
-    { text: payout.reference, num: true, strong: true },
-  ];
+  const parts = {
+    amount: { text: rupeesLabel(Math.abs(payout.amount)) },
+    date: { text: istDateLabel(payout.paidAt), num: true },
+    ref: { text: payout.reference, num: true, strong: true },
+  };
+  return segmentsOf(
+    payout.amount < 0 ? t('Taken back {amount} on {date}, ref {ref}') : t('Paid {amount} on {date}, ref {ref}'),
+    parts
+  );
 }
 
 /** "₹100 more to come" on a part-paid line, "₹40 comes off your next payout" on an owed-back one. */
 export function lineBalanceNote(line: Pick<PayoutLine, 'status' | 'paid' | 'balance'>): Segment[] | null {
   if (line.status === 'due' && line.paid !== 0) {
-    return [{ text: rupeesLabel(line.balance), num: true, strong: true }, { text: ' more to come' }];
+    return segmentsOf(t('{amount} more to come'), { amount: { text: rupeesLabel(line.balance), num: true, strong: true } });
   }
   if (line.status === 'owed_back') {
-    return [{ text: rupeesLabel(-line.balance), num: true, strong: true }, { text: ' comes off your next payout' }];
+    return segmentsOf(t('{amount} comes off your next payout'), {
+      amount: { text: rupeesLabel(-line.balance), num: true, strong: true },
+    });
   }
   return null;
 }

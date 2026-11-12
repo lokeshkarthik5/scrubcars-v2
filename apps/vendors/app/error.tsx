@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { useT } from '@repo/core/i18n'
 import { CrashScreen } from '@repo/ui/sc/crash-screen'
 import { reportError } from '@/lib/monitoring'
 
@@ -21,17 +22,20 @@ export default function ErrorPage({
   reset: () => void
   unstable_retry?: () => void
 }) {
+  const t = useT()
   useEffect(() => {
     reportError(error)
   }, [error])
 
   return (
     <CrashScreen
-      title="Something went wrong"
-      message="This page hit a problem on our side. Try again, or start over from home."
+      title={t('Something went wrong')}
+      message={t(
+        'This page hit a problem on our side. Try again, or start over from home.'
+      )}
       onRetry={unstable_retry ?? reset}
       homeHref="/home"
-      homeLabel="Go to your dashboard"
+      homeLabel={t('Go to your dashboard')}
       reference={error.digest}
     />
   )

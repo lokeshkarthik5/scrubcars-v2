@@ -25,6 +25,7 @@ import {
   type BookingListCursor,
   type BookingSearch,
 } from '../../lib/booking-ops.js'
+import type { BranchOwner } from '../../lib/branches.js'
 import { containsPattern } from '../../lib/search.js'
 import { NOT_IN_BIN } from '../vendors/vendors.predicates.js'
 import type { BookingView } from './admin.validation.js'
@@ -43,7 +44,9 @@ import {
   payments,
   receiptNumbers,
   serviceImages,
+  servicePackageItems,
   services,
+  userMemberMapping,
   users,
   vendorClosures,
   vendorPhotos,
@@ -534,6 +537,96 @@ export const adminRepository = {
   insertServices(rows: ServiceInsert[]) {
     if (rows.length === 0) return Promise.resolve([])
     return db.insert(services).values(rows).returning()
+  },
+
+  /**
+   * "Add a branch…" (0069) in one transaction: the owner's account (found,
+   * or set up for a new number as createOwner does), the new garage, the
+   * services, packages and add-ons chosen (packages pointing at the new
+   * copies of their members), the hours, the same stored logo and photos,
+   * the owner's vendor_admin seat, and the audit row. All or nothing, so a
+   * failure never leaves half a branch behind, a garage with no seat, or an
+   * account with no garage.
+   */
+  async createBranch(plan: {
+    owner: BranchOwner
+    vendor: Omit<VendorInsert, 'ownerId'>
+    services: Array<{ sourceId: string; row: Omit<ServiceInsert, 'vendorId'> }>
+    packages: Array<{ row: Omit<ServiceInsert, 'vendorId'>; memberSourceIds: string[] }>
+    hours: Array<Omit<WorkingHoursInsert, 'vendorId'>>
+    photos: Array<{ url: string; storageKey: string | null; sortOrder: number }>
+    audit: { actorSub: string; actorName: string; summary: Record<string, unknown>; detail: Record<string, unknown> }
+  }): Promise<{ id: string; ownerId: string }> {
+    return db.transaction(async (tx) => {
+      let ownerId: string
+      if (plan.owner.kind === 'existing') {
+        ownerId = plan.owner.userId
+        if (plan.owner.makeVendorOwner) {
+          await tx.update(users).set({ isVendorOwner: true }).where(eq(users.id, ownerId))
+        }
+      } else {
+        // createOwner's row. Should the number have been taken since it was
+        // looked up, that account is the owner, made a garage owner, as
+        // createVendor does for a number that already has one.
+        const [owner] = await tx
+          .insert(users)
+          .values({
+            name: plan.owner.name,
+            phone: plan.owner.phone,
+            isCustomer: false,
+            isVendorOwner: true,
+            phoneVerified: true,
+          })
+          .onConflictDoUpdate({ target: users.phone, set: { isVendorOwner: true } })
+          .returning({ id: users.id })
+        ownerId = owner!.id
+      }
+      const [branch] = await tx
+        .insert(vendors)
+        .values({ ...plan.vendor, ownerId })
+        .returning({ id: vendors.id })
+      const vendorId = branch!.id
+      const newIdOf = new Map<string, string>()
+      if (plan.services.length > 0) {
+        const inserted = await tx
+          .insert(services)
+          .values(plan.services.map(({ row }) => ({ ...row, vendorId })))
+          .returning({ id: services.id })
+        // RETURNING keeps the VALUES order, so the copies line up with their sources.
+        plan.services.forEach(({ sourceId }, index) => newIdOf.set(sourceId, inserted[index]!.id))
+      }
+      for (const pkg of plan.packages) {
+        const [created] = await tx
+          .insert(services)
+          .values({ ...pkg.row, vendorId })
+          .returning({ id: services.id })
+        const members = pkg.memberSourceIds.map((id) => newIdOf.get(id)).filter((id): id is string => Boolean(id))
+        if (members.length > 0) {
+          await tx
+            .insert(servicePackageItems)
+            .values(members.map((serviceId, sortOrder) => ({ packageId: created!.id, serviceId, sortOrder })))
+        }
+      }
+      if (plan.hours.length > 0) {
+        await tx.insert(vendorWorkingHours).values(plan.hours.map((row) => ({ ...row, vendorId })))
+      }
+      if (plan.photos.length > 0) {
+        await tx.insert(vendorPhotos).values(plan.photos.map((row) => ({ ...row, vendorId })))
+      }
+      // The owner's seat, as createOwnerMembership writes it.
+      await tx
+        .insert(userMemberMapping)
+        .values({ vendorId, userId: ownerId, role: 'vendor_admin' })
+        .onConflictDoNothing({ target: [userMemberMapping.vendorId, userMemberMapping.userId] })
+      await tx.insert(adminAuditLog).values({
+        action: 'garage_branch_added',
+        actorSub: plan.audit.actorSub,
+        actorName: plan.audit.actorName,
+        summary: { ...plan.audit.summary, vendorId },
+        detail: plan.audit.detail,
+      })
+      return { id: vendorId, ownerId }
+    })
   },
 
   // Every plain service of a vendor with its state, to reconcile the admin

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { IconArrowLeft } from '@tabler/icons-react'
 import { cn } from '@repo/core/utils'
+import { useT } from '@repo/core/i18n'
 
 interface TopBarProps {
   title?: string
@@ -36,6 +37,7 @@ const BACK_CLASS =
   '-m-[11px] flex size-11 shrink-0 items-center justify-center text-text-primary'
 
 export function TopBar({ title, showBack, backHref, right, center, large, className }: TopBarProps) {
+  const t = useT()
   const router = useRouter()
   return (
     <header
@@ -47,7 +49,7 @@ export function TopBar({ title, showBack, backHref, right, center, large, classN
       <div className="flex min-w-0 flex-1 items-center gap-3">
         {showBack &&
           (backHref ? (
-            <Link href={backHref} aria-label="Go back" className={BACK_CLASS}>
+            <Link href={backHref} aria-label={t('Go back')} className={BACK_CLASS}>
               <IconArrowLeft size={22} stroke={1.5} />
             </Link>
           ) : (
@@ -55,7 +57,7 @@ export function TopBar({ title, showBack, backHref, right, center, large, classN
               type="button"
               onClick={() => router.back()}
               className={BACK_CLASS}
-              aria-label="Go back"
+              aria-label={t('Go back')}
             >
               <IconArrowLeft size={22} stroke={1.5} />
             </button>

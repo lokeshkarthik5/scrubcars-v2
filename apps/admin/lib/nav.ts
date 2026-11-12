@@ -1,5 +1,5 @@
 /**
- * The panel's menu: five groups and thirteen places instead of fourteen tabs in
+ * The panel's menu: five groups and fourteen places instead of fifteen tabs in
  * one row (UX audit, admin mockup 01). Nothing is removed: the three issue
  * pages share one place with tabs (Issues), and the one-off tools moved to
  * Settings. Pure, so the grouping, the feature switches and "which item is
@@ -14,11 +14,13 @@ export type NavIconName =
   | 'today'
   | 'bookings'
   | 'requests'
+  | 'customers'
   | 'issues'
   | 'refunds'
   | 'garages'
   | 'payouts'
   | 'coverage'
+  | 'cities'
   | 'offers'
   | 'rewards'
   | 'gifts'
@@ -68,6 +70,9 @@ export const NAV_GROUPS: NavGroup[] = [
       // Customers asking a garage just outside its area (0064): the garage
       // has two hours to answer, so it sits beside Bookings.
       { href: '/requests', label: 'Requests', icon: 'requests' },
+      // Find a customer by phone or name (10 Nov 2026), and the owner's
+      // Delete customer account.
+      { href: '/customers', label: 'Customers', icon: 'customers' },
       {
         href: '/complaints',
         label: 'Issues',
@@ -87,6 +92,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/vendors', label: 'Garages', icon: 'garages', count: 'garages' },
       { href: '/payouts', label: 'Payouts', icon: 'payouts' },
       { href: '/coverage', label: 'Coverage', icon: 'coverage' },
+      // Which cities customers see garages in (0069), beside Coverage.
+      { href: '/cities', label: 'Cities', icon: 'cities' },
     ],
   },
   {

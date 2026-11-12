@@ -18,6 +18,7 @@ import { BYPASS_QUESTION } from '@repo/core/bypass-reports'
 import { mayBeReportable } from '@/components/bypass/bypass-report-line'
 import { ReportBypassSheet } from '@/components/bypass/report-bypass-sheet'
 import { RaiseComplaintSheet } from '@/components/complaints/raise-complaint-sheet'
+import { fill, useT } from '@repo/core/i18n'
 
 interface BookingHelpSheetProps {
   open: boolean
@@ -43,6 +44,7 @@ const ENDED: ReadonlySet<Booking['status']> = new Set(['cancelled', 'rescheduled
  * you to book directly?" (0052) works the same way.
  */
 export function BookingHelpSheet({ open, onClose, booking }: BookingHelpSheetProps) {
+  const t = useT()
   const [raising, setRaising] = useState(false)
   // "Did the garage ask you to book directly?" (0052): the booking page's
   // own read, shared (one request, one cache).
@@ -71,23 +73,22 @@ export function BookingHelpSheet({ open, onClose, booking }: BookingHelpSheetPro
       <ScSheet
         open={open && !raising && !reporting}
         onClose={onClose}
-        aria-label="Help with this booking"
+        aria-label={t('Help with this booking')}
         className="px-4 pt-1"
       >
         <div className="flex flex-col gap-5">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <h2 className="text-base font-semibold text-text-primary">Help with this booking</h2>
+              <h2 className="text-base font-semibold text-text-primary">{t('Help with this booking')}</h2>
               <p className="mt-1 text-t5 text-text-secondary">
-                Booking <span className="font-numeric font-medium">{reference}</span> ·{' '}
-                {booking.vendorName} · <span className="font-numeric">{booking.scheduledAt}</span>
+                {fill(t('Booking {reference} · {vendorName} · {scheduledAt}'), { reference: <span className="font-numeric font-medium">{reference}</span>, scheduledAt: <span className="font-numeric">{booking.scheduledAt}</span>, vendorName: booking.vendorName })}
               </p>
             </div>
             {/* Every button below leaves the app; this one comes back. */}
             <button
               type="button"
               onClick={onClose}
-              aria-label="Close"
+              aria-label={t('Close')}
               className="-mr-2 -mt-1 flex size-11 shrink-0 items-center justify-center"
             >
               <IconCircleX size={22} className="text-text-secondary" />
@@ -100,10 +101,10 @@ export function BookingHelpSheet({ open, onClose, booking }: BookingHelpSheetPro
                 <h3 className="text-t4 font-semibold text-text-primary">{booking.vendorName}</h3>
                 <p className="text-t5 text-text-secondary">
                   {booking.bookingType === 'doorstep'
-                    ? 'For timings, finding your place, or questions about the work.'
+                    ? t('For timings, finding your place, or questions about the work.')
                     : booking.bookingType === 'pickup'
-                      ? 'For the pickup and return times, where your car is, or questions about the work.'
-                      : 'For timings, finding the garage, or questions about the work.'}
+                      ? t('For the pickup and return times, where your car is, or questions about the work.')
+                      : t('For timings, finding the garage, or questions about the work.')}
                 </p>
               </div>
               <ContactButtons
@@ -122,8 +123,8 @@ export function BookingHelpSheet({ open, onClose, booking }: BookingHelpSheetPro
                 <span>
                   {garageNumberHiddenLine(garageHidden)}{' '}
                   {garageHidden === 'before'
-                    ? 'Until then, the Detlio team can pass a message on.'
-                    : 'The Detlio team can reach them for you.'}
+                    ? t('Until then, the Detlio team can pass a message on.')
+                    : t('The Detlio team can reach them for you.')}
                 </span>
               </p>
             </section>
@@ -131,14 +132,13 @@ export function BookingHelpSheet({ open, onClose, booking }: BookingHelpSheetPro
 
           <section className="flex flex-col gap-2">
             <div>
-              <h3 className="text-t4 font-semibold text-text-primary">Detlio team</h3>
+              <h3 className="text-t4 font-semibold text-text-primary">{t('Detlio team')}</h3>
               <p className="text-t5 text-text-secondary">
-                For payments and refunds, or if something isn&apos;t right. We&apos;ll take it
-                up with the garage for you.
+                {t("For payments and refunds, or if something isn't right. We'll take it up with the garage for you.")}
               </p>
             </div>
             <ContactButtons
-              who="Detlio support"
+              who={t('Detlio support')}
               callHref={SUPPORT_TEL_HREF}
               whatsAppHref={supportWhatsAppHref(
                 `Hi Detlio, I need help with booking ${reference} at ${booking.vendorName} (${booking.scheduledAt}).`
@@ -148,16 +148,15 @@ export function BookingHelpSheet({ open, onClose, booking }: BookingHelpSheetPro
 
           <section className="flex flex-col gap-2">
             <div>
-              <h3 className="text-t4 font-semibold text-text-primary">Make a complaint</h3>
+              <h3 className="text-t4 font-semibold text-text-primary">{t('Make a complaint')}</h3>
               <p className="text-t5 text-text-secondary">
-                In writing, with a complaint number to quote. We reply within{' '}
-                <span className="font-numeric">{COMPLAINT_ACKNOWLEDGE_HOURS}</span> hours.
+                {fill(t('In writing, with a complaint number to quote. We reply within {hours} hours.'), { hours: <span className="font-numeric">{COMPLAINT_ACKNOWLEDGE_HOURS}</span> })}
               </p>
             </div>
             <ScButton variant="secondary" onClick={() => setRaising(true)} className="min-h-11">
               <span className="flex items-center justify-center gap-2">
                 <IconMessageReport size={18} aria-hidden />
-                Raise a complaint
+                {t('Raise a complaint')}
               </span>
             </ScButton>
           </section>
@@ -165,15 +164,15 @@ export function BookingHelpSheet({ open, onClose, booking }: BookingHelpSheetPro
           {bypass?.canReport && (
             <section className="flex flex-col gap-2">
               <div>
-                <h3 className="text-t4 font-semibold text-text-primary">{BYPASS_QUESTION}</h3>
+                <h3 className="text-t4 font-semibold text-text-primary">{t(BYPASS_QUESTION)}</h3>
                 <p className="text-t5 text-text-secondary">
-                  Tell us in confidence. The garage is never told who reported it.
+                  {t('Tell us in confidence. The garage is never told who reported it.')}
                 </p>
               </div>
               <ScButton variant="secondary" onClick={() => setReporting(true)} className="min-h-11">
                 <span className="flex items-center justify-center gap-2">
                   <IconFlag size={18} aria-hidden />
-                  Tell us what happened
+                  {t('Tell us what happened')}
                 </span>
               </ScButton>
             </section>
@@ -187,7 +186,7 @@ export function BookingHelpSheet({ open, onClose, booking }: BookingHelpSheetPro
             className="-mx-1 flex min-h-11 items-center justify-between gap-3 rounded-[10px] px-1 text-t4 text-text-secondary transition-colors hover:text-text-primary"
           >
             <span>
-              Common questions: <span className="font-medium text-text-primary">Help centre</span>
+              {fill(t('Common questions: {part}'), { part: <span className="font-medium text-text-primary">{t('Help centre')}</span> })}
             </span>
             <IconChevronRight size={16} className="shrink-0 text-text-muted" aria-hidden />
           </Link>

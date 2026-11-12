@@ -20,6 +20,7 @@ import {
   type MapsLinkWarning,
 } from '@repo/core/api/geo'
 import { DEFAULT_CENTER, MAP_STYLES, MAP_THEME, PICKER_ZOOM } from '@repo/core/map'
+import { msg, useT } from '@repo/core/i18n'
 import { cn } from '@repo/core/utils'
 
 /**
@@ -80,6 +81,12 @@ interface LocationPickerProps {
    * 450 km away, which nothing else would have caught.
    */
   expectedCity?: string
+  /**
+   * Where the map opens when there is no pin yet: a city's centre (0069), so
+   * onboarding a garage in Tirupur starts over Tirupur, not over Chennai.
+   * Ignored once a pin is placed. Default DEFAULT_CENTER (Chennai).
+   */
+  initialCenter?: { lat: number; lng: number } | null
   className?: string
 }
 
@@ -87,14 +94,16 @@ const DEBOUNCE_MS = 300
 const MIN_QUERY_LENGTH = 3
 
 const LINK_WARNINGS: Record<MapsLinkWarning, string> = {
-  place_share_link:
-    'That looks like a Google place-share link, which carries no location. We placed the pin from its address — check it before saving.',
-  directions_link:
-    'That was a directions link, so we used its destination. Check the pin before saving.',
-  no_location_found:
-    'Could not read a location from that link. Search above, or drop the pin by hand.',
-  unreachable:
-    'Could not open that link. Search above, or drop the pin by hand.',
+  place_share_link: msg(
+    'That looks like a Google place-share link, which carries no location. We placed the pin from its address — check it before saving.'
+  ),
+  directions_link: msg(
+    'That was a directions link, so we used its destination. Check the pin before saving.'
+  ),
+  no_location_found: msg(
+    'Could not read a location from that link. Search above, or drop the pin by hand.'
+  ),
+  unreachable: msg('Could not open that link. Search above, or drop the pin by hand.'),
 }
 
 export function LocationPicker({
@@ -102,8 +111,10 @@ export function LocationPicker({
   onChange,
   showSearch = true,
   expectedCity,
+  initialCenter,
   className,
 }: LocationPickerProps) {
+  const t = useT()
   const [pin, setPin] = useState<{ lat: number; lng: number } | null>(
     value ?? null
   )
@@ -140,7 +151,20 @@ export function LocationPicker({
   const searchBoxRef = useRef<HTMLDivElement>(null)
 
 
-  const center: [number, number] = pin ? [pin.lng, pin.lat] : DEFAULT_CENTER
+  // A new city chosen while there is still no pin flies the map there
+  // (adjusted in render, as the overlays do, rather than one frame late).
+  const centreKey = initialCenter ? `${initialCenter.lat},${initialCenter.lng}` : ''
+  const [seenCentre, setSeenCentre] = useState(centreKey)
+  if (seenCentre !== centreKey) {
+    setSeenCentre(centreKey)
+    if (!pin && initialCenter) setFlyTo({ lat: initialCenter.lat, lng: initialCenter.lng })
+  }
+
+  const center: [number, number] = pin
+    ? [pin.lng, pin.lat]
+    : initialCenter
+      ? [initialCenter.lng, initialCenter.lat]
+      : DEFAULT_CENTER
 
   /**
    * Moves the pin and looks up what is there. The reverse call is what fills
@@ -169,7 +193,8 @@ export function LocationPicker({
         // lookup costs the prefilled address text, not the coordinates, so the
         // caller still gets a usable result and the user can type the rest.
         setAddress(null)
-        setError('Could not look up that address — you can type it below.')
+        // English in state, translated where it is shown.
+        setError(msg('Could not look up that address — you can type it below.'))
         onChange({ lat, lng, address: '', city: '', pincode: '', source })
       } finally {
         setResolving(false)
@@ -270,7 +295,7 @@ export function LocationPicker({
             : place
 
       if (resolved.lat === null || resolved.lng === null) {
-        setError('Could not locate that address. Try dropping the pin instead.')
+        setError(msg('Could not locate that address. Try dropping the pin instead.'))
         return
       }
 
@@ -305,7 +330,7 @@ export function LocationPicker({
         source: 'map_pin',
       })
     } catch {
-      setError('Could not locate that address. Try dropping the pin instead.')
+      setError(msg('Could not locate that address. Try dropping the pin instead.'))
     } finally {
       setResolving(false)
     }
@@ -353,7 +378,7 @@ export function LocationPicker({
       void placePin(result.lat, result.lng, 'map_pin')
 
       const notices: string[] = []
-      if (result.warning) notices.push(LINK_WARNINGS[result.warning])
+      if (result.warning) notices.push(t(LINK_WARNINGS[result.warning]))
 
       // The link resolving somewhere other than the city on the form is the one
       // mistake the map alone will not catch, because the map obediently flies
@@ -365,15 +390,18 @@ export function LocationPicker({
         !resolvedCity.toLowerCase().includes(expectedCity.trim().toLowerCase())
       ) {
         notices.push(
-          `This link points to “${resolvedCity.slice(0, 60)}”, which does not look like ${expectedCity}. Check the pin.`
+          t('This link points to “{place}”, which does not look like {city}. Check the pin.', {
+            place: resolvedCity.slice(0, 60),
+            city: expectedCity,
+          })
         )
       } else if (result.source === 'geocoded') {
-        notices.push('Pin placed from the link’s address — check it before saving.')
+        notices.push(t('Pin placed from the link’s address — check it before saving.'))
       }
 
       setLinkNotice(notices.length > 0 ? notices.join(' ') : null)
     } catch {
-      setLinkNotice(LINK_WARNINGS.unreachable)
+      setLinkNotice(t(LINK_WARNINGS.unreachable))
     } finally {
       setLinkBusy(false)
     }
@@ -381,7 +409,7 @@ export function LocationPicker({
 
   const useCurrentLocation = () => {
     if (!navigator.geolocation) {
-      setError('This browser cannot share your location.')
+      setError(msg('This browser cannot share your location.'))
       return
     }
 
@@ -401,7 +429,7 @@ export function LocationPicker({
       },
       () => {
         setLocating(false)
-        setError('Location access was blocked. Search or drop the pin instead.')
+        setError(msg('Location access was blocked. Search or drop the pin instead.'))
       },
       // Unlike browsing, this coordinate is stored permanently and drives
       // doorstep radius checks, so it is worth waiting for a real fix.
@@ -416,10 +444,10 @@ export function LocationPicker({
           <div className="flex items-center gap-2.5 rounded-[12px] border border-border bg-surface px-3.5 py-3">
             <IconSearch size={17} className="shrink-0 text-text-secondary" />
             <input
-              aria-label="Search for area, street or landmark"
+              aria-label={t('Search for area, street or landmark')}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search for area, street or landmark"
+              placeholder={t('Search for area, street or landmark')}
               className="w-full bg-transparent text-[13px] text-text-primary outline-none placeholder:text-text-muted"
             />
             {searching && (
@@ -496,7 +524,7 @@ export function LocationPicker({
 
         {resolving && (
           <div className="absolute inset-x-0 bottom-0 bg-surface/90 px-3 py-1.5 text-center text-[11px] text-text-secondary">
-            Looking up this location…
+            {t('Looking up this location…')}
           </div>
         )}
       </div>
@@ -507,7 +535,7 @@ export function LocationPicker({
       <div className="flex flex-col gap-1.5">
         <div className="flex gap-2">
           <input
-            aria-label="Google Maps link or coordinates"
+            aria-label={t('Google Maps link or coordinates')}
             value={linkInput}
             onChange={(e) => setLinkInput(e.target.value)}
             onKeyDown={(e) => {
@@ -516,7 +544,7 @@ export function LocationPicker({
                 void applyLink()
               }
             }}
-            placeholder="Paste Google Maps link or 13.0043, 80.2554"
+            placeholder={t('Paste Google Maps link or 13.0043, 80.2554')}
             className="min-w-0 flex-1 rounded-[10px] border border-border bg-surface px-3 py-2.5 text-[12px] text-text-primary outline-none placeholder:text-text-muted focus:border-text-secondary"
           />
           <ScButton
@@ -527,7 +555,7 @@ export function LocationPicker({
             onClick={() => void applyLink()}
             className="shrink-0 px-4 py-2 text-[12px]"
           >
-            {linkBusy ? 'Locating…' : 'Use'}
+            {linkBusy ? t('Locating…') : t('Use')}
           </ScButton>
         </div>
 
@@ -548,23 +576,22 @@ export function LocationPicker({
         ) : (
           <IconCurrentLocation size={15} />
         )}
-        {locating ? 'Finding you…' : 'Use my current location'}
+        {locating ? t('Finding you…') : t('Use my current location')}
       </ScButton>
 
       {!pin && (
         <p className="text-[11px] text-text-secondary">
-          Search above, tap the map, or use your current location. Drag the pin
-          to place it exactly.
+          {t('Search above, tap the map, or use your current location. Drag the pin to place it exactly.')}
         </p>
       )}
 
       {address && (
         <p className="text-[11px] text-text-secondary">
-          <span className="text-text-muted">Pin is at:</span> {address}
+          <span className="text-text-muted">{t('Pin is at:')}</span> {address}
         </p>
       )}
 
-      {error && <p role="alert" className="text-[11px] text-error">{error}</p>}
+      {error && <p role="alert" className="text-[11px] text-error">{t(error)}</p>}
     </div>
   )
 }

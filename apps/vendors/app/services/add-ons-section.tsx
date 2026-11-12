@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { IconPlus } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
 import { addOnTimeLabel } from '@repo/core/add-ons'
+import { useT } from '@repo/core/i18n'
+import { t } from '@repo/core/i18n/translate'
 import { garageAddOnsApi, type AddOn } from '@repo/core/api/add-ons'
 import { formatServicePrice } from '@repo/core/pricing'
 import { ConfirmSheet } from '@repo/ui/sc/confirm-sheet'
@@ -14,6 +16,9 @@ import { SectionHeader } from '@repo/ui/sc/section-header'
 import { Reveal } from '@repo/ui/sc/reveal'
 import { AddOnSheet } from './add-on-sheet'
 import { RowAction } from './catalogue-row'
+
+/** Said from an effect, so it reads the language in use without being one of the effect's dependencies. */
+const loadFailed = () => t('Failed to load add-ons')
 
 /**
  * Add-ons under Services (frame A): small extras that go with any service.
@@ -26,6 +31,7 @@ export function AddOnsSection({
   /** Bumped by the "Add add-on" beside the form's heading, to open the sheet. */
   addRequest: number
 }) {
+  const t = useT()
   const [addOns, setAddOns] = useState<AddOn[] | null>(null)
   // null: closed. 'new': adding. An add-on: editing it.
   const [sheet, setSheet] = useState<'new' | AddOn | null>(null)
@@ -37,7 +43,7 @@ export function AddOnsSection({
       .then(setAddOns)
       .catch(() => {
         setAddOns([])
-        toast.error('Failed to load add-ons')
+        toast.error(loadFailed())
       })
   }, [])
 
@@ -56,16 +62,16 @@ export function AddOnsSection({
       setAddOns((current) =>
         (current ?? []).map((a) => (a.id === addOn.id ? updated : a))
       )
-      toast.success('Saved successfully')
+      toast.success(t('Saved successfully'))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Something went wrong')
+      toast.error(err instanceof Error ? err.message : t('Something went wrong'))
     }
   }
 
   return (
     <section className="flex flex-col gap-3" data-add-ons-section="">
       <SectionHeader
-        title="Add-ons"
+        title={t('Add-ons')}
         action={
           list.length > 0 ? (
             <span className="font-numeric text-[12px] text-text-muted">
@@ -75,8 +81,7 @@ export function AddOnsSection({
         }
       />
       <p className="text-[13px] text-text-secondary">
-        Small extras that go with any of your services. Customers can&apos;t
-        book them alone.
+        {t("Small extras that go with any of your services. Customers can't book them alone.")}
       </p>
       <button
         type="button"
@@ -84,7 +89,7 @@ export function AddOnsSection({
         className="press flex min-h-12 items-center justify-center gap-1.5 rounded-full border border-white/20 px-4 text-[14px] font-medium text-text-primary transition-colors hover:bg-surface-elevated"
       >
         <IconPlus size={16} aria-hidden="true" />
-        Add add-on
+        {t('Add add-on')}
       </button>
       <div className="flex flex-col gap-2">
         {list.map((addOn, i) => (
@@ -104,17 +109,17 @@ export function AddOnsSection({
                   variant={addOn.isActive ? 'success' : 'muted'}
                   className="shrink-0"
                 >
-                  {addOn.isActive ? 'Active' : 'Inactive'}
+                  {addOn.isActive ? t('Active') : t('Inactive')}
                 </ScBadge>
               </div>
               <div className="flex flex-wrap gap-2 border-t border-border pt-3">
-                <RowAction onClick={() => setSheet(addOn)}>Edit</RowAction>
+                <RowAction onClick={() => setSheet(addOn)}>{t('Edit')}</RowAction>
                 <RowAction
                   onClick={() => void setActive(addOn, !addOn.isActive)}
                 >
-                  {addOn.isActive ? 'Disable' : 'Enable'}
+                  {addOn.isActive ? t('Disable') : t('Enable')}
                 </RowAction>
-                <RowAction onClick={() => setDeleting(addOn)}>Delete</RowAction>
+                <RowAction onClick={() => setDeleting(addOn)}>{t('Delete')}</RowAction>
               </div>
             </ScCard>
           </Reveal>
@@ -133,7 +138,7 @@ export function AddOnsSection({
               : [...rows, saved]
           })
           setSheet(null)
-          toast.success('Saved successfully')
+          toast.success(t('Saved successfully'))
         }}
       />
 
@@ -141,9 +146,15 @@ export function AddOnsSection({
         open={deleting !== null}
         onClose={() => setDeleting(null)}
         level="firm"
-        title={deleting ? `Delete ${deleting.name}?` : 'Delete this add-on?'}
-        body="Customers can't add it any more, and it can't be undone. Past bookings keep it. To stop it for a while, Disable it instead."
-        confirmLabel="Delete add-on"
+        title={
+          deleting
+            ? t('Delete {name}?', { name: deleting.name })
+            : t('Delete this add-on?')
+        }
+        body={t(
+          "Customers can't add it any more, and it can't be undone. Past bookings keep it. To stop it for a while, Disable it instead."
+        )}
+        confirmLabel={t('Delete add-on')}
         onConfirm={async () => {
           if (!deleting) return
           try {
@@ -151,10 +162,10 @@ export function AddOnsSection({
             setAddOns((current) =>
               (current ?? []).filter((a) => a.id !== deleting.id)
             )
-            toast.success('Saved successfully')
+            toast.success(t('Saved successfully'))
           } catch (err) {
             toast.error(
-              err instanceof Error ? err.message : 'Something went wrong'
+              err instanceof Error ? err.message : t('Something went wrong')
             )
           }
           setDeleting(null)

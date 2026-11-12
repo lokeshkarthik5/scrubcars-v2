@@ -1,5 +1,6 @@
 import { useCancelSlotAlert, useSlotAlerts } from '@repo/core/api/hooks/use-slot-alerts';
 import { BOOKING_TYPE_LABELS } from '@repo/core/booking-types';
+import { useT } from '@repo/core/i18n';
 import { slotAlertSummary } from '@repo/core/slot-alerts';
 import { ScButton } from '@repo/native-ui/button';
 import { IconBell } from '@repo/native-ui/icons';
@@ -15,6 +16,7 @@ import { useAuth } from '@/lib/auth';
 
 /** apps/users/app/profile/slot-alerts/page.tsx. */
 export default function SlotAlertsScreen() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
@@ -24,14 +26,14 @@ export default function SlotAlertsScreen() {
   const items = alerts.data?.items ?? [];
   return (
     <View style={[styles.page, { paddingTop: insets.top }]}>
-      <PageHeader title="Slot alerts" backTo="/profile" />
+      <PageHeader title={t('Slot alerts')} backTo="/profile" />
       {!user ? (
         <View style={styles.center}>
           <T size={15} weight={600} align="center">
-            Sign in to see your slot alerts
+            {t('Sign in to see your slot alerts')}
           </T>
           <ScButton variant="main" fullWidth={false} paddingX={32} onPress={() => router.push(`/login?next=${encodeURIComponent('/profile/slot-alerts')}` as Href)}>
-            Sign in
+            {t('Sign in')}
           </ScButton>
         </View>
       ) : (
@@ -39,12 +41,12 @@ export default function SlotAlertsScreen() {
           {alerts.isPending ? (
             <Skeleton height={96} />
           ) : alerts.isError && items.length === 0 ? (
-            <ErrorState message="Couldn't load your slot alerts. Check your connection." onRetry={() => void alerts.refetch()} />
+            <ErrorState message={t("Couldn't load your slot alerts. Check your connection.")} onRetry={() => void alerts.refetch()} />
           ) : items.length === 0 ? (
             <View style={styles.none}>
-              <EmptyState icon={<IconBell size={32} stroke={1.5} color={colors.textSecondary} />} title="No slot alerts" subtitle="When a day is fully booked at checkout, tap Notify me if a slot opens." />
+              <EmptyState icon={<IconBell size={32} stroke={1.5} color={colors.textSecondary} />} title={t('No slot alerts')} subtitle={t('When a day is fully booked at checkout, tap Notify me if a slot opens.')} />
               <ScButton variant="outline" fullWidth={false} onPress={() => router.push('/garages' as Href)}>
-                Find garages
+                {t('Find garages')}
               </ScButton>
             </View>
           ) : (
@@ -59,24 +61,24 @@ export default function SlotAlertsScreen() {
                       {slotAlertSummary(alert)}
                     </T>
                     <T size={12} lh={16} color={colors.textMuted}>
-                      {BOOKING_TYPE_LABELS[alert.bookingType]}
+                      {t(BOOKING_TYPE_LABELS[alert.bookingType])}
                     </T>
                   </View>
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`Stop waiting for ${alert.vendorName}, ${slotAlertSummary(alert)}`}
+                    accessibilityLabel={t('Stop waiting for {name}, {when}', { name: alert.vendorName, when: slotAlertSummary(alert) })}
                     disabled={cancel.isPending}
                     onPress={() => cancel.mutate(alert.id)}
                     style={styles.stop}
                   >
                     <T size={12} weight={500} lh={16} style={styles.underline}>
-                      Stop waiting
+                      {t('Stop waiting')}
                     </T>
                   </Pressable>
                 </ScCard>
               ))}
               <T size={12} lh={16} color={colors.textMuted}>
-                {`Up to ${alerts.data?.max ?? 5} at once. If a time opens it shows in Updates, and as a notification if they're on. It isn't held: the first to book gets it.`}
+                {t("Up to {max} at once. If a time opens it shows in Updates, and as a notification if they're on. It isn't held: the first to book gets it.", { max: alerts.data?.max ?? 5 })}
               </T>
             </>
           )}

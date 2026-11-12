@@ -29,6 +29,15 @@
  *   number is always voided, never restarted. Never for a garage's delete.
  * - A chain and its free redo (Detlio Guarantee, 0051) go together: the redo
  *   is a booking of its own that answers the first one's claim.
+ * - The owner deletes anything marked Test (10 Nov 2026): for the owner's
+ *   login alone (`owner`), on one booking marked Test (scope `chains`) or a
+ *   garage deleted forever (scope `garage`), real money, an order that may
+ *   still be paid and a garage payout no longer keep a chain. Every real
+ *   payment is written to the ledger first with whether it was refunded,
+ *   credit spent goes back to the customer, and the owner types the
+ *   reference. On one booking the payout stays on record with only that
+ *   booking's line gone; a garage deleted forever takes its payouts with it,
+ *   each line written to the ledger first.
  *
  * Pure and clock-free: the caller reads the rows, asks Razorpay, and passes
  * everything in. Node's crypto is used for the fingerprint, and nothing else
@@ -87,6 +96,8 @@ export interface ResetPayment {
   refundedAmount: string | null
   /** When it went through: for the team-test ledger (0065). */
   paidAt?: Date | null
+  /** Its credit part already went back to the customer (credit_returned_at). */
+  creditReturned?: boolean
 }
 
 /** One booking of a candidate chain, with its payment. */
@@ -212,6 +223,19 @@ export interface ResetPayout {
   recordedAt: Date
   /** The first booking of every chain it paid (vendor_payout_items.booking_id). */
   rootBookingIds: string[]
+  /**
+   * What it paid on each of those chains, when it was sent and its
+   * reference: what the ledger says when the owner deletes a booking it
+   * paid and the payout stays (10 Nov 2026). Absent reads as unknown.
+   */
+  items?: Array<{ rootBookingId: string; amount: string }>
+  paidAt?: Date
+  reference?: string
+  /**
+   * What it paid in all: what the ledger says when the owner's Delete
+   * forever removes it with the garage (10 Nov 2026). Absent reads as unknown.
+   */
+  amount?: string
 }
 
 /** The rows that hang off one booking and go with it (ON DELETE CASCADE). */
@@ -306,6 +330,13 @@ export interface PlanInput {
   refunds?: ResetRefund[]
   /** Free redos among the candidate chains' bookings (0065). Absent is none. */
   redoLinks?: ResetRedoLink[]
+  /**
+   * The owner's own delete (10 Nov 2026): only for scope `chains` (a
+   * booking marked Test) and `garage` (Delete forever). Real money, an order
+   * that may still be paid and a garage payout then no longer keep a chain;
+   * see `ownerLines`. Absent or false: the rules every other admin has.
+   */
+  owner?: boolean
   /** The receipt numbers of the candidate chains. */
   receipts: ResetReceipt[]
   /**
@@ -598,7 +629,8 @@ export interface TeamTestPayment {
   rootId: string
   reference: string
   bookingIds: string[]
-  kind: 'booking' | 'final_bill' | 'extra_work'
+  /** A payment, or (the owner's delete, 10 Nov 2026) a garage payout's line on the chain. */
+  kind: 'booking' | 'final_bill' | 'extra_work' | 'payout'
   chargeId: string | null
   razorpayPaymentId: string | null
   razorpayOrderId: string | null
@@ -619,7 +651,22 @@ export interface TeamTestPayment {
   customerId: string
   paidAt: Date | null
   bookedAt: Date
+  /**
+   * Where the money stands (10 Nov 2026): every rupee refunded (the only
+   * state before the owner's delete), not refunded, a Razorpay refund still
+   * processing, paid with Detlio credit alone (given back), or paid out to
+   * the garage (kind `payout`).
+   */
+  state: LedgerState
+  /** "Paid out to Speed Wash on 3 Nov 2026 (UTR123)"; null when there is nothing to add. */
+  note: string | null
+  /** Detlio credit spent on it, which is back with the customer (now or earlier), in rupees. */
+  creditReturned: string
+  /** The payout the line was on (kind `payout`); no FK: it may go with its garage. */
+  vendorPayoutId: string | null
 }
+
+export type LedgerState = 'refunded' | 'not_refunded' | 'refund_pending' | 'credit_returned' | 'paid_out'
 
 /** One place money landed on a chain, with what was refunded on it. */
 interface ChainMoney {
@@ -632,6 +679,9 @@ interface ChainMoney {
   money: MoneyClass
   cash: boolean
   credit: boolean
+  /** The credit part, and whether it already went back to the customer. */
+  creditPaise: number
+  creditReturned: boolean
   amountPaise: number
   refundedPaise: number
   /** Standing refunds (a failed one moved no money). */
@@ -670,6 +720,8 @@ function chainMoney(
       money: classOf({ gatewayId: first.gatewayTxnId, gatewayMode, cash }, input),
       cash,
       credit: group.some((b) => Number(b.payment!.creditAmount ?? 0) > 0),
+      creditPaise: Math.max(...group.map((b) => toPaise(b.payment!.creditAmount))),
+      creditReturned: group.some((b) => b.payment!.creditReturned === true),
       amountPaise: toPaise(first.amount),
       refundedPaise: Math.max(...group.map((b) => toPaise(b.payment!.refundedAmount))),
       refunds: standing.filter((refund) => refund.kind === 'booking' && ids.has(refund.targetId)),
@@ -688,6 +740,8 @@ function chainMoney(
       money: classOf({ gatewayId, gatewayMode: charge.gatewayMode, cash: false }, input),
       cash: false,
       credit: false,
+      creditPaise: 0,
+      creditReturned: false,
       amountPaise: toPaise(charge.amountDue),
       refundedPaise: toPaise(charge.refundedAmount),
       refunds: standing.filter((refund) => refund.kind === 'bill' && refund.targetId === charge.id),
@@ -744,6 +798,132 @@ export function teamTestVerdict(money: ChainMoney[]): TeamTestVerdict | null {
     }
   }
   return { deletable: true }
+}
+
+// ─── The owner deletes anything marked Test (10 Nov 2026) ────────────────────
+//
+// The owner's words: "as a owner I should be able to even mark real bookings
+// as test & delete them as we will be doing a couple of tests end to end
+// fully with accepting & everything". So for the owner alone, a booking
+// marked Test goes whatever its money: the delete never refunds anything
+// (that stays a deliberate act in Razorpay), so the dry run says plainly
+// what was paid and not given back, and every payment is written to the
+// ledger first with where it stands. Credit spent on it goes back to the
+// customer's balance. A garage payout stays on record (the money really
+// moved); only the booking's line on it goes, and the ledger says so. A
+// garage deleted forever by the owner takes its payouts too ("an owner of
+// the admin panel can clear or delete anything"), each line written to the
+// ledger first with the payout's date, reference and total.
+
+/** Booking statuses where it is still on: waiting, accepted or being worked on. */
+const STILL_ON: ReadonlySet<string> = new Set(['pending', 'confirmed', 'in_progress'])
+
+export const STILL_ON_LINE =
+  'This booking is still on. Deleting it removes it for the customer and the garage without telling them.'
+
+/** Where one real payment stands, for its ledger row. */
+export function ledgerStateOf(
+  item: Pick<ChainMoney, 'amountPaise' | 'refundedPaise' | 'refunds' | 'creditPaise' | 'cash' | 'money'>
+): LedgerState {
+  // Paid with credit alone: nothing went through Razorpay, and the credit
+  // goes back with the delete. Credit beside a Razorpay test-mode (or
+  // E2E-minted) payment is the same: the Razorpay part never moved, so the
+  // only real money is the credit, and it goes back too. Counting it as not
+  // refunded would overstate what the money record exists to account for.
+  if (item.creditPaise > 0 && (item.amountPaise === 0 || isDeletableMoney(item.money))) return 'credit_returned'
+  if (item.cash || item.refundedPaise < item.amountPaise) return 'not_refunded'
+  if (item.refunds.some((refund) => refund.gatewayStatus === 'pending')) return 'refund_pending'
+  return 'refunded'
+}
+
+/** "3 Nov 2026", the day in Chennai. */
+export function istDay(at: Date): string {
+  return at.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })
+}
+
+/** The ledger's line for a payout that stays: "Paid out to Speed Wash on 3 Nov 2026 (UTR123)". */
+export function paidOutNote(garageName: string, payout: Pick<ResetPayout, 'paidAt' | 'reference' | 'recordedAt'>): string {
+  const day = istDay(payout.paidAt ?? payout.recordedAt)
+  return `Paid out to ${garageName} on ${day}${payout.reference ? ` (${payout.reference})` : ''}`
+}
+
+/**
+ * The ledger's line for a payout deleted with its garage (the owner's Delete
+ * forever, 10 Nov 2026): "Paid out to Speed Wash on 3 Nov 2026 (UTR123);
+ * payout of ₹800 deleted with the garage". At most 300 characters, as the
+ * column holds: a long garage name gives way, never the reference.
+ */
+export function removedPayoutNote(
+  garageName: string,
+  payout: Pick<ResetPayout, 'paidAt' | 'reference' | 'recordedAt' | 'amount'>
+): string {
+  const total = payout.amount ? ` of ${rupeesFromPaise(toPaise(payout.amount))}` : ''
+  const tail = `; payout${total} deleted with the garage`
+  const note = `${paidOutNote(garageName, payout)}${tail}`
+  if (note.length <= 300) return note
+  const name = `${garageName.slice(0, garageName.length - (note.length - 300) - 1)}…`
+  return `${paidOutNote(name, payout)}${tail}`
+}
+
+/**
+ * What the owner's dry run says about one chain, a line each, in the order
+ * the owner needs them: that it is still on, each real payment not given
+ * back with its amount and Razorpay id, a refund still processing, the
+ * credit that goes back, an order that may still be paid, and each payout
+ * that stays. Pure words over what the planner already worked out.
+ */
+export function ownerLinesFor(input: {
+  stillOn: boolean
+  money: ChainMoney[]
+  openOrderIds: string[]
+  /** `removed`: it goes with the garage (the owner's Delete forever) instead of staying. */
+  payouts: Array<{ payout: ResetPayout; amount: string | null; removed?: boolean }>
+  garageName: string
+}): string[] {
+  const lines: string[] = []
+  if (input.stillOn) lines.push(STILL_ON_LINE)
+  for (const item of input.money) {
+    if (isDeletableMoney(item.money) && item.creditPaise === 0) continue
+    if (item.cash) {
+      lines.push(`${rupeesFromPaise(item.amountPaise)} was paid in cash to the garage. Deleting doesn't give it back.`)
+      continue
+    }
+    const owed = Math.max(0, item.amountPaise - item.refundedPaise)
+    const id = item.gatewayId ? `Razorpay ${item.gatewayId}` : 'no Razorpay id'
+    if (owed > 0 && !isDeletableMoney(item.money)) {
+      const paid = rupeesFromPaise(item.amountPaise)
+      lines.push(
+        owed === item.amountPaise
+          ? `${paid} was really paid and has not been refunded (${id}). Deleting doesn't refund it — refund it in Razorpay first if the money should go back.`
+          : `${paid} was really paid and ${rupeesFromPaise(owed)} of it has not been refunded (${id}). Deleting doesn't refund it — refund it in Razorpay first if the money should go back.`
+      )
+    }
+    const pending = item.refunds
+      .filter((refund) => refund.gatewayStatus === 'pending')
+      .reduce((sum, refund) => sum + toPaise(refund.amount), 0)
+    if (pending > 0 && !isDeletableMoney(item.money)) {
+      lines.push(
+        `Razorpay is still processing a refund of ${rupeesFromPaise(pending)} (${id}). It carries on, and the money record keeps it.`
+      )
+    }
+    if (item.creditPaise > 0 && !item.creditReturned) {
+      lines.push(
+        `${rupeesFromPaise(item.creditPaise)} of Detlio credit was spent on it. It goes back to the customer's credit balance.`
+      )
+    }
+  }
+  for (const id of input.openOrderIds) {
+    lines.push(`A Razorpay order (${id}) may still be paid. If it is, the payment will have no booking: refund it in Razorpay.`)
+  }
+  for (const { payout, amount, removed } of input.payouts) {
+    const figure = amount ? `, ${rupeesFromPaise(toPaise(amount))}` : ''
+    lines.push(
+      removed
+        ? `${paidOutNote(input.garageName, payout)}${figure}. The payout is deleted with the garage; the money record keeps it.`
+        : `${paidOutNote(input.garageName, payout)}${figure}. The payout stays on record; only this booking's line on it goes.`
+    )
+  }
+  return lines
 }
 
 // ─── Why a row is kept ───────────────────────────────────────────────────────
@@ -870,6 +1050,23 @@ export interface ChainPlan {
    * (only on its own booking's page).
    */
   teamTest: boolean
+  /**
+   * Taken by a rule only the owner's delete has (10 Nov 2026): real money
+   * not refunded, an order that may still be paid, or a garage payout. The
+   * owner then types the booking's reference to confirm.
+   */
+  ownerOverride: boolean
+  /** Still on (pending, confirmed or in progress): deleting ends it without telling anyone. */
+  stillOn: boolean
+  /** The owner's dry-run lines for it (see ownerLinesFor); empty for anyone else's. */
+  ownerLines: string[]
+  /** A payout covered it and stays on record: only its line goes (the owner's delete). */
+  payoutKept: boolean
+  /**
+   * A payout covered it and goes too, written to the ledger first (the
+   * owner's Delete forever of its garage, 10 Nov 2026).
+   */
+  payoutRemoved: boolean
   /** Ticked: deleted by this run. */
   selected: boolean
 }
@@ -920,6 +1117,18 @@ export interface ResetCounts {
   requests?: number
   /** Real payments, all refunded, written to the ledger before they go (0065). */
   teamTestPayments?: number
+  /**
+   * The owner's delete (10 Nov 2026): real payments not (or not yet)
+   * refunded, and garage payout lines whose payout stays, both written to
+   * the ledger before they go.
+   */
+  unrefundedPayments?: number
+  payoutLines?: number
+  /**
+   * The owner's Delete forever (10 Nov 2026): the lines of the garage's
+   * payouts that go with it, each written to the ledger first.
+   */
+  removedPayoutLines?: number
 }
 
 export type ReceiptYearMode = 'restart' | 'void'
@@ -965,6 +1174,22 @@ export interface ResetPlan {
   selectedPayoutIds: string[]
   /** The ticked team tests' payments, for the ledger (0065). */
   ledger: TeamTestPayment[]
+  /**
+   * Payouts that paid a deleted chain and stay on record (the owner's
+   * delete): only the deleted bookings' lines on them go.
+   */
+  keptPayoutIds: string[]
+  /**
+   * Detlio credit spent on deleted chains that goes back to the customer
+   * (the owner's delete), one per payment.
+   */
+  creditReturns: Array<{ rootId: string; customerId: string; amount: string }>
+  /**
+   * What the person types: the phrase ("DELETE 1 BOOKING"), or the
+   * booking's reference when the owner's delete takes what anyone else's
+   * would keep (10 Nov 2026).
+   */
+  confirmKind: 'phrase' | 'reference'
   counts: ResetCounts
   receiptPlan: ReceiptYearPlan[]
   confirmPhrase: string
@@ -1016,18 +1241,39 @@ function keptReasonOf(
   scope: ResetScope,
   /** Marked Test: the chain, or the chain its free redo goes with. */
   marked: boolean,
-  teamTest: TeamTestVerdict | null
-): { kept: KeptReason | null; detail: string | null; teamTest: boolean } {
-  const keep = (kept: KeptReason, detail: string | null = null) => ({ kept, detail, teamTest: false })
+  teamTest: TeamTestVerdict | null,
+  /**
+   * The owner's delete may take it (10 Nov 2026): the owner, and a booking
+   * marked Test (scope `chains`) or a garage deleted forever.
+   */
+  ownerMay = false
+): { kept: KeptReason | null; detail: string | null; teamTest: boolean; ownerOverride: boolean } {
+  const keep = (kept: KeptReason, detail: string | null = null) => ({ kept, detail, teamTest: false, ownerOverride: false })
   let realMoney = false
+  let ownerOverride = false
   if (!isDeletableMoney(money)) {
     // Real money keeps it, unless it is a team test (0065): marked Test,
     // never a garage's delete, and every rupee given back.
-    if (scope.kind === 'garage' || !marked || !teamTest) return keep(money as KeptReason)
-    if (!teamTest.deletable) return keep(teamTest.kept, teamTest.detail)
-    realMoney = true
+    const asTeamTest = scope.kind !== 'garage' && marked && teamTest?.deletable === true
+    if (asTeamTest) {
+      realMoney = true
+    } else if (ownerMay) {
+      // The owner's delete: real money no longer keeps it. Its payments go
+      // to the ledger as they stand, refunded or not.
+      realMoney = true
+      ownerOverride = true
+    } else if (scope.kind === 'garage' || !marked || !teamTest) {
+      return keep(money as KeptReason)
+    } else if (!teamTest.deletable) {
+      return keep(teamTest.kept, teamTest.detail)
+    }
   }
-  if (openOrder) return keep('open_order')
+  if (openOrder) {
+    // An order that may still be paid keeps it, but for the owner, whose
+    // dry run names the order so a late payment can be refunded by hand.
+    if (!ownerMay) return keep('open_order')
+    ownerOverride = true
+  }
   // A chain whose first booking is from before the cutoff but which changed
   // after it (moved to a new time by a customer who is now real) is kept
   // whole: a chain goes as a whole or not at all, and it may be real.
@@ -1035,7 +1281,7 @@ function keptReasonOf(
     return keep('after_cutoff')
   }
   if (scope.kind === 'chains' && !marked) return keep('not_marked')
-  return { kept: null, detail: null, teamTest: realMoney }
+  return { kept: null, detail: null, teamTest: realMoney, ownerOverride }
 }
 
 /**
@@ -1170,6 +1416,23 @@ export function phraseMatches(typed: string, phrase: string): boolean {
 }
 
 /**
+ * Whether what was typed is the booking's reference (the owner's delete,
+ * 10 Nov 2026): "AD200012" or "#AD200012", in any case, spaces at the ends
+ * forgiven. It is read off the screen, so the case is not the deliberate act
+ * here: finding and typing the right booking is.
+ */
+export function referenceMatches(typed: string, reference: string): boolean {
+  return typed.trim().replace(/^#/, '').toUpperCase() === reference.toUpperCase()
+}
+
+/** The typed confirmation, read the way the plan asks for it. */
+export function confirmMatches(typed: string, plan: Pick<ResetPlan, 'confirmKind' | 'confirmPhrase'>): boolean {
+  return plan.confirmKind === 'reference'
+    ? referenceMatches(typed, plan.confirmPhrase)
+    : phraseMatches(typed, plan.confirmPhrase)
+}
+
+/**
  * A fingerprint of exactly what the run deletes: every selected chain's
  * rows with their payment state, refunds and money class, the selected
  * checkouts, and the receipt plan. The delete recomputes it under its locks
@@ -1187,6 +1450,12 @@ export function selectionHash(plan: {
   payoutIds?: string[]
   /** The ticked team tests' refunds (0065): the same, only when there are any. */
   teamTest?: Array<{ root: string; refunds: ResetRefund[] }>
+  /**
+   * The chains the owner's delete takes that anyone else's would keep, and
+   * the payouts it leaves on record (10 Nov 2026): the same.
+   */
+  owner?: Array<{ root: string; payoutKept: boolean }>
+  keptPayoutIds?: string[]
 }): string {
   const bookingsByRoot = groupChains(plan.bookings)
   const chargesByBooking = groupBy(plan.charges, (charge) => charge.bookingId)
@@ -1226,6 +1495,8 @@ export function selectionHash(plan: {
         .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
     }))
     .sort((a, b) => a.root.localeCompare(b.root))
+  const owner = [...(plan.owner ?? [])].sort((a, b) => a.root.localeCompare(b.root))
+  const keptPayouts = [...(plan.keptPayoutIds ?? [])].sort()
 
   return createHash('sha256')
     .update(
@@ -1236,6 +1507,8 @@ export function selectionHash(plan: {
         ...(complaints.length > 0 ? { complaints } : {}),
         ...(payouts.length > 0 ? { payouts } : {}),
         ...(teamTest.length > 0 ? { teamTest } : {}),
+        ...(owner.length > 0 ? { owner } : {}),
+        ...(keptPayouts.length > 0 ? { keptPayouts } : {}),
       })
     )
     .digest('hex')
@@ -1349,21 +1622,39 @@ export function planReset(input: PlanInput): ResetPlan {
   const markedOwn = (root: string) => (allChains.get(root) ?? []).some((b) => b.markedTestAt !== null)
   const markedGroup = (root: string) => partnersOf(root).some(markedOwn)
 
+  // The owner's delete (10 Nov 2026): a booking marked Test, or every chain
+  // of a garage deleted forever. Nobody else's run ever has it.
+  const ownerMay = (root: string) =>
+    input.owner === true && (scope.kind === 'garage' || (scope.kind === 'chains' && markedGroup(root)))
+
   const chains: ChainPlan[] = []
   const refundsOf = new Map<string, ResetRefund[]>()
   const moneyOf = new Map<string, ChainMoney[]>()
+  const openOrdersOf = new Map<string, string[]>()
   for (const [rootId, rows] of allChains) {
     if (!inScope(rootId)) continue
     const charges = rows.flatMap((b) => chargesByBooking.get(b.id) ?? [])
     const money = worst(chainMoneyItems(rows, charges).map((item) => classOf(item, input)))
     const latest = rows[rows.length - 1]
-    const openOrder = hasOpenOrder(chainOpenOrders(rows, charges), input)
+    const liveOrders = chainOpenOrders(rows, charges).filter(
+      (order) => mayStillBePaid(order, input.now) && mayBeLive(order, input.lookups)
+    )
+    const openOrder = liveOrders.length > 0
+    openOrdersOf.set(rootId, liveOrders.map((order) => order.gatewayId))
     const targets = new Set([...rows.map((b) => b.id), ...charges.map((c) => c.id)])
     const refunds = (input.refunds ?? []).filter((refund) => targets.has(refund.targetId))
     const placed = chainMoney(rows, charges, refunds, input)
     refundsOf.set(rootId, refunds)
     moneyOf.set(rootId, placed)
-    const verdict = keptReasonOf(money, openOrder, rows, scope, markedGroup(rootId), teamTestVerdict(placed))
+    const verdict = keptReasonOf(
+      money,
+      openOrder,
+      rows,
+      scope,
+      markedGroup(rootId),
+      teamTestVerdict(placed),
+      ownerMay(rootId)
+    )
     const razorpayIds = [
       ...new Set(
         [
@@ -1397,6 +1688,11 @@ export function planReset(input: PlanInput): ResetPlan {
       kept: verdict.kept,
       keptDetail: verdict.detail,
       teamTest: verdict.teamTest,
+      ownerOverride: verdict.ownerOverride,
+      stillOn: STILL_ON.has(latest.status),
+      ownerLines: [],
+      payoutKept: false,
+      payoutRemoved: false,
       selected: false,
     })
   }
@@ -1412,6 +1708,9 @@ export function planReset(input: PlanInput): ResetPlan {
   // and the chain whose claim it answers go together the same way.
   const groups = chainGroups(input.payouts ?? [], redoPairs)
   const chainByRoot = new Map(chains.map((chain) => [chain.rootId, chain]))
+  // Payouts the owner's delete leaves on record, with only the deleted
+  // bookings' lines taken off them.
+  const detachedPayouts = new Set<string>()
   for (const group of groups) {
     const members = group.roots.map((root) => chainByRoot.get(root))
     const paidOutBlock =
@@ -1420,6 +1719,48 @@ export function planReset(input: PlanInput): ResetPlan {
         members.some((chain) => chain?.teamTest))
     const blocked = paidOutBlock || members.some((chain) => !chain || chain.kept !== null)
     if (!blocked) continue
+    if (group.payouts.length > 0 && members.some((chain) => chain && chain.kept === null && ownerMay(chain.rootId))) {
+      // The owner's delete (10 Nov 2026): a payout keeps nothing, since it
+      // stays on record (or, Delete forever, goes to the ledger). A free
+      // redo still goes with the booking whose claim it answers, so a chain
+      // whose partner is kept stays kept.
+      const taken: ChainPlan[] = []
+      for (const chain of members) {
+        if (!chain || chain.kept !== null) continue
+        const partnerKept = partnersOf(chain.rootId).some((root) => {
+          const partner = chainByRoot.get(root)
+          return !partner || (partner.kept !== null && partner.kept !== 'paid_out')
+        })
+        if (partnerKept || !ownerMay(chain.rootId)) {
+          chain.kept = partnerKept ? 'linked' : 'paid_out'
+          chain.keptDetail = null
+          chain.teamTest = false
+          chain.ownerOverride = false
+          continue
+        }
+        taken.push(chain)
+        chain.ownerOverride = true
+      }
+      // Delete forever by the owner (10 Nov 2026: "an owner of the admin
+      // panel can clear or delete anything"): the garage's own payouts go
+      // with it, each line written to the ledger first. A payout to another
+      // garage (for a free redo there, which goes with its booking), or one
+      // that paid a booking that stays, is left on record as on one
+      // booking's delete, with only the deleted bookings' lines gone.
+      const goesWithGarage = (payout: ResetPayout) =>
+        scope.kind === 'garage' &&
+        payout.rootBookingIds.every((root) => {
+          const chain = chainByRoot.get(root)
+          return chain !== undefined && chain.kept === null && chain.garageId === scope.vendorId
+        })
+      for (const payout of group.payouts) if (!goesWithGarage(payout)) detachedPayouts.add(payout.id)
+      for (const chain of taken) {
+        chain.payoutKept = group.payouts.some(
+          (payout) => detachedPayouts.has(payout.id) && payout.rootBookingIds.includes(chain.rootId)
+        )
+      }
+      continue
+    }
     for (const chain of members) {
       if (!chain || chain.kept !== null) continue
       chain.kept = group.payouts.length > 0 ? 'paid_out' : 'linked'
@@ -1435,8 +1776,9 @@ export function planReset(input: PlanInput): ResetPlan {
     if (chain.kept) continue
     if (only && !only.chains.has(chain.rootId)) continue
     // A team test is ticked by hand on a run over many bookings, never on
-    // the first look; on its own booking's page it is the one in question.
-    if (!only && chain.teamTest && scope.kind !== 'chains') continue
+    // the first look; on its own booking's page it is the one in question,
+    // and a garage deleted forever by the owner takes every chain it has.
+    if (!only && chain.teamTest && (scope.kind === 'before_cutoff' || scope.kind === 'marked_test')) continue
     if (ticked >= MAX_CHAINS_PER_RUN) {
       overCapChains += 1
       capped.add(chain.rootId)
@@ -1449,13 +1791,20 @@ export function planReset(input: PlanInput): ResetPlan {
   // keeps the rest of its group unticked with it; past the cap, they wait
   // for the next run together.
   for (const group of groups) {
-    const members = group.roots.map((root) => chainByRoot.get(root))
-    if (members.every((chain) => chain?.selected)) continue
-    const waits = group.roots.some((root) => capped.has(root))
-    for (const chain of members) {
-      if (chain?.selected) {
-        chain.selected = false
-        if (waits) overCapChains += 1
+    // A payout left on record joins nothing: only a free redo and its
+    // booking go together there.
+    const parts = group.payouts.some((payout) => detachedPayouts.has(payout.id))
+      ? chainGroups([], redoPairs.filter(([a]) => group.roots.includes(a)))
+      : [group]
+    for (const part of parts) {
+      const members = part.roots.map((root) => chainByRoot.get(root))
+      if (members.every((chain) => chain?.selected)) continue
+      const waits = part.roots.some((root) => capped.has(root))
+      for (const chain of members) {
+        if (chain?.selected) {
+          chain.selected = false
+          if (waits) overCapChains += 1
+        }
       }
     }
   }
@@ -1559,9 +1908,61 @@ export function planReset(input: PlanInput): ResetPlan {
   const selectedChainIds = chains.filter((c) => c.selected).map((c) => c.rootId)
   const selectedRoots = new Set(selectedChainIds)
   const selectedPayoutIds = groups
-    .filter((group) => group.roots.every((root) => selectedRoots.has(root)))
-    .flatMap((group) => group.payouts.map((payout) => payout.id))
+    .flatMap((group) =>
+      // A group split by a payout left on record (the owner's delete): each
+      // other payout goes with the bookings it paid itself.
+      group.payouts.some((payout) => detachedPayouts.has(payout.id))
+        ? group.payouts.filter(
+            (payout) =>
+              !detachedPayouts.has(payout.id) && payout.rootBookingIds.every((root) => selectedRoots.has(root))
+          )
+        : group.roots.every((root) => selectedRoots.has(root))
+          ? group.payouts
+          : []
+    )
+    .map((payout) => payout.id)
     .sort()
+  const keptPayouts = (input.payouts ?? []).filter(
+    (payout) => detachedPayouts.has(payout.id) && payout.rootBookingIds.some((root) => selectedRoots.has(root))
+  )
+  const keptPayoutIds = keptPayouts.map((payout) => payout.id).sort()
+  const linesOn = (payouts: ResetPayout[], root: string) =>
+    payouts
+      .filter((payout) => payout.rootBookingIds.includes(root))
+      .map((payout) => ({
+        payout,
+        amount: payout.items?.find((item) => item.rootBookingId === root)?.amount ?? null,
+      }))
+  const payoutLinesOf = (root: string) => linesOn(keptPayouts, root)
+  // The owner's Delete forever takes the garage's payouts with it, each
+  // written to the ledger first (10 Nov 2026). Anyone else's delete of a
+  // garage removes only payouts of test money, as before, with no ledger.
+  const selectedPayouts = new Set(selectedPayoutIds)
+  const removedPayouts =
+    input.owner === true && scope.kind === 'garage'
+      ? (input.payouts ?? []).filter((payout) => selectedPayouts.has(payout.id))
+      : []
+  const removedLinesOf = (root: string) =>
+    linesOn(removedPayouts, root).map((line) => ({ ...line, removed: true }))
+  for (const chain of chains) {
+    if (chain.selected && removedLinesOf(chain.rootId).length > 0) chain.payoutRemoved = true
+  }
+  // What the dry run says under each chain that may go: that it is still
+  // on, and (the owner's delete) the money it leaves as it stands.
+  for (const chain of chains) {
+    if (chain.kept) continue
+    chain.ownerLines = ownerLinesFor({
+      stillOn: chain.stillOn,
+      money: chain.ownerOverride || chain.teamTest ? (moneyOf.get(chain.rootId) ?? []) : [],
+      openOrderIds: chain.ownerOverride ? (openOrdersOf.get(chain.rootId) ?? []) : [],
+      payouts: chain.payoutKept
+        ? payoutLinesOf(chain.rootId)
+        : chain.payoutRemoved
+          ? removedLinesOf(chain.rootId)
+          : [],
+      garageName: chain.garageName,
+    })
+  }
   const selectedBookingIds = chains.filter((c) => c.selected).flatMap((c) => c.bookingIds)
   const selectedBookings = new Set(selectedBookingIds)
   const selectedCheckoutIds = checkouts.filter((c) => c.selected).map((c) => c.id)
@@ -1621,10 +2022,12 @@ export function planReset(input: PlanInput): ResetPlan {
     input.intents.filter((intent) => intent.bookingId !== null),
     (intent) => intent.bookingId!
   )
-  const ledger: TeamTestPayment[] = teamTests.flatMap((chain) =>
+  const paymentRows: TeamTestPayment[] = teamTests.flatMap((chain) =>
     (moneyOf.get(chain.rootId) ?? [])
-      .filter((item) => !isDeletableMoney(item.money))
-      .map((item) => {
+      // Real money; and, on the owner's delete, credit spent alongside test
+      // money, which goes back to the customer and is recorded with it.
+      .filter((item) => !isDeletableMoney(item.money) || (chain.ownerOverride && item.creditPaise > 0))
+      .map((item): TeamTestPayment => {
         // A booking's order is its checkout's (consumeIntent copies the
         // payment id onto the payment, and the order stays on the checkout).
         const order =
@@ -1665,10 +2068,82 @@ export function planReset(input: PlanInput): ResetPlan {
           customerId: chain.customerId,
           paidAt: item.paidAt,
           bookedAt: chain.createdAt,
+          state: ledgerStateOf(item),
+          // The amount beside credit given back is test money, said so the
+          // record isn't read as real money that went nowhere.
+          note:
+            item.amountPaise > 0 && item.creditPaise > 0 && isDeletableMoney(item.money)
+              ? 'Razorpay part was test money; only the Detlio credit was real'
+              : null,
+          // Back with the customer, now (creditReturns) or before the delete.
+          creditReturned: fromPaise(item.creditPaise),
+          vendorPayoutId: null,
         }
       })
   )
-  counts.teamTestPayments = ledger.length
+  // A payout that stays on record, or (Delete forever) goes with the
+  // garage, a row per deleted chain it paid (the owner's delete): what was
+  // paid on the chain, to whom and when. A payout's rows add up to what it
+  // paid, less any lines an earlier delete already wrote down.
+  const payoutRowsOf = (chain: ChainPlan, lines: ReturnType<typeof linesOn>, removed: boolean): TeamTestPayment[] =>
+    lines
+      .filter(({ amount }) => amount !== null && toPaise(amount) !== 0)
+      .map(({ payout, amount }) => ({
+        rootId: chain.rootId,
+        reference: chain.reference,
+        bookingIds: chain.bookingIds,
+        kind: 'payout' as const,
+        chargeId: null,
+        razorpayPaymentId: null,
+        razorpayOrderId: null,
+        gatewayMode: null,
+        amount: fromPaise(toPaise(amount)),
+        refundedAmount: '0.00',
+        refunds: [],
+        receiptNumber: chain.receiptNumber,
+        vendorId: chain.garageId,
+        garageName: chain.garageName,
+        customerId: chain.customerId,
+        paidAt: payout.paidAt ?? payout.recordedAt,
+        bookedAt: chain.createdAt,
+        state: 'paid_out' as const,
+        note: removed ? removedPayoutNote(chain.garageName, payout) : paidOutNote(chain.garageName, payout).slice(0, 300),
+        creditReturned: '0.00',
+        vendorPayoutId: payout.id,
+      }))
+  const keptPayoutRows = chains
+    .filter((chain) => chain.selected && chain.payoutKept)
+    .flatMap((chain) => payoutRowsOf(chain, payoutLinesOf(chain.rootId), false))
+  const removedPayoutRows = chains
+    .filter((chain) => chain.selected && chain.payoutRemoved)
+    .flatMap((chain) => payoutRowsOf(chain, linesOn(removedPayouts, chain.rootId), true))
+  const ledger = [...paymentRows, ...keptPayoutRows, ...removedPayoutRows]
+  // Credit paid alone goes back with the delete, so it reads as refunded.
+  const givenBack = (row: TeamTestPayment) => row.state === 'refunded' || row.state === 'credit_returned'
+  counts.teamTestPayments = paymentRows.filter(givenBack).length
+  // Only the owner's delete takes these, so they are said only when there
+  // are some: every other run's counts (and its audit row) stay as before.
+  const unrefundedPayments = paymentRows.filter((row) => !givenBack(row)).length
+  if (unrefundedPayments > 0) counts.unrefundedPayments = unrefundedPayments
+  if (keptPayoutRows.length > 0) counts.payoutLines = keptPayoutRows.length
+  if (removedPayoutRows.length > 0) counts.removedPayoutLines = removedPayoutRows.length
+
+  // Credit spent on a deleted chain goes back to the customer (the owner's
+  // delete; anyone else's keeps a chain that spent credit).
+  const creditReturns = chains
+    .filter((chain) => chain.selected)
+    .flatMap((chain) =>
+      (moneyOf.get(chain.rootId) ?? [])
+        .filter((item) => item.creditPaise > 0 && !item.creditReturned)
+        .map((item) => ({ rootId: chain.rootId, customerId: chain.customerId, amount: fromPaise(item.creditPaise) }))
+    )
+
+  // The owner types the booking's reference when the delete takes what
+  // anyone else's would keep: the one they opened, from its page.
+  const ownerTaken = chains.filter((chain) => chain.selected && chain.ownerOverride)
+  const confirmKind: ResetPlan['confirmKind'] =
+    scope.kind === 'chains' && ownerTaken.length > 0 ? 'reference' : 'phrase'
+  const openedRoot = scope.kind === 'chains' ? rootOfBooking.get(scope.bookingIds[0] ?? '') : undefined
 
   const receiptPlan = planReceipts({
     deletedRoots: selectedRoots,
@@ -1699,9 +2174,15 @@ export function planReset(input: PlanInput): ResetPlan {
     analyticsCutoff: analyticsTicked && scope.kind === 'before_cutoff' ? scope.cutoff : null,
     selectedPayoutIds,
     ledger,
+    keptPayoutIds,
+    creditReturns,
+    confirmKind,
     counts,
     receiptPlan,
-    confirmPhrase: confirmPhraseFor(counts, selectedCheckoutIds.length),
+    confirmPhrase:
+      confirmKind === 'reference'
+        ? bookingReference(openedRoot && selectedRoots.has(openedRoot) ? openedRoot : ownerTaken[0].rootId)
+        : confirmPhraseFor(counts, selectedCheckoutIds.length),
     selectionHash: selectionHash({
       chains,
       checkouts,
@@ -1711,6 +2192,8 @@ export function planReset(input: PlanInput): ResetPlan {
       complaintIds: selectedComplaintIds,
       payoutIds: selectedPayoutIds,
       teamTest: teamTests.map((chain) => ({ root: chain.rootId, refunds: refundsOf.get(chain.rootId) ?? [] })),
+      owner: ownerTaken.map((chain) => ({ root: chain.rootId, payoutKept: chain.payoutKept })),
+      keptPayoutIds,
     }),
   }
 }
@@ -1754,6 +2237,18 @@ export function countLines(counts: ResetCounts): string[] {
     [
       counts.teamTestPayments ?? 0,
       `${plural(counts.teamTestPayments ?? 0, 'real payment', 'real payments')} (refunded; kept in the money record)`,
+    ],
+    [
+      counts.unrefundedPayments ?? 0,
+      `${plural(counts.unrefundedPayments ?? 0, 'real payment', 'real payments')} (not refunded; kept in the money record)`,
+    ],
+    [
+      counts.payoutLines ?? 0,
+      `${plural(counts.payoutLines ?? 0, 'garage payout line', 'garage payout lines')} (the payout stays on record)`,
+    ],
+    [
+      counts.removedPayoutLines ?? 0,
+      `${plural(counts.removedPayoutLines ?? 0, 'garage payout line', 'garage payout lines')} (the payout is deleted; kept in the money record)`,
     ],
   ]
   return lines.filter(([n]) => n > 0).map(([, text]) => text)

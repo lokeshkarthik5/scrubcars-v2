@@ -2,6 +2,7 @@ import { coverMetaParts, coverToneFor, garageInitials, type CoverTone } from '@r
 import type { Vendor } from '@repo/core/types';
 import { T } from '@repo/native-ui/text';
 import { useTheme } from '@repo/native-ui/theme';
+import { useT } from '@repo/core/i18n';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, View, type ViewStyle } from 'react-native';
 import Svg, { Defs, Line, Pattern, RadialGradient, Rect, Stop, Text as SvgText } from 'react-native-svg';
@@ -56,6 +57,7 @@ export function GarageCover({
   metaTop?: number;
 }) {
   const { scheme } = useTheme();
+  const t = useT();
   const tone = coverToneFor(vendor.id);
   const look = GLOW[scheme][tone];
   const initials = garageInitials(vendor.name);
@@ -117,7 +119,7 @@ export function GarageCover({
                 numberOfLines={1}
                 color={scheme === 'light' ? 'rgba(10,10,11,0.6)' : 'rgba(255,255,255,0.6)'}
               >
-                {part}
+                {t(part)}
               </T>
             </View>
           ))}

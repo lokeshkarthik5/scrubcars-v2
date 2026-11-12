@@ -33,12 +33,14 @@ import { errorText } from '@/lib/error-text';
 import { useGarageAgreement } from '@/lib/garage-api';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 import { useRefreshOnFocus } from '@/lib/use-refresh-on-focus';
+import { t } from '@repo/core/i18n/translate';
+import { useT } from '@repo/core/i18n';
 
 // The web's back arrow goes to /settings; in the tab bar `back` would land on Home instead.
 const goBack = () => router.navigate('/settings');
 
 const readPdf = (url: string) =>
-  WebBrowser.openBrowserAsync(url).catch(() => toast.error('Couldn’t open the agreement.'));
+  WebBrowser.openBrowserAsync(url).catch(() => toast.error(t('Couldn’t open the agreement.')));
 
 /**
  * apps/vendors/app/agreement/page.tsx: the Detlio garage agreement, click to agree (0063):
@@ -48,6 +50,7 @@ const readPdf = (url: string) =>
  * can read it but never accept it for the garage.
  */
 function AgreementScreen() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const isVendorAdmin = useIsVendorAdmin();
@@ -82,32 +85,32 @@ function AgreementScreen() {
   const confirm = () => {
     if (!latest || !agreed) return;
     accept.mutate(latest.version, {
-      onSuccess: () => toast.success(`You accepted ${latest.title}.`),
+      onSuccess: () => toast.success(t('You accepted {title}.', { title: latest.title })),
       onError: (error) => {
         if (error instanceof ApiError && error.code === 'AGREEMENT_VERSION_CHANGED') void refetch();
-        toast.error(errorText(error, AGREEMENT_ACCEPT_FAILED));
+        toast.error(errorText(error, t(AGREEMENT_ACCEPT_FAILED)));
       },
     });
   };
 
   return (
     <AppShell>
-      <TopBar title="Garage agreement" onBack={goBack} />
+      <TopBar title={t('Garage agreement')} onBack={goBack} />
 
       {isError ? (
         <View accessibilityRole="alert" style={styles.error}>
           <T size={13} color={colors.error}>
-            {AGREEMENT_LOAD_FAILED}
+            {t(AGREEMENT_LOAD_FAILED)}
           </T>
           <ScButton variant="outline" size="md" fullWidth={false} onPress={() => void refetch()} paddingX={16}>
-            Try again
+            {t('Try again')}
           </ScButton>
         </View>
       ) : !data ? (
         <SkeletonList count={2} height={128} />
       ) : !latest ? (
-        <Notice tone="neutral" title={AGREEMENT_NONE_TITLE}>
-          {AGREEMENT_NONE_BODY}
+        <Notice tone="neutral" title={t(AGREEMENT_NONE_TITLE)}>
+          {t(AGREEMENT_NONE_BODY)}
         </Notice>
       ) : (
         <>
@@ -128,19 +131,19 @@ function AgreementScreen() {
             {/* The web's link opens the PDF in a new tab; here it opens in the in-app browser. */}
             <Pressable
               accessibilityRole="link"
-              accessibilityLabel="Read (PDF)"
+              accessibilityLabel={t('Read (PDF)')}
               onPress={() => void readPdf(latest.url)}
               style={({ pressed }) => [styles.read, pressed && { backgroundColor: colors.surfaceElevated }]}
             >
               <T size={14} weight={500}>
-                Read (PDF)
+                {t('Read (PDF)')}
               </T>
               <IconExternalLink size={16} />
             </Pressable>
           </ScCard>
 
           {data.accepted ? (
-            <Notice tone="neutral" title={`You accepted v${latest.version}`}>
+            <Notice tone="neutral" title={t('You accepted v{version}', { version: latest.version })}>
               {acceptedLine(data.accepted.at, data.accepted.by)}
             </Notice>
           ) : (
@@ -154,7 +157,7 @@ function AgreementScreen() {
               ) : null}
               <Pressable
                 accessibilityRole="checkbox"
-                accessibilityLabel={AGREEMENT_TICK}
+                accessibilityLabel={t(AGREEMENT_TICK)}
                 accessibilityState={{ checked: agreed }}
                 onPress={() => setTickedFor(agreed ? null : tickKey)}
                 style={styles.tick}
@@ -163,7 +166,7 @@ function AgreementScreen() {
                   {agreed ? <IconCheck size={14} stroke={2.5} color={colors.white} /> : null}
                 </View>
                 <View style={styles.flex}>
-                  <T size={14}>{AGREEMENT_TICK}</T>
+                  <T size={14}>{t(AGREEMENT_TICK)}</T>
                   <T size={12} color={colors.textSecondary}>
                     {tickDetail(latest.title)}
                   </T>
@@ -172,9 +175,9 @@ function AgreementScreen() {
               <ScButton
                 onPress={confirm}
                 disabled={!agreed || accept.isPending}
-                disabledReason={agreed ? undefined : `Tick “${AGREEMENT_TICK}” first`}
+                disabledReason={agreed ? undefined : t('Tick “{tick}” first', { tick: t(AGREEMENT_TICK) })}
               >
-                {accept.isPending ? 'Confirming…' : 'Confirm'}
+                {accept.isPending ? t('Confirming…') : t('Confirm')}
               </ScButton>
             </ScCard>
           )}
@@ -183,7 +186,7 @@ function AgreementScreen() {
             <View style={styles.record}>
               <IconCircleCheck size={14} color={colors.success} />
               <T size={12} color={colors.textMuted} style={styles.flex}>
-                {AGREEMENT_RECORD_NOTE}
+                {t(AGREEMENT_RECORD_NOTE)}
               </T>
             </View>
           ) : null}

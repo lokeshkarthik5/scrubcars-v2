@@ -1,6 +1,7 @@
 import { tierPriceFor } from '@repo/core/pricing'
 import type { Service, VehicleType } from '@repo/core/types'
 import { money } from '@/lib/money'
+import { t } from '@repo/core/i18n/translate'
 
 /**
  * A service's price as the customer app says it, with Indian commas
@@ -19,18 +20,19 @@ export function servicePriceText(
 ): string {
   switch (service.pricingType) {
     case 'on_inspection':
-      return `${money(service.price)} inspection`
+      return t('{price} inspection', { price: money(service.price) })
     case 'per_vehicle': {
       if (vehicleType) {
         const amount = tierPriceFor(service, vehicleType)
-        return amount == null ? 'Price on request' : money(amount)
+        return amount == null ? t('Price on request') : money(amount)
       }
       const tiers = [
         service.priceHatchback,
         service.priceSedan,
         service.priceSuv,
-      ].filter((t): t is number => t != null)
-      if (tiers.length === 0) return `from ${money(service.price)}`
+      ].filter((tier): tier is number => tier != null)
+      if (tiers.length === 0)
+        return t('from {price}', { price: money(service.price) })
       const low = Math.min(...tiers)
       const high = Math.max(...tiers)
       return low === high ? money(low) : `${money(low)}–${money(high)}`

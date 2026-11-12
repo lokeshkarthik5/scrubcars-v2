@@ -1,4 +1,5 @@
 import { createVehicle } from '@repo/core/api/users';
+import { useT } from '@repo/core/i18n';
 import { useUserStore } from '@repo/core/stores/user-store';
 import type { Vehicle, VehicleType } from '@repo/core/types';
 import { VEHICLE_TIERS } from '@repo/core/vehicles';
@@ -18,6 +19,7 @@ const EMPTY = { make: '', model: '', licensePlate: '', vehicleType: 'sedan' as V
 
 /** AddCarSheet (packages/ui/src/features/add-car-sheet.tsx): a car, without leaving the screen. */
 export function AddCarSheet({ open, onClose, onAdded }: { open: boolean; onClose: () => void; onAdded?: (vehicle: Vehicle) => void }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const [form, setForm] = useState(EMPTY);
@@ -38,9 +40,9 @@ export function AddCarSheet({ open, onClose, onAdded }: { open: boolean; onClose
       setForm(EMPTY);
       onAdded?.(created);
       onClose();
-      toast.success('Car added');
+      toast.success(t('Car added'));
     },
-    onError: (error) => toast.error(errorText(error, 'Failed to add car')),
+    onError: (error) => toast.error(errorText(error, t('Failed to add car'))),
   });
 
   const isValid = form.make.trim().length > 0 && form.model.trim().length > 0;
@@ -51,22 +53,22 @@ export function AddCarSheet({ open, onClose, onAdded }: { open: boolean; onClose
   };
 
   return (
-    <ScSheet open={open} onClose={close} dismissible={!save.isPending} accessibilityLabel="Add a car" horizontalPadding={16}>
+    <ScSheet open={open} onClose={close} dismissible={!save.isPending} accessibilityLabel={t('Add a car')} horizontalPadding={16}>
       <T size={19} weight={600}>
-        Add a car
+        {t('Add a car')}
       </T>
       <View style={styles.form}>
         <View style={styles.two}>
           <View style={styles.half}>
-            <ScInput label="Make" placeholder="e.g. Maruti" autoCorrect={false} autoCapitalize="words" value={form.make} onChangeText={(make) => setForm({ ...form, make })} />
+            <ScInput label={t('Make')} placeholder={t('e.g. Maruti')} autoCorrect={false} autoCapitalize="words" value={form.make} onChangeText={(make) => setForm({ ...form, make })} />
           </View>
           <View style={styles.half}>
-            <ScInput label="Model" placeholder="e.g. Swift" autoCorrect={false} autoCapitalize="words" value={form.model} onChangeText={(model) => setForm({ ...form, model })} />
+            <ScInput label={t('Model')} placeholder={t('e.g. Swift')} autoCorrect={false} autoCapitalize="words" value={form.model} onChangeText={(model) => setForm({ ...form, model })} />
           </View>
         </View>
         <ScInput
-          label="License plate (optional)"
-          placeholder="e.g. TN 01 AB 1234"
+          label={t('License plate (optional)')}
+          placeholder={t('e.g. TN 01 AB 1234')}
           autoCapitalize="characters"
           autoCorrect={false}
           value={form.licensePlate}
@@ -74,7 +76,7 @@ export function AddCarSheet({ open, onClose, onAdded }: { open: boolean; onClose
         />
         <View>
           <T size={11} weight={500} color={colors.textSecondary} style={styles.typeLabel}>
-            Type
+            {t('Type')}
           </T>
           <View style={styles.types}>
             {VEHICLE_TIERS.map((tier) => {
@@ -89,22 +91,22 @@ export function AddCarSheet({ open, onClose, onAdded }: { open: boolean; onClose
                   style={[styles.type, on ? styles.typeOn : styles.typeOff]}
                 >
                   <T size={12} weight={500} lh={18} color={on ? colors.chosenText : colors.textPrimary}>
-                    {tier.label}
+                    {t(tier.label)}
                   </T>
                 </Pressable>
               );
             })}
           </View>
           <T size={11} color={colors.textMuted} style={styles.typeNote}>
-            Pricing can differ by car type.
+            {t('Pricing can differ by car type.')}
           </T>
         </View>
         <View style={styles.actions}>
           <ScButton variant="hero" disabled={!isValid || save.isPending} onPress={() => save.mutate()} style={styles.half}>
-            {save.isPending ? 'Saving…' : 'Save car'}
+            {save.isPending ? t('Saving…') : t('Save car')}
           </ScButton>
           <ScButton variant="outline" disabled={save.isPending} onPress={close} style={styles.half}>
-            Cancel
+            {t('Cancel')}
           </ScButton>
         </View>
       </View>

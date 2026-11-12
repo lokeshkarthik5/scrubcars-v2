@@ -124,11 +124,16 @@ export function mapVendorListItem(item: ApiVendorListItem): Vendor {
     pickupEnabled: item.pickupEnabled ?? false,
     // Absent from an API before 0062: then nobody "can collect" (unknown).
     ...(item.pickupRadiusKm !== undefined ? { pickupRadiusKm: item.pickupRadiusKm } : {}),
+    doorstepWholeCity: item.doorstepWholeCity ?? false,
+    pickupWholeCity: item.pickupWholeCity ?? false,
+    reachCity: item.reachCity ?? null,
     serviceTags: item.serviceTags,
     isVerified: item.isVerified,
     photos: item.photos,
     matchedService: item.matchedService ?? null,
     outsideServiceCity: item.outsideServiceCity ?? null,
+    // Absent from an API before 0070: left undefined, so the signs know to fall back.
+    ...(item.garageCity !== undefined ? { garageCity: item.garageCity } : {}),
     tier: item.tier ?? null,
   }
 }
@@ -169,12 +174,16 @@ export function mapPublicVendor(vendor: ApiPublicVendor): Vendor {
     doorstepEnabled: vendor.doorstepEnabled,
     pickupEnabled: vendor.pickupEnabled ?? false,
     pickupRadiusKm: vendor.pickupRadiusKm ?? null,
+    doorstepWholeCity: vendor.doorstepWholeCity ?? false,
+    pickupWholeCity: vendor.pickupWholeCity ?? false,
+    reachCity: vendor.reachCity ?? null,
     serviceTags: categories.map(categoryLabel),
     isVerified: vendor.isVerified,
     photos: vendor.photos.map((p) => p.url),
     // Not a search result, so nothing was matched.
     matchedService: null,
     outsideServiceCity: vendor.outsideServiceCity ?? null,
+    ...(vendor.garageCity !== undefined ? { garageCity: vendor.garageCity } : {}),
     tier: vendor.tier ?? null,
   }
 }

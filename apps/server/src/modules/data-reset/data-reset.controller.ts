@@ -1,5 +1,9 @@
 import type { Context } from 'hono'
-import type { AuthVariables } from '../../middleware/auth.middleware.js'
+import { canDeleteAnything } from '../../lib/admin-actor.js'
+import {
+  signedInAdmin,
+  type AuthVariables,
+} from '../../middleware/auth.middleware.js'
 import { dataResetService } from './data-reset.service.js'
 import type {
   ExecuteInput,
@@ -27,12 +31,19 @@ export async function execute(c: DataResetContext, input: ExecuteInput) {
 }
 
 // One test booking, from its page (0064): not behind the reset's switch.
+// The owner's login deletes it whatever its money (10 Nov 2026).
 export async function previewTestBooking(
   c: DataResetContext,
   bookingId: string,
   input: TestBookingPreviewInput
 ) {
-  const data = await dataResetService.previewTestBooking(bookingId, input)
+  const owner = canDeleteAnything(signedInAdmin(c))
+  const data = await dataResetService.previewTestBooking(
+    bookingId,
+    input,
+    new Date(),
+    owner
+  )
   return c.json({ success: true, data })
 }
 
@@ -44,7 +55,9 @@ export async function deleteTestBooking(
   const data = await dataResetService.deleteTestBooking(
     c.get('auth').sub,
     bookingId,
-    input
+    input,
+    new Date(),
+    canDeleteAnything(signedInAdmin(c))
   )
   return c.json({ success: true, data })
 }

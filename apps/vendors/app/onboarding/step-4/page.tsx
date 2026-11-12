@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useT, useTn } from '@repo/core/i18n'
+import { msg } from '@repo/core/i18n/translate'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { IconAlertCircle, IconCircleCheck } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
@@ -22,23 +24,27 @@ import { OnboardingHeader } from '@/components/onboarding-header'
 const CATEGORIES = SERVICE_CATEGORY_OPTIONS
 
 // Quick-add presets — each prefills the service name + maps to a category.
+// The chip says it in the language in use; the name saved stays English,
+// as a service's name is the garage's own data that customers read.
 const SERVICE_PRESETS: { name: string; category: ServiceCategory }[] = [
-  { name: 'Exterior / foam wash', category: 'car_wash' },
-  { name: 'Interior cleaning & vacuum', category: 'detailing' },
-  { name: 'Full detailing', category: 'detailing' },
-  { name: 'Ceramic / paint protection', category: 'coating' },
-  { name: 'Polishing & buffing', category: 'detailing' },
-  { name: 'Denting & painting', category: 'scratch_removal' },
-  { name: 'General / periodic service', category: 'others' },
-  { name: 'AC service & repair', category: 'others' },
-  { name: 'Battery service', category: 'others' },
-  { name: 'Windshield & glass', category: 'others' },
-  { name: 'EV servicing', category: 'others' },
+  { name: msg('Exterior / foam wash'), category: 'car_wash' },
+  { name: msg('Interior cleaning & vacuum'), category: 'detailing' },
+  { name: msg('Full detailing'), category: 'detailing' },
+  { name: msg('Ceramic / paint protection'), category: 'coating' },
+  { name: msg('Polishing & buffing'), category: 'detailing' },
+  { name: msg('Denting & painting'), category: 'scratch_removal' },
+  { name: msg('General / periodic service'), category: 'others' },
+  { name: msg('AC service & repair'), category: 'others' },
+  { name: msg('Battery service'), category: 'others' },
+  { name: msg('Windshield & glass'), category: 'others' },
+  { name: msg('EV servicing'), category: 'others' },
 ]
 
 const DURATIONS = [30, 45, 60, 90, 120, 180]
 
 export default function VendorOnboardingStep4() {
+  const t = useT()
+  const tn = useTn()
   const router = useRouter()
   const fetchSession = useAuthStore((s) => s.fetchSession)
   const resetForm = useVendorOnboardingStore((s) => s.resetForm)
@@ -66,7 +72,7 @@ export default function VendorOnboardingStep4() {
   const toggleVehicleType = (type: string) =>
     update({
       vehicleTypes: vehicleTypes.includes(type)
-        ? vehicleTypes.filter((t) => t !== type)
+        ? vehicleTypes.filter((stored) => stored !== type)
         : [...vehicleTypes, type],
     })
 
@@ -100,7 +106,7 @@ export default function VendorOnboardingStep4() {
       setPrice('')
       setTiers({ hatchback: '', sedan: '', suv: '' })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add service')
+      setError(err instanceof Error ? err.message : t('Failed to add service'))
     } finally {
       setLoading(false)
     }
@@ -118,7 +124,7 @@ export default function VendorOnboardingStep4() {
       resetForm()
       router.replace('/home')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to finish onboarding')
+      setError(err instanceof Error ? err.message : t('Failed to finish onboarding'))
     } finally {
       setFinishing(false)
     }
@@ -128,21 +134,21 @@ export default function VendorOnboardingStep4() {
     <AppShell className="gap-5 py-4">
       <OnboardingHeader
         step={4}
-        title="Services & vehicles"
-        subtitle="Add what you sell. You can add more, and packages, in Services later."
+        title={t('Services & vehicles')}
+        subtitle={t('Add what you sell. You can add more, and packages, in Services later.')}
         backHref="/onboarding/step-3"
       />
 
       <section className="flex flex-col gap-3">
         <SectionHeader
-          title="Quick add a common service"
-          subtitle="Tap a preset or type a custom name below, then set price & duration."
+          title={t('Quick add a common service')}
+          subtitle={t('Tap a preset or type a custom name below, then set price & duration.')}
         />
         <div className="flex flex-wrap gap-2">
           {SERVICE_PRESETS.map((preset) => (
             <Chip
               key={preset.name}
-              label={preset.name}
+              label={t(preset.name)}
               selected={name === preset.name}
               onClick={() => applyPreset(preset)}
             />
@@ -151,15 +157,15 @@ export default function VendorOnboardingStep4() {
       </section>
 
       <ScCard className="flex flex-col gap-4">
-        <ScInput label="Service name" value={name} onChange={(e) => setName(e.target.value)} />
+        <ScInput label={t('Service name')} value={name} onChange={(e) => setName(e.target.value)} />
 
         <section>
-          <p className="mb-2 text-[11px] font-medium text-text-secondary">Category</p>
+          <p className="mb-2 text-[11px] font-medium text-text-secondary">{t('Category')}</p>
           <div className="flex flex-wrap gap-2">
             {CATEGORIES.map((c) => (
               <Chip
                 key={c.value}
-                label={c.label}
+                label={t(c.label)}
                 selected={category === c.value}
                 onClick={() => setCategory(c.value)}
               />
@@ -168,19 +174,19 @@ export default function VendorOnboardingStep4() {
         </section>
 
         <section>
-          <p className="mb-2 text-[11px] font-medium text-text-secondary">Pricing</p>
+          <p className="mb-2 text-[11px] font-medium text-text-secondary">{t('Pricing')}</p>
           <div className="flex flex-wrap gap-2">
             {PRICING_TYPES.map((pt) => (
               <Chip
                 key={pt.value}
-                label={pt.label}
+                label={t(pt.label)}
                 selected={pricingType === pt.value}
                 onClick={() => setPricingType(pt.value)}
               />
             ))}
           </div>
           <p className="mt-1.5 text-[11px] text-text-muted">
-            {PRICING_TYPES.find((pt) => pt.value === pricingType)?.hint}
+            {t(PRICING_TYPES.find((pt) => pt.value === pricingType)?.hint ?? '')}
           </p>
         </section>
 
@@ -189,7 +195,7 @@ export default function VendorOnboardingStep4() {
             {VEHICLE_TIERS.map(({ value, label }) => (
               <ScInput
                 key={value}
-                label={`${label} (₹)`}
+                label={t('{label} (₹)', { label: t(label) })}
                 type="number"
                 className="font-numeric"
                 value={tiers[value]}
@@ -202,7 +208,7 @@ export default function VendorOnboardingStep4() {
         ) : (
           <ScInput
             label={
-              pricingType === 'on_inspection' ? 'Inspection fee (₹)' : 'Price (₹)'
+              pricingType === 'on_inspection' ? t('Inspection fee (₹)') : t('Price (₹)')
             }
             type="number"
             className="font-numeric"
@@ -212,7 +218,7 @@ export default function VendorOnboardingStep4() {
         )}
 
         <section>
-          <p className="mb-2 text-[11px] font-medium text-text-secondary">Duration</p>
+          <p className="mb-2 text-[11px] font-medium text-text-secondary">{t('Duration')}</p>
           <div className="flex flex-wrap gap-2">
             {DURATIONS.map((d) => (
               <Chip key={d} label={`${d} min`} selected={duration === d} onClick={() => setDuration(d)} />
@@ -227,27 +233,29 @@ export default function VendorOnboardingStep4() {
           disabled={!name || !pricingComplete || loading}
           onClick={handleAddService}
         >
-          {loading ? 'Adding...' : 'Add service'}
+          {loading ? t('Adding...') : t('Add service')}
         </ScButton>
 
         {addedCount > 0 && (
           <p role="status" className="flex items-center gap-1.5 text-[12px] text-text-secondary">
             <IconCircleCheck size={14} aria-hidden="true" className="shrink-0 text-success" />
-            {addedCount} service{addedCount === 1 ? '' : 's'} added.
+            {tn(addedCount, '{count} service added.', '{count} services added.')}
           </p>
         )}
       </ScCard>
 
       <section className="flex flex-col gap-3">
         <SectionHeader
-          title="Vehicle types handled"
-          subtitle="These are the vehicle types customers can book for, and the tiers you price against when a service uses per-vehicle pricing."
+          title={t('Vehicle types handled')}
+          subtitle={t(
+            'These are the vehicle types customers can book for, and the tiers you price against when a service uses per-vehicle pricing.'
+          )}
         />
         <div className="flex flex-wrap gap-2">
           {VENDOR_VEHICLE_TYPE_OPTIONS.map((type) => (
             <Chip
               key={type}
-              label={type}
+              label={t(type)}
               selected={vehicleTypes.includes(type)}
               onClick={() => toggleVehicleType(type)}
             />
@@ -269,7 +277,7 @@ export default function VendorOnboardingStep4() {
           disabled={finishing}
           onClick={handleFinish}
         >
-          {finishing ? 'Opening dashboard...' : 'Go to dashboard'}
+          {finishing ? t('Opening dashboard...') : t('Go to dashboard')}
         </ScButton>
       </div>
     </AppShell>

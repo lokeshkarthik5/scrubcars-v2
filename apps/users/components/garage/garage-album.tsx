@@ -23,6 +23,7 @@ import { rewardDate, rewardRupees } from '@repo/core/rewards'
 import { cn } from '@repo/core/utils'
 import { GarageCard, GarageTile, IllustrationLine } from './garage-card'
 import { GarageShare } from './garage-share'
+import { fill, useT } from '@repo/core/i18n'
 
 type Filter = 'all' | GarageRarity
 
@@ -46,6 +47,7 @@ export function GarageAlbumView({
   firstName: string | null
   openNumber?: number | null
 }) {
+  const t = useT()
   const [filter, setFilter] = useState<Filter>('all')
   const [open, setOpen] = useState<GarageAlbumCar | null>(
     () => album.cars.find((c) => c.number === openNumber) ?? null
@@ -75,8 +77,10 @@ export function GarageAlbumView({
       onClick={() => setOpen(car)}
       aria-label={
         car.owned
-          ? `${car.name}, ${car.rarityLabel}, number ${car.number}${car.count > 1 ? `, ${car.count} copies` : ''}`
-          : `Number ${car.number}, ${car.rarityLabel}, not collected yet`
+          ? car.count > 1
+            ? t('{name}, {rarity}, number {number}, {count} copies', { name: car.name, rarity: car.rarityLabel, number: car.number, count: car.count })
+            : t('{name}, {rarity}, number {number}', { name: car.name, rarity: car.rarityLabel, number: car.number })
+          : t('Number {number}, {rarity}, not collected yet', { number: car.number, rarity: car.rarityLabel })
       }
       className="block rounded-[10px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
     >
@@ -93,7 +97,7 @@ export function GarageAlbumView({
         <div className="flex items-end justify-between gap-3">
           <div>
             <p className="text-t5 text-text-secondary">
-              {album.series.name} · supercar cards
+              {t('{name} · supercar cards', { name: album.series.name })}
             </p>
             <h2
               id="garage-progress"
@@ -104,7 +108,7 @@ export function GarageAlbumView({
               </span>
             </h2>
             <p className="mt-1 text-t4 text-text-secondary">
-              cars collected
+              {t('cars collected')}
             </p>
           </div>
           <div className="text-right">
@@ -112,7 +116,7 @@ export function GarageAlbumView({
               {rowsDone}/{album.rows.length}
             </p>
             <p className="mt-1 text-t5 text-text-secondary">
-              rows complete
+              {t('rows complete')}
             </p>
           </div>
         </div>
@@ -122,7 +126,7 @@ export function GarageAlbumView({
           aria-valuemin={0}
           aria-valuemax={total}
           aria-valuenow={album.collected}
-          aria-label="Cars collected"
+          aria-label={t('Cars collected')}
         >
           {/* Fills to the count once, from the left (moment 9). */}
           <div
@@ -133,7 +137,7 @@ export function GarageAlbumView({
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-t5 text-text-secondary">
           <span>
             <Figures
-              text={`Each row of 5: ${rewardRupees(album.rowReward)} off`}
+              text={t('Each row of 5: {rewardRupees} off', { rewardRupees: rewardRupees(album.rowReward) })}
             />
           </span>
           <span>
@@ -152,8 +156,7 @@ export function GarageAlbumView({
               className="text-[#F7D06B]"
               aria-hidden="true"
             />
-            Series complete on {rewardDate(album.completedAt)}. You are a Garage
-            Legend.
+            {t('Series complete on {rewardDate}. You are a Garage Legend.', { rewardDate: rewardDate(album.completedAt) })}
           </p>
         )}
       </section>
@@ -161,10 +164,10 @@ export function GarageAlbumView({
       <div
         className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-0.5"
         role="group"
-        aria-label="Filter by rarity"
+        aria-label={t('Filter by rarity')}
       >
         <FilterChip
-          label="All"
+          label={t('All')}
           active={filter === 'all'}
           onClick={() => setFilter('all')}
           count={album.collected}
@@ -193,10 +196,9 @@ export function GarageAlbumView({
                   id={`row-${row.row}`}
                   className="text-t4 font-semibold text-text-primary"
                 >
-                  Row {row.row}{' '}
-                  <span className="font-numeric font-normal text-text-secondary">
-                    · {row.collected} of {row.total}
-                  </span>
+                  {fill(t('Row {row} {part}'), { part: <span className="font-numeric font-normal text-text-secondary">
+                    {t('· {collected} of {total}', { collected: row.collected, total: row.total })}
+                  </span>, row: row.row })}
                 </h3>
                 <span
                   className={cn(
@@ -206,9 +208,9 @@ export function GarageAlbumView({
                 >
                   {row.complete
                     ? row.reward?.voucher
-                      ? `Done · ${rewardRupees(album.rowReward)} off given`
-                      : 'Done · bonus stamps given'
-                    : `${rewardRupees(album.rowReward)} off when complete`}
+                      ? t('Done · {rewardRupees} off given', { rewardRupees: rewardRupees(album.rowReward) })
+                      : t('Done · bonus stamps given')
+                    : t('{rewardRupees} off when complete', { rewardRupees: rewardRupees(album.rowReward) })}
                 </span>
               </div>
               <div className="grid grid-cols-5 gap-1.5">
@@ -219,12 +221,12 @@ export function GarageAlbumView({
         </div>
       ) : (
         <section
-          aria-label={`${RARITY_LABELS[filter]} cards`}
+          aria-label={t('{rarity} cards', { rarity: RARITY_LABELS[filter] })}
           className="flex flex-col gap-2"
         >
           <p className="text-t5 text-text-secondary">
             <Figures
-              text={`${counts[filter].owned} of ${counts[filter].all} ${RARITY_LABELS[filter]} cards`}
+              text={t('{owned} of {all} {rarity} cards', { owned: counts[filter].owned, all: counts[filter].all, rarity: RARITY_LABELS[filter] })}
             />
           </p>
           <div className="grid grid-cols-4 gap-2">
@@ -236,26 +238,24 @@ export function GarageAlbumView({
       <details className="group rounded-[14px] border border-border px-4 py-3">
         <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 text-t4 font-medium text-text-primary">
           <IconInfoCircle size={16} aria-hidden="true" />
-          How the Garage works
+          {t('How the Garage works')}
         </summary>
         <ul className="mt-2 flex list-disc flex-col gap-1.5 pl-5 text-t5 text-text-secondary">
           <li>
-            Every booking that earns a Shine Card stamp also earns one Garage
-            card. Some scratch cards, challenges and badges give cards too.
+            {t('Every booking that earns a Shine Card stamp also earns one Garage card. Some scratch cards, challenges and badges give cards too.')}
           </li>
           <li>
             <Figures
-              text={`Odds for each card: Common ${album.odds.common}%, Rare ${album.odds.rare}%, Epic ${album.odds.epic}%, Legendary ${album.odds.legendary}%. A Rare or better is certain within ${album.pity.rare} cards, a Legendary within ${album.pity.legendary}.`}
+              text={t('Odds for each card: Common {common}%, Rare {rare}%, Epic {epic}%, Legendary {legendary}%. A Rare or better is certain within {rarePity} cards, a Legendary within {legendaryPity}.', { common: album.odds.common, rare: album.odds.rare, epic: album.odds.epic, legendary: album.odds.legendary, rarePity: album.pity.rare, legendaryPity: album.pity.legendary })}
             />
           </li>
           <li>
             <Figures
-              text={`Every ${album.duplicates.perStar} duplicates make a bonus Shine Card stamp. Finish a row of 5 for ${rewardRupees(album.rowReward)} off your next booking.`}
+              text={t('Every {perStar} duplicates make a bonus Shine Card stamp. Finish a row of 5 for {rewardRupees} off your next booking.', { perStar: album.duplicates.perStar, rewardRupees: rewardRupees(album.rowReward) })}
             />
           </li>
           <li>
-            Cars shown for illustration only. Not affiliated with any car maker.
-            Card names are Detlio&apos;s own.
+            {t("Cars shown for illustration only. Not affiliated with any car maker. Card names are Detlio's own.")}
           </li>
         </ul>
       </details>
@@ -278,11 +278,12 @@ function CardSheet({
   onClose: () => void
   firstName: string | null
 }) {
+  const t = useT()
   return (
     <ScSheet
       open={car !== null}
       onClose={onClose}
-      aria-label={car?.owned ? car.name : 'A card not collected yet'}
+      aria-label={car?.owned ? car.name : t('A card not collected yet')}
     >
       {car &&
         (car.owned ? (
@@ -301,6 +302,7 @@ function OwnedDetail({
   car: GarageOwnedCar
   firstName: string | null
 }) {
+  const t = useT()
   const look = RARITY_LOOKS[car.rarity]
   return (
     <div className="flex flex-col items-center gap-3 px-5 pb-3 pt-1">
@@ -325,12 +327,12 @@ function OwnedDetail({
           <Figures
             text={
               car.count > 1
-                ? `You have ${car.count} of these`
-                : 'You have 1 of these'
+                ? t('You have {count} of these', { count: car.count })
+                : t('You have 1 of these')
             }
           />
           {car.firstPulledAt && (
-            <> · first on {rewardDate(car.firstPulledAt)}</>
+            <> {t('· first on {rewardDate}', { rewardDate: rewardDate(car.firstPulledAt) })}</>
           )}
         </p>
         <p className="sr-only">
@@ -349,6 +351,7 @@ function MissingDetail({
 }: {
   car: Exclude<GarageAlbumCar, GarageOwnedCar>
 }) {
+  const t = useT()
   return (
     <div className="flex flex-col items-center gap-3 px-6 pb-4 pt-2 text-center">
       <div className="w-[150px]">
@@ -364,10 +367,10 @@ function MissingDetail({
         </span>
       </p>
       <h2 className="text-t2 font-semibold text-text-primary">
-        Not in your Garage yet
+        {t('Not in your Garage yet')}
       </h2>
       <p className="text-t4 text-text-secondary">
-        Every booking paid through Detlio earns a card. This one could be next.
+        {t('Every booking paid through Detlio earns a card. This one could be next.')}
       </p>
     </div>
   )

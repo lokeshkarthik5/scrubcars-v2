@@ -1,11 +1,16 @@
-import { SERVICE_CITY, straightLineKm } from './service-city.js'
+import { cityCoversPoint, type CityPlace } from './cities.js'
 import { zoneFor, zoneSlug } from './zones.js'
 
 /**
- * Editing Chennai's zones from admin (0064, Coverage): rename, priority,
- * target, move the centre, add and remove. Which zone a point is in stays
- * `zoneFor` (lib/zones.ts), the one rule; these are the rules for the edits
+ * Editing the zones from admin (0064, Coverage): rename, priority, target,
+ * move the centre, add and remove. Which zone a point is in stays `zoneFor`
+ * (lib/zones.ts), the one rule; these are the rules for the edits
  * themselves. Pure, unit-tested in zone-edits.test.ts.
+ *
+ * A zone's centre must be inside a city (0070): within the reach of any city
+ * on the Cities page, on for customers or not, so admin can draw a city's
+ * areas before switching it on. It was Chennai's 50 km while Chennai was the
+ * only city.
  */
 
 export const ZONE_NAME_MIN = 2
@@ -26,7 +31,7 @@ export const ZONE_EDIT_MESSAGES: Record<ZoneEditProblem, string> = {
   name_letters: "A zone's name needs letters or numbers.",
   name_taken: 'Another zone already has that name.',
   target: `The target is a whole number from ${ZONE_TARGET_MIN} to ${ZONE_TARGET_MAX}.`,
-  outside_city: `The centre must be within ${SERVICE_CITY.radiusKm} km of Chennai's centre.`,
+  outside_city: 'The centre must be inside one of your cities. Add the city first.',
 }
 
 interface ZoneLike {
@@ -39,8 +44,8 @@ interface ZoneLike {
 
 /**
  * What is wrong with a zone as it would be after an edit (or a new one),
- * among the others, or null when it is fine. Names are compared without
- * case, as the unique index does.
+ * among the others and the cities, or null when it is fine. Names are
+ * compared without case, as the unique index does.
  */
 export function zoneEditProblem(
   zone: {
@@ -50,7 +55,8 @@ export function zoneEditProblem(
     lat: number
     lng: number
   },
-  others: readonly ZoneLike[]
+  others: readonly ZoneLike[],
+  cities: readonly CityPlace[]
 ): ZoneEditProblem | null {
   const name = cleanZoneName(zone.name)
   if (name.length < ZONE_NAME_MIN || name.length > ZONE_NAME_MAX)
@@ -71,10 +77,8 @@ export function zoneEditProblem(
   ) {
     return 'target'
   }
-  if (
-    straightLineKm({ lat: zone.lat, lng: zone.lng }, SERVICE_CITY.centre) >
-    SERVICE_CITY.radiusKm
-  ) {
+  const centre = { lat: zone.lat, lng: zone.lng }
+  if (!cities.some((city) => cityCoversPoint(city, centre))) {
     return 'outside_city'
   }
   return null

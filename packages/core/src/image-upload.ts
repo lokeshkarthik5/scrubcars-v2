@@ -1,3 +1,5 @@
+import { t } from './i18n/translate'
+
 /**
  * Getting a photo ready to leave the browser.
  *
@@ -77,7 +79,7 @@ export async function decodeImage(file: Blob): Promise<DecodedImage> {
   }
 
   if (typeof document === 'undefined' || typeof Image === 'undefined') {
-    throw new Error('This browser cannot read the image')
+    throw new Error(t('This browser cannot read the image'))
   }
   const url = URL.createObjectURL(file)
   try {

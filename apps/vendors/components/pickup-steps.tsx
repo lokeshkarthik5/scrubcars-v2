@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import { toast } from 'react-toastify'
+import { fill, useT } from '@repo/core/i18n'
+import { msg } from '@repo/core/i18n/translate'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScInput } from '@repo/ui/sc/input'
 import { ApiError } from '@repo/core/api/client'
@@ -19,14 +21,17 @@ import { changeStatusWithUndo } from '@/lib/deferred-status'
 
 /** What each step's button explains, under it. */
 const STEP_HINTS: Record<PickupNext, string> = {
-  picked_up:
-    "Ask the customer for the 4-digit pickup code in their Detlio app. From now until the car is back, it's in your care.",
-  at_garage: 'Press when the car arrives at your garage.',
-  start_work: 'Start the work on the car.',
-  out_for_delivery:
-    'Press when the work is done and the car leaves to go back to the customer.',
-  delivered:
-    'Ask the customer for the 4-digit delivery code in their Detlio app. This finishes the job.',
+  picked_up: msg(
+    "Ask the customer for the 4-digit pickup code in their Detlio app. From now until the car is back, it's in your care."
+  ),
+  at_garage: msg('Press when the car arrives at your garage.'),
+  start_work: msg('Start the work on the car.'),
+  out_for_delivery: msg(
+    'Press when the work is done and the car leaves to go back to the customer.'
+  ),
+  delivered: msg(
+    'Ask the customer for the 4-digit delivery code in their Detlio app. This finishes the job.'
+  ),
 }
 
 /**
@@ -48,6 +53,7 @@ export function PickupSteps({
   /** Re-read the job list after a step. */
   onChanged: () => void
 }) {
+  const t = useT()
   const step = booking.pickup?.nextStep ?? null
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
@@ -63,7 +69,7 @@ export function PickupSteps({
       ? booking.pickup?.pickupCodeTriesLeft
       : booking.pickup?.deliveryCodeTriesLeft
   const outOfTries = handoverLocked(step, lockedStep, triesLeft)
-  const who = booking.customerName ?? 'this customer'
+  const who = booking.customerName ?? t('this customer')
   // The photo standard (0045): starting the work waits for the before
   // photos, and the car leaves (and is delivered) only with its after photos.
   const photoBlock =
@@ -89,13 +95,17 @@ export function PickupSteps({
       else await onStartWork()
       setCode('')
       if (step !== 'start_work')
-        toast.success(`${PICKUP_STEP_LABELS[step]} marked`)
+        toast.success(
+          t('{step} marked', { step: t(PICKUP_STEP_LABELS[step]) })
+        )
       onChanged()
     } catch (error) {
       if (error instanceof ApiError && error.code === 'HANDOVER_CODE_LOCKED')
         setLockedStep(step)
       toast.error(
-        error instanceof Error ? error.message : 'Could not update this booking'
+        error instanceof Error
+          ? error.message
+          : t('Could not update this booking')
       )
       onChanged()
     } finally {
@@ -110,12 +120,12 @@ export function PickupSteps({
           id={`pickup-code-${booking.id}`}
           label={
             step === 'picked_up'
-              ? "Customer's pickup code"
-              : "Customer's delivery code"
+              ? t("Customer's pickup code")
+              : t("Customer's delivery code")
           }
           inputMode="numeric"
           autoComplete="one-time-code"
-          placeholder="4 digits"
+          placeholder={t('4 digits')}
           className="font-numeric tracking-[0.3em]"
           value={code}
           onChange={(e) =>
@@ -126,11 +136,18 @@ export function PickupSteps({
 
       {outOfTries ? (
         <p role="alert" className="text-[14px] text-warning">
-          Too many wrong codes. Call Detlio support on{' '}
-          <a href={SUPPORT_TEL_HREF} className="font-numeric underline">
-            {SUPPORT_PHONE_DISPLAY}
-          </a>
-          : we can confirm the handover once we have spoken to the customer.
+          {fill(
+            t(
+              'Too many wrong codes. Call Detlio support on {phone}: we can confirm the handover once we have spoken to the customer.'
+            ),
+            {
+              phone: (
+                <a href={SUPPORT_TEL_HREF} className="font-numeric underline">
+                  {SUPPORT_PHONE_DISPLAY}
+                </a>
+              ),
+            }
+          )}
         </p>
       ) : (
         <>
@@ -144,8 +161,11 @@ export function PickupSteps({
             size="lg"
             aria-label={
               step === 'start_work'
-                ? `Start job for ${who}`
-                : `Mark ${PICKUP_STEP_LABELS[step]} for ${who}`
+                ? t('Start job for {who}', { who })
+                : t('Mark {step} for {who}', {
+                    step: t(PICKUP_STEP_LABELS[step]),
+                    who,
+                  })
             }
             aria-describedby={photoBlock ? blockedId : undefined}
             disabled={
@@ -154,20 +174,24 @@ export function PickupSteps({
             onClick={run}
           >
             {busy
-              ? 'Saving...'
+              ? t('Saving...')
               : step === 'start_work'
-                ? 'Start job'
-                : PICKUP_STEP_LABELS[step]}
+                ? t('Start job')
+                : t(PICKUP_STEP_LABELS[step])}
           </ScButton>
           <p className="text-[13px] text-text-secondary">
-            {STEP_HINTS[step]}
+            {t(STEP_HINTS[step])}
             {needsCode &&
               triesLeft !== undefined &&
               triesLeft < MAX_CODE_ATTEMPTS && (
                 <>
                   {' '}
-                  <span className="font-numeric">{triesLeft}</span>{' '}
-                  {triesLeft === 1 ? 'try' : 'tries'} left.
+                  {fill(
+                    triesLeft === 1
+                      ? t('{count} try left.')
+                      : t('{count} tries left.'),
+                    { count: <span className="font-numeric">{triesLeft}</span> }
+                  )}
                 </>
               )}
           </p>

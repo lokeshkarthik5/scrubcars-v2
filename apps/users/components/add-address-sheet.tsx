@@ -17,6 +17,7 @@ import type { Address } from '@repo/core/types'
 import type { DraftAddress } from '@repo/core/booking-draft'
 import { MainAction } from './main-action'
 import { NO_PIN_TEXT, refillFromPin, type PinText } from './pin-autofill'
+import { useT } from '@repo/core/i18n'
 
 const LABELS = ['Home', 'Office', 'Other'] as const
 
@@ -62,6 +63,7 @@ export function AddAddressSheet({
   pickup = false,
   onSaveLocal,
 }: AddAddressSheetProps) {
+  const t = useT()
   const [form, setForm] = useState(EMPTY)
   // What the last pin wrote into the text fields — see refillFromPin.
   const pinText = useRef<PinText>(NO_PIN_TEXT)
@@ -86,10 +88,10 @@ export function AddAddressSheet({
       pinText.current = NO_PIN_TEXT
       onAdded?.(created)
       onClose()
-      toast.success('Address added')
+      toast.success(t('Address added'))
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Failed to add address')
+      toast.error(error instanceof Error ? error.message : t('Failed to add address'))
     },
   })
 
@@ -110,16 +112,16 @@ export function AddAddressSheet({
       open={open}
       onClose={close}
       dismissible={!save.isPending}
-      aria-label="Add an address"
+      aria-label={t('Add an address')}
       className="px-4"
     >
       <h2 className="text-t2 font-semibold text-text-primary">
-        Add an address
+        {t('Add an address')}
       </h2>
       <p className="mt-1 text-t4 text-text-secondary">
         {pickup
-          ? 'Drop the pin where the car will be. We use it to check the garage collects from you, and the driver uses it to find your car.'
-          : 'Drop the pin where the car will be. We use it to check the garage travels to you.'}
+          ? t('Drop the pin where the car will be. We use it to check the garage collects from you, and the driver uses it to find your car.')
+          : t('Drop the pin where the car will be. We use it to check the garage travels to you.')}
       </p>
 
       <div className="mt-4 flex flex-col gap-3">
@@ -127,7 +129,7 @@ export function AddAddressSheet({
           {LABELS.map((label) => (
             <Chip
               key={label}
-              label={label}
+              label={t(label)}
               selected={form.label === label}
               onClick={() => setForm({ ...form, label })}
             />
@@ -152,8 +154,8 @@ export function AddAddressSheet({
         <ScInput
           data-clarity-mask="true"
           id="address-text"
-          label="Address"
-          placeholder="Flat, building, street"
+          label={t('Address')}
+          placeholder={t('Flat, building, street')}
           autoComplete="street-address"
           value={form.address}
           onChange={(e) => setForm({ ...form, address: e.target.value })}
@@ -161,8 +163,8 @@ export function AddAddressSheet({
         <ScInput
           data-clarity-mask="true"
           id="address-city"
-          label="City"
-          placeholder="e.g. Chennai"
+          label={t('City')}
+          placeholder={t('e.g. Chennai')}
           autoComplete="address-level2"
           value={form.city}
           onChange={(e) => setForm({ ...form, city: e.target.value })}
@@ -194,10 +196,10 @@ export function AddAddressSheet({
               save.mutate(form.pin)
             }}
           >
-            {save.isPending ? 'Saving…' : 'Save address'}
+            {save.isPending ? t('Saving…') : t('Save address')}
           </MainAction>
           <ScButton variant="secondary" disabled={save.isPending} onClick={close}>
-            Cancel
+            {t('Cancel')}
           </ScButton>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { updateProfile } from '@repo/core/api/users';
+import { useT } from '@repo/core/i18n';
 import { useUserStore } from '@repo/core/stores/user-store';
 import { AuthStage } from '@repo/native-ui/auth-stage';
 import { Label, ScButton } from '@repo/native-ui/button';
@@ -15,6 +16,7 @@ import { otpFlow } from '@/lib/otp-flow';
 import { errorText } from '@/lib/error-text';
 
 function Form() {
+  const t = useT();
   const colors = useColors();
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
@@ -31,28 +33,28 @@ function Form() {
       // Replace: Back from the booking should not land on a form already filled in.
       router.replace(otpFlow.takeDestination() as Href);
     } catch (err) {
-      toast.error(errorText(err, 'Something went wrong'));
+      toast.error(errorText(err, t('Something went wrong')));
       setLoading(false);
     }
   };
 
-  const cta = next?.startsWith('/book/') ? 'Continue to booking' : next ? 'Continue' : 'Get started';
+  const cta = next?.startsWith('/book/') ? t('Continue to booking') : next ? t('Continue') : t('Get started');
   const disabled = !canSubmit || loading;
 
   return (
     <>
       <View style={styles.center}>
         <T accessibilityRole="header" size={28} weight={700} lh={36} tracking={-0.02} align="center">
-          What&apos;s your name?
+          {t("What's your name?")}
         </T>
         <T size={16} lh={24} color={colors.textSecondary} align="center" style={styles.sub}>
-          The garage sees it on your booking.
+          {t('The garage sees it on your booking.')}
         </T>
       </View>
       <View style={styles.field}>
         <ScInput
-          label="Full name"
-          placeholder="Your name"
+          label={t('Full name')}
+          placeholder={t('Your name')}
           autoComplete="name"
           autoCapitalize="words"
           autoFocus
@@ -65,10 +67,10 @@ function Form() {
         />
       </View>
       <ScButton variant="cta" glass disabled={disabled} onPress={() => void submit()} style={styles.button}>
-        <Label color={disabled ? colors.textSecondary : colors.white}>{loading ? 'Saving...' : cta}</Label>
+        <Label color={disabled ? colors.textSecondary : colors.white}>{loading ? t('Saving...') : cta}</Label>
       </ScButton>
       <T size={13} lh={20} color={colors.textSecondary} align="center" style={styles.note}>
-        We&apos;ll ask for an address only if you book doorstep or pickup &amp; drop.
+        {t("We'll ask for an address only if you book doorstep or pickup & drop.")}
       </T>
     </>
   );

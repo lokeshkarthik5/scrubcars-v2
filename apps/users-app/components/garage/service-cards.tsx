@@ -1,4 +1,5 @@
 import { categoryLabel } from '@repo/core/categories';
+import { fill, useT } from '@repo/core/i18n';
 import { tierPriceFor } from '@repo/core/pricing';
 import { cardThumbnail, customerMedia, formatClipLength, serviceIconFor, type ServiceIcon } from '@repo/core/service-media';
 import { cardPointsLine, parseServiceDescription, sheetPoints } from '@repo/core/service-points';
@@ -163,12 +164,13 @@ export function ServiceCard({
   onOpen: () => void;
   onToggle: () => void;
 }) {
+  const t = useT();
   const styles = useStyles();
   const { fx } = useFinish();
   return (
     <PickCard picked={added} style={styles.serviceGrid}>
       {/* Tapping anywhere on the card opens the details; Add stays a separate action. */}
-      <Pressable accessibilityRole="button" accessibilityLabel={`View details for ${service.name}`} onPress={onOpen} style={styles.cardTop}>
+      <Pressable accessibilityRole="button" accessibilityLabel={t('View details for {name}', { name: service.name })} onPress={onOpen} style={styles.cardTop}>
         <ServiceThumb service={service} />
         <View style={[styles.flex, styles.serviceText]}>
           <T variant="t3" weight={600} lh={19}>
@@ -185,7 +187,7 @@ export function ServiceCard({
         </T>
         {pricedForCar(service, carType) && carModel ? (
           <T size={10} weight={500} lh={12} color={fx.quiet}>
-            for your {carModel}
+            {t('for your {carModel}', { carModel })}
           </T>
         ) : null}
         {!paused ? <RedLightAdd name={service.name} added={added} onToggle={onToggle} style={styles.sideAdd} /> : null}
@@ -209,13 +211,14 @@ export function PackageCard({
   onOpen: () => void;
   onToggle: () => void;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const { fx } = useFinish();
   return (
     <PickCard picked={added} style={styles.pkgPad}>
       {/* Same affordance as a service card: the card opens the details, Add stays separate. */}
-      <Pressable accessibilityRole="button" accessibilityLabel={`View details for ${pkg.name}`} onPress={onOpen}>
+      <Pressable accessibilityRole="button" accessibilityLabel={t('View details for {name}', { name: pkg.name })} onPress={onOpen}>
         <View style={styles.pkgHead}>
           <T size={16} weight={600} lh={21} style={styles.flex}>
             {pkg.name}
@@ -231,7 +234,7 @@ export function PackageCard({
                 style={[StyleSheet.absoluteFill, styles.saveFace]}
               />
               <T num variant="t5" weight={600} lh={12} color="#0A0A0B">
-                {`Save ${money(pkg.savings)}${pkg.tierBreakdown ? '+' : ''}`}
+                {t('Save {amount}', { amount: `${money(pkg.savings)}${pkg.tierBreakdown ? '+' : ''}` })}
               </T>
             </View>
           ) : null}
@@ -272,6 +275,7 @@ export function PackageCard({
 }
 
 function WhatsIncluded({ points, note }: { points: string[]; note: string | null }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const [expanded, setExpanded] = useState(false);
@@ -281,7 +285,7 @@ function WhatsIncluded({ points, note }: { points: string[]; note: string | null
   return (
     <View style={styles.sheetBlock}>
       <T variant="over" color={colors.textMuted}>
-        What&apos;s included
+        {t("What's included")}
       </T>
       {shown.map((point, i) => (
         <View key={`${i}-${point}`} style={styles.point}>
@@ -294,7 +298,7 @@ function WhatsIncluded({ points, note }: { points: string[]; note: string | null
       {foldable ? (
         <Pressable accessibilityRole="button" onPress={() => setExpanded((on) => !on)} style={styles.fold}>
           <T size={13} weight={500} color={colors.textSecondary}>
-            {expanded ? 'Show less' : `+${more} more`}
+            {expanded ? t('Show less') : t('+{count} more', { count: more })}
           </T>
         </Pressable>
       ) : null}
@@ -325,12 +329,13 @@ export function ServiceSheet({
   paused: boolean;
   onToggle: () => void;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const media = details ? cardThumbnail(customerMedia(details.media)) : null;
   const parsed = details ? parseServiceDescription(details.description) : null;
   return (
-    <ScSheet open={open} onClose={onClose} accessibilityLabel={details ? `${details.name} details` : 'Service details'} horizontalPadding={16}>
+    <ScSheet open={open} onClose={onClose} accessibilityLabel={details ? t('{name} details', { name: details.name }) : t('Service details')} horizontalPadding={16}>
       {details ? (
         <>
           <ServiceMediaArea service={details} garageName={garageName} />
@@ -357,7 +362,7 @@ export function ServiceSheet({
           </View>
           {parsed?.points.length === 0 ? (
             <T size={13} color={colors.textSecondary} style={styles.sheetBlock}>
-              {details.description || `No description available for this ${isPackage(details) ? 'package' : 'service'}.`}
+              {details.description || (isPackage(details) ? t('No description available for this package.') : t('No description available for this service.'))}
             </T>
           ) : parsed?.intro ? (
             <T size={13} color={colors.textSecondary} style={styles.sheetBlock}>
@@ -368,7 +373,7 @@ export function ServiceSheet({
           {isPackage(details) ? (
             <View style={styles.sheetBlock}>
               <T variant="over" color={colors.textMuted}>
-                Services in this package
+                {t('Services in this package')}
               </T>
               {details.items.map((item) => (
                 <View key={item.serviceId} style={styles.pkgItem}>
@@ -380,11 +385,10 @@ export function ServiceSheet({
               ))}
               {details.tierBreakdown === null && details.savings !== null ? (
                 <T size={12} weight={600} style={styles.noteLine}>
-                  {'Save '}
-                  <T num size={12} weight={700}>{money(details.savings)}</T>
-                  {' vs '}
-                  <T num size={12} weight={700}>{money(details.itemsTotal)}</T>
-                  {' separately'}
+                  {fill(t('Save {amount} vs {total} separately'), {
+                    amount: <T num size={12} weight={700}>{money(details.savings)}</T>,
+                    total: <T num size={12} weight={700}>{money(details.itemsTotal)}</T>,
+                  })}
                 </T>
               ) : null}
             </View>
@@ -393,7 +397,7 @@ export function ServiceSheet({
             {details.pricingType === 'per_vehicle' ? (
               <>
                 <T variant="over" color={colors.textMuted} style={styles.priceHead}>
-                  Price by vehicle
+                  {t('Price by vehicle')}
                 </T>
                 {VEHICLE_TIERS.map(({ value: type, label }) => {
                   const price = tierPriceFor(details, type);
@@ -401,18 +405,17 @@ export function ServiceSheet({
                   return (
                     <View key={type} style={styles.priceRow}>
                       <T size={13} color={colors.textSecondary}>
-                        {label}
+                        {t(label)}
                       </T>
                       {price == null ? (
                         <T size={12} color={colors.textMuted}>
-                          Price on request
+                          {t('Price on request')}
                         </T>
                       ) : (
                         <View style={styles.priceRight}>
                           {tierSavings !== null ? (
                             <T size={11} weight={500} color={colors.textSecondary}>
-                              {'save '}
-                              <T num size={11} weight={500} color={colors.textSecondary}>{money(tierSavings)}</T>
+                              {fill(t('save {amount}'), { amount: <T num size={11} weight={500} color={colors.textSecondary}>{money(tierSavings)}</T> })}
                             </T>
                           ) : null}
                           <T num size={13} weight={700}>
@@ -427,7 +430,7 @@ export function ServiceSheet({
             ) : (
               <View style={styles.priceRow}>
                 <T size={13} color={colors.textSecondary}>
-                  {details.pricingType === 'on_inspection' ? 'Inspection fee' : 'Price'}
+                  {details.pricingType === 'on_inspection' ? t('Inspection fee') : t('Price')}
                 </T>
                 <T num size={15} weight={700}>
                   {money(details.price)}
@@ -436,8 +439,7 @@ export function ServiceSheet({
             )}
             {details.pricingType === 'on_inspection' ? (
               <T size={11} color={colors.textMuted} style={styles.noteLine}>
-                You pay the inspection fee when you book. If the work costs more, the garage sends the final bill in the app
-                and you pay the rest there.
+                {t('You pay the inspection fee when you book. If the work costs more, the garage sends the final bill in the app and you pay the rest there.')}
               </T>
             ) : null}
           </View>
@@ -445,11 +447,11 @@ export function ServiceSheet({
           {!paused ? (
             added ? (
               <ScButton variant="outline" onPress={onToggle} style={styles.sheetAction}>
-                Remove from booking
+                {t('Remove from booking')}
               </ScButton>
             ) : (
               <RedButton height={50} radius={16} onPress={onToggle} style={styles.sheetAction}>
-                Add to booking
+                {t('Add to booking')}
               </RedButton>
             )
           ) : null}
@@ -461,18 +463,19 @@ export function ServiceSheet({
 
 /** GarageAddOns (PR #107's frame C): marked, and no Add button; they're picked at checkout. */
 export function GarageAddOns({ addOns, carType }: { addOns: readonly AddOn[]; carType: VehicleType | null }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   return (
     <View style={styles.addOns}>
       <View style={styles.sectionHead}>
-        <T variant="t2">Add-ons</T>
+        <T variant="t2">{t('Add-ons')}</T>
         <T size={12} color={colors.textSecondary}>
           {addOnCountLabel(addOns.length)}
         </T>
       </View>
       <T size={13} lh={20} color={colors.textSecondary}>
-        Optional extras. Choose them at checkout, with any service. They can&apos;t be booked alone.
+        {t("Optional extras. Choose them at checkout, with any service. They can't be booked alone.")}
       </T>
       <View style={styles.addOnList}>
         {addOns.map((addOn, i) => (
@@ -482,7 +485,7 @@ export function GarageAddOns({ addOns, carType }: { addOns: readonly AddOn[]; ca
                 <T size={15}>{addOn.name}</T>
                 <View style={styles.mark}>
                   <T size={11} weight={500} lh={15} color={colors.textSecondary}>
-                    Add-on
+                    {t('Add-on')}
                   </T>
                 </View>
               </View>

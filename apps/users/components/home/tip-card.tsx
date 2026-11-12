@@ -5,12 +5,13 @@ import { IconBulb, IconX } from '@tabler/icons-react'
 import type { CarTip } from '@repo/core/api/home'
 import { istDateKey } from '@repo/core/home-display'
 import { TIP_HIDDEN_KEY } from '@/lib/home-hub'
+import { msg, useT } from '@repo/core/i18n'
 
 const SEASON_LABELS: Record<CarTip['season'], string | null> = {
   all_year: null,
-  summer: 'Summer',
-  pre_monsoon: 'Before the rains',
-  monsoon: 'Monsoon',
+  summer: msg('Summer'),
+  pre_monsoon: msg('Before the rains'),
+  monsoon: msg('Monsoon'),
 }
 
 function hiddenToday(now: Date): boolean {
@@ -28,12 +29,14 @@ function hiddenToday(now: Date): boolean {
  * server, since tomorrow brings a different tip anyway.
  */
 export function TipCard({ tip, now }: { tip: CarTip; now: Date }) {
+  const t = useT()
   // Read on first render: Home is client-only (it waits for the session), so
   // there is no server render for this to disagree with.
   const [hidden, setHidden] = useState(() => hiddenToday(now))
   if (hidden) return null
 
-  const season = SEASON_LABELS[tip.season]
+  const seasonLabel = SEASON_LABELS[tip.season]
+  const season = seasonLabel ? t(seasonLabel) : null
   const hide = () => {
     try {
       window.localStorage.setItem(TIP_HIDDEN_KEY, istDateKey(now))
@@ -44,16 +47,16 @@ export function TipCard({ tip, now }: { tip: CarTip; now: Date }) {
   }
 
   return (
-    <section aria-label="Car care tip" className="hub-card p-5">
+    <section aria-label={t('Car care tip')} className="hub-card p-5">
       <div className="flex h-5 items-center justify-between">
         <span className="flex items-center gap-1.5 text-t4 text-dim">
           <IconBulb size={15} stroke={1.5} aria-hidden className="text-text-muted" />
-          Car care tip{season ? ` · ${season}` : ''}
+          {t('Car care tip')}{season ? ` · ${season}` : ''}
         </span>
         <button
           type="button"
           onClick={hide}
-          aria-label="Hide tip until tomorrow"
+          aria-label={t('Hide tip until tomorrow')}
           className="-my-3 -mr-3 grid size-11 place-items-center text-dim"
         >
           <IconX size={20} stroke={1.5} aria-hidden />

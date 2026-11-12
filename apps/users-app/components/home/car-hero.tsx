@@ -1,4 +1,5 @@
 import type { HomeCar } from '@repo/core/api/home';
+import { msg, t, tn, useT } from '@repo/core/i18n';
 import { rewardRupees } from '@repo/core/rewards';
 import { ScButton } from '@repo/native-ui/button';
 import { IconArrowUpRight, IconCheck, IconChevronDown, IconHistory, IconPencil, IconPlus } from '@repo/native-ui/icons';
@@ -13,18 +14,18 @@ import { Image, Pressable, StyleSheet, useWindowDimensions, View } from 'react-n
 import Svg, { Defs, Ellipse, RadialGradient, Stop } from 'react-native-svg';
 
 
-const TYPE_LABEL: Record<HomeCar['vehicleType'], string> = { hatchback: 'Hatchback', sedan: 'Sedan', suv: 'SUV' };
+const TYPE_LABEL: Record<HomeCar['vehicleType'], string> = { hatchback: msg('Hatchback'), sedan: msg('Sedan'), suv: msg('SUV') };
 
 /** "TN 09 BX 4821 · White SUV". */
 export function carLine(car: Pick<HomeCar, 'licensePlate' | 'color' | 'vehicleType'>): string {
-  const kind = [car.color, TYPE_LABEL[car.vehicleType]].filter(Boolean).join(' ');
+  const kind = [car.color, t(TYPE_LABEL[car.vehicleType])].filter(Boolean).join(' ');
   return [car.licensePlate, kind].filter(Boolean).join(' · ');
 }
 
 /** "2 more washes = ₹349 off", or "₹349 off ready" once the card is full. */
 export function shineLine(toGo: number, rewardAmount: string | number): string {
-  const reward = `${rewardRupees(rewardAmount)} off`;
-  return toGo <= 0 ? `${reward} ready` : `${toGo} more ${toGo === 1 ? 'wash' : 'washes'} = ${reward}`;
+  const reward = t('{amount} off', { amount: rewardRupees(rewardAmount) });
+  return toGo <= 0 ? t('{reward} ready', { reward }) : tn(toGo, '{count} more wash = {reward}', '{count} more washes = {reward}', { reward });
 }
 
 // The owner-approved body-type pictures (packages/core car-images.ts), shared canvas 1200 × 432.
@@ -119,6 +120,7 @@ export function CarHero({
   onAddCar: () => void;
   shine?: Shine | null;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const { width: screen } = useWindowDimensions();
@@ -128,17 +130,17 @@ export function CarHero({
   if (cars.length === 0) {
     const pictureWidth = width * 0.92;
     return (
-      <View accessibilityLabel="Your car" style={[styles.hero, { height: short ? 294 : 314 }]}>
+      <View accessibilityLabel={t('Your car')} style={[styles.hero, { height: short ? 294 : 314 }]}>
         <Stage short={short} empty width={width} />
         <View style={styles.head}>
           <T size={13} color={colors.dim}>
-            Get started
+            {t('Get started')}
           </T>
           <T size={34} weight={300} lh={37} tracking={-0.03} style={styles.title}>
-            Add your car
+            {t('Add your car')}
           </T>
           <T size={15} lh={21} color={colors.textSoft} style={styles.emptyLine}>
-            So garages quote the right price, and you&apos;ll see when it&apos;s due.
+            {t("So garages quote the right price, and you'll see when it's due.")}
           </T>
         </View>
         <Contact top={236} left={width * 0.12} right={width * 0.12} />
@@ -150,12 +152,12 @@ export function CarHero({
         <View style={styles.cta}>
           {quiet ? (
             <ScButton variant="quiet" onPress={onAddCar}>
-              Add car
+              {t('Add car')}
             </ScButton>
           ) : (
             <ScButton variant="hero" onPress={onAddCar}>
               <T size={15} weight={500} lh={20} color={colors.white}>
-                Add car
+                {t('Add car')}
               </T>
               <IconPlus size={17} stroke={1.5} color={colors.white} />
             </ScButton>
@@ -173,16 +175,16 @@ export function CarHero({
   const tyreLine = short ? 201 : 217;
 
   return (
-    <View accessibilityLabel="Your car" style={[styles.hero, { height }]}>
+    <View accessibilityLabel={t('Your car')} style={[styles.hero, { height }]}>
       <Stage short={short} width={width} />
       <View style={[styles.head, cars.length === 1 && styles.headTwoDiscs]}>
         <T size={13} color={colors.dim}>
-          Your car
+          {t('Your car')}
         </T>
         {cars.length > 1 ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`${name}, switch car`}
+            accessibilityLabel={t('{name}, switch car', { name })}
             onPress={() => setChoosing(true)}
             style={styles.switch}
           >
@@ -215,20 +217,20 @@ export function CarHero({
         }}
       />
       <StageDisc
-        label={`History of your ${name}`}
+        label={t('History of your {name}', { name })}
         right={cars.length === 1 ? 60 : 12}
         onPress={() => router.push(`/profile/cars/${car.id}` as Href)}
       >
         <IconHistory size={20} stroke={1.5} />
       </StageDisc>
       {cars.length === 1 ? (
-        <StageDisc label="Add or edit cars" right={12} onPress={() => router.navigate('/profile?section=vehicles' as Href)}>
+        <StageDisc label={t('Add or edit cars')} right={12} onPress={() => router.navigate('/profile?section=vehicles' as Href)}>
           <IconPencil size={20} stroke={1.5} />
         </StageDisc>
       ) : null}
       {shine ? (
         <PressRow
-          accessibilityLabel={`Shine Card: ${shine.onCard} of ${shine.goal} stamps. ${shineLine(shine.toGo, shine.rewardAmount)}.`}
+          accessibilityLabel={t('Shine Card: {count} of {goal} stamps. {line}.', { count: shine.onCard, goal: shine.goal, line: shineLine(shine.toGo, shine.rewardAmount) })}
           onPress={() => router.push('/profile/rewards' as Href)}
           style={styles.shine}
         >
@@ -250,21 +252,21 @@ export function CarHero({
       <View style={styles.cta}>
         {quiet ? (
           <ScButton variant="quiet" onPress={() => onBookWash(car)}>
-            Book a wash
+            {t('Book a wash')}
           </ScButton>
         ) : (
           <ScButton variant="hero" onPress={() => onBookWash(car)}>
             <T size={15} weight={500} lh={20} color={colors.white}>
-              Book a wash
+              {t('Book a wash')}
             </T>
             <IconArrowUpRight size={17} stroke={1.5} color={colors.white} />
           </ScButton>
         )}
       </View>
 
-      <ScSheet open={choosing} onClose={() => setChoosing(false)} accessibilityLabel="Choose a car" horizontalPadding={16}>
+      <ScSheet open={choosing} onClose={() => setChoosing(false)} accessibilityLabel={t('Choose a car')} horizontalPadding={16}>
         <T size={20} lh={28} tracking={-0.015}>
-          Your cars
+          {t('Your cars')}
         </T>
         <View style={styles.cars}>
           {cars.map((each, i) => (
@@ -295,7 +297,7 @@ export function CarHero({
             }}
             style={styles.addEdit}
           >
-            <T size={15}>Add or edit cars</T>
+            <T size={15}>{t('Add or edit cars')}</T>
           </Pressable>
         </View>
       </ScSheet>

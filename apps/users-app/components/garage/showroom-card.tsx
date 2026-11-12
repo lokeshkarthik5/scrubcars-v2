@@ -1,6 +1,8 @@
 import { prefetchGarage } from '@repo/core/api/hooks/use-vendors';
 import { bookingTypeParam } from '@repo/core/booking-types';
+import { anywhereInCityLine } from '@repo/core/reach';
 import { distanceLabel, driveTimeLabel } from '@repo/core/drive-time';
+import { useT, useTn } from '@repo/core/i18n';
 import { hoursLeftShare, openStatus } from '@repo/core/opening-hours';
 import { hasStarScore, NEW_GARAGE_LABEL } from '@repo/core/ratings';
 import type { BookingType, Vendor } from '@repo/core/types';
@@ -28,6 +30,7 @@ import {
 import { RoadLine } from '@/components/moments/road';
 import { buzz, useCountUp } from '@/lib/motion';
 import { isApproximate, useLocationStore } from '@/lib/location';
+import { useGarageTownTag } from '@/lib/customer-place';
 
 import { GarageCover, GarageMonogram } from './cover';
 import { NextFreeRow } from './next-free-row';
@@ -83,11 +86,15 @@ export function ShowroomCard({
   scrollY?: Animated.Value;
   top?: number;
 }) {
+  const tn = useTn();
+  const t = useT();
   const styles = useStyles();
   const colors = useColors();
   const { fx } = useFinish();
   const ink = usePearlInk();
   const queryClient = useQueryClient();
+  // A garage in another town than the customer's city (0070); null in it.
+  const townTag = useGarageTownTag(vendor);
   const reduce = useReduceMotion();
   const { width: screen, height: screenHeight } = useWindowDimensions();
   const ref = useRef<ViewRef>(null);
@@ -98,6 +105,7 @@ export function ShowroomCard({
   const held = useRef(false);
 
   const modeParam = bookingTypeParam(mode);
+  const anywhere = anywhereInCityLine(vendor, mode);
   const href = modeParam ? `/garage/${vendor.id}?mode=${modeParam}` : `/garage/${vendor.id}`;
   const photos = vendor.photos;
   const stars = hasStarScore(vendor);
@@ -107,7 +115,7 @@ export function ShowroomCard({
   const status = openStatus(vendor.openingHours, now, vendor.closures);
   const hoursLeft = hoursLeftShare(vendor.openingHours, now, vendor.closures);
   const knownFor = vendor.knownFor?.label;
-  const what = knownFor ? `Known for ${knownFor.toLowerCase()}` : vendor.serviceTags.slice(0, 2).join(', ');
+  const what = knownFor ? t('Known for {what}', { what: knownFor.toLowerCase() }) : vendor.serviceTags.slice(0, 2).join(', ');
   const subline = [vendor.area, what].filter(Boolean).join(' · ');
 
   const rating = useCountUp(vendor.rating, 1, seen);
@@ -133,14 +141,14 @@ export function ShowroomCard({
 
   // One plain line for screen readers, in place of the figures that count.
   const spoken = [
-    stars ? `${vendor.rating.toFixed(1)} stars, ${vendor.reviewCount} reviews.` : `${NEW_GARAGE_LABEL}.`,
+    stars ? t('{rating} stars, {count} reviews.', { rating: vendor.rating.toFixed(1), count: vendor.reviewCount }) : `${t(NEW_GARAGE_LABEL)}.`,
     km !== null ? `${distanceLabel(km, approx)} · ${driveTimeLabel(km)}.` : null,
-    vendor.startingPrice > 0 ? `From ₹${vendor.startingPrice}.` : null,
+    vendor.startingPrice > 0 ? t('From ₹{price}.', { price: vendor.startingPrice }) : null,
   ]
     .filter(Boolean)
     .join(' ');
   const statusWords = status
-    ? `${status.isOpen ? 'Open' : status.closedToday ? 'Closed today' : 'Closed'}${status.detail ? ` · ${status.detail}` : ''}`
+    ? `${status.isOpen ? t('Open') : status.closedToday ? t('Closed today') : t('Closed')}${status.detail ? ` · ${status.detail}` : ''}`
     : null;
 
   return (
@@ -148,7 +156,7 @@ export function ShowroomCard({
       <Pressable
         accessibilityRole="link"
         accessibilityLabel={[vendor.name, subline, statusWords, spoken].filter(Boolean).join('. ')}
-        accessibilityHint={onQuickLook ? 'Press and hold for a quick look' : undefined}
+        accessibilityHint={onQuickLook ? t('Press and hold for a quick look') : undefined}
         // The garage page starts loading the moment a finger lands on the card.
         onPressIn={() => {
           held.current = false;
@@ -207,7 +215,7 @@ export function ShowroomCard({
             <Glass pointerEvents="none" radius={999} base="rgba(18,18,22,0.55)" style={styles.status}>
               <HoursRing share={status.isOpen ? hoursLeft : null} play={seen} />
               <T variant="t4" numberOfLines={1} color="#FFFFFF" style={styles.shrink}>
-                {status.isOpen ? 'Open' : status.closedToday ? 'Closed today' : 'Closed'}
+                {status.isOpen ? t('Open') : status.closedToday ? t('Closed today') : t('Closed')}
                 {status.detail ? <T variant="t4" color="rgba(255,255,255,0.75)">{` · ${status.detail}`}</T> : null}
               </T>
             </Glass>
@@ -230,7 +238,7 @@ export function ShowroomCard({
                 {!stars ? (
                   <Pearl radius={6} style={styles.newTag}>
                     <T size={9.5} weight={600} lh={10} tracking={0.08} uppercase color={ink}>
-                      New
+                      {t('New')}
                     </T>
                   </Pearl>
                 ) : null}
@@ -256,7 +264,7 @@ export function ShowroomCard({
                   </T>
                 </View>
                 <T variant="t5" numberOfLines={1} color={fx.quiet}>
-                  {vendor.reviewCount} {vendor.reviewCount === 1 ? 'review' : 'reviews'}
+                  {tn(vendor.reviewCount, '{count} review', '{count} reviews')}
                 </T>
               </Fact>
             ) : null}
@@ -266,7 +274,7 @@ export function ShowroomCard({
                   {`${approx ? '~' : ''}${distance} ${km < 1 ? 'm' : 'km'}`}
                 </T>
                 <T variant="t5" numberOfLines={1} color={fx.quiet}>
-                  {driveTimeLabel(km)} drive
+                  {t('{driveTimeLabel} drive', { driveTimeLabel: driveTimeLabel(km) })}
                 </T>
               </Fact>
             ) : null}
@@ -276,7 +284,7 @@ export function ShowroomCard({
                   ₹{price}
                 </T>
                 <T variant="t5" numberOfLines={1} color={fx.quiet}>
-                  starting price
+                  {t('starting price')}
                 </T>
               </Fact>
             ) : null}
@@ -286,19 +294,29 @@ export function ShowroomCard({
           </Pearl>
         </View>
 
-        {chips || vendor.outsideServiceCity || (mode === 'dropin' && vendor.doorstepEnabled) ? (
+        {chips || anywhere || townTag || (mode === 'dropin' && vendor.doorstepEnabled) ? (
           <View style={styles.chips}>
             {mode === 'dropin' && vendor.doorstepEnabled ? (
               <Raised radius={999} style={styles.chip} innerStyle={styles.chipInner}>
                 <IconHome size={13} color={fx.quietBright} />
                 <T variant="t4" color={fx.soft}>
-                  Comes to you too
+                  {t('Comes to you too')}
+                </T>
+              </Raised>
+            ) : null}
+            {/* "Comes anywhere in Chennai" (0069), as the web card. */}
+            {anywhere ? (
+              <Raised radius={999} style={styles.chip} innerStyle={styles.chipInner}>
+                <IconHome size={13} color={fx.quietBright} />
+                <T variant="t4" color={fx.soft}>
+                  {anywhere}
                 </T>
               </Raised>
             ) : null}
             {chips}
-            {/* A garage in another town says so on its card, so nobody books it thinking it is in Chennai. */}
-            {vendor.outsideServiceCity ? <OutsideCityChip outside={vendor.outsideServiceCity} /> : null}
+            {/* A garage in another town than the customer's city says so on its card ("Vellore · 125 km"), so
+                nobody books it thinking it is round the corner; one in their city says nothing (0070). */}
+            {townTag ? <OutsideCityChip text={townTag} /> : null}
           </View>
         ) : null}
       </Pressable>
@@ -309,7 +327,7 @@ export function ShowroomCard({
             <Pressable
               key={src}
               accessibilityRole="button"
-              accessibilityLabel={`Photo ${i + 1} of ${photos.length}`}
+              accessibilityLabel={t('Photo {number} of {total}', { number: i + 1, total: photos.length })}
               accessibilityState={{ selected: i === photo }}
               hitSlop={10}
               onPress={() => {

@@ -9,6 +9,7 @@ import { AuthStage } from '@repo/native-ui/auth-stage';
 import { ScButton } from '@repo/native-ui/button';
 import { BrandMark } from '@repo/native-ui/primitives';
 import { T } from '@repo/native-ui/text';
+import { useT } from '@repo/core/i18n';
 
 /** Native only (frame J): a website updates itself. The sign-in stage, card and red button. */
 export function UpdateRequired({ answer }: { answer: AppConfigAnswer }) {
@@ -21,16 +22,18 @@ export function UpdateRequired({ answer }: { answer: AppConfigAnswer }) {
 
 // AuthStage keeps its own (dark) theme, so what goes inside it reads the colours there, not here.
 function VersionLine({ minVersion }: { minVersion: string }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   return (
     <T num size={12} lh={16} color={colors.textMuted} align="center" style={styles.legal}>
-      {`Your version ${APP_VERSION} · needed ${minVersion}`}
+      {t('Your version {version} · needed {min}', { version: APP_VERSION, min: minVersion })}
     </T>
   );
 }
 
 function UpdateBody({ storeUrl }: { storeUrl: AppConfigAnswer['storeUrl'] }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const store = storeUrl;
@@ -39,16 +42,16 @@ function UpdateBody({ storeUrl }: { storeUrl: AppConfigAnswer['storeUrl'] }) {
       <View style={styles.center}>
         <BrandMark height={36} />
         <T accessibilityRole="header" size={28} weight={700} lh={36} tracking={-0.02} align="center" style={styles.title}>
-          Update Detlio for Garages to keep going
+          {t('Update Detlio for Garages to keep going')}
         </T>
         <T size={16} lh={24} color={colors.textSecondary} align="center" style={styles.sub}>
-          This version no longer works with Detlio.
+          {t('This version no longer works with Detlio.')}
         </T>
       </View>
       {store ? (
         <View style={styles.button}>
           <ScButton variant="cta" onPress={() => openLink(store)}>
-            {Platform.OS === 'android' ? 'Open Google Play' : 'Open the App Store'}
+            {Platform.OS === 'android' ? t('Open Google Play') : t('Open the App Store')}
           </ScButton>
         </View>
       ) : null}

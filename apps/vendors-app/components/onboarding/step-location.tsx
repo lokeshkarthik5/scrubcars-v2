@@ -23,12 +23,14 @@ import { digitsOnly } from '@/lib/settings-logic';
 import { createVendor } from '@/lib/vendor-api';
 
 import { OnboardingHeader, SectionTitle, useDraftSync } from './parts';
+import { useT } from '@repo/core/i18n';
 
 /**
  * Step 2: Garage location (apps/vendors/app/onboarding/step-2/page.tsx). Continue makes the
  * garage, makes it the one the app acts as, and walks on to step 3.
  */
 export function StepLocation() {
+  const t = useT();
   const saved = useOnboardingDraft.getState();
   const [address, setAddress] = useState(saved.address);
   const [pincode, setPincode] = useState(saved.pincode);
@@ -66,7 +68,7 @@ export function StepLocation() {
   const handleContinue = async () => {
     const problem = step2Problem({ hasPin: Boolean(pin), pincode });
     if (problem || !pin) {
-      toast.error(problem ?? 'Set your garage location on the map');
+      toast.error(t(problem ?? 'Set your garage location on the map'));
       return;
     }
     setLoading(true);
@@ -85,13 +87,13 @@ export function StepLocation() {
       // before they run: the requests carry its id.
       await useAuth.getState().reloadSession();
       if (!useAuth.getState().vendors.some((v) => v.id === vendorId)) {
-        throw new Error('Your garage was saved, but it could not be opened yet. Tap Continue to try again.');
+        throw new Error(t('Your garage was saved, but it could not be opened yet. Tap Continue to try again.'));
       }
       useAuth.getState().setActiveVendor(vendorId);
       router.replace(stepPath(3) as Href);
     } catch (err) {
       onboardingHold.set(false);
-      toast.error(errorText(err, 'Failed to save. Please try again.'));
+      toast.error(errorText(err, t('Failed to save. Please try again.')));
     } finally {
       setLoading(false);
     }
@@ -101,29 +103,29 @@ export function StepLocation() {
     <AppShell hasNav={false}>
       <OnboardingHeader
         step={2}
-        title="Your garage location"
+        title={t('Your garage location')}
         onBack={() => (router.canGoBack() ? router.back() : router.replace(stepPath(1)))}
       />
 
       <View style={styles.section}>
         <SectionTitle
-          title="Pin your garage"
-          subtitle="This is how customers find you and how we work out who is nearby, so place it exactly at your gate."
+          title={t('Pin your garage')}
+          subtitle={t('This is how customers find you and how we work out who is nearby, so place it exactly at your gate.')}
         />
         <LocationPicker value={pin ? { lat: pin.lat, lng: pin.lng } : null} onChange={handlePick} expectedCity={city} />
       </View>
 
       <ScCard style={styles.card}>
         <ScTextarea
-          label="Full address"
+          label={t('Full address')}
           rows={3}
           textContentType="fullStreetAddress"
           value={address}
           onChangeText={setAddress}
         />
-        <ScInput label="City" value={city} onChangeText={setCity} />
+        <ScInput label={t('City')} value={city} onChangeText={setCity} />
         <ScInput
-          label="Pincode"
+          label={t('Pincode')}
           numeric
           keyboardType="number-pad"
           placeholder="600001"
@@ -131,7 +133,7 @@ export function StepLocation() {
           onChangeText={(text) => setPincode(digitsOnly(text, 6))}
         />
         <ScInput
-          label="Google Maps link (optional)"
+          label={t('Google Maps link (optional)')}
           keyboardType="url"
           autoCapitalize="none"
           autoCorrect={false}
@@ -148,7 +150,7 @@ export function StepLocation() {
         disabled={!step2Ready({ hasPin: Boolean(pin), address, city, pincode }) || loading}
         onPress={() => void handleContinue()}
       >
-        Continue
+        {t('Continue')}
       </ScButton>
     </AppShell>
   );

@@ -9,6 +9,7 @@ import { createStyles, useColors } from '@repo/native-ui/theme';
 import { ScButton } from '@repo/native-ui/button';
 import { IconBell, IconX } from '@repo/native-ui/icons';
 import { T } from '@repo/native-ui/text';
+import { fill, useT } from '@repo/core/i18n';
 
 /** A close is "not now", never "never": it comes back a week later while alerts are off. */
 const SNOOZED_AT_KEY = 'detlio.pushBannerSnoozedAt';
@@ -21,6 +22,7 @@ function snoozed(): boolean {
 
 /** PushBanner: until this phone has alerts on, for every seat. */
 export function PushBanner() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const device = usePushDevice();
@@ -29,13 +31,16 @@ export function PushBanner() {
   if (hidden || !device.loaded || !device.enabled || device.subscribed) return null;
 
   return (
-    <View accessibilityLabel="New-booking alerts" style={styles.banner}>
+    <View accessibilityLabel={t('New-booking alerts')} style={styles.banner}>
       <IconBell size={22} />
       <T size={15} lh={21} color={colors.textSecondary} style={styles.text}>
-        <T size={15} lh={21} weight={600}>
-          Booking alerts are off
-        </T>{' '}
-        on this phone
+        {fill(t('{off} on this phone'), {
+          off: (
+            <T size={15} lh={21} weight={600}>
+              {t('Booking alerts are off')}
+            </T>
+          ),
+        })}
       </T>
       {device.support === 'supported' ? (
         <ScButton
@@ -47,7 +52,7 @@ export function PushBanner() {
           style={styles.turnOn}
           onPress={() => void device.turnOn()}
         >
-          Turn on
+          {t('Turn on')}
         </ScButton>
       ) : (
         <Pressable
@@ -56,13 +61,13 @@ export function PushBanner() {
           style={styles.why}
         >
           <T size={15} weight={600} style={styles.underline}>
-            Why
+            {t('Why')}
           </T>
         </Pressable>
       )}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Not now"
+        accessibilityLabel={t('Not now')}
         onPress={() => {
           devicePrefs.setItem(SNOOZED_AT_KEY, String(Date.now()));
           setHidden(true);

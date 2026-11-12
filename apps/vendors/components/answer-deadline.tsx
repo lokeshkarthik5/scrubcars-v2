@@ -1,6 +1,7 @@
 'use client'
 
 import { IconAlarm } from '@tabler/icons-react'
+import { useT } from '@repo/core/i18n'
 import { deadlineState } from '@repo/core/format'
 import { useNow } from '@repo/core/hooks/use-now'
 import { garageCountdown } from '@repo/core/response-deadline'
@@ -21,6 +22,7 @@ const MINUTE_MS = 60 * 1000
  * started (the garage is shut), which is the "By" look.
  */
 export function AnswerDeadline({ deadline }: { deadline: ResponseDeadline }) {
+  const t = useT()
   const now = useNow(10_000)
   const respondBy = new Date(deadline.respondBy).getTime()
   const windowMs = deadline.windowMins * MINUTE_MS
@@ -65,14 +67,14 @@ export function AnswerDeadline({ deadline }: { deadline: ResponseDeadline }) {
               <span className="font-numeric text-[28px] font-bold leading-none tracking-tight">
                 {state.label}
               </span>
-              <span className="text-[16px] font-medium">to answer</span>
+              <span className="text-[16px] font-medium">{t('to answer')}</span>
             </>
           ) : (
             <>
               <span className="font-numeric text-[40px] font-bold leading-none tracking-tight">
                 {state.label}
               </span>
-              <span className="text-[16px] font-medium">left to answer</span>
+              <span className="text-[16px] font-medium">{t('left to answer')}</span>
             </>
           )}
         </p>

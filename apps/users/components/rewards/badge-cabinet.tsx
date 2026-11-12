@@ -10,6 +10,7 @@ import { rewardDate } from '@repo/core/rewards'
 import { cn } from '@repo/core/utils'
 import { featuredBadges } from '@/lib/featured-badges'
 import { BadgeMedal } from './badge-medal'
+import { fill, useT } from '@repo/core/i18n'
 
 type Selected = { kind: 'badge'; badge: CabinetBadge } | { kind: 'challenge'; label: string; at: string }
 /** What the one sheet shows: the whole cabinet, or one badge (from the row or from the cabinet). */
@@ -32,12 +33,17 @@ function BadgeButton({
   size: number
   compact?: boolean
 }) {
+  const t = useT()
   return (
     <button
       type="button"
       onClick={onOpen}
       className="flex w-full flex-col items-center gap-1.5 rounded-[12px] px-0.5 py-1 text-center focus-visible:outline-2 focus-visible:outline-offset-2"
-      aria-label={`${label}: ${earned ? 'earned' : `locked, ${progress ? badgeProgressLine(progress) : ''}`}`}
+      aria-label={
+        earned
+          ? t('{label}: earned', { label })
+          : t('{label}: locked, {progress}', { label, progress: progress ? badgeProgressLine(progress) : '' })
+      }
     >
       <BadgeMedal badgeKey={badgeKey} earned={earned} size={size} />
       <span className={cn('line-clamp-2 leading-tight', compact ? 'text-[10px]' : 'text-t5', earned ? 'text-text-primary' : 'text-text-muted')}>{label}</span>
@@ -53,6 +59,7 @@ function BadgeButton({
  * the end of the cabinet.
  */
 export function BadgeCabinet({ extras }: { extras: RewardExtras }) {
+  const t = useT()
   const [view, setView] = useState<SheetView | null>(null)
   const total = extras.badges.length + extras.challengeBadges.length
   const featured = useMemo(() => featuredBadges(extras, 6), [extras])
@@ -62,14 +69,14 @@ export function BadgeCabinet({ extras }: { extras: RewardExtras }) {
     <section aria-labelledby="badges" className="flex flex-col gap-2">
       <div className="flex items-baseline justify-between gap-3">
         <h2 id="badges" className="text-sm font-semibold text-text-primary">
-          Badges <span className="font-numeric text-t5 font-normal text-text-secondary">· {extras.earnedCount} of {total}</span>
+          {fill(t('Badges {part}'), { part: <span className="font-numeric text-t5 font-normal text-text-secondary">{t('· {earnedCount} of {total}', { earnedCount: extras.earnedCount, total })}</span> })}
         </h2>
         <button
           type="button"
           onClick={() => setView({ kind: 'all' })}
           className="flex min-h-9 items-center gap-1 text-t5 font-medium text-text-primary"
         >
-          See all{' '}<span className="font-numeric">{total}</span>
+          {fill(t('See all {total}'), { total: <span className="font-numeric">{total}</span> })}
           <IconChevronRight size={14} aria-hidden />
         </button>
       </div>
@@ -93,13 +100,13 @@ export function BadgeCabinet({ extras }: { extras: RewardExtras }) {
         ))}
       </ul>
 
-      <ScSheet open={view !== null} onClose={() => setView(null)} aria-label={view?.kind === 'all' ? 'All badges' : 'Badge'}>
+      <ScSheet open={view !== null} onClose={() => setView(null)} aria-label={view?.kind === 'all' ? t('All badges') : t('Badge')}>
         {view?.kind === 'all' && (
           <div className="flex flex-col gap-3 px-4 pt-1">
             <div className="flex items-baseline justify-between gap-3 px-1">
-              <h3 className="text-t2 font-semibold text-text-primary">All badges</h3>
+              <h3 className="text-t2 font-semibold text-text-primary">{t('All badges')}</h3>
               <span className="font-numeric text-t5 text-text-secondary">
-                {extras.earnedCount} of {total} earned
+                {t('{earnedCount} of {total} earned', { earnedCount: extras.earnedCount, total })}
               </span>
             </div>
             <ul className="grid grid-cols-4 gap-x-1 gap-y-3">
@@ -132,7 +139,7 @@ export function BadgeCabinet({ extras }: { extras: RewardExtras }) {
                 className="flex min-h-9 items-center gap-0.5 self-start text-t5 font-medium text-text-secondary"
               >
                 <IconChevronLeft size={14} aria-hidden />
-                All badges
+                {t('All badges')}
               </button>
             )}
             {view.selected.kind === 'badge' ? (
@@ -141,9 +148,9 @@ export function BadgeCabinet({ extras }: { extras: RewardExtras }) {
               <>
                 <BadgeMedal badgeKey="challenge" earned size={88} />
                 <h3 className="text-t2 font-semibold text-text-primary">{view.selected.label}</h3>
-                <p className="text-t4 text-text-secondary">Won in a Detlio challenge.</p>
+                <p className="text-t4 text-text-secondary">{t('Won in a Detlio challenge.')}</p>
                 <p className="text-t5 text-text-muted">
-                  Earned <span className="font-numeric">{rewardDate(view.selected.at)}</span>
+                  {fill(t('Earned {rewardDate}'), { rewardDate: <span className="font-numeric">{rewardDate(view.selected.at)}</span> })}
                 </p>
               </>
             )}
@@ -155,6 +162,7 @@ export function BadgeCabinet({ extras }: { extras: RewardExtras }) {
 }
 
 function BadgeDetail({ badge }: { badge: CabinetBadge }) {
+  const t = useT()
   return (
     <>
       <BadgeMedal badgeKey={badge.key} earned={!!badge.earned} size={88} />
@@ -162,7 +170,7 @@ function BadgeDetail({ badge }: { badge: CabinetBadge }) {
       <p className="text-t4 text-text-secondary">{badge.howTo}</p>
       {badge.earned ? (
         <p className="text-t5 text-text-muted">
-          Earned <span className="font-numeric">{rewardDate(badge.earned.at)}</span>
+          {fill(t('Earned {rewardDate}'), { rewardDate: <span className="font-numeric">{rewardDate(badge.earned.at)}</span> })}
         </p>
       ) : (
         <div className="flex w-full max-w-[240px] flex-col gap-1.5">
@@ -177,7 +185,13 @@ function BadgeDetail({ badge }: { badge: CabinetBadge }) {
       )}
       {bonusStampsLine(badge.bonusStamps) && (
         <p className="text-t5 text-text-secondary">
-          <Figures text={`${bonusStampsLine(badge.bonusStamps)} on your Shine Card${badge.earned ? '' : ' when you earn it'}.`} />
+          <Figures
+            text={
+              badge.earned
+                ? t('{stamps} on your Shine Card.', { stamps: bonusStampsLine(badge.bonusStamps) ?? '' })
+                : t('{stamps} on your Shine Card when you earn it.', { stamps: bonusStampsLine(badge.bonusStamps) ?? '' })
+            }
+          />
         </p>
       )}
     </>

@@ -1,6 +1,7 @@
 import { getBookingReceipt } from '@repo/core/api/bookings';
 import { ApiError } from '@repo/core/api/client';
 import { BOOKING_TYPE_LABELS } from '@repo/core/booking-types';
+import { useT } from '@repo/core/i18n';
 import { formatReceiptAmount, RECEIPT_NOT_TAX_INVOICE, receiptFileTitle } from '@repo/core/receipts';
 import type { BookingReceipt } from '@repo/core/types';
 import { Label, ScButton } from '@repo/native-ui/button';
@@ -254,6 +255,7 @@ function ReceiptDocument({ receipt }: { receipt: BookingReceipt }) {
 
 /** apps/users/app/bookings/[id]/receipt/page.tsx, with the PDF going through the phone's share sheet. */
 export default function ReceiptScreen() {
+  const t = useT();
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors();
   const styles = useStyles();
@@ -287,12 +289,12 @@ export default function ReceiptScreen() {
       if (named.exists) named.delete();
       new File(uri).copy(named);
       if (!(await Sharing.isAvailableAsync())) {
-        toast.info("Sharing isn't available on this phone.");
+        toast.info(t("Sharing isn't available on this phone."));
         return;
       }
       await Sharing.shareAsync(named.uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf', dialogTitle: `Detlio receipt ${state.receipt.receiptNumber}` });
     } catch {
-      toast.error("Couldn't make the PDF. Try again.");
+      toast.error(t("Couldn't make the PDF. Try again."));
     } finally {
       setSharing(false);
     }
@@ -301,15 +303,15 @@ export default function ReceiptScreen() {
   if (state.kind !== 'ready') {
     return (
       <View style={[styles.page, { paddingTop: insets.top }]}>
-        <PageHeader title="Receipt" backTo={`/bookings/${id}`} />
+        <PageHeader title={t('Receipt')} backTo={`/bookings/${id}`} />
         {state.kind === 'loading' ? (
           <T size={13} lh={18} color={colors.textSecondary} style={styles.message}>
-            Loading your receipt…
+            {t('Loading your receipt…')}
           </T>
         ) : (
           <View style={styles.problem}>
             <T size={13} lh={18} color={colors.textSecondary}>
-              {state.kind === 'unavailable' || state.kind === 'pending' ? state.message : 'Could not load this receipt. It may have been removed or you may not have access.'}
+              {state.kind === 'unavailable' || state.kind === 'pending' ? state.message : t('Could not load this receipt. It may have been removed or you may not have access.')}
             </T>
             {state.kind === 'pending' ? (
               <ScButton
@@ -320,11 +322,11 @@ export default function ReceiptScreen() {
                   setAttempt((n) => n + 1);
                 }}
               >
-                Try again
+                {t('Try again')}
               </ScButton>
             ) : null}
             <ScButton variant="outline" height={44} onPress={() => (router.canGoBack() ? router.back() : router.replace(`/bookings/${id}` as Href))}>
-              Back to booking
+              {t('Back to booking')}
             </ScButton>
           </View>
         )}
@@ -334,19 +336,19 @@ export default function ReceiptScreen() {
 
   return (
     <View style={[styles.page, { paddingTop: insets.top }]}>
-      <PageHeader title="Receipt" backTo={`/bookings/${state.receipt.booking.id}`} />
+      <PageHeader title={t('Receipt')} backTo={`/bookings/${state.receipt.booking.id}`} />
       <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 40 }]}>
         <View style={styles.actions}>
           <View style={styles.grow}>
             <ScButton variant="main" height={44} disabled={sharing} onPress={() => void sharePdf()}>
               <IconDownload size={18} color={colors.white} />
-              <Label color={colors.white}>{sharing ? 'Making it…' : 'Download PDF'}</Label>
+              <Label color={colors.white}>{sharing ? t('Making it…') : t('Download PDF')}</Label>
             </ScButton>
           </View>
           <View style={styles.grow}>
             <ScButton variant="outline" height={44} disabled={sharing} onPress={() => void sharePdf()}>
               <IconShare size={18} color={colors.textPrimary} />
-              <Label>Share</Label>
+              <Label>{t('Share')}</Label>
             </ScButton>
           </View>
         </View>

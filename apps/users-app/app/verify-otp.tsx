@@ -1,4 +1,5 @@
 import { useNow } from '@repo/core/hooks/use-now';
+import { fill, useT } from '@repo/core/i18n';
 import { formatCountdown, otpDeadlines, otpErrorMessage, retryAt as retryMoment, secondsUntil } from '@repo/core/otp';
 import { AuthStage } from '@repo/native-ui/auth-stage';
 import { Label, ScButton } from '@repo/native-ui/button';
@@ -20,6 +21,7 @@ function formatPhone(phone: string) {
 }
 
 function Body() {
+  const t = useT();
   const colors = useColors();
   const flow = otpFlow.get();
   const phone = flow?.phone ?? '';
@@ -51,7 +53,7 @@ function Body() {
       // The session gate takes it from here.
       useAuth.getState().applySession(data);
     } catch (err) {
-      setError(otpErrorMessage(err, 'Verification failed'));
+      setError(otpErrorMessage(err, t('Verification failed')));
     } finally {
       setLoading(false);
     }
@@ -79,7 +81,7 @@ function Body() {
       setExpiresAt(deadlines.expiresAt);
       setResendAt(deadlines.resendAt);
     } catch (err) {
-      setError(otpErrorMessage(err, 'Failed to resend OTP'));
+      setError(otpErrorMessage(err, t('Failed to resend OTP')));
       const at = retryMoment(err, Date.now());
       if (at) setResendAt(at);
     } finally {
@@ -94,11 +96,11 @@ function Body() {
   return (
     <View style={styles.center}>
       <T accessibilityRole="header" size={28} weight={700} lh={36} tracking={-0.02} align="center">
-        Verify your number
+        {t('Verify your number')}
       </T>
       <View style={styles.sent}>
         <T size={16} lh={24} color={colors.textSecondary} align="center">
-          Enter the 6-digit code sent to
+          {t('Enter the 6-digit code sent to')}
         </T>
         <T size={15} weight={600} align="center">
           {formatPhone(phone)}
@@ -121,14 +123,17 @@ function Body() {
         <View style={styles.expiry}>
           {expirySeconds > 0 ? (
             <T size={12} color={colors.textSecondary}>
-              {'Code expires in '}
-              <T num size={12} weight={500}>
-                {formatCountdown(expirySeconds)}
-              </T>
+              {fill(t('Code expires in {time}'), {
+                time: (
+                  <T num size={12} weight={500}>
+                    {formatCountdown(expirySeconds)}
+                  </T>
+                ),
+              })}
             </T>
           ) : (
             <T accessibilityLiveRegion="polite" size={12} color={colors.textSecondary}>
-              Code expired — resend
+              {t('Code expired — resend')}
             </T>
           )}
         </View>
@@ -142,22 +147,23 @@ function Body() {
       >
         <T size={13} weight={600} lh={18} color={resendColor} style={off ? undefined : styles.underline}>
           {resending ? (
-            'Sending...'
+            t('Sending...')
           ) : resendSeconds > 0 ? (
-            <>
-              {'Resend OTP in '}
-              <T num size={13} weight={600} lh={18} color={resendColor}>
-                {formatCountdown(resendSeconds)}
-              </T>
-            </>
+            fill(t('Resend OTP in {time}'), {
+              time: (
+                <T num size={13} weight={600} lh={18} color={resendColor}>
+                  {formatCountdown(resendSeconds)}
+                </T>
+              ),
+            })
           ) : (
-            'Resend OTP'
+            t('Resend OTP')
           )}
         </T>
       </Pressable>
       <View style={styles.verify}>
         <ScButton variant="cta" glass disabled={disabled} onPress={() => void verify()}>
-          <Label color={disabled ? colors.textSecondary : colors.white}>{loading ? 'Verifying...' : 'Verify'}</Label>
+          <Label color={disabled ? colors.textSecondary : colors.white}>{loading ? t('Verifying...') : t('Verify')}</Label>
         </ScButton>
       </View>
     </View>

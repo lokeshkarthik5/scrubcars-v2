@@ -1,3 +1,5 @@
+import { msg, t } from './i18n/translate'
+
 /**
  * The Detlio Garage (0057) for the apps: rarities and their looks, the
  * settings' shape and defaults, the limits and the words the customer app
@@ -22,11 +24,11 @@ export type PullSource = 'booking' | 'scratch' | 'challenge' | 'badge' | 'admin'
 export type SeriesStatus = 'draft' | 'live' | 'ended'
 
 export const PULL_SOURCE_LABELS: Record<PullSource, string> = {
-  booking: 'Booking completed',
-  scratch: 'Scratch card',
-  challenge: 'Challenge prize',
-  badge: 'Badge bonus',
-  admin: 'From Detlio',
+  booking: msg('Booking completed'),
+  scratch: msg('Scratch card'),
+  challenge: msg('Challenge prize'),
+  badge: msg('Badge bonus'),
+  admin: msg('From Detlio'),
 }
 
 export interface GarageSettings {
@@ -80,7 +82,7 @@ export const CAR_LIMITS = {
 export const PHOTO_SETTINGS = ['Studio', 'Track', 'Night street', 'Open road', 'City', 'Coast', 'Garage', 'Showroom'] as const
 
 /** The line every Garage card is shown with: the photos are of real cars. */
-export const ILLUSTRATION_LINE = 'Cars shown for illustration only. Not affiliated with any car maker.'
+export const ILLUSTRATION_LINE = msg('Cars shown for illustration only. Not affiliated with any car maker.')
 
 export const ROW_SIZE = 5
 
@@ -113,7 +115,7 @@ export function cardNumber(number: number, total: number): string {
 
 /** "17 of 40" */
 export function collectedLine(collected: number, total: number): string {
-  return `${collected} of ${total}`
+  return t('{done} of {count}', { done: collected, count: total })
 }
 
 /** The row a card's number is in (1-based). */
@@ -124,8 +126,8 @@ export function rowOf(number: number): number {
 /** "2 more duplicates to a bonus stamp", "Your next duplicate is a bonus stamp". */
 export function duplicatesLine(unconverted: number, perStar: number): string {
   const left = perStar - (unconverted % perStar)
-  if (left === 1) return 'Your next duplicate makes a bonus stamp'
-  return `${left} more duplicates make a bonus stamp`
+  if (left === 1) return t('Your next duplicate makes a bonus stamp')
+  return t('{count} more duplicates make a bonus stamp', { count: left })
 }
 
 /** "x2" when a car is owned more than once. */

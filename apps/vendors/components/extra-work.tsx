@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { IconCameraPlus, IconTool, IconX } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
+import { useT, useTn } from '@repo/core/i18n'
+import { msg } from '@repo/core/i18n/translate'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScInput, ScTextarea } from '@repo/ui/sc/input'
 import { ScSheet } from '@repo/ui/sc/modal'
@@ -20,23 +22,23 @@ const MAX_DESCRIPTION = 80
 const MAX_NOTE = 500
 const MAX_PHOTOS = 3
 
-/** One colour per meaning (UX audit, garage finding 7): green only once it is paid. */
+/** One colour per meaning (UX audit, garage finding 7): green only once it is paid. Labels shown as `t(label)`. */
 const STATE: Record<ExtraWork['state'], { label: string; tone: StatusTone }> = {
-  awaiting: { label: 'Waiting for customer', tone: 'progress' },
-  paid: { label: 'Approved & paid — go ahead', tone: 'done' },
-  declined: { label: 'Declined by customer', tone: 'closed' },
-  withdrawn: { label: 'Withdrawn', tone: 'closed' },
-  closed: { label: 'Closed with the booking', tone: 'closed' },
+  awaiting: { label: msg('Waiting for customer'), tone: 'progress' },
+  paid: { label: msg('Approved & paid — go ahead'), tone: 'done' },
+  declined: { label: msg('Declined by customer'), tone: 'closed' },
+  withdrawn: { label: msg('Withdrawn'), tone: 'closed' },
+  closed: { label: msg('Closed with the booking'), tone: 'closed' },
 }
 
-/** Why the form cannot be sent yet; null when it can. */
+/** Why the form cannot be sent yet, in English (shown as `t(problem)`); null when it can. */
 function formProblem(description: string, amount: string): string | null {
-  if (!description.trim()) return 'Say what the extra work is.'
+  if (!description.trim()) return msg('Say what the extra work is.')
   const n = Number(amount)
   if (!amount || !Number.isFinite(n) || n < 1)
-    return 'Give a price of at least ₹1.'
+    return msg('Give a price of at least ₹1.')
   if (Math.abs(n * 100 - Math.round(n * 100)) > 1e-6)
-    return 'Use at most two decimals.'
+    return msg('Use at most two decimals.')
   return null
 }
 
@@ -58,10 +60,12 @@ interface ExtraWorkPanelProps {
  * inspection finds, so the card says to add it there.
  */
 export function ExtraWorkPanel({ booking, onChanged }: ExtraWorkPanelProps) {
+  const t = useT()
+  const tn = useTn()
   const [listOpen, setListOpen] = useState(false)
   const [asking, setAsking] = useState(false)
   const [withdrawing, setWithdrawing] = useState<string | null>(null)
-  const who = booking.customerName ?? 'the customer'
+  const who = booking.customerName ?? t('the customer')
   const canAsk = booking.extraWorkRefusal === null
   const isVendorAdmin = useIsVendorAdmin()
 
@@ -76,10 +80,10 @@ export function ExtraWorkPanel({ booking, onChanged }: ExtraWorkPanelProps) {
     setWithdrawing(work.id)
     try {
       await withdrawExtraWork(booking.id, work.id)
-      toast.success('Extra work withdrawn.')
+      toast.success(t('Extra work withdrawn.'))
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : 'Could not withdraw it'
+        error instanceof Error ? error.message : t('Could not withdraw it')
       )
     } finally {
       setWithdrawing(null)
@@ -94,9 +98,12 @@ export function ExtraWorkPanel({ booking, onChanged }: ExtraWorkPanelProps) {
   const total = live.reduce((sum, work) => sum + Number(work.amount), 0)
   const refusal =
     booking.extraWorkRefusal === 'on_inspection'
-      ? 'This job is priced on inspection: add any extra work to its final bill.'
+      ? t('This job is priced on inspection: add any extra work to its final bill.')
       : booking.extraWorkRefusal === 'too_many_open'
-        ? `${who} has 3 requests to answer. Wait for an answer, or withdraw one, to ask for more.`
+        ? t(
+            '{who} has 3 requests to answer. Wait for an answer, or withdraw one, to ask for more.',
+            { who }
+          )
         : null
 
   return (
@@ -105,7 +112,7 @@ export function ExtraWorkPanel({ booking, onChanged }: ExtraWorkPanelProps) {
         icon={<IconTool size={22} stroke={1.6} />}
         title={
           <>
-            Extra work
+            {t('Extra work')}
             {/* The sum is the owner's; each request's own price stays in the sheet. */}
             {isVendorAdmin && total > 0 && (
               <span className="font-numeric">{` · ${formatINR(total, { paise: true })}`}</span>
@@ -114,14 +121,14 @@ export function ExtraWorkPanel({ booking, onChanged }: ExtraWorkPanelProps) {
         }
         detail={
           latest
-            ? `${latest.description} · ${STATE[latest.state].label}`
-            : (refusal ?? 'Found more to do? Ask the customer')
+            ? `${latest.description} · ${t(STATE[latest.state].label)}`
+            : (refusal ?? t('Found more to do? Ask the customer'))
         }
         aria-label={
           latest
-            ? `Extra work for ${who}`
+            ? t('Extra work for {who}', { who })
             : canAsk
-              ? `Ask ${who} for extra work`
+              ? t('Ask {who} for extra work', { who })
               : undefined
         }
         onOpen={
@@ -136,11 +143,11 @@ export function ExtraWorkPanel({ booking, onChanged }: ExtraWorkPanelProps) {
       <ScSheet
         open={listOpen}
         onClose={() => setListOpen(false)}
-        aria-label={`Extra work for ${who}`}
+        aria-label={t('Extra work for {who}', { who })}
         className="px-4"
       >
         <h2 className="text-[20px] font-semibold text-text-primary">
-          Extra work
+          {t('Extra work')}
         </h2>
         <div className="mt-4 flex flex-col gap-3">
           {booking.extraWork.map((work) => (
@@ -158,13 +165,11 @@ export function ExtraWorkPanel({ booking, onChanged }: ExtraWorkPanelProps) {
               </div>
               <div className="flex items-center justify-between gap-2">
                 <StatusChip tone={STATE[work.state].tone}>
-                  {STATE[work.state].label}
+                  {t(STATE[work.state].label)}
                 </StatusChip>
                 {work.photos.length > 0 && (
                   <span className="font-numeric text-[13px] text-text-secondary">
-                    {work.photos.length === 1
-                      ? '1 photo'
-                      : `${work.photos.length} photos`}
+                    {tn(work.photos.length, '{count} photo', '{count} photos')}
                   </span>
                 )}
               </div>
@@ -174,9 +179,12 @@ export function ExtraWorkPanel({ booking, onChanged }: ExtraWorkPanelProps) {
                   size="md"
                   disabled={withdrawing !== null}
                   onClick={() => handleWithdraw(work)}
-                  aria-label={`Withdraw extra work ${work.description} for ${who}`}
+                  aria-label={t('Withdraw extra work {work} for {who}', {
+                    work: work.description,
+                    who,
+                  })}
                 >
-                  {withdrawing === work.id ? 'Withdrawing…' : 'Withdraw'}
+                  {withdrawing === work.id ? t('Withdrawing…') : t('Withdraw')}
                 </ScButton>
               )}
             </div>
@@ -191,9 +199,9 @@ export function ExtraWorkPanel({ booking, onChanged }: ExtraWorkPanelProps) {
                 setListOpen(false)
                 setAsking(true)
               }}
-              aria-label={`Ask ${who} for extra work`}
+              aria-label={t('Ask {who} for extra work', { who })}
             >
-              Ask for extra work
+              {t('Ask for extra work')}
             </ScButton>
           ) : null}
         </div>
@@ -222,7 +230,8 @@ function ExtraWorkSheet({
   onClose: () => void
   onSent: () => void
 }) {
-  const who = booking.customerName ?? 'the customer'
+  const t = useT()
+  const who = booking.customerName ?? t('the customer')
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
@@ -256,7 +265,7 @@ function ExtraWorkSheet({
           toast.error(
             error instanceof Error
               ? error.message
-              : 'That photo could not be used'
+              : t('That photo could not be used')
           )
         }
       }
@@ -276,11 +285,14 @@ function ExtraWorkSheet({
         photos: photos.map((photo) => photo.blob),
       })
       toast.success(
-        `Sent. ${who} can approve and pay ${formatINR(Number(amount), { paise: true })} in the Detlio app.`
+        t('Sent. {who} can approve and pay {amount} in the Detlio app.', {
+          who,
+          amount: formatINR(Number(amount), { paise: true }),
+        })
       )
       onSent()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not send it')
+      toast.error(error instanceof Error ? error.message : t('Could not send it'))
     } finally {
       setSending(false)
     }
@@ -291,29 +303,32 @@ function ExtraWorkSheet({
       open
       onClose={onClose}
       dismissible={!sending}
-      aria-label={`Extra work for ${who}`}
+      aria-label={t('Extra work for {who}', { who })}
       className="px-4"
     >
       <h2 className="text-[20px] font-semibold text-text-primary">
-        Ask for extra work
+        {t('Ask for extra work')}
       </h2>
       {/* A whole sentence from one template string: a name glued into JSX
           text lost its space in the built page ("Meena Krishnanapproves"). */}
       <p className="mt-1 text-[14px] text-text-secondary">
-        {`${who} approves it by paying in the Detlio app. Don't start it until it says Approved & paid.`}
+        {t(
+          "{who} approves it by paying in the Detlio app. Don't start it until it says Approved & paid.",
+          { who }
+        )}
       </p>
 
       <div className="mt-4 flex flex-col gap-3">
         <ScInput
-          label="What needs doing"
-          placeholder="e.g. Replace front brake pads"
+          label={t('What needs doing')}
+          placeholder={t('e.g. Replace front brake pads')}
           maxLength={MAX_DESCRIPTION}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
         />
         <ScInput
-          label="Price (₹)"
-          aria-label="Price in rupees"
+          label={t('Price (₹)')}
+          aria-label={t('Price in rupees')}
           inputMode="decimal"
           placeholder="0"
           className="font-numeric"
@@ -323,13 +338,13 @@ function ExtraWorkSheet({
 
         <div className="flex flex-col gap-1.5">
           <p className="text-[14px] font-medium text-text-primary">
-            Photos{' '}
+            {t('Photos')}{' '}
             <span className="font-numeric text-text-secondary">
               {photos.length}/{MAX_PHOTOS}
             </span>
           </p>
           <p className="text-[13px] text-text-secondary">
-            Optional. Show the customer what you found.
+            {t('Optional. Show the customer what you found.')}
           </p>
           <ul className="flex flex-wrap gap-2">
             {photos.map((photo, i) => (
@@ -345,7 +360,7 @@ function ExtraWorkSheet({
                   onClick={() =>
                     setPhotos((current) => current.filter((_, j) => j !== i))
                   }
-                  aria-label={`Remove photo ${i + 1}`}
+                  aria-label={t('Remove photo {n}', { n: i + 1 })}
                   className="absolute -right-2 -top-2 grid size-7 place-items-center rounded-full bg-surface-elevated text-text-primary ring-1 ring-border"
                 >
                   <IconX size={14} aria-hidden />
@@ -356,7 +371,7 @@ function ExtraWorkSheet({
               <li>
                 <label className="flex size-16 cursor-pointer items-center justify-center rounded-[10px] bg-surface text-text-secondary ring-1 ring-inset ring-border">
                   <IconCameraPlus size={20} aria-hidden />
-                  <span className="sr-only">Add photos of the extra work</span>
+                  <span className="sr-only">{t('Add photos of the extra work')}</span>
                   <input
                     type="file"
                     accept="image/*"
@@ -372,7 +387,7 @@ function ExtraWorkSheet({
         </div>
 
         <ScTextarea
-          label="Note for the customer (optional)"
+          label={t('Note for the customer (optional)')}
           rows={2}
           maxLength={MAX_NOTE}
           value={note}
@@ -382,7 +397,7 @@ function ExtraWorkSheet({
 
       {problem && (description || amount) && (
         <p role="status" className="mt-2 text-[13px] text-error">
-          {problem}
+          {t(problem)}
         </p>
       )}
 
@@ -393,7 +408,7 @@ function ExtraWorkSheet({
           disabled={sending}
           onClick={onClose}
         >
-          Cancel
+          {t('Cancel')}
         </ScButton>
         <ScButton
           variant="main"
@@ -401,7 +416,7 @@ function ExtraWorkSheet({
           disabled={!!problem || sending || preparing}
           onClick={handleSend}
         >
-          {sending ? 'Sending…' : 'Send to customer'}
+          {sending ? t('Sending…') : t('Send to customer')}
         </ScButton>
       </div>
     </ScSheet>

@@ -1,4 +1,5 @@
 import type { ServiceCategory, ServiceImage, ServiceMedia } from '@repo/core/types'
+import { msg } from './i18n/translate'
 
 /**
  * What the apps need to know about a service's photos and video, kept pure
@@ -20,11 +21,12 @@ export const MAX_PHOTO_BYTES = 5 * 1024 * 1024
 /** The largest video file the server takes (2 GB). */
 export const MAX_VIDEO_BYTES = 2 * 1024 * 1024 * 1024
 
-export const VIDEO_TOO_LONG_MESSAGE =
+export const VIDEO_TOO_LONG_MESSAGE = msg(
   'Longer than 60 seconds — trim it on the phone and upload again'
+)
 
 /** The privacy tick, as both upload blocks print it after "Before adding:". */
-export const CONSENT_TEXT = 'no number plates or faces can be read, or the owner agreed'
+export const CONSENT_TEXT = msg('no number plates or faces can be read, or the owner agreed')
 
 /** "0:45", "1:12": a video length as the apps print it. */
 export function formatClipLength(totalSecs: number): string {

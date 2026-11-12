@@ -1,8 +1,11 @@
 import { randomBytes } from 'node:crypto'
 import {
+  ACCOUNT_DELETED_REASON,
+  adminDeletionCheck,
   deletedPhone,
   deletionBlockers,
   type AccountDeletionBlocker,
+  type AccountDeletionFacts,
 } from '../../lib/account-deletion.js'
 import { runInBackground } from '../../lib/background.js'
 import { bookingReference } from '../../lib/booking-ops.js'
@@ -27,7 +30,7 @@ function userNotFound() {
 }
 
 /** The facts lib/account-deletion.ts decides on, read one after the other (one connection). */
-async function blockersFor(userId: string, now: Date): Promise<AccountDeletionBlocker[]> {
+async function factsFor(userId: string, now: Date): Promise<AccountDeletionFacts> {
   const ownsGarage = await accountRepository.ownsGarage(userId)
   const openBookings = await accountRepository.listOpenBookings(userId)
   const openCheckout = await accountRepository.hasOpenCheckout(userId, now)
@@ -35,7 +38,7 @@ async function blockersFor(userId: string, now: Date): Promise<AccountDeletionBl
   const owed = await refundsService.listOwedForUser(userId)
   const creditBalancePaise = await giftCreditService.availablePaise(userId, now)
   const unredeemedGifts = await giftsService.unredeemedBought(userId, now)
-  return deletionBlockers({
+  return {
     ownsGarage,
     openBookings: openBookings.map((b) => ({ reference: bookingReference(b.id), status: b.status })),
     openCheckout,
@@ -43,7 +46,27 @@ async function blockersFor(userId: string, now: Date): Promise<AccountDeletionBl
     refundsOwed: owed.map((item) => ({ reference: item.reference, amount: item.amountOwed })),
     creditBalancePaise,
     unredeemedGifts,
-  })
+  }
+}
+
+async function blockersFor(userId: string, now: Date): Promise<AccountDeletionBlocker[]> {
+  return deletionBlockers(await factsFor(userId, now))
+}
+
+function accountChanged() {
+  return new AppError(
+    409,
+    'Something on your account changed just now (a booking or a payment). Check it, then try again.',
+    'ACCOUNT_CHANGED'
+  )
+}
+
+/** The profile photo's file, after the commit, best effort. */
+function removeAvatar(result: { avatarKey: string | null; avatarUrl: string | null }) {
+  const avatarKey = result.avatarKey ?? (result.avatarUrl ? keyFromPublicUrl(result.avatarUrl) : null)
+  if (avatarKey) {
+    runInBackground('account:avatar_delete', () => deleteObject(avatarKey))
+  }
 }
 
 export const accountService = {
@@ -75,21 +98,63 @@ export const accountService = {
     try {
       result = await accountRepository.anonymise({ userId, now, phone: deletedPhone(randomBytes(12)) })
     } catch (error) {
-      if (error instanceof DeletionRaced) {
-        throw new AppError(
-          409,
-          'Something on your account changed just now (a booking or a payment). Check it, then try again.',
-          'ACCOUNT_CHANGED'
-        )
-      }
+      if (error instanceof DeletionRaced) throw accountChanged()
       throw error
     }
     if (!result) throw userNotFound()
     log.info({ userId }, 'account:deleted')
+    removeAvatar(result)
+  },
 
-    const avatarKey = result.avatarKey ?? (result.avatarUrl ? keyFromPublicUrl(result.avatarUrl) : null)
-    if (avatarKey) {
-      runInBackground('account:avatar_delete', () => deleteObject(avatarKey))
+  /**
+   * The owner's Delete customer account, from admin's Customers page (10 Nov
+   * 2026): only owning a garage still blocks it; everything else open is a
+   * warning, in the team's words, saying what the delete does with it.
+   */
+  async adminDeletionPreview(userId: string, now = new Date()) {
+    const user = await accountRepository.findUser(userId)
+    if (!user || user.deletedAt) throw userNotFound()
+    const check = adminDeletionCheck(await factsFor(userId, now))
+    return { canDelete: check.block === null, block: check.block, warnings: check.warnings }
+  },
+
+  /**
+   * Deletes a customer's account from admin, the same anonymise as their own
+   * delete. Refused only for a garage owner (409 VENDOR_OWNER_ACCOUNT); their
+   * bookings still on are cancelled first without telling anyone, an open
+   * checkout is closed, and the delete is audited (customer_account_deleted).
+   * The person types the customer's phone number to confirm (400
+   * CONFIRM_TEXT_MISMATCH otherwise).
+   */
+  async adminDeleteAccount(
+    actor: { sub: string; name: string },
+    userId: string,
+    confirmText: string,
+    now = new Date()
+  ) {
+    const user = await accountRepository.findUser(userId)
+    if (!user || user.deletedAt) throw userNotFound()
+    if (confirmText.trim() !== user.phone) {
+      throw new AppError(400, `Type ${user.phone} exactly as shown to confirm.`, 'CONFIRM_TEXT_MISMATCH')
     }
+    const check = adminDeletionCheck(await factsFor(userId, now))
+    if (check.block) throw new AppError(409, check.block.message, check.block.code)
+
+    let result: Awaited<ReturnType<typeof accountRepository.anonymise>>
+    try {
+      result = await accountRepository.anonymise({
+        userId,
+        now,
+        phone: deletedPhone(randomBytes(12)),
+        byAdmin: { sub: actor.sub, name: actor.name, reason: ACCOUNT_DELETED_REASON },
+      })
+    } catch (error) {
+      if (error instanceof DeletionRaced) throw accountChanged()
+      throw error
+    }
+    if (!result) throw userNotFound()
+    log.warn({ userId, by: actor.name, endedBookings: result.endedBookingIds.length }, 'account:deleted_by_admin')
+    removeAvatar(result)
+    return { id: userId, deleted: true as const, endedBookings: result.endedBookingIds.length }
   },
 }

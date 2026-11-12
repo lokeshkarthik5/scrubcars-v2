@@ -9,6 +9,7 @@ import { type PricingFields, sanitizeDecimal } from '@/lib/service-form';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 
 import { FieldLabel } from './section-title';
+import { useT } from '@repo/core/i18n';
 
 /** Chips that wrap onto the next line, 8 apart (the web's `flex flex-wrap gap-2`). */
 export function ChipRow({ children }: { children: React.ReactNode }) {
@@ -31,31 +32,32 @@ export function PricingBlock({
   /** "Price (₹)" on a service, "Package price (₹)" on a package. */
   flatLabel: string;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const hint = PRICING_TYPES.find((pt) => pt.value === form.pricingType)?.hint;
   return (
     <>
       <View style={styles.group}>
-        <FieldLabel>Pricing</FieldLabel>
+        <FieldLabel>{t('Pricing')}</FieldLabel>
         <ChipRow>
           {PRICING_TYPES.map((pt) => (
             <Chip
               key={pt.value}
-              label={pt.label}
+              label={t(pt.label)}
               selected={form.pricingType === pt.value}
               onPress={() => onChange({ pricingType: pt.value as PricingType })}
             />
           ))}
         </ChipRow>
         <T size={11} color={colors.textMuted}>
-          {hint}
+          {hint ? t(hint) : hint}
         </T>
       </View>
 
       {form.pricingType === 'flat' || form.pricingType === 'on_inspection' ? (
         <ScInput
-          label={form.pricingType === 'on_inspection' ? 'Inspection fee (₹)' : flatLabel}
+          label={form.pricingType === 'on_inspection' ? t('Inspection fee (₹)') : flatLabel}
           keyboardType="decimal-pad"
           numeric
           value={form.price}
@@ -65,7 +67,7 @@ export function PricingBlock({
         <View style={styles.tiers}>
           <View style={styles.tier}>
             <ScInput
-              label="Hatchback (₹)"
+              label={t('Hatchback (₹)')}
               keyboardType="decimal-pad"
               numeric
               value={form.priceHatchback}
@@ -74,7 +76,7 @@ export function PricingBlock({
           </View>
           <View style={styles.tier}>
             <ScInput
-              label="Sedan (₹)"
+              label={t('Sedan (₹)')}
               keyboardType="decimal-pad"
               numeric
               value={form.priceSedan}
@@ -83,7 +85,7 @@ export function PricingBlock({
           </View>
           <View style={styles.tier}>
             <ScInput
-              label="SUV (₹)"
+              label={t('SUV (₹)')}
               keyboardType="decimal-pad"
               numeric
               value={form.priceSuv}

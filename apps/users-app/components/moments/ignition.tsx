@@ -1,3 +1,4 @@
+import { useT } from '@repo/core/i18n';
 import { Edge, RedLight } from '@repo/native-ui/finish';
 import { useOneShot } from '@repo/native-ui/motion';
 import { T } from '@repo/native-ui/text';
@@ -38,6 +39,7 @@ export function Ignition({
   caption?: string | null;
   onDone: () => void;
 }) {
+  const t = useT();
   const styles = useStyles();
   const colors = useColors();
   const { fx } = useFinish();
@@ -120,7 +122,7 @@ export function Ignition({
                   {subtitle}
                 </T>
               ) : null}
-              <ProgressRoad stops={stops} compact label="Your booking, just sent" style={styles.road} />
+              <ProgressRoad stops={stops} compact label={t('Your booking, just sent')} style={styles.road} />
               {caption ? (
                 <T variant="t5" color={fx.quiet}>
                   {caption}

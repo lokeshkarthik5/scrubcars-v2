@@ -6,16 +6,17 @@
  */
 
 import type { JobPhoto } from '@repo/core/types'
+import { msg, t } from './i18n/translate'
 
 export const PHOTO_ANGLES = ['front', 'back', 'left', 'right', 'interior'] as const
 export type PhotoAngle = (typeof PHOTO_ANGLES)[number]
 
 export const PHOTO_ANGLE_LABELS: Record<PhotoAngle, string> = {
-  front: 'Front',
-  back: 'Back',
-  left: 'Left side',
-  right: 'Right side',
-  interior: 'Interior',
+  front: msg('Front'),
+  back: msg('Back'),
+  left: msg('Left side'),
+  right: msg('Right side'),
+  interior: msg('Interior'),
 }
 
 /** The garage's photos a stage needs before the job moves past it. */
@@ -39,15 +40,31 @@ export interface PhotoGateRefusal {
 
 /** "Add 2 before photos to start." / "Add 1 more after photo to complete." */
 export function photoGateMessage(refusal: PhotoGateRefusal): string {
-  const more = refusal.missing < MIN_GARAGE_PHOTOS ? ' more' : ''
-  const noun = refusal.missing === 1 ? 'photo' : 'photos'
-  const verb = refusal.stage === 'before' ? 'start' : 'complete'
-  return `Add ${refusal.missing}${more} ${refusal.stage} ${noun} to ${verb}.`
+  const more = refusal.missing < MIN_GARAGE_PHOTOS
+  const one = refusal.missing === 1
+  // Every shape spelled out, so each is one key to translate.
+  const sentence =
+    refusal.stage === 'before'
+      ? more
+        ? one
+          ? msg('Add {count} more before photo to start.')
+          : msg('Add {count} more before photos to start.')
+        : one
+          ? msg('Add {count} before photo to start.')
+          : msg('Add {count} before photos to start.')
+      : more
+        ? one
+          ? msg('Add {count} more after photo to complete.')
+          : msg('Add {count} more after photos to complete.')
+        : one
+          ? msg('Add {count} after photo to complete.')
+          : msg('Add {count} after photos to complete.')
+  return t(sentence, { count: refusal.missing })
 }
 
 /** "Front", or "Extra" for a photo with no angle. */
 export function angleLabel(angle: PhotoAngle | null | undefined): string {
-  return angle ? PHOTO_ANGLE_LABELS[angle] : 'Extra'
+  return angle ? t(PHOTO_ANGLE_LABELS[angle]) : t('Extra')
 }
 
 /** One side's photos of one stage, oldest first as they arrive. */

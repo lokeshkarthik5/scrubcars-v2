@@ -10,6 +10,7 @@ import type { HomeOffer } from '@repo/core/api/home'
 import { offerFigureOf, offerMetaLines } from '@repo/core/home-display'
 import { usePendingCheckoutStore } from '@repo/core/stores/pending-checkout-store'
 import type { Vehicle } from '@repo/core/types'
+import { useT } from '@repo/core/i18n'
 
 interface HomeOffersProps {
   offers: HomeOffer[]
@@ -48,6 +49,7 @@ export function HomeOffers({
   hasCar,
   muted,
 }: HomeOffersProps) {
+  const t = useT()
   const router = useRouter()
   const queryClient = useQueryClient()
   const rememberOffer = usePendingCheckoutStore((s) => s.rememberOffer)
@@ -77,13 +79,13 @@ export function HomeOffers({
 
   return (
     <>
-      <OfferCarousel label="Offers">
+      <OfferCarousel label={t('Offers')}>
         {offers.map((offer) => (
           <OfferCoupon
             key={offer.id}
             eyebrow={
               offer.vendorId
-                ? { kind: 'garage', label: offer.vendorName ?? 'Garage' }
+                ? { kind: 'garage', label: offer.vendorName ?? t('Garage') }
                 : { kind: 'detlio', label: 'Detlio' }
             }
             title={offer.title}

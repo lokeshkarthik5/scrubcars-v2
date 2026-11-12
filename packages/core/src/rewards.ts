@@ -11,6 +11,7 @@ import type { BadgeKey, BadgeSettings } from './achievements'
 import type { GarageSettings } from './garage'
 import { formatRupees } from './job-records'
 import { istDateLabel } from './payouts'
+import { t, tn } from './i18n/translate'
 
 /** The prizes drawn by weight (the odds table). */
 export const SCRATCH_OUTCOMES = ['small_off', 'medium_off', 'big_off', 'bonus_stamp', 'free_wash'] as const
@@ -189,26 +190,26 @@ export function rewardDate(iso: string): string {
 
 /** What a scratched card won, as the API says it (lib/rewards.ts scratchPrizeLabel). */
 export function scratchPrizeLabel(outcome: ScratchOutcome, amount: number | string | null): string {
-  if (outcome === 'bonus_stamp') return 'A bonus stamp'
-  if (outcome === 'garage_card') return 'A Garage card'
+  if (outcome === 'bonus_stamp') return t('A bonus stamp')
+  if (outcome === 'garage_card') return t('A Garage card')
   const rupee = rewardRupees(amount)
-  return outcome === 'free_wash' ? `A free wash (up to ${rupee})` : `${rupee} off`
+  return outcome === 'free_wash' ? t('A free wash (up to {amount})', { amount: rupee }) : t('{amount} off', { amount: rupee })
 }
 
 /** "2 more washes to your reward", "1 more wash to your reward", "Your reward is ready". */
 export function stampsToGoLine(toGo: number): string {
-  if (toGo <= 0) return 'Your reward is ready'
-  return `${toGo} more ${toGo === 1 ? 'wash' : 'washes'} to your reward`
+  if (toGo <= 0) return t('Your reward is ready')
+  return tn(toGo, '{count} more wash to your reward', '{count} more washes to your reward')
 }
 
 /** The streak line: "2-month streak — book this month to keep it". */
 export function streakLine(streak: { months: number; thisMonthDone: boolean; toBonus: number }): string {
-  if (streak.months === 0) return 'Book this month to start a streak'
-  const length = `${streak.months}-month streak`
-  if (!streak.thisMonthDone) return `${length} — book this month to keep it`
+  if (streak.months === 0) return t('Book this month to start a streak')
+  const length = t('{count}-month streak', { count: streak.months })
+  if (!streak.thisMonthDone) return t('{streak} — book this month to keep it', { streak: length })
   return streak.toBonus === 1
-    ? `${length} — book next month for a bonus stamp`
-    : `${length} — ${streak.toBonus} more months for a bonus stamp`
+    ? t('{streak} — book next month for a bonus stamp', { streak: length })
+    : t('{streak} — {count} more months for a bonus stamp', { streak: length, count: streak.toBonus })
 }
 
 /**
@@ -223,14 +224,19 @@ export function levelLine(level: {
 }): string {
   if (level.keep) {
     const n = level.keep.needed
-    return `${n} more ${n === 1 ? 'wash' : 'washes'} by ${rewardDay(level.keep.by)} to keep ${level.label}`
+    return tn(n, '{count} more wash by {day} to keep {level}', '{count} more washes by {day} to keep {level}', {
+      day: rewardDay(level.keep.by),
+      level: t(level.label),
+    })
   }
   if (level.nextLabel && level.toNext !== null) {
     const n = level.toNext
-    return `${n} more ${n === 1 ? 'wash' : 'washes'} to reach ${level.nextLabel}`
+    return tn(n, '{count} more wash to reach {level}', '{count} more washes to reach {level}', {
+      level: t(level.nextLabel),
+    })
   }
-  if (level.nextLabel) return `${level.nextLabel} is next`
-  return `You're at the top: ${level.label}`
+  if (level.nextLabel) return t('{level} is next', { level: t(level.nextLabel) })
+  return t("You're at the top: {level}", { level: t(level.label) })
 }
 
 /** No-break spaces, so a short phrase ("since Oct 2026") never splits across lines. */
@@ -244,9 +250,9 @@ function keepTogether(text: string): string {
  * with "since Oct 2026" held together so "Oct 2026" never wraps alone.
  */
 export function lifetimeLine(lifetime: { saved: string; washes: number; since: string | null }): string {
-  const washes = `${lifetime.washes.toLocaleString('en-IN')} ${lifetime.washes === 1 ? 'wash' : 'washes'}`
-  const parts = [`You've saved ${rewardRupees(lifetime.saved)} with Detlio Rewards`, washes]
-  if (lifetime.since) parts.push(keepTogether(`since ${lifetime.since}`))
+  const washes = tn(lifetime.washes, '{count} wash', '{count} washes')
+  const parts = [t("You've saved {amount} with Detlio Rewards", { amount: rewardRupees(lifetime.saved) }), washes]
+  if (lifetime.since) parts.push(keepTogether(t('since {date}', { date: lifetime.since })))
   return parts.join(' · ')
 }
 

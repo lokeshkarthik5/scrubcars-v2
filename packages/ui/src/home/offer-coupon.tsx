@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react'
 import Link from 'next/link'
+import { useT } from '@repo/core/i18n'
 import {
   IconArrowUpRight,
   IconBuildingStore,
@@ -77,6 +78,7 @@ export function OfferCoupon({
   muted = false,
   className,
 }: OfferCouponProps) {
+  const t = useT()
   const fig = formatOfferFigure(figure)
   const trimmedCode = code.trim()
   const meta = metaLines
@@ -87,10 +89,10 @@ export function OfferCoupon({
 
   // One name for the one target: what it is, where, the code, and when it ends.
   const label = [
-    `${title} at ${eyebrow.label}`,
-    trimmedCode && `code ${trimmedCode}`,
+    t('{title} at {place}', { title, place: eyebrow.label }),
+    trimmedCode && t('code {code}', { code: trimmedCode }),
     ...meta,
-    'use offer',
+    t('use offer'),
   ]
     .filter(Boolean)
     .join(', ')
@@ -105,7 +107,7 @@ export function OfferCoupon({
             aria-hidden
             className="shrink-0"
           />
-          <span>{eyebrow.label} · Offer</span>
+          <span>{t('{label} · Offer', { label: eyebrow.label })}</span>
         </span>
         <span className="offer-coupon__title">{title}</span>
         {meta.length > 0 && (
@@ -158,7 +160,7 @@ export function OfferCoupon({
           <button
             type="button"
             onClick={onDismiss}
-            aria-label="Hide offer"
+            aria-label={t('Hide offer')}
             className="offer-coupon__dismiss"
           >
             <IconX size={18} stroke={1.5} aria-hidden />
@@ -189,9 +191,11 @@ const SLIDE_GAP = 8
  */
 export function OfferCarousel({
   children,
-  label = 'Offers',
+  label: labelGiven,
   className,
 }: OfferCarouselProps) {
+  const t = useT()
+  const label = labelGiven ?? t('Offers')
   const slides = Children.toArray(children)
   const trackRef = useRef<HTMLDivElement>(null)
   const [active, setActive] = useState(0)
@@ -242,7 +246,10 @@ export function OfferCarousel({
             key={i}
             role="group"
             aria-roledescription="slide"
-            aria-label={`Offer ${i + 1} of ${slides.length}`}
+            aria-label={t('Offer {n} of {count}', {
+              n: i + 1,
+              count: slides.length,
+            })}
             data-active={i === active}
             onClickCapture={onSlideClickCapture(i)}
             className="offer-carousel__slide"

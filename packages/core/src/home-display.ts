@@ -1,5 +1,6 @@
 import type { HomeOffer, UpdateItem, WashStatus } from '@repo/core/api/home'
 import type { OfferFigure } from '@repo/core/offer-figure'
+import { msg, t, tn } from './i18n/translate'
 
 /**
  * How Home and Updates say things: the name in the greeting, an offer's
@@ -92,7 +93,7 @@ export function offerFigureOf(offer: Pick<HomeOffer, 'discountType' | 'percentOf
 }
 
 /** Shown under an offer the customer cannot use until they save a car. */
-export const OFFER_NEEDS_CAR = 'Add your car first'
+export const OFFER_NEEDS_CAR = msg('Add your car first')
 
 /**
  * The coupon's two lines of small print, from the server's generated meta
@@ -113,7 +114,7 @@ export function offerMetaLines(
   const till = parts.find((part) => part.startsWith('Till '))
   const limits = parts.filter((part) => part !== till).join(' · ')
   const when = offer.endsSoon ?? till ?? ''
-  const second = options.hasCar ? when : [when, OFFER_NEEDS_CAR].filter(Boolean).join(' · ')
+  const second = options.hasCar ? when : [when, t(OFFER_NEEDS_CAR)].filter(Boolean).join(' · ')
   return [limits, second].filter(Boolean)
 }
 
@@ -126,27 +127,27 @@ export function offerMetaLines(
  * this only words it.
  */
 export function washLine(wash: WashStatus, now: Date): { lead: string; rest: string } {
-  const plural = (n: number, unit: string) => `${n} ${unit}${n === 1 ? '' : 's'}`
   switch (wash.state) {
     case 'booked': {
-      if (!wash.bookedFor) return { lead: 'Booked', rest: '' }
+      const booked = t('Booked')
+      if (!wash.bookedFor) return { lead: booked, rest: '' }
       const at = new Date(wash.bookedFor.scheduledAt)
       const days = istDayNumber(at) - istDayNumber(now)
-      if (days <= 0) return { lead: 'Booked', rest: ' for today' }
-      if (days === 1) return { lead: 'Booked', rest: ' for tomorrow' }
-      if (days <= 6) return { lead: 'Booked', rest: ` for ${istWeekday(at)}` }
+      if (days <= 0) return { lead: booked, rest: ` ${t('for today')}` }
+      if (days === 1) return { lead: booked, rest: ` ${t('for tomorrow')}` }
+      if (days <= 6) return { lead: booked, rest: ` ${t('for {day}', { day: istWeekday(at) })}` }
       const p = istParts(at)
-      return { lead: 'Booked', rest: ` for ${p.day} ${MONTHS[p.month]}` }
+      return { lead: booked, rest: ` ${t('for {day}', { day: `${p.day} ${MONTHS[p.month]}` })}` }
     }
     case 'overdue':
-      return { lead: `Overdue by ${plural(-(wash.daysLeft ?? 0), 'day')}`, rest: '' }
+      return { lead: tn(-(wash.daysLeft ?? 0), 'Overdue by {count} day', 'Overdue by {count} days'), rest: '' }
     case 'due_today':
-      return { lead: 'Due today', rest: '' }
+      return { lead: t('Due today'), rest: '' }
     case 'due_soon':
     case 'ok':
-      return { lead: `Due in ${plural(wash.daysLeft ?? 0, 'day')}`, rest: '' }
+      return { lead: tn(wash.daysLeft ?? 0, 'Due in {count} day', 'Due in {count} days'), rest: '' }
     case 'none':
-      return { lead: '', rest: 'No wash through Detlio yet' }
+      return { lead: '', rest: t('No wash through Detlio yet') }
   }
 }
 
@@ -175,8 +176,9 @@ export function washMeter(wash: WashStatus): { steps: number; lit: number; over:
 /** The wash intervals the sheet offers, in days. Kept in step with 0031's CHECK. */
 export const WASH_INTERVAL_CHOICES = [7, 10, 14, 21, 30] as const
 
-export const WASH_INTERVAL_DEFAULT_NOTE =
+export const WASH_INTERVAL_DEFAULT_NOTE = msg(
   'Default is every 14 days, every 10 days during the Oct–Dec monsoon.'
+)
 
 // ─── Updates ─────────────────────────────────────────────────────────────────
 
@@ -189,8 +191,8 @@ export function updateTimeLabel(atIso: string, now: Date): string {
   const at = new Date(atIso)
   if (Number.isNaN(at.getTime())) return ''
   const ago = now.getTime() - at.getTime()
-  if (ago >= 0 && ago < MINUTE_MS) return 'Just now'
-  if (ago >= 0 && ago < HOUR_MS) return `${Math.floor(ago / MINUTE_MS)} min ago`
+  if (ago >= 0 && ago < MINUTE_MS) return t('Just now')
+  if (ago >= 0 && ago < HOUR_MS) return t('{count} min ago', { count: Math.floor(ago / MINUTE_MS) })
   const days = istDayNumber(now) - istDayNumber(at)
   if (days <= 0) return istClock(at)
   if (days <= 6) return `${istWeekday(at)}, ${istClock(at)}`
@@ -198,6 +200,7 @@ export function updateTimeLabel(atIso: string, now: Date): string {
   return p.year === istParts(now).year ? `${p.day} ${MONTHS[p.month]}` : `${p.day} ${MONTHS[p.month]} ${p.year}`
 }
 
+/** English, as keys: a screen shows t(group.name). */
 export type UpdateGroupName = 'Today' | 'This week' | 'Earlier'
 
 /**

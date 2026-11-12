@@ -17,6 +17,8 @@ export interface IconProps {
   /**
    * Under the finish, the line in screen points whatever the size (1.6, the lit
    * tab's 1.9), as the website's non-scaling stroke; `stroke` is then ignored.
+   * Given outside the finish (the garage app's floating bar, whose web twin sets
+   * its own line), it is that line all the same.
    */
   line?: number;
   /** The bottom bar's brushed metal (#hub-metal): white at the top to grey below. */
@@ -34,7 +36,7 @@ function icon(nodes: Node[], filled = false) {
     const { on: finish } = useFinish();
     const tint = metal ? 'url(#icon-metal)' : (color ?? fallback);
     // The drawing is 24 units across, so a line of `line` points is line × 24 / size units.
-    const width = finish ? ((line ?? ICON_LINE) * 24) / size : stroke;
+    const width = finish || line !== undefined ? ((line ?? ICON_LINE) * 24) / size : stroke;
     const paint = filled
       ? { fill: tint }
       : {
@@ -103,6 +105,7 @@ export const IconHistory = icon([["path", {"d": "M12 8l0 4l2 2"}], ["path", {"d"
 export const IconHome = icon([["path", {"d": "M5 12l-2 0l9 -9l9 9l-2 0"}], ["path", {"d": "M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7"}], ["path", {"d": "M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6"}]]);
 export const IconInfoCircle = icon([["path", {"d": "M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0"}], ["path", {"d": "M12 9h.01"}], ["path", {"d": "M11 12h1v4h1"}]]);
 export const IconKey = icon([["path", {"d": "M16.555 3.843l3.602 3.602a2.877 2.877 0 0 1 0 4.069l-2.643 2.643a2.877 2.877 0 0 1 -4.069 0l-.301 -.301l-6.558 6.558a2 2 0 0 1 -1.239 .578l-.175 .008h-1.172a1 1 0 0 1 -.993 -.883l-.007 -.117v-1.172a2 2 0 0 1 .467 -1.284l.119 -.13l.414 -.414h2v-2h2v-2l2.144 -2.144l-.301 -.301a2.877 2.877 0 0 1 0 -4.069l2.643 -2.643a2.877 2.877 0 0 1 4.069 0"}], ["path", {"d": "M15 9h.01"}]]);
+export const IconLanguage = icon([["path", {"d": "M9 6.371c0 4.418 -2.239 6.629 -5 6.629"}], ["path", {"d": "M4 6.371h7"}], ["path", {"d": "M5 9c0 2.144 2.252 3.908 6 4"}], ["path", {"d": "M12 20l4 -9l4 9"}], ["path", {"d": "M19.1 18h-6.2"}], ["path", {"d": "M6.694 3l.793 .582"}]]);
 export const IconList = icon([["path", {"d": "M9 6l11 0"}], ["path", {"d": "M9 12l11 0"}], ["path", {"d": "M9 18l11 0"}], ["path", {"d": "M5 6l0 .01"}], ["path", {"d": "M5 12l0 .01"}], ["path", {"d": "M5 18l0 .01"}]]);
 export const IconLogout = icon([["path", {"d": "M14 8v-2a2 2 0 0 0 -2 -2h-7a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h7a2 2 0 0 0 2 -2v-2"}], ["path", {"d": "M9 12h12l-3 -3"}], ["path", {"d": "M18 15l3 -3"}]]);
 export const IconMap = icon([["path", {"d": "M3 7l6 -3l6 3l6 -3v13l-6 3l-6 -3l-6 3v-13"}], ["path", {"d": "M9 4v13"}], ["path", {"d": "M15 7v13"}]]);

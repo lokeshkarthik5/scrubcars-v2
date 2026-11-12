@@ -10,7 +10,18 @@ export interface GraphiteOption<T extends string> {
   label: string
   /** The quiet second line ("Drive it in"); hidden while the switch is pinned. */
   quiet?: string
+  /**
+   * The quiet line in the red tone, for something waiting on the person (the
+   * garage's "2 waiting" under New, in place of the red number badge).
+   */
+  quietTone?: 'red'
   icon?: ReactNode
+  /**
+   * The icon alone on the top line, with the label drawn small under it where
+   * a quiet line would be (the garage's Calendar). The label still names the
+   * radio, so it needs no quiet line of its own.
+   */
+  iconOnly?: boolean
 }
 
 /**
@@ -19,6 +30,10 @@ export interface GraphiteOption<T extends string> {
  * (it reaches across both places, then settles), and a red light under it
  * once it has settled. Two-line options are 56 tall; `pinned` (the switch
  * stuck to the top on glass) shrinks them to 44 and hides the quiet line.
+ * `size="sm"` is the small one-line switch that sits beside a heading (the
+ * garage calendar's Month | Day): 36 tall, still a 44px target.
+ * Each line stays on one line inside its own option: one too long for it
+ * (Tamil at 390px) ends in an ellipsis rather than running into the next.
  *
  * A radiogroup, as ScSegmented is and for its reason: the choice narrows the
  * one list on screen, there are no panels. Arrow keys move the choice; only
@@ -30,6 +45,7 @@ export function GraphiteSwitch<T extends string>({
   onChange,
   options,
   pinned = false,
+  size = 'md',
   className,
   'aria-label': ariaLabel,
 }: {
@@ -37,6 +53,7 @@ export function GraphiteSwitch<T extends string>({
   onChange: (value: T) => void
   options: GraphiteOption<T>[]
   pinned?: boolean
+  size?: 'md' | 'sm'
   className?: string
   'aria-label': string
 }) {
@@ -49,6 +66,7 @@ export function GraphiteSwitch<T extends string>({
   const [lit, setLit] = useState(true)
 
   const index = Math.max(0, options.findIndex((option) => option.value === value))
+  const small = size === 'sm'
 
   const place = useCallback(
     (animate: boolean) => {
@@ -121,7 +139,8 @@ export function GraphiteSwitch<T extends string>({
       aria-label={ariaLabel}
       onKeyDown={onKeyDown}
       className={cn(
-        'fx-recessed relative grid rounded-[18px] p-1',
+        'fx-recessed relative grid',
+        small ? 'rounded-[14px] p-[3px]' : 'rounded-[18px] p-1',
         className
       )}
       style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
@@ -129,15 +148,25 @@ export function GraphiteSwitch<T extends string>({
       <span
         ref={keyRef}
         aria-hidden="true"
-        className="fx-graphite pointer-events-none absolute inset-y-1 left-0 overflow-hidden rounded-[14px]"
+        className={cn(
+          'fx-graphite pointer-events-none absolute left-0 overflow-hidden',
+          small ? 'inset-y-[3px] rounded-[11px]' : 'inset-y-1 rounded-[14px]'
+        )}
       >
         <RedLight
           state={lit ? 'on' : 'off'}
-          className={cn('absolute left-1/2 -ml-2.5', pinned ? 'bottom-[3px]' : 'bottom-1')}
+          className={cn(
+            'absolute left-1/2',
+            small ? 'bottom-[3px] -ml-2 w-4' : '-ml-2.5',
+            !small && (pinned ? 'bottom-[3px]' : 'bottom-1')
+          )}
         />
       </span>
       {options.map((option, i) => {
         const selected = i === index
+        // An icon-only option's label sits on the quiet line's place, and
+        // goes with it when the switch is pinned (still naming the radio).
+        const labelUnder = Boolean(option.iconOnly && option.icon)
         return (
           <button
             key={option.value}
@@ -145,13 +174,15 @@ export function GraphiteSwitch<T extends string>({
             role="radio"
             aria-checked={selected}
             aria-labelledby={`${id}-${i}`}
-            aria-describedby={option.quiet ? `${id}-${i}-q` : undefined}
+            aria-describedby={option.quiet && !labelUnder ? `${id}-${i}-q` : undefined}
             tabIndex={selected ? 0 : -1}
             onClick={() => choose(option.value)}
             className={cn(
-              'relative z-[1] grid content-center justify-center gap-x-1.5 gap-y-0.5 rounded-[14px] px-1 transition-[color,min-height] duration-200',
+              'relative z-[1] grid min-w-0 content-center justify-center gap-x-1.5 gap-y-0.5 transition-[color,min-height] duration-200',
               'grid-cols-[auto_auto] items-center',
-              pinned ? 'min-h-9 pb-1' : 'min-h-12 pb-1.5',
+              small
+                ? 'tap-target min-h-9 rounded-[11px] px-2.5'
+                : cn('rounded-[14px] px-1', pinned ? 'min-h-9 pb-1' : 'min-h-12 pb-1.5'),
               selected ? 'text-text-primary' : 'text-[#8E8E98] hover:text-text-secondary'
             )}
           >
@@ -161,9 +192,12 @@ export function GraphiteSwitch<T extends string>({
                 className={cn(
                   'grid place-items-center [&_svg]:size-[18px]',
                   selected && 'drop-shadow-[0_0_4px_rgb(255_255_255/0.35)]',
-                  // A tight three-way switch drops the icons below 400px,
-                  // as the old one did, rather than wrap a label.
-                  options.length > 2 && 'hidden min-[400px]:grid'
+                  labelUnder
+                    ? 'col-span-2'
+                    : // A tight three-way switch drops the icons below 400px,
+                      // as the old one did, rather than wrap a label; in Tamil,
+                      // whose words are wider, at every width.
+                      options.length > 2 && 'hidden min-[400px]:grid [&:lang(ta)]:hidden'
                 )}
               >
                 {option.icon}
@@ -172,19 +206,41 @@ export function GraphiteSwitch<T extends string>({
             <span
               id={`${id}-${i}`}
               className={cn(
-                'whitespace-nowrap text-[14px]',
-                selected ? 'font-semibold' : 'font-medium',
-                !option.icon || options.length > 2 ? 'max-[399px]:col-span-2' : undefined
+                // One line that never runs into its neighbour: a label too long
+                // for its share (Tamil) ends in an ellipsis. Clipped sideways
+                // only, so tall Tamil marks are never cut; a label that fits
+                // (English) draws exactly as before.
+                'min-w-0 overflow-x-clip text-ellipsis whitespace-nowrap',
+                labelUnder
+                  ? cn(
+                      'col-span-2 text-center text-t5',
+                      selected ? 'font-semibold text-[#A8A8B2]' : 'font-medium text-[#8E8E98]',
+                      pinned && 'sr-only'
+                    )
+                  : cn(
+                      // Tamil a size down (13px), so "பிக்கப் & டிராப்" fits its third at 390px.
+                      small ? 'text-[13px]' : 'text-[14px] [&:lang(ta)]:text-[13px]',
+                      selected ? 'font-semibold' : 'font-medium',
+                      // With no icon beside it the label has the row to
+                      // itself, so it centres over its quiet line.
+                      !option.icon
+                        ? 'col-span-2'
+                        : options.length > 2
+                          ? 'max-[399px]:col-span-2 [&:lang(ta)]:col-span-2'
+                          : undefined
+                    )
               )}
             >
               {option.label}
             </span>
-            {option.quiet && (
+            {option.quiet && !labelUnder && (
               <span
                 id={`${id}-${i}-q`}
                 className={cn(
-                  'col-span-2 whitespace-nowrap text-center text-t5 font-medium transition-colors',
-                  selected ? 'text-[#A8A8B2]' : 'text-[#8E8E98]',
+                  'col-span-2 min-w-0 overflow-x-clip text-ellipsis whitespace-nowrap text-center text-t5 transition-colors',
+                  option.quietTone === 'red'
+                    ? 'font-semibold text-[#F45A66]'
+                    : cn('font-medium', selected ? 'text-[#A8A8B2]' : 'text-[#8E8E98]'),
                   pinned && 'hidden'
                 )}
               >

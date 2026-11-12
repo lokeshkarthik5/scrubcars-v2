@@ -33,6 +33,8 @@ import type { AdminDiscount } from '@repo/core/api/admin'
 import { useAdminRewardsConfig } from '@repo/core/api/hooks/use-admin-rewards'
 import { DiscountsTabs } from '@/components/discounts-tabs'
 import { Meta } from '@/components/meta'
+import { useOwnerDeleteDiscount } from '@repo/core/api/hooks/use-admin-owner-delete'
+import { OwnerDeleteButton } from '@/components/owner-delete'
 
 const rupees = (value: string | number) =>
   `₹${Number(value).toLocaleString('en-IN')}`
@@ -153,6 +155,7 @@ export default function AdminDiscountsPage() {
   // callbacks, which a second press would replace.
   const toggleActive = useToggleDiscountActive()
   const deleteDiscount = useDeleteDiscount()
+  const deleteAnyway = useOwnerDeleteDiscount()
 
   // A dead admin session is a redirect, not an error message.
   useEffect(() => {
@@ -385,9 +388,10 @@ export default function AdminDiscountsPage() {
                     <Meta label="Used" truncate>
                       {discount.heldCount > 0 ? (
                         <>
-                          {/* Held, not realized: this is the number the usage
-                              limit is checked against, so it must be the one an
-                              admin sees next to that limit. */}
+                          {/* Held, not realized: counted as the usage limit
+                              counts, so it is the one shown next to that limit;
+                              bookings marked Test are left out (owner, 10 Nov
+                              2026), which only the limit check still counts. */}
                           <span className="font-numeric">
                             {discount.heldCount}
                             {discount.totalUsageLimit
@@ -441,6 +445,40 @@ export default function AdminDiscountsPage() {
                       >
                         <IconTrash size={16} aria-hidden="true" />
                       </button>
+                    )}
+                    {/* The owner's Delete anyway (10 Nov 2026): a code
+                        already used goes too; bookings keep their figures. */}
+                    {discount.redemptionCount > 0 && (
+                      <OwnerDeleteButton
+                        label="Delete anyway…"
+                        ariaLabel={`Delete ${discount.code} anyway`}
+                        title={`Delete ${discount.code} although it was used?`}
+                        confirmLabel="Delete code"
+                        typeToConfirm={discount.code}
+                        done={`${discount.code} deleted`}
+                        className="ml-auto min-h-11 px-3 text-[12px]"
+                        body={
+                          <p>
+                            It was used on{' '}
+                            <span className="font-numeric">
+                              {discount.redemptionCount}
+                            </span>{' '}
+                            {discount.redemptionCount === 1
+                              ? 'booking'
+                              : 'bookings'}
+                            . Those bookings keep what they were charged and
+                            their discount figures; only the record of the
+                            code&apos;s use goes. Deactivate stops it and keeps
+                            it on record instead.
+                          </p>
+                        }
+                        onDelete={() =>
+                          deleteAnyway.mutateAsync({
+                            id: discount.id,
+                            confirmText: discount.code,
+                          })
+                        }
+                      />
                     )}
                   </div>
                 </ScCard>

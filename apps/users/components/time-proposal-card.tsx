@@ -14,6 +14,7 @@ import { bookingDayLabel } from '@repo/core/home-display'
 import { formatClock } from '@repo/core/format'
 import type { Booking, TimeProposal } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
+import { fill, useT } from '@repo/core/i18n'
 
 /** "Sat 17 Oct, 2:00 PM": a suggested time, in IST like the rest of the page. */
 export function proposedTimeLabel(iso: string): string {
@@ -48,6 +49,7 @@ export function TimeProposalCard({
   onDeclined,
   onStale,
 }: TimeProposalCardProps) {
+  const t = useT()
   const [busy, setBusy] = useState<string | 'decline' | null>(null)
   const [confirmDecline, setConfirmDecline] = useState(false)
   // Times taken by someone else since the page loaded: gone from the list.
@@ -60,7 +62,7 @@ export function TimeProposalCard({
     try {
       const moved = await chooseProposedTime(booking.id, slot)
       toast.success(
-        `Booked for ${proposedTimeLabel(slot)}. ${booking.vendorName} has accepted it.`
+        t('Booked for {proposedTimeLabel}. {vendorName} has accepted it.', { proposedTimeLabel: proposedTimeLabel(slot), vendorName: booking.vendorName })
       )
       onMoved(moved)
     } catch (error) {
@@ -80,7 +82,7 @@ export function TimeProposalCard({
         toast.error(
           error instanceof Error
             ? error.message
-            : 'Something went wrong. Please try again.'
+            : t('Something went wrong. Please try again.')
         )
       }
     } finally {
@@ -93,13 +95,13 @@ export function TimeProposalCard({
     setBusy('decline')
     try {
       const cancelled = await declineProposedTimes(booking.id)
-      toast.success('Booking cancelled. Your payment will be refunded in full.')
+      toast.success(t('Booking cancelled. Your payment will be refunded in full.'))
       onDeclined(cancelled)
     } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
-          : 'Something went wrong. Please try again.'
+          : t('Something went wrong. Please try again.')
       )
       if (error instanceof ApiError && error.code === 'TIME_PROPOSAL_CLOSED')
         onStale()
@@ -126,18 +128,14 @@ export function TimeProposalCard({
         />
         <div className="min-w-0">
           <h2 className="text-t2 font-medium text-text-primary">
-            {booking.vendorName} can&apos;t do{' '}
-            <span className="font-numeric">
+            {fill(t("{vendorName} can't do {scheduledAtIso} — pick another time"), { scheduledAtIso: <span className="font-numeric">
               {formatClock(booking.scheduledAtIso)}
-            </span>{' '}
-            — pick another time
+            </span>, vendorName: booking.vendorName })}
           </h2>
           <p className="mt-0.5 text-t4 text-text-secondary">
-            Pick one by{' '}
-            <span className="font-numeric">
+            {fill(t("Pick one by {proposedTimeLabel}. It's accepted as soon as you pick it."), { proposedTimeLabel: <span className="font-numeric">
               {proposedTimeLabel(proposal.expiresAt)}
-            </span>
-            . It&apos;s accepted as soon as you pick it.
+            </span> })}
           </p>
         </div>
       </div>
@@ -145,7 +143,7 @@ export function TimeProposalCard({
       {proposal.note && (
         <p className="text-t5 text-text-secondary">
           <span className="font-medium text-text-primary">
-            Garage&apos;s note:
+            {t("Garage's note:")}
           </span>{' '}
           {proposal.note}
         </p>
@@ -153,7 +151,7 @@ export function TimeProposalCard({
 
       {options.length > 0 ? (
         <ul
-          aria-label="Times the garage suggested"
+          aria-label={t('Times the garage suggested')}
           className="flex flex-col gap-2"
         >
           {options.map((option) => (
@@ -162,7 +160,7 @@ export function TimeProposalCard({
                 type="button"
                 disabled={busy !== null}
                 onClick={() => choose(option)}
-                aria-label={`Book ${proposedTimeLabel(option)}`}
+                aria-label={t('Book {proposedTimeLabel}', { proposedTimeLabel: proposedTimeLabel(option) })}
                 className={cn(
                   'press flex min-h-12 w-full items-center justify-between gap-3 rounded-[14px] border border-line bg-white/[0.03] px-4 text-left text-t3 font-medium text-text-primary transition-colors disabled:opacity-60',
                   busy === option && 'border-text-primary'
@@ -178,7 +176,7 @@ export function TimeProposalCard({
                     aria-hidden
                   />
                 ) : (
-                  <span className="text-t4 text-text-secondary">Pick</span>
+                  <span className="text-t4 text-text-secondary">{t('Pick')}</span>
                 )}
               </button>
             </li>
@@ -186,18 +184,17 @@ export function TimeProposalCard({
         </ul>
       ) : (
         <p role="status" className="text-t4 text-text-secondary">
-          The times {booking.vendorName} suggested have all been taken. You can
-          cancel for a full refund, or use Help with this booking.
+          {t('The times {vendorName} suggested have all been taken. You can cancel for a full refund, or use Help with this booking.', { vendorName: booking.vendorName })}
         </p>
       )}
 
       {confirmDecline ? (
         <div className="rise-in flex flex-col gap-2 border-t border-border pt-3">
           <p className="text-t4 text-text-secondary">
-            Cancel this booking?{' '}
+            {t('Cancel this booking?')}{' '}
             {paid
-              ? 'Your payment will be refunded in full to your original payment method.'
-              : 'Nothing was paid, so there is nothing to refund.'}
+              ? t('Your payment will be refunded in full to your original payment method.')
+              : t('Nothing was paid, so there is nothing to refund.')}
           </p>
           <div className="flex gap-2">
             <ScButton
@@ -205,14 +202,14 @@ export function TimeProposalCard({
               disabled={busy !== null}
               onClick={() => setConfirmDecline(false)}
             >
-              Keep it
+              {t('Keep it')}
             </ScButton>
             <ScButton
               variant="danger-outline"
               disabled={busy !== null}
               onClick={decline}
             >
-              {busy === 'decline' ? 'Cancelling...' : 'Yes, cancel'}
+              {busy === 'decline' ? t('Cancelling...') : t('Yes, cancel')}
             </ScButton>
           </div>
         </div>
@@ -222,7 +219,7 @@ export function TimeProposalCard({
           disabled={busy !== null}
           onClick={() => setConfirmDecline(true)}
         >
-          None of these work — cancel for a full refund
+          {t('None of these work — cancel for a full refund')}
         </ScButton>
       )}
     </ScCard>

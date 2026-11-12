@@ -39,5 +39,11 @@ export const updateZoneSchema = z
     path: ['lat'],
   })
 
+/** The owner's "Delete anyway" on a zone in use: the zone's name, typed. */
+export const removeZoneAnywaySchema = z
+  .object({ actorName: signedActorName, confirmText: z.string().max(80) })
+  .strict()
+
 export type CreateZoneInput = z.infer<typeof createZoneSchema>
+export type RemoveZoneAnywayInput = z.infer<typeof removeZoneAnywaySchema>
 export type UpdateZoneInput = z.infer<typeof updateZoneSchema>

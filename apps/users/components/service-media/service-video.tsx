@@ -11,6 +11,7 @@ import {
 } from '@tabler/icons-react'
 import { formatClipLength } from '@repo/core/service-media'
 import type { ServiceMedia } from '@repo/core/types'
+import { useT } from '@repo/core/i18n'
 
 type HlsInstance = { destroy(): void }
 
@@ -35,6 +36,7 @@ export function ServiceVideo({
   /** The "From <garage>" label over the top-left corner. */
   tag: ReactNode
 }) {
+  const t = useT()
   const ref = useRef<HTMLVideoElement>(null)
   const hlsRef = useRef<HlsInstance | null>(null)
   const [started, setStarted] = useState(false)
@@ -103,7 +105,7 @@ export function ServiceVideo({
         preload="none"
         playsInline
         muted={muted}
-        aria-label={`Video of ${serviceName}`}
+        aria-label={t('Video of {serviceName}', { serviceName })}
         className="absolute inset-0 size-full object-cover"
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
@@ -130,7 +132,7 @@ export function ServiceVideo({
         <button
           type="button"
           onClick={toggle}
-          aria-label={`Play video of ${serviceName}`}
+          aria-label={t('Play video of {serviceName}', { serviceName })}
           className="absolute inset-0 z-[5] flex items-center justify-center focus-visible:outline-none"
         >
           <span className="flex size-14 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm ring-1 ring-white/15">
@@ -142,7 +144,7 @@ export function ServiceVideo({
         <button
           type="button"
           onClick={toggle}
-          aria-label="Pause video"
+          aria-label={t('Pause video')}
           className="absolute inset-0 z-[5] focus-visible:outline-none"
         />
       )}
@@ -164,14 +166,14 @@ export function ServiceVideo({
             onChange={(e) => {
               if (ref.current) ref.current.currentTime = Number(e.target.value)
             }}
-            aria-label="Video position"
+            aria-label={t('Video position')}
             className="h-1 w-full cursor-pointer accent-brand-white"
           />
           <div className="flex items-center text-white">
             <button
               type="button"
               onClick={toggle}
-              aria-label={playing ? 'Pause video' : 'Play video'}
+              aria-label={playing ? t('Pause video') : t('Play video')}
               className="flex size-11 items-center justify-center"
             >
               {playing ? (
@@ -186,7 +188,7 @@ export function ServiceVideo({
             <button
               type="button"
               onClick={() => setMuted((m) => !m)}
-              aria-label={muted ? 'Sound on' : 'Sound off'}
+              aria-label={muted ? t('Sound on') : t('Sound off')}
               className="ml-auto flex size-11 items-center justify-center"
             >
               {muted ? (
@@ -198,7 +200,7 @@ export function ServiceVideo({
             <button
               type="button"
               onClick={fullscreen}
-              aria-label="Full screen"
+              aria-label={t('Full screen')}
               className="flex size-11 items-center justify-center"
             >
               <IconMaximize size={20} aria-hidden="true" />
@@ -212,7 +214,7 @@ export function ServiceVideo({
           role="status"
           className="absolute inset-x-0 bottom-0 z-10 bg-black/75 px-3 py-2 text-t5 text-error"
         >
-          The video did not load. Check the connection and try again.
+          {t('The video did not load. Check the connection and try again.')}
         </p>
       )}
     </div>

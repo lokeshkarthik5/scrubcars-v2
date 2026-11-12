@@ -13,6 +13,7 @@ import {
 } from '@repo/core/pickup'
 import { cn } from '@repo/core/utils'
 import { useSavedNote } from '@/components/save-bar'
+import { TravelChoiceField } from '@repo/ui/features/travel-choice'
 
 const radiusText = (km: number | null | undefined) => (km != null ? String(km) : '')
 
@@ -35,6 +36,11 @@ interface PickupFieldsProps {
   /** The garage has a map pin: the pickup radius is measured from it. */
   pinned: boolean
   disabled?: boolean
+  /**
+   * "All over <city>" (0069): the choice, and the city the pin is in (null
+   * for none). Absent where the caller does not offer it.
+   */
+  wholeCity?: { on: boolean; onChange: (on: boolean) => void; cityName: string | null }
 }
 
 /**
@@ -55,8 +61,10 @@ export function PickupFields({
   onAgreedChange,
   pinned,
   disabled,
+  wholeCity,
 }: PickupFieldsProps) {
   const radiusId = useId()
+  const collectsAll = Boolean(wholeCity?.on && wholeCity.cityName)
 
   return (
     <>
@@ -73,7 +81,22 @@ export function PickupFields({
         <ScSwitch label="Pickup & drop" checked={on} disabled={disabled} onChange={onSwitch} />
       </div>
 
-      {on && (
+      {on && wholeCity && (
+        <div className="-mx-4 mt-4 border-t border-border px-4 pt-4">
+          <TravelChoiceField
+            label="How far it collects from"
+            wholeCity={wholeCity.on}
+            onChange={wholeCity.onChange}
+            cityName={wholeCity.cityName}
+            radiusKm={radius.trim() === '' || !Number.isFinite(Number(radius)) ? null : Number(radius)}
+            defaultKm={DEFAULT_PICKUP_RADIUS_KM}
+            disabled={disabled}
+            wholeCityNote={(city) => `Collects from any address in ${city}, measured from the city's centre.`}
+          />
+        </div>
+      )}
+
+      {on && !collectsAll && (
         <div className="-mx-4 mt-4 border-t border-border px-4 pt-4">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">

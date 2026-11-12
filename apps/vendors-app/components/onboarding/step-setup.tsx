@@ -1,6 +1,6 @@
 import { DEFAULT_DOORSTEP_RADIUS_KM, DOORSTEP_RADIUS_PLACEHOLDER } from '@repo/core/doorstep';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { AppShell } from '@/components/app-shell';
@@ -33,16 +33,20 @@ import { decimalOnly, digitsOnly } from '@/lib/settings-logic';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 import { PRESSED_SCALE } from '@repo/native-ui/tokens';
 import { setWorkingHoursForDays, updateSlotInterval, updateVendorJobTypes, updateVendorSettings } from '@/lib/vendor-api';
+import { getMyVendor } from '@/lib/garage-api';
+import { TravelChoiceField } from '@/components/travel-choice';
 
 import { OnboardingHeader, SectionTitle, useDraftSync } from './parts';
+import { fill, msg, useT } from '@repo/core/i18n';
 
 const MODES: { value: ServiceMode; label: string }[] = [
-  { value: 'garage', label: 'They come to my garage' },
-  { value: 'doorstep', label: 'I also go to them' },
+  { value: 'garage', label: msg('They come to my garage') },
+  { value: 'doorstep', label: msg('I also go to them') },
 ];
 
 /** Step 3: Garage setup (apps/vendors/app/onboarding/step-3/page.tsx). Acts on the garage step 2 made. */
 export function StepSetup() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const saved = useOnboardingDraft.getState();
@@ -54,23 +58,39 @@ export function StepSetup() {
   // the default 10 km from its pin.
   const [mode, setMode] = useState<ServiceMode>(saved.doorstep ? 'doorstep' : 'garage');
   const [radiusKm, setRadiusKm] = useState(saved.doorstepRadiusKm);
+  // "All over <city>" (0069): offered once the garage step 2 made has a pin inside a city, which
+  // GET /vendors/me says, as the portal's step 3 does.
+  const [wholeCity, setWholeCity] = useState(saved.doorstepWholeCity === true);
+  const [cityName, setCityName] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    getMyVendor()
+      .then((garage) => live && setCityName(garage.garageCity?.name ?? null))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
   const [bays, setBays] = useState(saved.bays);
   const [jobsPerDay, setJobsPerDay] = useState(saved.jobsPerDay);
   const [loading, setLoading] = useState(false);
 
   const doorstep = mode === 'doorstep';
-  useDraftSync({ slotInterval, openTime, closeTime, workingDays, doorstep, doorstepRadiusKm: radiusKm, bays, jobsPerDay });
+  const allOver = doorstep && wholeCity && cityName !== null;
+  useDraftSync({ slotInterval, openTime, closeTime, workingDays, doorstep, doorstepRadiusKm: radiusKm, doorstepWholeCity: wholeCity, bays, jobsPerDay });
 
-  const radiusError = radiusProblem(doorstep, radiusKm);
+  // All over the city takes no number, so a half-typed one never holds Continue.
+  const radiusError = allOver ? null : radiusProblem(doorstep, radiusKm);
   const baysError = baysProblem(bays);
   const jobsError = jobsProblem(jobsPerDay);
-  const blocked = step3Problem({ doorstep, doorstepRadiusKm: radiusKm, bays, jobsPerDay }) !== null;
+  const blocked =
+    step3Problem({ doorstep, doorstepRadiusKm: allOver ? '' : radiusKm, bays, jobsPerDay }) !== null;
 
   const handleContinue = async () => {
     if (blocked) return;
     setLoading(true);
     try {
-      const form = { doorstep, doorstepRadiusKm: radiusKm, bays, jobsPerDay };
+      const form = { doorstep, doorstepRadiusKm: radiusKm, doorstepWholeCity: allOver, bays, jobsPerDay };
       writeDraft({ slotInterval, openTime, closeTime, workingDays, ...form });
       const settings = step3Settings(form);
       // The same four calls, together, as submitVendorOnboarding(3).
@@ -82,7 +102,7 @@ export function StepSetup() {
       ]);
       router.push(stepPath(4));
     } catch (err) {
-      toast.error(errorText(err, 'Failed to save. Please try again.'));
+      toast.error(errorText(err, t('Failed to save. Please try again.')));
     } finally {
       setLoading(false);
     }
@@ -92,13 +112,13 @@ export function StepSetup() {
     <AppShell hasNav={false}>
       <OnboardingHeader
         step={3}
-        title="Garage setup"
-        subtitle="When you work, and how many cars you can take."
+        title={t('Garage setup')}
+        subtitle={t('When you work, and how many cars you can take.')}
         onBack={() => (router.canGoBack() ? router.back() : router.replace(stepPath(2)))}
       />
 
       <View style={styles.section}>
-        <SectionTitle title="Slot interval" subtitle="How far apart the start times customers can pick are." />
+        <SectionTitle title={t('Slot interval')} subtitle={t('How far apart the start times customers can pick are.')} />
         <View style={styles.row}>
           {SLOT_INTERVALS.map((mins) => (
             <Chip key={mins} label={`${mins} min`} selected={slotInterval === mins} onPress={() => setSlotInterval(mins)} />
@@ -107,7 +127,7 @@ export function StepSetup() {
       </View>
 
       <View style={styles.section}>
-        <SectionTitle title="Working days" />
+        <SectionTitle title={t('Working days')} />
         <View style={styles.wrap}>
           {DAYS.map((label, day) => (
             <Chip
@@ -122,21 +142,21 @@ export function StepSetup() {
 
       <View style={styles.section}>
         <SectionTitle
-          title="Working hours"
-          subtitle="Applied to every working day. You can set each day in Settings later."
+          title={t('Working hours')}
+          subtitle={t('Applied to every working day. You can set each day in Settings later.')}
         />
         <View style={styles.row}>
           <View style={styles.half}>
-            <TimeField label="Open time" value={openTime} onChange={setOpenTime} />
+            <TimeField label={t('Open time')} value={openTime} onChange={setOpenTime} />
           </View>
           <View style={styles.half}>
-            <TimeField label="Close time" value={closeTime} onChange={setCloseTime} />
+            <TimeField label={t('Close time')} value={closeTime} onChange={setCloseTime} />
           </View>
         </View>
       </View>
 
       <View style={styles.section}>
-        <SectionTitle title="How do customers get serviced?" />
+        <SectionTitle title={t('How do customers get serviced?')} />
         {/* Two radios rather than chips: exactly one answer is always true, and the doorstep one
             carries its own distance. */}
         <View accessibilityRole="radiogroup" style={styles.radios}>
@@ -158,20 +178,31 @@ export function StepSetup() {
                   {on ? <View style={styles.dotFill} /> : null}
                 </View>
                 <T size={13} color={on ? colors.textPrimary : colors.textSecondary}>
-                  {option.label}
+                  {t(option.label)}
                 </T>
               </Pressable>
             );
           })}
         </View>
         {doorstep ? (
+          <TravelChoiceField
+            label={t('How far you go')}
+            wholeCity={wholeCity}
+            onChange={setWholeCity}
+            cityName={cityName}
+            radiusKm={radiusKm.trim() && Number.isFinite(Number(radiusKm)) ? Number(radiusKm) : null}
+            defaultKm={DEFAULT_DOORSTEP_RADIUS_KM}
+            wholeCityNote={(city) => t('You go to any address in {city}.', { city })}
+          />
+        ) : null}
+        {doorstep && !allOver ? (
           <View>
             <ScInput
-              label="Up to how many km from your garage?"
+              label={t('Up to how many km from your garage?')}
               numeric
               keyboardType="number-pad"
               placeholder={DOORSTEP_RADIUS_PLACEHOLDER}
-              accessibilityHint={`From ${MIN_RADIUS_KM} to ${MAX_RADIUS_KM} kilometres`}
+              accessibilityHint={t('From {min} to {max} kilometres', { min: MIN_RADIUS_KM, max: MAX_RADIUS_KM })}
               value={radiusKm}
               onChangeText={(text) => setRadiusKm(decimalOnly(text))}
             />
@@ -181,34 +212,40 @@ export function StepSetup() {
               </T>
             ) : null}
             <T size={11} color={colors.textMuted} style={styles.below}>
-              Optional. Leave it empty to use{' '}
-              <T size={11} num color={colors.textMuted}>
-                {DEFAULT_DOORSTEP_RADIUS_KM}
-              </T>{' '}
-              km. Customers further away won&apos;t see you for doorstep jobs. You can draw an exact area later in
-              Settings.
+              {fill(
+                t(
+                  "Optional. Leave it empty to use {km} km. Customers further away won't see you for doorstep jobs. You can draw an exact area later in Settings."
+                ),
+                {
+                  km: (
+                    <T size={11} num color={colors.textMuted}>
+                      {DEFAULT_DOORSTEP_RADIUS_KM}
+                    </T>
+                  ),
+                }
+              )}
             </T>
           </View>
         ) : null}
       </View>
 
       <View style={styles.section}>
-        <SectionTitle title="Capacity" />
+        <SectionTitle title={t('Capacity')} />
         <ScCard style={styles.capacity}>
           <ScInput
-            label="How many cars can you work on at the same time?"
+            label={t('How many cars can you work on at the same time?')}
             numeric
             keyboardType="number-pad"
             placeholder="1"
-            accessibilityHint={`From 1 to ${MAX_BAYS}`}
+            accessibilityHint={t('From 1 to {max}', { max: MAX_BAYS })}
             value={bays}
             onChangeText={(text) => setBays(digitsOnly(text, 3))}
           />
           <ScInput
-            label="Most jobs in a day (optional)"
+            label={t('Most jobs in a day (optional)')}
             numeric
             keyboardType="number-pad"
-            placeholder="No limit"
+            placeholder={t('No limit')}
             value={jobsPerDay}
             onChangeText={(text) => setJobsPerDay(digitsOnly(text, 4))}
           />
@@ -218,7 +255,7 @@ export function StepSetup() {
             </T>
           ) : null}
           <T size={11} color={colors.textMuted}>
-            Customers are only offered times when you have room for one more car.
+            {t('Customers are only offered times when you have room for one more car.')}
           </T>
         </ScCard>
       </View>
@@ -230,7 +267,7 @@ export function StepSetup() {
         disabled={loading || blocked}
         onPress={() => void handleContinue()}
       >
-        Continue
+        {t('Continue')}
       </ScButton>
     </AppShell>
   );

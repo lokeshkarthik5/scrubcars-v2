@@ -4,11 +4,13 @@ import { useState } from 'react'
 import { toast } from 'react-toastify'
 import { ScButton } from '@repo/ui/sc/button'
 import { useSetBirthday } from '@repo/core/api/hooks/use-rewards'
+import { useT } from '@repo/core/i18n'
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
 /** The optional birthday (month and day, no year) for the birthday wash. */
 export function BirthdayForm({ birthday, perkFrom }: { birthday: { month: number; day: number } | null; perkFrom: string | null }) {
+  const t = useT()
   const save = useSetBirthday()
   const [month, setMonth] = useState(birthday?.month ?? 0)
   const [day, setDay] = useState(birthday?.day ?? 0)
@@ -18,10 +20,10 @@ export function BirthdayForm({ birthday, perkFrom }: { birthday: { month: number
   return (
     <div className="flex flex-col gap-2">
       <p className="text-t4 text-text-secondary">
-        {perkFrom ? `From ${perkFrom}, a wash on us in your birthday month.` : 'Your birthday, for birthday treats.'} Only the day and month.
+        {perkFrom ? t('From {perkFrom}, a wash on us in your birthday month.', { perkFrom }) : t('Your birthday, for birthday treats.')} {t('Only the day and month.')}
       </p>
       <div className="grid grid-cols-[1fr_88px] gap-2">
-        <label className="sr-only" htmlFor="birthday-month">Month</label>
+        <label className="sr-only" htmlFor="birthday-month">{t('Month')}</label>
         <select
           id="birthday-month"
           value={month}
@@ -32,19 +34,19 @@ export function BirthdayForm({ birthday, perkFrom }: { birthday: { month: number
           }}
           className="h-10 rounded-[10px] border border-border bg-surface px-3 text-[14px] text-text-primary"
         >
-          <option value={0}>Month</option>
+          <option value={0}>{t('Month')}</option>
           {MONTHS.map((name, i) => (
             <option key={name} value={i + 1}>{name}</option>
           ))}
         </select>
-        <label className="sr-only" htmlFor="birthday-day">Day</label>
+        <label className="sr-only" htmlFor="birthday-day">{t('Day')}</label>
         <select
           id="birthday-day"
           value={day}
           onChange={(e) => setDay(Number(e.target.value))}
           className="h-10 rounded-[10px] border border-border bg-surface px-3 font-numeric text-[14px] text-text-primary"
         >
-          <option value={0}>Day</option>
+          <option value={0}>{t('Day')}</option>
           {Array.from({ length: days }, (_, i) => (
             <option key={i + 1} value={i + 1}>{i + 1}</option>
           ))}
@@ -57,12 +59,12 @@ export function BirthdayForm({ birthday, perkFrom }: { birthday: { month: number
           disabled={!changed || !month || !day || save.isPending}
           onClick={() =>
             save.mutate({ month, day }, {
-              onSuccess: () => toast.success('Birthday saved'),
-              onError: (error) => toast.error(error instanceof Error ? error.message : "Couldn't save it"),
+              onSuccess: () => toast.success(t('Birthday saved')),
+              onError: (error) => toast.error(error instanceof Error ? error.message : t("Couldn't save it")),
             })
           }
         >
-          Save
+          {t('Save')}
         </ScButton>
         {birthday && (
           <button
@@ -78,7 +80,7 @@ export function BirthdayForm({ birthday, perkFrom }: { birthday: { month: number
               })
             }
           >
-            Remove
+            {t('Remove')}
           </button>
         )}
       </div>

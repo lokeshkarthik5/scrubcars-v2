@@ -18,35 +18,39 @@ import { AFTER_SHEET_MS, ScSheet } from '@repo/native-ui/sheet';
 import { T } from '@repo/native-ui/text';
 import { toast } from '@repo/native-ui/toast';
 import { errorText } from '@/lib/error-text';
+import { msg, t } from '@repo/core/i18n/translate';
+import { fill, useT, useTn } from '@repo/core/i18n';
 
 const MAX_DESCRIPTION = 80;
 const MAX_NOTE = 500;
 const MAX_PHOTOS = 3;
 
 const STATE: Record<ExtraWork['state'], { label: string; tone: StatusTone }> = {
-  awaiting: { label: 'Waiting for customer', tone: 'progress' },
-  paid: { label: 'Approved & paid — go ahead', tone: 'done' },
-  declined: { label: 'Declined by customer', tone: 'closed' },
-  withdrawn: { label: 'Withdrawn', tone: 'closed' },
-  closed: { label: 'Closed with the booking', tone: 'closed' },
+  awaiting: { label: msg('Waiting for customer'), tone: 'progress' },
+  paid: { label: msg('Approved & paid — go ahead'), tone: 'done' },
+  declined: { label: msg('Declined by customer'), tone: 'closed' },
+  withdrawn: { label: msg('Withdrawn'), tone: 'closed' },
+  closed: { label: msg('Closed with the booking'), tone: 'closed' },
 };
 
 function formProblem(description: string, amount: string): string | null {
-  if (!description.trim()) return 'Say what the extra work is.';
+  if (!description.trim()) return t('Say what the extra work is.');
   const n = Number(amount);
-  if (!amount || !Number.isFinite(n) || n < 1) return 'Give a price of at least ₹1.';
-  if (Math.abs(n * 100 - Math.round(n * 100)) > 1e-6) return 'Use at most two decimals.';
+  if (!amount || !Number.isFinite(n) || n < 1) return t('Give a price of at least ₹1.');
+  if (Math.abs(n * 100 - Math.round(n * 100)) > 1e-6) return t('Use at most two decimals.');
   return null;
 }
 
 /** ExtraWorkPanel (apps/vendors/components/extra-work.tsx). */
 export function ExtraWorkPanel({ booking, onChanged }: { booking: Booking; onChanged: () => void }) {
+  const t = useT();
+  const tn = useTn();
   const colors = useColors();
   const styles = useStyles();
   const [listOpen, setListOpen] = useState(false);
   const [asking, setAsking] = useState(false);
   const [withdrawing, setWithdrawing] = useState<string | null>(null);
-  const who = booking.customerName ?? 'the customer';
+  const who = booking.customerName ?? t('the customer');
   const canAsk = booking.extraWorkRefusal === null;
   const isVendorAdmin = useIsVendorAdmin();
 
@@ -58,9 +62,9 @@ export function ExtraWorkPanel({ booking, onChanged }: { booking: Booking; onCha
     setWithdrawing(work.id);
     try {
       await withdrawExtraWork(booking.id, work.id);
-      toast.success('Extra work withdrawn.');
+      toast.success(t('Extra work withdrawn.'));
     } catch (error) {
-      toast.error(errorText(error, 'Could not withdraw it'));
+      toast.error(errorText(error, t('Could not withdraw it')));
     } finally {
       setWithdrawing(null);
       onChanged();
@@ -72,9 +76,9 @@ export function ExtraWorkPanel({ booking, onChanged }: { booking: Booking; onCha
   const total = live.reduce((sum, work) => sum + Number(work.amount), 0);
   const refusal =
     booking.extraWorkRefusal === 'on_inspection'
-      ? 'This job is priced on inspection: add any extra work to its final bill.'
+      ? t('This job is priced on inspection: add any extra work to its final bill.')
       : booking.extraWorkRefusal === 'too_many_open'
-        ? `${who} has 3 requests to answer. Wait for an answer, or withdraw one, to ask for more.`
+        ? t('{who} has 3 requests to answer. Wait for an answer, or withdraw one, to ask for more.', { who })
         : null;
 
   return (
@@ -83,20 +87,26 @@ export function ExtraWorkPanel({ booking, onChanged }: { booking: Booking; onCha
         icon={<IconTool size={22} stroke={1.6} color={colors.textSecondary} />}
         title={
           <>
-            Extra work
+            {t('Extra work')}
             {isVendorAdmin && total > 0 ? (
               <T num size={17} weight={600}>{` · ${formatINR(total, { paise: true })}`}</T>
             ) : null}
           </>
         }
-        detail={latest ? `${latest.description} · ${STATE[latest.state].label}` : (refusal ?? 'Found more to do? Ask the customer')}
-        accessibilityLabel={latest ? `Extra work for ${who}` : canAsk ? `Ask ${who} for extra work` : undefined}
+        detail={
+          latest
+            ? `${latest.description} · ${t(STATE[latest.state].label)}`
+            : (refusal ?? t('Found more to do? Ask the customer'))
+        }
+        accessibilityLabel={
+          latest ? t('Extra work for {who}', { who }) : canAsk ? t('Ask {who} for extra work', { who }) : undefined
+        }
         onOpen={latest ? () => setListOpen(true) : canAsk ? () => setAsking(true) : undefined}
       />
 
-      <ScSheet open={listOpen} onClose={() => setListOpen(false)} accessibilityLabel={`Extra work for ${who}`} horizontalPadding={16}>
+      <ScSheet open={listOpen} onClose={() => setListOpen(false)} accessibilityLabel={t('Extra work for {who}', { who })} horizontalPadding={16}>
         <T accessibilityRole="header" size={20} weight={600}>
-          Extra work
+          {t('Extra work')}
         </T>
         <View style={styles.list}>
           {booking.extraWork.map((work) => (
@@ -110,10 +120,10 @@ export function ExtraWorkPanel({ booking, onChanged }: { booking: Booking; onCha
                 </T>
               </View>
               <View style={styles.requestState}>
-                <StatusChip tone={STATE[work.state].tone}>{STATE[work.state].label}</StatusChip>
+                <StatusChip tone={STATE[work.state].tone}>{t(STATE[work.state].label)}</StatusChip>
                 {work.photos.length > 0 ? (
                   <T num size={13} color={colors.textSecondary}>
-                    {work.photos.length === 1 ? '1 photo' : `${work.photos.length} photos`}
+                    {tn(work.photos.length, '{count} photo', '{count} photos')}
                   </T>
                 ) : null}
               </View>
@@ -121,10 +131,10 @@ export function ExtraWorkPanel({ booking, onChanged }: { booking: Booking; onCha
                 <ScButton
                   variant="outline"
                   disabled={withdrawing !== null}
-                  accessibilityLabel={`Withdraw extra work ${work.description} for ${who}`}
+                  accessibilityLabel={t('Withdraw extra work {work} for {who}', { work: work.description, who })}
                   onPress={() => void handleWithdraw(work)}
                 >
-                  {withdrawing === work.id ? 'Withdrawing…' : 'Withdraw'}
+                  {withdrawing === work.id ? t('Withdrawing…') : t('Withdraw')}
                 </ScButton>
               ) : null}
             </View>
@@ -137,13 +147,13 @@ export function ExtraWorkPanel({ booking, onChanged }: { booking: Booking; onCha
             <ScButton
               variant="outline"
               size="lg"
-              accessibilityLabel={`Ask ${who} for extra work`}
+              accessibilityLabel={t('Ask {who} for extra work', { who })}
               onPress={() => {
                 setListOpen(false);
                 setTimeout(() => setAsking(true), AFTER_SHEET_MS);
               }}
             >
-              Ask for extra work
+              {t('Ask for extra work')}
             </ScButton>
           ) : null}
         </View>
@@ -164,9 +174,10 @@ export function ExtraWorkPanel({ booking, onChanged }: { booking: Booking; onCha
 }
 
 function ExtraWorkSheet({ booking, onClose, onSent }: { booking: Booking; onClose: () => void; onSent: () => void }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
-  const who = booking.customerName ?? 'the customer';
+  const who = booking.customerName ?? t('the customer');
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
@@ -192,7 +203,7 @@ function ExtraWorkSheet({ booking, onClose, onSent }: { booking: Booking; onClos
           const prepared = await prepareForUpload(asset.uri);
           setPhotos((current) => (current.length >= MAX_PHOTOS ? current : [...current, prepared]));
         } catch (error) {
-          toast.error(errorText(error, 'That photo could not be used'));
+          toast.error(errorText(error, t('That photo could not be used')));
         }
       }
     } finally {
@@ -210,35 +221,40 @@ function ExtraWorkSheet({ booking, onClose, onSent }: { booking: Booking; onClos
         note: note.trim() || undefined,
         photos: photos.map((photo) => photo.bytes),
       });
-      toast.success(`Sent. ${who} can approve and pay ${formatINR(Number(amount), { paise: true })} in the Detlio app.`);
+      toast.success(
+        t('Sent. {who} can approve and pay {amount} in the Detlio app.', {
+          who,
+          amount: formatINR(Number(amount), { paise: true }),
+        })
+      );
       onSent();
     } catch (error) {
-      toast.error(errorText(error, 'Could not send it'));
+      toast.error(errorText(error, t('Could not send it')));
     } finally {
       setSending(false);
     }
   };
 
   return (
-    <ScSheet open onClose={onClose} dismissible={!sending} accessibilityLabel={`Extra work for ${who}`} horizontalPadding={16}>
+    <ScSheet open onClose={onClose} dismissible={!sending} accessibilityLabel={t('Extra work for {who}', { who })} horizontalPadding={16}>
       <T accessibilityRole="header" size={20} weight={600}>
-        Ask for extra work
+        {t('Ask for extra work')}
       </T>
       <T size={14} color={colors.textSecondary} style={styles.mt1}>
-        {`${who} approves it by paying in the Detlio app. Don't start it until it says Approved & paid.`}
+        {t("{who} approves it by paying in the Detlio app. Don't start it until it says Approved & paid.", { who })}
       </T>
 
       <View style={styles.form}>
         <ScInput
-          label="What needs doing"
-          placeholder="e.g. Replace front brake pads"
+          label={t('What needs doing')}
+          placeholder={t('e.g. Replace front brake pads')}
           maxLength={MAX_DESCRIPTION}
           value={description}
           onChangeText={setDescription}
         />
         <ScInput
-          label="Price (₹)"
-          accessibilityLabel="Price in rupees"
+          label={t('Price (₹)')}
+          accessibilityLabel={t('Price in rupees')}
           keyboardType="decimal-pad"
           placeholder="0"
           numeric
@@ -248,13 +264,16 @@ function ExtraWorkSheet({ booking, onClose, onSent }: { booking: Booking; onClos
 
         <View style={styles.photos}>
           <T size={14} weight={500}>
-            {'Photos '}
-            <T num size={14} weight={500} color={colors.textSecondary}>
-              {`${photos.length}/${MAX_PHOTOS}`}
-            </T>
+            {fill(t('Photos {count}'), {
+              count: (
+                <T num size={14} weight={500} color={colors.textSecondary}>
+                  {`${photos.length}/${MAX_PHOTOS}`}
+                </T>
+              ),
+            })}
           </T>
           <T size={13} color={colors.textSecondary}>
-            Optional. Show the customer what you found.
+            {t('Optional. Show the customer what you found.')}
           </T>
           <View style={styles.photoRow}>
             {photos.map((photo, i) => (
@@ -262,7 +281,7 @@ function ExtraWorkSheet({ booking, onClose, onSent }: { booking: Booking; onClos
                 <Image source={{ uri: photo.uri }} style={styles.preview} />
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={`Remove photo ${i + 1}`}
+                  accessibilityLabel={t('Remove photo {n}', { n: i + 1 })}
                   onPress={() => setPhotos((current) => current.filter((_, j) => j !== i))}
                   style={styles.removePhoto}
                 >
@@ -273,7 +292,7 @@ function ExtraWorkSheet({ booking, onClose, onSent }: { booking: Booking; onClos
             {photos.length < MAX_PHOTOS ? (
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Add photos of the extra work"
+                accessibilityLabel={t('Add photos of the extra work')}
                 disabled={preparing || sending}
                 onPress={() => void addPhotos()}
                 style={styles.addPhoto}
@@ -285,7 +304,7 @@ function ExtraWorkSheet({ booking, onClose, onSent }: { booking: Booking; onClos
         </View>
 
         <ScTextarea
-          label="Note for the customer (optional)"
+          label={t('Note for the customer (optional)')}
           rows={2}
           maxLength={MAX_NOTE}
           value={note}
@@ -302,7 +321,7 @@ function ExtraWorkSheet({ booking, onClose, onSent }: { booking: Booking; onClos
       <View style={styles.actions}>
         <View style={styles.half}>
           <ScButton variant="outline" size="lg" disabled={sending} onPress={onClose}>
-            Cancel
+            {t('Cancel')}
           </ScButton>
         </View>
         <View style={styles.half}>
@@ -312,7 +331,7 @@ function ExtraWorkSheet({ booking, onClose, onSent }: { booking: Booking; onClos
             disabled={Boolean(problem) || sending || preparing}
             onPress={() => void handleSend()}
           >
-            {sending ? 'Sending…' : 'Send to customer'}
+            {sending ? t('Sending…') : t('Send to customer')}
           </ScButton>
         </View>
       </View>

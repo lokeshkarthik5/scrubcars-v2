@@ -75,6 +75,9 @@ export interface Tokens {
   redWash: string;
   progressBorder: string;
   successBorder: string;
+  /** An accepted job on the garage's calendar timeline: a quieter blue than one under way. */
+  progressSoftBorder: string;
+  progressSoftFill: string;
   /** The answer-deadline banner when time is short. */
   warningSoft: string;
   /** The empty part of a progress bar. */
@@ -182,6 +185,8 @@ export const darkTokens: Tokens = {
   redWash: 'rgba(239,50,64,0.1)',
   progressBorder: 'rgba(59,130,246,0.6)',
   successBorder: 'rgba(34,197,94,0.4)',
+  progressSoftBorder: 'rgba(110,168,255,0.32)',
+  progressSoftFill: 'rgba(59,130,246,0.1)',
   warningSoft: 'rgba(245,165,36,0.15)',
   track: '#141416',
   surfaceVeil: 'rgba(20,20,22,0.9)',
@@ -276,6 +281,8 @@ export const lightTokens: Tokens = {
   redWash: 'rgba(228,0,43,0.06)',
   progressBorder: 'rgba(37,99,235,0.5)',
   successBorder: 'rgba(34,197,94,0.4)',
+  progressSoftBorder: 'rgba(37,99,235,0.3)',
+  progressSoftFill: 'rgba(37,99,235,0.08)',
   warningSoft: 'rgba(245,165,36,0.18)',
   track: '#E6E6EA',
   surfaceVeil: 'rgba(255,255,255,0.9)',

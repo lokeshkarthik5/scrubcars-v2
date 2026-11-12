@@ -1,5 +1,6 @@
 import type { GiftLink, SentGift } from '@repo/core/api/gifts';
 import { useGiftsConfig } from '@repo/core/api/hooks/use-gifts';
+import { useT } from '@repo/core/i18n';
 import { Label, ScButton } from '@repo/native-ui/button';
 import { IconBrandWhatsapp, IconCopy, IconPrinter, IconShare } from '@repo/native-ui/icons';
 import { Notice, ScCard } from '@repo/native-ui/primitives';
@@ -37,6 +38,7 @@ ${gift.message ? `<p style="font-size:13px;font-style:italic">“${escapeHtml(gi
 
 /** GiftShare: shown once a link is made. The code is nowhere the buyer can see again. */
 export function GiftShare({ gift, link }: { gift: ShareGift; link: GiftLink }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const [showPrint, setShowPrint] = useState(false);
@@ -47,9 +49,9 @@ export function GiftShare({ gift, link }: { gift: ShareGift; link: GiftLink }) {
   const copy = async () => {
     try {
       await Clipboard.setStringAsync(url);
-      toast.success('Link copied');
+      toast.success(t('Link copied'));
     } catch {
-      toast.info("Couldn't copy the link. Press and hold it to copy it instead.");
+      toast.info(t("Couldn't copy the link. Press and hold it to copy it instead."));
     }
   };
   return (
@@ -57,33 +59,33 @@ export function GiftShare({ gift, link }: { gift: ShareGift; link: GiftLink }) {
       <View style={styles.gap6}>
         <PremiumCard spec={cardSpec(true)} />
         <T size={11} lh={15} align="center" color={colors.textMuted}>
-          {CARS_ILLUSTRATION_LINE}
+          {t(CARS_ILLUSTRATION_LINE)}
         </T>
       </View>
       <View>
-        <FigureLine size={17} weight={600} lh={24} text={`Your ${giftRupees(gift.amount)} gift for ${gift.recipientName} is ready`} />
+        <FigureLine size={17} weight={600} lh={24} text={t('Your {amount} gift for {name} is ready', { amount: giftRupees(gift.amount), name: gift.recipientName })} />
         <T size={13} lh={18} color={colors.textSecondary} style={styles.mt4}>
-          {`Send them this link. Whoever opens it can add the gift to their Detlio credit, so send it only to ${gift.recipientName}.`}
+          {t('Send them this link. Whoever opens it can add the gift to their Detlio credit, so send it only to {name}.', { name: gift.recipientName })}
         </T>
       </View>
       <ScCard style={styles.gap4}>
         <T size={11} weight={500} lh={15} color={colors.textSecondary}>
-          Gift link
+          {t('Gift link')}
         </T>
         <T num selectable size={13} lh={18}>
           {url}
         </T>
       </ScCard>
       <View style={styles.gap8}>
-        <ScButton variant="main" onPress={() => Share.share({ title: 'A Detlio gift', message: text }).catch(() => undefined)}>
+        <ScButton variant="main" onPress={() => Share.share({ title: t('A Detlio gift'), message: text }).catch(() => undefined)}>
           <IconShare size={18} color={colors.white} />
-          <Label color={colors.white}>Share</Label>
+          <Label color={colors.white}>{t('Share')}</Label>
         </ScButton>
         <View style={styles.pair}>
           <View style={styles.half}>
             <ScButton variant="outline" onPress={() => void copy()}>
               <IconCopy size={16} color={colors.textPrimary} />
-              <Label>Copy link</Label>
+              <Label>{t('Copy link')}</Label>
             </ScButton>
           </View>
           <View style={styles.half}>
@@ -95,15 +97,15 @@ export function GiftShare({ gift, link }: { gift: ShareGift; link: GiftLink }) {
         </View>
         <ScButton variant="outline" onPress={() => setShowPrint((on) => !on)}>
           <IconPrinter size={16} color={colors.textPrimary} />
-          <Label>{showPrint ? 'Hide the printable card' : 'Print a card instead'}</Label>
+          <Label>{showPrint ? t('Hide the printable card') : t('Print a card instead')}</Label>
         </ScButton>
         <ShareCardImage spec={cardSpec} firstName={firstName(gift.recipientName) || null} />
       </View>
       {showPrint ? (
         <View style={styles.gap8}>
-          <View accessibilityLabel="Printable gift card" style={styles.paper}>
+          <View accessibilityLabel={t('Printable gift card')} style={styles.paper}>
             <T size={17} weight={600} lh={24} color="#171717">
-              Detlio<T size={17} weight={600} color="#E4002B">.</T>{' gift'}
+              Detlio<T size={17} weight={600} color="#E4002B">.</T> gift
             </T>
             <T num size={28} weight={700} lh={34} color="#171717">
               {giftRupees(gift.amount)}
@@ -127,11 +129,14 @@ export function GiftShare({ gift, link }: { gift: ShareGift; link: GiftLink }) {
           </View>
           <ScButton variant="outline" onPress={() => void Print.printAsync({ html: giftPrintHtml(gift, link.code, url) }).catch(() => undefined)}>
             <IconPrinter size={16} color={colors.textPrimary} />
-            <Label>Print</Label>
+            <Label>{t('Print')}</Label>
           </ScButton>
         </View>
       ) : null}
-      <Notice title="This link is shown only now">{`If it is lost, use Get a new link in Gifts you sent: the new link replaces this one, and this one stops working.${gift.expiresAt ? ` The gift can be used until ${formatGiftDate(gift.expiresAt)}.` : ''}`}</Notice>
+      <Notice title={t('This link is shown only now')}>
+        {t('If it is lost, use Get a new link in Gifts you sent: the new link replaces this one, and this one stops working.')}
+        {gift.expiresAt ? ` ${t('The gift can be used until {day}.', { day: formatGiftDate(gift.expiresAt) })}` : ''}
+      </Notice>
     </View>
   );
 }

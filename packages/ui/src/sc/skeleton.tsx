@@ -1,4 +1,7 @@
+'use client'
+
 import { cn } from '@repo/core/utils'
+import { useT } from '@repo/core/i18n'
 
 /**
  * A placeholder in the shape of what is coming, on the same shimmer the
@@ -27,9 +30,10 @@ interface SkeletonListProps {
  * replaces.
  */
 export function SkeletonList({ count = 3, itemClassName, className }: SkeletonListProps) {
+  const t = useT()
   return (
     <div role="status" aria-busy="true" className={cn('flex flex-col gap-2', className)}>
-      <span className="sr-only">Loading</span>
+      <span className="sr-only">{t('Loading')}</span>
       {Array.from({ length: count }, (_, index) => (
         <Skeleton key={index} className={cn('h-24 w-full', itemClassName)} />
       ))}

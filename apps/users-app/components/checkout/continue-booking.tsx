@@ -1,3 +1,4 @@
+import { useT } from '@repo/core/i18n';
 import { IconArrowRight, IconX } from '@repo/native-ui/icons';
 import { HubCard } from '@repo/native-ui/primitives';
 import { T } from '@repo/native-ui/text';
@@ -10,6 +11,7 @@ import { type BookingDraft, clearBookingDraft, draftResumePath, readBookingDraft
 
 /** ContinueBookingCard (apps/users/components/checkout/continue-booking.tsx). */
 export function ContinueBookingCard() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const [draft, setDraft] = useState<BookingDraft | null>(() => readBookingDraft());
@@ -17,21 +19,21 @@ export function ContinueBookingCard() {
   useFocusEffect(useCallback(() => setDraft(readBookingDraft()), []));
   if (!draft) return null;
   return (
-    <HubCard style={styles.card} accessibilityLabel="Continue your booking">
+    <HubCard style={styles.card} accessibilityLabel={t('Continue your booking')}>
       <Pressable accessibilityRole="link" onPress={() => router.push(draftResumePath(draft) as Href)} style={styles.link}>
         <View style={styles.grow}>
           <T size={12} lh={16} color={colors.textMuted}>
-            You started a booking
+            {t('You started a booking')}
           </T>
           <T size={15} lh={20} numberOfLines={1}>
-            {`Continue your booking at ${draft.vendorName}`}
+            {t('Continue your booking at {name}', { name: draft.vendorName })}
           </T>
         </View>
         <IconArrowRight size={18} color={colors.textSecondary} />
       </Pressable>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Forget this booking"
+        accessibilityLabel={t('Forget this booking')}
         onPress={() => {
           clearBookingDraft();
           setDraft(null);

@@ -1,3 +1,5 @@
+import { t } from './i18n/translate'
+
 /**
  * One way to write money, times and dates in all three apps (the UX audit's
  * consistency system): "₹1,25,000", "9:00 am", "Tue 20 Oct",
@@ -89,6 +91,10 @@ export function formatClock(at: string | Date): string {
 /**
  * "Today", "Tomorrow", "Yesterday", else "Tue 20 Oct", by India's calendar.
  * The year is added ("Tue 20 Oct 2027") only when it isn't now's.
+ *
+ * Always English: screens compare it ("day === 'Today'") to build their
+ * sentences. Show it as t(formatDay(at)); month and day names stay English
+ * this phase.
  */
 export function formatDay(at: string | Date, now: number = Date.now()): string {
   const time = toTime(at)
@@ -109,7 +115,7 @@ export function formatWhen(
   now: number = Date.now()
 ): string {
   const day = formatDay(at, now)
-  return day && `${day} · ${formatClock(at)}`
+  return day && `${t(day)} · ${formatClock(at)}`
 }
 
 /**
@@ -128,20 +134,29 @@ export function formatRelative(
   const diff = time - now
   const ahead = diff > 0
   const gap = Math.abs(diff)
-  if (gap < MINUTE_MS) return 'just now'
+  if (gap < MINUTE_MS) return t('just now')
 
   const minutes = ahead
     ? Math.ceil(gap / MINUTE_MS)
     : Math.floor(gap / MINUTE_MS)
-  if (minutes < 60) return ahead ? `in ${minutes} min` : `${minutes} min ago`
+  if (minutes < 60)
+    return ahead
+      ? t('in {count} min', { count: minutes })
+      : t('{count} min ago', { count: minutes })
 
   const hours = Math.floor(gap / HOUR_MS)
-  if (hours < 24) return ahead ? `in ${hours} h` : `${hours} h ago`
+  if (hours < 24)
+    return ahead
+      ? t('in {count} h', { count: hours })
+      : t('{count} h ago', { count: hours })
 
   const days = Math.abs(istDayNumber(time) - istDayNumber(now))
-  if (days <= 1) return ahead ? 'tomorrow' : 'yesterday'
-  if (days < 7) return ahead ? `in ${days} days` : `${days} days ago`
-  return formatDay(at, now)
+  if (days <= 1) return ahead ? t('tomorrow') : t('yesterday')
+  if (days < 7)
+    return ahead
+      ? t('in {count} days', { count: days })
+      : t('{count} days ago', { count: days })
+  return t(formatDay(at, now))
 }
 
 export type DeadlineKind = 'closed' | 'running' | 'urgent' | 'missed'
@@ -189,7 +204,7 @@ export function deadlineState(
   if (Number.isNaN(end)) return { kind: 'closed', label: '—', fractionLeft: 1 }
 
   const left = end - now
-  if (left <= 0) return { kind: 'missed', label: 'Missed', fractionLeft: 0 }
+  if (left <= 0) return { kind: 'missed', label: t('Missed'), fractionLeft: 0 }
 
   const urgentMs = Math.max(0, urgentMins) * MINUTE_MS
   const start = startedAt === undefined ? NaN : toTime(startedAt)
@@ -201,7 +216,9 @@ export function deadlineState(
     const far = istDayNumber(end) - istDayNumber(now) > 1
     return {
       kind: 'closed',
-      label: `By ${far ? formatWhen(deadline, now) : formatClock(deadline)}`,
+      label: t('By {time}', {
+        time: far ? formatWhen(deadline, now) : formatClock(deadline),
+      }),
       fractionLeft: fractionLeft ?? 1,
     }
   }

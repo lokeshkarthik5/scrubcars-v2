@@ -11,6 +11,7 @@ import { useAuthStore } from '@repo/core/stores/auth-store'
 import { useUserStore } from '@repo/core/stores/user-store'
 import { toast } from 'react-toastify'
 import { trackRegistration } from '@/lib/meta-pixel'
+import { useT } from '@repo/core/i18n'
 
 /**
  * The last step of signing up: a name, and nothing else.
@@ -28,6 +29,7 @@ import { trackRegistration } from '@/lib/meta-pixel'
  * customer to Home with an empty cart.
  */
 function ProfileSetupForm() {
+  const t = useT()
   const router = useRouter()
   const searchParams = useSearchParams()
   // Checked again here rather than trusted from verify-otp: this URL can be
@@ -66,16 +68,16 @@ function ProfileSetupForm() {
       // page takes over, so a second tap cannot resubmit.
     } catch (err) {
       console.log('[profile-setup] submit failed:', err)
-      toast.error(err instanceof Error ? err.message : 'Something went wrong')
+      toast.error(err instanceof Error ? err.message : t('Something went wrong'))
       setLoading(false)
     }
   }
 
   const cta = next?.startsWith('/book/')
-    ? 'Continue to booking'
+    ? t('Continue to booking')
     : next
-      ? 'Continue'
-      : 'Get started'
+      ? t('Continue')
+      : t('Get started')
 
   return (
     // No back arrow: behind this is the OTP screen, which a signed-in
@@ -84,10 +86,10 @@ function ProfileSetupForm() {
       <form noValidate onSubmit={handleSubmit} className="flex flex-col">
         <div className="text-center">
           <h1 className="text-[28px] font-bold leading-9 tracking-[-0.02em] text-text-primary">
-            What&apos;s your name?
+            {t("What's your name?")}
           </h1>
           <p className="mt-2 text-balance text-base leading-6 text-text-secondary">
-            The garage sees it on your booking.
+            {t('The garage sees it on your booking.')}
           </p>
         </div>
 
@@ -95,8 +97,8 @@ function ProfileSetupForm() {
           <ScInput
             data-clarity-mask="true"
             id="profile-name"
-            label="Full name"
-            placeholder="Your name"
+            label={t('Full name')}
+            placeholder={t('Your name')}
             autoComplete="name"
             autoCapitalize="words"
             autoFocus
@@ -117,11 +119,11 @@ function ProfileSetupForm() {
           disabled={!canSubmit || loading}
           className="mt-6 disabled:bg-white/10 disabled:hover:bg-white/10"
         >
-          {loading ? 'Saving...' : cta}
+          {loading ? t('Saving...') : cta}
         </ScButton>
 
         <p className="mt-4 text-center text-t4 leading-5 text-text-secondary">
-          We&apos;ll ask for an address only if you book doorstep or pickup &amp; drop.
+          {t("We'll ask for an address only if you book doorstep or pickup & drop.")}
         </p>
       </form>
     </AuthStage>

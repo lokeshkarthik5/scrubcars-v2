@@ -40,14 +40,17 @@ import { Figures } from '@repo/ui/sc/figures'
 import { OutsideCityChip } from '@repo/ui/features/outside-city'
 import { GarageCover } from '@repo/ui/features/garage-cover'
 import {
-  DEFAULT_CENTER,
+  cityCenter,
   MAP_STYLES,
   MAP_THEME,
   straightLineKm,
 } from '@repo/core/map'
 import { distanceAndDrive, distanceLabel, driveTimeLabel } from '@repo/core/drive-time'
 import { SERVICE_CITY } from '@repo/core/service-city'
+import { useCustomerPlace } from '@repo/core/hooks/use-customer-place'
+import { garageInCity, garageTown, isSmallCity, outsideCityTag } from '@repo/core/customer-city'
 import { categoryLabel } from '@repo/core/categories'
+import { atGarageListHasGarages } from '@repo/core/reach'
 import { cn } from '@repo/core/utils'
 import { ScSheet } from '@repo/ui/sc/modal'
 import { usePrefersReducedMotion } from '@repo/ui/finish/motion'
@@ -61,6 +64,7 @@ import { OpenStatus } from '@/components/open-status'
 import { HubNav } from '@/components/home/hub-nav'
 import { isHomeHubEnabled } from '@/lib/home-hub'
 import { fitPadding, framingBounds, type FitPadding } from '@/lib/map-view'
+import { fill, useT } from '@repo/core/i18n'
 
 /**
  * Airbnb-style map browse.
@@ -71,11 +75,12 @@ import { fitPadding, framingBounds, type FitPadding } from '@/lib/map-view'
  *   list's 50 km, nearest first (the same radius as the list and Home), and
  *   the map opens framing the customer and all of them. The query does not
  *   wait for the map at all, so the cards load even before it has drawn.
- * - City, for a customer with no location: every pinned garage within the
- *   same 50 km of the city centre, nearest the centre first, all framed at
- *   once. The owner asked for every garage on the opening map; the old opening
- *   viewport, a few kilometres of central Chennai, left out the suburbs.
- *   Garages in other towns are left off, as they are for a Chennai customer.
+ * - City, for a customer with no location (or a whole city picked): every
+ *   pinned garage within their city's reach of its centre (0070: the
+ *   customer's city, Chennai until they pick another), nearest the centre
+ *   first, all framed at once. The owner asked for every garage on the
+ *   opening map; the old opening viewport, a few kilometres of central
+ *   Chennai, left out the suburbs. Garages in other towns are left off.
  * - This area: after "Search this area", whatever is inside the viewport
  *   rectangle. That is a bounding-box query rather than a radius one, which is
  *   why `bbox` went into the listing API up front (plans/geo.md §8). "Centre
@@ -108,14 +113,12 @@ const RouteArc = dynamic(
 const PAGE_LIMIT = 50
 
 /**
- * City mode's reach from the centre, and Nearby mode's from the customer:
- * the city's 50 km (CITY_REACH_KM in the server's lib/discovery.ts), so a
- * customer with no location sees what one standing in the centre would. The
- * service city's own numbers, so a garage this leaves off is exactly one
- * that carries the "Outside Chennai" sign.
+ * Nearby mode's reach from the customer: the 50 km of CITY_REACH_KM in the
+ * server's lib/discovery.ts (the most the list takes). City mode uses the
+ * customer's city's own centre and reach instead (0070), so a garage it
+ * leaves off is exactly one that carries a town sign.
  */
 const CITY_RADIUS_KM = SERVICE_CITY.radiusKm
-const CITY_CENTRE = SERVICE_CITY.centre
 
 /**
  * The opening zoom, before any fit: about a city across on a phone. Chennai
@@ -164,12 +167,15 @@ function hasPin(
 }
 
 function MapBrowseContent() {
+  const t = useT()
   const router = useRouter()
   // Read at build time (lib/home-hub.ts): the hub's floating nav, or none as
   // before.
   const hub = isHomeHubEnabled()
   const searchParams = useSearchParams()
   const location = useLocationStore((s) => s.location)
+  const { city: myCity } = useCustomerPlace()
+  const small = isSmallCity(myCity)
   const requestGpsLocation = useLocationStore((s) => s.requestGpsLocation)
   const locating = useLocationStore((s) => s.locating)
 
@@ -181,8 +187,8 @@ function MapBrowseContent() {
     track('map_view', { mode: bookingType })
   }, [bookingType])
 
-  // Browsing all of Chennai (the header's citywide choice) behaves like
-  // having no location: city mode below shows every pinned garage.
+  // Browsing a whole city (the city chip's "All of <City>") behaves like
+  // having no location: city mode below shows that city's pinned garages.
   const origin =
     !location || isCitywide(location) ? undefined : coarse(location)
   const hasOrigin = origin !== undefined
@@ -229,6 +235,7 @@ function MapBrowseContent() {
   const {
     vendors: found,
     radiusKm,
+    reach,
     isLoading,
   } = useVendorSearch(
     {
@@ -242,6 +249,9 @@ function MapBrowseContent() {
       bbox: areaBounds ? boundsToParam(areaBounds) : undefined,
       lat: origin?.lat,
       lng: origin?.lng,
+      // City mode: the server leaves out garages over 150 km from the city's
+      // centre (0070), so the page of 50 is the city's, not the alphabet's.
+      ...(city ? { cityLat: myCity.centre.lat, cityLng: myCity.centre.lng } : {}),
       radiusKm: nearby ? CITY_RADIUS_KM : undefined,
       sort: origin ? 'distance' : 'relevance',
       // A garage with no coordinates cannot be drawn on a map, so the tail of
@@ -262,11 +272,11 @@ function MapBrowseContent() {
     if (!city) return found
     return found
       .filter(hasPin)
-      .map((vendor) => ({ vendor, km: straightLineKm(CITY_CENTRE, vendor) }))
-      .filter(({ km }) => km <= CITY_RADIUS_KM)
+      .map((vendor) => ({ vendor, km: straightLineKm(myCity.centre, vendor) }))
+      .filter(({ km }) => km <= myCity.reachKm)
       .sort((a, b) => a.km - b.km)
       .map(({ vendor }) => vendor)
-  }, [city, found])
+  }, [city, found, myCity])
 
   const handleBoundsChange = useCallback(
     (bounds: MapBounds, _center: unknown, meta: { programmatic: boolean }) => {
@@ -418,26 +428,25 @@ function MapBrowseContent() {
         ? framingBounds([origin, ...pins], 3)
         : framingBounds([origin], 12)
   } else if (!isLoading && city && pins.length > 0) {
-    fitKey = 'city'
+    fitKey = `city:${myCity.id}`
     fitTarget = framingBounds(pins, 3)
   }
 
   const center: [number, number] = location
     ? [location.lng, location.lat]
-    : DEFAULT_CENTER
+    : cityCenter(myCity)
 
   const emptyMessage =
     bookingType === 'pickup' ? (
-      'No garages pick up near you yet — try At garage or Doorstep.'
+      t('No garages pick up near you yet — try At garage or Doorstep.')
     ) : bookingType === 'doorstep' ? (
-      'No garages travel to this area yet.'
+      t('No garages travel to this area yet.')
     ) : nearby && radiusKm !== null ? (
       <>
-        No garages within <span className="font-numeric">{radiusKm}</span> km of
-        you yet.
+        {fill(t('No garages within {radiusKm} km of you yet.'), { radiusKm: <span className="font-numeric">{radiusKm}</span> })}
       </>
     ) : (
-      'No garages in this area. Try zooming out or moving the map.'
+      t('No garages in this area. Try zooming out or moving the map.')
     )
 
   return (
@@ -457,7 +466,7 @@ function MapBrowseContent() {
           ref={topRef}
           className="flex items-start justify-between gap-2 p-4 pt-[max(1rem,env(safe-area-inset-top))]"
         >
-          <RoundButton label="Back" onClick={() => router.back()}>
+          <RoundButton label={t('Back')} onClick={() => router.back()}>
             <IconChevronLeft size={20} />
           </RoundButton>
 
@@ -474,11 +483,11 @@ function MapBrowseContent() {
               className="fx-glass fx-press pointer-events-auto flex h-11 items-center gap-1.5 rounded-pill px-[15px] text-t4 font-semibold text-text-primary disabled:opacity-50"
             >
               <IconList size={16} aria-hidden="true" />
-              List
+              {t('List')}
             </button>
 
             <RoundButton
-              label="Centre on my location"
+              label={t('Centre on my location')}
               onClick={centreOnMe}
               disabled={locating}
             >
@@ -506,7 +515,7 @@ function MapBrowseContent() {
               className="press pointer-events-auto flex min-h-11 items-center gap-1.5 rounded-full bg-brand-white px-4 py-2 text-t4 font-semibold text-brand-black shadow-lg"
             >
               <IconRefresh size={15} aria-hidden="true" />
-              Search this area
+              {t('Search this area')}
             </button>
           </div>
         )}
@@ -523,19 +532,22 @@ function MapBrowseContent() {
         >
           {isLoading ? (
             <p className="px-4 text-center text-t5 text-text-secondary">
-              {nearby ? 'Finding garages near you…' : 'Looking in this area…'}
+              {nearby ? t('Finding garages near you…') : t('Looking in this area…')}
             </p>
           ) : vendors.length === 0 ? (
             <div className="fx-glass pointer-events-auto mx-4 flex flex-col items-center rounded-[22px] px-4 py-3 text-center">
               <p className="text-t4 text-text-secondary">{emptyMessage}</p>
-              {/* Nothing within reach is not the end: the list has every
-                  garage, further away and not yet pinned ones included. */}
-              {nearby && bookingType === 'dropin' && (
+              {/* Nothing within reach is not the end: the list has the
+                  garages further away and the not yet pinned ones. Only
+                  when it has any, though: it leaves out garages over 150 km
+                  away (0070), and the At garage count says whether that
+                  leaves it empty. */}
+              {nearby && bookingType === 'dropin' && atGarageListHasGarages(reach) && (
                 <Link
                   href="/garages"
                   className="flex min-h-11 items-center px-3 text-t4 font-semibold text-text-primary underline underline-offset-4"
                 >
-                  See all garages
+                  {t('See all garages')}
                 </Link>
               )}
             </div>
@@ -551,22 +563,27 @@ function MapBrowseContent() {
                   className="fx-glass fx-press pointer-events-auto flex h-9 items-center gap-[7px] rounded-pill pl-[9px] pr-[13px] text-t4 font-semibold text-text-primary"
                 >
                   <IconChevronUp size={18} aria-hidden="true" />
-                  <span>
-                    <span className="font-numeric">{vendors.length}</span>{' '}
-                    {nearby
-                      ? vendors.length === 1
-                        ? 'garage near you'
-                        : 'garages near you'
-                      : vendors.length === 1
-                        ? 'garage here'
-                        : 'garages here'}
-                  </span>
+                  {/* A small city counts nothing (0070): just the list. */}
+                  {small ? (
+                    <span>{t('Garages here')}</span>
+                  ) : (
+                    <span>
+                      <span className="font-numeric">{vendors.length}</span>{' '}
+                      {nearby
+                        ? vendors.length === 1
+                          ? t('garage near you')
+                          : t('garages near you')
+                        : vendors.length === 1
+                          ? t('garage here')
+                          : t('garages here')}
+                    </span>
+                  )}
                 </button>
                 {vendors.length > 1 && (
                   <div className="fx-glass pointer-events-auto flex h-9 items-center gap-0.5 rounded-pill px-[3px] text-t4 font-semibold">
                     <button
                       type="button"
-                      aria-label="Previous garage"
+                      aria-label={t('Previous garage')}
                       disabled={selectedIndex <= 0}
                       onClick={() => step(-1)}
                       className="grid size-[30px] place-items-center rounded-full disabled:opacity-30"
@@ -574,13 +591,14 @@ function MapBrowseContent() {
                       <IconChevronLeft size={17} aria-hidden />
                     </button>
                     <span className="min-w-11 text-center" aria-live="polite">
-                      <span className="font-numeric">{selectedIndex + 1}</span>{' '}
-                      <span className="font-medium text-text-secondary">of</span>{' '}
-                      <span className="font-numeric">{vendors.length}</span>
+                      {fill(t('{index} of {total}'), {
+                        index: <span className="font-numeric">{selectedIndex + 1}</span>,
+                        total: <span className="font-numeric">{vendors.length}</span>,
+                      })}
                     </span>
                     <button
                       type="button"
-                      aria-label="Next garage"
+                      aria-label={t('Next garage')}
                       disabled={selectedIndex >= vendors.length - 1}
                       onClick={() => step(1)}
                       className="grid size-[30px] place-items-center rounded-full disabled:opacity-30"
@@ -628,14 +646,11 @@ function MapBrowseContent() {
                 <p className="px-4 text-center text-t5 text-text-muted">
                   {nearby ? (
                     <>
-                      Showing the nearest{' '}
-                      <span className="font-numeric">{PAGE_LIMIT}</span>.
+                      {fill(t('Showing the nearest {limit}.'), { limit: <span className="font-numeric">{PAGE_LIMIT}</span> })}
                     </>
                   ) : (
                     <>
-                      Showing the first{' '}
-                      <span className="font-numeric">{PAGE_LIMIT}</span> — zoom
-                      in to narrow it down.
+                      {fill(t('Showing the first {limit} — zoom in to narrow it down.'), { limit: <span className="font-numeric">{PAGE_LIMIT}</span> })}
                     </>
                   )}
                 </p>
@@ -692,17 +707,17 @@ function MapBrowseContent() {
       <ScSheet
         open={listOpen}
         onClose={() => setListOpen(false)}
-        aria-label="Garages on the map"
+        aria-label={t('Garages on the map')}
         className="fx-glass mx-2 h-[82vh] max-h-[82vh] rounded-b-none rounded-t-[28px] border border-b-0 border-white/14 bg-[rgb(16_16_20/0.82)] pb-0"
       >
         <div className="flex items-center justify-between gap-2.5 px-4 pb-3 pt-1">
           <div>
             <h2 className="text-t2 font-semibold text-text-primary">
-              {nearby ? 'Garages near you' : 'Garages here'}
+              {nearby ? t('Garages near you') : t('Garages here')}
             </h2>
             <p className="text-t4 text-text-secondary">
               <span className="font-numeric">{vendors.length}</span>{' '}
-              {origin ? 'nearest first' : 'on the map'}
+              {origin ? t('nearest first') : t('on the map')}
             </p>
           </div>
           <button
@@ -711,7 +726,7 @@ function MapBrowseContent() {
             className="fx-glass fx-press flex h-9 items-center gap-1.5 rounded-pill pl-[9px] pr-3 text-t4 font-semibold text-text-primary"
           >
             <IconMap size={16} aria-hidden />
-            Map
+            {t('Map')}
           </button>
         </div>
         <ul className="flex flex-col gap-2 px-2.5 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
@@ -763,11 +778,12 @@ function RoundButton({
 
 /** A step to the card either side, on the strip's edge. */
 function EdgeButton({ side, onClick }: { side: 'prev' | 'next'; onClick: () => void }) {
+  const t = useT()
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-label={side === 'prev' ? 'Previous garage' : 'Next garage'}
+      aria-label={side === 'prev' ? t('Previous garage') : t('Next garage')}
       className={cn(
         'fx-glass fx-press pointer-events-auto absolute top-[72px] grid size-[38px] place-items-center rounded-full text-text-primary',
         side === 'prev' ? 'left-2.5' : 'right-2.5'
@@ -788,6 +804,7 @@ function MapListRow({
   selected: boolean
   onChoose: () => void
 }) {
+  const t = useT()
   const approx = useLocationStore((s) => isApproximate(s.location))
   const km = vendor.distanceKm
   return (
@@ -811,7 +828,7 @@ function MapListRow({
       <span className="min-w-0">
         <span className="block truncate text-t3 font-semibold text-text-primary">{vendor.name}</span>
         <span className="mt-0.5 block truncate text-t4 text-text-secondary">
-          {[vendor.area, hasStarScore(vendor) ? `★ ${vendor.rating.toFixed(1)}` : NEW_GARAGE_LABEL]
+          {[vendor.area, hasStarScore(vendor) ? `★ ${vendor.rating.toFixed(1)}` : t(NEW_GARAGE_LABEL)]
             .filter(Boolean)
             .join(' · ')}
         </span>
@@ -855,19 +872,27 @@ function MapVendorCard({
   /** Makes this the chosen garage: its card centred, its pin red. */
   onChoose: () => void
 }) {
+  const t = useT()
   const modeParam = bookingTypeParam(mode)
   const queryClient = useQueryClient()
   // "6.2 km · ~20 min" (0062), "~" before the km when measured from an area.
   const approx = useLocationStore((s) => isApproximate(s.location))
   const distance =
     vendor.distanceKm !== null ? distanceAndDrive(vendor.distanceKm, approx) : null
+  // A garage in another town than the customer's city (0070) names its town;
+  // the km beside it is the card's own distance, so the chip does not say it
+  // twice. One in their city says nothing.
+  const { place } = useCustomerPlace()
+  const townTag = garageInCity(vendor, place.city)
+    ? null
+    : (garageTown(vendor, place.city) ?? outsideCityTag(vendor, place))
   // Whether it comes to you: on a Pickup & drop map every garage collects,
   // so that is the badge; otherwise Doorstep, as before.
   const badge =
     mode === 'pickup'
-      ? BOOKING_TYPE_LABELS.pickup
+      ? t(BOOKING_TYPE_LABELS.pickup)
       : vendor.doorstepEnabled
-        ? BOOKING_TYPE_LABELS.doorstep
+        ? t(BOOKING_TYPE_LABELS.doorstep)
         : null
 
   return (
@@ -953,7 +978,7 @@ function MapVendorCard({
             </span>
           ) : (
             <span className="shrink-0 pt-1 text-t5 font-medium text-text-primary">
-              {NEW_GARAGE_LABEL}
+              {t(NEW_GARAGE_LABEL)}
             </span>
           )}
         </div>
@@ -966,14 +991,11 @@ function MapVendorCard({
         )}
 
         {/* A garage in another town (the strip can hold one in nearby and
-            "this area" modes) carries the sign in place of its town, which
-            the sign already names. */}
-        {vendor.outsideServiceCity ? (
+            "this area" modes) carries the sign in place of its town line,
+            since the sign names the town. */}
+        {townTag ? (
           <p className="flex min-w-0 items-center gap-1.5 text-t5 text-text-secondary">
-            <OutsideCityChip
-              outside={vendor.outsideServiceCity}
-              className="min-w-0 bg-surface"
-            />
+            <OutsideCityChip text={townTag} className="min-w-0 bg-surface" />
             {distance && (
               <span className="shrink-0 font-numeric">{distance}</span>
             )}
@@ -990,10 +1012,9 @@ function MapVendorCard({
 
         {vendor.startingPrice > 0 && (
           <p className="mt-0.5 text-t4 text-text-secondary">
-            <span className="font-numeric text-[17px] font-semibold text-text-primary">
+            {fill(t('{price} onwards'), { price: <span className="font-numeric text-[17px] font-semibold text-text-primary">
               ₹{vendor.startingPrice}
-            </span>{' '}
-            onwards
+            </span> })}
           </p>
         )}
       </div>

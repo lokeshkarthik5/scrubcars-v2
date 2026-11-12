@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { IconBell, IconX } from '@tabler/icons-react'
+import { fill, useT } from '@repo/core/i18n'
 import { ScButton } from '@repo/ui/sc/button'
 import { usePushDevice } from '@repo/ui/features/push-notifications'
 import { useAuthStore } from '@repo/core/stores/auth-store'
@@ -42,6 +43,7 @@ function snooze() {
  * sent to the Notifications page, which explains the Home Screen step.
  */
 export function PushBanner() {
+  const t = useT()
   const activeVendorId = useAuthStore((s) => s.activeVendorId)
   const device = usePushDevice('garage', activeVendorId)
   // Read once on the client. The first render shows nothing either way (the
@@ -56,7 +58,7 @@ export function PushBanner() {
 
   return (
     <section
-      aria-label="New-booking alerts"
+      aria-label={t('New-booking alerts')}
       className="flex items-center gap-3 rounded-[20px] border border-border bg-surface py-2 pl-4 pr-2"
     >
       <IconBell
@@ -65,10 +67,13 @@ export function PushBanner() {
         className="shrink-0 text-text-primary"
       />
       <p className="min-w-0 flex-1 text-[15px] leading-snug text-text-secondary">
-        <span className="font-semibold text-text-primary">
-          Booking alerts are off
-        </span>{' '}
-        on this phone
+        {fill(t('{off} on this phone'), {
+          off: (
+            <span className="font-semibold text-text-primary">
+              {t('Booking alerts are off')}
+            </span>
+          ),
+        })}
       </p>
       {device.support === 'supported' ? (
         <ScButton
@@ -79,14 +84,14 @@ export function PushBanner() {
           disabled={device.busy}
           onClick={() => void device.turnOn()}
         >
-          Turn on
+          {t('Turn on')}
         </ScButton>
       ) : (
         <Link
           href="/settings/notifications"
           className="flex min-h-12 shrink-0 items-center px-3 text-[15px] font-semibold text-text-primary underline underline-offset-4"
         >
-          {device.support === 'ios_install' ? 'How' : 'Why'}
+          {device.support === 'ios_install' ? t('How') : t('Why')}
         </Link>
       )}
       <button
@@ -95,7 +100,7 @@ export function PushBanner() {
           snooze()
           setHidden(true)
         }}
-        aria-label="Not now"
+        aria-label={t('Not now')}
         className="-ml-1 flex size-11 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:text-text-primary"
       >
         <IconX size={18} aria-hidden="true" />

@@ -1,4 +1,5 @@
 import { formatClock } from '@repo/core/format';
+import { useT } from '@repo/core/i18n';
 import { answerByRing, type AnswerDeadline } from '@repo/core/moments';
 import { RED_LIGHT } from '@repo/native-ui/tokens';
 import { useReduceMotion } from '@repo/native-ui/motion';
@@ -21,6 +22,7 @@ const ROUND = 2 * Math.PI * R;
  * it already say "They answer by …", so the ring is drawn, not read.
  */
 export function AnswerByRing({ deadline, now }: { deadline: AnswerDeadline; now: number }) {
+  const t = useT();
   const reduce = useReduceMotion();
   const colors = useColors();
   const { fx } = useFinish();
@@ -65,7 +67,7 @@ export function AnswerByRing({ deadline, now }: { deadline: AnswerDeadline; now:
         {minutesLeft === null ? (
           <>
             <T variant="over" color={fx.quiet}>
-              by
+              {t('by')}
             </T>
             <T num variant="t5" weight={600}>
               {formatClock(deadline.respondBy)}
@@ -77,7 +79,7 @@ export function AnswerByRing({ deadline, now }: { deadline: AnswerDeadline; now:
               {minutesLeft}
             </T>
             <T variant="over" weight={500} uppercase={false} tracking={0} color={fx.quiet}>
-              min left
+              {t('min left')}
             </T>
           </>
         )}

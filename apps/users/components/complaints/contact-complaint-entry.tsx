@@ -8,6 +8,7 @@ import { useAuthStore } from '@repo/core/stores/auth-store'
 import { track } from '@repo/core/analytics'
 import { COMPLAINT_ACKNOWLEDGE_HOURS } from '@repo/core/complaints'
 import { RaiseComplaintSheet } from '@/components/complaints/raise-complaint-sheet'
+import { fill, useT } from '@repo/core/i18n'
 
 /**
  * "Raise a complaint" on the Contact page, for a complaint that is not about
@@ -21,6 +22,7 @@ import { RaiseComplaintSheet } from '@/components/complaints/raise-complaint-she
  * printed page (`legal-chrome`).
  */
 export function ContactComplaintEntry() {
+  const t = useT()
   const user = useAuthStore((s) => s.user)
   const ready = useAuthStore((s) => s.isSessionReady)
   const [open, setOpen] = useState(false)
@@ -37,11 +39,10 @@ export function ContactComplaintEntry() {
     >
       <div>
         <h2 id="raise-complaint" className="text-t3 font-semibold text-text-primary">
-          Raise a complaint
+          {t('Raise a complaint')}
         </h2>
         <p className="mt-1 text-[14px] leading-relaxed text-text-secondary">
-          Write it down in the app and you get a complaint number at once. We reply within{' '}
-          <span className="font-numeric">{COMPLAINT_ACKNOWLEDGE_HOURS}</span> hours.
+          {fill(t('Write it down in the app and you get a complaint number at once. We reply within {hours} hours.'), { hours: <span className="font-numeric">{COMPLAINT_ACKNOWLEDGE_HOURS}</span> })}
         </p>
       </div>
 
@@ -51,18 +52,17 @@ export function ContactComplaintEntry() {
         <ScButton variant="secondary" onClick={() => setOpen(true)} className="min-h-11 sm:w-auto sm:self-start sm:px-5">
           <span className="flex items-center justify-center gap-2">
             <IconMessageReport size={18} aria-hidden />
-            Raise a complaint
+            {t('Raise a complaint')}
           </span>
         </ScButton>
       ) : (
         <p className="text-[14px] text-text-secondary">
-          <Link
+          {fill(t('{part}, or reach us by phone, WhatsApp or email below.'), { part: <Link
             href={`/login?next=${encodeURIComponent('/contact#raise-complaint')}`}
             className="font-medium text-text-primary underline decoration-white/30 underline-offset-[3px] hover:decoration-white"
           >
-            Sign in to raise a complaint
-          </Link>
-          , or reach us by phone, WhatsApp or email below.
+            {t('Sign in to raise a complaint')}
+          </Link> })}
         </p>
       )}
 

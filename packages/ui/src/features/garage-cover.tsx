@@ -5,6 +5,7 @@ import {
   type CoverTone,
 } from '@repo/core/garage-cover'
 import type { Vendor } from '@repo/core/types'
+import { t } from '@repo/core/i18n/translate'
 import { cn } from '@repo/core/utils'
 
 /**
@@ -122,7 +123,8 @@ export function GarageCover({
               {i > 0 && (
                 <i className="size-1 shrink-0 rounded-full bg-white/45" />
               )}
-              <span className="truncate">{part}</span>
+              {/* "Chennai" and the modes in the language chosen; an area name stays as written. */}
+              <span className="truncate">{t(part)}</span>
             </span>
           ))}
         </p>

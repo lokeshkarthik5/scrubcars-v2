@@ -12,11 +12,14 @@ import {
   IconChevronRight,
   IconUsers,
 } from '@tabler/icons-react'
+import { fill, useT } from '@repo/core/i18n'
+import { t } from '@repo/core/i18n/translate'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui/sc/tabs'
+import { GraphiteTabsList, GraphiteTabsTrigger } from '@repo/ui/finish/graphite-tabs'
+import { Tabs, TabsContent } from '@repo/ui/sc/tabs'
 import {
   LocationPicker,
   type PickedLocation,
@@ -45,8 +48,9 @@ import type {
 } from '@repo/core/api/types'
 import {
   DEFAULT_DOORSTEP_RADIUS_KM,
-  DOORSTEP_RADIUS_PLACEHOLDER,
+  MAX_DOORSTEP_RADIUS_KM,
 } from '@repo/core/doorstep'
+import { TravelChoiceField } from '@repo/ui/features/travel-choice'
 import { toast } from 'react-toastify'
 import { getGarageDocumentsConfig } from '@repo/core/api/documents'
 import { getPushConfig } from '@repo/core/api/push'
@@ -59,8 +63,12 @@ import { useVendorOnboardingStore } from '@repo/core/stores/vendor-onboarding-st
 import { cn } from '@repo/core/utils'
 import { AccountActions } from '@/components/account-actions'
 import { ActiveGarage } from '@/components/active-garage'
+import { LanguageRow } from '@/components/language-row'
 import { PickupSection } from './pickup-section'
 import { HolidaysSection, PauseSection } from './time-off-section'
+
+/** Said from an effect, so it reads the language in use without being one of the effect's dependencies. */
+const loadFailed = () => t('Failed to load settings')
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 // The tabs a ?tab= link can open on. Anything else lands on Profile.
@@ -72,19 +80,21 @@ const MAX_BAYS = 20
 const MAX_JOBS_PER_DAY = 500
 
 /**
- * What is wrong with the capacity form, in the owner's words, or null. Bays
- * must be a whole number from 1 to 20; the daily limit is blank (no limit) or
- * a whole number from 1 up.
+ * What is wrong with the capacity form, in the owner's words (and language),
+ * or null. Bays must be a whole number from 1 to 20; the daily limit is blank
+ * (no limit) or a whole number from 1 up.
  */
 function capacityProblem(bays: string, jobsPerDay: string): string | null {
   const bayCount = Number(bays)
   if (!/^\d+$/.test(bays) || bayCount < 1 || bayCount > MAX_BAYS) {
-    return `Cars at the same time must be between 1 and ${MAX_BAYS}.`
+    return t('Cars at the same time must be between 1 and {max}.', { max: MAX_BAYS })
   }
   if (jobsPerDay.trim() === '') return null
   const jobs = Number(jobsPerDay)
   if (!/^\d+$/.test(jobsPerDay) || jobs < 1 || jobs > MAX_JOBS_PER_DAY) {
-    return `Jobs in a day must be between 1 and ${MAX_JOBS_PER_DAY}, or left blank.`
+    return t('Jobs in a day must be between 1 and {max}, or left blank.', {
+      max: MAX_JOBS_PER_DAY,
+    })
   }
   return null
 }
@@ -113,6 +123,7 @@ function LinkRow({
   title: string
   description: string
 }) {
+  // Title and description come in already in the language in use.
   return (
     <Link href={href} className="press block">
       <ScCard className="flex items-center gap-3 transition-colors hover:border-text-muted">
@@ -181,6 +192,7 @@ export default function VendorSettingsPage() {
 }
 
 function VendorSettings() {
+  const t = useT()
   const searchParams = useSearchParams()
   const [vendor, setVendor] = useState<ApiVendorProfile | null>(null)
   const [profileForm, setProfileForm] = useState({
@@ -309,7 +321,7 @@ function VendorSettings() {
         }
       } catch (err) {
         toast.error(
-          err instanceof Error ? err.message : 'Failed to load settings'
+          err instanceof Error ? err.message : loadFailed()
         )
       } finally {
         setLoading(false)
@@ -327,9 +339,9 @@ function VendorSettings() {
     setSaving(key)
     try {
       await action()
-      toast.success('Saved successfully')
+      toast.success(t('Saved successfully'))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Something went wrong')
+      toast.error(err instanceof Error ? err.message : t('Something went wrong'))
     } finally {
       setSaving(null)
     }
@@ -395,6 +407,23 @@ function VendorSettings() {
       setVendor(updated)
     })
 
+  // "All over <city>" for doorstep (0069) applies only while the pin is in
+  // a city; the server refuses it otherwise ("Pin the garage inside a city
+  // first"), which the toast then says.
+  const doorstepWholeCity = vendor?.doorstepWholeCity === true && vendor.garageCity != null
+  const saveDoorstepWholeCity = async (on: boolean) => {
+    setSaving('doorstep-whole-city')
+    try {
+      const updated = await updateVendorJobTypes({ doorstepWholeCity: on })
+      setVendor(updated)
+      toast.success(t('Saved successfully'))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t('Something went wrong'))
+    } finally {
+      setSaving(null)
+    }
+  }
+
   // Doorstep turns on without asking how far first: the radius is optional,
   // and a garage that leaves it empty covers the default 10 km from its pin
   // (set or changed under Location).
@@ -407,9 +436,9 @@ function VendorSettings() {
     try {
       const updated = await updateVendorJobTypes({ [field]: value })
       setVendor(updated)
-      toast.success('Saved successfully')
+      toast.success(t('Saved successfully'))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Something went wrong')
+      toast.error(err instanceof Error ? err.message : t('Something went wrong'))
     } finally {
       setSaving(null)
     }
@@ -444,10 +473,10 @@ function VendorSettings() {
         brandRight={<ActiveGarage />}
         className="gap-5 py-4"
       >
-        <TopBar title="Settings" />
+        <TopBar title={t('Settings')} />
         {/* The tab strip, then a form's worth of card. */}
         <div role="status" aria-busy="true" className="flex flex-col gap-4">
-          <span className="sr-only">Loading</span>
+          <span className="sr-only">{t('Loading')}</span>
           <Skeleton className="h-11 rounded-[12px]" />
           <Skeleton className="h-80" />
         </div>
@@ -463,29 +492,31 @@ function VendorSettings() {
       brandRight={<ActiveGarage />}
       className="gap-5 py-4"
     >
-      <TopBar title="Settings" />
+      <TopBar title={t('Settings')} />
 
       {/* Tabs rather than one long scroll. Grouped by the question being
           answered — who you are, where you are, when you work, when you are
           not working, everything else — so each panel is a similar size and
           nothing important sits below three screens of other settings. */}
       <Tabs value={tab} onValueChange={(value) => setTab(value as SettingsTab)}>
-        <TabsList className="[&_[role=tab]]:min-h-12 [&_[role=tab]]:text-[14px]">
-          <TabsTrigger value="profile">Profile</TabsTrigger>
-          <TabsTrigger value="location">Location</TabsTrigger>
-          <TabsTrigger value="hours">Hours</TabsTrigger>
-          <TabsTrigger value="time-off">Time off</TabsTrigger>
-          <TabsTrigger value="account">Account</TabsTrigger>
-        </TabsList>
+        <GraphiteTabsList value={tab} aria-label={t('Settings')}>
+          <GraphiteTabsTrigger value="profile">{t('Profile')}</GraphiteTabsTrigger>
+          <GraphiteTabsTrigger value="location">{t('Location')}</GraphiteTabsTrigger>
+          <GraphiteTabsTrigger value="hours">{t('Hours')}</GraphiteTabsTrigger>
+          <GraphiteTabsTrigger value="time-off">{t('Time off')}</GraphiteTabsTrigger>
+          <GraphiteTabsTrigger value="account">{t('Account')}</GraphiteTabsTrigger>
+        </GraphiteTabsList>
 
         <TabsContent value="profile">
           <section className="flex flex-col gap-3">
             <SectionHeader
-              title="Profile"
+              title={t('Profile')}
               action={
                 vendor && (
                   <ScBadge variant={vendor.isVerified ? 'success' : 'pending'}>
-                    {vendor.isVerified ? 'Shown to customers' : 'Not shown to customers yet'}
+                    {vendor.isVerified
+                      ? t('Shown to customers')
+                      : t('Not shown to customers yet')}
                   </ScBadge>
                 )
               }
@@ -493,7 +524,7 @@ function VendorSettings() {
             <ScCard className="flex flex-col gap-3">
               <ScInput
                 id="settings-business-name"
-                label="Business name"
+                label={t('Business name')}
                 value={profileForm.businessName}
                 onChange={(e) =>
                   setProfileForm({
@@ -504,7 +535,7 @@ function VendorSettings() {
               />
               <ScInput
                 id="settings-phone"
-                label="Phone"
+                label={t('Phone')}
                 inputMode="numeric"
                 className="font-numeric"
                 value={profileForm.phone}
@@ -517,7 +548,7 @@ function VendorSettings() {
               />
               <ScInput
                 id="settings-address"
-                label="Address"
+                label={t('Address')}
                 value={profileForm.address}
                 onChange={(e) =>
                   setProfileForm({ ...profileForm, address: e.target.value })
@@ -525,7 +556,7 @@ function VendorSettings() {
               />
               <ScInput
                 id="settings-city"
-                label="City"
+                label={t('City')}
                 value={profileForm.city}
                 onChange={(e) =>
                   setProfileForm({ ...profileForm, city: e.target.value })
@@ -533,7 +564,7 @@ function VendorSettings() {
               />
               <ScInput
                 id="settings-pincode"
-                label="Pincode"
+                label={t('Pincode')}
                 inputMode="numeric"
                 maxLength={6}
                 placeholder="600001"
@@ -552,7 +583,7 @@ function VendorSettings() {
                 disabled={saving === 'profile'}
                 onClick={saveProfile}
               >
-                {saving === 'profile' ? 'Saving...' : 'Save profile'}
+                {saving === 'profile' ? t('Saving...') : t('Save profile')}
               </ScButton>
             </ScCard>
           </section>
@@ -560,15 +591,15 @@ function VendorSettings() {
           <LinkRow
             href="/photos"
             icon={<IconPhoto size={18} aria-hidden="true" />}
-            title="Garage photos"
-            description="Add photos customers see on your listing"
+            title={t('Garage photos')}
+            description={t('Add photos customers see on your listing')}
           />
 
           {documentsOn && (
             <LinkRow
               href="/settings/documents"
               icon={<IconFileCertificate size={18} aria-hidden="true" />}
-              title="Documents"
+              title={t('Documents')}
               description={
                 // A doorstep-only garage (no pickup either) has no shop, so no shop photo is asked for.
                 vendor &&
@@ -577,8 +608,8 @@ function VendorSettings() {
                   dropinEnabled: vendor.dropinEnabled,
                   pickupOffered: vendor.pickupEnabled === true,
                 })
-                  ? 'Your ID and bank proof, one of the steps to Silver'
-                  : 'Your ID, bank proof and shop photo, one of the steps to Silver'
+                  ? t('Your ID and bank proof, one of the steps to Silver')
+                  : t('Your ID, bank proof and shop photo, one of the steps to Silver')
               }
             />
           )}
@@ -586,27 +617,28 @@ function VendorSettings() {
           <LinkRow
             href="/agreement"
             icon={<IconFileText size={18} aria-hidden="true" />}
-            title="Garage agreement"
-            description="Read and accept the Detlio garage agreement, for Bronze"
+            title={t('Garage agreement')}
+            description={t('Read and accept the Detlio garage agreement, for Bronze')}
           />
         </TabsContent>
 
         <TabsContent value="location">
           <section className="flex flex-col gap-3">
             <SectionHeader
-              title="Garage location"
+              title={t('Garage location')}
               action={
                 vendor &&
                 vendor.lat === null && (
-                  <ScBadge variant="danger">Not set</ScBadge>
+                  <ScBadge variant="danger">{t('Not set')}</ScBadge>
                 )
               }
             />
             <ScCard className="flex flex-col gap-3">
               {vendor?.lat === null && (
                 <p role="status" className="text-[12px] text-warning">
-                  Customers can&apos;t find you until your garage is pinned on
-                  the map, and we can&apos;t verify you without it.
+                  {t(
+                    "Customers can't find you until your garage is pinned on the map, and we can't verify you without it."
+                  )}
                 </p>
               )}
               <LocationPicker
@@ -614,34 +646,61 @@ function VendorSettings() {
                 onChange={setPin}
                 expectedCity={profileForm.city}
               />
+              {/* "Up to N km" or "All over <city>" (0069): saved the moment it
+                  is picked, as the job type switches are. */}
+              {vendor?.doorstepEnabled && (
+                <TravelChoiceField
+                  label={t('How far you travel for doorstep jobs')}
+                  wholeCity={doorstepWholeCity}
+                  onChange={(on) => void saveDoorstepWholeCity(on)}
+                  cityName={vendor.garageCity?.name ?? null}
+                  radiusKm={vendor.doorstepRadiusKm}
+                  defaultKm={DEFAULT_DOORSTEP_RADIUS_KM}
+                  disabled={saving === 'doorstep-whole-city'}
+                  wholeCityNote={(city) => t('You go to any address in {city}.', { city })}
+                />
+              )}
+              {!doorstepWholeCity && (
               <ScInput
-                label="Doorstep travel radius (km)"
+                label={t('Doorstep travel radius (km)')}
                 inputMode="decimal"
-                placeholder={DOORSTEP_RADIUS_PLACEHOLDER}
+                placeholder={t('Default {km} km', { km: DEFAULT_DOORSTEP_RADIUS_KM })}
                 className="font-numeric"
                 value={doorstepRadiusKm}
                 onChange={(e) =>
                   setDoorstepRadiusKm(e.target.value.replace(/[^\d.]/g, ''))
                 }
               />
+              )}
               {/* This is the garage's own number, not a radius the customer picks:
                   a doorstep search asks "who will come to me", so only the garage
                   can answer it. Optional: left empty, doorstep jobs reach the
                   default (the server's lib/doorstep.ts), and whether the
                   garage travels at all is the Doorstep switch under Hours. */}
+              {!doorstepWholeCity && (
               <p className="text-[11px] text-text-muted">
-                How far you&apos;ll travel for doorstep jobs. Leave empty to use{' '}
-                <span className="font-numeric">
-                  {DEFAULT_DOORSTEP_RADIUS_KM}
-                </span>{' '}
-                km.
+                {fill(
+                  t(
+                    "How far you'll travel for doorstep jobs, up to {max} km. Leave empty to use {km} km."
+                  ),
+                  {
+                    max: (
+                      <span className="font-numeric">{MAX_DOORSTEP_RADIUS_KM}</span>
+                    ),
+                    km: (
+                      <span className="font-numeric">
+                        {DEFAULT_DOORSTEP_RADIUS_KM}
+                      </span>
+                    ),
+                  }
+                )}
               </p>
+              )}
               {/* The same line as under the Doorstep switch: the radius is
                   measured from the pin, so it does nothing until there is one. */}
               {vendor?.doorstepEnabled && vendor.lat === null && (
                 <p className="text-[12px] text-warning">
-                  Customers can&apos;t find you for doorstep jobs until your
-                  garage is pinned.
+                  {t("Customers can't find you for doorstep jobs until your garage is pinned.")}
                 </p>
               )}
               <ScButton
@@ -650,7 +709,7 @@ function VendorSettings() {
                 disabled={!pin || saving === 'location'}
                 onClick={saveLocation}
               >
-                {saving === 'location' ? 'Saving...' : 'Save location'}
+                {saving === 'location' ? t('Saving...') : t('Save location')}
               </ScButton>
             </ScCard>
           </section>
@@ -660,12 +719,12 @@ function VendorSettings() {
               centre rather than on the garage. */}
           {vendor?.lat != null && (
             <section className="flex flex-col gap-3">
-              <SectionHeader title="Doorstep coverage area" />
+              <SectionHeader title={t('Doorstep coverage area')} />
               <ScCard className="flex flex-col gap-3">
                 <p className="text-[12px] text-text-secondary">
-                  Optional. Draw the exact area you&apos;ll travel to — useful
-                  when a river, highway or city boundary means a plain radius
-                  gets it wrong.
+                  {t(
+                    "Optional. Draw the exact area you'll travel to — useful when a river, highway or city boundary means a plain radius gets it wrong."
+                  )}
                 </p>
                 <CoverageEditor
                   center={{ lat: vendor.lat, lng: vendor.lng as number }}
@@ -678,12 +737,12 @@ function VendorSettings() {
 
         <TabsContent value="hours">
           <section className="flex flex-col gap-3">
-            <SectionHeader title="Working hours" />
+            <SectionHeader title={t('Working hours')} />
             <div className="flex flex-col gap-2">
               {workingHours.map((day) => (
                 <ScCard
                   key={day.dayOfWeek}
-                  className="flex items-center gap-2 py-2"
+                  className="flex items-center gap-2 py-2 [&:lang(ta)]:gap-1.5"
                 >
                   <span
                     className={cn(
@@ -695,7 +754,7 @@ function VendorSettings() {
                   </span>
                   <input
                     type="time"
-                    aria-label={`${DAYS[day.dayOfWeek]} opening time`}
+                    aria-label={t('{day} opening time', { day: DAYS[day.dayOfWeek] })}
                     value={day.openTime}
                     onChange={(e) =>
                       setWorkingHours((current) =>
@@ -711,7 +770,7 @@ function VendorSettings() {
                   />
                   <input
                     type="time"
-                    aria-label={`${DAYS[day.dayOfWeek]} closing time`}
+                    aria-label={t('{day} closing time', { day: DAYS[day.dayOfWeek] })}
                     value={day.closeTime}
                     onChange={(e) =>
                       setWorkingHours((current) =>
@@ -730,7 +789,7 @@ function VendorSettings() {
                       is — it used to turn red, the colour of the Save below. */}
                   <button
                     type="button"
-                    aria-label={`${DAYS[day.dayOfWeek]} closed all day`}
+                    aria-label={t('{day} closed all day', { day: DAYS[day.dayOfWeek] })}
                     aria-pressed={day.isClosed}
                     onClick={() =>
                       setWorkingHours((current) =>
@@ -742,13 +801,15 @@ function VendorSettings() {
                       )
                     }
                     className={cn(
-                      'min-h-12 w-[64px] shrink-0 rounded-[10px] border text-[14px] font-medium transition-colors',
+                      // At least 64px, and wider for Tamil's longer words, which
+                      // are a size down so the times keep room for "am" and "pm".
+                      'min-h-12 min-w-[64px] shrink-0 rounded-[10px] border px-2 text-[14px] font-medium transition-colors [&:lang(ta)]:px-1.5 [&:lang(ta)]:text-[12px]',
                       day.isClosed
                         ? 'border-text-secondary bg-surface-elevated text-text-primary'
                         : 'border-border text-text-secondary hover:text-text-primary'
                     )}
                   >
-                    {day.isClosed ? 'Closed' : 'Open'}
+                    {day.isClosed ? t('Closed') : t('Open')}
                   </button>
                 </ScCard>
               ))}
@@ -759,8 +820,8 @@ function VendorSettings() {
                 onClick={saveWorkingHours}
               >
                 {saving === 'working-hours'
-                  ? 'Saving...'
-                  : 'Save working hours'}
+                  ? t('Saving...')
+                  : t('Save working hours')}
               </ScButton>
             </div>
           </section>
@@ -768,8 +829,8 @@ function VendorSettings() {
           {vendor && (
             <section className="flex flex-col gap-3">
               <SectionHeader
-                title="Slot interval"
-                subtitle="How far apart the start times customers can pick are."
+                title={t('Slot interval')}
+                subtitle={t('How far apart the start times customers can pick are.')}
               />
               <ScCard>
                 <div className="flex gap-2">
@@ -789,11 +850,11 @@ function VendorSettings() {
 
           {vendor && (
             <section className="flex flex-col gap-3">
-              <SectionHeader title="Capacity" />
+              <SectionHeader title={t('Capacity')} />
               <ScCard className="flex flex-col gap-3">
                 <ScInput
                   id="settings-bays"
-                  label="How many cars can you work on at the same time?"
+                  label={t('How many cars can you work on at the same time?')}
                   inputMode="numeric"
                   className="font-numeric"
                   value={capacity.bays}
@@ -806,9 +867,9 @@ function VendorSettings() {
                 />
                 <ScInput
                   id="settings-jobs-per-day"
-                  label="Most jobs in a day (optional)"
+                  label={t('Most jobs in a day (optional)')}
                   inputMode="numeric"
-                  placeholder="No limit"
+                  placeholder={t('No limit')}
                   className="font-numeric"
                   value={capacity.jobsPerDay}
                   onChange={(e) =>
@@ -821,8 +882,9 @@ function VendorSettings() {
                 {/* What the numbers do, in one line: customers are only offered
                     a time when a car can actually go in. */}
                 <p className="text-[11px] text-text-muted">
-                  Customers are only offered times when you have room for one
-                  more car. Leave the daily limit blank for no limit.
+                  {t(
+                    'Customers are only offered times when you have room for one more car. Leave the daily limit blank for no limit.'
+                  )}
                 </p>
                 {capacityError && (
                   <p role="alert" className="text-[12px] text-warning">
@@ -837,7 +899,7 @@ function VendorSettings() {
                   disabled={!!capacityError || saving === 'capacity'}
                   onClick={saveCapacity}
                 >
-                  {saving === 'capacity' ? 'Saving...' : 'Save capacity'}
+                  {saving === 'capacity' ? t('Saving...') : t('Save capacity')}
                 </ScButton>
               </ScCard>
             </section>
@@ -845,19 +907,19 @@ function VendorSettings() {
 
           {vendor && (
             <section className="flex flex-col gap-3">
-              <SectionHeader title="Job types" />
+              <SectionHeader title={t('Job types')} />
               <ScCard className="flex flex-col gap-3">
                 {(
                   [
                     {
                       field: 'dropinEnabled',
-                      label: 'Drop In',
-                      description: 'Customers visit your garage',
+                      label: t('Drop In'),
+                      description: t('Customers visit your garage'),
                     },
                     {
                       field: 'doorstepEnabled',
-                      label: 'Doorstep',
-                      description: 'You travel to the customer',
+                      label: t('Doorstep'),
+                      description: t('You travel to the customer'),
                     },
                   ] as const
                 ).map(({ field, label, description }) => {
@@ -896,15 +958,16 @@ function VendorSettings() {
                               role="status"
                               className="text-[12px] text-warning"
                             >
-                              Customers can&apos;t find you for doorstep jobs
-                              until your garage is pinned.
+                              {t(
+                                "Customers can't find you for doorstep jobs until your garage is pinned."
+                              )}
                             </p>
                             <button
                               type="button"
                               className="min-h-11 text-[12px] font-medium text-text-primary underline underline-offset-2"
                               onClick={() => setTab('location')}
                             >
-                              Pin it under Location
+                              {t('Pin it under Location')}
                             </button>
                           </div>
                         )}
@@ -941,24 +1004,27 @@ function VendorSettings() {
             <LinkRow
               href="/settings/notifications"
               icon={<IconBell size={18} aria-hidden="true" />}
-              title="Notifications"
-              description="New-booking alerts on this phone or computer"
+              title={t('Notifications')}
+              description={t('New-booking alerts on this phone or computer')}
             />
           )}
 
           <LinkRow
             href="/settings/members"
             icon={<IconUsers size={18} aria-hidden="true" />}
-            title="Team"
-            description="Add admins and operators, and set what they can do"
+            title={t('Team')}
+            description={t('Add admins and operators, and set what they can do')}
           />
+
+          {/* English or தமிழ் (Tamil), on this browser. */}
+          <LanguageRow />
 
           {/* Close my garage (the owner), or leave it and delete the login
               (any other seat) (0066). */}
           <AccountActions />
 
           <section className="flex flex-col gap-3">
-            <SectionHeader title="Support" />
+            <SectionHeader title={t('Support')} />
             <SupportCard />
           </section>
 
@@ -970,7 +1036,7 @@ function VendorSettings() {
           >
             <span className="flex items-center justify-center gap-2">
               <IconLogout size={18} aria-hidden="true" />
-              Log out
+              {t('Log out')}
             </span>
           </ScButton>
         </TabsContent>

@@ -2,6 +2,7 @@ import { getBooking } from '@repo/core/api/bookings';
 import { ApiError } from '@repo/core/api/client';
 import { getMyGift } from '@repo/core/api/gifts';
 import { getBookingIntentStatus } from '@repo/core/api/payments';
+import { t } from '@repo/core/i18n/translate';
 import { extraWorkPollResult, FALLBACK_REFUND_MESSAGE, finalBillPollResult, intentPollResult, type PollResult } from '@repo/core/payment-confirmation';
 
 import { useSyncExternalStore } from 'react';
@@ -78,9 +79,9 @@ export function usePendingKeys(): string[] {
 /** Whether Pay should read "checking your payment" for this one. PaymentRecovery resolves it. */
 /** What a payment that couldn't stand is called, on the sheet that says so. */
 export function failedTitle(kind: PendingPayment['kind']): string {
-  if (kind === 'gift') return "Your gift didn't go through";
-  if (kind === 'charge') return "Your payment couldn't be used";
-  return "Your payment didn't make a booking";
+  if (kind === 'gift') return t("Your gift didn't go through");
+  if (kind === 'charge') return t("Your payment couldn't be used");
+  return t("Your payment didn't make a booking");
 }
 
 /** Any gift payment still being checked: a new gift has no key to look up until the server makes it. */
@@ -99,7 +100,7 @@ export const paymentFlowOnScreen = () => flowOnScreen;
 /** A gift's payment: anything past `pending` means the money landed. `/profile/gifts` is where it shows. */
 export function giftPollResult(gift: { state: string }): PollResult {
   if (gift.state === 'pending') return { kind: 'pending' };
-  if (gift.state === 'cancelled') return { kind: 'failed', message: 'This gift was cancelled. If you paid, the money comes back to you.' };
+  if (gift.state === 'cancelled') return { kind: 'failed', message: t('This gift was cancelled. If you paid, the money comes back to you.') };
   return { kind: 'booked', bookingId: '' };
 }
 
@@ -112,7 +113,7 @@ export async function readPendingOutcome(payment: PendingPayment): Promise<PollR
   if (payment.kind === 'booking') {
     if (booking.paymentStatus !== 'paid') return { kind: 'pending' };
     return booking.status === 'cancelled'
-      ? { kind: 'failed', message: booking.cancellationReason ?? FALLBACK_REFUND_MESSAGE }
+      ? { kind: 'failed', message: booking.cancellationReason ?? t(FALLBACK_REFUND_MESSAGE) }
       : { kind: 'booked', bookingId: payment.bookingId };
   }
   return payment.what === 'final_bill'

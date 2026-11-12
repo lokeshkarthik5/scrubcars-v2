@@ -33,18 +33,20 @@ import {
   firstName,
   giftCardSpec,
 } from '@/lib/premium-card'
+import { fill, useT } from '@repo/core/i18n'
+import { t } from '@repo/core/i18n/translate'
 
 /** What a gift that can't be redeemed says instead of the button. */
 function closedLine(gift: PublicGift): string | null {
   switch (gift.state) {
     case 'redeemed':
-      return 'This gift has already been redeemed.'
+      return t('This gift has already been redeemed.')
     case 'expired':
       return gift.expiresAt
-        ? `This gift expired on ${formatGiftDate(gift.expiresAt)}.`
-        : 'This gift has expired.'
+        ? t('This gift expired on {expiresAt}.', { expiresAt: formatGiftDate(gift.expiresAt) })
+        : t('This gift has expired.')
     case 'cancelled':
-      return 'This gift was cancelled.'
+      return t('This gift was cancelled.')
     default:
       return null
   }
@@ -61,6 +63,7 @@ function closedLine(gift: PublicGift): string | null {
  * cancelled) is shown in the server's own words.
  */
 export function GiftView({ code }: { code: string }) {
+  const t = useT()
   const router = useRouter()
   const queryClient = useQueryClient()
   const user = useAuthStore((s) => s.user)
@@ -98,7 +101,7 @@ export function GiftView({ code }: { code: string }) {
       setRedeemError(
         error instanceof ApiError
           ? error.message
-          : "Couldn't redeem the gift. Check your connection and try again."
+          : t("Couldn't redeem the gift. Check your connection and try again.")
       )
     } finally {
       setRedeeming(false)
@@ -125,16 +128,16 @@ export function GiftView({ code }: { code: string }) {
         return (
           <EmptyState
             icon={<IconGift size={32} stroke={1.5} />}
-            title="We couldn't open this gift"
+            title={t("We couldn't open this gift")}
             subtitle={error.message}
-            actionLabel="Find garages"
+            actionLabel={t('Find garages')}
             onAction={() => router.push('/garages')}
           />
         )
       }
       return (
         <ErrorState
-          message="Couldn't load this gift. Check your connection."
+          message={t("Couldn't load this gift. Check your connection.")}
           onRetry={() => void lookup.refetch()}
         />
       )
@@ -165,11 +168,10 @@ export function GiftView({ code }: { code: string }) {
 
         <div className="flex flex-col gap-1">
           <h1 className="text-[20px] font-semibold leading-tight text-text-primary">
-            <span className="font-numeric">{giftRupees(gift.amount)}</span>{' '}
-            Detlio gift for {gift.recipientName}
+            {fill(t('{giftRupees} Detlio gift for {recipientName}'), { giftRupees: <span className="font-numeric">{giftRupees(gift.amount)}</span>, recipientName: gift.recipientName })}
           </h1>
           <p className="text-t4 text-text-secondary">
-            From {gift.fromName}
+            {t('From {fromName}', { fromName: gift.fromName })}
           </p>
         </div>
 
@@ -184,37 +186,31 @@ export function GiftView({ code }: { code: string }) {
         {redeemed ? (
           <ScCard className="flex flex-col gap-3">
             <p role="status" className="text-[14px] text-text-primary">
-              <span className="font-numeric">
+              {fill(t('{giftRupees} added to your Detlio credit. Balance {giftRupees2}.'), { giftRupees: <span className="font-numeric">
                 {giftRupees(redeemed.amount)}
-              </span>{' '}
-              added to your Detlio credit. Balance{' '}
-              <span className="font-numeric">
+              </span>, giftRupees2: <span className="font-numeric">
                 {giftRupees(redeemed.balance)}
-              </span>
-              .
+              </span> })}
               {redeemed.expiresAt && (
                 <>
-                  {' '}
-                  Use by{' '}
-                  <span className="font-numeric">
+                  {' '}{fill(t('Use by {expiresAt}.'), { expiresAt: <span className="font-numeric">
                     {formatGiftDate(redeemed.expiresAt)}
-                  </span>
-                  .
+                  </span> })}
                 </>
               )}
             </p>
             <p className="text-t5 text-text-secondary">
-              It comes off your next booking at checkout.
+              {t('It comes off your next booking at checkout.')}
             </p>
             {/* The page's one red action, now that the gift is in. */}
             <ScButtonLink href="/garages" fullWidth className="w-full">
-              Book a wash
+              {t('Book a wash')}
             </ScButtonLink>
             <Link
               href="/profile/credit"
               className="flex min-h-11 items-center justify-center text-t4 font-medium text-text-secondary hover:text-text-primary"
             >
-              See your Detlio credit
+              {t('See your Detlio credit')}
             </Link>
           </ScCard>
         ) : closed ? (
@@ -225,10 +221,9 @@ export function GiftView({ code }: { code: string }) {
           <div className="flex flex-col gap-2">
             {gift.expiresAt && (
               <p className="text-t5 text-text-secondary">
-                Use by{' '}
-                <span className="font-numeric">
+                {fill(t('Use by {expiresAt}'), { expiresAt: <span className="font-numeric">
                   {formatGiftDate(gift.expiresAt)}
-                </span>
+                </span> })}
               </p>
             )}
             <ScButton
@@ -236,12 +231,12 @@ export function GiftView({ code }: { code: string }) {
               disabled={redeeming || !ready}
               className="min-h-11"
             >
-              {redeeming ? 'Redeeming…' : 'Redeem on Detlio'}
+              {redeeming ? t('Redeeming…') : t('Redeem on Detlio')}
             </ScButton>
             <p className="text-t5 text-text-muted">
               {user
-                ? 'The gift becomes Detlio credit on your account, used at checkout on your next booking.'
-                : 'Sign in or create an account with your phone number, then the gift becomes Detlio credit on it.'}
+                ? t('The gift becomes Detlio credit on your account, used at checkout on your next booking.')
+                : t('Sign in or create an account with your phone number, then the gift becomes Detlio credit on it.')}
             </p>
             {redeemError && (
               <p role="alert" className="text-t5 text-error">

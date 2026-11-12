@@ -6,6 +6,7 @@ import type { HomeCar } from '@repo/core/api/home';
 import { bookingTypeParam } from '@repo/core/booking-types';
 import { firstNameOf, initialOf } from '@repo/core/home-display';
 import { useNow } from '@repo/core/hooks/use-now';
+import { t, useT, useTn } from '@repo/core/i18n';
 import { rewardRupees, stampsToGoLine } from '@repo/core/rewards';
 import { useUserStore } from '@repo/core/stores/user-store';
 import { IconBell, IconChevronRight } from '@repo/native-ui/icons';
@@ -49,10 +50,11 @@ import { useRefreshOnFocus } from '@/lib/use-refresh-on-focus';
 /** "Good morning" before noon, "Good afternoon" until 5 pm, then "Good evening", in Chennai. */
 function greetingFor(now: Date): string {
   const hour = new Date(now.getTime() + 330 * 60_000).getUTCHours();
-  return hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  return hour < 12 ? t('Good morning') : hour < 17 ? t('Good afternoon') : t('Good evening');
 }
 
 function HomeHeader({ firstName, avatarUrl, hasUnread, now }: { firstName: string; avatarUrl: string | null; hasUnread: boolean; now: Date }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   return (
@@ -78,7 +80,7 @@ function HomeHeader({ firstName, avatarUrl, hasUnread, now }: { firstName: strin
           </T>
         </View>
       </View>
-      <PressRow accessibilityLabel={hasUnread ? 'Updates, new' : 'Updates'} onPress={() => router.push('/updates' as Href)} style={styles.bell}>
+      <PressRow accessibilityLabel={hasUnread ? t('Updates, new') : t('Updates')} onPress={() => router.push('/updates' as Href)} style={styles.bell}>
         <IconBell size={21} stroke={1.5} />
         {hasUnread ? <View style={styles.bellDot} /> : null}
       </PressRow>
@@ -88,6 +90,8 @@ function HomeHeader({ firstName, avatarUrl, hasUnread, now }: { firstName: strin
 
 /** apps/users/components/home/home-hub-screen.tsx. Only ever a signed-in customer's. */
 export default function HomeScreen() {
+  const tn = useTn();
+  const t = useT();
   const styles = useStyles();
   const queryClient = useQueryClient();
   const authUser = useAuth((s) => s.user);
@@ -119,7 +123,7 @@ export default function HomeScreen() {
   const firstName = data?.header.firstName || firstNameOf((profile ?? authUser)?.name);
 
   useEffect(() => {
-    if (firstName && otpFlow.takeWelcome()) toast.success(`Welcome, ${firstName}! Find your first car wash.`);
+    if (firstName && otpFlow.takeWelcome()) toast.success(t('Welcome, {name}! Find your first car wash.', { name: firstName }));
   }, [firstName]);
 
   if (!authUser) return null;
@@ -164,7 +168,7 @@ export default function HomeScreen() {
           <Skeleton height={314} radius={28} />
         </>
       ) : !data ? (
-        <ErrorState message="Couldn't load your Home. Check your connection." onRetry={() => void home.refetch()} />
+        <ErrorState message={t("Couldn't load your Home. Check your connection.")} onRetry={() => void home.refetch()} />
       ) : (
         <>
           {mustAct?.kind === 'time_proposal' ? <TimeProposalHomeCard card={mustAct} /> : null}
@@ -235,9 +239,9 @@ export default function HomeScreen() {
                   lh={18}
                   text={
                     rewards.data.scratchWaiting > 0
-                      ? `${rewards.data.scratchWaiting} scratch ${rewards.data.scratchWaiting === 1 ? 'card' : 'cards'} waiting`
+                      ? tn(rewards.data.scratchWaiting, '{count} scratch card waiting', '{count} scratch cards waiting')
                       : rewards.data.vouchersAvailable > 0
-                        ? `${rewardRupees(rewards.data.vouchers[0]?.amount)} off ready to use`
+                        ? t('{amount} off ready to use', { amount: rewardRupees(rewards.data.vouchers[0]?.amount) })
                         : stampsToGoLine(rewards.data.card.toGo)
                   }
                 />

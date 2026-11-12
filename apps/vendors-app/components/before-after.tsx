@@ -7,13 +7,16 @@ import { createStyles, useColors } from '@repo/native-ui/theme';
 
 import { Chip } from '@repo/native-ui/chip';
 import { T } from '@repo/native-ui/text';
+import { useT } from '@repo/core/i18n';
 
 /**
  * BeforeAfterCompare: one picture with a slider, the before left of the line, the
  * after right of it, with angle chips when more than one angle has both. A drag in
  * place of the web's range input, and the same steps for a screen reader.
  */
-export function BeforeAfterCompare({ photos, title = 'Before and after' }: { photos: readonly JobPhoto[]; title?: string }) {
+export function BeforeAfterCompare({ photos, title: titleGiven }: { photos: readonly JobPhoto[]; title?: string }) {
+  const t = useT();
+  const title = titleGiven ?? t('Before and after');
   const colors = useColors();
   const styles = useStyles();
   const pairs = beforeAfterPairs(photos);
@@ -62,8 +65,8 @@ export function BeforeAfterCompare({ photos, title = 'Before and after' }: { pho
       <View
         accessible
         accessibilityRole="adjustable"
-        accessibilityLabel={`Slide between before and after, ${label.toLowerCase()}`}
-        accessibilityValue={{ text: `${Math.round(split)}% before` }}
+        accessibilityLabel={t('Slide between before and after, {angle}', { angle: label.toLowerCase() })}
+        accessibilityValue={{ text: t('{percent}% before', { percent: Math.round(split) }) }}
         accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
         onAccessibilityAction={(event) =>
           setSplit((value) =>
@@ -86,18 +89,18 @@ export function BeforeAfterCompare({ photos, title = 'Before and after' }: { pho
         <View pointerEvents="none" style={[styles.line, { left: offset - 1 }]} />
         <View pointerEvents="none" style={[styles.tag, styles.tagLeft]}>
           <T size={11} weight={500} lh={14} color={colors.white}>
-            Before
+            {t('Before')}
           </T>
         </View>
         <View pointerEvents="none" style={[styles.tag, styles.tagRight]}>
           <T size={11} weight={500} lh={14} color={colors.white}>
-            After
+            {t('After')}
           </T>
         </View>
       </View>
 
       {pairs.length > 1 ? (
-        <View accessibilityLabel="Angle" style={styles.chips}>
+        <View accessibilityLabel={t('Angle')} style={styles.chips}>
           {pairs.map((p, i) => (
             <Chip
               key={p.angle}

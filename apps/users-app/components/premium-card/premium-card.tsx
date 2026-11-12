@@ -1,4 +1,5 @@
 import { type CardCar } from '@repo/core/card-cars';
+import { useT } from '@repo/core/i18n';
 import { T } from '@repo/native-ui/text';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useId, useState } from 'react';
@@ -196,10 +197,11 @@ export function PremiumSharePicture({ spec, format }: { spec: PremiumCardSpec; f
 }
 
 export function SharePill({ height, font, marginTop }: { height: number; font: number; marginTop: number }) {
+  const t = useT();
   return (
     <LinearGradient start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} colors={['#E4002B', '#CA0026', '#B80022']} locations={[0, 0.66, 1]} style={{ marginTop, height, borderRadius: height / 2, paddingHorizontal: height * 0.55, alignItems: 'center', justifyContent: 'center' }}>
       <T size={font} lh={font * 1.2} weight={600} color="#FFFFFF">
-        {'Book on detlio.com  ↗'}
+        {t('Book on detlio.com  ↗')}
       </T>
     </LinearGradient>
   );

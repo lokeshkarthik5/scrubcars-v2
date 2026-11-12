@@ -12,6 +12,7 @@ import {
 } from '@repo/core/api/coverage'
 import { DEFAULT_DOORSTEP_RADIUS_KM } from '@repo/core/doorstep'
 import { DEFAULT_CENTER, MAP_STYLES, MAP_THEME } from '@repo/core/map'
+import { useT } from '@repo/core/i18n'
 import { toast } from 'react-toastify'
 
 /**
@@ -53,6 +54,7 @@ interface CoverageEditorProps {
 }
 
 export function CoverageEditor({ center, fallbackRadiusKm }: CoverageEditorProps) {
+  const t = useT()
   /** Points as tapped, without the closing repeat — that is added on save. */
   const [points, setPoints] = useState<CoverageRing>([])
   const [saving, setSaving] = useState(false)
@@ -93,10 +95,10 @@ export function CoverageEditor({ center, fallbackRadiusKm }: CoverageEditorProps
     try {
       await setDoorstepArea(points.length >= 3 ? closeRing(points) : null)
       toast.success(
-        points.length >= 3 ? 'Coverage area saved' : 'Coverage area cleared'
+        points.length >= 3 ? t('Coverage area saved') : t('Coverage area cleared')
       )
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Could not save the area')
+      toast.error(err instanceof Error ? err.message : t('Could not save the area'))
     } finally {
       setSaving(false)
     }
@@ -111,13 +113,17 @@ export function CoverageEditor({ center, fallbackRadiusKm }: CoverageEditorProps
       <p className="text-[11px] text-text-muted">
         {points.length === 0
           ? fallbackRadiusKm
-            ? `Tap the map to draw the area you travel to. Until you do, your ${fallbackRadiusKm} km radius applies.`
+            ? t('Tap the map to draw the area you travel to. Until you do, your {km} km radius applies.', {
+                km: fallbackRadiusKm,
+              })
             : // No radius set: the default applies, the same one the server
               // measures with, so the owner is not told they cover nowhere.
-              `Tap the map to draw the area you travel to. Until you do, the default ${DEFAULT_DOORSTEP_RADIUS_KM} km radius applies.`
+              t('Tap the map to draw the area you travel to. Until you do, the default {km} km radius applies.', {
+                km: DEFAULT_DOORSTEP_RADIUS_KM,
+              })
           : points.length < 3
-            ? `${points.length} of 3 corners — an area needs at least three.`
-            : `${points.length} corners. Tap to add more, or save.`}
+            ? t('{count} of 3 corners — an area needs at least three.', { count: points.length })
+            : t('{count} corners. Tap to add more, or save.', { count: points.length })}
       </p>
 
       <div className="relative h-64 overflow-hidden rounded-[12px] border border-border">
@@ -171,7 +177,7 @@ export function CoverageEditor({ center, fallbackRadiusKm }: CoverageEditorProps
           onClick={() => setPoints((current) => current.slice(0, -1))}
           className="flex min-h-11 flex-1 items-center justify-center gap-1.5 px-3 py-2 text-[12px]"
         >
-          Undo corner
+          {t('Undo corner')}
         </ScButton>
         <ScButton
           variant="secondary"
@@ -181,7 +187,7 @@ export function CoverageEditor({ center, fallbackRadiusKm }: CoverageEditorProps
           className="flex min-h-11 flex-1 items-center justify-center gap-1.5 px-3 py-2 text-[12px]"
         >
           <IconTrash size={14} aria-hidden="true" />
-          Clear
+          {t('Clear')}
         </ScButton>
       </div>
 
@@ -193,10 +199,10 @@ export function CoverageEditor({ center, fallbackRadiusKm }: CoverageEditorProps
         onClick={save}
       >
         {saving
-          ? 'Saving…'
+          ? t('Saving…')
           : points.length >= 3
-            ? 'Save coverage area'
-            : 'Clear area and use radius'}
+            ? t('Save coverage area')
+            : t('Clear area and use radius')}
       </ScButton>
     </div>
   )

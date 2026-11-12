@@ -3,6 +3,7 @@
 import { formatClock } from '@repo/core/format'
 import { answerByRing, type AnswerDeadline } from '@repo/core/moments'
 import { usePrefersReducedMotion } from '@repo/ui/finish/motion'
+import { useT } from '@repo/core/i18n'
 
 /**
  * "They answer by" (moment 3): while a paid booking waits for the garage,
@@ -16,6 +17,7 @@ import { usePrefersReducedMotion } from '@repo/ui/finish/motion'
  * ring itself is drawn, not read.
  */
 export function AnswerByRing({ deadline, now }: { deadline: AnswerDeadline; now: number }) {
+  const t = useT()
   const reduce = usePrefersReducedMotion()
   const { fraction, minutesLeft } = answerByRing(deadline, now)
   return (
@@ -38,7 +40,7 @@ export function AnswerByRing({ deadline, now }: { deadline: AnswerDeadline; now:
       <span className="absolute inset-0 flex flex-col items-center justify-center text-center leading-none">
         {minutesLeft === null ? (
           <>
-            <span className="text-over font-semibold uppercase text-[#8E8E98]">by</span>
+            <span className="text-over font-semibold uppercase text-[#8E8E98]">{t('by')}</span>
             <span className="mt-0.5 font-numeric text-t5 font-semibold text-text-primary">
               {formatClock(deadline.respondBy)}
             </span>
@@ -46,7 +48,7 @@ export function AnswerByRing({ deadline, now }: { deadline: AnswerDeadline; now:
         ) : (
           <>
             <span className="font-numeric text-[20px] font-semibold text-text-primary">{minutesLeft}</span>
-            <span className="mt-0.5 text-over font-medium text-[#8E8E98]">min left</span>
+            <span className="mt-0.5 text-over font-medium text-[#8E8E98]">{t('min left')}</span>
           </>
         )}
       </span>

@@ -205,3 +205,80 @@ export function deletionBlockers(facts: AccountDeletionFacts): AccountDeletionBl
 
   return blockers
 }
+
+// ─── The owner deletes a customer's account from admin (10 Nov 2026) ─────────
+
+/** The reason every booking an admin account delete ends carries. */
+export const ACCOUNT_DELETED_REASON = 'Account deleted by Detlio'
+
+export interface AdminDeletionCheck {
+  /** What still stops it, even for the owner: owning a garage. Null when it can go. */
+  block: AccountDeletionBlocker | null
+  /** What is open, said for the team: what the delete does with each. */
+  warnings: AccountDeletionBlocker[]
+}
+
+/**
+ * The owner's Delete customer account (admin's Customers page): the same
+ * facts as the customer's own delete, but only a garage owner is refused
+ * (the garage needs its owner; they are removed from it first). Everything
+ * else that stops the customer becomes a warning in the team's words, saying
+ * what happens to it: open bookings are ended quietly first (nobody is told;
+ * a paid one becomes a refund owed by the usual rules, never sent
+ * automatically: the owner's answer, 10 Nov 2026), an open checkout is
+ * closed, and the rest stays where it is.
+ */
+export function adminDeletionCheck(facts: AccountDeletionFacts): AdminDeletionCheck {
+  const block: AccountDeletionBlocker | null = facts.ownsGarage
+    ? {
+        code: 'VENDOR_OWNER_ACCOUNT',
+        message: 'This person owns a garage. Remove them from the garage first.',
+      }
+    : null
+  const warnings: AccountDeletionBlocker[] = []
+
+  if (facts.openBookings.length > 0) {
+    const refs = facts.openBookings.map((b) => `#${b.reference}`)
+    warnings.push({
+      code: 'ACCOUNT_HAS_OPEN_BOOKING',
+      message: `${
+        facts.openBookings.length === 1 ? `Booking ${refs[0]} is still on. It is` : `Bookings ${listed(refs)} are still on. They are`
+      } cancelled first without telling the customer or the garage; a paid one becomes a refund owed on the Refunds page, to send by hand.`,
+    })
+  }
+  if (facts.openCheckout) {
+    warnings.push({
+      code: 'ACCOUNT_HAS_OPEN_CHECKOUT',
+      message: 'A payment they started is still open. It is closed; if it is paid anyway, it shows as a refund owed.',
+    })
+  }
+  const openClaims = facts.openClaims ?? []
+  if (openClaims.length > 0) {
+    warnings.push({
+      code: 'ACCOUNT_HAS_OPEN_CLAIM',
+      message: `Their Detlio Guarantee claim on ${listed(openClaims.map((c) => `#${c.reference}`))} is still open. It stays as it is.`,
+    })
+  }
+  if (facts.refundsOwed.length > 0) {
+    const total = facts.refundsOwed.reduce((sum, item) => sum + Math.round(Number(item.amount) * 100), 0)
+    warnings.push({
+      code: 'ACCOUNT_REFUND_OWED',
+      message: `${rupeesText(total)} is still owed back to them (${listed(
+        facts.refundsOwed.map((item) => `#${item.reference} ${rupeesFromAmount(item.amount)}`)
+      )}). It stays on the Refunds page.`,
+    })
+  }
+  if (facts.creditBalancePaise > 0) {
+    warnings.push({
+      code: 'ACCOUNT_HAS_CREDIT',
+      message: `They have ${rupeesText(facts.creditBalancePaise)} of Detlio credit. It can't be used once the account is gone.`,
+    })
+  }
+  if (facts.unredeemedGifts.length > 0) {
+    warnings.push({
+      code: 'ACCOUNT_HAS_UNREDEEMED_GIFT',
+      message: `A gift they bought (${listed(facts.unredeemedGifts.map((g) => g.number))}) hasn't been redeemed. Its code still works for whoever has it.`,
+    })
+  }
+  return { block, warnings }
+}

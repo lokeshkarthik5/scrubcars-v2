@@ -1,9 +1,10 @@
 import type { MediaConfig } from '@repo/core/api/service-media';
 import type { Service } from '@repo/core/types';
 import { type ComponentRef, useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, type ScrollView, View } from 'react-native';
+import { type ScrollView, View } from 'react-native';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
+import { GraphiteSwitch } from '@repo/native-ui/finish';
 import { LoadError, SkeletonList } from '@repo/native-ui/primitives';
 import { TopBar } from '@/components/rows';
 import { PackagesPanel } from '@/components/services/packages-panel';
@@ -14,11 +15,12 @@ import { isSignedOut, useAuth, useIsVendorAdmin } from '@/lib/auth';
 import { emptyServiceForm, type ServiceForm } from '@/lib/service-form';
 import { getMediaConfig, getMyServices } from '@/lib/services-api';
 import { createStyles, useColors } from '@repo/native-ui/theme';
+import { msg, useT } from '@repo/core/i18n';
 
 type Tab = 'services' | 'packages';
 const TABS: { value: Tab; label: string }[] = [
-  { value: 'services', label: 'Services' },
-  { value: 'packages', label: 'Packages' },
+  { value: 'services', label: msg('Services') },
+  { value: 'packages', label: msg('Packages') },
 ];
 
 /**
@@ -43,7 +45,7 @@ function ActiveGarage() {
  * with only the open one mounted, so Packages loads when it is opened.
  */
 function ServicesScreen() {
-  const colors = useColors();
+  const t = useT();
   const styles = useStyles();
   const [tab, setTab] = useState<Tab>('services');
   const [services, setServices] = useState<Service[]>([]);
@@ -68,7 +70,7 @@ function ServicesScreen() {
       .catch(() => {
         // Leaving (signing out flips an operator to "admin" for a moment): no news to give.
         if (isSignedOut()) return;
-        toast.error('Failed to load services');
+        toast.error(t('Failed to load services'));
         setFailed(true);
       })
       .finally(() => setLoading(false));
@@ -84,33 +86,27 @@ function ServicesScreen() {
   if (loading || failed) {
     return (
       <AppShell showBrand brandRight={<ActiveGarage />}>
-        <TopBar title="Services" />
-        {failed ? <LoadError what="your services" onRetry={load} /> : <SkeletonList count={3} height={112} />}
+        <TopBar title={t('Services')} />
+        {failed ? <LoadError what={t('your services')} onRetry={load} /> : <SkeletonList count={3} height={112} />}
       </AppShell>
     );
   }
 
   return (
     <AppShell showBrand brandRight={<ActiveGarage />} scrollRef={scroll}>
-      <TopBar title="Services" />
+      <TopBar title={t('Services')} />
 
       {/* Tabs root: gap-4 between the tab list and the open panel. */}
       <View style={styles.tabsRoot}>
-        <View accessibilityRole="tablist" style={styles.tabs}>
-          {TABS.map(({ value, label }) => (
-            <Pressable
-              key={value}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: tab === value }}
-              onPress={() => setTab(value)}
-              style={[styles.tab, tab === value && styles.tabOn]}
-            >
-              <T size={13} weight={500} numberOfLines={1} color={tab === value ? colors.textPrimary : colors.textSecondary}>
-                {label}
-              </T>
-            </Pressable>
-          ))}
-        </View>
+        <GraphiteSwitch
+          role="tab"
+          pinned
+          accessibilityLabel={t('Services')}
+          options={TABS.map((option) => ({ ...option, label: t(option.label) }))}
+          value={tab}
+          onChange={setTab}
+          style={styles.tabs}
+        />
 
         {tab === 'packages' ? (
           <PackagesPanel services={services} mediaConfig={mediaConfig} onEditStarted={showForm} />
@@ -133,9 +129,8 @@ function ServicesScreen() {
 
 const useStyles = createStyles((colors) => ({
   tabsRoot: { gap: 16 },
-  tabs: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: 12, padding: 4 },
-  tab: { flex: 1, minHeight: 48, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  tabOn: { backgroundColor: colors.surfaceElevated },
+  // The web's graphite tab strip: a 44-point key inside a 52-point track.
+  tabs: { height: 52 },
 }));
 
 export default garageScreen(ServicesScreen);

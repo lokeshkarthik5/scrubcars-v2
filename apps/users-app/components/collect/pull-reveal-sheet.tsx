@@ -1,5 +1,6 @@
 import type { GaragePull } from '@repo/core/api/garage';
 import { useMarkGaragePullsSeen } from '@repo/core/api/hooks/use-garage';
+import { useT } from '@repo/core/i18n';
 import { ScButton } from '@repo/native-ui/button';
 import { ScSheet } from '@repo/native-ui/sheet';
 import { T } from '@repo/native-ui/text';
@@ -13,6 +14,7 @@ const SHOWN_AT_ONCE = 3;
 
 /** PullRevealSheet: each new card, one after another, then all marked seen. */
 export function PullRevealSheet({ pulls, focusId = null, firstName = null }: { pulls: GaragePull[]; focusId?: string | null; firstName?: string | null }) {
+  const t = useT();
   const colors = useColors();
   const seen = useMarkGaragePullsSeen();
   const [queue, setQueue] = useState<GaragePull[]>([]);
@@ -48,11 +50,11 @@ export function PullRevealSheet({ pulls, focusId = null, firstName = null }: { p
   const pull = queue[index] ?? null;
   const more = queue.length - index - 1;
   return (
-    <ScSheet horizontalPadding={16} open={open && pull !== null} onClose={finish} accessibilityLabel="New car for your Garage">
+    <ScSheet horizontalPadding={16} open={open && pull !== null} onClose={finish} accessibilityLabel={t('New car for your Garage')}>
       {pull ? (
         <ScrollView key={pull.id} style={{ maxHeight: 720 }} contentContainerStyle={{ alignItems: 'center', gap: 4, paddingBottom: 8 }}>
           <T size={12} lh={16} uppercase tracking={0.14} color={colors.textSecondary}>
-            New car for your Garage
+            {t('New car for your Garage')}
           </T>
           <View style={{ alignSelf: 'stretch' }}>
             <PullReveal pull={{ ...pull, seen: false }} onRevealed={() => setRevealed(true)} firstName={firstName} compact />
@@ -67,7 +69,7 @@ export function PullRevealSheet({ pulls, focusId = null, firstName = null }: { p
                   else finish();
                 }}
               >
-                {more > 0 ? `Next card (${more} more)` : 'Done'}
+                {more > 0 ? t('Next card ({count} more)', { count: more }) : t('Done')}
               </ScButton>
             </View>
           ) : null}

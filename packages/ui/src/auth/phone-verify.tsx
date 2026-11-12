@@ -11,6 +11,7 @@ import { TopBar } from '@repo/ui/sc/top-bar'
 import { resendOtp } from '@repo/core/api/auth'
 import type { AuthAudience, OtpPurpose } from '@repo/core/api/types'
 import { useNow } from '@repo/core/hooks/use-now'
+import { fill, useT } from '@repo/core/i18n'
 import {
   formatCountdown,
   otpDeadlines,
@@ -58,6 +59,7 @@ export function PhoneVerify({
   resolveDestination,
   backdrop,
 }: PhoneVerifyProps) {
+  const t = useT()
   const router = useRouter()
   const verifyOtp = useAuthStore((s) => s.verifyOtp)
   const [phone, setPhone] = useState('')
@@ -105,7 +107,7 @@ export function PhoneVerify({
       sessionStorage.removeItem('auth_next')
       router.push(resolveDestination(result, next))
     } catch (err) {
-      setError(otpErrorMessage(err, 'Verification failed'))
+      setError(otpErrorMessage(err, t('Verification failed')))
     } finally {
       setLoading(false)
     }
@@ -125,7 +127,7 @@ export function PhoneVerify({
       sessionStorage.setItem('auth_expires_at', String(deadlines.expiresAt))
       sessionStorage.setItem('auth_resend_at', String(deadlines.resendAt))
     } catch (err) {
-      setError(otpErrorMessage(err, 'Failed to resend OTP'))
+      setError(otpErrorMessage(err, t('Failed to resend OTP')))
       // Refused for timing: Resend counts down to when the server will say yes.
       const at = retryMoment(err, Date.now())
       if (at) {
@@ -140,11 +142,11 @@ export function PhoneVerify({
   const intro = (
     <>
       <h1 className="text-[28px] font-bold leading-9 tracking-[-0.02em] text-text-primary">
-        Verify your number
+        {t('Verify your number')}
       </h1>
       <div className="pt-2 text-center">
         <p className="text-base leading-6 text-text-secondary">
-          Enter the 6-digit code sent to
+          {t('Enter the 6-digit code sent to')}
         </p>
         <p className="text-[15px] font-semibold text-text-primary">
           {formatPhone(phone)}
@@ -180,19 +182,22 @@ export function PhoneVerify({
         <p className="pt-6 text-[12px] text-text-secondary">
           {expirySeconds > 0 ? (
             <>
-              Code expires in{' '}
-              <span className="font-numeric font-medium text-text-primary">
-                {formatCountdown(expirySeconds)}
-              </span>
+              {fill(t('Code expires in {time}'), {
+                time: (
+                  <span className="font-numeric font-medium text-text-primary">
+                    {formatCountdown(expirySeconds)}
+                  </span>
+                ),
+              })}
             </>
           ) : (
             // Read out by the status below; hidden here so it isn't heard twice.
-            <span aria-hidden="true">Code expired — resend</span>
+            <span aria-hidden="true">{t('Code expired — resend')}</span>
           )}
         </p>
       )}
       <span role="status" className="sr-only">
-        {expirySeconds === 0 ? 'Code expired — resend' : ''}
+        {expirySeconds === 0 ? t('Code expired — resend') : ''}
       </span>
 
       <button
@@ -202,14 +207,15 @@ export function PhoneVerify({
         className="mt-2 min-h-11 px-3 text-[13px] font-semibold text-text-primary underline disabled:text-text-muted disabled:no-underline"
       >
         {resending ? (
-          'Sending...'
+          t('Sending...')
         ) : resendSeconds > 0 ? (
           <>
-            Resend OTP in{' '}
-            <span className="font-numeric">{formatCountdown(resendSeconds)}</span>
+            {fill(t('Resend OTP in {time}'), {
+              time: <span className="font-numeric">{formatCountdown(resendSeconds)}</span>,
+            })}
           </>
         ) : (
-          'Resend OTP'
+          t('Resend OTP')
         )}
       </button>
     </>
@@ -224,7 +230,7 @@ export function PhoneVerify({
         backdrop ? 'disabled:bg-white/10 disabled:hover:bg-white/10' : undefined
       }
     >
-      {loading ? 'Verifying...' : 'Verify'}
+      {loading ? t('Verifying...') : t('Verify')}
     </ScButton>
   )
 

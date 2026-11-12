@@ -3,6 +3,7 @@ import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 
 import { jpegHasLocation } from './jpeg-metadata';
 import { sentTooLarge } from './photo-limits';
+import { t } from '@repo/core/i18n/translate';
 
 /**
  * apps/vendors/lib/resize-image.ts for a phone: a JPEG no larger than 1600px on
@@ -25,7 +26,7 @@ export function fitWithin(width: number, height: number, max: number) {
   return { width: Math.round(width * scale), height: Math.round(height * scale) };
 }
 
-export async function prepareForUpload(uri: string, name = 'This photo'): Promise<PreparedPhoto> {
+export async function prepareForUpload(uri: string, name = t('This photo')): Promise<PreparedPhoto> {
   let saved: { uri: string };
   try {
     const decoded = await ImageManipulator.manipulate(uri).renderAsync();
@@ -36,10 +37,10 @@ export async function prepareForUpload(uri: string, name = 'This photo'): Promis
         : await ImageManipulator.manipulate(uri).resize(size).renderAsync();
     saved = await image.saveAsync({ format: SaveFormat.JPEG, compress: JPEG_QUALITY });
   } catch {
-    throw new Error(`${name} couldn't be read. Try another photo, or take one with the camera.`);
+    throw new Error(t("{name} couldn't be read. Try another photo, or take one with the camera.", { name }));
   }
   const bytes = await new File(saved.uri).bytes();
-  if (sentTooLarge(bytes.length)) throw new Error(`${name} is too large (max 5 MB).`);
-  if (jpegHasLocation(bytes)) throw new Error(`${name} couldn't be prepared for upload.`);
+  if (sentTooLarge(bytes.length)) throw new Error(t('{name} is too large (max 5 MB).', { name }));
+  if (jpegHasLocation(bytes)) throw new Error(t("{name} couldn't be prepared for upload.", { name }));
   return { uri: saved.uri, bytes };
 }

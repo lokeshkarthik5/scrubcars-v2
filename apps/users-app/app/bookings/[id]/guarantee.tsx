@@ -2,6 +2,7 @@ import { getBooking } from '@repo/core/api/bookings';
 import { ApiError } from '@repo/core/api/client';
 import type { CustomerClaim } from '@repo/core/api/guarantee';
 import { guaranteeKeys, useBookingGuarantee, useBookRedo, useCreateClaim, useGuaranteeConfig, useRedoSlots } from '@repo/core/api/hooks/use-guarantee';
+import { useT } from '@repo/core/i18n';
 import {
   claimFormProblem,
   GUARANTEE_HOW_IT_WORKS,
@@ -37,6 +38,7 @@ const dayLabel = (dateKey: string) =>
   new Date(`${dateKey}T12:00:00+05:30`).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: 'numeric', month: 'short' });
 
 function Unavailable({ id, message }: { id: string; message: string }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   return (
@@ -45,13 +47,14 @@ function Unavailable({ id, message }: { id: string; message: string }) {
         {message}
       </T>
       <ScButton variant="outline" height={44} onPress={() => router.replace(`/bookings/${id}` as Href)}>
-        Back to booking
+        {t('Back to booking')}
       </ScButton>
     </View>
   );
 }
 
 function ClaimForm({ booking, claimBy }: { booking: Booking; claimBy: string | null }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const create = useCreateClaim();
@@ -70,7 +73,7 @@ function ClaimForm({ booking, claimBy }: { booking: Booking; claimBy: string | n
       const uploaded = await uploadClaimPhoto(booking.id, uri);
       setPhotos((current) => [...current, uploaded]);
     } catch (error) {
-      toast.error(errorText(error, 'Your photo did not upload. Please try again.'));
+      toast.error(errorText(error, t('Your photo did not upload. Please try again.')));
     } finally {
       setUploading(false);
     }
@@ -88,9 +91,9 @@ function ClaimForm({ booking, claimBy }: { booking: Booking; claimBy: string | n
         ...(issues.includes('other') && { otherText: otherText.trim() }),
         photoKeys: photos.map((photo) => photo.key),
       });
-      toast.success('Claim sent');
+      toast.success(t('Claim sent'));
     } catch (error) {
-      toast.error(errorText(error, 'Could not send your claim. Please try again.'));
+      toast.error(errorText(error, t('Could not send your claim. Please try again.')));
     }
   };
 
@@ -101,13 +104,13 @@ function ClaimForm({ booking, claimBy }: { booking: Booking; claimBy: string | n
           <IconShieldCheck size={20} color={colors.textPrimary} />
           <View style={styles.grow}>
             <T size={17} weight={500} lh={24}>
-              Not happy with this job?
+              {t('Not happy with this job?')}
             </T>
             <T size={13} lh={18} color={colors.textSecondary} style={styles.mt2}>
               <Figures
                 size={13}
                 color={colors.textSecondary}
-                text={`${booking.vendorName} · ${booking.items.map((item) => item.name).join(', ')}${claimBy ? ` · Ask by ${formatStepTime(claimBy)}` : ''}`}
+                text={`${booking.vendorName} · ${booking.items.map((item) => item.name).join(', ')}${claimBy ? ` · ${t('Ask by {time}', { time: formatStepTime(claimBy) })}` : ''}`}
               />
             </T>
           </View>
@@ -122,36 +125,36 @@ function ClaimForm({ booking, claimBy }: { booking: Booking; claimBy: string | n
       </ScCard>
       <ScCard style={styles.cardTight}>
         <T size={14} weight={600} lh={20}>
-          {"What's wrong?"}
+          {t("What's wrong?")}
         </T>
         {GUARANTEE_ISSUES.map((issue) => (
           <ScCheckbox
             key={issue}
-            label={ISSUE_LABELS[issue]}
+            label={t(ISSUE_LABELS[issue])}
             checked={issues.includes(issue)}
             onChange={(checked) => setIssues((current) => (checked ? [...current, issue] : current.filter((value) => value !== issue)))}
           />
         ))}
         {issues.includes('other') ? (
-          <ScTextarea label="Tell us what's wrong" rows={3} maxLength={GUARANTEE_RULES.otherTextMax} value={otherText} onChangeText={setOtherText} />
+          <ScTextarea label={t("Tell us what's wrong")} rows={3} maxLength={GUARANTEE_RULES.otherTextMax} value={otherText} onChangeText={setOtherText} />
         ) : null}
       </ScCard>
       <ScCard style={styles.card}>
         <View>
           <T size={14} weight={600} lh={20}>
-            Photos of the problem
+            {t('Photos of the problem')}
           </T>
           <T size={12} lh={16} color={colors.textSecondary} style={styles.mt2}>
-            {`Take at least ${GUARANTEE_RULES.minPhotos} with your camera, close up on what was missed. Location and camera details are removed before upload.`}
+            {t('Take at least {count} with your camera, close up on what was missed. Location and camera details are removed before upload.', { count: GUARANTEE_RULES.minPhotos })}
           </T>
         </View>
         <View style={styles.photos}>
           {photos.map((photo, index) => (
             <View key={photo.key} style={styles.photoBox}>
-              <Image source={{ uri: photo.preview }} accessibilityLabel={`Problem photo ${index + 1}`} style={styles.photo} />
+              <Image source={{ uri: photo.preview }} accessibilityLabel={t('Problem photo {number}', { number: index + 1 })} style={styles.photo} />
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`Remove photo ${index + 1}`}
+                accessibilityLabel={t('Remove photo {number}', { number: index + 1 })}
                 onPress={() => setPhotos((current) => current.filter((value) => value.key !== photo.key))}
                 style={styles.remove}
               >
@@ -163,7 +166,7 @@ function ClaimForm({ booking, claimBy }: { booking: Booking; claimBy: string | n
             <Pressable accessibilityRole="button" disabled={uploading} onPress={() => void addPhoto()} style={[styles.add, uploading && styles.dim]}>
               {uploading ? <Spinner size={18} /> : <IconCamera size={20} color={colors.textSecondary} />}
               <T size={11} lh={15} color={colors.textSecondary}>
-                {uploading ? 'Uploading' : 'Take photo'}
+                {uploading ? t('Uploading') : t('Take photo')}
               </T>
             </Pressable>
           ) : null}
@@ -171,12 +174,12 @@ function ClaimForm({ booking, claimBy }: { booking: Booking; claimBy: string | n
       </ScCard>
       <ScCard style={styles.card}>
         <T size={14} weight={600} lh={20}>
-          What Detlio compares
+          {t('What Detlio compares')}
         </T>
         <GuaranteeEvidence garagePhotos={booking.jobPhotos} />
       </ScCard>
       <ScButton variant="main" disabled={Boolean(problem) || create.isPending || uploading} onPress={() => void submit()}>
-        {create.isPending ? 'Sending…' : 'Ask for a free redo'}
+        {create.isPending ? t('Sending…') : t('Ask for a free redo')}
       </ScButton>
       {problem ? (
         <T size={12} lh={16} color={colors.textSecondary} align="center">
@@ -188,6 +191,7 @@ function ClaimForm({ booking, claimBy }: { booking: Booking; claimBy: string | n
 }
 
 function RedoPicker({ booking, claim }: { booking: Booking; claim: CustomerClaim }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const queryClient = useQueryClient();
@@ -203,13 +207,13 @@ function RedoPicker({ booking, claim }: { booking: Booking; claim: CustomerClaim
     if (!time) return;
     try {
       const result = await book.mutateAsync({ claimId: claim.id, scheduledAt: time });
-      toast.success('Free redo booked');
+      toast.success(t('Free redo booked'));
       void queryClient.invalidateQueries({ queryKey: guaranteeKeys.booking(booking.id) });
       router.replace(`/bookings/${result.bookingId}` as Href);
     } catch (error) {
       setTime(null);
       void slots.refetch();
-      toast.error(errorText(error, 'Could not book that time. Pick another one.'));
+      toast.error(errorText(error, t('Could not book that time. Pick another one.')));
     }
   };
 
@@ -217,11 +221,11 @@ function RedoPicker({ booking, claim }: { booking: Booking; claim: CustomerClaim
     <ScCard style={styles.card}>
       <View>
         <T size={14} weight={600} lh={20}>
-          {`Pick a time at ${booking.vendorName}`}
+          {t('Pick a time at {name}', { name: booking.vendorName })}
         </T>
         {claim.redoBookBy ? (
           <T size={12} lh={16} color={colors.textSecondary} style={styles.mt2}>
-            <Figures size={12} color={colors.textSecondary} text={`Free of charge, by ${formatStepTime(claim.redoBookBy)}.`} />
+            <Figures size={12} color={colors.textSecondary} text={t('Free of charge, by {time}.', { time: formatStepTime(claim.redoBookBy) })} />
           </T>
         ) : null}
       </View>
@@ -245,11 +249,11 @@ function RedoPicker({ booking, claim }: { booking: Booking; claim: CustomerClaim
       </ScrollView>
       {slots.isLoading ? (
         <T size={13} lh={18} color={colors.textSecondary}>
-          Loading times…
+          {t('Loading times…')}
         </T>
       ) : (slots.data?.slots.length ?? 0) === 0 ? (
         <T size={13} lh={18} color={colors.textSecondary}>
-          {slots.data?.isClosed ? 'The garage is closed that day.' : 'No free times that day. Try another day.'}
+          {slots.data?.isClosed ? t('The garage is closed that day.') : t('No free times that day. Try another day.')}
         </T>
       ) : (
         <View style={styles.slots}>
@@ -269,13 +273,14 @@ function RedoPicker({ booking, claim }: { booking: Booking; claim: CustomerClaim
         </View>
       )}
       <ScButton variant="main" disabled={!time || book.isPending} onPress={() => void confirm()}>
-        {book.isPending ? 'Booking…' : 'Book my free redo'}
+        {book.isPending ? t('Booking…') : t('Book my free redo')}
       </ScButton>
     </ScCard>
   );
 }
 
 function ClaimStatus({ booking, claim }: { booking: Booking; claim: CustomerClaim }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   return (
@@ -296,20 +301,20 @@ function ClaimStatus({ booking, claim }: { booking: Booking; claim: CustomerClai
       {claim.canBookRedo ? <RedoPicker booking={booking} claim={claim} /> : null}
       {claim.redoBooking ? (
         <ScButton variant="outline" height={44} onPress={() => router.push(`/bookings/${claim.redoBooking!.id}` as Href)}>
-          See your free redo booking
+          {t('See your free redo booking')}
         </ScButton>
       ) : null}
       <ScCard style={styles.card}>
         <T size={14} weight={600} lh={20}>
-          Your claim
+          {t('Your claim')}
         </T>
         <T size={13} lh={18} color={colors.textSecondary}>
-          {`${claim.issues.map((issue) => ISSUE_LABELS[issue]).join(', ')}${claim.otherText ? ` — ${claim.otherText}` : ''}`}
+          {`${claim.issues.map((issue) => t(ISSUE_LABELS[issue])).join(', ')}${claim.otherText ? ` — ${claim.otherText}` : ''}`}
         </T>
-        <GuaranteeEvidence customerPhotos={claim.photos} garagePhotos={booking.jobPhotos} customerTitle="Your photos" />
+        <GuaranteeEvidence customerPhotos={claim.photos} garagePhotos={booking.jobPhotos} customerTitle={t('Your photos')} />
       </ScCard>
       <ScButton variant="outline" height={44} onPress={() => router.replace(`/bookings/${booking.id}` as Href)}>
-        Back to booking
+        {t('Back to booking')}
       </ScButton>
     </View>
   );
@@ -317,6 +322,7 @@ function ClaimStatus({ booking, claim }: { booking: Booking; claim: CustomerClai
 
 /** apps/users/app/bookings/[id]/guarantee/page.tsx. */
 export default function GuaranteeScreen() {
+  const t = useT();
   const { id: rawId } = useLocalSearchParams<{ id: string }>();
   const id = String(rawId);
   const colors = useColors();
@@ -340,20 +346,20 @@ export default function GuaranteeScreen() {
   const loading = config.isLoading || (on && guarantee.isLoading) || booking === undefined;
   return (
     <View style={[styles.page, { paddingTop: insets.top }]}>
-      <PageHeader title={GUARANTEE_NAME} backTo={`/bookings/${id}`} />
+      <PageHeader title={t(GUARANTEE_NAME)} backTo={`/bookings/${id}`} />
       <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 24 }]}>
         {loading ? (
           <T size={13} lh={18} color={colors.textSecondary}>
-            Loading…
+            {t('Loading…')}
           </T>
         ) : !on || !booking || !guarantee.data ? (
-          <Unavailable id={id} message="The Detlio Guarantee isn't available for this booking." />
+          <Unavailable id={id} message={t("The Detlio Guarantee isn't available for this booking.")} />
         ) : guarantee.data.claim ? (
           <ClaimStatus booking={booking} claim={guarantee.data.claim} />
         ) : guarantee.data.canClaim ? (
           <ClaimForm booking={booking} claimBy={guarantee.data.claimBy} />
         ) : (
-          <Unavailable id={id} message="This booking can't take a free redo claim. Use Help with this booking to raise a complaint instead." />
+          <Unavailable id={id} message={t("This booking can't take a free redo claim. Use Help with this booking to raise a complaint instead.")} />
         )}
       </ScrollView>
     </View>

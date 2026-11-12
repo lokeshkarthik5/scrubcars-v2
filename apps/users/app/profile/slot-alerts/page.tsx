@@ -17,6 +17,7 @@ import { slotAlertSummary } from '@repo/core/slot-alerts'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { CustomerShell } from '@/components/customer-shell'
 import { isHomeHubEnabled } from '@/lib/home-hub'
+import { useT } from '@repo/core/i18n'
 
 /**
  * Profile → Slot alerts (0047): the days the customer is waiting on, soonest
@@ -25,6 +26,7 @@ import { isHomeHubEnabled } from '@/lib/home-hub'
  * day is over, is not here: the first is in Updates.
  */
 export default function SlotAlertsPage() {
+  const t = useT()
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
   const ready = useAuthStore((s) => s.isSessionReady)
@@ -35,14 +37,14 @@ export default function SlotAlertsPage() {
     return (
       <CustomerShell showNav showBrand className="gap-4 py-4">
         <TopBar
-          title="Slot alerts"
+          title={t('Slot alerts')}
           showBack
           backHref="/profile"
           large={isHomeHubEnabled()}
         />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
           <p className="text-t3 font-semibold text-text-primary">
-            Sign in to see your slot alerts
+            {t('Sign in to see your slot alerts')}
           </p>
           <ScButton
             variant="main"
@@ -53,7 +55,7 @@ export default function SlotAlertsPage() {
               )
             }
           >
-            Sign in
+            {t('Sign in')}
           </ScButton>
         </div>
       </CustomerShell>
@@ -65,7 +67,7 @@ export default function SlotAlertsPage() {
   return (
     <CustomerShell showNav showBrand className="gap-4 py-4">
       <TopBar
-        title="Slot alerts"
+        title={t('Slot alerts')}
         showBack
         backHref="/profile"
         large={isHomeHubEnabled()}
@@ -77,21 +79,21 @@ export default function SlotAlertsPage() {
         </div>
       ) : alerts.isError && items.length === 0 ? (
         <ErrorState
-          message="Couldn't load your slot alerts. Check your connection."
+          message={t("Couldn't load your slot alerts. Check your connection.")}
           onRetry={() => void alerts.refetch()}
         />
       ) : items.length === 0 ? (
         <EmptyState
           icon={<IconBell size={32} stroke={1.5} />}
-          title="No slot alerts"
-          subtitle="When a day is fully booked at checkout, tap Notify me if a slot opens."
-          actionLabel="Find garages"
+          title={t('No slot alerts')}
+          subtitle={t('When a day is fully booked at checkout, tap Notify me if a slot opens.')}
+          actionLabel={t('Find garages')}
           onAction={() => router.push('/garages')}
         />
       ) : (
         <>
           <ul
-            aria-label="Slot alerts, soonest first"
+            aria-label={t('Slot alerts, soonest first')}
             className="flex flex-col gap-2"
           >
             {items.map((alert, i) => (
@@ -108,26 +110,24 @@ export default function SlotAlertsPage() {
                       {slotAlertSummary(alert)}
                     </p>
                     <p className="text-t5 text-text-muted">
-                      {BOOKING_TYPE_LABELS[alert.bookingType]}
+                      {t(BOOKING_TYPE_LABELS[alert.bookingType])}
                     </p>
                   </div>
                   <button
                     type="button"
                     disabled={cancel.isPending}
                     onClick={() => cancel.mutate(alert.id)}
-                    aria-label={`Stop waiting for ${alert.vendorName}, ${slotAlertSummary(alert)}`}
+                    aria-label={t('Stop waiting for {vendorName}, {slotAlertSummary}', { vendorName: alert.vendorName, slotAlertSummary: slotAlertSummary(alert) })}
                     className="tap-target shrink-0 px-2 text-t5 font-medium text-text-primary underline disabled:opacity-40"
                   >
-                    Stop waiting
+                    {t('Stop waiting')}
                   </button>
                 </ScCard>
               </Reveal>
             ))}
           </ul>
           <p className="text-t5 text-text-muted">
-            Up to {alerts.data?.max ?? 5} at once. If a time opens it shows in
-            Updates, and as a notification if they&apos;re on. It isn&apos;t
-            held: the first to book gets it.
+            {t("Up to {value} at once. If a time opens it shows in Updates, and as a notification if they're on. It isn't held: the first to book gets it.", { value: alerts.data?.max ?? 5 })}
           </p>
         </>
       )}

@@ -1,4 +1,5 @@
 import type { PaymentOrder } from './api/payments'
+import { t } from './i18n/translate'
 
 export interface RazorpaySuccessResponse {
   razorpay_order_id: string
@@ -136,13 +137,13 @@ export async function openRazorpayCheckout(
       modal: {
         ondismiss: () => {
           input.onDismiss?.()
-          reject(new RazorpayReportedError('Payment cancelled'))
+          reject(new RazorpayReportedError(t('Payment cancelled')))
         },
       },
     })
 
     rzp.on('payment.failed', (response) => {
-      const message = response.error?.description ?? 'Payment failed'
+      const message = response.error?.description ?? t('Payment failed')
       input.onFailure?.(message)
       reject(new RazorpayReportedError(message))
     })

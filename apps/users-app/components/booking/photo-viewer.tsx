@@ -1,3 +1,4 @@
+import { useT } from '@repo/core/i18n';
 import { ScButton } from '@repo/native-ui/button';
 import { ScModal } from '@repo/native-ui/sheet';
 import { T } from '@repo/native-ui/text';
@@ -16,9 +17,10 @@ export function PhotoViewer({
   onRemove?: () => void;
   removing?: boolean;
 }) {
+  const t = useT();
   const styles = useStyles();
   return (
-    <ScModal open={photo !== null} onClose={onClose} dismissible={!removing} accessibilityLabel={photo?.name ?? 'Photo'}>
+    <ScModal open={photo !== null} onClose={onClose} dismissible={!removing} accessibilityLabel={photo?.name ?? t('Photo')}>
       {photo ? (
         <View style={styles.column}>
           <T size={13} weight={500} lh={18}>
@@ -28,13 +30,13 @@ export function PhotoViewer({
           <View style={styles.row}>
             <View style={styles.grow}>
               <ScButton variant="outline" height={44} onPress={onClose}>
-                Close
+                {t('Close')}
               </ScButton>
             </View>
             {onRemove ? (
               <View style={styles.grow}>
                 <ScButton variant="outline" height={44} disabled={removing} onPress={onRemove}>
-                  {removing ? 'Removing…' : 'Remove'}
+                  {removing ? t('Removing…') : t('Remove')}
                 </ScButton>
               </View>
             ) : null}

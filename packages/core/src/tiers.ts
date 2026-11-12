@@ -1,3 +1,5 @@
+import { msg, t } from './i18n/translate'
+
 /**
  * Bronze / Silver / Gold for the apps (0063): the medals' words, what each
  * tier means in plain words for customers, the garage's progress line, and
@@ -14,9 +16,9 @@ export const TIERS = ['bronze', 'silver', 'gold'] as const
 export type Tier = (typeof TIERS)[number]
 
 export const TIER_LABELS: Record<Tier, string> = {
-  bronze: 'Bronze',
-  silver: 'Silver',
-  gold: 'Gold',
+  bronze: msg('Bronze'),
+  silver: msg('Silver'),
+  gold: msg('Gold'),
 }
 
 /** The same numbers as the server's TIER_RULES (parity test). */
@@ -49,14 +51,14 @@ const GOLD = TIER_THRESHOLDS.gold
 
 /** The medal's name, as a screen reader and a tooltip say it: "Gold garage". */
 export function tierMedalName(tier: Tier): string {
-  return `${TIER_LABELS[tier]} garage`
+  return t('{tier} garage', { tier: t(TIER_LABELS[tier]) })
 }
 
 /** The garage page's one line under the medal. */
 export const TIER_NOTES: Record<Tier, string> = {
-  bronze: 'Has accepted the Detlio garage agreement.',
-  silver: 'Documents checked by Detlio, well rated and reliable.',
-  gold: 'Detlio’s highest standards, checked in person.',
+  bronze: msg('Has accepted the Detlio garage agreement.'),
+  silver: msg('Documents checked by Detlio, well rated and reliable.'),
+  gold: msg('Detlio’s highest standards, checked in person.'),
 }
 
 const S = TIER_THRESHOLDS.silver
@@ -68,9 +70,9 @@ const pct = (share: number) => Math.round(share * 100)
  * one the server checks: a medal must never claim what nobody checked.
  */
 export const TIER_STANDARDS: Record<Tier, readonly string[]> = {
-  bronze: ['Has accepted the Detlio garage agreement.'],
+  bronze: [msg('Has accepted the Detlio garage agreement.')],
   silver: [
-    'Detlio has checked the owner’s ID, bank details and shop.',
+    msg('Detlio has checked the owner’s ID, bank details and shop.'),
     `Rated ${S.minRating} or more by at least ${S.minReviews} customers.`,
     `At least ${S.minCompleted} jobs completed through Detlio in the last ${S.windowDays} days.`,
     `Answers at least ${pct(S.minResponseRate)}% of bookings in time.`,
@@ -93,19 +95,22 @@ export function tierStandards(tier: Tier): { tier: Tier; lines: readonly string[
   return [...upTo].reverse().map((t) => ({ tier: t, lines: TIER_STANDARDS[t] }))
 }
 
-/** The sheet's last line: how a medal is kept. */
+/**
+ * The sheet's last line: how a medal is kept. This and the standards carry
+ * their numbers: a screen says t(line), the Tamil keyed by the exact English.
+ */
 export const TIER_KEPT_LINE = `Detlio checks these every day. A garage that stops meeting them loses its medal after ${TIER_THRESHOLDS.graceDays} days.`
 
 /** The customer list's filter chip. */
-export const SILVER_FILTER_LABEL = 'Silver & above'
+export const SILVER_FILTER_LABEL = msg('Silver & above')
 
 /**
  * The customer website's two-line key for the same filter (customer UI
  * round, Nov 2026): "Silver+" over "Silver & Gold". The filter and its rule
  * are unchanged; only the website's words for the key are shorter.
  */
-export const SILVER_KEY_LABEL = 'Silver+'
-export const SILVER_KEY_QUIET = 'Silver & Gold'
+export const SILVER_KEY_LABEL = msg('Silver+')
+export const SILVER_KEY_QUIET = msg('Silver & Gold')
 
 // ─── The garage's own ────────────────────────────────────────────────────────
 
@@ -114,22 +119,27 @@ export function progressLine(progress: {
   tier: Tier | null
   next: { tier: Tier; done: number; total: number } | null
 }): string {
-  const now = progress.tier ? `You're ${TIER_LABELS[progress.tier]}.` : 'No tier yet.'
-  if (!progress.next) return `${now} That's the top tier.`
-  return `${now} Next: ${TIER_LABELS[progress.next.tier]}, ${progress.next.done} of ${progress.next.total} done.`
+  const now = progress.tier ? t("You're {tier}.", { tier: t(TIER_LABELS[progress.tier]) }) : t('No tier yet.')
+  if (!progress.next) return t("{now} That's the top tier.", { now })
+  return t('{now} Next: {tier}, {done} of {total} done.', {
+    now,
+    tier: t(TIER_LABELS[progress.next.tier]),
+    done: progress.next.done,
+    total: progress.next.total,
+  })
 }
 
 /** What each tier brings a garage, under the progress line. */
 export const TIER_GARAGE_LINES: Record<Tier, string> = {
-  bronze: 'Bronze shows customers you have agreed to Detlio’s terms.',
-  silver: 'Silver garages show up under “Silver & above”, which customers use to pick a garage.',
-  gold: 'Gold is Detlio’s highest tier: customers see it first.',
+  bronze: msg('Bronze shows customers you have agreed to Detlio’s terms.'),
+  silver: msg('Silver garages show up under “Silver & above”, which customers use to pick a garage.'),
+  gold: msg('Gold is Detlio’s highest tier: customers see it first.'),
 }
 
 /** Where a step can be acted on in the portal. */
 export type TierStepAction = 'agreement' | 'documents' | null
 
 export const TIER_STEP_LINKS: Record<Exclude<TierStepAction, null>, { href: string; label: string }> = {
-  agreement: { href: '/agreement', label: 'Read and accept' },
-  documents: { href: '/settings/documents', label: 'Upload documents' },
+  agreement: { href: '/agreement', label: msg('Read and accept') },
+  documents: { href: '/settings/documents', label: msg('Upload documents') },
 }

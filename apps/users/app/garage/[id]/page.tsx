@@ -20,7 +20,7 @@ import { Notice } from '@repo/ui/sc/notice'
 import { Reveal } from '@repo/ui/sc/reveal'
 import { Stars } from '@repo/ui/sc/stars'
 import { TierSeal } from '@repo/ui/features/tier-medal'
-import { OutsideCityLine } from '@repo/ui/features/outside-city'
+import { OutsideCityLine, useGarageTownLine } from '@repo/ui/features/outside-city'
 import { GarageMonogram } from '@repo/ui/features/garage-cover'
 import { Odometer } from '@repo/ui/finish/odometer'
 import { usePrefersReducedMotion } from '@repo/ui/finish/motion'
@@ -38,7 +38,7 @@ import {
   useSavedGarages,
   useToggleSavedGarage,
 } from '@repo/core/api/hooks/use-favourites'
-import { outsideCityLine } from '@repo/core/service-city'
+import { anywhereInCityLine } from '@repo/core/reach'
 import {
   bookingTypeParam,
   offeredBookingTypes,
@@ -95,13 +95,14 @@ import {
   picksForBack,
   rememberPicks,
 } from '@/lib/view-transition'
+import { fill, msg, tn, useT } from '@repo/core/i18n'
 
 type Tab = 'services' | 'photos' | 'reviews'
 
 const TABS: ReadonlyArray<{ key: Tab; label: string }> = [
-  { key: 'services', label: 'Services' },
-  { key: 'photos', label: 'Photos' },
-  { key: 'reviews', label: 'Reviews' },
+  { key: 'services', label: msg('Services') },
+  { key: 'photos', label: msg('Photos') },
+  { key: 'reviews', label: msg('Reviews') },
 ]
 
 // Stable empty, like the two below.
@@ -171,6 +172,7 @@ export default function GaragePage({
 }: {
   params: Promise<{ id: string }>
 }) {
+  const t = useT()
   const { id } = use(params)
   // From the live URL, not the page's searchParams prop: changeMode writes
   // the choice into the URL with replaceState, and on Back from checkout the
@@ -205,6 +207,9 @@ export default function GaragePage({
   // page someone can book from.
   const garage = useGarage(id)
   const vendor: Vendor | null = garage.data?.vendor ?? null
+  // Where the garage is, said only when it is not in the customer's city
+  // (0070): "This garage is in Vellore, about 125 km from you."
+  const townLine = useGarageTownLine(vendor)
   // The garage as the list or the map showed it, while its own read is on
   // the way (useGarage's placeholder): the hero, the name, the rating and the
   // distance paint at once; only the catalogue waits, as a skeleton rather
@@ -527,24 +532,24 @@ export default function GaragePage({
           {garage.isError && !garage.isFetching ? (
             // A failed load said "Loading…" for ever. This one can be retried.
             <ErrorState
-              message="Couldn't load this garage. Check your connection."
+              message={t("Couldn't load this garage. Check your connection.")}
               onRetry={() => void garage.refetch()}
             />
           ) : garage.data === null ? (
             // 404: the garage is not listed (unverified, archived, or never was).
             <div className="flex flex-col items-center gap-3 py-12 text-center">
               <p className="text-t4 text-text-secondary">
-                This garage isn&apos;t taking bookings on Detlio.
+                {t("This garage isn't taking bookings on Detlio.")}
               </p>
               <Link
                 href="/garages"
                 className="flex min-h-11 items-center px-3 text-t4 font-semibold text-text-primary underline"
               >
-                Find another garage
+                {t('Find another garage')}
               </Link>
             </div>
           ) : (
-            <p className="text-t4 text-text-secondary">Loading…</p>
+            <p className="text-t4 text-text-secondary">{t('Loading…')}</p>
           )}
         </main>
       </div>
@@ -573,6 +578,7 @@ export default function GaragePage({
   const approximate = isApproximate(activeLocation)
   // The switch only when there is a choice to make: two or three modes.
   const modes = offeredBookingTypes(vendor)
+  const anywhere = anywhereInCityLine(vendor, mode)
   // A paused garage's page still loads — someone may have it saved, or be
   // checking on it — but nothing on it can be added to a booking, and the bar
   // where Book now would be says why.
@@ -583,7 +589,9 @@ export default function GaragePage({
       ? servicePriceText(selectedServices[0], carType)
       : // "from" while a per-vehicle line is only priced once the car is
         // known, one screen along.
-        `${hasPerVehiclePricing ? 'from ' : ''}${money(selectedTotal)}`
+        hasPerVehiclePricing
+        ? t('from {price}', { price: money(selectedTotal) })
+        : money(selectedTotal)
 
   return (
     <div
@@ -601,7 +609,7 @@ export default function GaragePage({
         <button
           type="button"
           onClick={goBack}
-          aria-label="Go back"
+          aria-label={t('Go back')}
           className="fx-glass flex size-11 shrink-0 items-center justify-center rounded-[12px] text-brand-white"
         >
           <IconArrowLeft size={20} aria-hidden="true" />
@@ -622,7 +630,7 @@ export default function GaragePage({
                 <div className="relative size-14 shrink-0 overflow-hidden rounded-[16px] border-[1.5px] border-white/75 bg-surface shadow-[0_6px_14px_rgb(0_0_0/0.5)]">
                   <Image
                     src={vendor.logoUrl}
-                    alt={`${vendor.name} logo`}
+                    alt={t('{name} logo', { name: vendor.name })}
                     fill
                     sizes="56px"
                     className="object-cover"
@@ -659,11 +667,11 @@ export default function GaragePage({
                     {avgRating.toFixed(1)}
                   </span>
                   <span>
-                    ({reviewCount} {reviewCount === 1 ? 'review' : 'reviews'})
+                    ({tn(reviewCount, '{count} review', '{count} reviews')})
                   </span>
                 </span>
               ) : (
-                <span className="font-semibold text-text-primary">{NEW_GARAGE_LABEL}</span>
+                <span className="font-semibold text-text-primary">{t(NEW_GARAGE_LABEL)}</span>
               )}
               {fromHere !== null && (
                 <span className="inline-flex items-center gap-[5px]">
@@ -676,11 +684,9 @@ export default function GaragePage({
                       in place of the estimate. */}
                   {travel.data && (
                     <span>
-                      ·{' '}
-                      <span className="font-numeric font-semibold text-text-primary">
+                      {fill(t('· {durationS} drive'), { durationS: <span className="font-numeric font-semibold text-text-primary">
                         {formatDuration(toMinutes(travel.data.durationS))}
-                      </span>{' '}
-                      drive
+                      </span> })}
                     </span>
                   )}
                 </span>
@@ -702,11 +708,9 @@ export default function GaragePage({
 
             {/* Garages in other towns are part of the pilot; this says
                 plainly where one is before anything is picked, so nobody
-                books it thinking it is in Chennai. Information, not a
-                warning. */}
-            {vendor.outsideServiceCity && (
-              <OutsideCityLine text={outsideCityLine(vendor.outsideServiceCity)} className="mt-3" />
-            )}
+                books it thinking it is round the corner. Nothing for a
+                garage in the customer's city. Information, not a warning. */}
+            {townLine && <OutsideCityLine text={townLine} className="mt-3" />}
 
             {/* You → the garage, while the page knows where you are. */}
             {fromHere !== null && <GarageRoad to={vendor.name} className="mt-[18px]" />}
@@ -718,13 +722,18 @@ export default function GaragePage({
             </section>
           )}
 
+          {/* "Comes anywhere in Chennai" (0069): the garage covers its whole
+              city for the way of booking chosen. Quiet, like the line below. */}
+          {anywhere && (
+            <p className="mt-2.5 text-t5 font-medium leading-relaxed text-[#8E8E98]">{anywhere}</p>
+          )}
+
           {/* What the choice means, before any service is added: the garage
               comes for the car and brings it back. Free for now (owner
               decision); checkout shows a fee line if one is ever set. */}
           {mode === 'pickup' && (
             <p className="mt-2.5 text-t5 font-medium leading-relaxed text-[#8E8E98]">
-              Free pickup &amp; drop: {vendor.name} collects your car from your
-              address, works on it at the garage and brings it back.
+              {t('Free pickup & drop: {name} collects your car from your address, works on it at the garage and brings it back.', { name: vendor.name })}
             </p>
           )}
 
@@ -733,9 +742,9 @@ export default function GaragePage({
               role="status"
               tone="neutral"
               className="mt-4"
-              title="The services you picked are no longer offered here."
+              title={t('The services you picked are no longer offered here.')}
             >
-              Choose from what this garage offers now.
+              {t('Choose from what this garage offers now.')}
             </Notice>
           )}
 
@@ -767,9 +776,11 @@ export default function GaragePage({
         >
           <div
             ref={tabListRef}
-            className="relative flex h-[46px] gap-1 px-3"
+            // Tamil's longer names sit a little closer and a size down, so the
+            // three tabs stay inside a 390px screen.
+            className="relative flex h-[46px] gap-1 px-3 [&:lang(ta)]:gap-0 [&:lang(ta)]:px-2"
             role="tablist"
-            aria-label="Garage sections"
+            aria-label={t('Garage sections')}
             // Tabs move with the arrow keys, and only the open one is a Tab
             // stop (the WAI-ARIA tabs pattern).
             onKeyDown={(event) => {
@@ -786,23 +797,23 @@ export default function GaragePage({
               document.getElementById(`garage-tab-${next}`)?.focus()
             }}
           >
-            {visibleTabs.map((t) => (
+            {visibleTabs.map((item) => (
               <button
-                key={t.key}
-                id={`garage-tab-${t.key}`}
+                key={item.key}
+                id={`garage-tab-${item.key}`}
                 type="button"
                 role="tab"
-                aria-selected={tab === t.key}
+                aria-selected={tab === item.key}
                 aria-controls="garage-tab-panel"
-                tabIndex={tab === t.key ? 0 : -1}
-                onClick={() => setTab(t.key)}
+                tabIndex={tab === item.key ? 0 : -1}
+                onClick={() => setTab(item.key)}
                 className={cn(
-                  'inline-flex min-h-11 items-center gap-1.5 px-3 text-[14px] font-semibold transition-colors duration-200',
-                  tab === t.key ? 'text-text-primary' : 'text-[#8E8E98]'
+                  'inline-flex min-h-11 items-center gap-1.5 px-3 text-[14px] font-semibold transition-colors duration-200 [&:lang(ta)]:px-2 [&:lang(ta)]:text-[13px]',
+                  tab === item.key ? 'text-text-primary' : 'text-[#8E8E98]'
                 )}
               >
-                {t.label}
-                {t.key === 'reviews' && (
+                {t(item.label)}
+                {item.key === 'reviews' && (
                   <span className="font-numeric text-t5 font-semibold text-[#8E8E98]">
                     <span className="sr-only">, </span>
                     {reviewCount}
@@ -832,10 +843,10 @@ export default function GaragePage({
                 />
                 <input
                   // The placeholder is no name once something is typed.
-                  aria-label="Search services"
+                  aria-label={t('Search services')}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search services..."
+                  placeholder={t('Search services...')}
                   className="w-full bg-transparent text-t3 font-medium text-text-primary outline-none placeholder:text-[#8E8E98]"
                 />
               </label>
@@ -843,8 +854,8 @@ export default function GaragePage({
               {filteredPackages.length > 0 && (
                 <div className="pt-4">
                   <PaneHeading
-                    title="Packages"
-                    count={`${filteredPackages.length} ${filteredPackages.length === 1 ? 'package' : 'packages'}`}
+                    title={t('Packages')}
+                    count={tn(filteredPackages.length, '{count} package', '{count} packages')}
                   />
                   <div className="flex flex-col gap-2">
                     {filteredPackages.map((pkg, i) => {
@@ -861,7 +872,7 @@ export default function GaragePage({
                             <button
                               type="button"
                               onClick={() => openDetails(pkg)}
-                              aria-label={`View details for ${pkg.name}`}
+                              aria-label={t('View details for {name}', { name: pkg.name })}
                               className={CARD_DETAILS_TRIGGER}
                             >
                               <span className="flex items-center justify-between gap-2.5">
@@ -872,7 +883,7 @@ export default function GaragePage({
                                     not a button. */}
                                 {pkg.savings !== null && (
                                   <span className="gp-save shrink-0 rounded-[8px] px-2 py-[5px] font-numeric text-t5 font-semibold leading-none">
-                                    Save {money(pkg.savings)}
+                                    {t('Save {money}', { money: money(pkg.savings) })}
                                     {pkg.tierBreakdown ? '+' : ''}
                                   </span>
                                 )}
@@ -940,16 +951,16 @@ export default function GaragePage({
 
               <div className="pt-4">
                 <PaneHeading
-                  title="Services"
-                  count={`${filtered.length} ${filtered.length === 1 ? 'service' : 'services'}`}
+                  title={t('Services')}
+                  count={tn(filtered.length, '{count} service', '{count} services')}
                 />
                 {catalogueLoading ? (
                   <SkeletonList count={3} itemClassName="h-24 rounded-[18px]" />
                 ) : filtered.length === 0 ? (
                   <p className="py-6 text-center text-t4 text-text-secondary">
                     {services.length === 0
-                      ? 'No services available yet.'
-                      : 'No services match that search.'}
+                      ? t('No services available yet.')
+                      : t('No services match that search.')}
                   </p>
                 ) : (
                   <div className="flex flex-col gap-2">
@@ -966,7 +977,7 @@ export default function GaragePage({
                             <button
                               type="button"
                               onClick={() => openDetails(svc)}
-                              aria-label={`View details for ${svc.name}`}
+                              aria-label={t('View details for {name}', { name: svc.name })}
                               className={cn(CARD_DETAILS_TRIGGER, 'flex min-w-0 items-start gap-3')}
                             >
                               {/* The video's poster, the first photo, or the
@@ -1001,7 +1012,7 @@ export default function GaragePage({
                               </span>
                               {pricedForCar(svc, carType) && myCar && (
                                 <span className="text-over font-medium normal-case tracking-normal text-[#8E8E98]">
-                                  for your {myCar.model}
+                                  {t('for your {model}', { model: myCar.model })}
                                 </span>
                               )}
                               {!paused && (
@@ -1047,7 +1058,7 @@ export default function GaragePage({
                 ))
               ) : (
                 <p className="col-span-2 py-6 text-center text-t4 text-text-secondary">
-                  No photos yet.
+                  {t('No photos yet.')}
                 </p>
               )}
             </div>
@@ -1063,13 +1074,13 @@ export default function GaragePage({
                   <div className="flex flex-col gap-1">
                     <Stars rating={avgRating} size={16} />
                     <p className="text-t5 font-medium text-[#8E8E98]">
-                      {reviewCount} {reviewCount === 1 ? 'review' : 'reviews'}
+                      {tn(reviewCount, '{count} review', '{count} reviews')}
                     </p>
                   </div>
                 </div>
               ) : (
                 <div className="pb-2 pt-1">
-                  <p className="text-t3 font-semibold text-text-primary">{NEW_GARAGE_LABEL}</p>
+                  <p className="text-t3 font-semibold text-text-primary">{t(NEW_GARAGE_LABEL)}</p>
                   {soFar && (
                     <p className="text-t5 text-text-secondary">{soFar}</p>
                   )}
@@ -1077,12 +1088,12 @@ export default function GaragePage({
               )}
               {reviewsQuery.isPending ? (
                 <p className="py-4 text-center text-t4 text-text-secondary">
-                  Loading reviews…
+                  {t('Loading reviews…')}
                 </p>
               ) : (
                 reviews.length === 0 && (
                   <p className="py-4 text-center text-t4 text-text-secondary">
-                    No reviews yet.
+                    {t('No reviews yet.')}
                   </p>
                 )
               )}
@@ -1110,7 +1121,7 @@ export default function GaragePage({
                     {review.reply && (
                       <div className="mt-2.5 rounded-[12px] border-l-2 border-[rgb(228_0_43/0.7)] bg-[#141418] px-3 py-2.5">
                         <p className="text-t5 font-semibold text-[#8E8E98]">
-                          Reply from {vendor.name}
+                          {t('Reply from {name}', { name: vendor.name })}
                         </p>
                         <p className="mt-0.5 text-t4 text-[#C8C8D0]">
                           {review.reply.text}
@@ -1140,12 +1151,12 @@ export default function GaragePage({
         <div className="fixed inset-x-0 bottom-0 z-40 mx-auto w-full max-w-[428px] px-3 pb-[calc(14px+env(safe-area-inset-bottom))]">
           <div role="status" className="gp-bar rounded-[22px] px-[18px] py-3.5">
             <p className="text-t3 font-semibold text-text-primary">
-              Not taking bookings right now
+              {t('Not taking bookings right now')}
             </p>
             <p className="mt-0.5 text-t4 text-text-secondary">
               {vendor.bookingsPausedReason
                 ? vendor.bookingsPausedReason
-                : 'This garage has paused new bookings. Check back later, or pick another garage.'}
+                : t('This garage has paused new bookings. Check back later, or pick another garage.')}
             </p>
           </div>
         </div>
@@ -1167,7 +1178,7 @@ export default function GaragePage({
                     selectedServices[0].name
                   ) : (
                     <>
-                      {selectedServices.length} services
+                      {t('{length} services', { length: selectedServices.length })}
                       {selectedDuration !== null && (
                         <>
                           {' '}
@@ -1198,7 +1209,7 @@ export default function GaragePage({
                   heroIcon={<IconArrowUpRight size={16} stroke={1.8} aria-hidden />}
                   onClick={handleBook}
                 >
-                  Book now
+                  {t('Book now')}
                 </MainAction>
               </div>
             </div>
@@ -1213,7 +1224,7 @@ export default function GaragePage({
       <ScSheet
         open={detailsOpen}
         onClose={() => setDetailsOpen(false)}
-        aria-label={details ? `${details.name} details` : 'Service details'}
+        aria-label={details ? t('{name} details', { name: details.name }) : t('Service details')}
         className="px-[18px] pt-1"
       >
         {details && (
@@ -1237,7 +1248,7 @@ export default function GaragePage({
             {isPackage(details) && (
               <div className="mt-4">
                 <p className="mb-2 text-over font-semibold uppercase text-[#8E8E98]">
-                  Services in this package
+                  {t('Services in this package')}
                 </p>
                 <ul className="flex flex-col gap-[7px]">
                   {details.items.map((item) => (
@@ -1258,15 +1269,11 @@ export default function GaragePage({
                     is shown on the tier rows below instead of as one figure. */}
                 {details.tierBreakdown === null && details.savings !== null && (
                   <p className="mt-2 text-t5 font-semibold text-text-primary">
-                    Save{' '}
-                    <span className="font-numeric font-bold">
+                    {fill(t('Save {money} vs {money2} separately'), { money: <span className="font-numeric font-bold">
                       {money(details.savings)}
-                    </span>{' '}
-                    vs{' '}
-                    <span className="font-numeric font-bold">
+                    </span>, money2: <span className="font-numeric font-bold">
                       {money(details.itemsTotal)}
-                    </span>{' '}
-                    separately
+                    </span> })}
                   </p>
                 )}
               </div>
@@ -1278,7 +1285,7 @@ export default function GaragePage({
               {details.pricingType === 'per_vehicle' ? (
                 <>
                   <p className="mb-1 text-over font-semibold uppercase text-[#8E8E98]">
-                    Price by vehicle
+                    {t('Price by vehicle')}
                   </p>
                   {VEHICLE_TIERS.map(({ value: type, label }) => {
                     const price = tierPriceFor(details, type)
@@ -1292,7 +1299,7 @@ export default function GaragePage({
                         className="flex items-center justify-between border-t border-white/[0.07] py-2.5"
                       >
                         <span className="text-t4 font-medium text-text-secondary">
-                          {label}
+                          {t(label)}
                         </span>
                         {price == null ? (
                           // Only reachable on services created before every
@@ -1300,16 +1307,15 @@ export default function GaragePage({
                           // showing another vehicle's price — booking would
                           // be refused.
                           <span className="text-t5 text-text-muted">
-                            Price on request
+                            {t('Price on request')}
                           </span>
                         ) : (
                           <span className="flex items-center gap-2">
                             {tierSavings !== null && (
                               <span className="text-t5 font-medium text-text-secondary">
-                                save{' '}
-                                <span className="font-numeric">
+                                {fill(t('save {money}'), { money: <span className="font-numeric">
                                   {money(tierSavings)}
-                                </span>
+                                </span> })}
                               </span>
                             )}
                             <span className="font-numeric text-t3 font-semibold text-text-primary">
@@ -1325,8 +1331,8 @@ export default function GaragePage({
                 <div className="flex items-center justify-between border-t border-white/[0.07] py-2.5">
                   <span className="text-t4 font-medium text-text-secondary">
                     {details.pricingType === 'on_inspection'
-                      ? 'Inspection fee'
-                      : 'Price'}
+                      ? t('Inspection fee')
+                      : t('Price')}
                   </span>
                   <span className="font-numeric text-t3 font-semibold text-text-primary">
                     {money(details.price)}
@@ -1335,9 +1341,7 @@ export default function GaragePage({
               )}
               {details.pricingType === 'on_inspection' && (
                 <p className="mt-1.5 text-t5 text-text-muted">
-                  You pay the inspection fee when you book. If the work costs
-                  more, the garage sends the final bill in the app and you pay
-                  the rest there.
+                  {t('You pay the inspection fee when you book. If the work costs more, the garage sends the final bill in the app and you pay the rest there.')}
                 </p>
               )}
             </div>
@@ -1356,8 +1360,8 @@ export default function GaragePage({
               >
                 <span>
                   {selected.includes(details.id)
-                    ? 'Remove from booking'
-                    : 'Add to booking'}
+                    ? t('Remove from booking')
+                    : t('Add to booking')}
                 </span>
               </ScButton>
             )}

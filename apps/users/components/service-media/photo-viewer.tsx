@@ -6,6 +6,7 @@ import Image from 'next/image'
 import { IconX } from '@tabler/icons-react'
 import type { ServiceMedia } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
+import { useT } from '@repo/core/i18n'
 
 /**
  * A service's photos full screen: swipe between them (native scroll-snap,
@@ -27,6 +28,7 @@ export function PhotoViewer({
   serviceName: string
   onClose: () => void
 }) {
+  const t = useT()
   const track = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
   const [index, setIndex] = useState(startIndex)
@@ -65,7 +67,7 @@ export function PhotoViewer({
     <div
       role="dialog"
       aria-modal="true"
-      aria-label={`Photos of ${serviceName}`}
+      aria-label={t('Photos of {serviceName}', { serviceName })}
       className="fixed inset-0 z-[60] flex flex-col bg-black"
     >
       <div className="relative flex h-16 shrink-0 items-center justify-center px-4 pt-[env(safe-area-inset-top)]">
@@ -73,7 +75,7 @@ export function PhotoViewer({
           ref={closeRef}
           type="button"
           onClick={onClose}
-          aria-label="Close photos"
+          aria-label={t('Close photos')}
           className="absolute left-4 flex size-11 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/15"
         >
           <IconX size={22} aria-hidden="true" />
@@ -95,7 +97,7 @@ export function PhotoViewer({
           <div key={photo.id} className="relative h-full w-full shrink-0 snap-center">
             <Image
               src={photo.url}
-              alt={`${serviceName}, photo ${i + 1} of ${photos.length}`}
+              alt={t('{serviceName}, photo {value} of {length}', { serviceName, value: i + 1, length: photos.length })}
               fill
               sizes="100vw"
               className="object-contain"

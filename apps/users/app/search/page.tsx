@@ -26,17 +26,20 @@ import {
   useLocationStore,
 } from '@repo/core/stores/location-store'
 import { cn } from '@repo/core/utils'
+import { msg, useT, useTn } from '@repo/core/i18n'
 
 // Quick-access shortcuts for the most-used sorts. The Filter button opens the
 // sheet with the full set, and both drive the same `sort` state so the chip
 // highlight always reflects what the list is actually ordered by.
 const SORT_CHIPS: { label: string; value: SortKey }[] = [
-  { label: 'Nearest', value: 'distance' },
-  { label: 'Rating', value: 'rating' },
-  { label: 'Price', value: 'price_asc' },
+  { label: msg('Nearest'), value: 'distance' },
+  { label: msg('Rating'), value: 'rating' },
+  { label: msg('Price'), value: 'price_asc' },
 ]
 
 function SearchContent() {
+  const t = useT()
+  const tn = useTn()
   const searchParams = useSearchParams()
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<SortKey>('relevance')
@@ -108,8 +111,8 @@ function SearchContent() {
             placeholder disappears the moment someone types. */}
         <input
           type="search"
-          placeholder="Search garages or services"
-          aria-label="Search garages or services"
+          placeholder={t('Search garages or services')}
+          aria-label={t('Search garages or services')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className="flex-1 bg-transparent text-t3 font-medium text-text-primary outline-none placeholder:text-[#8E8E98]"
@@ -122,7 +125,7 @@ function SearchContent() {
         {sortChips.map((chip) => (
           <FilterChip
             key={chip.value}
-            label={chip.label}
+            label={t(chip.label)}
             active={sort === chip.value}
             // Tapping the active chip clears back to the default order.
             onClick={() =>
@@ -136,7 +139,7 @@ function SearchContent() {
           className="flex min-h-11 shrink-0 items-center gap-1 rounded-full border border-line px-3.5 text-t4 text-text-secondary transition-colors hover:text-text-primary"
         >
           <IconAdjustments size={14} aria-hidden="true" />
-          Filter
+          {t('Filter')}
         </button>
       </div>
 
@@ -158,14 +161,14 @@ function SearchContent() {
               {/* "20+" rather than "20": the count is what has been paged in so
                   far, not the size of the result set, and stating it flatly
                   would be a number the next scroll contradicts. */}
-              {vendors.length}
-              {hasMore ? '+' : ''} garage
-              {vendors.length === 1 && !hasMore ? '' : 's'} found
+              {hasMore
+                ? t('{count}+ garages found', { count: vendors.length })
+                : tn(vendors.length, '{count} garage found', '{count} garages found')}
             </p>
           )}
           {sort !== 'relevance' && (
             <p className="ml-auto text-t5 text-text-secondary">
-              Sorted by {sortLabel(sort)}
+              {t('Sorted by {sortLabel}', { sortLabel: sortLabel(sort) })}
             </p>
           )}
         </div>
@@ -173,16 +176,16 @@ function SearchContent() {
         <div className="flex flex-col gap-2">
           {awaitingFirstAnswer ? (
             <p className="py-6 text-center text-t4 text-text-secondary">
-              Searching…
+              {t('Searching…')}
             </p>
           ) : isError ? (
             <ErrorState
-              message="Couldn't load garages. Check your connection."
+              message={t("Couldn't load garages. Check your connection.")}
               onRetry={retry}
             />
           ) : vendors.length === 0 ? (
             <p className="py-6 text-center text-t4 text-text-secondary">
-              No garages or services match your search.
+              {t('No garages or services match your search.')}
             </p>
           ) : (
             <>

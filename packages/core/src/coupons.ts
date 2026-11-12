@@ -1,5 +1,6 @@
 import { CATEGORY_LABELS } from '@repo/core/categories'
 import type { ServiceCategory } from '@repo/core/types'
+import { msg, t } from './i18n/translate'
 
 /**
  * Printed coupons with QR codes (0056): the code's shape, the limits the
@@ -65,8 +66,8 @@ export function couponCodeProblem(input: string): string | null {
   const parsed = parseCouponCode(input)
   if (parsed.ok) return null
   return parsed.reason === 'typo'
-    ? "That code doesn't look right. Check each character and try again."
-    : 'A coupon code has 10 letters and numbers after DTL, like DTL-7K4QM-92MXA.'
+    ? t("That code doesn't look right. Check each character and try again.")
+    : t('A coupon code has 10 letters and numbers after DTL, like DTL-7K4QM-92MXA.')
 }
 
 export const COUPON_KINDS = ['unique', 'shared'] as const
@@ -106,30 +107,37 @@ const inr = (rupees: number) => `₹${rupees.toLocaleString('en-IN')}`
 export function offerTitle(offer: CouponOffer): string {
   switch (offer.reward) {
     case 'amount':
-      return `${inr(offer.amountOff ?? 0)} off`
+      return t('{amount} off', { amount: inr(offer.amountOff ?? 0) })
     case 'percent':
-      return `${offer.percentOff ?? 0}% off, up to ${inr(offer.maxDiscount ?? 0)}`
+      return t('{percent}% off, up to {amount}', { percent: offer.percentOff ?? 0, amount: inr(offer.maxDiscount ?? 0) })
     case 'free_wash':
-      return `A free car wash, up to ${inr(offer.amountOff ?? 0)}`
+      return t('A free car wash, up to {amount}', { amount: inr(offer.amountOff ?? 0) })
     case 'stamps':
-      return offer.stamps === 1 ? '1 bonus Shine stamp' : `${offer.stamps ?? 0} bonus Shine stamps`
+      return offer.stamps === 1
+        ? t('1 bonus Shine stamp')
+        : t('{count} bonus Shine stamps', { count: offer.stamps ?? 0 })
   }
 }
 
 /** The small print, one condition a line, from the batch's columns. */
 export function offerConditions(offer: CouponOffer): string[] {
   if (offer.reward === 'stamps') {
-    return ['Added to your Shine Card in Detlio Rewards.', ...(offer.newCustomersOnly ? ['For new Detlio customers.'] : [])]
+    return [
+      t('Added to your Shine Card in Detlio Rewards.'),
+      ...(offer.newCustomersOnly ? [t('For new Detlio customers.')] : []),
+    ]
   }
   const lines: string[] = []
   const category = offer.reward === 'free_wash' ? 'car_wash' : offer.serviceCategory
-  if (category) lines.push(`On ${CATEGORY_LABELS[category].toLowerCase()} services.`)
-  if (offer.minOrder) lines.push(`On bookings of ${inr(offer.minOrder)} or more.`)
-  lines.push(offer.vendorName ? `At ${offer.vendorName} only.` : 'At any garage on Detlio.')
-  if (offer.newCustomersOnly) lines.push('For your first booking on Detlio.')
-  lines.push('One use. Paid online at checkout.')
+  if (category) {
+    lines.push(t('On {category} services.', { category: t(CATEGORY_LABELS[category]).toLowerCase() }))
+  }
+  if (offer.minOrder) lines.push(t('On bookings of {amount} or more.', { amount: inr(offer.minOrder) }))
+  lines.push(offer.vendorName ? t('At {garage} only.', { garage: offer.vendorName }) : t('At any garage on Detlio.'))
+  if (offer.newCustomersOnly) lines.push(t('For your first booking on Detlio.'))
+  lines.push(t('One use. Paid online at checkout.'))
   return lines
 }
 
 /** The line printed on every coupon under the QR. */
-export const COUPON_SCAN_LINE = 'Scan with your phone camera or enter the code in the Detlio app'
+export const COUPON_SCAN_LINE = msg('Scan with your phone camera or enter the code in the Detlio app')

@@ -4,6 +4,7 @@ import type { LayoutChangeEvent, ScrollView } from 'react-native';
 import { toast } from '@repo/native-ui/toast';
 
 import { locateItem, type Scope, type ScopeLookup, scrollTarget } from './focus-item';
+import { t } from '@repo/core/i18n/translate';
 
 /** How long the card is kept in view while what is above it finishes loading. */
 const SETTLE_MS = 3000;
@@ -63,7 +64,7 @@ export function useItemFocus({
     const found = locateItem(id, asked.at, open, closed);
     if (found === 'wait') return;
     setDone(id);
-    if (found === 'missing') toast.info(missing);
+    if (found === 'missing') toast.info(t(missing));
     if (typeof found === 'object') {
       onScope(found.scope);
       setTarget(id);

@@ -1,3 +1,4 @@
+import { useT } from '@repo/core/i18n';
 import { hoursLeftShare, openStatus, type OpeningDay } from '@repo/core/opening-hours';
 import { HoursRing } from '@repo/native-ui/finish';
 import { T } from '@repo/native-ui/text';
@@ -31,6 +32,7 @@ export function OpenStatus({
   /** `ring`: the garage page's, the opening-hours ring before the words (§5). */
   variant?: 'line' | 'overlay' | 'ring';
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const now = useMinuteClock();
@@ -42,7 +44,7 @@ export function OpenStatus({
         <HoursRing share={status.isOpen ? hoursLeftShare(hours, now, closures) : null} play track={colors.scheme === 'light' ? colors.line : undefined} />
         <T variant="t4" numberOfLines={1} color={colors.scheme === 'light' ? colors.textSecondary : '#C8C8D0'} style={styles.shrink}>
           <T variant="t4" color={colors.textPrimary}>
-            {status.isOpen ? 'Open' : status.closedToday ? 'Closed today' : 'Closed'}
+            {status.isOpen ? t('Open') : status.closedToday ? t('Closed today') : t('Closed')}
           </T>
           {status.detail ? ` · ${status.detail}` : ''}
         </T>
@@ -58,7 +60,7 @@ export function OpenStatus({
       <View style={[styles.dot, { backgroundColor: status.isOpen ? colors.successFill : colors.textMuted }]} />
       <T size={overlay ? 12 : 13} lh={overlay ? 16 : 18} numberOfLines={1} color={rest} style={styles.shrink}>
         <T size={overlay ? 12 : 13} lh={overlay ? 16 : 18} weight={500} color={word}>
-          {status.isOpen ? 'Open' : status.closedToday ? 'Closed today' : 'Closed'}
+          {status.isOpen ? t('Open') : status.closedToday ? t('Closed today') : t('Closed')}
         </T>
         {status.detail ? ` · ${status.detail}` : ''}
       </T>

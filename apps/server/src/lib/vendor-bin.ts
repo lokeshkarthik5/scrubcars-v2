@@ -70,15 +70,24 @@ export function upcomingSummary(bookings: Array<{ payment: { status: string } | 
  * - `partial`: the garage has more bookings than one run deletes (the reset's
  *   per-run cap). This run deletes the oldest it may and leaves the garage in
  *   the Bin; pressing Delete forever again carries on.
+ *
+ * The owner's Delete forever (10 Nov 2026) keeps no chain for its money, and
+ * takes the garage's payouts with it (each line written to the ledger
+ * first), so a test garage goes outright, payouts or not. A payout left on
+ * record (it names the garage ON DELETE RESTRICT: one that paid a booking
+ * that stays, or anyone else's delete of a garage paid real money) keeps the
+ * garage as a tombstone: `payoutsLeft`.
  */
 export type PurgeOutcome = 'hard_delete' | 'tombstone' | 'partial'
 
 export function purgeOutcome(
-  plan: Pick<ResetPlan, 'chains' | 'checkouts' | 'overCap'>
+  plan: Pick<ResetPlan, 'chains' | 'checkouts' | 'overCap'>,
+  /** Payouts to the garage this delete leaves on record. */
+  payoutsLeft = 0
 ): PurgeOutcome {
   if (plan.overCap.chains > 0 || plan.overCap.checkouts > 0) return 'partial'
   const kept = [...plan.chains, ...plan.checkouts].some((row) => row.kept !== null)
-  return kept ? 'tombstone' : 'hard_delete'
+  return kept || payoutsLeft > 0 ? 'tombstone' : 'hard_delete'
 }
 
 /**

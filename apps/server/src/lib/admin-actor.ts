@@ -60,6 +60,19 @@ export type AdminActor = {
 }
 
 /**
+ * Whether this admin may delete anything (owner, 10 Nov 2026: "As a owner I
+ * basically need access to delete or remove anything & everything"): the
+ * owner's personal login, or the shared env login, which is the break-glass
+ * door the owner holds. Member admins and the other personal logins keep
+ * the ordinary rules, so a hard delete is never one wrong tap away for the
+ * rest of the team. The panel hears it as `canDeleteAnything` on GET
+ * /admin/me and hides the owner-only buttons from everyone else.
+ */
+export function canDeleteAnything(actor: Pick<AdminActor, 'kind' | 'isOwner'>): boolean {
+  return actor.isOwner || actor.kind === 'shared'
+}
+
+/**
  * The `actorName` of an admin write's schema since 0058: adminSignedJson
  * fills it in with the signed-in admin's name once the body is valid. A name
  * a client sends (a panel from before personal logins) is accepted and

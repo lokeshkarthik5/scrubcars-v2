@@ -1,3 +1,5 @@
+import { msg, t, tn } from './i18n/translate'
+
 /**
  * "Request a visit" / "Request a pickup" (customer reach, part 2, 0062): the
  * numbers and words the customer app and the garage portal show. The rules
@@ -28,26 +30,26 @@ export type RequestMode = 'doorstep' | 'pickup'
 
 /** The parts of a day, as the chips say them. */
 export const WINDOW_PART_LABELS: Record<WindowPart, string> = {
-  morning: 'Morning 9–12',
-  afternoon: 'Afternoon 2–5',
-  evening: 'Evening 5–8',
+  morning: msg('Morning 9–12'),
+  afternoon: msg('Afternoon 2–5'),
+  evening: msg('Evening 5–8'),
 }
 
 /** The three promises under the request sheet's choices. */
 export const REQUEST_PROMISES = [
-  'No payment now',
-  'They reply within 2 hours, or we ask the next garage',
-  'Any travel fee is shown before you pay',
+  msg('No payment now'),
+  msg('They reply within 2 hours, or we ask the next garage'),
+  msg('Any travel fee is shown before you pay'),
 ] as const
 
 /** The travel fee chips on the garage's card. */
 export function travelFeeLabel(fee: TravelFee): string {
-  return fee === 0 ? 'None' : `+₹${fee}`
+  return fee === 0 ? t('None') : `+₹${fee}`
 }
 
 /** "Request a visit" / "Request a pickup". */
 export function requestActionLabel(mode: RequestMode): string {
-  return mode === 'pickup' ? 'Request a pickup' : 'Request a visit'
+  return mode === 'pickup' ? t('Request a pickup') : t('Request a visit')
 }
 
 /** "1:52:10" or "52:10" left, from milliseconds; "0:00" once gone. */
@@ -88,5 +90,5 @@ export function istStartLabel(iso: string): string {
 
 /** "Tried 1 of 2 nearby garages." */
 export function triedLine(tried: number, max: number = REQUEST_RULES.maxGarages): string {
-  return `Tried ${tried} of ${max} nearby ${max === 1 ? 'garage' : 'garages'}.`
+  return tn(max, 'Tried {tried} of {count} nearby garage.', 'Tried {tried} of {count} nearby garages.', { tried })
 }

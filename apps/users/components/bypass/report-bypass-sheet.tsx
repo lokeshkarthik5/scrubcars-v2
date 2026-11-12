@@ -19,6 +19,7 @@ import {
   bypassRewardLine,
   type BypassKind,
 } from '@repo/core/bypass-reports'
+import { fill, useT } from '@repo/core/i18n'
 
 /** The booking a report is about. */
 export interface BypassBooking {
@@ -46,6 +47,7 @@ interface ReportBypassSheetProps {
  * Red once, on Send: the sheet's one main action.
  */
 export function ReportBypassSheet({ open, onClose, booking, rewardOffered, rewardAmount }: ReportBypassSheetProps) {
+  const t = useT()
   const send = useReportBypass()
   const [kind, setKind] = useState<BypassKind | null>(null)
   const [note, setNote] = useState('')
@@ -74,7 +76,7 @@ export function ReportBypassSheet({ open, onClose, booking, rewardOffered, rewar
       {
         onSuccess: () => setSent(true),
         onError: (err) =>
-          setError(err instanceof ApiError ? err.message : "Couldn't send this. Check your connection and try again."),
+          setError(err instanceof ApiError ? err.message : t("Couldn't send this. Check your connection and try again.")),
       }
     )
   }
@@ -84,17 +86,16 @@ export function ReportBypassSheet({ open, onClose, booking, rewardOffered, rewar
       open={open}
       onClose={close}
       dismissible={!send.isPending}
-      aria-label={sent ? BYPASS_THANKS_TITLE : 'Tell us about the garage'}
+      aria-label={sent ? t(BYPASS_THANKS_TITLE) : t('Tell us about the garage')}
       className="px-4 pt-1"
     >
       <div className="flex flex-col gap-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="text-base font-semibold text-text-primary">{sent ? BYPASS_THANKS_TITLE : BYPASS_QUESTION}</h2>
+            <h2 className="text-base font-semibold text-text-primary">{sent ? t(BYPASS_THANKS_TITLE) : t(BYPASS_QUESTION)}</h2>
             {!sent && (
               <p className="mt-1 text-t5 text-text-secondary">
-                About booking <span className="font-numeric font-medium">{booking.reference}</span> ·{' '}
-                {booking.vendorName}
+                {fill(t('About booking {reference} · {vendorName}'), { reference: <span className="font-numeric font-medium">{booking.reference}</span>, vendorName: booking.vendorName })}
               </p>
             )}
           </div>
@@ -102,7 +103,7 @@ export function ReportBypassSheet({ open, onClose, booking, rewardOffered, rewar
             type="button"
             onClick={close}
             disabled={send.isPending}
-            aria-label="Close"
+            aria-label={t('Close')}
             className="-mr-2 -mt-1 flex size-11 shrink-0 items-center justify-center disabled:opacity-40"
           >
             <IconCircleX size={22} className="text-text-secondary" />
@@ -114,25 +115,25 @@ export function ReportBypassSheet({ open, onClose, booking, rewardOffered, rewar
             <div className="flex items-start gap-3 rounded-[12px] border border-border bg-surface px-3.5 py-3">
               <IconCircleCheck size={20} className="mt-0.5 shrink-0 text-success" aria-hidden />
               <div className="min-w-0">
-                <p className="text-[14px] font-semibold text-text-primary">{BYPASS_THANKS_BODY}</p>
+                <p className="text-[14px] font-semibold text-text-primary">{t(BYPASS_THANKS_BODY)}</p>
                 {rewardOffered && (
                   <p className="mt-1 text-t5 text-text-secondary">{bypassRewardLine(Number(rewardAmount))}</p>
                 )}
               </div>
             </div>
             <ScButton variant="secondary" onClick={close} className="min-h-11">
-              Done
+              {t('Done')}
             </ScButton>
           </div>
         ) : (
           <form onSubmit={submit} className="flex flex-col gap-4">
             <fieldset className="flex flex-col gap-2">
-              <legend className="mb-2 text-t5 font-medium text-text-secondary">What happened?</legend>
+              <legend className="mb-2 text-t5 font-medium text-text-secondary">{t('What happened?')}</legend>
               <div className="flex flex-wrap gap-2">
                 {BYPASS_KINDS.map((value) => (
                   <Chip
                     key={value}
-                    label={BYPASS_KIND_LABELS[value]}
+                    label={t(BYPASS_KIND_LABELS[value])}
                     selected={kind === value}
                     onClick={() => setKind(value)}
                     className="min-h-11 text-left"
@@ -145,10 +146,10 @@ export function ReportBypassSheet({ open, onClose, booking, rewardOffered, rewar
               <ScTextarea
                 data-clarity-mask="true"
                 id="bypass-note"
-                label="Anything to add? (optional)"
+                label={t('Anything to add? (optional)')}
                 rows={3}
                 maxLength={BYPASS_NUMBERS.noteMax}
-                placeholder="What they said, and when"
+                placeholder={t('What they said, and when')}
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 aria-describedby={error ? 'bypass-note-hint bypass-error' : 'bypass-note-hint'}
@@ -161,7 +162,7 @@ export function ReportBypassSheet({ open, onClose, booking, rewardOffered, rewar
             </div>
 
             <div className="flex flex-col gap-1 text-t5 text-text-secondary">
-              <p>{BYPASS_ANONYMITY_LINE}</p>
+              <p>{t(BYPASS_ANONYMITY_LINE)}</p>
               {rewardOffered && <p>{bypassRewardLine(Number(rewardAmount))}</p>}
             </div>
 
@@ -172,7 +173,7 @@ export function ReportBypassSheet({ open, onClose, booking, rewardOffered, rewar
             )}
 
             <ScButton type="submit" disabled={!canSend} className="min-h-11">
-              {send.isPending ? 'Sending…' : 'Send'}
+              {send.isPending ? t('Sending…') : t('Send')}
             </ScButton>
           </form>
         )}

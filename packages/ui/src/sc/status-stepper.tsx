@@ -2,6 +2,7 @@
 
 import { IconCheck } from '@tabler/icons-react'
 import { cn } from '@repo/core/utils'
+import { msg, useT } from '@repo/core/i18n'
 
 type StepState = 'done' | 'current' | 'upcoming'
 
@@ -32,38 +33,38 @@ interface Step {
 const STEPS: Step[] = [
   {
     key: 'requested',
-    label: { upcoming: 'Requested' },
+    label: { upcoming: msg('Requested') },
     caption: {
-      done: 'Sent to the garage',
-      current: 'Sent to the garage',
-      upcoming: 'Sent to the garage',
+      done: msg('Sent to the garage'),
+      current: msg('Sent to the garage'),
+      upcoming: msg('Sent to the garage'),
     },
   },
   {
     key: 'confirmed',
-    label: { current: 'Waiting for garage', upcoming: 'Accepted' },
+    label: { current: msg('Waiting for garage'), upcoming: msg('Accepted') },
     caption: {
-      done: 'Your slot is reserved',
-      current: 'Shows here as soon as the garage accepts',
-      upcoming: 'The garage accepts your slot',
+      done: msg('Your slot is reserved'),
+      current: msg('Shows here as soon as the garage accepts'),
+      upcoming: msg('The garage accepts your slot'),
     },
   },
   {
     key: 'in_progress',
-    label: { upcoming: 'In progress' },
+    label: { upcoming: msg('In progress') },
     caption: {
-      done: 'Work started on your car',
-      current: 'Work has started on your car',
-      upcoming: 'Starts at your booked time',
+      done: msg('Work started on your car'),
+      current: msg('Work has started on your car'),
+      upcoming: msg('Starts at your booked time'),
     },
   },
   {
     key: 'completed',
-    label: { upcoming: 'Done' },
+    label: { upcoming: msg('Done') },
     caption: {
-      done: 'Your car is ready',
-      current: 'Your car is ready',
-      upcoming: 'Marked here when the work is done',
+      done: msg('Your car is ready'),
+      current: msg('Your car is ready'),
+      upcoming: msg('Marked here when the work is done'),
     },
   },
 ]
@@ -96,10 +97,11 @@ export function StatusStepper({
    */
   times?: Partial<Record<StepKey, string>>
 }) {
+  const t = useT()
   const progress = PROGRESS[status] ?? PROGRESS.pending
 
   return (
-    <ol aria-label="Booking progress" className="flex flex-col">
+    <ol aria-label={t('Booking progress')} className="flex flex-col">
       {STEPS.map((step, i) => {
         const state: StepState =
           i <= progress.doneThrough
@@ -158,7 +160,7 @@ export function StatusStepper({
                   active ? 'text-text-primary' : 'text-text-muted'
                 )}
               >
-                {step.label[state] ?? step.label.upcoming}
+                {t(step.label[state] ?? step.label.upcoming)}
               </p>
               <p
                 className={cn(
@@ -166,7 +168,7 @@ export function StatusStepper({
                   active ? 'text-text-secondary' : 'text-text-muted'
                 )}
               >
-                {step.caption[state]}
+                {t(step.caption[state])}
               </p>
               {active && times?.[step.key] && (
                 <p className="mt-0.5 font-numeric text-[11px] leading-tight text-text-muted">

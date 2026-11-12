@@ -16,6 +16,7 @@ import { pauseBookings, resumeBookings } from '@/lib/garage-api';
 import { bookingsSentence, closureWindow, formatDay, sortClosures } from '@/lib/settings-logic';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 import { addClosure, removeClosure } from '@/lib/vendor-api';
+import { fill, msg, useT, useTn } from '@repo/core/i18n';
 
 /**
  * Settings > Time off (apps/vendors/app/settings/time-off-section.tsx): Pause new
@@ -55,6 +56,7 @@ export function PauseSection({
   vendor: ApiVendorProfile;
   onChange: (vendor: ApiVendorProfile) => void;
 }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const [reason, setReason] = useState(vendor.bookingsPausedReason ?? '');
@@ -69,65 +71,67 @@ export function PauseSection({
       const updated = await action();
       onChange(updated);
       setReason(updated.bookingsPausedReason ?? '');
-      toast.success(done);
+      toast.success(t(done));
     } catch (err) {
-      toast.error(errorText(err, 'Something went wrong'));
+      toast.error(errorText(err, t('Something went wrong')));
     } finally {
       setBusy(false);
     }
   };
 
-  const pause = () => run(() => pauseBookings(reason.trim() || undefined), 'New bookings paused');
-  const toggle = () => (paused ? run(resumeBookings, 'Taking bookings again') : pause());
+  const pause = () => run(() => pauseBookings(reason.trim() || undefined), msg('New bookings paused'));
+  const toggle = () => (paused ? run(resumeBookings, msg('Taking bookings again')) : pause());
 
   return (
     <View style={styles.section}>
-      <SectionHeader title="Pause new bookings" />
+      <SectionHeader title={t('Pause new bookings')} />
       <ScCard style={styles.section}>
         <T size={11} color={colors.textSecondary}>
-          {"Customers can't book you while this is on. Bookings you already have stay as they are."}
+          {t("Customers can't book you while this is on. Bookings you already have stay as they are.")}
         </T>
         <ScInput
-          label="Reason (optional, customers see this)"
-          placeholder="e.g. Closed for renovation"
+          label={t('Reason (optional, customers see this)')}
+          placeholder={t('e.g. Closed for renovation')}
           maxLength={200}
           value={reason}
           onChangeText={setReason}
         />
         <View style={styles.switchRow}>
           <T size={13} weight={500}>
-            Pause new bookings
+            {t('Pause new bookings')}
           </T>
           {/* Amber when on: a paused garage is a state to notice, not an action to take. */}
-          <ScSwitch label="Pause new bookings" tone="warning" checked={paused} disabled={busy} onChange={() => void toggle()} />
+          <ScSwitch label={t('Pause new bookings')} tone="warning" checked={paused} disabled={busy} onChange={() => void toggle()} />
         </View>
         {paused ? (
           <>
             <T size={12}>
-              {'Paused since '}
-              <T num size={12} weight={500}>
-                {new Date(vendor.bookingsPausedAt as string).toLocaleDateString('en-IN', {
-                  weekday: 'short',
-                  day: 'numeric',
-                  month: 'short',
-                  timeZone: APP_TIMEZONE,
-                })}
-              </T>
-              .
+              {fill(t('Paused since {date}.'), {
+                date: (
+                  <T num size={12} weight={500}>
+                    {new Date(vendor.bookingsPausedAt as string).toLocaleDateString('en-IN', {
+                      weekday: 'short',
+                      day: 'numeric',
+                      month: 'short',
+                      timeZone: APP_TIMEZONE,
+                    })}
+                  </T>
+                ),
+              })}
               {savedReason ? (
-                <T size={12} color={colors.textSecondary}>{` Customers see: “${savedReason}”`}</T>
+                <T size={12} color={colors.textSecondary}>{` ${t('Customers see: “{reason}”', { reason: savedReason })}`}</T>
               ) : null}
             </T>
             <View style={styles.pauseActions}>
               {/* Pausing again keeps the original start and only rewrites the reason. */}
               <View style={styles.half}>
                 <ScButton variant="outline" disabled={busy || reason.trim() === savedReason} onPress={() => void pause()}>
-                  Update reason
+                  {t('Update reason')}
                 </ScButton>
               </View>
               <View style={styles.half}>
                 <ScButton variant="main" size="lg" disabled={busy} onPress={() => void toggle()}>
-                  {busy ? 'Saving...' : 'Resume bookings'}
+                  {busy ? t('Saving...') : t('Resume bookings')}
                 </ScButton>
               </View>
             </View>
@@ -153,6 +157,8 @@ export function HolidaysSection({
   loadFailed?: boolean;
   onChange: (closures: ApiVendorClosure[]) => void;
 }) {
+  const t = useT();
+  const tn = useTn();
   const colors = useColors();
   const styles = useStyles();
   const { min, max } = closureWindow();
@@ -171,9 +177,9 @@ export function HolidaysSection({
       setOnThatDay(result.bookings.length > 0 ? { date: result.closure.date, bookings: result.bookings } : null);
       setDate('');
       setReason('');
-      toast.success('Holiday added');
+      toast.success(t('Holiday added'));
     } catch (err) {
-      toast.error(errorText(err, 'Something went wrong'));
+      toast.error(errorText(err, t('Something went wrong')));
     } finally {
       setBusy(null);
     }
@@ -185,9 +191,9 @@ export function HolidaysSection({
       await removeClosure(closure.id);
       onChange(closures.filter((c) => c.id !== closure.id));
       if (onThatDay?.date === closure.date) setOnThatDay(null);
-      toast.success('Holiday removed');
+      toast.success(t('Holiday removed'));
     } catch (err) {
-      toast.error(errorText(err, 'Something went wrong'));
+      toast.error(errorText(err, t('Something went wrong')));
     } finally {
       setBusy(null);
     }
@@ -195,33 +201,33 @@ export function HolidaysSection({
 
   return (
     <View style={styles.section}>
-      <SectionHeader title="Holidays" />
+      <SectionHeader title={t('Holidays')} />
       <ScCard style={styles.section}>
         <T size={12} color={colors.textSecondary}>
-          {"Days you're closed on top of your weekly hours. Customers can't pick them."}
+          {t("Days you're closed on top of your weekly hours. Customers can't pick them.")}
         </T>
-        <DateField label="Date" value={date} min={min} max={max} onChange={setDate} />
+        <DateField label={t('Date')} value={date} min={min} max={max} onChange={setDate} />
         <ScInput
-          label="Reason (optional)"
-          placeholder="e.g. Diwali"
+          label={t('Reason (optional)')}
+          placeholder={t('e.g. Diwali')}
           maxLength={200}
           value={reason}
           onChangeText={setReason}
         />
         {/* Secondary: while paused, Resume above is this tab's one main action. */}
         <ScButton variant="outline" disabled={!date || busy === 'add'} onPress={() => void add()}>
-          {busy === 'add' ? 'Saving...' : 'Add holiday'}
+          {busy === 'add' ? t('Saving...') : t('Add holiday')}
         </ScButton>
 
         {onThatDay ? (
           <Notice title={bookingsSentence(onThatDay.bookings.length)}>
-            {onThatDay.bookings.map((b) => `${b.customerName ?? 'Customer'} · ${b.scheduledAt}`).join('\n')}
+            {onThatDay.bookings.map((b) => `${b.customerName ?? t('Customer')} · ${b.scheduledAt}`).join('\n')}
           </Notice>
         ) : null}
 
         {loadFailed ? (
           <T accessibilityRole="alert" size={12} color={colors.warning}>
-            {"Couldn't load your holidays. Open Settings again to see them."}
+            {t("Couldn't load your holidays. Open Settings again to see them.")}
           </T>
         ) : null}
 
@@ -240,22 +246,28 @@ export function HolidaysSection({
                   ) : null}
                   {closure.activeBookingCount > 0 ? (
                     <T size={11} color={colors.warning}>
-                      <T num size={11} color={colors.warning}>
-                        {closure.activeBookingCount}
-                      </T>
-                      {` ${closure.activeBookingCount === 1 ? 'booking' : 'bookings'} still on this day`}
+                      {fill(
+                        tn(closure.activeBookingCount, '{num} booking still on this day', '{num} bookings still on this day'),
+                        {
+                          num: (
+                            <T num size={11} color={colors.warning}>
+                              {closure.activeBookingCount}
+                            </T>
+                          ),
+                        }
+                      )}
                     </T>
                   ) : null}
                 </View>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={`Remove holiday on ${formatDay(closure.date)}`}
+                  accessibilityLabel={t('Remove holiday on {date}', { date: formatDay(closure.date) })}
                   disabled={busy === closure.id}
                   onPress={() => void remove(closure)}
                   style={[styles.remove, busy === closure.id && { opacity: 0.5 }]}
                 >
                   <T size={12} weight={500} color={colors.textSecondary}>
-                    Remove
+                    {t('Remove')}
                   </T>
                 </Pressable>
               </View>

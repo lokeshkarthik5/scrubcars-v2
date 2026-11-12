@@ -36,6 +36,7 @@ import {
   giftRupees,
 } from '@/lib/gifts'
 import { giftCardSpec } from '@/lib/premium-card'
+import { fill, useT } from '@repo/core/i18n'
 
 const STATE_BADGE: Record<GiftState, 'success' | 'pending' | 'muted'> = {
   pending: 'pending',
@@ -54,6 +55,7 @@ const STATE_BADGE: Record<GiftState, 'success' | 'pending' | 'muted'> = {
  * new link ends the old: the button says so before it makes one.
  */
 export default function SentGiftsPage() {
+  const t = useT()
   const router = useRouter()
   const queryClient = useQueryClient()
   const user = useAuthStore((s) => s.user)
@@ -75,7 +77,7 @@ export default function SentGiftsPage() {
 
   const header = (
     <TopBar
-      title="Gifts you sent"
+      title={t('Gifts you sent')}
       showBack
       backHref="/profile"
       large={isHomeHubEnabled()}
@@ -88,7 +90,7 @@ export default function SentGiftsPage() {
         {header}
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
           <p className="text-t3 font-semibold text-text-primary">
-            Sign in to see the gifts you sent
+            {t('Sign in to see the gifts you sent')}
           </p>
           <ScButton
             variant="main"
@@ -97,7 +99,7 @@ export default function SentGiftsPage() {
               router.push(`/login?next=${encodeURIComponent('/profile/gifts')}`)
             }
           >
-            Sign in
+            {t('Sign in')}
           </ScButton>
         </div>
       </CustomerShell>
@@ -127,7 +129,7 @@ export default function SentGiftsPage() {
         text:
           error instanceof ApiError
             ? error.message
-            : "Couldn't make the link. Check your connection and try again.",
+            : t("Couldn't make the link. Check your connection and try again."),
       })
       void invalidateGiftData(queryClient)
     } finally {
@@ -138,14 +140,14 @@ export default function SentGiftsPage() {
   if (sharing) {
     return (
       <CustomerShell showNav showBrand className="gap-4 py-4">
-        <TopBar title="Share your gift" large={isHomeHubEnabled()} />
+        <TopBar title={t('Share your gift')} large={isHomeHubEnabled()} />
         <GiftShare gift={sharing.gift} link={sharing.link} />
         <ScButton
           variant="secondary"
           className="min-h-11"
           onClick={() => setSharing(null)}
         >
-          Back to Gifts you sent
+          {t('Back to Gifts you sent')}
         </ScButton>
       </CustomerShell>
     )
@@ -164,24 +166,24 @@ export default function SentGiftsPage() {
         </div>
       ) : gifts.isError && list.length === 0 ? (
         <ErrorState
-          message="Couldn't load your gifts. Check your connection."
+          message={t("Couldn't load your gifts. Check your connection.")}
           onRetry={() => void gifts.refetch()}
         />
       ) : list.length === 0 ? (
         <EmptyState
           icon={<IconGift size={32} stroke={1.5} />}
-          title="No gifts sent yet"
-          subtitle="Give someone a car wash: they get a link that adds it to their Detlio credit."
-          actionLabel="Gift a wash"
+          title={t('No gifts sent yet')}
+          subtitle={t('Give someone a car wash: they get a link that adds it to their Detlio credit.')}
+          actionLabel={t('Gift a wash')}
           onAction={() => router.push('/profile/gifts/new')}
         />
       ) : (
         <>
           <ScButtonLink href="/profile/gifts/new" fullWidth className="w-full">
-            Gift a wash
+            {t('Gift a wash')}
           </ScButtonLink>
           <ul
-            aria-label="Gifts you sent, newest first"
+            aria-label={t('Gifts you sent, newest first')}
             className="flex flex-col gap-3"
           >
             {list.map((gift) => (
@@ -202,29 +204,26 @@ export default function SentGiftsPage() {
                     />
                     <div className="min-w-0 flex-1">
                       <p className="text-t3 font-semibold text-text-primary">
-                        <span className="font-numeric">
+                        {fill(t('{giftRupees} for {recipientName}'), { giftRupees: <span className="font-numeric">
                           {giftRupees(gift.amount)}
-                        </span>{' '}
-                        for {gift.recipientName}
+                        </span>, recipientName: gift.recipientName })}
                       </p>
                       {gift.state === 'redeemed' && gift.redeemedAt ? (
                         <p className="text-t5 text-text-secondary">
-                          Redeemed on{' '}
-                          <span className="font-numeric">
+                          {fill(t('Redeemed on {redeemedAt}'), { redeemedAt: <span className="font-numeric">
                             {formatGiftDate(gift.redeemedAt)}
-                          </span>
+                          </span> })}
                         </p>
                       ) : gift.state === 'available' && gift.expiresAt ? (
                         <p className="text-t5 text-text-secondary">
-                          Use by{' '}
-                          <span className="font-numeric">
+                          {fill(t('Use by {expiresAt}'), { expiresAt: <span className="font-numeric">
                             {formatGiftDate(gift.expiresAt)}
-                          </span>
+                          </span> })}
                         </p>
                       ) : null}
                     </div>
                     <ScBadge variant={STATE_BADGE[gift.state]}>
-                      {GIFT_STATE_LABELS[gift.state]}
+                      {t(GIFT_STATE_LABELS[gift.state])}
                     </ScBadge>
                   </div>
 
@@ -243,8 +242,7 @@ export default function SentGiftsPage() {
                     (gift.linkMade && confirming === gift.id ? (
                       <div className="flex flex-col gap-2 border-t border-border pt-2">
                         <p className="text-t5 text-text-primary">
-                          A new link replaces the old one. Any link you shared
-                          before stops working.
+                          {t('A new link replaces the old one. Any link you shared before stops working.')}
                         </p>
                         <div className="flex gap-2">
                           <ScButton
@@ -253,7 +251,7 @@ export default function SentGiftsPage() {
                             disabled={making === gift.id}
                             onClick={() => setConfirming(null)}
                           >
-                            Keep the old link
+                            {t('Keep the old link')}
                           </ScButton>
                           <ScButton
                             variant="secondary"
@@ -261,7 +259,7 @@ export default function SentGiftsPage() {
                             disabled={making === gift.id}
                             onClick={() => void getLink(gift)}
                           >
-                            {making === gift.id ? 'Making…' : 'Get a new link'}
+                            {making === gift.id ? t('Making…') : t('Get a new link')}
                           </ScButton>
                         </div>
                       </div>
@@ -277,10 +275,10 @@ export default function SentGiftsPage() {
                         }
                       >
                         {making === gift.id
-                          ? 'Making…'
+                          ? t('Making…')
                           : gift.linkMade
-                            ? 'Get a new link'
-                            : 'Get the link'}
+                            ? t('Get a new link')
+                            : t('Get the link')}
                       </ScButton>
                     ))}
 

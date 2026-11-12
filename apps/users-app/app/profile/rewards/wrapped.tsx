@@ -2,6 +2,7 @@ import { BADGE_CATALOG } from '@repo/core/achievements';
 import { ApiError } from '@repo/core/api/client';
 import { useWrapped, useWrappedEvent } from '@repo/core/api/hooks/use-reward-extras';
 import { rewardsEnabled, useRewardsConfig, useRewardsSummary } from '@repo/core/api/hooks/use-rewards';
+import { useT } from '@repo/core/i18n';
 import { WRAPPED_SHARE_LINE, wrappedCards, type WrappedCard, type WrappedStats } from '@repo/core/wrapped';
 import { Label, ScButton } from '@repo/native-ui/button';
 import { ScSwitch } from '@repo/native-ui/chip';
@@ -36,6 +37,7 @@ export default function WrappedScreen() {
 }
 
 function Inner() {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const params = useLocalSearchParams<{ year?: string }>();
@@ -54,7 +56,7 @@ function Inner() {
   }, [user, year]);
 
   const close = (
-    <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => (router.canGoBack() ? router.back() : router.replace('/profile/rewards' as Href))} style={styles.close}>
+    <Pressable accessibilityRole="button" accessibilityLabel={t('Close')} onPress={() => (router.canGoBack() ? router.back() : router.replace('/profile/rewards' as Href))} style={styles.close}>
       <IconX size={20} />
     </Pressable>
   );
@@ -73,12 +75,12 @@ function Inner() {
       <>
         <View style={styles.end}>{close}</View>
         {wrapped.isError && !(wrapped.error instanceof ApiError && wrapped.error.code === 'WRAPPED_NOT_AVAILABLE') ? (
-          <ErrorState message="Couldn't load your Wrapped. Check your connection." onRetry={() => void wrapped.refetch()} />
+          <ErrorState message={t("Couldn't load your Wrapped. Check your connection.")} onRetry={() => void wrapped.refetch()} />
         ) : (
           <View style={styles.center}>
-            <EmptyState icon={<IconSparkles size={32} stroke={1.5} color={colors.textSecondary} />} title="Your Detlio Wrapped isn't here yet" subtitle="It opens on 1 December, with every wash of your year." />
+            <EmptyState icon={<IconSparkles size={32} stroke={1.5} color={colors.textSecondary} />} title={t("Your Detlio Wrapped isn't here yet")} subtitle={t('It opens on 1 December, with every wash of your year.')} />
             <ScButton variant="outline" fullWidth={false} onPress={() => router.replace('/profile/rewards' as Href)}>
-              Back to rewards
+              {t('Back to rewards')}
             </ScButton>
           </View>
         )}
@@ -89,6 +91,7 @@ function Inner() {
 }
 
 function Story({ stats, year, close }: { stats: WrappedStats; year: number; close: React.ReactNode }) {
+  const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const { width: screenW, height: screenH } = useWindowDimensions();
@@ -151,34 +154,34 @@ function Story({ stats, year, close }: { stats: WrappedStats; year: number; clos
         </View>
         {close}
       </View>
-      <View accessibilityLabel={`Detlio Wrapped ${year}, card ${index + 1} of ${cards.length}`} {...responder.panHandlers} pointerEvents="box-only" style={[styles.story, { width, aspectRatio: 9 / 16 }]}>
+      <View accessibilityLabel={t('Detlio Wrapped {year}, card {number} of {total}', { year, number: index + 1, total: cards.length })} {...responder.panHandlers} pointerEvents="box-only" style={[styles.story, { width, aspectRatio: 9 / 16 }]}>
         <Backdrop cardKey={card.key} />
         <CardView key={`${card.key}-${showName}`} card={card} year={year} stats={stats} width={width} />
       </View>
       <View style={[styles.controls, { maxWidth: 360 }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Previous card" disabled={index === 0} onPress={() => go(-1)} style={[styles.round, index === 0 && styles.dim]}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('Previous card')} disabled={index === 0} onPress={() => go(-1)} style={[styles.round, index === 0 && styles.dim]}>
           <IconChevronLeft size={20} />
         </Pressable>
         <View style={styles.grow}>
           <ScButton variant="main" height={44} disabled={sharing} onPress={() => void share()}>
             <IconShare size={18} color={colors.white} />
-            <Label color={colors.white}>{sharing ? 'Making the image…' : 'Share this card'}</Label>
+            <Label color={colors.white}>{sharing ? t('Making the image…') : t('Share this card')}</Label>
           </ScButton>
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Next card" disabled={index === cards.length - 1} onPress={() => go(1)} style={[styles.round, index === cards.length - 1 && styles.dim]}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('Next card')} disabled={index === cards.length - 1} onPress={() => go(1)} style={[styles.round, index === cards.length - 1 && styles.dim]}>
           <IconChevronRight size={20} />
         </Pressable>
       </View>
       {stats.firstName ? (
         <View style={[styles.between, { maxWidth: 360 }]}>
           <T size={12} lh={16} color={colors.textSecondary}>
-            Show my first name
+            {t('Show my first name')}
           </T>
-          <ScSwitch checked={showName} onChange={setShowName} label="Show my first name on the cards" />
+          <ScSwitch checked={showName} onChange={setShowName} label={t('Show my first name on the cards')} />
         </View>
       ) : null}
       <T size={11} lh={15} align="center" color={colors.textMuted} style={{ maxWidth: 360, marginTop: 8 }}>
-        Images are made on your phone. They show your first name (if you leave it on), garage names and your numbers, nothing else.
+        {t('Images are made on your phone. They show your first name (if you leave it on), garage names and your numbers, nothing else.')}
       </T>
     </>
   );
@@ -205,6 +208,7 @@ function Backdrop({ cardKey }: { cardKey: WrappedCard['key'] }) {
 const badgeKeysFor = (names: string[]) => names.map((name) => ({ name, key: BADGE_CATALOG.find((b) => b.label === name)?.key ?? ('challenge' as const) }));
 
 function CardView({ card, year, stats, width, picture = false }: { card: WrappedCard; year: number; stats: WrappedStats; width: number; picture?: boolean }) {
+  const t = useT();
   const still = useReducedMotion();
   const split = splitBig(card.big);
   const metal = levelMetal(stats.level.key);
@@ -217,7 +221,7 @@ function CardView({ card, year, stats, width, picture = false }: { card: Wrapped
       </View>
       <LinearGradient start={{ x: 0, y: 0 }} end={{ x: 1, y: 0.5 }} colors={[metal.light, metal.base, metal.dark]} locations={[0, 0.55, 1]} style={{ marginTop: 16 * k, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingHorizontal: 10 * k, paddingVertical: 4 * k }}>
         <IconStarFilled size={11 * k} color={metal.ink} />
-        <T size={10 * k} lh={13 * k} weight={700} uppercase tracking={0.12} color={metal.ink}>{`${stats.level.label} level`}</T>
+        <T size={10 * k} lh={13 * k} weight={700} uppercase tracking={0.12} color={metal.ink}>{t('{level} level', { level: t(stats.level.label) })}</T>
       </LinearGradient>
       <View style={{ marginTop: 24 * k }}>
         <View style={{ width: 24 * k, height: 3 * k, borderRadius: 2, backgroundColor: '#E4002B', marginBottom: 10 * k }} />
@@ -244,7 +248,7 @@ function CardView({ card, year, stats, width, picture = false }: { card: Wrapped
           {card.caption}
         </T>
         {card.key === 'level' && card.extra.length > 0 ? (
-          <View accessibilityLabel="Badges earned" style={{ flexDirection: 'row', gap: 12 * k, marginTop: 12 * k }}>
+          <View accessibilityLabel={t('Badges earned')} style={{ flexDirection: 'row', gap: 12 * k, marginTop: 12 * k }}>
             {badgeKeysFor(card.extra).map((b) => (
               <View key={b.name} style={{ width: 64 * k, alignItems: 'center', gap: 4 }}>
                 <BadgeMedal badgeKey={b.key} earned size={40 * k} />
@@ -267,7 +271,7 @@ function CardView({ card, year, stats, width, picture = false }: { card: Wrapped
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#E4002B' }} />
           <T size={14 * k} weight={600} lh={19 * k} color="#FFFFFF">
-            {WRAPPED_SHARE_LINE}
+            {t(WRAPPED_SHARE_LINE)}
           </T>
         </View>
       )}

@@ -10,7 +10,9 @@
 
 // Relative, not @repo/core/…: kept loadable by path like the other twins.
 import { insidePickupReach } from './pickup'
+import { collectsAnywhereLine, comesAnywhereLine, type ReachCity } from './cities'
 import type { BookingType } from './types'
+import { t, tn } from './i18n/translate'
 
 /** What each tab offers the customer, as the API counts it. */
 export interface ReachFigures {
@@ -43,10 +45,6 @@ export interface SkipTheDriveRow {
   detail: string
 }
 
-function garages(count: number): string {
-  return count === 1 ? '1 garage' : `${count} garages`
-}
-
 function rupees(amount: number): string {
   return `₹${Math.round(amount).toLocaleString('en-IN')}`
 }
@@ -71,19 +69,22 @@ export function atGarageReach(
     if (figures.doorstep.count > 0) {
       rows.push({
         mode: 'doorstep',
-        title: 'At your door',
-        detail: `${garages(figures.doorstep.count)} can come to your door${
-          figures.doorstep.fromPrice ? ` · from ${rupees(figures.doorstep.fromPrice)}` : ''
-        }`,
+        title: t('At your door'),
+        detail: figures.doorstep.fromPrice
+          ? tn(
+              figures.doorstep.count,
+              '{count} garage can come to your door · from {price}',
+              '{count} garages can come to your door · from {price}',
+              { price: rupees(figures.doorstep.fromPrice) }
+            )
+          : tn(figures.doorstep.count, '{count} garage can come to your door', '{count} garages can come to your door'),
       })
     }
     if (figures.pickup.count > 0) {
       rows.push({
         mode: 'pickup',
-        title: 'We collect your car',
-        detail: `${garages(figures.pickup.count)} ${
-          figures.pickup.count === 1 ? 'picks' : 'pick'
-        } up and ${figures.pickup.count === 1 ? 'drops' : 'drop'} back`,
+        title: t('We collect your car'),
+        detail: tn(figures.pickup.count, '{count} garage picks up and drops back', '{count} garages pick up and drop back'),
       })
     }
     return { skipTheDrive: rows.length > 0 ? rows : null, atHomeLine: false, nearestKm: figures.dropin.nearestKm }
@@ -98,8 +99,8 @@ export function atGarageReach(
 /** "The nearest garage is 14 km away", for the card's title; "No garage to drive to nearby" with none. */
 export function skipTheDriveTitle(nearestKm: number | null): string {
   return nearestKm === null
-    ? 'No garage to drive to near you yet'
-    : `The nearest garage is ${Math.round(nearestKm)} km away`
+    ? t('No garage to drive to near you yet')
+    : t('The nearest garage is {km} km away', { km: Math.round(nearestKm) })
 }
 
 export interface NextTabOffer {
@@ -129,16 +130,60 @@ export function nextTabOffer(
 }
 
 /**
+ * Whether the At garage list has a garage to show, for the map's "See all
+ * garages" when nothing is within 50 km. The list leaves out garages over
+ * 150 km away (0070), so for a customer far from every garage that link
+ * would open an empty list. The At garage count applies the same limit, so
+ * it can tell; a count taken with a service chosen only undercounts the
+ * list, which has every service. Unknown figures say no: a link that might
+ * lead nowhere is not offered.
+ */
+export function atGarageListHasGarages(figures: ReachFigures | null | undefined): boolean {
+  return (figures?.dropin.count ?? 0) > 0
+}
+
+/**
  * "Can collect your car" on an at-garage card: the garage does pickup & drop
  * and the customer's location is inside its pickup radius (the checkout's
  * own early check, insidePickupReach). Never without a location.
  */
 export function canCollectFrom(
-  garage: { pickupEnabled: boolean; lat: number | null; lng: number | null; pickupRadiusKm?: number | null },
+  garage: {
+    pickupEnabled: boolean
+    lat: number | null
+    lng: number | null
+    pickupRadiusKm?: number | null
+    pickupWholeCity?: boolean
+    reachCity?: ReachCity | null
+  },
   origin: { lat: number; lng: number } | null | undefined
 ): boolean {
   if (!garage.pickupEnabled || !origin) return false
   return insidePickupReach(garage, origin) === true
+}
+
+/**
+ * "Comes anywhere in Chennai" (doorstep) or "Collects anywhere in Chennai"
+ * (pickup & drop) on the card and the garage page of a garage that covers
+ * its whole city (0069; owner, 10 Nov 2026), for the way of booking being
+ * looked at. The city is the payload's own (`reachCity`), never assumed;
+ * At garage, an older API or a garage with no city says nothing.
+ */
+export function anywhereInCityLine(
+  garage: {
+    doorstepEnabled: boolean
+    pickupEnabled: boolean
+    doorstepWholeCity?: boolean
+    pickupWholeCity?: boolean
+    reachCity?: ReachCity | null
+  },
+  mode: BookingType | null | undefined
+): string | null {
+  const city = garage.reachCity?.name
+  if (!city) return null
+  if (mode === 'doorstep' && garage.doorstepEnabled && garage.doorstepWholeCity) return comesAnywhereLine(city)
+  if (mode === 'pickup' && garage.pickupEnabled && garage.pickupWholeCity) return collectsAnywhereLine(city)
+  return null
 }
 
 /**
@@ -147,7 +192,7 @@ export function canCollectFrom(
  * outside its area".
  */
 export function outsideLine(coverKm: number | null, outsideKm: number): string {
-  const out = `${outsideKm.toFixed(1).replace(/\.0$/, '')} km outside`
-  if (coverKm === null) return `${out} its area`
-  return `covers ${String(Number(coverKm.toFixed(1)))} km · ${out}`
+  const outside = outsideKm.toFixed(1).replace(/\.0$/, '')
+  if (coverKm === null) return t('{km} km outside its area', { km: outside })
+  return t('covers {cover} km · {km} km outside', { cover: String(Number(coverKm.toFixed(1))), km: outside })
 }
