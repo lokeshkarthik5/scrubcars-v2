@@ -7,7 +7,7 @@ import type { ReactNode } from 'react';
 import { Pressable, type StyleProp, TextInput, type TextInputProps, View, type ViewStyle } from 'react-native';
 
 import { Edge, Pearl, Raised, Recessed, RedLight } from '@repo/native-ui/finish';
-import { IconChevronLeft, IconX } from '@repo/native-ui/icons';
+import { IconChevronLeft, IconMinus, IconPlus, IconX } from '@repo/native-ui/icons';
 import { PressScale } from '@repo/native-ui/motion';
 import { PlateDrawing } from '@repo/native-ui/number-plate';
 import { T } from '@repo/native-ui/text';
@@ -168,7 +168,7 @@ export function jobStatus(job: BookJob) {
     : detlioJobStatus({ status: job.status, paymentMethod: job.paymentMethod, amount: job.amount });
 }
 
-/** One job on Today and Jobs: time, who, DETLIO or Walk-in, what, and how it stands. */
+/** One job on Today and Jobs: time, who, DETLIO, Walk-in or From your link, what, who did it, and how it stands. */
 export function JobCard({ job, onPress }: { job: BookJob; onPress: () => void }) {
   const t = useT();
   const colors = useColors();
@@ -185,11 +185,16 @@ export function JobCard({ job, onPress }: { job: BookJob; onPress: () => void })
             <T variant="t3" weight={600} numberOfLines={1} style={styles.shrink}>
               {job.name}
             </T>
-            {job.source === 'detlio' ? <Tag detlio /> : <Tag>{t('Walk-in')}</Tag>}
+            {job.source === 'detlio' ? <Tag detlio /> : <Tag>{job.origin === 'link' ? t('From your link') : t('Walk-in')}</Tag>}
           </View>
           <T variant="t4" weight={400} color={colors.textSecondary} numberOfLines={1} style={styles.jobLine}>
             {jobLine(job)}
           </T>
+          {job.workers && job.workers.length > 0 ? (
+            <T size={12} color={colors.textSecondary} numberOfLines={1} style={styles.jobLine}>
+              {t('By {names}', { names: job.workers.map((worker) => worker.name.split(' ')[0] ?? worker.name).join(', ') })}
+            </T>
+          ) : null}
           {status ? (
             <T size={12} weight={600} color={TONE[status.tone]} style={styles.jobStatus}>
               {status.text}
@@ -314,7 +319,8 @@ export function RaisedButton({
   const colors = useColors();
   const styles = useStyles();
   return (
-    <PressScale accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={style}>
+    // A short button (36, 40) still takes a 44-point touch.
+    <PressScale accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} hitSlop={height < 44 ? Math.ceil((44 - height) / 2) : undefined} style={style}>
       <Raised radius={radius} style={{ height }} innerStyle={styles.raisedButton}>
         {icon}
         <T size={height <= 40 ? 13 : 14} weight={600} color={disabled ? colors.textMuted : colors.textPrimary}>
@@ -348,7 +354,161 @@ export function CarGauge({ days, interval, over }: { days: number | null; interv
   return <WashGaugeDial angle={washGaugeAngle(days, interval)} share={washGaugeShare(days, interval)} over={over} />;
 }
 
+// ─── Stages 2 and 3 (0073) ───────────────────────────────────────────────────
+
+/** Running low and "needs a look": calm amber words, never a glow. */
+export const AMBER = '#F5C46B';
+export const OK = '#4ADE80';
+
+/** The small raised "+ Add" beside a page title. */
+export function AddButton({ label, onPress, accessibilityLabel }: { label: string; onPress: () => void; accessibilityLabel?: string }) {
+  const styles = useStyles();
+  return (
+    <PressScale accessibilityRole="button" accessibilityLabel={accessibilityLabel ?? label} onPress={onPress} hitSlop={2}>
+      <Raised radius={12} style={styles.addButton} innerStyle={styles.addInner}>
+        <IconPlus size={16} />
+        <T size={13} weight={600} numberOfLines={1}>
+          {label}
+        </T>
+      </Raised>
+    </PressScale>
+  );
+}
+
+/** A raised pill: an expense category with its sum, or a choice (GPay) whose words light when on. */
+export function Chip({ label, figure, on, onPress }: { label: string; figure?: string; on?: boolean; onPress?: () => void }) {
+  const colors = useColors();
+  const styles = useStyles();
+  const body = (
+    <Raised radius={999} style={styles.chip} innerStyle={styles.chipInner}>
+      <T size={13} weight={on ? 600 : 500} color={on === false ? colors.textSecondary : colors.textPrimary} numberOfLines={1}>
+        {label}
+      </T>
+      {figure ? (
+        <T num size={13} weight={600} color="#D4D4DA">
+          {figure}
+        </T>
+      ) : null}
+    </Raised>
+  );
+  if (!onPress) return body;
+  return (
+    <PressScale accessibilityRole="button" accessibilityState={{ selected: Boolean(on) }} accessibilityLabel={label} onPress={onPress} style={styles.chipTarget}>
+      {body}
+    </PressScale>
+  );
+}
+
+/** A name, chosen or not, with its red light under it ("Done by" Arun). At least 44 high. */
+export function LitChoice({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
+  const colors = useColors();
+  const styles = useStyles();
+  return (
+    <PressScale accessibilityRole="button" accessibilityState={{ selected: on }} onPress={onPress} style={styles.litCell}>
+      <Raised radius={14} innerStyle={styles.lit}>
+        <T size={13} weight={on ? 600 : 500} color={on ? colors.textPrimary : colors.textSecondary} numberOfLines={1}>
+          {label}
+        </T>
+        <RedLight state={on ? 'on' : 'dim'} width={18} />
+      </Raised>
+    </PressScale>
+  );
+}
+
+/** − 150 +: a recessed stepper. The labels say what each side does ("Less", "Fewer"). */
+export function Stepper({
+  value,
+  onLess,
+  onMore,
+  lessLabel,
+  moreLabel,
+  disabled,
+}: {
+  value: string;
+  onLess: () => void;
+  onMore: () => void;
+  lessLabel: string;
+  moreLabel: string;
+  disabled?: boolean;
+}) {
+  const styles = useStyles();
+  return (
+    <Recessed radius={12} innerStyle={styles.stepper}>
+      <Pressable accessibilityRole="button" accessibilityLabel={lessLabel} disabled={disabled} onPress={onLess} hitSlop={6} style={styles.stepButton}>
+        <IconMinus size={16} color="#D4D4DA" />
+      </Pressable>
+      <T num size={14} weight={600} align="center" style={styles.stepValue}>
+        {value}
+      </T>
+      <Pressable accessibilityRole="button" accessibilityLabel={moreLabel} disabled={disabled} onPress={onMore} hitSlop={6} style={styles.stepButton}>
+        <IconPlus size={16} color="#D4D4DA" />
+      </Pressable>
+    </Recessed>
+  );
+}
+
+/** A list row on a hairline, as the mockups' `.row`. */
+export function Row({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
+  const styles = useStyles();
+  return <View style={[styles.row, style]}>{children}</View>;
+}
+
+/** A setting with a switch: its name, a quiet line, and the finish's switch. */
+export function SwitchRow({ title, sub, checked, onChange }: { title: string; sub?: string; checked: boolean; onChange: (next: boolean) => void }) {
+  const colors = useColors();
+  const styles = useStyles();
+  return (
+    <Row>
+      <View style={styles.flex}>
+        <T size={14} weight={600}>
+          {title}
+        </T>
+        {sub ? (
+          <T size={12} color={colors.textSecondary}>
+            {sub}
+          </T>
+        ) : null}
+      </View>
+      <Switch checked={checked} onChange={onChange} label={title} />
+    </Row>
+  );
+}
+
+/** A form field's name above it. */
+export function FieldLabel({ children }: { children: string }) {
+  return (
+    <T variant="t4" weight={600} color="#D4D4DA">
+      {children}
+    </T>
+  );
+}
+
+/** The silver NEW tag on a Business tile. */
+export function NewBadge() {
+  const t = useT();
+  const styles = useStyles();
+  return (
+    <View style={styles.newBadge} accessibilityLabel={t('New')}>
+      <T size={9} weight={700} tracking={0.08} color="#0A0A0B">
+        {t('NEW')}
+      </T>
+    </View>
+  );
+}
+
 export const useStyles = createStyles((c) => ({
+  addButton: { height: 40 },
+  addInner: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12 },
+  chipTarget: { minHeight: 44, justifyContent: 'center' },
+  chip: { height: 32 },
+  chipInner: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12 },
+  litCell: { flexGrow: 1, flexBasis: '30%', minWidth: 88 },
+  lit: { minHeight: 44, alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 6 },
+  stepper: { flexDirection: 'row', alignItems: 'center', gap: 2, padding: 2 },
+  stepButton: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  stepValue: { minWidth: 28 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: '#1D1D23' },
+  newBadge: { paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5, backgroundColor: '#D4D7DE' },
   flex: { flex: 1, minWidth: 0 },
   shrink: { flexShrink: 1 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 10 },

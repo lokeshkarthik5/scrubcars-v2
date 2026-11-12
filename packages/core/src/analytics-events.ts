@@ -307,7 +307,8 @@ const UUID_SEGMENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
  * by ":id" (a booking's id is a way back to a person), a gift link's code
  * by ":code" (0049: the code is the gift; only its hash is ever stored), a
  * printed coupon's (/c/<code>, 0056) likewise,
- * a shared certificate's token by ":token" (0053, likewise), anything but
+ * a shared certificate's token by ":token" (0053, likewise), a garage's
+ * bill's (/b/<token>, Garage Book 0073) likewise, anything but
  * plain path characters dropped, at most MAX_PATH_LENGTH characters.
  */
 export function cleanPath(raw: string): string {
@@ -318,7 +319,7 @@ export function cleanPath(raw: string): string {
     .map((segment, index, all) =>
       index > 0 && (all[index - 1] === 'gift' || (all[index - 1] === 'c' && index === 1))
         ? ':code'
-        : index > 0 && all[index - 1] === 'verify'
+        : index > 0 && (all[index - 1] === 'verify' || (all[index - 1] === 'b' && index === 1))
           ? ':token'
           : UUID_SEGMENT.test(segment)
             ? ':id'

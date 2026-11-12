@@ -28,6 +28,7 @@ import { useIsVendorAdmin } from '@repo/core/hooks/use-vendor-role'
 import { msg, useT, useTn } from '@repo/core/i18n'
 import { RedLight } from '@repo/ui/finish/red-light'
 import { NumberPlate } from '@repo/ui/finish/number-plate'
+import { noticePaidBack } from '@/components/book/moments'
 import { BackHeader, BookScreen, Disc, Footnote, PickTile, Seg, Switch } from '@/components/book/parts'
 
 const WHEN = [
@@ -150,7 +151,10 @@ function NewWalkInScreen() {
       remindInDays: remind ? interval : null,
     }
     add.mutate(input, {
-      onSuccess: (job) => router.push(`/home?added=${job.id}`),
+      onSuccess: (job) => {
+        noticePaidBack(job)
+        router.push(`/home?added=${job.id}`)
+      },
       onError: (error) => toast.error(error instanceof Error ? error.message : t("Couldn't save the job. Try again.")),
     })
   }

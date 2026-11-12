@@ -118,6 +118,7 @@ export const IconPencil = icon([["path", {"d": "M4 20h4l10.5 -10.5a2.828 2.828 0
 export const IconPhoto = icon([["path", {"d": "M15 8h.01"}], ["path", {"d": "M3 6a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v12a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3v-12"}], ["path", {"d": "M3 16l5 -5c.928 -.893 2.072 -.893 3 0l5 5"}], ["path", {"d": "M14 14l1 -1c.928 -.893 2.072 -.893 3 0l3 3"}]]);
 export const IconPlayerPause = icon([["path", {"d": "M6 6a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v12a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1l0 -12"}], ["path", {"d": "M14 6a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v12a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1l0 -12"}]]);
 export const IconPlus = icon([["path", {"d": "M12 5l0 14"}], ["path", {"d": "M5 12l14 0"}]]);
+export const IconMinus = icon([["path", {"d": "M5 12l14 0"}]]);
 export const IconReceipt = icon([["path", {"d": "M5 21v-16a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v16l-3 -2l-2 2l-2 -2l-2 2l-2 -2l-3 2m4 -14h6m-6 4h6m-2 4h2"}]]);
 export const IconReceiptRefund = icon([["path", {"d": "M5 21v-16a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v16l-3 -2l-2 2l-2 -2l-2 2l-2 -2l-3 2"}], ["path", {"d": "M15 14v-2a2 2 0 0 0 -2 -2h-4l2 -2m0 4l-2 -2"}]]);
 export const IconRefresh = icon([["path", {"d": "M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"}], ["path", {"d": "M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"}]]);

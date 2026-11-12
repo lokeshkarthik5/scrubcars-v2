@@ -22,12 +22,29 @@ const under = (path: string, route: string) => path === route || path.startsWith
 export function bookPlace(path: string | null): Place | null {
   if (!path) return null;
   if (under(path, '/home')) return 'home';
-  if (under(path, '/book/jobs') || under(path, '/bookings')) return 'jobs';
+  if (under(path, '/book/jobs') || under(path, '/book/bill') || under(path, '/bookings')) return 'jobs';
   if (under(path, '/book/customers') || under(path, '/book/reminders')) return 'customers';
   if (
-    ['/book/business', '/book/stats', '/book/owed', '/services', '/earnings', '/settings', '/reviews', '/photos', '/requests', '/guarantee', '/agreement', '/account'].some(
-      (route) => under(path, route)
-    )
+    [
+      '/book/business',
+      '/book/stats',
+      '/book/owed',
+      '/book/team',
+      '/book/expenses',
+      '/book/link',
+      '/book/payments',
+      '/book/import',
+      '/book/stock',
+      '/services',
+      '/earnings',
+      '/settings',
+      '/reviews',
+      '/photos',
+      '/requests',
+      '/guarantee',
+      '/agreement',
+      '/account',
+    ].some((route) => under(path, route))
   ) {
     return 'business';
   }

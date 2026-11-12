@@ -25,7 +25,7 @@ export function bookPlace(path: string | null): Place | null {
   if (under(path, '/book/jobs') || under(path, '/bookings')) return 'jobs'
   if (under(path, '/book/customers') || under(path, '/book/reminders')) return 'customers'
   if (
-    ['/book/business', '/book/stats', '/book/owed', '/services', '/earnings', '/settings', '/reviews', '/photos', '/requests', '/guarantee', '/agreement', '/account'].some(
+    ['/book/business', '/book/stats', '/book/owed', '/book/team', '/book/expenses', '/book/bill', '/book/link', '/book/payments', '/book/import', '/book/stock', '/services', '/earnings', '/settings', '/reviews', '/photos', '/requests', '/guarantee', '/agreement', '/account'].some(
       (route) => under(path, route)
     )
   ) {

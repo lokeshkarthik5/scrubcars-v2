@@ -157,7 +157,11 @@ export function jobStatus(job: BookJob) {
     : detlioJobStatus({ status: job.status, paymentMethod: job.paymentMethod, amount: job.amount })
 }
 
-/** One job on Today and on Jobs: its time, who, the DETLIO tag or Walk-in, what, and how it stands. */
+/**
+ * One job on Today and on Jobs: its time, who, the DETLIO tag or Walk-in
+ * ("From your link" for a booking from the garage's own page, 0073), what,
+ * who is on it, and how it stands.
+ */
 export function JobCard({
   job,
   href,
@@ -179,9 +183,14 @@ export function JobCard({
       <span className="min-w-0 flex-1">
         <span className="flex items-center justify-between gap-2 text-t3 font-semibold text-text-primary">
           <span className="truncate">{job.name}</span>
-          {job.source === 'detlio' ? <Tag detlio /> : <Tag>{t('Walk-in')}</Tag>}
+          {job.source === 'detlio' ? <Tag detlio /> : <Tag>{job.origin === 'link' ? t('From your link') : t('Walk-in')}</Tag>}
         </span>
         <span className="mt-0.5 block truncate text-t4 text-[#A8A8B2]">{jobLine(job)}</span>
+        {job.workers && job.workers.length > 0 && (
+          <span className="mt-0.5 block truncate text-[12px] text-[#8E8E98]">
+            {t('By {names}', { names: job.workers.map((worker) => worker.name.split(/\s+/)[0] ?? worker.name).join(', ') })}
+          </span>
+        )}
         {status && <StatusLine {...status} />}
       </span>
     </>
@@ -271,4 +280,146 @@ export function LoadFailed({ what, onRetry }: { what: string; onRetry: () => voi
       </button>
     </div>
   )
+}
+
+// ─── Stages 2 and 3 (0073) ───────────────────────────────────────────────────
+
+/** A screen's one main action: the solid red button (Add expense, Send on WhatsApp). */
+export const redButton = 'fx-red-button fx-press'
+
+/** "+ Add" at the right of a page title (Team, Stock). `label` is already translated. */
+export function AddButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className={cn(raised, 'flex h-11 shrink-0 items-center gap-1.5 rounded-small px-3.5 text-t4 font-semibold text-text-primary')}>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+        <path d="M12 5v14M5 12h14" />
+      </svg>
+      {label}
+    </button>
+  )
+}
+
+/** What a money screen says to a staff seat. */
+export function OwnerOnly() {
+  const t = useT()
+  return <p className="fx-edge rounded-control px-4 py-4 text-t4 text-[#A8A8B2]">{t("Only the garage's owner sees money.")}</p>
+}
+
+/**
+ * A raised chip with the red light under it when chosen ("Who did it?",
+ * GPay / PhonePe / Paytm). A toggle: aria-pressed says its state.
+ */
+export function LightChip({ label, on, onClick, disabled }: { label: string; on: boolean; onClick: () => void; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        raised,
+        'flex min-h-11 min-w-0 flex-col items-center justify-center gap-1 rounded-[14px] px-3 text-[13px]',
+        on ? 'font-semibold text-text-primary' : 'font-medium text-[#A8A8B2]'
+      )}
+    >
+      <span className="max-w-full truncate">{label}</span>
+      <RedLight state={on ? 'on' : 'dim'} className="w-[18px]" />
+    </button>
+  )
+}
+
+/**
+ * − amount +, recessed (Each job uses, Order supplies). `label` names what
+ * it counts for screen readers; already translated.
+ */
+export function Stepper({
+  value,
+  onChange,
+  step = 1,
+  min = 0,
+  max = 1_000_000,
+  label,
+  disabled,
+}: {
+  value: number
+  onChange: (next: number) => void
+  step?: number
+  min?: number
+  max?: number
+  label: string
+  disabled?: boolean
+}) {
+  const t = useT()
+  const clamp = (next: number) => Math.max(min, Math.min(max, Math.round(next * 100) / 100))
+  return (
+    <div role="group" aria-label={label} className="fx-recessed flex h-11 shrink-0 items-center rounded-small">
+      <button type="button" aria-label={t('Less')} disabled={disabled || value <= min} onClick={() => onChange(clamp(value - step))} className="grid h-11 w-10 place-items-center text-text-primary disabled:text-[#5A5A64]">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+          <path d="M5 12h14" />
+        </svg>
+      </button>
+      <input
+        aria-label={label}
+        inputMode="decimal"
+        value={String(value)}
+        disabled={disabled}
+        onChange={(event) => {
+          const next = Number(event.target.value.replace(/[^\d.]/g, ''))
+          if (Number.isFinite(next)) onChange(clamp(next))
+        }}
+        className="w-12 bg-transparent text-center font-numeric text-[15px] font-semibold text-text-primary outline-none"
+      />
+      <button type="button" aria-label={t('More')} disabled={disabled || value >= max} onClick={() => onChange(clamp(value + step))} className="grid h-11 w-10 place-items-center text-text-primary disabled:text-[#5A5A64]">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+      </button>
+    </div>
+  )
+}
+
+/** A labelled field in the recessed well every Garage Book form uses. `label` is already translated. */
+export function Field({
+  id,
+  label,
+  value,
+  onChange,
+  placeholder,
+  inputMode,
+  type = 'text',
+  maxLength,
+  className,
+}: {
+  id: string
+  label: string
+  value: string
+  onChange: (next: string) => void
+  placeholder?: string
+  inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode']
+  type?: string
+  maxLength?: number
+  className?: string
+}) {
+  return (
+    <div className={cn('flex flex-col gap-2', className)}>
+      <label htmlFor={id} className="text-t4 font-semibold text-[#D4D4DA]">
+        {label}
+      </label>
+      <input
+        id={id}
+        type={type}
+        inputMode={inputMode}
+        value={value}
+        maxLength={maxLength}
+        placeholder={placeholder}
+        onChange={(event) => onChange(event.target.value)}
+        className="fx-recessed h-12 min-w-0 rounded-control px-3.5 text-t3 text-text-primary outline-none placeholder:text-[#8A8A94]"
+      />
+    </div>
+  )
+}
+
+/** A failed save, said in the toast. */
+export function errorText(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback
 }

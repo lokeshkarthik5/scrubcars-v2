@@ -18,7 +18,8 @@ import { BackHeader, BookScreen, LoadFailed, Overline, Seg, raised } from '@/com
  * Money owed (S5, the owner's): the total, each customer with Ask on
  * WhatsApp (the garage's own WhatsApp, no link in the message) and Mark
  * paid, and what was paid back lately. A record only: customers pay the
- * garage in cash or UPI, and Detlio takes no money here.
+ * garage in cash or UPI, and Detlio takes no money here. With payment
+ * details on reminders (0073), the WhatsApp ends "Pay on GPay 98400 00000".
  */
 export default function OwedPage() {
   const t = useT()
@@ -45,7 +46,7 @@ export default function OwedPage() {
           </div>
           <div className="flex flex-col gap-2">
             {data.customers.map((row) => {
-              const ask = whatsAppHref(row.phone, owedMessage({ name: row.name, garage, amountPaise: row.balancePaise }))
+              const ask = whatsAppHref(row.phone, owedMessage({ name: row.name, garage, amountPaise: row.balancePaise, payLine: data.payLine }))
               return (
                 <div key={row.customerId} className="fx-edge flex flex-col gap-2.5 rounded-control px-3.5 py-3">
                   <div className="flex justify-between gap-3">

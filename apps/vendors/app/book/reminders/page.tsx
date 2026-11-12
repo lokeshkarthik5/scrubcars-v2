@@ -4,8 +4,8 @@ import { useState } from 'react'
 import { toast } from 'react-toastify'
 import type { ReminderEntry } from '@repo/core/api/garage-book'
 import { useBookReminders, useSaveReminderMessage, useSendReminder } from '@repo/core/api/hooks/use-garage-book'
-import { carName, fillReminder, GARAGE_BOOK_LIMITS, messageRefusal, reminderReason } from '@repo/core/garage-book'
-import { msg, useT } from '@repo/core/i18n'
+import { carName, fillReminder, GARAGE_BOOK_LIMITS, messageRefusal, reminderReason, rupees } from '@repo/core/garage-book'
+import { msg, useT, useTn } from '@repo/core/i18n'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { cn } from '@repo/core/utils'
 import { RedLight } from '@repo/ui/finish/red-light'
@@ -20,6 +20,10 @@ type View = 'today' | 'week' | 'rules'
  * due list with WhatsApp for its own customers (wa.me, then marked sent) and
  * Via Detlio for Detlio customers (a free app notification); "Sent ✓" with
  * the red light once done. This week shows who comes due next.
+ *
+ * 0073, moment 5 (the reminder that pays back): what customers who came
+ * back after a reminder brought in this month, the owner's proof the book
+ * makes money. The job itself says so in a toast as it is saved.
  */
 export default function RemindersPage() {
   const t = useT()
@@ -51,6 +55,7 @@ export default function RemindersPage() {
         <Rules message={data.message} interval={data.defaultIntervalDays} />
       ) : (
         <>
+          <PaidBack earnedPaise={data.earnedThisMonthPaise} cameBack={data.cameBack} />
           <button type="button" onClick={() => setView('rules')} className="fx-edge rounded-surface px-4 py-3.5 text-left">
             <Overline>{t('The message · you can edit it')}</Overline>
             <p className="mt-1.5 text-[14px] leading-[21px] text-text-primary">
@@ -81,6 +86,28 @@ export default function RemindersPage() {
         </>
       )}
     </BookScreen>
+  )
+}
+
+/** Moment 5's card: shown once anyone has come back after a reminder this month. */
+function PaidBack({ earnedPaise, cameBack }: { earnedPaise?: number; cameBack?: number }) {
+  const t = useT()
+  const tn = useTn()
+  if (!cameBack) return null
+  const amount = rupees(earnedPaise)
+  return (
+    <div className="gb-rise fx-edge rounded-surface px-4 py-3.5">
+      <Overline>{t('This month')}</Overline>
+      <p className="mt-1.5 text-t3 font-semibold text-text-primary">
+        {tn(cameBack, '{count} customer came back after a reminder', '{count} customers came back after a reminder')}
+      </p>
+      {amount && (
+        <p className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="fx-silver rounded-[6px] px-2 py-[3px] text-[10px] font-bold tracking-[0.08em] uppercase">{t('Reminders earned {amount}', { amount })}</span>
+          <span className="text-[11px] text-[#A8A8B2]">{t('this month')}</span>
+        </p>
+      )}
+    </div>
   )
 }
 

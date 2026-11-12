@@ -13,13 +13,14 @@ import { toast } from '@repo/native-ui/toast';
 
 import { garageScreen } from '@/components/app-shell';
 import { BookScreen } from '@/components/book/book-screen';
+import { RemindersEarned } from '@/components/book/moments';
 import { BackHeader, BookInput, Empty, Footnote, Overline, RaisedButton, Seg, Tag } from '@/components/book/parts';
 import { sendReminder } from '@/components/book/reminders';
 import { useAuth } from '@/lib/auth';
 
 type View_ = 'today' | 'week' | 'rules';
 
-/** Reminders (S4; the web's app/book/reminders/page.tsx). */
+/** Reminders (S4; the web's app/book/reminders/page.tsx), with moment 5: what reminders earned this month. */
 function RemindersScreen() {
   const t = useT();
   const [view, setView] = useState<View_>('today');
@@ -53,6 +54,7 @@ function RemindersScreen() {
         <Rules message={data.message} interval={data.defaultIntervalDays} />
       ) : (
         <>
+          <RemindersEarned cameBack={data.cameBack ?? 0} earnedPaise={data.earnedThisMonthPaise} />
           <Pressable accessibilityRole="button" onPress={() => setView('rules')}>
             <Edge radius={22} innerStyle={{ paddingHorizontal: 16, paddingVertical: 14 }}>
               <Overline>{t('The message · you can edit it')}</Overline>
