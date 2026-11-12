@@ -12,7 +12,7 @@ import {
   SpaceGrotesk_600SemiBold,
   SpaceGrotesk_700Bold,
 } from '@expo-google-fonts/space-grotesk';
-import { loadLang, useLang, useT, useTn } from '@repo/core/i18n';
+import { CUSTOMER_TAMIL, loadLang, useLang, useT, useTn } from '@repo/core/i18n';
 import { ScButton } from '@repo/native-ui/button';
 import { LangProvider } from '@repo/native-ui/lang';
 import { T } from '@repo/native-ui/text';
@@ -52,8 +52,8 @@ export { CrashScreen as ErrorBoundary } from '@/components/crash-screen';
 
 initSentry();
 // English or Tamil, as chosen on this phone (Profile → Language): read before the first
-// render, so the app opens in its language.
-loadLang(devicePrefs);
+// render, so the app opens in its language. English only while customer Tamil is off.
+if (CUSTOMER_TAMIL) loadLang(devicePrefs);
 void SplashScreen.preventAutoHideAsync();
 
 const useStyles = createStyles((c) => ({

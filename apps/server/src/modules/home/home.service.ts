@@ -28,7 +28,7 @@ import {
   type PausedGarage,
   type UpdateItem,
 } from '../../lib/home-updates.js'
-import { CITY_REACH_KM } from '../../lib/discovery.js'
+import { CITY_REACH_KM, FAR_LIMIT_KM } from '../../lib/discovery.js'
 import { istDateKey } from '../../lib/ist.js'
 import { logger } from '../../lib/logger.js'
 import { reportError } from '../../lib/monitoring.js'
@@ -87,7 +87,12 @@ export interface HomeResponse {
    */
   nextBooking: NextBookingTile | null
   updates: { pinnedNotice: NoticeView | null; items: UpdateItem[]; total: number } | null
-  nearby: { count: number; closestKm: number | null; radiusKm: number } | null
+  /**
+   * `farEmpty` (0070): none within `radiusKm` and none the garage list would
+   * show either (it leaves out garages over FAR_LIMIT_KM away), so Home
+   * offers another city instead of "See all garages" onto an empty list.
+   */
+  nearby: { count: number; closestKm: number | null; radiusKm: number; farEmpty: boolean } | null
   tip: CarTip
 }
 
@@ -333,10 +338,14 @@ export const homeService = {
     const nearby = origin
       ? await part('nearby', async () => {
           const summary = await vendorsRepository.nearbySummary(origin, NEARBY_RADIUS_KM * 1000)
+          // Asked only when nothing is near: the one case Home links to the list.
+          const farEmpty =
+            summary.count === 0 && !(await vendorsRepository.anyListedWithin(origin, FAR_LIMIT_KM * 1000))
           return {
             count: summary.count,
             closestKm: summary.closestM === null ? null : Math.round(summary.closestM / 100) / 10,
             radiusKm: NEARBY_RADIUS_KM,
+            farEmpty,
           }
         })
       : null

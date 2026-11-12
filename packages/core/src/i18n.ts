@@ -11,6 +11,7 @@
  */
 
 export {
+  CUSTOMER_TAMIL,
   DEFAULT_LANG,
   isLang,
   LANGS,

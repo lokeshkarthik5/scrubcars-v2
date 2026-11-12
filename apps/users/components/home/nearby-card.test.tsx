@@ -9,7 +9,7 @@ import { NearbyCard } from './nearby-card'
 // for word; the counts themselves are checked against the API in
 // e2e/specs/users/home-api.spec.ts.
 
-type Nearby = { count: number; closestKm: number | null; radiusKm: number }
+type Nearby = { count: number; closestKm: number | null; radiusKm: number; farEmpty?: boolean }
 
 /** The card as Home shows it, with the cities GET /cities gave (none: Chennai, as before cities). */
 const render = (nearby: Nearby | null, located = true, cities?: CustomerCity[]) => {
@@ -56,6 +56,14 @@ describe('NearbyCard', () => {
     const html = render({ count: 0, closestKm: null, radiusKm: 50 })
     expect(text(html)).toBe('Nearby garages No garages within 50 km yet See all garages')
     expect(href(html)).toBe('/garages')
+  })
+
+  test('nothing within 150 km either (0070): another city, never a list that opens empty', () => {
+    const html = render({ count: 0, closestKm: null, radiusKm: 50, farEmpty: true })
+    expect(text(html)).toBe('Nearby garages No Detlio garages near you yet Choose a city')
+    expect(href(html)).toBeNull()
+    // A server that says garages are within 150 km keeps the list link.
+    expect(href(render({ count: 0, closestKm: null, radiusKm: 50, farEmpty: false }))).toBe('/garages')
   })
 
   test('no location asks for an area; a failed count with a location hides the card', () => {

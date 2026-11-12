@@ -859,6 +859,10 @@ export const common: Readonly<Record<string, string>> = {
     '{count} கேரேஜ் எடுத்துச் சென்று திருப்பித் தரும்',
   '{count} garages pick up and drop back':
     '{count} கேரேஜ்கள் எடுத்துச் சென்று திருப்பித் தரும்',
+  // A small city's Skip the drive rows: the same, with no numbers (0070).
+  'Comes to your door · from {price}': 'உங்கள் வீட்டுக்கே வரும் · {price} முதல்',
+  'Comes to your door': 'உங்கள் வீட்டுக்கே வரும்',
+  'Picks up your car and drops it back': 'உங்கள் காரை எடுத்துச் சென்று திருப்பித் தரும்',
   'No garage to drive to near you yet':
     'உங்கள் அருகில் சென்று சேரக்கூடிய கேரேஜ் இன்னும் இல்லை',
   'The nearest garage is {km} km away':

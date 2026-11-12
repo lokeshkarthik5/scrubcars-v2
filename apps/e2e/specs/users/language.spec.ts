@@ -26,7 +26,34 @@ async function chooseLanguage(page: Page, option: 'English' | 'தமிழ் (
 
 const htmlLang = (page: Page) => page.evaluate(() => document.documentElement.lang)
 
+// Customer Tamil is off at launch (CUSTOMER_TAMIL in @repo/core/i18n/lang.ts,
+// owner 11 Nov 2026): customers see English only. This is what is checked
+// while it is off; the Tamil journey below is kept, skipped, for the day it
+// is turned back on (flip both).
+const CUSTOMER_TAMIL = false
+
+test.describe('language while customer Tamil is off @p0', () => {
+  test.skip(CUSTOMER_TAMIL, 'customer Tamil is on')
+
+  test('no Language row, and a Tamil choice saved before is ignored', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('detlio-lang', JSON.stringify({ state: { lang: 'ta' }, version: 0 }))
+    })
+    await page.goto('/profile')
+    await expect(page.getByRole('button', { name: 'Add vehicle', exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Profile', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: /Language/ })).toHaveCount(0)
+    expect(await htmlLang(page)).toBe('en')
+
+    await page.goto('/garages')
+    await expect(page.getByRole('heading', { name: 'Nearby Garages' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'அருகில் உள்ள கேரேஜ்கள்' })).toHaveCount(0)
+  })
+})
+
 test.describe('language @p0', () => {
+  test.skip(!CUSTOMER_TAMIL, 'customer Tamil is off at launch')
+
   test('Tamil on Profile shows Tamil everywhere, survives a reload, and English comes back', async ({ page }) => {
     await page.goto('/profile')
     // The signed-in Profile, so the row is not swapped out under the sheet.
