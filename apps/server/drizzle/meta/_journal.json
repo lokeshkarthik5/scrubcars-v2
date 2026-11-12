@@ -519,6 +519,13 @@
       "when": 1788870989739,
       "tag": "0073_inspection_approx_price",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1788870989740,
+      "tag": "0074_garage_book_2",
+      "breakpoints": true
     }
   ]
 }

@@ -13,6 +13,7 @@ import {
   internalAccessLog,
   services,
   vendors,
+  type GarageJobOrigin,
   type GarageJobPayment,
   type GarageJobStatus,
 } from '../../db/schema.js'
@@ -26,7 +27,7 @@ import {
  */
 
 /** A paid (or collected, or refunded) booking: what the garage's own job list shows. */
-const PAID = sql`EXISTS (SELECT 1 FROM payments p WHERE p.booking_id = b.id AND p.status IN ('paid', 'collected', 'refunded'))`
+export const PAID = sql`EXISTS (SELECT 1 FROM payments p WHERE p.booking_id = b.id AND p.status IN ('paid', 'collected', 'refunded'))`
 
 export function at(value: Date | string | null | undefined): Date | null {
   if (value === null || value === undefined) return null
@@ -34,7 +35,7 @@ export function at(value: Date | string | null | undefined): Date | null {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
-const num = (value: unknown) => (value === null || value === undefined ? 0 : Number(value))
+export const num = (value: unknown) => (value === null || value === undefined ? 0 : Number(value))
 
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
@@ -57,6 +58,8 @@ export interface JobRow {
   createdAt: Date
   lines: Array<{ serviceId: string | null; label: string; pricePaise: number; qty: number }>
   visitNumber: number
+  /** Where it came from (0073): added at the garage, the garage's own link, or a paper book. */
+  origin: GarageJobOrigin
 }
 
 export interface DetlioJobRow {
@@ -153,10 +156,11 @@ async function readJobs(executor: Tx | typeof db, where: ReturnType<typeof sql>)
     done_at: Date | string | null
     created_at: Date | string
     visit_number: number | string
+    origin: GarageJobOrigin
   }>(sql`
     SELECT j.id, j.client_id, j.garage_customer_id, c.name AS customer_name, c.phone AS customer_phone,
            j.car_id, car.plate, car.make, car.model, j.scheduled_at, j.status, j.payment_method,
-           j.total_paise, j.remind_in_days, j.done_at, j.created_at,
+           j.total_paise, j.remind_in_days, j.done_at, j.created_at, j.origin,
            (SELECT count(*) FROM garage_jobs v
              WHERE v.garage_customer_id = j.garage_customer_id AND v.status = 'done'
                AND v.scheduled_at <= j.scheduled_at) AS visit_number
@@ -190,6 +194,7 @@ async function readJobs(executor: Tx | typeof db, where: ReturnType<typeof sql>)
     createdAt: at(row.created_at)!,
     lines: lines.get(row.id) ?? [],
     visitNumber: num(row.visit_number),
+    origin: row.origin ?? 'walk_in',
   }))
 }
 
@@ -303,7 +308,10 @@ export const garageBookRepository = {
     return row ?? null
   },
 
-  async insertCustomer(tx: Tx, data: { vendorId: string; name: string; phone: string | null; note?: string | null }) {
+  async insertCustomer(
+    tx: Tx,
+    data: { vendorId: string; name: string; phone: string | null; note?: string | null; sourceNote?: string | null }
+  ) {
     const [row] = await tx.insert(garageCustomers).values(data).returning()
     return row!
   },
@@ -376,6 +384,7 @@ export const garageBookRepository = {
       remindInDays: number | null
       createdBy: string | null
       doneAt: Date | null
+      origin?: GarageJobOrigin
     },
     lines: Array<{ serviceId: string | null; label: string; pricePaise: number; qty: number }>
   ) {

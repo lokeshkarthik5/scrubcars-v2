@@ -25,6 +25,13 @@ const { membersRepository } = await import('../members/members.repository.js')
 const { pushService } = await import('../push/push.service.js')
 const { garageBookRepository } = await import('./garage-book.repository.js')
 const { garageBookRoutes, adminGarageBookRoutes } = await import('./garage-book.routes.js')
+// Stages 2 and 3 (0073) read beside Stage 1's answers; stood in for here too.
+const { teamRepository } = await import('./garage-book-team.repository.js')
+const { expensesRepository } = await import('./garage-book-expenses.repository.js')
+const { expensesService } = await import('./garage-book-expenses.service.js')
+const { stockRepository } = await import('./garage-book-stock.repository.js')
+const { momentsService } = await import('./garage-book-moments.service.js')
+const { paymentDetailsService } = await import('./garage-book-pay.service.js')
 
 const GARAGE = 'e2e00000-0000-4000-8000-000000006910'
 const PEOPLE = {
@@ -200,6 +207,18 @@ beforeAll(() => {
   patch(repo, 'logAdminAccess', async (data: Record<string, unknown>) => {
     adminLogs.push(data)
   })
+  patch(teamRepository, 'workersFor', async () => new Map())
+  patch(teamRepository, 'members', async () => [])
+  patch(teamRepository, 'count', async () => 0)
+  patch(expensesService, 'ensureRepeats', async () => undefined)
+  patch(expensesService, 'spentIn', async () => null)
+  patch(expensesRepository, 'all', async () => [])
+  patch(expensesRepository, 'spent', async () => ({ totalPaise: 0, count: 0 }))
+  patch(stockRepository, 'items', async () => [])
+  patch(stockRepository, 'countItems', async () => ({ items: 0, low: 0 }))
+  patch(momentsService, 'reminderEarnings', async () => ({ earnedThisMonthPaise: 0, cameBack: 0 }))
+  patch(momentsService, 'reminderPaidBack', async () => null)
+  patch(paymentDetailsService, 'shownOn', async () => null)
   patch(pushService, 'notifyCustomer', (userId: string, message: { title: string; body: string }) => {
     pushes.push({ userId, title: message.title, body: message.body })
   })

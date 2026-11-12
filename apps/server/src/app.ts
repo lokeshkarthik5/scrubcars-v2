@@ -35,6 +35,7 @@ import { publicTierRoutes } from './modules/tiers/tiers.routes.js'
 import { zonesRoutes } from './modules/reach/reach.routes.js'
 import { publicCityRoutes } from './modules/cities/cities.routes.js'
 import { publicBookingRequestRoutes } from './modules/booking-requests/booking-requests.routes.js'
+import { publicGarageBookRoutes } from './modules/garage-book/garage-book.routes.js'
 import { healthRoutes } from './modules/health/health.routes.js'
 import { appConfigRoutes } from './modules/app-config/app-config.routes.js'
 import { accountRoutes } from './modules/account/account.routes.js'
@@ -175,6 +176,9 @@ app.route('/api/v1/cities', publicCityRoutes)
 app.route('/api/v1/tiers', publicTierRoutes)
 // Customer reach, part 2 (0062): the windows a garage can be asked for.
 app.route('/api/v1/booking-requests', publicBookingRequestRoutes)
+// Garage Book's public pages (0073): a bill (/b/<token>) and a garage's own
+// booking page (/g/<slug>). A 404 while GARAGE_BOOK is off.
+app.route('/api/v1/public', publicGarageBookRoutes)
 app.route('/api/v1/admin', adminRoutes)
 app.route('/api/v1/ops', opsRoutes)
 app.route('/api/v1/health', healthRoutes)

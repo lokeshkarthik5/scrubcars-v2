@@ -1,5 +1,16 @@
 import { z } from 'zod'
-import { CUSTOMER_FILTERS, GARAGE_BOOK_LIMITS, JOB_PAYMENTS, JOB_STATUSES } from '../../lib/garage-book.js'
+import {
+  CUSTOMER_FILTERS,
+  EXPENSE_CATEGORIES,
+  EXPENSE_METHODS,
+  GARAGE_BOOK_2_LIMITS,
+  GARAGE_BOOK_LIMITS,
+  JOB_PAYMENTS,
+  JOB_STATUSES,
+  PAY_APPS,
+  STOCK_UNITS,
+} from '../../lib/garage-book.js'
+import { PAY_QR_TYPES } from '../../lib/garage-pay-qr-storage.js'
 
 const dateKey = z
   .string()
@@ -134,3 +145,222 @@ export type MarkPaidInput = z.infer<typeof markPaidSchema>
 export type StatsQuery = z.infer<typeof statsQuerySchema>
 export type CarInput = z.infer<typeof carSchema>
 export type LineInput = z.infer<typeof lineSchema>
+
+// ─── Stages 2 and 3 (0073) ───────────────────────────────────────────────────
+
+export const idParamSchema = z.object({ id: z.string().uuid() })
+export const jobRefParamSchema = z.object({ ref: z.string().min(3).max(60) })
+export const monthQuerySchema = z.object({ month: month.optional() })
+
+const role = z.string().trim().max(GARAGE_BOOK_2_LIMITS.roleMax)
+
+export const createMemberSchema = z
+  .object({ name, role: role.optional(), phone: phone.optional() })
+  .strict()
+
+export const updateMemberSchema = z
+  .object({
+    name: name.optional(),
+    role: role.nullable().optional(),
+    phone: phone.nullable().optional(),
+    /** "Day off today" on or off. */
+    offToday: z.boolean().optional(),
+  })
+  .strict()
+  .refine((patch) => Object.keys(patch).length > 0, { message: 'Nothing to change' })
+
+export const workersSchema = z
+  .object({ memberIds: z.array(z.string().uuid()).max(GARAGE_BOOK_2_LIMITS.teamMax) })
+  .strict()
+
+const expensePaise = z.number().int().min(100).max(GARAGE_BOOK_2_LIMITS.expenseMaxRupees * 100)
+
+export const createExpenseSchema = z
+  .object({
+    category: z.enum(EXPENSE_CATEGORIES),
+    amountPaise: expensePaise,
+    spentOn: dateKey,
+    note: short(GARAGE_BOOK_2_LIMITS.expenseNoteMax).optional(),
+    method: z.enum(EXPENSE_METHODS).optional(),
+    memberId: z.string().uuid().optional(),
+    everyMonth: z.boolean().optional(),
+  })
+  .strict()
+
+export const updateExpenseSchema = z
+  .object({
+    category: z.enum(EXPENSE_CATEGORIES).optional(),
+    amountPaise: expensePaise.optional(),
+    spentOn: dateKey.optional(),
+    note: short(GARAGE_BOOK_2_LIMITS.expenseNoteMax).nullable().optional(),
+    method: z.enum(EXPENSE_METHODS).nullable().optional(),
+    memberId: z.string().uuid().nullable().optional(),
+    everyMonth: z.boolean().optional(),
+  })
+  .strict()
+  .refine((patch) => Object.keys(patch).length > 0, { message: 'Nothing to change' })
+
+export const createBillSchema = z.object({ ref: z.string().min(3).max(60) }).strict()
+
+export const billTokenParamSchema = z.object({ token: z.string().regex(/^[A-Za-z0-9_-]{22,64}$/) })
+
+export const payQrUploadSchema = z.object({ contentType: z.enum(PAY_QR_TYPES) }).strict()
+
+export const paymentDetailsSchema = z
+  .object({
+    /** The uploaded QR picture's key; null takes the QR off. */
+    qrKey: z.string().max(1024).nullable().optional(),
+    /** The phone for payments; null goes back to the garage's own phone. */
+    phone: phone.nullable().optional(),
+    apps: z.array(z.enum(PAY_APPS)).max(PAY_APPS.length).optional(),
+    showOnBills: z.boolean().optional(),
+    showOnReminders: z.boolean().optional(),
+    showOnBookingPage: z.boolean().optional(),
+  })
+  .strict()
+
+export const updateLinkSchema = z
+  .object({
+    active: z.boolean().optional(),
+    services: z
+      .array(z.object({ serviceId: z.string().uuid(), shown: z.boolean() }).strict())
+      .max(200)
+      .optional(),
+  })
+  .strict()
+
+export const slugParamSchema = z.object({ slug: z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/).min(3).max(60) })
+
+/** The public booking page's form: no sign-in, no OTP; rate-limited by address and by phone. */
+export const linkBookSchema = z
+  .object({
+    serviceId: z.string().uuid(),
+    at: z.string().datetime({ offset: true }),
+    name,
+    phone: z.string().trim().min(10).max(20),
+  })
+  .strict()
+
+const importFileSchema = z
+  .object({
+    name: z.string().trim().min(1).max(200),
+    mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']),
+    dataBase64: z.string().min(1).max(4_000_000),
+  })
+  .strict()
+
+/**
+ * `POST /import/extract`: photos of the paper book (read by the AI), or an
+ * Excel, CSV or Tally export (read by fixed rules). Base64 in JSON, like the
+ * admin's garage import: the files live in this request's memory only.
+ */
+export const importExtractSchema = z.discriminatedUnion('source', [
+  z
+    .object({
+      source: z.literal('photos'),
+      files: z.array(importFileSchema).min(1).max(GARAGE_BOOK_2_LIMITS.importPhotosMax),
+    })
+    .strict(),
+  z
+    .object({
+      source: z.literal('sheet'),
+      name: z.string().trim().min(1).max(200),
+      dataBase64: z.string().min(1).max(4_000_000),
+    })
+    .strict(),
+])
+
+export const importCommitSchema = z
+  .object({
+    rows: z
+      .array(
+        z
+          .object({
+            name: short(GARAGE_BOOK_LIMITS.nameMax).nullable().optional(),
+            phone: short(40).nullable().optional(),
+            plate: short(20).nullable().optional(),
+            car: short(100).nullable().optional(),
+            lastVisit: dateKey.nullable().optional(),
+            owesPaise: z.number().int().min(0).max(100_000_000).nullable().optional(),
+          })
+          .passthrough()
+      )
+      .min(1)
+      .max(GARAGE_BOOK_2_LIMITS.importRowsMax),
+  })
+  .strict()
+
+const amount = z.number().min(0).max(GARAGE_BOOK_2_LIMITS.stockAmountMax)
+
+export const createStockSchema = z
+  .object({
+    name,
+    unit: z.enum(STOCK_UNITS),
+    level: amount.default(0),
+    lowAt: amount.default(0),
+    packSize: z.number().positive().max(GARAGE_BOOK_2_LIMITS.stockAmountMax).nullable().optional(),
+    packPricePaise: z.number().int().min(0).max(10_000_000).nullable().optional(),
+    supplierId: z.string().uuid().nullable().optional(),
+  })
+  .strict()
+
+export const updateStockSchema = z
+  .object({
+    name: name.optional(),
+    unit: z.enum(STOCK_UNITS).optional(),
+    lowAt: amount.optional(),
+    packSize: z.number().positive().max(GARAGE_BOOK_2_LIMITS.stockAmountMax).nullable().optional(),
+    packPricePaise: z.number().int().min(0).max(10_000_000).nullable().optional(),
+    supplierId: z.string().uuid().nullable().optional(),
+  })
+  .strict()
+  .refine((patch) => Object.keys(patch).length > 0, { message: 'Nothing to change' })
+
+export const countStockSchema = z.object({ level: amount }).strict()
+
+export const stockUsageSchema = z
+  .array(z.object({ serviceId: z.string().uuid(), amount }).strict())
+  .max(200)
+
+export const supplierSchema = z.object({ name, phone: phone.optional() }).strict()
+
+export const updateSupplierSchema = z
+  .object({ name: name.optional(), phone: phone.nullable().optional() })
+  .strict()
+  .refine((patch) => Object.keys(patch).length > 0, { message: 'Nothing to change' })
+
+export const supplyOrderSchema = z
+  .object({
+    supplierId: z.string().uuid(),
+    lines: z
+      .array(
+        z
+          .object({
+            itemId: z.string().uuid(),
+            packs: z.number().int().min(1).max(999),
+            packPricePaise: z.number().int().min(0).max(10_000_000).optional(),
+          })
+          .strict()
+      )
+      .min(1)
+      .max(GARAGE_BOOK_2_LIMITS.orderLinesMax),
+  })
+  .strict()
+
+export const milestoneKeyParamSchema = z.object({ key: z.string().min(3).max(60) })
+
+export type CreateMemberInput = z.infer<typeof createMemberSchema>
+export type UpdateMemberInput = z.infer<typeof updateMemberSchema>
+export type CreateExpenseInput = z.infer<typeof createExpenseSchema>
+export type UpdateExpenseInput = z.infer<typeof updateExpenseSchema>
+export type PaymentDetailsInput = z.infer<typeof paymentDetailsSchema>
+export type UpdateLinkInput = z.infer<typeof updateLinkSchema>
+export type LinkBookInput = z.infer<typeof linkBookSchema>
+export type ImportExtractInput = z.infer<typeof importExtractSchema>
+export type ImportCommitInput = z.infer<typeof importCommitSchema>
+export type CreateStockInput = z.infer<typeof createStockSchema>
+export type UpdateStockInput = z.infer<typeof updateStockSchema>
+export type StockUsageInput = z.infer<typeof stockUsageSchema>
+export type SupplierInput = z.infer<typeof supplierSchema>
+export type UpdateSupplierInput = z.infer<typeof updateSupplierSchema>
+export type SupplyOrderInput = z.infer<typeof supplyOrderSchema>
