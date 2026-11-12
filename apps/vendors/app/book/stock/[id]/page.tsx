@@ -78,11 +78,11 @@ function Dial({ item, isOwner }: { item: StockItem; isOwner: boolean }) {
       <p className={cn('text-t2 font-semibold', item.low ? 'text-[#F5A524]' : 'text-text-primary')}>{lead}</p>
       <p className="text-[12px] text-[#A8A8B2]">{`${stockAmountText(item.level, item.unit)} · ${used}`}</p>
       <div className={cn('mt-2 grid w-full gap-2', isOwner ? 'grid-cols-2' : 'grid-cols-1')}>
-        <button type="button" onClick={() => setCounting(true)} className={cn(raised, 'h-12 rounded-control text-t3 font-semibold text-text-primary')}>
+        <button type="button" onClick={() => setCounting(true)} className={cn(raised, 'min-h-12 rounded-control px-2 py-1 text-t3 leading-tight font-semibold text-text-primary')}>
           {t('Count it')}
         </button>
         {isOwner && (
-          <Link href="/book/stock/order" className={cn(item.low ? redButton : raised, 'grid h-12 place-items-center rounded-control text-t3 font-semibold', !item.low && 'text-text-primary')}>
+          <Link href="/book/stock/order" className={cn(item.low ? redButton : raised, 'grid min-h-12 place-items-center rounded-control px-2 py-1 text-center text-t3 leading-tight font-semibold', !item.low && 'text-text-primary')}>
             {t('Order again')}
           </Link>
         )}

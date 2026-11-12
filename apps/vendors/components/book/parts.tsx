@@ -318,11 +318,12 @@ export function LightChip({ label, on, onClick, disabled }: { label: string; on:
       onClick={onClick}
       className={cn(
         raised,
-        'flex min-h-11 min-w-0 flex-col items-center justify-center gap-1 rounded-[14px] px-3 text-[13px]',
+        'flex min-h-11 min-w-0 flex-col items-center justify-center gap-1 rounded-[14px] px-3 py-1.5 text-[13px]',
         on ? 'font-semibold text-text-primary' : 'font-medium text-[#A8A8B2]'
       )}
     >
-      <span className="max-w-full truncate">{label}</span>
+      {/* Two lines at most: a long Tamil word ("கரண்ட் & தண்ணீர்") wraps rather than losing its end. */}
+      <span className="line-clamp-2 max-w-full text-center leading-[1.2] break-words">{label}</span>
       <RedLight state={on ? 'on' : 'dim'} className="w-[18px]" />
     </button>
   )

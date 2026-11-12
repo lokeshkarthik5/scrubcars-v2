@@ -102,7 +102,7 @@ function PaymentForm({ details }: { details: PaymentDetails }) {
           {details.qrRead === 'read' && details.upiId ? (
             <>
               <T size={13} lh={18}>
-                {t('We read it: ')}
+                {`${t('We read it:')} `}
                 <T size={13} lh={18} weight={700}>
                   {details.upiId}
                 </T>

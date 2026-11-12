@@ -83,10 +83,10 @@ export default function BillPage() {
               </button>
             )}
             <div className="grid grid-cols-2 gap-2">
-              <button type="button" onClick={share} className={cn(raised, 'h-12 rounded-control text-t3 font-semibold text-text-primary')}>
+              <button type="button" onClick={share} className={cn(raised, 'min-h-12 rounded-control px-2 py-1 text-t3 leading-tight font-semibold text-text-primary')}>
                 {bill.whatsappUrl ? t('Share link') : t('Copy link')}
               </button>
-              <button type="button" onClick={() => window.print()} className={cn(raised, 'h-12 rounded-control text-t3 font-semibold text-text-primary')}>
+              <button type="button" onClick={() => window.print()} className={cn(raised, 'min-h-12 rounded-control px-2 py-1 text-t3 leading-tight font-semibold text-text-primary')}>
                 {t('Print')}
               </button>
             </div>

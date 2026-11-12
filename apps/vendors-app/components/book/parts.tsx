@@ -323,7 +323,8 @@ export function RaisedButton({
     <PressScale accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} hitSlop={height < 44 ? Math.ceil((44 - height) / 2) : undefined} style={style}>
       <Raised radius={radius} style={{ height }} innerStyle={styles.raisedButton}>
         {icon}
-        <T size={height <= 40 ? 13 : 14} weight={600} color={disabled ? colors.textMuted : colors.textPrimary}>
+        {/* One line in its fixed height: a long Tamil label is set smaller, never cut or spilled. */}
+        <T size={height <= 40 ? 13 : 14} weight={600} color={disabled ? colors.textMuted : colors.textPrimary} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={styles.shrink}>
           {label}
         </T>
       </Raised>

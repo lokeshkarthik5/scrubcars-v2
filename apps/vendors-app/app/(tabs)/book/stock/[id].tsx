@@ -68,7 +68,10 @@ function StockItemScreen() {
               <RaisedButton label={t('Count it')} height={44} radius={16} onPress={() => setCounting(true)} style={styles.flex} />
               {isOwner ? (
                 <RedButton onPress={() => go('/book/stock/order')} height={44} radius={16} style={styles.flex}>
-                  {t('Order again')}
+                  {/* Half the width: a long Tamil label is set smaller rather than spilling. */}
+                  <T variant="t3" weight={600} color={colors.white} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={styles.shrink}>
+                    {t('Order again')}
+                  </T>
                 </RedButton>
               ) : null}
             </View>
@@ -172,6 +175,7 @@ export default garageScreen(StockItemScreen);
 
 const useStyles = createStyles(() => ({
   flex: { flex: 1, minWidth: 0 },
+  shrink: { flexShrink: 1 },
   square: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   dial: { padding: 16, alignItems: 'center', gap: 6 },
   buttons: { flexDirection: 'row', gap: 8, alignSelf: 'stretch', marginTop: 8 },

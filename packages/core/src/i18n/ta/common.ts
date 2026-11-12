@@ -1152,4 +1152,20 @@ export const common: Readonly<Record<string, string>> = {
   // A package on inspection keeps its fee required.
   'Upfront inspection fee; final work quoted after':
     'முதலில் பரிசோதனைக் கட்டணம்; இறுதி வேலைக்கான விலை பிறகு சொல்லப்படும்',
+  // ─── Garage Book Stages 2 and 3: core's helpers (garage-book.ts) ───
+  Salaries: 'சம்பளம்',
+  Advance: 'அட்வான்ஸ்',
+  Rent: 'வாடகை',
+  Supplies: 'பொருட்கள்',
+  'Power & water': 'கரண்ட் & தண்ணீர்',
+  'Used on a job': 'வேலையில் பயன்பட்டது',
+  Counted: 'கணக்கெடுக்கப்பட்டது',
+  '{count} at work': '{count} பேர் வேலையில்',
+  '{name} {count} job': '{name} {count} வேலை',
+  '{name} {count} jobs': '{name} {count} வேலைகள்',
+  '{count} customers in your book': 'கணக்குப் புத்தகத்தில் {count} வாடிக்கையாளர்கள்',
+  'First ₹{lakh} lakh month': '₹{lakh} லட்சம் தொட்ட முதல் மாதம்',
+  'Best month ever': 'இதுவரை சிறந்த மாதம்',
+  'Next: {count} customers': 'அடுத்து: {count} வாடிக்கையாளர்கள்',
+  'Next: First ₹{lakh} lakh month': 'அடுத்து: ₹{lakh} லட்சம் தொட்ட முதல் மாதம்',
 }

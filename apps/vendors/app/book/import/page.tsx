@@ -254,7 +254,7 @@ function ImportBody() {
             <span className="block text-over font-semibold uppercase text-[#8E8E98]">{unsure > 0 ? t('{count} to check', { count: unsure }) : t('Ready')}</span>
             <span className="block truncate font-numeric text-[18px] font-semibold text-text-primary">{tn(rows.length, '{count} customer', '{count} customers')}</span>
           </span>
-          <button type="button" onClick={add} disabled={commit.isPending} className={cn(redButton, 'h-[52px] shrink-0 rounded-control px-6 text-t3 font-semibold')}>
+          <button type="button" onClick={add} disabled={commit.isPending} className={cn(redButton, 'min-h-[52px] max-w-[60%] shrink-0 rounded-control px-5 py-1.5 text-t3 leading-tight font-semibold')}>
             {commit.isPending ? t('Adding…') : t('Add to my book')}
           </button>
         </div>
