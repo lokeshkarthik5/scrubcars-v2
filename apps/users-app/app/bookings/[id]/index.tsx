@@ -13,6 +13,7 @@ import { contactWindowState } from '@repo/core/contact-window';
 import { formatWhen, formatClock } from '@repo/core/format';
 import { useNow } from '@repo/core/hooks/use-now';
 import { fill, useT } from '@repo/core/i18n';
+import { inspectionPaymentRow } from '@repo/core/inspection-booking';
 import { finalBillMayChange, formatStepTime } from '@repo/core/job-records';
 import { confirmPayment, FALLBACK_REFUND_MESSAGE, realClock } from '@repo/core/payment-confirmation';
 import { carWithGarage, pickupTimeline } from '@repo/core/pickup';
@@ -89,10 +90,10 @@ function Row({ label, children, last = false }: { label: string; children: React
   );
 }
 
-function Amount({ value, color }: { value: string; color?: string }) {
+function Amount({ value, color, numeric = true }: { value: string; color?: string; numeric?: boolean }) {
   const colors = useColors();
   return (
-    <T num size={15} lh={20} color={color ?? colors.textSecondary} align="right">
+    <T num={numeric} size={15} lh={20} color={color ?? colors.textSecondary} align="right">
       {value}
     </T>
   );
@@ -388,6 +389,8 @@ export default function BookingDetailScreen() {
   const unpaid = !paid && booking.paymentMethod === 'online' && booking.paymentStatus === 'pending' && booking.status !== 'cancelled';
   const stepTime = (iso: string | undefined) => (iso ? formatStepTime(iso, now) : undefined);
   const isPickup = booking.bookingType === 'pickup';
+  // A no-fee inspection booking's payment row (0073), or null.
+  const inspectionRow = inspectionPaymentRow(booking, money);
   const carAway = carWithGarage(booking);
   const canChange = ['pending', 'confirmed'].includes(booking.status) && !carAway && !timeProposal;
   const headline = bookingHeadline(booking, now);
@@ -640,9 +643,16 @@ export default function BookingDetailScreen() {
               <Amount value={`−${money(booking.discountAmount)}`} color={colors.success} />
             </Row>
           ) : null}
-          <Row label={paymentRowLabel(booking)}>
-            <Amount value={money(paymentRowAmount(booking))} />
-          </Row>
+          {inspectionRow ? (
+            // A no-fee inspection (0073): the price comes with the final bill (as the web).
+            <Row label={inspectionRow.label}>
+              <Amount value={inspectionRow.value} numeric={inspectionRow.numeric} />
+            </Row>
+          ) : (
+            <Row label={paymentRowLabel(booking)}>
+              <Amount value={money(paymentRowAmount(booking))} />
+            </Row>
+          )}
           {(booking.creditPaid ?? 0) > 0 ? (
             <Row label={t('Paid with Detlio credit')}>
               <Amount value={money(booking.creditPaid ?? 0)} />

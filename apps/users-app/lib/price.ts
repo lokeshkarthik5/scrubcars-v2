@@ -7,6 +7,7 @@ import {
   tierPriceFor,
 } from '@repo/core/pricing';
 import type { Service, VehicleType } from '@repo/core/types';
+import { bookedLinePrice } from '@repo/core/inspection-booking';
 
 /** Rupees as the customer app shows them: paise only when there are any. */
 export function money(amount: number | string): string {
@@ -60,5 +61,5 @@ export function serviceApproxNote(
 
 /** A booked line's price, as apps/users/lib/price.ts bookingLinePriceText (0073). */
 export function bookingLinePriceText(item: { amount: number; pricingType?: Service['pricingType'] }): string {
-  return item.pricingType === 'on_inspection' && !(item.amount > 0) ? t('Price on inspection') : money(item.amount);
+  return bookedLinePrice(item, money);
 }

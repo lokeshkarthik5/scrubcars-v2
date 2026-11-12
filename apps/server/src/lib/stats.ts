@@ -207,6 +207,17 @@ export function garageViewsWithBookings(
 }
 
 /**
+ * A paid booking whose price isn't known yet: an inspection with no fee
+ * (0073), booked at ₹0 (only such a booking comes to ₹0 before any code, as
+ * receipts.ts reads it), whose final bill isn't paid. It counts as a
+ * booking, but its ₹0 is no amount, so the average leaves it out; once the
+ * bill is paid, the bill is its amount (collectedPaise adds paid bills).
+ */
+export function awaitingInspectionPrice(row: Pick<StatsChainRow, 'subtotalAmount' | 'billsPaid'>): boolean {
+  return toPaise(row.subtotalAmount) === 0 && toPaise(row.billsPaid) === 0
+}
+
+/**
  * Collected after refunds on one chain, in paise: its payment if it landed,
  * plus its paid final bills, less every refund recorded on them.
  */
@@ -279,7 +290,10 @@ export interface StatsKpis {
   collected: number
   /** Detlio's commission on the period's bookings, rupees (lib/commission.ts). */
   commission: number
-  /** Collected over bookings; null with no bookings. */
+  /**
+   * Collected over bookings, leaving out no-fee inspections whose bill isn't
+   * paid yet (awaitingInspectionPrice); null with none to average.
+   */
   averageBooking: number | null
   checkoutsStarted: number
   /** Paid bookings over checkouts started, 0–1; null with none started. */
@@ -299,6 +313,7 @@ export function summariseKpis(
   const rows = counted(chains)
   const paid = rows.filter(isPaid)
   const collected = rows.reduce((sum, row) => sum + collectedPaise(row), 0)
+  const priced = paid.filter((row) => !awaitingInspectionPrice(row)).length
   const commissionPaise = rows.reduce(
     (sum, row) => sum + Math.round((commission.get(row.rootId) ?? 0) * 100),
     0
@@ -310,7 +325,7 @@ export function summariseKpis(
     bookings: paid.length,
     collected: collected / 100,
     commission: commissionPaise / 100,
-    averageBooking: paid.length > 0 ? Math.round(collected / paid.length) / 100 : null,
+    averageBooking: priced > 0 ? Math.round(collected / priced) / 100 : null,
     checkoutsStarted,
     paidOfStarted: ratio(paid.length, checkoutsStarted),
     cancelled,

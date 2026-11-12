@@ -15,6 +15,7 @@ import {
   summariseFunnel,
   summariseGarages,
   summariseKpis,
+  awaitingInspectionPrice,
   summariseServiceTypes,
   type StatsChainRow,
   type StatsItemRow,
@@ -140,6 +141,24 @@ describe('summariseKpis', () => {
       cancelled: 1,
       cancellationRate: 0.25,
     })
+  })
+
+  test('a no-fee inspection counts as a booking, and in the average only once its bill is paid (0073)', () => {
+    const noFee = { paymentAmount: '0.00', amount: '0.00', subtotalAmount: '0.00' }
+    const rows = [
+      row(), // 500
+      row({ ...noFee, status: 'confirmed' }), // booked, no bill yet: no amount
+      row({ ...noFee, billsPaid: '1500.00' }), // its bill is its amount
+    ]
+    expect(summariseKpis(rows, NO_CHECKOUTS, new Map())).toMatchObject({
+      bookings: 3,
+      collected: 2000,
+      averageBooking: 1000,
+    })
+    expect(summariseKpis([row({ ...noFee })], NO_CHECKOUTS, new Map()).averageBooking).toBeNull()
+    expect(awaitingInspectionPrice(row({ ...noFee }))).toBe(true)
+    expect(awaitingInspectionPrice(row({ ...noFee, billsPaid: '1500.00' }))).toBe(false)
+    expect(awaitingInspectionPrice(row())).toBe(false)
   })
 
   test('test bookings are left out of every figure', () => {

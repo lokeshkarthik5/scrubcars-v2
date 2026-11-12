@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { formatINR, formatClock, formatWhen } from '@repo/core/format'
+import { formatClock, formatWhen } from '@repo/core/format'
 import { useIsVendorAdmin } from '@repo/core/hooks/use-vendor-role'
 import { fill, useT } from '@repo/core/i18n'
 import { answerByRing } from '@repo/core/moments'
@@ -10,7 +10,7 @@ import type { Booking } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
 import { RejectBookingSheet } from '@/components/reject-booking'
 import { changeStatusWithUndo, useDeferredStatus } from '@/lib/deferred-status'
-import { jobPrice, serviceOnlyLine } from '@/lib/jobs'
+import { jobPriceText, serviceOnlyLine } from '@/lib/jobs'
 import { Overline, raised } from './parts'
 
 /**
@@ -27,6 +27,7 @@ export function RequestCard({ booking: b, now, more, onChanged }: { booking: Boo
   const isOwner = useIsVendorAdmin()
   const ring = b.responseDeadline ? answerByRing(b.responseDeadline, now) : { fraction: 1, minutesLeft: null }
   const what = [serviceOnlyLine(b), b.customerName, b.vehicle?.model].filter(Boolean).join(' · ')
+  const price = jobPriceText(b)
   const label =
     ring.minutesLeft !== null
       ? t('{minutes} minutes left to answer', { minutes: ring.minutesLeft })
@@ -68,7 +69,11 @@ export function RequestCard({ booking: b, now, more, onChanged }: { booking: Boo
           <p className="mt-1 truncate text-t2 font-semibold text-text-primary">{formatWhen(b.scheduledAtIso, now)}</p>
           <p className="mt-0.5 truncate text-t4 text-[#A8A8B2]">{what}</p>
         </Link>
-        {isOwner && <span className="shrink-0 font-numeric text-[20px] font-semibold text-text-primary">{formatINR(jobPrice(b))}</span>}
+        {isOwner && (
+          <span className={cn('shrink-0 font-semibold text-text-primary', price.words ? 'max-w-[40%] text-right text-[13px] leading-snug' : 'font-numeric text-[20px]')}>
+            {price.text}
+          </span>
+        )}
       </div>
       <div className="grid grid-cols-2 gap-2">
         <button type="button" onClick={() => setDeclining(true)} disabled={accepting} className={cn(raised, 'h-12 rounded-control text-t3 font-semibold text-text-primary')}>

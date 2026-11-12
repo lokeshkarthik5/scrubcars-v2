@@ -10,6 +10,7 @@ import {
   doneJobs,
   doneTodayCount,
   jobPrice,
+  jobPriceText,
   laterDays,
   listTabOf,
   nextStep,
@@ -257,6 +258,15 @@ describe('the card', () => {
     expect(jobPrice(two)).toBe(999)
     expect(servicesLine(two)).toBe('Foam wash + Interior vacuum')
     expect(jobPrice(job({ guaranteeRedo: true }))).toBe(0)
+  })
+
+  test('a no-fee inspection says its price is to come, then the bill (0073)', () => {
+    const line = { id: 'i', serviceId: 'si', name: 'Dent check', amount: 0, durationMins: 60, pricingType: 'on_inspection' as const }
+    const noFee = job({ items: [line], servicePrice: 0, subtotalPrice: 0 })
+    expect(jobPriceText(noFee)).toEqual({ text: 'Price on inspection · bill not sent', words: true })
+    const bill = { id: 'f', status: 'due' as const, lines: [], total: 1800, paidBefore: 0, amountDue: 1800, note: null, paidAt: null, createdAt: '' }
+    expect(jobPriceText(job({ items: [line], servicePrice: 0, subtotalPrice: 0, finalBill: bill }))).toEqual({ text: '₹1,800', words: false })
+    expect(jobPriceText(job())).toEqual({ text: '₹600', words: false })
   })
 
   test('names fit a row', () => {

@@ -8,6 +8,7 @@ import { useNow } from '@repo/core/hooks/use-now';
 import { t, useT } from '@repo/core/i18n';
 import { type BookingListTab, DEFAULT_BOOKING_LIST_TAB, parseBookingListTab, splitBookingList } from '@repo/core/my-bookings';
 import { PICKUP_STAGE_NOW, pickupStageOf, pickupTimeline } from '@repo/core/pickup';
+import { customerBookingInspectionPrice, customerSeesPaid } from '@repo/core/inspection-booking';
 import { useBookingsStore } from '@repo/core/stores/bookings-store';
 import { useUserStore } from '@repo/core/stores/user-store';
 import type { Address, Booking } from '@repo/core/types';
@@ -142,7 +143,7 @@ function TicketCard({ booking, action, now }: { booking: Booking; action: string
                   {needs}
                 </T>
               </View>
-            ) : (waitingUntil ?? (booking.paymentStatus === 'paid' ? 'Paid' : null)) ? (
+            ) : (waitingUntil ?? (customerSeesPaid(booking) ? 'Paid' : null)) ? (
               <T variant="t4" weight={400} color={colors.dim}>
                 {waitingUntil ?? t('Paid')}
               </T>
@@ -161,6 +162,7 @@ function PastRow({ booking, addresses, now, index }: { booking: Booking; address
   const styles = useStyles();
   const { fx } = useFinish();
   const { chip, refunded, label } = cardFacts(booking, null, now);
+  const inspection = customerBookingInspectionPrice(booking, money);
   return (
     <Rise index={index}>
       <View style={styles.past}>
@@ -179,14 +181,23 @@ function PastRow({ booking, addresses, now, index }: { booking: Booking; address
               {[formatWhen(booking.scheduledAtIso, now), booking.vendorName].join(' · ')}
             </T>
             <View style={styles.price}>
-              {booking.discountAmount > 0 ? (
-                <T num variant="t5" color={colors.textMuted} style={styles.struck}>
-                  {money(booking.subtotalPrice)}
+              {inspection ? (
+                // A no-fee inspection (0073): never ₹0, the bill once it comes.
+                <T num={inspection.amount !== null} variant="t4" weight={600}>
+                  {inspection.text}
                 </T>
-              ) : null}
-              <T num variant="t4" weight={600}>
-                {money(booking.servicePrice)}
-              </T>
+              ) : (
+                <>
+                  {booking.discountAmount > 0 ? (
+                    <T num variant="t5" color={colors.textMuted} style={styles.struck}>
+                      {money(booking.subtotalPrice)}
+                    </T>
+                  ) : null}
+                  <T num variant="t4" weight={600}>
+                    {money(booking.servicePrice)}
+                  </T>
+                </>
+              )}
             </View>
           </View>
         </Pressable>
@@ -216,6 +227,7 @@ function BookingCard({ booking, tab, addresses, action, now }: { booking: Bookin
   const chip = customerStatusChip(booking.status);
   const refunded = booking.status === 'cancelled' && booking.refund.status === 'refunded';
   const pickup = pickupLine(booking);
+  const inspection = customerBookingInspectionPrice(booking, money);
   const unpaid = booking.paymentMethod === 'online' && booking.paymentStatus === 'pending' && booking.status === 'pending';
   const needs = action ?? (unpaid ? t('Pay to hold your slot') : null);
   const waitingUntil =
@@ -256,18 +268,27 @@ function BookingCard({ booking, tab, addresses, action, now }: { booking: Bookin
             </View>
           ) : (
             <T size={13} lh={18} color={colors.dim} style={styles.grow}>
-              {waitingUntil ?? (booking.paymentStatus === 'paid' ? t('Paid') : booking.paymentStatus === 'refunded' ? t('Paid · refunded') : '')}
+              {waitingUntil ?? (customerSeesPaid(booking) ? t('Paid') : booking.paymentStatus === 'refunded' ? t('Paid · refunded') : '')}
             </T>
           )}
           <View style={styles.price}>
-            {booking.discountAmount > 0 ? (
-              <T num size={13} lh={18} color={colors.textMuted} style={styles.struck}>
-                {money(booking.subtotalPrice)}
+            {inspection ? (
+              // A no-fee inspection (0073): never ₹0, the bill once it comes.
+              <T num={inspection.amount !== null} size={15} lh={20}>
+                {inspection.text}
               </T>
-            ) : null}
-            <T num size={15} lh={20}>
-              {money(booking.servicePrice)}
-            </T>
+            ) : (
+              <>
+                {booking.discountAmount > 0 ? (
+                  <T num size={13} lh={18} color={colors.textMuted} style={styles.struck}>
+                    {money(booking.subtotalPrice)}
+                  </T>
+                ) : null}
+                <T num size={15} lh={20}>
+                  {money(booking.servicePrice)}
+                </T>
+              </>
+            )}
           </View>
         </View>
         {tab === 'past' ? (

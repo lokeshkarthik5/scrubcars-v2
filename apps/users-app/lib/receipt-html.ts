@@ -1,5 +1,5 @@
 import { BOOKING_TYPE_LABELS } from '@repo/core/booking-types';
-import { formatReceiptAmount, RECEIPT_NOT_TAX_INVOICE } from '@repo/core/receipts';
+import { formatReceiptAmount, RECEIPT_NOT_TAX_INVOICE, receiptItemValue } from '@repo/core/receipts';
 import type { BookingReceipt } from '@repo/core/types';
 
 /** Everything from the server goes through here: a name can hold anything. */
@@ -25,7 +25,7 @@ const dash = '<div class="dash"></div>';
 export function receiptHtml(receipt: BookingReceipt): string {
   const { issuer, booking, bookingPayment, finalBill } = receipt;
   const services = [
-    ...receipt.items.map((item) => row(item.name, formatReceiptAmount(item.amount))),
+    ...receipt.items.map((item) => row(item.name, receiptItemValue(item))),
     receipt.travelFee ? row('Travel fee', formatReceiptAmount(receipt.travelFee)) : '',
     receipt.discount
       ? `${dash}${row('Subtotal', formatReceiptAmount(receipt.subtotal))}${row(

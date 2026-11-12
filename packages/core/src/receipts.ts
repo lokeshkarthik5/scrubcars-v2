@@ -4,6 +4,8 @@
  * (apps/server/src/lib/receipts.ts); this only formats what it sent.
  */
 
+import { INSPECTION_LINE_PRICE } from './inspection-booking'
+
 /**
  * The line at the foot of every receipt. Detlio is not issuing tax invoices
  * until the CA confirms the GST setup, and a customer filing an expense must
@@ -24,6 +26,15 @@ export function formatReceiptAmount(amount: string | number, negative = false): 
     maximumFractionDigits: 2,
   })
   return `${negative && rupees > 0 ? '−' : ''}₹${text}`
+}
+
+/**
+ * A service line's figure on the receipt: its amount, or "Price on
+ * inspection" for an inspection with no fee (0073), whose ₹0 is not the
+ * price of the job. Its paid final bill is the receipt's own section.
+ */
+export function receiptItemValue(item: { amount: string; priceOnInspection?: boolean }): string {
+  return item.priceOnInspection ? INSPECTION_LINE_PRICE : formatReceiptAmount(item.amount)
 }
 
 /**

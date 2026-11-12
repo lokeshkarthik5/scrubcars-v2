@@ -157,6 +157,7 @@ import {
 } from '@repo/core/pickup'
 import type { Address, BookingType, Service, Vendor } from '@repo/core/types'
 import { isNoFeeInspection, resolveServiceAmount } from '@repo/core/pricing'
+import { checkoutAgreement } from '@repo/core/inspection-booking'
 import { Figures } from '@repo/ui/sc/figures'
 import { TierChip } from '@repo/ui/features/tier-medal'
 import { VEHICLE_TIERS } from '@repo/core/vehicles'
@@ -3056,7 +3057,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
             {/* Beside Pay, as Razorpay and the E-Commerce Rules expect. New
                 tabs, so the time, car and code picked here are still here. */}
             <p className="mt-1 text-center text-t5 text-text-muted">
-              {fill(t('By paying you agree to the {part} and the {part2}.'), { part: <a
+              {/* Nothing paid (a no-fee inspection, a free wash, credit): "By booking". */}
+              {fill(checkoutAgreement(toPay, 'web'), { part: <a
                 href={LEGAL_PATHS.terms}
                 target="_blank"
                 rel="noopener"

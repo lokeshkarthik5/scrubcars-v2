@@ -273,7 +273,8 @@ export interface ReceiptBooking {
   noShow?: 'customer' | 'garage' | null
   user?: { name: string; phone: string } | null
   vendor?: { businessName: string; address: string; city: string } | null
-  items?: Array<{ name: string; amount: string; isAddon?: boolean }> | null
+  /** `service.pricingType` marks a no-fee inspection line (0073); optional. */
+  items?: Array<{ name: string; amount: string; isAddon?: boolean; service?: { pricingType: string } | null }> | null
   service?: { name: string } | null
   payment?: ReceiptPayment | null
   charges?: ReceiptBill[] | null
@@ -343,8 +344,13 @@ export interface Receipt {
     scheduledAt: string
     scheduledAtLabel: string
   }
-  /** The services as sold: the names and prices on the booking. */
-  items: Array<{ name: string; amount: string; isAddon?: boolean }>
+  /**
+   * The services as sold: the names and prices on the booking.
+   * `priceOnInspection` marks an inspection line with no fee (0073), whose
+   * ₹0 is not its price: the client says "Price on inspection" there, and a
+   * paid final bill is its own section below, as for any inspection.
+   */
+  items: Array<{ name: string; amount: string; isAddon?: boolean; priceOnInspection?: boolean }>
   /**
    * An accepted request's travel fee (customer reach, 0062): its own line,
    * after the services and inside the subtotal; null when there is none.
@@ -534,6 +540,11 @@ function refundLinesFor(
  * receipt issued that year; a final bill paid later is on this same receipt
  * under this same number.
  */
+/** An inspection line with no fee (0073): on inspection, ₹0, not an add-on. */
+function isNoFeeInspectionLine(item: { amount: string; isAddon?: boolean; service?: { pricingType: string } | null }): boolean {
+  return item.service?.pricingType === 'on_inspection' && item.isAddon !== true && toPaise(item.amount) === 0
+}
+
 export function buildReceipt(
   booking: ReceiptBooking,
   refundRecords: ReceiptRefundRecord[],
@@ -554,6 +565,8 @@ export function buildReceipt(
           amount: fromPaise(toPaise(item.amount)),
           // Sent for add-ons only: a line the client marks "· Add-on" (0068).
           ...(item.isAddon === true && { isAddon: true }),
+          // Sent for a no-fee inspection line only (0073).
+          ...(isNoFeeInspectionLine(item) && { priceOnInspection: true }),
         }))
       : // Bookings from before booking_items carry only their one service.
         booking.service

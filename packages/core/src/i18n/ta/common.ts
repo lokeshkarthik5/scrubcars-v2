@@ -1152,4 +1152,8 @@ export const common: Readonly<Record<string, string>> = {
   // A package on inspection keeps its fee required.
   'Upfront inspection fee; final work quoted after':
     'முதலில் பரிசோதனைக் கட்டணம்; இறுதி வேலைக்கான விலை பிறகு சொல்லப்படும்',
+  // A no-fee inspection booking, for the customer (0073).
+  'Price after inspection': 'பரிசோதனைக்குப் பிறகு விலை',
+  'By booking you agree to the {part} and the {part2}.': 'புக் செய்வதன் மூலம் {part} மற்றும் {part2} ஆகியவற்றை ஏற்கிறீர்கள்.',
+  'By booking you agree to the {terms} and the {policy}.': 'புக் செய்வதன் மூலம் {terms}-ஐயும் {policy}-ஐயும் ஏற்கிறீர்கள்.',
 }

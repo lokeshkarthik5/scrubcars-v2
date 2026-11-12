@@ -1,5 +1,5 @@
 import { useBookCustomer, useSendReminder, useUpdateBookCustomer } from '@repo/core/api/hooks/use-garage-book';
-import { carName, monthYear, payWord, plateText, rupees, shortDate, statusWord, washWords } from '@repo/core/garage-book';
+import { carName, monthYear, payWord, plateText, rupees, shortDate, statusWord, unpaidInspectionPrice, washWords } from '@repo/core/garage-book';
 import { useT } from '@repo/core/i18n';
 import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
@@ -124,11 +124,16 @@ function CustomerScreen({ id }: { id: string }) {
                     : `${t('Walk-in · {pay}', { pay: payWord(h.payment) })}${h.status !== 'done' ? ` · ${statusWord(h.status.replace('_', ' '))}` : ''}`}
                 </T>
               </View>
-              {h.amountPaise !== undefined ? (
+              {h.amountPaise === undefined ? null : unpaidInspectionPrice(h.noFeeInspection) ? (
+                // A no-fee inspection whose bill is unpaid (0073): never ₹0 (as the web).
+                <T size={12} weight={600} align="right" style={{ flexShrink: 1, maxWidth: '40%' }}>
+                  {unpaidInspectionPrice(h.noFeeInspection)}
+                </T>
+              ) : (
                 <T num size={14} weight={600}>
                   {rupees(h.amountPaise) ?? ''}
                 </T>
-              ) : null}
+              )}
             </View>
           ))
         )}

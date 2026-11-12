@@ -4,7 +4,9 @@
  * parity test) and the words and figures both apps show, so the two read
  * exactly the same. Pure, with the clock passed in.
  */
+import type { NoFeeInspectionJob } from './api/garage-book'
 import { formatINR } from './format'
+import { garageInspectionPrice } from './inspection-booking'
 import { msg, t, tn } from './i18n/translate'
 import { formatIndianPlate } from './moments'
 
@@ -292,8 +294,29 @@ export function ownJobStatus(job: {
   return null
 }
 
+/**
+ * A no-fee inspection job's price while its bill is unpaid (0073): "Price on
+ * inspection · bill not sent", or the bill's total once sent. Null once the
+ * bill is paid (the job's amount is then the bill) and on any other job.
+ */
+export function unpaidInspectionPrice(noFeeInspection: NoFeeInspectionJob | null | undefined): string | null {
+  if (!noFeeInspection || noFeeInspection.billPaid) return null
+  const bill = noFeeInspection.billTotal === null ? null : { total: Number(noFeeInspection.billTotal), paid: false }
+  return garageInspectionPrice(bill).text
+}
+
 /** Under a Detlio job, from its booking status. */
-export function detlioJobStatus(job: { status: string; paymentMethod: string; amount?: string }): { text: string; tone: StatusTone } | null {
+export function detlioJobStatus(job: {
+  status: string
+  paymentMethod: string
+  amount?: string
+  noFeeInspection?: NoFeeInspectionJob | null
+}): { text: string; tone: StatusTone } | null {
+  const inspection = unpaidInspectionPrice(job.noFeeInspection)
+  if (job.status === 'completed' && inspection) {
+    // Done, and its no-fee inspection's bill still to send or to be paid.
+    return { text: t('Done · {price}', { price: inspection }), tone: 'owed' }
+  }
   const amount = job.amount ? formatINR(Number(job.amount)) : null
   if (job.status === 'completed') {
     const text = !amount

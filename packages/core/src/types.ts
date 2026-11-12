@@ -639,8 +639,12 @@ export interface BookingReceipt {
     scheduledAt: string
     scheduledAtLabel: string
   }
-  /** `isAddon` (0068) marks an add-on's line; absent otherwise. */
-  items: Array<{ name: string; amount: string; isAddon?: boolean }>
+  /**
+   * `isAddon` (0068) marks an add-on's line, `priceOnInspection` (0073) an
+   * inspection line with no fee (shown "Price on inspection", not ₹0);
+   * absent otherwise.
+   */
+  items: Array<{ name: string; amount: string; isAddon?: boolean; priceOnInspection?: boolean }>
   /** An accepted request's travel fee (0062): its own line, inside the subtotal. Absent on older APIs. */
   travelFee?: string | null
   subtotal: string

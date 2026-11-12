@@ -1,5 +1,5 @@
 import { BOOKING_TYPE_LABELS } from '@repo/core/booking-types';
-import { formatINR, formatWhen } from '@repo/core/format';
+import { formatWhen } from '@repo/core/format';
 import type { Booking } from '@repo/core/types';
 import { type Href, router } from 'expo-router';
 import { useState } from 'react';
@@ -10,7 +10,7 @@ import { changeStatusWithUndo, DEFERRED_WORDS, useDeferredStatus } from '@/lib/d
 import {
   customerNumberLine,
   distanceKm,
-  jobPrice,
+  jobPriceText,
   proposalOpen,
   responseRunOut,
   slotPassed,
@@ -59,7 +59,7 @@ export function NewBookingCard({
   const waitingOnCustomer = proposalOpen(b);
   const numberLine = customerNumberLine(b, now);
   const km = distanceKm(b);
-  const price = jobPrice(b);
+  const price = jobPriceText(b);
   const isVendorAdmin = useIsVendorAdmin();
 
   const accept = () => changeStatusWithUndo(b.id, 'confirmed');
@@ -153,9 +153,16 @@ export function NewBookingCard({
             </T>
           </View>
           {isVendorAdmin ? (
-            <T num size={24} weight={700} lh={24} tracking={-0.025}>
-              {formatINR(price)}
-            </T>
+            price.words ? (
+              // A no-fee inspection's words (0073) sit smaller than a figure (as the web).
+              <T size={15} weight={600} lh={20} align="right" style={{ flexShrink: 1, maxWidth: '45%' }}>
+                {price.text}
+              </T>
+            ) : (
+              <T num size={24} weight={700} lh={24} tracking={-0.025}>
+                {price.text}
+              </T>
+            )
           ) : null}
         </View>
 
