@@ -355,7 +355,7 @@ export function CarGauge({ days, interval, over }: { days: number | null; interv
   return <WashGaugeDial angle={washGaugeAngle(days, interval)} share={washGaugeShare(days, interval)} over={over} />;
 }
 
-// ─── Stages 2 and 3 (0073) ───────────────────────────────────────────────────
+// ─── Stages 2 and 3 (0074) ───────────────────────────────────────────────────
 
 /** Running low and "needs a look": calm amber words, never a glow. */
 export const AMBER = '#F5C46B';

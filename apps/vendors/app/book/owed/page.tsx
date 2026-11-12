@@ -19,7 +19,7 @@ import { BackHeader, BookScreen, LoadFailed, Overline, Seg, raised } from '@/com
  * WhatsApp (the garage's own WhatsApp, no link in the message) and Mark
  * paid, and what was paid back lately. A record only: customers pay the
  * garage in cash or UPI, and Detlio takes no money here. With payment
- * details on reminders (0073), the WhatsApp ends "Pay on GPay 98400 00000".
+ * details on reminders (0074), the WhatsApp ends "Pay on GPay 98400 00000".
  */
 export default function OwedPage() {
   const t = useT()

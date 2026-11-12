@@ -1,7 +1,7 @@
 /**
- * Garage Book stages 2 and 3 (0073) against the real database: the server's
+ * Garage Book stages 2 and 3 (0074) against the real database: the server's
  * unit tests try every rule with the repositories patched out, so this is
- * where the SQL itself (0073_garage_book_2 and the garage-book-* files) is
+ * where the SQL itself (0074_garage_book_2 and the garage-book-* files) is
  * proved, as garage-book-api.spec.ts does for Stage 1.
  *
  * GARAGE_BOOK=on for the E2E API (.env.e2e); the portal's switch stays off,

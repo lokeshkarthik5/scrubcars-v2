@@ -12,7 +12,7 @@ import { t, tn } from '@repo/core/i18n/translate';
 import qrcode from 'qrcode-generator';
 
 /**
- * The phone's rules for Garage Book Stages 2 and 3 (0073): what the Team, Expenses, Stock,
+ * The phone's rules for Garage Book Stages 2 and 3 (0074): what the Team, Expenses, Stock,
  * Order and Import screens say and work out, kept out of the screens so they can be tested.
  * Pure. The rules both apps share (bill numbers, pay lines, stock shares) live in core's
  * garage-book.ts; these are the phone's own.

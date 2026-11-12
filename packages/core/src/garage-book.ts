@@ -381,7 +381,7 @@ export function washWords(wash: { daysSinceWash: number | null; intervalDays: nu
 
 /**
  * The friendly WhatsApp for money owed: no link, just the amount and thanks.
- * Sent to the customer, so English. `payLine` (0073, GET /owed's) is the
+ * Sent to the customer, so English. `payLine` (0074, GET /owed's) is the
  * garage's own "Pay on GPay 98400 00000", added when it shows it on reminders.
  */
 export function owedMessage(values: { name: string; garage: string; amountPaise: number; payLine?: string | null }): string {
@@ -396,7 +396,7 @@ export function owedSummary(count: number, oldestAt: string | null): string {
   return oldestAt ? t('{people} · oldest from {date}', { people, date: shortDate(oldestAt) }) : people
 }
 
-// ─── Stages 2 and 3 (0073): rules shared with the server (parity test) ────────
+// ─── Stages 2 and 3 (0074): rules shared with the server (parity test) ────────
 
 export const GARAGE_BOOK_2_LIMITS = {
   teamMax: 50,

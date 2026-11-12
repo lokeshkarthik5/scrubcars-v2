@@ -32,11 +32,11 @@ export interface OwnJob {
   totalPaise?: number
   /** Native only: saved on the phone with no signal, not sent yet. */
   pending?: boolean
-  /** 0073: where it came from; 'link' shows "From your link". Absent from older servers. */
+  /** 0074: where it came from; 'link' shows "From your link". Absent from older servers. */
   origin?: JobOrigin
-  /** 0073: who is on it (Today's list only). */
+  /** 0074: who is on it (Today's list only). */
   workers?: TeamWorker[]
-  /** 0073, owner only: it just became done and came back after a reminder (moment 5). */
+  /** 0074, owner only: it just became done and came back after a reminder (moment 5). */
   reminderPaidBack?: { amountPaise: number }
 }
 
@@ -54,7 +54,7 @@ export interface DetlioJob {
   car: BookCar
   lines: Array<{ label: string }>
   amount?: string
-  /** 0073: who is on it (Today's list only). */
+  /** 0074: who is on it (Today's list only). */
   workers?: TeamWorker[]
 }
 
@@ -144,9 +144,9 @@ export interface BookReminders {
   defaultIntervalDays: number
   due: ReminderEntry[]
   week: ReminderEntry[]
-  /** 0073, moment 5 (owner only): what visits after a reminder came to this month. */
+  /** 0074, moment 5 (owner only): what visits after a reminder came to this month. */
   earnedThisMonthPaise?: number
-  /** 0073, moment 5: how many came back after a reminder this month. */
+  /** 0074, moment 5: how many came back after a reminder this month. */
   cameBack?: number
 }
 
@@ -167,7 +167,7 @@ export interface BookOwed {
     oldestAt: string | null
   }>
   recent: Array<{ name: string; amountPaise: number; method: 'upi' | 'cash' | null; at: string }>
-  /** 0073: "Pay on GPay/PhonePe 98400 00000" for Ask on WhatsApp, when the garage shows it on reminders. */
+  /** 0074: "Pay on GPay/PhonePe 98400 00000" for Ask on WhatsApp, when the garage shows it on reminders. */
   payLine?: string | null
 }
 
@@ -181,7 +181,7 @@ export interface BookStats {
   newCustomers: number
   newFromDetlio: number
   profitPaise: number | null
-  /** 0073: what was spent this month; null with no expense written down (then profit is null too). */
+  /** 0074: what was spent this month; null with no expense written down (then profit is null too). */
   spentPaise?: number | null
   owedPaise: number
   owedCustomers: number
@@ -286,7 +286,7 @@ export interface AdminBook {
   jobs: OwnJob[]
   owed: BookOwed
   stats: BookStats
-  /** 0073: counts only. */
+  /** 0074: counts only. */
   team?: { members: number }
   expenses?: { month: string; count: number; spentPaise: number }
   stock?: { items: number; low: number }
@@ -296,7 +296,7 @@ export function getAdminBook(vendorId: string): Promise<AdminBook> {
   return apiClient(`/admin/vendors/${vendorId}/book`)
 }
 
-// ─── Stages 2 and 3 (0073) ───────────────────────────────────────────────────
+// ─── Stages 2 and 3 (0074) ───────────────────────────────────────────────────
 //
 // Money (any `*Paise`, a supplier, a price) is there for the owner only, as
 // above. Owner-only endpoints say so; the rest any seat may call.

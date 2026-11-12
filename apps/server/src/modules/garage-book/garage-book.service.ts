@@ -77,7 +77,7 @@ export { normalisePhone, whatsAppUrl, type Viewer }
  *     from the booking's user name and car only, and a reminder to one
  *     returns no number either.
  *
- * Stages 2 and 3 (0073) live beside it, one file per concern: team,
+ * Stages 2 and 3 (0074) live beside it, one file per concern: team,
  * expenses, bills and payment details, the booking link, bringing in a book,
  * stock, and the moments.
  */
@@ -108,7 +108,7 @@ function ownJobView(viewer: Viewer, job: JobRow) {
     remindInDays: job.remindInDays,
     visitNumber: job.visitNumber,
     totalPaise: money(viewer, job.totalPaise),
-    // 0073: where it came from ("From your link" on Today).
+    // 0074: where it came from ("From your link" on Today).
     origin: job.origin,
   }
 }
@@ -303,7 +303,7 @@ export const garageBookService = {
       repo.detlioJobsBetween(viewer.vendorId, start, end),
     ])
     const live = jobs.filter((job) => job.status !== 'cancelled')
-    // Who is on each job (0073), for the "Done by" chips.
+    // Who is on each job (0074), for the "Done by" chips.
     const workers = await teamService.workersFor(
       viewer.vendorId,
       live.map((job) => job.id),
@@ -448,7 +448,7 @@ export const garageBookService = {
   },
 
   /**
-   * A walk-in just became done (0073): its stock comes off (best effort,
+   * A walk-in just became done (0074): its stock comes off (best effort,
    * never failing the job), and the owner hears if it came back after a
    * reminder (moment 5).
    */
@@ -825,7 +825,7 @@ export const garageBookService = {
       paymentDetailsService.shownOn(viewer.vendorId, 'reminders'),
     ])
     return {
-      // 0073: "Pay on GPay/PhonePe 98400 00000" for the Ask on WhatsApp message, when the garage shows it there.
+      // 0074: "Pay on GPay/PhonePe 98400 00000" for the Ask on WhatsApp message, when the garage shows it there.
       payLine: pay?.line ?? null,
       totalPaise: rows.reduce((sum, row) => sum + row.balancePaise, 0),
       oldestAt: rows.reduce<Date | null>((oldest, row) => (row.oldestAt && (!oldest || row.oldestAt < oldest) ? row.oldestAt : oldest), null)?.toISOString() ?? null,
@@ -907,7 +907,7 @@ export const garageBookService = {
       cameBackPercent: cameBack,
       newCustomers: fresh.length,
       newFromDetlio: fresh.filter((row) => row.source === 'detlio').length,
-      // Profit (0073): the whole garage's takings less what it spent; null in a month with no expense written down.
+      // Profit (0074): the whole garage's takings less what it spent; null in a month with no expense written down.
       profitPaise: spent === null ? null : current.ownPaise + current.detlioPaise - spent,
       spentPaise: spent,
       owedPaise: owed.reduce((total, row) => total + row.balancePaise, 0),
@@ -981,7 +981,7 @@ export const garageBookService = {
         header: ['Customer', 'Phone', 'Owes (₹)', 'Since'],
         rows: owed.map((row) => [row.name, row.phone ? spacedPhone(row.phone) : '', rupees(row.balancePaise), day(row.oldestAt)]),
       },
-      // 0073: the team, what was spent, and what is in stock.
+      // 0074: the team, what was spent, and what is in stock.
       {
         name: 'Team',
         header: ['Name', 'Role', 'Phone', 'Added'],
@@ -1047,7 +1047,7 @@ export const garageBookService = {
       jobs: jobs.map((job) => ownJobView(owner, job)).reverse(),
       owed,
       stats,
-      // 0073: counts only. A look reads; it never copies a monthly expense forward.
+      // 0074: counts only. A look reads; it never copies a monthly expense forward.
       team: { members: teamCount },
       expenses: { month, count: spent.count, spentPaise: spent.totalPaise },
       stock: { items: stock.items, low: stock.low },

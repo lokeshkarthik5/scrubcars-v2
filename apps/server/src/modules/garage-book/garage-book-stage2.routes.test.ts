@@ -1,5 +1,5 @@
 /**
- * Garage Book stages 2 and 3 (0073) through the real routes and the real
+ * Garage Book stages 2 and 3 (0074) through the real routes and the real
  * auth and tenant middleware, as garage-book.routes.test.ts does for Stage
  * 1. Only the database and the bucket are stood in for (the seat lookups
  * and the book's repositories, put back afterwards).

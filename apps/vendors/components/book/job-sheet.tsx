@@ -26,7 +26,7 @@ const PAYMENTS = [
  * next step (Start, Done) or Cancel. Done runs moment 3 (`onDone`). Prices
  * are the owner's; staff see the job without them.
  *
- * 0073: once it is under way, "Done by" (who did it, any seat) and, for the
+ * 0074: once it is under way, "Done by" (who did it, any seat) and, for the
  * owner, Bill, which opens the job's bill to send on WhatsApp. A job that
  * comes back after a reminder says so (moment 5).
  */

@@ -58,7 +58,7 @@ export interface JobRow {
   createdAt: Date
   lines: Array<{ serviceId: string | null; label: string; pricePaise: number; qty: number }>
   visitNumber: number
-  /** Where it came from (0073): added at the garage, the garage's own link, or a paper book. */
+  /** Where it came from (0074): added at the garage, the garage's own link, or a paper book. */
   origin: GarageJobOrigin
 }
 

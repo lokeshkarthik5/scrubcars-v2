@@ -5,7 +5,7 @@ import { PublicMessage, PublicShell } from '@/components/garage-book/public-shel
 import { readLinkPage } from '@/lib/garage-book-public'
 
 /**
- * A garage's own booking page (Garage Book 0073, board L2): /g/<slug>, the
+ * A garage's own booking page (Garage Book 0074, board L2): /g/<slug>, the
  * link and QR the garage shares with its own customers. Pick a service and
  * a time, give a name and phone, and pay at the garage; no sign-in, no
  * OTP, no commission. Someone who has booked this garage through Detlio

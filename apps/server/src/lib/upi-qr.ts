@@ -1,5 +1,5 @@
 /**
- * Reading the garage's payment QR (Garage Book payment details, 0073).
+ * Reading the garage's payment QR (Garage Book payment details, 0074).
  *
  * The garage uploads a screenshot or photo of its GPay, PhonePe or Paytm QR.
  * When it saves, the server reads the QR so the owner can check "We read:

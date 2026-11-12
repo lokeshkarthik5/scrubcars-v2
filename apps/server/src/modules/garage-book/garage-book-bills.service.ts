@@ -18,7 +18,7 @@ import { garageBookRepository } from './garage-book.repository.js'
 import { normalisePhoneSafe, notFound, whatsAppUrl, type Viewer } from './garage-book.viewer.js'
 
 /**
- * Bills (0073; owner decision 12 Nov). One bill per job, a walk-in or a
+ * Bills (0074; owner decision 12 Nov). One bill per job, a walk-in or a
  * Detlio booking, with the garage's own running number from 0001, never
  * reused (garage_bill_counters only goes up). The bill keeps a snapshot of
  * what it said; asking for it again refreshes only whether it is paid.

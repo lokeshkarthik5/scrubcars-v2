@@ -26,7 +26,7 @@ describe('garage book parity', () => {
     }
   })
 
-  test('stages 2 and 3 (0073): the same limits, lists and figures', async () => {
+  test('stages 2 and 3 (0074): the same limits, lists and figures', async () => {
     const core = (await import(coreUrl)) as typeof server
     expect(core.GARAGE_BOOK_2_LIMITS).toEqual(server.GARAGE_BOOK_2_LIMITS)
     expect(core.EXPENSE_CATEGORIES).toEqual(server.EXPENSE_CATEGORIES)

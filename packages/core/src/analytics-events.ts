@@ -308,7 +308,7 @@ const UUID_SEGMENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
  * by ":code" (0049: the code is the gift; only its hash is ever stored), a
  * printed coupon's (/c/<code>, 0056) likewise,
  * a shared certificate's token by ":token" (0053, likewise), a garage's
- * bill's (/b/<token>, Garage Book 0073) likewise, anything but
+ * bill's (/b/<token>, Garage Book 0074) likewise, anything but
  * plain path characters dropped, at most MAX_PATH_LENGTH characters.
  */
 export function cleanPath(raw: string): string {

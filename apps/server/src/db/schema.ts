@@ -5354,7 +5354,7 @@ export const garageCustomers = pgTable(
     // the garage only knows by name or plate.
     phone: varchar('phone', { length: 20 }),
     note: varchar('note', { length: 500 }),
-    // Where the customer came from when it wasn't a walk-in (0073): "From your
+    // Where the customer came from when it wasn't a walk-in (0074): "From your
     // book" for one brought in from a paper book.
     sourceNote: varchar('source_note', { length: 120 }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -5441,7 +5441,7 @@ export const garageJobs = pgTable(
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     doneAt: timestamp('done_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-    // Where it came from (0073): added at the garage, booked on the garage's
+    // Where it came from (0074): added at the garage, booked on the garage's
     // own link ("From your link" on Today), or brought in from a paper book.
     origin: text('origin').$type<GarageJobOrigin>().default('walk_in').notNull(),
   },
@@ -5499,7 +5499,7 @@ export const garagePayments = pgTable(
     method: text('method').$type<'upi' | 'cash'>(),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-    // 'import' (0073): an opening balance brought in from the paper book,
+    // 'import' (0074): an opening balance brought in from the paper book,
     // at most one per customer, so bringing a page in twice never doubles it.
     source: text('source').$type<'import'>(),
   },
@@ -5562,7 +5562,7 @@ export const garageReminderSends = pgTable(
   ]
 )
 
-// ─── Garage Book, stages 2 and 3 (0073, modules/garage-book) ─────────────────
+// ─── Garage Book, stages 2 and 3 (0074, modules/garage-book) ─────────────────
 
 /**
  * The garage's people, by name only: they never log in. "Who did it?" is
@@ -5642,7 +5642,7 @@ export const garageExpenses = pgTable(
     everyMonth: boolean('every_month').default(false).notNull(),
     seriesId: uuid('series_id'),
     seriesMonth: varchar('series_month', { length: 7 }),
-    // The supply order it paid for; the foreign key is added after that table (0073).
+    // The supply order it paid for; the foreign key is added after that table (0074).
     supplyOrderId: uuid('supply_order_id').references((): AnyPgColumn => garageSupplyOrders.id, { onDelete: 'set null' }),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

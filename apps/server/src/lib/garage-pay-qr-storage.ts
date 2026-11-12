@@ -1,5 +1,5 @@
 /**
- * Where a garage's payment QR lives (Garage Book payment details, 0073).
+ * Where a garage's payment QR lives (Garage Book payment details, 0074).
  *
  * The garage uploads its GPay/PhonePe/Paytm QR the way job photos go up
  * (lib/job-photo-storage.ts): browser → bucket on a presigned PUT, the image

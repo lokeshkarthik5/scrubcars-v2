@@ -2490,7 +2490,7 @@ export const bookingsService = {
     if (updated!.guaranteeRedo) guaranteeService.redoChanged(bookingId)
     // Detlio Rewards (0050): a stamp and a scratch card, or why not.
     rewardsService.scheduleAfterCompletion(bookingId)
-    // Garage Book stock (0073): its services' stock comes off, in the background.
+    // Garage Book stock (0074): its services' stock comes off, in the background.
     garageStockService.afterDetlioCompletion(vendorId, bookingId)
     return toVendorBookingResponse(updated!)
   },
@@ -2585,7 +2585,7 @@ export const bookingsService = {
     // A free redo done (0051): its claim closes.
     if (updated!.guaranteeRedo) guaranteeService.redoChanged(bookingId)
     rewardsService.scheduleAfterCompletion(bookingId)
-    // Garage Book stock (0073): its services' stock comes off, in the background.
+    // Garage Book stock (0074): its services' stock comes off, in the background.
     garageStockService.afterDetlioCompletion(vendorId, bookingId)
     return toVendorBookingResponse(updated!)
   },

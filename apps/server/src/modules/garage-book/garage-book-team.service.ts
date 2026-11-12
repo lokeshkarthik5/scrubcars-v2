@@ -7,7 +7,7 @@ import type { CreateMemberInput, UpdateMemberInput } from './garage-book.validat
 import { carLabel, isOwner, money, normalisePhone, notFound, type Viewer } from './garage-book.viewer.js'
 
 /**
- * The team (0073; owner decision 12 Nov: names only, no login). Every seat
+ * The team (0074; owner decision 12 Nov: names only, no login). Every seat
  * sees the list and who is on what, and picks "who did it" when a job is
  * finished; only the owner sees what each person's work came to and what
  * they were paid, and only the owner adds or removes people.

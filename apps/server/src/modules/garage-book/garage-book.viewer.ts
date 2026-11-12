@@ -4,7 +4,7 @@ import type { VendorScopedRole } from '../members/members.repository.js'
 
 /**
  * Who is asking, and what they may see, for every Garage Book service
- * (0072, 0073). Decided here once:
+ * (0072, 0074). Decided here once:
  *
  *   - `owner` (vendor_admin) sees money; staff (vendor_operator) never do.
  *     Every figure in paise, and every Detlio booking amount, is left out of

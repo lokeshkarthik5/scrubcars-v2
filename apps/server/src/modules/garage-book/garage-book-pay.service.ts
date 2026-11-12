@@ -10,7 +10,7 @@ import { normalisePhone, normalisePhoneSafe, notFound, type Viewer } from './gar
 const log = logger.child({ module: 'garage-book-pay' })
 
 /**
- * Payment details (0073; the owner's own ask, 12 Nov): how the garage's
+ * Payment details (0074; the owner's own ask, 12 Nov): how the garage's
  * customers pay it. Its UPI QR (read when saved, so the owner can check the
  * name is theirs), a phone for payments (the garage's own phone unless it
  * says otherwise) and the apps that number takes. Owner only.

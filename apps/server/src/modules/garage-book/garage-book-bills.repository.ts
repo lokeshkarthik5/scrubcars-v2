@@ -4,7 +4,7 @@ import { garageBills, garagePaymentDetails, type GaragePayApp } from '../../db/s
 import { at, num, type Tx } from './garage-book.repository.js'
 
 /**
- * Bills' and payment details' reads and writes (0073). A bill's number comes
+ * Bills' and payment details' reads and writes (0074). A bill's number comes
  * from the garage's own counter, which only goes up; the bill row is unique
  * per job, so asking twice finds the first.
  */

@@ -86,7 +86,7 @@ describe('lists', () => {
   })
 })
 
-describe('stages 2 and 3 (0073)', () => {
+describe('stages 2 and 3 (0074)', () => {
   test('bill numbers, pay lines and the stock dial read as the server writes them', async () => {
     const { billNumberText, payLine, stockShare, isLow, jobsLeft, suggestPacks, stockAmountText, stockDeltaText } = await import('./garage-book')
     expect(billNumberText(7)).toBe('0007')

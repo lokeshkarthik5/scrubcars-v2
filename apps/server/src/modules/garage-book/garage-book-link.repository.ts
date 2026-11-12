@@ -4,7 +4,7 @@ import { garageBookLinkServices, garageBookLinks } from '../../db/schema.js'
 import type { WeekHours } from '../../lib/garage-book.js'
 import { PAID, num } from './garage-book.repository.js'
 
-/** The booking link's reads and writes (0073). */
+/** The booking link's reads and writes (0074). */
 
 export interface LinkGarage {
   vendorId: string

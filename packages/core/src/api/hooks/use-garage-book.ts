@@ -168,7 +168,7 @@ export function useMarkPaid() {
   })
 }
 
-// ─── Stages 2 and 3 (0073) ───────────────────────────────────────────────────
+// ─── Stages 2 and 3 (0074) ───────────────────────────────────────────────────
 //
 // Garage queries live under ['book'] like Stage 1's, so any write refreshes
 // the lot (a finished job changes the team, the stock and the day at once).

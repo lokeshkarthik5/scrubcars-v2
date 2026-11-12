@@ -435,7 +435,7 @@ export const env = {
    */
   garageBook: (process.env.GARAGE_BOOK ?? '').trim().toLowerCase() === 'on',
   /**
-   * The customer site Garage Book's public pages live on (0073): a bill at
+   * The customer site Garage Book's public pages live on (0074): a bill at
    * `<site>/b/<token>`, a garage's booking page at `<site>/g/<slug>`, and a
    * garage's Detlio page at `<site>/garage/<id>`. GARAGE_BOOK_SITE_URL,
    * default https://detlio.com. Sent in WhatsApps and printed on QR posters,

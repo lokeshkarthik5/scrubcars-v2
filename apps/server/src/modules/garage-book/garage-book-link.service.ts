@@ -25,7 +25,7 @@ import { normalisePhone, notFound, type Viewer } from './garage-book.viewer.js'
 const log = logger.child({ module: 'garage-book-link' })
 
 /**
- * The garage's own booking link (0073; owner decisions 5 and 12 Nov):
+ * The garage's own booking link (0074; owner decisions 5 and 12 Nov):
  * detlio.com/g/<slug>, free, for the garage's own customers, who pay at the
  * garage. No sign-in and no OTP, so it is rate-limited by address (the
  * route) and by phone (here, in the database).

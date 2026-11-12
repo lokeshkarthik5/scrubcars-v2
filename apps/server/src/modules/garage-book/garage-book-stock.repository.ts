@@ -14,7 +14,7 @@ import {
 import { at, num, type Tx } from './garage-book.repository.js'
 
 /**
- * Stock and supplies' reads and writes (0073). Levels are numeric(12, 3) in
+ * Stock and supplies' reads and writes (0074). Levels are numeric(12, 3) in
  * the item's own unit; postgres-js gives them back as text, so each goes
  * through `num()`.
  */

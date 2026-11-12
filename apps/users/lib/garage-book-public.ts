@@ -3,7 +3,7 @@ import type { ApiSuccessResponse } from '@repo/core/api/types'
 import type { PublicBill, PublicLinkPage } from '@repo/core/api/garage-book'
 
 /**
- * Garage Book's two public pages' reads (API 0073): a garage's own booking
+ * Garage Book's two public pages' reads (API 0074): a garage's own booking
  * page (/g/<slug>) and a bill (/b/<token>), made from this app's server so
  * the pages arrive complete. Server-side, so not through @repo/core's
  * client: on Preview deployments NEXT_PUBLIC_API_URL is the relative

@@ -7,7 +7,7 @@ import { PublicMessage, PublicShell } from '@/components/garage-book/public-shel
 import { readBill, upiLink } from '@/lib/garage-book-public'
 
 /**
- * A garage's bill (Garage Book 0073): /b/<token>, sent by the garage on
+ * A garage's bill (Garage Book 0074): /b/<token>, sent by the garage on
  * WhatsApp to its own customer, opened signed in or not. Rendered on the
  * server on every request (the paid state can change), so it is fast and
  * needs no script beyond Print. While unpaid it carries the garage's own

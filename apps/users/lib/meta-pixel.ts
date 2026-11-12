@@ -34,7 +34,7 @@ export const PIXEL_SCRIPT_ID = 'meta-pixel-js'
  * a car's (/profile/cars/<id>, its certificate) and a friend's invite
  * (/invite/<code>). The id is our reference for the booking or the car.
  * Also a garage's bill (/b/<token>) and its own booking page (/g/<slug>,
- * where its customer types a phone number): Garage Book 0073.
+ * where its customer types a phone number): Garage Book 0074.
  */
 const PERSONAL_PATH = /^\/(bookings\/[^/]+|profile\/cars\/[^/]+|invite\/[^/]+|b\/[^/]+|g\/[^/]+)/
 

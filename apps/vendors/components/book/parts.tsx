@@ -159,7 +159,7 @@ export function jobStatus(job: BookJob) {
 
 /**
  * One job on Today and on Jobs: its time, who, the DETLIO tag or Walk-in
- * ("From your link" for a booking from the garage's own page, 0073), what,
+ * ("From your link" for a booking from the garage's own page, 0074), what,
  * who is on it, and how it stands.
  */
 export function JobCard({
@@ -282,7 +282,7 @@ export function LoadFailed({ what, onRetry }: { what: string; onRetry: () => voi
   )
 }
 
-// ─── Stages 2 and 3 (0073) ───────────────────────────────────────────────────
+// ─── Stages 2 and 3 (0074) ───────────────────────────────────────────────────
 
 /** A screen's one main action: the solid red button (Add expense, Send on WhatsApp). */
 export const redButton = 'fx-red-button fx-press'

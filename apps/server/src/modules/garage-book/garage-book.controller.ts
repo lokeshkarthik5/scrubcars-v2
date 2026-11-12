@@ -141,7 +141,7 @@ export async function adminView(c: AdminContext, vendorId: string) {
   return c.json({ success: true, data: await garageBookService.adminView(vendorId) })
 }
 
-// ─── Stages 2 and 3 (0073) ───────────────────────────────────────────────────
+// ─── Stages 2 and 3 (0074) ───────────────────────────────────────────────────
 
 const ok = <T>(c: Context, data: T, status: 200 | 201 = 200) => c.json({ success: true, data }, status)
 

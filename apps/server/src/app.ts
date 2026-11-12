@@ -176,7 +176,7 @@ app.route('/api/v1/cities', publicCityRoutes)
 app.route('/api/v1/tiers', publicTierRoutes)
 // Customer reach, part 2 (0062): the windows a garage can be asked for.
 app.route('/api/v1/booking-requests', publicBookingRequestRoutes)
-// Garage Book's public pages (0073): a bill (/b/<token>) and a garage's own
+// Garage Book's public pages (0074): a bill (/b/<token>) and a garage's own
 // booking page (/g/<slug>). A 404 while GARAGE_BOOK is off.
 app.route('/api/v1/public', publicGarageBookRoutes)
 app.route('/api/v1/admin', adminRoutes)

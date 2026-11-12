@@ -229,7 +229,7 @@ export function percentChange(now: number, before: number): number | null {
   return Math.round(((now - before) / before) * 100)
 }
 
-// ─── Stages 2 and 3 (0073; screens OK'd 12 Nov 2026) ─────────────────────────
+// ─── Stages 2 and 3 (0074; screens OK'd 12 Nov 2026) ─────────────────────────
 //
 // Owner decisions these carry:
 //

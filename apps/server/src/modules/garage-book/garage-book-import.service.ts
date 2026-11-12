@@ -25,7 +25,7 @@ import { normalisePhoneSafe, type Viewer } from './garage-book.viewer.js'
 const log = logger.child({ module: 'garage-book-import' })
 
 /**
- * "Bring in your book" (0073; owner decision 12 Nov). Two steps, owner only:
+ * "Bring in your book" (0074; owner decision 12 Nov). Two steps, owner only:
  *
  *   1. extract: photos of the paper book (read by the AI, as the admin's
  *      garage import reads posters), or an Excel, CSV or Tally export (read

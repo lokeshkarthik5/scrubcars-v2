@@ -1,5 +1,5 @@
 /**
- * Garage Book stages 2 and 3's pure rules (0073): bill numbers, the booking
+ * Garage Book stages 2 and 3's pure rules (0074): bill numbers, the booking
  * page's slug and times, payment QR text, the stock dial and orders,
  * monthly expenses, milestones, and reading a customer book.
  */

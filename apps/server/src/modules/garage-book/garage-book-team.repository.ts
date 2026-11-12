@@ -4,7 +4,7 @@ import { garageJobWorkers, garageTeamMembers } from '../../db/schema.js'
 import { PAID, num, type Tx } from './garage-book.repository.js'
 
 /**
- * The team's reads and writes (0073): the garage's people, who did which
+ * The team's reads and writes (0074): the garage's people, who did which
  * job, and the month's figures per person. Every read is scoped to the
  * garage resolveTenant produced.
  */

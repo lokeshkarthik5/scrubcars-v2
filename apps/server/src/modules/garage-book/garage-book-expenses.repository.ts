@@ -3,7 +3,7 @@ import { db } from '../../db/index.js'
 import { garageExpenses, type GarageExpenseCategory } from '../../db/schema.js'
 import { num, type Tx } from './garage-book.repository.js'
 
-/** Expenses' reads and writes (0073), scoped to the garage resolveTenant produced. */
+/** Expenses' reads and writes (0074), scoped to the garage resolveTenant produced. */
 
 export interface ExpenseRow {
   id: string

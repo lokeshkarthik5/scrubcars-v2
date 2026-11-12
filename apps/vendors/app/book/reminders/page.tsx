@@ -21,7 +21,7 @@ type View = 'today' | 'week' | 'rules'
  * Via Detlio for Detlio customers (a free app notification); "Sent ✓" with
  * the red light once done. This week shows who comes due next.
  *
- * 0073, moment 5 (the reminder that pays back): what customers who came
+ * 0074, moment 5 (the reminder that pays back): what customers who came
  * back after a reminder brought in this month, the owner's proof the book
  * makes money. The job itself says so in a toast as it is saved.
  */

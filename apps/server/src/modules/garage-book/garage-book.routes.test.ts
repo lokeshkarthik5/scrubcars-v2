@@ -25,7 +25,7 @@ const { membersRepository } = await import('../members/members.repository.js')
 const { pushService } = await import('../push/push.service.js')
 const { garageBookRepository } = await import('./garage-book.repository.js')
 const { garageBookRoutes, adminGarageBookRoutes } = await import('./garage-book.routes.js')
-// Stages 2 and 3 (0073) read beside Stage 1's answers; stood in for here too.
+// Stages 2 and 3 (0074) read beside Stage 1's answers; stood in for here too.
 const { teamRepository } = await import('./garage-book-team.repository.js')
 const { expensesRepository } = await import('./garage-book-expenses.repository.js')
 const { expensesService } = await import('./garage-book-expenses.service.js')

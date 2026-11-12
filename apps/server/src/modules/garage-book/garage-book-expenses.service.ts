@@ -16,7 +16,7 @@ import type { CreateExpenseInput, UpdateExpenseInput } from './garage-book.valid
 import { notFound, type Viewer } from './garage-book.viewer.js'
 
 /**
- * Expenses (0073; owner only, routes and all). What the garage spends, so
+ * Expenses (0074; owner only, routes and all). What the garage spends, so
  * Profit is real: profit = takings − spent, where takings is the whole
  * garage's, exactly as Stats counts them (own walk-ins paid at the job,
  * money paid back, and Detlio earnings for the month).

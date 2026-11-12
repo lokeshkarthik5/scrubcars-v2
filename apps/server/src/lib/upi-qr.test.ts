@@ -1,5 +1,5 @@
 /**
- * The payment QR reader (Garage Book payment details, 0073), on real
+ * The payment QR reader (Garage Book payment details, 0074), on real
  * pictures. The fixtures in __fixtures__ were drawn once from known text
  * with the `qrcode` package (a QR encoder), so each one's answer is known:
  *

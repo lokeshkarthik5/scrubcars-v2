@@ -241,7 +241,7 @@ const useStyles = createStyles(() => ({
   fillSilver: { backgroundColor: '#C9CBD2' },
 }));
 
-// ─── Stages 2 and 3 (0073) ───────────────────────────────────────────────────
+// ─── Stages 2 and 3 (0074) ───────────────────────────────────────────────────
 
 /** The silver tag of a record ("Reminders earned ₹6,450"), as the mockups' `.pick`. */
 export function SilverTag({ children }: { children: string }) {
