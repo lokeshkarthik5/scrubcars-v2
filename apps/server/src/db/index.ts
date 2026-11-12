@@ -53,14 +53,26 @@ function openClient() {
   })
 }
 
-const queryLogger =
-  process.env.LOG_QUERIES === 'true'
-    ? {
-        logQuery(sql: string, params: unknown[]) {
-          console.log('[QUERY]', sql.trim(), params.length ? params : '')
-        },
-      }
-    : undefined
+const logQueries = process.env.LOG_QUERIES === 'true'
+
+/** The table the latest statement on this instance read or wrote, for REQUEST_STUCK (app.ts). */
+let lastTable: string | null = null
+
+/** `from "reviews"` / `into "bookings"` / `update "vendors"` → reviews. Table names only, never values. */
+export function tableOf(statement: string): string | null {
+  const match = /\b(?:from|into|update|join)\s+"?([a-z_][a-z0-9_]*)"?/i.exec(statement)
+  return match ? match[1].toLowerCase() : null
+}
+
+const queryLogger = {
+  logQuery(sql: string, params: unknown[]) {
+    lastTable = tableOf(sql) ?? lastTable
+    if (logQueries) console.log('[QUERY]', sql.trim(), params.length ? params : '')
+  },
+}
+
+/** What the latest statement touched (see lastTable). */
+export const lastStatementTable = () => lastTable
 
 const connect = (client: ReturnType<typeof openClient>) => drizzle(client, { schema, logger: queryLogger })
 
@@ -79,6 +91,21 @@ export const dbGeneration = () => generation
  * connection is let go (given five seconds for anything still finishing in
  * the background) and the request gets a new one.
  */
+/**
+ * Lets the current connection go at once (its statements fail) and opens a
+ * new one: called when a request has been stuck too long (app.ts), so the
+ * requests after it on this instance are not queued behind it.
+ */
+export function abandonDb(): void {
+  const old = client
+  client = openClient()
+  current = connect(client)
+  generation += 1
+  inFlight = 0
+  lastActive = Date.now()
+  void old.end({ timeout: 0 }).catch(() => {})
+}
+
 export function useFreshDb(now: number = Date.now()): () => void {
   if (inFlight === 0 && now - lastActive > DB_STALE_AFTER_MS) {
     const old = client
@@ -88,11 +115,13 @@ export function useFreshDb(now: number = Date.now()): () => void {
     void old.end({ timeout: 5 }).catch(() => {})
   }
   inFlight += 1
+  const startedOn = generation
   let done = false
   return () => {
     if (done) return
     done = true
-    inFlight -= 1
+    // A request whose connection was abandoned (abandonDb) was already let go.
+    if (startedOn === generation) inFlight -= 1
     lastActive = Date.now()
   }
 }

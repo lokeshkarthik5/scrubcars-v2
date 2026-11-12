@@ -3,7 +3,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { HTTPException } from 'hono/http-exception'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
-import { useFreshDb } from './db/index.js'
+import { abandonDb, lastStatementTable, useFreshDb } from './db/index.js'
 import { env } from './lib/env.js'
 import { AppError } from './lib/errors.js'
 import { logger } from './lib/logger.js'
@@ -63,6 +63,32 @@ app.use('*', async (_c, next) => {
   }
 })
 
+/**
+ * A read still unanswered after this long is given up (Nov 2026: the live
+ * garage list and garage page hung until Vercel's 60-second limit, and every
+ * request behind them on the same instance waited on its one connection).
+ * The connection goes with it, so the next request starts clean; the apps
+ * retry a 503 at once (packages/core apiClient). The answer names the table
+ * the last statement touched, the one clue to where it stuck.
+ */
+export const STUCK_READ_MS = 20_000
+
+app.use('/api/*', async (c, next) => {
+  if (c.req.method !== 'GET') return next()
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const stuck = new Promise<'stuck'>((resolve) => {
+    timer = setTimeout(() => resolve('stuck'), STUCK_READ_MS)
+  })
+  const outcome = await Promise.race([next().then(() => 'done' as const), stuck])
+  clearTimeout(timer)
+  if (outcome === 'stuck') {
+    const table = lastStatementTable()
+    logger.error({ method: c.req.method, path: c.req.path, table, ms: STUCK_READ_MS }, 'request:stuck')
+    abandonDb()
+    c.res = c.json({ success: false, message: 'The server is busy, try again', code: 'REQUEST_STUCK', table }, 503)
+  }
+})
+
 app.use('/api/*', async (c, next) => {
   const isCold = coldStart
   coldStart = false
@@ -102,6 +128,17 @@ app.use(
 // checkout needs.
 const EVENTS_PATH = '/api/v1/events'
 app.use('/api/*', (c, next) => (c.req.path === EVENTS_PATH ? next() : globalRateLimiter(c, next)))
+
+/**
+ * The driver's or Postgres's own code for an unplanned error ("57014",
+ * "ECONNRESET", "CONNECTION_CLOSED"), when it has one: a short token that
+ * says what kind of failure it was without anything from the request or the
+ * data, so a 500 can be told apart from outside without the server's logs.
+ */
+export function internalErrorCode(err: unknown): { code: string } | Record<string, never> {
+  const code = (err as { code?: unknown } | null)?.code
+  return typeof code === 'string' && /^[A-Z0-9_]{2,40}$/.test(code) ? { code } : {}
+}
 
 app.onError((err, c) => {
   if (err instanceof AppError) {
@@ -146,7 +183,7 @@ app.onError((err, c) => {
   // answering as designed and an HTTPException is a malformed request:
   // reporting those would bury the real bugs.
   reportError(err, { method: c.req.method, path: c.req.path })
-  return c.json({ success: false, message: 'Internal server error' }, 500)
+  return c.json({ success: false, message: 'Internal server error', ...internalErrorCode(err) }, 500)
 })
 
 app.get('/', (c) => c.text(`Detlio API v${APP_VERSION}`))
