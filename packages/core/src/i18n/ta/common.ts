@@ -1168,4 +1168,8 @@ export const common: Readonly<Record<string, string>> = {
   'Best month ever': 'இதுவரை சிறந்த மாதம்',
   'Next: {count} customers': 'அடுத்து: {count} வாடிக்கையாளர்கள்',
   'Next: First ₹{lakh} lakh month': 'அடுத்து: ₹{lakh} லட்சம் தொட்ட முதல் மாதம்',
+  // A no-fee inspection booking, for the customer (0073).
+  'Price after inspection': 'பரிசோதனைக்குப் பிறகு விலை',
+  'By booking you agree to the {part} and the {part2}.': 'புக் செய்வதன் மூலம் {part} மற்றும் {part2} ஆகியவற்றை ஏற்கிறீர்கள்.',
+  'By booking you agree to the {terms} and the {policy}.': 'புக் செய்வதன் மூலம் {terms}-ஐயும் {policy}-ஐயும் ஏற்கிறீர்கள்.',
 }

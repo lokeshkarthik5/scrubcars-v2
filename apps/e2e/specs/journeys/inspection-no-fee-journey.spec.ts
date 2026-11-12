@@ -96,7 +96,7 @@ test.describe('on inspection with no fee @p0', () => {
   test('the customer sees the price words and books it with nothing to pay', async ({ browser }) => {
     const serviceId = await addedServiceId()
     expect(serviceId).toBeTruthy()
-    const { customer, close } = await openActors(browser, 'customer-inspection', I.garage.id, 'vendor-inspection')
+    const { customer, vendor, close } = await openActors(browser, 'customer-inspection', I.garage.id, 'vendor-inspection')
     await customer.setViewportSize({ width: 390, height: 844 })
 
     // ── the garage page ─────────────────────────────────────────────────────
@@ -171,12 +171,32 @@ test.describe('on inspection with no fee @p0', () => {
     expect((await getIntent(intent.id))?.status).toBe('consumed')
 
     await expect(customer.getByText('Pay after inspection').first()).toBeVisible()
+    // The booking page's row says the price is to come, never ₹0.
+    await expect(customer.getByText('Price after inspection', { exact: true }).first()).toBeVisible()
+
+    // ── My bookings: its ticket never says ₹0 or "Paid" ────────────────────
+    await customer.goto('/bookings')
+    await expect(customer.getByRole('link', { name: new RegExp(`^${I.added.name} at `) }).first()).toBeVisible()
+    await expect(customer.getByText('₹0', { exact: true })).toHaveCount(0)
+    await expect(customer.getByText('Paid', { exact: true })).toHaveCount(0)
+
+    // ── the garage's new booking card: its price is the bill to come ───────
+    await vendor.goto('/bookings?tab=new')
+    const garageCard = vendor.getByRole('article', { name: `New booking from ${I.customer.name}` }).first()
+    await expect(garageCard.getByText('Price on inspection · bill not sent')).toBeVisible()
+    await expect(garageCard.getByText('₹0', { exact: true })).toHaveCount(0)
     await close()
   })
 
   test('the garage sends the final bill from ₹0, and the customer has all of it to pay', async ({ browser }) => {
     const { customer, vendor, close } = await openActors(browser, 'customer-inspection', I.garage.id, 'vendor-inspection')
     const [booking] = await bookingsForUser(I.customer.id)
+    // Done with no bill yet: My bookings says the price is to come.
+    await sql`update bookings set status = 'completed', completed_at = now(), respond_by = null where id = ${booking.id}`
+    await customer.goto('/bookings?tab=past')
+    await expect(customer.getByText('Price after inspection', { exact: true }).first()).toBeVisible()
+    await expect(customer.getByText('₹0', { exact: true })).toHaveCount(0)
+
     // Accepted and started: a bill is raised once the car has been seen.
     await sql`
       update bookings set status = 'in_progress', accepted_at = now(), started_at = now(), respond_by = null
@@ -202,6 +222,16 @@ test.describe('on inspection with no fee @p0', () => {
     await customer.goto(`/bookings/${booking.id}`)
     await expect(customer.getByRole('heading', { name: 'Final bill' })).toBeVisible()
     await expect(customer.getByRole('button', { name: 'Pay ₹1,800' })).toBeVisible()
+
+    // My bookings: its ticket says no "Paid" while the bill is due…
+    await customer.goto('/bookings')
+    await expect(customer.getByRole('link', { name: new RegExp(`^${I.added.name} at `) }).first()).toBeVisible()
+    await expect(customer.getByText('Paid', { exact: true })).toHaveCount(0)
+    // …and once done, its row says the bill.
+    await sql`update bookings set status = 'completed', completed_at = now() where id = ${booking.id}`
+    await customer.goto('/bookings?tab=past')
+    await expect(customer.getByText('₹1,800', { exact: true }).first()).toBeVisible()
+    await expect(customer.getByText('Price after inspection', { exact: true })).toHaveCount(0)
     await close()
   })
 })

@@ -154,7 +154,7 @@ export function jobLine(job: BookJob): string {
 export function jobStatus(job: BookJob) {
   return job.source === 'own'
     ? ownJobStatus({ status: job.status, payment: job.payment, visitNumber: job.visitNumber, totalPaise: job.totalPaise })
-    : detlioJobStatus({ status: job.status, paymentMethod: job.paymentMethod, amount: job.amount })
+    : detlioJobStatus({ status: job.status, paymentMethod: job.paymentMethod, amount: job.amount, noFeeInspection: job.noFeeInspection })
 }
 
 /**

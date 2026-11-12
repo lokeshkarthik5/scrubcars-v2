@@ -35,6 +35,7 @@ import { fill, msg, useT, useTn } from '@repo/core/i18n';
 import { confirmPayment, intentPollResult, realClock } from '@repo/core/payment-confirmation';
 import { insidePickupReach, PICKUP_RESPONSIBILITY_LINE, pickupFeeLabel } from '@repo/core/pickup';
 import { isNoFeeInspection, resolveServiceAmount } from '@repo/core/pricing';
+import { checkoutAgreement } from '@repo/core/inspection-booking';
 import { hasStarScore } from '@repo/core/ratings';
 import { rewardRupees } from '@repo/core/rewards';
 import { knownDurationTotal } from '@repo/core/service-duration';
@@ -1766,7 +1767,8 @@ export default function BookScreen() {
             {/* Beside Pay, as Razorpay and the E-Commerce Rules expect. */}
             {!hint ? (
               <T size={12} lh={16} align="center" color={colors.textMuted} style={styles.mt8}>
-                {fill(t('By paying you agree to the {terms} and the {policy}.'), {
+                {/* Nothing paid (a no-fee inspection, a free wash, credit): "By booking" (as the web). */}
+                {fill(checkoutAgreement(toPay, 'app'), {
                   terms: (
                     <T size={12} lh={16} color={colors.textMuted} onPress={() => void WebBrowser.openBrowserAsync(`https://detlio.com${LEGAL_PATHS.terms}`)} style={{ textDecorationLine: 'underline' }}>
                       {t('Terms')}

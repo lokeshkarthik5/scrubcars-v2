@@ -144,7 +144,11 @@ describe('the receipt', () => {
       discountAmount: '0.00',
       discountCode: null,
       paymentMethod: 'online',
-      items: [{ name: 'Dent repair', amount: '0.00' }],
+      items: [
+        { name: 'Dent repair', amount: '0.00', service: { pricingType: 'on_inspection' } },
+        // A flat-priced line is never marked, whatever its amount.
+        { name: 'Foam wash', amount: '0.00', service: { pricingType: 'flat' } },
+      ],
       payment: {
         status: 'paid',
         amount: '0.00',
@@ -178,5 +182,10 @@ describe('the receipt', () => {
     expect(receipt.bookingPayment.paymentId).toBeNull()
     expect(receipt.finalBill?.balancePaid).toBe('1550.00')
     expect(receipt.totalPaid).toBe('1550.00')
+    // The inspection line says "Price on inspection" on the client, never ₹0.
+    expect(receipt.items).toEqual([
+      { name: 'Dent repair', amount: '0.00', priceOnInspection: true },
+      { name: 'Foam wash', amount: '0.00' },
+    ])
   })
 })

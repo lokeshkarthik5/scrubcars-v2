@@ -346,4 +346,7 @@ export const garage: Readonly<Record<string, string>> = {
   '{name} came back after your reminder · {amount}':
     'உங்கள் நினைவூட்டலுக்குப் பிறகு {name} மீண்டும் வந்தார் · {amount}',
   'Since {date}': '{date} முதல்',
+  // A no-fee inspection job before its bill (0073).
+  'Price on inspection · bill not sent': 'பரிசோதனைக்குப் பிறகு விலை · பில் அனுப்பப்படவில்லை',
+  'Done · {price}': 'முடிந்தது · {price}',
 }

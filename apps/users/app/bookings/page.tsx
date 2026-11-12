@@ -42,6 +42,7 @@ import {
   type BookingListTab,
 } from '@repo/core/my-bookings'
 import { cn } from '@repo/core/utils'
+import { customerBookingInspectionPrice, customerSeesPaid } from '@repo/core/inspection-booking'
 import type { Address, Booking } from '@repo/core/types'
 import { useT } from '@repo/core/i18n'
 import { t } from '@repo/core/i18n/translate'
@@ -217,7 +218,7 @@ function TicketCard({
           needs={needs}
           quiet={
             waitingUntil ??
-            (booking.paymentStatus === 'paid' ? t('Paid') : null)
+            (customerSeesPaid(booking) ? t('Paid') : null)
           }
         />
       </div>
@@ -240,6 +241,7 @@ function PastRow({
 }) {
   const t = useT()
   const { chip, refunded, label } = cardFacts(booking, null, now)
+  const inspection = customerBookingInspectionPrice(booking, money)
   return (
     <div className="relative flex flex-col gap-1 rounded-[16px] border border-white/[0.06] bg-[#111114] py-3 pl-3.5 pr-3">
       <div className="flex items-start justify-between gap-3">
@@ -264,12 +266,21 @@ function PastRow({
           {[formatWhen(booking.scheduledAtIso, now), booking.vendorName].join(' · ')}
         </span>
         <span className="flex shrink-0 items-center gap-1.5">
-          {booking.discountAmount > 0 && (
-            <s className="font-numeric text-text-muted">{money(booking.subtotalPrice)}</s>
+          {inspection ? (
+            // A no-fee inspection (0073): never ₹0, the bill once it comes.
+            <span className={cn('text-t4 font-semibold text-text-primary', inspection.amount !== null && 'font-numeric')}>
+              {inspection.text}
+            </span>
+          ) : (
+            <>
+              {booking.discountAmount > 0 && (
+                <s className="font-numeric text-text-muted">{money(booking.subtotalPrice)}</s>
+              )}
+              <span className="font-numeric text-t4 font-semibold text-text-primary">
+                {money(booking.servicePrice)}
+              </span>
+            </>
           )}
-          <span className="font-numeric text-t4 font-semibold text-text-primary">
-            {money(booking.servicePrice)}
-          </span>
         </span>
       </div>
       {/* Quiet text, not a button, 44px tall to the thumb while drawn
@@ -314,6 +325,7 @@ function BookingCard({
   const t = useT()
   const { chip, refunded, needs, waitingUntil, label } = cardFacts(booking, action, now)
   const pickup = pickupLine(booking)
+  const inspection = customerBookingInspectionPrice(booking, money)
 
   return (
     // A booking that needs an answer gets a red hairline and says what (F3).
@@ -364,7 +376,7 @@ function BookingCard({
           needs={needs}
           quiet={
             waitingUntil ??
-            (booking.paymentStatus === 'paid'
+            (customerSeesPaid(booking)
               ? t('Paid')
               : booking.paymentStatus === 'refunded'
                 ? t('Paid · refunded')
@@ -374,14 +386,23 @@ function BookingCard({
         <span className="flex shrink-0 items-center gap-1.5">
           {/* The struck price is the only hint that a code was used; the
               full breakdown lives on the detail page. */}
-          {booking.discountAmount > 0 && (
-            <s className="font-numeric text-text-muted">
-              {money(booking.subtotalPrice)}
-            </s>
+          {inspection ? (
+            // A no-fee inspection (0073): never ₹0, the bill once it comes.
+            <span className={cn('text-t3 text-text-primary', inspection.amount !== null && 'font-numeric')}>
+              {inspection.text}
+            </span>
+          ) : (
+            <>
+              {booking.discountAmount > 0 && (
+                <s className="font-numeric text-text-muted">
+                  {money(booking.subtotalPrice)}
+                </s>
+              )}
+              <span className="font-numeric text-t3 text-text-primary">
+                {money(booking.servicePrice)}
+              </span>
+            </>
           )}
-          <span className="font-numeric text-t3 text-text-primary">
-            {money(booking.servicePrice)}
-          </span>
         </span>
       </div>
       {/* Past only: a booking that is still on has nothing to repeat yet.

@@ -5,6 +5,7 @@ import {
   tierPriceFor,
 } from '@repo/core/pricing'
 import type { Service, VehicleType } from '@repo/core/types'
+import { bookedLinePrice } from '@repo/core/inspection-booking'
 import { money } from '@/lib/money'
 import { t } from '@repo/core/i18n/translate'
 
@@ -89,7 +90,5 @@ export function bookingLinePriceText(item: {
   amount: number
   pricingType?: Service['pricingType']
 }): string {
-  return item.pricingType === 'on_inspection' && !(item.amount > 0)
-    ? t('Price on inspection')
-    : money(item.amount)
+  return bookedLinePrice(item, money)
 }

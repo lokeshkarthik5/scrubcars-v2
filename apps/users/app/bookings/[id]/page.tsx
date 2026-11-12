@@ -58,6 +58,7 @@ import {
 import { carWithGarage, pickupTimeline } from '@repo/core/pickup'
 import { googleMapsLink } from '@repo/core/contact-links'
 import { cn } from '@repo/core/utils'
+import { inspectionPaymentRow } from '@repo/core/inspection-booking'
 import {
   finalBillMayChange,
   formatRupees,
@@ -808,6 +809,8 @@ export default function BookingDetailPage({
     timeProposal !== null
   // The payment row's two online labels ("Paid online", "To be paid online")
   // state the online part, not the whole booking.
+  // A no-fee inspection booking's payment row (0073), or null.
+  const inspectionRow = inspectionPaymentRow(booking, money)
   const onlineRow =
     booking.paymentStatus === 'paid'
       ? (booking.creditPaid ?? 0) < booking.servicePrice
@@ -1268,15 +1271,21 @@ export default function BookingDetailPage({
             </span>
           </Row>
         )}
+        {inspectionRow ? (
+          // A no-fee inspection (0073): the price comes with the final
+          // bill, and the row says so until it is paid.
+          <Row label={inspectionRow.label}>
+            <span className={cn(inspectionRow.numeric && 'font-numeric')}>
+              {inspectionRow.value}
+            </span>
+          </Row>
+        ) : (
         <Row
           label={
             booking.paymentStatus === 'paid'
               ? // A free wash that covered it all (0062): nothing was paid.
-                // A no-fee inspection (0073): the price comes after.
                 booking.servicePrice === 0 && (booking.creditPaid ?? 0) === 0
-                ? booking.items.some((item) => item.pricingType === 'on_inspection')
-                  ? t('Pay after inspection')
-                  : t('Nothing to pay')
+                ? t('Nothing to pay')
                 : (booking.creditPaid ?? 0) >= booking.servicePrice
                 ? t('Paid')
                 : t('Paid online')
@@ -1298,6 +1307,7 @@ export default function BookingDetailPage({
             )}
           </span>
         </Row>
+        )}
         {/* Gift a wash (0049): the part Detlio credit paid. */}
         {(booking.creditPaid ?? 0) > 0 && (
           <Row label={t('Paid with Detlio credit')}>

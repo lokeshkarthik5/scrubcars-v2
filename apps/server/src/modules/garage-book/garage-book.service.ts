@@ -128,7 +128,11 @@ function detlioJobView(viewer: Viewer, booking: DetlioJobRow) {
     completedAt: booking.completedAt?.toISOString() ?? null,
     car: { plate: booking.plate, make: booking.make, model: booking.model },
     lines: booking.items.map((label) => ({ label })),
+    // What the job took: its payment plus a paid final bill (repository).
     amount: money(viewer, booking.amount),
+    // An inspection with no fee (0073): its bill once sent, so the book
+    // says "Price on inspection · bill not sent" rather than ₹0. Owner only.
+    noFeeInspection: money(viewer, booking.noFeeInspection),
   }
 }
 
@@ -640,6 +644,7 @@ export const garageBookService = {
           lines: booking.items,
           payment: booking.paymentMethod,
           amountPaise: money(viewer, rupeesToPaise(booking.amount)),
+          noFeeInspection: money(viewer, booking.noFeeInspection),
         })),
     }
   },

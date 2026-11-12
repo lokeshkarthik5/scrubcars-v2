@@ -165,7 +165,7 @@ export function jobStatus(job: BookJob) {
   if (job.source === 'own' && job.pending) return { text: translateNow('Waiting to send · no signal'), tone: 'owed' as const };
   return job.source === 'own'
     ? ownJobStatus({ status: job.status, payment: job.payment, visitNumber: job.visitNumber, totalPaise: job.totalPaise })
-    : detlioJobStatus({ status: job.status, paymentMethod: job.paymentMethod, amount: job.amount });
+    : detlioJobStatus({ status: job.status, paymentMethod: job.paymentMethod, amount: job.amount, noFeeInspection: job.noFeeInspection });
 }
 
 /** One job on Today and Jobs: time, who, DETLIO, Walk-in or From your link, what, who did it, and how it stands. */

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { IconBrandWhatsapp, IconPlus } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
 import { useBookCustomer, useSendReminder, useUpdateBookCustomer } from '@repo/core/api/hooks/use-garage-book'
-import { carName, monthYear, payWord, plateText, rupees, shortDate, statusWord, washWords } from '@repo/core/garage-book'
+import { carName, monthYear, payWord, plateText, rupees, shortDate, statusWord, unpaidInspectionPrice, washWords } from '@repo/core/garage-book'
 import { useIsVendorAdmin } from '@repo/core/hooks/use-vendor-role'
 import { useT } from '@repo/core/i18n'
 import { cn } from '@repo/core/utils'
@@ -129,7 +129,13 @@ function CustomerScreen({ id }: { id: string }) {
                     : `${t('Walk-in · {pay}', { pay: payWord(h.payment) })}${h.status !== 'done' ? ` · ${statusWord(h.status.replace('_', ' '))}` : ''}`}
                 </div>
               </div>
-              {h.amountPaise !== undefined && <div className="shrink-0 font-numeric text-[14px] font-semibold text-text-primary">{rupees(h.amountPaise)}</div>}
+              {h.amountPaise !== undefined &&
+                (unpaidInspectionPrice(h.noFeeInspection) ? (
+                  // A no-fee inspection whose bill is unpaid (0073): never ₹0.
+                  <div className="max-w-[40%] shrink-0 text-right text-[12px] font-semibold text-text-primary">{unpaidInspectionPrice(h.noFeeInspection)}</div>
+                ) : (
+                  <div className="shrink-0 font-numeric text-[14px] font-semibold text-text-primary">{rupees(h.amountPaise)}</div>
+                ))}
             </div>
           ))
         )}

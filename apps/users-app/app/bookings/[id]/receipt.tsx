@@ -2,7 +2,7 @@ import { getBookingReceipt } from '@repo/core/api/bookings';
 import { ApiError } from '@repo/core/api/client';
 import { BOOKING_TYPE_LABELS } from '@repo/core/booking-types';
 import { useT } from '@repo/core/i18n';
-import { formatReceiptAmount, RECEIPT_NOT_TAX_INVOICE, receiptFileTitle } from '@repo/core/receipts';
+import { formatReceiptAmount, RECEIPT_NOT_TAX_INVOICE, receiptFileTitle, receiptItemValue } from '@repo/core/receipts';
 import type { BookingReceipt } from '@repo/core/types';
 import { Label, ScButton } from '@repo/native-ui/button';
 import { IconDownload, IconShare } from '@repo/native-ui/icons';
@@ -162,7 +162,7 @@ function ReceiptDocument({ receipt }: { receipt: BookingReceipt }) {
       </Section>
       <Section title="Services">
         {receipt.items.map((item, index) => (
-          <Row key={`${item.name}-${index}`} label={item.name} value={formatReceiptAmount(item.amount)} />
+          <Row key={`${item.name}-${index}`} label={item.name} value={receiptItemValue(item)} numeric={!item.priceOnInspection} />
         ))}
         {receipt.travelFee ? <Row label="Travel fee" value={formatReceiptAmount(receipt.travelFee)} /> : null}
         {receipt.discount ? (

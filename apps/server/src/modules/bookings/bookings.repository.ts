@@ -858,6 +858,9 @@ export const bookingsRepository = {
         items: BOOKING_ITEMS,
         vehicle: true,
         payment: true,
+        // Its bills (0073): a no-fee inspection's card says its final bill,
+        // not ₹0, and "Paid" only once the bill is paid.
+        charges: { orderBy: [desc(bookingCharges.createdAt)] },
       },
       orderBy: [desc(bookings.scheduledAt)],
     })

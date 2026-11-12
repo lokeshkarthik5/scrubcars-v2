@@ -53,9 +53,18 @@ export interface DetlioJob {
   completedAt: string | null
   car: BookCar
   lines: Array<{ label: string }>
+  /** What the job took: its payment plus a final bill paid in the app. Owner only. */
   amount?: string
   /** 0074: who is on it (Today's list only). */
   workers?: TeamWorker[]
+  /** An inspection with no fee (0073): its bill once sent; null otherwise. Owner only; absent from older servers. */
+  noFeeInspection?: NoFeeInspectionJob | null
+}
+
+/** A no-fee inspection job's final bill, as the book reads it (0073). */
+export interface NoFeeInspectionJob {
+  billTotal: string | null
+  billPaid: boolean
 }
 
 export type BookJob = OwnJob | DetlioJob
@@ -121,6 +130,8 @@ export interface BookCustomer {
     lines: string[]
     payment: string
     amountPaise?: number
+    /** A Detlio job: an inspection with no fee (0073), its bill once sent. Owner only. */
+    noFeeInspection?: NoFeeInspectionJob | null
   }>
 }
 
