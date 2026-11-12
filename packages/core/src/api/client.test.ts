@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { apiClient, requestHeadersFor, setActiveVendorId } from './client'
+import { ApiError, apiClient, READ_TIMEOUT_STATUS, requestHeadersFor, setActiveVendorId } from './client'
 
 /** Every request the client sends, with the headers it sent them with. */
 function recordFetch() {
@@ -57,5 +57,33 @@ describe('Content-Type goes only with a body', () => {
       'X-Vendor-Id': 'v-1',
     })
     expect(requestHeadersFor(undefined)).toEqual({ 'X-Vendor-Id': 'v-1' })
+  })
+})
+
+describe('a read that never answers', () => {
+  test('is given up as a 504 the query retries; a write is never timed out', async () => {
+    const original = globalThis.fetch
+    const signals: Array<AbortSignal | undefined> = []
+    globalThis.fetch = ((_input: RequestInfo | URL, init?: RequestInit) => {
+      signals.push(init?.signal ?? undefined)
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
+      })
+    }) as typeof fetch
+    restore = () => (globalThis.fetch = original)
+    const realSetTimeout = globalThis.setTimeout
+    // Run the 12-second timer at once.
+    globalThis.setTimeout = ((fn: () => void) => realSetTimeout(fn, 0)) as typeof setTimeout
+    try {
+      const error = (await apiClient('/vendors', { auth: false }).catch((e: unknown) => e)) as ApiError
+      expect(error).toBeInstanceOf(ApiError)
+      expect(error.status).toBe(READ_TIMEOUT_STATUS)
+      expect(error.code).toBe('READ_TIMEOUT')
+
+      void apiClient('/bookings', { auth: false, method: 'POST', body: '{}' })
+      expect(signals[1]).toBeUndefined()
+    } finally {
+      globalThis.setTimeout = realSetTimeout
+    }
   })
 })

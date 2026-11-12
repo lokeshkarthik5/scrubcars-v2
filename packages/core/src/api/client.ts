@@ -130,16 +130,49 @@ async function parseError(response: Response): Promise<ApiError> {
   )
 }
 
-function send(url: string, init: RequestInit, headers: Record<string, string>) {
-  if (!bearerAuth) {
-    return fetch(url, { ...init, headers, credentials: 'include' })
+/**
+ * How long a read may take before it is given up and asked again. A request
+ * caught on a stuck server connection used to hang until the server's own
+ * 60-second limit, with the screen on "Finding garages…" all that time; now
+ * it fails as a 504 and the query's retry asks again at once. Reads only: a
+ * write given up on might still land, and must never be sent twice.
+ */
+export const READ_TIMEOUT_MS = 12_000
+
+/** Thrown when a read ran past READ_TIMEOUT_MS: a 5xx, so queries retry it. */
+export const READ_TIMEOUT_STATUS = 504
+
+function isRead(init: RequestInit): boolean {
+  return (init.method ?? 'GET').toUpperCase() === 'GET' && (init.body === undefined || init.body === null)
+}
+
+async function send(url: string, init: RequestInit, headers: Record<string, string>) {
+  const auth: RequestInit = bearerAuth
+    ? (() => {
+        const token = bearerAuth.getAccessToken()
+        return {
+          headers: token ? { ...headers, Authorization: `Bearer ${token}` } : headers,
+          credentials: 'omit' as const,
+        }
+      })()
+    : { headers, credentials: 'include' as const }
+
+  // A write, or a read whose caller manages its own cancelling, goes as it is.
+  if (!isRead(init) || init.signal || init.keepalive) {
+    return fetch(url, { ...init, ...auth })
   }
-  const token = bearerAuth.getAccessToken()
-  return fetch(url, {
-    ...init,
-    headers: token ? { ...headers, Authorization: `Bearer ${token}` } : headers,
-    credentials: 'omit',
-  })
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), READ_TIMEOUT_MS)
+  try {
+    return await fetch(url, { ...init, ...auth, signal: controller.signal })
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new ApiError(READ_TIMEOUT_STATUS, 'The server took too long to answer', 'READ_TIMEOUT')
+    }
+    throw error
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 async function tryRefreshCookies(keepalive = false): Promise<boolean> {

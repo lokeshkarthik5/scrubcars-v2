@@ -3,6 +3,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { HTTPException } from 'hono/http-exception'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
+import { useFreshDb } from './db/index.js'
 import { env } from './lib/env.js'
 import { AppError } from './lib/errors.js'
 import { logger } from './lib/logger.js'
@@ -50,6 +51,17 @@ export const app = new Hono()
 // Tracks whether the current Vercel function instance is handling its first request.
 // A cold start means the DB connection hasn't been warmed up yet.
 let coldStart = true
+
+// A fresh database connection for a request after a quiet spell, before
+// anything reads (db/index.ts, useFreshDb).
+app.use('*', async (_c, next) => {
+  const done = useFreshDb()
+  try {
+    await next()
+  } finally {
+    done()
+  }
+})
 
 app.use('/api/*', async (c, next) => {
   const isCold = coldStart
