@@ -46,15 +46,6 @@ function openClient() {
     prepare: false,
     max: connectionPoolMax(),
     connect_timeout: 10,
-    // One statement in flight per connection, never a pipeline. Since speed
-    // fix 4 (10 Nov) the garage list, garage page and tiers send their reads
-    // together (Promise.all); on one connection postgres.js then pipelines
-    // them, up to 100 at once, through Supabase's transaction pooler, and
-    // those requests hung until the 60-second limit or failed, while every
-    // endpoint reading one statement at a time (services, packages, health)
-    // kept answering. Promise.all still works: the reads simply queue here.
-    // (A real postgres.js option, read in src/index.js; its types leave it out.)
-    ...({ max_pipeline: 0 } as object),
     // Closed by the client while the instance is awake; DB_STALE_AFTER_MS
     // covers the time it spends asleep, when no timer runs.
     idle_timeout: 20,
