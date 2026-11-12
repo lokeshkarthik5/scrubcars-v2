@@ -1156,8 +1156,13 @@ export const adminService = {
       })
 
       for (const row of plan.update) {
+        const sent = input.services[row.index]!
+        const columns: Partial<ReturnType<typeof columnsFor>> = columnsFor(sent)
+        // An editor older than the approx price (0073) leaves it out: an
+        // edit keeps what is stored, as pricingUpdateColumns does.
+        if (sent.pricingType === 'on_inspection' && sent.approxPrice === undefined) delete columns.approxPrice
         await adminRepository.updateService(row.id, {
-          ...columnsFor(input.services[row.index]!),
+          ...columns,
           isActive: row.isActive,
         })
       }
@@ -1587,6 +1592,7 @@ export const adminService = {
         priceHatchback: service.priceHatchback,
         priceSedan: service.priceSedan,
         priceSuv: service.priceSuv,
+        approxPrice: service.approxPrice,
         durationMins: service.durationMins,
         commissionRate: service.commissionRate,
         isActive: true,

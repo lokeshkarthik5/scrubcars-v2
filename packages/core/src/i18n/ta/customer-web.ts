@@ -1538,4 +1538,12 @@ export const customerWeb: Readonly<Record<string, string>> = {
   // ─── The area sheet, per city (0070) ───
   'No area called “{query}” yet. Try a nearby one, or All of {city}.':
     '“{query}” என்ற பகுதி இன்னும் இல்லை. அருகில் உள்ள ஒன்றை முயற்சிக்கவும், அல்லது {city} முழுவதும்.',
+  // ─── On inspection with no fee (0073); the native app says the same ───
+  'Pay after inspection': 'பரிசோதனைக்குப் பிறகு செலுத்துங்கள்',
+  'No inspection fee. After seeing your car the garage sends the price in the app, and you pay it there.':
+    'இன்ஸ்பெக்ஷன் கட்டணம் இல்லை. உங்கள் காரைப் பார்த்த பிறகு கேரேஜ் ஆப்பில் விலையை அனுப்பும், நீங்கள் அதை அங்கே செலுத்துவீர்கள்.',
+  'No inspection fee. After seeing your car the garage sends the price in the app, and you pay it here.':
+    'இன்ஸ்பெக்ஷன் கட்டணம் இல்லை. உங்கள் காரைப் பார்த்த பிறகு கேரேஜ் ஆப்பில் விலையை அனுப்பும், நீங்கள் அதை இங்கே செலுத்துவீர்கள்.',
+  'Nothing to pay now. After inspecting your car the garage sends the price in the app, and you pay it here. Your booking is confirmed once the garage accepts it.':
+    'இப்போது செலுத்த எதுவும் இல்லை. உங்கள் காரை இன்ஸ்பெக்ட் செய்த பிறகு கேரேஜ் ஆப்பில் விலையை அனுப்பும், நீங்கள் அதை இங்கே செலுத்துவீர்கள். கேரேஜ் ஏற்றுக்கொண்டதும் உங்கள் புக்கிங் உறுதியாகும்.',
 }

@@ -696,9 +696,17 @@ export const garageWeb: Readonly<Record<string, string>> = {
   'On inspection': 'பரிசோதனைக்குப் பிறகு',
   'One fixed price': 'ஒரு நிலையான விலை',
   'Price per vehicle type': 'வாகன வகைக்கு ஏற்ற விலை',
-  'Upfront inspection fee; final work quoted after':
-    'முதலில் பரிசோதனைக் கட்டணம்; இறுதி வேலைக்கான விலை பிறகு சொல்லப்படும்',
+  'Priced after seeing the car; inspection fee optional':
+    'காரைப் பார்த்த பிறகு விலை; பரிசோதனைக் கட்டணம் விருப்பம்',
   'Inspection fee (₹)': 'பரிசோதனைக் கட்டணம் (₹)',
+  // On inspection with no fee, and the approx price (0073). The garage app
+  // reads these too (one merged lookup).
+  'Inspection fee (optional)': 'பரிசோதனைக் கட்டணம் (விருப்பம்)',
+  'Approx price (optional)': 'தோராய விலை (விருப்பம்)',
+  'Enter an approx price above ₹0, or leave it empty.':
+    '₹0-க்கு மேல் தோராய விலையை உள்ளிடவும், அல்லது காலியாக விடவும்.',
+  'Leave the fee empty for a free inspection. The approx price is only a guide; you send the final bill after seeing the car.':
+    'இலவச பரிசோதனைக்கு கட்டணத்தை காலியாக விடவும். தோராய விலை ஒரு வழிகாட்டி மட்டுமே; காரைப் பார்த்த பிறகு இறுதி பில்லை நீங்கள் அனுப்புவீர்கள்.',
   'Hatchback (₹)': 'ஹேட்ச்பேக் (₹)',
   'Sedan (₹)': 'செடான் (₹)',
   'SUV (₹)': 'SUV (₹)',

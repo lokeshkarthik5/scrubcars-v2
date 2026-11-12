@@ -34,7 +34,7 @@ import { useNow } from '@repo/core/hooks/use-now';
 import { fill, msg, useT, useTn } from '@repo/core/i18n';
 import { confirmPayment, intentPollResult, realClock } from '@repo/core/payment-confirmation';
 import { insidePickupReach, PICKUP_RESPONSIBILITY_LINE, pickupFeeLabel } from '@repo/core/pickup';
-import { resolveServiceAmount } from '@repo/core/pricing';
+import { isNoFeeInspection, resolveServiceAmount } from '@repo/core/pricing';
 import { hasStarScore } from '@repo/core/ratings';
 import { rewardRupees } from '@repo/core/rewards';
 import { knownDurationTotal } from '@repo/core/service-duration';
@@ -109,7 +109,7 @@ import { checkoutCreditSplit, confirmOrderTotal, couponsForCheckout, guaranteeCo
 import { errorText } from '@/lib/error-text';
 import { usePendingCheckout } from '@/lib/pending-checkout';
 import { checkPending, pendingKey, type PendingPayment, pendingPayment, setPaymentFlowOnScreen } from '@/lib/pending-payment';
-import { money, servicePriceText } from '@/lib/price';
+import { money, serviceApproxNote, servicePriceText } from '@/lib/price';
 import { track } from '@/lib/shims/analytics';
 import { istDay, linkedSlot } from '@/lib/when-picker';
 
@@ -456,6 +456,9 @@ export default function BookScreen() {
   };
 
   const subtotal = unpricedForVehicle ? null : lines.reduce((total, line) => total + Math.round((line.amount ?? 0) * 100), 0) / 100;
+  // On inspection with no fee (0073), and nothing else priced: nothing to pay now. The server
+  // books it with no payment and refuses a code on it, so no code is offered or sent (as the web).
+  const nothingPriced = subtotal === 0 && selectedServices.some(isNoFeeInspection);
   const payableAmount = appliedDiscount
     ? Math.round((Number(appliedDiscount.finalAmount) + travelFee) * 100) / 100
     : subtotal == null
@@ -467,13 +470,15 @@ export default function BookScreen() {
   const creditApplied = creditOffered && creditSwitchOn;
   const toPay = creditApplied ? creditSplit.toPay : payableAmount;
   const freeBooking = toPay === 0 && !creditApplied;
+  // …and a no-fee inspection, booked the same way: "Pay after inspection".
+  const inspectionBooking = freeBooking && nothingPriced;
   const servicesDuration = knownDurationTotal(selectedServices);
   const totalDuration = servicesDuration === null ? null : pickedAddOns.reduce((total, addOn) => total + addOn.extraMins, servicesDuration);
 
-  const canApplyPromo = promoInput.trim().length >= 3 && selectedServices.length > 0 && savedVehicleId != null && !unpricedForVehicle;
+  const canApplyPromo = promoInput.trim().length >= 3 && selectedServices.length > 0 && savedVehicleId != null && !unpricedForVehicle && !nothingPriced;
 
   const handleApplyReward = (code: string) => {
-    if (selectedServices.length === 0 || savedVehicleId == null || unpricedForVehicle || applyPromo.isPending) return;
+    if (selectedServices.length === 0 || savedVehicleId == null || unpricedForVehicle || nothingPriced || applyPromo.isPending) return;
     const vehicleId = savedVehicleId;
     applyPromo.mutate(
       { code, vendorId, serviceIds, vehicleId },
@@ -506,7 +511,7 @@ export default function BookScreen() {
     );
   };
 
-  const offerCheckKey = offerCode && selectedServices.length > 0 && savedVehicleId && !unpricedForVehicle ? `${offerCode}|${serviceKey}|${savedVehicleId}` : null;
+  const offerCheckKey = offerCode && selectedServices.length > 0 && savedVehicleId && !unpricedForVehicle && !nothingPriced ? `${offerCode}|${serviceKey}|${savedVehicleId}` : null;
   useEffect(() => {
     if (!offerCode || !offerCheckKey || !savedVehicleId) return;
     if (offerCheckedFor.current === offerCheckKey) return;
@@ -538,7 +543,7 @@ export default function BookScreen() {
   const [suggestedCode, setSuggestedCode] = useState<string | null>(null);
   const suggestionCheckedFor = useRef<string | null>(null);
   const suggestionKey =
-    bestVoucher?.code && !offerCode && !suggestionDropped && !appliedDiscount && selectedServices.length > 0 && savedVehicleId && !unpricedForVehicle
+    bestVoucher?.code && !offerCode && !suggestionDropped && !appliedDiscount && selectedServices.length > 0 && savedVehicleId && !unpricedForVehicle && !nothingPriced
       ? `${bestVoucher.code}|${serviceKey}|${savedVehicleId}`
       : null;
   useEffect(() => {
@@ -665,7 +670,8 @@ export default function BookScreen() {
     if (applyPromo.isPending) return;
     const vehicleId = chosen?.vehicleId ?? savedVehicleId;
     const addressId = chosen ? chosen.addressId : selectedAddress;
-    const discountCode = chosen ? chosen.discountCode : appliedDiscount?.code;
+    // Nothing priced (a no-fee inspection, 0073): no code to send.
+    const discountCode = nothingPriced ? undefined : chosen ? chosen.discountCode : appliedDiscount?.code;
     if (selectedServices.length === 0 || !selectedSlot || !vehicleId) return;
     if (!addressReady) return;
     bookingLockRef.current = true;
@@ -897,7 +903,7 @@ export default function BookScreen() {
       const saved = await saveDraftItems();
       if (!saved) return;
       let discountCode = appliedDiscount?.code;
-      if (!discountCode && saved.carSaved) {
+      if (!discountCode && saved.carSaved && !nothingPriced) {
         const offer = await checkOfferFor(saved.vehicleId);
         if (!offer) return;
         discountCode = offer.code;
@@ -1006,7 +1012,9 @@ export default function BookScreen() {
                   )
                 : nextStep
                   ? t('You pay now. Your booking is confirmed once the garage accepts it.')
-                  : freeBooking
+                  : inspectionBooking
+                    ? t('Nothing to pay now. After inspecting your car the garage sends the price in the app, and you pay it here. Your booking is confirmed once the garage accepts it.')
+                    : freeBooking
                     ? t('Your free wash covers it: nothing to pay. Your booking is confirmed once the garage accepts it.')
                     : toPay === 0
                       ? t('Paid with your Detlio credit. Your booking is confirmed once the garage accepts it.')
@@ -1022,7 +1030,9 @@ export default function BookScreen() {
           ? stepLabels[nextStep]
           : toPay == null
             ? t('Confirm booking')
-            : freeBooking
+            : inspectionBooking
+              ? t('Book now')
+              : freeBooking
               ? t('Book your free wash')
               : toPay === 0
                 ? t('Book with credit')
@@ -1119,11 +1129,24 @@ export default function BookScreen() {
                               <T size={15} lh={22} color={colors.textMuted}>{` · ${t(vehicleTierLabel)}`}</T>
                             ) : null}
                           </T>
+                          {/* An inspection fee's approx price (0073). */}
+                          {serviceApproxNote(service) ? (
+                            <T size={13} lh={18} color={colors.textMuted}>
+                              {serviceApproxNote(service)}
+                            </T>
+                          ) : null}
                           {addOn ? <AddOnMark /> : null}
                         </View>
                       </View>
-                      <T size={15} lh={22} color={unpriced ? colors.error : colors.textPrimary}>
-                        {unpriced ? t('Not priced') : <Figures size={15} text={servicePriceText(service, selectedVehicleType)} />}
+                      {/* No fee (0073) is words: they wrap, right-aligned, a size down, as on the web. */}
+                      <T
+                        size={isNoFeeInspection(service) ? 13 : 15}
+                        lh={isNoFeeInspection(service) ? 18 : 22}
+                        align={isNoFeeInspection(service) ? 'right' : undefined}
+                        style={isNoFeeInspection(service) ? { flexShrink: 1, maxWidth: '45%' } : undefined}
+                        color={unpriced ? colors.error : colors.textPrimary}
+                      >
+                        {unpriced ? t('Not priced') : <Figures size={isNoFeeInspection(service) ? 13 : 15} text={servicePriceText(service, selectedVehicleType)} />}
                       </T>
                     </View>
                   );
@@ -1371,7 +1394,7 @@ export default function BookScreen() {
           </Animated.View>
         ) : null}
 
-        {selectedServices.length > 0 && (savedVehicleId || creditOffered) && !unpricedForVehicle ? (
+        {selectedServices.length > 0 && (savedVehicleId || creditOffered) && !unpricedForVehicle && !nothingPriced ? (
           <View>
             <T variant="t2" style={styles.heading}>
               {t('Savings')}
@@ -1538,7 +1561,7 @@ export default function BookScreen() {
               ) : null}
               <View style={[styles.priceRow, (lineCount > 1 || isPickup || travelFee > 0 || appliedDiscount || creditApplied) && styles.totalLine]}>
                 <T size={17} lh={24}>
-                  {t('To pay')}
+                  {inspectionBooking ? t('Pay after inspection') : t('To pay')}
                 </T>
                 <T num size={20} lh={28}>
                   {toPay == null || !selectedVehicle ? '—' : money(toPay)}
@@ -1555,7 +1578,10 @@ export default function BookScreen() {
             ) : null}
             {selectedServices.some((service) => service.pricingType === 'on_inspection') ? (
               <T size={13} lh={20} color={colors.textSecondary}>
-                {t('You pay the inspection fee now. If the work costs more, the garage sends the final bill in the app and you pay the rest here.')}
+                {/* Every inspection line without a fee (0073): nothing now. */}
+                {selectedServices.every((service) => service.pricingType !== 'on_inspection' || isNoFeeInspection(service))
+                  ? t('No inspection fee. After seeing your car the garage sends the price in the app, and you pay it here.')
+                  : t('You pay the inspection fee now. If the work costs more, the garage sends the final bill in the app and you pay the rest here.')}
               </T>
             ) : null}
             <T size={12} lh={18} color={colors.textMuted}>
@@ -1670,7 +1696,7 @@ export default function BookScreen() {
                 </T>
                 {subtotal != null && selectedVehicle ? (
                   <T variant="t5" color={fx.quietBright}>
-                    {toPay != null && toPay !== subtotal ? t('To pay') : t('Total')}{' '}
+                    {inspectionBooking ? t('Pay after inspection') : toPay != null && toPay !== subtotal ? t('To pay') : t('Total')}{' '}
                     <T num variant="t3" weight={600}>
                       {money(toPay ?? subtotal)}
                     </T>

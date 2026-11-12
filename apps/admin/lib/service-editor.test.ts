@@ -207,6 +207,30 @@ describe('toServicePayload', () => {
   })
 })
 
+describe('on inspection: optional fee and approx price (0073)', () => {
+  test('a free inspection opens with an empty fee box and its approx price', () => {
+    const free = toServiceRow(
+      stored({ pricingType: 'on_inspection', price: '0.00', priceHatchback: null, priceSedan: null, priceSuv: null, approxPrice: '1500.00' })
+    )
+    expect(free).toMatchObject({ price: '', approxPrice: '1500' })
+    expect(toServiceRow(stored({ pricingType: 'on_inspection', price: '299.00', approxPrice: null }))).toMatchObject({
+      price: '299',
+      approxPrice: '',
+    })
+    // Only an inspection service carries an approx price into the row.
+    expect(toServiceRow(stored({ approxPrice: '1500.00' })).approxPrice).toBe('')
+    expect(serviceRowProblem(free)).toBeNull()
+  })
+
+  test('sends the fee only when there is one, and the approx price (null when empty)', () => {
+    const inspection = row({ pricingType: 'on_inspection', price: '', approxPrice: '1500' })
+    expect(toServicePayload(inspection)).toMatchObject({ pricingType: 'on_inspection', price: undefined, approxPrice: 1500 })
+    expect(toServicePayload({ ...inspection, price: '299', approxPrice: '' })).toMatchObject({ price: 299, approxPrice: null })
+    // Switched away from inspection, no approx price is sent.
+    expect('approxPrice' in toServicePayload({ ...inspection, pricingType: 'flat', price: '450' })).toBe(false)
+  })
+})
+
 describe('hide, and Undo', () => {
   const a = row({ id: 'a', key: 'a' })
   const b = row({ id: 'b', key: 'b' })

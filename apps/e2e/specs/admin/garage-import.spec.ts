@@ -158,18 +158,19 @@ test.describe('admin garage import', () => {
 
     const create = page.getByRole('button', { name: 'Create garage' })
     await expect(create).toBeDisabled()
+    // The inspection fee is optional (0073: none is a free inspection), so
+    // only the owner's name and the pincode hold Create back.
     await expect(
-      page.getByText('Fill in the 3 missing fields to create')
+      page.getByText('Fill in the 2 missing fields to create')
     ).toBeVisible()
 
     await page.getByLabel('Business name').fill(name)
     await ownerName.fill('Import Owner')
     await expect(ownerName).not.toHaveAccessibleDescription(/Not found/)
     await page.getByLabel('Pincode').fill('600017')
-    await expect(
-      page.getByText('Fill in the 1 missing field to create')
-    ).toBeVisible()
-    await interior.getByLabel('Service 3 price in rupees').fill('150')
+    await expect(create).toBeEnabled()
+    // The garage said it charges ₹150 to look: a fee typed in is kept.
+    await interior.getByLabel('Service 3 inspection fee in rupees, optional').fill('150')
 
     await expect(create).toBeEnabled()
     await create.click()

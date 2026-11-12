@@ -186,6 +186,32 @@ test('step 4: eleven presets, and prices by pricing type', () => {
   expect(pricingComplete('per_vehicle', '', tiers)).toBe(true);
   expect(pricingComplete('per_vehicle', '300', { ...tiers, suv: '' })).toBe(false);
   expect(pricingComplete('on_inspection', '150', tiers)).toBe(true);
+  // On inspection the fee is optional (0073); an approx price is empty or above ₹0.
+  expect(pricingComplete('on_inspection', '', tiers)).toBe(true);
+  expect(pricingComplete('on_inspection', '', tiers, '1500')).toBe(true);
+  expect(pricingComplete('on_inspection', '', tiers, '0')).toBe(false);
+});
+
+test('step 4: an on-inspection service with no fee sends 0 and its approx price', () => {
+  const form = {
+    name: 'Denting',
+    category: 'scratch_removal' as const,
+    pricingType: 'on_inspection' as const,
+    price: '',
+    tiers: { hatchback: '', sedan: '', suv: '' },
+    duration: 60,
+    approx: '1500',
+  };
+  expect(serviceReady(form)).toBe(true);
+  expect(serviceBody(form)).toEqual({
+    name: 'Denting',
+    category: 'scratch_removal',
+    pricingType: 'on_inspection',
+    durationMins: 60,
+    price: 0,
+    approxPrice: 1500,
+  });
+  expect(serviceBody({ ...form, price: '299', approx: '' })).toMatchObject({ price: 299, approxPrice: null });
 });
 
 test('step 4: the service body carries only the prices of its pricing type', () => {

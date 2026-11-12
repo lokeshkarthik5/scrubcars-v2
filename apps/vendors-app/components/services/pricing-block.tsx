@@ -1,4 +1,4 @@
-import { PRICING_TYPES } from '@repo/core/pricing';
+import { PRICING_TYPES, pricingHint } from '@repo/core/pricing';
 import type { PricingType } from '@repo/core/types';
 import { View } from 'react-native';
 
@@ -8,6 +8,7 @@ import { T } from '@repo/native-ui/text';
 import { type PricingFields, sanitizeDecimal } from '@/lib/service-form';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 
+import { InspectionPriceFields } from './inspection-price-fields';
 import { FieldLabel } from './section-title';
 import { useT } from '@repo/core/i18n';
 
@@ -26,16 +27,23 @@ export function PricingBlock({
   form,
   onChange,
   flatLabel,
+  approx,
 }: {
   form: PricingFields;
   onChange: (patch: Partial<PricingFields>) => void;
   /** "Price (₹)" on a service, "Package price (₹)" on a package. */
   flatLabel: string;
+  /**
+   * A service's approx price box (0073). Given, On inspection draws the optional fee,
+   * the approx price and their hint; a package passes none and keeps its fee box.
+   */
+  approx?: { value: string; onChange: (value: string) => void };
 }) {
   const t = useT();
   const colors = useColors();
   const styles = useStyles();
-  const hint = PRICING_TYPES.find((pt) => pt.value === form.pricingType)?.hint;
+  // A package (no approx box) keeps its inspection fee required, and says so.
+  const hint = pricingHint(form.pricingType, !approx);
   return (
     <>
       <View style={styles.group}>
@@ -55,7 +63,14 @@ export function PricingBlock({
         </T>
       </View>
 
-      {form.pricingType === 'flat' || form.pricingType === 'on_inspection' ? (
+      {form.pricingType === 'on_inspection' && approx ? (
+        <InspectionPriceFields
+          fee={form.price}
+          approx={approx.value}
+          onFee={(price) => onChange({ price })}
+          onApprox={approx.onChange}
+        />
+      ) : form.pricingType === 'flat' || form.pricingType === 'on_inspection' ? (
         <ScInput
           label={form.pricingType === 'on_inspection' ? t('Inspection fee (₹)') : flatLabel}
           keyboardType="decimal-pad"

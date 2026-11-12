@@ -1,6 +1,6 @@
 import { categoryLabel } from '@repo/core/categories';
 import { fill, useT } from '@repo/core/i18n';
-import { tierPriceFor } from '@repo/core/pricing';
+import { isNoFeeInspection, tierPriceFor } from '@repo/core/pricing';
 import { cardThumbnail, customerMedia, formatClipLength, serviceIconFor, type ServiceIcon } from '@repo/core/service-media';
 import { cardPointsLine, parseServiceDescription, sheetPoints } from '@repo/core/service-points';
 import type { Service, ServicePackage, VehicleType } from '@repo/core/types';
@@ -30,7 +30,7 @@ import { Image, Pressable, StyleSheet, View, type ViewStyle } from 'react-native
 
 import { ServiceMediaArea } from '@/components/service-media/service-media-area';
 import { addOnCountLabel, addOnTimeLabel, type AddOn } from '@/lib/add-ons';
-import { money, pricedForCar, servicePriceText } from '@/lib/price';
+import { money, pricedForCar, serviceApproxNote, servicePriceText } from '@/lib/price';
 
 import { RedLightAdd } from './red-light-add';
 
@@ -182,9 +182,16 @@ export function ServiceCard({
       </Pressable>
       <View style={styles.serviceSide}>
         {/* The price for the customer's own car (F13). */}
-        <T num variant="t3" weight={600}>
-          <Figures text={servicePriceText(service, carType)} size={15} weight={600} />
+        {/* No fee (0073) says it in words, a size down and wrapping, as on the web. */}
+        <T num variant="t3" weight={600} align="right">
+          <Figures text={servicePriceText(service, carType)} size={isNoFeeInspection(service) ? 13 : 15} weight={600} />
         </T>
+        {/* An inspection fee's approx price (0073). */}
+        {serviceApproxNote(service) ? (
+          <T size={10} weight={500} lh={12} color={fx.quiet} align="right">
+            {serviceApproxNote(service)}
+          </T>
+        ) : null}
         {pricedForCar(service, carType) && carModel ? (
           <T size={10} weight={500} lh={12} color={fx.quiet}>
             {t('for your {carModel}', { carModel })}
@@ -430,16 +437,24 @@ export function ServiceSheet({
             ) : (
               <View style={styles.priceRow}>
                 <T size={13} color={colors.textSecondary}>
-                  {details.pricingType === 'on_inspection' ? t('Inspection fee') : t('Price')}
+                  {details.pricingType === 'on_inspection' && !isNoFeeInspection(details) ? t('Inspection fee') : t('Price')}
                 </T>
-                <T num size={15} weight={700}>
-                  {money(details.price)}
+                {/* No fee (0073): the approx price or "Price on inspection", never ₹0. */}
+                <T num size={15} weight={700} align="right" style={styles.flexShrink}>
+                  {isNoFeeInspection(details) ? servicePriceText(details) : money(details.price)}
                 </T>
               </View>
             )}
+            {serviceApproxNote(details) ? (
+              <T size={11} weight={500} color={colors.textSecondary} style={styles.noteLine}>
+                {serviceApproxNote(details)}
+              </T>
+            ) : null}
             {details.pricingType === 'on_inspection' ? (
               <T size={11} color={colors.textMuted} style={styles.noteLine}>
-                {t('You pay the inspection fee when you book. If the work costs more, the garage sends the final bill in the app and you pay the rest there.')}
+                {isNoFeeInspection(details)
+                  ? t('No inspection fee. After seeing your car the garage sends the price in the app, and you pay it there.')
+                  : t('You pay the inspection fee when you book. If the work costs more, the garage sends the final bill in the app and you pay the rest there.')}
               </T>
             ) : null}
           </View>
@@ -520,7 +535,7 @@ const useStyles = createStyles((c) => ({
   serviceGrid: { flexDirection: 'row', gap: 12, padding: 12 },
   cardTop: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   serviceText: { gap: 3 },
-  serviceSide: { alignItems: 'flex-end', gap: 2 },
+  serviceSide: { alignItems: 'flex-end', gap: 2, maxWidth: 160 },
   sideAdd: { marginTop: 'auto' },
   desc: { marginTop: 1 },
   duration: { marginTop: 2, flexDirection: 'row', alignItems: 'center', gap: 4 },
@@ -542,6 +557,7 @@ const useStyles = createStyles((c) => ({
   point: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 4 },
   fold: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' },
   noteLine: { marginTop: 6 },
+  flexShrink: { flexShrink: 1, marginLeft: 12 },
   priceBlock: { marginTop: 16, borderTopWidth: 1, borderTopColor: c.border, paddingTop: 12 },
   priceHead: { marginBottom: 6 },
   priceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 2 },

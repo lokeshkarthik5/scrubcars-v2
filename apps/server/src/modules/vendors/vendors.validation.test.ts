@@ -1,7 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  createAddOnSchema,
   createClosureSchema,
+  createPackageSchema,
+  createServiceSchema,
   createVendorSchema,
+  updateServiceSchema,
   listClosuresQuerySchema,
   listPublicVendorsQuerySchema,
   updateJobTypesSchema,
@@ -127,5 +131,50 @@ describe('"Certified only" on GET /vendors', () => {
   test('it goes with sorting and paging', () => {
     const query = listPublicVendorsQuerySchema.parse({ certified: 'true', sort: 'rating', limit: '10', cursor: 'abc' })
     expect(query).toMatchObject({ certified: true, sort: 'rating', limit: 10, cursor: 'abc' })
+  })
+})
+
+// On inspection with no fee, and the approx price (0073).
+describe('a service priced on inspection', () => {
+  const base = { name: 'Dent repair', category: 'scratch_removal' as const, pricingType: 'on_inspection' as const, durationMins: 60 }
+
+  test('needs no fee: left out or ₹0 is a free inspection', () => {
+    expect(createServiceSchema.safeParse(base).success).toBe(true)
+    expect(createServiceSchema.safeParse({ ...base, price: 0 }).success).toBe(true)
+    expect(createServiceSchema.safeParse({ ...base, price: 299 }).success).toBe(true)
+  })
+
+  test('takes an optional positive approx price, or null', () => {
+    expect(createServiceSchema.safeParse({ ...base, approxPrice: 1500 }).success).toBe(true)
+    expect(createServiceSchema.safeParse({ ...base, approxPrice: null }).success).toBe(true)
+    expect(createServiceSchema.safeParse({ ...base, approxPrice: 0 }).success).toBe(false)
+    expect(createServiceSchema.safeParse({ ...base, approxPrice: -5 }).success).toBe(false)
+    expect(createServiceSchema.safeParse({ ...base, approxPrice: 100_000_000 }).success).toBe(false)
+  })
+
+  test('never a negative fee', () => {
+    expect(createServiceSchema.safeParse({ ...base, price: -1 }).success).toBe(false)
+  })
+
+  test('a flat price still needs to be above ₹0', () => {
+    const flat = { ...base, pricingType: 'flat' as const }
+    expect(createServiceSchema.safeParse({ ...flat, price: 0 }).success).toBe(false)
+    expect(createServiceSchema.safeParse(flat).success).toBe(false)
+    expect(createServiceSchema.safeParse({ ...flat, price: 499 }).success).toBe(true)
+  })
+
+  test('an update to on inspection with no fee, or only the approx price', () => {
+    expect(updateServiceSchema.safeParse({ pricingType: 'on_inspection' }).success).toBe(true)
+    expect(updateServiceSchema.safeParse({ approxPrice: 900 }).success).toBe(true)
+    expect(updateServiceSchema.safeParse({ approxPrice: null }).success).toBe(true)
+    expect(updateServiceSchema.safeParse({ pricingType: 'flat', price: 0 }).success).toBe(false)
+  })
+
+  test('a package and an add-on keep their positive price', () => {
+    expect(
+      createPackageSchema.safeParse({ name: 'Bundle', pricingType: 'on_inspection', durationMins: 60, serviceIds: [crypto.randomUUID(), crypto.randomUUID()] })
+        .success
+    ).toBe(false)
+    expect(createAddOnSchema.safeParse({ name: 'Helmet wash', price: 0 }).success).toBe(false)
   })
 })

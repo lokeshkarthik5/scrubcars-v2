@@ -139,14 +139,15 @@ describe('vendorMissing', () => {
 })
 
 describe('serviceUnpriced', () => {
-  test('flat and inspection: the one price', () => {
+  test('flat: the one price; inspection: the fee is optional (0073)', () => {
     expect(serviceUnpriced(flat('1.00'))).toBe(false)
     expect(serviceUnpriced(flat(0))).toBe(true)
     expect(serviceUnpriced(flat('-5'))).toBe(true)
     expect(serviceUnpriced(flat(null))).toBe(true)
+    // No fee is a free inspection, not a missing price.
     expect(
       serviceUnpriced({ ...flat('0.00'), pricingType: 'on_inspection' })
-    ).toBe(true)
+    ).toBe(false)
     expect(
       serviceUnpriced({ ...flat('300'), pricingType: 'on_inspection' })
     ).toBe(false)

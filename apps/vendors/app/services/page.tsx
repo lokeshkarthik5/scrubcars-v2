@@ -39,7 +39,18 @@ import { ActiveGarage } from '@/components/active-garage'
 import { RowAction } from './catalogue-row'
 import { AddOnsSection } from './add-ons-section'
 import { PackagesPanel } from './packages-panel'
-import { PRICING_TYPES, formatServicePrice } from '@repo/core/pricing'
+import {
+  PRICING_TYPES,
+  formatServicePrice,
+  inspectionNoteUnderPrice,
+} from '@repo/core/pricing'
+import { InspectionPriceFields } from '@/components/inspection-price-fields'
+import {
+  approxBoxFrom,
+  approxToSend,
+  feeBoxFrom,
+  inspectionPricingValid,
+} from '@/lib/inspection-price'
 
 const SERVICE_CATEGORIES = SERVICE_CATEGORY_OPTIONS
 
@@ -55,6 +66,8 @@ type ServiceForm = {
   priceHatchback: string
   priceSedan: string
   priceSuv: string
+  /** On inspection only (0073): the optional approx price. */
+  approxPrice: string
   durationMins: string
 }
 
@@ -67,6 +80,7 @@ const emptyServiceForm: ServiceForm = {
   priceHatchback: '',
   priceSedan: '',
   priceSuv: '',
+  approxPrice: '',
   durationMins: '30',
 }
 
@@ -79,6 +93,10 @@ function hasValidPricing(form: ServiceForm): boolean {
     return [form.priceHatchback, form.priceSedan, form.priceSuv].every(
       (p) => Number(p) > 0
     )
+  }
+  // On inspection the fee is optional: empty is a free inspection (0073).
+  if (form.pricingType === 'on_inspection') {
+    return inspectionPricingValid(form.price, form.approxPrice)
   }
   return Number(form.price) > 0
 }
@@ -145,6 +163,8 @@ export default function VendorServicesPage() {
         priceHatchback: num(serviceForm.priceHatchback),
         priceSedan: num(serviceForm.priceSedan),
         priceSuv: num(serviceForm.priceSuv),
+        // Sent for On inspection only (core's pricingPayload); null clears it.
+        approxPrice: approxToSend(serviceForm.approxPrice),
         durationMins: Number(serviceForm.durationMins),
       }
 
@@ -169,13 +189,17 @@ export default function VendorServicesPage() {
       category: svc.category,
       pricingType: svc.pricingType,
       price:
-        svc.pricingType === 'flat' || svc.pricingType === 'on_inspection'
+        svc.pricingType === 'flat'
           ? String(svc.price)
-          : '',
+          : svc.pricingType === 'on_inspection'
+            ? // A free inspection's box starts empty, never "0" (0073).
+              feeBoxFrom(svc)
+            : '',
       priceHatchback:
         svc.priceHatchback != null ? String(svc.priceHatchback) : '',
       priceSedan: svc.priceSedan != null ? String(svc.priceSedan) : '',
       priceSuv: svc.priceSuv != null ? String(svc.priceSuv) : '',
+      approxPrice: approxBoxFrom(svc),
       // Admin may leave a duration unset (0064): the box starts empty.
       durationMins: svc.durationMins != null ? String(svc.durationMins) : '',
     })
@@ -339,20 +363,27 @@ export default function VendorServicesPage() {
                 </p>
               </div>
 
-              {(serviceForm.pricingType === 'flat' ||
-                serviceForm.pricingType === 'on_inspection') && (
+              {serviceForm.pricingType === 'flat' && (
                 <ScInput
                   id="service-price"
-                  label={
-                    serviceForm.pricingType === 'on_inspection'
-                      ? t('Inspection fee (₹)')
-                      : t('Price (₹)')
-                  }
+                  label={t('Price (₹)')}
                   type="number"
                   className="font-numeric"
                   value={serviceForm.price}
                   onChange={(e) =>
                     setServiceForm({ ...serviceForm, price: e.target.value })
+                  }
+                />
+              )}
+
+              {serviceForm.pricingType === 'on_inspection' && (
+                <InspectionPriceFields
+                  idPrefix="service"
+                  fee={serviceForm.price}
+                  approx={serviceForm.approxPrice}
+                  onFee={(price) => setServiceForm({ ...serviceForm, price })}
+                  onApprox={(approxPrice) =>
+                    setServiceForm({ ...serviceForm, approxPrice })
                   }
                 />
               )}
@@ -477,6 +508,11 @@ export default function VendorServicesPage() {
                               </>
                             )}
                           </p>
+                          {inspectionNoteUnderPrice(svc) && (
+                            <p className="text-[11px] text-text-muted">
+                              <Figures text={inspectionNoteUnderPrice(svc)!} />
+                            </p>
+                          )}
                         </div>
                         <ScBadge
                           variant={svc.isActive ? 'success' : 'muted'}

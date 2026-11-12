@@ -1,6 +1,7 @@
 import type { PricingType, ServiceCategory } from '@repo/core/types';
 
 import { DAYS, MAX_BAYS, SLOT_INTERVALS } from './settings-logic';
+import { approxInvalid } from './service-form';
 import { msg, t, tn } from '@repo/core/i18n/translate';
 
 /**
@@ -255,19 +256,32 @@ export interface ServiceFormInput {
   price: string;
   tiers: { hatchback: string; sedan: string; suv: string };
   duration: number;
+  /** On inspection only (0073): the optional approx price. */
+  approx?: string;
 }
 
 export const EMPTY_TIERS = { hatchback: '', sedan: '', suv: '' };
 
-/** Complete when the chosen pricing type has the price(s) it needs, the server's own rule. */
-export const pricingComplete = (pricingType: PricingType, price: string, tiers: ServiceFormInput['tiers']) =>
+/**
+ * Complete when the chosen pricing type has the price(s) it needs, the server's own rule.
+ * On inspection the fee is optional (empty is a free inspection, 0073); an approx price,
+ * when typed, must be above ₹0.
+ */
+export const pricingComplete = (
+  pricingType: PricingType,
+  price: string,
+  tiers: ServiceFormInput['tiers'],
+  approx = ''
+) =>
   pricingType === 'per_vehicle'
     ? [tiers.hatchback, tiers.sedan, tiers.suv].every((p) => Number(p) > 0)
-    : Number(price) > 0;
+    : pricingType === 'on_inspection'
+      ? !approxInvalid(approx)
+      : Number(price) > 0;
 
 /** "Add service" is enabled with a name and the prices it needs. */
 export const serviceReady = (form: ServiceFormInput) =>
-  form.name !== '' && pricingComplete(form.pricingType, form.price, form.tiers);
+  form.name !== '' && pricingComplete(form.pricingType, form.price, form.tiers, form.approx);
 
 /** The body of createService. */
 export function serviceBody(form: ServiceFormInput) {
@@ -282,7 +296,12 @@ export function serviceBody(form: ServiceFormInput) {
           priceSedan: Number(form.tiers.sedan),
           priceSuv: Number(form.tiers.suv),
         }
-      : { price: Number(form.price) }),
+      : form.pricingType === 'on_inspection'
+        ? {
+            price: Number(form.price) > 0 ? Number(form.price) : 0,
+            approxPrice: Number(form.approx) > 0 ? Number(form.approx) : null,
+          }
+        : { price: Number(form.price) }),
   };
 }
 

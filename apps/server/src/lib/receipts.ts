@@ -405,11 +405,19 @@ export interface Receipt {
 
 /**
  * How the booking was paid, in a few words: Razorpay, Detlio credit, or both
- * (0049); or nothing at all, when a free wash covered it whole (0062).
+ * (0049); or nothing at all, when a free wash covered it whole (0062) or its
+ * inspection had no fee (0073: the price came with the final bill).
  */
-export function paymentMethodLabel(paymentMethod: string, razorpayPaise: number, creditPaise: number, freeWash = false): string {
+export function paymentMethodLabel(
+  paymentMethod: string,
+  razorpayPaise: number,
+  creditPaise: number,
+  freeWash = false,
+  noFeeInspection = false
+): string {
   if (paymentMethod === 'cash') return 'Cash'
   if (freeWash && razorpayPaise <= 0 && creditPaise <= 0) return 'Free wash: nothing to pay'
+  if (noFeeInspection && razorpayPaise <= 0 && creditPaise <= 0) return 'Price on inspection: nothing paid at booking'
   if (creditPaise > 0 && razorpayPaise <= 0) return 'Detlio credit'
   if (creditPaise > 0) return 'Online (Razorpay) and Detlio credit'
   return 'Online (Razorpay)'
@@ -658,7 +666,14 @@ export function buildReceipt(
         : null,
     bookingPayment: {
       amount: fromPaise(bookingPaid),
-      method: paymentMethodLabel(booking.paymentMethod, toPaise(payment.amount), creditPaise, booking.discountSource === 'free_wash'),
+      method: paymentMethodLabel(
+        booking.paymentMethod,
+        toPaise(payment.amount),
+        creditPaise,
+        booking.discountSource === 'free_wash',
+        // Only an inspection with no fee comes to ₹0 before any code (0073).
+        toPaise(subtotal) === 0
+      ),
       credit:
         creditPaise > 0
           ? { amount: fromPaise(creditPaise), razorpayAmount: fromPaise(toPaise(payment.amount)) }

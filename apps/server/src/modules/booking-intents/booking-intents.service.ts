@@ -18,6 +18,7 @@ import { pushService } from '../push/push.service.js'
 import { giftCreditService } from '../gift-credit/gift-credit.service.js'
 import { paise, rupees, splitCheckout } from '../../lib/gift-credit.js'
 import { isFreeWashCheckout } from '../../lib/area-signups.js'
+import { isNoFeeInspectionCheckout } from '../../lib/pricing.js'
 import { bookingIntentsRepository } from './booking-intents.repository.js'
 import type { ConsumeIntentResult } from './booking-intents.repository.js'
 import type { CreateBookingIntentInput } from './booking-intents.validation.js'
@@ -142,16 +143,24 @@ export const bookingIntentsService = {
     // zone's free wash (0062) brought it to ₹0: free means free, so there is
     // nothing to pay and the garage is still paid the full price by Detlio
     // (a Detlio-funded code). No other code can reach ₹0 (lib/discounts.ts).
+    // Or an inspection with no fee (0073) is all it holds: nothing is due
+    // until the garage's final bill, which is then the whole price.
     if (cashPaise === 0) {
       const free = creditPaise === 0
-      if (free && !isFreeWashCheckout(draft.discount?.source, draft.chargeAmount)) {
+      const freeWash = isFreeWashCheckout(draft.discount?.source, draft.chargeAmount)
+      const noFeeInspection = isNoFeeInspectionCheckout(draft)
+      if (free && !freeWash && !noFeeInspection) {
         // Unreachable by the rules above; never a ₹0 Razorpay order.
         throw new AppError(409, "This booking couldn't be priced. Nothing was charged.", 'BOOKING_NOT_CONFIRMED')
       }
       const { bookingId } = await confirmWithoutGateway(userId, intent.id)
       log.info(
         { intentId: intent.id, userId, bookingId, creditAmount: intent.creditAmount, free },
-        free ? 'booking_intent:free_wash_booked' : 'booking_intent:paid_with_credit'
+        !free
+          ? 'booking_intent:paid_with_credit'
+          : freeWash
+            ? 'booking_intent:free_wash_booked'
+            : 'booking_intent:no_fee_inspection_booked'
       )
       return {
         intentId: intent.id,
@@ -161,7 +170,10 @@ export const bookingIntentsService = {
         keyId: null,
         creditAmount: intent.creditAmount,
         paidWithCredit: !free,
-        /** A free wash covered it all (0062): booked, nothing paid. */
+        /**
+         * Booked with nothing paid: a free wash covered it all (0062), or
+         * its inspection has no fee (0073).
+         */
         free,
         bookingId,
       }

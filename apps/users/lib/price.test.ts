@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'bun:test'
-import { pricedForCar, servicePriceText } from './price'
+import {
+  bookingLinePriceText,
+  pricedForCar,
+  serviceApproxNote,
+  servicePriceText,
+} from './price'
 
 const tiered = {
   pricingType: 'per_vehicle' as const,
@@ -34,5 +39,48 @@ describe('servicePriceText', () => {
       false
     )
     expect(pricedForCar({ ...tiered, priceSuv: null }, 'suv')).toBe(false)
+  })
+
+  test('on inspection with no fee is never ₹0 (0073)', () => {
+    const noFee = { ...tiered, pricingType: 'on_inspection' as const, price: 0 }
+    expect(servicePriceText(noFee)).toBe('Price on inspection')
+    expect(servicePriceText({ ...noFee, approxPrice: 1500 })).toBe(
+      'Approx ₹1,500 · price after inspection'
+    )
+    expect(servicePriceText({ ...noFee, approxPrice: null }, 'suv')).toBe(
+      'Price on inspection'
+    )
+  })
+})
+
+describe('serviceApproxNote', () => {
+  const inspection = { pricingType: 'on_inspection' as const, price: 299 }
+
+  test('is the approx line under an inspection fee', () => {
+    expect(serviceApproxNote({ ...inspection, approxPrice: 1500 })).toBe(
+      'Approx ₹1,500 · price after inspection'
+    )
+    expect(serviceApproxNote(inspection)).toBeNull()
+  })
+
+  test('is nothing for a no-fee inspection (its price says it) or another type', () => {
+    expect(
+      serviceApproxNote({ ...inspection, price: 0, approxPrice: 1500 })
+    ).toBeNull()
+    expect(
+      serviceApproxNote({ pricingType: 'flat', price: 299, approxPrice: 1500 })
+    ).toBeNull()
+  })
+})
+
+describe('bookingLinePriceText', () => {
+  test('a no-fee inspection line is never ₹0 (0073)', () => {
+    expect(bookingLinePriceText({ amount: 0, pricingType: 'on_inspection' })).toBe(
+      'Price on inspection'
+    )
+    expect(bookingLinePriceText({ amount: 299, pricingType: 'on_inspection' })).toBe(
+      '₹299'
+    )
+    expect(bookingLinePriceText({ amount: 1499, pricingType: 'flat' })).toBe('₹1,499')
   })
 })

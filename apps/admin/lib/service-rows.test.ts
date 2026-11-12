@@ -57,11 +57,24 @@ describe('serviceRowProblem', () => {
     ).toBe('Add the hatchback, sedan and SUV prices')
   })
 
-  test('a flat row and an inspection row need their one price', () => {
+  test('a flat row needs its price; an inspection row\'s fee is optional (0073)', () => {
     expect(serviceRowProblem(row({ price: '' }))).toBe('Add the price')
-    expect(serviceRowProblem(row({ pricingType: 'on_inspection', price: '' }))).toBe(
-      'Add the inspection fee'
+    expect(serviceRowProblem(row({ pricingType: 'on_inspection', price: '' }))).toBeNull()
+    expect(
+      serviceRowProblem(row({ pricingType: 'on_inspection', price: '', approxPrice: '1500' }))
+    ).toBeNull()
+  })
+
+  test('an approx price, when typed, must be above ₹0', () => {
+    const bad = row({ pricingType: 'on_inspection', price: '', approxPrice: '0' })
+    expect(missingServiceFields(bad)).toEqual(['approxPrice'])
+    expect(serviceRowProblem(bad)).toBe('Enter an approx price above ₹0, or leave it empty.')
+    expect(servicesSaveBlock([bad])).toBe('1 service needs its approx price fixed')
+    expect(serviceRowProblem({ ...bad, name: '' })).toBe(
+      'Add a name and an approx price above ₹0 (or leave it empty)'
     )
+    // A flat row never reads its approx box.
+    expect(serviceRowProblem(row({ approxPrice: '0' }))).toBeNull()
   })
 
   test('a row with a price but no name needs a name', () => {
@@ -193,6 +206,15 @@ describe('storedPriceSummary', () => {
     expect(
       storedPriceSummary({ ...stored, pricingType: 'on_inspection', price: '299.00' })
     ).toBe('₹299 inspection fee')
+    expect(
+      storedPriceSummary({ ...stored, pricingType: 'on_inspection', price: '299.00', approxPrice: '1500.00' })
+    ).toBe('₹299 inspection fee · approx ₹1500')
+    expect(
+      storedPriceSummary({ ...stored, pricingType: 'on_inspection', price: '0.00' })
+    ).toBe('Price on inspection')
+    expect(
+      storedPriceSummary({ ...stored, pricingType: 'on_inspection', price: '0.00', approxPrice: '1500.00' })
+    ).toBe('Approx ₹1500 · price after inspection')
     expect(storedPriceSummary(stored)).toBe('₹600–₹900 by car size')
     expect(
       storedPriceSummary({ ...stored, priceSedan: '600.00', priceSuv: '600.00' })

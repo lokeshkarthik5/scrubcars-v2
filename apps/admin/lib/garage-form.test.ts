@@ -48,7 +48,9 @@ describe('missingForCreate', () => {
     expect(missingForCreate(EMPTY_GARAGE_TEXT, [])).toBe(7)
 
     const priced = { ...emptyServiceRow(), name: 'Foam wash', pricingType: 'flat' as const, price: '399' }
-    const unpriced = { ...emptyServiceRow(), name: 'Interior cleaning', pricingType: 'on_inspection' as const }
+    // On inspection with no fee is a free inspection (0073): ready, not waited for.
+    const freeInspection = { ...emptyServiceRow(), name: 'Interior cleaning', pricingType: 'on_inspection' as const }
+    const unpriced = { ...emptyServiceRow(), name: 'Interior cleaning', pricingType: 'flat' as const }
     const halfTiered = {
       ...emptyServiceRow(),
       name: 'Full wash',
@@ -59,6 +61,8 @@ describe('missingForCreate', () => {
     }
     // A row counts once, however many of its prices are missing.
     expect(missingForCreate(READY, [priced, unpriced, halfTiered])).toBe(2)
+    expect(missingForCreate(READY, [priced, freeInspection])).toBe(0)
+    expect(missingForCreate(READY, [{ ...freeInspection, approxPrice: '0' }])).toBe(1)
     // A row nobody has typed into is not waited for.
     expect(missingForCreate(READY, [emptyServiceRow()])).toBe(0)
   })

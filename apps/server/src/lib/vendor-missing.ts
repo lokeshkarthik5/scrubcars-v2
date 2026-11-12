@@ -108,8 +108,12 @@ function unpriced(value: string | number | null): boolean {
   return !Number.isFinite(n) || n <= 0
 }
 
-/** A service customers can't be charged for as it stands. */
+/**
+ * A service customers can't be charged for as it stands. On inspection with
+ * no fee is priced (0073): a free inspection, the job billed after.
+ */
 export function serviceUnpriced(service: MissingService): boolean {
+  if (service.pricingType === 'on_inspection') return false
   if (unpriced(service.price)) return true
   return (
     service.pricingType === 'per_vehicle' &&

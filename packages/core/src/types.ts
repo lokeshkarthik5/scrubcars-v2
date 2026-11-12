@@ -175,6 +175,13 @@ export interface Service {
   priceSedan: number | null
   priceSuv: number | null
   /**
+   * On inspection only (0073): the garage's optional rough price for the
+   * job, a guide that is never charged. Null (or absent, from an older API)
+   * when none. `price` of an on-inspection service is its inspection fee,
+   * 0 when there is none (pricing.ts isNoFeeInspection).
+   */
+  approxPrice?: number | null
+  /**
    * The garage's own duration, or null when it set none (0064): a slot then
    * holds DEFAULT_SERVICE_DURATION_MINS (./service-duration), but screens
    * show no duration for it.

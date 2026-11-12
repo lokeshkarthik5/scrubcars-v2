@@ -1146,4 +1146,10 @@ export const common: Readonly<Record<string, string>> = {
   '{count} customer': '{count} வாடிக்கையாளர்',
   '{count} customers': '{count} வாடிக்கையாளர்கள்',
   '{people} · oldest from {date}': '{people} · பழையது {date} முதல்',
+  // On inspection with no fee, and the approx price (0073).
+  'Price on inspection': 'பரிசோதனைக்குப் பிறகு விலை',
+  'Approx {amount} · price after inspection': 'சுமார் {amount} · பரிசோதனைக்குப் பிறகு விலை',
+  // A package on inspection keeps its fee required.
+  'Upfront inspection fee; final work quoted after':
+    'முதலில் பரிசோதனைக் கட்டணம்; இறுதி வேலைக்கான விலை பிறகு சொல்லப்படும்',
 }

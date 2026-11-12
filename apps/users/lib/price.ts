@@ -1,4 +1,9 @@
-import { tierPriceFor } from '@repo/core/pricing'
+import {
+  inspectionNoteUnderPrice,
+  isNoFeeInspection,
+  noFeeInspectionText,
+  tierPriceFor,
+} from '@repo/core/pricing'
 import type { Service, VehicleType } from '@repo/core/types'
 import { money } from '@/lib/money'
 import { t } from '@repo/core/i18n/translate'
@@ -15,11 +20,14 @@ export function servicePriceText(
   service: Pick<
     Service,
     'pricingType' | 'price' | 'priceHatchback' | 'priceSedan' | 'priceSuv'
-  >,
+  > &
+    Partial<Pick<Service, 'approxPrice'>>,
   vehicleType?: VehicleType | null
 ): string {
   switch (service.pricingType) {
     case 'on_inspection':
+      // No fee (0073): never "₹0", the approx price or "Price on inspection".
+      if (isNoFeeInspection(service)) return noFeeInspectionText(service, money)
       return t('{price} inspection', { price: money(service.price) })
     case 'per_vehicle': {
       if (vehicleType) {
@@ -59,4 +67,29 @@ export function pricedForCar(
     !!vehicleType &&
     tierPriceFor(service, vehicleType) != null
   )
+}
+
+/**
+ * The line under an inspection fee, where a screen has room for it: "Approx
+ * ₹1,500 · price after inspection" (0073). Null for every other price, and
+ * for a no-fee inspection, whose price slot already says it.
+ */
+export function serviceApproxNote(
+  service: Pick<Service, 'pricingType' | 'price'> &
+    Partial<Pick<Service, 'approxPrice'>>
+): string | null {
+  return inspectionNoteUnderPrice(service, money)
+}
+
+/**
+ * A booked line's price: what it was sold at, or "Price on inspection" for a
+ * no-fee inspection line (0073), whose ₹0 is not the price of the job.
+ */
+export function bookingLinePriceText(item: {
+  amount: number
+  pricingType?: Service['pricingType']
+}): string {
+  return item.pricingType === 'on_inspection' && !(item.amount > 0)
+    ? t('Price on inspection')
+    : money(item.amount)
 }

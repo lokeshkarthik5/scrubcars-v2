@@ -102,5 +102,7 @@ describe('Add a branch', () => {
       branchPriceLabel({ ...base, pricingType: 'per_vehicle', priceHatchback: '499', priceSedan: '699', priceSuv: '899' })
     ).toBe('₹499 to ₹899')
     expect(branchPriceLabel({ ...base, pricingType: 'on_inspection', price: '199' })).toBe('Inspection ₹199')
+    expect(branchPriceLabel({ ...base, pricingType: 'on_inspection', price: '' })).toBe('Price on inspection')
+    expect(branchPriceLabel({ ...base, pricingType: 'on_inspection', price: '0' })).toBe('Price on inspection')
   })
 })

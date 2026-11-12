@@ -64,7 +64,7 @@ import { coarse, isStale, useLocationStore } from '@/lib/location';
 import { openLink } from '@/lib/open-link';
 import { startBookingPayment } from '@/lib/charge-payment';
 import { bookingKey, pendingPayment, setPaymentFlowOnScreen, usePendingPayment } from '@/lib/pending-payment';
-import { money } from '@/lib/price';
+import { bookingLinePriceText, money } from '@/lib/price';
 
 const OPEN_STATUSES: ReadonlySet<Booking['status']> = new Set(['pending', 'confirmed', 'in_progress']);
 
@@ -619,7 +619,7 @@ export default function BookingDetailScreen() {
                     <T size={15} lh={20} color={colors.textSecondary} align="right">
                       {`${item.name} `}
                       <T num size={15} lh={20} color={colors.textSecondary}>
-                        {money(item.amount)}
+                        {bookingLinePriceText(item)}
                       </T>
                     </T>
                     {item.isAddon ? <AddOnMark /> : null}
@@ -627,7 +627,7 @@ export default function BookingDetailScreen() {
                 ))}
               </View>
             ) : (
-              <Amount value={money(booking.items[0]?.amount ?? booking.subtotalPrice)} />
+              <Amount value={booking.items[0] ? bookingLinePriceText(booking.items[0]) : money(booking.subtotalPrice)} />
             )}
           </Row>
           {(booking.travelFee ?? 0) > 0 ? (

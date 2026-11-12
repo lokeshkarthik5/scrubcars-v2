@@ -26,6 +26,7 @@ import {
   lockAndPlanCreditDraw,
 } from '../gift-credit/gift-credit.repository.js'
 import { paise, rupees } from '../../lib/gift-credit.js'
+import { nothingPaidCheckoutKind } from '../../lib/pricing.js'
 
 export type BookingIntentRecord = typeof bookingIntents.$inferSelect
 type BookingIntentInsert = typeof bookingIntents.$inferInsert
@@ -242,11 +243,16 @@ export const bookingIntentsRepository = {
       }
       // Never a booking that nothing paid for, except one a zone's free
       // wash covered whole (0062): it must name a code, which is checked to
-      // be a free wash under the discount lock below.
-      const freeWash = params.razorpayPaymentId === null && creditPaise === 0
-      if (freeWash && !intent.discountId) {
+      // be a free wash under the discount lock below. Or one with nothing to
+      // pay at all (0073): its services came to ₹0, which only an inspection
+      // with no fee can (every other price is positive; createIntent checks
+      // the line is one), with no code and no travel fee.
+      const nothingPaid = params.razorpayPaymentId === null && creditPaise === 0
+      const nothingPaidKind = nothingPaid ? nothingPaidCheckoutKind(intent) : null
+      if (nothingPaid && nothingPaidKind === null) {
         return { kind: 'order_mismatch' }
       }
+      const freeWash = nothingPaidKind === 'free_wash'
 
       // An accepted request's row first (0062): a new first step in the lock
       // order, before the vehicle, taken only by a checkout that confirms

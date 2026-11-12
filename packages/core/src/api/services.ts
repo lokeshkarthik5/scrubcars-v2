@@ -12,11 +12,15 @@ export interface ServiceMutationInput {
   priceHatchback?: number | null
   priceSedan?: number | null
   priceSuv?: number | null
+  /** On inspection only (0073): the optional approx price; empty clears it. */
+  approxPrice?: number | null
   durationMins: number
 }
 
 // Build a payload carrying only the price fields that match the pricing type,
-// so we never send price:0 (the server requires positive) or stray tiers.
+// so we never send price:0 or stray tiers. On inspection the fee is optional
+// (an empty one is a free inspection: the API stores 0), and so is the approx
+// price (null clears it).
 function pricingPayload(data: ServiceMutationInput) {
   const positive = (v: number | null | undefined) =>
     typeof v === 'number' && v > 0 ? v : undefined
@@ -29,7 +33,14 @@ function pricingPayload(data: ServiceMutationInput) {
       priceSuv: positive(data.priceSuv),
     }
   }
-  // flat | on_inspection both carry a single positive price.
+  if (data.pricingType === 'on_inspection') {
+    return {
+      pricingType: data.pricingType,
+      price: positive(data.price) ?? 0,
+      approxPrice: positive(data.approxPrice) ?? null,
+    }
+  }
+  // flat carries a single positive price.
   return { pricingType: data.pricingType, price: positive(data.price) }
 }
 

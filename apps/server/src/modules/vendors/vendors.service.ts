@@ -23,6 +23,7 @@ import {
 import {
   computeStartingPrice,
   resolveServicePricing,
+  pricingUpdateColumns,
   sumAmounts,
   tiersOf,
   type VehicleTier,
@@ -379,6 +380,12 @@ export type ServiceResponse = {
   priceSedan: string | null
   priceSuv: string | null
   /**
+   * On inspection only (0073): the garage's optional rough price for the job,
+   * a guide that is never charged; null when none. An on-inspection
+   * service's `price` is its inspection fee, "0.00" when there is none.
+   */
+  approxPrice: string | null
+  /**
    * The garage's own duration, or null when it set none (0064): a slot then
    * holds DEFAULT_SERVICE_DURATION_MINS, but screens show no duration.
    */
@@ -665,6 +672,7 @@ function toServiceResponse(
     priceHatchback: service.priceHatchback,
     priceSedan: service.priceSedan,
     priceSuv: service.priceSuv,
+    approxPrice: service.pricingType === 'on_inspection' ? service.approxPrice : null,
     durationMins: service.durationMins,
     isActive: service.isActive,
   }
@@ -1827,19 +1835,23 @@ export const vendorsService = {
 
     // When the pricing type is provided we rewrite the whole pricing block
     // (type + base price + all tiers) so stale tier values can't linger after
-    // switching, say, from per-vehicle to flat. Otherwise leave pricing as-is.
-    const pricing =
-      input.pricingType !== undefined
-        ? resolveServicePricing({
-            pricingType: input.pricingType,
-            price: input.price,
-            priceHatchback: input.priceHatchback,
-            priceSedan: input.priceSedan,
-            priceSuv: input.priceSuv,
-          })
-        : input.price !== undefined
-          ? { price: input.price.toFixed(2) }
-          : {}
+    // switching, say, from per-vehicle to flat. Otherwise leave pricing as-is,
+    // bar the fields sent (lib/pricing.ts pricingUpdateColumns): a fee of 0
+    // only on a service already on inspection (0073).
+    const pricing = pricingUpdateColumns(
+      {
+        pricingType: input.pricingType,
+        price: input.price,
+        priceHatchback: input.priceHatchback,
+        priceSedan: input.priceSedan,
+        priceSuv: input.priceSuv,
+        approxPrice: input.approxPrice,
+      } as Parameters<typeof pricingUpdateColumns>[0],
+      existing.pricingType
+    )
+    if (pricing === 'price_required') {
+      throw new AppError(400, 'Enter a price above ₹0.', 'PRICE_REQUIRED')
+    }
 
     const [updated] = await vendorsRepository.updateService(
       vendor.id,

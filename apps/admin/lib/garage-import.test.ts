@@ -221,14 +221,16 @@ describe('visibleMark', () => {
 })
 
 describe('missingForCreate', () => {
-  test('the fake poster waits for the owner name, the pincode and the inspection fee', () => {
+  test('the fake poster waits for the owner name and the pincode; its inspection fee is optional (0073)', () => {
     const form = formFromImport(POSTER)
     const text = { ...EMPTY_GARAGE_TEXT, ...form.initial.text }
     const rows = form.initial.services ?? []
-    expect(missingForCreate(text, rows)).toBe(3)
+    expect(missingForCreate(text, rows)).toBe(2)
     expect(missingLine(3)).toBe('Fill in the 3 missing fields to create')
 
     const filled = { ...text, ownerName: 'Senthil Kumar', pincode: '600042' }
+    // With no fee it is a free inspection; a fee typed in is kept too.
+    expect(missingForCreate(filled, rows)).toBe(0)
     const priced = rows.map((row) => (row.pricingType === 'on_inspection' ? { ...row, price: '199' } : row))
     expect(missingForCreate(filled, priced)).toBe(0)
     expect(missingLine(0)).toBeNull()

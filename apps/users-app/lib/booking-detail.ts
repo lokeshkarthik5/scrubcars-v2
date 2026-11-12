@@ -75,9 +75,17 @@ export function paymentRowAmount(booking: Pick<Booking, 'paymentStatus' | 'servi
   return Math.round((booking.servicePrice - credit) * 100) / 100;
 }
 
-export function paymentRowLabel(booking: Pick<Booking, 'paymentStatus' | 'paymentMethod' | 'servicePrice' | 'creditPaid'>): string {
+export function paymentRowLabel(
+  booking: Pick<Booking, 'paymentStatus' | 'paymentMethod' | 'servicePrice' | 'creditPaid'> &
+    Partial<Pick<Booking, 'items'>>
+): string {
   if (booking.paymentStatus === 'paid') {
-    if (booking.servicePrice === 0 && (booking.creditPaid ?? 0) === 0) return t('Nothing to pay');
+    if (booking.servicePrice === 0 && (booking.creditPaid ?? 0) === 0) {
+      // A no-fee inspection (0073): the garage sends the price after seeing the car.
+      if (booking.items?.some((item) => item.pricingType === 'on_inspection')) return t('Pay after inspection');
+      // A free wash that covered it all (0062).
+      return t('Nothing to pay');
+    }
     return (booking.creditPaid ?? 0) >= booking.servicePrice ? t('Paid') : t('Paid online');
   }
   if (booking.paymentStatus === 'refunded') return t('Refunded');

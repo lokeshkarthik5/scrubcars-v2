@@ -27,7 +27,7 @@ import { toggleServiceActive } from '@repo/core/api/services'
 import { garageMediaApi, type MediaConfig } from '@repo/core/api/service-media'
 import { withMedia } from '@repo/core/service-media'
 import { ServiceMediaEditor } from '@repo/ui/features/service-media-editor'
-import { PRICING_TYPES, formatServicePrice } from '@repo/core/pricing'
+import { PRICING_TYPES, formatServicePrice, pricingHint } from '@repo/core/pricing'
 import type {
   PricingType,
   Service,
@@ -311,7 +311,7 @@ export function PackagesPanel({
               ))}
             </div>
             <p className="mt-1.5 text-[11px] text-text-muted">
-              {t(PRICING_TYPES.find((pt) => pt.value === form.pricingType)?.hint ?? '')}
+              {t(pricingHint(form.pricingType, true))}
             </p>
           </div>
 

@@ -44,6 +44,9 @@ async function afterCancel(bookingId: string) {
       paidWithCreditOnly: Number(booking.payment?.amount ?? 0) === 0 && Number(booking.payment?.creditAmount ?? 0) > 0,
       // A free wash that covered it all (0062): nothing paid at all.
       nothingPaid: !!booking.payment && Number(booking.payment.amount) === 0 && Number(booking.payment.creditAmount ?? 0) === 0,
+      // Only a free wash names a code there; an inspection with no fee
+      // (0073) has none, and no free wash to give back.
+      freeWash: !!booking.discountId,
     })
   )
   pushService.notifyGarage(booking.vendorId, garageNotAcceptedInTime(booking))
