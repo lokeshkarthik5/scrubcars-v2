@@ -284,12 +284,12 @@ export const leadsService = {
    * A garage's zone is worked out from its pin by the zones' one rule.
    */
   async knownPlaces(zones?: Zones): Promise<KnownPlace[]> {
-    const [allZones, leadRows, garages, cityRules] = await Promise.all([
-      zones ? Promise.resolve(zones) : leadsRepository.listZones(),
-      leadsRepository.listAll(),
-      leadsRepository.listGaragesForMatch(),
-      citiesService.rules(),
-    ])
+    const [allZones, leadRows, garages, cityRules] = [
+      await (zones ? Promise.resolve(zones) : leadsRepository.listZones()),
+      await leadsRepository.listAll(),
+      await leadsRepository.listGaragesForMatch(),
+      await citiesService.rules(),
+    ]
     return [
       ...leadRows.map((lead): KnownPlace => ({
         kind: 'lead',

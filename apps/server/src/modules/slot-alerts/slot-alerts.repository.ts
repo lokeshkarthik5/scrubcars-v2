@@ -88,11 +88,11 @@ export const slotAlertsRepository = {
    * read). Plain reads, no locks.
    */
   async readDay(vendorId: string, date: string) {
-    const [hours, closure, busy] = await Promise.all([
-      vendorsRepository.findWorkingHoursForDay(vendorId, getDayOfWeekFromDate(date)),
-      bookingsRepository.findClosure(vendorId, date),
-      bookingsRepository.listCapacityHolders({ vendorId, date }),
-    ])
+    const [hours, closure, busy] = [
+      await vendorsRepository.findWorkingHoursForDay(vendorId, getDayOfWeekFromDate(date)),
+      await bookingsRepository.findClosure(vendorId, date),
+      await bookingsRepository.listCapacityHolders({ vendorId, date }),
+    ]
     return { hours: hours ?? null, isHoliday: Boolean(closure), busy }
   },
 

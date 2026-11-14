@@ -126,10 +126,10 @@ export function ratingSummary(
  * it is known for. A garage with no counted review is new with 0.
  */
 export async function ratingsFor(vendorIds: string[]) {
-  const [aggregates, tags] = await Promise.all([
-    reviewsRepository.ratingAggregates(vendorIds),
-    reviewsRepository.tagCounts(vendorIds),
-  ])
+  const [aggregates, tags] = [
+    await reviewsRepository.ratingAggregates(vendorIds),
+    await reviewsRepository.tagCounts(vendorIds),
+  ]
   const byVendor = new Map(aggregates.map((row) => [row.vendorId, row]))
   return new Map(
     vendorIds.map((id) => {
@@ -221,11 +221,11 @@ export const reviewsService = {
    */
   async vendorSummary(vendorId: string) {
     await assertPublicGarage(vendorId)
-    const [aggregates, tags, stars] = await Promise.all([
-      reviewsRepository.ratingAggregates([vendorId]),
-      reviewsRepository.tagCounts([vendorId]),
-      reviewsRepository.starCounts(vendorId),
-    ])
+    const [aggregates, tags, stars] = [
+      await reviewsRepository.ratingAggregates([vendorId]),
+      await reviewsRepository.tagCounts([vendorId]),
+      await reviewsRepository.starCounts(vendorId),
+    ]
     return { ...ratingSummary(aggregates[0], tags), stars: starRows(stars) }
   },
 
@@ -257,11 +257,11 @@ export const reviewsService = {
 
   /** The garage's Reviews screen (mockup frame E): its score and its counted reviews. */
   async listForGarage(vendorId: string, now = new Date()) {
-    const [aggregates, tags, rows] = await Promise.all([
-      reviewsRepository.ratingAggregates([vendorId]),
-      reviewsRepository.tagCounts([vendorId]),
-      reviewsRepository.listForGarage(vendorId),
-    ])
+    const [aggregates, tags, rows] = [
+      await reviewsRepository.ratingAggregates([vendorId]),
+      await reviewsRepository.tagCounts([vendorId]),
+      await reviewsRepository.listForGarage(vendorId),
+    ]
     return {
       summary: ratingSummary(aggregates[0], tags),
       reviews: rows.map((row) => ({
@@ -336,11 +336,11 @@ export const reviewsService = {
   async listForAdmin(vendorId: string, now = new Date()) {
     const garage = await reviewsRepository.findVendorById(vendorId)
     if (!garage || garage.purgedAt) throw vendorNotFound()
-    const [aggregates, tags, rows] = await Promise.all([
-      reviewsRepository.ratingAggregates([vendorId]),
-      reviewsRepository.tagCounts([vendorId]),
-      reviewsRepository.listForAdmin(vendorId),
-    ])
+    const [aggregates, tags, rows] = [
+      await reviewsRepository.ratingAggregates([vendorId]),
+      await reviewsRepository.tagCounts([vendorId]),
+      await reviewsRepository.listForAdmin(vendorId),
+    ]
     return {
       summary: ratingSummary(aggregates[0], tags),
       reviews: rows.map((row) => {

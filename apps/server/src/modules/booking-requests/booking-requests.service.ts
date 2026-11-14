@@ -340,9 +340,9 @@ function toGarageView(row: BookingRequestRecord, received: number | null, names:
 async function toCustomerView(chain: BookingRequestRecord[], now: Date): Promise<CustomerRequestView> {
   const latest = chain[chain.length - 1]!
   const first = chain[0]!
-  const names = await Promise.all(
-    chain.map(async (row) => (await bookingRequestsRepository.garageName(row.vendorId)) ?? 'A garage')
-  )
+  // One read at a time on the single connection (db/index.ts).
+  const names: string[] = []
+  for (const row of chain) names.push((await bookingRequestsRepository.garageName(row.vendorId)) ?? 'A garage')
   return {
     id: latest.id,
     rootId: first.id,
