@@ -32,6 +32,11 @@ export interface ServiceRowFields {
    * may have none.
    */
   commissionRate?: string
+  /**
+   * On inspection only (0073): the optional approx price, as typed. Empty
+   * is none. Optional: a row from the add page's import may have none.
+   */
+  approxPrice?: string
 }
 
 /** A field a row still needs, for marking that one input. */
@@ -42,6 +47,7 @@ export type ServiceRowField =
   | 'priceSedan'
   | 'priceSuv'
   | 'commissionRate'
+  | 'approxPrice'
 
 /** The most a service's own commission may be, as the API holds it. */
 export const COMMISSION_RATE_MAX = 50
@@ -69,6 +75,15 @@ const TIERS = [
 const isPrice = (value: string) => Number(value) > 0
 
 /**
+ * An approx price that cannot be sent (0073): typed, but not above ₹0.
+ * Empty is fine, it is optional.
+ */
+export function approxPriceInvalid(typed: string | undefined): boolean {
+  const text = (typed ?? '').trim()
+  return text !== '' && !isPrice(text)
+}
+
+/**
  * A row the admin added and never typed into. Nothing exists for it on the
  * server, so leaving it out of a save loses nothing; flagging it would only
  * block the save over an empty card.
@@ -80,6 +95,7 @@ export function isUntouchedNewRow(row: ServiceRowFields): boolean {
     !row.description.trim() &&
     !row.durationValue.trim() &&
     !(row.commissionRate ?? '').trim() &&
+    !(row.approxPrice ?? '').trim() &&
     [row.price, row.priceHatchback, row.priceSedan, row.priceSuv].every(
       (value) => !value.trim()
     )
@@ -99,6 +115,10 @@ export function missingServiceFields(row: ServiceRowFields): ServiceRowField[] {
     for (const tier of TIERS) {
       if (!isPrice(row[tier.key])) missing.push(tier.key)
     }
+  } else if (row.pricingType === 'on_inspection') {
+    // The inspection fee is optional (0073): empty is a free inspection.
+    // Only a typed approx price that is not above ₹0 holds the save.
+    if (approxPriceInvalid(row.approxPrice)) missing.push('approxPrice')
   } else if (!isPrice(row.price)) {
     missing.push('price')
   }
@@ -140,6 +160,14 @@ export function serviceRowProblem(row: ServiceRowFields): string | null {
     )
   }
 
+  if (parts.length === 0 && missing.includes('approxPrice')) {
+    return missing.includes('commissionRate')
+      ? `Enter an approx price above ₹0, or leave it empty, and fix the commission (0 to ${COMMISSION_RATE_MAX}%)`
+      : 'Enter an approx price above ₹0, or leave it empty.'
+  }
+  if (missing.includes('approxPrice')) {
+    parts.push('an approx price above ₹0 (or leave it empty)')
+  }
   if (parts.length === 0 && missing.includes('commissionRate')) {
     return `Commission must be a percent from 0 to ${COMMISSION_RATE_MAX}, or empty`
   }
@@ -161,8 +189,11 @@ export function servicesSaveBlock(rows: ServiceRowFields[]): string | null {
 
   const needsName = blocked.some((missing) => missing.includes('name'))
   const needsPrice = blocked.some((missing) =>
-    missing.some((field) => field !== 'name' && field !== 'commissionRate')
+    missing.some(
+      (field) => field !== 'name' && field !== 'commissionRate' && field !== 'approxPrice'
+    )
   )
+  const needsApprox = blocked.some((missing) => missing.includes('approxPrice'))
   const needsCommission = blocked.some((missing) =>
     missing.includes('commissionRate')
   )
@@ -173,7 +204,9 @@ export function servicesSaveBlock(rows: ServiceRowFields[]): string | null {
         ? 'a name'
         : needsPrice
           ? 'a price'
-          : needsCommission
+          : needsApprox
+            ? 'its approx price fixed'
+            : needsCommission
             ? 'its commission fixed'
             : 'a price'
 
@@ -236,6 +269,8 @@ export interface StoredServicePricing {
   priceHatchback: string | null
   priceSedan: string | null
   priceSuv: string | null
+  /** On inspection only (0073). Absent from an older server. */
+  approxPrice?: string | null
 }
 
 const rupees = (value: string) => `₹${Number(value)}`
@@ -247,7 +282,16 @@ const rupees = (value: string) => `₹${Number(value)}`
  */
 export function storedPriceSummary(service: StoredServicePricing): string {
   if (service.pricingType === 'on_inspection') {
-    return `${rupees(service.price)} inspection fee`
+    const approx =
+      service.approxPrice != null && Number(service.approxPrice) > 0
+        ? rupees(service.approxPrice)
+        : null
+    // No fee (0073): never "₹0 inspection fee".
+    if (!(Number(service.price) > 0)) {
+      return approx ? `Approx ${approx} · price after inspection` : 'Price on inspection'
+    }
+    const fee = `${rupees(service.price)} inspection fee`
+    return approx ? `${fee} · approx ${approx}` : fee
   }
   if (service.pricingType === 'flat') return rupees(service.price)
 

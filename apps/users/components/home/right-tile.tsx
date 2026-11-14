@@ -27,6 +27,8 @@ function bookAgainPrice(
   tile: Extract<HomeRightTile, { kind: 'book_again' }>
 ): string {
   if (tile.price === null) return t('Price at checkout')
+  // A no-fee inspection (0073): nothing is priced yet, never "Inspection fee ₹0".
+  if (tile.pricedOnInspection && !(Number(tile.price) > 0)) return t('Price on inspection')
   const amount = formatRupees(Number(tile.price))
   // Only the inspection fee is known ahead; the work is priced at the garage.
   return tile.pricedOnInspection

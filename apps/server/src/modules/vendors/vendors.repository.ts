@@ -849,6 +849,7 @@ export const vendorsRepository = {
       priceHatchback?: string | null
       priceSedan?: string | null
       priceSuv?: string | null
+      approxPrice?: string | null
       durationMins: number
       isActive: boolean
     }
@@ -939,6 +940,7 @@ export const vendorsRepository = {
       priceHatchback?: string | null
       priceSedan?: string | null
       priceSuv?: string | null
+      approxPrice?: string | null
       durationMins: number
     },
     serviceIds: string[]
@@ -956,6 +958,7 @@ export const vendorsRepository = {
           priceHatchback: data.priceHatchback ?? null,
           priceSedan: data.priceSedan ?? null,
           priceSuv: data.priceSuv ?? null,
+          approxPrice: data.approxPrice ?? null,
           durationMins: data.durationMins,
         })
         .returning()
@@ -1039,6 +1042,7 @@ export const vendorsRepository = {
       priceHatchback?: string | null
       priceSedan?: string | null
       priceSuv?: string | null
+      approxPrice?: string | null
       durationMins: number
     }
   ) {
@@ -1054,6 +1058,7 @@ export const vendorsRepository = {
         priceHatchback: data.priceHatchback ?? null,
         priceSedan: data.priceSedan ?? null,
         priceSuv: data.priceSuv ?? null,
+        approxPrice: data.approxPrice ?? null,
         durationMins: data.durationMins,
       })
       .returning()
@@ -1071,6 +1076,7 @@ export const vendorsRepository = {
       priceHatchback: string | null
       priceSedan: string | null
       priceSuv: string | null
+      approxPrice: string | null
       durationMins: number
       isActive: boolean
     }>

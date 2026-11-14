@@ -140,7 +140,7 @@ export function branchInput(draft: BranchDraft, cities: readonly CityOption[], s
 
 const rupees = (value: string) => `₹${Number(value).toLocaleString('en-IN')}`
 
-/** A service's price beside its tick: "₹599", "₹499 to ₹899", "Inspection ₹199". */
+/** A service's price beside its tick: "₹599", "₹499 to ₹899", "Inspection ₹199", "Price on inspection". */
 export function branchPriceLabel(row: Pick<ServiceRowFields, 'pricingType' | 'price' | 'priceHatchback' | 'priceSedan' | 'priceSuv'>): string {
   if (row.pricingType === 'per_vehicle') {
     const prices = [row.priceHatchback, row.priceSedan, row.priceSuv]
@@ -151,6 +151,9 @@ export function branchPriceLabel(row: Pick<ServiceRowFields, 'pricingType' | 'pr
     const high = Math.max(...prices)
     return low === high ? rupees(String(low)) : `${rupees(String(low))} to ${rupees(String(high))}`
   }
-  if (row.pricingType === 'on_inspection') return `Inspection ${rupees(row.price)}`
+  // No fee (0073): never "Inspection ₹0".
+  if (row.pricingType === 'on_inspection') {
+    return Number(row.price) > 0 ? `Inspection ${rupees(row.price)}` : 'Price on inspection'
+  }
   return rupees(row.price)
 }

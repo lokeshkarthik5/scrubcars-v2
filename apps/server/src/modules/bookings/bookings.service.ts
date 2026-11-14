@@ -19,7 +19,7 @@ import {
   meetsMinNotice,
   minNoticeMessage,
 } from '../../lib/slots.js'
-import { computeServiceAmount, sumAmounts } from '../../lib/pricing.js'
+import { computeServiceAmount, isNoFeeInspectionCheckout, sumAmounts } from '../../lib/pricing.js'
 import { usesCustomerAddress, type BookingType } from '../../lib/booking-types.js'
 import {
   MAX_CODE_ATTEMPTS,
@@ -1570,6 +1570,9 @@ export async function resolveBookingDraft(
     // An accepted request's travel fee and the request (0062).
     travelFee,
     requestId: request?.id ?? null,
+    // Each line's pricing type, in line order: a no-fee inspection (0073)
+    // is booked with nothing to pay (isNoFeeInspectionCheckout).
+    pricingTypes: resolvedServices.map((row) => row.pricingType),
   }
 }
 
@@ -1855,12 +1858,20 @@ export const bookingsService = {
         lat,
         lng,
         address,
+        pricingTypes,
       } = await resolveBookingDraft(userId, input)
 
-      // A free wash that covers the whole price (0062) is booked by checkout
-      // with no payment at all; this pay-later path would open a ₹0 order.
+      // A free wash that covers the whole price (0062), or an inspection
+      // with no fee (0073), is booked by checkout with no payment at all;
+      // this pay-later path would open a ₹0 order.
       if (Number(chargeAmount) <= 0) {
-        throw new AppError(400, 'Book your free wash through checkout.', 'FREE_BOOKING_NEEDS_CHECKOUT')
+        throw new AppError(
+          400,
+          isNoFeeInspectionCheckout({ pricingTypes, amount, chargeAmount })
+            ? "Book this through checkout: there's nothing to pay now."
+            : 'Book your free wash through checkout.',
+          'FREE_BOOKING_NEEDS_CHECKOUT'
+        )
       }
 
       const bookingDate = getDateKeyFromScheduledAt(scheduledAt)

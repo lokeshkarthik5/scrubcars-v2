@@ -1,5 +1,5 @@
 import type { MediaConfig } from '@repo/core/api/service-media';
-import { formatServicePrice } from '@repo/core/pricing';
+import { formatServicePrice, inspectionNoteUnderPrice } from '@repo/core/pricing';
 import type { Service, ServiceMedia } from '@repo/core/types';
 import type { ReactNode } from 'react';
 import { View } from 'react-native';
@@ -64,6 +64,11 @@ export function CatalogueCard({
               </>
             ) : null}
           </T>
+          {inspectionNoteUnderPrice(item) ? (
+            <T size={11} color={colors.textMuted}>
+              <Figures text={inspectionNoteUnderPrice(item)!} />
+            </T>
+          ) : null}
           {details}
         </View>
         <ScBadge variant={item.isActive ? 'success' : 'muted'}>{item.isActive ? t('Active') : t('Inactive')}</ScBadge>

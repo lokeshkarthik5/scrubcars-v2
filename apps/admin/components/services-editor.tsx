@@ -588,7 +588,11 @@ function ServiceRowItem({
 
   // The import's notes: a "Check this" stays as a record of what to look
   // at; a missing price's note goes once the price is in.
-  const priceMissing = missing.some((field) => field !== 'name')
+  // An inspection row with no fee may be saved (a free inspection, 0073),
+  // but the import's "ask the garage for its fee" stays while it is empty.
+  const priceMissing =
+    missing.some((field) => field !== 'name') ||
+    (row.pricingType === 'on_inspection' && !(Number(row.price) > 0))
   const notes = importNotes.filter((note) => note.kind === 'check' || (note.field === 'price' && priceMissing))
   const priceChecked = notes.some((note) => note.field === 'price' && note.kind === 'check')
 
@@ -705,8 +709,10 @@ function ServiceRowItem({
           <div className="relative col-span-3 row-start-2 @xl:col-span-1 @xl:col-start-3 @xl:row-start-1">
             {priceInput(
               'price',
-              `${label} price in rupees`,
-              row.pricingType === 'on_inspection' ? 'Inspection fee' : 'Price',
+              row.pricingType === 'on_inspection'
+                ? `${label} inspection fee in rupees, optional`
+                : `${label} price in rupees`,
+              row.pricingType === 'on_inspection' ? 'Inspection fee (optional)' : 'Price',
               'pr-36'
             )}
             {/* Says which single price this is; the pricing select below
@@ -762,6 +768,28 @@ function ServiceRowItem({
               </option>
             ))}
           </ScSelect>
+        </div>
+      )}
+
+      {/* On inspection (0073): the fee above is optional (empty is a free
+          inspection) and so is a rough price customers see as a guide. */}
+      {row.pricingType === 'on_inspection' && (
+        <div className="mt-2 flex flex-col gap-1.5">
+          <input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            value={row.approxPrice ?? ''}
+            aria-label={`${label} approx price in rupees, optional`}
+            placeholder="Approx price (optional)"
+            onChange={(e) => update({ approxPrice: e.target.value })}
+            aria-invalid={flag('approxPrice')['aria-invalid']}
+            aria-describedby={flag('approxPrice')['aria-describedby'] ?? `${id}-approx-hint`}
+            className={cn(FIELD, 'font-numeric text-[14px] @xl:max-w-[260px]', flag('approxPrice').className)}
+          />
+          <p id={`${id}-approx-hint`} className="text-[12px] text-text-muted">
+            Leave the fee empty for a free inspection. The approx price is only a guide; the garage sends the final bill after seeing the car.
+          </p>
         </div>
       )}
 

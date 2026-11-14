@@ -28,6 +28,19 @@ import {
 /** A paid (or collected, or refunded) booking: what the garage's own job list shows. */
 const PAID = sql`EXISTS (SELECT 1 FROM payments p WHERE p.booking_id = b.id AND p.status IN ('paid', 'collected', 'refunded'))`
 
+/**
+ * What a Detlio job took: the booking's payment plus a final bill paid in
+ * the app (its balance). A no-fee inspection (0073) is booked at ₹0, so its
+ * whole price is the bill: nothing until the bill is paid, then the bill.
+ */
+const DETLIO_TAKEN = sql`(b.amount + coalesce((SELECT sum(c.amount_due) FROM booking_charges c
+  WHERE c.booking_id = b.id AND c.kind = 'final_bill' AND c.status = 'paid'), 0))`
+
+/** Booked at ₹0 because its inspection had no fee (0073): an inspection line, nothing else priced. */
+const NO_FEE_INSPECTION = sql`(b.subtotal_amount = 0 AND NOT b.guarantee_redo AND EXISTS (
+  SELECT 1 FROM booking_items bi JOIN services s ON s.id = bi.service_id
+   WHERE bi.booking_id = b.id AND s.pricing_type = 'on_inspection' AND NOT bi.is_addon))`
+
 export function at(value: Date | string | null | undefined): Date | null {
   if (value === null || value === undefined) return null
   const date = value instanceof Date ? value : new Date(value)
@@ -74,6 +87,11 @@ export interface DetlioJobRow {
   model: string | null
   plate: string | null
   items: string[]
+  /**
+   * An inspection with no fee (0073): its final bill once sent (the one
+   * that stands) and whether it is paid; null on any other booking.
+   */
+  noFeeInspection: { billTotal: string | null; billPaid: boolean } | null
 }
 
 export interface CarRow {
@@ -534,7 +552,7 @@ export const garageBookRepository = {
       SELECT u.id AS user_id, u.name,
              min(b.created_at) AS first_at,
              count(*) FILTER (WHERE b.status = 'completed') AS visits,
-             coalesce(sum(b.amount) FILTER (WHERE b.status = 'completed'), 0) AS spent,
+             coalesce(sum(${DETLIO_TAKEN}) FILTER (WHERE b.status = 'completed'), 0) AS spent,
              max(coalesce(b.completed_at, b.scheduled_at)) FILTER (WHERE b.status = 'completed') AS last_visit_at,
              (SELECT max(s.sent_at) FROM garage_reminder_sends s WHERE s.vendor_id = ${vendorId} AND s.user_id = u.id) AS reminded_at
         FROM bookings b
@@ -764,7 +782,7 @@ export const garageBookRepository = {
             AND done_at >= ${from} AND done_at < ${to}) AS cash,
         (SELECT coalesce(sum(amount_paise), 0) FROM garage_payments
           WHERE vendor_id = ${vendorId} AND kind = 'paid' AND created_at >= ${from} AND created_at < ${to}) AS paid_back,
-        (SELECT coalesce(sum(b.amount), 0) FROM bookings b
+        (SELECT coalesce(sum(${DETLIO_TAKEN}), 0) FROM bookings b
           WHERE b.vendor_id = ${vendorId} AND b.status = 'completed' AND ${PAID}
             AND coalesce(b.completed_at, b.scheduled_at) >= ${from} AND coalesce(b.completed_at, b.scheduled_at) < ${to}) AS detlio
     `)
@@ -877,10 +895,19 @@ async function readDetlioJobs(where: ReturnType<typeof sql>): Promise<DetlioJobR
     model: string | null
     plate: string | null
     items: string[] | null
+    no_fee_inspection: boolean
+    bill_total: string | null
+    bill_paid: boolean
   }>(sql`
     SELECT b.id, b.user_id, u.name AS user_name, b.status, b.booking_type, b.scheduled_at, b.duration_mins,
-           b.amount, b.payment_method, b.completed_at, v.make, v.model, v.license_plate AS plate,
-           (SELECT array_agg(bi.name ORDER BY bi.sort_order) FROM booking_items bi WHERE bi.booking_id = b.id) AS items
+           ${DETLIO_TAKEN}::text AS amount, b.payment_method, b.completed_at, v.make, v.model, v.license_plate AS plate,
+           (SELECT array_agg(bi.name ORDER BY bi.sort_order) FROM booking_items bi WHERE bi.booking_id = b.id) AS items,
+           ${NO_FEE_INSPECTION} AS no_fee_inspection,
+           (SELECT c.total_amount::text FROM booking_charges c
+             WHERE c.booking_id = b.id AND c.kind = 'final_bill' AND c.status <> 'cancelled'
+             ORDER BY c.created_at DESC LIMIT 1) AS bill_total,
+           EXISTS (SELECT 1 FROM booking_charges c
+             WHERE c.booking_id = b.id AND c.kind = 'final_bill' AND c.status IN ('paid', 'not_needed')) AS bill_paid
       FROM bookings b
       JOIN users u ON u.id = b.user_id
       LEFT JOIN user_vehicles v ON v.id = b.vehicle_id
@@ -902,6 +929,7 @@ async function readDetlioJobs(where: ReturnType<typeof sql>): Promise<DetlioJobR
     model: row.model,
     plate: row.plate,
     items: row.items ?? [],
+    noFeeInspection: row.no_fee_inspection ? { billTotal: row.bill_total, billPaid: Boolean(row.bill_paid) } : null,
   }))
 }
 

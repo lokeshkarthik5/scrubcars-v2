@@ -47,7 +47,7 @@ import { WhenPicker } from '@/components/checkout/when-picker'
 import { PageHeader } from '@/components/ui/page-header'
 import { formatClock } from '@repo/core/format'
 import { money } from '@/lib/money'
-import { servicePriceText } from '@/lib/price'
+import { serviceApproxNote, servicePriceText } from '@/lib/price'
 import { bookingCarId } from '@/lib/booking-car'
 import { guaranteeCovers } from '@/lib/guarantee-cover'
 import { SlotAlertAsk } from '@/components/slot-alerts/slot-alert-ask'
@@ -156,7 +156,8 @@ import {
   pickupFeeLabel,
 } from '@repo/core/pickup'
 import type { Address, BookingType, Service, Vendor } from '@repo/core/types'
-import { resolveServiceAmount } from '@repo/core/pricing'
+import { isNoFeeInspection, resolveServiceAmount } from '@repo/core/pricing'
+import { checkoutAgreement } from '@repo/core/inspection-booking'
 import { Figures } from '@repo/ui/sc/figures'
 import { TierChip } from '@repo/ui/features/tier-medal'
 import { VEHICLE_TIERS } from '@repo/core/vehicles'
@@ -912,6 +913,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
         (total, line) => total + Math.round((line.amount ?? 0) * 100),
         0
       ) / 100
+  // On inspection with no fee (0073), and nothing else priced: nothing to
+  // pay now. The server books it with no payment at all, and refuses a code
+  // on it (nothing for one to come off), so no code is offered or sent.
+  const nothingPriced =
+    subtotal === 0 && selectedServices.some(isNoFeeInspection)
 
   // What the customer will actually be charged. The server recomputes this at
   // booking time; this is only what the button says.
@@ -938,6 +944,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // A zone's free wash that covers the whole price (0062): free means free.
   // The server books it with no payment at all; nothing opens Razorpay.
   const freeBooking = toPay === 0 && !creditApplied
+  // …and a no-fee inspection, booked the same way: "Pay after inspection".
+  const inspectionBooking = freeBooking && nothingPriced
 
   // Null when a service has no duration set (0064): no total is shown.
   const servicesDuration = knownDurationTotal(selectedServices)
@@ -950,7 +958,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
     promoInput.trim().length >= 3 &&
     selectedServices.length > 0 &&
     savedVehicleId != null &&
-    !unpricedForVehicle
+    !unpricedForVehicle &&
+    !nothingPriced
 
   /** One tap on a reward voucher: applied exactly like a typed code. */
   const handleApplyReward = (code: string) => {
@@ -958,6 +967,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
       selectedServices.length === 0 ||
       savedVehicleId == null ||
       unpricedForVehicle ||
+      nothingPriced ||
       applyPromo.isPending
     )
       return
@@ -1010,7 +1020,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
     offerCode &&
     selectedServices.length > 0 &&
     savedVehicleId &&
-    !unpricedForVehicle
+    !unpricedForVehicle &&
+    !nothingPriced
       ? `${offerCode}|${serviceKey}|${savedVehicleId}`
       : null
   useEffect(() => {
@@ -1061,7 +1072,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
     !appliedDiscount &&
     selectedServices.length > 0 &&
     savedVehicleId &&
-    !unpricedForVehicle
+    !unpricedForVehicle &&
+    !nothingPriced
       ? `${bestVoucher.code}|${serviceKey}|${savedVehicleId}`
       : null
   useEffect(() => {
@@ -1210,7 +1222,12 @@ function BookContent({ vendorId }: { vendorId: string }) {
     if (applyPromo.isPending) return
     const vehicleId = chosen?.vehicleId ?? savedVehicleId
     const addressId = chosen ? chosen.addressId : selectedAddress
-    const discountCode = chosen ? chosen.discountCode : appliedDiscount?.code
+    // Nothing priced (a no-fee inspection, 0073): no code to send.
+    const discountCode = nothingPriced
+      ? undefined
+      : chosen
+        ? chosen.discountCode
+        : appliedDiscount?.code
     if (selectedServices.length === 0 || !selectedSlot || !vehicleId) return
     if (!addressReady) return
     bookingLockRef.current = true
@@ -1618,7 +1635,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
       const saved = await saveDraftItems()
       if (!saved) return
       let discountCode = appliedDiscount?.code
-      if (!discountCode && saved.carSaved) {
+      if (!discountCode && saved.carSaved && !nothingPriced) {
         const offer = await checkOfferFor(saved.vehicleId)
         if (!offer) return
         discountCode = offer.code
@@ -1936,13 +1953,24 @@ function BookContent({ vendorId }: { vendorId: string }) {
                           · {vehicleTierWords}
                         </span>
                       )}
+                    {/* An inspection fee's approx price (0073). */}
+                    {serviceApproxNote(service) && (
+                      <span className="block text-t5 text-text-muted">
+                        {serviceApproxNote(service)}
+                      </span>
+                    )}
                   </span>
                 </span>
                 {/* Not priced is a problem, so it is amber like every other
                     error: red would read as something to tap. */}
                 <span
                   className={cn(
-                    'shrink-0 font-numeric font-semibold',
+                    'font-numeric font-semibold',
+                    // No fee (0073) is words: they wrap, right-aligned, a
+                    // size down, so they never run over the service name.
+                    isNoFeeInspection(service)
+                      ? 'max-w-[45%] text-right text-t4 leading-snug'
+                      : 'shrink-0',
                     amount == null && selectedVehicleType != null
                       ? 'text-error'
                       : 'text-text-primary'
@@ -2326,7 +2354,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
           is Pay's alone. */}
       {selectedServices.length > 0 &&
         (savedVehicleId || creditOffered) &&
-        !unpricedForVehicle && (
+        !unpricedForVehicle &&
+        !nothingPriced && (
           <section aria-labelledby="checkout-savings" className="flex flex-col gap-2">
             <h2
               id="checkout-savings"
@@ -2549,7 +2578,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
               </div>
             )}
             <div className="flex items-baseline justify-between gap-3 pt-3.5">
-              <span className="text-t3 font-semibold text-text-primary">{t('To pay')}</span>
+              <span className="text-t3 font-semibold text-text-primary">
+                {inspectionBooking ? t('Pay after inspection') : t('To pay')}
+              </span>
               <span className="text-[26px] font-semibold leading-none tracking-[-0.02em] text-text-primary">
                 {toPay == null || !selectedVehicle ? (
                   <span className="font-numeric">—</span>
@@ -2579,7 +2610,14 @@ function BookContent({ vendorId }: { vendorId: string }) {
             (service) => service.pricingType === 'on_inspection'
           ) && (
             <p className="text-t4 leading-relaxed text-text-secondary">
-              {t('You pay the inspection fee now. If the work costs more, the garage sends the final bill in the app and you pay the rest here.')}
+              {/* Every inspection line without a fee (0073): nothing now. */}
+              {selectedServices.every(
+                (service) =>
+                  service.pricingType !== 'on_inspection' ||
+                  isNoFeeInspection(service)
+              )
+                ? t('No inspection fee. After seeing your car the garage sends the price in the app, and you pay it here.')
+                : t('You pay the inspection fee now. If the work costs more, the garage sends the final bill in the app and you pay the rest here.')}
             </p>
           )}
 
@@ -2853,7 +2891,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 </span>
                 {subtotal != null && selectedVehicle && (
                   <span className="shrink-0 text-[#A8A8B2]">
-                    {toPay != null && toPay !== subtotal ? t('To pay') : t('Total')}{' '}
+                    {inspectionBooking
+                      ? t('Pay after inspection')
+                      : toPay != null && toPay !== subtotal
+                        ? t('To pay')
+                        : t('Total')}{' '}
                     <span className="font-numeric text-t3 font-semibold text-text-primary">
                       {money(toPay ?? subtotal)}
                     </span>
@@ -2944,6 +2986,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 stepLabels[nextStep]
               ) : toPay == null ? (
                 t('Confirm booking')
+              ) : inspectionBooking ? (
+                t('Book now')
               ) : freeBooking ? (
                 t('Book your free wash')
               ) : toPay === 0 ? (
@@ -2992,6 +3036,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 )
               ) : nextStep ? (
                 t('You pay now. Your booking is confirmed once the garage accepts it.')
+              ) : inspectionBooking ? (
+                t('Nothing to pay now. After inspecting your car the garage sends the price in the app, and you pay it here. Your booking is confirmed once the garage accepts it.')
               ) : freeBooking ? (
                 t('Your free wash covers it: nothing to pay. Your booking is confirmed once the garage accepts it.')
               ) : toPay === 0 ? (
@@ -3011,7 +3057,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
             {/* Beside Pay, as Razorpay and the E-Commerce Rules expect. New
                 tabs, so the time, car and code picked here are still here. */}
             <p className="mt-1 text-center text-t5 text-text-muted">
-              {fill(t('By paying you agree to the {part} and the {part2}.'), { part: <a
+              {/* Nothing paid (a no-fee inspection, a free wash, credit): "By booking". */}
+              {fill(checkoutAgreement(toPay, 'web'), { part: <a
                 href={LEGAL_PATHS.terms}
                 target="_blank"
                 rel="noopener"

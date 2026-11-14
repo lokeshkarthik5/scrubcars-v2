@@ -14,6 +14,7 @@ import {
   RECEIPT_NOT_TAX_INVOICE,
   formatReceiptAmount,
   receiptFileTitle,
+  receiptItemValue,
 } from '@repo/core/receipts'
 import type { BookingReceipt } from '@repo/core/types'
 import { fill, useT } from '@repo/core/i18n'
@@ -376,7 +377,8 @@ function ReceiptDocument({ receipt }: { receipt: BookingReceipt }) {
             key={`${item.name}-${index}`}
             // Plain words, not a chip, so the mark survives the PDF (0068).
             label={item.isAddon ? `${item.name} · Add-on` : item.name}
-            value={formatReceiptAmount(item.amount)}
+            value={receiptItemValue(item)}
+            numeric={!item.priceOnInspection}
           />
         ))}
         {/* An accepted request's travel fee (0062): its own line. */}

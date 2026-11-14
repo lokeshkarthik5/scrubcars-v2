@@ -1,6 +1,7 @@
 import { jobSummary, serviceLinesOf } from '@repo/core/add-ons'
 import { contactWindowState } from '@repo/core/contact-window'
-import { formatClock, formatDay } from '@repo/core/format'
+import { formatClock, formatDay, formatINR } from '@repo/core/format'
+import { garageBookingInspectionPrice } from '@repo/core/inspection-booking'
 import {
   GARAGE_AFTER_GRACE_MINUTES,
   MIN_GARAGE_PHOTOS,
@@ -282,6 +283,18 @@ export function bookingsTabLines(
 export function jobPrice(b: Booking): number {
   if (b.guaranteeRedo) return 0
   return b.items.reduce((sum, item) => sum + Number(item.amount || 0), 0)
+}
+
+/**
+ * The job's price as its card says it: jobPrice in rupees, or for an
+ * inspection with no fee (0073) "Price on inspection · bill not sent" until
+ * the garage sends its final bill, then the bill's total. `words` is true
+ * while it is words, so a card can set it smaller than a figure.
+ */
+export function jobPriceText(b: Booking): { text: string; words: boolean } {
+  const inspection = garageBookingInspectionPrice(b)
+  if (inspection) return { text: inspection.text, words: inspection.amount === null }
+  return { text: formatINR(jobPrice(b)), words: false }
 }
 
 /** "Foam wash + Interior vacuum", or the server's "Full wash + 2 more" past two. */

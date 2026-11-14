@@ -23,6 +23,7 @@ import { WhenPicker } from '@/components/checkout/when-picker'
 import { STATUS_STEPS, bookingHeadline } from '@/lib/booking-status'
 import { formatClock, formatWhen } from '@repo/core/format'
 import { money } from '@/lib/money'
+import { bookingLinePriceText } from '@/lib/price'
 import { onlineAmount } from '@/lib/booking-payment'
 import { currentMarketingContext, trackPurchase } from '@/lib/meta-pixel'
 import { contactWindowState } from '@repo/core/contact-window'
@@ -57,6 +58,7 @@ import {
 import { carWithGarage, pickupTimeline } from '@repo/core/pickup'
 import { googleMapsLink } from '@repo/core/contact-links'
 import { cn } from '@repo/core/utils'
+import { inspectionPaymentRow } from '@repo/core/inspection-booking'
 import {
   finalBillMayChange,
   formatRupees,
@@ -807,6 +809,8 @@ export default function BookingDetailPage({
     timeProposal !== null
   // The payment row's two online labels ("Paid online", "To be paid online")
   // state the online part, not the whole booking.
+  // A no-fee inspection booking's payment row (0073), or null.
+  const inspectionRow = inspectionPaymentRow(booking, money)
   const onlineRow =
     booking.paymentStatus === 'paid'
       ? (booking.creditPaid ?? 0) < booking.servicePrice
@@ -1236,13 +1240,15 @@ export default function BookingDetailPage({
                 <span key={item.id}>
                   {item.name}{' '}
                   {item.isAddon && <AddOnMark className="mx-1" />}
-                  <span className="font-numeric">{money(item.amount)}</span>
+                  <span className="font-numeric">{bookingLinePriceText(item)}</span>
                 </span>
               ))}
             </span>
           ) : (
             <span className="font-numeric">
-              {money(booking.items[0]?.amount ?? booking.subtotalPrice)}
+              {booking.items[0]
+                ? bookingLinePriceText(booking.items[0])
+                : money(booking.subtotalPrice)}
             </span>
           )}
         </Row>
@@ -1265,6 +1271,15 @@ export default function BookingDetailPage({
             </span>
           </Row>
         )}
+        {inspectionRow ? (
+          // A no-fee inspection (0073): the price comes with the final
+          // bill, and the row says so until it is paid.
+          <Row label={inspectionRow.label}>
+            <span className={cn(inspectionRow.numeric && 'font-numeric')}>
+              {inspectionRow.value}
+            </span>
+          </Row>
+        ) : (
         <Row
           label={
             booking.paymentStatus === 'paid'
@@ -1292,6 +1307,7 @@ export default function BookingDetailPage({
             )}
           </span>
         </Row>
+        )}
         {/* Gift a wash (0049): the part Detlio credit paid. */}
         {(booking.creditPaid ?? 0) > 0 && (
           <Row label={t('Paid with Detlio credit')}>

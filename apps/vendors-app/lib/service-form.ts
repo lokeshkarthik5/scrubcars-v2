@@ -21,6 +21,8 @@ export interface ServiceForm extends PricingFields {
   name: string;
   description: string;
   category: ServiceCategory;
+  /** On inspection only (0073): the optional approx price, a guide never charged. */
+  approxPrice: string;
 }
 
 export interface PackageForm extends PricingFields {
@@ -38,6 +40,7 @@ export const emptyServiceForm: ServiceForm = {
   priceHatchback: '',
   priceSedan: '',
   priceSuv: '',
+  approxPrice: '',
   durationMins: '30',
 };
 
@@ -65,9 +68,29 @@ export function hasValidPricing(form: PricingFields): boolean {
   return Number(form.price) > 0;
 }
 
+/**
+ * On inspection (0073), as apps/vendors/lib/inspection-price.ts: the approx box is
+ * empty or above ₹0. Typed but not above ₹0 is the one thing it can get wrong.
+ */
+export function approxInvalid(approx: string): boolean {
+  if (approx.trim() === '') return false;
+  const value = Number(approx);
+  return !(Number.isFinite(value) && value > 0);
+}
+
+/**
+ * A service's pricing: as hasValidPricing, except that on inspection the fee is
+ * optional (empty is a free inspection, booked with nothing to pay) and only the
+ * approx price is checked. A package keeps hasValidPricing: its fee stays required.
+ */
+export function hasValidServicePricing(form: ServiceForm): boolean {
+  if (form.pricingType === 'on_inspection') return !approxInvalid(form.approxPrice);
+  return hasValidPricing(form);
+}
+
 /** "Add service" / "Update service": a name and valid pricing (the web checks no more). */
 export function canSubmitService(form: ServiceForm): boolean {
-  return Boolean(form.name) && hasValidPricing(form);
+  return Boolean(form.name) && hasValidServicePricing(form);
 }
 
 /** "Create package" / "Update package". */
@@ -92,6 +115,8 @@ export function servicePayload(form: ServiceForm) {
     priceHatchback: positive(form.priceHatchback),
     priceSedan: positive(form.priceSedan),
     priceSuv: positive(form.priceSuv),
+    // Sent for On inspection only (core's pricingPayload); null clears it.
+    approxPrice: positive(form.approxPrice) ?? null,
     durationMins: Number(form.durationMins),
   };
 }
@@ -128,11 +153,16 @@ function pricingFrom(item: Priced): PricingFields {
 }
 
 export function formFromService(svc: Service): ServiceForm {
+  const pricing = pricingFrom(svc);
+  const inspection = svc.pricingType === 'on_inspection';
   return {
     name: svc.name,
     description: svc.description ?? '',
     category: svc.category,
-    ...pricingFrom(svc),
+    ...pricing,
+    // A free inspection's fee box starts empty, never "0" (0073).
+    price: inspection && !(svc.price > 0) ? '' : pricing.price,
+    approxPrice: inspection && svc.approxPrice != null && svc.approxPrice > 0 ? String(svc.approxPrice) : '',
   };
 }
 

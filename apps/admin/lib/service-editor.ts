@@ -181,6 +181,7 @@ export function emptyServiceRow(): ServiceRow {
     durationValue: '',
     durationUnit: 'min',
     commissionRate: '',
+    approxPrice: '',
   }
 }
 
@@ -217,19 +218,29 @@ export function toServiceRow(
     // service here is always a plain one.
     category: s.category as PlainCategory,
     pricingType: s.pricingType,
-    price: s.pricingType === 'per_vehicle' ? '' : decToInput(s.price),
+    price:
+      s.pricingType === 'per_vehicle' ||
+      // A free inspection's fee box starts empty, never "0" (0073).
+      (s.pricingType === 'on_inspection' && !(Number(s.price) > 0))
+        ? ''
+        : decToInput(s.price),
     priceHatchback: decToInput(s.priceHatchback),
     priceSedan: decToInput(s.priceSedan),
     priceSuv: decToInput(s.priceSuv),
     ...minsToDuration(s.durationMins),
     commissionRate: decToInput(s.commissionRate ?? null),
+    approxPrice:
+      s.pricingType === 'on_inspection' && Number(s.approxPrice ?? 0) > 0
+        ? decToInput(s.approxPrice ?? null)
+        : '',
   }
 }
 
 /**
  * The row as the API takes it. Only the prices its pricing type uses are
  * sent; a blank or zero price is left out, which the API refuses — the
- * editor holds the save before that can happen (servicesSaveBlock).
+ * editor holds the save before that can happen (servicesSaveBlock) — except
+ * an inspection fee, which is optional (0073).
  */
 export function toServicePayload(row: ServiceRow): UpdateVendorServiceInput {
   const pos = (v: string) => (Number(v) > 0 ? Number(v) : undefined)
@@ -251,7 +262,11 @@ export function toServicePayload(row: ServiceRow): UpdateVendorServiceInput {
           priceSedan: pos(row.priceSedan),
           priceSuv: pos(row.priceSuv),
         }
-      : { price: pos(row.price) }),
+      : row.pricingType === 'on_inspection'
+        ? // The fee is optional (0073): left out is a free inspection. The
+          // approx price is always sent, so emptying the box clears it.
+          { price: pos(row.price), approxPrice: pos(row.approxPrice ?? '') ?? null }
+        : { price: pos(row.price) }),
   }
 }
 

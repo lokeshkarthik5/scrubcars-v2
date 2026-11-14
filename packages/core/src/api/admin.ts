@@ -308,6 +308,8 @@ export interface AdminVendorDetail {
     priceHatchback: string | null
     priceSedan: string | null
     priceSuv: string | null
+    /** On inspection only (0073): the optional approx price. Absent from an older server. */
+    approxPrice?: string | null
     /** Null: not set (0064), and 60 min is held in the calendar. */
     durationMins: number | null
     /**
@@ -348,6 +350,12 @@ export interface UpdateVendorServiceInput {
   priceHatchback?: number
   priceSedan?: number
   priceSuv?: number
+  /**
+   * On inspection only (0073): the optional approx price; null clears it,
+   * left out keeps what is stored. The fee (`price`) is optional on
+   * inspection too: left out or 0 is a free inspection.
+   */
+  approxPrice?: number | null
   /** Left out or null: no duration (0064). */
   durationMins?: number | null
   /**
@@ -815,6 +823,8 @@ export interface CreateVendorInput {
     priceHatchback?: number
     priceSedan?: number
     priceSuv?: number
+    /** On inspection only (0073): the optional approx price. */
+    approxPrice?: number | null
     /** Left out or null: no duration (0064). */
     durationMins?: number | null
     /** Its own commission percent for Statistics (0064); null: the category's. */

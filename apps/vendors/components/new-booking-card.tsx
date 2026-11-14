@@ -14,7 +14,7 @@ import {
 import { useT } from '@repo/core/i18n'
 import { ScButton } from '@repo/ui/sc/button'
 import { BOOKING_TYPE_LABELS } from '@repo/core/booking-types'
-import { formatINR, formatWhen } from '@repo/core/format'
+import { formatWhen } from '@repo/core/format'
 import { useIsVendorAdmin } from '@repo/core/hooks/use-vendor-role'
 import type { Booking } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
@@ -29,7 +29,7 @@ import {
 import {
   customerNumberLine,
   distanceKm,
-  jobPrice,
+  jobPriceText,
   proposalOpen,
   responseRunOut,
   serviceOnlyLine,
@@ -74,7 +74,7 @@ export function NewBookingCard({
   const waitingOnCustomer = proposalOpen(b)
   const numberLine = customerNumberLine(b, now)
   const km = distanceKm(b)
-  const price = jobPrice(b)
+  const price = jobPriceText(b)
   // Money is the owner's (as Earnings and Home's This week are): an
   // operator's card shows the job without what it is worth.
   const isVendorAdmin = useIsVendorAdmin()
@@ -176,8 +176,14 @@ export function NewBookingCard({
             </span>
           </p>
           {isVendorAdmin && (
-            <p className="shrink-0 font-numeric text-[24px] font-bold leading-none tracking-tight text-text-primary">
-              {formatINR(price)}
+            <p
+              className={cn(
+                'shrink-0 leading-none text-text-primary',
+                // A no-fee inspection's words (0073) sit smaller than a figure.
+                price.words ? 'max-w-[45%] text-right text-[15px] font-semibold leading-snug' : 'font-numeric text-[24px] font-bold tracking-tight'
+              )}
+            >
+              {price.text}
             </p>
           )}
         </div>

@@ -147,7 +147,12 @@ export function ServicesTab({
             </ChipRow>
           </View>
 
-          <PricingBlock form={form} onChange={change} flatLabel={t('Price (₹)')} />
+          <PricingBlock
+            form={form}
+            onChange={change}
+            flatLabel={t('Price (₹)')}
+            approx={{ value: form.approxPrice, onChange: (approxPrice) => change({ approxPrice }) }}
+          />
 
           <ScInput
             label={t('Duration (mins)')}

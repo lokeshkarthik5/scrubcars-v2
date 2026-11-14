@@ -18,6 +18,8 @@ import { useVendorOnboardingStore } from '@repo/core/stores/vendor-onboarding-st
 import type { PricingType, ServiceCategory } from '@repo/core/types'
 import { SERVICE_CATEGORY_OPTIONS } from '@repo/core/categories'
 import { PRICING_TYPES } from '@repo/core/pricing'
+import { InspectionPriceFields } from '@/components/inspection-price-fields'
+import { approxToSend, inspectionPricingValid } from '@/lib/inspection-price'
 import { VEHICLE_TIERS, VENDOR_VEHICLE_TYPE_OPTIONS } from '@repo/core/vehicles'
 import { OnboardingHeader } from '@/components/onboarding-header'
 
@@ -55,6 +57,8 @@ export default function VendorOnboardingStep4() {
   const [category, setCategory] = useState<ServiceCategory>('car_wash')
   const [pricingType, setPricingType] = useState<PricingType>('flat')
   const [price, setPrice] = useState('')
+  // On inspection only (0073): an optional rough price customers see.
+  const [approx, setApprox] = useState('')
   // Per-vehicle tiers. All three are required by the server, since the booking
   // charge reads the tier matching the customer's vehicle.
   const [tiers, setTiers] = useState({ hatchback: '', sedan: '', suv: '' })
@@ -78,10 +82,13 @@ export default function VendorOnboardingStep4() {
 
   // Complete when the chosen pricing type has the price(s) it needs — the same
   // rule the server applies (see refinePricing in vendors.validation.ts).
+  // On inspection the fee is optional: empty is a free inspection (0073).
   const pricingComplete =
     pricingType === 'per_vehicle'
       ? [tiers.hatchback, tiers.sedan, tiers.suv].every((p) => Number(p) > 0)
-      : Number(price) > 0
+      : pricingType === 'on_inspection'
+        ? inspectionPricingValid(price, approx)
+        : Number(price) > 0
 
   const handleAddService = async () => {
     if (!name || !pricingComplete) return
@@ -99,11 +106,14 @@ export default function VendorOnboardingStep4() {
               priceSedan: Number(tiers.sedan),
               priceSuv: Number(tiers.suv),
             }
-          : { price: Number(price) }),
+          : pricingType === 'on_inspection'
+            ? { price: Number(price) > 0 ? Number(price) : 0, approxPrice: approxToSend(approx) }
+            : { price: Number(price) }),
       })
       setAddedCount((count) => count + 1)
       setName('')
       setPrice('')
+      setApprox('')
       setTiers({ hatchback: '', sedan: '', suv: '' })
     } catch (err) {
       setError(err instanceof Error ? err.message : t('Failed to add service'))
@@ -205,11 +215,17 @@ export default function VendorOnboardingStep4() {
               />
             ))}
           </div>
+        ) : pricingType === 'on_inspection' ? (
+          <InspectionPriceFields
+            idPrefix="onboarding"
+            fee={price}
+            approx={approx}
+            onFee={setPrice}
+            onApprox={setApprox}
+          />
         ) : (
           <ScInput
-            label={
-              pricingType === 'on_inspection' ? t('Inspection fee (₹)') : t('Price (₹)')
-            }
+            label={t('Price (₹)')}
             type="number"
             className="font-numeric"
             value={price}

@@ -66,10 +66,14 @@ import type {
   ServicePackage,
   Vendor,
 } from '@repo/core/types'
-import { resolveServiceAmount, tierPriceFor } from '@repo/core/pricing'
+import {
+  isNoFeeInspection,
+  resolveServiceAmount,
+  tierPriceFor,
+} from '@repo/core/pricing'
 import { useUserStore } from '@repo/core/stores/user-store'
 import { money } from '@/lib/money'
-import { pricedForCar, servicePriceText } from '@/lib/price'
+import { pricedForCar, serviceApproxNote, servicePriceText } from '@/lib/price'
 import { useBookingCar } from '@/lib/use-booking-car'
 import { Figures } from '@repo/ui/sc/figures'
 import { VEHICLE_TIERS } from '@repo/core/vehicles'
@@ -587,7 +591,10 @@ export default function GaragePage({
   const barTotal =
     selectedServices.length === 1
       ? servicePriceText(selectedServices[0], carType)
-      : // "from" while a per-vehicle line is only priced once the car is
+      : // Only no-fee inspections (0073): nothing is priced yet, never "₹0".
+        selectedTotal === 0 && selectedServices.some(isNoFeeInspection)
+        ? t('Price on inspection')
+        : // "from" while a per-vehicle line is only priced once the car is
         // known, one screen along.
         hasPerVehiclePricing
         ? t('from {price}', { price: money(selectedTotal) })
@@ -1005,11 +1012,24 @@ export default function GaragePage({
                                 )}
                               </span>
                             </button>
-                            <div className="flex flex-col items-end gap-0.5">
-                              {/* The price for the customer's own car (F13). */}
-                              <span className="font-numeric text-t3 font-semibold text-text-primary">
+                            <div className="flex max-w-[10rem] flex-col items-end gap-0.5">
+                              {/* The price for the customer's own car (F13).
+                                  No fee (0073) says it in words, a size down
+                                  and wrapping, so it never runs over the name. */}
+                              <span
+                                className={cn(
+                                  'font-numeric text-right font-semibold text-text-primary',
+                                  isNoFeeInspection(svc) ? 'text-t4 leading-snug' : 'text-t3'
+                                )}
+                              >
                                 <Figures text={servicePriceText(svc, carType)} />
                               </span>
+                              {/* An inspection fee's approx price (0073). */}
+                              {serviceApproxNote(svc) && (
+                                <span className="text-right text-over font-medium normal-case tracking-normal text-[#8E8E98]">
+                                  {serviceApproxNote(svc)}
+                                </span>
+                              )}
                               {pricedForCar(svc, carType) && myCar && (
                                 <span className="text-over font-medium normal-case tracking-normal text-[#8E8E98]">
                                   {t('for your {model}', { model: myCar.model })}
@@ -1328,20 +1348,32 @@ export default function GaragePage({
                   })}
                 </>
               ) : (
-                <div className="flex items-center justify-between border-t border-white/[0.07] py-2.5">
+                <div className="flex items-center justify-between gap-3 border-t border-white/[0.07] py-2.5">
                   <span className="text-t4 font-medium text-text-secondary">
-                    {details.pricingType === 'on_inspection'
+                    {details.pricingType === 'on_inspection' &&
+                    !isNoFeeInspection(details)
                       ? t('Inspection fee')
                       : t('Price')}
                   </span>
-                  <span className="font-numeric text-t3 font-semibold text-text-primary">
-                    {money(details.price)}
+                  <span className="text-right font-numeric text-t3 font-semibold text-text-primary">
+                    {/* No fee (0073): the approx price or "Price on
+                        inspection", never ₹0. */}
+                    {isNoFeeInspection(details)
+                      ? servicePriceText(details, carType)
+                      : money(details.price)}
                   </span>
                 </div>
               )}
+              {serviceApproxNote(details) && (
+                <p className="mt-1.5 text-t5 font-medium text-text-secondary">
+                  {serviceApproxNote(details)}
+                </p>
+              )}
               {details.pricingType === 'on_inspection' && (
                 <p className="mt-1.5 text-t5 text-text-muted">
-                  {t('You pay the inspection fee when you book. If the work costs more, the garage sends the final bill in the app and you pay the rest there.')}
+                  {isNoFeeInspection(details)
+                    ? t('No inspection fee. After seeing your car the garage sends the price in the app, and you pay it there.')
+                    : t('You pay the inspection fee when you book. If the work costs more, the garage sends the final bill in the app and you pay the rest there.')}
                 </p>
               )}
             </div>

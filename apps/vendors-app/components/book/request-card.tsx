@@ -1,4 +1,4 @@
-import { formatClock, formatINR, formatWhen } from '@repo/core/format';
+import { formatClock, formatWhen } from '@repo/core/format';
 import { useT } from '@repo/core/i18n';
 import { answerByRing } from '@repo/core/moments';
 import type { Booking } from '@repo/core/types';
@@ -13,7 +13,7 @@ import { RejectBookingSheet } from '@/components/reject-booking';
 import { serviceOnlyLine } from '@/lib/add-on-lines';
 import { useIsVendorAdmin } from '@/lib/auth';
 import { changeStatusWithUndo, useDeferredStatus } from '@/lib/deferred-status';
-import { jobPrice } from '@/lib/jobs';
+import { jobPriceText } from '@/lib/jobs';
 
 import { AnswerRing } from './moments';
 import { go, Overline, RaisedButton } from './parts';
@@ -32,6 +32,7 @@ export function RequestCard({ booking: b, now, more, onChanged }: { booking: Boo
   const isOwner = useIsVendorAdmin();
   const ring = b.responseDeadline ? answerByRing(b.responseDeadline, now) : { fraction: 1, minutesLeft: null };
   const what = [serviceOnlyLine(b), b.customerName, b.vehicle?.model].filter(Boolean).join(' · ');
+  const price = jobPriceText(b);
   const label =
     ring.minutesLeft !== null
       ? t('{minutes} minutes left to answer', { minutes: ring.minutesLeft })
@@ -52,9 +53,16 @@ export function RequestCard({ booking: b, now, more, onChanged }: { booking: Boo
           </T>
         </Pressable>
         {isOwner ? (
-          <T num size={20} weight={600}>
-            {formatINR(jobPrice(b))}
-          </T>
+          price.words ? (
+            // A no-fee inspection's words (0073), as the web.
+            <T size={13} weight={600} lh={18} align="right" style={{ flexShrink: 1, maxWidth: '40%' }}>
+              {price.text}
+            </T>
+          ) : (
+            <T num size={20} weight={600}>
+              {price.text}
+            </T>
+          )
         ) : null}
       </View>
       <View style={styles.buttons}>

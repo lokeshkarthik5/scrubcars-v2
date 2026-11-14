@@ -118,6 +118,22 @@ export function computeDiscount(
 }
 
 /**
+ * No code on a booking with nothing to pay (0073): a no-fee inspection's
+ * services come to ₹0, so a code would take nothing off and still spend a
+ * use (or a once-only voucher). Refused before the code is even looked up,
+ * by the preview and the booking alike (resolveDiscount).
+ */
+export function assertSomethingToDiscount(subtotal: string): void {
+  if (rupeesToPaise(subtotal) <= 0) {
+    throw new AppError(
+      400,
+      "There's nothing to pay now, so no code is needed. Your price comes after the inspection.",
+      'DISCOUNT_NOTHING_TO_PAY'
+    )
+  }
+}
+
+/**
  * Every condition that can be judged from the discount row alone, in the order
  * the customer should hear about them. Throws the first failure.
  *

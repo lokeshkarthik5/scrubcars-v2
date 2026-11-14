@@ -38,7 +38,8 @@ function linesFrom(bill: FinalBill | null, booking: Booking): Line[] {
   // so they aren't lines on it.
   const booked = serviceLinesOf(booking.items)
     .slice(0, MAX_LINES)
-    .map((item) => ({ description: item.name.slice(0, MAX_DESCRIPTION), amount: String(item.amount) }));
+    // An inspection with no fee (0073) starts empty, for the garage's price, never "0".
+    .map((item) => ({ description: item.name.slice(0, MAX_DESCRIPTION), amount: item.amount > 0 ? String(item.amount) : '' }));
   return booked.length > 0 ? booked : [{ description: '', amount: '' }];
 }
 

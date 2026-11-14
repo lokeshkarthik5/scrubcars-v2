@@ -4,6 +4,7 @@ import { expect, test } from 'bun:test';
 import type { Service, ServicePackage } from '@repo/core/types';
 
 import {
+  approxInvalid,
   canSubmitPackage,
   canSubmitService,
   emptyPackageForm,
@@ -11,6 +12,7 @@ import {
   formFromPackage,
   formFromService,
   hasValidPricing,
+  hasValidServicePricing,
   packagePayload,
   packagePreview,
   sanitizeDecimal,
@@ -157,4 +159,31 @@ test('price labels are split into words and figures, as the web sets them in the
   expect(splitFigures('from ₹599').map((p) => p.text)).toEqual(['from ', '₹599']);
   expect(splitFigures('₹300–₹500')).toEqual([{ text: '₹300–₹500', figure: true }]);
   expect(splitFigures('Price on request')).toEqual([{ text: 'Price on request', figure: false }]);
+});
+
+test('on inspection, a service fee is optional (a free inspection) and an approx price is empty or above ₹0', () => {
+  const inspection = { ...emptyServiceForm, name: 'Denting', pricingType: 'on_inspection' as const };
+  expect(hasValidServicePricing(inspection)).toBe(true);
+  expect(canSubmitService(inspection)).toBe(true);
+  expect(canSubmitService({ ...inspection, price: '299', approxPrice: '1500' })).toBe(true);
+  expect(canSubmitService({ ...inspection, approxPrice: '0' })).toBe(false);
+  expect(approxInvalid('')).toBe(false);
+  expect(approxInvalid('0')).toBe(true);
+  expect(approxInvalid('1500')).toBe(false);
+  // Flat still needs its price; a package on inspection keeps its fee required.
+  expect(hasValidServicePricing({ ...emptyServiceForm, price: '' })).toBe(false);
+  expect(hasValidPricing({ ...emptyPackageForm, pricingType: 'on_inspection' })).toBe(false);
+});
+
+test('the service payload carries the approx price, null when empty', () => {
+  const inspection = { ...emptyServiceForm, name: 'Denting', pricingType: 'on_inspection' as const };
+  expect(servicePayload({ ...inspection, approxPrice: '1500' })).toMatchObject({ price: undefined, approxPrice: 1500 });
+  expect(servicePayload(inspection)).toMatchObject({ approxPrice: null });
+});
+
+test('Edit of a free inspection: the fee box starts empty, never "0", and the approx price loads', () => {
+  const form = formFromService(svc({ pricingType: 'on_inspection', price: 0, approxPrice: 1500 }));
+  expect(form).toMatchObject({ pricingType: 'on_inspection', price: '', approxPrice: '1500' });
+  expect(formFromService(svc({ pricingType: 'on_inspection', price: 299 }))).toMatchObject({ price: '299', approxPrice: '' });
+  expect(formFromService(svc({ approxPrice: 1500 })).approxPrice).toBe('');
 });

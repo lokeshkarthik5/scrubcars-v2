@@ -26,6 +26,10 @@ const timeSchema = z
   .string()
   .regex(/^\d{2}:\d{2}(:\d{2})?$/, 'Time must be HH:MM')
 
+// On inspection only (0073), as vendors.validation's approxPriceSchema: the
+// garage's optional rough price, positive, null to clear.
+const approxPriceSchema = z.number().positive().max(10_000_000).nullable()
+
 const serviceBaseSchema = z.object({
   name: z.string().trim().min(1).max(255),
   description: z.string().trim().max(5000).optional(),
@@ -37,10 +41,15 @@ const serviceBaseSchema = z.object({
     'others',
   ]),
   pricingType: z.enum(['flat', 'per_vehicle', 'on_inspection']).default('flat'),
-  price: z.number().positive().optional(),
+  // Positive, or 0 / left out for an on-inspection service with no fee
+  // (0073: a free inspection); refineServicePricing refuses 0 elsewhere.
+  price: z.number().nonnegative().optional(),
   priceHatchback: z.number().positive().optional(),
   priceSedan: z.number().positive().optional(),
   priceSuv: z.number().positive().optional(),
+  // On inspection only (0073): the optional approx price, a guide never
+  // charged. Null clears it; left out keeps what is stored on an edit.
+  approxPrice: approxPriceSchema.optional(),
   // Optional (0064): left out or null, the service has no duration, shows
   // "Duration not set" in admin and holds the default 60 minutes in the slot
   // calendar (lib/service-duration.ts). Stored in minutes (the UI offers
@@ -62,7 +71,8 @@ const serviceBaseSchema = z.object({
 type ServiceBase = z.infer<typeof serviceBaseSchema>
 
 const refineServicePricing = (data: ServiceBase, ctx: z.RefinementCtx) => {
-  if (data.pricingType === 'flat' || data.pricingType === 'on_inspection') {
+  // On inspection the fee is optional (0073): no fee is a free inspection.
+  if (data.pricingType === 'flat') {
     if (data.price === undefined || data.price <= 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

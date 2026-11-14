@@ -201,6 +201,8 @@ export function mapService(service: ApiService, vendorId: string): Service {
     priceHatchback: tier(service.priceHatchback),
     priceSedan: tier(service.priceSedan),
     priceSuv: tier(service.priceSuv),
+    // Absent from an API before 0073: no approx price.
+    approxPrice: service.approxPrice == null ? null : Number(service.approxPrice),
     durationMins: service.durationMins,
     isActive: service.isActive,
     // Older responses (and any cached payload) may predate service images.

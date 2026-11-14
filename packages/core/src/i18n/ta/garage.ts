@@ -174,4 +174,7 @@ export const garage: Readonly<Record<string, string>> = {
   'last 4 weeks': 'கடந்த 4 வாரங்கள்',
   'Detlio figures are what customers paid for jobs done; your payout is on Payouts.':
     'Detlio எண்ணிக்கைகள், முடிந்த வேலைகளுக்கு வாடிக்கையாளர்கள் செலுத்தியவை; உங்கள் பேஅவுட் பேஅவுட்கள் பக்கத்தில் உள்ளது.',
+  // A no-fee inspection job before its bill (0073).
+  'Price on inspection · bill not sent': 'பரிசோதனைக்குப் பிறகு விலை · பில் அனுப்பப்படவில்லை',
+  'Done · {price}': 'முடிந்தது · {price}',
 }

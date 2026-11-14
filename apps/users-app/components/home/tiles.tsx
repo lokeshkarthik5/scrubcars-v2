@@ -73,6 +73,8 @@ function Big({ children }: { children: ReactNode }) {
 
 function bookAgainPrice(tile: Extract<HomeRightTile, { kind: 'book_again' }>): string {
   if (tile.price === null) return t('Price at checkout');
+  // A no-fee inspection (0073): nothing is priced yet, never "Inspection fee ₹0".
+  if (tile.pricedOnInspection && !(Number(tile.price) > 0)) return t('Price on inspection');
   const amount = formatRupees(Number(tile.price));
   return tile.pricedOnInspection ? t('Inspection fee {amount}', { amount }) : amount;
 }

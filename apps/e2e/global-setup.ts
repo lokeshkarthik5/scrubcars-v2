@@ -18,6 +18,7 @@ import {
   ADMIN,
   CALENDAR,
   CUSTOMERS,
+  INSPECTION_NO_FEE,
   OWNER_DELETE,
   PRE_IOS,
   STAFF,
@@ -78,6 +79,9 @@ async function globalSetup() {
   await saveState('vendor-add-ons', ADD_ONS.owner.phone, 'vendor')
   // The garage's Bookings calendar (CALENDAR, 6200–6249).
   await saveState('vendor-calendar', CALENDAR.owner.phone, 'vendor')
+  // On inspection with no fee (INSPECTION_NO_FEE, 7400–7449).
+  await saveState('customer-inspection', INSPECTION_NO_FEE.customer.phone, 'customer')
+  await saveState('vendor-inspection', INSPECTION_NO_FEE.owner.phone, 'vendor')
   await saveAdminState('admin')
   await saveAdminState('admin-shared', ADMIN)
   // A personal login that is not the owner (10 Nov 2026): the old rules.

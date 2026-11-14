@@ -6,7 +6,8 @@ import { createAddress, createVehicle } from '@repo/core/api/users';
 import type { JustOutsideVendor } from '@repo/core/api/vendors';
 import { dayChipLabel, istClock, REQUEST_PROMISES, type RequestMode, WINDOW_PART_LABELS, type WindowPart } from '@repo/core/booking-requests';
 import { useT } from '@repo/core/i18n';
-import { resolveServiceAmount } from '@repo/core/pricing';
+import { isNoFeeInspection, resolveServiceAmount } from '@repo/core/pricing';
+import { servicePriceText } from '@/lib/price';
 import { effectiveDurationMins, hasDuration } from '@repo/core/service-duration';
 import { useUserStore } from '@repo/core/stores/user-store';
 import type { VehicleType } from '@repo/core/types';
@@ -266,7 +267,8 @@ export function RequestSheet({ open, onClose, garage, mode }: { open: boolean; o
                         ) : null}
                       </View>
                       <T num size={15} lh={20}>
-                        {vehicleType ? (amount === null ? t('Not priced') : `₹${amount.toLocaleString('en-IN')}`) : t('from ₹{price}', { price: service.price.toLocaleString('en-IN') })}
+                        {/* No fee (0073): never ₹0. */}
+                        {isNoFeeInspection(service) ? servicePriceText(service) : vehicleType ? (amount === null ? t('Not priced') : `₹${amount.toLocaleString('en-IN')}`) : t('from ₹{price}', { price: service.price.toLocaleString('en-IN') })}
                       </T>
                     </Pressable>
                   );

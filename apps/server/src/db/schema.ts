@@ -854,6 +854,11 @@ export const services = pgTable(
     priceHatchback: decimal('price_hatchback', { precision: 10, scale: 2 }),
     priceSedan: decimal('price_sedan', { precision: 10, scale: 2 }),
     priceSuv: decimal('price_suv', { precision: 10, scale: 2 }),
+    // On inspection only (0073): the garage's optional rough price for the
+    // job, shown to customers as a guide and never charged or read by any
+    // money rule. Null when none, and on every other pricing type. An
+    // on-inspection service's `price` is its inspection fee, 0 for none.
+    approxPrice: decimal('approx_price', { precision: 10, scale: 2 }),
     // Optional since 0064: null blocks the default 60 minutes in the slot
     // calendar. Read it only through effectiveDurationMins
     // (lib/service-duration.ts); a booking's own snapshot is never null.
@@ -881,6 +886,7 @@ export const services = pgTable(
       'services_addon_shape_check',
       sql`not ${table.isAddon} or (${table.category} = 'others' and ${table.pricingType} <> 'on_inspection')`
     ),
+    check('services_approx_price_check', sql`${table.approxPrice} is null or ${table.approxPrice} > 0`),
     check(
       'services_commission_rate_check',
       sql`${table.commissionRate} is null or (${table.commissionRate} >= 0 and ${table.commissionRate} <= 50)`

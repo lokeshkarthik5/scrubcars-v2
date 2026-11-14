@@ -137,6 +137,7 @@ import {
   ADD_ONS,
   OWNER_DELETE,
   CALENDAR,
+  INSPECTION_NO_FEE,
 } from './e2e-ids.js'
 import { hashPassword } from '../../lib/passwords.js'
 import { codeSuffix, couponCodeHash, couponKeys, deriveCouponCode } from '../../lib/coupons.js'
@@ -3817,6 +3818,43 @@ async function seedAddOnRows() {
 }
 
 /**
+ * On inspection with no fee, and the approx price (0073; INSPECTION_NO_FEE,
+ * ids 7400–7449, phones 90000074xx): see INSPECTION_NO_FEE. No bookings: the
+ * journey makes its own.
+ */
+async function seedInspectionNoFeeRows() {
+  const I = INSPECTION_NO_FEE
+  await db.insert(users).values([
+    { id: I.customer.id, name: I.customer.name, phone: I.customer.phone, isCustomer: true, isVendorOwner: false,
+      phoneVerified: true, status: 'active' as const },
+    { id: I.owner.id, name: I.owner.name, phone: I.owner.phone, isCustomer: false, isVendorOwner: true,
+      phoneVerified: true, status: 'active' as const },
+  ])
+  await db.insert(userVehicles).values({
+    id: I.customer.vehicleId, userId: I.customer.id, make: 'Honda', model: 'Amaze', color: 'Grey',
+    licensePlate: 'TN58IN0073', vehicleType: 'sedan', isDefault: true,
+  })
+  await db.insert(vendors).values({
+    id: I.garage.id, ownerId: I.owner.id, businessName: I.garage.name, phone: I.owner.phone,
+    address: '73, Inspection Road, Kovalam', city: 'Chennai', pincode: '603112',
+    lat: ORIGIN.lat - 1.8, lng: ORIGIN.lng - 0.4, geoSource: 'map_pin', geoConfirmedAt: now,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'], bays: 4, slotIntervalMins: 30, whatsapp: null,
+    status: 'active', isVerified: true, dropinEnabled: true, doorstepEnabled: false, createdAt: daysAgo(30),
+  })
+  await db.insert(userMemberMapping).values({
+    vendorId: I.garage.id, userId: I.owner.id, role: 'vendor_admin', status: 'active',
+  })
+  await db.insert(vendorWorkingHours).values(hoursFor(I.garage.id, '06:00:00', '22:00:00'))
+  await db.insert(services).values([
+    { id: I.noFee.id, vendorId: I.garage.id, name: I.noFee.name, description: 'We look under the car and quote the work.',
+      category: 'others', pricingType: 'on_inspection', price: '0.00', durationMins: I.noFee.durationMins, isActive: true },
+    { id: I.withFee.id, vendorId: I.garage.id, name: I.withFee.name, description: 'We check the paint and quote the work.',
+      category: 'scratch_removal', pricingType: 'on_inspection', price: I.withFee.price, approxPrice: I.withFee.approxPrice,
+      durationMins: I.withFee.durationMins, isActive: true },
+  ])
+}
+
+/**
  * The garage's Bookings calendar (CALENDAR, ids 6200–6249, phones
  * 90000062xx): see CALENDAR for what each row is for. Times are built from
  * India's date, not the seeding machine's, so "today" is the day the
@@ -4532,6 +4570,8 @@ async function main() {
   await seedCustomerCityRows()
   console.log('[e2e-seed] garage bookings calendar…')
   await seedCalendarRows()
+  console.log('[e2e-seed] inspection with no fee…')
+  await seedInspectionNoFeeRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }

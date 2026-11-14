@@ -18,6 +18,13 @@ test('what the paid row is called', () => {
   expect(paymentRowLabel({ ...b, servicePrice: 500, creditPaid: 100 })).toBe('Paid online');
 });
 
+test('a ₹0 inspection booking is paid after inspection (0073)', () => {
+  const b = { paymentMethod: 'online' as const, paymentStatus: 'paid' as const, servicePrice: 0, creditPaid: 0 };
+  const line = { id: 'l1', serviceId: 's1', name: 'Dent check', amount: 0, durationMins: 60 };
+  expect(paymentRowLabel({ ...b, items: [{ ...line, pricingType: 'on_inspection' }] })).toBe('Pay after inspection');
+  expect(paymentRowLabel({ ...b, items: [{ ...line, pricingType: 'flat' }] })).toBe('Nothing to pay');
+});
+
 test('paid online is what went through Razorpay, not the booking total', () => {
   expect(paymentRowAmount({ paymentStatus: 'paid', servicePrice: 598.4, creditPaid: 100 })).toBe(498.4);
   expect(paymentRowAmount({ paymentStatus: 'paid', servicePrice: 500, creditPaid: 0 })).toBe(500);

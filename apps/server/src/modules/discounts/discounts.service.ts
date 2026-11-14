@@ -1,6 +1,7 @@
 import { AppError, hasPgCode } from '../../lib/errors.js'
 import {
   assertRuleApplies,
+  assertSomethingToDiscount,
   computeDiscount,
   type DiscountFundedBy,
   type DiscountRule,
@@ -109,6 +110,7 @@ export async function resolveDiscount(input: {
    */
   lines?: ReadonlyArray<{ category: string; amount: string; isAddon?: boolean }>
 }): Promise<ResolvedDiscount> {
+  assertSomethingToDiscount(input.subtotal)
   const discount = await discountsRepository.findByCode(input.code)
 
   if (!discount) {

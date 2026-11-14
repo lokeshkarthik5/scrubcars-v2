@@ -2265,3 +2265,23 @@ export const CALENDAR = {
   nextWeek: id(6215),
   closure: { id: id(6220), inDays: 3, reason: 'Family function' },
 } as const
+
+/**
+ * On inspection with no fee, and the approx price (0073; ids 7400–7449,
+ * phones 90000074xx): a listed garage of its own, far from every other
+ * fixture (south of Kovalam, past the add-on garages), its owner and one
+ * customer with a sedan. `noFee` is priced on inspection with no fee and no
+ * approx price ("Price on inspection"); `withFee` keeps a ₹299 fee and an
+ * approx price (the approx line under the fee). The garage adds `added` in
+ * its portal (no fee, approx ₹1,500) and the customer books it with nothing
+ * to pay. Only specs/journeys/inspection-no-fee-journey.spec.ts uses it.
+ */
+export const INSPECTION_NO_FEE = {
+  customer: { id: id(7400), phone: '9000007400', name: 'Inspection Indhu', vehicleId: id(7401) },
+  owner: { id: id(7402), phone: '9000007402', name: 'Price Check Owner Prabhu' },
+  garage: { id: id(7403), name: 'Price Check Garage' },
+  noFee: { id: id(7404), name: 'Underbody Check', durationMins: 60 },
+  withFee: { id: id(7405), name: 'Paint Assessment', price: '299.00', approxPrice: '2500.00', durationMins: 60 },
+  /** The service the garage adds in the portal, found by its name. */
+  added: { name: 'Bumper Dent Check', approx: 1500 },
+} as const

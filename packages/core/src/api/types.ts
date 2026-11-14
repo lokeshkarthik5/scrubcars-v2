@@ -359,6 +359,8 @@ export interface ApiService {
   priceHatchback: string | null
   priceSedan: string | null
   priceSuv: string | null
+  /** On inspection only (0073): the optional approx price. Absent from an older API. */
+  approxPrice?: string | null
   /** Null when the garage set none (0064). */
   durationMins: number | null
   isActive: boolean

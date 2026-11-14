@@ -32,6 +32,7 @@ import { decimalOnly } from '@/lib/settings-logic';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 import { updateVendorSettings } from '@/lib/vendor-api';
 
+import { InspectionPriceFields } from '@/components/services/inspection-price-fields';
 import { FieldLabel, OnboardingHeader, SectionTitle } from './parts';
 import { useT } from '@repo/core/i18n';
 
@@ -45,6 +46,8 @@ export function StepServices() {
   const [category, setCategory] = useState<ServiceCategory>('car_wash');
   const [pricingType, setPricingType] = useState<PricingType>('flat');
   const [price, setPrice] = useState('');
+  // On inspection only (0073): an optional rough price customers see.
+  const [approx, setApprox] = useState('');
   // Per-vehicle tiers. All three are required by the server, since the booking charge reads the
   // tier matching the customer's vehicle.
   const [tiers, setTiers] = useState(EMPTY_TIERS);
@@ -54,7 +57,7 @@ export function StepServices() {
   const [finishing, setFinishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const form: ServiceFormInput = { name, category, pricingType, price, tiers, duration };
+  const form: ServiceFormInput = { name, category, pricingType, price, tiers, duration, approx };
 
   const toggleType = (type: string) => {
     const next = toggleVehicleType(vehicleTypes, type);
@@ -71,6 +74,7 @@ export function StepServices() {
       setAddedCount((count) => count + 1);
       setName('');
       setPrice('');
+      setApprox('');
       setTiers(EMPTY_TIERS);
     } catch (err) {
       setError(errorText(err, t('Failed to add service')));
@@ -163,9 +167,11 @@ export function StepServices() {
               </View>
             ))}
           </View>
+        ) : pricingType === 'on_inspection' ? (
+          <InspectionPriceFields fee={price} approx={approx} onFee={setPrice} onApprox={setApprox} />
         ) : (
           <ScInput
-            label={pricingType === 'on_inspection' ? t('Inspection fee (₹)') : t('Price (₹)')}
+            label={t('Price (₹)')}
             numeric
             keyboardType="decimal-pad"
             value={price}

@@ -22,7 +22,8 @@ import {
   type WindowPart,
 } from '@repo/core/booking-requests'
 import type { DraftAddress, DraftCar } from '@repo/core/booking-draft'
-import { resolveServiceAmount } from '@repo/core/pricing'
+import { isNoFeeInspection, resolveServiceAmount } from '@repo/core/pricing'
+import { servicePriceText } from '@/lib/price'
 import { effectiveDurationMins, hasDuration } from '@repo/core/service-duration'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { useUserStore } from '@repo/core/stores/user-store'
@@ -304,7 +305,8 @@ export function RequestSheet({
                               <RequestServiceMinutes durationMins={service.durationMins} />
                             </span>
                             <span className="shrink-0 font-numeric text-t3 text-text-primary">
-                              {vehicleType ? (amount === null ? t('Not priced') : `₹${amount.toLocaleString('en-IN')}`) : t('from {price}', { price: `₹${service.price.toLocaleString('en-IN')}` })}
+                              {/* No fee (0073): never ₹0. */}
+                              {isNoFeeInspection(service) ? servicePriceText(service) : vehicleType ? (amount === null ? t('Not priced') : `₹${amount.toLocaleString('en-IN')}`) : t('from {price}', { price: `₹${service.price.toLocaleString('en-IN')}` })}
                             </span>
                           </button>
                         </li>

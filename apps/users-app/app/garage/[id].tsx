@@ -5,7 +5,7 @@ import { useGarage, useVendorReviews } from '@repo/core/api/hooks/use-vendors';
 import { bookingTypeParam, offeredBookingTypes, parseBookingType, resolveBookingType } from '@repo/core/booking-types';
 import { distanceAndDrive, distanceLabel } from '@repo/core/drive-time';
 import { straightLineKm } from '@repo/core/map';
-import { resolveServiceAmount } from '@repo/core/pricing';
+import { isNoFeeInspection, resolveServiceAmount } from '@repo/core/pricing';
 import { hasStarScore, NEW_GARAGE_LABEL } from '@repo/core/ratings';
 import { knownDurationTotal } from '@repo/core/service-duration';
 import { anywhereInCityLine } from '@repo/core/reach';
@@ -212,7 +212,10 @@ export default function GarageScreen() {
   const barTotal =
     selectedServices.length === 1
       ? servicePriceText(selectedServices[0], carType)
-      : hasPerVehiclePricing ? t('from {amount}', { amount: money(selectedTotal) }) : money(selectedTotal);
+      : // Only no-fee inspections (0073): nothing is priced yet, never "₹0".
+        selectedTotal === 0 && selectedServices.some(isNoFeeInspection)
+        ? t('Price on inspection')
+        : hasPerVehiclePricing ? t('from {amount}', { amount: money(selectedTotal) }) : money(selectedTotal);
 
   // The scroll's direct children, so the tabs can stick: [hero, body, tabs, pane].
   return (

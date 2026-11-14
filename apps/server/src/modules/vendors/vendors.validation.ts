@@ -412,9 +412,11 @@ export const servicePricingTypeSchema = z.enum([
   'on_inspection',
 ])
 
-// Shared cohesion check for a service's pricing fields. 'flat'/'on_inspection'
-// need a single `price`; 'per_vehicle' needs *every* tier priced. Applied via
-// superRefine so we can report the offending field.
+// Shared cohesion check for a service's pricing fields. 'flat' needs a single
+// positive `price`; 'per_vehicle' needs *every* tier priced. 'on_inspection'
+// takes an optional fee on a service (0073: left out or 0 is a free
+// inspection, booked with nothing paid); a package keeps its fee required.
+// Applied via superRefine so we can report the offending field.
 //
 // All three, not "at least one": the booking charge reads the tier matching the
 // customer's vehicle, so a missing tier would either bill them at another
@@ -434,12 +436,14 @@ function refinePricing(
     priceSedan?: number
     priceSuv?: number
   },
-  ctx: z.RefinementCtx
+  ctx: z.RefinementCtx,
+  options: { inspectionFeeOptional?: boolean } = {}
 ) {
   const type = data.pricingType
   if (type === undefined) return
 
-  if (type === 'flat' || type === 'on_inspection') {
+  const feeOptional = type === 'on_inspection' && options.inspectionFeeOptional === true
+  if ((type === 'flat' || type === 'on_inspection') && !feeOptional) {
     if (data.price === undefined || data.price <= 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -463,19 +467,34 @@ function refinePricing(
   }
 }
 
+/**
+ * A service's price box: positive, or 0 for an on-inspection service with no
+ * fee (0073). refinePricing refuses 0 for every other pricing type, and the
+ * service layer for a type-less update of one that isn't on inspection.
+ */
+const servicePriceSchema = z.number().nonnegative()
+
+/**
+ * On inspection only (0073): the garage's optional rough price, a guide
+ * customers see and are never charged. Null clears it; on any other pricing
+ * type it is ignored and stored as null. Capped well inside numeric(10,2).
+ */
+export const approxPriceSchema = z.number().positive().max(10_000_000).nullable()
+
 export const createServiceSchema = z
   .object({
     name: z.string().trim().min(1).max(255),
     description: z.string().trim().max(5000).optional(),
     category: plainServiceCategorySchema,
     pricingType: servicePricingTypeSchema.default('flat'),
-    price: z.number().positive().optional(),
+    price: servicePriceSchema.optional(),
     priceHatchback: z.number().positive().optional(),
     priceSedan: z.number().positive().optional(),
     priceSuv: z.number().positive().optional(),
+    approxPrice: approxPriceSchema.optional(),
     durationMins: z.number().int().positive(),
   })
-  .superRefine(refinePricing)
+  .superRefine((data, ctx) => refinePricing(data, ctx, { inspectionFeeOptional: true }))
 
 export const updateServiceSchema = z
   .object({
@@ -483,10 +502,11 @@ export const updateServiceSchema = z
     description: z.string().trim().max(5000).nullable().optional(),
     category: plainServiceCategorySchema.optional(),
     pricingType: servicePricingTypeSchema.optional(),
-    price: z.number().positive().optional(),
+    price: servicePriceSchema.optional(),
     priceHatchback: z.number().positive().optional(),
     priceSedan: z.number().positive().optional(),
     priceSuv: z.number().positive().optional(),
+    approxPrice: approxPriceSchema.optional(),
     durationMins: z.number().int().positive().optional(),
   })
   .superRefine((data, ctx) => {
@@ -497,7 +517,7 @@ export const updateServiceSchema = z
       })
       return
     }
-    refinePricing(data, ctx)
+    refinePricing(data, ctx, { inspectionFeeOptional: true })
   })
 
 export const toggleServiceActiveSchema = z.object({

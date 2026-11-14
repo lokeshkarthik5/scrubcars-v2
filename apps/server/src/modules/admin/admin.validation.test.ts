@@ -9,6 +9,7 @@ import {
   markNoShowSchema,
   pauseVendorSchema,
   pilotStatsQuerySchema,
+  serviceInputSchema,
   setServiceActiveSchema,
   updateVendorSchema,
 } from './admin.validation.js'
@@ -383,5 +384,22 @@ describe('the admin round (0064)', () => {
     for (const rate of [1.1, 8.29, 4.35, 2.01, 0.07, 0.29, 0.57, 1.13, 49.99]) {
       expect(ok({ commissionRate: rate })).toBe(true)
     }
+  })
+})
+
+// On inspection with no fee, and the approx price (0073).
+describe('an admin service priced on inspection', () => {
+  const base = { name: 'Dent repair', category: 'scratch_removal' as const, pricingType: 'on_inspection' as const }
+
+  test('needs no fee, and takes an optional positive approx price', () => {
+    expect(serviceInputSchema.safeParse(base).success).toBe(true)
+    expect(serviceInputSchema.safeParse({ ...base, price: 0, approxPrice: 1500 }).success).toBe(true)
+    expect(serviceInputSchema.safeParse({ ...base, approxPrice: null }).success).toBe(true)
+    expect(serviceInputSchema.safeParse({ ...base, approxPrice: 0 }).success).toBe(false)
+  })
+
+  test('a flat price still needs to be above ₹0', () => {
+    expect(serviceInputSchema.safeParse({ ...base, pricingType: 'flat', price: 0 }).success).toBe(false)
+    expect(serviceInputSchema.safeParse({ ...base, pricingType: 'flat' }).success).toBe(false)
   })
 })
