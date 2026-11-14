@@ -5,6 +5,8 @@ import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useIsVendorAdmin } from '@/lib/auth';
+import { useGarageBookOn } from '@/lib/garage-book';
+import { BookNav } from './book/book-nav';
 import { Glass, NavOrb } from '@repo/native-ui/finish';
 import { IconCalendar, IconChartBar, IconHome, IconSettings, IconTool, type IconProps } from '@repo/native-ui/icons';
 import { T } from '@repo/native-ui/text';
@@ -39,6 +41,13 @@ export function useNavClearance() {
  * that belongs in the bar.
  */
 export function BottomNav() {
+  // Garage Book's bar (Home · Jobs · + · Customers · Business) while the book is on (0072);
+  // the same pill, height and clearance, so useNavClearance holds for both.
+  const book = useGarageBookOn();
+  return book ? <BookNav /> : <GarageTabs />;
+}
+
+function GarageTabs() {
   const t = useT();
   const colors = useColors();
   const styles = useStyles();

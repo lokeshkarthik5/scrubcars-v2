@@ -43,6 +43,8 @@ import { sortByUrgency, todayView, waitingSummary } from '@/lib/jobs';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 import { useRefreshOnFocus } from '@/lib/use-refresh-on-focus';
 import { useVendorBookings } from '@/lib/use-vendor-bookings';
+import { useGarageBookOn } from '@/lib/garage-book';
+import { BookHome } from '@/components/book/book-home';
 import { fill, useT, useTn } from '@repo/core/i18n';
 
 /** How many new-booking cards Home shows before "See all". */
@@ -63,6 +65,8 @@ function HomeScreen() {
   const [profile, setProfile] = useState<ApiVendorProfile | null>(null);
   const [week, setWeek] = useState<number | null>(null);
   const isVendorAdmin = useIsVendorAdmin();
+  // Garage Book (0072): Home is the book's (B1) while it is on; off, exactly as it was.
+  const book = useGarageBookOn();
 
   const isVerified = vendor?.isVerified ?? false;
   const needsLocation = profile !== null && profile.lat === null;
@@ -114,7 +118,7 @@ function HomeScreen() {
   const avgRating = reviewCount > 0 ? reviews!.reduce((sum, r) => sum + r.rating, 0) / reviewCount : 0;
 
   return (
-    <AppShell showBrand brandRight={<GarageStatus />}>
+    <AppShell showBrand brandRight={<GarageStatus />} gap={book ? 16 : 20}>
       {needsLocation ? (
         <Notice title={t('Set your garage location')} onPress={() => go('/settings?tab=location')}>
           {t(
@@ -143,6 +147,13 @@ function HomeScreen() {
 
       <PushBanner />
 
+      {book ? (
+        <>
+          <BookHome pending={pending} now={now} onChanged={reload} />
+          <RequestsHomeCard />
+        </>
+      ) : (
+        <>
       <View style={styles.section}>
         <View style={styles.sectionHead}>
           <View style={styles.titleRow}>
@@ -269,6 +280,8 @@ function HomeScreen() {
         {/* An odd tile keeps its half, as the web's two-column grid does. */}
         {isVendorAdmin ? <View style={styles.tileCell} /> : null}
       </View>
+        </>
+      )}
 
       {isVendorAdmin ? <GuaranteeHomeCard /> : null}
       {isVendorAdmin ? <TierCard vendorId={vendor?.id} /> : null}

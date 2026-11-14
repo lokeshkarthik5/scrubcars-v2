@@ -258,3 +258,25 @@ export async function apiClient<T>(
   const body = (await response.json()) as ApiSuccessResponse<T>
   return body.data
 }
+
+/**
+ * A file from the API (an Excel download), with the same sign-in, tenant
+ * header and one refresh after a 401 as apiClient. Resolves to its bytes; a
+ * refusal is an ApiError as apiClient's.
+ */
+export async function apiDownload(endpoint: string): Promise<ArrayBuffer> {
+  const url = `${API_BASE_URL}${endpoint}`
+  const headers = requestHeadersFor(undefined)
+  let response = await send(url, { method: 'GET' }, headers)
+  noteSupportSession(response)
+  if (response.status === 401 && (await tryRefreshCookies())) {
+    response = await send(url, { method: 'GET' }, headers)
+    noteSupportSession(response)
+  }
+  if (!response.ok) {
+    const error = await parseError(response)
+    if (error.status === 401) await triggerUnauthorizedLogout()
+    throw error
+  }
+  return response.arrayBuffer()
+}

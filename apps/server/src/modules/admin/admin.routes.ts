@@ -1,3 +1,4 @@
+import { adminGarageBookRoutes } from '../garage-book/garage-book.routes.js'
 import { createAddOnSchema, updateAddOnSchema } from '../vendors/vendors.validation.js'
 import { adminGarageClosureRoutes } from '../garage-closure/garage-closure.routes.js'
 import { zValidator } from '@hono/zod-validator'
@@ -552,6 +553,8 @@ adminRoutes.route('/garage-board', adminGarageBoardRoutes)
 adminRoutes.route('/coverage', adminCoverageRoutes)
 adminRoutes.route('/leads', adminLeadsRoutes)
 adminRoutes.route('/requests', adminBookingRequestRoutes)
+// Garage Book (0072): a garage's book, read-only, every look logged.
+adminRoutes.route('/', adminGarageBookRoutes)
 adminRoutes.route('/places', adminPlacesRoutes)
 
 // Cities (0069): which cities customers see garages in, and Other towns.

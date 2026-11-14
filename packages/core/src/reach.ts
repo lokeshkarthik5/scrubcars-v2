@@ -55,14 +55,19 @@ function rupees(amount: number): string {
  * garages can come to your door · from ₹349", "1 garage picks up and drops
  * back"), or the small "or have it done at home" line when it is 5–10 km and
  * a doorstep garage comes to them. Each piece is left out when its count is
- * 0; without a location, or without the figures, nothing.
+ * 0; without a location, or without the figures, nothing. `counted: false`
+ * (a small city) keeps the rows but says no numbers.
  */
 export function atGarageReach(
   figures: ReachFigures | null | undefined,
-  located: boolean
+  located: boolean,
+  options: { counted?: boolean } = {}
 ): { skipTheDrive: SkipTheDriveRow[] | null; atHomeLine: boolean; nearestKm: number | null } {
   const none = { skipTheDrive: null, atHomeLine: false, nearestKm: null }
   if (!figures || !located) return none
+  // A small city (customer-city isSmallCity, 0070) counts nothing: "Comes to
+  // your door · from ₹349", never a lonely "1 garage can come to your door".
+  const counted = options.counted ?? true
   const band = distanceBand(figures.dropin.nearestKm)
   if (band === 'far') {
     const rows: SkipTheDriveRow[] = []
@@ -70,7 +75,11 @@ export function atGarageReach(
       rows.push({
         mode: 'doorstep',
         title: t('At your door'),
-        detail: figures.doorstep.fromPrice
+        detail: !counted
+          ? figures.doorstep.fromPrice
+            ? t('Comes to your door · from {price}', { price: rupees(figures.doorstep.fromPrice) })
+            : t('Comes to your door')
+          : figures.doorstep.fromPrice
           ? tn(
               figures.doorstep.count,
               '{count} garage can come to your door · from {price}',
@@ -84,7 +93,9 @@ export function atGarageReach(
       rows.push({
         mode: 'pickup',
         title: t('We collect your car'),
-        detail: tn(figures.pickup.count, '{count} garage picks up and drops back', '{count} garages pick up and drop back'),
+        detail: !counted
+          ? t('Picks up your car and drops it back')
+          : tn(figures.pickup.count, '{count} garage picks up and drops back', '{count} garages pick up and drop back'),
       })
     }
     return { skipTheDrive: rows.length > 0 ? rows : null, atHomeLine: false, nearestKm: figures.dropin.nearestKm }

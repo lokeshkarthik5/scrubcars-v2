@@ -293,7 +293,12 @@ export interface HomeData {
   /** A live booking for a car since removed, when no car is left. */
   nextBooking: HomeNextBooking | null
   updates: { pinnedNotice: HomeNotice | null; items: UpdateItem[]; total: number } | null
-  nearby: { count: number; closestKm: number | null; radiusKm: number } | null
+  /**
+   * `farEmpty`: nothing within `radiusKm`, and nothing the garage list would
+   * show (over 150 km away), so Home offers another city instead of the
+   * list. Missing from a server older than it; read as false.
+   */
+  nearby: { count: number; closestKm: number | null; radiusKm: number; farEmpty?: boolean } | null
   tip: CarTip
 }
 

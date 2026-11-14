@@ -505,6 +505,13 @@
       "when": 1788870989737,
       "tag": "0071_owner_delete",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1788870989738,
+      "tag": "0072_garage_book",
+      "breakpoints": true
     }
   ]
 }

@@ -6,7 +6,7 @@ import { useSlotAlerts } from '@repo/core/api/hooks/use-slot-alerts';
 import { getPushConfig } from '@repo/core/api/push';
 import { createAddress, createVehicle, deleteAddress, deleteVehicle, setDefaultAddress, setDefaultVehicle } from '@repo/core/api/users';
 import { firstNameOf, initialOf } from '@repo/core/home-display';
-import { LANGUAGE_NAMES, LANGUAGE_OPTIONS, msg, useLang, useT, useTn } from '@repo/core/i18n';
+import { CUSTOMER_TAMIL, LANGUAGE_NAMES, LANGUAGE_OPTIONS, msg, useLang, useT, useTn } from '@repo/core/i18n';
 import { formatRupees } from '@repo/core/job-records';
 import { stampsToGoLine } from '@repo/core/rewards';
 import { SUPPORT_PHONE_DISPLAY, SUPPORT_TEL_HREF, SUPPORT_WHATSAPP_HREF } from '@repo/core/support';
@@ -128,9 +128,14 @@ function Row({
 /**
  * The web's Language row (apps/users/components/profile/language-row.tsx): English or
  * தமிழ் (Tamil), on this phone, signed in or not; the choice on the right in its own
- * language. It applies at once, everywhere.
+ * language. It applies at once, everywhere. Hidden while customer Tamil is off (CUSTOMER_TAMIL).
  */
 function LanguageRow() {
+  if (!CUSTOMER_TAMIL) return null;
+  return <LanguageRowShown />;
+}
+
+function LanguageRowShown() {
   const t = useT();
   const colors = useColors();
   const lang = useLang((s) => s.lang);

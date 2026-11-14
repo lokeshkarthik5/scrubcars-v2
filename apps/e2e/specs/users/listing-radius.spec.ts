@@ -349,6 +349,9 @@ test.describe('the list on screen @p0', () => {
     await expect(
       page.getByText('No garages within 150 km of you yet. Search finds a garage by its name, wherever it is.')
     ).toBeVisible()
+    // And the way on: another city, in the area sheet (0070).
+    await page.getByRole('button', { name: 'Choose a city' }).click()
+    await expect(page.getByRole('dialog', { name: "Where's your car?" })).toBeVisible()
   })
 
   test('nothing within 50 km: the map says so and leads to the garages further away', async ({ page }) => {

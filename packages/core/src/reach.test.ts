@@ -64,6 +64,17 @@ describe('the At garage tab’s pieces', () => {
     expect(atGarageReach(figures({ nearestKm: 14 }), true).skipTheDrive).toBeNull()
   })
 
+  test('a small city: the same rows, with no numbers', () => {
+    const reach = atGarageReach(figures({ nearestKm: 14, doorstep: 1, doorstepFrom: 349, pickup: 1 }), true, { counted: false })
+    expect(reach.skipTheDrive).toEqual([
+      { mode: 'doorstep', title: 'At your door', detail: 'Comes to your door · from ₹349' },
+      { mode: 'pickup', title: 'We collect your car', detail: 'Picks up your car and drops it back' },
+    ])
+    expect(
+      atGarageReach(figures({ nearestKm: 14, doorstep: 2 }), true, { counted: false }).skipTheDrive?.map((r) => r.detail)
+    ).toEqual(['Comes to your door'])
+  })
+
   test('5–10 km and a doorstep garage comes to them: the small line only', () => {
     const reach = atGarageReach(figures({ nearestKm: 6, doorstep: 1, pickup: 4 }), true)
     expect(reach.skipTheDrive).toBeNull()

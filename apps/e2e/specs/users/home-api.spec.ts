@@ -364,9 +364,17 @@ test.describe('Home hub API @p0', () => {
     expect(city.nearby.count).toBeGreaterThanOrEqual(15)
     expect(city.nearby.closestKm).toBeLessThanOrEqual(1)
 
-    // Madurai: nothing within 50 km, said as a count of none, not left out.
+    // Madurai: nothing within 50 km, said as a count of none, not left out;
+    // and nothing within 150 km either, so Home offers another city rather
+    // than a list that would open empty (0070).
     const none = await readHome(customer, '?lat=9.925&lng=78.12')
-    expect(none.nearby).toEqual({ count: 0, closestKm: null, radiusKm: 50 })
+    expect(none.nearby).toEqual({ count: 0, closestKm: null, radiusKm: 50, farEmpty: true })
+
+    // West of Ambur: nothing within 50 km, but the list has garages within
+    // 150 km, so "See all garages" stays.
+    const far = await readHome(customer, '?lat=12.92&lng=78.4')
+    expect(far.nearby).toEqual({ count: 0, closestKm: null, radiusKm: 50, farEmpty: false })
+    expect(city.nearby.farEmpty).toBe(false)
 
     await customer.dispose()
   })

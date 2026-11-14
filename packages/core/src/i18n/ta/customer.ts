@@ -40,6 +40,9 @@ export const customer: Readonly<Record<string, string>> = {
     'உங்களிடமிருந்து {km} km-க்குள் இன்னும் கேரேஜ்கள் இல்லை. கேரேஜ் எங்கே இருந்தாலும், அதன் பெயரைத் தேடிக் கண்டுபிடிக்கலாம்.',
   'No garages within {km} km of {city} yet. Search finds a garage by its name, wherever it is.':
     '{city}-லிருந்து {km} km-க்குள் இன்னும் கேரேஜ்கள் இல்லை. கேரேஜ் எங்கே இருந்தாலும், அதன் பெயரைத் தேடிக் கண்டுபிடிக்கலாம்.',
+  // Home and the list when nothing is within 150 km: another city instead.
+  'No Detlio garages near you yet': 'உங்கள் அருகில் இன்னும் Detlio கேரேஜ்கள் இல்லை',
+  'Choose a city': 'நகரத்தைத் தேர்வு செய்யவும்',
   // ─── "All over <city>" garages (0069), on a Doorstep or Pickup & drop list ───
   'Comes anywhere in {city}': '{city}-ல் எங்கும் வருவார்கள்',
   'Collects anywhere in {city}': '{city}-ல் எங்கிருந்தும் எடுத்துச் செல்வார்கள்',

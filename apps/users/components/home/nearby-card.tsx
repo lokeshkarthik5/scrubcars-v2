@@ -94,6 +94,29 @@ export function NearbyCard({ nearby, located }: { nearby: HomeData['nearby']; lo
     )
   }
 
+  // Nothing within 150 km either (0070): the list would open empty, so the
+  // way on is another city, in the same area sheet as the city chip.
+  if (nearby.count === 0 && nearby.farEmpty) {
+    return (
+      <>
+        <button type="button" onClick={() => setAsking(true)} className={shell}>
+          <LineMap />
+          <span className="relative">
+            <span className="block text-t4 text-dim">{t('Nearby garages')}</span>
+            <span className="mt-[5px] mb-1 block text-t2 tracking-[-0.012em] text-text-primary">
+              {t('No Detlio garages near you yet')}
+            </span>
+            <span className="block text-t4 text-dim">{t('Choose a city')}</span>
+          </span>
+          <span aria-hidden className="relative grid size-10 shrink-0 place-items-center rounded-full bg-white/[0.08] backdrop-blur-sm">
+            <IconMapPin size={20} stroke={1.5} />
+          </span>
+        </button>
+        <AreaPicker open={asking} onClose={() => setAsking(false)} />
+      </>
+    )
+  }
+
   // None within reach: say so plainly, and lead to the full list rather than
   // to an empty map — the list still has garages further away and the ones
   // not yet pinned.

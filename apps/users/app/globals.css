@@ -1138,51 +1138,8 @@ html[data-vt='vt-booking-back']::view-transition-new(root) {
   transition: none;
 }
 
-/* 7 · The Home wash gauge: the needle sweeps all the way once and settles. */
-.mo-gauge__needle {
-  transform-origin: 50% 100%;
-  transform: rotate(var(--angle, -90deg));
-}
-.mo-gauge[data-play] .mo-gauge__needle {
-  animation: mo-sweep 1.5s cubic-bezier(0.45, 0, 0.2, 1) both;
-}
-@keyframes mo-sweep {
-  0% {
-    transform: rotate(-90deg);
-  }
-  45% {
-    transform: rotate(90deg);
-  }
-  to {
-    transform: rotate(var(--angle, -90deg));
-  }
-}
-.mo-gauge__fill {
-  transition: stroke-dashoffset 0.6s var(--ease-settle);
-}
-.mo-gauge[data-play] .mo-gauge__fill {
-  animation: mo-gauge-fill 1.5s cubic-bezier(0.45, 0, 0.2, 1) both;
-}
-@keyframes mo-gauge-fill {
-  0% {
-    stroke-dashoffset: 1;
-  }
-  45% {
-    stroke-dashoffset: 0;
-  }
-}
-
-/* 8 · Real number plates: white plate, black edge, the blue IND band. */
-.mo-plate {
-  background: #f4f4f2;
-  box-shadow:
-    0 0 0 1.5px #111,
-    0 0 0 3px #d8d8d4,
-    0 6px 14px rgb(0 0 0 / 0.5);
-}
-.mo-plate__band {
-  background: #1d4fb8;
-}
+/* 7 and 8 · The wash gauge and the number plates live in the shared finish
+   (packages/ui/styles/finish.css, packages/ui/src/finish), with Garage Book. */
 
 /* 9 · Cards in metal: brushed silver or gold, the points rolling, the bar filling once. */
 .mo-metal {
@@ -1266,7 +1223,6 @@ html[data-vt='vt-booking-back']::view-transition-new(root) {
   .mo-shutter img,
   .mo-ticket,
   .mo-pull[data-refreshing] .mo-pull__car,
-  .mo-gauge[data-play] :is(.mo-gauge__needle, .mo-gauge__fill),
   .mo-fill-once {
     animation: none;
   }
@@ -1278,7 +1234,6 @@ html[data-vt='vt-booking-back']::view-transition-new(root) {
   .mo-road__carriage,
   .mo-track__fill,
   .mo-ring__fill,
-  .mo-gauge__fill,
   .mo-pull__list,
   .mo-unread,
   .bk-opt,

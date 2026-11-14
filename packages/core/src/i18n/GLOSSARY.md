@@ -109,6 +109,12 @@ formal literary Tamil, not machine-literal.
 | Team | டீம் |
 | Bronze / Silver / Gold | பிரான்ஸ் / சில்வர் / கோல்டு |
 | Chennai | சென்னை |
+| Job (a garage's piece of work) | வேலை / வேலைகள் |
+| Walk-in (Garage Book: a customer the garage brings in itself) | வாக்-இன் |
+| Money owed / ₹X owed / Owes | வர வேண்டிய பணம் / ₹X பாக்கி / பாக்கி |
+| Pay later (how a walk-in is paid) | பிறகு தருவார் |
+| Remind / Reminder | நினைவூட்டவும் / நினைவூட்டல் |
+| Garage Book's "book" (Download my book) | கணக்குப் புத்தகம் |
 
 Add a row when a word starts recurring across screens, and use the row's Tamil
 everywhere it appears. The same English in two `ta/*.ts` files must have the

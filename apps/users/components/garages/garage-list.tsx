@@ -303,7 +303,7 @@ export function GarageList({
   // The At garage tab's pieces (Skip the drive, or the small "at home" line).
   const atGarage =
     serviceMode === 'dropin' && !isRefreshing
-      ? atGarageReach(reach, !!origin)
+      ? atGarageReach(reach, !!origin, { counted: !small })
       : { skipTheDrive: null, atHomeLine: false, nearestKm: null }
   // The end of the list, where the next way to have it done is offered and
   // the "just outside" garages follow.
@@ -313,6 +313,13 @@ export function GarageList({
       ? (outside ?? [])
       : []
   const nextOffer = nextTabOffer(serviceMode, reach)
+  // An empty At garage list with every service, from a place: nothing within
+  // 150 km (0070), as opposed to a filter that matched nothing.
+  const farEmpty =
+    !silverOnly &&
+    serviceMode === 'dropin' &&
+    category === 'all' &&
+    (!!origin || cityParams.cityLat !== undefined)
 
   // Knowing the permission state lets the header say whether tapping it will
   // pop a browser prompt or silently do nothing because it was already refused.
@@ -649,12 +656,18 @@ export function GarageList({
                     ? t('No garage collects from your area yet.')
                     : serviceMode === 'doorstep' && !citywide
                       ? t('No garage travels to your area yet.')
-                      : serviceMode === 'dropin' && category === 'all' && (origin || cityParams.cityLat !== undefined)
+                      : farEmpty
                         ? // Nothing within 150 km (0070): why, and the way on.
                           farEmptyLine(place)
                         : t('No garages match these filters.')}
               </p>
               <div className="flex flex-wrap justify-center gap-2">
+                {/* Nothing within 150 km (0070): another city, in the area sheet. */}
+                {onAskArea && farEmpty && (
+                  <ScButton variant="outline" fullWidth={false} onClick={onAskArea}>
+                    {t('Choose a city')}
+                  </ScButton>
+                )}
                 {silverOnly && (
                   <ScButton
                     variant="outline"

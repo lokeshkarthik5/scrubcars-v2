@@ -1078,4 +1078,15 @@ export const garageWeb: Readonly<Record<string, string>> = {
   'How far you collect from': 'எவ்வளவு தூரத்திலிருந்து காரை எடுப்பீர்கள்',
   'You collect from any address in {city}.':
     '{city}-ல் எந்த முகவரியிலிருந்தும் நீங்கள் காரை எடுப்பீர்கள்.',
+  // ─── Garage Book (the portal only) ───
+  'Garage app': 'கேரேஜ் ஆப்',
+  'Today, closed': 'இன்று, கணக்கு முடிந்தது',
+  'No signal. Save it when you are back online.':
+    'சிக்னல் இல்லை. மீண்டும் ஆன்லைனுக்கு வந்ததும் சேமிக்கவும்.',
+  'No signal: the website can’t save without the internet. The Detlio for Garages app saves it on your phone and sends it later.':
+    'சிக்னல் இல்லை: இன்டர்நெட் இல்லாமல் வெப்சைட்டால் சேமிக்க முடியாது. Detlio for Garages ஆப் இதை உங்கள் போனில் சேமித்து, பிறகு அனுப்பும்.',
+  "Only the garage's owner sees money.":
+    'கேரேஜ் உரிமையாளர் மட்டுமே பண விவரங்களைப் பார்க்க முடியும்.',
+  "Only the garage's owner sees Stats.":
+    'கேரேஜ் உரிமையாளர் மட்டுமே புள்ளிவிவரத்தைப் பார்க்க முடியும்.',
 }

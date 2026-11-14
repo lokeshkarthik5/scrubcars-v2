@@ -14,6 +14,15 @@ export const LANGS: readonly Lang[] = ['en', 'ta']
 export const DEFAULT_LANG: Lang = 'en'
 
 /**
+ * Whether customers can pick Tamil (the customer website and app). Off at
+ * launch (owner, 11 Nov 2026): customers see English only and the Language
+ * row is hidden, while the garage apps keep Tamil. The Tamil stays written
+ * (ta/customer*.ts) so turning this back on is all it takes; a Tamil choice a
+ * customer saved before is ignored while it is off.
+ */
+export const CUSTOMER_TAMIL = false
+
+/**
  * The Language sheet's options, each always written in its own language, so
  * someone who cannot read the language on screen can still find theirs.
  */

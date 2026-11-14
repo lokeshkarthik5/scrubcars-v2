@@ -227,4 +227,23 @@ export const garageApp: Readonly<Record<string, string>> = {
   Choose: 'தேர்ந்தெடுக்கவும்',
   'not set': 'அமைக்கப்படவில்லை',
   'Choose a date': 'தேதியைத் தேர்ந்தெடுக்கவும்',
+  // ─── Garage Book (the app only) ───
+  'This phone can’t share files.': 'இந்த போனில் ஃபைல்களைப் பகிர முடியாது.',
+  'Your book': 'உங்கள் கணக்குப் புத்தகம்',
+  'Your note': 'உங்கள் குறிப்பு',
+  'No signal. Saved on this phone; it sends when you are back online.':
+    'சிக்னல் இல்லை. இந்த போனில் சேமிக்கப்பட்டது; மீண்டும் ஆன்லைனுக்கு வந்ததும் அனுப்பப்படும்.',
+  'No signal: the job is saved on this phone and sent as soon as you are back online.':
+    'சிக்னல் இல்லை: வேலை இந்த போனில் சேமிக்கப்படும், மீண்டும் ஆன்லைனுக்கு வந்ததும் அனுப்பப்படும்.',
+  'Saved on this phone. It sends when you are back online.':
+    'இந்த போனில் சேமிக்கப்பட்டது. மீண்டும் ஆன்லைனுக்கு வந்ததும் அனுப்பப்படும்.',
+  'Tap to pick a time': 'நேரத்தைத் தேர்ந்தெடுக்கத் தட்டவும்',
+  'Only the garage’s owner sees money.':
+    'கேரேஜ் உரிமையாளர் மட்டுமே பண விவரங்களைப் பார்க்க முடியும்.',
+  'Only the garage’s owner sees Stats.':
+    'கேரேஜ் உரிமையாளர் மட்டுமே புள்ளிவிவரத்தைப் பார்க்க முடியும்.',
+  'How much': 'எவ்வளவு',
+  Days: 'நாட்கள்',
+  "{name}'s walk-in couldn't be saved: {reason}": '{name}-இன் வாக்-இன் சேமிக்கப்படவில்லை: {reason}',
+  'try again': 'மீண்டும் முயற்சிக்கவும்',
 }

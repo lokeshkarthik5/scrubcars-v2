@@ -580,6 +580,69 @@
   transform: none;
 }
 
+/* ─── Shared with the garage portal's Garage Book (Nov 2026) ───────────────
+ *
+ * Moved here unchanged from apps/users/app/globals.css so both apps draw the
+ * same parts: the wash gauge (moment 7) and the number plate (moment 8).
+ * Class names nothing else uses. (The bar's orb and silver icons are in
+ * their own section above, shared with the garage's bar.)
+ */
+
+/* 7 · The Home wash gauge: the needle sweeps all the way once and settles. */
+.mo-gauge__needle {
+  transform-origin: 50% 100%;
+  transform: rotate(var(--angle, -90deg));
+}
+.mo-gauge[data-play] .mo-gauge__needle {
+  animation: mo-sweep 1.5s cubic-bezier(0.45, 0, 0.2, 1) both;
+}
+@keyframes mo-sweep {
+  0% {
+    transform: rotate(-90deg);
+  }
+  45% {
+    transform: rotate(90deg);
+  }
+  to {
+    transform: rotate(var(--angle, -90deg));
+  }
+}
+.mo-gauge__fill {
+  transition: stroke-dashoffset 0.6s var(--ease-settle);
+}
+.mo-gauge[data-play] .mo-gauge__fill {
+  animation: mo-gauge-fill 1.5s cubic-bezier(0.45, 0, 0.2, 1) both;
+}
+@keyframes mo-gauge-fill {
+  0% {
+    stroke-dashoffset: 1;
+  }
+  45% {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* 8 · Real number plates: white plate, black edge, the blue IND band. */
+.mo-plate {
+  background: #f4f4f2;
+  box-shadow:
+    0 0 0 1.5px #111,
+    0 0 0 3px #d8d8d4,
+    0 6px 14px rgb(0 0 0 / 0.5);
+}
+.mo-plate__band {
+  background: #1d4fb8;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mo-gauge[data-play] :is(.mo-gauge__needle, .mo-gauge__fill) {
+    animation: none;
+  }
+  .mo-gauge__fill {
+    transition: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .finish :is(.otp-box, .otp-light, .otp-tick) {
     transition: none;

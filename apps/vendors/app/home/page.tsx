@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { IconChevronRight, IconInbox } from '@tabler/icons-react'
 import { fill, useT, useTn } from '@repo/core/i18n'
@@ -32,6 +32,9 @@ import { sortByUrgency, todayView, waitingSummary } from '@/lib/jobs'
 import { useVendorBookings } from '@/lib/use-vendor-bookings'
 import { useGarageRequestCount } from '@repo/core/api/hooks/use-booking-requests'
 import { REQUEST_RULES } from '@repo/core/booking-requests'
+import { cn } from '@repo/core/utils'
+import { BookHome } from '@/components/book/book-home'
+import { useGarageBookOn } from '@/lib/garage-book'
 
 /** How many new-booking cards Home shows before "See all". */
 const CARDS_ON_HOME = 3
@@ -66,6 +69,9 @@ export default function VendorHomePage() {
   const [profile, setProfile] = useState<ApiVendorProfile | null>(null)
   const [week, setWeek] = useState<number | null>(null)
   const isVendorAdmin = useIsVendorAdmin()
+  // Garage Book (0072): with it on, Home is the book's (B1), in the finish;
+  // off, Home is exactly as it was.
+  const book = useGarageBookOn().on
 
   const isVerified = vendor?.isVerified ?? false
   // Only meaningful once the profile has loaded — `null` while loading must not
@@ -124,7 +130,7 @@ export default function VendorHomePage() {
       navType="vendor"
       showBrand
       brandRight={<GarageStatus />}
-      className="gap-5 py-4"
+      className={cn('gap-5 py-4', book && 'finish gap-4')}
     >
       <h1 className="sr-only">{t('Home')}</h1>
 
@@ -167,6 +173,15 @@ export default function VendorHomePage() {
 
       <PushBanner />
 
+      {book ? (
+        <>
+          <Suspense fallback={null}>
+            <BookHome pending={pending} now={now} onChanged={reload} />
+          </Suspense>
+          <RequestsHomeCard />
+        </>
+      ) : (
+        <>
       <section aria-labelledby="home-waiting" className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-3">
           <h2
@@ -316,6 +331,8 @@ export default function VendorHomePage() {
           />
         </Link>
       </div>
+        </>
+      )}
 
       {/* Free redo claims (0051): what waits for an answer, owner seat only. */}
       {isVendorAdmin && <GuaranteeHomeCard key={`guarantee-${vendor?.id}`} />}
