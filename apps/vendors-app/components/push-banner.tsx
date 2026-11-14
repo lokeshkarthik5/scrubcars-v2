@@ -83,8 +83,11 @@ export function PushBanner() {
 const useStyles = createStyles((colors) => ({
   banner: {
     flexDirection: 'row',
+    // Wraps: a long (Tamil) button drops under the line rather than squeezing it.
+    flexWrap: 'wrap',
     alignItems: 'center',
-    gap: 12,
+    columnGap: 12,
+    rowGap: 4,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: colors.border,
@@ -93,7 +96,7 @@ const useStyles = createStyles((colors) => ({
     paddingLeft: 16,
     paddingRight: 8,
   },
-  text: { flex: 1, minWidth: 0 },
+  text: { flex: 1, minWidth: 144 },
   turnOn: { flexShrink: 0 },
   why: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 12 },
   underline: { textDecorationLine: 'underline' },

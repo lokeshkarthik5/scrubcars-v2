@@ -324,6 +324,8 @@ export interface ApiVendorProfile extends VendorProfileExtras {
   slotIntervalMins: number
   status: string
   createdAt: string
+  /** Garage Book (0072): whether the garage apps show the book (GARAGE_BOOK on the server). Absent from an older API. */
+  garageBook?: { enabled: boolean }
 }
 
 export interface ApiWorkingHours {

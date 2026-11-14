@@ -2,7 +2,7 @@ import { VendorShellHeader } from '@repo/ui/features/vendor-shell-header'
 import { cn } from '@repo/core/utils'
 import { BottomNav, type NavType } from './bottom-nav'
 import { BrandMark } from './brand-mark'
-import { GarageNav } from './garage-nav'
+import { GarageBar } from './nav-slot'
 
 /**
  * How far a page's content stops above the bottom edge when a floating nav
@@ -26,7 +26,8 @@ interface AppShellProps {
    * is on: the customer app's floating pill while the Home hub is on
    * (NEXT_PUBLIC_HOME_HUB, apps/users CustomerShell). It floats over the page
    * rather than sitting under it, so the page clears FLOATING_NAV_CLEARANCE.
-   * The garage portal (navType="vendor") always floats its own, GarageNav;
+   * The garage portal (navType="vendor") always floats its own: GarageNav,
+   * or Garage Book's bar while the book is on (GarageBar, nav-slot.tsx);
    * unset for admin and customers with the hub off, the flat bar stays.
    */
   floatingNav?: React.ReactNode
@@ -42,7 +43,7 @@ export function AppShell({
   floatingNav,
 }: AppShellProps) {
   // The garage's bar floats in the customer app's look (owner, 10 Nov 2026).
-  const floating = floatingNav || (navType === 'vendor' ? <GarageNav /> : null)
+  const floating = floatingNav || (navType === 'vendor' ? <GarageBar /> : null)
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-[428px] flex-col bg-brand-black">
       <main

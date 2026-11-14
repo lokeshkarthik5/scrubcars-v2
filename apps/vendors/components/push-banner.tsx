@@ -59,14 +59,16 @@ export function PushBanner() {
   return (
     <section
       aria-label={t('New-booking alerts')}
-      className="flex items-center gap-3 rounded-[20px] border border-border bg-surface py-2 pl-4 pr-2"
+      // Wraps: when the button's words are long (Tamil), it drops under the
+      // line rather than squeezing it to a word per row.
+      className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[20px] border border-border bg-surface py-2 pl-4 pr-2"
     >
       <IconBell
         size={22}
         aria-hidden="true"
         className="shrink-0 text-text-primary"
       />
-      <p className="min-w-0 flex-1 text-[15px] leading-snug text-text-secondary">
+      <p className="min-w-[9rem] flex-1 text-[15px] leading-snug text-text-secondary">
         {fill(t('{off} on this phone'), {
           off: (
             <span className="font-semibold text-text-primary">
