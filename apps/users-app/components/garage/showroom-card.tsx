@@ -14,7 +14,7 @@ import { createStyles, useColors, useFinish } from '@repo/native-ui/theme';
 import { useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { type Href, router } from 'expo-router';
-import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
+import { memo, useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import {
   Animated,
   Image,
@@ -53,6 +53,9 @@ function useMinute(): Date {
   return now;
 }
 
+/** How long a finger must rest on a card before its garage page is fetched ahead. */
+const PREFETCH_AFTER_MS = 120;
+
 /**
  * The Showroom garage card (§3; apps/users/components/garages/showroom-card.tsx), the
  * list's default card: swipeable photos with the name, tier medal and a NEW tag on a
@@ -68,7 +71,7 @@ function useMinute(): Date {
  * read one plain line instead. The heart, the photo dots and the times are controls of
  * their own beside the card's press, never inside it.
  */
-export function ShowroomCard({
+export const ShowroomCard = memo(function ShowroomCard({
   vendor,
   mode,
   chips,
@@ -103,6 +106,10 @@ export function ShowroomCard({
   const [photo, setPhoto] = useState(0);
   const photosRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const held = useRef(false);
+  const prefetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (prefetchTimer.current) clearTimeout(prefetchTimer.current);
+  }, []);
 
   const modeParam = bookingTypeParam(mode);
   const anywhere = anywhereInCityLine(vendor, mode);
@@ -157,10 +164,17 @@ export function ShowroomCard({
         accessibilityRole="link"
         accessibilityLabel={[vendor.name, subline, statusWords, spoken].filter(Boolean).join('. ')}
         accessibilityHint={onQuickLook ? t('Press and hold for a quick look') : undefined}
-        // The garage page starts loading the moment a finger lands on the card.
+        // The garage page starts loading once a finger rests on the card. Not the instant
+        // it lands: a flick that starts on a card cancels the press within a few frames,
+        // and used to send three garage requests per flick into the list's own loading.
         onPressIn={() => {
           held.current = false;
-          void prefetchGarage(queryClient, vendor.id);
+          if (prefetchTimer.current) clearTimeout(prefetchTimer.current);
+          prefetchTimer.current = setTimeout(() => void prefetchGarage(queryClient, vendor.id), PREFETCH_AFTER_MS);
+        }}
+        onPressOut={() => {
+          if (prefetchTimer.current) clearTimeout(prefetchTimer.current);
+          prefetchTimer.current = null;
         }}
         delayLongPress={HOLD_MS}
         onLongPress={
@@ -174,6 +188,8 @@ export function ShowroomCard({
         }
         onPress={() => {
           if (held.current) return;
+          // A quick tap ends before the timer: load it now, alongside the push.
+          void prefetchGarage(queryClient, vendor.id);
           router.push(href as Href);
         }}
         style={({ pressed }) => [pressed && !reduce && styles.holding]}
@@ -190,6 +206,9 @@ export function ShowroomCard({
             >
               {photos.map((src, i) => (
                 <View key={src} style={[styles.slide, { width: cardWidth }]}>
+                  {/* Only the photo showing and the next one are loaded: a card with eight
+                      photos used to decode all eight as the list went by. */}
+                  {i <= photo + 1 ? (
                   <Animated.Image
                     source={{ uri: src }}
                     accessibilityIgnoresInvertColors
@@ -197,6 +216,7 @@ export function ShowroomCard({
                     resizeMode="cover"
                     style={[styles.photoImage, { width: cardWidth, transform: [{ translateY: drift }] }]}
                   />
+                  ) : null}
                 </View>
               ))}
             </ScrollView>
@@ -349,7 +369,18 @@ export function ShowroomCard({
       <NextFreeRow vendor={vendor} mode={mode} visible={seen} />
     </Edge>
   );
-}
+},
+// The list builds its chips element afresh on every render; whether there is one is
+// what changes the card (its words follow the vendor and mode, compared here).
+(prev, next) =>
+  prev.vendor === next.vendor &&
+  prev.mode === next.mode &&
+  prev.approxDistance === next.approxDistance &&
+  prev.onQuickLook === next.onQuickLook &&
+  prev.scrollY === next.scrollY &&
+  prev.top === next.top &&
+  !!prev.chips === !!next.chips
+);
 
 /** One of the facts: a figure over its caption, the next divided by a fading line. */
 function Fact({ first = false, children }: { first?: boolean; children: ReactNode }) {
