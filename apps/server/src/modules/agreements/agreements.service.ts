@@ -54,13 +54,13 @@ export async function agreementStandings(
   vendorIds: string[],
   now = new Date()
 ): Promise<Map<string, AgreementStanding>> {
-  // Read together rather than one after the other: the accepted versions are
-  // only wanted once there is an agreement, but asking for them alongside
-  // costs less than a second round trip on every garage read.
-  const [latest, acceptedVersions] = await Promise.all([
-    agreementsRepository.latest(),
-    agreementsRepository.acceptedVersions(vendorIds),
-  ])
+  // Both read, one after the other (never Promise.all on the single
+  // production connection: see db/index.ts). The accepted versions are only
+  // used once there is an agreement.
+  const [latest, acceptedVersions] = [
+    await agreementsRepository.latest(),
+    await agreementsRepository.acceptedVersions(vendorIds),
+  ]
   const accepted = latest ? acceptedVersions : new Map<string, number>()
   return new Map(
     vendorIds.map((id) => [

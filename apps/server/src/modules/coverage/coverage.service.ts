@@ -94,12 +94,12 @@ async function readDemand(
   recommendations: ReadonlyArray<{ zoneId: string | null; status: string }>,
   now: Date
 ): Promise<ZoneDemand[]> {
-  const [signups, requests] = await Promise.all([
-    coverageRepository.listSignups(),
-    bookingRequestsRepository.listLatestSince(
+  const [signups, requests] = [
+    await coverageRepository.listSignups(),
+    await bookingRequestsRepository.listLatestSince(
       new Date(now.getTime() - HOT_ZONE_RULES.requestDays * DAY_MS)
     ),
-  ])
+  ]
   const discountIds = signups.flatMap((signup) =>
     signup.discountId ? [signup.discountId] : []
   )
@@ -191,10 +191,10 @@ const zoneNotFound = () => new AppError(404, 'Zone not found', 'ZONE_NOT_FOUND')
  * now (the zones' one rule), in the same transaction as the change.
  */
 async function rezoneLeads(conn: Conn, now: Date): Promise<number> {
-  const [zones, pinned] = await Promise.all([
-    coverageRepository.listZones(conn),
-    leadsRepository.listPinned(conn),
-  ])
+  const [zones, pinned] = [
+    await coverageRepository.listZones(conn),
+    await leadsRepository.listPinned(conn),
+  ]
   const moves = leadZoneMoves(pinned, zones)
   await leadsRepository.setZones(moves, now, conn)
   return moves.length
@@ -208,12 +208,12 @@ function asZoneWriteError(err: unknown): never {
 
 /** What a zone in use holds, counted the way the refusal counts it. */
 async function zoneUseOf(zone: ZoneRecord): Promise<ZoneUse> {
-  const [leads, signups, requests, recommendations] = await Promise.all([
-    leadsRepository.countInZone(zone.id),
-    coverageRepository.countSignupsInZone(zone.id),
-    bookingRequestsRepository.countInZone(zone.slug),
-    leadsRepository.countRecommendationsInZone(zone.id),
-  ])
+  const [leads, signups, requests, recommendations] = [
+    await leadsRepository.countInZone(zone.id),
+    await coverageRepository.countSignupsInZone(zone.id),
+    await bookingRequestsRepository.countInZone(zone.slug),
+    await leadsRepository.countRecommendationsInZone(zone.id),
+  ]
   return { leads, signups, requests, recommendations }
 }
 
@@ -224,13 +224,13 @@ export const coverageService = {
    * restates it), every lead, and which finder sources are connected.
    */
   async overview(now = new Date()): Promise<CoverageOverview> {
-    const [zones, garages, leads, recommendations, cityRules] = await Promise.all([
-      coverageRepository.listZones(),
-      coverageRepository.listGarages(),
-      leadsRepository.listAll(),
-      leadsRepository.listRecommendations(),
-      citiesService.rules(),
-    ])
+    const [zones, garages, leads, recommendations, cityRules] = [
+      await coverageRepository.listZones(),
+      await coverageRepository.listGarages(),
+      await leadsRepository.listAll(),
+      await leadsRepository.listRecommendations(),
+      await citiesService.rules(),
+    ]
     const sources = placesSources()
     const demand = await readDemand(zones, recommendations, now)
     return {
@@ -271,10 +271,10 @@ export const coverageService = {
     input: CreateZoneInput,
     now = new Date()
   ): Promise<CoverageZone> {
-    const [zones, cities] = await Promise.all([
-      coverageRepository.listZones(),
-      citiesService.listCities(),
-    ])
+    const [zones, cities] = [
+      await coverageRepository.listZones(),
+      await citiesService.listCities(),
+    ]
     const name = cleanZoneName(input.name)
     const problem = zoneEditProblem(
       { id: null, name, target: input.target, lat: input.lat, lng: input.lng },
@@ -312,10 +312,10 @@ export const coverageService = {
     input: UpdateZoneInput,
     now = new Date()
   ): Promise<CoverageZone> {
-    const [zones, cities] = await Promise.all([
-      coverageRepository.listZones(),
-      citiesService.listCities(),
-    ])
+    const [zones, cities] = [
+      await coverageRepository.listZones(),
+      await citiesService.listCities(),
+    ]
     const current = zones.find((zone) => zone.id === id)
     if (!current) throw zoneNotFound()
     const next = {

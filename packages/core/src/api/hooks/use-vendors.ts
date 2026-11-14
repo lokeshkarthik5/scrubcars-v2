@@ -9,6 +9,7 @@ import {
   type InfiniteData,
   type QueryClient,
 } from '@tanstack/react-query'
+import { useMemo } from 'react'
 import { ApiError } from '@repo/core/api/client'
 import { getVendorPackages } from '@repo/core/api/packages'
 import { getVendorReviews } from '@repo/core/api/reviews'
@@ -115,8 +116,13 @@ export function useVendorSearch(
   const isRefreshing = query.isPlaceholderData
   const hasMore = query.hasNextPage && !isRefreshing
 
+  // The same array until the pages change, so a list (or the map peek) that
+  // memoises on it is not rebuilt by every render of the screen above it.
+  const data = query.data
+  const vendors = useMemo(() => (data?.pages ?? []).flatMap((page) => page.vendors), [data])
+
   return {
-    vendors: pages.flatMap((page) => page.vendors),
+    vendors,
     // From the first page: every page of one list is searched with the same
     // radius, so a later page's value would say nothing new.
     radiusKm: pages[0]?.radiusKm ?? null,

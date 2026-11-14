@@ -27,7 +27,7 @@ import { ScSheet } from '@repo/native-ui/sheet';
 import { Figures, T } from '@repo/native-ui/text';
 import { createStyles, useColors, useFinish, useTheme } from '@repo/native-ui/theme';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import Constants from 'expo-constants';
 import { Animated, Image, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import MapView, { Marker, type Region } from 'react-native-maps';
@@ -58,18 +58,21 @@ const hasPin = (v: Vendor): v is Vendor & { lat: number; lng: number } => v.lat 
  * roof or wheels. The blur reads lighter in the light theme. Otherwise the web's card (§4):
  * glass, the chosen one full size with a lit edge, the others a step back so the next peeks.
  */
-function MapVendorCard({
+const MapVendorCard = memo(function MapVendorCard({
   vendor,
   selected,
+  near,
   mode,
   width,
   onChoose,
 }: {
   vendor: Vendor;
   selected: boolean;
+  /** On screen or next to it: only these draw the blurred copy (a CPU blur per photo). */
+  near: boolean;
   mode: BookingType;
   width: number;
-  onChoose: () => void;
+  onChoose: (vendor: Vendor) => void;
 }) {
   const t = useT();
   const colors = useColors();
@@ -106,7 +109,7 @@ function MapVendorCard({
         accessibilityState={{ selected }}
         // A tap on a card at the side picks it first; a tap on the chosen one opens the garage.
         onPress={() => {
-          if (!selected) onChoose();
+          if (!selected) onChoose(vendor);
           else router.push((modeParam ? `/garage/${vendor.id}?mode=${modeParam}` : `/garage/${vendor.id}`) as Href);
         }}
       >
@@ -114,7 +117,7 @@ function MapVendorCard({
           <View style={styles.cardPhoto}>
             {photo ? (
               <>
-                <Image source={{ uri: photo }} blurRadius={24} resizeMode="cover" style={StyleSheet.absoluteFill} />
+                {near ? <Image source={{ uri: photo }} blurRadius={24} resizeMode="cover" style={StyleSheet.absoluteFill} /> : null}
                 <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.photoWash }]} />
                 <Image source={{ uri: photo }} accessibilityIgnoresInvertColors resizeMode="contain" style={StyleSheet.absoluteFill} />
               </>
@@ -193,7 +196,7 @@ function MapVendorCard({
       </PressRow>
     </Animated.View>
   );
-}
+});
 
 /** Unchosen: its short name over its starting price on a small glass label, a tail on the spot. */
 function Pin({ vendor }: { vendor: Vendor }) {
@@ -422,12 +425,25 @@ export default function MapScreen() {
   }, [isLoading, nearby, city, origin, pins, recentred, insets.top, clearance]);
 
   const moved = hasMovedMeaningfully(region ? regionToBounds(region) : null, baseline);
-  const zoom = region ? regionZoom(region, width) : 11;
+  // To the half level: a pan that ends at the same zoom keeps the same groups (and
+  // markers) instead of regrouping every pin for a hundredth of a level.
+  const zoom = region ? Math.round(regionZoom(region, width) * 2) / 2 : 11;
   const groups = useMemo(() => {
     const chosen = pins.find((p) => p.id === selectedId);
     const groupsOf = groupPins(pins.filter((p) => p.id !== selectedId), zoom);
     return { chosen, groups: groupsOf };
   }, [pins, selectedId, zoom]);
+
+  // A custom marker left tracking its view is drawn again every frame (Google Maps on
+  // Android takes a new bitmap of each). The pins are still pictures, so each set is
+  // drawn while it settles and then left alone; a new set (or theme) draws again.
+  const pinSet = `${scheme}:${groups.groups.map((g) => g.key).join(',')}:${origin ? 'me' : ''}`;
+  const [pinsDrawing, setPinsDrawing] = useState(true);
+  useEffect(() => {
+    setPinsDrawing(true);
+    const timer = setTimeout(() => setPinsDrawing(false), 700);
+    return () => clearTimeout(timer);
+  }, [pinSet]);
 
   // The chosen pin redraws while its pop plays (Android draws a marker's view once).
   useEffect(() => {
@@ -455,6 +471,10 @@ export default function MapScreen() {
       }
     }
   };
+  // One function for every card, so a card re-renders only when its own props change.
+  const chooseRef = useRef(choose);
+  chooseRef.current = choose;
+  const chooseCard = useCallback((vendor: Vendor) => chooseRef.current(vendor), []);
 
   /** The pager and the strip's edges: the next or the previous card. */
   const step = (by: 1 | -1) => {
@@ -517,7 +537,12 @@ export default function MapScreen() {
           pxPerLng={region ? width / region.longitudeDelta : 0}
         />
         {origin ? (
-          <Marker coordinate={{ latitude: origin.lat, longitude: origin.lng }} anchor={{ x: 0.5, y: 0.5 }} accessibilityLabel={t('You')}>
+          <Marker
+            coordinate={{ latitude: origin.lat, longitude: origin.lng }}
+            anchor={{ x: 0.5, y: 0.5 }}
+            tracksViewChanges={pinsDrawing}
+            accessibilityLabel={t('You')}
+          >
             <View style={styles.meHalo}>
               <View style={styles.meDot} />
             </View>
@@ -529,6 +554,7 @@ export default function MapScreen() {
               key={`${group.key}-${scheme}`}
               coordinate={{ latitude: group.members[0].lat, longitude: group.members[0].lng }}
               anchor={{ x: 0.5, y: 1 }}
+              tracksViewChanges={pinsDrawing}
               accessibilityLabel={
                 group.members[0].startingPrice > 0
                   ? t('{name}, from ₹{price}', { name: group.members[0].name, price: group.members[0].startingPrice })
@@ -543,6 +569,7 @@ export default function MapScreen() {
               key={`${group.key}-${scheme}`}
               coordinate={{ latitude: group.lat, longitude: group.lng }}
               anchor={{ x: 0.5, y: 0.5 }}
+              tracksViewChanges={pinsDrawing}
               accessibilityLabel={t('{count} garages here. Zoom in', { count: group.members.length })}
               onPress={() => {
                 appMovesUntil.current = Date.now() + 1500;
@@ -724,14 +751,15 @@ export default function MapScreen() {
                   onScrollEndDrag={onCardsScroll}
                   contentContainerStyle={{ gap: CARD_GAP, paddingHorizontal: sidePad, paddingVertical: 10 }}
                 >
-                  {vendors.map((vendor) => (
+                  {vendors.map((vendor, index) => (
                     <MapVendorCard
                       key={vendor.id}
                       vendor={vendor}
                       selected={vendor.id === selectedId}
+                      near={Math.abs(index - Math.max(0, selectedIndex)) <= 1}
                       mode={bookingType}
                       width={cardWidth}
-                      onChoose={() => choose(vendor)}
+                      onChoose={chooseCard}
                     />
                   ))}
                 </ScrollView>

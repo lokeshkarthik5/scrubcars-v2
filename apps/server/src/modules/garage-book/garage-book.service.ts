@@ -317,10 +317,10 @@ export const garageBookService = {
   async today(viewer: Viewer, date: string | undefined, now = new Date()) {
     const dateKey = date ?? istDateKey(now)
     const { start, end } = dayBounds(dateKey)
-    const [jobs, bookings] = await Promise.all([
-      repo.jobsBetween(viewer.vendorId, start, end),
-      repo.detlioJobsBetween(viewer.vendorId, start, end),
-    ])
+    const [jobs, bookings] = [
+      await repo.jobsBetween(viewer.vendorId, start, end),
+      await repo.detlioJobsBetween(viewer.vendorId, start, end),
+    ]
     const own = jobs.filter((job) => job.status !== 'cancelled').map((job) => ownJobView(viewer, job))
     const detlio = bookings.map((booking) => detlioJobView(viewer, booking))
     const list = [...own, ...detlio].sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt))
@@ -513,10 +513,10 @@ export const garageBookService = {
   async customers(viewer: Viewer, query: CustomersQuery, now = new Date()) {
     const search = searchOf(query.q)
     const settings = await settingsFor(viewer.vendorId)
-    const [own, detlio] = await Promise.all([
-      repo.ownCustomers(viewer.vendorId, search),
-      repo.detlioCustomers(viewer.vendorId, search),
-    ])
+    const [own, detlio] = [
+      await repo.ownCustomers(viewer.vendorId, search),
+      await repo.detlioCustomers(viewer.vendorId, search),
+    ]
     const ownItems = own.map((row) => ownListItem(viewer, row, now))
     const detlioItems = detlio.map((row) => detlioListItem(viewer, row, settings.defaultIntervalDays, now))
     const all: CustomerListItem[] = [...ownItems, ...detlioItems].sort((a, b) =>
@@ -805,7 +805,7 @@ export const garageBookService = {
   // ─── Money owed (owner) ────────────────────────────────────────────────────
 
   async owed(viewer: Viewer) {
-    const [rows, recent] = await Promise.all([repo.owed(viewer.vendorId), repo.recentPaid(viewer.vendorId)])
+    const [rows, recent] = [await repo.owed(viewer.vendorId), await repo.recentPaid(viewer.vendorId)]
     return {
       totalPaise: rows.reduce((sum, row) => sum + row.balancePaise, 0),
       oldestAt: rows.reduce<Date | null>((oldest, row) => (row.oldestAt && (!oldest || row.oldestAt < oldest) ? row.oldestAt : oldest), null)?.toISOString() ?? null,
@@ -855,13 +855,13 @@ export const garageBookService = {
     const sofar = Math.min(now.getTime(), bounds.end.getTime()) - bounds.start.getTime()
     const prevEnd = new Date(Math.min(prev.start.getTime() + Math.max(0, sofar), prev.end.getTime()))
 
-    const [current, before, visitors, lastVisitors, owed] = await Promise.all([
-      repo.takings(viewer.vendorId, bounds.start, bounds.end),
-      repo.takings(viewer.vendorId, prev.start, prevEnd),
-      repo.visitors(viewer.vendorId, bounds.start, bounds.end),
-      repo.visitors(viewer.vendorId, prev.start, prev.end),
-      repo.owed(viewer.vendorId),
-    ])
+    const [current, before, visitors, lastVisitors, owed] = [
+      await repo.takings(viewer.vendorId, bounds.start, bounds.end),
+      await repo.takings(viewer.vendorId, prev.start, prevEnd),
+      await repo.visitors(viewer.vendorId, bounds.start, bounds.end),
+      await repo.visitors(viewer.vendorId, prev.start, prev.end),
+      await repo.owed(viewer.vendorId),
+    ]
     const filter = query.filter
     const sum = (t: typeof current) =>
       filter === 'own' ? t.ownPaise : filter === 'detlio' ? t.detlioPaise : t.ownPaise + t.detlioPaise
@@ -899,11 +899,11 @@ export const garageBookService = {
   async exportBook(viewer: Viewer, now = new Date()) {
     const vendor = await repo.vendor(viewer.vendorId)
     if (!vendor) notFound('Garage')
-    const [rows, detlio, owed] = await Promise.all([
-      repo.exportRows(viewer.vendorId),
-      repo.detlioCustomers(viewer.vendorId),
-      repo.owed(viewer.vendorId),
-    ])
+    const [rows, detlio, owed] = [
+      await repo.exportRows(viewer.vendorId),
+      await repo.detlioCustomers(viewer.vendorId),
+      await repo.owed(viewer.vendorId),
+    ]
     const rupees = (paise: number) => Math.round(paise) / 100
     const day = (date: Date | null) => (date ? istDateKey(date) : '')
     const names = new Map(rows.customers.map((customer) => [customer.id, customer.name]))
@@ -969,12 +969,12 @@ export const garageBookService = {
     // customers' numbers: the book is Detlio's to see (owner decision 4).
     const owner: Viewer = { vendorId, userId: '00000000-0000-0000-0000-000000000000', role: 'vendor_admin' }
     const since = new Date(now.getTime() - 90 * 86_400_000)
-    const [customers, jobs, owed, stats] = await Promise.all([
-      this.customers(owner, { filter: 'all' }, now),
-      repo.jobsBetween(vendorId, since, new Date(now.getTime() + 90 * 86_400_000)),
-      this.owed(owner),
-      this.stats(owner, { filter: 'all' }, now),
-    ])
+    const [customers, jobs, owed, stats] = [
+      await this.customers(owner, { filter: 'all' }, now),
+      await repo.jobsBetween(vendorId, since, new Date(now.getTime() + 90 * 86_400_000)),
+      await this.owed(owner),
+      await this.stats(owner, { filter: 'all' }, now),
+    ]
     return {
       vendor: { id: vendor.id, name: vendor.businessName },
       counts: customers.counts,

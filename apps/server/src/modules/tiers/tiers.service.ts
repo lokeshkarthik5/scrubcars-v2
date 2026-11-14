@@ -40,13 +40,14 @@ async function readSwitches(): Promise<TierSwitches> {
 /** What each of these garages holds now: Gold, Silver (stored) and Bronze (the agreement). */
 async function holdings(vendorIds: string[], now = new Date()): Promise<Map<string, TierHoldings>> {
   if (vendorIds.length === 0) return new Map()
-  // Three independent reads, sent together (speed fix 4, customer UI round):
-  // the garage page and every list wait on this.
-  const [gold, silver, agreements] = await Promise.all([
-    tiersRepository.listGoldIds(vendorIds),
-    tiersRepository.listSilverIds(vendorIds),
-    agreementStandings(vendorIds, now),
-  ])
+  // One after another, never Promise.all: production has one database
+  // connection, and reads sent together on it hung the garage list and page
+  // (13-14 Nov). See db/index.ts.
+  const [gold, silver, agreements] = [
+    await tiersRepository.listGoldIds(vendorIds),
+    await tiersRepository.listSilverIds(vendorIds),
+    await agreementStandings(vendorIds, now),
+  ]
   return new Map(
     vendorIds.map((id) => [
       id,
@@ -99,11 +100,11 @@ export const tiersService = {
    */
   async customerTiers(vendorIds: string[], now = new Date()): Promise<Map<string, Tier | null>> {
     if (vendorIds.length === 0) return new Map()
-    const [switches, held, hidden] = await Promise.all([
-      readSwitches(),
-      holdings(vendorIds, now),
-      tiersRepository.listHiddenIds(vendorIds),
-    ])
+    const [switches, held, hidden] = [
+      await readSwitches(),
+      await holdings(vendorIds, now),
+      await tiersRepository.listHiddenIds(vendorIds),
+    ]
     return new Map(vendorIds.map((id) => [id, shownTier(held.get(id) ?? NOTHING, switches, hidden.has(id))]))
   },
 
