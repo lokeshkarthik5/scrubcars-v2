@@ -1,5 +1,5 @@
-import type { OwnJob } from '@repo/core/api/garage-book';
-import { useUpdateWalkIn } from '@repo/core/api/hooks/use-garage-book';
+import { jobRef, type OwnJob } from '@repo/core/api/garage-book';
+import { useBookTeam, useSetJobWorkers, useUpdateWalkIn } from '@repo/core/api/hooks/use-garage-book';
 import { carName, jobTime, plateText, rupees, type JobPayment } from '@repo/core/garage-book';
 import { msg, useT } from '@repo/core/i18n';
 import { useState } from 'react';
@@ -10,7 +10,10 @@ import { T } from '@repo/native-ui/text';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 import { toast } from '@repo/native-ui/toast';
 
-import { go, Overline, Plate, RaisedButton, Seg } from './parts';
+import { useIsVendorAdmin } from '@/lib/auth';
+import { toggleWorker } from '@/lib/garage-book-2';
+
+import { go, LitChoice, Overline, Plate, RaisedButton, Seg } from './parts';
 
 const PAYMENTS = [
   { value: 'upi', label: 'UPI' },
@@ -18,12 +21,19 @@ const PAYMENTS = [
   { value: 'later', label: msg('Pay later') },
 ] as const;
 
-/** A walk-in's sheet (the web's components/book/job-sheet.tsx): what, payment, Start, Mark done (moment 3), Cancel. */
+/**
+ * A walk-in's sheet (the web's components/book/job-sheet.tsx): what, payment, Start, Mark done
+ * (moment 3), Cancel. Stage 2 adds "Done by" (any seat picks who did it) and the owner's Bill.
+ */
 export function JobSheet({ job, open, onClose, onDone }: { job: OwnJob | null; open: boolean; onClose: () => void; onDone: (job: OwnJob) => void }) {
   const t = useT();
   const styles = useStyles();
   const colors = useColors();
   const update = useUpdateWalkIn();
+  const isOwner = useIsVendorAdmin();
+  const team = useBookTeam(undefined, open);
+  const setWorkers = useSetJobWorkers();
+  const [workers, setWorkerIds] = useState<string[]>(() => job?.workers?.map((worker) => worker.id) ?? []);
   const [confirmCancel, setConfirmCancel] = useState(false);
   if (!job) return null;
   const plate = plateText(job.car?.plate);
@@ -32,7 +42,15 @@ export function JobSheet({ job, open, onClose, onDone }: { job: OwnJob | null; o
     update.mutate(
       { id: job.id, patch },
       {
-        onSuccess: (next) => after?.(next),
+        onSuccess: (next) => {
+          // Moment 5: this customer came back after a reminder.
+          if (next.reminderPaidBack) {
+            toast.success(
+              t('{name} came back after your reminder · {amount}', { name: next.name.split(' ')[0] ?? next.name, amount: rupees(next.reminderPaidBack.amountPaise) ?? '' })
+            );
+          }
+          after?.(next);
+        },
         onError: (error) => toast.error(error instanceof Error ? error.message : t("Couldn't save that. Try again.")),
       }
     );
@@ -104,6 +122,44 @@ export function JobSheet({ job, open, onClose, onDone }: { job: OwnJob | null; o
             />
           </View>
         ) : null}
+        {!job.pending && job.status !== 'cancelled' && team.data && team.data.members.length > 0 ? (
+          <View style={styles.group}>
+            <T variant="t4" weight={600} color="#D4D4DA">
+              {t('Done by')}
+            </T>
+            <View accessibilityLabel={t('Done by')} style={styles.chips}>
+              {team.data.members.map((member) => (
+                <LitChoice
+                  key={member.id}
+                  label={member.name.split(' ')[0] ?? member.name}
+                  on={workers.includes(member.id)}
+                  onPress={() => {
+                    const next = toggleWorker(workers, member.id);
+                    setWorkerIds(next);
+                    setWorkers.mutate(
+                      { ref: jobRef(job), memberIds: next },
+                      {
+                        onError: (error) => {
+                          setWorkerIds(workers);
+                          toast.error(error instanceof Error ? error.message : t("Couldn't save that. Try again."));
+                        },
+                      }
+                    );
+                  }}
+                />
+              ))}
+            </View>
+          </View>
+        ) : null}
+        {isOwner && !job.pending && job.status !== 'cancelled' ? (
+          <RaisedButton
+            label={t('Bill')}
+            onPress={() => {
+              onClose();
+              go(`/book/bill/${encodeURIComponent(jobRef(job))}`);
+            }}
+          />
+        ) : null}
         {!job.pending ? (
           <T
             variant="t4"
@@ -141,6 +197,7 @@ const useStyles = createStyles(() => ({
   line: { flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#1D1D23', paddingVertical: 8 },
   total: { borderBottomWidth: 0 },
   group: { gap: 8 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   row: { flexDirection: 'row', gap: 8 },
   cancel: { minHeight: 44, paddingTop: 12 },
 }));

@@ -33,8 +33,10 @@ export const PIXEL_SCRIPT_ID = 'meta-pixel-js'
  * booking's pages (/bookings/<id>, its receipt and its Guarantee claim),
  * a car's (/profile/cars/<id>, its certificate) and a friend's invite
  * (/invite/<code>). The id is our reference for the booking or the car.
+ * Also a garage's bill (/b/<token>) and its own booking page (/g/<slug>,
+ * where its customer types a phone number): Garage Book 0074.
  */
-const PERSONAL_PATH = /^\/(bookings\/[^/]+|profile\/cars\/[^/]+|invite\/[^/]+)/
+const PERSONAL_PATH = /^\/(bookings\/[^/]+|profile\/cars\/[^/]+|invite\/[^/]+|b\/[^/]+|g\/[^/]+)/
 
 function carriesPersonalId(path: string | null): boolean {
   return !!path && PERSONAL_PATH.test(path)

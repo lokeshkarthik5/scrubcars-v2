@@ -5354,6 +5354,9 @@ export const garageCustomers = pgTable(
     // the garage only knows by name or plate.
     phone: varchar('phone', { length: 20 }),
     note: varchar('note', { length: 500 }),
+    // Where the customer came from when it wasn't a walk-in (0074): "From your
+    // book" for one brought in from a paper book.
+    sourceNote: varchar('source_note', { length: 120 }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     deletedAt: timestamp('deleted_at', { withTimezone: true }),
   },
@@ -5415,6 +5418,7 @@ export const garageDetlioCustomerNotes = pgTable(
 
 export type GarageJobStatus = 'booked' | 'in_progress' | 'done' | 'cancelled'
 export type GarageJobPayment = 'upi' | 'cash' | 'later'
+export type GarageJobOrigin = 'walk_in' | 'link' | 'import'
 
 /** A walk-in job. `client_id` makes a resend from a phone that was offline a no-op. */
 export const garageJobs = pgTable(
@@ -5437,6 +5441,9 @@ export const garageJobs = pgTable(
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     doneAt: timestamp('done_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    // Where it came from (0074): added at the garage, booked on the garage's
+    // own link ("From your link" on Today), or brought in from a paper book.
+    origin: text('origin').$type<GarageJobOrigin>().default('walk_in').notNull(),
   },
   (table) => [
     uniqueIndex('garage_jobs_vendor_client_key').on(table.vendorId, table.clientId),
@@ -5451,6 +5458,7 @@ export const garageJobs = pgTable(
     ),
     check('garage_jobs_done_check', sql`(${table.status} = 'done') = (${table.doneAt} is not null)`),
     check('garage_jobs_client_id_check', sql`char_length(${table.clientId}) between 8 and 64`),
+    check('garage_jobs_origin_check', sql`${table.origin} in ('walk_in', 'link', 'import')`),
   ]
 )
 
@@ -5491,6 +5499,9 @@ export const garagePayments = pgTable(
     method: text('method').$type<'upi' | 'cash'>(),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    // 'import' (0074): an opening balance brought in from the paper book,
+    // at most one per customer, so bringing a page in twice never doubles it.
+    source: text('source').$type<'import'>(),
   },
   (table) => [
     index('garage_payments_vendor_customer_idx').on(table.vendorId, table.garageCustomerId),
@@ -5501,6 +5512,11 @@ export const garagePayments = pgTable(
     check('garage_payments_amount_check', sql`${table.amountPaise} > 0`),
     check('garage_payments_method_check', sql`${table.method} is null or ${table.method} in ('upi', 'cash')`),
     check('garage_payments_paid_method_check', sql`${table.kind} = 'owed' or ${table.method} is not null`),
+    uniqueIndex('garage_payments_import_owed_key').on(table.garageCustomerId).where(sql`${table.source} = 'import'`),
+    check(
+      'garage_payments_source_check',
+      sql`${table.source} is null or (${table.source} = 'import' and ${table.kind} = 'owed' and ${table.jobId} is null)`
+    ),
   ]
 )
 
@@ -5544,4 +5560,381 @@ export const garageReminderSends = pgTable(
       sql`(${table.channel} = 'whatsapp') = (${table.garageCustomerId} is not null)`
     ),
   ]
+)
+
+// ─── Garage Book, stages 2 and 3 (0074, modules/garage-book) ─────────────────
+
+/**
+ * The garage's people, by name only: they never log in. "Who did it?" is
+ * picked when a job is finished (garage_job_workers); their salary and
+ * advances are expenses with a member (garage_expenses). `off_on` is the one
+ * day they are off, for "Day off today".
+ */
+export const garageTeamMembers = pgTable(
+  'garage_team_members',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    name: varchar('name', { length: 120 }).notNull(),
+    role: varchar('role', { length: 60 }),
+    phone: varchar('phone', { length: 20 }),
+    offOn: date('off_on', { mode: 'string' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('garage_team_members_vendor_idx').on(table.vendorId),
+    check('garage_team_members_name_check', sql`char_length(btrim(${table.name})) between 1 and 120`),
+    check('garage_team_members_phone_check', sql`${table.phone} is null or ${table.phone} ~ '^[0-9]{10}$'`),
+  ]
+)
+
+/** Who did a job: a walk-in or a Detlio booking at the garage, never both. */
+export const garageJobWorkers = pgTable(
+  'garage_job_workers',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    memberId: uuid('member_id')
+      .notNull()
+      .references(() => garageTeamMembers.id, { onDelete: 'cascade' }),
+    garageJobId: uuid('garage_job_id').references(() => garageJobs.id, { onDelete: 'cascade' }),
+    bookingId: uuid('booking_id').references(() => bookings.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('garage_job_workers_job_member_key')
+      .on(table.garageJobId, table.memberId)
+      .where(sql`${table.garageJobId} is not null`),
+    uniqueIndex('garage_job_workers_booking_member_key')
+      .on(table.bookingId, table.memberId)
+      .where(sql`${table.bookingId} is not null`),
+    index('garage_job_workers_member_idx').on(table.memberId),
+    check('garage_job_workers_target_check', sql`(${table.garageJobId} is null) <> (${table.bookingId} is null)`),
+  ]
+)
+
+export type GarageExpenseCategory = 'salary' | 'advance' | 'rent' | 'supplies' | 'power_water' | 'other'
+
+/**
+ * Money the garage spent, for Profit (takings − spent). An "every month"
+ * expense copies itself into each month when that month is read: a copy
+ * shares the first one's `series_id`, and (series_id, series_month) is
+ * unique, so reading a month twice at once copies once.
+ */
+export const garageExpenses = pgTable(
+  'garage_expenses',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    category: text('category').$type<GarageExpenseCategory>().notNull(),
+    amountPaise: integer('amount_paise').notNull(),
+    spentOn: date('spent_on', { mode: 'string' }).notNull(),
+    note: varchar('note', { length: 200 }),
+    method: text('method').$type<'cash' | 'upi' | 'bank'>(),
+    memberId: uuid('member_id').references(() => garageTeamMembers.id, { onDelete: 'set null' }),
+    everyMonth: boolean('every_month').default(false).notNull(),
+    seriesId: uuid('series_id'),
+    seriesMonth: varchar('series_month', { length: 7 }),
+    // The supply order it paid for; the foreign key is added after that table (0074).
+    supplyOrderId: uuid('supply_order_id').references((): AnyPgColumn => garageSupplyOrders.id, { onDelete: 'set null' }),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('garage_expenses_vendor_spent_idx').on(table.vendorId, table.spentOn),
+    uniqueIndex('garage_expenses_series_month_key')
+      .on(table.seriesId, table.seriesMonth)
+      .where(sql`${table.seriesId} is not null`),
+    uniqueIndex('garage_expenses_supply_order_key')
+      .on(table.supplyOrderId)
+      .where(sql`${table.supplyOrderId} is not null`),
+    check(
+      'garage_expenses_category_check',
+      sql`${table.category} in ('salary', 'advance', 'rent', 'supplies', 'power_water', 'other')`
+    ),
+    check('garage_expenses_amount_check', sql`${table.amountPaise} > 0`),
+    check('garage_expenses_method_check', sql`${table.method} is null or ${table.method} in ('cash', 'upi', 'bank')`),
+    check(
+      'garage_expenses_series_check',
+      sql`(${table.seriesId} is null) = (${table.seriesMonth} is null) and (${table.seriesMonth} is null or ${table.seriesMonth} ~ '^[0-9]{4}-(0[1-9]|1[0-2])$')`
+    ),
+  ]
+)
+
+/** Each garage's last bill number. Only ever goes up, so a number is never given twice. */
+export const garageBillCounters = pgTable(
+  'garage_bill_counters',
+  {
+    vendorId: uuid('vendor_id')
+      .primaryKey()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    lastNumber: integer('last_number').default(0).notNull(),
+  },
+  (table) => [check('garage_bill_counters_last_number_check', sql`${table.lastNumber} >= 0`)]
+)
+
+/**
+ * A bill: one per job (a walk-in or a Detlio booking), with the garage's own
+ * running number and a random token for its public page (/b/<token>). The
+ * snapshot is what the bill said when it was made; asking again only
+ * refreshes whether it is paid. Never a Detlio customer's phone.
+ */
+export const garageBills = pgTable(
+  'garage_bills',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    number: integer('number').notNull(),
+    garageJobId: uuid('garage_job_id').references(() => garageJobs.id, { onDelete: 'cascade' }),
+    bookingId: uuid('booking_id').references(() => bookings.id, { onDelete: 'cascade' }),
+    token: varchar('token', { length: 64 }).notNull(),
+    snapshot: jsonb('snapshot').$type<Record<string, unknown>>().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('garage_bills_vendor_number_key').on(table.vendorId, table.number),
+    uniqueIndex('garage_bills_token_key').on(table.token),
+    uniqueIndex('garage_bills_job_key').on(table.garageJobId).where(sql`${table.garageJobId} is not null`),
+    uniqueIndex('garage_bills_booking_key').on(table.bookingId).where(sql`${table.bookingId} is not null`),
+    check('garage_bills_number_check', sql`${table.number} > 0`),
+    check('garage_bills_token_check', sql`${table.token} ~ '^[A-Za-z0-9_-]{22,64}$'`),
+    check('garage_bills_target_check', sql`(${table.garageJobId} is null) <> (${table.bookingId} is null)`),
+  ]
+)
+
+export type GaragePayApp = 'gpay' | 'phonepe' | 'paytm'
+
+/**
+ * How the garage's customers pay it: its own UPI QR (the image's storage
+ * key, and the UPI id and name read from it), a phone for payments and the
+ * apps that take it. Shown only where the toggles say. The money goes
+ * straight to the garage; Detlio never handles it.
+ */
+export const garagePaymentDetails = pgTable(
+  'garage_payment_details',
+  {
+    vendorId: uuid('vendor_id')
+      .primaryKey()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    qrKey: varchar('qr_key', { length: 1024 }),
+    upiId: varchar('upi_id', { length: 100 }),
+    upiName: varchar('upi_name', { length: 120 }),
+    phone: varchar('phone', { length: 20 }),
+    apps: text('apps').array().$type<GaragePayApp[]>().notNull().default([]),
+    showOnBills: boolean('show_on_bills').default(true).notNull(),
+    showOnReminders: boolean('show_on_reminders').default(true).notNull(),
+    showOnBookingPage: boolean('show_on_booking_page').default(true).notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check('garage_payment_details_phone_check', sql`${table.phone} is null or ${table.phone} ~ '^[0-9]{10}$'`),
+    check('garage_payment_details_apps_check', sql`${table.apps} <@ ARRAY['gpay', 'phonepe', 'paytm']::text[]`),
+  ]
+)
+
+/** The garage's own booking page, detlio.com/g/<slug>: free, for its own customers. */
+export const garageBookLinks = pgTable(
+  'garage_book_links',
+  {
+    vendorId: uuid('vendor_id')
+      .primaryKey()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    slug: varchar('slug', { length: 60 }).notNull(),
+    active: boolean('active').default(true).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('garage_book_links_slug_key').on(table.slug),
+    check(
+      'garage_book_links_slug_check',
+      sql`${table.slug} ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and char_length(${table.slug}) between 3 and 60`
+    ),
+  ]
+)
+
+/** Which services the booking page shows. No row: a plain service shows, an add-on doesn't. */
+export const garageBookLinkServices = pgTable(
+  'garage_book_link_services',
+  {
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    serviceId: uuid('service_id')
+      .notNull()
+      .references(() => services.id, { onDelete: 'cascade' }),
+    shown: boolean('shown').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.vendorId, table.serviceId] })]
+)
+
+/** The garage's own suppliers: a name and a WhatsApp number. Detlio sells nothing here. */
+export const garageSuppliers = pgTable(
+  'garage_suppliers',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    name: varchar('name', { length: 120 }).notNull(),
+    phone: varchar('phone', { length: 20 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('garage_suppliers_vendor_idx').on(table.vendorId),
+    check('garage_suppliers_name_check', sql`char_length(btrim(${table.name})) between 1 and 120`),
+    check('garage_suppliers_phone_check', sql`${table.phone} is null or ${table.phone} ~ '^[0-9]{10}$'`),
+  ]
+)
+
+export type GarageStockUnit = 'ml' | 'l' | 'g' | 'kg' | 'pcs'
+
+/** Something the garage keeps in stock. Every amount on it is in its own unit. */
+export const garageStockItems = pgTable(
+  'garage_stock_items',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    name: varchar('name', { length: 120 }).notNull(),
+    unit: text('unit').$type<GarageStockUnit>().notNull(),
+    level: decimal('level', { precision: 12, scale: 3 }).default('0').notNull(),
+    lowAt: decimal('low_at', { precision: 12, scale: 3 }).default('0').notNull(),
+    packSize: decimal('pack_size', { precision: 12, scale: 3 }),
+    packPricePaise: integer('pack_price_paise'),
+    supplierId: uuid('supplier_id').references(() => garageSuppliers.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('garage_stock_items_vendor_idx').on(table.vendorId),
+    check('garage_stock_items_name_check', sql`char_length(btrim(${table.name})) between 1 and 120`),
+    check('garage_stock_items_unit_check', sql`${table.unit} in ('ml', 'l', 'g', 'kg', 'pcs')`),
+    check('garage_stock_items_level_check', sql`${table.level} >= 0 and ${table.lowAt} >= 0`),
+    check(
+      'garage_stock_items_pack_check',
+      sql`(${table.packSize} is null or ${table.packSize} > 0) and (${table.packPricePaise} is null or ${table.packPricePaise} >= 0)`
+    ),
+  ]
+)
+
+/** How much of an item one of a service uses: what finishing a job takes off the level. */
+export const garageStockUsage = pgTable(
+  'garage_stock_usage',
+  {
+    itemId: uuid('item_id')
+      .notNull()
+      .references(() => garageStockItems.id, { onDelete: 'cascade' }),
+    serviceId: uuid('service_id')
+      .notNull()
+      .references(() => services.id, { onDelete: 'cascade' }),
+    amount: decimal('amount', { precision: 12, scale: 3 }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.itemId, table.serviceId] }),
+    index('garage_stock_usage_service_idx').on(table.serviceId),
+    check('garage_stock_usage_amount_check', sql`${table.amount} > 0`),
+  ]
+)
+
+export type GarageSupplyOrderStatus = 'sent' | 'received' | 'cancelled'
+
+/** One supply order line as it was ordered. */
+export interface GarageSupplyOrderLine {
+  itemId: string
+  name: string
+  packs: number
+  packSize: number | null
+  unit: GarageStockUnit
+  packPricePaise: number
+}
+
+/** An order sent to the garage's supplier on WhatsApp. Received adds the stock and the bill (once). */
+export const garageSupplyOrders = pgTable(
+  'garage_supply_orders',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    supplierId: uuid('supplier_id')
+      .notNull()
+      .references(() => garageSuppliers.id, { onDelete: 'cascade' }),
+    status: text('status').$type<GarageSupplyOrderStatus>().default('sent').notNull(),
+    lines: jsonb('lines').$type<GarageSupplyOrderLine[]>().notNull(),
+    totalPaise: integer('total_paise').notNull(),
+    sentAt: timestamp('sent_at', { withTimezone: true }).defaultNow().notNull(),
+    receivedAt: timestamp('received_at', { withTimezone: true }),
+    expenseId: uuid('expense_id').references((): AnyPgColumn => garageExpenses.id, { onDelete: 'set null' }),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+  },
+  (table) => [
+    index('garage_supply_orders_vendor_sent_idx').on(table.vendorId, table.sentAt),
+    check('garage_supply_orders_status_check', sql`${table.status} in ('sent', 'received', 'cancelled')`),
+    check('garage_supply_orders_total_check', sql`${table.totalPaise} >= 0`),
+    check('garage_supply_orders_received_check', sql`(${table.status} = 'received') = (${table.receivedAt} is not null)`),
+  ]
+)
+
+export type GarageStockMoveKind = 'used' | 'counted' | 'received' | 'manual'
+
+/**
+ * Every change to a stock level, with the level after it. A job uses its
+ * stock once: (item, job) and (item, booking) are unique for 'used'.
+ */
+export const garageStockMoves = pgTable(
+  'garage_stock_moves',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    itemId: uuid('item_id')
+      .notNull()
+      .references(() => garageStockItems.id, { onDelete: 'cascade' }),
+    kind: text('kind').$type<GarageStockMoveKind>().notNull(),
+    delta: decimal('delta', { precision: 12, scale: 3 }).notNull(),
+    levelAfter: decimal('level_after', { precision: 12, scale: 3 }).notNull(),
+    garageJobId: uuid('garage_job_id').references(() => garageJobs.id, { onDelete: 'set null' }),
+    bookingId: uuid('booking_id').references(() => bookings.id, { onDelete: 'set null' }),
+    supplyOrderId: uuid('supply_order_id').references(() => garageSupplyOrders.id, { onDelete: 'set null' }),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('garage_stock_moves_item_created_idx').on(table.itemId, table.createdAt),
+    uniqueIndex('garage_stock_moves_job_used_key')
+      .on(table.itemId, table.garageJobId)
+      .where(sql`${table.kind} = 'used' and ${table.garageJobId} is not null`),
+    uniqueIndex('garage_stock_moves_booking_used_key')
+      .on(table.itemId, table.bookingId)
+      .where(sql`${table.kind} = 'used' and ${table.bookingId} is not null`),
+    check('garage_stock_moves_kind_check', sql`${table.kind} in ('used', 'counted', 'received', 'manual')`),
+    check('garage_stock_moves_level_check', sql`${table.levelAfter} >= 0`),
+  ]
+)
+
+/** Milestone cards (moment 6) a garage has been shown: each shows once. */
+export const garageMilestonesSeen = pgTable(
+  'garage_milestones_seen',
+  {
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    key: varchar('key', { length: 60 }).notNull(),
+    seenAt: timestamp('seen_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.vendorId, table.key] })]
 )

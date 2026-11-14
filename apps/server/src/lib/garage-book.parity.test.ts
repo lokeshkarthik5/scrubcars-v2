@@ -25,4 +25,28 @@ describe('garage book parity', () => {
       expect(core.plateKey(plate)).toBe(server.plateKey(plate))
     }
   })
+
+  test('stages 2 and 3 (0074): the same limits, lists and figures', async () => {
+    const core = (await import(coreUrl)) as typeof server
+    expect(core.GARAGE_BOOK_2_LIMITS).toEqual(server.GARAGE_BOOK_2_LIMITS)
+    expect(core.EXPENSE_CATEGORIES).toEqual(server.EXPENSE_CATEGORIES)
+    expect(core.EXPENSE_METHODS).toEqual(server.EXPENSE_METHODS)
+    expect(core.PAY_APPS).toEqual(server.PAY_APPS)
+    expect(core.STOCK_UNITS).toEqual(server.STOCK_UNITS)
+    expect(core.MADE_WITH).toBe(server.MADE_WITH)
+    for (const n of [0, 1, 142, 12345]) expect(core.billNumberText(n)).toBe(server.billNumberText(n))
+    for (const apps of [[], ['gpay'], ['paytm', 'phonepe', 'gpay']]) {
+      expect(core.payAppsText(apps)).toBe(server.payAppsText(apps))
+      expect(core.payLine({ phone: '9840000000', apps })).toBe(server.payLine({ phone: '9840000000', apps }))
+    }
+    for (const [level, pack, low] of [[600, 5000, 1000], [0, null, 0], [500, null, 250], [9000, 5000, 0]] as const) {
+      expect(core.stockShare(level, pack, low)).toBe(server.stockShare(level, pack, low))
+      expect(core.isLow(level, low)).toBe(server.isLow(level, low))
+      expect(core.suggestPacks(level, low, pack)).toBe(server.suggestPacks(level, low, pack))
+      expect(core.jobsLeft(level, pack)).toBe(server.jobsLeft(level, pack))
+    }
+    for (const unit of server.STOCK_UNITS) {
+      for (const amount of [0, 150, 1200, 5000]) expect(core.stockAmountText(amount, unit)).toBe(server.stockAmountText(amount, unit))
+    }
+  })
 })

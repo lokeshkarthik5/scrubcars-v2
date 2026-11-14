@@ -4,6 +4,32 @@ import { getTenant, type TenantVariables } from '../../middleware/tenant.middlew
 import { userIdFromSubject } from '../../lib/admin-actor.js'
 import { garageBookService, type Viewer } from './garage-book.service.js'
 import { garageBookRepository } from './garage-book.repository.js'
+import { billsService } from './garage-book-bills.service.js'
+import { expensesService } from './garage-book-expenses.service.js'
+import { importService } from './garage-book-import.service.js'
+import { linkService } from './garage-book-link.service.js'
+import { momentsService } from './garage-book-moments.service.js'
+import { paymentDetailsService } from './garage-book-pay.service.js'
+import { stockService } from './garage-book-stock.service.js'
+import { teamService } from './garage-book-team.service.js'
+import type { PayQrType } from '../../lib/garage-pay-qr-storage.js'
+import type {
+  CreateExpenseInput,
+  CreateMemberInput,
+  CreateStockInput,
+  ImportCommitInput,
+  ImportExtractInput,
+  LinkBookInput,
+  PaymentDetailsInput,
+  StockUsageInput,
+  SupplierInput,
+  SupplyOrderInput,
+  UpdateExpenseInput,
+  UpdateLinkInput,
+  UpdateMemberInput,
+  UpdateStockInput,
+  UpdateSupplierInput,
+} from './garage-book.validation.js'
 import type {
   CreateCustomerInput,
   CreateJobInput,
@@ -113,4 +139,156 @@ export async function adminView(c: AdminContext, vendorId: string) {
   })
   noStore(c)
   return c.json({ success: true, data: await garageBookService.adminView(vendorId) })
+}
+
+// ─── Stages 2 and 3 (0074) ───────────────────────────────────────────────────
+
+const ok = <T>(c: Context, data: T, status: 200 | 201 = 200) => c.json({ success: true, data }, status)
+
+export async function team(c: GarageContext, month: string | undefined) {
+  noStore(c)
+  return ok(c, await teamService.team(viewer(c), month))
+}
+export async function createMember(c: GarageContext, input: CreateMemberInput) {
+  return ok(c, await teamService.createMember(viewer(c), input), 201)
+}
+export async function updateMember(c: GarageContext, id: string, input: UpdateMemberInput) {
+  return ok(c, await teamService.updateMember(viewer(c), id, input))
+}
+export async function deleteMember(c: GarageContext, id: string) {
+  return ok(c, await teamService.deleteMember(viewer(c), id))
+}
+export async function setWorkers(c: GarageContext, ref: string, memberIds: string[]) {
+  return ok(c, await teamService.setWorkers(viewer(c), ref, memberIds))
+}
+
+export async function expenses(c: GarageContext, month: string | undefined) {
+  noStore(c)
+  return ok(c, await expensesService.month(viewer(c), month))
+}
+export async function createExpense(c: GarageContext, input: CreateExpenseInput) {
+  return ok(c, await expensesService.create(viewer(c), input), 201)
+}
+export async function updateExpense(c: GarageContext, id: string, input: UpdateExpenseInput) {
+  return ok(c, await expensesService.update(viewer(c), id, input))
+}
+export async function deleteExpense(c: GarageContext, id: string) {
+  return ok(c, await expensesService.remove(viewer(c), id))
+}
+
+export async function createBill(c: GarageContext, ref: string) {
+  noStore(c)
+  const bill = await billsService.create(viewer(c), ref)
+  return ok(c, bill, bill.created ? 201 : 200)
+}
+
+export async function paymentDetails(c: GarageContext) {
+  noStore(c)
+  return ok(c, await paymentDetailsService.get(viewer(c)))
+}
+export async function payQrUpload(c: GarageContext, contentType: PayQrType) {
+  noStore(c)
+  return ok(c, await paymentDetailsService.uploadQr(viewer(c), contentType))
+}
+export async function savePaymentDetails(c: GarageContext, input: PaymentDetailsInput) {
+  noStore(c)
+  return ok(c, await paymentDetailsService.save(viewer(c), input))
+}
+
+export async function link(c: GarageContext) {
+  noStore(c)
+  return ok(c, await linkService.get(viewer(c)))
+}
+export async function updateLink(c: GarageContext, input: UpdateLinkInput) {
+  return ok(c, await linkService.update(viewer(c), input))
+}
+
+export async function importExtract(c: GarageContext, input: ImportExtractInput) {
+  noStore(c)
+  return ok(c, await importService.extract(viewer(c), input))
+}
+export async function importCommit(c: GarageContext, input: ImportCommitInput) {
+  return ok(c, await importService.commit(viewer(c), input))
+}
+
+export async function stock(c: GarageContext) {
+  noStore(c)
+  return ok(c, await stockService.stock(viewer(c)))
+}
+export async function stockItem(c: GarageContext, id: string) {
+  noStore(c)
+  return ok(c, await stockService.item(viewer(c), id))
+}
+export async function createStockItem(c: GarageContext, input: CreateStockInput) {
+  return ok(c, await stockService.createItem(viewer(c), input), 201)
+}
+export async function updateStockItem(c: GarageContext, id: string, input: UpdateStockInput) {
+  return ok(c, await stockService.updateItem(viewer(c), id, input))
+}
+export async function deleteStockItem(c: GarageContext, id: string) {
+  return ok(c, await stockService.deleteItem(viewer(c), id))
+}
+export async function countStock(c: GarageContext, id: string, level: number) {
+  return ok(c, await stockService.count(viewer(c), id, level))
+}
+export async function setStockUsage(c: GarageContext, id: string, rows: StockUsageInput) {
+  return ok(c, await stockService.setUsage(viewer(c), id, rows))
+}
+
+export async function suppliers(c: GarageContext) {
+  noStore(c)
+  return ok(c, await stockService.suppliers(viewer(c)))
+}
+export async function createSupplier(c: GarageContext, input: SupplierInput) {
+  return ok(c, await stockService.createSupplier(viewer(c), input), 201)
+}
+export async function updateSupplier(c: GarageContext, id: string, input: UpdateSupplierInput) {
+  return ok(c, await stockService.updateSupplier(viewer(c), id, input))
+}
+export async function deleteSupplier(c: GarageContext, id: string) {
+  return ok(c, await stockService.deleteSupplier(viewer(c), id))
+}
+export async function supplyOrders(c: GarageContext) {
+  noStore(c)
+  return ok(c, await stockService.orders(viewer(c)))
+}
+export async function createSupplyOrder(c: GarageContext, input: SupplyOrderInput) {
+  return ok(c, await stockService.createOrder(viewer(c), input), 201)
+}
+export async function receiveSupplyOrder(c: GarageContext, id: string) {
+  return ok(c, await stockService.receive(viewer(c), id))
+}
+export async function suppliesSuggest(c: GarageContext) {
+  noStore(c)
+  return ok(c, await stockService.suggest(viewer(c)))
+}
+
+export async function milestones(c: GarageContext) {
+  noStore(c)
+  return ok(c, await momentsService.milestone(viewer(c)))
+}
+export async function milestoneSeen(c: GarageContext, key: string) {
+  return ok(c, await momentsService.markSeen(viewer(c), key))
+}
+
+// ─── Public pages (no sign-in) ───────────────────────────────────────────────
+
+/** A public page's answer: never cached by a shared proxy, never indexed. */
+function publicHeaders(c: Context) {
+  c.header('Cache-Control', 'private, no-store')
+  c.header('X-Robots-Tag', 'noindex, nofollow')
+}
+
+export async function publicBill(c: Context, token: string) {
+  publicHeaders(c)
+  return ok(c, await billsService.publicBill(token))
+}
+export async function publicLinkPage(c: Context, slug: string) {
+  publicHeaders(c)
+  return ok(c, await linkService.page(slug))
+}
+export async function publicLinkBook(c: Context, slug: string, input: LinkBookInput) {
+  publicHeaders(c)
+  const result = await linkService.book(slug, input)
+  return ok(c, result, result.detlio ? 200 : 201)
 }

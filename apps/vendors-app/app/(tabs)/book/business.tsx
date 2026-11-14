@@ -1,19 +1,37 @@
-import { useBookOwed, useBookReminders, useBookServices, useBookStats } from '@repo/core/api/hooks/use-garage-book';
-import { monthName, rupees } from '@repo/core/garage-book';
+import {
+  useBookExpenses,
+  useBookOwed,
+  useBookReminders,
+  useBookServices,
+  useBookStats,
+  useBookStock,
+  useBookTeam,
+  useMarkMilestoneSeen,
+  useMilestone,
+} from '@repo/core/api/hooks/use-garage-book';
+import type { Milestone } from '@repo/core/api/garage-book';
+import { monthName, rupees, teamTileLine } from '@repo/core/garage-book';
 import { useT, useTn } from '@repo/core/i18n';
-import { useState, type ReactElement } from 'react';
+import { useCallback, useState, type ReactElement } from 'react';
 import { Pressable, View } from 'react-native';
 import Svg, { Circle, Polyline } from 'react-native-svg';
 
 import { Edge, Raised } from '@repo/native-ui/finish';
 import {
   IconBell,
+  IconCamera,
+  IconCards,
   IconChevronRight,
+  IconFileInvoice,
+  IconLink,
+  IconPackage,
+  IconQrcode,
   IconReceipt,
   IconSettings,
   IconStar,
   IconTool,
   IconUser,
+  IconUsers,
   type IconProps,
 } from '@repo/native-ui/icons';
 import { PressScale } from '@repo/native-ui/motion';
@@ -23,13 +41,19 @@ import { toast } from '@repo/native-ui/toast';
 
 import { garageScreen } from '@/components/app-shell';
 import { BookScreen } from '@/components/book/book-screen';
-import { go, IconWell, Overline } from '@/components/book/parts';
+import { MilestoneCard } from '@/components/book/moments';
+import { AMBER, go, IconWell, NewBadge, Overline } from '@/components/book/parts';
 import { useAuth, useIsVendorAdmin } from '@/lib/auth';
 import { shareBook } from '@/lib/book-download';
 
-type Tool = { icon: (props: IconProps) => ReactElement; title: string; line: string; href: string; tone?: string };
+type Tool = { icon: (props: IconProps) => ReactElement; title: string; line: string; href: string; tone?: string; fresh?: boolean };
 
-/** Business (B3; the web's app/book/business/page.tsx). Stage 2 and 3 tools stay hidden. */
+/**
+ * Business (B3; the web's app/book/business/page.tsx, OneBusiness.dc.html). Stages 2 and 3 add
+ * Run the garage (Stock, Team, Expenses, Bills) and the booking link, payment details and
+ * import; the money tools are the owner's, and staff see Team (no money) and Stock (no prices).
+ * A milestone (moment 6) shows once at the top.
+ */
 function BusinessScreen() {
   const t = useT();
   const tn = useTn();
@@ -44,11 +68,54 @@ function BusinessScreen() {
   const owed = useBookOwed(isOwner);
   const reminders = useBookReminders();
   const services = useBookServices(isOwner);
+  const team = useBookTeam(undefined);
+  const stock = useBookStock();
+  const expenses = useBookExpenses(undefined, isOwner);
+  const milestone = useMilestone(isOwner);
+  const markSeen = useMarkMilestoneSeen();
+  // Kept as first given: marking it seen refreshes the book, and the card stays while the owner is here.
+  const [shown, setShown] = useState<Milestone | null>(null);
+  if (!shown && milestone.data?.milestone) setShown(milestone.data.milestone);
+  const seen = useCallback((key: string) => markSeen.mutate(key), [markSeen.mutate]);
   const [downloading, setDownloading] = useState(false);
   const dueToday = reminders.data?.due.filter((r) => !r.sentAt).length;
   const metal = scheme === 'dark';
 
+  const lowCount = stock.data?.lowCount ?? 0;
   const groups: Array<{ group: string; items: Tool[] }> = [
+    {
+      group: t('Run the garage'),
+      items: [
+        {
+          icon: IconPackage,
+          title: t('Stock'),
+          line: stock.data
+            ? lowCount > 0
+              ? tn(lowCount, '{count} running low', '{count} running low')
+              : stock.data.items.length > 0
+                ? t('All stocked')
+                : t('What you use, counted')
+            : ' ',
+          href: '/book/stock',
+          tone: lowCount > 0 ? AMBER : undefined,
+          fresh: true,
+        },
+        { icon: IconUsers, title: t('Team'), line: team.data ? (team.data.members.length > 0 ? teamTileLine(team.data) : t('Who did each job')) : ' ', href: '/book/team', fresh: true },
+        ...(isOwner
+          ? [
+              {
+                icon: IconCards,
+                title: t('Expenses'),
+                line: expenses.data ? t('{amount} this month', { amount: rupees(expenses.data.spentPaise) ?? '₹0' }) : ' ',
+                href: '/book/expenses',
+                fresh: true,
+              },
+              // A bill is made from its job: Jobs, then the job, then Bill.
+              { icon: IconFileInvoice, title: t('Bills'), line: t('Send a bill on WhatsApp'), href: '/book/jobs', fresh: true },
+            ]
+          : []),
+      ],
+    },
     {
       group: t('Money and customers'),
       items: [
@@ -74,7 +141,14 @@ function BusinessScreen() {
           href: '/book/reminders',
           tone: dueToday ? '#F5A524' : undefined,
         },
-        ...(isOwner ? [{ icon: IconStar, title: t('Reviews'), line: t('Your rating and replies'), href: '/reviews' }] : []),
+        ...(isOwner
+          ? [
+              { icon: IconLink, title: t('Booking link'), line: t('Your own page and QR'), href: '/book/link', fresh: true },
+              { icon: IconQrcode, title: t('Payment details'), line: t('Your UPI QR on bills'), href: '/book/payments', fresh: true },
+              { icon: IconCamera, title: t('Bring in your book'), line: t('From paper or Excel'), href: '/book/import', fresh: true },
+              { icon: IconStar, title: t('Reviews'), line: t('Your rating and replies'), href: '/reviews' },
+            ]
+          : []),
       ],
     },
     ...(isOwner
@@ -120,6 +194,8 @@ function BusinessScreen() {
         ) : null}
       </View>
 
+      {isOwner && shown ? <MilestoneCard milestone={shown} garage={garage} onSeen={seen} /> : null}
+
       {isOwner ? (
         <PressScale accessibilityRole="link" onPress={() => go('/book/stats')}>
           <Edge radius={22} innerStyle={styles.stats}>
@@ -129,6 +205,9 @@ function BusinessScreen() {
                 {stats.data ? (rupees(stats.data.takenPaise) ?? '₹0') : '–'}
               </T>
               <T size={12} color={colors.textSecondary}>
+                {stats.data?.profitPaise !== null && stats.data?.profitPaise !== undefined && stats.data.spentPaise !== null && stats.data.spentPaise !== undefined
+                  ? `${t('Profit {amount}', { amount: rupees(stats.data.profitPaise) ?? '₹0' })} · `
+                  : ''}
                 {stats.data?.changePercent !== null && stats.data?.changePercent !== undefined
                   ? t('{arrow} {percent}% on last month, same days', {
                       arrow: stats.data.changePercent >= 0 ? '↑' : '↓',
@@ -149,11 +228,14 @@ function BusinessScreen() {
             {group.items.map((tool) => (
               <PressScale key={tool.title} accessibilityRole="link" onPress={() => go(tool.href)} style={styles.cell}>
                 <Edge radius={22} innerStyle={styles.tool}>
-                  <IconWell>
-                    <tool.icon size={19} metal={metal} />
-                  </IconWell>
+                  <View style={styles.toolHead}>
+                    <IconWell>
+                      <tool.icon size={19} metal={metal} />
+                    </IconWell>
+                    {tool.fresh ? <NewBadge /> : null}
+                  </View>
                   <View>
-                    <T variant="t3" weight={600}>
+                    <T variant="t3" weight={600} numberOfLines={2}>
                       {tool.title}
                     </T>
                     <T size={12} color={tool.tone ?? colors.textSecondary} numberOfLines={1}>
@@ -209,5 +291,6 @@ const useStyles = createStyles(() => ({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   cell: { width: '48.8%', flexGrow: 1, flexBasis: '45%' },
   tool: { padding: 12, gap: 10 },
+  toolHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   download: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12 },
 }));

@@ -50,7 +50,7 @@ function OwedScreen() {
           </Edge>
           <View style={styles.list}>
             {data.customers.map((row) => {
-              const ask = whatsAppHref(row.phone, owedMessage({ name: row.name, garage, amountPaise: row.balancePaise }));
+              const ask = whatsAppHref(row.phone, owedMessage({ name: row.name, garage, amountPaise: row.balancePaise, payLine: data.payLine }));
               return (
                 <Edge key={row.customerId} radius={18} innerStyle={styles.card}>
                   <View style={styles.cardHead}>

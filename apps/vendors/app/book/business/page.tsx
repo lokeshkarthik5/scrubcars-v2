@@ -6,31 +6,52 @@ import { toast } from 'react-toastify'
 import {
   IconBell,
   IconBook,
+  IconBox,
   IconBuildingBank,
   IconChevronRight,
+  IconFileImport,
+  IconLink,
+  IconQrcode,
+  IconReceipt,
   IconSettings,
   IconStar,
   IconTool,
   IconUser,
+  IconUsersGroup,
+  IconWallet,
 } from '@tabler/icons-react'
 import { downloadBook } from '@repo/core/api/garage-book'
-import { useBookOwed, useBookReminders, useBookServices, useBookStats } from '@repo/core/api/hooks/use-garage-book'
-import { monthName, rupees } from '@repo/core/garage-book'
+import {
+  useBookExpenses,
+  useBookOwed,
+  useBookReminders,
+  useBookServices,
+  useBookStats,
+  useBookStock,
+  useBookTeam,
+} from '@repo/core/api/hooks/use-garage-book'
+import { monthName, rupees, teamTileLine } from '@repo/core/garage-book'
 import { useIsVendorAdmin } from '@repo/core/hooks/use-vendor-role'
 import { useT, useTn } from '@repo/core/i18n'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { cn } from '@repo/core/utils'
+import { MilestoneCard } from '@/components/book/milestone-card'
 import { BookScreen, IconWell, Overline, raised } from '@/components/book/parts'
 
 type Icon = ComponentType<{ size?: number; className?: string; stroke?: string | number }>
+type Tool = { icon: Icon; title: string; line: string; href: string; tone?: string; fresh?: boolean }
 
 /**
  * Business (B3): every tool in one place. A Stats card on top, then Money
  * owed, Reminders, Reviews, Payouts, Services & prices and Settings (the
  * gear), and Download my book. Today's Services, Earnings and Settings tabs
- * live here now; nothing was removed. Stage 2 and 3 tools (Stock, Team,
- * Expenses, Bills, Booking link) stay hidden until they are built. Staff get
- * the tools that carry no money.
+ * live here now; nothing was removed. Staff get the tools that carry no
+ * money.
+ *
+ * 0074 (OneBusiness): "Run the garage" with Stock, Team, Expenses and
+ * Bills, and Booking link, Payment details and Bring in your book beside
+ * Money owed; the new ones marked NEW. Staff see Team (no money) and Stock
+ * (no prices). A milestone (moment 6) shows on top once.
  */
 export default function BusinessPage() {
   const t = useT()
@@ -43,6 +64,9 @@ export default function BusinessPage() {
   const owed = useBookOwed(isOwner)
   const reminders = useBookReminders()
   const services = useBookServices(isOwner)
+  const stock = useBookStock()
+  const team = useBookTeam(undefined)
+  const expenses = useBookExpenses(undefined, isOwner)
   const [downloading, setDownloading] = useState(false)
   const dueToday = reminders.data?.due.filter((r) => !r.sentAt).length
 
@@ -63,7 +87,46 @@ export default function BusinessPage() {
     }
   }
 
-  const tools: Array<{ group: string; items: Array<{ icon: Icon; title: string; line: string; href: string; tone?: string }> }> = [
+  const amber = 'text-[#F5A524]'
+  const run: Tool[] = [
+    {
+      icon: IconBox,
+      title: t('Stock'),
+      line: stock.data
+        ? stock.data.lowCount > 0
+          ? tn(stock.data.lowCount, '{count} running low', '{count} running low')
+          : stock.data.items.length > 0
+            ? t('All stocked')
+            : t('What you use, counted')
+        : ' ',
+      href: '/book/stock',
+      tone: stock.data && stock.data.lowCount > 0 ? amber : undefined,
+      fresh: true,
+    },
+    {
+      icon: IconUsersGroup,
+      title: t('Team'),
+      line: team.data ? (team.data.members.length > 0 ? teamTileLine(team.data) : t('Who did each job')) : ' ',
+      href: '/book/team',
+      fresh: true,
+    },
+    ...(isOwner
+      ? [
+          {
+            icon: IconWallet,
+            title: t('Expenses'),
+            line: expenses.data ? t('{amount} this month', { amount: rupees(expenses.data.spentPaise) ?? '' }) : ' ',
+            href: '/book/expenses',
+            fresh: true,
+          },
+          // A bill is made from its job: Jobs, then the job, then Bill.
+          { icon: IconReceipt, title: t('Bills'), line: t('Send a bill on WhatsApp'), href: '/book/jobs', fresh: true },
+        ]
+      : []),
+  ]
+
+  const tools: Array<{ group: string; items: Tool[] }> = [
+    { group: t('Run the garage'), items: run },
     {
       group: t('Money and customers'),
       items: [
@@ -87,9 +150,16 @@ export default function BusinessPage() {
           title: t('Reminders'),
           line: dueToday === undefined ? ' ' : dueToday > 0 ? t('{count} due today', { count: dueToday }) : t('No one due today'),
           href: '/book/reminders',
-          tone: dueToday ? 'text-[#F5A524]' : undefined,
+          tone: dueToday ? amber : undefined,
         },
-        ...(isOwner ? [{ icon: IconStar, title: t('Reviews'), line: t('Your rating and replies'), href: '/reviews' }] : []),
+        ...(isOwner
+          ? [
+              { icon: IconLink, title: t('Booking link'), line: t('Your own page and QR'), href: '/book/link', fresh: true },
+              { icon: IconQrcode, title: t('Payment details'), line: t('Your UPI QR on bills'), href: '/book/payments', fresh: true },
+              { icon: IconFileImport, title: t('Bring in your book'), line: t('From paper or Excel'), href: '/book/import', fresh: true },
+              { icon: IconStar, title: t('Reviews'), line: t('Your rating and replies'), href: '/reviews' },
+            ]
+          : []),
       ],
     },
     ...(isOwner
@@ -119,12 +189,15 @@ export default function BusinessPage() {
         )}
       </div>
 
+      {isOwner && <MilestoneCard garage={garage} />}
+
       {isOwner && (
         <Link href="/book/stats" className="fx-edge fx-press flex items-center gap-3 rounded-surface p-4">
           <span className="min-w-0 flex-1">
             <Overline>{t('Stats · {month}', { month: monthName(stats.data?.month ?? now.toISOString().slice(0, 7), now) })}</Overline>
             <span className="mt-0.5 block font-numeric text-[28px] font-semibold leading-9 text-text-primary">{stats.data ? rupees(stats.data.takenPaise) : '–'}</span>
             <span className="block text-[12px] text-[#A8A8B2]">
+              {stats.data?.profitPaise !== null && stats.data?.profitPaise !== undefined && `${t('Profit {amount}', { amount: rupees(stats.data.profitPaise) ?? '' })} · `}
               {stats.data?.changePercent !== null && stats.data?.changePercent !== undefined
                 ? t('{arrow} {percent}% on last month, same days', {
                     arrow: stats.data.changePercent >= 0 ? '↑' : '↓',
@@ -143,10 +216,11 @@ export default function BusinessPage() {
           <div className="grid grid-cols-2 gap-2">
             {group.items.map((tool) => (
               <Link key={tool.title} href={tool.href} className="fx-edge fx-press flex min-w-0 flex-col gap-2.5 rounded-surface p-3">
-                <span className="hub-tab">
+                <span className="hub-tab flex items-start justify-between gap-2">
                   <IconWell>
                     <tool.icon size={19} aria-hidden />
                   </IconWell>
+                  {tool.fresh && <span className="fx-silver rounded-[6px] px-1.5 py-0.5 text-[9px] font-bold tracking-[0.08em]">{t('NEW')}</span>}
                 </span>
                 <span className="min-w-0">
                   <span className="block text-t3 font-semibold text-text-primary">{tool.title}</span>

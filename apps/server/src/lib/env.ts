@@ -434,6 +434,25 @@ export const env = {
    * garage apps show exactly today's tabs and screens.
    */
   garageBook: (process.env.GARAGE_BOOK ?? '').trim().toLowerCase() === 'on',
+  /**
+   * The customer site Garage Book's public pages live on (0074): a bill at
+   * `<site>/b/<token>`, a garage's booking page at `<site>/g/<slug>`, and a
+   * garage's Detlio page at `<site>/garage/<id>`. GARAGE_BOOK_SITE_URL,
+   * default https://detlio.com. Sent in WhatsApps and printed on QR posters,
+   * so it must be an address that will still work in a year.
+   */
+  garageBookSiteUrl: (process.env.GARAGE_BOOK_SITE_URL?.trim() || 'https://detlio.com').replace(/\/+$/, ''),
+  /**
+   * Garage Book's public pages (a bill, a booking page), per IP per minute:
+   * GARAGE_BOOK_PUBLIC_RATE_LIMIT, default 60. Read on each request.
+   */
+  garageBookPublicRateLimit: Number(process.env.GARAGE_BOOK_PUBLIC_RATE_LIMIT ?? '60'),
+  /**
+   * Booking on a garage's own link (no sign-in, no OTP), per IP per hour:
+   * GARAGE_LINK_BOOK_RATE_LIMIT, default 10. Each phone is also held to a
+   * few bookings a day at one garage, counted in the database.
+   */
+  garageLinkBookRateLimit: Number(process.env.GARAGE_LINK_BOOK_RATE_LIMIT ?? '10'),
 
   // ─── Detlio Rewards (lib/rewards.ts, 0050) ─────────────────────────────────
   /**

@@ -20,6 +20,9 @@ import {
   previousMonth,
   pushAllowed,
   rupeesToPaise,
+  spacedPhone,
+  EXPENSE_CATEGORY_WORDS,
+  nextMonth,
   type CustomerFilter,
   type DueState,
   type JobPayment,
@@ -28,7 +31,6 @@ import {
 import { addDays, istDateKey } from '../../lib/ist.js'
 import { logger } from '../../lib/logger.js'
 import { buildXlsx } from '../../lib/xlsx.js'
-import type { VendorScopedRole } from '../members/members.repository.js'
 import { pushService } from '../push/push.service.js'
 import { garageBookRepository as repo, type CarRow, type DetlioJobRow, type JobRow, type Tx } from './garage-book.repository.js'
 import type {
@@ -43,6 +45,26 @@ import type {
   UpdateCustomerInput,
   UpdateJobInput,
 } from './garage-book.validation.js'
+import { expensesRepository } from './garage-book-expenses.repository.js'
+import { expensesService } from './garage-book-expenses.service.js'
+import { momentsService } from './garage-book-moments.service.js'
+import { paymentDetailsService } from './garage-book-pay.service.js'
+import { stockRepository } from './garage-book-stock.repository.js'
+import { stockService } from './garage-book-stock.service.js'
+import { teamRepository } from './garage-book-team.repository.js'
+import { teamService } from './garage-book-team.service.js'
+import {
+  carLabel,
+  isOwner,
+  money,
+  normalisePhone,
+  normalisePhoneSafe,
+  notFound,
+  whatsAppUrl,
+  type Viewer,
+} from './garage-book.viewer.js'
+
+export { normalisePhone, whatsAppUrl, type Viewer }
 
 /**
  * Garage Book (0072). Who may see what is decided here, once:
@@ -54,50 +76,11 @@ import type {
  *   - A Detlio customer never carries a phone number: their rows are built
  *     from the booking's user name and car only, and a reminder to one
  *     returns no number either.
+ *
+ * Stages 2 and 3 (0074) live beside it, one file per concern: team,
+ * expenses, bills and payment details, the booking link, bringing in a book,
+ * stock, and the moments.
  */
-
-export interface Viewer {
-  vendorId: string
-  userId: string
-  role: VendorScopedRole
-}
-
-const isOwner = (viewer: Pick<Viewer, 'role'>) => viewer.role === 'vendor_admin'
-
-/** A money figure for the owner; nothing at all for staff. */
-function money<T>(viewer: Pick<Viewer, 'role'>, value: T): T | undefined {
-  return isOwner(viewer) ? value : undefined
-}
-
-function notFound(what = 'Customer'): never {
-  throw new AppError(404, `${what} not found`, 'NOT_FOUND')
-}
-
-/** Ten national digits, or null. A number that isn't one is refused. */
-export function normalisePhone(raw: string | null | undefined): string | null {
-  if (!raw) return null
-  let digits = raw.replace(/\D/g, '')
-  while (digits.length > 10 && (digits.startsWith('0') || (digits.startsWith('91') && digits.length >= 12))) {
-    digits = digits.startsWith('0') ? digits.slice(1) : digits.slice(2)
-  }
-  if (digits.length === 0) return null
-  if (!/^[1-9]\d{9}$/.test(digits)) {
-    throw new AppError(400, 'That phone number doesn’t look right. Type the 10 digits.', 'INVALID_PHONE')
-  }
-  return digits
-}
-
-/** The wa.me link for an Indian mobile, the message typed in. Null for a landline. */
-export function whatsAppUrl(phone: string, message: string): string | null {
-  if (!/^[6-9]\d{9}$/.test(phone)) return null
-  return `https://wa.me/91${phone}?text=${encodeURIComponent(message)}`
-}
-
-function carLabel(car: { make?: string | null; model?: string | null } | null | undefined): string | null {
-  if (!car) return null
-  const label = [car.make, car.model].filter(Boolean).join(' ').trim()
-  return label || null
-}
 
 function cleanPlate(plate: string | null | undefined): string | null {
   const text = plate?.trim()
@@ -125,6 +108,8 @@ function ownJobView(viewer: Viewer, job: JobRow) {
     remindInDays: job.remindInDays,
     visitNumber: job.visitNumber,
     totalPaise: money(viewer, job.totalPaise),
+    // 0074: where it came from ("From your link" on Today).
+    origin: job.origin,
   }
 }
 
@@ -321,8 +306,18 @@ export const garageBookService = {
       await repo.jobsBetween(viewer.vendorId, start, end),
       await repo.detlioJobsBetween(viewer.vendorId, start, end),
     ]
-    const own = jobs.filter((job) => job.status !== 'cancelled').map((job) => ownJobView(viewer, job))
-    const detlio = bookings.map((booking) => detlioJobView(viewer, booking))
+    const live = jobs.filter((job) => job.status !== 'cancelled')
+    // Who is on each job (0074), for the "Done by" chips.
+    const workers = await teamService.workersFor(
+      viewer.vendorId,
+      live.map((job) => job.id),
+      bookings.map((booking) => booking.id)
+    )
+    const own = live.map((job) => ({ ...ownJobView(viewer, job), workers: workers.get(`own:${job.id}`) ?? [] }))
+    const detlio = bookings.map((booking) => ({
+      ...detlioJobView(viewer, booking),
+      workers: workers.get(`detlio:${booking.id}`) ?? [],
+    }))
     const list = [...own, ...detlio].sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt))
     const finished = (row: (typeof list)[number]) =>
       row.source === 'own' ? row.status === 'done' : row.status === 'completed'
@@ -452,11 +447,29 @@ export const garageBookService = {
 
     const job = await repo.job(viewer.vendorId, result.jobId)
     if (!job) notFound('Job')
-    return { job: ownJobView(viewer, job), created: result.created }
+    const finished = result.created && job.status === 'done' ? await this.afterDone(viewer, job) : {}
+    return { job: { ...ownJobView(viewer, job), ...finished }, created: result.created }
+  },
+
+  /**
+   * A walk-in just became done (0074): its stock comes off (best effort,
+   * never failing the job), and the owner hears if it came back after a
+   * reminder (moment 5).
+   */
+  async afterDone(viewer: Viewer, job: JobRow): Promise<{ reminderPaidBack?: { amountPaise: number } }> {
+    await stockService.afterWalkInDone(viewer.vendorId, job, viewer.userId)
+    if (!isOwner(viewer)) return {}
+    try {
+      const paidBack = await momentsService.reminderPaidBack(viewer.vendorId, job.id)
+      return paidBack ? { reminderPaidBack: paidBack } : {}
+    } catch (err) {
+      logger.warn({ err, vendorId: viewer.vendorId }, 'garage_book:reminder_paid_back_failed')
+      return {}
+    }
   },
 
   async updateJob(viewer: Viewer, jobId: string, patch: UpdateJobInput, now = new Date()) {
-    await repo.transaction(async (tx) => {
+    const becameDone = await repo.transaction(async (tx) => {
       // Locked before it is read, so two edits at once can't write back a stale status.
       await repo.lockJob(tx, jobId)
       const job = await repo.job(viewer.vendorId, jobId, tx)
@@ -490,10 +503,12 @@ export const garageBookService = {
         doneAt: status === 'done' ? (job.doneAt ?? now) : null,
       })
       await syncOwed(tx, viewer, { id: job.id, garageCustomerId: job.garageCustomerId, status, payment, totalPaise })
+      return job.status !== 'done' && status === 'done'
     })
     const job = await repo.job(viewer.vendorId, jobId)
     if (!job) notFound('Job')
-    return ownJobView(viewer, job)
+    const finished = becameDone ? await this.afterDone(viewer, job) : {}
+    return { ...ownJobView(viewer, job), ...finished }
   },
 
   /** The price list a walk-in picks from. Prices are the garage's public ones, so every seat sees them. */
@@ -721,11 +736,15 @@ export const garageBookService = {
       .filter((row) => row.due.dueOn !== null && row.due.dueOn > today && row.due.dueOn <= weekEnd)
       .filter((row) => !(row.remindedAt && row.lastVisitAt && row.remindedAt >= row.lastVisitAt))
       .map(entry)
+    // Moment 5: what visits after a reminder came to this month (the money for the owner only).
+    const earnings = await momentsService.reminderEarnings(viewer.vendorId, now)
     return {
       message: settings.message,
       defaultIntervalDays: settings.defaultIntervalDays,
       due,
       week,
+      earnedThisMonthPaise: money(viewer, earnings.earnedThisMonthPaise),
+      cameBack: earnings.cameBack,
     }
   },
 
@@ -805,8 +824,14 @@ export const garageBookService = {
   // ─── Money owed (owner) ────────────────────────────────────────────────────
 
   async owed(viewer: Viewer) {
-    const [rows, recent] = [await repo.owed(viewer.vendorId), await repo.recentPaid(viewer.vendorId)]
+    const [rows, recent, pay] = [
+      await repo.owed(viewer.vendorId),
+      await repo.recentPaid(viewer.vendorId),
+      await paymentDetailsService.shownOn(viewer.vendorId, 'reminders'),
+    ]
     return {
+      // 0074: "Pay on GPay/PhonePe 98400 00000" for the Ask on WhatsApp message, when the garage shows it there.
+      payLine: pay?.line ?? null,
       totalPaise: rows.reduce((sum, row) => sum + row.balancePaise, 0),
       oldestAt: rows.reduce<Date | null>((oldest, row) => (row.oldestAt && (!oldest || row.oldestAt < oldest) ? row.oldestAt : oldest), null)?.toISOString() ?? null,
       customers: rows.map((row) => ({
@@ -846,7 +871,7 @@ export const garageBookService = {
 
   // ─── Stats (owner) ─────────────────────────────────────────────────────────
 
-  async stats(viewer: Viewer, query: StatsQuery, now = new Date()) {
+  async stats(viewer: Viewer, query: StatsQuery, now = new Date(), options: { readOnly?: boolean } = {}) {
     const month = query.month ?? istMonth(now)
     const bounds = monthBounds(month)
     if (!bounds) throw new AppError(400, 'A month as YYYY-MM', 'INVALID_MONTH')
@@ -855,12 +880,13 @@ export const garageBookService = {
     const sofar = Math.min(now.getTime(), bounds.end.getTime()) - bounds.start.getTime()
     const prevEnd = new Date(Math.min(prev.start.getTime() + Math.max(0, sofar), prev.end.getTime()))
 
-    const [current, before, visitors, lastVisitors, owed] = [
+    const [current, before, visitors, lastVisitors, owed, spent] = [
       await repo.takings(viewer.vendorId, bounds.start, bounds.end),
       await repo.takings(viewer.vendorId, prev.start, prevEnd),
       await repo.visitors(viewer.vendorId, bounds.start, bounds.end),
       await repo.visitors(viewer.vendorId, prev.start, prev.end),
       await repo.owed(viewer.vendorId),
+      await expensesService.spentIn(viewer.vendorId, month, now, { copy: !options.readOnly }),
     ]
     const filter = query.filter
     const sum = (t: typeof current) =>
@@ -886,8 +912,9 @@ export const garageBookService = {
       cameBackPercent: cameBack,
       newCustomers: fresh.length,
       newFromDetlio: fresh.filter((row) => row.source === 'detlio').length,
-      // Profit waits for Expenses (stage 2): null until then, and the apps hide the tile.
-      profitPaise: null,
+      // Profit (0074): the whole garage's takings less what it spent; null in a month with no expense written down.
+      profitPaise: spent === null ? null : current.ownPaise + current.detlioPaise - spent,
+      spentPaise: spent,
       owedPaise: owed.reduce((total, row) => total + row.balancePaise, 0),
       owedCustomers: owed.length,
       busiestDays: mondayFirst,
@@ -899,10 +926,14 @@ export const garageBookService = {
   async exportBook(viewer: Viewer, now = new Date()) {
     const vendor = await repo.vendor(viewer.vendorId)
     if (!vendor) notFound('Garage')
-    const [rows, detlio, owed] = [
+    await expensesService.ensureRepeats(viewer.vendorId, istMonth(now), now)
+    const [rows, detlio, owed, team, expenses, stock] = [
       await repo.exportRows(viewer.vendorId),
       await repo.detlioCustomers(viewer.vendorId),
       await repo.owed(viewer.vendorId),
+      await teamRepository.members(viewer.vendorId),
+      await expensesRepository.all(viewer.vendorId),
+      await stockRepository.items(viewer.vendorId, monthBounds(istMonth(now))!.start),
     ]
     const rupees = (paise: number) => Math.round(paise) / 100
     const day = (date: Date | null) => (date ? istDateKey(date) : '')
@@ -955,6 +986,41 @@ export const garageBookService = {
         header: ['Customer', 'Phone', 'Owes (₹)', 'Since'],
         rows: owed.map((row) => [row.name, row.phone ? spacedPhone(row.phone) : '', rupees(row.balancePaise), day(row.oldestAt)]),
       },
+      // 0074: the team, what was spent, and what is in stock.
+      {
+        name: 'Team',
+        header: ['Name', 'Role', 'Phone', 'Added'],
+        rows: team.map((member) => [member.name, member.role ?? '', member.phone ? spacedPhone(member.phone) : '', day(member.createdAt)]),
+      },
+      {
+        name: 'Expenses',
+        header: ['Date', 'Category', 'Note', 'Team member', 'Paid by', 'Every month', 'Amount (₹)'],
+        rows: expenses
+          .slice()
+          .reverse()
+          .map((row) => [
+            row.spentOn,
+            EXPENSE_CATEGORY_WORDS[row.category],
+            row.note ?? (row.supplierName ? `Order from ${row.supplierName}` : ''),
+            row.memberName ?? '',
+            row.method ? row.method.toUpperCase() : '',
+            row.everyMonth ? 'Yes' : '',
+            rupees(row.amountPaise),
+          ]),
+      },
+      {
+        name: 'Stock',
+        header: ['Item', 'Unit', 'Level', 'Low at', 'Pack size', 'Pack price (₹)', 'Supplier'],
+        rows: stock.map((item) => [
+          item.name,
+          item.unit,
+          item.level,
+          item.lowAt,
+          item.packSize ?? '',
+          item.packPricePaise === null ? '' : rupees(item.packPricePaise),
+          item.supplierName ?? '',
+        ]),
+      },
     ])
     const slug = vendor.businessName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'garage'
     return { bytes, filename: `${slug}-book-${istDateKey(now)}.xlsx` }
@@ -969,11 +1035,15 @@ export const garageBookService = {
     // customers' numbers: the book is Detlio's to see (owner decision 4).
     const owner: Viewer = { vendorId, userId: '00000000-0000-0000-0000-000000000000', role: 'vendor_admin' }
     const since = new Date(now.getTime() - 90 * 86_400_000)
-    const [customers, jobs, owed, stats] = [
+    const month = istMonth(now)
+    const [customers, jobs, owed, stats, teamCount, spent, stock] = [
       await this.customers(owner, { filter: 'all' }, now),
       await repo.jobsBetween(vendorId, since, new Date(now.getTime() + 90 * 86_400_000)),
       await this.owed(owner),
-      await this.stats(owner, { filter: 'all' }, now),
+      await this.stats(owner, { filter: 'all' }, now, { readOnly: true }),
+      await teamRepository.count(vendorId),
+      await expensesRepository.spent(vendorId, `${month}-01`, `${nextMonth(month)}-01`),
+      await stockRepository.countItems(vendorId),
     ]
     return {
       vendor: { id: vendor.id, name: vendor.businessName },
@@ -982,20 +1052,11 @@ export const garageBookService = {
       jobs: jobs.map((job) => ownJobView(owner, job)).reverse(),
       owed,
       stats,
+      // 0074: counts only. A look reads; it never copies a monthly expense forward.
+      team: { members: teamCount },
+      expenses: { month, count: spent.count, spentPaise: spent.totalPaise },
+      stock: { items: stock.items, low: stock.low },
     }
   },
 }
 
-/** "98400 12345": how a phone reads in the Excel. */
-function spacedPhone(phone: string): string {
-  return `${phone.slice(0, 5)} ${phone.slice(5)}`
-}
-
-function normalisePhoneSafe(raw: string | null | undefined): string | null {
-  try {
-    return normalisePhone(raw)
-  } catch (err) {
-    logger.debug({ err }, 'garage_book:garage_phone_unreadable')
-    return null
-  }
-}

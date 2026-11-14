@@ -402,14 +402,179 @@ export function washWords(wash: { daysSinceWash: number | null; intervalDays: nu
   return { lead, rest: ` ${every}` }
 }
 
-/** The friendly WhatsApp for money owed: no link, just the amount and thanks. Sent to the customer, so English. */
-export function owedMessage(values: { name: string; garage: string; amountPaise: number }): string {
+/**
+ * The friendly WhatsApp for money owed: no link, just the amount and thanks.
+ * Sent to the customer, so English. `payLine` (0074, GET /owed's) is the
+ * garage's own "Pay on GPay 98400 00000", added when it shows it on reminders.
+ */
+export function owedMessage(values: { name: string; garage: string; amountPaise: number; payLine?: string | null }): string {
   const first = values.name.trim().split(/\s+/)[0] || 'there'
-  return `Hi ${first}, a friendly reminder from ${values.garage}: ${rupees(values.amountPaise)} is pending for your car's service. You can pay by UPI or cash. Thank you!`
+  const text = `Hi ${first}, a friendly reminder from ${values.garage}: ${rupees(values.amountPaise)} is pending for your car's service. You can pay by UPI or cash. Thank you!`
+  return values.payLine ? `${text}\n${values.payLine}` : text
 }
 
 /** "3 customers · oldest from 1 Nov". */
 export function owedSummary(count: number, oldestAt: string | null): string {
   const people = tn(count, '{count} customer', '{count} customers')
   return oldestAt ? t('{people} · oldest from {date}', { people, date: shortDate(oldestAt) }) : people
+}
+
+// ─── Stages 2 and 3 (0074): rules shared with the server (parity test) ────────
+
+export const GARAGE_BOOK_2_LIMITS = {
+  teamMax: 50,
+  roleMax: 60,
+  expenseNoteMax: 200,
+  expenseMaxRupees: 1_000_000,
+  stockItemsMax: 200,
+  suppliersMax: 50,
+  orderLinesMax: 30,
+  importRowsMax: 500,
+  importPhotosMax: 5,
+  stockAmountMax: 1_000_000,
+  linkDays: 3,
+  linkBookingsPerPhonePerDay: 3,
+  reminderPaidBackDays: 30,
+  repeatMonthsMax: 24,
+} as const
+
+export const EXPENSE_CATEGORIES = ['salary', 'advance', 'rent', 'supplies', 'power_water', 'other'] as const
+export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number]
+
+export const EXPENSE_METHODS = ['cash', 'upi', 'bank'] as const
+export type ExpenseMethod = (typeof EXPENSE_METHODS)[number]
+
+export const PAY_APPS = ['gpay', 'phonepe', 'paytm'] as const
+export type PayApp = (typeof PAY_APPS)[number]
+
+export const STOCK_UNITS = ['ml', 'l', 'g', 'kg', 'pcs'] as const
+export type StockUnit = (typeof STOCK_UNITS)[number]
+
+export type JobOrigin = 'walk_in' | 'link' | 'import'
+
+/** What every bill says at its foot. There is no setting to hide it. */
+export const MADE_WITH = 'Made with Detlio for Garages'
+
+/** "0142": a bill number as the bill prints it. */
+export function billNumberText(number: number): string {
+  return String(Math.max(0, Math.trunc(number))).padStart(4, '0')
+}
+
+const APP_NAMES: Record<PayApp, string> = { gpay: 'GPay', phonepe: 'PhonePe', paytm: 'Paytm' }
+
+/** "GPay/PhonePe": the apps a payment phone takes, in a fixed order. */
+export function payAppsText(apps: readonly string[]): string {
+  return PAY_APPS.filter((app) => apps.includes(app))
+    .map((app) => APP_NAMES[app])
+    .join('/')
+}
+
+/** "98400 00000". */
+export function spacedPhone(phone: string): string {
+  return phone.length === 10 ? `${phone.slice(0, 5)} ${phone.slice(5)}` : phone
+}
+
+/** "Pay on GPay/PhonePe 98400 00000": sent to the customer, so English, as the server writes it. */
+export function payLine(details: { phone: string | null; apps: readonly string[] }): string | null {
+  if (!details.phone) return null
+  const apps = payAppsText(details.apps)
+  return apps ? `Pay on ${apps} ${spacedPhone(details.phone)}` : `Pay by UPI on ${spacedPhone(details.phone)}`
+}
+
+/** Whether an item is running low: at or under its low mark (a mark of 0 never is). Calm amber, never a glow. */
+export function isLow(level: number, lowAt: number): boolean {
+  return lowAt > 0 && level <= lowAt
+}
+
+/** How full the stock dial reads, 0–1: the level against one pack, or four low marks with no pack size. */
+export function stockShare(level: number, packSize: number | null, lowAt: number): number {
+  const full = packSize && packSize > 0 ? packSize : lowAt > 0 ? lowAt * 4 : level
+  if (!full || full <= 0) return level > 0 ? 1 : 0
+  return Math.max(0, Math.min(1, Math.round((level / full) * 100) / 100))
+}
+
+/** Whole jobs the level still covers at `perJob` each; null when nothing uses it. */
+export function jobsLeft(level: number, perJob: number | null): number | null {
+  if (!perJob || perJob <= 0) return null
+  return Math.max(0, Math.floor(level / perJob + 1e-9))
+}
+
+/** Packs to order for a low item: enough to reach twice the low mark, one at least. */
+export function suggestPacks(level: number, lowAt: number, packSize: number | null): number {
+  if (!packSize || packSize <= 0) return 1
+  const want = Math.max(lowAt * 2, packSize) - level
+  return Math.max(1, Math.ceil(want / packSize - 1e-9))
+}
+
+const UNIT_WORDS: Record<StockUnit, string> = { ml: 'ml', l: 'L', g: 'g', kg: 'kg', pcs: 'pcs' }
+
+/** "600 ml", "5 L", "1.2 L" (from 1200 ml), "1.5 kg", "10 pcs". */
+export function stockAmountText(amount: number, unit: StockUnit): string {
+  const round = (value: number) => String(Math.round(value * 100) / 100)
+  if (unit === 'ml' && Math.abs(amount) >= 1000) return `${round(amount / 1000)} L`
+  if (unit === 'g' && Math.abs(amount) >= 1000) return `${round(amount / 1000)} kg`
+  return `${round(amount)} ${UNIT_WORDS[unit]}`
+}
+
+// ─── Stages 2 and 3: words both apps show ─────────────────────────────────────
+
+/** "Salaries", "Rent", "Power & water": an expense category on the Expenses screen. */
+export function expenseCategoryWord(category: ExpenseCategory): string {
+  switch (category) {
+    case 'salary':
+      return t('Salaries')
+    case 'advance':
+      return t('Advance')
+    case 'rent':
+      return t('Rent')
+    case 'supplies':
+      return t('Supplies')
+    case 'power_water':
+      return t('Power & water')
+    default:
+      return t('Other')
+  }
+}
+
+/** "Received 2 cans", "Counted", "Used on a job": a stock history line's word. */
+export function stockMoveWord(kind: 'used' | 'counted' | 'received' | 'manual'): string {
+  switch (kind) {
+    case 'used':
+      return t('Used on a job')
+    case 'counted':
+      return t('Counted')
+    case 'received':
+      return t('Received')
+    default:
+      return t('Added')
+  }
+}
+
+/** "+10 L", "−300 ml": a stock move's change. */
+export function stockDeltaText(delta: number, unit: StockUnit): string {
+  const text = stockAmountText(Math.abs(delta), unit)
+  return delta < 0 ? `−${text}` : `+${text}`
+}
+
+/** "4 at work · Arun 6 jobs": the Team tile on Business. */
+export function teamTileLine(team: { atWork: number; members: Array<{ name: string; jobsToday: number }> }): string {
+  const busiest = team.members.slice().sort((a, b) => b.jobsToday - a.jobsToday)[0]
+  const atWork = t('{count} at work', { count: team.atWork })
+  if (!busiest || busiest.jobsToday === 0) return atWork
+  return `${atWork} · ${tn(busiest.jobsToday, '{name} {count} job', '{name} {count} jobs', { name: busiest.name.split(/\s+/)[0] ?? busiest.name })}`
+}
+
+/** "100 customers in your book", "First ₹1 lakh month", "Best month ever": a milestone card's headline. */
+export function milestoneTitle(milestone: { kind: 'customers' | 'lakh_month' | 'best_month'; value?: number }): string {
+  if (milestone.kind === 'customers') return t('{count} customers in your book', { count: milestone.value ?? 0 })
+  if (milestone.kind === 'lakh_month') return t('First ₹{lakh} lakh month', { lakh: milestone.value ?? 1 })
+  return t('Best month ever')
+}
+
+/** "Next: First ₹2 lakh month", or null. */
+export function milestoneNext(next: { kind: 'customers' | 'lakh_month'; value: number } | null): string | null {
+  if (!next) return null
+  return next.kind === 'customers'
+    ? t('Next: {count} customers', { count: next.value })
+    : t('Next: First ₹{lakh} lakh month', { lakh: next.value })
 }

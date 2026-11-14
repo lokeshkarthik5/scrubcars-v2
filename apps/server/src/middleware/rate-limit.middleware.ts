@@ -147,3 +147,12 @@ const bySignedInCustomer: RateLimitKey = (c) => {
 }
 
 export const reachWriteRateLimiter = createRateLimiter(env.reachWriteRateLimit, 60 * 60 * 1000, bySignedInCustomer)
+
+// Garage Book's public pages (0074): a bill (/b/<token>) and a garage's
+// booking page (/g/<slug>), per IP per minute. A bill token is 144 bits, so
+// this is a load cap, not what stops guessing.
+export const garageBookPublicRateLimiter = createRateLimiter(() => env.garageBookPublicRateLimit, 60 * 1000)
+
+// Booking on a garage's own link: no sign-in and no OTP, so per IP per hour
+// here, and per phone per garage per day in the database (garage-book-link).
+export const garageLinkBookRateLimiter = createRateLimiter(() => env.garageLinkBookRateLimit, 60 * 60 * 1000)

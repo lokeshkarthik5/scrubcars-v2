@@ -59,6 +59,7 @@ describe('usage events: the app sends only what the API takes', () => {
       '/gift/abcd-efgh-jkmn-pqrs?x=1',
       '/c/7K4QM92MXA?utm_source=flyer',
       '/verify/AbCdEfGhIjKlMnOpQrStUvWxYz012345',
+      '/b/AbCdEfGhIjKlMnOpQrStUvWx',
     ]) {
       expect(core.cleanPath(path)).toBe(cleanPath(path))
     }

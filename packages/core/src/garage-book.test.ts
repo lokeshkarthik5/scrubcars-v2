@@ -85,3 +85,48 @@ describe('lists', () => {
     })
   })
 })
+
+describe('stages 2 and 3 (0074)', () => {
+  test('bill numbers, pay lines and the stock dial read as the server writes them', async () => {
+    const { billNumberText, payLine, stockShare, isLow, jobsLeft, suggestPacks, stockAmountText, stockDeltaText } = await import('./garage-book')
+    expect(billNumberText(7)).toBe('0007')
+    expect(payLine({ phone: '9840000000', apps: ['phonepe', 'gpay'] })).toBe('Pay on GPay/PhonePe 98400 00000')
+    expect(stockShare(600, 5000, 1000)).toBe(0.12)
+    expect(isLow(600, 1000)).toBe(true)
+    expect(jobsLeft(600, 100)).toBe(6)
+    expect(suggestPacks(600, 1000, 5000)).toBe(1)
+    expect(stockAmountText(10_000, 'ml')).toBe('10 L')
+    expect(stockDeltaText(-300, 'ml')).toBe('−300 ml')
+    expect(stockDeltaText(10_000, 'ml')).toBe('+10 L')
+  })
+
+  test('the words the Business tiles, Expenses and the milestone card show', async () => {
+    const { expenseCategoryWord, teamTileLine, milestoneTitle, milestoneNext, stockMoveWord } = await import('./garage-book')
+    expect(expenseCategoryWord('power_water')).toBe('Power & water')
+    expect(expenseCategoryWord('salary')).toBe('Salaries')
+    expect(stockMoveWord('counted')).toBe('Counted')
+    expect(
+      teamTileLine({ atWork: 4, members: [{ name: 'Ravi', jobsToday: 2 }, { name: 'Arun Kumar', jobsToday: 6 }] })
+    ).toBe('4 at work · Arun 6 jobs')
+    expect(teamTileLine({ atWork: 3, members: [{ name: 'Ravi', jobsToday: 0 }] })).toBe('3 at work')
+    expect(milestoneTitle({ kind: 'customers', value: 100 })).toBe('100 customers in your book')
+    expect(milestoneTitle({ kind: 'lakh_month', value: 1 })).toBe('First ₹1 lakh month')
+    expect(milestoneNext({ kind: 'lakh_month', value: 2 })).toBe('Next: First ₹2 lakh month')
+    expect(milestoneNext(null)).toBeNull()
+  })
+
+  test('the money-owed WhatsApp carries the garage’s pay line when it shows it', async () => {
+    const { owedMessage } = await import('./garage-book')
+    const plain = owedMessage({ name: 'Suresh Kumar', garage: 'Sample', amountPaise: 50_000 })
+    expect(plain).not.toContain('Pay on')
+    expect(owedMessage({ name: 'Suresh Kumar', garage: 'Sample', amountPaise: 50_000, payLine: 'Pay on GPay 98400 00000' })).toBe(
+      `${plain}\nPay on GPay 98400 00000`
+    )
+  })
+
+  test('a job’s ref for "who did it" and a bill', async () => {
+    const { jobRef } = await import('./api/garage-book')
+    expect(jobRef({ source: 'own', id: 'a' })).toBe('own:a')
+    expect(jobRef({ source: 'detlio', id: 'b' })).toBe('detlio:b')
+  })
+})

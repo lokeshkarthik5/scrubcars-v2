@@ -115,6 +115,24 @@ formal literary Tamil, not machine-literal.
 | Pay later (how a walk-in is paid) | பிறகு தருவார் |
 | Remind / Reminder | நினைவூட்டவும் / நினைவூட்டல் |
 | Garage Book's "book" (Download my book) | கணக்குப் புத்தகம் |
+| Expense / Expenses | செலவு / செலவுகள் |
+| Stock | ஸ்டாக் |
+| Running low | தீரப்போகிறது |
+| Count (a stock count) / Counted | கணக்கெடுக்கவும் / கணக்கெடுக்கப்பட்டது |
+| Left (stock remaining) | மீதம் |
+| Pack (of stock) | பேக் |
+| Supplier / Supplies (what a garage orders) | சப்ளையர் / பொருட்கள் |
+| Order (to a supplier) | ஆர்டர் |
+| Bill (Garage Book's own bill) | பில் / பில்கள் |
+| Advance (pay given ahead to staff) / Salaries | அட்வான்ஸ் / சம்பளம் |
+| Profit | லாபம் |
+| Commission | கமிஷன் |
+| Payment details | பேமெண்ட் விவரங்கள் |
+| Booking link / Poster | புக்கிங் லிங்க் / போஸ்டர் |
+| QR (UPI QR) | QR (never translated) |
+| Bring in (import a paper book or Excel) | கொண்டுவரவும் |
+| Number plate | நம்பர் பிளேட் |
+| Day off | லீவு |
 
 Add a row when a word starts recurring across screens, and use the row's Tamil
 everywhere it appears. The same English in two `ta/*.ts` files must have the
