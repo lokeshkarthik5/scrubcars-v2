@@ -16,6 +16,11 @@ const sslDisabled = /[?&]sslmode=disable(&|$)/.test(connectionString)
 // would exhaust Supabase's pooler as instances scaled, and Home is written to
 // await its reads one by one on that single connection. The e2e suite sets
 // PG_POOL_MAX so its workers are not stuck behind each other; unset stays 1.
+//
+// So never `await Promise.all([...reads])`: on this one connection they are
+// pipelined through the pooler, and that hung the garage list and page in
+// production (13-14 Nov). Await each read on its own; one-read-at-a-time.test.ts
+// fails the build otherwise.
 function connectionPoolMax(): number {
   const raw = process.env.PG_POOL_MAX
   if (raw === undefined || raw === '') return 1

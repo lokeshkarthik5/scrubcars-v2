@@ -889,17 +889,17 @@ export async function vendorCardsFor(
   )
 
   const today = todayDateKey()
-  const [ratings, closures, tiers, cityRules] = await Promise.all([
-    ratingsFor(rows.map((vendor) => vendor.id)),
-    vendorsRepository.listClosuresForVendors(
+  const [ratings, closures, tiers, cityRules] = [
+    await ratingsFor(rows.map((vendor) => vendor.id)),
+    await vendorsRepository.listClosuresForVendors(
       rows.map((vendor) => vendor.id),
       today,
       addDaysToDateKey(today, LISTING_CLOSURE_DAYS_AHEAD)
     ),
-    tiersService.customerTiers(rows.map((vendor) => vendor.id)),
+    await tiersService.customerTiers(rows.map((vendor) => vendor.id)),
     // "All over <city>" (0069) on the cards: one read of the cities.
-    citiesService.rules(),
-  ])
+    await citiesService.rules(),
+  ]
   const closuresByVendor = new Map<string, string[]>()
   for (const closure of closures) {
     const dates = closuresByVendor.get(closure.vendorId) ?? []
@@ -977,10 +977,10 @@ export async function jobSlots(
 ) {
   const durationMins = job.durationMins
   const dayOfWeek = getDayOfWeekFromDate(job.date)
-  const [hours, closure] = await Promise.all([
-    vendorsRepository.findWorkingHoursForDay(vendor.id, dayOfWeek),
-    bookingsRepository.findClosure(vendor.id, job.date),
-  ])
+  const [hours, closure] = [
+    await vendorsRepository.findWorkingHoursForDay(vendor.id, dayOfWeek),
+    await bookingsRepository.findClosure(vendor.id, job.date),
+  ]
 
   const minNoticeMins = MIN_NOTICE_MS[job.bookingType] / 60_000
   const base = {
@@ -1177,13 +1177,13 @@ export const vendorsService = {
       throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
     }
 
-    const [photos, services, ratings, tiers, cityRules] = await Promise.all([
-      vendorsRepository.listPhotos(vendor.id),
-      vendorsRepository.listServices(vendor.id, true),
-      ratingsFor([vendor.id]),
-      tiersService.customerTiers([vendor.id]),
-      citiesService.rules(),
-    ])
+    const [photos, services, ratings, tiers, cityRules] = [
+      await vendorsRepository.listPhotos(vendor.id),
+      await vendorsRepository.listServices(vendor.id, true),
+      await ratingsFor([vendor.id]),
+      await tiersService.customerTiers([vendor.id]),
+      await citiesService.rules(),
+    ]
 
     const rating = ratings.get(vendor.id)
 
@@ -2228,13 +2228,13 @@ export const vendorsService = {
       throw new AppError(400, `At most ${NEXT_FREE_MAX_IDS} garages at once`, 'TOO_MANY_GARAGES')
     }
     const window = nextFreeWindow(now)
-    const [garages, catalogue, hours, closures, busy] = await Promise.all([
-      vendorsRepository.findPublicVendorsByIds(ids),
-      vendorsRepository.listServicesForVendors(ids),
-      vendorsRepository.listWorkingHoursForVendors(ids),
-      vendorsRepository.listClosuresForVendors(ids, window.first, window.last),
-      bookingsRepository.listCapacityHoldersForVendors(ids, window.from, window.to),
-    ])
+    const [garages, catalogue, hours, closures, busy] = [
+      await vendorsRepository.findPublicVendorsByIds(ids),
+      await vendorsRepository.listServicesForVendors(ids),
+      await vendorsRepository.listWorkingHoursForVendors(ids),
+      await vendorsRepository.listClosuresForVendors(ids, window.first, window.last),
+      await bookingsRepository.listCapacityHoldersForVendors(ids, window.from, window.to),
+    ]
 
     const answer: Record<string, NextFree | null> = Object.fromEntries(ids.map((id) => [id, null]))
     for (const garage of garages) {
@@ -2306,10 +2306,10 @@ export const vendorsService = {
     vendorId: string,
     period: 'week' | 'month'
   ): Promise<EarningsResponse> {
-    const [bookings, reviews] = await Promise.all([
-      bookingsRepository.listBookingsForVendor(vendorId),
-      reviewsRepository.listReviewsForVendor(vendorId),
-    ])
+    const [bookings, reviews] = [
+      await bookingsRepository.listBookingsForVendor(vendorId),
+      await reviewsRepository.listReviewsForVendor(vendorId),
+    ]
 
     // Every booking that earns the garage its payout: finished jobs, and
     // customer no-shows on a payment Detlio kept (the garage held the slot,

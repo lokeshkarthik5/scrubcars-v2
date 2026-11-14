@@ -481,13 +481,13 @@ export const discountsService = {
   },
 
   async listDiscounts(query: ListDiscountsQuery) {
-    const [rows, usage] = await Promise.all([
-      discountsRepository.listDiscounts({
+    const [rows, usage] = [
+      await discountsRepository.listDiscounts({
         q: query.q,
         active: query.active === undefined ? undefined : query.active === 'true',
       }),
-      discountsRepository.usageByDiscount(),
-    ])
+      await discountsRepository.usageByDiscount(),
+    ]
 
     return rows.map((row) => toDiscountResponse(row, usage.get(row.id)))
   },

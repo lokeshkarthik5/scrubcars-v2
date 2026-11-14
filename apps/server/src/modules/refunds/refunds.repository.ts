@@ -289,11 +289,11 @@ export interface LatestRefund {
 export const refundsRepository = {
   /** Everything that may still be owed, of each kind. */
   async listMaybeOwed() {
-    const [bookingPayments, checkouts, bills] = await Promise.all([
-      bookingPaymentRows(BOOKING_PAYMENT_MAY_BE_OWED),
-      checkoutRows(CHECKOUT_MAY_BE_OWED),
-      billRows(BILL_MAY_BE_OWED),
-    ])
+    const [bookingPayments, checkouts, bills] = [
+      await bookingPaymentRows(BOOKING_PAYMENT_MAY_BE_OWED),
+      await checkoutRows(CHECKOUT_MAY_BE_OWED),
+      await billRows(BILL_MAY_BE_OWED),
+    ]
     return { bookingPayments, checkouts, bills }
   },
 
@@ -315,26 +315,26 @@ export const refundsRepository = {
    * not a to-do list, so it is capped.
    */
   async listRefunded(limit: number) {
-    const [bookingPayments, checkouts, bills] = await Promise.all([
-      bookingPaymentRows(anyRefunded(payments.refundedAmount))
+    const [bookingPayments, checkouts, bills] = [
+      await bookingPaymentRows(anyRefunded(payments.refundedAmount))
         .orderBy(desc(payments.refundedAt))
         .limit(limit),
-      checkoutRows(anyRefunded(bookingIntents.refundedAmount))
+      await checkoutRows(anyRefunded(bookingIntents.refundedAmount))
         .orderBy(desc(bookingIntents.refundedAt))
         .limit(limit),
-      billRows(anyRefunded(bookingCharges.refundedAmount))
+      await billRows(anyRefunded(bookingCharges.refundedAmount))
         .orderBy(desc(bookingCharges.refundedAt))
         .limit(limit),
-    ])
+    ]
     return { bookingPayments, checkouts, bills }
   },
 
   /** A booking's own payment and its bills, for its admin page. */
   async listForBooking(bookingId: string) {
-    const [bookingPayments, bills] = await Promise.all([
-      bookingPaymentRows(eq(bookings.id, bookingId)),
-      billRows(eq(bookingCharges.bookingId, bookingId)),
-    ])
+    const [bookingPayments, bills] = [
+      await bookingPaymentRows(eq(bookings.id, bookingId)),
+      await billRows(eq(bookingCharges.bookingId, bookingId)),
+    ]
     return { bookingPayments, bills }
   },
 
@@ -489,22 +489,22 @@ export const refundsRepository = {
    * marked Test, which the pilot numbers leave out (0032).
    */
   async listRefundedSince(since: Date) {
-    const [onPayments, onCheckouts, onBills] = await Promise.all([
-      db
+    const [onPayments, onCheckouts, onBills] = [
+      await db
         .select({ refundedAmount: payments.refundedAmount })
         .from(payments)
         .innerJoin(bookings, eq(bookings.id, payments.bookingId))
         .where(and(gte(payments.refundedAt, since), isNull(bookings.markedTestAt))),
-      db
+      await db
         .select({ refundedAmount: bookingIntents.refundedAmount })
         .from(bookingIntents)
         .where(gte(bookingIntents.refundedAt, since)),
-      db
+      await db
         .select({ refundedAmount: bookingCharges.refundedAmount })
         .from(bookingCharges)
         .innerJoin(bookings, eq(bookings.id, bookingCharges.bookingId))
         .where(and(gte(bookingCharges.refundedAt, since), isNull(bookings.markedTestAt))),
-    ])
+    ]
     return [...onPayments, ...onCheckouts, ...onBills]
   },
 

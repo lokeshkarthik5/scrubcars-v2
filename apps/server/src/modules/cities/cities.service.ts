@@ -120,10 +120,10 @@ export const citiesService = {
    * (CITY_SHOWN in vendors.predicates.ts).
    */
   async rules(): Promise<CityRules> {
-    const [rows, otherTowns] = await Promise.all([
-      citiesRepository.listCities(),
-      citiesRepository.otherTownsValue(),
-    ])
+    const [rows, otherTowns] = [
+      await citiesRepository.listCities(),
+      await citiesRepository.otherTownsValue(),
+    ]
     const list = rows.map(toCity)
     const otherTownsVisible = parseOtherTownsVisible(otherTowns)
     return {
@@ -142,10 +142,10 @@ export const citiesService = {
     if (customerCitiesCache && now - customerCitiesCache.at < CUSTOMER_CITIES_TTL_MS) {
       return customerCitiesCache.cities
     }
-    const [rows, counts] = await Promise.all([
-      citiesRepository.listCities(),
-      citiesRepository.listedGarageCounts(),
-    ])
+    const [rows, counts] = [
+      await citiesRepository.listCities(),
+      await citiesRepository.listedGarageCounts(),
+    ]
     const list = customerCities(
       rows.map((row) => ({ ...toCity(row), createdAt: row.createdAt })),
       counts
@@ -161,11 +161,11 @@ export const citiesService = {
 
   /** Admin → Cities: each city with its counts, and the Other towns row. */
   async overview(): Promise<CitiesOverview> {
-    const [rows, otherTowns, garages] = await Promise.all([
-      citiesRepository.listCities(),
-      citiesRepository.otherTownsValue(),
-      citiesRepository.listGarageFacts(),
-    ])
+    const [rows, otherTowns, garages] = [
+      await citiesRepository.listCities(),
+      await citiesRepository.otherTownsValue(),
+      await citiesRepository.listGarageFacts(),
+    ]
     const list = rows.map(toCity)
     const otherTownsVisible = parseOtherTownsVisible(otherTowns)
     const counts = new Map<string | null, PlaceCounts>()

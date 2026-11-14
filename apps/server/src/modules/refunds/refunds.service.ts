@@ -717,10 +717,10 @@ async function autoHold(money: Money, conn: Conn, now: Date): Promise<AutoRefund
     now,
   })
   if (quick) return quick
-  const [complaintOpen, failedAttempts] = await Promise.all([
-    money.bookingId ? refundsRepository.hasOpenComplaint(money.bookingId, conn) : Promise.resolve(false),
-    refundsRepository.countFailedAttempts(money.target.kind, money.target.id, conn),
-  ])
+  const [complaintOpen, failedAttempts] = [
+    await (money.bookingId ? refundsRepository.hasOpenComplaint(money.bookingId, conn) : Promise.resolve(false)),
+    await refundsRepository.countFailedAttempts(money.target.kind, money.target.id, conn),
+  ]
   return autoRefundHold({
     kind: money.target.kind,
     owed,
@@ -1271,10 +1271,10 @@ export const refundsService = {
    * list, so not windowed) and what was refunded since `since`.
    */
   async pilotRefunds(since: Date) {
-    const [owed, recorded] = await Promise.all([
-      refundsService.listRefunds({ status: 'owed' }),
-      refundsRepository.listRefundedSince(since),
-    ])
+    const [owed, recorded] = [
+      await refundsService.listRefunds({ status: 'owed' }),
+      await refundsRepository.listRefundedSince(since),
+    ]
     return summariseRefunds(owed, recorded)
   },
 

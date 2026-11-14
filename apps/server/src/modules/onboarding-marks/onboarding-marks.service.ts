@@ -358,14 +358,12 @@ export const onboardingMarksService = {
     const ids = [...new Set(vendorIds)]
     if (ids.length === 0) return new Map()
     const documentsOn = isDocumentStorageConfigured()
-    const [facts, drawn, payout, documents] = await Promise.all([
-      onboardingMarksRepository.listMissingFacts(ids),
-      onboardingMarksRepository.listDrawnAreaIds(ids),
-      this.payoutVendorIds(ids),
-      documentsOn
-        ? onboardingMarksRepository.listDocumentStates(ids)
-        : Promise.resolve([]),
-    ])
+    const [facts, drawn, payout, documents] = [
+      await onboardingMarksRepository.listMissingFacts(ids),
+      await onboardingMarksRepository.listDrawnAreaIds(ids),
+      await this.payoutVendorIds(ids),
+      documentsOn ? await onboardingMarksRepository.listDocumentStates(ids) : [],
+    ]
     const drawnIds = new Set(drawn)
     // Each garage's own modes: a doorstep-only garage has no shop, so its
     // shop photo is not a missing document.

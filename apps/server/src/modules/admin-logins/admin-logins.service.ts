@@ -93,7 +93,7 @@ export const adminLoginsService = {
    * login, which becomes the owner); read-only for everyone else.
    */
   async list(actor: AdminActor) {
-    const [rows, ownerExists] = await Promise.all([adminLoginsRepository.list(), adminLoginsRepository.ownerExists()])
+    const [rows, ownerExists] = [await adminLoginsRepository.list(), await adminLoginsRepository.ownerExists()]
     return {
       logins: rows.map(toResponse),
       youId: actor.loginId,

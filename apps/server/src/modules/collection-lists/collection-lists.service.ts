@@ -104,10 +104,10 @@ async function assemble(
     lists.map((l) => l.id)
   )
   const vendorIds = [...new Set(items.map((item) => item.vendorId))]
-  const [briefs, missing] = await Promise.all([
-    collectionListsRepository.listGarageBriefs(vendorIds),
-    onboardingMarksService.missingFor(vendorIds),
-  ])
+  const [briefs, missing] = [
+    await collectionListsRepository.listGarageBriefs(vendorIds),
+    await onboardingMarksService.missingFor(vendorIds),
+  ]
   const briefById = new Map(briefs.map((b) => [b.id, b]))
   const itemsByList = new Map<string, CollectionItemRecord[]>()
   for (const item of items) {
