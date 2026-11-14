@@ -302,10 +302,10 @@ export const garageBookService = {
   async today(viewer: Viewer, date: string | undefined, now = new Date()) {
     const dateKey = date ?? istDateKey(now)
     const { start, end } = dayBounds(dateKey)
-    const [jobs, bookings] = await Promise.all([
-      repo.jobsBetween(viewer.vendorId, start, end),
-      repo.detlioJobsBetween(viewer.vendorId, start, end),
-    ])
+    const [jobs, bookings] = [
+      await repo.jobsBetween(viewer.vendorId, start, end),
+      await repo.detlioJobsBetween(viewer.vendorId, start, end),
+    ]
     const live = jobs.filter((job) => job.status !== 'cancelled')
     // Who is on each job (0074), for the "Done by" chips.
     const workers = await teamService.workersFor(
@@ -528,10 +528,10 @@ export const garageBookService = {
   async customers(viewer: Viewer, query: CustomersQuery, now = new Date()) {
     const search = searchOf(query.q)
     const settings = await settingsFor(viewer.vendorId)
-    const [own, detlio] = await Promise.all([
-      repo.ownCustomers(viewer.vendorId, search),
-      repo.detlioCustomers(viewer.vendorId, search),
-    ])
+    const [own, detlio] = [
+      await repo.ownCustomers(viewer.vendorId, search),
+      await repo.detlioCustomers(viewer.vendorId, search),
+    ]
     const ownItems = own.map((row) => ownListItem(viewer, row, now))
     const detlioItems = detlio.map((row) => detlioListItem(viewer, row, settings.defaultIntervalDays, now))
     const all: CustomerListItem[] = [...ownItems, ...detlioItems].sort((a, b) =>
@@ -824,11 +824,11 @@ export const garageBookService = {
   // ─── Money owed (owner) ────────────────────────────────────────────────────
 
   async owed(viewer: Viewer) {
-    const [rows, recent, pay] = await Promise.all([
-      repo.owed(viewer.vendorId),
-      repo.recentPaid(viewer.vendorId),
-      paymentDetailsService.shownOn(viewer.vendorId, 'reminders'),
-    ])
+    const [rows, recent, pay] = [
+      await repo.owed(viewer.vendorId),
+      await repo.recentPaid(viewer.vendorId),
+      await paymentDetailsService.shownOn(viewer.vendorId, 'reminders'),
+    ]
     return {
       // 0074: "Pay on GPay/PhonePe 98400 00000" for the Ask on WhatsApp message, when the garage shows it there.
       payLine: pay?.line ?? null,
@@ -880,14 +880,14 @@ export const garageBookService = {
     const sofar = Math.min(now.getTime(), bounds.end.getTime()) - bounds.start.getTime()
     const prevEnd = new Date(Math.min(prev.start.getTime() + Math.max(0, sofar), prev.end.getTime()))
 
-    const [current, before, visitors, lastVisitors, owed, spent] = await Promise.all([
-      repo.takings(viewer.vendorId, bounds.start, bounds.end),
-      repo.takings(viewer.vendorId, prev.start, prevEnd),
-      repo.visitors(viewer.vendorId, bounds.start, bounds.end),
-      repo.visitors(viewer.vendorId, prev.start, prev.end),
-      repo.owed(viewer.vendorId),
-      expensesService.spentIn(viewer.vendorId, month, now, { copy: !options.readOnly }),
-    ])
+    const [current, before, visitors, lastVisitors, owed, spent] = [
+      await repo.takings(viewer.vendorId, bounds.start, bounds.end),
+      await repo.takings(viewer.vendorId, prev.start, prevEnd),
+      await repo.visitors(viewer.vendorId, bounds.start, bounds.end),
+      await repo.visitors(viewer.vendorId, prev.start, prev.end),
+      await repo.owed(viewer.vendorId),
+      await expensesService.spentIn(viewer.vendorId, month, now, { copy: !options.readOnly }),
+    ]
     const filter = query.filter
     const sum = (t: typeof current) =>
       filter === 'own' ? t.ownPaise : filter === 'detlio' ? t.detlioPaise : t.ownPaise + t.detlioPaise
@@ -927,14 +927,14 @@ export const garageBookService = {
     const vendor = await repo.vendor(viewer.vendorId)
     if (!vendor) notFound('Garage')
     await expensesService.ensureRepeats(viewer.vendorId, istMonth(now), now)
-    const [rows, detlio, owed, team, expenses, stock] = await Promise.all([
-      repo.exportRows(viewer.vendorId),
-      repo.detlioCustomers(viewer.vendorId),
-      repo.owed(viewer.vendorId),
-      teamRepository.members(viewer.vendorId),
-      expensesRepository.all(viewer.vendorId),
-      stockRepository.items(viewer.vendorId, monthBounds(istMonth(now))!.start),
-    ])
+    const [rows, detlio, owed, team, expenses, stock] = [
+      await repo.exportRows(viewer.vendorId),
+      await repo.detlioCustomers(viewer.vendorId),
+      await repo.owed(viewer.vendorId),
+      await teamRepository.members(viewer.vendorId),
+      await expensesRepository.all(viewer.vendorId),
+      await stockRepository.items(viewer.vendorId, monthBounds(istMonth(now))!.start),
+    ]
     const rupees = (paise: number) => Math.round(paise) / 100
     const day = (date: Date | null) => (date ? istDateKey(date) : '')
     const names = new Map(rows.customers.map((customer) => [customer.id, customer.name]))
@@ -1036,15 +1036,15 @@ export const garageBookService = {
     const owner: Viewer = { vendorId, userId: '00000000-0000-0000-0000-000000000000', role: 'vendor_admin' }
     const since = new Date(now.getTime() - 90 * 86_400_000)
     const month = istMonth(now)
-    const [customers, jobs, owed, stats, teamCount, spent, stock] = await Promise.all([
-      this.customers(owner, { filter: 'all' }, now),
-      repo.jobsBetween(vendorId, since, new Date(now.getTime() + 90 * 86_400_000)),
-      this.owed(owner),
-      this.stats(owner, { filter: 'all' }, now, { readOnly: true }),
-      teamRepository.count(vendorId),
-      expensesRepository.spent(vendorId, `${month}-01`, `${nextMonth(month)}-01`),
-      stockRepository.countItems(vendorId),
-    ])
+    const [customers, jobs, owed, stats, teamCount, spent, stock] = [
+      await this.customers(owner, { filter: 'all' }, now),
+      await repo.jobsBetween(vendorId, since, new Date(now.getTime() + 90 * 86_400_000)),
+      await this.owed(owner),
+      await this.stats(owner, { filter: 'all' }, now, { readOnly: true }),
+      await teamRepository.count(vendorId),
+      await expensesRepository.spent(vendorId, `${month}-01`, `${nextMonth(month)}-01`),
+      await stockRepository.countItems(vendorId),
+    ]
     return {
       vendor: { id: vendor.id, name: vendor.businessName },
       counts: customers.counts,

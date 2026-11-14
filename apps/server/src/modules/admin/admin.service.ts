@@ -604,11 +604,11 @@ async function loadBookingDetail(id: string, now: number) {
       )
     ),
   ]
-  const [rescheduledToId, names, refunds] = await Promise.all([
-    adminRepository.findRescheduledToId(id),
-    adminRepository.findUserNames(staffIds),
-    refundsService.listForBooking(id),
-  ])
+  const [rescheduledToId, names, refunds] = [
+    await adminRepository.findRescheduledToId(id),
+    await adminRepository.findUserNames(staffIds),
+    await refundsService.listForBooking(id),
+  ]
 
   const { notes, photos, timeProposals, ...row } = booking
   const finalBill = liveFinalBill(booking.charges)
@@ -840,10 +840,10 @@ export const adminService = {
     // Onboarding marks (0059): what each garage still owes us (worked out
     // here, lib/vendor-missing.ts), its open marks and its open collection
     // list. One grouped read each: payout accounts, open marks, open items.
-    const [payoutIds, openMarks] = await Promise.all([
-      onboardingMarksService.payoutVendorIds(),
-      onboardingMarksService.openBriefsByVendor(),
-    ])
+    const [payoutIds, openMarks] = [
+      await onboardingMarksService.payoutVendorIds(),
+      await onboardingMarksService.openBriefsByVendor(),
+    ]
     const documentSummaryOf = (vendorId: string) =>
       documentsOn ? (documents.get(vendorId) ?? null) : null
     const missing = new Map<string, MissingKey[]>(
@@ -919,11 +919,11 @@ export const adminService = {
     // So the editor's "How customers book" can say a drawn area, not the
     // radius, is what covers doorstep customers.
     const documentsOn = isDocumentStorageConfigured()
-    const [hasDoorstepArea, payoutIds, documentRows] = await Promise.all([
-      adminRepository.hasDoorstepArea(id),
-      onboardingMarksService.payoutVendorIds([id]),
-      documentsOn ? vendorDocumentsRepository.listDocuments(id) : Promise.resolve([]),
-    ])
+    const [hasDoorstepArea, payoutIds, documentRows] = [
+      await adminRepository.hasDoorstepArea(id),
+      await onboardingMarksService.payoutVendorIds([id]),
+      await (documentsOn ? vendorDocumentsRepository.listDocuments(id) : Promise.resolve([])),
+    ]
     const documents = documentsOn ? summariseDocuments(documentRows, documentModesOf(vendor)) : null
     // Cities (0069): the "City: Tirupur" line and why it hides the garage.
     const standing = (await citiesService.rules()).standingOf(vendor)
@@ -1319,12 +1319,12 @@ export const adminService = {
    */
   async getPilotStats(query: PilotStatsQuery, now = Date.now()) {
     const since = new Date(now - query.days * 24 * 60 * 60 * 1000)
-    const [intents, bookingRows, accepts, refunds] = await Promise.all([
-      adminRepository.listIntentsCreatedSince(since),
-      adminRepository.listBookingsCreatedSince(since),
-      adminRepository.listAcceptsSince(since),
-      refundsService.pilotRefunds(since),
-    ])
+    const [intents, bookingRows, accepts, refunds] = [
+      await adminRepository.listIntentsCreatedSince(since),
+      await adminRepository.listBookingsCreatedSince(since),
+      await adminRepository.listAcceptsSince(since),
+      await refundsService.pilotRefunds(since),
+    ]
 
     return {
       days: query.days,
@@ -1559,14 +1559,14 @@ export const adminService = {
       throw new AppError(400, AT_GARAGE_ADDRESS_MESSAGE, 'ADDRESS_REQUIRED')
     }
 
-    const [plainServices, addOns, packages, hours, photos, { cities }] = await Promise.all([
-      vendorsRepository.listServices(source.id),
-      vendorsRepository.listAddOns(source.id),
-      vendorsRepository.listPackages(source.id),
-      input.copyHours ? vendorsRepository.listWorkingHours(source.id) : Promise.resolve([]),
-      input.copyPhotos ? vendorsRepository.listPhotos(source.id) : Promise.resolve([]),
-      citiesService.rules(),
-    ])
+    const [plainServices, addOns, packages, hours, photos, { cities }] = [
+      await vendorsRepository.listServices(source.id),
+      await vendorsRepository.listAddOns(source.id),
+      await vendorsRepository.listPackages(source.id),
+      await (input.copyHours ? vendorsRepository.listWorkingHours(source.id) : Promise.resolve([])),
+      await (input.copyPhotos ? vendorsRepository.listPhotos(source.id) : Promise.resolve([])),
+      await citiesService.rules(),
+    ]
     const plan = planBranchCopy({
       ticked: input.serviceIds,
       services: [...plainServices, ...addOns],
@@ -1715,11 +1715,11 @@ export const adminService = {
       offset: query.cursor ? 0 : (query.page - 1) * query.limit,
     })
 
-    const [rows, notesCounts, movedIds] = await Promise.all([
-      adminRepository.findBookingsByIds(ids),
-      adminRepository.countNotesByBooking(ids),
-      adminRepository.findMovedBookingIds(ids),
-    ])
+    const [rows, notesCounts, movedIds] = [
+      await adminRepository.findBookingsByIds(ids),
+      await adminRepository.countNotesByBooking(ids),
+      await adminRepository.findMovedBookingIds(ids),
+    ]
 
     // The rows come back unordered; the id query decided the order.
     const byId = new Map(rows.map((row) => [row.id, row]))

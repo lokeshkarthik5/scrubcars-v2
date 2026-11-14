@@ -119,11 +119,11 @@ export const stockService = {
   async item(viewer: Viewer, id: string, now = new Date()) {
     const row = await repo.item(viewer.vendorId, id, monthStart(now))
     if (!row) notFound('Item')
-    const [usage, services, moves] = await Promise.all([
-      repo.usage(id),
-      garageBookRepository.priceList(viewer.vendorId),
-      repo.moves(id, 30),
-    ])
+    const [usage, services, moves] = [
+      await repo.usage(id),
+      await garageBookRepository.priceList(viewer.vendorId),
+      await repo.moves(id, 30),
+    ]
     const used = new Map(usage.map((row) => [row.serviceId, row.amount]))
     return {
       item: itemView(viewer, row),
@@ -412,7 +412,7 @@ export const stockService = {
 
   /** Low items, grouped by supplier, with the packs to order filled in. */
   async suggest(viewer: Viewer, now = new Date()) {
-    const [items, suppliers] = await Promise.all([repo.items(viewer.vendorId, monthStart(now)), repo.suppliers(viewer.vendorId)])
+    const [items, suppliers] = [await repo.items(viewer.vendorId, monthStart(now)), await repo.suppliers(viewer.vendorId)]
     const groups = new Map<string, { supplier: (typeof suppliers)[number] | null; lines: Array<Record<string, unknown>>; totalPaise: number }>()
     for (const item of items.filter((row) => isLow(row.level, row.lowAt))) {
       const key = item.supplierId ?? 'none'

@@ -85,10 +85,10 @@ export const expensesService = {
     const bounds = monthBounds(key)
     if (!bounds) throw new AppError(400, 'A month as YYYY-MM', 'INVALID_MONTH')
     await this.ensureRepeats(viewer.vendorId, key, now)
-    const [rows, taken] = await Promise.all([
-      repo.between(viewer.vendorId, `${key}-01`, `${nextMonth(key)}-01`),
-      garageBookRepository.takings(viewer.vendorId, bounds.start, bounds.end),
-    ])
+    const [rows, taken] = [
+      await repo.between(viewer.vendorId, `${key}-01`, `${nextMonth(key)}-01`),
+      await garageBookRepository.takings(viewer.vendorId, bounds.start, bounds.end),
+    ]
     const totals = Object.fromEntries(EXPENSE_CATEGORIES.map((category) => [category, 0])) as Record<ExpenseCategory, number>
     for (const row of rows) totals[row.category] += row.amountPaise
     const spentPaise = rows.reduce((sum, row) => sum + row.amountPaise, 0)

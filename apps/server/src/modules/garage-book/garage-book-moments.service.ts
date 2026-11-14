@@ -87,11 +87,11 @@ export const momentsService = {
   /** Moment 6: the milestone to show now, or null. */
   async milestone(viewer: Viewer, now = new Date()) {
     const vendorId = viewer.vendorId
-    const [customers, months, seen] = await Promise.all([
-      db.execute<{ n: number | string; first_at: Date | string | null }>(sql`
+    const [customers, months, seen] = [
+      await db.execute<{ n: number | string; first_at: Date | string | null }>(sql`
         SELECT count(*) AS n, min(created_at) AS first_at FROM garage_customers WHERE vendor_id = ${vendorId} AND deleted_at IS NULL
       `),
-      db.execute<{ month: string; paise: number | string }>(sql`
+      await db.execute<{ month: string; paise: number | string }>(sql`
         SELECT month, sum(paise) AS paise FROM (
           SELECT to_char(done_at AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM') AS month, total_paise::bigint AS paise
             FROM garage_jobs WHERE vendor_id = ${vendorId} AND status = 'done' AND payment_method IN ('upi', 'cash')
@@ -103,8 +103,8 @@ export const momentsService = {
             FROM bookings b WHERE b.vendor_id = ${vendorId} AND b.status = 'completed' AND ${PAID}
         ) x GROUP BY month
       `),
-      db.execute<{ key: string }>(sql`SELECT key FROM garage_milestones_seen WHERE vendor_id = ${vendorId}`),
-    ])
+      await db.execute<{ key: string }>(sql`SELECT key FROM garage_milestones_seen WHERE vendor_id = ${vendorId}`),
+    ]
     const count = Array.from(customers)[0]
     const found = milestoneFor({
       ownCustomers: num(count?.n),

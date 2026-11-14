@@ -39,13 +39,13 @@ export const teamService = {
     const day = dayBounds(today)
     // Salaries set to repeat every month are copied in first, so a person's card shows them.
     if (isOwner(viewer)) await expensesService.ensureRepeats(viewer.vendorId, key, now)
-    const [members, work, todayJobs, onNow, pay] = await Promise.all([
-      repo.members(viewer.vendorId),
-      repo.work(viewer.vendorId, bounds.start, bounds.end),
-      repo.jobsBetween(viewer.vendorId, day.start, day.end),
-      repo.onNow(viewer.vendorId),
-      isOwner(viewer) ? repo.pay(viewer.vendorId, `${key}-01`, `${nextMonth(key)}-01`) : Promise.resolve(new Map()),
-    ])
+    const [members, work, todayJobs, onNow, pay] = [
+      await repo.members(viewer.vendorId),
+      await repo.work(viewer.vendorId, bounds.start, bounds.end),
+      await repo.jobsBetween(viewer.vendorId, day.start, day.end),
+      await repo.onNow(viewer.vendorId),
+      isOwner(viewer) ? await repo.pay(viewer.vendorId, `${key}-01`, `${nextMonth(key)}-01`) : new Map(),
+    ]
     const list = members.map((member) => {
       const done = work.get(member.id)
       const now_ = onNow.get(member.id)

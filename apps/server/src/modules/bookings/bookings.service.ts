@@ -982,14 +982,14 @@ export async function garageRefusalForBooking(booking: {
   if (!vendor || vendor.bookingsPausedAt || isInBin(vendor)) return 'paused'
 
   const date = getDateKeyFromScheduledAt(booking.scheduledAt)
-  const [closure, busy] = await Promise.all([
-    bookingsRepository.findClosure(booking.vendorId, date),
-    bookingsRepository.listCapacityHolders({
+  const [closure, busy] = [
+    await bookingsRepository.findClosure(booking.vendorId, date),
+    await bookingsRepository.listCapacityHolders({
       vendorId: booking.vendorId,
       date,
       excludeBookingId: booking.id,
     }),
-  ])
+  ]
   if (closure) return 'closed'
 
   return hasCapacity(booking.scheduledAt, {
@@ -1031,10 +1031,10 @@ async function validateSlotAvailability(
     throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
   }
 
-  const [hours, closure] = await Promise.all([
-    vendorsRepository.findWorkingHoursForDay(vendorId, dayOfWeek),
-    bookingsRepository.findClosure(vendorId, date),
-  ])
+  const [hours, closure] = [
+    await vendorsRepository.findWorkingHoursForDay(vendorId, dayOfWeek),
+    await bookingsRepository.findClosure(vendorId, date),
+  ]
 
   log.info({ vendorId, date, dayOfWeek, hours: hours ? { openTime: hours.openTime, closeTime: hours.closeTime, isClosed: hours.isClosed } : null, holiday: !!closure }, 'booking:working_hours_fetched')
 

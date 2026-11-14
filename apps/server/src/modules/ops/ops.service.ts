@@ -259,10 +259,10 @@ export const opsService = {
     // Pending bookings drop off a day after their time; uncollected pickups
     // stay until collected or cancelled (lib/pending-digest.ts).
     const { bookingsSince, pickupsSince } = digestLookbacks(now)
-    const [rows, pickups] = await Promise.all([
-      opsRepository.listPaidPendingBookings(bookingsSince),
-      opsRepository.listUncollectedPickups(pickupsSince, new Date(now)),
-    ])
+    const [rows, pickups] = [
+      await opsRepository.listPaidPendingBookings(bookingsSince),
+      await opsRepository.listUncollectedPickups(pickupsSince, new Date(now)),
+    ]
     // The morning roll-up also says what Detlio owes garages. Read only at
     // 07:00, and never allowed to fail the digest: without it the line is
     // left out.

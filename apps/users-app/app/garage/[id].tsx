@@ -18,7 +18,6 @@ import { EASE_SETTLE, PressScale, Rise, SeenProvider, useReduceMotion, useSeenHo
 import { ErrorState, Notice, SkeletonList } from '@repo/native-ui/primitives';
 import { Figures, font, T } from '@repo/native-ui/text';
 import { createStyles, useColors, useFinish } from '@repo/native-ui/theme';
-import { useQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { type ComponentRef, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
@@ -39,7 +38,6 @@ import { SaveGarageButton } from '@/components/garage/save-button';
 import { GarageAddOns, PackageCard, ServiceCard, ServiceSheet } from '@/components/garage/service-cards';
 import { OutsideCityLine, TierSeal } from '@/components/garage/tier';
 import { useGarageTownLine } from '@/lib/customer-place';
-import { getVendorAddOns } from '@/lib/add-ons';
 import { useAuth } from '@/lib/auth';
 import { browseCategory } from '@repo/core/analytics-events';
 import { fill, msg, useT, useTn } from '@repo/core/i18n';
@@ -47,6 +45,7 @@ import { track } from '@/lib/shims/analytics';
 import { useBookingCar } from '@/lib/booking-car';
 import { coarse, isApproximate, isCitywide, useLocationStore } from '@/lib/location';
 import { money, pricedForCar, servicePriceText } from '@/lib/price';
+import type { AddOn } from '@repo/core/api/types';
 
 type Tab = 'services' | 'photos' | 'reviews';
 const TABS: readonly { key: Tab; label: string }[] = [
@@ -56,6 +55,7 @@ const TABS: readonly { key: Tab; label: string }[] = [
 ];
 const NO_SERVICES: Service[] = [];
 const NO_PACKAGES: ServicePackage[] = [];
+const NO_ADD_ONS: AddOn[] = [];
 
 /** apps/users/app/garage/[id]/page.tsx. */
 export default function GarageScreen() {
@@ -86,7 +86,8 @@ export default function GarageScreen() {
   const [tab, setTab] = useState<Tab>('services');
   // Reviews load when their tab opens (speed fix 8): the count is already on the garage.
   const reviewsList = useVendorReviews(id, { enabled: tab === 'reviews' }).data ?? [];
-  const addOns = useQuery({ queryKey: ['vendors', 'add-ons', id], queryFn: () => getVendorAddOns(id), staleTime: 60_000 }).data ?? [];
+  // Already in the garage's own read (garageQuery): a second request for the same list cost a round trip.
+  const addOns = garage.data?.addOns ?? NO_ADD_ONS;
   const workingHours = useVendorWorkingHours(id);
   const closures = useVendorClosures(id);
   const travel = useTravelTime(

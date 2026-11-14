@@ -44,7 +44,7 @@ async function garagePhone(vendorId: string) {
 
 export const paymentDetailsService = {
   async get(viewer: Viewer, now = Date.now()) {
-    const [row, phone] = await Promise.all([repo.paymentDetails(viewer.vendorId), garagePhone(viewer.vendorId)])
+    const [row, phone] = [await repo.paymentDetails(viewer.vendorId), await garagePhone(viewer.vendorId)]
     return {
       set: Boolean(row),
       qrUrl: row?.qrKey ? payQrStorage.payQrLink(row.qrKey, now) : null,

@@ -51,7 +51,7 @@ function usable(link: LinkGarage | null): link is LinkGarage {
 
 async function times(vendorId: string, now: Date) {
   const today = istDateKey(now)
-  const [hours, closures] = await Promise.all([repo.hours(vendorId), repo.closures(vendorId, today, addDays(today, 8))])
+  const [hours, closures] = [await repo.hours(vendorId), await repo.closures(vendorId, today, addDays(today, 8))]
   return { hours, closures, days: linkTimes(hours, closures, now) }
 }
 
@@ -79,10 +79,10 @@ export const linkService = {
   async get(viewer: Viewer, now = new Date()) {
     const link = await this.ensure(viewer.vendorId)
     const bounds = monthBounds(istMonth(now))!
-    const [services, bookings] = await Promise.all([
-      repo.services(viewer.vendorId),
-      repo.linkBookings(viewer.vendorId, bounds.start, bounds.end),
-    ])
+    const [services, bookings] = [
+      await repo.services(viewer.vendorId),
+      await repo.linkBookings(viewer.vendorId, bounds.start, bounds.end),
+    ]
     return {
       slug: link.slug,
       url: linkUrl(link.slug),
@@ -116,12 +116,12 @@ export const linkService = {
   async page(slug: string, now = new Date()) {
     const link = await repo.bySlug(slug)
     if (!usable(link)) notFound('Page')
-    const [services, slots, ratings, pay] = await Promise.all([
-      repo.services(link.vendorId),
-      times(link.vendorId, now),
-      ratingsFor([link.vendorId]),
-      paymentDetailsService.shownOn(link.vendorId, 'booking_page'),
-    ])
+    const [services, slots, ratings, pay] = [
+      await repo.services(link.vendorId),
+      await times(link.vendorId, now),
+      await ratingsFor([link.vendorId]),
+      await paymentDetailsService.shownOn(link.vendorId, 'booking_page'),
+    ]
     const rating = ratings.get(link.vendorId)
     return {
       garage: {
