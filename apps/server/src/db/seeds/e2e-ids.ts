@@ -2415,8 +2415,10 @@ export const SHINE = {
  *   murugan    doesn't collect (drop-in only), 8.5 km: Ask for pickup,
  *              Detlio suggests about ₹120 for 11 km by road
  *
- * Only specs/journeys/pickup-fee-journey.spec.ts and
- * specs/admin/pickup-fee.spec.ts use them.
+ * Only specs/journeys/pickup-fee-journey.spec.ts (the customer),
+ * specs/journeys/pickup-fee-garage.spec.ts (the garage; `settings` changes
+ * its fee once, so a rerun needs a fresh seed) and specs/admin/pickup-fee.spec.ts
+ * use them.
  */
 export const PICKUP_FEE = {
   home: { lat: 12.3, lng: 76.64 },

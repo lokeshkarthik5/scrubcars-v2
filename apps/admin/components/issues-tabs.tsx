@@ -8,7 +8,7 @@ import { SectionTabs } from '@/components/section-tabs'
 /**
  * Issues: the three pages about customers' problems in one place with tabs
  * (UX audit, admin mockup 01). Redo claims only while the Guarantee is on,
- * Shine checks (0078) only while Shine Score is.
+ * Shine checks (0078) only while Shine Score is; Pickup fees (0079) always.
  */
 export function IssuesTabs() {
   const pathname = usePathname()
@@ -21,6 +21,8 @@ export function IssuesTabs() {
       : []),
     { href: '/bypass-reports', label: 'Bypass reports' },
     ...(shineOn(shine) ? [{ href: '/shine-checks', label: 'Shine checks' }] : []),
+    // Garages' pickup fees above Detlio's suggestion (0079).
+    { href: '/pickup-fees', label: 'Pickup fees' },
   ]
   return (
     <SectionTabs

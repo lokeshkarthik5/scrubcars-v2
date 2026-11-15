@@ -237,6 +237,7 @@ function ReportCard({
           {r.booking.scheduledAt && (
             <span className="block font-numeric text-[12px] text-text-muted">
               {formatWhen(r.booking.scheduledAt)}
+              {r.booking.pickupFee ? ` · pickup fee ₹${r.booking.pickupFee.toLocaleString('en-IN')}` : ''}
             </span>
           )}
         </Meta>
