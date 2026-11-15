@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import {
   IconBell,
+  IconCategory,
   IconChevronRight,
   IconFileText,
   IconTrash,
@@ -112,6 +113,21 @@ export default function SettingsPage() {
           icon={IconTruck}
           title="Pickup fee"
           body="Detlio’s suggested fee, the limits garages can set, and the Detlio convenience fee (₹0, off)."
+        />
+      </section>
+      {/* One-off tools: the first sort into the new categories (0080). */}
+      <section aria-labelledby="settings-tools" className="flex flex-col gap-2">
+        <h2
+          id="settings-tools"
+          className="text-[13px] font-medium text-text-secondary"
+        >
+          One-off tools
+        </h2>
+        <SettingsLink
+          href="/settings/services-in-others"
+          icon={IconCategory}
+          title="Services in Others"
+          body="Every garage’s services in Others that look like servicing, repairs or dent work, with Move."
         />
       </section>
       {resetConfig?.enabled && (
