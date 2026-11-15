@@ -14,10 +14,13 @@ const { resolveBookingDraft } = await import('./bookings.service.js')
 const { bookingsRepository } = await import('./bookings.repository.js')
 const { vendorsRepository } = await import('../vendors/vendors.repository.js')
 const { AppError } = await import('../../lib/errors.js')
-const { pickupFeesRepository } = await import('../pickup-fees/pickup-fees.repository.js')
-const { forgetPickupFeeSettings } = await import('../pickup-fees/pickup-fees.service.js')
+const { pickupFeesRepository } =
+  await import('../pickup-fees/pickup-fees.repository.js')
+const { forgetPickupFeeSettings } =
+  await import('../pickup-fees/pickup-fees.service.js')
 
-const id = (n: number) => `e2e00000-0000-4000-8000-${String(n).padStart(12, '0')}`
+const id = (n: number) =>
+  `e2e00000-0000-4000-8000-${String(n).padStart(12, '0')}`
 const GARAGE = id(7791)
 const WASH = id(7792)
 const CAR = id(7793)
@@ -91,7 +94,10 @@ function standIn(fee: Record<string, unknown>) {
       isAddon: false,
     },
   ])
-  patch(bookingsRepository, 'findVehicleForUser', async () => ({ id: CAR, vehicleType: 'sedan' }))
+  patch(bookingsRepository, 'findVehicleForUser', async () => ({
+    id: CAR,
+    vehicleType: 'sedan',
+  }))
   patch(bookingsRepository, 'findAddressForUser', async () => ({
     id: HOME,
     address: '1 Main Road',
@@ -149,9 +155,13 @@ describe('the pickup fee on a booking (0079)', () => {
   test('a fee that changed since checkout loaded is refused before any charge', async () => {
     // Checkout showed Free; the garage has since moved to Detlio's fee.
     standIn({ pickupFeeMode: 'distance' })
-    const err = await refusal(resolveBookingDraft('user', input({ pickupFee: 0 })))
+    const err = await refusal(
+      resolveBookingDraft('user', input({ pickupFee: 0 }))
+    )
     expect(err).toBeInstanceOf(AppError)
-    expect((err as InstanceType<typeof AppError>).code).toBe('PICKUP_FEE_CHANGED')
+    expect((err as InstanceType<typeof AppError>).code).toBe(
+      'PICKUP_FEE_CHANGED'
+    )
     expect((err as Error).message).toContain('₹170')
   })
 
