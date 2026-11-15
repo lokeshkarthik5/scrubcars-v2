@@ -40,6 +40,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PullReveal } from '@/components/collect/pull-reveal';
 import { ScratchCardPanel } from '@/components/rewards/scratch-card';
 import { CarConditionCard } from '@/components/booking/car-condition-card';
+import { ConditionCheckCard } from '@/components/booking/condition-check-card';
 import { BookingDirectionsSheet, describeDrive } from '@/components/booking/directions-sheet';
 import { ExtraWorkCard } from '@/components/booking/extra-work-card';
 import { type BillPayment, FinalBillCard } from '@/components/booking/final-bill-card';
@@ -494,6 +495,17 @@ export default function BookingDetailScreen() {
         ) : null}
 
         {isPickup && !missedByGarage ? <PickupCodeCard booking={booking} /> : null}
+
+        {/* The car condition check (0075): the garage's walk-round to agree, and after
+            the job any possible new mark. */}
+        <ConditionCheckCard
+          booking={booking}
+          onChanged={async () => {
+            const fresh = await getBooking(booking.id).catch(() => null);
+            if (fresh) setBooking(fresh);
+          }}
+          onHelp={() => setShowHelp(true)}
+        />
 
         {Object.entries(billPayments)
           .filter(([chargeId, payment]) => chargeId !== booking.finalBill?.id && payment.phase !== 'paid')

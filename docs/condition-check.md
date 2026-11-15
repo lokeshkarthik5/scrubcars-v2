@@ -92,7 +92,26 @@ is `null` while it is off for the garage.
 5. Start the job, take after photos; a possible new mark shows above
    Complete job. Complete it and open the booking as the customer.
 
-The native apps (`apps/users-app`, `apps/vendors-app`) do not have the
-walk-round yet: keep the switch off (or limit it with
-`CONDITION_CHECK_GARAGES`) for garages that use the native garage app for
-pickup & drop or doorstep jobs.
+## The native apps
+
+Both native apps have the same screens, on the same endpoints and
+`packages/core` rules, and learn the switch the same way (the booking
+payload's `conditionCheck`):
+
+- **Garage app** (`apps/vendors-app`): the 8-angle walk-round tiles in
+  `components/job-photos.tsx` (rules in `lib/condition-view.ts`), the
+  summary and the new-mark warning in `components/car-check.tsx`, Check the
+  marks at `app/bookings/[id]/condition.tsx` (`components/check-the-marks.tsx`),
+  the Picked up lines in `components/pickup-steps.tsx`, and Detlio's reads in
+  `lib/condition-reader.ts`. Photos go through `lib/photo-prepare.ts`, which
+  re-encodes them with expo-image-manipulator (dropping the location).
+- **Customer app** (`apps/users-app`): `components/booking/condition-check-card.tsx`
+  on the booking screen (rules in `lib/condition-check-view.ts`), with Raise a
+  complaint prefilled through `components/complaints/raise-complaint-sheet.tsx`.
+- The circles are `packages/native-ui/src/marked-photo.tsx`, the twin of
+  `packages/ui/src/features/marked-photo.tsx`.
+
+Only a build of the native garage app from before these screens (if one
+ever reached a phone) would still meet 409 `CONDITION_CHECK_REQUIRED` on
+Picked up / Start with the check on; `GET /app-config`'s minimum version is
+the way to move such a build on.
