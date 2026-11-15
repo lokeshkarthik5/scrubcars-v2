@@ -19,7 +19,7 @@ describe('request words', () => {
     expect(travelFeeLabel(0)).toBe('None')
     expect(travelFeeLabel(200)).toBe('+₹200')
     expect(requestActionLabel('doorstep')).toBe('Request a visit')
-    expect(requestActionLabel('pickup')).toBe('Request a pickup')
+    expect(requestActionLabel('pickup')).toBe('Ask for pickup')
     expect(triedLine(1)).toBe('Tried 1 of 2 nearby garages.')
   })
 })
