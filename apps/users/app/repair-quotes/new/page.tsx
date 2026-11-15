@@ -104,6 +104,10 @@ export default function NewRepairRequestPage() {
   const [text, setText] = useState('')
   const [editing, setEditing] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
+  // From the tap: Send first waits for the uploads (a video can take a
+  // while), so the button is held from then, not only once the request goes.
+  const [sending, setSending] = useState(false)
+  const sendingNow = useRef(false)
   const uploads = useRef(new Map<string, Promise<string>>())
   const videoInput = useRef<HTMLInputElement>(null)
   const angleInput = useRef<HTMLInputElement>(null)
@@ -269,7 +273,9 @@ export default function NewRepairRequestPage() {
       : null
 
   const send = async () => {
-    if (sendProblem || !car || !place) return
+    if (sendProblem || !car || !place || sendingNow.current) return
+    sendingNow.current = true
+    setSending(true)
     setSendError(null)
     try {
       const videoKey = video ? await uploads.current.get('video') : undefined
@@ -302,6 +308,9 @@ export default function NewRepairRequestPage() {
       for (const [id, promise] of uploads.current) {
         promise.catch(() => uploads.current.delete(id))
       }
+    } finally {
+      sendingNow.current = false
+      setSending(false)
     }
   }
 
@@ -663,10 +672,10 @@ export default function NewRepairRequestPage() {
             variant="main"
             size="lg"
             onClick={() => void send()}
-            disabled={Boolean(sendProblem) || create.isPending}
+            disabled={Boolean(sendProblem) || sending}
             disabledReason={sendProblem ?? undefined}
           >
-            {create.isPending ? t('Sending…') : t('Send to nearby garages')}
+            {sending ? t('Sending…') : t('Send to nearby garages')}
           </ScButton>
         </div>
       )}

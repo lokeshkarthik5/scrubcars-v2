@@ -1,5 +1,5 @@
 import { msg } from '@repo/core/i18n/translate';
-import { REPAIR_QUOTE_RULES } from '@repo/core/repair-quotes';
+import { REPAIR_QUOTE_RULES, typedRupees } from '@repo/core/repair-quotes';
 
 /**
  * The pure parts of the garage's repair-quote screens (0075), as the website's
@@ -22,13 +22,8 @@ export const CLOSED_WORD: Record<string, string> = {
   closed: msg('Closed'),
 };
 
-/** Whole rupees from what was typed ("4,000" → 4000), or null. */
-export function rupees(value: string): number | null {
-  const digits = value.replace(/[^\d]/g, '');
-  if (!digits) return null;
-  const n = Number(digits);
-  return Number.isSafeInteger(n) ? n : null;
-}
+/** Whole rupees from what was typed ("4,000" → 4000; "4,000.50" → 4000), or null: core's typedRupees. */
+export const rupees = typedRupees;
 
 /** Why Send quote can't be pressed yet (English, shown through `t`), or null. */
 export function quoteProblem(input: { from: number | null; to: number | null; days: number | null }): string | null {

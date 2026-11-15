@@ -86,6 +86,10 @@ export default function NewRepairRequestScreen() {
   const [text, setText] = useState('');
   const [editing, setEditing] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  // From the tap: Send first waits for the uploads (a video can take a while), so the button
+  // is held from then, not only once the request goes (as the web page).
+  const [sending, setSending] = useState(false);
+  const sendingNow = useRef(false);
   const uploads = useRef(new Map<string, Promise<string>>());
 
   useEffect(() => {
@@ -214,7 +218,9 @@ export default function NewRepairRequestScreen() {
   const sendProblem = preparing ? t('Detlio is looking at your video…') : text.trim().length < 3 ? t('Write a line for the garages') : null;
 
   const send = async () => {
-    if (sendProblem || !car || !place) return;
+    if (sendProblem || !car || !place || sendingNow.current) return;
+    sendingNow.current = true;
+    setSending(true);
     setSendError(null);
     try {
       const videoKey = video ? await uploads.current.get('video') : undefined;
@@ -243,6 +249,9 @@ export default function NewRepairRequestScreen() {
     } catch (error) {
       setSendError(errorText(error, t('Couldn’t send it. Check your connection and try again.')));
       for (const [id, promise] of uploads.current) promise.catch(() => uploads.current.delete(id));
+    } finally {
+      sendingNow.current = false;
+      setSending(false);
     }
   };
 
@@ -534,8 +543,8 @@ export default function NewRepairRequestScreen() {
                 {sendError}
               </T>
             ) : null}
-            <ScButton variant="main" size="lg" onPress={() => void send()} disabled={Boolean(sendProblem) || create.isPending} disabledReason={sendProblem ?? undefined}>
-              {create.isPending ? t('Sending…') : t('Send to nearby garages')}
+            <ScButton variant="main" size="lg" onPress={() => void send()} disabled={Boolean(sendProblem) || sending} disabledReason={sendProblem ?? undefined}>
+              {sending ? t('Sending…') : t('Send to nearby garages')}
             </ScButton>
           </>
         )}

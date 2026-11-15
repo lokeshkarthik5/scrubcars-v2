@@ -1,5 +1,6 @@
 import type { GarageRepairQuote } from '@repo/core/api/repair-quotes';
 import { useAnswerRepairQuote } from '@repo/core/api/hooks/use-repair-quotes';
+import { useNow } from '@repo/core/hooks/use-now';
 import { useT } from '@repo/core/i18n';
 import { REPAIR_QUOTE_RULES, priceRangeLabel, timeLeftLabel } from '@repo/core/repair-quotes';
 import { ScButton } from '@repo/native-ui/button';
@@ -102,8 +103,10 @@ export function RepairBriefBox({ quote }: { quote: GarageRepairQuote }) {
   );
 }
 
-export function WaitingRepairQuoteCard({ quote, now }: { quote: GarageRepairQuote; now: number }) {
+export function WaitingRepairQuoteCard({ quote }: { quote: GarageRepairQuote }) {
   const t = useT();
+  // Its own clock: the Requests screen does not re-render every second for it.
+  const now = useNow(1000);
   const colors = useColors();
   const styles = useStyles();
   const [declining, setDeclining] = useState(false);

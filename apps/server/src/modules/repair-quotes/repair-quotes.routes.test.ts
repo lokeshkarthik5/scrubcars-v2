@@ -145,6 +145,9 @@ let created: Array<{ request: Record<string, unknown>; quotes: Array<Record<stri
 let intents: Array<Record<string, unknown>> = []
 let setEnabled: Array<[string, boolean]> = []
 let bookable = true
+/** What checkout refuses with next, if anything (its own 409s). */
+let intentRefusal: InstanceType<typeof AppError> | null = null
+let staleReads = 0
 let readerCalls: Array<{ text?: string; files: number }> = []
 
 beforeAll(() => {
@@ -194,7 +197,14 @@ beforeAll(() => {
     quotes.push(...rows)
     return { request, quotes: rows }
   })
-  patch(r, 'findRequest', async (requestId: string) => requests[requestId])
+  patch(r, 'findRequest', async (requestId: string) => {
+    // A read from before another tap's claim landed: the request still open.
+    if (staleReads > 0 && requests[requestId]) {
+      staleReads -= 1
+      return { ...requests[requestId]!, status: 'open', bookedQuoteId: null }
+    }
+    return requests[requestId]
+  })
   patch(r, 'listRequestsForUser', async (userId: string) => Object.values(requests).filter((row) => row.userId === userId))
   patch(r, 'quotesFor', async (requestIds: string[]) =>
     quotes
@@ -235,11 +245,26 @@ beforeAll(() => {
     } as Quote
     return quotes[at]!
   })
-  patch(r, 'inspectionServiceFor', async (vendorId: string) => (bookable && vendorId === GARAGE ? { id: SERVICE } : null))
-  patch(r, 'markBooked', async (input: { requestId: string; quoteId: string; bookingId: string }) => {
-    const row = requests[input.requestId]!
+  patch(r, 'inspectionServiceFor', async (vendorId: string) =>
+    bookable && (vendorId === GARAGE || vendorId === OTHER_GARAGE) ? { id: SERVICE } : null
+  )
+  // The same conditions as the SQL: the customer's, open, in time, from a "Can do" of it.
+  patch(r, 'claimForBooking', async (input: { requestId: string; quoteId: string; userId: string; now: Date }) => {
+    const row = requests[input.requestId]
+    const quote = quotes.find((q) => q.id === input.quoteId && q.requestId === input.requestId && q.status === 'quoted')
+    if (!row || row.userId !== input.userId || row.status !== 'open' || row.closesAt <= input.now || !quote) return false
     requests[input.requestId] = { ...row, status: 'booked', bookedQuoteId: input.quoteId }
-    const at = quotes.findIndex((q) => q.id === input.quoteId)
+    return true
+  })
+  patch(r, 'releaseBookingClaim', async (input: { requestId: string; quoteId: string }) => {
+    const row = requests[input.requestId]
+    const quote = quotes.find((q) => q.id === input.quoteId)
+    if (!row || row.status !== 'booked' || row.bookedQuoteId !== input.quoteId || quote?.bookingId) return
+    requests[input.requestId] = { ...row, status: 'open', bookedQuoteId: null }
+  })
+  patch(r, 'markBooked', async (input: { requestId: string; quoteId: string; bookingId: string }) => {
+    const at = quotes.findIndex((q) => q.id === input.quoteId && q.requestId === input.requestId && q.status === 'quoted')
+    if (at < 0) return false
     quotes[at] = { ...quotes[at]!, bookingId: input.bookingId }
     return true
   })
@@ -255,6 +280,7 @@ beforeAll(() => {
   })
   patch(bookingIntentsService, 'createIntent', async (userId: string, input: Record<string, unknown>) => {
     intents.push({ userId, ...input })
+    if (intentRefusal) throw intentRefusal
     return { intentId: id(7546), orderId: null, amount: 0, currency: 'INR', keyId: null, creditAmount: '0.00', paidWithCredit: false, free: true, bookingId: BOOKING }
   })
 })
@@ -278,6 +304,8 @@ beforeEach(() => {
   intents = []
   setEnabled = []
   bookable = true
+  intentRefusal = null
+  staleReads = 0
   readerCalls = []
   setBriefReaderForTests({
     read: async (request) => {
@@ -575,6 +603,38 @@ describe('booking a visit from a quote', () => {
     expect(requests[REQUEST]!.status).toBe('booked')
     const after = await call('GET', `/users/me/repair-quotes/${REQUEST}`, 'customer')
     expect(after.body.data).toMatchObject({ state: 'booked', bookingId: BOOKING })
+  })
+
+  test('one request is one visit: a second tap, or another garage’s quote, is refused before checkout', async () => {
+    quotes[0] = { ...quotes[0]!, status: 'quoted', priceFrom: 4000, priceTo: 5500, days: 2, needsInspection: true, answeredAt: NOW }
+    quotes[1] = { ...quotes[1]!, status: 'quoted', priceFrom: 3800, priceTo: 5000, days: 3, needsInspection: false, answeredAt: NOW }
+    const body = { scheduledAt: new Date(NOW.getTime() + 24 * HOUR).toISOString() }
+    const first = await call('POST', `/users/me/repair-quotes/${REQUEST}/quotes/${id(7550)}/book`, 'customer', body)
+    expect(first.status).toBe(201)
+    // The other tap read the request before that claim landed: the claim
+    // itself refuses it, and checkout is never asked.
+    staleReads = 1
+    const raced = await call('POST', `/users/me/repair-quotes/${REQUEST}/quotes/${id(7551)}/book`, 'customer', body)
+    expect([raced.status, raced.body.code]).toEqual([409, 'REPAIR_QUOTE_BOOKED'])
+    // A later tap is refused on its first read.
+    const again = await call('POST', `/users/me/repair-quotes/${REQUEST}/quotes/${id(7550)}/book`, 'customer', body)
+    expect([again.status, again.body.code]).toEqual([409, 'REPAIR_QUOTE_BOOKED'])
+    expect(intents).toHaveLength(1)
+    expect(requests[REQUEST]).toMatchObject({ status: 'booked', bookedQuoteId: id(7550) })
+  })
+
+  test('checkout refusing puts the request back to open, so another time can be booked', async () => {
+    quotes[0] = { ...quotes[0]!, status: 'quoted', priceFrom: 4000, priceTo: 5500, days: 2, needsInspection: true, answeredAt: NOW }
+    const body = { scheduledAt: new Date(NOW.getTime() + 24 * HOUR).toISOString() }
+    intentRefusal = new AppError(409, 'That time was just taken. Pick another time; nothing was charged.', 'SLOT_UNAVAILABLE')
+    const refused = await call('POST', `/users/me/repair-quotes/${REQUEST}/quotes/${id(7550)}/book`, 'customer', body)
+    expect([refused.status, refused.body.code]).toEqual([409, 'SLOT_UNAVAILABLE'])
+    expect(requests[REQUEST]).toMatchObject({ status: 'open', bookedQuoteId: null })
+    intentRefusal = null
+    const booked = await call('POST', `/users/me/repair-quotes/${REQUEST}/quotes/${id(7550)}/book`, 'customer', body)
+    expect(booked.status).toBe(201)
+    expect(requests[REQUEST]).toMatchObject({ status: 'booked', bookedQuoteId: id(7550) })
+    expect(quotes[0]!.bookingId).toBe(BOOKING)
   })
 
   test('a garage with no free inspection service, or someone else’s request, is refused', async () => {

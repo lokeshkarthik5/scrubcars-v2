@@ -7,6 +7,8 @@ test('rupees from what was typed', () => {
   expect(rupees('4,000')).toBe(4000);
   expect(rupees('₹ 5500')).toBe(5500);
   expect(rupees('')).toBeNull();
+  // Paise are dropped, never read as more digits.
+  expect(rupees('4000.50')).toBe(4000);
 });
 
 test('the quote form says what is missing, in order', () => {

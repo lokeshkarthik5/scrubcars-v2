@@ -78,7 +78,6 @@ function RequestsScreen() {
   const repairOn = repairQuotesOn(useRepairQuotesConfig().data);
   const repairs = useGarageRepairQuotes(scope, repairOn);
   const repairItems = repairOn ? (repairs.data?.items ?? []) : [];
-  const now = useNow(1000);
 
   // A notification or link for one request (/requests#request-<id>): the scope that has it,
   // scrolled to and flashed. Once per id named.
@@ -129,7 +128,7 @@ function RequestsScreen() {
             scope === 'closed' || quote.state !== 'waiting' ? (
               <ClosedRepairQuoteCard key={quote.id} quote={quote} />
             ) : (
-              <WaitingRepairQuoteCard key={quote.id} quote={quote} now={now} />
+              <WaitingRepairQuoteCard key={quote.id} quote={quote} />
             )
           )}
           {items.map((request) => (

@@ -14,7 +14,7 @@ import { ScSwitch } from '@repo/ui/sc/switch'
 import { TopBar } from '@repo/ui/sc/top-bar'
 import { IconTool } from '@tabler/icons-react'
 import { useAnswerRepairQuote, useGarageRepairQuotes } from '@repo/core/api/hooks/use-repair-quotes'
-import { REPAIR_QUOTE_RULES } from '@repo/core/repair-quotes'
+import { REPAIR_QUOTE_RULES, typedRupees } from '@repo/core/repair-quotes'
 import { cn } from '@repo/core/utils'
 import { AnswerDeadline } from '@/components/answer-deadline'
 import { carLine } from '@/components/repair-quote-card'
@@ -22,13 +22,8 @@ import { carLine } from '@/components/repair-quote-card'
 const R = REPAIR_QUOTE_RULES
 const DAY_CHOICES = [1, 2, 3] as const
 
-/** Whole rupees from what was typed ("4,000" → 4000), or null. */
-function rupees(value: string): number | null {
-  const digits = value.replace(/[^\d]/g, '')
-  if (!digits) return null
-  const n = Number(digits)
-  return Number.isSafeInteger(n) ? n : null
-}
+/** Whole rupees from what was typed ("4,000" → 4000; "4,000.50" → 4000), or null. */
+const rupees = typedRupees
 
 /**
  * "Your quote" (0075): the garage's estimate for a repair request — price

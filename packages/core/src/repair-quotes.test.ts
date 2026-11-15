@@ -6,6 +6,7 @@ import {
   priceRangeLabel,
   showsQuotes,
   timeLeftLabel,
+  typedRupees,
   videoProblem,
   videoShortHint,
   wipeVideoLocation,
@@ -92,5 +93,20 @@ describe('repair quotes (app): time left', () => {
     expect(timeLeftLabel(2 * 60 * 60_000)).toBe('2 h')
     expect(timeLeftLabel(12 * 60_000)).toBe('12 min')
     expect(timeLeftLabel(-5)).toBe('0 min')
+  })
+})
+
+describe('typedRupees', () => {
+  test('whole rupees from what the garage typed', () => {
+    expect(typedRupees('4,000')).toBe(4000)
+    expect(typedRupees('₹ 5500')).toBe(5500)
+    expect(typedRupees('')).toBeNull()
+    expect(typedRupees('abc')).toBeNull()
+  })
+
+  test('paise after a point are dropped, never read as more digits', () => {
+    expect(typedRupees('4000.50')).toBe(4000)
+    expect(typedRupees('4,000.5')).toBe(4000)
+    expect(typedRupees('.50')).toBeNull()
   })
 })

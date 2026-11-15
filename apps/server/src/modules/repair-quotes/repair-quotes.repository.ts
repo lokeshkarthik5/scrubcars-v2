@@ -22,8 +22,6 @@ import { LISTED_TO_CUSTOMERS } from '../vendors/vendors.predicates.js'
 
 export type RequestRow = typeof repairQuoteRequests.$inferSelect
 export type QuoteRow = typeof repairQuotes.$inferSelect
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
 type Point = { lat: number; lng: number }
 
@@ -335,24 +333,65 @@ export const repairQuotesRepository = {
   },
 
   /**
-   * A visit was booked from a quote: the request is booked and the quote
-   * names the booking, in one transaction, only while the request is still
-   * open. False when it changed (cancelled, closed, or booked elsewhere).
+   * Before checkout runs, the request is claimed for a visit from one quote:
+   * booked from it, in one conditional write, only while it is the
+   * customer's, still open, in time, and the quote is a "Can do" of it. Two
+   * taps, two devices or two garages at once: exactly one wins, so one
+   * request never becomes two visits, and a cancel racing it loses too.
+   * False when it was not open (or the quote is not a quote).
    */
-  async markBooked(input: { requestId: string; quoteId: string; bookingId: string; now: Date }): Promise<boolean> {
-    return db.transaction(async (tx: Tx) => {
-      const [request] = await tx
-        .update(repairQuoteRequests)
-        .set({ status: 'booked', bookedQuoteId: input.quoteId, updatedAt: input.now })
-        .where(and(eq(repairQuoteRequests.id, input.requestId), eq(repairQuoteRequests.status, 'open')))
-        .returning({ id: repairQuoteRequests.id })
-      if (!request) return false
-      await tx
-        .update(repairQuotes)
-        .set({ bookingId: input.bookingId })
-        .where(and(eq(repairQuotes.id, input.quoteId), eq(repairQuotes.status, 'quoted')))
-      return true
-    })
+  async claimForBooking(input: { requestId: string; quoteId: string; userId: string; now: Date }): Promise<boolean> {
+    const [row] = await db
+      .update(repairQuoteRequests)
+      .set({ status: 'booked', bookedQuoteId: input.quoteId, updatedAt: input.now })
+      .where(
+        and(
+          eq(repairQuoteRequests.id, input.requestId),
+          eq(repairQuoteRequests.userId, input.userId),
+          eq(repairQuoteRequests.status, 'open'),
+          gt(repairQuoteRequests.closesAt, input.now),
+          sql`EXISTS (SELECT 1 FROM repair_quotes q
+                       WHERE q.id = ${input.quoteId} AND q.request_id = ${repairQuoteRequests.id}
+                         AND q.status = 'quoted')`
+        )
+      )
+      .returning({ id: repairQuoteRequests.id })
+    return Boolean(row)
+  },
+
+  /**
+   * Checkout refused the visit (the time went, the car is booked then…):
+   * the claim is undone and the request is open again, unless the quote
+   * already names a booking.
+   */
+  async releaseBookingClaim(input: { requestId: string; quoteId: string; now: Date }): Promise<void> {
+    await db
+      .update(repairQuoteRequests)
+      .set({ status: 'open', bookedQuoteId: null, updatedAt: input.now })
+      .where(
+        and(
+          eq(repairQuoteRequests.id, input.requestId),
+          eq(repairQuoteRequests.status, 'booked'),
+          eq(repairQuoteRequests.bookedQuoteId, input.quoteId),
+          sql`NOT EXISTS (SELECT 1 FROM repair_quotes q WHERE q.id = ${input.quoteId} AND q.booking_id IS NOT NULL)`
+        )
+      )
+  },
+
+  /** The visit checkout booked, on the claimed quote. False when the quote is not that request's quote. */
+  async markBooked(input: { requestId: string; quoteId: string; bookingId: string }): Promise<boolean> {
+    const [row] = await db
+      .update(repairQuotes)
+      .set({ bookingId: input.bookingId })
+      .where(
+        and(
+          eq(repairQuotes.id, input.quoteId),
+          eq(repairQuotes.requestId, input.requestId),
+          eq(repairQuotes.status, 'quoted')
+        )
+      )
+      .returning({ id: repairQuotes.id })
+    return Boolean(row)
   },
 
   // ─── Admin ─────────────────────────────────────────────────────────────────

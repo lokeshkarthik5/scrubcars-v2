@@ -33,6 +33,18 @@ export function priceRangeLabel(from: number, to: number): string {
   return from === to ? `₹${inr(from)}` : `₹${inr(from)}–${inr(to)}`
 }
 
+/**
+ * Whole rupees from what a garage typed in its quote ("4,000" → 4000), or
+ * null. Paise after a point are dropped, never read as more digits:
+ * "4,000.50" is 4000, not 400050.
+ */
+export function typedRupees(value: string): number | null {
+  const digits = (value.split('.')[0] ?? '').replace(/[^\d]/g, '')
+  if (!digits) return null
+  const n = Number(digits)
+  return Number.isSafeInteger(n) ? n : null
+}
+
 /** "2 days" / "1 day" (English; shown through `tn`). */
 export function daysLabel(days: number): string {
   return days === 1 ? '1 day' : `${days} days`

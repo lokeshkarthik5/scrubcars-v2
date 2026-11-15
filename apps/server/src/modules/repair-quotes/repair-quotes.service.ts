@@ -409,7 +409,11 @@ export const repairQuotesService = {
     if (!request || request.userId !== userId) throw notFound()
     const [entry] = (await repo.quotesFor([id])).filter((row) => row.quote.id === quoteId)
     if (!entry) throw new AppError(404, 'Quote not found', 'REPAIR_QUOTE_NOT_FOUND')
-    const refusal = bookRefusal(entry.quote, requestState(request, now))
+    const state = requestState(request, now)
+    const refusal = bookRefusal(entry.quote, state)
+    if (state === 'booked') {
+      throw new AppError(409, 'A visit is already booked from this request.', 'REPAIR_QUOTE_BOOKED')
+    }
     if (refusal === 'not_open') {
       throw new AppError(409, 'This request has closed. Send a new one to get fresh quotes.', 'REPAIR_QUOTE_NOT_OPEN')
     }
@@ -459,8 +463,12 @@ export const repairQuotesService = {
    * Book a visit from a quote: today's checkout (POST /booking-intents'
    * own service, every slot, car and garage check under its locks) for the
    * garage's free inspection service, at the garage, which books with
-   * nothing to pay (0073, no Razorpay order). Then the request is marked
-   * booked from this quote. No new payment path.
+   * nothing to pay (0073, no Razorpay order). No new payment path.
+   *
+   * The request is claimed for this quote first (one conditional write), so
+   * a double tap, a second device or a second garage can't turn one request
+   * into two visits; if checkout refuses, the claim is undone and the
+   * request is open again.
    */
   async book(userId: string, id: string, quoteId: string, scheduledAt: string, now = new Date()) {
     const { request, quote, serviceId } = await repairQuotesService.bookableQuote(userId, id, quoteId, now)
@@ -475,14 +483,33 @@ export const repairQuotesService = {
       scheduledAt,
       paymentMethod: 'online',
     })
-    const result = await bookingIntentsService.createIntent(userId, input)
+    const claimed = await repo.claimForBooking({ requestId: id, quoteId, userId, now })
+    if (!claimed) {
+      const again = await repo.findRequest(id)
+      if (again && requestState(again, now) === 'booked') {
+        throw new AppError(409, 'A visit is already booked from this request.', 'REPAIR_QUOTE_BOOKED')
+      }
+      throw new AppError(409, 'This request has closed. Send a new one to get fresh quotes.', 'REPAIR_QUOTE_NOT_OPEN')
+    }
+    const release = () =>
+      repo.releaseBookingClaim({ requestId: id, quoteId, now }).catch((err: unknown) => {
+        log.error({ err, requestId: id, quoteId }, 'repair_quote:claim_release_failed')
+      })
+    let result: Awaited<ReturnType<typeof bookingIntentsService.createIntent>>
+    try {
+      result = await bookingIntentsService.createIntent(userId, input)
+    } catch (err) {
+      await release()
+      throw err
+    }
     if (!result.free || !result.bookingId) {
       // Unreachable: the service has no fee, so nothing goes to Razorpay.
+      await release()
       log.error({ requestId: id, quoteId }, 'repair_quote:visit_not_free')
       throw new AppError(409, 'This visit couldn’t be booked. Nothing was charged.', 'REPAIR_QUOTE_NOT_BOOKABLE')
     }
-    const marked = await repo.markBooked({ requestId: id, quoteId, bookingId: result.bookingId, now })
-    if (!marked) log.warn({ requestId: id, quoteId, bookingId: result.bookingId }, 'repair_quote:booked_after_close')
+    const marked = await repo.markBooked({ requestId: id, quoteId, bookingId: result.bookingId })
+    if (!marked) log.warn({ requestId: id, quoteId, bookingId: result.bookingId }, 'repair_quote:booking_not_marked')
     log.info({ requestId: id, quoteId, bookingId: result.bookingId }, 'repair_quote:visit_booked')
     return { bookingId: result.bookingId }
   },
