@@ -22,6 +22,7 @@ import { garagePushRoutes } from '../push/push.routes.js'
 import { garageCertificationRoutes } from '../certification/certification.routes.js'
 import { garageAgreementRoutes } from '../agreements/agreements.routes.js'
 import { garageTierRoutes } from '../tiers/tiers.routes.js'
+import { garagePickupFeeRoutes } from '../pickup-fees/pickup-fees.routes.js'
 import { garageGuaranteeRoutes } from '../guarantee/guarantee.routes.js'
 import { garageBookingRequestRoutes } from '../booking-requests/booking-requests.routes.js'
 import { garageRepairQuoteRoutes } from '../repair-quotes/repair-quotes.routes.js'
@@ -188,6 +189,8 @@ vendorsRoutes.route('/me/certification', garageCertificationRoutes)
 // Owner seat only, in their own files. Nested for the same reason as the
 // team screen.
 vendorsRoutes.route('/me/tier', garageTierRoutes)
+// The pickup fee (0079): Settings → Hours → Pickup & drop → Pickup fee.
+vendorsRoutes.route('/me/pickup-fee', garagePickupFeeRoutes)
 vendorsRoutes.route('/me/agreement', garageAgreementRoutes)
 
 // Detlio Guarantee (0051): the garage's free redo claims, owner seat only, in

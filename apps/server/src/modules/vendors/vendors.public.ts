@@ -24,6 +24,7 @@
  * portal read the full row through their own endpoints.
  */
 import type { CityPlace } from '../../lib/cities.js'
+import type { PickupFeePlan } from '../../lib/pickup-fee.js'
 import { isPickupOffered } from '../../lib/pickup.js'
 import type { Tier } from '../../lib/tiers.js'
 import type { VendorRecord } from './vendors.repository.js'
@@ -102,6 +103,14 @@ export type PublicVendorFields = {
    * checks, and never whether admin hid it.
    */
   tier: Tier | null
+  /**
+   * The pickup fee customers see (0079, lib/pickup-fee.ts livePlanOf): Free,
+   * a fixed fee or Detlio's / the garage's By distance numbers, worked out
+   * per address by the apps (tripFee) and again by the booking write. Null
+   * when the garage doesn't offer pickup. Never whether a fee waits for a
+   * check, who set it, or the lock.
+   */
+  pickupFee: PickupFeePlan | null
 }
 
 /** Every key the public shape may carry, for tests and reviewers. */
@@ -129,6 +138,7 @@ export const PUBLIC_VENDOR_KEYS = [
   'bookingsPausedReason',
   'createdAt',
   'tier',
+  'pickupFee',
 ] as const satisfies ReadonlyArray<keyof PublicVendorFields>
 
 /**
@@ -157,7 +167,7 @@ export function publicWholeCity(
 
 export function toPublicVendor(
   vendor: PublicVendorSource,
-  extras: { tier: Tier | null; reachCity?: CityPlace | null }
+  extras: { tier: Tier | null; reachCity?: CityPlace | null; pickupFee?: PickupFeePlan | null }
 ): PublicVendorFields {
   return {
     id: vendor.id,
@@ -181,5 +191,6 @@ export function toPublicVendor(
     bookingsPausedReason: vendor.bookingsPausedReason,
     createdAt: vendor.createdAt.toISOString(),
     tier: extras.tier,
+    pickupFee: extras.pickupFee ?? null,
   }
 }

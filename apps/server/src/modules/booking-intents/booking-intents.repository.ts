@@ -383,6 +383,8 @@ export const bookingIntentsRepository = {
           durationMins: intent.serviceDurationMins,
           subtotalAmount: intent.subtotalAmount,
           travelFee: intent.travelFee,
+          roadKm: intent.roadKm,
+          convenienceFee: intent.convenienceFee,
           // What the booking costs after any promo: the Razorpay part and the
           // credit part together (amount = subtotal − discount still holds).
           amount: rupees(cashPaise + creditPaise),

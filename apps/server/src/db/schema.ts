@@ -5229,6 +5229,8 @@ export const bookingRequests = pgTable(
     suggestedFee: decimal('suggested_fee', { precision: 10, scale: 2 }),
     maxFee: decimal('max_fee', { precision: 10, scale: 2 }),
     roadKm: decimal('road_km', { precision: 5, scale: 1 }),
+    // Ask for pickup (0079): the garage's responsibility tick with its yes.
+    pickupTermsAcceptedAt: timestamp('pickup_terms_accepted_at', { withTimezone: true }),
     acceptedStartAt: timestamp('accepted_start_at', { withTimezone: true }),
     confirmBy: timestamp('confirm_by', { withTimezone: true }),
     bookingId: uuid('booking_id').references(() => bookings.id, { onDelete: 'set null' }),
@@ -5305,7 +5307,8 @@ export const bookingRequests = pgTable(
 // Every change of a garage's pickup fee (0079), with who, when and before →
 // after, plus admin's lock and unlock. A garage's fee above Detlio's
 // suggestion is 'waiting' (one per garage) until admin approves it or keeps
-// Detlio's fee (with a reason the garage sees); everything else is 'live'.
+// Detlio's fee (with a reason the garage sees), or a newer change replaces
+// it; everything else is 'live'.
 // `before` / `after`: { mode, fixed, freeKm, perKm, minCharge, maxCharge }.
 export const pickupFeeChanges = pgTable(
   'pickup_fee_changes',
@@ -5320,7 +5323,7 @@ export const pickupFeeChanges = pgTable(
     byName: varchar('by_name', { length: 120 }).notNull(),
     before: jsonb('before').$type<Record<string, unknown>>().notNull(),
     after: jsonb('after').$type<Record<string, unknown>>().notNull(),
-    status: text('status').$type<'live' | 'waiting' | 'approved' | 'kept'>().default('live').notNull(),
+    status: text('status').$type<'live' | 'waiting' | 'approved' | 'kept' | 'replaced'>().default('live').notNull(),
     decidedAt: timestamp('decided_at', { withTimezone: true }),
     decidedBy: varchar('decided_by', { length: 100 }),
     decisionReason: varchar('decision_reason', { length: 300 }),
@@ -5334,7 +5337,7 @@ export const pickupFeeChanges = pgTable(
     uniqueIndex('pickup_fee_changes_one_waiting_key').on(table.vendorId).where(sql`${table.status} = 'waiting'`),
     check('pickup_fee_changes_kind_check', sql`${table.kind} in ('fee', 'locked', 'unlocked')`),
     check('pickup_fee_changes_by_kind_check', sql`${table.byKind} in ('garage', 'detlio')`),
-    check('pickup_fee_changes_status_check', sql`${table.status} in ('live', 'waiting', 'approved', 'kept')`),
+    check('pickup_fee_changes_status_check', sql`${table.status} in ('live', 'waiting', 'approved', 'kept', 'replaced')`),
     check(
       'pickup_fee_changes_shape_check',
       sql`jsonb_typeof(${table.before}) = 'object' and jsonb_typeof(${table.after}) = 'object'

@@ -35,6 +35,9 @@ import {
   type PickupNext,
 } from '../../lib/pickup.js'
 import { computeVendorPayout } from '../../lib/discounts.js'
+import { convenienceFeeFor, livePlanOf, tripFee } from '../../lib/pickup-fee.js'
+import { straightLineKm } from '../../lib/service-city.js'
+import { pickupFeesService } from '../pickup-fees/pickup-fees.service.js'
 import {
   creditAtBooking,
   finalBillRefusal,
@@ -398,8 +401,12 @@ type BookingWithRelations = {
   durationMins?: number | null
   amount: string
   subtotalAmount?: string | null
-  /** An accepted request's travel fee (0062); '0.00' otherwise. Part of subtotalAmount. */
+  /** An accepted request's travel fee (0062), or the pickup fee (0079); '0.00' otherwise. Part of subtotalAmount. */
   travelFee?: string | null
+  /** The pickup fee's road km (0079); null when none. */
+  roadKm?: string | null
+  /** Detlio's convenience fee (0079), inside subtotalAmount; never the garage's. */
+  convenienceFee?: string | null
   discountAmount?: string | null
   discountCode?: string | null
   discountFundedBy?: 'platform' | 'vendor' | null
@@ -624,6 +631,10 @@ export function toBookingResponse(
     // An accepted request's travel fee (0062): its own line, inside the
     // subtotal; the garage keeps it whole.
     travelFee: Number(booking.travelFee ?? 0).toFixed(2),
+    // The pickup fee's road km and Detlio's convenience fee (0079): each its
+    // own line; the convenience fee is never the garage's.
+    roadKm: booking.roadKm == null ? null : Number(booking.roadKm),
+    convenienceFee: Number(booking.convenienceFee ?? 0).toFixed(2),
     discountAmount: booking.discountAmount ?? '0.00',
     discountCode: booking.discountCode ?? null,
     discountFundedBy: booking.discountFundedBy ?? null,
@@ -634,6 +645,7 @@ export function toBookingResponse(
       amount: booking.amount,
       subtotalAmount: booking.subtotalAmount ?? booking.amount,
       discountFundedBy: booking.discountFundedBy ?? null,
+      convenienceFee: booking.convenienceFee ?? null,
     }),
     paymentMethod: booking.paymentMethod,
     lat: booking.lat,
@@ -878,6 +890,9 @@ export function toVendorBookingResponse(booking: BookingWithRelations) {
     subtotalAmount: _subtotal,
     discountAmount: _discountAmount,
     discountFundedBy: _fundedBy,
+    // Detlio's convenience fee (0079) is Detlio's, not the garage's business.
+    // The pickup fee (travelFee, roadKm) stays: it is the garage's whole.
+    convenienceFee: _convenienceFee,
     // What the customer gets back is between them and Detlio.
     refund: _refund,
     // So is the customer's receipt.
@@ -1456,23 +1471,21 @@ export async function resolveBookingDraft(
   // paise so the arithmetic never runs through a float.
   //
   // A booking type's own fee goes on here, before any promo code
-  // (bookingTypeFee, lib/pickup.ts). Zero for every type today: the pickup &
-  // drop fee is to be decided (owner, 17 Oct 2026).
-  // An accepted request's travel fee (0062) goes on last, its own line: no
-  // promo code ever comes off it, and the garage keeps it whole.
-  const travelFee = request?.travelFee ? Number(request.travelFee).toFixed(2) : '0.00'
+  // (bookingTypeFee, lib/pickup.ts): zero for every type. The pickup fee
+  // (0079) and an accepted request's travel fee (0062) go on after the
+  // address is known, each its own line: no promo code ever comes off them,
+  // and the garage keeps them whole. Detlio's convenience fee goes on last.
   const beforeTravel = sumAmounts([
     ...items.map((item) => item.amount),
     bookingTypeFee(input.bookingType),
   ])
-  const amount = sumAmounts([beforeTravel, travelFee])
   const durationMins = items.reduce((total, item) => total + item.durationMins, 0)
 
   // Resolve the promo code against the *server-computed* subtotal. A
   // failure here (expired, limit reached, wrong garage) surfaces as the
   // engine's own AppError, so the customer sees why.
   let discount: BookingDiscount | null = null
-  let chargeAmount = amount
+  let servicesCharge = beforeTravel
 
   if (input.discountCode) {
     const resolved = await discountsService.resolveDiscount({
@@ -1498,15 +1511,15 @@ export async function resolveBookingDraft(
       totalUsageLimit: resolved.totalUsageLimit,
       source: resolved.source,
     }
-    chargeAmount = sumAmounts([resolved.finalAmount, travelFee])
+    servicesCharge = resolved.finalAmount
 
     log.info(
       {
         userId,
         code: resolved.code,
-        subtotal: amount,
+        subtotal: beforeTravel,
         discountAmount: resolved.discountAmount,
-        chargeAmount,
+        servicesCharge,
       },
       'booking:discount_resolved'
     )
@@ -1536,8 +1549,10 @@ export async function resolveBookingDraft(
     )
   }
 
-  // On, with the responsibility terms on file (lib/pickup.ts).
-  if (bookingType === 'pickup' && !isPickupOffered(vendor)) {
+  // On, with the responsibility terms on file (lib/pickup.ts). An accepted
+  // Ask for pickup (0079) is the garage's own yes, ticked with the terms, so
+  // a garage that doesn't list pickup may still take that one job.
+  if (bookingType === 'pickup' && !isPickupOffered(vendor) && !request) {
     log.warn({ userId, vendorId: vendor.id }, 'booking:pickup_not_offered')
     throw new AppError(
       400,
@@ -1619,6 +1634,33 @@ export async function resolveBookingDraft(
     address = savedAddress.address
   }
 
+  // The trip's fee (0079), locked on the booking from here: an accepted
+  // request's yes, or for pickup & drop the garage's live fee for this
+  // address (Detlio's while its fee waits for a check or is locked), never
+  // more than the services' price. Free for every garage until one sets a fee.
+  const feeSettings = await pickupFeesService.settings()
+  let travelFee = '0.00'
+  let roadKm: string | null = null
+  if (request) {
+    travelFee = request.travelFee ? Number(request.travelFee).toFixed(2) : '0.00'
+    roadKm = request.roadKm ?? null
+  } else if (bookingType === 'pickup' && lat !== null && lng !== null && vendor.lat !== null && vendor.lng !== null) {
+    const trip = tripFee(
+      livePlanOf(vendor, feeSettings),
+      straightLineKm({ lat: vendor.lat, lng: vendor.lng }, { lat, lng }),
+      Number(beforeTravel)
+    )
+    travelFee = trip.fee.toFixed(2)
+    roadKm = trip.roadKm.toFixed(1)
+  }
+  // Detlio's own fee (₹0 while off), never on a booking with nothing else to pay.
+  const convenienceFee = convenienceFeeFor(
+    feeSettings,
+    Number(sumAmounts([servicesCharge, travelFee]))
+  ).toFixed(2)
+  const amount = sumAmounts([beforeTravel, travelFee, convenienceFee])
+  const chargeAmount = sumAmounts([servicesCharge, travelFee, convenienceFee])
+
   log.info({ userId, vendorId: vendor.id, serviceIds: input.serviceIds, scheduledAt: scheduledAt.toISOString(), durationMins }, 'booking:slot_validation_start')
 
   await validateSlotAvailability(
@@ -1643,8 +1685,11 @@ export async function resolveBookingDraft(
     lat,
     lng,
     address,
-    // An accepted request's travel fee and the request (0062).
+    // An accepted request's travel fee and the request (0062); the pickup
+    // fee, its road km and Detlio's convenience fee (0079).
     travelFee,
+    roadKm,
+    convenienceFee,
     requestId: request?.id ?? null,
     // Each line's pricing type, in line order: a no-fee inspection (0073)
     // is booked with nothing to pay (isNoFeeInspectionCheckout).
@@ -1710,8 +1755,12 @@ function moveParams(
     expectedStatus: move.expectedStatus,
     subtotalAmount: booking.subtotalAmount ?? booking.amount,
     amount: booking.amount,
-    // An accepted request's travel fee (0062) moves with the job.
+    // An accepted request's travel fee (0062) and the pickup fee, its road km
+    // and Detlio's convenience fee (0079) move with the job: a booked fee
+    // never changes.
     travelFee: booking.travelFee ?? '0.00',
+    roadKm: booking.roadKm ?? null,
+    convenienceFee: booking.convenienceFee ?? '0.00',
     discountAmount: booking.discountAmount ?? '0.00',
     discountId: booking.discountId ?? null,
     discountCode: booking.discountCode ?? null,
@@ -1935,6 +1984,9 @@ export const bookingsService = {
         lng,
         address,
         pricingTypes,
+        travelFee,
+        roadKm,
+        convenienceFee,
       } = await resolveBookingDraft(userId, input)
 
       // A free wash that covers the whole price (0062), or an inspection
@@ -1964,6 +2016,9 @@ export const bookingsService = {
           durationMins,
           subtotalAmount: amount,
           amount: chargeAmount,
+          travelFee,
+          roadKm,
+          convenienceFee,
           paymentMethod: input.paymentMethod,
           lat,
           lng,

@@ -26,6 +26,8 @@
 --                               made (`suggested_fee`, `max_fee`, `road_km`);
 --                               the garage's yes is ₹0 up to `max_fee`. Old
 --                               rows have none and keep their ₹0/₹100/₹200.
+--                               `pickup_terms_accepted_at`: the garage's
+--                               responsibility tick with an Ask for pickup's yes.
 --   admin_settings 'pickup_fee' the formula, limits and convenience fee.
 --   bypass_reports.kind         + 'pickup_money', "Asked for extra pickup money".
 --
@@ -76,7 +78,7 @@ CREATE TABLE IF NOT EXISTS "pickup_fee_changes" (
   "after" jsonb NOT NULL,
   -- 'live' went live at once; 'waiting' above the suggestion, to check;
   -- then 'approved' or 'kept' (Detlio kept its own fee, with a reason the
-  -- garage sees).
+  -- garage sees), or 'replaced' when a newer change took its place first.
   "status" text DEFAULT 'live' NOT NULL,
   "decided_at" timestamp with time zone,
   "decided_by" varchar(100),
@@ -88,7 +90,7 @@ CREATE TABLE IF NOT EXISTS "pickup_fee_changes" (
     FOREIGN KEY ("by_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action,
   CONSTRAINT "pickup_fee_changes_kind_check" CHECK ("kind" IN ('fee', 'locked', 'unlocked')),
   CONSTRAINT "pickup_fee_changes_by_kind_check" CHECK ("by_kind" IN ('garage', 'detlio')),
-  CONSTRAINT "pickup_fee_changes_status_check" CHECK ("status" IN ('live', 'waiting', 'approved', 'kept')),
+  CONSTRAINT "pickup_fee_changes_status_check" CHECK ("status" IN ('live', 'waiting', 'approved', 'kept', 'replaced')),
   CONSTRAINT "pickup_fee_changes_shape_check" CHECK (
     jsonb_typeof("before") = 'object' AND jsonb_typeof("after") = 'object'
     AND ("status" <> 'waiting' OR ("by_kind" = 'garage' AND "kind" = 'fee'))
@@ -128,6 +130,9 @@ ALTER TABLE "booking_intents" ADD CONSTRAINT "booking_intents_convenience_fee_ch
 ALTER TABLE "booking_requests" ADD COLUMN IF NOT EXISTS "suggested_fee" numeric(10, 2);--> statement-breakpoint
 ALTER TABLE "booking_requests" ADD COLUMN IF NOT EXISTS "max_fee" numeric(10, 2);--> statement-breakpoint
 ALTER TABLE "booking_requests" ADD COLUMN IF NOT EXISTS "road_km" numeric(5, 1);--> statement-breakpoint
+-- Ask for pickup: the garage's responsibility tick with its yes (a garage that
+-- doesn't offer pickup has none on file).
+ALTER TABLE "booking_requests" ADD COLUMN IF NOT EXISTS "pickup_terms_accepted_at" timestamp with time zone;--> statement-breakpoint
 ALTER TABLE "booking_requests" DROP CONSTRAINT IF EXISTS "booking_requests_travel_fee_check";--> statement-breakpoint
 ALTER TABLE "booking_requests" ADD CONSTRAINT "booking_requests_travel_fee_check"
   CHECK ("travel_fee" IS NULL OR ("travel_fee" >= 0 AND "travel_fee" <= 599));--> statement-breakpoint

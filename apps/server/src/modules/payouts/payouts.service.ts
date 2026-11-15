@@ -145,8 +145,10 @@ function lineView(line: StatementLine, chain: (EarningChainRow & { items: Earnin
     /** 'job', 'customer_no_show', or null when it earns nothing any more. */
     kind: e.kind,
     price: rupees(e.pricePaise),
-    /** An accepted request's travel fee, inside the price: the garage keeps it whole (0062). */
+    /** An accepted request's travel fee, inside the price: the garage keeps it whole (0062). The pickup fee rides here too (0079). */
     travelFee: rupees(e.travelFeePaise),
+    /** The pickup fee's road km (0079), for "Pickup & drop · 6.2 km"; null when none. */
+    roadKm: chain?.roadKm == null ? null : Number(chain.roadKm),
     detlioPromo: rupees(e.detlioPromoPaise),
     garagePromo: rupees(e.garagePromoPaise),
     /** The garage's part of refunds on it. */

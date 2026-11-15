@@ -17,6 +17,8 @@ const { pushService } = await import('../push/push.service.js')
 const { vendorsRepository } = await import('../vendors/vendors.repository.js')
 const { bookingRequestsRepository } = await import('./booking-requests.repository.js')
 const { bookingRequestsService } = await import('./booking-requests.service.js')
+const { pickupFeesRepository } = await import('../pickup-fees/pickup-fees.repository.js')
+const { forgetPickupFeeSettings } = await import('../pickup-fees/pickup-fees.service.js')
 
 type Patchable = Record<string, unknown>
 const originals: Array<[Patchable, string, unknown]> = []
@@ -61,6 +63,10 @@ const row = (id: string) => ({
   repliedAt: null,
   repliedBy: null,
   travelFee: null,
+  suggestedFee: '120.00',
+  maxFee: '150.00',
+  roadKm: '11.0',
+  pickupTermsAcceptedAt: null,
   acceptedStartAt: null,
   confirmBy: null,
   bookingId: null,
@@ -74,6 +80,9 @@ const row = (id: string) => ({
 let receivedReads = 0
 
 beforeAll(() => {
+  // The pickup fee's settings (0079): none saved, the defaults.
+  forgetPickupFeeSettings()
+  patch(pickupFeesRepository, 'readSettings', async () => null)
   patch(bookingRequestsRepository, 'listForGarage', async () => [row('r1'), row('r2'), row('r3')])
   patch(bookingRequestsRepository, 'listZones', async () => [{ slug: 'adyar', name: 'Adyar' }])
   patch(bookingRequestsRepository, 'countWaitingForGarage', async () => 3)
