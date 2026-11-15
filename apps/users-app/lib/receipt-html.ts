@@ -1,3 +1,4 @@
+import { RECEIPT_CONVENIENCE_LABEL, receiptTripLabel } from '@repo/core/pickup-fee-customer';
 import { BOOKING_TYPE_LABELS } from '@repo/core/booking-types';
 import { formatReceiptAmount, RECEIPT_NOT_TAX_INVOICE, receiptItemValue } from '@repo/core/receipts';
 import type { BookingReceipt } from '@repo/core/types';
@@ -26,7 +27,9 @@ export function receiptHtml(receipt: BookingReceipt): string {
   const { issuer, booking, bookingPayment, finalBill } = receipt;
   const services = [
     ...receipt.items.map((item) => row(item.name, receiptItemValue(item))),
-    receipt.travelFee ? row('Travel fee', formatReceiptAmount(receipt.travelFee)) : '',
+    // An accepted request's travel fee (0062), or the pickup fee with its road km (0079).
+    receipt.travelFee ? row(receiptTripLabel(booking.bookingType, receipt.roadKm), formatReceiptAmount(receipt.travelFee)) : '',
+    receipt.convenienceFee ? row(RECEIPT_CONVENIENCE_LABEL, formatReceiptAmount(receipt.convenienceFee)) : '',
     receipt.discount
       ? `${dash}${row('Subtotal', formatReceiptAmount(receipt.subtotal))}${row(
           `${receipt.discount.label ?? 'Discount'}${receipt.discount.code ? ` (${receipt.discount.code})` : ''}`,

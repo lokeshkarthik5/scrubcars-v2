@@ -2,6 +2,7 @@ import type { CustomerRequest } from '@repo/core/api/booking-requests';
 import { useCancelRequest } from '@repo/core/api/hooks/use-booking-requests';
 import { countdownLabel, istClock, istStartLabel, REQUEST_RULES, triedLine } from '@repo/core/booking-requests';
 import { useT } from '@repo/core/i18n';
+import { pickupLineLabel, requestFeeAcceptedNote, requestFeeWaitingLine } from '@repo/core/pickup-fee';
 import { ScButton } from '@repo/native-ui/button';
 import { IconCircleCheck, IconClockHour4, IconInfoCircle } from '@repo/native-ui/icons';
 import { T } from '@repo/native-ui/text';
@@ -75,6 +76,12 @@ export function RequestCard({ request, now }: { request: CustomerRequest; now: n
                 {t("Detlio also calls them if there's no reply in {minutes} min.", { minutes: REQUEST_RULES.alertAfterMinutes })}
               </T>
             </View>
+            {/* Ask for pickup (0079): Detlio's suggestion and the most the garage may ask. */}
+            {pickup && request.suggestedFee != null && request.maxFee != null ? (
+              <T size={13} lh={18}>
+                {requestFeeWaitingLine(request.suggestedFee, request.maxFee)}
+              </T>
+            ) : null}
             <T size={13} lh={18} color={colors.textSecondary}>
               {request.tried.length < request.maxGarages ? t('If not: we ask the next nearest garage, with the same details.') : triedLine(request.tried.length, request.maxGarages)}
             </T>
@@ -110,14 +117,33 @@ export function RequestCard({ request, now }: { request: CustomerRequest; now: n
                 </T>
               </View>
             ))}
-            <View style={styles.between}>
-              <T size={14} lh={20} color={colors.textSecondary}>
-                {t('Travel fee')}
-              </T>
-              <T num size={14} lh={20}>
-                {request.travelFee ? money(request.travelFee) : t('None')}
-              </T>
-            </View>
+            {pickup ? (
+              // The pickup fee the garage said yes at (0079), in place of the travel fee: locked from here.
+              <View>
+                <View style={styles.between}>
+                  <T size={14} lh={20} color={colors.textSecondary}>
+                    {pickupLineLabel(request.roadKm)}
+                  </T>
+                  <T num size={14} lh={20}>
+                    {request.travelFee ? money(request.travelFee) : t('Free')}
+                  </T>
+                </View>
+                {request.suggestedFee != null && request.maxFee != null && request.suggestedFee > 0 ? (
+                  <T size={12} lh={16} color={colors.textMuted}>
+                    {requestFeeAcceptedNote(request.suggestedFee, request.maxFee)}
+                  </T>
+                ) : null}
+              </View>
+            ) : (
+              <View style={styles.between}>
+                <T size={14} lh={20} color={colors.textSecondary}>
+                  {t('Travel fee')}
+                </T>
+                <T num size={14} lh={20}>
+                  {request.travelFee ? money(request.travelFee) : t('None')}
+                </T>
+              </View>
+            )}
             <View style={[styles.between, styles.total]}>
               <T size={14} lh={20}>
                 {t('To pay')}

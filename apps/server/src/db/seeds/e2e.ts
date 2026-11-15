@@ -4854,8 +4854,10 @@ async function seedPickupFeeRows() {
     city: 'Mysuru', lat: P.home.lat, lng: P.home.lng, geoSource: 'map_pin', isDefault: true,
   })
   // North of home by straight-line km, except Murugan (east), so no two share a pin.
-  const north = (km: number) => ({ lat: P.home.lat + km / 111, lng: P.home.lng })
-  const east = (km: number) => ({ lat: P.home.lat, lng: P.home.lng + km / (111 * Math.cos((P.home.lat * Math.PI) / 180)) })
+  // 111.195 km a degree: the 6,371 km earth the distance maths uses, so the
+  // straight-line km come out exactly as PICKUP_FEE says.
+  const north = (km: number) => ({ lat: P.home.lat + km / 111.195, lng: P.home.lng })
+  const east = (km: number) => ({ lat: P.home.lat, lng: P.home.lng + km / (111.195 * Math.cos((P.home.lat * Math.PI) / 180)) })
   const pickupOn = {
     pickup: 'yes' as const, pickupTermsAcceptedAt: daysAgo(20), pickupTermsAcceptedBy: 'admin: E2E seed',
   }

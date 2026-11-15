@@ -9,6 +9,7 @@ import Link from 'next/link'
 import {
   IconArrowUpRight,
   IconChevronRight,
+  IconInfoCircle,
   IconLoader2,
   IconNavigation,
   IconRepeat,
@@ -127,6 +128,7 @@ import {
 } from '@/components/payment-received-panel'
 import { PickupCodeCard, PickupTimeline } from '@/components/pickup-progress'
 import { BypassReportLine } from '@/components/bypass/bypass-report-line'
+import { CONVENIENCE_FEE_LABEL, pickupLineLabel, pickupRefundNote } from '@repo/core/pickup-fee'
 import { t } from '@repo/core/i18n/translate'
 
 // Sheets closed on arrival are loaded after the page, not with it: they are
@@ -1273,10 +1275,22 @@ export default function BookingDetailPage({
             </span>
           )}
         </Row>
-        {/* An accepted request's travel fee (0062): its own line. */}
-        {(booking.travelFee ?? 0) > 0 && (
+        {/* The pickup fee (0079), locked at booking: its own row, with the
+            road km. An accepted request's travel fee (0062) on a doorstep
+            job keeps its own line. */}
+        {isPickup && (booking.travelFee ?? 0) > 0 ? (
+          <Row label={pickupLineLabel(booking.roadKm)}>
+            <span className="font-numeric">{money(booking.travelFee ?? 0)}</span>
+          </Row>
+        ) : (booking.travelFee ?? 0) > 0 ? (
           <Row label={t('Travel fee')}>
             <span className="font-numeric">{money(booking.travelFee ?? 0)}</span>
+          </Row>
+        ) : null}
+        {/* Detlio's convenience fee (0079), when there was one. */}
+        {(booking.convenienceFee ?? 0) > 0 && (
+          <Row label={t(CONVENIENCE_FEE_LABEL)}>
+            <span className="font-numeric">{money(booking.convenienceFee ?? 0)}</span>
           </Row>
         )}
         {booking.discountAmount > 0 && (
@@ -1368,6 +1382,15 @@ export default function BookingDetailPage({
           )}
         </Row>
       </section>
+
+      {/* What the pickup fee covers, and that it comes back in full if the
+          garage cancels or doesn't turn up (0079). */}
+      {isPickup && (booking.travelFee ?? 0) > 0 && (
+        <p className="flex items-start gap-2 px-1 text-t4 leading-relaxed text-text-secondary" data-pickup-refund-note="">
+          <IconInfoCircle size={16} aria-hidden className="mt-0.5 shrink-0 text-text-muted" />
+          <span>{pickupRefundNote(booking.vendorName)}</span>
+        </p>
+      )}
 
       {/* Getting to the garage, for a job at the garage that is still on. */}
       {gettingThere && !missedByGarage && (

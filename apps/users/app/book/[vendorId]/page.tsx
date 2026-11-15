@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import {
   IconAlertCircle,
   IconArrowUpRight,
+  IconCheck,
   IconChevronRight,
   IconClock,
   IconLoader2,
@@ -156,6 +157,14 @@ import {
   insidePickupReach,
   pickupFeeLabel,
 } from '@repo/core/pickup'
+import { usePickupFeeConfig } from '@repo/core/api/hooks/use-pickup-fee'
+import {
+  CONVENIENCE_FEE_LABEL,
+  PICKUP_FEE_FULL_LINE,
+  PICKUP_FEE_REFUND_LINE,
+  pickupLineLabel,
+} from '@repo/core/pickup-fee'
+import { addressPickupFee } from '@repo/core/pickup-fee-customer'
 import type { Address, BookingType, Service, Vendor } from '@repo/core/types'
 import { isNoFeeInspection, resolveServiceAmount } from '@repo/core/pricing'
 import { checkoutAgreement } from '@repo/core/inspection-booking'
@@ -581,12 +590,14 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // is: the choice carried in from the garage page stands unless this garage
   // cannot do it, and there is no render where the toggle shows the wrong one.
   // An accepted request's mode (0062) is the one the garage said yes to.
-  const bookingType = resolveBookingType(acceptedRequest?.bookingType ?? chosenType, vendor)
+  // Ask for pickup (0079) may be a yes from a garage that doesn't list
+  // pickup at all: the yes is the mode, whatever the garage lists.
+  const bookingType = acceptedRequest ? acceptedRequest.bookingType : resolveBookingType(chosenType, vendor)
   // The mode asked for, when this garage no longer offers it: Book again on
   // a doorstep job at a garage that has since stopped travelling, or one that
   // stopped collecting while the customer was here (PICKUP_NOT_OFFERED).
   // Checkout books the mode the garage does offer, and says so up top.
-  const modeWithdrawn = unofferedMode(chosenType, vendor)
+  const modeWithdrawn = requestMode ? null : unofferedMode(chosenType, vendor)
   // The switch, when the garage offers more than one mode.
   const modeOptions = vendor
     ? offeredBookingTypes(vendor).map((value) => ({
@@ -925,15 +936,35 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const nothingPriced =
     subtotal === 0 && selectedServices.some(isNoFeeInspection)
 
+  // The pickup fee (0079): the garage's live fee for the address, worked out
+  // with the server's own maths (pickup-fee-maths.ts), never more than the
+  // services; an accepted request's fee is its travelFee instead. Locked on
+  // the booking when it is written, so this is only what the screen says.
+  const pickupTrip =
+    isPickup && !requestMode && vendor && selectedAddressRecord && !addressNeedsPin
+      ? addressPickupFee(vendor.pickupFee, vendor, selectedAddressRecord, subtotal)
+      : null
+  const pickupFee = isPickup ? (requestMode ? travelFee : (pickupTrip?.fee ?? 0)) : 0
+  const pickupRoadKm = requestMode ? (acceptedRequest?.roadKm ?? null) : (pickupTrip?.roadKm ?? null)
+  // Detlio's convenience fee (0079): only while admin set it above ₹0, and
+  // never on a booking with nothing else to pay (convenienceFeeFor).
+  const pickupFeeConfig = usePickupFeeConfig()
+  const servicesCharge = appliedDiscount ? Number(appliedDiscount.finalAmount) : subtotal
+  const convenienceFee =
+    servicesCharge != null && servicesCharge + travelFee + (requestMode ? 0 : pickupFee) > 0
+      ? (pickupFeeConfig.data?.convenienceFee ?? 0)
+      : 0
+
   // What the customer will actually be charged. The server recomputes this at
   // booking time; this is only what the button says.
-  // An accepted request's travel fee (0062) is added after any code: a code
-  // never comes off it.
+  // An accepted request's travel fee (0062) and the pickup fee (0079) are
+  // added after any code: a code never comes off them.
+  const fees = travelFee + (requestMode ? 0 : pickupFee) + convenienceFee
   const payableAmount = appliedDiscount
-    ? Math.round((Number(appliedDiscount.finalAmount) + travelFee) * 100) / 100
+    ? Math.round((Number(appliedDiscount.finalAmount) + fees) * 100) / 100
     : subtotal == null
       ? null
-      : Math.round((subtotal + travelFee) * 100) / 100
+      : Math.round((subtotal + fees) * 100) / 100
 
   // Detlio credit comes off after any promo code. The server decides how
   // much (creditToUse, mirrored by checkoutCreditSplit): all of it when the
@@ -2539,11 +2570,15 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 </span>
               </div>
             )}
-            {/* Pickup & drop's own line: free for now (owner decision). */}
+            {/* Pickup & drop's own line (0079): the fee and the road km,
+                or Free. An accepted request's fee shows here too. */}
             {isPickup && (
-              <div className="flex items-start justify-between gap-3 border-b border-white/[0.06] py-2.5">
+              <div
+                className="flex items-start justify-between gap-3 border-b border-white/[0.06] py-2.5"
+                data-pickup-fee-line=""
+              >
                 <span className="min-w-0 text-[#C8C8D0]">
-                  <span className="block">{t('Pickup & drop')}</span>
+                  <span className="block">{pickupLineLabel(pickupRoadKm)}</span>
                   {selectedAddressRecord && (
                     <span
                       className="block truncate text-t5 text-text-muted"
@@ -2553,13 +2588,26 @@ function BookContent({ vendorId }: { vendorId: string }) {
                     </span>
                   )}
                 </span>
-                <span className="shrink-0 text-success">
-                  {pickupFeeLabel(0)}
-                </span>
+                {pickupFee > 0 ? (
+                  <span className="shrink-0 font-numeric font-semibold text-text-primary">{money(pickupFee)}</span>
+                ) : (
+                  <span className="shrink-0 text-success">{pickupFeeLabel(0)}</span>
+                )}
               </div>
             )}
-            {/* An accepted request's travel fee (0062): its own line. */}
-            {travelFee > 0 && (
+            {/* Detlio's own fee (0079): only while admin set it above ₹0. */}
+            {convenienceFee > 0 && (
+              <div
+                className="flex items-center justify-between gap-3 border-b border-white/[0.06] py-2.5"
+                data-convenience-fee-line=""
+              >
+                <span className="text-[#C8C8D0]">{t(CONVENIENCE_FEE_LABEL)}</span>
+                <span className="font-numeric font-semibold text-text-primary">{money(convenienceFee)}</span>
+              </div>
+            )}
+            {/* An accepted request's travel fee (0062): its own line (a
+                pickup's is the pickup line above). */}
+            {travelFee > 0 && !isPickup && (
               <div className="flex items-center justify-between gap-3 border-b border-white/[0.06] py-2.5">
                 <span className="text-[#C8C8D0]">{t('Travel fee')}</span>
                 <span className="font-numeric font-semibold text-text-primary">{money(travelFee)}</span>
@@ -2596,6 +2644,14 @@ function BookContent({ vendorId }: { vendorId: string }) {
               </span>
             </div>
           </div>
+
+          {/* The fee is the whole price for pickup (0079). */}
+          {isPickup && pickupFee > 0 && (
+            <p className="flex items-start gap-1.5 text-t4 leading-relaxed text-text-primary">
+              <IconCheck size={16} className="mt-px shrink-0 text-success" aria-hidden="true" />
+              <span>{t(PICKUP_FEE_FULL_LINE)}</span>
+            </p>
+          )}
 
           {/* Before paying, on purpose (owner decision): who has the car
               while it is away. */}
@@ -2634,6 +2690,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
             {fill(t("{part} Cancel any time until the garage accepts. Once it has, cancel or reschedule up to 2 hours before your slot. You can reschedule up to 2 times; each new time goes back to the garage to accept, and if it can't take it, the booking is cancelled. If you don't turn up for an accepted booking, it isn't refunded."), { part: <span className="text-[#C8C8D0]">{t('Cancellation policy:')}</span> })}
             {isPickup &&
               ` ${t('Once the garage has collected your car, the booking can’t be cancelled or moved in the app.')}`}
+            {isPickup && ` ${t(PICKUP_FEE_REFUND_LINE)}`}
           </p>
 
           {/* Coupons, rewards and credit belong to an account, so they show
