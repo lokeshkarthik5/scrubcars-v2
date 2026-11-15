@@ -2395,3 +2395,69 @@ export const SHINE = {
     lowFine: [id(7634), id(7635), id(7636), id(7637)],
   },
 } as const
+
+/**
+ * The pickup fee (0079; ids 7750–7799, phones 9000007750–99). Garages near
+ * Mysuru (`home`, 12.30° N, 76.64° E), far from every other fixture, so the
+ * Pickup & drop list from `home` shows only these:
+ *
+ *   velan      collects, By distance on Detlio's numbers, 4.8 km straight
+ *              from `home` = 6.2 km by road = ₹99; `booking` is a paid,
+ *              confirmed pickup tomorrow with that ₹99 locked on it
+ *   kumar      collects, ₹20 a km above Detlio's ₹15 and waiting for the
+ *              check (`waitingChange`): customers see Detlio's ₹120 at
+ *              8.5 km straight (11 km by road); admin approves it
+ *   autokraft  collects, a fixed ₹250 waiting (`waitingChange`): admin keeps
+ *              Detlio's fee, with a reason
+ *   free       collects, Free (the default): "Free pickup", as today
+ *   locked     collects, locked to Detlio's fee: "Set by Detlio"
+ *   settings   collects, Free: its owner sets By distance in the portal
+ *   murugan    doesn't collect (drop-in only), 8.5 km: Ask for pickup,
+ *              Detlio suggests about ₹120 for 11 km by road
+ *
+ * Only specs/journeys/pickup-fee-journey.spec.ts and
+ * specs/admin/pickup-fee.spec.ts use them.
+ */
+export const PICKUP_FEE = {
+  home: { lat: 12.3, lng: 76.64 },
+  customer: { id: id(7750), phone: '9000007750', name: 'Pickup Fee Priya', vehicleId: id(7751), addressId: id(7752) },
+  velan: {
+    owner: { id: id(7753), phone: '9000007753', name: 'Velan Fee Owner' },
+    garage: { id: id(7754), name: 'Velan Pickup Care', straightKm: 4.8, roadKm: 6.2, fee: 99 },
+    wash: { id: id(7755), name: 'Premium Foam Wash', price: '699.00', durationMins: 60 },
+    booking: id(7756),
+  },
+  kumar: {
+    owner: { id: id(7757), phone: '9000007757', name: 'Kumar Fee Owner' },
+    garage: { id: id(7758), name: 'Kumar Auto Spa Fee', straightKm: 8.5, roadKm: 11, detlioFee: 120 },
+    wash: { id: id(7759), name: 'Kumar Foam Wash', price: '449.00', durationMins: 60 },
+    waitingChange: id(7760),
+  },
+  autokraft: {
+    owner: { id: id(7761), phone: '9000007761', name: 'AutoKraft Fee Owner' },
+    garage: { id: id(7762), name: 'AutoKraft Body Shop Fee', straightKm: 12 },
+    wash: { id: id(7763), name: 'AutoKraft Wash', price: '499.00', durationMins: 60 },
+    waitingChange: id(7764),
+  },
+  free: {
+    owner: { id: id(7765), phone: '9000007765', name: 'Sri Balaji Fee Owner' },
+    garage: { id: id(7766), name: 'Sri Balaji Car Spa Fee', straightKm: 2.1 },
+    wash: { id: id(7767), name: 'Balaji Foam Wash', price: '599.00', durationMins: 60 },
+  },
+  locked: {
+    owner: { id: id(7768), phone: '9000007768', name: 'Locked Fee Owner' },
+    garage: { id: id(7769), name: 'Set By Detlio Garage', straightKm: 30 },
+    wash: { id: id(7770), name: 'Locked Foam Wash', price: '499.00', durationMins: 60 },
+    lockChange: id(7771),
+  },
+  settings: {
+    owner: { id: id(7772), phone: '9000007772', name: 'Fee Settings Owner' },
+    garage: { id: id(7773), name: 'Fee Settings Garage', straightKm: 40 },
+    wash: { id: id(7774), name: 'Settings Foam Wash', price: '499.00', durationMins: 60 },
+  },
+  murugan: {
+    owner: { id: id(7775), phone: '9000007775', name: 'Murugan Fee Owner' },
+    garage: { id: id(7776), name: 'Murugan Motors Fee', straightKm: 8.5, roadKm: 11, suggested: 120, max: 150 },
+    wash: { id: id(7777), name: 'Murugan Foam Wash', price: '699.00', durationMins: 60 },
+  },
+} as const
