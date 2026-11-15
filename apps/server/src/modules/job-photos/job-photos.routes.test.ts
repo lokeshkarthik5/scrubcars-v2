@@ -553,6 +553,8 @@ const { conditionCheckRepository } = await import('../condition-check/condition-
 
 describe('the car condition check on the job photos', () => {
   let sent: Date | null = null
+  // Sent between the service's own read and the insert (a retake racing Send).
+  let sentUnderLock = false
   const savedGarages = env.conditionCheckGarages
 
   beforeAll(() => {
@@ -562,10 +564,16 @@ describe('the car condition check on the job photos', () => {
     patch(jobPhotosRepository, 'deletePhoto', async (...args: Parameters<typeof plain>) =>
       args[4] && sent ? 'sent' : plain(...args)
     )
+    // …and the one inside insertPhotoUnderCap, read under the same lock.
+    const insert = jobPhotosRepository.insertPhotoUnderCap
+    patch(jobPhotosRepository, 'insertPhotoUnderCap', async (...args: Parameters<typeof insert>) =>
+      args[2] && (sent || sentUnderLock) ? 'sent' : insert(...args)
+    )
   })
 
   beforeEach(() => {
     sent = null
+    sentUnderLock = false
     ;(env as unknown as Record<string, unknown>).conditionCheckGarages = new Set([GARAGE])
   })
 
@@ -610,5 +618,22 @@ describe('the car condition check on the job photos', () => {
     const extraId = (extra.body.data as { id: string }).id
     expect((await call('DELETE', `${GARAGE_PHOTOS}/${extraId}`, 'owner')).status).toBe(200)
     expect((await call('POST', GARAGE_PHOTOS, 'owner', { stage: 'before', key: key() })).status).toBe(201)
+  })
+
+  test('a retake racing Send is refused under the lock, and nothing is recorded', async () => {
+    sentUnderLock = true
+    const before = rows.length
+    const retake = await call('POST', GARAGE_PHOTOS, 'owner', { stage: 'before', key: key(), angle: 'back_left' })
+    expect(retake.status).toBe(409)
+    expect(retake.body.code).toBe('CONDITION_CHECK_SENT')
+    expect(rows.length).toBe(before)
+    // Extras and after photos never carry the guard.
+    expect((await call('POST', GARAGE_PHOTOS, 'owner', { stage: 'before', key: key() })).status).toBe(201)
+  })
+
+  test('off for the garage, a photo never asks the check (no guard, no read)', async () => {
+    ;(env as unknown as Record<string, unknown>).conditionCheckGarages = new Set()
+    sentUnderLock = true
+    expect((await call('POST', GARAGE_PHOTOS, 'owner', { stage: 'before', key: key(), angle: 'front' })).status).toBe(201)
   })
 })

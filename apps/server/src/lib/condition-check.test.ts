@@ -104,6 +104,11 @@ describe('the gate', () => {
     expect(carCheckGateRefusal({ required: true, anglesTaken: 8, sentAt: at(1) })).toBeNull()
   })
 
+  test('sent is enough: a check sent under a waiver that was later undone never holds the job', () => {
+    // The photos cannot be added to once sent, so missing angles could never be filled.
+    expect(carCheckGateRefusal({ required: true, anglesTaken: 3, sentAt: at(1) })).toBeNull()
+  })
+
   test('the words, one line each, and as one sentence', () => {
     expect(carCheckGateLines({ missing: 2, notSent: true })).toEqual([
       'Take 2 more car check photos',
@@ -136,6 +141,10 @@ describe('the gate at a job step', () => {
     expect(
       carCheckGateFor({ ...base, photos: walkRound('before'), sentAt: at(2), bookingType: 'doorstep' }, 'start')
     ).toBeNull()
+  })
+
+  test('sent with fewer angles while waived, then the waiver undone: the job still moves', () => {
+    expect(carCheckGateFor({ ...base, photos: walkRound('before', 3), sentAt: at(2), bookingType: 'pickup' }, 'picked_up')).toBeNull()
   })
 })
 

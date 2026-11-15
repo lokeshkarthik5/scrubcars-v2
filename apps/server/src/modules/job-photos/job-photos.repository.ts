@@ -90,10 +90,23 @@ export const jobPhotosRepository = {
       uploadedByRole: PhotoRole
       angle: JobPhotoAngle | null
     },
-    max: number
-  ) {
+    max: number,
+    // 0075: refused ('sent') once the car condition check is sent, read
+    // under the same lock its Send takes, so a retake racing Send cannot
+    // replace a photo the customer was sent.
+    refuseOnceCheckSent = false
+  ): Promise<JobPhotoRecord | 'sent' | null> {
     return db.transaction(async (tx) => {
       await lockJob(tx, data.bookingId)
+
+      if (refuseOnceCheckSent) {
+        const [sent] = await tx
+          .select({ bookingId: conditionChecks.bookingId })
+          .from(conditionChecks)
+          .where(eq(conditionChecks.bookingId, data.bookingId))
+          .limit(1)
+        if (sent) return 'sent'
+      }
 
       const [{ value }] = await tx
         .select({ value: count() })

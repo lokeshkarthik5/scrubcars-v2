@@ -91,7 +91,9 @@ export const conditionCheckRepository = {
    * Detlio's reading of one photo: the photo is marked read and its marks
    * written together, only if nobody read it first (a second phone, a
    * retried request). A before photo's marks only while the check is not
-   * sent. False when it was not written.
+   * sent, read under the per-job lock Send takes (an answer arriving as the
+   * garage sends must not add marks to the sent record). False when it was
+   * not written.
    */
   saveReading(input: {
     bookingId: string
@@ -102,6 +104,7 @@ export const conditionCheckRepository = {
     at: Date
   }): Promise<boolean> {
     return db.transaction(async (tx) => {
+      if (input.stage === 'before') await lockJob(tx, input.bookingId)
       const [read] = await tx
         .update(jobPhotos)
         .set({ conditionRead: 'done' satisfies ConditionRead, conditionReadAt: input.at })
@@ -175,22 +178,27 @@ export const conditionCheckRepository = {
 
   /**
    * Removes a before mark as wrong, or puts it back (Undo), only while the
-   * check is not sent. Null when nothing changed.
+   * check is not sent (checked under the per-job lock Send takes, so a
+   * Remove racing Send cannot change the sent record). Null when nothing
+   * changed.
    */
-  async setRemoved(bookingId: string, markId: string, removedAt: Date | null) {
-    const [row] = await db
-      .update(conditionMarks)
-      .set({ removedAt })
-      .where(
-        and(
-          eq(conditionMarks.bookingId, bookingId),
-          eq(conditionMarks.id, markId),
-          eq(conditionMarks.stage, 'before'),
-          notSent(bookingId)
+  setRemoved(bookingId: string, markId: string, removedAt: Date | null) {
+    return db.transaction(async (tx) => {
+      await lockJob(tx, bookingId)
+      const [row] = await tx
+        .update(conditionMarks)
+        .set({ removedAt })
+        .where(
+          and(
+            eq(conditionMarks.bookingId, bookingId),
+            eq(conditionMarks.id, markId),
+            eq(conditionMarks.stage, 'before'),
+            notSent(bookingId)
+          )
         )
-      )
-      .returning()
-    return row ?? null
+        .returning()
+      return row ?? null
+    })
   },
 
   /**

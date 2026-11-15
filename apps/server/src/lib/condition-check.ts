@@ -214,13 +214,18 @@ export interface CarCheckGateRefusal {
 /**
  * What the check still waits for before Picked up / Start job, or null when
  * nothing (or when it is not required on this job).
+ *
+ * Once sent, nothing: Send itself held the job to the angles it needed then,
+ * and the sent check's photos cannot be retaken or added to. A check sent
+ * while Detlio's waiver stood (fewer than eight) would otherwise hold the job
+ * for ever once the waiver was undone.
  */
 export function carCheckGateRefusal(input: {
   required: boolean
   anglesTaken: number
   sentAt: Date | null
 }): CarCheckGateRefusal | null {
-  if (!input.required) return null
+  if (!input.required || input.sentAt !== null) return null
   const missing = Math.max(0, CAR_CHECK_ANGLES.length - input.anglesTaken)
   const notSent = input.sentAt === null
   return missing > 0 || notSent ? { missing, notSent } : null

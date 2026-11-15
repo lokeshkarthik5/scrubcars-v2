@@ -219,6 +219,10 @@ async function record(job: Job, role: PhotoRole, actorId: string, input: RecordJ
 
   await assertCarCheckAllows(job, role, input)
   const cap = capFor(job, role)
+  // 0075: the same rule again under the job's lock, so a retake racing
+  // "Send to customer" cannot land after it.
+  const guardSent =
+    role === 'garage' && input.stage === 'before' && isCarCheckAngle(input.angle) && conditionCheckOn(job.vendorId)
 
   const created = await jobPhotosRepository.insertPhotoUnderCap(
     {
@@ -231,8 +235,10 @@ async function record(job: Job, role: PhotoRole, actorId: string, input: RecordJ
       uploadedByRole: role,
       angle: input.angle ?? null,
     },
-    cap
+    cap,
+    guardSent
   )
+  if (created === 'sent') throw carCheckSent()
   if (!created) throw limitReached(input.stage, cap)
 
   log.info(

@@ -87,6 +87,9 @@ function BeforeCheck({
   const [busy, setBusy] = useState(false)
   const [writing, setWriting] = useState(false)
   const car = booking.vehicle?.model ?? t('car')
+  // A cancelled or moved booking keeps its record, but there is nothing to
+  // answer: the server refuses an answer then (BOOKING_NOT_ACTIVE).
+  const ended = booking.status === 'cancelled' || booking.status === 'rescheduled'
 
   const looksRight = async () => {
     setBusy(true)
@@ -181,7 +184,7 @@ function BeforeCheck({
                 })}
           </p>
         </div>
-      ) : (
+      ) : ended ? null : (
         <div className="flex flex-col gap-1">
           <MainAction
             fullWidth

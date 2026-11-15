@@ -33,7 +33,9 @@ is `null` while it is off for the garage.
    customer's sight): Picked up (pickup & drop) and Start job (doorstep) wait
    for all 8 angles, sent to the customer (409 `CONDITION_CHECK_REQUIRED`).
    **Optional at the garage**, with the usual nudge. Detlio's photo waiver on
-   a booking waives it too.
+   a booking waives it too. Once sent, the check always satisfies the gate
+   (Send held the job to its angles then), so undoing a waiver after a
+   shorter check was sent never strands the job.
 3. **Check the marks** (`/bookings/[id]/condition`): the photos with red
    circles and labels, Remove / Undo, "Add a mark Detlio missed", then
    **Send to customer**. Once sent the before car-check photos and their
