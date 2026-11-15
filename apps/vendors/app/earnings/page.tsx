@@ -39,6 +39,7 @@ import {
 } from '@repo/core/payouts'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { cn } from '@repo/core/utils'
+import { earningsFeeLabel } from '@repo/core/pickup-fee-garage'
 import { ActiveGarage } from '@/components/active-garage'
 
 type Preset = EarningsRangePreset | 'custom'
@@ -144,8 +145,9 @@ function LineCard({ line }: { line: GarageStatementLine }) {
         {(line.travelFee ?? 0) > 0 && (
           // An accepted request's travel fee (0062): part of the price, the
           // garage's whole, with no commission on it.
+          // The pickup fee (0079) rides here on a pickup booking.
           <Figure
-            label={t('Travel fee (yours, no commission)')}
+            label={earningsFeeLabel(line)}
             value={rupeesLabel(line.travelFee ?? 0)}
           />
         )}

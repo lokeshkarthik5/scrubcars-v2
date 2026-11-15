@@ -22,6 +22,7 @@ import { updateVendorJobTypes } from '@/lib/vendor-api';
 import { fill, useT } from '@repo/core/i18n';
 import { collectsAnywhereLine } from '@repo/core/cities';
 import { TravelChoiceField } from '@/components/travel-choice';
+import { PickupFeePart } from './pickup-fee-part';
 
 /**
  * "Pickup & drop" (apps/vendors/app/settings/pickup-section.tsx): the garage collects the
@@ -190,6 +191,9 @@ export function PickupSection({
             </View>
           </View>
         ) : null}
+
+        {/* The pickup fee (0079), under the distance, as on the garage portal. */}
+        {enabled && !turningOn ? <PickupFeePart vendorId={vendor.id} /> : null}
 
         {enabled && !turningOn ? (
           <>

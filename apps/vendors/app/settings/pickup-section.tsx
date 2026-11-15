@@ -21,6 +21,7 @@ import {
 } from '@repo/core/pickup'
 import { APP_TIMEZONE } from '@repo/core/utils'
 import { toast } from 'react-toastify'
+import { PickupFeePart } from './pickup-fee-part'
 
 /** "17 Oct 2026". */
 function formatDay(iso: string) {
@@ -225,6 +226,9 @@ export function PickupSection({
             </div>
           </div>
         )}
+
+        {/* The pickup fee (0079), under the distance, as the screens show it. */}
+        {enabled && !turningOn && <PickupFeePart vendorId={vendor.id} />}
 
         {enabled && !turningOn && (
           <>
