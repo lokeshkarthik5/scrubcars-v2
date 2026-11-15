@@ -213,6 +213,32 @@ describe('the rescue', () => {
     expect(overlapped).toBe(false)
   })
 
+  test("the price is for the booked car's size, and a car since removed gets no offer", async () => {
+    const own = booking
+    const perVehicle = (vendorId: string) => ({
+      ...wash(vendorId, '0.00'),
+      pricingType: 'per_vehicle',
+      priceHatchback: '400.00',
+      priceSedan: '500.00',
+      priceSuv: '700.00',
+    })
+    patch(garageResponseRepository, 'rescueServices', read([perVehicle(QUICK), perVehicle(NEAR_SLOW)]))
+    try {
+      booking = { ...own, vehicle: { id: 'suv-1', vehicleType: 'suv', archivedAt: null } }
+      const suv = await garageResponseService.otherGarages(CUSTOMER, 'booking-1', NOW)
+      expect(suv.items.map((item) => item.rescue.price)).toEqual(['700.00', '700.00'])
+
+      // Checkout opens on the booked car (?car=); one the customer removed
+      // can't be picked there, so its price would not be the price charged.
+      booking = { ...own, vehicle: { id: 'suv-1', vehicleType: 'suv', archivedAt: new Date(NOW - 60_000) } }
+      const removed = await garageResponseService.otherGarages(CUSTOMER, 'booking-1', NOW)
+      expect(removed).toEqual({ bookingType: 'dropin', reason: 'not_accepted', items: [] })
+    } finally {
+      booking = own
+      patch(garageResponseRepository, 'rescueServices', read([wash(NEAR_SLOW, '549.00'), wash(QUICK, '649.00')]))
+    }
+  })
+
   test('a declined booking says so', async () => {
     const own = booking
     booking = { ...own, responseMissedAt: null }

@@ -573,6 +573,19 @@ describe('Detlio flags (0075): off by default, never a reward', () => {
     expect(ledger).toHaveLength(0)
   })
 
+  test('the garage page counts flags only while they are on', async () => {
+    const asked: string[][] = []
+    patch(bypassReportsRepository, 'garageExists', async () => true)
+    patch(bypassReportsRepository, 'countForGarage', async (_vendorId: string, sources: string[]) => {
+      asked.push([...sources])
+      return { new: 0, confirmed: 0, dismissed: 0 }
+    })
+    expect((await call(`/admin/bypass-reports/vendors/${GARAGE}`, 'superAdmin')).status).toBe(200)
+    ;(env as unknown as Record<string, unknown>).offAppFlagsEnabled = true
+    expect((await call(`/admin/bypass-reports/vendors/${GARAGE}`, 'superAdmin')).status).toBe(200)
+    expect(asked).toEqual([['customer'], ['customer', 'detlio']])
+  })
+
   test('only a super-admin can run the check', async () => {
     ;(env as unknown as Record<string, unknown>).offAppFlagsEnabled = true
     for (const who of ['owner', 'customer', null] as const) {

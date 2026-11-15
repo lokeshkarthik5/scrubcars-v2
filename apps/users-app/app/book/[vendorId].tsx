@@ -96,6 +96,7 @@ import { SlotAlertAsk } from '@/components/slot-alerts/slot-alert-ask';
 import { getVendorAddOns } from '@/lib/add-ons';
 import { useAuth } from '@/lib/auth';
 import { bookingCarId } from '@/lib/booking-car';
+import { linkedCarId } from '@repo/core/rescue';
 import {
   clearBookingDraft,
   type DraftAddress,
@@ -149,6 +150,8 @@ export default function BookScreen() {
     date?: string;
     request?: string;
     slot?: string;
+    /** The rescue's booked car (other-garages-card.tsx): its "Same job" price was for this car. */
+    car?: string;
   }>();
   const vendorId = String(params.vendorId);
   const serviceIdsParam = params.service ?? null;
@@ -329,7 +332,7 @@ export default function BookScreen() {
     ? carDraftReady
       ? DRAFT_CAR
       : null
-    : (acceptedRequest?.vehicleId ?? pickedVehicle ?? (carDraftReady ? DRAFT_CAR : bookingCarId(vehicles, livePending?.vehicleId)));
+    : (acceptedRequest?.vehicleId ?? pickedVehicle ?? linkedCarId(vehicles, params.car) ?? (carDraftReady ? DRAFT_CAR : bookingCarId(vehicles, livePending?.vehicleId)));
   const savedVehicleId = selectedVehicle === DRAFT_CAR ? null : selectedVehicle;
   const selectedVehicleRecord = vehicles.find((v) => v.id === savedVehicleId);
   const selectedVehicleLabel = selectedVehicleRecord ? `${selectedVehicleRecord.make} ${selectedVehicleRecord.model}`.trim() : null;

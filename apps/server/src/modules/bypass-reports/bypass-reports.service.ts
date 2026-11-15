@@ -16,7 +16,7 @@ import {
   type WindowRefusal,
 } from '../../lib/bypass-reports.js'
 import { DROP_OFF_RULES, dropOff, windowStartDays } from '../../lib/drop-off.js'
-import { textClientFor } from '../../lib/ai.js'
+import { textClientFor, type TextClient } from '../../lib/ai.js'
 import {
   AI_NOTE_INSTRUCTIONS,
   FLAG_KIND,
@@ -447,7 +447,8 @@ export const bypassReportsService = {
       throw new AppError(404, 'Garage not found', 'VENDOR_NOT_FOUND')
     }
     const strikes = (await strikesFor([vendorId], now)).get(vendorId) ?? 0
-    const counts = await bypassReportsRepository.countForGarage(vendorId)
+    // Detlio's flags count only while they are on, as in the list (0075).
+    const counts = await bypassReportsRepository.countForGarage(vendorId, flagsOn() ? ['customer', 'detlio'] : ['customer'])
     return {
       strikes,
       highlighted: strikesHighlighted(strikes),
@@ -503,16 +504,31 @@ export const bypassReportsService = {
    * is on its own: one failing leaves the others to run. Never reads Garage
    * Book (garage_*).
    */
-  async runFlagChecks(options: { dryRun: boolean }, now = new Date()) {
+  async runFlagChecks(
+    options: {
+      dryRun: boolean
+      /** Tests only: the AI client (else the one the config allows) and the clock for its time budget. */
+      ai?: TextClient | null
+      clock?: () => number
+    },
+    now = new Date()
+  ) {
     if (!flagsOn()) return { enabled: false as const }
     const summary = { enabled: true as const, created: 0, notes: 0, aiAsked: 0, regulars: 0, inspection: 0, failed: 0 }
+    const clock = options.clock ?? Date.now
+    const started = clock()
 
     // 1. A phone number, UPI ID or "pay directly" in a garage's note.
     try {
       const since = new Date(now.getTime() - OFF_APP_FLAG_RULES.noteLookbackDays * 24 * 60 * 60 * 1000)
       const notes = await bypassReportsRepository.garageNotesSince(since, OFF_APP_FLAG_RULES.noteLimit)
       summary.notes = notes.length
-      const ai = textClientFor({ apiKey: env.openaiApiKey, model: env.aiTextModel, fake: env.aiFake })
+      const ai =
+        options.ai !== undefined
+          ? options.ai
+          : textClientFor({ apiKey: env.openaiApiKey, model: env.aiTextModel, fake: env.aiFake })
+      // Set when AI fails once: no more questions this run (it is down or slow).
+      let aiDown = false
       for (const note of notes) {
         const scan = scanNote(note.text)
         if (!scan.strength) continue
@@ -520,7 +536,9 @@ export const bypassReportsService = {
         let confirmedByAi = false
         if (scan.strength === 'weak') {
           // Softer wording: only when AI is on, a few a run, and never twice for one note.
-          if (!ai || summary.aiAsked >= OFF_APP_FLAG_RULES.aiChecksPerRun) continue
+          if (!ai || aiDown || summary.aiAsked >= OFF_APP_FLAG_RULES.aiChecksPerRun) continue
+          // Within the run's AI time budget (the digest shares the API's 60 s).
+          if (clock() - started > OFF_APP_FLAG_RULES.aiBudgetMs) continue
           if (await bypassReportsRepository.flagExists(key)) continue
           summary.aiAsked += 1
           try {
@@ -534,6 +552,7 @@ export const bypassReportsService = {
             confirmedByAi = true
           } catch (err) {
             log.warn({ err, where: note.where }, 'off_app_flags:ai_unavailable')
+            aiDown = true
             continue
           }
         }
@@ -584,6 +603,11 @@ export const bypassReportsService = {
         const named = names.get(garage.vendorId)
         // A garage in the Bin has no customers to lose.
         if (!named || named.deletedAt) continue
+        // Once per garage per 30 days. The key's 30-day period alone would
+        // let a flag on a period's last day be followed by another the next
+        // morning, in the new period.
+        const repeatSince = new Date(now.getTime() - OFF_APP_FLAG_RULES.regularsRepeatDays * 24 * 60 * 60 * 1000)
+        if (await bypassReportsRepository.recentFlagExists(garage.vendorId, 'regulars_went_quiet', repeatSince)) continue
         if (options.dryRun) {
           summary.created += 1
           continue

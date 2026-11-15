@@ -55,6 +55,13 @@ export const OFF_APP_FLAG_RULES = {
   noteLimit: 500,
   /** Ambiguous notes sent to AI a run, at most. */
   aiChecksPerRun: 10,
+  /**
+   * No new AI question once this long into a run: the run shares the API's
+   * 60-second limit with the rest of the 07:00 digest (one slow answer can
+   * take 40 s with its retry). The notes left are asked about on a later run
+   * (they stay in the lookback window and have no flag yet).
+   */
+  aiBudgetMs: 10_000,
   /** The excerpt kept as evidence, in characters. */
   excerptMax: 300,
   /** A repeat customer: this many completed bookings at the garage… */
@@ -152,10 +159,23 @@ const UPI_ID = /\b[a-z0-9][a-z0-9._-]{1,63}@[a-z][a-z0-9]{1,30}\b(?![.@][a-z])/g
 /**
  * Digits that could be an Indian mobile number: ten digits starting 6–9,
  * optionally after +91 / 91 / 0, written with spaces, dots or dashes between
- * groups. Read from runs of digits and separators (`digitRuns`), so "₹ 650"
- * or a booking reference never match.
+ * groups. Read from runs of digits and separators, so "₹ 650" or a booking
+ * reference never match. No upper length: a number at the end of a long run
+ * of figures is still found (and masked).
  */
-const DIGIT_RUN = /\+?\d[\d\s.-]{7,20}\d/g
+const DIGIT_RUN = /\+?\d[\d\s.-]{7,}\d/g
+
+/**
+ * How people write a mobile number's ten digits (the group lengths after any
+ * +91 / 91 / 0): 9840014210, 98400 14210, 984 001 4210, 9840 014 210,
+ * 984 0014 210, 98 4001 4210, 98 40 01 42 10. Only these count as a phone
+ * when flagging, so figures that merely add up to ten digits — times
+ * ("9.00 9.30 10.00 10.30"), prices with paise ("6499.00 9999.00"), a
+ * pincode and a year or a date ("600042 2026", "600042 15-11-2026") — are
+ * never a number. Masking stays broader (any ten that join up): hiding a
+ * figure that wasn't a phone costs nothing.
+ */
+const MOBILE_LAYOUTS = new Set(['10', '5,5', '3,3,4', '4,3,3', '3,4,3', '2,4,4', '2,2,2,2,2'])
 
 /** "pay directly", "book directly", "call me directly", "pay outside", "without the app"… */
 const STRONG_WORDING = [
@@ -192,27 +212,46 @@ function isMobileDigits(digits: string): boolean {
   return local.length === 10 && /^[6-9]/.test(local)
 }
 
+/** Whether these groups are a mobile number written the way people write one (MOBILE_LAYOUTS). */
+function isWrittenMobile(groups: readonly string[]): boolean {
+  // The ten digits as written, or after a +91 / 91 / 0 in a group of its
+  // own or stuck to the number.
+  const [first = '', ...rest] = groups
+  const ways: string[][] = [[...groups]]
+  if (rest.length > 0 && (first === '91' || first === '0')) ways.push(rest)
+  if (first.length === 12 && first.startsWith('91')) ways.push([first.slice(2), ...rest])
+  if (first.length === 11 && first.startsWith('0')) ways.push([first.slice(1), ...rest])
+  return ways.some((local) => {
+    const digits = local.join('')
+    return digits.length === 10 && /^[6-9]/.test(digits) && MOBILE_LAYOUTS.has(local.map((g) => g.length).join(','))
+  })
+}
+
 /**
  * Where a mobile number sits in a run of digits and separators, or null:
  * the run's groups ("98400 14417 5") are tried in every unbroken stretch,
- * so a number next to another figure is still found.
+ * so a number next to another figure is still found. `strict` (flagging)
+ * takes only the usual ways of writing one; masking takes any ten digits
+ * that join up.
  */
-function findMobile(run: string): { start: number; end: number } | null {
+function findMobile(run: string, strict: boolean): { start: number; end: number } | null {
   const groups = [...run.matchAll(/\+?\d+/g)].map((m) => ({ start: m.index!, end: m.index! + m[0].length }))
   for (let i = 0; i < groups.length; i++) {
-    let digits = ''
+    const digits: string[] = []
     for (let j = i; j < groups.length; j++) {
-      digits += digitsOf(run.slice(groups[j]!.start, groups[j]!.end))
-      if (digits.length > 12) break
-      if (isMobileDigits(digits)) return { start: groups[i]!.start, end: groups[j]!.end }
+      digits.push(digitsOf(run.slice(groups[j]!.start, groups[j]!.end)))
+      if (digits.join('').length > 12) break
+      if (strict ? isWrittenMobile(digits) : isMobileDigits(digits.join(''))) {
+        return { start: groups[i]!.start, end: groups[j]!.end }
+      }
     }
   }
   return null
 }
 
-/** A run of digits that holds an Indian mobile number. */
+/** A run of digits that holds an Indian mobile number, written as people write one. */
 export function isMobileNumber(run: string): boolean {
-  return findMobile(run) !== null
+  return findMobile(run, true) !== null
 }
 
 /** "98•••• •4210": the first two and last four digits, the rest dots. */
@@ -225,7 +264,7 @@ export function maskNumber(run: string): string {
 export function maskPhones(text: string): string {
   return text.replace(DIGIT_RUN, (run) => {
     let out = run
-    for (let found = findMobile(out); found; found = findMobile(out)) {
+    for (let found = findMobile(out, false); found; found = findMobile(out, false)) {
       out = `${out.slice(0, found.start)}${maskNumber(out.slice(found.start, found.end))}${out.slice(found.end)}`
     }
     return out

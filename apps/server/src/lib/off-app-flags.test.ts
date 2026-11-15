@@ -41,6 +41,51 @@ describe('scanNote', () => {
     expect(scanNote('Send the photos to help@detlio.com').strength).toBeNull()
     expect(scanNote('Bill no 123456789012345').found).not.toContain('phone')
   })
+
+  it('ordinary garage notes are never flagged: prices, times, references, pincodes, dates', () => {
+    const ordinary = [
+      'Polish ₹1,200 and wax ₹ 9,800, total ₹11,000',
+      'Final amount 6499.00 9999.00 as discussed',
+      'Bill 6,499.00 + 1,250.50 GST',
+      'Free at 9.00 9.30 10.00 10.30 tomorrow',
+      'Can do 7.30 8.30 9.30 or 6.45 instead',
+      'Slots 10:30, 11:00, 11:30',
+      'Booking 98765432 moved to 9.30 am',
+      'Ref DT4790 / 98765432 10.30',
+      'We do not cover pincode 600042 yet',
+      'Pincode 600042 2026 season closed',
+      'Your area 600042 15-11-2026 is full',
+      'Shop at 600 042, Anna Nagar, open 9-7',
+      'Ready on 15.11.2026 by 6.30 pm',
+      'Tyre 185 65 R15 replaced, 2 nos',
+      'Battery 12V 65Ah, warranty 24 months, 3 years',
+      'Dent work 3 panels 4500 6500 8500 depending',
+    ]
+    for (const note of ordinary) expect({ note, scan: scanNote(note) }).toEqual({ note, scan: { found: [], strength: null } })
+  })
+
+  it('a number written any usual way is still found', () => {
+    for (const number of [
+      '9840014210',
+      '98400 14210',
+      '98400-14210',
+      '984 001 4210',
+      '9840 014 210',
+      '984 0014 210',
+      '98 4001 4210',
+      '98 40 01 42 10',
+      '+91 98400 14210',
+      '+919840014210',
+      '09840014210',
+      '0 98400 14210',
+      '91 98400 14210',
+    ]) {
+      expect({ number, found: scanNote(`call ${number} for details`).found }).toEqual({ number, found: ['phone'] })
+    }
+    // At the end of a long run of figures.
+    expect(scanNote('Lines 1 2 3 4 5 6 7 8 9 10 11 12 98400 14210').found).toEqual(['phone'])
+    expect(noteExcerpt('Lines 1 2 3 4 5 6 7 8 9 10 11 12 98400 14210 UPI x@okaxis')).not.toContain('14210')
+  })
 })
 
 describe('masking', () => {

@@ -102,15 +102,19 @@ export function rescueDayLabel(offer: Pick<RescueOffer, 'free' | 'near'>, now: n
 
 /**
  * Where a time opens: the booking at that garage with the same job picked,
- * the same type, the address the first booking went to (doorstep and pickup)
- * and the time (`slot`, which checkout keeps if it is still free). The
- * customer pays as for any booking; the first payment's refund is untouched.
+ * the same type, the address the first booking went to (doorstep and pickup),
+ * the car it was for (`car`: the card priced the job for that car, so
+ * checkout must too, not the default car) and the time (`slot`, which
+ * checkout keeps if it is still free). The customer pays as for any booking;
+ * the first payment's refund is untouched.
  */
 export function rescueTimePath(input: {
   vendorId: string
   bookingType: BookingType
   serviceIds: string[]
   addressId?: string | null
+  /** The booked car (the cancelled booking's), which the price was for. */
+  vehicleId?: string | null
   slot: string
 }): string {
   const base = bookAgainPathFor({
@@ -119,5 +123,20 @@ export function rescueTimePath(input: {
     serviceIds: input.serviceIds,
     addressId: input.addressId,
   })
-  return `${base}${base.includes('?') ? '&' : '?'}slot=${encodeURIComponent(input.slot)}`
+  const car = input.vehicleId ? `&car=${encodeURIComponent(input.vehicleId)}` : ''
+  return `${base}${base.includes('?') ? '&' : '?'}slot=${encodeURIComponent(input.slot)}${car}`
+}
+
+/**
+ * The car a checkout link named (`?car=`, the rescue's booked car), while it
+ * is still one of the customer's saved cars; else null and checkout picks as
+ * usual (Home's car, the default, the only one). Both checkouts put it before
+ * those, so the price the rescue card showed is the price charged.
+ */
+export function linkedCarId(
+  vehicles: ReadonlyArray<{ id: string }>,
+  carParam: string | null | undefined
+): string | null {
+  const id = carParam?.trim()
+  return id && vehicles.some((vehicle) => vehicle.id === id) ? id : null
 }

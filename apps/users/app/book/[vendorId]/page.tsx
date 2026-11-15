@@ -49,6 +49,7 @@ import { formatClock } from '@repo/core/format'
 import { money } from '@/lib/money'
 import { serviceApproxNote, servicePriceText } from '@/lib/price'
 import { bookingCarId } from '@/lib/booking-car'
+import { linkedCarId } from '@repo/core/rescue'
 import { guaranteeCovers } from '@/lib/guarantee-cover'
 import { SlotAlertAsk } from '@/components/slot-alerts/slot-alert-ask'
 import { slotKeys, useAvailableSlots } from '@repo/core/api/hooks/use-slots'
@@ -247,6 +248,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // Nov 2026): checkout opens on its day with it chosen, as long as it is
   // still ahead, and lets it go with the usual toast if it has been taken.
   const slotParam = searchParams.get('slot')
+  // The car a link names: the rescue's time (other-garages-card.tsx) opens
+  // on the cancelled booking's car, the one its "Same job" price was for,
+  // whatever the default car is. Used while it is still one of theirs.
+  const carParam = searchParams.get('car')
   // Customer reach (0062): "Confirm & pay" on a request the garage accepted
   // opens checkout on it. Its car, address and time are the garage's yes,
   // shown fixed; its travel fee is a line of its own; the server books it
@@ -561,6 +566,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
       : null
     : (acceptedRequest?.vehicleId ??
       pickedVehicle ??
+      linkedCarId(vehicles, carParam) ??
       (carDraftReady
         ? DRAFT_CAR
         : bookingCarId(vehicles, livePending?.vehicleId)))

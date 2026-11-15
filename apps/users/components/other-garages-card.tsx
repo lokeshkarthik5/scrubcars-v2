@@ -41,10 +41,13 @@ function RescueOfferPart({
   vendor,
   mode,
   addressId,
+  vehicleId,
 }: {
   vendor: RescueGarage
   mode: BookingType
   addressId: string | null
+  /** The booked car: the price is for it, so the booking opens on it. */
+  vehicleId: string | null
 }) {
   const t = useT()
   const offer = vendor.rescue
@@ -73,6 +76,7 @@ function RescueOfferPart({
               bookingType: mode,
               serviceIds: offer.serviceIds,
               addressId,
+              vehicleId,
               slot,
             }),
         }}
@@ -152,7 +156,12 @@ export function OtherGaragesCard({
                 chips={<AnswerChip mins={vendor.rescue?.usualAnswerMins ?? null} />}
                 attached={
                   vendor.rescue ? (
-                    <RescueOfferPart vendor={vendor} mode={mode} addressId={addressId} />
+                    <RescueOfferPart
+                      vendor={vendor}
+                      mode={mode}
+                      addressId={addressId}
+                      vehicleId={booking.vehicle?.id ?? null}
+                    />
                   ) : undefined
                 }
               />

@@ -170,7 +170,12 @@ export const garageResponseService = {
       vendorLat: booking.vendor?.lat ?? null,
       vendorLng: booking.vendor?.lng ?? null,
     })
-    const vehicleType = booking.vehicle?.vehicleType as VehicleTier | undefined
+    // The price is for the booked car, and a time opens checkout on it
+    // (`?car=`). A car the customer has since removed (archived) can't be
+    // picked there, so checkout would price another car: no offer then.
+    const vehicleType = booking.vehicle && !booking.vehicle.archivedAt
+      ? (booking.vehicle.vehicleType as VehicleTier)
+      : undefined
     if (!origin || !vehicleType) return { ...empty, reason }
 
     const categories = wantedCategories(await garageResponseRepository.bookedCategories(booking.id)).filter(

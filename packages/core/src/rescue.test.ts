@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import {
   garageDeclinedTitle,
+  linkedCarId,
   quotedGarageReason,
   rescueDayLabel,
   rescueSubline,
@@ -70,5 +71,35 @@ describe('rescueTimePath', () => {
         slot: '2026-11-15T05:30:00.000Z',
       })
     ).toBe('/book/g2?service=s1,s2&mode=doorstep&address=a1&slot=2026-11-15T05%3A30%3A00.000Z')
+  })
+
+  test('the booked car rides along, so checkout prices the car the card priced', () => {
+    expect(
+      rescueTimePath({
+        vendorId: 'g2',
+        bookingType: 'dropin',
+        serviceIds: ['s1'],
+        vehicleId: 'suv-1',
+        slot: '2026-11-15T05:30:00.000Z',
+      })
+    ).toBe('/book/g2?service=s1&slot=2026-11-15T05%3A30%3A00.000Z&car=suv-1')
+  })
+})
+
+describe('linkedCarId', () => {
+  const cars = [
+    { id: 'hatch', isDefault: true },
+    { id: 'suv', isDefault: false },
+  ]
+
+  test("the link's car, while it is still one of the customer's", () => {
+    expect(linkedCarId(cars, 'suv')).toBe('suv')
+  })
+
+  test('nothing when the link names none, or a car they no longer have', () => {
+    expect(linkedCarId(cars, null)).toBeNull()
+    expect(linkedCarId(cars, '')).toBeNull()
+    expect(linkedCarId(cars, 'removed')).toBeNull()
+    expect(linkedCarId([], 'suv')).toBeNull()
   })
 })

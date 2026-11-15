@@ -36,6 +36,8 @@ let notes: Note[] = []
 let chains: unknown[] = []
 let cancels: unknown[] = []
 const flags = new Map<string, Record<string, unknown>>()
+/** When the stand-in insert says a flag was written (the run's `now`). */
+let writtenAt = NOW
 
 beforeAll(() => {
   patch(bypassReportsRepository, 'garageNotesSince', async () =>
@@ -49,10 +51,13 @@ beforeAll(() => {
     }))
   )
   patch(bypassReportsRepository, 'flagExists', async (key: string) => flags.has(key))
+  patch(bypassReportsRepository, 'recentFlagExists', async (vendorId: string, signal: string, since: Date) =>
+    [...flags.values()].some((f) => f.vendorId === vendorId && f.signal === signal && (f.createdAt as Date) >= since)
+  )
   patch(bypassReportsRepository, 'insertFlag', async (values: Record<string, unknown>) => {
     const key = values.evidenceKey as string
     if (flags.has(key)) return null
-    flags.set(key, values)
+    flags.set(key, { ...values, createdAt: writtenAt })
     return { id: key }
   })
   patch(bypassReportsRepository, 'dropOffChains', async () => chains)
@@ -115,6 +120,37 @@ describe('runFlagChecks', () => {
     expect(flags.size).toBe(0)
   })
 
+  test('AI gets the masked note only, and is not asked past its time budget or after it fails', async () => {
+    notes = ['n1', 'n2', 'n3'].map((noteId) => ({ noteId, where: 'time_suggestion', text: `GPay also fine sir, bill ${noteId} 4471209` }))
+    const asked: string[] = []
+    // Each answer takes 6 s of the run's clock: the third is past the 10 s budget.
+    let clock = 0
+    const slowYes = {
+      complete: async ({ input }: { input: string }) => {
+        asked.push(input)
+        clock += 6_000
+        return 'yes'
+      },
+    }
+    const slow = await bypassReportsService.runFlagChecks({ dryRun: false, ai: slowYes, clock: () => clock }, NOW)
+    expect(slow).toMatchObject({ created: 2, aiAsked: 2 })
+    expect(asked.length).toBe(2)
+    expect(asked.every((input) => !input.includes('4471209') && input.includes('•••••••'))).toBe(true)
+
+    // Down: one failure, and no more questions this run.
+    flags.clear()
+    let calls = 0
+    const down = {
+      complete: async () => {
+        calls += 1
+        throw new Error('timeout')
+      },
+    }
+    const failed = await bypassReportsService.runFlagChecks({ dryRun: false, ai: down, clock: () => 0 }, NOW)
+    expect(failed).toMatchObject({ created: 0, aiAsked: 1 })
+    expect(calls).toBe(1)
+  })
+
   test('regulars who stopped, and repeated cancellations after inspection', async () => {
     const regular = (userId: string, lastDaysAgo: number) => [
       { userId, vendorId: GARAGE, bookingId: `${userId}-1`, status: 'completed', bookedAt: new Date(NOW.getTime() - (lastDaysAgo + 31) * DAY), serviceAt: new Date(NOW.getTime() - (lastDaysAgo + 30) * DAY) },
@@ -141,6 +177,30 @@ describe('runFlagChecks', () => {
       evidence: { userId: 'customer-1', days: 18 },
     })
     expect(JSON.stringify(bySignal.cancelled_after_inspection)).not.toContain('9840014210')
+  })
+
+  test('regulars: once per garage per 30 days, even across the key’s 30-day period', async () => {
+    const regular = (userId: string) => [
+      { userId, vendorId: GARAGE, bookingId: `${userId}-1`, status: 'completed', bookedAt: new Date(NOW.getTime() - 90 * DAY), serviceAt: new Date(NOW.getTime() - 89 * DAY) },
+      { userId, vendorId: GARAGE, bookingId: `${userId}-2`, status: 'completed', bookedAt: new Date(NOW.getTime() - 50 * DAY), serviceAt: new Date(NOW.getTime() - 49 * DAY) },
+    ]
+    chains = ['a', 'b', 'c', 'd', 'e'].flatMap(regular)
+    const period = 30 * DAY
+    // The last morning of one 30-day period, then the first of the next.
+    const lastDay = new Date((Math.floor(NOW.getTime() / period) + 1) * period - 2 * 60 * 60 * 1000)
+    const nextDay = new Date(lastDay.getTime() + DAY)
+    try {
+      writtenAt = lastDay
+      expect(await bypassReportsService.runFlagChecks({ dryRun: false }, lastDay)).toMatchObject({ created: 1 })
+      writtenAt = nextDay
+      expect(await bypassReportsService.runFlagChecks({ dryRun: false }, nextDay)).toMatchObject({ created: 0 })
+      // 30 days on, it may flag again.
+      const later = new Date(lastDay.getTime() + 31 * DAY)
+      writtenAt = later
+      expect(await bypassReportsService.runFlagChecks({ dryRun: false }, later)).toMatchObject({ created: 1 })
+    } finally {
+      writtenAt = NOW
+    }
   })
 
   test('a dry run counts and writes nothing', async () => {

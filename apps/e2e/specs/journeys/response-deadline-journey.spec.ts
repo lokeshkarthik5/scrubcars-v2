@@ -123,11 +123,17 @@ test.describe('garage response deadline @p0', () => {
     await expect(card.locator(`a[href^="/garage/${VENDORS.responseOther.id}"]`)).toBeVisible()
     await expect(card.getByText('Same job')).toBeVisible()
     await expect(card.locator('[data-same-job-price]')).toHaveText('₹650')
-    // A time opens the booking at the neighbour with the same service and that time picked.
+    // A time opens the booking at the neighbour with the same service, that
+    // time and the booked car picked (the price above is for that car).
     const firstTime = card.locator(`a[data-slot][href^="/book/${VENDORS.responseOther.id}?"]`).first()
-    await expect(firstTime).toHaveAttribute('href', new RegExp(`service=${SERVICES.responseOtherWash.id}.*&slot=`))
+    await expect(firstTime).toHaveAttribute(
+      'href',
+      new RegExp(`service=${SERVICES.responseOtherWash.id}.*&slot=[^&]+&car=${CUSTOMERS.notAccepted.vehicleId}$`)
+    )
     await firstTime.click()
-    await expect(page).toHaveURL(new RegExp(`/book/${VENDORS.responseOther.id}\\?service=${SERVICES.responseOtherWash.id}(&mode=[a-z]+)?&slot=`))
+    await expect(page).toHaveURL(
+      new RegExp(`/book/${VENDORS.responseOther.id}\\?service=${SERVICES.responseOtherWash.id}(&mode=[a-z]+)?&slot=[^&]+&car=${CUSTOMERS.notAccepted.vehicleId}$`)
+    )
     await ctx.close()
   })
 })

@@ -320,7 +320,11 @@ export const bypassReportsRepository = {
   },
 
   /** A garage's reports by status, all time, for its admin page. */
-  async countForGarage(vendorId: string): Promise<Record<BypassStatus, number>> {
+  /** One garage's entries by status, of the kinds in `sources` (Detlio's flags only while they are on, 0075). */
+  async countForGarage(
+    vendorId: string,
+    sources: readonly BypassSource[] = ['customer', 'detlio']
+  ): Promise<Record<BypassStatus, number>> {
     const [row] = await db
       .select({
         new: sql<number>`count(*) filter (where ${bypassReports.status} = 'new')`,
@@ -328,7 +332,7 @@ export const bypassReportsRepository = {
         dismissed: sql<number>`count(*) filter (where ${bypassReports.status} = 'dismissed')`,
       })
       .from(bypassReports)
-      .where(eq(bypassReports.vendorId, vendorId))
+      .where(and(eq(bypassReports.vendorId, vendorId), inArray(bypassReports.source, [...sources])))
     return {
       new: Number(row?.new ?? 0),
       confirmed: Number(row?.confirmed ?? 0),
@@ -703,6 +707,23 @@ export const bypassReportsRepository = {
       .select({ id: bypassReports.id })
       .from(bypassReports)
       .where(eq(bypassReports.evidenceKey, evidenceKey))
+      .limit(1)
+    return Boolean(row)
+  },
+
+  /** Whether this garage has had a flag of this kind since `since` (the regulars check: once per 30 days). */
+  async recentFlagExists(vendorId: string, signal: FlagSignal, since: Date): Promise<boolean> {
+    const [row] = await db
+      .select({ id: bypassReports.id })
+      .from(bypassReports)
+      .where(
+        and(
+          eq(bypassReports.vendorId, vendorId),
+          eq(bypassReports.source, 'detlio'),
+          eq(bypassReports.signal, signal),
+          gte(bypassReports.createdAt, since)
+        )
+      )
       .limit(1)
     return Boolean(row)
   },

@@ -33,7 +33,18 @@ function AnswerChip({ mins }: { mins: number | null }) {
 }
 
 /** The part joined under a garage's card: the same job's price and the times near the original slot. */
-function RescueOfferPart({ vendor, mode, addressId }: { vendor: RescueGarage; mode: BookingType; addressId: string | null }) {
+function RescueOfferPart({
+  vendor,
+  mode,
+  addressId,
+  vehicleId,
+}: {
+  vendor: RescueGarage;
+  mode: BookingType;
+  addressId: string | null;
+  /** The booked car: the price is for it, so the booking opens on it. */
+  vehicleId: string | null;
+}) {
   const t = useT();
   const colors = useColors();
   const styles = useStyles();
@@ -56,7 +67,7 @@ function RescueOfferPart({ vendor, mode, addressId }: { vendor: RescueGarage; mo
         preset={{
           free: offer.free,
           dayLabel: rescueDayLabel(offer),
-          hrefFor: (slot) => rescueTimePath({ vendorId: vendor.id, bookingType: mode, serviceIds: offer.serviceIds, addressId, slot }),
+          hrefFor: (slot) => rescueTimePath({ vendorId: vendor.id, bookingType: mode, serviceIds: offer.serviceIds, addressId, vehicleId, slot }),
         }}
         style={styles.times}
       />
@@ -98,7 +109,7 @@ export function OtherGaragesCard({ booking, addressId }: { booking: Booking; add
             vendor={vendor}
             mode={mode}
             chips={<AnswerChip mins={vendor.rescue?.usualAnswerMins ?? null} />}
-            attached={vendor.rescue ? <RescueOfferPart vendor={vendor} mode={mode} addressId={addressId} /> : undefined}
+            attached={vendor.rescue ? <RescueOfferPart vendor={vendor} mode={mode} addressId={addressId} vehicleId={booking.vehicle?.id ?? null} /> : undefined}
           />
         ))
       ) : (
