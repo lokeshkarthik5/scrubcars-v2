@@ -38,10 +38,13 @@ plates or ids; `store: false`), kept privately for 30 days, then deleted.
   the phone sends its rounded location), each garage's best fitting wash
   (`pickService`), two shown, with Next free times.
 - Finished jobs: on Mark completed / Delivered (in the background) and in the
-  pending-digest cron (one a run, last 2 days), the garage's before and after
+  pending-digest cron (one a run, last 2 days, also a failed or stalled try
+  that may go again; started after the digest's response so its AI call
+  never holds the digest up), the garage's before and after
   photos of matching areas are scored (front = front, side = left/right,
   dashboard and seats = interior; at least 2 areas both times, else no
-  score). Up to 3 tries. The customer's booking page asks and shows it.
+  score). Up to 3 tries. Every AI call has a 40 s limit (under the 60 s
+  function), so neither a scan nor a job's scoring can outlast it. The customer's booking page asks and shows it.
 - An after-score under 60 goes to Admin → Issues → Shine checks (New), for a
   person to mark Looks fine or Follow up. **Nothing marks down, strikes or
   pauses a garage on a score.**
@@ -50,9 +53,13 @@ plates or ids; `store: false`), kept privately for 30 days, then deleted.
 
 - `shine_scans`: one row per scan (status, scores, findings, summary,
   photo keys). The row and its photos are deleted after 30 days by the
-  pending-digest cron (`shineScoreService.sweep`, 200 a run). A deleted
-  account's rows stay until then (user_id SET NULL) so the photos are still
-  deleted. Photo keys: `shine-scans/<scanId>/<area>.jpg` (no customer id).
+  pending-digest cron (`shineScoreService.sweep`, up to 50 a run within
+  10 s). The keys are saved before the photos are written, and a row goes
+  only once its photos are deleted, so no photo is ever left behind without
+  a record. Deleting an account unlinks its scans in the same transaction
+  and deletes them with their photos straight after; anything left is
+  no one's and the next sweep deletes it. Photo keys:
+  `shine-scans/<scanId>/<area>.jpg` (no customer id).
 - `shine_job_scores`: one per finished booking (cascade with it): areas,
   before/after scores, findings, review status.
 

@@ -39,7 +39,12 @@ import {
   type ShineJobPhoto,
   type ShineNeed,
 } from '../../lib/shine-score.js'
-import { putShineScanPhotos, removeShineScanPhotos, shineScanKey } from '../../lib/shine-scan-storage.js'
+import {
+  putShineScanPhotos,
+  removeShineScanPhotos,
+  shineScanKey,
+  shineScanStorageOn,
+} from '../../lib/shine-scan-storage.js'
 import { vendorsService } from '../vendors/vendors.service.js'
 import { shineScoreRepository as repo, type ShineScanRow } from './shine-score.repository.js'
 import type { CreateScanInput, ListChecksQuery, ReviewCheckInput, SuggestionsQuery } from './shine-score.validation.js'
@@ -48,10 +53,18 @@ const log = logger.child({ module: 'shine-score' })
 
 /** Enough for the JSON answer plus a reasoning model's thinking. */
 const MAX_OUTPUT_TOKENS = 4_000
+/**
+ * The AI's limit for one reading, under the client's 50 s: the scan request
+ * also stores four photos, and a job's scoring runs in what is left of Mark
+ * completed's 60 s function (vercel.json) after its response.
+ */
+const AI_TIMEOUT_MS = 40_000
 /** A job's scoring that has said nothing for this long is taken as dead and may be tried again. */
 const STALE_SCORING_MS = 3 * 60_000
-/** Expired scans deleted per cron run. */
-const PURGE_BATCH = 200
+/** Expired scans looked at per cron run (each is up to four storage deletes). */
+const PURGE_BATCH = 50
+/** The cron stops deleting scans after this long; the rest wait for the next run (every 10 minutes). */
+const PURGE_BUDGET_MS = 10_000
 /** Admin's list is the newest this many of a kind. */
 const CHECKS_LIMIT = 100
 /** Garages looked at for suggestions, nearest first. */
@@ -185,6 +198,7 @@ export const shineScoreService = {
         schemaName: 'shine_scan',
         schema: SCAN_JSON_SCHEMA,
         maxOutputTokens: MAX_OUTPUT_TOKENS,
+        timeoutMs: AI_TIMEOUT_MS,
       })
     } catch (err) {
       await repo.failScan(scanId)
@@ -208,6 +222,12 @@ export const shineScoreService = {
 
     const overall = overallOf(reading.scores)
     const { summary, suggestion } = summaryOf(reading.scores)
+    // The keys are saved before the photos are written, so the 30-day sweep
+    // (and an account deletion) always finds every photo, even one written
+    // by a request cut off half way. Deleting a key never written is harmless.
+    const stored = shineScanStorageOn()
+      ? photos.map((p) => ({ key: shineScanKey(scanId, p.area, p.mimeType), body: p.bytes, mimeType: p.mimeType }))
+      : []
     await repo.finishScan(scanId, {
       overall,
       scores: reading.scores,
@@ -215,14 +235,12 @@ export const shineScoreService = {
       summary,
       suggestion,
       scoredAt: now,
+      photoKeys: stored.map((p) => p.key),
     })
     log.info({ ms: Date.now() - started, overall, photos: photos.length }, 'shine:scan_scored')
 
     // Kept privately for keepDays; a storage failure never fails the score.
-    const keys = await putShineScanPhotos(
-      photos.map((p) => ({ key: shineScanKey(scanId, p.area, p.mimeType), body: p.bytes, mimeType: p.mimeType }))
-    ).catch(() => [] as string[])
-    if (keys.length > 0) await repo.setScanPhotos(scanId, keys)
+    if (stored.length > 0) await putShineScanPhotos(stored).catch(() => [] as string[])
 
     const scan = await repo.findOwnScan(userId, scanId)
     const left = await repo.listScansOfDay(userId, istDay)
@@ -383,6 +401,7 @@ export const shineScoreService = {
         schemaName: 'shine_job',
         schema: JOB_JSON_SCHEMA,
         maxOutputTokens: MAX_OUTPUT_TOKENS,
+        timeoutMs: AI_TIMEOUT_MS,
       })
     } catch (err) {
       await repo.endJobScore(bookingId, 'failed')
@@ -415,30 +434,56 @@ export const shineScoreService = {
   },
 
   /**
-   * The pending-digest cron's part: scans past keepDays are deleted with
-   * their photos (whatever the switch says: a promise about deletion holds
-   * when the feature is off), then, while on, one finished job of the last
-   * two days with no score yet is scored (the completion hook's catch-up).
+   * Deletes scans with their photos, within `budgetMs`. A scan whose photos
+   * could not all be deleted keeps its row (the only record of where they
+   * are), so the next run tries again. Returns how many rows went.
+   */
+  async purgeScans(scans: ReadonlyArray<{ id: string; photoKeys: string[] }>, budgetMs: number) {
+    const started = Date.now()
+    const gone: string[] = []
+    for (const scan of scans) {
+      if (Date.now() - started > budgetMs) break
+      const failed = await removeShineScanPhotos(scan.photoKeys)
+      if (failed.length === 0) gone.push(scan.id)
+    }
+    return repo.deleteScans(gone)
+  },
+
+  /**
+   * After an account is deleted (account.repository unlinks its scans in
+   * the deletion's transaction): the scans and their photos go now, in the
+   * background. Anything left is no one's, and the next sweep deletes it.
+   */
+  scheduleDeleteScans(scanIds: readonly string[]): void {
+    if (scanIds.length === 0) return
+    runInBackground('shine_scans_delete', async () => {
+      const scans = await repo.listScansByIds([...scanIds])
+      await shineScoreService.purgeScans(scans, PURGE_BUDGET_MS)
+    })
+  },
+
+  /**
+   * The pending-digest cron's part: scans past keepDays (or a deleted
+   * account's) are deleted with their photos, a bounded batch within
+   * PURGE_BUDGET_MS (whatever the switch says: a promise about deletion
+   * holds when the feature is off). Then, while on, one finished job of the
+   * last two days with no score yet, or a failed try that may go again, is
+   * scored after the response (the completion hook's catch-up), so its AI
+   * call never holds up the digest.
    */
   async sweep(options: { dryRun: boolean }, now = new Date()) {
     const expired = await repo.listExpiredScans(new Date(now.getTime() - SHINE_RULES.keepDays * 86_400_000), PURGE_BATCH)
-    let purged = 0
-    if (!options.dryRun && expired.length > 0) {
-      await removeShineScanPhotos(expired.flatMap((scan) => scan.photoKeys))
-      purged = await repo.deleteScans(expired.map((scan) => scan.id))
-    }
+    const purged = !options.dryRun && expired.length > 0 ? await shineScoreService.purgeScans(expired, PURGE_BUDGET_MS) : 0
     if (!env.shineScoreEnabled) return { enabled: false as const, expired: expired.length, purged }
-    const due = await repo.listFinishedWithoutScore(
-      new Date(now.getTime() - SHINE_JOB_SWEEP_DAYS * 86_400_000),
-      SHINE_JOB_SWEEP_BATCH
-    )
-    let scored = 0
-    if (!options.dryRun) {
-      for (const job of due) {
-        if ((await shineScoreService.scoreJob(job.id, now)) === 'scored') scored += 1
-      }
-    }
-    return { enabled: true as const, expired: expired.length, purged, jobsDue: due.length, scored }
+    const due = await repo.listJobsToScore({
+      since: new Date(now.getTime() - SHINE_JOB_SWEEP_DAYS * 86_400_000),
+      maxAttempts: SHINE_JOB_MAX_ATTEMPTS,
+      retryBefore: new Date(now.getTime() - 60_000),
+      staleBefore: new Date(now.getTime() - STALE_SCORING_MS),
+      limit: SHINE_JOB_SWEEP_BATCH,
+    })
+    if (!options.dryRun) for (const job of due) shineScoreService.scheduleScore(job.id)
+    return { enabled: true as const, expired: expired.length, purged, jobsDue: due.length, scheduled: options.dryRun ? 0 : due.length }
   },
 
   // ─── Admin: Shine checks ───────────────────────────────────────────────────
@@ -471,7 +516,11 @@ export const shineScoreService = {
           scheduledAt: row.bookingScheduledAt.toISOString(),
           markedTest: row.bookingMarkedTest !== null,
         },
-        customer: row.customerId ? { id: row.customerId, name: row.customerName, phone: row.customerPhone } : null,
+        // A deleted account keeps its row, blanked: shown as deleted, never its placeholder phone.
+        customer:
+          row.customerId && !row.customerDeletedAt
+            ? { id: row.customerId, name: row.customerName, phone: row.customerPhone }
+            : null,
         // The after photos the score was made from: short-lived links for super-admin only.
         photos: (matched?.after ?? []).map((p) => ({ id: p.photo.id, url: jobPhotoLink(p.photo.url) })),
         reviewedAt: s.reviewedAt?.toISOString() ?? null,

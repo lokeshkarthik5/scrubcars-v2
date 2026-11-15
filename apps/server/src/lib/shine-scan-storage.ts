@@ -58,18 +58,28 @@ export async function putShineScanPhotos(
   return written
 }
 
-/** Deletes scan photos, best effort, logged by count. */
-export async function removeShineScanPhotos(keys: readonly string[]): Promise<void> {
+/**
+ * Deletes scan photos, logged by count. Returns the keys that could not be
+ * deleted (all of them while the private bucket is unset), so the caller
+ * keeps those scans' rows and the next run tries again: a row is the only
+ * record of where its photos are.
+ */
+export async function removeShineScanPhotos(keys: readonly string[]): Promise<string[]> {
   const scanKeys = keys.filter((key) => SHINE_SCAN_KEY.test(key))
-  if (scanKeys.length === 0 || !shineScanStorageOn()) return
+  if (scanKeys.length === 0) return []
+  if (!shineScanStorageOn()) {
+    log.warn({ photos: scanKeys.length }, 'shine_scans:delete_skipped_no_bucket')
+    return scanKeys
+  }
   const client = makeR2Client()
-  let failed = 0
+  const failed: string[] = []
   for (const key of scanKeys) {
     try {
       await client.send(new DeleteObjectCommand({ Bucket: env.r2DocsBucket, Key: key }))
     } catch {
-      failed += 1
+      failed.push(key)
     }
   }
-  if (failed > 0) log.warn({ photos: scanKeys.length, failed }, 'shine_scans:delete_failed')
+  if (failed.length > 0) log.warn({ photos: scanKeys.length, failed: failed.length }, 'shine_scans:delete_failed')
+  return failed
 }

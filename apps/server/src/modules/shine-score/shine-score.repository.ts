@@ -60,16 +60,14 @@ export const shineScoreRepository = {
       summary: string
       suggestion: string
       scoredAt: Date
+      /** Where its photos will be, written before they are: the sweep finds them by these. */
+      photoKeys: string[]
     }
   ) {
     await db
       .update(shineScans)
       .set({ status: 'scored', ...data })
       .where(and(eq(shineScans.id, scanId), eq(shineScans.status, 'scoring')))
-  },
-
-  async setScanPhotos(scanId: string, photoKeys: string[]) {
-    await db.update(shineScans).set({ photoKeys }).where(eq(shineScans.id, scanId))
   },
 
   async failScan(scanId: string) {
@@ -89,14 +87,26 @@ export const shineScoreRepository = {
     return row ?? null
   },
 
-  /** Scans past their keeping time, oldest first, a bounded batch. */
+  /**
+   * Scans to delete, oldest first, a bounded batch: past their keeping
+   * time, or no longer anyone's (the account was deleted).
+   */
   async listExpiredScans(before: Date, limit: number) {
     return db
       .select({ id: shineScans.id, photoKeys: shineScans.photoKeys })
       .from(shineScans)
-      .where(lt(shineScans.createdAt, before))
+      .where(or(lt(shineScans.createdAt, before), isNull(shineScans.userId)))
       .orderBy(asc(shineScans.createdAt))
       .limit(limit)
+  },
+
+  /** These scans (an account's, just deleted), to delete now. */
+  async listScansByIds(ids: string[]) {
+    if (ids.length === 0) return []
+    return db
+      .select({ id: shineScans.id, photoKeys: shineScans.photoKeys })
+      .from(shineScans)
+      .where(inArray(shineScans.id, ids))
   },
 
   async deleteScans(ids: string[]) {
@@ -247,15 +257,34 @@ export const shineScoreRepository = {
       .where(and(eq(shineJobScores.bookingId, bookingId), eq(shineJobScores.status, 'scoring')))
   },
 
-  /** Jobs finished since `since` with no score row yet: the cron's catch-up. */
-  async listFinishedWithoutScore(since: Date, limit: number) {
+  /**
+   * The cron's catch-up: jobs finished since `since` with no score row yet
+   * (the completion hook never ran), or whose last try failed or went quiet
+   * and may go again (claimJobScore's own rule).
+   */
+  async listJobsToScore(input: { since: Date; maxAttempts: number; retryBefore: Date; staleBefore: Date; limit: number }) {
     return db
       .select({ id: bookings.id })
       .from(bookings)
       .leftJoin(shineJobScores, eq(shineJobScores.bookingId, bookings.id))
-      .where(and(eq(bookings.status, 'completed'), gte(bookings.completedAt, since), isNull(shineJobScores.id)))
+      .where(
+        and(
+          eq(bookings.status, 'completed'),
+          gte(bookings.completedAt, input.since),
+          or(
+            isNull(shineJobScores.id),
+            and(
+              lt(shineJobScores.attempts, input.maxAttempts),
+              or(
+                and(eq(shineJobScores.status, 'failed'), lt(shineJobScores.updatedAt, input.retryBefore)),
+                and(eq(shineJobScores.status, 'scoring'), lt(shineJobScores.updatedAt, input.staleBefore))
+              )
+            )
+          )
+        )
+      )
       .orderBy(desc(bookings.completedAt))
-      .limit(limit)
+      .limit(input.limit)
   },
 
   // ─── Admin: Shine checks ───────────────────────────────────────────────────
@@ -278,6 +307,7 @@ export const shineScoreRepository = {
         customerId: users.id,
         customerName: users.name,
         customerPhone: users.phone,
+        customerDeletedAt: users.deletedAt,
       })
       .from(shineJobScores)
       .innerJoin(bookings, eq(bookings.id, shineJobScores.bookingId))

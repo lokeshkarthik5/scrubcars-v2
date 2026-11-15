@@ -140,6 +140,18 @@ describe('openAiDocumentClient', () => {
     // One try: a retry would outlast the function's 60 s.
     expect(requests).toHaveLength(1)
   })
+
+  test('timeoutMs cuts a slow answer off: AiUnavailableError, never a hang', async () => {
+    // A network that never answers until the request is aborted.
+    const fetch = ((_input: string | URL | Request, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })))
+      })) as typeof globalThis.fetch
+    const client = openAiDocumentClient({ apiKey: 'sk-test', model: 'gpt-test', fetch })
+    const started = Date.now()
+    await expect(client.read({ ...REQUEST, timeoutMs: 50 })).rejects.toBeInstanceOf(AiUnavailableError)
+    expect(Date.now() - started).toBeLessThan(5_000)
+  })
 })
 
 describe('documentClientFor', () => {

@@ -129,7 +129,6 @@ beforeAll(() => {
     finishScan: async (id: string, data: Partial<Scan>) => {
       Object.assign(scans.find((s) => s.id === id)!, { status: 'scored', ...data })
     },
-    setScanPhotos: async () => undefined,
     failScan: async (id: string) => {
       scans.find((s) => s.id === id)!.status = 'failed'
     },
@@ -151,7 +150,8 @@ beforeAll(() => {
           garageName: 'Sri Balaji Car Spa',
           customerId: PEOPLE.customer,
           customerName: 'Divya S',
-          customerPhone: '9840051234',
+          customerPhone: score.bookingId === OTHERS ? 'deleted-abcdefghijkl' : '9840051234',
+          customerDeletedAt: score.bookingId === OTHERS ? new Date() : null,
         })),
     listGaragePhotosOf: async () => [],
     findReview: async (id: string) => jobScores.find((j) => j.id === id) ?? null,
@@ -287,6 +287,8 @@ describe('scans', () => {
     expect(files.map((f) => f.name)).toEqual(['front.jpg', 'side.jpg', 'dashboard.jpg', 'seats.jpg'])
     const text = JSON.stringify({ ...request, files: files.map((f) => ({ ...f, dataBase64: '' })) })
     for (const id of Object.values(PEOPLE)) expect(text).not.toContain(id)
+    // Under the client's 50 s, so the photos are stored within the function's 60 s.
+    expect(request.timeoutMs).toBeLessThanOrEqual(40_000)
   })
 
   test('three a day; the fourth is refused without asking the AI', async () => {
@@ -406,6 +408,7 @@ describe('admin: Shine checks', () => {
       lowestArea: 'Seats & floor',
       findings: ['Mats still muddy'],
       garage: { name: 'Sri Balaji Car Spa' },
+      customer: { id: PEOPLE.customer, name: 'Divya S', phone: '9840051234' },
     })
     const marked = await call(`/admin/shine-checks/${idOf(90)}/review`, 'superAdmin', { outcome: 'followed_up' })
     expect(marked.status).toBe(200)
@@ -413,6 +416,12 @@ describe('admin: Shine checks', () => {
     const again = await call(`/admin/shine-checks/${idOf(90)}/review`, 'superAdmin', { outcome: 'looks_fine' })
     expect(again.status).toBe(409)
     expect(again.body.code).toBe('SHINE_CHECK_REVIEWED')
+  })
+
+  test('a deleted account shows as no customer, never its placeholder phone', async () => {
+    jobScores.push({ ...low(), bookingId: OTHERS })
+    const list = await call('/admin/shine-checks?show=new', 'superAdmin')
+    expect(list.body.data.checks[0].customer).toBeNull()
   })
 })
 
@@ -430,6 +439,38 @@ describe('scoring a finished job', () => {
     expect(await shineScoreService.scoreJob(DONE)).toBe('no_match')
     expect(ended).toEqual(['no_match'])
     expect(sent).toHaveLength(0)
+  })
+
+  test('matching photos that cannot be read: failed (tried again later), and the AI never asked', async () => {
+    const t0 = new Date('2026-11-15T06:00:00Z')
+    patch(shineScoreRepository, 'claimJobScore', async () => true)
+    patch(shineScoreRepository, 'listGaragePhotos', async () => [
+      { id: 'a', stage: 'before', angle: 'front', storageKey: 'k1', url: 'https://cdn.test/k1.jpg', createdAt: t0 },
+      { id: 'b', stage: 'after', angle: 'front', storageKey: 'k2', url: 'https://cdn.test/k2.jpg', createdAt: t0 },
+      { id: 'c', stage: 'before', angle: 'interior', storageKey: 'k3', url: 'https://cdn.test/k3.jpg', createdAt: t0 },
+      { id: 'd', stage: 'after', angle: 'interior', storageKey: 'k4', url: 'https://cdn.test/k4.jpg', createdAt: t0 },
+    ])
+    const ended: string[] = []
+    patch(shineScoreRepository, 'endJobScore', async (_id: string, status: string) => {
+      ended.push(status)
+    })
+    // No storage here, so the photos cannot be read: it ends failed (to be tried again), without the AI.
+    expect(await shineScoreService.scoreJob(DONE)).toBe('failed')
+    expect(ended).toEqual(['failed'])
+    expect(sent).toHaveLength(0)
+  })
+
+  test('scheduled after completion only while on, and never awaited', async () => {
+    const scheduled: string[] = []
+    patch(shineScoreService, 'scheduleScore', (id: string) => {
+      scheduled.push(id)
+    })
+    ;(env as unknown as Record<string, unknown>).shineScoreEnabled = false
+    expect(shineScoreService.scheduleAfterCompletion(DONE)).toBeUndefined()
+    expect(scheduled).toEqual([])
+    ;(env as unknown as Record<string, unknown>).shineScoreEnabled = true
+    shineScoreService.scheduleAfterCompletion(DONE)
+    expect(scheduled).toEqual([DONE])
   })
 
   test('off, or not finished: nothing at all', async () => {
@@ -474,5 +515,61 @@ describe('suggestions', () => {
     ])
     expect(asked.map((q) => q.radiusKm)).toEqual([15, undefined])
     expect(asked.every((q) => q.bookingType === 'dropin')).toBe(true)
+  })
+})
+
+describe('the cron', () => {
+  test('a scan whose photos could not be deleted keeps its row; the rest go', async () => {
+    patch(shineScoreRepository, 'listExpiredScans', async () => [
+      { id: idOf(80), photoKeys: [] },
+      // The private bucket is unset here, so this one's photos cannot be deleted.
+      { id: idOf(81), photoKeys: [`shine-scans/${idOf(81)}/front.jpg`] },
+    ])
+    const deleted: string[][] = []
+    patch(shineScoreRepository, 'deleteScans', async (ids: string[]) => {
+      deleted.push(ids)
+      return ids.length
+    })
+    patch(shineScoreRepository, 'listJobsToScore', async () => [])
+    const result = await shineScoreService.sweep({ dryRun: false })
+    expect(deleted).toEqual([[idOf(80)]])
+    expect(result.purged).toBe(1)
+    expect(result.expired).toBe(2)
+  })
+
+  test('the catch-up is scheduled after the response (no AI call inside the digest) and retries failed tries', async () => {
+    const asked: Array<Record<string, unknown>> = []
+    patch(shineScoreRepository, 'listExpiredScans', async () => [])
+    patch(shineScoreRepository, 'listJobsToScore', async (input: Record<string, unknown>) => {
+      asked.push(input)
+      return [{ id: DONE }]
+    })
+    const scheduled: string[] = []
+    patch(shineScoreService, 'scheduleScore', (id: string) => {
+      scheduled.push(id)
+    })
+    const now = new Date('2026-11-15T06:00:00Z')
+    const dry = await shineScoreService.sweep({ dryRun: true }, now)
+    expect(scheduled).toEqual([])
+    expect(dry).toMatchObject({ enabled: true, jobsDue: 1, scheduled: 0 })
+    const run = await shineScoreService.sweep({ dryRun: false }, now)
+    expect(scheduled).toEqual([DONE])
+    expect(run).toMatchObject({ enabled: true, jobsDue: 1, scheduled: 1 })
+    expect(sent).toHaveLength(0)
+    expect(asked[0]).toMatchObject({ maxAttempts: 3, limit: 1 })
+    expect((asked[0]!.retryBefore as Date).getTime()).toBe(now.getTime() - 60_000)
+  })
+
+  test('off: old scans still go, and no job is looked for', async () => {
+    ;(env as unknown as Record<string, unknown>).shineScoreEnabled = false
+    patch(shineScoreRepository, 'listExpiredScans', async () => [{ id: idOf(82), photoKeys: [] }])
+    patch(shineScoreRepository, 'deleteScans', async (ids: string[]) => ids.length)
+    let looked = false
+    patch(shineScoreRepository, 'listJobsToScore', async () => {
+      looked = true
+      return []
+    })
+    expect(await shineScoreService.sweep({ dryRun: false })).toEqual({ enabled: false, expired: 1, purged: 1 })
+    expect(looked).toBe(false)
   })
 })

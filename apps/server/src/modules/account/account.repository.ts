@@ -21,6 +21,7 @@ import {
   refreshTokens,
   rewardNudges,
   rewardReferralCodes,
+  shineScans,
   slotAlerts,
   userAddresses,
   userFavouriteVendors,
@@ -107,7 +108,13 @@ export const accountRepository = {
      * checkout closed), and the delete is audited with who did it.
      */
     byAdmin?: { sub: string; name: string; reason: string }
-  }): Promise<{ avatarKey: string | null; avatarUrl: string | null; endedBookingIds: string[] } | null> {
+  }): Promise<{
+    avatarKey: string | null
+    avatarUrl: string | null
+    endedBookingIds: string[]
+    /** Shine Score scans (0075) now no one's: deleted with their photos after the commit. */
+    shineScanIds: string[]
+  } | null> {
     const { userId, now, byAdmin } = input
     return db.transaction(async (tx) => {
       const [user] = await tx
@@ -224,6 +231,14 @@ export const accountRepository = {
       await tx.delete(couponCodeAttempts).where(eq(couponCodeAttempts.userId, userId))
       await tx.delete(rewardReferralCodes).where(eq(rewardReferralCodes.userId, userId))
       await tx.delete(rewardNudges).where(eq(rewardNudges.userId, userId))
+      // Shine Score scans (0075): unlinked here, deleted with their private
+      // photos after the commit (the row is the only record of where the
+      // photos are, so it goes once they have; the sweep picks up the rest).
+      const unlinkedScans = await tx
+        .update(shineScans)
+        .set({ userId: null })
+        .where(eq(shineScans.userId, userId))
+        .returning({ id: shineScans.id })
 
       // What a deleted account left unlinked before (their ON DELETE SET
       // NULL): usage events, garages they recommended, bypass reports.
@@ -249,7 +264,12 @@ export const accountRepository = {
         })
       }
 
-      return { avatarKey: user.avatarStorageKey ?? null, avatarUrl: user.avatarUrl ?? null, endedBookingIds }
+      return {
+        avatarKey: user.avatarStorageKey ?? null,
+        avatarUrl: user.avatarUrl ?? null,
+        endedBookingIds,
+        shineScanIds: unlinkedScans.map((row) => row.id),
+      }
     })
   },
 }
