@@ -59,6 +59,11 @@ export default function ServicesInOthersPage() {
   const { data, error, isPending, refetch } = useQuery({
     queryKey: ['admin', 'service-categories', 'others'],
     queryFn: listAdminOthersServices,
+    // Read once while the page is open: a moved service leaves the API's
+    // list, so a refetch (coming back to the tab after opening a garage)
+    // would drop the rows moved here, and their Undo, from To check and
+    // Moved. The page keeps its own record of what it did instead.
+    refetchOnWindowFocus: false,
   })
   useEffect(() => {
     if (isAuthError(error)) router.replace('/login')
