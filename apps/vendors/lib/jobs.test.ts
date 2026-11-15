@@ -60,6 +60,7 @@ function job(overrides: Partial<Booking> = {}): Booking {
     photoStandard: null,
     customerBadge: null,
     conditionPhotos: null,
+    conditionCheck: null,
     finalBill: null,
     canRaiseFinalBill: false,
     extraWork: [],
@@ -348,6 +349,48 @@ describe('next step', () => {
   test('pickup & drop says its own next step', () => {
     const b = job({ bookingType: 'pickup', pickup: { nextStep: 'at_garage' } })
     expect(nextStepLabel(nextStep(b)!)).toBe('Next: At garage')
+  })
+
+  // The car condition check (0075).
+  const check = (
+    overrides: Partial<NonNullable<Booking['conditionCheck']>>
+  ): Booking['conditionCheck'] => ({
+    required: true,
+    ai: true,
+    sentAt: null,
+    canSend: false,
+    taken: { before: 6, after: 0 },
+    unread: [],
+    marks: [],
+    photos: [],
+    answer: null,
+    gate: { missing: 2, notSent: true },
+    ...overrides,
+  })
+
+  test("a doorstep job's Start waits for the car check, listed beside it", () => {
+    const b = job({ bookingType: 'doorstep', conditionCheck: check({}) })
+    expect(nextStepLabel(nextStep(b)!)).toBe('Before photos 6/8')
+    expect(blockers(b, 'start')).toEqual([
+      'Take 2 more car check photos',
+      'Send the car check to the customer',
+    ])
+    const sent = job({
+      bookingType: 'doorstep',
+      conditionCheck: check({ taken: { before: 8, after: 0 }, gate: null }),
+    })
+    expect(nextStepLabel(nextStep(sent)!)).toBe('Start job')
+    expect(blockers(sent, 'start')).toEqual([])
+  })
+
+  test("pickup & drop's Picked up waits for it; its Start is not listed", () => {
+    const b = job({
+      bookingType: 'pickup',
+      pickup: { nextStep: 'picked_up' },
+      conditionCheck: check({}),
+    })
+    expect(nextStepLabel(nextStep(b)!)).toBe('Before photos 6/8')
+    expect(blockers(b, 'start')).toEqual([])
   })
 
   test('the progress line', () => {

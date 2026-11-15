@@ -1,7 +1,7 @@
 import { msg } from './i18n/translate'
 
 /**
- * Repair & bodywork quotes (0075): the apps' copy of the numbers and words.
+ * Repair & bodywork quotes (0076): the apps' copy of the numbers and words.
  * The rules live in apps/server/src/lib/repair-quotes.ts;
  * repair-quotes.parity.test.ts there keeps these numbers the same.
  */
@@ -103,7 +103,7 @@ export function videoShortHint(durationSecs: number): string | null {
 }
 
 /**
- * A video's place, wiped (0075). Phones write where a video was recorded
+ * A video's place, wiped (0076). Phones write where a video was recorded
  * into its file (an ISO 6709 string such as "+13.0827+080.2707+012.000/"
  * in the `©xyz` or Apple location atoms of the `moov` box). Garages get the
  * file itself, so before it is uploaded every such string inside `moov` has

@@ -305,7 +305,7 @@ function HomeHubContent() {
               )
             )}
 
-            {/* Tools (0075): Repair quotes now, Shine Score beside it later. */}
+            {/* Tools (0076): Repair quotes now, Shine Score beside it later. */}
             <ToolTilesRow>
               <RepairQuotesTile />
             </ToolTilesRow>

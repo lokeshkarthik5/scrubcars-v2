@@ -20,6 +20,7 @@ import { bookingChargesRoutes } from './modules/booking-charges/booking-charges.
 import { customerTimeProposalRoutes } from './modules/time-proposals/time-proposals.routes.js'
 import { garageResponseRoutes } from './modules/garage-response/garage-response.routes.js'
 import { customerJobPhotosRoutes } from './modules/job-photos/job-photos.routes.js'
+import { customerConditionCheckRoutes } from './modules/condition-check/condition-check.routes.js'
 import { reviewsRoutes } from './modules/reviews/reviews.routes.js'
 import { paymentsRoutes } from './modules/payments/payments.routes.js'
 import { vendorsRoutes } from './modules/vendors/vendors.routes.js'
@@ -202,6 +203,8 @@ app.route('/api/v1/bookings', customerTimeProposalRoutes)
 app.route('/api/v1/bookings', garageResponseRoutes)
 // The customer's own photos of their car (0045): /bookings/:id/photos….
 app.route('/api/v1/bookings', customerJobPhotosRoutes)
+// The car condition check (0075): /bookings/:id/condition/….
+app.route('/api/v1/bookings', customerConditionCheckRoutes)
 app.route('/api/v1/booking-intents', bookingIntentsRoutes)
 app.route('/api/v1/payments', paymentsRoutes)
 app.route('/api/v1/reviews', reviewsRoutes)
@@ -226,7 +229,7 @@ app.route('/api/v1/cities', publicCityRoutes)
 app.route('/api/v1/tiers', publicTierRoutes)
 // Customer reach, part 2 (0062): the windows a garage can be asked for.
 app.route('/api/v1/booking-requests', publicBookingRequestRoutes)
-// Repair & bodywork quotes (0075): whether they are on, for the apps.
+// Repair & bodywork quotes (0076): whether they are on, for the apps.
 app.route('/api/v1/repair-quotes', publicRepairQuoteRoutes)
 // Garage Book's public pages (0074): a bill (/b/<token>) and a garage's own
 // booking page (/g/<slug>). A 404 while GARAGE_BOOK is off.

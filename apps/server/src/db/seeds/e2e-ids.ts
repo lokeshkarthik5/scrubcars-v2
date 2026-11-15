@@ -2287,7 +2287,38 @@ export const INSPECTION_NO_FEE = {
 } as const
 
 /**
- * Repair & bodywork quotes (0075; ids 7500–7549, phones 90000075xx): two
+ * Car condition check at handover (0075; ids 7500–7549, phones 90000075xx):
+ * a garage of its own with the check on through CONDITION_CHECK_GARAGES
+ * (.env.e2e; off for every other garage), its owner, one customer with a
+ * Creta, and four accepted doorstep jobs and one pickup & drop job for
+ * tomorrow, none with photos. AI_FAKE reads every car-check photo as one
+ * "Scratch – rear left door" and every after photo as one possible "Dent –
+ * rear bumper" (lib/condition-check-ai.ts). Only
+ * specs/journeys/condition-check-journey.spec.ts uses it.
+ *
+ *   walkRound   the garage takes the 8 angles in the portal, checks the
+ *               marks and sends; the customer says "Looks right"
+ *   wrong       sent through the API; the customer says "Something's wrong"
+ *   newMark     sent and started through the API, an after photo with a
+ *               possible new mark; the garage says "It was there", the job
+ *               completes, and the customer raises a complaint
+ *   pickup      Picked up waits for the check
+ */
+export const CONDITION_CHECK = {
+  customer: { id: id(7500), phone: '9000007500', name: 'Condition Kavya', vehicleId: id(7501) },
+  owner: { id: id(7502), phone: '9000007502', name: 'Car Check Owner Velan' },
+  garage: { id: id(7503), name: 'Car Check Garage' },
+  wash: { id: id(7504), name: 'Car Check Wash', price: '450.00', durationMins: 45 },
+  walkRound: id(7510),
+  wrong: id(7511),
+  newMark: id(7512),
+  pickup: id(7513),
+  pickupCode: '7531',
+  deliveryCode: '7532',
+} as const
+
+/**
+ * Repair & bodywork quotes (0076; ids 7550–7599, phones 90000076xx, 50–99): two
  * listed garages of their own far from every other fixture (south of the
  * no-fee inspection garage), open all day, that take repair quotes and have
  * a free "price on inspection" service (what a visit books), their owners,
@@ -2300,18 +2331,18 @@ export const INSPECTION_NO_FEE = {
  */
 export const REPAIR_QUOTES = {
   point: { lat: ORIGIN.lat - 2.2, lng: ORIGIN.lng - 0.4 },
-  customer: { id: id(7500), phone: '9000007500', name: 'Dent Deepa', vehicleId: id(7501) },
-  owner: { id: id(7502), phone: '9000007502', name: 'Repair Owner Murugan' },
-  garage: { id: id(7503), name: 'Murugan Repair Works' },
-  inspection: { id: id(7504), name: 'Dent & Scratch Check', durationMins: 60 },
-  secondOwner: { id: id(7505), phone: '9000007505', name: 'Body Shop Owner Selvi' },
-  second: { id: id(7506), name: 'Selvi Body Shop' },
-  secondInspection: { id: id(7507), name: 'Body Check', durationMins: 60 },
-  noInspectionOwner: { id: id(7508), phone: '9000007508', name: 'Flat Price Owner Anand' },
-  noInspection: { id: id(7509), name: 'Flat Price Car Care' },
-  noInspectionWash: { id: id(7510), name: 'Foam Wash' },
+  customer: { id: id(7550), phone: '9000007550', name: 'Dent Deepa', vehicleId: id(7551) },
+  owner: { id: id(7552), phone: '9000007652', name: 'Repair Owner Murugan' },
+  garage: { id: id(7553), name: 'Murugan Repair Works' },
+  inspection: { id: id(7554), name: 'Dent & Scratch Check', durationMins: 60 },
+  secondOwner: { id: id(7555), phone: '9000007555', name: 'Body Shop Owner Selvi' },
+  second: { id: id(7556), name: 'Selvi Body Shop' },
+  secondInspection: { id: id(7557), name: 'Body Check', durationMins: 60 },
+  noInspectionOwner: { id: id(7558), phone: '9000007558', name: 'Flat Price Owner Anand' },
+  noInspection: { id: id(7559), name: 'Flat Price Car Care' },
+  noInspectionWash: { id: id(7560), name: 'Foam Wash' },
   /** Admin's switch is flipped on this one: 110 km from `point`, so no request ever reaches it. */
-  switchOwner: { id: id(7511), phone: '9000007511', name: 'Switch Owner Kala' },
-  switchGarage: { id: id(7512), name: 'Far Dent Studio' },
-  switchInspection: { id: id(7513), name: 'Dent Look', durationMins: 30 },
+  switchOwner: { id: id(7561), phone: '9000007561', name: 'Switch Owner Kala' },
+  switchGarage: { id: id(7562), name: 'Far Dent Studio' },
+  switchInspection: { id: id(7563), name: 'Dent Look', durationMins: 30 },
 } as const

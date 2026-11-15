@@ -4,7 +4,7 @@ import { bannedPhraseIn } from './copy-rules.js'
 import { REPAIR_QUOTE_RULES } from './repair-quotes.js'
 
 /**
- * The brief garages read about a repair request (0075): what the AI model is
+ * The brief garages read about a repair request (0076): what the AI model is
  * asked, the shape it must answer in, and how its answer is checked.
  *
  * What is sent (lib/ai.ts DocumentClient, store: false): the still pictures

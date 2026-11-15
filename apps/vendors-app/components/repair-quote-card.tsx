@@ -22,7 +22,7 @@ import { CAR_TYPE, CLOSED_WORD } from '@/lib/repair-quote-view';
 
 /**
  * apps/vendors/components/repair-quote-card.tsx: a repair quote in the garage's Requests
- * list (0075). The clock, the damage, the car, how far, the video and pictures, the summary,
+ * list (0076). The clock, the damage, the car, how far, the video and pictures, the summary,
  * and Can't do / Can do. Nothing of the customer's but their car and words: no name, no
  * phone (that comes with a booked visit). The video opens in the phone's player through
  * its short private link; nothing is downloaded.

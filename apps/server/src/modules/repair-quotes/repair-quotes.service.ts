@@ -270,7 +270,7 @@ export const repairQuotesService = {
       answer = await client.read({
         instructions: BRIEF_INSTRUCTIONS,
         files,
-        text: briefPrompt(input.note),
+        prompt: briefPrompt(input.note),
         schemaName: 'repair_brief',
         schema: BRIEF_JSON_SCHEMA as unknown as Record<string, unknown>,
         maxOutputTokens: MAX_OUTPUT_TOKENS,

@@ -122,7 +122,7 @@ export function RepairBriefBox({ quote }: { quote: GarageRepairQuote }) {
 }
 
 /**
- * A repair quote waiting for this garage (0075), in the Requests list: the
+ * A repair quote waiting for this garage (0076), in the Requests list: the
  * clock, the damage, the car, how far, the video and pictures, the summary,
  * and Can't do / Can do. Nothing of the customer's but their car and words:
  * no name, no phone (that comes with a booked visit).

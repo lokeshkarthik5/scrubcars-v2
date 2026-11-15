@@ -6,7 +6,7 @@ import { useT } from '@repo/core/i18n'
 import { Tile } from '@/components/home/tile'
 
 /**
- * Home's "Dent or scratch? Repair quotes" tile (0075): one of the 164pt
+ * Home's "Dent or scratch? Repair quotes" tile (0076): one of the 164pt
  * tiles, in the row under the car's two (ToolTilesRow). Only while the API
  * says repair quotes are on; nothing at all while it loads or is off.
  */

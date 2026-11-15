@@ -9,7 +9,7 @@ import { createStyles, useColors } from '@repo/native-ui/theme';
 import { Image, Pressable, type StyleProp, View, type ViewStyle } from 'react-native';
 
 /**
- * The parts of the repair-quote screens (0075), each the web's of the same name
+ * The parts of the repair-quote screens (0076), each the web's of the same name
  * (apps/users/components/repair-quotes): the boxed photo, a garage's line, its quote
  * card and the line for one that can't do it or hasn't answered.
  */

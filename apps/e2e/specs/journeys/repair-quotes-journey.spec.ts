@@ -1,5 +1,5 @@
 /**
- * Repair & bodywork quotes (0075), across the customer app and the garage
+ * Repair & bodywork quotes (0076), across the customer app and the garage
  * portal.
  *
  * The customer opens "Repair quotes" from Home, picks their car, is told a
@@ -12,7 +12,7 @@
  * pay. A request of their own they cancel.
  *
  * REPAIR_QUOTES: two garages, their owners and a customer of their own
- * (7500–7549). The rules are unit-tested in apps/server/src/lib/repair-quotes.test.ts
+ * (7550–7599). The rules are unit-tested in apps/server/src/lib/repair-quotes.test.ts
  * and the routes in apps/server/src/modules/repair-quotes/repair-quotes.routes.test.ts.
  */
 import path from 'node:path'
@@ -31,9 +31,9 @@ const CLIP_45 = path.join(FIXTURES, 'clip-45s.webm')
 const BRIEF = 'Front bumper, left side: deep scratch with a small dent, paint damaged.'
 const EDITED = 'Front bumper, left side: deep scratch and a small dent near the fog lamp.'
 const NOTE = 'Scraped a pillar while parking'
-const CANCEL_REQUEST = 'e2e00000-0000-4000-8000-000000007540'
+const CANCEL_REQUEST = 'e2e00000-0000-4000-8000-000000007640'
 /** specs/admin/repair-quotes.spec.ts's own request for the same customer: left alone here. */
-const ADMIN_REQUEST = 'e2e00000-0000-4000-8000-000000007541'
+const ADMIN_REQUEST = 'e2e00000-0000-4000-8000-000000007641'
 
 test.describe.configure({ mode: 'serial' })
 

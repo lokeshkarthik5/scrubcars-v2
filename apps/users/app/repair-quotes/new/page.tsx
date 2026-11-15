@@ -65,7 +65,7 @@ interface Picture {
 const errorText = (error: unknown, fallback: string) => (error instanceof Error && error.message ? error.message : fallback)
 
 /**
- * Repair quotes (0075), the two steps before sending: the car, a 15–30 s
+ * Repair quotes (0076), the two steps before sending: the car, a 15–30 s
  * video and/or up to 3 photos, and one line about what happened (step 1);
  * then what garages will see — a picture with Detlio's box on the damage
  * and a one-line brief the customer can edit — and Send (step 2).

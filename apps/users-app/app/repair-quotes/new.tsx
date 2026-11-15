@@ -51,7 +51,7 @@ import { briefSource, keptBox, stepOneProblem } from '@/lib/repair-quote-view';
 const R = REPAIR_QUOTE_RULES;
 
 /**
- * apps/users/app/repair-quotes/new/page.tsx (0075): the car, a 15–30 s video and/or up to 3
+ * apps/users/app/repair-quotes/new/page.tsx (0076): the car, a 15–30 s video and/or up to 3
  * photos, and one line (step 1); then what garages will see — a picture with Detlio's box and
  * a one-line brief the customer can edit — and Send (step 2). Frames are taken from the video
  * on the phone (expo-video) for the brief; every picture is re-encoded without its metadata

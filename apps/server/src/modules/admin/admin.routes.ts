@@ -554,7 +554,7 @@ adminRoutes.route('/garage-board', adminGarageBoardRoutes)
 adminRoutes.route('/coverage', adminCoverageRoutes)
 adminRoutes.route('/leads', adminLeadsRoutes)
 adminRoutes.route('/requests', adminBookingRequestRoutes)
-// Repair & bodywork quotes (0075): the list and the garage editor's switch.
+// Repair & bodywork quotes (0076): the list and the garage editor's switch.
 adminRoutes.route('/repair-quotes', adminRepairQuoteRoutes)
 // Garage Book (0072): a garage's book, read-only, every look logged.
 adminRoutes.route('/', adminGarageBookRoutes)

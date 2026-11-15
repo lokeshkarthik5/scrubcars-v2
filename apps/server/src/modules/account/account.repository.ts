@@ -190,7 +190,7 @@ export const accountRepository = {
       // customer's, so it goes in one statement (its own SET NULLs land on
       // rows going too). Before the addresses, which they name.
       await tx.delete(bookingRequests).where(eq(bookingRequests.userId, userId))
-      // Repair quote requests (0075): their words, pictures and video go
+      // Repair quote requests (0076): their words, pictures and video go
       // with the account (the garages' answers with them). The media keys
       // come back, so the files are removed after the commit.
       const repairRows = await tx

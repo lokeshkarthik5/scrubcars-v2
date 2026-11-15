@@ -10,7 +10,7 @@ import { fitWithin, prepareForUpload } from './photo-prepare';
 import { videoTypeOf } from './repair-quote-view';
 
 /**
- * apps/users/lib/repair-media.ts for a phone (repair quotes, 0075): the video picked or
+ * apps/users/lib/repair-media.ts for a phone (repair quotes, 0076): the video picked or
  * recorded, still frames taken from it for Detlio's brief (the AI reads pictures, not
  * video: expo-video's thumbnails, re-encoded by expo-image-manipulator so nothing but the
  * picture comes with them), the video wiped of where it was recorded before it is

@@ -9,6 +9,7 @@ import {
   photosOf,
 } from '@repo/core/job-photo-standards'
 import { msg, t, tn } from '@repo/core/i18n/translate'
+import { CAR_CHECK_ANGLES, carCheckGateLines } from '@repo/core/condition-check'
 import { PICKUP_STEP_LABELS, type PickupNext } from '@repo/core/pickup'
 import type { Booking } from '@repo/core/types'
 
@@ -390,10 +391,30 @@ export type NextStep =
   | { kind: 'pickup'; step: PickupNext }
   | { kind: 'wait'; text: string }
 
+/**
+ * The car condition check's walk-round as a row's step (0075): its photos
+ * while angles are missing (then "Check the marks" sends it). Null when the
+ * check does not hold the job.
+ */
+function carCheckStep(b: Booking): NextStep | null {
+  const gate = b.conditionCheck?.gate
+  if (!gate) return null
+  return {
+    kind: 'photos',
+    stage: 'before',
+    have: b.conditionCheck?.taken.before ?? 0,
+    need: CAR_CHECK_ANGLES.length,
+  }
+}
+
 export function nextStep(b: Booking): NextStep | null {
   if (b.bookingType === 'pickup') {
     const step = b.pickup?.nextStep
     if (!step) return null
+    if (step === 'picked_up') {
+      const check = carCheckStep(b)
+      if (check) return check
+    }
     if (step === 'start_work' && b.photoStandard?.startBlocked) {
       return { kind: 'photos', stage: 'before', ...photoCount(b, 'before') }
     }
@@ -406,6 +427,8 @@ export function nextStep(b: Booking): NextStep | null {
     return { kind: 'pickup', step }
   }
   if (b.status === 'confirmed') {
+    const check = carCheckStep(b)
+    if (check) return check
     if (b.photoStandard?.startBlocked)
       return { kind: 'photos', stage: 'before', ...photoCount(b, 'before') }
     return { kind: 'start' }
@@ -460,6 +483,11 @@ export function blockers(b: Booking, action: 'start' | 'complete'): string[] {
       ? b.photoStandard?.startBlocked
       : b.photoStandard?.finishBlocked
   if (photoBlock) lines.push(photoGateMessage(photoBlock))
+  // The car condition check (0075) holds a doorstep job's Start (pickup &
+  // drop's is Picked up, on its own step).
+  if (action === 'start' && b.bookingType !== 'pickup') {
+    lines.push(...carCheckGateLines(b.conditionCheck?.gate ?? null))
+  }
   if (action === 'complete' && b.completeBlockedByExtraWork) {
     lines.push(
       t('{name} to answer the extra work', { name: firstName(b.customerName) })

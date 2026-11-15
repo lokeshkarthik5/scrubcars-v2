@@ -1,5 +1,5 @@
 /**
- * Repair & bodywork quotes (0075) through the real routes and the real auth
+ * Repair & bodywork quotes (0076) through the real routes and the real auth
  * and tenant middleware. Only the database is stood in for (the repository
  * and the seat lookups, put back afterwards), with checkout and the AI
  * reader replaced too; push is off in tests.
@@ -271,7 +271,7 @@ beforeAll(() => {
   patch(r, 'listForAdmin', async () =>
     Object.values(requests).map((request) => ({ request, customerName: 'Karthik R', customerPhone: '9876544417' }))
   )
-  patch(r, 'garagePhones', async () => new Map([[GARAGE, '9000007510']]))
+  patch(r, 'garagePhones', async () => new Map([[GARAGE, '9000007610']]))
   patch(r, 'garageSetting', async (vendorId: string) => (vendorId === GARAGE ? { enabled: false, bookable } : undefined))
   patch(r, 'garageStats', async () => ({ asked: 9, answeredInTime: 8 }))
   patch(r, 'setGarageEnabled', async (vendorId: string, enabled: boolean) => {
@@ -309,7 +309,7 @@ beforeEach(() => {
   readerCalls = []
   setBriefReaderForTests({
     read: async (request) => {
-      readerCalls.push({ text: request.text, files: request.files.length })
+      readerCalls.push({ text: request.prompt, files: request.files.length })
       return JSON.stringify(FAKE_BRIEF_READING)
     },
   })
@@ -659,7 +659,7 @@ describe('admin', () => {
     expect(body.data.counts).toMatchObject({ all: 2, open: 2 })
     expect(body.data.items[0].customer).toEqual({ name: 'Karthik R', phone: expect.stringContaining('4417') })
     expect(body.data.items[0].customer.phone).not.toContain('98765')
-    expect(body.data.items[0].quotes[0].garage.phone).toBe('9000007510')
+    expect(body.data.items[0].quotes[0].garage.phone).toBe('9000007610')
   })
 
   test('the garage switch needs a free inspection service to turn on', async () => {

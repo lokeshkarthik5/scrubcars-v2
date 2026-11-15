@@ -2,7 +2,7 @@ import type { AdminRepairFilter, AdminRepairRequest } from '@repo/core/api/repai
 import { formatClock } from '@repo/core/format'
 import { priceRangeLabel, timeLeftLabel } from '@repo/core/repair-quotes'
 
-/** Admin's Repair quotes chips (0075), in the order drawn. */
+/** Admin's Repair quotes chips (0076), in the order drawn. */
 export const REPAIR_FILTERS: Array<{ value: AdminRepairFilter; label: string }> = [
   { value: 'all', label: 'All' },
   { value: 'open', label: 'Open' },

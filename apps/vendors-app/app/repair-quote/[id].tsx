@@ -22,7 +22,7 @@ import { quoteProblem, rupees } from '@/lib/repair-quote-view';
 const R = REPAIR_QUOTE_RULES;
 
 /**
- * apps/vendors/app/requests/repair/[id]/page.tsx: "Your quote" (0075). The garage's estimate
+ * apps/vendors/app/requests/repair/[id]/page.tsx: "Your quote" (0076). The garage's estimate
  * for a repair request — price from and to, days needed, whether it must see the car first,
  * and a note — under the same answer timer as a new booking. Only while it waits for this
  * garage, in time; the API refuses anything else.

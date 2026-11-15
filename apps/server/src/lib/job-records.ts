@@ -10,7 +10,7 @@
  * done: a record either side can still rewrite months later proves little.
  */
 
-import type { PhotoAngle, PhotoRole } from './job-photo-standards.js'
+import type { JobPhotoAngle, PhotoRole } from './job-photo-standards.js'
 
 export type JobPhotoStage = 'before' | 'after'
 
@@ -174,7 +174,7 @@ export function toJobPhotoView(
     stage: photo.stage,
     url: link(photo.url),
     createdAt: photo.createdAt.toISOString(),
-    angle: (photo.angle ?? null) as PhotoAngle | null,
+    angle: (photo.angle ?? null) as JobPhotoAngle | null,
     by: (photo.uploadedByRole === 'customer' ? 'customer' : 'garage') as PhotoRole,
   }
 }

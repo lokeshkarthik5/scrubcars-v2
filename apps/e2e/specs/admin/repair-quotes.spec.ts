@@ -1,11 +1,11 @@
 /**
- * Repair & bodywork quotes (0075) for the team: Requests gets a second tab,
+ * Repair & bodywork quotes (0076) for the team: Requests gets a second tab,
  * Repair quotes, listing each request with the customer's phone masked,
  * where it stands, each garage's answer (Call for one still waiting) and
  * "Video & photos"; the garage editor's Hours & booking gets "Takes repair &
  * bodywork quotes", which saves on tap and needs a free inspection service.
  *
- * Uses REPAIR_QUOTES' garages and a request of its own (id 7541), put back
+ * Uses REPAIR_QUOTES' garages and a request of its own (id 7641), put back
  * after; the switch is flipped on `switchGarage`, which no request reaches. The journey sends its own requests at the same time, so
  * cards are found by their reference.
  */
@@ -16,7 +16,7 @@ import { REPAIR_QUOTES } from '../../support/seed-ids'
 test.use({ storageState: asRole('admin') })
 
 const Q = REPAIR_QUOTES
-const REQUEST = 'e2e00000-0000-4000-8000-000000007541'
+const REQUEST = 'e2e00000-0000-4000-8000-000000007641'
 
 const seed = async () => {
   await sql`delete from repair_quote_requests where id = ${REQUEST}`

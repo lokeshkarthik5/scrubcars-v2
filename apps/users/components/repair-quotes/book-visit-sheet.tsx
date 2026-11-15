@@ -14,7 +14,7 @@ import { priceRangeLabel } from '@repo/core/repair-quotes'
 import { cn } from '@repo/core/utils'
 
 /**
- * Book a visit (0075): the garage looks at the car and confirms the price
+ * Book a visit (0076): the garage looks at the car and confirms the price
  * before any work. Booked as today's "price on inspection" visit with no
  * fee (0073): the inspection is free, nothing is paid now, the garage's
  * estimate is shown as the guide, and its final bill (with extra work

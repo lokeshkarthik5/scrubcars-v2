@@ -5,7 +5,7 @@ import type { RepairQuoteState, RepairRequestState } from '@repo/core/repair-quo
 import type { VehicleType } from '@repo/core/types'
 
 /**
- * Repair & bodywork quotes (0075). The customer's own requests at
+ * Repair & bodywork quotes (0076). The customer's own requests at
  * /users/me/repair-quotes; the garage's at /vendors/me/repair-quotes (the
  * garage the session resolved, X-Vendor-Id); admin's at /admin/repair-quotes.
  */

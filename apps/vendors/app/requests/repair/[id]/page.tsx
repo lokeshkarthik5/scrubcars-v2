@@ -26,7 +26,7 @@ const DAY_CHOICES = [1, 2, 3] as const
 const rupees = typedRupees
 
 /**
- * "Your quote" (0075): the garage's estimate for a repair request — price
+ * "Your quote" (0076): the garage's estimate for a repair request — price
  * from and to, days needed, whether it must see the car first, and a note
  * for the customer — under the same answer timer as a new booking. Only
  * while it waits for this garage, in time; the API refuses anything else.

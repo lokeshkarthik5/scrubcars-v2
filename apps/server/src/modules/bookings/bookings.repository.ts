@@ -7,6 +7,7 @@ import {
   bookingRequests,
   bookingReschedules,
   bookingTimeProposals,
+  conditionMarks,
   bookings,
   discountRedemptions,
   discounts,
@@ -621,6 +622,10 @@ const JOB_RECORDS = {
   // The garage's time suggestions (0041), newest first: the live one, or
   // how the last one ended.
   timeProposals: { orderBy: [desc(bookingTimeProposals.createdAt)], limit: 3 },
+  // The car condition check (0075): the sent check (one at most) and its
+  // marks, oldest first. Empty on every job while the check is off.
+  conditionChecks: true as const,
+  conditionMarks: { orderBy: [asc(conditionMarks.createdAt), asc(conditionMarks.id)] },
 }
 
 /**

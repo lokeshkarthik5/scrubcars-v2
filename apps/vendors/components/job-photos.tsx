@@ -15,14 +15,20 @@ import { ScModal } from '@repo/ui/sc/modal'
 import { deleteJobPhoto, uploadJobPhoto } from '@repo/core/api/job-records'
 import { MAX_JOB_PHOTOS_PER_STAGE } from '@repo/core/job-records'
 import {
+  JOB_PHOTO_ANGLE_LABELS,
   MIN_GARAGE_PHOTOS,
-  PHOTO_ANGLE_LABELS,
+  PHOTO_ANGLES,
   angleLabel,
   angleSlots,
   extraPhotos,
   photosOf,
-  type PhotoAngle,
+  type JobPhotoAngle,
 } from '@repo/core/job-photo-standards'
+import {
+  CAR_CHECK_ANGLES,
+  CAR_CHECK_PHOTO_CAP,
+  isCarCheckAngle,
+} from '@repo/core/condition-check'
 import type { Booking, JobPhoto } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
 import { resizeForUpload } from '@/lib/resize-image'
@@ -53,13 +59,32 @@ const PICKUP_HINTS: Record<JobPhoto['stage'], string> = {
   after: msg('Optional. The finished work, before the car goes back.'),
 }
 
+/** The car condition check's walk-round (0075): what each stage asks for. */
+const CAR_CHECK_LABELS: Record<JobPhoto['stage'], string> = {
+  before: msg('Car check · before'),
+  after: msg('Car check · after'),
+}
+
+const CAR_CHECK_HINTS: Record<JobPhoto['stage'], string> = {
+  before: msg(
+    'Walk round the car with the customer. Detlio marks the scratches and dents it sees; you check them.'
+  ),
+  after: msg(
+    'The same 8 angles, once the work is done. Detlio compares them with the before photos.'
+  ),
+}
+
 /** The small chips' words: the angle without " side", and Inside for the interior. */
-const SHORT_LABELS: Record<PhotoAngle, string> = {
+const SHORT_LABELS: Record<JobPhotoAngle, string> = {
   front: msg('Front'),
   back: msg('Back'),
   left: msg('Left'),
   right: msg('Right'),
   interior: msg('Inside'),
+  front_left: msg('Front left'),
+  front_right: msg('Front right'),
+  back_left: msg('Back left'),
+  back_right: msg('Back right'),
 }
 
 const capitalise = (text: string) =>
@@ -104,29 +129,45 @@ export function JobPhotos({
 }: JobPhotosProps) {
   const t = useT()
   // The slot uploading now ('extra' for the More tile), if any.
-  const [uploading, setUploading] = useState<PhotoAngle | 'extra' | null>(null)
+  const [uploading, setUploading] = useState<JobPhotoAngle | 'extra' | null>(
+    null
+  )
   const [removingId, setRemovingId] = useState<string | null>(null)
   const [viewing, setViewing] = useState<Viewing | null>(null)
   const [confirming, setConfirming] = useState(false)
 
   const standard = booking.photoStandard
-  const required = Boolean(standard?.required && !standard.waived)
+  // The car condition check (0075): while it is on for the garage the
+  // checklist is its 8-angle walk-round, every angle a big tile.
+  const carCheck = booking.conditionCheck
+  const angles: readonly JobPhotoAngle[] = carCheck
+    ? CAR_CHECK_ANGLES
+    : PHOTO_ANGLES
+  const required = carCheck
+    ? stage === 'before' && carCheck.required
+    : Boolean(standard?.required && !standard.waived)
+  // Sent to the customer, the before angles are the record (no retake, no
+  // removal); extras stay the garage's.
+  const locked = Boolean(carCheck?.sentAt) && stage === 'before'
   const own = photosOf(booking.jobPhotos, 'garage', stage)
-  const slots = angleSlots(booking.jobPhotos, 'garage', stage)
-  const extras = extraPhotos(booking.jobPhotos, 'garage', stage)
+  const slots = angleSlots(booking.jobPhotos, 'garage', stage, angles)
+  const extras = extraPhotos(booking.jobPhotos, 'garage', stage, angles)
   const customers = photosOf(booking.jobPhotos, 'customer', stage)
-  const room = readOnly ? 0 : MAX_JOB_PHOTOS_PER_STAGE - own.length
+  const taken = slots.filter((slot) => slot.photo).length
+  const cap = carCheck ? CAR_CHECK_PHOTO_CAP : MAX_JOB_PHOTOS_PER_STAGE
+  const room = readOnly ? 0 : cap - own.length
   const who = booking.customerName ?? t('this customer')
   const before = stage === 'before'
   // "front before photo for Ravi": each stage its own sentence, so Tamil can
   // order it its own way.
-  const angleName = (angle: PhotoAngle) => t(PHOTO_ANGLE_LABELS[angle]).toLowerCase()
-  const photoName = (angle: PhotoAngle) =>
+  const angleName = (angle: JobPhotoAngle) =>
+    t(JOB_PHOTO_ANGLE_LABELS[angle]).toLowerCase()
+  const photoName = (angle: JobPhotoAngle) =>
     before
       ? t('{angle} before photo for {who}', { angle: angleName(angle), who })
       : t('{angle} after photo for {who}', { angle: angleName(angle), who })
 
-  const upload = async (files: File[], angle: PhotoAngle | undefined) => {
+  const upload = async (files: File[], angle: JobPhotoAngle | undefined) => {
     if (files.length === 0) return
     setUploading(angle ?? 'extra')
     try {
@@ -183,15 +224,17 @@ export function JobPhotos({
   // The two big tiles (garage mockup 03): Front and Back, the two angles the
   // standard's two photos usually are, with the next one to take outlined in
   // red. The other angles are small "+" chips, and extras go under More.
-  const big = slots.slice(0, 2)
-  const small = slots.slice(2)
-  const nextAngle = readOnly
-    ? null
-    : (big.find((slot) => !slot.photo)?.angle ?? null)
-  const shortLabel = (angle: PhotoAngle) => t(SHORT_LABELS[angle])
+  // The car check's walk-round is eight big tiles (condition-check mockup 1).
+  const big = carCheck ? slots : slots.slice(0, 2)
+  const small = carCheck ? [] : slots.slice(2)
+  const nextAngle =
+    readOnly || locked
+      ? null
+      : (big.find((slot) => !slot.photo)?.angle ?? null)
+  const shortLabel = (angle: JobPhotoAngle) => t(SHORT_LABELS[angle])
 
   const camera = (
-    angle: PhotoAngle | undefined,
+    angle: JobPhotoAngle | undefined,
     children: React.ReactNode,
     className: string
   ) => (
@@ -237,25 +280,46 @@ export function JobPhotos({
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-[20px] font-semibold text-text-primary">
-          {t(LABELS[stage])}
+          {carCheck ? t(CAR_CHECK_LABELS[stage]) : t(LABELS[stage])}
         </h2>
-        <p
-          className={cn(
-            'rounded-full border px-3 py-1 font-numeric text-[14px] font-medium',
-            required && own.length >= MIN_GARAGE_PHOTOS
-              ? 'border-success/40 text-success'
-              : 'border-white/20 text-text-primary'
-          )}
-        >
-          {required
-            ? t('{done} of {count}', {
-                done: Math.min(own.length, MIN_GARAGE_PHOTOS),
-                count: MIN_GARAGE_PHOTOS,
-              })
-            : `${own.length}/${MAX_JOB_PHOTOS_PER_STAGE}`}
-        </p>
+        {carCheck ? (
+          <p
+            className={cn(
+              'rounded-full border px-3 py-1 font-numeric text-[14px] font-medium',
+              taken >= CAR_CHECK_ANGLES.length
+                ? 'border-success/40 text-success'
+                : 'border-white/20 text-text-primary'
+            )}
+          >
+            {t('{done} of {count}', {
+              done: taken,
+              count: CAR_CHECK_ANGLES.length,
+            })}
+          </p>
+        ) : (
+          <p
+            className={cn(
+              'rounded-full border px-3 py-1 font-numeric text-[14px] font-medium',
+              required && own.length >= MIN_GARAGE_PHOTOS
+                ? 'border-success/40 text-success'
+                : 'border-white/20 text-text-primary'
+            )}
+          >
+            {required
+              ? t('{done} of {count}', {
+                  done: Math.min(own.length, MIN_GARAGE_PHOTOS),
+                  count: MIN_GARAGE_PHOTOS,
+                })
+              : `${own.length}/${MAX_JOB_PHOTOS_PER_STAGE}`}
+          </p>
+        )}
       </div>
-      {own.length === 0 && !readOnly && (
+      {carCheck && !readOnly && !locked && taken < CAR_CHECK_ANGLES.length && (
+        <p className="text-[14px] text-text-secondary">
+          {t(CAR_CHECK_HINTS[stage])}
+        </p>
+      )}
+      {!carCheck && own.length === 0 && !readOnly && (
         <p className="text-[14px] text-text-secondary">
           {required
             ? t(REQUIRED_HINTS[stage], { count: MIN_GARAGE_PHOTOS })
@@ -269,6 +333,11 @@ export function JobPhotos({
           {t('Photos protect you if a customer complains, and count toward Gold.')}
         </p>
       )}
+      {locked && !readOnly && (
+        <p className="text-[13px] text-text-secondary">
+          {t('Sent to the customer: these photos stay with the booking.')}
+        </p>
+      )}
       {readOnly && own.length > 0 && (
         <p className="text-[13px] text-text-secondary">
           {stage === 'before'
@@ -279,7 +348,7 @@ export function JobPhotos({
 
       <ul className="grid grid-cols-2 gap-3">
         {big.map(({ angle, photo }) => {
-          const label = t(PHOTO_ANGLE_LABELS[angle])
+          const label = t(JOB_PHOTO_ANGLE_LABELS[angle])
           if (photo) {
             return (
               <li key={angle} className="relative">
@@ -314,7 +383,7 @@ export function JobPhotos({
               </li>
             )
           }
-          if (room <= 0) return null
+          if (room <= 0 || locked) return null
           return (
             <li key={angle}>
               {camera(
@@ -348,7 +417,7 @@ export function JobPhotos({
       <ul className="flex flex-wrap gap-2">
         {small.map(({ angle, photo }) => {
           if (photo) {
-            const label = t(PHOTO_ANGLE_LABELS[angle])
+            const label = t(JOB_PHOTO_ANGLE_LABELS[angle])
             return (
               <li key={angle} className="flex flex-col items-center gap-1">
                 <span className="relative">
@@ -497,15 +566,17 @@ export function JobPhotos({
                 <ScButton variant="outline" size="md" onClick={closeViewer}>
                   {t('Close')}
                 </ScButton>
-                {!readOnly && viewing.own && (
-                  <ScButton
-                    variant="outline"
-                    size="md"
-                    onClick={() => setConfirming(true)}
-                  >
-                    {t('Remove photo')}
-                  </ScButton>
-                )}
+                {!readOnly &&
+                  viewing.own &&
+                  !(locked && isCarCheckAngle(viewing.photo.angle)) && (
+                    <ScButton
+                      variant="outline"
+                      size="md"
+                      onClick={() => setConfirming(true)}
+                    >
+                      {t('Remove photo')}
+                    </ScButton>
+                  )}
               </div>
             )}
           </div>

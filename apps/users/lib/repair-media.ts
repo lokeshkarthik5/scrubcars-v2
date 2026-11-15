@@ -4,7 +4,7 @@ import { decodeImage, encodeImage, fitWithin } from '@repo/core/image-upload'
 import { frameTimes, wipeVideoLocation } from '@repo/core/repair-quotes'
 
 /**
- * The customer's video and pictures for a repair request (0075), on the
+ * The customer's video and pictures for a repair request (0076), on the
  * phone: the video's length, still frames taken from it for Detlio's brief
  * (the AI reads pictures, not video), the video wiped of the place it was
  * recorded before it is uploaded, and small copies of every picture for the

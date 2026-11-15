@@ -20,7 +20,7 @@ import { BoxedPhoto } from '@/components/repair-quotes/boxed-photo'
 import { QuoteCard, QuoteLine } from '@/components/repair-quotes/quote-card'
 
 /**
- * One repair request (0075): while no garage has answered, "Sent to N
+ * One repair request (0076): while no garage has answered, "Sent to N
  * garages" with the answer-by ring and each garage's state; once any has,
  * the quotes — each garage's estimate, days, "Needs to see the car", rating,
  * distance, note and "Final bills match quotes" — with Book a visit. Cancel

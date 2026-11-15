@@ -158,11 +158,12 @@ export interface DocumentRequest {
   schema: Record<string, unknown>
   maxOutputTokens: number
   /**
-   * The words sent with the files, in place of "Read this document." (the
-   * repair-quote brief sends the customer's own line, 0075). Data for the
-   * model, never instructions: the caller's `instructions` say so.
+   * The user turn's line before the files. Fixed text, never personal data,
+   * except the repair-quote brief's (0076), which sends the customer's own
+   * line about the damage as data, never instructions: its `instructions`
+   * say so. Unset: the garage import's own ("Read this document.").
    */
-  text?: string
+  prompt?: string
 }
 
 /** Anything that reads files into JSON text: OpenAI, or a test's fake. */
@@ -201,7 +202,7 @@ export function openAiDocumentClient({ apiKey, model, fetch }: OpenAiDocumentCon
   const client = new OpenAI({ apiKey, timeout: 50_000, maxRetries: 0, ...(fetch && { fetch }) })
 
   return {
-    async read({ instructions, files, schemaName, schema, maxOutputTokens, text }) {
+    async read({ instructions, files, schemaName, schema, maxOutputTokens, prompt }) {
       try {
         const response = await client.responses.create({
           model,
@@ -213,7 +214,7 @@ export function openAiDocumentClient({ apiKey, model, fetch }: OpenAiDocumentCon
                 {
                   type: 'input_text',
                   text:
-                    text ??
+                    prompt ??
                     (files.length === 1
                       ? 'Read this document.'
                       : `Read these ${files.length} documents; they are about the same garage.`),

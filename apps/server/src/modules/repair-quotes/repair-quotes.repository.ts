@@ -15,7 +15,7 @@ import { COUNTED_REVIEW } from '../reviews/reviews.predicates.js'
 import { LISTED_TO_CUSTOMERS } from '../vendors/vendors.predicates.js'
 
 /**
- * Repair & bodywork quotes (0075): every query, no rules (lib/repair-quotes.ts
+ * Repair & bodywork quotes (0076): every query, no rules (lib/repair-quotes.ts
  * and the service decide). Reads are awaited one at a time (production has
  * one database connection; db/one-read-at-a-time.test.ts).
  */

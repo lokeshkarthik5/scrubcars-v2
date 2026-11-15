@@ -1,3 +1,4 @@
+import { conditionCheckService } from '../condition-check/condition-check.service.js'
 import { NOTE_EDIT_HOURS, noteEditRefusal, noteEditableUntil, type NoteEditRefusal } from '../../lib/booking-notes.js'
 import { AT_GARAGE_ADDRESS_MESSAGE, atGarageAddressMissing, atGarageAddressRefused, garageAddressLine } from '../../lib/garage-address.js'
 import { timingSafeEqual } from 'node:crypto'
@@ -664,6 +665,16 @@ async function loadBookingDetail(id: string, now: number) {
             }) === null,
         }
       : null,
+    // The car condition check (0075): the garage's walk-round, its marks
+    // (removed ones too), the customer's answer and any "Something's wrong"
+    // note, and possible new marks after the job. Null while it is off.
+    conditionCheck: await conditionCheckService.adminView({
+      id: booking.id,
+      vendorId: booking.vendorId,
+      status: booking.status,
+      bookingType: booking.bookingType,
+      photosWaivedAt: booking.photosWaivedAt,
+    }),
     lat: booking.lat,
     lng: booking.lng,
     // A doorstep-only garage may have no street address (0064): the city.

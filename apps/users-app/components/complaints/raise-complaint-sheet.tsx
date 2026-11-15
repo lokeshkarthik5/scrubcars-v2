@@ -30,17 +30,25 @@ export function RaiseComplaintSheet({
   open,
   onClose,
   booking,
+  prefill,
 }: {
   open: boolean;
   onClose: () => void;
   booking: { id: string; reference: string; vendorName: string } | null;
+  /**
+   * What the form starts with, for a complaint raised from somewhere that already
+   * knows (the car condition check's "New mark found", 0075). The customer can
+   * change either before sending.
+   */
+  prefill?: { category: ComplaintCategory; message: string };
 }) {
   const t = useT();
   const colors = useColors();
   const styles = useStyles();
   const raise = useRaiseComplaint();
-  const [category, setCategory] = useState<ComplaintCategory | null>(null);
-  const [message, setMessage] = useState('');
+  // Each opening starts from the prefill, when there is one.
+  const [category, setCategory] = useState<ComplaintCategory | null>(prefill?.category ?? null);
+  const [message, setMessage] = useState(prefill?.message ?? '');
   const [error, setError] = useState('');
   const [received, setReceived] = useState<CustomerComplaint | null>(null);
   const trimmed = message.trim();
@@ -49,8 +57,8 @@ export function RaiseComplaintSheet({
   const close = () => {
     if (raise.isPending) return;
     onClose();
-    setCategory(null);
-    setMessage('');
+    setCategory(prefill?.category ?? null);
+    setMessage(prefill?.message ?? '');
     setError('');
     setReceived(null);
   };

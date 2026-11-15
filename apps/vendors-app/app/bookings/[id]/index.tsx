@@ -15,6 +15,7 @@ import { AppShell, garageScreen } from '@/components/app-shell';
 import { BeforeAfterCompare } from '@/components/before-after';
 import { Label, ScButton } from '@repo/native-ui/button';
 import { CancelAcceptedBooking } from '@/components/cancel-accepted-booking';
+import { CarCheckSummary, NewMarkWarning, useNewMarkWarning, WasThereButton } from '@/components/car-check';
 import { ExtraWorkPanel } from '@/components/extra-work';
 import { FinalBillPanel } from '@/components/final-bill';
 import {
@@ -32,6 +33,7 @@ import { NewBookingCard } from '@/components/new-booking-card';
 import { PickupSteps } from '@/components/pickup-steps';
 import { EmptyState, LoadError, SkeletonList, Stars, StatusChip } from '@repo/native-ui/primitives';
 import { T } from '@repo/native-ui/text';
+import { useConditionReader } from '@/lib/condition-reader';
 import { changeStatusWithUndo, DEFERRED_WORDS, useDeferredStatus } from '@/lib/deferred-status';
 import {
   blockers,
@@ -99,6 +101,8 @@ function Job({ booking: b, now, onChanged }: { booking: Booking; now: number; on
   const colors = useColors();
   const styles = useStyles();
   const deferred = useDeferredStatus(b.id);
+  // The car condition check (0075): Detlio looks at each new walk-round photo.
+  useConditionReader(b, onChanged);
   const [beforeOpen, setBeforeOpen] = useState(false);
   const who = b.customerName || t('the customer');
   const ended = b.status === 'cancelled' || b.status === 'rescheduled';
@@ -201,6 +205,8 @@ function Job({ booking: b, now, onChanged }: { booking: Booking; now: number; on
       {working ? (
         <View style={styles.card}>
           <JobPhotos booking={b} stage={stage} onChanged={onChanged} readOnly={!photosOpen(b, stage, now)} />
+          {/* The car check's state: Check the marks, or sent and answered. */}
+          {stage === 'before' || b.conditionCheck?.sentAt ? <CarCheckSummary booking={b} /> : null}
           {b.photoStandard?.required && b.photoStandard.waived ? (
             <T size={13} color={colors.textSecondary} style={styles.waived}>
               {t("Detlio waived the photos for this job: Start and Complete don't wait for them.")}
@@ -373,6 +379,8 @@ function DockedStep({
   const who = b.customerName || t('the customer');
   const action = b.status === 'confirmed' ? 'start' : 'complete';
   const missing = blockers(b, action);
+  // A possible new mark after the job (0075): it warns, never blocks.
+  const warning = useNewMarkWarning(b, onChanged);
 
   if (deferred) {
     return (
@@ -384,11 +392,29 @@ function DockedStep({
     );
   }
   if (b.bookingType === 'pickup') {
-    return <PickupSteps booking={b} onStartWork={() => changeStatusWithUndo(b.id, 'in_progress')} onChanged={onChanged} />;
+    return (
+      <View style={styles.dock}>
+        {warning ? <NewMarkWarning booking={b} state={warning} button /> : null}
+        <PickupSteps booking={b} onStartWork={() => changeStatusWithUndo(b.id, 'in_progress')} onChanged={onChanged} />
+      </View>
+    );
   }
   const blocked = missing.length > 0;
+  const completeButton = (
+    <ScButton
+      variant="main"
+      size="lg"
+      disabled={blocked}
+      accessibilityLabel={action === 'start' ? t('Start job for {who}', { who }) : t('Complete job for {who}', { who })}
+      onPress={() => changeStatusWithUndo(b.id, action === 'start' ? 'in_progress' : 'completed')}
+    >
+      {blocked ? <IconLock size={20} color={colors.textSecondary} /> : null}
+      <Label color={blocked ? colors.textSecondary : colors.white}>{action === 'start' ? t('Start job') : t('Complete job')}</Label>
+    </ScButton>
+  );
   return (
     <View style={styles.dock}>
+      {warning && action === 'complete' ? <NewMarkWarning booking={b} state={warning} /> : null}
       {blocked ? (
         <View accessibilityLabel={t('Still to do')} style={styles.missing}>
           {missing.map((line) => (
@@ -401,16 +427,17 @@ function DockedStep({
           ))}
         </View>
       ) : null}
-      <ScButton
-        variant="main"
-        size="lg"
-        disabled={blocked}
-        accessibilityLabel={action === 'start' ? t('Start job for {who}', { who }) : t('Complete job for {who}', { who })}
-        onPress={() => changeStatusWithUndo(b.id, action === 'start' ? 'in_progress' : 'completed')}
-      >
-        {blocked ? <IconLock size={20} color={colors.textSecondary} /> : null}
-        <Label color={blocked ? colors.textSecondary : colors.white}>{action === 'start' ? t('Start job') : t('Complete job')}</Label>
-      </ScButton>
+      {warning && action === 'complete' ? (
+        // "It was there" beside Complete job, as the web's flex-1 and flex-[1.4].
+        <View style={styles.answerRow}>
+          <View style={styles.wasThere}>
+            <WasThereButton state={warning} />
+          </View>
+          <View style={styles.complete}>{completeButton}</View>
+        </View>
+      ) : (
+        completeButton
+      )}
     </View>
   );
 }
@@ -465,4 +492,7 @@ const useStyles = createStyles((colors) => ({
   waiting: { minHeight: 56, alignItems: 'center', justifyContent: 'center' },
   missing: { gap: 8 },
   missingRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  answerRow: { flexDirection: 'row', gap: 8 },
+  wasThere: { flex: 1, minWidth: 0 },
+  complete: { flex: 1.4, minWidth: 0 },
 }));

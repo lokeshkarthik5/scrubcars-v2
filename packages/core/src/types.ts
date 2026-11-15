@@ -295,10 +295,70 @@ export interface JobPhoto {
   stage: 'before' | 'after'
   url: string
   createdAt: string
-  /** The guided angle it was taken from (0045), or null for an extra. */
-  angle: 'front' | 'back' | 'left' | 'right' | 'interior' | null
+  /**
+   * The guided angle it was taken from (0045), or null for an extra. The
+   * car condition check (0075) adds the four corners, garage photos only.
+   */
+  angle: JobPhotoAngle | null
   /** Whose photo (0045): the garage's record, or the customer's own. */
   by: 'garage' | 'customer'
+}
+
+/** Every angle a job photo can carry: 0045's five and the condition check's corners (0075). */
+export type JobPhotoAngle =
+  | 'front'
+  | 'back'
+  | 'left'
+  | 'right'
+  | 'interior'
+  | 'front_left'
+  | 'front_right'
+  | 'back_left'
+  | 'back_right'
+
+/**
+ * A mark on a job photo (0075): damage already there before the job, or a
+ * possible new mark an after photo shows. `box` is 0-1 from the photo's top
+ * left (null for one the garage added). `removed` only ever reaches the
+ * garage (for Undo) and admin.
+ */
+export interface ConditionMark {
+  id: string
+  photoId: string
+  /** After marks: the before photo it was compared with. */
+  beforePhotoId: string | null
+  stage: 'before' | 'after'
+  kind: 'scratch' | 'dent' | 'crack' | 'paint_chip' | 'other'
+  part: string
+  /** "Scratch – rear left door", in English (the apps build their own with markLabel). */
+  label: string
+  box: { x: number; y: number; w: number; h: number } | null
+  unsure: boolean
+  source: 'ai' | 'garage'
+  removed: boolean
+  garageAnswer: 'was_there' | null
+  customerAnswer: 'already_there' | null
+}
+
+/**
+ * The car condition check on a booking (0075), as the server decides it;
+ * null while the check is off for the garage (and, for the customer, until
+ * there is something to show). The garage's carries `unread` (photos
+ * Detlio has still to look at), `canSend` and `gate` (what Picked up /
+ * Start job wait for); the customer's carries `photos`, the photos it
+ * shows with their own links.
+ */
+export interface ConditionCheck {
+  required: boolean
+  ai: boolean
+  sentAt: string | null
+  canSend: boolean
+  taken: { before: number; after: number }
+  unread: string[]
+  marks: ConditionMark[]
+  photos: JobPhoto[]
+  answer: { kind: 'looks_right' | 'something_wrong'; at: string; note: string | null } | null
+  gate: { missing: number; notSent: boolean } | null
 }
 
 /**
@@ -504,6 +564,8 @@ export interface Booking {
   customerBadge: string | null
   /** Customer only (0045): when they may add their own photos; null where not carried. */
   conditionPhotos: ConditionPhotos | null
+  /** The car condition check (0075), the viewer's own view; null while off or not carried. */
+  conditionCheck: ConditionCheck | null
   /** The final bill that stands, if the garage has raised one. */
   finalBill: FinalBill | null
   /** Garage only: the job card can offer "Raise final bill" now. */
