@@ -45,6 +45,7 @@ import { ExtraWorkCard } from '@/components/booking/extra-work-card';
 import { type BillPayment, FinalBillCard } from '@/components/booking/final-bill-card';
 import { BookingHelpSheet } from '@/components/booking/help-sheet';
 import { JobPhotosCard } from '@/components/booking/job-photos-card';
+import { BookingShineCard } from '@/components/shine/booking-shine-card';
 import { OtherGaragesCard } from '@/components/booking/other-garages-card';
 import { PickupCodeCard, PickupTimeline, StatusStepper } from '@/components/booking/progress';
 import { BypassReportLine } from '@/components/booking/report-bypass';
@@ -603,6 +604,8 @@ export default function BookingDetailScreen() {
         ) : null}
 
         <View onLayout={(e) => (cardY.current.photos = e.nativeEvent.layout.y)}>
+          {/* Shine Score (0075): "Your Shine went 46 → 92", from the garage's photos. */}
+          <BookingShineCard bookingId={booking.id} completed={finished} photos={booking.jobPhotos} />
           <JobPhotosCard photos={booking.jobPhotos} completed={finished} />
         </View>
         <CarConditionCard

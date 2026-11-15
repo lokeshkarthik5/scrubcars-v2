@@ -30,7 +30,8 @@ export function NextFreeRow({
   serviceIds,
   style,
 }: {
-  vendor: Vendor;
+  /** Only its id and name are read (Shine Score's suggestions pass just those). */
+  vendor: Pick<Vendor, 'id' | 'name'>;
   mode: BookingType;
   visible: boolean;
   /** The services already picked, on the garage page: a time then books them, as Book now would. */
