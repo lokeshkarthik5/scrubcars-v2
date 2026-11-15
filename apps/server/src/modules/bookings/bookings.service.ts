@@ -76,6 +76,15 @@ import {
   type PhotoGateStep,
 } from '../../lib/job-photo-standards.js'
 import { jobPhotosRequiredFor } from '../job-photos/job-photos.service.js'
+import {
+  carCheckGateFor,
+  carCheckGateMessage,
+  customerConditionView,
+  garageConditionView,
+  type CheckRow,
+  type MarkRow,
+} from '../../lib/condition-check.js'
+import { conditionAiOn, conditionCheckOn } from '../condition-check/condition-check.service.js'
 import { analyticsService } from '../analytics/analytics.service.js'
 import { discountsService } from '../discounts/discounts.service.js'
 import { membersRepository } from '../members/members.repository.js'
@@ -188,6 +197,51 @@ function assertPhotoGate(
     )
   }
   return required ? { stage, min: MIN_GARAGE_PHOTOS } : undefined
+}
+
+/**
+ * The car condition check's gate (0075): pickup & drop's Picked up and a
+ * doorstep job's Start wait for the 8-angle walk-round, sent to the
+ * customer, while the check is on for the garage (Detlio's photo waiver
+ * waives it). No conditional write is needed: once sent, the walk-round's
+ * photos cannot be removed (job-photos.service), and sent cannot be unsent.
+ */
+function assertCarCheckGate(
+  booking: BookingWithRelations,
+  step: 'picked_up' | 'start',
+  options: { forDetlio?: boolean } = {}
+) {
+  const refusal = carCheckGateFor(
+    {
+      on: conditionCheckOn(booking.vendorId ?? booking.vendor?.id),
+      bookingType: booking.bookingType,
+      photosWaivedAt: booking.photosWaivedAt ?? null,
+      photos: booking.photos ?? [],
+      sentAt: booking.conditionChecks?.[0]?.sentAt ?? null,
+    },
+    step
+  )
+  if (refusal) {
+    throw new AppError(
+      409,
+      options.forDetlio
+        ? "The garage has not finished the car check. Ask it to, or waive the photos for this booking first."
+        : carCheckGateMessage(refusal),
+      'CONDITION_CHECK_REQUIRED'
+    )
+  }
+}
+
+/** The facts the car condition check's views read (0075), from a booking with its job records. */
+function conditionJobOf(booking: BookingWithRelations) {
+  return {
+    status: booking.status,
+    bookingType: booking.bookingType,
+    photosWaivedAt: booking.photosWaivedAt ?? null,
+    photos: booking.photos ?? [],
+    check: booking.conditionChecks?.[0] ?? null,
+    marks: booking.conditionMarks ?? [],
+  }
 }
 
 /**
@@ -444,7 +498,13 @@ type BookingWithRelations = {
     // 0045: whose photo, and the guided angle. Optional for hand-built rows.
     uploadedByRole?: string | null
     angle?: string | null
+    // 0075: whether Detlio's AI has looked at it for the car condition check.
+    conditionRead?: string | null
   }>
+  // The car condition check (0075), with JOB_RECORDS: the sent check (one
+  // at most) and its marks.
+  conditionChecks?: CheckRow[]
+  conditionMarks?: MarkRow[]
   // Final bills and extra work (0041) alike; the mappers pick each out.
   charges?: Array<
     FinalBillRecord & {
@@ -743,6 +803,12 @@ export function toBookingResponse(
         .filter((photo) => photo.uploadedByRole === 'customer' || customerSeesPhotos(booking.status))
         .map((photo) => toJobPhotoView(photo, jobPhotoLink)),
       conditionPhotos: customerPhotoWindowsView(photoStandardJob(booking), Date.now()),
+      // The car condition check (0075): what the garage sent, the customer's
+      // answer, and possible new marks once the job is done. Null while the
+      // check is off for the garage, and before there is anything to show.
+      conditionCheck: conditionCheckOn(booking.vendorId ?? booking.vendor?.id)
+        ? customerConditionView(conditionJobOf(booking), conditionAiOn(), jobPhotoLink)
+        : null,
     }),
     // The final bill of an inspection job, if the garage has raised one: the
     // one that stands, not any it replaced.
@@ -825,6 +891,8 @@ export function toVendorBookingResponse(booking: BookingWithRelations) {
     pickup: _customerPickup,
     // When the customer may add their own photos is theirs to read.
     conditionPhotos: _conditionPhotos,
+    // The garage gets its own view of the car condition check, below.
+    conditionCheck: _customerConditionCheck,
     ...vendorView
   } = toBookingResponse(booking)
 
@@ -872,6 +940,12 @@ export function toVendorBookingResponse(booking: BookingWithRelations) {
         jobPhotosRequiredFor(booking.vendorId ?? booking.vendor?.id ?? ''),
         Date.now()
       ),
+      // The car condition check (0075): the walk-round, Detlio's marks, the
+      // customer's answer and what Picked up / Start wait for. Null while the
+      // check is off for the garage: the portal shows today's photos.
+      conditionCheck: conditionCheckOn(booking.vendorId ?? booking.vendor?.id)
+        ? garageConditionView(conditionJobOf(booking), conditionAiOn())
+        : null,
     }),
     // Whether the job card offers "Raise final bill" now. Worked out here so
     // the portal never restates the rules (lib/final-bill.ts). The bill
@@ -2420,6 +2494,8 @@ export const bookingsService = {
 
     // 0045: two before photos from the garage, unless waived or relaxed.
     const garagePhotos = assertPhotoGate(booking, 'start')
+    // 0075: a doorstep job's car check, sent to the customer.
+    assertCarCheckGate(booking, 'start')
 
     const [started] = await bookingsRepository.updateBookingStatus(
       bookingId,
@@ -2491,7 +2567,7 @@ export const bookingsService = {
     if (updated!.guaranteeRedo) guaranteeService.redoChanged(bookingId)
     // Detlio Rewards (0050): a stamp and a scratch card, or why not.
     rewardsService.scheduleAfterCompletion(bookingId)
-    // Shine Score (0075): the before/after score from the garage's photos, after the response.
+    // Shine Score (0078): the before/after score from the garage's photos, after the response.
     shineScoreService.scheduleAfterCompletion(bookingId)
     // Garage Book stock (0074): its services' stock comes off, in the background.
     garageStockService.afterDetlioCompletion(vendorId, bookingId)
@@ -2510,6 +2586,9 @@ export const bookingsService = {
   async markPickedUp(vendorId: string, actorId: string, bookingId: string, code: string) {
     const { booking } = await getBookingForVendor(vendorId, bookingId)
     assertPickupStep(booking, 'picked_up')
+    // 0075: the car check, sent, before the car goes. Before the code is
+    // checked, so a wrong try is not spent on it.
+    assertCarCheckGate(booking, 'picked_up')
     await assertHandoverCode(booking, 'pickup', code)
 
     const [row] = await bookingsRepository.markPickedUp(bookingId, {
@@ -2588,7 +2667,7 @@ export const bookingsService = {
     // A free redo done (0051): its claim closes.
     if (updated!.guaranteeRedo) guaranteeService.redoChanged(bookingId)
     rewardsService.scheduleAfterCompletion(bookingId)
-    // Shine Score (0075): the before/after score from the garage's photos, after the response.
+    // Shine Score (0078): the before/after score from the garage's photos, after the response.
     shineScoreService.scheduleAfterCompletion(bookingId)
     // Garage Book stock (0074): its services' stock comes off, in the background.
     garageStockService.afterDetlioCompletion(vendorId, bookingId)
@@ -2614,6 +2693,8 @@ export const bookingsService = {
     // 0045: Detlio holds the same standard; it waives it on the booking first
     // when there is a genuine reason.
     const garagePhotos = step === 'delivered' ? assertPhotoGate(booking, 'finish', { forDetlio: true }) : undefined
+    // 0075: the same car check before Picked up; a waiver waives it.
+    if (step === 'picked_up') assertCarCheckGate(booking, 'picked_up', { forDetlio: true })
 
     const at = new Date()
     const [row] =

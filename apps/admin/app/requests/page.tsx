@@ -25,6 +25,7 @@ import {
   requestsHref,
 } from '@/lib/requests'
 import { replaceAddress } from '@/lib/replace-address'
+import { RequestsTabs } from '@/components/requests-tabs'
 
 const EMPTY: Record<string, { title: string; subtitle: string }> = {
   open: {
@@ -71,6 +72,7 @@ function RequestsList() {
 
   return (
     <>
+      <RequestsTabs />
       <PageHeader
         title="Requests"
         subtitle={`Customers asking a garage just outside its area to come anyway. The garage has ${REQUEST_RULES.respondMinutes / 60} hours to answer, then it goes to the next one. The last ${data?.days ?? 30} days, newest first.`}

@@ -79,7 +79,7 @@ function SuggestionCard({ suggestion: s }: { suggestion: ShineSuggestion }) {
   );
 }
 
-/** The result (0075; the web's app/shine/[id]/page.tsx). */
+/** The result (0078; the web's app/shine/[id]/page.tsx). */
 export default function ShineResultScreen() {
   const t = useT();
   const colors = useColors();

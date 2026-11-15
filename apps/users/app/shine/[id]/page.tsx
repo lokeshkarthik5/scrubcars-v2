@@ -73,7 +73,7 @@ function SuggestionCard({ suggestion: s }: { suggestion: ShineSuggestion }) {
 }
 
 /**
- * The result (0075): the score on the Last wash gauge turned round (higher
+ * The result (0078): the score on the Last wash gauge turned round (higher
  * is greener), the summary, a score per area, what was noticed, real
  * services nearby for it with times to tap, and Share. Scores are
  * suggestions, and the page says so.

@@ -2,6 +2,7 @@
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  checkBypassFlags,
   confirmBypassReport,
   dismissBypassReport,
   getBypassStatus,
@@ -10,6 +11,7 @@ import {
   listAdminBypassReports,
   reportBypass,
   type AdminBypassFilter,
+  type AdminBypassSource,
   type ReportBypassInput,
 } from '@repo/core/api/bypass-reports'
 import { adminVendorKeys } from '@repo/core/api/hooks/use-admin-vendors'
@@ -51,15 +53,15 @@ export function useReportBypass() {
 export const adminBypassKeys = {
   all: ['admin-bypass-reports'] as const,
   lists: () => [...adminBypassKeys.all, 'list'] as const,
-  list: (show: AdminBypassFilter) => [...adminBypassKeys.lists(), show] as const,
+  list: (show: AdminBypassFilter, from: AdminBypassSource = 'all') => [...adminBypassKeys.lists(), show, from] as const,
   garage: (vendorId: string) => [...adminBypassKeys.all, 'garage', vendorId] as const,
   dropOff: () => [...adminBypassKeys.all, 'drop-off'] as const,
 }
 
-export function useAdminBypassReports(show: AdminBypassFilter) {
+export function useAdminBypassReports(show: AdminBypassFilter, from: AdminBypassSource = 'all') {
   return useQuery({
-    queryKey: adminBypassKeys.list(show),
-    queryFn: () => listAdminBypassReports(show),
+    queryKey: adminBypassKeys.list(show, from),
+    queryFn: () => listAdminBypassReports(show, from),
     refetchInterval: 60_000,
     placeholderData: keepPreviousData,
   })
@@ -106,5 +108,14 @@ export function useDropOff() {
     queryFn: getDropOff,
     staleTime: 5 * 60_000,
     retry: false,
+  })
+}
+
+/** Admin's Check now (0077): the lists are read again for any new flag. */
+export function useCheckBypassFlags() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => checkBypassFlags(),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: adminBypassKeys.lists() }),
   })
 }

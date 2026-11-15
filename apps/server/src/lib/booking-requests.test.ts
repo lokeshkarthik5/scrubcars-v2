@@ -215,6 +215,20 @@ describe('who can be asked', () => {
     expect(pickNextGarage(list.filter((c) => c.vendorId !== 'near'), new Set(['tried']), 1)?.vendorId).toBe('covers')
   })
 
+  test('the next garage: a quick, reliable answerer beats a slightly nearer slow one', () => {
+    const list = [
+      candidate({ vendorId: 'slow', distanceKm: 3, record: { medianAnswerMins: 58, acceptRate: 0.4, recentCancels: 0 } }),
+      candidate({ vendorId: 'quick', distanceKm: 5, record: { medianAnswerMins: 6, acceptRate: 0.95, recentCancels: 0 }, rating: 4.7 }),
+    ]
+    expect(pickNextGarage(list, new Set(), 1)?.vendorId).toBe('quick')
+    // Recent cancellations by the garage weigh against it.
+    const cancels = [
+      candidate({ vendorId: 'cancels', distanceKm: 2, record: { medianAnswerMins: null, acceptRate: null, recentCancels: 3 } }),
+      candidate({ vendorId: 'steady', distanceKm: 4 }),
+    ]
+    expect(pickNextGarage(cancels, new Set(), 1)?.vendorId).toBe('steady')
+  })
+
   test('at most two garages a request', () => {
     expect(pickNextGarage([candidate({ vendorId: 'x' })], new Set(), 2)).toBeNull()
     expect(REQUEST_RULES.maxGarages).toBe(2)

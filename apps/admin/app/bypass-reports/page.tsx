@@ -3,7 +3,12 @@
 import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { IconChevronRight, IconFlag } from '@tabler/icons-react'
+import { toast } from 'react-toastify'
+import {
+  IconChevronRight,
+  IconFlag,
+  IconShieldSearch,
+} from '@tabler/icons-react'
 import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
@@ -16,9 +21,13 @@ import { SkeletonList } from '@repo/ui/sc/skeleton'
 import type {
   AdminBypassFilter,
   AdminBypassReport,
+  AdminFlagEvidence,
 } from '@repo/core/api/bypass-reports'
 import { errorMessage, isAuthError } from '@repo/core/api/hooks/use-discounts'
-import { useAdminBypassReports } from '@repo/core/api/hooks/use-bypass-reports'
+import {
+  useAdminBypassReports,
+  useCheckBypassFlags,
+} from '@repo/core/api/hooks/use-bypass-reports'
 import {
   BYPASS_REWARD_LABELS,
   BYPASS_STATUS_LABELS,
@@ -34,9 +43,15 @@ import { formatWhen } from '@/lib/bookings'
 import {
   BYPASS_FILTERS,
   BYPASS_FILTER_LABELS,
+  BYPASS_SOURCES,
+  BYPASS_SOURCE_LABELS,
   bypassFilterHint,
   bypassListHref,
+  foundLine,
+  inspectionRunLine,
   parseBypassFilter,
+  parseBypassSource,
+  regularsLine,
 } from '@/lib/bypass-reports'
 
 const STATUS_BADGE: Record<
@@ -64,6 +79,99 @@ const EMPTY: Record<AdminBypassFilter, { title: string; subtitle: string }> = {
   },
 }
 
+/** "Flagged by Detlio": the tag on an entry Detlio's own checks raised (0077). */
+function FlaggedTag() {
+  return (
+    <ScBadge variant="active">
+      <span className="inline-flex items-center gap-1">
+        <IconShieldSearch size={12} aria-hidden />
+        Flagged by Detlio
+      </span>
+    </ScBadge>
+  )
+}
+
+/**
+ * What Detlio's check found (0077): the note with numbers masked, the
+ * quiet regulars, or the cancelled bookings, each booking a link. A full
+ * phone number is never stored, so it can never be shown.
+ */
+function EvidenceBlock({ evidence }: { evidence: AdminFlagEvidence }) {
+  return (
+    <div
+      data-evidence=""
+      className="flex flex-col gap-1 rounded-[10px] border border-border bg-surface-elevated px-3 py-2.5"
+    >
+      <p className="text-[12px] font-medium text-text-secondary">Evidence</p>
+      {evidence.signal === 'contact_in_note' ? (
+        <>
+          <p className="whitespace-pre-wrap break-words text-[12px] text-text-primary">
+            <span className="text-text-muted">
+              {evidence.where}, {formatWhen(evidence.writtenAt)}:{' '}
+            </span>
+            “{evidence.excerpt}”
+          </p>
+          <p className="text-[12px] text-text-muted">
+            {foundLine(evidence.found, evidence.confirmedByAi)}
+          </p>
+        </>
+      ) : evidence.signal === 'regulars_went_quiet' ? (
+        <>
+          <p className="text-[12px] text-text-primary">
+            {regularsLine(evidence)}
+          </p>
+          <p className="text-[12px] text-text-secondary">
+            {evidence.customers.map((c, i) => (
+              <span key={c.id}>
+                {i > 0 && ' · '}
+                {c.name ?? 'Customer'} · last booked{' '}
+                <Link
+                  href={`/bookings/${c.lastBookingId}`}
+                  className="font-numeric underline-offset-2 hover:underline"
+                >
+                  #{c.lastBookingRef}
+                </Link>{' '}
+                {formatWhen(c.lastAt)}
+              </span>
+            ))}
+            {evidence.stopped > evidence.customers.length &&
+              ` · ${evidence.stopped - evidence.customers.length} more`}
+          </p>
+          <p className="text-[12px] text-text-muted">
+            From the bookings on Detlio. Garage Book (the garage’s own records)
+            is never read.
+          </p>
+        </>
+      ) : (
+        <>
+          <p className="text-[12px] text-text-primary">
+            {inspectionRunLine(evidence.bookings.length, evidence.days)}
+          </p>
+          <p className="text-[12px] text-text-secondary">
+            {evidence.bookings.map((b, i) => (
+              <span key={b.id}>
+                {i > 0 && ' · '}
+                <Link
+                  href={`/bookings/${b.id}`}
+                  className="font-numeric underline-offset-2 hover:underline"
+                >
+                  #{b.ref}
+                </Link>{' '}
+                {formatWhen(b.cancelledAt)}
+                {b.reason && ` — “${b.reason}”`}
+              </span>
+            ))}
+          </p>
+          <p className="text-[12px] text-text-muted">
+            Each one accepted by the garage, then cancelled with no final bill
+            paid.
+          </p>
+        </>
+      )}
+    </div>
+  )
+}
+
 function ReportCard({
   report: r,
   onAnswer,
@@ -72,6 +180,8 @@ function ReportCard({
   onAnswer: (action: 'confirm' | 'dismiss') => void
 }) {
   const removeReport = useOwnerDeleteBypassReport()
+  const isFlag = r.source === 'detlio'
+  const reference = r.booking.reference ? `#${r.booking.reference}` : null
   return (
     <ScCard
       className={cn(
@@ -104,6 +214,7 @@ function ReportCard({
             </ScBadge>
           )}
           {r.booking.markedTest && <ScBadge variant="muted">Test</ScBadge>}
+          {isFlag && <FlaggedTag />}
         </div>
         <p className="font-numeric text-[12px] text-text-secondary">
           {formatWhen(r.createdAt)}
@@ -118,10 +229,10 @@ function ReportCard({
               href={`/bookings/${r.booking.id}`}
               className="font-numeric text-text-primary underline-offset-2 hover:underline"
             >
-              #{r.booking.reference}
+              {reference}
             </Link>
           ) : (
-            <span className="font-numeric">#{r.booking.reference}</span>
+            <span className="font-numeric">{reference ?? '—'}</span>
           )}
           {r.booking.scheduledAt && (
             <span className="block font-numeric text-[12px] text-text-muted">
@@ -142,6 +253,12 @@ function ReportCard({
                 </span>
               )}
             </>
+          ) : r.evidence?.signal === 'regulars_went_quiet' ? (
+            <span className="text-text-muted">
+              {r.evidence.stopped} customers
+            </span>
+          ) : isFlag ? (
+            '—'
           ) : (
             'Account deleted'
           )}
@@ -173,6 +290,8 @@ function ReportCard({
                 by {r.dismissedBy}
               </span>
             </>
+          ) : isFlag ? (
+            'None (Detlio flag)'
           ) : (
             'On confirm'
           )}
@@ -185,6 +304,7 @@ function ReportCard({
           {r.note}
         </p>
       )}
+      {r.evidence && <EvidenceBlock evidence={r.evidence} />}
       {r.dismissedReason && (
         <p className="whitespace-pre-wrap break-words text-[12px] text-text-secondary">
           <span className="text-text-muted">Why dismissed: </span>
@@ -214,7 +334,11 @@ function ReportCard({
       {/* The owner's delete (10 Nov 2026), whatever the answer was. */}
       <OwnerDeleteButton
         label="Delete report…"
-        title={`Delete the report on #${r.booking.reference}?`}
+        title={
+          reference
+            ? `Delete the report on ${reference}?`
+            : `Delete the flag on ${r.garage.name}?`
+        }
         confirmLabel="Delete report"
         done="Report deleted"
         className="self-start"
@@ -235,8 +359,12 @@ function BypassReportsList() {
   const router = useRouter()
   const params = useSearchParams()
   const show = parseBypassFilter(params.get('show'))
+  const from = parseBypassSource(params.get('from'))
   const { data, isPending, isPlaceholderData, error, refetch } =
-    useAdminBypassReports(show)
+    useAdminBypassReports(show, from)
+  const checkFlags = useCheckBypassFlags()
+  // Detlio's own flags (0077): the second row and Check now only while on.
+  const flags = data?.flags?.enabled ? data.flags : null
   const [answering, setAnswering] = useState<{
     report: AdminBypassReport
     action: 'confirm' | 'dismiss'
@@ -284,14 +412,60 @@ function BypassReportsList() {
               count={data?.counts[filter]}
               active={show === filter}
               onClick={() =>
-                router.replace(bypassListHref(filter), { scroll: false })
+                router.replace(bypassListHref(filter, flags ? from : 'all'), {
+                  scroll: false,
+                })
               }
               className="min-h-11 rounded-[10px] text-[13px]"
             />
           ))}
         </div>
+        {flags && (
+          <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
+            <div
+              role="group"
+              aria-label="Who raised it"
+              className="-mx-4 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none] md:mx-0 md:flex-wrap md:px-0 [&::-webkit-scrollbar]:hidden"
+            >
+              {BYPASS_SOURCES.map((source) => (
+                <FilterChip
+                  key={source}
+                  label={BYPASS_SOURCE_LABELS[source]}
+                  count={flags.counts[source]}
+                  active={from === source}
+                  onClick={() =>
+                    router.replace(bypassListHref(show, source), {
+                      scroll: false,
+                    })
+                  }
+                  className="min-h-11 rounded-[10px] text-[13px]"
+                />
+              ))}
+            </div>
+            <ScButton
+              variant="secondary"
+              fullWidth={false}
+              disabled={checkFlags.isPending}
+              onClick={() =>
+                checkFlags.mutate(undefined, {
+                  onSuccess: (result) =>
+                    toast.success(
+                      result.created === 0
+                        ? 'Checked: nothing new'
+                        : `Checked: ${result.created} new ${result.created === 1 ? 'flag' : 'flags'}`
+                    ),
+                  onError: (err) =>
+                    toast.error(errorMessage(err, 'Could not run the checks')),
+                })
+              }
+              className="min-h-11 px-4 text-[13px]"
+            >
+              {checkFlags.isPending ? 'Checking…' : 'Check now'}
+            </ScButton>
+          </div>
+        )}
         <p className="mt-2.5 text-[12px] leading-[1.45] text-text-muted">
-          {bypassFilterHint(show, data?.rules)}
+          {bypassFilterHint(show, data?.rules, Boolean(flags))}
         </p>
       </div>
 
@@ -305,8 +479,16 @@ function BypassReportsList() {
       ) : reports.length === 0 ? (
         <EmptyState
           icon={<IconFlag size={32} stroke={1.5} />}
-          title={EMPTY[show].title}
-          subtitle={EMPTY[show].subtitle}
+          title={
+            flags && from === 'detlio'
+              ? 'No Detlio flags here'
+              : EMPTY[show].title
+          }
+          subtitle={
+            flags && from === 'detlio'
+              ? 'Detlio’s checks run every morning: a phone number or UPI ID in a garage’s note, regular customers going quiet, and repeated cancellations after inspection.'
+              : EMPTY[show].subtitle
+          }
         />
       ) : (
         <ul

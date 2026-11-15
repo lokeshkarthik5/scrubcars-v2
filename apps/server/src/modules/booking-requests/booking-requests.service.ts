@@ -51,7 +51,10 @@ import { maskPhone } from '../../lib/rewards.js'
 import { getDayOfWeekFromDate } from '../../lib/slots.js'
 import { zoneFor } from '../../lib/zones.js'
 import type { VehicleTier } from '../../lib/pricing.js'
+import { RESCUE_RULES, garageRecord } from '../../lib/rescue-garages.js'
+import { garageResponseRepository } from '../garage-response/garage-response.repository.js'
 import { pushService } from '../push/push.service.js'
+import { ratingsFor } from '../reviews/reviews.service.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import {
   bookingRequestsRepository,
@@ -865,6 +868,14 @@ async function moveOn(
       limit: CANDIDATE_LIMIT,
     })
     const services = await bookingRequestsRepository.listGarageServices(garages.map((g) => g.vendorId))
+    // How each answers bookings and its star score: the pass-on goes to the
+    // best of the eligible garages, not just the nearest (lib/rescue-garages.ts).
+    const garageIds = garages.map((g) => g.vendorId)
+    const recordRows = await garageResponseRepository.recordRows(
+      garageIds,
+      new Date(now.getTime() - RESCUE_RULES.recordDays * 24 * 60 * 60 * 1000)
+    )
+    const ratings = garageIds.length > 0 ? await ratingsFor(garageIds) : new Map()
     const categories = row.items.map((item) => item.category)
     const candidates: Array<{ candidate: RequestCandidate; garage: MeasuredGarage }> = []
     for (const garage of garages) {
@@ -887,6 +898,11 @@ async function moveOn(
           lines,
           // A pass-on needs time for this garage to answer too.
           lastStart: lastStart && respondByFor(now, lastStart) ? lastStart : null,
+          record: garageRecord(
+            recordRows.filter((r) => r.vendorId === garage.vendorId),
+            now
+          ),
+          rating: ratings.get(garage.vendorId)?.rating ?? null,
         },
       })
     }

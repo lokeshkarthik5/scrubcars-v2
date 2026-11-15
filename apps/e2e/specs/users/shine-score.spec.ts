@@ -1,5 +1,5 @@
 /**
- * Shine Score (0075), as SHINE.customer: Home's tile opens the guided photos;
+ * Shine Score (0078), as SHINE.customer: Home's tile opens the guided photos;
  * four photos (the 1-pixel fixture, so the on-device check warns before
  * scoring), Get my score, and the result: the fake reading's 59, the summary
  * from the numbers, a score per area, what was noticed, the seeded garage's

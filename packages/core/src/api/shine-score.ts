@@ -3,7 +3,7 @@ import type { ShineArea } from '@repo/core/shine-score'
 import { signedBody } from './admin-signer'
 
 /**
- * Shine Score (0075): the customer's scans, suggestions and a finished
+ * Shine Score (0078): the customer's scans, suggestions and a finished
  * booking's before and after (/users/me/shine), and admin's Shine checks
  * (/admin/shine-checks, super-admin). Every route but /shine/config is a 404
  * while SHINE_SCORE_ENABLED is off, so the apps read the config first and

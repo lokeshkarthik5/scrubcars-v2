@@ -130,7 +130,7 @@ describe('who', () => {
   })
 })
 
-describe('Shine Score scans (0075)', () => {
+describe('Shine Score scans (0078)', () => {
   test('the scans the deletion unlinked are deleted with their photos after the commit', async () => {
     shineScansOf = { [CUSTOMER]: [id(7690), id(7691)] }
     expect((await call('DELETE', '/account', 'customer')).status).toBe(200)

@@ -26,9 +26,14 @@ export const bookingIdParamSchema = z.object({ bookingId: z.uuid() })
 /** The name the person typed, as the Bin, Payouts and Certify ask for it. */
 const actorName = signedActorName
 
-/** Admin's list: New (to look into), Confirmed, Dismissed. */
+/**
+ * Admin's list: New (to look into), Confirmed, Dismissed; and which kind of
+ * entry (0077): all, customers' reports, or Detlio's flags. `from` is read
+ * only while OFF_APP_FLAGS_ENABLED is on.
+ */
 export const listBypassReportsQuerySchema = z.object({
   show: z.enum(['new', 'confirmed', 'dismissed']).default('new'),
+  from: z.enum(['all', 'customer', 'detlio']).default('all'),
 })
 
 export const reportIdParamSchema = z.object({ id: z.uuid() })

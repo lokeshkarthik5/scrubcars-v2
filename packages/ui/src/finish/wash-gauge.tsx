@@ -26,7 +26,7 @@ export function WashGauge({
   /** Past the interval: the arc turns amber. */
   over: boolean
   /**
-   * Higher is better (Shine Score, 0075: a score out of 100 read as
+   * Higher is better (Shine Score, 0078: a score out of 100 read as
    * `daysSinceWash` of `intervalDays` 100): the arc runs red → amber → green.
    */
   reversed?: boolean

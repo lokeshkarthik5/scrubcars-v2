@@ -72,6 +72,7 @@ function job(overrides: Partial<Booking> = {}): Booking {
     photoStandard: null,
     customerBadge: null,
     conditionPhotos: null,
+    conditionCheck: null,
     finalBill: null,
     canRaiseFinalBill: false,
     extraWork: [],

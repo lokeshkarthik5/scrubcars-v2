@@ -8,7 +8,7 @@ import { View } from 'react-native';
 import { Tile } from '@/components/home/tiles';
 
 /**
- * Home's Shine Score tile (0075; the web's components/shine/shine-tile.tsx): the left tile of
+ * Home's Shine Score tile (0078; the web's components/shine/shine-tile.tsx): the left tile of
  * the row under the car's tiles, the same tile as Book again. Opens the guided photos. Shown
  * only while the API's /shine/config says on.
  */

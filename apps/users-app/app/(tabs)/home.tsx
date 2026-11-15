@@ -39,6 +39,8 @@ import { NearbyCard, TipCard } from '@/components/home/nearby-tip';
 import { HomeOffers } from '@/components/home/offers';
 import { RightTile, WashStatusTile } from '@/components/home/tiles';
 import { ShineScoreTile } from '@/components/shine/shine-tile';
+import { RepairQuotesTile } from '@/components/repair-quotes/repair-quotes-tile';
+import { repairQuotesOn, useRepairQuotesConfig } from '@repo/core/api/hooks/use-repair-quotes';
 import { UpdatesBlock } from '@/components/home/updates-block';
 import { ReachStatusCards } from '@/components/reach/reach-status';
 import { CustomerShell } from '@/components/screen';
@@ -99,6 +101,7 @@ export default function HomeScreen() {
   const authUser = useAuth((s) => s.user);
   const profile = useUserStore((s) => s.profile);
   const location = useLocationStore((s) => s.location);
+  const repairOn = repairQuotesOn(useRepairQuotesConfig().data);
   const rememberCar = usePendingCheckout((s) => s.rememberCar);
   const dismissRate = useDismissReviewPrompt();
   const reminderAction = useServiceReminderAction();
@@ -110,7 +113,7 @@ export default function HomeScreen() {
   const rewards = useRewardsSummary(rewardsEnabled(rewardsConfig.data) && !!authUser);
   const garagePulls = useGaragePulls(garageLive(rewardsConfig.data) && !!authUser);
   const clock = useNow();
-  // Shine Score (0075): its tile only while the API says it is on.
+  // Shine Score (0078): its tile only while the API says it is on.
   const shine = shineOn(useShineConfig(!!authUser).data);
   useRefreshOnFocus(['home']);
 
@@ -221,11 +224,12 @@ export default function HomeScreen() {
             </View>
           ) : null}
 
-          {/* The tools row (AI round): Shine Score on the left; Repair quotes joins it on the right. */}
-          {shine ? (
+          {/* The tools row (AI round): Shine Score on the left, Repair quotes on the right. */}
+          {shine || repairOn ? (
             <View style={styles.tiles}>
-              <ShineScoreTile />
-              <View style={styles.flex} />
+              {shine ? <ShineScoreTile /> : null}
+              {repairOn ? <RepairQuotesTile /> : null}
+              {shine && repairOn ? null : <View style={styles.flex} />}
             </View>
           ) : null}
 

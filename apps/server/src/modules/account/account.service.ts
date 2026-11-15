@@ -17,6 +17,7 @@ import { giftsService } from '../gifts/gifts.service.js'
 import { refundsService } from '../refunds/refunds.service.js'
 import { shineScoreService } from '../shine-score/shine-score.service.js'
 import { accountRepository, DeletionRaced } from './account.repository.js'
+import { removeRepairMediaObjects } from '../../lib/job-photo-storage.js'
 
 const log = logger.child({ module: 'account' })
 
@@ -113,6 +114,7 @@ export const accountService = {
     if (!result) throw userNotFound()
     log.info({ userId }, 'account:deleted')
     removeAvatar(result)
+    if (result.repairMediaKeys?.length) runInBackground('account:repair_media_delete', () => removeRepairMediaObjects(result.repairMediaKeys ?? [], 'account_deleted'))
   },
 
   /**
@@ -164,6 +166,7 @@ export const accountService = {
     if (!result) throw userNotFound()
     log.warn({ userId, by: actor.name, endedBookings: result.endedBookingIds.length }, 'account:deleted_by_admin')
     removeAvatar(result)
+    if (result.repairMediaKeys?.length) runInBackground('account:repair_media_delete', () => removeRepairMediaObjects(result.repairMediaKeys ?? [], 'account_deleted'))
     return { id: userId, deleted: true as const, endedBookings: result.endedBookingIds.length }
   },
 }

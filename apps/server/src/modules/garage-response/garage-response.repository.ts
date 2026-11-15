@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNotNull, lte, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import {
   bookingItems,
@@ -107,5 +107,79 @@ export const garageResponseRepository = {
         .filter((member) => member.packageId === item.serviceId)
         .map((member) => member.category as string),
     }))
+  },
+
+  /**
+   * Several garages' bookings made since `since`, as the rescue's track
+   * record reads them (lib/rescue-garages.ts garageRecord): when each
+   * reached the garage (made, and its payment's landing), the answer, and
+   * how it was cancelled. Test-marked bookings are left out, as from every
+   * figure. One grouped read for all of them, bounded.
+   */
+  async recordRows(vendorIds: string[], since: Date, limit = 5000) {
+    if (vendorIds.length === 0) return []
+    const rows = await db
+      .select({
+        vendorId: bookings.vendorId,
+        createdAt: bookings.createdAt,
+        paidAt: sql<Date | string | null>`(
+          select min(${payments.paidAt}) from ${payments}
+           where ${payments.bookingId} = ${bookings.id}
+        )`,
+        acceptedAt: bookings.acceptedAt,
+        acceptedBy: bookings.acceptedBy,
+        status: bookings.status,
+        cancelledBy: bookings.cancelledBy,
+        cancelledOnBehalfOf: bookings.cancelledOnBehalfOf,
+        noShow: bookings.noShow,
+        cancelledAt: bookings.cancelledAt,
+        garageCancelledAt: bookings.garageCancelledAt,
+      })
+      .from(bookings)
+      .where(
+        and(
+          inArray(bookings.vendorId, vendorIds),
+          gte(bookings.createdAt, since),
+          isNull(bookings.markedTestAt)
+        )
+      )
+      .orderBy(desc(bookings.createdAt))
+      .limit(limit)
+    // The subquery's timestamp comes back as text from the driver.
+    return rows.map((row) => ({ ...row, paidAt: row.paidAt === null ? null : new Date(row.paidAt) }))
+  },
+
+  /**
+   * Several garages' active plain services with their prices, for "the same
+   * job" at each (lib/booking-requests.ts linesForCategories): never add-ons
+   * (0068) or removed ones; packages come back with their category and are
+   * matched by nothing, as Request-a-visit's pass-on reads them.
+   */
+  rescueServices(vendorIds: string[]) {
+    if (vendorIds.length === 0) return Promise.resolve([])
+    return db
+      .select({
+        id: services.id,
+        vendorId: services.vendorId,
+        name: services.name,
+        category: services.category,
+        pricingType: services.pricingType,
+        price: services.price,
+        priceHatchback: services.priceHatchback,
+        priceSedan: services.priceSedan,
+        priceSuv: services.priceSuv,
+        durationMins: services.durationMins,
+        isActive: services.isActive,
+      })
+      .from(services)
+      .where(
+        and(
+          inArray(services.vendorId, vendorIds),
+          eq(services.isAddon, false),
+          eq(services.isActive, true),
+          isNull(services.deletedAt)
+        )
+      )
+      .orderBy(asc(services.name))
   },
 }

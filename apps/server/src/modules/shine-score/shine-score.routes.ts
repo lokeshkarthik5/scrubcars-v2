@@ -20,7 +20,7 @@ import {
 } from './shine-score.validation.js'
 
 /**
- * Shine Score (0075). Off while SHINE_SCORE_ENABLED is not `on`: every route
+ * Shine Score (0078). Off while SHINE_SCORE_ENABLED is not `on`: every route
  * below but the public `/config` is the same 404 as an unknown path, before
  * auth runs, so the apps ask `/config` whether to show it at all.
  */

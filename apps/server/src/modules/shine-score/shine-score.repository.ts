@@ -5,7 +5,7 @@ import type { ShineReviewStatus } from '../../db/schema.js'
 import type { ScanToday } from '../../lib/shine-score.js'
 
 /**
- * Shine Score's database reads and writes (0075). No rules here: the
+ * Shine Score's database reads and writes (0078). No rules here: the
  * service passes in what to decide (a scan's go-ahead) and what to write.
  * Every read is awaited on its own (one connection in production).
  */

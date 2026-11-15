@@ -1,5 +1,5 @@
 /**
- * Shine Score (0075) through the real routes and auth middleware (the
+ * Shine Score (0078) through the real routes and auth middleware (the
  * customer routes as users.routes.ts mounts them). Only the database and
  * OpenAI are stood in for: the repository is replaced on its object with an
  * in-memory one and put back afterwards, and the AI is a recording fake.
@@ -282,7 +282,7 @@ describe('scans', () => {
     await call('/users/me/shine/scans', 'customer', photos())
     expect(sent).toHaveLength(1)
     const request = sent[0]!
-    expect(request.userText).toBe(SCAN_PHOTO_TEXT)
+    expect(request.prompt).toBe(SCAN_PHOTO_TEXT)
     const files = request.files as Array<Record<string, unknown>>
     expect(files.map((f) => f.name)).toEqual(['front.jpg', 'side.jpg', 'dashboard.jpg', 'seats.jpg'])
     const text = JSON.stringify({ ...request, files: files.map((f) => ({ ...f, dataBase64: '' })) })

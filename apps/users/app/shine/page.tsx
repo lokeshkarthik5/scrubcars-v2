@@ -39,7 +39,7 @@ function Progress({ upTo }: { upTo: number }) {
 }
 
 /**
- * Shine Score (0075): four guided photos (outside front, outside side,
+ * Shine Score (0078): four guided photos (outside front, outside side,
  * dashboard, seats & floor), a check with Retake, then the score. Signed in
  * to scan; three free scans a day (the server counts). Each photo is drawn
  * again on the phone at 1280 px, without its metadata, before anything is

@@ -53,6 +53,7 @@ import { adminCoverageRoutes } from '../coverage/coverage.routes.js'
 import { adminCityRoutes } from '../cities/cities.routes.js'
 import { adminLeadsRoutes } from '../leads/leads.routes.js'
 import { adminBookingRequestRoutes } from '../booking-requests/booking-requests.routes.js'
+import { adminRepairQuoteRoutes } from '../repair-quotes/repair-quotes.routes.js'
 import { adminPlacesRoutes } from '../places/places.routes.js'
 import { adminOwnerDeleteRoutes } from '../owner-delete/owner-delete.routes.js'
 import { adminCustomerRoutes } from '../admin-customers/admin-customers.routes.js'
@@ -539,7 +540,7 @@ adminRoutes.route('/complaints', adminComplaintRoutes)
 // "Did the garage ask you to book directly?" reports, garage strikes and
 // customer drop-off (0052). Nested here for the same cookie reason.
 adminRoutes.route('/bypass-reports', adminBypassReportRoutes)
-// Shine checks (0075): low after-scores for a person to look at.
+// Shine checks (0078): low after-scores for a person to look at.
 adminRoutes.route('/shine-checks', adminShineRoutes)
 
 // Detlio Guarantee (0051): free redo claims, Detlio's decisions.
@@ -556,6 +557,8 @@ adminRoutes.route('/garage-board', adminGarageBoardRoutes)
 adminRoutes.route('/coverage', adminCoverageRoutes)
 adminRoutes.route('/leads', adminLeadsRoutes)
 adminRoutes.route('/requests', adminBookingRequestRoutes)
+// Repair & bodywork quotes (0076): the list and the garage editor's switch.
+adminRoutes.route('/repair-quotes', adminRepairQuoteRoutes)
 // Garage Book (0072): a garage's book, read-only, every look logged.
 adminRoutes.route('/', adminGarageBookRoutes)
 adminRoutes.route('/places', adminPlacesRoutes)

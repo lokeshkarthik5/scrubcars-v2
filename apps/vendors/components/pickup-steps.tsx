@@ -16,6 +16,7 @@ import {
 } from '@repo/core/pickup'
 import { SUPPORT_PHONE_DISPLAY, SUPPORT_TEL_HREF } from '@repo/core/support'
 import { photoGateMessage } from '@repo/core/job-photo-standards'
+import { carCheckGateLines } from '@repo/core/condition-check'
 import type { Booking } from '@repo/core/types'
 import { changeStatusWithUndo } from '@/lib/deferred-status'
 
@@ -79,6 +80,13 @@ export function PickupSteps({
         ? (booking.photoStandard?.finishBlocked ?? null)
         : null
   const blockedId = `pickup-${booking.id}-photos`
+  // The car condition check (0075): the car goes only once the walk-round
+  // is taken and sent to the customer.
+  const carCheckLines =
+    step === 'picked_up'
+      ? carCheckGateLines(booking.conditionCheck?.gate ?? null)
+      : []
+  const blocked = photoBlock !== null || carCheckLines.length > 0
 
   const run = async () => {
     // Picked up, At garage and Out for delivery wait five seconds behind
@@ -156,6 +164,19 @@ export function PickupSteps({
               {photoGateMessage(photoBlock)}
             </p>
           )}
+          {carCheckLines.length > 0 && (
+            <ul
+              id={blockedId}
+              aria-label={t('Still to do')}
+              className="flex flex-col gap-1"
+            >
+              {carCheckLines.map((line) => (
+                <li key={line} className="text-[15px] text-warning">
+                  {line}
+                </li>
+              ))}
+            </ul>
+          )}
           <ScButton
             variant="main"
             size="lg"
@@ -167,10 +188,8 @@ export function PickupSteps({
                     who,
                   })
             }
-            aria-describedby={photoBlock ? blockedId : undefined}
-            disabled={
-              busy || (needsCode && code.length !== 4) || photoBlock !== null
-            }
+            aria-describedby={blocked ? blockedId : undefined}
+            disabled={busy || (needsCode && code.length !== 4) || blocked}
             onClick={run}
           >
             {busy

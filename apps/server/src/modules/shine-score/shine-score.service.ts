@@ -192,7 +192,7 @@ export const shineScoreService = {
     try {
       answer = await client.read({
         instructions: SCAN_INSTRUCTIONS,
-        userText: SCAN_PHOTO_TEXT,
+        prompt: SCAN_PHOTO_TEXT,
         imageDetail: 'auto',
         files: photos.map((p) => ({ name: `${p.area}.jpg`, mimeType: p.mimeType, dataBase64: p.dataBase64 })),
         schemaName: 'shine_scan',
@@ -395,7 +395,7 @@ export const shineScoreService = {
     try {
       answer = await client.read({
         instructions: JOB_INSTRUCTIONS,
-        userText: jobPhotoText(matched),
+        prompt: jobPhotoText(matched),
         imageDetail: 'auto',
         files,
         schemaName: 'shine_job',

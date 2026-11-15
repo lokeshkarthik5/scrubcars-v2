@@ -3,7 +3,7 @@ import { Tile } from '@/components/home/tile'
 import { useT } from '@repo/core/i18n'
 
 /**
- * Home's Shine Score tile (0075): the left tile of the row under the car's
+ * Home's Shine Score tile (0078): the left tile of the row under the car's
  * tiles, the same 164pt tile as Book again and Last wash. Opens the guided
  * photos. Shown only while SHINE_SCORE_ENABLED is on (Home reads /shine/config).
  */

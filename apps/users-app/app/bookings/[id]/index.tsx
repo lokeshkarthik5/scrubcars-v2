@@ -7,6 +7,7 @@ import { slotKeys } from '@repo/core/api/hooks/use-slots';
 import { useTravelTime } from '@repo/core/api/hooks/use-travel-time';
 import { verifyPayment } from '@repo/core/api/payments';
 import { bookAgainPath, canBookAgain, matchSavedAddress } from '@repo/core/book-again';
+import { showsRescue } from '@repo/core/rescue';
 import { BOOKING_TYPE_LABELS, bookingReference, CONFIRMED_CHANGE_CUTOFF_MINS } from '@repo/core/booking-types';
 import { googleMapsLink, telHref, whatsAppHref } from '@repo/core/contact-links';
 import { contactWindowState } from '@repo/core/contact-window';
@@ -40,6 +41,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PullReveal } from '@/components/collect/pull-reveal';
 import { ScratchCardPanel } from '@/components/rewards/scratch-card';
 import { CarConditionCard } from '@/components/booking/car-condition-card';
+import { ConditionCheckCard } from '@/components/booking/condition-check-card';
 import { BookingDirectionsSheet, describeDrive } from '@/components/booking/directions-sheet';
 import { ExtraWorkCard } from '@/components/booking/extra-work-card';
 import { type BillPayment, FinalBillCard } from '@/components/booking/final-bill-card';
@@ -496,6 +498,17 @@ export default function BookingDetailScreen() {
 
         {isPickup && !missedByGarage ? <PickupCodeCard booking={booking} /> : null}
 
+        {/* The car condition check (0075): the garage's walk-round to agree, and after
+            the job any possible new mark. */}
+        <ConditionCheckCard
+          booking={booking}
+          onChanged={async () => {
+            const fresh = await getBooking(booking.id).catch(() => null);
+            if (fresh) setBooking(fresh);
+          }}
+          onHelp={() => setShowHelp(true)}
+        />
+
         {Object.entries(billPayments)
           .filter(([chargeId, payment]) => chargeId !== booking.finalBill?.id && payment.phase !== 'paid')
           .map(([chargeId, payment]) => (
@@ -604,7 +617,7 @@ export default function BookingDetailScreen() {
         ) : null}
 
         <View onLayout={(e) => (cardY.current.photos = e.nativeEvent.layout.y)}>
-          {/* Shine Score (0075): "Your Shine went 46 → 92", from the garage's photos. */}
+          {/* Shine Score (0078): "Your Shine went 46 → 92", from the garage's photos. */}
           <BookingShineCard bookingId={booking.id} completed={finished} photos={booking.jobPhotos} />
           <JobPhotosCard photos={booking.jobPhotos} completed={finished} />
         </View>
@@ -737,7 +750,7 @@ export default function BookingDetailScreen() {
           </ScCard>
         ) : null}
 
-        {booking.status === 'cancelled' && booking.notAcceptedInTime ? <OtherGaragesCard booking={booking} /> : null}
+        {showsRescue(booking) ? <OtherGaragesCard booking={booking} addressId={matchSavedAddress(booking, addresses)} /> : null}
 
         {!finished && canBookAgain(booking) ? (
           <ScButton variant="outline" height={52} onPress={() => router.push(bookAgainPath(booking, matchSavedAddress(booking, addresses)) as Href)}>

@@ -1,5 +1,5 @@
 /**
- * Shine Score (0075): a free cleanliness score from four photos, and the
+ * Shine Score (0078): a free cleanliness score from four photos, and the
  * "Your Shine went 46 → 92" card from a job's before and after photos. The
  * areas, their words, the numbers and the on-device photo check, as the apps
  * show them. Twin of apps/server/src/lib/shine-score.ts, which decides; the

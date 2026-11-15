@@ -1,5 +1,5 @@
 /**
- * Issues → Shine checks (0075): finished bookings whose after-photos scored
+ * Issues → Shine checks (0078): finished bookings whose after-photos scored
  * under 60, for a person to look at. As the owner ('admin'): the tab sits in
  * Issues; New lists SHINE's two seeded low scores with the after score, the
  * before, the lowest area, the booking, the customer, the after photos and

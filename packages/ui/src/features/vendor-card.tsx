@@ -65,6 +65,7 @@ export function VendorCard({
   note,
   chips,
   footer,
+  attached,
   approxDistance,
   measureFromLocation = false,
   highlight,
@@ -90,6 +91,12 @@ export function VendorCard({
    * outside the customer's area, and the slot beside it).
    */
   footer?: ReactNode
+  /**
+   * A part joined to the bottom of the card, inside its border but outside
+   * its link (the rescue's "Same job" price and times, which are links of
+   * their own: a link in a link is one target that announces as two).
+   */
+  attached?: ReactNode
   /**
    * Whether the distance is measured from an area's centre rather than the
    * customer's own fix, so it reads "~6.2 km". Left out, it follows the
@@ -142,7 +149,13 @@ export function VendorCard({
             : `/garage/${vendor.id}`
         }
       >
-        <article className="press overflow-hidden rounded-[16px] border border-border bg-surface transition-colors hover:border-text-secondary/40">
+        <article
+          className={
+            attached
+              ? 'press overflow-hidden rounded-t-[16px] border border-b-0 border-border bg-surface transition-colors'
+              : 'press overflow-hidden rounded-[16px] border border-border bg-surface transition-colors hover:border-text-secondary/40'
+          }
+        >
           <div className="relative h-[150px] w-full bg-surface-elevated">
             {cover ? (
               <Image
@@ -290,6 +303,11 @@ export function VendorCard({
           </div>
         </article>
       </Link>
+      {attached && (
+        <div className="overflow-hidden rounded-b-[16px] border border-t-0 border-border bg-surface">
+          {attached}
+        </div>
+      )}
       {action && <div className="absolute right-2 top-2">{action}</div>}
       {footer}
     </div>

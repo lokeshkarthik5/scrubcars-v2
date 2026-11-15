@@ -49,7 +49,7 @@ function Outline({ area }: { area: ShineArea }) {
 }
 
 /**
- * Shine Score's guided photos and check (0075; the web's app/shine/page.tsx): four photos,
+ * Shine Score's guided photos and check (0078; the web's app/shine/page.tsx): four photos,
  * each re-encoded on the phone without its metadata, then Get my score. Signed in to scan;
  * three free scans a day (the server counts). The web's dark/blurry warning needs the
  * picture's pixels, which this app has no way to read, so the phone shows the photos to

@@ -1,7 +1,7 @@
 import { apiClient } from '@repo/core/api/client';
 import { mapExtraWork, mapFinalBill, mapJobPhoto } from '@repo/core/api/mappers';
 import type { ApiExtraWork, ApiFinalBill, ApiJobPhoto } from '@repo/core/api/types';
-import type { PhotoAngle } from '@repo/core/job-photo-standards';
+import type { JobPhotoAngle } from '@repo/core/job-photo-standards';
 import type { JobPhoto } from '@repo/core/types';
 import { t } from '@repo/core/i18n/translate';
 
@@ -21,7 +21,7 @@ export async function uploadJobPhoto(
   bookingId: string,
   stage: JobPhoto['stage'],
   bytes: Uint8Array,
-  angle?: PhotoAngle
+  angle?: JobPhotoAngle
 ): Promise<JobPhoto> {
   const base = `/vendors/me/bookings/${bookingId}/photos`;
   const { uploadUrl, key } = await apiClient<{ uploadUrl: string; key: string }>(`${base}/upload-url`, {

@@ -531,7 +531,28 @@
       "idx": 75,
       "version": "7",
       "when": 1788870989741,
-      "tag": "0075_shine_score",
+      "tag": "0075_condition_check",
+      "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1788870989742,
+      "tag": "0076_repair_quotes",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1788870989743,
+      "tag": "0077_off_app_flags",
+      "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1788870989744,
+      "tag": "0078_shine_score",
       "breakpoints": true
     }
   ]

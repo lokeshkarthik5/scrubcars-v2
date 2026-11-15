@@ -1,4 +1,4 @@
-# Shine Score (0075)
+# Shine Score (0078)
 
 A free AI cleanliness score from four car photos, and a "Your Shine went
 46 → 92" card on finished bookings, scored from the garage's own before and

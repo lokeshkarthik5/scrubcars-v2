@@ -25,6 +25,7 @@ import {
 } from 'drizzle-orm/pg-core'
 import type { AnalyticsEventName, DeviceClass } from '../lib/analytics.js'
 import type { BypassKind, BypassStatus, RewardStatus } from '../lib/bypass-reports.js'
+import type { BypassSource, FlagEvidence, FlagSignal } from '../lib/off-app-flags.js'
 import type { ComplaintCategory, ComplaintSource, ComplaintStatus } from '../lib/complaints.js'
 import type { GatewayRefundStatus, RefundSource } from '../lib/refunds.js'
 import type { ReviewTag } from '../lib/ratings.js'
@@ -53,7 +54,13 @@ import type {
   VoucherKind,
 } from '../lib/rewards.js'
 import type { ServiceReminderKind, ServiceReminderStatus } from '../lib/service-reminders.js'
-import type { PhotoAngle, PhotoRole } from '../lib/job-photo-standards.js'
+import type { JobPhotoAngle, PhotoRole } from '../lib/job-photo-standards.js'
+import type {
+  ConditionAnswer,
+  ConditionRead,
+  DamageKind,
+  MarkSource,
+} from '../lib/condition-check.js'
 import type { MarkChecklistItem } from '../lib/mark-checklist.js'
 import type {
   EligibilitySnapshot,
@@ -632,6 +639,9 @@ export const vendors = pgTable(
     // centre, instead of its own radius. One with no city keeps to its radius.
     doorstepWholeCity: boolean('doorstep_whole_city').default(false).notNull(),
     pickupWholeCity: boolean('pickup_whole_city').default(false).notNull(),
+    // Repair & bodywork quotes (0076): admin's "Takes repair & bodywork
+    // quotes". Only garages with it on are asked (lib/repair-quotes.ts).
+    repairQuotesEnabled: boolean('repair_quotes_enabled').default(false).notNull(),
     // The garage's city (0069), NULL for Other towns. Written only by the
     // database: a trigger sets it on every write that touches lat, lng or
     // city, and any change to `cities` recomputes every garage, both by
@@ -1291,7 +1301,14 @@ export const jobPhotos = pgTable(
     // photo standard (lib/job-photo-standards.ts).
     uploadedByRole: text('uploaded_by_role').$type<PhotoRole>().default('garage').notNull(),
     // The guided angle it was taken from (0045), or null for an extra photo.
-    angle: text('angle').$type<PhotoAngle>(),
+    // The car condition check (0075) adds the four corners.
+    angle: text('angle').$type<JobPhotoAngle>(),
+    // Whether Detlio's AI has looked at it for the car condition check
+    // (0075): 'done' (its marks are in condition_marks) or 'failed' (the
+    // photo stands without marks); null while it has not, or for a photo the
+    // check does not read.
+    conditionRead: text('condition_read').$type<ConditionRead>(),
+    conditionReadAt: timestamp('condition_read_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -1314,7 +1331,96 @@ export const jobPhotos = pgTable(
     check('job_photos_uploaded_by_role_check', sql`${table.uploadedByRole} in ('garage', 'customer')`),
     check(
       'job_photos_angle_check',
-      sql`${table.angle} is null or ${table.angle} in ('front', 'back', 'left', 'right', 'interior')`
+      sql`${table.angle} is null or ${table.angle} in ('front', 'back', 'left', 'right', 'interior', 'front_left', 'front_right', 'back_left', 'back_right')`
+    ),
+    check(
+      'job_photos_condition_read_check',
+      sql`(${table.conditionRead} is null and ${table.conditionReadAt} is null) or (${table.conditionRead} in ('done', 'failed') and ${table.conditionReadAt} is not null)`
+    ),
+  ]
+)
+
+// The car condition check at handover (0075, behind CONDITION_CHECK_ENABLED;
+// lib/condition-check.ts). One row per booking once the garage has sent its
+// before check to the customer: when, by whom, and the customer's answer
+// ("Looks right", or "Something's wrong" with a note the garage and the team
+// read). The marks themselves are condition_marks.
+export const conditionChecks = pgTable(
+  'condition_checks',
+  {
+    bookingId: uuid('booking_id')
+      .primaryKey()
+      .references(() => bookings.id, { onDelete: 'cascade' }),
+    sentAt: timestamp('sent_at', { withTimezone: true }).notNull(),
+    sentBy: uuid('sent_by').references(() => users.id, { onDelete: 'set null' }),
+    customerAnswer: text('customer_answer').$type<ConditionAnswer>(),
+    customerAnsweredAt: timestamp('customer_answered_at', { withTimezone: true }),
+    customerAnsweredBy: uuid('customer_answered_by').references(() => users.id, { onDelete: 'set null' }),
+    customerNote: varchar('customer_note', { length: 500 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check(
+      'condition_checks_answer_check',
+      sql`(${table.customerAnswer} is null and ${table.customerAnsweredAt} is null and ${table.customerNote} is null) or (${table.customerAnswer} = 'looks_right' and ${table.customerAnsweredAt} is not null and ${table.customerNote} is null) or (${table.customerAnswer} = 'something_wrong' and ${table.customerAnsweredAt} is not null and ${table.customerNote} is not null and char_length(btrim(${table.customerNote})) > 0)`
+    ),
+  ]
+)
+
+// A mark on a job photo (0075): a scratch, dent, crack or paint chip already
+// there before the job (stage 'before', Detlio's AI or the garage's own), or
+// a possible new one the after photo shows that its before photo of the same
+// angle did not (stage 'after', `compared_photo_id`). The box is 0-1 from
+// the photo's top left; a mark the garage added has none. A removed mark is
+// kept for the record; the customer never sees it.
+export const conditionMarks = pgTable(
+  'condition_marks',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    bookingId: uuid('booking_id')
+      .notNull()
+      .references(() => bookings.id, { onDelete: 'cascade' }),
+    photoId: uuid('photo_id')
+      .notNull()
+      .references(() => jobPhotos.id, { onDelete: 'cascade' }),
+    comparedPhotoId: uuid('compared_photo_id').references(() => jobPhotos.id, { onDelete: 'set null' }),
+    stage: text('stage').$type<'before' | 'after'>().notNull(),
+    kind: text('kind').$type<DamageKind>().notNull(),
+    part: varchar('part', { length: 60 }).notNull(),
+    boxX: real('box_x'),
+    boxY: real('box_y'),
+    boxW: real('box_w'),
+    boxH: real('box_h'),
+    source: text('source').$type<MarkSource>().notNull(),
+    unsure: boolean('unsure').default(false).notNull(),
+    removedAt: timestamp('removed_at', { withTimezone: true }),
+    garageAnswer: text('garage_answer').$type<'was_there'>(),
+    garageAnsweredAt: timestamp('garage_answered_at', { withTimezone: true }),
+    customerAnswer: text('customer_answer').$type<'already_there'>(),
+    customerAnsweredAt: timestamp('customer_answered_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('condition_marks_booking_idx').on(table.bookingId),
+    index('condition_marks_photo_idx').on(table.photoId),
+    check('condition_marks_stage_check', sql`${table.stage} in ('before', 'after')`),
+    check(
+      'condition_marks_kind_check',
+      sql`${table.kind} in ('scratch', 'dent', 'crack', 'paint_chip', 'other')`
+    ),
+    check('condition_marks_source_check', sql`${table.source} in ('ai', 'garage')`),
+    check('condition_marks_part_check', sql`char_length(btrim(${table.part})) between 1 and 60`),
+    check(
+      'condition_marks_box_check',
+      sql`(${table.boxX} is null and ${table.boxY} is null and ${table.boxW} is null and ${table.boxH} is null) or (${table.boxX} between 0 and 1 and ${table.boxY} between 0 and 1 and ${table.boxW} > 0 and ${table.boxW} <= 1 and ${table.boxH} > 0 and ${table.boxH} <= 1)`
+    ),
+    check(
+      'condition_marks_garage_answer_check',
+      sql`(${table.garageAnswer} is null and ${table.garageAnsweredAt} is null) or (${table.garageAnswer} = 'was_there' and ${table.garageAnsweredAt} is not null and ${table.stage} = 'after')`
+    ),
+    check(
+      'condition_marks_customer_answer_check',
+      sql`(${table.customerAnswer} is null and ${table.customerAnsweredAt} is null) or (${table.customerAnswer} = 'already_there' and ${table.customerAnsweredAt} is not null and ${table.stage} = 'after')`
     ),
   ]
 )
@@ -3579,10 +3685,19 @@ export const bypassReports = pgTable(
     userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
     bookingId: uuid('booking_id').references(() => bookings.id, { onDelete: 'set null' }),
     rootBookingId: uuid('root_booking_id').references(() => bookings.id, { onDelete: 'set null' }),
-    bookingRef: varchar('booking_ref', { length: 8 }).notNull(),
+    // Null only on a Detlio flag about a garage rather than one booking (0077).
+    bookingRef: varchar('booking_ref', { length: 8 }),
     vendorId: uuid('vendor_id').references(() => vendors.id, { onDelete: 'set null' }),
     garageName: varchar('garage_name', { length: 255 }).notNull(),
     kind: text('kind').$type<BypassKind>().notNull(),
+    // Off-app payment flags (0077, lib/off-app-flags.ts): 'customer' for a
+    // customer's report, 'detlio' for Detlio's own check ("Flagged by
+    // Detlio"), which has a signal, its evidence (masked) and a key that
+    // keeps one flag per piece of evidence; no reporter, chain or reward.
+    source: text('source').$type<BypassSource>().default('customer').notNull(),
+    signal: text('signal').$type<FlagSignal>(),
+    evidence: jsonb('evidence').$type<FlagEvidence>(),
+    evidenceKey: varchar('evidence_key', { length: 200 }),
     note: varchar('note', { length: 500 }),
     status: text('status').$type<BypassStatus>().default('new').notNull(),
     confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
@@ -3625,6 +3740,13 @@ export const bypassReports = pgTable(
       sql`(${table.status} = 'dismissed') = (${table.dismissedAt} is not null and ${table.dismissedBy} is not null and ${table.dismissedReason} is not null)`
     ),
     check('bypass_reports_reward_status_check', sql`${table.rewardStatus} in ('none', 'owed', 'granted')`),
+    uniqueIndex('bypass_reports_evidence_key').on(table.evidenceKey).where(sql`${table.evidenceKey} is not null`),
+    index('bypass_reports_source_status_idx').on(table.source, table.status, table.createdAt),
+    check('bypass_reports_source_check', sql`${table.source} in ('customer', 'detlio')`),
+    check(
+      'bypass_reports_flag_check',
+      sql`(${table.source} = 'customer' and ${table.signal} is null and ${table.evidence} is null and ${table.evidenceKey} is null and ${table.bookingRef} is not null) or (${table.source} = 'detlio' and ${table.signal} in ('contact_in_note', 'regulars_went_quiet', 'cancelled_after_inspection') and ${table.evidence} is not null and ${table.evidenceKey} is not null and ${table.userId} is null and ${table.rootBookingId} is null and ${table.rewardStatus} = 'none')`
+    ),
     check(
       'bypass_reports_reward_confirmed_check',
       sql`${table.rewardStatus} = 'none' or ${table.status} = 'confirmed'`
@@ -4789,6 +4911,9 @@ export const bookingsRelations = relations(bookings, ({ one, many }) => ({
   }),
   notes: many(bookingNotes),
   photos: many(jobPhotos),
+  // The car condition check (0075): the sent check and its marks.
+  conditionChecks: many(conditionChecks),
+  conditionMarks: many(conditionMarks),
   charges: many(bookingCharges),
   refundRecords: many(refundRecords),
   timeProposals: many(bookingTimeProposals, { relationName: 'proposalBooking' }),
@@ -4805,6 +4930,20 @@ export const bookingTimeProposalsRelations = relations(bookingTimeProposals, ({ 
 export const bookingNotesRelations = relations(bookingNotes, ({ one }) => ({
   booking: one(bookings, {
     fields: [bookingNotes.bookingId],
+    references: [bookings.id],
+  }),
+}))
+
+export const conditionChecksRelations = relations(conditionChecks, ({ one }) => ({
+  booking: one(bookings, {
+    fields: [conditionChecks.bookingId],
+    references: [bookings.id],
+  }),
+}))
+
+export const conditionMarksRelations = relations(conditionMarks, ({ one }) => ({
+  booking: one(bookings, {
+    fields: [conditionMarks.bookingId],
     references: [bookings.id],
   }),
 }))
@@ -5939,7 +6078,125 @@ export const garageMilestonesSeen = pgTable(
   (table) => [primaryKey({ columns: [table.vendorId, table.key] })]
 )
 
-// ─── Shine Score (0075) ──────────────────────────────────────────────────────
+// ─── Repair & bodywork quotes (0076) ─────────────────────────────────────────
+
+export type RepairQuoteRequestStatus = 'open' | 'booked' | 'cancelled'
+export type RepairQuoteStatus = 'waiting' | 'quoted' | 'declined'
+export type RepairBriefSource = 'ai' | 'ai_edited' | 'customer'
+
+/** One picture garages see: a customer's photo, or a frame taken from the video on the phone. */
+export interface RepairQuotePhoto {
+  /** The object KEY in the private bucket (lib/job-photo-storage.ts), never an address. */
+  key: string
+  kind: 'photo' | 'frame'
+}
+
+/** Where the damage is on one of the pictures, as shares of its width and height (0–1). */
+export interface RepairQuoteBox {
+  image: number
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+/**
+ * A customer's request for repair quotes (modules/repair-quotes): what is
+ * damaged, in a brief garages read, and the private video and pictures.
+ * Rules in lib/repair-quotes.ts; CHECKs in drizzle/0076_repair_quotes.sql.
+ */
+export const repairQuoteRequests = pgTable(
+  'repair_quote_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    vehicleId: uuid('vehicle_id').references(() => userVehicles.id, { onDelete: 'set null' }),
+    vehicleLabel: varchar('vehicle_label', { length: 120 }).notNull(),
+    vehicleType: varchar('vehicle_type', { length: 20 }).$type<'hatchback' | 'sedan' | 'suv'>().notNull(),
+    lat: doublePrecision('lat').notNull(),
+    lng: doublePrecision('lng').notNull(),
+    area: varchar('area', { length: 80 }),
+    note: varchar('note', { length: 140 }).notNull(),
+    brief: varchar('brief', { length: 240 }).notNull(),
+    damageArea: varchar('damage_area', { length: 80 }),
+    damageLabel: varchar('damage_label', { length: 60 }),
+    briefSource: varchar('brief_source', { length: 20 }).$type<RepairBriefSource>().notNull(),
+    box: jsonb('box').$type<RepairQuoteBox>(),
+    videoKey: varchar('video_key', { length: 300 }),
+    videoSecs: smallint('video_secs'),
+    photos: jsonb('photos').$type<RepairQuotePhoto[]>().default([]).notNull(),
+    status: varchar('status', { length: 20 }).$type<RepairQuoteRequestStatus>().default('open').notNull(),
+    closesAt: timestamp('closes_at', { withTimezone: true }).notNull(),
+    bookedQuoteId: uuid('booked_quote_id').references((): AnyPgColumn => repairQuotes.id, { onDelete: 'set null' }),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('repair_quote_requests_user_idx').on(table.userId, table.createdAt),
+    index('repair_quote_requests_created_idx').on(table.createdAt),
+    check('repair_quote_requests_vehicle_type_check', sql`${table.vehicleType} in ('hatchback', 'sedan', 'suv')`),
+    check('repair_quote_requests_status_check', sql`${table.status} in ('open', 'booked', 'cancelled')`),
+    check('repair_quote_requests_brief_source_check', sql`${table.briefSource} in ('ai', 'ai_edited', 'customer')`),
+    check('repair_quote_requests_note_check', sql`char_length(btrim(${table.note})) between 1 and 140`),
+    check('repair_quote_requests_brief_check', sql`char_length(btrim(${table.brief})) between 1 and 240`),
+    check(
+      'repair_quote_requests_video_secs_check',
+      sql`${table.videoSecs} is null or (${table.videoKey} is not null and ${table.videoSecs} between 1 and 30)`
+    ),
+    check('repair_quote_requests_media_check', sql`${table.videoKey} is not null or jsonb_array_length(${table.photos}) > 0`),
+    check('repair_quote_requests_booked_check', sql`${table.bookedQuoteId} is null or ${table.status} = 'booked'`),
+    check('repair_quote_requests_cancelled_check', sql`(${table.status} = 'cancelled') = (${table.cancelledAt} is not null)`),
+  ]
+)
+
+/** One garage asked about a repair request: its clock, its answer, and the visit booked from it. */
+export const repairQuotes = pgTable(
+  'repair_quotes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    requestId: uuid('request_id')
+      .notNull()
+      .references(() => repairQuoteRequests.id, { onDelete: 'cascade' }),
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    distanceKm: decimal('distance_km', { precision: 6, scale: 1 }).notNull(),
+    respondBy: timestamp('respond_by', { withTimezone: true }).notNull(),
+    status: varchar('status', { length: 20 }).$type<RepairQuoteStatus>().default('waiting').notNull(),
+    priceFrom: integer('price_from'),
+    priceTo: integer('price_to'),
+    days: smallint('days'),
+    needsInspection: boolean('needs_inspection'),
+    note: varchar('note', { length: 200 }),
+    declineReason: varchar('decline_reason', { length: 200 }),
+    answeredAt: timestamp('answered_at', { withTimezone: true }),
+    answeredBy: uuid('answered_by').references(() => users.id, { onDelete: 'set null' }),
+    bookingId: uuid('booking_id').references(() => bookings.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('repair_quotes_request_vendor_key').on(table.requestId, table.vendorId),
+    index('repair_quotes_vendor_idx').on(table.vendorId, table.createdAt),
+    uniqueIndex('repair_quotes_booking_id_key').on(table.bookingId).where(sql`${table.bookingId} is not null`),
+    check('repair_quotes_status_check', sql`${table.status} in ('waiting', 'quoted', 'declined')`),
+    check('repair_quotes_answer_check', sql`(${table.status} = 'waiting') = (${table.answeredAt} is null)`),
+    check(
+      'repair_quotes_quoted_check',
+      sql`(${table.status} = 'quoted') = (${table.priceFrom} is not null and ${table.priceTo} is not null and ${table.days} is not null and ${table.needsInspection} is not null)`
+    ),
+    check(
+      'repair_quotes_price_check',
+      sql`${table.priceFrom} is null or (${table.priceFrom} > 0 and ${table.priceTo} >= ${table.priceFrom} and ${table.priceTo} <= 500000)`
+    ),
+    check('repair_quotes_days_check', sql`${table.days} is null or ${table.days} between 1 and 30`),
+    check('repair_quotes_booking_check', sql`${table.bookingId} is null or ${table.status} = 'quoted'`),
+  ]
+)
+
+// ─── Shine Score (0078) ──────────────────────────────────────────────────────
 //
 // A free cleanliness score from four photos, and a finished job's before and
 // after score from the garage's photos, behind SHINE_SCORE_ENABLED. Rules and

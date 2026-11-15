@@ -9,7 +9,7 @@ import { jpegHasLocation } from './jpeg-metadata';
 import { fitWithin } from './photo-prepare';
 
 /**
- * Shine Score's photos (0075; the web's lib/shine-photo.ts): re-encoded on the phone as a
+ * Shine Score's photos (0078; the web's lib/shine-photo.ts): re-encoded on the phone as a
  * JPEG at most SHINE_NUMBERS.photoEdge on its longer side (smaller if it comes out over
  * maxPhotoBytes), which drops where and when it was taken. Core's stripImageMetadata does
  * nothing on a phone, so expo-image-manipulator does it, and the bytes are checked for a

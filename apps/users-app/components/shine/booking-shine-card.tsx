@@ -11,7 +11,7 @@ import { Image, Pressable, View } from 'react-native';
 import { shareShineScore } from './shine-share';
 
 /**
- * "Your Shine went 46 → 92" (0075; the web's components/shine/booking-shine-card.tsx): on
+ * "Your Shine went 46 → 92" (0078; the web's components/shine/booking-shine-card.tsx): on
  * the booking page once the job is done, from the garage's own before and after photos of
  * the same areas. Nothing while Shine Score is off, while it is being scored, or when the
  * photos share fewer than two areas.

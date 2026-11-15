@@ -1,6 +1,6 @@
 import type { ReachCity } from '@repo/core/cities'
 import type { Tier } from '@repo/core/tiers'
-import type { ConditionPhotos, PhotoStandard, ServiceMedia } from '@repo/core/types'
+import type { ConditionCheck, ConditionPhotos, JobPhotoAngle, PhotoStandard, ServiceMedia } from '@repo/core/types'
 import type { PickupNext } from '@repo/core/pickup'
 import type { OutsideServiceCity } from '@repo/core/service-city'
 
@@ -428,8 +428,8 @@ export interface ApiJobPhoto {
   stage: 'before' | 'after'
   url: string
   createdAt: string
-  /** 0045; absent from older servers. */
-  angle?: 'front' | 'back' | 'left' | 'right' | 'interior' | null
+  /** 0045 (corners 0075); absent from older servers. */
+  angle?: JobPhotoAngle | null
   /** 0045; absent from older servers, whose photos were all the garage's. */
   by?: 'garage' | 'customer'
 }
@@ -550,6 +550,8 @@ export interface ApiBooking {
   customerBadge?: string | null
   /** Customer payloads only (0045): when they may add their own photos. */
   conditionPhotos?: ConditionPhotos
+  /** The car condition check (0075), the viewer's own view; null while it is off. */
+  conditionCheck?: ConditionCheck | null
   /** The final bill that stands, on payloads that carry job records. */
   finalBill?: ApiFinalBill | null
   /** Garage payloads only: whether "Raise final bill" applies now. */

@@ -139,6 +139,9 @@ import {
   OWNER_DELETE,
   CALENDAR,
   INSPECTION_NO_FEE,
+  CONDITION_CHECK,
+  REPAIR_QUOTES,
+  OFF_APP_FLAGS,
   SHINE,
 } from './e2e-ids.js'
 import { hashPassword } from '../../lib/passwords.js'
@@ -3857,7 +3860,121 @@ async function seedInspectionNoFeeRows() {
 }
 
 /**
- * Shine Score (0075; SHINE, ids 7600–7699, phones 90000076xx): see SHINE.
+ * Car condition check at handover (CONDITION_CHECK, ids 7500–7549, phones
+ * 90000075xx): see CONDITION_CHECK for what each job is for. Doorstep jobs
+ * at the customer's door near the garage; the pickup job's codes are known
+ * to the spec. No photos, checks or marks: the spec makes them through the
+ * portal and the API.
+ */
+async function seedConditionCheckRows() {
+  const C = CONDITION_CHECK
+  await db.insert(users).values([
+    { id: C.customer.id, name: C.customer.name, phone: C.customer.phone, isCustomer: true, isVendorOwner: false,
+      phoneVerified: true, status: 'active' as const },
+    { id: C.owner.id, name: C.owner.name, phone: C.owner.phone, isCustomer: false, isVendorOwner: true,
+      phoneVerified: true, status: 'active' as const },
+  ])
+  await db.insert(userVehicles).values({
+    id: C.customer.vehicleId, userId: C.customer.id, make: 'Hyundai', model: 'Creta', color: 'Silver',
+    licensePlate: 'TN75CC0075', vehicleType: 'suv', isDefault: true,
+  })
+  const pin = { lat: ORIGIN.lat - 1.9, lng: ORIGIN.lng - 0.5 }
+  await db.insert(vendors).values({
+    id: C.garage.id, ownerId: C.owner.id, businessName: C.garage.name, phone: '9000007503',
+    address: '75, Handover Street, Kovalam', city: 'Chennai', pincode: '603112',
+    lat: pin.lat, lng: pin.lng, geoSource: 'map_pin', geoConfirmedAt: now,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'], bays: 4, slotIntervalMins: 30,
+    status: 'pending', isVerified: false, dropinEnabled: true, doorstepEnabled: true,
+  })
+  await db.insert(userMemberMapping).values({
+    vendorId: C.garage.id, userId: C.owner.id, role: 'vendor_admin', status: 'active',
+  })
+  await db.insert(vendorWorkingHours).values(hoursFor(C.garage.id, '06:00:00', '22:00:00'))
+  await db.insert(services).values({
+    id: C.wash.id, vendorId: C.garage.id, name: C.wash.name, description: 'An exterior foam wash and dry.',
+    category: 'car_wash', pricingType: 'flat', price: C.wash.price, durationMins: C.wash.durationMins, isActive: true,
+  })
+  const door = { address: '12, Customer Lane, Kovalam', lat: pin.lat + 0.01, lng: pin.lng }
+  const common = {
+    userId: C.customer.id, vendorId: C.garage.id, vehicleId: C.customer.vehicleId, status: 'confirmed' as const,
+    items: [{ id: C.wash.id, name: C.wash.name, amount: C.wash.price, durationMins: C.wash.durationMins }],
+    createdAt: hoursAgo(3), acceptedAt: hoursAgo(2),
+  }
+  const jobs = [
+    { id: C.walkRound, hour: 9, txn: 'pay_e2e_condition_walk' },
+    { id: C.wrong, hour: 11, txn: 'pay_e2e_condition_wrong' },
+    { id: C.newMark, hour: 13, txn: 'pay_e2e_condition_new' },
+    { id: C.pickup, hour: 15, txn: 'pay_e2e_condition_pickup' },
+  ]
+  for (const job of jobs) {
+    await insertBooking({
+      ...common, id: job.id, scheduledAt: tomorrowAt(job.hour), doorstep: door,
+      payment: { status: 'paid', txnId: job.txn, gatewayMode: 'fake' },
+    })
+  }
+  await db.update(bookings).set({
+    bookingType: 'pickup', pickupCode: C.pickupCode, deliveryCode: C.deliveryCode,
+  }).where(eq(bookings.id, C.pickup))
+}
+
+/**
+ * Repair & bodywork quotes (0076; REPAIR_QUOTES, ids 7550–7599, phones
+ * 90000075xx, 50–99): see REPAIR_QUOTES. No requests: the journey sends its own.
+ */
+async function seedRepairQuoteRows() {
+  const Q = REPAIR_QUOTES
+  await db.insert(users).values([
+    { id: Q.customer.id, name: Q.customer.name, phone: Q.customer.phone, isCustomer: true, isVendorOwner: false,
+      phoneVerified: true, status: 'active' as const },
+    ...[Q.owner, Q.secondOwner, Q.noInspectionOwner, Q.switchOwner].map((owner) => ({
+      id: owner.id, name: owner.name, phone: owner.phone, isCustomer: false, isVendorOwner: true,
+      phoneVerified: true, status: 'active' as const,
+    })),
+  ])
+  await db.insert(userVehicles).values({
+    id: Q.customer.vehicleId, userId: Q.customer.id, make: 'Maruti', model: 'Swift', color: 'White',
+    licensePlate: 'TN09RQ0075', vehicleType: 'hatchback', isDefault: true,
+  })
+  const garage = (id: string, ownerId: string, businessName: string, phone: string, km: number, repairQuotesEnabled: boolean) => ({
+    id, ownerId, businessName, phone, address: '75, Bodywork Lane, Mahabalipuram', city: 'Chennai', pincode: '603104',
+    lat: Q.point.lat + km / 111, lng: Q.point.lng, geoSource: 'map_pin' as const, geoConfirmedAt: now,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'] as Array<'hatchback' | 'sedan' | 'suv'>, bays: 4, slotIntervalMins: 30,
+    whatsapp: null, status: 'active' as const, isVerified: true, dropinEnabled: true, doorstepEnabled: false,
+    repairQuotesEnabled, createdAt: daysAgo(30),
+  })
+  await db.insert(vendors).values([
+    garage(Q.garage.id, Q.owner.id, Q.garage.name, Q.owner.phone, 2, true),
+    garage(Q.second.id, Q.secondOwner.id, Q.second.name, Q.secondOwner.phone, 3.5, true),
+    garage(Q.noInspection.id, Q.noInspectionOwner.id, Q.noInspection.name, Q.noInspectionOwner.phone, 1, false),
+    garage(Q.switchGarage.id, Q.switchOwner.id, Q.switchGarage.name, Q.switchOwner.phone, 110, true),
+  ])
+  await db.insert(userMemberMapping).values([
+    { vendorId: Q.garage.id, userId: Q.owner.id, role: 'vendor_admin', status: 'active' },
+    { vendorId: Q.second.id, userId: Q.secondOwner.id, role: 'vendor_admin', status: 'active' },
+    { vendorId: Q.noInspection.id, userId: Q.noInspectionOwner.id, role: 'vendor_admin', status: 'active' },
+    { vendorId: Q.switchGarage.id, userId: Q.switchOwner.id, role: 'vendor_admin', status: 'active' },
+  ])
+  // Open all day, so the 4-hour clock runs whenever the suite does.
+  await db.insert(vendorWorkingHours).values([
+    ...hoursFor(Q.garage.id, '00:00:00', '23:59:00'),
+    ...hoursFor(Q.second.id, '00:00:00', '23:59:00'),
+    ...hoursFor(Q.noInspection.id, '06:00:00', '22:00:00'),
+    ...hoursFor(Q.switchGarage.id, '06:00:00', '22:00:00'),
+  ])
+  await db.insert(services).values([
+    { id: Q.inspection.id, vendorId: Q.garage.id, name: Q.inspection.name, description: 'We look at the dent or scratch and quote the work.',
+      category: 'scratch_removal', pricingType: 'on_inspection', price: '0.00', durationMins: Q.inspection.durationMins, isActive: true },
+    { id: Q.secondInspection.id, vendorId: Q.second.id, name: Q.secondInspection.name, description: 'We check the body and quote the work.',
+      category: 'scratch_removal', pricingType: 'on_inspection', price: '0.00', durationMins: Q.secondInspection.durationMins, isActive: true },
+    { id: Q.noInspectionWash.id, vendorId: Q.noInspection.id, name: Q.noInspectionWash.name, description: 'An exterior foam wash.',
+      category: 'car_wash', pricingType: 'flat', price: '499.00', durationMins: 60, isActive: true },
+    { id: Q.switchInspection.id, vendorId: Q.switchGarage.id, name: Q.switchInspection.name, description: 'We look at the dent and quote.',
+      category: 'scratch_removal', pricingType: 'on_inspection', price: '0.00', durationMins: Q.switchInspection.durationMins, isActive: true },
+  ])
+}
+
+/**
+ * Shine Score (0078; SHINE, ids 7600–7699, phones 90000076xx): see SHINE.
  * The scores are written as the scoring would have left them; nothing here
  * calls the AI.
  */
@@ -4663,10 +4780,49 @@ async function main() {
   await seedCalendarRows()
   console.log('[e2e-seed] inspection with no fee…')
   await seedInspectionNoFeeRows()
+  console.log('[e2e-seed] car condition check…')
+  await seedConditionCheckRows()
+  console.log('[e2e-seed] repair quotes…')
+  await seedRepairQuoteRows()
+  console.log('[e2e-seed] off-app payment flags…')
+  await seedOffAppFlagRows()
   console.log('[e2e-seed] shine score…')
   await seedShineRows()
   console.log('[e2e-seed] done')
   process.exit(0)
+}
+
+/**
+ * Off-app payment flags (0077; OFF_APP_FLAGS, ids 7700–7749): two New
+ * "Flagged by Detlio" entries, as the daily check writes them (no reporter,
+ * no chain, no reward, masked evidence, one key each).
+ */
+async function seedOffAppFlagRows() {
+  const F = OFF_APP_FLAGS
+  const day = 24 * 60 * 60 * 1000
+  await db.insert(bypassReports).values([
+    {
+      id: F.note, source: 'detlio', signal: 'contact_in_note', kind: 'gave_number', status: 'new',
+      userId: null, bookingId: null, rootBookingId: null, bookingRef: null, vendorId: null, garageName: F.garageName,
+      evidenceKey: 'contact_in_note:e2e-seed:bill_note:7700',
+      evidence: {
+        signal: 'contact_in_note', bookingId: F.note, bookingRef: 'E2E77000', where: 'bill_note',
+        writtenAt: new Date(Date.now() - day).toISOString(),
+        excerpt: `Sir next time call ${F.maskedNumber} directly, GPay flagcheck@okaxis, less price`,
+        found: ['phone', 'upi'], confirmedByAi: false,
+      },
+      createdAt: new Date(Date.now() - day),
+    },
+    {
+      id: F.regulars, source: 'detlio', signal: 'regulars_went_quiet', kind: 'other', status: 'new',
+      userId: null, bookingId: null, rootBookingId: null, bookingRef: null, vendorId: null, garageName: F.garageName,
+      evidenceKey: 'regulars_went_quiet:e2e-seed:7701',
+      evidence: {
+        signal: 'regulars_went_quiet', regulars: 14, stopped: 6, bookingElsewhere: 2, stoppedDays: 30, customers: [],
+      },
+      createdAt: new Date(Date.now() - 2 * day),
+    },
+  ])
 }
 
 main().catch((error) => {

@@ -12,6 +12,7 @@ import {
 } from '../../middleware/tenant.middleware.js'
 import { vendorFinalBillRoutes } from '../booking-charges/booking-charges.routes.js'
 import { jobPhotosRoutes } from '../job-photos/job-photos.routes.js'
+import { conditionCheckRoutes } from '../condition-check/condition-check.routes.js'
 import { vendorTimeProposalRoutes } from '../time-proposals/time-proposals.routes.js'
 import { membersRoutes } from '../members/members.routes.js'
 import { vendorEarningsRoutes } from '../payouts/payouts.routes.js'
@@ -23,6 +24,7 @@ import { garageAgreementRoutes } from '../agreements/agreements.routes.js'
 import { garageTierRoutes } from '../tiers/tiers.routes.js'
 import { garageGuaranteeRoutes } from '../guarantee/guarantee.routes.js'
 import { garageBookingRequestRoutes } from '../booking-requests/booking-requests.routes.js'
+import { garageRepairQuoteRoutes } from '../repair-quotes/repair-quotes.routes.js'
 import { garageReviewRoutes } from '../reviews/reviews.routes.js'
 import { garageBookRoutes } from '../garage-book/garage-book.routes.js'
 import * as vendorsController from './vendors.controller.js'
@@ -156,6 +158,8 @@ vendorsRoutes.route('/me/earnings', vendorEarningsRoutes)
 // to operators in their own files, deliberately — the people who do the work
 // take the photos and write the bill.
 vendorsRoutes.route('/me/bookings', jobPhotosRoutes)
+// The car condition check (0075): /me/bookings/:id/condition/….
+vendorsRoutes.route('/me/bookings', conditionCheckRoutes)
 vendorsRoutes.route('/me/bookings', vendorFinalBillRoutes)
 vendorsRoutes.route('/me/bookings', vendorTimeProposalRoutes)
 
@@ -196,6 +200,9 @@ vendorsRoutes.route('/me/guarantee', garageGuaranteeRoutes)
 // it does new bookings); what one earns is the owner seat's alone. Nested
 // for the same reason as the team screen.
 vendorsRoutes.route('/me/requests', garageBookingRequestRoutes)
+// Repair & bodywork quotes (0076), answered beside visit requests: its own
+// file, operators too, every route a 404 while REPAIR_QUOTES_ENABLED is off.
+vendorsRoutes.route('/me/repair-quotes', garageRepairQuoteRoutes)
 
 // The garage's reviews (0065): its score, its one public reply to each and
 // reporting one to the team. Owner seat only, in its own file. Nested for the

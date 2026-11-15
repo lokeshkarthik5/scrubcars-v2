@@ -8,7 +8,7 @@ import { SectionTabs } from '@/components/section-tabs'
 /**
  * Issues: the three pages about customers' problems in one place with tabs
  * (UX audit, admin mockup 01). Redo claims only while the Guarantee is on,
- * Shine checks (0075) only while Shine Score is.
+ * Shine checks (0078) only while Shine Score is.
  */
 export function IssuesTabs() {
   const pathname = usePathname()

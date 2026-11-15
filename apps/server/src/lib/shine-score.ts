@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { bannedPhraseIn } from './copy-rules.js'
 
 /**
- * Shine Score (0075; owner's screens OK'd 15 Nov 2026): a free cleanliness
+ * Shine Score (0078; owner's screens OK'd 15 Nov 2026): a free cleanliness
  * score from four photos, and a before/after score from a finished job's
  * garage photos. Every rule and number is here, pure and unit-tested; the
  * words and numbers the apps show are twinned in

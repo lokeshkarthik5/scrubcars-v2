@@ -16,7 +16,7 @@ import {
 } from '@repo/core/api/shine-score'
 
 /**
- * Shine Score (0075): the queries and writes every app uses. A failed config
+ * Shine Score (0078): the queries and writes every app uses. A failed config
  * read counts as off, so nothing shows; it only changes with a deploy, so it
  * is kept a few minutes and never retried.
  */

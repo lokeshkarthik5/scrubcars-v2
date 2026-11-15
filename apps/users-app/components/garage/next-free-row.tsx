@@ -1,7 +1,7 @@
 import { useNextFree } from '@repo/core/api/hooks/use-next-free';
 import { bookingTypeParam } from '@repo/core/booking-types';
 import { useT } from '@repo/core/i18n';
-import { nextFreeDayLabel, nextFreeTimeLabels, upcomingNextFree } from '@repo/core/next-free';
+import { nextFreeDayLabel, nextFreeTimeLabels, upcomingNextFree, type NextFree } from '@repo/core/next-free';
 import type { BookingType, Vendor } from '@repo/core/types';
 import { Raised, RedLight } from '@repo/native-ui/finish';
 import { IconClock } from '@repo/native-ui/icons';
@@ -28,6 +28,7 @@ export function NextFreeRow({
   mode,
   visible,
   serviceIds,
+  preset,
   style,
 }: {
   /** Only its id and name are read (Shine Score's suggestions pass just those). */
@@ -36,19 +37,25 @@ export function NextFreeRow({
   visible: boolean;
   /** The services already picked, on the garage page: a time then books them, as Book now would. */
   serviceIds?: readonly string[];
+  /**
+   * Times already worked out (the rescue's, near a cancelled booking's slot): shown instead of
+   * asking for the garage's next free ones, with their own day words ("Today, near 10:30 am")
+   * and links (the same job, picked). The website's NextFreeRow takes the same.
+   */
+  preset?: { free: NextFree; dayLabel: string; hrefFor: (time: string) => string };
   style?: StyleProp<ViewStyle>;
 }) {
   const t = useT();
   const styles = useStyles();
   const colors = useColors();
   const { fx } = useFinish();
-  const next = useNextFree(vendor.id, mode, visible);
+  const next = useNextFree(vendor.id, mode, visible && !preset);
   const [picked, setPicked] = useState<string | null>(null);
-  const free = upcomingNextFree(next.data);
+  const free = upcomingNextFree(preset ? preset.free : next.data);
   if (!free) return null;
 
   // formatDay stays English (screens compare it); "Today" is shown through t.
-  const day = t(nextFreeDayLabel(free));
+  const day = preset ? preset.dayLabel : t(nextFreeDayLabel(free));
   const labels = nextFreeTimeLabels(free);
   const modeParam = bookingTypeParam(mode);
 
@@ -88,7 +95,7 @@ export function NextFreeRow({
                 accessibilityLabel={t('Book {name}, {day} at {time}', { name: vendor.name, day, time: labels[i] })}
                 onPress={() => {
                   setPicked(time);
-                  router.push(`/book/${vendor.id}?${query.toString()}` as Href);
+                  router.push((preset ? preset.hrefFor(time) : `/book/${vendor.id}?${query.toString()}`) as Href);
                 }}
               >
                 {chosen ? (

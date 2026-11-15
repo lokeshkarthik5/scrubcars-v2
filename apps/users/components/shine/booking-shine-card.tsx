@@ -10,7 +10,7 @@ import { ScCard } from '@/components/ui/card'
 import { shareShineScore } from '@/lib/shine-share'
 
 /**
- * "Your Shine went 46 → 92" (0075): on the customer's booking page once the
+ * "Your Shine went 46 → 92" (0078): on the customer's booking page once the
  * job is done, scored from the garage's own before and after job photos of
  * the same areas. Nothing while Shine Score is off, while it is being scored,
  * or when the two sets share fewer than two areas (the server says `none`).

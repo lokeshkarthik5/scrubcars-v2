@@ -1,7 +1,7 @@
 import type { ShineCheckStatus } from '@repo/core/api/shine-score'
 
 /**
- * Wording for Issues → Shine checks (0075): its chips and what each means.
+ * Wording for Issues → Shine checks (0078): its chips and what each means.
  * The rule (an after-score under 60) is the server's; the number comes with
  * each answer.
  */

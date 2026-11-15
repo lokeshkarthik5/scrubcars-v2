@@ -158,14 +158,16 @@ export interface DocumentRequest {
   schema: Record<string, unknown>
   maxOutputTokens: number
   /**
-   * What the user turn says before the files. Left out, "Read this document."
-   * (the garage import's words). Shine Score names its photos here (0075).
+   * The user turn's line before the files. Fixed text, never personal data,
+   * except the repair-quote brief's (0076), which sends the customer's own
+   * line about the damage as data, never instructions: its `instructions`
+   * say so. Unset: the garage import's own ("Read this document.").
    */
-  userText?: string
+  prompt?: string
   /** How closely images are looked at; 'high' unless said (posters are small print). */
   imageDetail?: 'low' | 'high' | 'auto'
   /**
-   * A shorter limit than the client's 50 s, in ms. Shine Score (0075) does
+   * A shorter limit than the client's 50 s, in ms. Shine Score (0078) does
    * more work around its call in the same 60 s function (storing photos, or
    * running after Mark completed's response), so it asks for less.
    */
@@ -208,7 +210,7 @@ export function openAiDocumentClient({ apiKey, model, fetch }: OpenAiDocumentCon
   const client = new OpenAI({ apiKey, timeout: 50_000, maxRetries: 0, ...(fetch && { fetch }) })
 
   return {
-    async read({ instructions, files, schemaName, schema, maxOutputTokens, userText, imageDetail = 'high', timeoutMs }) {
+    async read({ instructions, files, schemaName, schema, maxOutputTokens, prompt, imageDetail = 'high', timeoutMs }) {
       try {
         const response = await client.responses.create({
           model,
@@ -220,7 +222,7 @@ export function openAiDocumentClient({ apiKey, model, fetch }: OpenAiDocumentCon
                 {
                   type: 'input_text',
                   text:
-                    userText ??
+                    prompt ??
                     (files.length === 1
                       ? 'Read this document.'
                       : `Read these ${files.length} documents; they are about the same garage.`),

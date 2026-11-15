@@ -29,7 +29,7 @@ export function WashGaugeDial({
   /** core's washGaugeShare: the arc's fill, 0–1. */
   share: number;
   over: boolean;
-  /** Higher is better (Shine Score, 0075): the arc runs red → amber → green. */
+  /** Higher is better (Shine Score, 0078): the arc runs red → amber → green. */
   reversed?: boolean;
 }) {
   const colors = useColors();

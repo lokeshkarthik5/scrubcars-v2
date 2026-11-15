@@ -1,5 +1,5 @@
 /**
- * Where Shine Score scan photos live (0075): the PRIVATE bucket the garage
+ * Where Shine Score scan photos live (0078): the PRIVATE bucket the garage
  * documents and job photos use (`R2_DOCS_BUCKET`, lib/document-storage.ts),
  * under `shine-scans/<scanId>/<area>.jpg`. No customer id in the key, no
  * public address, and no link is ever made to them: they are kept for
