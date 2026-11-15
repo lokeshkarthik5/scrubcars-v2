@@ -108,7 +108,7 @@ test('balance tiles: due now, oldest, owed to Detlio', () => {
 test('the footnote says the free bookings only while some are left', () => {
   const base = 'Detlio pays your share within 24 hours of each job, by bank transfer or UPI. ';
   expect(balanceFootnote({ cycleHours: 24, summary: summary() })).toBe(
-    `${base}Commission is 8% on washes, packages and others, 5% on detailing, coating and scratch removal.`
+    `${base}Commission is 8% on washes, packages and others, 5% on detailing, coating, scratch removal, general service, repairs and dent & paint.`
   );
   expect(balanceFootnote({ cycleHours: 24, summary: summary({ freeBookings: { used: 7, of: 25 } }) })).toEndWith(
     ' Your first 25 bookings are free: 7 used so far.'

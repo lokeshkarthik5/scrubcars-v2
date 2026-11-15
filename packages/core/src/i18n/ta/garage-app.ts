@@ -151,8 +151,8 @@ export const garageApp: Readonly<Record<string, string>> = {
     '{services}-க்கு நீங்கள் சொன்ன சரியைத் திரும்பப் பெறவும்',
   'Detlio pays your share within {hours} hours of each job, by bank transfer or UPI.':
     'ஒவ்வொரு வேலை முடிந்தும் {hours} மணி நேரத்துக்குள் Detlio உங்கள் பங்கை வங்கிப் பரிமாற்றம் அல்லது UPI மூலம் செலுத்தும்.',
-  'Commission is 8% on washes, packages and others, 5% on detailing, coating and scratch removal.':
-    'வாஷ், பேக்கேஜ், மற்றவைக்கு கமிஷன் 8%; டீடெய்லிங், கோட்டிங், ஸ்க்ராட்ச் ரிமூவலுக்கு 5%.',
+  'Commission is 8% on washes, packages and others, 5% on detailing, coating, scratch removal, general service, repairs and dent & paint.':
+    'வாஷ், பேக்கேஜ், மற்றவைக்கு கமிஷன் 8%; டீடெய்லிங், கோட்டிங், ஸ்க்ராட்ச் ரிமூவல், ஜெனரல் சர்வீஸ், ரிப்பேர், டென்ட் & பெயிண்ட்டுக்கு 5%.',
   Refunded: 'திருப்பித் தரப்பட்டது',
   'Taken back {amount} on {date}, ref {ref}':
     '{date} அன்று {amount} திரும்பப் பெறப்பட்டது, ref {ref}',

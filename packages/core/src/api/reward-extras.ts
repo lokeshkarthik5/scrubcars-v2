@@ -2,6 +2,7 @@ import { apiClient } from '@repo/core/api/client'
 import type { BadgeKey } from '@repo/core/achievements'
 import type { RewardLevel } from '@repo/core/rewards'
 import type { WrappedStats } from '@repo/core/wrapped'
+import type { ServiceCategory } from '@repo/core/types'
 import { signedBody } from './admin-signer'
 
 /**
@@ -115,7 +116,7 @@ export interface ChallengeFormValues {
   startDate: string
   endDate: string
   goalCount: number
-  category: 'car_wash' | 'detailing' | 'coating' | 'scratch_removal' | 'others' | 'package' | null
+  category: ServiceCategory | null
   bookingType: 'dropin' | 'doorstep' | 'pickup' | null
   rewardKind: ChallengeRewardKind
   rewardStamps: number | null

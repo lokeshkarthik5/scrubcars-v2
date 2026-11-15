@@ -64,7 +64,7 @@ export const SERVICE_TEMPLATES: readonly ServiceTemplate[] = [
     key: 'interior-cleaning',
     name: 'Interior cleaning',
     // A wash-side service, as in the approved editor mockup: listed under
-    // "Wash and standard" and found by customers under Car Wash.
+    // Car wash and found by customers there.
     category: 'car_wash',
     durationMins: 90,
     pricingType: 'per_vehicle',
@@ -92,7 +92,9 @@ export const SERVICE_TEMPLATES: readonly ServiceTemplate[] = [
   {
     key: 'engine-bay-cleaning',
     name: 'Engine bay cleaning',
-    category: 'others',
+    // Detailing since 16 Nov 2026 (was Others): degrease and dress is
+    // detailing work, so its commission is detailing's.
+    category: 'detailing',
     durationMins: 45,
     pricingType: 'flat',
     description:
@@ -124,6 +126,76 @@ export const SERVICE_TEMPLATES: readonly ServiceTemplate[] = [
     pricingType: 'flat',
     description:
       'Two-wheeler foam wash with the body, wheels and chain area cleaned, then dried. The engine and electrics are not pressure-washed.',
+  },
+  // The mechanical and body work (0080, owner's screens 16 Nov 2026).
+  {
+    key: 'general-service',
+    name: 'General service',
+    category: 'general_service',
+    durationMins: 180,
+    pricingType: 'per_vehicle',
+    description:
+      'Engine oil and filter changed, fluids topped up, and the brakes, battery, tyres and lights checked.',
+  },
+  {
+    key: 'oil-change',
+    name: 'Oil change',
+    category: 'general_service',
+    durationMins: 45,
+    pricingType: 'per_vehicle',
+    description: 'Engine oil drained and refilled with the grade your car needs, and a new oil filter fitted.',
+  },
+  {
+    key: 'wheel-alignment-balancing',
+    name: 'Wheel alignment & balancing',
+    category: 'general_service',
+    durationMins: 45,
+    pricingType: 'flat',
+    description:
+      'Wheel angles set on an alignment machine and each wheel balanced, so the car runs straight with less vibration.',
+  },
+  {
+    key: 'brake-pads',
+    name: 'Brake pads',
+    category: 'repairs',
+    durationMins: 60,
+    pricingType: 'per_vehicle',
+    description:
+      'Worn front brake pads removed and new ones fitted, the discs and callipers checked, and the brakes tested before handover.',
+  },
+  {
+    key: 'ac-service',
+    name: 'AC service',
+    category: 'repairs',
+    durationMins: 90,
+    pricingType: 'per_vehicle',
+    description: 'AC gas checked and topped up, the cabin filter cleaned, and the cooling tested.',
+  },
+  {
+    key: 'clutch-repair',
+    name: 'Clutch repair',
+    category: 'repairs',
+    durationMins: 1440,
+    pricingType: 'on_inspection',
+    description:
+      'The clutch inspected first, then the worn parts repaired or replaced as quoted, and the clutch tested on the road.',
+  },
+  {
+    key: 'dent-repair',
+    name: 'Dent repair',
+    category: 'dent_paint',
+    durationMins: 120,
+    pricingType: 'on_inspection',
+    description:
+      'Dents pulled or beaten out and the panel smoothed. The work is quoted after the garage sees the car.',
+  },
+  {
+    key: 'panel-painting',
+    name: 'Panel painting',
+    category: 'dent_paint',
+    durationMins: 1440,
+    pricingType: 'per_vehicle',
+    description: 'One panel sanded, primed and painted to match the car, then clear-coated and polished.',
   },
 ]
 
