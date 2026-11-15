@@ -84,34 +84,47 @@ function approveLabel(data: AdminGaragePickupFee): string {
  * Detlio's fee", and every change with who and when.
  */
 export function PickupFeeCard({ vendorId, onAuthError }: { vendorId: string; onAuthError: () => void }) {
-  const titleId = useId()
   const { data, error } = useAdminGaragePickupFee(vendorId)
-  const setFee = useSetAdminGaragePickupFee(vendorId)
-  const setLock = useSetAdminGaragePickupFeeLock(vendorId)
-  const decide = useDecidePickupFee()
-  const [mode, setMode] = useState<PickupFeeMode>('free')
-  const [boxes, setBoxes] = useState<Boxes | null>(null)
-  const [problem, setProblem] = useState<string | null>(null)
-  const [keeping, setKeeping] = useState(false)
-  const [reason, setReason] = useState('')
-
-  // The draft follows the garage's fee whenever a save or a decision lands.
-  useEffect(() => {
-    if (!data) return
-    setMode(data.fee.mode)
-    setBoxes(boxesOf(data))
-  }, [data])
   useEffect(() => {
     if (error instanceof ApiError && (error.status === 401 || error.status === 403)) onAuthError()
   }, [error, onAuthError])
 
-  if (!data || !boxes) {
+  if (!data) {
     return error ? (
       <p role="alert" className="mt-3 text-[13px] text-error">
         {errorMessage(error, 'Couldn’t load the pickup fee.')}
       </p>
     ) : null
   }
+  // A fresh draft whenever a save or a decision changes the garage's fee.
+  return (
+    <PickupFeeCardBody
+      key={`${JSON.stringify(data.fee)}:${data.waiting ? 'waiting' : 'live'}`}
+      vendorId={vendorId}
+      data={data}
+      onAuthError={onAuthError}
+    />
+  )
+}
+
+function PickupFeeCardBody({
+  vendorId,
+  data,
+  onAuthError,
+}: {
+  vendorId: string
+  data: AdminGaragePickupFee
+  onAuthError: () => void
+}) {
+  const titleId = useId()
+  const setFee = useSetAdminGaragePickupFee(vendorId)
+  const setLock = useSetAdminGaragePickupFeeLock(vendorId)
+  const decide = useDecidePickupFee()
+  const [mode, setMode] = useState<PickupFeeMode>(data.fee.mode)
+  const [boxes, setBoxes] = useState<Boxes>(() => boxesOf(data))
+  const [problem, setProblem] = useState<string | null>(null)
+  const [keeping, setKeeping] = useState(false)
+  const [reason, setReason] = useState('')
 
   const settings = withFormula(data.suggested)
   const settingsWithLimits = { ...settings, limits: data.limits }
@@ -139,7 +152,7 @@ export function PickupFeeCard({ vendorId, onAuthError }: { vendorId: string; onA
     if (next === 'distance') save(feeOf('distance', boxes))
   }
   const commit = () => save(feeOf(mode, boxes))
-  const set = (key: keyof Boxes) => (value: string) => setBoxes((b) => (b ? { ...b, [key]: value } : b))
+  const set = (key: keyof Boxes) => (value: string) => setBoxes((b) => ({ ...b, [key]: value }))
 
   const garage = garagePlan(feeOf(mode, boxes), settings)
   const detlio = data.detlioPlan

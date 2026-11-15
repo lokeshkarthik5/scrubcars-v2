@@ -123,24 +123,26 @@ function Card({
 export default function PickupFeeSettingsPage() {
   const router = useRouter()
   const { data, isPending, error, refetch } = useAdminPickupFeeSettings()
-  const save = useSaveAdminPickupFeeSettings()
-  const [boxes, setBoxes] = useState<Boxes | null>(null)
-  const [saveState, setSaveState] = useState<SavedState>('idle')
-  const [problem, setProblem] = useState<string | null>(null)
 
   useEffect(() => {
     if (isAuthError(error)) router.replace('/login')
   }, [error, router])
-  useEffect(() => {
-    if (data && !boxes) setBoxes(boxesOf(data))
-  }, [data, boxes])
 
-  if (isPending || (!boxes && !error)) return <SkeletonList count={3} itemClassName="h-48" />
-  if (error || !boxes || !data) {
+  if (isPending) return <SkeletonList count={3} itemClassName="h-48" />
+  if (error || !data) {
     return <ErrorState message={errorMessage(error, 'Failed to load the pickup fee settings')} onRetry={() => void refetch()} />
   }
+  return <SettingsForm data={data} />
+}
 
-  const set = (key: BoxKey) => (value: string) => setBoxes((b) => (b ? { ...b, [key]: value } : b))
+function SettingsForm({ data }: { data: PickupFeeSettings }) {
+  const save = useSaveAdminPickupFeeSettings()
+  // The boxes start from what is saved and follow each save.
+  const [boxes, setBoxes] = useState<Boxes>(() => boxesOf(data))
+  const [saveState, setSaveState] = useState<SavedState>('idle')
+  const [problem, setProblem] = useState<string | null>(null)
+
+  const set = (key: BoxKey) => (value: string) => setBoxes((b) => ({ ...b, [key]: value }))
   const typed = settingsOf(boxes)
   const commit = () => {
     if (!typed) {
