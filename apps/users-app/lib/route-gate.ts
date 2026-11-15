@@ -4,7 +4,8 @@
  * except their own feed; checkout signs in at its own last step. Pure, so it is tested.
  */
 const SIGN_IN_ROUTES = ['/login', '/verify-otp'];
-const CUSTOMER_ROUTES = ['/profile-setup', '/updates', '/requests'];
+// Repair quotes (0075) are one customer's own requests too.
+const CUSTOMER_ROUTES = ['/profile-setup', '/updates', '/requests', '/repair-quotes'];
 
 const under = (pathname: string, routes: string[]) =>
   routes.some((route) => pathname === route || pathname.startsWith(`${route}/`));

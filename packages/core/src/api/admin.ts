@@ -3,7 +3,7 @@ import { apiClient } from './client'
 import { stripImageMetadata } from '@repo/core/image-upload'
 import type { ApiMember } from './members'
 import type { VendorRole } from './types'
-import type { PhotoStandard, ServiceCategory, ServiceMedia } from '@repo/core/types'
+import type { ConditionCheck, JobPhotoAngle, PhotoStandard, ServiceCategory, ServiceMedia } from '@repo/core/types'
 import type {
   ComplaintCategory,
   ComplaintSource,
@@ -643,7 +643,7 @@ export interface AdminBookingDetail extends AdminBooking {
     stage: 'before' | 'after'
     url: string
     createdAt: string
-    angle?: 'front' | 'back' | 'left' | 'right' | 'interior' | null
+    angle?: JobPhotoAngle | null
     by?: 'garage' | 'customer'
     /** The person's name; null once their account is gone. */
     uploadedByName?: string | null
@@ -653,6 +653,11 @@ export interface AdminBookingDetail extends AdminBooking {
   /** Detlio waived the photo standard on this booking (0045), by whom and why. */
   /** `undoable` (0065): while the job is not over and has no redo claim; absent before 0065. */
   photosWaiver?: { at: string; by: string; reason: string; undoable?: boolean } | null
+  /**
+   * The car condition check (0075), as the garage sees it (removed marks
+   * too) with the customer's answer and note; null or absent while it is off.
+   */
+  conditionCheck?: ConditionCheck | null
   /** Extra work the garage asked for (0041), newest first. */
   extraWork?: AdminExtraWork[]
   /** Times the garage suggested instead of declining (0041), newest first. */

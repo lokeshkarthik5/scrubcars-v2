@@ -172,7 +172,7 @@ describe('strikes', () => {
   })
 })
 
-describe('rewardDecision for a Detlio flag (0075)', () => {
+describe('rewardDecision for a Detlio flag (0077)', () => {
   test('never a reward: there is no reporter', () => {
     expect(
       rewardDecision({ hasAccount: true, hasGarage: true, alreadyRewarded: false, creditOn: true, fromDetlio: true })

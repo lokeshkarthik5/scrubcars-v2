@@ -80,7 +80,7 @@ type Report = {
   rewardGrantedAt: Date | null
   createdAt: Date
   updatedAt: Date
-  /** 'customer' by the column's default; a Detlio flag says 'detlio' (0075). */
+  /** 'customer' by the column's default; a Detlio flag says 'detlio' (0077). */
   source?: string
 }
 const reports: Report[] = []
@@ -88,7 +88,7 @@ const ledger: Array<{ userId: string; amountPaise: number }> = []
 const audits: Array<{ action: string; actorName: string }> = []
 const savedGifts = env.giftsEnabled
 const savedFlags = env.offAppFlagsEnabled
-/** Which kinds of entry each admin list read asked for (0075). */
+/** Which kinds of entry each admin list read asked for (0077). */
 const listedSources: string[][] = []
 
 const adminRow = (report: Report) => ({
@@ -486,7 +486,7 @@ describe('admin: confirm rewards once per customer per garage', () => {
   })
 })
 
-// ─── Detlio's flags (0075) ───────────────────────────────────────────────────
+// ─── Detlio's flags (0077) ───────────────────────────────────────────────────
 
 /** A flag as the daily check writes it: no reporter, no chain, masked evidence. */
 function flag(): Report {
@@ -530,7 +530,7 @@ function flag(): Report {
   return row as unknown as Report
 }
 
-describe('Detlio flags (0075): off by default, never a reward', () => {
+describe('Detlio flags (0077): off by default, never a reward', () => {
   test('switched off: the list is customers’ reports only, as before, and Check now is a 404', async () => {
     await report(ON)
     flag()

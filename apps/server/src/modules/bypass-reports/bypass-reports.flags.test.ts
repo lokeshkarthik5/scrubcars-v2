@@ -1,5 +1,5 @@
 /**
- * Detlio's own checks (0075, lib/off-app-flags.ts) as the cron and Check now
+ * Detlio's own checks (0077, lib/off-app-flags.ts) as the cron and Check now
  * run them, with only the database stood in for (the repository's methods
  * replaced on its object, put back after):
  *

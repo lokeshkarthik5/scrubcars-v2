@@ -1,6 +1,6 @@
 # Off-app payment flags ("Flagged by Detlio")
 
-Detlio's own checks add entries to admin's **Bypass reports** page, next to customers' reports. Built Nov 2026 (migration 0075); the rules are in `apps/server/src/lib/off-app-flags.ts`.
+Detlio's own checks add entries to admin's **Bypass reports** page, next to customers' reports. Built Nov 2026 (migration 0077); the rules are in `apps/server/src/lib/off-app-flags.ts`.
 
 ## The switch
 
@@ -47,4 +47,4 @@ A second filter row, **All / Customer reports / Flagged by Detlio**, sits under 
 
 ## Data
 
-`bypass_reports` gains (0075, additive): `source` (`customer` | `detlio`), `signal`, `evidence` (jsonb), `evidence_key` (unique where set). `booking_ref` may be empty for a garage-level flag only (CHECK).
+`bypass_reports` gains (0077, additive): `source` (`customer` | `detlio`), `signal`, `evidence` (jsonb), `evidence_key` (unique where set). `booking_ref` may be empty for a garage-level flag only (CHECK).

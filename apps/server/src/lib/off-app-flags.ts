@@ -1,5 +1,5 @@
 /**
- * Off-app payment flags (0075, behind OFF_APP_FLAGS_ENABLED; owner-approved
+ * Off-app payment flags (0077, behind OFF_APP_FLAGS_ENABLED; owner-approved
  * screens 15 Nov 2026, docs/off-app-flags.md): Detlio's own daily checks add
  * entries to admin's Bypass reports, "Flagged by Detlio", beside customers'
  * reports (0052, lib/bypass-reports.ts).

@@ -1,5 +1,5 @@
 /**
- * Off-app payment flags (0075, docs/off-app-flags.md): Detlio's own entries
+ * Off-app payment flags (0077, docs/off-app-flags.md): Detlio's own entries
  * in admin's Bypass reports. OFF_APP_FLAGS_ENABLED is on in E2E (.env.e2e).
  *
  * The page keeps New / Confirmed / Dismissed and adds a second row, All /

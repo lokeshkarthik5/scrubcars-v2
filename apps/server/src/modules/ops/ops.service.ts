@@ -193,7 +193,7 @@ export const opsService = {
         log.error({ err }, 'ops:bypass_reward_sweep_failed')
         return { error: true as const }
       })
-    // Off-app payment flags (0075): Detlio's own daily checks, at the 07:00
+    // Off-app payment flags (0077): Detlio's own daily checks, at the 07:00
     // IST tick only, nothing while OFF_APP_FLAGS_ENABLED is off. Each flag is
     // written once (its evidence key). Never allowed to fail the digest.
     const offAppFlags = isMorningTick(Date.now())

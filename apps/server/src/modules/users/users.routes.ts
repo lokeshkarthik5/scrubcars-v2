@@ -21,6 +21,7 @@ import { customerRewardRoutes } from '../rewards/rewards.routes.js'
 import { customerRewardExtrasRoutes } from '../reward-extras/reward-extras.routes.js'
 import { customerGarageRoutes } from '../garage/garage.routes.js'
 import { customerBookingRequestRoutes } from '../booking-requests/booking-requests.routes.js'
+import { customerRepairQuoteRoutes } from '../repair-quotes/repair-quotes.routes.js'
 import { customerAreaRoutes } from '../area-signups/area-signups.routes.js'
 import * as usersController from './users.controller.js'
 import {
@@ -74,6 +75,9 @@ usersRoutes.route('/me', slotAlertsRoutes)
 // reach, the free-wash sign-up, Home's live status and recommendations.
 usersRoutes.route('/me/requests', customerBookingRequestRoutes)
 usersRoutes.route('/me/area', customerAreaRoutes)
+// Repair & bodywork quotes (0076): /me/repair-quotes. Same mounting, same
+// check; 404s while REPAIR_QUOTES_ENABLED is off.
+usersRoutes.route('/me/repair-quotes', customerRepairQuoteRoutes)
 
 // Gift a wash (0049): the gifts the customer bought, redeeming one, and
 // their Detlio credit: /me/gifts and /me/credit. Same mounting, same check;

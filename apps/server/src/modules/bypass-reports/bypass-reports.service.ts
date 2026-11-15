@@ -125,7 +125,7 @@ function toCustomerReport(row: BypassReportRecord) {
 
 type People = Map<string, { name: string | null; phone: string | null }>
 
-/** Whether Detlio's own checks are on (OFF_APP_FLAGS_ENABLED, 0075). */
+/** Whether Detlio's own checks are on (OFF_APP_FLAGS_ENABLED, 0077). */
 const flagsOn = () => env.offAppFlagsEnabled
 
 /** The customer a flag is about, if any: its booking's (a note) or the run's (inspection). */
@@ -192,7 +192,7 @@ function toAdminReport(row: AdminReportRow, strikes: Map<string, number>, people
   return {
     id: r.id,
     status: r.status,
-    // 'customer' for a customer's report, 'detlio' for Detlio's own flag (0075).
+    // 'customer' for a customer's report, 'detlio' for Detlio's own flag (0077).
     source: r.source,
     signal: r.signal,
     kind: r.kind,
@@ -447,7 +447,7 @@ export const bypassReportsService = {
       throw new AppError(404, 'Garage not found', 'VENDOR_NOT_FOUND')
     }
     const strikes = (await strikesFor([vendorId], now)).get(vendorId) ?? 0
-    // Detlio's flags count only while they are on, as in the list (0075).
+    // Detlio's flags count only while they are on, as in the list (0077).
     const counts = await bypassReportsRepository.countForGarage(vendorId, flagsOn() ? ['customer', 'detlio'] : ['customer'])
     return {
       strikes,
@@ -494,7 +494,7 @@ export const bypassReportsService = {
     return { enabled: true as const, owed: ids.length, granted }
   },
 
-  // ─── Detlio's flags (0075) ──────────────────────────────────────────────────
+  // ─── Detlio's flags (0077) ──────────────────────────────────────────────────
 
   /**
    * Detlio's own checks (lib/off-app-flags.ts): new "Flagged by Detlio"

@@ -28,7 +28,7 @@ const actorName = signedActorName
 
 /**
  * Admin's list: New (to look into), Confirmed, Dismissed; and which kind of
- * entry (0075): all, customers' reports, or Detlio's flags. `from` is read
+ * entry (0077): all, customers' reports, or Detlio's flags. `from` is read
  * only while OFF_APP_FLAGS_ENABLED is on.
  */
 export const listBypassReportsQuerySchema = z.object({

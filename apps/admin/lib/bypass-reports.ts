@@ -21,7 +21,7 @@ export function parseBypassFilter(value: string | null | undefined): AdminBypass
   return value && (BYPASS_FILTERS as readonly string[]).includes(value) ? (value as AdminBypassFilter) : DEFAULT_FILTER
 }
 
-/** The second row (0075, only while Detlio's flags are on): which kind of entry. */
+/** The second row (0077, only while Detlio's flags are on): which kind of entry. */
 export const BYPASS_SOURCES = ['all', 'customer', 'detlio'] as const satisfies readonly AdminBypassSource[]
 
 export const BYPASS_SOURCE_LABELS: Record<AdminBypassSource, string> = {

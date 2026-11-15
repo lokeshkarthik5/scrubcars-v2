@@ -199,7 +199,7 @@ export function rewardDecision(input: {
   hasGarage: boolean
   alreadyRewarded: boolean
   creditOn: boolean
-  /** A flag Detlio's own check raised (0075): nobody reported it, so no reward, ever. */
+  /** A flag Detlio's own check raised (0077): nobody reported it, so no reward, ever. */
   fromDetlio?: boolean
 }): RewardDecision {
   if (input.fromDetlio) return { kind: 'none', why: 'detlio_flag' }

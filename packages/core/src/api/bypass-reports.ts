@@ -63,7 +63,7 @@ export function reportBypass(input: ReportBypassInput): Promise<MyBypassReport> 
 
 export type AdminBypassFilter = BypassStatus
 
-/** Which kind of entry (0075): all, customers' reports, or Detlio's own flags. */
+/** Which kind of entry (0077): all, customers' reports, or Detlio's own flags. */
 export type AdminBypassSource = 'all' | 'customer' | 'detlio'
 
 /** What Detlio's check found, as admin reads it (masked; never a full number). */
@@ -94,7 +94,7 @@ export type AdminFlagEvidence =
 export interface AdminBypassReport {
   id: string
   status: BypassStatus
-  /** A customer's report, or Detlio's own flag (0075). Missing from an older server: a report. */
+  /** A customer's report, or Detlio's own flag (0077). Missing from an older server: a report. */
   source?: 'customer' | 'detlio'
   signal?: 'contact_in_note' | 'regulars_went_quiet' | 'cancelled_after_inspection' | null
   /** A flag's evidence; null on a customer's report. */
@@ -134,7 +134,7 @@ export function listAdminBypassReports(show: AdminBypassFilter, from: AdminBypas
   return apiClient<AdminBypassList>('/admin/bypass-reports', { params: { show, from } })
 }
 
-/** Detlio's checks at once (0075): new flags only, never a strike or a reward. */
+/** Detlio's checks at once (0077): new flags only, never a strike or a reward. */
 export function checkBypassFlags(): Promise<{ created: number; failed: number }> {
   return apiClient<{ created: number; failed: number }>('/admin/bypass-reports/flags/check', { method: 'POST' })
 }

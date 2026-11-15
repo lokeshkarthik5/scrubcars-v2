@@ -6,6 +6,7 @@ import { isPushConfigured } from './push.js'
 import { readReviewLoginEnv } from './review-login.js'
 import { readAppConfigEnv } from './app-config.js'
 import { parsePhotosRequired, parseRequiredGarages } from './job-photo-standards.js'
+import { parseConditionCheckEnabled } from './condition-check.js'
 import type { GeoProviderName } from './geo/types.js'
 
 function requireEnv(name: string): string {
@@ -412,7 +413,7 @@ export const env = {
    */
   giftsEnabled: (process.env.GIFTS_ENABLED ?? '').trim().toLowerCase() === 'on',
 
-  // ─── Off-app payment flags (lib/off-app-flags.ts, 0075) ─────────────────────
+  // ─── Off-app payment flags (lib/off-app-flags.ts, 0077) ─────────────────────
   /**
    * Whether Detlio's own daily checks add "Flagged by Detlio" entries to
    * admin's Bypass reports (a phone number, UPI ID or "pay directly" in a
@@ -528,6 +529,27 @@ export const env = {
    */
   jobPhotosRequiredGarages: parseRequiredGarages(process.env.JOB_PHOTOS_REQUIRED_GARAGES),
 
+  // ─── Car condition check at handover (lib/condition-check.ts, 0075) ────────
+  /**
+   * The guided 8-angle walk-round, Detlio's AI marks on it, the customer's
+   * "Looks right" and the after-job comparison: CONDITION_CHECK_ENABLED,
+   * **off unless set to `on`**. Off = the job photos exactly as before (the
+   * 5-slot checklist, no marks, nothing new on either app).
+   */
+  conditionCheckEnabled: parseConditionCheckEnabled(process.env.CONDITION_CHECK_ENABLED),
+  /**
+   * Garage ids (comma separated) that have the check while
+   * CONDITION_CHECK_ENABLED is off: a garage-by-garage roll-out, and how the
+   * E2E suite turns it on for its own garage only. Ignored while it is on.
+   */
+  conditionCheckGarages: parseRequiredGarages(process.env.CONDITION_CHECK_GARAGES),
+  /**
+   * Detlio's look at a car-check photo, per signed-in garage person per hour.
+   * Each is a paid OpenAI request; a job has at most 16 (8 before, 8 after),
+   * plus a retake now and then.
+   */
+  conditionCheckReadRateLimit: Number(process.env.CONDITION_CHECK_READ_RATE_LIMIT ?? '120'),
+
   // ─── Rate limiting ─────────────────────────────────────────────────────────
   // Both limiters key on client IP. The defaults are the production values;
   // they are configurable because a test suite runs every request from a single
@@ -559,6 +581,24 @@ export const env = {
   // count. The database caps them too (two open requests, one sign-up per
   // zone); this stops bursts.
   reachWriteRateLimit: Number(process.env.REACH_WRITE_RATE_LIMIT ?? '20'),
+
+  // ─── Repair & bodywork quotes (lib/repair-quotes.ts, 0076) ─────────────────
+  /**
+   * Whether customers can ask nearby garages for repair & bodywork quotes:
+   * REPAIR_QUOTES_ENABLED=on. Off unless set to exactly `on`. While off every
+   * repair-quote route but the public `/repair-quotes/config` is a 404 (the
+   * customer's, the garage's and admin's), the customer's Home has no tile,
+   * the garage's Requests page shows only visit requests, and admin's
+   * "Takes repair & bodywork quotes" switch and Repair quotes tab are hidden.
+   * The switch a garage already has stays as it is.
+   */
+  repairQuotesEnabled: (process.env.REPAIR_QUOTES_ENABLED ?? '').trim().toLowerCase() === 'on',
+  /**
+   * Briefs written by the AI from a customer's pictures, per signed-in
+   * customer per hour: REPAIR_QUOTE_AI_RATE_LIMIT, default 20. Read on each
+   * request.
+   */
+  repairQuoteAiRateLimit: Number(process.env.REPAIR_QUOTE_AI_RATE_LIMIT ?? '20'),
 
   // ─── Usage events (lib/analytics.ts) ───────────────────────────────────────
   // E2E only: let Playwright's headless browser record events, which are

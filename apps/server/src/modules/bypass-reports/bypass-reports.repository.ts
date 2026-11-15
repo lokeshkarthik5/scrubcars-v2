@@ -103,7 +103,7 @@ const adminColumns = {
   bookingStatus: bookings.status,
   bookingScheduledAt: bookings.scheduledAt,
   bookingMarkedTest: sql<boolean>`${bookings.markedTestAt} is not null`,
-  // A Detlio flag has no reporter: its booking's customer is shown instead (0075).
+  // A Detlio flag has no reporter: its booking's customer is shown instead (0077).
   bookingUserId: bookings.userId,
 }
 
@@ -259,7 +259,7 @@ export const bypassReportsRepository = {
   /**
    * One status of the admin list: new oldest first (the queue), the others
    * newest first. `sources` is which kinds of entry: customers' reports,
-   * Detlio's flags (0075), or both.
+   * Detlio's flags (0077), or both.
    */
   async listForAdmin(status: BypassStatus, sources: readonly BypassSource[], limit: number): Promise<AdminReportRow[]> {
     if (sources.length === 0) return []
@@ -320,7 +320,7 @@ export const bypassReportsRepository = {
   },
 
   /** A garage's reports by status, all time, for its admin page. */
-  /** One garage's entries by status, of the kinds in `sources` (Detlio's flags only while they are on, 0075). */
+  /** One garage's entries by status, of the kinds in `sources` (Detlio's flags only while they are on, 0077). */
   async countForGarage(
     vendorId: string,
     sources: readonly BypassSource[] = ['customer', 'detlio']
@@ -606,7 +606,7 @@ export const bypassReportsRepository = {
     )
   },
 
-  // ─── Detlio's flags (0075, lib/off-app-flags.ts) ────────────────────────────
+  // ─── Detlio's flags (0077, lib/off-app-flags.ts) ────────────────────────────
 
   /**
    * Notes a garage wrote that its customer sees, written since `since`, for

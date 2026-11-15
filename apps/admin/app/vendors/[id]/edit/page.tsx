@@ -29,6 +29,7 @@ import { BinBanner } from './bin-banner'
 import { ClosureRequestCard } from '@/components/closure-request-card'
 import { EditorHeader } from './editor-header'
 import { HowCustomersBook } from './how-customers-book'
+import { RepairQuotesCard } from './repair-quotes-card'
 import { StatusPanel } from './status-panel'
 import { DetailsTab } from './tabs/details-tab'
 import { HoursBookingTab } from './tabs/hours-booking-tab'
@@ -311,6 +312,8 @@ export default function EditVendorPage({
               </TabsContent>
               <TabsContent value="operations">
                 <HoursBookingTab g={g} draft={draft} />
+                {/* Repair & bodywork quotes (0075): saves on tap. */}
+                <RepairQuotesCard vendorId={id} onSaved={afterInstantSave} />
               </TabsContent>
               <TabsContent value="services">
                 <ServicesTab vendorId={id} g={g} draft={draft} />

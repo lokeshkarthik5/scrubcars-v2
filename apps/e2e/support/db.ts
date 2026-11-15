@@ -409,3 +409,56 @@ export async function withCronLock<T>(fn: () => Promise<T>): Promise<T> {
     conn.release()
   }
 }
+
+/** A booking's car condition check (0075): the sent row and the customer's answer. */
+export const getConditionCheck = async (bookingId: string) =>
+  (
+    await sql<
+      {
+        sent_at: Date
+        sent_by: string | null
+        customer_answer: 'looks_right' | 'something_wrong' | null
+        customer_answered_by: string | null
+        customer_note: string | null
+      }[]
+    >`
+      select sent_at, sent_by, customer_answer, customer_answered_by, customer_note
+        from condition_checks where booking_id = ${bookingId}
+    `
+  )[0]
+
+/** A booking's car condition check marks (0075), oldest first. */
+export const getConditionMarks = async (bookingId: string) =>
+  sql<
+    {
+      id: string
+      stage: 'before' | 'after'
+      kind: string
+      part: string
+      source: 'ai' | 'garage'
+      removed_at: Date | null
+      garage_answer: string | null
+      customer_answer: string | null
+    }[]
+  >`
+    select id, stage, kind, part, source, removed_at, garage_answer, customer_answer
+      from condition_marks where booking_id = ${bookingId} order by created_at, id
+  `
+
+/** How many of a booking's photos Detlio has read for the car check (0075). */
+export const countConditionReads = async (bookingId: string): Promise<number> =>
+  Number(
+    (
+      await sql<{ n: string }[]>`
+        select count(*) as n from job_photos
+         where booking_id = ${bookingId} and condition_read is not null
+      `
+    )[0]?.n ?? 0
+  )
+
+/** The complaints raised about a booking, newest first. */
+export const complaintsForBooking = async (bookingId: string) =>
+  sql<{ category: string; message: string; user_id: string | null }[]>`
+    select category, message, user_id from complaints
+     where booking_id = ${bookingId} order by created_at desc
+  `

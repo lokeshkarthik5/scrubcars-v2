@@ -79,7 +79,7 @@ const EMPTY: Record<AdminBypassFilter, { title: string; subtitle: string }> = {
   },
 }
 
-/** "Flagged by Detlio": the tag on an entry Detlio's own checks raised (0075). */
+/** "Flagged by Detlio": the tag on an entry Detlio's own checks raised (0077). */
 function FlaggedTag() {
   return (
     <ScBadge variant="active">
@@ -92,7 +92,7 @@ function FlaggedTag() {
 }
 
 /**
- * What Detlio's check found (0075): the note with numbers masked, the
+ * What Detlio's check found (0077): the note with numbers masked, the
  * quiet regulars, or the cancelled bookings, each booking a link. A full
  * phone number is never stored, so it can never be shown.
  */
@@ -363,7 +363,7 @@ function BypassReportsList() {
   const { data, isPending, isPlaceholderData, error, refetch } =
     useAdminBypassReports(show, from)
   const checkFlags = useCheckBypassFlags()
-  // Detlio's own flags (0075): the second row and Check now only while on.
+  // Detlio's own flags (0077): the second row and Check now only while on.
   const flags = data?.flags?.enabled ? data.flags : null
   const [answering, setAnswering] = useState<{
     report: AdminBypassReport
