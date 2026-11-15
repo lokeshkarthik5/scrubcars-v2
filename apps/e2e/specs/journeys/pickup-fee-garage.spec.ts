@@ -7,8 +7,13 @@
  *     the box; ₹20 a km saves, waits for Detlio ("Above Detlio's
  *     suggestion", Detlio vs Yours) and the next change is 7 days out. The
  *     row says waiting; customers keep Detlio's fee.
- *  2. `locked`: "Set by Detlio", Detlio's table, nothing to save; the API
- *     refuses a change (409 PICKUP_FEE_LOCKED).
+ *  2. `locked` (Detlio sets its fee): every control greyed out (disabled,
+ *     not hidden) holding the fee that applies, "Set by Detlio. Ask Detlio
+ *     to change it.", nothing to save; the API refuses a change (409
+ *     PICKUP_FEE_LOCKED).
+ *  3. `limited` (admin's own limits for it): the boxes say its limits
+ *     (₹5–₹12 a km, up to ₹300, fixed up to ₹150) and Detlio's ₹15 a km is
+ *     refused in the box. Nothing is saved.
  *
  * The first test changes `settings`' fee once: the 7-day rule means a rerun
  * against the same database starts from a fresh seed.
@@ -112,15 +117,24 @@ test.describe('the garage’s pickup fee @p1', () => {
     await ctx.close()
   })
 
-  test('locked to Detlio’s fee: "Set by Detlio", nothing to change', async ({ browser }) => {
+  test('set by Detlio: the controls greyed out with the fee that applies, nothing to change', async ({ browser }) => {
     const { ctx, page } = await openGarage(browser, P.locked.owner.phone, P.locked.garage.id)
     const part = await openPickupFee(page)
-    await expect(part.getByText('Set by Detlio')).toBeVisible()
-    await expect(
-      part.getByText('Detlio’s fee: free up to 3 km, then ₹15 a km, ₹99–₹399. To change it, call Detlio support.')
-    ).toBeVisible()
+    await expect(part.getByText('Set by Detlio. Ask Detlio to change it.')).toBeVisible()
+    const modes = part.getByRole('radiogroup', { name: 'Pickup fee' })
     for (const name of ['Free', 'Fixed fee', 'By distance']) {
-      await expect(part.getByRole('radiogroup', { name: 'Pickup fee' }).getByRole('radio', { name })).toBeDisabled()
+      await expect(modes.getByRole('radio', { name })).toBeDisabled()
+    }
+    await expect(modes.getByRole('radio', { name: 'By distance' })).toHaveAttribute('aria-checked', 'true')
+    // Greyed out, not hidden: the boxes hold the fee Detlio set.
+    for (const [label, value] of [
+      ['Free up to (km)', '3'],
+      ['Then per km (₹)', '15'],
+      ['Lowest charge (₹)', '99'],
+      ['Highest charge (₹)', '399'],
+    ] as const) {
+      await expect(part.getByLabel(label)).toBeDisabled()
+      await expect(part.getByLabel(label)).toHaveValue(value)
     }
     await expect(part.getByRole('button', { name: 'Save pickup fee' })).toHaveCount(0)
     await expect(part.locator('[data-fee-table]').getByRole('row', { name: /15 km by road/ })).toContainText('₹180')
@@ -134,6 +148,29 @@ test.describe('the garage’s pickup fee @p1', () => {
     expect(refused.status()).toBe(409)
     expect((await refused.json()).code).toBe('PICKUP_FEE_LOCKED')
     await api.dispose()
+    await ctx.close()
+  })
+
+  test('admin’s own limits for this garage: its boxes say them', async ({ browser }) => {
+    const { ctx, page } = await openGarage(browser, P.limited.owner.phone, P.limited.garage.id)
+    const part = await openPickupFee(page)
+    const modes = part.getByRole('radiogroup', { name: 'Pickup fee' })
+    await modes.getByRole('radio', { name: 'By distance' }).click()
+    // Detlio's ₹15 a km is outside this garage's ₹5–₹12; ₹399 above its ₹300.
+    await expect(part.getByLabel('Then per km (₹)')).toHaveValue('15')
+    await expect(part.getByRole('alert').filter({ hasText: '₹5–₹12' })).toBeVisible()
+    await expect(part.getByRole('alert').filter({ hasText: 'Up to ₹300' })).toBeVisible()
+    await expect(part.getByRole('button', { name: 'Save pickup fee' })).toBeDisabled()
+    await part.getByLabel('Then per km (₹)').fill('12')
+    await part.getByLabel('Highest charge (₹)').fill('300')
+    await expect(part.getByText('₹5–₹12')).toBeVisible()
+    await expect(part.getByText('Up to ₹300')).toBeVisible()
+    await expect(part.getByRole('button', { name: 'Save pickup fee' })).toBeEnabled()
+    // A fixed fee: up to its own ₹150.
+    await modes.getByRole('radio', { name: 'Fixed fee' }).click()
+    await expect(part.getByRole('alert').filter({ hasText: 'Type a fee of ₹1 to ₹150.' })).toBeVisible()
+    await part.getByLabel('Fee for any pickup (₹)').fill('200')
+    await expect(part.getByRole('alert').filter({ hasText: 'Up to ₹150 for a fixed fee. That’s Detlio’s limit.' })).toBeVisible()
     await ctx.close()
   })
 })

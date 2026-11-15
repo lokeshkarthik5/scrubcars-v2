@@ -2,7 +2,9 @@
  * The pickup fee in admin (0079, admin mockups 1–5): Settings → Pickup fee
  * (Detlio's formula, the limits, the convenience fee at ₹0), Issues → Pickup
  * fees (Approve, and Keep Detlio's fee with a reason), the garage editor's
- * pickup card (the change log and Lock to Detlio's fee).
+ * pickup card (the fee that applies now, "Who sets this garage's fee",
+ * Detlio's own fee past the garage limits with no check, this garage's own
+ * limits and Reset, and the change log).
  *
  * Works on PICKUP_FEE (ids 7750–7799): Kumar's ₹20 a km and AutoKraft's
  * fixed ₹250 wait for the check; Velan is on Detlio's numbers. Everything is
@@ -30,7 +32,12 @@ const putBack = async () => {
     pickup_fee_waiting_since = now() - interval '2 hours' where id = ${P.kumar.garage.id}`
   await sql`update vendors set pickup_fee_mode = 'fixed', pickup_fee_fixed = 250, pickup_fee_per_km = null,
     pickup_fee_waiting_since = now() - interval '20 hours' where id = ${P.autokraft.garage.id}`
-  await sql`update vendors set pickup_fee_locked_at = null, pickup_fee_locked_by = null where id = ${P.velan.garage.id}`
+  await sql`update vendors set pickup_fee_locked_at = null, pickup_fee_locked_by = null, pickup_fee_mode = 'distance',
+    pickup_fee_fixed = null, pickup_fee_free_km = null, pickup_fee_per_km = null, pickup_fee_min = null, pickup_fee_max = null,
+    pickup_fee_source = 'garage', pickup_fee_waiting_since = null,
+    pickup_fee_limit_per_km_min = null, pickup_fee_limit_per_km_max = null, pickup_fee_limit_fixed_max = null,
+    pickup_fee_needs_approval = null
+    where id = ${P.velan.garage.id}`
 }
 
 /** A garage's card on Issues → Pickup fees. */
@@ -97,19 +104,83 @@ test.describe.serial('Pickup fee in admin @p1', () => {
     expect(row).toEqual({ mode: 'distance', waiting: null })
   })
 
-  test('the garage editor’s pickup card: the change log and Lock to Detlio’s fee', async ({ page }) => {
+  test('the garage editor’s pickup card: the fee now, who sets it, Detlio’s own fee and the log', async ({ page }) => {
     await page.goto(`/vendors/${P.velan.garage.id}/edit?tab=location`)
     const card = page.getByTestId('pickup-fee-card')
     await expect(card.getByRole('heading', { name: 'Pickup fee' })).toBeVisible()
+    const now = card.getByTestId('pickup-fee-now')
+    await expect(now).toContainText('By distance · free 3 km · ₹15/km · ₹99–₹399')
+    await expect(now).toContainText(`Set by ${P.velan.garage.name} (owner)`)
     await expect(card.getByRole('radio', { name: 'By distance' })).toHaveAttribute('aria-checked', 'true')
     await expect(card.getByRole('listitem').filter({ hasText: 'Free → By distance (Detlio’s fee)' })).toBeVisible()
 
-    const lock = card.getByRole('switch', { name: 'Lock to Detlio’s fee' })
-    await lock.click()
-    await expect(lock).toHaveAttribute('aria-checked', 'true')
+    // Who sets this garage's fee: Detlio. The garage's controls grey out.
+    const who = card.getByRole('radiogroup', { name: 'Who sets this garage’s fee' })
+    await expect(who.getByRole('radio', { name: 'Garage' })).toHaveAttribute('aria-checked', 'true')
+    await who.getByRole('radio', { name: 'Detlio' }).click()
+    await expect(who.getByRole('radio', { name: 'Detlio' })).toHaveAttribute('aria-checked', 'true')
     await expect(card.getByText('Set by Detlio', { exact: true })).toBeVisible()
-    await expect(card.getByRole('listitem').filter({ hasText: 'Locked to Detlio’s fee' })).toBeVisible()
-    await lock.click()
-    await expect(lock).toHaveAttribute('aria-checked', 'false')
+    await expect(now).toContainText('Locked: the garage can’t change it')
+    await expect(card.getByRole('listitem').filter({ hasText: 'Set by Detlio: the garage can’t change its fee' })).toBeVisible()
+
+    // Detlio's own fee: a fixed ₹280, above Detlio's suggestion, live at once with no check.
+    await card.getByRole('radio', { name: 'Fixed fee' }).click()
+    const fixed = card.getByRole('textbox', { name: 'Fee for any pickup' })
+    await fixed.fill('280')
+    await fixed.press('Enter')
+    await expect(now).toContainText('Fixed fee · ₹280 for any pickup')
+    await expect(card.getByText('Waiting for check', { exact: true })).toHaveCount(0)
+    const [row] = await sql<{ mode: string; fixed: string; waiting: Date | null; source: string; changed: boolean }[]>`
+      select pickup_fee_mode as mode, pickup_fee_fixed::text as fixed, pickup_fee_waiting_since as waiting,
+             pickup_fee_source as source, pickup_fee_changed_at < now() - interval '9 days' as changed
+        from vendors where id = ${P.velan.garage.id}`
+    // The garage's own last change (10 days ago) is untouched.
+    expect(row).toEqual({ mode: 'fixed', fixed: '280.00', waiting: null, source: 'detlio', changed: true })
+
+    // Over the hard cap: said here, never sent.
+    await fixed.fill('300')
+    await fixed.press('Enter')
+    await expect(card.getByRole('alert').filter({ hasText: 'outside the hard caps' })).toBeVisible()
+
+    await who.getByRole('radio', { name: 'Garage' }).click()
+    await expect(who.getByRole('radio', { name: 'Garage' })).toHaveAttribute('aria-checked', 'true')
+    await expect(card.getByRole('listitem').filter({ hasText: 'Set by the garage: it can change its fee again' })).toBeVisible()
+  })
+
+  test('this garage’s own limits: saved, then Reset to Detlio’s defaults', async ({ page }) => {
+    await page.goto(`/vendors/${P.velan.garage.id}/edit?tab=location`)
+    const limits = page.getByTestId('pickup-fee-limits')
+    await expect(limits.getByRole('heading', { name: 'This garage’s limits' })).toBeVisible()
+    await expect(limits.getByRole('textbox', { name: 'Per km, lowest rupees' })).toHaveAttribute('placeholder', 'Detlio’s default')
+    await expect(limits.getByText('Default ₹5–₹30')).toBeVisible()
+
+    // One end only: said here.
+    await limits.getByRole('textbox', { name: 'Per km, lowest rupees' }).fill('5')
+    await limits.getByRole('button', { name: 'Save limits' }).click()
+    await expect(limits.getByRole('alert')).toContainText('type both ends')
+
+    await limits.getByRole('textbox', { name: 'Per km, highest rupees' }).fill('12')
+    await limits.getByRole('textbox', { name: 'Fixed fee limit for this garage, rupees' }).fill('150')
+    await limits.getByRole('radio', { name: 'Live at once' }).click()
+    await limits.getByRole('button', { name: 'Save limits' }).click()
+    const card = page.getByTestId('pickup-fee-card')
+    await expect(
+      card.getByRole('listitem').filter({ hasText: 'Limits: per km ₹5–₹12, fixed up to ₹150, no approval needed' })
+    ).toBeVisible()
+    await expect(limits.getByText('Own limits', { exact: true })).toBeVisible()
+    const [saved] = await sql<{ min: string; max: string; fixed: string; approval: boolean | null }[]>`
+      select pickup_fee_limit_per_km_min::text as min, pickup_fee_limit_per_km_max::text as max,
+             pickup_fee_limit_fixed_max::text as fixed, pickup_fee_needs_approval as approval
+        from vendors where id = ${P.velan.garage.id}`
+    expect(saved).toEqual({ min: '5.00', max: '12.00', fixed: '150.00', approval: false })
+
+    await limits.getByRole('button', { name: 'Reset to Detlio’s defaults' }).click()
+    await expect(card.getByRole('listitem').filter({ hasText: 'Limits: back to Detlio’s defaults' })).toBeVisible()
+    await expect(limits.getByRole('textbox', { name: 'Per km, lowest rupees' })).toHaveValue('')
+    const [reset] = await sql<{ min: string | null; fixed: string | null; approval: boolean | null }[]>`
+      select pickup_fee_limit_per_km_min::text as min, pickup_fee_limit_fixed_max::text as fixed,
+             pickup_fee_needs_approval as approval
+        from vendors where id = ${P.velan.garage.id}`
+    expect(reset).toEqual({ min: null, fixed: null, approval: null })
   })
 })

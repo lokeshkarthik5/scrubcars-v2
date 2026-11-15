@@ -12,13 +12,11 @@ import {
   PICKUP_FEE_INTRO,
   PICKUP_FEE_MODE_LABELS,
   PICKUP_FEE_MODES,
-  SET_BY_DETLIO_TITLE,
   changeRuleLine,
   feeCell,
   feePreviewRows,
   isAboveSuggestion,
   limitHint,
-  lockedLine,
   nextChangeLine,
   sentLine,
   type PickupFeeMode,
@@ -34,9 +32,12 @@ import {
   feeSettingsOf,
   isDetliosDraft,
   keptLine,
+  lockedFeeState,
   roadKmFootnote,
+  showsAboveNotice,
   type FeeBox,
   type FeeDraft,
+  type LockedFeeState,
 } from '@repo/core/pickup-fee-garage';
 import { useState } from 'react';
 import { View } from 'react-native';
@@ -54,8 +55,10 @@ import { errorText } from '@/lib/error-text';
  * Settings → Hours → Pickup & drop → Pickup fee (0079), the garage portal's
  * apps/vendors/app/settings/pickup-fee-part.tsx in the app: the same words, limits and
  * order. Free saves on tap; a fixed fee or By distance saves with "Save pickup fee". A
- * fee above Detlio's suggestion waits for Detlio; locked to Detlio's fee it reads
- * "Set by Detlio"; the garage changes its fee once every 7 days.
+ * fee above Detlio's suggestion waits for Detlio (unless admin lets this garage skip the
+ * check); when Detlio sets the fee every control stays greyed out holding the fee that
+ * applies, with "Set by Detlio. Ask Detlio to change it."; the limits are the garage's
+ * own; the garage changes its fee once every 7 days (or its own number).
  */
 export function PickupFeePart({ vendorId }: { vendorId: string }) {
   const query = useGaragePickupFee(vendorId);
@@ -102,33 +105,13 @@ function FeeEditor({ vendorId, view }: { vendorId: string; view: GaragePickupFee
   const setBox = (box: FeeBox, text: string) =>
     setDraft((current) => ({ ...current, [box]: feeBoxText(text, box === 'freeKm') }));
 
-  if (view.locked) {
-    return (
-      <FeeShell>
-        <View style={styles.greyed} pointerEvents="none" accessibilityState={{ disabled: true }}>
-          <ModeChoice value="distance" onChange={() => {}} />
-        </View>
-        <View style={styles.lockBox}>
-          <IconLock size={18} color={colors.textSecondary} />
-          <View style={styles.flex}>
-            <T size={13} weight={500}>
-              {t(SET_BY_DETLIO_TITLE)}
-            </T>
-            <T size={12} color={colors.textSecondary}>
-              {lockedLine(detlio)}
-            </T>
-          </View>
-        </View>
-        <FeeTable mine={detlio} detlio={detlio} compare={false} />
-        <KeepLine />
-      </FeeShell>
-    );
-  }
+  const locked = lockedFeeState(view);
+  if (locked) return <LockedFee locked={locked} view={view} />;
 
   const mine = draftPlan(draft, settings);
   const canPreview = Object.keys(problems).length === 0;
   const above = canPreview && draft.mode !== 'free' && isAboveSuggestion(feeOfDraft(draft), settings);
-  const showAbove = saved ? view.waiting !== null : above;
+  const showAbove = saved ? view.waiting !== null : showsAboveNotice(above, view);
 
   return (
     <FeeShell>
@@ -248,6 +231,88 @@ function FeeEditor({ vendorId, view }: { vendorId: string; view: GaragePickupFee
   );
 }
 
+/**
+ * Detlio sets this garage's fee: the same controls, greyed out (disabled,
+ * not hidden), holding the fee that applies, and the note under them. As
+ * the portal's LockedFee.
+ */
+function LockedFee({ locked, view }: { locked: LockedFeeState; view: GaragePickupFeeView }) {
+  const t = useT();
+  const colors = useColors();
+  const styles = useStyles();
+  const { draft, plan } = locked;
+  const noop = () => {};
+  return (
+    <FeeShell>
+      <View style={[styles.part, styles.greyed]} pointerEvents="none" accessibilityState={{ disabled: true }}>
+        <ModeChoice value={draft.mode} onChange={noop} />
+        {draft.mode === 'free' ? (
+          <T size={12} color={colors.textSecondary}>
+            {t(FREE_MODE_LINE)}
+          </T>
+        ) : null}
+        {draft.mode === 'fixed' ? (
+          <FeeBoxField
+            label={t('Fee for any pickup (₹)')}
+            value={draft.fixed}
+            onChange={noop}
+            hint={limitHint('fixed', view.limits)}
+            disabled
+          />
+        ) : null}
+        {draft.mode === 'distance' ? (
+          <View style={styles.grid}>
+            <View style={styles.cell}>
+              <FeeBoxField
+                label={t('Free up to (km)')}
+                value={draft.freeKm}
+                onChange={noop}
+                hint={limitHint('freeKm', view.limits)}
+                disabled
+              />
+            </View>
+            <View style={styles.cell}>
+              <FeeBoxField
+                label={t('Then per km (₹)')}
+                value={draft.perKm}
+                onChange={noop}
+                hint={limitHint('perKm', view.limits)}
+                disabled
+              />
+            </View>
+            <View style={styles.cell}>
+              <FeeBoxField
+                label={t('Lowest charge (₹)')}
+                value={draft.minCharge}
+                onChange={noop}
+                hint={limitHint('minCharge', view.limits)}
+                disabled
+              />
+            </View>
+            <View style={styles.cell}>
+              <FeeBoxField
+                label={t('Highest charge (₹)')}
+                value={draft.maxCharge}
+                onChange={noop}
+                hint={limitHint('maxCharge', view.limits)}
+                disabled
+              />
+            </View>
+          </View>
+        ) : null}
+      </View>
+      <View style={styles.keep}>
+        <IconLock size={16} color={colors.textSecondary} />
+        <T size={12} color={colors.textSecondary} style={styles.flex}>
+          {locked.note}
+        </T>
+      </View>
+      {draft.mode === 'distance' ? <FeeTable mine={plan} detlio={plan} compare={false} /> : null}
+      {draft.mode !== 'free' ? <KeepLine /> : null}
+    </FeeShell>
+  );
+}
+
 function FeeShell({ children }: { children: React.ReactNode }) {
   const t = useT();
   const colors = useColors();
@@ -288,6 +353,7 @@ function FeeBoxField({
   hint,
   problem,
   decimal,
+  disabled,
 }: {
   label: string;
   value: string;
@@ -295,6 +361,7 @@ function FeeBoxField({
   hint: string;
   problem?: string;
   decimal?: boolean;
+  disabled?: boolean;
 }) {
   const colors = useColors();
   return (
@@ -305,6 +372,8 @@ function FeeBoxField({
         keyboardType={decimal ? 'decimal-pad' : 'number-pad'}
         value={value}
         onChangeText={onChange}
+        editable={!disabled}
+        accessibilityState={disabled ? { disabled: true } : undefined}
         style={problem ? { borderColor: colors.warning } : undefined}
       />
       {problem ? (
@@ -389,16 +458,6 @@ const useStyles = createStyles((colors) => ({
   grid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -6, rowGap: 8 },
   cell: { width: '50%', paddingHorizontal: 6 },
   greyed: { opacity: 0.5 },
-  lockBox: {
-    flexDirection: 'row',
-    gap: 10,
-    alignItems: 'flex-start',
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 12,
-  },
   table: { borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },
   tableRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   tableLine: { borderTopWidth: 1, borderTopColor: colors.border, paddingVertical: 6 },

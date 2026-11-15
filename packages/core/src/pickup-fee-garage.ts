@@ -21,6 +21,7 @@ import {
   type PickupFeePlan,
   type PickupFeeSettings,
   type SuggestedFormula,
+  SET_BY_DETLIO_LINE,
 } from './pickup-fee'
 
 // ─── Settings → Hours → Pickup & drop → Pickup fee ──────────────────────────
@@ -130,6 +131,47 @@ export function roadKmFootnote(suggested: SuggestedFormula): string {
     "Road km = straight line from your garage’s pin × {factor}. Rounded to the nearest ₹{round}. Never more than the booking's service price.",
     { factor: suggested.roadFactor, round: suggested.roundTo }
   )
+}
+
+/**
+ * "Who sets this garage's fee: Detlio" (0079): the garage's controls stay on
+ * screen, greyed out, holding the fee that applies now (whatever Detlio set
+ * for the garage), with the note under them. Null when the garage sets its
+ * own fee. The garage portal and the garage app both render this.
+ */
+export interface LockedFeeState {
+  /** The fee that applies, as the (disabled) boxes show it. */
+  draft: FeeDraft
+  /** The fee that applies, for the "What customers pay" table. */
+  plan: PickupFeePlan
+  /** "Set by Detlio. Ask Detlio to change it." */
+  note: string
+}
+
+export function lockedFeeState(view: { locked: boolean; livePlan: PickupFeePlan }): LockedFeeState | null {
+  if (!view.locked) return null
+  const plan = view.livePlan
+  return {
+    draft: {
+      mode: plan.mode,
+      fixed: plan.mode === 'fixed' ? String(plan.fixed) : '',
+      freeKm: String(plan.freeKm),
+      perKm: String(plan.perKm),
+      minCharge: String(plan.minCharge),
+      maxCharge: String(plan.maxCharge),
+    },
+    plan,
+    note: t(SET_BY_DETLIO_LINE),
+  }
+}
+
+/**
+ * Whether the "Above Detlio's suggestion" notice shows: the garage's fee is
+ * above the suggestion and Detlio checks it first (admin may let one garage
+ * skip the check: `needsApproval` false).
+ */
+export function showsAboveNotice(above: boolean, view: { needsApproval?: boolean }): boolean {
+  return above && view.needsApproval !== false
 }
 
 /** Detlio's plan, for the Detlio column. */

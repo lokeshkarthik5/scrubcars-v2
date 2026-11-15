@@ -192,7 +192,8 @@ function WaitingRequestCard({
   const [fee, setFee] = useState<number>(() => defaultFeeChoice(request))
   // Ask for pickup: the responsibility tick before Accept.
   const [termsTicked, setTermsTicked] = useState(false)
-  const raisePct = usePickupFeeConfig().data?.askRaisePct ?? 25
+  const configRaisePct = usePickupFeeConfig().data?.askRaisePct ?? 25
+  const raisePct = request.raisePct ?? configRaisePct
   const [startAt, setStartAt] = useState<string | null>(null)
   const startTimes = useRequestStartTimes(request.id)
   const accept = useAcceptRequest()

@@ -4836,7 +4836,7 @@ async function seedOffAppFlagRows() {
  */
 async function seedPickupFeeRows() {
   const P = PICKUP_FEE
-  const garages = [P.velan, P.kumar, P.autokraft, P.free, P.locked, P.settings, P.murugan]
+  const garages = [P.velan, P.kumar, P.autokraft, P.free, P.locked, P.settings, P.limited, P.murugan]
   await db.insert(users).values([
     { id: P.customer.id, name: P.customer.name, phone: P.customer.phone, isCustomer: true, isVendorOwner: false,
       phoneVerified: true, status: 'active' as const },
@@ -4880,9 +4880,17 @@ async function seedPickupFeeRows() {
     }),
     garage(P.free, north(P.free.garage.straightKm), { ...pickupOn }),
     garage(P.locked, north(P.locked.garage.straightKm), {
-      ...pickupOn, pickupFeeLockedAt: daysAgo(3), pickupFeeLockedBy: 'Detlio · E2E seed',
+      ...pickupOn, pickupFeeMode: 'distance', pickupFeeSource: 'detlio',
+      pickupFeeLockedAt: daysAgo(3), pickupFeeLockedBy: 'Detlio · E2E seed',
     }),
     garage(P.settings, north(P.settings.garage.straightKm), { ...pickupOn }),
+    garage(P.limited, north(P.limited.garage.straightKm), {
+      ...pickupOn,
+      pickupFeeLimitPerKmMin: P.limited.limits.perKm.min.toFixed(2),
+      pickupFeeLimitPerKmMax: P.limited.limits.perKm.max.toFixed(2),
+      pickupFeeLimitMaxCharge: P.limited.limits.maxCharge.toFixed(2),
+      pickupFeeLimitFixedMax: P.limited.limits.fixedMax.toFixed(2),
+    }),
     garage(P.murugan, east(P.murugan.garage.straightKm), {}),
   ])
   await db.insert(userMemberMapping).values(
@@ -4917,7 +4925,8 @@ async function seedPickupFeeRows() {
     },
     {
       id: P.locked.lockChange, vendorId: P.locked.garage.id, kind: 'locked' as const, byKind: 'detlio' as const,
-      byUserId: null, byName: 'Detlio · E2E seed', before: fee(), after: fee(), status: 'live' as const, createdAt: daysAgo(3),
+      byUserId: null, byName: 'Detlio · E2E seed', before: fee({ mode: 'distance' }), after: fee({ mode: 'distance' }), status: 'live' as const,
+      createdAt: daysAgo(3),
     },
   ])
   // A paid, confirmed pickup tomorrow at Velan with its ₹99 fee locked on it.

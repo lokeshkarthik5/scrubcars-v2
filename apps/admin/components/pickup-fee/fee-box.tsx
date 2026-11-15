@@ -18,6 +18,7 @@ export function FeeInput({
   invalid,
   disabled,
   describedBy,
+  placeholder,
   className,
 }: {
   value: string
@@ -30,6 +31,8 @@ export function FeeInput({
   invalid?: boolean
   disabled?: boolean
   describedBy?: string
+  /** Shown while the box is empty ("Detlio’s default"). */
+  placeholder?: string
   className?: string
 }) {
   return (
@@ -53,6 +56,7 @@ export function FeeInput({
         aria-label={label}
         aria-invalid={invalid ? true : undefined}
         aria-describedby={describedBy}
+        placeholder={placeholder}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
         onBlur={onCommit}

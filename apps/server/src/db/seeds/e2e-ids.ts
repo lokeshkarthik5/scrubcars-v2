@@ -2410,8 +2410,13 @@ export const SHINE = {
  *   autokraft  collects, a fixed ₹250 waiting (`waitingChange`): admin keeps
  *              Detlio's fee, with a reason
  *   free       collects, Free (the default): "Free pickup", as today
- *   locked     collects, locked to Detlio's fee: "Set by Detlio"
+ *   locked     collects, Detlio sets its fee (By distance on Detlio's
+ *              numbers, Detlio's): the portal greys the controls out with
+ *              "Set by Detlio. Ask Detlio to change it."
  *   settings   collects, Free: its owner sets By distance in the portal
+ *   limited    collects, Free, with admin's own limits for it: ₹5–₹12 a km,
+ *              highest ₹300, fixed up to ₹150; its boxes say so and Detlio's
+ *              ₹15 a km is outside them
  *   murugan    doesn't collect (drop-in only), 8.5 km: Ask for pickup,
  *              Detlio suggests about ₹120 for 11 km by road
  *
@@ -2456,6 +2461,12 @@ export const PICKUP_FEE = {
     owner: { id: id(7772), phone: '9000007772', name: 'Fee Settings Owner' },
     garage: { id: id(7773), name: 'Fee Settings Garage', straightKm: 40 },
     wash: { id: id(7774), name: 'Settings Foam Wash', price: '499.00', durationMins: 60 },
+  },
+  limited: {
+    owner: { id: id(7778), phone: '9000007778', name: 'Limited Fee Owner' },
+    garage: { id: id(7779), name: 'Own Limits Garage', straightKm: 45 },
+    wash: { id: id(7780), name: 'Limited Foam Wash', price: '499.00', durationMins: 60 },
+    limits: { perKm: { min: 5, max: 12 }, maxCharge: 300, fixedMax: 150 },
   },
   murugan: {
     owner: { id: id(7775), phone: '9000007775', name: 'Murugan Fee Owner' },

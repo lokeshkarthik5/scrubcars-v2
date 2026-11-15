@@ -21,13 +21,11 @@ import {
   PICKUP_FEE_INTRO,
   PICKUP_FEE_MODE_LABELS,
   PICKUP_FEE_MODES,
-  SET_BY_DETLIO_TITLE,
   changeRuleLine,
   feeCell,
   feePreviewRows,
   isAboveSuggestion,
   limitHint,
-  lockedLine,
   nextChangeLine,
   sentLine,
   type PickupFeeMode,
@@ -43,9 +41,12 @@ import {
   feeSettingsOf,
   isDetliosDraft,
   keptLine,
+  lockedFeeState,
   roadKmFootnote,
+  showsAboveNotice,
   type FeeBox,
   type FeeDraft,
+  type LockedFeeState,
 } from '@repo/core/pickup-fee-garage'
 import { cn } from '@repo/core/utils'
 
@@ -55,8 +56,12 @@ import { cn } from '@repo/core/utils'
  * fixed fee, or By distance on Detlio's numbers within Detlio's limits.
  * Free saves on tap like the switches above; a fixed fee or By distance
  * saves with "Save pickup fee". A fee above Detlio's suggestion waits for
- * Detlio (customers see Detlio's meanwhile); admin can lock the garage to
- * Detlio's fee; the garage changes its fee once every 7 days. The garage
+ * Detlio (customers see Detlio's meanwhile) unless admin lets this garage
+ * skip the check. When Detlio sets the garage's fee (admin's "Who sets this
+ * garage's fee"), every control stays on screen greyed out, holding the fee
+ * that applies, with "Set by Detlio. Ask Detlio to change it." The limits
+ * under the boxes are the garage's own (admin may set them per garage); the
+ * garage changes its fee once every 7 days (or its own number). The garage
  * app's twin is apps/vendors-app/components/settings/pickup-fee-part.tsx.
  */
 export function PickupFeePart({ vendorId }: { vendorId: string }) {
@@ -113,28 +118,14 @@ function FeeEditor({
   const setBox = (box: FeeBox, text: string) =>
     setDraft((current) => ({ ...current, [box]: feeBoxText(text, box === 'freeKm') }))
 
-  if (view.locked) {
-    return (
-      <FeeShell t={t}>
-        <ModeChoice value="distance" onChange={() => {}} disabled t={t} />
-        <div className="flex items-start gap-2.5 rounded-[12px] border border-border bg-surface p-3">
-          <IconLock size={18} aria-hidden="true" className="mt-px shrink-0 text-text-secondary" />
-          <span className="min-w-0 flex-1">
-            <span className="block text-[13px] font-medium text-text-primary">{t(SET_BY_DETLIO_TITLE)}</span>
-            <span className="mt-0.5 block text-[12px] text-text-secondary">{lockedLine(detlio)}</span>
-          </span>
-        </div>
-        <FeeTable mine={detlio} detlio={detlio} compare={false} t={t} />
-        <KeepLine t={t} />
-      </FeeShell>
-    )
-  }
+  const locked = lockedFeeState(view)
+  if (locked) return <LockedFee locked={locked} view={view} t={t} />
 
   const mine = draftPlan(draft, settings)
   const canPreview = Object.keys(problems).length === 0
   const above = canPreview && draft.mode !== 'free' && isAboveSuggestion(feeOfDraft(draft), settings)
-  // The notice: the saved fee waits for Detlio, or the boxes ask more than Detlio suggests.
-  const showAbove = saved ? view.waiting !== null : above
+  // The notice: the saved fee waits for Detlio, or the boxes ask more than Detlio suggests (and Detlio checks it).
+  const showAbove = saved ? view.waiting !== null : showsAboveNotice(above, view)
 
   return (
     <FeeShell t={t}>
@@ -248,6 +239,83 @@ function FeeEditor({
   )
 }
 
+/**
+ * Detlio sets this garage's fee: the same controls, greyed out (disabled,
+ * not hidden), holding the fee that applies, and the note under them.
+ */
+function LockedFee({
+  locked,
+  view,
+  t,
+}: {
+  locked: LockedFeeState
+  view: GaragePickupFeeView
+  t: ReturnType<typeof useT>
+}) {
+  const { draft, plan } = locked
+  const noop = () => {}
+  return (
+    <FeeShell t={t}>
+      <div className="flex flex-col gap-3 opacity-60" aria-disabled="true" data-pickup-fee-locked="">
+        <ModeChoice value={draft.mode} onChange={noop} disabled t={t} />
+        {draft.mode === 'free' && <p className="text-[12px] text-text-secondary">{t(FREE_MODE_LINE)}</p>}
+        {draft.mode === 'fixed' && (
+          <FeeBoxField
+            id="pickup-fee-fixed"
+            label={t('Fee for any pickup (₹)')}
+            value={draft.fixed}
+            onChange={noop}
+            hint={limitHint('fixed', view.limits)}
+            disabled
+          />
+        )}
+        {draft.mode === 'distance' && (
+          <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+            <FeeBoxField
+              id="pickup-fee-free-km"
+              label={t('Free up to (km)')}
+              value={draft.freeKm}
+              onChange={noop}
+              hint={limitHint('freeKm', view.limits)}
+              disabled
+            />
+            <FeeBoxField
+              id="pickup-fee-per-km"
+              label={t('Then per km (₹)')}
+              value={draft.perKm}
+              onChange={noop}
+              hint={limitHint('perKm', view.limits)}
+              disabled
+            />
+            <FeeBoxField
+              id="pickup-fee-min"
+              label={t('Lowest charge (₹)')}
+              value={draft.minCharge}
+              onChange={noop}
+              hint={limitHint('minCharge', view.limits)}
+              disabled
+            />
+            <FeeBoxField
+              id="pickup-fee-max"
+              label={t('Highest charge (₹)')}
+              value={draft.maxCharge}
+              onChange={noop}
+              hint={limitHint('maxCharge', view.limits)}
+              disabled
+            />
+          </div>
+        )}
+      </div>
+      <p className="flex items-start gap-2 text-[12px] text-text-secondary" role="note">
+        <IconLock size={16} aria-hidden="true" className="mt-px shrink-0 text-text-secondary" />
+        <span>{locked.note}</span>
+      </p>
+      {draft.mode === 'distance' && <FeeTable mine={plan} detlio={plan} compare={false} t={t} />}
+      {draft.mode !== 'free' && <KeepLine t={t} />}
+    </FeeShell>
+  )
+}
+
 function FeeShell({ t, children }: { t: ReturnType<typeof useT>; children: React.ReactNode }) {
   return (
     <div
@@ -297,6 +365,7 @@ function FeeBoxField({
   hint,
   problem,
   decimal,
+  disabled,
 }: {
   id: string
   label: string
@@ -305,6 +374,7 @@ function FeeBoxField({
   hint: string
   problem?: string
   decimal?: boolean
+  disabled?: boolean
 }) {
   return (
     <div className="flex flex-col gap-1">
@@ -314,6 +384,7 @@ function FeeBoxField({
         inputMode={decimal ? 'decimal' : 'numeric'}
         className={cn('font-numeric', problem && 'border-warning')}
         value={value}
+        disabled={disabled}
         aria-invalid={problem ? true : undefined}
         aria-describedby={`${id}-hint`}
         onChange={(e) => onChange(e.target.value)}

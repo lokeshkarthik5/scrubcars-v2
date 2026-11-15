@@ -17,8 +17,11 @@ import {
   requestFeeLabel,
   requestFeeNote,
   requestTag,
+  lockedFeeState,
   roadKmFootnote,
+  showsAboveNotice,
 } from './pickup-fee-garage'
+import { detlioPlan, garagePlan } from './pickup-fee'
 
 describe('the Pickup fee part', () => {
   test('By distance starts on Detlio’s numbers', () => {
@@ -100,5 +103,33 @@ describe('Earnings', () => {
   test('the pickup fee line names the road km', () => {
     expect(earningsFeeLabel({ bookingType: 'pickup', roadKm: 6.2 })).toBe('Pickup & drop · 6.2 km (yours, no commission)')
     expect(earningsFeeLabel({ bookingType: 'doorstep', roadKm: null })).toBe('Travel fee (yours, no commission)')
+  })
+})
+
+describe('set by Detlio: the greyed-out controls (0079)', () => {
+  test('the garage sets its own fee: no greyed state', () => {
+    expect(lockedFeeState({ locked: false, livePlan: detlioPlan(S) })).toBeNull()
+  })
+
+  test('the boxes hold the fee that applies, whatever Detlio set, with the note', () => {
+    const fixedFee = lockedFeeState({ locked: true, livePlan: garagePlan({ ...FREE_PICKUP_FEE, mode: 'fixed', fixed: 250 }, S) })
+    expect(fixedFee).toMatchObject({ draft: { mode: 'fixed', fixed: '250' }, note: 'Set by Detlio. Ask Detlio to change it.' })
+    const custom = garagePlan({ ...FREE_PICKUP_FEE, mode: 'distance', perKm: 25, maxCharge: 550 }, S)
+    expect(lockedFeeState({ locked: true, livePlan: custom })!.draft).toEqual({
+      mode: 'distance',
+      fixed: '',
+      freeKm: '3',
+      perKm: '25',
+      minCharge: '99',
+      maxCharge: '550',
+    })
+    expect(lockedFeeState({ locked: true, livePlan: garagePlan(FREE_PICKUP_FEE, S) })!.draft.mode).toBe('free')
+  })
+
+  test('“Above Detlio’s suggestion” only when Detlio checks it', () => {
+    expect(showsAboveNotice(true, {})).toBe(true)
+    expect(showsAboveNotice(true, { needsApproval: true })).toBe(true)
+    expect(showsAboveNotice(true, { needsApproval: false })).toBe(false)
+    expect(showsAboveNotice(false, { needsApproval: true })).toBe(false)
   })
 })

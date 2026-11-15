@@ -132,20 +132,12 @@ export const ABOVE_SUGGESTION_BODY = msg(
   'Detlio checks it before customers see it (usually within a day). Until then customers see the suggested fee.'
 )
 export const SET_BY_DETLIO_TITLE = msg('Set by Detlio')
+/** Under the greyed-out controls when Detlio sets the garage's fee. */
+export const SET_BY_DETLIO_LINE = msg('Set by Detlio. Ask Detlio to change it.')
 
 /** "You can change your fee once every 7 days. A booked fee never changes." */
 export function changeRuleLine(days: number): string {
   return t('You can change your fee once every {days} days. A booked fee never changes.', { days })
-}
-
-/** The locked notice: "Detlio’s fee: free up to 3 km, then ₹15 a km, ₹99–₹399. To change it, call Detlio support." */
-export function lockedLine(plan: PickupFeePlan): string {
-  return t('Detlio’s fee: free up to {free} km, then {perKm} a km, {min}–{max}. To change it, call Detlio support.', {
-    free: kmFigure(plan.freeKm),
-    perKm: rupees(plan.perKm),
-    min: rupees(plan.minCharge),
-    max: rupees(plan.maxCharge),
-  })
 }
 
 /** "Sent to Detlio 15 Nov, 10:20 am. Your next change: from 22 Nov." */
