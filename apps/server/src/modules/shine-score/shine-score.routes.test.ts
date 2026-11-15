@@ -23,6 +23,7 @@ const { FAKE_JOB_READING, FAKE_SCAN_READING, SCAN_PHOTO_TEXT } = await import('.
 const { membersRepository } = await import('../members/members.repository.js')
 const { authMiddleware, requireCustomer } = await import('../../middleware/auth.middleware.js')
 const { shineScoreRepository } = await import('./shine-score.repository.js')
+const { vendorsService } = await import('../vendors/vendors.service.js')
 const { setShineReadersForTest, shineScoreService } = await import('./shine-score.service.js')
 const { adminShineRoutes, customerShineRoutes, publicShineRoutes } = await import('./shine-score.routes.js')
 
@@ -436,5 +437,42 @@ describe('scoring a finished job', () => {
     ;(env as unknown as Record<string, unknown>).shineScoreEnabled = false
     expect(await shineScoreService.scoreJob(DONE)).toBe('skipped')
     expect(sent).toHaveLength(0)
+  })
+})
+
+describe('suggestions', () => {
+  test('the best fitting wash at the nearest garages; nothing within 15 km falls back to the nearest anywhere', async () => {
+    const asked: Array<Record<string, unknown>> = []
+    patch(vendorsService, 'listPublicVendors', async (query: Record<string, unknown>) => {
+      asked.push(query)
+      return {
+        items:
+          query.radiusKm === 15
+            ? []
+            : [{ id: GARAGE, businessName: 'Velan Car Care', dropinEnabled: true, rating: 4.7, reviewCount: 30, distanceKm: 21.4 }],
+        nextCursor: null,
+        radiusKm: null,
+        appliedRadiusKm: null,
+      }
+    })
+    patch(shineScoreRepository, 'listServicesOf', async () => [
+      { id: 's1', vendorId: GARAGE, name: 'Foam wash', category: 'car_wash', pricingType: 'flat', price: '399.00', priceHatchback: null, priceSedan: null, priceSuv: null, durationMins: 45 },
+      { id: 's2', vendorId: GARAGE, name: 'Interior + exterior wash', category: 'car_wash', pricingType: 'flat', price: '649.00', priceHatchback: null, priceSedan: null, priceSuv: null, durationMins: 90 },
+      { id: 's3', vendorId: GARAGE, name: 'Ceramic coating', category: 'coating', pricingType: 'flat', price: '9999.00', priceHatchback: null, priceSedan: null, priceSuv: null, durationMins: 300 },
+    ])
+    const found = await call('/users/me/shine/suggestions?need=both&lat=13.08&lng=80.27', 'customer')
+    expect(found.status).toBe(200)
+    expect(found.body.data.suggestions).toEqual([
+      {
+        vendorId: GARAGE,
+        vendorName: 'Velan Car Care',
+        rating: 4.7,
+        reviewCount: 30,
+        distanceKm: 21.4,
+        service: { id: 's2', name: 'Interior + exterior wash', fromPrice: '649.00', perVehicle: false, durationMins: 90 },
+      },
+    ])
+    expect(asked.map((q) => q.radiusKm)).toEqual([15, undefined])
+    expect(asked.every((q) => q.bookingType === 'dropin')).toBe(true)
   })
 })

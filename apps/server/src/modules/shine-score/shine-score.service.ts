@@ -238,17 +238,27 @@ export const shineScoreService = {
   /**
    * Real services at nearby garages for what the scan found: the garage
    * list's own nearest-first read (drop-in, within 15 km when the phone
-   * says where it is), then each garage's best fitting wash. The location
-   * is used for this read only and never stored.
+   * says where it is; with nothing there, the nearest anywhere), then each
+   * garage's best fitting wash. The location is used for this read only and
+   * never stored.
    */
   async suggestions(query: SuggestionsQuery) {
+    const located = query.lat !== undefined && query.lng !== undefined
+    const near = located ? await shineScoreService.suggestionsFrom(query, SUGGESTION_RADIUS_KM) : []
+    // Nothing within 15 km (or no location): the nearest garages anywhere, as the list shows them.
+    const suggestions = near.length > 0 ? near : await shineScoreService.suggestionsFrom(query, null)
+    return { suggestions }
+  },
+
+  async suggestionsFrom(query: SuggestionsQuery, radiusKm: number | null) {
     const located = query.lat !== undefined && query.lng !== undefined
     const list = await vendorsService.listPublicVendors({
       bookingType: 'dropin',
       limit: SUGGESTION_GARAGES,
-      ...(located ? { lat: query.lat, lng: query.lng, radiusKm: SUGGESTION_RADIUS_KM, includeUnlocated: false } : {}),
+      ...(located ? { lat: query.lat, lng: query.lng, includeUnlocated: false } : {}),
+      ...(located && radiusKm !== null ? { radiusKm } : {}),
     })
-    const garages = list.items.filter((g) => g.dropinEnabled && !g.outsideServiceCity)
+    const garages = list.items.filter((g) => g.dropinEnabled)
     const rows = await repo.listServicesOf(garages.map((g) => g.id))
     const out = []
     for (const garage of garages) {
@@ -273,7 +283,7 @@ export const shineScoreService = {
       })
       if (out.length >= SUGGESTIONS_SHOWN) break
     }
-    return { suggestions: out }
+    return out
   },
 
   // ─── Finished jobs ─────────────────────────────────────────────────────────

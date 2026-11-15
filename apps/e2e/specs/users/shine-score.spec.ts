@@ -22,7 +22,11 @@ import { SHINE } from '../../support/seed-ids'
 const dir = path.dirname(fileURLToPath(import.meta.url))
 const PIXEL = path.resolve(dir, '../../fixtures/pixel.png')
 
-test.use({ storageState: asRole('customer-shine') })
+test.use({
+  storageState: asRole('customer-shine'),
+  // Should Home ask the phone where it is, the phone is at the seeded garage too.
+  geolocation: { latitude: SHINE.garage.lat, longitude: SHINE.garage.lng },
+})
 
 test.beforeEach(async ({ context }) => {
   await sql`delete from shine_scans where user_id = ${SHINE.customer.id}`
@@ -124,6 +128,9 @@ test.describe('Shine Score', () => {
     expect(shared).not.toContain('TN09SH0076')
 
     // Suggested for you: the seeded garage's interior + exterior wash, a time opens checkout.
+    // Read again so the phone's place is the seeded one, whatever Home did with it on the way.
+    await page.reload()
+    await expect(page.getByLabel('Score 59 out of 100')).toBeVisible()
     const suggested = page.getByRole('region', { name: 'Suggested for you' })
     await expect(suggested).toContainText(SHINE.garage.full.name)
     await expect(suggested).toContainText(SHINE.garage.name)
