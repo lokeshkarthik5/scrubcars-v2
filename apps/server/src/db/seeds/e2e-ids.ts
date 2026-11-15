@@ -2285,3 +2285,36 @@ export const INSPECTION_NO_FEE = {
   /** The service the garage adds in the portal, found by its name. */
   added: { name: 'Bumper Dent Check', approx: 1500 },
 } as const
+
+/**
+ * Shine Score (0075; ids 7600–7699, phones 90000076xx). The customer scans
+ * from Home (spec deletes their scans first, so a retry has its 3 free scans
+ * back); their finished booking `done` has a seeded 46 → 92 score and the
+ * garage's front and interior photos before and after; `lowFine` and
+ * `lowFollow` have after-scores under 60 waiting in Admin → Shine checks
+ * (one to mark Looks fine, one Follow up). The garage is pinned near Nagpur
+ * (21° N, 79° E), far from every other fixture, so the suggestions read
+ * from there (the spec puts the phone there) list only it.
+ */
+export const SHINE = {
+  customer: { id: id(7600), phone: '9000007600', name: 'Shine Sangeetha', vehicleId: id(7601) },
+  owner: { id: id(7602), phone: '9000007602', name: 'Shine Owner Selvam' },
+  garage: {
+    id: id(7603),
+    name: 'Shine Test Car Spa',
+    lat: 21.0,
+    lng: 79.0,
+    full: { id: id(7604), name: 'Interior + exterior wash', price: '649.00', durationMins: 90 },
+    plain: { id: id(7605), name: 'Shine Foam Wash', price: '399.00', durationMins: 45 },
+  },
+  bookings: {
+    done: refId('c1ea0001'),
+    lowFine: refId('c1ea0002'),
+    lowFollow: refId('c1ea0003'),
+  },
+  scores: { done: id(7620), lowFine: id(7621), lowFollow: id(7622) },
+  photos: {
+    done: [id(7630), id(7631), id(7632), id(7633)],
+    lowFine: [id(7634), id(7635), id(7636), id(7637)],
+  },
+} as const

@@ -157,6 +157,13 @@ export interface DocumentRequest {
   schemaName: string
   schema: Record<string, unknown>
   maxOutputTokens: number
+  /**
+   * What the user turn says before the files. Left out, "Read this document."
+   * (the garage import's words). Shine Score names its photos here (0075).
+   */
+  userText?: string
+  /** How closely images are looked at; 'high' unless said (posters are small print). */
+  imageDetail?: 'low' | 'high' | 'auto'
 }
 
 /** Anything that reads files into JSON text: OpenAI, or a test's fake. */
@@ -195,7 +202,7 @@ export function openAiDocumentClient({ apiKey, model, fetch }: OpenAiDocumentCon
   const client = new OpenAI({ apiKey, timeout: 50_000, maxRetries: 0, ...(fetch && { fetch }) })
 
   return {
-    async read({ instructions, files, schemaName, schema, maxOutputTokens }) {
+    async read({ instructions, files, schemaName, schema, maxOutputTokens, userText, imageDetail = 'high' }) {
       try {
         const response = await client.responses.create({
           model,
@@ -207,9 +214,10 @@ export function openAiDocumentClient({ apiKey, model, fetch }: OpenAiDocumentCon
                 {
                   type: 'input_text',
                   text:
-                    files.length === 1
+                    userText ??
+                    (files.length === 1
                       ? 'Read this document.'
-                      : `Read these ${files.length} documents; they are about the same garage.`,
+                      : `Read these ${files.length} documents; they are about the same garage.`),
                 },
                 ...files.map((file) =>
                   file.mimeType === 'application/pdf'
@@ -220,7 +228,7 @@ export function openAiDocumentClient({ apiKey, model, fetch }: OpenAiDocumentCon
                       }
                     : {
                         type: 'input_image' as const,
-                        detail: 'high' as const,
+                        detail: imageDetail,
                         image_url: `data:${file.mimeType};base64,${file.dataBase64}`,
                       }
                 ),

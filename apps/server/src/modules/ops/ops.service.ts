@@ -22,6 +22,7 @@ import { rewardsService } from '../rewards/rewards.service.js'
 import { rewardExtrasService } from '../reward-extras/reward-extras.service.js'
 import { garageService } from '../garage/garage.service.js'
 import { slotAlertsService } from '../slot-alerts/slot-alerts.service.js'
+import { shineScoreService } from '../shine-score/shine-score.service.js'
 import { timeProposalsService } from '../time-proposals/time-proposals.service.js'
 import { opsRepository } from './ops.repository.js'
 
@@ -231,6 +232,16 @@ export const opsService = {
         log.error({ err }, 'ops:google_leads_refresh_failed')
         return { error: true as const }
       })
+    // Shine Score (0075): scans and their private photos deleted after 30
+    // days (whatever the switch says), then, while on, one finished job
+    // with no before/after score yet (the completion hook's catch-up; one
+    // AI call). Never allowed to fail the digest.
+    const shineScore = await shineScoreService
+      .sweep({ dryRun: options.dryRun })
+      .catch((err: unknown) => {
+        log.error({ err }, 'ops:shine_score_sweep_failed')
+        return { error: true as const }
+      })
     const giftCodeAttemptsPurged = options.dryRun
       ? 0
       : await giftsService.purgeAttempts().catch((err: unknown) => {
@@ -310,6 +321,7 @@ export const opsService = {
       rewardExtras,
       garage,
       googleLeads,
+      shineScore,
       missedResponsesYesterday: missedResponses.reduce((sum, row) => sum + row.count, 0),
     }
 

@@ -19,6 +19,7 @@ import {
   CALENDAR,
   CUSTOMERS,
   INSPECTION_NO_FEE,
+  SHINE,
   OWNER_DELETE,
   PRE_IOS,
   STAFF,
@@ -82,6 +83,8 @@ async function globalSetup() {
   // On inspection with no fee (INSPECTION_NO_FEE, 7400–7449).
   await saveState('customer-inspection', INSPECTION_NO_FEE.customer.phone, 'customer')
   await saveState('vendor-inspection', INSPECTION_NO_FEE.owner.phone, 'vendor')
+  // Shine Score (SHINE, 7600–7699).
+  await saveState('customer-shine', SHINE.customer.phone, 'customer')
   await saveAdminState('admin')
   await saveAdminState('admin-shared', ADMIN)
   // A personal login that is not the owner (10 Nov 2026): the old rules.

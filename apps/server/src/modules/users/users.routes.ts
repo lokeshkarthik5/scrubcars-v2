@@ -22,6 +22,7 @@ import { customerRewardExtrasRoutes } from '../reward-extras/reward-extras.route
 import { customerGarageRoutes } from '../garage/garage.routes.js'
 import { customerBookingRequestRoutes } from '../booking-requests/booking-requests.routes.js'
 import { customerAreaRoutes } from '../area-signups/area-signups.routes.js'
+import { customerShineRoutes } from '../shine-score/shine-score.routes.js'
 import * as usersController from './users.controller.js'
 import {
   avatarUploadUrlSchema,
@@ -85,6 +86,9 @@ usersRoutes.route('/me/credit', customerCreditRoutes)
 usersRoutes.route('/me/coupons', customerCouponRoutes)
 // Detlio Guarantee (0051): a free redo claim on the customer's own booking.
 usersRoutes.route('/me/guarantee', customerGuaranteeRoutes)
+// Shine Score (0075): scans, suggestions and a finished booking's before and
+// after: /me/shine. Same mounting, same check; a 404 while it is off.
+usersRoutes.route('/me/shine', customerShineRoutes)
 
 // Detlio Rewards (0050): the customer's Shine Card, scratch cards, level,
 // vouchers, birthday and invite: /me/rewards. Same mounting, same check; a

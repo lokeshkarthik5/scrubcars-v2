@@ -63,6 +63,8 @@ const AddCarSheet = dynamic(
 import { TipCard } from './tip-card'
 import { UpdatesBlock } from './updates-block'
 import { WashStatusTile } from './wash-status-tile'
+import { ShineScoreTile } from '@/components/shine/shine-tile'
+import { shineOn, useShineConfig } from '@repo/core/api/hooks/use-shine-score'
 import { useT } from '@repo/core/i18n'
 
 function HomeHubContent() {
@@ -94,6 +96,9 @@ function HomeHubContent() {
     garageLive(rewardsConfig.data) && !!authUser
   )
   const clock = useNow()
+  // Shine Score (0075): its tile only while the API says it is on.
+  const shineConfig = useShineConfig(!!authUser)
+  const shine = shineOn(shineConfig.data)
 
   const [selectedCar, setSelectedCar] = useState(0)
   const [addCarOpen, setAddCarOpen] = useState(false)
@@ -302,6 +307,15 @@ function HomeHubContent() {
                   <RightTile tile={data.nextBooking} />
                 </div>
               )
+            )}
+
+            {/* The tools row (AI round): Shine Score on the left; Repair
+                quotes joins it on the right. Its own row of two tiles, in the
+                car tiles' style. */}
+            {shine && (
+              <div className="grid grid-cols-2 gap-3">
+                <ShineScoreTile />
+              </div>
             )}
 
             {/* Offers below the car, dark, in Home's one swipe row (F2). */}

@@ -79,6 +79,7 @@ import {
   couponRedemptions,
   rewardStamps,
   guaranteeClaims,
+  shineJobScores,
   cities,
 } from '../schema.js'
 import {
@@ -138,6 +139,7 @@ import {
   OWNER_DELETE,
   CALENDAR,
   INSPECTION_NO_FEE,
+  SHINE,
 } from './e2e-ids.js'
 import { hashPassword } from '../../lib/passwords.js'
 import { codeSuffix, couponCodeHash, couponKeys, deriveCouponCode } from '../../lib/coupons.js'
@@ -3855,6 +3857,95 @@ async function seedInspectionNoFeeRows() {
 }
 
 /**
+ * Shine Score (0075; SHINE, ids 7600–7699, phones 90000076xx): see SHINE.
+ * The scores are written as the scoring would have left them; nothing here
+ * calls the AI.
+ */
+async function seedShineRows() {
+  const S = SHINE
+  await db.insert(users).values([
+    { id: S.customer.id, name: S.customer.name, phone: S.customer.phone, isCustomer: true, isVendorOwner: false,
+      phoneVerified: true, status: 'active' as const },
+    { id: S.owner.id, name: S.owner.name, phone: S.owner.phone, isCustomer: false, isVendorOwner: true,
+      phoneVerified: true, status: 'active' as const },
+  ])
+  await db.insert(userVehicles).values({
+    id: S.customer.vehicleId, userId: S.customer.id, make: 'Maruti', model: 'Swift', color: 'Red',
+    licensePlate: 'TN09SH0076', vehicleType: 'hatchback', isDefault: true,
+  })
+  await db.insert(vendors).values({
+    id: S.garage.id, ownerId: S.owner.id, businessName: S.garage.name, phone: S.owner.phone,
+    address: '76, Shine Road, Nagpur', city: 'Chennai', pincode: '600076',
+    lat: S.garage.lat, lng: S.garage.lng, geoSource: 'map_pin', geoConfirmedAt: now,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'], bays: 4, slotIntervalMins: 30, whatsapp: null,
+    status: 'active', isVerified: true, dropinEnabled: true, doorstepEnabled: false, createdAt: daysAgo(30),
+  })
+  await db.insert(userMemberMapping).values({
+    vendorId: S.garage.id, userId: S.owner.id, role: 'vendor_admin', status: 'active',
+  })
+  await db.insert(vendorWorkingHours).values(hoursFor(S.garage.id, '06:00:00', '22:00:00'))
+  await db.insert(services).values([
+    { id: S.garage.full.id, vendorId: S.garage.id, name: S.garage.full.name,
+      description: 'Foam wash outside, vacuum and wipe down inside.', category: 'car_wash', pricingType: 'flat',
+      price: S.garage.full.price, durationMins: S.garage.full.durationMins, isActive: true },
+    { id: S.garage.plain.id, vendorId: S.garage.id, name: S.garage.plain.name,
+      description: 'An exterior foam wash and dry.', category: 'car_wash', pricingType: 'flat',
+      price: S.garage.plain.price, durationMins: S.garage.plain.durationMins, isActive: true },
+  ])
+
+  const wash = { id: S.garage.full.id, name: S.garage.full.name, amount: S.garage.full.price, durationMins: 90 }
+  const mine = { userId: S.customer.id, vehicleId: S.customer.vehicleId, vendorId: S.garage.id, items: [wash] }
+  const done = (id: string, days: number, txn: string) =>
+    insertBooking({
+      ...mine, id, scheduledAt: daysAgo(days), status: 'completed', createdAt: daysAgo(days + 1),
+      acceptedAt: daysAgo(days + 1), startedAt: daysAgo(days), completedAt: daysAgo(days),
+      payment: { status: 'paid', txnId: txn, gatewayMode: 'fake', paidAt: daysAgo(days + 1) },
+    })
+  await done(S.bookings.done, 1, 'pay_e2e_shine_done')
+  await done(S.bookings.lowFine, 2, 'pay_e2e_shine_low_fine')
+  await done(S.bookings.lowFollow, 3, 'pay_e2e_shine_low_follow')
+
+  // The garage's front and interior photos, before and after: the areas the scores are for.
+  const photoRows = (bookingId: string, ids: readonly string[]) =>
+    (
+      [
+        ['before', 'front'],
+        ['before', 'interior'],
+        ['after', 'front'],
+        ['after', 'interior'],
+      ] as const
+    ).map(([stage, angle], i) => {
+      const key = `vendors/${S.garage.id}/job-photos/${bookingId}/shine-${stage}-${angle}.jpg`
+      return {
+        id: ids[i]!, bookingId, stage, angle, storageKey: key, url: key,
+        uploadedBy: S.owner.id, uploadedByRole: 'garage' as const,
+      }
+    })
+  await db.insert(jobPhotos).values([
+    ...photoRows(S.bookings.done, S.photos.done),
+    ...photoRows(S.bookings.lowFine, S.photos.lowFine),
+  ])
+
+  const areas = ['front', 'dashboard', 'seats']
+  await db.insert(shineJobScores).values([
+    { id: S.scores.done, bookingId: S.bookings.done, vendorId: S.garage.id, status: 'scored', areas,
+      beforeOverall: 46, afterOverall: 92,
+      beforeScores: { front: 60, dashboard: 44, seats: 34 }, afterScores: { front: 92, dashboard: 90, seats: 94 },
+      findings: [], reviewStatus: null, scoredAt: daysAgo(1) },
+    { id: S.scores.lowFine, bookingId: S.bookings.lowFine, vendorId: S.garage.id, status: 'scored', areas,
+      beforeOverall: 44, afterOverall: 48,
+      beforeScores: { front: 50, dashboard: 44, seats: 38 }, afterScores: { front: 60, dashboard: 46, seats: 38 },
+      findings: [{ text: 'Mats still muddy', area: 'seats' }, { text: 'Dust left on the dashboard', area: 'dashboard' }],
+      reviewStatus: 'new', scoredAt: daysAgo(2) },
+    { id: S.scores.lowFollow, bookingId: S.bookings.lowFollow, vendorId: S.garage.id, status: 'scored', areas,
+      beforeOverall: 51, afterOverall: 57,
+      beforeScores: { front: 56, dashboard: 50, seats: 47 }, afterScores: { front: 64, dashboard: 52, seats: 55 },
+      findings: [{ text: 'Dust left on the dashboard', area: 'dashboard' }],
+      reviewStatus: 'new', scoredAt: daysAgo(3) },
+  ])
+}
+
+/**
  * The garage's Bookings calendar (CALENDAR, ids 6200–6249, phones
  * 90000062xx): see CALENDAR for what each row is for. Times are built from
  * India's date, not the seeding machine's, so "today" is the day the
@@ -4572,6 +4663,8 @@ async function main() {
   await seedCalendarRows()
   console.log('[e2e-seed] inspection with no fee…')
   await seedInspectionNoFeeRows()
+  console.log('[e2e-seed] shine score…')
+  await seedShineRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }

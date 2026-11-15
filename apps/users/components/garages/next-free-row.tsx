@@ -29,7 +29,8 @@ export function NextFreeRow({
   serviceIds,
   className,
 }: {
-  vendor: Vendor
+  /** Only its id and name are read (Shine Score's suggestions pass just those). */
+  vendor: Pick<Vendor, 'id' | 'name'>
   mode: BookingType
   visible: boolean
   /**

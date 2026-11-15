@@ -33,6 +33,7 @@ import { publicGuaranteeRoutes } from './modules/guarantee/guarantee.routes.js'
 import { publicRewardRoutes } from './modules/rewards/rewards.routes.js'
 import { geoRoutes } from './modules/geo/geo.routes.js'
 import { publicTierRoutes } from './modules/tiers/tiers.routes.js'
+import { publicShineRoutes } from './modules/shine-score/shine-score.routes.js'
 import { zonesRoutes } from './modules/reach/reach.routes.js'
 import { publicCityRoutes } from './modules/cities/cities.routes.js'
 import { publicBookingRequestRoutes } from './modules/booking-requests/booking-requests.routes.js'
@@ -223,6 +224,8 @@ app.route('/api/v1/zones', zonesRoutes)
 app.route('/api/v1/cities', publicCityRoutes)
 // Which tiers customers see (0063), for the "Silver & above" filter.
 app.route('/api/v1/tiers', publicTierRoutes)
+// Shine Score (0075): whether it is on, for every app's entry points.
+app.route('/api/v1/shine', publicShineRoutes)
 // Customer reach, part 2 (0062): the windows a garage can be asked for.
 app.route('/api/v1/booking-requests', publicBookingRequestRoutes)
 // Garage Book's public pages (0074): a bill (/b/<token>) and a garage's own

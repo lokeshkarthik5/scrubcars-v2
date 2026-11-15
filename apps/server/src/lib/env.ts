@@ -425,6 +425,18 @@ export const env = {
    */
   guaranteeEnabled: (process.env.GUARANTEE_ENABLED ?? '').trim().toLowerCase() === 'on',
 
+  // ─── Shine Score (lib/shine-score.ts, 0075) ────────────────────────────────
+  /**
+   * The free AI cleanliness score from four photos, and the before/after
+   * score on finished bookings: SHINE_SCORE_ENABLED=on. Off unless set to
+   * exactly `on`. While off every Shine route but the public `/shine/config`
+   * is a 404 before auth runs, the apps show nothing (Home's tile, the
+   * booking card, admin's Shine checks tab), and finished jobs are not
+   * scored. Needs OPENAI_API_KEY (or AI_FAKE in E2E); without one a scan
+   * says "try again later" and uses up nothing.
+   */
+  shineScoreEnabled: (process.env.SHINE_SCORE_ENABLED ?? '').trim().toLowerCase() === 'on',
+
   // ─── Garage Book (modules/garage-book, 0072) ───────────────────────────────
   /**
    * The garage's own book (walk-ins, its own customers, reminders, money

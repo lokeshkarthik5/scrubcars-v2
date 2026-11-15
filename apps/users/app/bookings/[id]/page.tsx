@@ -115,6 +115,7 @@ import { ExtraWorkCard } from '@/components/extra-work-card'
 import { TimeProposalCard } from '@/components/time-proposal-card'
 import { OtherGaragesCard } from '@/components/other-garages-card'
 import { JobPhotosCard } from '@/components/job-photos-card'
+import { BookingShineCard } from '@/components/shine/booking-shine-card'
 import { CarConditionCard } from '@/components/car-condition-card'
 import { GuaranteeCard } from '@/components/guarantee/guarantee-card'
 import { fill, useT } from '@repo/core/i18n'
@@ -1210,6 +1211,13 @@ export default function BookingDetailPage({
           />
         </section>
       )}
+
+      {/* Shine Score (0075): "Your Shine went 46 → 92", from the garage's photos. */}
+      <BookingShineCard
+        bookingId={booking.id}
+        completed={booking.status === 'completed'}
+        photos={booking.jobPhotos}
+      />
 
       <JobPhotosCard photos={booking.jobPhotos} completed={finished} />
 
