@@ -616,7 +616,7 @@ export const bypassReportsRepository = {
     const rows = await db.execute<{
       note_id: string
       where_: NoteSource
-      text: string
+      body: string
       written_at: Date | string
       booking_id: string
       root_booking_id: string
@@ -624,7 +624,7 @@ export const bypassReportsRepository = {
       garage_name: string
     }>(sql`
       select * from (
-        select b.id as note_id, 'decline_reason' as where_, b.cancellation_reason as text, b.cancelled_at as written_at,
+        select b.id as note_id, 'decline_reason' as where_, b.cancellation_reason as body, b.cancelled_at as written_at,
                b.id as booking_id, coalesce(b.original_booking_id, b.id) as root_booking_id, b.vendor_id, v.business_name as garage_name
           from bookings b join vendors v on v.id = b.vendor_id
          where b.cancelled_by = 'vendor' and b.response_missed_at is null
@@ -640,14 +640,14 @@ export const bypassReportsRepository = {
           from booking_time_proposals p join bookings b on b.id = p.booking_id join vendors v on v.id = b.vendor_id
          where p.note is not null and p.created_at >= ${at} and b.marked_test_at is null
       ) notes
-      where btrim(coalesce(text, '')) <> ''
+      where btrim(coalesce(body, '')) <> ''
       order by written_at desc
       limit ${limit}
     `)
     return Array.from(rows).map((row) => ({
       noteId: row.note_id,
       where: row.where_,
-      text: row.text,
+      text: row.body,
       writtenAt: new Date(row.written_at),
       bookingId: row.booking_id,
       rootBookingId: row.root_booking_id,
