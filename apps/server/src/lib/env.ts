@@ -6,6 +6,7 @@ import { isPushConfigured } from './push.js'
 import { readReviewLoginEnv } from './review-login.js'
 import { readAppConfigEnv } from './app-config.js'
 import { parsePhotosRequired, parseRequiredGarages } from './job-photo-standards.js'
+import { parseConditionCheckEnabled } from './condition-check.js'
 import type { GeoProviderName } from './geo/types.js'
 
 function requireEnv(name: string): string {
@@ -516,6 +517,27 @@ export const env = {
    * suite turns it on for its own garage only. Ignored while it is on.
    */
   jobPhotosRequiredGarages: parseRequiredGarages(process.env.JOB_PHOTOS_REQUIRED_GARAGES),
+
+  // ─── Car condition check at handover (lib/condition-check.ts, 0075) ────────
+  /**
+   * The guided 8-angle walk-round, Detlio's AI marks on it, the customer's
+   * "Looks right" and the after-job comparison: CONDITION_CHECK_ENABLED,
+   * **off unless set to `on`**. Off = the job photos exactly as before (the
+   * 5-slot checklist, no marks, nothing new on either app).
+   */
+  conditionCheckEnabled: parseConditionCheckEnabled(process.env.CONDITION_CHECK_ENABLED),
+  /**
+   * Garage ids (comma separated) that have the check while
+   * CONDITION_CHECK_ENABLED is off: a garage-by-garage roll-out, and how the
+   * E2E suite turns it on for its own garage only. Ignored while it is on.
+   */
+  conditionCheckGarages: parseRequiredGarages(process.env.CONDITION_CHECK_GARAGES),
+  /**
+   * Detlio's look at a car-check photo, per signed-in garage person per hour.
+   * Each is a paid OpenAI request; a job has at most 16 (8 before, 8 after),
+   * plus a retake now and then.
+   */
+  conditionCheckReadRateLimit: Number(process.env.CONDITION_CHECK_READ_RATE_LIMIT ?? '120'),
 
   // ─── Rate limiting ─────────────────────────────────────────────────────────
   // Both limiters key on client IP. The defaults are the production values;

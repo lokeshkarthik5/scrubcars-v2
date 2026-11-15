@@ -33,6 +33,13 @@ import { bookingStatusTone } from '@repo/core/status-tone'
 import type { Booking } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
 import { CancelAcceptedBooking } from '@/components/cancel-accepted-booking'
+import {
+  CarCheckSummary,
+  NewMarkWarning,
+  useWasThere,
+  WasThereButton,
+} from '@/components/car-check'
+import { useConditionReader } from '@/lib/condition-reader'
 import { ExtraWorkPanel } from '@/components/extra-work'
 import { FinalBillPanel } from '@/components/final-bill'
 import { JobContact } from '@/components/job-contact'
@@ -122,6 +129,8 @@ function Job({
 }) {
   const t = useT()
   const deferred = useDeferredStatus(b.id)
+  // The car condition check (0075): Detlio looks at each new walk-round photo.
+  useConditionReader(b, onChanged)
   const who = b.customerName || t('the customer')
   const ended = b.status === 'cancelled' || b.status === 'rescheduled'
   const contactOpen =
@@ -139,6 +148,13 @@ function Job({
   const stepTimes = b.status !== 'pending' ? jobStepTimes(b, now) : []
   const stage = photoStage(b)
   const docked = working && !ended
+  // A possible new mark (0075) adds its two photos to the docked bar.
+  const warned =
+    b.status === 'in_progress' &&
+    (b.conditionCheck?.marks.some(
+      (mark) => mark.stage === 'after' && !mark.removed && !mark.garageAnswer
+    ) ??
+      false)
   const shownStatus: Booking['status'] =
     deferred === 'completed'
       ? 'completed'
@@ -153,7 +169,8 @@ function Job({
       navType="vendor"
       className={cn(
         'gap-5 py-4',
-        docked && 'pb-[calc(13rem+env(safe-area-inset-bottom))]'
+        docked && 'pb-[calc(13rem+env(safe-area-inset-bottom))]',
+        docked && warned && 'pb-[calc(30rem+env(safe-area-inset-bottom))]'
       )}
     >
       <header className="flex items-start gap-3">
@@ -235,6 +252,10 @@ function Job({
             onChanged={onChanged}
             readOnly={!photosOpen(b, stage, now)}
           />
+          {/* The car check's state: Check the marks, or sent and answered. */}
+          {(stage === 'before' || b.conditionCheck?.sentAt) && (
+            <CarCheckSummary booking={b} />
+          )}
           {b.photoStandard?.required && b.photoStandard.waived && (
             <p className="mt-3 text-[13px] text-text-secondary">
               {t("Detlio waived the photos for this job: Start and Complete don't wait for them.")}
@@ -441,6 +462,9 @@ function DockedStep({
   const who = b.customerName || t('the customer')
   const action = b.status === 'confirmed' ? 'start' : 'complete'
   const missing = blockers(b, action)
+  // A possible new mark after the job (0075): it warns, never blocks.
+  const wasThere = useWasThere(b, onChanged)
+  const warning = b.status === 'in_progress' && wasThere.mark ? wasThere : null
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-[428px] border-t border-border bg-brand-black/95 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 backdrop-blur">
@@ -454,13 +478,19 @@ function DockedStep({
           {t(DEFERRED_WORDS[deferred])}
         </p>
       ) : b.bookingType === 'pickup' ? (
-        <PickupSteps
-          booking={b}
-          onStartWork={() => changeStatusWithUndo(b.id, 'in_progress')}
-          onChanged={onChanged}
-        />
+        <div className="flex flex-col gap-3">
+          {warning && <NewMarkWarning booking={b} state={warning} button />}
+          <PickupSteps
+            booking={b}
+            onStartWork={() => changeStatusWithUndo(b.id, 'in_progress')}
+            onChanged={onChanged}
+          />
+        </div>
       ) : (
         <div className="flex flex-col gap-3">
+          {warning && action === 'complete' && (
+            <NewMarkWarning booking={b} state={warning} />
+          )}
           {missing.length > 0 && (
             <ul
               id={`job-${b.id}-missing`}
@@ -498,19 +528,27 @@ function DockedStep({
               {t('Start job')}
             </ScButton>
           ) : (
-            <ScButton
-              variant="main"
-              size="lg"
-              disabled={missing.length > 0}
-              aria-describedby={
-                missing.length > 0 ? `job-${b.id}-missing` : undefined
-              }
-              aria-label={t('Complete job for {who}', { who })}
-              onClick={() => changeStatusWithUndo(b.id, 'completed')}
-            >
-              {missing.length > 0 && <IconLock size={20} aria-hidden="true" />}
-              {t('Complete job')}
-            </ScButton>
+            <div className="flex gap-2">
+              {warning && (
+                <WasThereButton state={warning} className="flex-1" />
+              )}
+              <ScButton
+                variant="main"
+                size="lg"
+                disabled={missing.length > 0}
+                aria-describedby={
+                  missing.length > 0 ? `job-${b.id}-missing` : undefined
+                }
+                aria-label={t('Complete job for {who}', { who })}
+                onClick={() => changeStatusWithUndo(b.id, 'completed')}
+                className={warning ? 'flex-[1.4]' : undefined}
+              >
+                {missing.length > 0 && (
+                  <IconLock size={20} aria-hidden="true" />
+                )}
+                {t('Complete job')}
+              </ScButton>
+            </div>
           )}
         </div>
       )}

@@ -157,6 +157,11 @@ export interface DocumentRequest {
   schemaName: string
   schema: Record<string, unknown>
   maxOutputTokens: number
+  /**
+   * The user turn's line before the files. Fixed text, never personal data.
+   * Unset: the garage import's own ("Read this document.").
+   */
+  prompt?: string
 }
 
 /** Anything that reads files into JSON text: OpenAI, or a test's fake. */
@@ -195,7 +200,7 @@ export function openAiDocumentClient({ apiKey, model, fetch }: OpenAiDocumentCon
   const client = new OpenAI({ apiKey, timeout: 50_000, maxRetries: 0, ...(fetch && { fetch }) })
 
   return {
-    async read({ instructions, files, schemaName, schema, maxOutputTokens }) {
+    async read({ instructions, files, schemaName, schema, maxOutputTokens, prompt }) {
       try {
         const response = await client.responses.create({
           model,
@@ -207,9 +212,10 @@ export function openAiDocumentClient({ apiKey, model, fetch }: OpenAiDocumentCon
                 {
                   type: 'input_text',
                   text:
-                    files.length === 1
+                    prompt ??
+                    (files.length === 1
                       ? 'Read this document.'
-                      : `Read these ${files.length} documents; they are about the same garage.`,
+                      : `Read these ${files.length} documents; they are about the same garage.`),
                 },
                 ...files.map((file) =>
                   file.mimeType === 'application/pdf'

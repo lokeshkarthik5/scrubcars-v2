@@ -138,6 +138,7 @@ import {
   OWNER_DELETE,
   CALENDAR,
   INSPECTION_NO_FEE,
+  CONDITION_CHECK,
 } from './e2e-ids.js'
 import { hashPassword } from '../../lib/passwords.js'
 import { codeSuffix, couponCodeHash, couponKeys, deriveCouponCode } from '../../lib/coupons.js'
@@ -3855,6 +3856,64 @@ async function seedInspectionNoFeeRows() {
 }
 
 /**
+ * Car condition check at handover (CONDITION_CHECK, ids 7500–7549, phones
+ * 90000075xx): see CONDITION_CHECK for what each job is for. Doorstep jobs
+ * at the customer's door near the garage; the pickup job's codes are known
+ * to the spec. No photos, checks or marks: the spec makes them through the
+ * portal and the API.
+ */
+async function seedConditionCheckRows() {
+  const C = CONDITION_CHECK
+  await db.insert(users).values([
+    { id: C.customer.id, name: C.customer.name, phone: C.customer.phone, isCustomer: true, isVendorOwner: false,
+      phoneVerified: true, status: 'active' as const },
+    { id: C.owner.id, name: C.owner.name, phone: C.owner.phone, isCustomer: false, isVendorOwner: true,
+      phoneVerified: true, status: 'active' as const },
+  ])
+  await db.insert(userVehicles).values({
+    id: C.customer.vehicleId, userId: C.customer.id, make: 'Hyundai', model: 'Creta', color: 'Silver',
+    licensePlate: 'TN75CC0075', vehicleType: 'suv', isDefault: true,
+  })
+  const pin = { lat: ORIGIN.lat - 1.9, lng: ORIGIN.lng - 0.5 }
+  await db.insert(vendors).values({
+    id: C.garage.id, ownerId: C.owner.id, businessName: C.garage.name, phone: '9000007503',
+    address: '75, Handover Street, Kovalam', city: 'Chennai', pincode: '603112',
+    lat: pin.lat, lng: pin.lng, geoSource: 'map_pin', geoConfirmedAt: now,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'], bays: 4, slotIntervalMins: 30,
+    status: 'pending', isVerified: false, dropinEnabled: true, doorstepEnabled: true,
+  })
+  await db.insert(userMemberMapping).values({
+    vendorId: C.garage.id, userId: C.owner.id, role: 'vendor_admin', status: 'active',
+  })
+  await db.insert(vendorWorkingHours).values(hoursFor(C.garage.id, '06:00:00', '22:00:00'))
+  await db.insert(services).values({
+    id: C.wash.id, vendorId: C.garage.id, name: C.wash.name, description: 'An exterior foam wash and dry.',
+    category: 'car_wash', pricingType: 'flat', price: C.wash.price, durationMins: C.wash.durationMins, isActive: true,
+  })
+  const door = { address: '12, Customer Lane, Kovalam', lat: pin.lat + 0.01, lng: pin.lng }
+  const common = {
+    userId: C.customer.id, vendorId: C.garage.id, vehicleId: C.customer.vehicleId, status: 'confirmed' as const,
+    items: [{ id: C.wash.id, name: C.wash.name, amount: C.wash.price, durationMins: C.wash.durationMins }],
+    createdAt: hoursAgo(3), acceptedAt: hoursAgo(2),
+  }
+  const jobs = [
+    { id: C.walkRound, hour: 9, txn: 'pay_e2e_condition_walk' },
+    { id: C.wrong, hour: 11, txn: 'pay_e2e_condition_wrong' },
+    { id: C.newMark, hour: 13, txn: 'pay_e2e_condition_new' },
+    { id: C.pickup, hour: 15, txn: 'pay_e2e_condition_pickup' },
+  ]
+  for (const job of jobs) {
+    await insertBooking({
+      ...common, id: job.id, scheduledAt: tomorrowAt(job.hour), doorstep: door,
+      payment: { status: 'paid', txnId: job.txn, gatewayMode: 'fake' },
+    })
+  }
+  await db.update(bookings).set({
+    bookingType: 'pickup', pickupCode: C.pickupCode, deliveryCode: C.deliveryCode,
+  }).where(eq(bookings.id, C.pickup))
+}
+
+/**
  * The garage's Bookings calendar (CALENDAR, ids 6200–6249, phones
  * 90000062xx): see CALENDAR for what each row is for. Times are built from
  * India's date, not the seeding machine's, so "today" is the day the
@@ -4572,6 +4631,8 @@ async function main() {
   await seedCalendarRows()
   console.log('[e2e-seed] inspection with no fee…')
   await seedInspectionNoFeeRows()
+  console.log('[e2e-seed] car condition check…')
+  await seedConditionCheckRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }
