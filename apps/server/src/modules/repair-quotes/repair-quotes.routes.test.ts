@@ -14,7 +14,7 @@
  * open. Booking a visit goes through checkout's own path for the garage's
  * free inspection service, and only from a quote. Admin is super-admin only.
  */
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test'
+import { afterAll, beforeAll, beforeEach, describe, expect, setSystemTime, test } from 'bun:test'
 
 process.env.DATABASE_URL ??= 'postgres://test:test@localhost:5432/test'
 
@@ -470,7 +470,10 @@ describe('customers: uploads and the AI brief', () => {
 describe('customers: sending, reading and cancelling', () => {
   test('sent to the nearest garages, each with 4 working hours, closing in 48', async () => {
     requests = {}
-    const { status, body } = await call('POST', '/users/me/repair-quotes', 'customer', CREATE)
+    // Midday IST: the test garage closes for 23:59–00:00, so a 4-hour window
+    // started in the evening would cross that minute and come out a minute long.
+    setSystemTime(new Date(`${NOW.toISOString().slice(0, 10)}T06:30:00.000Z`))
+    const { status, body } = await call('POST', '/users/me/repair-quotes', 'customer', CREATE).finally(() => setSystemTime())
     expect(status).toBe(201)
     expect(created).toHaveLength(1)
     const sent = created[0]!
