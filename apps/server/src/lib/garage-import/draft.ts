@@ -25,7 +25,15 @@ export interface FieldNote {
   reason?: string
 }
 
-export type DraftCategory = 'car_wash' | 'detailing' | 'coating' | 'scratch_removal' | 'others'
+export type DraftCategory =
+  | 'car_wash'
+  | 'detailing'
+  | 'coating'
+  | 'scratch_removal'
+  | 'general_service'
+  | 'repairs'
+  | 'dent_paint'
+  | 'others'
 export type DraftPricingType = 'flat' | 'per_vehicle' | 'on_inspection'
 
 /** One day of the week, as the garage's settings keep it (0 = Sunday). */

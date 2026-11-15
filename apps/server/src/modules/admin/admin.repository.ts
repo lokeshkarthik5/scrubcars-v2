@@ -654,6 +654,24 @@ export const adminRepository = {
       .returning()
   },
 
+  /**
+   * "Not this" on the category hint (0080), on live services: dismissed keeps
+   * the first time it was turned down; not dismissed clears it.
+   */
+  async setCategoryHintsDismissed(ids: string[], dismissed: boolean) {
+    if (ids.length === 0) return
+    await db
+      .update(services)
+      .set({ categoryHintDismissedAt: dismissed ? new Date() : null })
+      .where(
+        and(
+          inArray(services.id, ids),
+          isNull(services.deletedAt),
+          dismissed ? isNull(services.categoryHintDismissedAt) : isNotNull(services.categoryHintDismissedAt)
+        )
+      )
+  },
+
   // Soft-delete: hide from customers and block new bookings, but keep the row
   // so existing bookings' restrict FK stays intact.
   deactivateServices(ids: string[]) {

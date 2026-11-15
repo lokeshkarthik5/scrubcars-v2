@@ -8,6 +8,7 @@ import {
   FREE_BOOKINGS,
   garageCommissionStatus,
   itemRate,
+  MECHANICAL_AND_BODY_RATE,
   mainCategory,
   overrideRateFromPercent,
   queuePositions,
@@ -59,15 +60,53 @@ describe('COMMISSION_RATES', () => {
       detailing: 0.05,
       coating: 0.05,
       scratch_removal: 0.05,
+      general_service: 0.05,
+      repairs: 0.05,
+      dent_paint: 0.05,
     })
     expect(FREE_BOOKINGS).toBe(25)
+  })
+
+  test('the mechanical and body work (0080) takes the one named rate, 5%', () => {
+    expect(MECHANICAL_AND_BODY_RATE).toBe(0.05)
+    for (const category of ['general_service', 'repairs', 'dent_paint'] as const) {
+      expect(COMMISSION_RATES[category]).toBe(MECHANICAL_AND_BODY_RATE)
+    }
+  })
+
+  test('a repairs line is charged 5% of its share, a final bill at its rate, as any 5% line', () => {
+    expect(
+      bookingCommission(
+        booking({
+          amount: '2000.00',
+          subtotalAmount: '2000.00',
+          items: [
+            { category: 'repairs', amount: '1500.00', pricingType: 'per_vehicle', sortOrder: 0 },
+            { category: 'others', amount: '500.00', pricingType: 'flat', sortOrder: 1 },
+          ],
+        })
+      )
+    ).toBe(115)
+    expect(
+      bookingCommission(
+        booking({
+          amount: '300.00',
+          subtotalAmount: '300.00',
+          items: [{ category: 'dent_paint', amount: '300.00', pricingType: 'on_inspection', sortOrder: 0 }],
+          billsPaid: '4000.00',
+        })
+      )
+    ).toBe(215)
   })
 
   test('stated for the page from the same table, highest rate first', () => {
     expect(commissionRules()).toEqual({
       rates: [
         { rate: 0.08, categories: ['car_wash', 'package', 'others'] },
-        { rate: 0.05, categories: ['detailing', 'coating', 'scratch_removal'] },
+        {
+          rate: 0.05,
+          categories: ['detailing', 'coating', 'scratch_removal', 'general_service', 'repairs', 'dent_paint'],
+        },
       ],
       freeBookings: 25,
     })

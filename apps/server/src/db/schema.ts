@@ -177,6 +177,11 @@ export const serviceCategoryEnum = pgEnum('service_category', [
   'detailing',
   'coating',
   'scratch_removal',
+  // The mechanical and body work (0080). Listed in the apps in the order of
+  // packages/core/src/categories.ts, never this enum's.
+  'general_service',
+  'repairs',
+  'dent_paint',
   'others',
   'package',
 ])
@@ -949,6 +954,10 @@ export const services = pgTable(
     // filters it out; its category is always 'others', never shown, and it is
     // never priced on inspection (services_addon_shape_check). See lib/add-ons.ts.
     isAddon: boolean('is_addon').default(false).notNull(),
+    // When admin turned down the "Looks like Repairs · Move" hint on this
+    // service in Others ("Not this", 0080): never suggested again. Null is
+    // never turned down. Read by admin only.
+    categoryHintDismissedAt: timestamp('category_hint_dismissed_at', { withTimezone: true }),
   },
   (table) => [
     index('services_vendor_id_idx').on(table.vendorId),
@@ -4276,7 +4285,7 @@ export const rewardChallenges = pgTable(
     check('reward_challenges_goal_check', sql`${table.goalCount} between 1 and 20`),
     check(
       'reward_challenges_category_check',
-      sql`${table.category} is null or ${table.category} in ('car_wash', 'detailing', 'coating', 'scratch_removal', 'others', 'package')`
+      sql`${table.category} is null or ${table.category} in ('car_wash', 'detailing', 'coating', 'scratch_removal', 'general_service', 'repairs', 'dent_paint', 'others', 'package')`
     ),
     check('reward_challenges_booking_type_check', sql`${table.bookingType} is null or ${table.bookingType} in ('dropin', 'doorstep', 'pickup')`),
     check(
