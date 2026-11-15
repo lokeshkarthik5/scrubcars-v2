@@ -34,12 +34,12 @@ const SERVICE_PRESETS: { name: string; category: ServiceCategory }[] = [
   { name: msg('Full detailing'), category: 'detailing' },
   { name: msg('Ceramic / paint protection'), category: 'coating' },
   { name: msg('Polishing & buffing'), category: 'detailing' },
-  { name: msg('Denting & painting'), category: 'scratch_removal' },
-  { name: msg('General / periodic service'), category: 'others' },
-  { name: msg('AC service & repair'), category: 'others' },
-  { name: msg('Battery service'), category: 'others' },
+  { name: msg('Denting & painting'), category: 'dent_paint' },
+  { name: msg('General / periodic service'), category: 'general_service' },
+  { name: msg('AC service & repair'), category: 'repairs' },
+  { name: msg('Battery service'), category: 'repairs' },
   { name: msg('Windshield & glass'), category: 'others' },
-  { name: msg('EV servicing'), category: 'others' },
+  { name: msg('EV servicing'), category: 'general_service' },
 ]
 
 const DURATIONS = [30, 45, 60, 90, 120, 180]
