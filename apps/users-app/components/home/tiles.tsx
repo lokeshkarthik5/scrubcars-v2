@@ -32,7 +32,7 @@ import { WashGauge } from '@/components/moments/wash-gauge';
 
 const NEXT_LABELS: Record<string, string> = { pending: msg('Requested'), confirmed: msg('Next booking'), in_progress: msg('Being washed now') };
 
-function Tile({
+export function Tile({
   label,
   icon: Icon,
   onPress,

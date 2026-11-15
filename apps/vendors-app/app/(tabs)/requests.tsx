@@ -52,6 +52,8 @@ import {
 } from '@/lib/requests-view';
 import { useItemFocus } from '@/lib/use-item-focus';
 import { createStyles, useColors } from '@repo/native-ui/theme';
+import { repairQuotesOn, useGarageRepairQuotes, useRepairQuotesConfig } from '@repo/core/api/hooks/use-repair-quotes';
+import { ClosedRepairQuoteCard, WaitingRepairQuoteCard } from '@/components/repair-quote-card';
 import { fill, useT } from '@repo/core/i18n';
 
 /**
@@ -71,6 +73,12 @@ function RequestsScreen() {
   const closedRequests = useGarageRequestsInbox('closed', scope === 'closed');
   const requests = scope === 'open' ? openRequests : closedRequests;
   const items = requests.data?.items ?? [];
+  // Repair & bodywork quotes (0075) come into the same list, first: only while the API
+  // says they are on (GET /repair-quotes/config), as on the website.
+  const repairOn = repairQuotesOn(useRepairQuotesConfig().data);
+  const repairs = useGarageRepairQuotes(scope, repairOn);
+  const repairItems = repairOn ? (repairs.data?.items ?? []) : [];
+  const now = useNow(1000);
 
   // A notification or link for one request (/requests#request-<id>): the scope that has it,
   // scrolled to and flashed. Once per id named.
@@ -94,7 +102,7 @@ function RequestsScreen() {
     <AppShell gap={16} scrollRef={scroll}>
       <TopBar title={t('Requests')} onBack={() => (router.canGoBack() ? router.back() : router.replace('/home'))} />
       <T size={12} color={colors.textSecondary}>
-        {requestsIntro()}
+        {repairOn ? t('Customers ask you to come, or for a repair quote. Nothing is paid until you say yes.') : requestsIntro()}
       </T>
       <GraphiteSwitch
         accessibilityLabel={t('Which requests')}
@@ -109,7 +117,7 @@ function RequestsScreen() {
         <SkeletonList count={2} height={320} />
       ) : requests.isError && !requests.data ? (
         <LoadError what={t('your requests')} onRetry={() => void requests.refetch()} retrying={requests.isFetching} />
-      ) : items.length === 0 ? (
+      ) : items.length === 0 && repairItems.length === 0 ? (
         <EmptyState
           icon={<IconMapPin size={28} stroke={1.5} color={colors.textSecondary} />}
           title={t(EMPTY_TITLE)}
@@ -117,6 +125,13 @@ function RequestsScreen() {
         />
       ) : (
         <View style={styles.list} onLayout={onListLayout}>
+          {repairItems.map((quote) =>
+            scope === 'closed' || quote.state !== 'waiting' ? (
+              <ClosedRepairQuoteCard key={quote.id} quote={quote} />
+            ) : (
+              <WaitingRepairQuoteCard key={quote.id} quote={quote} now={now} />
+            )
+          )}
           {items.map((request) => (
             <FocusFrame key={request.id} {...frameProps(request.id)}>
               {scope === 'closed' ? (

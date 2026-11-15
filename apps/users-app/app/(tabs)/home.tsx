@@ -38,6 +38,8 @@ import { CarHero } from '@/components/home/car-hero';
 import { NearbyCard, TipCard } from '@/components/home/nearby-tip';
 import { HomeOffers } from '@/components/home/offers';
 import { RightTile, WashStatusTile } from '@/components/home/tiles';
+import { ToolTilesRow } from '@/components/repair-quotes/repair-quotes-tile';
+import { repairQuotesOn, useRepairQuotesConfig } from '@repo/core/api/hooks/use-repair-quotes';
 import { UpdatesBlock } from '@/components/home/updates-block';
 import { ReachStatusCards } from '@/components/reach/reach-status';
 import { CustomerShell } from '@/components/screen';
@@ -97,6 +99,7 @@ export default function HomeScreen() {
   const authUser = useAuth((s) => s.user);
   const profile = useUserStore((s) => s.profile);
   const location = useLocationStore((s) => s.location);
+  const repairOn = repairQuotesOn(useRepairQuotesConfig().data);
   const rememberCar = usePendingCheckout((s) => s.rememberCar);
   const dismissRate = useDismissReviewPrompt();
   const reminderAction = useServiceReminderAction();
@@ -216,6 +219,9 @@ export default function HomeScreen() {
               <View style={styles.flex} />
             </View>
           ) : null}
+
+          {/* Tools (0075): Repair quotes now, Shine Score beside it later. */}
+          <ToolTilesRow show={repairOn} />
 
           {offers.length > 0 ? (
             <HomeOffers

@@ -2,12 +2,14 @@ import { safeNextPath } from '@repo/core/redirect';
 
 /**
  * The web's addresses name an item after a `#`: `#job-<id>` on Bookings,
- * `#claim-<id>` on the free redo claims, `#request-<id>` on Requests.
+ * `#claim-<id>` on the free redo claims, `#request-<id>` and `#repair-<id>` on Requests.
  */
 const HASH_TARGETS = [
   ['#job-', 'job'],
   ['#claim-', 'claim'],
   ['#request-', 'request'],
+  // A repair quote's card on Requests (0075).
+  ['#repair-', 'repair'],
 ] as const;
 
 /**
