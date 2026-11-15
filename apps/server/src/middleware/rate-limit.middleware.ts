@@ -93,6 +93,15 @@ export const aiDescribeRateLimiter = createRateLimiter(
   bySignedInAdmin
 )
 
+// Detlio's look at a car condition check photo (0075), per signed-in garage
+// person per hour: each is a paid vision request. Keyed like the admin AI
+// limits, on the session's person.
+export const conditionReadRateLimiter = createRateLimiter(
+  () => env.conditionCheckReadRateLimit,
+  60 * 60 * 1000,
+  bySignedInAdmin
+)
+
 // Reading a garage's documents on Add garage, per signed-in admin per hour,
 // for the same reasons: each photo read is a paid request, and the dearest.
 export const aiImportRateLimiter = createRateLimiter(

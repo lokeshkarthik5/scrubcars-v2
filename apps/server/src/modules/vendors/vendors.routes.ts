@@ -12,6 +12,7 @@ import {
 } from '../../middleware/tenant.middleware.js'
 import { vendorFinalBillRoutes } from '../booking-charges/booking-charges.routes.js'
 import { jobPhotosRoutes } from '../job-photos/job-photos.routes.js'
+import { conditionCheckRoutes } from '../condition-check/condition-check.routes.js'
 import { vendorTimeProposalRoutes } from '../time-proposals/time-proposals.routes.js'
 import { membersRoutes } from '../members/members.routes.js'
 import { vendorEarningsRoutes } from '../payouts/payouts.routes.js'
@@ -156,6 +157,8 @@ vendorsRoutes.route('/me/earnings', vendorEarningsRoutes)
 // to operators in their own files, deliberately — the people who do the work
 // take the photos and write the bill.
 vendorsRoutes.route('/me/bookings', jobPhotosRoutes)
+// The car condition check (0075): /me/bookings/:id/condition/….
+vendorsRoutes.route('/me/bookings', conditionCheckRoutes)
 vendorsRoutes.route('/me/bookings', vendorFinalBillRoutes)
 vendorsRoutes.route('/me/bookings', vendorTimeProposalRoutes)
 

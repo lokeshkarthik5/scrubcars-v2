@@ -20,6 +20,7 @@ import { bookingChargesRoutes } from './modules/booking-charges/booking-charges.
 import { customerTimeProposalRoutes } from './modules/time-proposals/time-proposals.routes.js'
 import { garageResponseRoutes } from './modules/garage-response/garage-response.routes.js'
 import { customerJobPhotosRoutes } from './modules/job-photos/job-photos.routes.js'
+import { customerConditionCheckRoutes } from './modules/condition-check/condition-check.routes.js'
 import { reviewsRoutes } from './modules/reviews/reviews.routes.js'
 import { paymentsRoutes } from './modules/payments/payments.routes.js'
 import { vendorsRoutes } from './modules/vendors/vendors.routes.js'
@@ -201,6 +202,8 @@ app.route('/api/v1/bookings', customerTimeProposalRoutes)
 app.route('/api/v1/bookings', garageResponseRoutes)
 // The customer's own photos of their car (0045): /bookings/:id/photos….
 app.route('/api/v1/bookings', customerJobPhotosRoutes)
+// The car condition check (0075): /bookings/:id/condition/….
+app.route('/api/v1/bookings', customerConditionCheckRoutes)
 app.route('/api/v1/booking-intents', bookingIntentsRoutes)
 app.route('/api/v1/payments', paymentsRoutes)
 app.route('/api/v1/reviews', reviewsRoutes)

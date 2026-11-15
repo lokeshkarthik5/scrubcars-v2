@@ -5,8 +5,10 @@
  * server's job-photo-standards.parity.test.ts keeps the two the same. Pure.
  */
 
-import type { JobPhoto } from '@repo/core/types'
+import type { JobPhoto, JobPhotoAngle } from '@repo/core/types'
 import { msg, t } from './i18n/translate'
+
+export type { JobPhotoAngle } from '@repo/core/types'
 
 export const PHOTO_ANGLES = ['front', 'back', 'left', 'right', 'interior'] as const
 export type PhotoAngle = (typeof PHOTO_ANGLES)[number]
@@ -18,6 +20,26 @@ export const PHOTO_ANGLE_LABELS: Record<PhotoAngle, string> = {
   right: msg('Right side'),
   interior: msg('Interior'),
 }
+
+/** The car condition check's corners (0075), garage photos only. */
+export const CORNER_ANGLES = ['front_left', 'front_right', 'back_left', 'back_right'] as const
+export type CornerAngle = (typeof CORNER_ANGLES)[number]
+
+export const CORNER_ANGLE_LABELS: Record<CornerAngle, string> = {
+  front_left: msg('Front left'),
+  front_right: msg('Front right'),
+  back_left: msg('Back left'),
+  back_right: msg('Back right'),
+}
+
+/** Every angle's words, the corners included. */
+export const JOB_PHOTO_ANGLE_LABELS: Record<JobPhotoAngle, string> = {
+  ...PHOTO_ANGLE_LABELS,
+  ...CORNER_ANGLE_LABELS,
+}
+
+/** Every angle a photo can carry, in walk-round order. */
+export const JOB_PHOTO_ANGLES = [...PHOTO_ANGLES, ...CORNER_ANGLES] as const
 
 /** The garage's photos a stage needs before the job moves past it. */
 export const MIN_GARAGE_PHOTOS = 2
@@ -62,9 +84,9 @@ export function photoGateMessage(refusal: PhotoGateRefusal): string {
   return t(sentence, { count: refusal.missing })
 }
 
-/** "Front", or "Extra" for a photo with no angle. */
-export function angleLabel(angle: PhotoAngle | null | undefined): string {
-  return angle ? t(PHOTO_ANGLE_LABELS[angle]) : t('Extra')
+/** "Front" (or "Front left"), or "Extra" for a photo with no angle. */
+export function angleLabel(angle: JobPhotoAngle | null | undefined): string {
+  return angle ? t(JOB_PHOTO_ANGLE_LABELS[angle]) : t('Extra')
 }
 
 /** One side's photos of one stage, oldest first as they arrive. */
@@ -80,13 +102,15 @@ export function photosOf(
  * The guided checklist for one side and stage: each angle with the latest
  * photo taken from it (or null), in the order the garage walks round a car.
  */
-export function angleSlots(
+export function angleSlots<A extends JobPhotoAngle = PhotoAngle>(
   photos: readonly JobPhoto[],
   by: JobPhoto['by'],
-  stage: PhotoStage
-): Array<{ angle: PhotoAngle; photo: JobPhoto | null }> {
+  stage: PhotoStage,
+  // The car condition check's eight (0075) where it is on; the five otherwise.
+  angles: readonly A[] = PHOTO_ANGLES as unknown as readonly A[]
+): Array<{ angle: A; photo: JobPhoto | null }> {
   const ofStage = photosOf(photos, by, stage)
-  return PHOTO_ANGLES.map((angle) => ({
+  return angles.map((angle) => ({
     angle,
     photo: [...ofStage].reverse().find((photo) => photo.angle === angle) ?? null,
   }))
@@ -96,10 +120,11 @@ export function angleSlots(
 export function extraPhotos(
   photos: readonly JobPhoto[],
   by: JobPhoto['by'],
-  stage: PhotoStage
+  stage: PhotoStage,
+  angles: readonly JobPhotoAngle[] = PHOTO_ANGLES
 ): JobPhoto[] {
   const shown = new Set(
-    angleSlots(photos, by, stage)
+    angleSlots(photos, by, stage, angles)
       .map((slot) => slot.photo?.id)
       .filter(Boolean)
   )
@@ -107,7 +132,7 @@ export function extraPhotos(
 }
 
 export interface BeforeAfterPair {
-  angle: PhotoAngle
+  angle: JobPhotoAngle
   before: JobPhoto
   after: JobPhoto
 }
@@ -118,10 +143,10 @@ export interface BeforeAfterPair {
  * each side's. Angles with only one stage are left out.
  */
 export function beforeAfterPairs(photos: readonly JobPhoto[]): BeforeAfterPair[] {
-  const latest = (by: JobPhoto['by'], stage: PhotoStage, angle: PhotoAngle) =>
+  const latest = (by: JobPhoto['by'], stage: PhotoStage, angle: JobPhotoAngle) =>
     [...photos].reverse().find((p) => p.by === by && p.stage === stage && p.angle === angle) ?? null
   const pairs: BeforeAfterPair[] = []
-  for (const angle of PHOTO_ANGLES) {
+  for (const angle of JOB_PHOTO_ANGLES) {
     const garage = { before: latest('garage', 'before', angle), after: latest('garage', 'after', angle) }
     const customer = { before: latest('customer', 'before', angle), after: latest('customer', 'after', angle) }
     const before = garage.before && garage.after ? garage.before : customer.before && customer.after ? customer.before : (garage.before ?? customer.before)

@@ -1,10 +1,14 @@
 import { z } from 'zod'
-import { PHOTO_ANGLES } from '../../lib/job-photo-standards.js'
+import { JOB_PHOTO_ANGLES } from '../../lib/job-photo-standards.js'
 
 export const jobPhotoStageSchema = z.enum(['before', 'after'])
 
-/** The guided angle a photo was taken from (0045). Optional: extras have none. */
-export const jobPhotoAngleSchema = z.enum(PHOTO_ANGLES)
+/**
+ * The guided angle a photo was taken from (0045). Optional: extras have none.
+ * A corner (0075) is only taken by a garage with the car condition check on;
+ * the service refuses it otherwise.
+ */
+export const jobPhotoAngleSchema = z.enum(JOB_PHOTO_ANGLES)
 
 export const jobIdParamSchema = z.object({
   id: z.uuid(),

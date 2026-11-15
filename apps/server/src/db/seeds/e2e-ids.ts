@@ -2285,3 +2285,34 @@ export const INSPECTION_NO_FEE = {
   /** The service the garage adds in the portal, found by its name. */
   added: { name: 'Bumper Dent Check', approx: 1500 },
 } as const
+
+/**
+ * Car condition check at handover (0075; ids 7500–7549, phones 90000075xx):
+ * a garage of its own with the check on through CONDITION_CHECK_GARAGES
+ * (.env.e2e; off for every other garage), its owner, one customer with a
+ * Creta, and four accepted doorstep jobs and one pickup & drop job for
+ * tomorrow, none with photos. AI_FAKE reads every car-check photo as one
+ * "Scratch – rear left door" and every after photo as one possible "Dent –
+ * rear bumper" (lib/condition-check-ai.ts). Only
+ * specs/journeys/condition-check-journey.spec.ts uses it.
+ *
+ *   walkRound   the garage takes the 8 angles in the portal, checks the
+ *               marks and sends; the customer says "Looks right"
+ *   wrong       sent through the API; the customer says "Something's wrong"
+ *   newMark     sent and started through the API, an after photo with a
+ *               possible new mark; the garage says "It was there", the job
+ *               completes, and the customer raises a complaint
+ *   pickup      Picked up waits for the check
+ */
+export const CONDITION_CHECK = {
+  customer: { id: id(7500), phone: '9000007500', name: 'Condition Kavya', vehicleId: id(7501) },
+  owner: { id: id(7502), phone: '9000007502', name: 'Car Check Owner Velan' },
+  garage: { id: id(7503), name: 'Car Check Garage' },
+  wash: { id: id(7504), name: 'Car Check Wash', price: '450.00', durationMins: 45 },
+  walkRound: id(7510),
+  wrong: id(7511),
+  newMark: id(7512),
+  pickup: id(7513),
+  pickupCode: '7531',
+  deliveryCode: '7532',
+} as const

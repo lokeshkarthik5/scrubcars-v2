@@ -116,6 +116,7 @@ import { TimeProposalCard } from '@/components/time-proposal-card'
 import { OtherGaragesCard } from '@/components/other-garages-card'
 import { JobPhotosCard } from '@/components/job-photos-card'
 import { CarConditionCard } from '@/components/car-condition-card'
+import { ConditionCheckCard } from '@/components/condition-check-card'
 import { GuaranteeCard } from '@/components/guarantee/guarantee-card'
 import { fill, useT } from '@repo/core/i18n'
 import {
@@ -996,6 +997,17 @@ export default function BookingDetailPage({
 
       {/* The handover code: what the customer needs at the door. */}
       {isPickup && !missedByGarage && <PickupCodeCard booking={booking} />}
+
+      {/* The car condition check (0075): the garage's walk-round to agree,
+          and after the job any possible new mark. */}
+      <ConditionCheckCard
+        booking={booking}
+        onChanged={async () => {
+          const fresh = await getBooking(booking.id).catch(() => null)
+          if (fresh) setBooking(fresh)
+        }}
+        onHelp={() => setShowHelp(true)}
+      />
 
       {/* A payment for a bill that no longer stands. Its card has gone; what
           happened to the money has not. */}

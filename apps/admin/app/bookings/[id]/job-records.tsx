@@ -14,7 +14,7 @@ import {
   useWithdrawAdminExtraWork,
 } from '@repo/core/api/hooks/use-admin-bookings'
 import { angleLabel, photoByLabel } from '@repo/core/job-photo-standards'
-import type { JobPhoto } from '@repo/core/types'
+import type { ConditionCheck, JobPhoto } from '@repo/core/types'
 import { ScSection } from '@repo/ui/sc/section'
 import Link from 'next/link'
 import type {
@@ -303,7 +303,8 @@ export function JobPhotosSection({
   const waiver = booking.photosWaiver ?? null
   const ongoing = booking.status !== 'pending' && booking.status !== 'cancelled'
   const showStandard = Boolean(standard?.required) && ongoing
-  if (photos.length === 0 && !showStandard && !waiver) return null
+  const carCheck = booking.conditionCheck ?? null
+  if (photos.length === 0 && !showStandard && !waiver && !carCheck) return null
 
   const met = standard
     ? !standard.startBlocked && !standard.finishBlocked
@@ -368,6 +369,8 @@ export function JobPhotosSection({
           {undoWaiver.isPending ? 'Undoing…' : 'Undo waiver'}
         </ScButton>
       )}
+
+      {carCheck && <CarCheckLines check={carCheck} />}
 
       <BeforeAfterCompare
         photos={asJobPhotos(booking)}
@@ -460,6 +463,73 @@ export function JobPhotosSection({
         onClose={() => setWaiving(false)}
       />
     </ScSection>
+  )
+}
+
+/**
+ * The car condition check (0075), as the team reads it: whether the garage
+ * sent its walk-round, the customer's answer (and their "Something's wrong"
+ * note, word for word), every mark with who made it and whether the garage
+ * removed it, and possible new marks after the job with both sides'
+ * answers. Nothing here blames anyone: it is what each side said.
+ */
+function CarCheckLines({ check }: { check: ConditionCheck }) {
+  const before = check.marks.filter((mark) => mark.stage === 'before')
+  const after = check.marks.filter((mark) => mark.stage === 'after')
+  return (
+    <div className="flex flex-col gap-1.5 rounded-[10px] border border-border px-3 py-2.5 text-[12px]">
+      <p className="font-medium text-text-primary">
+        Car check{' '}
+        {check.sentAt ? (
+          <>
+            sent to the customer{' '}
+            <span className="font-numeric">{formatWhen(check.sentAt)}</span>
+          </>
+        ) : (
+          <>
+            not sent yet (
+            <span className="font-numeric">{check.taken.before}</span> of 8
+            photos)
+          </>
+        )}
+      </p>
+      {check.sentAt && (
+        <p className="text-text-secondary">
+          {check.answer?.kind === 'looks_right' ? (
+            <>
+              Customer: Looks right,{' '}
+              <span className="font-numeric">{formatWhen(check.answer.at)}</span>
+            </>
+          ) : check.answer?.kind === 'something_wrong' ? (
+            <>
+              Customer: Something&apos;s wrong,{' '}
+              <span className="font-numeric">{formatWhen(check.answer.at)}</span>
+              : <span className="text-text-primary">“{check.answer.note}”</span>
+            </>
+          ) : (
+            'The customer has not answered.'
+          )}
+        </p>
+      )}
+      {before.length > 0 && (
+        <ul className="flex flex-col gap-0.5 text-text-secondary">
+          {before.map((mark) => (
+            <li key={mark.id} className={mark.removed ? 'line-through' : undefined}>
+              {mark.label} ({mark.source === 'ai' ? 'Detlio' : 'the garage'}
+              {mark.unsure ? ', not sure' : ''}
+              {mark.removed ? ', removed by the garage' : ''})
+            </li>
+          ))}
+        </ul>
+      )}
+      {after.map((mark) => (
+        <p key={mark.id} className="text-warning">
+          Possible new mark after the job: {mark.label}
+          {mark.garageAnswer ? ' · garage: it was there' : ''}
+          {mark.customerAnswer ? ' · customer: it was already there' : ''}
+        </p>
+      ))}
+    </div>
   )
 }
 

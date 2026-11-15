@@ -546,3 +546,69 @@ describe('private photos (R2_DOCS_BUCKET set): short-lived links, only for whoev
     expect(new URL((upload.body.data as { uploadUrl: string }).uploadUrl).pathname.startsWith('/detlio-test/')).toBe(true)
   })
 })
+
+// ─── The car condition check (0075) ──────────────────────────────────────────
+
+const { conditionCheckRepository } = await import('../condition-check/condition-check.repository.js')
+
+describe('the car condition check on the job photos', () => {
+  let sent: Date | null = null
+  const savedGarages = env.conditionCheckGarages
+
+  beforeAll(() => {
+    patch(conditionCheckRepository, 'findCheck', async () => (sent ? { bookingId: BOOKING, sentAt: sent } : null))
+    // The tx guard inside deletePhoto, stood in for here: 'sent' once sent.
+    const plain = jobPhotosRepository.deletePhoto
+    patch(jobPhotosRepository, 'deletePhoto', async (...args: Parameters<typeof plain>) =>
+      args[4] && sent ? 'sent' : plain(...args)
+    )
+  })
+
+  beforeEach(() => {
+    sent = null
+    ;(env as unknown as Record<string, unknown>).conditionCheckGarages = new Set([GARAGE])
+  })
+
+  afterAll(() => {
+    ;(env as unknown as Record<string, unknown>).conditionCheckGarages = savedGarages
+  })
+
+  const key = () => `${GARAGE_FOLDER}/${crypto.randomUUID()}.jpg`
+
+  test('a corner is refused while the check is off for the garage, and always from the customer', async () => {
+    ;(env as unknown as Record<string, unknown>).conditionCheckGarages = new Set()
+    const off = await call('POST', GARAGE_PHOTOS, 'owner', { stage: 'before', key: key(), angle: 'front_left' })
+    expect(off.body.code).toBe('INVALID_PHOTO_ANGLE')
+    ;(env as unknown as Record<string, unknown>).conditionCheckGarages = new Set([GARAGE])
+    const customer = await call('POST', CUSTOMER_PHOTOS, 'customer', {
+      stage: 'before',
+      key: `${CUSTOMER_FOLDER}/${crypto.randomUUID()}.jpg`,
+      angle: 'back_right',
+    })
+    expect(customer.body.code).toBe('INVALID_PHOTO_ANGLE')
+  })
+
+  test('on, the garage takes the eight angles and four more', async () => {
+    const angles = ['front', 'back', 'left', 'right', 'front_left', 'front_right', 'back_left', 'back_right']
+    for (const angle of angles) {
+      expect((await call('POST', GARAGE_PHOTOS, 'operator', { stage: 'before', key: key(), angle })).status).toBe(201)
+    }
+    for (let i = 0; i < 4; i++) {
+      expect((await call('POST', GARAGE_PHOTOS, 'operator', { stage: 'before', key: key() })).status).toBe(201)
+    }
+    expect((await call('POST', GARAGE_PHOTOS, 'operator', { stage: 'before', key: key() })).body.code).toBe('JOB_PHOTO_LIMIT_REACHED')
+  })
+
+  test('sent, its before angles stay: no retake, no removal; extras and after photos are free', async () => {
+    const front = await call('POST', GARAGE_PHOTOS, 'owner', { stage: 'before', key: key(), angle: 'front' })
+    const extra = await call('POST', GARAGE_PHOTOS, 'owner', { stage: 'before', key: key() })
+    sent = new Date()
+    const retake = await call('POST', GARAGE_PHOTOS, 'owner', { stage: 'before', key: key(), angle: 'front' })
+    expect(retake.body.code).toBe('CONDITION_CHECK_SENT')
+    const frontId = (front.body.data as { id: string }).id
+    expect((await call('DELETE', `${GARAGE_PHOTOS}/${frontId}`, 'owner')).body.code).toBe('CONDITION_CHECK_SENT')
+    const extraId = (extra.body.data as { id: string }).id
+    expect((await call('DELETE', `${GARAGE_PHOTOS}/${extraId}`, 'owner')).status).toBe(200)
+    expect((await call('POST', GARAGE_PHOTOS, 'owner', { stage: 'before', key: key() })).status).toBe(201)
+  })
+})

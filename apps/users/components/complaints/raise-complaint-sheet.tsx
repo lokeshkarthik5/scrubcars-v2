@@ -53,6 +53,12 @@ interface RaiseComplaintSheetProps {
   onClose: () => void
   /** From a booking's Help sheet; null on the Contact page. */
   booking: ComplaintBooking | null
+  /**
+   * What the form starts with, for a complaint raised from somewhere that
+   * already knows (the car condition check's "New mark found", 0075). The
+   * customer can change either before sending.
+   */
+  prefill?: { category: ComplaintCategory; message: string }
 }
 
 /**
@@ -63,11 +69,12 @@ interface RaiseComplaintSheetProps {
  *
  * Red once, on Submit: the sheet's one main action.
  */
-export function RaiseComplaintSheet({ open, onClose, booking }: RaiseComplaintSheetProps) {
+export function RaiseComplaintSheet({ open, onClose, booking, prefill }: RaiseComplaintSheetProps) {
   const t = useT()
   const raise = useRaiseComplaint()
-  const [category, setCategory] = useState<ComplaintCategory | null>(null)
-  const [message, setMessage] = useState('')
+  // Each opening starts from the prefill, when there is one.
+  const [category, setCategory] = useState<ComplaintCategory | null>(prefill?.category ?? null)
+  const [message, setMessage] = useState(prefill?.message ?? '')
   const [error, setError] = useState('')
   const [received, setReceived] = useState<CustomerComplaint | null>(null)
 
@@ -78,8 +85,8 @@ export function RaiseComplaintSheet({ open, onClose, booking }: RaiseComplaintSh
   const close = () => {
     if (raise.isPending) return
     onClose()
-    setCategory(null)
-    setMessage('')
+    setCategory(prefill?.category ?? null)
+    setMessage(prefill?.message ?? '')
     setError('')
     setReceived(null)
   }
