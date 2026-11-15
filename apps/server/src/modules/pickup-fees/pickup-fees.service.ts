@@ -199,8 +199,10 @@ export const pickupFeesService = {
 
   // ─── Admin ───────────────────────────────────────────────────────────────
 
+  /** Admin's page reads the stored settings fresh, never the minute's cache. */
   async getSettings() {
-    return this.settings(0)
+    forgetPickupFeeSettings()
+    return this.settings()
   },
 
   async saveSettings(input: PickupFeeSettings, actor: { sub: string; name: string }) {
