@@ -724,6 +724,8 @@ async function insertBooking(spec: BookingSpec) {
       durationMins: item.durationMins,
       sortOrder,
       isAddon: item.isAddon ?? false,
+      // As a real booking keeps it (0080): the service's category when booked.
+      category: sql<typeof services.$inferSelect.category>`(select ${services.category} from ${services} where ${services.id} = ${item.id})`,
     }))
   )
 

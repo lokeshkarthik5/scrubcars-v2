@@ -1616,6 +1616,12 @@ export const bookingItems = pgTable(
     // Snapshot of services.is_addon (0068): an add-on stays marked on this
     // booking and its receipt whatever later happens to the service.
     isAddon: boolean('is_addon').default(false).notNull(),
+    // Snapshot of services.category (0080): the category the service had
+    // when it was booked, which payouts, commission and Statistics charge.
+    // Moving a service to another category later never re-prices its past
+    // bookings. Null (a row written before 0080's code) reads as the
+    // service's category now. bookedCategory (bookings.repository) fills it.
+    category: serviceCategoryEnum('category'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
