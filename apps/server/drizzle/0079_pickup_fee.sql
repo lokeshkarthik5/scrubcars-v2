@@ -8,8 +8,20 @@
 --                               is Detlio's. `waiting_since`: a fee above
 --                               Detlio's suggestion not checked yet (customers
 --                               see Detlio's fee meanwhile). `locked_*`:
---                               admin's "Lock to Detlio's fee". `changed_at`:
---                               the garage's own last change (once in 7 days).
+--                               admin's "Who sets this garage's fee: Detlio"
+--                               (the stored fee applies as Detlio left it;
+--                               the garage can't change it). `source`: who
+--                               set the stored fee ('garage', or 'detlio' for
+--                               admin's own fee, which may go past the garage
+--                               limits up to the hard caps). `changed_at`:
+--                               the garage's own last change (once in 7 days;
+--                               Detlio's changes never touch it).
+--   vendors.pickup_fee_limit_*  admin's overrides of the garage limits for
+--   vendors.pickup_fee_needs_approval   this one garage; null is Detlio's
+--                               default (Settings → Pickup fee). Prices are
+--                               clamped to the garage's current limits, so
+--                               narrowing them never lets a customer pay
+--                               more than they allow.
 --   pickup_fee_changes          every change, with who, when, before → after,
 --                               and Detlio's check (waiting / approved / kept).
 --   bookings / booking_intents  `travel_fee` now also carries the pickup fee
@@ -31,7 +43,8 @@
 --   admin_settings 'pickup_fee' the formula, limits and convenience fee.
 --   bypass_reports.kind         + 'pickup_money', "Asked for extra pickup money".
 --
--- Additive for today's API: every garage reads Free, every booking ₹0 of
+-- Additive for today's API: every garage reads Free, set by the garage, with
+-- no limits of its own, every booking ₹0 of
 -- convenience fee, and the wider CHECKs accept every row written so far.
 -- Applied by scripts/migrate.sh, one transaction per file. Safe to re-run.
 
@@ -47,6 +60,19 @@ ALTER TABLE "vendors" ADD COLUMN IF NOT EXISTS "pickup_fee_waiting_since" timest
 ALTER TABLE "vendors" ADD COLUMN IF NOT EXISTS "pickup_fee_locked_at" timestamp with time zone;--> statement-breakpoint
 ALTER TABLE "vendors" ADD COLUMN IF NOT EXISTS "pickup_fee_locked_by" varchar(100);--> statement-breakpoint
 ALTER TABLE "vendors" ADD COLUMN IF NOT EXISTS "pickup_fee_changed_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "vendors" ADD COLUMN IF NOT EXISTS "pickup_fee_source" text DEFAULT 'garage' NOT NULL;--> statement-breakpoint
+-- This garage's own limits (null: Detlio's default). A range is both ends or neither.
+ALTER TABLE "vendors" ADD COLUMN IF NOT EXISTS "pickup_fee_limit_free_km_min" numeric(4, 1);--> statement-breakpoint
+ALTER TABLE "vendors" ADD COLUMN IF NOT EXISTS "pickup_fee_limit_free_km_max" numeric(4, 1);--> statement-breakpoint
+ALTER TABLE "vendors" ADD COLUMN IF NOT EXISTS "pickup_fee_limit_per_km_min" numeric(10, 2);--> statement-breakpoint
+ALTER TABLE "vendors" ADD COLUMN IF NOT EXISTS "pickup_fee_limit_per_km_max" numeric(10, 2);--> statement-breakpoint
+ALTER TABLE "vendors" ADD COLUMN IF NOT EXISTS "pickup_fee_limit_min_charge_min" numeric(10, 2);--> statement-breakpoint
+ALTER TABLE "vendors" ADD COLUMN IF NOT EXISTS "pickup_fee_limit_min_charge_max" numeric(10, 2);--> statement-breakpoint
+ALTER TABLE "vendors" ADD COLUMN IF NOT EXISTS "pickup_fee_limit_max_charge" numeric(10, 2);--> statement-breakpoint
+ALTER TABLE "vendors" ADD COLUMN IF NOT EXISTS "pickup_fee_limit_fixed_max" numeric(10, 2);--> statement-breakpoint
+ALTER TABLE "vendors" ADD COLUMN IF NOT EXISTS "pickup_fee_limit_ask_raise_pct" smallint;--> statement-breakpoint
+ALTER TABLE "vendors" ADD COLUMN IF NOT EXISTS "pickup_fee_limit_change_days" smallint;--> statement-breakpoint
+ALTER TABLE "vendors" ADD COLUMN IF NOT EXISTS "pickup_fee_needs_approval" boolean;--> statement-breakpoint
 
 -- The hard caps, whatever admin's limits say: fixed ≤ ₹299; free km 0–5,
 -- ₹5–₹30 a km, lowest ₹49–₹149, highest ≤ ₹599.
@@ -60,6 +86,26 @@ ALTER TABLE "vendors" ADD CONSTRAINT "vendors_pickup_fee_check" CHECK (
   AND ("pickup_fee_min" IS NULL OR ("pickup_fee_min" >= 49 AND "pickup_fee_min" <= 149))
   AND ("pickup_fee_max" IS NULL OR ("pickup_fee_max" >= 1 AND "pickup_fee_max" <= 599))
   AND (("pickup_fee_locked_at" IS NULL) = ("pickup_fee_locked_by" IS NULL))
+  AND "pickup_fee_source" IN ('garage', 'detlio')
+);--> statement-breakpoint
+
+-- One garage's own limits, inside the same hard caps (and Ask for pickup
+-- 0–50%, changes once in 1–30 days).
+ALTER TABLE "vendors" DROP CONSTRAINT IF EXISTS "vendors_pickup_fee_limits_check";--> statement-breakpoint
+ALTER TABLE "vendors" ADD CONSTRAINT "vendors_pickup_fee_limits_check" CHECK (
+  ("pickup_fee_limit_free_km_min" IS NULL) = ("pickup_fee_limit_free_km_max" IS NULL)
+  AND ("pickup_fee_limit_per_km_min" IS NULL) = ("pickup_fee_limit_per_km_max" IS NULL)
+  AND ("pickup_fee_limit_min_charge_min" IS NULL) = ("pickup_fee_limit_min_charge_max" IS NULL)
+  AND ("pickup_fee_limit_free_km_min" IS NULL OR ("pickup_fee_limit_free_km_min" >= 0
+    AND "pickup_fee_limit_free_km_min" <= "pickup_fee_limit_free_km_max" AND "pickup_fee_limit_free_km_max" <= 5))
+  AND ("pickup_fee_limit_per_km_min" IS NULL OR ("pickup_fee_limit_per_km_min" >= 5
+    AND "pickup_fee_limit_per_km_min" <= "pickup_fee_limit_per_km_max" AND "pickup_fee_limit_per_km_max" <= 30))
+  AND ("pickup_fee_limit_min_charge_min" IS NULL OR ("pickup_fee_limit_min_charge_min" >= 49
+    AND "pickup_fee_limit_min_charge_min" <= "pickup_fee_limit_min_charge_max" AND "pickup_fee_limit_min_charge_max" <= 149))
+  AND ("pickup_fee_limit_max_charge" IS NULL OR ("pickup_fee_limit_max_charge" >= 1 AND "pickup_fee_limit_max_charge" <= 599))
+  AND ("pickup_fee_limit_fixed_max" IS NULL OR ("pickup_fee_limit_fixed_max" >= 1 AND "pickup_fee_limit_fixed_max" <= 299))
+  AND ("pickup_fee_limit_ask_raise_pct" IS NULL OR ("pickup_fee_limit_ask_raise_pct" >= 0 AND "pickup_fee_limit_ask_raise_pct" <= 50))
+  AND ("pickup_fee_limit_change_days" IS NULL OR ("pickup_fee_limit_change_days" >= 1 AND "pickup_fee_limit_change_days" <= 30))
 );--> statement-breakpoint
 
 -- ─── Every change, and Detlio's check ────────────────────────────────────────
@@ -67,7 +113,10 @@ ALTER TABLE "vendors" ADD CONSTRAINT "vendors_pickup_fee_check" CHECK (
 CREATE TABLE IF NOT EXISTS "pickup_fee_changes" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
   "vendor_id" uuid NOT NULL,
-  -- 'fee' a change of the fee; 'locked' / 'unlocked' admin's lock.
+  -- 'fee' a change of the fee; 'locked' / 'unlocked' admin's "Who sets this
+  -- garage's fee"; 'limits' admin's own limits for the garage (before / after
+  -- are then the overrides: { freeKm, perKm, minCharge, maxCharge, fixedMax,
+  -- askRaisePct, changeEveryDays, needsApproval }).
   "kind" text DEFAULT 'fee' NOT NULL,
   -- 'garage' (a seat in the portal or app) or 'detlio' (admin).
   "by_kind" text NOT NULL,
@@ -88,7 +137,7 @@ CREATE TABLE IF NOT EXISTS "pickup_fee_changes" (
     FOREIGN KEY ("vendor_id") REFERENCES "public"."vendors"("id") ON DELETE cascade ON UPDATE no action,
   CONSTRAINT "pickup_fee_changes_by_user_id_users_id_fk"
     FOREIGN KEY ("by_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action,
-  CONSTRAINT "pickup_fee_changes_kind_check" CHECK ("kind" IN ('fee', 'locked', 'unlocked')),
+  CONSTRAINT "pickup_fee_changes_kind_check" CHECK ("kind" IN ('fee', 'locked', 'unlocked', 'limits')),
   CONSTRAINT "pickup_fee_changes_by_kind_check" CHECK ("by_kind" IN ('garage', 'detlio')),
   CONSTRAINT "pickup_fee_changes_status_check" CHECK ("status" IN ('live', 'waiting', 'approved', 'kept', 'replaced')),
   CONSTRAINT "pickup_fee_changes_shape_check" CHECK (

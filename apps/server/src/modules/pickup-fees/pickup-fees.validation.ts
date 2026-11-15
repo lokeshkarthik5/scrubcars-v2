@@ -62,6 +62,25 @@ export const adminGarageFeeSchema = z
 
 export const lockSchema = z.object({ locked: z.boolean(), actorName: signedActorName }).strict()
 
+/** A limit range override: both ends, or null for Detlio's default. */
+const rangeOverride = z.object({ min: z.number(), max: z.number() }).strict().nullable()
+
+/** Admin's own limits for one garage: each null (Detlio's default) or a value, checked against the hard caps by the service. */
+export const limitOverridesSchema = z
+  .object({
+    freeKm: rangeOverride,
+    perKm: rangeOverride,
+    minCharge: rangeOverride,
+    maxCharge: z.number().nullable(),
+    fixedMax: z.number().nullable(),
+    askRaisePct: z.number().nullable(),
+    changeEveryDays: z.number().nullable(),
+    needsApproval: z.boolean().nullable(),
+  })
+  .strict()
+
+export const adminLimitsSchema = z.object({ limits: limitOverridesSchema, actorName: signedActorName }).strict()
+
 export const decideSchema = z
   .object({
     decision: z.enum(['approved', 'kept']),
@@ -75,4 +94,5 @@ export const changeIdParamSchema = z.object({ changeId: z.uuid() })
 export const listQuerySchema = z.object({ show: z.enum(['waiting', 'approved', 'kept']).default('waiting') })
 
 export type GarageFeeInput = z.infer<typeof garageFeeSchema>
+export type LimitOverridesInput = z.infer<typeof limitOverridesSchema>
 export type PickupFeeSettingsInput = z.infer<typeof pickupFeeSettingsSchema>

@@ -1,7 +1,17 @@
 import { and, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import { adminAuditLog, adminSettings, bookings, pickupFeeChanges, users, vendors } from '../../db/schema.js'
-import { feeColumns, feeSnapshot, FREE_PICKUP_FEE, type GaragePickupFee } from '../../lib/pickup-fee.js'
+import {
+  adminFeeColumns,
+  feeSnapshot,
+  FREE_PICKUP_FEE,
+  garageChangeColumns,
+  garageFeeOf,
+  limitColumns,
+  limitsSnapshot,
+  type GaragePickupFee,
+  type PickupFeeLimitOverrides,
+} from '../../lib/pickup-fee.js'
 
 export const PICKUP_FEE_SETTING_KEY = 'pickup_fee' as const
 
@@ -27,6 +37,28 @@ const GARAGE_COLUMNS = {
   pickupFeeLockedAt: vendors.pickupFeeLockedAt,
   pickupFeeLockedBy: vendors.pickupFeeLockedBy,
   pickupFeeChangedAt: vendors.pickupFeeChangedAt,
+  pickupFeeSource: vendors.pickupFeeSource,
+  pickupFeeLimitFreeKmMin: vendors.pickupFeeLimitFreeKmMin,
+  pickupFeeLimitFreeKmMax: vendors.pickupFeeLimitFreeKmMax,
+  pickupFeeLimitPerKmMin: vendors.pickupFeeLimitPerKmMin,
+  pickupFeeLimitPerKmMax: vendors.pickupFeeLimitPerKmMax,
+  pickupFeeLimitMinChargeMin: vendors.pickupFeeLimitMinChargeMin,
+  pickupFeeLimitMinChargeMax: vendors.pickupFeeLimitMinChargeMax,
+  pickupFeeLimitMaxCharge: vendors.pickupFeeLimitMaxCharge,
+  pickupFeeLimitFixedMax: vendors.pickupFeeLimitFixedMax,
+  pickupFeeLimitAskRaisePct: vendors.pickupFeeLimitAskRaisePct,
+  pickupFeeLimitChangeDays: vendors.pickupFeeLimitChangeDays,
+  pickupFeeNeedsApproval: vendors.pickupFeeNeedsApproval,
+}
+
+/** The fee columns a lock's log row snapshots. */
+const FEE_SNAPSHOT_COLUMNS = {
+  pickupFeeMode: vendors.pickupFeeMode,
+  pickupFeeFixed: vendors.pickupFeeFixed,
+  pickupFeeFreeKm: vendors.pickupFeeFreeKm,
+  pickupFeePerKm: vendors.pickupFeePerKm,
+  pickupFeeMin: vendors.pickupFeeMin,
+  pickupFeeMax: vendors.pickupFeeMax,
 }
 
 async function selectGarage(vendorId: string) {
@@ -79,6 +111,27 @@ export const pickupFeesRepository = {
 
   findGarage(vendorId: string): Promise<GarageFeeRow | null> {
     return selectGarage(vendorId)
+  },
+
+  /** A garage's own limit columns alone (Ask for pickup's suggestion and the request cards). */
+  async findLimits(vendorId: string) {
+    const [row] = await db
+      .select({
+        pickupFeeLimitFreeKmMin: vendors.pickupFeeLimitFreeKmMin,
+        pickupFeeLimitFreeKmMax: vendors.pickupFeeLimitFreeKmMax,
+        pickupFeeLimitPerKmMin: vendors.pickupFeeLimitPerKmMin,
+        pickupFeeLimitPerKmMax: vendors.pickupFeeLimitPerKmMax,
+        pickupFeeLimitMinChargeMin: vendors.pickupFeeLimitMinChargeMin,
+        pickupFeeLimitMinChargeMax: vendors.pickupFeeLimitMinChargeMax,
+        pickupFeeLimitMaxCharge: vendors.pickupFeeLimitMaxCharge,
+        pickupFeeLimitFixedMax: vendors.pickupFeeLimitFixedMax,
+        pickupFeeLimitAskRaisePct: vendors.pickupFeeLimitAskRaisePct,
+        pickupFeeLimitChangeDays: vendors.pickupFeeLimitChangeDays,
+        pickupFeeNeedsApproval: vendors.pickupFeeNeedsApproval,
+      })
+      .from(vendors)
+      .where(eq(vendors.id, vendorId))
+    return row ?? null
   },
 
   /** A seat's name and phone, for "Velan Car Care (owner)". */
@@ -145,11 +198,7 @@ export const pickupFeesRepository = {
         .where(and(eq(pickupFeeChanges.vendorId, input.vendorId), eq(pickupFeeChanges.status, 'waiting')))
       await tx
         .update(vendors)
-        .set({
-          ...feeColumns(input.fee),
-          pickupFeeWaitingSince: input.status === 'waiting' ? input.now : null,
-          pickupFeeChangedAt: input.now,
-        })
+        .set(garageChangeColumns(input.fee, input.status, input.now))
         .where(eq(vendors.id, input.vendorId))
       await tx.insert(pickupFeeChanges).values({
         vendorId: input.vendorId,
@@ -167,9 +216,10 @@ export const pickupFeesRepository = {
   },
 
   /**
-   * Detlio sets or overrides the garage's fee: live at once, no check, and
-   * not the garage's change (its 7 days are untouched). A waiting change is
-   * replaced by it.
+   * Detlio sets or overrides the garage's fee: live at once, no check,
+   * Detlio as its source, and not the garage's change (its 7 days are
+   * untouched: adminFeeColumns never writes pickup_fee_changed_at). A
+   * waiting change is replaced by it.
    */
   async writeAdminFee(input: { vendorId: string; fee: GaragePickupFee; before: GaragePickupFee; actor: FeeActor; now: Date }) {
     await db.transaction(async (tx) => {
@@ -178,10 +228,7 @@ export const pickupFeesRepository = {
         .update(pickupFeeChanges)
         .set({ status: 'replaced' })
         .where(and(eq(pickupFeeChanges.vendorId, input.vendorId), eq(pickupFeeChanges.status, 'waiting')))
-      await tx
-        .update(vendors)
-        .set({ ...feeColumns(input.fee), pickupFeeWaitingSince: null })
-        .where(eq(vendors.id, input.vendorId))
+      await tx.update(vendors).set(adminFeeColumns(input.fee)).where(eq(vendors.id, input.vendorId))
       await tx.insert(pickupFeeChanges).values({
         vendorId: input.vendorId,
         kind: 'fee',
@@ -196,36 +243,87 @@ export const pickupFeesRepository = {
     })
   },
 
-  /** "Lock to Detlio's fee", or unlock, with a log row. False when it already was. */
-  async setLock(input: { vendorId: string; locked: boolean; fee: GaragePickupFee; actor: FeeActor; now: Date }): Promise<boolean> {
+  /**
+   * "Who sets this garage's fee": Detlio (lock) or the garage (unlock), with
+   * a log row. Locking keeps the fee customers see now: a garage's fee
+   * waiting for a check is replaced by Detlio's suggestion (By distance on
+   * Detlio's numbers, Detlio's), which customers were already seeing.
+   * Unlocking leaves the fee as Detlio left it. False when it already was.
+   */
+  async setLock(input: { vendorId: string; locked: boolean; actor: FeeActor; now: Date }): Promise<boolean> {
     return db.transaction(async (tx) => {
-      const updated = await tx
+      const [row] = await tx
+        .select({
+          lockedAt: vendors.pickupFeeLockedAt,
+          waitingSince: vendors.pickupFeeWaitingSince,
+          ...FEE_SNAPSHOT_COLUMNS,
+        })
+        .from(vendors)
+        .where(eq(vendors.id, input.vendorId))
+        .for('update')
+      if (!row || (row.lockedAt !== null) === input.locked) return false
+      const before = garageFeeOf(row)
+      let after = before
+      if (input.locked && row.waitingSince !== null) {
+        after = { ...FREE_PICKUP_FEE, mode: 'distance' }
+        await tx
+          .update(pickupFeeChanges)
+          .set({ status: 'replaced' })
+          .where(and(eq(pickupFeeChanges.vendorId, input.vendorId), eq(pickupFeeChanges.status, 'waiting')))
+      }
+      await tx
         .update(vendors)
         .set(
           input.locked
-            ? { pickupFeeLockedAt: input.now, pickupFeeLockedBy: input.actor.name.slice(0, 100) }
+            ? {
+                pickupFeeLockedAt: input.now,
+                pickupFeeLockedBy: input.actor.name.slice(0, 100),
+                ...(row.waitingSince !== null ? adminFeeColumns(after) : {}),
+              }
             : { pickupFeeLockedAt: null, pickupFeeLockedBy: null }
         )
-        .where(
-          and(
-            eq(vendors.id, input.vendorId),
-            input.locked ? isNull(vendors.pickupFeeLockedAt) : sql`${vendors.pickupFeeLockedAt} is not null`
-          )
-        )
-        .returning({ id: vendors.id })
-      if (updated.length === 0) return false
+        .where(eq(vendors.id, input.vendorId))
       await tx.insert(pickupFeeChanges).values({
         vendorId: input.vendorId,
         kind: input.locked ? 'locked' : 'unlocked',
         byKind: 'detlio',
         byUserId: null,
         byName: input.actor.name.slice(0, 120),
-        before: feeSnapshot(input.fee),
-        after: feeSnapshot(input.fee),
+        before: feeSnapshot(before),
+        after: feeSnapshot(after),
         status: 'live',
         createdAt: input.now,
       })
       return true
+    })
+  },
+
+  /**
+   * Admin's own limits for one garage (null: Detlio's default), with a log
+   * row of before → after. The fee itself is untouched: prices are clamped
+   * to the new limits when they are worked out (lib/pickup-fee.ts livePlanOf).
+   */
+  async writeLimits(input: {
+    vendorId: string
+    overrides: PickupFeeLimitOverrides
+    before: PickupFeeLimitOverrides
+    actor: FeeActor
+    now: Date
+  }): Promise<void> {
+    await db.transaction(async (tx) => {
+      await tx.select({ id: vendors.id }).from(vendors).where(eq(vendors.id, input.vendorId)).for('update')
+      await tx.update(vendors).set(limitColumns(input.overrides)).where(eq(vendors.id, input.vendorId))
+      await tx.insert(pickupFeeChanges).values({
+        vendorId: input.vendorId,
+        kind: 'limits',
+        byKind: 'detlio',
+        byUserId: null,
+        byName: input.actor.name.slice(0, 120),
+        before: limitsSnapshot(input.before),
+        after: limitsSnapshot(input.overrides),
+        status: 'live',
+        createdAt: input.now,
+      })
     })
   },
 
@@ -263,10 +361,7 @@ export const pickupFeesRepository = {
         await tx.update(vendors).set({ pickupFeeWaitingSince: null }).where(eq(vendors.id, change.vendorId))
       } else {
         const detlio: GaragePickupFee = { ...FREE_PICKUP_FEE, mode: 'distance' }
-        await tx
-          .update(vendors)
-          .set({ ...feeColumns(detlio), pickupFeeWaitingSince: null })
-          .where(eq(vendors.id, change.vendorId))
+        await tx.update(vendors).set(adminFeeColumns(detlio)).where(eq(vendors.id, change.vendorId))
         await tx.insert(pickupFeeChanges).values({
           vendorId: change.vendorId,
           kind: 'fee',

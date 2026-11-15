@@ -48,7 +48,7 @@ import {
   type PushRequest,
 } from '../../lib/push-messages.js'
 import { maskPhone } from '../../lib/rewards.js'
-import { askFeeChoices, askMaxFee, detlioPlan, tripFee } from '../../lib/pickup-fee.js'
+import { askFeeChoices, askMaxFee, suggestionPlan, tripFee } from '../../lib/pickup-fee.js'
 import { pickupFeesService } from '../pickup-fees/pickup-fees.service.js'
 import { getDayOfWeekFromDate } from '../../lib/slots.js'
 import { zoneFor } from '../../lib/zones.js'
@@ -144,6 +144,8 @@ export interface GarageRequestView {
   roadKm: number | null
   /** The fee chips: the suggestion, then up to the most; on an older request ₹0/₹100/₹200. */
   feeChoices: number[]
+  /** How far above the suggestion this garage may ask, in % (its own, or Detlio's default); null with no suggestion. */
+  raisePct: number | null
   /** Ask for pickup: the responsibility tick is needed to say yes. */
   pickupTermsRequired: boolean
   /** Ask for pickup to a garage that doesn't collect cars yet. */
@@ -328,13 +330,14 @@ function earnFor(received: number, lines: readonly RequestLine[]): number {
 
 /**
  * Detlio's suggested fee for this trip (0079): its formula on the road km
- * from the garage's pin, never more than the services; and the most the
- * garage may ask, the suggestion + 25% within the caps. Worked out once, when
- * the request reaches the garage, and kept on its row.
+ * from the garage's pin, held to that garage's own limits, never more than
+ * the services; and the most the garage may ask, the suggestion + its raise
+ * (25% unless admin set the garage's own) within its limits. Worked out
+ * once, when the request reaches the garage, and kept on its row.
  */
-async function feeSuggestion(distanceM: number, subtotal: string) {
-  const settings = await pickupFeesService.settings()
-  const trip = tripFee(detlioPlan(settings), distanceM / 1000, Number(subtotal))
+async function feeSuggestion(vendorId: string, distanceM: number, subtotal: string) {
+  const settings = await pickupFeesService.settingsForVendor(vendorId)
+  const trip = tripFee(suggestionPlan(settings), distanceM / 1000, Number(subtotal))
   return {
     suggestedFee: trip.fee.toFixed(2),
     maxFee: askMaxFee(trip.fee, settings, Number(subtotal)).toFixed(2),
@@ -342,9 +345,19 @@ async function feeSuggestion(distanceM: number, subtotal: string) {
   }
 }
 
-/** The fee chips' step (0079), read only when a card has a suggestion. */
-async function roundToFor(rows: BookingRequestRecord[]): Promise<number> {
-  return rows.some((row) => row.suggestedFee != null) ? (await pickupFeesService.settings()).suggested.roundTo : 10
+/**
+ * The fee chips' step and the garage's own Ask for pickup raise (0079), read
+ * only when a card has a suggestion; every card of a call is one garage's.
+ */
+async function feeContextFor(vendorId: string, rows: BookingRequestRecord[]): Promise<FeeContext> {
+  if (!rows.some((row) => row.suggestedFee != null)) return { roundTo: 10, raisePct: null }
+  const settings = await pickupFeesService.settingsForVendor(vendorId)
+  return { roundTo: settings.suggested.roundTo, raisePct: settings.limits.askRaisePct }
+}
+
+interface FeeContext {
+  roundTo: number
+  raisePct: number | null
 }
 
 function toNumber(value: string | null | undefined): number | null {
@@ -357,7 +370,7 @@ function toGarageView(
   received: number | null,
   names: Map<string, string>,
   now: Date,
-  roundTo: number
+  fees: FeeContext
 ): GarageRequestView {
   const outsideKm = Number(row.outsideKm)
   const coverKm = toNumber(row.coverKm)
@@ -391,7 +404,8 @@ function toGarageView(
     feeChoices:
       row.suggestedFee == null || row.maxFee == null
         ? [...REQUEST_RULES.travelFees]
-        : askFeeChoices(Number(row.suggestedFee), Number(row.maxFee), roundTo),
+        : askFeeChoices(Number(row.suggestedFee), Number(row.maxFee), fees.roundTo),
+    raisePct: row.suggestedFee == null ? null : fees.raisePct,
     pickupTermsRequired: row.bookingType === 'pickup',
     offersPickup,
     acceptedStartAt: row.acceptedStartAt?.toISOString() ?? null,
@@ -546,7 +560,7 @@ export const bookingRequestsService = {
         outsideKm: (Math.round(outsideKm * 10) / 10).toFixed(1),
         items: lines,
         subtotalAmount: linesSubtotal(lines),
-        ...(await feeSuggestion(garage.distanceM, linesSubtotal(lines))),
+        ...(await feeSuggestion(garage.vendorId, garage.distanceM, linesSubtotal(lines))),
         durationMins,
         windowDate: window.date,
         windowPart: window.part,
@@ -681,8 +695,8 @@ export const bookingRequestsService = {
     const names = await zoneNames()
     // One read for every card's `earn` (owner seat only), not one per card.
     const received = isOwner && rows.length > 0 ? await bookingRequestsRepository.countReceivedChains(vendorId) : null
-    const roundTo = await roundToFor(rows)
-    const items = rows.map((row) => toGarageView(row, received, names, now, roundTo))
+    const fees = await feeContextFor(vendorId, rows)
+    const items = rows.map((row) => toGarageView(row, received, names, now, fees))
     return {
       items,
       waiting: await bookingRequestsRepository.countWaitingForGarage(vendorId, now),
@@ -763,7 +777,7 @@ export const bookingRequestsService = {
     )
     // `earn` is money: the owner seat's alone (an operator's answer has none).
     const received = isOwner ? await bookingRequestsRepository.countReceivedChains(vendorId) : null
-    return toGarageView(accepted, received, await zoneNames(), now, await roundToFor([accepted]))
+    return toGarageView(accepted, received, await zoneNames(), now, await feeContextFor(vendorId, [accepted]))
   },
 
   /**
@@ -790,7 +804,7 @@ export const bookingRequestsService = {
       await bookingRequestsRepository.markCustomerTold(withdrawn.id, new Date())
     })
     const received = isOwner ? await bookingRequestsRepository.countReceivedChains(vendorId) : null
-    return toGarageView(withdrawn, received, await zoneNames(), now, await roundToFor([withdrawn]))
+    return toGarageView(withdrawn, received, await zoneNames(), now, await feeContextFor(vendorId, [withdrawn]))
   },
 
   /** The garage's "Can't": passed on to the next nearest garage, or ended. */
@@ -1025,7 +1039,7 @@ async function moveOn(
         outsideKm: (Math.round(outsideKm * 10) / 10).toFixed(1),
         items: lines,
         subtotalAmount: linesSubtotal(lines),
-        ...(await feeSuggestion(next.garage.distanceM, linesSubtotal(lines))),
+        ...(await feeSuggestion(next.garage.vendorId, next.garage.distanceM, linesSubtotal(lines))),
         durationMins: linesDuration(lines),
         windowDate: row.windowDate,
         windowPart: row.windowPart,

@@ -8,9 +8,17 @@
  *     or By distance within the limits (the hard caps whatever admin says).
  *   - Approval: a fee at or below Detlio's suggestion goes live at once; one
  *     above it waits (Issues → Pickup fees) and customers see Detlio's fee.
- *   - Lock: admin's "Lock to Detlio's fee"; the garage can't change it.
- *   - The garage changes its own fee at most once every 7 days (a setting);
- *     admin's changes don't count and need no check.
+ *   - Who sets the fee: the garage, or Detlio (admin's lock). With Detlio
+ *     the garage can't change it and the stored fee applies as Detlio left
+ *     it: Detlio's suggestion, or any fee admin set for the garage.
+ *   - Admin sets any garage's fee directly, inside the hard caps (not the
+ *     garage limits): live at once, no check, the garage's 7 days untouched.
+ *   - Each garage may have its own limits (admin's overrides; null is
+ *     Detlio's default). The garage is checked against them, and every price
+ *     is clamped to the limits that apply now (clampPlan), so narrowing them
+ *     never lets a customer pay more than they allow.
+ *   - The garage changes its own fee at most once every 7 days (a setting,
+ *     or the garage's own); admin's changes don't count and need no check.
  *   - A booked fee never changes: it is locked on the booking (travel_fee).
  *   - The garage keeps the whole pickup fee; Detlio's convenience fee is
  *     never the garage's (lib/payouts.ts, lib/commission.ts).
@@ -18,16 +26,24 @@
 
 import {
   FREE_PICKUP_FEE,
+  HARD_CAP_LIMITS,
+  NO_LIMIT_OVERRIDES,
+  clampPlan,
+  detlioPlan as detlioPlanOf,
   garageMayChange,
+  garageSettings,
   isAboveSuggestion,
   isPickupFeeMode,
   livePlan,
+  needsApprovalOf,
   nextGarageChangeAt,
   pickupFeeProblems,
   type GaragePickupFee,
+  type PickupFeeLimitOverrides,
   type PickupFeePlan,
   type PickupFeeProblem,
   type PickupFeeSettings,
+  type Range,
 } from './pickup-fee-maths.js'
 
 export * from './pickup-fee-maths.js'
@@ -43,13 +59,44 @@ export interface VendorFeeColumns {
   pickupFeeWaitingSince: Date | null
   pickupFeeLockedAt: Date | null
   pickupFeeChangedAt?: Date | null
+  /** Who set the stored fee: the garage, or Detlio (admin's own fee). */
+  pickupFeeSource: string
+  pickupFeeLimitFreeKmMin: string | null
+  pickupFeeLimitFreeKmMax: string | null
+  pickupFeeLimitPerKmMin: string | null
+  pickupFeeLimitPerKmMax: string | null
+  pickupFeeLimitMinChargeMin: string | null
+  pickupFeeLimitMinChargeMax: string | null
+  pickupFeeLimitMaxCharge: string | null
+  pickupFeeLimitFixedMax: string | null
+  pickupFeeLimitAskRaisePct: number | null
+  pickupFeeLimitChangeDays: number | null
+  pickupFeeNeedsApproval: boolean | null
 }
+
+/** The limit columns alone: what Ask for pickup's suggestion needs of a garage. */
+export type VendorLimitColumns = Pick<
+  VendorFeeColumns,
+  | 'pickupFeeLimitFreeKmMin'
+  | 'pickupFeeLimitFreeKmMax'
+  | 'pickupFeeLimitPerKmMin'
+  | 'pickupFeeLimitPerKmMax'
+  | 'pickupFeeLimitMinChargeMin'
+  | 'pickupFeeLimitMinChargeMax'
+  | 'pickupFeeLimitMaxCharge'
+  | 'pickupFeeLimitFixedMax'
+  | 'pickupFeeLimitAskRaisePct'
+  | 'pickupFeeLimitChangeDays'
+  | 'pickupFeeNeedsApproval'
+>
 
 const num = (value: string | null | undefined): number | null =>
   value === null || value === undefined || value === '' ? null : Number(value)
 
 /** The garage's stored choice. An unknown mode reads as Free, as before. */
-export function garageFeeOf(row: VendorFeeColumns): GaragePickupFee {
+export function garageFeeOf(
+  row: Pick<VendorFeeColumns, 'pickupFeeMode' | 'pickupFeeFixed' | 'pickupFeeFreeKm' | 'pickupFeePerKm' | 'pickupFeeMin' | 'pickupFeeMax'>
+): GaragePickupFee {
   if (!isPickupFeeMode(row.pickupFeeMode) || row.pickupFeeMode === 'free') return { ...FREE_PICKUP_FEE }
   return {
     mode: row.pickupFeeMode,
@@ -61,12 +108,72 @@ export function garageFeeOf(row: VendorFeeColumns): GaragePickupFee {
   }
 }
 
-/** The fee customers see for this garage now. */
+/** Admin's overrides of the garage limits for this garage (all null: Detlio's defaults). */
+export function limitOverridesOf(row: VendorLimitColumns): PickupFeeLimitOverrides {
+  // A row read without these columns (an older stand-in) is Detlio's defaults, never NaN limits.
+  const pair = (min: string | null | undefined, max: string | null | undefined): Range | null =>
+    min == null || max == null ? null : { min: Number(min), max: Number(max) }
+  return {
+    freeKm: pair(row.pickupFeeLimitFreeKmMin, row.pickupFeeLimitFreeKmMax),
+    perKm: pair(row.pickupFeeLimitPerKmMin, row.pickupFeeLimitPerKmMax),
+    minCharge: pair(row.pickupFeeLimitMinChargeMin, row.pickupFeeLimitMinChargeMax),
+    maxCharge: num(row.pickupFeeLimitMaxCharge),
+    fixedMax: num(row.pickupFeeLimitFixedMax),
+    askRaisePct: row.pickupFeeLimitAskRaisePct ?? null,
+    changeEveryDays: row.pickupFeeLimitChangeDays ?? null,
+    needsApproval: row.pickupFeeNeedsApproval ?? null,
+  }
+}
+
+/** The vendor columns for a garage's overrides. */
+export function limitColumns(o: PickupFeeLimitOverrides) {
+  const rupee = (value: number | null) => (value === null ? null : value.toFixed(2))
+  return {
+    pickupFeeLimitFreeKmMin: o.freeKm ? o.freeKm.min.toFixed(1) : null,
+    pickupFeeLimitFreeKmMax: o.freeKm ? o.freeKm.max.toFixed(1) : null,
+    pickupFeeLimitPerKmMin: rupee(o.perKm?.min ?? null),
+    pickupFeeLimitPerKmMax: rupee(o.perKm?.max ?? null),
+    pickupFeeLimitMinChargeMin: rupee(o.minCharge?.min ?? null),
+    pickupFeeLimitMinChargeMax: rupee(o.minCharge?.max ?? null),
+    pickupFeeLimitMaxCharge: rupee(o.maxCharge),
+    pickupFeeLimitFixedMax: rupee(o.fixedMax),
+    pickupFeeLimitAskRaisePct: o.askRaisePct,
+    pickupFeeLimitChangeDays: o.changeEveryDays,
+    pickupFeeNeedsApproval: o.needsApproval,
+  }
+}
+
+/** The settings this garage is priced and checked by: Detlio's formula, its own limits. */
+export function settingsForGarage(row: VendorLimitColumns, settings: PickupFeeSettings): PickupFeeSettings {
+  return garageSettings(settings, limitOverridesOf(row))
+}
+
+/** Whether the stored fee is Detlio's own (admin set it, or kept Detlio's): held only to the hard caps. */
+export function isDetlioSet(row: Pick<VendorFeeColumns, 'pickupFeeSource'>): boolean {
+  return row.pickupFeeSource === 'detlio'
+}
+
+/**
+ * The fee customers see for this garage now: Detlio's suggestion while the
+ * garage's own fee waits for a check, else the stored fee; then clamped to
+ * the limits that apply now (the garage's own, or the hard caps for a fee
+ * Detlio set), so no customer pays more than they allow.
+ */
 export function livePlanOf(row: VendorFeeColumns, settings: PickupFeeSettings): PickupFeePlan {
-  return livePlan(
-    { fee: garageFeeOf(row), waiting: row.pickupFeeWaitingSince !== null, locked: row.pickupFeeLockedAt !== null },
-    settings
-  )
+  const mine = settingsForGarage(row, settings)
+  const waiting = row.pickupFeeWaitingSince !== null
+  const locked = row.pickupFeeLockedAt !== null
+  const plan = livePlan({ fee: garageFeeOf(row), waiting, locked }, mine)
+  const detlios = isDetlioSet(row) && !(waiting && !locked)
+  return clampPlan(plan, detlios ? HARD_CAP_LIMITS : mine.limits)
+}
+
+/**
+ * Detlio's suggestion for a trip to one garage (Ask for pickup, Request a
+ * visit), clamped to that garage's limits (`garage`: settingsForGarage).
+ */
+export function suggestionPlan(garage: PickupFeeSettings): PickupFeePlan {
+  return clampPlan(detlioPlanOf(garage), garage.limits)
 }
 
 /**
@@ -131,7 +238,7 @@ export type GarageChangePlan =
 export function planGarageChange(
   current: VendorFeeColumns,
   requested: GaragePickupFee,
-  settings: PickupFeeSettings,
+  globalSettings: PickupFeeSettings,
   now: Date
 ): GarageChangePlan {
   if (current.pickupFeeLockedAt) {
@@ -139,9 +246,11 @@ export function planGarageChange(
       ok: false,
       code: 'PICKUP_FEE_LOCKED',
       status: 409,
-      message: 'Detlio has set your pickup fee. To change it, call Detlio support.',
+      message: 'Set by Detlio. Ask Detlio to change it.',
     }
   }
+  // The garage's own limits, days and approval rule (Detlio's defaults where admin set none).
+  const settings = settingsForGarage(current, globalSettings)
   const last = current.pickupFeeChangedAt ?? null
   if (!garageMayChange(last, settings.limits.changeEveryDays, now)) {
     const nextChangeAt = nextGarageChangeAt(last, settings.limits.changeEveryDays)!
@@ -161,12 +270,38 @@ export function planGarageChange(
   if (sameFee(fee, garageFeeOf(current)) && current.pickupFeeWaitingSince === null) {
     return { ok: false, code: 'PICKUP_FEE_UNCHANGED', status: 409, message: 'That is already your fee.' }
   }
-  return { ok: true, fee, status: isAboveSuggestion(fee, settings) ? 'waiting' : 'live' }
+  const waits = needsApprovalOf(limitOverridesOf(current)) && isAboveSuggestion(fee, settings)
+  return { ok: true, fee, status: waits ? 'waiting' : 'live' }
 }
 
-/** Admin's set or override: within the limits, no check, no 7-day rule. */
+/**
+ * Admin's own fee for a garage: any mode, any numbers inside the hard caps
+ * (never the garage limits: admin is the check). No approval, no 7-day rule.
+ */
 export function adminFeeProblems(requested: GaragePickupFee, settings: PickupFeeSettings): PickupFeeProblem[] {
-  return pickupFeeProblems(requested, settings)
+  return pickupFeeProblems(requested, { ...settings, limits: HARD_CAP_LIMITS })
+}
+
+/**
+ * The vendor columns a garage's own change writes: its fee, waiting or not,
+ * the garage as its source, and its 7-day clock restarted.
+ */
+export function garageChangeColumns(fee: GaragePickupFee, status: 'live' | 'waiting', now: Date) {
+  return {
+    ...feeColumns(fee),
+    pickupFeeSource: 'garage' as const,
+    pickupFeeWaitingSince: status === 'waiting' ? now : null,
+    pickupFeeChangedAt: now,
+  }
+}
+
+/**
+ * The vendor columns admin's own fee writes: the fee, live at once, Detlio
+ * as its source. Never `pickupFeeChangedAt`: Detlio's change neither uses up
+ * nor restarts the garage's 7 days.
+ */
+export function adminFeeColumns(fee: GaragePickupFee) {
+  return { ...feeColumns(fee), pickupFeeSource: 'detlio' as const, pickupFeeWaitingSince: null }
 }
 
 /** A limit problem as one sentence (the apps show their own words under each box). */
@@ -199,4 +334,9 @@ export function istDayLabel(at: Date): string {
 /** The JSON a change row keeps for a fee. */
 export function feeSnapshot(fee: GaragePickupFee): Record<string, unknown> {
   return { ...fee }
+}
+
+/** The JSON a 'limits' change row keeps. */
+export function limitsSnapshot(o: PickupFeeLimitOverrides): Record<string, unknown> {
+  return { ...NO_LIMIT_OVERRIDES, ...o }
 }

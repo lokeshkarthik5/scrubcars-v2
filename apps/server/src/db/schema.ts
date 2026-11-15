@@ -646,8 +646,13 @@ export const vendors = pgTable(
     // before), 'fixed' (`pickupFeeFixed` for any pickup) or 'distance' (the
     // four numbers; a null one is Detlio's suggestion). `pickupFeeWaitingSince`:
     // a fee above Detlio's suggestion not checked yet — customers see Detlio's
-    // fee meanwhile. `pickupFeeLocked*`: admin's "Lock to Detlio's fee".
-    // `pickupFeeChangedAt`: the garage's own last change (once in 7 days).
+    // fee meanwhile. `pickupFeeLocked*`: admin's "Who sets this garage's
+    // fee: Detlio" (the stored fee applies as Detlio left it; the garage can't
+    // change it). `pickupFeeSource`: who set the stored fee ('detlio' may go
+    // past the garage limits, up to the hard caps). `pickupFeeChangedAt`: the
+    // garage's own last change (once in 7 days; Detlio's never touch it).
+    // `pickupFeeLimit*` / `pickupFeeNeedsApproval`: admin's overrides of the
+    // garage limits for this garage, null for Detlio's default.
     // Every change is a pickup_fee_changes row.
     pickupFeeMode: text('pickup_fee_mode').$type<'free' | 'fixed' | 'distance'>().default('free').notNull(),
     pickupFeeFixed: decimal('pickup_fee_fixed', { precision: 10, scale: 2 }),
@@ -659,6 +664,18 @@ export const vendors = pgTable(
     pickupFeeLockedAt: timestamp('pickup_fee_locked_at', { withTimezone: true }),
     pickupFeeLockedBy: varchar('pickup_fee_locked_by', { length: 100 }),
     pickupFeeChangedAt: timestamp('pickup_fee_changed_at', { withTimezone: true }),
+    pickupFeeSource: text('pickup_fee_source').$type<'garage' | 'detlio'>().default('garage').notNull(),
+    pickupFeeLimitFreeKmMin: decimal('pickup_fee_limit_free_km_min', { precision: 4, scale: 1 }),
+    pickupFeeLimitFreeKmMax: decimal('pickup_fee_limit_free_km_max', { precision: 4, scale: 1 }),
+    pickupFeeLimitPerKmMin: decimal('pickup_fee_limit_per_km_min', { precision: 10, scale: 2 }),
+    pickupFeeLimitPerKmMax: decimal('pickup_fee_limit_per_km_max', { precision: 10, scale: 2 }),
+    pickupFeeLimitMinChargeMin: decimal('pickup_fee_limit_min_charge_min', { precision: 10, scale: 2 }),
+    pickupFeeLimitMinChargeMax: decimal('pickup_fee_limit_min_charge_max', { precision: 10, scale: 2 }),
+    pickupFeeLimitMaxCharge: decimal('pickup_fee_limit_max_charge', { precision: 10, scale: 2 }),
+    pickupFeeLimitFixedMax: decimal('pickup_fee_limit_fixed_max', { precision: 10, scale: 2 }),
+    pickupFeeLimitAskRaisePct: smallint('pickup_fee_limit_ask_raise_pct'),
+    pickupFeeLimitChangeDays: smallint('pickup_fee_limit_change_days'),
+    pickupFeeNeedsApproval: boolean('pickup_fee_needs_approval'),
     // The garage's city (0069), NULL for Other towns. Written only by the
     // database: a trigger sets it on every write that touches lat, lng or
     // city, and any change to `cities` recomputes every garage, both by
@@ -680,7 +697,24 @@ export const vendors = pgTable(
         and (${table.pickupFeePerKm} is null or (${table.pickupFeePerKm} >= 5 and ${table.pickupFeePerKm} <= 30))
         and (${table.pickupFeeMin} is null or (${table.pickupFeeMin} >= 49 and ${table.pickupFeeMin} <= 149))
         and (${table.pickupFeeMax} is null or (${table.pickupFeeMax} >= 1 and ${table.pickupFeeMax} <= 599))
-        and ((${table.pickupFeeLockedAt} is null) = (${table.pickupFeeLockedBy} is null))`
+        and ((${table.pickupFeeLockedAt} is null) = (${table.pickupFeeLockedBy} is null))
+        and ${table.pickupFeeSource} in ('garage', 'detlio')`
+    ),
+    check(
+      'vendors_pickup_fee_limits_check',
+      sql`(${table.pickupFeeLimitFreeKmMin} is null) = (${table.pickupFeeLimitFreeKmMax} is null)
+        and (${table.pickupFeeLimitPerKmMin} is null) = (${table.pickupFeeLimitPerKmMax} is null)
+        and (${table.pickupFeeLimitMinChargeMin} is null) = (${table.pickupFeeLimitMinChargeMax} is null)
+        and (${table.pickupFeeLimitFreeKmMin} is null or (${table.pickupFeeLimitFreeKmMin} >= 0
+          and ${table.pickupFeeLimitFreeKmMin} <= ${table.pickupFeeLimitFreeKmMax} and ${table.pickupFeeLimitFreeKmMax} <= 5))
+        and (${table.pickupFeeLimitPerKmMin} is null or (${table.pickupFeeLimitPerKmMin} >= 5
+          and ${table.pickupFeeLimitPerKmMin} <= ${table.pickupFeeLimitPerKmMax} and ${table.pickupFeeLimitPerKmMax} <= 30))
+        and (${table.pickupFeeLimitMinChargeMin} is null or (${table.pickupFeeLimitMinChargeMin} >= 49
+          and ${table.pickupFeeLimitMinChargeMin} <= ${table.pickupFeeLimitMinChargeMax} and ${table.pickupFeeLimitMinChargeMax} <= 149))
+        and (${table.pickupFeeLimitMaxCharge} is null or (${table.pickupFeeLimitMaxCharge} >= 1 and ${table.pickupFeeLimitMaxCharge} <= 599))
+        and (${table.pickupFeeLimitFixedMax} is null or (${table.pickupFeeLimitFixedMax} >= 1 and ${table.pickupFeeLimitFixedMax} <= 299))
+        and (${table.pickupFeeLimitAskRaisePct} is null or (${table.pickupFeeLimitAskRaisePct} >= 0 and ${table.pickupFeeLimitAskRaisePct} <= 50))
+        and (${table.pickupFeeLimitChangeDays} is null or (${table.pickupFeeLimitChangeDays} >= 1 and ${table.pickupFeeLimitChangeDays} <= 30))`
     ),
     check(
       'vendors_colour_tag_check',
@@ -5309,7 +5343,8 @@ export const bookingRequests = pgTable(
 // suggestion is 'waiting' (one per garage) until admin approves it or keeps
 // Detlio's fee (with a reason the garage sees), or a newer change replaces
 // it; everything else is 'live'.
-// `before` / `after`: { mode, fixed, freeKm, perKm, minCharge, maxCharge }.
+// `before` / `after`: { mode, fixed, freeKm, perKm, minCharge, maxCharge };
+// on a 'limits' row, admin's overrides for the garage instead.
 export const pickupFeeChanges = pgTable(
   'pickup_fee_changes',
   {
@@ -5317,7 +5352,7 @@ export const pickupFeeChanges = pgTable(
     vendorId: uuid('vendor_id')
       .notNull()
       .references(() => vendors.id, { onDelete: 'cascade' }),
-    kind: text('kind').$type<'fee' | 'locked' | 'unlocked'>().default('fee').notNull(),
+    kind: text('kind').$type<'fee' | 'locked' | 'unlocked' | 'limits'>().default('fee').notNull(),
     byKind: text('by_kind').$type<'garage' | 'detlio'>().notNull(),
     byUserId: uuid('by_user_id').references(() => users.id, { onDelete: 'set null' }),
     byName: varchar('by_name', { length: 120 }).notNull(),
@@ -5335,7 +5370,7 @@ export const pickupFeeChanges = pgTable(
       .on(table.status, table.createdAt)
       .where(sql`${table.status} in ('waiting', 'approved', 'kept')`),
     uniqueIndex('pickup_fee_changes_one_waiting_key').on(table.vendorId).where(sql`${table.status} = 'waiting'`),
-    check('pickup_fee_changes_kind_check', sql`${table.kind} in ('fee', 'locked', 'unlocked')`),
+    check('pickup_fee_changes_kind_check', sql`${table.kind} in ('fee', 'locked', 'unlocked', 'limits')`),
     check('pickup_fee_changes_by_kind_check', sql`${table.byKind} in ('garage', 'detlio')`),
     check('pickup_fee_changes_status_check', sql`${table.status} in ('live', 'waiting', 'approved', 'kept', 'replaced')`),
     check(

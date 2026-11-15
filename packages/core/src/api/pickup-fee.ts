@@ -1,6 +1,7 @@
 import { apiClient } from '@repo/core/api/client'
 import type {
   GaragePickupFee,
+  PickupFeeLimitOverrides,
   PickupFeeLimits,
   PickupFeePlan,
   PickupFeeSettings,
@@ -38,14 +39,20 @@ export function getPickupFeeConfig(): Promise<PickupFeeConfig> {
 interface FeeView {
   pickupOffered: boolean
   fee: GaragePickupFee
-  /** What customers see now (Detlio's while waiting or locked). */
+  /** What customers see now (Detlio's suggestion while waiting), held to the limits that apply. */
   livePlan: PickupFeePlan
   detlioPlan: PickupFeePlan
   waiting: { sentAt: string } | null
+  /** "Who sets this garage's fee: Detlio": the garage's controls are greyed out. */
   locked: boolean
+  /** Who set the stored fee (absent from an older API: the garage). */
+  setBy?: 'garage' | 'detlio'
+  /** Whether a fee above Detlio's suggestion waits for a check (absent from an older API: yes). */
+  needsApproval?: boolean
   /** When the garage may change its fee again; null when it may now. */
   nextChangeAt: string | null
   suggested: SuggestedFormula
+  /** The garage's own limits: its overrides over Detlio's defaults. */
   limits: PickupFeeLimits
 }
 
@@ -68,11 +75,13 @@ export type PickupFeeChangeStatus = 'live' | 'waiting' | 'approved' | 'kept' | '
 
 export interface PickupFeeChange {
   id: string
-  kind: 'fee' | 'locked' | 'unlocked'
+  kind: 'fee' | 'locked' | 'unlocked' | 'limits'
   byKind: 'garage' | 'detlio'
   byName: string
   before: GaragePickupFee
   after: GaragePickupFee
+  /** A 'limits' row: admin's overrides for the garage before and after. */
+  limits?: { before: PickupFeeLimitOverrides; after: PickupFeeLimitOverrides } | null
   status: PickupFeeChangeStatus
   createdAt: string
   decidedAt: string | null
@@ -83,6 +92,9 @@ export interface PickupFeeChange {
 export interface AdminGaragePickupFee extends FeeView {
   lockedBy: string | null
   waitingChangeId: string | null
+  /** Detlio's defaults (Settings → Pickup fee) and this garage's overrides of them. */
+  defaultLimits: PickupFeeLimits
+  overrides: PickupFeeLimitOverrides
   changes: PickupFeeChange[]
 }
 
@@ -121,6 +133,16 @@ export function setAdminGaragePickupFeeLock(vendorId: string, locked: boolean): 
   return apiClient<AdminGaragePickupFee>(`/admin/pickup-fees/vendors/${vendorId}/lock`, {
     method: 'POST',
     body: signedBody({ locked }),
+  })
+}
+
+export function setAdminGaragePickupFeeLimits(
+  vendorId: string,
+  limits: PickupFeeLimitOverrides
+): Promise<AdminGaragePickupFee> {
+  return apiClient<AdminGaragePickupFee>(`/admin/pickup-fees/vendors/${vendorId}/limits`, {
+    method: 'PUT',
+    body: signedBody({ limits }),
   })
 }
 

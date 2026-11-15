@@ -91,6 +91,8 @@ export interface GarageRequest {
   roadKm?: number | null
   /** The fee chips: the suggestion, then up to the most (₹0/₹100/₹200 on an older request). Absent from an older API. */
   feeChoices?: number[]
+  /** This garage's Ask for pickup raise in % (admin may set its own); absent from an older API. */
+  raisePct?: number | null
   /** Ask for pickup: the responsibility tick before Accept (0079). */
   pickupTermsRequired?: boolean
   /** False for Ask for pickup to a garage that doesn't collect cars yet. */

@@ -83,6 +83,8 @@ beforeAll(() => {
   // The pickup fee's settings (0079): none saved, the defaults.
   forgetPickupFeeSettings()
   patch(pickupFeesRepository, 'readSettings', async () => null)
+  // No limits of the garage's own (0079): Detlio's defaults.
+  patch(pickupFeesRepository, 'findLimits', async () => null)
   patch(bookingRequestsRepository, 'listForGarage', async () => [row('r1'), row('r2'), row('r3')])
   patch(bookingRequestsRepository, 'listZones', async () => [{ slug: 'adyar', name: 'Adyar' }])
   patch(bookingRequestsRepository, 'countWaitingForGarage', async () => 3)

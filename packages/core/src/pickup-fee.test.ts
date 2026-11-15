@@ -28,6 +28,16 @@ import {
   tripFee,
   type GaragePickupFee,
 } from './pickup-fee'
+import {
+  HARD_CAP_LIMITS,
+  NO_LIMIT_OVERRIDES,
+  clampPlan,
+  effectiveLimits,
+  garageSettings,
+  hasLimitOverrides,
+  limitOverridesProblems,
+  needsApprovalOf,
+} from './pickup-fee-maths'
 
 const distance = (over: Partial<GaragePickupFee> = {}): GaragePickupFee => ({ ...FREE_PICKUP_FEE, mode: 'distance', ...over })
 const fixed = (amount: number): GaragePickupFee => ({ ...FREE_PICKUP_FEE, mode: 'fixed', fixed: amount })
@@ -149,12 +159,13 @@ describe('approval: above the suggestion waits', () => {
     expect(isAboveSuggestion(fixed(150), S)).toBe(true)
   })
 
-  test('customers see Detlio’s fee while it waits, and while locked', () => {
+  test('customers see Detlio’s fee while it waits; set by Detlio, the fee Detlio left on the garage', () => {
     const mine = distance({ perKm: 20 })
     expect(feeAtRoadKm(livePlan({ fee: mine, waiting: true, locked: false }, S), 10)).toBe(110)
     expect(feeAtRoadKm(livePlan({ fee: mine, waiting: false, locked: false }, S), 10)).toBe(140)
-    expect(feeAtRoadKm(livePlan({ fee: fixed(250), waiting: false, locked: true }, S), 10)).toBe(110)
-    expect(feeAtRoadKm(livePlan({ fee: FREE_PICKUP_FEE, waiting: false, locked: true }, S), 10)).toBe(110)
+    expect(feeAtRoadKm(livePlan({ fee: fixed(250), waiting: false, locked: true }, S), 10)).toBe(250)
+    expect(feeAtRoadKm(livePlan({ fee: FREE_PICKUP_FEE, waiting: false, locked: true }, S), 10)).toBe(0)
+    expect(feeAtRoadKm(livePlan({ fee: distance(), waiting: false, locked: true }, S), 10)).toBe(110)
   })
 
   test('the Detlio vs Yours table (₹20 per km)', () => {
@@ -218,5 +229,54 @@ describe('words', () => {
     expect(feeSummary(fixed(250), S)).toBe('Fixed fee · ₹250 for any pickup')
     expect(describeFeeChange(distance(), distance({ perKm: 20 }), S)).toBe('By distance: ₹15 → ₹20 per km')
     expect(describeFeeChange(FREE_PICKUP_FEE, distance(), S)).toBe('Free → By distance (Detlio’s fee)')
+  })
+})
+
+describe('one garage’s own limits (0079, admin’s garage editor)', () => {
+  const L = S.limits
+
+  test('none: Detlio’s defaults, approval needed', () => {
+    expect(hasLimitOverrides(NO_LIMIT_OVERRIDES)).toBe(false)
+    expect(effectiveLimits(L, NO_LIMIT_OVERRIDES)).toEqual(L)
+    expect(garageSettings(S, NO_LIMIT_OVERRIDES)).toEqual(S)
+    expect(needsApprovalOf(NO_LIMIT_OVERRIDES)).toBe(true)
+  })
+
+  test('each override over its default', () => {
+    const o = { ...NO_LIMIT_OVERRIDES, perKm: { min: 5, max: 12 }, fixedMax: 150, changeEveryDays: 3, needsApproval: false }
+    expect(hasLimitOverrides(o)).toBe(true)
+    expect(effectiveLimits(L, o)).toEqual({ ...L, perKm: { min: 5, max: 12 }, fixedMax: 150, changeEveryDays: 3 })
+    expect(needsApprovalOf(o)).toBe(false)
+    // The garage is then checked against them.
+    expect(pickupFeeProblems(fixed(200), garageSettings(S, o))).toMatchObject([{ code: 'FIXED_TOO_HIGH', max: 150 }])
+  })
+
+  test('overrides inside the hard caps, ranges lowest first, the highest charge over the lowest range', () => {
+    expect(limitOverridesProblems({ ...NO_LIMIT_OVERRIDES, perKm: { min: 5, max: 12 } }, L)).toEqual([])
+    expect(limitOverridesProblems({ ...NO_LIMIT_OVERRIDES, freeKm: { min: 0.5, max: 2.5 } }, L)).toEqual([])
+    expect(limitOverridesProblems({ ...NO_LIMIT_OVERRIDES, perKm: { min: 12, max: 5 } }, L)).toHaveLength(1)
+    expect(limitOverridesProblems({ ...NO_LIMIT_OVERRIDES, perKm: { min: 5, max: 12.5 } }, L)).toHaveLength(1)
+    expect(limitOverridesProblems({ ...NO_LIMIT_OVERRIDES, fixedMax: 300 }, L)).toEqual(['Fixed fee limit must be ₹1–₹299.'])
+    expect(limitOverridesProblems({ ...NO_LIMIT_OVERRIDES, maxCharge: 600 }, L)).toEqual(['Highest charge must be ₹1–₹599.'])
+    expect(limitOverridesProblems({ ...NO_LIMIT_OVERRIDES, askRaisePct: 51 }, L)).toHaveLength(1)
+    expect(limitOverridesProblems({ ...NO_LIMIT_OVERRIDES, changeEveryDays: 31 }, L)).toHaveLength(1)
+    expect(limitOverridesProblems({ ...NO_LIMIT_OVERRIDES, maxCharge: 120 }, L)).toEqual([
+      'Highest charge must be at least the top of the lowest charge range (₹149).',
+    ])
+    expect(limitOverridesProblems({ ...NO_LIMIT_OVERRIDES, maxCharge: 120, minCharge: { min: 49, max: 99 } }, L)).toEqual([])
+  })
+
+  test('the clamp only ever lowers a fee', () => {
+    const narrow = effectiveLimits(L, { ...NO_LIMIT_OVERRIDES, perKm: { min: 10, max: 20 }, maxCharge: 300, fixedMax: 120, freeKm: { min: 4, max: 5 } })
+    const steep = garagePlan(distance({ perKm: 30, maxCharge: 599, freeKm: 0 }), S)
+    const held = clampPlan(steep, narrow)
+    expect(held).toMatchObject({ perKm: 20, maxCharge: 300, freeKm: 4 })
+    for (let km = 0; km <= 60; km += 0.5) expect(feeAtRoadKm(held, km)).toBeLessThanOrEqual(feeAtRoadKm(steep, km))
+    // Below a raised minimum: left as it is (cheaper for the customer).
+    expect(clampPlan(garagePlan(distance({ perKm: 6 }), S), narrow).perKm).toBe(6)
+    expect(clampPlan(garagePlan(fixed(250), S), narrow).fixed).toBe(120)
+    expect(clampPlan(garagePlan(FREE_PICKUP_FEE, S), narrow).mode).toBe('free')
+    // The hard caps never move a fee inside them.
+    expect(clampPlan(garagePlan(fixed(299), S), HARD_CAP_LIMITS).fixed).toBe(299)
   })
 })

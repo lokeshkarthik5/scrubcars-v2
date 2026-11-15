@@ -10,10 +10,11 @@ import {
   listPickupFeeChecks,
   saveAdminPickupFeeSettings,
   setAdminGaragePickupFee,
+  setAdminGaragePickupFeeLimits,
   setAdminGaragePickupFeeLock,
   setGaragePickupFee,
 } from '@repo/core/api/pickup-fee'
-import type { GaragePickupFee, PickupFeeSettings } from '@repo/core/pickup-fee-maths'
+import type { GaragePickupFee, PickupFeeLimitOverrides, PickupFeeSettings } from '@repo/core/pickup-fee-maths'
 
 export const pickupFeeKeys = {
   all: ['pickup-fee'] as const,
@@ -91,6 +92,14 @@ export function useSetAdminGaragePickupFeeLock(vendorId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (locked: boolean) => setAdminGaragePickupFeeLock(vendorId, locked),
+    onSuccess: (data) => queryClient.setQueryData(pickupFeeKeys.adminGarage(vendorId), data),
+  })
+}
+
+export function useSetAdminGaragePickupFeeLimits(vendorId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (limits: PickupFeeLimitOverrides) => setAdminGaragePickupFeeLimits(vendorId, limits),
     onSuccess: (data) => queryClient.setQueryData(pickupFeeKeys.adminGarage(vendorId), data),
   })
 }

@@ -170,4 +170,33 @@ describe('the pickup fee on a booking (0079)', () => {
     const draft = await resolveBookingDraft('user', input())
     expect(draft.travelFee).toBe('150.00')
   })
+
+  test('limits admin narrowed after the garage saved its fee: charged inside them', async () => {
+    // ₹25 a km, saved when the limits allowed it: 11.5 km past the free 3 → ₹290.
+    // Admin then set this garage's per km to ₹5–₹18: (14.5 − 3) × ₹18 = ₹207 → ₹210.
+    standIn({
+      pickupFeeMode: 'distance',
+      pickupFeePerKm: '25.00',
+      pickupFeeSource: 'garage',
+      pickupFeeLimitPerKmMin: '5.00',
+      pickupFeeLimitPerKmMax: '18.00',
+    })
+    const draft = await resolveBookingDraft('user', input({ pickupFee: 210 }))
+    expect(draft.travelFee).toBe('210.00')
+    // A fixed fee over the garage's own fixed limit: held to it.
+    standIn({ pickupFeeMode: 'fixed', pickupFeeFixed: '250.00', pickupFeeLimitFixedMax: '120.00' })
+    expect((await resolveBookingDraft('user', input())).travelFee).toBe('120.00')
+  })
+
+  test('a fee Detlio set for the garage, past its limits: charged as Detlio set it', async () => {
+    standIn({
+      pickupFeeMode: 'fixed',
+      pickupFeeFixed: '250.00',
+      pickupFeeSource: 'detlio',
+      pickupFeeLimitFixedMax: '120.00',
+      pickupFeeLockedAt: new Date('2026-11-01T00:00:00Z'),
+      pickupFeeLockedBy: 'Detlio · Lokesh',
+    })
+    expect((await resolveBookingDraft('user', input())).travelFee).toBe('250.00')
+  })
 })

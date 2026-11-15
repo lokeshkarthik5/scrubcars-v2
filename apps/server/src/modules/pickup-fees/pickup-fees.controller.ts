@@ -3,7 +3,7 @@ import type { AuthVariables } from '../../middleware/auth.middleware.js'
 import { signedInAdmin } from '../../middleware/auth.middleware.js'
 import { getTenant, type TenantVariables } from '../../middleware/tenant.middleware.js'
 import { pickupFeesService } from './pickup-fees.service.js'
-import type { GarageFeeInput, PickupFeeSettingsInput } from './pickup-fees.validation.js'
+import type { GarageFeeInput, LimitOverridesInput, PickupFeeSettingsInput } from './pickup-fees.validation.js'
 
 type AdminContext = Context<{ Variables: AuthVariables }>
 type VendorContext = Context<{ Variables: TenantVariables & AuthVariables }>
@@ -53,6 +53,11 @@ export async function setAdminGarageFee(c: AdminContext, vendorId: string, input
 
 export async function setLock(c: AdminContext, vendorId: string, input: { locked: boolean; actorName: string }) {
   const data = await pickupFeesService.setLock(vendorId, input.locked, input.actorName)
+  return c.json({ success: true, data })
+}
+
+export async function setLimits(c: AdminContext, vendorId: string, input: { limits: LimitOverridesInput; actorName: string }) {
+  const data = await pickupFeesService.setLimits(vendorId, input.limits, input.actorName)
   return c.json({ success: true, data })
 }
 

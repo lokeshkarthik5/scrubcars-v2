@@ -10,6 +10,7 @@ import { requireVendorRole, resolveTenant, type TenantVariables } from '../../mi
 import * as controller from './pickup-fees.controller.js'
 import {
   adminGarageFeeSchema,
+  adminLimitsSchema,
   changeIdParamSchema,
   decideSchema,
   garageFeeSchema,
@@ -44,7 +45,10 @@ garagePickupFeeRoutes.put('/', ...garageMiddleware, zValidator('json', garageFee
 
 /**
  * Mounted at /api/v1/admin/pickup-fees (admin.routes.ts). Super-admin only:
- * Settings → Pickup fee, the garage editor's pickup card and Issues → Pickup fees.
+ * Settings → Pickup fee, the garage editor's pickup card (the fee, who sets
+ * it, the garage's own limits) and Issues → Pickup fees. The garage's own
+ * route above takes the fee alone (garageFeeSchema is strict), so no garage
+ * reaches who sets it, its limits or its source.
  */
 export const adminPickupFeeRoutes = new Hono<{ Variables: AuthVariables }>()
 
@@ -85,4 +89,12 @@ adminPickupFeeRoutes.post(
   zValidator('param', vendorIdParamSchema),
   adminSignedJson(lockSchema),
   (c) => controller.setLock(c, c.req.valid('param').vendorId, c.req.valid('json'))
+)
+
+adminPickupFeeRoutes.put(
+  '/vendors/:vendorId/limits',
+  ...adminMiddleware,
+  zValidator('param', vendorIdParamSchema),
+  adminSignedJson(adminLimitsSchema),
+  (c) => controller.setLimits(c, c.req.valid('param').vendorId, c.req.valid('json'))
 )

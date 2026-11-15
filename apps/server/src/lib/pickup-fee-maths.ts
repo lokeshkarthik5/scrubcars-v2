@@ -165,16 +165,20 @@ export interface GarageFeeState {
   fee: GaragePickupFee
   /** A fee above Detlio's suggestion, not checked yet. */
   waiting: boolean
-  /** Admin's "Lock to Detlio's fee". */
+  /**
+   * "Who sets this garage's fee: Detlio" (admin's lock). The stored fee is
+   * then whatever Detlio set or froze for the garage, and it applies as it is.
+   */
   locked: boolean
 }
 
 /**
- * The fee customers see: Detlio's while the garage is locked to it or its
- * fee above the suggestion waits for a check; otherwise the garage's own.
+ * The fee customers see: Detlio's suggestion while the garage's own fee
+ * above it waits for a check; otherwise the stored fee (the garage's own, or
+ * the one Detlio set and locked). Before the limits' clamp (clampPlan).
  */
 export function livePlan(state: GarageFeeState, settings: PickupFeeSettings): PickupFeePlan {
-  if (state.locked || state.waiting) return detlioPlan(settings)
+  if (state.waiting && !state.locked) return detlioPlan(settings)
   return garagePlan(state.fee, settings)
 }
 
@@ -446,4 +450,145 @@ export function pickupFeeSettingsProblems(s: PickupFeeSettings): string[] {
  */
 export function convenienceFeeFor(settings: PickupFeeSettings, chargeBeforeFee: number): number {
   return chargeBeforeFee > 0 ? settings.convenienceFee : 0
+}
+
+// ── One garage's own limits (admin's garage editor) ─────────────────────────
+
+/**
+ * Admin's overrides of the garage limits for one garage. A null is Detlio's
+ * default from Settings → Pickup fee. A range is set whole (both ends) or not
+ * at all. `needsApproval` false lets this garage's fee above Detlio's
+ * suggestion go live at once.
+ */
+export interface PickupFeeLimitOverrides {
+  freeKm: Range | null
+  perKm: Range | null
+  minCharge: Range | null
+  maxCharge: number | null
+  fixedMax: number | null
+  askRaisePct: number | null
+  changeEveryDays: number | null
+  needsApproval: boolean | null
+}
+
+/** No overrides: every garage at merge follows Detlio's defaults. */
+export const NO_LIMIT_OVERRIDES: PickupFeeLimitOverrides = {
+  freeKm: null,
+  perKm: null,
+  minCharge: null,
+  maxCharge: null,
+  fixedMax: null,
+  askRaisePct: null,
+  changeEveryDays: null,
+  needsApproval: null,
+}
+
+/** Whether a garage has any override at all. */
+export function hasLimitOverrides(o: PickupFeeLimitOverrides): boolean {
+  return (Object.keys(NO_LIMIT_OVERRIDES) as Array<keyof PickupFeeLimitOverrides>).some((key) => o[key] !== null)
+}
+
+/** The limits this garage works within: its overrides over Detlio's defaults. */
+export function effectiveLimits(defaults: PickupFeeLimits, o: PickupFeeLimitOverrides): PickupFeeLimits {
+  return {
+    freeKm: o.freeKm ? { ...o.freeKm } : { ...defaults.freeKm },
+    perKm: o.perKm ? { ...o.perKm } : { ...defaults.perKm },
+    minCharge: o.minCharge ? { ...o.minCharge } : { ...defaults.minCharge },
+    maxCharge: o.maxCharge ?? defaults.maxCharge,
+    fixedMax: o.fixedMax ?? defaults.fixedMax,
+    askRaisePct: o.askRaisePct ?? defaults.askRaisePct,
+    changeEveryDays: o.changeEveryDays ?? defaults.changeEveryDays,
+  }
+}
+
+/** Whether this garage's fee above Detlio's suggestion waits for a check (Detlio's default: yes). */
+export function needsApprovalOf(o: PickupFeeLimitOverrides): boolean {
+  return o.needsApproval ?? true
+}
+
+/** The settings one garage is priced and checked by: Detlio's formula, its own limits. */
+export function garageSettings(settings: PickupFeeSettings, o: PickupFeeLimitOverrides): PickupFeeSettings {
+  return { ...settings, limits: effectiveLimits(settings.limits, o) }
+}
+
+/**
+ * The hard caps as limits: what Detlio itself may set for a garage (admin's
+ * own fee for a garage goes past the garage limits, never past these).
+ */
+export const HARD_CAP_LIMITS: PickupFeeLimits = {
+  freeKm: { ...PICKUP_FEE_HARD_CAPS.freeKm },
+  perKm: { ...PICKUP_FEE_HARD_CAPS.perKm },
+  minCharge: { ...PICKUP_FEE_HARD_CAPS.minCharge },
+  maxCharge: PICKUP_FEE_HARD_CAPS.maxCharge,
+  fixedMax: PICKUP_FEE_HARD_CAPS.fixedMax,
+  askRaisePct: PICKUP_FEE_HARD_CAPS.askRaisePct.max,
+  changeEveryDays: PICKUP_FEE_HARD_CAPS.changeEveryDays.min,
+}
+
+/**
+ * A plan held inside limits, only ever towards a lower fee: a fixed fee or a
+ * per-km, lowest or highest charge above its limit comes down to it, a free
+ * distance below its limit goes up to it. A number below a raised minimum
+ * stays as it is, so narrowing the limits never charges a customer more than
+ * the garage asked, and never more than the limits allow.
+ */
+export function clampPlan(plan: PickupFeePlan, limits: PickupFeeLimits): PickupFeePlan {
+  if (plan.mode === 'free') return plan
+  if (plan.mode === 'fixed') return { ...plan, fixed: Math.min(plan.fixed, limits.fixedMax) }
+  return {
+    ...plan,
+    freeKm: Math.max(plan.freeKm, limits.freeKm.min),
+    perKm: Math.min(plan.perKm, limits.perKm.max),
+    minCharge: Math.min(plan.minCharge, limits.minCharge.max),
+    maxCharge: Math.min(plan.maxCharge, limits.maxCharge),
+  }
+}
+
+/**
+ * Why admin's overrides for one garage can't be saved, as plain sentences;
+ * empty when they can. Each inside the hard caps, ranges the right way
+ * round, whole rupees and days (km to one decimal), and the highest charge
+ * the garage may set at least the top of its lowest-charge range, as on
+ * Settings → Pickup fee.
+ */
+export function limitOverridesProblems(o: PickupFeeLimitOverrides, defaults: PickupFeeLimits): string[] {
+  const caps = PICKUP_FEE_HARD_CAPS
+  const problems: string[] = []
+  const whole = (n: number) => Number.isInteger(n)
+  const tenth = (n: number) => Number.isFinite(n) && Math.round(n * 10) === n * 10
+  const inside = (n: number, min: number, max: number) => Number.isFinite(n) && n >= min && n <= max
+  const range = (label: string, r: Range | null, cap: Range, unit: (n: number) => string, rupee: boolean) => {
+    if (!r) return
+    const ok =
+      r.min <= r.max &&
+      inside(r.min, cap.min, cap.max) &&
+      inside(r.max, cap.min, cap.max) &&
+      (rupee ? whole(r.min) && whole(r.max) : tenth(r.min) && tenth(r.max))
+    if (!ok) problems.push(`${label} must be within ${unit(cap.min)}–${unit(cap.max)}, lowest first.`)
+  }
+  range('Free up to', o.freeKm, caps.freeKm, (n) => `${n} km`, false)
+  range('Per km', o.perKm, caps.perKm, (n) => `₹${n}`, true)
+  range('Lowest charge', o.minCharge, caps.minCharge, (n) => `₹${n}`, true)
+  if (o.maxCharge !== null && (!whole(o.maxCharge) || !inside(o.maxCharge, 1, caps.maxCharge))) {
+    problems.push(`Highest charge must be ₹1–₹${caps.maxCharge}.`)
+  }
+  if (o.fixedMax !== null && (!whole(o.fixedMax) || !inside(o.fixedMax, 1, caps.fixedMax))) {
+    problems.push(`Fixed fee limit must be ₹1–₹${caps.fixedMax}.`)
+  }
+  if (o.askRaisePct !== null && (!whole(o.askRaisePct) || !inside(o.askRaisePct, caps.askRaisePct.min, caps.askRaisePct.max))) {
+    problems.push(`Ask for pickup must be ${caps.askRaisePct.min}–${caps.askRaisePct.max}%.`)
+  }
+  if (
+    o.changeEveryDays !== null &&
+    (!whole(o.changeEveryDays) || !inside(o.changeEveryDays, caps.changeEveryDays.min, caps.changeEveryDays.max))
+  ) {
+    problems.push(`Fee changes must be once in ${caps.changeEveryDays.min}–${caps.changeEveryDays.max} days.`)
+  }
+  if (problems.length === 0) {
+    const lim = effectiveLimits(defaults, o)
+    if (lim.maxCharge < lim.minCharge.max) {
+      problems.push(`Highest charge must be at least the top of the lowest charge range (₹${lim.minCharge.max}).`)
+    }
+  }
+  return problems
 }
