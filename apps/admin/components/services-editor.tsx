@@ -450,8 +450,9 @@ export function ServicesEditor({
                 <button
                   key={choice.category}
                   type="button"
+                  disabled={busy}
                   onClick={() => addInCategory(choice.category)}
-                  className="flex min-h-12 items-center gap-2.5 rounded-[12px] border border-border bg-white/[0.015] px-3.5 text-left transition-colors hover:border-text-secondary"
+                  className="flex min-h-12 items-center gap-2.5 rounded-[12px] border border-border bg-white/[0.015] px-3.5 text-left transition-colors hover:border-text-secondary disabled:opacity-50"
                 >
                   <CategoryIcon category={choice.category} size={17} className="shrink-0 text-text-secondary" />
                   <span className="min-w-0 flex-1 text-[14px] font-medium text-text-primary">{choice.label}</span>
