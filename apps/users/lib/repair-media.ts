@@ -45,12 +45,22 @@ export async function videoDuration(file: Blob): Promise<number> {
   return duration
 }
 
+/** How long one seek may take before the frame is drawn anyway. */
+const SEEK_LIMIT_MS = 4_000
+
+/**
+ * Moves the video to `at`. Some phone browsers never fire `seeked`; after
+ * SEEK_LIMIT_MS this resolves anyway, so "Detlio is looking at your video…"
+ * can never hang and block Send (the frame may then be an earlier one).
+ */
 function seek(video: HTMLVideoElement, at: number): Promise<void> {
   return new Promise((resolve) => {
     const done = () => {
+      clearTimeout(timer)
       video.removeEventListener('seeked', done)
       resolve()
     }
+    const timer = setTimeout(done, SEEK_LIMIT_MS)
     video.addEventListener('seeked', done)
     video.currentTime = at
   })
