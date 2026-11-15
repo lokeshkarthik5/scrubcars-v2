@@ -2,6 +2,7 @@ import { apiClient } from './client'
 import { mapBooking, mapSlots, mapVendorListItem } from './mappers'
 import type { ApiBooking, ApiSlotsResponse, ApiVendorListItem } from './types'
 import type { Booking, BookingReceipt, BookingType, PaymentMethod, Vendor } from '@repo/core/types'
+import type { RescueOffer, RescueReason } from '@repo/core/rescue'
 
 export interface CreateBookingPayload {
   vendorId: string
@@ -334,22 +335,57 @@ export async function declineProposedTimes(bookingId: string): Promise<Booking> 
   return mapBooking(booking)
 }
 
-/** Other garages for a booking its garage did not accept in time (0042). */
+/** A garage the rescue offers: its list card and what the card adds. */
+export type RescueGarage = Vendor & { rescue: RescueOffer | null }
+
+/**
+ * The rescue under a booking cancelled on the garage's side (0042 and Nov
+ * 2026): up to three garages that can do the same job, best first.
+ */
 export interface OtherGarages {
   /** The booking's type, carried into each garage's link. */
   bookingType: BookingType
-  /** Up to three of the garage list's cards, nearest first. */
-  vendors: Vendor[]
+  /** Why: the garage let its time run out, or declined. Null: no card. */
+  reason: RescueReason | null
+  /** Up to three of the garage list's cards, best first, each with its offer. */
+  vendors: RescueGarage[]
+}
+
+interface ApiRescueOffer {
+  price: string
+  serviceIds: string[]
+  usualAnswerMins: number | null
+  day: string
+  times: string[]
+  near: string | null
 }
 
 /**
- * GET /bookings/:id/other-garages — "Book another garage": up to three
- * nearby live garages that take the same booking type and offer one of the
- * booked services' kinds. Empty for any booking its garage did not miss.
+ * GET /bookings/:id/other-garages — the rescue: up to three garages that can
+ * do the same services for the same car, with free times near the original
+ * slot. Empty for a booking the garage did not let down. An older server
+ * sends no offer (`rescue` null) and no reason.
  */
 export async function getOtherGarages(bookingId: string): Promise<OtherGarages> {
-  const data = await apiClient<{ bookingType: BookingType; items: ApiVendorListItem[] }>(
-    `/bookings/${bookingId}/other-garages`
-  )
-  return { bookingType: data.bookingType, vendors: data.items.map(mapVendorListItem) }
+  const data = await apiClient<{
+    bookingType: BookingType
+    reason?: RescueReason | null
+    items: Array<ApiVendorListItem & { rescue?: ApiRescueOffer }>
+  }>(`/bookings/${bookingId}/other-garages`)
+  return {
+    bookingType: data.bookingType,
+    reason: data.reason ?? null,
+    vendors: data.items.map((item) => ({
+      ...mapVendorListItem(item),
+      rescue: item.rescue
+        ? {
+            price: Number(item.rescue.price),
+            serviceIds: item.rescue.serviceIds,
+            usualAnswerMins: item.rescue.usualAnswerMins,
+            free: { day: item.rescue.day, times: item.rescue.times },
+            near: item.rescue.near,
+          }
+        : null,
+    })),
+  }
 }

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { IconClock } from '@tabler/icons-react'
 import { useNextFree } from '@repo/core/api/hooks/use-next-free'
 import { bookingTypeParam } from '@repo/core/booking-types'
-import { nextFreeDayLabel, nextFreeTimeLabels, upcomingNextFree } from '@repo/core/next-free'
+import { nextFreeDayLabel, nextFreeTimeLabels, upcomingNextFree, type NextFree } from '@repo/core/next-free'
 import type { BookingType, Vendor } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
 import { RedLight } from '@repo/ui/finish/red-light'
@@ -27,6 +27,7 @@ export function NextFreeRow({
   mode,
   visible,
   serviceIds,
+  preset,
   className,
 }: {
   vendor: Vendor
@@ -38,16 +39,23 @@ export function NextFreeRow({
    * first service.
    */
   serviceIds?: readonly string[]
+  /**
+   * Times already worked out (the rescue's, near a cancelled booking's
+   * slot): shown instead of asking for the garage's next free ones, with
+   * their own day words ("Today, near 10:30 am") and links (the same job,
+   * picked).
+   */
+  preset?: { free: NextFree; dayLabel: string; hrefFor: (time: string) => string }
   className?: string
 }) {
   const t = useT()
-  const next = useNextFree(vendor.id, mode, visible)
+  const next = useNextFree(vendor.id, mode, visible && !preset)
   const [picked, setPicked] = useState<string | null>(null)
-  const free = upcomingNextFree(next.data)
+  const free = upcomingNextFree(preset ? preset.free : next.data)
   if (!free) return null
 
   // formatDay stays English (screens compare it); "Today" is shown through t.
-  const day = t(nextFreeDayLabel(free))
+  const day = preset ? preset.dayLabel : t(nextFreeDayLabel(free))
   const labels = nextFreeTimeLabels(free)
   const modeParam = bookingTypeParam(mode)
 
@@ -69,7 +77,7 @@ export function NextFreeRow({
             <Link
               key={time}
               data-slot=""
-              href={`/book/${vendor.id}?${query.toString()}`}
+              href={preset ? preset.hrefFor(time) : `/book/${vendor.id}?${query.toString()}`}
               onClick={() => setPicked(time)}
               aria-label={t('Book {name}, {day} at {labels}', { name: vendor.name, day, labels: labels[i] })}
               style={{ '--fx-i': i } as React.CSSProperties}

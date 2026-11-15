@@ -7,6 +7,7 @@ import { slotKeys } from '@repo/core/api/hooks/use-slots';
 import { useTravelTime } from '@repo/core/api/hooks/use-travel-time';
 import { verifyPayment } from '@repo/core/api/payments';
 import { bookAgainPath, canBookAgain, matchSavedAddress } from '@repo/core/book-again';
+import { showsRescue } from '@repo/core/rescue';
 import { BOOKING_TYPE_LABELS, bookingReference, CONFIRMED_CHANGE_CUTOFF_MINS } from '@repo/core/booking-types';
 import { googleMapsLink, telHref, whatsAppHref } from '@repo/core/contact-links';
 import { contactWindowState } from '@repo/core/contact-window';
@@ -734,7 +735,7 @@ export default function BookingDetailScreen() {
           </ScCard>
         ) : null}
 
-        {booking.status === 'cancelled' && booking.notAcceptedInTime ? <OtherGaragesCard booking={booking} /> : null}
+        {showsRescue(booking) ? <OtherGaragesCard booking={booking} addressId={matchSavedAddress(booking, addresses)} /> : null}
 
         {!finished && canBookAgain(booking) ? (
           <ScButton variant="outline" height={52} onPress={() => router.push(bookAgainPath(booking, matchSavedAddress(booking, addresses)) as Href)}>

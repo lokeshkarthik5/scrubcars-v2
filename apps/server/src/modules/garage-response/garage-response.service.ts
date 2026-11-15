@@ -7,11 +7,28 @@ import { CATEGORY_LABELS, type ServiceCategory } from '../../lib/categories.js'
 import { addDays, istDateKey, istMidnight } from '../../lib/ist.js'
 import {
   NOT_ACCEPTED_REASON,
-  OTHER_GARAGES_LIMIT,
   otherGaragesOrigin,
   wantedCategories,
 } from '../../lib/response-deadline.js'
 import type { BookingType } from '../../lib/booking-types.js'
+import { linesDuration, linesForCategories, linesSubtotal } from '../../lib/booking-requests.js'
+import type { NextFreeDay } from '../../lib/next-free.js'
+import { isPickupOffered } from '../../lib/pickup.js'
+import type { VehicleTier } from '../../lib/pricing.js'
+import {
+  RESCUE_RULES,
+  garageRecord,
+  rankRescue,
+  rescueApplies,
+  rescueDays,
+  rescueReason,
+  rescueTimes,
+  usualAnswerMins,
+  type RescueCandidate,
+  type RescueReason,
+} from '../../lib/rescue-garages.js'
+import { addDaysToDateKey, istDayBounds } from '../../lib/slots.js'
+import { ratingsFor } from '../reviews/reviews.service.js'
 import { analyticsService } from '../analytics/analytics.service.js'
 import { bookingsRepository } from '../bookings/bookings.repository.js'
 import { refundsService } from '../refunds/refunds.service.js'
@@ -71,11 +88,29 @@ const rules = garageResponseWith({
 
 const KNOWN_CATEGORIES = new Set(Object.keys(CATEGORY_LABELS))
 
+/** What a rescue card adds to a garage's own list card. */
+export interface RescueOffer {
+  /** The same job for the same car at this garage, in rupees ("649.00"). */
+  price: string
+  /** That garage's services for it, to open the booking with them picked. */
+  serviceIds: string[]
+  /** "Usually answers in 10 min"; null with too little history or slower than an hour. */
+  usualAnswerMins: number | null
+  /** 'today', 'tomorrow' or the IST date of the times. */
+  day: NextFreeDay
+  /** Up to three ISO starts near the original slot, earliest first. */
+  times: string[]
+  /** The original slot when the times are on its day ("near 10:30 am"), else null. */
+  near: string | null
+}
+
 export interface OtherGaragesResponse {
   /** The booking's type, carried into each garage's link. */
   bookingType: BookingType
-  /** Up to three of the garage list's own cards, nearest first. */
-  items: VendorListItemResponse[]
+  /** Why the card shows: the garage let its time run out, or declined. Null: no card. */
+  reason: RescueReason | null
+  /** Up to three of the garage list's own cards, best first, each with its offer. */
+  items: Array<VendorListItemResponse & { rescue: RescueOffer }>
 }
 
 export const garageResponseService = {
@@ -96,23 +131,37 @@ export const garageResponseService = {
   },
 
   /**
-   * "Book another garage" for a booking its garage did not accept in time:
-   * up to three nearby live garages that take the same booking type and
-   * offer at least one of the booked services' categories, found by the
-   * garage list's own search (LISTED_TO_CUSTOMERS, the doorstep and pickup
-   * reach rules) from the customer's address for doorstep and pickup, or
-   * the garage's pin for a drop-in, and built by its card builder
-   * (vendorCardsFor). Only the booking's own customer; anyone else gets a
-   * 404. Empty for any other booking, or with nowhere to measure from.
+   * The rescue (lib/rescue-garages.ts): for a paid booking cancelled on the
+   * garage's side (it let its time to answer run out, declined, cancelled or
+   * did not show), up to three garages that can do the same services for the
+   * same car, with free times near the original slot, ranked by distance,
+   * how fast each usually answers, how often it accepts, its rating and its
+   * recent cancellations. Candidates come from the garage list's own search
+   * (LISTED_TO_CUSTOMERS, the doorstep and pickup reach rules, at least one
+   * of the booked kinds of service), measured from the customer's address
+   * for doorstep and pickup, or the garage's pin for a drop-in; the cards
+   * are the list's own (vendorCardsFor). Only the booking's own customer;
+   * anyone else gets a 404. Empty for any other booking, or with nowhere to
+   * measure from. Read only: nothing here touches the refund.
+   *
+   * Reads one after the other: the API has a single connection.
    */
-  async otherGarages(userId: string, bookingId: string): Promise<OtherGaragesResponse> {
+  async otherGarages(userId: string, bookingId: string, now = Date.now()): Promise<OtherGaragesResponse> {
     const booking = await bookingsRepository.findBookingById(bookingId)
     if (!booking || booking.userId !== userId) {
       throw new AppError(404, 'Booking not found', 'BOOKING_NOT_FOUND')
     }
     const bookingType = booking.bookingType as BookingType
-    const empty = { bookingType, items: [] }
-    if (!booking.responseMissedAt) return empty
+    const applies = rescueApplies({
+      status: booking.status,
+      cancelledBy: booking.cancelledBy,
+      cancelledOnBehalfOf: booking.cancelledOnBehalfOf,
+      noShow: booking.noShow,
+      responseMissedAt: booking.responseMissedAt,
+    })
+    const empty: OtherGaragesResponse = { bookingType, reason: null, items: [] }
+    if (!applies) return empty
+    const reason = rescueReason(booking)
 
     const origin = otherGaragesOrigin({
       bookingType,
@@ -121,12 +170,13 @@ export const garageResponseService = {
       vendorLat: booking.vendor?.lat ?? null,
       vendorLng: booking.vendor?.lng ?? null,
     })
-    if (!origin) return empty
+    const vehicleType = booking.vehicle?.vehicleType as VehicleTier | undefined
+    if (!origin || !vehicleType) return { ...empty, reason }
 
     const categories = wantedCategories(await garageResponseRepository.bookedCategories(booking.id)).filter(
       (category): category is ServiceCategory => KNOWN_CATEGORIES.has(category)
     )
-    if (categories.length === 0) return empty
+    if (categories.length === 0) return { ...empty, reason }
 
     const page = await vendorsRepository.listPublicVendorPage({
       origin,
@@ -138,9 +188,97 @@ export const garageResponseService = {
       excludeIds: [booking.vendorId],
       sort: 'distance',
       segment: 'located',
-      limit: OTHER_GARAGES_LIMIT,
+      limit: RESCUE_RULES.poolSize,
       offset: 0,
     })
-    return { bookingType, items: await vendorCardsFor(page) }
+    const ids = page.map((row) => row.id)
+    if (ids.length === 0) return { ...empty, reason }
+
+    const target = booking.scheduledAt
+    const days = rescueDays(target, now)
+    const first = days[0]!
+    const last = days[days.length - 1]!
+    const services = await garageResponseRepository.rescueServices(ids)
+    const garages = await vendorsRepository.findPublicVendorsByIds(ids)
+    const hours = await vendorsRepository.listWorkingHoursForVendors(ids)
+    const closures = await vendorsRepository.listClosuresForVendors(ids, first, last)
+    const busy = await bookingsRepository.listCapacityHoldersForVendors(
+      ids,
+      istDayBounds(addDaysToDateKey(first, -1)).start,
+      istDayBounds(last).end
+    )
+    const recordRows = await garageResponseRepository.recordRows(
+      ids,
+      new Date(now - RESCUE_RULES.recordDays * 24 * 60 * 60 * 1000)
+    )
+    const ratings = await ratingsFor(ids)
+
+    const distanceById = new Map(page.map((row) => [row.id, row.distanceM]))
+    const candidates: RescueCandidate[] = []
+    for (const garage of garages) {
+      const offered =
+        bookingType === 'dropin'
+          ? garage.dropinEnabled
+          : bookingType === 'doorstep'
+            ? garage.doorstepEnabled
+            : isPickupOffered(garage)
+      const lines = linesForCategories(
+        categories,
+        services.filter((service) => service.vendorId === garage.id),
+        vehicleType
+      )
+      const times =
+        offered && lines
+          ? rescueTimes(
+              {
+                pausedAt: garage.bookingsPausedAt,
+                slotIntervalMins: garage.slotIntervalMins,
+                bays: garage.bays,
+                jobsPerDay: garage.jobsPerDay,
+                hours: hours.filter((row) => row.vendorId === garage.id),
+                closures: new Set(closures.filter((row) => row.vendorId === garage.id).map((row) => row.date)),
+                busy: busy.filter((row) => row.vendorId === garage.id),
+              },
+              { durationMins: linesDuration(lines), bookingType },
+              target,
+              now
+            )
+          : null
+      const distanceM = distanceById.get(garage.id) ?? null
+      candidates.push({
+        vendorId: garage.id,
+        distanceKm: distanceM === null ? null : distanceM / 1000,
+        rating: ratings.get(garage.id)?.rating ?? null,
+        lines,
+        times,
+        record: garageRecord(
+          recordRows.filter((row) => row.vendorId === garage.id),
+          new Date(now)
+        ),
+      })
+    }
+
+    const ranked = rankRescue(candidates)
+    if (ranked.length === 0) return { ...empty, reason }
+    const cards = await vendorCardsFor(ranked.map((r) => ({ id: r.vendorId, distanceM: distanceById.get(r.vendorId) ?? null })))
+    const cardById = new Map(cards.map((card) => [card.id, card]))
+    const items = ranked.flatMap((r) => {
+      const card = cardById.get(r.vendorId)
+      if (!card) return []
+      return [
+        {
+          ...card,
+          rescue: {
+            price: linesSubtotal(r.lines),
+            serviceIds: r.lines.map((line) => line.serviceId),
+            usualAnswerMins: usualAnswerMins(r.record),
+            day: r.times.day,
+            times: r.times.times,
+            near: r.times.near,
+          },
+        },
+      ]
+    })
+    return { bookingType, reason, items }
   },
 }
