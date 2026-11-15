@@ -712,6 +712,9 @@ export default function BookScreen() {
         discountCode,
         useCredit: giftsOn ? creditApplied : undefined,
         requestId: acceptedRequest?.id,
+        // The pickup fee this screen shows (0079): the server refuses, before
+        // any charge, if the garage's fee changed since.
+        pickupFee: pickupTrip ? pickupTrip.fee : undefined,
       });
       if ((order.paidWithCredit || order.free) && order.bookingId) {
         paidRef.current = true;
@@ -794,6 +797,11 @@ export default function BookScreen() {
               : error.message
         );
         goToStep('slot');
+      } else if (error instanceof ApiError && error.code === 'PICKUP_FEE_CHANGED') {
+        // The garage's pickup fee changed since this screen loaded (0079): nothing was charged.
+        // Fetch the garage again so the lines and the total show the new fee before paying.
+        toast.error(error.message);
+        void getVendor(vendorId).then((v) => v && setVendor(v));
       } else if (error instanceof ApiError && error.code === 'PICKUP_NOT_OFFERED') {
         toast.error(
           otherMode

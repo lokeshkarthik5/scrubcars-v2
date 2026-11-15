@@ -1650,6 +1650,20 @@ export async function resolveBookingDraft(
       straightLineKm({ lat: vendor.lat, lng: vendor.lng }, { lat, lng }),
       Number(beforeTravel)
     )
+    // What checkout showed must be what is charged: a garage that changed
+    // its fee while the page was open (or Detlio's suggestion it shows while
+    // a fee waits) gets no booking and no payment order at a price the
+    // customer never saw, including one paid with credit alone.
+    if (input.pickupFee !== undefined && input.pickupFee !== trip.fee) {
+      log.warn({ userId, vendorId: vendor.id, shown: input.pickupFee, fee: trip.fee }, 'booking:pickup_fee_changed')
+      throw new AppError(
+        409,
+        trip.fee > 0
+          ? `The pickup fee for this address is now ₹${trip.fee}. Check the new total, then pay. Nothing was charged.`
+          : 'Pickup is now free for this address. Check the new total, then pay. Nothing was charged.',
+        'PICKUP_FEE_CHANGED'
+      )
+    }
     travelFee = trip.fee.toFixed(2)
     roadKm = trip.roadKm.toFixed(1)
   }

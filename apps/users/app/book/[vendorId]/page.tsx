@@ -1297,6 +1297,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
         useCredit: giftsOn ? creditApplied : undefined,
         // The accepted request this confirms (0062).
         requestId: acceptedRequest?.id,
+        // The pickup fee this screen shows (0079): the server refuses, before
+        // any charge, if the garage's fee changed since.
+        pickupFee: pickupTrip ? pickupTrip.fee : undefined,
       })
 
       // Detlio credit covered all of it (0049): there is no payment sheet,
@@ -1440,6 +1443,15 @@ function BookContent({ vendorId }: { vendorId: string }) {
               : error.message
         )
         goToStep('slot')
+      } else if (
+        error instanceof ApiError &&
+        error.code === 'PICKUP_FEE_CHANGED'
+      ) {
+        // The garage's pickup fee changed since this page loaded (0079):
+        // nothing was charged. Fetch the garage again so the lines and the
+        // total show the new fee before the customer pays.
+        toast.error(error.message)
+        void getVendor(vendorId).then((v) => v && setVendor(v))
       } else if (
         error instanceof ApiError &&
         error.code === 'PICKUP_NOT_OFFERED'
