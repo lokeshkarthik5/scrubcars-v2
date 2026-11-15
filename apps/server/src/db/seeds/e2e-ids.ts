@@ -2474,3 +2474,32 @@ export const PICKUP_FEE = {
     wash: { id: id(7777), name: 'Murugan Foam Wash', price: '699.00', durationMins: 60 },
   },
 } as const
+
+/**
+ * Service categories (0080; ids 7800–7849, phones 90000078xx, 40–49): one
+ * listed garage near ORIGIN (about 5.5 km north, drop-in only) that sells
+ * the new mechanical work and has five services filed under Others:
+ *
+ *   oil         General service, by car type
+ *   brakes      Repairs, one price
+ *   clutch      Others: "Looks like Repairs · matched “clutch”"
+ *   bumper      Others: "Looks like Dent & paint · matched “bumper”"
+ *   alignment   Others: "Looks like General service · matched “alignment”"
+ *   bikeWash    Others, no hint
+ *   battery     Others, its hint turned down ("Not this")
+ *
+ * No car wash, so the customer filter's other tiles keep their counts. Only
+ * specs/admin/service-categories.spec.ts and specs/users/service-categories.spec.ts
+ * use them; neither leaves a change behind.
+ */
+export const SERVICE_CATEGORIES = {
+  owner: { id: id(7840), phone: '9000007840', name: 'Category Motors Owner' },
+  garage: { id: id(7800), name: 'Category Motors' },
+  oil: { id: id(7801), name: 'Oil change', category: 'general_service' },
+  brakes: { id: id(7802), name: 'Brake pads', category: 'repairs' },
+  clutch: { id: id(7803), name: 'Clutch overhaul', category: 'others' },
+  bumper: { id: id(7804), name: 'Bumper painting', category: 'others' },
+  alignment: { id: id(7805), name: 'Wheel alignment', category: 'others' },
+  bikeWash: { id: id(7806), name: 'Bike wash', category: 'others' },
+  battery: { id: id(7807), name: 'Battery replacement', category: 'others' },
+} as const

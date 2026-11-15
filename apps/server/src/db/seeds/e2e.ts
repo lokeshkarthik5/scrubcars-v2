@@ -145,6 +145,7 @@ import {
   OFF_APP_FLAGS,
   SHINE,
   PICKUP_FEE,
+  SERVICE_CATEGORIES,
 } from './e2e-ids.js'
 import { hashPassword } from '../../lib/passwords.js'
 import { codeSuffix, couponCodeHash, couponKeys, deriveCouponCode } from '../../lib/coupons.js'
@@ -4792,6 +4793,8 @@ async function main() {
   await seedShineRows()
   console.log('[e2e-seed] pickup fee…')
   await seedPickupFeeRows()
+  console.log('[e2e-seed] service categories…')
+  await seedServiceCategoryRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }
@@ -4951,3 +4954,47 @@ main().catch((error) => {
   console.error('[e2e-seed] failed:', error)
   process.exit(1)
 })
+
+/**
+ * Service categories (0080; SERVICE_CATEGORIES, ids 7800–7849, phones
+ * 90000078xx, 40–49): see SERVICE_CATEGORIES. Listed, drop-in only, open
+ * 6 am–10 pm every day.
+ */
+async function seedServiceCategoryRows() {
+  const C = SERVICE_CATEGORIES
+  await db.insert(users).values({
+    id: C.owner.id, name: C.owner.name, phone: C.owner.phone, isCustomer: false, isVendorOwner: true,
+    phoneVerified: true, status: 'active' as const,
+  })
+  await db.insert(vendors).values({
+    id: C.garage.id, ownerId: C.owner.id, businessName: C.garage.name, phone: C.owner.phone,
+    address: '80, Workshop Road, Kilpauk', city: 'Chennai', pincode: '600010',
+    lat: ORIGIN.lat + 0.05, lng: ORIGIN.lng, geoSource: 'map_pin', geoConfirmedAt: now,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'], bays: 4, slotIntervalMins: 30, status: 'active',
+    isVerified: true, dropinEnabled: true, doorstepEnabled: false, createdAt: daysAgo(30),
+  })
+  await db.insert(userMemberMapping).values({
+    vendorId: C.garage.id, userId: C.owner.id, role: 'vendor_admin' as const, status: 'active' as const,
+  })
+  await db.insert(vendorWorkingHours).values(hoursFor(C.garage.id, '06:00:00', '22:00:00'))
+  const flat = (price: string) => ({ pricingType: 'flat' as const, price })
+  const inspection = (price: string) => ({ pricingType: 'on_inspection' as const, price })
+  await db.insert(services).values([
+    { id: C.oil.id, vendorId: C.garage.id, name: C.oil.name, category: C.oil.category,
+      description: 'Engine oil drained and refilled, and a new oil filter fitted.', pricingType: 'per_vehicle',
+      price: '1199.00', priceHatchback: '1199.00', priceSedan: '1399.00', priceSuv: '1699.00', durationMins: 45 },
+    { id: C.brakes.id, vendorId: C.garage.id, name: C.brakes.name, category: C.brakes.category,
+      description: 'Worn front brake pads replaced and the brakes tested.', ...flat('1800.00'), durationMins: 60 },
+    { id: C.clutch.id, vendorId: C.garage.id, name: C.clutch.name, category: C.clutch.category,
+      ...inspection('499.00'), durationMins: 1440 },
+    { id: C.bumper.id, vendorId: C.garage.id, name: C.bumper.name, category: C.bumper.category,
+      pricingType: 'per_vehicle', price: '3500.00', priceHatchback: '3500.00', priceSedan: '3800.00',
+      priceSuv: '4200.00', durationMins: 1440 },
+    { id: C.alignment.id, vendorId: C.garage.id, name: C.alignment.name, category: C.alignment.category,
+      ...flat('600.00'), durationMins: 45 },
+    { id: C.bikeWash.id, vendorId: C.garage.id, name: C.bikeWash.name, category: C.bikeWash.category,
+      ...flat('199.00'), durationMins: 30 },
+    { id: C.battery.id, vendorId: C.garage.id, name: C.battery.name, category: C.battery.category,
+      ...inspection('0.00'), durationMins: 60, categoryHintDismissedAt: daysAgo(2) },
+  ])
+}
