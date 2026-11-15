@@ -50,7 +50,8 @@ const GUEST_ROUTES = ['/login', '/verify-otp']
 // Checkout (/book) is not here: a guest books and signs in inside it, at
 // "Confirm" (0062), and a signed-in customer whose profile has no name yet
 // is asked for it there too.
-const CUSTOMER_ROUTES = ['/profile-setup', '/updates', '/requests']
+// Repair quotes (0075) are one customer's own requests too.
+const CUSTOMER_ROUTES = ['/profile-setup', '/updates', '/requests', '/repair-quotes']
 
 function matchesRoute(pathname: string, routes: string[]) {
   return routes.some(

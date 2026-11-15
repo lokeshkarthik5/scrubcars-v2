@@ -52,6 +52,7 @@ import { HomeHeader } from './home-header'
 import { HomeOffers } from './home-offers'
 import { NearbyCard } from './nearby-card'
 import { RightTile } from './right-tile'
+import { RepairQuotesTile, ToolTilesRow } from '@/components/repair-quotes/repair-quotes-tile'
 
 // Sheets closed on arrival are loaded after the page, not with it: they are
 // out of the first load's JavaScript, and on the page well before anyone can
@@ -303,6 +304,11 @@ function HomeHubContent() {
                 </div>
               )
             )}
+
+            {/* Tools (0075): Repair quotes now, Shine Score beside it later. */}
+            <ToolTilesRow>
+              <RepairQuotesTile />
+            </ToolTilesRow>
 
             {/* Offers below the car, dark, in Home's one swipe row (F2). */}
             {offers.length > 0 && (

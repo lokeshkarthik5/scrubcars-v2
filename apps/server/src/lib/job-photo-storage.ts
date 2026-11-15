@@ -25,7 +25,7 @@
  *   view mappers stay synchronous); never stored, logged, or put in an
  *   alert or a push.
  */
-import { randomUUID } from 'node:crypto'
+import { createHmac, randomUUID } from 'node:crypto'
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { isDocumentStorageConfigured } from './document-storage.js'
@@ -125,21 +125,113 @@ export function jobPhotoLink(stored: string, now = Date.now()): string {
     }
     return ''
   }
+  return signPrivateLink(env.r2DocsBucket, stored, imageTypeOf(stored), now)
+}
+
+/** A presigned GET into the private bucket, repeating within its window (see the file's comment). */
+function signPrivateLink(bucket: string, key: string, contentType: string, now: number): string {
   const window = JOB_PHOTO_LINK_WINDOW_SECONDS * 1000
   return presignGetUrl({
     endpoint: env.r2Endpoint ?? `https://${env.r2AccountId}.r2.cloudflarestorage.com`,
     pathStyle: Boolean(env.r2Endpoint),
-    bucket: env.r2DocsBucket,
-    key: stored,
+    bucket,
+    key,
     accessKeyId: env.r2AccessKeyId ?? '',
     secretAccessKey: env.r2SecretAccessKey ?? '',
     signedAt: new Date(Math.floor(now / window) * window),
     expiresInSeconds: JOB_PHOTO_LINK_TTL_SECONDS,
     response: {
-      contentType: imageTypeOf(stored),
+      contentType,
       cacheControl: `private, max-age=${JOB_PHOTO_LINK_TTL_SECONDS - JOB_PHOTO_LINK_WINDOW_SECONDS}`,
     },
   })
+}
+
+// ─── Repair & bodywork quotes (0075) ─────────────────────────────────────────
+//
+// A customer's video, photos and the frames their phone took from the video
+// show their car and often where it is parked, before any garage has a
+// booking. They go to the same private bucket, under
+// `repair-quotes/<customerId>/<uuid>.<ext>`, ONLY while it is set (no public
+// fallback: the feature says storage is not set up instead), and are shown
+// only through the same short signed links, to the customer, the garages the
+// request was sent to, and super-admin. The folder is an opaque token made
+// from the customer's id with the server's secret (repairMediaOwner), so a
+// link never carries the id.
+
+/** The customer's media folder token: 32 hex characters, the same every time for one customer. */
+export function repairMediaOwner(userId: string): string {
+  return createHmac('sha256', env.jwtSecret).update(`repair-media:${userId}`).digest('hex').slice(0, 32)
+}
+
+/** Only repair-quote keys are signed or deleted by the functions below. */
+const REPAIR_MEDIA_KEY = /^repair-quotes\/[0-9a-f]{32}\/[0-9a-f-]{36}\.(jpg|png|webp|mp4|mov|webm)$/
+
+const REPAIR_MEDIA_TYPES: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'video/mp4': 'mp4',
+  'video/quicktime': 'mov',
+  'video/webm': 'webm',
+}
+
+function repairMediaTypeOf(key: string): string {
+  const ext = key.slice(key.lastIndexOf('.') + 1)
+  return Object.entries(REPAIR_MEDIA_TYPES).find(([, e]) => e === ext)?.[0] ?? 'application/octet-stream'
+}
+
+/** Whether repair-quote media can be stored (the private bucket is set). */
+export function repairMediaStorageOn(): boolean {
+  return privateJobPhotosOn() && Boolean(env.r2DocsBucket)
+}
+
+/**
+ * A one-file upload link for a customer's repair-quote video or picture. The
+ * size is part of the signature (as for garage documents), so the phone can
+ * only send a file of exactly the size it declared, which was checked
+ * against the cap. Null when the private bucket is not set.
+ */
+export async function createRepairMediaUpload(
+  userId: string,
+  contentType: string,
+  sizeBytes: number
+): Promise<{ uploadUrl: string; key: string } | null> {
+  const ext = REPAIR_MEDIA_TYPES[contentType]
+  if (!ext || !repairMediaStorageOn() || !env.r2DocsBucket) return null
+  const key = `repair-quotes/${repairMediaOwner(userId)}/${randomUUID()}.${ext}`
+  const uploadUrl = await getSignedUrl(
+    makeR2Client(),
+    new PutObjectCommand({ Bucket: env.r2DocsBucket, Key: key, ContentType: contentType, ContentLength: sizeBytes }),
+    { expiresIn: env.r2UploadUrlTtlSeconds }
+  )
+  return { uploadUrl, key }
+}
+
+/**
+ * A short signed link to one repair-quote video or picture, made per payload
+ * for someone already allowed to see it. Empty when the bucket has since
+ * been unset or the key is not a repair-quote key.
+ */
+export function repairMediaLink(key: string, now = Date.now()): string {
+  if (!REPAIR_MEDIA_KEY.test(key) || !repairMediaStorageOn() || !env.r2DocsBucket) return ''
+  return signPrivateLink(env.r2DocsBucket, key, repairMediaTypeOf(key), now)
+}
+
+/** Removes repair-quote media, best effort, logged by count only. */
+export async function removeRepairMediaObjects(keys: readonly string[], why: string): Promise<void> {
+  const own = keys.filter((key) => REPAIR_MEDIA_KEY.test(key))
+  if (own.length === 0 || !repairMediaStorageOn() || !env.r2DocsBucket) return
+  const client = makeR2Client()
+  let failed = 0
+  for (const key of own) {
+    try {
+      await client.send(new DeleteObjectCommand({ Bucket: env.r2DocsBucket, Key: key }))
+    } catch {
+      failed += 1
+    }
+  }
+  log.info({ media: own.length, failed, why }, 'repair_media:removed')
 }
 
 /**

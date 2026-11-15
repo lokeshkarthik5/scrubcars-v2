@@ -736,6 +736,51 @@ export function customerAreaNews(
   })
 }
 
+// ─── Repair & bodywork quotes (0075) ─────────────────────────────────────────
+
+/** The customer's request page (detlio.com). */
+export function customerRepairQuotePath(requestId: string): string {
+  return `/repair-quotes/${requestId}`
+}
+/** The quote's card on the garage's Requests page (vendor.detlio.com). */
+export function garageRepairQuotePath(quoteId: string): string {
+  return `/requests#repair-${quoteId}`
+}
+
+/**
+ * A garage was asked for a repair quote: urgent, its clock is running.
+ * Nothing of the customer's: no car, no words of theirs, no place.
+ */
+export function garageNewRepairQuote(quote: { id: string; respondBy: Date }, now: Date): PushMessage {
+  const sameDay = istDateKey(quote.respondBy) === istDateKey(now)
+  return message({
+    title: 'New repair quote request',
+    body: `Watch the video and answer by ${sameDay ? istTimeLabel(quote.respondBy) : istSlotShortLabel(quote.respondBy)}`,
+    url: garageRepairQuotePath(quote.id),
+    tag: `repair-quote:${quote.id}`,
+    urgency: 'high',
+    ttlSeconds: ttlUntil(quote.respondBy, now),
+  })
+}
+
+/** A garage answered the customer's repair request: a quote, or "Can't do". */
+export function customerRepairQuoteAnswered(
+  request: { id: string },
+  quote: { id: string },
+  garage: string,
+  answer: { canDo: true; priceFrom: number; priceTo: number } | { canDo: false }
+): PushMessage {
+  const inr = (n: number) => n.toLocaleString('en-IN')
+  return message({
+    title: answer.canDo ? `${garage} sent a quote` : `${garage} can't do this repair`,
+    body: answer.canDo
+      ? `${answer.priceFrom === answer.priceTo ? `₹${inr(answer.priceFrom)}` : `₹${inr(answer.priceFrom)}–${inr(answer.priceTo)}`} estimate. See it and book a visit; nothing to pay.`
+      : 'Other garages can still answer. See where your request stands.',
+    url: customerRepairQuotePath(request.id),
+    tag: `repair-answer:${quote.id}`,
+  })
+}
+
 /** "Send me a test notification", from either app's Notifications screen. */
 export function testMessage(audience: 'customer' | 'garage'): PushMessage {
   return message({
