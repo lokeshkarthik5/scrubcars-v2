@@ -138,6 +138,7 @@ import {
   OWNER_DELETE,
   CALENDAR,
   INSPECTION_NO_FEE,
+  OFF_APP_FLAGS,
 } from './e2e-ids.js'
 import { hashPassword } from '../../lib/passwords.js'
 import { codeSuffix, couponCodeHash, couponKeys, deriveCouponCode } from '../../lib/coupons.js'
@@ -4572,8 +4573,43 @@ async function main() {
   await seedCalendarRows()
   console.log('[e2e-seed] inspection with no fee…')
   await seedInspectionNoFeeRows()
+  console.log('[e2e-seed] off-app payment flags…')
+  await seedOffAppFlagRows()
   console.log('[e2e-seed] done')
   process.exit(0)
+}
+
+/**
+ * Off-app payment flags (0075; OFF_APP_FLAGS, ids 7700–7749): two New
+ * "Flagged by Detlio" entries, as the daily check writes them (no reporter,
+ * no chain, no reward, masked evidence, one key each).
+ */
+async function seedOffAppFlagRows() {
+  const F = OFF_APP_FLAGS
+  const day = 24 * 60 * 60 * 1000
+  await db.insert(bypassReports).values([
+    {
+      id: F.note, source: 'detlio', signal: 'contact_in_note', kind: 'gave_number', status: 'new',
+      userId: null, bookingId: null, rootBookingId: null, bookingRef: null, vendorId: null, garageName: F.garageName,
+      evidenceKey: 'contact_in_note:e2e-seed:bill_note:7700',
+      evidence: {
+        signal: 'contact_in_note', bookingId: F.note, bookingRef: 'E2E77000', where: 'bill_note',
+        writtenAt: new Date(Date.now() - day).toISOString(),
+        excerpt: `Sir next time call ${F.maskedNumber} directly, GPay flagcheck@okaxis, less price`,
+        found: ['phone', 'upi'], confirmedByAi: false,
+      },
+      createdAt: new Date(Date.now() - day),
+    },
+    {
+      id: F.regulars, source: 'detlio', signal: 'regulars_went_quiet', kind: 'other', status: 'new',
+      userId: null, bookingId: null, rootBookingId: null, bookingRef: null, vendorId: null, garageName: F.garageName,
+      evidenceKey: 'regulars_went_quiet:e2e-seed:7701',
+      evidence: {
+        signal: 'regulars_went_quiet', regulars: 14, stopped: 6, bookingElsewhere: 2, stoppedDays: 30, customers: [],
+      },
+      createdAt: new Date(Date.now() - 2 * day),
+    },
+  ])
 }
 
 main().catch((error) => {

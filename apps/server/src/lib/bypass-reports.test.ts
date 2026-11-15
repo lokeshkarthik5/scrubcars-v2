@@ -171,3 +171,11 @@ describe('strikes', () => {
     expect(reachedStrikeAlert(2, 3)).toBe(false)
   })
 })
+
+describe('rewardDecision for a Detlio flag (0075)', () => {
+  test('never a reward: there is no reporter', () => {
+    expect(
+      rewardDecision({ hasAccount: true, hasGarage: true, alreadyRewarded: false, creditOn: true, fromDetlio: true })
+    ).toEqual({ kind: 'none', why: 'detlio_flag' })
+  })
+})

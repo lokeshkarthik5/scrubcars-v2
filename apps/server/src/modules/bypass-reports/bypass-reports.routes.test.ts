@@ -80,11 +80,16 @@ type Report = {
   rewardGrantedAt: Date | null
   createdAt: Date
   updatedAt: Date
+  /** 'customer' by the column's default; a Detlio flag says 'detlio' (0075). */
+  source?: string
 }
 const reports: Report[] = []
 const ledger: Array<{ userId: string; amountPaise: number }> = []
 const audits: Array<{ action: string; actorName: string }> = []
 const savedGifts = env.giftsEnabled
+const savedFlags = env.offAppFlagsEnabled
+/** Which kinds of entry each admin list read asked for (0075). */
+const listedSources: string[][] = []
 
 const adminRow = (report: Report) => ({
   report,
@@ -93,6 +98,7 @@ const adminRow = (report: Report) => ({
   bookingStatus: report.bookingId ? BOOKINGS[report.bookingId]?.status ?? null : null,
   bookingScheduledAt: new Date(),
   bookingMarkedTest: false,
+  bookingUserId: report.bookingId ? BOOKINGS[report.bookingId]?.userId ?? null : null,
 })
 
 const strikesNow = (vendorId: string) => reports.filter((r) => r.vendorId === vendorId && r.status === 'confirmed').length
@@ -161,12 +167,24 @@ beforeAll(() => {
         rewardGrantedAt: null,
         createdAt: now,
         updatedAt: now,
+        source: 'customer',
       }
       reports.push(created)
       return { created }
     },
     listForCustomer: async (userId: string) => reports.filter((r) => r.userId === userId),
-    listForAdmin: async (status: string) => reports.filter((r) => r.status === status).map(adminRow),
+    listForAdmin: async (status: string, sources: string[] = ['customer', 'detlio']) => {
+      listedSources.push([...sources])
+      return reports
+        .filter((r) => r.status === status && sources.includes((r as Report & { source?: string }).source ?? 'customer'))
+        .map(adminRow)
+    },
+    countBySource: async (status: string) => ({
+      customer: reports.filter((r) => r.status === status && (r as Report & { source?: string }).source !== 'detlio').length,
+      detlio: reports.filter((r) => r.status === status && (r as Report & { source?: string }).source === 'detlio').length,
+    }),
+    customerNames: async (ids: string[]) =>
+      ids.map((id) => ({ id, name: id === PEOPLE.customer ? 'Priya Raman' : 'Arun K', phone: '9876500001' })),
     countByStatus: async () => ({
       new: reports.filter((r) => r.status === 'new').length,
       confirmed: reports.filter((r) => r.status === 'confirmed').length,
@@ -198,7 +216,12 @@ beforeAll(() => {
       const alreadyRewarded = reports.some(
         (r) => r !== report && r.userId === report.userId && r.vendorId === report.vendorId && r.rewardStatus !== 'none'
       )
-      const reward = input.decide({ hasAccount: report.userId !== null, hasGarage: report.vendorId !== null, alreadyRewarded })
+      const reward = input.decide({
+        hasAccount: report.userId !== null,
+        hasGarage: report.vendorId !== null,
+        alreadyRewarded,
+        fromDetlio: (report as Report & { source?: string }).source === 'detlio',
+      } as Parameters<typeof input.decide>[0])
       if (reward.kind === 'grant') {
         ledger.push({ userId: report.userId!, amountPaise: input.rewardAmountPaise })
         Object.assign(report, { rewardStatus: 'granted', rewardEntryId: `entry-${ledger.length}`, rewardGrantedAt: input.now })
@@ -228,6 +251,7 @@ beforeAll(() => {
 afterAll(() => {
   for (const [object, key, value] of originals.reverse()) object[key] = value
   ;(env as unknown as Record<string, unknown>).giftsEnabled = savedGifts
+  ;(env as unknown as Record<string, unknown>).offAppFlagsEnabled = savedFlags
 })
 
 beforeEach(() => {
@@ -235,6 +259,8 @@ beforeEach(() => {
   ledger.length = 0
   audits.length = 0
   ;(env as unknown as Record<string, unknown>).giftsEnabled = true
+  ;(env as unknown as Record<string, unknown>).offAppFlagsEnabled = false
+  listedSources.length = 0
 })
 
 // ─── The app, answering the way app.ts does ──────────────────────────────────
@@ -457,5 +483,100 @@ describe('admin: confirm rewards once per customer per garage', () => {
     const missing = 'e2e00000-0000-4000-8000-000000003299'
     expect((await call(`/admin/bypass-reports/${missing}`, 'superAdmin')).status).toBe(404)
     expect((await call(`/admin/bypass-reports/${missing}/confirm`, 'superAdmin', { actorName: 'Lokesh' })).status).toBe(404)
+  })
+})
+
+// ─── Detlio's flags (0075) ───────────────────────────────────────────────────
+
+/** A flag as the daily check writes it: no reporter, no chain, masked evidence. */
+function flag(): Report {
+  const now = new Date()
+  const row = {
+    id: `e2e00000-0000-4000-8000-0000000032${60 + reports.length}`,
+    userId: null,
+    bookingId: ON,
+    rootBookingId: null,
+    bookingRef: ON.slice(0, 8).toUpperCase(),
+    vendorId: GARAGE,
+    garageName: 'Marina Auto Spa',
+    kind: 'gave_number',
+    note: null,
+    status: 'new' as const,
+    confirmedAt: null,
+    confirmedBy: null,
+    dismissedAt: null,
+    dismissedBy: null,
+    dismissedReason: null,
+    rewardStatus: 'none' as const,
+    rewardEntryId: null,
+    rewardGrantedAt: null,
+    createdAt: now,
+    updatedAt: now,
+    source: 'detlio',
+    signal: 'contact_in_note',
+    evidenceKey: `contact_in_note:${ON}:bill_note:x`,
+    evidence: {
+      signal: 'contact_in_note',
+      bookingId: ON,
+      bookingRef: ON.slice(0, 8).toUpperCase(),
+      where: 'bill_note',
+      writtenAt: now.toISOString(),
+      excerpt: 'next time call 98•••• •4210 directly',
+      found: ['phone'],
+      confirmedByAi: false,
+    },
+  }
+  reports.push(row as unknown as Report)
+  return row as unknown as Report
+}
+
+describe('Detlio flags (0075): off by default, never a reward', () => {
+  test('switched off: the list is customers’ reports only, as before, and Check now is a 404', async () => {
+    await report(ON)
+    flag()
+    const { body } = await call('/admin/bypass-reports?show=new&from=detlio', 'superAdmin')
+    expect(body.data!.flags).toEqual({ enabled: false })
+    expect(listedSources.at(-1)).toEqual(['customer'])
+    expect(body.data!.reports!.map((r) => r.source)).toEqual(['customer'])
+    const check = await call('/admin/bypass-reports/flags/check', 'superAdmin', {})
+    expect(check.status).toBe(404)
+    expect(check.body.code).toBe('OFF_APP_FLAGS_OFF')
+  })
+
+  test('switched on: the filter row, the tag’s source, the evidence and the booking’s customer', async () => {
+    ;(env as unknown as Record<string, unknown>).offAppFlagsEnabled = true
+    await report(ON)
+    flag()
+    const all = await call('/admin/bypass-reports?show=new', 'superAdmin')
+    expect(all.body.data!.flags).toEqual({ enabled: true, from: 'all', counts: { all: 2, customer: 1, detlio: 1 } })
+
+    const flagged = await call('/admin/bypass-reports?show=new&from=detlio', 'superAdmin')
+    expect(listedSources.at(-1)).toEqual(['detlio'])
+    expect(flagged.body.data!.reports).toHaveLength(1)
+    expect(flagged.body.data!.reports![0]).toMatchObject({
+      source: 'detlio',
+      signal: 'contact_in_note',
+      kindLabel: 'Phone number or UPI ID in a note',
+      customer: { id: PEOPLE.customer, name: 'Priya Raman' },
+      evidence: { signal: 'contact_in_note', excerpt: 'next time call 98•••• •4210 directly', found: ['phone'] },
+    })
+    // No full number anywhere in the answer.
+    expect(JSON.stringify(flagged.body)).not.toContain('9840014210')
+  })
+
+  test('confirming a flag is a strike and pays nobody', async () => {
+    ;(env as unknown as Record<string, unknown>).offAppFlagsEnabled = true
+    const { id } = flag()
+    const { status, body } = await call(`/admin/bypass-reports/${id}/confirm`, 'superAdmin', { actorName: 'Lokesh' })
+    expect(status).toBe(200)
+    expect(body.data).toMatchObject({ status: 'confirmed', reward: { status: 'none' }, garage: { strikes: 1 } })
+    expect(ledger).toHaveLength(0)
+  })
+
+  test('only a super-admin can run the check', async () => {
+    ;(env as unknown as Record<string, unknown>).offAppFlagsEnabled = true
+    for (const who of ['owner', 'customer', null] as const) {
+      expect((await call('/admin/bypass-reports/flags/check', who, {})).status).toBeGreaterThanOrEqual(401)
+    }
   })
 })

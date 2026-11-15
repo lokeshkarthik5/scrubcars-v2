@@ -53,7 +53,10 @@ function RescueOfferPart({
     <div className="mx-3.5 flex flex-col gap-2 border-t border-border pb-3.5 pt-3">
       <p className="flex items-center justify-between text-t4">
         <span className="text-text-secondary">{t('Same job')}</span>
-        <span className="font-numeric text-[16px] font-semibold text-text-primary">
+        <span
+          data-same-job-price=""
+          className="font-numeric text-[16px] font-semibold text-text-primary"
+        >
           {sameJobPrice(offer.price)}
         </span>
       </p>

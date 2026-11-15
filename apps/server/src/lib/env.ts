@@ -412,6 +412,17 @@ export const env = {
    */
   giftsEnabled: (process.env.GIFTS_ENABLED ?? '').trim().toLowerCase() === 'on',
 
+  // ─── Off-app payment flags (lib/off-app-flags.ts, 0075) ─────────────────────
+  /**
+   * Whether Detlio's own daily checks add "Flagged by Detlio" entries to
+   * admin's Bypass reports (a phone number, UPI ID or "pay directly" in a
+   * garage's note; regular customers going quiet; repeated cancellations
+   * after inspection): OFF_APP_FLAGS_ENABLED=on. Off unless set to exactly
+   * `on`, and while off the checks never run, the admin list and its counts
+   * leave flags out, and the screen is as before (docs/off-app-flags.md).
+   */
+  offAppFlagsEnabled: (process.env.OFF_APP_FLAGS_ENABLED ?? '').trim().toLowerCase() === 'on',
+
   // ─── Detlio Guarantee (lib/guarantee.ts, 0051) ──────────────────────────────
   /**
    * Whether customers can ask for a free redo within 48 hours of a job:

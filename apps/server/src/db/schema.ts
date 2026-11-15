@@ -25,6 +25,7 @@ import {
 } from 'drizzle-orm/pg-core'
 import type { AnalyticsEventName, DeviceClass } from '../lib/analytics.js'
 import type { BypassKind, BypassStatus, RewardStatus } from '../lib/bypass-reports.js'
+import type { BypassSource, FlagEvidence, FlagSignal } from '../lib/off-app-flags.js'
 import type { ComplaintCategory, ComplaintSource, ComplaintStatus } from '../lib/complaints.js'
 import type { GatewayRefundStatus, RefundSource } from '../lib/refunds.js'
 import type { ReviewTag } from '../lib/ratings.js'
@@ -3579,10 +3580,19 @@ export const bypassReports = pgTable(
     userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
     bookingId: uuid('booking_id').references(() => bookings.id, { onDelete: 'set null' }),
     rootBookingId: uuid('root_booking_id').references(() => bookings.id, { onDelete: 'set null' }),
-    bookingRef: varchar('booking_ref', { length: 8 }).notNull(),
+    // Null only on a Detlio flag about a garage rather than one booking (0075).
+    bookingRef: varchar('booking_ref', { length: 8 }),
     vendorId: uuid('vendor_id').references(() => vendors.id, { onDelete: 'set null' }),
     garageName: varchar('garage_name', { length: 255 }).notNull(),
     kind: text('kind').$type<BypassKind>().notNull(),
+    // Off-app payment flags (0075, lib/off-app-flags.ts): 'customer' for a
+    // customer's report, 'detlio' for Detlio's own check ("Flagged by
+    // Detlio"), which has a signal, its evidence (masked) and a key that
+    // keeps one flag per piece of evidence; no reporter, chain or reward.
+    source: text('source').$type<BypassSource>().default('customer').notNull(),
+    signal: text('signal').$type<FlagSignal>(),
+    evidence: jsonb('evidence').$type<FlagEvidence>(),
+    evidenceKey: varchar('evidence_key', { length: 200 }),
     note: varchar('note', { length: 500 }),
     status: text('status').$type<BypassStatus>().default('new').notNull(),
     confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
@@ -3625,6 +3635,13 @@ export const bypassReports = pgTable(
       sql`(${table.status} = 'dismissed') = (${table.dismissedAt} is not null and ${table.dismissedBy} is not null and ${table.dismissedReason} is not null)`
     ),
     check('bypass_reports_reward_status_check', sql`${table.rewardStatus} in ('none', 'owed', 'granted')`),
+    uniqueIndex('bypass_reports_evidence_key').on(table.evidenceKey).where(sql`${table.evidenceKey} is not null`),
+    index('bypass_reports_source_status_idx').on(table.source, table.status, table.createdAt),
+    check('bypass_reports_source_check', sql`${table.source} in ('customer', 'detlio')`),
+    check(
+      'bypass_reports_flag_check',
+      sql`(${table.source} = 'customer' and ${table.signal} is null and ${table.evidence} is null and ${table.evidenceKey} is null and ${table.bookingRef} is not null) or (${table.source} = 'detlio' and ${table.signal} in ('contact_in_note', 'regulars_went_quiet', 'cancelled_after_inspection') and ${table.evidence} is not null and ${table.evidenceKey} is not null and ${table.userId} is null and ${table.rootBookingId} is null and ${table.rewardStatus} = 'none')`
+    ),
     check(
       'bypass_reports_reward_confirmed_check',
       sql`${table.rewardStatus} = 'none' or ${table.status} = 'confirmed'`

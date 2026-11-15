@@ -2285,3 +2285,20 @@ export const INSPECTION_NO_FEE = {
   /** The service the garage adds in the portal, found by its name. */
   added: { name: 'Bumper Dent Check', approx: 1500 },
 } as const
+
+/**
+ * Off-app payment flags (0075; ids 7700–7749): Detlio's own entries in admin's
+ * Bypass reports, "Flagged by Detlio" (OFF_APP_FLAGS_ENABLED is on in E2E).
+ * Each is about a garage deleted forever (no garage row: no strike moves for
+ * any other fixture) and no booking. `note` is a phone number and a UPI ID
+ * in a garage's bill, masked; `regulars` is repeat customers going quiet.
+ * Only specs/admin/off-app-flags.spec.ts uses them, and it puts both back.
+ */
+export const OFF_APP_FLAGS = {
+  garageName: 'Flag Check Garage',
+  note: id(7700),
+  regulars: id(7701),
+  /** The masked number the note's evidence shows; the full one is never stored. */
+  maskedNumber: '98•••• •4210',
+} as const
+
