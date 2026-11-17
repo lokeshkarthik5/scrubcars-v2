@@ -11,16 +11,20 @@ export function WashGauge({
   daysSinceWash,
   intervalDays,
   over,
+  reversed,
 }: {
   daysSinceWash: number | null;
   intervalDays: number;
   over: boolean;
+  /** Higher is greener: Shine Score's 0–100, read as `daysSinceWash` of 100. */
+  reversed?: boolean;
 }) {
   return (
     <WashGaugeDial
       angle={washGaugeAngle(daysSinceWash, intervalDays)}
       share={washGaugeShare(daysSinceWash, intervalDays)}
       over={over}
+      reversed={reversed}
     />
   );
 }

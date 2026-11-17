@@ -38,13 +38,15 @@ import { CarHero } from '@/components/home/car-hero';
 import { NearbyCard, TipCard } from '@/components/home/nearby-tip';
 import { HomeOffers } from '@/components/home/offers';
 import { RightTile, WashStatusTile } from '@/components/home/tiles';
-import { ToolTilesRow } from '@/components/repair-quotes/repair-quotes-tile';
+import { ShineScoreTile } from '@/components/shine/shine-tile';
+import { RepairQuotesTile } from '@/components/repair-quotes/repair-quotes-tile';
 import { repairQuotesOn, useRepairQuotesConfig } from '@repo/core/api/hooks/use-repair-quotes';
 import { UpdatesBlock } from '@/components/home/updates-block';
 import { ReachStatusCards } from '@/components/reach/reach-status';
 import { CustomerShell } from '@/components/screen';
 import { useAuth } from '@/lib/auth';
 import { coarse, isCitywide, useLocationStore } from '@/lib/location';
+import { shineOn, useShineConfig } from '@repo/core/api/hooks/use-shine-score';
 import { otpFlow } from '@/lib/otp-flow';
 import { usePendingCheckout } from '@/lib/pending-checkout';
 import { useRefreshOnFocus } from '@/lib/use-refresh-on-focus';
@@ -111,6 +113,8 @@ export default function HomeScreen() {
   const rewards = useRewardsSummary(rewardsEnabled(rewardsConfig.data) && !!authUser);
   const garagePulls = useGaragePulls(garageLive(rewardsConfig.data) && !!authUser);
   const clock = useNow();
+  // Shine Score (0078): its tile only while the API says it is on.
+  const shine = shineOn(useShineConfig(!!authUser).data);
   useRefreshOnFocus(['home']);
 
   const [selectedCar, setSelectedCar] = useState(0);
@@ -220,8 +224,14 @@ export default function HomeScreen() {
             </View>
           ) : null}
 
-          {/* Tools (0075): Repair quotes now, Shine Score beside it later. */}
-          <ToolTilesRow show={repairOn} />
+          {/* The tools row (AI round): Shine Score on the left, Repair quotes on the right. */}
+          {shine || repairOn ? (
+            <View style={styles.tiles}>
+              {shine ? <ShineScoreTile /> : null}
+              {repairOn ? <RepairQuotesTile /> : null}
+              {shine && repairOn ? null : <View style={styles.flex} />}
+            </View>
+          ) : null}
 
           {offers.length > 0 ? (
             <HomeOffers

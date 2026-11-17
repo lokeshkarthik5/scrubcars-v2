@@ -2,7 +2,8 @@ import { and, asc, count, desc, eq, gte, inArray, isNotNull, ne, or, sql } from 
 import type { PgTransaction } from 'drizzle-orm/pg-core'
 import { db } from '../../db/index.js'
 import { adminAuditLog, bookings, bypassReports, users, vendors } from '../../db/schema.js'
-import type { BypassStatus, RewardDecision } from '../../lib/bypass-reports.js'
+import type { BypassKind, BypassStatus, RewardDecision } from '../../lib/bypass-reports.js'
+import type { BypassSource, FlagEvidence, FlagSignal, NoteSource } from '../../lib/off-app-flags.js'
 import type { DropOffChain } from '../../lib/drop-off.js'
 import { insertReportRewardLot } from '../gift-credit/gift-credit.repository.js'
 
@@ -92,6 +93,7 @@ export interface AdminReportRow {
   bookingStatus: string | null
   bookingScheduledAt: Date | null
   bookingMarkedTest: boolean
+  bookingUserId: string | null
 }
 
 const adminColumns = {
@@ -101,6 +103,20 @@ const adminColumns = {
   bookingStatus: bookings.status,
   bookingScheduledAt: bookings.scheduledAt,
   bookingMarkedTest: sql<boolean>`${bookings.markedTestAt} is not null`,
+  // A Detlio flag has no reporter: its booking's customer is shown instead (0077).
+  bookingUserId: bookings.userId,
+}
+
+/** A garage's note the customer sees, as the contact check reads it. */
+export interface GarageNoteRow {
+  noteId: string
+  where: NoteSource
+  text: string
+  writtenAt: Date
+  bookingId: string
+  rootBookingId: string
+  vendorId: string
+  garageName: string
 }
 
 export type ConfirmOutcome =
@@ -240,20 +256,27 @@ export const bypassReportsRepository = {
 
   // ─── Admin ─────────────────────────────────────────────────────────────────
 
-  /** One status of the admin list: new oldest first (the queue), the others newest first. */
-  async listForAdmin(status: BypassStatus, limit: number): Promise<AdminReportRow[]> {
+  /**
+   * One status of the admin list: new oldest first (the queue), the others
+   * newest first. `sources` is which kinds of entry: customers' reports,
+   * Detlio's flags (0077), or both.
+   */
+  async listForAdmin(status: BypassStatus, sources: readonly BypassSource[], limit: number): Promise<AdminReportRow[]> {
+    if (sources.length === 0) return []
     const rows = await db
       .select(adminColumns)
       .from(bypassReports)
       .leftJoin(users, eq(users.id, bypassReports.userId))
       .leftJoin(bookings, eq(bookings.id, bypassReports.bookingId))
-      .where(eq(bypassReports.status, status))
+      .where(and(eq(bypassReports.status, status), inArray(bypassReports.source, [...sources])))
       .orderBy(status === 'new' ? asc(bypassReports.createdAt) : desc(bypassReports.updatedAt), asc(bypassReports.id))
       .limit(limit)
     return rows.map((row) => ({ ...row, bookingMarkedTest: Boolean(row.bookingMarkedTest) }))
   },
 
-  async countByStatus(): Promise<Record<BypassStatus, number>> {
+  /** Each status's count, of the kinds of entry in `sources`. */
+  async countByStatus(sources: readonly BypassSource[] = ['customer', 'detlio']): Promise<Record<BypassStatus, number>> {
+    if (sources.length === 0) return { new: 0, confirmed: 0, dismissed: 0 }
     const [row] = await db
       .select({
         new: sql<number>`count(*) filter (where ${bypassReports.status} = 'new')`,
@@ -261,11 +284,24 @@ export const bypassReportsRepository = {
         dismissed: sql<number>`count(*) filter (where ${bypassReports.status} = 'dismissed')`,
       })
       .from(bypassReports)
+      .where(inArray(bypassReports.source, [...sources]))
     return {
       new: Number(row?.new ?? 0),
       confirmed: Number(row?.confirmed ?? 0),
       dismissed: Number(row?.dismissed ?? 0),
     }
+  },
+
+  /** One status's entries by kind: the "All / Customer reports / Flagged by Detlio" row. */
+  async countBySource(status: BypassStatus): Promise<Record<BypassSource, number>> {
+    const [row] = await db
+      .select({
+        customer: sql<number>`count(*) filter (where ${bypassReports.source} = 'customer')`,
+        detlio: sql<number>`count(*) filter (where ${bypassReports.source} = 'detlio')`,
+      })
+      .from(bypassReports)
+      .where(eq(bypassReports.status, status))
+    return { customer: Number(row?.customer ?? 0), detlio: Number(row?.detlio ?? 0) }
   },
 
   async findForAdmin(id: string): Promise<AdminReportRow | null> {
@@ -284,7 +320,11 @@ export const bypassReportsRepository = {
   },
 
   /** A garage's reports by status, all time, for its admin page. */
-  async countForGarage(vendorId: string): Promise<Record<BypassStatus, number>> {
+  /** One garage's entries by status, of the kinds in `sources` (Detlio's flags only while they are on, 0077). */
+  async countForGarage(
+    vendorId: string,
+    sources: readonly BypassSource[] = ['customer', 'detlio']
+  ): Promise<Record<BypassStatus, number>> {
     const [row] = await db
       .select({
         new: sql<number>`count(*) filter (where ${bypassReports.status} = 'new')`,
@@ -292,7 +332,7 @@ export const bypassReportsRepository = {
         dismissed: sql<number>`count(*) filter (where ${bypassReports.status} = 'dismissed')`,
       })
       .from(bypassReports)
-      .where(eq(bypassReports.vendorId, vendorId))
+      .where(and(eq(bypassReports.vendorId, vendorId), inArray(bypassReports.source, [...sources])))
     return {
       new: Number(row?.new ?? 0),
       confirmed: Number(row?.confirmed ?? 0),
@@ -321,8 +361,8 @@ export const bypassReportsRepository = {
     now: Date
     strikesSince: Date
     rewardAmountPaise: number
-    rewardReason: (bookingRef: string) => string
-    decide: (facts: { hasAccount: boolean; hasGarage: boolean; alreadyRewarded: boolean }) => RewardDecision
+    rewardReason: (bookingRef: string | null) => string
+    decide: (facts: { hasAccount: boolean; hasGarage: boolean; alreadyRewarded: boolean; fromDetlio: boolean }) => RewardDecision
   }): Promise<ConfirmOutcome> {
     return db.transaction(async (tx): Promise<ConfirmOutcome> => {
       const [found] = await tx
@@ -368,6 +408,7 @@ export const bypassReportsRepository = {
         hasAccount: moved.userId !== null,
         hasGarage: moved.vendorId !== null,
         alreadyRewarded,
+        fromDetlio: moved.source === 'detlio',
       })
 
       let report = moved
@@ -405,6 +446,8 @@ export const bypassReportsRepository = {
         },
         detail: {
           kind: moved.kind,
+          source: moved.source,
+          signal: moved.signal,
           rewardWhyNot: reward.kind === 'none' ? reward.why : null,
           rewardAmount: reward.kind === 'grant' || reward.kind === 'owe' ? input.rewardAmountPaise / 100 : 0,
         },
@@ -462,7 +505,7 @@ export const bypassReportsRepository = {
    * credit lock. Null when there was nothing to grant (granted meanwhile, or
    * the account is gone).
    */
-  grantOwed(input: { id: string; now: Date; rewardAmountPaise: number; rewardReason: (bookingRef: string) => string }) {
+  grantOwed(input: { id: string; now: Date; rewardAmountPaise: number; rewardReason: (bookingRef: string | null) => string }) {
     return db.transaction(async (tx) => {
       const [found] = await tx
         .select({ vendorId: bypassReports.vendorId })
@@ -561,6 +604,162 @@ export const bypassReportsRepository = {
       },
       { accessMode: 'read only' }
     )
+  },
+
+  // ─── Detlio's flags (0077, lib/off-app-flags.ts) ────────────────────────────
+
+  /**
+   * Notes a garage wrote that its customer sees, written since `since`, for
+   * the contact check: its reason for cancelling or declining, its bills'
+   * and extra work's notes and lines, and a suggested time's note. Never
+   * Garage Book (garage_*), never Detlio's own booking notes (booking_notes,
+   * the team's). Test-marked bookings are left out. Newest first, bounded.
+   */
+  async garageNotesSince(since: Date, limit: number): Promise<GarageNoteRow[]> {
+    const at = sql`${since.toISOString()}::timestamptz`
+    const rows = await db.execute<{
+      note_id: string
+      where_: NoteSource
+      body: string
+      written_at: Date | string
+      booking_id: string
+      root_booking_id: string
+      vendor_id: string
+      garage_name: string
+    }>(sql`
+      select * from (
+        select b.id as note_id, 'decline_reason' as where_, b.cancellation_reason as body, b.cancelled_at as written_at,
+               b.id as booking_id, coalesce(b.original_booking_id, b.id) as root_booking_id, b.vendor_id, v.business_name as garage_name
+          from bookings b join vendors v on v.id = b.vendor_id
+         where b.cancelled_by = 'vendor' and b.response_missed_at is null
+           and b.cancellation_reason is not null and b.cancelled_at >= ${at} and b.marked_test_at is null
+        union all
+        select c.id, case when c.kind = 'final_bill' then 'bill_note' else 'extra_work_note' end,
+               concat_ws(' ', c.note, (select string_agg(l->>'description', ' ') from jsonb_array_elements(c.lines) l)),
+               c.created_at, b.id, coalesce(b.original_booking_id, b.id), b.vendor_id, v.business_name
+          from booking_charges c join bookings b on b.id = c.booking_id join vendors v on v.id = b.vendor_id
+         where c.created_at >= ${at} and b.marked_test_at is null
+        union all
+        select p.id, 'time_suggestion', p.note, p.created_at, b.id, coalesce(b.original_booking_id, b.id), b.vendor_id, v.business_name
+          from booking_time_proposals p join bookings b on b.id = p.booking_id join vendors v on v.id = b.vendor_id
+         where p.note is not null and p.created_at >= ${at} and b.marked_test_at is null
+      ) notes
+      where btrim(coalesce(body, '')) <> ''
+      order by written_at desc
+      limit ${limit}
+    `)
+    return Array.from(rows).map((row) => ({
+      noteId: row.note_id,
+      where: row.where_,
+      text: row.body,
+      writtenAt: new Date(row.written_at),
+      bookingId: row.booking_id,
+      rootBookingId: row.root_booking_id,
+      vendorId: row.vendor_id,
+      garageName: row.garage_name,
+    }))
+  },
+
+  /**
+   * Bookings with an on-inspection service that the garage accepted and
+   * that were then cancelled, with no final bill paid, since `since`: the
+   * third check's rows. A booking a reschedule replaced (its newer row is
+   * the booking) and Test-marked ones are left out.
+   */
+  async inspectionCancelsSince(since: Date, limit: number) {
+    const rows = await db.execute<{
+      booking_id: string
+      user_id: string
+      vendor_id: string
+      cancelled_at: Date | string
+      reason: string | null
+    }>(sql`
+      select b.id as booking_id, b.user_id, b.vendor_id, b.cancelled_at, b.cancellation_reason as reason
+        from bookings b
+       where b.status = 'cancelled'
+         and b.accepted_at is not null
+         and b.cancelled_at >= ${since.toISOString()}::timestamptz
+         and b.marked_test_at is null
+         and not exists (select 1 from bookings moved_to where moved_to.rescheduled_from_id = b.id)
+         and exists (
+           select 1 from booking_items i join services s on s.id = i.service_id
+            where i.booking_id = b.id and i.is_addon = false and s.pricing_type = 'on_inspection'
+         )
+         and not exists (
+           select 1 from booking_charges c
+            where c.booking_id = b.id and c.kind = 'final_bill' and c.status = 'paid'
+         )
+       order by b.cancelled_at desc
+       limit ${limit}
+    `)
+    return Array.from(rows).map((row) => ({
+      bookingId: row.booking_id,
+      userId: row.user_id,
+      vendorId: row.vendor_id,
+      cancelledAt: new Date(row.cancelled_at),
+      reason: row.reason,
+    }))
+  },
+
+  /** Whether a flag with this key exists (so AI is not asked twice about one note). */
+  async flagExists(evidenceKey: string): Promise<boolean> {
+    const [row] = await db
+      .select({ id: bypassReports.id })
+      .from(bypassReports)
+      .where(eq(bypassReports.evidenceKey, evidenceKey))
+      .limit(1)
+    return Boolean(row)
+  },
+
+  /** Whether this garage has had a flag of this kind since `since` (the regulars check: once per 30 days). */
+  async recentFlagExists(vendorId: string, signal: FlagSignal, since: Date): Promise<boolean> {
+    const [row] = await db
+      .select({ id: bypassReports.id })
+      .from(bypassReports)
+      .where(
+        and(
+          eq(bypassReports.vendorId, vendorId),
+          eq(bypassReports.source, 'detlio'),
+          eq(bypassReports.signal, signal),
+          gte(bypassReports.createdAt, since)
+        )
+      )
+      .limit(1)
+    return Boolean(row)
+  },
+
+  /**
+   * Writes a flag once: a second one with the same evidence key is nothing
+   * (the unique index decides), so the check can run any number of times.
+   */
+  async insertFlag(values: {
+    vendorId: string
+    garageName: string
+    bookingId: string | null
+    bookingRef: string | null
+    signal: FlagSignal
+    kind: BypassKind
+    evidence: FlagEvidence
+    evidenceKey: string
+  }): Promise<BypassReportRecord | null> {
+    const [created] = await db
+      .insert(bypassReports)
+      .values({
+        source: 'detlio',
+        userId: null,
+        rootBookingId: null,
+        bookingId: values.bookingId,
+        bookingRef: values.bookingRef,
+        vendorId: values.vendorId,
+        garageName: values.garageName.slice(0, 255),
+        kind: values.kind,
+        signal: values.signal,
+        evidence: values.evidence,
+        evidenceKey: values.evidenceKey,
+      })
+      .onConflictDoNothing()
+      .returning()
+    return created ?? null
   },
 
   /** Names for the drop-off rows: garages (not in the Bin or deleted) and customers. */

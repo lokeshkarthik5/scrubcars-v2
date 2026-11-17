@@ -7,6 +7,20 @@
  * never edit this file at once.
  */
 export const customer: Readonly<Record<string, string>> = {
+  // ─── The rescue: other garages when one doesn't answer (Nov 2026) ───
+  'These garages can do the same job': 'இந்த கேரேஜ்கள் அதே வேலையைச் செய்ய முடியும்',
+  '{job}, at your address': '{job}, உங்கள் முகவரியில்',
+  '{job}, collected from your address': '{job}, உங்கள் முகவரியிலிருந்து எடுத்துச் செல்லப்படும்',
+  '{job} · tap a time to book.': '{job} · புக் செய்ய ஒரு நேரத்தைத் தட்டவும்.',
+  'You pay again as usual; your first payment is refunded.':
+    'வழக்கம்போல் மீண்டும் பணம் செலுத்துவீர்கள்; உங்கள் முதல் பணம் திருப்பித் தரப்படும்.',
+  'Usually answers in {mins} min': 'பொதுவாக {mins} நிமிடத்தில் பதில் தரும்',
+  '{day}, near {time}': '{day}, {time} அருகில்',
+  "{vendorName} can't take this booking": '{vendorName} இந்த புக்கிங்கை எடுக்க முடியாது',
+  'Same job': 'அதே வேலை',
+  'The same job': 'அதே வேலை',
+  'No other garage nearby has a time for this job right now.':
+    'இப்போது அருகில் வேறு எந்த கேரேஜிலும் இந்த வேலைக்கு நேரம் இல்லை.',
   // ─── Customer cities (0070): the city chip, the sheet, small cities ───
   'Your city: {city}. Change': 'உங்கள் நகரம்: {city}. மாற்றவும்',
   'Your area: {area}, {city}. Change': 'உங்கள் பகுதி: {area}, {city}. மாற்றவும்',

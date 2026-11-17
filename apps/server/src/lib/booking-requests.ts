@@ -23,6 +23,7 @@ import { computeServiceAmount, sumAmounts, type PricedService, type VehicleTier 
 import { istDateKey, istTimeLabel, MONTHS, WEEKDAYS } from './ist.js'
 import { straightLineKm } from './service-city.js'
 import { effectiveDurationMins } from './service-duration.js'
+import { rescueScore, type GarageRecord } from './rescue-garages.js'
 
 const MINUTE_MS = 60 * 1000
 
@@ -362,6 +363,12 @@ export interface RequestCandidate {
   lines: RequestLine[] | null
   /** Its last start in the window, from now (two hours' lead), or null. */
   lastStart: Date | null
+  /**
+   * How it answers bookings (lib/rescue-garages.ts garageRecord) and its star
+   * score, for ranking a pass-on. Left out, the middle mark: distance decides.
+   */
+  record?: GarageRecord
+  rating?: number | null
 }
 
 export type CandidateRefusal =
@@ -388,12 +395,16 @@ export function firstGarageRefusal(candidate: RequestCandidate): CandidateRefusa
 }
 
 /**
- * The next garage to pass a request to: the nearest one, not asked before
- * in this request, that is listed, offers the mode, reaches the customer or
- * is within 15 km past its reach, has a wanted service for this car, and
- * still has a start in the window. A garage that covers them is fine here:
- * the customer asked to have it done, and it can say yes as easily. Null
- * when there is none, or the request has had its two garages.
+ * The next garage to pass a request to: of those not asked before in this
+ * request that are listed, offer the mode, reach the customer or are within
+ * 15 km past their reach, have a wanted service for this car, and still
+ * have a start in the window, the best by the rescue's score
+ * (lib/rescue-garages.ts rescueScore: distance, how fast it usually answers,
+ * how often it accepts, its rating, recent cancellations; no slot part, a
+ * request has a window). Ties: the nearer, then by id. A garage that covers
+ * them is fine here: the customer asked to have it done, and it can say yes
+ * as easily. Null when there is none, or the request has had its two
+ * garages.
  */
 export function pickNextGarage(
   candidates: readonly RequestCandidate[],
@@ -411,8 +422,17 @@ export function pickNextGarage(
       c.lines.length > 0 &&
       c.lastStart !== null
   )
-  eligible.sort((a, b) => a.distanceKm - b.distanceKm || (a.vendorId < b.vendorId ? -1 : 1))
-  return eligible[0] ?? null
+  const score = (c: RequestCandidate) =>
+    rescueScore({
+      distanceKm: c.distanceKm,
+      record: c.record ?? { medianAnswerMins: null, acceptRate: null, recentCancels: 0 },
+      rating: c.rating ?? null,
+    })
+  const scored = eligible.map((c) => ({ c, score: score(c) }))
+  scored.sort(
+    (a, b) => b.score - a.score || a.c.distanceKm - b.c.distanceKm || (a.c.vendorId < b.c.vendorId ? -1 : 1)
+  )
+  return scored[0]?.c ?? null
 }
 
 // ─── Services ────────────────────────────────────────────────────────────────

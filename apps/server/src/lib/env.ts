@@ -413,6 +413,17 @@ export const env = {
    */
   giftsEnabled: (process.env.GIFTS_ENABLED ?? '').trim().toLowerCase() === 'on',
 
+  // ─── Off-app payment flags (lib/off-app-flags.ts, 0077) ─────────────────────
+  /**
+   * Whether Detlio's own daily checks add "Flagged by Detlio" entries to
+   * admin's Bypass reports (a phone number, UPI ID or "pay directly" in a
+   * garage's note; regular customers going quiet; repeated cancellations
+   * after inspection): OFF_APP_FLAGS_ENABLED=on. Off unless set to exactly
+   * `on`, and while off the checks never run, the admin list and its counts
+   * leave flags out, and the screen is as before (docs/off-app-flags.md).
+   */
+  offAppFlagsEnabled: (process.env.OFF_APP_FLAGS_ENABLED ?? '').trim().toLowerCase() === 'on',
+
   // ─── Detlio Guarantee (lib/guarantee.ts, 0051) ──────────────────────────────
   /**
    * Whether customers can ask for a free redo within 48 hours of a job:
@@ -425,6 +436,18 @@ export const env = {
    * switch).
    */
   guaranteeEnabled: (process.env.GUARANTEE_ENABLED ?? '').trim().toLowerCase() === 'on',
+
+  // ─── Shine Score (lib/shine-score.ts, 0078) ────────────────────────────────
+  /**
+   * The free AI cleanliness score from four photos, and the before/after
+   * score on finished bookings: SHINE_SCORE_ENABLED=on. Off unless set to
+   * exactly `on`. While off every Shine route but the public `/shine/config`
+   * is a 404 before auth runs, the apps show nothing (Home's tile, the
+   * booking card, admin's Shine checks tab), and finished jobs are not
+   * scored. Needs OPENAI_API_KEY (or AI_FAKE in E2E); without one a scan
+   * says "try again later" and uses up nothing.
+   */
+  shineScoreEnabled: (process.env.SHINE_SCORE_ENABLED ?? '').trim().toLowerCase() === 'on',
 
   // ─── Garage Book (modules/garage-book, 0072) ───────────────────────────────
   /**

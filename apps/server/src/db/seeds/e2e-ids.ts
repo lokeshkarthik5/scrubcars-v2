@@ -2346,3 +2346,52 @@ export const REPAIR_QUOTES = {
   switchGarage: { id: id(7562), name: 'Far Dent Studio' },
   switchInspection: { id: id(7563), name: 'Dent Look', durationMins: 30 },
 } as const
+
+/**
+ * Off-app payment flags (0077; ids 7700–7749): Detlio's own entries in admin's
+ * Bypass reports, "Flagged by Detlio" (OFF_APP_FLAGS_ENABLED is on in E2E).
+ * Each is about a garage deleted forever (no garage row: no strike moves for
+ * any other fixture) and no booking. `note` is a phone number and a UPI ID
+ * in a garage's bill, masked; `regulars` is repeat customers going quiet.
+ * Only specs/admin/off-app-flags.spec.ts uses them, and it puts both back.
+ */
+export const OFF_APP_FLAGS = {
+  garageName: 'Flag Check Garage',
+  note: id(7700),
+  regulars: id(7701),
+  /** The masked number the note's evidence shows; the full one is never stored. */
+  maskedNumber: '98•••• •4210',
+} as const
+
+/**
+ * Shine Score (0078; ids 7600–7699, phones 90000076xx). The customer scans
+ * from Home (spec deletes their scans first, so a retry has its 3 free scans
+ * back); their finished booking `done` has a seeded 46 → 92 score and the
+ * garage's front and interior photos before and after; `lowFine` and
+ * `lowFollow` have after-scores under 60 waiting in Admin → Shine checks
+ * (one to mark Looks fine, one Follow up). The garage is pinned near Nagpur
+ * (21° N, 79° E), far from every other fixture, so the suggestions read
+ * from there (the spec puts the phone there) list only it.
+ */
+export const SHINE = {
+  customer: { id: id(7600), phone: '9000007600', name: 'Shine Sangeetha', vehicleId: id(7601) },
+  owner: { id: id(7602), phone: '9000007602', name: 'Shine Owner Selvam' },
+  garage: {
+    id: id(7603),
+    name: 'Shine Test Car Spa',
+    lat: 21.0,
+    lng: 79.0,
+    full: { id: id(7604), name: 'Interior + exterior wash', price: '649.00', durationMins: 90 },
+    plain: { id: id(7605), name: 'Shine Foam Wash', price: '399.00', durationMins: 45 },
+  },
+  bookings: {
+    done: refId('c1ea0001'),
+    lowFine: refId('c1ea0002'),
+    lowFollow: refId('c1ea0003'),
+  },
+  scores: { done: id(7620), lowFine: id(7621), lowFollow: id(7622) },
+  photos: {
+    done: [id(7630), id(7631), id(7632), id(7633)],
+    lowFine: [id(7634), id(7635), id(7636), id(7637)],
+  },
+} as const

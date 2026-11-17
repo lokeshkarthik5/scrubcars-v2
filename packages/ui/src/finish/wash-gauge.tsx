@@ -18,12 +18,18 @@ export function WashGauge({
   daysSinceWash,
   intervalDays,
   over,
+  reversed = false,
   className,
 }: {
   daysSinceWash: number | null
   intervalDays: number
   /** Past the interval: the arc turns amber. */
   over: boolean
+  /**
+   * Higher is better (Shine Score, 0078: a score out of 100 read as
+   * `daysSinceWash` of `intervalDays` 100): the arc runs red → amber → green.
+   */
+  reversed?: boolean
   className?: string
 }) {
   const ref = useRef<HTMLSpanElement>(null)
@@ -43,9 +49,9 @@ export function WashGauge({
       <svg viewBox="0 0 96 54" className="absolute inset-0 size-full overflow-visible">
         <defs>
           <linearGradient id={id} x1="0" x2="1">
-            <stop offset="0" stopColor="#22C55E" />
-            <stop offset="0.6" stopColor="#F5B83D" />
-            <stop offset="1" stopColor="#ff2d4a" />
+            <stop offset="0" stopColor={reversed ? '#ff2d4a' : '#22C55E'} />
+            <stop offset={reversed ? '0.4' : '0.6'} stopColor="#F5B83D" />
+            <stop offset="1" stopColor={reversed ? '#22C55E' : '#ff2d4a'} />
           </linearGradient>
         </defs>
         <path

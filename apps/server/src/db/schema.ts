@@ -25,6 +25,7 @@ import {
 } from 'drizzle-orm/pg-core'
 import type { AnalyticsEventName, DeviceClass } from '../lib/analytics.js'
 import type { BypassKind, BypassStatus, RewardStatus } from '../lib/bypass-reports.js'
+import type { BypassSource, FlagEvidence, FlagSignal } from '../lib/off-app-flags.js'
 import type { ComplaintCategory, ComplaintSource, ComplaintStatus } from '../lib/complaints.js'
 import type { GatewayRefundStatus, RefundSource } from '../lib/refunds.js'
 import type { ReviewTag } from '../lib/ratings.js'
@@ -3684,10 +3685,19 @@ export const bypassReports = pgTable(
     userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
     bookingId: uuid('booking_id').references(() => bookings.id, { onDelete: 'set null' }),
     rootBookingId: uuid('root_booking_id').references(() => bookings.id, { onDelete: 'set null' }),
-    bookingRef: varchar('booking_ref', { length: 8 }).notNull(),
+    // Null only on a Detlio flag about a garage rather than one booking (0077).
+    bookingRef: varchar('booking_ref', { length: 8 }),
     vendorId: uuid('vendor_id').references(() => vendors.id, { onDelete: 'set null' }),
     garageName: varchar('garage_name', { length: 255 }).notNull(),
     kind: text('kind').$type<BypassKind>().notNull(),
+    // Off-app payment flags (0077, lib/off-app-flags.ts): 'customer' for a
+    // customer's report, 'detlio' for Detlio's own check ("Flagged by
+    // Detlio"), which has a signal, its evidence (masked) and a key that
+    // keeps one flag per piece of evidence; no reporter, chain or reward.
+    source: text('source').$type<BypassSource>().default('customer').notNull(),
+    signal: text('signal').$type<FlagSignal>(),
+    evidence: jsonb('evidence').$type<FlagEvidence>(),
+    evidenceKey: varchar('evidence_key', { length: 200 }),
     note: varchar('note', { length: 500 }),
     status: text('status').$type<BypassStatus>().default('new').notNull(),
     confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
@@ -3730,6 +3740,13 @@ export const bypassReports = pgTable(
       sql`(${table.status} = 'dismissed') = (${table.dismissedAt} is not null and ${table.dismissedBy} is not null and ${table.dismissedReason} is not null)`
     ),
     check('bypass_reports_reward_status_check', sql`${table.rewardStatus} in ('none', 'owed', 'granted')`),
+    uniqueIndex('bypass_reports_evidence_key').on(table.evidenceKey).where(sql`${table.evidenceKey} is not null`),
+    index('bypass_reports_source_status_idx').on(table.source, table.status, table.createdAt),
+    check('bypass_reports_source_check', sql`${table.source} in ('customer', 'detlio')`),
+    check(
+      'bypass_reports_flag_check',
+      sql`(${table.source} = 'customer' and ${table.signal} is null and ${table.evidence} is null and ${table.evidenceKey} is null and ${table.bookingRef} is not null) or (${table.source} = 'detlio' and ${table.signal} in ('contact_in_note', 'regulars_went_quiet', 'cancelled_after_inspection') and ${table.evidence} is not null and ${table.evidenceKey} is not null and ${table.userId} is null and ${table.rootBookingId} is null and ${table.rewardStatus} = 'none')`
+    ),
     check(
       'bypass_reports_reward_confirmed_check',
       sql`${table.rewardStatus} = 'none' or ${table.status} = 'confirmed'`
@@ -6176,5 +6193,105 @@ export const repairQuotes = pgTable(
     ),
     check('repair_quotes_days_check', sql`${table.days} is null or ${table.days} between 1 and 30`),
     check('repair_quotes_booking_check', sql`${table.bookingId} is null or ${table.status} = 'quoted'`),
+  ]
+)
+
+// ─── Shine Score (0078) ──────────────────────────────────────────────────────
+//
+// A free cleanliness score from four photos, and a finished job's before and
+// after score from the garage's photos, behind SHINE_SCORE_ENABLED. Rules and
+// numbers in lib/shine-score.ts (SHINE_RULES).
+
+export type ShineScanStatus = 'scoring' | 'scored' | 'failed'
+
+/**
+ * A customer's scans. The day's free scans count the scored ones (a failed
+ * one never uses one up). The whole row and its private photos are deleted
+ * after SHINE_RULES.keepDays; a deleted account's rows stay until then
+ * (user_id SET NULL) so the sweep still finds and deletes their photos.
+ */
+export const shineScans = pgTable(
+  'shine_scans',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+    istDay: date('ist_day').notNull(),
+    status: text('status').$type<ShineScanStatus>().default('scoring').notNull(),
+    overall: smallint('overall'),
+    scores: jsonb('scores').$type<Record<string, number>>(),
+    findings: jsonb('findings').$type<Array<{ text: string; area: string }>>(),
+    summary: varchar('summary', { length: 160 }),
+    suggestion: varchar('suggestion', { length: 160 }),
+    photoKeys: text('photo_keys').array().default(sql`'{}'::text[]`).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    scoredAt: timestamp('scored_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('shine_scans_user_day_idx').on(table.userId, table.istDay),
+    index('shine_scans_created_at_idx').on(table.createdAt),
+    check('shine_scans_status_check', sql`${table.status} in ('scoring', 'scored', 'failed')`),
+    check('shine_scans_overall_check', sql`${table.overall} is null or ${table.overall} between 0 and 100`),
+    check(
+      'shine_scans_scored_check',
+      sql`(${table.status} = 'scored') = (${table.overall} is not null and ${table.scores} is not null and ${table.scoredAt} is not null)`
+    ),
+  ]
+)
+
+export type ShineJobStatus = 'scoring' | 'scored' | 'no_match' | 'failed'
+export type ShineReviewStatus = 'new' | 'looks_fine' | 'followed_up'
+
+/**
+ * One per finished booking: the before and after scores of the areas both
+ * sets of garage photos show (`areas`), or why there are none. An
+ * after-score under SHINE_RULES.lowAfterScore starts as review 'new' for
+ * Admin → Issues → Shine checks; a person marks it Looks fine or Followed
+ * up. Never read to mark down, strike or pause a garage.
+ */
+export const shineJobScores = pgTable(
+  'shine_job_scores',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    bookingId: uuid('booking_id')
+      .notNull()
+      .references(() => bookings.id, { onDelete: 'cascade' }),
+    vendorId: uuid('vendor_id').references(() => vendors.id, { onDelete: 'set null' }),
+    status: text('status').$type<ShineJobStatus>().default('scoring').notNull(),
+    attempts: smallint('attempts').default(1).notNull(),
+    areas: text('areas').array().default(sql`'{}'::text[]`).notNull(),
+    beforeOverall: smallint('before_overall'),
+    afterOverall: smallint('after_overall'),
+    beforeScores: jsonb('before_scores').$type<Record<string, number>>(),
+    afterScores: jsonb('after_scores').$type<Record<string, number>>(),
+    findings: jsonb('findings').$type<Array<{ text: string; area: string }>>(),
+    reviewStatus: text('review_status').$type<ShineReviewStatus>(),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    reviewedBy: varchar('reviewed_by', { length: 100 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+    scoredAt: timestamp('scored_at', { withTimezone: true }),
+  },
+  (table) => [
+    unique('shine_job_scores_booking_id_unique').on(table.bookingId),
+    index('shine_job_scores_review_idx')
+      .on(table.reviewStatus, table.scoredAt)
+      .where(sql`${table.reviewStatus} is not null`),
+    check('shine_job_scores_status_check', sql`${table.status} in ('scoring', 'scored', 'no_match', 'failed')`),
+    check(
+      'shine_job_scores_overall_check',
+      sql`(${table.beforeOverall} is null or ${table.beforeOverall} between 0 and 100) and (${table.afterOverall} is null or ${table.afterOverall} between 0 and 100)`
+    ),
+    check(
+      'shine_job_scores_scored_check',
+      sql`(${table.status} = 'scored') = (${table.beforeOverall} is not null and ${table.afterOverall} is not null and ${table.scoredAt} is not null)`
+    ),
+    check(
+      'shine_job_scores_review_status_check',
+      sql`${table.reviewStatus} is null or ${table.reviewStatus} in ('new', 'looks_fine', 'followed_up')`
+    ),
+    check(
+      'shine_job_scores_reviewed_check',
+      sql`(${table.reviewStatus} in ('looks_fine', 'followed_up')) = (${table.reviewedAt} is not null and ${table.reviewedBy} is not null) or ${table.reviewStatus} is null`
+    ),
   ]
 )

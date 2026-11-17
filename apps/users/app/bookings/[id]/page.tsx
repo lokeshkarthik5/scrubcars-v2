@@ -114,7 +114,9 @@ import { FinalBillCard, type BillPayment } from '@/components/final-bill-card'
 import { ExtraWorkCard } from '@/components/extra-work-card'
 import { TimeProposalCard } from '@/components/time-proposal-card'
 import { OtherGaragesCard } from '@/components/other-garages-card'
+import { garageDeclinedTitle, quotedGarageReason, showsRescue } from '@repo/core/rescue'
 import { JobPhotosCard } from '@/components/job-photos-card'
+import { BookingShineCard } from '@/components/shine/booking-shine-card'
 import { CarConditionCard } from '@/components/car-condition-card'
 import { ConditionCheckCard } from '@/components/condition-check-card'
 import { GuaranteeCard } from '@/components/guarantee/guarantee-card'
@@ -275,8 +277,8 @@ function cancelledPanel(booking: Booking): { title: string; lines: string[] } {
   if (booking.cancelledBy === 'vendor') {
     return {
       // The garage, never "vendor": the customer app's word for it (F10).
-      title: t('Declined by the garage'),
-      lines: withRefund([reason ?? t('The garage could not take this booking.')]),
+      title: garageDeclinedTitle(booking.vendorName),
+      lines: withRefund([reason ? quotedGarageReason(reason) : t('The garage could not take this booking.')]),
     }
   }
 
@@ -1223,6 +1225,13 @@ export default function BookingDetailPage({
         </section>
       )}
 
+      {/* Shine Score (0078): "Your Shine went 46 → 92", from the garage's photos. */}
+      <BookingShineCard
+        bookingId={booking.id}
+        completed={booking.status === 'completed'}
+        photos={booking.jobPhotos}
+      />
+
       <JobPhotosCard photos={booking.jobPhotos} completed={finished} />
 
       {/* The customer's own photos of their car (0045). */}
@@ -1466,9 +1475,14 @@ export default function BookingDetailPage({
         </ScCard>
       )}
 
-      {/* Not accepted in time (0042): somewhere else to book, same type. */}
-      {booking.status === 'cancelled' && booking.notAcceptedInTime && (
-        <OtherGaragesCard booking={booking} />
+      {/* The rescue: the garage let them down (didn't answer in time,
+          declined, called it off), so the best other garages for the same
+          job, with times near the original slot. */}
+      {showsRescue(booking) && (
+        <OtherGaragesCard
+          booking={booking}
+          addressId={matchSavedAddress(booking, addresses)}
+        />
       )}
 
       {/* A cancelled job: the same booking again, quietly. */}

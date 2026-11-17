@@ -100,6 +100,7 @@ import { refundsService } from '../refunds/refunds.service.js'
 import * as pushMessages from '../../lib/push-messages.js'
 import { pushService } from '../push/push.service.js'
 import { rewardsService } from '../rewards/rewards.service.js'
+import { shineScoreService } from '../shine-score/shine-score.service.js'
 import { stockService as garageStockService } from '../garage-book/garage-book-stock.service.js'
 import { carHistoryService } from '../car-history/car-history.service.js'
 import { guaranteeService } from '../guarantee/guarantee.service.js'
@@ -2566,6 +2567,8 @@ export const bookingsService = {
     if (updated!.guaranteeRedo) guaranteeService.redoChanged(bookingId)
     // Detlio Rewards (0050): a stamp and a scratch card, or why not.
     rewardsService.scheduleAfterCompletion(bookingId)
+    // Shine Score (0078): the before/after score from the garage's photos, after the response.
+    shineScoreService.scheduleAfterCompletion(bookingId)
     // Garage Book stock (0074): its services' stock comes off, in the background.
     garageStockService.afterDetlioCompletion(vendorId, bookingId)
     return toVendorBookingResponse(updated!)
@@ -2664,6 +2667,8 @@ export const bookingsService = {
     // A free redo done (0051): its claim closes.
     if (updated!.guaranteeRedo) guaranteeService.redoChanged(bookingId)
     rewardsService.scheduleAfterCompletion(bookingId)
+    // Shine Score (0078): the before/after score from the garage's photos, after the response.
+    shineScoreService.scheduleAfterCompletion(bookingId)
     // Garage Book stock (0074): its services' stock comes off, in the background.
     garageStockService.afterDetlioCompletion(vendorId, bookingId)
     return toVendorBookingResponse(updated!)
@@ -2708,6 +2713,7 @@ export const bookingsService = {
       carHistoryService.scheduleAfterCompletion(bookingId)
       if (booking.guaranteeRedo) guaranteeService.redoChanged(bookingId)
       rewardsService.scheduleAfterCompletion(bookingId)
+      shineScoreService.scheduleAfterCompletion(bookingId)
       garageStockService.afterDetlioCompletion(booking.vendorId, bookingId)
     }
     log.info({ bookingId, step, adminName }, 'booking:pickup_step_confirmed_by_detlio')

@@ -21,6 +21,7 @@ import {
   INSPECTION_NO_FEE,
   CONDITION_CHECK,
   REPAIR_QUOTES,
+  SHINE,
   OWNER_DELETE,
   PRE_IOS,
   STAFF,
@@ -91,6 +92,8 @@ async function globalSetup() {
   await saveState('customer-repair', REPAIR_QUOTES.customer.phone, 'customer')
   await saveState('vendor-repair', REPAIR_QUOTES.owner.phone, 'vendor')
   await saveState('vendor-repair-second', REPAIR_QUOTES.secondOwner.phone, 'vendor')
+  // Shine Score (SHINE, 7600–7699).
+  await saveState('customer-shine', SHINE.customer.phone, 'customer')
   await saveAdminState('admin')
   await saveAdminState('admin-shared', ADMIN)
   // A personal login that is not the owner (10 Nov 2026): the old rules.

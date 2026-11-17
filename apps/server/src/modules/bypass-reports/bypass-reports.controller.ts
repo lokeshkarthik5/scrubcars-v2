@@ -64,3 +64,8 @@ export async function getDropOff(c: BypassContext) {
   const data = await bypassReportsService.dropOff()
   return c.json({ success: true, data })
 }
+
+export async function checkFlags(c: BypassContext) {
+  const data = await bypassReportsService.checkFlagsNow()
+  return c.json({ success: true, data })
+}

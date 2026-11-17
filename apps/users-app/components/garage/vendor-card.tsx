@@ -64,6 +64,7 @@ export function VendorCard({
   note,
   chips,
   footer,
+  attached,
   highlight,
 }: {
   vendor: Vendor;
@@ -72,6 +73,11 @@ export function VendorCard({
   note?: string | null;
   chips?: ReactNode;
   footer?: ReactNode;
+  /**
+   * A part joined to the bottom of the card, inside its border but outside its press target
+   * (the rescue's "Same job" price and times, which are buttons of their own).
+   */
+  attached?: ReactNode;
   /** The search that found it: its words are underlined in the name and the service. */
   highlight?: string;
 }) {
@@ -92,7 +98,7 @@ export function VendorCard({
       <PressRow
         accessibilityLabel={vendor.name}
         onPress={() => router.push((modeParam ? `/garage/${vendor.id}?mode=${modeParam}` : `/garage/${vendor.id}`) as Href)}
-        style={styles.card}
+        style={[styles.card, attached ? styles.cardJoined : null]}
       >
         <View style={styles.photo}>
           {cover ? <Image source={{ uri: cover }} accessibilityLabel={vendor.name} resizeMode="cover" style={styles.fill} /> : <GarageCover vendor={vendor} />}
@@ -195,6 +201,7 @@ export function VendorCard({
           ) : null}
         </View>
       </PressRow>
+      {attached ? <View style={styles.attached}>{attached}</View> : null}
       {showSave ? (
         <View style={styles.action}>
           <SaveGarageButton vendor={vendor} />
@@ -207,6 +214,16 @@ export function VendorCard({
 
 const useStyles = createStyles((c) => ({
   card: { overflow: 'hidden', borderRadius: 16, borderWidth: 1, borderColor: c.border, backgroundColor: c.surface },
+  cardJoined: { borderBottomWidth: 0, borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
+  attached: {
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderColor: c.border,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    backgroundColor: c.surface,
+  },
   photo: { height: 150, backgroundColor: c.surfaceElevated },
   fill: { width: '100%', height: '100%' },
   logo: {

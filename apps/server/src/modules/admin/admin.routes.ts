@@ -46,6 +46,7 @@ import {
   updateMemberSchema,
 } from '../members/members.validation.js'
 import { adminBypassReportRoutes } from '../bypass-reports/bypass-reports.routes.js'
+import { adminShineRoutes } from '../shine-score/shine-score.routes.js'
 import { adminTodayRoutes } from '../today/today.routes.js'
 import { adminGarageBoardRoutes } from '../garage-board/garage-board.routes.js'
 import { adminCoverageRoutes } from '../coverage/coverage.routes.js'
@@ -539,6 +540,8 @@ adminRoutes.route('/complaints', adminComplaintRoutes)
 // "Did the garage ask you to book directly?" reports, garage strikes and
 // customer drop-off (0052). Nested here for the same cookie reason.
 adminRoutes.route('/bypass-reports', adminBypassReportRoutes)
+// Shine checks (0078): low after-scores for a person to look at.
+adminRoutes.route('/shine-checks', adminShineRoutes)
 
 // Detlio Guarantee (0051): free redo claims, Detlio's decisions.
 adminRoutes.route('/guarantee', adminGuaranteeRoutes)

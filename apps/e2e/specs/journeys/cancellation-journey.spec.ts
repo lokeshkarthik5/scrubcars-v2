@@ -57,11 +57,14 @@ test('a garage rejects a booking and the customer is told why @p0', async ({
   expect(row?.cancelled_by).toBe('vendor')
   expect(row?.cancellation_reason).toBe('Ramp under repair')
 
-  // The customer's page polls, so this arrives without a reload.
-  await expect(customer.getByText(/Declined by|Cancelled by/i).first()).toBeVisible({
-    timeout: 15_000,
-  })
-  await expect(customer.getByText('Ramp under repair')).toBeVisible()
+  // The customer's page polls, so this arrives without a reload. A decline
+  // is named after the garage, and the reason is the garage's own words.
+  await expect(
+    customer.getByRole('heading', {
+      name: `${VENDORS.main.name} can't take this booking`,
+    })
+  ).toBeVisible({ timeout: 15_000 })
+  await expect(customer.getByText('“Ramp under repair”')).toBeVisible()
 
   await close()
 })

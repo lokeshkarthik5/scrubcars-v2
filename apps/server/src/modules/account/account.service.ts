@@ -15,6 +15,7 @@ import { deleteObject, keyFromPublicUrl } from '../../lib/storage.js'
 import { giftCreditService } from '../gift-credit/gift-credit.service.js'
 import { giftsService } from '../gifts/gifts.service.js'
 import { refundsService } from '../refunds/refunds.service.js'
+import { shineScoreService } from '../shine-score/shine-score.service.js'
 import { accountRepository, DeletionRaced } from './account.repository.js'
 import { removeRepairMediaObjects } from '../../lib/job-photo-storage.js'
 
@@ -62,12 +63,20 @@ function accountChanged() {
   )
 }
 
-/** The profile photo's file, after the commit, best effort. */
-function removeAvatar(result: { avatarKey: string | null; avatarUrl: string | null }) {
+/**
+ * The profile photo's file, after the commit, best effort; and the Shine
+ * Score scans (0075) the deletion unlinked, with their private photos.
+ */
+function removeAvatar(result: {
+  avatarKey: string | null
+  avatarUrl: string | null
+  shineScanIds?: string[]
+}) {
   const avatarKey = result.avatarKey ?? (result.avatarUrl ? keyFromPublicUrl(result.avatarUrl) : null)
   if (avatarKey) {
     runInBackground('account:avatar_delete', () => deleteObject(avatarKey))
   }
+  shineScoreService.scheduleDeleteScans(result.shineScanIds ?? [])
 }
 
 export const accountService = {
