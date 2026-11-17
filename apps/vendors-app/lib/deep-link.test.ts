@@ -64,3 +64,7 @@ test('a link is only followed inside the app', () => {
   expect(afterSignIn('//evil.com', '/home')).toBe('/home');
   expect(afterSignIn(null, '/home')).toBe('/home');
 });
+
+test('a repair quote travels as repair= (0075)', () => {
+  expect(rewriteSystemPath('/requests#repair-q1')).toBe('/requests?repair=q1');
+});

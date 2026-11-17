@@ -2316,3 +2316,33 @@ export const CONDITION_CHECK = {
   pickupCode: '7531',
   deliveryCode: '7532',
 } as const
+
+/**
+ * Repair & bodywork quotes (0076; ids 7550–7599, phones 90000076xx, 50–99): two
+ * listed garages of their own far from every other fixture (south of the
+ * no-fee inspection garage), open all day, that take repair quotes and have
+ * a free "price on inspection" service (what a visit books), their owners,
+ * and one customer with a white Maruti Swift who stands at `point`.
+ * `noInspection` is a third garage with no free inspection service and the
+ * switch off: admin's switch refuses it; `switchGarage`, far away, is the one
+ * admin's spec turns off and on again. Only
+ * specs/journeys/repair-quotes-journey.spec.ts and
+ * specs/admin/repair-quotes.spec.ts use them.
+ */
+export const REPAIR_QUOTES = {
+  point: { lat: ORIGIN.lat - 2.2, lng: ORIGIN.lng - 0.4 },
+  customer: { id: id(7550), phone: '9000007550', name: 'Dent Deepa', vehicleId: id(7551) },
+  owner: { id: id(7552), phone: '9000007652', name: 'Repair Owner Murugan' },
+  garage: { id: id(7553), name: 'Murugan Repair Works' },
+  inspection: { id: id(7554), name: 'Dent & Scratch Check', durationMins: 60 },
+  secondOwner: { id: id(7555), phone: '9000007555', name: 'Body Shop Owner Selvi' },
+  second: { id: id(7556), name: 'Selvi Body Shop' },
+  secondInspection: { id: id(7557), name: 'Body Check', durationMins: 60 },
+  noInspectionOwner: { id: id(7558), phone: '9000007558', name: 'Flat Price Owner Anand' },
+  noInspection: { id: id(7559), name: 'Flat Price Car Care' },
+  noInspectionWash: { id: id(7560), name: 'Foam Wash' },
+  /** Admin's switch is flipped on this one: 110 km from `point`, so no request ever reaches it. */
+  switchOwner: { id: id(7561), phone: '9000007561', name: 'Switch Owner Kala' },
+  switchGarage: { id: id(7562), name: 'Far Dent Studio' },
+  switchInspection: { id: id(7563), name: 'Dent Look', durationMins: 30 },
+} as const

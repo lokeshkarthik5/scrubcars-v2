@@ -12,6 +12,9 @@ describe('gateRedirect', () => {
       expect(gateRedirect(path, guest)).toBeNull();
     }
     expect(gateRedirect('/updates', guest)).toBe('/login');
+    // Repair quotes (0075): one customer's own requests.
+    expect(gateRedirect('/repair-quotes/new', guest)).toBe('/login');
+    expect(gateRedirect('/repair-quotes/abc', customer)).toBeNull();
   });
   test("a guest's Home is the list, and so is the start", () => {
     expect(gateRedirect('/home', guest)).toBe('/garages');

@@ -571,6 +571,24 @@ export const env = {
   // zone); this stops bursts.
   reachWriteRateLimit: Number(process.env.REACH_WRITE_RATE_LIMIT ?? '20'),
 
+  // ─── Repair & bodywork quotes (lib/repair-quotes.ts, 0076) ─────────────────
+  /**
+   * Whether customers can ask nearby garages for repair & bodywork quotes:
+   * REPAIR_QUOTES_ENABLED=on. Off unless set to exactly `on`. While off every
+   * repair-quote route but the public `/repair-quotes/config` is a 404 (the
+   * customer's, the garage's and admin's), the customer's Home has no tile,
+   * the garage's Requests page shows only visit requests, and admin's
+   * "Takes repair & bodywork quotes" switch and Repair quotes tab are hidden.
+   * The switch a garage already has stays as it is.
+   */
+  repairQuotesEnabled: (process.env.REPAIR_QUOTES_ENABLED ?? '').trim().toLowerCase() === 'on',
+  /**
+   * Briefs written by the AI from a customer's pictures, per signed-in
+   * customer per hour: REPAIR_QUOTE_AI_RATE_LIMIT, default 20. Read on each
+   * request.
+   */
+  repairQuoteAiRateLimit: Number(process.env.REPAIR_QUOTE_AI_RATE_LIMIT ?? '20'),
+
   // ─── Usage events (lib/analytics.ts) ───────────────────────────────────────
   // E2E only: let Playwright's headless browser record events, which are
   // otherwise dropped with crawlers. Refused in production.

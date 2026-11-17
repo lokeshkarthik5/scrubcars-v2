@@ -638,6 +638,9 @@ export const vendors = pgTable(
     // centre, instead of its own radius. One with no city keeps to its radius.
     doorstepWholeCity: boolean('doorstep_whole_city').default(false).notNull(),
     pickupWholeCity: boolean('pickup_whole_city').default(false).notNull(),
+    // Repair & bodywork quotes (0076): admin's "Takes repair & bodywork
+    // quotes". Only garages with it on are asked (lib/repair-quotes.ts).
+    repairQuotesEnabled: boolean('repair_quotes_enabled').default(false).notNull(),
     // The garage's city (0069), NULL for Other towns. Written only by the
     // database: a trigger sets it on every write that touches lat, lng or
     // city, and any change to `cities` recomputes every garage, both by
@@ -6056,4 +6059,122 @@ export const garageMilestonesSeen = pgTable(
     seenAt: timestamp('seen_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [primaryKey({ columns: [table.vendorId, table.key] })]
+)
+
+// ─── Repair & bodywork quotes (0076) ─────────────────────────────────────────
+
+export type RepairQuoteRequestStatus = 'open' | 'booked' | 'cancelled'
+export type RepairQuoteStatus = 'waiting' | 'quoted' | 'declined'
+export type RepairBriefSource = 'ai' | 'ai_edited' | 'customer'
+
+/** One picture garages see: a customer's photo, or a frame taken from the video on the phone. */
+export interface RepairQuotePhoto {
+  /** The object KEY in the private bucket (lib/job-photo-storage.ts), never an address. */
+  key: string
+  kind: 'photo' | 'frame'
+}
+
+/** Where the damage is on one of the pictures, as shares of its width and height (0–1). */
+export interface RepairQuoteBox {
+  image: number
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+/**
+ * A customer's request for repair quotes (modules/repair-quotes): what is
+ * damaged, in a brief garages read, and the private video and pictures.
+ * Rules in lib/repair-quotes.ts; CHECKs in drizzle/0076_repair_quotes.sql.
+ */
+export const repairQuoteRequests = pgTable(
+  'repair_quote_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    vehicleId: uuid('vehicle_id').references(() => userVehicles.id, { onDelete: 'set null' }),
+    vehicleLabel: varchar('vehicle_label', { length: 120 }).notNull(),
+    vehicleType: varchar('vehicle_type', { length: 20 }).$type<'hatchback' | 'sedan' | 'suv'>().notNull(),
+    lat: doublePrecision('lat').notNull(),
+    lng: doublePrecision('lng').notNull(),
+    area: varchar('area', { length: 80 }),
+    note: varchar('note', { length: 140 }).notNull(),
+    brief: varchar('brief', { length: 240 }).notNull(),
+    damageArea: varchar('damage_area', { length: 80 }),
+    damageLabel: varchar('damage_label', { length: 60 }),
+    briefSource: varchar('brief_source', { length: 20 }).$type<RepairBriefSource>().notNull(),
+    box: jsonb('box').$type<RepairQuoteBox>(),
+    videoKey: varchar('video_key', { length: 300 }),
+    videoSecs: smallint('video_secs'),
+    photos: jsonb('photos').$type<RepairQuotePhoto[]>().default([]).notNull(),
+    status: varchar('status', { length: 20 }).$type<RepairQuoteRequestStatus>().default('open').notNull(),
+    closesAt: timestamp('closes_at', { withTimezone: true }).notNull(),
+    bookedQuoteId: uuid('booked_quote_id').references((): AnyPgColumn => repairQuotes.id, { onDelete: 'set null' }),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('repair_quote_requests_user_idx').on(table.userId, table.createdAt),
+    index('repair_quote_requests_created_idx').on(table.createdAt),
+    check('repair_quote_requests_vehicle_type_check', sql`${table.vehicleType} in ('hatchback', 'sedan', 'suv')`),
+    check('repair_quote_requests_status_check', sql`${table.status} in ('open', 'booked', 'cancelled')`),
+    check('repair_quote_requests_brief_source_check', sql`${table.briefSource} in ('ai', 'ai_edited', 'customer')`),
+    check('repair_quote_requests_note_check', sql`char_length(btrim(${table.note})) between 1 and 140`),
+    check('repair_quote_requests_brief_check', sql`char_length(btrim(${table.brief})) between 1 and 240`),
+    check(
+      'repair_quote_requests_video_secs_check',
+      sql`${table.videoSecs} is null or (${table.videoKey} is not null and ${table.videoSecs} between 1 and 30)`
+    ),
+    check('repair_quote_requests_media_check', sql`${table.videoKey} is not null or jsonb_array_length(${table.photos}) > 0`),
+    check('repair_quote_requests_booked_check', sql`${table.bookedQuoteId} is null or ${table.status} = 'booked'`),
+    check('repair_quote_requests_cancelled_check', sql`(${table.status} = 'cancelled') = (${table.cancelledAt} is not null)`),
+  ]
+)
+
+/** One garage asked about a repair request: its clock, its answer, and the visit booked from it. */
+export const repairQuotes = pgTable(
+  'repair_quotes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    requestId: uuid('request_id')
+      .notNull()
+      .references(() => repairQuoteRequests.id, { onDelete: 'cascade' }),
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    distanceKm: decimal('distance_km', { precision: 6, scale: 1 }).notNull(),
+    respondBy: timestamp('respond_by', { withTimezone: true }).notNull(),
+    status: varchar('status', { length: 20 }).$type<RepairQuoteStatus>().default('waiting').notNull(),
+    priceFrom: integer('price_from'),
+    priceTo: integer('price_to'),
+    days: smallint('days'),
+    needsInspection: boolean('needs_inspection'),
+    note: varchar('note', { length: 200 }),
+    declineReason: varchar('decline_reason', { length: 200 }),
+    answeredAt: timestamp('answered_at', { withTimezone: true }),
+    answeredBy: uuid('answered_by').references(() => users.id, { onDelete: 'set null' }),
+    bookingId: uuid('booking_id').references(() => bookings.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('repair_quotes_request_vendor_key').on(table.requestId, table.vendorId),
+    index('repair_quotes_vendor_idx').on(table.vendorId, table.createdAt),
+    uniqueIndex('repair_quotes_booking_id_key').on(table.bookingId).where(sql`${table.bookingId} is not null`),
+    check('repair_quotes_status_check', sql`${table.status} in ('waiting', 'quoted', 'declined')`),
+    check('repair_quotes_answer_check', sql`(${table.status} = 'waiting') = (${table.answeredAt} is null)`),
+    check(
+      'repair_quotes_quoted_check',
+      sql`(${table.status} = 'quoted') = (${table.priceFrom} is not null and ${table.priceTo} is not null and ${table.days} is not null and ${table.needsInspection} is not null)`
+    ),
+    check(
+      'repair_quotes_price_check',
+      sql`${table.priceFrom} is null or (${table.priceFrom} > 0 and ${table.priceTo} >= ${table.priceFrom} and ${table.priceTo} <= 500000)`
+    ),
+    check('repair_quotes_days_check', sql`${table.days} is null or ${table.days} between 1 and 30`),
+    check('repair_quotes_booking_check', sql`${table.bookingId} is null or ${table.status} = 'quoted'`),
+  ]
 )

@@ -20,6 +20,7 @@ import {
   CUSTOMERS,
   INSPECTION_NO_FEE,
   CONDITION_CHECK,
+  REPAIR_QUOTES,
   OWNER_DELETE,
   PRE_IOS,
   STAFF,
@@ -86,6 +87,10 @@ async function globalSetup() {
   // Car condition check at handover (CONDITION_CHECK, 7500–7549).
   await saveState('customer-condition', CONDITION_CHECK.customer.phone, 'customer')
   await saveState('vendor-condition', CONDITION_CHECK.owner.phone, 'vendor')
+  // Repair & bodywork quotes (REPAIR_QUOTES, 7550–7599).
+  await saveState('customer-repair', REPAIR_QUOTES.customer.phone, 'customer')
+  await saveState('vendor-repair', REPAIR_QUOTES.owner.phone, 'vendor')
+  await saveState('vendor-repair-second', REPAIR_QUOTES.secondOwner.phone, 'vendor')
   await saveAdminState('admin')
   await saveAdminState('admin-shared', ADMIN)
   // A personal login that is not the owner (10 Nov 2026): the old rules.

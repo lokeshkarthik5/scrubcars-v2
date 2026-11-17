@@ -158,8 +158,10 @@ export interface DocumentRequest {
   schema: Record<string, unknown>
   maxOutputTokens: number
   /**
-   * The user turn's line before the files. Fixed text, never personal data.
-   * Unset: the garage import's own ("Read this document.").
+   * The user turn's line before the files. Fixed text, never personal data,
+   * except the repair-quote brief's (0076), which sends the customer's own
+   * line about the damage as data, never instructions: its `instructions`
+   * say so. Unset: the garage import's own ("Read this document.").
    */
   prompt?: string
 }

@@ -19,6 +19,7 @@ import {
   pushDevices,
   pushSubscriptions,
   refreshTokens,
+  repairQuoteRequests,
   rewardNudges,
   rewardReferralCodes,
   slotAlerts,
@@ -107,7 +108,7 @@ export const accountRepository = {
      * checkout closed), and the delete is audited with who did it.
      */
     byAdmin?: { sub: string; name: string; reason: string }
-  }): Promise<{ avatarKey: string | null; avatarUrl: string | null; endedBookingIds: string[] } | null> {
+  }): Promise<{ avatarKey: string | null; avatarUrl: string | null; endedBookingIds: string[]; repairMediaKeys?: string[] } | null> {
     const { userId, now, byAdmin } = input
     return db.transaction(async (tx) => {
       const [user] = await tx
@@ -189,6 +190,18 @@ export const accountRepository = {
       // customer's, so it goes in one statement (its own SET NULLs land on
       // rows going too). Before the addresses, which they name.
       await tx.delete(bookingRequests).where(eq(bookingRequests.userId, userId))
+      // Repair quote requests (0076): their words, pictures and video go
+      // with the account (the garages' answers with them). The media keys
+      // come back, so the files are removed after the commit.
+      const repairRows = await tx
+        .select({ videoKey: repairQuoteRequests.videoKey, photos: repairQuoteRequests.photos })
+        .from(repairQuoteRequests)
+        .where(eq(repairQuoteRequests.userId, userId))
+      const repairMediaKeys = repairRows.flatMap((row) => [
+        ...(row.videoKey ? [row.videoKey] : []),
+        ...row.photos.map((photo) => photo.key),
+      ])
+      await tx.delete(repairQuoteRequests).where(eq(repairQuoteRequests.userId, userId))
       await tx.delete(userAddresses).where(eq(userAddresses.userId, userId))
 
       // Cars: kept (blanked) where a booking or checkout names them, else
@@ -249,7 +262,7 @@ export const accountRepository = {
         })
       }
 
-      return { avatarKey: user.avatarStorageKey ?? null, avatarUrl: user.avatarUrl ?? null, endedBookingIds }
+      return { avatarKey: user.avatarStorageKey ?? null, avatarUrl: user.avatarUrl ?? null, endedBookingIds, repairMediaKeys }
     })
   },
 }

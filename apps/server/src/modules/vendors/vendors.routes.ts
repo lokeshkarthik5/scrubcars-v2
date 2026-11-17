@@ -24,6 +24,7 @@ import { garageAgreementRoutes } from '../agreements/agreements.routes.js'
 import { garageTierRoutes } from '../tiers/tiers.routes.js'
 import { garageGuaranteeRoutes } from '../guarantee/guarantee.routes.js'
 import { garageBookingRequestRoutes } from '../booking-requests/booking-requests.routes.js'
+import { garageRepairQuoteRoutes } from '../repair-quotes/repair-quotes.routes.js'
 import { garageReviewRoutes } from '../reviews/reviews.routes.js'
 import { garageBookRoutes } from '../garage-book/garage-book.routes.js'
 import * as vendorsController from './vendors.controller.js'
@@ -199,6 +200,9 @@ vendorsRoutes.route('/me/guarantee', garageGuaranteeRoutes)
 // it does new bookings); what one earns is the owner seat's alone. Nested
 // for the same reason as the team screen.
 vendorsRoutes.route('/me/requests', garageBookingRequestRoutes)
+// Repair & bodywork quotes (0076), answered beside visit requests: its own
+// file, operators too, every route a 404 while REPAIR_QUOTES_ENABLED is off.
+vendorsRoutes.route('/me/repair-quotes', garageRepairQuoteRoutes)
 
 // The garage's reviews (0065): its score, its one public reply to each and
 // reporting one to the team. Owner seat only, in its own file. Nested for the

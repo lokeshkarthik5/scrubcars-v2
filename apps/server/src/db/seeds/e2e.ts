@@ -139,6 +139,7 @@ import {
   CALENDAR,
   INSPECTION_NO_FEE,
   CONDITION_CHECK,
+  REPAIR_QUOTES,
 } from './e2e-ids.js'
 import { hashPassword } from '../../lib/passwords.js'
 import { codeSuffix, couponCodeHash, couponKeys, deriveCouponCode } from '../../lib/coupons.js'
@@ -3914,6 +3915,62 @@ async function seedConditionCheckRows() {
 }
 
 /**
+ * Repair & bodywork quotes (0076; REPAIR_QUOTES, ids 7550–7599, phones
+ * 90000075xx, 50–99): see REPAIR_QUOTES. No requests: the journey sends its own.
+ */
+async function seedRepairQuoteRows() {
+  const Q = REPAIR_QUOTES
+  await db.insert(users).values([
+    { id: Q.customer.id, name: Q.customer.name, phone: Q.customer.phone, isCustomer: true, isVendorOwner: false,
+      phoneVerified: true, status: 'active' as const },
+    ...[Q.owner, Q.secondOwner, Q.noInspectionOwner, Q.switchOwner].map((owner) => ({
+      id: owner.id, name: owner.name, phone: owner.phone, isCustomer: false, isVendorOwner: true,
+      phoneVerified: true, status: 'active' as const,
+    })),
+  ])
+  await db.insert(userVehicles).values({
+    id: Q.customer.vehicleId, userId: Q.customer.id, make: 'Maruti', model: 'Swift', color: 'White',
+    licensePlate: 'TN09RQ0075', vehicleType: 'hatchback', isDefault: true,
+  })
+  const garage = (id: string, ownerId: string, businessName: string, phone: string, km: number, repairQuotesEnabled: boolean) => ({
+    id, ownerId, businessName, phone, address: '75, Bodywork Lane, Mahabalipuram', city: 'Chennai', pincode: '603104',
+    lat: Q.point.lat + km / 111, lng: Q.point.lng, geoSource: 'map_pin' as const, geoConfirmedAt: now,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'] as Array<'hatchback' | 'sedan' | 'suv'>, bays: 4, slotIntervalMins: 30,
+    whatsapp: null, status: 'active' as const, isVerified: true, dropinEnabled: true, doorstepEnabled: false,
+    repairQuotesEnabled, createdAt: daysAgo(30),
+  })
+  await db.insert(vendors).values([
+    garage(Q.garage.id, Q.owner.id, Q.garage.name, Q.owner.phone, 2, true),
+    garage(Q.second.id, Q.secondOwner.id, Q.second.name, Q.secondOwner.phone, 3.5, true),
+    garage(Q.noInspection.id, Q.noInspectionOwner.id, Q.noInspection.name, Q.noInspectionOwner.phone, 1, false),
+    garage(Q.switchGarage.id, Q.switchOwner.id, Q.switchGarage.name, Q.switchOwner.phone, 110, true),
+  ])
+  await db.insert(userMemberMapping).values([
+    { vendorId: Q.garage.id, userId: Q.owner.id, role: 'vendor_admin', status: 'active' },
+    { vendorId: Q.second.id, userId: Q.secondOwner.id, role: 'vendor_admin', status: 'active' },
+    { vendorId: Q.noInspection.id, userId: Q.noInspectionOwner.id, role: 'vendor_admin', status: 'active' },
+    { vendorId: Q.switchGarage.id, userId: Q.switchOwner.id, role: 'vendor_admin', status: 'active' },
+  ])
+  // Open all day, so the 4-hour clock runs whenever the suite does.
+  await db.insert(vendorWorkingHours).values([
+    ...hoursFor(Q.garage.id, '00:00:00', '23:59:00'),
+    ...hoursFor(Q.second.id, '00:00:00', '23:59:00'),
+    ...hoursFor(Q.noInspection.id, '06:00:00', '22:00:00'),
+    ...hoursFor(Q.switchGarage.id, '06:00:00', '22:00:00'),
+  ])
+  await db.insert(services).values([
+    { id: Q.inspection.id, vendorId: Q.garage.id, name: Q.inspection.name, description: 'We look at the dent or scratch and quote the work.',
+      category: 'scratch_removal', pricingType: 'on_inspection', price: '0.00', durationMins: Q.inspection.durationMins, isActive: true },
+    { id: Q.secondInspection.id, vendorId: Q.second.id, name: Q.secondInspection.name, description: 'We check the body and quote the work.',
+      category: 'scratch_removal', pricingType: 'on_inspection', price: '0.00', durationMins: Q.secondInspection.durationMins, isActive: true },
+    { id: Q.noInspectionWash.id, vendorId: Q.noInspection.id, name: Q.noInspectionWash.name, description: 'An exterior foam wash.',
+      category: 'car_wash', pricingType: 'flat', price: '499.00', durationMins: 60, isActive: true },
+    { id: Q.switchInspection.id, vendorId: Q.switchGarage.id, name: Q.switchInspection.name, description: 'We look at the dent and quote.',
+      category: 'scratch_removal', pricingType: 'on_inspection', price: '0.00', durationMins: Q.switchInspection.durationMins, isActive: true },
+  ])
+}
+
+/**
  * The garage's Bookings calendar (CALENDAR, ids 6200–6249, phones
  * 90000062xx): see CALENDAR for what each row is for. Times are built from
  * India's date, not the seeding machine's, so "today" is the day the
@@ -4633,6 +4690,8 @@ async function main() {
   await seedInspectionNoFeeRows()
   console.log('[e2e-seed] car condition check…')
   await seedConditionCheckRows()
+  console.log('[e2e-seed] repair quotes…')
+  await seedRepairQuoteRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }

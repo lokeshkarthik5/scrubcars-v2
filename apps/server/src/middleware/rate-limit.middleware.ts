@@ -157,6 +157,14 @@ const bySignedInCustomer: RateLimitKey = (c) => {
 
 export const reachWriteRateLimiter = createRateLimiter(env.reachWriteRateLimit, 60 * 60 * 1000, bySignedInCustomer)
 
+// Repair quotes (0076): the AI brief from a customer's pictures, per signed-in
+// customer per hour. REPAIR_QUOTE_AI_RATE_LIMIT, default 20.
+export const repairQuoteAiRateLimiter = createRateLimiter(
+  () => env.repairQuoteAiRateLimit,
+  60 * 60 * 1000,
+  bySignedInCustomer
+)
+
 // Garage Book's public pages (0074): a bill (/b/<token>) and a garage's
 // booking page (/g/<slug>), per IP per minute. A bill token is 144 bits, so
 // this is a load cap, not what stops guessing.

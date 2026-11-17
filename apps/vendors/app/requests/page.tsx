@@ -34,6 +34,12 @@ import {
 import { formatINR } from '@repo/core/format'
 import { useNow } from '@repo/core/hooks/use-now'
 import { cn } from '@repo/core/utils'
+import {
+  repairQuotesOn,
+  useGarageRepairQuotes,
+  useRepairQuotesConfig,
+} from '@repo/core/api/hooks/use-repair-quotes'
+import { ClosedRepairQuoteCard, WaitingRepairQuoteCard } from '@/components/repair-quote-card'
 
 /** The car type as the garage prices it (English, shown as `t(…)`). */
 const CAR_TYPE: Record<string, string> = {
@@ -64,17 +70,25 @@ export default function RequestsPage() {
   const t = useT()
   const [scope, setScope] = useState<'open' | 'closed'>('open')
   const requests = useGarageRequests(scope)
+  // Repair & bodywork quotes (0075) come into the same list, first: only
+  // while the API says they are on.
+  const repairConfig = useRepairQuotesConfig()
+  const repairOn = repairQuotesOn(repairConfig.data)
+  const repairs = useGarageRepairQuotes(scope, repairOn)
   const now = useNow(1000)
   const items = requests.data?.items ?? []
+  const repairItems = repairOn ? (repairs.data?.items ?? []) : []
 
   return (
     <AppShell showNav navType="vendor" className="gap-4 py-4">
       <TopBar showBack backHref="/home" title={t('Requests')} />
       <p className="text-[12px] text-text-secondary">
-        {t(
-          'Customers just outside your area ask you to come. Nothing is paid until you say yes. Answer within {hours} hours, or we ask the next garage.',
-          { hours: REQUEST_RULES.respondMinutes / 60 }
-        )}
+        {repairOn
+          ? t('Customers ask you to come, or for a repair quote. Nothing is paid until you say yes.')
+          : t(
+              'Customers just outside your area ask you to come. Nothing is paid until you say yes. Answer within {hours} hours, or we ask the next garage.',
+              { hours: REQUEST_RULES.respondMinutes / 60 }
+            )}
       </p>
       <GraphiteSwitch
         aria-label={t('Which requests')}
@@ -93,7 +107,7 @@ export default function RequestsPage() {
           onRetry={() => void requests.refetch()}
           retrying={requests.isFetching}
         />
-      ) : items.length === 0 ? (
+      ) : items.length === 0 && repairItems.length === 0 ? (
         <EmptyState
           icon={<IconMapPin size={28} stroke={1.5} />}
           title={t('No requests right now')}
@@ -103,6 +117,13 @@ export default function RequestsPage() {
         />
       ) : (
         <div className="flex flex-col gap-3">
+          {repairItems.map((quote) =>
+            scope === 'closed' || quote.state !== 'waiting' ? (
+              <ClosedRepairQuoteCard key={quote.id} quote={quote} />
+            ) : (
+              <WaitingRepairQuoteCard key={quote.id} quote={quote} now={now} />
+            )
+          )}
           {items.map((request) =>
             scope === 'closed' ? (
               <ClosedRequestCard key={request.id} request={request} />

@@ -1,3 +1,4 @@
+import { repairQuotesOn, useGarageRepairQuoteCount, useRepairQuotesConfig } from '@repo/core/api/hooks/use-repair-quotes';
 import { getVendorReviews } from '@repo/core/api/reviews';
 import type { ApiVendorProfile } from '@repo/core/api/types';
 import { agreementBannerLine } from '@repo/core/agreements';
@@ -319,7 +320,11 @@ function RequestsHomeCard() {
   const colors = useColors();
   const styles = useStyles();
   const count = useGarageRequestCount();
-  const waiting = count.data?.waiting ?? 0;
+  // Repair quotes (0075) wait in the same list, so they count here too (as the website).
+  const repairOn = repairQuotesOn(useRepairQuotesConfig().data);
+  const repairCount = useGarageRepairQuoteCount(repairOn);
+  const repairs = repairOn ? (repairCount.data?.waiting ?? 0) : 0;
+  const waiting = (count.data?.waiting ?? 0) + repairs;
   if (waiting <= 0) return null;
   return (
     <PressRow onPress={() => go('/requests')} style={styles.requests}>
@@ -331,9 +336,11 @@ function RequestsHomeCard() {
           <CountBadge count={waiting} />
         </View>
         <T size={13} color={colors.textSecondary}>
-          {tn(waiting, '{count} request waiting · answer within {hours} h', '{count} requests waiting · answer within {hours} h', {
-            hours: REQUEST_RULES.respondMinutes / 60,
-          })}
+          {repairs > 0
+            ? tn(waiting, '{count} request waiting', '{count} requests waiting')
+            : tn(waiting, '{count} request waiting · answer within {hours} h', '{count} requests waiting · answer within {hours} h', {
+                hours: REQUEST_RULES.respondMinutes / 60,
+              })}
         </T>
       </View>
       <IconChevronRight size={18} />

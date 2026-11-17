@@ -197,3 +197,4 @@ export const IconLayoutGrid = icon([["path", {"d": "M4 5a1 1 0 0 1 1 -1h4a1 1 0 
 export const IconWand = icon([["path", {"d": "M6 21l15 -15l-3 -3l-15 15l3 3"}], ["path", {"d": "M15 6l3 3"}], ["path", {"d": "M9 3a2 2 0 0 0 2 2a2 2 0 0 0 -2 2a2 2 0 0 0 -2 -2a2 2 0 0 0 2 -2"}], ["path", {"d": "M19 13a2 2 0 0 0 2 2a2 2 0 0 0 -2 2a2 2 0 0 0 -2 -2a2 2 0 0 0 2 -2"}]]);
 export const IconDots = icon([["path", {"d": "M4 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"}], ["path", {"d": "M11 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"}], ["path", {"d": "M18 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"}]]);
 export const IconChevronUp = icon([["path", {"d": "M6 15l6 -6l6 6"}]]);
+export const IconEye = icon([["path", {"d": "M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0"}], ["path", {"d": "M21 12c-2.4 4 -5.4 6 -9 6c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6"}]]);
