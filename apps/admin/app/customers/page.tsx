@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { IconChevronRight, IconUsers } from '@tabler/icons-react'
@@ -24,6 +24,10 @@ function CustomersList() {
   const [q, setQ] = useState(params.get('q') ?? '')
   // The address follows the box a moment after typing stops.
   const [search, setSearch] = useState(q)
+  // Opening a customer cancels a pending address update: otherwise a click
+  // within the moment after typing is undone when the update lands, and the
+  // page stays on the list.
+  const pending = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   useEffect(() => {
     const timer = setTimeout(() => {
       setSearch(q)
@@ -34,6 +38,7 @@ function CustomersList() {
         { scroll: false }
       )
     }, 300)
+    pending.current = timer
     return () => clearTimeout(timer)
   }, [q, router])
 
@@ -83,6 +88,7 @@ function CustomersList() {
               <Link
                 href={`/customers/${customer.id}${search.trim() ? `?back=${encodeURIComponent(search.trim())}` : ''}`}
                 aria-label={`Open ${customer.name}, ${customer.phone}`}
+                onClick={() => clearTimeout(pending.current)}
                 className="flex min-h-16 items-center gap-3 rounded-[14px] border border-border bg-surface px-4 py-3 hover:bg-surface-elevated"
               >
                 <div className="min-w-0 flex-1">
