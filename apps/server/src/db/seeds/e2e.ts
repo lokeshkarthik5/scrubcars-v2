@@ -148,6 +148,7 @@ import {
   SHINE,
   PICKUP_FEE,
   SERVICE_CATEGORIES,
+  SERVICE_TEMPLATE_FIXTURES,
 } from './e2e-ids.js'
 import { hashPassword } from '../../lib/passwords.js'
 import { codeSuffix, couponCodeHash, couponKeys, deriveCouponCode } from '../../lib/coupons.js'
@@ -4801,6 +4802,8 @@ async function main() {
   await seedServiceCategoryRows()
   console.log('[e2e-seed] branch groups…')
   await seedBranchGroupRows()
+  console.log('[e2e-seed] service templates…')
+  await seedServiceTemplateRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }
@@ -5054,4 +5057,33 @@ async function seedBranchGroupRows() {
     wash(B.full.id, B.vel.id, B.full.name, B.full.price, 60),
     wash(B.loneWash.id, B.lone.id, B.loneWash.name, B.loneWash.price),
   ])
+}
+
+/**
+ * Service templates (0082; SERVICE_TEMPLATE_FIXTURES, ids 7950–7999, phones
+ * 90000079[5-9]x): one Pending garage, not shown to customers, with the one
+ * service the admin spec saves as a template. The templates themselves are
+ * 0082's seed.
+ */
+async function seedServiceTemplateRows() {
+  const T = SERVICE_TEMPLATE_FIXTURES
+  await db.insert(users).values({
+    id: T.owner.id, name: T.owner.name, phone: T.owner.phone, isCustomer: false, isVendorOwner: true,
+    phoneVerified: true, status: 'active' as const,
+  })
+  await db.insert(vendors).values({
+    id: T.garage.id, ownerId: T.owner.id, businessName: T.garage.name, phone: T.owner.phone,
+    address: '95, Template Road', city: 'Shirpur', pincode: '425405',
+    lat: T.garage.pin.lat, lng: T.garage.pin.lng, geoSource: 'map_pin', geoConfirmedAt: now,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'], bays: 2, slotIntervalMins: 30, status: 'pending',
+    isVerified: false, dropinEnabled: true, doorstepEnabled: false, createdAt: daysAgo(10),
+  })
+  await db.insert(userMemberMapping).values({
+    vendorId: T.garage.id, userId: T.owner.id, role: 'vendor_admin' as const, status: 'active' as const,
+  })
+  await db.insert(vendorWorkingHours).values(hoursFor(T.garage.id, '06:00:00', '22:00:00'))
+  await db.insert(services).values({
+    id: T.rat.id, vendorId: T.garage.id, name: T.rat.name, category: 'others', description: T.rat.description,
+    pricingType: 'flat', price: T.rat.price, durationMins: T.rat.durationMins,
+  })
 }

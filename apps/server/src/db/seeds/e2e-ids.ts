@@ -2540,3 +2540,31 @@ export const BRANCH_GROUPS = {
   /** The service the admin spec adds at every branch, removed again after. */
   addedName: 'E2E Underbody wash',
 } as const
+
+/**
+ * Service templates (0082; ids 7950–7999, phones 90000079[5-9]x): one
+ * Pending garage, not shown to customers, in no city (around 21.3° N,
+ * 74.7° E), with one service in Others that admin saves as a template:
+ *
+ *   rat        "E2E Rat repellent treatment", same for all cars, ₹599,
+ *              30 min, with a description that keeps the rules
+ *
+ * The built-in templates come from 0082's own seed, never from here.
+ * specs/admin/service-templates.spec.ts adds, edits, switches off and
+ * deletes only templates named "E2E …" (`prefix`), and deletes them
+ * before and after, so other specs' "Add from template" chips are never
+ * switched off.
+ */
+export const SERVICE_TEMPLATE_FIXTURES = {
+  owner: { id: id(7990), phone: '9000007990', name: 'Template Motors Owner' },
+  garage: { id: id(7950), name: 'Template Motors', pin: { lat: 21.3, lng: 74.7 } },
+  rat: {
+    id: id(7951),
+    name: 'E2E Rat repellent treatment',
+    price: '599.00',
+    durationMins: 30,
+    description: 'Engine bay dusted off and a rodent-repellent spray applied to the wiring, hoses and bonnet lining.',
+  },
+  /** Every template the spec makes is named with this, and only those are cleared. */
+  prefix: 'E2E ',
+} as const
