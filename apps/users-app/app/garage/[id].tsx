@@ -60,12 +60,7 @@ const NO_SERVICES: Service[] = [];
 const NO_PACKAGES: ServicePackage[] = [];
 const NO_ADD_ONS: AddOn[] = [];
 
-/** apps/users/app/garage/[id]/page.tsx. */
-export default function GarageScreen() {
-  const tn = useTn();
-  const t = useT();
-  const colors = useColors();
-  /**
+/**
  * "Also at" (0081, mockup 2-branches-5): a row of chips under the garage's name and area, one per other live
  * branch ("Velachery · 4.2 km"). Each opens that branch's page in the way of booking being looked at. Nothing
  * when the garage has no other live branch. The website's AlsoAt, the same words and order.
@@ -109,7 +104,12 @@ const alsoAtStyles = StyleSheet.create({
   chipInner: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 10, paddingRight: 8, minHeight: 44 },
 });
 
-const styles = useStyles();
+/** apps/users/app/garage/[id]/page.tsx. */
+export default function GarageScreen() {
+  const tn = useTn();
+  const t = useT();
+  const colors = useColors();
+  const styles = useStyles();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const params = useLocalSearchParams<{ id: string; mode?: string; withdrawn?: string; code?: string; save?: string }>();
