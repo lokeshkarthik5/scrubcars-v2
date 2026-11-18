@@ -313,6 +313,12 @@ describe('the words', () => {
     expect(rows.get(FOAM)!.description).toBe('Snow-foam pre-wash, then a hand wash and a microfibre dry.')
     const name = await call('POST', BASE, 'admin', { ...NEW_TEMPLATE, name: 'Certified coating' })
     expect([name.status, name.body.code]).toEqual([400, 'TEMPLATE_INVALID'])
+    // A price in the name, on Add and on Edit alike.
+    const priced = await call('POST', BASE, 'admin', { ...NEW_TEMPLATE, name: 'Rat repellent ₹599' })
+    expect([priced.status, priced.body.code]).toEqual([400, 'TEMPLATE_INVALID'])
+    const renamed = await call('PATCH', `${BASE}/${FOAM}`, 'admin', { name: 'Foam wash Rs 399' })
+    expect([renamed.status, renamed.body.code]).toEqual([400, 'TEMPLATE_INVALID'])
+    expect(rows.get(FOAM)!.name).toBe('Foam wash')
     expect(live()).toHaveLength(3)
     expect(audits).toEqual([])
   })
@@ -332,6 +338,13 @@ describe('one name per template', () => {
     ])
     // Its own name, in another case, is fine.
     expect((await call('PATCH', `${BASE}/${MONSOON}`, 'admin', { name: 'Monsoon Underbody Wash' })).status).toBe(200)
+  })
+
+  test('two names in Tamil are two templates; the same one again is refused', async () => {
+    expect((await call('POST', BASE, 'admin', { ...NEW_TEMPLATE, name: 'கார் வாஷ்' })).status).toBe(201)
+    expect((await call('POST', BASE, 'admin', { ...NEW_TEMPLATE, name: 'பைக் வாஷ்' })).status).toBe(201)
+    const again = await call('POST', BASE, 'admin', { ...NEW_TEMPLATE, name: ' கார் வாஷ் ' })
+    expect([again.status, again.body.code]).toEqual([409, 'TEMPLATE_NAME_TAKEN'])
   })
 
   test('two saves at once: the database’s index refusing is the same 409', async () => {

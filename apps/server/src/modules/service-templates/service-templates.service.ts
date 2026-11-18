@@ -1,7 +1,7 @@
 import { AppError, hasPgCode } from '../../lib/errors.js'
 import { logger } from '../../lib/logger.js'
 import {
-  serviceNameKey,
+  sameTemplateName,
   templateDescriptionProblem,
   templateIsNew,
   templateNameProblem,
@@ -80,9 +80,8 @@ function checkWords(input: { name?: string; description?: string }) {
  * for two saves at once.
  */
 async function checkNameFree(name: string, exceptId: string | null) {
-  const wanted = serviceNameKey(name)
   const rows = await serviceTemplatesRepository.listTemplates()
-  const clash = rows.find((row) => row.id !== exceptId && serviceNameKey(row.name) === wanted)
+  const clash = rows.find((row) => row.id !== exceptId && sameTemplateName(row.name, name))
   if (clash) throw nameTaken(clash.name)
 }
 
@@ -140,7 +139,7 @@ export const serviceTemplatesService = {
       isOn: input.isOn,
     }
     checkWords({ name: patch.name, description: patch.description })
-    if (patch.name !== undefined && serviceNameKey(patch.name) !== serviceNameKey(existing.name)) {
+    if (patch.name !== undefined && !sameTemplateName(patch.name, existing.name)) {
       await checkNameFree(patch.name, id)
     }
     let updated

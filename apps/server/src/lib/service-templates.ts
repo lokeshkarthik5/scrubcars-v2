@@ -15,7 +15,7 @@
  */
 import { bannedPhraseIn } from './copy-rules.js'
 import { hasPoints } from './list-text.js'
-import { descriptionProblem, pointsProblem } from './service-description.js'
+import { PRICE_PATTERN, descriptionProblem, pointsProblem } from './service-description.js'
 
 /** The longest template name: about a chip's width. */
 export const TEMPLATE_NAME_MAX_CHARS = 80
@@ -29,6 +29,19 @@ export const TEMPLATE_MAX_DURATION_MINS = 7 * 1440
 /** A name as two services are compared: case, spacing and punctuation aside. */
 export function serviceNameKey(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+}
+
+/**
+ * Whether two template names are the same one: by serviceNameKey, or, where
+ * that leaves nothing (a name in Tamil, say: it keeps only a–z and 0–9), by
+ * the database's own rule, lower case and trimmed. Without this every
+ * non-English name read as the same, and the second was refused.
+ */
+export function sameTemplateName(a: string, b: string): boolean {
+  const keyA = serviceNameKey(a)
+  const keyB = serviceNameKey(b)
+  if (keyA || keyB) return keyA === keyB
+  return a.trim().toLowerCase() === b.trim().toLowerCase()
 }
 
 /** Words that send a customer to the garage before booking, which they can't do. */
@@ -56,12 +69,16 @@ export function templateDescriptionProblem(text: string): string | null {
 /** Why a template's name can't be saved, or null when it can. */
 export function templateNameProblem(name: string): string | null {
   const trimmed = name.trim()
-  if (!trimmed) return 'Give the template a name.'
+  // Punctuation alone is no name. Any script's letters count: a Tamil name is one.
+  if (!/[\p{L}\p{N}]/u.test(trimmed)) return 'Give the template a name.'
   if (trimmed.length > TEMPLATE_NAME_MAX_CHARS) {
     return `The name is ${trimmed.length} characters; the limit is ${TEMPLATE_NAME_MAX_CHARS}.`
   }
   const banned = bannedPhraseIn(trimmed)
   if (banned) return `The name can’t be saved: it says “${banned}”, which Detlio does not claim.`
+  // The name becomes each garage's service name: never a price, as the
+  // description never has one.
+  if (PRICE_PATTERN.test(trimmed)) return 'The name can’t be saved: it mentions a price or money. Every garage sets its own.'
   return null
 }
 

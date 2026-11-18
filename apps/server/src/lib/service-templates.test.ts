@@ -3,6 +3,7 @@ import {
   serviceNameKey,
   templateDescriptionProblem,
   templateIsNew,
+  sameTemplateName,
   templateNameProblem,
 } from './service-templates.js'
 
@@ -53,11 +54,29 @@ describe('a template name', () => {
     expect(templateNameProblem('Certified ceramic coating')).toBe(
       'The name can’t be saved: it says “certified”, which Detlio does not claim.'
     )
+    expect(templateNameProblem('---')).toBe('Give the template a name.')
+    expect(templateNameProblem('கார் வாஷ்')).toBeNull()
+  })
+
+  test('a name never carries a price: every garage sets its own', () => {
+    for (const name of ['Foam wash ₹499', 'Foam wash Rs 499', 'Foam wash 499/-', 'Low price wash']) {
+      expect(templateNameProblem(name)).toBe(
+        'The name can’t be saved: it mentions a price or money. Every garage sets its own.'
+      )
+    }
+    expect(templateNameProblem('Wheel alignment & balancing')).toBeNull()
   })
 
   test('names compare without case, spacing or punctuation', () => {
     expect(serviceNameKey('  Engine-bay   Cleaning! ')).toBe('engine bay cleaning')
     expect(serviceNameKey('FOAM WASH')).toBe(serviceNameKey('foam-wash'))
+    expect(sameTemplateName('Foam-wash', 'FOAM WASH')).toBe(true)
+  })
+
+  test('two different names in Tamil are two names; the same one in any case is one', () => {
+    expect(sameTemplateName('கார் வாஷ்', 'பைக் வாஷ்')).toBe(false)
+    expect(sameTemplateName(' கார் வாஷ் ', 'கார் வாஷ்')).toBe(true)
+    expect(sameTemplateName('கார் வாஷ்', 'Car wash')).toBe(false)
   })
 })
 
