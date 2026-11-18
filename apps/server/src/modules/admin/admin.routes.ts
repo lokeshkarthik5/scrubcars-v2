@@ -58,6 +58,7 @@ import { adminRepairQuoteRoutes } from '../repair-quotes/repair-quotes.routes.js
 import { adminServiceCategoryRoutes } from '../service-categories/service-categories.routes.js'
 import { adminPlacesRoutes } from '../places/places.routes.js'
 import { adminOwnerDeleteRoutes } from '../owner-delete/owner-delete.routes.js'
+import { adminGarageBackupRoutes } from '../garage-backup/garage-backup.routes.js'
 import { adminCustomerRoutes } from '../admin-customers/admin-customers.routes.js'
 import * as adminController from './admin.controller.js'
 import {
@@ -216,6 +217,9 @@ adminRoutes.route('/', adminCollectionListRoutes)
 // The owner deletes anything (10 Nov 2026): /owner-delete/* hard deletes,
 // owner only. Its own module; mounted at the root for the cookie's sake.
 adminRoutes.route('/', adminOwnerDeleteRoutes)
+// Back up all garages (18 Nov 2026): /backup/*, owner only. Its own module;
+// mounted at the root for the cookie's sake.
+adminRoutes.route('/', adminGarageBackupRoutes)
 // The Customers page (10 Nov 2026): search, a customer's page, and the
 // owner's Delete customer account.
 adminRoutes.route('/customers', adminCustomerRoutes)
