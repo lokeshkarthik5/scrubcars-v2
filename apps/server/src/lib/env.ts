@@ -325,6 +325,9 @@ export const env = {
   // Searches per signed-in admin per hour. Each one is up to five Google
   // requests (one per kind ticked), the paid part.
   placesSearchRateLimit: Number(process.env.PLACES_SEARCH_RATE_LIMIT ?? '30'),
+  // Service template writes (0082: add, edit, on/off, delete) per signed-in
+  // admin per hour.
+  serviceTemplateWriteRateLimit: Number(process.env.SERVICE_TEMPLATE_WRITE_RATE_LIMIT ?? '120'),
   // E2E only: the finder answers from a fixed list (lib/places/fake.ts) and
   // neither Google nor Ola is called.
   placesFake: readTestFake('PLACES_FAKE', 'replaces Google and Ola place searches with a fixed list'),

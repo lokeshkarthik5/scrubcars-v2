@@ -6468,3 +6468,45 @@ export const shineJobScores = pgTable(
     ),
   ]
 )
+
+// Service templates (0082): the ready-made services behind the admin
+// editor's "Add from template", managed at Settings → Service templates and
+// added to with "Save as template" on any garage's service. Never a price:
+// every garage sets its own. `key` and `position` are the built-ins' (seeded
+// from the old code list, in its order); the team's own have neither and
+// follow, oldest first. Off hides one from the editor; Delete is soft, and
+// the name is unique in any case among those not deleted. Admin only:
+// garages do not see these yet. Every change is in admin_audit_log.
+export const serviceTemplates = pgTable(
+  'service_templates',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    key: varchar('key', { length: 60 }),
+    position: integer('position'),
+    name: varchar('name', { length: 80 }).notNull(),
+    category: serviceCategoryEnum('category').notNull(),
+    durationMins: integer('duration_mins').notNull(),
+    pricingType: servicePricingTypeEnum('pricing_type').notNull(),
+    description: text('description').notNull(),
+    isOn: boolean('is_on').default(true).notNull(),
+    builtIn: boolean('built_in').default(false).notNull(),
+    createdByAdmin: varchar('created_by_admin', { length: 100 }),
+    updatedByAdmin: varchar('updated_by_admin', { length: 100 }),
+    sourceVendorId: uuid('source_vendor_id').references(() => vendors.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex('service_templates_key_key').on(table.key),
+    uniqueIndex('service_templates_name_key')
+      .on(sql`lower(btrim(${table.name}))`)
+      .where(sql`${table.deletedAt} is null`),
+    check('service_templates_name_check', sql`length(btrim(${table.name})) > 0`),
+    check('service_templates_category_check', sql`${table.category}::text <> 'package'`),
+    check('service_templates_duration_check', sql`${table.durationMins} between 1 and 10080`),
+    check('service_templates_description_check', sql`length(btrim(${table.description})) between 1 and 500`),
+  ]
+)
+
+export type ServiceTemplateRecord = typeof serviceTemplates.$inferSelect

@@ -575,6 +575,13 @@
       "when": 1788870989747,
       "tag": "0081_branch_groups",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1788870989748,
+      "tag": "0082_service_templates",
+      "breakpoints": true
     }
   ]
 }
