@@ -126,7 +126,7 @@ export function readMeText(input: {
     '- Excel may show a long number (a bank account number) as 1.2E+11. The file',
     '  keeps every digit: to see them, open it with Data > From Text/CSV and set',
     '  that column to Text.',
-    '- A cell that started with = + - or @ has a \' in front, so a spreadsheet',
+    '- A text cell that started with = + - or @ has a \' in front, so a spreadsheet',
     '  never runs it as a formula.',
     '',
     'The files',
