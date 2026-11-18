@@ -536,7 +536,9 @@ export function ServicesEditor({
                 <div className="flex flex-wrap gap-2">
                   {line.templates.map((template) => (
                     <button
-                      key={template.key}
+                      // The id, not the key: only the built-ins have a key;
+                      // the team's own are null, and would share one.
+                      key={template.id}
                       type="button"
                       disabled={busy}
                       onClick={() => addTemplate(template)}

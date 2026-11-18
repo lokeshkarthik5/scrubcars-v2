@@ -1,6 +1,7 @@
 'use client'
 
-import { useId, useState } from 'react'
+import { useId, useState, useSyncExternalStore } from 'react'
+import { createPortal } from 'react-dom'
 import { useQuery } from '@tanstack/react-query'
 import { IconInfoCircle, IconSparkles, IconTrash } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
@@ -57,6 +58,8 @@ export type TemplateSheetMode =
  * under the same rules as every description. The API refuses a description
  * that breaks them, with the reason, shown here. `mode` null is closed.
  */
+const noSubscribe = () => () => {}
+
 export function ServiceTemplateSheet({
   mode,
   onClose,
@@ -69,7 +72,14 @@ export function ServiceTemplateSheet({
   onSaved?: (note: string, template: ServiceTemplate | null) => void
   onAuthError: () => void
 }) {
-  return (
+  // Into <body>: in the garage editor the sheet sits inside the Services tab,
+  // and the page's save bar (also z-50, and later on the page) covered its
+  // Cancel and Save the moment the garage had unsaved changes, as it does
+  // after Save as template from a row not saved yet.
+  // Only in the browser: the server render has no <body> to portal into.
+  const inBrowser = useSyncExternalStore(noSubscribe, () => true, () => false)
+  if (!inBrowser) return null
+  return createPortal(
     <ScSheet
       open={mode !== null}
       onClose={onClose}
@@ -86,7 +96,8 @@ export function ServiceTemplateSheet({
           onAuthError={onAuthError}
         />
       )}
-    </ScSheet>
+    </ScSheet>,
+    document.body
   )
 }
 

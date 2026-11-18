@@ -216,4 +216,65 @@ test.describe('the garage editor', () => {
       `Saved from ${T.garage.name}’s service by E2E Admin, today.`
     )
   })
+
+  test('Save as template from a row not saved yet: the sheet asks for what the row lacks', async ({ page }) => {
+    const NET = `${T.prefix}Rat net fitting`
+    await page.goto(`/vendors/${T.garage.id}/edit`)
+    await page.getByRole('tab', { name: 'Services' }).click()
+    await page.getByRole('button', { name: 'Add service' }).click()
+    await page.getByRole('group', { name: 'What kind of service?' }).getByRole('button', { name: /^Others/ }).click()
+    const name = page.getByLabel('Service 2 name')
+    await expect(name).toBeFocused()
+    await name.fill(NET)
+    await page.getByRole('button', { name: `More for ${NET}` }).click()
+    await page.getByRole('group', { name: NET }).getByRole('button', { name: `Save ${NET} as template` }).click()
+
+    const sheet = page.getByRole('dialog', { name: 'Save as template' })
+    await expect(sheet.getByLabel('Name', { exact: true })).toHaveValue(NET)
+    await expect(sheet.getByLabel('Category')).toHaveValue('others')
+    // The row has no time or words yet, so Save asks for each in turn.
+    await expect(sheet.getByLabel('Usual time')).toHaveValue('')
+    await sheet.getByRole('button', { name: 'Save template' }).click()
+    await expect(sheet.getByRole('alert')).toHaveText('Pick a usual time.')
+    await sheet.getByLabel('Usual time').selectOption('30')
+    await sheet.getByRole('button', { name: 'Save template' }).click()
+    await expect(sheet.getByRole('alert')).toHaveText('Write a description: what the service includes, in a sentence or two.')
+    await sheet.getByLabel('Description').fill('A wire mesh fitted over the engine bay openings to keep rats away from the wiring.')
+    await sheet.getByRole('button', { name: 'Save template' }).click()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+
+    expect(await storedTemplate(NET)).toMatchObject({ is_on: true, duration_mins: 30, source_vendor_id: T.garage.id })
+    // The row itself is still only on the form: Discard takes it off, and nothing was saved to the garage.
+    await page.getByRole('button', { name: 'Discard' }).click()
+    await expect(page.getByLabel('Service 2 name')).toHaveCount(0)
+    const [{ count }] = await sql<{ count: number }[]>`
+      select count(*)::int as count from services where vendor_id = ${T.garage.id} and name = ${NET}
+    `
+    expect(count).toBe(0)
+  })
+
+  test('when the templates can’t load, the editor says so and Add service still works', async ({ page }) => {
+    const editorList = (url: URL) => url.pathname.endsWith('/admin/service-templates') && url.searchParams.get('on') === 'true'
+    await page.route(editorList, (route) =>
+      route.fulfill({ status: 500, contentType: 'application/json', body: '{"success":false,"message":"Down"}' })
+    )
+    await page.goto(`/vendors/${T.garage.id}/edit`)
+    await page.getByRole('tab', { name: 'Services' }).click()
+
+    await expect(page.getByRole('alert').filter({ hasText: 'Templates couldn’t load' })).toHaveText(
+      'Templates couldn’t load, so “Add from template” is hidden. Add service still works.Try again'
+    )
+    await expect(page.getByRole('group', { name: 'Add from template' })).toHaveCount(0)
+
+    // Add service by hand, as ever.
+    await page.getByRole('button', { name: 'Add service' }).click()
+    await page.getByRole('group', { name: 'What kind of service?' }).getByRole('button', { name: /^Others/ }).click()
+    await expect(page.getByLabel('Service 2 name')).toBeFocused()
+
+    // Try again, once the API answers: the chips come back.
+    await page.unroute(editorList)
+    await page.getByRole('button', { name: 'Try again' }).click()
+    await expect(page.getByRole('group', { name: 'Add from template' })).toBeVisible()
+    await expect(page.getByRole('alert').filter({ hasText: 'Templates couldn’t load' })).toHaveCount(0)
+  })
 })
