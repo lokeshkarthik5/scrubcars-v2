@@ -61,7 +61,10 @@ export function BranchSheet({
   onClose: () => void
   vendorId: string
   garageName: string
-  /** The group the branch joins (0081): this garage's, or the one it will start. */
+  /**
+   * The group the branch joins (0081): this garage's, or the one it will
+   * start. The suggested name starts from it ("Shine Auto Spa – <city>").
+   */
   groupName: string
   /** The garage's live services, as saved (ids and prices). */
   services: ServiceRow[]
@@ -84,7 +87,7 @@ export function BranchSheet({
   // Starts afresh on each opening, once the cities are known.
   const current =
     draft ??
-    (open && citiesQuery.data ? branchDraftFrom(garageName, saved.map((row) => row.id), cities, ownerPhone) : null)
+    (open && citiesQuery.data ? branchDraftFrom(groupName, saved.map((row) => row.id), cities, ownerPhone) : null)
   const otherLogin = current !== null && !isSameOwnerLogin(current, ownerPhone)
   const chosenCity = current && current.cityChoice !== ANOTHER_TOWN
     ? cities.find((city) => city.id === current.cityChoice) ?? null
@@ -166,7 +169,7 @@ export function BranchSheet({
           <ScSelect
             label="City"
             value={current.cityChoice}
-            onChange={(event) => update(withCity(current, garageName, { cityChoice: event.target.value }, cities))}
+            onChange={(event) => update(withCity(current, groupName, { cityChoice: event.target.value }, cities))}
           >
             {cities.map((city) => (
               <option key={city.id} value={city.id}>
@@ -179,7 +182,7 @@ export function BranchSheet({
             <ScField
               label="Town"
               value={current.townTyped}
-              onChange={(townTyped) => update(withCity(current, garageName, { townTyped }, cities))}
+              onChange={(townTyped) => update(withCity(current, groupName, { townTyped }, cities))}
               maxLength={100}
               autoComplete="off"
             />

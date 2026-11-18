@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { groupNameOf } from '@repo/core/branches'
 import {
   ANOTHER_TOWN,
   branchCityName,
@@ -42,6 +43,23 @@ describe('Add a branch', () => {
     expect(branchCityName(draft, CITIES)).toBe('Sivakasi')
     const named = { ...draft, businessName: 'Spark West', nameEdited: true }
     expect(withCity(named, 'Spark', { cityChoice: 'c-chennai' }, CITIES).businessName).toBe('Spark West')
+  })
+
+  test('from a branch, the name starts from the group’s, never “<branch name> – <city>” (0081)', () => {
+    // The sheet passes the group's name, or the source's without its area
+    // (groupNameOf), so a branch of "Shine Auto Spa – Anna Nagar" is not
+    // "Shine Auto Spa – Anna Nagar – Chennai".
+    const base = groupNameOf('Shine Auto Spa – Anna Nagar')
+    expect(base).toBe('Shine Auto Spa')
+    let draft = branchDraftFrom(base, [], CITIES, OWNER)
+    expect(draft.businessName).toBe('Shine Auto Spa – Chennai')
+    draft = withCity(draft, base, { cityChoice: 'c-tirupur' }, CITIES)
+    expect(draft.businessName).toBe('Shine Auto Spa – Tirupur')
+    draft = withCity(draft, base, { cityChoice: ANOTHER_TOWN }, CITIES)
+    draft = withCity(draft, base, { townTyped: 'Sivakasi' }, CITIES)
+    expect(draft.businessName).toBe('Shine Auto Spa – Sivakasi')
+    // A source with no area in its name is its own base, as before.
+    expect(branchDraftFrom(groupNameOf('Spark Car Care'), [], CITIES, OWNER).businessName).toBe('Spark Car Care – Chennai')
   })
 
   test('a typed town that is already a city picks that city (Madras is Chennai)', () => {
