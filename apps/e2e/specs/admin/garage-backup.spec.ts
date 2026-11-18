@@ -137,6 +137,7 @@ test.describe('back up all garages, as the owner @p0', () => {
       expect(everything).not.toContain(number)
     }
     expect(files['read-me.txt']).toContain('Phone numbers and bank account numbers: hidden, shown like 98•••••210.')
+    expect(files['read-me.txt']).toContain('Email addresses, UPI IDs and ID numbers written in notes are hidden the same way.')
     expect(files['read-me.txt']).toContain('garage-book-stock.csv (')
     expect(files['read-me.txt']).toContain('  Garage ID: ')
 

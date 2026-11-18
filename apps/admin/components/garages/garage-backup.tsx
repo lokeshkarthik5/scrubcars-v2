@@ -164,7 +164,10 @@ function useBackupRun(sheetOpen: () => boolean) {
         toast.info('Backup stopped. Nothing was downloaded.')
         return
       }
-      setState({ stage: 'failed', message: errorMessage(error, 'something went wrong. Try again.') })
+      const message = backupFailure(error)
+      setState({ stage: 'failed', message })
+      // Closed while it prepared: the sheet that says so isn't up.
+      if (!sheetOpen()) toast.error(`The backup stopped: ${message} Open Download backup to try again.`)
     }
   }
 
@@ -176,6 +179,15 @@ function useBackupRun(sheetOpen: () => boolean) {
     },
     reset: () => setState({ stage: 'idle' }),
   }
+}
+
+/**
+ * Why a backup stopped, in words the owner can act on: the server's own
+ * reason (an expired or refused backup), or a connection that kept dropping.
+ */
+function backupFailure(error: unknown): string {
+  if (error instanceof TypeError) return 'the connection dropped. Check the internet and try again.'
+  return errorMessage(error, 'something went wrong. Try again.')
 }
 
 const GROUP_ICONS: Record<string, Icon> = {

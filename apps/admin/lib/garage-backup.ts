@@ -105,9 +105,12 @@ export function readMeText(input: {
     '',
     // Always with the year: a backup is read long after it is made.
     `Made ${backupWhen(input.at, new Date(0))} (India time) by ${input.by}.`,
-    input.full
-      ? 'Phone numbers and bank account numbers: included in full.'
-      : 'Phone numbers and bank account numbers: hidden, shown like 98•••••210.',
+    ...(input.full
+      ? ['Phone numbers and bank account numbers: included in full.']
+      : [
+          'Phone numbers and bank account numbers: hidden, shown like 98•••••210.',
+          'Email addresses, UPI IDs and ID numbers written in notes are hidden the same way.',
+        ]),
     '',
     "Keep this file private. It holds customers' names and bookings: keep it",
     'somewhere only you can open, like your own Google Drive, never in a shared',

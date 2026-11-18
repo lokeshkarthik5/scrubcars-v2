@@ -137,11 +137,15 @@ describe('the spreadsheets', () => {
     })
     expect(text).toContain('Made 18 Nov 2026, 10:41 am (India time) by Mathew.')
     expect(text).toContain('hidden, shown like 98•••••210')
+    expect(text).toContain('Email addresses, UPI IDs and ID numbers written in notes are hidden the same way.')
     expect(text).toContain('garages.csv (3 rows)')
     expect(text).toContain('bookings.csv (1 row)')
     expect(text).toContain('  Total (₹): What was paid.')
     expect(readMeText({ manifest, full: true, at: '2026-11-18T05:11:00Z', by: 'Mathew', written: {} })).toContain(
       'included in full'
+    )
+    expect(readMeText({ manifest, full: true, at: '2026-11-18T05:11:00Z', by: 'Mathew', written: {} })).not.toContain(
+      'Email addresses'
     )
   })
 })
