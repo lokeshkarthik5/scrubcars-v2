@@ -74,6 +74,7 @@ import { isInBin, isListedToCustomers } from '../vendors/vendors.predicates.js'
 import { citiesService } from '../cities/cities.service.js'
 import { WHOLE_CITY_NEEDS_CITY, wholeCityOf, type GarageCityStanding } from '../../lib/cities.js'
 import { branchPickupTerms, planBranchCopy, planBranchOwner } from '../../lib/branches.js'
+import { groupNameOf } from '../../lib/branch-groups.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { deleteGarageFileIfUnused, vendorsService } from '../vendors/vendors.service.js'
 import type { CreateAddOnInput, UpdateAddOnInput } from '../vendors/vendors.validation.js'
@@ -1643,6 +1644,9 @@ export const adminService = {
 
     const created = await adminRepository.createBranch({
       owner: ownerPlan.owner,
+      // The source and the branch in one group (0081): the source's, or a
+      // new one named after its business without the area.
+      source: { id: source.id, groupName: groupNameOf(source.businessName) },
       vendor: {
         businessName: input.businessName,
         // The same login keeps the business's contacts; another login's
@@ -1715,7 +1719,15 @@ export const adminService = {
     })
 
     log.info(
-      { vendorId: created.id, fromVendorId: source.id, ownerId: created.ownerId, services: plan.serviceIds.length, sameLogin },
+      {
+        vendorId: created.id,
+        fromVendorId: source.id,
+        ownerId: created.ownerId,
+        services: plan.serviceIds.length,
+        sameLogin,
+        groupId: created.groupId,
+        groupCreated: created.groupCreated,
+      },
       'admin:branch-added'
     )
     return { id: created.id }
