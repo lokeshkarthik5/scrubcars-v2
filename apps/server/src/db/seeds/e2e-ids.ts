@@ -2503,3 +2503,20 @@ export const SERVICE_CATEGORIES = {
   bikeWash: { id: id(7806), name: 'Bike wash', category: 'others' },
   battery: { id: id(7807), name: 'Battery replacement', category: 'others' },
 } as const
+
+/**
+ * Back up all garages (ids 7850–7899, phones 9000007850–9000007899): one
+ * garage, not live yet (hidden from customers), whose numbers the backup spec
+ * looks for in the .zip: masked by default, in full when the owner turns the
+ * switch on. Its owner, its bank account and UPI ID, and one Garage Book
+ * customer. Only specs/admin/garage-backup.spec.ts reads them; nothing
+ * changes them.
+ */
+export const GARAGE_BACKUP = {
+  owner: { id: id(7850), phone: '9000007850', name: 'Backup Check Owner' },
+  garage: { id: id(7851), name: 'Backup Check Motors', phone: '9000007851' },
+  /** In the garage's team notes: a number in free text is masked too. */
+  noteNumber: '9000007852',
+  bank: { accountNumber: '50100123456789', upiId: '9000007851@ybl', ifsc: 'HDFC0007851' },
+  bookCustomer: { id: id(7853), name: 'Backup Walk-in Kumar', phone: '9000007853' },
+} as const

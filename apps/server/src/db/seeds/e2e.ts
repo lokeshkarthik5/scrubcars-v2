@@ -82,6 +82,7 @@ import {
   shineJobScores,
   cities,
   pickupFeeChanges,
+  garageCustomers,
 } from '../schema.js'
 import {
   CITIES,
@@ -146,6 +147,7 @@ import {
   SHINE,
   PICKUP_FEE,
   SERVICE_CATEGORIES,
+  GARAGE_BACKUP,
 } from './e2e-ids.js'
 import { hashPassword } from '../../lib/passwords.js'
 import { codeSuffix, couponCodeHash, couponKeys, deriveCouponCode } from '../../lib/coupons.js'
@@ -4797,6 +4799,8 @@ async function main() {
   await seedPickupFeeRows()
   console.log('[e2e-seed] service categories…')
   await seedServiceCategoryRows()
+  console.log('[e2e-seed] garage backup…')
+  await seedGarageBackupRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }
@@ -4999,4 +5003,33 @@ async function seedServiceCategoryRows() {
     { id: C.battery.id, vendorId: C.garage.id, name: C.battery.name, category: C.battery.category,
       ...inspection('0.00'), durationMins: 60, categoryHintDismissedAt: daysAgo(2) },
   ])
+}
+
+/**
+ * Back up all garages (GARAGE_BACKUP, ids 7850–7899, phones 90000078[5-9]x):
+ * a garage not live yet, with the numbers the backup spec looks for.
+ */
+async function seedGarageBackupRows() {
+  const B = GARAGE_BACKUP
+  await db.insert(users).values({
+    id: B.owner.id, name: B.owner.name, phone: B.owner.phone, isCustomer: false, isVendorOwner: true,
+    phoneVerified: true, status: 'active' as const,
+  })
+  await db.insert(vendors).values({
+    id: B.garage.id, ownerId: B.owner.id, businessName: B.garage.name, phone: B.garage.phone,
+    whatsapp: B.garage.phone, address: '78, Backup Street, Kilpauk', city: 'Chennai', pincode: '600010',
+    vehicleTypes: ['hatchback', 'sedan'], bays: 2, slotIntervalMins: 30, status: 'pending',
+    isVerified: false, dropinEnabled: true, doorstepEnabled: false, createdAt: daysAgo(5),
+    notes: `Owner's brother: ${B.noteNumber}`,
+  })
+  await db.insert(userMemberMapping).values({
+    vendorId: B.garage.id, userId: B.owner.id, role: 'vendor_admin' as const, status: 'active' as const,
+  })
+  await db.insert(vendorPayoutAccounts).values({
+    vendorId: B.garage.id, accountName: B.owner.name, accountNumber: B.bank.accountNumber, ifsc: B.bank.ifsc,
+    upiId: B.bank.upiId, updatedBy: 'E2E seed',
+  })
+  await db.insert(garageCustomers).values({
+    id: B.bookCustomer.id, vendorId: B.garage.id, name: B.bookCustomer.name, phone: B.bookCustomer.phone,
+  })
 }
