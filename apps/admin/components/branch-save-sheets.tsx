@@ -212,6 +212,10 @@ export function SaveForSheet({
     if (await onSave(key)) {
       setChoice('this')
       onClose()
+    } else if (key) {
+      // Refused (the branches changed since, say): read the list again, so
+      // what is shown, and the key sent next time, are today's.
+      void preview.refetch()
     }
   }
 
@@ -298,6 +302,8 @@ export function BranchDeleteSheet({
     const done = await onDelete(key)
     setBusy(false)
     if (done) setChoice('this')
+    // Refused: the list again, as the save does.
+    else if (key) void preview.refetch()
   }
 
   return (

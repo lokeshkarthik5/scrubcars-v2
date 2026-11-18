@@ -138,6 +138,18 @@ test.describe.serial('Add a branch @p0', () => {
     await expect(branches.getByRole('link', { name: `Open ${C.branch.name}` })).toBeVisible()
     await expect(branches.getByText('Main branch')).toBeVisible()
 
+    // Add a branch from the branch: the name starts from the group's
+    // ("Revathi Auto Spa – …"), never "Revathi Auto Spa – E2E Branchtown – …".
+    // Only looked at, then Cancel: nothing is added.
+    await branches.getByRole('button', { name: 'Add a branch', exact: true }).click()
+    const fromBranch = page.getByRole('dialog', { name: 'Add a branch' })
+    await expect(fromBranch.getByText(C.branch.services[0].name)).toBeVisible()
+    await fromBranch.getByLabel('City').selectOption({ label: 'Another town…' })
+    await fromBranch.getByLabel('Town').fill(C.otherBranchTown)
+    await expect(fromBranch.getByLabel('Branch name')).toHaveValue(C.otherBranchName)
+    await fromBranch.getByRole('button', { name: 'Cancel' }).click()
+    await expect(fromBranch).toBeHidden()
+
     // One login, both garages in the garage app's switcher.
     expect(await garagesOf(C.branch.ownerPhone)).toEqual([C.branch.id, branch.id].sort())
   })
