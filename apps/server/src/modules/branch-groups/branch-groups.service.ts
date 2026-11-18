@@ -55,11 +55,22 @@ async function groupRows(groupId: string, conn?: Tx) {
 /**
  * The garages the change reaches: the group's, or this garage alone when it
  * is in none (or in a group of one). The garage itself is always among them.
+ * In the save's transaction the group's garages are locked first and this
+ * garage read again under the lock, so the plan is made from rows nothing
+ * else (another branch save, a link or a remove) can change before it is
+ * written.
  */
-async function reach(vendorId: string, conn?: Tx) {
-  const garage = await writableGarage(vendorId, conn)
+async function reach(vendorId: string, tx?: Tx) {
+  let garage = await writableGarage(vendorId, tx)
   if (!garage.groupId) return null
-  const rows = await groupRows(garage.groupId, conn)
+  if (tx) {
+    await branchGroupsRepository.lockGroup(garage.groupId, tx)
+    const groupId = garage.groupId
+    garage = await writableGarage(vendorId, tx)
+    if (garage.groupId !== groupId) return null
+  }
+  if (!garage.groupId) return null
+  const rows = await groupRows(garage.groupId, tx)
   if (rows.garages.length < GROUP_MIN_BRANCHES || !rows.garages.some((row) => row.id === vendorId)) return null
   return { garage, groupId: garage.groupId, ...rows }
 }
@@ -228,7 +239,11 @@ export const branchGroupsService = {
         await branchGroupsRepository.updateService(update.serviceId, update.vendorId, update.columns, tx)
       }
       await branchGroupsRepository.insertServices(
-        plan.writes.inserts.map((insert) => ({ ...insert.columns, vendorId: insert.vendorId })),
+        plan.writes.inserts.map((insert) => ({
+          ...insert.columns,
+          vendorId: insert.vendorId,
+          ...(insert.hintDismissed && { categoryHintDismissedAt: new Date() }),
+        })),
         tx
       )
       await branchGroupsRepository.markServicesDeleted(plan.writes.deletes, tx)
@@ -262,8 +277,13 @@ export const branchGroupsService = {
       )
       return plan
     })
-    // A new service or a duration may have made room at a branch (0047).
-    for (const branch of plan.branches) slotAlertsService.garageChanged(branch.id, 'admin_garage_updated')
+    // A new service or a duration may have made room at a branch (0047):
+    // one background task re-checks them one after another, never a task
+    // per branch reading at once down the one connection.
+    slotAlertsService.garagesChanged(
+      plan.branches.map((branch) => branch.id),
+      'admin_garage_updated'
+    )
     log.info(
       {
         vendorId,

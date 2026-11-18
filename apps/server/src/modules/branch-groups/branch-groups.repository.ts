@@ -42,6 +42,15 @@ export const branchGroupsRepository = {
       .for('update')
   },
 
+  /**
+   * Every garage of the group locked for the rest of the transaction, in id
+   * order as lockGarages, so "All N branches" plans and writes with nothing
+   * moving under it: no other branch save, link or remove in between.
+   */
+  async lockGroup(groupId: string, tx: Tx) {
+    await tx.select({ id: vendors.id }).from(vendors).where(eq(vendors.groupId, groupId)).orderBy(asc(vendors.id)).for('update')
+  },
+
   async findGroup(id: string, conn: Conn = db) {
     const [row] = await conn.select().from(garageGroups).where(eq(garageGroups.id, id))
     return row ?? null
@@ -160,7 +169,7 @@ export const branchGroupsRepository = {
       )
   },
 
-  insertServices(rows: Array<{ vendorId: string } & ServiceColumns>, tx: Tx) {
+  insertServices(rows: Array<{ vendorId: string; categoryHintDismissedAt?: Date } & ServiceColumns>, tx: Tx) {
     if (rows.length === 0) return Promise.resolve([])
     return tx
       .insert(services)
@@ -225,7 +234,8 @@ export const branchGroupsRepository = {
   /**
    * For a page of garage cards, each one's group name and how many of its
    * branches customers can find, itself included: one read for the page.
-   * Only garages in a group with at least one live branch come back.
+   * Only a garage that is itself live comes back (a saved garage paused
+   * since is never "1 of 2" beside two others).
    */
   async listCardGroups(vendorIds: string[]) {
     if (vendorIds.length === 0) return []
@@ -239,6 +249,7 @@ export const branchGroupsRepository = {
          sql`, `
        )}) AND ${LISTED_TO_CUSTOMERS}
        GROUP BY me.id, g.name
+      HAVING bool_or(v.id = me.id)
     `)
     return Array.from(rows).map((row) => ({ vendorId: row.id, groupName: row.name, liveCount: Number(row.live) }))
   },

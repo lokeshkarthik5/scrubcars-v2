@@ -192,7 +192,15 @@ export interface BranchPlan {
   items: PlanItem[]
   writes: {
     updates: Array<{ serviceId: string; vendorId: string; columns: ServiceColumns }>
-    inserts: Array<{ vendorId: string; columns: Required<Pick<ServiceColumns, 'name' | 'category' | 'pricingType' | 'price'>> & ServiceColumns }>
+    inserts: Array<{
+      vendorId: string
+      columns: Required<Pick<ServiceColumns, 'name' | 'category' | 'pricingType' | 'price'>> & ServiceColumns
+      /**
+       * "Not this" on a new row's category hint (0080): this garage's own,
+       * as its own save keeps it, so only ever on this garage's insert.
+       */
+      hintDismissed?: true
+    }>
     deletes: Array<{ serviceId: string; vendorId: string }>
   }
   /** Fingerprint of the writes and what they were made from: the save must match the preview's. */
@@ -412,7 +420,11 @@ export function planBranchServices(input: {
       // already has one by this name has it updated, never a second copy.
       const found = garage.id === sourceId ? [] : byKey(garage.id, name)
       if (found.length === 0) {
-        writes.inserts.push({ vendorId: garage.id, columns: row })
+        writes.inserts.push({
+          vendorId: garage.id,
+          columns: row,
+          ...(garage.id === sourceId && values.categoryHintDismissed === true && { hintDismissed: true as const }),
+        })
         lines.push({
           vendorId: garage.id, branch: label, action: 'add', serviceIds: [], before: null,
           after: applied(null, row), wasDifferent: false, hidden: false,

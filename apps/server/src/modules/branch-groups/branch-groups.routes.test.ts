@@ -66,6 +66,10 @@ let garages: Garage[] = []
 let groups: Array<{ id: string; name: string }> = []
 let services: Service[] = []
 let audits: Array<Record<string, unknown>> = []
+/** The groups the save locked (lockGroup), in order. */
+let locked: string[] = []
+/** Each call of slotAlertsService.garagesChanged: one background task for all the branches. */
+let slotRechecks: string[][] = []
 let newIds = 0
 
 const day = (n: number) => new Date(Date.UTC(2026, 9, n))
@@ -105,6 +109,8 @@ function reset() {
     service(id(9208), LONE, 'Foam wash', '450.00'),
   ]
   audits = []
+  locked = []
+  slotRechecks = []
 }
 
 const tx = {} as never
@@ -135,6 +141,9 @@ beforeAll(() => {
   patch(branchGroupsRepository, 'lockGarages', async (ids: string[]) =>
     garages.filter((g) => ids.includes(g.id)).map(pick)
   )
+  patch(branchGroupsRepository, 'lockGroup', async (gid: string) => {
+    locked.push(gid)
+  })
   patch(branchGroupsRepository, 'findGroup', async (gid: string) => groups.find((g) => g.id === gid) ?? null)
   patch(branchGroupsRepository, 'listGroupGarages', async (gid: string) =>
     garages
@@ -197,7 +206,8 @@ beforeAll(() => {
         groupName: groups.find((group) => group.id === g.groupId)!.name,
         liveCount: garages.filter((other) => other.groupId === g.groupId && live(other)).length,
       }))
-      .filter((row) => row.liveCount > 0)
+      // As the SQL's HAVING: only a card whose own garage is live.
+      .filter((row) => live(garages.find((g) => g.id === row.vendorId)!))
   )
   patch(citiesService, 'rules', async () => ({
     cities: [],
@@ -207,6 +217,9 @@ beforeAll(() => {
   patch(reviewsRepository, 'ratingAggregates', async () => [{ vendorId: ANNA, average: 4.6, count: 212 }])
   patch(reviewsRepository, 'tagCounts', async () => [])
   patch(slotAlertsService, 'garageChanged', () => undefined)
+  patch(slotAlertsService, 'garagesChanged', (ids: string[]) => {
+    slotRechecks.push([...ids])
+  })
 })
 
 afterAll(() => {
@@ -387,6 +400,45 @@ describe('change all branches at once', () => {
     expect(services.find((s) => s.id === id(9205))!.price).toBe('199.00')
   })
 
+  test('a new service’s “Not this” stays on this garage’s own copy only', async () => {
+    const change = { kind: 'save', changed: [], added: [{ ...underbody, categoryHintDismissed: true }] }
+    const preview = await call('POST', `/admin/vendors/${VEL}/branches/services/preview`, { change })
+    const saved = await call('POST', `/admin/vendors/${VEL}/branches/services`, { change, key: preview.body.data.key })
+    expect(saved.status).toBe(200)
+    const copies = services.filter((s) => s.name === 'Underbody wash')
+    expect(copies.map((s) => [s.vendorId, s.categoryHintDismissedAt instanceof Date])).toEqual([
+      [ANNA, false],
+      [VEL, true],
+      [OMR, false],
+      [TNAGAR, false],
+    ])
+  })
+
+  test('the save locks the group before it reads, and re-checks the branches in one background task', async () => {
+    const preview = await call('POST', `/admin/vendors/${VEL}/branches/services/preview`, { change: saveChange })
+    // The preview only reads: nothing locked.
+    expect(locked).toEqual([])
+    await call('POST', `/admin/vendors/${VEL}/branches/services`, { change: saveChange, key: preview.body.data.key })
+    expect(locked).toEqual([GROUP])
+    expect(slotRechecks).toEqual([[ANNA, VEL, OMR, TNAGAR]])
+  })
+
+  test('refused when the garage left the group while the save waited for the lock', async () => {
+    const preview = await call('POST', `/admin/vendors/${VEL}/branches/services/preview`, { change: saveChange })
+    const lock = branchGroupsRepository.lockGroup
+    patch(branchGroupsRepository, 'lockGroup', async () => {
+      garages.find((g) => g.id === VEL)!.groupId = null
+    })
+    try {
+      const saved = await call('POST', `/admin/vendors/${VEL}/branches/services`, { change: saveChange, key: preview.body.data.key })
+      expect(saved).toMatchObject({ status: 409, body: { code: 'NOT_IN_GROUP' } })
+    } finally {
+      ;(branchGroupsRepository as Record<string, unknown>).lockGroup = lock
+    }
+    expect(services.find((s) => s.id === id(9204))!.price).toBe('499.00')
+    expect(audits).toEqual([])
+  })
+
   test('refused, with nothing written, when the branches changed since the preview', async () => {
     const preview = await call('POST', `/admin/vendors/${VEL}/branches/services/preview`, { change: saveChange })
     services.find((s) => s.id === id(9204))!.price = '519.00'
@@ -465,5 +517,13 @@ describe('customers', () => {
     expect(groupsOf.get(LONE)).toBeUndefined()
     garages.find((g) => g.id === VEL)!.bookingsPausedAt = new Date()
     expect((await branchGroupsService.cardGroupsOf([ANNA])).get(ANNA)).toBeUndefined()
+  })
+
+  test('a card whose own garage is not live (a saved garage paused since) has no group line', async () => {
+    garages.find((g) => g.id === OMR)!.bookingsPausedAt = new Date()
+    // ANNA and VEL are live, so they say "1 of 2"; OMR, paused, is not one of them.
+    const groupsOf = await branchGroupsService.cardGroupsOf([ANNA, VEL, OMR])
+    expect(groupsOf.get(VEL)).toEqual({ name: 'Shine Auto Spa', liveCount: 2 })
+    expect(groupsOf.get(OMR)).toBeUndefined()
   })
 })

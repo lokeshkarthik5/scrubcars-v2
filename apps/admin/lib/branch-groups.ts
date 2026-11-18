@@ -116,13 +116,6 @@ function values(payload: Payload): Omit<Payload, 'id'> {
   return rest as Omit<Payload, 'id'>
 }
 
-/** A new service: nothing of this garage's hint goes with it. */
-function newValues(payload: Payload): Omit<Payload, 'id' | 'categoryHintDismissed'> {
-  const rest: Partial<Payload> = values(payload)
-  delete rest.categoryHintDismissed
-  return rest as Omit<Payload, 'id' | 'categoryHintDismissed'>
-}
-
 /**
  * What a save changes in the services, as "All N branches" sends it: each
  * saved service that changed, with the fields that did (only those reach
@@ -141,7 +134,9 @@ export function branchServicesChange(
   for (const row of rowsToSave([...draft])) {
     const now = toServicePayload(row)
     if (!row.id) {
-      added.push(newValues(now))
+      // Its "Not this" goes too: the server keeps it on this garage's own
+      // copy only, as this garage's own save does.
+      added.push(values(now))
       continue
     }
     const was = before.get(row.id)
