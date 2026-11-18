@@ -59,8 +59,8 @@ export async function removeBranch(vendorId: string, otherId: string) {
 /** What of a saved service changed: only these reach the other branches. */
 export type BranchChangeField = 'name' | 'price' | 'duration' | 'description' | 'category' | 'commission'
 
-/** A service as the editor's own save sends it, without its id. */
-export type BranchServiceValues = Omit<UpdateVendorServiceInput, 'id' | 'categoryHintDismissed'>
+/** A service as the editor's own save sends it, without its id. The hint is only ever this garage's. */
+export type BranchServiceValues = Omit<UpdateVendorServiceInput, 'id'>
 
 export type BranchServicesChange =
   | {

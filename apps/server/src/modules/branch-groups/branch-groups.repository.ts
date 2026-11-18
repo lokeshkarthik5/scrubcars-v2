@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import { adminAuditLog, garageGroups, servicePackageItems, services, vendors } from '../../db/schema.js'
 import type { GroupService, ServiceColumns } from '../../lib/branch-groups.js'
@@ -139,6 +139,25 @@ export const branchGroupsRepository = {
       .update(services)
       .set(columns as Partial<typeof services.$inferInsert>)
       .where(and(eq(services.id, serviceId), eq(services.vendorId, vendorId), isNull(services.deletedAt)))
+  },
+
+  /**
+   * "Not this" on the category hint (0080), for this garage's own services
+   * only: kept from when it was first turned down; cleared on false.
+   */
+  async setHintsDismissed(serviceIds: string[], vendorId: string, dismissed: boolean, tx: Tx) {
+    if (serviceIds.length === 0) return
+    await tx
+      .update(services)
+      .set({ categoryHintDismissedAt: dismissed ? new Date() : null })
+      .where(
+        and(
+          inArray(services.id, serviceIds),
+          eq(services.vendorId, vendorId),
+          isNull(services.deletedAt),
+          dismissed ? isNull(services.categoryHintDismissedAt) : isNotNull(services.categoryHintDismissedAt)
+        )
+      )
   },
 
   insertServices(rows: Array<{ vendorId: string } & ServiceColumns>, tx: Tx) {

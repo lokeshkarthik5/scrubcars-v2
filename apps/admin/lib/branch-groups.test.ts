@@ -86,6 +86,8 @@ describe('branchServicesChange', () => {
     const draft = [{ ...foam, name: 'Snow foam', durationValue: '60', description: 'Hand dried.' }, { ...full, categoryHintDismissed: true }]
     expect(branchServicesChange([foam, full], draft)!.changed).toEqual([
       expect.objectContaining({ serviceId: 's1', fields: ['name', 'duration', 'description'] }),
+      // With something else to send, the hint goes too, with no fields: it stays this garage's.
+      expect.objectContaining({ serviceId: 's2', fields: [], service: expect.objectContaining({ categoryHintDismissed: true }) }),
     ])
     expect(branchServicesChange([foam, full], [foam, { ...full, categoryHintDismissed: true }])).toBeNull()
     expect(branchServicesChange([foam, full], [foam, full])).toBeNull()

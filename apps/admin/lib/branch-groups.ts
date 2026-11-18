@@ -109,17 +109,26 @@ const FIELD_PARTS: Record<BranchChangeField, (payload: Payload) => unknown> = {
 
 const FIELDS = Object.keys(FIELD_PARTS) as BranchChangeField[]
 
-/** The service as the change sends it: the editor's own payload, without its id or hint. */
-function values(payload: Payload) {
-  const { id: _id, categoryHintDismissed: _hint, ...rest } = payload
-  return rest
+/** The service as the change sends it: the editor's own payload, without its id. */
+function values(payload: Payload): Omit<Payload, 'id'> {
+  const rest: Partial<Payload> = { ...payload }
+  delete rest.id
+  return rest as Omit<Payload, 'id'>
+}
+
+/** A new service: nothing of this garage's hint goes with it. */
+function newValues(payload: Payload): Omit<Payload, 'id' | 'categoryHintDismissed'> {
+  const rest: Partial<Payload> = values(payload)
+  delete rest.categoryHintDismissed
+  return rest as Omit<Payload, 'id' | 'categoryHintDismissed'>
 }
 
 /**
  * What a save changes in the services, as "All N branches" sends it: each
  * saved service that changed, with the fields that did (only those reach
- * the other branches), and each new one. Null when nothing that reaches
- * the other branches changed (a "Not this" on a hint is this garage's own),
+ * the other branches), and each new one. A "Not this" on a category hint is
+ * this garage's own: sent with no fields, so it is saved here and goes
+ * nowhere else. Null when nothing that reaches the other branches changed,
  * so Save changes then saves as before, without asking.
  */
 export function branchServicesChange(
@@ -132,7 +141,7 @@ export function branchServicesChange(
   for (const row of rowsToSave([...draft])) {
     const now = toServicePayload(row)
     if (!row.id) {
-      added.push(values(now))
+      added.push(newValues(now))
       continue
     }
     const was = before.get(row.id)
@@ -140,9 +149,12 @@ export function branchServicesChange(
     const fields = FIELDS.filter(
       (field) => JSON.stringify(FIELD_PARTS[field](was)) !== JSON.stringify(FIELD_PARTS[field](now))
     )
-    if (fields.length > 0) changed.push({ serviceId: row.id, fields, service: values(now) })
+    if (fields.length > 0 || was.categoryHintDismissed !== now.categoryHintDismissed) {
+      changed.push({ serviceId: row.id, fields, service: values(now) })
+    }
   }
-  return changed.length + added.length > 0 ? { kind: 'save', changed, added } : null
+  const reachesOthers = added.length > 0 || changed.some((edit) => edit.fields.length > 0)
+  return reachesOthers ? { kind: 'save', changed, added } : null
 }
 
 // ─── The preview ─────────────────────────────────────────────────────────────

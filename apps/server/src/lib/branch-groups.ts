@@ -89,6 +89,8 @@ export interface ServiceValues {
   approxPrice?: number | null
   durationMins?: number | null
   commissionRate?: number | null
+  /** "Not this" on the category hint (0080): this garage's own, never the other branches'. */
+  categoryHintDismissed?: boolean
 }
 
 /** A plain service of a branch, as stored (never a package or an add-on, never deleted). */
@@ -120,7 +122,11 @@ export interface GroupGarage {
 export type BranchServicesChange =
   | {
       kind: 'save'
-      /** Saved services of this garage that changed, with the fields that did. */
+      /**
+       * Saved services of this garage that changed, with the fields that did
+       * (none for one whose only change is its category hint, which is this
+       * garage's own and plans nothing).
+       */
       changed: Array<{ serviceId: string; fields: ChangeField[]; service: ServiceValues }>
       /** New services. */
       added: ServiceValues[]

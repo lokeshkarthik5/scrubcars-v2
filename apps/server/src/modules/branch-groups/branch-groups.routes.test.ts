@@ -175,6 +175,11 @@ beforeAll(() => {
       found.deletedAt = new Date()
     }
   })
+  patch(branchGroupsRepository, 'setHintsDismissed', async (ids: string[], vendorId: string, dismissed: boolean) => {
+    for (const row of services) {
+      if (ids.includes(row.id) && row.vendorId === vendorId) row.categoryHintDismissed = dismissed
+    }
+  })
   patch(branchGroupsRepository, 'insertAudit', async (row: Record<string, unknown>) => {
     audits.push(row)
   })
@@ -362,6 +367,24 @@ describe('change all branches at once', () => {
         detail: expect.objectContaining({ updated: 4, added: 4, deleted: 0 }),
       }),
     ])
+  })
+
+  test('a “Not this” on a hint stays this garage’s own', async () => {
+    const change = {
+      ...saveChange,
+      changed: [
+        ...saveChange.changed,
+        { serviceId: id(9205), fields: [], service: { ...foamAt549, name: 'Bike wash', price: 199, categoryHintDismissed: true } },
+      ],
+    }
+    const preview = await call('POST', `/admin/vendors/${VEL}/branches/services/preview`, { change })
+    // Nothing in the plan for it: it reaches no other branch.
+    expect(preview.body.data.items.map((item: any) => item.name)).toEqual(['Foam wash', 'Underbody wash'])
+    const saved = await call('POST', `/admin/vendors/${VEL}/branches/services`, { change, key: preview.body.data.key })
+    expect(saved.status).toBe(200)
+    expect(services.find((s) => s.id === id(9205))!.categoryHintDismissed).toBe(true)
+    expect(services.find((s) => s.id === id(9206))!.categoryHintDismissed).toBeUndefined()
+    expect(services.find((s) => s.id === id(9205))!.price).toBe('199.00')
   })
 
   test('refused, with nothing written, when the branches changed since the preview', async () => {

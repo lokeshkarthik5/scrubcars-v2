@@ -232,6 +232,14 @@ export const branchGroupsService = {
         tx
       )
       await branchGroupsRepository.markServicesDeleted(plan.writes.deletes, tx)
+      // "Not this" on a category hint (0080) is this garage's own, as its
+      // own save keeps it: never sent to the other branches.
+      if (change.kind === 'save') {
+        const hints = (dismissed: boolean) =>
+          change.changed.filter((edit) => edit.service.categoryHintDismissed === dismissed).map((edit) => edit.serviceId)
+        await branchGroupsRepository.setHintsDismissed(hints(true), vendorId, true, tx)
+        await branchGroupsRepository.setHintsDismissed(hints(false), vendorId, false, tx)
+      }
       await branchGroupsRepository.insertAudit(
         {
           action: change.kind === 'delete' ? 'garage_services_deleted_all_branches' : 'garage_services_saved_all_branches',

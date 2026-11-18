@@ -27,7 +27,8 @@ const changeBody = {
       z
         .object({
           serviceId: z.string().uuid(),
-          fields: z.array(z.enum(CHANGE_FIELDS)).min(1).max(CHANGE_FIELDS.length),
+          // None: only its category hint changed, which stays this garage's own.
+          fields: z.array(z.enum(CHANGE_FIELDS)).max(CHANGE_FIELDS.length),
           service: serviceInputSchema,
         })
         .strict()
