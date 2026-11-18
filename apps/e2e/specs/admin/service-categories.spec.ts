@@ -91,7 +91,11 @@ test.describe('the garage editor, by category', () => {
     await expect(name).toBeFocused()
     await expect(name).toHaveValue('')
 
-    await page.getByRole('button', { name: 'Discard' }).click()
+    // A new row nobody has typed into is not an unsaved change (rowsToSave
+    // leaves it out, so the save bar stays away); its own Remove takes it off.
+    await expect(page.getByRole('button', { name: 'Discard' })).toHaveCount(0)
+    await page.getByRole('button', { name: 'More for Service 3' }).click()
+    await page.getByRole('button', { name: 'Remove service 3' }).click()
     await expect(page.getByRole('heading', { level: 3, name: /^Dent & paint/ })).toHaveCount(0)
   })
 
