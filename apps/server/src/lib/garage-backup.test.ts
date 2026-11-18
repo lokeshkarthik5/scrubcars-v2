@@ -3,6 +3,7 @@ import {
   BACKUP_GROUPS,
   BACKUP_TABLES,
   BACKUP_WINDOW_MS,
+  backupPage,
   backupPageRefusal,
   backupRows,
   backupTable,
@@ -44,6 +45,21 @@ describe('masking', () => {
     expect(masked).toContain('12•••••012')
     expect(masked).toContain('2026-11-18 10:41')
     expect(masked).toContain('₹1,499.00')
+  })
+
+  test('free text: emails, UPI IDs, Aadhaar and spaced account numbers, landlines and PANs', () => {
+    const masked = maskNumbersInText(
+      'Mail ravi.kumar@gmail.com, pay ravikumar@okaxis or 9840012345@ybl. Aadhaar 1234 5678 9012, ' +
+        'a/c 5012-3456-7890-12, shop 044 2345 6789, PAN ABCDE1234F. Bill 12 on 18-11-2026 at 10:41, ₹450.'
+    )
+    for (const secret of ['ravi.kumar@', 'ravikumar@', '9840012345', '5678', '3456', '2345 6789', 'ABCDE1234F', 'E1234']) {
+      expect(masked).not.toContain(secret)
+    }
+    expect(masked).toContain('ra•••••@gmail.com')
+    expect(masked).toContain('ra•••••@okaxis')
+    expect(masked).toContain('12•••••012')
+    expect(masked).toContain('AB•••••F')
+    expect(masked).toContain('Bill 12 on 18-11-2026 at 10:41, ₹450.')
   })
 })
 
@@ -90,6 +106,21 @@ describe('rows', () => {
       false
     )
     expect(row).toEqual([null, null, null, null, null, 'No', null, 'hatchback; suv'])
+  })
+
+  test('a page is cut before it gets too big for Vercel, and the next one starts right after it', () => {
+    const wide = { columns: [{ key: 'notes', header: 'Notes', about: '' }] }
+    const rows = Array.from({ length: 6 }, (_, i) => ({ notes: 'அ'.repeat(5000), cursor_id: `c${i}` }))
+    // Each row is about 15 KB of JSON: 40 KB holds two.
+    const first = backupPage(wide, rows, true, { limit: 5, maxBytes: 40_000 })
+    expect(first.rows).toHaveLength(2)
+    expect(first.nextCursor).toBe('c1')
+    // Never fewer than one row, however big.
+    expect(backupPage(wide, rows, true, { limit: 5, maxBytes: 10 }).rows).toHaveLength(1)
+    // Within the limit and the bytes: the cursor is after the limit's last row, or none at the end.
+    expect(backupPage(wide, rows, true, { limit: 5, maxBytes: 1e9 })).toMatchObject({ nextCursor: 'c4' })
+    expect(backupPage(wide, rows.slice(0, 3), true, { limit: 5, maxBytes: 1e9 }).nextCursor).toBeNull()
+    expect(backupPage(wide, [], true, { limit: 5 })).toEqual({ rows: [], nextCursor: null })
   })
 
   test('the next page starts after the last row of this one, and there is none after a short page', () => {

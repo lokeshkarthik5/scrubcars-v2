@@ -3,10 +3,9 @@ import {
   BACKUP_GROUPS,
   BACKUP_PAGE_SIZE,
   BACKUP_TABLES,
+  backupPage,
   backupPageRefusal,
-  backupRows,
   backupTable,
-  nextCursor,
   type BackupAudit,
   type BackupTableKey,
 } from '../../lib/garage-backup.js'
@@ -84,9 +83,8 @@ export const garageBackupService = {
     }
     const definition = backupTable(table)!
     const rows = await garageBackupRepository.page(table, query.cursor ?? null, BACKUP_PAGE_SIZE)
-    return {
-      rows: backupRows(definition, rows.slice(0, BACKUP_PAGE_SIZE), full),
-      nextCursor: nextCursor(rows, BACKUP_PAGE_SIZE),
-    }
+    // At most BACKUP_PAGE_SIZE rows, and fewer when they would make the
+    // answer too big for Vercel; the cursor follows the last row sent.
+    return backupPage(definition, rows, full, { limit: BACKUP_PAGE_SIZE })
   },
 }

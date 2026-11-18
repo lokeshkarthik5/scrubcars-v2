@@ -38,6 +38,9 @@ describe.skipIf(!local)('back up all garages, on a real database', () => {
   const garagePhone = `97${tail}`
   const gbPhone = `96${tail}`
   const account = `5${tail}1234`
+  const email = `backup.${tail}@gmail.com`
+  const upiName = `tipjar${tail}`
+  const aadhaar = `${tail.slice(0, 4)} ${tail.slice(4)} 4321`
   const owner = { sub: `admin:${randomUUID()}`, name: 'Backup DB Owner' }
 
   let mod: {
@@ -63,8 +66,8 @@ describe.skipIf(!local)('back up all garages, on a real database', () => {
         (${ids.owner}, 'Backup Owner', ${ownerPhone}),
         (${ids.customer}, 'Backup Customer', ${`95${tail}`})`)
     await db.execute(sql`
-      insert into vendors (id, owner_id, business_name, phone, whatsapp, address, city, notes)
-      values (${ids.vendor}, ${ids.owner}, 'Backup DB Motors', ${garagePhone}, ${garagePhone},
+      insert into vendors (id, owner_id, business_name, phone, whatsapp, email, address, city, notes)
+      values (${ids.vendor}, ${ids.owner}, 'Backup DB Motors', ${garagePhone}, ${garagePhone}, ${email},
               ${`1 Test Road, call ${ownerPhone}`}, 'Chennai', ${`Brother: ${ownerPhone}`})`)
     await db.execute(sql`
       insert into vendor_working_hours (vendor_id, day_of_week, open_time, close_time)
@@ -88,7 +91,7 @@ describe.skipIf(!local)('back up all garages, on a real database', () => {
       values (${ids.booking}, ${ids.service}, 'Backup Foam Wash', 499, 30, 'car_wash')`)
     await db.execute(sql`
       insert into reviews (booking_id, user_id, vendor_id, rating, comment)
-      values (${ids.booking}, ${ids.customer}, ${ids.vendor}, 5, 'Lovely wash')`)
+      values (${ids.booking}, ${ids.customer}, ${ids.vendor}, 5, ${`Lovely wash, tip sent to ${upiName}@okaxis`})`)
     await db.execute(sql`
       insert into garage_customers (id, vendor_id, name, phone) values (${ids.gbCustomer}, ${ids.vendor}, 'Walk-in Ravi', ${gbPhone})`)
     await db.execute(sql`
@@ -101,7 +104,7 @@ describe.skipIf(!local)('back up all garages, on a real database', () => {
       values (${ids.vendor}, ${ids.gbCustomer}, ${ids.job}, 'owed', 45000)`)
     await db.execute(sql`
       insert into garage_expenses (vendor_id, category, amount_paise, spent_on, note)
-      values (${ids.vendor}, 'rent', 1500000, current_date, 'November rent')`)
+      values (${ids.vendor}, 'rent', 1500000, current_date, ${`November rent, landlord Aadhaar ${aadhaar}`})`)
     await db.execute(sql`
       insert into garage_suppliers (id, vendor_id, name, phone) values (${ids.supplier}, ${ids.vendor}, 'Shampoo Supplier', ${gbPhone})`)
     await db.execute(sql`
@@ -190,11 +193,14 @@ describe.skipIf(!local)('back up all garages, on a real database', () => {
   test('masked by default: the garage, its owner, its bank account and its Garage Book', async () => {
     const started = await mod.service.start(owner, false)
     const all = []
-    for (const table of ['garages', 'bank', 'bookings', 'garage_book_customers', 'garage_book_bills', 'garage_book_stock']) {
-      all.push(...ourRow(await readAll(table, started.backupId, false)))
+    for (const group of (await mod.service.manifest()).groups) {
+      for (const table of group.tables) all.push(...ourRow(await readAll(table.key, started.backupId, false)))
     }
     const text = JSON.stringify(all)
-    for (const number of [ownerPhone, garagePhone, gbPhone, account, `95${tail}`]) expect(text).not.toContain(number)
+    for (const number of [ownerPhone, garagePhone, gbPhone, account, `95${tail}`, email, upiName, aadhaar]) {
+      expect(text).not.toContain(number)
+    }
+    expect(text).toContain('November rent')
     expect(text).toContain(mod.lib.maskDigits(garagePhone, 'phone'))
     expect(text).toContain(mod.lib.maskDigits(account))
     expect(text).toContain('HDFC0001234')

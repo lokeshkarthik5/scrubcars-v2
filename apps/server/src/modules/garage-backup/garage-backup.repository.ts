@@ -314,8 +314,9 @@ export const BACKUP_SOURCES: Record<BackupTableKey, BackupSource> = {
       cars: `(select string_agg(concat_ws(' ', car.plate, car.make, car.model), '; ' order by car.created_at)
         from garage_customer_cars car where car.garage_customer_id = gc.id)`,
       // Pay later jobs owed less what was paid back, as the Garage Book's balance.
+      // The vendor too, so it reads garage_payments_vendor_customer_idx.
       owes: rupeesFromPaise(`(select coalesce(sum(case when gp.kind = 'owed' then gp.amount_paise else -gp.amount_paise end), 0)
-        from garage_payments gp where gp.garage_customer_id = gc.id)`),
+        from garage_payments gp where gp.vendor_id = gc.vendor_id and gp.garage_customer_id = gc.id)`),
       note: 'gc.note',
       source_note: 'gc.source_note',
       added_at: ist('gc.created_at'),

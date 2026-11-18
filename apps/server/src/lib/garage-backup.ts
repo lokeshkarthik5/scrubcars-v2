@@ -112,7 +112,7 @@ export const BACKUP_TABLES = [
       col('bookings_paused_reason', 'Pause reason', 'Why bookings are paused.', 'text'),
       col('phone', 'Phone', "The garage's phone number.", 'phone'),
       col('whatsapp', 'WhatsApp', "The garage's WhatsApp number.", 'phone'),
-      col('email', 'Email', "The garage's email address."),
+      col('email', 'Email', "The garage's email address.", 'text'),
       col('owner_name', 'Owner', "The owner's name on their Detlio account.", 'text'),
       col('owner_phone', 'Owner phone', "The owner's phone number, which they sign in with.", 'phone'),
       col('address', 'Address', 'The street address.', 'text'),
@@ -469,14 +469,32 @@ export function maskUpi(value: string): string {
   return `${name.slice(0, Math.min(2, Math.max(0, name.length - 3)))}${DOTS}${value.slice(at)}`
 }
 
+/** An email address or a UPI ID written in text: "ravi.k@gmail.com", "9840012345@ybl". */
+const HANDLE_IN_TEXT = /[\w.+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)*/gi
+/**
+ * Digits written in groups of three or more ("1234 5678 9012", an Aadhaar or
+ * an account number; "044 2345 6789", a landline). Dates and times have
+ * groups of two, so they never match.
+ */
+const GROUPED_DIGITS = /\d{3,}(?:[ -]\d{3,})+/g
+/** A PAN, "ABCDE1234F" (a GSTIN, which holds one, is a business's public number). */
+const PAN_IN_TEXT = /\b[a-z]{5}\d{4}[a-z]\b/gi
+
 /**
  * Free text with the numbers in it masked: every mobile number however it is
  * written ("98400 12345", "+91-98400-12345"), by the off-app flags' own
- * finder, which never hides a date or a price; then any unbroken run of nine
- * or more digits left, which is how an account number is written.
+ * finder, which never hides a date or a price; email addresses and UPI IDs
+ * (their name part, as maskUpi); digits in groups that add up to nine or
+ * more (an Aadhaar, a spaced account number, a landline); PANs; then any
+ * unbroken run of nine or more digits left, which is how an account number
+ * is written.
  */
 export function maskNumbersInText(text: string): string {
-  return maskPhones(text).replace(/\d{9,}/g, (run) => maskDigits(run))
+  return maskPhones(text)
+    .replace(HANDLE_IN_TEXT, (handle) => maskUpi(handle))
+    .replace(GROUPED_DIGITS, (run) => (run.replace(/\D/g, '').length >= 9 ? maskDigits(run) : run))
+    .replace(PAN_IN_TEXT, (pan) => `${pan.slice(0, 2)}${DOTS}${pan.slice(-1)}`)
+    .replace(/\d{9,}/g, (run) => maskDigits(run))
 }
 
 export type BackupCell = string | number | null
@@ -516,6 +534,38 @@ export function backupRows(
 /** A page's cursor: the id after which the next page starts, or null at the end. */
 export function nextCursor(rows: ReadonlyArray<{ cursor_id: string }>, limit: number): string | null {
   return rows.length > limit ? rows[limit - 1].cursor_id : null
+}
+
+/**
+ * The most JSON one page's rows may hold. Vercel refuses an answer over about
+ * 4.5 MB, and 500 rows of a wide sheet can pass that: a garage's notes and a
+ * service's description take 5,000 characters, three bytes each in Tamil.
+ */
+export const BACKUP_PAGE_BYTES = 2 * 1024 * 1024
+
+/**
+ * One page as the API sends it, from the repository's `limit + 1` rows:
+ * masked cells, cut short before the row that would take it past `maxBytes`
+ * (never fewer than one row), and the cursor after the last row it holds, so
+ * the next page starts exactly there: nothing skipped, nothing twice.
+ */
+export function backupPage(
+  table: Pick<BackupTable, 'columns'>,
+  rows: ReadonlyArray<Record<string, unknown> & { cursor_id: string }>,
+  full: boolean,
+  options: { limit: number; maxBytes?: number }
+): { rows: BackupCell[][]; nextCursor: string | null } {
+  const maxBytes = options.maxBytes ?? BACKUP_PAGE_BYTES
+  const cells = backupRows(table, rows.slice(0, options.limit), full)
+  let kept = 0
+  let bytes = 0
+  for (const row of cells) {
+    bytes += Buffer.byteLength(JSON.stringify(row)) + 1
+    if (kept > 0 && bytes > maxBytes) break
+    kept++
+  }
+  const more = kept < cells.length || rows.length > options.limit
+  return { rows: cells.slice(0, kept), nextCursor: more && kept > 0 ? rows[kept - 1].cursor_id : null }
 }
 
 // ─── The audit row ─────────────────────────────────────────────────────────
