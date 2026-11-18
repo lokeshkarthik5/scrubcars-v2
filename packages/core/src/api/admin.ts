@@ -19,6 +19,8 @@ import type { OnboardingMarkBrief } from './admin-marks'
 export interface AdminVendor {
   id: string
   businessName: string
+  /** The branch group it is in (0081), null for none; absent from an older API. */
+  groupId?: string | null
   phone: string
   address: string
   city: string
