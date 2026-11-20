@@ -15,6 +15,7 @@
  * imports only, so that test can load this file by path.
  */
 import { cityNameKey, cityOfPin } from './cities'
+import { driveMinutes } from './drive-time'
 import { t } from './i18n/translate'
 import { straightLineKm } from './map'
 import { SERVICE_CITY, type OutsideServiceCity } from './service-city'
@@ -342,6 +343,34 @@ export function nearGarageCount(
     last !== undefined &&
     (last.distanceKm === null || last.distanceKm > options.city.reachKm)
   return { count, more: options.hasMore && !pastTheNear }
+}
+
+/**
+ * The map peek's count once the customer has a place (owner, 20 Nov 2026):
+ * garages within about this many minutes' drive, by the same estimate as the
+ * "~20 min" on every card (driveMinutes). In Chennai every garage sits inside
+ * the city's 50 km reach of every area, so "near you" read 12 from Adyar,
+ * Nungambakkam and Tambaram alike; half an hour's drive changes as the area does.
+ */
+export const NEAR_DRIVE_MINUTES = 30
+
+/**
+ * "5 garages within ~30 min": how many loaded garages are within
+ * NEAR_DRIVE_MINUTES of the customer, and whether more may be on a page not
+ * loaded yet (the "+"). As with nearGarageCount, a nearest-first list that
+ * has already reached a garage past the limit (or the unpinned tail) has
+ * loaded every one, so no "+". Only for a located customer: without a place
+ * there is no drive to measure.
+ */
+export function driveNearCount(
+  garages: readonly NearGarage[],
+  options: { hasMore: boolean; nearestFirst: boolean }
+): { count: number; more: boolean } {
+  const within = (g: NearGarage) => g.distanceKm !== null && driveMinutes(g.distanceKm) <= NEAR_DRIVE_MINUTES
+  const count = garages.filter(within).length
+  const last = garages[garages.length - 1]
+  const pastTheLimit = options.nearestFirst && last !== undefined && !within(last)
+  return { count, more: options.hasMore && !pastTheLimit }
 }
 
 /**
