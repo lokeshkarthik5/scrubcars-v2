@@ -1,3 +1,4 @@
+import type { GoogleRating } from '../ratings'
 import { apiClient } from './client'
 import { signedBody } from './admin-signer'
 import type { NextFree } from '@repo/core/next-free'
@@ -60,7 +61,19 @@ interface RepairMedia {
 
 export interface CustomerRepairQuote {
   id: string
-  garage: { id: string; name: string; rating: number | null; reviewCount: number; isNew: boolean }
+  garage: {
+    id: string
+    name: string
+    rating: number | null
+    reviewCount: number
+    isNew: boolean
+    /**
+     * Google's rating while it is the main one (Google rating for new
+     * garages, 21 Nov 2026): shown in place of Detlio's, named as Google's.
+     * Absent from an older API.
+     */
+    google?: GoogleRating | null
+  }
   distanceKm: number
   state: RepairQuoteState
   respondBy: string

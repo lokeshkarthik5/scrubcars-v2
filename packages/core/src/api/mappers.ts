@@ -113,6 +113,7 @@ export function mapVendorListItem(item: ApiVendorListItem): Vendor {
     reviewCount: item.reviewCount,
     isNew: item.isNew ?? false,
     knownFor: item.knownFor ?? null,
+    google: item.google ?? null,
     openingHours: item.workingHours ?? null,
     closures: item.closures ?? [],
     // A paused garage is left out of every list, so a listed one never is.
@@ -164,6 +165,7 @@ export function mapPublicVendor(vendor: ApiPublicVendor): Vendor {
     reviewCount: vendor.reviewCount,
     isNew: vendor.isNew ?? false,
     knownFor: vendor.knownFor ?? null,
+    google: vendor.google ?? null,
     // Not on the single-vendor response: the garage page reads them from
     // /vendors/:id/working-hours, the query checkout's slot picker shares.
     openingHours: null,

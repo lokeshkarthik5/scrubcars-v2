@@ -10,7 +10,8 @@ import {
 import { logger } from '../../lib/logger.js'
 import { nextFreeTimes, nextFreeWindow, type NextFree } from '../../lib/next-free.js'
 import { customerRepairQuoteAnswered, garageNewRepairQuote } from '../../lib/push-messages.js'
-import { garageRating } from '../../lib/ratings.js'
+import { cardGoogleRating, garageRating, type GoogleRating } from '../../lib/ratings.js'
+import { googleRatingsFor } from '../reviews/reviews.service.js'
 import {
   BRIEF_INSTRUCTIONS,
   BRIEF_JSON_SCHEMA,
@@ -112,13 +113,28 @@ function briefView(request: RequestRow) {
   }
 }
 
-function customerQuoteView(entry: QuoteWithGarage, state: RequestState, now: Date, badges: Map<string, boolean>) {
+function customerQuoteView(
+  entry: QuoteWithGarage,
+  state: RequestState,
+  now: Date,
+  badges: Map<string, boolean>,
+  googleRatings: Map<string, GoogleRating>
+) {
   const { quote, garage } = entry
   const rating = garageRating({ average: garage.ratingAverage, count: garage.ratingCount })
   const status = quoteState(quote, state, now)
   return {
     id: quote.id,
-    garage: { id: garage.id, name: garage.name, rating: rating.rating, reviewCount: rating.reviewCount, isNew: rating.isNew },
+    garage: {
+      id: garage.id,
+      name: garage.name,
+      rating: rating.rating,
+      reviewCount: rating.reviewCount,
+      isNew: rating.isNew,
+      // Google rating for new garages (21 Nov 2026): Google's, while it is
+      // the main one (as on the garage's card); null otherwise. Additive.
+      google: cardGoogleRating(googleRatings.get(garage.id) ?? null, rating.reviewCount, { map: false }),
+    },
     distanceKm: Number(quote.distanceKm),
     state: status,
     respondBy: quote.respondBy.toISOString(),
@@ -152,6 +168,7 @@ async function badgesFor(vendorIds: string[]): Promise<Map<string, boolean>> {
 async function customerViews(requests: RequestRow[], now: Date) {
   const quotes = await repo.quotesFor(requests.map((request) => request.id))
   const badges = await badgesFor(quotes.map((entry) => entry.quote.vendorId))
+  const googleRatings = await googleRatingsFor(Array.from(new Set(quotes.map((entry) => entry.garage.id))), now)
   return requests.map((request) => {
     const state = requestState(request, now)
     const mine = quotes.filter((entry) => entry.quote.requestId === request.id)
@@ -174,7 +191,7 @@ async function customerViews(requests: RequestRow[], now: Date) {
       ),
       answerWindowMins: R.answerMinutes,
       sentTo: mine.length,
-      quotes: mine.map((entry) => customerQuoteView(entry, state, now, badges)),
+      quotes: mine.map((entry) => customerQuoteView(entry, state, now, badges, googleRatings)),
       bookingId: booked?.quote.bookingId ?? null,
     }
   })

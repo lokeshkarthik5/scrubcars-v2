@@ -8,7 +8,8 @@
     "./*": "./src/*.tsx"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
   },
   "dependencies": {
     "@repo/core": "*",

@@ -1,3 +1,4 @@
+import { garageGoogleService } from '../garage-google/garage-google.service.js'
 import { conditionCheckService } from '../condition-check/condition-check.service.js'
 import { NOTE_EDIT_HOURS, noteEditRefusal, noteEditableUntil, type NoteEditRefusal } from '../../lib/booking-notes.js'
 import { AT_GARAGE_ADDRESS_MESSAGE, atGarageAddressMissing, atGarageAddressRefused, garageAddressLine } from '../../lib/garage-address.js'
@@ -882,6 +883,9 @@ export const adminService = {
     // Cities (0069): each garage's city and whether that city (or Other
     // towns) is on for customers, read once for the whole list.
     const cityRules = await citiesService.rules()
+    // Google rating for new garages (21 Nov 2026): each garage's Google
+    // listing from its lead, for the side panel and "No Google listing".
+    const googleListings = await garageGoogleService.listingsByVendor(now)
     // Still the full array, every stage and the Bin included: the Bookings
     // garage filter reads this list too (and leaves the Bin out itself). The
     // panel's chips filter and count it on the client. A garage deleted
@@ -925,6 +929,7 @@ export const adminService = {
         openMarks: openMarks.get(vendor.id) ?? [],
         onboardedByName: vendor.onboardedByName ?? null,
         openCollection: openCollection.get(vendor.id) ?? null,
+        google: googleListings.get(vendor.id) ?? null,
         broughtInBy: broughtIn.get(vendor.id) ?? [],
       }
     })

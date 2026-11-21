@@ -22,6 +22,7 @@ import { cn } from '@repo/core/utils'
 import { TIER_LABELS } from '@repo/core/tiers'
 import { TierMedalIcon } from '@repo/ui/features/tier-medal'
 import { SidePanelMarks } from '@/components/marks/side-panel-marks'
+import { GoogleListingSection } from '@/components/garages/google-listing'
 import { GarageLuxurySection } from '@/components/garage-luxury-section'
 import { ColourCell } from '@/components/garages/colour-tags'
 import { colourSetLine } from '@/lib/garage-colours'
@@ -233,6 +234,9 @@ export function GarageSidePanel({
           <WithTeamCell vendor={v} />
         </SidePanelSection>
       )}
+
+      {/* Google rating for new garages (21 Nov 2026). */}
+      <GoogleListingSection vendor={v} />
 
       <SidePanelSection title="Garage">
         <SidePanelFacts rows={facts} />

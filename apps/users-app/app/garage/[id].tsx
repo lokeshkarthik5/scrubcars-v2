@@ -7,14 +7,15 @@ import { alsoAtChips, type AlsoAtChip } from '@repo/core/branches';
 import { distanceAndDrive, distanceLabel } from '@repo/core/drive-time';
 import { straightLineKm } from '@repo/core/map';
 import { isNoFeeInspection, resolveServiceAmount } from '@repo/core/pricing';
-import { hasStarScore, NEW_GARAGE_LABEL } from '@repo/core/ratings';
+import { hasStarScore, mainGoogleRating, NEW_GARAGE_LABEL } from '@repo/core/ratings';
+import { DetlioMark, GoogleMapsText, GoogleMark } from '@repo/native-ui/rating-marks';
 import { knownDurationTotal } from '@repo/core/service-duration';
 import { anywhereInCityLine } from '@repo/core/reach';
 import { useUserStore } from '@repo/core/stores/user-store';
 import type { BookingType, Service, ServicePackage, Vendor } from '@repo/core/types';
 import { formatDuration } from '@repo/core/utils';
 import { Glass, Odometer, Raised, Recessed, RedButton } from '@repo/native-ui/finish';
-import { IconArrowLeft, IconArrowUpRight, IconChevronRight, IconMapPin, IconSearch, IconStarFilled } from '@repo/native-ui/icons';
+import { IconArrowLeft, IconArrowUpRight, IconChevronRight, IconMapPin, IconSearch } from '@repo/native-ui/icons';
 import { EASE_SETTLE, PressScale, Rise, SeenProvider, useReduceMotion, useSeenHost } from '@repo/native-ui/motion';
 import { ErrorState, Notice, SkeletonList } from '@repo/native-ui/primitives';
 import { Figures, font, T } from '@repo/native-ui/text';
@@ -248,8 +249,11 @@ export default function GarageScreen() {
   const selectedDuration = knownDurationTotal(selectedServices);
   const hasPerVehiclePricing = selectedServices.some((s) => s.pricingType === 'per_vehicle' && !pricedForCar(s, carType));
   const reviewCount = vendor.reviewCount || reviewsList.length;
-  const showStars = hasStarScore({ reviewCount, isNew: vendor.isNew });
-  const visibleTabs = TABS.filter((item) => item.key !== 'reviews' || reviewCount > 0);
+  // Google rating for new garages (21 Nov 2026), as the web page: Google's is the main one while the garage
+  // has fewer than 5 counted Detlio reviews; the Reviews tab shows with none yet when there is one.
+  const google = mainGoogleRating({ reviewCount, google: vendor.google });
+  const showStars = !google && hasStarScore({ reviewCount, isNew: vendor.isNew });
+  const visibleTabs = TABS.filter((item) => item.key !== 'reviews' || reviewCount > 0 || google !== null);
   const hero = vendor.photos[0] ?? null;
   const fromHere =
     activeLocation && !isCitywide(activeLocation) && vendor.lat != null && vendor.lng != null
@@ -316,10 +320,21 @@ export default function GarageScreen() {
 
                 {/* Score, distance and drive time are figures; the words between them stay Inter. */}
                 <View style={styles.facts}>
-                  {showStars ? (
+                  {google ? (
                     <View style={styles.fact}>
-                      <IconStarFilled size={13} color={colors.warningFill} />
+                      <GoogleMark size={13} />
                       <T num variant="t4" weight={600}>
+                        {google.rating.toFixed(1)}
+                      </T>
+                      <T variant="t4" color={fx.quiet}>
+                        ({tn(google.reviewCount, '{count} review', '{count} reviews')})
+                      </T>
+                      <GoogleMapsText />
+                    </View>
+                  ) : showStars ? (
+                    <View style={styles.fact}>
+                      <DetlioMark size={14} rating={vendor.rating} />
+                      <T num variant="t4" weight={600} accessibilityElementsHidden importantForAccessibility="no">
                         {vendor.rating.toFixed(1)}
                       </T>
                       <T variant="t4" color={fx.quiet}>
@@ -741,7 +756,7 @@ function GarageTabs({
               key={item.key}
               accessibilityRole="tab"
               accessibilityState={{ selected: tab === item.key }}
-              accessibilityLabel={item.key === 'reviews' ? `${t(item.label)}, ${reviewCount}` : t(item.label)}
+              accessibilityLabel={item.key === 'reviews' && reviewCount > 0 ? `${t(item.label)}, ${reviewCount}` : t(item.label)}
               onPress={() => onTab(item.key)}
               onLayout={(event) => {
                 const { x: left, width } = event.nativeEvent.layout;
@@ -762,7 +777,7 @@ function GarageTabs({
               >
                 {t(item.label)}
               </T>
-              {item.key === 'reviews' ? (
+              {item.key === 'reviews' && reviewCount > 0 ? (
                 <T num variant="t5" weight={600} color={fx.quiet}>
                   {reviewCount}
                 </T>

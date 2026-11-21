@@ -5,14 +5,15 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
-import { IconArrowUpRight, IconHierarchy2, IconHome, IconStarFilled } from '@tabler/icons-react'
+import { IconArrowUpRight, IconHierarchy2, IconHome } from '@tabler/icons-react'
 import { prefetchGarage } from '@repo/core/api/hooks/use-vendors'
 import { bookingTypeParam } from '@repo/core/booking-types'
 import { anywhereInCityLine } from '@repo/core/reach'
 import { branchesLine } from '@repo/core/branches'
 import { distanceLabel, driveTimeLabel } from '@repo/core/drive-time'
 import { hoursLeftShare, openStatus } from '@repo/core/opening-hours'
-import { NEW_GARAGE_LABEL, hasStarScore } from '@repo/core/ratings'
+import { NEW_GARAGE_LABEL, googleRatingSpoken, hasStarScore, mainGoogleRating } from '@repo/core/ratings'
+import { DetlioMark, GoogleMapsText, GoogleMark } from '@repo/ui/sc/rating-marks'
 import { isApproximate, useHydratedLocation } from '@repo/core/stores/location-store'
 import type { BookingType, Vendor } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
@@ -125,6 +126,11 @@ export function ShowroomCard({
   const href = modeParam ? `/garage/${vendor.id}?mode=${modeParam}` : `/garage/${vendor.id}`
   const photos = vendor.photos
   const stars = hasStarScore(vendor)
+  // A garage linked to its Google listing, under 5 counted Detlio reviews,
+  // shows Google's rating in the first figure (21 Nov 2026), named as
+  // Google's: the G, and "Google Maps" under the figures. Never added to
+  // Detlio's; the NEW tag stays while it has no Detlio score.
+  const google = mainGoogleRating(vendor)
   const km = vendor.distanceKm
   const approx = approxDistance ?? isApproximate(location)
   const minute = useClientMinute()
@@ -225,9 +231,11 @@ export function ShowroomCard({
   // figures that count: "4.6 stars, 12 reviews. 6.2 km · ~20 min. From ₹499."
   const spoken = (
     <p className="sr-only">
-      {stars
-        ? `${t('{rating} stars, {count} reviews.', { rating: vendor.rating.toFixed(1), count: vendor.reviewCount })} `
-        : `${t(NEW_GARAGE_LABEL)}. `}
+      {google
+        ? `${googleRatingSpoken(google)} `
+        : stars
+          ? `${t('{rating} stars, {count} reviews.', { rating: vendor.rating.toFixed(1), count: vendor.reviewCount })} `
+          : `${t(NEW_GARAGE_LABEL)}. `}
       {km !== null && (
         <>
           <span data-distance="">{`${distanceLabel(km, approx)} · ${driveTimeLabel(km)}`}</span>.{' '}
@@ -382,16 +390,28 @@ export function ShowroomCard({
           {spoken}
 
           <div aria-hidden="true" className="flex min-w-0 flex-1 items-stretch">
-            {stars && (
+            {google ? (
               <Fact>
                 <b className="flex items-center gap-1">
-                  <IconStarFilled size={13} className="text-warning" />
-                  {rating}
+                  <GoogleMark size={14} />
+                  {google.rating.toFixed(1)}
                 </b>
                 <span>
-                  {tn(vendor.reviewCount, '{count} review', '{count} reviews')}
+                  {tn(google.reviewCount, '{count} review', '{count} reviews')}
                 </span>
               </Fact>
+            ) : (
+              stars && (
+                <Fact>
+                  <b className="flex items-baseline gap-1">
+                    <DetlioMark size={15} rating={vendor.rating} />
+                    {rating}
+                  </b>
+                  <span>
+                    {tn(vendor.reviewCount, '{count} review', '{count} reviews')}
+                  </span>
+                </Fact>
+              )
             )}
             {km !== null && (
               <Fact>
@@ -413,6 +433,14 @@ export function ShowroomCard({
             <IconArrowUpRight size={18} />
           </span>
         </div>
+
+        {/* Google's attribution, in the same card as its rating (Google's
+            rule): the words, whole, under the figures. */}
+        {google && (
+          <p className="-mt-1.5 px-3.5 pb-2.5">
+            <GoogleMapsText />
+          </p>
+        )}
 
         {(chips || anywhere || vendor.luxury || vendor.outsideServiceCity || (mode === 'dropin' && vendor.doorstepEnabled)) && (
           <div className="-mt-0.5 flex flex-wrap gap-1.5 px-3.5 pb-3">

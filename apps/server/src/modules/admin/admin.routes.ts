@@ -59,6 +59,7 @@ import { adminRepairQuoteRoutes } from '../repair-quotes/repair-quotes.routes.js
 import { adminServiceCategoryRoutes } from '../service-categories/service-categories.routes.js'
 import { adminServiceTemplateRoutes } from '../service-templates/service-templates.routes.js'
 import { adminPlacesRoutes } from '../places/places.routes.js'
+import { adminGarageGoogleRoutes } from '../garage-google/garage-google.routes.js'
 import { adminOwnerDeleteRoutes } from '../owner-delete/owner-delete.routes.js'
 import { adminGarageBackupRoutes } from '../garage-backup/garage-backup.routes.js'
 import { adminBranchGroupRoutes } from '../branch-groups/branch-groups.routes.js'
@@ -220,6 +221,10 @@ adminRoutes.route('/', adminCollectionListRoutes)
 // The owner deletes anything (10 Nov 2026): /owner-delete/* hard deletes,
 // owner only. Its own module; mounted at the root for the cookie's sake.
 adminRoutes.route('/', adminOwnerDeleteRoutes)
+// Google rating for new garages (21 Nov 2026): POST /vendors/:id/google/
+// search, /link and /unlink, the side panel's Google listing. Mounted at the
+// root for the cookie's sake, like the Bin.
+adminRoutes.route('/', adminGarageGoogleRoutes)
 // Back up all garages (18 Nov 2026): /backup/*, owner only. Its own module;
 // mounted at the root for the cookie's sake.
 adminRoutes.route('/', adminGarageBackupRoutes)

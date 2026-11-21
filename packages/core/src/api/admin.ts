@@ -1,3 +1,4 @@
+import type { AdminGoogleListing } from './admin-google'
 import type { LuxuryStatus } from '@repo/core/luxury'
 import type { Tier } from '@repo/core/tiers'
 import { apiClient } from './client'
@@ -129,6 +130,12 @@ export interface AdminVendor {
    * last 90 days. Null while the guarantee is off; absent from older servers.
    */
   redoClaims90d?: number | null
+  /**
+   * Google rating for new garages (21 Nov 2026): its Google listing, from
+   * its Coverage lead; null when it has none ("No Google listing"). Absent
+   * from older servers.
+   */
+  google?: AdminGoogleListing | null
   /**
    * Bring your garage (21 Nov 2026): the customers whose recommendation
    * brought this garage in (it signed up with the phone they gave, or the

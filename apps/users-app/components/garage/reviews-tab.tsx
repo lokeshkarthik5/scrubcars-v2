@@ -2,7 +2,18 @@ import { useVendorReviews } from '@repo/core/api/hooks/use-vendors';
 import { ApiError } from '@repo/core/api/client';
 import { getVendorReviewSummary, reportReview } from '@repo/core/api/reviews';
 import { useT, useTn } from '@repo/core/i18n';
-import { hasStarScore, NEW_GARAGE_LABEL, newGarageReviewsLine, RATING_RULES } from '@repo/core/ratings';
+import {
+  alsoGoogleRating,
+  DETLIO_REVIEWS_ONLY_LINE,
+  FROM_REAL_BOOKINGS,
+  hasStarScore,
+  mainGoogleRating,
+  NEW_GARAGE_LABEL,
+  NO_DETLIO_REVIEWS_YET,
+  newGarageReviewsLine,
+  RATING_RULES,
+} from '@repo/core/ratings';
+import { DetlioMark, GoogleMapsText, GoogleMark } from '@repo/native-ui/rating-marks';
 import type { Review, Vendor } from '@repo/core/types';
 import { ScButton } from '@repo/native-ui/button';
 import { ScTextarea } from '@repo/native-ui/inputs';
@@ -203,25 +214,33 @@ export function ReviewsTab({ vendor, reviewCount }: { vendor: Vendor; reviewCoun
   const colors = useColors();
   const styles = useStyles();
   const reviews = useVendorReviews(vendor.id).data ?? [];
-  const showStars = hasStarScore({ reviewCount, isNew: vendor.isNew });
+  // Google rating for new garages (21 Nov 2026), as the web tab: under 5 counted Detlio reviews Google's is
+  // the main one, in its own box with the honest line; from 5, Detlio's own, and Google's as a quiet "Also" line.
+  const google = mainGoogleRating({ reviewCount, google: vendor.google });
+  const alsoGoogle = alsoGoogleRating({ reviewCount, google: vendor.google });
+  const showStars = !google && hasStarScore({ reviewCount, isNew: vendor.isNew });
   const soFar = newGarageReviewsLine(reviewCount);
   return (
     <>
       <View style={styles.scoreRow}>
         {showStars ? (
           <View style={styles.score}>
-            <T num size={30} weight={700} lh={36}>
-              {vendor.rating.toFixed(1)}
-            </T>
-            <View>
+            <View style={styles.bigScore}>
+              <DetlioMark size={24} rating={vendor.rating} />
+              <T num size={30} weight={700} lh={36} accessibilityElementsHidden importantForAccessibility="no">
+                {vendor.rating.toFixed(1)}
+              </T>
+            </View>
+            <View style={styles.scoreWords}>
               <Stars rating={vendor.rating} size={16} />
               <T size={11} color={colors.textSecondary}>
                 {tn(reviewCount, '{count} review', '{count} reviews')}
+                {` · ${t(FROM_REAL_BOOKINGS)}`}
               </T>
             </View>
           </View>
         ) : (
-          <View>
+          <View style={styles.newWords}>
             <T size={15} weight={600}>
               {t(NEW_GARAGE_LABEL)}
             </T>
@@ -229,13 +248,55 @@ export function ReviewsTab({ vendor, reviewCount }: { vendor: Vendor; reviewCoun
               <T size={11} color={colors.textSecondary}>
                 {soFar}
               </T>
+            ) : google ? (
+              <T size={11} color={colors.textSecondary}>
+                {t(NO_DETLIO_REVIEWS_YET)}
+              </T>
             ) : null}
           </View>
         )}
-        <StarBars vendorId={vendor.id} />
+        {reviewCount > 0 ? <StarBars vendorId={vendor.id} /> : null}
       </View>
+      {/* From 5 Detlio reviews, Google's is only this quiet line. */}
+      {alsoGoogle ? (
+        <View style={styles.also}>
+          <T size={11} color={colors.textSecondary}>
+            {t('Also')}
+          </T>
+          <GoogleMark size={12} />
+          <T num size={11} weight={600}>
+            {alsoGoogle.rating.toFixed(1)}
+          </T>
+          <T size={11} color={colors.textSecondary}>
+            ({tn(alsoGoogle.reviewCount, '{count} review', '{count} reviews')})
+          </T>
+          <GoogleMapsText />
+        </View>
+      ) : null}
+      {/* Google's rating in its own box, then the honest line. No link to Google. */}
+      {google ? (
+        <>
+          <View style={styles.googleBox}>
+            <T num size={26} weight={600} lh={30}>
+              {google.rating.toFixed(1)}
+            </T>
+            <View style={styles.googleWords}>
+              <View style={styles.googleTitle}>
+                <GoogleMark size={14} />
+                <GoogleMapsText size={13} />
+              </View>
+              <T size={11} color={colors.textSecondary}>
+                {tn(google.reviewCount, '{count} review', '{count} reviews')}
+              </T>
+            </View>
+          </View>
+          <T size={11} color={colors.textSecondary}>
+            {t(DETLIO_REVIEWS_ONLY_LINE)}
+          </T>
+        </>
+      ) : null}
       <TagCounts vendorId={vendor.id} />
-      {reviews.length === 0 ? (
+      {reviews.length === 0 && !google ? (
         <T size={13} color={colors.textSecondary} align="center" style={styles.none}>
           {t('No reviews yet.')}
         </T>
@@ -291,6 +352,23 @@ const useStyles = createStyles((c) => ({
   flex: { flex: 1, minWidth: 0 },
   scoreRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   score: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  bigScore: { flexDirection: 'row', alignItems: 'flex-end', gap: 6 },
+  scoreWords: { flexShrink: 1 },
+  newWords: { flexShrink: 1 },
+  also: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 5 },
+  googleBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: c.line,
+    backgroundColor: c.surface,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  googleWords: { gap: 4 },
+  googleTitle: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   bars: { flex: 1, minWidth: 0, gap: 6 },
   barRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   barTrack: { flex: 1, height: 5, borderRadius: 3, overflow: 'hidden', backgroundColor: c.bars },

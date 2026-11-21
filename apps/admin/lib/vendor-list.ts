@@ -88,6 +88,14 @@ export const ELIGIBLE_FILTER = 'eligible' as const
 export const ELIGIBLE_LABEL = 'Gold-eligible, not awarded'
 
 /**
+ * "No Google listing" (Google rating for new garages, 21 Nov 2026): garages
+ * not in the Bin whose lead holds no Google place, so the team can work
+ * through the ones still to link. Only from an API that sends `google`.
+ */
+export const NO_GOOGLE_FILTER = 'nogoogle' as const
+export const NO_GOOGLE_LABEL = 'No Google listing'
+
+/**
  * Luxury car specialists (0083), two more filters under More filters.
  * "Luxury applications": garages asking for the badge, waiting for the team
  * (under review or asked for more) and holding Silver or Gold (the server's
@@ -106,6 +114,7 @@ export const MORE_FILTERS = [
   REVIEW_FILTER,
   CERTIFIED_FILTER,
   ELIGIBLE_FILTER,
+  NO_GOOGLE_FILTER,
   LUXURY_APPLICATIONS_FILTER,
   LUXURY_SPECIALISTS_FILTER,
 ] as const
@@ -115,6 +124,7 @@ export const MORE_LABELS: Record<MoreFilter, string> = {
   documents: REVIEW_LABEL,
   certified: CERTIFIED_LABEL,
   eligible: ELIGIBLE_LABEL,
+  nogoogle: NO_GOOGLE_LABEL,
   luxury: LUXURY_APPLICATIONS_LABEL,
   specialists: LUXURY_SPECIALISTS_LABEL,
 }
@@ -151,7 +161,17 @@ type ListedFields = Pick<
   AdminVendor,
   'live' | 'status' | 'isVerified' | 'bookingsPausedAt' | 'deletedAt'
 > &
-  Partial<Pick<AdminVendor, 'documents' | 'certification' | 'luxury'>>
+  Partial<Pick<AdminVendor, 'documents' | 'certification' | 'google' | 'luxury'>>
+
+/** Not in the Bin, and no Google listing on its lead (an API that sends `google` only). */
+export function hasNoGoogleListing(v: ListedFields): boolean {
+  return !isInBin(v) && v.google === null
+}
+
+/** How many garages the "No Google listing" chip holds. */
+export function noGoogleListingCount(vendors: ListedFields[]): number {
+  return vendors.filter(hasNoGoogleListing).length
+}
 
 /** Gold (Detlio Certified) now, and not in the Bin. */
 export function isCertifiedGarage(v: ListedFields): boolean {
@@ -309,6 +329,7 @@ export function matchesShow(v: ListedFields, show: ListFilter): boolean {
   if (show === REVIEW_FILTER) return hasDocumentsToReview(v)
   if (show === CERTIFIED_FILTER) return isCertifiedGarage(v)
   if (show === ELIGIBLE_FILTER) return isEligibleNotCertified(v)
+  if (show === NO_GOOGLE_FILTER) return hasNoGoogleListing(v)
   if (show === LUXURY_APPLICATIONS_FILTER) return isLuxuryApplication(v)
   if (show === LUXURY_SPECIALISTS_FILTER) return isLuxurySpecialist(v)
   if (show === 'bin') return isInBin(v)
@@ -395,6 +416,14 @@ export function showHints(
           term: 'Gold-eligible',
           meaning:
             'met every Gold standard last night; record a quality check, then Award Gold',
+        },
+      ]
+    case NO_GOOGLE_FILTER:
+      return [
+        {
+          term: NO_GOOGLE_LABEL,
+          meaning:
+            'not linked to Google; customers see “New” until it has Detlio reviews. Open one and press Link to Google listing',
         },
       ]
     case LUXURY_APPLICATIONS_FILTER:

@@ -2,19 +2,23 @@ import { AppError } from '../../lib/errors.js'
 import { logger } from '../../lib/logger.js'
 import { alertOps } from '../../lib/ops-alerts.js'
 import {
+  GOOGLE_RATING_RULES,
   REVIEW_TAG_LABELS,
   garageRating,
+  heldGoogleRating,
   isReviewTag,
   knownFor,
   orderedTagCounts,
   replyEditable,
   replyRefusal,
+  type GoogleRating,
   type ReviewTag,
 } from '../../lib/ratings.js'
 import { vendorInBin } from '../../lib/vendor-bin.js'
 import { toPublicReviewResponse } from './reviews.public.js'
 import { reviewsRepository, type RatingAggregate } from './reviews.repository.js'
 import { isInBin } from '../vendors/vendors.predicates.js'
+import { vendorsRepository } from '../vendors/vendors.repository.js'
 
 const log = logger.child({ module: 'reviews' })
 import type { ReviewRecord } from './reviews.repository.js'
@@ -138,6 +142,25 @@ export async function ratingsFor(vendorIds: string[]) {
       return [id, { ...rating, knownFor: top ? tagView(top) : null }]
     })
   )
+}
+
+/**
+ * Each garage's Google rating that may still be shown (Google rating for new
+ * garages, 21 Nov 2026; lib/ratings.ts heldGoogleRating), from its lead, in
+ * one read: the 30 days are filtered in the SQL and again here. Never a call
+ * to Google: the nightly refresh keeps the leads' figures fresh. Which of
+ * them shows is the caller's (cardGoogleRating, or the garage page's
+ * whatever the count).
+ */
+export async function googleRatingsFor(vendorIds: string[], now: Date): Promise<Map<string, GoogleRating>> {
+  const heldSince = new Date(now.getTime() - GOOGLE_RATING_RULES.holdDays * 24 * 60 * 60 * 1000)
+  const rows = await vendorsRepository.listGoogleRatings(vendorIds, heldSince)
+  const byVendor = new Map<string, GoogleRating>()
+  for (const row of rows) {
+    const google = heldGoogleRating(row, now)
+    if (google) byVendor.set(row.vendorId, google)
+  }
+  return byVendor
 }
 
 /** The stars 5 to 1 with how many counted reviews gave each. */

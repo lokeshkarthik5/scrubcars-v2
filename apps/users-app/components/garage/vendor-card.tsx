@@ -2,11 +2,12 @@ import { matchSpans } from '@repo/core/moments';
 import { BOOKING_TYPE_LABELS, bookingTypeParam } from '@repo/core/booking-types';
 import { distanceAndDrive } from '@repo/core/drive-time';
 import { fill, useT } from '@repo/core/i18n';
-import { hasStarScore, NEW_GARAGE_LABEL, newGarageReviewsLine } from '@repo/core/ratings';
+import { hasStarScore, mainGoogleRating, NEW_GARAGE_LABEL, newGarageReviewsLine } from '@repo/core/ratings';
+import { DetlioMark, GoogleMapsText, GoogleMark } from '@repo/native-ui/rating-marks';
 import { anywhereInCityLine } from '@repo/core/reach';
 import { branchesLine } from '@repo/core/branches';
 import type { BookingType, Vendor } from '@repo/core/types';
-import { IconHierarchy2, IconStarFilled } from '@repo/native-ui/icons';
+import { IconHierarchy2 } from '@repo/native-ui/icons';
 import { PressRow } from '@repo/native-ui/primitives';
 import { RED_LIGHT } from '@repo/native-ui/tokens';
 import { T } from '@repo/native-ui/text';
@@ -93,6 +94,8 @@ export function VendorCard({
   const distanceText = km !== null ? distanceAndDrive(km, isApproximate(location)) : null;
   const modeParam = mode ? bookingTypeParam(mode) : null;
   const anywhere = anywhereInCityLine(vendor, mode);
+  // Google's rating while it is the main one (21 Nov 2026, @repo/core/ratings).
+  const google = mainGoogleRating(vendor);
   const branchLine = branchesLine(vendor.branchGroup);
 
   return (
@@ -127,10 +130,22 @@ export function VendorCard({
             </View>
           </View>
           <View style={styles.facts}>
-            {hasStarScore(vendor) ? (
+            {google ? (
+              // Google's rating for a new garage linked to its listing (21 Nov 2026), as the web
+              // card: Google's G, and "Google Maps" on its own line below.
               <>
-                <IconStarFilled size={12} color={colors.warningFill} />
+                <GoogleMark size={12} />
                 <T num size={12} weight={500} lh={18}>
+                  {google.rating.toFixed(1)}
+                </T>
+                <T size={12} lh={18} color={colors.textSecondary}>
+                  ({google.reviewCount})
+                </T>
+              </>
+            ) : hasStarScore(vendor) ? (
+              <>
+                <DetlioMark size={13} rating={vendor.rating} />
+                <T num size={12} weight={500} lh={18} accessibilityElementsHidden importantForAccessibility="no">
                   {vendor.rating.toFixed(1)}
                 </T>
                 <T size={12} lh={18} color={colors.textSecondary}>
@@ -160,6 +175,11 @@ export function VendorCard({
               </>
             ) : null}
           </View>
+          {google ? (
+            <View style={styles.googleMaps}>
+              <GoogleMapsText />
+            </View>
+          ) : null}
           {townTag ? <OutsideCityChip text={townTag} /> : null}
           {vendor.matchedService ? (
             <T size={12} numberOfLines={1} color={colors.textSecondary}>
@@ -259,6 +279,7 @@ const useStyles = createStyles((c) => ({
   badges: { flexDirection: 'row', gap: 6, flexShrink: 0 },
   badge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 },
   facts: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  googleMaps: { flexDirection: 'row' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, paddingTop: 2 },
   distance: { borderRadius: 6, backgroundColor: c.surfaceElevated, paddingHorizontal: 8, paddingVertical: 2 },
   known: { borderRadius: 999, borderWidth: 1, borderColor: 'rgba(34,197,94,0.5)', paddingHorizontal: 10, paddingVertical: 2 },

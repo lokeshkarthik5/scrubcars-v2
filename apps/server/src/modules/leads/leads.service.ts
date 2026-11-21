@@ -217,7 +217,7 @@ async function assignee(loginId: string | null | undefined): Promise<{
  * to contacted when it has none), until their referral credit is decided:
  * lib/recommendations.ts recommendationGarageChanges, under the rows' lock.
  */
-async function syncRecommendations(
+export async function syncRecommendations(
   conn: Conn,
   leadId: string,
   vendorId: string | null,
