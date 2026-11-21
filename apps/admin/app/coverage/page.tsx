@@ -304,6 +304,7 @@ function Coverage() {
                 (rec) => rec.zoneId === (openStats?.zone.id ?? null)
               )}
               recommendedByLead={recommendedByLead}
+              allRecommendations={recommendations}
               assignees={assignees}
               covered={covered}
               onClose={() => setParams({ zone: null })}

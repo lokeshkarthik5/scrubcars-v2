@@ -9,6 +9,7 @@ import { firstNameOf, initialOf } from '@repo/core/home-display';
 import { CUSTOMER_TAMIL, LANGUAGE_NAMES, LANGUAGE_OPTIONS, msg, useLang, useT, useTn } from '@repo/core/i18n';
 import { formatRupees } from '@repo/core/job-records';
 import { stampsToGoLine } from '@repo/core/rewards';
+import { bringGarageRowLabel } from '@repo/core/bring-garage';
 import { SUPPORT_PHONE_DISPLAY, SUPPORT_TEL_HREF, SUPPORT_WHATSAPP_HREF } from '@repo/core/support';
 import { useUserStore } from '@repo/core/stores/user-store';
 import type { VehicleType } from '@repo/core/types';
@@ -45,6 +46,7 @@ import { errorText } from '@/lib/error-text';
 import { uploadAvatarPhoto } from '@/lib/photo-upload';
 import { NO_PIN_TEXT, type PinText, refillFromPin } from '@/lib/pin-autofill';
 import { NumberPlate } from '@/components/moments/number-plate';
+import { RecommendSheet, useCustomerZone } from '@/components/reach/free-wash';
 
 const OPTIONS: { value: Appearance; label: string }[] = [
   { value: 'system', label: msg('System') },
@@ -181,6 +183,8 @@ export default function ProfileScreen() {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [promoting, setPromoting] = useState<string | null>(null);
   const [editingProfile, setEditingProfile] = useState(false);
+  const [bringOpen, setBringOpen] = useState(false);
+  const customerZone = useCustomerZone();
   const [editingVehicle, setEditingVehicle] = useState<string | null>(null);
   const [editingAddress, setEditingAddress] = useState<string | null>(null);
   const [deletingAccount, setDeletingAccount] = useState(false);
@@ -470,6 +474,9 @@ export default function ProfileScreen() {
       ) : null}
       {giftsOn ? <Row label={t('Detlio credit')} href="/profile/credit" count={credit.data ? formatRupees(Number(credit.data.balance)) : null} /> : null}
       {giftsOn ? <Row label={t('Gift a wash')} href="/profile/gifts" /> : null}
+      {/* Bring your garage (21 Nov 2026): always, under Gift a wash; the same Recommend sheet. */}
+      <Row label={bringGarageRowLabel()} onPress={() => setBringOpen(true)} />
+      <RecommendSheet open={bringOpen} onClose={() => setBringOpen(false)} zoneSlug={customerZone?.slug ?? null} />
       {notifications ? <Row label={t('Notifications')} href="/profile/notifications" /> : null}
       <LanguageRow />
       <AppearanceCard />

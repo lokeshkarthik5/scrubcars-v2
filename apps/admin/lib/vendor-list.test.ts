@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { ReadinessItem } from '@repo/core/api/admin'
 import {
+  broughtInByLines,
   binDeleteLine,
   bookingParts,
   bookingsLine,
@@ -827,5 +828,28 @@ describe('the next step', () => {
     expect(nextStepRank({ text: 'x', tone: 'neutral' })).toBeGreaterThan(
       nextStepRank(null)
     )
+  })
+})
+
+describe('Brought in by (bring your garage)', () => {
+  const entry = { recommendationId: 'r1', customerName: 'Priya Raman', amountRupees: 500, recommendedAt: '2026-11-21T04:30:00.000Z' }
+  test('one line per customer, with where their ₹500 stands', () => {
+    expect(
+      broughtInByLines({
+        broughtInBy: [
+          { ...entry, credit: 'waiting' },
+          { ...entry, customerName: 'Arun', credit: 'paid' },
+          { ...entry, customerName: null, credit: 'owed' },
+        ],
+      })
+    ).toEqual([
+      'Brought in by Priya Raman (recommendation) · ₹500 waiting for their paid booking here',
+      'Brought in by Arun (recommendation) · ₹500 paid',
+      'Brought in by a customer (account deleted) (recommendation) · ₹500 owed (Detlio credit is off)',
+    ])
+  })
+  test('none, or an older server: nothing', () => {
+    expect(broughtInByLines({ broughtInBy: [] })).toEqual([])
+    expect(broughtInByLines({})).toEqual([])
   })
 })
