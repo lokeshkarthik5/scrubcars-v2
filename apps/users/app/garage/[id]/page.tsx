@@ -28,6 +28,7 @@ import { useGarage, useVendorReviews } from '@repo/core/api/hooks/use-vendors'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
 import { GarageAddOns } from '@/components/garage/garage-add-ons'
 import { GarageHero } from '@/components/garage/garage-hero'
+import { GaragePickupAsk, GaragePickupLine } from '@/components/garage/garage-pickup-fee'
 import { RedLightAdd } from '@/components/garage/red-light-add'
 import { GarageRoad } from '@/components/moments/road'
 import { NextFreeRow } from '@/components/garages/next-free-row'
@@ -736,13 +737,13 @@ export default function GaragePage({
           )}
 
           {/* What the choice means, before any service is added: the garage
-              comes for the car and brings it back. Free for now (owner
-              decision); checkout shows a fee line if one is ever set. */}
-          {mode === 'pickup' && (
-            <p className="mt-2.5 text-t5 font-medium leading-relaxed text-[#8E8E98]">
-              {t('Free pickup & drop: {name} collects your car from your address, works on it at the garage and brings it back.', { name: vendor.name })}
-            </p>
-          )}
+              comes for the car and brings it back, and the pickup fee for
+              the customer's address (0079), or Free as before. */}
+          {mode === 'pickup' && <GaragePickupLine vendor={vendor} />}
+
+          {/* Ask for pickup (0079): a garage that doesn't collect cars, or
+              one whose pickup area stops short of the customer. */}
+          <GaragePickupAsk vendor={vendor} mode={mode} />
 
           {servicesWithdrawn && (
             <Notice

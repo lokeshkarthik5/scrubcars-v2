@@ -554,6 +554,13 @@
       "when": 1788870989744,
       "tag": "0078_shine_score",
       "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1788870989745,
+      "tag": "0079_pickup_fee",
+      "breakpoints": true
     }
   ]
 }

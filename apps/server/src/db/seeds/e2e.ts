@@ -81,6 +81,7 @@ import {
   guaranteeClaims,
   shineJobScores,
   cities,
+  pickupFeeChanges,
 } from '../schema.js'
 import {
   CITIES,
@@ -143,6 +144,7 @@ import {
   REPAIR_QUOTES,
   OFF_APP_FLAGS,
   SHINE,
+  PICKUP_FEE,
 } from './e2e-ids.js'
 import { hashPassword } from '../../lib/passwords.js'
 import { codeSuffix, couponCodeHash, couponKeys, deriveCouponCode } from '../../lib/coupons.js'
@@ -4788,6 +4790,8 @@ async function main() {
   await seedOffAppFlagRows()
   console.log('[e2e-seed] shine score…')
   await seedShineRows()
+  console.log('[e2e-seed] pickup fee…')
+  await seedPickupFeeRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }
@@ -4823,6 +4827,124 @@ async function seedOffAppFlagRows() {
       createdAt: new Date(Date.now() - 2 * day),
     },
   ])
+}
+
+/**
+ * The pickup fee (0079; PICKUP_FEE, ids 7750–7799, phones 90000077xx,
+ * 50–99): see PICKUP_FEE. Every garage is listed and open 6 am–10 pm; the
+ * fees are written as the portal and admin would leave them.
+ */
+async function seedPickupFeeRows() {
+  const P = PICKUP_FEE
+  const garages = [P.velan, P.kumar, P.autokraft, P.free, P.locked, P.settings, P.limited, P.murugan]
+  await db.insert(users).values([
+    { id: P.customer.id, name: P.customer.name, phone: P.customer.phone, isCustomer: true, isVendorOwner: false,
+      phoneVerified: true, status: 'active' as const },
+    ...garages.map((g) => ({
+      id: g.owner.id, name: g.owner.name, phone: g.owner.phone, isCustomer: false, isVendorOwner: true,
+      phoneVerified: true, status: 'active' as const,
+    })),
+  ])
+  await db.insert(userVehicles).values({
+    id: P.customer.vehicleId, userId: P.customer.id, make: 'Maruti', model: 'Swift', color: 'Red',
+    licensePlate: 'TN09PF0079', vehicleType: 'hatchback', isDefault: true,
+  })
+  await db.insert(userAddresses).values({
+    id: P.customer.addressId, userId: P.customer.id, label: 'Home', address: '14, 2nd Main Rd, Saraswathipuram',
+    city: 'Mysuru', lat: P.home.lat, lng: P.home.lng, geoSource: 'map_pin', isDefault: true,
+  })
+  // North of home by straight-line km, except Murugan (east), so no two share a pin.
+  // 111.195 km a degree: the 6,371 km earth the distance maths uses, so the
+  // straight-line km come out exactly as PICKUP_FEE says.
+  const north = (km: number) => ({ lat: P.home.lat + km / 111.195, lng: P.home.lng })
+  const east = (km: number) => ({ lat: P.home.lat, lng: P.home.lng + km / (111.195 * Math.cos((P.home.lat * Math.PI) / 180)) })
+  const pickupOn = {
+    pickup: 'yes' as const, pickupTermsAcceptedAt: daysAgo(20), pickupTermsAcceptedBy: 'admin: E2E seed',
+  }
+  const garage = (g: (typeof garages)[number], pin: { lat: number; lng: number }, extra: Record<string, unknown>) => ({
+    id: g.garage.id, ownerId: g.owner.id, businessName: g.garage.name, phone: g.owner.phone,
+    address: '79, Fee Street, Mysuru', city: 'Mysuru', pincode: '570009', lat: pin.lat, lng: pin.lng,
+    geoSource: 'map_pin' as const, geoConfirmedAt: now, vehicleTypes: ['hatchback', 'sedan', 'suv'] as Array<'hatchback' | 'sedan' | 'suv'>,
+    bays: 4, slotIntervalMins: 30, status: 'active' as const, isVerified: true, dropinEnabled: true,
+    doorstepEnabled: false, createdAt: daysAgo(60), ...extra,
+  })
+  await db.insert(vendors).values([
+    garage(P.velan, north(P.velan.garage.straightKm), { ...pickupOn, pickupFeeMode: 'distance', pickupFeeChangedAt: daysAgo(10) }),
+    garage(P.kumar, north(P.kumar.garage.straightKm), {
+      ...pickupOn, pickupFeeMode: 'distance', pickupFeePerKm: '20.00', pickupFeeWaitingSince: hoursAgo(2),
+      pickupFeeChangedAt: hoursAgo(2),
+    }),
+    garage(P.autokraft, north(P.autokraft.garage.straightKm), {
+      ...pickupOn, pickupRadiusKm: 15, pickupFeeMode: 'fixed', pickupFeeFixed: '250.00',
+      pickupFeeWaitingSince: hoursAgo(20), pickupFeeChangedAt: hoursAgo(20),
+    }),
+    garage(P.free, north(P.free.garage.straightKm), { ...pickupOn }),
+    garage(P.locked, north(P.locked.garage.straightKm), {
+      ...pickupOn, pickupFeeMode: 'distance', pickupFeeSource: 'detlio',
+      pickupFeeLockedAt: daysAgo(3), pickupFeeLockedBy: 'Detlio · E2E seed',
+    }),
+    garage(P.settings, north(P.settings.garage.straightKm), { ...pickupOn }),
+    garage(P.limited, north(P.limited.garage.straightKm), {
+      ...pickupOn,
+      pickupFeeLimitPerKmMin: P.limited.limits.perKm.min.toFixed(2),
+      pickupFeeLimitPerKmMax: P.limited.limits.perKm.max.toFixed(2),
+      pickupFeeLimitMaxCharge: P.limited.limits.maxCharge.toFixed(2),
+      pickupFeeLimitFixedMax: P.limited.limits.fixedMax.toFixed(2),
+    }),
+    garage(P.murugan, east(P.murugan.garage.straightKm), {}),
+  ])
+  await db.insert(userMemberMapping).values(
+    garages.map((g) => ({ vendorId: g.garage.id, userId: g.owner.id, role: 'vendor_admin' as const, status: 'active' as const }))
+  )
+  await db.insert(vendorWorkingHours).values(garages.flatMap((g) => hoursFor(g.garage.id, '06:00:00', '22:00:00')))
+  await db.insert(services).values(
+    garages.map((g) => ({
+      id: g.wash.id, vendorId: g.garage.id, name: g.wash.name, description: 'An exterior foam wash and dry.',
+      category: 'car_wash' as const, pricingType: 'flat' as const, price: g.wash.price, durationMins: g.wash.durationMins,
+      isActive: true,
+    }))
+  )
+  const fee = (over: Record<string, unknown> = {}) => ({
+    mode: 'free', fixed: null, freeKm: null, perKm: null, minCharge: null, maxCharge: null, ...over,
+  })
+  await db.insert(pickupFeeChanges).values([
+    {
+      vendorId: P.velan.garage.id, kind: 'fee' as const, byKind: 'garage' as const, byUserId: P.velan.owner.id,
+      byName: `${P.velan.garage.name} (owner)`, before: fee(), after: fee({ mode: 'distance' }), status: 'live' as const,
+      createdAt: daysAgo(10),
+    },
+    {
+      id: P.kumar.waitingChange, vendorId: P.kumar.garage.id, kind: 'fee' as const, byKind: 'garage' as const,
+      byUserId: P.kumar.owner.id, byName: `${P.kumar.garage.name} (owner)`, before: fee(),
+      after: fee({ mode: 'distance', perKm: 20 }), status: 'waiting' as const, createdAt: hoursAgo(2),
+    },
+    {
+      id: P.autokraft.waitingChange, vendorId: P.autokraft.garage.id, kind: 'fee' as const, byKind: 'garage' as const,
+      byUserId: P.autokraft.owner.id, byName: `${P.autokraft.garage.name} (owner)`, before: fee(),
+      after: fee({ mode: 'fixed', fixed: 250 }), status: 'waiting' as const, createdAt: hoursAgo(20),
+    },
+    {
+      id: P.locked.lockChange, vendorId: P.locked.garage.id, kind: 'locked' as const, byKind: 'detlio' as const,
+      byUserId: null, byName: 'Detlio · E2E seed', before: fee({ mode: 'distance' }), after: fee({ mode: 'distance' }), status: 'live' as const,
+      createdAt: daysAgo(3),
+    },
+  ])
+  // A paid, confirmed pickup tomorrow at Velan with its ₹99 fee locked on it.
+  const v = P.velan
+  await insertBooking({
+    id: v.booking, userId: P.customer.id, vendorId: v.garage.id, vehicleId: P.customer.vehicleId, status: 'confirmed',
+    items: [{ id: v.wash.id, name: v.wash.name, amount: v.wash.price, durationMins: v.wash.durationMins }],
+    scheduledAt: tomorrowAt(10), createdAt: hoursAgo(3), acceptedAt: hoursAgo(2),
+    doorstep: { address: '14, 2nd Main Rd, Saraswathipuram', lat: P.home.lat, lng: P.home.lng },
+    payment: { status: 'paid', txnId: 'pay_e2e_pickup_fee_velan', gatewayMode: 'fake' },
+  })
+  const total = (Number(v.wash.price) + v.garage.fee).toFixed(2)
+  await db.update(bookings).set({
+    bookingType: 'pickup', pickupCode: '7790', deliveryCode: '7791',
+    travelFee: v.garage.fee.toFixed(2), roadKm: v.garage.roadKm.toFixed(1),
+    subtotalAmount: total, amount: total,
+  }).where(eq(bookings.id, v.booking))
+  await db.update(payments).set({ amount: total }).where(eq(payments.bookingId, v.booking))
 }
 
 main().catch((error) => {

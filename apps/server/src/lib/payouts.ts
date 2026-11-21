@@ -109,8 +109,14 @@ export interface EarningChain {
   /**
    * An accepted request's travel fee (customer reach, 0062), inside
    * `subtotalAmount`: earned in full, no commission. Optional: absent is none.
+   * The pickup fee (0079) rides here too: the garage keeps it whole.
    */
   travelFee?: string | null
+  /**
+   * Detlio's convenience fee (0079), inside `subtotalAmount` and `amount`:
+   * Detlio's money, never the garage's. Optional: absent is none.
+   */
+  convenienceFee?: string | null
 }
 
 /** What one booking earns, in paise. */
@@ -222,7 +228,9 @@ export function bookingEarning(chain: EarningChain, position: number | undefined
   const bills = toPaise(chain.billsPaid)
   const detlioPromo = chain.discountFundedBy === 'platform' ? promo : 0
   const garagePromo = chain.discountFundedBy === 'platform' ? 0 : promo
-  const price = subtotal + bills
+  // Detlio's convenience fee (0079) is in what the customer paid but is never
+  // the garage's: off the price, so a refund's share is worked on the rest.
+  const price = subtotal - toPaise(chain.convenienceFee) + bills
   // The full price the garage earns on: before Detlio's promo, after its own.
   const base = price - garagePromo
   const collected = charged + bills
@@ -253,6 +261,7 @@ export function bookingEarning(chain: EarningChain, position: number | undefined
           items: chain.items.map((item) => ({ ...item, overrideRate: null })),
           billsPaid: chain.billsPaid,
           travelFee: chain.travelFee,
+          convenienceFee: chain.convenienceFee,
         }) * 100
       )
   // Refunded money is not earned, so it carries no commission either.

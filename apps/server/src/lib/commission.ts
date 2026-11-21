@@ -198,9 +198,14 @@ export interface CommissionBooking {
   /**
    * An accepted request's travel fee (customer reach, 0062), inside
    * `subtotalAmount`: the garage keeps it whole, so no commission is taken
-   * on it. Optional: absent is none.
+   * on it. Optional: absent is none. The pickup fee (0079) rides here too.
    */
   travelFee?: string | null
+  /**
+   * Detlio's convenience fee (0079), inside `subtotalAmount`: Detlio's own
+   * money, so it is neither the garage's nor charged commission. Optional.
+   */
+  convenienceFee?: string | null
 }
 
 /** Whether the booking earns the garage its payout (lib/earnings.ts). */
@@ -253,8 +258,10 @@ export function bookingCommission(booking: CommissionBooking): number {
   // A travel fee (0062) is the garage's whole: left out of both sides, so a
   // garage-funded promo (which only ever comes off the services) scales the
   // services alone.
+  // Detlio's convenience fee (0079) is Detlio's: computeVendorPayout takes
+  // it off the payout, and it comes off the subtotal here.
   const travelFee = toPaise(booking.travelFee)
-  const subtotal = toPaise(booking.subtotalAmount) - travelFee
+  const subtotal = toPaise(booking.subtotalAmount) - travelFee - toPaise(booking.convenienceFee)
   const payout = toPaise(computeVendorPayout(booking)) - travelFee
   const share = subtotal > 0 ? payout / subtotal : 1
 

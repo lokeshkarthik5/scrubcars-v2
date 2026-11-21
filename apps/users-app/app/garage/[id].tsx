@@ -27,6 +27,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NextFreeRow } from '@/components/garage/next-free-row';
 import { FlyHost, useFlyTarget } from '@/components/garage/red-light-add';
 import { GarageRoad } from '@/components/moments/road';
+import { GaragePickupAsk, GaragePickupLine } from '@/components/garage/garage-pickup-fee';
 import { OpenMotion } from '@/components/open-motion';
 
 import { GarageCover, GarageMonogram } from '@/components/garage/cover';
@@ -322,11 +323,10 @@ export default function GarageScreen() {
                   {anywhere}
                 </T>
               ) : null}
-              {mode === 'pickup' ? (
-                <T variant="t5" lh={18} color={fx.quiet} style={styles.pickupNote}>
-                  {t('Free pickup & drop: {name} collects your car from your address, works on it at the garage and brings it back.', { name: vendor.name })}
-                </T>
-              ) : null}
+              {/* The pickup fee for the customer's address (0079), or Free as before. */}
+              {mode === 'pickup' ? <GaragePickupLine vendor={vendor} /> : null}
+              {/* Ask for pickup (0079): a garage that doesn't collect, or whose area stops short. */}
+              <GaragePickupAsk vendor={vendor} mode={mode} />
               {params.withdrawn === '1' ? (
                 <View style={styles.notice}>
                   <Notice tone="neutral" title={t('The services you picked are no longer offered here.')}>

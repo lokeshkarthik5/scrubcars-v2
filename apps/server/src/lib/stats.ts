@@ -105,6 +105,8 @@ export interface StatsChainRow {
   subtotalAmount: string
   /** An accepted request's travel fee (0062), inside the subtotal; no commission on it. Optional. */
   travelFee?: string | null
+  /** Detlio's convenience fee (0079), inside the subtotal; Detlio's, no commission on it. Optional. */
+  convenienceFee?: string | null
   discountFundedBy: 'platform' | 'vendor' | null
   /** Final bills paid in the app on any row of the chain, added up. */
   billsPaid: string | null
@@ -266,6 +268,7 @@ export function commissionBooking(row: StatsChainRow, items: CommissionItem[]): 
     billsPaid: row.billsPaid,
     guaranteeRefund: row.guaranteeRefund ?? false,
     travelFee: row.travelFee ?? null,
+    convenienceFee: row.convenienceFee ?? null,
   }
 }
 

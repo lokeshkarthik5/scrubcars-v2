@@ -9,6 +9,7 @@ import type { CustomerRequest } from '@repo/core/api/booking-requests'
 import { countdownLabel, istClock, istStartLabel, REQUEST_RULES, triedLine } from '@repo/core/booking-requests'
 import { cn } from '@repo/core/utils'
 import { useT } from '@repo/core/i18n'
+import { pickupLineLabel, requestFeeAcceptedNote, requestFeeWaitingLine } from '@repo/core/pickup-fee'
 
 const money = (rupees: number) => `₹${rupees.toLocaleString('en-IN')}`
 
@@ -80,6 +81,12 @@ export function RequestCard({ request, now }: { request: CustomerRequest; now: n
                 {t("Detlio also calls them if there's no reply in {alertAfterMinutes} min.", { alertAfterMinutes: REQUEST_RULES.alertAfterMinutes })}
               </span>
             </li>
+            {/* Ask for pickup (0079): Detlio's suggestion and the most the garage may ask. */}
+            {pickup && request.suggestedFee != null && request.maxFee != null && (
+              <li className="text-text-primary" data-request-fee="">
+                {requestFeeWaitingLine(request.suggestedFee, request.maxFee)}
+              </li>
+            )}
             <li className="text-text-secondary">
               {request.tried.length < request.maxGarages
                 ? t('If not: we ask the next nearest garage, with the same details.')
@@ -115,10 +122,24 @@ export function RequestCard({ request, now }: { request: CustomerRequest; now: n
                 <dd className="font-numeric text-text-primary">{money(Number(item.amount))}</dd>
               </div>
             ))}
-            <div className="flex justify-between gap-3">
-              <dt className="text-text-secondary">{t('Travel fee')}</dt>
-              <dd className="font-numeric text-text-primary">{request.travelFee ? money(request.travelFee) : t('None')}</dd>
-            </div>
+            {pickup ? (
+              // The pickup fee the garage said yes at (0079), in place of
+              // the travel fee: locked from here.
+              <div data-request-fee="">
+                <div className="flex justify-between gap-3">
+                  <dt className="text-text-secondary">{pickupLineLabel(request.roadKm)}</dt>
+                  <dd className="font-numeric text-text-primary">{request.travelFee ? money(request.travelFee) : t('Free')}</dd>
+                </div>
+                {request.suggestedFee != null && request.maxFee != null && request.suggestedFee > 0 && (
+                  <p className="text-t5 text-text-muted">{requestFeeAcceptedNote(request.suggestedFee, request.maxFee)}</p>
+                )}
+              </div>
+            ) : (
+              <div className="flex justify-between gap-3">
+                <dt className="text-text-secondary">{t('Travel fee')}</dt>
+                <dd className="font-numeric text-text-primary">{request.travelFee ? money(request.travelFee) : t('None')}</dd>
+              </div>
+            )}
             <div className="flex justify-between gap-3 border-t border-line pt-2">
               <dt className="text-text-primary">{t('To pay')}</dt>
               <dd className="font-numeric text-t2 text-text-primary">{money(requestTotal(request))}</dd>
