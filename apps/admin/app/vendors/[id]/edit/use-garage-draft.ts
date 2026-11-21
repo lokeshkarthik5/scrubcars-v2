@@ -39,6 +39,10 @@ import {
   withOrderOf,
   type PhotoMove,
 } from '@repo/core/photo-order'
+import {
+  applyBranchServices,
+  type BranchServicesChange,
+} from '@repo/core/api/admin-branches'
 import { useSavedNote } from '@/components/save-bar'
 import { useMarkGaragesStale } from '@/hooks/use-admin-today'
 import { useWarnBeforeLeaving } from '@/hooks/use-warn-before-leaving'
@@ -904,6 +908,23 @@ export function useGarageDraft(id: string) {
       return { to: 'hidden-toggle' }
     })
 
+  /**
+   * Delete at every branch (0081): the services the preview listed, in one
+   * transaction on the server; a branch without it is skipped. Gone from
+   * this page as the single delete is.
+   */
+  const deleteServiceEverywhere = (
+    target: { id: string; name: string },
+    key: string
+  ) =>
+    runServiceSwitch(target.id, async () => {
+      await applyBranchServices(id, { kind: 'delete', serviceId: target.id }, key)
+      applyToBoth((rows) => rows.filter((s) => s.id !== target.id))
+      setHiddenServices((prev) => prev.filter((s) => s.id !== target.id))
+      setServiceNotice(`Deleted “${target.name}” at every branch that had it.`)
+      return { to: 'hidden-toggle' }
+    })
+
   const num = (v: string) => (v.trim() === '' ? null : Number(v))
 
   /**
@@ -953,8 +974,17 @@ export function useGarageDraft(id: string) {
   // again. So each waits for the other.
   const serviceSwitching = serviceBusyId !== null
 
-  const handleSubmit = async () => {
-    if (!draft || !saved || saveBlock || serviceSwitching || describing) return
+  /**
+   * Save changes. With `branches` (0081, "All N branches"), the services go
+   * to every branch through the branches route, in one transaction there,
+   * and this garage's own save carries everything else: that first, so a
+   * refusal leaves the services unsent and Save can simply be pressed again.
+   */
+  const handleSubmit = async (branches?: {
+    change: BranchServicesChange
+    key: string
+  }): Promise<boolean> => {
+    if (!draft || !saved || saveBlock || serviceSwitching || describing) return false
     const { form } = draft
     const hoursChanged =
       dirty.includes('operations') &&
@@ -1000,10 +1030,14 @@ export function useGarageDraft(id: string) {
         // an id are edited, rows without are added, and the server hides any
         // live service the list leaves out — which is why only empty,
         // never-typed rows are left out (rowsToSave).
-        ...(dirty.includes('services') && {
-          services: rowsToSave(draft.services).map(toServicePayload),
-        }),
+        ...(dirty.includes('services') &&
+          !branches && {
+            services: rowsToSave(draft.services).map(toServicePayload),
+          }),
       })
+      if (branches) {
+        await applyBranchServices(id, branches.change, branches.key)
+      }
       markListStale()
       // Stay on the garage: the admin is usually mid-way through setting it
       // up, and new services need saving before they can take photos.
@@ -1021,18 +1055,20 @@ export function useGarageDraft(id: string) {
           'Saved, but the page couldn’t reload. Reload it to keep editing.'
         )
       }
+      return true
     } catch (err) {
       if (
         err instanceof ApiError &&
         (err.status === 401 || err.status === 403)
       ) {
         router.replace('/login')
-        return
+        return false
       }
       const message =
         err instanceof ApiError ? err.message : 'Failed to save changes'
       setError(message)
       toast.error(message)
+      return false
     } finally {
       setSaving(false)
     }
@@ -1121,6 +1157,7 @@ export function useGarageDraft(id: string) {
     hideService,
     showServiceAgain,
     deleteService,
+    deleteServiceEverywhere,
     deletingService,
     setDeletingService,
     confirmLocation,

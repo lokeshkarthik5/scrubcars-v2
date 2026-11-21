@@ -56,6 +56,9 @@ describe('sampleArtFor', () => {
     expect(sampleArtFor('coating', 'Ceramic')).toBe('coating')
     expect(sampleArtFor('scratch_removal', 'Scratch fix')).toBe('scratch')
     expect(sampleArtFor('others', 'Battery check')).toBe('others')
+    expect(sampleArtFor('general_service', 'Oil change')).toBe('general_service')
+    expect(sampleArtFor('repairs', 'Brake pads')).toBe('repairs')
+    expect(sampleArtFor('dent_paint', 'Dent repair')).toBe('dent_paint')
   })
 
   test('a bike by its name, whatever the category', () => {

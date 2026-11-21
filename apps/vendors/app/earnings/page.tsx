@@ -361,7 +361,7 @@ export default function VendorEarningsPage() {
           </div>
           <p className="text-[11px] text-text-secondary">
             {t(
-              'Detlio pays your share within {hours} hours of each job, by bank transfer or UPI. Commission is 8% on washes, packages and others, 5% on detailing, coating and scratch removal.',
+              'Detlio pays your share within {hours} hours of each job, by bank transfer or UPI. Commission is 8% on washes, packages and others, 5% on detailing, coating, scratch removal, general service, repairs and dent & paint.',
               { hours: statement.cycleHours }
             )}
             {summary.freeBookings.used < summary.freeBookings.of

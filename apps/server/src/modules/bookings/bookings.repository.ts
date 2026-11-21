@@ -31,6 +31,7 @@ import {
   istDayBounds,
   type BusyInterval,
 } from '../../lib/slots.js'
+import type { ServiceCategory } from '../../lib/categories.js'
 import { financialYearOf, formatReceiptSerial } from '../../lib/receipts.js'
 import { calendarRange, garageRespondBy, type GarageCalendar } from '../../lib/response-deadline.js'
 import { DISCOUNT_HELD } from '../discounts/discounts.predicates.js'
@@ -63,6 +64,11 @@ export interface BookingItemInput {
   durationMins: number
   /** An add-on line (0068); snapshotted with the line's name and price. */
   isAddon?: boolean
+  /**
+   * The category a copied line was booked at (0080), from the booking being
+   * moved. Left out on a new booking: the service's category now is read.
+   */
+  category?: ServiceCategory | null
 }
 
 // The discount already resolved by discountsService, carried into the write so
@@ -86,6 +92,19 @@ const ACTIVE_BOOKING_STATUSES: BookingStatus[] = [
   'confirmed',
   'in_progress',
 ]
+
+/**
+ * The category a booking line keeps (booking_items.category, 0080): the
+ * service's category as the line is written, read in the same INSERT so it
+ * is the category at the moment of booking. Payouts, commission and
+ * Statistics charge this one, so moving a service to another category later
+ * never re-prices a booking already made. A line copied from another booking
+ * (a reschedule, a redo) passes that line's own category instead, so the
+ * move keeps the rate it was first booked at.
+ */
+export function bookedCategory(serviceId: string, copied?: ServiceCategory | null) {
+  return copied ?? sql<ServiceCategory>`(select ${services.category} from ${services} where ${services.id} = ${serviceId})`
+}
 
 // One car cannot be serviced in two places at once, so a vehicle may not hold
 // overlapping active bookings — at any garage. This is separate from the
@@ -1064,6 +1083,7 @@ export const bookingsRepository = {
           durationMins: item.durationMins,
           sortOrder: index,
           isAddon: item.isAddon ?? false,
+          category: bookedCategory(item.serviceId),
         }))
       )
 
@@ -1384,6 +1404,9 @@ export const bookingsRepository = {
           durationMins: item.durationMins,
           sortOrder: index,
           isAddon: item.isAddon ?? false,
+          // The category it was first booked at, not the service's now: a
+          // move is the same sale (bookedCategory).
+          category: bookedCategory(item.serviceId, item.category),
         }))
       )
 

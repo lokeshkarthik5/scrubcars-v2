@@ -47,6 +47,7 @@ import {
 import { vendorDocumentsRepository } from '../vendor-documents/vendor-documents.repository.js'
 import { bypassReportsService } from '../bypass-reports/bypass-reports.service.js'
 import { certificationRepository } from '../certification/certification.repository.js'
+import { luxuryService } from '../luxury/luxury.service.js'
 import { graceEndsOn, isCertified } from '../../lib/certification.js'
 import { tiersService } from '../tiers/tiers.service.js'
 import { usesCustomerAddress } from '../../lib/booking-types.js'
@@ -74,6 +75,7 @@ import { isInBin, isListedToCustomers } from '../vendors/vendors.predicates.js'
 import { citiesService } from '../cities/cities.service.js'
 import { WHOLE_CITY_NEEDS_CITY, wholeCityOf, type GarageCityStanding } from '../../lib/cities.js'
 import { branchPickupTerms, planBranchCopy, planBranchOwner } from '../../lib/branches.js'
+import { groupNameOf } from '../../lib/branch-groups.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { deleteGarageFileIfUnused, vendorsService } from '../vendors/vendors.service.js'
 import type { CreateAddOnInput, PhotoOrderInput, UpdateAddOnInput } from '../vendors/vendors.validation.js'
@@ -843,6 +845,9 @@ export const adminService = {
     // Bronze / Silver / Gold (0063): the tier each garage holds (whatever
     // customers are shown), for the card's tier chip. Three grouped reads.
     const tiers = await tiersService.heldTiers(vendors.map((vendor) => vendor.id), now)
+    // Luxury car specialists (0083): each garage's application and badge, for
+    // More filters' "Luxury applications" and "Luxury specialists". One read.
+    const luxury = await luxuryService.summariesFor(vendors, tiers)
     // Bypass reports (0052): each garage's strikes, confirmed reports of the
     // last 180 IST days. One grouped read; 2 or more are highlighted.
     const strikes = await bypassReportsService.strikesByGarage(now)
@@ -901,6 +906,7 @@ export const adminService = {
         certification: certificationSummary(certifications.get(vendor.id)),
         tier: tiers.get(vendor.id) ?? null,
         tierHidden: vendor.tierHidden,
+        luxury: luxury.get(vendor.id) ?? null,
         photoCompliance: compliance.get(vendor.id) ?? NO_COMPLETED_JOBS,
         bypassStrikes: strikes.get(vendor.id) ?? 0,
         redoClaims90d: redoClaims ? (redoClaims.get(vendor.id) ?? 0) : null,
@@ -1180,10 +1186,21 @@ export const adminService = {
       }
 
       const toInsert: Parameters<typeof adminRepository.insertServices>[0] =
-        plan.insert.map((index) => ({ vendorId: id, ...columnsFor(input.services![index]!) }))
+        plan.insert.map((index) => ({
+          vendorId: id,
+          ...columnsFor(input.services![index]!),
+          ...(input.services![index]!.categoryHintDismissed && { categoryHintDismissedAt: new Date() }),
+        }))
       if (toInsert.length > 0) {
         await adminRepository.insertServices(toInsert)
       }
+
+      // "Not this" on the category hint (0080), for the saved rows that sent
+      // it: kept from when it was first turned down, cleared on false.
+      const hintIds = (dismissed: boolean) =>
+        plan.update.filter((row) => input.services![row.index]!.categoryHintDismissed === dismissed).map((row) => row.id)
+      await adminRepository.setCategoryHintsDismissed(hintIds(true), true)
+      await adminRepository.setCategoryHintsDismissed(hintIds(false), false)
 
       if (plan.deactivate.length > 0) {
         await adminRepository.deactivateServices(plan.deactivate)
@@ -1516,6 +1533,7 @@ export const adminService = {
           // No duration given: none is stored (0064), never guessed.
           durationMins: s.durationMins ?? null,
           ...commissionColumn(s.commissionRate),
+          ...(s.categoryHintDismissed && { categoryHintDismissedAt: new Date() }),
         }))
       )
     }
@@ -1632,6 +1650,9 @@ export const adminService = {
 
     const created = await adminRepository.createBranch({
       owner: ownerPlan.owner,
+      // The source and the branch in one group (0081): the source's, or a
+      // new one named after its business without the area.
+      source: { id: source.id, groupName: groupNameOf(source.businessName) },
       vendor: {
         businessName: input.businessName,
         // The same login keeps the business's contacts; another login's
@@ -1704,7 +1725,15 @@ export const adminService = {
     })
 
     log.info(
-      { vendorId: created.id, fromVendorId: source.id, ownerId: created.ownerId, services: plan.serviceIds.length, sameLogin },
+      {
+        vendorId: created.id,
+        fromVendorId: source.id,
+        ownerId: created.ownerId,
+        services: plan.serviceIds.length,
+        sameLogin,
+        groupId: created.groupId,
+        groupCreated: created.groupCreated,
+      },
       'admin:branch-added'
     )
     return { id: created.id }

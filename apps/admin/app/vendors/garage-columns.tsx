@@ -265,7 +265,7 @@ export const GARAGE_PHONE_GRID =
  * in the row's grid themselves: the name first, the owner leading the
  * second line.
  */
-function GarageCell({
+export function GarageCell({
   v,
   open,
   narrow,

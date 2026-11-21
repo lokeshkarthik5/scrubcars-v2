@@ -34,8 +34,13 @@ import type { ServiceMedia } from '@repo/core/types'
 import { ServiceMediaEditor } from '@repo/ui/features/service-media-editor'
 import { toast } from 'react-toastify'
 import type { PricingType, Service, ServiceCategory } from '@repo/core/types'
-import { SERVICE_CATEGORY_OPTIONS } from '@repo/core/categories'
+import {
+  SERVICE_CATEGORY_OPTIONS,
+  groupByCategory,
+  showCategoryHeadings,
+} from '@repo/core/categories'
 import { ActiveGarage } from '@/components/active-garage'
+import { CategoryHeading } from '@/components/category-heading'
 import { RowAction } from './catalogue-row'
 import { AddOnsSection } from './add-ons-section'
 import { PackagesPanel } from './packages-panel'
@@ -229,6 +234,9 @@ export default function VendorServicesPage() {
       await deleteService(id)
       setServices((current) => current.filter((svc) => svc.id !== id))
     })
+
+  // "Your services" by category, in the order used everywhere.
+  const serviceGroups = groupByCategory(services, (svc) => svc.category)
 
   if (loading) {
     return (
@@ -481,81 +489,99 @@ export default function VendorServicesPage() {
                 )}
               />
             ) : (
-              <div className="flex flex-col gap-2">
-                {services.map((svc, i) => (
-                  <Reveal key={svc.id} index={i}>
-                    <ScCard className="flex flex-col gap-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-[13px] font-semibold text-text-primary">
-                            {svc.name}
-                          </p>
-                          {svc.description && (
-                            <p className="line-clamp-2 text-[11px] text-text-muted">
-                              {svc.description}
-                            </p>
-                          )}
-                          <p className="mt-0.5 text-[12px] text-text-secondary">
-                            <Figures text={formatServicePrice(svc)} />
-                            {svc.durationMins != null && (
-                              <>
-                                {' '}
-                                ·{' '}
-                                <span className="font-numeric">
-                                  {svc.durationMins}
-                                </span>{' '}
-                                min
-                              </>
-                            )}
-                          </p>
-                          {inspectionNoteUnderPrice(svc) && (
-                            <p className="text-[11px] text-text-muted">
-                              <Figures text={inspectionNoteUnderPrice(svc)!} />
-                            </p>
-                          )}
-                        </div>
-                        <ScBadge
-                          variant={svc.isActive ? 'success' : 'muted'}
-                          className="shrink-0"
-                        >
-                          {svc.isActive ? t('Active') : t('Inactive')}
-                        </ScBadge>
-                      </div>
+              // Under small category headings when the garage sells two or
+              // more kinds of work (16 Nov 2026); one run otherwise.
+              <div className="flex flex-col gap-3">
+                {(showCategoryHeadings(serviceGroups)
+                  ? serviceGroups
+                  : [{ category: null, items: services }]
+                ).map((group) => (
+                  <div
+                    key={group.category ?? 'all'}
+                    className="flex flex-col gap-2"
+                  >
+                    {group.category && (
+                      <CategoryHeading
+                        category={group.category}
+                        count={group.items.length}
+                      />
+                    )}
+                    {group.items.map((svc) => (
+                      <Reveal key={svc.id} index={services.indexOf(svc)}>
+                        <ScCard className="flex flex-col gap-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-[13px] font-semibold text-text-primary">
+                                {svc.name}
+                              </p>
+                              {svc.description && (
+                                <p className="line-clamp-2 text-[11px] text-text-muted">
+                                  {svc.description}
+                                </p>
+                              )}
+                              <p className="mt-0.5 text-[12px] text-text-secondary">
+                                <Figures text={formatServicePrice(svc)} />
+                                {svc.durationMins != null && (
+                                  <>
+                                    {' '}
+                                    ·{' '}
+                                    <span className="font-numeric">
+                                      {svc.durationMins}
+                                    </span>{' '}
+                                    min
+                                  </>
+                                )}
+                              </p>
+                              {inspectionNoteUnderPrice(svc) && (
+                                <p className="text-[11px] text-text-muted">
+                                  <Figures text={inspectionNoteUnderPrice(svc)!} />
+                                </p>
+                              )}
+                            </div>
+                            <ScBadge
+                              variant={svc.isActive ? 'success' : 'muted'}
+                              className="shrink-0"
+                            >
+                              {svc.isActive ? t('Active') : t('Inactive')}
+                            </ScBadge>
+                          </div>
 
-                      {/* Photos and video, shown to customers on the garage
-                          page: the card's thumbnail and the details sheet. */}
-                      <div className="border-t border-border pt-3">
-                        <ServiceMediaEditor
-                          serviceId={svc.id}
-                          serviceName={svc.name}
-                          media={svc.media}
-                          onMediaChange={(media) =>
-                            setServiceMedia(svc.id, media)
-                          }
-                          api={garageMediaApi}
-                          config={mediaConfig}
-                        />
-                      </div>
+                          {/* Photos and video, shown to customers on the garage
+                              page: the card's thumbnail and the details sheet. */}
+                          <div className="border-t border-border pt-3">
+                            <ServiceMediaEditor
+                              serviceId={svc.id}
+                              serviceName={svc.name}
+                              media={svc.media}
+                              onMediaChange={(media) =>
+                                setServiceMedia(svc.id, media)
+                              }
+                              api={garageMediaApi}
+                              config={mediaConfig}
+                            />
+                          </div>
 
-                      {/* Quiet outlines, all three: none of them is what this
-                          screen is for, and its red is the form's Add service. */}
-                      <div className="flex flex-wrap gap-2 border-t border-border pt-3">
-                        <RowAction onClick={() => startEditService(svc)}>
-                          {t('Edit')}
-                        </RowAction>
-                        <RowAction
-                          onClick={() =>
-                            setServiceActive(svc.id, !svc.isActive)
-                          }
-                        >
-                          {svc.isActive ? t('Disable') : t('Enable')}
-                        </RowAction>
-                        <RowAction onClick={() => setDeleting(svc)}>
-                          {t('Delete')}
-                        </RowAction>
-                      </div>
-                    </ScCard>
-                  </Reveal>
+                          {/* Quiet outlines, all three: none of them is what this
+                              screen is for, and its red is the form's Add service. */}
+                          <div className="flex flex-wrap gap-2 border-t border-border pt-3">
+                            <RowAction onClick={() => startEditService(svc)}>
+                              {t('Edit')}
+                            </RowAction>
+                            <RowAction
+                              onClick={() =>
+                                setServiceActive(svc.id, !svc.isActive)
+                              }
+                            >
+                              {svc.isActive ? t('Disable') : t('Enable')}
+                            </RowAction>
+                            <RowAction onClick={() => setDeleting(svc)}>
+                              {t('Delete')}
+                            </RowAction>
+                          </div>
+                        </ScCard>
+                      </Reveal>
+                    ))}
+                  </div>
                 ))}
               </div>
             )}

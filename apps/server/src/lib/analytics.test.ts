@@ -184,7 +184,7 @@ describe('the funnel', () => {
     ])
     expect(categories[0]).toEqual({ category: 'car_wash', visits: 9 })
     expect(categories[1]).toEqual({ category: 'detailing', visits: 4 })
-    expect(categories).toHaveLength(6)
+    expect(categories).toHaveLength(9)
   })
 })
 

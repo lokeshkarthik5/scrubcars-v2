@@ -3,13 +3,16 @@
 import {
   IconDots,
   IconDroplet,
+  IconEngine,
   IconLayoutGrid,
   IconPackage,
   IconShieldCheck,
   IconSparkles,
+  IconSpray,
+  IconTool,
   IconWand,
 } from '@tabler/icons-react'
-import { CATEGORY_LABELS } from '@repo/core/categories'
+import { CATEGORY_LABELS, PLAIN_CATEGORY_ORDER } from '@repo/core/categories'
 import type { ServiceCategory } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
 import { ScSheet } from '@repo/ui/sc/modal'
@@ -18,16 +21,12 @@ import { t } from '@repo/core/i18n/translate'
 
 export type ServiceFilter = ServiceCategory | 'all'
 
-/** The filter's services, in the order the chips had them. */
-export const SERVICE_FILTERS: ServiceFilter[] = [
-  'all',
-  'package',
-  'car_wash',
-  'detailing',
-  'coating',
-  'scratch_removal',
-  'others',
-]
+/**
+ * The filter's services: All and Packages, then every plain category in the
+ * order used everywhere (General service, Repairs and Dent & paint before
+ * Others, 0080).
+ */
+export const SERVICE_FILTERS: ServiceFilter[] = ['all', 'package', ...PLAIN_CATEGORY_ORDER]
 
 const ICONS: Record<ServiceFilter, typeof IconDroplet> = {
   all: IconLayoutGrid,
@@ -36,6 +35,9 @@ const ICONS: Record<ServiceFilter, typeof IconDroplet> = {
   detailing: IconSparkles,
   coating: IconShieldCheck,
   scratch_removal: IconWand,
+  general_service: IconEngine,
+  repairs: IconTool,
+  dent_paint: IconSpray,
   others: IconDots,
 }
 
@@ -100,10 +102,14 @@ export function FilterSheet({
                 selected ? 'fx-pearl font-semibold' : 'fx-raised font-medium text-[#E8E8EC]'
               )}
             >
-              <span className={selected ? 'text-brand-black' : 'text-[#B8B8C0]'}>
+              <span className={cn('shrink-0', selected ? 'text-brand-black' : 'text-[#B8B8C0]')}>
                 <ServiceFilterIcon filter={filter} />
               </span>
-              <span className="min-w-0 truncate">{serviceFilterLabel(filter)}</span>
+              {/* Two lines rather than cut short: "Scratch removal" and
+                  "General service" do not fit beside a count. */}
+              <span className="line-clamp-2 min-w-0 break-words leading-[1.15]">
+                {serviceFilterLabel(filter)}
+              </span>
               {counts[filter] && (
                 <span
                   className={cn(

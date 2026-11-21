@@ -1,10 +1,12 @@
 import {
   IconBrush,
   IconDroplets,
+  IconEngine,
   IconMotorbike,
   IconPackage,
   IconShieldCheck,
   IconSparkles,
+  IconSpray,
   IconTool,
   type TablerIcon,
 } from '@tabler/icons-react'
@@ -18,6 +20,9 @@ const ICONS: Record<ServiceIcon, TablerIcon> = {
   detailing: IconSparkles,
   coating: IconShieldCheck,
   scratch: IconBrush,
+  general_service: IconEngine,
+  repairs: IconTool,
+  dent_paint: IconSpray,
   bike: IconMotorbike,
   package: IconPackage,
   others: IconTool,
@@ -29,6 +34,11 @@ const TINTS: Record<ServiceIcon, string> = {
   detailing: 'linear-gradient(140deg, #4a3518, #1f170c)',
   coating: 'linear-gradient(140deg, #123c30, #0a1c17)',
   scratch: 'linear-gradient(140deg, #4a3518, #1f170c)',
+  // The mechanical and body work (0080): steel blue, rust and plum, from
+  // the service categories mockup (3-customer).
+  general_service: 'linear-gradient(140deg, #20364a, #0d161f)',
+  repairs: 'linear-gradient(140deg, #3d2a22, #1a110d)',
+  dent_paint: 'linear-gradient(140deg, #3e1f3a, #1a0d18)',
   bike: 'linear-gradient(140deg, #3a2a48, #181220)',
   package: 'linear-gradient(140deg, #4b1a20, #200c0f)',
   others: 'linear-gradient(140deg, #2c2c34, #151519)',

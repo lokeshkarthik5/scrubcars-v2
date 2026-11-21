@@ -16,6 +16,8 @@ reconstructing every change in them.
 
 ## [Unreleased]
 
+- Service templates (migration `0082_service_templates`, additive: a new table seeded with the built-in templates): `GET|POST /admin/service-templates`, `PATCH /admin/service-templates/:id`, `PATCH /admin/service-templates/:id/on`, `DELETE /admin/service-templates/:id`. Admin only, signed, audited, rate limited per admin per hour (`SERVICE_TEMPLATE_WRITE_RATE_LIMIT`, default 120). Descriptions are held to the description rules on save (400 `TEMPLATE_INVALID`); names are unique in any case (409 `TEMPLATE_NAME_TAKEN`).
+
 - Garage documents: a doorstep-only garage (doorstep on, at-garage off, no pickup & drop) has no shop, so its shop photo is optional. It is not needed for Documents checked, Silver or Gold, or the Missing key `documents`, and can still be uploaded, reviewed and removed. `GET /vendors/me/documents` and the admin read give `required` and `summary.required` per garage (2 instead of 3 for a doorstep-only one). Garages with a shop, or that offer pickup & drop (alone or with doorstep), are unchanged. No migration.
 
 - Rewards words: ₹ amounts are grouped the Indian way ("up to ₹1,500" on the level ladder, challenge prizes, scratch prizes and reward pushes), and a challenge's start push says "3 washes by 11 Nov win" ("wins" only for 1). A scratched card in `GET /users/me/rewards` (and the summary and admin) carries `prize.voucher` (`lastDay`, `state`), so the app can say when to use it after a reload.

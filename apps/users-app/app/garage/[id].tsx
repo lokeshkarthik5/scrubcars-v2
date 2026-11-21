@@ -3,6 +3,7 @@ import { useVendorClosures, useVendorWorkingHours } from '@repo/core/api/hooks/u
 import { toMinutes, useTravelTime } from '@repo/core/api/hooks/use-travel-time';
 import { useGarage, useVendorReviews } from '@repo/core/api/hooks/use-vendors';
 import { bookingTypeParam, offeredBookingTypes, parseBookingType, resolveBookingType } from '@repo/core/booking-types';
+import { alsoAtChips, type AlsoAtChip } from '@repo/core/branches';
 import { distanceAndDrive, distanceLabel } from '@repo/core/drive-time';
 import { straightLineKm } from '@repo/core/map';
 import { isNoFeeInspection, resolveServiceAmount } from '@repo/core/pricing';
@@ -13,14 +14,14 @@ import { useUserStore } from '@repo/core/stores/user-store';
 import type { BookingType, Service, ServicePackage, Vendor } from '@repo/core/types';
 import { formatDuration } from '@repo/core/utils';
 import { Glass, Odometer, Raised, Recessed, RedButton } from '@repo/native-ui/finish';
-import { IconArrowLeft, IconArrowUpRight, IconMapPin, IconSearch, IconStarFilled } from '@repo/native-ui/icons';
+import { IconArrowLeft, IconArrowUpRight, IconChevronRight, IconMapPin, IconSearch, IconStarFilled } from '@repo/native-ui/icons';
 import { EASE_SETTLE, PressScale, Rise, SeenProvider, useReduceMotion, useSeenHost } from '@repo/native-ui/motion';
 import { ErrorState, Notice, SkeletonList } from '@repo/native-ui/primitives';
 import { Figures, font, T } from '@repo/native-ui/text';
 import { createStyles, useColors, useFinish } from '@repo/native-ui/theme';
 import { LinearGradient } from 'expo-linear-gradient';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
-import { type ComponentRef, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { type ComponentRef, Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Image, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -38,9 +39,11 @@ import { GarageSlotAlerts } from '@/components/slot-alerts/garage-slot-alerts';
 import { SaveGarageButton } from '@/components/garage/save-button';
 import { GarageAddOns, PackageCard, ServiceCard, ServiceSheet } from '@/components/garage/service-cards';
 import { OutsideCityLine, TierSeal } from '@/components/garage/tier';
+import { LuxuryBlock } from '@/components/garage/luxury';
 import { useGarageTownLine } from '@/lib/customer-place';
 import { useAuth } from '@/lib/auth';
 import { browseCategory } from '@repo/core/analytics-events';
+import { categoryLabel, groupByCategory, showCategoryHeadings } from '@repo/core/categories';
 import { fill, msg, useT, useTn } from '@repo/core/i18n';
 import { track } from '@/lib/shims/analytics';
 import { useBookingCar } from '@/lib/booking-car';
@@ -57,6 +60,50 @@ const TABS: readonly { key: Tab; label: string }[] = [
 const NO_SERVICES: Service[] = [];
 const NO_PACKAGES: ServicePackage[] = [];
 const NO_ADD_ONS: AddOn[] = [];
+
+/**
+ * "Also at" (0081, mockup 2-branches-5): a row of chips under the garage's name and area, one per other live
+ * branch ("Velachery · 4.2 km"). Each opens that branch's page in the way of booking being looked at. Nothing
+ * when the garage has no other live branch. The website's AlsoAt, the same words and order.
+ */
+function AlsoAt({ chips, modeParam }: { chips: AlsoAtChip[]; modeParam: string | null }) {
+  const t = useT();
+  const { fx } = useFinish();
+  if (chips.length === 0) return null;
+  return (
+    <View accessibilityLabel={t('Also at')} style={alsoAtStyles.wrap}>
+      <T variant="t5" weight={600} color={fx.quiet} style={alsoAtStyles.label}>
+        {t('Also at').toUpperCase()}
+      </T>
+      <View style={alsoAtStyles.row}>
+        {chips.map((chip) => (
+          <Pressable
+            key={chip.id}
+            accessibilityRole="link"
+            accessibilityLabel={chip.accessibleName}
+            onPress={() => router.push((modeParam ? `/garage/${chip.id}?mode=${modeParam}` : `/garage/${chip.id}`) as Href)}
+          >
+            <Raised radius={12} style={alsoAtStyles.chip} innerStyle={alsoAtStyles.chipInner}>
+              <IconMapPin size={14} color={fx.quietBright} />
+              <T num variant="t4" color={fx.soft}>
+                {chip.label}
+              </T>
+              <IconChevronRight size={14} color={fx.quiet} />
+            </Raised>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+const alsoAtStyles = StyleSheet.create({
+  wrap: { marginTop: 12, gap: 8 },
+  label: { letterSpacing: 1 },
+  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: { minHeight: 44 },
+  chipInner: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 10, paddingRight: 8, minHeight: 44 },
+});
 
 /** apps/users/app/garage/[id]/page.tsx. */
 export default function GarageScreen() {
@@ -119,6 +166,19 @@ export default function GarageScreen() {
     const q = query.trim().toLowerCase();
     return q ? services.filter((s) => matches(s, q)) : services;
   }, [services, query]);
+  // The list under small category headings (0080; the web's garage page, mockup
+  // 3-customer-4): in the order used everywhere, only when the garage sells two or more
+  // kinds of work, grouped from the search's result so a search hides empty headings.
+  const serviceSections = useMemo(() => {
+    const headed = showCategoryHeadings(groupByCategory(services, (s) => s.category));
+    let index = 0;
+    const numbered = (list: Service[]) => list.map((svc) => ({ svc, index: index++ }));
+    if (!headed) return [{ category: null, items: numbered(filtered) }];
+    return groupByCategory(filtered, (s) => s.category).map((group) => ({
+      category: group.category,
+      items: numbered(group.items),
+    }));
+  }, [services, filtered]);
   const filteredPackages = useMemo(() => {
     const q = query.trim().toLowerCase();
     return q ? packages.filter((p) => matches(p, q) || p.items.some((i) => i.name.toLowerCase().includes(q))) : packages;
@@ -304,6 +364,15 @@ export default function GarageScreen() {
                   ) : null}
                   {vendor.tier ? <TierSeal tier={vendor.tier} /> : null}
                 </View>
+                {/* Luxury car specialists (0083): the team's quiet grey badge with "What this means",
+                    and the brands it handles, the customer's own make in the main text colour. */}
+                {vendor.luxury ? <LuxuryBlock brands={vendor.luxury.brands} customerMake={myCar?.make} /> : null}
+                {/* "Also at" (0081): the business's other live branches, each with how far it is from the
+                    customer when that is known. A tap opens that branch's own page. As the website. */}
+                <AlsoAt
+                  chips={alsoAtChips(vendor.branches, activeLocation && !isCitywide(activeLocation) ? coarse(activeLocation) : null, approximate)}
+                  modeParam={bookingTypeParam(mode)}
+                />
                 {townLine ? (
                   <View style={styles.outside}>
                     <OutsideCityLine text={townLine} />
@@ -388,18 +457,32 @@ export default function GarageScreen() {
                         {services.length === 0 ? t('No services available yet.') : t('No services match that search.')}
                       </T>
                     ) : (
-                      filtered.map((svc, i) => (
-                        <Rise key={svc.id} index={i}>
-                          <ServiceCard
-                            service={svc}
-                            added={selected.includes(svc.id)}
-                            paused={paused}
-                            carType={carType}
-                            carModel={myCar?.model ?? null}
-                            onOpen={() => open(svc)}
-                            onToggle={() => toggle(svc.id)}
-                          />
-                        </Rise>
+                      serviceSections.map((section, at) => (
+                        <Fragment key={section.category ?? 'all'}>
+                          {section.category ? (
+                            <View accessibilityRole="header" style={[styles.categoryHead, at > 0 && styles.categoryHeadGap]}>
+                              <T variant="over" color={fx.quiet}>
+                                {categoryLabel(section.category)}
+                              </T>
+                              <T num variant="over" color={fx.quiet}>
+                                {section.items.length}
+                              </T>
+                            </View>
+                          ) : null}
+                          {section.items.map(({ svc, index: i }) => (
+                            <Rise key={svc.id} index={i}>
+                              <ServiceCard
+                                service={svc}
+                                added={selected.includes(svc.id)}
+                                paused={paused}
+                                carType={carType}
+                                carModel={myCar?.model ?? null}
+                                onOpen={() => open(svc)}
+                                onToggle={() => toggle(svc.id)}
+                              />
+                            </Rise>
+                          ))}
+                        </Fragment>
                       ))
                     )}
                   </View>
@@ -783,6 +866,9 @@ const useStyles = createStyles((c) => ({
   searchInput: { flex: 1, minWidth: 0, paddingVertical: 12, fontFamily: font(500), fontSize: 15, color: c.textPrimary },
   group: { paddingTop: 16, gap: 8 },
   sectionHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 },
+  // A category's small overline heading over its cards (0080), as the web's.
+  categoryHead: { flexDirection: 'row', alignItems: 'baseline', gap: 6, paddingHorizontal: 2 },
+  categoryHeadGap: { marginTop: 8 },
   none: { paddingVertical: 24 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   gridPhoto: { borderRadius: 16, backgroundColor: c.surface },

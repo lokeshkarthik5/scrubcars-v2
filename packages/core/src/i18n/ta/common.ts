@@ -433,6 +433,9 @@ export const common: Readonly<Record<string, string>> = {
   Detailing: 'டீடெய்லிங்',
   Coating: 'கோட்டிங்',
   'Scratch removal': 'கீறல் நீக்கம்',
+  'General service': 'ஜெனரல் சர்வீஸ்',
+  Repairs: 'ரிப்பேர்கள்',
+  'Dent & paint': 'டென்ட் & பெயிண்ட்',
   Others: 'மற்றவை',
   Package: 'பேக்கேஜ்',
   All: 'அனைத்தும்',
@@ -1172,4 +1175,25 @@ export const common: Readonly<Record<string, string>> = {
   'Price after inspection': 'பரிசோதனைக்குப் பிறகு விலை',
   'By booking you agree to the {part} and the {part2}.': 'புக் செய்வதன் மூலம் {part} மற்றும் {part2} ஆகியவற்றை ஏற்கிறீர்கள்.',
   'By booking you agree to the {terms} and the {policy}.': 'புக் செய்வதன் மூலம் {terms}-ஐயும் {policy}-ஐயும் ஏற்கிறீர்கள்.',
+
+  // ─── Luxury car specialists (0083; core's luxury.ts) ───
+  'Luxury car specialist': 'லக்ஸரி கார் ஸ்பெஷலிஸ்ட்',
+  'Luxury specialist': 'லக்ஸரி ஸ்பெஷலிஸ்ட்',
+  'Luxury specialists': 'லக்ஸரி ஸ்பெஷலிஸ்ட்கள்',
+  'Approved by Detlio for luxury cars': 'லக்ஸரி கார்களுக்கு Detlio அனுமதித்தது',
+  'Showed Detlio photos of at least 3 jobs it did on luxury cars.':
+    'லக்ஸரி கார்களில் செய்த குறைந்தது 3 வேலைகளின் போட்டோக்களை Detlio-விடம் காட்டியுள்ளது.',
+  'Has a covered or indoor bay, so the car isn’t worked on in the sun or rain.':
+    'மூடிய அல்லது உள்ளே இருக்கும் பே உள்ளது; வெயிலிலோ மழையிலோ காரில் வேலை செய்வதில்லை.',
+  'Told Detlio the products it uses (like its ceramic and PPF brands) and who does the work.':
+    'பயன்படுத்தும் பொருட்களையும் (செராமிக், PPF பிராண்டுகள் போன்றவை) வேலை செய்பவர்களையும் Detlio-விடம் சொல்லியுள்ளது.',
+  'Is a Silver or Gold garage on Detlio.': 'Detlio-வில் சில்வர் அல்லது கோல்டு கேரேஜ்.',
+  'Detlio shows this badge on a garage that:': 'இந்த பேட்ஜை Detlio இப்படிப்பட்ட கேரேஜில் காட்டும்:',
+  'Brands it handles': 'கையாளும் பிராண்டுகள்',
+  'Any garage on Detlio can work on any car. Prices are the same for everyone, by car size: hatchback, sedan or SUV.':
+    'Detlio-வில் எந்த கேரேஜும் எந்த காரிலும் வேலை செய்யலாம். விலை எல்லோருக்கும் ஒன்றுதான், காரின் அளவைப் பொறுத்து: ஹேட்ச்பேக், செடான் அல்லது SUV.',
+  'Under review': 'பரிசீலனையில்',
+  'Asked for more': 'மேலும் கேட்கப்பட்டது',
+  Removed: 'நீக்கப்பட்டது',
+  Declined: 'மறுக்கப்பட்டது',
 }

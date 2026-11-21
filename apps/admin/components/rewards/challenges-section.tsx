@@ -63,6 +63,9 @@ const CATEGORY_LABELS: Record<
   detailing: 'Detailing',
   coating: 'Coating',
   scratch_removal: 'Scratch removal',
+  general_service: 'General service',
+  repairs: 'Repairs',
+  dent_paint: 'Dent & paint',
   others: 'Others',
   package: 'Package',
 }

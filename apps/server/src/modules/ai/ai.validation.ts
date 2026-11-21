@@ -8,7 +8,16 @@ import { z } from 'zod'
 export const describeServiceSchema = z
   .object({
     name: z.string().trim().min(1).max(255),
-    category: z.enum(['car_wash', 'detailing', 'coating', 'scratch_removal', 'others']),
+    category: z.enum([
+      'car_wash',
+      'detailing',
+      'coating',
+      'scratch_removal',
+      'general_service',
+      'repairs',
+      'dent_paint',
+      'others',
+    ]),
     pricingType: z.enum(['flat', 'per_vehicle', 'on_inspection']),
     durationMins: z.number().int().positive().max(10_080).optional(),
     garageName: z.string().trim().max(255).optional(),

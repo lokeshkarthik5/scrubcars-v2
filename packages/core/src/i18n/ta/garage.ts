@@ -349,4 +349,77 @@ export const garage: Readonly<Record<string, string>> = {
   // A no-fee inspection job before its bill (0073).
   'Price on inspection · bill not sent': 'பரிசோதனைக்குப் பிறகு விலை · பில் அனுப்பப்படவில்லை',
   'Done · {price}': 'முடிந்தது · {price}',
+
+  // ─── Luxury car specialist (0083): Settings → Profile and its screen ───
+  'Apply for the badge. For Silver and Gold garages': 'பேட்ஜுக்கு விண்ணப்பிக்கவும். சில்வர், கோல்டு கேரேஜ்களுக்கு மட்டும்',
+  'Reach Silver to apply': 'விண்ணப்பிக்க சில்வர் ஆகுங்கள்',
+  'Detlio asked for more': 'Detlio மேலும் கேட்டுள்ளது',
+  "You're a Luxury car specialist": 'நீங்கள் ஒரு லக்ஸரி கார் ஸ்பெஷலிஸ்ட்',
+  'Badge hidden until you’re Silver again': 'மீண்டும் சில்வர் ஆகும் வரை பேட்ஜ் மறைக்கப்பட்டுள்ளது',
+  'Couldn’t load this. Check your connection and try again.':
+    'இதை ஏற்ற முடியவில்லை. இணைப்பைச் சரிபார்த்து மீண்டும் முயற்சிக்கவும்.',
+  'The brands you work on': 'நீங்கள் வேலை செய்யும் பிராண்டுகள்',
+  'At least 3 photos of past luxury jobs': 'முன்பு செய்த லக்ஸரி வேலைகளின் குறைந்தது 3 போட்டோக்கள்',
+  'A covered or indoor bay': 'மூடிய அல்லது உள்ளே இருக்கும் பே',
+  'The products you use': 'நீங்கள் பயன்படுத்தும் பொருட்கள்',
+  'Who does the work': 'யார் வேலை செய்கிறார்கள்',
+  'Customers who drive a luxury car see specialist garages first. The Detlio team checks every application before the badge shows.':
+    'லக்ஸரி கார் வைத்திருக்கும் வாடிக்கையாளர்கள் ஸ்பெஷலிஸ்ட் கேரேஜ்களை முதலில் பார்ப்பார்கள். பேட்ஜ் காட்டப்படும் முன் ஒவ்வொரு விண்ணப்பத்தையும் Detlio டீம் சரிபார்க்கும்.',
+  'Apply for the badge': 'பேட்ஜுக்கு விண்ணப்பிக்கவும்',
+  'For Silver and Gold garages': 'சில்வர், கோல்டு கேரேஜ்களுக்கு',
+  'Reach Silver, then apply here.': 'சில்வர் ஆன பிறகு இங்கே விண்ணப்பிக்கவும்.',
+  'See your steps to Silver': 'சில்வருக்கான படிகளைப் பார்க்கவும்',
+  'What you’ll need': 'உங்களுக்குத் தேவையானவை',
+  'Get these ready while you work towards Silver.': 'சில்வருக்காக உழைக்கும்போதே இவற்றைத் தயார் செய்யுங்கள்.',
+  'Send for review': 'சரிபார்ப்புக்கு அனுப்பவும்',
+  'Sending…': 'அனுப்புகிறது…',
+  'Sent for review': 'சரிபார்ப்புக்கு அனுப்பப்பட்டது',
+  'Couldn’t send it. Please try again.': 'அனுப்ப முடியவில்லை. மீண்டும் முயற்சிக்கவும்.',
+  '{who}, {date}. Add it and send again.': '{who}, {date}. அதைச் சேர்த்து மீண்டும் அனுப்பவும்.',
+  'You can apply.': 'நீங்கள் விண்ணப்பிக்கலாம்.',
+  'Brands you work on': 'நீங்கள் வேலை செய்யும் பிராண்டுகள்',
+  'Pick the ones you’ve worked on many times. Customers see these.':
+    'பலமுறை வேலை செய்தவற்றைத் தேர்ந்தெடுக்கவும். வாடிக்கையாளர்கள் இவற்றைப் பார்ப்பார்கள்.',
+  'Photos of past luxury jobs': 'முன்பு செய்த லக்ஸரி வேலைகளின் போட்டோக்கள்',
+  'At least 3. Show the car and the finished work. You can hide number plates.':
+    'குறைந்தது 3. காரையும் முடிந்த வேலையையும் காட்டுங்கள். நம்பர் பிளேட்டை மறைக்கலாம்.',
+  'Remove photo {n}': 'போட்டோ {n}-ஐ நீக்கவும்',
+  'Car in photo {n}': 'போட்டோ {n}-இல் உள்ள கார்',
+  'Add the car': 'காரைச் சேர்க்கவும்',
+  '{count} added': '{count} சேர்க்கப்பட்டன',
+  'Covered or indoor bay': 'மூடிய அல்லது உள்ளே இருக்கும் பே',
+  'Where the car is worked on, out of the sun and rain.': 'காரில் வேலை நடக்கும் இடம், வெயிலும் மழையும் படாமல்.',
+  'Products you use': 'நீங்கள் பயன்படுத்தும் பொருட்கள்',
+  'For example your ceramic, PPF and polish brands.': 'உதாரணமாக உங்கள் செராமிக், PPF, பாலிஷ் பிராண்டுகள்.',
+  'Trained staff': 'பயிற்சி பெற்ற ஊழியர்கள்',
+  'Who does the work, and any training they have.': 'யார் வேலை செய்கிறார்கள், அவர்கள் பெற்ற பயிற்சி.',
+  'Your prices don’t change: customers still pay your hatchback, sedan or SUV price.':
+    'உங்கள் விலை மாறாது: வாடிக்கையாளர்கள் உங்கள் ஹேட்ச்பேக், செடான் அல்லது SUV விலையையே செலுத்துவார்கள்.',
+  'Sent on {date}. The Detlio team usually replies within 3 working days. We’ll send you a notification.':
+    '{date} அன்று அனுப்பப்பட்டது. Detlio டீம் பொதுவாக 3 வேலை நாட்களுக்குள் பதில் தரும். உங்களுக்கு அறிவிப்பு அனுப்புவோம்.',
+  'On hold while you’re below Silver. The team looks at it once you’re Silver again.':
+    'நீங்கள் சில்வருக்குக் கீழே இருக்கும் வரை நிறுத்தி வைக்கப்பட்டுள்ளது. மீண்டும் சில்வர் ஆனதும் டீம் இதைப் பார்க்கும்.',
+  'Customers now see the badge and your brands on your listing. Detlio can remove it if standards slip.':
+    'இப்போது வாடிக்கையாளர்கள் உங்கள் லிஸ்டிங்கில் பேட்ஜையும் உங்கள் பிராண்டுகளையும் பார்ப்பார்கள். தரம் குறைந்தால் Detlio இதை நீக்கலாம்.',
+  'Your badge is hidden for now': 'உங்கள் பேட்ஜ் இப்போதைக்கு மறைக்கப்பட்டுள்ளது',
+  'Customers see the Luxury specialist badge only on Silver and Gold garages. It comes back when you’re Silver again.':
+    'லக்ஸரி ஸ்பெஷலிஸ்ட் பேட்ஜை வாடிக்கையாளர்கள் சில்வர், கோல்டு கேரேஜ்களில் மட்டுமே பார்ப்பார்கள். மீண்டும் சில்வர் ஆனதும் இது திரும்ப வரும்.',
+  'Not this time': 'இந்த முறை இல்லை',
+  'You can apply again on {date}.': '{date} அன்று மீண்டும் விண்ணப்பிக்கலாம்.',
+  'Detlio removed your badge': 'Detlio உங்கள் பேட்ஜை நீக்கியது',
+  'Put it right, then apply again.': 'அதைச் சரிசெய்து மீண்டும் விண்ணப்பிக்கவும்.',
+  'Reach Silver, then apply again.': 'சில்வர் ஆன பிறகு மீண்டும் விண்ணப்பிக்கவும்.',
+  'Edit application': 'விண்ணப்பத்தைத் திருத்தவும்',
+  'Editing keeps your place in the queue.': 'திருத்தினாலும் வரிசையில் உங்கள் இடம் மாறாது.',
+  'Apply again': 'மீண்டும் விண்ணப்பிக்கவும்',
+  'What you sent': 'நீங்கள் அனுப்பியவை',
+  Brands: 'பிராண்டுகள்',
+  'Covered bay': 'மூடிய பே',
+  Products: 'பொருட்கள்',
+  Staff: 'ஊழியர்கள்',
+  'Toyota (Fortuner, Camry, Vellfire)': 'Toyota (Fortuner, Camry, Vellfire)',
+  'MG (Gloster)': 'MG (Gloster)',
+  'Kia (Carnival, EV6)': 'Kia (Carnival, EV6)',
+  'This photo is too large (max 8 MB). Try another photo.':
+    'இந்தப் புகைப்படம் மிகப் பெரியது (அதிகபட்சம் 8 MB). வேறொரு புகைப்படத்தை முயற்சிக்கவும்.',
 }

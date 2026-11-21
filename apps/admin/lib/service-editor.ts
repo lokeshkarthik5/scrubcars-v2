@@ -11,8 +11,11 @@ import type {
   AdminVendorDetail,
   UpdateVendorServiceInput,
 } from '@repo/core/api/admin'
-import type { ServiceTemplate } from '@repo/core/service-templates'
+import type { ServiceTemplateShape } from '@repo/core/service-templates'
 import type { ServiceCategory, ServiceMedia } from '@repo/core/types'
+import { CATEGORY_LABELS, NEW_CATEGORIES, PLAIN_CATEGORY_ORDER } from '@repo/core/categories'
+import { categoryHintFor } from '@repo/core/category-hints'
+import { CATEGORY_COMMISSION_PERCENT } from '@repo/core/commission-rates'
 import {
   commissionRateValue,
   type PricingType,
@@ -37,6 +40,11 @@ export interface ServiceRow extends ServiceRowFields {
   // Saved the moment they change (the ⋯'s "Photos and video"), never by the
   // page's Save changes.
   media: ServiceMedia[]
+  /**
+   * "Not this" on the "Looks like Repairs · Move" hint (0080): the hint is
+   * hidden for good. Sent with Save changes, like any other edit.
+   */
+  categoryHintDismissed: boolean
 }
 
 const DURATION_FACTOR: Record<DurationUnit, number> = {
@@ -110,52 +118,84 @@ export const PRICING_OPTIONS: Array<{ value: PricingType; label: string }> = [
 ]
 
 /**
- * The editor's two groups, which are also how Detlio's commission splits
- * services: washes and the everyday extras, and detailing work.
+ * The editor's groups: one heading per category that has services, in the
+ * order used everywhere (packages/core/src/categories.ts), each with
+ * Detlio's commission on it. They were two commission groups ("Wash and
+ * standard", "Detailing") until the mechanical and body work arrived (0080).
  */
-export const SERVICE_GROUPS: ReadonlyArray<{
-  key: 'wash' | 'detailing'
+export interface ServiceGroup {
+  key: PlainCategory
+  category: PlainCategory
   label: string
-  categories: readonly PlainCategory[]
-}> = [
-  {
-    key: 'wash',
-    label: 'Wash and standard',
-    categories: ['car_wash', 'others'],
-  },
-  {
-    key: 'detailing',
-    label: 'Detailing',
-    categories: ['detailing', 'coating', 'scratch_removal'],
-  },
-]
-
-/** The group a category is listed under. */
-export function serviceGroupOf(category: PlainCategory) {
-  return (
-    SERVICE_GROUPS.find((group) => group.categories.includes(category)) ??
-    SERVICE_GROUPS[0]
-  )
+  /** Detlio's commission on the category, in percent. */
+  commissionPercent: number
+  rows: GroupedRow[]
 }
 
 export interface GroupedRow {
   row: ServiceRow
-  /** 1-based position on screen, across both groups: "Service 3". */
+  /** 1-based position on screen, across every group: "Service 3". */
   number: number
 }
 
 /**
- * The rows under their group headings, in the order they are held within
- * each group. A group with no rows is left out.
+ * The rows under their category headings, in the order they are held within
+ * each one. A category with no rows is left out.
  */
-export function groupRows(rows: readonly ServiceRow[]) {
+export function groupRows(rows: readonly ServiceRow[]): ServiceGroup[] {
   let number = 0
-  return SERVICE_GROUPS.map((group) => ({
-    ...group,
+  return PLAIN_CATEGORY_ORDER.map((category) => ({
+    key: category,
+    category,
+    label: CATEGORY_LABELS[category],
+    commissionPercent: CATEGORY_COMMISSION_PERCENT[category],
     rows: rows
-      .filter((row) => group.categories.includes(row.category))
+      .filter((row) => row.category === category)
       .map((row): GroupedRow => ({ row, number: ++number })),
   })).filter((group) => group.rows.length > 0)
+}
+
+/** "Car wash", "Repairs": the heading a category is listed under. */
+export const serviceGroupLabel = (category: PlainCategory) => CATEGORY_LABELS[category]
+
+/**
+ * The template chips, one line per category in the order used everywhere
+ * ("Each one arrives under its own heading"). A category with none left is
+ * left out.
+ */
+export function templatesByCategory<T extends { category: PlainCategory }>(templates: readonly T[]) {
+  return PLAIN_CATEGORY_ORDER.map((category) => ({
+    category,
+    label: CATEGORY_LABELS[category],
+    templates: templates.filter((template) => template.category === category),
+  })).filter((line) => line.templates.length > 0)
+}
+
+/**
+ * Add service's picker (0080): the eight categories, each with Detlio's
+ * commission, the new ones marked. A template skips it: it knows its own.
+ */
+export const CATEGORY_PICKER = PLAIN_CATEGORY_ORDER.map((category) => ({
+  category,
+  label: CATEGORY_LABELS[category],
+  commissionPercent: CATEGORY_COMMISSION_PERCENT[category],
+  isNew: NEW_CATEGORIES.includes(category),
+}))
+
+/**
+ * "3 of these look like they belong in a new category": how many rows in
+ * Others show a "Looks like" hint, and the hint each one shows.
+ */
+export function rowCategoryHint(row: Pick<ServiceRow, 'name' | 'category' | 'categoryHintDismissed'>) {
+  return categoryHintFor({ name: row.name, category: row.category, hintDismissed: row.categoryHintDismissed })
+}
+
+export function othersHintNote(rows: readonly ServiceRow[]): string | null {
+  const count = rows.filter((row) => rowCategoryHint(row)).length
+  if (count === 0) return null
+  return count === 1
+    ? '1 of these looks like it belongs in a new category. Nothing moves until you tap Move; then Save changes as usual.'
+    : `${count} of these look like they belong in a new category. Nothing moves until you tap Move; then Save changes as usual.`
 }
 
 let nextNewKey = 0
@@ -163,16 +203,17 @@ let nextNewKey = 0
 export const newRowKey = () => `new-${++nextNewKey}`
 
 /**
- * A blank row. Priced by car type, since most garages charge a hatchback less
- * than an SUV and the three boxes are then already on screen.
+ * A blank row, in the category Add service's picker chose. Priced by car
+ * type, since most garages charge a hatchback less than an SUV and the three
+ * boxes are then already on screen.
  */
-export function emptyServiceRow(): ServiceRow {
+export function emptyServiceRow(category: PlainCategory = 'car_wash'): ServiceRow {
   return {
     key: newRowKey(),
     media: [],
     name: '',
     description: '',
-    category: 'car_wash',
+    category,
     pricingType: 'per_vehicle',
     price: '',
     priceHatchback: '',
@@ -182,6 +223,7 @@ export function emptyServiceRow(): ServiceRow {
     durationUnit: 'min',
     commissionRate: '',
     approxPrice: '',
+    categoryHintDismissed: false,
   }
 }
 
@@ -189,7 +231,7 @@ export function emptyServiceRow(): ServiceRow {
  * A row filled from a ready-made service. The prices stay empty — each garage
  * charges its own — so the row asks for them before the garage can be saved.
  */
-export function serviceRowFromTemplate(template: ServiceTemplate): ServiceRow {
+export function serviceRowFromTemplate(template: ServiceTemplateShape): ServiceRow {
   return {
     ...emptyServiceRow(),
     name: template.name,
@@ -233,6 +275,7 @@ export function toServiceRow(
       s.pricingType === 'on_inspection' && Number(s.approxPrice ?? 0) > 0
         ? decToInput(s.approxPrice ?? null)
         : '',
+    categoryHintDismissed: Boolean(s.categoryHintDismissedAt),
   }
 }
 
@@ -256,6 +299,8 @@ export function toServicePayload(row: ServiceRow): UpdateVendorServiceInput {
     ...(durationMins != null && { durationMins }),
     // Always sent, so emptying the box clears it (an older API ignores it).
     commissionRate: commissionRateValue(row.commissionRate ?? ''),
+    // "Not this" on the category hint (0080), saved with everything else.
+    categoryHintDismissed: row.categoryHintDismissed,
     ...(row.pricingType === 'per_vehicle'
       ? {
           priceHatchback: pos(row.priceHatchback),

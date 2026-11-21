@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { SERVICE_TEMPLATES } from '@repo/core/service-templates'
+import { templatesNotIn, type ServiceTemplateShape } from '@repo/core/service-templates'
 import {
   durationLabel,
   durationToMins,
@@ -9,13 +9,45 @@ import {
   restoreRow,
   rowBefore,
   rowHasUnsavedChanges,
-  serviceGroupOf,
+  CATEGORY_PICKER,
+  othersHintNote,
+  rowCategoryHint,
   serviceRowFromTemplate,
+  templatesByCategory,
   toServicePayload,
   toServiceRow,
   type ServiceRow,
 } from './service-editor'
 import { serviceRowProblem } from './service-rows'
+
+/** The built-in templates as 0082 seeded them (names, categories, order). */
+const t = (name: string, category: ServiceTemplateShape['category'], durationMins = 45): ServiceTemplateShape => ({
+  name,
+  category,
+  durationMins,
+  pricingType: 'per_vehicle',
+  description: `${name}, done.`,
+})
+const TEMPLATES: ServiceTemplateShape[] = [
+  t('Foam wash', 'car_wash'),
+  t('Body wash', 'car_wash'),
+  t('Full wash', 'car_wash'),
+  t('Interior cleaning', 'car_wash'),
+  t('Ceramic coating', 'coating', 1440),
+  t('Polishing', 'detailing'),
+  t('Engine bay cleaning', 'detailing'),
+  t('Underbody wash', 'car_wash'),
+  t('Headlight restoration', 'detailing'),
+  t('Bike wash', 'others'),
+  t('General service', 'general_service'),
+  t('Oil change', 'general_service'),
+  t('Wheel alignment & balancing', 'general_service'),
+  t('Brake pads', 'repairs'),
+  t('AC service', 'repairs'),
+  t('Clutch repair', 'repairs'),
+  t('Dent repair', 'dent_paint'),
+  t('Panel painting', 'dent_paint'),
+]
 
 const stored = (patch: Partial<Parameters<typeof toServiceRow>[0]> = {}) => ({
   id: 'a1b2c3d4-0000-4000-8000-000000000001',
@@ -68,47 +100,114 @@ describe('durations', () => {
 })
 
 describe('groupRows', () => {
-  test('washes and extras first, detailing work second, numbered down the screen', () => {
+  test('one heading per category, in the order used everywhere, numbered down the screen', () => {
     const rows = [
       row({ key: 'a', name: 'Interior', category: 'detailing' }),
       row({ key: 'b', name: 'Foam wash', category: 'car_wash' }),
-      row({ key: 'c', name: 'Ceramic', category: 'coating' }),
+      row({ key: 'c', name: 'Brake pads', category: 'repairs' }),
       row({ key: 'd', name: 'Bike wash', category: 'others' }),
+      row({ key: 'e', name: 'Oil change', category: 'general_service' }),
+      row({ key: 'f', name: 'AC service', category: 'repairs' }),
     ]
     const groups = groupRows(rows)
-    expect(groups.map((group) => group.label)).toEqual([
-      'Wash and standard',
-      'Detailing',
+    expect(groups.map((group) => [group.label, group.commissionPercent])).toEqual([
+      ['Car wash', 8],
+      ['Detailing', 5],
+      ['General service', 5],
+      ['Repairs', 5],
+      ['Others', 8],
     ])
-    expect(groups[0].rows.map(({ row: r, number }) => [r.key, number])).toEqual(
-      [
-        ['b', 1],
-        ['d', 2],
-      ]
-    )
-    expect(groups[1].rows.map(({ row: r, number }) => [r.key, number])).toEqual(
-      [
-        ['a', 3],
-        ['c', 4],
-      ]
-    )
-  })
-
-  test('which group a category is under, so a category change that moves a row can follow it', () => {
-    expect(serviceGroupOf('car_wash').label).toBe('Wash and standard')
-    expect(serviceGroupOf('others').label).toBe('Wash and standard')
-    expect(serviceGroupOf('detailing').label).toBe('Detailing')
-    expect(serviceGroupOf('coating').label).toBe('Detailing')
-    expect(serviceGroupOf('scratch_removal').label).toBe('Detailing')
-  })
-
-  test('an empty group is left out', () => {
     expect(
-      groupRows([row({ category: 'scratch_removal' })]).map(
-        (group) => group.key
-      )
-    ).toEqual(['detailing'])
+      groups.flatMap((group) => group.rows.map(({ row: r, number }) => [r.key, number]))
+    ).toEqual([
+      ['b', 1],
+      ['a', 2],
+      ['e', 3],
+      ['c', 4],
+      ['f', 5],
+      ['d', 6],
+    ])
+  })
+
+  test('a new row lands at the end of its own heading', () => {
+    const rows = [row({ key: 'c', category: 'repairs' }), row({ key: 'w', category: 'car_wash' })]
+    const added = emptyServiceRow('repairs')
+    const repairs = groupRows([...rows, added]).find((group) => group.category === 'repairs')!
+    expect(repairs.rows.map(({ row: r }) => r.key)).toEqual(['c', added.key])
+    expect(added.category).toBe('repairs')
+    expect(emptyServiceRow().category).toBe('car_wash')
+  })
+
+  test('an empty category is left out', () => {
+    expect(groupRows([row({ category: 'scratch_removal' })]).map((group) => group.key)).toEqual([
+      'scratch_removal',
+    ])
     expect(groupRows([])).toEqual([])
+  })
+})
+
+describe('Add service and the templates (0080)', () => {
+  test('the picker offers the eight categories with their rates, the new ones marked', () => {
+    expect(CATEGORY_PICKER.map((c) => [c.label, c.commissionPercent, c.isNew])).toEqual([
+      ['Car wash', 8, false],
+      ['Detailing', 5, false],
+      ['Coating', 5, false],
+      ['Scratch removal', 5, false],
+      ['General service', 5, true],
+      ['Repairs', 5, true],
+      ['Dent & paint', 5, true],
+      ['Others', 8, false],
+    ])
+  })
+
+  test('template chips, one line per category, leaving out what the garage has', () => {
+    const lines = templatesByCategory(templatesNotIn(TEMPLATES, ['Foam wash', 'Polishing', 'General service', 'Oil change']))
+    expect(lines.map((line) => [line.label, line.templates.map((t) => t.name)])).toEqual([
+      ['Car wash', ['Body wash', 'Full wash', 'Interior cleaning', 'Underbody wash']],
+      ['Detailing', ['Engine bay cleaning', 'Headlight restoration']],
+      ['Coating', ['Ceramic coating']],
+      ['General service', ['Wheel alignment & balancing']],
+      ['Repairs', ['Brake pads', 'AC service', 'Clutch repair']],
+      ['Dent & paint', ['Dent repair', 'Panel painting']],
+      ['Others', ['Bike wash']],
+    ])
+  })
+})
+
+describe('the "Looks like" hint (0080)', () => {
+  test('only on rows in Others, and never once turned down', () => {
+    expect(rowCategoryHint(row({ name: 'Clutch overhaul', category: 'others' }))).toEqual({
+      category: 'repairs',
+      keyword: 'clutch',
+    })
+    expect(rowCategoryHint(row({ name: 'Clutch overhaul', category: 'repairs' }))).toBeNull()
+    expect(
+      rowCategoryHint(row({ name: 'Clutch overhaul', category: 'others', categoryHintDismissed: true }))
+    ).toBeNull()
+  })
+
+  test("the Others heading's note counts the rows with a hint", () => {
+    const others = [
+      row({ name: 'Clutch overhaul', category: 'others' }),
+      row({ name: 'Bumper painting', category: 'others' }),
+      row({ name: 'Wheel alignment', category: 'others' }),
+      row({ name: 'Bike wash', category: 'others' }),
+    ]
+    expect(othersHintNote(others)).toBe(
+      '3 of these look like they belong in a new category. Nothing moves until you tap Move; then Save changes as usual.'
+    )
+    expect(othersHintNote(others.slice(0, 1))).toBe(
+      '1 of these looks like it belongs in a new category. Nothing moves until you tap Move; then Save changes as usual.'
+    )
+    expect(othersHintNote(others.slice(3))).toBeNull()
+  })
+
+  test('"Not this" is read from the server and sent back with Save changes', () => {
+    expect(toServiceRow(stored()).categoryHintDismissed).toBe(false)
+    const dismissed = toServiceRow(stored({ category: 'others', categoryHintDismissedAt: '2026-11-16T10:00:00.000Z' }))
+    expect(dismissed.categoryHintDismissed).toBe(true)
+    expect(toServicePayload(dismissed).categoryHintDismissed).toBe(true)
+    expect(toServicePayload(row()).categoryHintDismissed).toBe(false)
   })
 })
 
@@ -124,9 +223,7 @@ describe('rows', () => {
   })
 
   test('a template fills everything but the prices', () => {
-    const template = SERVICE_TEMPLATES.find(
-      (t) => t.name === 'Ceramic coating'
-    )!
+    const template = TEMPLATES.find((each) => each.name === 'Ceramic coating')!
     const fromTemplate = serviceRowFromTemplate(template)
     expect(fromTemplate).toMatchObject({
       name: 'Ceramic coating',
@@ -163,6 +260,7 @@ describe('toServicePayload', () => {
       pricingType: 'per_vehicle',
       durationMins: 45,
       commissionRate: null,
+      categoryHintDismissed: false,
       priceHatchback: 399,
       priceSedan: 449,
       priceSuv: 549,
@@ -183,6 +281,7 @@ describe('toServicePayload', () => {
       category: 'car_wash',
       pricingType: 'flat',
       commissionRate: null,
+      categoryHintDismissed: false,
       price: 450,
     })
   })
