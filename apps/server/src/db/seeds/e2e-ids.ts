@@ -2568,3 +2568,37 @@ export const SERVICE_TEMPLATE_FIXTURES = {
   /** Every template the spec makes is named with this, and only those are cleared. */
   prefix: 'E2E ',
 } as const
+
+/**
+ * Luxury car specialists (0083; LUXURY_FIXTURES, ids 8200–8249, phones
+ * 90000082[0-4]x). Three live Silver garages pinned together far from every
+ * other fixture (around 23.0° N, 72.6° E, in no city), so only this
+ * feature's customer, standing there, sees them:
+ *
+ *   applicant  Silver, never applied: specs/journeys/luxury-specialists
+ *              applies for it (through the API: the photos are uploads
+ *              E2E has no bucket for) and admin approves it
+ *   approved   Silver, the badge already approved (BMW, Mercedes-Benz,
+ *              Audi), with its approved application
+ *   plain      Silver, no badge: never in the Luxury specialists filter
+ *
+ * `customer` drives a "Mercedes Benz" (typed that way, as customers do), so
+ * she sees "Specialists for your Mercedes-Benz" once two specialists are
+ * near. The server's luxury route tests use ids in this range too.
+ */
+export const LUXURY_FIXTURES = {
+  pin: { lat: 23.02, lng: 72.57 },
+  customer: {
+    id: id(8200), phone: '9000008200', name: 'Luxury Leela', vehicleId: id(8201),
+    make: 'Mercedes Benz', model: 'C-Class', plate: 'GJ01LX8201',
+  },
+  owners: {
+    applicant: { id: id(8205), phone: '9000008205', name: 'Applicant Owner Anand' },
+    approved: { id: id(8206), phone: '9000008206', name: 'Approved Owner Bharath' },
+    plain: { id: id(8207), phone: '9000008207', name: 'Plain Owner Chitra' },
+  },
+  applicant: { id: id(8210), name: 'E2E Torque Auto Studio', serviceId: id(8220) },
+  approved: { id: id(8211), name: 'E2E Carbon Detail Works', serviceId: id(8221), brands: ['BMW', 'Mercedes-Benz', 'Audi'] },
+  plain: { id: id(8212), name: 'E2E Kumar Auto Spa', serviceId: id(8222) },
+  approvedApplication: { id: id(8230) },
+} as const

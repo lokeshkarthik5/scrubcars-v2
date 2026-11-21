@@ -83,6 +83,7 @@ import {
   cities,
   pickupFeeChanges,
   garageGroups,
+  luxuryApplications,
 } from '../schema.js'
 import {
   CITIES,
@@ -149,6 +150,7 @@ import {
   PICKUP_FEE,
   SERVICE_CATEGORIES,
   SERVICE_TEMPLATE_FIXTURES,
+  LUXURY_FIXTURES,
 } from './e2e-ids.js'
 import { hashPassword } from '../../lib/passwords.js'
 import { codeSuffix, couponCodeHash, couponKeys, deriveCouponCode } from '../../lib/coupons.js'
@@ -4804,6 +4806,8 @@ async function main() {
   await seedBranchGroupRows()
   console.log('[e2e-seed] service templates…')
   await seedServiceTemplateRows()
+  console.log('[e2e-seed] luxury specialists…')
+  await seedLuxuryRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }
@@ -5085,5 +5089,72 @@ async function seedServiceTemplateRows() {
   await db.insert(services).values({
     id: T.rat.id, vendorId: T.garage.id, name: T.rat.name, category: 'others', description: T.rat.description,
     pricingType: 'flat', price: T.rat.price, durationMins: T.rat.durationMins,
+  })
+}
+
+/**
+ * Luxury car specialists (0083; LUXURY_FIXTURES, ids 8200–8249): three live
+ * Silver garages far from every other fixture (applicant, approved, plain)
+ * and a customer whose default car is a "Mercedes Benz". The approved
+ * garage's badge and application are as Approve leaves them.
+ */
+async function seedLuxuryRows() {
+  const L = LUXURY_FIXTURES
+  const owners = [L.owners.applicant, L.owners.approved, L.owners.plain]
+  const garages = [L.applicant, L.approved, L.plain]
+  await db.insert(users).values([
+    ...owners.map((owner) => ({
+      id: owner.id, name: owner.name, phone: owner.phone,
+      isCustomer: false, isVendorOwner: true, phoneVerified: true, status: 'active' as const,
+    })),
+    {
+      id: L.customer.id, name: L.customer.name, phone: L.customer.phone,
+      isCustomer: true, isVendorOwner: false, phoneVerified: true, status: 'active' as const,
+    },
+  ])
+  await db.insert(userVehicles).values({
+    id: L.customer.vehicleId, userId: L.customer.id, make: L.customer.make, model: L.customer.model,
+    color: 'Black', licensePlate: L.customer.plate, vehicleType: 'sedan', isDefault: true,
+  })
+  await db.insert(vendors).values(
+    garages.map((garage, i) => ({
+      id: garage.id, ownerId: owners[i]!.id, businessName: garage.name,
+      phone: `90000082${String(40 + i).padStart(2, '0')}`, address: `${i + 1}, Luxury Lane, Ahmedabad`,
+      city: 'Ahmedabad', pincode: '380001',
+      lat: L.pin.lat + i * 0.01, lng: L.pin.lng, geoSource: 'map_pin' as const, geoConfirmedAt: now,
+      vehicleTypes: ['hatchback', 'sedan', 'suv'] as Array<'hatchback' | 'sedan' | 'suv'>,
+      isVerified: true, doorstepEnabled: false, dropinEnabled: true,
+      slotIntervalMins: 30, status: 'active' as const, bays: 2, createdAt: daysAgo(60),
+      ...(garage.id === L.approved.id
+        ? { luxuryApprovedAt: daysAgo(9), luxuryApprovedBy: 'E2E seed', luxuryBrands: [...L.approved.brands] }
+        : {}),
+    }))
+  )
+  await db.insert(userMemberMapping).values(
+    garages.map((garage, i) => ({
+      vendorId: garage.id, userId: owners[i]!.id, role: 'vendor_admin' as const, status: 'active' as const,
+    }))
+  )
+  await db.insert(vendorWorkingHours).values(garages.flatMap((garage) => hoursFor(garage.id, '08:00:00', '20:00:00')))
+  await db.insert(services).values(
+    garages.map((garage) => ({
+      id: garage.serviceId, vendorId: garage.id, name: 'Ceramic coating, 3 years',
+      description: 'Paint correction, 9H ceramic, glass and wheels.', category: 'coating' as const,
+      pricingType: 'flat' as const, price: '24999.00', durationMins: 480, isActive: true,
+    }))
+  )
+  // Silver for all three (the nightly run's row, as it leaves it).
+  await db.insert(vendorTierStandings).values(
+    garages.map((garage) => ({ vendorId: garage.id, silverAt: daysAgo(30), silverEligible: true, lastEvaluatedAt: daysAgo(1) }))
+  )
+  const base = process.env.R2_PUBLIC_BASE_URL ?? 'http://localhost:9000/detlio-e2e'
+  await db.insert(luxuryApplications).values({
+    id: L.approvedApplication.id, vendorId: L.approved.id, status: 'approved', brands: [...L.approved.brands],
+    photos: [1, 2, 3].map((n) => ({
+      url: `${base}/vendors/${L.approved.id}/luxury/00000000-0000-4000-8000-00000000823${n}.jpg`,
+      caption: n === 1 ? 'BMW 5 Series' : null,
+    })),
+    coveredBay: true, products: 'Gtechniq Crystal Serum, XPEL Ultimate Plus PPF', staff: '2 detailers',
+    decidedBy: 'E2E seed', decidedAt: daysAgo(9), sentAt: daysAgo(12), timesSent: 1, sentBy: L.owners.approved.id,
   })
 }
