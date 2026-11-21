@@ -100,6 +100,21 @@ export const slotAlertsService = {
   },
 
   /**
+   * The same for several garages at once ("All N branches", 0081): one
+   * background task that re-checks them one after another, so the reads go
+   * down the one database connection one at a time.
+   */
+  garagesChanged(vendorIds: readonly string[], reason: string) {
+    if (vendorIds.length === 0) return
+    runInBackground('slot_alerts_recheck', async () => {
+      for (const vendorId of vendorIds) {
+        const dates = await slotAlertsRepository.listWaitingDatesForGarage(vendorId, new Date(), GARAGE_DATES_LIMIT)
+        await recheckDates(vendorId, dates, reason)
+      }
+    })
+  },
+
+  /**
    * The pending-digest cron's safety net, for capacity freed some way the
    * calls above did not see (a job finished early, a write that failed to
    * start its re-check): the garage-days with waiting alerts, the longest

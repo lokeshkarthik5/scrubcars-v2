@@ -10,7 +10,8 @@
  * branch on their number, and pickup & drop off (its radius kept) until that
  * garage signs its own agreement.
  *
- * Each branch is Pending and not shown to customers, has exactly the ticked
+ * The first branch puts the garage and itself in a new group named after the
+ * garage (0081); the second joins it. Each branch is Pending and not shown to customers, has exactly the ticked
  * services at those prices and the hours. Any branch (and the other owner's
  * account) left by an earlier run is removed first, by name and number; no
  * other spec touches this garage.
@@ -30,6 +31,8 @@ const C = CITIES
 const removeBranches = async () => {
   await sql`delete from vendors where business_name in (${C.branchName}, ${C.otherBranchName})`
   await sql`delete from users where phone = ${C.branchOtherOwner.phone}`
+  // The group the first branch made (0081); its garages leave it with it.
+  await sql`delete from garage_groups where name = ${C.branch.name}`
 }
 
 /** The garages a login's garage app lists (its switcher). */
@@ -52,9 +55,18 @@ test.describe.serial('Add a branch @p0', () => {
     page,
   }) => {
     await page.goto(`/vendors/${C.branch.id}/edit`)
-    await page.getByRole('button', { name: 'Add a branch…' }).click()
+    // On the Branches card (0081): a garage in no group has none yet.
+    const card = page.getByRole('region', { name: 'Branches' })
+    await expect(card.getByText('No other branches yet.', { exact: false })).toBeVisible()
+    await card.getByRole('button', { name: 'Add a branch', exact: true }).click()
     const sheet = page.getByRole('dialog', { name: 'Add a branch' })
     await expect(sheet.getByText(C.branch.services[0].name)).toBeVisible()
+    // The one new line: the group it joins, named after the garage (no area in its name).
+    await expect(
+      sheet.getByText(
+        `Joins the ${C.branch.name} group: customers see the other branches, and you can change services and prices for all branches at once.`
+      )
+    ).toBeVisible()
 
     // A town that is not a city yet: the name follows it.
     await sheet.getByLabel('City').selectOption({ label: 'Another town…' })
@@ -110,8 +122,33 @@ test.describe.serial('Add a branch @p0', () => {
     expect(audit).toMatchObject({
       actor_name: 'E2E Admin',
       summary: { fromVendorId: C.branch.id },
-      detail: { login: 'same', accountCreated: false },
+      detail: { login: 'same', accountCreated: false, groupCreated: true },
     })
+    // The source and the branch are one group now (0081), named after the source.
+    const grouped = await sql`
+      select v.id, g.name from vendors v join garage_groups g on g.id = v.group_id
+       where v.id in (${C.branch.id}, ${branch.id}) order by v.created_at`
+    expect(grouped).toEqual([
+      { id: C.branch.id, name: C.branch.name },
+      { id: branch.id, name: C.branch.name },
+    ])
+    // The branch's own page opens on its Branches card: both garages, the source the main one.
+    const branches = page.getByRole('region', { name: 'Branches' })
+    await expect(branches.getByText(`Group: ${C.branch.name} · 2 branches`)).toBeVisible()
+    await expect(branches.getByRole('link', { name: `Open ${C.branch.name}` })).toBeVisible()
+    await expect(branches.getByText('Main branch')).toBeVisible()
+
+    // Add a branch from the branch: the name starts from the group's
+    // ("Revathi Auto Spa – …"), never "Revathi Auto Spa – E2E Branchtown – …".
+    // Only looked at, then Cancel: nothing is added.
+    await branches.getByRole('button', { name: 'Add a branch', exact: true }).click()
+    const fromBranch = page.getByRole('dialog', { name: 'Add a branch' })
+    await expect(fromBranch.getByText(C.branch.services[0].name)).toBeVisible()
+    await fromBranch.getByLabel('City').selectOption({ label: 'Another town…' })
+    await fromBranch.getByLabel('Town').fill(C.otherBranchTown)
+    await expect(fromBranch.getByLabel('Branch name')).toHaveValue(C.otherBranchName)
+    await fromBranch.getByRole('button', { name: 'Cancel' }).click()
+    await expect(fromBranch).toBeHidden()
 
     // One login, both garages in the garage app's switcher.
     expect(await garagesOf(C.branch.ownerPhone)).toEqual([C.branch.id, branch.id].sort())
@@ -121,7 +158,7 @@ test.describe.serial('Add a branch @p0', () => {
     page,
   }) => {
     await page.goto(`/vendors/${C.branch.id}/edit`)
-    await page.getByRole('button', { name: 'Add a branch…' }).click()
+    await page.getByRole('region', { name: 'Branches' }).getByRole('button', { name: 'Add a branch', exact: true }).click()
     const sheet = page.getByRole('dialog', { name: 'Add a branch' })
     await expect(sheet.getByText(C.branch.services[0].name)).toBeVisible()
 
@@ -173,7 +210,8 @@ test.describe.serial('Add a branch @p0', () => {
     const [audit] = await sql`
       select detail from admin_audit_log
        where action = 'garage_branch_added' and summary->>'vendorId' = ${branch.id}`
-    expect(audit.detail).toMatchObject({ login: 'new', accountCreated: true })
+    // It joins the group the first branch started.
+    expect(audit.detail).toMatchObject({ login: 'new', accountCreated: true, groupCreated: false })
     // The number never goes in the audit row.
     expect(JSON.stringify(audit.detail)).not.toContain(C.branchOtherOwner.phone)
 

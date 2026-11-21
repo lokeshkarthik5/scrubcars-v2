@@ -3,6 +3,7 @@ import { useVendorClosures, useVendorWorkingHours } from '@repo/core/api/hooks/u
 import { toMinutes, useTravelTime } from '@repo/core/api/hooks/use-travel-time';
 import { useGarage, useVendorReviews } from '@repo/core/api/hooks/use-vendors';
 import { bookingTypeParam, offeredBookingTypes, parseBookingType, resolveBookingType } from '@repo/core/booking-types';
+import { alsoAtChips, type AlsoAtChip } from '@repo/core/branches';
 import { distanceAndDrive, distanceLabel } from '@repo/core/drive-time';
 import { straightLineKm } from '@repo/core/map';
 import { isNoFeeInspection, resolveServiceAmount } from '@repo/core/pricing';
@@ -13,7 +14,7 @@ import { useUserStore } from '@repo/core/stores/user-store';
 import type { BookingType, Service, ServicePackage, Vendor } from '@repo/core/types';
 import { formatDuration } from '@repo/core/utils';
 import { Glass, Odometer, Raised, Recessed, RedButton } from '@repo/native-ui/finish';
-import { IconArrowLeft, IconArrowUpRight, IconMapPin, IconSearch, IconStarFilled } from '@repo/native-ui/icons';
+import { IconArrowLeft, IconArrowUpRight, IconChevronRight, IconMapPin, IconSearch, IconStarFilled } from '@repo/native-ui/icons';
 import { EASE_SETTLE, PressScale, Rise, SeenProvider, useReduceMotion, useSeenHost } from '@repo/native-ui/motion';
 import { ErrorState, Notice, SkeletonList } from '@repo/native-ui/primitives';
 import { Figures, font, T } from '@repo/native-ui/text';
@@ -38,6 +39,7 @@ import { GarageSlotAlerts } from '@/components/slot-alerts/garage-slot-alerts';
 import { SaveGarageButton } from '@/components/garage/save-button';
 import { GarageAddOns, PackageCard, ServiceCard, ServiceSheet } from '@/components/garage/service-cards';
 import { OutsideCityLine, TierSeal } from '@/components/garage/tier';
+import { LuxuryBlock } from '@/components/garage/luxury';
 import { useGarageTownLine } from '@/lib/customer-place';
 import { useAuth } from '@/lib/auth';
 import { browseCategory } from '@repo/core/analytics-events';
@@ -58,6 +60,50 @@ const TABS: readonly { key: Tab; label: string }[] = [
 const NO_SERVICES: Service[] = [];
 const NO_PACKAGES: ServicePackage[] = [];
 const NO_ADD_ONS: AddOn[] = [];
+
+/**
+ * "Also at" (0081, mockup 2-branches-5): a row of chips under the garage's name and area, one per other live
+ * branch ("Velachery · 4.2 km"). Each opens that branch's page in the way of booking being looked at. Nothing
+ * when the garage has no other live branch. The website's AlsoAt, the same words and order.
+ */
+function AlsoAt({ chips, modeParam }: { chips: AlsoAtChip[]; modeParam: string | null }) {
+  const t = useT();
+  const { fx } = useFinish();
+  if (chips.length === 0) return null;
+  return (
+    <View accessibilityLabel={t('Also at')} style={alsoAtStyles.wrap}>
+      <T variant="t5" weight={600} color={fx.quiet} style={alsoAtStyles.label}>
+        {t('Also at').toUpperCase()}
+      </T>
+      <View style={alsoAtStyles.row}>
+        {chips.map((chip) => (
+          <Pressable
+            key={chip.id}
+            accessibilityRole="link"
+            accessibilityLabel={chip.accessibleName}
+            onPress={() => router.push((modeParam ? `/garage/${chip.id}?mode=${modeParam}` : `/garage/${chip.id}`) as Href)}
+          >
+            <Raised radius={12} style={alsoAtStyles.chip} innerStyle={alsoAtStyles.chipInner}>
+              <IconMapPin size={14} color={fx.quietBright} />
+              <T num variant="t4" color={fx.soft}>
+                {chip.label}
+              </T>
+              <IconChevronRight size={14} color={fx.quiet} />
+            </Raised>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+const alsoAtStyles = StyleSheet.create({
+  wrap: { marginTop: 12, gap: 8 },
+  label: { letterSpacing: 1 },
+  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: { minHeight: 44 },
+  chipInner: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 10, paddingRight: 8, minHeight: 44 },
+});
 
 /** apps/users/app/garage/[id]/page.tsx. */
 export default function GarageScreen() {
@@ -318,6 +364,15 @@ export default function GarageScreen() {
                   ) : null}
                   {vendor.tier ? <TierSeal tier={vendor.tier} /> : null}
                 </View>
+                {/* Luxury car specialists (0083): the team's quiet grey badge with "What this means",
+                    and the brands it handles, the customer's own make in the main text colour. */}
+                {vendor.luxury ? <LuxuryBlock brands={vendor.luxury.brands} customerMake={myCar?.make} /> : null}
+                {/* "Also at" (0081): the business's other live branches, each with how far it is from the
+                    customer when that is known. A tap opens that branch's own page. As the website. */}
+                <AlsoAt
+                  chips={alsoAtChips(vendor.branches, activeLocation && !isCitywide(activeLocation) ? coarse(activeLocation) : null, approximate)}
+                  modeParam={bookingTypeParam(mode)}
+                />
                 {townLine ? (
                   <View style={styles.outside}>
                     <OutsideCityLine text={townLine} />

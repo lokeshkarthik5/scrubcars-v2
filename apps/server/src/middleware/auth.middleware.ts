@@ -183,12 +183,22 @@ export function signedInAdmin(c: Context<{ Variables: AuthVariables }>): AdminAc
  * Anyone else signed in to admin is 403 ADMIN_OWNER_ONLY, as Team logins
  * answers them: they are known admins, so nothing is given away by saying so.
  */
-export const requireOwner = createMiddleware<{ Variables: AuthVariables }>(async (c, next) => {
-  if (!canDeleteAnything(signedInAdmin(c))) {
-    throw new AppError(403, 'Only the owner can delete this.', 'ADMIN_OWNER_ONLY')
-  }
-  await next()
-})
+export const requireOwner = ownerOnly('Only the owner can delete this.')
+
+/**
+ * Back up all garages (18 Nov 2026): the same owner check as the deletes,
+ * worded for the backup. Everyone else is 403 ADMIN_OWNER_ONLY.
+ */
+export const requireOwnerForBackup = ownerOnly('Only the owner can back up all garages.')
+
+function ownerOnly(message: string) {
+  return createMiddleware<{ Variables: AuthVariables }>(async (c, next) => {
+    if (!canDeleteAnything(signedInAdmin(c))) {
+      throw new AppError(403, message, 'ADMIN_OWNER_ONLY')
+    }
+    await next()
+  })
+}
 
 /**
  * zValidator('json', schema) for an admin write that is signed: once the body

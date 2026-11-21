@@ -6,6 +6,8 @@ import { SkeletonList } from '@repo/ui/sc/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui/sc/tabs'
 import { useAdminDocumentsConfig } from '@repo/core/api/hooks/use-admin-documents'
 import { useAdminCities } from '@repo/core/api/hooks/use-admin-cities'
+import { useAdminBranches } from '@repo/core/api/hooks/use-admin-branches'
+import { groupNameOf } from '@repo/core/branches'
 import { cityOfPin } from '@repo/core/cities'
 import { cn } from '@repo/core/utils'
 import { GarageDocumentsSection } from '@/components/garage-documents-section'
@@ -14,6 +16,10 @@ import { GarageTierSection } from '@/components/garage-tier-section'
 import { GarageReviewsSection } from '@/components/garage-reviews-section'
 import { GarageStrikesCard } from '@/components/garage-strikes-card'
 import { SaveBar } from '@/components/save-bar'
+import { BranchSheet } from '@/components/branch-sheet'
+import { BranchesCard } from '@/components/branches-card'
+import { SaveForSheet } from '@/components/branch-save-sheets'
+import { branchServicesChange } from '@/lib/branch-groups'
 import { RestoreDialog } from '@/components/vendor-bin-dialogs'
 import {
   PAGE_TABS,
@@ -103,6 +109,11 @@ export default function EditVendorPage({
       ? 'details'
       : tab
   const tabsRef = useRef<HTMLDivElement>(null)
+  // Branches (0081): the group this garage is in, for the Branches card,
+  // Add a branch's "Joins the … group" and Save for "All N branches".
+  const branchesQuery = useAdminBranches(id)
+  const [addingBranch, setAddingBranch] = useState(false)
+  const [askingSaveFor, setAskingSaveFor] = useState(false)
 
   /**
    * The open tab, in the address too, so a reload or a shared link lands on
@@ -132,6 +143,17 @@ export default function EditVendorPage({
   }
 
   const showSaveBar = dirty.length > 0 || saving
+  const branches = branchesQuery.data?.group ? branchesQuery.data : null
+  // What of the services would reach the other branches; null when nothing
+  // does, and Save changes then saves as before without asking.
+  const branchChange =
+    branches && saved && draft && dirty.includes('services')
+      ? branchServicesChange(saved.services, draft.services)
+      : null
+  const onSave = () => {
+    if (branchChange) setAskingSaveFor(true)
+    else void handleSubmit()
+  }
   const readOnly = Boolean(bin)
   const dots = tabDots(checklist.readiness)
   const tabs = PAGE_TABS.filter((value) => value !== 'documents' || documentsOn)
@@ -305,6 +327,12 @@ export default function EditVendorPage({
               them is read-only while the garage is in the Bin. */}
             <fieldset disabled={readOnly} className="m-0 min-w-0 border-0 p-0">
               <TabsContent value="details">
+                {/* Branches (0081): on every branch's page, above its details. */}
+                <BranchesCard
+                  vendorId={id}
+                  readOnly={readOnly}
+                  onAddBranch={() => setAddingBranch(true)}
+                />
                 <DetailsTab g={g} draft={draft} />
               </TabsContent>
               <TabsContent value="location">
@@ -316,7 +344,12 @@ export default function EditVendorPage({
                 <RepairQuotesCard vendorId={id} onSaved={afterInstantSave} />
               </TabsContent>
               <TabsContent value="services">
-                <ServicesTab vendorId={id} g={g} draft={draft} />
+                <ServicesTab
+                  vendorId={id}
+                  g={g}
+                  draft={draft}
+                  branches={branches}
+                />
               </TabsContent>
               <TabsContent value="team">
                 <TeamPayoutTab vendorId={id} onSaved={afterInstantSave} />
@@ -368,12 +401,44 @@ export default function EditVendorPage({
               saving={saving}
               disabled={saveBlock !== null || serviceSwitching}
               held={describing}
-              onSave={() => void handleSubmit()}
+              onSave={onSave}
               onDiscard={discard}
             />
           )}
         </div>
       </div>
+
+      {!bin && (
+        <BranchSheet
+          open={addingBranch}
+          onClose={() => setAddingBranch(false)}
+          vendorId={id}
+          garageName={saved.form.businessName}
+          groupName={
+            branches?.group?.name ?? groupNameOf(saved.form.businessName)
+          }
+          services={saved.services}
+          atGarage={g.atGarage}
+          ownerPhone={saved.form.ownerPhone}
+          pickupOn={bookingMode.pickupEnabled === true}
+        />
+      )}
+
+      {branches && (
+        <SaveForSheet
+          open={askingSaveFor && branchChange !== null}
+          onClose={() => setAskingSaveFor(false)}
+          vendorId={id}
+          branches={branches}
+          change={branchChange}
+          saving={saving}
+          onSave={(key) =>
+            key && branchChange
+              ? handleSubmit({ change: branchChange, key })
+              : handleSubmit()
+          }
+        />
+      )}
 
       {restoring && (
         <RestoreDialog

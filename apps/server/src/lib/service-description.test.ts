@@ -132,24 +132,9 @@ describe('writeServiceDescription', () => {
   })
 })
 
-describe('the ready-made service templates', () => {
-  // Loaded by path, as copy-rules.parity.test.ts loads its twin: packages/core
-  // is not a dependency of the API.
-  const templatesUrl = new URL('../../../../packages/core/src/service-templates.ts', import.meta.url).href
-
-  test('every template description passes the same rules as an AI one', async () => {
-    const { SERVICE_TEMPLATES } = (await import(templatesUrl)) as {
-      SERVICE_TEMPLATES: Array<{ name: string; description: string }>
-    }
-    expect(SERVICE_TEMPLATES.length).toBeGreaterThan(0)
-    for (const template of SERVICE_TEMPLATES) {
-      expect({ name: template.name, problem: descriptionProblem(template.description, false) }).toEqual({
-        name: template.name,
-        problem: null,
-      })
-    }
-  })
-})
+// The ready-made service templates (0082's seed) are held to these rules by
+// src/db/service-templates-seed.test.ts, and every template save by
+// lib/service-templates.ts.
 
 describe('points (0064: the editor’s Points mode)', () => {
   test('the answer is kept as an intro line and "- " points, full stops and labels dropped', () => {

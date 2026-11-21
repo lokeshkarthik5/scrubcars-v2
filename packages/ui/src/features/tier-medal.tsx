@@ -13,6 +13,7 @@ import {
   type Tier,
 } from '@repo/core/tiers'
 import { ScSheet } from '@repo/ui/sc/modal'
+import { BodyPortal } from './body-portal'
 
 /**
  * The tier medals (0063): Bronze, Silver and Gold, the signs that replace
@@ -129,32 +130,36 @@ export function TierSeal({ tier, className }: { tier: Tier; className?: string }
       </div>
       <p className="text-[11px] text-text-muted">{t(TIER_NOTES[tier])}</p>
 
-      <ScSheet open={open} onClose={() => setOpen(false)} aria-label={t('{name}: what this means', { name })} className="px-4 pt-1">
-        <div className="flex items-center gap-2 pt-2">
-          <TierMedalIcon tier={tier} size={24} />
-          <h2 className="text-[17px] font-semibold text-text-primary">{name}</h2>
-        </div>
-        <p className="mt-1.5 text-[13px] text-text-secondary">{t('Detlio shows this medal on a garage that:')}</p>
-        {tierStandards(tier).map((group) => (
-          <section key={group.tier} className="mt-3" aria-label={t('{tier} standards', { tier: t(TIER_LABELS[group.tier]) })}>
-            {tier !== 'bronze' && (
-              <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.07em] text-text-muted">
-                <TierMedalIcon tier={group.tier} size={12} />
-                {t(TIER_LABELS[group.tier])}
-              </p>
-            )}
-            <ul className="flex flex-col gap-2.5">
-              {group.lines.map((line) => (
-                <li key={line} className="flex items-start gap-2 text-[13px] leading-snug text-text-primary">
-                  <IconCircleCheck size={16} aria-hidden="true" className="mt-px shrink-0 text-success" />
-                  <span>{t(line)}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))}
-        <p className="mt-3 text-[12px] text-text-muted">{t(TIER_KEPT_LINE)}</p>
-      </ScSheet>
+      {/* On document.body: inside the garage page's animated section a fixed
+          sheet would be pinned to the section, not the screen (body-portal.tsx). */}
+      <BodyPortal>
+        <ScSheet open={open} onClose={() => setOpen(false)} aria-label={t('{name}: what this means', { name })} className="px-4 pt-1">
+          <div className="flex items-center gap-2 pt-2">
+            <TierMedalIcon tier={tier} size={24} />
+            <h2 className="text-[17px] font-semibold text-text-primary">{name}</h2>
+          </div>
+          <p className="mt-1.5 text-[13px] text-text-secondary">{t('Detlio shows this medal on a garage that:')}</p>
+          {tierStandards(tier).map((group) => (
+            <section key={group.tier} className="mt-3" aria-label={t('{tier} standards', { tier: t(TIER_LABELS[group.tier]) })}>
+              {tier !== 'bronze' && (
+                <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.07em] text-text-muted">
+                  <TierMedalIcon tier={group.tier} size={12} />
+                  {t(TIER_LABELS[group.tier])}
+                </p>
+              )}
+              <ul className="flex flex-col gap-2.5">
+                {group.lines.map((line) => (
+                  <li key={line} className="flex items-start gap-2 text-[13px] leading-snug text-text-primary">
+                    <IconCircleCheck size={16} aria-hidden="true" className="mt-px shrink-0 text-success" />
+                    <span>{t(line)}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+          <p className="mt-3 text-[12px] text-text-muted">{t(TIER_KEPT_LINE)}</p>
+        </ScSheet>
+      </BodyPortal>
     </div>
   )
 }
