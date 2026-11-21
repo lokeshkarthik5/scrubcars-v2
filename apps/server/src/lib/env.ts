@@ -120,6 +120,11 @@ export const env = {
   // send an hour. A test posts to the real team chat, so a stuck button or a
   // script must hit a wall.
   telegramTestRateLimit: Number(process.env.TELEGRAM_TEST_RATE_LIMIT ?? '5'),
+  // Back up all garages (admin → Garages): requests each admin may make an
+  // hour. A backup reads every sheet a page at a time (about 50 requests for
+  // every garage today), so this leaves room for many backups and for years
+  // of growth, and still stops a script left looping.
+  backupRateLimit: Number(process.env.BACKUP_RATE_LIMIT ?? '2000'),
   // ─── Browser notifications (Web Push, lib/push.ts, 0044) ──────────────────
   // Garages hear about new bookings and customers about theirs through the
   // browser's own notifications (free). One VAPID key pair for the API,

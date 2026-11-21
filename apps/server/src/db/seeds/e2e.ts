@@ -82,6 +82,7 @@ import {
   shineJobScores,
   cities,
   pickupFeeChanges,
+  garageCustomers,
   garageGroups,
   luxuryApplications,
 } from '../schema.js'
@@ -149,6 +150,7 @@ import {
   SHINE,
   PICKUP_FEE,
   SERVICE_CATEGORIES,
+  GARAGE_BACKUP,
   SERVICE_TEMPLATE_FIXTURES,
   LUXURY_FIXTURES,
 } from './e2e-ids.js'
@@ -4802,6 +4804,8 @@ async function main() {
   await seedPickupFeeRows()
   console.log('[e2e-seed] service categories…')
   await seedServiceCategoryRows()
+  console.log('[e2e-seed] garage backup…')
+  await seedGarageBackupRows()
   console.log('[e2e-seed] branch groups…')
   await seedBranchGroupRows()
   console.log('[e2e-seed] service templates…')
@@ -4982,7 +4986,9 @@ async function seedServiceCategoryRows() {
   await db.insert(vendors).values({
     id: C.garage.id, ownerId: C.owner.id, businessName: C.garage.name, phone: C.owner.phone,
     address: '80, Workshop Road, Kilpauk', city: 'Chennai', pincode: '600010',
-    lat: ORIGIN.lat + 0.05, lng: ORIGIN.lng, geoSource: 'map_pin', geoConfirmedAt: now,
+    // ~5.4 km east of ORIGIN, in no zone: north of it (Perambur, 4 km) it took
+    // coverage-demand's waiting requests and made Perambur's figures move.
+    lat: ORIGIN.lat, lng: ORIGIN.lng + 0.05, geoSource: 'map_pin', geoConfirmedAt: now,
     vehicleTypes: ['hatchback', 'sedan', 'suv'], bays: 4, slotIntervalMins: 30, status: 'active',
     isVerified: true, dropinEnabled: true, doorstepEnabled: false, createdAt: daysAgo(30),
   })
@@ -5010,6 +5016,35 @@ async function seedServiceCategoryRows() {
     { id: C.battery.id, vendorId: C.garage.id, name: C.battery.name, category: C.battery.category,
       ...inspection('0.00'), durationMins: 60, categoryHintDismissedAt: daysAgo(2) },
   ])
+}
+
+/**
+ * Back up all garages (GARAGE_BACKUP, ids 7850–7899, phones 90000078[5-9]x):
+ * a garage not live yet, with the numbers the backup spec looks for.
+ */
+async function seedGarageBackupRows() {
+  const B = GARAGE_BACKUP
+  await db.insert(users).values({
+    id: B.owner.id, name: B.owner.name, phone: B.owner.phone, isCustomer: false, isVendorOwner: true,
+    phoneVerified: true, status: 'active' as const,
+  })
+  await db.insert(vendors).values({
+    id: B.garage.id, ownerId: B.owner.id, businessName: B.garage.name, phone: B.garage.phone,
+    whatsapp: B.garage.phone, address: '78, Backup Street, Kilpauk', city: 'Chennai', pincode: '600010',
+    vehicleTypes: ['hatchback', 'sedan'], bays: 2, slotIntervalMins: 30, status: 'pending',
+    isVerified: false, dropinEnabled: true, doorstepEnabled: false, createdAt: daysAgo(5),
+    notes: `Owner's brother: ${B.noteNumber}`,
+  })
+  await db.insert(userMemberMapping).values({
+    vendorId: B.garage.id, userId: B.owner.id, role: 'vendor_admin' as const, status: 'active' as const,
+  })
+  await db.insert(vendorPayoutAccounts).values({
+    vendorId: B.garage.id, accountName: B.owner.name, accountNumber: B.bank.accountNumber, ifsc: B.bank.ifsc,
+    upiId: B.bank.upiId, updatedBy: 'E2E seed',
+  })
+  await db.insert(garageCustomers).values({
+    id: B.bookCustomer.id, vendorId: B.garage.id, name: B.bookCustomer.name, phone: B.bookCustomer.phone,
+  })
 }
 
 /**

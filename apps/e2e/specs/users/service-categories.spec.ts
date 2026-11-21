@@ -19,9 +19,10 @@ test.describe('service categories in the garage list @p0', () => {
     await expect(sheet).toBeVisible()
 
     // Ten tiles, the three new ones after Scratch removal and before Others.
+    // Each name may end in its count, "2" or "2+" when more garages may follow.
     const tiles = sheet.locator('button[aria-pressed]')
     await expect(tiles).toHaveCount(10)
-    const names = (await tiles.allTextContents()).map((text) => text.replace(/\d+$/, '').trim())
+    const names = (await tiles.allTextContents()).map((text) => text.replace(/\d+\+?$/, '').trim())
     expect(names.slice(-5)).toEqual(['Scratch removal', 'General service', 'Repairs', 'Dent & paint', 'Others'])
     // "General service" takes two lines in its tile rather than being cut short.
     const general = sheet.getByRole('button', { name: /^General service/ })
