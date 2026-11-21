@@ -50,6 +50,30 @@ export function isPhotoAngle(value: unknown): value is PhotoAngle {
   return typeof value === 'string' && (PHOTO_ANGLES as readonly string[]).includes(value)
 }
 
+/**
+ * The four corners the car condition check adds to the walk-around (0075,
+ * behind CONDITION_CHECK_ENABLED; modules/condition-check). Only the
+ * garage takes them, and only while the check is on for it: the guided
+ * checklist above stays the five angles everywhere else.
+ */
+export const CORNER_ANGLES = ['front_left', 'front_right', 'back_left', 'back_right'] as const
+export type CornerAngle = (typeof CORNER_ANGLES)[number]
+
+export const CORNER_ANGLE_LABELS: Record<CornerAngle, string> = {
+  front_left: 'Front left',
+  front_right: 'Front right',
+  back_left: 'Back left',
+  back_right: 'Back right',
+}
+
+/** Every angle a job photo can carry (0045's five and 0075's corners). Text + CHECK. */
+export const JOB_PHOTO_ANGLES = [...PHOTO_ANGLES, ...CORNER_ANGLES] as const
+export type JobPhotoAngle = (typeof JOB_PHOTO_ANGLES)[number]
+
+export function isCornerAngle(value: unknown): value is CornerAngle {
+  return typeof value === 'string' && (CORNER_ANGLES as readonly string[]).includes(value)
+}
+
 /** The garage's photos a stage needs before the job moves past it. */
 export const MIN_GARAGE_PHOTOS = 2
 

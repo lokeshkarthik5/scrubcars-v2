@@ -48,10 +48,15 @@ import {
   type PushRequest,
 } from '../../lib/push-messages.js'
 import { maskPhone } from '../../lib/rewards.js'
+import { askFeeChoices, askMaxFee, suggestionPlan, tripFee } from '../../lib/pickup-fee.js'
+import { pickupFeesService } from '../pickup-fees/pickup-fees.service.js'
 import { getDayOfWeekFromDate } from '../../lib/slots.js'
 import { zoneFor } from '../../lib/zones.js'
 import type { VehicleTier } from '../../lib/pricing.js'
+import { RESCUE_RULES, garageRecord } from '../../lib/rescue-garages.js'
+import { garageResponseRepository } from '../garage-response/garage-response.repository.js'
 import { pushService } from '../push/push.service.js'
+import { ratingsFor } from '../reviews/reviews.service.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import {
   bookingRequestsRepository,
@@ -97,6 +102,10 @@ export interface CustomerRequestView {
   createdAt: string
   respondBy: string
   travelFee: number | null
+  /** Detlio's suggested fee and the most the garage may ask, with the road km (0079); null on older requests. */
+  suggestedFee: number | null
+  maxFee: number | null
+  roadKm: number | null
   acceptedStartAt: string | null
   confirmBy: string | null
   bookingId: string | null
@@ -129,6 +138,18 @@ export interface GarageRequestView {
   durationMins: number
   reply: 'accepted' | 'declined' | null
   travelFee: number | null
+  /** Detlio's suggested fee and the most this garage may ask, with the road km (0079); null on older requests. */
+  suggestedFee: number | null
+  maxFee: number | null
+  roadKm: number | null
+  /** The fee chips: the suggestion, then up to the most; on an older request ₹0/₹100/₹200. */
+  feeChoices: number[]
+  /** How far above the suggestion this garage may ask, in % (its own, or Detlio's default); null with no suggestion. */
+  raisePct: number | null
+  /** Ask for pickup: the responsibility tick is needed to say yes. */
+  pickupTermsRequired: boolean
+  /** Ask for pickup to a garage that doesn't collect cars yet. */
+  offersPickup: boolean
   acceptedStartAt: string | null
   confirmBy: string | null
   createdAt: string
@@ -166,6 +187,9 @@ export interface AdminRequestView {
   sentAt: string
   respondBy: string
   travelFee: number | null
+  /** Detlio's suggested fee and the most the garage may ask (0079); null on older requests. */
+  suggestedFee: number | null
+  maxFee: number | null
   acceptedStartAt: string | null
   confirmBy: string | null
   bookingId: string | null
@@ -211,6 +235,8 @@ function toAdminView(rows: AdminRow[], names: Map<string, string>, now: Date): A
     sentAt: latest.createdAt.toISOString(),
     respondBy: latest.respondBy.toISOString(),
     travelFee: toNumber(latest.travelFee),
+    suggestedFee: toNumber(latest.suggestedFee),
+    maxFee: toNumber(latest.maxFee),
     acceptedStartAt: latest.acceptedStartAt?.toISOString() ?? null,
     confirmBy: latest.confirmBy?.toISOString() ?? null,
     bookingId: latest.bookingId,
@@ -302,14 +328,55 @@ function earnFor(received: number, lines: readonly RequestLine[]): number {
   return Math.round((Number(subtotal) - commission) * 100) / 100
 }
 
-function toNumber(value: string | null): number | null {
-  return value === null ? null : Number(value)
+/**
+ * Detlio's suggested fee for this trip (0079): its formula on the road km
+ * from the garage's pin, held to that garage's own limits, never more than
+ * the services; and the most the garage may ask, the suggestion + its raise
+ * (25% unless admin set the garage's own) within its limits. Worked out
+ * once, when the request reaches the garage, and kept on its row.
+ */
+async function feeSuggestion(vendorId: string, distanceM: number, subtotal: string) {
+  const settings = await pickupFeesService.settingsForVendor(vendorId)
+  const trip = tripFee(suggestionPlan(settings), distanceM / 1000, Number(subtotal))
+  return {
+    suggestedFee: trip.fee.toFixed(2),
+    maxFee: askMaxFee(trip.fee, settings, Number(subtotal)).toFixed(2),
+    roadKm: trip.roadKm.toFixed(1),
+  }
+}
+
+/**
+ * The fee chips' step and the garage's own Ask for pickup raise (0079), read
+ * only when a card has a suggestion; every card of a call is one garage's.
+ */
+async function feeContextFor(vendorId: string, rows: BookingRequestRecord[]): Promise<FeeContext> {
+  if (!rows.some((row) => row.suggestedFee != null)) return { roundTo: 10, raisePct: null }
+  const settings = await pickupFeesService.settingsForVendor(vendorId)
+  return { roundTo: settings.suggested.roundTo, raisePct: settings.limits.askRaisePct }
+}
+
+interface FeeContext {
+  roundTo: number
+  raisePct: number | null
+}
+
+function toNumber(value: string | null | undefined): number | null {
+  return value === null || value === undefined ? null : Number(value)
 }
 
 /** `received`: the garage's received bookings so far, for the owner's `earn`; null for an operator (not read). */
-function toGarageView(row: BookingRequestRecord, received: number | null, names: Map<string, string>, now: Date): GarageRequestView {
+function toGarageView(
+  row: BookingRequestRecord,
+  received: number | null,
+  names: Map<string, string>,
+  now: Date,
+  fees: FeeContext
+): GarageRequestView {
   const outsideKm = Number(row.outsideKm)
   const coverKm = toNumber(row.coverKm)
+  // Ask for pickup to a garage that doesn't collect cars: measured with a
+  // 0 km reach (booking-requests.repository askedReachSql).
+  const offersPickup = !(row.bookingType === 'pickup' && coverKm === 0)
   return {
     id: row.id,
     status: row.status,
@@ -325,12 +392,22 @@ function toGarageView(row: BookingRequestRecord, received: number | null, names:
     distanceKm: Number(row.distanceKm),
     coverKm,
     outsideKm,
-    beyond: beyondLine(outsideKm, coverKm),
+    beyond: offersPickup ? beyondLine(outsideKm, coverKm) : "You don't offer pickup yet",
     respondBy: row.respondBy.toISOString(),
     earn: received === null ? null : earnFor(received, row.items),
     durationMins: row.durationMins,
     reply: row.reply,
     travelFee: toNumber(row.travelFee),
+    suggestedFee: toNumber(row.suggestedFee),
+    maxFee: toNumber(row.maxFee),
+    roadKm: toNumber(row.roadKm),
+    feeChoices:
+      row.suggestedFee == null || row.maxFee == null
+        ? [...REQUEST_RULES.travelFees]
+        : askFeeChoices(Number(row.suggestedFee), Number(row.maxFee), fees.roundTo),
+    raisePct: row.suggestedFee == null ? null : fees.raisePct,
+    pickupTermsRequired: row.bookingType === 'pickup',
+    offersPickup,
     acceptedStartAt: row.acceptedStartAt?.toISOString() ?? null,
     confirmBy: row.confirmBy?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
@@ -361,6 +438,9 @@ async function toCustomerView(chain: BookingRequestRecord[], now: Date): Promise
     createdAt: first.createdAt.toISOString(),
     respondBy: latest.respondBy.toISOString(),
     travelFee: toNumber(latest.travelFee),
+    suggestedFee: toNumber(latest.suggestedFee),
+    maxFee: toNumber(latest.maxFee),
+    roadKm: toNumber(latest.roadKm),
     acceptedStartAt: latest.acceptedStartAt?.toISOString() ?? null,
     confirmBy: latest.confirmBy?.toISOString() ?? null,
     bookingId: latest.bookingId,
@@ -480,6 +560,7 @@ export const bookingRequestsService = {
         outsideKm: (Math.round(outsideKm * 10) / 10).toFixed(1),
         items: lines,
         subtotalAmount: linesSubtotal(lines),
+        ...(await feeSuggestion(garage.vendorId, garage.distanceM, linesSubtotal(lines))),
         durationMins,
         windowDate: window.date,
         windowPart: window.part,
@@ -614,7 +695,8 @@ export const bookingRequestsService = {
     const names = await zoneNames()
     // One read for every card's `earn` (owner seat only), not one per card.
     const received = isOwner && rows.length > 0 ? await bookingRequestsRepository.countReceivedChains(vendorId) : null
-    const items = rows.map((row) => toGarageView(row, received, names, now))
+    const fees = await feeContextFor(vendorId, rows)
+    const items = rows.map((row) => toGarageView(row, received, names, now, fees))
     return {
       items,
       waiting: await bookingRequestsRepository.countWaitingForGarage(vendorId, now),
@@ -644,6 +726,9 @@ export const bookingRequestsService = {
       status: row.status,
       respondBy: row.respondBy,
       travelFee: input.travelFee,
+      maxFee: toNumber(row.maxFee),
+      termsRequired: row.bookingType === 'pickup',
+      termsAccepted: input.pickupTermsAccepted,
       startAt,
       starts,
       now,
@@ -654,7 +739,20 @@ export const bookingRequestsService = {
     if (refusal === 'REQUEST_TIME_PASSED') {
       throw new AppError(409, 'The time to answer this request has passed.', 'REQUEST_TIME_PASSED')
     }
-    if (refusal === 'TRAVEL_FEE_INVALID') throw new AppError(400, 'Pick a travel fee of ₹0, ₹100 or ₹200.', 'TRAVEL_FEE_INVALID')
+    if (refusal === 'TRAVEL_FEE_INVALID') {
+      throw new AppError(
+        400,
+        row.maxFee === null ? 'Pick a travel fee of ₹0, ₹100 or ₹200.' : `Pick a fee of up to ₹${Number(row.maxFee)}.`,
+        'TRAVEL_FEE_INVALID'
+      )
+    }
+    if (refusal === 'PICKUP_TERMS_REQUIRED') {
+      throw new AppError(
+        400,
+        "Tick that you are responsible for the customer's car from pickup until it is returned.",
+        'PICKUP_TERMS_REQUIRED'
+      )
+    }
     if (refusal === 'START_NOT_OFFERED') {
       throw new AppError(409, 'That start time is no longer free. Pick another.', 'REQUEST_START_NOT_FREE')
     }
@@ -664,6 +762,7 @@ export const bookingRequestsService = {
       vendorId,
       userId: actorUserId,
       travelFee: input.travelFee.toFixed(2),
+      pickupTermsAcceptedAt: row.bookingType === 'pickup' ? now : null,
       startAt,
       confirmBy: confirmByFor(now, startAt),
       now,
@@ -678,7 +777,7 @@ export const bookingRequestsService = {
     )
     // `earn` is money: the owner seat's alone (an operator's answer has none).
     const received = isOwner ? await bookingRequestsRepository.countReceivedChains(vendorId) : null
-    return toGarageView(accepted, received, await zoneNames(), now)
+    return toGarageView(accepted, received, await zoneNames(), now, await feeContextFor(vendorId, [accepted]))
   },
 
   /**
@@ -705,7 +804,7 @@ export const bookingRequestsService = {
       await bookingRequestsRepository.markCustomerTold(withdrawn.id, new Date())
     })
     const received = isOwner ? await bookingRequestsRepository.countReceivedChains(vendorId) : null
-    return toGarageView(withdrawn, received, await zoneNames(), now)
+    return toGarageView(withdrawn, received, await zoneNames(), now, await feeContextFor(vendorId, [withdrawn]))
   },
 
   /** The garage's "Can't": passed on to the next nearest garage, or ended. */
@@ -865,6 +964,14 @@ async function moveOn(
       limit: CANDIDATE_LIMIT,
     })
     const services = await bookingRequestsRepository.listGarageServices(garages.map((g) => g.vendorId))
+    // How each answers bookings and its star score: the pass-on goes to the
+    // best of the eligible garages, not just the nearest (lib/rescue-garages.ts).
+    const garageIds = garages.map((g) => g.vendorId)
+    const recordRows = await garageResponseRepository.recordRows(
+      garageIds,
+      new Date(now.getTime() - RESCUE_RULES.recordDays * 24 * 60 * 60 * 1000)
+    )
+    const ratings = garageIds.length > 0 ? await ratingsFor(garageIds) : new Map()
     const categories = row.items.map((item) => item.category)
     const candidates: Array<{ candidate: RequestCandidate; garage: MeasuredGarage }> = []
     for (const garage of garages) {
@@ -887,6 +994,11 @@ async function moveOn(
           lines,
           // A pass-on needs time for this garage to answer too.
           lastStart: lastStart && respondByFor(now, lastStart) ? lastStart : null,
+          record: garageRecord(
+            recordRows.filter((r) => r.vendorId === garage.vendorId),
+            now
+          ),
+          rating: ratings.get(garage.vendorId)?.rating ?? null,
         },
       })
     }
@@ -927,6 +1039,7 @@ async function moveOn(
         outsideKm: (Math.round(outsideKm * 10) / 10).toFixed(1),
         items: lines,
         subtotalAmount: linesSubtotal(lines),
+        ...(await feeSuggestion(next.garage.vendorId, next.garage.distanceM, linesSubtotal(lines))),
         durationMins: linesDuration(lines),
         windowDate: row.windowDate,
         windowPart: row.windowPart,

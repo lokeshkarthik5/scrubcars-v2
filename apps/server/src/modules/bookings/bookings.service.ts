@@ -35,6 +35,9 @@ import {
   type PickupNext,
 } from '../../lib/pickup.js'
 import { computeVendorPayout } from '../../lib/discounts.js'
+import { convenienceFeeFor, livePlanOf, tripFee } from '../../lib/pickup-fee.js'
+import { straightLineKm } from '../../lib/service-city.js'
+import { pickupFeesService } from '../pickup-fees/pickup-fees.service.js'
 import {
   creditAtBooking,
   finalBillRefusal,
@@ -76,6 +79,15 @@ import {
   type PhotoGateStep,
 } from '../../lib/job-photo-standards.js'
 import { jobPhotosRequiredFor } from '../job-photos/job-photos.service.js'
+import {
+  carCheckGateFor,
+  carCheckGateMessage,
+  customerConditionView,
+  garageConditionView,
+  type CheckRow,
+  type MarkRow,
+} from '../../lib/condition-check.js'
+import { conditionAiOn, conditionCheckOn } from '../condition-check/condition-check.service.js'
 import { analyticsService } from '../analytics/analytics.service.js'
 import { discountsService } from '../discounts/discounts.service.js'
 import { membersRepository } from '../members/members.repository.js'
@@ -91,6 +103,7 @@ import { refundsService } from '../refunds/refunds.service.js'
 import * as pushMessages from '../../lib/push-messages.js'
 import { pushService } from '../push/push.service.js'
 import { rewardsService } from '../rewards/rewards.service.js'
+import { shineScoreService } from '../shine-score/shine-score.service.js'
 import { stockService as garageStockService } from '../garage-book/garage-book-stock.service.js'
 import { carHistoryService } from '../car-history/car-history.service.js'
 import { guaranteeService } from '../guarantee/guarantee.service.js'
@@ -187,6 +200,51 @@ function assertPhotoGate(
     )
   }
   return required ? { stage, min: MIN_GARAGE_PHOTOS } : undefined
+}
+
+/**
+ * The car condition check's gate (0075): pickup & drop's Picked up and a
+ * doorstep job's Start wait for the 8-angle walk-round, sent to the
+ * customer, while the check is on for the garage (Detlio's photo waiver
+ * waives it). No conditional write is needed: once sent, the walk-round's
+ * photos cannot be removed (job-photos.service), and sent cannot be unsent.
+ */
+function assertCarCheckGate(
+  booking: BookingWithRelations,
+  step: 'picked_up' | 'start',
+  options: { forDetlio?: boolean } = {}
+) {
+  const refusal = carCheckGateFor(
+    {
+      on: conditionCheckOn(booking.vendorId ?? booking.vendor?.id),
+      bookingType: booking.bookingType,
+      photosWaivedAt: booking.photosWaivedAt ?? null,
+      photos: booking.photos ?? [],
+      sentAt: booking.conditionChecks?.[0]?.sentAt ?? null,
+    },
+    step
+  )
+  if (refusal) {
+    throw new AppError(
+      409,
+      options.forDetlio
+        ? "The garage has not finished the car check. Ask it to, or waive the photos for this booking first."
+        : carCheckGateMessage(refusal),
+      'CONDITION_CHECK_REQUIRED'
+    )
+  }
+}
+
+/** The facts the car condition check's views read (0075), from a booking with its job records. */
+function conditionJobOf(booking: BookingWithRelations) {
+  return {
+    status: booking.status,
+    bookingType: booking.bookingType,
+    photosWaivedAt: booking.photosWaivedAt ?? null,
+    photos: booking.photos ?? [],
+    check: booking.conditionChecks?.[0] ?? null,
+    marks: booking.conditionMarks ?? [],
+  }
 }
 
 /**
@@ -343,8 +401,12 @@ type BookingWithRelations = {
   durationMins?: number | null
   amount: string
   subtotalAmount?: string | null
-  /** An accepted request's travel fee (0062); '0.00' otherwise. Part of subtotalAmount. */
+  /** An accepted request's travel fee (0062), or the pickup fee (0079); '0.00' otherwise. Part of subtotalAmount. */
   travelFee?: string | null
+  /** The pickup fee's road km (0079); null when none. */
+  roadKm?: string | null
+  /** Detlio's convenience fee (0079), inside subtotalAmount; never the garage's. */
+  convenienceFee?: string | null
   discountAmount?: string | null
   discountCode?: string | null
   discountFundedBy?: 'platform' | 'vendor' | null
@@ -443,7 +505,13 @@ type BookingWithRelations = {
     // 0045: whose photo, and the guided angle. Optional for hand-built rows.
     uploadedByRole?: string | null
     angle?: string | null
+    // 0075: whether Detlio's AI has looked at it for the car condition check.
+    conditionRead?: string | null
   }>
+  // The car condition check (0075), with JOB_RECORDS: the sent check (one
+  // at most) and its marks.
+  conditionChecks?: CheckRow[]
+  conditionMarks?: MarkRow[]
   // Final bills and extra work (0041) alike; the mappers pick each out.
   charges?: Array<
     FinalBillRecord & {
@@ -563,6 +631,10 @@ export function toBookingResponse(
     // An accepted request's travel fee (0062): its own line, inside the
     // subtotal; the garage keeps it whole.
     travelFee: Number(booking.travelFee ?? 0).toFixed(2),
+    // The pickup fee's road km and Detlio's convenience fee (0079): each its
+    // own line; the convenience fee is never the garage's.
+    roadKm: booking.roadKm == null ? null : Number(booking.roadKm),
+    convenienceFee: Number(booking.convenienceFee ?? 0).toFixed(2),
     discountAmount: booking.discountAmount ?? '0.00',
     discountCode: booking.discountCode ?? null,
     discountFundedBy: booking.discountFundedBy ?? null,
@@ -573,6 +645,7 @@ export function toBookingResponse(
       amount: booking.amount,
       subtotalAmount: booking.subtotalAmount ?? booking.amount,
       discountFundedBy: booking.discountFundedBy ?? null,
+      convenienceFee: booking.convenienceFee ?? null,
     }),
     paymentMethod: booking.paymentMethod,
     lat: booking.lat,
@@ -742,6 +815,12 @@ export function toBookingResponse(
         .filter((photo) => photo.uploadedByRole === 'customer' || customerSeesPhotos(booking.status))
         .map((photo) => toJobPhotoView(photo, jobPhotoLink)),
       conditionPhotos: customerPhotoWindowsView(photoStandardJob(booking), Date.now()),
+      // The car condition check (0075): what the garage sent, the customer's
+      // answer, and possible new marks once the job is done. Null while the
+      // check is off for the garage, and before there is anything to show.
+      conditionCheck: conditionCheckOn(booking.vendorId ?? booking.vendor?.id)
+        ? customerConditionView(conditionJobOf(booking), conditionAiOn(), jobPhotoLink)
+        : null,
     }),
     // The final bill of an inspection job, if the garage has raised one: the
     // one that stands, not any it replaced.
@@ -811,6 +890,9 @@ export function toVendorBookingResponse(booking: BookingWithRelations) {
     subtotalAmount: _subtotal,
     discountAmount: _discountAmount,
     discountFundedBy: _fundedBy,
+    // Detlio's convenience fee (0079) is Detlio's, not the garage's business.
+    // The pickup fee (travelFee, roadKm) stays: it is the garage's whole.
+    convenienceFee: _convenienceFee,
     // What the customer gets back is between them and Detlio.
     refund: _refund,
     // So is the customer's receipt.
@@ -824,6 +906,8 @@ export function toVendorBookingResponse(booking: BookingWithRelations) {
     pickup: _customerPickup,
     // When the customer may add their own photos is theirs to read.
     conditionPhotos: _conditionPhotos,
+    // The garage gets its own view of the car condition check, below.
+    conditionCheck: _customerConditionCheck,
     ...vendorView
   } = toBookingResponse(booking)
 
@@ -871,6 +955,12 @@ export function toVendorBookingResponse(booking: BookingWithRelations) {
         jobPhotosRequiredFor(booking.vendorId ?? booking.vendor?.id ?? ''),
         Date.now()
       ),
+      // The car condition check (0075): the walk-round, Detlio's marks, the
+      // customer's answer and what Picked up / Start wait for. Null while the
+      // check is off for the garage: the portal shows today's photos.
+      conditionCheck: conditionCheckOn(booking.vendorId ?? booking.vendor?.id)
+        ? garageConditionView(conditionJobOf(booking), conditionAiOn())
+        : null,
     }),
     // Whether the job card offers "Raise final bill" now. Worked out here so
     // the portal never restates the rules (lib/final-bill.ts). The bill
@@ -1381,23 +1471,21 @@ export async function resolveBookingDraft(
   // paise so the arithmetic never runs through a float.
   //
   // A booking type's own fee goes on here, before any promo code
-  // (bookingTypeFee, lib/pickup.ts). Zero for every type today: the pickup &
-  // drop fee is to be decided (owner, 17 Oct 2026).
-  // An accepted request's travel fee (0062) goes on last, its own line: no
-  // promo code ever comes off it, and the garage keeps it whole.
-  const travelFee = request?.travelFee ? Number(request.travelFee).toFixed(2) : '0.00'
+  // (bookingTypeFee, lib/pickup.ts): zero for every type. The pickup fee
+  // (0079) and an accepted request's travel fee (0062) go on after the
+  // address is known, each its own line: no promo code ever comes off them,
+  // and the garage keeps them whole. Detlio's convenience fee goes on last.
   const beforeTravel = sumAmounts([
     ...items.map((item) => item.amount),
     bookingTypeFee(input.bookingType),
   ])
-  const amount = sumAmounts([beforeTravel, travelFee])
   const durationMins = items.reduce((total, item) => total + item.durationMins, 0)
 
   // Resolve the promo code against the *server-computed* subtotal. A
   // failure here (expired, limit reached, wrong garage) surfaces as the
   // engine's own AppError, so the customer sees why.
   let discount: BookingDiscount | null = null
-  let chargeAmount = amount
+  let servicesCharge = beforeTravel
 
   if (input.discountCode) {
     const resolved = await discountsService.resolveDiscount({
@@ -1423,15 +1511,15 @@ export async function resolveBookingDraft(
       totalUsageLimit: resolved.totalUsageLimit,
       source: resolved.source,
     }
-    chargeAmount = sumAmounts([resolved.finalAmount, travelFee])
+    servicesCharge = resolved.finalAmount
 
     log.info(
       {
         userId,
         code: resolved.code,
-        subtotal: amount,
+        subtotal: beforeTravel,
         discountAmount: resolved.discountAmount,
-        chargeAmount,
+        servicesCharge,
       },
       'booking:discount_resolved'
     )
@@ -1461,8 +1549,10 @@ export async function resolveBookingDraft(
     )
   }
 
-  // On, with the responsibility terms on file (lib/pickup.ts).
-  if (bookingType === 'pickup' && !isPickupOffered(vendor)) {
+  // On, with the responsibility terms on file (lib/pickup.ts). An accepted
+  // Ask for pickup (0079) is the garage's own yes, ticked with the terms, so
+  // a garage that doesn't list pickup may still take that one job.
+  if (bookingType === 'pickup' && !isPickupOffered(vendor) && !request) {
     log.warn({ userId, vendorId: vendor.id }, 'booking:pickup_not_offered')
     throw new AppError(
       400,
@@ -1544,6 +1634,47 @@ export async function resolveBookingDraft(
     address = savedAddress.address
   }
 
+  // The trip's fee (0079), locked on the booking from here: an accepted
+  // request's yes, or for pickup & drop the garage's live fee for this
+  // address (Detlio's while its fee waits for a check or is locked), never
+  // more than the services' price. Free for every garage until one sets a fee.
+  const feeSettings = await pickupFeesService.settings()
+  let travelFee = '0.00'
+  let roadKm: string | null = null
+  if (request) {
+    travelFee = request.travelFee ? Number(request.travelFee).toFixed(2) : '0.00'
+    roadKm = request.roadKm ?? null
+  } else if (bookingType === 'pickup' && lat !== null && lng !== null && vendor.lat !== null && vendor.lng !== null) {
+    const trip = tripFee(
+      livePlanOf(vendor, feeSettings),
+      straightLineKm({ lat: vendor.lat, lng: vendor.lng }, { lat, lng }),
+      Number(beforeTravel)
+    )
+    // What checkout showed must be what is charged: a garage that changed
+    // its fee while the page was open (or Detlio's suggestion it shows while
+    // a fee waits) gets no booking and no payment order at a price the
+    // customer never saw, including one paid with credit alone.
+    if (input.pickupFee !== undefined && input.pickupFee !== trip.fee) {
+      log.warn({ userId, vendorId: vendor.id, shown: input.pickupFee, fee: trip.fee }, 'booking:pickup_fee_changed')
+      throw new AppError(
+        409,
+        trip.fee > 0
+          ? `The pickup fee for this address is now ₹${trip.fee}. Check the new total, then pay. Nothing was charged.`
+          : 'Pickup is now free for this address. Check the new total, then pay. Nothing was charged.',
+        'PICKUP_FEE_CHANGED'
+      )
+    }
+    travelFee = trip.fee.toFixed(2)
+    roadKm = trip.roadKm.toFixed(1)
+  }
+  // Detlio's own fee (₹0 while off), never on a booking with nothing else to pay.
+  const convenienceFee = convenienceFeeFor(
+    feeSettings,
+    Number(sumAmounts([servicesCharge, travelFee]))
+  ).toFixed(2)
+  const amount = sumAmounts([beforeTravel, travelFee, convenienceFee])
+  const chargeAmount = sumAmounts([servicesCharge, travelFee, convenienceFee])
+
   log.info({ userId, vendorId: vendor.id, serviceIds: input.serviceIds, scheduledAt: scheduledAt.toISOString(), durationMins }, 'booking:slot_validation_start')
 
   await validateSlotAvailability(
@@ -1568,8 +1699,11 @@ export async function resolveBookingDraft(
     lat,
     lng,
     address,
-    // An accepted request's travel fee and the request (0062).
+    // An accepted request's travel fee and the request (0062); the pickup
+    // fee, its road km and Detlio's convenience fee (0079).
     travelFee,
+    roadKm,
+    convenienceFee,
     requestId: request?.id ?? null,
     // Each line's pricing type, in line order: a no-fee inspection (0073)
     // is booked with nothing to pay (isNoFeeInspectionCheckout).
@@ -1604,7 +1738,7 @@ export function requestRefusalError(
  * customer's reschedule and the pick of a garage's suggested time (0041), so
  * the two can never carry a booking differently.
  */
-function moveParams(
+export function moveParams(
   booking: Awaited<ReturnType<typeof bookingsRepository.findBookingById>> & object,
   move: {
     userId: string
@@ -1627,6 +1761,8 @@ function moveParams(
       amount: item.amount,
       durationMins: item.durationMins,
       isAddon: item.isAddon ?? false,
+      // The category it was booked at (0080), so a move never re-prices it.
+      category: item.category ?? null,
     })),
     vehicleId: booking.vehicleId,
     bookingType: booking.bookingType,
@@ -1635,8 +1771,12 @@ function moveParams(
     expectedStatus: move.expectedStatus,
     subtotalAmount: booking.subtotalAmount ?? booking.amount,
     amount: booking.amount,
-    // An accepted request's travel fee (0062) moves with the job.
+    // An accepted request's travel fee (0062) and the pickup fee, its road km
+    // and Detlio's convenience fee (0079) move with the job: a booked fee
+    // never changes.
     travelFee: booking.travelFee ?? '0.00',
+    roadKm: booking.roadKm ?? null,
+    convenienceFee: booking.convenienceFee ?? '0.00',
     discountAmount: booking.discountAmount ?? '0.00',
     discountId: booking.discountId ?? null,
     discountCode: booking.discountCode ?? null,
@@ -1860,6 +2000,9 @@ export const bookingsService = {
         lng,
         address,
         pricingTypes,
+        travelFee,
+        roadKm,
+        convenienceFee,
       } = await resolveBookingDraft(userId, input)
 
       // A free wash that covers the whole price (0062), or an inspection
@@ -1889,6 +2032,9 @@ export const bookingsService = {
           durationMins,
           subtotalAmount: amount,
           amount: chargeAmount,
+          travelFee,
+          roadKm,
+          convenienceFee,
           paymentMethod: input.paymentMethod,
           lat,
           lng,
@@ -2419,6 +2565,8 @@ export const bookingsService = {
 
     // 0045: two before photos from the garage, unless waived or relaxed.
     const garagePhotos = assertPhotoGate(booking, 'start')
+    // 0075: a doorstep job's car check, sent to the customer.
+    assertCarCheckGate(booking, 'start')
 
     const [started] = await bookingsRepository.updateBookingStatus(
       bookingId,
@@ -2490,6 +2638,8 @@ export const bookingsService = {
     if (updated!.guaranteeRedo) guaranteeService.redoChanged(bookingId)
     // Detlio Rewards (0050): a stamp and a scratch card, or why not.
     rewardsService.scheduleAfterCompletion(bookingId)
+    // Shine Score (0078): the before/after score from the garage's photos, after the response.
+    shineScoreService.scheduleAfterCompletion(bookingId)
     // Garage Book stock (0074): its services' stock comes off, in the background.
     garageStockService.afterDetlioCompletion(vendorId, bookingId)
     return toVendorBookingResponse(updated!)
@@ -2507,6 +2657,9 @@ export const bookingsService = {
   async markPickedUp(vendorId: string, actorId: string, bookingId: string, code: string) {
     const { booking } = await getBookingForVendor(vendorId, bookingId)
     assertPickupStep(booking, 'picked_up')
+    // 0075: the car check, sent, before the car goes. Before the code is
+    // checked, so a wrong try is not spent on it.
+    assertCarCheckGate(booking, 'picked_up')
     await assertHandoverCode(booking, 'pickup', code)
 
     const [row] = await bookingsRepository.markPickedUp(bookingId, {
@@ -2585,6 +2738,8 @@ export const bookingsService = {
     // A free redo done (0051): its claim closes.
     if (updated!.guaranteeRedo) guaranteeService.redoChanged(bookingId)
     rewardsService.scheduleAfterCompletion(bookingId)
+    // Shine Score (0078): the before/after score from the garage's photos, after the response.
+    shineScoreService.scheduleAfterCompletion(bookingId)
     // Garage Book stock (0074): its services' stock comes off, in the background.
     garageStockService.afterDetlioCompletion(vendorId, bookingId)
     return toVendorBookingResponse(updated!)
@@ -2609,6 +2764,8 @@ export const bookingsService = {
     // 0045: Detlio holds the same standard; it waives it on the booking first
     // when there is a genuine reason.
     const garagePhotos = step === 'delivered' ? assertPhotoGate(booking, 'finish', { forDetlio: true }) : undefined
+    // 0075: the same car check before Picked up; a waiver waives it.
+    if (step === 'picked_up') assertCarCheckGate(booking, 'picked_up', { forDetlio: true })
 
     const at = new Date()
     const [row] =
@@ -2627,6 +2784,7 @@ export const bookingsService = {
       carHistoryService.scheduleAfterCompletion(bookingId)
       if (booking.guaranteeRedo) guaranteeService.redoChanged(bookingId)
       rewardsService.scheduleAfterCompletion(bookingId)
+      shineScoreService.scheduleAfterCompletion(bookingId)
       garageStockService.afterDetlioCompletion(booking.vendorId, bookingId)
     }
     log.info({ bookingId, step, adminName }, 'booking:pickup_step_confirmed_by_detlio')

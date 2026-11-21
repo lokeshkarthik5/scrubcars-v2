@@ -215,9 +215,27 @@ describe('car types, booking types, categories', () => {
       category: 'detailing',
       reason: 'Could be Detailing or Car wash.',
     })
-    expect(guessCategory('Wheel alignment')).toEqual({
+    expect(guessCategory('Windshield replacement')).toEqual({
       category: 'others',
       reason: 'Category not clear from the name; set as Others.',
     })
+  })
+
+  test('the mechanical and body work (0080), with no wash or detailing word in the name', () => {
+    expect(guessCategory('Wheel alignment')).toEqual({ category: 'general_service' })
+    expect(guessCategory('Brake pads')).toEqual({ category: 'repairs' })
+    expect(guessCategory('Dent removal')).toEqual({ category: 'dent_paint' })
+    expect(guessCategory('Bumper painting')).toEqual({ category: 'dent_paint' })
+    expect(guessCategory('AC service')).toEqual({
+      category: 'repairs',
+      reason: 'Could be Repairs or General service.',
+    })
+    // A wash or detailing word keeps it with the wash and detailing work.
+    expect(guessCategory('Engine bay cleaning')).toEqual({
+      category: 'detailing',
+      reason: 'Could be Detailing or Car wash.',
+    })
+    expect(guessCategory('Paint protection film')).toEqual({ category: 'coating' })
+    expect(guessCategory('Car wash service')).toEqual({ category: 'car_wash' })
   })
 })

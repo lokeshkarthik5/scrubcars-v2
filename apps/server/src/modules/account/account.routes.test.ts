@@ -19,6 +19,7 @@ const { signAccessToken, signAdminToken } = await import('../../lib/jwt.js')
 const { refundsService } = await import('../refunds/refunds.service.js')
 const { giftCreditService } = await import('../gift-credit/gift-credit.service.js')
 const { giftsService } = await import('../gifts/gifts.service.js')
+const { shineScoreService } = await import('../shine-score/shine-score.service.js')
 const { accountRepository, DeletionRaced } = await import('./account.repository.js')
 const { accountRoutes } = await import('./account.routes.js')
 
@@ -43,6 +44,8 @@ let credit: number
 let gifts: Array<{ number: string; expiresAt: Date | null }>
 let anonymised: Array<{ userId: string; phone: string }>
 let race: boolean
+let shineScansOf: Record<string, string[]>
+let shineDeleted: string[][]
 
 beforeAll(() => {
   patch(accountRepository, 'findUser', async (userId: string) =>
@@ -56,7 +59,10 @@ beforeAll(() => {
     if (race) throw new DeletionRaced()
     anonymised.push({ userId: input.userId, phone: input.phone })
     deleted.add(input.userId)
-    return { avatarKey: null, avatarUrl: null }
+    return { avatarKey: null, avatarUrl: null, endedBookingIds: [], shineScanIds: shineScansOf[input.userId] ?? [] }
+  })
+  patch(shineScoreService, 'scheduleDeleteScans', (ids: readonly string[]) => {
+    if (ids.length > 0) shineDeleted.push([...ids])
   })
   patch(refundsService, 'listOwedForUser', async () => owed)
   patch(giftCreditService, 'availablePaise', async () => credit)
@@ -72,6 +78,8 @@ beforeEach(() => {
   gifts = []
   anonymised = []
   race = false
+  shineScansOf = {}
+  shineDeleted = []
 })
 
 afterAll(() => {
@@ -119,6 +127,20 @@ describe('who', () => {
     const done = await call('DELETE', '/account', 'staff')
     expect(done.status).toBe(200)
     expect(anonymised.map((row) => row.userId)).toEqual([STAFF])
+  })
+})
+
+describe('Shine Score scans (0078)', () => {
+  test('the scans the deletion unlinked are deleted with their photos after the commit', async () => {
+    shineScansOf = { [CUSTOMER]: [id(7690), id(7691)] }
+    expect((await call('DELETE', '/account', 'customer')).status).toBe(200)
+    expect(shineDeleted).toEqual([[id(7690), id(7691)]])
+  })
+
+  test('a refused deletion deletes no scans', async () => {
+    shineScansOf = { [OWNER]: [id(7692)] }
+    expect((await call('DELETE', '/account', 'owner')).status).toBe(409)
+    expect(shineDeleted).toEqual([])
   })
 })
 

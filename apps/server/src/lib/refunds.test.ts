@@ -52,6 +52,23 @@ describe('amountOwed', () => {
   })
 })
 
+describe('the pickup fee is refunded in full when the garage cancels or doesn’t turn up (0079)', () => {
+  // ₹699 wash + ₹99 pickup fee (+ ₹19 convenience fee): one payment, locked at booking.
+  const withPickup = paid({ amount: '817.00' })
+  test('the garage cancels (declines, or cancels after accepting): everything back, the pickup fee included', () => {
+    expect(bookingPaymentOwed(cancelled(), withPickup)).toBe('817.00')
+  })
+  test('the garage doesn’t turn up: everything back', () => {
+    expect(bookingPaymentOwed(cancelled({ noShow: 'garage' }), withPickup)).toBe('817.00')
+  })
+  test('the customer’s own cancellation follows the normal rules: refunded as any booking', () => {
+    expect(bookingPaymentOwed(cancelled(), withPickup)).toBe('817.00')
+  })
+  test('a customer no-show keeps the payment, pickup fee and all, as for any booking', () => {
+    expect(bookingPaymentOwed(cancelled({ noShow: 'customer' }), withPickup)).toBe('0.00')
+  })
+})
+
 describe("a booking's own payment", () => {
   test('is owed back when the booking was cancelled, whoever cancelled it', () => {
     // The customer (in time), the garage declining, and Detlio: one rule.

@@ -61,6 +61,11 @@ adminBypassReportRoutes.get(
 // Before '/:id', which would otherwise take these for an id.
 adminBypassReportRoutes.get('/drop-off', ...adminMiddleware, bypassController.getDropOff)
 
+// Detlio's own checks at once (0077, OFF_APP_FLAGS_ENABLED; else 404). They
+// also run at 07:00 IST on the pending-digest cron. Creates New entries
+// only, never a strike or a reward, so no typed name is asked for.
+adminBypassReportRoutes.post('/flags/check', ...adminMiddleware, bypassController.checkFlags)
+
 adminBypassReportRoutes.get(
   '/vendors/:vendorId',
   ...adminMiddleware,

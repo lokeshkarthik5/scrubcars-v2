@@ -54,7 +54,9 @@ export function BypassAnswerDialog({
               ? `Confirmed — ${reward} added to the customer’s credit`
               : after.reward.status === 'owed'
                 ? `Confirmed — ${reward} owed until Detlio credit is on`
-                : 'Confirmed — no reward (already rewarded for this garage)'
+                : report.source === 'detlio'
+                  ? 'Confirmed — a strike for the garage (a Detlio flag has no reward)'
+                  : 'Confirmed — no reward (already rewarded for this garage)'
         )
         onClose()
       },
@@ -77,8 +79,14 @@ export function BypassAnswerDialog({
           {action === 'confirm' ? 'Confirm report' : 'Dismiss report'}
         </h2>
         <p className="mt-1 text-[12px] text-text-secondary">
-          {report.garage.name} · booking <span className="font-numeric">#{report.booking.reference}</span> ·{' '}
+          {report.garage.name} ·{' '}
+          {report.booking.reference ? (
+            <>
+              booking <span className="font-numeric">#{report.booking.reference}</span> ·{' '}
+            </>
+          ) : null}
           {report.kindLabel}
+          {report.source === 'detlio' ? ' · Flagged by Detlio' : ''}
         </p>
       </div>
 
@@ -90,7 +98,9 @@ export function BypassAnswerDialog({
             Gold.
           </li>
           <li>
-            {report.customer
+            {report.source === 'detlio'
+              ? 'No reward: a Detlio flag has no customer who reported it.'
+              : report.customer
               ? creditOn
                 ? `${reward} of Detlio credit for the customer, unless they were already rewarded for this garage.`
                 : `${reward} for the customer, owed until Detlio credit is on (unless already rewarded for this garage).`
@@ -100,7 +110,9 @@ export function BypassAnswerDialog({
         </ul>
       ) : (
         <p className="text-[12px] text-text-primary">
-          No strike and no reward. The customer reads that we looked into it; the reason stays with the team.
+          {report.source === 'detlio'
+            ? 'No strike. The reason stays with the team; the garage is never told.'
+            : 'No strike and no reward. The customer reads that we looked into it; the reason stays with the team.'}
         </p>
       )}
 

@@ -1,7 +1,7 @@
 import { and, asc, count, eq, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
-import { bookings, jobPhotos } from '../../db/schema.js'
-import type { PhotoAngle, PhotoRole } from '../../lib/job-photo-standards.js'
+import { bookings, conditionChecks, jobPhotos } from '../../db/schema.js'
+import type { JobPhotoAngle, PhotoRole } from '../../lib/job-photo-standards.js'
 import type { JobPhotoStage } from '../../lib/job-records.js'
 
 export type JobPhotoRecord = typeof jobPhotos.$inferSelect
@@ -88,12 +88,25 @@ export const jobPhotosRepository = {
       url: string
       uploadedBy: string
       uploadedByRole: PhotoRole
-      angle: PhotoAngle | null
+      angle: JobPhotoAngle | null
     },
-    max: number
-  ) {
+    max: number,
+    // 0075: refused ('sent') once the car condition check is sent, read
+    // under the same lock its Send takes, so a retake racing Send cannot
+    // replace a photo the customer was sent.
+    refuseOnceCheckSent = false
+  ): Promise<JobPhotoRecord | 'sent' | null> {
     return db.transaction(async (tx) => {
       await lockJob(tx, data.bookingId)
+
+      if (refuseOnceCheckSent) {
+        const [sent] = await tx
+          .select({ bookingId: conditionChecks.bookingId })
+          .from(conditionChecks)
+          .where(eq(conditionChecks.bookingId, data.bookingId))
+          .limit(1)
+        if (sent) return 'sent'
+      }
 
       const [{ value }] = await tx
         .select({ value: count() })
@@ -123,10 +136,22 @@ export const jobPhotosRepository = {
     bookingId: string,
     photoId: string,
     role: PhotoRole,
-    keepAtLeast: number | null
-  ): Promise<JobPhotoRecord | 'floor' | null> {
+    keepAtLeast: number | null,
+    // 0075: refused ('sent') once the car condition check is sent, read
+    // under the same lock its Send takes.
+    refuseOnceCheckSent = false
+  ): Promise<JobPhotoRecord | 'floor' | 'sent' | null> {
     return db.transaction(async (tx) => {
       await lockJob(tx, bookingId)
+
+      if (refuseOnceCheckSent) {
+        const [sent] = await tx
+          .select({ bookingId: conditionChecks.bookingId })
+          .from(conditionChecks)
+          .where(eq(conditionChecks.bookingId, bookingId))
+          .limit(1)
+        if (sent) return 'sent'
+      }
 
       const photo = await tx.query.jobPhotos.findFirst({
         where: and(

@@ -52,6 +52,10 @@ export interface CustomerRequest {
   createdAt: string
   respondBy: string
   travelFee: number | null
+  /** Detlio's suggested fee and the most the garage may ask, with the road km (0079). Null on older requests or APIs. */
+  suggestedFee?: number | null
+  maxFee?: number | null
+  roadKm?: number | null
   acceptedStartAt: string | null
   confirmBy: string | null
   bookingId: string | null
@@ -81,6 +85,18 @@ export interface GarageRequest {
   durationMins: number
   reply: 'accepted' | 'declined' | null
   travelFee: number | null
+  /** Detlio's suggested fee and the most this garage may ask, with the road km (0079). Null on older requests. */
+  suggestedFee?: number | null
+  maxFee?: number | null
+  roadKm?: number | null
+  /** The fee chips: the suggestion, then up to the most (₹0/₹100/₹200 on an older request). Absent from an older API. */
+  feeChoices?: number[]
+  /** This garage's Ask for pickup raise in % (admin may set its own); absent from an older API. */
+  raisePct?: number | null
+  /** Ask for pickup: the responsibility tick before Accept (0079). */
+  pickupTermsRequired?: boolean
+  /** False for Ask for pickup to a garage that doesn't collect cars yet. */
+  offersPickup?: boolean
   acceptedStartAt: string | null
   confirmBy: string | null
   createdAt: string
@@ -135,7 +151,7 @@ export function getRequestStartTimes(id: string) {
   return apiClient<{ starts: string[] }>(`/vendors/me/requests/${id}/start-times`)
 }
 
-export function acceptRequest(id: string, input: { startAt: string; travelFee: TravelFee }) {
+export function acceptRequest(id: string, input: { startAt: string; travelFee: number; pickupTermsAccepted?: boolean }) {
   return apiClient<GarageRequest>(`/vendors/me/requests/${id}/accept`, { method: 'POST', body: JSON.stringify(input) })
 }
 

@@ -1,10 +1,11 @@
+import { CAR_CHECK_ANGLES, isCarCheckAngle } from '@repo/core/condition-check';
 import {
   angleLabel,
   angleSlots,
   extraPhotos,
+  JOB_PHOTO_ANGLE_LABELS,
+  type JobPhotoAngle,
   MIN_GARAGE_PHOTOS,
-  PHOTO_ANGLE_LABELS,
-  type PhotoAngle,
   photosOf,
 } from '@repo/core/job-photo-standards';
 import { MAX_JOB_PHOTOS_PER_STAGE } from '@repo/core/job-records';
@@ -14,6 +15,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
 import { ActivityIndicator, Dimensions, Image, Pressable, View } from 'react-native';
 
+import { inPairs, photoChecklist } from '@/lib/condition-view';
 import { deleteJobPhoto, uploadJobPhoto } from '@/lib/job-records-api';
 import { prepareForUpload } from '@/lib/photo-prepare';
 import { createStyles, useColors } from '@repo/native-ui/theme';
@@ -46,10 +48,34 @@ const PICKUP_HINTS: Record<JobPhoto['stage'], string> = {
   after: msg('Optional. The finished work, before the car goes back.'),
 };
 
+/** The car condition check's walk-round (0075): what each stage asks for. */
+const CAR_CHECK_LABELS: Record<JobPhoto['stage'], string> = {
+  before: msg('Car check · before'),
+  after: msg('Car check · after'),
+};
+
+const CAR_CHECK_HINTS: Record<JobPhoto['stage'], string> = {
+  before: msg('Walk round the car with the customer. Detlio marks the scratches and dents it sees; you check them.'),
+  after: msg('The same 8 angles, once the work is done. Detlio compares them with the before photos.'),
+};
+
+/** The small chips' words: the angle without " side", and Inside for the interior. */
+const SHORT_LABELS: Record<JobPhotoAngle, string> = {
+  front: msg('Front'),
+  back: msg('Back'),
+  left: msg('Left'),
+  right: msg('Right'),
+  interior: msg('Inside'),
+  front_left: msg('Front left'),
+  front_right: msg('Front right'),
+  back_left: msg('Back left'),
+  back_right: msg('Back right'),
+};
+
 const capitalise = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 type Viewing = { photo: JobPhoto; name: string; own: boolean };
-type Slot = PhotoAngle | 'extra';
+type Slot = JobPhotoAngle | 'extra';
 
 /** The library, for an angle (one photo) or More (several, up to the room left). */
 async function fromLibrary(limit: number): Promise<string[]> {
@@ -91,28 +117,35 @@ export function JobPhotos({
   // Sized to the photo, as the web's <img> is, up to 60% of the screen.
   const [viewerRatio, setViewerRatio] = useState(4 / 3);
 
-  const standard = booking.photoStandard;
-  const required = Boolean(standard?.required && !standard.waived);
+  // The car condition check (0075): while it is on for the garage the checklist
+  // is its 8-angle walk-round, every angle a big tile (lib/condition-view.ts).
+  const { carCheck, angles, required, locked, cap, taken } = photoChecklist(booking, stage);
   const own = photosOf(booking.jobPhotos, 'garage', stage);
-  const slots = angleSlots(booking.jobPhotos, 'garage', stage);
-  const extras = extraPhotos(booking.jobPhotos, 'garage', stage);
+  const slots = angleSlots(booking.jobPhotos, 'garage', stage, angles);
+  const extras = extraPhotos(booking.jobPhotos, 'garage', stage, angles);
   const customers = photosOf(booking.jobPhotos, 'customer', stage);
-  const room = readOnly ? 0 : MAX_JOB_PHOTOS_PER_STAGE - own.length;
+  const room = readOnly ? 0 : cap - own.length;
   const who = booking.customerName ?? t('this customer');
   const before = stage === 'before';
-  const counter = required
-    ? t('{done} of {count}', { done: Math.min(own.length, MIN_GARAGE_PHOTOS), count: MIN_GARAGE_PHOTOS })
-    : `${own.length}/${MAX_JOB_PHOTOS_PER_STAGE}`;
-  const hint = required
-    ? t(REQUIRED_HINTS[stage], { count: MIN_GARAGE_PHOTOS })
-    : t((booking.bookingType === 'pickup' ? PICKUP_HINTS : HINTS)[stage]);
+  const title = carCheck ? t(CAR_CHECK_LABELS[stage]) : t(LABELS[stage]);
+  const counter = carCheck
+    ? t('{done} of {count}', { done: taken, count: CAR_CHECK_ANGLES.length })
+    : required
+      ? t('{done} of {count}', { done: Math.min(own.length, MIN_GARAGE_PHOTOS), count: MIN_GARAGE_PHOTOS })
+      : `${own.length}/${MAX_JOB_PHOTOS_PER_STAGE}`;
+  const counterDone = carCheck ? taken >= CAR_CHECK_ANGLES.length : required && own.length >= MIN_GARAGE_PHOTOS;
+  const hint = carCheck
+    ? t(CAR_CHECK_HINTS[stage])
+    : required
+      ? t(REQUIRED_HINTS[stage], { count: MIN_GARAGE_PHOTOS })
+      : t((booking.bookingType === 'pickup' ? PICKUP_HINTS : HINTS)[stage]);
   // The photo's name in a sentence: "left side before photo for Ravi".
-  const angleName = (angle: PhotoAngle) => t(PHOTO_ANGLE_LABELS[angle]).toLowerCase();
-  const photoName = (angle: PhotoAngle) =>
+  const angleName = (angle: JobPhotoAngle) => t(JOB_PHOTO_ANGLE_LABELS[angle]).toLowerCase();
+  const photoName = (angle: JobPhotoAngle) =>
     before
       ? t('{angle} before photo for {who}', { angle: angleName(angle), who })
       : t('{angle} after photo for {who}', { angle: angleName(angle), who });
-  const addName = (angle: PhotoAngle) =>
+  const addName = (angle: JobPhotoAngle) =>
     before
       ? t('Add {angle} before photo for {who}', { angle: angleName(angle), who })
       : t('Add {angle} after photo for {who}', { angle: angleName(angle), who });
@@ -177,38 +210,35 @@ export function JobPhotos({
     </Pressable>
   );
 
-  const big = slots.slice(0, 2);
-  const small = slots.slice(2);
-  const nextAngle = readOnly ? null : (big.find((slot) => !slot.photo)?.angle ?? null);
-  const shortLabel = (angle: PhotoAngle) =>
-    angle === 'interior'
-      ? t('Inside')
-      : angle === 'left'
-        ? t('Left')
-        : angle === 'right'
-          ? t('Right')
-          : t(PHOTO_ANGLE_LABELS[angle]);
+  // The two big tiles (garage mockup 03): Front and Back, with the next one to take
+  // outlined in red; the other angles are small "+" chips, and extras go under More.
+  // The car check's walk-round is eight big tiles (condition-check mockup 1).
+  const big = carCheck ? slots : slots.slice(0, 2);
+  const small = carCheck ? [] : slots.slice(2);
+  const nextAngle = readOnly || locked ? null : (big.find((slot) => !slot.photo)?.angle ?? null);
+  const shortLabel = (angle: JobPhotoAngle) => t(SHORT_LABELS[angle]);
   const busyAny = uploading !== null;
+  // The web's grid-cols-2: a tile with nothing to show drops out, and the rest close up.
+  const bigTiles = big.filter(({ photo }) => photo || (room > 0 && !locked));
 
   return (
     <View style={styles.column}>
       <View style={styles.head}>
         <T accessibilityRole="header" size={20} weight={600}>
-          {t(LABELS[stage])}
+          {title}
         </T>
-        <View style={[styles.pill, required && own.length >= MIN_GARAGE_PHOTOS && styles.pillDone]}>
-          <T
-            num
-            size={14}
-            weight={500}
-            lh={18}
-            color={required && own.length >= MIN_GARAGE_PHOTOS ? colors.success : colors.textPrimary}
-          >
+        <View style={[styles.pill, counterDone && styles.pillDone]}>
+          <T num size={14} weight={500} lh={18} color={counterDone ? colors.success : colors.textPrimary}>
             {counter}
           </T>
         </View>
       </View>
-      {own.length === 0 && !readOnly ? (
+      {carCheck && !readOnly && !locked && taken < CAR_CHECK_ANGLES.length ? (
+        <T size={14} color={colors.textSecondary}>
+          {hint}
+        </T>
+      ) : null}
+      {!carCheck && own.length === 0 && !readOnly ? (
         <T size={14} color={colors.textSecondary}>
           {hint}
         </T>
@@ -218,66 +248,74 @@ export function JobPhotos({
           {t('Photos protect you if a customer complains, and count toward Gold.')}
         </T>
       ) : null}
+      {locked && !readOnly ? (
+        <T size={13} color={colors.textSecondary}>
+          {t('Sent to the customer: these photos stay with the booking.')}
+        </T>
+      ) : null}
       {readOnly && own.length > 0 ? (
         <T size={13} color={colors.textSecondary}>
           {before ? t('Closed once the job was completed.') : t('Closed an hour after the job was completed.')}
         </T>
       ) : null}
 
-      <View style={styles.bigRow}>
-        {big.map(({ angle, photo }) => {
-          const label = t(PHOTO_ANGLE_LABELS[angle]);
-          if (photo) {
-            const name = photoName(angle);
+      {inPairs(bigTiles).map((pair) => (
+        <View key={pair[0].angle} style={styles.bigRow}>
+          {pair.map((tile) => {
+            if (!tile) return <View key="empty" style={styles.bigCell} />;
+            const { angle, photo } = tile;
+            const label = t(JOB_PHOTO_ANGLE_LABELS[angle]);
+            if (photo) {
+              const name = photoName(angle);
+              return (
+                <View key={angle} style={styles.bigCell}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t('View {photo}', { photo: name })}
+                    onPress={() => setViewing({ photo, name, own: true })}
+                    style={styles.bigPhoto}
+                  >
+                    <Image source={{ uri: photo.url }} style={styles.fill} />
+                  </Pressable>
+                  <View style={styles.check}>
+                    <IconCheck size={16} stroke={3} color={colors.chosenText} />
+                  </View>
+                  <View style={styles.angleTag} pointerEvents="none">
+                    <T size={14} weight={500} lh={18} color={colors.white}>
+                      {label}
+                    </T>
+                  </View>
+                </View>
+              );
+            }
+            const isNext = angle === nextAngle;
             return (
-              <View key={angle} style={styles.bigCell}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={t('View {photo}', { photo: name })}
-                  onPress={() => setViewing({ photo, name, own: true })}
-                  style={styles.bigPhoto}
-                >
-                  <Image source={{ uri: photo.url }} style={styles.fill} />
-                </Pressable>
-                <View style={styles.check}>
-                  <IconCheck size={16} stroke={3} color={colors.chosenText} />
-                </View>
-                <View style={styles.angleTag} pointerEvents="none">
-                  <T size={14} weight={500} lh={18} color={colors.white}>
-                    {label}
-                  </T>
-                </View>
-              </View>
+              <Pressable
+                key={angle}
+                accessibilityRole="button"
+                accessibilityLabel={addName(angle)}
+                disabled={busyAny}
+                onPress={() => tap(angle)}
+                style={[styles.bigCell, styles.bigTile, isNext ? styles.bigNext : styles.bigIdle, busyAny && styles.dim]}
+              >
+                {uploading === angle ? (
+                  <ActivityIndicator color={colors.textPrimary} accessibilityLabel={t('Uploading')} />
+                ) : (
+                  <IconCamera size={30} color={isNext ? colors.textPrimary : colors.textSecondary} />
+                )}
+                <T size={16} weight={600} color={isNext ? colors.textPrimary : colors.textSecondary}>
+                  {label}
+                </T>
+              </Pressable>
             );
-          }
-          if (room <= 0) return <View key={angle} style={styles.bigCell} />;
-          const isNext = angle === nextAngle;
-          return (
-            <Pressable
-              key={angle}
-              accessibilityRole="button"
-              accessibilityLabel={addName(angle)}
-              disabled={busyAny}
-              onPress={() => tap(angle)}
-              style={[styles.bigCell, styles.bigTile, isNext ? styles.bigNext : styles.bigIdle, busyAny && styles.dim]}
-            >
-              {uploading === angle ? (
-                <ActivityIndicator color={colors.textPrimary} accessibilityLabel={t('Uploading')} />
-              ) : (
-                <IconCamera size={30} color={isNext ? colors.textPrimary : colors.textSecondary} />
-              )}
-              <T size={16} weight={600} color={isNext ? colors.textPrimary : colors.textSecondary}>
-                {label}
-              </T>
-            </Pressable>
-          );
-        })}
-      </View>
+          })}
+        </View>
+      ))}
 
       <View style={styles.smallRow}>
         {small.map(({ angle, photo }) => {
           if (photo) {
-            const label = t(PHOTO_ANGLE_LABELS[angle]);
+            const label = t(JOB_PHOTO_ANGLE_LABELS[angle]);
             return (
               <View key={angle} style={styles.thumbCell}>
                 <View>
@@ -413,7 +451,7 @@ export function JobPhotos({
                     {t('Close')}
                   </ScButton>
                 </View>
-                {!readOnly && viewing.own ? (
+                {!readOnly && viewing.own && !(locked && isCarCheckAngle(viewing.photo.angle)) ? (
                   <View style={styles.half}>
                     <ScButton variant="outline" onPress={() => setConfirming(true)}>
                       {t('Remove photo')}
@@ -428,10 +466,8 @@ export function JobPhotos({
 
       <CameraCapture
         open={camera !== null}
-        title={
-          camera && camera !== 'extra' ? `${t(LABELS[stage])} · ${t(PHOTO_ANGLE_LABELS[camera])}` : t(LABELS[stage])
-        }
-        label={camera && camera !== 'extra' ? t(PHOTO_ANGLE_LABELS[camera]) : undefined}
+        title={camera && camera !== 'extra' ? `${title} · ${t(JOB_PHOTO_ANGLE_LABELS[camera])}` : title}
+        label={camera && camera !== 'extra' ? t(JOB_PHOTO_ANGLE_LABELS[camera]) : undefined}
         hint={hint}
         counter={counter}
         onClose={() => setCamera(null)}

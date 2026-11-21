@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, use, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -28,6 +28,7 @@ import { useGarage, useVendorReviews } from '@repo/core/api/hooks/use-vendors'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
 import { GarageAddOns } from '@/components/garage/garage-add-ons'
 import { GarageHero } from '@/components/garage/garage-hero'
+import { GaragePickupAsk, GaragePickupLine } from '@/components/garage/garage-pickup-fee'
 import { RedLightAdd } from '@/components/garage/red-light-add'
 import { GarageRoad } from '@/components/moments/road'
 import { NextFreeRow } from '@/components/garages/next-free-row'
@@ -66,6 +67,7 @@ import type {
   ServicePackage,
   Vendor,
 } from '@repo/core/types'
+import { categoryLabel, groupByCategory, showCategoryHeadings } from '@repo/core/categories'
 import {
   isNoFeeInspection,
   resolveServiceAmount,
@@ -304,6 +306,22 @@ export default function GaragePage({
     if (!q) return services
     return services.filter((s) => matchesQuery(s, q))
   }, [services, query])
+
+  // The list under small category headings (0080, mockup 3-customer-4),
+  // in the order used everywhere, only when the garage sells two or more
+  // kinds of work. Grouped from the search's result, so a search hides the
+  // headings left empty. Each card keeps its place in one running count for
+  // its rise-in.
+  const serviceSections = useMemo(() => {
+    const headed = showCategoryHeadings(groupByCategory(services, (s) => s.category))
+    let index = 0
+    const numbered = (list: Service[]) => list.map((svc) => ({ svc, index: index++ }))
+    if (!headed) return [{ category: null, items: numbered(filtered) }]
+    return groupByCategory(filtered, (s) => s.category).map((group) => ({
+      category: group.category,
+      items: numbered(group.items),
+    }))
+  }, [services, filtered])
 
   // A package also matches on the names of the services it contains, so
   // searching "coating" surfaces the bundle that includes it.
@@ -736,13 +754,13 @@ export default function GaragePage({
           )}
 
           {/* What the choice means, before any service is added: the garage
-              comes for the car and brings it back. Free for now (owner
-              decision); checkout shows a fee line if one is ever set. */}
-          {mode === 'pickup' && (
-            <p className="mt-2.5 text-t5 font-medium leading-relaxed text-[#8E8E98]">
-              {t('Free pickup & drop: {name} collects your car from your address, works on it at the garage and brings it back.', { name: vendor.name })}
-            </p>
-          )}
+              comes for the car and brings it back, and the pickup fee for
+              the customer's address (0079), or Free as before. */}
+          {mode === 'pickup' && <GaragePickupLine vendor={vendor} />}
+
+          {/* Ask for pickup (0079): a garage that doesn't collect cars, or
+              one whose pickup area stops short of the customer. */}
+          <GaragePickupAsk vendor={vendor} mode={mode} />
 
           {servicesWithdrawn && (
             <Notice
@@ -971,83 +989,96 @@ export default function GaragePage({
                   </p>
                 ) : (
                   <div className="flex flex-col gap-2">
-                    {filtered.map((svc, i) => {
-                      const added = selected.includes(svc.id)
-                      return (
-                        <Reveal key={svc.id} index={i}>
-                          <div
-                            data-picked={added ? '' : undefined}
-                            className="gp-card relative grid grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-[18px] p-3"
+                    {serviceSections.map((section) => (
+                      <Fragment key={section.category ?? 'all'}>
+                        {section.category && (
+                          <h3
+                            data-testid="service-category-heading"
+                            className="mt-2 flex items-baseline gap-1.5 px-0.5 text-over font-semibold uppercase text-[#8E8E98] first:mt-0"
                           >
-                            {/* Tapping anywhere on the card opens the details
-                                popup; Add stays a separate action. */}
-                            <button
-                              type="button"
-                              onClick={() => openDetails(svc)}
-                              aria-label={t('View details for {name}', { name: svc.name })}
-                              className={cn(CARD_DETAILS_TRIGGER, 'flex min-w-0 items-start gap-3')}
-                            >
-                              {/* The video's poster, the first photo, or the
-                                  category icon, so a customer can see the
-                                  work at a glance. */}
-                              <ServiceThumb service={svc} />
-                              <span className="flex min-w-0 flex-col gap-[3px]">
-                                <span className="text-t3 font-semibold leading-snug text-text-primary">
-                                  {svc.name}
-                                </span>
-                                {/* Its first points ("Foam wash · Vacuum
-                                    +2"), or the description held to two
-                                    lines. */}
-                                <ServiceCardLine
-                                  description={svc.description}
-                                  className="line-clamp-2 text-t5 font-medium leading-[1.35] text-[#8E8E98]"
-                                />
-                                {svc.durationMins != null && (
-                                  <span className="mt-0.5 flex items-center gap-1 text-t5 font-medium text-[#A8A8B2]">
-                                    <IconClock size={12} aria-hidden />
-                                    <span className="font-numeric">
-                                      {formatDuration(svc.durationMins)}
-                                    </span>
-                                  </span>
-                                )}
-                              </span>
-                            </button>
-                            <div className="flex max-w-[10rem] flex-col items-end gap-0.5">
-                              {/* The price for the customer's own car (F13).
-                                  No fee (0073) says it in words, a size down
-                                  and wrapping, so it never runs over the name. */}
-                              <span
-                                className={cn(
-                                  'font-numeric text-right font-semibold text-text-primary',
-                                  isNoFeeInspection(svc) ? 'text-t4 leading-snug' : 'text-t3'
-                                )}
+                            {categoryLabel(section.category)}
+                            <span className="font-numeric">{section.items.length}</span>
+                          </h3>
+                        )}
+                        {section.items.map(({ svc, index: i }) => {
+                          const added = selected.includes(svc.id)
+                          return (
+                            <Reveal key={svc.id} index={i}>
+                              <div
+                                data-picked={added ? '' : undefined}
+                                className="gp-card relative grid grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-[18px] p-3"
                               >
-                                <Figures text={servicePriceText(svc, carType)} />
-                              </span>
-                              {/* An inspection fee's approx price (0073). */}
-                              {serviceApproxNote(svc) && (
-                                <span className="text-right text-over font-medium normal-case tracking-normal text-[#8E8E98]">
-                                  {serviceApproxNote(svc)}
-                                </span>
-                              )}
-                              {pricedForCar(svc, carType) && myCar && (
-                                <span className="text-over font-medium normal-case tracking-normal text-[#8E8E98]">
-                                  {t('for your {model}', { model: myCar.model })}
-                                </span>
-                              )}
-                              {!paused && (
-                                <RedLightAdd
-                                  name={svc.name}
-                                  added={added}
-                                  onToggle={() => toggle(svc.id)}
-                                  className="mt-auto"
-                                />
-                              )}
-                            </div>
-                          </div>
-                        </Reveal>
-                      )
-                    })}
+                                {/* Tapping anywhere on the card opens the details
+                                    popup; Add stays a separate action. */}
+                                <button
+                                  type="button"
+                                  onClick={() => openDetails(svc)}
+                                  aria-label={t('View details for {name}', { name: svc.name })}
+                                  className={cn(CARD_DETAILS_TRIGGER, 'flex min-w-0 items-start gap-3')}
+                                >
+                                  {/* The video's poster, the first photo, or the
+                                      category icon, so a customer can see the
+                                      work at a glance. */}
+                                  <ServiceThumb service={svc} />
+                                  <span className="flex min-w-0 flex-col gap-[3px]">
+                                    <span className="text-t3 font-semibold leading-snug text-text-primary">
+                                      {svc.name}
+                                    </span>
+                                    {/* Its first points ("Foam wash · Vacuum
+                                        +2"), or the description held to two
+                                        lines. */}
+                                    <ServiceCardLine
+                                      description={svc.description}
+                                      className="line-clamp-2 text-t5 font-medium leading-[1.35] text-[#8E8E98]"
+                                    />
+                                    {svc.durationMins != null && (
+                                      <span className="mt-0.5 flex items-center gap-1 text-t5 font-medium text-[#A8A8B2]">
+                                        <IconClock size={12} aria-hidden />
+                                        <span className="font-numeric">
+                                          {formatDuration(svc.durationMins)}
+                                        </span>
+                                      </span>
+                                    )}
+                                  </span>
+                                </button>
+                                <div className="flex max-w-[10rem] flex-col items-end gap-0.5">
+                                  {/* The price for the customer's own car (F13).
+                                      No fee (0073) says it in words, a size down
+                                      and wrapping, so it never runs over the name. */}
+                                  <span
+                                    className={cn(
+                                      'font-numeric text-right font-semibold text-text-primary',
+                                      isNoFeeInspection(svc) ? 'text-t4 leading-snug' : 'text-t3'
+                                    )}
+                                  >
+                                    <Figures text={servicePriceText(svc, carType)} />
+                                  </span>
+                                  {/* An inspection fee's approx price (0073). */}
+                                  {serviceApproxNote(svc) && (
+                                    <span className="text-right text-over font-medium normal-case tracking-normal text-[#8E8E98]">
+                                      {serviceApproxNote(svc)}
+                                    </span>
+                                  )}
+                                  {pricedForCar(svc, carType) && myCar && (
+                                    <span className="text-over font-medium normal-case tracking-normal text-[#8E8E98]">
+                                      {t('for your {model}', { model: myCar.model })}
+                                    </span>
+                                  )}
+                                  {!paused && (
+                                    <RedLightAdd
+                                      name={svc.name}
+                                      added={added}
+                                      onToggle={() => toggle(svc.id)}
+                                      className="mt-auto"
+                                    />
+                                  )}
+                                </div>
+                              </div>
+                            </Reveal>
+                          )
+                        })}
+                      </Fragment>
+                    ))}
                   </div>
                 )}
               </div>

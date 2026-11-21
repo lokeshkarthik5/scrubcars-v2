@@ -63,9 +63,42 @@ export function reportBypass(input: ReportBypassInput): Promise<MyBypassReport> 
 
 export type AdminBypassFilter = BypassStatus
 
+/** Which kind of entry (0077): all, customers' reports, or Detlio's own flags. */
+export type AdminBypassSource = 'all' | 'customer' | 'detlio'
+
+/** What Detlio's check found, as admin reads it (masked; never a full number). */
+export type AdminFlagEvidence =
+  | {
+      signal: 'contact_in_note'
+      /** Where the note was ("Garage’s final bill"). */
+      where: string
+      writtenAt: string
+      excerpt: string
+      found: Array<'phone' | 'upi' | 'wording'>
+      confirmedByAi: boolean
+    }
+  | {
+      signal: 'regulars_went_quiet'
+      regulars: number
+      stopped: number
+      bookingElsewhere: number
+      stoppedDays: number
+      customers: Array<{ id: string; name: string | null; lastBookingId: string; lastBookingRef: string; lastAt: string }>
+    }
+  | {
+      signal: 'cancelled_after_inspection'
+      days: number
+      bookings: Array<{ id: string; ref: string; cancelledAt: string; reason: string | null }>
+    }
+
 export interface AdminBypassReport {
   id: string
   status: BypassStatus
+  /** A customer's report, or Detlio's own flag (0077). Missing from an older server: a report. */
+  source?: 'customer' | 'detlio'
+  signal?: 'contact_in_note' | 'regulars_went_quiet' | 'cancelled_after_inspection' | null
+  /** A flag's evidence; null on a customer's report. */
+  evidence?: AdminFlagEvidence | null
   kind: BypassKind
   kindLabel: string
   note: string | null
@@ -73,10 +106,13 @@ export interface AdminBypassReport {
   garage: { id: string | null; name: string; strikes: number; highlighted: boolean }
   booking: {
     id: string | null
-    reference: string
+    /** Null on a flag about a garage rather than one booking. */
+    reference: string | null
     status: string | null
     scheduledAt: string | null
     markedTest: boolean
+    /** The pickup fee locked on the booking (0079); null when none. Absent from an older API. */
+    pickupFee?: number | null
   }
   /** Who reported it (admin only); null once the account was deleted. */
   customer: { id: string; name: string | null; phone: string | null } | null
@@ -91,11 +127,18 @@ export interface AdminBypassReport {
 export interface AdminBypassList {
   reports: AdminBypassReport[]
   counts: Record<BypassStatus, number>
+  /** Detlio's flags (OFF_APP_FLAGS_ENABLED): off, or on with the "All / Customer reports / Flagged by Detlio" counts. */
+  flags?: { enabled: false } | { enabled: true; from: AdminBypassSource; counts: Record<AdminBypassSource, number> }
   rules: { rewardAmount: string; strikeWindowDays: number; strikeAlertAt: number; creditOn: boolean }
 }
 
-export function listAdminBypassReports(show: AdminBypassFilter): Promise<AdminBypassList> {
-  return apiClient<AdminBypassList>('/admin/bypass-reports', { params: { show } })
+export function listAdminBypassReports(show: AdminBypassFilter, from: AdminBypassSource = 'all'): Promise<AdminBypassList> {
+  return apiClient<AdminBypassList>('/admin/bypass-reports', { params: { show, from } })
+}
+
+/** Detlio's checks at once (0077): new flags only, never a strike or a reward. */
+export function checkBypassFlags(): Promise<{ created: number; failed: number }> {
+  return apiClient<{ created: number; failed: number }>('/admin/bypass-reports/flags/check', { method: 'POST' })
 }
 
 export function confirmBypassReport(id: string): Promise<AdminBypassReport> {

@@ -157,6 +157,21 @@ export interface DocumentRequest {
   schemaName: string
   schema: Record<string, unknown>
   maxOutputTokens: number
+  /**
+   * The user turn's line before the files. Fixed text, never personal data,
+   * except the repair-quote brief's (0076), which sends the customer's own
+   * line about the damage as data, never instructions: its `instructions`
+   * say so. Unset: the garage import's own ("Read this document.").
+   */
+  prompt?: string
+  /** How closely images are looked at; 'high' unless said (posters are small print). */
+  imageDetail?: 'low' | 'high' | 'auto'
+  /**
+   * A shorter limit than the client's 50 s, in ms. Shine Score (0078) does
+   * more work around its call in the same 60 s function (storing photos, or
+   * running after Mark completed's response), so it asks for less.
+   */
+  timeoutMs?: number
 }
 
 /** Anything that reads files into JSON text: OpenAI, or a test's fake. */
@@ -195,7 +210,7 @@ export function openAiDocumentClient({ apiKey, model, fetch }: OpenAiDocumentCon
   const client = new OpenAI({ apiKey, timeout: 50_000, maxRetries: 0, ...(fetch && { fetch }) })
 
   return {
-    async read({ instructions, files, schemaName, schema, maxOutputTokens }) {
+    async read({ instructions, files, schemaName, schema, maxOutputTokens, prompt, imageDetail = 'high', timeoutMs }) {
       try {
         const response = await client.responses.create({
           model,
@@ -207,9 +222,10 @@ export function openAiDocumentClient({ apiKey, model, fetch }: OpenAiDocumentCon
                 {
                   type: 'input_text',
                   text:
-                    files.length === 1
+                    prompt ??
+                    (files.length === 1
                       ? 'Read this document.'
-                      : `Read these ${files.length} documents; they are about the same garage.`,
+                      : `Read these ${files.length} documents; they are about the same garage.`),
                 },
                 ...files.map((file) =>
                   file.mimeType === 'application/pdf'
@@ -220,7 +236,7 @@ export function openAiDocumentClient({ apiKey, model, fetch }: OpenAiDocumentCon
                       }
                     : {
                         type: 'input_image' as const,
-                        detail: 'high' as const,
+                        detail: imageDetail,
                         image_url: `data:${file.mimeType};base64,${file.dataBase64}`,
                       }
                 ),
@@ -233,7 +249,7 @@ export function openAiDocumentClient({ apiKey, model, fetch }: OpenAiDocumentCon
           // and all, for at least 30 days (store defaults to true). We
           // promise the files aren't stored, so ask for that.
           store: false,
-        })
+        }, timeoutMs ? { timeout: timeoutMs } : undefined)
         // Cut off by the token ceiling, or refused: there is no complete
         // answer to use, and the caller says it couldn't read the file.
         if (response.status === 'incomplete') return ''

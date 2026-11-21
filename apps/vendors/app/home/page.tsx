@@ -31,6 +31,11 @@ import { PushBanner } from '@/components/push-banner'
 import { sortByUrgency, todayView, waitingSummary } from '@/lib/jobs'
 import { useVendorBookings } from '@/lib/use-vendor-bookings'
 import { useGarageRequestCount } from '@repo/core/api/hooks/use-booking-requests'
+import {
+  repairQuotesOn,
+  useGarageRepairQuoteCount,
+  useRepairQuotesConfig,
+} from '@repo/core/api/hooks/use-repair-quotes'
 import { REQUEST_RULES } from '@repo/core/booking-requests'
 import { cn } from '@repo/core/utils'
 import { BookHome } from '@/components/book/book-home'
@@ -368,7 +373,11 @@ function RequestsHomeCard() {
   const t = useT()
   const tn = useTn()
   const count = useGarageRequestCount()
-  const waiting = count.data?.waiting ?? 0
+  // Repair quotes (0075) wait in the same list, so they count here too.
+  const repairOn = repairQuotesOn(useRepairQuotesConfig().data)
+  const repairCount = useGarageRepairQuoteCount(repairOn)
+  const repairs = repairOn ? (repairCount.data?.waiting ?? 0) : 0
+  const waiting = (count.data?.waiting ?? 0) + repairs
   if (waiting <= 0) return null
   return (
     <Link
@@ -383,12 +392,14 @@ function RequestsHomeCard() {
           </span>
         </span>
         <span className="block text-[13px] text-text-secondary">
-          {tn(
-            waiting,
-            '{count} request waiting · answer within {hours} h',
-            '{count} requests waiting · answer within {hours} h',
-            { hours: REQUEST_RULES.respondMinutes / 60 }
-          )}
+          {repairs > 0
+            ? tn(waiting, '{count} request waiting', '{count} requests waiting')
+            : tn(
+                waiting,
+                '{count} request waiting · answer within {hours} h',
+                '{count} requests waiting · answer within {hours} h',
+                { hours: REQUEST_RULES.respondMinutes / 60 }
+              )}
         </span>
       </span>
       <IconChevronRight size={18} aria-hidden="true" className="shrink-0" />

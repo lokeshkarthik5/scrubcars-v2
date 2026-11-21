@@ -34,6 +34,7 @@ describe('the grouped menu', () => {
     // Issues and Settings, which stay lit on them.
     expect(activeItem('/guarantee/abc')?.label).toBe('Issues')
     expect(activeItem('/bypass-reports/drop-off')?.label).toBe('Issues')
+    expect(activeItem('/shine-checks')?.label).toBe('Issues')
     expect(activeItem('/alerts')?.label).toBe('Settings')
     expect(activeItem('/data-reset')?.label).toBe('Settings')
     expect(activeItem('/vendors/1/edit')?.label).toBe('Garages')

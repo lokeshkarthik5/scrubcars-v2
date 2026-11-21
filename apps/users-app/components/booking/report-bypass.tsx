@@ -1,3 +1,4 @@
+import { REPORT_EXTRA_LINE } from '@repo/core/pickup-fee-customer';
 import { ApiError } from '@repo/core/api/client';
 import { useBypassStatus, useReportBypass } from '@repo/core/api/hooks/use-bypass-reports';
 import { bookingReference } from '@repo/core/booking-types';
@@ -8,7 +9,6 @@ import {
   BYPASS_KINDS,
   BYPASS_NUMBERS,
   BYPASS_QUESTION,
-  BYPASS_QUESTION_SHORT,
   BYPASS_THANKS_BODY,
   BYPASS_THANKS_TITLE,
   type BypassKind,
@@ -179,7 +179,7 @@ export function BypassReportLine({ booking }: { booking: Booking }) {
         <View style={styles.lineLeft}>
           <IconFlag size={16} color={colors.textMuted} />
           <T size={13} lh={18} color={colors.textSecondary} style={styles.grow}>
-            {t(BYPASS_QUESTION_SHORT)}
+            {t(REPORT_EXTRA_LINE)}
           </T>
         </View>
         <IconChevronRight size={16} color={colors.textMuted} />

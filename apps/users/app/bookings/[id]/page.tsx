@@ -9,6 +9,7 @@ import Link from 'next/link'
 import {
   IconArrowUpRight,
   IconChevronRight,
+  IconInfoCircle,
   IconLoader2,
   IconNavigation,
   IconRepeat,
@@ -114,8 +115,11 @@ import { FinalBillCard, type BillPayment } from '@/components/final-bill-card'
 import { ExtraWorkCard } from '@/components/extra-work-card'
 import { TimeProposalCard } from '@/components/time-proposal-card'
 import { OtherGaragesCard } from '@/components/other-garages-card'
+import { garageDeclinedTitle, quotedGarageReason, showsRescue } from '@repo/core/rescue'
 import { JobPhotosCard } from '@/components/job-photos-card'
+import { BookingShineCard } from '@/components/shine/booking-shine-card'
 import { CarConditionCard } from '@/components/car-condition-card'
+import { ConditionCheckCard } from '@/components/condition-check-card'
 import { GuaranteeCard } from '@/components/guarantee/guarantee-card'
 import { fill, useT } from '@repo/core/i18n'
 import {
@@ -124,6 +128,7 @@ import {
 } from '@/components/payment-received-panel'
 import { PickupCodeCard, PickupTimeline } from '@/components/pickup-progress'
 import { BypassReportLine } from '@/components/bypass/bypass-report-line'
+import { CONVENIENCE_FEE_LABEL, pickupLineLabel, pickupRefundNote } from '@repo/core/pickup-fee'
 import { t } from '@repo/core/i18n/translate'
 
 // Sheets closed on arrival are loaded after the page, not with it: they are
@@ -274,8 +279,8 @@ function cancelledPanel(booking: Booking): { title: string; lines: string[] } {
   if (booking.cancelledBy === 'vendor') {
     return {
       // The garage, never "vendor": the customer app's word for it (F10).
-      title: t('Declined by the garage'),
-      lines: withRefund([reason ?? t('The garage could not take this booking.')]),
+      title: garageDeclinedTitle(booking.vendorName),
+      lines: withRefund([reason ? quotedGarageReason(reason) : t('The garage could not take this booking.')]),
     }
   }
 
@@ -997,6 +1002,17 @@ export default function BookingDetailPage({
       {/* The handover code: what the customer needs at the door. */}
       {isPickup && !missedByGarage && <PickupCodeCard booking={booking} />}
 
+      {/* The car condition check (0075): the garage's walk-round to agree,
+          and after the job any possible new mark. */}
+      <ConditionCheckCard
+        booking={booking}
+        onChanged={async () => {
+          const fresh = await getBooking(booking.id).catch(() => null)
+          if (fresh) setBooking(fresh)
+        }}
+        onHelp={() => setShowHelp(true)}
+      />
+
       {/* A payment for a bill that no longer stands. Its card has gone; what
           happened to the money has not. */}
       {Object.entries(billPayments)
@@ -1211,6 +1227,13 @@ export default function BookingDetailPage({
         </section>
       )}
 
+      {/* Shine Score (0078): "Your Shine went 46 → 92", from the garage's photos. */}
+      <BookingShineCard
+        bookingId={booking.id}
+        completed={booking.status === 'completed'}
+        photos={booking.jobPhotos}
+      />
+
       <JobPhotosCard photos={booking.jobPhotos} completed={finished} />
 
       {/* The customer's own photos of their car (0045). */}
@@ -1252,10 +1275,22 @@ export default function BookingDetailPage({
             </span>
           )}
         </Row>
-        {/* An accepted request's travel fee (0062): its own line. */}
-        {(booking.travelFee ?? 0) > 0 && (
+        {/* The pickup fee (0079), locked at booking: its own row, with the
+            road km. An accepted request's travel fee (0062) on a doorstep
+            job keeps its own line. */}
+        {isPickup && (booking.travelFee ?? 0) > 0 ? (
+          <Row label={pickupLineLabel(booking.roadKm)}>
+            <span className="font-numeric">{money(booking.travelFee ?? 0)}</span>
+          </Row>
+        ) : (booking.travelFee ?? 0) > 0 ? (
           <Row label={t('Travel fee')}>
             <span className="font-numeric">{money(booking.travelFee ?? 0)}</span>
+          </Row>
+        ) : null}
+        {/* Detlio's convenience fee (0079), when there was one. */}
+        {(booking.convenienceFee ?? 0) > 0 && (
+          <Row label={t(CONVENIENCE_FEE_LABEL)}>
+            <span className="font-numeric">{money(booking.convenienceFee ?? 0)}</span>
           </Row>
         )}
         {booking.discountAmount > 0 && (
@@ -1347,6 +1382,15 @@ export default function BookingDetailPage({
           )}
         </Row>
       </section>
+
+      {/* What the pickup fee covers, and that it comes back in full if the
+          garage cancels or doesn't turn up (0079). */}
+      {isPickup && (booking.travelFee ?? 0) > 0 && (
+        <p className="flex items-start gap-2 px-1 text-t4 leading-relaxed text-text-secondary" data-pickup-refund-note="">
+          <IconInfoCircle size={16} aria-hidden className="mt-0.5 shrink-0 text-text-muted" />
+          <span>{pickupRefundNote(booking.vendorName)}</span>
+        </p>
+      )}
 
       {/* Getting to the garage, for a job at the garage that is still on. */}
       {gettingThere && !missedByGarage && (
@@ -1454,9 +1498,14 @@ export default function BookingDetailPage({
         </ScCard>
       )}
 
-      {/* Not accepted in time (0042): somewhere else to book, same type. */}
-      {booking.status === 'cancelled' && booking.notAcceptedInTime && (
-        <OtherGaragesCard booking={booking} />
+      {/* The rescue: the garage let them down (didn't answer in time,
+          declined, called it off), so the best other garages for the same
+          job, with times near the original slot. */}
+      {showsRescue(booking) && (
+        <OtherGaragesCard
+          booking={booking}
+          addressId={matchSavedAddress(booking, addresses)}
+        />
       )}
 
       {/* A cancelled job: the same booking again, quietly. */}

@@ -1,3 +1,4 @@
+import { conditionCheckService } from '../condition-check/condition-check.service.js'
 import { NOTE_EDIT_HOURS, noteEditRefusal, noteEditableUntil, type NoteEditRefusal } from '../../lib/booking-notes.js'
 import { AT_GARAGE_ADDRESS_MESSAGE, atGarageAddressMissing, atGarageAddressRefused, garageAddressLine } from '../../lib/garage-address.js'
 import { timingSafeEqual } from 'node:crypto'
@@ -664,6 +665,16 @@ async function loadBookingDetail(id: string, now: number) {
             }) === null,
         }
       : null,
+    // The car condition check (0075): the garage's walk-round, its marks
+    // (removed ones too), the customer's answer and any "Something's wrong"
+    // note, and possible new marks after the job. Null while it is off.
+    conditionCheck: await conditionCheckService.adminView({
+      id: booking.id,
+      vendorId: booking.vendorId,
+      status: booking.status,
+      bookingType: booking.bookingType,
+      photosWaivedAt: booking.photosWaivedAt,
+    }),
     lat: booking.lat,
     lng: booking.lng,
     // A doorstep-only garage may have no street address (0064): the city.
@@ -1168,10 +1179,21 @@ export const adminService = {
       }
 
       const toInsert: Parameters<typeof adminRepository.insertServices>[0] =
-        plan.insert.map((index) => ({ vendorId: id, ...columnsFor(input.services![index]!) }))
+        plan.insert.map((index) => ({
+          vendorId: id,
+          ...columnsFor(input.services![index]!),
+          ...(input.services![index]!.categoryHintDismissed && { categoryHintDismissedAt: new Date() }),
+        }))
       if (toInsert.length > 0) {
         await adminRepository.insertServices(toInsert)
       }
+
+      // "Not this" on the category hint (0080), for the saved rows that sent
+      // it: kept from when it was first turned down, cleared on false.
+      const hintIds = (dismissed: boolean) =>
+        plan.update.filter((row) => input.services![row.index]!.categoryHintDismissed === dismissed).map((row) => row.id)
+      await adminRepository.setCategoryHintsDismissed(hintIds(true), true)
+      await adminRepository.setCategoryHintsDismissed(hintIds(false), false)
 
       if (plan.deactivate.length > 0) {
         await adminRepository.deactivateServices(plan.deactivate)
@@ -1504,6 +1526,7 @@ export const adminService = {
           // No duration given: none is stored (0064), never guessed.
           durationMins: s.durationMins ?? null,
           ...commissionColumn(s.commissionRate),
+          ...(s.categoryHintDismissed && { categoryHintDismissedAt: new Date() }),
         }))
       )
     }

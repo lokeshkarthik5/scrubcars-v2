@@ -2,6 +2,7 @@ import type { GarageRequest } from '@repo/core/api/booking-requests';
 import { istClock, REQUEST_RULES } from '@repo/core/booking-requests';
 import { formatINR } from '@repo/core/format';
 import { interpolate, msg, t } from '@repo/core/i18n/translate';
+import { acceptedLine as feeAcceptedLine, requestTag } from '@repo/core/pickup-fee-garage';
 
 /**
  * The words and the geometry of the visit requests inbox: the parts of
@@ -59,8 +60,8 @@ export function whenWhereLine(request: Pick<GarageRequest, 'window' | 'area'>): 
 }
 
 /** The small caps label on a waiting card. */
-export const waitingLabel = (request: Pick<GarageRequest, 'passedOn'>) =>
-  request.passedOn ? t('Passed on to you') : t('New request · outside your area');
+export const waitingLabel = (request: Pick<GarageRequest, 'passedOn'> & { bookingType?: GarageRequest['bookingType'] }) =>
+  requestTag(request.bookingType ?? 'doorstep', request.passedOn);
 
 /** "Start time, inside tomorrow 9–12". */
 export const startTimeHeading = (request: Pick<GarageRequest, 'window'>) =>
@@ -79,11 +80,15 @@ export function closedBadge(request: Pick<GarageRequest, 'status' | 'withdrawn'>
 
 /** The accepted card's line: "Accepted · starts Sat 17 Oct, 10:00 am · travel fee ₹100 · customer confirms by 11:41 am". */
 export function acceptedLine(
-  request: Pick<GarageRequest, 'acceptedStartAt' | 'travelFee' | 'confirmBy'>,
+  request: Pick<GarageRequest, 'acceptedStartAt' | 'travelFee' | 'confirmBy'> & { bookingType?: GarageRequest['bookingType'] },
   startLabel: (iso: string) => string
 ): string {
   const starts = request.acceptedStartAt ? startLabel(request.acceptedStartAt) : '—';
   const by = request.confirmBy ? istClock(request.confirmBy) : '—';
+  // Ask for pickup (0079): "… · pickup fee ₹180 · …", the portal's words.
+  if (request.bookingType === 'pickup') {
+    return feeAcceptedLine({ mode: 'pickup', start: starts, fee: request.travelFee ?? 0, confirmBy: by });
+  }
   return t('Accepted · starts {starts} · travel fee {fee} · customer confirms by {by}', {
     starts,
     fee: formatINR(request.travelFee ?? 0),
@@ -104,8 +109,18 @@ export function chosenStart(startAt: string | null, starts: readonly string[]): 
   return startAt && starts.includes(startAt) ? startAt : null;
 }
 
-/** Whether Accept can be pressed. */
-export const canAccept = (chosen: string | null, busy: boolean) => !busy && chosen !== null;
+/** Whether Accept can be pressed: a start time, and for Ask for pickup the responsibility tick (0079). */
+export const canAccept = (chosen: string | null, busy: boolean, termsNeeded = false, termsTicked = false) =>
+  !busy && chosen !== null && (!termsNeeded || termsTicked);
+
+/** Whether "Tick that you are responsible for the car to accept." shows. */
+export const needsTermsHint = (chosen: string | null, termsNeeded: boolean, termsTicked: boolean) =>
+  chosen !== null && termsNeeded && !termsTicked;
+
+/** The responsibility the garage takes on with an Ask for pickup's yes (as when it turns pickup on). */
+export const PICKUP_RESPONSIBILITY_TEXT = msg(
+  'While the car is with you it is your responsibility: from the moment you collect it until it is back with the customer. When you collect it, ask the customer for their 4-digit pickup code; when you bring it back, their delivery code.'
+);
 
 /** Whether "Pick a start time to accept." shows. */
 export const needsStartHint = (chosen: string | null, startCount: number) => chosen === null && startCount > 0;

@@ -162,6 +162,27 @@ describe('the garage’s answer', () => {
     expect(acceptRefusal({ ...base, startAt: IST('2026-10-29T11:00:00') })).toBe('START_NOT_OFFERED')
   })
 
+  const base = { status: 'pending', respondBy: IST('2026-10-29T11:00:00'), travelFee: 100, startAt: IST('2026-10-29T11:30:00'), starts: [IST('2026-10-29T11:30:00')], now: NOW }
+
+  test('with Detlio’s suggestion (0079): any whole ₹0 up to the most, at most 25% above it', () => {
+    // ₹120 suggested for 11 km by road: the most is ₹150.
+    const asked = { ...base, maxFee: 150 }
+    expect(acceptRefusal({ ...asked, travelFee: 120 })).toBeNull()
+    expect(acceptRefusal({ ...asked, travelFee: 150 })).toBeNull()
+    expect(acceptRefusal({ ...asked, travelFee: 0 })).toBeNull()
+    expect(acceptRefusal({ ...asked, travelFee: 160 })).toBe('TRAVEL_FEE_INVALID')
+    expect(acceptRefusal({ ...asked, travelFee: 125.5 })).toBe('TRAVEL_FEE_INVALID')
+    // A request from before 0079 keeps ₹0, ₹100 or ₹200.
+    expect(acceptRefusal({ ...base, maxFee: null, travelFee: 200 })).toBeNull()
+  })
+
+  test('Ask for pickup: the responsibility tick before a yes', () => {
+    const pickup = { ...base, maxFee: 150, travelFee: 120, termsRequired: true }
+    expect(acceptRefusal(pickup)).toBe('PICKUP_TERMS_REQUIRED')
+    expect(acceptRefusal({ ...pickup, termsAccepted: false })).toBe('PICKUP_TERMS_REQUIRED')
+    expect(acceptRefusal({ ...pickup, termsAccepted: true })).toBeNull()
+  })
+
   test('travel fees are ₹0, ₹100 or ₹200 only', () => {
     expect(REQUEST_RULES.travelFees).toEqual([0, 100, 200])
     expect([0, 100, 200].every(isTravelFee)).toBe(true)
@@ -213,6 +234,20 @@ describe('who can be asked', () => {
     ]
     expect(pickNextGarage(list, new Set(['tried']), 1)?.vendorId).toBe('near')
     expect(pickNextGarage(list.filter((c) => c.vendorId !== 'near'), new Set(['tried']), 1)?.vendorId).toBe('covers')
+  })
+
+  test('the next garage: a quick, reliable answerer beats a slightly nearer slow one', () => {
+    const list = [
+      candidate({ vendorId: 'slow', distanceKm: 3, record: { medianAnswerMins: 58, acceptRate: 0.4, recentCancels: 0 } }),
+      candidate({ vendorId: 'quick', distanceKm: 5, record: { medianAnswerMins: 6, acceptRate: 0.95, recentCancels: 0 }, rating: 4.7 }),
+    ]
+    expect(pickNextGarage(list, new Set(), 1)?.vendorId).toBe('quick')
+    // Recent cancellations by the garage weigh against it.
+    const cancels = [
+      candidate({ vendorId: 'cancels', distanceKm: 2, record: { medianAnswerMins: null, acceptRate: null, recentCancels: 3 } }),
+      candidate({ vendorId: 'steady', distanceKm: 4 }),
+    ]
+    expect(pickNextGarage(cancels, new Set(), 1)?.vendorId).toBe('steady')
   })
 
   test('at most two garages a request', () => {

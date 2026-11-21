@@ -15,7 +15,9 @@ import { deleteObject, keyFromPublicUrl } from '../../lib/storage.js'
 import { giftCreditService } from '../gift-credit/gift-credit.service.js'
 import { giftsService } from '../gifts/gifts.service.js'
 import { refundsService } from '../refunds/refunds.service.js'
+import { shineScoreService } from '../shine-score/shine-score.service.js'
 import { accountRepository, DeletionRaced } from './account.repository.js'
+import { removeRepairMediaObjects } from '../../lib/job-photo-storage.js'
 
 const log = logger.child({ module: 'account' })
 
@@ -61,12 +63,20 @@ function accountChanged() {
   )
 }
 
-/** The profile photo's file, after the commit, best effort. */
-function removeAvatar(result: { avatarKey: string | null; avatarUrl: string | null }) {
+/**
+ * The profile photo's file, after the commit, best effort; and the Shine
+ * Score scans (0075) the deletion unlinked, with their private photos.
+ */
+function removeAvatar(result: {
+  avatarKey: string | null
+  avatarUrl: string | null
+  shineScanIds?: string[]
+}) {
   const avatarKey = result.avatarKey ?? (result.avatarUrl ? keyFromPublicUrl(result.avatarUrl) : null)
   if (avatarKey) {
     runInBackground('account:avatar_delete', () => deleteObject(avatarKey))
   }
+  shineScoreService.scheduleDeleteScans(result.shineScanIds ?? [])
 }
 
 export const accountService = {
@@ -104,6 +114,7 @@ export const accountService = {
     if (!result) throw userNotFound()
     log.info({ userId }, 'account:deleted')
     removeAvatar(result)
+    if (result.repairMediaKeys?.length) runInBackground('account:repair_media_delete', () => removeRepairMediaObjects(result.repairMediaKeys ?? [], 'account_deleted'))
   },
 
   /**
@@ -155,6 +166,7 @@ export const accountService = {
     if (!result) throw userNotFound()
     log.warn({ userId, by: actor.name, endedBookings: result.endedBookingIds.length }, 'account:deleted_by_admin')
     removeAvatar(result)
+    if (result.repairMediaKeys?.length) runInBackground('account:repair_media_delete', () => removeRepairMediaObjects(result.repairMediaKeys ?? [], 'account_deleted'))
     return { id: userId, deleted: true as const, endedBookings: result.endedBookingIds.length }
   },
 }

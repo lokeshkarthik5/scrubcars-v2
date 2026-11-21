@@ -21,6 +21,7 @@ import {
   bookingReachLine,
 } from '@/lib/garage-edit'
 import type { GarageDraftState } from './use-garage-draft'
+import { PickupFeeCard } from './pickup-fee-card'
 
 type SaveState = 'idle' | 'saving' | 'saved'
 
@@ -330,6 +331,9 @@ export function HowCustomersBook({
           )}
         </KmRow>
       )}
+
+      {/* The garage's pickup fee (0079), once pickup & drop is on. */}
+      {pickup.on && pickup.saved.enabled && <PickupFeeCard vendorId={vendorId} onAuthError={onAuthError} />}
 
       {/* The agreement step: Pickup & drop turns on only with the tick. */}
       {pickup.turningOn && (

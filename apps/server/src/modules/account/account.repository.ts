@@ -19,8 +19,10 @@ import {
   pushDevices,
   pushSubscriptions,
   refreshTokens,
+  repairQuoteRequests,
   rewardNudges,
   rewardReferralCodes,
+  shineScans,
   slotAlerts,
   userAddresses,
   userFavouriteVendors,
@@ -107,7 +109,14 @@ export const accountRepository = {
      * checkout closed), and the delete is audited with who did it.
      */
     byAdmin?: { sub: string; name: string; reason: string }
-  }): Promise<{ avatarKey: string | null; avatarUrl: string | null; endedBookingIds: string[] } | null> {
+  }): Promise<{
+    avatarKey: string | null
+    avatarUrl: string | null
+    endedBookingIds: string[]
+    repairMediaKeys?: string[]
+    /** Shine Score scans (0078) now no one's: deleted with their photos after the commit. */
+    shineScanIds: string[]
+  } | null> {
     const { userId, now, byAdmin } = input
     return db.transaction(async (tx) => {
       const [user] = await tx
@@ -189,6 +198,18 @@ export const accountRepository = {
       // customer's, so it goes in one statement (its own SET NULLs land on
       // rows going too). Before the addresses, which they name.
       await tx.delete(bookingRequests).where(eq(bookingRequests.userId, userId))
+      // Repair quote requests (0076): their words, pictures and video go
+      // with the account (the garages' answers with them). The media keys
+      // come back, so the files are removed after the commit.
+      const repairRows = await tx
+        .select({ videoKey: repairQuoteRequests.videoKey, photos: repairQuoteRequests.photos })
+        .from(repairQuoteRequests)
+        .where(eq(repairQuoteRequests.userId, userId))
+      const repairMediaKeys = repairRows.flatMap((row) => [
+        ...(row.videoKey ? [row.videoKey] : []),
+        ...row.photos.map((photo) => photo.key),
+      ])
+      await tx.delete(repairQuoteRequests).where(eq(repairQuoteRequests.userId, userId))
       await tx.delete(userAddresses).where(eq(userAddresses.userId, userId))
 
       // Cars: kept (blanked) where a booking or checkout names them, else
@@ -224,6 +245,14 @@ export const accountRepository = {
       await tx.delete(couponCodeAttempts).where(eq(couponCodeAttempts.userId, userId))
       await tx.delete(rewardReferralCodes).where(eq(rewardReferralCodes.userId, userId))
       await tx.delete(rewardNudges).where(eq(rewardNudges.userId, userId))
+      // Shine Score scans (0078): unlinked here, deleted with their private
+      // photos after the commit (the row is the only record of where the
+      // photos are, so it goes once they have; the sweep picks up the rest).
+      const unlinkedScans = await tx
+        .update(shineScans)
+        .set({ userId: null })
+        .where(eq(shineScans.userId, userId))
+        .returning({ id: shineScans.id })
 
       // What a deleted account left unlinked before (their ON DELETE SET
       // NULL): usage events, garages they recommended, bypass reports.
@@ -249,7 +278,13 @@ export const accountRepository = {
         })
       }
 
-      return { avatarKey: user.avatarStorageKey ?? null, avatarUrl: user.avatarUrl ?? null, endedBookingIds }
+      return {
+        avatarKey: user.avatarStorageKey ?? null,
+        avatarUrl: user.avatarUrl ?? null,
+        endedBookingIds,
+        repairMediaKeys,
+        shineScanIds: unlinkedScans.map((row) => row.id),
+      }
     })
   },
 }

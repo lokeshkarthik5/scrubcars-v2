@@ -29,6 +29,9 @@ import {
   IconSparkles,
   IconStarFilled,
   IconWand,
+  IconEngine,
+  IconTool,
+  IconSpray,
 } from '@tabler/icons-react'
 import type { ApiVendorListItem } from '@repo/core/api/types'
 import type { ServiceCategory } from '@repo/core/types'
@@ -471,6 +474,9 @@ const SERVICE_ICONS: Record<ServiceCategory, typeof IconDroplet> = {
   detailing: IconSparkles,
   coating: IconShieldCheck,
   scratch_removal: IconWand,
+  general_service: IconEngine,
+  repairs: IconTool,
+  dent_paint: IconSpray,
   package: IconPackage,
   others: IconCar,
 }

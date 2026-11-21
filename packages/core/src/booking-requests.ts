@@ -35,21 +35,33 @@ export const WINDOW_PART_LABELS: Record<WindowPart, string> = {
   evening: msg('Evening 5–8'),
 }
 
-/** The three promises under the request sheet's choices. */
+/** The three promises under the request sheet's choices (Request a visit). */
 export const REQUEST_PROMISES = [
   msg('No payment now'),
   msg('They reply within 2 hours, or we ask the next garage'),
   msg('Any travel fee is shown before you pay'),
 ] as const
 
+/** Ask for pickup's promises (0079): the last names the pickup fee. */
+export const PICKUP_REQUEST_PROMISES = [
+  msg('No payment now'),
+  msg('They reply within 2 hours, or we ask the next garage'),
+  msg('The pickup fee is shown before you pay'),
+] as const
+
+/** The sheet's promises for a mode. */
+export function requestPromises(mode: RequestMode): readonly string[] {
+  return mode === 'pickup' ? PICKUP_REQUEST_PROMISES : REQUEST_PROMISES
+}
+
 /** The travel fee chips on the garage's card. */
 export function travelFeeLabel(fee: TravelFee): string {
   return fee === 0 ? t('None') : `+₹${fee}`
 }
 
-/** "Request a visit" / "Request a pickup". */
+/** "Request a visit" / "Ask for pickup" (renamed from "Request a pickup", 0079). */
 export function requestActionLabel(mode: RequestMode): string {
-  return mode === 'pickup' ? t('Request a pickup') : t('Request a visit')
+  return mode === 'pickup' ? t('Ask for pickup') : t('Request a visit')
 }
 
 /** "1:52:10" or "52:10" left, from milliseconds; "0:00" once gone. */

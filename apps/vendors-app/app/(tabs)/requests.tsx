@@ -1,5 +1,17 @@
 import type { GarageRequest } from '@repo/core/api/booking-requests';
 import { countdownLabel, istClock, istStartLabel, REQUEST_RULES, travelFeeLabel, type TravelFee } from '@repo/core/booking-requests';
+import { usePickupFeeConfig } from '@repo/core/api/hooks/use-pickup-fee';
+import { PICKUP_TERMS_GARAGE } from '@repo/core/pickup';
+import {
+  defaultFeeChoice,
+  earnTemplate,
+  feeChipLabel,
+  requestDistanceLine,
+  requestFeeChoices,
+  requestFeeGroupName,
+  requestFeeLabel,
+  requestFeeNote,
+} from '@repo/core/pickup-fee-garage';
 import { formatINR } from '@repo/core/format';
 import { useNow } from '@repo/core/hooks/use-now';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -10,7 +22,7 @@ import Svg, { Circle, Line, Text as SvgText } from 'react-native-svg';
 import { AppShell, garageScreen } from '@/components/app-shell';
 import { ScButton } from '@repo/native-ui/button';
 import { FocusFrame } from '@/components/focus-frame';
-import { ScBadge } from '@/components/form-controls';
+import { ScBadge, ScCheckbox } from '@/components/form-controls';
 import { IconMapPin } from '@repo/native-ui/icons';
 import { GraphiteSwitch } from '@repo/native-ui/finish';
 import { EmptyState, LoadError, ScCard, SkeletonList } from '@repo/native-ui/primitives';
@@ -39,6 +51,8 @@ import {
   EMPTY_SUBTITLE,
   EMPTY_TITLE,
   needsStartHint,
+  needsTermsHint,
+  PICKUP_RESPONSIBILITY_TEXT,
   reachGeometry,
   REQUESTS_FOOTER,
   requestsIntro,
@@ -52,6 +66,8 @@ import {
 } from '@/lib/requests-view';
 import { useItemFocus } from '@/lib/use-item-focus';
 import { createStyles, useColors } from '@repo/native-ui/theme';
+import { repairQuotesOn, useGarageRepairQuotes, useRepairQuotesConfig } from '@repo/core/api/hooks/use-repair-quotes';
+import { ClosedRepairQuoteCard, WaitingRepairQuoteCard } from '@/components/repair-quote-card';
 import { fill, useT } from '@repo/core/i18n';
 
 /**
@@ -71,6 +87,11 @@ function RequestsScreen() {
   const closedRequests = useGarageRequestsInbox('closed', scope === 'closed');
   const requests = scope === 'open' ? openRequests : closedRequests;
   const items = requests.data?.items ?? [];
+  // Repair & bodywork quotes (0075) come into the same list, first: only while the API
+  // says they are on (GET /repair-quotes/config), as on the website.
+  const repairOn = repairQuotesOn(useRepairQuotesConfig().data);
+  const repairs = useGarageRepairQuotes(scope, repairOn);
+  const repairItems = repairOn ? (repairs.data?.items ?? []) : [];
 
   // A notification or link for one request (/requests#request-<id>): the scope that has it,
   // scrolled to and flashed. Once per id named.
@@ -94,7 +115,7 @@ function RequestsScreen() {
     <AppShell gap={16} scrollRef={scroll}>
       <TopBar title={t('Requests')} onBack={() => (router.canGoBack() ? router.back() : router.replace('/home'))} />
       <T size={12} color={colors.textSecondary}>
-        {requestsIntro()}
+        {repairOn ? t('Customers ask you to come, or for a repair quote. Nothing is paid until you say yes.') : requestsIntro()}
       </T>
       <GraphiteSwitch
         accessibilityLabel={t('Which requests')}
@@ -109,7 +130,7 @@ function RequestsScreen() {
         <SkeletonList count={2} height={320} />
       ) : requests.isError && !requests.data ? (
         <LoadError what={t('your requests')} onRetry={() => void requests.refetch()} retrying={requests.isFetching} />
-      ) : items.length === 0 ? (
+      ) : items.length === 0 && repairItems.length === 0 ? (
         <EmptyState
           icon={<IconMapPin size={28} stroke={1.5} color={colors.textSecondary} />}
           title={t(EMPTY_TITLE)}
@@ -117,6 +138,13 @@ function RequestsScreen() {
         />
       ) : (
         <View style={styles.list} onLayout={onListLayout}>
+          {repairItems.map((quote) =>
+            scope === 'closed' || quote.state !== 'waiting' ? (
+              <ClosedRepairQuoteCard key={quote.id} quote={quote} />
+            ) : (
+              <WaitingRepairQuoteCard key={quote.id} quote={quote} />
+            )
+          )}
           {items.map((request) => (
             <FocusFrame key={request.id} {...frameProps(request.id)}>
               {scope === 'closed' ? (
@@ -187,7 +215,16 @@ function WaitingRequestCard({ request }: { request: GarageRequest }) {
   const styles = useStyles();
   // Live to the second, like the web's page-wide ticker.
   const now = useNow(1000);
-  const [fee, setFee] = useState<TravelFee>(0);
+  // The fee chips (0079): Detlio's suggestion for the road km, then up to 25% more;
+  // ₹0/₹100/₹200 on a request from before it. As the portal's card.
+  const choices = requestFeeChoices(request, REQUEST_RULES.travelFees);
+  const suggested = request.suggestedFee ?? null;
+  const [fee, setFee] = useState<number>(() => defaultFeeChoice(request));
+  // Ask for pickup: the responsibility tick before Accept.
+  const termsNeeded = request.pickupTermsRequired === true;
+  const [termsTicked, setTermsTicked] = useState(false);
+  const configRaisePct = usePickupFeeConfig().data?.askRaisePct ?? 25;
+  const raisePct = request.raisePct ?? configRaisePct;
   const [startAt, setStartAt] = useState<string | null>(null);
   const startTimes = useRequestStartTimes(request.id);
   const accept = useAcceptRequest();
@@ -200,7 +237,12 @@ function WaitingRequestCard({ request }: { request: GarageRequest }) {
   const onAccept = async () => {
     if (!chosen) return;
     try {
-      const accepted = await accept.mutateAsync({ id: request.id, startAt: chosen, travelFee: fee });
+      const accepted = await accept.mutateAsync({
+        id: request.id,
+        startAt: chosen,
+        travelFee: fee,
+        ...(termsNeeded ? { pickupTermsAccepted: termsTicked } : {}),
+      });
       toast.success(acceptedToast(accepted.confirmBy));
     } catch (error) {
       toast.error(errorText(error, t(ACCEPT_FAILED)));
@@ -234,11 +276,11 @@ function WaitingRequestCard({ request }: { request: GarageRequest }) {
           {whenWhereLine(request)}
         </T>
         <T size={13} color={colors.textSecondary}>
-          {`${request.beyond} · ${t('{km} km from you', { km: request.distanceKm })}`}
+          {requestDistanceLine(request)}
         </T>
         {request.earn !== null ? (
           <T size={13} style={styles.lineGap}>
-            {fill(t('You earn {amount} + any travel fee'), {
+            {fill(earnTemplate(request.bookingType), {
               amount: (
                 <T num size={13} weight={600}>
                   {formatINR(request.earn)}
@@ -249,24 +291,32 @@ function WaitingRequestCard({ request }: { request: GarageRequest }) {
         ) : null}
       </View>
 
-      <ReachSketch coverKm={request.coverKm} distanceKm={request.distanceKm} outsideKm={request.outsideKm} />
+      {/* No reach to draw for a garage that doesn't collect cars yet (0079). */}
+      {request.offersPickup !== false ? (
+        <ReachSketch coverKm={request.coverKm} distanceKm={request.distanceKm} outsideKm={request.outsideKm} />
+      ) : null}
 
       <View style={styles.group}>
         <T size={12} color={colors.textSecondary}>
-          {t('Travel fee (the customer sees it before paying)')}
+          {requestFeeLabel(request.bookingType)}
         </T>
-        <View accessibilityRole="radiogroup" accessibilityLabel={t('Travel fee')} style={styles.feeRow}>
-          {REQUEST_RULES.travelFees.map((value) => (
+        <View accessibilityRole="radiogroup" accessibilityLabel={requestFeeGroupName(request.bookingType)} style={styles.feeRow}>
+          {choices.map((value) => (
             <RadioChip
               key={value}
               grow
-              label={travelFeeLabel(value)}
+              label={suggested === null ? travelFeeLabel(value as TravelFee) : feeChipLabel(value)}
               selected={fee === value}
               disabled={busy}
               onPress={() => setFee(value)}
             />
           ))}
         </View>
+        {suggested !== null ? (
+          <T size={12} color={colors.textSecondary}>
+            {requestFeeNote(suggested, request.roadKm ?? null, raisePct)}
+          </T>
+        ) : null}
       </View>
 
       <View style={styles.group}>
@@ -297,6 +347,15 @@ function WaitingRequestCard({ request }: { request: GarageRequest }) {
         )}
       </View>
 
+      {termsNeeded ? (
+        <View style={styles.group}>
+          <T size={12} color={colors.textSecondary}>
+            {t(PICKUP_RESPONSIBILITY_TEXT)}
+          </T>
+          <ScCheckbox label={t(PICKUP_TERMS_GARAGE)} checked={termsTicked} onChange={setTermsTicked} />
+        </View>
+      ) : null}
+
       <View style={styles.actions}>
         <ScButton variant="outline" fullWidth={false} style={styles.flex} onPress={() => void onDecline()} disabled={busy}>
           {t("Can't")}
@@ -306,7 +365,7 @@ function WaitingRequestCard({ request }: { request: GarageRequest }) {
           fullWidth={false}
           style={styles.flex}
           onPress={() => void onAccept()}
-          disabled={!canAccept(chosen, busy)}
+          disabled={!canAccept(chosen, busy, termsNeeded, termsTicked)}
         >
           {t('Accept')}
         </ScButton>
@@ -314,6 +373,11 @@ function WaitingRequestCard({ request }: { request: GarageRequest }) {
       {needsStartHint(chosen, starts.length) ? (
         <T size={12} color={colors.textSecondary}>
           {t('Pick a start time to accept.')}
+        </T>
+      ) : null}
+      {needsTermsHint(chosen, termsNeeded, termsTicked) ? (
+        <T size={12} color={colors.textSecondary}>
+          {t('Tick that you are responsible for the car to accept.')}
         </T>
       ) : null}
     </ScCard>

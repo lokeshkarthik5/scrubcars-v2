@@ -141,7 +141,7 @@ export const billsRepository = {
       wash_interval_days: number | null
       items: Array<{ label: string; amount: string }> | null
     }>(sql`
-      SELECT b.id, u.name AS user_name, b.status, b.scheduled_at, b.completed_at, b.amount, b.payment_method,
+      SELECT b.id, u.name AS user_name, b.status, b.scheduled_at, b.completed_at, b.amount - b.convenience_fee AS amount, b.payment_method,
              (SELECT p.status FROM payments p WHERE p.booking_id = b.id ORDER BY p.created_at DESC LIMIT 1) AS payment_status,
              v.license_plate AS plate, v.make, v.model, v.wash_interval_days,
              (SELECT json_agg(json_build_object('label', bi.name, 'amount', bi.amount::text) ORDER BY bi.sort_order)

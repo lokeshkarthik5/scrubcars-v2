@@ -1,6 +1,7 @@
 import type { Tier } from '@repo/core/tiers'
 import type { OpeningDay } from '@repo/core/opening-hours'
 import type { PickupNext } from '@repo/core/pickup'
+import type { PickupFeePlan } from '@repo/core/pickup-fee-maths'
 import type { OutsideServiceCity } from '@repo/core/service-city'
 import type { ReachCity } from '@repo/core/cities'
 
@@ -24,6 +25,9 @@ export type ServiceCategory =
   | 'detailing'
   | 'coating'
   | 'scratch_removal'
+  | 'general_service'
+  | 'repairs'
+  | 'dent_paint'
   | 'others'
   | 'package'
 // New bookings always prepay online; 'cash' remains only for historical rows.
@@ -95,6 +99,12 @@ export interface Vendor {
    * checkout's early check; the server's check is the one that counts.
    */
   pickupRadiusKm?: number | null
+  /**
+   * The pickup fee customers see (0079): Free, a fixed fee or By distance,
+   * priced per address with tripFee (pickup-fee-maths.ts). Null when the
+   * garage doesn't collect cars; absent from an older API (read as Free).
+   */
+  pickupFee?: PickupFeePlan | null
   /**
    * "All over <city>" (0069): comes (doorstep) or collects (pickup) anywhere
    * in `reachCity`, so its radius is not what decides. False and null on an
@@ -295,10 +305,70 @@ export interface JobPhoto {
   stage: 'before' | 'after'
   url: string
   createdAt: string
-  /** The guided angle it was taken from (0045), or null for an extra. */
-  angle: 'front' | 'back' | 'left' | 'right' | 'interior' | null
+  /**
+   * The guided angle it was taken from (0045), or null for an extra. The
+   * car condition check (0075) adds the four corners, garage photos only.
+   */
+  angle: JobPhotoAngle | null
   /** Whose photo (0045): the garage's record, or the customer's own. */
   by: 'garage' | 'customer'
+}
+
+/** Every angle a job photo can carry: 0045's five and the condition check's corners (0075). */
+export type JobPhotoAngle =
+  | 'front'
+  | 'back'
+  | 'left'
+  | 'right'
+  | 'interior'
+  | 'front_left'
+  | 'front_right'
+  | 'back_left'
+  | 'back_right'
+
+/**
+ * A mark on a job photo (0075): damage already there before the job, or a
+ * possible new mark an after photo shows. `box` is 0-1 from the photo's top
+ * left (null for one the garage added). `removed` only ever reaches the
+ * garage (for Undo) and admin.
+ */
+export interface ConditionMark {
+  id: string
+  photoId: string
+  /** After marks: the before photo it was compared with. */
+  beforePhotoId: string | null
+  stage: 'before' | 'after'
+  kind: 'scratch' | 'dent' | 'crack' | 'paint_chip' | 'other'
+  part: string
+  /** "Scratch – rear left door", in English (the apps build their own with markLabel). */
+  label: string
+  box: { x: number; y: number; w: number; h: number } | null
+  unsure: boolean
+  source: 'ai' | 'garage'
+  removed: boolean
+  garageAnswer: 'was_there' | null
+  customerAnswer: 'already_there' | null
+}
+
+/**
+ * The car condition check on a booking (0075), as the server decides it;
+ * null while the check is off for the garage (and, for the customer, until
+ * there is something to show). The garage's carries `unread` (photos
+ * Detlio has still to look at), `canSend` and `gate` (what Picked up /
+ * Start job wait for); the customer's carries `photos`, the photos it
+ * shows with their own links.
+ */
+export interface ConditionCheck {
+  required: boolean
+  ai: boolean
+  sentAt: string | null
+  canSend: boolean
+  taken: { before: number; after: number }
+  unread: string[]
+  marks: ConditionMark[]
+  photos: JobPhoto[]
+  answer: { kind: 'looks_right' | 'something_wrong'; at: string; note: string | null } | null
+  gate: { missing: number; notSent: boolean } | null
 }
 
 /**
@@ -419,8 +489,12 @@ export interface Booking {
   servicePrice: number
   /** The pre-discount price. Equal to servicePrice when no code was used. */
   subtotalPrice: number
-  /** An accepted request's travel fee (0062), inside subtotalPrice; 0 otherwise. */
+  /** An accepted request's travel fee (0062), or the pickup fee (0079), inside subtotalPrice; 0 otherwise. */
   travelFee?: number
+  /** The road km the pickup fee was worked out on (0079); null when none. */
+  roadKm?: number | null
+  /** Detlio's convenience fee (0079), inside subtotalPrice; 0 while off. Never on the garage's payload. */
+  convenienceFee?: number
   discountAmount: number
   discountCode?: string
   discountFundedBy?: 'platform' | 'vendor'
@@ -504,6 +578,8 @@ export interface Booking {
   customerBadge: string | null
   /** Customer only (0045): when they may add their own photos; null where not carried. */
   conditionPhotos: ConditionPhotos | null
+  /** The car condition check (0075), the viewer's own view; null while off or not carried. */
+  conditionCheck: ConditionCheck | null
   /** The final bill that stands, if the garage has raised one. */
   finalBill: FinalBill | null
   /** Garage only: the job card can offer "Raise final bill" now. */
@@ -645,8 +721,12 @@ export interface BookingReceipt {
    * absent otherwise.
    */
   items: Array<{ name: string; amount: string; isAddon?: boolean; priceOnInspection?: boolean }>
-  /** An accepted request's travel fee (0062): its own line, inside the subtotal. Absent on older APIs. */
+  /** An accepted request's travel fee (0062), or the pickup fee (0079): its own line, inside the subtotal. Absent on older APIs. */
   travelFee?: string | null
+  /** The pickup fee's road km (0079), for "Pickup & drop · 6.2 km". */
+  roadKm?: number | null
+  /** Detlio's convenience fee (0079): its own line, inside the subtotal; null while none. */
+  convenienceFee?: string | null
   subtotal: string
   /** `label`: "Free wash" for a zone's free wash (0062); absent or null otherwise. */
   discount: { code: string | null; amount: string; label?: string | null } | null

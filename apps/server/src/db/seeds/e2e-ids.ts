@@ -2285,3 +2285,221 @@ export const INSPECTION_NO_FEE = {
   /** The service the garage adds in the portal, found by its name. */
   added: { name: 'Bumper Dent Check', approx: 1500 },
 } as const
+
+/**
+ * Car condition check at handover (0075; ids 7500–7549, phones 90000075xx):
+ * a garage of its own with the check on through CONDITION_CHECK_GARAGES
+ * (.env.e2e; off for every other garage), its owner, one customer with a
+ * Creta, and four accepted doorstep jobs and one pickup & drop job for
+ * tomorrow, none with photos. AI_FAKE reads every car-check photo as one
+ * "Scratch – rear left door" and every after photo as one possible "Dent –
+ * rear bumper" (lib/condition-check-ai.ts). Only
+ * specs/journeys/condition-check-journey.spec.ts uses it.
+ *
+ *   walkRound   the garage takes the 8 angles in the portal, checks the
+ *               marks and sends; the customer says "Looks right"
+ *   wrong       sent through the API; the customer says "Something's wrong"
+ *   newMark     sent and started through the API, an after photo with a
+ *               possible new mark; the garage says "It was there", the job
+ *               completes, and the customer raises a complaint
+ *   pickup      Picked up waits for the check
+ */
+export const CONDITION_CHECK = {
+  customer: { id: id(7500), phone: '9000007500', name: 'Condition Kavya', vehicleId: id(7501) },
+  owner: { id: id(7502), phone: '9000007502', name: 'Car Check Owner Velan' },
+  garage: { id: id(7503), name: 'Car Check Garage' },
+  wash: { id: id(7504), name: 'Car Check Wash', price: '450.00', durationMins: 45 },
+  walkRound: id(7510),
+  wrong: id(7511),
+  newMark: id(7512),
+  pickup: id(7513),
+  pickupCode: '7531',
+  deliveryCode: '7532',
+} as const
+
+/**
+ * Repair & bodywork quotes (0076; ids 7550–7599, phones 90000076xx, 50–99): two
+ * listed garages of their own far from every other fixture (south of the
+ * no-fee inspection garage), open all day, that take repair quotes and have
+ * a free "price on inspection" service (what a visit books), their owners,
+ * and one customer with a white Maruti Swift who stands at `point`.
+ * `noInspection` is a third garage with no free inspection service and the
+ * switch off: admin's switch refuses it; `switchGarage`, far away, is the one
+ * admin's spec turns off and on again. Only
+ * specs/journeys/repair-quotes-journey.spec.ts and
+ * specs/admin/repair-quotes.spec.ts use them.
+ */
+export const REPAIR_QUOTES = {
+  point: { lat: ORIGIN.lat - 2.2, lng: ORIGIN.lng - 0.4 },
+  customer: { id: id(7550), phone: '9000007550', name: 'Dent Deepa', vehicleId: id(7551) },
+  owner: { id: id(7552), phone: '9000007652', name: 'Repair Owner Murugan' },
+  garage: { id: id(7553), name: 'Murugan Repair Works' },
+  inspection: { id: id(7554), name: 'Dent & Scratch Check', durationMins: 60 },
+  secondOwner: { id: id(7555), phone: '9000007555', name: 'Body Shop Owner Selvi' },
+  second: { id: id(7556), name: 'Selvi Body Shop' },
+  secondInspection: { id: id(7557), name: 'Body Check', durationMins: 60 },
+  noInspectionOwner: { id: id(7558), phone: '9000007558', name: 'Flat Price Owner Anand' },
+  noInspection: { id: id(7559), name: 'Flat Price Car Care' },
+  noInspectionWash: { id: id(7560), name: 'Foam Wash' },
+  /** Admin's switch is flipped on this one: 110 km from `point`, so no request ever reaches it. */
+  switchOwner: { id: id(7561), phone: '9000007561', name: 'Switch Owner Kala' },
+  switchGarage: { id: id(7562), name: 'Far Dent Studio' },
+  switchInspection: { id: id(7563), name: 'Dent Look', durationMins: 30 },
+} as const
+
+/**
+ * Off-app payment flags (0077; ids 7700–7749): Detlio's own entries in admin's
+ * Bypass reports, "Flagged by Detlio" (OFF_APP_FLAGS_ENABLED is on in E2E).
+ * Each is about a garage deleted forever (no garage row: no strike moves for
+ * any other fixture) and no booking. `note` is a phone number and a UPI ID
+ * in a garage's bill, masked; `regulars` is repeat customers going quiet.
+ * Only specs/admin/off-app-flags.spec.ts uses them, and it puts both back.
+ */
+export const OFF_APP_FLAGS = {
+  garageName: 'Flag Check Garage',
+  note: id(7700),
+  regulars: id(7701),
+  /** The masked number the note's evidence shows; the full one is never stored. */
+  maskedNumber: '98•••• •4210',
+} as const
+
+/**
+ * Shine Score (0078; ids 7600–7699, phones 90000076xx). The customer scans
+ * from Home (spec deletes their scans first, so a retry has its 3 free scans
+ * back); their finished booking `done` has a seeded 46 → 92 score and the
+ * garage's front and interior photos before and after; `lowFine` and
+ * `lowFollow` have after-scores under 60 waiting in Admin → Shine checks
+ * (one to mark Looks fine, one Follow up). The garage is pinned near Nagpur
+ * (21° N, 79° E), far from every other fixture, so the suggestions read
+ * from there (the spec puts the phone there) list only it.
+ */
+export const SHINE = {
+  customer: { id: id(7600), phone: '9000007600', name: 'Shine Sangeetha', vehicleId: id(7601) },
+  owner: { id: id(7602), phone: '9000007602', name: 'Shine Owner Selvam' },
+  garage: {
+    id: id(7603),
+    name: 'Shine Test Car Spa',
+    lat: 21.0,
+    lng: 79.0,
+    full: { id: id(7604), name: 'Interior + exterior wash', price: '649.00', durationMins: 90 },
+    plain: { id: id(7605), name: 'Shine Foam Wash', price: '399.00', durationMins: 45 },
+  },
+  bookings: {
+    done: refId('c1ea0001'),
+    lowFine: refId('c1ea0002'),
+    lowFollow: refId('c1ea0003'),
+  },
+  scores: { done: id(7620), lowFine: id(7621), lowFollow: id(7622) },
+  photos: {
+    done: [id(7630), id(7631), id(7632), id(7633)],
+    lowFine: [id(7634), id(7635), id(7636), id(7637)],
+  },
+} as const
+
+/**
+ * The pickup fee (0079; ids 7750–7799, phones 9000007750–99). Garages near
+ * Mysuru (`home`, 12.30° N, 76.64° E), far from every other fixture, so the
+ * Pickup & drop list from `home` shows only these:
+ *
+ *   velan      collects, By distance on Detlio's numbers, 4.8 km straight
+ *              from `home` = 6.2 km by road = ₹99; `booking` is a paid,
+ *              confirmed pickup tomorrow with that ₹99 locked on it
+ *   kumar      collects, ₹20 a km above Detlio's ₹15 and waiting for the
+ *              check (`waitingChange`): customers see Detlio's ₹120 at
+ *              8.5 km straight (11 km by road); admin approves it
+ *   autokraft  collects, a fixed ₹250 waiting (`waitingChange`): admin keeps
+ *              Detlio's fee, with a reason
+ *   free       collects, Free (the default): "Free pickup", as today
+ *   locked     collects, Detlio sets its fee (By distance on Detlio's
+ *              numbers, Detlio's): the portal greys the controls out with
+ *              "Set by Detlio. Ask Detlio to change it."
+ *   settings   collects, Free: its owner sets By distance in the portal
+ *   limited    collects, Free, with admin's own limits for it: ₹5–₹12 a km,
+ *              highest ₹300, fixed up to ₹150; its boxes say so and Detlio's
+ *              ₹15 a km is outside them
+ *   murugan    doesn't collect (drop-in only), 8.5 km: Ask for pickup,
+ *              Detlio suggests about ₹120 for 11 km by road
+ *
+ * Only specs/journeys/pickup-fee-journey.spec.ts (the customer),
+ * specs/journeys/pickup-fee-garage.spec.ts (the garage; `settings` changes
+ * its fee once, so a rerun needs a fresh seed) and specs/admin/pickup-fee.spec.ts
+ * use them.
+ */
+export const PICKUP_FEE = {
+  home: { lat: 12.3, lng: 76.64 },
+  customer: { id: id(7750), phone: '9000007750', name: 'Pickup Fee Priya', vehicleId: id(7751), addressId: id(7752) },
+  velan: {
+    owner: { id: id(7753), phone: '9000007753', name: 'Velan Fee Owner' },
+    garage: { id: id(7754), name: 'Velan Pickup Care', straightKm: 4.8, roadKm: 6.2, fee: 99 },
+    wash: { id: id(7755), name: 'Premium Foam Wash', price: '699.00', durationMins: 60 },
+    booking: id(7756),
+  },
+  kumar: {
+    owner: { id: id(7757), phone: '9000007757', name: 'Kumar Fee Owner' },
+    garage: { id: id(7758), name: 'Kumar Auto Spa Fee', straightKm: 8.5, roadKm: 11, detlioFee: 120 },
+    wash: { id: id(7759), name: 'Kumar Foam Wash', price: '449.00', durationMins: 60 },
+    waitingChange: id(7760),
+  },
+  autokraft: {
+    owner: { id: id(7761), phone: '9000007761', name: 'AutoKraft Fee Owner' },
+    garage: { id: id(7762), name: 'AutoKraft Body Shop Fee', straightKm: 12 },
+    wash: { id: id(7763), name: 'AutoKraft Wash', price: '499.00', durationMins: 60 },
+    waitingChange: id(7764),
+  },
+  free: {
+    owner: { id: id(7765), phone: '9000007765', name: 'Sri Balaji Fee Owner' },
+    garage: { id: id(7766), name: 'Sri Balaji Car Spa Fee', straightKm: 2.1 },
+    wash: { id: id(7767), name: 'Balaji Foam Wash', price: '599.00', durationMins: 60 },
+  },
+  locked: {
+    owner: { id: id(7768), phone: '9000007768', name: 'Locked Fee Owner' },
+    garage: { id: id(7769), name: 'Set By Detlio Garage', straightKm: 30 },
+    wash: { id: id(7770), name: 'Locked Foam Wash', price: '499.00', durationMins: 60 },
+    lockChange: id(7771),
+  },
+  settings: {
+    owner: { id: id(7772), phone: '9000007772', name: 'Fee Settings Owner' },
+    garage: { id: id(7773), name: 'Fee Settings Garage', straightKm: 40 },
+    wash: { id: id(7774), name: 'Settings Foam Wash', price: '499.00', durationMins: 60 },
+  },
+  limited: {
+    owner: { id: id(7778), phone: '9000007778', name: 'Limited Fee Owner' },
+    garage: { id: id(7779), name: 'Own Limits Garage', straightKm: 45 },
+    wash: { id: id(7780), name: 'Limited Foam Wash', price: '499.00', durationMins: 60 },
+    limits: { perKm: { min: 5, max: 12 }, maxCharge: 300, fixedMax: 150 },
+  },
+  murugan: {
+    owner: { id: id(7775), phone: '9000007775', name: 'Murugan Fee Owner' },
+    garage: { id: id(7776), name: 'Murugan Motors Fee', straightKm: 8.5, roadKm: 11, suggested: 120, max: 150 },
+    wash: { id: id(7777), name: 'Murugan Foam Wash', price: '699.00', durationMins: 60 },
+  },
+} as const
+
+/**
+ * Service categories (0080; ids 7800–7849, phones 90000078xx, 40–49): one
+ * listed garage near ORIGIN (about 5.5 km north, drop-in only) that sells
+ * the new mechanical work and has five services filed under Others:
+ *
+ *   oil         General service, by car type
+ *   brakes      Repairs, one price
+ *   clutch      Others: "Looks like Repairs · matched “clutch”"
+ *   bumper      Others: "Looks like Dent & paint · matched “bumper”"
+ *   alignment   Others: "Looks like General service · matched “alignment”"
+ *   bikeWash    Others, no hint
+ *   battery     Others, its hint turned down ("Not this")
+ *
+ * No car wash, so the customer filter's other tiles keep their counts. Only
+ * specs/admin/service-categories.spec.ts and specs/users/service-categories.spec.ts
+ * use them; neither leaves a change behind.
+ */
+export const SERVICE_CATEGORIES = {
+  owner: { id: id(7840), phone: '9000007840', name: 'Category Motors Owner' },
+  garage: { id: id(7800), name: 'Category Motors' },
+  oil: { id: id(7801), name: 'Oil change', category: 'general_service' },
+  brakes: { id: id(7802), name: 'Brake pads', category: 'repairs' },
+  clutch: { id: id(7803), name: 'Clutch overhaul', category: 'others' },
+  bumper: { id: id(7804), name: 'Bumper painting', category: 'others' },
+  alignment: { id: id(7805), name: 'Wheel alignment', category: 'others' },
+  bikeWash: { id: id(7806), name: 'Bike wash', category: 'others' },
+  battery: { id: id(7807), name: 'Battery replacement', category: 'others' },
+} as const

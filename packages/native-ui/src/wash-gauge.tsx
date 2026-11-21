@@ -22,12 +22,15 @@ export function WashGaugeDial({
   angle,
   share,
   over,
+  reversed = false,
 }: {
   /** core's washGaugeAngle: -90 just washed, +90 the interval reached. */
   angle: number;
   /** core's washGaugeShare: the arc's fill, 0–1. */
   share: number;
   over: boolean;
+  /** Higher is better (Shine Score, 0078): the arc runs red → amber → green. */
+  reversed?: boolean;
 }) {
   const colors = useColors();
   const reduce = useReduceMotion();
@@ -55,9 +58,9 @@ export function WashGaugeDial({
       <Svg width={96} height={54} viewBox="0 0 96 54" style={StyleSheet.absoluteFill}>
         <Defs>
           <SvgGradient id={`g${id}`} x1="0" y1="0" x2="1" y2="0">
-            <Stop offset="0" stopColor="#22C55E" />
-            <Stop offset="0.6" stopColor="#F5B83D" />
-            <Stop offset="1" stopColor="#FF2D4A" />
+            <Stop offset="0" stopColor={reversed ? '#FF2D4A' : '#22C55E'} />
+            <Stop offset={reversed ? '0.4' : '0.6'} stopColor="#F5B83D" />
+            <Stop offset="1" stopColor={reversed ? '#22C55E' : '#FF2D4A'} />
           </SvgGradient>
         </Defs>
         <Path

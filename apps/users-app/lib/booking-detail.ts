@@ -3,6 +3,7 @@ import { BANK_DAYS, customerRefundLine, withoutRefundPromise } from '@repo/core/
 import { formatRupees } from '@repo/core/job-records';
 import { notAcceptedRefundLine, notAcceptedTitle } from '@repo/core/response-deadline';
 import type { Booking } from '@repo/core/types';
+import { garageDeclinedTitle, quotedGarageReason } from '@repo/core/rescue';
 
 /** The words of apps/users/app/bookings/[id]/page.tsx that decide what's said about money. */
 export function cancelRefundNote(booking: Pick<Booking, 'servicePrice' | 'creditPaid'>): string {
@@ -58,7 +59,8 @@ export function cancelledPanel(booking: Booking): { title: string; lines: string
     return { title: t('Cancelled by the garage'), lines: withRefund([t('{name} accepted this booking, then had to cancel it. Sorry about that.', { name: booking.vendorName })]) };
   }
   if (booking.cancelledBy === 'vendor') {
-    return { title: t('Declined by the garage'), lines: withRefund([reason ?? t('The garage could not take this booking.')]) };
+    // The approved screen: the garage's name and its reason, quoted (core rescue.ts).
+    return { title: garageDeclinedTitle(booking.vendorName), lines: withRefund([reason ? quotedGarageReason(reason) : t('The garage could not take this booking.')]) };
   }
   return { title: booking.cancelledBy === 'user' ? t('Cancelled by you') : t('Booking cancelled'), lines: withRefund([reason ?? t('This booking was cancelled.')]) };
 }

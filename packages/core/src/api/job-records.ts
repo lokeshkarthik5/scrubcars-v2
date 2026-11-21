@@ -8,7 +8,7 @@ import {
   isUploadImageType,
   stripImageMetadata,
 } from '@repo/core/image-upload'
-import type { PhotoAngle } from '@repo/core/job-photo-standards'
+import type { JobPhotoAngle, PhotoAngle } from '@repo/core/job-photo-standards'
 import type { ApiExtraWork, ApiFinalBill, ApiJobPhoto } from './types'
 import type { ExtraWork, FinalBill, JobPhoto } from '@repo/core/types'
 
@@ -36,7 +36,7 @@ export async function uploadJobPhoto(
   bookingId: string,
   stage: JobPhotoStage,
   file: Blob,
-  angle?: PhotoAngle
+  angle?: JobPhotoAngle
 ): Promise<JobPhoto> {
   return uploadAndRecord(`/vendors/me/bookings/${bookingId}/photos`, stage, file, angle)
 }
@@ -97,7 +97,7 @@ async function uploadAndRecord(
   base: string,
   stage: JobPhotoStage,
   file: Blob,
-  angle?: PhotoAngle
+  angle?: JobPhotoAngle
 ): Promise<JobPhoto> {
   const contentType = file.type as UploadContentType
   const { uploadUrl, key } = await apiClient<{

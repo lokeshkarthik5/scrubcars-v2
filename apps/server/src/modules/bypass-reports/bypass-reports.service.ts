@@ -16,6 +16,26 @@ import {
   type WindowRefusal,
 } from '../../lib/bypass-reports.js'
 import { DROP_OFF_RULES, dropOff, windowStartDays } from '../../lib/drop-off.js'
+import { textClientFor, type TextClient } from '../../lib/ai.js'
+import {
+  AI_NOTE_INSTRUCTIONS,
+  FLAG_KIND,
+  FLAG_SIGNAL_LABELS,
+  NOTE_SOURCE_LABELS,
+  OFF_APP_FLAG_RULES,
+  aiSaysYes,
+  inspectionCancelRuns,
+  inspectionEvidenceKey,
+  maskForAi,
+  noteEvidenceKey,
+  noteExcerpt,
+  regularsEvidenceKey,
+  regularsWentQuiet,
+  runDays,
+  scanNote,
+  type BypassSource,
+  type FlagEvidence,
+} from '../../lib/off-app-flags.js'
 import { env } from '../../lib/env.js'
 import { AppError, hasPgCode } from '../../lib/errors.js'
 import { rupees } from '../../lib/gift-credit.js'
@@ -103,13 +123,80 @@ function toCustomerReport(row: BypassReportRecord) {
   }
 }
 
-function toAdminReport(row: AdminReportRow, strikes: Map<string, number>) {
+type People = Map<string, { name: string | null; phone: string | null }>
+
+/** Whether Detlio's own checks are on (OFF_APP_FLAGS_ENABLED, 0077). */
+const flagsOn = () => env.offAppFlagsEnabled
+
+/** The customer a flag is about, if any: its booking's (a note) or the run's (inspection). */
+function flagCustomerId(row: AdminReportRow): string | null {
+  const evidence = row.report.evidence
+  if (!evidence) return null
+  if (evidence.signal === 'cancelled_after_inspection') return evidence.userId
+  if (evidence.signal === 'contact_in_note') return row.bookingUserId
+  return null
+}
+
+/** Everyone a page of flags names, for one read of their names. */
+function peopleIn(rows: AdminReportRow[]): string[] {
+  const ids = new Set<string>()
+  for (const row of rows) {
+    const customer = flagCustomerId(row)
+    if (customer) ids.add(customer)
+    const evidence = row.report.evidence
+    if (evidence?.signal === 'regulars_went_quiet') for (const c of evidence.customers) ids.add(c.userId)
+  }
+  return [...ids]
+}
+
+/**
+ * A flag's evidence as admin reads it: what was found, masked (a full phone
+ * number was never stored), with the bookings to open and the customers'
+ * names. Nothing here ever reaches a garage or a customer.
+ */
+function toEvidenceView(evidence: FlagEvidence, people: People) {
+  switch (evidence.signal) {
+    case 'contact_in_note':
+      return {
+        signal: evidence.signal,
+        where: NOTE_SOURCE_LABELS[evidence.where],
+        writtenAt: evidence.writtenAt,
+        excerpt: evidence.excerpt,
+        found: evidence.found,
+        confirmedByAi: evidence.confirmedByAi,
+      }
+    case 'regulars_went_quiet':
+      return {
+        signal: evidence.signal,
+        regulars: evidence.regulars,
+        stopped: evidence.stopped,
+        bookingElsewhere: evidence.bookingElsewhere,
+        stoppedDays: evidence.stoppedDays,
+        customers: evidence.customers.map((c) => ({
+          id: c.userId,
+          name: people.get(c.userId)?.name ?? null,
+          lastBookingId: c.lastBookingId,
+          lastBookingRef: c.lastBookingRef,
+          lastAt: c.lastAt,
+        })),
+      }
+    case 'cancelled_after_inspection':
+      return { signal: evidence.signal, days: evidence.days, bookings: evidence.bookings }
+  }
+}
+
+function toAdminReport(row: AdminReportRow, strikes: Map<string, number>, people: People = new Map()) {
   const r = row.report
+  const flag = r.source === 'detlio' && r.signal && r.evidence
+  const flagCustomer = flag ? flagCustomerId(row) : null
   return {
     id: r.id,
     status: r.status,
+    // 'customer' for a customer's report, 'detlio' for Detlio's own flag (0077).
+    source: r.source,
+    signal: r.signal,
     kind: r.kind,
-    kindLabel: BYPASS_KIND_LABELS[r.kind],
+    kindLabel: flag && r.signal ? FLAG_SIGNAL_LABELS[r.signal] : BYPASS_KIND_LABELS[r.kind],
     note: r.note,
     createdAt: r.createdAt.toISOString(),
     garage: {
@@ -120,16 +207,26 @@ function toAdminReport(row: AdminReportRow, strikes: Map<string, number>) {
       highlighted: r.vendorId ? strikesHighlighted(strikes.get(r.vendorId) ?? 0) : false,
     },
     booking: {
-      // Null once the booking itself is gone (the reset, or Delete forever).
+      // Null once the booking itself is gone (the reset, or Delete forever),
+      // and on a flag about a garage rather than one booking.
       id: r.bookingId,
       reference: r.bookingRef,
       status: row.bookingStatus,
       scheduledAt: row.bookingScheduledAt?.toISOString() ?? null,
       markedTest: row.bookingMarkedTest,
+      // The pickup fee paid in the app (0079), beside "Asked for extra pickup money".
+      pickupFee: row.bookingPickupFee == null ? null : Number(row.bookingPickupFee),
     },
     // Admin only: the garage never sees who reported. Null once the account
-    // was deleted.
-    customer: r.userId ? { id: r.userId, name: row.customerName, phone: row.customerPhone } : null,
+    // was deleted, and on a flag about no one customer.
+    customer: flag
+      ? flagCustomer
+        ? { id: flagCustomer, name: people.get(flagCustomer)?.name ?? null, phone: people.get(flagCustomer)?.phone ?? null }
+        : null
+      : r.userId
+        ? { id: r.userId, name: row.customerName, phone: row.customerPhone }
+        : null,
+    evidence: flag && r.evidence ? toEvidenceView(r.evidence, people) : null,
     confirmedAt: r.confirmedAt?.toISOString() ?? null,
     confirmedBy: r.confirmedBy,
     dismissedAt: r.dismissedAt?.toISOString() ?? null,
@@ -137,6 +234,14 @@ function toAdminReport(row: AdminReportRow, strikes: Map<string, number>) {
     dismissedReason: r.dismissedReason,
     reward: { status: r.rewardStatus, grantedAt: r.rewardGrantedAt?.toISOString() ?? null },
   }
+}
+
+/** The names a page of flags needs, in one read (none for customers' reports). */
+async function peopleFor(rows: AdminReportRow[]): Promise<People> {
+  const ids = peopleIn(rows)
+  if (ids.length === 0) return new Map()
+  const found = await bypassReportsRepository.customerNames(ids)
+  return new Map(found.map((row) => [row.id, { name: row.name, phone: row.phone }]))
 }
 
 /** Strikes now, for the garages a page of reports names. */
@@ -240,14 +345,32 @@ export const bypassReportsService = {
 
   // ─── Admin ─────────────────────────────────────────────────────────────────
 
-  async list(query: ListBypassReportsQuery, now = new Date()) {
+  /**
+   * Admin's list: one status, and which kind of entry (`from`: all,
+   * customers' reports, or Detlio's flags). While OFF_APP_FLAGS_ENABLED is
+   * off, flags are left out of the list and every count, and `flags` says
+   * so: the screen is as it was.
+   */
+  async list(query: { show: ListBypassReportsQuery['show']; from?: ListBypassReportsQuery['from'] }, now = new Date()) {
+    const on = flagsOn()
+    const from = on ? (query.from ?? 'all') : 'customer'
+    const sources: BypassSource[] = from === 'all' ? ['customer', 'detlio'] : [from]
     // One after the other: the API has a single connection (db/index.ts).
-    const rows = await bypassReportsRepository.listForAdmin(query.show, ADMIN_LIST_LIMIT)
-    const counts = await bypassReportsRepository.countByStatus()
+    const rows = await bypassReportsRepository.listForAdmin(query.show, sources, ADMIN_LIST_LIMIT)
+    const counts = await bypassReportsRepository.countByStatus(on ? ['customer', 'detlio'] : ['customer'])
+    const bySource = on ? await bypassReportsRepository.countBySource(query.show) : null
     const strikes = await strikesFor(rows.map((row) => row.report.vendorId), now)
+    const people = on ? await peopleFor(rows) : new Map()
     return {
-      reports: rows.map((row) => toAdminReport(row, strikes)),
+      reports: rows.map((row) => toAdminReport(row, strikes, people)),
       counts,
+      flags: bySource
+        ? {
+            enabled: true as const,
+            from,
+            counts: { all: bySource.customer + bySource.detlio, customer: bySource.customer, detlio: bySource.detlio },
+          }
+        : { enabled: false as const },
       rules: {
         rewardAmount: rupees(REWARD_PAISE),
         strikeWindowDays: BYPASS_RULES.strikeWindowDays,
@@ -260,7 +383,8 @@ export const bypassReportsService = {
   async get(id: string, now = new Date()) {
     const row = await bypassReportsRepository.findForAdmin(id)
     if (!row) throw notFound()
-    return toAdminReport(row, await strikesFor([row.report.vendorId], now))
+    const strikes = await strikesFor([row.report.vendorId], now)
+    return toAdminReport(row, strikes, await peopleFor([row]))
   },
 
   /**
@@ -325,7 +449,8 @@ export const bypassReportsService = {
       throw new AppError(404, 'Garage not found', 'VENDOR_NOT_FOUND')
     }
     const strikes = (await strikesFor([vendorId], now)).get(vendorId) ?? 0
-    const counts = await bypassReportsRepository.countForGarage(vendorId)
+    // Detlio's flags count only while they are on, as in the list (0077).
+    const counts = await bypassReportsRepository.countForGarage(vendorId, flagsOn() ? ['customer', 'detlio'] : ['customer'])
     return {
       strikes,
       highlighted: strikesHighlighted(strikes),
@@ -369,6 +494,208 @@ export const bypassReportsService = {
     }
     if (granted > 0) log.info({ granted }, 'bypass_report:owed_rewards_granted')
     return { enabled: true as const, owed: ids.length, granted }
+  },
+
+  // ─── Detlio's flags (0077) ──────────────────────────────────────────────────
+
+  /**
+   * Detlio's own checks (lib/off-app-flags.ts): new "Flagged by Detlio"
+   * entries, once each (the evidence key), never a strike or a reward on
+   * their own. Run by the pending-digest cron's 07:00 IST tick and admin's
+   * Check now. Nothing at all while OFF_APP_FLAGS_ENABLED is off. Each check
+   * is on its own: one failing leaves the others to run. Never reads Garage
+   * Book (garage_*).
+   */
+  async runFlagChecks(
+    options: {
+      dryRun: boolean
+      /** Tests only: the AI client (else the one the config allows) and the clock for its time budget. */
+      ai?: TextClient | null
+      clock?: () => number
+    },
+    now = new Date()
+  ) {
+    if (!flagsOn()) return { enabled: false as const }
+    const summary = { enabled: true as const, created: 0, notes: 0, aiAsked: 0, regulars: 0, inspection: 0, failed: 0 }
+    const clock = options.clock ?? Date.now
+    const started = clock()
+
+    // 1. A phone number, UPI ID or "pay directly" in a garage's note.
+    try {
+      const since = new Date(now.getTime() - OFF_APP_FLAG_RULES.noteLookbackDays * 24 * 60 * 60 * 1000)
+      const notes = await bypassReportsRepository.garageNotesSince(since, OFF_APP_FLAG_RULES.noteLimit)
+      summary.notes = notes.length
+      const ai =
+        options.ai !== undefined
+          ? options.ai
+          : textClientFor({ apiKey: env.openaiApiKey, model: env.aiTextModel, fake: env.aiFake })
+      // Set when AI fails once: no more questions this run (it is down or slow).
+      let aiDown = false
+      for (const note of notes) {
+        const scan = scanNote(note.text)
+        if (!scan.strength) continue
+        const key = noteEvidenceKey({ rootBookingId: note.rootBookingId, where: note.where, noteId: note.noteId })
+        let confirmedByAi = false
+        if (scan.strength === 'weak') {
+          // Softer wording: only when AI is on, a few a run, and never twice for one note.
+          if (!ai || aiDown || summary.aiAsked >= OFF_APP_FLAG_RULES.aiChecksPerRun) continue
+          // Within the run's AI time budget (the digest shares the API's 60 s).
+          if (clock() - started > OFF_APP_FLAG_RULES.aiBudgetMs) continue
+          if (await bypassReportsRepository.flagExists(key)) continue
+          summary.aiAsked += 1
+          try {
+            // The note alone, numbers and UPI IDs masked: never a name, a phone or the booking.
+            const answer = await ai.complete({
+              instructions: AI_NOTE_INSTRUCTIONS,
+              input: maskForAi(note.text),
+              maxOutputTokens: 400,
+            })
+            if (!aiSaysYes(answer)) continue
+            confirmedByAi = true
+          } catch (err) {
+            log.warn({ err, where: note.where }, 'off_app_flags:ai_unavailable')
+            aiDown = true
+            continue
+          }
+        }
+        if (options.dryRun) {
+          summary.created += 1
+          continue
+        }
+        const created = await bypassReportsRepository.insertFlag({
+          vendorId: note.vendorId,
+          garageName: note.garageName,
+          bookingId: note.bookingId,
+          bookingRef: bookingReference(note.bookingId),
+          signal: 'contact_in_note',
+          kind: FLAG_KIND.contact_in_note,
+          evidenceKey: key,
+          evidence: {
+            signal: 'contact_in_note',
+            bookingId: note.bookingId,
+            bookingRef: bookingReference(note.bookingId),
+            where: note.where,
+            writtenAt: note.writtenAt.toISOString(),
+            excerpt: noteExcerpt(note.text),
+            found: scan.found.length > 0 ? scan.found : ['wording'],
+            confirmedByAi,
+          },
+        })
+        if (created) summary.created += 1
+      }
+    } catch (err) {
+      summary.failed += 1
+      log.error({ err }, 'off_app_flags:notes_failed')
+    }
+
+    // 2. Repeat customers who stopped booking a garage.
+    try {
+      const chains = await bypassReportsRepository.dropOffChains({
+        regularFrom: windowStartDays(now, OFF_APP_FLAG_RULES.regularWindowDays),
+        historyFrom: windowStartDays(now, OFF_APP_FLAG_RULES.regularWindowDays),
+        minCompleted: OFF_APP_FLAG_RULES.regularMinCompleted,
+        limit: DROP_OFF_ROW_LIMIT,
+      })
+      const garages = regularsWentQuiet(chains, now)
+      summary.regulars = garages.length
+      const names = new Map(
+        (await bypassReportsRepository.garageNames(garages.map((g) => g.vendorId))).map((row) => [row.id, row])
+      )
+      for (const garage of garages) {
+        const named = names.get(garage.vendorId)
+        // A garage in the Bin has no customers to lose.
+        if (!named || named.deletedAt) continue
+        // Once per garage per 30 days. The key's 30-day period alone would
+        // let a flag on a period's last day be followed by another the next
+        // morning, in the new period.
+        const repeatSince = new Date(now.getTime() - OFF_APP_FLAG_RULES.regularsRepeatDays * 24 * 60 * 60 * 1000)
+        if (await bypassReportsRepository.recentFlagExists(garage.vendorId, 'regulars_went_quiet', repeatSince)) continue
+        if (options.dryRun) {
+          summary.created += 1
+          continue
+        }
+        const created = await bypassReportsRepository.insertFlag({
+          vendorId: garage.vendorId,
+          garageName: named.name,
+          bookingId: null,
+          bookingRef: null,
+          signal: 'regulars_went_quiet',
+          kind: FLAG_KIND.regulars_went_quiet,
+          evidenceKey: regularsEvidenceKey(garage.vendorId, now),
+          evidence: {
+            signal: 'regulars_went_quiet',
+            regulars: garage.regulars,
+            stopped: garage.stopped,
+            bookingElsewhere: garage.bookingElsewhere,
+            stoppedDays: OFF_APP_FLAG_RULES.stoppedDays,
+            customers: garage.customers.slice(0, OFF_APP_FLAG_RULES.regularsListed).map((c) => ({
+              userId: c.userId,
+              lastBookingId: c.lastBookingId,
+              lastBookingRef: bookingReference(c.lastBookingId),
+              lastAt: c.lastAt.toISOString(),
+            })),
+          },
+        })
+        if (created) summary.created += 1
+      }
+    } catch (err) {
+      summary.failed += 1
+      log.error({ err }, 'off_app_flags:regulars_failed')
+    }
+
+    // 3. The same customer and garage cancelling after inspection, again.
+    try {
+      const since = new Date(now.getTime() - OFF_APP_FLAG_RULES.inspectionWindowDays * 24 * 60 * 60 * 1000)
+      const rows = await bypassReportsRepository.inspectionCancelsSince(since, DROP_OFF_ROW_LIMIT)
+      const runs = inspectionCancelRuns(rows, now)
+      summary.inspection = runs.length
+      const names = new Map(
+        (await bypassReportsRepository.garageNames([...new Set(runs.map((r) => r.vendorId))])).map((row) => [row.id, row])
+      )
+      for (const run of runs) {
+        const named = names.get(run.vendorId)
+        const latest = run.bookings[run.bookings.length - 1]
+        if (!named || !latest) continue
+        if (options.dryRun) {
+          summary.created += 1
+          continue
+        }
+        const created = await bypassReportsRepository.insertFlag({
+          vendorId: run.vendorId,
+          garageName: named.name,
+          bookingId: latest.bookingId,
+          bookingRef: bookingReference(latest.bookingId),
+          signal: 'cancelled_after_inspection',
+          kind: FLAG_KIND.cancelled_after_inspection,
+          evidenceKey: inspectionEvidenceKey(run),
+          evidence: {
+            signal: 'cancelled_after_inspection',
+            userId: run.userId,
+            days: runDays(run),
+            bookings: run.bookings.map((b) => ({
+              id: b.bookingId,
+              ref: bookingReference(b.bookingId),
+              cancelledAt: b.cancelledAt.toISOString(),
+              reason: b.reason ? noteExcerpt(b.reason) : null,
+            })),
+          },
+        })
+        if (created) summary.created += 1
+      }
+    } catch (err) {
+      summary.failed += 1
+      log.error({ err }, 'off_app_flags:inspection_failed')
+    }
+
+    if (summary.created > 0 || summary.failed > 0) log.info(summary, 'off_app_flags:checked')
+    return summary
+  },
+
+  /** Admin's Check now: the same checks at once. A 404 while the switch is off. */
+  async checkFlagsNow(now = new Date()) {
+    if (!flagsOn()) throw new AppError(404, 'Detlio flags are off', 'OFF_APP_FLAGS_OFF')
+    const summary = await bypassReportsService.runFlagChecks({ dryRun: false }, now)
+    return summary.enabled ? { created: summary.created, failed: summary.failed } : { created: 0, failed: 0 }
   },
 
   /**

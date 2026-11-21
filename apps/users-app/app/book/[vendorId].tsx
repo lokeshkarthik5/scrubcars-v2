@@ -34,6 +34,9 @@ import { useNow } from '@repo/core/hooks/use-now';
 import { fill, msg, useT, useTn } from '@repo/core/i18n';
 import { confirmPayment, intentPollResult, realClock } from '@repo/core/payment-confirmation';
 import { insidePickupReach, PICKUP_RESPONSIBILITY_LINE, pickupFeeLabel } from '@repo/core/pickup';
+import { usePickupFeeConfig } from '@repo/core/api/hooks/use-pickup-fee';
+import { CONVENIENCE_FEE_LABEL, PICKUP_FEE_FULL_LINE, PICKUP_FEE_REFUND_LINE, pickupLineLabel } from '@repo/core/pickup-fee';
+import { addressPickupFee } from '@repo/core/pickup-fee-customer';
 import { isNoFeeInspection, resolveServiceAmount } from '@repo/core/pricing';
 import { checkoutAgreement } from '@repo/core/inspection-booking';
 import { hasStarScore } from '@repo/core/ratings';
@@ -96,6 +99,7 @@ import { SlotAlertAsk } from '@/components/slot-alerts/slot-alert-ask';
 import { getVendorAddOns } from '@/lib/add-ons';
 import { useAuth } from '@/lib/auth';
 import { bookingCarId } from '@/lib/booking-car';
+import { linkedCarId } from '@repo/core/rescue';
 import {
   clearBookingDraft,
   type DraftAddress,
@@ -149,6 +153,8 @@ export default function BookScreen() {
     date?: string;
     request?: string;
     slot?: string;
+    /** The rescue's booked car (other-garages-card.tsx): its "Same job" price was for this car. */
+    car?: string;
   }>();
   const vendorId = String(params.vendorId);
   const serviceIdsParam = params.service ?? null;
@@ -329,12 +335,13 @@ export default function BookScreen() {
     ? carDraftReady
       ? DRAFT_CAR
       : null
-    : (acceptedRequest?.vehicleId ?? pickedVehicle ?? (carDraftReady ? DRAFT_CAR : bookingCarId(vehicles, livePending?.vehicleId)));
+    : (acceptedRequest?.vehicleId ?? pickedVehicle ?? linkedCarId(vehicles, params.car) ?? (carDraftReady ? DRAFT_CAR : bookingCarId(vehicles, livePending?.vehicleId)));
   const savedVehicleId = selectedVehicle === DRAFT_CAR ? null : selectedVehicle;
   const selectedVehicleRecord = vehicles.find((v) => v.id === savedVehicleId);
   const selectedVehicleLabel = selectedVehicleRecord ? `${selectedVehicleRecord.make} ${selectedVehicleRecord.model}`.trim() : null;
-  const bookingType = resolveBookingType(acceptedRequest?.bookingType ?? chosenType, vendor);
-  const modeWithdrawn = unofferedMode(chosenType, vendor);
+  // Ask for pickup (0079) may be a yes from a garage that doesn't list pickup: the yes is the mode.
+  const bookingType = acceptedRequest ? acceptedRequest.bookingType : resolveBookingType(chosenType, vendor);
+  const modeWithdrawn = requestMode ? null : unofferedMode(chosenType, vendor);
   const modeOptions = vendor ? offeredBookingTypes(vendor).map((value) => ({ value, label: BOOKING_TYPE_LABELS[value] })) : [];
   const checkoutSeen = useRef(false);
   useEffect(() => {
@@ -460,11 +467,24 @@ export default function BookScreen() {
   // On inspection with no fee (0073), and nothing else priced: nothing to pay now. The server
   // books it with no payment and refuses a code on it, so no code is offered or sent (as the web).
   const nothingPriced = subtotal === 0 && selectedServices.some(isNoFeeInspection);
+  // The pickup fee (0079) for the address, with the server's own maths (web checkout); an accepted
+  // request's fee is its travelFee. Detlio's convenience fee only while above ₹0, never on a ₹0 booking.
+  const pickupTrip =
+    isPickup && !requestMode && vendor && selectedAddressRecord && !addressNeedsPin
+      ? addressPickupFee(vendor.pickupFee, vendor, selectedAddressRecord, subtotal)
+      : null;
+  const pickupFee = isPickup ? (requestMode ? travelFee : (pickupTrip?.fee ?? 0)) : 0;
+  const pickupRoadKm = requestMode ? (acceptedRequest?.roadKm ?? null) : (pickupTrip?.roadKm ?? null);
+  const pickupFeeConfig = usePickupFeeConfig();
+  const servicesCharge = appliedDiscount ? Number(appliedDiscount.finalAmount) : subtotal;
+  const convenienceFee =
+    servicesCharge != null && servicesCharge + travelFee + (requestMode ? 0 : pickupFee) > 0 ? (pickupFeeConfig.data?.convenienceFee ?? 0) : 0;
+  const fees = travelFee + (requestMode ? 0 : pickupFee) + convenienceFee;
   const payableAmount = appliedDiscount
-    ? Math.round((Number(appliedDiscount.finalAmount) + travelFee) * 100) / 100
+    ? Math.round((Number(appliedDiscount.finalAmount) + fees) * 100) / 100
     : subtotal == null
       ? null
-      : Math.round((subtotal + travelFee) * 100) / 100;
+      : Math.round((subtotal + fees) * 100) / 100;
   const creditBalance = giftsOn ? Number(myCredit.data?.balance ?? 0) : 0;
   const creditSplit = creditBalance > 0 && payableAmount != null && payableAmount > 0 ? checkoutCreditSplit(payableAmount, creditBalance) : null;
   const creditOffered = creditSplit !== null && creditSplit.credit > 0;
@@ -692,6 +712,9 @@ export default function BookScreen() {
         discountCode,
         useCredit: giftsOn ? creditApplied : undefined,
         requestId: acceptedRequest?.id,
+        // The pickup fee this screen shows (0079): the server refuses, before
+        // any charge, if the garage's fee changed since.
+        pickupFee: pickupTrip ? pickupTrip.fee : undefined,
       });
       if ((order.paidWithCredit || order.free) && order.bookingId) {
         paidRef.current = true;
@@ -774,6 +797,11 @@ export default function BookScreen() {
               : error.message
         );
         goToStep('slot');
+      } else if (error instanceof ApiError && error.code === 'PICKUP_FEE_CHANGED') {
+        // The garage's pickup fee changed since this screen loaded (0079): nothing was charged.
+        // Fetch the garage again so the lines and the total show the new fee before paying.
+        toast.error(error.message);
+        void getVendor(vendorId).then((v) => v && setVendor(v));
       } else if (error instanceof ApiError && error.code === 'PICKUP_NOT_OFFERED') {
         toast.error(
           otherMode
@@ -1517,7 +1545,7 @@ export default function BookScreen() {
                 <View style={styles.priceRow}>
                   <View style={styles.shrink}>
                     <T size={15} lh={22} color={colors.textSecondary}>
-                      {t('Pickup & drop')}
+                      {pickupLineLabel(pickupRoadKm)}
                     </T>
                     {selectedAddressRecord ? (
                       <T size={13} lh={18} color={colors.textMuted} numberOfLines={1}>
@@ -1525,12 +1553,28 @@ export default function BookScreen() {
                       </T>
                     ) : null}
                   </View>
-                  <T size={15} lh={22} color={colors.success}>
-                    {pickupFeeLabel(0)}
+                  {pickupFee > 0 ? (
+                    <T num size={15} lh={22}>
+                      {money(pickupFee)}
+                    </T>
+                  ) : (
+                    <T size={15} lh={22} color={colors.success}>
+                      {pickupFeeLabel(0)}
+                    </T>
+                  )}
+                </View>
+              ) : null}
+              {convenienceFee > 0 ? (
+                <View style={styles.priceRow}>
+                  <T size={15} lh={22} color={colors.textSecondary}>
+                    {t(CONVENIENCE_FEE_LABEL)}
+                  </T>
+                  <T num size={15} lh={22}>
+                    {money(convenienceFee)}
                   </T>
                 </View>
               ) : null}
-              {travelFee > 0 ? (
+              {travelFee > 0 && !isPickup ? (
                 <View style={styles.priceRow}>
                   <T size={15} lh={22} color={colors.textSecondary}>
                     {t('Travel fee')}
@@ -1560,7 +1604,7 @@ export default function BookScreen() {
                   </T>
                 </View>
               ) : null}
-              <View style={[styles.priceRow, (lineCount > 1 || isPickup || travelFee > 0 || appliedDiscount || creditApplied) && styles.totalLine]}>
+              <View style={[styles.priceRow, (lineCount > 1 || isPickup || travelFee > 0 || convenienceFee > 0 || appliedDiscount || creditApplied) && styles.totalLine]}>
                 <T size={17} lh={24}>
                   {inspectionBooking ? t('Pay after inspection') : t('To pay')}
                 </T>
@@ -1569,6 +1613,14 @@ export default function BookScreen() {
                 </T>
               </View>
             </HubCard>
+            {isPickup && pickupFee > 0 ? (
+              <View style={styles.problemLine}>
+                <IconCheck size={16} color={colors.success} />
+                <T size={13} lh={20} style={styles.grow}>
+                  {t(PICKUP_FEE_FULL_LINE)}
+                </T>
+              </View>
+            ) : null}
             {isPickup ? (
               <View style={styles.problemLine}>
                 <IconShieldCheck size={16} color={colors.textSecondary} />
@@ -1591,6 +1643,7 @@ export default function BookScreen() {
               </T>
               {t("Cancel any time until the garage accepts. Once it has, cancel or reschedule up to 2 hours before your slot. You can reschedule up to 2 times; each new time goes back to the garage to accept, and if it can't take it, the booking is cancelled. If you don't turn up for an accepted booking, it isn't refunded.")}
               {isPickup ? ` ${t('Once the garage has collected your car, the booking can’t be cancelled or moved in the app.')}` : ''}
+              {isPickup ? ` ${t(PICKUP_FEE_REFUND_LINE)}` : ''}
             </T>
             {selectedVehicle && !savedVehicleId ? (
               <T size={13} lh={20} color={colors.textSecondary}>

@@ -64,6 +64,8 @@ export const BYPASS_KINDS = [
   'lower_price',
   'pay_directly',
   'gave_number',
+  // 0079: the garage asked for more than the pickup fee paid in the app.
+  'pickup_money',
   'other',
 ] as const
 export type BypassKind = (typeof BYPASS_KINDS)[number]
@@ -73,6 +75,7 @@ export const BYPASS_KIND_LABELS: Record<BypassKind, string> = {
   lower_price: 'Offered a lower price outside Detlio',
   pay_directly: 'Asked me to pay cash or UPI directly',
   gave_number: 'Gave their number for future bookings',
+  pickup_money: 'Asked for extra pickup money',
   other: 'Something else',
 }
 
@@ -183,7 +186,7 @@ export function yearStart(now: Date): Date {
 export type RewardDecision =
   | { kind: 'grant' }
   | { kind: 'owe' }
-  | { kind: 'none'; why: 'no_account' | 'no_garage' | 'already_rewarded' }
+  | { kind: 'none'; why: 'detlio_flag' | 'no_account' | 'no_garage' | 'already_rewarded' }
 
 /**
  * What confirming a report gives its customer: ₹100 of Detlio credit, once
@@ -199,7 +202,10 @@ export function rewardDecision(input: {
   hasGarage: boolean
   alreadyRewarded: boolean
   creditOn: boolean
+  /** A flag Detlio's own check raised (0077): nobody reported it, so no reward, ever. */
+  fromDetlio?: boolean
 }): RewardDecision {
+  if (input.fromDetlio) return { kind: 'none', why: 'detlio_flag' }
   if (!input.hasAccount) return { kind: 'none', why: 'no_account' }
   if (!input.hasGarage) return { kind: 'none', why: 'no_garage' }
   if (input.alreadyRewarded) return { kind: 'none', why: 'already_rewarded' }

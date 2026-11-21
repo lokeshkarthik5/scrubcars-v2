@@ -5,8 +5,10 @@
  * customer (lib/reach.ts, within JUST_OUTSIDE_KM past it) can be asked to
  * come anyway. The customer picks the services, a time **window** (not an
  * exact slot, so it is easy to say yes to) and the address, and pays
- * nothing. The garage has two hours to say yes, with a travel fee (₹0, ₹100
- * or ₹200, which it keeps whole) and a start time inside the window, or
+ * nothing. The garage has two hours to say yes, with a fee (Detlio's
+ * suggestion for the road km, up to 25% more, 0079 — lib/pickup-fee-maths.ts;
+ * a request from before 0079 keeps ₹0, ₹100 or ₹200; the garage keeps it
+ * whole) and a start time inside the window, or
  * no. No answer, or no, passes the same request to the next nearest garage
  * that can take it, at most two garages a request. A yes gives the customer
  * two hours to confirm and pay; then it is an ordinary booking.
@@ -23,6 +25,7 @@ import { computeServiceAmount, sumAmounts, type PricedService, type VehicleTier 
 import { istDateKey, istTimeLabel, MONTHS, WEEKDAYS } from './ist.js'
 import { straightLineKm } from './service-city.js'
 import { effectiveDurationMins } from './service-duration.js'
+import { rescueScore, type GarageRecord } from './rescue-garages.js'
 
 const MINUTE_MS = 60 * 1000
 
@@ -52,7 +55,7 @@ export const REQUEST_RULES = {
   maxGarages: 2,
   /** "Pick a day": how many days ahead. */
   pickDayAheadDays: 14,
-  /** The travel fees a garage may add, in rupees. */
+  /** The travel fees a garage could add before 0079, in rupees: only a request without a suggestion. */
   travelFees: [0, 100, 200] as const,
 } as const
 
@@ -329,6 +332,7 @@ export type AnswerRefusal =
   | 'REQUEST_NOT_WAITING'
   | 'REQUEST_TIME_PASSED'
   | 'TRAVEL_FEE_INVALID'
+  | 'PICKUP_TERMS_REQUIRED'
   | 'START_NOT_OFFERED'
 
 /** Why a yes is refused, or null. `starts` is requestStartTimes for this request now. */
@@ -336,13 +340,28 @@ export function acceptRefusal(input: {
   status: string
   respondBy: Date
   travelFee: number
+  /**
+   * The most the garage may ask (0079): Detlio's suggestion + 25%, within
+   * the caps and the services' price. Null on a request from before 0079,
+   * whose fee is one of ₹0, ₹100 or ₹200.
+   */
+  maxFee?: number | null
+  /** Ask for pickup: the responsibility tick is needed to say yes (0079). */
+  termsRequired?: boolean
+  termsAccepted?: boolean
   startAt: Date
   starts: readonly Date[]
   now: Date
 }): AnswerRefusal | null {
   if (input.status !== 'pending') return 'REQUEST_NOT_WAITING'
   if (input.respondBy <= input.now) return 'REQUEST_TIME_PASSED'
-  if (!isTravelFee(input.travelFee)) return 'TRAVEL_FEE_INVALID'
+  const maxFee = input.maxFee ?? null
+  const feeOk =
+    maxFee === null
+      ? isTravelFee(input.travelFee)
+      : Number.isInteger(input.travelFee) && input.travelFee >= 0 && input.travelFee <= maxFee
+  if (!feeOk) return 'TRAVEL_FEE_INVALID'
+  if (input.termsRequired && input.termsAccepted !== true) return 'PICKUP_TERMS_REQUIRED'
   if (!input.starts.some((at) => at.getTime() === input.startAt.getTime())) return 'START_NOT_OFFERED'
   return null
 }
@@ -362,6 +381,12 @@ export interface RequestCandidate {
   lines: RequestLine[] | null
   /** Its last start in the window, from now (two hours' lead), or null. */
   lastStart: Date | null
+  /**
+   * How it answers bookings (lib/rescue-garages.ts garageRecord) and its star
+   * score, for ranking a pass-on. Left out, the middle mark: distance decides.
+   */
+  record?: GarageRecord
+  rating?: number | null
 }
 
 export type CandidateRefusal =
@@ -388,12 +413,16 @@ export function firstGarageRefusal(candidate: RequestCandidate): CandidateRefusa
 }
 
 /**
- * The next garage to pass a request to: the nearest one, not asked before
- * in this request, that is listed, offers the mode, reaches the customer or
- * is within 15 km past its reach, has a wanted service for this car, and
- * still has a start in the window. A garage that covers them is fine here:
- * the customer asked to have it done, and it can say yes as easily. Null
- * when there is none, or the request has had its two garages.
+ * The next garage to pass a request to: of those not asked before in this
+ * request that are listed, offer the mode, reach the customer or are within
+ * 15 km past their reach, have a wanted service for this car, and still
+ * have a start in the window, the best by the rescue's score
+ * (lib/rescue-garages.ts rescueScore: distance, how fast it usually answers,
+ * how often it accepts, its rating, recent cancellations; no slot part, a
+ * request has a window). Ties: the nearer, then by id. A garage that covers
+ * them is fine here: the customer asked to have it done, and it can say yes
+ * as easily. Null when there is none, or the request has had its two
+ * garages.
  */
 export function pickNextGarage(
   candidates: readonly RequestCandidate[],
@@ -411,8 +440,17 @@ export function pickNextGarage(
       c.lines.length > 0 &&
       c.lastStart !== null
   )
-  eligible.sort((a, b) => a.distanceKm - b.distanceKm || (a.vendorId < b.vendorId ? -1 : 1))
-  return eligible[0] ?? null
+  const score = (c: RequestCandidate) =>
+    rescueScore({
+      distanceKm: c.distanceKm,
+      record: c.record ?? { medianAnswerMins: null, acceptRate: null, recentCancels: 0 },
+      rating: c.rating ?? null,
+    })
+  const scored = eligible.map((c) => ({ c, score: score(c) }))
+  scored.sort(
+    (a, b) => b.score - a.score || a.c.distanceKm - b.c.distanceKm || (a.c.vendorId < b.c.vendorId ? -1 : 1)
+  )
+  return scored[0]?.c ?? null
 }
 
 // ─── Services ────────────────────────────────────────────────────────────────

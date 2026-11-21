@@ -7,6 +7,7 @@ import { slotKeys } from '@repo/core/api/hooks/use-slots';
 import { useTravelTime } from '@repo/core/api/hooks/use-travel-time';
 import { verifyPayment } from '@repo/core/api/payments';
 import { bookAgainPath, canBookAgain, matchSavedAddress } from '@repo/core/book-again';
+import { showsRescue } from '@repo/core/rescue';
 import { BOOKING_TYPE_LABELS, bookingReference, CONFIRMED_CHANGE_CUTOFF_MINS } from '@repo/core/booking-types';
 import { googleMapsLink, telHref, whatsAppHref } from '@repo/core/contact-links';
 import { contactWindowState } from '@repo/core/contact-window';
@@ -24,7 +25,8 @@ import { useUserStore } from '@repo/core/stores/user-store';
 import type { Booking, Review } from '@repo/core/types';
 import { Label, ScButton } from '@repo/native-ui/button';
 import { AddOnMark } from '@repo/native-ui/chip';
-import { IconArrowUpRight, IconChevronRight, IconNavigation, IconRepeat } from '@repo/native-ui/icons';
+import { IconArrowUpRight, IconChevronRight, IconInfoCircle, IconNavigation, IconRepeat } from '@repo/native-ui/icons';
+import { CONVENIENCE_FEE_LABEL, pickupLineLabel, pickupRefundNote } from '@repo/core/pickup-fee';
 import { ScInput } from '@repo/native-ui/inputs';
 import { HubCard, ScCard, Skeleton, Spinner } from '@repo/native-ui/primitives';
 import { ScSheet } from '@repo/native-ui/sheet';
@@ -40,11 +42,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PullReveal } from '@/components/collect/pull-reveal';
 import { ScratchCardPanel } from '@/components/rewards/scratch-card';
 import { CarConditionCard } from '@/components/booking/car-condition-card';
+import { ConditionCheckCard } from '@/components/booking/condition-check-card';
 import { BookingDirectionsSheet, describeDrive } from '@/components/booking/directions-sheet';
 import { ExtraWorkCard } from '@/components/booking/extra-work-card';
 import { type BillPayment, FinalBillCard } from '@/components/booking/final-bill-card';
 import { BookingHelpSheet } from '@/components/booking/help-sheet';
 import { JobPhotosCard } from '@/components/booking/job-photos-card';
+import { BookingShineCard } from '@/components/shine/booking-shine-card';
 import { OtherGaragesCard } from '@/components/booking/other-garages-card';
 import { PickupCodeCard, PickupTimeline, StatusStepper } from '@/components/booking/progress';
 import { BypassReportLine } from '@/components/booking/report-bypass';
@@ -495,6 +499,17 @@ export default function BookingDetailScreen() {
 
         {isPickup && !missedByGarage ? <PickupCodeCard booking={booking} /> : null}
 
+        {/* The car condition check (0075): the garage's walk-round to agree, and after
+            the job any possible new mark. */}
+        <ConditionCheckCard
+          booking={booking}
+          onChanged={async () => {
+            const fresh = await getBooking(booking.id).catch(() => null);
+            if (fresh) setBooking(fresh);
+          }}
+          onHelp={() => setShowHelp(true)}
+        />
+
         {Object.entries(billPayments)
           .filter(([chargeId, payment]) => chargeId !== booking.finalBill?.id && payment.phase !== 'paid')
           .map(([chargeId, payment]) => (
@@ -603,6 +618,8 @@ export default function BookingDetailScreen() {
         ) : null}
 
         <View onLayout={(e) => (cardY.current.photos = e.nativeEvent.layout.y)}>
+          {/* Shine Score (0078): "Your Shine went 46 → 92", from the garage's photos. */}
+          <BookingShineCard bookingId={booking.id} completed={finished} photos={booking.jobPhotos} />
           <JobPhotosCard photos={booking.jobPhotos} completed={finished} />
         </View>
         <CarConditionCard
@@ -633,9 +650,15 @@ export default function BookingDetailScreen() {
               <Amount value={booking.items[0] ? bookingLinePriceText(booking.items[0]) : money(booking.subtotalPrice)} />
             )}
           </Row>
+          {/* The pickup fee (0079), locked at booking, with the road km; a doorstep request's travel fee keeps its line. */}
           {(booking.travelFee ?? 0) > 0 ? (
-            <Row label={t('Travel fee')}>
+            <Row label={isPickup ? pickupLineLabel(booking.roadKm) : t('Travel fee')}>
               <Amount value={money(booking.travelFee ?? 0)} />
+            </Row>
+          ) : null}
+          {(booking.convenienceFee ?? 0) > 0 ? (
+            <Row label={t(CONVENIENCE_FEE_LABEL)}>
+              <Amount value={money(booking.convenienceFee ?? 0)} />
             </Row>
           ) : null}
           {booking.discountAmount > 0 ? (
@@ -678,6 +701,16 @@ export default function BookingDetailScreen() {
             )}
           </Row>
         </HubCard>
+
+        {/* What the pickup fee covers, and its refund if the garage cancels or doesn't turn up (0079). */}
+        {isPickup && (booking.travelFee ?? 0) > 0 ? (
+          <View style={styles.feeNote}>
+            <IconInfoCircle size={16} color={colors.textMuted} />
+            <T size={13} lh={20} color={colors.textSecondary} style={styles.grow}>
+              {pickupRefundNote(booking.vendorName)}
+            </T>
+          </View>
+        ) : null}
 
         {gettingThere && !missedByGarage ? (
           <ScCard style={styles.getting}>
@@ -734,7 +767,7 @@ export default function BookingDetailScreen() {
           </ScCard>
         ) : null}
 
-        {booking.status === 'cancelled' && booking.notAcceptedInTime ? <OtherGaragesCard booking={booking} /> : null}
+        {showsRescue(booking) ? <OtherGaragesCard booking={booking} addressId={matchSavedAddress(booking, addresses)} /> : null}
 
         {!finished && canBookAgain(booking) ? (
           <ScButton variant="outline" height={52} onPress={() => router.push(bookAgainPath(booking, matchSavedAddress(booking, addresses)) as Href)}>
@@ -909,6 +942,7 @@ const useStyles = createStyles((c) => ({
   mt20: { marginTop: 20 },
   confirming: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   details: { paddingHorizontal: 20 },
+  feeNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 4 },
   detailRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16, paddingVertical: 12 },
   detailLine: { borderBottomWidth: 1, borderBottomColor: c.line },
   rowLabel: { flexShrink: 0, maxWidth: '55%' },

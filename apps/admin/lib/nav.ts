@@ -78,7 +78,7 @@ export const NAV_GROUPS: NavGroup[] = [
         label: 'Issues',
         icon: 'issues',
         // Complaints · Redo claims · Bypass reports, one place with tabs.
-        alsoActiveOn: ['/guarantee', '/bypass-reports'],
+        alsoActiveOn: ['/guarantee', '/bypass-reports', '/shine-checks', '/pickup-fees'],
         count: 'issues',
       },
       { href: '/refunds', label: 'Refunds', icon: 'refunds', count: 'refunds' },

@@ -93,6 +93,40 @@ describe('creditAtBooking', () => {
       expect(sumAmounts([payout, due])).toBe('2400.00')
     })
   })
+
+  describe('the pickup fee and Detlio’s convenience fee (0079) credit nothing', () => {
+    // ₹299 inspection + ₹120 pickup fee + ₹19 convenience fee = ₹438 paid; a ₹2,500 bill.
+    const booking = {
+      amount: '438.00',
+      subtotalAmount: '438.00',
+      travelFee: '120.00',
+      roadKm: '11.0',
+      convenienceFee: '19.00',
+      payment: paid,
+    }
+    const total = '2500.00'
+    const due = finalBillAmountDue(total, creditAtBooking(booking))
+
+    test('only the services count toward the bill', () => {
+      expect(creditAtBooking(booking)).toBe('299.00')
+      expect(due).toBe('2201.00')
+    })
+
+    test('the garage gets its bill plus its whole pickup fee, never the convenience fee', () => {
+      const payout = computeVendorPayout({ ...booking, discountFundedBy: null })
+      expect(sumAmounts([payout, due])).toBe('2620.00')
+    })
+
+    test('the customer pays the bill, the pickup fee and the convenience fee', () => {
+      expect(sumAmounts([booking.amount, due])).toBe('2639.00')
+    })
+
+    test('an older request’s travel fee (no road km) keeps the credit it always had', () => {
+      expect(
+        creditAtBooking({ amount: '399.00', subtotalAmount: '399.00', travelFee: '100.00', roadKm: null, payment: paid })
+      ).toBe('399.00')
+    })
+  })
 })
 
 describe('finalBillRefusal', () => {

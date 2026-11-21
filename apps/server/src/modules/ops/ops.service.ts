@@ -22,6 +22,7 @@ import { rewardsService } from '../rewards/rewards.service.js'
 import { rewardExtrasService } from '../reward-extras/reward-extras.service.js'
 import { garageService } from '../garage/garage.service.js'
 import { slotAlertsService } from '../slot-alerts/slot-alerts.service.js'
+import { shineScoreService } from '../shine-score/shine-score.service.js'
 import { timeProposalsService } from '../time-proposals/time-proposals.service.js'
 import { opsRepository } from './ops.repository.js'
 
@@ -193,6 +194,15 @@ export const opsService = {
         log.error({ err }, 'ops:bypass_reward_sweep_failed')
         return { error: true as const }
       })
+    // Off-app payment flags (0077): Detlio's own daily checks, at the 07:00
+    // IST tick only, nothing while OFF_APP_FLAGS_ENABLED is off. Each flag is
+    // written once (its evidence key). Never allowed to fail the digest.
+    const offAppFlags = isMorningTick(Date.now())
+      ? await bypassReportsService.runFlagChecks({ dryRun: options.dryRun }).catch((err: unknown) => {
+          log.error({ err }, 'ops:off_app_flags_failed')
+          return { error: true as const }
+        })
+      : null
     // Detlio Rewards (0050), only while live: completions and no-shows the
     // after-response hooks missed, stamps of bookings since marked Test or
     // refunded taken back, then (10:00–17:59 IST) level perks and the habit
@@ -229,6 +239,16 @@ export const opsService = {
       .refreshGoogle({ dryRun: options.dryRun })
       .catch((err: unknown) => {
         log.error({ err }, 'ops:google_leads_refresh_failed')
+        return { error: true as const }
+      })
+    // Shine Score (0078): scans and their private photos deleted after 30
+    // days (whatever the switch says), then, while on, one finished job
+    // with no before/after score yet (the completion hook's catch-up; one
+    // AI call). Never allowed to fail the digest.
+    const shineScore = await shineScoreService
+      .sweep({ dryRun: options.dryRun })
+      .catch((err: unknown) => {
+        log.error({ err }, 'ops:shine_score_sweep_failed')
         return { error: true as const }
       })
     const giftCodeAttemptsPurged = options.dryRun
@@ -303,6 +323,7 @@ export const opsService = {
       slotAlerts,
       giftCredit,
       bypassRewards,
+      offAppFlags,
       guarantee,
       giftCodeAttemptsPurged,
       couponCodeAttemptsPurged,
@@ -310,6 +331,7 @@ export const opsService = {
       rewardExtras,
       garage,
       googleLeads,
+      shineScore,
       missedResponsesYesterday: missedResponses.reduce((sum, row) => sum + row.count, 0),
     }
 

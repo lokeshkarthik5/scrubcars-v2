@@ -15,6 +15,7 @@ import {
   customerPickupStep,
   customerRefund,
   customerReportReward,
+  customerRepairQuoteAnswered,
   customerRewardNudge,
   customerRewardVoucher,
   customerServiceReminder,
@@ -24,6 +25,7 @@ import {
   garageExtraWorkDeclined,
   garageExtraWorkPaid,
   garageNewBooking,
+  garageNewRepairQuote,
   garageNotAcceptedInTime,
   garageProposalChosen,
   garageProposalDeclined,
@@ -174,6 +176,10 @@ const ALL: Array<[string, PushMessage]> = [
   ['customer reward nudge', customerRewardNudge({ kind: 'wash_due', subjectKey: 'car:2026-10-01', words: washDueNudge(3, DEFAULT_REWARDS_SETTINGS) })],
   ['customer reward nudge (one away)', customerRewardNudge({ kind: 'one_away', subjectKey: 's1', words: oneAwayNudge(299) })],
   ['customer reward nudge (expiring)', customerRewardNudge({ kind: 'expiring', subjectKey: 'voucher:v1', words: expiringNudge('voucher', { amount: 299, lastDay: '2026-10-24' }) })],
+  // Repair & bodywork quotes (0075): nothing the customer typed, no car, no place.
+  ['garage new repair quote', garageNewRepairQuote({ id: 'q0000000-0000-4000-8000-000000007501', respondBy: IST('2026-10-16T20:00:00') }, NOW)],
+  ['customer repair quote', customerRepairQuoteAnswered({ id: 'r0000000-0000-4000-8000-000000007502' }, { id: 'q1' }, 'Marina Auto Spa', { canDo: true, priceFrom: 4000, priceTo: 5500 })],
+  ['customer repair quote declined', customerRepairQuoteAnswered({ id: 'r0000000-0000-4000-8000-000000007502' }, { id: 'q2' }, 'Marina Auto Spa', { canDo: false })],
   ['customer test', testMessage('customer')],
   ['garage test', testMessage('garage')],
 ]
@@ -394,5 +400,22 @@ describe('a free wash that was not accepted in time (0062)', () => {
     const body = customerNotAcceptedInTime(booking, { nothingPaid: true }).body
     expect(body).toContain('Nothing was charged')
     expect(body).not.toContain('refund')
+  })
+})
+
+describe('repair & bodywork quotes (0075)', () => {
+  test('the garage is told to watch the video and by when; the customer gets the estimate', () => {
+    const asked = garageNewRepairQuote({ id: 'q1', respondBy: IST('2026-10-16T20:00:00') }, NOW)
+    expect(asked.title).toBe('New repair quote request')
+    expect(asked.body).toBe('Watch the video and answer by 8 PM')
+    expect(asked.url).toBe('/requests#repair-q1')
+    expect(asked.urgency).toBe('high')
+    const quoted = customerRepairQuoteAnswered({ id: 'r1' }, { id: 'q1' }, 'Marina Auto Spa', { canDo: true, priceFrom: 4000, priceTo: 5500 })
+    expect(quoted.title).toBe('Marina Auto Spa sent a quote')
+    expect(quoted.body).toBe('₹4,000–5,500 estimate. See it and book a visit; nothing to pay.')
+    expect(quoted.url).toBe('/repair-quotes/r1')
+    expect(customerRepairQuoteAnswered({ id: 'r1' }, { id: 'q2' }, 'Marina Auto Spa', { canDo: false }).title).toBe(
+      "Marina Auto Spa can't do this repair"
+    )
   })
 })

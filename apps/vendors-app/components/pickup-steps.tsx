@@ -1,5 +1,6 @@
 import { markDelivered } from '@repo/core/api/bookings';
 import { ApiError } from '@repo/core/api/client';
+import { carCheckGateLines } from '@repo/core/condition-check';
 import { photoGateMessage } from '@repo/core/job-photo-standards';
 import { handoverLocked, MAX_CODE_ATTEMPTS, PICKUP_STEP_LABELS, type PickupNext } from '@repo/core/pickup';
 import { SUPPORT_PHONE_DISPLAY, SUPPORT_TEL_HREF } from '@repo/core/support';
@@ -63,6 +64,10 @@ export function PickupSteps({
       : step === 'out_for_delivery' || step === 'delivered'
         ? (booking.photoStandard?.finishBlocked ?? null)
         : null;
+  // The car condition check (0075): the car goes only once the walk-round is taken
+  // and sent to the customer.
+  const carCheckLines = step === 'picked_up' ? carCheckGateLines(booking.conditionCheck?.gate ?? null) : [];
+  const blocked = photoBlock !== null || carCheckLines.length > 0;
 
   const run = async () => {
     if (step === 'picked_up' || step === 'at_garage' || step === 'out_for_delivery') {
@@ -128,6 +133,15 @@ export function PickupSteps({
               {photoGateMessage(photoBlock)}
             </T>
           ) : null}
+          {carCheckLines.length > 0 ? (
+            <View accessibilityLabel={t('Still to do')} style={styles.lines}>
+              {carCheckLines.map((line) => (
+                <T key={line} size={15} color={colors.warning}>
+                  {line}
+                </T>
+              ))}
+            </View>
+          ) : null}
           <ScButton
             variant="main"
             size="lg"
@@ -136,7 +150,7 @@ export function PickupSteps({
                 ? t('Start job for {who}', { who })
                 : t('Mark {step} for {who}', { step: t(PICKUP_STEP_LABELS[step]), who })
             }
-            disabled={busy || (needsCode && code.length !== 4) || photoBlock !== null}
+            disabled={busy || (needsCode && code.length !== 4) || blocked}
             onPress={() => void run()}
           >
             {busy ? t('Saving...') : step === 'start_work' ? t('Start job') : t(PICKUP_STEP_LABELS[step])}
@@ -164,6 +178,7 @@ export function PickupSteps({
 
 const useStyles = createStyles(() => ({
   column: { gap: 8 },
+  lines: { gap: 4 },
   code: { letterSpacing: 4, fontSize: 16 },
   underline: { textDecorationLine: 'underline' },
 }));

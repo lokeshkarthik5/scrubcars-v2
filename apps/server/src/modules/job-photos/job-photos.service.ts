@@ -27,6 +27,14 @@ import {
   storedJobPhotoUrl,
 } from '../../lib/job-photo-storage.js'
 import { logger } from '../../lib/logger.js'
+import {
+  CAR_CHECK_PHOTO_CAP,
+  carCheckPhotoLocked,
+  isCarCheckAngle,
+} from '../../lib/condition-check.js'
+import { isCornerAngle } from '../../lib/job-photo-standards.js'
+import { conditionCheckOn } from '../condition-check/condition-check.service.js'
+import { conditionCheckRepository } from '../condition-check/condition-check.repository.js'
 import { jobPhotosRepository } from './job-photos.repository.js'
 import type {
   JobPhotoUploadUrlInput,
@@ -148,13 +156,47 @@ const MAX_FOR: Record<PhotoRole, number> = {
 }
 
 /**
+ * A side's cap on a job: the garage's grows to the walk-round's eight angles
+ * and four more while the car condition check is on for it (0075).
+ */
+function capFor(job: Job, role: PhotoRole): number {
+  return role === 'garage' && conditionCheckOn(job.vendorId) ? CAR_CHECK_PHOTO_CAP : MAX_FOR[role]
+}
+
+function carCheckSent() {
+  return new AppError(
+    409,
+    'This photo was sent to the customer as the car check, so it stays with the booking.',
+    'CONDITION_CHECK_SENT'
+  )
+}
+
+/**
+ * The car condition check's rules for a photo the garage adds (0075): a
+ * corner is only for a garage with the check on, and once the check is sent
+ * its before angles are fixed. The customer never takes corners.
+ */
+async function assertCarCheckAllows(job: Job, role: PhotoRole, input: RecordJobPhotoInput) {
+  if (!isCornerAngle(input.angle) && !(role === 'garage' && isCarCheckAngle(input.angle))) return
+  if (isCornerAngle(input.angle) && (role !== 'garage' || !conditionCheckOn(job.vendorId))) {
+    throw new AppError(400, 'That angle is not one of the checklist’s.', 'INVALID_PHOTO_ANGLE')
+  }
+  if (input.stage !== 'before' || !conditionCheckOn(job.vendorId)) return
+  const check = await conditionCheckRepository.findCheck(job.id)
+  if (carCheckPhotoLocked({ stage: input.stage, angle: input.angle, sentAt: check?.sentAt ?? null })) {
+    throw carCheckSent()
+  }
+}
+
+/**
  * The presign both sides share, into that side's folder of the job: the
  * private bucket while it is on (lib/job-photo-storage.ts). Only the key
  * comes back; the photo is seen through a signed link once recorded.
  */
 async function uploadUrlFor(job: Job, role: PhotoRole, input: JobPhotoUploadUrlInput) {
-  if ((await jobPhotosRepository.countPhotos(job.id, input.stage, role)) >= MAX_FOR[role]) {
-    throw limitReached(input.stage, MAX_FOR[role])
+  const cap = capFor(job, role)
+  if ((await jobPhotosRepository.countPhotos(job.id, input.stage, role)) >= cap) {
+    throw limitReached(input.stage, cap)
   }
   return createJobPhotoUpload(job.vendorId, input.contentType, jobPhotoFolder(job.id, role))
 }
@@ -175,6 +217,13 @@ async function record(job: Job, role: PhotoRole, actorId: string, input: RecordJ
   const existing = await jobPhotosRepository.findPhotoByKey(job.id, input.key)
   if (existing) return view(existing)
 
+  await assertCarCheckAllows(job, role, input)
+  const cap = capFor(job, role)
+  // 0075: the same rule again under the job's lock, so a retake racing
+  // "Send to customer" cannot land after it.
+  const guardSent =
+    role === 'garage' && input.stage === 'before' && isCarCheckAngle(input.angle) && conditionCheckOn(job.vendorId)
+
   const created = await jobPhotosRepository.insertPhotoUnderCap(
     {
       bookingId: job.id,
@@ -186,9 +235,11 @@ async function record(job: Job, role: PhotoRole, actorId: string, input: RecordJ
       uploadedByRole: role,
       angle: input.angle ?? null,
     },
-    MAX_FOR[role]
+    cap,
+    guardSent
   )
-  if (!created) throw limitReached(input.stage, MAX_FOR[role])
+  if (created === 'sent') throw carCheckSent()
+  if (!created) throw limitReached(input.stage, cap)
 
   log.info(
     { bookingId: job.id, vendorId: job.vendorId, role, stage: input.stage, angle: created.angle, photoId: created.id },
@@ -252,6 +303,12 @@ export const jobPhotosService = {
 
     assertGarageCanChange(job, photo.stage, now)
 
+    // 0075: a car-check photo sent to the customer is the record. Checked
+    // again under the job's lock as it is removed.
+    const guardSent =
+      conditionCheckOn(job.vendorId) && photo.stage === 'before' && isCarCheckAngle(photo.angle)
+    if (guardSent && (await conditionCheckRepository.findCheck(job.id))) throw carCheckSent()
+
     const required = jobPhotosRequiredFor(job.vendorId)
     const gatePassed = photoRemovalBlocked({
       stage: photo.stage,
@@ -266,8 +323,10 @@ export const jobPhotosService = {
       job.id,
       photoId,
       'garage',
-      gatePassed ? MIN_GARAGE_PHOTOS : null
+      gatePassed ? MIN_GARAGE_PHOTOS : null,
+      guardSent
     )
+    if (deleted === 'sent') throw carCheckSent()
     if (deleted === 'floor') {
       throw new AppError(
         409,
@@ -322,7 +381,7 @@ export const jobPhotosService = {
     assertCustomerCanChange(job, photo.stage, now)
 
     const deleted = await jobPhotosRepository.deletePhoto(job.id, photoId, 'customer', null)
-    if (!deleted || deleted === 'floor') throw photoNotFound()
+    if (!deleted || deleted === 'floor' || deleted === 'sent') throw photoNotFound()
 
     await removeJobPhotoObjects([deleted.storageKey], 'job_photo_removed')
 

@@ -32,7 +32,7 @@ import {
 // Fixed order for every per-tier breakdown, so the UI can render rows without
 // sorting and the "smallest saving" scan is deterministic.
 const VEHICLE_TIERS: VehicleTier[] = ['hatchback', 'sedan', 'suv']
-import { categoryLabel } from '../../lib/categories.js'
+import { categoryLabel, categoryRank } from '../../lib/categories.js'
 import { computeVendorPayout } from '../../lib/discounts.js'
 import { earningKind, type EarningKind } from '../../lib/earnings.js'
 import { paidChargesTotal } from '../../lib/final-bill.js'
@@ -123,6 +123,8 @@ import type {
 import type { AddPhotoInput } from '../service-media/service-media.validation.js'
 import { tiersService } from '../tiers/tiers.service.js'
 import type { Tier } from '../../lib/tiers.js'
+import type { PickupFeePlan } from '../../lib/pickup-fee.js'
+import { pickupFeesService } from '../pickup-fees/pickup-fees.service.js'
 import {
   removeMediaFiles,
   serviceMediaService,
@@ -246,6 +248,8 @@ export type VendorListItemResponse = {
    * it is for "Can collect your car" (0062). Null too when it does not collect.
    */
   pickupRadiusKm: number | null
+  /** The pickup fee customers see (0079, vendors.public.ts); null when it does not collect. */
+  pickupFee: PickupFeePlan | null
   /** "All over <city>" (0069), as on the garage page (vendors.public.ts publicWholeCity). */
   doorstepWholeCity: boolean
   pickupWholeCity: boolean
@@ -479,6 +483,8 @@ type EarningBooking = {
   amount: string
   subtotalAmount?: string | null
   discountFundedBy?: 'platform' | 'vendor' | null
+  /** Detlio's convenience fee (0079): never the garage's. */
+  convenienceFee?: string | null
   charges?: Array<{ status: string; amountDue: string }> | null
 }
 
@@ -492,6 +498,7 @@ function payoutOf(booking: EarningBooking) {
         amount: booking.amount,
         subtotalAmount: booking.subtotalAmount ?? booking.amount,
         discountFundedBy: booking.discountFundedBy ?? null,
+        convenienceFee: booking.convenienceFee ?? null,
       }),
       paidChargesTotal(booking.charges),
     ])
@@ -908,6 +915,8 @@ export async function vendorCardsFor(
     // "All over <city>" (0069) on the cards: one read of the cities.
     await citiesService.rules(),
   ]
+  // The pickup fee (0079): the settings, cached, for the cards that collect.
+  const feeSettings = rows.some((vendor) => isPickupOffered(vendor)) ? await pickupFeesService.settings() : null
   const closuresByVendor = new Map<string, string[]>()
   for (const closure of closures) {
     const dates = closuresByVendor.get(closure.vendorId) ?? []
@@ -919,9 +928,11 @@ export async function vendorCardsFor(
   )
 
   return rows.map((vendor): VendorListItemResponse => {
+    // In the order categories are listed everywhere, so a card reads
+    // "General service, Repairs" whichever was added first.
     const categories = [
       ...new Set(vendor.services.map((service) => service.category)),
-    ]
+    ].sort((a, b) => categoryRank(a) - categoryRank(b))
     const rating = ratings.get(vendor.id)
     const distanceM = distanceByVendor.get(vendor.id) ?? null
 
@@ -936,6 +947,7 @@ export async function vendorCardsFor(
       dropinEnabled: vendor.dropinEnabled,
       pickupEnabled: isPickupOffered(vendor),
       pickupRadiusKm: isPickupOffered(vendor) ? vendor.pickupRadiusKm : null,
+      pickupFee: feeSettings ? pickupFeesService.livePlanFor(vendor, feeSettings) : null,
       ...publicWholeCity(vendor, storedWholeCity(vendor, cityRules.cities)),
       startingPrice: computeStartingPrice(vendor.services),
       rating: rating?.rating ?? null,
@@ -1185,12 +1197,14 @@ export const vendorsService = {
       throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
     }
 
-    const [photos, services, ratings, tiers, cityRules] = [
+    const [photos, services, ratings, tiers, cityRules, feeSettings] = [
       await vendorsRepository.listPhotos(vendor.id),
       await vendorsRepository.listServices(vendor.id, true),
       await ratingsFor([vendor.id]),
       await tiersService.customerTiers([vendor.id]),
       await citiesService.rules(),
+      // The pickup fee (0079), only for a garage that collects.
+      isPickupOffered(vendor) ? await pickupFeesService.settings() : null,
     ]
 
     const rating = ratings.get(vendor.id)
@@ -1199,6 +1213,7 @@ export const vendorsService = {
       ...toPublicVendor(vendor, {
         tier: tiers.get(vendor.id) ?? null,
         reachCity: storedWholeCity(vendor, cityRules.cities),
+        pickupFee: feeSettings ? pickupFeesService.livePlanFor(vendor, feeSettings) : null,
       }),
       photos: photos.map(toPhotoResponse),
       services: services.map((service) => toServiceResponse(service, service.images, 'public')),

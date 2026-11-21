@@ -1,5 +1,5 @@
 import type { MediaConfig } from '@repo/core/api/service-media';
-import { SERVICE_CATEGORY_OPTIONS } from '@repo/core/categories';
+import { SERVICE_CATEGORY_OPTIONS, groupByCategory, showCategoryHeadings } from '@repo/core/categories';
 import { withMedia } from '@repo/core/service-media';
 import type { Service, ServiceMedia } from '@repo/core/types';
 import { type Dispatch, type SetStateAction, useState } from 'react';
@@ -23,6 +23,7 @@ import { T } from '@repo/native-ui/text';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 
 import { AddOnsSection } from './add-ons-section';
+import { CategoryHeading } from './category-heading';
 import { CatalogueCard } from './catalogue-card';
 import { DeleteSheet } from './delete-sheet';
 import { ChipRow, PricingBlock } from './pricing-block';
@@ -58,6 +59,8 @@ export function ServicesTab({
   const t = useT();
   const colors = useColors();
   const styles = useStyles();
+  // "Your services" by category, in the order used everywhere.
+  const serviceGroups = groupByCategory(services, (svc) => svc.category);
   const { saving, run } = useSaver();
   const [deleting, setDeleting] = useState<Service | null>(null);
   // Bumped by the heading's "Add add-on": the section opens its sheet.
@@ -181,19 +184,28 @@ export function ServicesTab({
             subtitle={t('Add what you offer above. Customers can book a service once it is active.')}
           />
         ) : (
-          <View style={styles.list}>
-            {services.map((svc) => (
-              <CatalogueCard
-                key={svc.id}
-                item={svc}
-                mediaConfig={mediaConfig}
-                onMediaChange={(media) => setMedia(svc.id, media)}
-                onEdit={() => startEdit(svc)}
-                onToggle={() => void setActive(svc.id, !svc.isActive)}
-                onDelete={() => setDeleting(svc)}
-                busy={saving !== null}
-              />
-            ))}
+          // Under small category headings when the garage sells two or more kinds of
+          // work (16 Nov 2026), as the portal; one run otherwise.
+          <View style={styles.groups}>
+            {(showCategoryHeadings(serviceGroups) ? serviceGroups : [{ category: null, items: services }]).map(
+              (group) => (
+                <View key={group.category ?? 'all'} style={styles.list}>
+                  {group.category && <CategoryHeading category={group.category} count={group.items.length} />}
+                  {group.items.map((svc) => (
+                    <CatalogueCard
+                      key={svc.id}
+                      item={svc}
+                      mediaConfig={mediaConfig}
+                      onMediaChange={(media) => setMedia(svc.id, media)}
+                      onEdit={() => startEdit(svc)}
+                      onToggle={() => void setActive(svc.id, !svc.isActive)}
+                      onDelete={() => setDeleting(svc)}
+                      busy={saving !== null}
+                    />
+                  ))}
+                </View>
+              )
+            )}
           </View>
         )}
       </View>
@@ -211,5 +223,6 @@ const useStyles = createStyles((colors) => ({
   form: { gap: 12 },
   group: { gap: 8 },
   list: { gap: 8 },
+  groups: { gap: 12 },
   addOn: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 4, marginVertical: -10 },
 }));

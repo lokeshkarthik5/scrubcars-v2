@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { IconChevronRight, IconFlag } from '@tabler/icons-react'
 import { useBypassStatus } from '@repo/core/api/hooks/use-bypass-reports'
 import { bookingReference } from '@repo/core/booking-types'
-import { BYPASS_QUESTION_SHORT, bypassReportStatusLine } from '@repo/core/bypass-reports'
+import { bypassReportStatusLine } from '@repo/core/bypass-reports'
+import { REPORT_EXTRA_LINE } from '@repo/core/pickup-fee-customer'
 import type { Booking } from '@repo/core/types'
 import { ReportBypassSheet } from './report-bypass-sheet'
 import { useT } from '@repo/core/i18n'
@@ -56,7 +57,8 @@ export function BypassReportLine({ booking }: { booking: Booking }) {
       >
         <span className="flex items-center gap-2">
           <IconFlag size={16} aria-hidden className="shrink-0 text-text-muted" />
-          {t(BYPASS_QUESTION_SHORT)}
+          {/* It covers extra money now too (0079). */}
+          {t(REPORT_EXTRA_LINE)}
         </span>
         <IconChevronRight size={16} className="shrink-0 text-text-muted" aria-hidden />
       </button>

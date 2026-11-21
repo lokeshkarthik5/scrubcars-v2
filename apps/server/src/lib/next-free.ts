@@ -69,6 +69,38 @@ export interface GarageWeek {
 }
 
 /**
+ * The free starts for this job on one IST day at this garage: the picker's
+ * own slotsForDay over the facts already loaded (the day's hours, holiday,
+ * the bays and cap, and the capacity holders that started that day or the
+ * one before). Shared with the rescue's times near the original slot
+ * (lib/rescue-garages.ts).
+ */
+export function slotsOnDay(
+  garage: GarageWeek,
+  job: { durationMins: number; bookingType: BookingType },
+  date: string,
+  now: number = Date.now()
+): string[] {
+  const dayOfWeek = getDayOfWeekFromDate(date)
+  const from = istDayBounds(addDaysToDateKey(date, -1)).start.getTime()
+  const to = istDayBounds(date).end.getTime()
+  const facts: DayFacts = {
+    date,
+    pausedAt: garage.pausedAt,
+    isHoliday: garage.closures.has(date),
+    hours: garage.hours.find((row) => row.dayOfWeek === dayOfWeek),
+    intervalMins: garage.slotIntervalMins,
+    bays: garage.bays,
+    jobsPerDay: garage.jobsPerDay,
+    busy: garage.busy.filter((busyJob) => {
+      const start = busyJob.start.getTime()
+      return start >= from && start < to
+    }),
+  }
+  return slotsForDay(facts, job, now).slots
+}
+
+/**
  * The first day with a free time for this job, and its first three times;
  * null when there is none in NEXT_FREE_DAYS (paused, shut all week, full).
  */
@@ -81,23 +113,7 @@ export function nextFreeTimes(
   const today = todayDateKey(now)
   for (let offset = 0; offset < NEXT_FREE_DAYS; offset++) {
     const date = addDaysToDateKey(today, offset)
-    const dayOfWeek = getDayOfWeekFromDate(date)
-    const from = istDayBounds(addDaysToDateKey(date, -1)).start.getTime()
-    const to = istDayBounds(date).end.getTime()
-    const facts: DayFacts = {
-      date,
-      pausedAt: garage.pausedAt,
-      isHoliday: garage.closures.has(date),
-      hours: garage.hours.find((row) => row.dayOfWeek === dayOfWeek),
-      intervalMins: garage.slotIntervalMins,
-      bays: garage.bays,
-      jobsPerDay: garage.jobsPerDay,
-      busy: garage.busy.filter((job) => {
-        const start = job.start.getTime()
-        return start >= from && start < to
-      }),
-    }
-    const { slots } = slotsForDay(facts, job, now)
+    const slots = slotsOnDay(garage, job, date, now)
     if (slots.length > 0) {
       return { day: nextFreeDayLabel(date, today), times: slots.slice(0, NEXT_FREE_TIMES) }
     }
