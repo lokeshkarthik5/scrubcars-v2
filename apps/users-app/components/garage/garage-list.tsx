@@ -5,7 +5,7 @@ import { useTierConfig } from '@repo/core/api/hooks/use-tiers';
 import { useVendorSearch } from '@repo/core/api/hooks/use-vendors';
 import { BOOKING_TYPE_LABELS, BOOKING_TYPES, bookingTypeParam } from '@repo/core/booking-types';
 import { CATEGORY_LABELS } from '@repo/core/categories';
-import { detlioInLine, farEmptyLine, firstFarIndex, inCityHeading, isSmallCity, nearGarageCount, driveNearCount, NEAR_DRIVE_MINUTES } from '@repo/core/customer-city';
+import { detlioInLine, farEmptyLine, firstFarIndex, inCityHeading, isSmallCity, nearGarageCount, mapPeekCount, mapPeekWords } from '@repo/core/customer-city';
 import { cardPickupChip } from '@repo/core/pickup-fee-customer';
 import { atGarageReach, canCollectFrom, nextTabOffer, outsideLine, skipTheDriveTitle, type NextTabOffer, type SkipTheDriveRow } from '@repo/core/reach';
 import { requestActionLabel } from '@repo/core/booking-requests';
@@ -444,14 +444,15 @@ export function GarageList({
     nearestFirst: effectiveSort === 'distance',
     city,
   });
-  // From a place, the count is garages within ~30 min's drive (owner, 20 Nov 2026): in
-  // Chennai every garage is inside the city's reach of every area, so "near you" never
-  // changed. With none that close, it falls back to the near-you count above; with the
+  // From a place, the map peek's count depends on the mode (owner, 22 Nov 2026):
+  // At garage, garages within ~30 min's drive (in Chennai every garage is inside the
+  // city's reach of every area, so "near you" never changed); Doorstep and Pickup &
+  // drop, every garage that reaches the customer ("can come to you"), since they don't
+  // drive. With nothing to count it falls back to the near-you count above; with the
   // luxury filter on, the specialists count keeps its own words.
-  const driveCount = origin && !luxuryOn
-    ? driveNearCount(everyService.vendors, { hasMore: everyService.hasMore, nearestFirst: effectiveSort === 'distance' })
+  const drive = origin && !luxuryOn
+    ? mapPeekCount(mode, everyService.vendors, { hasMore: everyService.hasMore, nearestFirst: effectiveSort === 'distance' })
     : null;
-  const drive = driveCount && driveCount.count > 0 ? driveCount : null;
   // "Specialists for your BMW" (0083): the specialists among the garages listed, above
   // Nearby garages, for a customer whose main car is a luxury make; not with the filter
   // on, nor with fewer than two.
@@ -606,10 +607,7 @@ export function GarageList({
               : drive
                 ? {
                     count: `${drive.count}${drive.more ? '+' : ''}`,
-                    words:
-                      drive.count === 1 && !drive.more
-                        ? t('garage within ~{minutes} min', { minutes: NEAR_DRIVE_MINUTES })
-                        : t('garages within ~{minutes} min', { minutes: NEAR_DRIVE_MINUTES }),
+                    words: mapPeekWords(drive, t),
                   }
                 : {
                   count: `${near.count}${near.more ? '+' : ''}`,

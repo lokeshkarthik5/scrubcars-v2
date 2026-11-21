@@ -16,6 +16,8 @@ import {
   isSmallCity,
   nearGarageCount,
   driveNearCount,
+  mapPeekCount,
+  mapPeekWords,
   NEAR_DRIVE_MINUTES,
   outsideCityLine,
   outsideCityTag,
@@ -239,5 +241,35 @@ describe('garages within ~30 min', () => {
     expect(driveNearCount(adyar, { hasMore: true, nearestFirst: true }).more).toBe(false)
     expect(driveNearCount(adyar.slice(0, 3), { hasMore: true, nearestFirst: true }).more).toBe(true)
     expect(driveNearCount(adyar, { hasMore: true, nearestFirst: false }).more).toBe(true)
+  })
+})
+
+describe('the map peek by mode', () => {
+  const km = (list: number[]) => list.map((distanceKm) => ({ ...CHENNAI_GARAGE, distanceKm }))
+  // Doorstep garages are often pinned far from the customer (or not at all):
+  // the API only lists the ones that cover the customer's place.
+  const coverMe = km([4.1, 12, 18.5, 25])
+  const opts = { hasMore: false, nearestFirst: true }
+
+  test('At garage counts the ~30 min drive', () => {
+    expect(mapPeekCount('dropin', coverMe, opts)).toEqual({ count: 1, more: false, kind: 'drive' })
+    expect(mapPeekWords({ count: 1, more: false, kind: 'drive' })).toBe('garage within ~30 min')
+    expect(mapPeekWords({ count: 8, more: false, kind: 'drive' })).toBe('garages within ~30 min')
+    expect(mapPeekCount('dropin', km([25]), opts)).toBeNull()
+  })
+
+  test('Doorstep and Pickup & drop count every garage that reaches the customer, however far its base', () => {
+    expect(mapPeekCount('doorstep', coverMe, opts)).toEqual({ count: 4, more: false, kind: 'comes' })
+    expect(mapPeekCount('pickup', coverMe, { ...opts, hasMore: true })).toEqual({ count: 4, more: true, kind: 'collects' })
+    expect(mapPeekCount('doorstep', [{ ...CHENNAI_GARAGE, distanceKm: null }], opts)?.count).toBe(1)
+    expect(mapPeekCount('doorstep', [], opts)).toBeNull()
+  })
+
+  test('their words', () => {
+    expect(mapPeekWords({ count: 8, more: false, kind: 'comes' })).toBe('garages can come to you')
+    expect(mapPeekWords({ count: 1, more: false, kind: 'comes' })).toBe('garage can come to you')
+    expect(mapPeekWords({ count: 1, more: true, kind: 'comes' })).toBe('garages can come to you')
+    expect(mapPeekWords({ count: 3, more: false, kind: 'collects' })).toBe('garages can pick up from you')
+    expect(mapPeekWords({ count: 1, more: false, kind: 'collects' })).toBe('garage can pick up from you')
   })
 })
