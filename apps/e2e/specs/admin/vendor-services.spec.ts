@@ -74,7 +74,7 @@ test.describe('admin garage services', () => {
 
     // Switching Flat to Per vehicle fills each size with the flat price, and
     // back again takes the cheapest — nothing to retype either way. The foam
-    // wash is the first row (Wash and standard comes before Detailing), and
+    // wash is the first row (Car wash comes before Detailing), and
     // its pricing is behind its ⋯.
     await page
       .getByRole('button', { name: `More for ${SERVICES.adminFlat.name}` })

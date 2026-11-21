@@ -33,7 +33,16 @@ import {
  * missing time stays missing.
  */
 
-const CATEGORIES = ['car_wash', 'detailing', 'coating', 'scratch_removal', 'others'] as const
+const CATEGORIES = [
+  'car_wash',
+  'detailing',
+  'coating',
+  'scratch_removal',
+  'general_service',
+  'repairs',
+  'dent_paint',
+  'others',
+] as const
 
 export const READING_INSTRUCTIONS = `You read documents a car-care garage in India gave Detlio when joining: an onboarding form, a poster, a flyer or a price list, as photos or PDFs. Several files are pages of the same garage. Copy out what they say about the garage, in the JSON shape required.
 
@@ -43,7 +52,7 @@ Rules:
 - If only one phone number is printed, put it in businessPhone and leave ownerPhone null.
 - Business name as written, in normal capitalisation (SKT CAR WASH → SKT Car Wash).
 - One entry per service or price-list line. Keep its price text whole, even when it lists car sizes.
-- category: car_wash (washes, foam wash, underbody), detailing (interior cleaning, polishing, vacuuming, engine bay), coating (ceramic, PPF, Teflon, graphene), scratch_removal (scratch, dent, rubbing), others. Null if you cannot tell.
+- category: car_wash (washes, foam wash, underbody), detailing (interior cleaning, polishing, vacuuming, engine bay), coating (ceramic, PPF, Teflon, graphene), scratch_removal (scratch, rubbing, buffing), general_service (periodic service, oil change, check-ups, wheel alignment), repairs (engine, brakes, clutch, AC, battery, electrical, suspension), dent_paint (denting, painting, panel and bumper work), others. Null if you cannot tell.
 - hours: one entry per day the document covers, dayOfWeek 0 = Sunday … 6 = Saturday, times as 24-hour HH:MM. Leave days out that it does not cover.
 - vehicleTypes: the car types the garage says it takes, as written.
 - Notes: a note is for the person checking your work. Write one only when something needs their eye — a crossed-out price next to an offer price, a smudged digit, two possible readings, a category you are unsure of. One short plain sentence, under 120 characters. Otherwise null.

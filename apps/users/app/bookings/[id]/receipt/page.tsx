@@ -1,5 +1,6 @@
 'use client'
 
+import { RECEIPT_CONVENIENCE_LABEL, receiptTripLabel } from '@repo/core/pickup-fee-customer'
 import { use, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { IconDownload, IconShare } from '@tabler/icons-react'
@@ -381,8 +382,15 @@ function ReceiptDocument({ receipt }: { receipt: BookingReceipt }) {
             numeric={!item.priceOnInspection}
           />
         ))}
-        {/* An accepted request's travel fee (0062): its own line. */}
-        {receipt.travelFee && <Row label="Travel fee" value={formatReceiptAmount(receipt.travelFee)} />}
+        {/* An accepted request's travel fee (0062), or the pickup fee with
+            its road km (0079): its own line. */}
+        {receipt.travelFee && (
+          <Row label={receiptTripLabel(booking.bookingType, receipt.roadKm)} value={formatReceiptAmount(receipt.travelFee)} />
+        )}
+        {/* Detlio's convenience fee (0079), when there was one. */}
+        {receipt.convenienceFee && (
+          <Row label={RECEIPT_CONVENIENCE_LABEL} value={formatReceiptAmount(receipt.convenienceFee)} />
+        )}
         {receipt.discount && (
           <>
             <SubRule />

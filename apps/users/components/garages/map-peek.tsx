@@ -19,6 +19,7 @@ import {
 import type { LatLng } from '@/lib/map-view'
 import { whenIdle } from '@/lib/when-idle'
 import { useT } from '@repo/core/i18n'
+import { LUXURY_MAKE_PARAM, LUXURY_PARAM } from '@repo/core/luxury'
 
 const PeekBasemap = dynamic(() => import('./peek-basemap').then((m) => m.PeekBasemap), {
   ssr: false,
@@ -57,7 +58,8 @@ function peekFrame(width: number): PeekFrame {
  * garages around them as red dots dropping in one after another (zoomed so
  * they all land on the card; across a city too wide for it, the nearest), the customer a white
  * dot, the nearest garage tagged with its km, and "N garages near you" and
- * "Map ↗" on glass. The whole card opens /map on the same mode and category.
+ * "Map ↗" on glass. The whole card opens /map on the same mode and category
+ * (and "Luxury specialists", when on).
  * It tilts a little further, and the map drifts, as the list scrolls.
  *
  * Real coordinates throughout: the dots are placed with the same Web
@@ -72,6 +74,8 @@ export function MapPeek({
   centre,
   mode,
   category,
+  luxury = false,
+  luxuryMake,
   countLabel,
 }: {
   /** The current mode's garages, every category (the dots). */
@@ -82,6 +86,10 @@ export function MapPeek({
   centre: LatLng
   mode: BookingType
   category?: string
+  /** "Luxury specialists" is on (0083): the map opens with it on too. */
+  luxury?: boolean
+  /** "Specialists for your <Make>"'s See all is on: that make only, on the map too. */
+  luxuryMake?: string
   /**
    * "12 garages near you"; with no count (a small city, 0070), the words
    * alone: "Detlio in Madurai".
@@ -186,6 +194,8 @@ export function MapPeek({
 
   const query = new URLSearchParams({ bookingType: mode })
   if (category) query.set('category', category)
+  if (luxury) query.set(LUXURY_PARAM, '1')
+  if (luxuryMake) query.set(LUXURY_MAKE_PARAM, luxuryMake)
 
   return (
     <Link

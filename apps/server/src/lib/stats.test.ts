@@ -306,7 +306,7 @@ describe('summariseServiceTypes', () => {
       { category: 'car_wash', bookings: 2, collected: 1000 },
     ])
     // Every type is listed, and the money adds up exactly.
-    expect(types).toHaveLength(6)
+    expect(types).toHaveLength(9)
     expect(types.reduce((sum, t) => sum + t.collected, 0)).toBe(2500)
   })
 

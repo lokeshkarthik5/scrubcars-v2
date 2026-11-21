@@ -225,7 +225,7 @@ test.describe.serial('the admin round: garage editor @p0', () => {
     await expect(wash.getByLabel(/line before the points$/)).toHaveValue(
       'An exterior foam wash and dry.'
     )
-    // The wash is the first service (Wash and standard comes first).
+    // The wash is the first service (Car wash comes first).
     const point = (n: number) =>
       wash.getByRole('textbox', { name: `Service 1 point ${n}`, exact: true })
     await expect(point(1)).toBeFocused()

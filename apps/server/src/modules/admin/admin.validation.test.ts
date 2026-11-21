@@ -403,3 +403,23 @@ describe('an admin service priced on inspection', () => {
     expect(serviceInputSchema.safeParse({ ...base, pricingType: 'flat' }).success).toBe(false)
   })
 })
+
+// The mechanical and body work, and "Not this" on the category hint (0080).
+describe('an admin service in the new categories', () => {
+  const base = { name: 'Brake pads', pricingType: 'flat' as const, price: 1800 }
+
+  test('takes general service, repairs and dent & paint, never a package', () => {
+    for (const category of ['general_service', 'repairs', 'dent_paint'] as const) {
+      expect(serviceInputSchema.safeParse({ ...base, category }).success).toBe(true)
+    }
+    expect(serviceInputSchema.safeParse({ ...base, category: 'package' }).success).toBe(false)
+  })
+
+  test('carries "Not this" as an optional true or false', () => {
+    const others = { ...base, category: 'others' as const }
+    expect(serviceInputSchema.safeParse({ ...others, categoryHintDismissed: true }).success).toBe(true)
+    expect(serviceInputSchema.safeParse({ ...others, categoryHintDismissed: false }).success).toBe(true)
+    expect(serviceInputSchema.safeParse(others).success).toBe(true)
+    expect(serviceInputSchema.safeParse({ ...others, categoryHintDismissed: 'yes' }).success).toBe(false)
+  })
+})

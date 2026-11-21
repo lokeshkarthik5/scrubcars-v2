@@ -89,7 +89,11 @@ export async function getEarningsData(
  * accepted request's travel fee (customer reach, 0062), inside `price` and
  * the garage's whole (no commission). Absent on an API from before it.
  */
-export type GarageStatementLine = PayoutLine & { travelFee?: number }
+export type GarageStatementLine = PayoutLine & {
+  travelFee?: number
+  /** The pickup fee's road km (0079), for "Pickup & drop · 6.2 km"; null when none. */
+  roadKm?: number | null
+}
 
 /** The garage's Earnings statement: what it is owed, was paid, and each booking. Rupees. */
 export interface EarningsStatement {

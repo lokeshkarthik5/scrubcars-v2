@@ -34,7 +34,7 @@ export const PAID = sql`EXISTS (SELECT 1 FROM payments p WHERE p.booking_id = b.
  * the app (its balance). A no-fee inspection (0073) is booked at ₹0, so its
  * whole price is the bill: nothing until the bill is paid, then the bill.
  */
-const DETLIO_TAKEN = sql`(b.amount + coalesce((SELECT sum(c.amount_due) FROM booking_charges c
+const DETLIO_TAKEN = sql`(b.amount - b.convenience_fee + coalesce((SELECT sum(c.amount_due) FROM booking_charges c
   WHERE c.booking_id = b.id AND c.kind = 'final_bill' AND c.status = 'paid'), 0))`
 
 /** Booked at ₹0 because its inspection had no fee (0073): an inspection line, nothing else priced. */

@@ -2395,3 +2395,227 @@ export const SHINE = {
     lowFine: [id(7634), id(7635), id(7636), id(7637)],
   },
 } as const
+
+/**
+ * The pickup fee (0079; ids 7750–7799, phones 9000007750–99). Garages near
+ * Mysuru (`home`, 12.30° N, 76.64° E), far from every other fixture, so the
+ * Pickup & drop list from `home` shows only these:
+ *
+ *   velan      collects, By distance on Detlio's numbers, 4.8 km straight
+ *              from `home` = 6.2 km by road = ₹99; `booking` is a paid,
+ *              confirmed pickup tomorrow with that ₹99 locked on it
+ *   kumar      collects, ₹20 a km above Detlio's ₹15 and waiting for the
+ *              check (`waitingChange`): customers see Detlio's ₹120 at
+ *              8.5 km straight (11 km by road); admin approves it
+ *   autokraft  collects, a fixed ₹250 waiting (`waitingChange`): admin keeps
+ *              Detlio's fee, with a reason
+ *   free       collects, Free (the default): "Free pickup", as today
+ *   locked     collects, Detlio sets its fee (By distance on Detlio's
+ *              numbers, Detlio's): the portal greys the controls out with
+ *              "Set by Detlio. Ask Detlio to change it."
+ *   settings   collects, Free: its owner sets By distance in the portal
+ *   limited    collects, Free, with admin's own limits for it: ₹5–₹12 a km,
+ *              highest ₹300, fixed up to ₹150; its boxes say so and Detlio's
+ *              ₹15 a km is outside them
+ *   murugan    doesn't collect (drop-in only), 8.5 km: Ask for pickup,
+ *              Detlio suggests about ₹120 for 11 km by road
+ *
+ * Only specs/journeys/pickup-fee-journey.spec.ts (the customer),
+ * specs/journeys/pickup-fee-garage.spec.ts (the garage; `settings` changes
+ * its fee once, so a rerun needs a fresh seed) and specs/admin/pickup-fee.spec.ts
+ * use them.
+ */
+export const PICKUP_FEE = {
+  home: { lat: 12.3, lng: 76.64 },
+  customer: { id: id(7750), phone: '9000007750', name: 'Pickup Fee Priya', vehicleId: id(7751), addressId: id(7752) },
+  velan: {
+    owner: { id: id(7753), phone: '9000007753', name: 'Velan Fee Owner' },
+    garage: { id: id(7754), name: 'Velan Pickup Care', straightKm: 4.8, roadKm: 6.2, fee: 99 },
+    wash: { id: id(7755), name: 'Premium Foam Wash', price: '699.00', durationMins: 60 },
+    booking: id(7756),
+  },
+  kumar: {
+    owner: { id: id(7757), phone: '9000007757', name: 'Kumar Fee Owner' },
+    garage: { id: id(7758), name: 'Kumar Auto Spa Fee', straightKm: 8.5, roadKm: 11, detlioFee: 120 },
+    wash: { id: id(7759), name: 'Kumar Foam Wash', price: '449.00', durationMins: 60 },
+    waitingChange: id(7760),
+  },
+  autokraft: {
+    owner: { id: id(7761), phone: '9000007761', name: 'AutoKraft Fee Owner' },
+    garage: { id: id(7762), name: 'AutoKraft Body Shop Fee', straightKm: 12 },
+    wash: { id: id(7763), name: 'AutoKraft Wash', price: '499.00', durationMins: 60 },
+    waitingChange: id(7764),
+  },
+  free: {
+    owner: { id: id(7765), phone: '9000007765', name: 'Sri Balaji Fee Owner' },
+    garage: { id: id(7766), name: 'Sri Balaji Car Spa Fee', straightKm: 2.1 },
+    wash: { id: id(7767), name: 'Balaji Foam Wash', price: '599.00', durationMins: 60 },
+  },
+  locked: {
+    owner: { id: id(7768), phone: '9000007768', name: 'Locked Fee Owner' },
+    garage: { id: id(7769), name: 'Set By Detlio Garage', straightKm: 30 },
+    wash: { id: id(7770), name: 'Locked Foam Wash', price: '499.00', durationMins: 60 },
+    lockChange: id(7771),
+  },
+  settings: {
+    owner: { id: id(7772), phone: '9000007772', name: 'Fee Settings Owner' },
+    garage: { id: id(7773), name: 'Fee Settings Garage', straightKm: 40 },
+    wash: { id: id(7774), name: 'Settings Foam Wash', price: '499.00', durationMins: 60 },
+  },
+  limited: {
+    owner: { id: id(7778), phone: '9000007778', name: 'Limited Fee Owner' },
+    garage: { id: id(7779), name: 'Own Limits Garage', straightKm: 45 },
+    wash: { id: id(7780), name: 'Limited Foam Wash', price: '499.00', durationMins: 60 },
+    limits: { perKm: { min: 5, max: 12 }, maxCharge: 300, fixedMax: 150 },
+  },
+  murugan: {
+    owner: { id: id(7775), phone: '9000007775', name: 'Murugan Fee Owner' },
+    garage: { id: id(7776), name: 'Murugan Motors Fee', straightKm: 8.5, roadKm: 11, suggested: 120, max: 150 },
+    wash: { id: id(7777), name: 'Murugan Foam Wash', price: '699.00', durationMins: 60 },
+  },
+} as const
+
+/**
+ * Service categories (0080; ids 7800–7849, phones 90000078xx, 40–49): one
+ * listed garage near ORIGIN (about 5.5 km north, drop-in only) that sells
+ * the new mechanical work and has five services filed under Others:
+ *
+ *   oil         General service, by car type
+ *   brakes      Repairs, one price
+ *   clutch      Others: "Looks like Repairs · matched “clutch”"
+ *   bumper      Others: "Looks like Dent & paint · matched “bumper”"
+ *   alignment   Others: "Looks like General service · matched “alignment”"
+ *   bikeWash    Others, no hint
+ *   battery     Others, its hint turned down ("Not this")
+ *
+ * No car wash, so the customer filter's other tiles keep their counts. Only
+ * specs/admin/service-categories.spec.ts and specs/users/service-categories.spec.ts
+ * use them; neither leaves a change behind.
+ */
+export const SERVICE_CATEGORIES = {
+  owner: { id: id(7840), phone: '9000007840', name: 'Category Motors Owner' },
+  garage: { id: id(7800), name: 'Category Motors' },
+  oil: { id: id(7801), name: 'Oil change', category: 'general_service' },
+  brakes: { id: id(7802), name: 'Brake pads', category: 'repairs' },
+  clutch: { id: id(7803), name: 'Clutch overhaul', category: 'others' },
+  bumper: { id: id(7804), name: 'Bumper painting', category: 'others' },
+  alignment: { id: id(7805), name: 'Wheel alignment', category: 'others' },
+  bikeWash: { id: id(7806), name: 'Bike wash', category: 'others' },
+  battery: { id: id(7807), name: 'Battery replacement', category: 'others' },
+} as const
+
+/**
+ * Back up all garages (ids 7850–7899, phones 9000007850–9000007899): one
+ * garage, not live yet (hidden from customers), whose numbers the backup spec
+ * looks for in the .zip: masked by default, in full when the owner turns the
+ * switch on. Its owner, its bank account and UPI ID, and one Garage Book
+ * customer. Only specs/admin/garage-backup.spec.ts reads them; nothing
+ * changes them.
+ */
+export const GARAGE_BACKUP = {
+  owner: { id: id(7850), phone: '9000007850', name: 'Backup Check Owner' },
+  garage: { id: id(7851), name: 'Backup Check Motors', phone: '9000007851' },
+  /** In the garage's team notes: a number in free text is masked too. */
+  noteNumber: '9000007852',
+  bank: { accountNumber: '50100123456789', upiId: '9000007851@ybl', ifsc: 'HDFC0007851' },
+  bookCustomer: { id: id(7853), name: 'Backup Walk-in Kumar', phone: '9000007853' },
+} as const
+
+/**
+ * Branches (0081; ids 7900–7949, phones 90000079xx): "E2E Shine Spa", one
+ * owner's four garages in one group, far from every other fixture (around
+ * 21° N, 74.5° E, in no city, so Other towns lists them):
+ *
+ *   anna     the main branch (made first), listed
+ *   vel      listed: the admin spec edits its services
+ *   omr      listed; its Foam wash is ₹529, the others ₹499 ("was different")
+ *   tnagar   added today, Pending and not shown: never on a customer screen
+ *
+ * Foam wash at all four, Bike wash at Anna Nagar and Velachery only (the
+ * delete skips the other two), Full wash at Velachery only. `lone` is the
+ * owner's garage in no group, Pending, for Link an existing garage and
+ * Remove from group. specs/admin/branch-groups.spec.ts changes and puts
+ * back the services and the link; specs/users/branches.spec.ts only reads.
+ */
+export const BRANCH_GROUPS = {
+  owner: { id: id(7900), phone: '9000007900', name: 'Shine Spa Owner' },
+  group: { id: id(7901), name: 'E2E Shine Spa' },
+  anna: { id: id(7902), name: 'E2E Shine Spa – Anna Nagar', label: 'Anna Nagar', pin: { lat: 21.0, lng: 74.5 } },
+  vel: { id: id(7903), name: 'E2E Shine Spa – Velachery', label: 'Velachery', pin: { lat: 21.04, lng: 74.53 } },
+  omr: { id: id(7904), name: 'E2E Shine Spa – OMR', label: 'OMR', pin: { lat: 21.09, lng: 74.56 } },
+  tnagar: { id: id(7905), name: 'E2E Shine Spa – T. Nagar', label: 'T. Nagar', pin: { lat: 21.01, lng: 74.47 } },
+  lone: { id: id(7906), name: 'E2E Lone Car Care', pin: { lat: 21.2, lng: 74.6 } },
+  foam: {
+    name: 'Foam wash',
+    ids: { anna: id(7910), vel: id(7911), omr: id(7912), tnagar: id(7913) },
+    price: '499.00',
+    omrPrice: '529.00',
+  },
+  bike: { name: 'Bike wash', ids: { anna: id(7914), vel: id(7915) }, price: '199.00' },
+  full: { name: 'Full wash', id: id(7916), price: '699.00' },
+  loneWash: { id: id(7917), name: 'Lone Foam Wash', price: '450.00' },
+  /** The service the admin spec adds at every branch, removed again after. */
+  addedName: 'E2E Underbody wash',
+} as const
+
+/**
+ * Service templates (0082; ids 7950–7999, phones 90000079[5-9]x): one
+ * Pending garage, not shown to customers, in no city (around 21.3° N,
+ * 74.7° E), with one service in Others that admin saves as a template:
+ *
+ *   rat        "E2E Rat repellent treatment", same for all cars, ₹599,
+ *              30 min, with a description that keeps the rules
+ *
+ * The built-in templates come from 0082's own seed, never from here.
+ * specs/admin/service-templates.spec.ts adds, edits, switches off and
+ * deletes only templates named "E2E …" (`prefix`), and deletes them
+ * before and after, so other specs' "Add from template" chips are never
+ * switched off.
+ */
+export const SERVICE_TEMPLATE_FIXTURES = {
+  owner: { id: id(7990), phone: '9000007990', name: 'Template Motors Owner' },
+  garage: { id: id(7950), name: 'Template Motors', pin: { lat: 21.3, lng: 74.7 } },
+  rat: {
+    id: id(7951),
+    name: 'E2E Rat repellent treatment',
+    price: '599.00',
+    durationMins: 30,
+    description: 'Engine bay dusted off and a rodent-repellent spray applied to the wiring, hoses and bonnet lining.',
+  },
+  /** Every template the spec makes is named with this, and only those are cleared. */
+  prefix: 'E2E ',
+} as const
+
+/**
+ * Luxury car specialists (0083; LUXURY_FIXTURES, ids 8200–8249, phones
+ * 90000082[0-4]x). Three live Silver garages pinned together far from every
+ * other fixture (around 23.0° N, 72.6° E, in no city), so only this
+ * feature's customer, standing there, sees them:
+ *
+ *   applicant  Silver, never applied: specs/journeys/luxury-specialists
+ *              applies for it (through the API: the photos are uploads
+ *              E2E has no bucket for) and admin approves it
+ *   approved   Silver, the badge already approved (BMW, Mercedes-Benz,
+ *              Audi), with its approved application
+ *   plain      Silver, no badge: never in the Luxury specialists filter
+ *
+ * `customer` drives a "Mercedes Benz" (typed that way, as customers do), so
+ * she sees "Specialists for your Mercedes-Benz" once two specialists are
+ * near. The server's luxury route tests use ids in this range too.
+ */
+export const LUXURY_FIXTURES = {
+  pin: { lat: 23.02, lng: 72.57 },
+  customer: {
+    id: id(8200), phone: '9000008200', name: 'Luxury Leela', vehicleId: id(8201),
+    make: 'Mercedes Benz', model: 'C-Class', plate: 'GJ01LX8201',
+  },
+  owners: {
+    applicant: { id: id(8205), phone: '9000008205', name: 'Applicant Owner Anand' },
+    approved: { id: id(8206), phone: '9000008206', name: 'Approved Owner Bharath' },
+    plain: { id: id(8207), phone: '9000008207', name: 'Plain Owner Chitra' },
+  },
+  applicant: { id: id(8210), name: 'E2E Torque Auto Studio', serviceId: id(8220) },
+  approved: { id: id(8211), name: 'E2E Carbon Detail Works', serviceId: id(8221), brands: ['BMW', 'Mercedes-Benz', 'Audi'] },
+  plain: { id: id(8212), name: 'E2E Kumar Auto Spa', serviceId: id(8222) },
+  approvedApplication: { id: id(8230) },
+} as const

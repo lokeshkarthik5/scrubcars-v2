@@ -6,12 +6,13 @@
 
 /**
  * One CSV cell: quoted when it holds a comma, quote or line break, and
- * defused when it starts like a formula (=, +, -, @), which a spreadsheet
- * would otherwise run.
+ * defused when it starts like a formula (=, +, -, @, a tab or a return),
+ * which a spreadsheet would otherwise run. A plain negative number ("-50",
+ * "-1499.00") is left as it is, so it stays a number: it cannot be a formula.
  */
 export function csvCell(value: string | number | null | undefined): string {
   let text = value === null || value === undefined ? '' : String(value)
-  if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`
+  if (/^[=+\-@\t\r]/.test(text) && !/^-\d+(\.\d+)?$/.test(text)) text = `'${text}`
   return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
 }
 

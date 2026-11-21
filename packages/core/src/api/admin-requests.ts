@@ -47,6 +47,9 @@ export interface AdminRequest {
   sentAt: string
   respondBy: string
   travelFee: number | null
+  /** Detlio's suggested fee and the most the garage may ask (0079); null on older requests. */
+  suggestedFee?: number | null
+  maxFee?: number | null
   acceptedStartAt: string | null
   confirmBy: string | null
   bookingId: string | null

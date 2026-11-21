@@ -157,7 +157,7 @@ export const teamRepository = {
           SELECT j.total_paise::bigint AS paise FROM garage_jobs j
            WHERE j.id = w.garage_job_id AND j.status = 'done' AND j.done_at >= ${from} AND j.done_at < ${to}
           UNION ALL
-          SELECT round(b.amount * 100)::bigint FROM bookings b
+          SELECT round((b.amount - b.convenience_fee) * 100)::bigint FROM bookings b
            WHERE b.id = w.booking_id AND b.status = 'completed'
              AND coalesce(b.completed_at, b.scheduled_at) >= ${from} AND coalesce(b.completed_at, b.scheduled_at) < ${to}
         ) x ON true

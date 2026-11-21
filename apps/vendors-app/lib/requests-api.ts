@@ -5,7 +5,6 @@ import {
   listGarageRequests,
   withdrawRequest,
 } from '@repo/core/api/booking-requests';
-import type { TravelFee } from '@repo/core/booking-requests';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 /**
@@ -50,8 +49,14 @@ function useRefreshGarage() {
 export function useAcceptRequest() {
   const refresh = useRefreshGarage();
   return useMutation({
-    mutationFn: (input: { id: string; startAt: string; travelFee: TravelFee }) =>
-      acceptRequest(input.id, { startAt: input.startAt, travelFee: input.travelFee }),
+    // The fee is any chip the request offers (0079: Detlio's suggestion up to 25% more); Ask
+    // for pickup also sends the responsibility tick.
+    mutationFn: (input: { id: string; startAt: string; travelFee: number; pickupTermsAccepted?: boolean }) =>
+      acceptRequest(input.id, {
+        startAt: input.startAt,
+        travelFee: input.travelFee,
+        ...(input.pickupTermsAccepted !== undefined ? { pickupTermsAccepted: input.pickupTermsAccepted } : {}),
+      }),
     onSettled: refresh,
   });
 }

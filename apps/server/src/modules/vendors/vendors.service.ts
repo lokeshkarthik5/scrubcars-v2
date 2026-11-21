@@ -32,7 +32,7 @@ import {
 // Fixed order for every per-tier breakdown, so the UI can render rows without
 // sorting and the "smallest saving" scan is deterministic.
 const VEHICLE_TIERS: VehicleTier[] = ['hatchback', 'sedan', 'suv']
-import { categoryLabel } from '../../lib/categories.js'
+import { categoryLabel, categoryRank } from '../../lib/categories.js'
 import { computeVendorPayout } from '../../lib/discounts.js'
 import { earningKind, type EarningKind } from '../../lib/earnings.js'
 import { paidChargesTotal } from '../../lib/final-bill.js'
@@ -53,6 +53,7 @@ import { ratingsFor } from '../reviews/reviews.service.js'
 import { vendorsRepository } from './vendors.repository.js'
 import { slotAlertsService } from '../slot-alerts/slot-alerts.service.js'
 import { areaSignupsService } from '../area-signups/area-signups.service.js'
+import { branchGroupsService } from '../branch-groups/branch-groups.service.js'
 import { citiesService } from '../cities/cities.service.js'
 import { cityById, storedWholeCity, WHOLE_CITY_NEEDS_CITY, type CityPlace } from '../../lib/cities.js'
 import { publicWholeCity, toPublicVendor, type PublicVendorFields } from './vendors.public.js'
@@ -123,6 +124,8 @@ import type {
 import type { AddPhotoInput } from '../service-media/service-media.validation.js'
 import { tiersService } from '../tiers/tiers.service.js'
 import type { Tier } from '../../lib/tiers.js'
+import type { PickupFeePlan } from '../../lib/pickup-fee.js'
+import { pickupFeesService } from '../pickup-fees/pickup-fees.service.js'
 import {
   removeMediaFiles,
   serviceMediaService,
@@ -227,6 +230,20 @@ export type PublicVendorResponse = PublicVendorFields & {
    * garage typed.
    */
   garageCity: { id: string; name: string } | null
+  /**
+   * "Also at" (0081): the garage's other branches customers can find (the
+   * lists' rule, LISTED_TO_CUSTOMERS), by area, with their pins so the page
+   * can say how far each is. Empty when it has none; never a branch that is
+   * not live.
+   */
+  branches: Array<{ id: string; name: string; lat: number | null; lng: number | null }>
+  /**
+   * The Luxury specialist badge (0083): the brands the Detlio team approved,
+   * while it shows (approved, and Silver or Gold held); null otherwise. On
+   * purpose and only this: never the application, its photos or the team's
+   * notes (the raw luxury_* columns stay off toPublicVendor's allow-list).
+   */
+  luxury: { brands: string[] } | null
 }
 
 export type VendorListItemResponse = {
@@ -246,6 +263,8 @@ export type VendorListItemResponse = {
    * it is for "Can collect your car" (0062). Null too when it does not collect.
    */
   pickupRadiusKm: number | null
+  /** The pickup fee customers see (0079, vendors.public.ts); null when it does not collect. */
+  pickupFee: PickupFeePlan | null
   /** "All over <city>" (0069), as on the garage page (vendors.public.ts publicWholeCity). */
   doorstepWholeCity: boolean
   pickupWholeCity: boolean
@@ -300,6 +319,18 @@ export type VendorListItemResponse = {
    * or null. Only this (vendors.public.ts says why).
    */
   tier: Tier | null
+  /**
+   * "1 of 3 Shine Auto Spa branches" (0081): the garage's group and how many
+   * of its branches customers can find, itself included; null unless two or
+   * more are live.
+   */
+  branchGroup: { name: string; liveCount: number } | null
+  /**
+   * The quiet "Luxury specialist" chip (0083): the brands the Detlio team
+   * approved, while the badge shows (approved, and Silver or Gold held);
+   * null otherwise. Never the application, its photos or the team's notes.
+   */
+  luxury: { brands: string[] } | null
 }
 
 export type VendorListResponse = {
@@ -479,6 +510,8 @@ type EarningBooking = {
   amount: string
   subtotalAmount?: string | null
   discountFundedBy?: 'platform' | 'vendor' | null
+  /** Detlio's convenience fee (0079): never the garage's. */
+  convenienceFee?: string | null
   charges?: Array<{ status: string; amountDue: string }> | null
 }
 
@@ -492,6 +525,7 @@ function payoutOf(booking: EarningBooking) {
         amount: booking.amount,
         subtotalAmount: booking.subtotalAmount ?? booking.amount,
         discountFundedBy: booking.discountFundedBy ?? null,
+        convenienceFee: booking.convenienceFee ?? null,
       }),
       paidChargesTotal(booking.charges),
     ])
@@ -908,6 +942,12 @@ export async function vendorCardsFor(
     // "All over <city>" (0069) on the cards: one read of the cities.
     await citiesService.rules(),
   ]
+  // "1 of 3 … branches" (0081): one read for the whole page.
+  const groups = await branchGroupsService.cardGroupsOf(rows.map((vendor) => vendor.id))
+  // The Luxury specialist badge (0083): one read for the whole page.
+  const luxury = await vendorsRepository.listLuxuryBadges(rows.map((vendor) => vendor.id))
+  // The pickup fee (0079): the settings, cached, for the cards that collect.
+  const feeSettings = rows.some((vendor) => isPickupOffered(vendor)) ? await pickupFeesService.settings() : null
   const closuresByVendor = new Map<string, string[]>()
   for (const closure of closures) {
     const dates = closuresByVendor.get(closure.vendorId) ?? []
@@ -919,9 +959,11 @@ export async function vendorCardsFor(
   )
 
   return rows.map((vendor): VendorListItemResponse => {
+    // In the order categories are listed everywhere, so a card reads
+    // "General service, Repairs" whichever was added first.
     const categories = [
       ...new Set(vendor.services.map((service) => service.category)),
-    ]
+    ].sort((a, b) => categoryRank(a) - categoryRank(b))
     const rating = ratings.get(vendor.id)
     const distanceM = distanceByVendor.get(vendor.id) ?? null
 
@@ -936,6 +978,7 @@ export async function vendorCardsFor(
       dropinEnabled: vendor.dropinEnabled,
       pickupEnabled: isPickupOffered(vendor),
       pickupRadiusKm: isPickupOffered(vendor) ? vendor.pickupRadiusKm : null,
+      pickupFee: feeSettings ? pickupFeesService.livePlanFor(vendor, feeSettings) : null,
       ...publicWholeCity(vendor, storedWholeCity(vendor, cityRules.cities)),
       startingPrice: computeStartingPrice(vendor.services),
       rating: rating?.rating ?? null,
@@ -957,8 +1000,15 @@ export async function vendorCardsFor(
       outsideServiceCity: outsideServiceCity(vendor),
       garageCity: cityNameOf(vendor.cityId, cityRules.cities),
       tier: tiers.get(vendor.id) ?? null,
+      branchGroup: groups.get(vendor.id) ?? null,
+      luxury: luxuryBadge(luxury.get(vendor.id)),
     }
   })
+}
+
+/** A garage's badge as customers get it: the brands, or null without the badge. */
+function luxuryBadge(brands: string[] | undefined): { brands: string[] } | null {
+  return brands === undefined ? null : { brands }
 }
 
 /**
@@ -1122,6 +1172,8 @@ export const vendorsService = {
         bookingType: query.bookingType,
         category: query.category,
         tiers: silverFilter,
+        luxury: query.luxury === true,
+        luxuryMake: query.luxuryMake,
         q: query.q,
         sort,
         segment: 'located',
@@ -1136,6 +1188,8 @@ export const vendorsService = {
           bookingType: query.bookingType,
           category: query.category,
           tiers: silverFilter,
+          luxury: query.luxury === true,
+          luxuryMake: query.luxuryMake,
           q: query.q,
           sort,
           segment: 'unlocated',
@@ -1155,6 +1209,8 @@ export const vendorsService = {
         bookingType: query.bookingType,
         category: query.category,
         tiers: silverFilter,
+        luxury: query.luxury === true,
+        luxuryMake: query.luxuryMake,
         q: query.q,
         sort,
         segment: 'unlocated',
@@ -1185,13 +1241,19 @@ export const vendorsService = {
       throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
     }
 
-    const [photos, services, ratings, tiers, cityRules] = [
+    const [photos, services, ratings, tiers, cityRules, feeSettings] = [
       await vendorsRepository.listPhotos(vendor.id),
       await vendorsRepository.listServices(vendor.id, true),
       await ratingsFor([vendor.id]),
       await tiersService.customerTiers([vendor.id]),
       await citiesService.rules(),
+      // The pickup fee (0079), only for a garage that collects.
+      isPickupOffered(vendor) ? await pickupFeesService.settings() : null,
     ]
+    // "Also at" (0081): its other live branches, in one read.
+    const branches = await branchGroupsService.liveBranchesOf(vendor.id)
+    // The Luxury specialist badge (0083).
+    const luxury = await vendorsRepository.listLuxuryBadges([vendor.id])
 
     const rating = ratings.get(vendor.id)
 
@@ -1199,6 +1261,7 @@ export const vendorsService = {
       ...toPublicVendor(vendor, {
         tier: tiers.get(vendor.id) ?? null,
         reachCity: storedWholeCity(vendor, cityRules.cities),
+        pickupFee: feeSettings ? pickupFeesService.livePlanFor(vendor, feeSettings) : null,
       }),
       photos: photos.map(toPhotoResponse),
       services: services.map((service) => toServiceResponse(service, service.images, 'public')),
@@ -1208,6 +1271,8 @@ export const vendorsService = {
       knownFor: rating?.knownFor ?? null,
       outsideServiceCity: outsideServiceCity(vendor),
       garageCity: cityNameOf(vendor.cityId, cityRules.cities),
+      branches,
+      luxury: luxuryBadge(luxury.get(vendor.id)),
     }
   },
 

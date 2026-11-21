@@ -25,7 +25,8 @@ import { useUserStore } from '@repo/core/stores/user-store';
 import type { Booking, Review } from '@repo/core/types';
 import { Label, ScButton } from '@repo/native-ui/button';
 import { AddOnMark } from '@repo/native-ui/chip';
-import { IconArrowUpRight, IconChevronRight, IconNavigation, IconRepeat } from '@repo/native-ui/icons';
+import { IconArrowUpRight, IconChevronRight, IconInfoCircle, IconNavigation, IconRepeat } from '@repo/native-ui/icons';
+import { CONVENIENCE_FEE_LABEL, pickupLineLabel, pickupRefundNote } from '@repo/core/pickup-fee';
 import { ScInput } from '@repo/native-ui/inputs';
 import { HubCard, ScCard, Skeleton, Spinner } from '@repo/native-ui/primitives';
 import { ScSheet } from '@repo/native-ui/sheet';
@@ -649,9 +650,15 @@ export default function BookingDetailScreen() {
               <Amount value={booking.items[0] ? bookingLinePriceText(booking.items[0]) : money(booking.subtotalPrice)} />
             )}
           </Row>
+          {/* The pickup fee (0079), locked at booking, with the road km; a doorstep request's travel fee keeps its line. */}
           {(booking.travelFee ?? 0) > 0 ? (
-            <Row label={t('Travel fee')}>
+            <Row label={isPickup ? pickupLineLabel(booking.roadKm) : t('Travel fee')}>
               <Amount value={money(booking.travelFee ?? 0)} />
+            </Row>
+          ) : null}
+          {(booking.convenienceFee ?? 0) > 0 ? (
+            <Row label={t(CONVENIENCE_FEE_LABEL)}>
+              <Amount value={money(booking.convenienceFee ?? 0)} />
             </Row>
           ) : null}
           {booking.discountAmount > 0 ? (
@@ -694,6 +701,16 @@ export default function BookingDetailScreen() {
             )}
           </Row>
         </HubCard>
+
+        {/* What the pickup fee covers, and its refund if the garage cancels or doesn't turn up (0079). */}
+        {isPickup && (booking.travelFee ?? 0) > 0 ? (
+          <View style={styles.feeNote}>
+            <IconInfoCircle size={16} color={colors.textMuted} />
+            <T size={13} lh={20} color={colors.textSecondary} style={styles.grow}>
+              {pickupRefundNote(booking.vendorName)}
+            </T>
+          </View>
+        ) : null}
 
         {gettingThere && !missedByGarage ? (
           <ScCard style={styles.getting}>
@@ -925,6 +942,7 @@ const useStyles = createStyles((c) => ({
   mt20: { marginTop: 20 },
   confirming: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   details: { paddingHorizontal: 20 },
+  feeNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 4 },
   detailRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16, paddingVertical: 12 },
   detailLine: { borderBottomWidth: 1, borderBottomColor: c.line },
   rowLabel: { flexShrink: 0, maxWidth: '55%' },

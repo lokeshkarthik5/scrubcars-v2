@@ -101,6 +101,12 @@ export const createBookingSchema = z
     // address, start), and only then may it be outside the garage's own
     // reach, with the travel fee the garage set as its own line.
     requestId: z.string().uuid().optional(),
+    // The pickup fee checkout showed for this address (0079). The server
+    // works the fee out itself; when the two differ (the garage changed its
+    // fee since the page loaded) nothing is booked or charged and the
+    // customer is told the new fee (PICKUP_FEE_CHANGED). Optional: an
+    // older app sends none.
+    pickupFee: z.number().int().min(0).max(599).optional(),
   })
   .transform(({ serviceId, serviceIds, ...rest }) => ({
     ...rest,

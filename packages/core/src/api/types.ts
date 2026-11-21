@@ -1,7 +1,9 @@
+import type { BranchGroupLine, GarageBranch } from '@repo/core/branches'
 import type { ReachCity } from '@repo/core/cities'
 import type { Tier } from '@repo/core/tiers'
 import type { ConditionCheck, ConditionPhotos, JobPhotoAngle, PhotoStandard, ServiceMedia } from '@repo/core/types'
 import type { PickupNext } from '@repo/core/pickup'
+import type { PickupFeePlan } from '@repo/core/pickup-fee-maths'
 import type { OutsideServiceCity } from '@repo/core/service-city'
 
 export interface ApiSuccessResponse<T> {
@@ -118,6 +120,8 @@ export interface ApiVendorListItem {
   pickupEnabled?: boolean
   /** How far it collects from (null: the 10 km default). Absent from an API before 0062. */
   pickupRadiusKm?: number | null
+  /** The pickup fee customers see (0079); null when it doesn't collect. Absent from an older API. */
+  pickupFee?: PickupFeePlan | null
   /**
    * "All over <city>" (0069): comes, or collects, anywhere in its city, and
    * the city it covers (name, centre, reach). Absent from an older API.
@@ -166,6 +170,13 @@ export interface ApiVendorListItem {
   garageCity?: { id: string; name: string } | null
   /** The medal customers see (0063): Bronze, Silver, Gold or null. Absent on older servers. */
   tier?: Tier | null
+  /**
+   * "1 of 3 Shine Auto Spa branches" (0081): its group and how many of its
+   * branches customers can find; null unless two or more. Absent on older servers.
+   */
+  branchGroup?: BranchGroupLine | null
+  /** The Luxury specialist badge (0083): the approved brands, or null. Absent on older servers. */
+  luxury?: { brands: string[] } | null
 }
 
 export interface ApiVendorList {
@@ -230,6 +241,8 @@ export interface ApiPublicVendor {
   pickupEnabled?: boolean
   /** How far it collects cars from; null is the 10 km default. */
   pickupRadiusKm?: number | null
+  /** The pickup fee customers see (0079); null when it doesn't collect. Absent from an older API. */
+  pickupFee?: PickupFeePlan | null
   /** How far it travels for doorstep work; null is the default. Absent from older servers. */
   doorstepRadiusKm?: number | null
   /** "All over <city>" (0069), as on a list item. Absent from an older API. */
@@ -258,6 +271,10 @@ export interface ApiPublicVendor {
   garageCity?: { id: string; name: string } | null
   /** As on a list item: the medal customers see (0063). Absent on older servers. */
   tier?: Tier | null
+  /** "Also at" (0081): its other live branches. Absent on older servers. */
+  branches?: GarageBranch[]
+  /** The Luxury specialist badge (0083): the approved brands, or null. Absent on older servers. */
+  luxury?: { brands: string[] } | null
 }
 
 export interface VendorProfileExtras {
@@ -502,8 +519,12 @@ export interface ApiBooking {
   // vendor_admin check. `amount` and `paymentMethod` are always present —
   // whoever finishes a cash job has to know what to collect.
   subtotalAmount?: string
-  /** An accepted request's travel fee (0062), inside subtotalAmount; '0.00' otherwise. Absent on older APIs. */
+  /** An accepted request's travel fee (0062), or the pickup fee (0079), inside subtotalAmount; '0.00' otherwise. Absent on older APIs. */
   travelFee?: string
+  /** The pickup fee's road km (0079); null when none. */
+  roadKm?: number | null
+  /** Detlio's convenience fee (0079), inside subtotalAmount. Absent on the garage's payload. */
+  convenienceFee?: string
   discountAmount?: string
   discountCode: string | null
   discountFundedBy?: 'platform' | 'vendor' | null

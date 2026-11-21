@@ -5,8 +5,10 @@
  * customer (lib/reach.ts, within JUST_OUTSIDE_KM past it) can be asked to
  * come anyway. The customer picks the services, a time **window** (not an
  * exact slot, so it is easy to say yes to) and the address, and pays
- * nothing. The garage has two hours to say yes, with a travel fee (₹0, ₹100
- * or ₹200, which it keeps whole) and a start time inside the window, or
+ * nothing. The garage has two hours to say yes, with a fee (Detlio's
+ * suggestion for the road km, up to 25% more, 0079 — lib/pickup-fee-maths.ts;
+ * a request from before 0079 keeps ₹0, ₹100 or ₹200; the garage keeps it
+ * whole) and a start time inside the window, or
  * no. No answer, or no, passes the same request to the next nearest garage
  * that can take it, at most two garages a request. A yes gives the customer
  * two hours to confirm and pay; then it is an ordinary booking.
@@ -53,7 +55,7 @@ export const REQUEST_RULES = {
   maxGarages: 2,
   /** "Pick a day": how many days ahead. */
   pickDayAheadDays: 14,
-  /** The travel fees a garage may add, in rupees. */
+  /** The travel fees a garage could add before 0079, in rupees: only a request without a suggestion. */
   travelFees: [0, 100, 200] as const,
 } as const
 
@@ -330,6 +332,7 @@ export type AnswerRefusal =
   | 'REQUEST_NOT_WAITING'
   | 'REQUEST_TIME_PASSED'
   | 'TRAVEL_FEE_INVALID'
+  | 'PICKUP_TERMS_REQUIRED'
   | 'START_NOT_OFFERED'
 
 /** Why a yes is refused, or null. `starts` is requestStartTimes for this request now. */
@@ -337,13 +340,28 @@ export function acceptRefusal(input: {
   status: string
   respondBy: Date
   travelFee: number
+  /**
+   * The most the garage may ask (0079): Detlio's suggestion + 25%, within
+   * the caps and the services' price. Null on a request from before 0079,
+   * whose fee is one of ₹0, ₹100 or ₹200.
+   */
+  maxFee?: number | null
+  /** Ask for pickup: the responsibility tick is needed to say yes (0079). */
+  termsRequired?: boolean
+  termsAccepted?: boolean
   startAt: Date
   starts: readonly Date[]
   now: Date
 }): AnswerRefusal | null {
   if (input.status !== 'pending') return 'REQUEST_NOT_WAITING'
   if (input.respondBy <= input.now) return 'REQUEST_TIME_PASSED'
-  if (!isTravelFee(input.travelFee)) return 'TRAVEL_FEE_INVALID'
+  const maxFee = input.maxFee ?? null
+  const feeOk =
+    maxFee === null
+      ? isTravelFee(input.travelFee)
+      : Number.isInteger(input.travelFee) && input.travelFee >= 0 && input.travelFee <= maxFee
+  if (!feeOk) return 'TRAVEL_FEE_INVALID'
+  if (input.termsRequired && input.termsAccepted !== true) return 'PICKUP_TERMS_REQUIRED'
   if (!input.starts.some((at) => at.getTime() === input.startAt.getTime())) return 'START_NOT_OFFERED'
   return null
 }

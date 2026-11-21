@@ -124,6 +124,7 @@ export function mapVendorListItem(item: ApiVendorListItem): Vendor {
     pickupEnabled: item.pickupEnabled ?? false,
     // Absent from an API before 0062: then nobody "can collect" (unknown).
     ...(item.pickupRadiusKm !== undefined ? { pickupRadiusKm: item.pickupRadiusKm } : {}),
+    pickupFee: item.pickupFee ?? null,
     doorstepWholeCity: item.doorstepWholeCity ?? false,
     pickupWholeCity: item.pickupWholeCity ?? false,
     reachCity: item.reachCity ?? null,
@@ -135,6 +136,8 @@ export function mapVendorListItem(item: ApiVendorListItem): Vendor {
     // Absent from an API before 0070: left undefined, so the signs know to fall back.
     ...(item.garageCity !== undefined ? { garageCity: item.garageCity } : {}),
     tier: item.tier ?? null,
+    branchGroup: item.branchGroup ?? null,
+    luxury: item.luxury ?? null,
   }
 }
 
@@ -174,6 +177,7 @@ export function mapPublicVendor(vendor: ApiPublicVendor): Vendor {
     doorstepEnabled: vendor.doorstepEnabled,
     pickupEnabled: vendor.pickupEnabled ?? false,
     pickupRadiusKm: vendor.pickupRadiusKm ?? null,
+    pickupFee: vendor.pickupFee ?? null,
     doorstepWholeCity: vendor.doorstepWholeCity ?? false,
     pickupWholeCity: vendor.pickupWholeCity ?? false,
     reachCity: vendor.reachCity ?? null,
@@ -185,6 +189,8 @@ export function mapPublicVendor(vendor: ApiPublicVendor): Vendor {
     outsideServiceCity: vendor.outsideServiceCity ?? null,
     ...(vendor.garageCity !== undefined ? { garageCity: vendor.garageCity } : {}),
     tier: vendor.tier ?? null,
+    branches: vendor.branches ?? [],
+    luxury: vendor.luxury ?? null,
   }
 }
 
@@ -344,6 +350,8 @@ export function mapBooking(booking: ApiBooking): Booking {
     servicePrice: Number(booking.amount),
     subtotalPrice: Number(booking.subtotalAmount ?? booking.amount),
     travelFee: Number(booking.travelFee ?? 0),
+    roadKm: booking.roadKm ?? null,
+    convenienceFee: Number(booking.convenienceFee ?? 0),
     discountAmount: Number(booking.discountAmount ?? 0),
     discountCode: booking.discountCode ?? undefined,
     discountFundedBy: booking.discountFundedBy ?? undefined,

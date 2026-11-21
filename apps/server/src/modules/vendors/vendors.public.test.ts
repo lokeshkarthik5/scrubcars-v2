@@ -68,6 +68,10 @@ const PRIVATE = [
   'deletedReason',
   'tierHidden',
   'showWhenCityOff',
+  'pickupFeeWaitingSince',
+  'pickupFeeLockedAt',
+  'pickupFeeLockedBy',
+  'pickupFeeChangedAt',
 ]
 
 describe('toPublicVendor', () => {
@@ -107,7 +111,24 @@ describe('toPublicVendor', () => {
       bookingsPausedReason: null,
       createdAt: '2026-01-01T00:00:00.000Z',
       tier: null,
+      pickupFee: null,
     })
+  })
+
+  test('the pickup fee is the plan customers are charged by, never its check, lock or who set it (0079)', () => {
+    const plan = {
+      mode: 'distance' as const,
+      fixed: 0,
+      freeKm: 3,
+      perKm: 15,
+      minCharge: 99,
+      maxCharge: 399,
+      roundTo: 10,
+      roadFactor: 1.3,
+    }
+    const shown = toPublicVendor(ROW, { ...NOT_VERIFIED, pickupFee: plan })
+    expect(shown.pickupFee).toEqual(plan)
+    for (const key of Object.keys(shown)) expect(key).not.toMatch(/waiting|locked|changed|approve/i)
   })
 
   test('the tier is one value, never the documents, the numbers, the checks or whether it was hidden', () => {

@@ -231,7 +231,7 @@ test.describe.serial('garage documents @p0', () => {
     await blockThirdParties(customer)
     const garagePage = await customer.newPage()
     await garagePage.goto(`/garage/${GARAGE.id}`)
-    await expect(garagePage.getByRole('heading', { name: GARAGE.name })).toBeVisible()
+    await expect(garagePage.getByRole('heading', { name: GARAGE.name, exact: true })).toBeVisible()
     await expect(garagePage.getByText('Documents verified')).toHaveCount(0)
     // No agreement accepted, so no tier and no medal yet.
     const garage = (await (await customer.request.get(PUBLIC_GARAGE)).json()).data as Record<string, unknown>

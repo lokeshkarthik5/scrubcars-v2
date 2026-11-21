@@ -93,6 +93,9 @@ export const CATEGORY_ORDER: readonly ServiceCategory[] = [
   'detailing',
   'coating',
   'scratch_removal',
+  'general_service',
+  'repairs',
+  'dent_paint',
   'others',
   'package',
 ]

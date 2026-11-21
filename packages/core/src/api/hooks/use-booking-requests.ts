@@ -114,8 +114,12 @@ function useRefreshGarage() {
 export function useAcceptRequest() {
   const refresh = useRefreshGarage()
   return useMutation({
-    mutationFn: (input: { id: string; startAt: string; travelFee: TravelFee }) =>
-      acceptRequest(input.id, { startAt: input.startAt, travelFee: input.travelFee }),
+    mutationFn: (input: { id: string; startAt: string; travelFee: number; pickupTermsAccepted?: boolean }) =>
+      acceptRequest(input.id, {
+        startAt: input.startAt,
+        travelFee: input.travelFee,
+        ...(input.pickupTermsAccepted !== undefined ? { pickupTermsAccepted: input.pickupTermsAccepted } : {}),
+      }),
     onSettled: refresh,
   })
 }

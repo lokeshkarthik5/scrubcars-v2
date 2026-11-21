@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useIsVendorAdmin } from '@repo/core/hooks/use-vendor-role'
 import { useT } from '@repo/core/i18n'
 import { cn } from '@repo/core/utils'
+import { LitOrb } from '../finish/lit-orb'
 import { garageNavItems } from './bottom-nav'
 
 /**
@@ -17,10 +18,11 @@ import { garageNavItems } from './bottom-nav'
  *
  * The tab you are on sits in the graphite orb with its ring of light, the
  * others are brushed silver, each with its label under it (T5, 11/500, the
- * current one 600). The orb pops in once when the tab is reached and never
- * turns; there is no motion under reduced motion. No pearl +: the garage has
- * no action that belongs in the bar. The look is finish.css's `hub-*` and
- * `fx-*` classes, the customer bar's own copy, so the two cannot drift.
+ * current one 600). The orb pops in when the tab is reached and its ring
+ * turns while the tab is lit; under reduced motion it is still. No pearl +:
+ * the garage has no action that belongs in the bar. The orb is the customer
+ * bar's own LitOrb (finish.css's `hub-*` and `fx-*` classes), so the two
+ * cannot drift.
  * Every item is at least 44pt, and the lit one says so with aria-current,
  * since the light alone says nothing to a screen reader.
  */
@@ -78,16 +80,7 @@ export function GarageNav() {
                 active ? 'hub-tab--on text-text-primary' : 'text-[#B4B4BC] hover:text-text-primary'
               )}
             >
-              {active ? (
-                <span aria-hidden="true" className="hub-orb fx-pop">
-                  <span className="hub-orb__bloom" />
-                  <span className="hub-orb__well" />
-                  <span className="hub-orb__ring" />
-                  <Icon size={17} className="relative" />
-                </span>
-              ) : (
-                <Icon size={21} aria-hidden />
-              )}
+              {active ? <LitOrb icon={Icon} /> : <Icon size={21} aria-hidden />}
               {/* A longer Tamil word ends in an ellipsis inside its fifth of the pill,
                   clipped sideways only so its tall marks are never cut. */}
               <span

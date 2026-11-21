@@ -29,6 +29,7 @@ import {
   vendorServiceAreas,
   vendorWorkingHours,
   vendorTierStandings,
+  luxuryApplications,
 } from '../../db/schema.js'
 import { UPCOMING_STATUSES } from '../../lib/vendor-bin.js'
 import {
@@ -358,6 +359,14 @@ function writes(tx: Tx) {
       // Silver (0063) goes with Gold. Its agreement acceptances stay: the
       // contract behind the bookings kept, like the signed paper agreement.
       await tx.delete(vendorTierStandings).where(eq(vendorTierStandings.vendorId, vendorId))
+      // The Luxury specialist application and badge (0083) go with them: the
+      // audit log keeps the team's decisions. Its photos stay in R2, like
+      // the garage's own photos.
+      await tx.delete(luxuryApplications).where(eq(luxuryApplications.vendorId, vendorId))
+      await tx
+        .update(vendors)
+        .set({ luxuryApprovedAt: null, luxuryApprovedBy: null, luxuryBrands: null })
+        .where(eq(vendors.id, vendorId))
     },
 
     /**

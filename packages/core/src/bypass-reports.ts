@@ -21,7 +21,7 @@ export const BYPASS_NUMBERS = {
   dismissReasonMax: 300,
 } as const
 
-export type BypassKind = 'book_directly' | 'lower_price' | 'pay_directly' | 'gave_number' | 'other'
+export type BypassKind = 'book_directly' | 'lower_price' | 'pay_directly' | 'gave_number' | 'pickup_money' | 'other'
 
 /** In the order the customer sees them. */
 export const BYPASS_KINDS: readonly BypassKind[] = [
@@ -29,6 +29,7 @@ export const BYPASS_KINDS: readonly BypassKind[] = [
   'lower_price',
   'pay_directly',
   'gave_number',
+  'pickup_money',
   'other',
 ]
 
@@ -37,6 +38,8 @@ export const BYPASS_KIND_LABELS: Record<BypassKind, string> = {
   lower_price: msg('Offered a lower price outside Detlio'),
   pay_directly: msg('Asked me to pay cash or UPI directly'),
   gave_number: msg('Gave their number for future bookings'),
+  // 0079: the garage asked for more than the pickup fee paid in the app.
+  pickup_money: msg('Asked for extra pickup money'),
   other: msg('Something else'),
 }
 

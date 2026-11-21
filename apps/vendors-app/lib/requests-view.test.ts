@@ -6,6 +6,7 @@ import {
   acceptedLine,
   acceptedToast,
   canAccept,
+  needsTermsHint,
   chosenStart,
   closedBadge,
   declineToast,
@@ -40,6 +41,8 @@ describe('lines', () => {
   test('waiting label and start-time heading', () => {
     expect(waitingLabel({ passedOn: false })).toBe('New request · outside your area');
     expect(waitingLabel({ passedOn: true })).toBe('Passed on to you');
+    // Ask for pickup (0079).
+    expect(waitingLabel({ passedOn: false, bookingType: 'pickup' })).toBe('New request · Ask for pickup');
     expect(startTimeHeading({ window })).toBe('Start time, inside tomorrow 9–12');
   });
 });
@@ -67,6 +70,12 @@ describe('accepted card', () => {
     expect(line).toBe('Accepted · starts Sat 17 Oct, 10:00 am · travel fee ₹100 · customer confirms by 11:41 am');
   });
   test('dashes for missing times, ₹0 for no fee', () => {
+    expect(
+      acceptedLine(
+        { acceptedStartAt: '2026-10-17T04:30:00.000Z', travelFee: 180, confirmBy: '2026-10-16T06:11:00.000Z', bookingType: 'pickup' },
+        () => 'Sat 17 Oct, 10:00 am'
+      )
+    ).toBe('Accepted · starts Sat 17 Oct, 10:00 am · pickup fee ₹180 · customer confirms by 11:41 am');
     expect(acceptedLine({ acceptedStartAt: null, travelFee: null, confirmBy: null }, () => 'x')).toBe(
       'Accepted · starts — · travel fee ₹0 · customer confirms by —'
     );
@@ -90,6 +99,12 @@ describe('start time choice', () => {
     expect(canAccept('a', false)).toBe(true);
     expect(canAccept(null, false)).toBe(false);
     expect(canAccept('a', true)).toBe(false);
+    // Ask for pickup (0079): the responsibility tick too.
+    expect(canAccept('a', false, true, false)).toBe(false);
+    expect(canAccept('a', false, true, true)).toBe(true);
+    expect(needsTermsHint('a', true, false)).toBe(true);
+    expect(needsTermsHint(null, true, false)).toBe(false);
+    expect(needsTermsHint('a', false, false)).toBe(false);
   });
   test('the hint shows only while times are offered and none is chosen', () => {
     expect(needsStartHint(null, 3)).toBe(true);

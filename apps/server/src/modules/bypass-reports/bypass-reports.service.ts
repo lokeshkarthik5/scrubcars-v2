@@ -214,6 +214,8 @@ function toAdminReport(row: AdminReportRow, strikes: Map<string, number>, people
       status: row.bookingStatus,
       scheduledAt: row.bookingScheduledAt?.toISOString() ?? null,
       markedTest: row.bookingMarkedTest,
+      // The pickup fee paid in the app (0079), beside "Asked for extra pickup money".
+      pickupFee: row.bookingPickupFee == null ? null : Number(row.bookingPickupFee),
     },
     // Admin only: the garage never sees who reported. Null once the account
     // was deleted, and on a flag about no one customer.

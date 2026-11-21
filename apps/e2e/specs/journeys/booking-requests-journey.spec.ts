@@ -6,7 +6,8 @@
  * (~12.2 km south) both come to the door within 5 km, so neither covers the
  * request customers' homes and both are "just outside" (fixtures 4400–4499).
  *
- * 1. Send → the garage accepts with a ₹100 travel fee and a start time →
+ * 1. Send → the garage accepts with a ₹130 travel fee (Detlio suggests ₹120
+ *    for the road km, 0079; up to 25% more) and a start time →
  *    the customer confirms and pays: one booking, the travel fee its own
  *    line, the request converted.
  * 2. The garage's "Can't" passes the request to the next nearest garage;
@@ -139,7 +140,12 @@ test.describe('requests to a garage just outside its area @p0', () => {
     // Never the customer's address or name before it is a booking.
     await expect(card.getByText('Request Street')).toHaveCount(0)
     await expect(card.getByText(CUSTOMERS.request.name)).toHaveCount(0)
-    await card.getByRole('radiogroup', { name: 'Travel fee' }).getByRole('radio', { name: '+₹100' }).click()
+    // Detlio's suggestion for 8.6 km straight (11.2 km by road) is ₹120, the most ₹150 (0079).
+    const fees = card.getByRole('radiogroup', { name: 'Travel fee' })
+    await expect(fees.getByRole('radio')).toHaveText(['₹120', '₹130', '₹140', '₹150'])
+    await expect(fees.getByRole('radio', { name: '₹120' })).toHaveAttribute('aria-checked', 'true')
+    await expect(card.getByText('₹120 is Detlio’s suggestion for 11.2 km. You can ask up to 25% more. You keep the whole fee.')).toBeVisible()
+    await fees.getByRole('radio', { name: '₹130' }).click()
     await card.getByRole('radiogroup', { name: 'Start time' }).getByRole('radio').first().click()
     await card.getByRole('button', { name: 'Accept' }).click()
     await expect(vendor.getByText(/Accepted\. The customer has until/)).toBeVisible()
@@ -148,23 +154,23 @@ test.describe('requests to a garage just outside its area @p0', () => {
       select status, travel_fee, accepted_start_at, confirm_by from booking_requests where id = ${sent.id}
     `
     expect(accepted.status).toBe('accepted')
-    expect(accepted.travel_fee).toBe('100.00')
+    expect(accepted.travel_fee).toBe('130.00')
     expect(accepted.confirm_by.getTime()).toBeLessThanOrEqual(accepted.accepted_start_at.getTime() - 30 * 60_000)
 
     // ── the customer: Home says confirm by; the request page's Confirm & pay
     await customer.goto('/home')
     await expect(customer.getByRole('link', { name: /Accepted: confirm by/ })).toBeVisible()
     await customer.goto('/requests')
-    await customer.getByRole('link', { name: 'Confirm & pay ₹1,900' }).click()
+    await customer.getByRole('link', { name: 'Confirm & pay ₹1,930' }).click()
     await expect(customer).toHaveURL(new RegExp(`/book/${VENDORS.reqFirst.id}\\?.*request=${sent.id}`))
     await expect(customer.getByRole('region', { name: new RegExp(`${VENDORS.reqFirst.name} will come`) })).toBeVisible()
     const price = customer.getByRole('region', { name: 'Price' })
     await expect(price.getByText('Travel fee')).toBeVisible()
     // "To pay" rolls like an odometer: the figure is written once for screen
     // readers and once as the hidden rolling digits, so the read one is taken.
-    await expect(price.getByText('₹1,900', { exact: true }).first()).toBeVisible()
-    await expect(customer.getByRole('button', { name: 'Pay ₹1,900' })).toBeVisible()
-    await customer.getByRole('button', { name: 'Pay ₹1,900' }).click()
+    await expect(price.getByText('₹1,930', { exact: true }).first()).toBeVisible()
+    await expect(customer.getByRole('button', { name: 'Pay ₹1,930' })).toBeVisible()
+    await customer.getByRole('button', { name: 'Pay ₹1,930' }).click()
     await customer.waitForURL(/\/bookings\/[0-9a-f-]+/)
 
     const [converted] = await sql<{ status: string; booking_id: string }[]>`
@@ -175,7 +181,7 @@ test.describe('requests to a garage just outside its area @p0', () => {
       select amount, subtotal_amount, travel_fee, scheduled_at, booking_type, vendor_id, status, respond_by from bookings where id = ${converted.booking_id}
     `
     // Booked accepted: the garage already said yes to this job and time.
-    expect(booking).toMatchObject({ amount: '1900.00', subtotal_amount: '1900.00', travel_fee: '100.00', booking_type: 'doorstep', vendor_id: VENDORS.reqFirst.id, status: 'confirmed', respond_by: null })
+    expect(booking).toMatchObject({ amount: '1930.00', subtotal_amount: '1930.00', travel_fee: '130.00', booking_type: 'doorstep', vendor_id: VENDORS.reqFirst.id, status: 'confirmed', respond_by: null })
     expect(booking.scheduled_at.getTime()).toBe(accepted.accepted_start_at.getTime())
 
     // The booking page and the receipt show the travel fee as its own line.
@@ -256,10 +262,11 @@ test.describe('requests to a garage just outside its area @p0', () => {
     const [again] = await sql<{ ops_alerted_at: Date }[]>`select ops_alerted_at from booking_requests where id = ${req.id}`
     expect(again.ops_alerted_at.getTime()).toBe(alerted.ops_alerted_at!.getTime())
 
-    // ── the garage says yes; a fee other than 0/100/200, or a time it does not offer, is refused
+    // ── the garage says yes; a fee above the most (Detlio's ₹190 for 15.7 km by road + 25%:
+    // ₹230, 0079), or a time it does not offer, is refused
     const starts = (await (await garage.get(`${API}/api/v1/vendors/me/requests/${req.id}/start-times`, { headers })).json()).data.starts as string[]
     expect(starts.length).toBeGreaterThan(0)
-    const badFee = await garage.post(`${API}/api/v1/vendors/me/requests/${req.id}/accept`, { headers, data: { startAt: starts[0], travelFee: 150 } })
+    const badFee = await garage.post(`${API}/api/v1/vendors/me/requests/${req.id}/accept`, { headers, data: { startAt: starts[0], travelFee: 300 } })
     expect(badFee.status()).toBe(400)
     const badStart = await garage.post(`${API}/api/v1/vendors/me/requests/${req.id}/accept`, {
       headers,

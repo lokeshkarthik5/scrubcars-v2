@@ -93,6 +93,8 @@ export interface AdminReportRow {
   bookingStatus: string | null
   bookingScheduledAt: Date | null
   bookingMarkedTest: boolean
+  /** The pickup fee locked on the booking (0079), for "pickup fee ₹99"; null when none or no booking. */
+  bookingPickupFee?: string | null
   bookingUserId: string | null
 }
 
@@ -103,6 +105,7 @@ const adminColumns = {
   bookingStatus: bookings.status,
   bookingScheduledAt: bookings.scheduledAt,
   bookingMarkedTest: sql<boolean>`${bookings.markedTestAt} is not null`,
+  bookingPickupFee: sql<string | null>`case when ${bookings.bookingType} = 'pickup' and ${bookings.travelFee} > 0 then ${bookings.travelFee}::text end`,
   // A Detlio flag has no reporter: its booking's customer is shown instead (0077).
   bookingUserId: bookings.userId,
 }

@@ -3,9 +3,12 @@
 import Link from 'next/link'
 import {
   IconBell,
+  IconCategory,
   IconChevronRight,
   IconFileText,
+  IconTemplate,
   IconTrash,
+  IconTruck,
   IconUsers,
 } from '@tabler/icons-react'
 import { useDataResetConfig } from '@repo/core/api/hooks/use-admin-data-reset'
@@ -104,6 +107,35 @@ export default function SettingsPage() {
           icon={IconFileText}
           title="Garage agreement"
           body="Upload each version as a PDF. Garages accept the newest in their app, for Bronze."
+        />
+        {/* The pickup fee (0079): Detlio's formula, the limits and its convenience fee. */}
+        <SettingsLink
+          href="/settings/pickup-fee"
+          icon={IconTruck}
+          title="Pickup fee"
+          body="Detlio’s suggested fee, the limits garages can set, and the Detlio convenience fee (₹0, off)."
+        />
+        {/* Service templates (0082): the editor's "Add from template". */}
+        <SettingsLink
+          href="/settings/service-templates"
+          icon={IconTemplate}
+          title="Service templates"
+          body="Ready-made services the team adds to a garage in one tap. No prices: every garage sets its own."
+        />
+      </section>
+      {/* One-off tools: the first sort into the new categories (0080). */}
+      <section aria-labelledby="settings-tools" className="flex flex-col gap-2">
+        <h2
+          id="settings-tools"
+          className="text-[13px] font-medium text-text-secondary"
+        >
+          One-off tools
+        </h2>
+        <SettingsLink
+          href="/settings/services-in-others"
+          icon={IconCategory}
+          title="Services in Others"
+          body="Every garage’s services in Others that look like servicing, repairs or dent work, with Move."
         />
       </section>
       {resetConfig?.enabled && (

@@ -107,6 +107,19 @@ export function CanCollectChip() {
 }
 
 /**
+ * The pickup fee on a Pickup & drop card (0079): "Pickup ₹99" or "Free
+ * pickup", for the distance the list measured, in CanCollectChip's look.
+ */
+export function PickupFeeChip({ label }: { label: string }) {
+  return (
+    <span className="fx-raised inline-flex h-[26px] items-center gap-1.5 rounded-pill px-2.5 text-t4 font-medium text-[#D4D4DA]">
+      <IconCarGarage size={13} aria-hidden className="text-[#A8A8B2]" />
+      {label}
+    </span>
+  )
+}
+
+/**
  * The Pickup & drop tab's explainer. Every line is what the product does
  * today (pickup & drop, 0037; car photos, 0045): the customer hands the car
  * over with a code and gets it back with a second one, follows each step on

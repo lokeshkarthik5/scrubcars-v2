@@ -46,7 +46,7 @@ Put these in one place (Tailwind theme tokens / CSS variables + a few shared com
 **Motion rules:** one-shot effects only (no infinite decorative loops; a spinner while waiting is fine); usually under ~0.6s; exits faster than entrances; spring easing for presses (scale 0.96–0.97 and back); transform/opacity/clip-path only; every effect off under `prefers-reduced-motion` (content still appears, instantly). Numbers that change roll like an odometer.
 
 ## 2. Bottom bar (HubNav)
-F + H from the red-glow mockup: active tab = graphite orb with the ring of light, other icons silver, pearl + in the middle (no sweep). Labels follow T5 (11/500, active 600). Glass bar.
+F + H from the red-glow mockup: active tab = graphite orb with the ring of light, other icons silver, pearl + in the middle (no sweep). The ring turns, as the mockup shows (red spectrum clockwise every 7s, white light the other way every 3.4s; still under reduced motion): the one decorative loop the motion rules allow. Labels follow T5 (11/500, active 600). Glass bar.
 
 ## 3. Garages list (`/garages`, and `/home` while the hub is off)
 Build exactly the mockup's final state:

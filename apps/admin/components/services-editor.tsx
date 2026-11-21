@@ -12,11 +12,13 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import {
   IconAlertCircle,
+  IconBulb,
   IconChevronDown,
   IconDots,
   IconEyeOff,
   IconPlus,
   IconSparkles,
+  IconTemplate,
   IconTrash,
 } from '@tabler/icons-react'
 import { ScSelect } from '@repo/ui/sc/select'
@@ -24,6 +26,8 @@ import { ApiError } from '@repo/core/api/client'
 import { describeAdminService, getAdminAiConfig } from '@repo/core/api/admin'
 import { SERVICE_CATEGORY_OPTIONS } from '@repo/core/categories'
 import { templatesNotIn, type ServiceTemplate } from '@repo/core/service-templates'
+import { useServiceTemplatesForEditor } from '@repo/core/api/hooks/use-admin-service-templates'
+import type { CategoryHint } from '@repo/core/category-hints'
 import type { ServiceMedia } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
 import { ServiceMediaPanel } from '@/components/service-media-panel'
@@ -35,15 +39,19 @@ import {
 import { CATEGORY_COMMISSION_PERCENT } from '@repo/core/commission-rates'
 import { DEFAULT_SERVICE_DURATION_MINS } from '@repo/core/service-duration'
 import {
+  CATEGORY_PICKER,
   DURATION_PRESETS,
   DURATION_UNITS,
   PRICING_OPTIONS,
   durationLabel,
   emptyServiceRow,
   groupRows,
+  othersHintNote,
+  rowCategoryHint,
   rowDurationMins,
-  serviceGroupOf,
+  serviceGroupLabel,
   serviceRowFromTemplate,
+  templatesByCategory,
   type DurationUnit,
   type PlainCategory,
   type ServiceRow,
@@ -56,7 +64,10 @@ import {
   type ServiceRowField,
 } from '@/lib/service-rows'
 import type { ServiceRowNote } from '@/lib/garage-import'
+import { templateFormFromRow } from '@/lib/service-templates'
 import { ImportNote, MARKED_FIELD } from './import-note'
+import { CategoryIcon } from './category-icon'
+import { ServiceTemplateSheet, type TemplateSheetMode } from './service-template-sheet'
 
 const PILL_BUTTON =
   'inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-border bg-white/[0.015] px-3.5 text-[13px] font-medium text-text-primary transition-colors hover:bg-surface disabled:opacity-50'
@@ -100,6 +111,11 @@ interface ServicesEditorProps {
   setOpenRows: Dispatch<SetStateAction<ReadonlySet<string>>>
   /** The garage's business name, which "Write with AI" may use. */
   garageName: string
+  /**
+   * The garage's id once it is saved: "Save as template" names it as where
+   * the template came from (0082). Add garage has none yet.
+   */
+  vendorId?: string
   /** Services the garage has that are not in `rows` (its hidden ones). */
   otherNames?: readonly string[]
   emptyText: string
@@ -148,6 +164,7 @@ export function ServicesEditor({
   openRows,
   setOpenRows,
   garageName,
+  vendorId,
   otherNames = [],
   emptyText,
   saving = false,
@@ -182,20 +199,34 @@ export function ServicesEditor({
   const [replaced, setReplaced] = useState<Record<string, string>>({})
   // Where focus goes once a row has rendered where it now is: a new row, or
   // one a category change moved to the other group.
-  const [focusTarget, setFocusTarget] = useState<{ key: string; field?: 'category' } | null>(null)
+  const [focusTarget, setFocusTarget] = useState<{ key: string; field?: 'category' | 'more' } | null>(null)
   // Said when a row moves group: the row the admin was on has gone from
   // under them.
   const [moveNote, setMoveNote] = useState('')
+  // Add service's "What kind of service?" picker (0080).
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const pickerRef = useRef<HTMLDivElement>(null)
+  const addButtonRef = useRef<HTMLButtonElement>(null)
+
+  // The picker opens on its first choice, so the keyboard is already in it.
+  useEffect(() => {
+    if (pickerOpen) pickerRef.current?.querySelector<HTMLElement>('button')?.focus()
+  }, [pickerOpen])
 
   useEffect(() => {
     if (!focusTarget) return
     const row = document.getElementById(`service-row-${focusTarget.key}`)
     if (!row) return
     row.scrollIntoView({ block: 'center' })
+    // A Move from the hint (0080) lands on the row's ⋯, as its Category
+    // select is only there while the ⋯ is open.
+    const more = row.querySelector<HTMLElement>('button[aria-label^="More for "]')
     const target =
       focusTarget.field === 'category'
-        ? row.querySelector<HTMLElement>('select[aria-label$=" category"]')
-        : (row.querySelector<HTMLElement>('[aria-invalid="true"]') ?? row.querySelector<HTMLElement>('input'))
+        ? (row.querySelector<HTMLElement>('select[aria-label$=" category"]') ?? more)
+        : focusTarget.field === 'more'
+          ? more
+          : (row.querySelector<HTMLElement>('[aria-invalid="true"]') ?? row.querySelector<HTMLElement>('input'))
     target?.focus({ preventScroll: true })
   }, [focusTarget])
 
@@ -217,8 +248,19 @@ export function ServicesEditor({
     }
   }, [onAiBusyChange])
 
+  // "Add from template" (0082): the team's switched-on templates, from the
+  // API. If they can't load, the editor says so and Add service still works.
+  const templatesQuery = useServiceTemplatesForEditor()
+  useEffect(() => {
+    if (isAuthError(templatesQuery.error)) onAuthError()
+  }, [templatesQuery.error, onAuthError])
+  // "Save as template" (0082): the sheet, and what it said once saved.
+  const [templateSheet, setTemplateSheet] = useState<TemplateSheetMode | null>(null)
+  const [templateNote, setTemplateNote] = useState('')
+
   const groups = groupRows(rows)
-  const templates = templatesNotIn([...rows.map((row) => row.name), ...otherNames])
+  const templates = templatesNotIn(templatesQuery.data ?? [], [...rows.map((row) => row.name), ...otherNames])
+  const templateLines = templatesByCategory(templates)
   const busy = saving || fill !== null
 
   const update = (key: string, patch: Partial<ServiceRow>) =>
@@ -247,20 +289,25 @@ export function ServicesEditor({
 
   const addTemplate = (template: ServiceTemplate) => addRow(serviceRowFromTemplate(template))
 
+  /** A blank row at the end of the chosen category's heading, its name box focused. */
+  const addInCategory = (category: PlainCategory) => {
+    setPickerOpen(false)
+    addRow(emptyServiceRow(category))
+  }
+
   const removeRow = (key: string) => setRows((prev) => prev.filter((row) => row.key !== key))
 
   /**
-   * A new category, which may move the row to the other group: it is then
+   * A new category moves the row to that category's heading: it is then
    * unmounted where it was and mounted at the end of that group, often
-   * off-screen on a phone. Follow it there, back onto its Category select,
-   * and say where it went.
+   * off-screen on a phone. Follow it there, back onto its Category select
+   * (or its ⋯, after a hint's Move), and say where it went.
    */
-  const changeCategory = (row: ServiceRow, category: PlainCategory) => {
+  const changeCategory = (row: ServiceRow, category: PlainCategory, focus: 'category' | 'more' = 'category') => {
+    if (category === row.category) return
     update(row.key, { category })
-    const to = serviceGroupOf(category)
-    if (to.key === serviceGroupOf(row.category).key) return
-    setFocusTarget({ key: row.key, field: 'category' })
-    setMoveNote(`“${row.name.trim() || 'The service'}” moved to ${to.label}.`)
+    setFocusTarget({ key: row.key, field: focus })
+    setMoveNote(`“${row.name.trim() || 'The service'}” moved to ${serviceGroupLabel(category)}.`)
   }
 
   const forgetReplaced = (key: string) =>
@@ -374,11 +421,16 @@ export function ServicesEditor({
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap gap-2">
+          {/* Asks for the category first (0080): it decides the heading,
+              Detlio's commission and where customers find the service. */}
           <button
+            ref={addButtonRef}
             type="button"
             disabled={busy}
-            onClick={() => addRow(emptyServiceRow())}
-            className={PILL_BUTTON}
+            aria-expanded={pickerOpen}
+            aria-controls="service-category-picker"
+            onClick={() => setPickerOpen((open) => !open)}
+            className={cn(PILL_BUTTON, pickerOpen && 'border-text-secondary bg-surface')}
           >
             <IconPlus size={17} stroke={1.5} aria-hidden="true" /> Add service
           </button>
@@ -394,6 +446,49 @@ export function ServicesEditor({
             </button>
           )}
         </div>
+        {pickerOpen && (
+          <div
+            ref={pickerRef}
+            id="service-category-picker"
+            role="group"
+            aria-labelledby="service-category-picker-title"
+            onKeyDown={(e) => {
+              if (e.key !== 'Escape') return
+              setPickerOpen(false)
+              addButtonRef.current?.focus()
+            }}
+            className="rounded-[16px] border border-border bg-surface p-4"
+          >
+            <p id="service-category-picker-title" className="text-[14px] font-medium text-text-primary">
+              What kind of service?
+            </p>
+            <p className="mt-0.5 text-[12.5px] text-text-muted">
+              It decides the heading it goes under, Detlio’s commission and where customers find it.
+            </p>
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {CATEGORY_PICKER.map((choice) => (
+                <button
+                  key={choice.category}
+                  type="button"
+                  disabled={busy}
+                  onClick={() => addInCategory(choice.category)}
+                  className="flex min-h-12 items-center gap-2.5 rounded-[12px] border border-border bg-white/[0.015] px-3.5 text-left transition-colors hover:border-text-secondary disabled:opacity-50"
+                >
+                  <CategoryIcon category={choice.category} size={17} className="shrink-0 text-text-secondary" />
+                  <span className="min-w-0 flex-1 text-[14px] font-medium text-text-primary">{choice.label}</span>
+                  <span className="font-numeric text-[12.5px] text-text-muted">{choice.commissionPercent}%</span>
+                  {choice.isNew && (
+                    <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[11px] font-medium text-text-secondary">
+                      New
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+            <p className="mt-3 text-[12px] text-text-muted">Change it later under the row’s ⋯ → Category.</p>
+          </div>
+        )}
+
         {/* Always mounted, so progress and the outcome are announced. */}
         <p
           role="status"
@@ -418,27 +513,69 @@ export function ServicesEditor({
           {moveNote}
         </p>
 
-        {templates.length > 0 && (
+        {/* One line per category (0080), so it is clear where each lands. */}
+        {templateLines.length > 0 && (
           <div role="group" aria-labelledby="service-templates-label" className="flex flex-col gap-2">
-            <span id="service-templates-label" className="text-[12px] font-medium text-text-secondary">
-              Add from template
-            </span>
-            <div className="flex flex-wrap gap-2">
-              {templates.map((template) => (
-                <button
-                  key={template.key}
-                  type="button"
-                  disabled={busy}
-                  onClick={() => addTemplate(template)}
-                  className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-border bg-surface pl-2.5 pr-3.5 text-[13px] font-medium text-text-primary transition-colors hover:border-text-secondary disabled:opacity-50"
-                >
-                  <IconPlus size={15} className="text-text-secondary" aria-hidden="true" />
-                  {template.name}
-                </button>
-              ))}
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+              <span id="service-templates-label" className="text-[12px] font-medium text-text-secondary">
+                Add from template
+              </span>
+              <span className="text-[12px] text-text-muted">Each one arrives under its own heading</span>
             </div>
+            {templateLines.map((line) => (
+              <div
+                key={line.category}
+                role="group"
+                aria-label={`${line.label} templates`}
+                className="flex flex-col gap-1.5 sm:grid sm:grid-cols-[150px_minmax(0,1fr)] sm:items-center sm:gap-3"
+              >
+                <span className="flex items-center gap-1.5 text-[12.5px] text-text-secondary">
+                  <CategoryIcon category={line.category} size={15} />
+                  {line.label}
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {line.templates.map((template) => (
+                    <button
+                      // The id, not the key: only the built-ins have a key;
+                      // the team's own are null, and would share one.
+                      key={template.id}
+                      type="button"
+                      disabled={busy}
+                      onClick={() => addTemplate(template)}
+                      className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-border bg-surface pl-2.5 pr-3.5 text-[13px] font-medium text-text-primary transition-colors hover:border-text-secondary disabled:opacity-50"
+                    >
+                      <IconPlus size={15} className="text-text-secondary" aria-hidden="true" />
+                      {template.name}
+                      {/* Added by the team in the last 14 days (0082). */}
+                      {template.isNew && (
+                        <span className="rounded-full bg-tone-attention-tint px-1.5 py-0.5 text-[11px] font-medium text-tone-attention-text">
+                          New
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         )}
+        {templatesQuery.isError && !isAuthError(templatesQuery.error) && (
+          <p role="alert" className="flex flex-wrap items-center gap-x-1.5 text-[12.5px] text-text-secondary">
+            <IconAlertCircle size={15} className="shrink-0 text-error" aria-hidden="true" />
+            Templates couldn’t load, so “Add from template” is hidden. Add service still works.
+            <button
+              type="button"
+              onClick={() => void templatesQuery.refetch()}
+              className="inline-flex min-h-11 items-center rounded-[10px] px-1 font-medium text-text-primary underline decoration-border underline-offset-4"
+            >
+              Try again
+            </button>
+          </p>
+        )}
+        {/* Always mounted, so a Save as template is announced. */}
+        <p role="status" className={templateNote ? 'text-[12.5px] text-text-secondary' : 'sr-only'}>
+          {templateNote}
+        </p>
       </div>
 
       <section
@@ -463,9 +600,19 @@ export function ServicesEditor({
             <div key={group.key}>
               <div className="border-t border-border bg-white/[0.022] px-4 pb-2.5 pt-3.5">
                 <h3 className="flex items-baseline gap-2">
+                  <CategoryIcon category={group.category} size={15} className="shrink-0 self-center text-text-secondary" />
                   <span className="text-[13.5px] font-medium text-text-primary">{group.label}</span>
                   <span className="font-numeric text-[12.5px] text-text-muted">{group.rows.length}</span>
+                  {/* Detlio's commission on the category, in quiet text. */}
+                  <span className="text-[12.5px] text-text-muted">
+                    · <span className="font-numeric">{group.commissionPercent}%</span> commission
+                  </span>
                 </h3>
+                {group.category === 'others' && othersHintNote(group.rows.map(({ row }) => row)) && (
+                  <p className="mt-1.5 text-[12.5px] text-text-secondary">
+                    {othersHintNote(group.rows.map(({ row }) => row))}
+                  </p>
+                )}
                 {/* Column headings, for the eye only: every input carries its
                     own name ("Service 2 SUV price in rupees"). */}
                 <div aria-hidden="true" className={cn(ROW_GRID, 'mt-2.5 text-[12px] font-medium text-text-muted')}>
@@ -506,12 +653,24 @@ export function ServicesEditor({
                     forgetReplaced(row.key)
                   }}
                   onCategory={(category) => changeCategory(row, category)}
+                  hint={rowCategoryHint(row)}
+                  onMoveHint={(category) => changeCategory(row, category, 'more')}
+                  onDismissHint={() => update(row.key, { categoryHintDismissed: true })}
                   rowError={row.id ? rowErrors[row.id] : undefined}
                   media={media}
                   importNotes={rowNotes[row.key]}
                   hide={hide}
                   saving={saving}
                   onRemove={() => removeRow(row.key)}
+                  onSaveAsTemplate={() =>
+                    setTemplateSheet({
+                      kind: 'from-service',
+                      form: templateFormFromRow(row),
+                      garageName,
+                      serviceName: row.name.trim(),
+                      vendorId,
+                    })
+                  }
                 />
               ))}
             </div>
@@ -520,6 +679,13 @@ export function ServicesEditor({
       </section>
 
       <p className="text-[12px] leading-relaxed text-text-muted">{footnote}</p>
+
+      <ServiceTemplateSheet
+        mode={templateSheet}
+        onClose={() => setTemplateSheet(null)}
+        onSaved={(note) => setTemplateNote(note)}
+        onAuthError={onAuthError}
+      />
     </div>
   )
 }
@@ -541,12 +707,16 @@ function ServiceRowItem({
   onUndo,
   onDescription,
   onCategory,
+  hint,
+  onMoveHint,
+  onDismissHint,
   rowError,
   media,
   importNotes = [],
   hide,
   saving,
   onRemove,
+  onSaveAsTemplate,
 }: {
   row: ServiceRow
   number: number
@@ -564,12 +734,18 @@ function ServiceRowItem({
   onUndo: () => void
   onDescription: (description: string) => void
   onCategory: (category: PlainCategory) => void
+  /** "Looks like Repairs · matched “clutch”" (0080): rows in Others only. */
+  hint: CategoryHint | null
+  onMoveHint: (category: PlainCategory) => void
+  onDismissHint: () => void
   rowError?: string
   media?: ServiceMediaControls
   importNotes?: ServiceRowNote[]
   hide?: ServiceHideControls
   saving: boolean
   onRemove: () => void
+  /** "Save as template" (0082): the template sheet, filled in from this row. */
+  onSaveAsTemplate: () => void
 }) {
   const id = useId()
   const label = `Service ${number}`
@@ -649,6 +825,22 @@ function ServiceRowItem({
       />
     )
   }
+
+  // Beside Hide service and Delete (0082): every garage can then add this
+  // service in one tap. Never its prices; the row itself is left as it is.
+  const saveAsTemplate = (
+    <button
+      type="button"
+      disabled={!row.name.trim() || saving}
+      title={row.name.trim() ? undefined : 'Name the service first'}
+      onClick={onSaveAsTemplate}
+      aria-label={`Save ${name} as template`}
+      className="inline-flex min-h-11 items-center gap-1.5 rounded-[10px] px-2 text-[13.5px] font-medium text-text-secondary transition-colors hover:text-text-primary disabled:opacity-50"
+    >
+      <IconTemplate size={16} stroke={1.5} aria-hidden="true" />
+      Save as template
+    </button>
+  )
 
   return (
     // A named group, so the row's own refusal can be found on it — and is
@@ -812,6 +1004,41 @@ function ServiceRowItem({
         </div>
       )}
 
+      {/* A service in Others whose name looks like the mechanical or body
+          work (0080): what it looks like and why. Nothing moves until Move;
+          Not this hides it for good. Both wait for Save changes. */}
+      {hint && (
+        <div className="mt-2.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-[12px] border border-border bg-white/[0.02] py-1 pl-3 pr-1">
+          <p className="flex min-w-0 items-center gap-2 py-2 text-[13px] text-text-secondary">
+            <IconBulb size={16} stroke={1.5} aria-hidden="true" className="shrink-0" />
+            <span>
+              Looks like <span className="font-medium text-text-primary">{serviceGroupLabel(hint.category)}</span>
+              {' · '}matched “<span className="font-medium text-tone-attention-text">{hint.keyword}</span>”
+            </span>
+          </p>
+          <span className="flex items-center">
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => onMoveHint(hint.category)}
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-border px-3.5 text-[13px] font-medium text-text-primary transition-colors hover:bg-surface disabled:opacity-50"
+            >
+              <CategoryIcon category={hint.category} size={15} />
+              Move to {serviceGroupLabel(hint.category)}
+            </button>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={onDismissHint}
+              aria-label={`Not this: keep ${name} in Others`}
+              className="inline-flex min-h-11 items-center rounded-full px-3.5 text-[13px] font-medium text-text-secondary transition-colors hover:text-text-primary disabled:opacity-50"
+            >
+              Not this
+            </button>
+          </span>
+        </div>
+      )}
+
       {/* No duration (0064): it books, holding the default in the slot
           calendar, but the admin should know. */}
       {mins == null && row.name.trim() && (
@@ -900,9 +1127,10 @@ function ServiceRowItem({
               onChange={(e) => onCategory(e.target.value as PlainCategory)}
               className="min-h-11"
             >
+              {/* Each with Detlio's commission on it (0080). */}
               {SERVICE_CATEGORY_OPTIONS.map((c) => (
                 <option key={c.value} value={c.value}>
-                  {c.label}
+                  {c.label} · {CATEGORY_COMMISSION_PERCENT[c.value]}%
                 </option>
               ))}
             </ScSelect>
@@ -975,13 +1203,13 @@ function ServiceRowItem({
               </div>
             ))}
 
-          <div className="flex min-h-6 items-center justify-between gap-3">
+          <div className="flex min-h-6 flex-wrap items-center justify-between gap-x-3 gap-y-2">
             {/* Quiet: neither is the page's main action. A saved service is
                 hidden, straight away and reversibly, or deleted after a
                 confirm; a row never saved is only taken off the form. */}
             {row.id && hide ? (
               <>
-                <span className="-my-2.5 -ml-2 flex items-center">
+                <span className="-my-2.5 -ml-2 flex flex-wrap items-center">
                   <button
                     type="button"
                     data-service-hide
@@ -1003,20 +1231,24 @@ function ServiceRowItem({
                     <IconTrash size={16} stroke={1.5} aria-hidden="true" />
                     Delete
                   </button>
+                  {saveAsTemplate}
                 </span>
                 <span className="text-[12px] text-text-muted">Past bookings keep it</span>
               </>
             ) : (
-              <button
-                type="button"
-                onClick={onRemove}
-                disabled={saving}
-                aria-label={`Remove service ${number}`}
-                className="-my-2.5 -ml-2 inline-flex min-h-11 items-center gap-1.5 rounded-[10px] px-2 text-[13.5px] font-medium text-text-secondary transition-colors hover:text-text-primary disabled:opacity-50"
-              >
-                <IconTrash size={16} stroke={1.5} aria-hidden="true" />
-                Remove
-              </button>
+              <span className="-my-2.5 -ml-2 flex items-center">
+                <button
+                  type="button"
+                  onClick={onRemove}
+                  disabled={saving}
+                  aria-label={`Remove service ${number}`}
+                  className="inline-flex min-h-11 items-center gap-1.5 rounded-[10px] px-2 text-[13.5px] font-medium text-text-secondary transition-colors hover:text-text-primary disabled:opacity-50"
+                >
+                  <IconTrash size={16} stroke={1.5} aria-hidden="true" />
+                  Remove
+                </button>
+                {saveAsTemplate}
+              </span>
             )}
           </div>
         </div>

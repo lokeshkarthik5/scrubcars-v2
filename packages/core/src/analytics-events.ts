@@ -55,6 +55,9 @@ export const BROWSE_CATEGORIES = [
   'detailing',
   'coating',
   'scratch_removal',
+  'general_service',
+  'repairs',
+  'dent_paint',
   'others',
   'package',
 ] as const

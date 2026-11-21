@@ -28,8 +28,9 @@ import { FINISH_PRESSED_SCALE } from './tokens';
 
 /**
  * The finish's motion (docs/ui-round-2026-11.md §1, packages/ui/src/finish/motion.tsx):
- * one-shot effects only, transform and opacity on the native driver, and none at all
- * when the phone asks for less motion, where the content is simply there. This
+ * one-shot effects only (the one loop is the bottom bar orb's turning ring, NavOrb in
+ * finish.tsx), transform and opacity on the native driver, and none at all when the
+ * phone asks for less motion, where the content is simply there. This
  * package has no Reanimated of its own, so it uses React Native's Animated, whose
  * native driver runs these on the UI thread too.
  */

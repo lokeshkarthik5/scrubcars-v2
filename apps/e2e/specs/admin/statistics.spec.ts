@@ -87,7 +87,7 @@ test.describe('statistics page @p0', () => {
     await expect(page).toHaveURL(/tab=commission/)
     await expect(page.getByText('First 25 bookings are free')).toBeVisible()
     await expect(
-      page.getByText('Detailing, coating and scratch removal')
+      page.getByText('Detailing, coating, scratch removal, general service, repairs and dent & paint')
     ).toBeVisible()
     await expect(page.getByText(/^Commission in \w+ so far$/)).toBeVisible()
   })

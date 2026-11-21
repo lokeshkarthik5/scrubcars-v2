@@ -1,19 +1,32 @@
 import type { ComponentType } from 'react'
 
 /**
- * The lit tab's orb of the bottom bar (F, the red-glow mockup, held still):
- * a graphite well with a thin ring of light. It pops in once when its tab
- * is reached and never turns (one-shot motion only). Used by the customer
- * app's HubNav and Garage Book's bar in the garage portal; CSS in
+ * The lit tab's orb of the bottom bar (F, the red-glow mockup, as approved):
+ * a graphite well with a thin ring of light that turns, the red spectrum one
+ * way and a white light the other, with a soft bloom that turns with it. It
+ * pops in when its tab is reached and then turns for as long as the tab is
+ * lit; under reduced motion it is simply there, still. Only the lit tab
+ * renders one, so one orb at most is ever moving. Used by the customer app's
+ * HubNav, the garage portal's bar and Garage Book's bar; CSS in
  * packages/ui/styles/finish.css (.hub-orb).
  */
 export function LitOrb({ icon: Icon }: { icon: ComponentType<{ size?: number; className?: string }> }) {
   return (
     <span aria-hidden="true" className="hub-orb fx-pop">
-      <span className="hub-orb__bloom" />
+      <span className="hub-orb__bloom hub-orb__bloom--far">
+        <i className="hub-orb__spec" />
+        <i className="hub-orb__hot" />
+      </span>
+      <span className="hub-orb__bloom">
+        <i className="hub-orb__spec" />
+        <i className="hub-orb__hot" />
+      </span>
       <span className="hub-orb__well" />
-      <span className="hub-orb__ring" />
       <Icon size={17} className="relative" />
+      <span className="hub-orb__ring hub-orb__spec" />
+      <span className="hub-orb__ring hub-orb__hot" />
+      <span className="hub-orb__glare" />
+      <span className="hub-orb__glare hub-orb__glare--two" />
     </span>
   )
 }

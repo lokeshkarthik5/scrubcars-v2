@@ -76,6 +76,24 @@ function reachSql(mode: RequestMode, point: ReturnType<typeof geography>) {
   }
 }
 
+/**
+ * Ask for pickup (0079) may go to a listed garage that doesn't collect cars
+ * at all: it counts as offering pickup, covering nobody, its reach 0 km (so
+ * the whole distance is "outside"). A garage that collects is measured as
+ * before. Only the one garage the customer asks; a pass-on still goes to a
+ * garage that collects (listCandidates).
+ */
+function askedReachSql(mode: RequestMode, point: ReturnType<typeof geography>) {
+  const reach = reachSql(mode, point)
+  if (mode === 'doorstep') return reach
+  return {
+    offers: sql`true`,
+    covers: sql`(${PICKUP_OFFERED} AND ${reach.covers})`,
+    outside: sql`(CASE WHEN ${PICKUP_OFFERED} THEN ${reach.outside} ELSE gis.ST_Distance(v.geo, ${point}, false) END)`,
+    cover: sql`(CASE WHEN ${PICKUP_OFFERED} THEN ${reach.cover} ELSE 0 END)`,
+  }
+}
+
 function toMeasured(row: MeasuredRow): MeasuredGarage {
   return {
     vendorId: row.id,
@@ -97,7 +115,7 @@ export const bookingRequestsRepository = {
   /** One garage measured against the customer's point (null: no such garage, or no pin). */
   async measureGarage(vendorId: string, mode: RequestMode, point: Point): Promise<MeasuredGarage | null> {
     const at = geography(point)
-    const reach = reachSql(mode, at)
+    const reach = askedReachSql(mode, at)
     const rows = await db.execute<MeasuredRow>(sql`
       SELECT v.id, v.business_name,
              ${LISTED_TO_CUSTOMERS} AS listed,
@@ -116,7 +134,7 @@ export const bookingRequestsRepository = {
 
   /** A garage's own facts for the window list: listed, offering the mode, its pause and slot interval. */
   async garageFacts(vendorId: string, mode: RequestMode) {
-    const reach = reachSql(mode, geography({ lat: 0, lng: 0 }))
+    const reach = askedReachSql(mode, geography({ lat: 0, lng: 0 }))
     const rows = await db.execute<{
       listed: boolean
       offers_mode: boolean
@@ -348,6 +366,8 @@ export const bookingRequestsRepository = {
     travelFee: string
     startAt: Date
     confirmBy: Date
+    /** Ask for pickup: the garage's responsibility tick (0079). */
+    pickupTermsAcceptedAt?: Date | null
     now: Date
   }): Promise<BookingRequestRecord | null> {
     const [row] = await db
@@ -358,6 +378,7 @@ export const bookingRequestsRepository = {
         repliedAt: input.now,
         repliedBy: input.userId,
         travelFee: input.travelFee,
+        pickupTermsAcceptedAt: input.pickupTermsAcceptedAt ?? null,
         acceptedStartAt: input.startAt,
         confirmBy: input.confirmBy,
         updatedAt: input.now,
