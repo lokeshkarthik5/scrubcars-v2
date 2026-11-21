@@ -491,13 +491,14 @@ export const leadsRepository = {
     const rows = await db.execute<{
       id: string
       vendor_id: string
+      user_id: string | null
       credit_status: 'owed' | 'granted' | null
       credit_amount: string | null
       customer_name: string | null
       has_user: boolean
       created_at: Date | string
     }>(sql`
-      SELECT r.id, r.vendor_id, r.credit_status, r.credit_amount, u.name AS customer_name,
+      SELECT r.id, r.vendor_id, r.user_id, r.credit_status, r.credit_amount, u.name AS customer_name,
              (r.user_id IS NOT NULL) AS has_user, r.created_at
         FROM garage_recommendations r LEFT JOIN users u ON u.id = r.user_id
        WHERE r.vendor_id IS NOT NULL AND r.status = 'joined'

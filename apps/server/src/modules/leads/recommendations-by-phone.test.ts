@@ -188,9 +188,11 @@ describe('a self-signed-up garage with a recommended phone', () => {
 describe('the admin panel’s “Brought in by”', () => {
   test('each garage’s customers, with their ₹500 paid, owed or waiting', async () => {
     patch(leadsRepository as unknown as Patchable, 'listJoinedRecommendations', async () => [
-      { id: 'r1', vendor_id: GARAGE, credit_status: null, credit_amount: null, customer_name: 'Priya Raman', has_user: true, created_at: DAY },
-      { id: 'r2', vendor_id: GARAGE, credit_status: 'granted', credit_amount: '500.00', customer_name: 'Arun', has_user: true, created_at: DAY },
-      { id: 'r3', vendor_id: 'g2', credit_status: 'owed', credit_amount: '500.00', customer_name: null, has_user: false, created_at: DAY },
+      { id: 'r1', vendor_id: GARAGE, user_id: 'priya', credit_status: null, credit_amount: null, customer_name: 'Priya Raman', has_user: true, created_at: DAY },
+      { id: 'r2', vendor_id: GARAGE, user_id: 'arun', credit_status: 'granted', credit_amount: '500.00', customer_name: 'Arun', has_user: true, created_at: DAY },
+      // Priya recommended it twice: one line, the first.
+      { id: 'r1b', vendor_id: GARAGE, user_id: 'priya', credit_status: null, credit_amount: null, customer_name: 'Priya Raman', has_user: true, created_at: DAY },
+      { id: 'r3', vendor_id: 'g2', user_id: null, credit_status: 'owed', credit_amount: '500.00', customer_name: null, has_user: false, created_at: DAY },
     ])
     const byGarage = await leadsService.broughtInByGarage()
     expect(byGarage.get(GARAGE)).toEqual([

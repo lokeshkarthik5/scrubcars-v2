@@ -695,9 +695,15 @@ export const leadsService = {
     return linked
   },
 
-  /** Each garage's "Brought in by" (admin only), by garage id. One read. */
+  /**
+   * Each garage's "Brought in by" (admin only), by garage id. One read. A
+   * customer who recommended the same garage twice is one line (their
+   * credit is once per garage): the one whose credit is decided, else the
+   * first.
+   */
   async broughtInByGarage(): Promise<Map<string, BroughtInBy[]>> {
-    const byGarage = new Map<string, BroughtInBy[]>()
+    const rank = { paid: 2, owed: 1, waiting: 0 } as const
+    const byGarage = new Map<string, Map<string, BroughtInBy>>()
     for (const row of await leadsRepository.listJoinedRecommendations()) {
       const entry: BroughtInBy = {
         recommendationId: row.id,
@@ -706,9 +712,14 @@ export const leadsService = {
         amountRupees: row.credit_amount !== null ? Number(row.credit_amount) : REFERRAL_CREDIT.perGarageRupees,
         recommendedAt: new Date(row.created_at).toISOString(),
       }
-      byGarage.set(row.vendor_id, [...(byGarage.get(row.vendor_id) ?? []), entry])
+      const customers = byGarage.get(row.vendor_id) ?? new Map<string, BroughtInBy>()
+      // A deleted account's rows have no customer to fold into: each is its own line.
+      const key = row.user_id ?? `rec:${row.id}`
+      const kept = customers.get(key)
+      if (!kept || rank[entry.credit] > rank[kept.credit]) customers.set(key, entry)
+      byGarage.set(row.vendor_id, customers)
     }
-    return byGarage
+    return new Map([...byGarage].map(([vendorId, customers]) => [vendorId, [...customers.values()]]))
   },
 
   /**
