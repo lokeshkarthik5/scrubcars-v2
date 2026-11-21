@@ -687,6 +687,10 @@ export const vendors = pgTable(
     // lib/cities.ts cityOfGarage's rule (drizzle/0069_cities_reach.sql). Never
     // set it from code; read it.
     cityId: uuid('city_id').references(() => cities.id, { onDelete: 'set null' }),
+    // The branch group (0081): the business this garage is one branch of, or
+    // NULL for none. Written by "Add a branch" and admin's Link / Remove from
+    // group (modules/branch-groups); never backfilled.
+    groupId: uuid('group_id').references(() => garageGroups.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -731,6 +735,9 @@ export const vendors = pgTable(
     ),
     index('vendors_status_idx').on(table.status),
     index('vendors_city_id_idx').on(table.cityId),
+    index('vendors_group_id_idx')
+      .on(table.groupId)
+      .where(sql`${table.groupId} is not null`),
     index('vendors_deleted_at_idx')
       .on(table.deletedAt)
       .where(sql`${table.deletedAt} is not null`),
@@ -2332,6 +2339,24 @@ export const adminSettings = pgTable(
     check('admin_settings_value_check', sql`jsonb_typeof(${table.value}) = 'object'`),
   ]
 )
+
+// One business, several garages (0081, "Branches"): the group a garage is a
+// branch of (vendors.group_id). Named after the first garage's business name
+// without its area ("Shine Auto Spa – Anna Nagar" → "Shine Auto Spa",
+// lib/branch-groups.ts groupNameOf). Each branch stays a whole garage; the
+// group is for the Branches card, changing services and prices at every
+// branch at once, and the customers' "Also at" and "1 of 3 … branches".
+export const garageGroups = pgTable(
+  'garage_groups',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: varchar('name', { length: 255 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [check('garage_groups_name_check', sql`length(btrim(${table.name})) > 0`)]
+)
+
+export type GarageGroup = typeof garageGroups.$inferSelect
 
 // The cities Detlio serves (0069), with the owner's switch "Customers see
 // garages here". A garage's city is the city whose reach (straight-line km

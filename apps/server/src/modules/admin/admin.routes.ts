@@ -59,6 +59,7 @@ import { adminServiceCategoryRoutes } from '../service-categories/service-catego
 import { adminPlacesRoutes } from '../places/places.routes.js'
 import { adminOwnerDeleteRoutes } from '../owner-delete/owner-delete.routes.js'
 import { adminGarageBackupRoutes } from '../garage-backup/garage-backup.routes.js'
+import { adminBranchGroupRoutes } from '../branch-groups/branch-groups.routes.js'
 import { adminCustomerRoutes } from '../admin-customers/admin-customers.routes.js'
 import * as adminController from './admin.controller.js'
 import {
@@ -220,6 +221,11 @@ adminRoutes.route('/', adminOwnerDeleteRoutes)
 // Back up all garages (18 Nov 2026): /backup/*, owner only. Its own module;
 // mounted at the root for the cookie's sake.
 adminRoutes.route('/', adminGarageBackupRoutes)
+// Branch groups (0081): the Branches card, Link an existing garage, Remove
+// from group, and changing services at every branch at once
+// (/vendors/:id/branches/*). Its own module; mounted at the root for the
+// cookie's sake.
+adminRoutes.route('/', adminBranchGroupRoutes)
 // The Customers page (10 Nov 2026): search, a customer's page, and the
 // owner's Delete customer account.
 adminRoutes.route('/customers', adminCustomerRoutes)

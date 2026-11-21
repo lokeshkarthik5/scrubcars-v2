@@ -1,11 +1,9 @@
 'use client'
 
-import { useState } from 'react'
 import {
   IconAlertTriangle,
   IconChevronRight,
   IconCircleCheck,
-  IconGitBranch,
 } from '@tabler/icons-react'
 import Link from 'next/link'
 import { ScButton } from '@repo/ui/sc/button'
@@ -15,7 +13,6 @@ import { ScSwitch } from '@repo/ui/sc/switch'
 import { OTHER_TOWNS_LABEL } from '@repo/core/cities'
 import { formatDay as formatDayOf } from '@repo/core/format'
 import { cn } from '@repo/core/utils'
-import { BranchSheet } from '@/components/branch-sheet'
 import { GarageMarksPanel } from '@/components/marks/editor-marks-panel'
 import { SavedNote } from '@/components/save-bar'
 import { PAGE_TAB_LABELS, parsePageTab, type PageTab } from '@/lib/garage-edit'
@@ -44,7 +41,8 @@ const TONE_DOT: Record<StatusLine['tone'], string> = {
  * The editor's left column: whether customers can book the garage and
  * what stands in the way (each line opens the tab that fixes it, never
  * another page), the team's marks (W4), and Go live: the stage and Show to customers
- * (saved with Save changes, like the tabs) and Pause (saved at once).
+ * (saved with Save changes, like the tabs) and Pause (saved at once). "Add a
+ * branch" moved to the Branches card on Details (0081).
  *
  * As saved, not as drafted: an unsaved Active is not live yet.
  */
@@ -144,8 +142,6 @@ export function StatusPanel({
       />
 
       <GoLive g={g} saved={saved} draft={draft} onOpenTab={onOpenTab} />
-
-      {!inBin && <AddBranch vendorId={vendorId} g={g} saved={saved} />}
     </div>
   )
 }
@@ -189,34 +185,6 @@ function CityStanding({ g }: { g: GarageDraftState }) {
         </div>
       )}
     </div>
-  )
-}
-
-/** "Add a branch…": opens the sheet that starts a new garage from this one (0069). */
-function AddBranch({ vendorId, g, saved }: { vendorId: string; g: GarageDraftState; saved: GarageDraft }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <>
-      <ScButton
-        type="button"
-        variant="outline"
-        onClick={() => setOpen(true)}
-        className="min-h-11 text-[13px]"
-      >
-        <IconGitBranch size={16} aria-hidden="true" />
-        Add a branch…
-      </ScButton>
-      <BranchSheet
-        open={open}
-        onClose={() => setOpen(false)}
-        vendorId={vendorId}
-        garageName={saved.form.businessName}
-        services={saved.services}
-        atGarage={g.atGarage}
-        ownerPhone={saved.form.ownerPhone}
-        pickupOn={g.bookingMode?.pickupEnabled === true}
-      />
-    </>
   )
 }
 

@@ -21,6 +21,7 @@ const { vendorsRepository } = await import('../vendors/vendors.repository.js')
 const { reviewsRepository } = await import('../reviews/reviews.repository.js')
 const { tiersService } = await import('../tiers/tiers.service.js')
 const { citiesService } = await import('../cities/cities.service.js')
+const { branchGroupsRepository } = await import('../branch-groups/branch-groups.repository.js')
 const { garageResponseRepository } = await import('./garage-response.repository.js')
 const { garageResponseService } = await import('./garage-response.service.js')
 
@@ -170,6 +171,8 @@ beforeAll(() => {
   patch(vendorsRepository, 'listPublicVendorsByIds', read([garageRow(QUICK), garageRow(NEAR_SLOW)]))
   patch(tiersService, 'customerTiers', read(new Map()))
   patch(citiesService, 'rules', read({ cities: [], otherTowns: true }))
+  // No branch groups (0081): the cards' one group read.
+  patch(branchGroupsRepository, 'listCardGroups', read([]))
 })
 
 afterAll(() => {

@@ -2520,3 +2520,40 @@ export const GARAGE_BACKUP = {
   bank: { accountNumber: '50100123456789', upiId: '9000007851@ybl', ifsc: 'HDFC0007851' },
   bookCustomer: { id: id(7853), name: 'Backup Walk-in Kumar', phone: '9000007853' },
 } as const
+
+/**
+ * Branches (0081; ids 7900–7949, phones 90000079xx): "E2E Shine Spa", one
+ * owner's four garages in one group, far from every other fixture (around
+ * 21° N, 74.5° E, in no city, so Other towns lists them):
+ *
+ *   anna     the main branch (made first), listed
+ *   vel      listed: the admin spec edits its services
+ *   omr      listed; its Foam wash is ₹529, the others ₹499 ("was different")
+ *   tnagar   added today, Pending and not shown: never on a customer screen
+ *
+ * Foam wash at all four, Bike wash at Anna Nagar and Velachery only (the
+ * delete skips the other two), Full wash at Velachery only. `lone` is the
+ * owner's garage in no group, Pending, for Link an existing garage and
+ * Remove from group. specs/admin/branch-groups.spec.ts changes and puts
+ * back the services and the link; specs/users/branches.spec.ts only reads.
+ */
+export const BRANCH_GROUPS = {
+  owner: { id: id(7900), phone: '9000007900', name: 'Shine Spa Owner' },
+  group: { id: id(7901), name: 'E2E Shine Spa' },
+  anna: { id: id(7902), name: 'E2E Shine Spa – Anna Nagar', label: 'Anna Nagar', pin: { lat: 21.0, lng: 74.5 } },
+  vel: { id: id(7903), name: 'E2E Shine Spa – Velachery', label: 'Velachery', pin: { lat: 21.04, lng: 74.53 } },
+  omr: { id: id(7904), name: 'E2E Shine Spa – OMR', label: 'OMR', pin: { lat: 21.09, lng: 74.56 } },
+  tnagar: { id: id(7905), name: 'E2E Shine Spa – T. Nagar', label: 'T. Nagar', pin: { lat: 21.01, lng: 74.47 } },
+  lone: { id: id(7906), name: 'E2E Lone Car Care', pin: { lat: 21.2, lng: 74.6 } },
+  foam: {
+    name: 'Foam wash',
+    ids: { anna: id(7910), vel: id(7911), omr: id(7912), tnagar: id(7913) },
+    price: '499.00',
+    omrPrice: '529.00',
+  },
+  bike: { name: 'Bike wash', ids: { anna: id(7914), vel: id(7915) }, price: '199.00' },
+  full: { name: 'Full wash', id: id(7916), price: '699.00' },
+  loneWash: { id: id(7917), name: 'Lone Foam Wash', price: '450.00' },
+  /** The service the admin spec adds at every branch, removed again after. */
+  addedName: 'E2E Underbody wash',
+} as const

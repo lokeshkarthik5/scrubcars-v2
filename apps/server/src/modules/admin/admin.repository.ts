@@ -37,6 +37,7 @@ import {
   bookingItems,
   bookingNotes,
   bookings,
+  garageGroups,
   jobPhotos,
   bookingStatusEnum,
   cancelledOnBehalfOfEnum,
@@ -550,14 +551,36 @@ export const adminRepository = {
    */
   async createBranch(plan: {
     owner: BranchOwner
+    /**
+     * The garage the branch is made from (0081): the two end up in one
+     * group, its group, or a new one named `groupName` when it has none.
+     */
+    source: { id: string; groupName: string }
     vendor: Omit<VendorInsert, 'ownerId'>
     services: Array<{ sourceId: string; row: Omit<ServiceInsert, 'vendorId'> }>
     packages: Array<{ row: Omit<ServiceInsert, 'vendorId'>; memberSourceIds: string[] }>
     hours: Array<Omit<WorkingHoursInsert, 'vendorId'>>
     photos: Array<{ url: string; storageKey: string | null; sortOrder: number }>
     audit: { actorSub: string; actorName: string; summary: Record<string, unknown>; detail: Record<string, unknown> }
-  }): Promise<{ id: string; ownerId: string }> {
+  }): Promise<{ id: string; ownerId: string; groupId: string; groupCreated: boolean }> {
     return db.transaction(async (tx) => {
+      // The group first (0081), the source's row locked so two branches
+      // added at once from a garage in no group still end up in one group.
+      const [source] = await tx
+        .select({ groupId: vendors.groupId })
+        .from(vendors)
+        .where(eq(vendors.id, plan.source.id))
+        .for('update')
+      let groupId = source?.groupId ?? null
+      const groupCreated = groupId === null
+      if (groupId === null) {
+        const [group] = await tx
+          .insert(garageGroups)
+          .values({ name: plan.source.groupName })
+          .returning({ id: garageGroups.id })
+        groupId = group!.id
+        await tx.update(vendors).set({ groupId }).where(eq(vendors.id, plan.source.id))
+      }
       let ownerId: string
       if (plan.owner.kind === 'existing') {
         ownerId = plan.owner.userId
@@ -583,7 +606,7 @@ export const adminRepository = {
       }
       const [branch] = await tx
         .insert(vendors)
-        .values({ ...plan.vendor, ownerId })
+        .values({ ...plan.vendor, ownerId, groupId })
         .returning({ id: vendors.id })
       const vendorId = branch!.id
       const newIdOf = new Map<string, string>()
@@ -622,10 +645,10 @@ export const adminRepository = {
         action: 'garage_branch_added',
         actorSub: plan.audit.actorSub,
         actorName: plan.audit.actorName,
-        summary: { ...plan.audit.summary, vendorId },
-        detail: plan.audit.detail,
+        summary: { ...plan.audit.summary, vendorId, groupId },
+        detail: { ...plan.audit.detail, groupCreated },
       })
-      return { id: vendorId, ownerId }
+      return { id: vendorId, ownerId, groupId, groupCreated }
     })
   },
 

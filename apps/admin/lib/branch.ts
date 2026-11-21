@@ -13,7 +13,7 @@ export const ANOTHER_TOWN = 'another'
 
 export interface BranchDraft {
   businessName: string
-  /** Typed by hand: the suggested "<name> – <city>" no longer follows the city. */
+  /** Typed by hand: the suggested "<group> – <city>" no longer follows the city. */
   nameEdited: boolean
   /** A city's id, or ANOTHER_TOWN. */
   cityChoice: string
@@ -43,17 +43,20 @@ export const BRANCH_PICKUP_UNSIGNED =
 
 /**
  * Every box ticked, as the owner asked: all services, hours, photos, and
- * the source owner's number, so the same login.
+ * the source owner's number, so the same login. The name starts from
+ * `baseName`, the group's name or the source's without its area (0081), so
+ * a branch of "Shine Auto Spa – Anna Nagar" is suggested as "Shine Auto Spa
+ * – Chennai", never "Shine Auto Spa – Anna Nagar – Chennai".
  */
 export function branchDraftFrom(
-  garageName: string,
+  baseName: string,
   serviceIds: string[],
   cities: readonly CityOption[],
   ownerPhone: string
 ): BranchDraft {
   const first = cities[0]
   return {
-    businessName: branchName(garageName, first?.name ?? ''),
+    businessName: branchName(baseName, first?.name ?? ''),
     nameEdited: false,
     cityChoice: first?.id ?? ANOTHER_TOWN,
     townTyped: '',
@@ -83,13 +86,14 @@ export function branchCityName(draft: BranchDraft, cities: readonly CityOption[]
 }
 
 /**
- * A new city chosen, or a town typed: the suggested name follows it until
- * admin types a name of their own. A typed town that is a city by name
- * (Madras for Chennai) picks that city instead.
+ * A new city chosen, or a town typed: the suggested name ("<baseName> –
+ * <city>", baseName as branchDraftFrom's) follows it until admin types a
+ * name of their own. A typed town that is a city by name (Madras for
+ * Chennai) picks that city instead.
  */
 export function withCity(
   draft: BranchDraft,
-  garageName: string,
+  baseName: string,
   change: { cityChoice?: string; townTyped?: string },
   cities: readonly CityOption[]
 ): BranchDraft {
@@ -98,7 +102,7 @@ export function withCity(
     const known = cities.find((city) => cityNameKey(city.name) === cityNameKey(change.townTyped))
     if (known) next = { ...next, cityChoice: known.id, townTyped: '' }
   }
-  return next.nameEdited ? next : { ...next, businessName: branchName(garageName, branchCityName(next, cities)) }
+  return next.nameEdited ? next : { ...next, businessName: branchName(baseName, branchCityName(next, cities)) }
 }
 
 /** What stops the branch being added, in the sheet's words, or null. */

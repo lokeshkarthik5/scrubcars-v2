@@ -60,4 +60,11 @@ export const customer: Readonly<Record<string, string>> = {
   // ─── "All over <city>" garages (0069), on a Doorstep or Pickup & drop list ───
   'Comes anywhere in {city}': '{city}-ல் எங்கும் வருவார்கள்',
   'Collects anywhere in {city}': '{city}-ல் எங்கிருந்தும் எடுத்துச் செல்வார்கள்',
+  // ─── Branches (0081): "Also at" on the garage page, the line on a card ───
+  // "Also at" heads a row of other places: "also at other places", not
+  // "இங்கும் உள்ளது" ("here too"), which reads as this garage.
+  'Also at': 'மற்ற இடங்களிலும் உள்ளது',
+  '1 of {count} {name} branches': '{name}-ன் {count} கிளைகளில் ஒன்று',
+  '{name}, {distance} away. Open this branch': '{name}, {distance} தொலைவில். இந்தக் கிளையைத் திறக்கவும்',
+  '{name}. Open this branch': '{name}. இந்தக் கிளையைத் திறக்கவும்',
 }

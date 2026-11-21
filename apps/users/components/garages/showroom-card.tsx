@@ -5,10 +5,11 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
-import { IconArrowUpRight, IconHome, IconStarFilled } from '@tabler/icons-react'
+import { IconArrowUpRight, IconHierarchy2, IconHome, IconStarFilled } from '@tabler/icons-react'
 import { prefetchGarage } from '@repo/core/api/hooks/use-vendors'
 import { bookingTypeParam } from '@repo/core/booking-types'
 import { anywhereInCityLine } from '@repo/core/reach'
+import { branchesLine } from '@repo/core/branches'
 import { distanceLabel, driveTimeLabel } from '@repo/core/drive-time'
 import { hoursLeftShare, openStatus } from '@repo/core/opening-hours'
 import { NEW_GARAGE_LABEL, hasStarScore } from '@repo/core/ratings'
@@ -119,6 +120,7 @@ export function ShowroomCard({
 
   const modeParam = bookingTypeParam(mode)
   const anywhere = anywhereInCityLine(vendor, mode)
+  const branchLine = branchesLine(vendor.branchGroup)
   const href = modeParam ? `/garage/${vendor.id}?mode=${modeParam}` : `/garage/${vendor.id}`
   const photos = vendor.photos
   const stars = hasStarScore(vendor)
@@ -434,6 +436,15 @@ export function ShowroomCard({
                 nothing (0070). */}
             <GarageTownChip garage={vendor} />
           </div>
+        )}
+
+        {/* "1 of 3 Shine Auto Spa branches" (0081): two similar cards are
+            branches of one business, not a mistake. Live branches only. */}
+        {branchLine && (
+          <p className="-mt-0.5 flex items-center gap-1.5 px-3.5 pb-3 text-t5 font-medium text-[#A8A8B2]">
+            <IconHierarchy2 size={13} aria-hidden className="shrink-0" />
+            {branchLine}
+          </p>
         )}
       </Link>
 

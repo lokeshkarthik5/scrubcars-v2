@@ -83,10 +83,12 @@ import {
   cities,
   pickupFeeChanges,
   garageCustomers,
+  garageGroups,
 } from '../schema.js'
 import {
   CITIES,
   CUSTOMER_CITIES,
+  BRANCH_GROUPS,
   PREIOS,
   BOOKING_INTENTS,
   BOOKINGS,
@@ -4801,6 +4803,8 @@ async function main() {
   await seedServiceCategoryRows()
   console.log('[e2e-seed] garage backup…')
   await seedGarageBackupRows()
+  console.log('[e2e-seed] branch groups…')
+  await seedBranchGroupRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }
@@ -5034,4 +5038,55 @@ async function seedGarageBackupRows() {
   await db.insert(garageCustomers).values({
     id: B.bookCustomer.id, vendorId: B.garage.id, name: B.bookCustomer.name, phone: B.bookCustomer.phone,
   })
+}
+
+/**
+ * Branches (0081; BRANCH_GROUPS, ids 7900–7949, phones 90000079xx): one
+ * owner's four garages in the "E2E Shine Spa" group (three listed, T. Nagar
+ * added today and not shown) and a fifth in no group. Drop-in, open 6 am–10 pm.
+ */
+async function seedBranchGroupRows() {
+  const B = BRANCH_GROUPS
+  await db.insert(users).values({
+    id: B.owner.id, name: B.owner.name, phone: B.owner.phone, isCustomer: false, isVendorOwner: true,
+    phoneVerified: true, status: 'active' as const,
+  })
+  await db.insert(garageGroups).values({ id: B.group.id, name: B.group.name, createdAt: daysAgo(40) })
+  const garage = (
+    g: { id: string; name: string; pin: { lat: number; lng: number } },
+    extra: Record<string, unknown>
+  ) => ({
+    id: g.id, ownerId: B.owner.id, businessName: g.name, phone: B.owner.phone,
+    address: `79, Branch Road, ${g.name.split(' – ')[1] ?? 'Shirpur'}`, city: 'Shirpur', pincode: '425405',
+    lat: g.pin.lat, lng: g.pin.lng, geoSource: 'map_pin' as const, geoConfirmedAt: now,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'] as Array<'hatchback' | 'sedan' | 'suv'>, bays: 3,
+    slotIntervalMins: 30, status: 'active' as const, isVerified: true, dropinEnabled: true, doorstepEnabled: false,
+    ...extra,
+  })
+  await db.insert(vendors).values([
+    garage(B.anna, { groupId: B.group.id, createdAt: daysAgo(40) }),
+    garage(B.vel, { groupId: B.group.id, createdAt: daysAgo(30) }),
+    garage(B.omr, { groupId: B.group.id, createdAt: daysAgo(20) }),
+    garage(B.tnagar, { groupId: B.group.id, status: 'pending' as const, isVerified: false, createdAt: new Date() }),
+    garage(B.lone, { status: 'pending' as const, isVerified: false, createdAt: daysAgo(60) }),
+  ])
+  const garages = [B.anna, B.vel, B.omr, B.tnagar, B.lone]
+  await db.insert(userMemberMapping).values(
+    garages.map((g) => ({ vendorId: g.id, userId: B.owner.id, role: 'vendor_admin' as const, status: 'active' as const }))
+  )
+  await db.insert(vendorWorkingHours).values(garages.flatMap((g) => hoursFor(g.id, '06:00:00', '22:00:00')))
+  const wash = (id: string, vendorId: string, name: string, price: string, durationMins = 45) => ({
+    id, vendorId, name, description: 'A careful job, done the same way each time.', category: 'car_wash' as const,
+    pricingType: 'flat' as const, price, durationMins, isActive: true,
+  })
+  await db.insert(services).values([
+    wash(B.foam.ids.anna, B.anna.id, B.foam.name, B.foam.price),
+    wash(B.foam.ids.vel, B.vel.id, B.foam.name, B.foam.price),
+    wash(B.foam.ids.omr, B.omr.id, B.foam.name, B.foam.omrPrice),
+    wash(B.foam.ids.tnagar, B.tnagar.id, B.foam.name, B.foam.price),
+    wash(B.bike.ids.anna, B.anna.id, B.bike.name, B.bike.price, 30),
+    wash(B.bike.ids.vel, B.vel.id, B.bike.name, B.bike.price, 30),
+    wash(B.full.id, B.vel.id, B.full.name, B.full.price, 60),
+    wash(B.loneWash.id, B.lone.id, B.loneWash.name, B.loneWash.price),
+  ])
 }

@@ -1,13 +1,14 @@
 import { prefetchGarage } from '@repo/core/api/hooks/use-vendors';
 import { bookingTypeParam } from '@repo/core/booking-types';
 import { anywhereInCityLine } from '@repo/core/reach';
+import { branchesLine } from '@repo/core/branches';
 import { distanceLabel, driveTimeLabel } from '@repo/core/drive-time';
 import { useT, useTn } from '@repo/core/i18n';
 import { hoursLeftShare, openStatus } from '@repo/core/opening-hours';
 import { hasStarScore, NEW_GARAGE_LABEL } from '@repo/core/ratings';
 import type { BookingType, Vendor } from '@repo/core/types';
 import { Edge, Glass, HoursRing, Pearl, Raised, usePearlInk } from '@repo/native-ui/finish';
-import { IconArrowUpRight, IconHome, IconStarFilled } from '@repo/native-ui/icons';
+import { IconArrowUpRight, IconHierarchy2, IconHome, IconStarFilled } from '@repo/native-ui/icons';
 import { useReduceMotion, useSeenOnce, type ViewRef } from '@repo/native-ui/motion';
 import { T } from '@repo/native-ui/text';
 import { createStyles, useColors, useFinish } from '@repo/native-ui/theme';
@@ -113,6 +114,7 @@ export const ShowroomCard = memo(function ShowroomCard({
 
   const modeParam = bookingTypeParam(mode);
   const anywhere = anywhereInCityLine(vendor, mode);
+  const branchLine = branchesLine(vendor.branchGroup);
   const href = modeParam ? `/garage/${vendor.id}?mode=${modeParam}` : `/garage/${vendor.id}`;
   const photos = vendor.photos;
   const stars = hasStarScore(vendor);
@@ -339,6 +341,17 @@ export const ShowroomCard = memo(function ShowroomCard({
             {townTag ? <OutsideCityChip text={townTag} /> : null}
           </View>
         ) : null}
+
+        {/* "1 of 3 Shine Auto Spa branches" (0081): two similar cards are branches of one business, not a
+            mistake. Live branches only, as the web card. */}
+        {branchLine ? (
+          <View style={styles.branchLine}>
+            <IconHierarchy2 size={13} color={fx.quietBright} />
+            <T variant="t5" numberOfLines={1} color={fx.quietBright} style={styles.branchText}>
+              {branchLine}
+            </T>
+          </View>
+        ) : null}
       </Pressable>
 
       {photos.length > 1 ? (
@@ -452,6 +465,8 @@ const useStyles = createStyles((c) => ({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 14, paddingBottom: 12, marginTop: -2 },
   chip: { height: 26 },
   chipInner: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10 },
+  branchLine: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingBottom: 12, marginTop: -2 },
+  branchText: { flexShrink: 1 },
   dots: { position: 'absolute', top: 130, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', gap: 2 },
   dotTouch: { height: 24, paddingHorizontal: 2, justifyContent: 'center' },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.45)' },
