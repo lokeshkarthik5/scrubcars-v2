@@ -24,6 +24,7 @@ import {
   SHINE,
   BRING,
   PICKUP_FEE,
+  PHOTO_ORDER,
   OWNER_DELETE,
   PRE_IOS,
   STAFF,
@@ -100,6 +101,8 @@ async function globalSetup() {
   await saveState('customer-bring', BRING.customer.phone, 'customer')
   // The pickup fee (PICKUP_FEE, 7750–7799): the customer side.
   await saveState('customer-pickup-fee', PICKUP_FEE.customer.phone, 'customer')
+  // Garage photo order (PHOTO_ORDER, 8000–8049): the garage's owner seat.
+  await saveState('vendor-photo-order', PHOTO_ORDER.owner.phone, 'vendor')
   await saveAdminState('admin')
   await saveAdminState('admin-shared', ADMIN)
   // A personal login that is not the owner (10 Nov 2026): the old rules.

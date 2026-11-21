@@ -2,6 +2,7 @@ import { ADD_ON_CATEGORY } from '../../lib/add-ons.js'
 import { and, asc, eq, gte, inArray, isNull, lt, lte, ne, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import {
+  adminAuditLog,
   bookingIntentItems,
   bookingIntents,
   bookingItems,
@@ -22,6 +23,7 @@ import { containsPattern } from '../../lib/search.js'
 import { NEW_GARAGE_SORT_RATING, RATING_RULES } from '../../lib/ratings.js'
 import { COUNTED_REVIEW } from '../reviews/reviews.predicates.js'
 import type { BookingType } from '../../lib/booking-types.js'
+import type { PhotoOrderProblem } from '../../lib/photo-order.js'
 import {
   doorstepCovers,
   LISTED_TO_CUSTOMERS,
@@ -440,7 +442,9 @@ export const vendorsRepository = {
       where: inArray(vendors.id, ids),
       with: {
         photos: {
-          orderBy: [asc(vendorPhotos.sortOrder)],
+          // The same order as the garage page and every editor: the first is
+          // the cover (lib/photo-order.ts).
+          orderBy: [asc(vendorPhotos.sortOrder), asc(vendorPhotos.createdAt)],
         },
         // What a garage's card reads ("from" price, category tags): never add-ons.
         services: {
@@ -791,6 +795,66 @@ export const vendorsRepository = {
         and(eq(vendorPhotos.id, photoId), eq(vendorPhotos.vendorId, vendorId))
       )
       .returning()
+  },
+
+  /**
+   * Writes a garage's gallery order (lib/photo-order.ts): its photo rows are
+   * locked first (FOR UPDATE, in id order, so two reorders, or a reorder and
+   * a delete, take turns), `check` decides on the ids it has now, and only
+   * then is `sort_order` written 0..n-1 in the order given, with the admin's
+   * audit row when there is one, all in one transaction. Answers the problem
+   * (nothing written), or the photos in their new order.
+   */
+  setPhotoOrder(
+    vendorId: string,
+    photoIds: readonly string[],
+    check: (currentIds: string[]) => PhotoOrderProblem | null,
+    audit?: { sub: string; name: string }
+  ) {
+    return db.transaction(
+      async (tx): Promise<{ problem: PhotoOrderProblem } | { problem: null; photos: PhotoRecord[] }> => {
+        await tx
+          .select({ id: vendorPhotos.id })
+          .from(vendorPhotos)
+          .where(eq(vendorPhotos.vendorId, vendorId))
+          .orderBy(asc(vendorPhotos.id))
+          .for('update')
+        const before = await tx
+          .select({ id: vendorPhotos.id })
+          .from(vendorPhotos)
+          .where(eq(vendorPhotos.vendorId, vendorId))
+          .orderBy(asc(vendorPhotos.sortOrder), asc(vendorPhotos.createdAt))
+        const beforeIds = before.map((row) => row.id)
+
+        const problem = check(beforeIds)
+        if (problem) return { problem }
+
+        // One at a time, never Promise.all: one connection, one transaction.
+        for (const [sortOrder, id] of photoIds.entries()) {
+          await tx
+            .update(vendorPhotos)
+            .set({ sortOrder })
+            .where(and(eq(vendorPhotos.id, id), eq(vendorPhotos.vendorId, vendorId)))
+        }
+
+        if (audit) {
+          await tx.insert(adminAuditLog).values({
+            action: 'garage_photos_reordered',
+            actorSub: audit.sub,
+            actorName: audit.name,
+            summary: { vendorId },
+            detail: { before: beforeIds, after: [...photoIds] },
+          })
+        }
+
+        const photos = await tx
+          .select()
+          .from(vendorPhotos)
+          .where(eq(vendorPhotos.vendorId, vendorId))
+          .orderBy(asc(vendorPhotos.sortOrder), asc(vendorPhotos.createdAt))
+        return { problem: null, photos }
+      }
+    )
   },
 
   updatePhotoSortOrders(

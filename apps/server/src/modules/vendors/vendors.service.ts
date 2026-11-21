@@ -110,6 +110,7 @@ import type {
   PauseBookingsInput,
   PhotoUploadUrlInput,
   ReorderPhotosInput,
+  PhotoOrderInput,
   ServiceImageUploadUrlInput,
   SetLogoInput,
   SetWorkingHoursInput,
@@ -128,6 +129,7 @@ import { tiersService } from '../tiers/tiers.service.js'
 import type { Tier } from '../../lib/tiers.js'
 import type { PickupFeePlan } from '../../lib/pickup-fee.js'
 import { pickupFeesService } from '../pickup-fees/pickup-fees.service.js'
+import { photoOrderError, photoOrderProblem } from '../../lib/photo-order.js'
 import {
   removeMediaFiles,
   serviceMediaService,
@@ -1766,6 +1768,27 @@ export const vendorsService = {
     )
 
     return photos.map(toPhotoResponse)
+  },
+
+  /**
+   * "Make cover" and the arrows (lib/photo-order.ts): the whole gallery in
+   * its new order, written under the photos' row lock. Admin's twin is
+   * adminService.setVendorPhotoOrder.
+   */
+  async setPhotoOrder(vendorId: string, input: PhotoOrderInput) {
+    const vendor = await getTenantVendor(vendorId)
+    const result = await vendorsRepository.setPhotoOrder(
+      vendor.id,
+      input.photoIds,
+      (currentIds) => photoOrderProblem(currentIds, input.photoIds)
+    )
+    if (result.problem) throw photoOrderError(result.problem)
+
+    log.info(
+      { vendorId: vendor.id, count: result.photos.length },
+      'vendor:photos-reordered'
+    )
+    return result.photos.map(toPhotoResponse)
   },
 
   async deletePhoto(vendorId: string, photoId: string) {

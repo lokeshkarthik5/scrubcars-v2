@@ -21,6 +21,7 @@ import type {
   PauseBookingsInput,
   PhotoUploadUrlInput,
   ReorderPhotosInput,
+  PhotoOrderInput,
   ServiceImageUploadUrlInput,
   SetLogoInput,
   SetWorkingHoursInput,
@@ -376,6 +377,17 @@ export async function reorderPhotos(
 ) {
   const photos = await vendorsService.reorderPhotos(getVendorId(c), input)
 
+  return c.json({
+    success: true,
+    data: photos,
+  })
+}
+
+export async function setPhotoOrder(
+  c: VendorsContext,
+  input: PhotoOrderInput
+) {
+  const photos = await vendorsService.setPhotoOrder(getVendorId(c), input)
   return c.json({
     success: true,
     data: photos,

@@ -45,6 +45,7 @@ import {
   pauseBookingsSchema,
   photoUploadUrlSchema,
   reorderPhotosSchema,
+  photoOrderSchema,
   serviceImageParamSchema,
   serviceImageUploadUrlSchema,
   setLogoSchema,
@@ -335,6 +336,14 @@ vendorsRoutes.patch(
   ...tenantMiddleware,
   zValidator('json', reorderPhotosSchema),
   (c) => vendorsController.reorderPhotos(c, c.req.valid('json'))
+)
+// "Make cover" and the arrows: the whole gallery in its new order (lib/photo-order.ts).
+// The owner seat only, like adding and deleting photos.
+vendorsRoutes.put(
+  '/me/photos/order',
+  ...tenantMiddleware,
+  zValidator('json', photoOrderSchema),
+  (c) => vendorsController.setPhotoOrder(c, c.req.valid('json'))
 )
 vendorsRoutes.delete(
   '/me/photos/:id',
