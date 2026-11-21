@@ -2667,3 +2667,22 @@ export const GOOGLE_RATINGS = {
   /** PLACES_FAKE's place the admin spec links `unlinked` to (lib/places/fake.ts). */
   place: { placeId: 'e2e-google-ratings-royal', name: 'Gratings Royal Car Wash', rating: 4.3, reviewCount: 58 },
 } as const
+
+/**
+ * Garage photo order (21 Nov 2026; ids 8000–8049, phones 90000080xx): one
+ * garage with three photos in a known order, owned by its own seat so only
+ * the photo-order specs (specs/admin/photo-order.spec.ts and
+ * specs/vendors/photo-order.spec.ts) read or move them. Each spec puts the
+ * seeded order back first. The server's unit tests use stand-in ids in the
+ * same range (8020–8049).
+ */
+export const PHOTO_ORDER = {
+  owner: { id: id(8000), phone: '9000008000', name: 'Photo Order Owner' },
+  garage: { id: id(8001), name: 'Photo Order Car Spa' },
+  /** In their seeded order: the first is the cover. */
+  photos: [
+    { id: id(8002), url: 'https://placehold.co/600x400/png?text=Front' },
+    { id: id(8003), url: 'https://placehold.co/600x400/png?text=Bay' },
+    { id: id(8004), url: 'https://placehold.co/600x400/png?text=Lounge' },
+  ],
+} as const

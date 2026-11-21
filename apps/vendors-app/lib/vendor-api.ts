@@ -147,6 +147,10 @@ export const getMyPhotos = () => apiClient<ApiVendorPhoto[]>('/vendors/me/photos
 export const deleteVendorPhoto = (id: string) =>
   apiClient<ApiVendorPhoto>(`/vendors/me/photos/${id}`, { method: 'DELETE' });
 
+/** The whole gallery in its new order, first = cover (Make cover and the arrows). */
+export const setVendorPhotoOrder = (photoIds: string[]) =>
+  apiClient<ApiVendorPhoto[]>('/vendors/me/photos/order', { method: 'PUT', body: JSON.stringify({ photoIds }) });
+
 export async function uploadVendorPhoto(bytes: Uint8Array) {
   const { uploadUrl, publicUrl } = await apiClient<{ uploadUrl: string; publicUrl: string }>(
     '/vendors/me/photos/upload-url',

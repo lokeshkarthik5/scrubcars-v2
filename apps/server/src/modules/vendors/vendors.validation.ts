@@ -236,6 +236,15 @@ export const reorderPhotosSchema = z.object({
     .min(1),
 })
 
+/**
+ * The garage's whole gallery in its new order, first = cover (lib/photo-order.ts).
+ * Duplicates and a list that isn't the garage's photos now are the service's
+ * to refuse, with their own codes.
+ */
+export const photoOrderSchema = z.object({
+  photoIds: z.array(z.string().uuid()).min(1).max(100),
+})
+
 export const photoUploadUrlSchema = z.object({
   contentType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
 })
@@ -707,6 +716,7 @@ export type UpdateSlotIntervalInput = z.infer<typeof updateSlotIntervalSchema>
 export type SetWorkingHoursInput = z.infer<typeof setWorkingHoursSchema>
 export type CreateServiceAreaInput = z.infer<typeof createServiceAreaSchema>
 export type ReorderPhotosInput = z.infer<typeof reorderPhotosSchema>
+export type PhotoOrderInput = z.infer<typeof photoOrderSchema>
 export type PhotoUploadUrlInput = z.infer<typeof photoUploadUrlSchema>
 export type CreatePhotoInput = z.infer<typeof createPhotoSchema>
 export type LogoUploadUrlInput = z.infer<typeof logoUploadUrlSchema>

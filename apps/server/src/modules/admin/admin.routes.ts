@@ -1,5 +1,5 @@
 import { adminGarageBookRoutes } from '../garage-book/garage-book.routes.js'
-import { createAddOnSchema, updateAddOnSchema } from '../vendors/vendors.validation.js'
+import { createAddOnSchema, photoOrderSchema, updateAddOnSchema } from '../vendors/vendors.validation.js'
 import { adminGarageClosureRoutes } from '../garage-closure/garage-closure.routes.js'
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
@@ -445,6 +445,20 @@ adminRoutes.post(
   zValidator('json', mediaUrlSchema),
   (c) =>
     adminController.addVendorPhoto(
+      c,
+      c.req.valid('param').id,
+      c.req.valid('json')
+    )
+)
+// "Make cover" and the arrows in the editor's Logo & photos: the whole gallery
+// in its new order (lib/photo-order.ts). Audited (garage_photos_reordered).
+adminRoutes.put(
+  '/vendors/:id/photos/order',
+  ...adminMiddleware,
+  zValidator('param', vendorIdParamSchema),
+  zValidator('json', photoOrderSchema),
+  (c) =>
+    adminController.setVendorPhotoOrder(
       c,
       c.req.valid('param').id,
       c.req.valid('json')

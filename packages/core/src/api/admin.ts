@@ -1886,6 +1886,21 @@ export async function deleteAdminVendorPhoto(
   )
 }
 
+/**
+ * PUT /admin/vendors/:id/photos/order — the whole gallery in its new order,
+ * first = cover (Make cover and the arrows). 409 PHOTO_ORDER_STALE when the
+ * list isn't the garage's photos now.
+ */
+export async function setAdminVendorPhotoOrder(
+  vendorId: string,
+  photoIds: string[]
+) {
+  return apiClient<AdminPhoto[]>(`/admin/vendors/${vendorId}/photos/order`, {
+    method: 'PUT',
+    body: JSON.stringify({ photoIds }),
+  })
+}
+
 // Service photos and video: adminMediaApi in @repo/core/api/service-media,
 // shared with the garage's app.
 

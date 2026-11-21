@@ -1,4 +1,4 @@
-import type { CreateAddOnInput, UpdateAddOnInput } from '../vendors/vendors.validation.js'
+import type { CreateAddOnInput, PhotoOrderInput, UpdateAddOnInput } from '../vendors/vendors.validation.js'
 import type { Context } from 'hono'
 import { deleteCookie, setCookie } from 'hono/cookie'
 import { env } from '../../lib/env.js'
@@ -348,6 +348,15 @@ export async function addVendorPhoto(
 ) {
   const photo = await adminService.addVendorPhoto(vendorId, input)
   return c.json({ success: true, data: photo }, 201)
+}
+
+export async function setVendorPhotoOrder(
+  c: AdminContext,
+  vendorId: string,
+  input: PhotoOrderInput
+) {
+  const photos = await adminService.setVendorPhotoOrder(vendorId, input, actorOf(c))
+  return c.json({ success: true, data: photos })
 }
 
 export async function deleteVendorPhoto(
