@@ -4800,11 +4800,6 @@ async function main() {
 }
 
 /**
- * Off-app payment flags (0077; OFF_APP_FLAGS, ids 7700–7749): two New
- * "Flagged by Detlio" entries, as the daily check writes them (no reporter,
- * no chain, no reward, masked evidence, one key each).
- */
-/**
  * Google rating for new garages and the d. mark (21 Nov 2026; ids
  * 8100–8149): see GOOGLE_RATINGS in e2e-ids.ts. Four garages pinned together
  * far from every other fixture, three of them with a lead holding a Google
@@ -4871,6 +4866,11 @@ async function seedGoogleRatingRows() {
   )
 }
 
+/**
+ * Off-app payment flags (0077; OFF_APP_FLAGS, ids 7700–7749): two New
+ * "Flagged by Detlio" entries, as the daily check writes them (no reporter,
+ * no chain, no reward, masked evidence, one key each).
+ */
 async function seedOffAppFlagRows() {
   const F = OFF_APP_FLAGS
   const day = 24 * 60 * 60 * 1000

@@ -39,8 +39,8 @@ import { CONVENIENCE_FEE_LABEL, PICKUP_FEE_FULL_LINE, PICKUP_FEE_REFUND_LINE, pi
 import { addressPickupFee } from '@repo/core/pickup-fee-customer';
 import { isNoFeeInspection, resolveServiceAmount } from '@repo/core/pricing';
 import { checkoutAgreement } from '@repo/core/inspection-booking';
-import { hasStarScore } from '@repo/core/ratings';
-import { DetlioMark } from '@repo/native-ui/rating-marks';
+import { googleRatingSpoken, hasStarScore, mainGoogleRating } from '@repo/core/ratings';
+import { DetlioMark, GoogleMapsText, GoogleMark } from '@repo/native-ui/rating-marks';
 import { rewardRupees } from '@repo/core/rewards';
 import { knownDurationTotal } from '@repo/core/service-duration';
 import { isLastingRefusal, livePendingCheckout, pendingCodeFor } from '@repo/core/stores/pending-checkout-store';
@@ -1066,6 +1066,8 @@ export default function BookScreen() {
               : toPay === 0
                 ? t('Book with credit')
                 : t('Pay {amount}', { amount: money(toPay) });
+  // Google's rating while it is this garage's main one (21 Nov 2026).
+  const bookGoogle = vendor ? mainGoogleRating(vendor) : null;
 
   return (
     <View style={[styles.page, { paddingTop: insets.top }]}>
@@ -1117,9 +1119,22 @@ export default function BookScreen() {
                 <T size={17} weight={500} lh={24} tracking={-0.01} style={styles.shrink}>
                   {vendor.name}
                 </T>
-                {hasStarScore(vendor) ? (
-                  <View style={styles.stars} accessibilityLabel={t('{rating} stars from {count} reviews', { rating: vendor.rating.toFixed(1), count: vendor.reviewCount })}>
-                    <DetlioMark size={14} />
+                {/* The garage's main rating, as on its card and page: Google's while a linked garage has
+                    fewer than 5 counted Detlio reviews (21 Nov 2026), else Detlio's own (the d. mark). */}
+                {bookGoogle ? (
+                  <View style={styles.stars} accessible accessibilityLabel={googleRatingSpoken(bookGoogle)}>
+                    <GoogleMark size={13} />
+                    <T num size={13} lh={18}>
+                      {bookGoogle.rating.toFixed(1)}
+                    </T>
+                    <T size={13} lh={18} color={colors.dim}>
+                      (<T num size={13} lh={18} color={colors.dim}>{String(bookGoogle.reviewCount)}</T>)
+                    </T>
+                    <GoogleMapsText />
+                  </View>
+                ) : hasStarScore(vendor) ? (
+                  <View style={styles.stars} accessible accessibilityLabel={t('{rating} stars from {count} reviews', { rating: vendor.rating.toFixed(1), count: vendor.reviewCount })}>
+                    <DetlioMark size={14} rating={vendor.rating} />
                     <T num size={13} lh={18}>
                       {vendor.rating.toFixed(1)}
                     </T>

@@ -15,7 +15,8 @@ import {
 import { addDays, istDateKey } from '../../lib/ist.js'
 import { garageAreaName } from '../../lib/localities.js'
 import { logger } from '../../lib/logger.js'
-import { ratingsFor } from '../reviews/reviews.service.js'
+import { cardGoogleRating } from '../../lib/ratings.js'
+import { googleRatingsFor, ratingsFor } from '../reviews/reviews.service.js'
 import { linkRepository as repo, type LinkGarage } from './garage-book-link.repository.js'
 import { paymentDetailsService } from './garage-book-pay.service.js'
 import { garageBookRepository } from './garage-book.repository.js'
@@ -123,6 +124,7 @@ export const linkService = {
       await paymentDetailsService.shownOn(link.vendorId, 'booking_page'),
     ]
     const rating = ratings.get(link.vendorId)
+    const google = (await googleRatingsFor([link.vendorId], now)).get(link.vendorId) ?? null
     return {
       garage: {
         name: link.businessName,
@@ -130,6 +132,9 @@ export const linkService = {
         openNow: openNow(slots.hours, slots.closures, now),
         rating: rating?.rating ?? null,
         reviewCount: rating?.reviewCount ?? 0,
+        // Google rating for new garages (21 Nov 2026): Google's, while it is
+        // the main one (as on the garage's Detlio card); null otherwise.
+        google: cardGoogleRating(google, rating?.reviewCount ?? 0, { map: false }),
       },
       services: services
         .filter((service) => service.shown)

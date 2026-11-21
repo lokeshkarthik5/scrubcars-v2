@@ -49,13 +49,8 @@ import { bookingsRepository } from '../bookings/bookings.repository.js'
 import { toVendorBookingResponse } from '../bookings/bookings.service.js'
 import { membersRepository } from '../members/members.repository.js'
 import { reviewsRepository } from '../reviews/reviews.repository.js'
-import { ratingsFor } from '../reviews/reviews.service.js'
-import {
-  cardGoogleRating,
-  GOOGLE_RATING_RULES,
-  heldGoogleRating,
-  type GoogleRating,
-} from '../../lib/ratings.js'
+import { googleRatingsFor, ratingsFor } from '../reviews/reviews.service.js'
+import { cardGoogleRating, type GoogleRating } from '../../lib/ratings.js'
 import { vendorsRepository } from './vendors.repository.js'
 import { slotAlertsService } from '../slot-alerts/slot-alerts.service.js'
 import { areaSignupsService } from '../area-signups/area-signups.service.js'
@@ -908,22 +903,6 @@ function decodeCursor(cursor: string | undefined): {
     // worst case of ignoring it is that the customer sees page one again.
     return fallback
   }
-}
-
-/**
- * Each garage's Google rating that may still be shown (lib/ratings.ts
- * heldGoogleRating), from its lead, in one read. Never a call to Google:
- * the nightly refresh keeps the leads' figures fresh.
- */
-async function googleRatingsFor(vendorIds: string[], now: Date): Promise<Map<string, GoogleRating>> {
-  const heldSince = new Date(now.getTime() - GOOGLE_RATING_RULES.holdDays * 24 * 60 * 60 * 1000)
-  const rows = await vendorsRepository.listGoogleRatings(vendorIds, heldSince)
-  const byVendor = new Map<string, GoogleRating>()
-  for (const row of rows) {
-    const google = heldGoogleRating(row, now)
-    if (google) byVendor.set(row.vendorId, google)
-  }
-  return byVendor
 }
 
 /**

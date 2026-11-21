@@ -29,6 +29,7 @@ const { membersRepository } = await import('../members/members.repository.js')
 const { bookingRequestsRepository } = await import('../booking-requests/booking-requests.repository.js')
 const { bookingIntentsService } = await import('../booking-intents/booking-intents.service.js')
 const { repairQuotesRepository } = await import('./repair-quotes.repository.js')
+const { vendorsRepository } = await import('../vendors/vendors.repository.js')
 const { setBriefReaderForTests } = await import('./repair-quotes.service.js')
 const { repairMediaOwner } = await import('../../lib/job-photo-storage.js')
 const { FAKE_BRIEF_READING } = await import('../../lib/repair-quote-brief.js')
@@ -211,8 +212,19 @@ beforeAll(() => {
       .filter((quote) => requestIds.includes(quote.requestId))
       .map((quote) => ({
         quote,
-        garage: { id: quote.vendorId, name: quote.vendorId === GARAGE ? 'Murugan Motors' : 'AutoKraft Body Shop', ratingAverage: 4.8, ratingCount: 126 },
+        garage: {
+          id: quote.vendorId,
+          name: quote.vendorId === GARAGE ? 'Murugan Motors' : 'AutoKraft Body Shop',
+          ratingAverage: 4.8,
+          ratingCount: quote.vendorId === GARAGE ? 126 : 3,
+        },
       }))
+  )
+  // Google rating for new garages: each garage's lead holds a fresh Google
+  // read. Murugan has 126 counted reviews (Detlio's own leads); AutoKraft 3
+  // (Google's leads, as on its card).
+  patch(vendorsRepository, 'listGoogleRatings', async (vendorIds: string[]) =>
+    vendorIds.map((vendorId) => ({ vendorId, googleRating: '4.1', googleReviewCount: 90, googleFetchedAt: new Date() }))
   )
   patch(r, 'badgeJobs', async (vendorIds: string[]) =>
     vendorIds.includes(GARAGE)
@@ -515,6 +527,12 @@ describe('customers: sending, reading and cancelling', () => {
     expect(mine.body.data.quotes.map((q: { garage: { name: string }; state: string; billsMatchQuotes: boolean }) => [q.garage.name, q.state, q.billsMatchQuotes])).toEqual([
       ['Murugan Motors', 'waiting', true],
       ['AutoKraft Body Shop', 'waiting', false],
+    ])
+    // Google rating for new garages: Google's only while it is the main one
+    // (fewer than 5 counted Detlio reviews), as on the garage's card.
+    expect(mine.body.data.quotes.map((q: { garage: { rating: number | null; google: unknown } }) => [q.garage.rating, q.garage.google])).toEqual([
+      [4.8, null],
+      [4.8, { rating: 4.1, reviewCount: 90 }],
     ])
     expect((await call('GET', `/users/me/repair-quotes/${OTHER_REQUEST}`, 'customer')).status).toBe(404)
     expect((await call('POST', `/users/me/repair-quotes/${OTHER_REQUEST}/cancel`, 'customer')).status).toBe(404)

@@ -1,20 +1,33 @@
 'use client'
 
 import { IconCheck, IconClock, IconEye } from '@tabler/icons-react'
-import { DetlioMark } from '@repo/ui/sc/rating-marks'
+import { DetlioMark, GoogleMapsText, GoogleMark } from '@repo/ui/sc/rating-marks'
 import { StatusChip } from '@repo/ui/sc/status-chip'
 import type { CustomerRepairQuote } from '@repo/core/api/repair-quotes'
 import { useT, useTn } from '@repo/core/i18n'
 import { priceRangeLabel } from '@repo/core/repair-quotes'
 import { ScCard } from '@/components/ui/card'
 
-/** "d. 4.8 (126) · 2.1 km", or "New on Detlio · 2.1 km" under three counted reviews. */
+/**
+ * "d. 4.8 (126) · 2.1 km", or "New on Detlio · 2.1 km" under three counted
+ * reviews; "G 4.6 (312) Google Maps · 2.1 km" while Google's is the garage's
+ * main rating (a linked garage under 5 counted reviews, as on its card).
+ */
 export function GarageLine({ quote }: { quote: CustomerRepairQuote }) {
   const t = useT()
   const km = `${quote.distanceKm.toFixed(1)} km`
+  const google = quote.garage.google ?? null
   return (
-    <span className="mt-0.5 flex items-center gap-1.5 text-t4 text-text-secondary">
-      {quote.garage.rating !== null ? (
+    <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-t4 text-text-secondary">
+      {google ? (
+        <>
+          <GoogleMark size={13} />
+          <span className="font-numeric font-medium text-text-primary">{google.rating.toFixed(1)}</span>
+          <span className="font-numeric">({google.reviewCount})</span>
+          <GoogleMapsText />
+          <span aria-hidden="true">·</span>
+        </>
+      ) : quote.garage.rating !== null ? (
         <>
           <DetlioMark size={14} rating={quote.garage.rating} className="self-baseline text-text-primary" />
           <span aria-hidden="true" className="font-numeric font-medium text-text-primary">{quote.garage.rating.toFixed(1)}</span>

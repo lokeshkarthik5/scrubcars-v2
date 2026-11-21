@@ -180,7 +180,13 @@ export const reachService = {
           filters,
           limit: JUST_OUTSIDE_LIMIT,
         })
-        const cards = await vendorCardsFor(rows.map((row) => ({ id: row.id, distanceM: row.distanceM })))
+        // The map's payload never carries Google's rating (Google's terms),
+        // this group included.
+        const cards = await vendorCardsFor(
+          rows.map((row) => ({ id: row.id, distanceM: row.distanceM })),
+          undefined,
+          { map: query.map === true }
+        )
         const byId = new Map(rows.map((row) => [row.id, row]))
         outside = cards.flatMap((card) => {
           const row = byId.get(card.id)

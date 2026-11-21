@@ -625,7 +625,6 @@ export const vendorsRepository = {
     })
   },
 
-  /** The same for a page of garages at once, for the listing cards. */
   /**
    * The Google rating each garage's lead holds (Google rating for new
    * garages, 21 Nov 2026), in one read for a page of cards: only a lead
@@ -652,6 +651,7 @@ export const vendorsRepository = {
       )
   },
 
+  /** The same for a page of garages at once, for the listing cards. */
   listClosuresForVendors(vendorIds: string[], from: string, to: string) {
     if (vendorIds.length === 0) return Promise.resolve([])
 

@@ -3,6 +3,7 @@ import {
   adminGoogleListing,
   GARAGE_GOOGLE_SEARCH_RADIUS_KM,
   garageGooglePlaces,
+  googleLinkPin,
   googleLinkPlan,
   googleUnlinkPatch,
   type AdminGoogleListing,
@@ -12,7 +13,8 @@ import { LEAD_NAME_MAX, leadDisplayName } from '../../lib/leads.js'
 import { logger } from '../../lib/logger.js'
 import { placesSources, type GooglePlaceDetails } from '../../lib/places/index.js'
 import { leadZoneId } from '../../lib/zone-edits.js'
-import { leadsRepository, type LeadPatch } from '../leads/leads.repository.js'
+import { zoneFor } from '../../lib/zones.js'
+import { leadsRepository, type LeadPatch, type LeadRecord } from '../leads/leads.repository.js'
 import { syncRecommendations } from '../leads/leads.service.js'
 import { reviewsRepository } from '../reviews/reviews.repository.js'
 import {
@@ -135,6 +137,13 @@ export const garageGoogleService = {
     }
     const fields = googleFields(details, now)
     const zones = await leadsRepository.listZones()
+    /** A pin from Google follows the place now linked (googleLinkPin). */
+    const pinPatch = (lead: LeadRecord): LeadPatch => {
+      const pin = googleLinkPin(lead, input.placeId, details)
+      if (pin === undefined) return {}
+      if (pin === null) return { lat: null, lng: null, pinSource: null }
+      return { lat: pin.lat, lng: pin.lng, zoneId: zoneFor(pin, zones)?.id ?? lead.zoneId }
+    }
 
     type Tx = Parameters<Parameters<typeof garageGoogleRepository.transaction>[0]>[0]
     const applyLink = async (tx: Tx) => {
@@ -156,10 +165,11 @@ export const garageGoogleService = {
         )
       }
       if (plan.kind === 'update') {
-        const previousPlaceId = (garageLead ?? placeLead!).googlePlaceId
+        const own = (garageLead ?? placeLead)!
+        const previousPlaceId = own.googlePlaceId
         const row = await garageGoogleRepository.updateLead(
           plan.leadId,
-          { googlePlaceId: input.placeId, ...fields, updatedAt: now },
+          { googlePlaceId: input.placeId, ...fields, ...pinPatch(own), updatedAt: now },
           tx
         )
         return { lead: row!, how: plan.kind, previousPlaceId, synced: 0 }
@@ -173,6 +183,7 @@ export const garageGoogleService = {
           notInterestedOn: null,
           retryAfter: null,
           ...fields,
+          ...pinPatch(placeLead!),
           updatedAt: now,
         }
         const row = await garageGoogleRepository.updateLead(plan.leadId, patch, tx)

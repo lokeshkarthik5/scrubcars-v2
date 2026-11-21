@@ -58,6 +58,25 @@ export function googleLinkPlan(
   return { kind: 'create' }
 }
 
+/**
+ * What a link does to a pin the lead took from Google (`pin_source`
+ * 'google'): it follows the place now linked, at Google's location for it
+ * read now, so it is dated with the rest of Google's fields (Google's 30
+ * days). For a different place that Google gave no location, the old place's
+ * pin goes: it is not this place's, and its read would otherwise look fresh.
+ * The same place with no location keeps its pin, as the nightly refresh
+ * does. A pin of the team's own is never touched. `undefined`: leave it.
+ */
+export function googleLinkPin(
+  lead: { pinSource: string | null; googlePlaceId: string | null },
+  placeId: string,
+  details: { lat: number | null; lng: number | null }
+): { lat: number; lng: number } | null | undefined {
+  if (lead.pinSource !== 'google') return undefined
+  if (details.lat !== null && details.lng !== null) return { lat: details.lat, lng: details.lng }
+  return lead.googlePlaceId === placeId ? undefined : null
+}
+
 /** What Unlink writes on the garage's lead: no listing, nothing of Google's, and a pin from Google with it. */
 export function googleUnlinkPatch(
   lead: { name: string | null; pinSource: string | null },

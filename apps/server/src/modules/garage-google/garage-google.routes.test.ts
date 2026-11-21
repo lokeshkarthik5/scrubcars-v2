@@ -255,6 +255,9 @@ describe('Link', () => {
     expect(res.status).toBe(200)
     expect(leads).toHaveLength(1)
     expect(leads[0]).toMatchObject({ googlePlaceId: 'g-royal', googleReviewCount: 58 })
+    // Its pin was the old place's, from Google: it goes with it (Google gave
+    // the new place no location here), never left dated as if read now.
+    expect(leads[0]).toMatchObject({ pinSource: null, lat: null, lng: null })
     expect(audits[0]!.detail).toEqual({ placeId: 'g-royal', previousPlaceId: 'g-royal-cars', how: 'update' })
   })
 

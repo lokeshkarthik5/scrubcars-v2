@@ -15,6 +15,8 @@ const { vendorsRepository } = await import('./vendors.repository.js')
 const { reviewsRepository } = await import('../reviews/reviews.repository.js')
 const { tiersService } = await import('../tiers/tiers.service.js')
 const { citiesService } = await import('../cities/cities.service.js')
+const { reachService } = await import('../reach/reach.service.js')
+const { reachRepository } = await import('../reach/reach.repository.js')
 
 const id = (n: number) => `e2e00000-0000-4000-8000-${String(n).padStart(12, '0')}`
 const NEW_LINKED = id(8130)
@@ -127,6 +129,41 @@ describe('the garage cards', () => {
 
     const list = await vendorsService.listPublicVendors({ includeUnlocated: false } as never)
     expect(list.items.find((card) => card.id === NEW_LINKED)!.google).toEqual({ rating: 4.6, reviewCount: 312 })
+  })
+})
+
+describe('the map’s "just outside" group', () => {
+  // The map's list for Doorstep or Pickup with a location carries the
+  // "just outside" group too (reach.service withReach): its cards are the
+  // map's payload as well, so they never carry Google's rating either.
+  async function withOutside(map: boolean) {
+    standIn()
+    patch(reachRepository, 'summary', async () => {
+      throw new Error('not read here')
+    })
+    patch(reachRepository, 'listJustOutside', async () => [
+      { id: NEW_LINKED, distanceM: 9000, coverKm: 5, outsideM: 4000 },
+    ])
+    const query = {
+      bookingType: 'doorstep',
+      lat: 13.08,
+      lng: 80.27,
+      includeUnlocated: false,
+      ...(map ? { map: true } : {}),
+    } as never
+    return reachService.withReach({ items: [], nextCursor: null } as never, query)
+  }
+
+  test('on the map: none, and the leads are not read', async () => {
+    const answer = await withOutside(true)
+    expect(answer.outside).toHaveLength(1)
+    expect(answer.outside![0]!.google).toBeNull()
+    expect(googleReads).toBe(0)
+  })
+
+  test('on the list: Google’s while it is the main one', async () => {
+    const answer = await withOutside(false)
+    expect(answer.outside![0]!.google).toEqual({ rating: 4.6, reviewCount: 312 })
   })
 })
 

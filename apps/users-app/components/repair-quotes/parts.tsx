@@ -3,7 +3,7 @@ import { useT, useTn } from '@repo/core/i18n';
 import { priceRangeLabel } from '@repo/core/repair-quotes';
 import { Edge, Raised } from '@repo/native-ui/finish';
 import { IconCheck, IconClock, IconEye } from '@repo/native-ui/icons';
-import { DetlioMark } from '@repo/native-ui/rating-marks';
+import { DetlioMark, GoogleMapsText, GoogleMark } from '@repo/native-ui/rating-marks';
 import { StatusChip } from '@repo/native-ui/primitives';
 import { T } from '@repo/native-ui/text';
 import { createStyles, useColors } from '@repo/native-ui/theme';
@@ -52,14 +52,32 @@ export function BoxedPhoto({
   );
 }
 
-/** "d. 4.8 (126) · 2.1 km", or "New on Detlio · 2.1 km". */
+/**
+ * "d. 4.8 (126) · 2.1 km", or "New on Detlio · 2.1 km"; "G 4.6 (312) Google Maps · 2.1 km" while Google's is the
+ * garage's main rating (a linked garage under 5 counted reviews, as on its card), as the web's.
+ */
 export function GarageLine({ quote }: { quote: CustomerRepairQuote }) {
   const t = useT();
   const colors = useColors();
   const styles = useStyles();
+  const google = quote.garage.google ?? null;
   return (
     <View style={styles.garageLine}>
-      {quote.garage.rating !== null ? (
+      {google ? (
+        <>
+          <GoogleMark size={13} />
+          <T num size={13} weight={500}>
+            {google.rating.toFixed(1)}
+          </T>
+          <T num size={13} color={colors.textSecondary}>
+            {`(${google.reviewCount})`}
+          </T>
+          <GoogleMapsText />
+          <T size={13} color={colors.textSecondary}>
+            ·
+          </T>
+        </>
+      ) : quote.garage.rating !== null ? (
         <>
           <DetlioMark size={14} rating={quote.garage.rating} />
           <T num size={13} weight={500} accessibilityElementsHidden importantForAccessibility="no">
@@ -189,7 +207,7 @@ const useStyles = createStyles((c) => ({
     shadowOffset: { width: 0, height: 0 },
   },
   caption: { position: 'absolute', maxWidth: '60%', borderRadius: 6, backgroundColor: 'rgba(0,0,0,0.75)', paddingHorizontal: 6, paddingVertical: 2 },
-  garageLine: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
+  garageLine: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 5, marginTop: 2 },
   card: { gap: 10, padding: 16 },
   line: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: 16 },
   head: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },

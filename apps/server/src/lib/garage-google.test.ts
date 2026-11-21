@@ -3,6 +3,7 @@ import {
   adminGoogleListing,
   GARAGE_GOOGLE_RESULTS_MAX,
   garageGooglePlaces,
+  googleLinkPin,
   googleLinkPlan,
   googleUnlinkPatch,
   metresBetween,
@@ -40,6 +41,32 @@ describe('googleLinkPlan: where the listing goes', () => {
     const theirs = { id: 'lead-theirs', vendorId: OTHER, googlePlaceId: 'p-new' }
     expect(googleLinkPlan(GARAGE, own, theirs)).toEqual({ kind: 'taken', leadId: 'lead-theirs', vendorId: OTHER })
     expect(googleLinkPlan(GARAGE, null, theirs).kind).toBe('taken')
+  })
+})
+
+describe('googleLinkPin: a pin from Google follows the place linked', () => {
+  const fromGoogle = { pinSource: 'google', googlePlaceId: 'p-old' }
+  const at = { lat: 13.1, lng: 80.2 }
+  const nowhere = { lat: null, lng: null }
+
+  test('moves to the linked place’s location, read now', () => {
+    expect(googleLinkPin(fromGoogle, 'p-new', at)).toEqual(at)
+    expect(googleLinkPin(fromGoogle, 'p-old', at)).toEqual(at)
+  })
+
+  test('a Change to a place Google gave no location: the old place’s pin goes', () => {
+    expect(googleLinkPin(fromGoogle, 'p-new', nowhere)).toBeNull()
+  })
+
+  test('the same place with no location keeps it, as the nightly refresh does', () => {
+    expect(googleLinkPin(fromGoogle, 'p-old', nowhere)).toBeUndefined()
+  })
+
+  test('the team’s own pin is never touched', () => {
+    for (const pinSource of ['map', 'maps_link', 'ola', null]) {
+      expect(googleLinkPin({ pinSource, googlePlaceId: 'p-old' }, 'p-new', at)).toBeUndefined()
+      expect(googleLinkPin({ pinSource, googlePlaceId: 'p-old' }, 'p-new', nowhere)).toBeUndefined()
+    }
   })
 })
 
