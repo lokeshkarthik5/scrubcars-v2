@@ -31,9 +31,13 @@ import {
   isGoogleRefreshHour,
 } from '../../lib/places/refresh.js'
 import {
+  garageMatchPhones,
   leadFromRecommendation,
   recommendationGarageChanges,
+  recommendationsMatchingGarage,
 } from '../../lib/recommendations.js'
+import { REFERRAL_CREDIT } from '../../lib/area-signups.js'
+import { areaSignupsService } from '../area-signups/area-signups.service.js'
 import { leadZoneId } from '../../lib/zone-edits.js'
 import { zoneFor } from '../../lib/zones.js'
 import { geoService } from '../geo/geo.service.js'
@@ -225,6 +229,19 @@ export async function syncRecommendations(
   )
   const changes = recommendationGarageChanges(recommendations, vendorId)
   return leadsRepository.setRecommendationGarages(changes, now, conn)
+}
+
+/**
+ * Who brought a garage in (Bring your garage, 21 Nov 2026), for the admin
+ * Garages panel only: the customer's name, and whether their ₹500 is paid,
+ * owed (credit is off) or waiting for their paid booking there.
+ */
+export interface BroughtInBy {
+  recommendationId: string
+  customerName: string | null
+  credit: 'paid' | 'owed' | 'waiting'
+  amountRupees: number
+  recommendedAt: string
 }
 
 /** A customer recommendation as Coverage lists it: never who recommended it. */
@@ -625,8 +642,95 @@ export const leadsService = {
         : 0
       return { linked, synced }
     })
+    // "<Garage> joined Detlio thanks to you" waits until customers can see
+    // the garage (areaSignupsService.tellJoinedGarages); an Add garage made
+    // already listed is told now.
+    if (synced > 0) areaSignupsService.tellJoinedSoon()
     log.info({ linked, recommendations: synced }, 'leads:onboarded')
     return linked
+  },
+
+  /**
+   * Each garage's "Brought in by" (admin only), by garage id. One read. A
+   * customer who recommended the same garage twice is one line (their
+   * credit is once per garage): the one whose credit is decided, else the
+   * first.
+   */
+  async broughtInByGarage(): Promise<Map<string, BroughtInBy[]>> {
+    const rank = { paid: 2, owed: 1, waiting: 0 } as const
+    const byGarage = new Map<string, Map<string, BroughtInBy>>()
+    for (const row of await leadsRepository.listJoinedRecommendations()) {
+      const entry: BroughtInBy = {
+        recommendationId: row.id,
+        customerName: row.has_user ? row.customer_name : null,
+        credit: row.credit_status === 'granted' ? 'paid' : row.credit_status === 'owed' ? 'owed' : 'waiting',
+        amountRupees: row.credit_amount !== null ? Number(row.credit_amount) : REFERRAL_CREDIT.perGarageRupees,
+        recommendedAt: new Date(row.created_at).toISOString(),
+      }
+      const customers = byGarage.get(row.vendor_id) ?? new Map<string, BroughtInBy>()
+      // A deleted account's rows have no customer to fold into: each is its own line.
+      const key = row.user_id ?? `rec:${row.id}`
+      const kept = customers.get(key)
+      if (!kept || rank[entry.credit] > rank[kept.credit]) customers.set(key, entry)
+      byGarage.set(row.vendor_id, customers)
+    }
+    return new Map([...byGarage].map(([vendorId, customers]) => [vendorId, [...customers.values()]]))
+  },
+
+  /**
+   * Bring your garage (21 Nov 2026): a garage that has just been made — by
+   * its owner in the garage app's onboarding, or by the team's Add garage;
+   * never a branch — is the garage of every open recommendation with one of
+   * its numbers (its phone, its WhatsApp, its owner's login;
+   * lib/recommendations.ts recommendationsMatchingGarage), except a number
+   * another garage has too and the owner's own recommendation. Each becomes
+   * `joined` with the garage, under the rows' lock; who and when are kept
+   * when the team handled it already, else `handledBy` and now. The first
+   * of their leads not yet a garage is Onboarded to it too (while the
+   * garage has no lead), so the team's call list shows the garage rather
+   * than a lead to chase, and that lead's other recommendations follow it.
+   * The customers are told once the garage is shown to customers
+   * (areaSignupsService.tellJoinedGarages), not now while it is pending.
+   */
+  async linkRecommendationsByPhone(
+    vendorId: string,
+    handledBy: string,
+    now = new Date()
+  ): Promise<number> {
+    const garage = await leadsRepository.garagePhones(vendorId)
+    const phones = garage ? garageMatchPhones(garage) : []
+    if (phones.length === 0) return 0
+    const sharedPhones = await leadsRepository.phonesOnOtherGarages(vendorId, phones)
+    const linked = await leadsRepository.transaction(async (tx) => {
+      const candidates = await leadsRepository.lockRecommendationsByPhones(phones, tx)
+      const ids = recommendationsMatchingGarage(candidates, phones, { ownerId: garage?.ownerId ?? null, sharedPhones })
+      return leadsRepository.linkRecommendationsToGarage(ids, vendorId, handledBy, now, tx)
+    })
+    if (sharedPhones.length > 0) log.info({ vendorId, shared: sharedPhones.length }, 'recommendations:shared_number_not_matched')
+    if (linked.length === 0) return 0
+
+    let leadLinked = false
+    const leadIds = [...new Set(linked.map((rec) => rec.leadId).filter((id): id is string => id !== null))]
+    if (leadIds.length > 0 && !(await leadsRepository.leadIdOfGarage(vendorId))) {
+      for (const leadId of leadIds) {
+        try {
+          leadLinked = await leadsRepository.transaction(async (tx) => {
+            const onboarded = await leadsRepository.markOnboarded(leadId, vendorId, now, tx)
+            if (onboarded) await syncRecommendations(tx, leadId, vendorId, now)
+            return onboarded
+          })
+        } catch (err) {
+          // Another lead took the garage meanwhile (leads_vendor_id_key): the recommendations stay linked.
+          log.warn({ err, vendorId }, 'recommendations:lead_not_linked')
+          break
+        }
+        if (leadLinked) break
+      }
+    }
+    // An Add garage made already listed is told now; a pending sign-up once it is listed.
+    areaSignupsService.tellJoinedSoon()
+    log.info({ vendorId, linked: linked.length, leadLinked }, 'recommendations:linked_by_phone')
+    return linked.length
   },
 
   /**

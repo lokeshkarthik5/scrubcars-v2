@@ -13,7 +13,7 @@
  * the free wash back.
  *
  * CUSTOMERS.referral recommended VENDORS.reqSecond, which the team linked,
- * and completed a paid booking there: the cron records the ₹100 credit
+ * and completed a paid booking there: the cron records the ₹500 credit
  * (owed while GIFTS_ENABLED is off, granted while on), once.
  */
 import { test, expect, asRole } from '../../support/fixtures'
@@ -167,7 +167,7 @@ test.describe('launch day @p0', () => {
 })
 
 test.describe('the referral credit @p0', () => {
-  test('a linked garage, live, and a paid booking there: ₹100 of credit, once', async ({ request }) => {
+  test('a linked garage, live, and a paid booking there: ₹500 of credit, once', async ({ request }) => {
     test.skip(SECRET.length < 32, 'CRON_SECRET is not set for this run')
     const rec = async () =>
       (
@@ -179,7 +179,7 @@ test.describe('the referral credit @p0', () => {
     await withCronLock(() => request.post(DIGEST, { headers: { authorization: `Bearer ${SECRET}` } }))
     const after = await rec()
     expect(['owed', 'granted']).toContain(after.credit_status)
-    expect(after.credit_amount).toBe('100.00')
+    expect(after.credit_amount).toBe('500.00')
     expect(after.credit_booking_id).toBe(REFERRAL_BOOKING)
 
     await withCronLock(() => request.post(DIGEST, { headers: { authorization: `Bearer ${SECRET}` } }))

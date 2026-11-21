@@ -6,7 +6,7 @@
  * zone's and every zone; and Cancel with a reason (Keep it first), after
  * which the customer is told and the request shows as Detlio's cancel.
  *
- * Works on DEMAND's requests (Request Raghav's, from Perambur) only, and
+ * Works on DEMAND's requests (Request Raghav's, from Pallikaranai) only, and
  * puts the open one back before and after; customer reach's own specs
  * send and answer requests at the same time, so rows are found by name.
  * The rules are unit-tested in
@@ -63,7 +63,7 @@ test.describe.serial('Requests @p0', () => {
     await expect(waiting).toHaveCount(1)
     await expect(waiting).toContainText('Waiting for the garage')
     await expect(waiting).toContainText('••••••5040')
-    await expect(waiting).toContainText('Doorstep visit · Perambur')
+    await expect(waiting).toContainText('Doorstep visit · Pallikaranai')
     await expect(waiting).toContainText(DEMAND.service.name)
     // Put back 40 minutes old; a minute or two may have gone by since.
     await expect(waiting).toContainText(
@@ -123,9 +123,9 @@ test.describe.serial('Requests @p0', () => {
     ).toHaveCount(4)
 
     // One zone's (Coverage links here), straight to the address.
-    await page.goto('/requests?filter=all&zone=perambur')
+    await page.goto('/requests?filter=all&zone=pallikaranai')
     await expect(
-      page.getByText('Only requests sent from Perambur.')
+      page.getByText('Only requests sent from Pallikaranai.')
     ).toBeVisible()
     await expect(page.getByRole('article')).toHaveCount(4)
     await expect(page.getByRole('button', { name: /^All 4$/ })).toHaveAttribute(

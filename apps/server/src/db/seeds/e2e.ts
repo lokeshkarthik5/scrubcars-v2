@@ -148,6 +148,7 @@ import {
   REPAIR_QUOTES,
   OFF_APP_FLAGS,
   SHINE,
+  BRING,
   PICKUP_FEE,
   SERVICE_CATEGORIES,
   GARAGE_BACKUP,
@@ -3205,18 +3206,18 @@ async function seedBehaviourRows() {
 
 /**
  * Coverage & leads (0064; ids 5000–5019, specs/admin/coverage-*.spec.ts):
- * see LEADS. In Perambur, the zone 0062 seeded, a few hundred metres from
+ * see LEADS. In Pallikaranai, the zone 0062 seeded, a few hundred metres from
  * its centre so the zone rule puts them there.
  */
 async function seedLeadRows() {
-  const [perambur] = await db.select().from(zones).where(eq(zones.slug, LEADS.zoneSlug))
-  if (!perambur) throw new Error('e2e seed: zone perambur missing (migration 0062)')
+  const [pallikaranai] = await db.select().from(zones).where(eq(zones.slug, LEADS.zoneSlug))
+  if (!pallikaranai) throw new Error('e2e seed: zone pallikaranai missing (migration 0062)')
   const near = (north: number, east: number) => ({
-    lat: perambur.lat + north / 111_320,
-    lng: perambur.lng + east / (111_320 * Math.cos((perambur.lat * Math.PI) / 180)),
+    lat: pallikaranai.lat + north / 111_320,
+    lng: pallikaranai.lng + east / (111_320 * Math.cos((pallikaranai.lat * Math.PI) / 180)),
     pinSource: 'map' as const,
   })
-  const base = { zoneId: perambur.id, createdByName: 'E2E seed', source: 'manual' as const }
+  const base = { zoneId: pallikaranai.id, createdByName: 'E2E seed', source: 'manual' as const }
   await db.insert(leads).values([
     { ...base, ...near(150, 120), id: LEADS.toTarget.id, name: LEADS.toTarget.name, phone: LEADS.toTarget.phone,
       status: 'to_target', lastNote: 'Owner back on Monday', lastNoteBy: 'E2E seed', lastNoteAt: daysAgo(1) },
@@ -3224,7 +3225,7 @@ async function seedLeadRows() {
       phone: LEADS.notInterested.phone, status: 'not_interested', notInterestedReason: LEADS.notInterested.reason,
       notInterestedOn: daysAgo(3).toISOString().slice(0, 10) },
     { ...base, ...near(80, -260), id: LEADS.onboard.id, name: LEADS.onboard.name, phone: LEADS.onboard.phone,
-      mapsUrl: 'https://www.google.com/maps/@13.1217,80.2305,17z', status: 'to_target' },
+      mapsUrl: 'https://www.google.com/maps/@12.9356,80.2113,17z', status: 'to_target' },
     { ...base, id: LEADS.knownAqua.id, name: LEADS.knownAqua.name, phone: LEADS.knownAqua.phone, source: 'paste',
       status: 'to_target' },
   ])
@@ -3232,18 +3233,18 @@ async function seedLeadRows() {
 
 /**
  * Coverage part 3 (0064; ids 5020–5099, specs/admin/coverage-demand.spec.ts
- * and requests.spec.ts): demand in Perambur. See DEMAND for what each row
+ * and requests.spec.ts): demand in Pallikaranai. See DEMAND for what each row
  * is for.
  */
 async function seedDemandRows() {
-  const [perambur] = await db.select().from(zones).where(eq(zones.slug, LEADS.zoneSlug))
-  if (!perambur) throw new Error('e2e seed: zone perambur missing (migration 0062)')
+  const [pallikaranai] = await db.select().from(zones).where(eq(zones.slug, LEADS.zoneSlug))
+  if (!pallikaranai) throw new Error('e2e seed: zone pallikaranai missing (migration 0062)')
   const near = (north: number, east: number) => ({
-    lat: perambur.lat + north / 111_320,
-    lng: perambur.lng + east / (111_320 * Math.cos((perambur.lat * Math.PI) / 180)),
+    lat: pallikaranai.lat + north / 111_320,
+    lng: pallikaranai.lng + east / (111_320 * Math.cos((pallikaranai.lat * Math.PI) / 180)),
   })
 
-  // Twelve customers waiting, each holding the free wash (Perambur is not live).
+  // Twelve customers waiting, each holding the free wash (Pallikaranai is not live).
   await db.insert(users).values([
     ...DEMAND.waiting.map((w) => ({
       id: w.id, name: w.name, phone: w.phone, isCustomer: true, isVendorOwner: false,
@@ -3260,7 +3261,7 @@ async function seedDemandRows() {
   ])
   await db.insert(zoneSignups).values(
     DEMAND.waiting.map((w, i) => ({
-      userId: w.id, zoneId: perambur.id, position: i + 1, freeWash: true, createdAt: daysAgo(5 - i / 10),
+      userId: w.id, zoneId: pallikaranai.id, position: i + 1, freeWash: true, createdAt: daysAgo(5 - i / 10),
     }))
   )
 
@@ -3281,7 +3282,7 @@ async function seedDemandRows() {
     }))
   )
 
-  // Five requests from Perambur (its centre), tomorrow morning.
+  // Five requests from Pallikaranai (its centre), tomorrow morning.
   const home = near(100, 100)
   const tomorrow = new Date(now.getTime() + 24 * HOUR)
   const windowDate = tomorrow.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
@@ -3320,11 +3321,11 @@ async function seedDemandRows() {
   ])
 
   // The leads the recommendations meet.
-  const leadBase = { zoneId: perambur.id, createdByName: 'E2E seed', status: 'to_target' as const }
+  const leadBase = { zoneId: pallikaranai.id, createdByName: 'E2E seed', status: 'to_target' as const }
   await db.insert(leads).values([
     { ...leadBase, id: DEMAND.dupLead.id, name: DEMAND.dupLead.name, phone: DEMAND.dupLead.phone, source: 'manual' },
     { ...leadBase, id: DEMAND.onboardLead.id, name: DEMAND.onboardLead.name, phone: DEMAND.onboardLead.phone,
-      source: 'customer', mapsUrl: 'https://www.google.com/maps/@13.1150,80.2320,17z',
+      source: 'customer', mapsUrl: 'https://www.google.com/maps/@12.9289,80.2128,17z',
       ...near(-180, -120), pinSource: 'maps_link' },
     { ...leadBase, id: DEMAND.googleLead.id, name: null, phone: null, source: 'google',
       ...near(220, -200), pinSource: 'google', googlePlaceId: DEMAND.googleLead.placeId,
@@ -3333,7 +3334,7 @@ async function seedDemandRows() {
   ])
 
   const rec = DEMAND.recommendations
-  const recBase = { userId: DEMAND.recommender.id, zoneId: perambur.id, status: 'new' as const }
+  const recBase = { userId: DEMAND.recommender.id, zoneId: pallikaranai.id, status: 'new' as const }
   await db.insert(garageRecommendations).values([
     { ...recBase, id: rec.make.id, name: rec.make.name, phone: rec.make.phone, why: rec.make.why,
       mapsLink: DEMAND.makeLink, createdAt: daysAgo(1), updatedAt: daysAgo(1) },
@@ -4802,6 +4803,8 @@ async function main() {
   await seedOffAppFlagRows()
   console.log('[e2e-seed] shine score…')
   await seedShineRows()
+  console.log('[e2e-seed] bring your garage…')
+  await seedBringGarageRows()
   console.log('[e2e-seed] pickup fee…')
   await seedPickupFeeRows()
   console.log('[e2e-seed] service categories…')
@@ -4887,6 +4890,29 @@ async function seedGoogleRatingRows() {
       rating: n === 0 ? 4 : 5, comment: `Gratings seeded ${n + 1}.`, createdAt: daysAgo(10 + n),
     }))
   )
+}
+
+/**
+ * Bring your garage (BRING, ids 8400–8449): three customers, and three
+ * earlier recommendations of the number a garage signs up with in the spec
+ * (new, contacted by the team, dismissed). Nothing linked yet.
+ */
+async function seedBringGarageRows() {
+  const B = BRING
+  await db.insert(users).values(
+    [B.customer, B.earlier, B.another].map((c) => ({
+      id: c.id, name: c.name, phone: c.phone, isCustomer: true, isVendorOwner: false,
+      phoneVerified: true, status: 'active' as const,
+    }))
+  )
+  await db.insert(garageRecommendations).values([
+    { id: B.recommendations.earlier, userId: B.earlier.id, name: B.garageName, phone: B.garagePhone,
+      why: 'Careful with the interior', status: 'new', createdAt: daysAgo(10), updatedAt: daysAgo(10) },
+    { id: B.recommendations.another, userId: B.another.id, name: 'Bring Car Spa', phone: B.garagePhone,
+      status: 'contacted', handledBy: 'E2E Admin', handledAt: daysAgo(5), createdAt: daysAgo(8), updatedAt: daysAgo(5) },
+    { id: B.recommendations.dismissed, userId: B.another.id, name: 'Bring Car Spa (old)', phone: B.garagePhone,
+      status: 'declined', handledBy: 'E2E Admin', handledAt: daysAgo(6), createdAt: daysAgo(9), updatedAt: daysAgo(6) },
+  ])
 }
 
 /**

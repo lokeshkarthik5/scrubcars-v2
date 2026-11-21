@@ -13,6 +13,7 @@ import {
   demandLine,
   hotRuleText,
   newRecommendations,
+  garageRecommendations,
   recommendationsByLead,
   recommendedLine,
   sortByDemand,
@@ -388,9 +389,25 @@ describe('demand (part 3): the API’s figures, ordered and worded', () => {
     ])
     expect([...byLead.keys()]).toEqual(['l1'])
     expect(recommendedLine(byLead.get('l1')!)).toBe(
-      'Recommended by 2 customers · “Careful”'
+      'Recommended by 2 customers · Joined · “Careful”'
     )
-    expect(recommendedLine([{ why: null }])).toBe('Recommended by a customer')
+    expect(recommendedLine([{ why: null, status: 'contacted' }])).toBe('Recommended by a customer')
     expect(recommendedLine([])).toBeNull()
+  })
+
+  test('a garage’s own (Bring your garage): from its lead, and linked when it signed up with the phone', () => {
+    const recs = [
+      rec('lead', { status: 'joined', leadId: 'l1', vendorId: 'g1' }),
+      rec('phone', { status: 'joined', leadId: null, vendorId: 'g1', why: 'Quick' }),
+      rec('other', { status: 'joined', vendorId: 'g2' }),
+      rec('stillNew', { status: 'new', leadId: 'l1' }),
+      rec('gone', { status: 'declined', vendorId: 'g1' }),
+    ]
+    const own = garageRecommendations(recs, 'g1', 'l1')
+    expect(own.map((r) => r.id)).toEqual(['lead', 'phone'])
+    expect(recommendedLine(own)).toBe('Recommended by 2 customers · Joined · “Quick”')
+    // A garage that signed up itself has no lead: its phone-linked ones still show.
+    expect(garageRecommendations(recs, 'g1', null).map((r) => r.id)).toEqual(['lead', 'phone'])
+    expect(garageRecommendations(recs, 'g3', null)).toEqual([])
   })
 })

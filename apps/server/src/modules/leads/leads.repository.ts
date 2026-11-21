@@ -406,11 +406,149 @@ export const leadsRepository = {
         status: garageRecommendations.status,
         vendorId: garageRecommendations.vendorId,
         creditStatus: garageRecommendations.creditStatus,
+        userId: garageRecommendations.userId,
       })
       .from(garageRecommendations)
       .where(eq(garageRecommendations.leadId, leadId))
       .orderBy(asc(garageRecommendations.id))
       .for('update')
+  },
+
+  /**
+   * Bring your garage: the open recommendations with one of a new garage's
+   * numbers, locked like a lead's (the credit's own transaction locks the
+   * same rows). Only the ones the phone match may take (no garage, no
+   * credit, new or contacted); lib/recommendations.ts decides.
+   */
+  lockRecommendationsByPhones(phones: readonly string[], conn: Conn = db) {
+    if (phones.length === 0) return Promise.resolve([])
+    return conn
+      .select({
+        id: garageRecommendations.id,
+        status: garageRecommendations.status,
+        vendorId: garageRecommendations.vendorId,
+        creditStatus: garageRecommendations.creditStatus,
+        phone: garageRecommendations.phone,
+        userId: garageRecommendations.userId,
+        leadId: garageRecommendations.leadId,
+      })
+      .from(garageRecommendations)
+      .where(
+        and(
+          inArray(garageRecommendations.phone, [...phones]),
+          isNull(garageRecommendations.vendorId),
+          isNull(garageRecommendations.creditStatus),
+          inArray(garageRecommendations.status, ['new', 'contacted'])
+        )
+      )
+      .orderBy(asc(garageRecommendations.id))
+      .for('update')
+  },
+
+  /**
+   * Links matched recommendations to the garage that signed up with their
+   * phone: `joined`, the garage, and who and when (kept when the team made
+   * a lead of it already; else the sign-up's), each only while it is still
+   * unlinked with no credit decided.
+   */
+  async linkRecommendationsToGarage(
+    ids: readonly string[],
+    vendorId: string,
+    handledBy: string,
+    now: Date,
+    conn: Conn = db
+  ): Promise<Array<{ id: string; userId: string | null; leadId: string | null }>> {
+    if (ids.length === 0) return []
+    return conn
+      .update(garageRecommendations)
+      .set({
+        vendorId,
+        status: 'joined',
+        handledBy: sql`coalesce(${garageRecommendations.handledBy}, ${handledBy})`,
+        handledAt: sql`coalesce(${garageRecommendations.handledAt}, ${now.toISOString()}::timestamptz)`,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          inArray(garageRecommendations.id, [...ids]),
+          isNull(garageRecommendations.vendorId),
+          isNull(garageRecommendations.creditStatus)
+        )
+      )
+      .returning({
+        id: garageRecommendations.id,
+        userId: garageRecommendations.userId,
+        leadId: garageRecommendations.leadId,
+      })
+  },
+
+  /**
+   * Every recommendation that brought a garage in (joined, linked), with
+   * the customer's name, for the admin Garages panel's "Brought in by".
+   * One read for the whole list.
+   */
+  async listJoinedRecommendations() {
+    const rows = await db.execute<{
+      id: string
+      vendor_id: string
+      user_id: string | null
+      credit_status: 'owed' | 'granted' | null
+      credit_amount: string | null
+      customer_name: string | null
+      has_user: boolean
+      created_at: Date | string
+    }>(sql`
+      SELECT r.id, r.vendor_id, r.user_id, r.credit_status, r.credit_amount, u.name AS customer_name,
+             (r.user_id IS NOT NULL) AS has_user, r.created_at
+        FROM garage_recommendations r LEFT JOIN users u ON u.id = r.user_id
+       WHERE r.vendor_id IS NOT NULL AND r.status = 'joined'
+       ORDER BY r.created_at ASC, r.id ASC
+    `)
+    return Array.from(rows)
+  },
+
+  /** A garage's numbers for the phone match: its phone, its WhatsApp and its owner's login phone, and who the owner is. */
+  async garagePhones(
+    vendorId: string,
+    conn: Conn = db
+  ): Promise<{ phone: string; whatsapp: string | null; ownerPhone: string | null; ownerId: string | null } | null> {
+    const rows = await conn.execute<{ phone: string; whatsapp: string | null; owner_phone: string | null; owner_id: string | null }>(sql`
+      SELECT v.phone, v.whatsapp, u.phone AS owner_phone, v.owner_id
+        FROM vendors v LEFT JOIN users u ON u.id = v.owner_id
+       WHERE v.id = ${vendorId}
+    `)
+    const row = Array.from(rows)[0]
+    return row ? { phone: row.phone, whatsapp: row.whatsapp, ownerPhone: row.owner_phone, ownerId: row.owner_id } : null
+  },
+
+  /**
+   * Which of these numbers (ten digits) another garage has already: its
+   * phone, its WhatsApp or its owner's login, compared on their last ten
+   * digits. Such a number cannot say which garage a customer meant.
+   */
+  async phonesOnOtherGarages(vendorId: string, phones: readonly string[], conn: Conn = db): Promise<string[]> {
+    if (phones.length === 0) return []
+    const list = sql.join(
+      phones.map((phone) => sql`${phone}`),
+      sql`, `
+    )
+    const rows = await conn.execute<{ phone: string }>(sql`
+      SELECT DISTINCT n.phone FROM (
+        SELECT v.id, right(regexp_replace(v.phone, '[^0-9]', '', 'g'), 10) AS phone FROM vendors v
+        UNION ALL
+        SELECT v.id, right(regexp_replace(v.whatsapp, '[^0-9]', '', 'g'), 10) FROM vendors v WHERE v.whatsapp IS NOT NULL
+        UNION ALL
+        SELECT v.id, right(regexp_replace(u.phone, '[^0-9]', '', 'g'), 10) FROM vendors v JOIN users u ON u.id = v.owner_id
+      ) n
+       WHERE n.id <> ${vendorId} AND n.phone IN (${list})
+    `)
+    return Array.from(rows).map((row) => row.phone)
+  },
+
+  /** The lead a garage was made from or linked to, if any (one at most: unique). */
+  async leadIdOfGarage(vendorId: string, conn: Conn = db): Promise<string | null> {
+    const [row] = await conn.select({ id: leads.id }).from(leads).where(eq(leads.vendorId, vendorId)).limit(1)
+    return row?.id ?? null
   },
 
   /** Each change, only while its credit is undecided (the rule's own condition, kept here too). */

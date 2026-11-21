@@ -31,6 +31,7 @@ import { SidePanel, SidePanelFacts, SidePanelSection } from '@/components/table'
 import { PAGE_TAB_LABELS } from '@/lib/garage-edit'
 import {
   bookingParts,
+  broughtInByLines,
   editHref,
   garageArea,
   garageNextStep,
@@ -113,6 +114,21 @@ export function GarageSidePanel({
       ? ([['Onboarded by', onboardedBy(v) ?? 'Not set']] as Array<
           [string, React.ReactNode]
         >)
+      : []),
+    // Bring your garage (21 Nov 2026): which customers brought it in, and their ₹500.
+    ...(broughtInByLines(v).length > 0
+      ? ([
+          [
+            'Referral',
+            <span key="b" className="flex flex-col gap-0.5" data-brought-in-by="">
+              {broughtInByLines(v).map((line, i) => (
+                <span key={`${i}:${line}`}>
+                  <Figures text={line} />
+                </span>
+              ))}
+            </span>,
+          ],
+        ] as Array<[string, React.ReactNode]>)
       : []),
     ...(v.bookingCount !== undefined
       ? ([

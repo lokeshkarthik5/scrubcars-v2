@@ -877,6 +877,9 @@ export const adminService = {
       ])
     )
     const openCollection = await collectionListsService.openCollectionByVendor(missing)
+    // Bring your garage (21 Nov 2026): the customers whose recommendation
+    // brought each garage in, and where their ₹500 stands. One read.
+    const broughtIn = await leadsService.broughtInByGarage()
     // Cities (0069): each garage's city and whether that city (or Other
     // towns) is on for customers, read once for the whole list.
     const cityRules = await citiesService.rules()
@@ -927,6 +930,7 @@ export const adminService = {
         onboardedByName: vendor.onboardedByName ?? null,
         openCollection: openCollection.get(vendor.id) ?? null,
         google: googleListings.get(vendor.id) ?? null,
+        broughtInBy: broughtIn.get(vendor.id) ?? [],
       }
     })
   },
@@ -1556,6 +1560,14 @@ export const adminService = {
         })
       if (!linked) log.warn({ vendorId: vendor.id }, 'admin:lead_not_linked')
     }
+
+    // Bring your garage (21 Nov 2026): customers who recommended one of its
+    // numbers brought it in, as when a garage signs up itself (after the
+    // lead's link, whose recommendations are linked already). Signed with
+    // the admin's name; never fails the create.
+    await leadsService
+      .linkRecommendationsByPhone(vendor.id, (await adminSubjectName(sub).catch(() => null)) ?? 'admin')
+      .catch((err: unknown) => log.error({ err, vendorId: vendor.id }, 'admin:recommendation_link_failed'))
 
     log.info({ vendorId: vendor.id, ownerId: owner.id }, 'admin:vendor-created')
     return vendor

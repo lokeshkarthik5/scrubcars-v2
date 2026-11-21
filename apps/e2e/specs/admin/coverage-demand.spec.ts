@@ -7,7 +7,7 @@
  * the recommendation's), and Edit lead keeping Google's name and phone
  * apart unless edited or "Confirmed by phone".
  *
- * Works on DEMAND's rows in Perambur only (ids 5020–5099), and puts back
+ * Works on DEMAND's rows in Pallikaranai only (ids 5020–5099), and puts back
  * what it changes, before and after. requests.spec.ts cancels DEMAND's open
  * request at the same time, so open-request counts are never asserted
  * here. The rules are unit-tested in apps/server/src/lib/zone-demand.test.ts,
@@ -56,7 +56,7 @@ const cleanUp = async () => {
   }
 }
 
-async function openPerambur(page: Page) {
+async function openPallikaranai(page: Page) {
   const [zone] = await sql<
     { id: string }[]
   >`select id from zones where slug = ${LEADS.zoneSlug}`
@@ -101,7 +101,7 @@ test.describe.serial('Coverage demand and recommendations @p0', () => {
     await page.getByRole('radio', { name: 'All zones' }).click()
     // 12 waiting + 2 failed requests = 14: Hot (top 3, at least 10).
     await expect(zoneButton(page, LEADS.zoneName)).toHaveAccessibleName(
-      /^Perambur: \d+ of 5 live, \d+ known, hot, 12 waiting · 2 failed requests/
+      /^Pallikaranai: \d+ of 5 live, \d+ known, hot, 12 waiting · 2 failed requests/
     )
     await expect(zoneButton(page, LEADS.zoneName)).toContainText('Hot')
     await expect(zoneButton(page, LEADS.zoneName)).toContainText(
@@ -118,7 +118,7 @@ test.describe.serial('Coverage demand and recommendations @p0', () => {
       page.getByRole('heading', { name: 'Requests', exact: true })
     ).toBeVisible()
 
-    const { drawer } = await openPerambur(page)
+    const { drawer } = await openPallikaranai(page)
     const demand = drawer.getByRole('region', { name: 'Demand' })
     await expect(demand).toContainText(`Demand in ${LEADS.zoneName}`)
     const figure = (label: string) =>
@@ -132,7 +132,7 @@ test.describe.serial('Coverage demand and recommendations @p0', () => {
     await demand
       .getByRole('link', { name: `See ${LEADS.zoneName}’s requests` })
       .click()
-    await expect(page).toHaveURL(/\/requests\?filter=all&zone=perambur$/)
+    await expect(page).toHaveURL(/\/requests\?filter=all&zone=pallikaranai$/)
     await expect(
       page.getByText(`Only requests sent from ${LEADS.zoneName}.`)
     ).toBeVisible()
@@ -141,7 +141,7 @@ test.describe.serial('Coverage demand and recommendations @p0', () => {
   test('recommendations: Make lead, Link to a lead, Not now, Make lead anyway, Dismiss', async ({
     page,
   }) => {
-    const { calls, recs } = await openPerambur(page)
+    const { calls, recs } = await openPallikaranai(page)
 
     // Make lead: a lead the team calls, pinned from the customer's link.
     const make = row(recs, REC.make.name)
@@ -165,8 +165,8 @@ test.describe.serial('Coverage demand and recommendations @p0', () => {
       { id: string; source: string; lat: number; zone_slug: string }[]
     >`select l.id, l.source, l.lat, z.slug as zone_slug from leads l join zones z on z.id = l.zone_id
       where l.name = ${REC.make.name}`
-    expect(made).toMatchObject({ source: 'customer', zone_slug: 'perambur' })
-    expect(made!.lat).toBeCloseTo(13.118, 4)
+    expect(made).toMatchObject({ source: 'customer', zone_slug: 'pallikaranai' })
+    expect(made!.lat).toBeCloseTo(12.9319, 4)
     const [madeRec] = await sql<
       { status: string; lead_id: string; handled_by: string }[]
     >`select status, lead_id, handled_by from garage_recommendations where id = ${REC.make.id}`
@@ -230,7 +230,7 @@ test.describe.serial('Coverage demand and recommendations @p0', () => {
         await sql`select status, handled_by from garage_recommendations where id = ${REC.dismiss.id}`
       )[0]
     ).toEqual({ status: 'declined', handled_by: 'E2E Admin' })
-    // Nothing left to act on in Perambur: the section goes.
+    // Nothing left to act on in Pallikaranai: the section goes.
     await expect(recs).toHaveCount(0)
 
     // One in no zone: under "Not in a zone".
@@ -254,7 +254,7 @@ test.describe.serial('Coverage demand and recommendations @p0', () => {
   test('Onboard a lead made from a recommendation: the garage becomes the recommendation’s', async ({
     page,
   }) => {
-    const { calls, zoneId } = await openPerambur(page)
+    const { calls, zoneId } = await openPallikaranai(page)
     const lead = row(calls, DEMAND.onboardLead.name)
     await expect(lead).toContainText(
       `Recommended by a customer · “${REC.onboard.why}”`
@@ -273,11 +273,12 @@ test.describe.serial('Coverage demand and recommendations @p0', () => {
     await page.getByRole('tab', { name: 'Location' }).click()
     await page
       .getByLabel('Address', { exact: true })
-      .fill('7, Onyx Street, Perambur')
-    await page.getByLabel('Pincode').fill('600011')
+      .fill('7, Onyx Street, Pallikaranai')
+    await page.getByLabel('Pincode').fill('600100')
     await page.getByRole('button', { name: 'Create garage' }).click()
     await expect(page).toHaveURL(new RegExp(`/coverage\\?zone=${zoneId}$`))
-    // The lead is the garage's row now, still saying who recommended it.
+    // The lead is the garage's row now, still saying who recommended it,
+    // and that they joined (Bring your garage, 21 Nov 2026).
     const garageRow = row(
       page
         .getByRole('dialog', { name: LEADS.zoneName })
@@ -286,7 +287,7 @@ test.describe.serial('Coverage demand and recommendations @p0', () => {
     )
     await expect(garageRow).toContainText('Garage · not live yet · pending')
     await expect(garageRow).toContainText(
-      `Recommended by a customer · “${REC.onboard.why}”`
+      `Recommended by a customer · Joined · “${REC.onboard.why}”`
     )
 
     const [onboarded] = await sql<
@@ -305,7 +306,7 @@ test.describe.serial('Coverage demand and recommendations @p0', () => {
   test('Edit lead: Google’s name and phone stay apart unless confirmed by phone', async ({
     page,
   }) => {
-    const { calls } = await openPerambur(page)
+    const { calls } = await openPallikaranai(page)
     const name = DEMAND.googleLead.googleName
     await expect(row(calls, name)).toContainText('From map search')
     await row(calls, name)

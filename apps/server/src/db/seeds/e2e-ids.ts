@@ -1515,7 +1515,7 @@ export const DATA_RESET = { earlierAudit: id(1301) } as const
 
 /**
  * Coverage & leads (0064; ids 5000–5019, phones 90000050xx), only
- * specs/admin/coverage-*.spec.ts touch these. The leads are in Perambur
+ * specs/admin/coverage-*.spec.ts touch these. The leads are in Pallikaranai
  * (seeded by 0062): `toTarget` and `notInterested` for the call list,
  * `onboard` for Onboard → Add garage, and `knownAqua`, whose phone is
  * PLACES_FAKE's "Aqua Foam Car Wash" (lib/places/fake.ts), so the finder
@@ -1524,10 +1524,18 @@ export const DATA_RESET = { earlierAudit: id(1301) } as const
  * remove their own zone, "E2E Test Zone" (slug e2e-test-zone), far from
  * every fixture. (Customer reach part 2 holds 4400–4599 and its garages
  * 9000004441–43, so these moved here.)
+ *
+ * Pallikaranai stands for "an area with no garage yet": its centre is over
+ * 10 km (SERVED_WITHIN_KM, lib/zones.ts) from every garage customers can
+ * find in this seed (the nearest is 14 km off) and from every one a spec
+ * lists on the way (13 km), so no launch-day run (area-launch.spec.ts, or
+ * any verify) makes it live and issues DEMAND's waiting free washes.
+ * It was Perambur until a zone counted as served by any garage within
+ * 10 km: VENDORS.main, at ORIGIN, is 5.9 km from Perambur's centre.
  */
 export const LEADS = {
-  zoneSlug: 'perambur',
-  zoneName: 'Perambur',
+  zoneSlug: 'pallikaranai',
+  zoneName: 'Pallikaranai',
   toTarget: { id: id(5001), name: 'Leads Test Wash', phone: '9000005001' },
   notInterested: { id: id(5002), name: 'Leads Nope Detailers', phone: '9000005002', reason: 'Has their own app' },
   onboard: { id: id(5003), name: 'Leads Onboard Garage', phone: '9000005003' },
@@ -1541,17 +1549,17 @@ export const LEADS = {
 
 /**
  * Coverage part 3 (0064; ids 5020–5099, phones 90000050xx): demand in
- * Perambur (specs/admin/coverage-demand.spec.ts, requests.spec.ts).
+ * Pallikaranai (specs/admin/coverage-demand.spec.ts, requests.spec.ts).
  *
- * - `waiting`: twelve customers on Perambur's free-wash list, positions
- *   1–12, so each holds a free wash (Perambur is not live).
- * - `requester` sent five requests from Perambur to two garages of their
+ * - `waiting`: twelve customers on Pallikaranai's free-wash list, positions
+ *   1–12, so each holds a free wash (Pallikaranai is not live).
+ * - `requester` sent five requests from Pallikaranai to two garages of their
  *   own (`garages`, pinned far outside every zone, not shown to
  *   customers): `open` waiting for its first garage (Call garage, Cancel),
  *   `accepted` (a yes with a ₹100 travel fee), `failed` (passed on from the
  *   first garage, which couldn't, to the second, which never answered) and
- *   `expired` (nobody answered). Perambur: 12 waiting + 2 failed = 14, Hot.
- * - `recommender`'s recommendations in Perambur: `make` (Make lead),
+ *   `expired` (nobody answered). Pallikaranai: 12 waiting + 2 failed = 14, Hot.
+ * - `recommender`'s recommendations in Pallikaranai: `make` (Make lead),
  *   `dup` and `anyway` (both share `dupLead`'s phone: Link to it, and Make
  *   lead anyway), `dismiss`, `onboard` (already made into `onboardLead`,
  *   for Onboard → its garage), and `noZone` (in no zone).
@@ -1565,7 +1573,7 @@ export const DEMAND = {
   waiting: Array.from({ length: 12 }, (_, i) => ({
     id: id(5020 + i),
     phone: `90000050${String(20 + i)}`,
-    name: `Waiting Perambur ${i + 1}`,
+    name: `Waiting Pallikaranai ${i + 1}`,
   })),
   requester: { id: id(5040), phone: '9000005040', name: 'Request Raghav' },
   recommender: { id: id(5042), phone: '9000005042', name: 'Recommend Revathi' },
@@ -1589,13 +1597,13 @@ export const DEMAND = {
     dup: { id: id(5071), name: 'Thiruvika Polish Bay', phone: '9000005080', why: 'Quick and fair' },
     anyway: { id: id(5072), name: 'Anyway Kavya Autocare', phone: '9000005080', why: 'Near my office' },
     dismiss: { id: id(5073), name: 'Dismissable Ravi Garage', phone: '9000005073', why: null },
-    onboard: { id: id(5074), name: 'Perambur Onyx Studio', phone: '9000005081', why: 'Best ceramic work nearby' },
+    onboard: { id: id(5074), name: 'Pallikaranai Onyx Studio', phone: '9000005081', why: 'Best ceramic work nearby' },
     noZone: { id: id(5075), name: 'Nowhere Nila Works', phone: '9000005075', why: 'Opens early' },
   },
-  /** The Maps link Make lead reads `make`'s pin from: in Perambur. */
-  makeLink: 'https://www.google.com/maps/@13.1180,80.2340,17z',
+  /** The Maps link Make lead reads `make`'s pin from: in Pallikaranai. */
+  makeLink: 'https://www.google.com/maps/@12.9319,80.2148,17z',
   dupLead: { id: id(5080), name: 'Thiruvika Polish Bay', phone: '9000005080' },
-  onboardLead: { id: id(5081), name: 'Perambur Onyx Studio', phone: '9000005081' },
+  onboardLead: { id: id(5081), name: 'Pallikaranai Onyx Studio', phone: '9000005081' },
   /** The garage Onboard creates from `onboardLead`, and its owner. */
   onboardOwner: { name: 'Demand Owner Devi', phone: '9000005082' },
   googleLead: {
@@ -2394,6 +2402,26 @@ export const SHINE = {
     done: [id(7630), id(7631), id(7632), id(7633)],
     lowFine: [id(7634), id(7635), id(7636), id(7637)],
   },
+} as const
+
+/**
+ * Bring your garage (21 Nov 2026; ids 8400–8449, phones 90000084xx):
+ * `customer` recommends a garage on WhatsApp from the garage list's end card
+ * (bring-garage.spec.ts; the phone is put beside SHINE's garage, the only
+ * one within 150 km there, so the list ends after one card). `earlier` and
+ * `another` recommended the same number before (one new, one the team
+ * contacted), and `dismissed` too, dismissed by the team. A garage then
+ * signs up itself in the garage app with `garagePhone`: every open one is
+ * linked to it (joined), the dismissed one never.
+ */
+export const BRING = {
+  customer: { id: id(8400), phone: '9000008400', name: 'Bringing Bhuvana' },
+  earlier: { id: id(8401), phone: '9000008401', name: 'Earlier Ezhil' },
+  another: { id: id(8402), phone: '9000008402', name: 'Another Anbu' },
+  /** The number the garage owner signs up with (no account before the spec). */
+  garagePhone: '9000008410',
+  garageName: 'Bring Test Car Spa',
+  recommendations: { earlier: id(8420), another: id(8421), dismissed: id(8422) },
 } as const
 
 /**

@@ -1,7 +1,7 @@
 import { randomInt } from 'node:crypto'
 import { and, asc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
-import { discounts, garageRecommendations, zoneSignups, zones } from '../../db/schema.js'
+import { adminAuditLog, discounts, garageRecommendations, zoneSignups, zones } from '../../db/schema.js'
 import { FREE_WASH_RULES } from '../../lib/area-signups.js'
 import { DISCOUNT_HELD } from '../discounts/discounts.predicates.js'
 import { insertReferralRewardLot } from '../gift-credit/gift-credit.repository.js'
@@ -309,6 +309,88 @@ export const areaSignupsRepository = {
   },
 
   /**
+   * A recommendation, once: a customer sending the same number again while
+   * their last one of it is still in the zone's list (`new`, no garage) —
+   * Open WhatsApp tapped twice, the sheet sent again — gets that one back
+   * rather than a second row (Coverage would say "by 2 customers"). Under
+   * the customer's own lock (`garage-recommendations:<userId>`, the credit's
+   * too), so two taps at once make one row. A Maps link alone always adds.
+   */
+  insertRecommendationOnce(values: typeof garageRecommendations.$inferInsert & { userId: string }) {
+    return db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`garage-recommendations:${values.userId}`})::bigint)`)
+      if (values.phone) {
+        const [existing] = await tx
+          .select()
+          .from(garageRecommendations)
+          .where(
+            and(
+              eq(garageRecommendations.userId, values.userId),
+              eq(garageRecommendations.phone, values.phone),
+              eq(garageRecommendations.status, 'new'),
+              isNull(garageRecommendations.vendorId)
+            )
+          )
+          .orderBy(asc(garageRecommendations.createdAt))
+          .limit(1)
+        if (existing) return { row: existing, created: false }
+      }
+      const [row] = await tx.insert(garageRecommendations).values(values).returning()
+      return { row: row!, created: true }
+    })
+  },
+
+  /**
+   * "<Garage> joined Detlio thanks to you" (Bring your garage, 21 Nov 2026):
+   * claims the recommendations whose garage customers can now find and
+   * whose customer has not been told, in one transaction under one lock
+   * (`recommendations-joined-notice`, taken on its own), so overlapping runs
+   * claim each once. Joined, linked, credit not decided yet (a customer
+   * already credited heard "₹500 credit added"), the account still there,
+   * the garage listed (the lists' own rule) and made on or after `from`.
+   * There is no column for "told" (no migration): each claim is an
+   * `admin_audit_log` row (`garage_recommenders_told`, one per garage, by
+   * Detlio automatically) whose `detail.recommendationIds` holds the ids,
+   * and a recommendation with such a row is never claimed again. The ids
+   * only: never a customer's name or phone.
+   */
+  claimJoinedNotices(input: { from: Date; limit: number; vendorId?: string; actorName: string }) {
+    return db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('recommendations-joined-notice')::bigint)`)
+      const rows = Array.from(
+        await tx.execute<{ id: string; user_id: string; vendor_id: string; business_name: string }>(sql`
+          SELECT r.id, r.user_id, r.vendor_id, v.business_name
+            FROM garage_recommendations r JOIN vendors v ON v.id = r.vendor_id
+           WHERE r.status = 'joined' AND r.user_id IS NOT NULL AND r.credit_status IS NULL
+             AND v.created_at >= ${input.from.toISOString()}::timestamptz
+             AND ${input.vendorId ? sql`r.vendor_id = ${input.vendorId}` : sql`TRUE`}
+             AND ${LISTED_TO_CUSTOMERS}
+             AND NOT EXISTS (
+               SELECT 1 FROM admin_audit_log a
+                WHERE a.action = 'garage_recommenders_told'
+                  AND a.created_at >= ${input.from.toISOString()}::timestamptz
+                  AND a.detail -> 'recommendationIds' @> jsonb_build_array(r.id::text)
+             )
+           ORDER BY r.vendor_id, r.created_at, r.id
+           LIMIT ${input.limit}
+        `)
+      ).map((row) => ({ id: row.id, userId: row.user_id, vendorId: row.vendor_id, businessName: row.business_name }))
+      const byGarage = new Map<string, typeof rows>()
+      for (const row of rows) byGarage.set(row.vendorId, [...(byGarage.get(row.vendorId) ?? []), row])
+      for (const [vendorId, recs] of byGarage) {
+        await tx.insert(adminAuditLog).values({
+          action: 'garage_recommenders_told',
+          actorSub: 'cron',
+          actorName: input.actorName,
+          summary: { vendorId, garage: recs[0]!.businessName, customers: new Set(recs.map((rec) => rec.userId)).size },
+          detail: { recommendationIds: recs.map((rec) => rec.id) },
+        })
+      }
+      return rows
+    })
+  },
+
+  /**
    * Recommendations the team linked to a garage, with no credit decided yet,
    * or owed while credit is on (`creditOn`). Owed ones are left out while it
    * is off: nothing can be done with them then, and read first (oldest
@@ -336,6 +418,12 @@ export const areaSignupsRepository = {
     await db.update(garageRecommendations).set({ updatedAt: now }).where(eq(garageRecommendations.id, id))
   },
 
+  /** A garage's business name, for the referral credit's notification. */
+  async garageName(vendorId: string): Promise<string | null> {
+    const rows = await db.execute<{ business_name: string }>(sql`SELECT v.business_name FROM vendors v WHERE v.id = ${vendorId}`)
+    return Array.from(rows)[0]?.business_name ?? null
+  },
+
   /** Whether the garage is listed to customers now. */
   async garageListed(vendorId: string): Promise<boolean> {
     const rows = await db.execute<{ id: string }>(sql`SELECT v.id FROM vendors v WHERE v.id = ${vendorId} AND ${LISTED_TO_CUSTOMERS}`)
@@ -345,7 +433,8 @@ export const areaSignupsRepository = {
   /**
    * The customer's first completed booking at the garage made after the
    * recommendation, whose money landed and was kept (not Test-marked, not a
-   * free redo, nothing refunded, not ₹0): what earns the credit.
+   * free redo, nothing refunded, not ₹0), by someone who is not the
+   * garage's owner or one of its team: what earns the credit.
    */
   async firstPaidCompletedBooking(userId: string, vendorId: string, since: Date): Promise<string | null> {
     const rows = await db.execute<{ id: string }>(sql`
@@ -362,6 +451,11 @@ export const areaSignupsRepository = {
          -- Something was paid: a free wash that covered it all (0062) is not
          -- a paid booking, so it earns no referral credit.
          AND (p.amount + p.credit_amount) > 0
+         -- Never their own garage: its owner or anyone with a seat there
+         -- booking it is not a customer it was brought to (a ₹500 credit
+         -- for a booking that pays the garage back).
+         AND NOT EXISTS (SELECT 1 FROM vendors v WHERE v.id = b.vendor_id AND v.owner_id = b.user_id)
+         AND NOT EXISTS (SELECT 1 FROM user_member_mapping m WHERE m.vendor_id = b.vendor_id AND m.user_id = b.user_id)
        ORDER BY b.completed_at ASC NULLS LAST, b.id ASC
        LIMIT 1
     `)
@@ -371,8 +465,8 @@ export const areaSignupsRepository = {
   /**
    * Decides one recommendation's credit under the customer's own lock
    * (`garage-recommendations:<userId>`, taken on its own; then the credit
-   * lock inside the ledger insert): `decide` reads what the customer has had
-   * and what this garage has had, and says how much (or nothing). Granted
+   * lock inside the ledger insert): `decide` reads whether this garage has
+   * earned the customer credit already, and says how much (or nothing). Granted
    * when credit is on, else owed (the cron grants it once it is on).
    */
   creditRecommendation(input: {
@@ -382,7 +476,7 @@ export const areaSignupsRepository = {
     bookingId: string
     creditOn: boolean
     now: Date
-    decide: (facts: { creditedSoFarRupees: number; alreadyForGarage: boolean }) => number | null
+    decide: (facts: { alreadyForGarage: boolean }) => number | null
     reason: string
   }): Promise<RecommendationRecord | null> {
     return db.transaction(async (tx) => {
@@ -400,17 +494,19 @@ export const areaSignupsRepository = {
       if (row.creditStatus === 'owed') {
         amountRupees = Number(row.creditAmount)
       } else {
+        // Once per customer and garage (the partial unique index holds it
+        // too); no cap on how many garages (owner, 21 Nov 2026).
         const [totals] = await tx
-          .select({
-            total: sql<string>`coalesce(sum(${garageRecommendations.creditAmount}), 0)`,
-            forGarage: sql<number>`count(*) filter (where ${garageRecommendations.vendorId} = ${input.vendorId})::int`,
-          })
+          .select({ forGarage: sql<number>`count(*)::int` })
           .from(garageRecommendations)
-          .where(and(eq(garageRecommendations.userId, input.userId), isNotNull(garageRecommendations.creditStatus)))
-        const decided = input.decide({
-          creditedSoFarRupees: Number(totals?.total ?? 0),
-          alreadyForGarage: Number(totals?.forGarage ?? 0) > 0,
-        })
+          .where(
+            and(
+              eq(garageRecommendations.userId, input.userId),
+              eq(garageRecommendations.vendorId, input.vendorId),
+              isNotNull(garageRecommendations.creditStatus)
+            )
+          )
+        const decided = input.decide({ alreadyForGarage: Number(totals?.forGarage ?? 0) > 0 })
         if (decided === null) return null
         amountRupees = decided
       }
