@@ -76,7 +76,8 @@ import { WHOLE_CITY_NEEDS_CITY, wholeCityOf, type GarageCityStanding } from '../
 import { branchPickupTerms, planBranchCopy, planBranchOwner } from '../../lib/branches.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { deleteGarageFileIfUnused, vendorsService } from '../vendors/vendors.service.js'
-import type { CreateAddOnInput, UpdateAddOnInput } from '../vendors/vendors.validation.js'
+import type { CreateAddOnInput, PhotoOrderInput, UpdateAddOnInput } from '../vendors/vendors.validation.js'
+import { photoOrderError, photoOrderProblem } from '../../lib/photo-order.js'
 import {
   adminRepository,
   type BookingFilterSet,
@@ -2226,6 +2227,36 @@ export const adminService = {
       'admin:vendor-photo-added'
     )
     return created
+  },
+
+  /**
+   * "Make cover" and the arrows (lib/photo-order.ts), as the garage's own
+   * PUT /vendors/me/photos/order, with the audit row in the same
+   * transaction. Not for a garage in the Bin.
+   */
+  async setVendorPhotoOrder(
+    vendorId: string,
+    input: PhotoOrderInput,
+    actor: { sub: string; name: string }
+  ) {
+    const vendor = await assertWritableVendor(vendorId)
+    const result = await vendorsRepository.setPhotoOrder(
+      vendor.id,
+      input.photoIds,
+      (currentIds) => photoOrderProblem(currentIds, input.photoIds),
+      actor
+    )
+    if (result.problem) throw photoOrderError(result.problem)
+
+    log.info(
+      { vendorId: vendor.id, count: result.photos.length },
+      'admin:vendor-photos-reordered'
+    )
+    return result.photos.map((photo) => ({
+      id: photo.id,
+      url: photo.url,
+      sortOrder: photo.sortOrder,
+    }))
   },
 
   async deleteVendorPhoto(vendorId: string, photoId: string) {

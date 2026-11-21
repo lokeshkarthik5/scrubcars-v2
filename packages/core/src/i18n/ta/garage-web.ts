@@ -971,6 +971,17 @@ export const garageWeb: Readonly<Record<string, string>> = {
     'உங்கள் கேரேஜ் மற்றும் வேலையின் போட்டோக்களைச் சேர்க்கவும்',
   'Garage photo {n}': 'கேரேஜ் போட்டோ {n}',
   'Delete photo': 'போட்டோவை நீக்கவும்',
+  // Photo order: Make cover and the arrows (@repo/core/photo-order)
+  Cover: 'கவர்',
+  'Make this the cover photo': 'இதைக் கவர் போட்டோவாக்கவும்',
+  'Move photo left': 'போட்டோவை இடப்பக்கம் நகர்த்தவும்',
+  'Move photo right': 'போட்டோவை வலப்பக்கம் நகர்த்தவும்',
+  "Couldn't change the photo order. Try again.":
+    'போட்டோக்களின் வரிசையை மாற்ற முடியவில்லை. மீண்டும் முயற்சிக்கவும்.',
+  'Your photos changed somewhere else. Showing them as they are now.':
+    'உங்கள் போட்டோக்கள் வேறு இடத்தில் மாற்றப்பட்டன. இப்போது உள்ளபடி காட்டுகிறோம்.',
+  'The first photo is your cover: customers see it first. Tap the star to make a photo the cover, or the arrows to move it.':
+    'முதல் போட்டோவே உங்கள் கவர்: வாடிக்கையாளர்கள் முதலில் அதையே பார்ப்பார்கள். ஒரு போட்டோவைக் கவராக்க நட்சத்திரத்தையும், நகர்த்த அம்புகளையும் தட்டவும்.',
   // ─── Sign-up: steps 1 and 2 ───
   'Under 1 year': '1 வருடத்துக்குக் குறைவு',
   '1–3 years': '1–3 வருடங்கள்',

@@ -451,6 +451,20 @@ export async function deleteVendorPhoto(id: string): Promise<ApiVendorPhoto> {
 }
 
 /**
+ * PUT /vendors/me/photos/order — the whole gallery in its new order, first =
+ * cover (Make cover and the arrows). 409 PHOTO_ORDER_STALE when the list
+ * isn't the garage's photos now.
+ */
+export async function setVendorPhotoOrder(
+  photoIds: string[]
+): Promise<ApiVendorPhoto[]> {
+  return apiClient<ApiVendorPhoto[]>('/vendors/me/photos/order', {
+    method: 'PUT',
+    body: JSON.stringify({ photoIds }),
+  })
+}
+
+/**
  * Full upload flow: strip the photo's location metadata, get a presigned URL,
  * PUT the file straight to R2, then register the resulting public URL.
  * Returns the created photo record.

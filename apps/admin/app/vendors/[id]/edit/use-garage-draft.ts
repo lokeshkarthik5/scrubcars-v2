@@ -25,12 +25,20 @@ import {
   updateAdminVendor,
   uploadAdminVendorLogo,
   uploadAdminVendorPhoto,
+  setAdminVendorPhotoOrder,
   type AdminPhoto,
   type AdminService,
   type AdminVendorDetail,
   type AdminWorkingDay,
 } from '@repo/core/api/admin'
 import type { ServiceMedia } from '@repo/core/types'
+import {
+  movedPhotos,
+  PHOTO_ORDER_STALE,
+  PHOTO_ORDER_WORDS,
+  withOrderOf,
+  type PhotoMove,
+} from '@repo/core/photo-order'
 import { useSavedNote } from '@/components/save-bar'
 import { useMarkGaragesStale } from '@/hooks/use-admin-today'
 import { useWarnBeforeLeaving } from '@/hooks/use-warn-before-leaving'
@@ -631,6 +639,42 @@ export function useGarageDraft(id: string) {
       setPhotos((prev) => prev.filter((p) => p.id !== photoId))
     })
 
+  /**
+   * Make cover and the ← → arrows (@repo/core/photo-order): the new order
+   * shows at once and saves at once; a failed save puts the order back, and
+   * a stale one (photos changed elsewhere) shows the garage's photos as they
+   * are now. Only while no other photo or logo action is running, so the
+   * list sent is the one the server has.
+   */
+  const handleMovePhoto = async (photoId: string, move: PhotoMove) => {
+    if (mediaBusy !== null) return
+    const next = movedPhotos(photos, photoId, move)
+    if (!next) return
+    const previousIds = photos.map((p) => p.id)
+    setPhotos(next)
+    await runMedia('order', async () => {
+      try {
+        const saved = await setAdminVendorPhotoOrder(
+          id,
+          next.map((p) => p.id)
+        )
+        setPhotos((prev) => withOrderOf(prev, saved.map((p) => p.id)))
+      } catch (err) {
+        if (err instanceof ApiError && err.code === PHOTO_ORDER_STALE) {
+          try {
+            const v = await getAdminVendor(id)
+            setPhotos(v.photos ?? [])
+          } catch {
+            setPhotos((prev) => withOrderOf(prev, previousIds))
+          }
+          throw new Error(PHOTO_ORDER_WORDS.stale)
+        }
+        setPhotos((prev) => withOrderOf(prev, previousIds))
+        throw err
+      }
+    })
+  }
+
   // "Photos and video" in a service's ⋯ (ServiceMediaPanel) saves as it
   // goes and hands back the service's new list.
   const setServiceMedia = (serviceId: string, media: ServiceMedia[]) => {
@@ -1069,6 +1113,7 @@ export function useGarageDraft(id: string) {
     handleRemoveLogo,
     handlePhotoFiles,
     handleRemovePhoto,
+    handleMovePhoto,
     setServiceMedia,
     toggle,
     updateDay,

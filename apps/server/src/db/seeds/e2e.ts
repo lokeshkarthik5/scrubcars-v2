@@ -145,6 +145,7 @@ import {
   OFF_APP_FLAGS,
   SHINE,
   PICKUP_FEE,
+  PHOTO_ORDER,
 } from './e2e-ids.js'
 import { hashPassword } from '../../lib/passwords.js'
 import { codeSuffix, couponCodeHash, couponKeys, deriveCouponCode } from '../../lib/coupons.js'
@@ -4792,6 +4793,8 @@ async function main() {
   await seedShineRows()
   console.log('[e2e-seed] pickup fee…')
   await seedPickupFeeRows()
+  console.log('[e2e-seed] photo order…')
+  await seedPhotoOrderRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }
@@ -4951,3 +4954,28 @@ main().catch((error) => {
   console.error('[e2e-seed] failed:', error)
   process.exit(1)
 })
+
+/**
+ * Garage photo order (PHOTO_ORDER, ids 8000–8049, phones 90000080xx): a
+ * garage with three photos at sort_order 0, 1, 2 and its owner's seat.
+ */
+async function seedPhotoOrderRows() {
+  const P = PHOTO_ORDER
+  await db.insert(users).values({
+    id: P.owner.id, name: P.owner.name, phone: P.owner.phone, isCustomer: false, isVendorOwner: true,
+    phoneVerified: true, status: 'active' as const,
+  })
+  await db.insert(vendors).values({
+    id: P.garage.id, ownerId: P.owner.id, businessName: P.garage.name, phone: P.owner.phone,
+    address: '80, Gallery Road, Chennai', city: 'Chennai', pincode: '600080',
+    lat: 13.08, lng: 80.08, geoSource: 'map_pin', geoConfirmedAt: now,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'], bays: 2, slotIntervalMins: 30,
+    status: 'active', isVerified: false, dropinEnabled: true, doorstepEnabled: false, createdAt: daysAgo(5),
+  })
+  await db.insert(userMemberMapping).values({
+    vendorId: P.garage.id, userId: P.owner.id, role: 'vendor_admin', status: 'active',
+  })
+  await db.insert(vendorPhotos).values(
+    P.photos.map((photo, sortOrder) => ({ id: photo.id, vendorId: P.garage.id, url: photo.url, sortOrder }))
+  )
+}
