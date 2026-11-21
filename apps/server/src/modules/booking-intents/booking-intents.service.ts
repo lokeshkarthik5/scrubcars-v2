@@ -115,6 +115,9 @@ export const bookingIntentsService = {
         subtotalAmount: draft.amount,
         // An accepted request's travel fee and the request it confirms (0062).
         travelFee: draft.travelFee,
+        // The pickup fee's road km and Detlio's convenience fee (0079).
+        roadKm: draft.roadKm,
+        convenienceFee: draft.convenienceFee,
         requestId: draft.requestId,
         // What Razorpay is asked for; the credit part is spent with the booking.
         amount: rupees(cashPaise),

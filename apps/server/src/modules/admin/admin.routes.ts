@@ -40,6 +40,7 @@ import { adminDocumentRoutes } from '../vendor-documents/vendor-documents.routes
 import { adminCertificationRoutes } from '../certification/certification.routes.js'
 import { adminAgreementRoutes } from '../agreements/agreements.routes.js'
 import { adminTierRoutes } from '../tiers/tiers.routes.js'
+import { adminPickupFeeRoutes } from '../pickup-fees/pickup-fees.routes.js'
 import { adminVendorImportRoutes } from '../vendor-imports/vendor-imports.routes.js'
 import {
   addMemberSchema,
@@ -507,6 +508,7 @@ adminRoutes.route('/certification', adminCertificationRoutes)
 // its hide switch; and the garage agreement's versions. Nested here for the
 // same cookie reason as discounts.
 adminRoutes.route('/tiers', adminTierRoutes)
+adminRoutes.route('/pickup-fees', adminPickupFeeRoutes)
 adminRoutes.route('/agreements', adminAgreementRoutes)
 
 // Telegram: whether the team's alerts are set up, and "Send test alert".

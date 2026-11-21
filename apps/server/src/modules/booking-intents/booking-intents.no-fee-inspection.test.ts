@@ -17,6 +17,8 @@ const { vendorsRepository } = await import('../vendors/vendors.repository.js')
 const { pushService } = await import('../push/push.service.js')
 const { analyticsService } = await import('../analytics/analytics.service.js')
 const { AppError } = await import('../../lib/errors.js')
+const { pickupFeesRepository } = await import('../pickup-fees/pickup-fees.repository.js')
+const { forgetPickupFeeSettings } = await import('../pickup-fees/pickup-fees.service.js')
 
 const id = (n: number) => `e2e00000-0000-4000-8000-${String(n).padStart(12, '0')}`
 const GARAGE = id(7301)
@@ -72,6 +74,9 @@ function standIn(rows: ReturnType<typeof service>[]) {
     slotIntervalMins: 30,
   }
   patch(bookingsRepository, 'findPublicVendorById', async () => garage)
+  // The pickup fee's settings (0079): none saved, so the defaults (convenience fee ₹0).
+  forgetPickupFeeSettings()
+  patch(pickupFeesRepository, 'readSettings', async () => null)
   patch(bookingsRepository, 'findVendorById', async () => garage)
   patch(bookingsRepository, 'findServicesForVendor', async () => rows)
   patch(bookingsRepository, 'findVehicleForUser', async () => ({ id: CAR, vehicleType: 'sedan' }))

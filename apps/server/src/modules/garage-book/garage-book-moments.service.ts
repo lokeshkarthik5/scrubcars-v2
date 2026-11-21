@@ -75,7 +75,7 @@ export const momentsService = {
          WHERE j.vendor_id = ${vendorId} AND j.status = 'done' AND j.done_at >= ${from} AND j.done_at < ${to}
            AND ${OWN_CAME_BACK}
         UNION ALL
-        SELECT round(b.amount * 100)::bigint FROM bookings b
+        SELECT round((b.amount - b.convenience_fee) * 100)::bigint FROM bookings b
          WHERE b.vendor_id = ${vendorId} AND b.status = 'completed' AND ${PAID}
            AND ${DETLIO_AT} >= ${from} AND ${DETLIO_AT} < ${to} AND ${DETLIO_CAME_BACK}
       ) x
@@ -99,7 +99,7 @@ export const momentsService = {
           SELECT to_char(created_at AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM'), amount_paise::bigint
             FROM garage_payments WHERE vendor_id = ${vendorId} AND kind = 'paid'
           UNION ALL
-          SELECT to_char(${DETLIO_AT} AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM'), round(b.amount * 100)::bigint
+          SELECT to_char(${DETLIO_AT} AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM'), round((b.amount - b.convenience_fee) * 100)::bigint
             FROM bookings b WHERE b.vendor_id = ${vendorId} AND b.status = 'completed' AND ${PAID}
         ) x GROUP BY month
       `),

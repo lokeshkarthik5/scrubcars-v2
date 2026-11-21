@@ -23,7 +23,7 @@ test.describe('ratings on the garage page @p0', () => {
   }) => {
     await page.goto(`/garage/${P.garage.id}`)
     await expect(
-      page.getByRole('heading', { name: P.garage.name })
+      page.getByRole('heading', { name: P.garage.name, exact: true })
     ).toBeVisible()
     await expect(
       page.getByText('New on Detlio', { exact: true }).first()
@@ -50,7 +50,7 @@ test.describe('ratings on the garage page @p0', () => {
   test('three counted reviews show the score', async ({ page }) => {
     await page.goto(`/garage/${P.ratedGarage.id}`)
     await expect(
-      page.getByRole('heading', { name: P.ratedGarage.name })
+      page.getByRole('heading', { name: P.ratedGarage.name, exact: true })
     ).toBeVisible()
     await expect(page.getByText('4.7', { exact: true }).first()).toBeVisible()
     await expect(page.getByText('(3 reviews)')).toBeVisible()

@@ -6,6 +6,7 @@ import { useVendorSearch } from '@repo/core/api/hooks/use-vendors';
 import { BOOKING_TYPE_LABELS, BOOKING_TYPES, bookingTypeParam } from '@repo/core/booking-types';
 import { CATEGORY_LABELS } from '@repo/core/categories';
 import { detlioInLine, farEmptyLine, firstFarIndex, inCityHeading, isSmallCity, nearGarageCount } from '@repo/core/customer-city';
+import { cardPickupChip } from '@repo/core/pickup-fee-customer';
 import { atGarageReach, canCollectFrom, nextTabOffer, outsideLine, skipTheDriveTitle, type NextTabOffer, type SkipTheDriveRow } from '@repo/core/reach';
 import { requestActionLabel } from '@repo/core/booking-requests';
 import { SILVER_KEY_LABEL, SILVER_KEY_QUIET } from '@repo/core/tiers';
@@ -513,6 +514,13 @@ export function GarageList({
                   <View style={styles.collect}>
                     <T size={12} weight={500} lh={16} color={colors.collectText}>
                       {t('Can collect your car')}
+                    </T>
+                  </View>
+                ) : mode === 'pickup' && cardPickupChip(vendor) ? (
+                  // The pickup fee for this card's distance (0079), in the same chip.
+                  <View style={styles.collect}>
+                    <T size={12} weight={500} lh={16} color={colors.collectText}>
+                      {cardPickupChip(vendor)}
                     </T>
                   </View>
                 ) : undefined

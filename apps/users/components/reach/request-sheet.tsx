@@ -16,7 +16,8 @@ import type { JustOutsideVendor } from '@repo/core/api/vendors'
 import {
   dayChipLabel,
   istClock,
-  REQUEST_PROMISES,
+  requestActionLabel,
+  requestPromises,
   WINDOW_PART_LABELS,
   type RequestMode,
   type WindowPart,
@@ -35,6 +36,16 @@ import { CheckoutSignInCard, useCheckoutSignIn } from '@/components/checkout/che
 import { GuestCarForm, draftCarReady } from '@/components/checkout/guest-car'
 import { saveGuestAddress, saveGuestCar } from './guest-save'
 import { useT } from '@repo/core/i18n'
+import { usePickupFeeConfig } from '@repo/core/api/hooks/use-pickup-fee'
+import {
+  aboutFee,
+  askFeeNote,
+  askSheetSubtitle,
+  askSheetTitle,
+  askSuggestion,
+  atMostFee,
+  PICKUP_FEE_SECTION,
+} from '@repo/core/pickup-fee-customer'
 
 const GUEST_CAR = 'guest-car'
 const GUEST_ADDRESS = 'guest-address'
@@ -144,7 +155,19 @@ export function RequestSheet({
   const toggleService = (id: string) =>
     setServiceIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]))
 
-  const label = mode === 'pickup' ? t('Request a pickup') : t('Request a visit')
+  const label = requestActionLabel(mode)
+  // Ask for pickup (0079): Detlio's suggested fee for the address picked,
+  // and the most the garage may ask; the server works out the same.
+  const feeConfig = usePickupFeeConfig()
+  const place =
+    guest || addressChoice === GUEST_ADDRESS ? guestAddress : (pinned.find((a) => a.id === addressChoice) ?? null)
+  const servicesTotal = priced.every((p) => p.amount !== null) && priced.length > 0
+    ? priced.reduce((sum, p) => sum + (p.amount ?? 0), 0)
+    : null
+  const suggestion =
+    mode === 'pickup' && feeConfig.data && place
+      ? askSuggestion(feeConfig.data, vendor, place, servicesTotal)
+      : null
   const tierLabel = VEHICLE_TIERS.find((tier) => tier.value === vehicleType)?.label
   const carLabel = tierLabel ? t(tierLabel).toUpperCase() : undefined
 
@@ -204,7 +227,11 @@ export function RequestSheet({
   }
 
   return (
-    <ScSheet open={open} onClose={close} aria-label={t('Request {name}', { name: vendor.name })}>
+    <ScSheet
+      open={open}
+      onClose={close}
+      aria-label={mode === 'pickup' ? askSheetTitle(vendor.name) : t('Request {name}', { name: vendor.name })}
+    >
       <div className="flex flex-col gap-5 px-5 pt-2" data-request-sheet="">
         {sent ? (
           <div className="flex flex-col items-center gap-3 py-4 text-center" role="status">
@@ -229,11 +256,19 @@ export function RequestSheet({
         ) : (
           <>
             <div>
-              <h2 className="text-[20px] font-medium text-text-primary">{t('Request {name}', { name: vendor.name })}</h2>
+              <h2 className="text-[20px] font-medium text-text-primary">
+                {mode === 'pickup' ? askSheetTitle(vendor.name) : t('Request {name}', { name: vendor.name })}
+              </h2>
               <p className="text-t4 text-text-secondary">
-                {mode === 'pickup' ? t('They collect your car and bring it back') : t('To your home')} ·{' '}
-                {garage.coverKm !== null ? `${t('covers {km} km', { km: garage.coverKm })}, ` : ''}
-                {t('{outsideKm} km outside', { outsideKm: garage.outsideKm })}
+                {mode === 'pickup' ? (
+                  askSheetSubtitle(suggestion?.roadKm ?? null)
+                ) : (
+                  <>
+                    {t('To your home')} ·{' '}
+                    {garage.coverKm !== null ? `${t('covers {km} km', { km: garage.coverKm })}, ` : ''}
+                    {t('{outsideKm} km outside', { outsideKm: garage.outsideKm })}
+                  </>
+                )}
               </p>
             </div>
 
@@ -433,8 +468,23 @@ export function RequestSheet({
               </button>
             </section>
 
+            {suggestion && feeConfig.data && (
+              <section aria-labelledby="request-fee" className="flex flex-col gap-2" data-request-fee="">
+                <h3 id="request-fee" className="text-t5 font-medium uppercase tracking-[0.12em] text-text-muted">
+                  {t(PICKUP_FEE_SECTION)}
+                </h3>
+                <div className="flex min-h-14 items-center justify-between gap-3 rounded-[14px] border border-border px-4">
+                  <span className="font-numeric text-t3 text-text-primary">{aboutFee(suggestion.suggested)}</span>
+                  {suggestion.max > suggestion.suggested && (
+                    <span className="font-numeric text-t5 text-text-muted">{atMostFee(suggestion.max)}</span>
+                  )}
+                </div>
+                <p className="text-t5 text-text-muted">{askFeeNote(suggestion.roadKm, feeConfig.data.askRaisePct)}</p>
+              </section>
+            )}
+
             <ul aria-label={t('What happens next')} className="flex flex-col gap-1.5">
-              {REQUEST_PROMISES.map((line) => (
+              {requestPromises(mode).map((line) => (
                 <li key={line} className="flex items-start gap-2 text-t4 text-text-secondary">
                   <IconCheck size={15} className="mt-0.5 shrink-0 text-success" aria-hidden />
                   {t(line)}

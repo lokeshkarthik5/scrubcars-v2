@@ -11,6 +11,7 @@ import {
   type EarningsRangePreset,
 } from '@repo/core/payouts';
 import { msg, t } from '@repo/core/i18n/translate';
+import { earningsFeeLabel } from '@repo/core/pickup-fee-garage';
 
 /**
  * The words and rules of the Earnings screen, from apps/vendors/app/earnings/page.tsx.
@@ -128,9 +129,10 @@ export function lineFigureRows(line: GarageStatementLine): FigureRow[] {
   const rows: FigureRow[] = [{ key: 'price', label: t('Price'), value: rupeesLabel(line.price) }];
   if ((line.travelFee ?? 0) > 0) {
     // An accepted request's travel fee: part of the price, the garage's whole, no commission.
+    // On a pickup booking it is the pickup fee (0079): "Pickup & drop · 6.2 km".
     rows.push({
       key: 'travel',
-      label: t('Travel fee (yours, no commission)'),
+      label: earningsFeeLabel(line),
       value: rupeesLabel(line.travelFee ?? 0),
     });
   }

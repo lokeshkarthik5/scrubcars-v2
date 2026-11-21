@@ -263,8 +263,12 @@ export interface ReceiptBooking {
   scheduledAt: Date
   amount: string
   subtotalAmount?: string | null
-  /** An accepted request's travel fee (0062), inside the subtotal. */
+  /** An accepted request's travel fee (0062), or the pickup fee (0079), inside the subtotal. */
   travelFee?: string | null
+  /** The pickup fee's road km (0079). */
+  roadKm?: string | null
+  /** Detlio's convenience fee (0079), inside the subtotal. */
+  convenienceFee?: string | null
   discountAmount?: string | null
   discountCode?: string | null
   /** The code's kind (discounts.source), read by the caller: 'free_wash' is named as such (0062). */
@@ -356,6 +360,13 @@ export interface Receipt {
    * after the services and inside the subtotal; null when there is none.
    */
   travelFee: string | null
+  /**
+   * The road km the pickup fee was worked out on (0079), for "Pickup & drop ·
+   * 6.2 km"; null when none. On a pickup booking `travelFee` is the pickup fee.
+   */
+  roadKm: number | null
+  /** Detlio's convenience fee (0079), its own line inside the subtotal; null while none. */
+  convenienceFee: string | null
   subtotal: string
   /** `label` names a zone's free wash ("Free wash", 0062); null for any other code. */
   discount: { code: string | null; amount: string; label: string | null } | null
@@ -672,6 +683,8 @@ export function buildReceipt(
     },
     items,
     travelFee: toPaise(booking.travelFee) > 0 ? fromPaise(toPaise(booking.travelFee)) : null,
+    roadKm: booking.roadKm == null ? null : Number(booking.roadKm),
+    convenienceFee: toPaise(booking.convenienceFee) > 0 ? fromPaise(toPaise(booking.convenienceFee)) : null,
     subtotal: fromPaise(toPaise(subtotal)),
     discount:
       discountPaise > 0

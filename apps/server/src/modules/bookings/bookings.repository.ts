@@ -942,6 +942,11 @@ export const bookingsRepository = {
     subtotalAmount: string
     // What is actually charged: subtotalAmount - discount.discountAmount.
     amount: string
+    // The pickup fee, its road km and Detlio's convenience fee (0079), inside
+    // subtotalAmount; '0.00' / null for none.
+    travelFee?: string
+    roadKm?: string | null
+    convenienceFee?: string
     paymentMethod: 'online' | 'cash'
     lat?: number | null
     lng?: number | null
@@ -1033,6 +1038,9 @@ export const bookingsRepository = {
           scheduledAt: data.scheduledAt,
           durationMins: data.durationMins,
           subtotalAmount: data.subtotalAmount,
+          travelFee: data.travelFee ?? '0',
+          roadKm: data.roadKm ?? null,
+          convenienceFee: data.convenienceFee ?? '0',
           amount: data.amount,
           discountAmount: data.discount?.discountAmount ?? '0.00',
           discountId: data.discount?.discountId ?? null,
@@ -1109,8 +1117,11 @@ export const bookingsRepository = {
     // A reschedule is a move, not a re-price: these are copied verbatim from
     // the booking being moved.
     subtotalAmount: string
-    /** An accepted request's travel fee (0062), carried by a move. */
+    /** An accepted request's travel fee (0062), carried by a move; the pickup fee too (0079). */
     travelFee?: string
+    /** The pickup fee's road km and Detlio's convenience fee (0079), carried by a move. */
+    roadKm?: string | null
+    convenienceFee?: string
     amount: string
     discountAmount: string
     discountId: string | null
@@ -1342,6 +1353,8 @@ export const bookingsRepository = {
           acceptedBy: data.proposal?.acceptedBy ?? null,
           subtotalAmount: data.subtotalAmount,
           travelFee: data.travelFee ?? '0',
+          roadKm: data.roadKm ?? null,
+          convenienceFee: data.convenienceFee ?? '0',
           amount: data.amount,
           discountAmount: data.discountAmount,
           discountId: data.discountId,

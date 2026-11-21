@@ -1,3 +1,4 @@
+import { RECEIPT_CONVENIENCE_LABEL, receiptTripLabel } from '@repo/core/pickup-fee-customer';
 import { getBookingReceipt } from '@repo/core/api/bookings';
 import { ApiError } from '@repo/core/api/client';
 import { BOOKING_TYPE_LABELS } from '@repo/core/booking-types';
@@ -164,7 +165,9 @@ function ReceiptDocument({ receipt }: { receipt: BookingReceipt }) {
         {receipt.items.map((item, index) => (
           <Row key={`${item.name}-${index}`} label={item.name} value={receiptItemValue(item)} numeric={!item.priceOnInspection} />
         ))}
-        {receipt.travelFee ? <Row label="Travel fee" value={formatReceiptAmount(receipt.travelFee)} /> : null}
+        {/* An accepted request's travel fee (0062), or the pickup fee with its road km (0079). */}
+        {receipt.travelFee ? <Row label={receiptTripLabel(booking.bookingType, receipt.roadKm)} value={formatReceiptAmount(receipt.travelFee)} /> : null}
+        {receipt.convenienceFee ? <Row label={RECEIPT_CONVENIENCE_LABEL} value={formatReceiptAmount(receipt.convenienceFee)} /> : null}
         {receipt.discount ? (
           <>
             <Rule dashed />

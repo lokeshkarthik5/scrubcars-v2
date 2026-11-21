@@ -6,6 +6,7 @@ import {
   IconChevronRight,
   IconFileText,
   IconTrash,
+  IconTruck,
   IconUsers,
 } from '@tabler/icons-react'
 import { useDataResetConfig } from '@repo/core/api/hooks/use-admin-data-reset'
@@ -104,6 +105,13 @@ export default function SettingsPage() {
           icon={IconFileText}
           title="Garage agreement"
           body="Upload each version as a PDF. Garages accept the newest in their app, for Bronze."
+        />
+        {/* The pickup fee (0079): Detlio's formula, the limits and its convenience fee. */}
+        <SettingsLink
+          href="/settings/pickup-fee"
+          icon={IconTruck}
+          title="Pickup fee"
+          body="Detlio’s suggested fee, the limits garages can set, and the Detlio convenience fee (₹0, off)."
         />
       </section>
       {resetConfig?.enabled && (

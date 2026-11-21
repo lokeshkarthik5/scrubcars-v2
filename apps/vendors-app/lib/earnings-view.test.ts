@@ -122,6 +122,14 @@ test('a plain line: price, commission, share', () => {
   expect(rows[2]).toMatchObject({ value: '₹920', strong: true });
 });
 
+test('a pickup booking’s pickup fee names the road km (0079)', () => {
+  const rows = lineFigureRows(line({ bookingType: 'pickup', travelFee: 99, roadKm: 6.2 }));
+  expect(rows.find((r) => r.key === 'travel')).toMatchObject({
+    label: 'Pickup & drop · 6.2 km (yours, no commission)',
+    value: '₹99',
+  });
+});
+
 test('every breakdown row, in the web order, with its minus signs', () => {
   const rows = lineFigureRows(
     line({ travelFee: 150, detlioPromo: 100, garagePromo: 50, refunds: 25, heldByGarage: 400 })
