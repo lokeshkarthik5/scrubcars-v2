@@ -32,6 +32,8 @@ export const customer: Readonly<Record<string, string>> = {
   'Search areas in {city}': '{city}-ல் பகுதிகளைத் தேடவும்',
   'garage in {city}': '{city}-ல் கேரேஜ்',
   'garages in {city}': '{city}-ல் கேரேஜ்கள்',
+  'garage within ~{minutes} min': '~{minutes} நிமிடத்தில் கேரேஜ்',
+  'garages within ~{minutes} min': '~{minutes} நிமிடத்தில் கேரேஜ்கள்',
   'Open the map: {words}': 'மேப்பைத் திறக்கவும்: {words}',
   'Detlio in {city}': '{city}-ல் Detlio',
   'In {city}': '{city}-ல்',
