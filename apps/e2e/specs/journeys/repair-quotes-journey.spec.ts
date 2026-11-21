@@ -145,9 +145,8 @@ test.describe('repair & bodywork quotes @p0', () => {
         from repair_quotes where request_id = ${request!.id} order by distance_km
     `
     expect(quotes.map((q) => q.vendor_id)).toEqual([Q.garage.id, Q.second.id])
-    // Open 00:00–23:59. A window started after 8 pm IST crosses the closed
-    // minute, so the wall clock is 241.
-    for (const q of quotes) expect([240, 241]).toContain(q.minutes)
+    // Open all day: 4 working hours each.
+    for (const q of quotes) expect(q.minutes).toBe(240)
     await close()
   })
 
