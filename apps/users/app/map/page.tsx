@@ -50,6 +50,7 @@ import { SERVICE_CITY } from '@repo/core/service-city'
 import { useCustomerPlace } from '@repo/core/hooks/use-customer-place'
 import { garageInCity, garageTown, isSmallCity, outsideCityTag } from '@repo/core/customer-city'
 import { categoryLabel } from '@repo/core/categories'
+import { LUXURY_MAP_EMPTY, LUXURY_PARAM, luxuryMapWords, luxuryParamOn } from '@repo/core/luxury'
 import { atGarageListHasGarages } from '@repo/core/reach'
 import { cn } from '@repo/core/utils'
 import { ScSheet } from '@repo/ui/sc/modal'
@@ -182,6 +183,8 @@ function MapBrowseContent() {
   const bookingType =
     parseBookingType(searchParams.get('bookingType')) ?? 'dropin'
   const category = searchParams.get('category') ?? undefined
+  // "Luxury specialists" (0083), carried from the list's map peek or Map link.
+  const luxury = luxuryParamOn(searchParams.get(LUXURY_PARAM))
 
   useEffect(() => {
     track('map_view', { mode: bookingType })
@@ -241,6 +244,7 @@ function MapBrowseContent() {
     {
       bookingType,
       category,
+      luxury: luxury || undefined,
       // Nearby sends no viewport but the city's 50 km, so the map stays a
       // neighbourhood (the list itself has no bound since 0062; doorstep and
       // pickup: each garage's own reach, the server ignores the radius).
@@ -437,7 +441,9 @@ function MapBrowseContent() {
     : cityCenter(myCity)
 
   const emptyMessage =
-    bookingType === 'pickup' ? (
+    luxury ? (
+      t(LUXURY_MAP_EMPTY)
+    ) : bookingType === 'pickup' ? (
       t('No garages pick up near you yet — try At garage or Doorstep.')
     ) : bookingType === 'doorstep' ? (
       t('No garages travel to this area yet.')
@@ -569,7 +575,9 @@ function MapBrowseContent() {
                   ) : (
                     <span>
                       <span className="font-numeric">{vendors.length}</span>{' '}
-                      {nearby
+                      {luxury
+                        ? luxuryMapWords(vendors.length, nearby, t)
+                        : nearby
                         ? vendors.length === 1
                           ? t('garage near you')
                           : t('garages near you')

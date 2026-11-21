@@ -43,6 +43,15 @@ describe('luxuryMakeOf: a make typed freely', () => {
     ['Rolls Royce', 'Rolls-Royce'],
     ['rolls-royce', 'Rolls-Royce'],
     ['Rolls-Royce Ghost', 'Rolls-Royce'],
+    // Misspelt as people do, and a model typed where the make goes.
+    ['Mercedez', 'Mercedes-Benz'],
+    ['mercedez benz e class', 'Mercedes-Benz'],
+    ['Porche 911', 'Porsche'],
+    ['Beamer', 'BMW'],
+    ['Discovery', 'Land Rover'],
+    ['Discovery Sport', 'Land Rover'],
+    ['Roll Royce', 'Rolls-Royce'],
+    ['Mercedes‑Benz', 'Mercedes-Benz'],
   ])('%p is %p', (typed, make) => {
     expect(luxuryMakeOf(typed)).toBe(make as (typeof LUXURY_MAKES)[number])
   })
@@ -57,6 +66,12 @@ describe('luxuryMakeOf: a make typed freely', () => {
     'Jeep Compass',
     'Mercury',
     'Minibus',
+    'Mahindra',
+    'MG Hector',
+    'Audio',
+    'Benzene',
+    'Discover',
+    'Mbappe',
     'Kia',
     'Tata Nexon',
     '',
@@ -158,5 +173,24 @@ describe('applying', () => {
     expect(lines).toContain('at least 3 jobs')
     expect(lines).toContain('Silver or Gold')
     for (const line of LUXURY_STANDARDS) expect(line.toLowerCase()).not.toMatch(/certified|verified|guarantee/)
+  })
+})
+
+describe('the map carries the filter (0083)', () => {
+  test('luxury=1 or true turns it on; anything else, or nothing, leaves it off', async () => {
+    const { luxuryParamOn, LUXURY_PARAM } = await import('./luxury')
+    expect(LUXURY_PARAM).toBe('luxury')
+    expect(luxuryParamOn('1')).toBe(true)
+    expect(luxuryParamOn('true')).toBe(true)
+    expect(luxuryParamOn(['1', '0'])).toBe(true)
+    for (const off of ['0', 'false', '', 'yes', null, undefined, [] as string[]]) expect(luxuryParamOn(off)).toBe(false)
+  })
+
+  test("the map's count words say specialists while it is on", async () => {
+    const { luxuryMapWords } = await import('./luxury')
+    expect(luxuryMapWords(1, true)).toBe('specialist near you')
+    expect(luxuryMapWords(3, true)).toBe('specialists near you')
+    expect(luxuryMapWords(1, false)).toBe('specialist here')
+    expect(luxuryMapWords(0, false)).toBe('specialists here')
   })
 })

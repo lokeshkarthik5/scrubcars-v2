@@ -420,4 +420,6 @@ export const garage: Readonly<Record<string, string>> = {
   'Toyota (Fortuner, Camry, Vellfire)': 'Toyota (Fortuner, Camry, Vellfire)',
   'MG (Gloster)': 'MG (Gloster)',
   'Kia (Carnival, EV6)': 'Kia (Carnival, EV6)',
+  'This photo is too large (max 8 MB). Try another photo.':
+    'இந்தப் புகைப்படம் மிகப் பெரியது (அதிகபட்சம் 8 MB). வேறொரு புகைப்படத்தை முயற்சிக்கவும்.',
 }

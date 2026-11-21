@@ -1,6 +1,7 @@
 import { apiClient } from '@repo/core/api/client'
 import { stripImageMetadata, type UploadImageType } from '@repo/core/image-upload'
-import type { LuxuryBrand, LuxuryLimits, LuxuryPhoto, LuxuryStatus } from '@repo/core/luxury'
+import { msg, t } from '@repo/core/i18n/translate'
+import { LUXURY_LIMITS, type LuxuryBrand, type LuxuryLimits, type LuxuryPhoto, type LuxuryStatus } from '@repo/core/luxury'
 import type { Tier } from '@repo/core/tiers'
 import { signedBody } from './admin-signer'
 
@@ -72,13 +73,23 @@ export function sendLuxuryApplication(input: SendLuxuryApplication): Promise<Gar
   return apiClient<GarageLuxury>('/vendors/me/luxury', { method: 'PUT', body: JSON.stringify(input) })
 }
 
-/** POST /vendors/me/luxury/photos/upload-url: a presigned PUT in the garage's luxury folder. */
-export function getLuxuryPhotoUploadUrl(contentType: UploadImageType): Promise<{ uploadUrl: string; publicUrl: string }> {
+/**
+ * POST /vendors/me/luxury/photos/upload-url: a presigned PUT in the garage's
+ * luxury folder for a photo of exactly `sizeBytes` (signed in, at most
+ * LUXURY_LIMITS.photoMaxBytes), so the PUT must send those bytes.
+ */
+export function getLuxuryPhotoUploadUrl(
+  contentType: UploadImageType,
+  sizeBytes: number
+): Promise<{ uploadUrl: string; publicUrl: string }> {
   return apiClient<{ uploadUrl: string; publicUrl: string }>('/vendors/me/luxury/photos/upload-url', {
     method: 'POST',
-    body: JSON.stringify({ contentType }),
+    body: JSON.stringify({ contentType, sizeBytes }),
   })
 }
+
+/** The words when a photo is over LUXURY_LIMITS.photoMaxBytes even after re-encoding. */
+export const LUXURY_PHOTO_TOO_LARGE = msg('This photo is too large (max 8 MB). Try another photo.')
 
 /**
  * The website's upload of one past-job photo: re-encoded first to drop
@@ -88,7 +99,8 @@ export function getLuxuryPhotoUploadUrl(contentType: UploadImageType): Promise<{
  */
 export async function uploadLuxuryPhoto(file: Blob): Promise<string> {
   const clean = await stripImageMetadata(file)
-  const { uploadUrl, publicUrl } = await getLuxuryPhotoUploadUrl(clean.type as UploadImageType)
+  if (clean.size > LUXURY_LIMITS.photoMaxBytes) throw new Error(t(LUXURY_PHOTO_TOO_LARGE))
+  const { uploadUrl, publicUrl } = await getLuxuryPhotoUploadUrl(clean.type as UploadImageType, clean.size)
   const put = await fetch(uploadUrl, { method: 'PUT', body: clean, headers: { 'Content-Type': clean.type } })
   if (!put.ok) throw new Error('Upload failed. Please try again.')
   return publicUrl

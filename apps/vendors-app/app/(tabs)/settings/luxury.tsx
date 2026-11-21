@@ -326,7 +326,12 @@ function ApplyForm({ data, asked, onSent }: { data: GarageLuxury; asked: LuxuryA
               </T>
             </View>
           ) : null}
-          <Quiet>{t('You can apply.')}</Quiet>
+          {/* Editing while under review below Silver (the API allows it): on hold, not "can apply". */}
+          <Quiet>
+            {data.silverOrGold
+              ? t('You can apply.')
+              : t('On hold while you’re below Silver. The team looks at it once you’re Silver again.')}
+          </Quiet>
         </View>
       </View>
 

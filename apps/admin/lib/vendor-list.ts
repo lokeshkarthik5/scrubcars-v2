@@ -408,7 +408,9 @@ export function showHints(
       return [
         {
           term: LUXURY_SPECIALISTS_LABEL,
-          meaning: 'garages showing the badge to customers',
+          // Every approved garage: one below Silver is listed too, its
+          // status "Hidden: below Silver" (customers don't see it then).
+          meaning: 'garages the team approved for the badge; hidden from customers while below Silver',
         },
       ]
     case 'notlive':

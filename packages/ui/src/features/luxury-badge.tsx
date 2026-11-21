@@ -1,7 +1,6 @@
 'use client'
 
-import { Fragment, useState, useSyncExternalStore } from 'react'
-import { createPortal } from 'react-dom'
+import { Fragment, useState } from 'react'
 import { IconCircleCheck, IconSteeringWheel } from '@tabler/icons-react'
 import { cn } from '@repo/core/utils'
 import { fill, useT } from '@repo/core/i18n'
@@ -15,6 +14,7 @@ import {
   handlesBrands,
 } from '@repo/core/luxury'
 import { ScSheet } from '@repo/ui/sc/modal'
+import { BodyPortal } from './body-portal'
 
 /**
  * Luxury car specialists (0083, owner-approved screens 21 Nov 2026): the
@@ -23,13 +23,6 @@ import { ScSheet } from '@repo/ui/sc/modal'
  * medal (tier-medal.tsx), which stays exactly where it was. The native twin
  * is apps/users-app/components/garage/luxury.tsx.
  */
-
-const noSubscribe = () => () => undefined
-
-/** True once in the browser (false in the server's HTML), for the sheet's portal. */
-function useInBrowser(): boolean {
-  return useSyncExternalStore(noSubscribe, () => true, () => false)
-}
 
 /** The badge's mark: a steering wheel, in the chip's own grey. */
 export function LuxuryIcon({ size = 13, className }: { size?: number; className?: string }) {
@@ -73,10 +66,8 @@ export function LuxuryBlock({
   const [open, setOpen] = useState(false)
   const named = handlesBrands(brands, customerMake)
   const name = t(LUXURY_NAME)
-  const inBrowser = useInBrowser()
-  // On document.body: the garage page's sections arrive with an animation
-  // that leaves a transform behind, which would pin a fixed sheet inside the
-  // section instead of the screen.
+  // On document.body (BodyPortal): the garage page's sections leave a
+  // transform behind, which would pin a fixed sheet inside the section.
   const sheet = (
     <ScSheet
       open={open}
@@ -152,7 +143,7 @@ export function LuxuryBlock({
         </p>
       )}
 
-      {inBrowser && createPortal(sheet, document.body)}
+      <BodyPortal>{sheet}</BodyPortal>
     </div>
   )
 }

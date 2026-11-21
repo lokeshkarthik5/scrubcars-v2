@@ -43,7 +43,7 @@ import { ScButton } from '@repo/ui/sc/button'
 import { CATEGORY_LABELS } from '@repo/core/categories'
 import { SILVER_KEY_LABEL, SILVER_KEY_QUIET } from '@repo/core/tiers'
 import { useTierConfig } from '@repo/core/api/hooks/use-tiers'
-import { LUXURY_APPROVED_LINE, LUXURY_FILTER_LABEL, specialistRow } from '@repo/core/luxury'
+import { LUXURY_APPROVED_LINE, LUXURY_FILTER_LABEL, LUXURY_PARAM, specialistRow } from '@repo/core/luxury'
 import { LuxuryIcon } from '@repo/ui/features/luxury-badge'
 import { BOOKING_TYPES, BOOKING_TYPE_LABELS } from '@repo/core/booking-types'
 import { atGarageReach, canCollectFrom, nextTabOffer } from '@repo/core/reach'
@@ -443,6 +443,8 @@ export function GarageList({
     query: {
       bookingType: serviceMode,
       ...(category === 'all' ? {} : { category }),
+      // "Luxury specialists" (0083): the map shows what the list does.
+      ...(luxuryOn ? { [LUXURY_PARAM]: '1' } : {}),
     },
   }
   // Only garages within reach (or inside the customer's city, with no
@@ -505,6 +507,7 @@ export function GarageList({
           centre={origin ?? city.centre}
           mode={serviceMode}
           category={category_}
+          luxury={luxuryOn}
           countLabel={
             small
               ? { count: null, words: detlioInLine(city) }
@@ -628,7 +631,7 @@ export function GarageList({
               onClick={turnLuxuryOn}
               className="fx-raised fx-press flex h-10 shrink-0 items-center gap-1 rounded-[12px] px-3.5 text-t4 font-medium text-[#C8C8D0]"
             >
-              {t('See all {count}', { count: specialists.garages.length })}
+              {t('See all {count}', { count: `${specialists.garages.length}${hasMore ? '+' : ''}` })}
               <IconChevronRight size={15} aria-hidden="true" className="text-[#8E8E98]" />
             </button>
           </div>

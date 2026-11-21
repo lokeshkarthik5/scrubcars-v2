@@ -68,6 +68,8 @@ export const LUXURY_RULES = {
   noteMax: 300,
   /** After a decline, the garage may apply again this many IST days later. */
   reapplyDays: 30,
+  /** One past-job photo, as uploaded (signed into its presigned PUT, so R2 refuses a bigger one). */
+  photoMaxBytes: 8 * 1024 * 1024,
 } as const
 
 export const LUXURY_STATUSES = ['review', 'more', 'approved', 'declined', 'removed'] as const

@@ -84,18 +84,31 @@ export function isLuxuryBrand(value: string): value is LuxuryBrand {
  * a space ("bmw 320d", "range rover evoque").
  */
 const MAKE_ALIASES: Record<LuxuryMake, readonly string[]> = {
-  BMW: ['bmw', 'b m w', 'beemer', 'bimmer'],
-  'Mercedes-Benz': ['mercedes benz', 'mercedes', 'merc', 'benz', 'mb', 'mercedes amg', 'amg', 'maybach', 'mercedes maybach'],
+  // Common misspellings too ("Mercedez", "Porche", "Beamer"): the field is typed freely.
+  BMW: ['bmw', 'b m w', 'beemer', 'bimmer', 'beamer'],
+  'Mercedes-Benz': [
+    'mercedes benz',
+    'mercedes',
+    'mercedez',
+    'mercedez benz',
+    'merc',
+    'benz',
+    'mb',
+    'mercedes amg',
+    'amg',
+    'maybach',
+    'mercedes maybach',
+  ],
   Audi: ['audi'],
   Volvo: ['volvo'],
   Jaguar: ['jaguar', 'jag'],
-  'Land Rover': ['land rover', 'landrover', 'range rover', 'rangerover', 'defender', 'discovery sport', 'evoque', 'velar'],
-  Porsche: ['porsche', 'porshe'],
+  'Land Rover': ['land rover', 'landrover', 'range rover', 'rangerover', 'defender', 'discovery', 'evoque', 'velar'],
+  Porsche: ['porsche', 'porshe', 'porche'],
   Lexus: ['lexus'],
   Mini: ['mini', 'mini cooper', 'minicooper'],
   Maserati: ['maserati'],
   Bentley: ['bentley'],
-  'Rolls-Royce': ['rolls royce', 'rollsroyce', 'rolls', 'rolls-royce'],
+  'Rolls-Royce': ['rolls royce', 'rollsroyce', 'rolls', 'rolls-royce', 'roll royce'],
 }
 
 /** Lower case, accents and punctuation gone, one space between words: "Mercedes-Benz " → "mercedes benz". */
@@ -219,6 +232,28 @@ export function luxuryPeekWords(
   return one ? t('specialist in {city}', { city: cityName }) : t('specialists in {city}', { city: cityName })
 }
 
+/**
+ * The map's query parameter for the "Luxury specialists" filter: the list's
+ * map peek and "Map" link add `luxury=1` while the filter is on, and /map
+ * (website and app) reads it, so the map shows what the list did.
+ */
+export const LUXURY_PARAM = 'luxury'
+
+/** Whether a link's `luxury` parameter turns the filter on ("1" or "true"; the first of several). */
+export function luxuryParamOn(value: string | readonly string[] | null | undefined): boolean {
+  const first = Array.isArray(value) ? value[0] : value
+  return first === '1' || first === 'true'
+}
+
+/** The map's count words while the filter is on: "specialists near you", "specialist here". */
+export function luxuryMapWords(count: number, nearby: boolean, t: Translate = translate): string {
+  if (nearby) return count === 1 ? t('specialist near you') : t('specialists near you')
+  return count === 1 ? t('specialist here') : t('specialists here')
+}
+
+/** The map's empty line while the filter is on. */
+export const LUXURY_MAP_EMPTY = msg('No luxury specialists in this area yet.')
+
 /** The quiet line under the "Luxury specialists" heading. */
 export function luxuryCaption(nearestFirst: boolean, t: Translate = translate): string {
   return nearestFirst ? t('Approved by Detlio for luxury cars · nearest first') : t(LUXURY_APPROVED_LINE)
@@ -236,6 +271,8 @@ export const LUXURY_LIMITS = {
   noteMax: 300,
   /** After a decline, the garage may apply again this many days later. */
   reapplyDays: 30,
+  /** One past-job photo, as uploaded: the server signs the size into the upload. */
+  photoMaxBytes: 8 * 1024 * 1024,
 } as const
 export type LuxuryLimits = { readonly [K in keyof typeof LUXURY_LIMITS]: number }
 

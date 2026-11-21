@@ -222,6 +222,11 @@ test.describe.serial('luxury car specialists @p0', () => {
       await expect(card(page, L.plain)).toHaveCount(0)
       await expect(card(page, L.applicant)).toBeVisible()
 
+      // The map peek opens the map with the filter still on.
+      const peek = page.locator('a.map-peek')
+      await expect(peek).toHaveAttribute('href', /[?&]luxury=1(&|$)/)
+      await expect(peek).toHaveAccessibleName(/specialists near you/)
+
       // Off again: every garage, and the row back.
       await filter.click()
       await expect(filter).toHaveAttribute('aria-pressed', 'false')
@@ -238,6 +243,20 @@ test.describe.serial('luxury car specialists @p0', () => {
       await expect(sheet.getByText('Is a Silver or Gold garage on Detlio.')).toBeVisible()
       await expect(sheet.getByRole('region', { name: 'Brands it handles' })).toContainText('Mercedes-Benz')
       await expect(sheet.getByText(/Prices are the same for everyone/)).toBeVisible()
+      // On <body>, so the section's leftover animation transform can't pin it inside the section.
+      expect(await sheet.evaluate((el) => el.parentElement === document.body)).toBe(true)
+      await page.keyboard.press('Escape')
+      await expect(sheet).toHaveCount(0)
+      // The medal's own "What this means" sheet (before the badge on the page) goes the same way.
+      await page.getByRole('button', { name: 'What this means' }).first().click()
+      const medal = page.getByRole('dialog', { name: 'Silver garage: what this means' })
+      await expect(medal).toBeVisible()
+      expect(await medal.evaluate((el) => el.parentElement === document.body)).toBe(true)
+      await page.keyboard.press('Escape')
+
+      // The map, opened with the filter on (as the peek links it), counts specialists only.
+      await page.goto('/map?bookingType=dropin&luxury=1')
+      await expect(page.getByRole('button', { name: /^2 specialists near you/ })).toBeVisible()
     } finally {
       await ctx.close()
     }

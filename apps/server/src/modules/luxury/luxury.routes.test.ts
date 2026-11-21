@@ -216,6 +216,65 @@ describe('the garage applies', () => {
     expect(unknownBrand.status).toBe(400)
   })
 
+  test("another garage's luxury photo, a garage photo or a repeated photo is refused", async () => {
+    const other = `${BASE}/vendors/e2e00000-0000-4000-8000-000000008240/luxury/0f8fad5b-d9cb-469f-a165-708677289599.jpg`
+    const otherGarage = await call('PUT', '/vendors/me/luxury', 'owner', {
+      ...APPLICATION,
+      photos: [...APPLICATION.photos.slice(0, 2), { url: other, caption: null }],
+    })
+    expect(otherGarage.status).toBe(400)
+    expect(otherGarage.body.code).toBe('INVALID_PHOTO_URL')
+    const ownGaragePhoto = await call('PUT', '/vendors/me/luxury', 'owner', {
+      ...APPLICATION,
+      photos: [...APPLICATION.photos.slice(0, 2), { url: `${BASE}/vendors/${GARAGE}/0f8fad5b-d9cb-469f-a165-708677289599.jpg`, caption: null }],
+    })
+    expect(ownGaragePhoto.body.code).toBe('INVALID_PHOTO_URL')
+    const twice = await call('PUT', '/vendors/me/luxury', 'owner', {
+      ...APPLICATION,
+      photos: [photo(1), photo(2), photo(2)],
+    })
+    expect(twice.body.code).toBe('INVALID_PHOTO_URL')
+    expect(application).toBeUndefined()
+  })
+
+  test('a photo upload URL is in its own luxury folder, with the exact size signed in; too big or no size is refused', async () => {
+    const values = env as unknown as Record<string, string | undefined>
+    const keys = ['r2AccountId', 'r2AccessKeyId', 'r2SecretAccessKey', 'r2Bucket', 'r2Endpoint'] as const
+    const saved = Object.fromEntries(keys.map((key) => [key, values[key]]))
+    Object.assign(values, {
+      r2AccountId: 'test-account',
+      r2AccessKeyId: 'test-key',
+      r2SecretAccessKey: 'test-secret',
+      r2Bucket: 'detlio-public-test',
+      r2Endpoint: undefined,
+    })
+    try {
+      const ok = await call('POST', '/vendors/me/luxury/photos/upload-url', 'owner', {
+        contentType: 'image/jpeg',
+        sizeBytes: 123_456,
+      })
+      expect(ok.status).toBe(200)
+      const { uploadUrl, publicUrl } = ok.body.data as { uploadUrl: string; publicUrl: string }
+      expect(publicUrl).toMatch(new RegExp(`^${BASE}/vendors/${GARAGE}/luxury/[0-9a-f-]{36}\\.jpg$`))
+      const signed = new URL(uploadUrl)
+      expect(signed.pathname.endsWith(publicUrl.slice(BASE.length))).toBe(true)
+      expect(signed.searchParams.get('X-Amz-SignedHeaders')?.split(';')).toContain('content-length')
+
+      const tooBig = await call('POST', '/vendors/me/luxury/photos/upload-url', 'owner', {
+        contentType: 'image/jpeg',
+        sizeBytes: 8 * 1024 * 1024 + 1,
+      })
+      expect(tooBig.status).toBe(400)
+      const noSize = await call('POST', '/vendors/me/luxury/photos/upload-url', 'owner', { contentType: 'image/jpeg' })
+      expect(noSize.status).toBe(400)
+      const gif = await call('POST', '/vendors/me/luxury/photos/upload-url', 'owner', { contentType: 'image/gif', sizeBytes: 10 })
+      expect(gif.status).toBe(400)
+      expect((await call('POST', '/vendors/me/luxury/photos/upload-url', 'operator', { contentType: 'image/jpeg', sizeBytes: 10 })).status).toBe(403)
+    } finally {
+      Object.assign(values, saved)
+    }
+  })
+
   test('an operator seat cannot read or send (owner seat only)', async () => {
     expect((await call('GET', '/vendors/me/luxury', 'operator')).status).toBe(403)
     expect((await call('PUT', '/vendors/me/luxury', 'operator', APPLICATION)).status).toBe(403)

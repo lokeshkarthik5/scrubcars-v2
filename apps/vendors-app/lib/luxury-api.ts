@@ -18,7 +18,8 @@ export const sendLuxuryApplication = (input: SendLuxuryApplication) =>
 export async function uploadLuxuryPhoto(bytes: Uint8Array): Promise<string> {
   const { uploadUrl, publicUrl } = await apiClient<{ uploadUrl: string; publicUrl: string }>(
     '/vendors/me/luxury/photos/upload-url',
-    { method: 'POST', body: JSON.stringify({ contentType: 'image/jpeg' }) }
+    // The exact size is signed into the upload (at most 8 MB; photo-prepare.ts keeps it under 5).
+    { method: 'POST', body: JSON.stringify({ contentType: 'image/jpeg', sizeBytes: bytes.length }) }
   );
   const sent = await fetch(uploadUrl, {
     method: 'PUT',

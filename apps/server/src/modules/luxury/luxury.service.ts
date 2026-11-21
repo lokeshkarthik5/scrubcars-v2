@@ -170,9 +170,18 @@ export const luxuryService = {
     }
   },
 
-  /** A presigned PUT for one luxury job photo, in the garage's own folder (public bucket, like garage photos). */
+  /**
+   * A presigned PUT for one luxury job photo, in the garage's own folder
+   * (public bucket, like garage photos, under an unguessable uuid), with its
+   * size signed in so nothing bigger than LUXURY_RULES.photoMaxBytes lands.
+   */
   async createPhotoUploadUrl(vendorId: string, input: LuxuryPhotoUploadInput) {
-    const { uploadUrl, publicUrl } = await createPresignedUpload(vendorId, input.contentType, LUXURY_PHOTO_FOLDER)
+    const { uploadUrl, publicUrl } = await createPresignedUpload(
+      vendorId,
+      input.contentType,
+      LUXURY_PHOTO_FOLDER,
+      input.sizeBytes
+    )
     return { uploadUrl, publicUrl }
   },
 

@@ -582,6 +582,7 @@ export function GarageList({
           centre={origin ?? city.centre}
           mode={mode}
           category={categoryParam}
+          luxury={luxuryOn}
           scrollY={scrollY}
           countLabel={
             small
@@ -626,7 +627,7 @@ export function GarageList({
             <PressScale accessibilityRole="button" onPress={turnLuxuryOn}>
               <Raised radius={12} style={styles.sort} innerStyle={styles.sortInner}>
                 <T variant="t4" numberOfLines={1} color={fx.soft}>
-                  {t('See all {count}', { count: specialists.garages.length })}
+                  {t('See all {count}', { count: `${specialists.garages.length}${hasMore ? '+' : ''}` })}
                 </T>
                 <IconChevronRight size={15} color={fx.quiet} />
               </Raised>

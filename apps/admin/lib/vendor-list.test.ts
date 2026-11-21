@@ -894,7 +894,7 @@ describe('Luxury car specialists (0083)', () => {
       term: 'Luxury applications',
       meaning: 'garages asking for the Luxury specialist badge, oldest first',
     })
-    expect(showHints('specialists')[0].meaning).toBe('garages showing the badge to customers')
+    expect(showHints('specialists')[0].meaning).toBe('garages the team approved for the badge; hidden from customers while below Silver')
   })
 
   test('the status cell and the dates in IST', () => {

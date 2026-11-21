@@ -1,4 +1,5 @@
 import { useT } from '@repo/core/i18n';
+import { LUXURY_PARAM } from '@repo/core/luxury';
 import type { BookingType, Vendor } from '@repo/core/types';
 import { Glass, Odometer } from '@repo/native-ui/finish';
 import { IconArrowUpRight } from '@repo/native-ui/icons';
@@ -28,7 +29,8 @@ const GRID = 34;
  * small dark map of the customer's area tilted back in 3D, every garage of the current
  * mode a red dot dropping in one after another, the customer a white dot, the nearest
  * garage tagged with its km, and "N garages near you" and "Map ↗" on glass. The whole
- * card opens the map on the same mode and category, and it drifts as the list scrolls.
+ * card opens the map on the same mode and category (and "Luxury specialists", when on), and
+ * it drifts as the list scrolls.
  *
  * Real coordinates: the dots are placed with Web Mercator pixels (lib/map-3d.ts), then
  * projected through the same tilt the plane is drawn at, so they stand over their spots.
@@ -43,6 +45,7 @@ export function MapPeek({
   centre,
   mode,
   category,
+  luxury = false,
   countLabel,
   scrollY,
 }: {
@@ -51,6 +54,8 @@ export function MapPeek({
   centre: LatLng;
   mode: BookingType;
   category?: string;
+  /** "Luxury specialists" is on (0083): the map opens with it on too. */
+  luxury?: boolean;
   /** "12 garages near you"; with no count (a small city, 0070), the words alone: "Detlio in Madurai". */
   countLabel: { count: string | null; words: string };
   /** The list's scroll, for the drift. */
@@ -111,6 +116,7 @@ export function MapPeek({
 
   const query = new URLSearchParams({ bookingType: mode });
   if (category) query.set('category', category);
+  if (luxury) query.set(LUXURY_PARAM, '1');
   const plane = scheme === 'light' ? fx.recessedFill[0] : '#0D0E12';
   const street = scheme === 'light' ? 'rgba(10,10,11,0.06)' : 'rgba(255,255,255,0.05)';
 

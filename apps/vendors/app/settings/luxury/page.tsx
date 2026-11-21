@@ -312,7 +312,10 @@ function ApplyForm({
             {data.tier && <TierMedalIcon tier={data.tier} size={13} />}
             {data.tier ? t("You're {tier}", { tier: t(TIER_LABELS[data.tier]) }) : null}
           </span>
-          {t('You can apply.')}
+          {/* Editing while under review below Silver (the API allows it): on hold, not "can apply". */}
+          {data.silverOrGold
+            ? t('You can apply.')
+            : t('On hold while you’re below Silver. The team looks at it once you’re Silver again.')}
         </p>
       </div>
 

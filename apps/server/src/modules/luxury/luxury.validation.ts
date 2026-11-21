@@ -45,8 +45,21 @@ export const sendApplicationSchema = z
   })
   .strict()
 
+/**
+ * One past-job photo's presigned PUT: its type and its exact size in bytes
+ * (signed into the upload, so R2 refuses any other size; at most
+ * LUXURY_RULES.photoMaxBytes). Both garage apps re-encode the photo first,
+ * so they know the size before asking.
+ */
 export const luxuryPhotoUploadSchema = z
-  .object({ contentType: z.enum(['image/jpeg', 'image/png', 'image/webp']) })
+  .object({
+    contentType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
+    sizeBytes: z
+      .number()
+      .int()
+      .min(1)
+      .max(LUXURY_RULES.photoMaxBytes, `Each photo can be at most ${LUXURY_RULES.photoMaxBytes / (1024 * 1024)} MB.`),
+  })
   .strict()
 
 /** Approve: no note needed. */

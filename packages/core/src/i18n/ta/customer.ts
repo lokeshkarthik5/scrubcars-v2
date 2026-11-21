@@ -73,6 +73,9 @@ export const customer: Readonly<Record<string, string>> = {
   'specialist near you': 'உங்கள் அருகில் ஸ்பெஷலிஸ்ட்',
   'specialists near you': 'உங்கள் அருகில் ஸ்பெஷலிஸ்ட்கள்',
   'specialist in {city}': '{city}-ல் ஸ்பெஷலிஸ்ட்',
+  'specialist here': 'இங்கே ஸ்பெஷலிஸ்ட்',
+  'specialists here': 'இங்கே ஸ்பெஷலிஸ்ட்கள்',
+  'No luxury specialists in this area yet.': 'இந்தப் பகுதியில் இன்னும் லக்ஸரி ஸ்பெஷலிஸ்ட்கள் இல்லை.',
   'specialists in {city}': '{city}-ல் ஸ்பெஷலிஸ்ட்கள்',
   'Approved by Detlio for luxury cars · nearest first': 'லக்ஸரி கார்களுக்கு Detlio அனுமதித்தது · அருகிலுள்ளவை முதலில்',
   'No luxury specialists here yet. Turn off “{label}” to see every garage.':

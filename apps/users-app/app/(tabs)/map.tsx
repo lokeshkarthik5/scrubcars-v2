@@ -1,6 +1,7 @@
 import { useVendorSearch } from '@repo/core/api/hooks/use-vendors';
 import { BOOKING_TYPE_LABELS, bookingTypeParam, parseBookingType } from '@repo/core/booking-types';
 import { categoryLabel } from '@repo/core/categories';
+import { LUXURY_MAP_EMPTY, LUXURY_PARAM, luxuryMapWords, luxuryParamOn } from '@repo/core/luxury';
 import { atGarageListHasGarages } from '@repo/core/reach';
 import { distanceAndDrive, distanceLabel, driveTimeLabel } from '@repo/core/drive-time';
 import { fill, useT } from '@repo/core/i18n';
@@ -340,9 +341,11 @@ export default function MapScreen() {
   const insets = useSafeAreaInsets();
   const clearance = useNavClearance();
   const { width } = useWindowDimensions();
-  const params = useLocalSearchParams<{ bookingType?: string; category?: string }>();
+  const params = useLocalSearchParams<{ bookingType?: string; category?: string; luxury?: string }>();
   const bookingType = parseBookingType(params.bookingType) ?? 'dropin';
   const category = params.category ?? undefined;
+  // "Luxury specialists" (0083), carried from the list's map peek.
+  const luxury = luxuryParamOn(params[LUXURY_PARAM]);
 
   const location = useLocationStore((s) => s.location);
   const locating = useLocationStore((s) => s.locating);
@@ -372,6 +375,7 @@ export default function MapScreen() {
   const { vendors: found, radiusKm, reach, isLoading } = useVendorSearch({
     bookingType,
     category,
+    luxury: luxury || undefined,
     bbox: areaBounds ? boundsToParam(areaBounds) : undefined,
     lat: origin?.lat,
     lng: origin?.lng,
@@ -654,7 +658,9 @@ export default function MapScreen() {
           ) : vendors.length === 0 ? (
             <Glass radius={22} style={styles.empty}>
               <T variant="t4" weight={400} align="center" color={colors.textSecondary}>
-                {bookingType === 'pickup'
+                {luxury
+                  ? t(LUXURY_MAP_EMPTY)
+                  : bookingType === 'pickup'
                   ? t('No garages pick up near you yet — try At garage or Doorstep.')
                   : bookingType === 'doorstep'
                     ? t('No garages travel to this area yet.')
@@ -689,7 +695,9 @@ export default function MapScreen() {
                         <T num variant="t4" weight={600} color={ink}>
                           {vendors.length}
                         </T>{' '}
-                        {nearby
+                        {luxury
+                          ? luxuryMapWords(vendors.length, nearby, t)
+                          : nearby
                           ? vendors.length === 1
                             ? t('garage near you')
                             : t('garages near you')
