@@ -120,6 +120,11 @@ export const env = {
   // send an hour. A test posts to the real team chat, so a stuck button or a
   // script must hit a wall.
   telegramTestRateLimit: Number(process.env.TELEGRAM_TEST_RATE_LIMIT ?? '5'),
+  // Back up all garages (admin → Garages): requests each admin may make an
+  // hour. A backup reads every sheet a page at a time (about 50 requests for
+  // every garage today), so this leaves room for many backups and for years
+  // of growth, and still stops a script left looping.
+  backupRateLimit: Number(process.env.BACKUP_RATE_LIMIT ?? '2000'),
   // ─── Browser notifications (Web Push, lib/push.ts, 0044) ──────────────────
   // Garages hear about new bookings and customers about theirs through the
   // browser's own notifications (free). One VAPID key pair for the API,
@@ -325,6 +330,9 @@ export const env = {
   // Searches per signed-in admin per hour. Each one is up to five Google
   // requests (one per kind ticked), the paid part.
   placesSearchRateLimit: Number(process.env.PLACES_SEARCH_RATE_LIMIT ?? '30'),
+  // Service template writes (0082: add, edit, on/off, delete) per signed-in
+  // admin per hour.
+  serviceTemplateWriteRateLimit: Number(process.env.SERVICE_TEMPLATE_WRITE_RATE_LIMIT ?? '120'),
   // E2E only: the finder answers from a fixed list (lib/places/fake.ts) and
   // neither Google nor Ola is called.
   placesFake: readTestFake('PLACES_FAKE', 'replaces Google and Ola place searches with a fixed list'),

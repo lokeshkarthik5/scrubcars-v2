@@ -134,6 +134,39 @@ describe('"Certified only" on GET /vendors', () => {
   })
 })
 
+describe('"Luxury specialists" on GET /vendors (0083)', () => {
+  test('luxuryMake takes a luxury make exactly as LUXURY_MAKES writes it, nothing else', () => {
+    expect(listPublicVendorsQuerySchema.parse({ luxuryMake: 'Mercedes-Benz' }).luxuryMake).toBe('Mercedes-Benz')
+    expect(listPublicVendorsQuerySchema.parse({}).luxuryMake).toBeUndefined()
+    for (const bad of ['benz', 'bmw', 'Toyota', 'Other', '']) {
+      expect(listPublicVendorsQuerySchema.safeParse({ luxuryMake: bad }).success).toBe(false)
+    }
+  })
+
+  test('luxury=1 or true filters, 0, false or absent does not, anything else is refused', () => {
+    expect(listPublicVendorsQuerySchema.parse({ luxury: '1' }).luxury).toBe(true)
+    expect(listPublicVendorsQuerySchema.parse({ luxury: 'true' }).luxury).toBe(true)
+    expect(listPublicVendorsQuerySchema.parse({ luxury: '0' }).luxury).toBe(false)
+    expect(listPublicVendorsQuerySchema.parse({ luxury: 'false' }).luxury).toBe(false)
+    expect(listPublicVendorsQuerySchema.parse({}).luxury).toBeUndefined()
+    expect(listPublicVendorsQuerySchema.safeParse({ luxury: 'yes' }).success).toBe(false)
+  })
+
+  test('it goes with the service, Silver & above and every mode', () => {
+    for (const bookingType of ['dropin', 'doorstep', 'pickup'] as const) {
+      const query = listPublicVendorsQuerySchema.parse({
+        luxury: '1',
+        tier: 'silver',
+        category: 'car_wash',
+        bookingType,
+        lat: '13.08',
+        lng: '80.27',
+      })
+      expect(query).toMatchObject({ luxury: true, tier: 'silver', category: 'car_wash', bookingType })
+    }
+  })
+})
+
 // On inspection with no fee, and the approx price (0073).
 describe('a service priced on inspection', () => {
   const base = { name: 'Dent repair', category: 'scratch_removal' as const, pricingType: 'on_inspection' as const, durationMins: 60 }

@@ -34,9 +34,10 @@ const TABS = [
  *
  * The approved F + H look (customer UI round, Nov 2026, red-glow mockup):
  * the tab you are on sits in a graphite orb with a ring of light, the other
- * icons are brushed silver, the + is pearl, all on a glass bar. The ring is
- * still: it pops in once when the tab is reached and never turns (one-shot
- * motion only, none under reduced motion); the + never shines.
+ * icons are brushed silver, the + is pearl, all on a glass bar. The orb
+ * pops in when the tab is reached and its ring of light turns while the tab
+ * is lit, the one loop the finish allows (still under reduced motion); the +
+ * never shines.
  *
  * Search is not a tab any more (owner decision D9): it stays at /search, a
  * tap away from the garage list that + opens. Which item is lit, and why

@@ -23,6 +23,7 @@ import { TIER_LABELS } from '@repo/core/tiers'
 import { TierMedalIcon } from '@repo/ui/features/tier-medal'
 import { SidePanelMarks } from '@/components/marks/side-panel-marks'
 import { GoogleListingSection } from '@/components/garages/google-listing'
+import { GarageLuxurySection } from '@/components/garage-luxury-section'
 import { ColourCell } from '@/components/garages/colour-tags'
 import { colourSetLine } from '@/lib/garage-colours'
 import { WithTeamCell } from '@/components/collection/with-team-cell'
@@ -173,6 +174,10 @@ export function GarageSidePanel({
         </>
       }
     >
+      {/* Luxury car specialists (0083): the application and the team's
+          answer, or the badge; only for a garage that applied or holds it. */}
+      {v.luxury && <GarageLuxurySection key={v.id} vendor={v} />}
+
       {step && (
         <SidePanelSection title="Next step">
           <p className={cn('text-[13.5px] font-medium', STEP_TONE[step.tone])}>

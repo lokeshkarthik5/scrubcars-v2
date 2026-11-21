@@ -17,6 +17,7 @@ const { tiersService } = await import('../tiers/tiers.service.js')
 const { citiesService } = await import('../cities/cities.service.js')
 const { reachService } = await import('../reach/reach.service.js')
 const { reachRepository } = await import('../reach/reach.repository.js')
+const { branchGroupsRepository } = await import('../branch-groups/branch-groups.repository.js')
 
 const id = (n: number) => `e2e00000-0000-4000-8000-${String(n).padStart(12, '0')}`
 const NEW_LINKED = id(8130)
@@ -79,6 +80,10 @@ function standIn() {
   )
   patch(reviewsRepository, 'tagCounts', async () => [])
   patch(tiersService, 'customerTiers', async () => new Map())
+  // Branches (0081) and the Luxury badge (0083): none of these garages has either.
+  patch(branchGroupsRepository, 'listCardGroups', async () => [])
+  patch(branchGroupsRepository, 'listLiveBranches', async () => [])
+  patch(vendorsRepository, 'listLuxuryBadges', async () => new Map())
   patch(citiesService, 'rules', async () => ({ cities: [], standingOf: () => ({ cityShown: true }) }))
   patch(vendorsRepository, 'listGoogleRatings', async (ids: string[], heldSince: Date) => {
     googleReads++

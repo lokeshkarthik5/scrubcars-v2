@@ -51,6 +51,7 @@ import {
   type SortState,
 } from '@/components/table'
 import { BulkColourButton, ColourChips } from '@/components/garages/colour-tags'
+import { GarageBackupHeader } from '@/components/garages/garage-backup'
 import { TargetCounter } from '@/components/garages/target-counter'
 import { AddMarkButton } from '@/components/marks/add-mark-button'
 import { AskWhatsAppButton } from '@/components/marks/ask-whatsapp-button'
@@ -74,6 +75,10 @@ import {
   ELIGIBLE_LABEL,
   NO_GOOGLE_FILTER,
   NO_GOOGLE_LABEL,
+  LUXURY_APPLICATIONS_FILTER,
+  LUXURY_APPLICATIONS_LABEL,
+  LUXURY_SPECIALISTS_FILTER,
+  LUXURY_SPECIALISTS_LABEL,
   REVIEW_FILTER,
   REVIEW_LABEL,
   SHOW_FILTERS,
@@ -84,8 +89,12 @@ import {
   garageListHref,
   isInBin,
   isMissing,
+  isLuxuryFilter,
   isMoreFilter,
+  luxuryCounts,
   matchesCity,
+  moreToReviewCount,
+  oldestApplicationFirst,
   cityOptions,
   isStageFilter,
   matchesOnboardedBy,
@@ -106,6 +115,7 @@ import {
   garageColumns,
 } from './garage-columns'
 import { GarageSidePanel } from './garage-side-panel'
+import { luxuryColumns } from './luxury-columns'
 
 export default function AdminVendorsPage() {
   // useSearchParams needs a Suspense boundary, or Next.js refuses to
@@ -216,6 +226,10 @@ function VendorsList() {
   // Google rating for new garages: only from an API that sends `google`.
   const hasGoogle = vendors.some((v) => v.google !== undefined)
   const noGoogle = noGoogleListingCount(vendors)
+  // Luxury car specialists (0083): applications waiting for the team (also
+  // counted in "to review") and the garages holding the badge.
+  const luxury = luxuryCounts(vendors)
+  const moreToReview = moreToReviewCount(vendors)
 
   // Every filter but Missing, which counts its chips over these.
   const filtered = vendors.filter(
@@ -230,7 +244,11 @@ function VendorsList() {
   // colour chips count over what Missing leaves, as Missing counts over the
   // rest.
   const beforeColour = filtered.filter((v) => isMissing(v, missing))
-  const shown = beforeColour.filter((v) => matchesColour(v, colour))
+  const matching = beforeColour.filter((v) => matchesColour(v, colour))
+  // Luxury applications are a queue: oldest first.
+  const shown =
+    show === LUXURY_APPLICATIONS_FILTER ? oldestApplicationFirst(matching) : matching
+  const luxuryView = isLuxuryFilter(show)
   const inBin = show === 'bin'
 
   const teamCounts = {
@@ -424,7 +442,13 @@ function VendorsList() {
 
   const closePanel = useCallback(() => setOpenId(null), [])
 
-  const columns = inBin
+  const columns = luxuryView
+    ? luxuryColumns({
+        mode: show === LUXURY_APPLICATIONS_FILTER ? 'applications' : 'specialists',
+        openId,
+        onOpen: (v) => setOpenId((id) => (id === v.id ? null : v.id)),
+      })
+    : inBin
     ? binColumns({
         onRestore: (v) => openDialog('restore', v),
         onDelete: (v) => openDialog('delete', v),
@@ -490,10 +514,13 @@ function VendorsList() {
           ) : undefined
         }
         // The page's one red: adding a garage is what it is for.
+        // The owner's Download backup sits beside it, in the quiet style.
         actions={
-          <ScButtonLink href="/vendors/new">
-            <IconPlus size={16} aria-hidden="true" /> Add garage
-          </ScButtonLink>
+          <GarageBackupHeader>
+            <ScButtonLink href="/vendors/new">
+              <IconPlus size={16} aria-hidden="true" /> Add garage
+            </ScButtonLink>
+          </GarageBackupHeader>
         }
       />
 
@@ -575,9 +602,9 @@ function VendorsList() {
                 >
                   <IconAdjustmentsHorizontal size={15} aria-hidden="true" />
                   More filters
-                  {toReview > 0 && !isMoreFilter(show) && (
+                  {moreToReview > 0 && !isMoreFilter(show) && (
                     <span className="font-numeric text-tone-attention-text">
-                      · {toReview} to review
+                      · {moreToReview} to review
                     </span>
                   )}
                 </button>
@@ -624,6 +651,22 @@ function VendorsList() {
                     className="min-h-11 shrink-0 rounded-[8px] text-[13px]"
                   />
                 )}
+                {/* Luxury car specialists (0083): applications waiting for
+                    the team, oldest first, and who holds the badge. */}
+                <FilterChip
+                  label={LUXURY_APPLICATIONS_LABEL}
+                  count={luxury.applications}
+                  active={show === LUXURY_APPLICATIONS_FILTER}
+                  onClick={() => chooseShow(LUXURY_APPLICATIONS_FILTER)}
+                  className="min-h-11 shrink-0 rounded-[8px] text-[13px]"
+                />
+                <FilterChip
+                  label={LUXURY_SPECIALISTS_LABEL}
+                  count={luxury.specialists}
+                  active={show === LUXURY_SPECIALISTS_FILTER}
+                  onClick={() => chooseShow(LUXURY_SPECIALISTS_FILTER)}
+                  className="min-h-11 shrink-0 rounded-[8px] text-[13px]"
+                />
               </div>
             )}
             <div className="mt-2.5 text-[12px] leading-[1.45] text-text-muted">
@@ -654,7 +697,7 @@ function VendorsList() {
                     Matching <span className="text-text-primary">“{q}”</span>
                   </span>
                 )}
-                {!inBin && (
+                {!inBin && !luxuryView && (
                   <ColumnsButton
                     columns={optionalColumns}
                     hidden={hiddenChoice}
@@ -789,7 +832,7 @@ function VendorsList() {
               className="min-w-0 flex-1"
               rows={shown}
               columns={columns}
-              hiddenColumns={inBin ? undefined : hiddenColumns}
+              hiddenColumns={inBin || luxuryView ? undefined : hiddenColumns}
               phoneGrid={inBin ? undefined : GARAGE_PHONE_GRID}
               rowKey={(v) => v.id}
               rowLabelId={(v) => `vendor-${v.id}-name`}
@@ -819,7 +862,11 @@ function VendorsList() {
                 <span>
                   Showing <span className="font-numeric">{shown.length}</span>{' '}
                   {shown.length === 1 ? 'garage' : 'garages'}
-                  {sort ? ' · sorted' : ' · newest first'}
+                  {sort
+                    ? ' · sorted'
+                    : show === LUXURY_APPLICATIONS_FILTER
+                      ? ' · oldest first'
+                      : ' · newest first'}
                 </span>
               }
             />
@@ -832,6 +879,12 @@ function VendorsList() {
               onClose={closePanel}
             />
           </div>
+
+          {show === LUXURY_APPLICATIONS_FILTER && (
+            <p className="text-[12px] text-text-muted">
+              A garage that drops below Silver while waiting leaves this list, and is told why.
+            </p>
+          )}
 
           {inBin && (
             <p className="pt-2 text-center text-[13px] text-text-muted">
@@ -914,5 +967,7 @@ function emptyText(show: ListFilter, q: string, anyFilter: boolean): string {
   if (show === CERTIFIED_FILTER) return 'No Gold garages yet.'
   if (show === ELIGIBLE_FILTER) return 'No garage is waiting for Gold.'
   if (show === NO_GOOGLE_FILTER) return 'Every garage is linked to its Google listing.'
+  if (show === LUXURY_APPLICATIONS_FILTER) return 'No luxury applications waiting.'
+  if (show === LUXURY_SPECIALISTS_FILTER) return 'No Luxury specialists yet.'
   return `No garages are ${SHOW_LABELS[show].toLowerCase()}.`
 }

@@ -92,6 +92,8 @@ export function useCreateBranch(vendorId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: adminVendorKeys.lists() })
       void queryClient.invalidateQueries({ queryKey: adminCityKeys.all })
+      // The source and the branch are one group now (0081).
+      void queryClient.invalidateQueries({ queryKey: ['admin-branches'] })
     },
   })
 }

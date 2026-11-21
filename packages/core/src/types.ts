@@ -1,3 +1,4 @@
+import type { LuxuryBadge } from './luxury'
 import type { Tier } from '@repo/core/tiers'
 import type { OpeningDay } from '@repo/core/opening-hours'
 import type { PickupNext } from '@repo/core/pickup'
@@ -5,6 +6,7 @@ import type { PickupFeePlan } from '@repo/core/pickup-fee-maths'
 import type { OutsideServiceCity } from '@repo/core/service-city'
 import type { ReachCity } from '@repo/core/cities'
 import type { GoogleRating } from '@repo/core/ratings'
+import type { BranchGroupLine, GarageBranch } from '@repo/core/branches'
 
 /**
  * How the car and the work meet. 'pickup' is pickup & drop: the garage
@@ -147,6 +149,23 @@ export interface Vendor {
    * older than tiers.
    */
   tier: Tier | null
+  /**
+   * The card's "1 of 3 Shine Auto Spa branches" (0081): its group and how
+   * many of its branches customers can find, when two or more; null
+   * otherwise and from an older API. List items only.
+   */
+  branchGroup?: BranchGroupLine | null
+  /**
+   * The garage page's "Also at" (0081): its other live branches, with their
+   * pins. Empty when none and from an older API. The garage page only.
+   */
+  branches?: GarageBranch[]
+  /**
+   * The quiet "Luxury specialist" badge (0083): the brands the Detlio team
+   * approved, while it shows (approved, and Silver or Gold held); null
+   * otherwise and from an older API. See ./luxury.
+   */
+  luxury?: LuxuryBadge | null
 }
 
 // Photos of a service's work, shown in the details popup on the garage page.

@@ -139,7 +139,7 @@ export const reachService = {
     // "Silver & above" as the list itself reads it (vendors.service).
     const tiers =
       query.tier === 'silver' || query.certified ? ((await tiersService.silverFilterTiers()) ?? undefined) : undefined
-    const filters = { category: query.category, tiers }
+    const filters = { category: query.category, tiers, luxury: query.luxury === true, luxuryMake: query.luxuryMake }
 
     // At garage's own far-garage limit (0070), so its count is what that
     // tab lists, whichever tab is asking: from the origin, else the whole

@@ -30,6 +30,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="photos" />
       <Tabs.Screen name="settings/documents" />
       <Tabs.Screen name="settings/members" />
+      <Tabs.Screen name="settings/luxury" />
     </Tabs>
   );
 }

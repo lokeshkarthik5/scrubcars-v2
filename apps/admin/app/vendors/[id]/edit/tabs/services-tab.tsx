@@ -1,7 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import { IconChevronDown, IconEyeOff, IconTrash } from '@tabler/icons-react'
+import {
+  IconChevronDown,
+  IconEyeOff,
+  IconHierarchy2,
+  IconTrash,
+} from '@tabler/icons-react'
+import type { AdminBranches } from '@repo/core/api/admin-branches'
+import { BranchDeleteSheet } from '@/components/branch-save-sheets'
+import { servicesBanner } from '@/lib/branch-groups'
 import { AddOnsTable } from './add-ons-table'
 import { ScButton } from '@repo/ui/sc/button'
 import { ConfirmSheet } from '@repo/ui/sc/confirm-sheet'
@@ -19,10 +27,13 @@ export function ServicesTab({
   vendorId,
   g,
   draft,
+  branches,
 }: {
   vendorId: string
   g: GarageDraftState
   draft: GarageDraft
+  /** The garage's branch group (0081), or null: Save and Delete then ask "this branch or all". */
+  branches: AdminBranches | null
 }) {
   // Bumped by "Add add-on", beside "Add service": the table adds a blank row.
   const [addOnRequest, setAddOnRequest] = useState(0)
@@ -42,6 +53,7 @@ export function ServicesTab({
     hideService,
     showServiceAgain,
     deleteService,
+    deleteServiceEverywhere,
     deletingService,
     setDeletingService,
     serviceBusyId,
@@ -52,8 +64,29 @@ export function ServicesTab({
     toLogin,
   } = g
 
+  const banner = branches?.group
+    ? servicesBanner(branches.group.name, branches.group.count)
+    : null
+
   return (
     <>
+      {/* Branches (0081, mockup 2-branches-4): Save and Delete ask which. */}
+      {banner && (
+        <p className="mb-3 flex items-start gap-2.5 rounded-[12px] border border-border bg-surface px-3.5 py-3 text-[12.5px] text-text-secondary">
+          <IconHierarchy2
+            size={16}
+            aria-hidden="true"
+            className="mt-0.5 shrink-0"
+          />
+          <span>
+            {banner.lead}
+            <span className="font-medium text-text-primary">
+              {banner.strong}
+            </span>
+            {banner.rest}
+          </span>
+        </p>
+      )}
       <div className="flex min-h-6 items-center justify-between gap-3">
         <p className="text-[12px] text-text-muted">
           Hide, Show again and Delete save at once; everything else waits for
@@ -71,6 +104,7 @@ export function ServicesTab({
         openRows={openRows}
         setOpenRows={setOpenRows}
         garageName={draft.form.businessName}
+        vendorId={vendorId}
         otherNames={hiddenServices.map((s) => s.name)}
         emptyText={
           hiddenServices.length > 0
@@ -236,25 +270,47 @@ export function ServicesTab({
         )
       )}
 
-      <ConfirmSheet
-        open={deletingService !== null}
-        onClose={() => setDeletingService(null)}
-        level="firm"
-        title={
-          deletingService
-            ? `Delete “${deletingService.name}”?`
-            : 'Delete this service?'
-        }
-        body="It goes off the garage page and out of admin and the garage app for good. Past bookings and receipts keep it. To take it off for a while, Hide it instead."
-        confirmLabel="Delete service"
-        // Stays open until the delete is saved: a refusal shows here, on the
-        // sheet that asked, instead of closing as if it had worked.
-        error={deletingService ? serviceErrors[deletingService.id] : undefined}
-        onConfirm={async () => {
-          if (!deletingService) return
-          if (await deleteService(deletingService)) setDeletingService(null)
-        }}
-      />
+      {branches?.group ? (
+        <BranchDeleteSheet
+          target={deletingService}
+          onClose={() => setDeletingService(null)}
+          vendorId={vendorId}
+          branches={branches}
+          error={
+            deletingService ? serviceErrors[deletingService.id] : undefined
+          }
+          onDelete={async (key) => {
+            if (!deletingService) return false
+            const done = key
+              ? await deleteServiceEverywhere(deletingService, key)
+              : await deleteService(deletingService)
+            if (done) setDeletingService(null)
+            return done
+          }}
+        />
+      ) : (
+        <ConfirmSheet
+          open={deletingService !== null}
+          onClose={() => setDeletingService(null)}
+          level="firm"
+          title={
+            deletingService
+              ? `Delete “${deletingService.name}”?`
+              : 'Delete this service?'
+          }
+          body="It goes off the garage page and out of admin and the garage app for good. Past bookings and receipts keep it. To take it off for a while, Hide it instead."
+          confirmLabel="Delete service"
+          // Stays open until the delete is saved: a refusal shows here, on the
+          // sheet that asked, instead of closing as if it had worked.
+          error={
+            deletingService ? serviceErrors[deletingService.id] : undefined
+          }
+          onConfirm={async () => {
+            if (!deletingService) return
+            if (await deleteService(deletingService)) setDeletingService(null)
+          }}
+        />
+      )}
     </>
   )
 }

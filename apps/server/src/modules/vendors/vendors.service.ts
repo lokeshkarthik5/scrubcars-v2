@@ -54,6 +54,7 @@ import { cardGoogleRating, type GoogleRating } from '../../lib/ratings.js'
 import { vendorsRepository } from './vendors.repository.js'
 import { slotAlertsService } from '../slot-alerts/slot-alerts.service.js'
 import { areaSignupsService } from '../area-signups/area-signups.service.js'
+import { branchGroupsService } from '../branch-groups/branch-groups.service.js'
 import { citiesService } from '../cities/cities.service.js'
 import { cityById, storedWholeCity, WHOLE_CITY_NEEDS_CITY, type CityPlace } from '../../lib/cities.js'
 import { publicWholeCity, toPublicVendor, type PublicVendorFields } from './vendors.public.js'
@@ -238,6 +239,20 @@ export type PublicVendorResponse = PublicVendorFields & {
    * garage typed.
    */
   garageCity: { id: string; name: string } | null
+  /**
+   * "Also at" (0081): the garage's other branches customers can find (the
+   * lists' rule, LISTED_TO_CUSTOMERS), by area, with their pins so the page
+   * can say how far each is. Empty when it has none; never a branch that is
+   * not live.
+   */
+  branches: Array<{ id: string; name: string; lat: number | null; lng: number | null }>
+  /**
+   * The Luxury specialist badge (0083): the brands the Detlio team approved,
+   * while it shows (approved, and Silver or Gold held); null otherwise. On
+   * purpose and only this: never the application, its photos or the team's
+   * notes (the raw luxury_* columns stay off toPublicVendor's allow-list).
+   */
+  luxury: { brands: string[] } | null
 }
 
 export type VendorListItemResponse = {
@@ -321,6 +336,18 @@ export type VendorListItemResponse = {
    * or null. Only this (vendors.public.ts says why).
    */
   tier: Tier | null
+  /**
+   * "1 of 3 Shine Auto Spa branches" (0081): the garage's group and how many
+   * of its branches customers can find, itself included; null unless two or
+   * more are live.
+   */
+  branchGroup: { name: string; liveCount: number } | null
+  /**
+   * The quiet "Luxury specialist" chip (0083): the brands the Detlio team
+   * approved, while the badge shows (approved, and Silver or Gold held);
+   * null otherwise. Never the application, its photos or the team's notes.
+   */
+  luxury: { brands: string[] } | null
 }
 
 export type VendorListResponse = {
@@ -937,6 +964,10 @@ export async function vendorCardsFor(
   // and none at all for the map, which never shows it.
   const map = options.map === true
   const googleRatings = map ? new Map<string, GoogleRating>() : await googleRatingsFor(rows.map((vendor) => vendor.id), new Date())
+  // "1 of 3 … branches" (0081): one read for the whole page.
+  const groups = await branchGroupsService.cardGroupsOf(rows.map((vendor) => vendor.id))
+  // The Luxury specialist badge (0083): one read for the whole page.
+  const luxury = await vendorsRepository.listLuxuryBadges(rows.map((vendor) => vendor.id))
   // The pickup fee (0079): the settings, cached, for the cards that collect.
   const feeSettings = rows.some((vendor) => isPickupOffered(vendor)) ? await pickupFeesService.settings() : null
   const closuresByVendor = new Map<string, string[]>()
@@ -992,8 +1023,15 @@ export async function vendorCardsFor(
       outsideServiceCity: outsideServiceCity(vendor),
       garageCity: cityNameOf(vendor.cityId, cityRules.cities),
       tier: tiers.get(vendor.id) ?? null,
+      branchGroup: groups.get(vendor.id) ?? null,
+      luxury: luxuryBadge(luxury.get(vendor.id)),
     }
   })
+}
+
+/** A garage's badge as customers get it: the brands, or null without the badge. */
+function luxuryBadge(brands: string[] | undefined): { brands: string[] } | null {
+  return brands === undefined ? null : { brands }
 }
 
 /**
@@ -1157,6 +1195,8 @@ export const vendorsService = {
         bookingType: query.bookingType,
         category: query.category,
         tiers: silverFilter,
+        luxury: query.luxury === true,
+        luxuryMake: query.luxuryMake,
         q: query.q,
         sort,
         segment: 'located',
@@ -1171,6 +1211,8 @@ export const vendorsService = {
           bookingType: query.bookingType,
           category: query.category,
           tiers: silverFilter,
+          luxury: query.luxury === true,
+          luxuryMake: query.luxuryMake,
           q: query.q,
           sort,
           segment: 'unlocated',
@@ -1190,6 +1232,8 @@ export const vendorsService = {
         bookingType: query.bookingType,
         category: query.category,
         tiers: silverFilter,
+        luxury: query.luxury === true,
+        luxuryMake: query.luxuryMake,
         q: query.q,
         sort,
         segment: 'unlocated',
@@ -1230,6 +1274,10 @@ export const vendorsService = {
       isPickupOffered(vendor) ? await pickupFeesService.settings() : null,
     ]
     const googleRatings = await googleRatingsFor([vendor.id], new Date())
+    // "Also at" (0081): its other live branches, in one read.
+    const branches = await branchGroupsService.liveBranchesOf(vendor.id)
+    // The Luxury specialist badge (0083).
+    const luxury = await vendorsRepository.listLuxuryBadges([vendor.id])
 
     const rating = ratings.get(vendor.id)
 
@@ -1248,6 +1296,8 @@ export const vendorsService = {
       google: googleRatings.get(vendor.id) ?? null,
       outsideServiceCity: outsideServiceCity(vendor),
       garageCity: cityNameOf(vendor.cityId, cityRules.cities),
+      branches,
+      luxury: luxuryBadge(luxury.get(vendor.id)),
     }
   },
 

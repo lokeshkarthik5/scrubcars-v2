@@ -71,6 +71,18 @@ export interface VendorListParams {
    * Google's). The list and search leave it out.
    */
   forMap?: boolean
+  /**
+   * "Luxury specialists" (0083): only garages showing the Luxury specialist
+   * badge. Filtered on the server, so paging, the counts and the map hold;
+   * works with every other filter and all three modes.
+   */
+  luxury?: boolean
+  /**
+   * "Specialists for your <Make>" (0083): only specialists the team approved
+   * for this make (one of LUXURY_MAKES, already normalised). Narrower than
+   * `luxury`; filtered on the server, so the row's "See all" count holds.
+   */
+  luxuryMake?: string
   limit?: number
   cursor?: string
 }
@@ -123,6 +135,8 @@ export async function getVendors(
       tier: params?.silverAndAbove ? 'silver' : undefined,
       // Sent only on the map: left out, a list.
       map: params?.forMap ? 'true' : undefined,
+      luxury: params?.luxury ? '1' : undefined,
+      luxuryMake: params?.luxuryMake || undefined,
       limit: params?.limit,
       cursor: params?.cursor,
     },

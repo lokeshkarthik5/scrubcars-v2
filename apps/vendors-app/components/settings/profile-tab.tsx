@@ -10,15 +10,18 @@ import { ScCard } from '@repo/native-ui/primitives';
 import { LinkRow, SectionHeader } from '@/components/rows';
 import { getGarageDocumentsConfig } from '@/lib/documents-api';
 import { documentsRowDescription } from '@/lib/documents-view';
-import { useIsVendorAdmin } from '@/lib/auth';
+import { useAuth, useIsVendorAdmin } from '@/lib/auth';
+import { useGarageLuxury } from '@/lib/luxury-api';
+import { luxuryRowLine } from '@repo/core/luxury-form';
+import { IconLock } from '@repo/native-ui/icons';
 import { updateVendorSettings } from '@/lib/vendor-api';
 import { digitsOnly, type ProfileForm, profileFromVendor, profilePayload } from '@/lib/settings-logic';
 
-import { IconFileCertificate, IconFileText, IconPhoto } from './settings-icons';
+import { IconFileCertificate, IconFileText, IconPhoto, IconSteeringWheel } from './settings-icons';
 import { useSaving } from './use-saving';
 import { useT } from '@repo/core/i18n';
 
-/** Settings > Profile (apps/vendors/app/settings/page.tsx), with its three link rows. */
+/** Settings > Profile (apps/vendors/app/settings/page.tsx), with its link rows. */
 export function ProfileTab({
   vendor,
   onSaved,
@@ -124,7 +127,28 @@ export function ProfileTab({
         description={t('Read and accept the Detlio garage agreement, for Bronze')}
         onPress={() => router.push('/agreement' as Href)}
       />
+      {isAdmin ? <LuxuryRow /> : null}
     </>
+  );
+}
+
+/**
+ * Luxury car specialist (0083): where a Silver or Gold garage applies for the badge. The
+ * owner seat only, like the API. Locked ("Reach Silver to apply") below Silver; its line
+ * follows the application after that.
+ */
+function LuxuryRow() {
+  const t = useT();
+  const vendorId = useAuth((s) => s.activeVendorId) ?? undefined;
+  const { data } = useGarageLuxury(vendorId);
+  const { line, locked } = luxuryRowLine(data);
+  return (
+    <LinkRow
+      icon={locked ? <IconLock size={18} /> : <IconSteeringWheel size={18} />}
+      title={t('Luxury car specialist')}
+      description={t(line)}
+      onPress={() => router.push('/settings/luxury' as Href)}
+    />
   );
 }
 

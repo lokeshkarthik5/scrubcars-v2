@@ -3,7 +3,8 @@
  * docs/ui-round-2026-11.md §1: one type scale, one icon weight, the
  * materials (edges that catch the light, raised and recessed controls,
  * glass, pearl), red in exactly two ways (a red light, and the solid red
- * button for the booking or payment action) and one-shot motion.
+ * button for the booking or payment action) and one-shot motion, with one
+ * loop: the lit tab's ring of light on the bottom bar (.hub-orb), which turns.
  *
  * The customer website's look. apps/users imports this after the shared
  * globals and puts `finish` on <body>. apps/vendors imports it too, with no
@@ -359,10 +360,11 @@
  *
  * The customer's apps/users/components/home/hub-nav.tsx and, since the owner's
  * "Yes, restyle them" (10 Nov 2026), the garage's packages/ui/src/sc/
- * garage-nav.tsx: one copy for both. The tab you are on is a graphite orb with
- * a ring of light (the red-glow mockup's F, held still: the mockup's turning
- * light is a loop, and the finish allows none); the others are brushed silver
- * lines (H). Icons stroke with the bar's metal gradient (#hub-metal).
+ * garage-nav.tsx and Garage Book's bar: one copy for all (LitOrb,
+ * packages/ui/src/finish/lit-orb.tsx). The tab you are on is a graphite orb
+ * with a turning ring of light, the red-glow mockup's F as approved; the
+ * others are brushed silver lines (H). Icons stroke with the bar's metal
+ * gradient (#hub-metal).
  *
  * Not under `.finish`, since the garage portal has no `finish` on its body;
  * so the bar sets its own icon line here, the same 1.6 (1.9 lit) that
@@ -379,6 +381,20 @@
 .hub-tab--on {
   --icon-line: 1.9px;
 }
+/* The orb, the mockup's `.orb` at 30px: from the bottom, a wide and a near
+   bloom, the graphite well, the icon, the ring (a thin band of the red
+   spectrum and, screened over it, the white light) and two glints that ride
+   with the white light.
+
+   The one loop the finish allows (the owner approved F turning): the red
+   spectrum turns clockwise once every 7s and the white light runs the other
+   way once every 3.4s, the mockup's calm --d1 and --d2. Each light is a layer
+   of its own turned with `transform`, which the compositor runs without
+   repainting (the mockup turns the gradients' angles through @property,
+   which repaints every frame; the picture is the same, since every mask here
+   is a circle). Only the lit tab has an orb, so only one ever turns. Under
+   reduced motion it is still, at the mockup's `.still` angles (300deg and
+   20deg), which are also the layers' own transforms below. */
 .hub-orb {
   position: relative;
   display: grid;
@@ -387,24 +403,21 @@
   height: 30px;
   border-radius: 50%;
 }
-.hub-orb > * {
+.hub-orb :is(span, i) {
+  position: absolute;
+  inset: 0;
   border-radius: 50%;
 }
 .hub-orb__well {
-  position: absolute;
-  inset: 0;
   background: radial-gradient(circle at 50% 30%, #2c2c31 0%, #19191c 55%, #0e0e10 100%);
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.09),
     inset 0 -4px 8px rgb(0 0 0 / 0.55);
 }
-/* The ring: a crimson base with two hot spots, warm and pink at their edges,
-   cut to a thin band by the mask. */
-.hub-orb__ring,
-.hub-orb__bloom {
-  position: absolute;
+/* The red spectrum: a crimson base with two hot spots, warm and pink at
+   their edges, and near-black gaps between them. */
+.hub-orb__spec {
   background: conic-gradient(
-    from 300deg,
     rgb(20 0 4 / 0.55) 0deg 28deg,
     #7a0018 50deg,
     #ff2a3d 66deg,
@@ -426,18 +439,111 @@
     #7a0019 314deg,
     rgb(20 0 4 / 0.55) 334deg 360deg
   );
+  transform: rotate(300deg);
+  animation: hub-orb-spec 7s linear infinite;
 }
+/* The white light, running round on its own beat. */
+.hub-orb__hot {
+  background: conic-gradient(
+    transparent 0deg 70deg,
+    rgb(255 236 236 / 0) 84deg,
+    rgb(255 246 246 / 0.95) 100deg,
+    rgb(255 210 220 / 0) 122deg,
+    transparent 230deg,
+    rgb(255 225 230 / 0.55) 262deg,
+    transparent 284deg 360deg
+  );
+  mix-blend-mode: screen;
+}
+.hub-orb__hot,
+.hub-orb__glare {
+  transform: rotate(20deg);
+  animation: hub-orb-hot 3.4s linear infinite;
+}
+@keyframes hub-orb-spec {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes hub-orb-hot {
+  from {
+    transform: rotate(40deg);
+  }
+  to {
+    transform: rotate(-320deg);
+  }
+}
+/* The ring: both lights cut to a thin band at the edge. */
 .hub-orb__ring {
-  inset: 0;
   -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 1.6px), #000 calc(100% - 1.1px));
   mask: radial-gradient(farthest-side, transparent calc(100% - 1.6px), #000 calc(100% - 1.1px));
 }
-.hub-orb__bloom {
+/* The blooms: the same two lights in a wider band, blurred. */
+.hub-orb .hub-orb__bloom {
+  inset: -2%;
+  filter: blur(2.1px) brightness(1.5) saturate(1.2);
+  opacity: 0.8;
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+.hub-orb .hub-orb__bloom--far {
   inset: -4%;
-  filter: blur(6px) brightness(1.6);
-  opacity: 0.75;
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 2.5px), #000 100%);
-  mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 2.5px), #000 100%);
+  filter: blur(7.8px) brightness(1.6);
+  opacity: 0.76;
+}
+.hub-orb__bloom > i {
+  -webkit-mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 3.5px),
+    #000 calc(100% - 2.6px),
+    #000 calc(100% - 0.2px),
+    transparent 100%
+  );
+  mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 3.5px),
+    #000 calc(100% - 2.6px),
+    #000 calc(100% - 0.2px),
+    transparent 100%
+  );
+}
+/* A glint on the ring where the white light is brightest, and a fainter one
+   where its second spot is (the light's 100deg and 262deg). `rotate` places
+   each; the turn is the white light's `transform`, and the two add up. */
+.hub-orb__glare {
+  rotate: 100deg;
+  mix-blend-mode: screen;
+  opacity: 0.87;
+}
+.hub-orb__glare--two {
+  rotate: 262deg;
+  opacity: 0.44;
+}
+.hub-orb__glare::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0.5px;
+  width: 46%;
+  height: 16%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    #fff 0%,
+    rgb(255 225 230 / 0.85) 35%,
+    rgb(255 80 110 / 0.35) 65%,
+    transparent 100%
+  );
+  filter: blur(0.6px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .hub-orb :is(.hub-orb__spec, .hub-orb__hot, .hub-orb__glare) {
+    animation: none;
+  }
 }
 
 /* ─── Stage 2: the finish on shared parts (customer UI round, §1, §7) ────── */

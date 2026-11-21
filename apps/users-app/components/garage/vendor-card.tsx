@@ -5,7 +5,9 @@ import { fill, useT } from '@repo/core/i18n';
 import { hasStarScore, mainGoogleRating, NEW_GARAGE_LABEL, newGarageReviewsLine } from '@repo/core/ratings';
 import { DetlioMark, GoogleMapsText, GoogleMark } from '@repo/native-ui/rating-marks';
 import { anywhereInCityLine } from '@repo/core/reach';
+import { branchesLine } from '@repo/core/branches';
 import type { BookingType, Vendor } from '@repo/core/types';
+import { IconHierarchy2 } from '@repo/native-ui/icons';
 import { PressRow } from '@repo/native-ui/primitives';
 import { RED_LIGHT } from '@repo/native-ui/tokens';
 import { T } from '@repo/native-ui/text';
@@ -94,6 +96,7 @@ export function VendorCard({
   const anywhere = anywhereInCityLine(vendor, mode);
   // Google's rating while it is the main one (21 Nov 2026, @repo/core/ratings).
   const google = mainGoogleRating(vendor);
+  const branchLine = branchesLine(vendor.branchGroup);
 
   return (
     <View>
@@ -194,6 +197,15 @@ export function VendorCard({
               {anywhere}
             </T>
           ) : null}
+          {/* "1 of 3 Shine Auto Spa branches" (0081): live branches only, as the web card. */}
+          {branchLine ? (
+            <View style={styles.branchLine}>
+              <IconHierarchy2 size={13} color={colors.textSecondary} />
+              <T size={12} numberOfLines={1} color={colors.textSecondary} style={styles.branchText}>
+                {branchLine}
+              </T>
+            </View>
+          ) : null}
           {note ? (
             <T size={12} numberOfLines={1} color={colors.textMuted}>
               {note}
@@ -232,6 +244,8 @@ export function VendorCard({
 }
 
 const useStyles = createStyles((c) => ({
+  branchLine: { flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0 },
+  branchText: { flexShrink: 1 },
   card: { overflow: 'hidden', borderRadius: 16, borderWidth: 1, borderColor: c.border, backgroundColor: c.surface },
   cardJoined: { borderBottomWidth: 0, borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
   attached: {

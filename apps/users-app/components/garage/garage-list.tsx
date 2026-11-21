@@ -10,6 +10,7 @@ import { cardPickupChip } from '@repo/core/pickup-fee-customer';
 import { atGarageReach, canCollectFrom, nextTabOffer, outsideLine, skipTheDriveTitle, type NextTabOffer, type SkipTheDriveRow } from '@repo/core/reach';
 import { requestActionLabel } from '@repo/core/booking-requests';
 import { SILVER_KEY_LABEL, SILVER_KEY_QUIET } from '@repo/core/tiers';
+import { LUXURY_APPROVED_LINE, LUXURY_FILTER_LABEL, specialistRow, type LuxuryMake } from '@repo/core/luxury';
 import type { BookingType, Vendor } from '@repo/core/types';
 import type { JustOutsideVendor } from '@repo/core/api/vendors';
 import { msg, t, useT } from '@repo/core/i18n';
@@ -42,7 +43,9 @@ import {
   Platform,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -50,12 +53,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavClearance } from '@/components/hub-nav';
 import { PullCar } from '@/components/moments/pull-car';
 import { useCustomerPlace } from '@/lib/customer-place';
+import { useDefaultCarMake } from '@/lib/default-car';
+import { luxuryCaption, luxuryPeekWords } from '@repo/core/luxury';
 import { cityCentreParams, coarse, isApproximate, isCitywide, shouldOfferLocationPrompt, useLocationStore } from '@/lib/location';
 
 import { FilterSheet, SERVICE_FILTERS, ServiceFilterIcon, serviceFilterLabel, type ServiceFilter } from './filter-sheet';
 import { MapPeek } from './map-peek';
 import { QuickLook } from './quick-look';
 import { RollingHint } from './rolling-hint';
+import { LuxuryFilterChip } from './luxury';
 import { ShowroomCard } from './showroom-card';
 import { canSortByRating, sortLabel, SortSheet, type SortKey } from './sort-sheet';
 import { TierMedalIcon } from './tier';
@@ -279,6 +285,17 @@ export function GarageList({
   const silverFilterOffered = useTierConfig().data?.silverFilter === true;
   const [silverChosen, setSilverChosen] = useState(false);
   const silverOnly = silverChosen && silverFilterOffered;
+  // "Luxury specialists" (0083): a filter on the server like Silver+, so the list, its
+  // count, the map peek and the reach pieces all follow it, with every service and mode.
+  // null: off; 'all': every specialist (the chip); a make: the specialists the team approved for
+  // that make ("Specialists for your <Make>"'s See all, luxuryMake on the server, so its count and
+  // the list agree).
+  const [luxuryFilter, setLuxuryFilter] = useState<LuxuryMake | 'all' | null>(null);
+  const luxuryOn = luxuryFilter !== null;
+  const luxuryMake = luxuryFilter !== null && luxuryFilter !== 'all' ? luxuryFilter : undefined;
+  // The signed-in customer's main car, for "Specialists for your <Make>".
+  const carMake = useDefaultCarMake();
+  const { width: screen } = useWindowDimensions();
   const [chosenSort, setChosenSort] = useState<SortKey | null>(null);
   const [sortOpen, setSortOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -315,6 +332,8 @@ export function GarageList({
       bookingType: mode,
       category: categoryParam,
       silverAndAbove: silverOnly || undefined,
+      luxury: luxuryOn || undefined,
+      luxuryMake,
       lat: origin?.lat,
       lng: origin?.lng,
       ...cityParams,
@@ -330,6 +349,8 @@ export function GarageList({
     {
       bookingType: mode,
       silverAndAbove: silverOnly || undefined,
+      luxury: luxuryOn || undefined,
+      luxuryMake,
       lat: origin?.lat,
       lng: origin?.lng,
       ...cityParams,
@@ -356,7 +377,7 @@ export function GarageList({
       : { skipTheDrive: null, atHomeLine: false, nearestKm: null };
   const listEnded = !isLoading && !isError && !hasMore && !isRefreshing;
   // An empty At garage list with every service, from a place: nothing within 150 km (0070), not a filter.
-  const farEmpty = !silverOnly && mode === 'dropin' && category === 'all' && (!!origin || cityParams.cityLat !== undefined);
+  const farEmpty = !silverOnly && !luxuryOn && mode === 'dropin' && category === 'all' && (!!origin || cityParams.cityLat !== undefined);
   const justOutside = (mode === 'doorstep' || mode === 'pickup') && listEnded ? (outside ?? []) : [];
   const nextOffer = nextTabOffer(mode, reach);
 
@@ -423,6 +444,15 @@ export function GarageList({
     nearestFirst: effectiveSort === 'distance',
     city,
   });
+  // "Specialists for your BMW" (0083): the specialists among the garages listed, above
+  // Nearby garages, for a customer whose main car is a luxury make; not with the filter
+  // on, nor with fewer than two.
+  const specialists = isLoading || isError ? null : specialistRow(carMake, vendors, luxuryOn);
+  const turnLuxuryOn = (make: LuxuryMake) => {
+    setLuxuryFilter(make);
+    scroll.current?.scrollTo({ y: Math.max(0, (controlsY.current ?? 0) - 1), animated: !reduce });
+  };
+
   const listCount = isLoading || small ? null : `${vendors.length}${hasMore ? '+' : ''} ${garagesWord(vendors.length, hasMore)}`;
 
   const controls = (
@@ -484,8 +514,28 @@ export function GarageList({
           />
         ) : null}
       </View>
+      {/* "Luxury specialists" (0083): its own short line under Service and Silver+. */}
+      <View style={styles.luxuryRow}>
+        <LuxuryFilterChip on={luxuryOn} onToggle={() => setLuxuryFilter(luxuryOn ? null : 'all')} />
+      </View>
     </View>
   );
+
+  const cardChips = (vendor: Vendor) =>
+    mode === 'dropin' && canCollectFrom(vendor, origin) ? (
+      <View style={styles.collect}>
+        <T size={12} weight={500} lh={16} color={colors.collectText}>
+          {t('Can collect your car')}
+        </T>
+      </View>
+    ) : mode === 'pickup' && cardPickupChip(vendor) ? (
+      // The pickup fee for this card's distance (0079), in the same chip.
+      <View style={styles.collect}>
+        <T size={12} weight={500} lh={16} color={colors.collectText}>
+          {cardPickupChip(vendor)}
+        </T>
+      </View>
+    ) : undefined;
 
   const cards = vendors.map((vendor, i) => (
     <Fragment key={vendor.id}>
@@ -509,22 +559,7 @@ export function GarageList({
               onQuickLook={setQuickLook}
               scrollY={scrollY}
               top={top}
-              chips={
-                mode === 'dropin' && canCollectFrom(vendor, origin) ? (
-                  <View style={styles.collect}>
-                    <T size={12} weight={500} lh={16} color={colors.collectText}>
-                      {t('Can collect your car')}
-                    </T>
-                  </View>
-                ) : mode === 'pickup' && cardPickupChip(vendor) ? (
-                  // The pickup fee for this card's distance (0079), in the same chip.
-                  <View style={styles.collect}>
-                    <T size={12} weight={500} lh={16} color={colors.collectText}>
-                      {cardPickupChip(vendor)}
-                    </T>
-                  </View>
-                ) : undefined
-              }
+              chips={cardChips(vendor)}
             />
           </Rise>
         )}
@@ -554,14 +589,17 @@ export function GarageList({
           centre={origin ?? city.centre}
           mode={mode}
           category={categoryParam}
+          luxury={luxuryOn}
+          luxuryMake={luxuryMake}
           scrollY={scrollY}
           countLabel={
             small
               ? { count: null, words: detlioInLine(city) }
               : {
                   count: `${near.count}${near.more ? '+' : ''}`,
-                  words:
-                    near.count === 1 && !near.more
+                  words: luxuryOn
+                    ? luxuryPeekWords(near.count, near.more, !!origin, city.name, t)
+                    : near.count === 1 && !near.more
                       ? origin
                         ? t('garage near you')
                         : t('garage in {city}', { city: city.name })
@@ -583,12 +621,56 @@ export function GarageList({
       ) : null}
       {mode !== 'pickup' ? <FreeWashPiece placement="top" /> : null}
 
+      {specialists ? (
+        <View style={styles.section}>
+          <View style={styles.headRow}>
+            <View style={styles.flex}>
+              <T variant="t2" accessibilityRole="header">
+                {t('Specialists for your {make}', { make: specialists.make })}
+              </T>
+              <T variant="t5" color={fx.quiet} style={styles.caption}>
+                {t(LUXURY_APPROVED_LINE)}
+              </T>
+            </View>
+            <PressScale accessibilityRole="button" onPress={() => turnLuxuryOn(specialists.make)}>
+              <Raised radius={12} style={styles.sort} innerStyle={styles.sortInner}>
+                <T variant="t4" numberOfLines={1} color={fx.soft}>
+                  {t('See all {count}', { count: `${specialists.garages.length}${hasMore ? '+' : ''}` })}
+                </T>
+                <IconChevronRight size={15} color={fx.quiet} />
+              </Raised>
+            </PressScale>
+          </View>
+          {/* Sideways, the same cards as the list: the next one peeks in. */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            snapToInterval={screen - 60 + 12}
+            decelerationRate="fast"
+            style={styles.rowScroll}
+            contentContainerStyle={styles.rowContent}
+          >
+            {specialists.garages.map((vendor) => (
+              <ShowroomCard
+                key={vendor.id}
+                vendor={vendor}
+                mode={mode}
+                width={screen - 60}
+                approxDistance={approximate}
+                onQuickLook={setQuickLook}
+                chips={cardChips(vendor)}
+              />
+            ))}
+          </ScrollView>
+        </View>
+      ) : null}
+
       <View style={styles.section}>
         <View>
           <View style={styles.headRow}>
             {/* No count beside it: the count lives in the filter button. */}
             <T variant="t2" accessibilityRole="header" style={styles.flex}>
-              {mode === 'dropin' && atGarage.skipTheDrive ? t('Or drive to') : small ? inCityHeading(city) : t('Nearby garages')}
+              {luxuryMake ? t('Specialists for your {make}', { make: luxuryMake }) : luxuryOn ? t(LUXURY_FILTER_LABEL) : mode === 'dropin' && atGarage.skipTheDrive ? t('Or drive to') : small ? inCityHeading(city) : t('Nearby garages')}
             </T>
             <PressScale accessibilityRole="button" onPress={() => setSortOpen(true)}>
               <Raised radius={12} style={styles.sort} innerStyle={styles.sortInner}>
@@ -599,7 +681,12 @@ export function GarageList({
               </Raised>
             </PressScale>
           </View>
-          {origin && location && vendors.length > 0 && sort === 'distance' ? (
+          {luxuryOn && vendors.length > 0 ? (
+            <T variant="t5" color={fx.quiet} style={styles.caption}>
+              {luxuryCaption(!!origin && sort === 'distance', t)}
+            </T>
+          ) : null}
+          {!luxuryOn && origin && location && vendors.length > 0 && sort === 'distance' ? (
             <T variant="t5" color={fx.quiet} style={styles.caption}>
               {t('Nearest first from {label}', { label: t(location.label) })}
               {approximate ? ` ${t('(distances from the area’s centre)')}` : ''}
@@ -633,7 +720,9 @@ export function GarageList({
           ) : vendors.length === 0 ? (
             <View style={styles.none}>
               <T variant="t3" weight={400} color={colors.textSecondary} align="center">
-                {silverOnly
+                {luxuryOn
+                  ? t('No luxury specialists here yet. Turn off “{label}” to see every garage.', { label: t(LUXURY_FILTER_LABEL) })
+                  : silverOnly
                   ? t('No Silver or Gold garages here yet. Turn off “{label}” to see every garage.', { label: t(SILVER_KEY_LABEL) })
                   : mode === 'pickup'
                     ? t('No garage collects from your area yet.')
@@ -650,22 +739,27 @@ export function GarageList({
                     {t('Choose a city')}
                   </ScButton>
                 ) : null}
-                {silverOnly ? (
+                {luxuryOn ? (
+                  <ScButton variant="outline" fullWidth={false} onPress={() => setLuxuryFilter(null)}>
+                    {t('Show every garage')}
+                  </ScButton>
+                ) : null}
+                {!luxuryOn && silverOnly ? (
                   <ScButton variant="outline" fullWidth={false} onPress={() => setSilverChosen(false)}>
                     {t('Show every garage')}
                   </ScButton>
                 ) : null}
-                {!silverOnly && category !== 'all' ? (
+                {!silverOnly && !luxuryOn && category !== 'all' ? (
                   <ScButton variant="outline" fullWidth={false} onPress={() => setCategory('all')}>
                     {t('Show all services')}
                   </ScButton>
                 ) : null}
-                {!silverOnly && origin && mode !== 'dropin' ? (
+                {!silverOnly && !luxuryOn && origin && mode !== 'dropin' ? (
                   <ScButton variant="outline" fullWidth={false} onPress={() => selectCity(city)}>
                     {t('Show all of {city}', { city: city.name })}
                   </ScButton>
                 ) : null}
-                {!silverOnly && mode !== 'dropin' ? (
+                {!silverOnly && !luxuryOn && mode !== 'dropin' ? (
                   <ScButton variant="outline" fullWidth={false} onPress={() => switchTo('dropin')}>
                     {t('Try {mode}', { mode: t(BOOKING_TYPE_LABELS.dropin) })}
                   </ScButton>
@@ -738,6 +832,9 @@ const useStyles = createStyles((c) => ({
     borderBottomColor: 'transparent',
   },
   filterRow: { marginTop: 8, flexDirection: 'row', gap: 8 },
+  luxuryRow: { marginTop: 8, flexDirection: 'row' },
+  rowScroll: { marginHorizontal: -16 },
+  rowContent: { gap: 12, paddingHorizontal: 16, paddingBottom: 4 },
   countLine: { flexDirection: 'row', alignItems: 'flex-end' },
   skip: { gap: 12, borderRadius: 18, borderWidth: 1, borderColor: c.skipBorder, backgroundColor: c.skipBg, padding: 16 },
   skipTitle: { marginTop: 6 },

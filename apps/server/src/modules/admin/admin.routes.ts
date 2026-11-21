@@ -40,6 +40,7 @@ import { adminDocumentRoutes } from '../vendor-documents/vendor-documents.routes
 import { adminCertificationRoutes } from '../certification/certification.routes.js'
 import { adminAgreementRoutes } from '../agreements/agreements.routes.js'
 import { adminTierRoutes } from '../tiers/tiers.routes.js'
+import { adminLuxuryRoutes } from '../luxury/luxury.routes.js'
 import { adminPickupFeeRoutes } from '../pickup-fees/pickup-fees.routes.js'
 import { adminVendorImportRoutes } from '../vendor-imports/vendor-imports.routes.js'
 import {
@@ -56,9 +57,12 @@ import { adminLeadsRoutes } from '../leads/leads.routes.js'
 import { adminBookingRequestRoutes } from '../booking-requests/booking-requests.routes.js'
 import { adminRepairQuoteRoutes } from '../repair-quotes/repair-quotes.routes.js'
 import { adminServiceCategoryRoutes } from '../service-categories/service-categories.routes.js'
+import { adminServiceTemplateRoutes } from '../service-templates/service-templates.routes.js'
 import { adminPlacesRoutes } from '../places/places.routes.js'
 import { adminGarageGoogleRoutes } from '../garage-google/garage-google.routes.js'
 import { adminOwnerDeleteRoutes } from '../owner-delete/owner-delete.routes.js'
+import { adminGarageBackupRoutes } from '../garage-backup/garage-backup.routes.js'
+import { adminBranchGroupRoutes } from '../branch-groups/branch-groups.routes.js'
 import { adminCustomerRoutes } from '../admin-customers/admin-customers.routes.js'
 import * as adminController from './admin.controller.js'
 import {
@@ -221,6 +225,14 @@ adminRoutes.route('/', adminOwnerDeleteRoutes)
 // search, /link and /unlink, the side panel's Google listing. Mounted at the
 // root for the cookie's sake, like the Bin.
 adminRoutes.route('/', adminGarageGoogleRoutes)
+// Back up all garages (18 Nov 2026): /backup/*, owner only. Its own module;
+// mounted at the root for the cookie's sake.
+adminRoutes.route('/', adminGarageBackupRoutes)
+// Branch groups (0081): the Branches card, Link an existing garage, Remove
+// from group, and changing services at every branch at once
+// (/vendors/:id/branches/*). Its own module; mounted at the root for the
+// cookie's sake.
+adminRoutes.route('/', adminBranchGroupRoutes)
 // The Customers page (10 Nov 2026): search, a customer's page, and the
 // owner's Delete customer account.
 adminRoutes.route('/customers', adminCustomerRoutes)
@@ -516,6 +528,9 @@ adminRoutes.route('/certification', adminCertificationRoutes)
 adminRoutes.route('/tiers', adminTierRoutes)
 adminRoutes.route('/pickup-fees', adminPickupFeeRoutes)
 adminRoutes.route('/agreements', adminAgreementRoutes)
+// Luxury car specialists (0083): a garage's application and the team's
+// Approve / Ask for more / Decline / Remove badge.
+adminRoutes.route('/luxury', adminLuxuryRoutes)
 
 // Telegram: whether the team's alerts are set up, and "Send test alert".
 // Nested here for the same cookie reason as discounts.
@@ -570,6 +585,8 @@ adminRoutes.route('/repair-quotes', adminRepairQuoteRoutes)
 // Settings → Services in Others (0080): every garage's services in Others,
 // Move into the new categories, and "Not this".
 adminRoutes.route('/service-categories', adminServiceCategoryRoutes)
+// Settings → Service templates (0082): the editor's "Add from template".
+adminRoutes.route('/service-templates', adminServiceTemplateRoutes)
 // Garage Book (0072): a garage's book, read-only, every look logged.
 adminRoutes.route('/', adminGarageBookRoutes)
 adminRoutes.route('/places', adminPlacesRoutes)

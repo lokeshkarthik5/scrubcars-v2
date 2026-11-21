@@ -108,6 +108,9 @@ formal literary Tamil, not machine-literal.
 | Owner / Admin / Operator / Member | உரிமையாளர் / அட்மின் / ஆப்பரேட்டர் / உறுப்பினர் |
 | Team | டீம் |
 | Bronze / Silver / Gold | பிரான்ஸ் / சில்வர் / கோல்டு |
+| Luxury car specialist / Luxury specialist (the badge) / Luxury specialists (the filter) | லக்ஸரி கார் ஸ்பெஷலிஸ்ட் / லக்ஸரி ஸ்பெஷலிஸ்ட் / லக்ஸரி ஸ்பெஷலிஸ்ட்கள் |
+| Covered or indoor bay | மூடிய அல்லது உள்ளே இருக்கும் பே |
+| Brand(s) (a car make) | பிராண்ட் / பிராண்டுகள் |
 | Chennai | சென்னை |
 | Job (a garage's piece of work) | வேலை / வேலைகள் |
 | Walk-in (Garage Book: a customer the garage brings in itself) | வாக்-இன் |
